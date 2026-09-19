@@ -1,0 +1,862 @@
+# Fire Control: Cut Map
+
+Date: 2026-09-19
+
+Status: Imagination pass, cut map. Nothing here has landed. Ends are owned by
+`docs/three-gates-scope.md` ("Fire control") and
+`docs/shield-presentation-contract.md` ("The commit window"); this document owns
+the means.
+
+Anchors are against `codex/item-provenance` HEAD `8a00fc92`, read-only. Nothing was
+built in the main tree and Unity was not run. Claims marked **(probe)** were measured
+by running `tools/AetherDb` (`census`, `hardpoint-fit`) against the live catalog
+`GameData/Aetheria.cc` from the free worktree `F:\Projects\Aetheria-stats`, CultLib
+pinned at the shared `45c2f40` worktree. Claims marked **(read)** come from reading
+source at the cited anchor.
+
+**This map supersedes Cut 2 of `docs/headless-playground-cut.md`**
+(`:490-810`, anchored to `562cdcf2`). That draft is now history for three reasons:
+its anchors predate the stats-and-power campaign, which moved most of the code it
+cites; it predates the commit-window ruling of 2026-09-18, which changes the shape of
+a shot from an instant to a lifecycle; and it predates the per-hardpoint arc override
+and 360-degree turret rulings. Its substrate probes are still good and are carried
+forward below with citations. Where the two disagree, this document wins; nobody
+should be reading two live designs.
+
+**Scope: fire control only.** What a presentation does with a committed outcome is the
+capability/presentation seam's business (`docs/shield-presentation-contract.md`).
+Faction territory is the campaign after this. §6 names every seam and stops there.
+
+---
+
+## Rulings this map is built on (do not re-litigate)
+
+From `docs/three-gates-scope.md:47-99` and `docs/shield-presentation-contract.md:34-57`:
+
+- **R1. Hit detection goes.** Operator, 2026-09-17: "We wanted to get rid of hit
+  detection anyway... Just roll the dice based on weapon stats, targeting system stats
+  (new subsystem) and sensor state."
+- **R2. Targeting systems are a new subsystem**, interior `Tool` gear.
+- **R3. A shot resolves on arrival**, hit chance reduced by how far the target deviated
+  from the predicted intercept. Manoeuvring is evasion.
+- **R4. The outcome commits a short fixed time before impact.** Operator, 2026-09-18:
+  "That hybrid is the way." Deviation feeds the roll up to that horizon; after it the
+  result stands and the rest of the flight is choreography. The horizon is one authored
+  fire-control setting. A commit is authoritative; presentations perform it and never
+  predict.
+- **R5. Subsystems reveal between `TargetArmorInfoThreshold` and
+  `TargetGearInfoThreshold`**, and both the player and the AI may aim at a revealed
+  subsystem.
+- **R6. Per-hardpoint firing arcs.** Mount direction from the item's `ItemRotation`, as
+  reaction thrusters do; default 120 degrees from `GameplaySettings`; an optional
+  per-hardpoint override; turrets 360.
+- **R7. The simulation is 2D.** The 3D is set dressing.
+- **R8. Unity weapon effects and `HullCollider` become presentation only.** Their
+  `Physics.*` queries stop deciding damage.
+- **R9. Every weapon type in the catalog's history stays**
+  (`docs/headless-playground-cut.md` fork E). Nothing is deleted for being unused.
+
+From `docs/stats-and-power-cut.md:996-1030`, the seam the stats campaign left:
+
+- **R10. Fire control must snapshot what it rolled over.** The resolver hands out a
+  current value; it does not promise that value is still current a second later.
+- **R11. A starved weapon does not fire** (Cut 4 of that campaign: no fraction of a
+  shot). A degraded shot instead is a ruling against that map, not a thing to work
+  around here. See Q6.
+
+---
+
+## 0. Substrate
+
+### 0.1 What decides a hit today, end to end
+
+Nothing in `ServerShared` does. The whole chain is Unity **(read)**:
+
+1. `InstantWeapon.Execute` (`Assets/Scripts/ServerShared/Behaviors/InstantWeapon.cs:216-237`)
+   walks the burst and raises `OnFire` (`:228`), a parameterless `event Action` declared
+   at `:73`. It carries no outcome and nothing in `ServerShared` subscribes.
+2. `Assets/Scripts/Gameplay/EntityInstance.cs:203-204` subscribes and calls
+   `InstantWeaponEffectManager.Fire(weapon, item, source, target)`
+   (`Assets/Scripts/Gameplay/Weapons/InstantWeaponEffectManager.cs:7`). The constant
+   family goes the same way at `:232-235`.
+3. The manager spawns an effect and copies the weapon's resolved numbers onto it.
+   `ProjectileManager.cs:18-25` jitters the barrel forward vector by
+   `Random.Range(±Spread/2)` on all three Euler axes — that is the entire aiming model.
+4. The effect raycasts. `Projectile.cs:58`, `GuidedProjectile.cs:153`, `Laser.cs:40`,
+   `Lightning.cs:34`, `ConstantLaser.cs:74`, `ConstantLightning.cs:54`,
+   `HitscanEffect.cs:31`, `Mine.cs:68,92`, plus `Projectile.cs:114` for airburst.
+5. On a hull collider it calls `HullCollider.SendHit`
+   (`Assets/Scripts/Gameplay/HullCollider.cs:18-30`), or `SendSplash` (`:32-41`).
+6. `EntityInstance.cs:316-396` subscribes to those subjects, converts a UV texture
+   coordinate into schematic cells, expands by `DamageSpread`, marches a penetration ray,
+   and calls the local function `DamageSchematic` (`:277-314`), which is the only writer
+   of `Armor`, item `Durability` and `Hull.Durability` from combat.
+7. Death: `EntityInstance.cs:405-439` subscribes to `HullDamage`, rolls loot with
+   `UnityEngine.Random`, and calls `entity.Zone.Entities.Remove(entity)` (`:437`).
+
+**Authority versus presentation in that chain.** Everything from step 3 down is
+authority wearing a presentation costume. The shield branch repeated in all seven
+effects (`Projectile.cs:60-80` and its copies) is the absorb rule, duplicated seven
+times. `DamageSchematic` is the damage rule. `EntityInstance.cs:437` is the death rule.
+Genuine presentation is narrow: trail rendering, line renderers, the lightning compute
+animation, hit effect prefabs, `ShieldManager.ShowHit`, and the destroy effect.
+
+**The 2D/3D violation.** `EntityInstance.cs:323` and `:380` call
+`transform.InverseTransformDirection` to get a hit direction into the ship's frame. That
+is a 3D rotation standing in for the planar rotation R7 says the simulation is made of.
+
+### 0.2 What already exists of targeting
+
+- `Entity.Target` — `Assets/Scripts/ServerShared/Entity.cs:46`, a
+  `ReactiveProperty<Entity>`. Cleared when the target leaves `VisibleEnemies` (`:196`,
+  `:222`). `TargetRange` is recomputed each tick at `:920`.
+- `Entity.EntityInfoGathered` — `Entity.cs:57`, a `ReactiveDictionary<Entity, float>` in
+  [0,1], accumulated with decay by `Sensor.Execute`
+  (`Assets/Scripts/ServerShared/Behaviors/Sensor.cs:152-184`).
+- `TargetDetectionInfoThreshold` gates `VisibleEnemies` at `Entity.cs:232-246`.
+- **`TargetArmorInfoThreshold` and `TargetGearInfoThreshold` are authored and read by no
+  code.** They are declared at `Assets/Scripts/ServerShared/Settings.cs:212-213` and
+  appear nowhere else in `Assets/Scripts` **(read)**. R5's reveal tiers are unwired
+  settings.
+- `LockWeapon` — `Assets/Scripts/ServerShared/Behaviors/LockWeapon.cs`. Integrates a
+  0..1 `_lock` scaled by `pow(EntityInfoGathered[target], SensorImpact)` (`:92`), gated by
+  a `LockAngle` cone off `Entity.LookDirection` (`:88-89`). `CanFire` (`:56`) requires
+  `_lock > .99f` and range within `[MinRange, Range]`. This is the closest thing in the
+  codebase to a to-hit probability, and it is per-weapon rather than per-ship.
+- `TurretController` — `Assets/Scripts/ServerShared/Behaviors/TurretController.cs`.
+  `TurretControllerData` has no fields (`:15-25`). It writes `Entity.LookDirection` to a
+  first-order intercept (`:67-72`) and fires each weapon when
+  `dot(x.Direction, Entity.LookDirection) > .99f` (`:81-83`).
+- `Sensor` — sensitivity, ping boost/energy/visibility/range/cooldown, all
+  `PerformanceStat` (`Sensor.cs:16-34`).
+- Player target selection: `Assets/Scripts/Gameplay/ActionGameManager.cs:368-403`
+  (reticle, nearest, next, previous). Player fire is not arc-gated at all.
+- **No targeting-system item, behavior or stat exists anywhere in code or catalog.** A
+  repo-wide grep for `Targeting|FireControl|Accuracy|Aim` finds one `#region Targeting`
+  label at `ActionGameManager.cs:368` and nothing else; the same grep over the catalog
+  returns zero **(probe)**.
+
+### 0.3 Where hardpoint rotation and arcs live
+
+- `HardpointData` — `Assets/Scripts/ServerShared/ItemData.cs:538-545`: `Type`,
+  `Position`, `Shape`, `Transform` (a prefab node name), `Rotation` (`ItemRotation`),
+  `Armor`. **There is no arc field on `HardpointData`, `WeaponData`, or any effect.**
+  A per-hardpoint override attaches here, as catalog data already authored per hull.
+- `ItemRotation` is four-way (`Assets/Scripts/ServerShared/Enums.cs:7`);
+  `Extensions.cs:135-166` gives `None` = forward, `Reversed` = aft, `Clockwise` = right,
+  `CounterClockwise` = left. `Agent.cs:72` reads `Clockwise` as right and `Thruster` uses
+  the same convention for mount direction, which is the precedent R6 names.
+- `Behavior.Direction` (`Assets/Scripts/ServerShared/Behaviors/Behaviors.cs:24-44`) has
+  two paths. The first (`:30-34`) reads `Entity.HardpointTransforms`; the second
+  (`:37-38`) is the item-rotation fallback R6 wants.
+- **`Entity.HardpointTransforms` (`Entity.cs:58-59`) is written only by Unity**, at
+  `EntityInstance.cs:514-517`, from the first `WeaponHardpoint.FiringPoint` barrel's
+  world forward. Headless it is empty. That single dictionary is why
+  `Combat.cs:100-102` throws `KeyNotFoundException` on the first combat tick outside
+  Unity, and why the simulation's own notion of where a gun points is a readback from a
+  renderer.
+- Barrel swing is `ArticulationPoint`, yawing and pitching toward `LookAtPoint`
+  (`EntityInstance.cs:400-403`, `:519-520`). Authored limits on the Longinus energy
+  barrels are yaw [-1, 1] — effectively fixed forward — while the Turret prefab's yaw
+  pivot is [-720, 720] (`docs/headless-playground-cut.md:533-545`, prefab probe, not
+  re-measured here). That is presentation and stays.
+- `AgentFiringMinDot` (`Settings.cs:218`) is **declared and read by nothing** **(read)**.
+
+### 0.4 What the catalog ships in weapons
+
+**(probe)**, `tools/AetherDb census` and `hardpoint-fit` over `GameData/Aetheria.cc`:
+51 designs, 37 products, of which 18 are weapons.
+
+| Hardpoint kind | Designs | Sellers |
+|---|---|---|
+| Ballistic | 6 | Zhestokost 2, Lightsail 1, AU 1, DME 1, unsold 1 |
+| Energy | 7 | NiteLife 3, Lucent 1, Adrasteia 1, Alakrita 1, unsold 1 |
+| Launcher | 5 | DME 1, R&D 1, unsold 3 |
+
+Unsold, therefore unspawnable: `Autocannon`, `SRMM72`, `LRMM72`, `plight`, `pswarm`.
+The earlier behaviour-class breakdown (8 `ProjectileManager`, 3 `LaserManager` at
+velocity 0, 5 `GuidedProjectileManager`, 1 `LightningGunManager`, and **no design using
+`ConstantWeaponData`, `HitscanEffect`, `Mine`, airburst or MIRV**) is carried from
+`docs/headless-playground-cut.md:500-506` and was not re-measured; the census agent
+could not reproduce it because `census` buckets by `HardpointType` and the one command
+that prints behaviour fields was blocked. **Cut 4's safety argument depends on that
+claim, so Hands re-measures it before Cut 4** (§4, First).
+
+**Stats a roll can read today** (`Weapon.cs:22-68`, all `PerformanceStat` unless noted):
+`Damage`, `Penetration`, `DamageSpread`, `MinRange`, `Range`, `Energy`, `Heat`,
+`Visibility`, `Spread` (an angular cone in degrees), `Velocity`; plus `DamageCurve`
+(a `BezierCurve`, damage against normalized range), `MagazineSize`, `ReloadTime`,
+`AmmoType`. `InstantWeaponData` adds `Count`, `BurstTime`, `Cooldown`
+(`InstantWeapon.cs:13-22`). `LockWeaponData` adds `LockSpeed`, `SensorImpact`,
+`LockAngle`, `DirectionImpact`, `Decay` (`LockWeapon.cs:13-25`). The item carries
+`WeaponRange`, `WeaponCaliber`, `WeaponType`, `WeaponFireTypes`, `WeaponModifiers`
+(`ItemData.cs:476-492`).
+
+Note against a misreading: **`DamageSpread` is not damage variance.** It is the
+footprint, in schematic cells: `EntityInstance.cs:372-375` expands the hit shape
+`round(hit.Spread)` times, where `hit.Spread` is the weapon's `DamageSpread`.
+
+**What is missing from the authored data for a roll to be meaningful:**
+
+- **No accuracy stat on anything.** No weapon, hull, cockpit or sensor contributes a
+  to-hit number. This is what R2's targeting system exists to supply, and it is the
+  whole reason the subsystem is required content rather than a nice-to-have.
+- **No target-size term.** A roll that ignores how big the target is will feel wrong at
+  every range. The hull `Shape` and a cell size give an angular radius; `SchematicCellSize`
+  does not exist and must be authored (Q4).
+- **No tracking or angular-velocity stat**, so nothing yet reads R3's deviation. The
+  targeting system supplies it.
+- **Beams have nothing beam-specific.** `ConstantWeaponData` adds only `AmmoInterval`
+  (`ConstantWeapon.cs:15`); `Spread` is inherited and unread by any beam code, and
+  `Velocity` is meaningless for one. There is no dwell or wander stat. Unused today, so
+  Cut 4 gives beams the plainest possible rule and authors nothing new.
+- **`ChargedWeaponData.ChargeFiringSpreadMultiplier` is a plain `float`**
+  (`ChargedWeapon.cs:34`), not a `PerformanceStat`, so unlike every other combat number
+  it cannot vary with quality or wear. Noted, not fixed here.
+- **Lock is binary at 0.99** (`LockWeapon.cs:56`). There is no stat turning partial lock
+  into hit chance, and `GuidedWeaponData` (`Launcher.cs:37-55`) has no lock stats at all.
+
+### 0.5 Can the headless sim step a full engagement today
+
+No, and two specific things stop it **(read)**:
+
+1. `Combat.cs:100-102` indexes `HardpointTransforms`, which only Unity writes (§0.3).
+   `Minion` enters `CombatState` as soon as `VisibleEnemies` is non-empty, so any NPC
+   that sees an enemy throws on the tick it sees them.
+2. There is no owner between `InstantWeapon.OnFire` and `Entity.HullDamage`. The only
+   `ServerShared` writers of durability are the repair consumable
+   (`Behaviors.cs:67,72-73`).
+
+Everything else is already there and already exercised.
+`tests/Aetheria.Shared.Tests/IffAndCombatTests.cs:52` (`BuildWorld`) opens the real
+catalog, builds an `ItemManager` and a `Zone`, and `:73` (`NewShip`) equips a gun on a
+hardpoint and activates the ship — two ships, positions, look directions, sensor info,
+targets and IFF, headless. `:241` and `:255` assert on `weapon.Progress` after
+`Activate()`, because a cooldown starting is the only observable consequence of firing
+that exists. That fixture is this campaign's harness; it does not need to be built.
+
+`Zone.Update` (`Zone.cs:126-151`) steps orbits, belts, agents, then entities.
+`ItemManager.Random` is still clock-seeded (`ItemManager.cs:19`), so a seeded-roll test
+needs a seed argument — see Q5.
+
+The xunit project is `tests/Aetheria.Shared.Tests/Aetheria.Shared.Tests.csproj`
+(net10.0, xunit), referencing `Aetheria.Shared/Aetheria.Shared.csproj`
+(netstandard2.1, `noEngineReferences` mirrored by
+`Assets/Scripts/ServerShared/Aetheria.Shared.Unity.asmdef`). The mutation harnesses are
+`tests/mutation_tests_*.py`, 17 of them, each patching a named source anchor and
+asserting a named test goes red with a no-op control.
+
+---
+
+## 0b. Identity, lifecycle, authority
+
+One row per kind this campaign introduces. No cut below is mapped with a cell empty.
+
+| Kind | What names it | What happens to it over time | Who decides |
+|---|---|---|---|
+| **A shot in flight** | `PendingShot`, a struct in `Zone.PendingShots` (a `List<PendingShot>`), identified by a monotonic `int ShotId` from `Zone`. Nothing outside `Zone` holds a reference. | Born in `FireControl.Fire` when a weapon's burst step fires, carrying a payload snapshot frozen at that instant. Ages by `dt` in `FireControl.Step`, called from `Zone.Update` after entities. Reaches its commit horizon, then its arrival time, then is removed the same tick it resolves. A shot whose source or target entity leaves the zone resolves as a miss and is removed. Never serialised: a zone saved mid-flight loses its shots, which is correct — a save is a scene boundary. | `Zone` owns the collection and the identity. `FireControl` owns the transitions. Nothing else may add, remove or mutate one. |
+| **A roll** | Nothing. It is not a thing; it is one draw from `ItemManager.Random` inside `FireControl.Commit`, and only its result is named. | Exists for the duration of one call. Its inputs are the payload snapshot plus deviation measured at that instant; its output is written into the shot's `Outcome` and never recomputed. | `FireControl` alone. No behaviour, agent, presentation or UI may draw for a hit. |
+| **A commit** | `ShotOutcome { int ShotId; Entity Source; Entity Target; EquippedItem Weapon; bool Hit; bool Shielded; EquippedItem Aimed; int2 Cell; float ArrivalIn; DamageType DamageType; }`, published on `Zone.ShotCommitted` (a `Subject<ShotOutcome>`). | Created once, at `ArrivalTime - CommitHorizon`, or at fire time when the flight is shorter than the horizon. Immutable from then on. Published once. Read by presentations and by nothing else. Dies with the shot. | `FireControl` creates it and is the only writer. Presentations are the only readers. **Nothing outside presentation may read a commit to change state** (`docs/shield-presentation-contract.md:57`). |
+| **A targeting solution** | Not a stored object. `FireControl.HitProbability(weapon, source, target)` is a pure function, recomputed on demand. | Has no lifetime. AI reads it to decide whether to fire; the HUD reads it to draw a number; `FireControl.Fire` reads it once per shot and freezes the result into the payload. Two reads a tick apart may differ; nothing caches one. | `FireControl`. The targeting-system behaviour owns only its own resolved stats; it does not compute probability. |
+| **Target data / knowledge of a subsystem** | `Entity.EntityInfoGathered[other]` (existing, `Entity.cs:57`) is the knowledge. `FireControl.IsRevealed(observer, item)` is the derived predicate over it. The current aim point is `Entity.TargetItem`, a `ReactiveProperty<EquippedItem>`. | Info accumulates and decays continuously under `Sensor` (`Sensor.cs:152-184`); ownership of that does not change. Reveal is **derived on every read**, never stored and never cached, so it falls back the moment info decays. `TargetItem` is written only by `Entity.TrySelectTargetItem`, nulled when `Target` changes, and **read through a derived accessor that returns null if the item is no longer revealed or no longer belongs to the target** — no loop clears it. | `Sensor` owns info. `FireControl` owns the reveal rule and the thresholds it reads. `Entity` owns the selection slot; `TrySelectTargetItem` is its only writer. Player input, `CombatState` and the test harness are its three callers. |
+| **A hardpoint arc** | `HardpointData.FiringArc`, a `float` on catalog data (`ItemData.cs:538-545`), zero meaning "use the default". Resolved through `FireControl.ArcFor(item)`. | Authored once, in the catalog. Immutable at runtime. Read per shot and per AI fire decision; never stored on the entity. Mount direction is likewise derived per read from `Behavior.Direction`'s item-rotation path. | The catalog authors it; `FireControl` resolves and applies it; `GameplaySettings.FiringArc` supplies the default. **No prefab, transform, articulation limit or renderer may influence it.** |
+
+---
+
+## Cut order
+
+1. **Mount direction and arc become simulation data.** Deletes `HardpointTransforms`
+   and the Unity readback; adds the arc gate; unbreaks headless combat.
+2. **Targeting system and reveal.** The new subsystem, the reveal rule, the selection
+   slot, and the two dead settings wired up.
+3. **Hit authority moves.** The Physics path in the four effects the catalog actually
+   uses is deleted and `FireControl` plus the shot lifecycle replaces it, in one cut, so
+   damage is never applied twice.
+4. **The unused kinds join the same path.** Beams, hitscan, mines, splash and airburst
+   stop querying Physics. They keep existing (R9).
+
+Cuts 3 and 4 cannot be swapped, and 3 cannot be split into "roll" and "delete the old
+path": a cut boundary between them is a cut boundary with two damage owners.
+
+---
+
+## Cut 1. Mount direction and arc become simulation data
+
+- **Repo/branch:** `Aetheria`, branch `codex/fire-control` from `codex/item-provenance`
+  `8a00fc92`. Depends on nothing.
+- **First:** update `F:\Projects\Aetheria-stats` to HEAD (it sits 11 commits behind at
+  `c4f6029e`); capture `AetherDb census`, `loadout 1`, `dangling` as the before side.
+
+**Deletes first:**
+
+- `Assets/Scripts/ServerShared/Entity.cs:58-59` — `HardpointTransforms` (2).
+- `Assets/Scripts/Gameplay/EntityInstance.cs:514-517` — its only writer (4).
+- `Assets/Scripts/ServerShared/Behaviors/Behaviors.cs:30-35` — the readback branch in
+  `Behavior.Direction` (6). The item-rotation path at `:37-38` becomes the whole body.
+- `Assets/Scripts/ServerShared/Agents/States/Combat.cs:100-102` — the
+  `HardpointTransforms` dot test (3).
+- `Assets/Scripts/ServerShared/Behaviors/TurretController.cs:81-83` — the `.99f` dot
+  test (3).
+- `Assets/Scripts/ServerShared/Settings.cs:218` — `AgentFiringMinDot`, read by nothing
+  (1).
+
+**Adds:**
+
+- `Assets/Scripts/ServerShared/FireControl.cs` — a new static class, this cut holding
+  only geometry: `MountDirection(EquippedItem)` (the planar unit vector from
+  `Behavior.Direction`), `ArcFor(EquippedItem)` and
+  `bool InArc(EquippedItem weapon, float3 toTarget)`, which tests
+  `dot(normalize(weapon.Direction.xz), normalize(toTarget.xz)) >= cos(radians(arc/2))`.
+  The test is planar (R7); target height never enters it. An arc of 360 or more passes
+  unconditionally.
+- `HardpointData.FiringArc` (`ItemData.cs:545`, next `Key`) — full width in degrees,
+  `0` meaning "use `GameplaySettings.FiringArc`".
+- `GameplaySettings.FiringArc = 120` (`Settings.cs`, after `:214`).
+- `GameplaySettings.AgentMinHitProbability` is **not** added here; Cut 1's AI gate is
+  `InArc` alone, which is strictly closer to today's behaviour than a probability the
+  roll does not yet produce.
+
+**Per-file changes (against `8a00fc92`):**
+
+- `Combat.cs:100-102`: `shouldFire = FireControl.InArc(testWeapon.Item, toTarget)`. The
+  intercept prediction at `:84-98` stays — it still aims `LookDirection`, and under R3 it
+  becomes the predicted intercept a deviation is measured against.
+- `TurretController.cs:81-83`: the same call. Under the default arc a turret hull, whose
+  `Direction` never rotates (`TurretController` writes only `LookDirection`), would
+  engage only within 60 degrees of its spawn facing. R6 says turrets are 360; the turret
+  hull's hardpoints author `FiringArc: 360`. See Q1.
+- Catalog: author `FiringArc` on the `Turret` hull's two Ballistic hardpoints. Follows
+  the Cut C precedent — a Hands scratch console upserts, Unity and Studio closed.
+
+**Authority map:**
+
+- **Owner:** `FireControl` owns whether a weapon bears on a point. `HardpointData`
+  authors the arc; `ItemRotation` authors the mount direction.
+- **Inputs:** the equipped item's hardpoint rotation, `HardpointData.FiringArc`,
+  `GameplaySettings.FiringArc`, the planar vector to the target.
+- **Outputs:** one bool, consumed by `CombatState`, `TurretController`, and from Cut 3
+  by `FireControl.Fire`.
+- **Derived state:** `Behavior.Direction` becomes purely derived from item rotation.
+- **Forbidden writers:** no Unity transform, `ArticulationPoint`, `WeaponHardpoint` or
+  prefab node may influence aim. `Barrels`, `GetBarrel` and `ArticulationPoint` survive
+  as presentation and must never be read by `ServerShared`.
+- **Shared paths:** player fire, AI fire and turret fire all go through `InArc`. Player
+  fire is arc-gated for the first time; see Q2.
+- **Deletion line:** `HardpointTransforms` and its writer and readers are gone before
+  `FireControl.cs` is written.
+
+**Verification:**
+
+- builds: `Aetheria.Shared/Aetheria.Shared.csproj`, `tests/Aetheria.Shared.Tests`,
+  `tools/AetherDb`.
+- tests, each named with the rule it pins:
+  - `ArcFollowsMountRotation` pins *mount direction is the item's rotation, not the
+    hull's facing*: a fixture hull with one weapon on a `None` hardpoint and one on a
+    `Clockwise` hardpoint; a target 90 degrees to starboard passes only for the
+    `Clockwise` weapon, a target dead ahead only for the `None` weapon. Mutation: make
+    `InArc` use `Entity.Direction`; swap `Rotate`'s `Clockwise`/`CounterClockwise` cases.
+  - `ArcBoundaryIsHalfWidth` pins *`FiringArc` is full width*: at 120, a target 59
+    degrees off passes and one at 61 does not. Mutation: compare against
+    `cos(radians(arc))`.
+  - `ArcIsPlanar` pins R7: a target inside the arc horizontally but far above the firer
+    still passes. Mutation: use the 3D vector.
+  - `HardpointOverrideBeatsDefault` pins *the per-hardpoint override wins*: the same
+    weapon on a hardpoint with `FiringArc: 360` passes at 170 degrees, and fails there on
+    a hardpoint with `0`. Mutation: ignore the field; treat `0` as an arc of zero.
+  - `CombatStateStepsHeadless` pins *the simulation decides aim without Unity*: a
+    `Minion` with a target in range steps through `Zone.Update` without throwing.
+    Mutation: restore the `HardpointTransforms` read.
+- negative: `rg -n "HardpointTransforms" Assets/Scripts` empty;
+  `rg -n "ArticulationPoint|FiringPoint|WeaponHardpoint" Assets/Scripts/ServerShared`
+  empty; `rg -n "AgentFiringMinDot" Assets/Scripts` empty. (`\.99f` is **not** a safe
+  negative grep — it occurs legitimately in `LockWeapon.cs:56`. Grep the two files by
+  name instead.)
+- operator: in Unity, side-mounted weapons still fire at targets abeam; a turret still
+  tracks all the way around; nothing fires through the hull.
+
+**Risk:** this cut changes what the AI fires at before the roll exists, so combat feel
+shifts once and shifts again in Cut 3. That is the price of deleting the obsolete
+authority first, and it is the right price.
+
+---
+
+## Cut 2. Targeting system and reveal
+
+- **Repo/branch:** continues Cut 1. Depends on Cut 1 (uses `FireControl.cs`), and on
+  provenance Cut C if that has not landed, because Cut C re-upserts every `ItemData`.
+- **First:** `AetherDb census` and `loadout 1` over several seeds, as the before side.
+
+**Deletes first:** nothing. This cut is entirely additive, which needs its account
+(CODE IS A LIABILITY): the invariant it buys is R5, which cannot be purchased by moving
+authority, because no authority for it exists — two authored settings are read by
+nothing and there is no subsystem to carry accuracy. Cut 3 is where the subtraction is.
+
+**Adds:**
+
+- `Assets/Scripts/ServerShared/Behaviors/TargetingSystem.cs` —
+  `TargetingSystemData : BehaviorData` (next free `Union` index on `BehaviorData`; Hands
+  reads the current list in `Behaviors.cs` rather than trusting the number 39 quoted in
+  the superseded draft) plus a `TargetingSystem : Behavior` that resolves and exposes:
+  - `Accuracy` (0..1) — the ceiling on hit probability.
+  - `Resolution` (detection threshold..1) — the info level at which sensor state stops
+    limiting hits.
+  - `Precision` (0..1) — the chance a hit lands on the aimed item rather than a random
+    cell.
+  - `Tracking` — how much deviation it forgives (consumed in Cut 3).
+
+  All four are `PerformanceStat`, so lot quality, wear, heat and `PowerSupply` reach them
+  through `EquippedItem.Evaluate` — that is the brownout ruling applied to accuracy, and
+  it is why a starved targeting system rolls worse instead of switching off. Energy and
+  heat come from the existing `EnergyDraw` and `Heat` behaviours on the item; the
+  subsystem adds no power machinery of its own.
+- `GameplaySettings.UnaidedAccuracy` — what an entity with no working targeting system
+  fires with. Such an entity uses `Resolution = 1` and `Precision = 0`: it can still
+  select a revealed item, and its hits scatter.
+- `FireControl.IsRevealed(Entity observer, EquippedItem item)` — derived, never cached:
+  1. Rank the target's non-hull equipment: hardpoint-mounted first, then size
+     descending, then equipment index.
+  2. Item `i` of `N` is revealed when
+     `info >= lerp(TargetArmorInfoThreshold, TargetGearInfoThreshold, i / max(1, N - 1))`.
+
+  This is the first and only reader of `Settings.cs:212-213`.
+- `Entity.TargetItem` (`ReactiveProperty<EquippedItem>`, beside `Target` at
+  `Entity.cs:46`) and `bool Entity.TrySelectTargetItem(EquippedItem)`, the only writer.
+  It accepts null, or an item of `Target.Value` that `IsRevealed`. A `Target` change
+  nulls it. The read accessor returns null when the item is no longer revealed, so decay
+  drops the aim point without a loop.
+- Player input: a select/cycle command beside `ActionGameManager.cs:368-403`, calling
+  `TrySelectTargetItem`. The target schematic
+  (`Assets/Scripts/UI/HUD/SchematicDisplay.cs:109-119`, which today lists only weapon
+  items) shows revealed items and marks the selection. That is presentation; it decides
+  nothing.
+- AI: `CombatState` selects the revealed target `Weapon` item with the highest
+  `RangeDamagePerSecond(range)`, or null.
+- Catalog: two targeting-system designs, 1-cell and 2-cell, each with products from at
+  least the manufacturers that sell the capacitor, so `IsAvailable` finds one in every
+  galaxy. `LoadoutGenerator.FillInterior` picks one with `required: true` for every
+  entity with `Weapons` — the starting LonginusX, NPC ships and turrets. Zenith, with no
+  weapon hardpoints, gets none.
+
+**Authority map:**
+
+- **Owner:** `FireControl` owns the reveal rule. `Entity` owns the selection slot.
+  `TargetingSystem` owns nothing but its own resolved stats.
+- **Inputs:** `EntityInfoGathered`, the two threshold settings, the target's equipment
+  list and item sizes.
+- **Outputs:** a bool per (observer, item); a nullable `EquippedItem` per entity.
+- **Derived state:** reveal is derived on read. `TargetItem`'s *validity* is derived;
+  only the slot is stored.
+- **Forbidden writers:** the HUD may not write `TargetItem` except through
+  `TrySelectTargetItem`; no code may store a reveal result; no code may read the two
+  thresholds except `IsRevealed`.
+- **Shared paths:** player selection, AI selection and the test harness use one writer.
+- **Deletion line:** none, and that is stated rather than hidden.
+
+**Verification:**
+
+- builds: as Cut 1.
+- tests:
+  - `SelectionNeedsReveal` pins *you cannot aim at what you have not resolved*: below
+    the item's tier `TrySelectTargetItem` returns false; above it, true; a target change
+    nulls it; info decaying below the tier makes the read null. Mutation: `IsRevealed`
+    returns true; the `Target` change skips the null; the accessor returns the stored
+    value without re-checking.
+  - `RevealOrder` pins *the big obvious things resolve first*: hardpoint items reveal
+    before interior items, larger before smaller. Mutation: drop the ordering.
+  - `RevealSpansBothThresholds` pins *the tiers are the authored ones*: with N items,
+    the first reveals at `TargetArmorInfoThreshold` and the last at
+    `TargetGearInfoThreshold`. Mutation: swap them; use the detection threshold.
+  - `UnaidedFiresWorse` pins *the subsystem is what supplies accuracy*: an entity with
+    no targeting system resolves `UnaidedAccuracy` and `Precision` 0; one with a
+    destroyed or offline system resolves the same. Mutation: fall back to the system's
+    stats when offline.
+  - `StarvedTargetingRollsWorse` pins the brownout ruling on accuracy: with an
+    `Accuracy` stat carrying a `PowerSupply` term, a half-grant halves it rather than
+    switching the item off. Mutation: gate on `PowerSupply <= 1e-4`.
+  - `EveryArmedLoadoutGetsATargetingSystem` pins the required-item rule across seeds.
+    Mutation: drop `required: true`.
+- negative: `rg -n "TargetArmorInfoThreshold|TargetGearInfoThreshold" Assets/Scripts`
+  returns `Settings.cs` and `FireControl.cs` **only**.
+- operator: `AetherDb census` shows 2 more designs; `loadout 1` shows one more interior
+  item per armed entity; `dangling` is 0; reopen reports 0 schema issues; CultCache
+  Studio renders the new behaviour union (an operator check, because Studio's handling of
+  a new union index is not something this map can promise).
+
+**Risk:** `LoadoutGenerator.EquipHardpoints` can already fit the Tractor Beam into
+LonginusX's only Sensors slot, leaving an NPC that gathers no info and therefore reveals
+nothing and hits nothing (`docs/headless-playground-cut.md:520-523`). Check `loadout`
+over several seeds. The fix is data or `EquipHardpoints`, not fire control.
+
+---
+
+## Cut 3. Hit authority moves
+
+The rebuild. The old path is deleted and the new owner added in the same cut, because
+any boundary between them is a boundary with two damage owners.
+
+- **Repo/branch:** continues Cut 2. Depends on Cuts 1 and 2.
+- **First:** capture a Unity play smoke of current combat feel (kill time against one
+  NPC, roughly) as the before side, since this cut changes feel more than anything in
+  the campaign.
+
+**Deletes first** (paths and line counts against `8a00fc92`):
+
+- `Assets/Scripts/Gameplay/EntityInstance.cs:277-396` — `DamageSchematic` and both
+  `HullCollider` subscriptions (120).
+- `Assets/Scripts/Gameplay/HullCollider.cs:13-14,18-41,48-65` — `Hit`, `Splash`,
+  `SendHit`, `SendSplash` and both argument classes (~45 of 65). `OnCollisionEnter`
+  (`:43-46`) stays; ship collision is a deferred Unity-physics surface.
+- `Assets/Scripts/Gameplay/Weapons/Projectile.cs:57-103` — the raycast, shield branch and
+  `SendHit` (47). `:109-122` (airburst) is Cut 4's.
+- `Assets/Scripts/Gameplay/Weapons/GuidedProjectile.cs:152-189` — the same (38).
+- `Assets/Scripts/Gameplay/Weapons/Laser.cs:40-75` — the same; the `LineRenderer`
+  endpoint writes at `:59,70,77` are presentation and are rebuilt from the outcome (36).
+- `Assets/Scripts/Gameplay/Weapons/Lightning.cs:34-72` — the same; the endpoint capture
+  at `:67-71` stays as a visual (39).
+- `Assets/Scripts/Gameplay/EntityInstance.cs:411-431` — the `UnityEngine.Random` loot
+  roll, **only if Q3 is answered (a)**; otherwise this cut leaves it and the seam is
+  named in §6.
+
+**Adds:**
+
+- `Entity.DamageSchematic(float damage, Shape hitShape)` — the rule moved verbatim from
+  `EntityInstance.cs:277-314`, now a method on `Entity` in `ServerShared`, writing
+  `Armor`, item `Durability`, `Hull.Durability` and raising the existing `ArmorDamage`,
+  `ItemDamage` and `HullDamage` subjects. Not a redesign: the same arithmetic, the same
+  order, the same thresholds.
+- `Entity.ApplyHit(...)` — the shape construction moved from
+  `EntityInstance.cs:334-394`, with two changes forced by R7: the hit cell comes from the
+  rolled `Cell` rather than a UV texture coordinate, and the penetration march rotates
+  the firer-to-target vector into the target's frame with a planar rotation by
+  `-target.Direction` instead of `transform.InverseTransformDirection`.
+- `FireControl.HitProbability(weapon, source, target)` — pure, no draw:
+  - Zero, with no draw consumed, when there is no target; the target is not in
+    `VisibleEntities`; range is outside `[MinRange, Range]`; a `LockWeapon` is not
+    locked; or `InArc` fails.
+  - Otherwise `p = Accuracy * pSensor * pSpread`, where
+    `pSensor = saturate(unlerp(TargetDetectionInfoThreshold, Resolution, info))` and
+    `pSpread = Spread > 0 ? saturate(angularRadius / (Spread / 2)) : 1`, with
+    `angularRadius = degrees(atan(0.5 * max(Shape.Width, Shape.Height) * SchematicCellSize / range))`.
+  - `SchematicCellSize` is the one new tuning constant (Q4).
+- `FireControl.Fire(weapon, item, source)` — called once per burst step from
+  `InstantWeapon.Execute` (replacing the bare `OnFire?.Invoke()` at
+  `InstantWeapon.cs:228`). It computes the predicted intercept, the flight time
+  (`range / Velocity`, or zero when `Velocity` is at or near zero), **freezes the payload
+  snapshot** (R10) and appends a `PendingShot` to `Zone.PendingShots`. The snapshot holds
+  `Damage`, `Penetration`, `DamageSpread`, `DamageType`, `Aimed`, the resolved targeting
+  stats, and the intercept point. Nothing downstream re-evaluates a stat.
+- `FireControl.Step(Zone, dt)` — called from `Zone.Update` after the entity loop
+  (`Zone.cs:150`). For each pending shot: age it; at `ArrivalTime - CommitHorizon`
+  compute deviation, roll, write `Outcome`, publish `Zone.ShotCommitted`; at
+  `ArrivalTime` apply the outcome and remove the shot. A shot whose flight is shorter
+  than the horizon commits at fire time, in the same call as `Fire` — that is every
+  velocity-0 weapon, which is three of the catalog's eighteen.
+- `GameplaySettings.CommitHorizon` — R4's authored horizon, one number, in seconds.
+- The deviation term: `pDeviation` folds in how far the target is from the predicted
+  intercept at commit time, forgiven by the targeting system's `Tracking`. This is R3's
+  evasion, and the commit horizon is what bounds how late it counts.
+- The roll: one draw against `p`. On a hit, a second draw against `Precision` decides
+  where — on `Aimed`'s footprint cells on success, otherwise on one cell drawn uniformly
+  over the hull `Shape`. An active shield that `CanTakeHit` takes the hit instead, and
+  the outcome is marked `Shielded`; that rule now exists once, in `FireControl`, rather
+  than seven times in the effects.
+- `Zone.ShotCommitted` and `Zone.ShotResolved` (`Subject<ShotOutcome>`), the presentation
+  feed.
+- `InstantWeapon.OnFire` becomes `event Action<int>` carrying the `ShotId`, so the
+  Unity manager can bind its effect to the shot it belongs to.
+
+**Per-file changes:**
+
+- `InstantWeapon.cs:228`: `OnFire?.Invoke(FireControl.Fire(this, Item, Entity))`.
+  Charge multipliers already fold into `Damage` and `Spread` before this point.
+- `Combat.cs:100-102`:
+  `shouldFire = FireControl.HitProbability(...) >= Settings.AgentMinHitProbability`,
+  replacing Cut 1's bare `InArc` (which the probability already subsumes, returning zero
+  out of arc). `AgentMinHitProbability` is added here, not in Cut 1.
+- `TurretController.cs:81-83`: the same gate and threshold.
+- `EntityInstance.cs:203-204,232-235`: the manager call takes the `ShotId` and looks the
+  outcome up, or subscribes to `ShotCommitted`. Effects fly to the rolled cell's world
+  point or to a miss offset and play the impact on arrival. **They apply nothing.**
+- `Zone.cs:150`: `FireControl.Step(this, deltaTime)` after the entity loop.
+
+**Authority map:**
+
+- **Owner:** `FireControl` owns the engage gate, hit probability, the roll, the cell, the
+  shield branch, and when each of those happens. `Entity` owns the application of damage
+  to its own schematic. `Zone` owns the pending-shot collection.
+- **Inputs:** weapon stats through `EquippedItem.Evaluate`; targeting-system stats;
+  `EntityInfoGathered`; `Target` and `TargetItem`; both entities' positions, velocities
+  and planar directions; mount direction and arc; `ItemManager.Random`.
+- **Outputs:** `ShotOutcome` on two subjects; `Entity.DamageSchematic`; shield
+  `TakeHit`; `Entity.IncomingHit`.
+- **Derived state:** `Behavior.Direction`, reveal, hit probability. Everything a
+  presentation shows about a shot is derived from the outcome.
+- **Forbidden writers:** after this cut no `Physics.*` query in
+  `Assets/Scripts/Gameplay/Weapons` (except the unused four Cut 4 handles) may reach
+  durability; `HullCollider` may not raise a hit; `EntityInstance` may not damage a
+  schematic; no effect may call `TakeHit`; nothing outside `FireControl` may draw for a
+  hit; nothing outside presentation may read a commit to change state.
+- **Shared paths:** player fire, AI fire, turret fire, instant, charged, guided and
+  locked weapons all reach damage through `FireControl.Fire` and `FireControl.Step`.
+  There is exactly one commit primitive.
+- **Deletion line:** the six deletions above land before `FireControl.Fire` exists.
+
+**Verification:**
+
+- builds: `Aetheria.Shared`, `tests/Aetheria.Shared.Tests`, `tools/AetherDb`; and Unity
+  batchmode with the editor closed (`docs/item-provenance-cut.md` §6) reporting no
+  `error CS`.
+- tests, each with the mutation that must kill it:
+
+  | Test | Pins | Mutation |
+  |---|---|---|
+  | `RollsAreSeeded` | *a fight is reproducible* — two zones, same seed, 50 shots, identical outcome sequences | `FireControl` draws from `new Random()` |
+  | `ProbabilityFollowsInputs` | *the roll reads what the ruling says it reads* — zero below detection and outside range; rising with info to `Resolution`; falling with `Spread`; capped at `UnaidedAccuracy` with no system | drop `pSensor`; drop the range gate; drop the cap |
+  | `OutOfArcConsumesNoDraw` | *the gate is a gate, not a penalty* — the RNG sequence is unchanged by an out-of-arc trigger | roll first and multiply by zero |
+  | `ShotResolvesOnArrival` | R3 — no durability change before `range / Velocity`; a target removed mid-flight takes none | apply at fire time |
+  | `OutcomeCommitsBeforeImpact` | R4 — `ShotCommitted` fires exactly `CommitHorizon` before `ShotResolved`, once per shot | publish at arrival; publish twice |
+  | `EvasionCountsUntilCommitAndNotAfter` | R4's second half — a target that jinks before the horizon changes the outcome distribution; the identical jink after the horizon does not | measure deviation at arrival; measure it at fire |
+  | `ShortFlightCommitsAtFire` | *the horizon degrades gracefully* — a velocity-0 weapon commits and resolves in one tick, still publishing both events in order | skip the commit for short flights |
+  | `OutcomeIsSnapshotNotReread` | R10, the seam the stats campaign named — a weapon whose `Damage` collapses (power cut, heat spike) between fire and arrival still lands the damage it rolled | re-evaluate `Damage` at arrival |
+  | `AimedHitLandsOnSelectedItem` | R5's payoff — `Precision` 1 and `p` 1: only the aimed item's durability falls | the roll ignores `Aimed` |
+  | `HardpointHitDamagesItemThenHull` | the damage rule survived the move verbatim — damage above armor plus item durability zeroes the item and the remainder hits the hull | armor not subtracted; hull skipped |
+  | `PenetrationMarchIsPlanar` | R7 — the march rotates by the target's planar direction and gives the same cells whatever the height difference | use a 3D rotation |
+  | `ShieldTakesHit` | *the absorb rule has one owner* — an active shield absorbs and the schematic is untouched | remove the shield branch |
+  | `DeadEntityStopsTakingShots` | *a shot cannot damage a corpse* — a target destroyed before arrival takes nothing and the shot is removed | resolve against a removed entity |
+
+- negative greps, each checked against legitimate names before publishing:
+  - `rg -n "Physics\." Assets/Scripts/Gameplay/Weapons/Projectile.cs Assets/Scripts/Gameplay/Weapons/GuidedProjectile.cs Assets/Scripts/Gameplay/Weapons/Laser.cs Assets/Scripts/Gameplay/Weapons/Lightning.cs Assets/Scripts/Gameplay/HullCollider.cs`
+    — empty. (A repo-wide `Physics\.` grep is **not** valid until Cut 4, and never for
+    `TractorBeam.cs`, which stays.)
+  - `rg -n "SendHit|SendSplash|DamageSchematic" Assets/Scripts --glob '!**/ServerShared/**'`
+    — empty.
+  - `rg -n "TakeHit\(" Assets/Scripts --glob '!**/ServerShared/**'` — empty. Note
+    `CanTakeHit` shares the substring; the trailing `(` on `TakeHit` distinguishes them,
+    and the `Can` prefix must be checked by eye in the first run.
+- operator play smoke: shots show rolled impacts and misses; a miss reads as a
+  deliberate near-miss rather than a bug; damage matches the HUD; aiming at a revealed
+  subsystem visibly concentrates damage there; kill time is in the same order as before.
+
+**Risks.** `UnaidedAccuracy`, `SchematicCellSize`, `CommitHorizon` and the targeting stat
+ranges are first guesses. The headless fixture is the tuning harness, and the operator
+smoke is the arbiter. Second: `Combat.cs:84-98` aims `LookDirection` at a first-order
+intercept, and R3's deviation is measured against `FireControl`'s own predicted
+intercept; if the two predictions differ, an AI will systematically miss. They must be
+one function. Hands makes `FireControl` own the prediction and `CombatState` call it.
+
+---
+
+## Cut 4. The unused kinds join the same path
+
+R9 keeps every weapon type. This cut makes the ones no design currently ships obey the
+same owner, so that authoring one later does not resurrect Unity hit detection.
+
+- **Repo/branch:** continues Cut 3. Depends on Cut 3.
+- **First:** **re-measure the claim this cut's safety rests on** — that no live design
+  uses `ConstantWeaponData`, `HitscanEffect`, `Mine`, airburst or MIRV (§0.4, carried
+  from a superseded map and not reproduced by this campaign's probe). A behaviour-class
+  census needs `AetherDb roles-migrate` as a dry run, which the permission classifier
+  blocked; the operator can unblock it or Hands can add a read-only `behaviors` command.
+  **If any of these is live, it moves into Cut 3 instead.**
+
+**Deletes first:**
+
+- `Assets/Scripts/Gameplay/Weapons/Projectile.cs:109-122` — airburst `OverlapSphere` and
+  `SendSplash` (14).
+- `Assets/Scripts/Gameplay/Weapons/ConstantLaser.cs:74-110` (~37),
+  `ConstantLightning.cs:54-70` (~17), `HitscanEffect.cs:31-55` (~25),
+  `Mine.cs:68-75,92-117` (~34), `ConstantParticleWeapon.cs:72` and its `_hull` plumbing
+  (~8) — every remaining `Physics.*` hit query and `SendHit`/`SendSplash` call in
+  `Assets/Scripts/Gameplay/Weapons`.
+
+**Adds:**
+
+- `ConstantWeapon` rolls once per `GameplaySettings.BeamResolveInterval` for
+  `Damage * interval`, through the same `FireControl.Fire`/`Step` pair with a flight time
+  of zero, raising `OnBeamShot(int shotId)`. About ten lines; no design uses it yet, and
+  it authors no new stat.
+- Splash — airburst and mine blast — as `FireControl.Splash`, applying the existing
+  `DamageSchematic` over the directional half-shape the deleted
+  `EntityInstance.cs:318-329` computed, against every entity in radius. This is the one
+  genuinely new rule in the cut, and it exists because R9 keeps the flak cannon and the
+  mine.
+- Nothing else. `Mine`, `TractorBeam` and ship collision stay Unity-physics surfaces for
+  *placement and contact*, which is not hit detection; only their damage application
+  moves.
+
+**Authority map:** unchanged from Cut 3 except that the forbidden-writer list now covers
+every file in `Assets/Scripts/Gameplay/Weapons`, and `FireControl` gains splash.
+
+**Verification:**
+
+- builds: as Cut 3.
+- tests:
+  - `BeamRollsPerInterval` pins *a beam is a sequence of rolls, not a continuous truth*:
+    over one second a beam produces `1 / BeamResolveInterval` outcomes totalling
+    `Damage`. Mutation: roll per tick; roll once.
+  - `SplashHitsEveryEntityInRadius` pins *splash is one rule, not per-effect*: two
+    targets in radius both take damage, one outside takes none. Mutation: damage only
+    the nearest.
+  - `SplashIsDirectional` pins that the moved half-shape rule survived: cells facing the
+    blast take it, cells facing away do not. Mutation: damage the whole shape.
+- negative: `rg -n "Physics\." Assets/Scripts/Gameplay/Weapons` returns **only**
+  `Mine.cs`'s placement query, if Q7 keeps it — otherwise empty. `TractorBeam.cs:21` is
+  outside this directory and stays.
+  `rg -n "SendHit|SendSplash" Assets/Scripts` empty.
+  `rg -n "class HullHitEventArgs|class HullSplashEventArgs" Assets/Scripts` empty.
+- operator: nothing to check in play, because nothing in the catalog spawns these. The
+  check is a Studio authoring pass: author one beam product and one flak product onto a
+  test hull and confirm they damage.
+
+---
+
+## 5. Subtraction ledger
+
+Estimates, to be compared with reality in the postmortem.
+
+| Cut | Removed | Added | Deps / targets / formats |
+|---|---|---|---|
+| 1 | 19 production (Entity 2, EntityInstance 4, Behaviors 6, Combat 3, TurretController 3, Settings 1) | ~60 production (`FireControl.cs` geometry ~45, `HardpointData.FiringArc` 1, `GameplaySettings.FiringArc` 1, call sites ~13), ~90 test | +1 catalog field, authored on one hull. No new project, package or dependency. |
+| 2 | 0 | ~140 production (`TargetingSystem.cs` ~55, reveal ~25, `Entity.TargetItem` ~25, AI selection ~10, player input ~15, `LoadoutGenerator` ~12), ~160 test | +1 behaviour union index, +2 designs and their products, +1 setting. |
+| 3 | ~285 production (EntityInstance 120, HullCollider 45, Projectile 47, GuidedProjectile 38, Laser 36, Lightning 39) | ~330 production (`Entity.DamageSchematic`/`ApplyHit` ~130 moved, `FireControl` roll and lifecycle ~140, `Zone` pending shots ~35, call sites ~25), ~280 test | +2 settings. **Seven duplicated copies of the shield-absorb rule collapse to one.** |
+| 4 | ~135 production | ~70 production, ~70 test | +1 setting. |
+| **Total** | **~439** | **~600 production, ~600 test** | |
+
+Net production about +160. The account: it buys the invariant that the simulation
+resolves combat without Unity — `docs/three-gates-scope.md:101-110` calls today's state
+a velocity compromise — and it collapses seven copies of the absorb rule and one copy of
+the damage rule into single owners. It does **not** buy that with a registry, an adapter,
+a mode flag or a compatibility layer: the old path is deleted in the cut that replaces
+it, and no cut leaves two writers of damage.
+
+The line count is the wrong thing to stare at here. The structural delta is: one new
+owner (`FireControl`), one new subsystem (`TargetingSystem`), one field on catalog data,
+four settings, and **minus one whole category of authority** — Unity physics deciding
+gameplay.
+
+---
+
+## 6. Build budget
+
+- **Packages and targets.** `Aetheria.Shared/Aetheria.Shared.csproj` (netstandard2.1),
+  `tests/Aetheria.Shared.Tests/Aetheria.Shared.Tests.csproj` (net10.0, xunit),
+  `tools/AetherDb/AetherDb.csproj`. Three projects, no new ones. Debug only; no release
+  profile, no feature flags, no code generation, no new target platform.
+- **Build host and target are the same machine**: a Windows workstation producing
+  managed assemblies for the same runtime. Nothing here is cross-platform, so no claim
+  about a Linux artifact is made or needed.
+- **Where.** `F:\Projects\Aetheria-stats` (the free worktree; it must first be advanced
+  from `c4f6029e` to HEAD). Never the main tree — the operator plays there. Never
+  `F:\Projects\Aetheria-tiers`. CultLib via
+  `-p:CultLibRoot=<scratchpad>\cultlib-45c2f40`, the shared pinned worktree, which is
+  never removed. `--artifacts-path` into scratch so no `bin`/`obj` lands in a working
+  tree.
+- **Footprint.** Three managed projects plus their test host; on the order of a few
+  hundred MB of artifacts, comparable to the stats campaign. No expected growth: this
+  campaign adds no project, package reference or native component.
+- **Unity.** Batchmode compile check with the editor closed, per
+  `docs/item-provenance-cut.md` §6, once per cut that touches `Assets/Scripts/Gameplay`
+  (Cuts 1, 3, 4). The operator's play smoke is the only Unity *run*. Imagination did not
+  run Unity and did not build.
+- **Mutation harnesses.** One per cut, in the established shape
+  (`tests/mutation_tests_fire_control_cut1..4.py`): patch a named anchor, run
+  `dotnet test tests/Aetheria.Shared.Tests --cultlib-root <pin>`, assert the named test
+  goes red, with a no-op control. Note the scar from `8dddda4d`: later cuts move earlier
+  anchors, so Cut 4 re-anchors Cuts 1-3's harnesses before it lands.
+
+---
+
+## 7. Seams this campaign names and stops at
+
+- **Presentation of shots.** `Zone.ShotCommitted` and `Zone.ShotResolved` are the whole
+  contract. What a projectile, panel, whip or near-miss *does* with a commit belongs to
+  `docs/shield-presentation-contract.md` and the panel and Lariat maps. This campaign
+  guarantees only that the commit exists, is authoritative, arrives `CommitHorizon`
+  before impact, and carries what the contract says it carries: what happens, where,
+  when it arrives, and which capability answers it — not who fired, not damage numbers.
+  The contract's open question "where the commit window lives" is answered here:
+  `FireControl`, with the horizon in `GameplaySettings`.
+- **Death, removal and loot.** `Entity.Death` is already composed in `ServerShared`
+  (`Entity.cs:363-366`), but `Zone.Entities.Remove` and the loot roll live in Unity
+  (`EntityInstance.cs:411-437`) and use `UnityEngine.Random`. Fire control makes a
+  headless kill *happen*; it does not make the corpse go away. Q3.
+- **Pickup.** `ShieldManager.cs:40-51` stores loot on trigger contact. Untouched.
+- **Ship collision, `TractorBeam`, mine placement.** Deferred Unity-physics surfaces
+  (`docs/three-gates-scope.md:98-99`). Untouched.
+- **The navigation planner.** R3 makes manoeuvring evasion, which changes what a good
+  flight path is. The planner is a separate item in the shipping scope and this map does
+  not anticipate it.
+- **Stance and IFF.** Ruled and partly built (`Weapon.StanceAllowsFire`,
+  `Weapon.cs:101`). Fire control reads the gate and does not redesign it.
+- **Faction territory.** The campaign after this.
+
+---
+
+## 8. Operator questions
+
+Most blocking first.
+
+**Q1. What makes a turret 360?** R6 says turrets are 360 degrees, but a turret hull's
+`Direction` never rotates — `TurretController` writes only `LookDirection` — so under a
+120-degree default a turret would only engage within 60 degrees of its spawn facing.
+**A:** author `FiringArc: 360` on the `Turret` hull's hardpoints; the override R6 already
+grants does the whole job and no code knows what a turret is. **B:** add
+`HardpointType.Turret` and give it an implicit 360. **C:** give the arc to the hull
+rather than the hardpoint. **Recommended: A**, because it buys the invariant with
+authored data instead of a new type, and because a future partially-traversing turret
+(a 270-degree sponson) is then already expressible. B makes the arc a property of a
+category and loses that.
+
+**Q2. Is player fire arc-gated?** Today it is not gated at all; the player fires whatever
+is equipped, wherever they point. Cut 1 makes the arc a shared rule. **A:** yes, gate the
+player exactly as the AI — a side-mounted gun simply does not fire forward, and the HUD
+shows which groups bear. **B:** gate the AI only, leaving the player's rear gun able to
+shoot forward. **Recommended: A.** Under R1 aiming is gone, so what the player does with
+a weapon group *is* the decision, and arcs are what make that decision interesting. B
+also splits the shared path the doctrine cares about: manual and programmatic fire would
+be two truths. It is a real difficulty change and should be felt in the smoke before the
+campaign closes.
+
+**Q3. Does this campaign move death removal and loot, or leave them in Unity?** A
+headless kill currently leaves the corpse in `Zone.Entities`, because `Entities.Remove`
+is at `EntityInstance.cs:437`. **A:** move removal and the loot roll into `Zone` in
+Cut 3, using `ItemManager.Random` — about 50 lines, and it makes a headless kill a
+complete event. **B:** move only the removal; leave loot to the run-structure work.
+**C:** leave both; fire control's tests assert on durability, not on removal.
+**Recommended: B.** Removal is the half without which the simulation is lying about its
+own contents, and a seeded loot roll pulls in drop velocity, bay capacity and pickup —
+the run-structure campaign's material. A is more complete but widens this campaign; C
+leaves `ServerShared` unable to say who is alive.
+
+**Q4. Three balance numbers need first values:** `CommitHorizon` (R4's "short fixed
+time"), `SchematicCellSize` (metres per schematic cell, which sets how much target size
+matters), and `UnaidedAccuracy`. **A:** Hands picks defaults (0.3s, measured off the
+LonginusX prefab, 0.35) and the operator tunes them in the smoke. **B:** the operator
+states them now. **Recommended: A** for the first two and **B for `UnaidedAccuracy`**,
+because it is not a tuning number — it decides whether a targeting system is a
+requirement or an upgrade, which is a design ruling. If it is low, Cut 2's required-item
+rule is load-bearing; if it is high, the subsystem is a nice-to-have and Cut 2 shrinks.
+
+**Q5. What seeds the rolls?** `ItemManager.Random` is clock-seeded
+(`ItemManager.cs:19`), so `RollsAreSeeded` cannot pass without a seed argument.
+**A:** add the seed parameter here, as a two-line change. **B:** wait for the `Run`
+lifecycle work that owns it (`docs/headless-playground-cut.md` Cut 1, unlanded).
+**Recommended: A.** A reproducible fight is how this campaign is tuned and how a
+regression is ever found again; waiting on an unstarted cut for two lines is the
+compensator pattern in miniature.
+
+**Q6. When is the snapshot taken — fire, or commit?** `docs/stats-and-power-cut.md:1020`
+says "at commit time". **A:** one snapshot, at fire: the shot carries what left the
+barrel, and only deviation is measured up to the commit. **B:** two snapshots — payload
+at fire, targeting stats at commit — so a targeting system knocked out mid-flight
+degrades the shot already in the air. **Recommended: A.** One rule, one freeze point, and
+over a horizon measured in tenths of a second B's extra fidelity is invisible while its
+extra state is permanent. B is the more simulationist answer and is worth having if the
+operator wants killing the gunnery computer to spoil shots already fired.
+
+**Q7. Mines.** Cut 4 moves mine *damage* to `FireControl.Splash` but leaves
+`Mine.cs:68`'s `OverlapSphere` for proximity triggering, which is contact detection
+rather than hit detection. **A:** leave it, alongside `TractorBeam` and ship collision,
+as a named deferred physics surface. **B:** move proximity into `Zone` too, so the last
+`Physics.*` in the weapons directory goes. **Recommended: A.** No design ships a mine,
+and B buys a clean grep rather than an invariant. Revisit when a mine is authored.
