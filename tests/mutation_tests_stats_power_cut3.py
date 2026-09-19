@@ -75,20 +75,26 @@ MUTATIONS: list[Mutation] = [
 
     # --- Cut 3 verification bullet 3 (§0.5): "two ships with identical loadouts fitted in opposite equip order
     # --- get identical grants. That is the death of the hidden priority." The invariant that makes equip order
-    # --- unable to matter is that every consuming item reads back the SAME GrantRatio; restricting the write to
-    # --- only the first equipped consumer reintroduces exactly the "whoever equipped first" priority the cut
-    # --- kills, just relocated from SortPosition into this loop. ---
+    # --- unable to matter is that every consuming item reads back its own tier's GrantRatio; restricting the
+    # --- write to only the first draw found reintroduces exactly the "whoever equipped first" priority the cut
+    # --- kills, just relocated from SortPosition into this loop.
+    # ---
+    # --- F8 (docs/stats-and-power-cut.md, Soul pass 2026-09-19) re-anchor: Cut 3's own flat "write GrantRatio to
+    # --- every consumer" loop (Step) was replaced by Cut 5's tiered AllocateTiers, whose closing loop writes each
+    # --- draw's own tier ratio instead -- the anchor below follows that move; the rule and the test it's pinned
+    # --- against (EveryConsumingItemReadsTheSameGrantRatio, a single-tier fixture) are unchanged. ---
     Mutation(
-        rule="every consuming item must be written the same GrantRatio, not just the first one found",
+        rule="every consuming item must be written its own tier's GrantRatio, not just the first draw found",
         file="Assets/Scripts/ServerShared/PowerBus.cs",
         anchor=(
-            "        foreach (var item in _entity.Equipment)\n"
-            "            if (item.Behaviors.Any(b => b is IPowerConsumer))\n"
-            "                item.PowerSupply = GrantRatio;"
+            "        foreach (var draw in draws)\n"
+            "        {\n"
+            "            draw.Item.PowerSupply = ratios[draw.Tier];"
         ),
         mutated=(
-            "        var firstConsumer = _entity.Equipment.FirstOrDefault(item => item.Behaviors.Any(b => b is IPowerConsumer));\n"
-            "        if (firstConsumer != null) firstConsumer.PowerSupply = GrantRatio;"
+            "        foreach (var draw in draws.Take(1))\n"
+            "        {\n"
+            "            draw.Item.PowerSupply = ratios[draw.Tier];"
         ),
         test="PowerBusTests.EveryConsumingItemReadsTheSameGrantRatio",
         expect="red",
