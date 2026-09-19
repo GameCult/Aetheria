@@ -284,14 +284,22 @@ public sealed class FireAuthorityTests : IDisposable
     public void ShotResolvesOnArrival()
     {
         var e = Build(TestSettings(), damage: 100, velocity: 10, accuracy: 1, resolution: 1, spread: 0, targetRange: 50);
-        // range 50, velocity 10 -> flight time 5s, well past the .5s commit horizon.
+        // range 50, velocity 10 -> flight time 5s, commit at 4.5s (.5s horizon), arrival at 5s.
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
         var before = e.Target.Hull.Durability;
 
-        e.Zone.Update(4f); // still short of arrival (5s)
+        e.Zone.Update(4f); // still short of commit (4.5s)
         Assert.Equal(before, e.Target.Hull.Durability);
 
-        e.Zone.Update(2f); // now past arrival
+        // Cut 7 (docs/fire-control-cut.md, 7.2): an intermediate check between commit and arrival -- without
+        // it, jumping straight from before-commit to past-arrival lets "apply as soon as committed, not only
+        // once also arrived" (Step's arrival gate collapsed to just `if (shot.Committed)`) go unnoticed, since
+        // a single wide Zone.Update spanning both CommitTime and ArrivalTime crosses both thresholds in one
+        // call either way.
+        e.Zone.Update(.55f); // t=4.55: past commit (4.5s), still short of arrival (5s)
+        Assert.Equal(before, e.Target.Hull.Durability);
+
+        e.Zone.Update(1f); // now past arrival
         Assert.True(e.Target.Hull.Durability < before);
     }
 
