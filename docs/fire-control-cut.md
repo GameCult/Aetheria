@@ -248,6 +248,29 @@ asserting a named test goes red with a no-op control.
 
 ---
 
+## Rulings (operator and Self, 2026-09-19)
+
+- **Q4, unaided accuracy: really, really bad.** Operator: "Targeting with the mark one eyeball
+  should be really, really bad." A ship with no targeting system can hit something close,
+  slow and unaware, and little else. That makes the targeting subsystem **required equipment**
+  rather than an upgrade: every hull needs somewhere to put one, the catalog needs them at
+  several price points, and a stripped hull is a genuine handicap. Hands picks the other two
+  balance numbers; this one is authored to make unaided fire a last resort, and the operator
+  tunes it in play.
+- **Q1, turrets: author `FiringArc: 360`.** No new type for what a number already says.
+- **Q2, player fire is arc-gated** like everyone else's. Manual and programmatic must not be
+  two truths.
+- **Q3, death removes the ship**, and loot stays as it is until the pickup cut.
+- **Q5, seed the rolls in this campaign.** Two lines here beats waiting on an unstarted cut.
+- **Q6, snapshot at fire, not at commit** (Self, accepting Imagination's counter-proposal to
+  the stats map's §8 seam). A shot carries the gun that fired it: its parameters freeze when
+  the trigger is pulled, and nothing about the shooter's heat, power or wear changes them
+  mid-flight. Evasion still decides the outcome, because deviation is measured at arrival
+  against the predicted intercept. `docs/stats-and-power-cut.md` §8 said "snapshot at commit";
+  that is superseded, and the resolver's promise (a current value, not a stable one) is
+  honoured either way.
+- **Q7, mine proximity physics: leave it.**
+
 ## 0b. Identity, lifecycle, authority
 
 One row per kind this campaign introduces. No cut below is mapped with a cell empty.
