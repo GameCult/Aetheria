@@ -288,7 +288,8 @@ public static class FireControl
     private static ShotOutcome Commit(Zone zone, PendingShot shot, float now)
     {
         // Cut 6b, 6.1 (Soul finding 6): a shot's dice belong to the shot, not to whatever else happened to
-        // draw from ItemManager.Random first. A pure function of (zone identity, shot id) -- the `| 1u` guards
+        // draw from the engine-wide shared generator first. A pure function of (zone identity, shot id) --
+        // the `| 1u` guards
         // the degenerate zero seed -- so two runs of the same fight from the same galaxy seed roll identically
         // no matter what the UI drew from the shared stream in between. This generator is local and dies with
         // the call: nothing outside Commit may seed or advance a combat draw, and Commit may not read or write
