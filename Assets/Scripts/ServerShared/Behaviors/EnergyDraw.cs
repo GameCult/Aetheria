@@ -54,6 +54,13 @@ public class EnergyDraw : Behavior, IPowerConsumer
         // A consumable-hosted instance (Item null) has no PowerBus entry (§1.2's grants are keyed by
         // EquippedItem); named rather than silently assumed away, it always succeeds here, the same way every
         // other context-dependent factor a ConsumableItemEffect answers with the identity elsewhere in this cut.
-        return Item == null || Item.PowerSupply >= 1f;
+        //
+        // Cut 7 (docs/stats-and-power-target.md): unlike the other four continuous consumers, EnergyDraw has no
+        // performance stat of its own to curve -- its Execute return value IS its whole effect, the gate that
+        // decides whether the rest of its BehaviorGroup runs at all (Entity.cs's per-group Execute chain). There
+        // is nothing here for a PowerSupply term to degrade continuously, so brownout is expressed the only way
+        // this behaviour can express it: a partial grant still passes (no more flicking off at 80%), and only a
+        // true zero grant closes the gate.
+        return Item == null || Item.PowerSupply > 1e-4f;
     }
 }

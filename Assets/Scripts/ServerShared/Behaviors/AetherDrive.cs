@@ -159,12 +159,14 @@ public class AetherDrive : Behavior, IPowerConsumer
         Item.SetAudioParameter(_data.RpmAudioParameter, (Rpm.x + Rpm.y + Rpm.z) / 3 / MaximumRpm);
         Item.SetAudioParameter(_data.TorqueRatioAudioParameter, max(max(torqueRatio.x, torqueRatio.y), torqueRatio.z));
         
-        if (Item.PowerSupply >= 1f)
+        // Cut 7 (docs/stats-and-power-target.md): actualRpmDelta already derives from Evaluate(_data.Torque)
+        // above, so a Torque stat carrying a PowerSupply term already shrinks the rotor's spin-up under a
+        // partial grant -- this no longer demands a full one, only that supply has not been cut to true zero.
+        if (Item.PowerSupply > 1e-4f)
         {
             Rpm += actualRpmDelta;
             return true;
         }
-
 
         return false;
     }

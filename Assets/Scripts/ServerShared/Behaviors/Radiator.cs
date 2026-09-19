@@ -86,8 +86,12 @@ public class Radiator : Behavior, IAlwaysUpdatedBehavior, IInitializableBehavior
         // Temperature ratio would cause more waste heat than pump capacity, stop executing
         if (tempRatio > PumpedHeat / WasteHeat) return true;
 
-        if (Item != null && Item.PowerSupply < 1f) return false;
-
+        // Cut 7 (docs/stats-and-power-target.md): no separate power gate at all. PumpedHeat above is already a
+        // plain Evaluate() read, so a PumpedHeat stat carrying a PowerSupply term already pumps less under a
+        // partial grant -- waste heat below is unaffected by the curve, so a starved radiator falls behind and
+        // the ship heats up, which is the reduced-performance failure the ruling asks for instead of the pump
+        // simply refusing to run. At true zero supply PumpedHeat itself resolves to 0 (pow(0, exponent) == 0),
+        // so "produces nothing" already falls out of the curve below without a special case here.
         var pumpedHeat = PumpedHeat * max(itemTemperature - _data.TemperatureFloor, 0);
         
         // Radiator temperature is below temperature floor, stop executing
