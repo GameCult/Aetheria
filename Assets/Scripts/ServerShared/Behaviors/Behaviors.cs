@@ -124,11 +124,6 @@ public interface IProgressBehavior
     float Progress { get; }
 }
 
-public interface IOrderedBehavior
-{
-    int Order { get; }
-}
-
 public interface IPopulationAssignment
 {
     int AssignedPopulation { get; set; }
@@ -140,9 +135,14 @@ public interface IPopulationAssignment
 // point -- a resolved stat and, where the map calls for one, a behaviour-supplied scalar such as Thruster's
 // throttle axis (set externally before the tick) -- never from work Execute itself would otherwise do. The
 // behaviour reads back how much of its own request was granted from Item.PowerSupply during its own Execute.
+//
+// Cut 5 (docs/stats-and-power-cut.md §1.3): every kind of consumer also names the priority tier (PowerTiers.cs)
+// it defaults to. EquippedItem reads this exactly once, to seed EquippableItem.PowerTier the first time an item
+// without a player-chosen tier gets equipped -- after that the stored field is what PowerBus reads, never this.
 public interface IPowerConsumer
 {
     float PowerRequest(float dt);
+    int DefaultPowerTier { get; }
 }
 
 [Inspectable, 

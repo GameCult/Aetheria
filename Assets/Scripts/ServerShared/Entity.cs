@@ -591,7 +591,7 @@ public abstract class Entity
         }
         
         Equipment.Remove(item);
-        _orderedEquipment = Equipment.OrderBy(x => x.SortPosition).ToArray();
+        _orderedEquipment = Equipment.ToArray();
         
         var hullData = ItemManager.GetData(Hull) as HullData;
         var itemData = ItemManager.GetData(item.EquippableItem);
@@ -812,7 +812,7 @@ public abstract class Entity
         }
                 
         Mass += itemData.Mass;
-        _orderedEquipment = Equipment.OrderBy(x => x.SortPosition).ToArray();
+        _orderedEquipment = Equipment.ToArray();
         return true;
     }
 
@@ -1184,7 +1184,9 @@ public class ConsumableItemEffect : IStatContext
 // entity and a running simulation behind it.
 public class EquippedItem : IStatContext
 {
-    public int SortPosition;
+    // SortPosition (Cut 3-era, only ever set by Reactor.Order) is deleted by Cut 5 (docs/stats-and-power-cut.md
+    // §1.3): "EquippedItem.SortPosition must no longer influence who is fed" -- the tiered allocation pass
+    // replaces it, and IOrderedBehavior/Reactor.Order go with it (§7 O3).
     public EquippableItem EquippableItem;
     public int2 Position;
 
@@ -1339,10 +1341,18 @@ public class EquippedItem : IStatContext
 
         foreach (var behavior in Behaviors)
         {
-            if (behavior is IOrderedBehavior orderedBehavior)
-                SortPosition = orderedBehavior.Order;
             if(behavior is IPopulationAssignment populationAssignment)
                 entity.PopulationAssignments.Add(populationAssignment);
+        }
+
+        // Cut 5 (docs/stats-and-power-cut.md §1.3, Q5 "defaulted per behaviour kind"): seed the stored tier
+        // exactly once, the first time this unit is ever equipped. A unit the player has already assigned a
+        // tier to (or one seeded on an earlier equip) keeps it -- this never runs again for that unit.
+        if (EquippableItem.PowerTier == PowerTiers.Unassigned)
+        {
+            var consumerTiers = Behaviors.OfType<IPowerConsumer>().Select(c => c.DefaultPowerTier).ToArray();
+            if (consumerTiers.Length > 0)
+                EquippableItem.PowerTier = consumerTiers.Min();
         }
     }
 

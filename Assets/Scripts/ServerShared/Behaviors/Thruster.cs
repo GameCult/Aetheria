@@ -76,6 +76,10 @@ public class Thruster : Behavior, IAnalogBehavior, IPowerConsumer
     // PowerBus.Step, so it is already current when this runs.
     public float PowerRequest(float dt) => _input > .01f ? _input * Evaluate(_data.EnergyUsage) : 0f;
 
+    // Cut 5 (docs/stats-and-power-cut.md §1.3, PowerTiers.cs): Medium -- mobility. Losing thrust for a tick
+    // under brownout is an inconvenience, not the cascading failure a starved radiator or shield causes.
+    public int DefaultPowerTier => PowerTiers.Medium;
+
     public override bool Execute(float dt)
     {
         Item.SetAudioParameter(SpecialAudioParameter.Intensity, _input);

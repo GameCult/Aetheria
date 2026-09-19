@@ -68,6 +68,10 @@ public class Shield : Behavior, IProgressBehavior, IPowerConsumer
         return _reserve.RequestedFill(dt);
     }
 
+    // Cut 5 (docs/stats-and-power-cut.md §1.3, PowerTiers.cs): High -- hull survival the player is actively
+    // trading power for, but not the life-support constant Radiator is, so it sits one tier below.
+    public int DefaultPowerTier => PowerTiers.High;
+
     public override bool Execute(float dt)
     {
         Efficiency = Evaluate(_data.Efficiency);

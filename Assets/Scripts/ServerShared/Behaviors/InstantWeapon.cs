@@ -143,6 +143,10 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
         return _capacitor.RequestedFill(dt);
     }
 
+    // Cut 5 (docs/stats-and-power-cut.md §1.3, PowerTiers.cs): Low -- offense. The ruling's own example of what
+    // a reactor throttle should sacrifice first.
+    public int DefaultPowerTier => PowerTiers.Low;
+
     // Cut 4: whole-or-nothing against this behaviour's own input capacitor -- the operator's ruling ("no item
     // ever receives a fraction of a shot") means a fire attempt only ever succeeds at full charge, so the cost
     // spent is always exactly Capacity, never the possibly-stale cached Energy. A consumable-hosted instance

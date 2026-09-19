@@ -52,6 +52,13 @@ public class EquippableItem : CraftedItemInstance
 {
     [JsonProperty("durability"), Key(7)] public float Durability;
     [JsonProperty("override"), Key(8)] public bool OverrideShutdown;
+
+    // Cut 5 (docs/stats-and-power-cut.md §1.3, §0b "A power tier"): a player choice, stored on the unit rather
+    // than the design, so two units of the same design can be prioritized differently. PowerTiers.Unassigned
+    // until the first equip seeds a behaviour-kind default (EquippedItem's constructor) or the player overrides
+    // it from the schematic UI; from then on PowerBus only ever reads it, never derives it. An old run store
+    // missing key 12 deserializes to this same field initializer, so no migration is needed (§ Cut 5).
+    [JsonProperty("powerTier"), Key(12)] public int PowerTier = PowerTiers.Unassigned;
 }
 
 [MessagePackObject, JsonObject(MemberSerialization.OptIn)]

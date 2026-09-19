@@ -70,6 +70,10 @@ public class Radiator : Behavior, IAlwaysUpdatedBehavior, IInitializableBehavior
         return Evaluate(_data.EnergyUsage) * tempRatio * dt;
     }
 
+    // Cut 5 (docs/stats-and-power-cut.md §1.3, PowerTiers.cs): Critical -- the closest thing this game has to
+    // life support. A starved radiator cascades into wear and shutdown across every other item on the hull.
+    public int DefaultPowerTier => PowerTiers.Critical;
+
     public override bool Execute(float dt)
     {
         PumpedHeat = Evaluate(_data.PumpedHeat);

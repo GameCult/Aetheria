@@ -100,6 +100,9 @@ public class Sensor : Behavior, IEventBehavior, IPowerConsumer
         return _capacitor.RequestedFill(dt);
     }
 
+    // Cut 5 (docs/stats-and-power-cut.md §1.3, PowerTiers.cs): Utility -- everything else.
+    public int DefaultPowerTier => PowerTiers.Utility;
+
     public void Ping()
     {
         // Whole-or-nothing against the ping's own input capacitor -- fires only at full charge (operator

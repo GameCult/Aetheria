@@ -77,6 +77,9 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerC
     // Deactivate) before Entity.Update calls PowerBus.Step, so it is already current when this runs.
     public float PowerRequest(float dt) => _firing && StanceAllowsFire ? Evaluate(_data.Energy) * dt : 0f;
 
+    // Cut 5 (docs/stats-and-power-cut.md §1.3, PowerTiers.cs): Low -- offense, same as InstantWeapon.
+    public int DefaultPowerTier => PowerTiers.Low;
+
     public override bool Execute(float dt)
     {
         base.Execute(dt);
