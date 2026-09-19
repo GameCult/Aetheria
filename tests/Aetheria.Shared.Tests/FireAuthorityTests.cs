@@ -522,10 +522,20 @@ public sealed class FireAuthorityTests : IDisposable
 
     // The absorb rule now exists once, in FireControl: an active shield that CanTakeHit absorbs, and the
     // schematic is untouched. Mutation: remove the shield branch (the hit always reaches the hull).
+    //
+    // Cut 6d (docs/fire-control-cut.md): damage raised from 10 to 50, well above the Reactor/Shield gear's own
+    // Durability of 10. Unaimed fire now lands via the dart-throw kernel instead of a uniform pick over the
+    // whole hull, and Build's own default Precision groups shots tightly enough around this fixture's small
+    // hull's centre of mass that the deterministic draw for this exact seed lands on one of the two equipped
+    // Tool items. At damage 10 that coincidentally consumed the item's own durability with zero remainder,
+    // which left the hull's durability unchanged with or without the shield mutation applied -- the shield
+    // branch could be deleted outright and this test would not have noticed. Damage well past what any single
+    // item on this hull could fully absorb makes the assertion mean what it says regardless of which cell the
+    // kernel happens to land on.
     [Fact]
     public void ShieldTakesHit()
     {
-        var e = Build(TestSettings(), damage: 10, velocity: 0, accuracy: 1, resolution: 1, spread: 0, armor: 0,
+        var e = Build(TestSettings(), damage: 50, velocity: 0, accuracy: 1, resolution: 1, spread: 0, armor: 0,
             beforeActivate: (items, shooter, target) =>
             {
                 // The Reactor/Shield catalog entries are authored in Build's own upsert batch (see its
@@ -543,7 +553,7 @@ public sealed class FireAuthorityTests : IDisposable
         e.Target.Shield.Item.Enabled.Value = true;
 
         for (var i = 0; i < 20; i++) e.Zone.Update(.1f); // charge the reserve
-        Assert.True(e.Target.Shield.CanTakeHit(DamageType.Kinetic, 10));
+        Assert.True(e.Target.Shield.CanTakeHit(DamageType.Kinetic, 50));
 
         var beforeHull = e.Target.Hull.Durability;
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
