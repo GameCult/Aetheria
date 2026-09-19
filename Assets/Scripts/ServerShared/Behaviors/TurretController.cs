@@ -78,7 +78,10 @@ public class TurretController : Behavior, IInitializableBehavior
             foreach (var x in _weapons)
             {
                 var data = x.Data as WeaponData;
-                var fire = FireControl.InArc(x.Item, Entity.LookDirection);
+                // Cut 3 (docs/fire-control-cut.md): the same gate and threshold Combat.cs uses -- HitProbability
+                // already subsumes the bare arc test (zero out of arc), so this is the "worth it" heuristic, not
+                // a parallel arc check.
+                var fire = FireControl.HitProbability(x, Entity, Entity.Target.Value) >= Entity.ItemManager.GameplaySettings.AgentMinHitProbability;
                 if (x.Evaluate(data.Range) > dist && fire)
                 {
                     x.Activate();

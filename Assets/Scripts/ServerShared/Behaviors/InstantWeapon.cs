@@ -70,7 +70,9 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
     public event Action OnReloadBegin;
     public event Action OnReloadComplete;
     public event Action OnCooldownComplete;
-    public event Action OnFire;
+    // Cut 3 (docs/fire-control-cut.md): carries the ShotId FireControl.Fire assigned, so a Unity effect
+    // manager can bind its presentation to the one shot it belongs to instead of applying damage itself.
+    public event Action<int> OnFire;
 
     public virtual void ResetEvents()
     {
@@ -96,6 +98,11 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
     {
         // Safed: shooter has a target and hasn't declared hostility toward it.
         if (!StanceAllowsFire) return;
+        // Cut 3 (docs/fire-control-cut.md, Q2): arc-gated the same way AI and turret fire are (Weapon.
+        // ArcAllowsFire), and applied here because this is the one place every shooter's trigger passes
+        // through -- a player's action-bar Activate() reaches this exactly the same way Combat.cs's and
+        // TurretController.cs's Activate() calls do.
+        if (!ArcAllowsFire) return;
 
         // If 1 ammo is consumed per burst, perform ammo and energy consumption here
         // UseAmmo returns false when triggering reload; cancel firing if that is the case
@@ -230,7 +237,10 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
             
             _burstRemaining--;
             _burstTimer -= _burstInterval;
-            OnFire?.Invoke();
+            // Cut 3: this is fire authority's one entry point. FireControl.Fire freezes the payload snapshot
+            // (Q6 -- the gun's own stats at this exact instant, base.Execute(dt) above already refreshed them
+            // this tick) and queues a PendingShot; nothing downstream re-evaluates a stat.
+            OnFire?.Invoke(FireControl.Fire(this, Item, Entity));
             if(!firedThisFrame)
             {
                 Item.FireAudioEvent(WeaponAudioEvent.Fire);

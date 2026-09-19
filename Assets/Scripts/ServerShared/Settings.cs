@@ -224,6 +224,22 @@ public class GameplaySettings
     public float AgentRangeExponent = .25f;
     public float AgentForwardLerp = .5f;
     public float AgentMaxForwardDistance = 50;
+
+    // Cut 3 (docs/fire-control-cut.md): first guesses: the headless fixture is the tuning harness, the
+    // operator smoke is the arbiter (§ Risks).
+    //
+    // How long before impact a shot's outcome commits (R4). Deviation counts up to this horizon; after it
+    // the result is frozen and the rest of the flight is pure choreography.
+    public float CommitHorizon = .5f;
+
+    // World units per hull-schematic cell, used only by FireControl.HitProbability's angular-size term
+    // (pSpread) to turn a hull's cell footprint into a real-world silhouette size at range.
+    public float SchematicCellSize = 2f;
+
+    // The floor an AI's own predicted hit probability (FireControl.HitProbability) must clear before it counts
+    // a firing solution worth taking (Combat.cs, TurretController.cs). Player fire is gated on arc alone
+    // (Weapon.ArcAllowsFire, Q2) -- this threshold is an AI fire-discipline heuristic, not part of the roll.
+    public float AgentMinHitProbability = .2f;
 }
 
 [Serializable, MessagePackObject(keyAsPropertyName: true), JsonObject]

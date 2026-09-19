@@ -10,7 +10,7 @@ public class MineManager : InstantWeaponEffectManager
     public Prototype ProjectilePrototype;
     public bool InheritVelocity;
 
-    public override void Fire(InstantWeapon weapon, EquippedItem item, EntityInstance source, EntityInstance target)
+    public override void Fire(InstantWeapon weapon, EquippedItem item, EntityInstance source, EntityInstance target, int shotId)
     {
         var p = ProjectilePrototype.Instantiate<Mine>();
         var hp = source.Entity.Hardpoints[item.Position.x, item.Position.y];

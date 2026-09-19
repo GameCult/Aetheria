@@ -33,6 +33,16 @@ public class Zone
     private Random _random;
     public List<Agent> Agents = new List<Agent>();
 
+    // Cut 3 (docs/fire-control-cut.md, 0b table): Zone owns the pending-shot collection and the ShotId
+    // namespace; FireControl owns every transition a shot goes through. ShotCommitted publishes once a shot's
+    // outcome is decided (R4's commit horizon); ShotResolved republishes the same, unchanged outcome at
+    // arrival, right before the shot is removed. Presentations are the only readers of either.
+    public List<PendingShot> PendingShots = new List<PendingShot>();
+    public Subject<ShotOutcome> ShotCommitted = new Subject<ShotOutcome>();
+    public Subject<ShotOutcome> ShotResolved = new Subject<ShotOutcome>();
+    private int _nextShotId;
+    public int NextShotId() => ++_nextShotId;
+
     private List<Task> BeltUpdates = new List<Task>();
 
     public float Time
@@ -148,6 +158,11 @@ public class Zone
             agent.Update(deltaTime);
 
         foreach (var entity in Entities.ToArray()) entity.Update(deltaTime);
+
+        // Cut 3: after every entity has had its chance to fire this tick, age and resolve the shots that
+        // firing queued. A shot fired this tick with a flight time shorter than CommitHorizon commits and
+        // resolves in this same call.
+        FireControl.Step(this, deltaTime);
     }
 
     // Determine orbital position recursively, caching parent positions to avoid repeated calculations

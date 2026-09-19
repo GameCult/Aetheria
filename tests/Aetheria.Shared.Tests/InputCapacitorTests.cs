@@ -132,7 +132,7 @@ public sealed class InputCapacitorTests : IDisposable
         var (ship, _, _) = BuildShip(cache, reactorCharge: 5);
         var gun = EquipGun(cache, ship);
         var fired = false;
-        gun.OnFire += () => fired = true;
+        gun.OnFire += _ => fired = true;
 
         // Trigger() reads BurstCount/Cooldown off cached properties that only exist after UpdateStats has run
         // once (inside Execute) -- a zero-dt warm-up tick populates them without spending any time or charge,
@@ -158,7 +158,7 @@ public sealed class InputCapacitorTests : IDisposable
         var (ship, _, _) = BuildShip(cache, reactorCharge: 10);
         var gun = EquipGun(cache, ship);
         var fired = false;
-        gun.OnFire += () => fired = true;
+        gun.OnFire += _ => fired = true;
 
         ship.Update(0f); // warm-up: populates BurstCount/Cooldown before Trigger() reads them
         gun.Activate();
