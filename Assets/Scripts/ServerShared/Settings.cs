@@ -240,6 +240,12 @@ public class GameplaySettings
     // a firing solution worth taking (Combat.cs, TurretController.cs). Player fire is gated on arc alone
     // (Weapon.ArcAllowsFire, Q2) -- this threshold is an AI fire-discipline heuristic, not part of the roll.
     public float AgentMinHitProbability = .2f;
+
+    // Cut 4 (docs/fire-control-cut.md): how often a continuous weapon (ConstantWeapon) rolls a discrete
+    // outcome for Damage * this interval, through the same FireControl.Fire/Step pair a discrete shot uses --
+    // a beam is a sequence of rolls, not a continuous truth. First guess; the headless fixture is the tuning
+    // harness, the operator smoke is the arbiter, same as Cut 3's other first guesses.
+    public float BeamResolveInterval = .25f;
 }
 
 [Serializable, MessagePackObject(keyAsPropertyName: true), JsonObject]

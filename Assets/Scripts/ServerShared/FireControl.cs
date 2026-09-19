@@ -155,7 +155,12 @@ public static class FireControl
     // flight time, freezes the payload snapshot (R10, Q6 -- the gun that fired it, not a re-read later), and
     // queues a PendingShot for Zone.Step to age and eventually resolve. Returns the ShotId so the caller's
     // OnFire event can carry it to presentation.
-    public static int Fire(Weapon weapon, EquippedItem item, Entity source)
+    // Cut 4 (docs/fire-control-cut.md): damageOverride lets a continuous weapon fire a shot for less than its
+    // full Damage -- ConstantWeapon.Execute rolls one of these per GameplaySettings.BeamResolveInterval, for
+    // Damage * interval, through this exact same freeze-and-queue path (a flight time of zero, since a beam's
+    // authored Velocity is 0, commits and resolves in the tick it fires -- R4's short-flight degradation,
+    // unchanged). Every other caller keeps reading the frozen weapon.Damage it always did.
+    public static int Fire(Weapon weapon, EquippedItem item, Entity source, float? damageOverride = null)
     {
         var zone = source.Zone;
         var target = source.Target.Value;
@@ -186,7 +191,7 @@ public static class FireControl
             Target = target,
             Weapon = item,
             Aimed = source.ResolvedTargetItem,
-            Damage = weapon.Damage,
+            Damage = damageOverride ?? weapon.Damage,
             Penetration = weapon.Penetration,
             DamageSpread = weapon.DamageSpread,
             DamageType = weapon.WeaponData.DamageType,
@@ -335,6 +340,49 @@ public static class FireControl
             ArrivalIn = max(0f, shot.ArrivalTime - now),
             DamageType = shot.DamageType
         };
+    }
+
+    // Cut 4 (docs/fire-control-cut.md): the one splash rule -- an unconditional area effect, not a rolled
+    // shot. Nothing here draws: a mine or an airburst round always damages everything it catches, the same
+    // as the Physics.OverlapSphere queries this replaces always did. Applies the shield-absorb-or-hull-takes-
+    // it branch (F5, docs/stats-and-power-cut.md) per target, then -- for a target the shield didn't fully
+    // absorb -- DamageSchematic over the directional half of that target's own hull that faces the blast, the
+    // rule moved verbatim from the Splash subscription EntityInstance.cs carried before Cut 3 deleted it
+    // (git show b7743789^:Assets/Scripts/Gameplay/EntityInstance.cs), made planar (R7): the blast-to-target
+    // direction is measured in the zone's (x,z) plane and rotated into each target's own facing by its
+    // Direction, the same rotation Entity.ApplyHit's penetration march uses, in place of a Unity
+    // InverseTransformDirection.
+    public static void Splash(Zone zone, float3 position, float radius, float damage, DamageType damageType)
+    {
+        foreach (var target in zone.Entities)
+        {
+            var toTarget = (target.Position - position).xz;
+            if (length(toTarget) > radius) continue;
+
+            var shield = target.Shield;
+            var shieldActive = shield != null && shield.Item.Active.Value;
+            var shieldAbsorbs = shieldActive && shield.CanTakeHit(damageType, damage);
+            if (shieldActive && !shieldAbsorbs) shield.Break();
+            if (shieldAbsorbs)
+            {
+                shield.TakeHit(damageType, damage);
+                continue;
+            }
+
+            var hullData = target.ItemManager.GetData(target.Hull) as HullData;
+            var forward = normalize(target.Direction);
+            var right = float2(forward.y, -forward.x);
+            var localDirection = lengthsq(toTarget) > 1e-6f
+                ? normalize(float2(dot(toTarget, right), dot(toTarget, forward)))
+                : float2(0, 1);
+
+            var hitShape = new Shape(hullData.Shape.Width, hullData.Shape.Height);
+            foreach (var v in hullData.Shape.Coordinates)
+                if (dot(normalize((float2) v - hullData.Shape.CenterOfMass), localDirection) < 0)
+                    hitShape[v] = true;
+
+            target.DamageSchematic(damage, hitShape);
+        }
     }
 
     // The cells of the target's hull schematic actually occupied by `item` -- GearOccupancy is the one source
