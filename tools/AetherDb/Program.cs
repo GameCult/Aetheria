@@ -33,8 +33,9 @@ public static class Program
             case "brownout-migrate": return BrownoutMigrate(args.Contains("apply"));
             case "roles-migrate": return RolesMigrate(args.Contains("apply"));
             case "firing-arc-migrate": return FiringArcMigrate(args.Contains("apply"));
+            case "targeting-catalog": return TargetingCatalog(args.Contains("apply"));
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply]");
                 return 1;
         }
     }
@@ -1029,6 +1030,208 @@ public static class Program
             foreach (var (document, key) in changed) batch.Upsert(document.GetType(), document, key);
         });
         Console.WriteLine($"Landed {changed.Count} changed records in Aetheria.cc");
+        return 0;
+    }
+
+    // Fire control Cut 6a (docs/fire-control-cut.md, Cut 2's "Catalog:" bullet). Cut 2 shipped the behaviour and
+    // never shipped the data: no targeting-system design exists, so tools/AetherDb loadout throws
+    // InvalidLoadoutException ("No compatible targeting system found for entity!") for every armed hull. This
+    // authors the two designs Cut 2 asked for (1-cell and 2-cell, each with a NiteLife product -- the one
+    // manufacturer that already sells the capacitor, so IsAvailable finds one without falling back to "any
+    // manufacturer") plus one product each for the four designs nothing currently sells (plight, pswarm, Core
+    // Power, Large Drive), matching each to the manufacturer its own flavour text or the roster already implies.
+    // Dry run unless passed "apply", same contract as the other *-migrate commands.
+    private static int TargetingCatalog(bool apply)
+    {
+        var db = AetherDb.Open(catalogWritable: apply);
+
+        Faction FactionByShortName(string shortName)
+        {
+            var faction = db.Cache.GetAll<Faction>().FirstOrDefault(f => f.ShortName == shortName);
+            if (faction == null) throw new InvalidOperationException($"No faction with short name \"{shortName}\".");
+            return faction;
+        }
+
+        EquippableItemData DesignByName(string name)
+        {
+            var design = db.Cache.GetAll<EquippableItemData>().FirstOrDefault(i => i.Name == name);
+            if (design == null) throw new InvalidOperationException($"No design named \"{name}\".");
+            return design;
+        }
+
+        PerformanceStat Flat(float value) => new PerformanceStat { Min = value, Max = value, Terms = new List<StatTerm>() };
+
+        PerformanceStat Rolled(float min, float max, string role) => new PerformanceStat
+        {
+            Min = min,
+            Max = max,
+            Terms = new List<StatTerm>
+            {
+                new StatTerm { Source = StatSource.Heat, Exponent = 0.0625f },
+                new StatTerm { Source = StatSource.Durability, Exponent = 0.25f },
+                new StatTerm { Source = StatSource.Quality, Exponent = 2f, Role = role },
+            },
+        };
+
+        // Both roles are new vocabulary (docs/stats-power-cut7-roles.md's convention is one vocabulary per new
+        // behaviour kind, same as content-batch-one's shield "emitter/reservoir/regulator"): "processor" for the
+        // aim-quality half (Accuracy, Precision), "array" for the sensor/tracking-hardware half (Tracking).
+        // Resolution carries no role and no terms -- it is authored as a flat info-level threshold per design
+        // (see the design-time note below), not a stat that wear or manufacturing quality moves.
+        GearData BuildTargetingDesign(string name, string description, int cells, int durability, float mass,
+            int price, float minTemp, float maxTemp, float optimal, float plateau,
+            (float min, float max) accuracy, float resolution, (float min, float max) precision,
+            (float min, float max) tracking, float energyDraw, float heat)
+        {
+            var shape = new Shape();
+            if (cells > 1) shape.Width = cells;
+            return new GearData
+            {
+                Name = name,
+                Description = description,
+                Hardpoint = HardpointType.Tool,
+                Shape = shape,
+                Mass = mass,
+                Price = price,
+                Durability = durability,
+                MinimumTemperature = minTemp,
+                MaximumTemperature = maxTemp,
+                ThermalResilience = 1,
+                OptimalTemperature = optimal,
+                PlateauWidth = plateau,
+                SpecificHeat = 1,
+                Conductivity = 1,
+                Roles = new List<ItemRole> { new ItemRole { Name = "processor" }, new ItemRole { Name = "array" } },
+                Behaviors = new List<BehaviorData>
+                {
+                    new TargetingSystemData
+                    {
+                        Accuracy = Rolled(accuracy.min, accuracy.max, "processor"),
+                        Resolution = Flat(resolution),
+                        Precision = Rolled(precision.min, precision.max, "processor"),
+                        Tracking = Rolled(tracking.min, tracking.max, "array"),
+                    },
+                    new EnergyDrawData { EnergyDraw = Flat(energyDraw), PerSecond = true },
+                    new HeatData { Heat = Flat(heat), PerSecond = true },
+                },
+            };
+        }
+
+        // Sibling argued: PotaT+- (the capacitor, the only other bare Tool gadget in the catalog) is 1x1,
+        // Durability 50, Mass 75, Price 75000, heat response 200-500/276.5/36. GameplaySettings.UnaidedAccuracy
+        // is .05 (AetherDb settings) and GameplaySettings.UnaidedTracking will be 10 once Cut 5 lands (not yet on
+        // this branch) -- both designs clear it by 50% or more. Resolution is placed against the live thresholds
+        // this branch reads from AetherDb settings: TargetDetectionInfoThreshold .1, TargetArmorInfoThreshold .5,
+        // TargetGearInfoThreshold .8. FireControl.HitProbability reads
+        // pSensor = saturate(unlerp(TargetDetectionInfoThreshold, Resolution, info)), so a HIGHER Resolution
+        // needs MORE gathered info before sensor state stops limiting hits -- it is a cost, not a bonus. The
+        // 1-cell system is placed low (.3, just above the detection floor) so it reaches its own modest ceiling
+        // off a cheap scan; the 2-cell system is placed high (.75, near the gear-info tier) so its much higher
+        // ceiling is only fully reachable after sustained scanning. That is an authored reading of "the 1-cell
+        // design lower than the 2-cell", not a re-derivation of the spec, and the report flags it for review.
+        var targetingComputer = BuildTargetingDesign(
+            "Targeting Computer",
+            "Resolves sensor return into a firing solution for the weapons it feeds.",
+            cells: 1, durability: 50, mass: 60, price: 60000,
+            minTemp: 200, maxTemp: 500, optimal: 276.5f, plateau: 36,
+            accuracy: (.45f, .6f), resolution: .3f, precision: (.05f, .2f), tracking: (15f, 25f),
+            energyDraw: 2f, heat: 15f);
+
+        var fireControlArray = BuildTargetingDesign(
+            "Fire Control Array",
+            "A larger fire-control computer: a dedicated tracking array pairs with deeper prediction, at higher mass and price.",
+            cells: 2, durability: 60, mass: 110, price: 150000,
+            minTemp: 220, maxTemp: 480, optimal: 270f, plateau: 28,
+            accuracy: (.65f, .85f), resolution: .75f, precision: (.35f, .55f), tracking: (30f, 45f),
+            energyDraw: 4f, heat: 25f);
+
+        var newDesigns = new (GearData Design, string ProductName, Faction Maker, string ProductDescription, (string Role, float Mean, float Dev)[] Roles)[]
+        {
+            (targetingComputer, "LockOn", FactionByShortName("NiteLife"),
+                "Keeps the lights on your target. (new text)",
+                new[] { ("processor", .55f, .15f), ("array", .5f, .16f) }),
+            (fireControlArray, "LockOn Pro", FactionByShortName("NiteLife"),
+                "Same promise, sharper lock. (new text)",
+                new[] { ("processor", .72f, .12f), ("array", .68f, .13f) }),
+        };
+
+        // Part 3: one product each for the four designs nothing currently sells. Manufacturer assignment is the
+        // brief's own (fire-control-cut.md Cut 6a): plight -> Lucent Media, pswarm -> Aeronautics Unlimited,
+        // Core Power -> Rossum & Douglas, Large Drive -> Lightsail Express. Role coverage matches each design's
+        // own already-declared Roles (read from the catalog, not invented): plight [power coupling, focusing
+        // array], pswarm [guidance system, thruster, warhead], Core Power [core, regulator], Large Drive [] (it
+        // declares no roles today, so its product declares none either -- adding roles to an existing design is
+        // outside this cut's brief).
+        var existingDesigns = new (string DesignName, string ProductName, Faction Maker, string ProductDescription, (string Role, float Mean, float Dev)[] Roles)[]
+        {
+            ("plight", "DragOnBreath", FactionByShortName("Lucent"),
+                "The subsidiary plight's own description already namechecks: DragOnBreath, a Lucent Media property.",
+                new[] { ("focusing array", .7f, .13f), ("power coupling", .55f, .15f) }),
+            ("pswarm", "Leonid", FactionByShortName("AU"),
+                "A rain of pain that falls mainly on space planes.",
+                new[] { ("guidance system", .65f, .14f), ("thruster", .63f, .15f), ("warhead", .7f, .13f) }),
+            ("Core Power", "Steadfast", FactionByShortName("R&D"),
+                "Rated for continuous operation. \"Continuous\" does not imply \"uninterrupted.\" (new text)",
+                new[] { ("core", .5f, .12f), ("regulator", .5f, .12f) }),
+            ("Large Drive", "True North", FactionByShortName("Lightsail"),
+                "Gets your cargo there. Getting you there is your problem. (new text)",
+                Array.Empty<(string, float, float)>()),
+        };
+
+        Console.WriteLine("New designs:");
+        foreach (var (design, productName, maker, _, _) in newDesigns)
+            Console.WriteLine($"  {design.Name} ({design.Shape.Width}x{design.Shape.Height}, {design.Durability} durability, {design.Mass}kg, {design.Price}c) -> product \"{productName}\" by {maker.ShortName}");
+        Console.WriteLine("\nNew products for existing unsold designs:");
+        foreach (var (designName, productName, maker, _, roles) in existingDesigns)
+            Console.WriteLine($"  {designName} -> \"{productName}\" by {maker.ShortName}, roles [{string.Join(", ", roles.Select(r => r.Role))}]");
+
+        if (!apply)
+        {
+            Console.WriteLine($"\nDry run. Pass \"apply\" to land {newDesigns.Length} new designs and {newDesigns.Length + existingDesigns.Length} new products.");
+            return 0;
+        }
+
+        // Validate before staging, same as ShieldMigrate/BrownoutMigrate/RolesMigrate/FiringArcMigrate above:
+        // CultRecordRefs.Validate is the body AetheriaStores.Open and cache.Upsert<T> both run, but a raw
+        // batch.Upsert(Type, document, key) -- needed here because a product must land in the same batch as the
+        // design it references, before that design has a minted key of its own -- does not call it.
+        foreach (var (design, _, _, _, _) in newDesigns) CultRecordRefs.Validate(design);
+
+        db.Cache.Commit(batch =>
+        {
+            var designKeys = new Dictionary<string, CultRecordKey>();
+            foreach (var (design, _, _, _, _) in newDesigns)
+                designKeys[design.Name] = batch.Upsert(typeof(GearData), design);
+
+            foreach (var (design, productName, maker, description, roles) in newDesigns)
+            {
+                var product = new FactionProductData
+                {
+                    Name = productName,
+                    Description = description,
+                    Design = new CultRecordRef<CraftedItemData>(designKeys[design.Name]),
+                    Manufacturer = db.Cache.RefOf(maker),
+                    Roles = roles.Select(r => new ProductRole { Role = r.Role, Mean = r.Mean, StandardDeviation = r.Dev }).ToList(),
+                };
+                batch.Upsert(typeof(FactionProductData), product);
+            }
+
+            foreach (var (designName, productName, maker, description, roles) in existingDesigns)
+            {
+                var design = DesignByName(designName);
+                var product = new FactionProductData
+                {
+                    Name = productName,
+                    Description = description,
+                    Design = new CultRecordRef<CraftedItemData>(db.Cache.RefOf(design).Key),
+                    Manufacturer = db.Cache.RefOf(maker),
+                    Roles = roles.Select(r => new ProductRole { Role = r.Role, Mean = r.Mean, StandardDeviation = r.Dev }).ToList(),
+                };
+                batch.Upsert(typeof(FactionProductData), product);
+            }
+        });
+
+        Console.WriteLine($"\nLanded {newDesigns.Length} new designs and {newDesigns.Length + existingDesigns.Length} new products in Aetheria.cc");
         return 0;
     }
 }
