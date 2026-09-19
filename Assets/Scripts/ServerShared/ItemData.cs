@@ -495,7 +495,7 @@ public class WeaponItemData : GearData
     // without the Airburst flag. No authored value exists yet -- the flag is wired and unexercised until Cut
     // 6a or a later authoring pass sets it.
     [Inspectable, JsonProperty("airburstRange"), Key(29)]
-    public float AirburstRange;
+    public float? AirburstRange;
 }
 
 [CultDocument("aetheria.hulldata", "1"), Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]

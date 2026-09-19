@@ -210,7 +210,7 @@ public static class FireControl
         var weaponItemData = item.Data as WeaponItemData;
         var isAirburst = weaponItemData != null && weaponItemData.WeaponModifiers.HasFlag(WeaponModifiers.Airburst);
         var burstPosition = isAirburst && target != null ? PredictedIntercept(weapon, source, target) : targetPosition;
-        var burstRadius = isAirburst ? weaponItemData.AirburstRange : 0f;
+        var burstRadius = isAirburst ? weaponItemData.AirburstRange ?? 0f : 0f;
 
         var shot = new PendingShot
         {
