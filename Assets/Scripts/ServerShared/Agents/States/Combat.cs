@@ -102,21 +102,19 @@ public class CombatState : BaseState
             var testWeapon = _agent.Ship.WeaponGroups[selectedGroup].weapons.First();
             if(testWeapon.Velocity > 1)
             {
+                // Cut 3 (docs/fire-control-cut.md): the one prediction function, shared with FireControl.Fire's
+                // own snapshot and the roll's deviation measurement -- two separate predictions here and in the
+                // roll would let an AI aim at one point and get judged for missing a different one.
                 var targetHullData = _agent.ItemManager.GetData(target.Hull) as HullData;
-                var targetVelocity = float3(target.Velocity.x, 0, target.Velocity.y);
-                var shipVelocity = float3(_agent.Ship.Velocity.x, 0, _agent.Ship.Velocity.y);
-                var predictedPosition = first_order_intercept(
-                    _agent.Ship.Position,
-                    float3.zero,
-                    testWeapon.Velocity,
-                    target.Position,
-                    targetVelocity
-                );
+                var predictedPosition = FireControl.PredictedIntercept(testWeapon, _agent.Ship, target);
                 predictedPosition.y = _agent.Ship.Zone.GetHeight(predictedPosition.xz) + targetHullData.GridOffset;
                 toTarget = normalize(predictedPosition - _agent.Ship.Position);
             }
-            
-            var shouldFire = FireControl.InArc(testWeapon.Item, toTarget);
+
+            // Cut 3: replaces Cut 1's bare InArc, which HitProbability already subsumes (it returns zero out
+            // of arc) -- this is the AI's own "worth it" heuristic layered on top of the shared gate, not a
+            // second gate.
+            var shouldFire = FireControl.HitProbability(testWeapon, _agent.Ship, target) >= _agent.Settings.AgentMinHitProbability;
             foreach (var weapon in _agent.Ship.WeaponGroups[selectedGroup].weapons)
             {
                 if (shouldFire)

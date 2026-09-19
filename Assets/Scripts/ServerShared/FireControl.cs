@@ -2,9 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
+using System.Collections.Generic;
 using System.Linq;
 using CultMath;
 using static CultMath.math;
+using float2 = CultMath.float2;
+using float3 = CultMath.float3;
+using int2 = CultMath.int2;
 
 // Cut 1 (docs/fire-control-cut.md): geometry -- whether a weapon bears on a point is decided here and
 // nowhere else -- no prefab, transform, ArticulationPoint or renderer may influence it (R6, R7). Mount
@@ -100,4 +104,300 @@ public static class FireControl
         var system = entity.GetBehavior<TargetingSystem>();
         return system != null && system.Item.Active.Value ? system.Tracking : 0f;
     }
+
+    // Cut 3, the risk this map names explicitly: Combat.cs used to run its own first_order_intercept call to
+    // aim, while the roll measured deviation against a separately-computed prediction -- two functions
+    // claiming to answer the same question will eventually disagree, and an AI would then aim at one point and
+    // be judged against another. This is the one function; CombatState (and FireControl.Fire below) both call
+    // it instead of touching CultMath.first_order_intercept directly. Planar: source velocity is never fed in
+    // (no shooter here leads its own motion into the shot), matching every existing call site this replaces.
+    public static float3 PredictedIntercept(Weapon weapon, Entity source, Entity target)
+    {
+        var targetVelocity = float3(target.Velocity.x, 0, target.Velocity.y);
+        return weapon.Velocity > .01f
+            ? first_order_intercept(source.Position, float3.zero, weapon.Velocity, target.Position, targetVelocity)
+            : target.Position;
+    }
+
+    // Cut 3, R1/R3: the targeting solution (0b table) -- pure, no draw, recomputed fresh on every call. AI
+    // reads this to decide whether a shot is worth taking; the HUD reads it to draw a number; Fire below reads
+    // it once, at the instant the trigger is pulled, and freezes the result into the shot (R10, Q6). Two reads
+    // a tick apart may differ; nothing here or anywhere else caches one.
+    public static float HitProbability(Weapon weapon, Entity source, Entity target)
+    {
+        if (target == null) return 0f;
+        if (!source.VisibleEntities.Contains(target)) return 0f;
+
+        var toTarget = target.Position - source.Position;
+        var range = length(toTarget);
+        if (range < weapon.MinRange || range > weapon.Range) return 0f;
+        if (weapon is LockWeapon lockWeapon && !lockWeapon.IsLocked) return 0f;
+        if (!InArc(weapon.Item, toTarget)) return 0f;
+
+        var settings = source.ItemManager.GameplaySettings;
+        var info = source.EntityInfoGathered.TryGetValue(target, out var gathered) ? gathered : 0f;
+        var pSensor = saturate(unlerp(settings.TargetDetectionInfoThreshold, Resolution(source), info));
+
+        float pSpread;
+        if (weapon.Spread > 0)
+        {
+            var targetHull = source.ItemManager.GetData(target.Hull) as HullData;
+            var halfExtent = .5f * max(targetHull.Shape.Width, targetHull.Shape.Height) * settings.SchematicCellSize;
+            var angularRadius = degrees(atan(halfExtent / range));
+            pSpread = saturate(angularRadius / (weapon.Spread / 2f));
+        }
+        else pSpread = 1f;
+
+        return Accuracy(source) * pSensor * pSpread;
+    }
+
+    // Cut 3, R1: called once per burst step from InstantWeapon.Execute. Computes the predicted intercept and
+    // flight time, freezes the payload snapshot (R10, Q6 -- the gun that fired it, not a re-read later), and
+    // queues a PendingShot for Zone.Step to age and eventually resolve. Returns the ShotId so the caller's
+    // OnFire event can carry it to presentation.
+    public static int Fire(Weapon weapon, EquippedItem item, Entity source)
+    {
+        var zone = source.Zone;
+        var target = source.Target.Value;
+        var now = zone.Time;
+
+        // R1's engage gate and probability, evaluated now and frozen: nothing at commit time re-reads a stat,
+        // an info level or a range. Only live target *position* (deviation) is read again, at commit.
+        var pBase = target != null ? HitProbability(weapon, source, target) : 0f;
+
+        var targetVelocity = float3.zero;
+        var targetPosition = source.Position;
+        var flightTime = 0f;
+        var intercept = source.Position;
+        if (target != null)
+        {
+            targetVelocity = float3(target.Velocity.x, 0, target.Velocity.y);
+            targetPosition = target.Position;
+            intercept = PredictedIntercept(weapon, source, target);
+            var range = length(targetPosition - source.Position);
+            flightTime = weapon.Velocity > .01f ? range / weapon.Velocity : 0f;
+        }
+
+        var commitHorizon = source.ItemManager.GameplaySettings.CommitHorizon;
+        var shot = new PendingShot
+        {
+            ShotId = zone.NextShotId(),
+            Source = source,
+            Target = target,
+            Weapon = item,
+            Aimed = source.ResolvedTargetItem,
+            Damage = weapon.Damage,
+            Penetration = weapon.Penetration,
+            DamageSpread = weapon.DamageSpread,
+            DamageType = weapon.WeaponData.DamageType,
+            PBase = pBase,
+            Tracking = Tracking(source),
+            Precision = Precision(source),
+            FireTime = now,
+            FireTargetPosition = targetPosition,
+            FireTargetVelocity = targetVelocity,
+            PredictedIntercept = intercept,
+            FlightTime = flightTime,
+            ArrivalTime = now + flightTime,
+            CommitTime = now + max(0f, flightTime - commitHorizon),
+            Committed = false
+        };
+
+        zone.PendingShots.Add(shot);
+        return shot.ShotId;
+    }
+
+    // Cut 3, R4: ages every shot in the zone, commits the ones that have reached their horizon and resolves
+    // the ones that have arrived. Called from Zone.Update after the entity loop. A shot whose source or target
+    // has left the zone resolves as a miss and is removed outright (0b table), whichever stage it is at.
+    public static void Step(Zone zone, float dt)
+    {
+        var shots = zone.PendingShots;
+        if (shots.Count == 0) return;
+
+        var now = zone.Time;
+        for (var i = shots.Count - 1; i >= 0; i--)
+        {
+            var shot = shots[i];
+
+            var sourceGone = !zone.Entities.Contains(shot.Source);
+            var targetGone = shot.Target != null && !zone.Entities.Contains(shot.Target);
+            if (sourceGone || targetGone)
+            {
+                if (!shot.Committed)
+                {
+                    shot.Outcome = MakeOutcome(shot, false, false, int2.zero, null, now);
+                    zone.ShotCommitted.OnNext(shot.Outcome);
+                }
+                zone.ShotResolved.OnNext(shot.Outcome);
+                shots.RemoveAt(i);
+                continue;
+            }
+
+            if (!shot.Committed && now >= shot.CommitTime)
+            {
+                shot.Outcome = Commit(zone, shot, now);
+                shot.Committed = true;
+                zone.ShotCommitted.OnNext(shot.Outcome);
+                shots[i] = shot;
+            }
+
+            if (shot.Committed && now >= shot.ArrivalTime)
+            {
+                Apply(shot);
+                zone.ShotResolved.OnNext(shot.Outcome);
+                shots.RemoveAt(i);
+            }
+        }
+    }
+
+    // R3/R4: the one roll. p_base was frozen at fire; the only thing measured live is how far the target has
+    // actually strayed, by now, from where a straight-line projection of its fire-time velocity said it would
+    // be -- forgiven by the targeting system's Tracking, likewise frozen at fire. A shot gated to zero at fire
+    // (out of arc, out of range, unlocked, undetected) draws nothing here (short-circuit below): the RNG
+    // sequence is exactly as if the shot had never queued.
+    private static ShotOutcome Commit(Zone zone, PendingShot shot, float now)
+    {
+        var random = shot.Source.ItemManager.Random;
+        var p = shot.PBase;
+        if (p > 0f && shot.Target != null)
+        {
+            var elapsed = now - shot.FireTime;
+            var predicted = shot.FireTargetPosition + shot.FireTargetVelocity * elapsed;
+            var deviation = length((shot.Target.Position - predicted).xz);
+            var pDeviation = shot.Tracking > 0f
+                ? saturate(1f - deviation / shot.Tracking)
+                : (deviation < .01f ? 1f : 0f);
+            p *= pDeviation;
+        }
+
+        var hit = p > 0f && random.NextFloat() < p;
+        var cell = int2.zero;
+        EquippedItem aimed = null;
+        var shielded = false;
+
+        if (hit)
+        {
+            var hullData = shot.Source.ItemManager.GetData(shot.Target.Hull) as HullData;
+            var aimedCells = shot.Aimed != null ? CellsOf(shot.Target, shot.Aimed) : null;
+            if (aimedCells != null && aimedCells.Length > 0 && random.NextFloat() < shot.Precision)
+            {
+                aimed = shot.Aimed;
+                cell = aimedCells[random.NextInt(aimedCells.Length)];
+            }
+            else
+            {
+                var coords = hullData.Shape.Coordinates;
+                cell = coords[random.NextInt(coords.Length)];
+            }
+
+            var shield = shot.Target.Shield;
+            if (shield != null && shield.Item.Active.Value && shield.CanTakeHit(shot.DamageType, shot.Damage))
+                shielded = true;
+        }
+
+        shot.Source.ItemManager.Random = random;
+        return MakeOutcome(shot, hit, shielded, cell, aimed, now);
+    }
+
+    // R4: the commit is authoritative and immutable from here on -- this only performs what Commit already
+    // decided. The one owner of the shield-absorbs-or-hull-takes-it branch (it used to exist seven times,
+    // once per Unity effect).
+    private static void Apply(PendingShot shot)
+    {
+        if (!shot.Outcome.Hit) return;
+
+        if (shot.Outcome.Shielded)
+        {
+            shot.Target.Shield.TakeHit(shot.DamageType, shot.Damage);
+            return;
+        }
+
+        var hitDirection = float2(0, 1);
+        var toTarget = (shot.Target.Position - shot.Source.Position).xz;
+        if (lengthsq(toTarget) > 1e-6f) hitDirection = normalize(toTarget);
+
+        shot.Target.ApplyHit(shot.Source, shot.Outcome.Cell, shot.DamageSpread, shot.Penetration, shot.Damage, hitDirection);
+    }
+
+    private static ShotOutcome MakeOutcome(PendingShot shot, bool hit, bool shielded, int2 cell, EquippedItem aimed, float now)
+    {
+        return new ShotOutcome
+        {
+            ShotId = shot.ShotId,
+            Source = shot.Source,
+            Target = shot.Target,
+            Weapon = shot.Weapon,
+            Hit = hit,
+            Shielded = shielded,
+            Aimed = aimed,
+            Cell = cell,
+            ArrivalIn = max(0f, shot.ArrivalTime - now),
+            DamageType = shot.DamageType
+        };
+    }
+
+    // The cells of the target's hull schematic actually occupied by `item` -- GearOccupancy is the one source
+    // of truth for where an equipped item's footprint lands, the same table Entity.DamageSchematic reads.
+    private static int2[] CellsOf(Entity target, EquippedItem item)
+    {
+        var hullData = target.ItemManager.GetData(target.Hull) as HullData;
+        var cells = new List<int2>();
+        foreach (var v in hullData.Shape.Coordinates)
+            if (target.GearOccupancy[v.x, v.y] == item)
+                cells.Add(v);
+        return cells.ToArray();
+    }
+}
+
+// Cut 3 (docs/fire-control-cut.md, 0b table): a shot in flight. Born in FireControl.Fire, aged by
+// FireControl.Step (called from Zone.Update after the entity loop), never serialised -- a zone saved mid-
+// flight loses its shots, which is correct, a save is a scene boundary. Zone owns the collection and the
+// ShotId; FireControl owns every transition. Nothing else may add, remove or mutate one.
+public struct PendingShot
+{
+    public int ShotId;
+    public Entity Source;
+    public Entity Target;
+    public EquippedItem Weapon;
+    public EquippedItem Aimed;
+
+    // The frozen payload (R10, Q6): the gun's own stats at the instant the trigger was pulled. Nothing
+    // downstream re-evaluates any of these.
+    public float Damage;
+    public float Penetration;
+    public float DamageSpread;
+    public DamageType DamageType;
+    public float PBase;
+    public float Tracking;
+    public float Precision;
+
+    public float3 FireTargetPosition;
+    public float3 FireTargetVelocity;
+    public float3 PredictedIntercept;
+    public float FlightTime;
+    public float FireTime;
+    public float CommitTime;
+    public float ArrivalTime;
+
+    public bool Committed;
+    public ShotOutcome Outcome;
+}
+
+// Cut 3 (docs/fire-control-cut.md, 0b table): a commit. Created once, at ArrivalTime - CommitHorizon (or at
+// fire time when the flight is shorter than the horizon), immutable from then on, published once on
+// Zone.ShotCommitted and again (unchanged) on Zone.ShotResolved at arrival. Presentations are the only
+// readers, and nothing outside presentation may read one to change state.
+public sealed class ShotOutcome
+{
+    public int ShotId;
+    public Entity Source;
+    public Entity Target;
+    public EquippedItem Weapon;
+    public bool Hit;
+    public bool Shielded;
+    public EquippedItem Aimed;
+    public int2 Cell;
+    public float ArrivalIn;
+    public DamageType DamageType;
 }

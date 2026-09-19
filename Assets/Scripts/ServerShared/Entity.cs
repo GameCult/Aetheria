@@ -316,6 +316,85 @@ public abstract class Entity
             ? TargetItem.Value
             : null;
 
+    // Cut 3 (docs/fire-control-cut.md): the damage rule moved verbatim from EntityInstance.cs's Unity
+    // HullCollider subscription (DamageSchematic) -- same arithmetic, same order, same thresholds. The only
+    // thing that changed is the owner: this entity's own schematic, armor and hull, not a Unity component
+    // reacting to a physics collision.
+    public void DamageSchematic(float damage, Shape hitShape)
+    {
+        var hullData = ItemManager.GetData(Hull) as HullData;
+        foreach (var v in hitShape.Coordinates)
+            hitShape[v] = hitShape[v] && hullData.Shape[v];
+
+        float hullDamage = 0;
+        var damagePerCell = damage / hitShape.Coordinates.Length;
+        foreach (var v in hitShape.Coordinates)
+        {
+            var d = damagePerCell;
+
+            // Subtract surface damage from armor, passing on the remainder to the item and then to the hull
+            var prev = Armor[v.x, v.y];
+            Armor[v.x, v.y] = max(prev - d, 0);
+            ArmorDamage.OnNext((v, d));
+            d = max(d - prev, 0);
+
+            if (d > 0.1f)
+            {
+                var item = GearOccupancy[v.x, v.y];
+                if (item != null)
+                {
+                    prev = item.EquippableItem.Durability;
+                    item.EquippableItem.Durability = max(prev - d, 0);
+                    ItemDamage.OnNext((item, d));
+                    d = max(d - prev, 0);
+                }
+            }
+
+            hullDamage += d;
+        }
+
+        if (hullDamage > .1f)
+        {
+            Hull.Durability -= hullDamage;
+            HullDamage.OnNext(hullDamage);
+        }
+    }
+
+    // Cut 3: the shape construction moved from EntityInstance.cs's Unity HullCollider subscription, with two
+    // changes forced by R7 (the simulation is 2D): the hit cell is the rolled Cell FireControl already chose,
+    // not a UV texture coordinate; and the penetration march rotates the firer-to-target direction into this
+    // entity's own frame with a planar rotation by -Direction, in place of transform.InverseTransformDirection
+    // -- no 3D transform anywhere in the march. `hitDirection` is the planar (x,z) firer-to-target unit vector.
+    public void ApplyHit(Entity source, int2 cell, float spread, float penetration, float damage, float2 hitDirection)
+    {
+        IncomingHit.OnNext(source);
+
+        var hullData = ItemManager.GetData(Hull) as HullData;
+        var hitShape = new Shape(hullData.Shape.Width, hullData.Shape.Height);
+        hitShape[cell] = true;
+
+        for (var i = 0; i < (int) floor(spread + .5f); i++)
+            hitShape = hitShape.Expand();
+
+        if (penetration > .5f)
+        {
+            var forward = normalize(Direction);
+            var right = float2(forward.y, -forward.x);
+            var penetrationVector = normalize(float2(dot(hitDirection, right), dot(hitDirection, forward)));
+
+            var penetrationPoint = (float2) cell + float2(.5f);
+            var penetrationDistance = 0f;
+            while (penetrationDistance < penetration && hullData.Shape[int2(penetrationPoint)])
+            {
+                penetrationDistance += .5f;
+                hitShape[int2(penetrationPoint)] = true;
+                penetrationPoint += penetrationVector * .5f;
+            }
+        }
+
+        DamageSchematic(damage, hitShape);
+    }
+
     // Another entity's stance toward THIS one, as far as this entity can perceive it: unknown (null)
     // until this entity detects them, mirroring the existing detection model (VisibleEntities, driven
     // by EntityInfoGathered crossing TargetDetectionInfoThreshold). Detected but not yet hostility-rated

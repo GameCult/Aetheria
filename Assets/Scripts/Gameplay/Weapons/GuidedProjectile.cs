@@ -1,14 +1,16 @@
 ﻿using System;
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using CultMath;
-using CultMath.UnityBridge;
 using static CultMath.math;
 using Random = UnityEngine.Random;
 using static Noise1D;
 using float3 = CultMath.float3;
 
+// Cut 3 (docs/fire-control-cut.md): the raycast, shield branch and SendHit are deleted -- FireControl already
+// decided this shot's fate before this object was ever spawned (R8). The homing/guidance flight (the whole
+// point of this presentation) is untouched; children spawned on split carry no damage of their own to apply
+// either, since they never did anything but inherit their parent's now-deleted fields.
 public class GuidedProjectile : MonoBehaviour
 {
     public Prototype HitEffect;
@@ -27,22 +29,20 @@ public class GuidedProjectile : MonoBehaviour
     public float TopSpeed;
     public Transform Source;
     public Func<Vector3> TargetPosition;
-    
+
     private float _phase;
     private float _prevDist;
     private bool _active;
     private bool _alive;
     private Vector3 _targetVelocity;
     private Vector3 _previousTargetPosition;
-    
+
+    // Cut 3: FireControl.Fire's ShotId -- this missile's handle onto Zone.ShotCommitted/ShotResolved.
+    public int ShotId { get; set; }
     public Transform Target { get; set; }
     public float3 StartPosition { get; set; }
     public float Range { get; set; }
     public Vector3 Velocity { get; set; }
-    public float Damage { get; set; }
-    public float Penetration { get; set; }
-    public float Spread { get; set; }
-    public DamageType DamageType { get; set; }
     public Entity SourceEntity { get; set; }
 
     public event Action OnKill;
@@ -112,10 +112,6 @@ public class GuidedProjectile : MonoBehaviour
                     var perpendicularRandom = randomDirection.x * right + randomDirection.y * up;
                     child.Velocity = (normalize(lerp(perpendicularRandom, dir.ToCultMath(), SplitSeparationForwardness)) * length(Velocity.ToCultMath()) * SplitSeparationVelocity).ToUnity();
                     child.Range = Range;
-                    child.Damage = Damage / Children;
-                    child.Penetration = Penetration;
-                    child.Spread = Spread;
-                    child.DamageType = DamageType;
                     child.Source = Source;
                     child.Target = Target;
                     child.SourceEntity = SourceEntity;
@@ -149,53 +145,6 @@ public class GuidedProjectile : MonoBehaviour
 
         if(_alive)
         {
-            var ray = new Ray(t.position, Velocity);
-            foreach (var hit in Physics.RaycastAll(ray, Velocity.magnitude * Time.deltaTime, 1 | (1 << 17)))
-            {
-                var shield = hit.collider.GetComponent<ShieldManager>();
-                if (shield)
-                {
-                    var shieldBehavior = shield.Entity.Shield;
-                    var shieldActive = shieldBehavior != null && shieldBehavior.Item.Active.Value;
-                    var shieldAbsorbs = shieldActive && shieldBehavior.CanTakeHit(DamageType, Damage);
-                    // F5 (docs/stats-and-power-cut.md, Soul pass 2026-09-19): CanTakeHit is a pure query now --
-                    // read once into shieldAbsorbs, and break the shield exactly once, right here, at the point
-                    // this hit is actually decided to route past it (to the hull collider RaycastAll returns
-                    // further down this same loop) instead of being absorbed. The hull branch below re-queries
-                    // CanTakeHit safely -- it is side-effect-free -- and will see Broken already true.
-                    if (shieldActive && !shieldAbsorbs) shieldBehavior.Break();
-                    if (!shieldAbsorbs) continue;
-                    if (shield.Entity != SourceEntity)
-                    {
-                        shieldBehavior.TakeHit(DamageType, Damage);
-                        shield.ShowHit(hit.point, sqrt(Damage));
-                    }
-                }
-                var hull = hit.collider.GetComponent<HullCollider>();
-                if (hull && !(hull.Entity.Shield != null && hull.Entity.Shield.Item.Active.Value && hull.Entity.Shield.CanTakeHit(DamageType, Damage)))
-                {
-                    if (hull.Entity != SourceEntity)
-                    {
-                        hull.SendHit(Damage, Penetration, Spread, DamageType, SourceEntity, hit.textureCoord, transform.forward);
-                        transform.position = hit.point;
-                        StartCoroutine(Kill());
-                    }
-                }
-                else// if (hit.transform.gameObject.layer == 1)
-                {
-                    StartCoroutine(Kill());
-                    return;
-                }
-                
-                if (HitEffect != null)
-                {
-                    var ht = HitEffect.Instantiate<Transform>();
-                    ht.SetParent(hit.collider.transform);
-                    ht.position = hit.point;
-                    return;
-                }
-            }
-
             t.position += Velocity * Time.deltaTime;
         }
     }

@@ -13,12 +13,13 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
 
     public Subject<(Entity source, Transform target, GuidedProjectile missile)> OnFireGuided = new Subject<(Entity source, Transform target, GuidedProjectile missile)>();
 
-    public override void Fire(InstantWeapon weapon, EquippedItem item, EntityInstance source, EntityInstance target)
+    public override void Fire(InstantWeapon weapon, EquippedItem item, EntityInstance source, EntityInstance target, int shotId)
     {
         if(weapon.Data is LauncherData launcher)
         {
             if (target == null) return;
             var p = ProjectilePrototype.Instantiate<GuidedProjectile>();
+            p.ShotId = shotId;
             p.Source = source.transform;
             p.SourceEntity = source.Entity;
             p.Target = target.transform;
@@ -26,11 +27,7 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
             var hp = source.Entity.Hardpoints[item.Position.x, item.Position.y];
             var barrel = source.GetBarrel(hp);
             p.StartPosition = (p.transform.position = barrel.position).ToCultMath();
-            p.Damage = weapon.Damage;
             p.Range = weapon.Range;
-            p.Penetration = weapon.Penetration;
-            p.Spread = weapon.DamageSpread;
-            p.DamageType = weapon.WeaponData.DamageType;
             p.GuidanceCurve = launcher.GuidanceCurve.ToCurve();
             p.LiftCurve = launcher.LiftCurve.ToCurve();
             p.ThrustCurve = launcher.ThrustCurve.ToCurve();
@@ -42,17 +39,14 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
         else if(weapon.Data is GuidedWeaponData guidance)
         {
             var p = ProjectilePrototype.Instantiate<GuidedProjectile>();
+            p.ShotId = shotId;
             p.Source = source.transform;
             p.SourceEntity = source.Entity;
             p.Frequency = guidance.DodgeFrequency;
             var hp = source.Entity.Hardpoints[item.Position.x, item.Position.y];
             var barrel = source.GetBarrel(hp);
             p.StartPosition = (p.transform.position = barrel.position).ToCultMath();
-            p.Damage = weapon.Damage;
             p.Range = weapon.Range;
-            p.Penetration = weapon.Penetration;
-            p.Spread = weapon.DamageSpread;
-            p.DamageType = weapon.WeaponData.DamageType;
             p.GuidanceCurve = guidance.GuidanceCurve.ToCurve();
             p.LiftCurve = guidance.LiftCurve.ToCurve();
             p.ThrustCurve = guidance.ThrustCurve.ToCurve();
