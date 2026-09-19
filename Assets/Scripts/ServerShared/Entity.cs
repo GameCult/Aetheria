@@ -1390,6 +1390,46 @@ public class EquippedItem : IStatContext
     public float ScaleModifier(PerformanceStat stat) => Entity.Resolver.ScaleModifier(this, stat);
     public float ConstantModifier(PerformanceStat stat) => Entity.Resolver.ConstantModifier(this, stat);
 
+    // Cut 8 (operator ask 2026-09-19): "multiply [emission] by actual performance so a broken thruster emits a
+    // puny flame." One ratio per (item, stat): this item's actually-resolved value against what the same item,
+    // same lot, same quality, same modifier stack would produce with every degradable term at its identity --
+    // full durability, optimal temperature, full power supply. Quality and lot are deliberately NOT part of
+    // "perfect": NominalContext forwards Lot/ScaleModifier/ConstantModifier unchanged and only pins Heat,
+    // Durability, PowerSupply and ConsumableProgress to 1, so a cheap item's honestly-lower ceiling still reads
+    // 1 at full health -- it is not reported as damaged for being cheap.
+    //
+    // Cost: Evaluate(stat) is the same resolver-cached read every other caller already pays for (§ above), so it
+    // is a dictionary hit here unless something already invalidated it this tick. The nominal side cannot reuse
+    // that cache -- the resolver's cache key is (owner, stat) alone, and owner is `this`, so resolving a second,
+    // different context under the same key would clobber the real cached value -- so it calls stat.Evaluate
+    // directly against NominalContext, bypassing the cache entirely. That is one pass over the stat's own Terms
+    // list (Thrust/Torque declare at most three: Quality, Heat or Durability, PowerSupply), each a pow() and a
+    // multiply, i.e. a handful of flops with no allocation (NominalContext is a readonly struct). Cheap enough to
+    // call once per thruster per frame, which is all presentation (ShipInstance.Update) does with it.
+    // No epsilon guard on a zero/near-zero nominal: math.min/max (CultMath's own DXIL-lowering semantics,
+    // math.cs) resolve a NaN operand to the OTHER operand, not to NaN, so saturate(0f/0f) -- the one way nominal
+    // degenerates to exactly 0 (a stat authored with Max <= 0 and no ScaleModifier/ConstantModifier moving it off
+    // that) -- is a real, tested 0f (ConditionIsZeroNotNaNWhenTheNominalValueItselfDegeneratesToZero), not NaN. A
+    // manual guard here would duplicate that behaviour rather than add any.
+    public float ConditionRatio(PerformanceStat stat) => saturate(Evaluate(stat) / stat.Evaluate(new NominalContext(this)));
+
+    // Perfect-conditions view of this same item for ConditionRatio above. Everything but the three degradable
+    // factors is forwarded to the real item so a modifier stack or a cheap lot's lower Quality term still shapes
+    // "perfect" the same way it shapes "actual" -- only Heat/Durability/PowerSupply/ConsumableProgress are
+    // pinned to their identity (1), since those are exactly the terms condition is supposed to measure.
+    private readonly struct NominalContext : IStatContext
+    {
+        private readonly EquippedItem _item;
+        public NominalContext(EquippedItem item) => _item = item;
+        public Lot Lot => _item.Lot;
+        public float HeatFactor(float exponent) => 1f;
+        public float DurabilityFactor(float exponent) => 1f;
+        public float ConsumableProgressFactor(float exponent) => 1f;
+        public float PowerSupplyFactor(float exponent) => 1f;
+        public float ScaleModifier(PerformanceStat stat) => _item.ScaleModifier(stat);
+        public float ConstantModifier(PerformanceStat stat) => _item.ConstantModifier(stat);
+    }
+
     public void AddHeat(float heat, bool ignoreThermalMass = false)
     {
         foreach(var hullCoord in InsetShape.Coordinates)
