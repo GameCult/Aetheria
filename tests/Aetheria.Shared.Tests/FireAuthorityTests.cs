@@ -256,15 +256,20 @@ public sealed class FireAuthorityTests : IDisposable
         Assert.Equal(unaided.Items.GameplaySettings.UnaidedAccuracy, FireControl.HitProbability(unaided.Weapon, unaided.Shooter, unaided.Target), 3);
     }
 
-    // The gate is a gate, not a penalty: an out-of-arc commit consumes exactly zero draws from the shared RNG
-    // stream. Mutation: roll first and multiply the result by zero -- that still advances the stream by one
-    // draw, which this test would catch by seeing a different next value than an untouched stream produces.
-    [Fact]
-    public void OutOfArcConsumesNoDraw()
+    // Cut 7 (docs/fire-control-cut.md): this was OutOfArcConsumesNoDraw, which asserted that a shot gated to
+    // zero left ItemManager.Random untouched. Cut 6b (6.1) moved the roll onto a per-shot local generator, so
+    // Commit stopped touching that stream on EVERY path and the old test passed for a reason that had nothing
+    // to do with arcs -- it would have passed just as well with the target dead ahead, and no mutation of the
+    // short-circuit it named could ever turn it red. Rewritten to pin the rule that is actually live: no
+    // combat path draws from the shared stream, in arc or out. Mutation: restore the shared-stream read in
+    // Commit; the in-arc case then goes red.
+    [Theory]
+    [InlineData(100f, 0f)]   // directly abeam: gated to zero, outside the default arc
+    [InlineData(0f, 100f)]   // dead ahead: a real firing solution that actually rolls
+    public void CombatNeverDrawsFromTheSharedStream(float x, float z)
     {
-        var e = Build(TestSettings());
-        // Directly abeam -- outside even the wide 170-degree default arc dead ahead.
-        e.Target.Position = float3(100, 0, 0);
+        var e = Build(TestSettings(), accuracy: 1, resolution: 1, spread: 0);
+        e.Target.Position = float3(x, 0, z);
 
         const uint seed = 4242u;
         var untouched = new Random(seed);
