@@ -321,7 +321,10 @@ public class EntityInstance : MonoBehaviour
                     var t = Instantiate(DestroyEffect).transform;
                     t.position = transform.position;
                 }
-                entity.Zone.Entities.Remove(entity);
+                // Cut 5, 5.6 (docs/fire-control-cut.md, Soul finding 7): Zone now removes the entity itself
+                // (subscribed to Entity.Death when the entity joined) -- this subscription's own business is
+                // loot and the destroy effect, presentation both, not removal from the simulation's own
+                // collection.
             }
         }));
 

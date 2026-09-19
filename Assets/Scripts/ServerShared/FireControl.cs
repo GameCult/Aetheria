@@ -40,11 +40,17 @@ public static class FireControl
     // Planar bearing test (R7: the simulation is 2D, the 3D is set dressing -- target height never enters
     // this). An arc of 360 degrees or more passes unconditionally, which is how a turret hardpoint
     // (authored FiringArc: 360, Q1) tracks all the way around without a second type.
+    // Cut 5, 5.4 (Soul finding 11): a planar bearing shorter than 1e-6 -- point-blank range, target and firer
+    // co-located -- returns true rather than falling through to normalize's NaN. This used to live as a
+    // separate special case in Weapon.ArcAllowsFire; one bearing test now owns it, so a target at a weapon's
+    // own exact position can never fail to bear regardless of caller.
     public static bool InArc(EquippedItem weapon, float3 toTarget)
     {
         var arc = ArcFor(weapon);
         if (arc >= 360f) return true;
-        var planarTarget = normalize(float3(toTarget.x, 0, toTarget.z));
+        var planarToTarget = float3(toTarget.x, 0, toTarget.z);
+        if (lengthsq(planarToTarget) < 1e-6f) return true;
+        var planarTarget = normalize(planarToTarget);
         return dot(MountDirection(weapon), planarTarget) >= cos(radians(arc / 2f));
     }
 
@@ -60,8 +66,11 @@ public static class FireControl
     public static bool IsRevealed(Entity observer, EquippedItem item)
     {
         var target = item.Entity;
+        // Cut 5, 5.5 (Soul finding 10): a destroyed item drops out of the ranking entirely rather than merely
+        // failing its own tier -- ranked.IndexOf(item) then returns -1 for it (the same "no longer on this
+        // target" path below), and the survivors' tiers close up over the gap instead of leaving one.
         var ranked = target.Equipment
-            .Where(e => e.Data.HardpointType != HardpointType.Hull)
+            .Where(e => e.Data.HardpointType != HardpointType.Hull && e.EquippableItem.Durability >= .01f)
             .OrderByDescending(e => e.Data.HardpointType != HardpointType.Tool)
             .ThenByDescending(e => e.Data.Shape.Coordinates.Length)
             .ToList();
@@ -99,10 +108,12 @@ public static class FireControl
         return system != null && system.Item.Active.Value ? system.Precision : 0f;
     }
 
+    // Cut 5, 5.1 (Soul finding 3): falls back to GameplaySettings.UnaidedTracking, exactly the shape Accuracy
+    // falls back to UnaidedAccuracy. Tracking is now always positive -- Commit no longer carries a zero case.
     public static float Tracking(Entity entity)
     {
         var system = entity.GetBehavior<TargetingSystem>();
-        return system != null && system.Item.Active.Value ? system.Tracking : 0f;
+        return system != null && system.Item.Active.Value ? system.Tracking : entity.ItemManager.GameplaySettings.UnaidedTracking;
     }
 
     // Cut 3, the risk this map names explicitly: Combat.cs used to run its own first_order_intercept call to
@@ -151,10 +162,12 @@ public static class FireControl
         return Accuracy(source) * pSensor * pSpread;
     }
 
-    // Cut 3, R1: called once per burst step from InstantWeapon.Execute. Computes the predicted intercept and
-    // flight time, freezes the payload snapshot (R10, Q6 -- the gun that fired it, not a re-read later), and
-    // queues a PendingShot for Zone.Step to age and eventually resolve. Returns the ShotId so the caller's
-    // OnFire event can carry it to presentation.
+    // Cut 3, R1: called once per burst step from InstantWeapon.Execute. Computes flight time, freezes the
+    // payload snapshot (R10, Q6 -- the gun that fired it, not a re-read later), and queues a PendingShot for
+    // Zone.Step to age and eventually resolve. Returns the ShotId so the caller's OnFire event can carry it to
+    // presentation. Cut 5, 5.7 (Soul finding 12): does not store a predicted intercept -- Commit judges
+    // deviation against a straight-line projection from FireTargetPosition/FireTargetVelocity, never the
+    // intercept, so a stored copy decided nothing and PendingShot no longer carries one.
     // Cut 4 (docs/fire-control-cut.md): damageOverride lets a continuous weapon fire a shot for less than its
     // full Damage -- ConstantWeapon.Execute rolls one of these per GameplaySettings.BeamResolveInterval, for
     // Damage * interval, through this exact same freeze-and-queue path (a flight time of zero, since a beam's
@@ -173,12 +186,10 @@ public static class FireControl
         var targetVelocity = float3.zero;
         var targetPosition = source.Position;
         var flightTime = 0f;
-        var intercept = source.Position;
         if (target != null)
         {
             targetVelocity = float3(target.Velocity.x, 0, target.Velocity.y);
             targetPosition = target.Position;
-            intercept = PredictedIntercept(weapon, source, target);
             var range = length(targetPosition - source.Position);
             flightTime = weapon.Velocity > .01f ? range / weapon.Velocity : 0f;
         }
@@ -201,8 +212,6 @@ public static class FireControl
             FireTime = now,
             FireTargetPosition = targetPosition,
             FireTargetVelocity = targetVelocity,
-            PredictedIntercept = intercept,
-            FlightTime = flightTime,
             ArrivalTime = now + flightTime,
             CommitTime = now + max(0f, flightTime - commitHorizon),
             Committed = false
@@ -231,7 +240,7 @@ public static class FireControl
             {
                 if (!shot.Committed)
                 {
-                    shot.Outcome = MakeOutcome(shot, false, false, int2.zero, null, now);
+                    shot.Outcome = MakeOutcome(shot, false, false, false, int2.zero, null, now);
                     zone.ShotCommitted.OnNext(shot.Outcome);
                 }
                 zone.ShotResolved.OnNext(shot.Outcome);
@@ -270,9 +279,9 @@ public static class FireControl
             var elapsed = now - shot.FireTime;
             var predicted = shot.FireTargetPosition + shot.FireTargetVelocity * elapsed;
             var deviation = length((shot.Target.Position - predicted).xz);
-            var pDeviation = shot.Tracking > 0f
-                ? saturate(1f - deviation / shot.Tracking)
-                : (deviation < .01f ? 1f : 0f);
+            // Cut 5, 5.1: Tracking is always positive now (Tracking() above never returns 0), so the branch
+            // that used to turn a Tracking-less shooter's forgiveness into a hard <.01f wall is gone outright.
+            var pDeviation = saturate(1f - deviation / shot.Tracking);
             p *= pDeviation;
         }
 
@@ -280,6 +289,7 @@ public static class FireControl
         var cell = int2.zero;
         EquippedItem aimed = null;
         var shielded = false;
+        var shieldBroken = false;
 
         if (hit)
         {
@@ -297,12 +307,13 @@ public static class FireControl
             }
 
             var shield = shot.Target.Shield;
-            if (shield != null && shield.Item.Active.Value && shield.CanTakeHit(shot.DamageType, shot.Damage))
-                shielded = true;
+            var shieldActive = shield != null && shield.Item.Active.Value;
+            if (shieldActive && shield.CanTakeHit(shot.DamageType, shot.Damage)) shielded = true;
+            else if (shieldActive) shieldBroken = true;
         }
 
         shot.Source.ItemManager.Random = random;
-        return MakeOutcome(shot, hit, shielded, cell, aimed, now);
+        return MakeOutcome(shot, hit, shielded, shieldBroken, cell, aimed, now);
     }
 
     // R4: the commit is authoritative and immutable from here on -- this only performs what Commit already
@@ -311,6 +322,10 @@ public static class FireControl
     private static void Apply(PendingShot shot)
     {
         if (!shot.Outcome.Hit) return;
+
+        // Cut 5, 5.2 (Soul finding 4): the frozen decision, not a re-check -- a shield that recharges during
+        // the flight does not retroactively survive a hit that broke it at commit time.
+        if (shot.Outcome.ShieldBroken) shot.Target.Shield.Break();
 
         if (shot.Outcome.Shielded)
         {
@@ -325,7 +340,7 @@ public static class FireControl
         shot.Target.ApplyHit(shot.Source, shot.Outcome.Cell, shot.DamageSpread, shot.Penetration, shot.Damage, hitDirection);
     }
 
-    private static ShotOutcome MakeOutcome(PendingShot shot, bool hit, bool shielded, int2 cell, EquippedItem aimed, float now)
+    private static ShotOutcome MakeOutcome(PendingShot shot, bool hit, bool shielded, bool shieldBroken, int2 cell, EquippedItem aimed, float now)
     {
         return new ShotOutcome
         {
@@ -335,6 +350,7 @@ public static class FireControl
             Weapon = shot.Weapon,
             Hit = hit,
             Shielded = shielded,
+            ShieldBroken = shieldBroken,
             Aimed = aimed,
             Cell = cell,
             ArrivalIn = max(0f, shot.ArrivalTime - now),
@@ -422,8 +438,6 @@ public struct PendingShot
 
     public float3 FireTargetPosition;
     public float3 FireTargetVelocity;
-    public float3 PredictedIntercept;
-    public float FlightTime;
     public float FireTime;
     public float CommitTime;
     public float ArrivalTime;
@@ -444,6 +458,10 @@ public sealed class ShotOutcome
     public EquippedItem Weapon;
     public bool Hit;
     public bool Shielded;
+    // Cut 5, 5.2 (Soul finding 4): frozen alongside the rest of the outcome (R4) -- a shield present, active,
+    // and unable to CanTakeHit this shot is decided broken right here, so Apply performs Break() rather than
+    // deciding it, and a shield that recharges mid-flight cannot retroactively dodge it.
+    public bool ShieldBroken;
     public EquippedItem Aimed;
     public int2 Cell;
     public float ArrivalIn;

@@ -221,6 +221,12 @@ public class GameplaySettings
     // unaware, and little else. One authored setting, easy to find and turn -- the operator rules the real
     // figure in play.
     public float UnaidedAccuracy = .05f;
+    // Cut 5 (docs/fire-control-cut.md, 5.1, Soul finding 3): the unaided fallback for Tracking, alongside
+    // UnaidedAccuracy above -- an entity with no working targeting system used to fall back to Tracking 0,
+    // which Commit turned into a hard wall (any nonzero deviation was an automatic miss). Ten world units of
+    // fire-time-projection deviation forgiveness is the first guess and the operator's knob, the same shape
+    // as UnaidedAccuracy: authored deliberately bad, not authored broken.
+    public float UnaidedTracking = 10f;
     public float AgentRangeExponent = .25f;
     public float AgentForwardLerp = .5f;
     public float AgentMaxForwardDistance = 50;
