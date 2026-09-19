@@ -104,9 +104,9 @@ public abstract class Weapon : Behavior, IActivatedBehavior
     // predicate (FireControl.InArc) Combat.cs and TurretController.cs gate AI and turret fire with, read at
     // the one point every shooter's trigger passes through (InstantWeapon.Trigger) -- not a parallel check, and
     // not the AI's own AgentMinHitProbability heuristic, which is a "worth it" decision layered above this
-    // gate, not the gate itself. With no target set, behaviour is unchanged (nothing to bear on). A target at
-    // this weapon's own exact position leaves the bearing undefined rather than out of arc -- point-blank
-    // range can't fail a bearing test.
+    // gate, not the gate itself. With no target set, behaviour is unchanged (nothing to bear on).
+    // Cut 5, 5.4 (Soul finding 11): the point-blank special case this used to carry moved into InArc itself --
+    // one bearing test, one owner, so every caller (not just this one) gets a point-blank shot that bears.
     public bool ArcAllowsFire
     {
         get
@@ -114,7 +114,7 @@ public abstract class Weapon : Behavior, IActivatedBehavior
             var target = Entity.Target.Value;
             if (target == null) return true;
             var toTarget = target.Position - Entity.Position;
-            return lengthsq(toTarget) < 1e-6f || FireControl.InArc(Item, toTarget);
+            return FireControl.InArc(Item, toTarget);
         }
     }
 

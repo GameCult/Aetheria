@@ -64,6 +64,12 @@ public class Zone
         _random = new Random(galaxyZone?.Name.StableHash() ?? 1337u);
         var cache = itemManager.ItemData;
 
+        // Cut 5, 5.6 (docs/fire-control-cut.md, Soul finding 7; operator ruling Q3): death removes the ship,
+        // in the simulation, not only in Unity's own loot-drop subscription. One subscription point covers
+        // every join, whichever call site adds the entity (deserialization below, a jump, a spawned turret) --
+        // ObserveAdd fires for all of them. Forbidden writer: no presentation may remove an entity from Zone.
+        Entities.ObserveAdd().Subscribe(add => add.Value.Death.Subscribe(_ => Entities.Remove(add.Value)));
+
         foreach (var orbit in pack.Orbits)
         {
             Orbits.Add(orbit.Key, new Orbit(Settings, cache.Get(orbit)));

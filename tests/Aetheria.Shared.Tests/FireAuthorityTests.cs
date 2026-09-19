@@ -344,8 +344,14 @@ public sealed class FireAuthorityTests : IDisposable
             var settings = Settings();
             settings.CommitHorizon = commitHorizon;
             var e = Build(settings, damage: 10, velocity: 10, accuracy: 1, resolution: 1, spread: 0, tracking: 1f, targetRange: 50);
-            // Target sits still (velocity 0) so the "predicted" position is just its fire-time position;
-            // jinking means moving it away from that point before the check time.
+            // Cut 5 (Soul's own named survivor): a stationary target left the map's declared mutation
+            // (elapsed = shot.FlightTime in place of now - shot.FireTime) invisible, because
+            // FireTargetVelocity * elapsed is identically zero either way. A real, nonzero velocity -- Ship.
+            // Update already integrates Position.xz += Velocity * delta every tick on its own, no manual
+            // tracking needed -- makes the mutation observable even with no jink at all: the mutant
+            // mispredicts the intercept by Velocity * CommitHorizon, which the post-commit-jink assertion
+            // below (expected to still hit) catches as a spurious miss.
+            e.Target.Velocity = float2(4, 0);
             FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
             var t = 0f;
             const float dt = .05f;
