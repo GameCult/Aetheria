@@ -22,7 +22,10 @@ public class TargetingSystemData : BehaviorData
 
     // The info level (see Entity.EntityInfoGathered) at which sensor state stops limiting hits. Below the
     // system's own resolution, an otherwise-earned hit still degrades on account of thin sensor data;
-    // consumed by Cut 3's roll.
+    // consumed by Cut 3's roll. Higher is better, same as every other stat here: Cut 6c.1 (operator ruling
+    // 2026-09-19) has FireControl.HitProbability take Resolution's reciprocal to derive the actual info
+    // ceiling (ceiling = detection + (1 - detection) / Resolution), so authoring a bigger number buys a lower
+    // ceiling -- less info needed -- rather than the field's own value being read as the ceiling directly.
     [Inspectable, JsonProperty("resolution"), Key(2), RuntimeInspectable]
     public PerformanceStat Resolution = new PerformanceStat();
 

@@ -23,7 +23,7 @@ public static class Program
             case "census": return Census();
             case "station-fit": return StationFit();
             case "hardpoint-fit": return HardpointFit();
-            case "loadout": return Loadout(args.Skip(1).FirstOrDefault());
+            case "loadout": return Loadout(args.Skip(1).ToArray());
             case "save": return Save();
             case "factions": return Factions();
             case "dangling": return Dangling(args.Skip(1).ToArray());
@@ -34,8 +34,9 @@ public static class Program
             case "roles-migrate": return RolesMigrate(args.Contains("apply"));
             case "firing-arc-migrate": return FiringArcMigrate(args.Contains("apply"));
             case "targeting-catalog": return TargetingCatalog(args.Contains("apply"));
+            case "targeting-catalog-6c": return TargetingCatalog6c(args.Contains("apply"));
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply]");
                 return 1;
         }
     }
@@ -742,26 +743,75 @@ public static class Program
     }
 
     // Runs the real LoadoutGenerator against every hull, so a generation failure reproduces here instead of on a
-    // flight to a populated sector. No galaxy, so this covers placement, roles and products but NOT availability
-    // filtering or distance weighting, which need a real galaxy. Seeded: a failure repeats.
-    private static int Loadout(string seedArgument)
+    // flight to a populated sector. No galaxy by default, so this covers placement, roles and products but NOT
+    // availability filtering or distance weighting, which need a real galaxy. Seeded: a failure repeats.
+    //
+    // Cut 6c, 6c.2 verification: "exclude-sellers Short1,Short2,..." builds a minimal one-zone Galaxy (the same
+    // SavedGame/Galaxy round trip FireControlCut6cTests uses) whose faction roster is every catalog faction
+    // EXCEPT the named ones, so IsAvailable actually rejects their products instead of the null-Galaxy "every
+    // product is on offer" shortcut this command otherwise takes. That is the one way to reproduce the single
+    // point of failure 6c.2 fixed: a null-galaxy run can never exercise Galaxy.ContainsFaction at all.
+    private static int Loadout(string[] args)
     {
-        var db = AetherDb.Open();
+        var seedArgument = args.FirstOrDefault(a => !a.StartsWith("exclude-sellers"));
+        var excludeArg = args.FirstOrDefault(a => a.StartsWith("exclude-sellers"));
         var seed = uint.TryParse(seedArgument, out var parsed) ? parsed : 1u;
+        var db = AetherDb.Open();
         var settings = new GameplaySettings
         {
             DefaultEntitySettings = new EntitySettings(),
             Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
             QualityPriceModifier = new ExponentialLerp()
         };
+
+        Galaxy galaxy = null;
+        CultCache galaxyCache = null;
+        if (excludeArg != null)
+        {
+            var excludedShortNames = excludeArg.Contains(':')
+                ? excludeArg.Substring(excludeArg.IndexOf(':') + 1).Split(',', StringSplitOptions.RemoveEmptyEntries)
+                : Array.Empty<string>();
+            var excluded = new HashSet<string>(excludedShortNames);
+
+            // A second, scratch-run-store cache over the SAME catalog file, read-only on the catalog side --
+            // RunSave.Commit only ever touches run-store record types (SavedGame, SavedZone, ProvenanceLedger),
+            // but it needs a store that is "home" to them, which the plain read-only db.Cache above is not.
+            // The scratch run.cc lives in the OS temp directory, never under GameData, so this command cannot
+            // leave behind or corrupt a real save. Factions are looked up through THIS cache instance, not
+            // db.Cache -- CultCache.RefOf needs the document to be one this specific instance's identity map
+            // tracks, and two Open() calls over the same file do not share object identity.
+            var scratchRun = Path.Combine(Path.GetTempPath(), $"aetherdb-loadout-exclude-{Guid.NewGuid():N}.cc");
+            galaxyCache = AetheriaStores.Open(Path.Combine(db.Root, "GameData", "Aetheria.cc"), runPath: scratchRun);
+            var includedFactions = galaxyCache.GetAll<Faction>().Where(f => !excluded.Contains(f.ShortName)).ToArray();
+            Console.WriteLine($"Excluding sellers [{string.Join(", ", excluded)}] -- galaxy carries {includedFactions.Length} of {galaxyCache.GetAll<Faction>().Count()} factions.\n");
+
+            var game = new SavedGame
+            {
+                Factions = includedFactions.Select(f => galaxyCache.RefOf(f)).ToArray(),
+                Relationships = includedFactions.Select(_ => FactionRelationship.Neutral).ToArray(),
+                HomeZones = new Dictionary<int, int> { { 0, 0 } },
+                BossZones = new Dictionary<int, int>(),
+                DiscoveredZones = new[] { 0 },
+                ActionBarBindings = new SavedActionBarBinding[0],
+                Exit = -1
+            };
+            var zones = new[]
+            {
+                new SavedZone { Name = "Zone 0", Position = new float2(0, 0), AdjacentZones = Array.Empty<int>(), Factions = new[] { 0 }, Owner = 0, Contents = null }
+            };
+            RunSave.Commit(galaxyCache, game, zones, new ProvenanceLedger());
+            galaxy = new Galaxy(galaxyCache, galaxyCache.GetGlobal<SavedGame>(), _ => { });
+        }
+
         var log = new List<string>();
         var itemManager = new ItemManager(db.Cache, new ProvenanceLedger(), settings, log.Add);
         var failures = 0;
+        var targetingGaps = 0;
 
         foreach (var hull in db.Cache.GetAll<HullData>().OrderBy(h => h.HullType).ThenBy(h => h.Name))
         {
             var random = new Random(seed);
-            var generator = new LoadoutGenerator(ref random, itemManager, null, null, null, .5f);
+            var generator = new LoadoutGenerator(ref random, itemManager, galaxy, null, null, .5f);
             log.Clear();
             string outcome;
             try
@@ -774,6 +824,7 @@ public static class Program
                 };
                 outcome = pack == null ? "NO LOADOUT (nothing suitable found)" : "ok";
                 if (pack == null) failures++;
+                if (pack != null && log.Any(l => l.Contains("targeting system available", StringComparison.OrdinalIgnoreCase))) targetingGaps++;
             }
             catch (Exception e)
             {
@@ -785,7 +836,8 @@ public static class Program
             foreach (var line in log.Distinct()) Console.WriteLine($"      {line}");
         }
 
-        Console.WriteLine($"\n{failures} hulls failed to generate a loadout (seed {seed})");
+        Console.WriteLine($"\n{failures} hulls failed to generate a loadout (seed {seed}), {targetingGaps} armed hulls generated with no targeting system (fired unaided)");
+        galaxyCache?.Dispose();
         return failures;
     }
 
@@ -1232,6 +1284,116 @@ public static class Program
         });
 
         Console.WriteLine($"\nLanded {newDesigns.Length} new designs and {newDesigns.Length + existingDesigns.Length} new products in Aetheria.cc");
+        return 0;
+    }
+
+    // Fire control Cut 6c (docs/fire-control-cut.md, "the formula gets fixed, and the single point of
+    // failure"). Two parts:
+    //
+    // 6c.1 (operator ruling 2026-09-19): FireControl.HitProbability now takes Resolution's reciprocal to
+    // derive the sensor-limiting info ceiling, so a bigger authored number is a bigger benefit, matching
+    // every other stat on this behaviour. Cut 6a's two designs were authored against the old (ceiling-read-
+    // directly) reading -- Targeting Computer at .3, Fire Control Array at .75 -- which is why the premium
+    // design scored strictly worse at low info. Re-authored on the new scale: 1-cell 2 (ceiling
+    // .1 + .9/2 = .55), 2-cell 4 (ceiling .1 + .9/4 = .325). Both clear the unaided ceiling of 1 by a wide
+    // margin (lower is better under the new reading), and the 2-cell design is unambiguously ahead of the
+    // 1-cell one at every info level, which was the whole point of the fix.
+    //
+    // 6c.2: NiteLife Energy was the only seller of both designs -- "at least the manufacturers that sell the
+    // capacitor" (Cut 2's letter) rather than the thematic sellers the roster actually names for targeting
+    // hardware (Cut 2's intent). Finch Cybernetics (passive sensors) and Lucent Media (active sensors, lasers)
+    // both get a product per design, so a galaxy that does not draw NiteLife still has two other chances to
+    // sell one. Brand names and flavour text are each manufacturer's own; the design stays dry and carries no
+    // manufacturer field (standing text policy). Role coverage matches the designs' own already-declared Roles
+    // (processor, array), same convention TargetingCatalog's newDesigns used above.
+    //
+    // Dry run unless passed "apply", same contract as the other *-migrate commands.
+    private static int TargetingCatalog6c(bool apply)
+    {
+        var db = AetherDb.Open(catalogWritable: apply);
+
+        Faction FactionByShortName(string shortName)
+        {
+            var faction = db.Cache.GetAll<Faction>().FirstOrDefault(f => f.ShortName == shortName);
+            if (faction == null) throw new InvalidOperationException($"No faction with short name \"{shortName}\".");
+            return faction;
+        }
+
+        GearData DesignByName(string name)
+        {
+            var design = db.Cache.GetAll<GearData>().FirstOrDefault(i => i.Name == name);
+            if (design == null) throw new InvalidOperationException($"No design named \"{name}\".");
+            return design;
+        }
+
+        var targetingComputer = DesignByName("Targeting Computer");
+        var fireControlArray = DesignByName("Fire Control Array");
+
+        var resolutionChanges = new (GearData Design, float OldResolution, float NewResolution)[]
+        {
+            (targetingComputer, targetingComputer.Behaviors.OfType<TargetingSystemData>().Single().Resolution.Max, 2f),
+            (fireControlArray, fireControlArray.Behaviors.OfType<TargetingSystemData>().Single().Resolution.Max, 4f),
+        };
+
+        var newProducts = new (GearData Design, string ProductName, Faction Maker, string ProductDescription, (string Role, float Mean, float Dev)[] Roles)[]
+        {
+            (targetingComputer, "Panopticon", FactionByShortName("Finch"),
+                "Sees everything, judges nothing. Well, mostly nothing. (new text)",
+                new[] { ("processor", .5f, .13f), ("array", .58f, .12f) }),
+            (fireControlArray, "Panopticon Prime", FactionByShortName("Finch"),
+                "The upgrade nobody at Finch will admit they needed until they had it. (new text)",
+                new[] { ("processor", .68f, .11f), ("array", .75f, .10f) }),
+            (targetingComputer, "ClapBack", FactionByShortName("Lucent"),
+                "Your target won't clock it until the killcam. (new text)",
+                new[] { ("processor", .6f, .16f), ("array", .48f, .15f) }),
+            (fireControlArray, "ClapBack Ultra", FactionByShortName("Lucent"),
+                "Now with main-character energy built in. (new text)",
+                new[] { ("processor", .78f, .14f), ("array", .65f, .13f) }),
+        };
+
+        Console.WriteLine("Resolution re-authored to the reciprocal-reading scale (6c.1):");
+        foreach (var (design, oldResolution, newResolution) in resolutionChanges)
+            Console.WriteLine($"  {design.Name,-20} {oldResolution,6:0.##} -> {newResolution,4:0.##}");
+
+        Console.WriteLine("\nNew products (6c.2, thematic sellers alongside NiteLife):");
+        foreach (var (design, productName, maker, _, roles) in newProducts)
+            Console.WriteLine($"  {design.Name} -> \"{productName}\" by {maker.ShortName}, roles [{string.Join(", ", roles.Select(r => r.Role))}]");
+
+        if (!apply)
+        {
+            Console.WriteLine($"\nDry run. Pass \"apply\" to land {resolutionChanges.Length} Resolution changes and {newProducts.Length} new products.");
+            return 0;
+        }
+
+        foreach (var (design, _, newResolution) in resolutionChanges)
+        {
+            var behavior = design.Behaviors.OfType<TargetingSystemData>().Single();
+            behavior.Resolution = new PerformanceStat { Min = newResolution, Max = newResolution, Terms = new List<StatTerm>() };
+        }
+
+        // Validate before staging, same contract as ShieldMigrate/TargetingCatalog above.
+        foreach (var (design, _, _) in resolutionChanges) CultRecordRefs.Validate(design);
+
+        db.Cache.Commit(batch =>
+        {
+            foreach (var (design, _, _) in resolutionChanges)
+                batch.Upsert(typeof(GearData), design, db.Cache.RefOf(design).Key);
+
+            foreach (var (design, productName, maker, description, roles) in newProducts)
+            {
+                var product = new FactionProductData
+                {
+                    Name = productName,
+                    Description = description,
+                    Design = new CultRecordRef<CraftedItemData>(db.Cache.RefOf(design).Key),
+                    Manufacturer = db.Cache.RefOf(maker),
+                    Roles = roles.Select(r => new ProductRole { Role = r.Role, Mean = r.Mean, StandardDeviation = r.Dev }).ToList(),
+                };
+                batch.Upsert(typeof(FactionProductData), product);
+            }
+        });
+
+        Console.WriteLine($"\nLanded {resolutionChanges.Length} Resolution changes and {newProducts.Length} new products in Aetheria.cc");
         return 0;
     }
 }
