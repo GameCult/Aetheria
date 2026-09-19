@@ -58,6 +58,13 @@ public abstract class Behavior
     }
     
     public float Evaluate(PerformanceStat stat) => Item?.Evaluate(stat) ?? Consumable.Evaluate(stat);
+
+    // Nominal-request ruling (docs/stats-and-power-cut.md, operator ruling 2026-09-19): the read a PowerRequest
+    // implementation uses for a stat named in StatValidation.PowerRequestFields, in place of Evaluate above. A
+    // consumable-hosted instance (Item == null) never reaches PowerBus.Step at all (see e.g. EnergyDraw.Execute's
+    // own comment), and ConsumableItemEffect.PowerSupplyFactor is already the identity (1) unconditionally, so
+    // Consumable.Evaluate is already nominal with respect to power and needs no separate context.
+    public float EvaluateNominalPower(PerformanceStat stat) => Item?.EvaluateNominalPower(stat) ?? Consumable.Evaluate(stat);
     protected void AddHeat(float heat) => Item?.AddHeat(heat); // TODO: Heat for Consumables
 
     protected void CauseDamage(float damage)

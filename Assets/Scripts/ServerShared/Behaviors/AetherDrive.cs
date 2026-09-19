@@ -99,20 +99,27 @@ public class AetherDrive : Behavior, IPowerConsumer
     // (Execute's decay-to-thrust arithmetic below) is free, same as before. Pure and side-effect-free: it reads
     // Rpm but does not write it, so Execute's own identical arithmetic a few lines later -- which does perform
     // the real decay -- produces the same numbers Rpm actually moves by. Accepts the recompute (Q3's ruling).
+    //
+    // Nominal-request ruling (docs/stats-and-power-cut.md, operator ruling 2026-09-19): Torque, LambdaMultiplier,
+    // MaximumRpm, PassiveCoupling and EnergyDraw are all registered request fields (StatValidation.
+    // PowerRequestFields) -- read nominally (what full power would produce) so Torque carrying its own
+    // PowerSupply term (Cut 7's brownout curve) no longer makes this tick's request depend on this tick's own
+    // grant. Execute below is unchanged: it calls the real, curved Evaluate, so the actual spin-up still
+    // degrades with whatever the bus actually grants.
     public float PowerRequest(float dt)
     {
-        var couplingLambda = _data.CouplingLambda * Item.Evaluate(_data.LambdaMultiplier) * max(abs(_axis), Evaluate(_data.PassiveCoupling));
+        var couplingLambda = _data.CouplingLambda * Item.EvaluateNominalPower(_data.LambdaMultiplier) * max(abs(_axis), EvaluateNominalPower(_data.PassiveCoupling));
         var rpmAfterDecay = decay(Rpm, couplingLambda, dt);
-        var maximumRpm = Evaluate(_data.MaximumRpm);
+        var maximumRpm = EvaluateNominalPower(_data.MaximumRpm);
         var torqueProfile = float3(
             _data.TorqueProfile.Evaluate(rpmAfterDecay.x / maximumRpm),
             _data.TorqueProfile.Evaluate(rpmAfterDecay.y / maximumRpm),
             _data.TorqueProfile.Evaluate(rpmAfterDecay.z / maximumRpm));
-        var potentialTorque = Evaluate(_data.Torque) * torqueProfile;
+        var potentialTorque = EvaluateNominalPower(_data.Torque) * torqueProfile;
         var potentialRpmDelta = potentialTorque / length(_data.RotorMass) * dt;
         var actualRpmDelta = min(maximumRpm - rpmAfterDecay, potentialRpmDelta);
         var torqueRatio = actualRpmDelta / potentialRpmDelta;
-        var draw = torqueRatio * Evaluate(_data.EnergyDraw) / 3;
+        var draw = torqueRatio * EvaluateNominalPower(_data.EnergyDraw) / 3;
         return (draw.x + draw.y + draw.z) * dt;
     }
 

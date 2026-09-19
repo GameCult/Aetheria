@@ -61,13 +61,19 @@ public class Radiator : Behavior, IAlwaysUpdatedBehavior, IInitializableBehavior
 
     // Cut 3 (docs/stats-and-power-cut.md): mirrors Execute's own early-out below -- a radiator that would not
     // even try to pump this tick (waste would outrun pump capacity) requests nothing, exactly like before.
+    //
+    // Nominal-request ruling (docs/stats-and-power-cut.md, operator ruling 2026-09-19): PumpedHeat, WasteHeat and
+    // EnergyUsage are all registered request fields (StatValidation.PowerRequestFields) -- read nominally (what
+    // full power would pump) so PumpedHeat carrying its own PowerSupply term (Cut 7's brownout curve) no longer
+    // makes this tick's request depend on this tick's own grant. Execute below is unchanged: it calls the real,
+    // curved Evaluate, so the actual pumping still degrades with whatever the bus actually grants.
     public float PowerRequest(float dt)
     {
-        var pumpedHeat = Evaluate(_data.PumpedHeat);
-        var wasteHeat = Evaluate(_data.WasteHeat);
+        var pumpedHeat = EvaluateNominalPower(_data.PumpedHeat);
+        var wasteHeat = EvaluateNominalPower(_data.WasteHeat);
         var tempRatio = max(RadiatorTemperature / Temperature, 1);
         if (tempRatio > pumpedHeat / wasteHeat) return 0f;
-        return Evaluate(_data.EnergyUsage) * tempRatio * dt;
+        return EvaluateNominalPower(_data.EnergyUsage) * tempRatio * dt;
     }
 
     // Cut 5 (docs/stats-and-power-cut.md §1.3, PowerTiers.cs): Critical -- the closest thing this game has to
