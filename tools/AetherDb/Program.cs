@@ -29,8 +29,9 @@ public static class Program
             case "dangling": return Dangling(args.Skip(1).ToArray());
             case "settings": return Settings();
             case "settings-dump": return SettingsDump();
+            case "shield-migrate": return ShieldMigrate(args.Contains("apply"));
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply]");
                 return 1;
         }
     }
@@ -473,5 +474,88 @@ public static class Program
 
         Console.WriteLine($"\n{failures} hulls failed to generate a loadout (seed {seed})");
         return failures;
+    }
+
+    // Operator ruling, 2026-09-19 (docs/stats-and-power-cut.md, shield reserve ruling block): ShieldData now
+    // authors Capacity/RefillDuration/RestoreDuration directly instead of deriving the reserve from EnergyUsage
+    // at runtime. Every existing shield design's PerformanceStat default (Min = Max = 0) reads as an authored
+    // zero reserve post-migration -- CanTakeHit would break on the very first hit -- so this command must land
+    // in the same commit as the schema change. Dry run unless passed "apply", which alone opens the catalog
+    // writable; every record must derive cleanly or nothing is written (TEMP: prints the derivation table for
+    // operator review either way).
+    private static int ShieldMigrate(bool apply)
+    {
+        var db = AetherDb.Open(catalogWritable: apply);
+
+        // ShieldData nests inside either host's Behaviors list (GearData: an equipped item with a hardpoint
+        // Shape to size from; ConsumableItemData: a consumable effect with no Shape -- cells reads 0 there, and
+        // the derivation below floors it to 1). Both are scanned because the schema change applies to every
+        // ShieldData record, not just equipped ones.
+        var hosts = db.Cache.GetAll<GearData>().Select(g => (Name: g.Name, Cells: g.Shape.Coordinates.Length, Document: (object) g, Key: db.Cache.RefOf(g).Key, Behaviors: g.Behaviors))
+            .Concat(db.Cache.GetAll<ConsumableItemData>().Select(c => (Name: c.Name, Cells: 0, Document: (object) c, Key: db.Cache.RefOf(c).Key, Behaviors: c.Behaviors)));
+        var shields = hosts
+            .Select(h => (h.Name, h.Cells, h.Document, h.Key, Shield: h.Behaviors.OfType<ShieldData>().FirstOrDefault()))
+            .Where(p => p.Shield != null)
+            .OrderBy(p => p.Name, StringComparer.Ordinal)
+            .ToArray();
+
+        Console.WriteLine($"{shields.Length} shield designs\n");
+        Console.WriteLine($"{"design",-24} {"cells",5} {"energy",7} {"capacity",9} {"refill",7} {"restore",8}  derived from");
+        var changed = new List<(object Document, CultRecordKey Key)>();
+        var alreadyAuthored = 0;
+        foreach (var (name, cells, document, key, shield) in shields)
+        {
+            if (shield.Capacity.Max > 0f || shield.RefillDuration.Max > 0f || shield.RestoreDuration.Max > 0f)
+            {
+                alreadyAuthored++;
+                Console.WriteLine($"{name,-24} {cells,5} {shield.EnergyUsage.Max,7:0.##} {shield.Capacity.Max,9:0.##} " +
+                    $"{shield.RefillDuration.Max,7:0.##} {shield.RestoreDuration.Max,8:0.##}  (already authored, left alone)");
+                continue;
+            }
+
+            // EnergyUsage is a per-damage-point cost multiplier, not an energy quantity of its own -- Cut 4's
+            // mistake was treating it as a reserve size. A reserve needs to be sized in damage points, so this
+            // divides back out: a shield with EnergyUsage 1 costs 1 energy per point of damage, so a Capacity of
+            // (BaseAbsorption * EnergyUsage) buys BaseAbsorption points of raw damage before breaking, scaling
+            // with the item's own cost multiplier the same way the old runtime-derived Capacity did (Capacity =
+            // EnergyUsage) but sized for a real fight instead of one hit. BaseAbsorption = 10 raw damage points,
+            // then scaled by the item's own cell count (larger reserved capacitors in a bigger hull slot) with a
+            // floor of 1 cell so a consumable-hosted shield (no Shape, Cells = 0) or a malformed 0-cell fixture
+            // does not zero the result.
+            const float baseAbsorption = 10f;
+            var energyUsage = shield.EnergyUsage.Max;
+            var capacity = baseAbsorption * Math.Max(1f, energyUsage) * Math.Max(1, cells);
+
+            // Refill (holding) is the fast lever; restore (broken) is the punish window and is authored several
+            // times slower so breaking a shield costs real time regardless of how it broke. 2s/12s are flat
+            // starting points (no other authored duration on ShieldData to scale from), not derived from any
+            // per-design number -- flagged for operator tuning against real combat pacing, same footing Cut 4
+            // flagged its own guess on.
+            const float refillDuration = 2f;
+            const float restoreDuration = 12f;
+
+            shield.Capacity = new PerformanceStat { Min = capacity, Max = capacity };
+            shield.RefillDuration = new PerformanceStat { Min = refillDuration, Max = refillDuration };
+            shield.RestoreDuration = new PerformanceStat { Min = restoreDuration, Max = restoreDuration };
+
+            Console.WriteLine($"{name,-24} {cells,5} {energyUsage,7:0.##} {capacity,9:0.##} " +
+                $"{refillDuration,7:0.##} {restoreDuration,8:0.##}  {baseAbsorption:0.#} x max(1,energy) x cells; flat durations");
+            changed.Add((document, key));
+        }
+
+        Console.WriteLine($"\n{changed.Count} designs migrated, {alreadyAuthored} already authored (left alone)");
+        if (changed.Count == 0) return 0;
+        if (!apply)
+        {
+            Console.WriteLine($"Dry run. Pass \"apply\" to land {changed.Count} changed records.");
+            return 0;
+        }
+
+        db.Cache.Commit(batch =>
+        {
+            foreach (var (document, key) in changed) batch.Upsert(document.GetType(), document, key);
+        });
+        Console.WriteLine($"Landed {changed.Count} changed records in Aetheria.cc");
+        return 0;
     }
 }

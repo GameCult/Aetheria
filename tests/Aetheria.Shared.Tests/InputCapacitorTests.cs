@@ -65,7 +65,13 @@ public sealed class InputCapacitorTests : IDisposable
         {
             Name = "Shield", Hardpoint = HardpointType.Tool, Shape = new Shape(), Durability = 10,
             MinimumTemperature = 0, MaximumTemperature = 1000, OptimalTemperature = 280, PlateauWidth = 400,
-            Behaviors = { new ShieldData { Efficiency = Constant(1), EnergyUsage = Constant(1) } }
+            // Capacity/RefillDuration/RestoreDuration authored explicitly (shield reserve ruling, 2026-09-19):
+            // ShieldData no longer derives its reserve size from EnergyUsage, so a fixture that only authors
+            // Efficiency/EnergyUsage now gets a zero-capacity reserve that breaks on every hit. Capacity = 1
+            // reproduces this fixture's pre-ruling reserve size exactly (EnergyUsage was 1); durations are
+            // unused by the tests below (they never provoke a break here) but must be nonzero so RefreshReserve
+            // never divides by a zero duration.
+            Behaviors = { new ShieldData { Efficiency = Constant(1), EnergyUsage = Constant(1), Capacity = Constant(1), RefillDuration = Constant(1), RestoreDuration = Constant(1) } }
         });
         cache.FlushAsync().Wait();
         return cache;
