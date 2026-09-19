@@ -27,8 +27,11 @@
 # Usage:
 #   tests/mutation_tests_fire_control_cut5.sh <path-to-CultLib-45c2f40-worktree>
 #
-# Every mutation is reversed (byte-exact, from an in-memory copy) before the script exits, including on
-# failure or interrupt.
+# Every mutation is reversed (byte-exact, from an on-disk copy) before the script exits, including on failure
+# or interrupt, and every restore is verified against a sha256 recorded before any mutation ran: the tree-
+# clean verdict at the end states PASS/FAIL explicitly rather than leaving a reader to infer it. A SIGKILL of
+# the whole process group is the one termination bash cannot trap at all -- verify the tree independently
+# after a run that was killed that hard.
 
 set -u
 
@@ -49,21 +52,78 @@ CONSTANT_WEAPON_CS="$REPO_ROOT/Assets/Scripts/ServerShared/Behaviors/ConstantWea
 ZONE_CS="$REPO_ROOT/Assets/Scripts/ServerShared/Zone.cs"
 
 # --- byte-exact backup/restore: preserves line endings exactly, no text-mode translation. ---
+#
+# Cut 5b (5b.3): a restore that is not verified is a restore that can lie. Three runs of this script have
+# left mutated files behind (a trap cannot survive a hard kill of the process group, and nothing before this
+# cut ever checked that a `cp -p` restore actually reproduced the original bytes). Every target file's
+# pre-mutation sha256 is recorded once here, before any mutation touches it; every restore below --
+# per-mutation and at exit -- re-hashes and refuses to let a mismatch pass silently.
 declare -A ORIGINALS
+declare -A ORIGINAL_HASH
 FILES=("$FIRE_CONTROL_CS" "$WEAPON_CS" "$INSTANT_WEAPON_CS" "$CONSTANT_WEAPON_CS" "$ZONE_CS")
 BACKUP_DIR="$(mktemp -d)"
+
+hash_file() {
+  sha256sum "$1" 2>/dev/null | awk '{print $1}'
+}
+
 for f in "${FILES[@]}"; do
   base="$(basename "$f")"
   cp -p "$f" "$BACKUP_DIR/$base.orig"
   ORIGINALS["$f"]="$BACKUP_DIR/$base.orig"
+  ORIGINAL_HASH["$f"]="$(hash_file "$f")"
 done
 
-restore_all() {
-  for f in "${FILES[@]}"; do
-    cp -p "${ORIGINALS[$f]}" "$f"
-  done
+# restore_and_verify FILE -- restores one file from its recorded backup, then re-hashes it and aborts the
+# whole script (not just this mutation) if the restore did not reproduce the pre-mutation hash exactly. A
+# mismatch here means continuing would judge every later mutation against an already-contaminated baseline,
+# which is strictly worse than stopping.
+restore_and_verify() {
+  local file="$1"
+  cp -p "${ORIGINALS[$file]}" "$file"
+  local actual
+  actual="$(hash_file "$file")"
+  if [ "$actual" != "${ORIGINAL_HASH[$file]}" ]; then
+    echo "" >&2
+    echo "FATAL: restoring $file did not reproduce its pre-mutation hash -- aborting." >&2
+    echo "  expected sha256: ${ORIGINAL_HASH[$file]}" >&2
+    echo "  actual   sha256: $actual" >&2
+    exit 1
+  fi
 }
-trap restore_all EXIT INT TERM
+
+TREE_CLEAN_OK=1
+TREE_VERDICT_DONE=0
+
+# verify_tree_clean -- re-hashes every target file against its pre-mutation baseline and prints an explicit
+# PASS/FAIL verdict. Called once explicitly at the bottom of a normal run (so the verdict is part of that
+# run's own summary, not something a reader has to infer from silence) and again from the EXIT/INT/TERM trap
+# as the safety net for every abnormal exit -- interrupted, failed, or killed in a way bash can still trap.
+# (A SIGKILL of the whole process group is the one termination this cannot see at all; nothing running inside
+# the killed process can run afterward, trap or not -- that gap is closed by re-checking independently after
+# the fact, not by this function.)
+verify_tree_clean() {
+  if [ "$TREE_VERDICT_DONE" = "1" ]; then return; fi
+  local f actual
+  for f in "${FILES[@]}"; do
+    cp -p "${ORIGINALS[$f]}" "$f" 2>/dev/null
+    actual="$(hash_file "$f")"
+    if [ "$actual" != "${ORIGINAL_HASH[$f]}" ]; then
+      echo "FATAL: $f is NOT byte-identical to how this script found it." >&2
+      echo "  expected sha256: ${ORIGINAL_HASH[$f]}" >&2
+      echo "  actual   sha256: $actual" >&2
+      TREE_CLEAN_OK=0
+    fi
+  done
+  echo ""
+  if [ "$TREE_CLEAN_OK" = "1" ]; then
+    echo "=== tree-clean verdict: PASS -- every target file is byte-identical to how this script found it ==="
+  else
+    echo "=== tree-clean verdict: FAIL -- see FATAL lines above; the working tree is contaminated ==="
+  fi
+  TREE_VERDICT_DONE=1
+}
+trap verify_tree_clean EXIT INT TERM
 
 FAILURES=()
 
@@ -124,7 +184,7 @@ check_mutation() {
   echo "=== $name (expect $expect) ==="
   if ! replace_unique "$file" "$anchor" "$mutated"; then
     FAILURES+=("$name: anchor replacement failed")
-    cp -p "${ORIGINALS[$file]}" "$file"
+    restore_and_verify "$file"
     return
   fi
   if run_test "$test"; then
@@ -132,7 +192,7 @@ check_mutation() {
   else
     passed=0
   fi
-  cp -p "${ORIGINALS[$file]}" "$file" # restore this file immediately, before judging, so a crash still leaves a clean tree
+  restore_and_verify "$file" # restore this file immediately, before judging, so a crash still leaves a clean tree
 
   if [ "$expect" = "green" ]; then
     if [ "$passed" = "1" ]; then
@@ -269,13 +329,23 @@ check_mutation \
   "red"
 
 echo ""
+verify_tree_clean # explicit call: the tree-clean verdict is part of THIS run's own summary, not only
+                   # something printed later at exit (the trap's own call is a no-op after this one runs --
+                   # see TREE_VERDICT_DONE above -- and remains the safety net for an interrupted run).
+
 if [ "${#FAILURES[@]}" -gt 0 ]; then
+  echo ""
   echo "=== FAILURES ==="
   for f in "${FAILURES[@]}"; do
     echo "- $f"
   done
+fi
+
+if [ "${#FAILURES[@]}" -gt 0 ] || [ "$TREE_CLEAN_OK" != "1" ]; then
+  echo ""
+  echo "RESULT: FAILED -- mutations: $([ "${#FAILURES[@]}" -gt 0 ] && echo "${#FAILURES[@]} failure(s)" || echo "all behaved as declared"), tree-clean: $([ "$TREE_CLEAN_OK" = "1" ] && echo PASS || echo FAIL)"
   exit 1
 fi
 
-echo "All mutations behaved as declared."
+echo "RESULT: All mutations behaved as declared. tree-clean: PASS"
 exit 0
