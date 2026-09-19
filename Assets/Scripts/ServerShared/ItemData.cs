@@ -754,6 +754,70 @@ public static class StatValidation
                     throw new InvalidOperationException($"{ownerName}: {ex.Message}");
                 }
     }
+
+    // Cut 6 (docs/stats-and-power-cut.md): "a stat that decides a power request may not depend on power supply,
+    // directly or through a modifier chain, and no stat may depend on itself." IPowerConsumer.PowerRequest(dt)
+    // never hands the bus a number it invented on the spot -- each implementation evaluates exactly one fixed
+    // PerformanceStat field on its own BehaviorData (Thruster reads EnergyUsage, EnergyDraw reads EnergyDraw, and
+    // so on). That field is a compile-time fact about the C# type, not something authored per catalog instance,
+    // so it is named here once -- the same (type, field) address ResolveStatField already uses for
+    // StatReference -- rather than adding a second reflection idiom or a per-instance flag. Naming it here (not a
+    // new interface member on IPowerConsumer) means the check needs no Behavior instance, no EquippedItem and no
+    // Entity: it can run over the catalog's own Data objects, at load and at Upsert, before anything is ever
+    // equipped.
+    public static readonly (Type Type, string Field)[] PowerRequestFields =
+    {
+        (typeof(EnergyDrawData), nameof(EnergyDrawData.EnergyDraw)),
+        (typeof(ThrusterData), nameof(ThrusterData.EnergyUsage)),
+        (typeof(ConstantWeaponData), nameof(WeaponData.Energy)),
+        (typeof(InstantWeaponData), nameof(WeaponData.Energy)),
+        (typeof(SensorData), nameof(SensorData.PingEnergy)),
+        (typeof(ShieldData), nameof(ShieldData.Capacity)),
+        (typeof(RadiatorData), nameof(RadiatorData.EnergyUsage)),
+        (typeof(AetherDriveData), nameof(AetherDriveData.EnergyDraw)),
+    };
+
+    // The direct half of the rule: a request stat's own declared Terms must not name PowerSupply. Runs wherever
+    // ValidateHeatResponse/ValidateStatModifiers run (AetheriaStores.Open, CultRecordRefs.Upsert) plus once more
+    // at equip (EquippedItem's constructor, Entity.cs) as defense against the two named bypasses that write a
+    // catalog document without going through Upsert (CultCache Studio's generic editor, AetherDb's dangling-ref
+    // apply -- see the comment above ValidateHeatResponse). The modifier-chain half of the rule is dynamic and
+    // lives in StatModifier.Initialize (StatModifier.cs), because a modifier's target only resolves against a
+    // concrete entity's actual equipment.
+    public static void ValidateNoPowerSupplyOnRequest(string ownerName, IEnumerable<BehaviorData> behaviors)
+    {
+        foreach (var behavior in behaviors)
+        foreach (var (type, field) in PowerRequestFields)
+        {
+            if (!type.IsInstanceOfType(behavior)) continue;
+            if (!(type.GetField(field)?.GetValue(behavior) is PerformanceStat stat)) continue;
+            foreach (var term in stat.Terms)
+                if (term.Source == StatSource.PowerSupply)
+                    throw new InvalidOperationException(
+                        $"{ownerName}: {behavior.GetType().Name}.{field} is a power request -- its own Terms may not " +
+                        "declare a PowerSupply term, or the request would depend on how much power it receives to " +
+                        "decide how much power it asks for");
+        }
+    }
+
+    // Whether `stat` is the request stat of some IPowerConsumer behaviour on `data` -- used by StatModifier's
+    // equip-time chain check to tell "an ordinary modifier target" from "a modifier target that would corrupt a
+    // power request." Returns the owning behaviour's type name for the error message.
+    public static bool TryGetPowerRequestBehaviorName(EquippableItemData data, PerformanceStat stat, out string behaviorName)
+    {
+        foreach (var behavior in data.Behaviors)
+        foreach (var (type, field) in PowerRequestFields)
+        {
+            if (!type.IsInstanceOfType(behavior)) continue;
+            if (ReferenceEquals(type.GetField(field)?.GetValue(behavior), stat))
+            {
+                behaviorName = type.Name;
+                return true;
+            }
+        }
+        behaviorName = null;
+        return false;
+    }
 }
 
 [CultDocument("aetheria.personalityattribute", "1"), Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]

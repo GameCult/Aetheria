@@ -35,11 +35,16 @@ public static class AetheriaStores
             {
                 StatValidation.ValidateHeatResponse(data);
                 StatValidation.ValidateStatModifiers(data.Name, data.Behaviors);
+                // Cut 6 (docs/stats-and-power-cut.md): a power request may not depend on power supply.
+                StatValidation.ValidateNoPowerSupplyOnRequest(data.Name, data.Behaviors);
             }
             // Cut 2 (docs/stats-and-power-cut.md): a consumable's own StatModifierData needs the same check;
             // consumables carry no heat response, so this is not folded into the loop above.
             foreach (var data in cache.GetAll<ConsumableItemData>())
+            {
                 StatValidation.ValidateStatModifiers(data.Name, data.Behaviors);
+                StatValidation.ValidateNoPowerSupplyOnRequest(data.Name, data.Behaviors);
+            }
             return cache;
         }
         catch
@@ -75,9 +80,13 @@ public static class CultRecordRefs
         {
             StatValidation.ValidateHeatResponse(data);
             StatValidation.ValidateStatModifiers(data.Name, data.Behaviors);
+            StatValidation.ValidateNoPowerSupplyOnRequest(data.Name, data.Behaviors);
         }
         if (document is ConsumableItemData consumable)
+        {
             StatValidation.ValidateStatModifiers(consumable.Name, consumable.Behaviors);
+            StatValidation.ValidateNoPowerSupplyOnRequest(consumable.Name, consumable.Behaviors);
+        }
         return new CultRecordRef<T>(cache.UpsertAsync(document).Result.Key);
     }
 }

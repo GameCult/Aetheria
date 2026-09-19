@@ -161,7 +161,16 @@ public class PowerBus
         }
 
         foreach (var draw in draws)
+        {
             draw.Item.PowerSupply = ratios[draw.Tier];
+            // Cut 6 (docs/stats-and-power-cut.md): the missing half of the wiring -- a stat with a PowerSupply
+            // term must recompute when the grant actually moves. Called unconditionally, once per draw per tick,
+            // the same shape as EquippedItem.UpdatePerformance's own Heat/Durability invalidation: "recomputes at
+            // most once per tick per (item, stat)," not "only when the value moved." An item with no PowerSupply
+            // term pays nothing extra -- the resolver's per-source generation bookkeeping (StatResolver.Resolve)
+            // only ever looks at sources a stat's own Terms declared.
+            _entity.Resolver.InvalidateSource(draw.Item, StatSource.PowerSupply);
+        }
     }
 
     // Mirrors Entity.TryConsumeEnergy's old do/while exactly (draw evenly across every capacitor that still has

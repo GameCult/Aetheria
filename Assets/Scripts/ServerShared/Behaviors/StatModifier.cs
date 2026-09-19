@@ -85,6 +85,7 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
             RemoveModifier();
         _targets = TargetsOf(Entity, _data);
         ValidateNoCycle(Entity, _data, _targets);
+        ValidateNoPowerSupplyChain(Entity, _data, _targets, Item);
     }
 
     private static Target[] TargetsOf(Entity entity, StatModifierData data)
@@ -106,17 +107,14 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
                 .ToArray();
     }
 
-    // A modifier's magnitude (_data.Modifier) is itself a PerformanceStat, evaluated through the same resolver as
-    // everything else it modifies. If that magnitude stat is, directly or through another modifier on this
-    // entity, one of the stats this modifier writes, resolving it would depend on a value computed from itself
-    // one tick late -- an authoring error, not a feature. Refused at equip, naming the entity and the reference.
-    // Built fresh from Entity.Equipment every time (never a static or catalog-side map), so it costs nothing to
-    // discard and cannot leak: by the time Activate() calls any StatModifier's Initialize, every EquippedItem
-    // (and so every StatModifier) on the entity already exists (Entity.cs Activate).
-    private static void ValidateNoCycle(Entity entity, StatModifierData data, Target[] targets)
+    // Shared by ValidateNoCycle and ValidateNoPowerSupplyChain below: every StatModifier currently on this
+    // entity, as an edge from the magnitude stat it reads to the stat(s) it writes. Built fresh from
+    // Entity.Equipment every time (never a static or catalog-side map), so it costs nothing to discard and cannot
+    // leak: by the time Activate() calls any StatModifier's Initialize, every EquippedItem (and so every
+    // StatModifier) on the entity already exists (Entity.cs Activate). Both checks see exactly what is actually
+    // equipped, not what the catalog merely allows.
+    private static Dictionary<PerformanceStat, List<PerformanceStat>> BuildModifierEdges(Entity entity, StatModifierData data, Target[] targets)
     {
-        if (data.Modifier == null) return;
-
         var edges = new Dictionary<PerformanceStat, List<PerformanceStat>>();
         foreach (var behavior in entity.Equipment.SelectMany(e => e.Behaviors).OfType<StatModifier>())
         {
@@ -135,6 +133,18 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
             foreach (var target in behaviorTargets)
                 if (target.Stat != null) list.Add(target.Stat);
         }
+        return edges;
+    }
+
+    // A modifier's magnitude (_data.Modifier) is itself a PerformanceStat, evaluated through the same resolver as
+    // everything else it modifies. If that magnitude stat is, directly or through another modifier on this
+    // entity, one of the stats this modifier writes, resolving it would depend on a value computed from itself
+    // one tick late -- an authoring error, not a feature. Refused at equip, naming the entity and the reference.
+    private static void ValidateNoCycle(Entity entity, StatModifierData data, Target[] targets)
+    {
+        if (data.Modifier == null) return;
+
+        var edges = BuildModifierEdges(entity, data, targets);
 
         var visited = new HashSet<PerformanceStat>();
         bool ReachesSelf(PerformanceStat node)
@@ -151,6 +161,52 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
             throw new InvalidOperationException(
                 $"{entity.Name}: stat modifier \"{data.Stat.Target}.{data.Stat.Stat}\" reads a magnitude stat whose " +
                 "modifier chain reaches back to itself -- a stat cannot (even transitively) modify its own magnitude");
+    }
+
+    // Cut 6 (docs/stats-and-power-cut.md): the dynamic half of "a stat that decides a power request may not
+    // depend on power supply, directly or through a modifier chain." StatValidation.ValidateNoPowerSupplyOnRequest
+    // already refuses a request stat's own declared Terms, at catalog load, at Upsert and at equip -- that check
+    // needs no entity. This one does: whether a given modifier's target is "a power request stat" is static (the
+    // (BehaviorData type, field) registry in StatValidation), but which items are actually feeding a modifier
+    // chain into it is a fact about this concrete ship's loadout. Walks the same magnitude->target edges
+    // ValidateNoCycle builds, in the other direction: is this modifier's own magnitude stat "power-tainted" --
+    // does it, or something feeding it through another modifier on this entity, carry a PowerSupply term -- and
+    // does it write onto a known request stat. Refused at equip, naming both the modifying item and the item
+    // whose request it would corrupt.
+    private static void ValidateNoPowerSupplyChain(Entity entity, StatModifierData data, Target[] targets, EquippedItem modifyingItem)
+    {
+        if (data.Modifier == null) return;
+        var edges = BuildModifierEdges(entity, data, targets);
+        if (!IsPowerTainted(data.Modifier, edges, new HashSet<PerformanceStat>()))
+            return;
+
+        foreach (var target in targets)
+        {
+            if (!(target.Owner is EquippedItem targetItem)) continue;
+            if (!StatValidation.TryGetPowerRequestBehaviorName(targetItem.Data, target.Stat, out var behaviorName))
+                continue;
+            throw new InvalidOperationException(
+                $"{entity.Name}: stat modifier on \"{modifyingItem?.Data.Name ?? "?"}\" would let " +
+                $"\"{targetItem.Data.Name}\".{behaviorName}'s power request depend on power supply through a " +
+                "modifier chain -- a stat that decides how much power a behaviour asks for may not depend, even " +
+                "transitively, on how much it receives");
+        }
+    }
+
+    // A magnitude stat is power-tainted if its own Terms name PowerSupply directly, or if it is itself the
+    // target of some other modifier on this entity whose magnitude is (transitively) power-tainted. `visited`
+    // guards the search against a real cycle -- ValidateNoCycle already refuses those outright, but this walk
+    // must not stack-overflow while that refusal is still in flight for a different modifier on the same entity.
+    private static bool IsPowerTainted(PerformanceStat stat, Dictionary<PerformanceStat, List<PerformanceStat>> edges, HashSet<PerformanceStat> visited)
+    {
+        if (stat == null || !visited.Add(stat)) return false;
+        foreach (var term in stat.Terms)
+            if (term.Source == StatSource.PowerSupply)
+                return true;
+        foreach (var pair in edges)
+            if (pair.Value.Contains(stat) && IsPowerTainted(pair.Key, edges, visited))
+                return true;
+        return false;
     }
 
     // Cut 2: the modifier value used to be written straight into the catalog stat's own per-entity dictionary
