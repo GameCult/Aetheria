@@ -196,6 +196,23 @@ what it did.
 > - The two durations are the lever: refill is how fast it tops up while holding, restore is how
 >   long you are naked.
 
+> **Ruling (operator, 2026-09-19): power supply multiplies, it does not interpolate.**
+> "You're right, it really should be a multiplier". Every other declared term (heat, durability,
+> quality) interpolates between a stat's `Min` and `Max`, which is right for them: a worn laser is
+> weaker, not absent. Power is the exception — no power means no output — so `StatSource.PowerSupply`
+> applies as a multiplier on the resolved value, after interpolation, with its authored exponent.
+> Consequences: zero supply resolves to zero, and a stat whose `Min` equals its `Max` still responds
+> (three of Cut 7's eight authored terms are inert today for exactly that reason).
+>
+> Found by Soul over the power cuts, 2026-09-19, with seven other confirmed defects: the bus bills
+> inactive consumers and is funded by inactive reactors (F2), an empty tier reports fully supplied
+> and sub-epsilon demand is fed from nothing (F3), a shield broken by a hit that also cooks it never
+> unbreaks because unbreaking sits behind `Active` (F4), `CanTakeHit` mutates and six weapon files
+> call it twice per shot (F5), request-independence validates only each consumer's top-level field
+> so six shipped requests now depend on power (F6), the migration tools write around the validating
+> path (F7), and the Cut 3 and Cut 4 mutation harnesses no longer run because later cuts moved their
+> anchors (F8).
+
 ## 0. What is there now
 
 ### 0.1 The stat, as it exists
