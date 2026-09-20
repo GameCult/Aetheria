@@ -148,6 +148,7 @@ public class ActionGameManager : MonoBehaviour
     public float HitMarkerDuration;
     public SchematicDisplay SchematicDisplay;
     public SchematicDisplay TargetSchematicDisplay;
+    public TextMeshProUGUI DebugInfoText;
     
     [Header("Target Indicator")]
     public PlaceUIElementWorldspace TargetIndicator;
@@ -183,6 +184,7 @@ public class ActionGameManager : MonoBehaviour
     private Dictionary<Entity, VisibleTargetIndicator> _visibleFriendlyIndicators = new Dictionary<Entity, VisibleTargetIndicator>();
     private List<IDisposable> _shipSubscriptions = new List<IDisposable>();
     private List<IDisposable> _targetSubscriptions = new List<IDisposable>();
+    private readonly Dictionary<EquippedItem, ShotOutcome> _debugLastShots = new Dictionary<EquippedItem, ShotOutcome>();
     private float _severeHeatstrokePhase;
     private bool _uiHidden;
     private bool _menuShown;
@@ -981,6 +983,8 @@ public class ActionGameManager : MonoBehaviour
         
         foreach(var subscription in _shipSubscriptions) subscription.Dispose();
         _shipSubscriptions.Clear();
+        _debugLastShots.Clear();
+        if (DebugInfoText != null) DebugInfoText.text = "";
     }
 
     private void BindToEntity(Entity entity)
@@ -1009,6 +1013,10 @@ public class ActionGameManager : MonoBehaviour
         GameplayUI.gameObject.SetActive(true);
         ShipPanel.Display(CurrentEntity, true);
         SchematicDisplay.ShowShip(CurrentEntity);
+
+        _shipSubscriptions.Add(CurrentEntity.Zone.ShotResolved
+            .Where(outcome => outcome.Source == CurrentEntity)
+            .Subscribe(outcome => _debugLastShots[outcome.Weapon] = outcome));
         
         FollowCamera.LookAt = ZoneRenderer.EntityInstances[CurrentEntity].LookAtPoint;
         FollowCamera.Follow = ZoneRenderer.EntityInstances[CurrentEntity].transform;
@@ -1256,6 +1264,7 @@ public class ActionGameManager : MonoBehaviour
                 }
 
                 var target = CurrentEntity.Target.Value;
+                UpdateFireControlDebug(target);
                 if (target != null)
                 {
                     var threshold = Settings.GameplaySettings.TargetDetectionInfoThreshold;
@@ -1271,6 +1280,62 @@ public class ActionGameManager : MonoBehaviour
             }
             Zone.Update(Time.deltaTime);
         }
+    }
+
+    private void UpdateFireControlDebug(Entity target)
+    {
+        if (DebugInfoText == null) return;
+
+        EquippedItem selectedItem = null;
+        Weapon selectedWeapon = null;
+        foreach (var item in CurrentEntity.Equipment)
+        {
+            var weapon = item.Behaviors.OfType<Weapon>().FirstOrDefault(x => !(x is LockWeapon));
+            if (weapon == null) continue;
+            selectedItem = item;
+            selectedWeapon = weapon;
+            break;
+        }
+
+        if (selectedWeapon == null)
+        {
+            DebugInfoText.text = "FIRE CONTROL\nNo non-lock weapon";
+            return;
+        }
+
+        var d = FireControl.Inspect(selectedWeapon, CurrentEntity, target);
+        var pendingLine = "pending: none";
+        for (var i = CurrentEntity.Zone.PendingShots.Count - 1; i >= 0; i--)
+        {
+            var shot = CurrentEntity.Zone.PendingShots[i];
+            if (shot.Source != CurrentEntity || shot.Weapon != selectedItem) continue;
+            if (shot.Committed)
+                pendingLine = $"shot {shot.ShotId}: committed {(shot.Outcome.Hit ? "HIT" : "MISS")}";
+            else
+            {
+                var pDeviation = FireControl.DeviationProbability(shot, CurrentEntity.Zone.Time, out var deviation);
+                pendingLine = $"shot {shot.ShotId}: dev {deviation:F1}/{shot.Tracking:F1} x{pDeviation:F3} estimate {shot.PBase * pDeviation:P1}";
+            }
+            break;
+        }
+
+        var lastLine = _debugLastShots.TryGetValue(selectedItem, out var lastShot)
+            ? $"last {lastShot.ShotId}: {(lastShot.Hit ? "HIT" : "MISS")} cell {lastShot.Cell.x},{lastShot.Cell.y}"
+            : "last: none";
+        var gates = target == null
+            ? "target: none"
+            : $"gates vis {d.Visible} range {d.InRange} arc {d.InArc} lock {d.Locked}";
+
+        DebugInfoText.text =
+            $"FIRE CONTROL - {selectedItem.Data.Name}\n" +
+            $"{gates}\n" +
+            $"range {d.Range:F0} [{d.MinRange:F0}..{d.MaxRange:F0}]\n" +
+            $"info {d.Info:F3}/{d.InfoDemandCeiling:F3} sensor {d.PSensor:F3}\n" +
+            $"accuracy {d.Accuracy:F3} spread {d.PSpread:F3} hull {d.POnHull:F3}\n" +
+            $"precision {d.Precision:F3} tracking {d.Tracking:F1}\n" +
+            $"base {d.PBase:P1}\n" +
+            $"{pendingLine}\n" +
+            lastLine;
     }
 
     private void LateUpdate()

@@ -143,16 +143,33 @@ public static class FireControl
     // a tick apart may differ; nothing here or anywhere else caches one.
     public static float HitProbability(Weapon weapon, Entity source, Entity target)
     {
-        if (target == null) return 0f;
-        if (!source.VisibleEntities.Contains(target)) return 0f;
+        return Inspect(weapon, source, target).PBase;
+    }
+
+    // Presentation-only inspection of the exact factors HitProbability owns. Keeping this calculation here
+    // prevents the debug HUD from growing a second, subtly different fire-control model.
+    public static FireControlDiagnostic Inspect(Weapon weapon, Entity source, Entity target)
+    {
+        var settings = source.ItemManager.GameplaySettings;
+        var diagnostic = new FireControlDiagnostic
+        {
+            HasTarget = target != null,
+            Accuracy = Accuracy(source),
+            Resolution = Resolution(source),
+            Precision = Precision(source),
+            Tracking = Tracking(source),
+            MinRange = weapon.MinRange,
+            MaxRange = weapon.Range
+        };
+        if (target == null) return diagnostic;
 
         var toTarget = target.Position - source.Position;
-        var range = length(toTarget);
-        if (range < weapon.MinRange || range > weapon.Range) return 0f;
-        if (weapon is LockWeapon lockWeapon && !lockWeapon.IsLocked) return 0f;
-        if (!InArc(weapon.Item, toTarget)) return 0f;
+        diagnostic.Range = length(toTarget);
+        diagnostic.Visible = source.VisibleEntities.Contains(target);
+        diagnostic.InRange = diagnostic.Range >= weapon.MinRange && diagnostic.Range <= weapon.Range;
+        diagnostic.Locked = !(weapon is LockWeapon lockWeapon) || lockWeapon.IsLocked;
+        diagnostic.InArc = InArc(weapon.Item, toTarget);
 
-        var settings = source.ItemManager.GameplaySettings;
         var info = source.EntityInfoGathered.TryGetValue(target, out var gathered) ? gathered : 0f;
         // Cut 6c, 6c.1 (operator ruling 2026-09-19): Resolution stays a benefit -- higher is better -- so the
         // formula takes its reciprocal to derive the actual info ceiling instead of reading Resolution as
@@ -160,20 +177,20 @@ public static class FireControl
         // complete information, the floor by construction. A higher Resolution pulls the ceiling down toward
         // the detection threshold, needing less info before sensor state stops limiting hits. The max guards
         // a zero or negative authored Resolution; no authored value should ever reach it.
-        var demandCeiling = settings.TargetDetectionInfoThreshold +
-            (1f - settings.TargetDetectionInfoThreshold) / max(Resolution(source), 1e-3f);
-        var pSensor = saturate(unlerp(settings.TargetDetectionInfoThreshold, demandCeiling, info));
+        diagnostic.Info = info;
+        diagnostic.InfoDemandCeiling = settings.TargetDetectionInfoThreshold +
+            (1f - settings.TargetDetectionInfoThreshold) / max(diagnostic.Resolution, 1e-3f);
+        diagnostic.PSensor = saturate(unlerp(settings.TargetDetectionInfoThreshold, diagnostic.InfoDemandCeiling, info));
 
         var targetHull = source.ItemManager.GetData(target.Hull) as HullData;
 
-        float pSpread;
+        diagnostic.PSpread = 1f;
         if (weapon.Spread > 0)
         {
             var halfExtent = .5f * max(targetHull.Shape.Width, targetHull.Shape.Height) * settings.SchematicCellSize;
-            var angularRadius = degrees(atan(halfExtent / range));
-            pSpread = saturate(angularRadius / (weapon.Spread / 2f));
+            var angularRadius = degrees(atan(halfExtent / diagnostic.Range));
+            diagnostic.PSpread = saturate(angularRadius / (weapon.Spread / 2f));
         }
-        else pSpread = 1f;
 
         // Cut 6d (docs/fire-control-cut.md): the dart-throw kernel's other half. pSpread above prices whether
         // the weapon's own barrel-dispersion cone even reaches the ship's silhouette at this range (weapon
@@ -183,9 +200,20 @@ public static class FireControl
         // range-blind, aim-point-aware). Different inputs, different failure modes; see Cut(0's report for the
         // double-charging call). Aim point is source.ResolvedTargetItem, exactly what Fire freezes below --
         // HitProbability and Fire read the same reveal-gated aim point, never two.
-        var pOnHull = HullKernel(targetHull, ResolveAimPoint(target, targetHull, source.ResolvedTargetItem).AimPoint, Precision(source)).POnHull;
+        diagnostic.POnHull = HullKernel(targetHull,
+            ResolveAimPoint(target, targetHull, source.ResolvedTargetItem).AimPoint, diagnostic.Precision).POnHull;
 
-        return Accuracy(source) * pSensor * pSpread * pOnHull;
+        if (diagnostic.Visible && diagnostic.InRange && diagnostic.Locked && diagnostic.InArc)
+            diagnostic.PBase = diagnostic.Accuracy * diagnostic.PSensor * diagnostic.PSpread * diagnostic.POnHull;
+        return diagnostic;
+    }
+
+    public static float DeviationProbability(PendingShot shot, float now, out float deviation)
+    {
+        var elapsed = now - shot.FireTime;
+        var predicted = shot.FireTargetPosition + shot.FireTargetVelocity * elapsed;
+        deviation = shot.Target == null ? 0f : length((shot.Target.Position - predicted).xz);
+        return shot.Target == null ? 1f : saturate(1f - deviation / shot.Tracking);
     }
 
     // Cut 3, R1: called once per burst step from InstantWeapon.Execute. Computes flight time, freezes the
@@ -329,12 +357,9 @@ public static class FireControl
         var p = shot.PBase;
         if (p > 0f && shot.Target != null)
         {
-            var elapsed = now - shot.FireTime;
-            var predicted = shot.FireTargetPosition + shot.FireTargetVelocity * elapsed;
-            var deviation = length((shot.Target.Position - predicted).xz);
+            var pDeviation = DeviationProbability(shot, now, out _);
             // Cut 5, 5.1: Tracking is always positive now (Tracking() above never returns 0), so the branch
             // that used to turn a Tracking-less shooter's forgiveness into a hard <.01f wall is gone outright.
-            var pDeviation = saturate(1f - deviation / shot.Tracking);
             p *= pDeviation;
         }
 
@@ -568,6 +593,28 @@ public struct PendingShot
 
     public bool Committed;
     public ShotOutcome Outcome;
+}
+
+public struct FireControlDiagnostic
+{
+    public bool HasTarget;
+    public bool Visible;
+    public bool InRange;
+    public bool Locked;
+    public bool InArc;
+    public float Range;
+    public float MinRange;
+    public float MaxRange;
+    public float Info;
+    public float InfoDemandCeiling;
+    public float Accuracy;
+    public float Resolution;
+    public float Precision;
+    public float Tracking;
+    public float PSensor;
+    public float PSpread;
+    public float POnHull;
+    public float PBase;
 }
 
 // Cut 3 (docs/fire-control-cut.md, 0b table): a commit. Created once, at ArrivalTime - CommitHorizon (or at
