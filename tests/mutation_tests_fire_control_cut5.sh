@@ -215,8 +215,8 @@ check_mutation() {
 check_mutation \
   "control (no-op round trip)" \
   "$FIRE_CONTROL_CS" \
-  'var pDeviation = saturate(1f - deviation / shot.Tracking);' \
-  'var pDeviation = saturate(1f - deviation / shot.Tracking);' \
+  'var pDeviation = DeviationProbability(shot, now, out _);' \
+  'var pDeviation = DeviationProbability(shot, now, out _);' \
   "FireControlCut5Tests.TrackingIsAFloorNotACliff" \
   "green"
 
@@ -271,11 +271,13 @@ check_mutation \
   "red"
 
 # --- 5.6: death removes the ship, in the simulation. Mutation: remove Zone's own Death subscription --
-# nothing outside Unity's own (untested here) loot-drop path would ever remove the corpse. ---
+# nothing outside Unity's own (untested here) loot-drop path would ever remove the corpse. Cut 8's own
+# re-anchor: 8.1 (docs/fire-control-cut.md) paired this subscription's Entities.Remove with a Deactivate()
+# call -- only the spelling grew, the rule under test (does Zone remove the corpse at all) is unchanged. ---
 check_mutation \
   "5.6 Zone must remove a dead entity itself, not rely on a presentation subscription" \
   "$ZONE_CS" \
-  'Entities.ObserveAdd().Subscribe(add => add.Value.Death.Subscribe(_ => Entities.Remove(add.Value)));' \
+  'Entities.ObserveAdd().Subscribe(add => add.Value.Death.Subscribe(_ => { Entities.Remove(add.Value); add.Value.Deactivate(); }));' \
   '// deleted -- nothing removes a dead entity' \
   "FireControlCut5Tests.DeathRemovesShipFromSimulation" \
   "red"

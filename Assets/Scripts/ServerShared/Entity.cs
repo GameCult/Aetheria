@@ -1030,6 +1030,8 @@ public abstract class Entity
 
     public virtual void Update(float delta)
     {
+        if (!_active) return;
+
         var hullData = ItemManager.GetData(Hull) as HullData;
 
         TargetRange = Target.Value == null ? -1 : length(Position - Target.Value.Position);

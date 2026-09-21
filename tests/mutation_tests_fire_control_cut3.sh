@@ -203,23 +203,25 @@ check_mutation \
   "red"
 
 # --- ProbabilityFollowsInputs, variant 1/3: drop pSensor -- probability stops depending on detection info. ---
-# Cut 6d (docs/fire-control-cut.md) added a fourth factor, pOnHull, to this same return line -- the anchor
-# below tracks the current line so this still targets the pSensor drop specifically, not a byte-exact copy of
-# the pre-Cut-6d line, which no longer exists.
+# Cut 7 (docs/fire-control-cut.md, Cut 8 header) routed HitProbability through Inspect, replacing this same
+# return line's five early returns with flags and one final gate -- the anchor below tracks Inspect's own
+# spelling (diagnostic.PBase's product of factors) rather than the pre-Inspect line, which no longer exists.
 check_mutation \
   "ProbabilityFollowsInputs (1/3): HitProbability must scale with pSensor, not drop it" \
   "$FIRE_CONTROL_CS" \
-  'return Accuracy(source) * pSensor * pSpread * pOnHull;' \
-  'return Accuracy(source) * pSpread * pOnHull;' \
+  'diagnostic.PBase = diagnostic.Accuracy * diagnostic.PSensor * diagnostic.PSpread * diagnostic.POnHull;' \
+  'diagnostic.PBase = diagnostic.Accuracy * diagnostic.PSpread * diagnostic.POnHull;' \
   "FireAuthorityTests.ProbabilityFollowsInputs" \
   "red"
 
-# --- ProbabilityFollowsInputs, variant 2/3: drop the range gate -- nonzero probability outside [MinRange,Range]. ---
+# --- ProbabilityFollowsInputs, variant 2/3: drop the range gate -- nonzero probability outside [MinRange,Range].
+# Cut 8's own re-anchor: Inspect computes InRange as its own flag rather than an early return; forcing it to
+# true unconditionally is the current spelling of "skip the check." ---
 check_mutation \
   "ProbabilityFollowsInputs (2/3): HitProbability must gate on [MinRange, Range], not skip the check" \
   "$FIRE_CONTROL_CS" \
-  'if (range < weapon.MinRange || range > weapon.Range) return 0f;' \
-  '// dropped -- no range gate' \
+  'diagnostic.InRange = diagnostic.Range >= weapon.MinRange && diagnostic.Range <= weapon.Range;' \
+  'diagnostic.InRange = true;' \
   "FireAuthorityTests.ProbabilityFollowsInputs" \
   "red"
 

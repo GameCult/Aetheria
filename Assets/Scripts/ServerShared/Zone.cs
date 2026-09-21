@@ -75,7 +75,7 @@ public class Zone
         // in the simulation, not only in Unity's own loot-drop subscription. One subscription point covers
         // every join, whichever call site adds the entity (deserialization below, a jump, a spawned turret) --
         // ObserveAdd fires for all of them. Forbidden writer: no presentation may remove an entity from Zone.
-        Entities.ObserveAdd().Subscribe(add => add.Value.Death.Subscribe(_ => Entities.Remove(add.Value)));
+        Entities.ObserveAdd().Subscribe(add => add.Value.Death.Subscribe(_ => { Entities.Remove(add.Value); add.Value.Deactivate(); }));
 
         foreach (var orbit in pack.Orbits)
         {
