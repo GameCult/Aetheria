@@ -1566,3 +1566,134 @@ nothing leaked, but a harness whose control cannot run is defending nothing.
   operator check, named as such rather than assumed.
 - All seven harnesses clean with tree-clean PASS, controls included.
 - 222 tests plus the new ones; catalog reads; Unity batchmode exit 0.
+
+---
+
+## Cut 9: the die is not a die
+
+Date: 2026-09-22. Branch `codex/fire-control-9` off `dcb8c448`.
+
+Soul pass over `ca57819d..dcb8c448` (2026-09-22). Ten findings; this cut takes the
+three that block play. The rest are Cut 10.
+
+### 9.1 The hit roll has a range of 0.125 (Soul C1). **Blocking.**
+
+`FireControl.cs:356`:
+
+    var random = new Random((zone.CombatSeed * 2654435761u) ^ (uint) shot.ShotId | 1u);
+    ...
+    var hit = p > 0f && random.NextFloat() < p;
+
+`CultMath.Random` is xorshift32 and `NextFloat()` returns the top 24 bits of the
+**first** round (`Random.cs:22-42`). One round does not carry a low-bit seed
+difference into the high bits. `ShotId` varies only in the low bits, so the top
+three bits of the first draw are fixed by the zone seed alone.
+
+Measured, 2000 shot ids per zone: **every zone's roll spans 0.1249**. Reproduced
+independently with a different hash function — the span is structural, not a
+property of `StableHash`. The consequence is that a shot is a step function of
+`p` whose threshold is fixed when the zone is created: below the band it never
+hits, above it always does. An unaided shooter hit 0 of 18,926 shots against the
+shipped catalog. Roughly one zone in eight cannot land a fully aided shot at
+p = .74.
+
+This is the operator's "I can target and fire with no hits registering at all,"
+and it is stable per zone, which is why it came and went.
+
+It is also this map's own prescription (Cut 6b, §6.1), written by Self, shipped
+through three cuts, and never once measured.
+
+**The rule:** the roll must be uniform on [0,1). Not merely deterministic —
+determinism is what a constant already gives, and is exactly why three
+determinism tests passed over it.
+
+- Mix the seed before the first draw, with a standard 32-bit finalizer
+  (`fmix32`/`splitmix32`: xor-shift, multiply, xor-shift, multiply, xor-shift).
+  The per-shot seed derivation is unchanged; only its diffusion into the first
+  output changes. Determinism, the `(zone, shot id)` purity and the freeze
+  discipline all survive untouched.
+- **This is a caller's obligation, not a CultMath defect.** Seeding xorshift with
+  a structured value and drawing once is the documented way to get a correlated
+  first output. Record a follow-up to give `CultMath.Random` a mixed-seed entry
+  point so no other GameCult consumer re-derives this the hard way — that is a
+  CultLib cut with its own release, not this one.
+
+**Verification, and the test whose absence caused this:**
+
+- `TheDieIsUniform`: fire many shots across several zone seeds at an
+  intermediate `p` (say .3 and .6) and assert the observed hit fraction is near
+  `p`, and that the observed rolls span substantially more than 0.2. Mutation:
+  remove the finalizer. Must die.
+- No test anywhere in this campaign measures a distribution. Every behavioural
+  fixture uses `accuracy: 1` or `accuracy: 0`, which is why a die stuck on one
+  face satisfied all of them. That gap is the finding, not the line of code.
+
+### 9.2 `pOnHull` collapses to zero above Precision ~4 (Soul C2). **Blocking.**
+
+`FireControl.cs:497-516`. `Sigma = 1/Precision`, and once sigma falls below about
+half a cell every `exp(-d²/2σ²)` underflows against an aim point that is not
+exactly on a cell centre — which is **every shipped hull**, since no centre of
+mass is integral (LonginusX 2.5/6.697, Zenith 5.5/5.5, Turret 3.5/3.5). Measured
+`pOnHull` on LonginusX: `.516` at Precision .3, `1.000` at 1.19, `.112` at 5,
+`.000` at 10 and beyond.
+
+So a better targeting system makes you miss, and past Precision ≈ 5 the weapon
+cannot hit anything. Authored content sits at .5-1.3, just under the cliff, with
+a margin of about 4x — and the operator is about to tune this number.
+
+- Clamp sigma at a floor of about half a cell, or normalize by the discrete sum
+  rather than the continuous 2πσ². Either makes `pOnHull` monotonic in Precision
+  over the whole domain instead of only below the cliff.
+- `WeightedPick` (`:535-545`) carries a comment claiming it "can never fall
+  through." It can, whenever `totalWeight == 0`, returning a fixed corner cell.
+  It is unreachable today only because `pOnHull == 0` forces `PBase == 0` first.
+  Fix the cause and delete the false comment.
+- Cut 6d's map section claims to name its consequences; it does not name this.
+  Add it.
+
+### 9.3 The LockWeapon crash is still reachable (Soul C3). **High.**
+
+Cut 8 fixed a real liveness defect and did **not** fix the operator's crash.
+`LockWeapon.cs:98` only runs on an *active* entity, so 8.2's `!_active` guard
+cannot be what prevents it — `tests/mutation_tests_fire_control_cut8.sh:17-19`
+says as much outright, and I merged it anyway.
+
+The live precondition is `Target.Value` set but absent from `EntityInfoGathered`
+on an active entity, and docking still reaches it: `Deactivate` (`Entity.cs:445`)
+disposes the `Entities.ObserveRemove` subscription that is the only thing nulling
+a stale `Target`, and nulls nothing itself; `Activate` (`Entity.cs:167`) reseeds
+`EntityInfoGathered` and likewise leaves `Target` alone. Dock, let the target die
+or leave, undock, and the first frame throws.
+
+- `Deactivate` nulls `Target` (and `TargetItem`), or `Activate` reconciles it
+  against the reseeded `EntityInfoGathered`. One of the two owns it; say which.
+- Still not a `TryGetValue` in `LockWeapon`. The invariant is that an active
+  entity's `Target` is always a live entity it has info on.
+- Pin it with the dock/die/undock sequence, not with a unit test on the guard.
+
+### Verification
+
+- The three tests above, each dying under its own mutation, in a committed
+  `tests/mutation_tests_fire_control_cut9.sh` with a no-op control, byte-exact
+  I/O, sha256-verified restore and an explicit tree-clean verdict.
+- All nine harnesses sequentially, one at a time, all clean.
+- 226 tests plus the new ones; catalog reads; `dangling` 0.
+- After 9.1 lands, re-measure the fight: Soul's probe, run with a corrected die,
+  gave 60.8% hit rate and a 4.3 s median time to kill for an aided shooter, 2.6%
+  unaided. Confirm the shipped build now reproduces that, because those are the
+  numbers the operator will tune against.
+
+### Recorded for Cut 10, not fixed here
+
+Soul C4 (a committed hit on a target that dies mid-flight publishes as a hit),
+C5 (`Inspect` is numerically exact but costs 9.87 µs and 448 B per call on paths
+that used to bail — the operator's own comment on the hot path looking like a
+diagnostic one has an empirical answer now), C6 (`RollsAreSeeded` is obsolete —
+Cut 7 retired one such test and missed this one), C7 (`FireControlCut6cTests`
+authors `Precision = 0`, making six of seven checks vacuous), C8 (`Precision =
+1000` fixtures make several kernel-shape mutants unkillable, and `pOnHull`'s
+deletion is caught by exactly one test), C9 (`EveryHitLandsOnMetal` runs one
+configuration, not the range it claims), plus the harness-audit items: the
+tree-clean verdict restores before it measures, a red result cannot distinguish a
+killed mutant from a compile failure, and the no-op control covers only one file
+per harness.
