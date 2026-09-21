@@ -1454,3 +1454,115 @@ is added: a new non-nullable value-type field on a persisted CultCache document
 cannot read records written before it existed. Nullable, or a migration that
 rewrites every affected record — and the migration cannot run while the read
 still throws, so tolerant deserialization comes first either way.
+
+---
+
+## Cut 8: a removed entity is a dead entity, and the anchors the diagnostics moved
+
+Date: 2026-09-22. Branch `codex/fire-control-8` off `72c0109c`.
+
+Operator play smoke, 2026-09-20: heat spike on entry with the ship unable to
+move, a nearby ship likewise glowing hot and motionless, shots that registered no
+hits, and finally a NullReferenceException out of `LockWeapon` reaching
+`Entity.EntityInfoGathered` as the other ship vanished. Diagnosis (Codex, relayed
+by the operator): the other ship's behaviors updated after the entity had been
+cleaned out. Not reproducible afterwards, which makes it a hidden bug rather than
+a fixed one -- the diagnostics commit `72c0109c` changed timing and allocation,
+not the cause.
+
+### 8.1 Removal and deactivation are one transition
+
+`Entity.Deactivate` (`Entity.cs:445`) disposes every subscription, clears
+`EntityInfoGathered`, `VisibleEntities`, `VisibleEnemies` and `VisibleFriendlies`,
+and sets `_active = false`. `Zone.TryDock` (`Entity.cs:943`) has always paired the
+two: `Zone.Entities.Remove(ship); ship.Deactivate();`. Removal from the zone means
+the entity stops living there.
+
+Cut 5.6 added the death path and did only half of it. `Zone.cs:78`:
+
+    Entities.ObserveAdd().Subscribe(add => add.Value.Death.Subscribe(_ => Entities.Remove(add.Value)));
+
+The entity leaves the collection and stays **active**, holding live subscriptions
+and stale references, while every surviving entity's `ObserveRemove` handler
+(`Entity.cs:200-213`) nulls its `Target` and drops it from `EntityInfoGathered`,
+`EntityHostility` and the visibility sets. Half the world has forgotten it and it
+does not know it is dead.
+
+- The death subscription becomes `Entities.Remove(e); e.Deactivate();`, matching
+  `TryDock`'s existing pairing exactly. One transition, one owner.
+- **Ordering risk to verify, not assume:** `EntityInstance` also subscribes to
+  `Entity.Death` (its loot drop and destroy effect, `EntityInstance.cs:300-325`).
+  Subscription order decides whether loot drops before or after `Deactivate`.
+  `Deactivate` does not touch `Equipment` or `CargoBays`, so loot should survive,
+  but this must be confirmed in play rather than reasoned about -- if loot stops
+  dropping, that is this cut's fault and the deactivate moves after it.
+
+### 8.2 A deactivated entity does not update
+
+`Zone.Update` (`Zone.cs:172`) iterates a snapshot:
+
+    foreach (var entity in Entities.ToArray()) entity.Update(deltaTime);
+
+so an entity removed part-way through a frame still receives its `Update` in that
+same frame, after the rest of the world has dropped its references. `Entity.Update`
+(`Entity.cs:1031`) never consults `_active`. Every behaviour then runs against
+torn-down state, and `LockWeapon.cs:98` reaches `Entity.EntityInfoGathered[Entity.Target.Value]`
+through a raw indexer.
+
+- `Entity.Update` returns immediately when `!_active`.
+
+This is the fix, and the raw indexer is deliberately **not** the fix. Guarding
+`LockWeapon` with `TryGetValue` would silence this one call site and leave every
+other behaviour running on a corpse -- the compensator the doctrine warns about.
+Liveness is the entity's own property and the entity is the one place to enforce
+it. `IsActive` already exists at `Entity.cs:116`; nothing was asking it.
+
+### 8.3 The other symptoms are not explained by this, and are not closed
+
+The heat spike, the motionless ships and the shots that registered no hits are
+**unexplained**. One coherent story fits all three -- an item's heat driving the
+targeting system offline makes `FireControl.Accuracy` fall back to
+`UnaidedAccuracy` (`.05`), which reads exactly like "I can fire but nothing
+lands," and an overheated thruster reads as "I cannot move" -- but that is a
+hypothesis, not a finding, and nothing here has reproduced it.
+
+What can be said from the source: `ActionGameManager.cs:1281` passes
+`Time.deltaTime` into `Zone.Update` unclamped, and `Zone.cs:160` divides by it
+(`orbit.Value.Velocity = (Position - PreviousPosition) / deltaTime`). Unity caps
+`Time.deltaTime` at `Time.maximumDeltaTime`, so a large spike is bounded, but a
+**zero or near-zero** first frame is not bounded from below and that division is
+unguarded. Worth a probe before it is worth a fix.
+
+This cut does not chase it. It records the symptom, fixes the defect that is
+proven, and leaves the rest open with the evidence that exists -- an unreproducible
+heat spike is not something to patch speculatively.
+
+### 8.4 Re-anchor the four harnesses the diagnostics refactor stranded
+
+`72c0109c` routed `HitProbability` through a new `FireControl.Inspect`, replacing
+five early returns with flags and one gate. That is the campaign's own doctrine
+applied correctly -- the operator's comment says it outright, that keeping the
+calculation here stops the debug HUD growing a second, subtly different fire
+control model -- and it rewrote the exact lines four harnesses anchor into.
+
+Seven anchors now fail: `cut3` (2), `cut5` (1, its **no-op control**), `cut6c`
+(2, including its control), `cut6d` (2). Every one reports `tree-clean: PASS`, so
+nothing leaked, but a harness whose control cannot run is defending nothing.
+
+- Re-anchor all seven onto the current spelling in `Inspect`. The rules they
+  attack are unchanged; only the text moved.
+- A control that cannot find its anchor must stay a hard failure. Do not make
+  anchors fuzzy to survive refactors -- loudly stale is the property that makes
+  these harnesses trustworthy, and it is what surfaced this within one run.
+
+### Verification
+
+- `DeadEntityDoesNotUpdate`: an entity killed mid-frame receives no further
+  `Update`, and a `LockWeapon` on a ship whose target dies the same frame does not
+  throw. Mutation: drop the `_active` guard. Must die.
+- `DeathDeactivates`: a dead entity reports `IsActive == false` and holds no live
+  subscriptions. Mutation: remove the `Deactivate()` call. Must die.
+- `LootStillDropsOnDeath` if it can be reached headlessly; otherwise an explicit
+  operator check, named as such rather than assumed.
+- All seven harnesses clean with tree-clean PASS, controls included.
+- 222 tests plus the new ones; catalog reads; Unity batchmode exit 0.
