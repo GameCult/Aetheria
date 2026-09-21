@@ -1,28 +1,38 @@
 #!/usr/bin/env bash
-# Mutation tests for docs/fire-control-cut.md's Cut 6c ("the formula gets fixed, and the single point of
-# failure").
+# Mutation tests for docs/fire-control-cut.md's Cut 8 ("a removed entity is a dead entity, and the anchors the
+# diagnostics moved").
 #
-# Two mutations, each against tests/Aetheria.Shared.Tests/FireControlCut6cTests.cs:
+# Three mutations against tests/Aetheria.Shared.Tests/FireControlCut8Tests.cs, each from the spec's own
+# Verification block:
 #
-#   1. 6c.1 HigherResolutionYieldsHigherOrEqualHitProbability -- FireControl.cs's HitProbability reads
-#      Resolution as the sensor ceiling directly again (the shipped Cut 6a behaviour), instead of taking its
-#      reciprocal. That inverts the direction the operator ruling fixed: a higher-Resolution design would
-#      score lower than a cheaper one at low info, the exact defect 6c.1 exists to kill.
-#   2. 6c.2 NoSellerDegradesToUnaidedInsteadOfThrowing -- LoadoutGenerator.FillInterior's targeting-system
-#      RandomProduct call goes back to `required: true` and the null case throws InvalidLoadoutException
-#      again, instead of degrading to an unaided entity and logging the gap.
+#   1. DeadEntityDoesNotUpdate -- drop the `_active` guard from Entity.Update (8.2). The always-runs prefix of
+#      Update (TargetRange, temperature, visibility decay, equipment performance) then keeps executing on a
+#      torn-down entity instead of returning immediately.
+#   2. DeathDeactivates -- remove the Deactivate() call from Zone's own Death subscription (8.1). The dead
+#      entity then leaves Entities but stays active, holding live subscriptions and an uncleared
+#      EntityInfoGathered/VisibleEntities.
+#
+# LootStillDropsOnDeath_EquipmentSurvivesDeactivate and LockWeaponOnDeactivatedEntityDoesNotThrow are not
+# mutation-targeted here: the first pins a fact about Deactivate's own body (it never touches Equipment) that
+# no single-line mutation isolates without duplicating the DeathDeactivates mutation above, and the second is
+# a regression pin already satisfied by Entity.Update's pre-existing inner `if (_active)` gate regardless of
+# this cut's own guard -- confirmed by hand: dropping the Cut 8.2 guard does not turn it red. Both still run as
+# part of the full test file on every invocation of run_test above and are reported in the final tally.
 #
 # A no-op control (a byte-identical rewrite of one target file through this script's own read/write path)
 # proves the mechanism itself is transparent before any real mutation is trusted.
 #
 # Usage:
-#   tests/mutation_tests_fire_control_cut6c.sh <path-to-CultLib-45c2f40-worktree>
+#   tests/mutation_tests_fire_control_cut8.sh <path-to-CultLib-45c2f40-worktree>
 #
 # Every mutation is reversed (byte-exact, from an on-disk copy) before the script exits, including on failure
 # or interrupt, and every restore is verified against a sha256 recorded before any mutation ran: the tree-
 # clean verdict at the end states PASS/FAIL explicitly rather than leaving a reader to infer it. A SIGKILL of
 # the whole process group is the one termination bash cannot trap at all -- verify the tree independently
 # after a run that was killed that hard.
+#
+# Run only one mutation harness at a time against this tree -- concurrent harnesses corrupt each other's
+# snapshots (docs/fire-control-cut.md's own campaign has hit this).
 
 set -u
 
@@ -36,14 +46,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 TEST_PROJECT="$REPO_ROOT/tests/Aetheria.Shared.Tests"
 
-FIRE_CONTROL_CS="$REPO_ROOT/Assets/Scripts/ServerShared/FireControl.cs"
-LOADOUT_GENERATOR_CS="$REPO_ROOT/Assets/Scripts/ServerShared/LoadoutGenerator.cs"
+ENTITY_CS="$REPO_ROOT/Assets/Scripts/ServerShared/Entity.cs"
+ZONE_CS="$REPO_ROOT/Assets/Scripts/ServerShared/Zone.cs"
 
-# --- byte-exact backup/restore: preserves line endings exactly, no text-mode translation. Same convention
-# Cut 5's harness established (5b.3): a restore that is not verified is a restore that can lie. ---
+# --- byte-exact backup/restore: preserves line endings exactly, no text-mode translation. ---
 declare -A ORIGINALS
 declare -A ORIGINAL_HASH
-FILES=("$FIRE_CONTROL_CS" "$LOADOUT_GENERATOR_CS")
+FILES=("$ENTITY_CS" "$ZONE_CS")
 BACKUP_DIR="$(mktemp -d)"
 
 hash_file() {
@@ -57,8 +66,6 @@ for f in "${FILES[@]}"; do
   ORIGINAL_HASH["$f"]="$(hash_file "$f")"
 done
 
-# restore_and_verify FILE -- restores one file from its recorded backup, then re-hashes it and aborts the
-# whole script (not just this mutation) if the restore did not reproduce the pre-mutation hash exactly.
 restore_and_verify() {
   local file="$1"
   cp -p "${ORIGINALS[$file]}" "$file"
@@ -76,10 +83,6 @@ restore_and_verify() {
 TREE_CLEAN_OK=1
 TREE_VERDICT_DONE=0
 
-# verify_tree_clean -- re-hashes every target file against its pre-mutation baseline and prints an explicit
-# PASS/FAIL verdict. Called once explicitly at the bottom of a normal run, and again from the EXIT/INT/TERM
-# trap as the safety net for every abnormal exit. (A SIGKILL of the whole process group is the one
-# termination this cannot see at all -- that gap is closed by re-checking independently after the fact.)
 verify_tree_clean() {
   if [ "$TREE_VERDICT_DONE" = "1" ]; then return; fi
   local f actual
@@ -124,6 +127,8 @@ replace_unique() {
     echo "$anchor" >&2
     return 1
   fi
+  # No -i: on this filesystem perl's in-place-edit extension parsing has mangled a literal ":raw" suffix
+  # into stray sibling files before. Read, substitute once, write back byte-exact instead.
   perl -0777 -e '
     my ($file, $anchor, $replacement) = @ARGV;
     local $/; open(my $fh, "<:raw", $file) or die $!;
@@ -135,8 +140,8 @@ replace_unique() {
   ' "$file" "$anchor" "$replacement"
 }
 
-# A dedicated, isolated artifacts path -- see Cut 5's harness for why (stale prebuilt CultLib assemblies from
-# an unrelated earlier session's default-path build produced one observed spurious control failure).
+# A dedicated, isolated artifacts path -- see cut5.sh's own comment on this: mixing this run's build with a
+# stale default tests/Aetheria.Shared.Tests/bin,obj has produced spurious control failures before.
 ARTIFACTS_PATH="$(mktemp -d)"
 
 # run_test TEST_FQN -> 0 (passed) or 1 (failed/errored)
@@ -188,34 +193,30 @@ check_mutation() {
 # anchor/replace/restore mechanism is transparent before any real mutation is trusted. ---
 check_mutation \
   "control (no-op round trip)" \
-  "$FIRE_CONTROL_CS" \
-  'diagnostic.PSensor = saturate(unlerp(settings.TargetDetectionInfoThreshold, diagnostic.InfoDemandCeiling, info));' \
-  'diagnostic.PSensor = saturate(unlerp(settings.TargetDetectionInfoThreshold, diagnostic.InfoDemandCeiling, info));' \
-  "FireControlCut6cTests.HigherResolutionYieldsHigherOrEqualHitProbability" \
+  "$ENTITY_CS" \
+  $'    public virtual void Update(float delta)\r\n    {\r\n        if (!_active) return;' \
+  $'    public virtual void Update(float delta)\r\n    {\r\n        if (!_active) return;' \
+  "FireControlCut8Tests.DeadEntityDoesNotUpdate" \
   "green"
 
-# --- 6c.1: Resolution is a benefit, so HitProbability must take its reciprocal to derive the sensor ceiling,
-# not read Resolution as that ceiling directly. Mutation: restore the shipped Cut 6a reading. Cut 8's own
-# re-anchor: Cut 7 (docs/fire-control-cut.md, Cut 8 header) moved this calculation into Inspect, so the local
-# `demandCeiling`/`pSensor` variables and the `Resolution(source)` call became `diagnostic.InfoDemandCeiling`,
-# `diagnostic.PSensor` and `diagnostic.Resolution` (a field on the same diagnostic, set once at its top) --
-# only the spelling moved; the rule under test is unchanged. ---
+# --- 8.2: a deactivated entity does not update. Mutation: drop the `_active` guard -- the always-runs prefix
+# of Update (TargetRange included) keeps executing on a torn-down entity instead of returning immediately. ---
 check_mutation \
-  "6c.1 HitProbability must take Resolution's reciprocal, not read it as the ceiling directly" \
-  "$FIRE_CONTROL_CS" \
-  $'        diagnostic.InfoDemandCeiling = settings.TargetDetectionInfoThreshold +\r\n            (1f - settings.TargetDetectionInfoThreshold) / max(diagnostic.Resolution, 1e-3f);\r\n        diagnostic.PSensor = saturate(unlerp(settings.TargetDetectionInfoThreshold, diagnostic.InfoDemandCeiling, info));' \
-  '        diagnostic.PSensor = saturate(unlerp(settings.TargetDetectionInfoThreshold, diagnostic.Resolution, info));' \
-  "FireControlCut6cTests.HigherResolutionYieldsHigherOrEqualHitProbability" \
+  "8.2 Entity.Update must return immediately when !_active, not run its prefix regardless" \
+  "$ENTITY_CS" \
+  $'    public virtual void Update(float delta)\r\n    {\r\n        if (!_active) return;\r\n\r\n        var hullData = ItemManager.GetData(Hull) as HullData;' \
+  $'    public virtual void Update(float delta)\r\n    {\r\n        var hullData = ItemManager.GetData(Hull) as HullData;' \
+  "FireControlCut8Tests.DeadEntityDoesNotUpdate" \
   "red"
 
-# --- 6c.2: a galaxy with no available targeting-system seller must degrade the loadout, not throw. Mutation:
-# restore `required: true` on the RandomProduct call and the InvalidLoadoutException throw. ---
+# --- 8.1: removal and deactivation are one transition. Mutation: drop the Deactivate() call from Zone's own
+# Death subscription, restoring Cut 5.6's half-fix -- the dead entity leaves Entities but stays active. ---
 check_mutation \
-  "6c.2 FillInterior must degrade to unaided fire on no targeting seller, not throw" \
-  "$LOADOUT_GENERATOR_CS" \
-  $'            var (targetingProduct, targetingData) = RandomProduct<GearData>(2, item =>\r\n                item.Behaviors.Any(b => b is TargetingSystemData) &&\r\n                item.Shape.FitsWithin(emptyShape, out _, out _));\r\n            if (targetingData == null)\r\n            {\r\n                ItemManager.Log("No targeting system available for armed entity; it will fire unaided.");\r\n            }\r\n            else\r\n            {' \
-  $'            var (targetingProduct, targetingData) = RandomProduct<GearData>(2, item =>\r\n                item.Behaviors.Any(b => b is TargetingSystemData) &&\r\n                item.Shape.FitsWithin(emptyShape, out _, out _), required: true);\r\n            if (targetingData == null)\r\n            {\r\n                throw new InvalidLoadoutException("No compatible targeting system found for entity!");\r\n            }\r\n            else\r\n            {' \
-  "FireControlCut6cTests.NoSellerDegradesToUnaidedInsteadOfThrowing" \
+  "8.1 Zone's Death subscription must pair Entities.Remove with Deactivate, exactly like TryDock" \
+  "$ZONE_CS" \
+  'Entities.ObserveAdd().Subscribe(add => add.Value.Death.Subscribe(_ => { Entities.Remove(add.Value); add.Value.Deactivate(); }));' \
+  'Entities.ObserveAdd().Subscribe(add => add.Value.Death.Subscribe(_ => { Entities.Remove(add.Value); }));' \
+  "FireControlCut8Tests.DeathDeactivates" \
   "red"
 
 echo ""

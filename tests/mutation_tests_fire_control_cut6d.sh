@@ -220,25 +220,29 @@ check_mutation \
 
 # --- ThinLimbCostsHitChance: drop pOnHull from the probability. Mutation: HitProbability's return loses its
 # fourth factor -- aiming at a thin limb and aiming at the centre of mass then score identically, since
-# nothing left in the product carries a spatial term at all. ---
+# nothing left in the product carries a spatial term at all. Cut 8's own re-anchor: Cut 7 (docs/fire-control-
+# cut.md, Cut 8 header) moved this calculation into Inspect; only the spelling (diagnostic.PBase's product)
+# moved, the rule is unchanged. ---
 check_mutation \
   "ThinLimbCostsHitChance: HitProbability must carry pOnHull, not drop it" \
   "$FIRE_CONTROL_CS" \
-  'return Accuracy(source) * pSensor * pSpread * pOnHull;' \
-  'return Accuracy(source) * pSensor * pSpread;' \
+  'diagnostic.PBase = diagnostic.Accuracy * diagnostic.PSensor * diagnostic.PSpread * diagnostic.POnHull;' \
+  'diagnostic.PBase = diagnostic.Accuracy * diagnostic.PSensor * diagnostic.PSpread;' \
   "FireControlCut6dTests.ThinLimbCostsHitChance" \
   "red"
 
 # --- PlacementAndProbabilityShareOneKernel: perturb sigma in one of the two call sites only. Mutation:
 # HitProbability's own call into the kernel reads a Precision inflated by 1.5x, while Commit's placement call
 # (WeightedPick's own kernel read, a few hundred lines below) is untouched -- the two functions answering
-# "where will this shot go" now disagree, which is exactly the named risk this cut's own comments call out
-# One kernel, computed by one function" no longer holds once a caller perturbs its own input. ---
+# "where will this shot go" now disagree, which is exactly the named risk this cut's own comments call out --
+# "One kernel, computed by one function" no longer holds once a caller perturbs its own input. Cut 8's own
+# re-anchor: this call now lives in Inspect and reads diagnostic.Precision (set once at the diagnostic's own
+# top from Precision(source)) rather than calling Precision(source) a second time; only the spelling moved. ---
 check_mutation \
   "PlacementAndProbabilityShareOneKernel: HitProbability and Commit must read the same Precision into the kernel" \
   "$FIRE_CONTROL_CS" \
-  'var pOnHull = HullKernel(targetHull, ResolveAimPoint(target, targetHull, source.ResolvedTargetItem).AimPoint, Precision(source)).POnHull;' \
-  'var pOnHull = HullKernel(targetHull, ResolveAimPoint(target, targetHull, source.ResolvedTargetItem).AimPoint, Precision(source) * 1.5f).POnHull;' \
+  $'        diagnostic.POnHull = HullKernel(targetHull,\r\n            ResolveAimPoint(target, targetHull, source.ResolvedTargetItem).AimPoint, diagnostic.Precision).POnHull;' \
+  '        diagnostic.POnHull = HullKernel(targetHull, ResolveAimPoint(target, targetHull, source.ResolvedTargetItem).AimPoint, diagnostic.Precision * 1.5f).POnHull;' \
   "FireControlCut6dTests.PlacementAndProbabilityShareOneKernel" \
   "red"
 
