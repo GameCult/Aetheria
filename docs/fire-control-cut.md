@@ -2011,8 +2011,10 @@ Second round:
   y 0-3) agree with it. 12.4 adds the point forms `ToSchematicPoint(float2 worldPlanar) =
   ToSchematic(worldPlanar - Position.xz) / SchematicCellSize + Shape.CenterOfMass` and its
   inverse `ToWorldPoint`, so the entity's position is the schematic's centre of mass.
-  Operator check: the schematic display shows LonginusX's nose at the bow, and blasts land
-  where the model shows them.
+  Operator confirmed 2026-09-22, from the schematic images: "bow is indeed +y on the
+  schematic images." Still on the operator's check list after 12.4 lands, because it is the
+  half that only a running blast can show: that blasts land where the model shows them,
+  which is what confirms the centre-of-mass anchor.
 - **A cell is the unit square centred on its integer coordinate.** This matches
   `CenterOfMass`, the aim point and the old kernel. The `+ .5` convention dies with ApplyHit.
 - **Travel direction.** `FireControl.TravelDirection(Weapon, Entity source, Entity target) →
