@@ -375,6 +375,80 @@ public sealed class FireControlCut9Tests : IDisposable
     }
 
     // ---------------------------------------------------------------------------------------------------
+    // Cut 10 (docs/fire-control-cut.md): one fire-control model, shared at the level of its factors.
+    // HitProbability is the hot path -- every AI and turret, per weapon, per tick -- and Inspect is the
+    // debug HUD's view. The diagnostics refactor (72c0109c) kept them as one model by routing the hot path
+    // THROUGH Inspect, which made every call build the diagnostic struct and run the aim-point and kernel
+    // work before checking whether the target was even in range: 9.87 us and 448 B per call, measured by a
+    // Soul pass, on paths that used to bail in nanoseconds. Both now call the same factor functions.
+    // ---------------------------------------------------------------------------------------------------
+
+    // The invariant the diagnostics refactor was protecting, made structural rather than conventional: the
+    // HUD can never report a probability the simulation does not use. Swept across every gate the hot path
+    // bails on -- no target, not visible, out of range, out of arc -- and across Precision and info levels
+    // for shots that pass. Mutation: change a factor in only one of the two callers (drop POnHull from
+    // HitProbability); the passing configurations then disagree.
+    [Fact]
+    public void HitProbabilityMatchesInspect()
+    {
+        var settings = TestSettings();
+        var checkedConfigurations = 0;
+        foreach (var precision in new[] { .3f, 1.19f, 5f })
+        {
+            var e = BuildKernelEngagement(settings, SolidShape(6, 12), precision);
+
+            void Check(string label)
+            {
+                var hot = FireControl.HitProbability(e.Weapon, e.Shooter, e.Target);
+                var hud = FireControl.Inspect(e.Weapon, e.Shooter, e.Target).PBase;
+                Assert.True(hot == hud, $"{label}, Precision {precision}: HitProbability {hot} != Inspect.PBase {hud}");
+                checkedConfigurations++;
+            }
+
+            foreach (var info in new[] { 0f, .2f, .5f, 1f })
+            {
+                e.Shooter.EntityInfoGathered[e.Target] = info;
+                Check($"in range, info {info}");
+            }
+            e.Shooter.EntityInfoGathered[e.Target] = 1f;
+
+            e.Target.Position = float3(0, 0, 5000);
+            Check("out of range");
+            e.Target.Position = float3(0, 0, -100);
+            Check("behind the mount");
+            e.Target.Position = float3(0, 0, 100);
+
+            e.Shooter.VisibleEntities.Remove(e.Target);
+            Check("not visible");
+
+            var nullHot = FireControl.HitProbability(e.Weapon, e.Shooter, null);
+            var nullHud = FireControl.Inspect(e.Weapon, e.Shooter, null).PBase;
+            Assert.True(nullHot == nullHud, $"no target: {nullHot} != {nullHud}");
+        }
+        Assert.Equal(21, checkedConfigurations); // 3 precisions x (4 info levels + out of range + behind + not visible)
+    }
+
+    // The cost regression itself. A target out of range is the common case for every AI and turret, and it
+    // must bail before any factor is computed. Mutation: route HitProbability back through Inspect; the
+    // gated-out call then allocates the aim-point list and the kernel's arrays on every evaluation.
+    [Fact]
+    public void GatedOutHitProbabilityAllocatesNothing()
+    {
+        var e = BuildKernelEngagement(TestSettings(), SolidShape(6, 12), 1.19f);
+        e.Target.Position = float3(0, 0, 5000); // out of range, still visible and in arc
+
+        for (var i = 0; i < 100; i++) FireControl.HitProbability(e.Weapon, e.Shooter, e.Target); // JIT warm-up
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var sum = 0f;
+        for (var i = 0; i < 1000; i++) sum += FireControl.HitProbability(e.Weapon, e.Shooter, e.Target);
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.Equal(0f, sum);
+        Assert.True(allocated == 0, $"1000 gated-out HitProbability calls allocated {allocated} bytes; the hot path must bail before any factor work");
+    }
+
+    // ---------------------------------------------------------------------------------------------------
     // 9.3: a Target surviving a dock/die/undock cycle must not crash LockWeapon. Same fixture shape as
     // FireControlCut8Tests.BuildLockScenario -- this is that cut's own crash, still reachable.
     // ---------------------------------------------------------------------------------------------------

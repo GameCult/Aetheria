@@ -141,13 +141,36 @@ public static class FireControl
     // reads this to decide whether a shot is worth taking; the HUD reads it to draw a number; Fire below reads
     // it once, at the instant the trigger is pulled, and freezes the result into the shot (R10, Q6). Two reads
     // a tick apart may differ; nothing here or anywhere else caches one.
+    // Cut 10 (docs/fire-control-cut.md): the hot path. Every AI and turret calls this per weapon per tick,
+    // and the common case is a target out of range or out of arc -- so the cheap gates run first and bail,
+    // exactly as they did before the diagnostics refactor. The factors are computed only for a shot that is
+    // actually possible, and they come from the same functions Inspect uses: one fire-control model, shared
+    // at the level of its factors rather than by routing the hot path through a diagnostic struct.
+    // HitProbabilityMatchesInspect pins that the two can never disagree.
     public static float HitProbability(Weapon weapon, Entity source, Entity target)
     {
-        return Inspect(weapon, source, target).PBase;
+        if (target == null) return 0f;
+        if (!source.VisibleEntities.Contains(target)) return 0f;
+
+        var toTarget = target.Position - source.Position;
+        var range = length(toTarget);
+        if (range < weapon.MinRange || range > weapon.Range) return 0f;
+        if (weapon is LockWeapon lockWeapon && !lockWeapon.IsLocked) return 0f;
+        if (!InArc(weapon.Item, toTarget)) return 0f;
+
+        var settings = source.ItemManager.GameplaySettings;
+        var targetHull = source.ItemManager.GetData(target.Hull) as HullData;
+        var info = source.EntityInfoGathered.TryGetValue(target, out var gathered) ? gathered : 0f;
+        return Accuracy(source)
+            * PSensor(settings, Resolution(source), info)
+            * PSpread(weapon, targetHull, range, settings)
+            * POnHull(source, target, targetHull, Precision(source));
     }
 
-    // Presentation-only inspection of the exact factors HitProbability owns. Keeping this calculation here
-    // prevents the debug HUD from growing a second, subtly different fire-control model.
+    // Presentation only: the debug HUD's view of exactly the factors HitProbability multiplies. It computes
+    // every factor unconditionally, gates included, because a HUD wants to see why a shot is impossible --
+    // which is precisely why the hot path must not be routed through it. Both read the same factor
+    // functions below, so the HUD cannot grow a second, subtly different model.
     public static FireControlDiagnostic Inspect(Weapon weapon, Entity source, Entity target)
     {
         var settings = source.ItemManager.GameplaySettings;
@@ -170,43 +193,45 @@ public static class FireControl
         diagnostic.Locked = !(weapon is LockWeapon lockWeapon) || lockWeapon.IsLocked;
         diagnostic.InArc = InArc(weapon.Item, toTarget);
 
-        var info = source.EntityInfoGathered.TryGetValue(target, out var gathered) ? gathered : 0f;
-        // Cut 6c, 6c.1 (operator ruling 2026-09-19): Resolution stays a benefit -- higher is better -- so the
-        // formula takes its reciprocal to derive the actual info ceiling instead of reading Resolution as
-        // that ceiling directly. Resolution 1 (the unaided fallback above) yields a ceiling of 1: needs
-        // complete information, the floor by construction. A higher Resolution pulls the ceiling down toward
-        // the detection threshold, needing less info before sensor state stops limiting hits. The max guards
-        // a zero or negative authored Resolution; no authored value should ever reach it.
-        diagnostic.Info = info;
-        diagnostic.InfoDemandCeiling = settings.TargetDetectionInfoThreshold +
-            (1f - settings.TargetDetectionInfoThreshold) / max(diagnostic.Resolution, 1e-3f);
-        diagnostic.PSensor = saturate(unlerp(settings.TargetDetectionInfoThreshold, diagnostic.InfoDemandCeiling, info));
-
         var targetHull = source.ItemManager.GetData(target.Hull) as HullData;
-
-        diagnostic.PSpread = 1f;
-        if (weapon.Spread > 0)
-        {
-            var halfExtent = .5f * max(targetHull.Shape.Width, targetHull.Shape.Height) * settings.SchematicCellSize;
-            var angularRadius = degrees(atan(halfExtent / diagnostic.Range));
-            diagnostic.PSpread = saturate(angularRadius / (weapon.Spread / 2f));
-        }
-
-        // Cut 6d (docs/fire-control-cut.md): the dart-throw kernel's other half. pSpread above prices whether
-        // the weapon's own barrel-dispersion cone even reaches the ship's silhouette at this range (weapon
-        // hardware, whole-hull bounding size, range-dependent, aim-point-blind). pOnHull prices whether the
-        // targeting system's own aim scatter, centred on whatever is actually aimed at, lands on the hull's
-        // real schematic footprint rather than open grid around it (targeting hardware, per-cell shape,
-        // range-blind, aim-point-aware). Different inputs, different failure modes; see Cut(0's report for the
-        // double-charging call). Aim point is source.ResolvedTargetItem, exactly what Fire freezes below --
-        // HitProbability and Fire read the same reveal-gated aim point, never two.
-        diagnostic.POnHull = HullKernel(targetHull,
-            ResolveAimPoint(target, targetHull, source.ResolvedTargetItem).AimPoint, diagnostic.Precision).POnHull;
+        diagnostic.Info = source.EntityInfoGathered.TryGetValue(target, out var gathered) ? gathered : 0f;
+        diagnostic.InfoDemandCeiling = InfoDemandCeiling(settings, diagnostic.Resolution);
+        diagnostic.PSensor = PSensor(settings, diagnostic.Resolution, diagnostic.Info);
+        diagnostic.PSpread = PSpread(weapon, targetHull, diagnostic.Range, settings);
+        diagnostic.POnHull = POnHull(source, target, targetHull, diagnostic.Precision);
 
         if (diagnostic.Visible && diagnostic.InRange && diagnostic.Locked && diagnostic.InArc)
             diagnostic.PBase = diagnostic.Accuracy * diagnostic.PSensor * diagnostic.PSpread * diagnostic.POnHull;
         return diagnostic;
     }
+
+    // Cut 6c, 6c.1 (operator ruling 2026-09-19): Resolution stays a benefit -- higher is better -- so the
+    // formula takes its reciprocal to derive the actual info ceiling instead of reading Resolution as that
+    // ceiling directly. Resolution 1 (the unaided fallback) yields a ceiling of 1: needs complete
+    // information, the floor by construction. The max guards a zero or negative authored Resolution; no
+    // authored value should ever reach it.
+    private static float InfoDemandCeiling(GameplaySettings settings, float resolution) =>
+        settings.TargetDetectionInfoThreshold + (1f - settings.TargetDetectionInfoThreshold) / max(resolution, 1e-3f);
+
+    private static float PSensor(GameplaySettings settings, float resolution, float info) =>
+        saturate(unlerp(settings.TargetDetectionInfoThreshold, InfoDemandCeiling(settings, resolution), info));
+
+    // Whether the weapon's own barrel-dispersion cone reaches the ship's silhouette at this range: weapon
+    // hardware, whole-hull bounding size, range-dependent, aim-point-blind. 1 for any zero-spread weapon.
+    private static float PSpread(Weapon weapon, HullData targetHull, float range, GameplaySettings settings)
+    {
+        if (weapon.Spread <= 0) return 1f;
+        var halfExtent = .5f * max(targetHull.Shape.Width, targetHull.Shape.Height) * settings.SchematicCellSize;
+        var angularRadius = degrees(atan(halfExtent / range));
+        return saturate(angularRadius / (weapon.Spread / 2f));
+    }
+
+    // Cut 6d: whether the targeting system's own aim scatter, centred on whatever is actually aimed at, lands
+    // on the hull's real schematic footprint rather than open grid around it. The aim point is
+    // source.ResolvedTargetItem, exactly what Fire freezes -- HitProbability, Inspect and Fire read the same
+    // reveal-gated aim point, never two.
+    private static float POnHull(Entity source, Entity target, HullData targetHull, float precision) =>
+        HullKernel(targetHull, ResolveAimPoint(target, targetHull, source.ResolvedTargetItem).AimPoint, precision).POnHull;
 
     public static float DeviationProbability(PendingShot shot, float now, out float deviation)
     {
