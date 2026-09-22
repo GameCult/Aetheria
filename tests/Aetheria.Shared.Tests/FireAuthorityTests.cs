@@ -375,6 +375,11 @@ public sealed class FireAuthorityTests : IDisposable
             // tracking needed -- makes the mutation observable even with no jink at all: the mutant
             // mispredicts the intercept by Velocity * CommitHorizon, which the post-commit-jink assertion
             // below (expected to still hit) catches as a spurious miss.
+            // Cut 11: advance the zone clock before firing. Build leaves it at 0, so every shot fired with
+            // FireTime = 0 -- and `now - FireTime` equals `now + FireTime` when FireTime is 0. That is why the
+            // moving target Cut 5 added still left this test's own declared mutation (measure elapsed wrongly)
+            // alive: Stryker found `now + shot.FireTime` surviving.
+            e.Zone.Update(2.5f);
             e.Target.Velocity = float2(4, 0);
             FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
             var t = 0f;

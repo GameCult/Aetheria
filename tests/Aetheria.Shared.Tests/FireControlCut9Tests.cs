@@ -255,7 +255,7 @@ public sealed class FireControlCut9Tests : IDisposable
         public Weapon Weapon;
     }
 
-    private KernelEngagement BuildKernelEngagement(GameplaySettings settings, Shape hullShape, float precision)
+    private KernelEngagement BuildKernelEngagement(GameplaySettings settings, Shape hullShape, float precision, float spread = 0)
     {
         var hullData = new HullData
         {
@@ -274,7 +274,7 @@ public sealed class FireControlCut9Tests : IDisposable
             Behaviors = { new InstantWeaponData
             {
                 Damage = Constant(10), Range = Constant(1000), MinRange = Constant(0),
-                Velocity = Constant(0), Spread = Constant(0), DamageSpread = Constant(0),
+                Velocity = Constant(0), Spread = Constant(spread), DamageSpread = Constant(0),
                 Penetration = Constant(0), Count = Constant(1), BurstTime = Constant(0), Cooldown = Constant(1000),
                 DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } }
             } }
@@ -285,7 +285,10 @@ public sealed class FireControlCut9Tests : IDisposable
             MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000,
             Behaviors = { new TargetingSystemData
             {
-                Accuracy = Constant(1f), Resolution = Constant(1000f), Precision = Constant(precision), Tracking = Constant(100000f)
+                // Cut 11: a finite Resolution, so pSensor actually varies with info. At 1000 it saturated to exactly 1
+                // for any info above the detection threshold, which made `x * pSensor` and `x / pSensor` the same
+                // number and let a mutant of Inspect's product survive HitProbabilityMatchesInspect.
+                Accuracy = Constant(1f), Resolution = Constant(2f), Precision = Constant(precision), Tracking = Constant(100000f)
             } }
         });
         cache.FlushAsync().Wait();
@@ -372,6 +375,99 @@ public sealed class FireControlCut9Tests : IDisposable
         for (var i = peakIndex + 1; i < samples.Count; i++)
             Assert.True(samples[i].POnHull > samples[peakIndex].POnHull * 0.5f,
                 $"pOnHull fell from {samples[peakIndex].POnHull:F4} at Precision {samples[peakIndex].Precision} to {samples[i].POnHull:F4} at Precision {samples[i].Precision} -- the cliff is back");
+    }
+
+    // ---------------------------------------------------------------------------------------------------
+    // Cut 10 (docs/fire-control-cut.md): one fire-control model, shared at the level of its factors.
+    // HitProbability is the hot path -- every AI and turret, per weapon, per tick -- and Inspect is the
+    // debug HUD's view. The diagnostics refactor (72c0109c) kept them as one model by routing the hot path
+    // THROUGH Inspect, which made every call build the diagnostic struct and run the aim-point and kernel
+    // work before checking whether the target was even in range: 9.87 us and 448 B per call, measured by a
+    // Soul pass, on paths that used to bail in nanoseconds. Both now call the same factor functions.
+    // ---------------------------------------------------------------------------------------------------
+
+    // The invariant the diagnostics refactor was protecting: the HUD can never report a probability the
+    // simulation does not use. Inspect.PBase is HitProbability's own answer, so the gates and the product
+    // have one owner; what is left to defend is that the factors the HUD displays are the ones the
+    // simulation multiplies, and that a gate the HUD shows closed is one the simulation refuses on. Swept
+    // across Precision, info levels and a spread cone that does not fill the silhouette -- every factor
+    // strictly between 0 and 1 somewhere, so a factor dropped, doubled or divided in either caller shows.
+    [Fact]
+    public void TheHudShowsTheFactorsTheSimulationMultiplies()
+    {
+        var settings = TestSettings();
+        var checkedConfigurations = 0;
+        var sawPartialSpread = false;
+        foreach (var precision in new[] { .3f, 1.19f, 5f })
+        {
+            // 6 cells wide at cell size 1 subtends ~3.4 degrees at 100 units, inside an 8-degree cone.
+            var e = BuildKernelEngagement(settings, SolidShape(6, 12), precision, spread: 8);
+
+            foreach (var info in new[] { .2f, .5f, 1f })
+            {
+                e.Shooter.EntityInfoGathered[e.Target] = info;
+                var hud = FireControl.Inspect(e.Weapon, e.Shooter, e.Target);
+                var hot = FireControl.HitProbability(e.Weapon, e.Shooter, e.Target);
+                Assert.True(hud.Visible && hud.InRange && hud.Locked && hud.InArc, $"info {info}: precondition, every gate open");
+                Assert.True(hot > 0f, $"info {info}, Precision {precision}: precondition, a shot that can land");
+                Assert.Equal(hot, hud.Accuracy * hud.PSensor * hud.PSpread * hud.POnHull, 5);
+                sawPartialSpread |= hud.PSpread < .99f;
+                checkedConfigurations++;
+            }
+            e.Shooter.EntityInfoGathered[e.Target] = 1f;
+
+            void Closed(string label, Func<FireControlDiagnostic, bool> gate)
+            {
+                var hud = FireControl.Inspect(e.Weapon, e.Shooter, e.Target);
+                Assert.False(gate(hud), $"{label}: the HUD must show this gate closed");
+                Assert.Equal(0f, FireControl.HitProbability(e.Weapon, e.Shooter, e.Target));
+                checkedConfigurations++;
+            }
+
+            e.Target.Position = float3(0, 0, 5000);
+            Closed("out of range", d => d.InRange);
+            e.Target.Position = float3(0, 0, -100);
+            Closed("behind the mount", d => d.InArc);
+
+            // A shooter far from the origin: at float3.zero `target - source` and `target + source` are the
+            // same vector, so a sign mutant in the bearing only shows here (500 in range vs 1300 out).
+            e.Shooter.Position = float3(600, 0, 0);
+            e.Target.Position = float3(600, 0, 500);
+            var far = FireControl.Inspect(e.Weapon, e.Shooter, e.Target);
+            Assert.Equal(500f, far.Range, 3);
+            Assert.True(far.InRange && FireControl.HitProbability(e.Weapon, e.Shooter, e.Target) > 0f, "shooter far from the origin");
+            checkedConfigurations++;
+            e.Shooter.Position = float3.zero;
+            e.Target.Position = float3(0, 0, 100);
+
+            e.Shooter.VisibleEntities.Remove(e.Target);
+            Closed("not visible", d => d.Visible);
+
+            Assert.False(FireControl.Inspect(e.Weapon, e.Shooter, null).HasTarget);
+            Assert.Equal(0f, FireControl.HitProbability(e.Weapon, e.Shooter, null));
+        }
+        Assert.True(sawPartialSpread, "fixture: the spread cone must not fill the silhouette, or PSpread is 1 and proves nothing");
+        Assert.Equal(21, checkedConfigurations); // 3 precisions x (3 info levels + out of range + behind + far shooter + not visible)
+    }
+
+    // The cost regression itself. A target out of range is the common case for every AI and turret, and it
+    // must bail before any factor is computed. Mutation: route HitProbability back through Inspect; the
+    // gated-out call then allocates the aim-point list and the kernel's arrays on every evaluation.
+    [Fact]
+    public void GatedOutHitProbabilityAllocatesNothing()
+    {
+        var e = BuildKernelEngagement(TestSettings(), SolidShape(6, 12), 1.19f);
+        e.Target.Position = float3(0, 0, 5000); // out of range, still visible and in arc
+
+        for (var i = 0; i < 100; i++) FireControl.HitProbability(e.Weapon, e.Shooter, e.Target); // JIT warm-up
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        var sum = 0f;
+        for (var i = 0; i < 1000; i++) sum += FireControl.HitProbability(e.Weapon, e.Shooter, e.Target);
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.Equal(0f, sum);
+        Assert.True(allocated == 0, $"1000 gated-out HitProbability calls allocated {allocated} bytes; the hot path must bail before any factor work");
     }
 
     // ---------------------------------------------------------------------------------------------------

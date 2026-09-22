@@ -109,3 +109,6 @@ tests/_scratch_*
 .nuget-sandbox/
 .dotnet-sandbox/
 .appdata-sandbox/
+
+# Stryker.NET mutation reports (regenerated per run)
+StrykerOutput/

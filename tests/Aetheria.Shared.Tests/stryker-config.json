@@ -1,0 +1,12 @@
+{
+  "stryker-config": {
+    "project": "Aetheria.Shared.csproj",
+    "mutate": [
+      "**/Assets/Scripts/ServerShared/**/*.cs",
+      "!**/Assets/Plugins/**"
+    ],
+    "mutation-level": "Standard",
+    "reporters": [ "progress", "html", "json" ],
+    "thresholds": { "high": 80, "low": 60, "break": 0 }
+  }
+}

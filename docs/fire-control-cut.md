@@ -1697,3 +1697,154 @@ configuration, not the range it claims), plus the harness-audit items: the
 tree-clean verdict restores before it measures, a red result cannot distinguish a
 killed mutant from a compile failure, and the no-op control covers only one file
 per harness.
+
+---
+
+## Cut 11: mutation testing moves to Stryker, and the survivors it found
+
+Date: 2026-09-22. Operator, on the hand-written anchor harnesses: "What is the
+point of those mutation anchors? Tests should cover how the code behaves, not how
+it is shaped." And on Stryker: "sounds good; we don't need to run with every
+mutation active, right? > to >= on float thresholds is indeed petty."
+
+### Why
+
+The Eureka principle (2026-09-15) is sound and stays: every rule needs a test that
+fails when the rule breaks. The mechanism that accreted on it over the following
+week -- literal-text anchors, perl substitution, per-cut bash and Python harnesses
+-- coupled mutation testing to code shape. It stranded anchors on every refactor
+(`72c0109c`, Cut 9, Cut 10), and at Cut 10 an anchor kept matching exactly once
+while silently re-targeting onto `Inspect`, mutating code the tests no longer ran.
+Soul's harness audit also found the tree-clean verdict restoring before it
+measured, and a compile failure counting as a kill.
+
+A Stryker spike against `FireControl.cs` alone: 276 mutants, 7m18s, 208 killed,
+67 survived. It killed every mutation the hand-written harnesses defended, never
+edits a source file, and has nothing to re-anchor.
+
+### 11.1 Retire the ServerShared harnesses
+
+Delete the 23 hand-rolled harnesses (5,816 lines) whose targets are all under
+`Assets/Scripts/ServerShared` -- every `mutation_tests_fire_control_*`, every
+`mutation_tests_stats_power_*`, `mutation_tests_shield_reserve.py`,
+`mutation_tests_condition_ratio_cut8.py` and `mutation_tests.py`. Stryker's scope
+covers all of their targets; the behavioural tests they measured stay.
+
+**Kept, recorded, not yet answered:** `mutation_tests_addressables_cut.py` and the
+three `mutation_tests_shield_panel_cut*.py`. They target Unity Editor probes
+(`EngineAssetCheck.cs`, `ShieldPanelCut*Verify.cs`) that Unity compiles outside
+`Aetheria.Shared`, so Stryker cannot reach them. They carry the same anchor
+fragility; the right answer for GPU and editor code is probably that the batchmode
+probes are themselves the behavioural tests, but that is a separate decision.
+
+### 11.2 Scope, pinned
+
+`tests/Aetheria.Shared.Tests/stryker-config.json` scopes mutation to
+`Assets/Scripts/ServerShared/**` and excludes plugins. Per cut, run against the
+cut's own diff:
+
+    dotnet tool restore
+    cd tests/Aetheria.Shared.Tests
+    CULTLIB_ROOT=<admitted CultLib worktree> dotnet stryker --since:<base commit>
+
+**Float-threshold boundary flips are known-equivalent.** Stryker files `>`→`>=`
+under the same Equality mutator as `==`→`!=`, and the latter catches real bugs, so
+the mutator stays on. A survivor that only moves a float comparison across its
+boundary is triaged as equivalent and never chased. For the same reason the raw
+mutation score is not a gate; the survivor list is the signal.
+
+### 11.3 Degenerate fixtures
+
+Most of the 67 survivors trace to three constants shared across the fire-control
+fixtures, each of which makes a family of mutants arithmetically identical to the
+original -- the same defect class as the zero-velocity target and the durability
+coincidence, found here as a pattern instead of one at a time:
+
+- **Shooter at `float3.zero`.** `target - source` equals `target + source`, so four
+  separate position mutations survive (`FireControl.cs` HitProbability, Inspect,
+  Fire, Apply).
+- **Fire time zero.** `now - FireTime` equals `now + FireTime`, so the elapsed-time
+  mutation survives -- which means `EvasionCountsUntilCommitAndNotAfter` still does
+  not defend the rule Cut 5 gave it a moving target to defend.
+- **Spread zero everywhere.** `PSpread` returns 1 on every fixture, so it is
+  effectively untested, and `*` versus `/` against it is indistinguishable.
+
+Move shooters off the origin, fire at nonzero times, and give some fixtures real
+spread. Fix the fixture, never weaken the assertion.
+
+### 11.4 Behavioural tests the survivors point at
+
+- **Splash handedness.** Flipping the sign in `var right = float2(forward.y,
+  -forward.x)` passes every test. That is the operator's "damage on the wrong side
+  of the ship," and Self said on 2026-09-19 that Cut 6b would add a test pinning
+  that a port blast damages port cells; it never landed and nothing checked. Pin it.
+- **The shield loses energy when it absorbs.** Deleting `Shield.TakeHit` from the
+  discrete path survives, because tests assert the hull was untouched and never
+  that the shield paid for it.
+- **Splash's shield-absorb branch** has no coverage at all.
+- **Zones roll differently.** `CombatSeed *` → `/` makes the seed zone-independent
+  and survives; `TheDieIsUniform` checks uniformity within a zone only. Tighten it
+  enough that the `MixSeed` weakenings that survive it (`>>`→`<<`, `^=`→`|=`) die.
+- **A shot whose target left the zone resolves as a miss** (Soul C4). Today only
+  the uncommitted branch rewrites the outcome; a committed hit on a target that
+  died mid-flight is published as a hit. Fix the code and pin it.
+
+### Verification
+
+Stryker over `FireControl.cs` before and after: every non-equivalent survivor
+above killed, the remainder triaged by name. 231 tests plus the new ones; Unity
+batchmode clean.
+
+### Status (2026-09-22)
+
+Landed on `codex/fire-control-10`: `8ef3b34c` (Stryker tool), `b305debd` (map,
+config), `724ec5e7` (11.1), `a6543af7` (11.4 and the C4 fix), `1b187db4` (11.3),
+`b0fd3cd0` (second round, below). 244 tests.
+
+Stryker over `FireControl.cs`, 278 mutants per run:
+
+| Run | Killed | Survived | Score |
+|---|---|---|---|
+| Spike, before Cut 11 | 208 | 67 | 74.6% |
+| After 11.4 | 219 | 58 | 78.6% |
+| After 11.3 fixtures | 225 | 51 | 81.1% |
+| After the second round | 225 | 43 | 83.3% |
+
+**The second round** came from reading the 51. Four were real undefended
+behaviour and one was a duplicated formula:
+
+- `Inspect` recomputed `PBase` as its own product of the factors, so the gates and
+  the product had two owners, and a `*`→`/` mutant of the HUD's copy survived the
+  agreement test (every fixture had spread 0, so `PSpread` was 1). `PBase` is now
+  `HitProbability`'s own answer; the test became
+  `TheHudShowsTheFactorsTheSimulationMultiplies`, over a spread cone that does not
+  fill the silhouette. `Fire`'s redundant `target != null ?` guard around
+  `HitProbability` went with it.
+- A beam shot's `damageOverride` could be dropped: `BeamRollsPerInterval` computed
+  the expected damage from its own roll count, a tautology, now deleted.
+  `ADamageOverrideIsWhatTheShotCarries`.
+- `Tracking` could ignore the fitted targeting system: no fixture's target ever
+  moved off its predicted line. `AFittedTargetingSystemForgivesAJink`.
+- A shot orphaned before commit could skip `ShotCommitted`, or publish its miss as
+  shielded. `ShotAtTargetThatLeavesBeforeCommitCommitsAsAMiss`.
+- `ArrivalIn` (the HUD countdown) was unchecked; asserted in the C4 test.
+
+**The 43 that remain, triaged:**
+
+- *Boundary flips, equivalent (23):* L52, 54, 56, 75, 135 (two), 157 (two), 193
+  (two), 223, 273, 410, 418 (two), 465 (two), 503, 518, 524, 586, 605, 608.
+- *`MixSeed` shift and xor weakenings, measured equivalent (4):* L382, 384, 386
+  (two). 11.4 asked for them to die; measured, the die stays uniform and
+  zone-distinct under each, so there is no behaviour to pin. They change how the
+  mixer is built, not whether the die is fair.
+- *Unreachable through the live callers (8):* L240 and L241
+  (`DeviationProbability`'s null-target branch; the engine guards it, only the HUD
+  can pass null), L283 (three; airburst has no authored radius anywhere, recorded
+  since Cut 6b), L320 (empty-list early return, an optimisation), L410 `||` (a
+  nonzero `PBase` implies a target), L158 and L610 (no coverage: an unlocked lock
+  weapon reaching this line, and the last-cell fallback of the weighted pick).
+- *Recorded gaps, not yet reached (8):* L135 ternary (two; no test that the AI in
+  `Combat.cs` leads a moving target), L435 (three; the aimed flag on an outcome),
+  L464 and L465 negate (the `Apply` hit direction through the `FireControl`
+  path), L585 and L587 (the aimed item's centroid as aim point). These are "not
+  yet reached," not "unreachable."
