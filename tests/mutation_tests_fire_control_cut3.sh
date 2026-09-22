@@ -7,7 +7,7 @@
 #
 #   OutOfArcConsumesNoDraw no longer exists. It asserted against ItemManager.Random (`e.Items.Random`), but
 #   Cut 6b (6.1) moved every shot's roll onto its own freshly-seeded, immediately-discarded
-#   `new Random((zone.CombatSeed * 2654435761u) ^ (uint) shot.ShotId | 1u)` local to Commit -- a deliberate,
+#   `new Random(MixSeed((zone.CombatSeed * 2654435761u) ^ (uint) shot.ShotId | 1u))` local to Commit -- a deliberate,
 #   good change (reproducibility independent of unrelated draws elsewhere) that also meant Commit stopped
 #   reading or writing ItemManager.Random on any path, arc or no arc, which made the old test's own declared
 #   mutation ("roll first and multiply by zero") pass for a reason that had nothing to do with arcs. Cut 7
@@ -197,7 +197,7 @@ check_mutation \
 check_mutation \
   "RollsAreSeeded: Commit's draw must be a pure function of (zone, shot id), not fresh entropy per call" \
   "$FIRE_CONTROL_CS" \
-  'var random = new Random((zone.CombatSeed * 2654435761u) ^ (uint) shot.ShotId | 1u);' \
+  'var random = new Random(MixSeed((zone.CombatSeed * 2654435761u) ^ (uint) shot.ShotId | 1u));' \
   'var random = new Random((uint) System.Guid.NewGuid().GetHashCode() | 1u);' \
   "FireAuthorityTests.RollsAreSeeded" \
   "red"
@@ -350,8 +350,8 @@ check_mutation \
 check_mutation \
   "CombatNeverDrawsFromTheSharedStream: Commit must never read ItemManager's shared stream, on any path" \
   "$FIRE_CONTROL_CS" \
-  'var random = new Random((zone.CombatSeed * 2654435761u) ^ (uint) shot.ShotId | 1u);' \
-  'var random = new Random((zone.CombatSeed * 2654435761u) ^ (uint) shot.ShotId | 1u); shot.Source.ItemManager.Random.NextFloat();' \
+  'var random = new Random(MixSeed((zone.CombatSeed * 2654435761u) ^ (uint) shot.ShotId | 1u));' \
+  'var random = new Random(MixSeed((zone.CombatSeed * 2654435761u) ^ (uint) shot.ShotId | 1u)); shot.Source.ItemManager.Random.NextFloat();' \
   "FireAuthorityTests.CombatNeverDrawsFromTheSharedStream" \
   "red"
 

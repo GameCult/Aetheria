@@ -194,8 +194,8 @@ check_mutation() {
 check_mutation \
   "control (no-op round trip)" \
   "$FIRE_CONTROL_CS" \
-  'var random = new Random((zone.CombatSeed * 2654435761u) ^ (uint) shot.ShotId | 1u);' \
-  'var random = new Random((zone.CombatSeed * 2654435761u) ^ (uint) shot.ShotId | 1u);' \
+  'var random = new Random(MixSeed((zone.CombatSeed * 2654435761u) ^ (uint) shot.ShotId | 1u));' \
+  'var random = new Random(MixSeed((zone.CombatSeed * 2654435761u) ^ (uint) shot.ShotId | 1u));' \
   "FireControlCut6Tests.SameFightRollsSameThroughUnrelatedDraws" \
   "green"
 
@@ -206,7 +206,7 @@ check_mutation \
 echo ""
 echo "=== 6.1 Commit must not read or write the shared ItemManager.Random stream (expect red) ==="
 if replace_unique "$FIRE_CONTROL_CS" \
-  'var random = new Random((zone.CombatSeed * 2654435761u) ^ (uint) shot.ShotId | 1u);' \
+  'var random = new Random(MixSeed((zone.CombatSeed * 2654435761u) ^ (uint) shot.ShotId | 1u));' \
   'var random = shot.Source.ItemManager.Random;' \
 && replace_unique "$FIRE_CONTROL_CS" \
   'return MakeOutcome(shot, hit, shielded, shieldBroken, cell, aimed, now);' \
@@ -224,8 +224,8 @@ fi
 check_mutation \
   "6.1 ShotId must reach the seed" \
   "$FIRE_CONTROL_CS" \
-  'var random = new Random((zone.CombatSeed * 2654435761u) ^ (uint) shot.ShotId | 1u);' \
-  'var random = new Random((zone.CombatSeed * 2654435761u) | 1u);' \
+  'var random = new Random(MixSeed((zone.CombatSeed * 2654435761u) ^ (uint) shot.ShotId | 1u));' \
+  'var random = new Random(MixSeed((zone.CombatSeed * 2654435761u) | 1u));' \
   "FireControlCut6Tests.ShotIdDecidesTheDie" \
   "red"
 
