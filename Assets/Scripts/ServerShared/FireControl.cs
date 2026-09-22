@@ -170,7 +170,8 @@ public static class FireControl
     // Presentation only: the debug HUD's view of exactly the factors HitProbability multiplies. It computes
     // every factor unconditionally, gates included, because a HUD wants to see why a shot is impossible --
     // which is precisely why the hot path must not be routed through it. Both read the same factor
-    // functions below, so the HUD cannot grow a second, subtly different model.
+    // functions below, and PBase is HitProbability's own answer, so the gates and the product have one
+    // owner and the HUD cannot grow a second, subtly different model.
     public static FireControlDiagnostic Inspect(Weapon weapon, Entity source, Entity target)
     {
         var settings = source.ItemManager.GameplaySettings;
@@ -200,8 +201,7 @@ public static class FireControl
         diagnostic.PSpread = PSpread(weapon, targetHull, diagnostic.Range, settings);
         diagnostic.POnHull = POnHull(source, target, targetHull, diagnostic.Precision);
 
-        if (diagnostic.Visible && diagnostic.InRange && diagnostic.Locked && diagnostic.InArc)
-            diagnostic.PBase = diagnostic.Accuracy * diagnostic.PSensor * diagnostic.PSpread * diagnostic.POnHull;
+        diagnostic.PBase = HitProbability(weapon, source, target);
         return diagnostic;
     }
 
@@ -260,7 +260,7 @@ public static class FireControl
 
         // R1's engage gate and probability, evaluated now and frozen: nothing at commit time re-reads a stat,
         // an info level or a range. Only live target *position* (deviation) is read again, at commit.
-        var pBase = target != null ? HitProbability(weapon, source, target) : 0f;
+        var pBase = HitProbability(weapon, source, target);
 
         var targetVelocity = float3.zero;
         var targetPosition = source.Position;

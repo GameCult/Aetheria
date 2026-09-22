@@ -255,7 +255,7 @@ public sealed class FireControlCut9Tests : IDisposable
         public Weapon Weapon;
     }
 
-    private KernelEngagement BuildKernelEngagement(GameplaySettings settings, Shape hullShape, float precision)
+    private KernelEngagement BuildKernelEngagement(GameplaySettings settings, Shape hullShape, float precision, float spread = 0)
     {
         var hullData = new HullData
         {
@@ -274,7 +274,7 @@ public sealed class FireControlCut9Tests : IDisposable
             Behaviors = { new InstantWeaponData
             {
                 Damage = Constant(10), Range = Constant(1000), MinRange = Constant(0),
-                Velocity = Constant(0), Spread = Constant(0), DamageSpread = Constant(0),
+                Velocity = Constant(0), Spread = Constant(spread), DamageSpread = Constant(0),
                 Penetration = Constant(0), Count = Constant(1), BurstTime = Constant(0), Cooldown = Constant(1000),
                 DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } }
             } }
@@ -386,60 +386,68 @@ public sealed class FireControlCut9Tests : IDisposable
     // Soul pass, on paths that used to bail in nanoseconds. Both now call the same factor functions.
     // ---------------------------------------------------------------------------------------------------
 
-    // The invariant the diagnostics refactor was protecting, made structural rather than conventional: the
-    // HUD can never report a probability the simulation does not use. Swept across every gate the hot path
-    // bails on -- no target, not visible, out of range, out of arc -- and across Precision and info levels
-    // for shots that pass. Mutation: change a factor in only one of the two callers (drop POnHull from
-    // HitProbability); the passing configurations then disagree.
+    // The invariant the diagnostics refactor was protecting: the HUD can never report a probability the
+    // simulation does not use. Inspect.PBase is HitProbability's own answer, so the gates and the product
+    // have one owner; what is left to defend is that the factors the HUD displays are the ones the
+    // simulation multiplies, and that a gate the HUD shows closed is one the simulation refuses on. Swept
+    // across Precision, info levels and a spread cone that does not fill the silhouette -- every factor
+    // strictly between 0 and 1 somewhere, so a factor dropped, doubled or divided in either caller shows.
     [Fact]
-    public void HitProbabilityMatchesInspect()
+    public void TheHudShowsTheFactorsTheSimulationMultiplies()
     {
         var settings = TestSettings();
         var checkedConfigurations = 0;
+        var sawPartialSpread = false;
         foreach (var precision in new[] { .3f, 1.19f, 5f })
         {
-            var e = BuildKernelEngagement(settings, SolidShape(6, 12), precision);
+            // 6 cells wide at cell size 1 subtends ~3.4 degrees at 100 units, inside an 8-degree cone.
+            var e = BuildKernelEngagement(settings, SolidShape(6, 12), precision, spread: 8);
 
-            void Check(string label)
-            {
-                var hot = FireControl.HitProbability(e.Weapon, e.Shooter, e.Target);
-                var hud = FireControl.Inspect(e.Weapon, e.Shooter, e.Target).PBase;
-                Assert.True(hot == hud, $"{label}, Precision {precision}: HitProbability {hot} != Inspect.PBase {hud}");
-                checkedConfigurations++;
-            }
-
-            foreach (var info in new[] { 0f, .2f, .5f, 1f })
+            foreach (var info in new[] { .2f, .5f, 1f })
             {
                 e.Shooter.EntityInfoGathered[e.Target] = info;
-                Check($"in range, info {info}");
+                var hud = FireControl.Inspect(e.Weapon, e.Shooter, e.Target);
+                var hot = FireControl.HitProbability(e.Weapon, e.Shooter, e.Target);
+                Assert.True(hud.Visible && hud.InRange && hud.Locked && hud.InArc, $"info {info}: precondition, every gate open");
+                Assert.True(hot > 0f, $"info {info}, Precision {precision}: precondition, a shot that can land");
+                Assert.Equal(hot, hud.Accuracy * hud.PSensor * hud.PSpread * hud.POnHull, 5);
+                sawPartialSpread |= hud.PSpread < .99f;
+                checkedConfigurations++;
             }
             e.Shooter.EntityInfoGathered[e.Target] = 1f;
 
-            e.Target.Position = float3(0, 0, 5000);
-            Check("out of range");
-            e.Target.Position = float3(0, 0, -100);
-            Check("behind the mount");
-            e.Target.Position = float3(0, 0, 100);
+            void Closed(string label, Func<FireControlDiagnostic, bool> gate)
+            {
+                var hud = FireControl.Inspect(e.Weapon, e.Shooter, e.Target);
+                Assert.False(gate(hud), $"{label}: the HUD must show this gate closed");
+                Assert.Equal(0f, FireControl.HitProbability(e.Weapon, e.Shooter, e.Target));
+                checkedConfigurations++;
+            }
 
-            // Cut 11: a shooter far from the origin. Every other configuration keeps the shooter at float3.zero,
-            // where `target - source` and `target + source` are the same vector; here the correct separation is
-            // 500 (in range) while the mutated sum is 1300 (out of range), so a sign mutant in either caller's
-            // bearing makes the two disagree.
-            var home = e.Shooter.Position;
+            e.Target.Position = float3(0, 0, 5000);
+            Closed("out of range", d => d.InRange);
+            e.Target.Position = float3(0, 0, -100);
+            Closed("behind the mount", d => d.InArc);
+
+            // A shooter far from the origin: at float3.zero `target - source` and `target + source` are the
+            // same vector, so a sign mutant in the bearing only shows here (500 in range vs 1300 out).
             e.Shooter.Position = float3(600, 0, 0);
             e.Target.Position = float3(600, 0, 500);
-            Check("shooter far from the origin");
-            e.Shooter.Position = home;
+            var far = FireControl.Inspect(e.Weapon, e.Shooter, e.Target);
+            Assert.Equal(500f, far.Range, 3);
+            Assert.True(far.InRange && FireControl.HitProbability(e.Weapon, e.Shooter, e.Target) > 0f, "shooter far from the origin");
+            checkedConfigurations++;
+            e.Shooter.Position = float3.zero;
             e.Target.Position = float3(0, 0, 100);
 
             e.Shooter.VisibleEntities.Remove(e.Target);
-            Check("not visible");
+            Closed("not visible", d => d.Visible);
 
-            var nullHot = FireControl.HitProbability(e.Weapon, e.Shooter, null);
-            var nullHud = FireControl.Inspect(e.Weapon, e.Shooter, null).PBase;
-            Assert.True(nullHot == nullHud, $"no target: {nullHot} != {nullHud}");
+            Assert.False(FireControl.Inspect(e.Weapon, e.Shooter, null).HasTarget);
+            Assert.Equal(0f, FireControl.HitProbability(e.Weapon, e.Shooter, null));
         }
-        Assert.Equal(24, checkedConfigurations); // 3 precisions x (4 info levels + out of range + behind + far shooter + not visible)
+        Assert.True(sawPartialSpread, "fixture: the spread cone must not fill the silhouette, or PSpread is 1 and proves nothing");
+        Assert.Equal(21, checkedConfigurations); // 3 precisions x (3 info levels + out of range + behind + far shooter + not visible)
     }
 
     // The cost regression itself. A target out of range is the common case for every AI and turret, and it

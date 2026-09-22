@@ -264,7 +264,8 @@ public sealed class FireControlCut11Tests : IDisposable
     {
         var e = Build(velocity: 20); // 100 units at 20 u/s: flight 5 s, commits at 4.5 s
         ShotOutcome committed = null, resolved = null;
-        using var c = e.Zone.ShotCommitted.Subscribe(o => committed = o);
+        var commits = 0;
+        using var c = e.Zone.ShotCommitted.Subscribe(o => { committed = o; commits++; });
         using var r = e.Zone.ShotResolved.Subscribe(o => resolved = o);
 
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
@@ -272,6 +273,8 @@ public sealed class FireControlCut11Tests : IDisposable
         Assert.NotNull(committed);
         Assert.True(committed.Hit, "precondition: this fixture's shot must commit as a hit");
         Assert.Null(resolved);
+        // What the HUD's arrival countdown reads: time left in flight at commit, 5 s - 4.7 s.
+        Assert.Equal(.3f, committed.ArrivalIn, 3);
 
         e.Zone.Entities.Remove(e.Target); // the target is gone before the shot arrives
         e.Zone.Update(1f);
@@ -280,6 +283,74 @@ public sealed class FireControlCut11Tests : IDisposable
         Assert.Equal(committed.ShotId, resolved.ShotId);
         Assert.False(resolved.Hit, "a shot whose target left the zone must resolve as a miss, not publish its committed hit");
         Assert.True(committed.Hit, "the committed outcome itself is not rewritten (R4)");
+        Assert.Equal(1, commits); // a shot commits once; its orphaned resolution is not a second commit
+    }
+
+    // The other stage of the same rule: a target gone before the shot even commits. The shot never got its
+    // commit, so the miss is published as the commit too -- a listener waiting on ShotCommitted for this
+    // ShotId must not wait forever -- and it is a plain miss, with no shield hit or shield break attached.
+    [Fact]
+    public void ShotAtTargetThatLeavesBeforeCommitCommitsAsAMiss()
+    {
+        var e = Build(velocity: 20, equipShield: true); // commits at 4.5 s
+        Charge(e);
+        var committed = new List<ShotOutcome>();
+        var resolved = new List<ShotOutcome>();
+        using var c = e.Zone.ShotCommitted.Subscribe(committed.Add);
+        using var r = e.Zone.ShotResolved.Subscribe(resolved.Add);
+
+        var shotId = FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        e.Zone.Update(1f);
+        Assert.Empty(committed);
+
+        e.Zone.Entities.Remove(e.Target);
+        e.Zone.Update(1f);
+
+        foreach (var outcome in new[] { Assert.Single(committed), Assert.Single(resolved) })
+        {
+            Assert.Equal(shotId, outcome.ShotId);
+            Assert.False(outcome.Hit);
+            Assert.False(outcome.Shielded, "a shot at nothing did not hit a shield");
+            Assert.False(outcome.ShieldBroken, "a shot at nothing did not break a shield");
+        }
+        Assert.Empty(e.Zone.PendingShots);
+    }
+
+    // ---- A targeting system's Tracking is what forgives a target that moves off its predicted line. ----
+
+    // Tracking fell back to GameplaySettings.UnaidedTracking under a mutant that ignored the fitted system,
+    // and nothing noticed: every fixture's target sat still, so deviation was 0 and Tracking divided nothing.
+    // Here the target jinks 5 units sideways mid-flight. The fitted system (Tracking 100000) shrugs it off;
+    // unaided Tracking (10) would halve the shot's chance.
+    [Fact]
+    public void AFittedTargetingSystemForgivesAJink()
+    {
+        var e = Build(velocity: 20);
+        FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        e.Zone.Update(1f);
+        e.Target.Position += float3(5, 0, 0);
+
+        var shot = e.Zone.PendingShots.Single();
+        var p = FireControl.DeviationProbability(shot, e.Zone.Time, out var deviation);
+        Assert.Equal(5f, deviation, 3);
+        Assert.True(p > .99f, $"a 5-unit jink against Tracking 100000 must barely matter, got {p}");
+    }
+
+    // ---- A beam's shot carries the interval's damage, not the weapon's. ----
+
+    // ConstantWeapon fires one shot per BeamResolveInterval for Damage * interval, through Fire's
+    // damageOverride. Dropping the override froze the weapon's full Damage into every one of those shots --
+    // a beam doing ten times its damage at the default interval -- and survived, because the beam test
+    // counted its rolls and multiplied the count by the expected damage itself.
+    [Fact]
+    public void ADamageOverrideIsWhatTheShotCarries()
+    {
+        var e = Build(damage: 5, velocity: 20);
+        var full = FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        var partial = FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter, damageOverride: .5f);
+
+        Assert.Equal(5f, e.Zone.PendingShots.Single(s => s.ShotId == full).Damage);
+        Assert.Equal(.5f, e.Zone.PendingShots.Single(s => s.ShotId == partial).Damage);
     }
 
     // ---- Splash damages the side the blast came from. ----

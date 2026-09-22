@@ -171,7 +171,7 @@ public sealed class FireControlCut4Tests : IDisposable
     }
 
     // A beam is a sequence of discrete rolls, not a continuous truth: over one second it produces exactly
-    // 1/BeamResolveInterval outcomes, each for Damage*BeamResolveInterval, totalling Damage. Interval (.25s)
+    // 1/BeamResolveInterval outcomes (the damage each carries is FireControlCut11Tests.ADamageOverrideIsWhatTheShotCarries). Interval (.25s)
     // and tick (.125s) are both exact dyadic fractions so float accumulation cannot drift the count -- and the
     // tick is strictly smaller than the interval, so the two are distinguishable from a "one roll per tick"
     // mutant (which would produce 8 outcomes here, not 4) and from a "one roll per burst" mutant (1, not 4).
@@ -190,7 +190,6 @@ public sealed class FireControlCut4Tests : IDisposable
 
         Assert.Equal(4, outcomes.Count); // 1s / .25s per roll
         Assert.All(outcomes, o => Assert.True(o.Hit));
-        Assert.Equal(10f, outcomes.Count * 10f * settings.BeamResolveInterval, 2); // Damage * interval, per roll
     }
 
     // ---- Regression: FireControl.Fire must run whether or not a presentation is listening. Both
