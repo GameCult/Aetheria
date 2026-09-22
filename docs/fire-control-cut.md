@@ -1918,12 +1918,18 @@ Second round:
 - **Q12-4 = A:** delete `ShotOutcome.Aimed`.
 - **Penetration retune is a follow-up.** Operator: "Retuning penetration is a follow up."
   See F12-2. Until it lands, interior cells are reached only by blasts.
-- **The detonation primitive (12.4).** A blast at a schematic point P with radius r casts
-  rays radially from P out to r. Damage splits evenly across the rays, and each ray is
-  absorbed in order (armour, then item, then hull) through the cells it crosses, using the
-  12.3 lane walker. **Rays that leave the hull lose their remainder**, unlike direct-hit
-  lanes. An external airburst therefore wastes most of its energy, an internal detonation
-  delivers it, and interior armour acts as bulkheads. Where P sits:
+- **The detonation primitive (12.4): a blast is an area, not a bundle of rays.** The first
+  draft of this section cast rays; the operator cut that. Operator, 2026-09-22: "sorry, why
+  are we doing blast rays instead of areas? I'd say distribute the damage over the affected
+  area, but that only works for areas". So a blast at a schematic point P with radius r
+  covers the cells within r of P, and **damage is distributed over the disc's area**: a cell
+  takes the share of the disc that lies inside it. The share of the disc that falls outside
+  the hull's occupied cells is lost. Each covered cell absorbs independently, in the
+  existing order (armour, then item, then hull). Nothing travels, nothing is occluded, and
+  no remainder is routed anywhere.
+
+  **A shot has a direction; a blast does not.** That sentence is the rule behind the split:
+  direct hits keep the lane model of 12.2 and 12.3, and blasts are areas. Where P sits:
   - proximity fuse: the intercept point outside the hull (today's airburst);
   - contact fuse: the impact cell;
   - delayed fuse or penetrator: the end of the penetration walk.
@@ -2043,9 +2049,8 @@ Second round:
   `t = dot(point, b)`. Cells are ordered by entry, with ties broken by `dot(c, b)` and then
   cell index. It is exact slab traversal and replaces the 0.5-step sampling. The result goes
   into a caller-supplied pooled buffer (`ArrayPool<LaneCell>.Shared`; netstandard2.1 has
-  `System.Buffers`). Two callers clip the result:
-  - A direct hit starts from t → -∞ (outside), so its first element is the impact cell.
-  - A blast ray starts at `t0 = dot(P, b)` and stops at `t0 + r`.
+  `System.Buffers`). A direct hit starts from t → -∞ (outside), so its first element is the
+  impact cell. It is the walker's only caller: blasts are areas and do not traverse.
 
   Metal is continuous while `next.entry ≤ current.exit + 1e-4`, and the first gap ends the
   walk. That keeps today's rule at `Entity.cs:401`.
@@ -2114,7 +2119,7 @@ What this does to the earlier rules:
 | 12.1 | Aetheria | subtraction and frame owner; no behaviour change | none |
 | 12.2 | Aetheria | where a hit lands: silhouette at Commit, Apply stops reading positions | 12.0, 12.1 |
 | 12.3 | Aetheria | how a direct hit travels: exact lane walk, sequential absorption, spread lanes | 12.2 |
-| 12.4 | Aetheria | the detonation primitive, fuse data, the Airburst label demoted; Splash deleted | 12.3, Q12-7, Q12-8 |
+| 12.4 | Aetheria | the detonation primitive (areas), fuse data, the Airburst label demoted; Splash deleted | 12.3 |
 
 The five are kept apart so that Soul falsifies each question on its own: where a shot
 lands, what a direct hit does, and what a blast does. In 12.2, `ApplyHit` survives for one
@@ -2392,13 +2397,14 @@ rotation, while its march and its even split are left untouched until 12.3.
     blast, which is what every shipped record reads as.
   - A shot detonates iff `Fuse != null && BlastRadius > 0`. Fire freezes both
     (`PendingShot.Fuse`, `BlastRadius`). A fuse without a radius (or a radius without a
-    fuse) is inert, and the catalog test (Q12-6) reports it.
+    fuse) is inert, and nothing reports it: Q12-6 ruled that the catalog is not policed.
   - The catalog needs one write through `tools/AetherDb` or Studio to clear the drift
     warnings. That write is content, with no data change, and is recorded as part of the
     retune follow-up.
   - Readers to update: `FireControl.cs:284` and `FireControlCut6Tests.cs:81-101, 249, 268,
     279`, which author `WeaponModifiers.Airburst`. Those fixtures move to
-    `Fuse = Proximity`. The label stays on them only if Q12-6 = A.
+    `Fuse = Proximity`. Whether those fixtures keep the label is free: Q12-6 ruled that
+    nothing checks labels against behaviour.
 - **Adds:** `FireControl.Detonate(Zone zone, float2 worldPoint, float radius, float damage,
   DamageType type)`, the one owner of blast damage, plus `Entity.ToSchematicPoint` and
   `ToWorldPoint` (see the frame rules).
@@ -2415,34 +2421,44 @@ rotation, while its march and its even split are left untouched until 12.3.
     the radius (the host included) is treated alike. A shielded contact or delayed hit is
     absorbed whole, as a direct hit is, and does not detonate. `Mine.cs:99` calls
     `Detonate`.
-  - **Rays:** `N = clamp(ceil(2π · rCells / 0.5), 16, 256)`, where `rCells = radius /
-    SchematicCellSize`. That spaces rays at most half a cell apart at the rim. Each ray
-    carries `damage / N`. Directions are generated by incremental rotation, with no
-    per-ray allocation.
-  - **Per ray:**
+  - **Area, per entity:**
     1. Candidates are the entities with `|Position.xz - P| ≤ radius + boundingRadius`,
        where `boundingRadius = ½·√(W²+H²)·cellSize`.
-    2. For each candidate, convert the ray to its schematic frame (origin
-       `ToSchematicPoint(P)`, direction `ToSchematic(d)`, length `rCells`) and take the
-       `Lane(hull, b, dot(origin, ℓ))` cells clipped to `[t0, t0 + rCells]`.
-    3. The ray belongs to the candidate whose metal it enters first. A ray hits at most one
-       hull.
-    4. It walks with `Absorb` in order until it leaves metal or reaches r.
-    5. If it ends inside metal at r, the remainder goes to `DamageHull`. If it leaves the
-       hull, the remainder is lost (the ruling; see Q12-7 for rays that start inside).
-    6. A ray that enters nothing is wasted.
-  - **Shields:** an entity with an active shield is charged the summed share of the rays
-    that reached it, against the same `CanTakeHit`/`Break`/`TakeHit` rules as today.
-    - If the shield absorbs, those rays do nothing more.
-    - If not, it breaks and the rays proceed.
+    2. For each candidate, `Ps = ToSchematicPoint(P)` and `rCells = radius /
+       SchematicCellSize`.
+    3. For every cell of the candidate's schematic inside the bounding box
+       `[Ps ± (rCells + .5)]`, compute `overlap(c)`, the exact area of the disc of radius
+       `rCells` centred on `Ps` intersected with that cell's unit square.
+    4. An occupied cell takes `damage × overlap(c) / (π · rCells²)` through
+       `Absorb(c, …)`, and the remainder of that share goes to `DamageHull`. An unoccupied
+       cell's share is lost, and so is every part of the disc outside the schematic.
+    5. Entities are independent. Two ships caught by one blast each cover their own cells,
+       and neither shadows the other.
+  - **Why exact overlap and not sampling.** The overlap is the standard circle-rectangle
+    intersection, evaluated per cell from the antiderivative `½(x√(r²-x²) + r²·asin(x/r))`
+    over the cell's clipped x-span, combined across the rectangle's edges. It is closed
+    form, allocation-free, and exactly conservative: the overlaps over the bounding box sum
+    to `π·rCells²`, so shares sum to 1 and the only loss is geometric. Supersampling would
+    be cheaper to write and would break that: a blast smaller than one cell, or one
+    straddling a cell boundary, would deliver the wrong total, and the conservation test
+    below could only be written with a tolerance wide enough to hide real errors.
+  - **Shields:** an entity with an active shield is charged the summed share of the disc
+    that its occupied cells cover, under the same `CanTakeHit`/`Break`/`TakeHit` rules as
+    today.
+    - If the shield absorbs, no cell of that entity takes anything.
+    - If not, it breaks and the cells take their shares.
 
-    Today every shield in radius pays the full damage (`:505-513`). Charging the reaching
-    share makes the shield pay only for what arrives, which is consistent with
-    "omnidirectional": the reserve has no facings, but it only pays for energy that
-    reaches the ship.
-  - **Cost:** at most `N × candidates × N_cells`, about 256 × 3 × 128 ≈ 100k slab tests per
-    detonation, once per detonation and never per tick. The lane buffer comes from
-    `ArrayPool`.
+    Today every shield in radius pays the full damage (`:505-513`). Charging the covered
+    share makes the shield pay only for what reaches the ship, which is consistent with
+    "omnidirectional": the reserve has no facings, but it is not charged for energy that
+    went past the hull.
+  - **Cost:** `candidates × (2·rCells + 2)²` overlap evaluations, about 3 × 27² ≈ 2k for a
+    25-unit blast at the default cell size, once per detonation and never per tick. No
+    allocation: the loop writes nothing but the per-cell absorption.
+  - **Accepted loss.** Interior armour no longer shadows the cells behind it, because
+    nothing is occluded within an area. A bulkhead protects its own cell and no other. The
+    ray model bought that shadowing, and the operator cut the ray model. Falloff toward the
+    rim is F12-7, not this cut.
   - **HitProbability and Inspect** are unchanged:
     - A contact or delayed blast still needs the shot to hit, so the same forecast
       applies.
@@ -2450,8 +2466,10 @@ rotation, while its march and its even split are left untouched until 12.3.
       still reports the direct-hit number for it. That is pre-existing, and AI gating on it
       is recorded as F12-5.
 - **Authority map:**
-  - Owner: `FireControl.Detonate` owns blast damage. `Entity.Absorb` owns per-cell
-    absorption, and `Lane` owns traversal, both shared with 12.3.
+  - Owner: `FireControl.Detonate` owns blast damage and the disc's coverage.
+    `Entity.Absorb` owns per-cell absorption, shared with 12.3. `Lane` owns traversal and
+    is a direct-hit function only; a blast calls it just once, for the delayed fuse's
+    point, on the walk 12.3 already performs.
   - Inputs:
     - world P, radius, damage and type;
     - each entity's position, facing, hull, armour and occupancy at the detonation tick;
@@ -2468,24 +2486,30 @@ rotation, while its march and its even split are left untouched until 12.3.
     contact and delayed hits from `Apply`.
   - Deletion line: `Splash` and the label read are deleted before `Detonate` is called.
 - **Verification:**
-  - `ExternalBlastWastesMostOfItsEnergy`: a proximity blast outside a hull delivers total
-    armour + item + hull damage well below `damage`. The expected share is the hull's
-    angular size over 2π, computed by the test.
-  - `InternalBlastDeliversIt`: the same blast at the hull's centre delivers far more, and
-    damages interior items that an external blast cannot reach.
-  - `BulkheadsShieldTheCompartmentBehindThem`: a ring of armour cells between the
-    detonation point and an item leaves the item untouched while the armour holds, and
-    damaged once the armour is thin.
+  - `TheDiscIsConservedOverTheGrid`: over a solid hull large enough to contain the disc,
+    the total damage delivered equals `damage` within float tolerance, at several radii
+    including one smaller than a cell and one centred on a cell corner. It kills a
+    sampling approximation, a wrong normalizer, and a bounding box that clips the disc.
+  - `EachCellTakesItsShareOfTheDisc`: on a solid hull, the damage on a named cell equals
+    `damage × overlap / (π r²)`, with the overlap computed independently by the test
+    (fine numeric integration). It kills an even split over the covered cells, which is
+    what today's Splash does.
+  - `ExternalBlastWastesMostOfItsEnergy`: a proximity blast beside a hull delivers total
+    armour + item + hull damage well below `damage`. The expected share is the disc's
+    overlap with the schematic, computed by the test.
+  - `InternalBlastDeliversIt`: the same blast deep inside the hull delivers nearly all of
+    `damage`, and damages interior items an external blast of the same radius cannot reach.
   - `PenetratorBurrowsBeforeItBursts`: a delayed-fuse hit with penetration 2 into the
     enclosed-cockpit fixture damages the cockpit, while a contact-fuse hit with the same
-    stats does not.
-  - `BlastFromPortDamagesPort`: facings include |fx| > |fy|. It is the successor of
-    `SplashDamagesTheSideTheBlastCameFrom`, with the same independent expectation.
-  - `ABlastRayHitsOneHull`: two ships in line. The near ship shadows the far one along the
-    rays it catches.
-  - `ShieldPaysForWhatReachesIt`: a shield in radius is charged the reaching share, not
+    stats does not. It also pins Q12-8: the armour the burrow passes through absorbs
+    nothing, so the cockpit's share is the full area share of its own cell.
+  - `ABlastDamagesTheCellsNearestIt`: a blast to port damages port cells and leaves
+    starboard cells untouched, at facings including |fx| > |fy|. It is the successor of
+    `SplashDamagesTheSideTheBlastCameFrom` and `SplashIsDirectional`, and it is what pins
+    `ToSchematicPoint`'s handedness.
+  - `ShieldPaysForWhatReachesIt`: a shield in radius is charged the covered share, not
     the whole blast. `SplashShieldAbsorptionDrainsTheReserve` and
-    `SplashBreaksUnabsorbedShield` are rewritten to the reaching share, with the expected
+    `SplashBreaksUnabsorbedShield` are rewritten to the covered share, with the expected
     amounts recomputed rather than loosened.
   - `LabelsDoNotDecideBehaviour`: a weapon labelled `Airburst` with no fuse resolves as a
     direct hit, and a weapon with `Fuse = Proximity` and no label detonates.
@@ -2523,6 +2547,20 @@ Ruled 2026-09-22 (the words are recorded under **Rulings**):
 - **Q12-2: A**, spread is width.
 - **Q12-3: A**, the lane remainder goes into the hull where the lane ends (direct hits).
 - **Q12-4: A**, `ShotOutcome.Aimed` is deleted.
+- **Q12-6: no.** Operator: "12-6, nope". No catalog test ties a label to behaviour.
+  `WeaponModifiers` stays authored metadata that nothing checks and nothing reads in the
+  simulation, and a weapon whose label disagrees with its data is authoring's business.
+- **Q12-7: dissolved, not answered.** It asked where a blast ray's remainder goes. With
+  blasts as areas there are no rays and no remainder to route, so the question has no
+  subject. The ray model's shadowing goes with it (see **Accepted loss** in 12.4).
+- **Q12-8: A**, nothing is absorbed along the burrow. The operator asked for the reasoning
+  and did not object to the recommendation. A weapon with a blast radius spends its damage
+  in the blast, the burrow is travel rather than damage, and penetration stays a
+  reach decision: how deep the fuse point can sit, not a damage budget. This does not
+  collide with "armour absorbs first": on a direct hit, armour still absorbs down the lane
+  (12.3), and against a penetrator, armour protects by absorbing its own cell's share of the
+  blast and by the reach gate. The consequence to watch when F12-2 tunes penetration is
+  that a penetrator with reach pays nothing for the plate it crosses.
 
 Open:
 
@@ -2531,36 +2569,6 @@ Open:
   - **Recommended:** a follow-up after 12.3. It would be a presentation read of `Silhouette`
     and `Lane`, the way Inspect is: for each revealed item, is it first in some lane of the
     current shadow. It belongs on the target-item cycling UI.
-- **Q12-6. Should the catalog test enforce labels that name a behaviour?**
-  - **A:** extend `ShippedCatalogOpensAndGeneratesAnArmedHull` (7.4) with two checks:
-    - `Airburst` label ⇔ `Fuse == Proximity`, which holds vacuously today;
-    - `Incendiary` label ⇔ `DamageType == Thermal`, which holds on every shipped weapon
-      **(probe)**.
-
-    `ArmorPenetrating` stays out until F12-2 decides what counts as a penetrator, because
-    today three weapons with penetration 0.25 carry no AP label.
-  - **B:** no check. Labels are free text.
-  - **Recommended: A.** A label is shorthand for behaviour, and a label that disagrees with
-    the weapon is a lie on the schematic. The test keeps them honest without letting the
-    label own anything.
-- **Q12-7. Where does the remainder go when a blast ray that started inside a hull leaves
-  it?** The ruling says rays that leave the hull lose their remainder. For a ray that
-  starts inside, the hull's structure then gets energy only from rays that end in metal at
-  r. A contained blast with a radius larger than the hull damages armour and items but
-  barely touches `Hull.Durability`, which is what kills ships (`Entity.cs:491`).
-  - **A:** the literal rule: every ray that leaves loses its remainder.
-  - **B:** a ray that *starts* in metal (a contact or delayed detonation inside the hull)
-    gives its exit remainder to the hull, while rays that enter from outside lose theirs.
-  - **Recommended: B.** It delivers the stated purpose, "an internal detonation delivers
-    it", while keeping the external-airburst waste and the bulkheads.
-- **Q12-8. Does a penetrator's burrow absorb along the way?**
-  - **A:** the burrow is geometry only. Penetration sets how deep the fuse point goes, and
-    the full damage detonates there.
-  - **B:** the burrow walks like a direct-hit lane (armour, then item), and only the
-    remainder detonates.
-  - **Recommended: A.** Penetration is already the stat that says whether it gets through.
-    Charging the armour on the way in as well would make the plate count twice, and would
-    blunt the "damage vulnerable internals" purpose the operator named.
 
 ### Follow-ups recorded, not in this cut
 
@@ -2579,6 +2587,14 @@ Open:
 - **F12-6. Mine's blast inputs.** The prefab `BlastRange` and the arming OverlapSphere
   (`Mine.cs:69-78`, `:99`) are presentation-side (Cut 4 Q7). Mine has no catalog weapon
   record carrying `Fuse`/`BlastRadius`. It can move when it ships (R9).
+- **F12-7. Blast falloff toward the rim.** Every cell takes its area share flat, so a cell
+  at the rim is hurt as hard per unit of area as the one under the fuse. A radial falloff is
+  a tuning decision for the same pass that authors radii, and it changes only the weight
+  inside the integral, not the owner.
+- **F12-8. Blasts do not shadow.** Nothing inside an area is occluded, so a bulkhead
+  protects only its own cell, and two ships caught by one blast do not shade each other.
+  This is the accepted cost of areas over rays. Reopen it only if play shows interiors are
+  too soft.
 - **Behaviors.CauseDamage** (`Behaviors/Behaviors.cs:62-73`) writes durability and
   `HullDamage` without `Absorb`. It is self-damage, not a hit, and is left alone.
 - **Orphaned `Airburst*` YAML** in nine weapon prefabs. It is harmless, and Unity drops it
@@ -2592,8 +2608,8 @@ Open:
 | 12.1 | ~15 (two frame copies, Aimed plumbing) | ~6 (`ToSchematic`) | no behaviour change |
 | 12.2 | ~65 (HullKernel, WeightedPick, POnHull, live direction, bounding extent, HUD estimate, stale comments) | ~95 (TravelDirection, Silhouette, CommitProbability, lateral draw, Lane, 5 PendingShot/Outcome fields) | 6d kernel tests rewritten (~−150/+220) |
 | 12.3 | ~80 (DamageSchematic, ApplyHit) | ~45 (Absorb, DamageHull, lane orchestration) | 2 FireAuthority tests replaced; ~6 new |
-| 12.4 | ~45 (Splash, label read, BurstRadius plumbing) | ~70 (Detonate, point transforms, `WeaponFuse`, slot 30) | Splash tests rewritten; ~8 new |
-| **Net Aetheria src** | **~205** | **~215** | one persisted slot added (nullable), one renamed; no targets, dependencies or formats; CultMath gains 2 functions |
+| 12.4 | ~45 (Splash, its half-hull footprint, the label read, BurstRadius plumbing) | ~60 (Detonate, circle-square overlap, point transforms, `WeaponFuse`, slot 30) | Splash tests rewritten; ~7 new. Areas need no ray loop, so this is smaller than the ray draft |
+| **Net Aetheria src** | **~205** | **~205** | one persisted slot added (nullable), one renamed; no targets, dependencies or formats; CultMath gains 2 functions |
 
 The net is roughly flat: the positive part buys the bearing-aware scatter, sequential
 absorption, and a blast model that replaces a half-hull approximation. The rest is
