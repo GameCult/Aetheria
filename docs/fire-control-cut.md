@@ -1852,23 +1852,23 @@ behaviour and one was a duplicated formula:
 
 ## Cut 12: shots arrive edge-on
 
-Date: 2026-09-22. Imagination pass. Anchors are against `origin/codex/item-provenance`
-`cd846916` (Cuts 10 and 11 merged; `codex/fire-control-10` has the same tree). Claims marked
-**(probe)** were measured in a scratch copy of the test project
-(`scratchpad/cut12probe`, the Cut 11 fixture plus probe methods) and a lane-model
-script (`scratchpad/exposure.py`). The shipped catalog was read from a copy of
-`GameData/Aetheria.cc`. Claims marked **(read)** come from source at the cited anchor.
+Date: 2026-09-22. Imagination pass, revised the same day after the second round of rulings
+below. Anchors are against `origin/codex/item-provenance` `cd846916` (Cuts 10 and 11 merged).
+Claims marked **(probe)** were measured in a scratch copy of the test project
+(`scratchpad/cut12probe`, the Cut 11 fixture plus probe methods) or by a lane-model script
+(`scratchpad/exposure.py`), in both cases against a copy of `GameData/Aetheria.cc`. Claims
+marked **(read)** come from source at the cited anchor.
 
 ### The defect
 
-Where a hit lands is decided as if every shot drops in from overhead.
+The impact cell is chosen as if every shot drops in from overhead.
 `FireControl.HullKernel` (`FireControl.cs:558-578`) throws a 2D Gaussian at the top-down
-schematic around the aim point. `POnHull` (`:233-234`), `WeightedPick` (`:601-611`) and
-`ResolveAimPoint` (`:583-589`) read it. The shooter's bearing appears in none of them.
-**(probe)** `Probe3_BearingBlind`: pOnHull is `0.8748` at target facings (0,1), (1,0)
-and (.6,.8) alike.
+schematic, centred on the aim point. `POnHull` (`:233-234`), `WeightedPick` (`:601-611`) and
+`ResolveAimPoint` (`:583-589`) all read that kernel, and none of them takes the shooter's
+bearing. **(probe)** `Probe3_BearingBlind`: pOnHull is `0.8748` at target facings (0,1),
+(1,0) and (.6,.8) alike.
 
-Bearing only matters after the cell has been chosen. `Entity.ApplyHit` (`Entity.cs:381-409`)
+Bearing is only used after the cell has been chosen: `Entity.ApplyHit` (`Entity.cs:381-409`)
 walks penetration from that cell, and `Splash` (`FireControl.cs:515-527`) picks the half of
 the hull that faces the blast. So armour facing does nothing. A wedge whose bow carries all
 the plate gets hit in its soft stern from dead ahead. The game is planar (R7), so a shot
@@ -1876,171 +1876,250 @@ travels in the plane and should arrive edge-on.
 
 The damage rule makes it worse. `Entity.DamageSchematic` (`Entity.cs:336-374`) splits the
 damage evenly over every cell of the hit shape. **(probe)** `Probe1`: 30 damage with
-penetration 3 into column 1 of the 5x3 fixture, with 10 armour on the front cell only. Each
-of the three path cells receives 10. The plate absorbs its 10, the item behind the plate
-still takes 10, and the stern cell passes 10 to the hull. The item gets exactly as much as
-it would with no plate in front of it.
+penetration 3 into column 1 of the 5x3 fixture, with 10 armour on the front cell only, puts
+10 on each of the three path cells. The plate absorbs its 10, the item behind it still takes
+10, and the stern cell passes 10 to the hull. The item receives exactly what it would have
+with no plate in front of it.
 
 ### Rulings (operator, 2026-09-22)
 
+First round:
+
 - **Model adopted: throw the dart at the silhouette the shooter sees.** Scatter is 1D and
   perpendicular to the bearing. Project the hull's occupied cells onto the lateral axis and
-  throw a 1D Gaussian at that projection, centred on the aim point's projection, with the
-  same sigma rule. pOnHull is the Gaussian's mass on that shadow. Depth comes from
+  throw a 1D Gaussian at that projection, with the same sigma rule, centred on the aim
+  point's projection. pOnHull is the Gaussian's mass on that shadow. Depth comes from
   geometry: walk the ray in from outside along the bearing, and the first occupied cell is
   the impact cell. Penetration continues along the same ray.
-- Operator, 2026-09-22: "No, you're right, this is fine. Armor absorbs first. Shields
-  remain omnidirectional. Map it."
+- Operator: "No, you're right, this is fine. Armor absorbs first. Shields remain
+  omnidirectional. Map it."
   - **Armor absorbs first.** Damage runs down the ray in order. At each cell the armour
     absorbs first, then the item, and only the remainder travels on. The even split over
     the hit shape goes, for the penetration path and the DamageSpread expansion alike.
   - **Shields remain omnidirectional.** The shield stays one whole-ship reserve with no
-    facings. Nothing in this cut touches `Shield`.
-- **Rejected:** letting some fraction of shots arrive top-down so cockpit sniping
-  survives. The operator accepted that cockpit shots become positional. A cockpit can be
-  hit only when it is exposed from your bearing, when you flank to a bearing that exposes
-  it, or when penetration reaches it with what the armour did not absorb. Cockpit
-  destruction is still instant death (`Entity.cs:494`).
-- **Not ruled:** a HUD showing which target items are exposed from the current bearing.
-  See Q12-5.
+    facings.
+- **Rejected:** any fraction of shots arriving top-down to preserve cockpit sniping. The
+  operator accepted that cockpit shots become positional: the cockpit must be exposed from
+  your bearing, or you must flank, or penetration must reach it with what the armour did not
+  absorb. Cockpit destruction is still instant death (`Entity.cs:494`).
 
-### What the probes found that the rulings did not know
+Second round:
 
-- **Penetration does nothing in the shipped catalog.** **(probe)** `Probe2`: the largest
-  authored Penetration is `0.25` (Autocannon, SRMM72, LRMM72). `ApplyHit` walks only when
+- **Q12-1 = B: the bearing that places a hit is taken at Commit.** Operator: "Of course we
+  must use the target's facing at arrival, tanking a hit where you have armor is basic
+  maneuvering." After Self explained the commit horizon: "at commit." The target's facing
+  therefore stays live until Commit, as deviation already does. See **Bearing timing**.
+- **Q12-2 = A: spread is width.** It becomes 2n+1 parallel lanes, and each lane is absorbed
+  from its own facing cell. Operator: "Spread is width makes sense for shotguns, but what
+  about explosive penetrators? Burrowing in before splashing radially would be a satisfying
+  way to damage vulnerable internals." That remark became sub-cut 12.4.
+- **Q12-3 = A (direct hits):** a lane's remainder goes into the hull wherever the lane
+  ends.
+- **Q12-4 = A:** delete `ShotOutcome.Aimed`.
+- **Penetration retune is a follow-up.** Operator: "Retuning penetration is a follow up."
+  See F12-2. Until it lands, interior cells are reached only by blasts.
+- **The detonation primitive (12.4).** A blast at a schematic point P with radius r casts
+  rays radially from P out to r. Damage splits evenly across the rays, and each ray is
+  absorbed in order (armour, then item, then hull) through the cells it crosses, using the
+  12.3 lane walker. **Rays that leave the hull lose their remainder**, unlike direct-hit
+  lanes. An external airburst therefore wastes most of its energy, an internal detonation
+  delivers it, and interior armour acts as bulkheads. Where P sits:
+  - proximity fuse: the intercept point outside the hull (today's airburst);
+  - contact fuse: the impact cell;
+  - delayed fuse or penetrator: the end of the penetration walk.
+
+  12.4 replaces `FireControl.Splash` and its half-hull footprint, which absorbs F12-1.
+- **WeaponModifiers are labels, not behaviour.** Operator: "The AP modifier was merely
+  there as a label. Like the Incendiary modifier which doesn't actually determine that the
+  weapon does Thermal damage, but exists to mark weapons that do. Modifiers show up in
+  schematics as a shorthand for the weapon type." Detonation behaviour comes from weapon
+  data fields only.
+- **Not ruled:** a HUD showing which target items are exposed from the current bearing
+  (Q12-5).
+
+### What the probes found
+
+- **Penetration does nothing in the shipped catalog.** **(probe)** The largest authored
+  Penetration is `0.25` (Autocannon, SRMM72, LRMM72). `ApplyHit` only walks when
   `penetration > .5f` (`Entity.cs:392`), and `WeaponData.Penetration` is inspector-ranged
-  `0..1` (`Behaviors/Weapon.cs:28`). Today, every hit in the game damages one cell plus its
-  DamageSpread ring.
-- **LonginusX's cockpit cannot be reached edge-on, even with a full cell of
-  penetration.** **(probe)** `exposure.py` walks lanes 0.01 cells apart at every whole
-  degree of bearing over the real 6x17 schematic. The ControlModule (cockpit) and
-  AetherDrive are never the first cell in a lane. They are still never reached at
-  penetration 0.25 or 1.0, and are first reached at 2.0. The Turret hull's ControlModule is
-  also enclosed. Under this model, with the current content, weapon fire cannot kill a
-  LonginusX through its cockpit. Splash's half-hull footprint is the only path left (see
-  12.3). This follows from the accepted ruling and does not re-open it. It is recorded
-  because it may change how the operator answers Q12-2, and because Penetration may need
-  retuning (follow-up F12-2).
+  `0..1` (`Behaviors/Weapon.cs:28`).
+- **LonginusX's cockpit cannot be reached edge-on until penetration reaches about two
+  cells.** **(probe)** `exposure.py` walked lanes 0.01 cells apart at every whole degree of
+  bearing over the real 6x17 schematic. The ControlModule (cockpit) and the AetherDrive are
+  never the first cell in any lane. They are still never reached at penetration 0.25 or
+  1.0, and are first reached at 2.0. The Turret hull's ControlModule is enclosed too.
+  Until F12-2 lands, the only way to kill a LonginusX through its cockpit is a blast
+  delivered inside the hull (12.4).
 - **DamageSpread is live content.** **(probe)** GT 3K authors 1-3.25, plight 1-3.3, and
   pswarm and scorched void policy 0.9-1.5. `Shape.Expand` is an 8-neighbour ring
-  (`ItemData.cs:164-174`), so spread 3 gives a 7x7 footprint. **(probe)** `Probe1`, third
-  case: spread 1 with penetration 3 put an equal `4.29` on each of seven cells. How spread
-  composes with the ray is therefore a real behaviour question (Q12-2), not a formality.
-- **The handedness history is not what the brief says.** `right = float2(forward.y,
-  -forward.x)` has not changed since `b7743789` and `482c47bf`
-  (`git log -S` over `ServerShared`). No sign error ever shipped. What survived was the
-  *mutant* `-forward.x` → `forward.x`, which is invisible when |fy| > |fx|. Cut 11 pinned
-  it with `SplashDamagesTheSideTheBlastCameFrom`. The formula is duplicated at
-  `Entity.cs:394-396` and `FireControl.cs:516-520`, and that duplication is what 12.1
-  collapses.
-- **The code holds two different cell conventions.** The kernel,
-  `Shape.CenterOfMass` (`ItemData.cs:121-123`) and `ResolveAimPoint` place cell *i* at the
-  integer point *i*. `ApplyHit` starts at `cell + .5` and truncates (`Entity.cs:398-404`),
-  which treats cell *i* as the square [i, i+1). **(probe)** `Probe1`, second case: the
-  0.5-step march on bearing (.8,-.6) from (1,2) went (1,2)→(2,1). It skipped (2,2), which
-  the ray actually crosses. Both the convention and the sampled march die in 12.3.
-- **Nothing reads `ShotOutcome.Aimed`.** `rg "\.Aimed\b"` over `Assets/Scripts` and
-  `tests` finds only `FireControl.cs:292` (PendingShot, which stays), `:432`, `:435`
-  and `:481`, and `FireControlCut7Tests.cs:190` (which also reads PendingShot). No
-  presentation, AI or test reads the outcome flag. See Q12-4.
-- **`Apply` reads live positions at arrival** (`FireControl.cs:463-465`). The committed
-  outcome decides the cell, but the direction the damage travels is decided later, from
-  wherever the two ships are at arrival. That is an R4 leak, and it is Stryker's
-  unreached L464/L465. 12.2 removes it.
+  (`ItemData.cs:164-174`), so spread 3 produces a 7x7 footprint today.
+- **No shipped weapon carries a blast, or the Airburst label.** **(probe)** `Probe4`:
+  every `WeaponItemData.AirburstRange` is null, and no `WeaponModifiers` includes Airburst.
+  The labels in use are RapidFire, Cluster and Incendiary. All three Thermal weapons carry
+  Incendiary, and no non-Thermal weapon does. No weapon carries ArmorPenetrating,
+  including the three with penetration 0.25. So the only live consequence of demoting the
+  Airburst label is the code path at `FireControl.cs:282`.
+- **The handedness history.** `right = float2(forward.y, -forward.x)` has not changed since
+  `b7743789`/`482c47bf` (`git log -S`). No sign error ever shipped. What survived was the
+  *mutant* `-forward.x` → `forward.x`, which is invisible when |fy| > |fx|, and Cut 11 pinned
+  it. The formula is duplicated at `Entity.cs:394-396` and `FireControl.cs:516-520`, and 12.1
+  collapses the two copies.
+- **The code has two cell conventions.** The kernel, `Shape.CenterOfMass`
+  (`ItemData.cs:121-123`) and `ResolveAimPoint` put cell *i* at the integer point *i*.
+  `ApplyHit` instead starts from `cell + .5` and truncates (`Entity.cs:398-404`), which
+  treats cell *i* as the square [i, i+1). **(probe)** On bearing (.8,-.6) from (1,2), the
+  0.5-step march went (1,2)→(2,1) and skipped (2,2), a cell the ray actually crosses.
+- **Nothing reads `ShotOutcome.Aimed`.** `rg "\.Aimed\b"` finds only `FireControl.cs:292`
+  (PendingShot, which stays), `:432`, `:435` and `:481`, plus `FireControlCut7Tests.cs:190`
+  (which also reads PendingShot).
+- **`Apply` reads live positions at arrival** (`FireControl.cs:463-465`), which is an R4
+  leak and Stryker's L464/L465. 12.2 removes it.
+- **No simulation code places the schematic in the world.** **(read)** `SchematicCellSize`
+  (`Settings.cs:255`, default 2) is read only by `PSpread`, and ApplyHit and Splash convert
+  directions only. A blast needs world↔schematic *points*, so 12.4 names that rule.
+  `HullCollider` is a physics surface only (`Gameplay/HullCollider.cs:4-8`).
+- **Renaming slot 29 is compatible drift, not a break.** **(probe + read)** The catalog
+  embeds each type's schema descriptor, including `{"slot":29,"name":"AirburstRange",
+  "type":"System.Nullable<System.Single>"}`, and the wire format is positional
+  (`Probe5_Wire`: `[…,12.5,50,20]`, with no field names on the wire). On a content-hash
+  mismatch, `CultCache.ResolveSchema` (`CultCache.cs:590-670`) runs `CompareSchemaShapes`
+  (`:672-744`), which compares slot type, reference, cardinality, target schema, name
+  semantics and index alias, **not the member name**. So renaming slot 29 opens as
+  `CompatibleDrift` with warnings. A new nullable slot opens with a `defaulted_missing_slot`
+  warning. The warnings persist until the catalog is next written with the new descriptor.
+  Readers of the field: `FireControl.cs:284` and `FireControlCut6Tests.cs:81-101, 249, 268,
+  279`. `tools/AetherDb` has none. The `AirburstRange:` lines in nine weapon prefabs
+  (for example `Flak Cannon.prefab:65`) are orphaned YAML from a deleted MonoBehaviour field:
+  no C# field of that name exists outside `ItemData.cs:498`.
 
 ### Frame, geometry and the bearing (the rules every sub-cut reads)
 
-- **Schematic frame, one owner.** `Entity.ToSchematic(float2 worldPlanar) → float2`, with
-  x = starboard and y = bow: `forward = normalize(Direction)`,
-  `right = float2(forward.y, -forward.x)`, result `float2(dot(v, right), dot(v, forward))`.
+- **Schematic frame, one owner.** `Entity.ToSchematic(float2 worldPlanar) → float2` maps
+  world to schematic with x = starboard and y = bow: `forward = normalize(Direction)`,
+  `right = float2(forward.y, -forward.x)`, returning `float2(dot(v, right), dot(v, forward))`.
   This is the transform ApplyHit and Splash already use, with the same sign. The Cut 11
-  fixture's comment ("schematic x runs port (0) to starboard (4)") and the LonginusX
-  schematic agree with it: the long nose is at y 11-16, the reactor and radiators at y 0-3.
-  Every world→schematic conversion goes through this function. Operator check: in the
-  schematic display, LonginusX's nose points to the bow.
-- **A cell is the unit square centred on its integer coordinate.** That matches
-  `CenterOfMass`, the aim point and the old kernel. The `+ .5` convention dies with
-  ApplyHit.
-- **Bearing.** `FireControl.Bearing(Weapon, Entity source, Entity target) → float2` returns
-  the schematic-frame unit vector the shot travels along. The world flight line is
-  `PredictedIntercept(weapon, source, target) - source.Position`, taken planar. That is the
-  same intercept the AI aims with (Cut 3's one function), and for a beam it reduces to the
-  target position. The result goes through `target.ToSchematic`. When the line is shorter
-  than 1e-6, it falls back to world +z, which is today's `Apply` fallback (`:463`).
-  `HitProbability`, `Inspect` and `Fire` all call this one function. Fire freezes the
-  result (see **Bearing timing** below).
-- **Lateral axis** `ℓ = float2(-b.y, b.x)`. Its sign is fixed here once, and only
-  `Silhouette` and the lane walk read it.
-- **Shadow.** Each occupied cell *c* projects to the half-open interval
-  `[dot(c,ℓ) - h, dot(c,ℓ) + h)`, where `h = (|ℓ.x| + |ℓ.y|) / 2`. So h is 0.5 on an axis
-  and 0.707 on a diagonal. The shadow is the sorted, merged union of those intervals.
-  Merging matters because adjacent cells overlap on any off-axis bearing, and summing
-  without merging double-counts. **Why squares and not points:** a line at lateral offset
-  *s* crosses square *c* exactly when *s* falls in *c*'s interval. So "s lies in the
-  shadow" is the same event as "this lane has metal". pOnHull is exactly the probability
-  of that event, and placement drawn from the shadow always lands on metal. R3 then holds
-  by construction, not by approximation.
+  fixture comment and the LonginusX schematic (nose at y 11-16, reactor and radiators at
+  y 0-3) agree with it. 12.4 adds the point forms `ToSchematicPoint(float2 worldPlanar) =
+  ToSchematic(worldPlanar - Position.xz) / SchematicCellSize + Shape.CenterOfMass` and its
+  inverse `ToWorldPoint`, so the entity's position is the schematic's centre of mass.
+  Operator check: the schematic display shows LonginusX's nose at the bow, and blasts land
+  where the model shows them.
+- **A cell is the unit square centred on its integer coordinate.** This matches
+  `CenterOfMass`, the aim point and the old kernel. The `+ .5` convention dies with ApplyHit.
+- **Travel direction.** `FireControl.TravelDirection(Weapon, Entity source, Entity target) →
+  float2` is the planar world direction of `PredictedIntercept(weapon, source, target) -
+  source.Position`. That intercept is Cut 3's one function, and for a beam it reduces to the
+  target position. Below a length of 1e-6 it falls back to world +z, which is today's
+  `Apply` fallback (`:463`). It belongs to the shot: Fire freezes it into `PendingShot`.
+- **Bearing.** `bearing = normalize(target.ToSchematic(travelDirection))`. This is the only
+  place a world direction meets a target's facing.
+- **Lateral axis** `ℓ = float2(-b.y, b.x)`. The sign is fixed once, here.
+- **Shadow.** Each occupied cell *c* projects to `[dot(c,ℓ) - h, dot(c,ℓ) + h)`, with
+  `h = (|ℓ.x| + |ℓ.y|) / 2`. The shadow is the sorted and merged union of those intervals;
+  merging matters because off-axis intervals overlap. Squares are used rather than points
+  because a line at lateral offset *s* crosses square *c* exactly when *s* falls in *c*'s
+  interval. "s lies in the shadow" is therefore the same event as "this lane has metal", so
+  pOnHull is exactly that event's probability, and placement drawn from the shadow always
+  lands on metal.
 - **`Silhouette(Entity target, HullData hull, EquippedItem aimed, float2 bearing, float
   precision)`** replaces `HullKernel` and is the one function. It returns the merged
-  intervals, `a = dot(aimPoint, ℓ)`, sigma, `Span = hi_max - lo_min` and
+  intervals, `a = dot(aimPoint, ℓ)`, sigma, `Span = hi_max - lo_min`, and
   `POnHull = Σ_k Φ((hi_k - a)/σ) - Φ((lo_k - a)/σ)`, where `Φ(z) = ½(1 + erf(z/√2))`.
-  `aimPoint` comes from `ResolveAimPoint`, unchanged: the aimed item's cell centroid,
-  otherwise `CenterOfMass`. Its depth plays no part, which is the ruling. `Sigma` keeps its
-  rule (`FireControl.cs:549-550`): same floor, same reciprocal. Its comment must be
-  rewritten. The discrete-sum undershoot that justified the floor is gone with an exact 1D
-  integral, so the floor is now a design minimum on group tightness (see F12-3).
-  Allocation is allowed only on the ungated path. The work is one interval array of
-  length N (≤128 on the shipped hulls) plus a sort.
-- **PSpread** (`:221-227`) keeps its formula, but its half-extent becomes
-  `.5f * silhouette.Span * SchematicCellSize`, replacing `max(Width, Height)` (`:224`).
-  The same silhouette feeds both factors, so PSpread and pOnHull cannot disagree about
-  the target's size.
-- **Lateral draw at Commit.** One `NextFloat` u (the draw `WeightedPick` used to take).
-  Walk the cumulative interval mass to `u · POnHull` to pick interval k, then invert inside
-  it: `s = a + σ√2 · erfinv(2p - 1)`, with p the Φ-value reached. If float error puts s
-  outside [lo_k, hi_k), clamp it into the interval. That clamp guards rounding and is not
-  an invariant. The hit roll stays the first draw, so the stream keeps its shape.
-- **Lane walk** `Lane(HullData hull, float2 b, float s)`. It returns the occupied cells
-  whose interval contains s, each with slab entry and exit parameters along b. They are
-  ordered by entry (ties broken by `dot(c, b)`, then cell index). "Outside" means t → -∞
-  along b, and no grid bounds are involved. The first element is the impact cell.
-  Continuity: the ray stays in metal while `next.entry ≤ current.exit + 1e-4`, and the
-  first gap ends the lane. That keeps today's rule (`Entity.cs:401`, the walk stops at the
-  first unoccupied cell). The walk is exact slab traversal. It replaces the 0.5-step
-  sampling that skips cells.
-- **Penetration along the lane.** A cell is reached when
-  `entry - impact.entry < penetration`, measured in cells. The impact cell is always
-  reached, and penetration ≤ 0 means the impact cell only. The `> .5f` threshold is
-  deleted. This is geometry: a ray that grazes a corner reaches the next cell after a
-  short chord.
+  `aimPoint` comes from `ResolveAimPoint` unchanged; only its lateral projection matters.
+  `Sigma` keeps its rule (`FireControl.cs:549-550`). The 9.2 rationale in its comment is
+  gone, because an exact 1D integral does not undershoot, so rewrite it: the floor is now a
+  design minimum on group tightness (F12-3). The function allocates only on the ungated
+  path: one interval array of length N (≤128 on shipped hulls) plus a sort.
+- **PSpread** keeps its formula, but takes values instead of a `Weapon`:
+  `PSpread(float spread, float span, float range, float cellSize)`. The half-extent becomes
+  `.5f * span * cellSize` instead of `max(Width, Height)` (`:224`). PSpread and pOnHull read
+  one silhouette, so they cannot disagree about the target's size.
+- **Lateral draw.** One `NextFloat` u, taken after the hit roll (the draw `WeightedPick` used
+  to take). Walk the cumulative interval mass to `u · POnHull` to select interval k, then
+  invert inside it with `s = a + σ√2 · erfinv(2p - 1)`. Clamp into [lo_k, hi_k) to absorb
+  rounding. The clamp is a guard, not an invariant.
+- **Lane walk** `Lane(HullData hull, float2 b, float s, buffer)` collects the occupied cells
+  whose interval contains s, each with slab entry and exit parameters `t` along b, where
+  `t = dot(point, b)`. Cells are ordered by entry, with ties broken by `dot(c, b)` and then
+  cell index. It is exact slab traversal and replaces the 0.5-step sampling. The result goes
+  into a caller-supplied pooled buffer (`ArrayPool<LaneCell>.Shared`; netstandard2.1 has
+  `System.Buffers`). Two callers clip the result:
+  - A direct hit starts from t → -∞ (outside), so its first element is the impact cell.
+  - A blast ray starts at `t0 = dot(P, b)` and stops at `t0 + r`.
 
-**Bearing timing.** The map specifies freezing at Fire, with Q12-1 open. `PendingShot`
-gains `float2 Bearing`, frozen at Fire (`FireControl.cs:286-308`) from `Bearing(...)`
-beside `Precision`. `Commit` builds the silhouette from `shot.Bearing` and never calls
-`Bearing`. `ShotOutcome` gains `float Lateral`, the committed s. `Apply` walks
-`Lane(hull, shot.Bearing, shot.Outcome.Lateral)` and reads no position.
+  Metal is continuous while `next.entry ≤ current.exit + 1e-4`, and the first gap ends the
+  walk. That keeps today's rule at `Entity.cs:401`.
+- **Penetration along a direct-hit lane.** A cell is reached when
+  `entry - impact.entry < penetration`, in cells. The impact cell is always reached. The
+  `> .5f` threshold (`Entity.cs:392`) is deleted.
 
-Against R4 and R10: pOnHull is priced into PBase at Fire. For HitProbability's pOnHull to
-equal Commit's placement distribution *exactly*, Commit must read the same inputs:
-bearing, aim item, Precision and hull. The last three are frozen or static today, and
-freezing the bearing completes the set. So 6d's premise ("pOnHull depends only on the aim
-point, the hull shape and the frozen Precision, so it folds into PBase at fire time") stays
-true with bearing added to the list. The cost is that a target turning its armour into a
-missile after launch changes nothing. The alternative is Q12-1.
+**Bearing timing (Q12-1 = B).** A shot is split into what the shooter decided and what the
+target is doing:
+
+- **Frozen at Fire:** everything the shooter decided (R10). `PendingShot.PBase` is renamed
+  `PFire` because its meaning changes: it is `Accuracy × PSensor` behind the same gates, and
+  it is 0 when any gate fails. Also frozen: `TravelDirection`, `Precision`, `Aimed`, the
+  weapon's `Spread`, and `FireRange` (the range at Fire, which PSpread reads).
+- **Live until Commit:** everything the target is doing. That was already its position
+  (deviation); now it is also its facing. `Commit` computes, in this order:
+  1. `pDeviation`, as today.
+  2. `bearing = normalize(shot.Target.ToSchematic(shot.TravelDirection))`, from the
+     target's facing at the commit tick.
+  3. `sil = Silhouette(target, hull, shot.Aimed, bearing, shot.Precision)`.
+  4. `p = PFire × pDeviation × PSpread(shot.Spread, sil.Span, shot.FireRange, cellSize) ×
+     sil.POnHull`.
+  5. The one roll against p. On a hit, the lateral draw from `sil`, and the impact cell
+     from `Lane`.
+
+  Steps 2-5 are one function, `FireControl.CommitProbability(PendingShot, float now,
+  out Silhouette)`. The debug HUD calls it, which retires the inline estimate at
+  `ActionGameManager.cs:1317-1318` (`shot.PBase * pDeviation`, which would otherwise be a
+  second, wrong copy of the model).
+- **The outcome freezes the committed geometry** (R4). `ShotOutcome` gains `float2 Bearing`
+  (schematic frame, as committed) and `float Lateral`, and keeps `Cell`. `Apply` walks
+  `Lane(hull, outcome.Bearing, outcome.Lateral)`. After Commit, turning the target changes
+  nothing, and Apply reads no position or facing.
+- **HitProbability and Inspect** report `PFire × PSpread × pOnHull` at the *current*
+  travel direction and facing. That is a forecast, in the same way the HUD already treats
+  deviation. `Inspect.PBase == HitProbability` still holds, because both are the forecast.
+  The hot path still gates first (`:150-159`) and builds the silhouette only after the gates.
+
+What this does to the earlier rules:
+
+- **R3 (one roll, and a hit always lands on metal) still holds.** The factor the roll is
+  charged with, pOnHull at the commit bearing, comes from the same `sil` that placement
+  draws from, in the same call. Placement is exactly consistent with the pOnHull applied,
+  and it always lands on metal. What changes is that HitProbability's number is no longer
+  the exact roll price when the target turns during flight. It is the price only if the
+  target holds its facing, just as it already is only if the target holds its course.
+- **Cut 5's deviation factor keeps its ordering and meaning.** It is still measured at the
+  commit tick against the fire-time projection, and it is still multiplied into p before
+  the single roll. The two silhouette factors join it in the same product. The Cut 7 guard
+  (`p > 0f && shot.Target != null`, `:410`) extends to cover them: when `PFire × pDeviation`
+  is 0, Commit builds no silhouette. Multiplication order has no numerical effect. The guard
+  exists only to skip work.
+- **6d's premise ("pOnHull depends only on the aim point, the hull shape and the frozen
+  Precision, so it folds into PBase at fire time") is retired.** pOnHull now depends on the
+  target's facing, which is live target state like position, so it is priced at Commit.
+  R10 is untouched: every *shooter* stat is still frozen at Fire, and the target's facing
+  was never a shooter stat.
+- **Cut 10 still holds:** gated HitProbability allocates nothing. Commit is not on the
+  hot path.
 
 ### Sub-cut order
 
 | Sub-cut | Repo | Nature | Depends on |
 |---|---|---|---|
-| 12.0 | CultLib | CultMath gains `erf` and `erfinv` (gap filled in its owner) | none |
-| 12.1 | Aetheria | subtraction and frame owner, behaviour-neutral | none |
-| 12.2 | Aetheria | where a hit lands: silhouette, frozen bearing, Apply stops reading positions | 12.0, 12.1, Q12-1, Q12-4 |
-| 12.3 | Aetheria | how damage travels: exact lane walk, sequential absorption, spread lanes | 12.2, Q12-2, Q12-3 |
+| 12.0 | CultLib | CultMath gains `erf` and `erfinv` (a gap filled in its owner) | none |
+| 12.1 | Aetheria | subtraction and frame owner; no behaviour change | none |
+| 12.2 | Aetheria | where a hit lands: silhouette at Commit, Apply stops reading positions | 12.0, 12.1 |
+| 12.3 | Aetheria | how a direct hit travels: exact lane walk, sequential absorption, spread lanes | 12.2 |
+| 12.4 | Aetheria | the detonation primitive, fuse data, the Airburst label demoted; Splash deleted | 12.3, Q12-7, Q12-8 |
 
-Keeping 12.2 and 12.3 apart lets Soul falsify "where it lands" and "what it does
-when it lands" separately. In 12.2, `ApplyHit` survives for one cut with a changed
-signature. It takes a schematic-frame bearing and loses its own rotation. Its march and
-even split are untouched until 12.3.
+The five are kept apart so that Soul falsifies each question on its own: where a shot
+lands, what a direct hit does, and what a blast does. In 12.2, `ApplyHit` survives for one
+more cut with a changed signature: it takes the schematic bearing and loses its own
+rotation, while its march and its even split are left untouched until 12.3.
 
 ---
 
@@ -2048,317 +2127,479 @@ even split are untouched until 12.3.
 
 - **Repo/branch:** `F:\Projects\CultLib`, off current `main`.
 - **Adds:** `math.erf(float)` and `math.erfinv(float)` in
-  `packages/cultmath/src/CultMath/math.cs`, as standard single-precision approximations
-  (for example Abramowitz-Stegun 7.1.26 or a minimax fit for erf, Giles 2010 for erfinv),
-  plus tests in `packages/cultmath/tests/CultMath.Tests`. Neither is an HLSL intrinsic, so
-  there is no shader-parity obligation.
-- **Release:** rebuild the precompiled package with
-  `packages/cultmath/scripts/build-unity-package.ps1`, bump
+  `packages/cultmath/src/CultMath/math.cs`, as standard single-precision approximations (for
+  example Abramowitz-Stegun 7.1.26 or a minimax fit; Giles 2010 for erfinv), with tests in
+  `packages/cultmath/tests/CultMath.Tests`. Neither is an HLSL intrinsic, so there is no
+  shader-parity obligation.
+- **Release:** run `packages/cultmath/scripts/build-unity-package.ps1`, bump
   `unity/org.gamecult.cultmath/package.json` from 0.2.3 to 0.2.4, and tag
-  `cultmath-unity-v0.2.4`. Aetheria then bumps `Packages/manifest.json:56` and the
-  headless `CultLibRoot` pin to the release commit.
+  `cultmath-unity-v0.2.4`. Aetheria then bumps `Packages/manifest.json:56` and the headless
+  `CultLibRoot` pin.
 - **Verification:**
-  - `ErfMatchesReferenceValues`: erf at 0, ±0.5, ±1, ±2, ±3 against tabulated values
-    within 2e-6. Also checks odd symmetry, and that erf(±∞) is ±1.
-  - `ErfinvInvertsErf`: `erf(erfinv(y)) ≈ y` over y ∈ [-0.999, 0.999].
-  - Stryker or the CultLib mutation run, whichever that repo uses. Survivors are triaged
-    by name.
+  - `ErfMatchesReferenceValues`: erf at 0, ±0.5, ±1, ±2 and ±3 matches tabulated values
+    within 2e-6; erf is odd; the limits are ±1.
+  - `ErfinvInvertsErf`: over y ∈ [-0.999, 0.999].
+  - The CultLib mutation run, with every survivor triaged by name.
 
 ### Cut 12.1. One frame owner, and the dead outcome flag
 
-- **Repo/branch:** Aetheria, branch off the merge of Cut 11. Behaviour-neutral: the whole
-  existing suite passes unmodified except where the Q12-4 deletion forces an edit, and
-  none does today.
+- **Repo/branch:** Aetheria, off the Cut 11 merge. No behaviour change.
 - **Deletes first:**
-  - `FireControl.cs:516-520`, Splash's inline frame. It becomes
-    `target.ToSchematic(toTarget)`, normalized, with the existing zero-length fallback kept.
-  - `Entity.cs:394-396`, ApplyHit's inline frame. It becomes `ToSchematic(hitDirection)`.
-  - If Q12-4 = A: `ShotOutcome.Aimed` (`FireControl.cs:702`), the `aimed` parameter of
-    `MakeOutcome` (`:470, :481`), `Commit`'s `aimed` local and flag (`:420, :435`), and the
-    `AimedCells` half of `ResolveAimPoint`'s tuple (`:583-589`). It then returns
-    `float2`, and `CellsOf` stays as its only helper.
-- **Adds:** `Entity.ToSchematic(float2)` as specified above.
+  - The two inline frame copies:
+    - `FireControl.cs:516-520` becomes `target.ToSchematic(toTarget)`, normalized, keeping
+      the zero-length fallback. The whole of Splash dies in 12.4, but the frame owner lands
+      first.
+    - `Entity.cs:394-396` becomes `ToSchematic(hitDirection)`.
+  - `ShotOutcome.Aimed` and its plumbing (Q12-4 = A):
+    - the field, `FireControl.cs:702`;
+    - the `aimed` parameter of `MakeOutcome` (`:470`, `:481`);
+    - `Commit`'s `aimed` local and flag (`:420`, `:435`);
+    - the `AimedCells` half of `ResolveAimPoint`'s tuple (`:583-589`), which now returns
+      `float2`.
+- **Adds:** `Entity.ToSchematic(float2)`.
 - **Verification:**
-  - builds: `Aetheria.Shared` headless; Unity batchmode compile, run by Self because the
-    editor is open for this pass.
-  - tests: all 244, unchanged. `SplashDamagesTheSideTheBlastCameFrom` and
-    `PenetrationMarchIsPlanar` both pin the frame through the new owner.
-  - negative: `rg -n "forward\.y, -forward\.x" Assets/Scripts` finds exactly one hit, in
-    `Entity.cs`. If Q12-4 = A, `rg -n "Outcome\.Aimed|outcome\.Aimed|o\.Aimed"
-    Assets/Scripts tests` finds nothing. Both patterns were checked against the current
-    tree: the first finds the two copies, the second finds nothing, and
-    `PendingShot.Aimed` is written `shot.Aimed`.
+  - Builds: headless `Aetheria.Shared`, plus a Unity batchmode compile by Self.
+  - All 244 tests pass unchanged. `SplashDamagesTheSideTheBlastCameFrom` and
+    `PenetrationMarchIsPlanar` pin the frame through its new owner.
+  - Negative greps:
+    - `rg -n "forward\.y, -forward\.x" Assets/Scripts` returns exactly one hit, in
+      `Entity.cs`.
+    - `rg -n "Outcome\.Aimed|outcome\.Aimed|o\.Aimed" Assets/Scripts tests` returns
+      nothing.
+
+    Both were checked against the current tree: the first finds today's two copies, and the
+    second finds nothing.
 
 ### Cut 12.2. Where a hit lands
 
 - **Repo/branch:** Aetheria, on top of 12.1, with the 12.0 pin in place.
 - **Deletes first:**
   - `HullKernel` and its comment block (`FireControl.cs:531-578`).
-  - `WeightedPick` and its comment (`:591-611`).
-  - `POnHull` (`:229-234`). HitProbability and Inspect read `Silhouette(...).POnHull`.
+  - `WeightedPick` (`:591-611`).
+  - `POnHull` (`:229-234`).
   - Apply's live direction (`:463-465`).
-  - The `max(Width, Height)` half-extent (`:224`).
-  - The 9.2 SigmaFloor rationale comment (`:542-548`). Rewrite it as described above.
-- **Keeps:** `Sigma`, `SigmaFloor`, `ResolveAimPoint`, `CellsOf`, the Cut 10 gate order
-  (`:150-159`), and `Inspect.PBase = HitProbability(...)` (`:204`).
-- **Adds:** `FireControl.Bearing`, `FireControl.Silhouette` (returning a small struct or
-  tuple), the lateral draw, `Lane` (Commit needs only the first element in 12.2),
-  `PendingShot.Bearing` and `ShotOutcome.Lateral`.
+  - The bounding half-extent (`:224`).
+  - The 9.2 SigmaFloor rationale (`:542-548`). Rewrite it as described above.
+  - The ActionGameManager inline estimate (`:1317-1318`).
+- **Keeps:** `Sigma`, `SigmaFloor`, `ResolveAimPoint`, `CellsOf`, the gate order
+  (`:150-159`) and `Inspect.PBase = HitProbability(...)` (`:204`).
+- **Adds:** `TravelDirection`, `Silhouette`, `CommitProbability`, the lateral draw, `Lane`
+  (only its first element is used in 12.2), and these fields:
+  - `PendingShot`: `TravelDirection`, `Spread` and `FireRange`; `PBase` is renamed to
+    `PFire`.
+  - `ShotOutcome`: `Bearing` and `Lateral`.
 - **Per-file changes:**
-  - `FireControl.cs:161-167`. After the gates, compute `Bearing` and then `Silhouette`
-    once. Multiply `PSpread(weapon, silhouette.Span, range, settings)` and
-    `silhouette.POnHull`. Nothing is computed before `:159`, so the allocation test holds.
-  - `:197-202`. Inspect does the same, through the same two functions.
-  - `:286-308`. Fire freezes `Bearing = Bearing(weapon, source, target)`. If target is null,
-    it freezes the fallback, and PBase is 0 anyway.
-  - `:424-435`. Commit: `Silhouette(shot.Target, hull, shot.Aimed, shot.Bearing,
-    shot.Precision)`, then the lateral draw gives s, and `Cell = Lane(...)[0]` and
-    `Lateral = s` go into the outcome.
-  - `:463-467`. Apply passes `shot.Bearing` (schematic frame) to `ApplyHit`. For 12.2 only,
-    ApplyHit's parameter becomes a schematic bearing, and the `ToSchematic` call 12.1 put
-    in it goes away.
-  - `ActionGameManager.cs:1334` needs no change, because it prints `d.PSpread` and
-    `d.POnHull`. `Combat.cs:117` and `TurretController.cs:84` need none either: they read
-    HitProbability, which is now bearing-aware. Expect AI to prefer broadside shots on
-    long hulls. That is tuning, not a defect (same note as 6d's "AI willingness shifts").
+  - `FireControl.cs:161-167`: after the gates, `PFire(...) × PSpread(...) ×
+    Silhouette(...).POnHull`. The bearing comes from `TravelDirection` and the target's
+    current facing. Nothing new runs before `:159`.
+  - `:197-202`: Inspect uses the same functions. It gains nothing new beyond
+    `diagnostic.PFire` if the HUD wants it (optional; presentation).
+  - `:263`, `:286-308`: Fire freezes `PFire`, `TravelDirection`, `Spread = weapon.Spread`
+    and `FireRange`.
+  - `:409-435`: Commit takes steps 1-5 of **Bearing timing** through `CommitProbability`.
+  - `:463-467`: Apply passes `shot.Outcome.Bearing` (schematic frame) to `ApplyHit`. For
+    this one cut, ApplyHit's parameter becomes a schematic bearing and the `ToSchematic`
+    call 12.1 put inside it is removed.
+  - `ActionGameManager.cs:1317-1318`: the pending line prints
+    `FireControl.CommitProbability(shot, now, out _)` instead of `shot.PBase * pDeviation`.
+  - `Combat.cs:117` and `TurretController.cs:84` need no change. They read HitProbability,
+    which is now a facing-aware forecast. Expect the AI to prefer broadside shots on long
+    hulls, and targets that turn to lose fewer hits. That is tuning, not a defect.
 - **Authority map:**
-  - Owner: `FireControl.Silhouette` for scatter; `FireControl.Bearing` for direction;
-    `Entity.ToSchematic` for the frame.
-  - Inputs: hull shape, aimed item's cells (`GearOccupancy`), Precision, and the bearing
-    (live in HitProbability and Inspect, frozen for Commit).
-  - Outputs: pOnHull and Span for the roll price; the lateral draw, impact cell and Lateral
-    for the outcome.
-  - Derived state: `ShotOutcome.Cell` is derived from (Bearing, Lateral) at Commit and kept
-    as an immutable record for presentation (the debug HUD at `ActionGameManager.cs:1323`
-    and the tests). It is not an input to Apply after 12.3.
-  - Forbidden writers: nothing else computes a sigma, a projection or a bearing.
-    `Apply`, `Commit` and `Step` read no `Position` or `Direction` for placement or damage
-    direction.
-  - Shared paths: InstantWeapon (`InstantWeapon.cs:248`), ConstantWeapon beam rolls
-    (`ConstantWeapon.cs:181`, zero flight time, so fire bearing equals commit bearing), AI,
-    turrets and the HUD all go through HitProbability/Fire/Commit.
-  - Deletion line: `HullKernel`, `WeightedPick` and `POnHull` are gone before
-    `Silhouette` is called anywhere.
-- **Verification (rules pinned; fixtures follow 11.3):** shooter off the origin, nonzero
-  fire times, target facings off-axis including |fx| > |fy|, and nonzero weapon spread
-  wherever PSpread is asserted.
-  - `BroadsideIsEasierThanHeadOn`: on a 2x12 hull at fixed Precision, pOnHull and PSpread
-    head-on are both strictly below broadside, checked at facings (0,1) and (1,0).
-    Mutations it kills: bearing ignored (either factor constant across bearings), and the
+  - Owner:
+    - `FireControl.Silhouette` owns scatter.
+    - `FireControl.CommitProbability` owns the commit-time roll price and placement
+      source.
+    - `FireControl.TravelDirection` owns the shot's world direction.
+    - `Entity.ToSchematic` owns the frame.
+  - Inputs:
+    - Frozen: `PFire`, `TravelDirection`, `Precision`, `Aimed`, `Spread`, `FireRange`.
+    - Live at Commit: target position (deviation) and target facing (bearing).
+  - Outputs: p for the one roll, then `Bearing`, `Lateral` and `Cell` in the immutable
+    outcome.
+  - Derived state:
+    - HitProbability and Inspect are a forecast of the commit price and decide nothing.
+    - `ShotOutcome.Cell` is display-only, for the HUD (`ActionGameManager.cs:1323`) and
+      the tests.
+  - Forbidden writers:
+    - Nothing else computes a sigma, a projection or a bearing.
+    - Nothing after Commit reads a target's facing or anyone's position for placement or
+      damage direction.
+    - The HUD computes no probability of its own.
+  - Shared paths: InstantWeapon (`InstantWeapon.cs:248`), beam rolls
+    (`ConstantWeapon.cs:181`, where zero flight time makes the fire tick the commit tick),
+    the AI, turrets and the HUD.
+  - Deletion line: `HullKernel`, `WeightedPick`, `POnHull` and the HUD estimate are gone
+    before `Silhouette` has a caller.
+- **Verification.** Fixtures follow 11.3: the shooter is off the origin, fire times are
+  nonzero, facings include ones where |fx| > |fy|, and weapon spread is nonzero wherever
+  PSpread is asserted.
+  - `BroadsideIsEasierThanHeadOn`: on a 2x12 hull, pOnHull and PSpread head-on are strictly
+    below broadside, at facings (0,1) and (1,0). It kills the bearing being ignored and the
     old `max(W,H)`.
-  - `PlacementAndProbabilityShareOneSilhouette` (replaces 6d's
-    `PlacementAndProbabilityShareOneKernel`, `FireControlCut6dTests.cs:318`):
-    - At a diagonal bearing (overlapping intervals), HitProbability, with every other
-      factor held at 1, equals a pOnHull the test computes *independently*, by numerically
-      integrating the Gaussian over the union of intervals it builds itself. .NET has no
-      erf, so this cannot be production grading itself.
-    - The empirical distribution of `Lateral` over many seeded hits matches the analytic
-      per-interval shares.
-    - Mutations killed: sigma or bearing perturbed at one call site; the union merge
-      skipped (double counting); the lateral axis swapped with the bearing.
-  - `HitsLandOnTheFacingEdge` (supersedes `EveryHitLandsOnMetal`, `:357`): on the
-    holed/concave fixture with penetration 0, every hit's `Cell` is occupied, and no
-    occupied cell lies before it in its own lane. The test recomputes the lane from
-    `Lateral`. Mutation killed: drawing the impact cell from the 2D footprint.
-  - `AimingAtAnItemCentresTheScatterOnItsLane` (closes L585/L587; replaces
-    `AimingAtTheSternHitsTheStern`, `:213`). From broadside, hits aimed at a stern item
-    land mostly in the stern half, and hits aimed at a bow item land mostly in the bow
-    half. From dead astern, hits aimed at a bow item land on the stern edge: depth comes
-    from geometry. The old test's fixture fires from the target's stern
-    (`FireControlCut6dTests.cs:163-164`: shooter at the origin, target at +z, default
-    facing), so it would pass for the wrong reason and has to be rewritten, not kept.
-  - `TheBearingIsFrozenAtFire`: fire a slow shot at a 2x12 hull head-on, then rotate the
-    target 90° before commit. Every hit lands on the nose row. Only if Q12-1 = A.
-  - `DamageTravelsTheFrozenBearing` (closes L464/L465): through `Fire`, with the shooter
-    off the origin and the target at facing (.8,.6). Move the shooter after commit but
-    before arrival, and the damaged cells are unchanged.
-  - `TheSigmaFloorHoldsAtHalfACell`: pOnHull at Precision 1000 equals pOnHull at
-    Precision 2 on a one-cell-wide lane. The exact integral no longer collapses, so
-    `POnHullNeverCollapsesAboveThePrecisionCliff`'s mutation (delete the floor) would
-    survive. This test is what pins the floor now. Keep the cliff test, and rewrite its
+  - `TurningArmourIntoTheShotTakesItOnTheArmour` (the ruling's own case):
+    - Setup: a slow shot (flight time well above `CommitHorizon`) at the soft stern of a
+      wedge with bow-only plate. The target turns its bow to face the shot's
+      `TravelDirection` before commit.
+    - Pass: every hit's `Cell` is on the bow row.
+    - Kills: freezing the bearing at Fire; reading the facing at Fire.
+  - `TurningAfterCommitChangesNothing` (R4, and closes L464/L465):
+    - Setup: through `Fire`. After commit and before arrival, the target turns 90° and the
+      shooter moves.
+    - Pass: the damaged cells equal those implied by the committed `Bearing`/`Lateral`.
+    - Kills: Apply reading live positions or facing.
+  - `PlacementAndProbabilityShareOneSilhouette` replaces 6d's
+    `PlacementAndProbabilityShareOneKernel` (`FireControlCut6dTests.cs:318`).
+    - Setup: a static target at a diagonal bearing, so the intervals overlap and the
+      forecast equals the commit price.
+    - Pass: `CommitProbability` equals a pOnHull that the test computes independently, by
+      numerically integrating the Gaussian over a union of intervals the test builds itself.
+      The empirical `Lateral` distribution matches the per-interval shares, and the
+      empirical hit rate matches p.
+    - Kills: sigma or bearing perturbed at one site; the union merge skipped; ℓ swapped
+      with b.
+  - `TheHudEstimateIsTheCommitPrice`: for an in-flight shot, the value the HUD prints and
+    the p Commit rolls against are the same number at the commit tick. It kills a second
+    formula.
+  - `HitsLandOnTheFacingEdge` supersedes `EveryHitLandsOnMetal` (`:357`): on the concave
+    fixture, each hit's `Cell` is occupied, and nothing occupied precedes it in its own lane.
+    The test recomputes the lane from `Bearing` and `Lateral`.
+  - `AimingAtAnItemCentresTheScatterOnItsLane` closes L585/L587 and replaces
+    `AimingAtTheSternHitsTheStern` (`:213`), whose fixture fires from the target's stern
+    (`FireControlCut6dTests.cs:163-164`) and would pass for the wrong reason.
+    - From broadside, hits aimed at the stern land mostly in the stern half, and hits aimed
+      at the bow land mostly in the bow half.
+    - From dead astern, hits aimed at the bow land on the stern edge.
+  - `TheSigmaFloorHoldsAtHalfACell`: pOnHull at Precision 1000 equals pOnHull at Precision 2
+    on a one-cell lane. The exact integral no longer collapses, so this test, not the cliff
+    test, is now what kills "delete the floor". Keep the cliff test and rewrite its
     mutation comment.
-  - `ShieldIsOmnidirectional`: an active shield absorbs the same shot identically from
-    bow, stern and beam. This pins the ruling on the path the cut touches.
-  - Kept, must stay green: `GatedOutHitProbabilityAllocatesNothing`,
-    `TheHudShowsTheFactorsTheSimulationMultiplies`, and
-    `PSpreadIsTheSilhouettesShareOfTheSpreadCone`. The last fires from astern at a 5-wide
-    hull, so the projected span is 5, which equals the old `max(5,3)`, and its numbers
-    stand. `ThinLimbCostsHitChance` keeps its meaning. Re-read it with the fixture's stern
-    bearing (lateral axis along x, the limb at the shadow's edge), and rewrite its comment
-    in 1D terms.
-  - Stryker: `--mutate "**/FireControl.cs"` and `--since:<12.1 head>`. Every survivor is
-    triaged by name, and float boundary flips are equivalent (11.2).
-- **Operator:** a smoke against a LonginusX-class AI from the bow, then the beam. The HUD's
-  `hull` factor should read visibly higher from the beam.
+  - `ShieldIsOmnidirectional`: an active shield absorbs the same shot identically from bow,
+    stern and beam.
+  - Kept green:
+    - `GatedOutHitProbabilityAllocatesNothing`.
+    - `TheHudShowsTheFactorsTheSimulationMultiplies`, re-read as forecast factors.
+    - `PSpreadIsTheSilhouettesShareOfTheSpreadCone`, which fires from astern at a 5-wide
+      hull. There the span is 5, equal to the old `max(5,3)`, so its numbers stand.
+    - `ThinLimbCostsHitChance`, with its comment rewritten in 1D terms.
+    - Every test that reads `shot.PBase`, updated to `PFire` with its expectation
+      unchanged.
+  - Stryker: `--mutate "**/FireControl.cs" --since:<12.1 head>`. Survivors are triaged by
+    name, and float boundary flips count as equivalent (11.2).
+- **Operator:**
+  - A smoke against a LonginusX-class AI from the bow and then the beam. The HUD `hull`
+    factor should read higher from the beam.
+  - Turn your armoured face into a slow missile and watch where it lands.
 
-### Cut 12.3. How damage travels
+### Cut 12.3. How a direct hit travels
 
 - **Repo/branch:** Aetheria, on top of 12.2.
-- **Deletes first:**
-  - `Entity.DamageSchematic` (`Entity.cs:333-374`, 42 lines).
-  - `Entity.ApplyHit` (`Entity.cs:376-409`, 34 lines). With it go the 0.5-step march, the
-    `+ .5` cell convention, the `penetration > .5f` threshold and the Expand-based spread
-    footprint.
+- **Deletes first:** `Entity.DamageSchematic` (`Entity.cs:333-374`) and `Entity.ApplyHit`
+  (`Entity.cs:376-409`). Going with them:
+  - the 0.5-step march;
+  - the `+ .5` cell convention;
+  - the `> .5f` threshold;
+  - the Expand spread footprint.
 - **Adds:**
-  - `Entity.Absorb(int2 cell, float damage) → float`. This is the per-cell step moved
-    verbatim from `Entity.cs:348-366`: armour takes up to its value, then the item when
-    `d > .1f`, and the remainder is returned. It emits `ArmorDamage((cell, incoming))`
-    and `ItemDamage((item, incoming))` with today's meaning (the damage arriving there),
-    and only when incoming > 0.
-  - `Entity.DamageHull(float)`. This is `Entity.cs:369-373` moved: `> .1f`, one
-    `HullDamage` event.
-  - The Apply orchestration in `FireControl`.
-- **Per-file changes:**
-  - `FireControl.Apply` (`:449-468`, after the shield branches, which are unchanged).
-    - `shot.Target.IncomingHit.OnNext(shot.Source)` moves here from `Entity.cs:383`.
-    - The lanes are `s + k` for `k ∈ [-n, n]`, with `n = (int) floor(shot.DamageSpread +
-      .5f)` (today's rounding, `Entity.cs:389`). Lanes are spaced one cell apart along ℓ.
-      This is Q12-2 = A.
-    - Damage splits evenly over the lanes that meet metal. The centre lane always does.
-    - Each lane walks `Lane(...)` cut to the penetration depth. At each cell,
-      `rem = target.Absorb(cell, rem)`.
-    - Each lane's final remainder, whether the depth ran out, the ray reached a gap, or it
-      exited, is summed and passed to `target.DamageHull` once. This is Q12-3 = A.
-  - `FireControl.Splash` (`:515-527`). Keep its footprint and its even split. Each
-    footprint cell calls `Absorb`, and the summed remainder goes to `DamageHull`. That is
-    arithmetically identical to today's `DamageSchematic` for splash, so there is no
-    behaviour change (see F12-1).
+  - `Entity.Absorb(int2 cell, float damage) → float`, moved verbatim from
+    `Entity.cs:348-366`. Armour absorbs up to its value, then the item when `d > .1f`, and
+    the remainder is returned. It emits `ArmorDamage((cell, incoming))` and
+    `ItemDamage((item, incoming))` with today's meaning, and only for incoming > 0.
+  - `Entity.DamageHull(float)`, moved from `Entity.cs:369-373` (`> .1f`, one `HullDamage`
+    event).
+- **Per-file changes:** `FireControl.Apply` (`:449-468`), with the shield branches
+  unchanged:
+  1. `IncomingHit.OnNext(source)` moves here from `Entity.cs:383`.
+  2. The lanes are `Lateral + k` for `k ∈ [-n, n]`, where `n = (int) floor(DamageSpread +
+     .5f)` (today's rounding, `Entity.cs:389`), spaced one cell apart along ℓ (Q12-2 = A).
+  3. Damage splits evenly over the lanes that meet metal. The centre lane always does.
+  4. Each lane walks from its own facing cell, clipped to the penetration depth, with
+     `rem = target.Absorb(cell, rem)` at each cell.
+  5. Each lane's final remainder goes to the hull, where the lane ends: penetration
+     exhausted, a gap, or the far side (Q12-3 = A). The remainders are summed and passed to
+     `DamageHull` once.
+  6. A weapon with a contact or delayed fuse does not take this path. It detonates instead
+     (12.4), never both.
+
+  Splash is untouched in 12.3 and deleted in 12.4. Until then it calls `Absorb` per
+  footprint cell and passes the summed remainder to `DamageHull`, which is arithmetically
+  identical to today.
 - **Authority map:**
   - Owner: `Entity.Absorb` owns what one cell does with incoming damage.
-    `FireControl.Apply` owns the order cells are visited in and how much reaches each one.
-    `Splash` owns its footprint.
-  - Inputs: the frozen Bearing, Lateral, Penetration, DamageSpread and Damage. No live
-    positions.
-  - Outputs: `Armor[]`, item `Durability` and `Hull.Durability` mutations, plus the
-    `IncomingHit`, `ArmorDamage`, `ItemDamage` and `HullDamage` events (consumers:
+    `FireControl.Apply` owns the order and the share per lane.
+  - Inputs: the committed `Bearing`, `Lateral` and `Cell`, plus the frozen `Penetration`,
+    `DamageSpread` and `Damage`.
+  - Outputs: `Armor[]`, item `Durability` and `Hull.Durability`, plus the events
+    `IncomingHit`, `ArmorDamage`, `ItemDamage` and `HullDamage`. Their consumers:
     `ActionGameManager.cs:1070`, `EntityInstance.cs:292`, `InventoryPanel.cs:470-482`,
-    and `Entity.cs:488-494`'s ItemDestroyed, HullArmorDepleted and Death).
-  - Derived state: `ShotOutcome.Cell` is display-only.
-  - Forbidden writers: no weapon hit writes `Armor[]` or item durability except through
-    `Absorb`. `Behaviors.CauseDamage` (`Behaviors/Behaviors.cs:62-73`) is a separate
-    self-damage writer and out of scope (noted, not touched).
-  - Shared paths: every discrete hit goes through `Apply`, and every area hit through
-    `Splash` (`Mine.cs:99`, airburst at `FireControl.cs:356`).
-  - Deletion line: both Entity methods are deleted before `Absorb` has a second caller.
+    and `Entity.cs:488-494` (ItemDestroyed, HullArmorDepleted, Death).
+  - Forbidden writers: no weapon hit writes armour or item durability except through
+    `Absorb`. `Behaviors.CauseDamage` (`Behaviors/Behaviors.cs:62-73`) is self-damage and
+    out of scope.
+  - Deletion line: both Entity methods are deleted before `Absorb` gets a second caller.
 - **Verification:**
-  - `DamageIsAbsorbedInOrderAlongTheRay` (replaces `HardpointHitDamagesItemThenHull` and
-    `PenetrationMarchIsPlanar`, `FireAuthorityTests.cs:481-526`, which call the deleted
-    `ApplyHit` directly). Through `Fire` at facing (1,0), a 10-armour front cell, then a
-    marker, then a soft cell, with damage 30 and penetration 3: front armour −10, marker
-    −20, soft cell untouched, hull −0. Today's rule gives 10/10/10 **(probe)**. Mutations
-    killed: the even split restored; items visited before armour; the remainder not
-    carried forward.
-  - `ArmourFacesTheShot`: a wedge hull with plate only on its bow row, zero penetration,
-    many shots. From ahead, only bow cells lose armour and no stern item is touched. From
-    astern, the reverse. Checked at facings (0,1) and (.8,.6), plus one where |fx| > |fy|.
-    This is the operator's R&D-ship case.
-  - `BuriedCockpitNeedsPenetration`: a cockpit item enclosed by one ring of cells.
-    - At penetration 0, over many shots aimed at it from four bearings, the cockpit is
-      never damaged.
-    - At a penetration that clears the ring, one seeded shot damages the cockpit by
-      exactly `damage/lanes − ring armour − ring item absorbed`.
-    - Enough damage destroys it, and `Death` fires `CockpitDestroyed`.
-  - `SpreadWidensTheImpactAcrossLanes` (per Q12-2 = A): spread 1 at penetration 0 damages
-    three facing-edge cells with damage/3 each, and nothing behind them.
-  - `ARayThroughACornerCrossesTheCornerCell`: the diagonal case from `Probe1`, (.8,-.6)
-    from (1,2). With penetration covering it, the walk reaches (2,2).
-  - `OverPenetrationRemainderReachesTheHull`: a ray that exits a thin hull passes its
-    remainder to `Hull.Durability`, per Q12-3 = A.
-  - Kept green: `SplashIsDirectional`, `SplashHitsEveryEntityInRadius`,
-    `SplashDamagesTheSideTheBlastCameFrom`, `SplashBreaksUnabsorbedShield`,
-    `SplashShieldAbsorptionDrainsTheReserve`, and `AirburstSplashes…` (Cut 6).
-  - negative: `rg -n "DamageSchematic|ApplyHit\(|HullKernel|WeightedPick"
-    Assets/Scripts tests` finds nothing. Checked against the tree today, the pattern
-    matches `Entity.cs`, `FireControl.cs`, `FireAuthorityTests.cs` and two comment lines in
-    `Gameplay/EntityInstance.cs:280-281`. Rewrite those comments, along with
-    `FireControl.cs:492` and `:614`.
-  - Stryker `--since:<12.2 head>` over `FireControl.cs` and `Entity.cs`.
-  - builds: headless plus Unity batchmode. `EntityInstance`, `InventoryPanel` and
-    `ActionGameManager` read events and fields but call no deleted method (`rg` above).
-- **Operator:** a smoke with a GT 3K or pswarm launcher (live DamageSpread) into a
-  LonginusX bow, then flank. The schematic display should pulse the facing edge cells only.
+  - `DamageIsAbsorbedInOrderAlongTheRay` replaces `HardpointHitDamagesItemThenHull` and
+    `PenetrationMarchIsPlanar` (`FireAuthorityTests.cs:481-526`, which call the deleted
+    `ApplyHit`).
+    - Setup: through `Fire` at facing (1,0). The lane runs through a 10-armour front cell,
+      then a marker, then a soft cell, with damage 30 and penetration 3.
+    - Pass: armour −10, marker −20, soft cell untouched, hull −0. Today it would be
+      10/10/10 **(probe)**.
+    - Kills: an even split; items before armour; no carry-forward.
+  - `ArmourFacesTheShot`:
+    - Setup: a wedge with bow-only plate, penetration 0, many shots. Facings (0,1), (.8,.6)
+      and one where |fx| > |fy|.
+    - Pass: from ahead only bow cells lose armour, and from astern the reverse.
+  - `BuriedCockpitNeedsPenetration`: a cockpit enclosed by one ring of cells.
+    - At penetration 0 it is never damaged from four bearings.
+    - At a penetration that clears the ring, it takes exactly `damage/lanes` minus what the
+      ring absorbed.
+    - Enough damage fires `Death` with `CockpitDestroyed`.
+  - `SpreadWidensTheImpactAcrossLanes`: spread 1 at penetration 0 puts damage/3 on each of
+    three facing-edge cells and nothing behind them.
+  - `ARayThroughACornerCrossesTheCornerCell`: the diagonal case from `Probe1` reaches (2,2).
+  - `LaneRemainderReachesTheHull`: a ray that exits a thin hull delivers its remainder to
+    `Hull.Durability` (Q12-3 = A).
+  - Kept green: every Splash test, and `AirburstSplashes…` (Cut 6).
+  - Negative: `rg -n "DamageSchematic|ApplyHit\(" Assets/Scripts tests` returns nothing.
+    Today it matches `Entity.cs`, `FireControl.cs`, `FireAuthorityTests.cs`, and two comment
+    lines at `Gameplay/EntityInstance.cs:280-281`. Rewrite those comments and
+    `FireControl.cs:492`.
+  - Stryker: `--since:<12.2 head>` over `FireControl.cs` and `Entity.cs`.
+- **Operator:** a smoke with a GT 3K or pswarm launcher into a LonginusX bow, then from a
+  flank. The schematic display should pulse the facing edge only.
+
+### Cut 12.4. The detonation primitive
+
+- **Repo/branch:** Aetheria, on top of 12.3. It lands as two commits:
+  - (a) the data fields and the label demotion. This is behaviour-neutral on shipped
+    content, because no weapon carries the label or a radius **(probe)**.
+  - (b) `Detonate`, with Splash deleted.
+- **Deletes first:**
+  - The label read `isAirburst = … WeaponModifiers.HasFlag(WeaponModifiers.Airburst)`
+    (`FireControl.cs:281-284`), in (a). Afterwards `WeaponModifiers` has no simulation
+    reader. `rg -n "WeaponModifiers\." Assets/Scripts/ServerShared` returns nothing (today
+    it returns exactly `FireControl.cs:282`).
+  - `FireControl.Splash` (`:488-529`) and its half-hull footprint, in (b). This absorbs
+    F12-1.
+  - `PendingShot.BurstRadius` (`:648-652`) becomes `BlastRadius`, and `BurstPosition` stays.
+- **Data (smallest field set, both on `WeaponItemData`, `ItemData.cs:476-499`):**
+  - Slot 29, `float? AirburstRange`, is renamed `float? BlastRadius` (JSON `"blastRadius"`),
+    in world units, meaning the same thing it meant for airburst. Same slot, same type:
+    CultCache resolves it as compatible drift (see the probes).
+  - New slot 30: `WeaponFuse? Fuse` (JSON `"fuse"`), with `enum WeaponFuse { Contact,
+    Proximity, Delayed }` in `Enums.cs`. It is nullable per the 7.4 rule. Null means no
+    blast, which is what every shipped record reads as.
+  - A shot detonates iff `Fuse != null && BlastRadius > 0`. Fire freezes both
+    (`PendingShot.Fuse`, `BlastRadius`). A fuse without a radius (or a radius without a
+    fuse) is inert, and the catalog test (Q12-6) reports it.
+  - The catalog needs one write through `tools/AetherDb` or Studio to clear the drift
+    warnings. That write is content, with no data change, and is recorded as part of the
+    retune follow-up.
+  - Readers to update: `FireControl.cs:284` and `FireControlCut6Tests.cs:81-101, 249, 268,
+    279`, which author `WeaponModifiers.Airburst`. Those fixtures move to
+    `Fuse = Proximity`. The label stays on them only if Q12-6 = A.
+- **Adds:** `FireControl.Detonate(Zone zone, float2 worldPoint, float radius, float damage,
+  DamageType type)`, the one owner of blast damage, plus `Entity.ToSchematicPoint` and
+  `ToWorldPoint` (see the frame rules).
+  - **Where P is:**
+    - Proximity: Step calls it at arrival with the frozen `BurstPosition`
+      (`PredictedIntercept`, `:283`). There is no roll, as today (`AirburstSplashesEvenOnA
+      GuaranteedMiss` stands).
+    - Contact: on a committed, unshielded hit, P is the entry point of the impact cell on
+      the committed lane.
+    - Delayed: on a committed, unshielded hit, P is the end of the penetration walk on that
+      lane (penetration exhausted or first gap).
+
+    Both contact and delayed are converted with `target.ToWorldPoint`, so every entity in
+    the radius (the host included) is treated alike. A shielded contact or delayed hit is
+    absorbed whole, as a direct hit is, and does not detonate. `Mine.cs:99` calls
+    `Detonate`.
+  - **Rays:** `N = clamp(ceil(2π · rCells / 0.5), 16, 256)`, where `rCells = radius /
+    SchematicCellSize`. That spaces rays at most half a cell apart at the rim. Each ray
+    carries `damage / N`. Directions are generated by incremental rotation, with no
+    per-ray allocation.
+  - **Per ray:**
+    1. Candidates are the entities with `|Position.xz - P| ≤ radius + boundingRadius`,
+       where `boundingRadius = ½·√(W²+H²)·cellSize`.
+    2. For each candidate, convert the ray to its schematic frame (origin
+       `ToSchematicPoint(P)`, direction `ToSchematic(d)`, length `rCells`) and take the
+       `Lane(hull, b, dot(origin, ℓ))` cells clipped to `[t0, t0 + rCells]`.
+    3. The ray belongs to the candidate whose metal it enters first. A ray hits at most one
+       hull.
+    4. It walks with `Absorb` in order until it leaves metal or reaches r.
+    5. If it ends inside metal at r, the remainder goes to `DamageHull`. If it leaves the
+       hull, the remainder is lost (the ruling; see Q12-7 for rays that start inside).
+    6. A ray that enters nothing is wasted.
+  - **Shields:** an entity with an active shield is charged the summed share of the rays
+    that reached it, against the same `CanTakeHit`/`Break`/`TakeHit` rules as today.
+    - If the shield absorbs, those rays do nothing more.
+    - If not, it breaks and the rays proceed.
+
+    Today every shield in radius pays the full damage (`:505-513`). Charging the reaching
+    share makes the shield pay only for what arrives, which is consistent with
+    "omnidirectional": the reserve has no facings, but it only pays for energy that
+    reaches the ship.
+  - **Cost:** at most `N × candidates × N_cells`, about 256 × 3 × 128 ≈ 100k slab tests per
+    detonation, once per detonation and never per tick. The lane buffer comes from
+    `ArrayPool`.
+  - **HitProbability and Inspect** are unchanged:
+    - A contact or delayed blast still needs the shot to hit, so the same forecast
+      applies.
+    - A proximity blast has no roll and delivers whatever geometry gives. The forecast
+      still reports the direct-hit number for it. That is pre-existing, and AI gating on it
+      is recorded as F12-5.
+- **Authority map:**
+  - Owner: `FireControl.Detonate` owns blast damage. `Entity.Absorb` owns per-cell
+    absorption, and `Lane` owns traversal, both shared with 12.3.
+  - Inputs:
+    - world P, radius, damage and type;
+    - each entity's position, facing, hull, armour and occupancy at the detonation tick;
+    - the fuse and radius, frozen from weapon data at Fire.
+  - Outputs: the same mutations and events as 12.3.
+  - Derived state: `WeaponModifiers` is display-only: `SchematicListElement.cs:54` icons,
+    `GameSettings.cs:67`, and `GameplaySettingsEditor.cs:44`.
+  - Forbidden writers:
+    - No label decides behaviour.
+    - Nothing but `Detonate` applies area damage.
+    - Mine's Unity `BlastRange` and arming query remain presentation-side inputs (R8
+      residue, Cut 4 Q7) and decide no damage themselves.
+  - Shared paths: the airburst resolution in `Step` (`:356`), Mine (`Mine.cs:99`), and
+    contact and delayed hits from `Apply`.
+  - Deletion line: `Splash` and the label read are deleted before `Detonate` is called.
+- **Verification:**
+  - `ExternalBlastWastesMostOfItsEnergy`: a proximity blast outside a hull delivers total
+    armour + item + hull damage well below `damage`. The expected share is the hull's
+    angular size over 2π, computed by the test.
+  - `InternalBlastDeliversIt`: the same blast at the hull's centre delivers far more, and
+    damages interior items that an external blast cannot reach.
+  - `BulkheadsShieldTheCompartmentBehindThem`: a ring of armour cells between the
+    detonation point and an item leaves the item untouched while the armour holds, and
+    damaged once the armour is thin.
+  - `PenetratorBurrowsBeforeItBursts`: a delayed-fuse hit with penetration 2 into the
+    enclosed-cockpit fixture damages the cockpit, while a contact-fuse hit with the same
+    stats does not.
+  - `BlastFromPortDamagesPort`: facings include |fx| > |fy|. It is the successor of
+    `SplashDamagesTheSideTheBlastCameFrom`, with the same independent expectation.
+  - `ABlastRayHitsOneHull`: two ships in line. The near ship shadows the far one along the
+    rays it catches.
+  - `ShieldPaysForWhatReachesIt`: a shield in radius is charged the reaching share, not
+    the whole blast. `SplashShieldAbsorptionDrainsTheReserve` and
+    `SplashBreaksUnabsorbedShield` are rewritten to the reaching share, with the expected
+    amounts recomputed rather than loosened.
+  - `LabelsDoNotDecideBehaviour`: a weapon labelled `Airburst` with no fuse resolves as a
+    direct hit, and a weapon with `Fuse = Proximity` and no label detonates.
+  - Kept green: `AirburstSplashesEvenOnAGuaranteedMiss` and its no-double-application twin,
+    re-fixtured to `Fuse`.
+  - Negative: `rg -n "Splash\(|HasFlag\(WeaponModifiers" Assets/Scripts tests` returns
+    nothing. Today it matches `FireControl.cs`, `Mine.cs` and `FireControlCut4/5/6/11Tests.cs`.
+  - Stryker: `--since:<12.3 head>`.
+- **Operator:** author one proximity weapon and one delayed-fuse weapon in a scratch
+  catalog. Watch an airburst beside a LonginusX and a penetrator into its nose, and check
+  that the damage lands where the model shows the blast. That also verifies
+  `ToSchematicPoint`'s centre-of-mass anchor.
 
 ### 0b. Identity, lifecycle, authority
 
-Nothing persistent changes. `PendingShot` gains `Bearing` and `ShotOutcome` gains
-`Lateral`, and both are runtime-only and never serialised (0b table, `FireControl.cs:626-629`,
-`:686-689`). No authored field is added: Penetration, DamageSpread, Precision and
-hardpoint `Armor` are reused. So there is no CultCache schema change, and the live-catalog
-test (7.4) is unaffected. `Armor[]`, item durability and hull durability in saves keep
-their shape, and only the values a fight leaves behind differ. If an operator answer later
-adds a field (for example a per-weapon over-penetration flag), the 7.4 rule applies: it
-must be nullable.
+Two persisted changes, both on `aetheria.weaponitemdata` v1 and both in 12.4:
+
+| Field | Slot | Change | Lifecycle | Reader risk |
+|---|---|---|---|---|
+| `BlastRadius` (was `AirburstRange`) | 29 | rename, same `float?` type | authored catalog | compatible drift: `CompareSchemaShapes` ignores member names (`CultCache.cs:672-744`); drift warnings until the next catalog write |
+| `Fuse` | 30 | new, `WeaponFuse?` | authored catalog | nullable, so older records read as null ("no blast"), per the 7.4 rule |
+
+Runtime-only and never serialised (0b table, `FireControl.cs:626-629`, `:686-689`):
+
+- `PendingShot`: `PFire`, `TravelDirection`, `Spread`, `FireRange`, `Fuse`, `BlastRadius`.
+- `ShotOutcome`: `Bearing`, `Lateral`.
+
+Nothing in saves changes shape.
 
 ### Operator questions
 
-- **Q12-1. Which bearing places the hit: the one at Fire or the one at Commit?**
-  - **A.** Freeze the schematic-frame bearing at Fire. pOnHull stays in PBase, and
-    HitProbability's number is exactly the placement distribution. A target cannot turn its
-    armour into a shot already in flight.
-  - **B.** Keep the target's facing live until Commit, like deviation. pOnHull leaves PBase
-    and is multiplied in at Commit with the commit-time bearing. The HUD number becomes a
-    forecast, the way deviation already is. Turning the plate toward incoming missiles
-    works. Flights are long enough for it to matter: SRMM72 has velocity 50 and range 750,
-    about 15 s.
-  - **Recommended: A.** It keeps R10's freeze discipline and one-roll exactness. B is a
-    clean follow-up if play shows that rolling into fire should count.
-- **Q12-2. How does DamageSpread compose with the ray?**
-  - **A. Spread is width.** 2n+1 parallel lanes, one cell apart, split evenly. Each lane is
-    absorbed in order from its own facing cell.
-  - **B. Spread is a surface burst.** Keep the Expand footprint around the impact cell,
-    split evenly, with each footprint cell absorbing independently. That reaches interior
-    cells without passing through armour, which is the behaviour the ruling names as going.
-  - **Recommended: A.** It is the ruling applied literally, and it keeps armour meaningful
-    against torpedoes. The consequence to accept: with shipped content, GT 3K and plight
-    can no longer reach LonginusX's cockpit through their 7x7 footprint. **(probe)**
-- **Q12-3. Where does the remainder go when the ray stops?** The ruling's words, "each
-  cell's armour, then its item, then hull", cannot mean that the hull absorbs at every
-  cell. The hull would then take everything at the first cell and nothing would travel.
-  - **A.** The hull takes the remainder wherever the lane ends: penetration exhausted, a
-    gap, or the far side. Total hull damage keeps today's meaning (everything that armour
-    and items did not absorb).
-  - **B.** A ray that exits the far side loses its remainder (over-penetration).
-  - **Recommended: A.** It conserves damage and adds no new rule.
-- **Q12-4. Delete `ShotOutcome.Aimed`?** It has no reader anywhere. Under edge-on
-  placement, "hit the aimed item" is ambiguous between first in its lane and reached by
-  penetration, and the `ItemDamage` events already report which items took damage.
-  - **A.** Delete it (12.1). That closes Stryker L435 by removal.
-  - **B.** Keep it, and define it as the aimed item among the cells the shot reached.
-  - **Recommended: A.** No consumer means it is parked by deletion. `PendingShot.Aimed`
-    stays, because it is the aim point.
-- **Q12-5 (not ruled). Show which target items are exposed from the current bearing?**
-  - **Recommended:** a follow-up after 12.3, not this cut. It would be a presentation read
-    of `Silhouette` and `Lane`, like Inspect: for each revealed item, is it first in some
-    lane of the current shadow. It belongs on the target-item cycling UI. It matters more
-    now that aiming at a buried item means aiming at its lane.
+Ruled 2026-09-22 (the words are recorded under **Rulings**):
+
+- **Q12-1: B**, the bearing is taken at Commit.
+- **Q12-2: A**, spread is width.
+- **Q12-3: A**, the lane remainder goes into the hull where the lane ends (direct hits).
+- **Q12-4: A**, `ShotOutcome.Aimed` is deleted.
+
+Open:
+
+- **Q12-5 (not ruled). Should the HUD show which target items are exposed from the current
+  bearing?**
+  - **Recommended:** a follow-up after 12.3. It would be a presentation read of `Silhouette`
+    and `Lane`, the way Inspect is: for each revealed item, is it first in some lane of the
+    current shadow. It belongs on the target-item cycling UI.
+- **Q12-6. Should the catalog test enforce labels that name a behaviour?**
+  - **A:** extend `ShippedCatalogOpensAndGeneratesAnArmedHull` (7.4) with two checks:
+    - `Airburst` label ⇔ `Fuse == Proximity`, which holds vacuously today;
+    - `Incendiary` label ⇔ `DamageType == Thermal`, which holds on every shipped weapon
+      **(probe)**.
+
+    `ArmorPenetrating` stays out until F12-2 decides what counts as a penetrator, because
+    today three weapons with penetration 0.25 carry no AP label.
+  - **B:** no check. Labels are free text.
+  - **Recommended: A.** A label is shorthand for behaviour, and a label that disagrees with
+    the weapon is a lie on the schematic. The test keeps them honest without letting the
+    label own anything.
+- **Q12-7. Where does the remainder go when a blast ray that started inside a hull leaves
+  it?** The ruling says rays that leave the hull lose their remainder. For a ray that
+  starts inside, the hull's structure then gets energy only from rays that end in metal at
+  r. A contained blast with a radius larger than the hull damages armour and items but
+  barely touches `Hull.Durability`, which is what kills ships (`Entity.cs:491`).
+  - **A:** the literal rule: every ray that leaves loses its remainder.
+  - **B:** a ray that *starts* in metal (a contact or delayed detonation inside the hull)
+    gives its exit remainder to the hull, while rays that enter from outside lose theirs.
+  - **Recommended: B.** It delivers the stated purpose, "an internal detonation delivers
+    it", while keeping the external-airburst waste and the bulkheads.
+- **Q12-8. Does a penetrator's burrow absorb along the way?**
+  - **A:** the burrow is geometry only. Penetration sets how deep the fuse point goes, and
+    the full damage detonates there.
+  - **B:** the burrow walks like a direct-hit lane (armour, then item), and only the
+    remainder detonates.
+  - **Recommended: A.** Penetration is already the stat that says whether it gets through.
+    Charging the armour on the way in as well would make the plate count twice, and would
+    blunt the "damage vulnerable internals" purpose the operator named.
 
 ### Follow-ups recorded, not in this cut
 
-- **F12-1. Splash strikes the exposed edge.** Splash keeps its half-hull footprint
-  (`FireControl.cs:522-525`). That footprint includes interior cells, so a mine behind a
-  front-armoured ship still reaches its interior evenly. The consistent version would
-  apply the blast bearing's lanes with penetration 0. Deferred to keep 12.3
-  behaviour-neutral for splash.
-- **F12-2. Penetration content.** Shipped values are ≤ 0.25 against an inspector range of
-  0..1, and enclosed cockpits need about 2 cells. This is a content and authoring
-  decision for the operator, informed by the probe.
+- **F12-2. Penetration retune** (operator: "Retuning penetration is a follow up.").
+  - Shipped values are ≤ 0.25 against an inspector range of 0..1, and enclosed cockpits
+    need about 2 cells.
+  - The same pass decides which weapons get fuses and blast radii (none have one today),
+    and writes the catalog once to clear the slot-29/30 drift warnings.
+  - Until it lands, interior cells are reached only by blasts.
 - **F12-3. SigmaFloor's purpose changed.** It was a numerical guard and is now a design
   minimum on group tightness. Revisit it when Precision is next tuned.
 - **F12-4. Double charging.** 6d's note that pSpread and pOnHull both price target size
-  still stands. Both now read one Span and shadow, which makes a later merge mechanical.
+  still stands. Both now read one Span and shadow, so a later merge is mechanical.
+- **F12-5. AI and proximity blasts.** `Combat.cs:117` gates a proximity weapon on a
+  direct-hit forecast that does not decide its damage. This is pre-existing.
+- **F12-6. Mine's blast inputs.** The prefab `BlastRange` and the arming OverlapSphere
+  (`Mine.cs:69-78`, `:99`) are presentation-side (Cut 4 Q7). Mine has no catalog weapon
+  record carrying `Fuse`/`BlastRadius`. It can move when it ships (R9).
 - **Behaviors.CauseDamage** (`Behaviors/Behaviors.cs:62-73`) writes durability and
-  HullDamage without `Absorb`. It is self-damage, not a hit, and is left alone.
+  `HullDamage` without `Absorb`. It is self-damage, not a hit, and is left alone.
+- **Orphaned `Airburst*` YAML** in nine weapon prefabs. It is harmless, and Unity drops it
+  on the next save of each prefab.
 
 ### Subtraction ledger (estimate)
 
 | Sub-cut | Removed | Added | Notes |
 |---|---|---|---|
 | 12.0 | 0 | ~40 src + ~30 test (CultLib) | release `cultmath-unity-v0.2.4`, manifest bump |
-| 12.1 | ~15 (two frame copies, Aimed flag path) | ~6 (`ToSchematic`) | behaviour-neutral |
-| 12.2 | ~60 (HullKernel, WeightedPick, POnHull, live direction, bounding extent, stale comments) | ~75 (Bearing, Silhouette, lateral draw, Lane) | 6d kernel tests rewritten (~−150/+200) |
-| 12.3 | ~80 (DamageSchematic, ApplyHit) | ~45 (Absorb, DamageHull, Apply orchestration) | 2 FireAuthority tests replaced; ~6 new tests |
-| **Net Aetheria src** | **~155** | **~125** | no targets, dependencies, schemas or formats added; CultMath +2 functions |
+| 12.1 | ~15 (two frame copies, Aimed plumbing) | ~6 (`ToSchematic`) | no behaviour change |
+| 12.2 | ~65 (HullKernel, WeightedPick, POnHull, live direction, bounding extent, HUD estimate, stale comments) | ~95 (TravelDirection, Silhouette, CommitProbability, lateral draw, Lane, 5 PendingShot/Outcome fields) | 6d kernel tests rewritten (~−150/+220) |
+| 12.3 | ~80 (DamageSchematic, ApplyHit) | ~45 (Absorb, DamageHull, lane orchestration) | 2 FireAuthority tests replaced; ~6 new |
+| 12.4 | ~45 (Splash, label read, BurstRadius plumbing) | ~70 (Detonate, point transforms, `WeaponFuse`, slot 30) | Splash tests rewritten; ~8 new |
+| **Net Aetheria src** | **~205** | **~215** | one persisted slot added (nullable), one renamed; no targets, dependencies or formats; CultMath gains 2 functions |
 
-**Section history:** Cut 6d's "The rule" (the 2D kernel) and 9.2's SigmaFloor rationale
-describe a model this cut replaces. Self should mark them as history in the status header
-when 12.2 lands, so nobody reads two live placement models.
+The net is roughly flat: the positive part buys the bearing-aware scatter, sequential
+absorption, and a blast model that replaces a half-hull approximation. The rest is
+subtraction.
+
+**Section history:** Cut 6d's "The rule" (the 2D kernel) and its premise that pOnHull folds
+into PBase at Fire, 9.2's SigmaFloor rationale, and Cut 4's Splash rule (`FireControl.cs:488-497`)
+describe models this cut replaces. Self should mark them as history in the status header
+as 12.2 and 12.4 land.
