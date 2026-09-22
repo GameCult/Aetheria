@@ -1934,6 +1934,9 @@ Second round:
   - contact fuse: the impact cell;
   - delayed fuse or penetrator: the end of the penetration walk.
 
+  All three are weapons that carry a blast radius. A weapon without one is not a blast at
+  any penetration: it keeps 12.3's lane (see **Where 12.3 and 12.4 meet**).
+
   12.4 replaces `FireControl.Splash` and its half-hull footprint, which absorbs F12-1.
 - **WeaponModifiers are labels, not behaviour.** Operator: "The AP modifier was merely
   there as a label. Like the Incendiary modifier which doesn't actually determine that the
@@ -2326,6 +2329,21 @@ rotation, while its march and its even split are left untouched until 12.3.
   6. A weapon with a contact or delayed fuse does not take this path. It detonates instead
      (12.4), never both.
 
+  **Where 12.3 and 12.4 meet.** Which model a shot uses is decided by the blast radius, not
+  by its penetration:
+  - **No blast radius — a dumb AP round.** Steps 1-5 are the whole model, whatever the
+    penetration. The shot travels its lane and is absorbed cell by cell in order, with the
+    remainder carrying on until it is spent or the lane ends (Q12-3). Damage in a line. More
+    penetration spreads the same damage over more cells; it never concentrates it at depth.
+    Q12-8 says nothing about this case.
+  - **With a blast radius — an explosive penetrator.** The shot reaches its fuse depth
+    without spending damage on the way, and then detonates as an area (12.4). Q12-8 governs
+    only this case, because the payload is the explosion, not the dart.
+
+  The two roles that follow are the design intent: the AP round is the pinpoint component
+  sniper, a thin line of damage through whatever it crosses, and the explosive penetrator
+  is the interior wrecker, a disc across a whole section.
+
   Splash is untouched in 12.3 and deleted in 12.4. Until then it calls `Absorb` per
   footprint cell and passes the summed remainder to `DamageHull`, which is arithmetically
   identical to today.
@@ -2415,7 +2433,10 @@ rotation, while its march and its even split are left untouched until 12.3.
     - Contact: on a committed, unshielded hit, P is the entry point of the impact cell on
       the committed lane.
     - Delayed: on a committed, unshielded hit, P is the end of the penetration walk on that
-      lane (penetration exhausted or first gap).
+      lane (penetration exhausted or first gap). The walk only locates P; nothing is
+      absorbed along it (Q12-8), and that is true only because this weapon carries a blast.
+      A weapon with no blast radius never reaches this path and spends its damage down the
+      lane instead (12.3).
 
     Both contact and delayed are converted with `target.ToWorldPoint`, so every entity in
     the radius (the host included) is treated alike. A shielded contact or delayed hit is
@@ -2501,8 +2522,13 @@ rotation, while its march and its even split are left untouched until 12.3.
     `damage`, and damages interior items an external blast of the same radius cannot reach.
   - `PenetratorBurrowsBeforeItBursts`: a delayed-fuse hit with penetration 2 into the
     enclosed-cockpit fixture damages the cockpit, while a contact-fuse hit with the same
-    stats does not. It also pins Q12-8: the armour the burrow passes through absorbs
-    nothing, so the cockpit's share is the full area share of its own cell.
+    stats does not. It also pins Q12-8's scope, in two halves:
+    - With a blast radius, the armour the burrow passes through absorbs nothing, so the
+      cockpit's share is the full area share of its own cell.
+    - With the radius removed and everything else held, the same shot is a dumb AP round:
+      it damages the cells along its lane in order, and the cockpit gets only what the
+      armour and items in front of it left (12.3). It kills a build that routes every
+      penetrating shot through the fuse path.
   - `ABlastDamagesTheCellsNearestIt`: a blast to port damages port cells and leaves
     starboard cells untouched, at facings including |fx| > |fy|. It is the successor of
     `SplashDamagesTheSideTheBlastCameFrom` and `SplashIsDirectional`, and it is what pins
@@ -2553,14 +2579,25 @@ Ruled 2026-09-22 (the words are recorded under **Rulings**):
 - **Q12-7: dissolved, not answered.** It asked where a blast ray's remainder goes. With
   blasts as areas there are no rays and no remainder to route, so the question has no
   subject. The ray model's shadowing goes with it (see **Accepted loss** in 12.4).
-- **Q12-8: A**, nothing is absorbed along the burrow. The operator asked for the reasoning
-  and did not object to the recommendation. A weapon with a blast radius spends its damage
-  in the blast, the burrow is travel rather than damage, and penetration stays a
-  reach decision: how deep the fuse point can sit, not a damage budget. This does not
-  collide with "armour absorbs first": on a direct hit, armour still absorbs down the lane
-  (12.3), and against a penetrator, armour protects by absorbing its own cell's share of the
-  blast and by the reach gate. The consequence to watch when F12-2 tunes penetration is
-  that a penetrator with reach pays nothing for the plate it crosses.
+- **Q12-8: A, and it is scoped to weapons that carry a blast.** Nothing is absorbed along
+  an *explosive penetrator's* burrow: it reaches its fuse depth without spending damage,
+  and the explosion is the payload. Penetration is a reach decision there — how deep the
+  fuse point can sit — not a damage budget.
+
+  The first wording ("the burrow is travel, not damage") read as if it covered every
+  penetrating shot. It does not. Operator, 2026-09-22: "Q12-8 is odd. Like, penetration is
+  still a thing even if it's not a warhead. For a dumb AP round, you'd expect it to do
+  damage in a line, not dump all its damage at max depth, that would make AP rounds even
+  better at component sniping than AP explosives". Agreed, and the map never meant
+  otherwise: a weapon with no blast radius takes 12.3's lane, absorbed cell by cell in order
+  with the remainder carrying on, and Q12-8 does not reach it. See **Where 12.3 and 12.4
+  meet**.
+
+  So "armour absorbs first" holds everywhere it was ruled: down the lane for a direct hit,
+  and per covered cell for a blast. Against an explosive penetrator, armour protects by the
+  reach gate and by absorbing its own cell's share of the disc. The consequence to watch
+  when F12-2 tunes penetration is that an explosive penetrator with reach pays nothing for
+  the plate it crosses, while an AP round pays for every plate it passes.
 
 Open:
 
