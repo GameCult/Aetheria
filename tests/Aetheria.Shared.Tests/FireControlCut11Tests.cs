@@ -34,7 +34,7 @@ public sealed class FireControlCut11Tests : IDisposable
         Directory.Delete(_root, true);
     }
 
-    private static GameplaySettings TestSettings() => new GameplaySettings
+    private static GameplaySettings TestSettings(float schematicCellSize = 1f) => new GameplaySettings
     {
         DefaultEntitySettings = new EntitySettings(),
         Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
@@ -44,7 +44,7 @@ public sealed class FireControlCut11Tests : IDisposable
         TargetGearInfoThreshold = .8f,
         FiringArc = 170,
         CommitHorizon = .5f,
-        SchematicCellSize = 1f,
+        SchematicCellSize = schematicCellSize,
         UnaidedAccuracy = .05f,
         UnaidedTracking = 10f,
         UnaidedPrecision = 2f,
@@ -79,7 +79,7 @@ public sealed class FireControlCut11Tests : IDisposable
         string zoneName = "Cut11",
         float damage = 5, float velocity = 0, float accuracy = 1,
         bool equipShield = false, float shieldCapacity = 30,
-        bool markers = false)
+        bool markers = false, float spread = 0, float schematicCellSize = 1f)
     {
         // 5 wide x 3 tall: schematic x runs port (0) to starboard (4). Tool gear may only occupy interior
         // cells, which on this hull is the middle row x = 1..3, so the markers sit at (1, 1) and (3, 1) --
@@ -101,7 +101,7 @@ public sealed class FireControlCut11Tests : IDisposable
             Behaviors = { new InstantWeaponData
             {
                 Damage = Constant(damage), Range = Constant(1000), MinRange = Constant(0),
-                Velocity = Constant(velocity), Spread = Constant(0), DamageSpread = Constant(0),
+                Velocity = Constant(velocity), Spread = Constant(spread), DamageSpread = Constant(0),
                 Penetration = Constant(0), Count = Constant(1), BurstTime = Constant(0), Cooldown = Constant(1000),
                 DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } }
             } }
@@ -136,7 +136,7 @@ public sealed class FireControlCut11Tests : IDisposable
 
         var ledger = new ProvenanceLedger();
         for (var i = 1; i <= 16; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = 1 };
-        var items = new ItemManager(cache, ledger, TestSettings(), _ => { });
+        var items = new ItemManager(cache, ledger, TestSettings(schematicCellSize), _ => { });
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = zoneName, Owner = null }, null);
 
         EquippableItem Make(string name, int lot, float durability) => new EquippableItem
@@ -315,6 +315,32 @@ public sealed class FireControlCut11Tests : IDisposable
             Assert.True(nearMarker.EquippableItem.Durability < 100, $"{label}: the marker facing the blast took no damage");
             Assert.Equal(100f, farMarker.EquippableItem.Durability);
         }
+    }
+
+    // ---- pSpread is the share of the spread cone the target's silhouette covers. ----
+
+    // Every earlier fixture used zero spread (pSpread is then 1 regardless) and a cell size of exactly 1 (so
+    // multiplying and dividing by it agree), which left the whole spread term untested. This pins what the
+    // number MEANS rather than how it is computed: a silhouette that exactly fills the cone scores 1, one half
+    // the cone's angular size scores .5, and one bigger than the cone saturates at 1. Here the 5-wide hull at a
+    // cell size of 2 has a half-extent of 5 world units, against a 10-degree cone (5-degree half-angle).
+    [Fact]
+    public void PSpreadIsTheSilhouettesShareOfTheSpreadCone()
+    {
+        const float halfExtent = 5f, halfCone = 5f;
+        float At(float range)
+        {
+            var e = Build(spread: 2 * halfCone, schematicCellSize: 2f);
+            e.Target.Position = e.Shooter.Position + float3(0, 0, range);
+            return FireControl.Inspect(e.Weapon, e.Shooter, e.Target).PSpread;
+        }
+
+        var fills = halfExtent / (float) Math.Tan(halfCone * Math.PI / 180);          // silhouette == cone
+        var half = halfExtent / (float) Math.Tan(halfCone / 2 * Math.PI / 180);        // silhouette == half the cone
+        Assert.Equal(1f, At(fills), 2);
+        Assert.Equal(.5f, At(half), 2);
+        Assert.Equal(1f, At(fills / 3), 2);    // bigger than the cone: saturates, never exceeds 1
+        Assert.True(At(half * 2) < At(half));  // and falls away with range
     }
 
     // ---- Zones roll differently. ----

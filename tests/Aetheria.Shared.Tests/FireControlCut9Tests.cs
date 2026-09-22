@@ -285,7 +285,10 @@ public sealed class FireControlCut9Tests : IDisposable
             MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000,
             Behaviors = { new TargetingSystemData
             {
-                Accuracy = Constant(1f), Resolution = Constant(1000f), Precision = Constant(precision), Tracking = Constant(100000f)
+                // Cut 11: a finite Resolution, so pSensor actually varies with info. At 1000 it saturated to exactly 1
+                // for any info above the detection threshold, which made `x * pSensor` and `x / pSensor` the same
+                // number and let a mutant of Inspect's product survive HitProbabilityMatchesInspect.
+                Accuracy = Constant(1f), Resolution = Constant(2f), Precision = Constant(precision), Tracking = Constant(100000f)
             } }
         });
         cache.FlushAsync().Wait();
@@ -418,6 +421,17 @@ public sealed class FireControlCut9Tests : IDisposable
             Check("behind the mount");
             e.Target.Position = float3(0, 0, 100);
 
+            // Cut 11: a shooter far from the origin. Every other configuration keeps the shooter at float3.zero,
+            // where `target - source` and `target + source` are the same vector; here the correct separation is
+            // 500 (in range) while the mutated sum is 1300 (out of range), so a sign mutant in either caller's
+            // bearing makes the two disagree.
+            var home = e.Shooter.Position;
+            e.Shooter.Position = float3(600, 0, 0);
+            e.Target.Position = float3(600, 0, 500);
+            Check("shooter far from the origin");
+            e.Shooter.Position = home;
+            e.Target.Position = float3(0, 0, 100);
+
             e.Shooter.VisibleEntities.Remove(e.Target);
             Check("not visible");
 
@@ -425,7 +439,7 @@ public sealed class FireControlCut9Tests : IDisposable
             var nullHud = FireControl.Inspect(e.Weapon, e.Shooter, null).PBase;
             Assert.True(nullHot == nullHud, $"no target: {nullHot} != {nullHud}");
         }
-        Assert.Equal(21, checkedConfigurations); // 3 precisions x (4 info levels + out of range + behind + not visible)
+        Assert.Equal(24, checkedConfigurations); // 3 precisions x (4 info levels + out of range + behind + far shooter + not visible)
     }
 
     // The cost regression itself. A target out of range is the common case for every AI and turret, and it
