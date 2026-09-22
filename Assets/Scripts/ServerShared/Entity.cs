@@ -285,6 +285,19 @@ public abstract class Entity
         // subscribe with whatever Target already holds, which is harmless -- TargetItem starts null anyway.
         _subscriptions.Add(Target.Subscribe(_ => TargetItem.Value = null));
 
+        // 9.3 (docs/fire-control-cut.md, Soul C3): a Target surviving Deactivate can point at an entity
+        // this zone removed while inactive -- Deactivate disposes the Zone.Entities.ObserveRemove
+        // subscription that is the only thing that nulls a stale Target, and EntityInfoGathered was just
+        // rebuilt above from the zone's *current* membership, not from whatever Target still remembers.
+        // Reconcile here, now that both the fresh EntityInfoGathered and the Target-change subscription
+        // above are live (so this write also clears TargetItem through it): an active entity's Target
+        // must always be an entity it has info on. Activate owns this reconciliation rather than
+        // Deactivate nulling Target outright, because nulling on every dock would throw away a target
+        // that is still alive and simply never changed while docked -- the common case, and not the one
+        // that crashed.
+        if (Target.Value != null && !EntityInfoGathered.ContainsKey(Target.Value))
+            Target.Value = null;
+
         if(WeaponGroups.All(wg=>!wg.items.Any()))
             GenerateWeaponGroups();
     }

@@ -344,6 +344,22 @@ public static class FireControl
     // so whether a gated shot draws is unobservable from anywhere. The claim this comment used to make is
     // gone with the stream it was about, and the test that asserted it became vacuous the same moment; what
     // replaced it pins the live rule instead (combat touches no shared stream, on any path).
+    // 9.1 (docs/fire-control-cut.md): fmix32, MurmurHash3's 32-bit finalizer -- xor-shift, multiply,
+    // xor-shift, multiply, xor-shift. Diffuses a structured seed (here, a zone seed XORed with a small,
+    // low-bits-only ShotId) across every bit before the first xorshift draw reads it, so two seeds that
+    // differ only in ShotId's low bits still land on uncorrelated first outputs. Caller-side mixing only
+    // -- CultMath.Random itself is unchanged (see Commit's own note on why that follow-up is a separate
+    // CultLib cut).
+    private static uint MixSeed(uint seed)
+    {
+        seed ^= seed >> 16;
+        seed *= 0x85ebca6bu;
+        seed ^= seed >> 13;
+        seed *= 0xc2b2ae35u;
+        seed ^= seed >> 16;
+        return seed;
+    }
+
     private static ShotOutcome Commit(Zone zone, PendingShot shot, float now)
     {
         // Cut 6b, 6.1 (Soul finding 6): a shot's dice belong to the shot, not to whatever else happened to
@@ -353,7 +369,16 @@ public static class FireControl
         // no matter what the UI drew from the shared stream in between. This generator is local and dies with
         // the call: nothing outside Commit may seed or advance a combat draw, and Commit may not read or write
         // a shared stream.
-        var random = new Random((zone.CombatSeed * 2654435761u) ^ (uint) shot.ShotId | 1u);
+        // 9.1 (docs/fire-control-cut.md): the per-shot seed is unchanged -- a pure function of
+        // (zone identity, shot id), Cut 6b's own rule -- but CultMath.Random draws only one xorshift
+        // round for NextFloat's first call, and one round does not diffuse a seed that differs from its
+        // neighbours only in ShotId's low bits. Unmixed, every zone's first draw was a near-constant
+        // function of ShotId (measured span ~0.125), making a shot a step function of p fixed at zone
+        // creation, not a roll (Soul C1). MixSeed is a standard fmix32 finalizer (MurmurHash3): this is
+        // a caller's obligation, not a CultMath defect -- seeding xorshift with a structured value and
+        // drawing once is the documented way to get a correlated first output, and a follow-up to give
+        // CultMath.Random a mixed-seed entry point of its own is recorded for a separate CultLib cut.
+        var random = new Random(MixSeed((zone.CombatSeed * 2654435761u) ^ (uint) shot.ShotId | 1u));
         var p = shot.PBase;
         if (p > 0f && shot.Target != null)
         {
@@ -486,7 +511,16 @@ public static class FireControl
     // Higher Precision (a tighter group) gives a smaller sigma; the 1e-3 floor only guards a stray zero or
     // negative authored value; no authored Precision should ever reach it (GameplaySettings.UnaidedPrecision
     // is the deliberately-bad floor Precision(Entity) itself falls back to, same shape as UnaidedAccuracy).
-    private static float Sigma(float precision) => 1f / max(precision, 1e-3f);
+    //
+    // 9.2 (docs/fire-control-cut.md, Soul C2): SigmaFloor guards a second, unrelated failure the 1e-3
+    // floor above does nothing about. HullKernel approximates a continuous 2D Gaussian with a discrete
+    // sum over occupied cells; that sum badly undershoots the continuous integral once sigma drops much
+    // below one cell against an aim point that is not exactly on a cell centre -- true of every shipped
+    // hull, none of whose centres of mass are integral. Past that point pOnHull collapsed toward zero as
+    // Precision kept climbing, so a better targeting system made a shot un-fireable. Clamping sigma at
+    // half a cell keeps the discrete sum a faithful share of the kernel over the whole Precision domain.
+    private const float SigmaFloor = 0.5f;
+    private static float Sigma(float precision) => max(1f / max(precision, 1e-3f), SigmaFloor);
 
     // w(cell) = exp(-d^2 / 2*sigma^2) over every occupied hull cell, `d` the planar cell-space distance from
     // the aim point, plus pOnHull = (sum of those weights) / (2*pi*sigma^2) -- the share of the full continuous
@@ -529,9 +563,14 @@ public static class FireControl
 
     // A single weighted draw over the kernel's own occupied-cell weights -- the only way Commit picks a cell
     // once a shot has already passed the roll (R3: one roll decides damage). totalWeight is passed in rather
-    // than resummed so this reads the identical mass HullKernel just computed. The trailing return guards only
-    // floating-point rounding at the very end of the accumulation; it can never fall through for a shot that
-    // reaches here, because the roll already established this hull has nonzero on-hull mass.
+    // than resummed so this reads the identical mass HullKernel just computed.
+    //
+    // 9.2 (docs/fire-control-cut.md, Soul C2): the trailing return used to carry a claim that it "can
+    // never fall through," which was false on its own terms -- it falls through whenever totalWeight == 0,
+    // returning a fixed corner cell, and was unreachable only as a side effect of pOnHull collapsing to
+    // zero and gating PBase to zero first. Now that Sigma floors sigma so pOnHull no longer collapses,
+    // that accidental gate is gone too; the return stays as an explicit floating-point-rounding guard, not
+    // a documented invariant.
     private static int2 WeightedPick(int2[] cells, float[] weights, float totalWeight, Random random)
     {
         var roll = random.NextFloat() * totalWeight;
