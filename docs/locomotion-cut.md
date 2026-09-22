@@ -2,7 +2,10 @@
 
 Date: 2026-09-22
 
-Status: target and cut map, from an Imagination pass. None of it has landed. Every anchor is against
+Status: target and cut map, from an Imagination pass, revised 2026-09-22 after the operator ruled Q1, Q2 and
+Q3 and asked for the legacy thruster hulls back. None of it has landed. **The cuts are renumbered by that
+revision**: the content restore is the new Cut 1, and what the first committed version called Cuts 1 to 4 are now
+Cuts 2 to 5. Every anchor is against
 `origin/codex/item-provenance` at `cd846916`; the working tree on `codex/fire-control-10` (`e8fbb6a6`) has an
 identical tree for every file named below. The first half of this document is the **target** (the ends). The second
 half is the **cut map** (the means). When the campaign closes, split the target out as
@@ -52,6 +55,22 @@ Self, relaying an operator answer, 2026-09-22. This is the layer split, stated p
 - The long-way test therefore belongs to the shared-controller cut and drives `LookDirection` directly, as the
   player would. The crab-walk test belongs to the planner cut.
 
+Operator rulings on this map, 2026-09-22, relayed by Self:
+
+- **Q1 = A, the divergence is accepted.** "The divergence is fine." A small divergence from base behaviour on
+  intact thruster ships is accepted: the Longinus's forward creep of about 10.7 m/s² while turning in place, and
+  the Djinn's roughly 9% faster strafe. Base is pinned exactly only where the old mixer and the allocator agree,
+  and the accepted divergences are named with their measured magnitudes in Cut 3's verification, so Soul can tell
+  an accepted divergence from a regression. **No per-thruster role rules are reintroduced to match base.**
+- **Q2 = B, differential main thrust is allowed.** "That's absolutely viable and can be a better decision than
+  turning around the long way, I wouldn't introduce a thruster exclusion for this." Any live actuator's torque may
+  be spent on rotation, mains included. A damaged ship turning toward its dead side lurches forward, and the
+  planner may prefer that to the long way round when it is faster.
+- **Q3, fixtures follow the data.** "Good catch on the Longinus main thrusters, I was misremembering." Two aft 2×2
+  mains, as both legacy catalogs author them.
+- **Restore the legacy thruster hulls.** Asked whether the lost layouts could come back: "can we restore these
+  layouts?" They become Cut 1, the campaign's first cut, ahead of the solver.
+
 ---
 
 # Part I: Target
@@ -87,9 +106,8 @@ creates a real handicap and not an exploit.
    Today's snap-to-look lerp (`Ship.cs:280-284`) is a free, thrusterless rotation, and it goes.
 6. **Kinematic rotation is retained.** Rotation stays kinematic: yaw rate is proportional to live throttle
    (`Thruster.cs:106-107`, `AetherDrive.cs:154-155`), with no angular momentum. Nothing found here argues for
-   raising it. It keeps turn time exact (angle divided by rate), which the planner relies on. It also matches the
-   operator's model ("losing an attitude thruster means you can't rotate that way anymore"): with no momentum,
-   there is no coast.
+   raising it. It keeps turn time exact (angle divided by rate), which is what lets the planner compare a long
+   way round against a slow lurching turn without simulating either.
 7. **A dead actuator never receives throttle.** A destroyed, disabled or unpowered actuator gets zero throttle,
    not a saturated request it cannot honour.
 8. **Capability is one model.** Turn time, turn direction, rotation capacity and translation capacity are computed
@@ -99,7 +117,7 @@ creates a real handicap and not an exploit.
 ## Canonical implementations
 
 - **Solver:** CultMath (`F:\Projects\CultLib\packages\cultmath`), a box-constrained linear least-squares solver,
-  added by Cut 1. It is the only numerical authority. Aetheria composes the problem and calls it.
+  added by Cut 2. It is the only numerical authority. Aetheria composes the problem and calls it.
 - **Allocation reference:** T. A. Johansen and T. I. Fossen, "Control allocation: A survey," *Automatica* 49(5),
   2013. Its weighted-least-squares form with priorities is what `ShipControl` states. The active-set method follows
   O. Härkegård, "Efficient active set algorithms for solving constrained least squares problems in aircraft control
@@ -108,10 +126,12 @@ creates a real handicap and not an exploit.
 ## Out of scope
 
 - **Fire-control Cut 12** (edge-on hit placement in `FireControl.cs`, `Entity.ApplyHit`, `DamageSchematic`) is
-  being mapped concurrently by another Imagination pass. Cuts 1 to 3 here touch none of those files. The allocator
-  is a read-only downstream consumer of item destruction (`ItemDamage`, `Entity.cs:488`). **Overlap:** Cut 4 (combat
+  being mapped concurrently by another Imagination pass. Cuts 2 to 4 here touch none of those files. The allocator
+  is a read-only downstream consumer of item destruction (`ItemDamage`, `Entity.cs:488`). **Overlap:** Cut 5 (combat
   facing) will rewrite `Agents/States/Combat.cs:88-127`, and presenting armour edge-on is exactly what Cut 12's hit
-  placement rewards. Cut 4 must be mapped after Cut 12 lands.
+  placement rewards. Cut 5 must be mapped after Cut 12 lands. Cut 1 restores catalog content, and the only file it
+  and Cut 12 could both touch is `GameData/Aetheria.cc`; Cut 1 must not be in flight while another cut writes the
+  catalog.
 - **The old AetheriaEve/CultMesh/daemon rebuild** is taxidermy. It is not precedent and not a consumer.
 - Thruster geometry (the normalized moment-arm `Thruster.Torque`, `Thruster.cs:64-69`, which ignores lever length
   and uses unweighted shape cells for centre of mass) is the game's model and stays as authored. Arrival braking in
@@ -135,10 +155,11 @@ runtime-derived per tick, or per planner cadence, and are never saved.
 | `MovementDirection`, `LookDirection` (runtime) | fields on `Ship`/`Entity` | overwritten each frame by whoever flies the ship | player (`ActionGameManager`) or AI (`Agent` layer), never both on one ship (`Zone.cs:111` gives agents only to `!IsPlayerShip`) |
 | Committed turn direction, planner plan (runtime) | fields on `ShipControl` / `Agent` | reset on wormhole, dock, spawn | `ShipControl` / `Agent` |
 | `ThrusterData`, `AetherDriveData`, `HullData.Hardpoints/Shape` (persisted, catalog) | catalog record key | authored | unchanged; read only |
-| `GameplaySettings.TorqueFloor`, `TorqueMultiplier`, `AetherTorqueMultiplier` (authored, `Settings.cs:205-207`; values in `Assets/Resources/Settings.asset`: 0.5, 0.1, 0.1) | field name | authored | unchanged values. `TorqueFloor` changes role; see Cut 2 |
+| `GameplaySettings.TorqueFloor`, `TorqueMultiplier`, `AetherTorqueMultiplier` (authored, `Settings.cs:205-207`; values in `Assets/Resources/Settings.asset`: 0.5, 0.1, 0.1) | field name | authored | unchanged values. `TorqueFloor` changes role; see Cut 3 |
 
-This campaign adds no authored field. If Hands finds it needs a tunable, that is an operator question, and any new
-field on a persisted CultCache document must be nullable (MessagePack nil rule).
+This campaign adds no authored **field**. Cut 1 adds authored **records** (hulls, thruster designs and their
+products) to `GameData/Aetheria.cc` using the schema as it stands. If Hands finds it needs a tunable, that is an
+operator question, and any new field on a persisted CultCache document must be nullable (MessagePack nil rule).
 
 ---
 
@@ -178,7 +199,7 @@ clockwise positive.
 never used for rotation), attitude thrusters ±0.998. Djinni stern 0 / ±0.161, laterals ±0.727 (aft) and ±0.867
 (fore), bow 0.
 
-**Base flight table** (`cd846916`, after warm-up). These are the Cut 2 pins:
+**Base flight table** (`cd846916`, after warm-up). These are the Cut 3 pins:
 
 | Input | Longinus (r, f, °/s) | Djinni (r, f, °/s) |
 |---|---|---|
@@ -218,11 +239,12 @@ later thrusters push along an already-rotated nose. The allocator cannot see thi
   "Traction" (rotor mass (30,20,5), λ (0.5,1,1), MaxRpm 40000..80000). Two thruster designs exist ("deep space
   burnout", "Large Drive"), but no live ship can mount them (`docs/content-batch-one.md` §1 says the same).
   **AetherDrive is therefore the load-bearing actuator for the player today**, and the allocator must reproduce its
-  base behaviour exactly.
+  base behaviour exactly. Cut 1 restores the thruster hulls, which is what makes any play check on a thruster ship
+  possible at all.
 - **Existing tests sit on an off-centre thruster.** `BrownoutTests`/`ConditionRatioTests` equip a one-cell thruster
   by `TryFindSpace` onto a 5×5 hull. It lands at (1,1) with `Torque` −0.707, and `MovementDirection (0,−1)` fires it
   while it spins the ship. Under an allocator that holds heading, a lone off-centre thruster cannot fire without
-  rotating, so those fixtures must be re-seated (Cut 2).
+  rotating, so those fixtures must be re-seated (Cut 3).
 
 ## Legacy hull layouts (probe)
 
@@ -241,8 +263,8 @@ live LonginusX's. Rows from y = 0: `.####.` ×4, `######` ×5, `.####.` ×2, `..
 | Th.CW | (2,14) | 1×2 | CounterClockwise (pushes starboard, nose right) |
 | Th.CCW | (3,14) | 1×2 | Clockwise (pushes port, nose left) |
 
-**The data has two aft 2×2 thrusters, not one.** The operator remembers "one big thruster". Fixtures follow the
-data (see Q3).
+**The data has two aft 2×2 thrusters, not one.** The operator remembered "one big thruster" and ruled on it,
+2026-09-22: "Good catch on the Longinus main thrusters, I was misremembering." Fixtures follow the data.
 
 **Djinni** (mass 10000, drag 0.2, 14×17). Rows from y = 0: `....######....`, `...########...`,
 `..##########..`, `.############.` ×2, `##############` ×5, `.############.`, `...########...` ×3,
@@ -284,23 +306,23 @@ matrices. A production float implementation without allocations will be faster t
 | Surface | Readers / writers | Fate |
 |---|---|---|
 | `Ship.MovementDirection` (`Ship.cs:27`) | W: `ActionGameManager.cs:1263` (player), `Agent.cs:67,73,77` (AI); tests `BrownoutTests.cs:143,402`, `ConditionRatioTests.cs:184,193,243,258`. R: `Ship.cs:261-291` | **Survives** as the translation input. Its meaning is defined by `ShipControl` (fraction of capacity per half-axis) |
-| `Entity.LookDirection` (`Entity.cs:55`) | W: `ActionGameManager.cs:1254` (player), `Agent.cs:66`, `MoveTo.cs:26`, `Combat.cs:126`, `TurretController.cs:72,75` (turret entities; no `EntityTypeRestriction`, `TurretController.cs:14-15`). R (as heading): `Ship.cs:278`. R (as aim): `LockWeapon.cs:94`, `GuidedProjectileManager.cs:56`, `EntityInstance.cs:404`, `ShipInstance.cs:117` (tractor), `ZoneRenderer.cs:432`, `ActionGameManager.cs:376` (reticle target pick) | **Survives** as heading command *and* aim. `MoveTo.cs:26` dies in Cut 3 (a double writer: `Accelerate` overwrites it when Δv > 20). The heading/aim conflation is Cut 4's question (Q4) |
+| `Entity.LookDirection` (`Entity.cs:55`) | W: `ActionGameManager.cs:1254` (player), `Agent.cs:66`, `MoveTo.cs:26`, `Combat.cs:126`, `TurretController.cs:72,75` (turret entities; no `EntityTypeRestriction`, `TurretController.cs:14-15`). R (as heading): `Ship.cs:278`. R (as aim): `LockWeapon.cs:94`, `GuidedProjectileManager.cs:56`, `EntityInstance.cs:404`, `ShipInstance.cs:117` (tractor), `ZoneRenderer.cs:432`, `ActionGameManager.cs:376` (reticle target pick) | **Survives** as heading command *and* aim. `MoveTo.cs:26` dies in Cut 4 (a double writer: `Accelerate` overwrites it when Δv > 20). The heading/aim conflation is Cut 5's question (Q4) |
 | `Thruster.Axis` (`Thruster.cs:45-49`) | W: `Ship.cs:256-288` only. R: `ShipInstance.cs:139` (particles), `Thruster.cs:88` (power request), `:96` (audio), `:102-111` | Getter **survives**. The public setter **dies**; only `ShipControl` commands throttle |
 | `AetherDrive.Axis` (`AetherDrive.cs:81-85`) | W: `Ship.cs:291` only. R: drive internals, audio `:170` | Same as `Thruster.Axis` |
-| `IAnalogBehavior` (`Behaviors.cs:96-99`) | implemented by `Thruster.cs:40`; consumer only a comment, `Entity.cs:2007` | **Dies** (Cut 2 deletes first) |
+| `IAnalogBehavior` (`Behaviors.cs:96-99`) | implemented by `Thruster.cs:40`; consumer only a comment, `Entity.cs:2007` | **Dies** (Cut 3 deletes first) |
 | Bucket sets `_forward/_reverse/_right/_left/_clockwise/_counterClockwiseThrusters`, `_thrusterItems`, `_aetherDrives`, `_aetherDriveItems` (`Ship.cs:30-39`) | `Ship.cs` only | **Die** |
 | `ForwardThrust`, `ReverseThrust`, `LeftStrafeThrust`, `RightStrafeThrust`, `ClockwiseTorque`, `CounterClockwiseTorque`, `Left/RightStrafeTotalTorque`, `Left/RightStrafeTorqueThrusters` (`Ship.cs:50-59`) | written by `RecalculateThrust`, read by the mixer; **no reader outside `Ship.cs`** (grep, including Unity side and tests) | **Die** |
-| `Ship.TurnTime` (`Ship.cs:61-66`) | no consumer | **Dies**; replaced by `ShipControl.TurnTime` (Cut 2), consumed in Cut 3 |
+| `Ship.TurnTime` (`Ship.cs:61-66`) | no consumer | **Dies**; replaced by `ShipControl.TurnTime` (Cut 3), consumed in Cut 4 |
 | `RemoveThruster`, `RemoveAetherDrive`, their `ItemDestroyed` subscriptions (`Ship.cs:123-143`) | internal | **Die**; liveness is read live (invariant 3) |
-| `Agent.Accelerate` (`Agent.cs:58-79`), `FORWARD_DELTA_THRESHOLD`/`THRUST_DELTA_THRESHOLD` (`:16-17`) | called by `MoveTo.cs:27`, `Combat.cs:127` | **Rewritten** in Cut 3 (planner). Signature kept |
+| `Agent.Accelerate` (`Agent.cs:58-79`), `FORWARD_DELTA_THRESHOLD`/`THRUST_DELTA_THRESHOLD` (`:16-17`) | called by `MoveTo.cs:27`, `Combat.cs:127` | **Rewritten** in Cut 4 (planner). Signature kept |
 | `Agent.TopSpeed` (`Agent.cs:26`) | `MoveTo.cs:25`, `Combat.cs:127`. No live catalog item carries `VelocityLimit` or `VelocityConversion` (probe), so it is 100 everywhere | Survives |
-| `GameplaySettings.TorqueFloor` (`Settings.cs:205`) | `Ship.cs:115,118` | **Survives with a new role**: it sizes rotation authority (Cut 2) and no longer classifies which thrusters fire |
+| `GameplaySettings.TorqueFloor` (`Settings.cs:205`) | `Ship.cs:115,118` | **Survives with a new role**: it sizes the rotation demand (Cut 3, Q5) and no longer classifies which thrusters fire |
 | `TorqueMultiplier`, `AetherTorqueMultiplier` | `Thruster.cs:107`, `AetherDrive.cs:155` | Survive; also enter the yaw-rate row of each column |
 | `Entity.Direction` writers | `Thruster.cs:106`, `AetherDrive.cs:154`, `Ship.cs:79` (wormhole), `Ship.cs:283` (snap), `ActionGameManager.cs:848` (spawn), `EntitySerializer.cs:66` | `Ship.cs:283` **dies** (invariant 5); the others survive |
 | `Entity.Velocity` external writers | `HullCollider.cs:15` (collision impulse), `ShieldManager.cs:79` (bounce), `VelocityConversion.cs:41`, `VelocityLimit.cs:48` | Not control; these are external forces and constraints. Untouched |
 | Undock capability check (`ActionGameManager.cs:913`) | `GetBehavior<Thruster/AetherDrive>() == null` | Survives. It could later read the capability model; not this campaign |
-| Mining, Survey, HaulingTask, StationTowing (`Agents/Tasks/*.cs`) | data-only task classes; no movement code (grep) | Not consumers. `PatrolOrbitsState` drives `MoveToOrbitState`, which Cut 3 covers |
-| Player input path | `Input.Player.Look` → `_entityYawPitch` → `LookDirection` (`:1250-1254`); `Input.Player.Move` → `MovementDirection` (`:1261-1264`). No other action writes motion (grep of `Input.Player.*`: targeting, heat, shield, stance, tractor, ping, UI) | **Already on the shared surface**. The only bypasses are the ones `Ship.cs` itself holds (the snap, direct `Axis` writes), and both die in Cut 2 |
+| Mining, Survey, HaulingTask, StationTowing (`Agents/Tasks/*.cs`) | data-only task classes; no movement code (grep) | Not consumers. `PatrolOrbitsState` drives `MoveToOrbitState`, which Cut 4 covers |
+| Player input path | `Input.Player.Look` → `_entityYawPitch` → `LookDirection` (`:1250-1254`); `Input.Player.Move` → `MovementDirection` (`:1261-1264`). No other action writes motion (grep of `Input.Player.*`: targeting, heat, shield, stance, tractor, ping, UI) | **Already on the shared surface**. The only bypasses are the ones `Ship.cs` itself holds (the snap, direct `Axis` writes), and both die in Cut 3 |
 
 Out-of-scope note: the working tree has an uncommitted change to `Assets/Scripts/AetheriaInput.cs` (a "Cycle Target
 Item" action). That is fire-control work, and it does not touch motion.
@@ -315,7 +337,13 @@ Status: cut map. Ends are owned by Part I above; this section owns the means.
 
 Nothing has landed.
 
-Open: Q1 and Q2 block Cut 2's pins. Q3 blocks only fixture naming. Q4 blocks only Cut 4.
+Rulings (operator, 2026-09-22): **Q1 A** ("The divergence is fine"), **Q2 B** ("that's absolutely viable and can
+be a better decision than turning around the long way, I wouldn't introduce a thruster exclusion for this"), **Q3**
+fixtures follow the data ("Good catch on the Longinus main thrusters, I was misremembering"), and Cut 1 exists
+because of "can we restore these layouts?". The Q2 text below is marked as history; the live design is in Cut 3.
+
+Open: **Q4** (heading versus aim) blocks only Cut 5. **Q5** (how the rotation demand is sized under Q2 = B) blocks
+Cut 3. Cut 1's recoverable-content list is an operator review item before Hands writes any record.
 
 Follow-ups outside this campaign:
 - `TurretController` has no `EntityTypeRestriction`, so equipping it on a ship would create a third
@@ -325,7 +353,113 @@ Follow-ups outside this campaign:
   thrusters' rotation. It is a small artefact, and it is `Thruster.cs`'s to fix, not the allocator's.
 - `AetherDrive.Execute` logs "FUCK FUCK FUCK FUCK" on NaN velocity (`AetherDrive.cs:157-158`), a leftover probe.
 
-## Cut 1. CultMath: bounded least squares (CultLib)
+## Cut 1. Restore the legacy thruster ship hulls to the live catalog
+
+A pure content cut, separable from every code cut, so Soul can falsify it on its own. Operator, 2026-09-22: "can
+we restore these layouts?"
+
+- **Repo/branch:** Aetheria, a branch from `codex/locomotion`. Depends on nothing. It blocks no code, but nothing
+  in this campaign can be flown on a thruster ship until it lands, and Cuts 3 and 4 get their real fixtures from
+  it. It writes `GameData/Aetheria.cc`, so it must not be in flight while another cut writes the catalog.
+- **Standing rule** (memory: `aetheria-content-audits-pre-breach`): `GameData/Aetheria.cc` is the post-breach
+  bare-minimum rebuild, so absence there is not evidence of absence, and **the operator's word is the authority**
+  on what the pre-breach content was. The list below is therefore an **operator review item before Hands writes
+  anything into the catalog**.
+
+### What the legacy record actually holds (probe)
+
+Sources, all decoded in the scratchpad: the git-LFS objects behind `GameData/Legacy/AetherDB.2021-04-14.msgpack`
+(`21ce7bd2…`, 76 KB) and `AetherDB.2021-03-05.msgpack` (`142998fd…`, 59 KB), and the last
+`GameData/AetherDB.msgpack` before the Cut 9 import (`8963a686…`, 46 KB, the commit's own parent at `70fbaca1^`).
+All three are present in `.git/lfs/objects`; nothing had to be fetched.
+
+The comparison explains the loss. The 2021-04-14 record carries 5 ship-class hulls and 45 gear designs. The import
+source carries 3 hulls (LonginusX, Zenith, Turret) and 25 gear. **Longinus, Djinni and every thruster below the
+2×2 class were already gone from the file Cut 9 imported**, which is why the live catalog has no thruster ship.
+
+**Recoverable in full from 2021-04-14** (name, shape, mass, price, hardpoint list with position, shape, rotation
+and armour, behaviours, temperature band, manufacturer, prefab and schematic paths):
+
+| Record | Kind | Legacy detail | Notes |
+|---|---|---|---|
+| **Longinus** | ship hull | 6×17, mass 2500, drag 0.1, price 7,500,000, maker Alakrita | The shape is byte-identical to the live LonginusX's. 4 thruster hardpoints (`Th.L`/`Th.R` 2×2 aft, `Th.CW`/`Th.CCW` 1×2 in the nose) plus control module, 2 energy, 2 launcher, 2 radiator, reactor, sensors |
+| **Djinni** | ship hull | 14×17, mass 10000, drag 0.2, price 10,000,000, maker Rossum & Douglas | 8 thruster hardpoints (3 stern, 4 lateral, 1 bow) plus 4 launcher, 2 ballistic, reactor, control module, 4 radiator, sensors, and a shield hardpoint |
+| **Medium Drive** | thruster gear | 2×1, mass 100, thrust 100000..300000, price 50,000, no maker | **The one item both restored hulls need.** Fits the 2×1 stern/bow hardpoints and, rotated, the 1×2 lateral and nose ones |
+| **Small Drive** | thruster gear | 1×1, mass 50, thrust 75000, price 25,000, no maker | Optional; the cheap end of the line |
+| **Victoire** | thruster gear | 2×1, mass 25, thrust 200000..1500000, maker Alakrita | Optional; the racing thruster, and a natural Longinus fit |
+| **Talaria** | thruster gear | 2×1, mass 150, thrust 75000..250000, maker Aeronautics Unlimited | Optional |
+| **RevvITup 2.0** | thruster gear | 2×2, mass 150, thrust 250000..1000000, maker NiteLife Energy | Optional; a second 2×2 beside the two the catalog already ships |
+
+Everything those records depend on is **already in the live catalog**: all 12 factions (Alakrita and Rossum &
+Douglas included), both existing 2×2 thrusters, and the Unity presentation. The prefabs still carry the hardpoint
+transforms by their legacy names — `Th.L`, `Th.R`, `Th.CW`, `Th.CCW` in `Assets/Content/Prefabs/Ships/
+Longinus.prefab` (GUID `4a3db609…`, already the hull the live LonginusX points at) and `Thruster Stern 1..3`,
+`Thruster Port/Starboard Fore/Aft` and `Thruster Bow` in `Djinni.prefab` (GUID `79024f63…`). The schematics exist
+too (`schema_Longinus.png` `51702555…`, already referenced; `djinni_schematic_transparent.png` `66f3acdd…`, unused
+today). So no art, no prefab work and no faction work is needed.
+
+**Not recoverable, because it post-dates the breach and has to be authored:**
+
+- `HardpointData.FiringArc` (Key 6) for the Djinni's weapon hardpoints. The legacy hardpoint record stops at
+  armour. 0 means "use `GameplaySettings.FiringArc`"; the `firing-arc-migrate` command in `tools/AetherDb` is the
+  precedent for deriving one from mount rotation.
+- `ItemRole` lists on the restored designs, and `ProductRole` qualities on their products.
+  `RoleAuthoringTests` refuses a stat naming a role its design lacks, and `docs/content-batch-one.md` fixes the
+  nomenclature (`injector`/`nozzle` for thrusters, `plating` for hulls). The live "deep space burnout" carries
+  `injector, nozzle`; "Large Drive" carries none.
+- A `FactionProductData` per restored design. `LoadoutGenerator` picks products, not designs, so a design without
+  one exists but is never generated or sold. The catalog holds 47 products today.
+- Any `PowerSupply` term on the restored thrusters' stats (the stats-and-power cut's brownout curve). The shipped
+  thrusters request zero energy, so matching them is the safe default and is a content decision.
+- Provenance is runtime, not authored: `ItemManager` mints the `Lot` (`docs/item-provenance-target.md`).
+
+**One open identification.** Both legacy hulls carry a second hull behaviour that LonginusX does not (behaviour
+tag 11 in the legacy union, a single `PerformanceStat`; Longinus `50..50`, Djinni the same). LonginusX carries only
+the one LonginusX still has today, `ReflectorData`. Hands must identify tag 11 against the current `BehaviorData`
+union before authoring. **If it is `VelocityConversion`, it matters to this whole campaign**: that behaviour damps
+velocity toward the nose (`VelocityConversion.cs:41`), which is a direct tax on crab walking, and no item in the
+live catalog carries it. Put the identification in front of the operator with the rest of the list.
+
+### The cut
+
+- **Deletes first:** nothing. This is content restoration.
+- **Adds:** the two hull records, `Medium Drive`, and whichever optional thrusters the operator's review keeps;
+  a `FactionProductData` for each; roles for each; firing arcs on the Djinni's weapon hardpoints.
+- **Mechanism:** a one-shot command in `tools/AetherDb` (`restore-hulls [apply]`), in the shape of the existing
+  `*-migrate [apply]` commands: dry run by default, opens the catalog through `AetheriaStores.Open(catalogWritable:
+  true)` only when applying, writes every record in one `Commit`, and refuses to run twice. The Cut 9 importer
+  (`tools/AetherDb/Import.cs`, added in `70fbaca1` and deleted by Cut 10) is the precedent for reading the legacy
+  `[tag, payload]` records and rewriting them by the target type's `[Key]` shape; read it out of git history rather
+  than re-deriving the mapping. **Delete the command in the same campaign, as Cut 10 deleted the importer**, so the
+  carrying cost of the restore is zero once it has run.
+- **Authority map:**
+  - Owner: the catalog (`GameData/Aetheria.cc`) owns authored content; the operator owns what the content *is*.
+  - Inputs: the legacy LFS records, the existing factions and assets, the operator's review of the list above.
+  - Outputs: new `HullData`, `GearData` and `FactionProductData` records.
+  - Derived state: none. Runtime `Lot`s and provenance are minted as for any other design.
+  - Forbidden writers: nothing else may write the catalog while this cut is in flight; the one-shot command must
+    refuse a second apply rather than upsert twice.
+  - Deletion line: the command goes once the records are in.
+- **Verification:**
+  - `FireControlCut7Tests.ShippedCatalogOpensAndGeneratesAnArmedHull` still passes unchanged: the real catalog
+    opens, every `EquippableItemData` deserializes, and LonginusX still generates an armed loadout.
+  - New `RestoredHullsTests` against the real catalog, read-only: each restored hull exists, has the expected
+    thruster hardpoint count (Longinus 4, Djinni 8), every thruster hardpoint accepts a catalog thruster design
+    through `TryEquip` at that hardpoint's own position, and the ship then moves and turns under
+    `MovementDirection`/`LookDirection` for a few ticks. Before Cut 3 this runs on the old mixer, which is the
+    point: it proves the content, not the controller.
+  - `LoadoutGenerator` generates each restored hull when filtered to it, which is the check that the products and
+    roles are authored correctly.
+  - `dotnet run --project tools/AetherDb -- census` names the two hulls with their makers, and `dangling` reports
+    no new dangling reference.
+  - Operator: the review of the list above before anything is written, then the Studio click-through, then a play
+    check flying a restored hull. That play check is what unblocks the rest of this campaign.
+- **Operator questions:** the recoverable list itself, and the behaviour-tag-11 identification, both above.
+- **Ledger estimate:** no source removed. About 3 to 7 catalog records added, plus their products, plus a one-shot
+  command of roughly 150 lines that is deleted again in this campaign. Net carrying cost: the content, and nothing
+  else.
+
+## Cut 2. CultMath: bounded least squares (CultLib)
 
 - **Repo/branch:** `F:\Projects\CultLib`, a branch from `45c2f40` (Aetheria's pinned `CultLibRevision`,
   `Directory.Build.props`). Depends on nothing.
@@ -362,15 +496,16 @@ Follow-ups outside this campaign:
   path. In Aetheria, bump `Packages/manifest.json`'s `org.gamecult.cultmath` tag and `Directory.Build.props`
   `CultLibRevision` in one commit.
 - **Authority map:** Owner: CultMath. Inputs: A, b, bounds, warm start. Outputs: x and status. Forbidden writers:
-  no least-squares or linear-solve code in `Aetheria/Assets/Scripts/**` (negative grep in Cut 2).
+  no least-squares or linear-solve code in `Aetheria/Assets/Scripts/**` (negative grep in Cut 3).
 - **Verification:** `dotnet build packages/cultmath/src/CultMath/CultMath.csproj`; `dotnet test` of CultMath.Tests.
   Aetheria's `dotnet test tests/Aetheria.Shared.Tests` still passes 244 after the bump. Unity compiles the new
   package, and only the operator can check that.
 - **Ledger estimate:** +150..220 lines of source and +150 lines of test in CultLib; Aetheria gets a 2-line bump.
 
-## Cut 2. `ShipControl`: shared controller and allocator replace the mixer
+## Cut 3. `ShipControl`: shared controller and allocator replace the mixer
 
-- **Repo/branch:** Aetheria, a branch from the Cut 1 bump commit. Depends on Cut 1.
+- **Repo/branch:** Aetheria, a branch from the Cut 2 bump commit. Depends on Cut 2. Cut 1 is not a
+  prerequisite for the code, but its restored hulls are what the operator's play check needs.
 - **First:** before editing, commit the base flight numbers above as test constants, reproduced by the fixture spec
   in "Findings". They are computed at `cd846916`, never captured from new code. Also run a LonginusX-with-Traction
   pin at base: `AetherDrive.Axis` for each probe input is `(my, mx, sqrt(|sin e|)·sign)`, including e = 30°, which
@@ -411,22 +546,36 @@ Follow-ups outside this campaign:
       cancels the scale, so throttle equals input.
   - **Heading controller** (below the inputs, shared):
     - `look = LookDirection.xz`. A zero look means hold heading: no NaN, no command.
-    - Per rotation direction, rotation authority `ω_cap(dir)` is the sum of that direction's yaw-rate entries over
-      columns whose `|Thruster.Torque| > TorqueFloor`. Drive torque columns always count. Under Q2 (A) that is the
-      whole of rotation authority. **`TorqueFloor` no longer decides which thrusters fire.** It only sizes how
-      much rotation may be demanded.
+    - **No actuator is excluded from rotation** (Q2 = B). The allocator may spend any live column's torque to meet
+      the rotation demand, mains included, and a ship with no attitude thruster left on one side turns that way by
+      differential main thrust, lurching forward while it does.
+    - What `TorqueFloor` still does is **size the demand**, not gate an actuator. Per rotation direction,
+      `ω_cap(dir)` is the sum of that direction's yaw-rate entries over columns whose
+      `|Thruster.Torque| > TorqueFloor` (drive torque columns always count); **if that sum is zero, `ω_cap(dir)`
+      is the sum over every column instead.** So a ship with attitude authority does not burn its mains to turn
+      a few percent faster, and a ship without it still turns. This piecewise sizing is Q5; it is the only part of
+      the Q2 = B design that is a choice rather than a consequence.
+    - Probe, at the fixture values: a Longinus with `Th.CCW` destroyed has zero counter-clockwise attitude
+      authority, so the fall-back sizes the demand from its mains, and the allocator turns it counter-clockwise at
+      78.5°/s with `Th.R` at full throttle and 86.20 m/s² of forward lurch. Clockwise is untouched at 394.4°/s.
+      A hull whose single main sits on the centre line (torque 0) has no counter-clockwise authority at all, even
+      with the fall-back, so for that ship the long way round is the only way round.
     - **Direction choice:** pick the direction that minimizes `angle_in_that_direction / ω_cap(dir)`, with
-      infinity where `ω_cap = 0`. This yields the long way round. Keep the committed direction unless the other
-      direction is faster by a margin, so symmetric ships do not dither near 180°.
+      infinity where `ω_cap = 0`. With the fall-back in play this is a real comparison rather than a formality:
+      the damaged Longinus above takes the long way round for a 90° turn to port (270°/394.4 = 0.685 s against
+      90°/78.5 = 1.15 s) and the lurching short way for a 20° turn to port (0.255 s against 0.862 s), which is
+      exactly the operator's "can be a better decision than turning around the long way". Keep the committed
+      direction unless the other is faster by a margin, so symmetric ships do not dither near 180°.
     - **Rate demand:** `ω_d = min(profile(e)·ω_cap, e/dt)`, where `profile(e) = sqrt(sin e)` for e ≤ 90° (base's
       curve, which preserves the pins) and 1 beyond. The `e/dt` cap lands the heading without overshoot and
       replaces the snap.
-    - It exposes `TurnTime(heading)` and `RotationCapacity(dir)` for Cut 3.
+    - It exposes `TurnTime(heading)` and `RotationCapacity(dir)` for Cut 4. Both account for the fall-back, so
+      the planner sees the same slow lurching turn the controller would actually fly.
   - **Translation demand:**
     - `F_d = (mx·cap(±x), my·cap(±y))`, where `cap(d)` is the along-d component of the allocator's own solution to
       "a huge demand along d, rotation held at zero". Capacity is self-consistent: one objective, and no second
       rule for what full stick means.
-    - It exposes `TranslationCapacity(bodyDir)` along any body direction, same definition, for Cut 3.
+    - It exposes `TranslationCapacity(bodyDir)` along any body direction, same definition, for Cut 4.
     - Probe values: Longinus cap(+y) 172.41, cap(+x) 13.74 (with side effects, so the demanded strafe comes out
       about 0.09 m/s²). Djinni cap(+x) 37.04, cap(+y) 55.56, cap(−y) 18.52.
   - **Allocation objective:** one bounded-LS call, priorities by weight separation (Johansen & Fossen §
@@ -477,14 +626,33 @@ Follow-ups outside this campaign:
   - Tests (new file `LocomotionControlTests.cs`, fixtures exactly as in "Findings": off-origin, off-axis nose with
     `|fx| > |fy|`, nonzero dt, asymmetric damage):
     - `IntactLonginusMatchesBase` and `IntactDjinniMatchesBase`: every row of the base table within tolerance
-      (2% of that ship's full-scale acceleration or turn rate), **except the divergences Q1 names**, which are
-      pinned at their probed new values once ruled. Pins the allocator against base.
+      (2% of that ship's full-scale acceleration or turn rate), except the four accepted divergences below, which
+      are pinned at their own probed values. Pins the allocator against base.
+    - **Accepted divergences** (operator, 2026-09-22, "The divergence is fine"). Soul reads these as pinned
+      behaviour, not as regressions, and anything outside them is a regression:
+      1. Longinus turning in place fires a main at 0.12 throttle: forward creep 10.7 m/s² where base had 0, and
+         lateral slip 67.3 m/s² where base had 69.0.
+      2. Longinus thrusting forward while turning 30° keeps 164.8 m/s² of the 172.4 base forward (−4%).
+      3. Djinni strafe reaches 37.0 m/s² against base's 34.0 (+9%), by balancing torque with Stern 3 and Bow.
+      4. Djinni turning in place runs Stern 2 and Bow at about 0.10 each; net force stays zero, but their exhaust
+         is visible.
+      Plus two intended fixes, which are not divergences to tolerate but behaviour this cut is buying: turns past
+      90° run at full rate instead of decaying to zero at 180°, and `|Direction|` no longer shrinks when the look
+      is directly aft.
     - `LonginusXDriveAxisEqualsBaseFormula`: a drive-only hull; for every probe input, `AetherDrive.Axis` equals
       `(my, mx, sqrt(|sin e|)·sign)` to 1e-3. Pins the live player ship's feel exactly.
-    - `LonginusMissingCcwReachesHeadingOnDeadSideTheLongWay`: `Th.CCW` destroyed through the real `ItemDamage`
-      path. Write `LookDirection` directly, as the player would, to 90° left. Heading changes are clockwise every
-      tick (never CCW), and the ship reaches within 2° in under 1.0 s; the base-rate bound is 270°/394.33°/s =
-      0.685 s. Base comparison: error still 90.0° after 30 s. Pins the shared feasible-direction choice.
+    - `CentreMainHullTakesTheLongWayRound`: the long-way fixture, built so the long way is the *only* way. One
+      centred main (torque 0, so no differential authority) and one clockwise attitude thruster, the
+      counter-clockwise one destroyed through the real `ItemDamage` path. Write `LookDirection` directly, as the
+      player would, to 90° left. Heading changes clockwise every tick (never counter-clockwise), and the ship
+      arrives within 2° in under 1.0 s; the base-rate bound is 270°/394.33°/s = 0.685 s. Base comparison: a ship
+      of that shape never turns at all. Pins the shared feasible-direction choice.
+    - `LonginusMissingCcwPrefersTheLongWayAtNinetyDegrees`: the two-main Longinus with `Th.CCW` destroyed, looking
+      90° left. It turns clockwise, because 0.685 s beats the 1.15 s its mains would take. Pins that the
+      comparison is by time, not by a rule about which actuators are "for" turning.
+    - `LonginusMissingCcwLurchesRoundTheShortWayAtTwentyDegrees`: the same ship looking 20° left. It turns
+      counter-clockwise on differential main thrust (`Th.R` at full), arrives within 2°, and its forward velocity
+      rises while it does. Pins Q2 = B: the lurching turn is available and is chosen when it is faster.
     - `LonginusMissingCcwTurnsRightAsBefore`: looking 90° right reaches within 2° in 0.32 s ± one tick (base
       value). Pins that damage on one side leaves the other side alone.
     - `LookDirectlyBehindTurns`: intact, look exactly aft. The ship turns, `|Direction|` stays 1 ± 1e-4, and there
@@ -512,20 +680,20 @@ Follow-ups outside this campaign:
     - `lerp\(Direction` in `Ship.cs` should match nothing.
     - No least-squares code outside CultMath: `Cholesky|pseudo.?inverse|ActiveSet` in `Assets/Scripts` should
       match nothing.
-  - Stryker: `dotnet stryker --since:<Cut 2 base>` from `tests/Aetheria.Shared.Tests`. Every non-equivalent
+  - Stryker: `dotnet stryker --since:<Cut 3 base>` from `tests/Aetheria.Shared.Tests`. Every non-equivalent
     survivor in `ShipControl.cs`, `Thruster.cs` and `AetherDrive.cs` is killed or triaged by name. Float boundary
     flips are equivalent, per the fire-control Cut 11 ruling.
   - Operator: fly LonginusX and confirm it feels unchanged (strafe, turn, look behind now turns). Then fly a
-    thruster ship, which needs a content hull with `Thruster` hardpoints; until one exists this check is
-    fixture-only, so say so.
-- **Operator questions:** Q1 and Q2, below.
+    restored Longinus or Djinni from Cut 1, shoot a thruster off it, and confirm the damaged handling and the
+    lurching turn. Without Cut 1 this half of the check cannot be done at all.
+- **Operator questions:** Q5, below. Q1, Q2 and Q3 are ruled.
 - **Ledger estimate:** −200 lines in `Ship.cs`, −10 elsewhere. `ShipControl.cs` adds about 250–350 lines, tests
   about 400. Net source roughly +100. That buys actuator-loss capability, which is the explicit ask, and removes
   seven parallel role sets, the snap, and permanent pruning.
 
-## Cut 3. Heading planner in the AI
+## Cut 4. Heading planner in the AI
 
-- **Repo/branch:** Aetheria, after Cut 2.
+- **Repo/branch:** Aetheria, after Cut 3.
 - **First:** pin base AI results as constants. On base, a Djinni with all stern thrusters destroyed never reaches
   the target (speed 0 at 120 s). Intact, it reaches it in 4.34 s. Both come from the probe (Agent plus MoveTo, dt
   0.02, target 300 m to port from (37,−12), nose `normalize(0.8,0.6)`).
@@ -536,6 +704,10 @@ Follow-ups outside this campaign:
   - Candidates: 16 evenly spaced headings, plus the Δv direction, plus the current heading.
   - Score for each: `TurnTime(θ) + |Δv| / TranslationCapacity(Δv expressed in θ's body frame)`, infinite where
     capacity is 0. Both terms come from `ShipControl`'s queries (invariant 8).
+  - **No direction is assumed impossible.** Under Q2 = B a damaged ship usually can still turn both ways, one of
+    them slowly and with a lurch, so `TurnTime` returns a finite number either way and the scoring compares them.
+    Nothing in the planner may branch on "this ship is a one-way turner"; the only asymmetry it sees is in the
+    numbers `ShipControl` hands it.
   - Pick the argmin with hysteresis: replan when a candidate beats the current plan by a margin, and on a cadence
     (for example every 0.25 s) or when the actuator set changes. The cadence exists for cost: 18 capacity solves
     per replan.
@@ -559,80 +731,81 @@ Follow-ups outside this campaign:
     the stuck-forever cheese.
   - `CrabBeatsPointAndBurnWhenMainIsWeak`: Djinni with Stern 1 and Stern 2 destroyed (asymmetric; Stern 3's torque
     is balanced by the laterals), target 300 m at 60° left. The planner arrives strictly sooner than a naive
-    point-and-burn agent run in the same harness through the same Cut 2 allocator. Pins that crab walking wins when
+    point-and-burn agent run in the same harness through the same Cut 3 allocator. Pins that crab walking wins when
     it should, as a relation and not a captured number.
   - `IntactShipsStillPointAndBurn`: an intact Djinni picks a heading within 10° of Δv and arrives no later than
     base's 4.34 s + 10%. Pins no regression.
   - `LonginusWithoutReverseFlipsToBrake`: target velocity opposite the current velocity; the planner turns toward
     it (a Longinus has no reverse thrust).
+  - `PlannerPrefersTheLurchingTurnWhenItIsFaster`: the Longinus with `Th.CCW` destroyed, given a Δv 20° to port.
+    The heading it writes is reached counter-clockwise, and the forward lurch shows in the trajectory. Pins that
+    the planner inherits the controller's Q2 = B comparison instead of a one-way-turner assumption.
   - `PlannerUsesShipControlCapacities`: after destroying a thruster, the planner's turn time for a dead-side
     heading equals `ShipControl.TurnTime` for that heading. Pins invariant 8 and the long-way-aware estimate.
   - Negative grep: `LookDirection` in `Agents/States/MoveTo.cs` should match nothing.
-  - Stryker `--since:<Cut 3 base>` over `Agent.cs`, `MoveTo.cs` and `ShipControl.cs` queries.
+  - Stryker `--since:<Cut 4 base>` over `Agent.cs`, `MoveTo.cs` and `ShipControl.cs` queries.
   - Operator: watch a patrol Djinni with a stern thruster shot out crab to its next orbit.
 - **Ledger estimate:** −22 lines, +120 lines of source, +250 lines of test.
 
-## Cut 4. Combat facing and tactics (target shape only)
+## Cut 5. Combat facing and tactics (target shape only)
 
 This cut gets mapped after fire-control Cut 12 lands, because that cut decides what presenting a side is worth.
 
 - **Owner:** `CombatState` (`Combat.cs:88-127`), above the inputs.
 - **Shape:** choose the orbit side and facing from `ShipControl` capabilities (per-direction rotation authority,
-  translation capacity along candidate directions) and from weapon arcs. A one-way turner keeps its target drifting
-  toward its live turn direction. A ship with good turret arcs and poor rotation holds a heading and lets the
-  turrets work. Weapons with fixed arcs pull the heading onto the target. It uses the Cut 3 planner for thrust.
+  translation capacity along candidate directions) and from weapon arcs. Under Q2 = B there are few true one-way
+  turners, so the tactic is about asymmetry rather than impossibility: a ship that turns one way fast and the other
+  way slowly, with a lurch, keeps its target drifting toward its fast side. A ship with good turret arcs and poor rotation holds a heading and lets the
+  turrets work. Weapons with fixed arcs pull the heading onto the target. It uses the Cut 4 planner for thrust.
 - **Fork:** Q4 (heading versus aim), which must be ruled before mapping.
 
 ## Operator questions
 
-Each question gives options and a recommendation. Self paces these one at a time.
+Each question gives options and a recommendation. Self paces these one at a time. Q1, Q2 and Q3 were ruled on
+2026-09-22; their text is kept as history, and the live design is in the cuts above.
 
-- **Q1: intact-ship divergence from base (blocks Cut 2 pins).** The probe of the stated objective found these
-  differences on intact ships (new versus base):
-  - Longinus turning in place also fires a main at 12%, which adds 10.7 m/s² of forward creep (about 6% of full
-    forward) and cuts lateral slip from 69.0 to 67.3. The L2 objective trades a little slip for a little creep.
-  - Longinus forward+turn at 30° keeps 164.8 of 172.4 forward (−4%).
-  - Djinni strafe reaches 37.0 m/s² instead of 34.0 (+9%), by balancing torque with Stern 3 plus Bow.
-  - Djinni turning bleeds Stern 2 plus Bow at 10% each (zero net force, visible exhaust).
-  - Turns past 90° now run at full rate instead of slowing to zero at 180°.
+- **Q5: how the rotation demand is sized under Q2 = B (blocks Cut 3).** No actuator is excluded from rotation, so
+  the only remaining choice is how much rotation the controller asks for. The demand cannot simply be "everything
+  every actuator could produce": a Longinus turning 90° in place would then run a main at 0.97 throttle and lurch
+  forward at 84 m/s², about half its full thrust, on every hard turn (probe).
+  - **A.** Size the demand from attitude authority (columns above `TorqueFloor`, plus drive torque), and fall back
+    to every column when that is zero for a direction. An intact ship does not burn its mains to turn a few
+    percent faster; a ship with no attitude thruster left on one side still turns that way, at 78.5°/s with a
+    lurch on the fixture Longinus. No actuator is ever excluded from *meeting* the demand.
+  - **B.** Always size from every column. Simpler to state, and it makes every hard turn on a ship with off-centre
+    mains a forward lurch, intact or not.
 
-  Everything else in the base table matches within 2%, including LonginusX's drive, which matches exactly.
-  - **A.** Accept these as the allocator's honest optimum and pin base exactly where they coincide.
-  - **B.** Require exact base behaviour. That means per-thruster role rules in the objective, which is the bucket
-    machine this campaign deletes.
-
-  **Recommended: A.** The only live ship (LonginusX) is exact under A. The divergences are small, physical, and
-  arise only on thruster hulls, which the live catalog does not yet carry.
-- **Q2: rotation from translation thrusters (blocks Cut 2).** When no thruster above `TorqueFloor` can turn a ship
-  one way, may the controller turn it that way by differential translation thrust? For a Longinus that is its two
-  mains: about 78°/s with a forward lurch.
-  - **A.** No. Rotation authority comes only from thrusters above `TorqueFloor` and drive torque, so a lost attitude
-    thruster means that direction is gone.
-  - **B.** Yes, as a slower fallback.
-
-  **Recommended: A**, because it matches the operator's words ("losing an attitude thruster means you can't rotate
-  that way anymore") and keeps turning from making the ship lurch. Consequence of A: a Longinus with both attitude
-  thrusters gone cannot turn at all.
-- **Q3: Longinus fixture layout (fixture naming only).** Both legacy catalogs author two aft 2×2 thrusters (`Th.L`,
-  `Th.R`), not the one big thruster the operator remembers.
-  - **A.** Fixtures follow the data: two mains.
-  - **B.** Model one centred main.
-
-  **Recommended: A**, with a note that a lost main is itself a test case (`LonginusMissingMainHoldsHeadingUnderThrust`).
-- **Q4: heading versus aim (blocks Cut 4 only).** `LookDirection` is both the heading command and the aim, read by
+  **Recommended: A.** It is what makes Q2 = B's lurching turn an option the ship takes when it is worth it,
+  instead of a permanent tax on turning. The cost of A is that `ω_cap` is piecewise, which is stated in Cut 3 and
+  pinned by two tests.
+- **Q4: heading versus aim (blocks Cut 5 only).** `LookDirection` is both the heading command and the aim, read by
   `LockWeapon.cs:94`'s lock cone, guided projectiles, reticle targeting and the tractor beam. Capability-aware
   facing wants the AI to hold a heading that is not its aim, and under R2 any split applies to the player too.
   - **A.** Add a heading input beside the aim on the shared surface. The player's heading follows the view unless a
     player control is added later.
   - **B.** Keep one input, and the AI accepts degraded lock cones and missile aim while it manoeuvres.
 
-  **Recommended: A**, decided when Cut 4 is mapped.
+  **Recommended: A**, decided when Cut 5 is mapped.
+
+### Ruled (history)
+
+- **Q1: intact-ship divergence from base.** **Ruled A, 2026-09-22: "The divergence is fine."** The four accepted
+  divergences and their magnitudes are listed in Cut 3's verification. The rejected option was to require exact
+  base behaviour, which would have meant reintroducing per-thruster role rules into the objective.
+- **Q2: rotation from translation thrusters.** **Ruled B, 2026-09-22: "that's absolutely viable and can be a
+  better decision than turning around the long way, I wouldn't introduce a thruster exclusion for this."** The
+  option this map recommended (A: rotation authority only from thrusters above `TorqueFloor`, so a lost attitude
+  thruster means that direction is gone) was rejected. Cut 3 and Cut 4 are written to B, and Q5 is what is left of
+  the question.
+- **Q3: Longinus fixture layout.** **Ruled, 2026-09-22: "Good catch on the Longinus main thrusters, I was
+  misremembering."** Fixtures follow the data: two aft 2×2 mains.
 
 ## Subtraction ledger (estimates)
 
 | Cut | Removed | Added | Dependencies / targets |
 |---|---|---|---|
-| 1 | 0 | ~200 src + ~150 test (CultLib) | CultMath gains one file; cultmath-unity 0.2.4; Aetheria pin bump |
-| 2 | ~210 (`Ship.cs` ~200, `Behaviors.cs` 4, `Entity.cs` 1, setters) | ~300 src + ~400 test | `IAnalogBehavior` removed; no new package, target or authored field |
-| 3 | ~22 | ~120 src + ~250 test | none |
-| 4 | not mapped | not mapped | not mapped |
+| 1 | 0 source; the one-shot command is deleted again in this campaign | 3–7 catalog records + products; ~150 lines of throwaway tool + ~120 test | No new package, target, asset or authored field. Existing prefabs, schematics and factions are reused |
+| 2 | 0 | ~200 src + ~150 test (CultLib) | CultMath gains one file; cultmath-unity 0.2.4; Aetheria pin bump |
+| 3 | ~210 (`Ship.cs` ~200, `Behaviors.cs` 4, `Entity.cs` 1, setters) | ~300 src + ~450 test | `IAnalogBehavior` removed; no new package, target or authored field |
+| 4 | ~22 | ~130 src + ~280 test | none |
+| 5 | not mapped | not mapped | not mapped |
