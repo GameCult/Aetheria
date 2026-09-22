@@ -2151,6 +2151,46 @@ rotation, while its march and its even split are left untouched until 12.3.
   - `ErfinvInvertsErf`: over y ∈ [-0.999, 0.999].
   - The CultLib mutation run, with every survivor triaged by name.
 
+**Status: the code closes, the release does not.** Landed on CultLib
+`hands/cultmath-erf`: `87b95ae`, `b688cb2` (erf, erfinv, tests), then the fix batch
+`fc9ce97`, `4cdc02b`, `6e8362b`, `cc71f17`. 102 tests.
+
+Two verification lines above were stale when written and are corrected here. CultLib had
+no mutation tooling at all, so there was no "CultLib mutation run"; Stryker.NET was adopted
+in its own cut (`hands/adopt-stryker`) and its CultMath baseline is 2243 mutants, 350
+survived, triaged in that cut's report. The "headless `CultLibRoot` pin" is not a pin
+either: `Directory.Build.props:3-4` resolves it to a sibling path with no revision. The
+Unity manifest lives at `packages/cultmath/unity/org.gamecult.cultmath/package.json`, not
+at the repo root.
+
+Soul's first pass found the defect this cut would otherwise have shipped: `erfinv(±1)`
+returned the **wrong-signed** infinity, so a sample drawn for the far edge of an interval
+was clamped onto the near edge. Reachable in ordinary play — `erf` saturates to exactly 1
+at 5.543σ, so any interval edge past that yields `p = 1`. Fixed with two guards; outside
+the domain is NaN, now documented and pinned. Soul also measured the reported accuracy
+figures 1.5× optimistic (true worst error: erf 6.621e-7, erfinv 5.066e-7, round trip
+6.109e-7, all inside the 2e-6 bar), found `erfinv` had no accuracy test at all (the round
+trip was blind by 300-400×, proven with a coefficient mutant), and found
+`ErfinvIsMonotonicallyIncreasing` asserting a property neither function has (9662 backward
+steps in `erfinv` at float granularity; the fixture's 0.001 step hid every one). The second
+pass re-derived all 19 new reference values by a different method and closed the cut.
+
+**Cost, for 12.2 to answer rather than assume:** `erf` is 16.3 ns per call and
+allocation-free, but a silhouette costs one `erf` per interval edge — ~4.2 µs per
+evaluation on a 128-interval hull, 1.06 µs on 64, and worse under IL2CPP. The AI evaluates
+`HitProbability` constantly. 12.2 must measure the new placement against the old kernel per
+gated-in evaluation and report both, not assume 1D beats 2D.
+
+**Still owed (the release cut, with its own Soul pass before any tag is pushed):** Unity
+consumes a *precompiled* `CultMath.dll` pinned at `cultmath-unity-v0.2.3`
+(`Packages/manifest.json:56`), so no Unity-side fire-control code can call `erf` until the
+package is rebuilt, bumped to 0.2.4, tagged and repinned. The headless tests see the
+sources directly, which is why nothing failed. 12.2 must not land in Unity before that.
+
+**Recorded, not done:** `erf`/`erfinv` are scalar-only while every other scalar in
+`math.cs` ships float2/3/4 overloads. The consumer is scalar; vector overloads are a
+separate decision.
+
 ### Cut 12.1. One frame owner, and the dead outcome flag
 
 - **Repo/branch:** Aetheria, off the Cut 11 merge. No behaviour change.
