@@ -355,7 +355,8 @@ public sealed class FireControlCut11Tests : IDisposable
 
     // ---- Splash damages the side the blast came from. ----
 
-    // The operator's "damage on the wrong side of the ship." Flipping the sign in Splash's
+    // The operator's "damage on the wrong side of the ship" was a legacy Unity bug that Splash never shipped,
+    // but nothing defended against it. Flipping the sign in Splash's
     // `right = float2(forward.y, -forward.x)` survived every earlier suite, and it survives this test too at
     // the default facing (0, 1): the flip only changes which side is hit when a ship faces more along world x
     // than z. So the target is spun through facings where the flip bites as well as ones where it does not,

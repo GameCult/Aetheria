@@ -1775,8 +1775,9 @@ spread. Fix the fixture, never weaken the assertion.
 ### 11.4 Behavioural tests the survivors point at
 
 - **Splash handedness.** Flipping the sign in `var right = float2(forward.y,
-  -forward.x)` passes every test. That is the operator's "damage on the wrong side
-  of the ship," and Self said on 2026-09-19 that Cut 6b would add a test pinning
+  -forward.x)` passes every test. The operator's "damage on the wrong side of the
+  ship" was a legacy Unity bug; this line has read the same since `482c47bf`, so
+  the rewrite never shipped it, but nothing defended against it either. Self said on 2026-09-19 that Cut 6b would add a test pinning
   that a port blast damages port cells; it never landed and nothing checked. Pin it.
 - **The shield loses energy when it absorbs.** Deleting `Shield.TakeHit` from the
   discrete path survives, because tests assert the hull was untouched and never
