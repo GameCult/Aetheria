@@ -328,12 +328,14 @@ public static class FireControl
             var targetGone = shot.Target != null && !zone.Entities.Contains(shot.Target);
             if (sourceGone || targetGone)
             {
-                if (!shot.Committed)
-                {
-                    shot.Outcome = MakeOutcome(shot, false, false, false, int2.zero, null, now);
-                    zone.ShotCommitted.OnNext(shot.Outcome);
-                }
-                zone.ShotResolved.OnNext(shot.Outcome);
+                // Cut 11 (Soul C4): a shot whose source or target has left the zone resolves as a miss whichever
+                // stage it is at (0b table). The resolution is published as a fresh miss rather than by
+                // rewriting shot.Outcome: a committed outcome is immutable (R4) and stays a true record of what
+                // the commit decided, while ShotResolved reports what actually happened -- nothing, because the
+                // target is gone. Republishing the committed outcome here used to put a hit marker on a corpse.
+                var miss = MakeOutcome(shot, false, false, false, int2.zero, null, now);
+                if (!shot.Committed) zone.ShotCommitted.OnNext(miss);
+                zone.ShotResolved.OnNext(miss);
                 shots.RemoveAt(i);
                 continue;
             }
