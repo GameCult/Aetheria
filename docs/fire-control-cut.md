@@ -1724,7 +1724,7 @@ edits a source file, and has nothing to re-anchor.
 
 ### 11.1 Retire the ServerShared harnesses
 
-Delete the 25 hand-rolled harnesses whose targets are all under
+Delete the 23 hand-rolled harnesses (5,816 lines) whose targets are all under
 `Assets/Scripts/ServerShared` -- every `mutation_tests_fire_control_*`, every
 `mutation_tests_stats_power_*`, `mutation_tests_shield_reserve.py`,
 `mutation_tests_condition_ratio_cut8.py` and `mutation_tests.py`. Stryker's scope
