@@ -1794,3 +1794,57 @@ spread. Fix the fixture, never weaken the assertion.
 Stryker over `FireControl.cs` before and after: every non-equivalent survivor
 above killed, the remainder triaged by name. 231 tests plus the new ones; Unity
 batchmode clean.
+
+### Status (2026-09-22)
+
+Landed on `codex/fire-control-10`: `8ef3b34c` (Stryker tool), `b305debd` (map,
+config), `724ec5e7` (11.1), `a6543af7` (11.4 and the C4 fix), `1b187db4` (11.3),
+`b0fd3cd0` (second round, below). 244 tests.
+
+Stryker over `FireControl.cs`, 278 mutants per run:
+
+| Run | Killed | Survived | Score |
+|---|---|---|---|
+| Spike, before Cut 11 | 208 | 67 | 74.6% |
+| After 11.4 | 219 | 58 | 78.6% |
+| After 11.3 fixtures | 225 | 51 | 81.1% |
+| After the second round | 225 | 43 | 83.3% |
+
+**The second round** came from reading the 51. Four were real undefended
+behaviour and one was a duplicated formula:
+
+- `Inspect` recomputed `PBase` as its own product of the factors, so the gates and
+  the product had two owners, and a `*`→`/` mutant of the HUD's copy survived the
+  agreement test (every fixture had spread 0, so `PSpread` was 1). `PBase` is now
+  `HitProbability`'s own answer; the test became
+  `TheHudShowsTheFactorsTheSimulationMultiplies`, over a spread cone that does not
+  fill the silhouette. `Fire`'s redundant `target != null ?` guard around
+  `HitProbability` went with it.
+- A beam shot's `damageOverride` could be dropped: `BeamRollsPerInterval` computed
+  the expected damage from its own roll count, a tautology, now deleted.
+  `ADamageOverrideIsWhatTheShotCarries`.
+- `Tracking` could ignore the fitted targeting system: no fixture's target ever
+  moved off its predicted line. `AFittedTargetingSystemForgivesAJink`.
+- A shot orphaned before commit could skip `ShotCommitted`, or publish its miss as
+  shielded. `ShotAtTargetThatLeavesBeforeCommitCommitsAsAMiss`.
+- `ArrivalIn` (the HUD countdown) was unchecked; asserted in the C4 test.
+
+**The 43 that remain, triaged:**
+
+- *Boundary flips, equivalent (23):* L52, 54, 56, 75, 135 (two), 157 (two), 193
+  (two), 223, 273, 410, 418 (two), 465 (two), 503, 518, 524, 586, 605, 608.
+- *`MixSeed` shift and xor weakenings, measured equivalent (4):* L382, 384, 386
+  (two). 11.4 asked for them to die; measured, the die stays uniform and
+  zone-distinct under each, so there is no behaviour to pin. They change how the
+  mixer is built, not whether the die is fair.
+- *Unreachable through the live callers (8):* L240 and L241
+  (`DeviationProbability`'s null-target branch; the engine guards it, only the HUD
+  can pass null), L283 (three; airburst has no authored radius anywhere, recorded
+  since Cut 6b), L320 (empty-list early return, an optimisation), L410 `||` (a
+  nonzero `PBase` implies a target), L158 and L610 (no coverage: an unlocked lock
+  weapon reaching this line, and the last-cell fallback of the weighted pick).
+- *Recorded gaps, not yet reached (8):* L135 ternary (two; no test that the AI in
+  `Combat.cs` leads a moving target), L435 (three; the aimed flag on an outcome),
+  L464 and L465 negate (the `Apply` hit direction through the `FireControl`
+  path), L585 and L587 (the aimed item's centroid as aim point). These are "not
+  yet reached," not "unreachable."
