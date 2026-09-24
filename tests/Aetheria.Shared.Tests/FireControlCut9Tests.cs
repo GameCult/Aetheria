@@ -140,13 +140,17 @@ public sealed class FireControlCut9Tests : IDisposable
         return new DieEngagement { Items = items, Zone = zone, Shooter = shooter, Target = target };
     }
 
-    // Fires one synthetic shot with an exact ShotId and PBase, bypassing FireControl.Fire's own Accuracy/
+    // Fires one synthetic shot with an exact ShotId and PFire, bypassing FireControl.Fire's own Accuracy/
     // Resolution/Spread/pOnHull arithmetic -- 9.1's tests own the roll, not the factors that feed it.
     // FireTargetPosition/Velocity match the target's actual (stationary) position and FireTime equals the
-    // zone's own time, so DeviationProbability commits to exactly 1 and PBase is the one number Commit's die
-    // reads. CommitTime/ArrivalTime are set in the past so the shot commits and resolves inside the very
-    // next zone.Update call, synchronously, before this method returns.
-    private bool FireSynthetic(DieEngagement e, int shotId, float pBase, float precision = 1000f)
+    // zone's own time, so DeviationProbability commits to exactly 1. Spread stays 0 (PSpread's own early-out,
+    // neutral regardless of silhouette) and TravelDirection points straight at the target through a
+    // full-strength, unaimed silhouette (Aimed unset, so ResolveAimPoint falls back to the hull's own centre
+    // of mass; SolidShape(5,5) at this cut's floored sigma puts every real shadow interval many sigma from
+    // the hull's edge), so pOnHull sits indistinguishable from 1 -- PFire is then the one number Commit's die
+    // reads, same as PBase was before 12.2. CommitTime/ArrivalTime are set in the past so the shot commits and
+    // resolves inside the very next zone.Update call, synchronously, before this method returns.
+    private bool FireSynthetic(DieEngagement e, int shotId, float pFire, float precision = 1000f)
     {
         bool? hit = null;
         using var sub = e.Zone.ShotResolved.Subscribe(o =>
@@ -162,9 +166,12 @@ public sealed class FireControlCut9Tests : IDisposable
             Penetration = 0f,
             DamageSpread = 0f,
             DamageType = DamageType.Kinetic,
-            PBase = pBase,
+            PFire = pFire,
             Tracking = 1e6f,
             Precision = precision,
+            TravelDirection = normalize((e.Target.Position - e.Shooter.Position).xz),
+            Spread = 0f,
+            FireRange = length((e.Target.Position - e.Shooter.Position).xz),
             FireTargetPosition = e.Target.Position,
             FireTargetVelocity = float3.zero,
             FireTime = e.Zone.Time,
@@ -339,8 +346,12 @@ public sealed class FireControlCut9Tests : IDisposable
     // cell, because the discrete kernel sum badly undershoots the continuous 2*pi*sigma^2 denominator
     // against an aim point that is not exactly on a cell centre -- true of every shipped hull (no centre of
     // mass is integral). A 7x13 solid hull reproduces the same off-integer-centre shape without needing the
-    // real catalog open in this project. Mutation: delete the sigma floor -- pOnHull at Precision 1000
-    // collapses back toward zero without it.
+    // real catalog open in this project.
+    // Cut 12.2 (docs/fire-control-cut.md): Silhouette replaces the discrete sum with an exact 1D Gaussian
+    // integral over the hull's lateral shadow, which does not undershoot at any sigma -- so deleting
+    // SigmaFloor no longer reproduces the collapse this test was written to catch (TheSigmaFloorHoldsAtHalfACell
+    // is what now kills that mutant). This test is kept anyway as a plain regression pin: pOnHull must stay
+    // well clear of zero, and non-collapsing, across the whole Precision domain, whichever formula computes it.
     [Fact]
     public void POnHullNeverCollapsesAboveThePrecisionCliff()
     {

@@ -3,6 +3,7 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Linq;
 using CultMath;
@@ -147,7 +148,11 @@ public static class FireControl
     // actually possible, and they come from the same functions Inspect uses: one fire-control model, shared
     // at the level of its factors rather than by routing the hot path through a diagnostic struct.
     // HitProbabilityMatchesInspect pins that the two can never disagree.
-    public static float HitProbability(Weapon weapon, Entity source, Entity target)
+    // Cut 12.2 (docs/fire-control-cut.md): the shooter-side share of the probability -- everything Fire
+    // freezes (R10), gated exactly as HitProbability gates. Nothing about the target's facing or silhouette
+    // enters here; that is Silhouette's and PSpread's job, priced fresh by HitProbability below and again,
+    // live, by Commit at the commit tick. 0 the moment any gate closes.
+    private static float PFire(Weapon weapon, Entity source, Entity target)
     {
         if (target == null) return 0f;
         if (!source.VisibleEntities.Contains(target)) return 0f;
@@ -159,12 +164,21 @@ public static class FireControl
         if (!InArc(weapon.Item, toTarget)) return 0f;
 
         var settings = source.ItemManager.GameplaySettings;
-        var targetHull = source.ItemManager.GetData(target.Hull) as HullData;
         var info = source.EntityInfoGathered.TryGetValue(target, out var gathered) ? gathered : 0f;
-        return Accuracy(source)
-            * PSensor(settings, Resolution(source), info)
-            * PSpread(weapon, targetHull, range, settings)
-            * POnHull(source, target, targetHull, Precision(source));
+        return Accuracy(source) * PSensor(settings, Resolution(source), info);
+    }
+
+    public static float HitProbability(Weapon weapon, Entity source, Entity target)
+    {
+        var pFire = PFire(weapon, source, target);
+        if (pFire <= 0f) return 0f;
+
+        var range = length(target.Position - source.Position);
+        var targetHull = source.ItemManager.GetData(target.Hull) as HullData;
+        var bearing = Bearing(target, TravelDirection(weapon, source, target));
+        var sil = Silhouette(target, targetHull, source.ResolvedTargetItem, bearing, Precision(source));
+        var settings = source.ItemManager.GameplaySettings;
+        return pFire * PSpread(weapon.Spread, sil.Span, range, settings.SchematicCellSize) * sil.POnHull;
     }
 
     // Presentation only: the debug HUD's view of exactly the factors HitProbability multiplies. It computes
@@ -198,8 +212,12 @@ public static class FireControl
         diagnostic.Info = source.EntityInfoGathered.TryGetValue(target, out var gathered) ? gathered : 0f;
         diagnostic.InfoDemandCeiling = InfoDemandCeiling(settings, diagnostic.Resolution);
         diagnostic.PSensor = PSensor(settings, diagnostic.Resolution, diagnostic.Info);
-        diagnostic.PSpread = PSpread(weapon, targetHull, diagnostic.Range, settings);
-        diagnostic.POnHull = POnHull(source, target, targetHull, diagnostic.Precision);
+        diagnostic.PFire = diagnostic.Accuracy * diagnostic.PSensor;
+
+        var bearing = Bearing(target, TravelDirection(weapon, source, target));
+        var sil = Silhouette(target, targetHull, source.ResolvedTargetItem, bearing, diagnostic.Precision);
+        diagnostic.PSpread = PSpread(weapon.Spread, sil.Span, diagnostic.Range, settings.SchematicCellSize);
+        diagnostic.POnHull = sil.POnHull;
 
         diagnostic.PBase = HitProbability(weapon, source, target);
         return diagnostic;
@@ -216,22 +234,37 @@ public static class FireControl
     private static float PSensor(GameplaySettings settings, float resolution, float info) =>
         saturate(unlerp(settings.TargetDetectionInfoThreshold, InfoDemandCeiling(settings, resolution), info));
 
-    // Whether the weapon's own barrel-dispersion cone reaches the ship's silhouette at this range: weapon
-    // hardware, whole-hull bounding size, range-dependent, aim-point-blind. 1 for any zero-spread weapon.
-    private static float PSpread(Weapon weapon, HullData targetHull, float range, GameplaySettings settings)
+    // Whether the weapon's own barrel-dispersion cone reaches the target's actual silhouette at this range:
+    // weapon hardware, range-dependent, aim-point-blind. 1 for any zero-spread weapon. Cut 12.2: span comes
+    // from the same Silhouette pOnHull reads, so the two factors can never disagree about the target's size
+    // (the old bounding half-extent, max(Width, Height), is gone).
+    private static float PSpread(float spread, float span, float range, float cellSize)
     {
-        if (weapon.Spread <= 0) return 1f;
-        var halfExtent = .5f * max(targetHull.Shape.Width, targetHull.Shape.Height) * settings.SchematicCellSize;
+        if (spread <= 0) return 1f;
+        var halfExtent = .5f * span * cellSize;
         var angularRadius = degrees(atan(halfExtent / range));
-        return saturate(angularRadius / (weapon.Spread / 2f));
+        return saturate(angularRadius / (spread / 2f));
     }
 
-    // Cut 6d: whether the targeting system's own aim scatter, centred on whatever is actually aimed at, lands
-    // on the hull's real schematic footprint rather than open grid around it. The aim point is
-    // source.ResolvedTargetItem, exactly what Fire freezes -- HitProbability, Inspect and Fire read the same
-    // reveal-gated aim point, never two.
-    private static float POnHull(Entity source, Entity target, HullData targetHull, float precision) =>
-        HullKernel(targetHull, ResolveAimPoint(target, targetHull, source.ResolvedTargetItem), precision).POnHull;
+    // Cut 12.2 (docs/fire-control-cut.md, "the rules every sub-cut reads"): the shot's world-planar travel
+    // direction -- PredictedIntercept minus the source's own position, planar (R7). Frozen into PendingShot
+    // at Fire (R10); HitProbability and Inspect recompute it fresh, at the current source/target positions,
+    // for their forecast. Below a length of 1e-6 (point-blank, source and intercept coincide) it falls back
+    // to world +z, the same fallback Apply used before this cut (`:463`).
+    public static float2 TravelDirection(Weapon weapon, Entity source, Entity target)
+    {
+        var toIntercept = (PredictedIntercept(weapon, source, target) - source.Position).xz;
+        return lengthsq(toIntercept) < 1e-6f ? float2(0, 1) : normalize(toIntercept);
+    }
+
+    // Cut 12.2: the only place a world direction meets a target's facing. One function, so nothing else may
+    // compute a bearing (the authority map's forbidden-writer rule) -- Commit and the live forecast both read
+    // this, never a second copy of the formula.
+    private static float2 Bearing(Entity target, float2 travelDirection) => normalize(target.ToSchematic(travelDirection));
+
+    // Cut 12.2: the lateral axis a bearing implies, fixed once here. Silhouette and Lane both read it instead
+    // of each carrying their own copy of the sign.
+    private static float2 Lateral(float2 bearing) => float2(-bearing.y, bearing.x);
 
     public static float DeviationProbability(PendingShot shot, float now, out float deviation)
     {
@@ -258,19 +291,22 @@ public static class FireControl
         var target = source.Target.Value;
         var now = zone.Time;
 
-        // R1's engage gate and probability, evaluated now and frozen: nothing at commit time re-reads a stat,
-        // an info level or a range. Only live target *position* (deviation) is read again, at commit.
-        var pBase = HitProbability(weapon, source, target);
+        // R1's engage gate and the shooter-side probability, evaluated now and frozen: nothing at commit time
+        // re-reads a stat, an info level or a range. Cut 12.2: PFire no longer carries the spread/hull share --
+        // those are priced live at Commit, against the target's facing then, not now (Bearing timing, R10).
+        var pFire = PFire(weapon, source, target);
+        var travelDirection = target != null ? TravelDirection(weapon, source, target) : float2(0, 1);
 
         var targetVelocity = float3.zero;
         var targetPosition = source.Position;
         var flightTime = 0f;
+        var fireRange = 0f;
         if (target != null)
         {
             targetVelocity = float3(target.Velocity.x, 0, target.Velocity.y);
             targetPosition = target.Position;
-            var range = length(targetPosition - source.Position);
-            flightTime = weapon.Velocity > .01f ? range / weapon.Velocity : 0f;
+            fireRange = length(targetPosition - source.Position);
+            flightTime = weapon.Velocity > .01f ? fireRange / weapon.Velocity : 0f;
         }
 
         var commitHorizon = source.ItemManager.GameplaySettings.CommitHorizon;
@@ -294,9 +330,12 @@ public static class FireControl
             Penetration = weapon.Penetration,
             DamageSpread = weapon.DamageSpread,
             DamageType = weapon.WeaponData.DamageType,
-            PBase = pBase,
+            PFire = pFire,
             Tracking = Tracking(source),
             Precision = Precision(source),
+            TravelDirection = travelDirection,
+            Spread = weapon.Spread,
+            FireRange = fireRange,
             FireTime = now,
             FireTargetPosition = targetPosition,
             FireTargetVelocity = targetVelocity,
@@ -333,7 +372,7 @@ public static class FireControl
                 // rewriting shot.Outcome: a committed outcome is immutable (R4) and stays a true record of what
                 // the commit decided, while ShotResolved reports what actually happened -- nothing, because the
                 // target is gone. Republishing the committed outcome here used to put a hit marker on a corpse.
-                var miss = MakeOutcome(shot, false, false, false, int2.zero, now);
+                var miss = MakeOutcome(shot, false, false, false, int2.zero, float2.zero, 0f, now);
                 if (!shot.Committed) zone.ShotCommitted.OnNext(miss);
                 zone.ShotResolved.OnNext(miss);
                 shots.RemoveAt(i);
@@ -387,6 +426,27 @@ public static class FireControl
         return seed;
     }
 
+    // Cut 12.2 (docs/fire-control-cut.md, "Bearing timing"): steps 1-5. Everything the shooter decided is
+    // frozen in `shot` (R10); everything the target is doing -- position (deviation) and now also facing
+    // (bearing) -- is read live, here, at the commit tick. The Cut 7 guard extends to cover the new factors:
+    // when PFire x pDeviation is already 0, no Silhouette is built. Shared by Commit's own roll and by the
+    // debug HUD's forecast (TheHudEstimateIsTheCommitPrice) -- one function, one commit-time price.
+    public static float CommitProbability(PendingShot shot, float now, out Silhouette sil)
+    {
+        sil = default;
+        if (shot.Target == null) return 0f;
+
+        var pDeviation = DeviationProbability(shot, now, out _);
+        var p = shot.PFire * pDeviation;
+        if (p <= 0f) return 0f;
+
+        var bearing = Bearing(shot.Target, shot.TravelDirection);
+        var hullData = shot.Source.ItemManager.GetData(shot.Target.Hull) as HullData;
+        sil = Silhouette(shot.Target, hullData, shot.Aimed, bearing, shot.Precision);
+        var settings = shot.Source.ItemManager.GameplaySettings;
+        return p * PSpread(shot.Spread, sil.Span, shot.FireRange, settings.SchematicCellSize) * sil.POnHull;
+    }
+
     private static ShotOutcome Commit(Zone zone, PendingShot shot, float now)
     {
         // Cut 6b, 6.1 (Soul finding 6): a shot's dice belong to the shot, not to whatever else happened to
@@ -406,31 +466,37 @@ public static class FireControl
         // drawing once is the documented way to get a correlated first output, and a follow-up to give
         // CultMath.Random a mixed-seed entry point of its own is recorded for a separate CultLib cut.
         var random = new Random(MixSeed((zone.CombatSeed * 2654435761u) ^ (uint) shot.ShotId | 1u));
-        var p = shot.PBase;
-        if (p > 0f && shot.Target != null)
-        {
-            var pDeviation = DeviationProbability(shot, now, out _);
-            // Cut 5, 5.1: Tracking is always positive now (Tracking() above never returns 0), so the branch
-            // that used to turn a Tracking-less shooter's forgiveness into a hard <.01f wall is gone outright.
-            p *= pDeviation;
-        }
+        var p = CommitProbability(shot, now, out var sil);
 
         var hit = p > 0f && random.NextFloat() < p;
         var cell = int2.zero;
+        var bearing = float2.zero;
+        var lateral = 0f;
         var shielded = false;
         var shieldBroken = false;
 
         if (hit)
         {
-            // Cut 6d: the same kernel HitProbability's pOnHull drew its mass from -- same aim point (the
-            // frozen Aimed, or the hull's own centre of mass), same sigma (the frozen Precision). A shot that
-            // passed the roll always lands on metal (R3: one roll decides damage; the off-hull share was
-            // already priced into that roll, not resolved here as a second stage), so the draw is unconditional
-            // and always returns an occupied cell -- no fallback branch, uniform or otherwise.
+            // Cut 12.2: the same silhouette pOnHull drew its mass from -- same bearing (live, at this commit
+            // tick), same sigma (the frozen Precision). A shot that passed the roll always lands on metal (R3:
+            // one roll decides damage; the off-hull share was already priced into that roll, not resolved here
+            // as a second stage). The lateral draw picks where along the shadow the shot lands; Lane converts
+            // that (bearing, lateral) pair into the actual cell -- only the first element (the impact cell,
+            // nearest the shooter's side) is used here; the rest of the lane is 12.3's armour march.
+            bearing = Bearing(shot.Target, shot.TravelDirection);
+            lateral = LateralDraw(sil, random.NextFloat());
+
             var hullData = shot.Source.ItemManager.GetData(shot.Target.Hull) as HullData;
-            var aimPoint = ResolveAimPoint(shot.Target, hullData, shot.Aimed);
-            var (cells, weights, totalWeight, _) = HullKernel(hullData, aimPoint, shot.Precision);
-            cell = WeightedPick(cells, weights, totalWeight, random);
+            var buffer = ArrayPool<LaneCell>.Shared.Rent(hullData.Shape.Coordinates.Length);
+            try
+            {
+                var count = Lane(hullData, bearing, lateral, buffer);
+                cell = count > 0 ? buffer[0].Cell : int2.zero;
+            }
+            finally
+            {
+                ArrayPool<LaneCell>.Shared.Return(buffer);
+            }
 
             var shield = shot.Target.Shield;
             var shieldActive = shield != null && shield.Item.Active.Value;
@@ -438,7 +504,7 @@ public static class FireControl
             else if (shieldActive) shieldBroken = true;
         }
 
-        return MakeOutcome(shot, hit, shielded, shieldBroken, cell, now);
+        return MakeOutcome(shot, hit, shielded, shieldBroken, cell, bearing, lateral, now);
     }
 
     // R4: the commit is authoritative and immutable from here on -- this only performs what Commit already
@@ -458,14 +524,13 @@ public static class FireControl
             return;
         }
 
-        var hitDirection = float2(0, 1);
-        var toTarget = (shot.Target.Position - shot.Source.Position).xz;
-        if (lengthsq(toTarget) > 1e-6f) hitDirection = normalize(toTarget);
-
-        shot.Target.ApplyHit(shot.Source, shot.Outcome.Cell, shot.DamageSpread, shot.Penetration, shot.Damage, hitDirection);
+        // Cut 12.2 (R4): the committed geometry, frozen. Apply reads no position or facing of its own --
+        // shot.Outcome.Bearing is already the schematic-frame bearing Commit computed at the commit tick, so
+        // turning the target after commit changes nothing here (TurningAfterCommitChangesNothing).
+        shot.Target.ApplyHit(shot.Source, shot.Outcome.Cell, shot.DamageSpread, shot.Penetration, shot.Damage, shot.Outcome.Bearing);
     }
 
-    private static ShotOutcome MakeOutcome(PendingShot shot, bool hit, bool shielded, bool shieldBroken, int2 cell, float now)
+    private static ShotOutcome MakeOutcome(PendingShot shot, bool hit, bool shielded, bool shieldBroken, int2 cell, float2 bearing, float lateral, float now)
     {
         return new ShotOutcome
         {
@@ -477,6 +542,8 @@ public static class FireControl
             Shielded = shielded,
             ShieldBroken = shieldBroken,
             Cell = cell,
+            Bearing = bearing,
+            Lateral = lateral,
             ArrivalIn = max(0f, shot.ArrivalTime - now),
             DamageType = shot.DamageType
         };
@@ -523,58 +590,19 @@ public static class FireControl
         }
     }
 
-    // Cut 6d (docs/fire-control-cut.md): the one kernel. HitProbability multiplies pOnHull; Commit draws the
-    // landing cell from the same per-cell weights. Nowhere else may compute a sigma or a weight -- this is the
-    // named risk from Cut 3 (two functions answering "where will this shot go" and eventually disagreeing),
-    // applied to placement instead of authority.
-    //
-    // Sigma is the frozen Precision's reciprocal, in hull-schematic cell units -- the same units
-    // Shape.CenterOfMass and GearOccupancy already use, so a sigma of 1 means "one cell's width of spread."
-    // Higher Precision (a tighter group) gives a smaller sigma; the 1e-3 floor only guards a stray zero or
-    // negative authored value; no authored Precision should ever reach it (GameplaySettings.UnaidedPrecision
-    // is the deliberately-bad floor Precision(Entity) itself falls back to, same shape as UnaidedAccuracy).
-    //
-    // 9.2 (docs/fire-control-cut.md, Soul C2): SigmaFloor guards a second, unrelated failure the 1e-3
-    // floor above does nothing about. HullKernel approximates a continuous 2D Gaussian with a discrete
-    // sum over occupied cells; that sum badly undershoots the continuous integral once sigma drops much
-    // below one cell against an aim point that is not exactly on a cell centre -- true of every shipped
-    // hull, none of whose centres of mass are integral. Past that point pOnHull collapsed toward zero as
-    // Precision kept climbing, so a better targeting system made a shot un-fireable. Clamping sigma at
-    // half a cell keeps the discrete sum a faithful share of the kernel over the whole Precision domain.
+    // Cut 12.2 (docs/fire-control-cut.md): Sigma keeps its Cut 6d/9.2 rule unchanged -- the frozen Precision's
+    // reciprocal, in hull-schematic cell units, floored at half a cell. The 9.2 floor's old rationale ("the
+    // discrete sum undershoots the continuous integral") is retired: Silhouette below integrates the Gaussian
+    // exactly over the shadow's intervals, so an exact 1D integral does not undershoot. The floor survives as
+    // a design minimum on group tightness (F12-3, TheSigmaFloorHoldsAtHalfACell) -- a targeting system is never
+    // authored tighter than half a schematic cell's width of spread, regardless of what the exact integral
+    // would otherwise allow.
     private const float SigmaFloor = 0.5f;
     private static float Sigma(float precision) => max(1f / max(precision, 1e-3f), SigmaFloor);
 
-    // w(cell) = exp(-d^2 / 2*sigma^2) over every occupied hull cell, `d` the planar cell-space distance from
-    // the aim point, plus pOnHull = (sum of those weights) / (2*pi*sigma^2) -- the share of the full continuous
-    // kernel's mass (a 2D Gaussian integrates to 2*pi*sigma^2 over the infinite plane) that a discrete sum over
-    // occupied cells actually captures. The off-hull share -- outside the schematic's bounding box, or on an
-    // unoccupied cell inside it (a hole, a thin limb's missing neighbour) -- is exactly 1 - pOnHull, and it
-    // never gets a second roll (see Commit below): pOnHull already told HitProbability the price.
-    private static (int2[] Cells, float[] Weights, float TotalWeight, float POnHull) HullKernel(HullData hullData, float2 aimPoint, float precision)
-    {
-        var sigma = Sigma(precision);
-        var coords = hullData.Shape.Coordinates;
-        var weights = new float[coords.Length];
-        var total = 0f;
-        for (var i = 0; i < coords.Length; i++)
-        {
-            var w = exp(-lengthsq((float2) coords[i] - aimPoint) / (2f * sigma * sigma));
-            weights[i] = w;
-            total += w;
-        }
-        // saturate: the discrete sum only approximates the continuous kernel's integral, and undershoots badly
-        // once sigma drops below about one cell (an extremely tight, well-authored Precision) -- the aim cell
-        // alone can then carry a weight whose share of the (now tiny) 2*pi*sigma^2 denominator exceeds 1. A
-        // share of a kernel's mass cannot exceed the whole kernel; clamped here so every other reader of
-        // pOnHull (HitProbability's product of factors, this cut's own tests) can keep treating it as a
-        // probability rather than re-deriving the same guard at every call site.
-        var pOnHull = saturate(total / (2f * PI * sigma * sigma));
-        return (coords, weights, total, pOnHull);
-    }
-
-    // The aim point the kernel is centred on (R10/Q6: the same frozen Aimed both HitProbability and Fire read)
-    // -- the aimed item's own cell centroid when it currently occupies cells on the target, else the hull's
-    // own centre of mass. One path; the uniform-random branch this replaces is deleted, not demoted (Cut 6d).
+    // The aim point a silhouette is centred on (R10/Q6: the same frozen Aimed both HitProbability and Fire
+    // read) -- the aimed item's own cell centroid when it currently occupies cells on the target, else the
+    // hull's own centre of mass. One path; the uniform-random branch Cut 6d replaced stays deleted.
     private static float2 ResolveAimPoint(Entity target, HullData hullData, EquippedItem aimed)
     {
         var aimedCells = aimed != null ? CellsOf(target, aimed) : null;
@@ -583,26 +611,166 @@ public static class FireControl
         return hullData.Shape.CenterOfMass;
     }
 
-    // A single weighted draw over the kernel's own occupied-cell weights -- the only way Commit picks a cell
-    // once a shot has already passed the roll (R3: one roll decides damage). totalWeight is passed in rather
-    // than resummed so this reads the identical mass HullKernel just computed.
-    //
-    // 9.2 (docs/fire-control-cut.md, Soul C2): the trailing return used to carry a claim that it "can
-    // never fall through," which was false on its own terms -- it falls through whenever totalWeight == 0,
-    // returning a fixed corner cell, and was unreachable only as a side effect of pOnHull collapsing to
-    // zero and gating PBase to zero first. Now that Sigma floors sigma so pOnHull no longer collapses,
-    // that accidental gate is gone too; the return stays as an explicit floating-point-rounding guard, not
-    // a documented invariant.
-    private static int2 WeightedPick(int2[] cells, float[] weights, float totalWeight, Random random)
+    // Cut 12.2 (docs/fire-control-cut.md, "the rules every sub-cut reads"): the merged lateral shadow the
+    // hull casts across the bearing, and the exact 1D Gaussian mass it carries -- the one function HitProbability's
+    // forecast, Inspect's HUD factors and Commit's roll and placement all read. Nowhere else may compute a
+    // sigma, a projection or a bearing. Allocates one interval array of length N (occupied-cell count, <=128 on
+    // shipped hulls) plus a sort -- only on this, the gated-in, path (Cut 10's own gated-out guard is
+    // unaffected: HitProbability and CommitProbability both bail on a zero shooter/deviation factor before
+    // this is ever called).
+    public static Silhouette Silhouette(Entity target, HullData hull, EquippedItem aimed, float2 bearing, float precision)
     {
-        var roll = random.NextFloat() * totalWeight;
-        var accumulated = 0f;
-        for (var i = 0; i < cells.Length; i++)
+        var ell = Lateral(bearing);
+        var coords = hull.Shape.Coordinates;
+        var h = (abs(ell.x) + abs(ell.y)) / 2f;
+
+        var intervals = new Interval[coords.Length];
+        for (var i = 0; i < coords.Length; i++)
         {
-            accumulated += weights[i];
-            if (roll < accumulated) return cells[i];
+            var centre = dot((float2) coords[i], ell);
+            intervals[i] = new Interval { Lo = centre - h, Hi = centre + h };
         }
-        return cells[cells.Length - 1];
+        Array.Sort(intervals, (x, y) => x.Lo.CompareTo(y.Lo));
+
+        // Merge in place: sorted ascending by Lo, so an interval overlaps (or exactly abuts) the last kept
+        // interval whenever its own Lo does not exceed that interval's Hi.
+        var count = 0;
+        for (var i = 0; i < intervals.Length; i++)
+        {
+            if (count > 0 && intervals[i].Lo <= intervals[count - 1].Hi)
+                intervals[count - 1].Hi = max(intervals[count - 1].Hi, intervals[i].Hi);
+            else
+                intervals[count++] = intervals[i];
+        }
+
+        var sigma = Sigma(precision);
+        var aimPoint = ResolveAimPoint(target, hull, aimed);
+        var a = dot(aimPoint, ell);
+
+        var pOnHull = 0f;
+        for (var i = 0; i < count; i++)
+            pOnHull += Phi((intervals[i].Hi - a) / sigma) - Phi((intervals[i].Lo - a) / sigma);
+
+        var span = count > 0 ? intervals[count - 1].Hi - intervals[0].Lo : 0f;
+
+        return new Silhouette
+        {
+            Intervals = intervals,
+            Count = count,
+            AimPoint = aimPoint,
+            A = a,
+            Sigma = sigma,
+            Span = span,
+            POnHull = saturate(pOnHull)
+        };
+    }
+
+    // Phi(z) = 1/2 (1 + erf(z / sqrt(2))): the standard normal CDF, CultMath's erf the one function underneath
+    // every Gaussian-mass sum this cut computes.
+    private static float Phi(float z) => .5f * (1f + erf(z * (1f / SQRT2)));
+
+    private const float SQRT2 = 1.4142135f;
+
+    // Cut 12.2: the lateral draw. One NextFloat u, taken after the hit roll -- walks the cumulative interval
+    // mass to u * POnHull to select interval k, then inverts the Gaussian CDF inside it. `p` here is the
+    // absolute CDF value at the drawn point (Phi(lo_k) plus the leftover target mass within interval k), not
+    // a value renormalised to [0,1] -- inverting that gives s directly in the same units A and Sigma are in.
+    // Clamped into [lo_k, hi_k) at the end to absorb rounding (a guard, not an invariant); erfinv's own
+    // handling of the domain edges (+-infinity at p = 0 or 1) means the clamp is what actually keeps s finite
+    // for an interval with negligible mass.
+    private static float LateralDraw(Silhouette sil, float u)
+    {
+        var target = u * sil.POnHull;
+        var cumulative = 0f;
+        for (var k = 0; k < sil.Count; k++)
+        {
+            var interval = sil.Intervals[k];
+            var loValue = Phi((interval.Lo - sil.A) / sil.Sigma);
+            var hiValue = Phi((interval.Hi - sil.A) / sil.Sigma);
+            var mass = hiValue - loValue;
+
+            if (target <= cumulative + mass || k == sil.Count - 1)
+            {
+                var p = clamp(loValue + (target - cumulative), loValue, hiValue);
+                var s = sil.A + sil.Sigma * SQRT2 * erfinv(2f * p - 1f);
+                return clamp(s, interval.Lo, interval.Hi);
+            }
+
+            cumulative += mass;
+        }
+
+        return sil.A; // sil.Count == 0: no metal in the shadow at all -- unreachable while POnHull > 0 gated Commit's roll
+    }
+
+    // Cut 12.2 (docs/fire-control-cut.md, "the rules every sub-cut reads"): exact slab traversal along the
+    // bearing at a fixed lateral offset s, replacing the old 0.5-step sampling march. Collects the occupied
+    // cells whose shadow interval contains s, each with its own entry/exit parameter along b, ordered by
+    // entry (ties broken by dot(cell, b), then cell index for full determinism), then walks forward while
+    // consecutive cells are contiguous (`next.entry <= current.exit + 1e-4`) -- the first gap ends the walk,
+    // the same rule Entity.cs's old march kept. A direct hit starts outside the hull (t -> -infinity), so the
+    // walk's first element is the impact cell. Only that first element is read in 12.2; the rest is 12.3's
+    // armour-first absorption march. Writes into the caller-supplied pooled buffer and returns the walked
+    // count; never allocates on its own.
+    public static int Lane(HullData hull, float2 b, float s, LaneCell[] buffer)
+    {
+        var ell = Lateral(b);
+        var h = (abs(ell.x) + abs(ell.y)) / 2f;
+        var coords = hull.Shape.Coordinates;
+
+        var n = 0;
+        for (var i = 0; i < coords.Length; i++)
+        {
+            var c = (float2) coords[i];
+            var centre = dot(c, ell);
+            if (s < centre - h || s >= centre + h) continue; // outside this cell's own lateral shadow
+
+            if (!SlabAlongB(c, b, ell, s, out var entry, out var exit)) continue; // the shadow test is a conservative bound; the exact slab can still miss
+
+            buffer[n++] = new LaneCell { Cell = coords[i], Entry = entry, Exit = exit };
+        }
+
+        Array.Sort(buffer, 0, n, Comparer<LaneCell>.Create((x, y) =>
+        {
+            var byEntry = x.Entry.CompareTo(y.Entry);
+            if (byEntry != 0) return byEntry;
+            var byProjection = dot((float2) x.Cell, b).CompareTo(dot((float2) y.Cell, b));
+            if (byProjection != 0) return byProjection;
+            var byX = x.Cell.x.CompareTo(y.Cell.x);
+            return byX != 0 ? byX : x.Cell.y.CompareTo(y.Cell.y);
+        }));
+
+        var walked = n > 0 ? 1 : 0;
+        for (var i = 1; i < n; i++)
+        {
+            if (buffer[i].Entry > buffer[i - 1].Exit + 1e-4f) break;
+            walked++;
+        }
+        return walked;
+    }
+
+    // The slab (ray-box) intersection of point(t) = t*b + s*ell against the unit square centred on cell c, one
+    // axis at a time: solving bAxis*t + val in [cLo, cHi] for each of x and y, then entry = the later of the
+    // two lower bounds, exit = the earlier of the two upper bounds. A near-zero bAxis component means the ray
+    // does not move along that axis at all, so it either always satisfies that axis's bound (no constraint on
+    // t) or never does (no intersection).
+    private static bool SlabAlongB(float2 c, float2 b, float2 ell, float s, out float entry, out float exit)
+    {
+        entry = float.NegativeInfinity;
+        exit = float.PositiveInfinity;
+        return SlabAxis(b.x, c.x - .5f, c.x + .5f, s * ell.x, ref entry, ref exit)
+            && SlabAxis(b.y, c.y - .5f, c.y + .5f, s * ell.y, ref entry, ref exit);
+    }
+
+    private static bool SlabAxis(float bAxis, float lo, float hi, float val, ref float entry, ref float exit)
+    {
+        if (abs(bAxis) < 1e-9f)
+            return val >= lo && val <= hi; // no motion along this axis: in bounds forever, or never
+
+        var t1 = (lo - val) / bAxis;
+        var t2 = (hi - val) / bAxis;
+        entry = max(entry, min(t1, t2));
+        exit = min(exit, max(t1, t2));
+        return entry <= exit;
     }
 
     // The cells of the target's hull schematic actually occupied by `item` -- GearOccupancy is the one source
@@ -636,9 +804,20 @@ public struct PendingShot
     public float Penetration;
     public float DamageSpread;
     public DamageType DamageType;
-    public float PBase;
+    // Cut 12.2 (docs/fire-control-cut.md): renamed from PBase -- its meaning changes from "the whole shot's
+    // frozen roll price" to "the shooter's own share of it," behind the same gates (Accuracy x PSensor). The
+    // spread and hull factors are no longer frozen here; they are priced live at Commit, against the target's
+    // facing then (Bearing timing).
+    public float PFire;
     public float Tracking;
     public float Precision;
+
+    // Cut 12.2: frozen at Fire alongside the rest of the shooter's own decision (R10) -- the shot's
+    // world-planar travel direction (FireControl.TravelDirection), and the weapon stats PSpread reads at
+    // Commit against the target's live silhouette.
+    public float2 TravelDirection;
+    public float Spread;
+    public float FireRange;
 
     // Cut 6b, 6.2: the airburst payload, frozen at fire alongside everything else above. BurstRadius is zero
     // for a weapon without the Airburst flag (WeaponModifiers, Enums.cs) -- Step reads that zero as "resolve
@@ -673,9 +852,44 @@ public struct FireControlDiagnostic
     public float Precision;
     public float Tracking;
     public float PSensor;
+    // Cut 12.2 (optional, presentation): the shooter-side factor alone, Accuracy x PSensor -- the same value
+    // Fire freezes into PendingShot.PFire.
+    public float PFire;
     public float PSpread;
     public float POnHull;
     public float PBase;
+}
+
+// Cut 12.2 (docs/fire-control-cut.md): a merged interval of a hull's lateral shadow, in the schematic frame's
+// lateral (ell) coordinate.
+public struct Interval
+{
+    public float Lo;
+    public float Hi;
+}
+
+// Cut 12.2: the hull's lateral shadow at one bearing, and the exact Gaussian mass it carries. Intervals holds
+// the merged, sorted shadow (only the first Count entries are valid -- the array is sized to the hull's own
+// occupied-cell count, not trimmed, to avoid a second allocation). A, Sigma and POnHull are read together by
+// the lateral draw; Span is read by PSpread so the two factors can never disagree about the target's size.
+public struct Silhouette
+{
+    public Interval[] Intervals;
+    public int Count;
+    public float2 AimPoint;
+    public float A;
+    public float Sigma;
+    public float Span;
+    public float POnHull;
+}
+
+// Cut 12.2: one occupied cell FireControl.Lane crossed at a fixed lateral offset, with its own slab entry/exit
+// parameter along the bearing. Entry ascending is nearest-to-farthest along the shot's own travel direction.
+public struct LaneCell
+{
+    public int2 Cell;
+    public float Entry;
+    public float Exit;
 }
 
 // Cut 3 (docs/fire-control-cut.md, 0b table): a commit. Created once, at ArrivalTime - CommitHorizon (or at
@@ -695,6 +909,11 @@ public sealed class ShotOutcome
     // deciding it, and a shield that recharges mid-flight cannot retroactively dodge it.
     public bool ShieldBroken;
     public int2 Cell;
+    // Cut 12.2 (R4): the committed geometry, frozen alongside the rest of the outcome -- the schematic-frame
+    // bearing and the lateral offset the roll's placement drew. Apply reads these, not a live position or
+    // facing (TurningAfterCommitChangesNothing).
+    public float2 Bearing;
+    public float Lateral;
     public float ArrivalIn;
     public DamageType DamageType;
 }

@@ -1314,7 +1314,11 @@ public class ActionGameManager : MonoBehaviour
             else
             {
                 var pDeviation = FireControl.DeviationProbability(shot, CurrentEntity.Zone.Time, out var deviation);
-                pendingLine = $"shot {shot.ShotId}: dev {deviation:F1}/{shot.Tracking:F1} x{pDeviation:F3} estimate {shot.PBase * pDeviation:P1}";
+                // Cut 12.2 (docs/fire-control-cut.md): retires the inline estimate (shot.PBase * pDeviation),
+                // a second, wrong copy of the model now that the target's facing enters at Commit -- this
+                // calls the same function Commit itself rolls against (TheHudEstimateIsTheCommitPrice).
+                var estimate = FireControl.CommitProbability(shot, CurrentEntity.Zone.Time, out _);
+                pendingLine = $"shot {shot.ShotId}: dev {deviation:F1}/{shot.Tracking:F1} x{pDeviation:F3} estimate {estimate:P1}";
             }
             break;
         }

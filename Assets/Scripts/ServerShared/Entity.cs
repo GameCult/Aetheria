@@ -384,12 +384,13 @@ public abstract class Entity
         return float2(dot(worldPlanar, right), dot(worldPlanar, forward));
     }
 
-    // Cut 3: the shape construction moved from EntityInstance.cs's Unity HullCollider subscription, with two
-    // changes forced by R7 (the simulation is 2D): the hit cell is the rolled Cell FireControl already chose,
-    // not a UV texture coordinate; and the penetration march rotates the firer-to-target direction into this
-    // entity's own frame with a planar rotation by -Direction, in place of transform.InverseTransformDirection
-    // -- no 3D transform anywhere in the march. `hitDirection` is the planar (x,z) firer-to-target unit vector.
-    public void ApplyHit(Entity source, int2 cell, float spread, float penetration, float damage, float2 hitDirection)
+    // Cut 3: the shape construction moved from EntityInstance.cs's Unity HullCollider subscription -- the hit
+    // cell is the rolled Cell FireControl already chose, not a UV texture coordinate.
+    // Cut 12.2 (docs/fire-control-cut.md): `bearing` is already in this entity's own schematic frame -- the
+    // committed ShotOutcome.Bearing FireControl.Commit computed once, at the commit tick -- so the ToSchematic
+    // call this used to make internally (12.1) is gone; ApplyHit no longer touches a world direction or this
+    // entity's own Direction at all.
+    public void ApplyHit(Entity source, int2 cell, float spread, float penetration, float damage, float2 bearing)
     {
         IncomingHit.OnNext(source);
 
@@ -402,7 +403,7 @@ public abstract class Entity
 
         if (penetration > .5f)
         {
-            var penetrationVector = normalize(ToSchematic(hitDirection));
+            var penetrationVector = normalize(bearing);
 
             var penetrationPoint = (float2) cell + float2(.5f);
             var penetrationDistance = 0f;

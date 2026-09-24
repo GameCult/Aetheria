@@ -186,7 +186,7 @@ public sealed class FireControlCut7Tests : IDisposable
         var shotId = FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
         var shot = e.Zone.PendingShots.Single(s => s.ShotId == shotId);
 
-        Assert.True(shot.PBase > 0f); // the shot is still worth taking -- this isn't a blackout, just a lost aim point
+        Assert.True(shot.PFire > 0f); // the shot is still worth taking -- this isn't a blackout, just a lost aim point
         Assert.Null(shot.Aimed); // the frozen snapshot must not carry an aim point reveal no longer supports
     }
 

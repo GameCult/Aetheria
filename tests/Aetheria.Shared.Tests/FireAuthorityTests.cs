@@ -447,14 +447,23 @@ public sealed class FireAuthorityTests : IDisposable
     }
 
     // R5's payoff: with Precision authored extremely tight (Cut 6d: a sigma a tiny fraction of one cell) and
-    // p 1, only the aimed item's durability falls -- the dart-throw kernel still converges on a deterministic
-    // single-cell pick when the group is that tight, so this stays a same-cell-every-time assertion rather
-    // than a statistical one. Mutation: the draw ignores Aimed and always picks a uniform random hull cell.
+    // p 1, the aimed item's durability falls -- the lateral draw still converges on the aimed item's own lane
+    // when the group is that tight, so this stays a same-lane-every-time assertion rather than a statistical
+    // one. Mutation: the draw ignores Aimed and always picks a uniform random hull lateral offset.
+    // Cut 12.2 (docs/fire-control-cut.md): aiming now only prices and draws the LATERAL offset (the item's
+    // own aim point still centres the scatter, same as before); depth along the shot's own travel direction is
+    // resolved by Lane to whichever occupied cell is nearest the entry surface, which for a solid hull is
+    // always a border cell, never a Tool item's own interior cell (Shape.Shrink). A direct, unpenetrating hit
+    // (penetration 0, the fixture's old default) can therefore only ever land on the border cell in the aimed
+    // item's own lane -- reaching the item itself now requires the same penetration march
+    // AimingAtAnItemCentresTheScatterOnItsLane and HitsLandOnTheFacingEdge exercise, so this fixture is given
+    // enough penetration (5, well past this 5x5 hull's own width) to march from the entry edge through to the
+    // interior cell the aimed item occupies.
     [Fact]
     public void AimedHitLandsOnSelectedItem()
     {
         EquippableItem aimedGear = null;
-        var e = Build(TestSettings(), damage: 50, velocity: 0, accuracy: 1, resolution: 1, spread: 0, precision: 1000, armor: 0,
+        var e = Build(TestSettings(), damage: 50, velocity: 0, accuracy: 1, resolution: 1, spread: 0, precision: 1000, armor: 0, penetration: 5,
             beforeActivate: (items, shooter, target) =>
             {
                 // A second, distinct interior item on the target to aim at, equipped before Activate() (Entity.
@@ -495,18 +504,26 @@ public sealed class FireAuthorityTests : IDisposable
         var occupantItem = e.Target.Equipment.Single(x => x.EquippableItem == occupant);
 
         var beforeHull = e.Target.Hull.Durability;
-        e.Target.ApplyHit(e.Shooter, cell, spread: 0, penetration: 0, damage: 10, hitDirection: float2(0, 1));
+        // Cut 12.2 (docs/fire-control-cut.md): ApplyHit's direction parameter is now an already-schematic
+        // bearing (the caller's job, formerly ApplyHit's own internal ToSchematic call) -- unread here anyway,
+        // since penetration 0 never enters the march.
+        e.Target.ApplyHit(e.Shooter, cell, spread: 0, penetration: 0, damage: 10, bearing: float2(0, 1));
 
         Assert.Equal(0f, e.Target.Armor[cell.x, cell.y]); // 2 armor consumed
         Assert.Equal(0f, occupantItem.EquippableItem.Durability); // 3 item durability consumed
         Assert.Equal(beforeHull - 5f, e.Target.Hull.Durability, 2); // remaining 5 hits the hull
     }
 
-    // R7: the penetration march is planar, rotated into the target's own facing. Firing straight into a
-    // target's nose (hitDirection opposed to Direction) marches the hit shape toward the target's stern, along
-    // +Y in this hull's local grid regardless of which way the entity happens to be facing in world space.
-    // Mutation: skip rotating by Direction and march along the raw world hitDirection instead -- a target
-    // facing anywhere other than the world +Z axis would then penetrate the wrong cells.
+    // R7: the penetration march is planar, in the target's own schematic frame. Firing straight into a
+    // target's nose marches the hit shape toward the target's stern, along +Y in this hull's local grid
+    // regardless of which way the entity happens to be facing in world space.
+    // Cut 12.2 (docs/fire-control-cut.md): the world-to-schematic rotation this test pinned moved out of
+    // ApplyHit and into its caller (FireControl.Commit computes `bearing = target.ToSchematic(travelDirection)`
+    // once, at the commit tick, and passes the already-rotated bearing in) -- ApplyHit itself no longer reads
+    // Direction at all. This test now performs that same rotation itself, at the call site, to keep pinning
+    // the march's own planar behaviour once a schematic bearing is in hand; the end-to-end claim that
+    // Direction feeds the rotation correctly is what FireControlCut12Tests.HitsLandOnTheFacingEdge and
+    // TurningArmourIntoTheShotTakesItOnTheArmour now cover, through FireControl.Commit itself.
     [Fact]
     public void PenetrationMarchIsPlanar()
     {
@@ -515,7 +532,8 @@ public sealed class FireAuthorityTests : IDisposable
 
         var cell = new int2(1, 0);
         var hitDirection = normalize(float2(1, 0)); // the shot arrived travelling along the target's own forward
-        e.Target.ApplyHit(e.Shooter, cell, spread: 0, penetration: 1.5f, damage: 30, hitDirection: hitDirection);
+        var bearing = e.Target.ToSchematic(hitDirection);
+        e.Target.ApplyHit(e.Shooter, cell, spread: 0, penetration: 1.5f, damage: 30, bearing: bearing);
 
         // Rotating hitDirection into this Direction's frame (forward=(1,0), right=(0,-1)) makes the local
         // penetration vector (0,1): the march should have advanced from (1,0) into (1,1), consuming that

@@ -195,33 +195,12 @@ public sealed class FireControlCut6dTests : IDisposable
         return outcomes;
     }
 
-    // A solid 3-wide, 11-tall hull: a "Stern Marker" item sits at (1,1), near one end. y < 5.5 is the stern
-    // half, y >= 5.5 the bow half -- neither half is the aim point itself, so the split is a genuine
-    // spatial-spread question and not just "did it land on the exact aimed cell."
-    private static Shape SolidShape(int w, int h)
-    {
-        var shape = new Shape(w, h);
-        foreach (var cell in shape.AllCoordinates) shape[cell] = true;
-        return shape;
-    }
-
-    // AimingAtTheSternHitsTheStern: with a mid-range Precision, hits aimed at a stern item land in the stern
-    // half far more often than the bow half. Mutation: restore the uniform-random branch. Must die -- this is
-    // the assertion the shipped coin flip would fail (a coin flip's "miss the item" branch is uniform over the
-    // whole hull, so roughly half of it lands in either half regardless of aim).
-    [Fact]
-    public void AimingAtTheSternHitsTheStern()
-    {
-        var e = Build(TestSettings(), SolidShape(3, 11), precision: .5f, markerCell: new int2(1, 1));
-
-        var outcomes = FireMany(e, 300);
-        var hits = outcomes.Where(o => o.Hit).ToList();
-        Assert.True(hits.Count > 50, $"expected a healthy number of hits to measure a distribution from, got {hits.Count}");
-
-        var stern = hits.Count(o => o.Cell.y < 5.5f);
-        var sternFraction = (float) stern / hits.Count;
-        Assert.True(sternFraction > .8f, $"expected the large majority of hits aimed at (1,1) to land in the stern half (y<5.5), got sternFraction={sternFraction} over {hits.Count} hits");
-    }
+    // AimingAtTheSternHitsTheStern is superseded by FireControlCut12Tests.AimingAtAnItemCentresTheScatterOnItsLane
+    // (docs/fire-control-cut.md, Cut 12.2): this fixture fired from the target's own stern at a stern-aimed
+    // marker, so a placement rule that merely biases toward whatever is nearest the shooter -- not toward the
+    // aim point specifically -- would also have passed it. The replacement fires from broadside and from dead
+    // astern, and checks both a stern- and a bow-aimed shot from each, which a nearest-the-entry-side bug
+    // cannot pass.
 
     // A 5x5 blob (x:0-4, y:0-4) plus a 3x3 "pod" (x:6-8, y:1-3) joined to it by a single-cell neck at (5,2) --
     // an appendage connected to the main mass at only one point, the schematic shape of a thin limb. The pod's
@@ -251,6 +230,11 @@ public sealed class FireControlCut6dTests : IDisposable
     // design occupies). Mutation: drop pOnHull from the probability. Must die -- with pOnHull gone, aiming at
     // the limb and aiming at the centre of mass score identically (Accuracy * pSensor * pSpread, no spatial
     // term at all).
+    // Cut 12.2 (docs/fire-control-cut.md): pOnHull is now the exact 1D integral of the Gaussian over the
+    // target's lateral shadow rather than a 2D discrete-cell sum, but the shape of the rule is unchanged -- a
+    // limb's shadow interval is a small sliver of the hull's own span, so far less of the Gaussian mass
+    // centred on it actually falls on metal than when the same Gaussian is centred on the much wider mass of
+    // cells around the centre of mass.
     [Fact]
     public void ThinLimbCostsHitChance()
     {
@@ -283,95 +267,14 @@ public sealed class FireControlCut6dTests : IDisposable
                 $"got {gaps[i - 1].Gap} then {gaps[i].Gap}");
     }
 
-    // The one kernel, replicated independently here (not by calling FireControl's private helpers) from the
-    // spec's own formula: w(cell) = exp(-d^2 / 2*sigma^2), sigma = 1/Precision, pOnHull = sum(w) / (2*pi*sigma^2).
-    // Used to compute an expected value from public inputs (the hull's own Shape and the authored Precision)
-    // and check production against it, rather than trusting production to grade its own homework.
-    private static (int2[] Cells, float[] Weights, float Total) ExpectedKernel(HullData hull, float2 aim, float precision)
-    {
-        var sigma = 1f / precision;
-        var coords = hull.Shape.Coordinates;
-        var weights = new float[coords.Length];
-        var total = 0f;
-        for (var i = 0; i < coords.Length; i++)
-        {
-            var w = MathF.Exp(-CultMath.math.lengthsq((float2) coords[i] - aim) / (2f * sigma * sigma));
-            weights[i] = w;
-            total += w;
-        }
-        return (coords, weights, total);
-    }
+    // PlacementAndProbabilityShareOneKernel is superseded by
+    // FireControlCut12Tests.PlacementAndProbabilityShareOneSilhouette (docs/fire-control-cut.md, Cut 12.2):
+    // the 2D discrete-cell kernel this test's ExpectedKernel replicated is gone -- Silhouette replaces it with
+    // an exact 1D Gaussian integral over the hull's lateral shadow, which the new test recomputes
+    // independently by numeric integration over a union of intervals it builds itself.
 
-    // PlacementAndProbabilityShareOneKernel: the empirical on-hull rate over many seeded draws matches the
-    // pOnHull the probability reported, within tolerance. Mutation: perturb sigma in one of the two call sites
-    // only. Must die -- this is the test that would catch the two functions drifting apart.
-    //
-    // Two independent checks against one independently-recomputed expectation:
-    //  1. HitProbability's reported number (== pOnHull exactly, every other factor neutralised to 1 by Build)
-    //     must match the analytic pOnHull this test computes from the documented formula. A sigma perturbed
-    //     only in HitProbability's own call to the kernel shows up here.
-    //  2. The empirical distribution of landing cells, over many seeded shots, must match the analytic
-    //     per-cell weight shares this test computes from the same formula. A sigma perturbed only in Commit's
-    //     call to the kernel (placement) leaves check 1 untouched but shows up here -- placement, not the roll,
-    //     is what it drives.
-    [Fact]
-    public void PlacementAndProbabilityShareOneKernel()
-    {
-        var hullShape = BlobWithLimb(out var limb);
-        const float precision = 1f;
-        var e = Build(TestSettings(), hullShape, precision, markerCell: limb);
-
-        var (cells, weights, total) = ExpectedKernel(e.HullData, limb, precision);
-        var expectedPOnHull = Math.Min(1f, total / (2f * MathF.PI * (1f / precision) * (1f / precision)));
-
-        var reportedPBase = FireControl.HitProbability(e.Weapon, e.Shooter, e.Target);
-        Assert.Equal(expectedPOnHull, reportedPBase, 3);
-
-        const int shots = 2500;
-        var outcomes = FireMany(e, shots);
-        var hits = outcomes.Where(o => o.Hit).ToList();
-        Assert.True(hits.Count > shots * expectedPOnHull * .5f, $"expected roughly {shots * expectedPOnHull:0} hits, got {hits.Count}");
-
-        // Check the two heaviest cells (the limb itself, and its one blob-side neighbour) -- together they
-        // carry most of the kernel's mass at this sigma, so their empirical share is the most sensitive,
-        // least noisy signal a perturbed placement sigma would move.
-        var byWeightDesc = Enumerable.Range(0, cells.Length).OrderByDescending(i => weights[i]).Take(2).ToArray();
-        foreach (var i in byWeightDesc)
-        {
-            var expectedFraction = weights[i] / total;
-            var empiricalFraction = (float) hits.Count(o => o.Cell.Equals(cells[i])) / hits.Count;
-            Assert.True(Math.Abs(expectedFraction - empiricalFraction) < .07f,
-                $"cell {cells[i]}: expected fraction {expectedFraction:0.0000}, empirical {empiricalFraction:0.0000} over {hits.Count} hits");
-        }
-    }
-
-    // A 7x7 hull with a hole at its own centre (3,3) -- the bounding box has 49 cells, the schematic only 48.
-    // The aim point (1,1) is chosen far enough from the hole that it is still a valid interior cell (Shrink
-    // excludes not just the border but every cell touching the hole itself, which rules out the whole 3x3
-    // block around it). EveryHitLandsOnMetal: no committed hit ever resolves to an unoccupied cell, across
-    // seeds and aim points including extremities. Mutation: draw from the hull's full bounding box
-    // (Shape.AllCoordinates) instead of its occupied cells (Shape.Coordinates) -- with a real hole to fall
-    // into, that mutant lands on the missing centre cell often enough over many draws to be caught, where a
-    // solid rectangle never would be.
-    [Fact]
-    public void EveryHitLandsOnMetal()
-    {
-        var shape = new Shape(7, 7);
-        foreach (var cell in shape.AllCoordinates) shape[cell] = true;
-        shape[new int2(3, 3)] = false; // the hole
-
-        var aimPoint = new int2(1, 1);
-        // .Loose grouping (low Precision -> wide sigma): plenty of mass would spill toward the hole.
-        var e = Build(TestSettings(), shape, precision: .3f, markerCell: aimPoint);
-
-        // 2000 shots at pOnHull ~.38 (~760 expected hits): the bounding-box-instead-of-Coordinates mutation
-        // would expect ~15 of those to land on the missing (3,3) specifically (1/49 uniform chance per hit),
-        // reliably enough to die even though the correct kernel puts exactly zero weight there.
-        var outcomes = FireMany(e, 2000);
-        var hits = outcomes.Where(o => o.Hit).ToList();
-        Assert.True(hits.Count > 100, $"expected a healthy number of hits to check, got {hits.Count}");
-
-        foreach (var outcome in hits)
-            Assert.True(shape[outcome.Cell], $"hit landed on {outcome.Cell}, which is not part of the hull's own schematic");
-    }
+    // EveryHitLandsOnMetal is superseded by FireControlCut12Tests.HitsLandOnTheFacingEdge (docs/fire-control-cut.md,
+    // Cut 12.2): the new test pins the stronger rule directly -- not merely "occupied," but "nothing occupied
+    // precedes it in its own lane" -- recomputed independently from the outcome's own frozen Bearing/Lateral on
+    // a concave (holed) hull.
 }
