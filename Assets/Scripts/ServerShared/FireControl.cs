@@ -231,7 +231,7 @@ public static class FireControl
     // source.ResolvedTargetItem, exactly what Fire freezes -- HitProbability, Inspect and Fire read the same
     // reveal-gated aim point, never two.
     private static float POnHull(Entity source, Entity target, HullData targetHull, float precision) =>
-        HullKernel(targetHull, ResolveAimPoint(target, targetHull, source.ResolvedTargetItem).AimPoint, precision).POnHull;
+        HullKernel(targetHull, ResolveAimPoint(target, targetHull, source.ResolvedTargetItem), precision).POnHull;
 
     public static float DeviationProbability(PendingShot shot, float now, out float deviation)
     {
@@ -333,7 +333,7 @@ public static class FireControl
                 // rewriting shot.Outcome: a committed outcome is immutable (R4) and stays a true record of what
                 // the commit decided, while ShotResolved reports what actually happened -- nothing, because the
                 // target is gone. Republishing the committed outcome here used to put a hit marker on a corpse.
-                var miss = MakeOutcome(shot, false, false, false, int2.zero, null, now);
+                var miss = MakeOutcome(shot, false, false, false, int2.zero, now);
                 if (!shot.Committed) zone.ShotCommitted.OnNext(miss);
                 zone.ShotResolved.OnNext(miss);
                 shots.RemoveAt(i);
@@ -417,7 +417,6 @@ public static class FireControl
 
         var hit = p > 0f && random.NextFloat() < p;
         var cell = int2.zero;
-        EquippedItem aimed = null;
         var shielded = false;
         var shieldBroken = false;
 
@@ -429,10 +428,9 @@ public static class FireControl
             // already priced into that roll, not resolved here as a second stage), so the draw is unconditional
             // and always returns an occupied cell -- no fallback branch, uniform or otherwise.
             var hullData = shot.Source.ItemManager.GetData(shot.Target.Hull) as HullData;
-            var (aimPoint, aimedCells) = ResolveAimPoint(shot.Target, hullData, shot.Aimed);
+            var aimPoint = ResolveAimPoint(shot.Target, hullData, shot.Aimed);
             var (cells, weights, totalWeight, _) = HullKernel(hullData, aimPoint, shot.Precision);
             cell = WeightedPick(cells, weights, totalWeight, random);
-            if (aimedCells != null && Array.IndexOf(aimedCells, cell) >= 0) aimed = shot.Aimed;
 
             var shield = shot.Target.Shield;
             var shieldActive = shield != null && shield.Item.Active.Value;
@@ -440,7 +438,7 @@ public static class FireControl
             else if (shieldActive) shieldBroken = true;
         }
 
-        return MakeOutcome(shot, hit, shielded, shieldBroken, cell, aimed, now);
+        return MakeOutcome(shot, hit, shielded, shieldBroken, cell, now);
     }
 
     // R4: the commit is authoritative and immutable from here on -- this only performs what Commit already
@@ -467,7 +465,7 @@ public static class FireControl
         shot.Target.ApplyHit(shot.Source, shot.Outcome.Cell, shot.DamageSpread, shot.Penetration, shot.Damage, hitDirection);
     }
 
-    private static ShotOutcome MakeOutcome(PendingShot shot, bool hit, bool shielded, bool shieldBroken, int2 cell, EquippedItem aimed, float now)
+    private static ShotOutcome MakeOutcome(PendingShot shot, bool hit, bool shielded, bool shieldBroken, int2 cell, float now)
     {
         return new ShotOutcome
         {
@@ -478,7 +476,6 @@ public static class FireControl
             Hit = hit,
             Shielded = shielded,
             ShieldBroken = shieldBroken,
-            Aimed = aimed,
             Cell = cell,
             ArrivalIn = max(0f, shot.ArrivalTime - now),
             DamageType = shot.DamageType
@@ -513,10 +510,8 @@ public static class FireControl
             }
 
             var hullData = target.ItemManager.GetData(target.Hull) as HullData;
-            var forward = normalize(target.Direction);
-            var right = float2(forward.y, -forward.x);
             var localDirection = lengthsq(toTarget) > 1e-6f
-                ? normalize(float2(dot(toTarget, right), dot(toTarget, forward)))
+                ? normalize(target.ToSchematic(toTarget))
                 : float2(0, 1);
 
             var hitShape = new Shape(hullData.Shape.Width, hullData.Shape.Height);
@@ -580,12 +575,12 @@ public static class FireControl
     // The aim point the kernel is centred on (R10/Q6: the same frozen Aimed both HitProbability and Fire read)
     // -- the aimed item's own cell centroid when it currently occupies cells on the target, else the hull's
     // own centre of mass. One path; the uniform-random branch this replaces is deleted, not demoted (Cut 6d).
-    private static (float2 AimPoint, int2[] AimedCells) ResolveAimPoint(Entity target, HullData hullData, EquippedItem aimed)
+    private static float2 ResolveAimPoint(Entity target, HullData hullData, EquippedItem aimed)
     {
         var aimedCells = aimed != null ? CellsOf(target, aimed) : null;
         if (aimedCells != null && aimedCells.Length > 0)
-            return (aimedCells.Aggregate(float2.zero, (total, c) => total + (float2) c) / aimedCells.Length, aimedCells);
-        return (hullData.Shape.CenterOfMass, null);
+            return aimedCells.Aggregate(float2.zero, (total, c) => total + (float2) c) / aimedCells.Length;
+        return hullData.Shape.CenterOfMass;
     }
 
     // A single weighted draw over the kernel's own occupied-cell weights -- the only way Commit picks a cell
@@ -699,7 +694,6 @@ public sealed class ShotOutcome
     // and unable to CanTakeHit this shot is decided broken right here, so Apply performs Break() rather than
     // deciding it, and a shield that recharges mid-flight cannot retroactively dodge it.
     public bool ShieldBroken;
-    public EquippedItem Aimed;
     public int2 Cell;
     public float ArrivalIn;
     public DamageType DamageType;

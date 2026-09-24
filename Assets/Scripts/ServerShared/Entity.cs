@@ -373,6 +373,17 @@ public abstract class Entity
         }
     }
 
+    // Cut 12.1 (docs/fire-control-cut.md): the one schematic-frame owner. Maps a world-planar vector into this
+    // entity's own schematic frame -- x = starboard, y = bow -- so ApplyHit's penetration march and
+    // FireControl.Splash's directional half both read the same transform instead of each carrying their own
+    // copy of forward/right.
+    public float2 ToSchematic(float2 worldPlanar)
+    {
+        var forward = normalize(Direction);
+        var right = float2(forward.y, -forward.x);
+        return float2(dot(worldPlanar, right), dot(worldPlanar, forward));
+    }
+
     // Cut 3: the shape construction moved from EntityInstance.cs's Unity HullCollider subscription, with two
     // changes forced by R7 (the simulation is 2D): the hit cell is the rolled Cell FireControl already chose,
     // not a UV texture coordinate; and the penetration march rotates the firer-to-target direction into this
@@ -391,9 +402,7 @@ public abstract class Entity
 
         if (penetration > .5f)
         {
-            var forward = normalize(Direction);
-            var right = float2(forward.y, -forward.x);
-            var penetrationVector = normalize(float2(dot(hitDirection, right), dot(hitDirection, forward)));
+            var penetrationVector = normalize(ToSchematic(hitDirection));
 
             var penetrationPoint = (float2) cell + float2(.5f);
             var penetrationDistance = 0f;
