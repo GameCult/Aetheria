@@ -152,13 +152,20 @@ public static class FireControl
     // freezes (R10), gated exactly as HitProbability gates. Nothing about the target's facing or silhouette
     // enters here; that is Silhouette's and PSpread's job, priced fresh by HitProbability below and again,
     // live, by Commit at the commit tick. 0 the moment any gate closes.
-    private static float PFire(Weapon weapon, Entity source, Entity target)
+    private static float PFire(Weapon weapon, Entity source, Entity target) => PFire(weapon, source, target, out _);
+
+    // The `out range` overload is HitProbability's own gate call -- one computation of `target.Position -
+    // source.Position`, not two. HitProbability used to recompute its own copy for PSpread, which is exactly
+    // the kind of split authority Cut 3 named as the risk (two places computing the same vector, free to
+    // drift or to have their subtraction order flipped in only one of them).
+    private static float PFire(Weapon weapon, Entity source, Entity target, out float range)
     {
+        range = 0f;
         if (target == null) return 0f;
         if (!source.VisibleEntities.Contains(target)) return 0f;
 
         var toTarget = target.Position - source.Position;
-        var range = length(toTarget);
+        range = length(toTarget);
         if (range < weapon.MinRange || range > weapon.Range) return 0f;
         if (weapon is LockWeapon lockWeapon && !lockWeapon.IsLocked) return 0f;
         if (!InArc(weapon.Item, toTarget)) return 0f;
@@ -170,10 +177,9 @@ public static class FireControl
 
     public static float HitProbability(Weapon weapon, Entity source, Entity target)
     {
-        var pFire = PFire(weapon, source, target);
+        var pFire = PFire(weapon, source, target, out var range);
         if (pFire <= 0f) return 0f;
 
-        var range = length(target.Position - source.Position);
         var targetHull = source.ItemManager.GetData(target.Hull) as HullData;
         var bearing = Bearing(target, TravelDirection(weapon, source, target));
         var sil = Silhouette(target, targetHull, source.ResolvedTargetItem, bearing, Precision(source));

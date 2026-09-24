@@ -82,7 +82,7 @@ public sealed class FireControlCut12Tests : IDisposable
         GameplaySettings settings, Shape hullShape, float precision,
         float velocity = 0, float spread = 0, float2? targetFacing = null,
         bool equipShield = false, float shieldCapacity = 30,
-        int2[] markerCells = null)
+        int2[] markerCells = null, float accuracy = 1f)
     {
         var hullData = new HullData
         {
@@ -122,7 +122,7 @@ public sealed class FireControlCut12Tests : IDisposable
             MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000,
             Behaviors = { new TargetingSystemData
             {
-                Accuracy = Constant(1f), Resolution = Constant(1000f), Precision = Constant(precision), Tracking = Constant(100000f)
+                Accuracy = Constant(accuracy), Resolution = Constant(1000f), Precision = Constant(precision), Tracking = Constant(100000f)
             } }
         });
         cache.Upsert(new GearData
@@ -280,6 +280,117 @@ public sealed class FireControlCut12Tests : IDisposable
 
         Assert.True(best != null, "fixture: no occupied cell reached at this lateral offset");
         return best.Value;
+    }
+
+    // Stryker survivors on this cut's own changed lines (2026-09-24 run): TravelDirection's point-blank
+    // ternary (both directions), and Fire's target-null guard around it, were never actually exercised at a
+    // shooter/target pair where the real direction could not coincidentally equal the (0,1) fallback. Kills:
+    // forcing either ternary branch; skipping the null-target guard (which would NRE on PredictedIntercept).
+    [Fact]
+    public void TravelDirectionMatchesThePredictedInterceptAndFallsBackAtPointBlank()
+    {
+        var e = Build(TestSettings(), SolidShape(5, 5), precision: 1f);
+
+        // A diagonal placement -- neither axis-aligned with the fallback (0,1), so a mutant that always
+        // returns the fallback (or always skips the null-target guard) cannot pass by coincidence.
+        e.Shooter.Position = float3(10, 0, -5);
+        e.Target.Position = float3(40, 0, 65);
+        var expected = normalize((e.Target.Position - e.Shooter.Position).xz);
+        var shotId = FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        var pending = e.Zone.PendingShots.Single(s => s.ShotId == shotId);
+        Assert.Equal(expected.x, pending.TravelDirection.x, 4);
+        Assert.Equal(expected.y, pending.TravelDirection.y, 4);
+
+        // Point-blank: shooter and target at the exact same position (weapon Velocity 0, so PredictedIntercept
+        // returns target.Position exactly) -- TravelDirection must fall back rather than normalize a zero
+        // vector into NaN.
+        e.Target.Position = e.Shooter.Position;
+        var pointBlankId = FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        var pointBlank = e.Zone.PendingShots.Single(s => s.ShotId == pointBlankId);
+        Assert.Equal(0f, pointBlank.TravelDirection.x);
+        Assert.Equal(1f, pointBlank.TravelDirection.y);
+
+        // No target: Fire's own null-target branch must use the fallback directly, not call TravelDirection
+        // (which reads target.Position and would NRE).
+        e.Shooter.Target.Value = null;
+        var noTargetId = FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        var noTarget = e.Zone.PendingShots.Single(s => s.ShotId == noTargetId);
+        Assert.Equal(0f, noTarget.TravelDirection.x);
+        Assert.Equal(1f, noTarget.TravelDirection.y);
+    }
+
+    // Stryker survivor: diagnostic.PFire (Accuracy * PSensor, an optional presentation field) was never
+    // checked at a PSensor strictly between 0 and 1, so Accuracy * PSensor and Accuracy / PSensor (the
+    // mutant) were indistinguishable at PSensor == 1 (the fixture's usual full-reveal convention). Resolution
+    // 1000 gives an razor-thin demand window (ceiling ~= .1009 against a .1 threshold); info exactly halfway
+    // through it gives PSensor exactly .5.
+    [Fact]
+    public void DiagnosticPFireIsAccuracyTimesPSensor()
+    {
+        var e = Build(TestSettings(), SolidShape(6, 12), precision: .6f);
+        e.Shooter.EntityInfoGathered[e.Target] = .10045f; // halfway through the [.1, .1009] demand window
+        var d = FireControl.Inspect(e.Weapon, e.Shooter, e.Target);
+        Assert.True(d.PSensor > .05f && d.PSensor < .95f, $"fixture: PSensor ({d.PSensor}) must be strictly between 0 and 1");
+        Assert.Equal(d.Accuracy * d.PSensor, d.PFire, 4);
+    }
+
+    // Stryker survivors: CommitProbability's own product (PFire * pDeviation * PSpread * pOnHull) was only
+    // ever exercised with pDeviation exactly 1 (a stationary target relative to its fire-time projection),
+    // which makes "* pDeviation" and "/ pDeviation" (and boundary flips around 0) indistinguishable. A
+    // synthetic PendingShot (bypassing Fire, the same convention FireControlCut9Tests.FireSynthetic uses)
+    // pins every factor to a distinct, non-1 value and checks the exact product against an independent
+    // recomputation.
+    [Fact]
+    public void CommitProbabilityIsTheExactProductOfItsFourFactors()
+    {
+        var e = Build(TestSettings(), SolidShape(7, 9), precision: .5f, spread: 6f);
+        var shotId = FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        var pending = e.Zone.PendingShots.Single(s => s.ShotId == shotId);
+
+        // A jink between fire and commit gives pDeviation a real, non-1 value distinct from PFire and PSpread.
+        pending.FireTime = e.Zone.Time - 1f;
+        pending.PFire = .8f;
+        pending.Tracking = 20f;
+        e.Zone.PendingShots[e.Zone.PendingShots.FindIndex(s => s.ShotId == shotId)] = pending;
+        e.Target.Position += float3(6, 0, 0); // jink after the (frozen) fire-time projection
+
+        var p = FireControl.CommitProbability(pending, e.Zone.Time, out var sil);
+
+        var pDeviation = FireControl.DeviationProbability(pending, e.Zone.Time, out var deviation);
+        Assert.True(deviation > 0f, "fixture: the jink must actually move the target off its projection");
+        Assert.True(pDeviation > .05f && pDeviation < .95f, $"fixture: pDeviation ({pDeviation}) must be strictly between 0 and 1");
+        Assert.True(sil.POnHull > .05f && sil.POnHull < .95f, $"fixture: pOnHull ({sil.POnHull}) must be strictly between 0 and 1");
+        var pSpread = e.HullData.Shape.Width > 0
+            ? Math.Min(1f, (float) (180.0 / Math.PI * Math.Atan(.5 * sil.Span / pending.FireRange)) / (pending.Spread / 2f))
+            : 1f;
+        var expected = pending.PFire * pDeviation * pSpread * sil.POnHull;
+        Assert.Equal(expected, p, 4);
+    }
+
+    // Stryker survivors: ResolveAimPoint's fallback (aimed but currently occupying zero cells -> hull centre
+    // of mass) and its multi-cell average were both untested -- every existing marker fixture uses the
+    // catalog's 1x1 "Marker" stub, where sum/length and sum*length agree at length 1, and no fixture ever
+    // destroys or unequips an aimed item before firing.
+    [Fact]
+    public void AimPointFallsBackWhenTheAimedItemNoLongerOccupiesAnyCell()
+    {
+        var aim = new int2(2, 2);
+        var e = Build(TestSettings(), SolidShape(6, 6), precision: 1000f, markerCells: new[] { aim });
+        var aimed = e.Markers[0];
+        Assert.True(e.Shooter.TrySelectTargetItem(aimed));
+
+        // The aimed item is still equipped (Entity.TryUnequip refuses on an active entity, and reveal/aim
+        // selection reads Equipment, not GearOccupancy) but no longer occupies any hull cell -- the shape a
+        // destroyed or relocated item's footprint would leave. CellsOf then returns an empty (non-null) array,
+        // and ResolveAimPoint must fall back to the hull's own centre of mass rather than average zero cells
+        // (0/0 = NaN).
+        e.Target.GearOccupancy[aim.x, aim.y] = null;
+
+        var outcomes = FireMany(e, 400);
+        var hits = outcomes.Where(o => o.Hit).ToList();
+        Assert.True(hits.Count > 50, $"expected a healthy number of hits, got {hits.Count}");
+        foreach (var outcome in hits)
+            Assert.True(e.HullData.Shape[outcome.Cell], $"hit landed on {outcome.Cell}, off the hull's own schematic -- the aim point fallback produced NaN");
     }
 
     // BroadsideIsEasierThanHeadOn: kills the bearing being ignored and the old max(W,H) bound. A 2x12 hull is
