@@ -6,8 +6,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using GameCult.Caching;
 using UniRx;
 using CultMath;
@@ -42,8 +40,6 @@ public class Zone
     public Subject<ShotOutcome> ShotResolved = new Subject<ShotOutcome>();
     private int _nextShotId;
     public int NextShotId() => ++_nextShotId;
-
-    private List<Task> BeltUpdates = new List<Task>();
 
     public float Time
     {
@@ -150,21 +146,11 @@ public class Zone
     {
         _time += deltaTime;
         _updatedOrbits.Clear();
-        foreach (var t in BeltUpdates)
-            t.Wait();
-        BeltUpdates.Clear();
         foreach (var orbit in Orbits)
         {
             orbit.Value.PreviousPosition = orbit.Value.Position;
             orbit.Value.Position = GetOrbitPosition(orbit.Key);
             orbit.Value.Velocity = (orbit.Value.Position - orbit.Value.PreviousPosition) / deltaTime;
-        }
-
-        foreach (var belt in AsteroidBelts)
-        {
-            Array.Copy(belt.Value.NewTransforms, belt.Value.Transforms, belt.Value.Transforms.Length);
-            belt.Value.OrbitPosition = belt.Value.NewOrbitPosition;
-            BeltUpdates.Add(Task.Run(() => UpdateAsteroidTransforms(belt.Key)));
         }
 
         foreach(var agent in Agents)
@@ -223,55 +209,22 @@ public class Zone
         return float2.zero;
     }
 
-    public int NearestAsteroid(CultRecordKey planetDataID, float2 position)
-    {
-        var beltData = Planets[planetDataID] as AsteroidBeltData;
-
-        var asteroidPositions = AsteroidBelts[planetDataID].Transforms;
-
-        int nearest = 0;
-        float nearestDistance = Single.MaxValue;
-        for (int i = 0; i < beltData.Asteroids.Length; i++)
-        {
-            var dist = lengthsq(asteroidPositions[i].xz - position);
-            if (AsteroidExists(planetDataID, i) && dist < nearestDistance)
-            {
-                nearest = i;
-                nearestDistance = dist;
-            }
-        }
-
-        return nearest;
-    }
-
     public bool AsteroidExists(CultRecordKey planetDataID, int asteroid) => ((AsteroidBeltData) Planets[planetDataID]).Asteroids.Length > asteroid && asteroid >= 0;
 
-    private void UpdateAsteroidTransforms(CultRecordKey planetDataID)
+    // Cut 1 (docs/mining-cut.md): a chunk's pose is a pure function of zone time, computed when asked. No stored
+    // pose survives a tick; the sim and the renderer both read it fresh through here.
+    public float4 ChunkPose(CultRecordKey belt, int index)
     {
-        var beltData = Planets[planetDataID] as AsteroidBeltData;
+        var beltData = Planets[belt] as AsteroidBeltData;
+        var parentPosition = GetOrbitPosition(Orbits[beltData.Orbit.Key].Data.Parent.Key);
+        return AsteroidBelts[belt].Pose(index, _time, parentPosition, Settings);
+    }
 
-        var belt = AsteroidBelts[planetDataID];
-
-        var orbitData = Orbits[beltData.Orbit.Key].Data;
-        belt.NewOrbitPosition = GetOrbitPosition(orbitData.Parent.Key);
-        for (var i = 0; i < beltData.Asteroids.Length; i++)
-        {
-            float size;
-            if(belt.RespawnTimers.ContainsKey(i)) size = 0;
-            else if (belt.Damage.ContainsKey(i))
-            {
-                var asteroidHitpoints = Settings.AsteroidHitpoints.Evaluate(beltData.Asteroids[i].Size);
-                var damage = (asteroidHitpoints - belt.Damage[i]) / asteroidHitpoints;
-                size = Settings.AsteroidSize.Evaluate(damage * beltData.Asteroids[i].Size);
-            }
-            else size = Settings.AsteroidSize.Evaluate(beltData.Asteroids[i].Size);
-
-            var rot = (float) (_time * beltData.Asteroids[i].RotationSpeed % (PI * 2));
-            var pos = OrbitData.Evaluate((float) frac(_time / Settings.OrbitPeriod.Evaluate(beltData.Asteroids[i].Distance) +
-                                                      beltData.Asteroids[i].Phase)) * beltData.Asteroids[i].Distance + belt.NewOrbitPosition;
-            //belt.NewPositions[i] = float3(pos.x, GetHeight(pos) + Settings.AsteroidVerticalOffset, pos.y);
-            belt.NewTransforms[i] = float4(pos.x, pos.y, rot, size);
-        }
+    public void EvaluateBelt(CultRecordKey belt, Span<float4> into)
+    {
+        var beltData = Planets[belt] as AsteroidBeltData;
+        var parentPosition = GetOrbitPosition(Orbits[beltData.Orbit.Key].Data.Parent.Key);
+        AsteroidBelts[belt].Evaluate(into, _time, parentPosition, Settings);
     }
 
     public OrbitData CreateOrbit(CultRecordKey parent, float2 position)
@@ -502,11 +455,7 @@ public class Sun : GasGiant
 public class AsteroidBelt
 {
     public AsteroidBeltData Data;
-    public float4[] Transforms; // x, y, rotation, scale
-    public float4[] NewTransforms; // x, y, rotation, scale
     public float Radius { get; }
-    public float2 OrbitPosition;
-    public float2 NewOrbitPosition;
     public Dictionary<int, float> RespawnTimers = new Dictionary<int, float>();
     public Dictionary<int, float> Damage = new Dictionary<int, float>();
     public Dictionary<(Entity, int), float> MiningAccumulator = new Dictionary<(Entity, int), float>();
@@ -514,9 +463,37 @@ public class AsteroidBelt
     public AsteroidBelt(AsteroidBeltData data)
     {
         Data = data;
-        Transforms = new float4[data.Asteroids.Length];
-        NewTransforms = new float4[data.Asteroids.Length];
         Radius = data.Asteroids.Max(a => a.Distance);
+    }
+
+    // Cut 1 (docs/mining-cut.md): the formula of Zone.cs:269-271 verbatim, `time` in double as `_time` was used.
+    // The only place a chunk pose is computed; no per-tick copy survives it.
+    public float4 Pose(int index, double time, float2 parentPosition, PlanetSettings settings)
+    {
+        var asteroid = Data.Asteroids[index];
+        var rot = (float) (time * asteroid.RotationSpeed % (PI * 2));
+        var pos = OrbitData.Evaluate((float) frac(time / settings.OrbitPeriod.Evaluate(asteroid.Distance) +
+                                                  asteroid.Phase)) * asteroid.Distance + parentPosition;
+        return float4(pos.x, pos.y, rot, Size(index, settings));
+    }
+
+    // Cut 1 (docs/mining-cut.md): the size rule of Zone.cs:259-267, moved unchanged.
+    public float Size(int index, PlanetSettings settings)
+    {
+        if (RespawnTimers.ContainsKey(index)) return 0;
+        if (Damage.ContainsKey(index))
+        {
+            var asteroidHitpoints = settings.AsteroidHitpoints.Evaluate(Data.Asteroids[index].Size);
+            var damage = (asteroidHitpoints - Damage[index]) / asteroidHitpoints;
+            return settings.AsteroidSize.Evaluate(damage * Data.Asteroids[index].Size);
+        }
+        return settings.AsteroidSize.Evaluate(Data.Asteroids[index].Size);
+    }
+
+    public void Evaluate(Span<float4> into, double time, float2 parentPosition, PlanetSettings settings)
+    {
+        for (var i = 0; i < Data.Asteroids.Length; i++)
+            into[i] = Pose(i, time, parentPosition, settings);
     }
 }
 

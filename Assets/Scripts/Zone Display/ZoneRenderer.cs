@@ -72,6 +72,9 @@ public class ZoneRenderer : MonoBehaviour
     private Dictionary<CultRecordKey, AsteroidBeltUI> _beltObjects = new Dictionary<CultRecordKey, AsteroidBeltUI>();
     private Dictionary<CultRecordKey, InstancedMesh[]> _beltMeshes = new Dictionary<CultRecordKey, InstancedMesh[]>();
     private Dictionary<CultRecordKey, Matrix4x4[][]> _beltMatrices = new Dictionary<CultRecordKey, Matrix4x4[][]>();
+    // Cut 1 (docs/mining-cut.md): the renderer's own buffer, filled from Zone.EvaluateBelt each frame. No pose
+    // is stored on AsteroidBelt any more.
+    private Dictionary<CultRecordKey, float4[]> _beltTransforms = new Dictionary<CultRecordKey, float4[]>();
     private float _viewDistance;
     //private float _maxDepth;
     private float _minimapDistance;
@@ -282,6 +285,7 @@ public class ZoneRenderer : MonoBehaviour
             _beltObjects.Clear();
             _beltMeshes.Clear();
             _beltMatrices.Clear();
+            _beltTransforms.Clear();
             _tourPlanets.Clear();
         }
     }
@@ -343,6 +347,7 @@ public class ZoneRenderer : MonoBehaviour
                 meshes.RemoveAt(Random.Range(0, meshes.Count));
             _beltMeshes[key] = meshes.ToArray();
             _beltMatrices[key] = new Matrix4x4[meshes.Count][];
+            _beltTransforms[key] = new float4[beltData.Asteroids.Length];
             var count = beltData.Asteroids.Length / meshes.Count;
             var remainder = beltData.Asteroids.Length - count * meshes.Count;
             for (int i = 0; i < meshes.Count; i++)
@@ -446,25 +451,30 @@ public class ZoneRenderer : MonoBehaviour
         
         foreach (var (key, belt) in Zone.AsteroidBelts)
         {
-            var height = Zone.GetHeight(belt.OrbitPosition);
+            // Cut 1 (docs/mining-cut.md): belts have no stored pose any more. The renderer fills its own buffer
+            // from Zone.EvaluateBelt, at the current zone time, every frame.
+            var orbitPosition = Zone.GetOrbitPosition(Zone.Orbits[belt.Data.Orbit.Key].Data.Parent.Key);
+            var height = Zone.GetHeight(orbitPosition);
+            var transforms = _beltTransforms[key];
+            Zone.EvaluateBelt(key, transforms);
             if(isVisible(new Bounds(
-                new Vector3(belt.OrbitPosition.x,height,belt.OrbitPosition.y),
+                new Vector3(orbitPosition.x,height,orbitPosition.y),
                 new Vector3(belt.Radius * 2,100,belt.Radius * 2))))
             {
                 var meshes = _beltMeshes[key];
                 var matrices = _beltMatrices[key];
-                var count = belt.Transforms.Length / meshes.Length;
+                var count = transforms.Length / meshes.Length;
                 for (int i = 0; i < meshes.Length; i++)
                 {
                     for (int t = 0; t < matrices[i].Length; t++)
                     {
                         var tx = t + i * count;
-                        var transform = belt.Transforms[tx];
+                        var transform = transforms[tx];
                         matrices[i][t] = Matrix4x4.TRS(new Vector3(transform.x,0,transform.y),
                             Quaternion.Euler(
                                 cos(transform.z + (float)i / meshes.Length) * 100,
                                 sin(transform.z + (float)i / meshes.Length) * 100,
-                                (float)tx / belt.Transforms.Length * 360),
+                                (float)tx / transforms.Length * 360),
                             Vector3.one * transform.w);
                     }
 
@@ -473,7 +483,7 @@ public class ZoneRenderer : MonoBehaviour
             }
 
             if(_showAsteroidUI)
-                _beltObjects[key].Update(belt.Transforms, height);
+                _beltObjects[key].Update(transforms, height);
         }
 
         foreach (var planet in Planets)
@@ -659,7 +669,7 @@ public class AsteroidBeltUI
 
     public void Update(float4[] transforms, float height)
     {
-        var parentPosition = _belt.OrbitPosition;
+        var parentPosition = _zone.GetOrbitPosition(_orbitParent);
         for (var i = 0; i < transforms.Length; i++)
         {
             var transform = transforms[i];

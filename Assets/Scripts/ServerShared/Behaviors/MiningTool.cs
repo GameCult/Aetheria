@@ -56,10 +56,11 @@ public class MiningTool : Behavior
     public override bool Execute(float dt)
     {
         Range = Evaluate(_data.Range);
-        var belt = Entity.Zone.AsteroidBelts[AsteroidBelt];
-        if (AsteroidBelt.IsSet() && 
-            Entity.Zone.AsteroidExists(AsteroidBelt, Asteroid) && 
-            length(Entity.Position.xz - belt.Transforms[Asteroid].xy) - belt.Transforms[Asteroid].w < Range)
+        if (!AsteroidBelt.IsSet() || !Entity.Zone.AsteroidExists(AsteroidBelt, Asteroid))
+            return false;
+
+        var pose = Entity.Zone.ChunkPose(AsteroidBelt, Asteroid);
+        if (length(Entity.Position.xz - pose.xy) - pose.w < Range)
         {
             Entity.Zone.MineAsteroid(
                 Entity,
