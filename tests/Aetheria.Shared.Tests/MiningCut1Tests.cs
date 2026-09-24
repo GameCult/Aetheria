@@ -198,4 +198,44 @@ public sealed class MiningCut1Tests : IDisposable
         belt.RespawnTimers[brokenIndex] = settings.AsteroidRespawnTime.Evaluate(asteroids[brokenIndex].Size);
         Assert.Equal(0f, belt.Size(brokenIndex, settings));
     }
+
+    // Stryker gap (2026-09-25 Stryker pass on this cut): nothing called Zone.EvaluateBelt or
+    // AsteroidBelt.Evaluate, the renderer's own path (ZoneRenderer.cs:452-478), leaving both at NoCoverage.
+    // This does not re-derive the orbit formula (that is ChunkPoseIsTheOrbitAtZoneTime's job); it pins that the
+    // batch path is the same function as the per-index one, per index, over every asteroid -- so the renderer's
+    // buffer can never quietly diverge into a second copy of the pose formula.
+    [Fact]
+    public void EvaluateBeltFillsEveryAsteroidExactlyAsChunkPoseWould()
+    {
+        var (zone, beltKey, asteroids, _) = BuildFixture();
+        zone.Update(0.37f);
+
+        var buffer = new float4[asteroids.Length];
+        zone.EvaluateBelt(beltKey, buffer);
+
+        Assert.Equal(asteroids.Length, buffer.Length);
+        for (var i = 0; i < asteroids.Length; i++)
+        {
+            var expected = zone.ChunkPose(beltKey, i);
+            Assert.Equal(expected.x, buffer[i].x, 4);
+            Assert.Equal(expected.y, buffer[i].y, 4);
+            Assert.Equal(expected.z, buffer[i].z, 4);
+            Assert.Equal(expected.w, buffer[i].w, 4);
+        }
+    }
+
+    // Stryker gap: AsteroidBelt.Radius (Zone.cs, AsteroidBelt constructor) had no assertion, so Max survived a
+    // Min mutation. The renderer's visibility bounds (ZoneRenderer.cs:452) and minimap mesh (:663) both use it
+    // as the belt's farthest asteroid; a Min there would cull or mis-bound the belt.
+    [Fact]
+    public void BeltRadiusIsTheFarthestAsteroidsDistance()
+    {
+        var (zone, beltKey, asteroids, _) = BuildFixture();
+
+        var expectedRadius = float.MinValue;
+        foreach (var a in asteroids)
+            if (a.Distance > expectedRadius) expectedRadius = a.Distance;
+
+        Assert.Equal(expectedRadius, zone.AsteroidBelts[beltKey].Radius, 4);
+    }
 }
