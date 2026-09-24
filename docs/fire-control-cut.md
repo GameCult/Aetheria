@@ -2239,6 +2239,17 @@ separate decision.
     Both were checked against the current tree: the first finds today's two copies, and the
     second finds nothing.
 
+**Status (2026-09-24): landed** at `b851b0d1` (+21/-18 across `Entity.cs` and
+`FireControl.cs`). 244 tests pass, both greps as specified (the one frame copy is
+`Entity.cs:383`, inside `ToSchematic`), Unity batchmode compile clean, and nothing outside
+`FireControl.cs` read `ShotOutcome.Aimed` (the HUD holds outcomes but never touched it).
+Stryker on the changed lines: the frame's sign mutant dies; the only survivors near the diff
+are `ResolveAimPoint`'s pre-existing centroid arithmetic (`aimedCells.Length > 0` → `>= 0`,
+`/` → `*`), which 12.2's `AimingAtAnItemCentresTheScatterOnItsLane` is specified to close.
+`--since` does not work in this repo (Stryker's own diff comes back empty), so runs use
+`--mutate` on the touched files and filter the report to changed lines. No separate Soul pass:
+a no-behaviour cut this size folds into 12.2's.
+
 ### Cut 12.2. Where a hit lands
 
 - **Repo/branch:** Aetheria, on top of 12.1, with the 12.0 pin in place.
