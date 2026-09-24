@@ -446,10 +446,14 @@ public sealed class FireAuthorityTests : IDisposable
         Assert.True(dealt < 100f); // nowhere near the inflated 99999 value -- the original 10 landed
     }
 
-    // R5's payoff: with Precision authored extremely tight (Cut 6d: a sigma a tiny fraction of one cell) and
-    // p 1, the aimed item's durability falls -- the lateral draw still converges on the aimed item's own lane
-    // when the group is that tight, so this stays a same-lane-every-time assertion rather than a statistical
-    // one. Mutation: the draw ignores Aimed and always picks a uniform random hull lateral offset.
+    // R5's payoff: with Precision authored extremely tight (Cut 6d) and p 1, the aimed item's durability
+    // falls. Sigma floors at half a cell (SigmaFloor) regardless of how tight Precision is authored, so the
+    // lateral draw is not actually deterministic onto the aimed item's own one-cell-wide lane -- it is
+    // Phi(.5)-Phi(-.5) ~= .68 per shot, not 1. This one Fire() call is a single draw, not a repeated
+    // statistical check; it passes reliably only because this file's fixture uses one fixed GalaxyZone name
+    // ("Test", :146), so CombatSeed and this exact draw are the same on every run (F9, Soul's fix batch,
+    // 2026-09-24: an earlier comment overclaimed "same-lane-every-time" as if this were architecturally
+    // guaranteed). Mutation: the draw ignores Aimed and always picks a uniform random hull lateral offset.
     // Cut 12.2 (docs/fire-control-cut.md): aiming now only prices and draws the LATERAL offset (the item's
     // own aim point still centres the scatter, same as before); depth along the shot's own travel direction is
     // resolved by Lane to whichever occupied cell is nearest the entry surface, which for a solid hull is

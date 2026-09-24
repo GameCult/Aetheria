@@ -409,10 +409,19 @@ public sealed class FireControlCut9Tests : IDisposable
         var settings = TestSettings();
         var checkedConfigurations = 0;
         var sawPartialSpread = false;
+        // F6 (Soul's fix batch, 2026-09-24): a shooter at float3.zero with both entities at Direction's
+        // default (0,1) let a mutant that reads the SHOOTER's facing instead of the target's (Bearing(source,
+        // ...) instead of Bearing(target, ...)) survive -- the two facings coincided, so the substitution was
+        // invisible. An off-origin shooter and a target facing with |fx| > |fy|, distinct from the shooter's
+        // own (unused) default facing, make that substitution produce a different, wrong bearing.
+        var origin = float3(37, 0, -11);
         foreach (var precision in new[] { .3f, 1.19f, 5f })
         {
             // 6 cells wide at cell size 1 subtends ~3.4 degrees at 100 units, inside an 8-degree cone.
             var e = BuildKernelEngagement(settings, SolidShape(6, 12), precision, spread: 8);
+            e.Shooter.Position = origin;
+            e.Target.Position = origin + float3(0, 0, 100);
+            e.Target.Direction = normalize(float2(.8f, .6f));
 
             foreach (var info in new[] { .2f, .5f, 1f })
             {
@@ -435,9 +444,9 @@ public sealed class FireControlCut9Tests : IDisposable
                 checkedConfigurations++;
             }
 
-            e.Target.Position = float3(0, 0, 5000);
+            e.Target.Position = origin + float3(0, 0, 5000);
             Closed("out of range", d => d.InRange);
-            e.Target.Position = float3(0, 0, -100);
+            e.Target.Position = origin + float3(0, 0, -100);
             Closed("behind the mount", d => d.InArc);
 
             // A shooter far from the origin: at float3.zero `target - source` and `target + source` are the
@@ -448,8 +457,8 @@ public sealed class FireControlCut9Tests : IDisposable
             Assert.Equal(500f, far.Range, 3);
             Assert.True(far.InRange && FireControl.HitProbability(e.Weapon, e.Shooter, e.Target) > 0f, "shooter far from the origin");
             checkedConfigurations++;
-            e.Shooter.Position = float3.zero;
-            e.Target.Position = float3(0, 0, 100);
+            e.Shooter.Position = origin;
+            e.Target.Position = origin + float3(0, 0, 100);
 
             e.Shooter.VisibleEntities.Remove(e.Target);
             Closed("not visible", d => d.Visible);

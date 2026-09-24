@@ -162,10 +162,15 @@ public static class FireControl
     {
         range = 0f;
         if (target == null) return 0f;
-        if (!source.VisibleEntities.Contains(target)) return 0f;
 
+        // F8 correction (Soul's fix batch, 2026-09-24): range is computed for any non-null target, before any
+        // gate -- Fire reads it through this same overload for flightTime, and flightTime must reflect the
+        // real distance even when a gate (not visible, out of arc) already prices the shot at PFire 0. The
+        // gates below still short-circuit the rest of the shooter-side probability in the same order as before.
         var toTarget = target.Position - source.Position;
         range = length(toTarget);
+
+        if (!source.VisibleEntities.Contains(target)) return 0f;
         if (range < weapon.MinRange || range > weapon.Range) return 0f;
         if (weapon is LockWeapon lockWeapon && !lockWeapon.IsLocked) return 0f;
         if (!InArc(weapon.Item, toTarget)) return 0f;
@@ -175,16 +180,47 @@ public static class FireControl
         return Accuracy(source) * PSensor(settings, Resolution(source), info);
     }
 
+    // Cut 12.2 fix batch (F6, Soul, 2026-09-24): the one place a bearing, a silhouette and PSpread are
+    // assembled into a live forecast -- HitProbability and Inspect both call this instead of each carrying
+    // its own copy. They used to each build their own bearing from TravelDirection and the target's facing;
+    // a mutant that read the SHOOTER's facing instead of the target's survived in HitProbability's own copy
+    // (M11) while the identical mistake in Inspect's copy was caught (M22), because two functions computing
+    // the same thing are two places for the same bug to hide and only be found once.
+    // Cost fix batch (Self, 2026-09-24): Forecast reads only sil.POnHull and sil.Span, never sil.Intervals, so
+    // it rents the Silhouette's own scratch array from ArrayPool<Interval>.Shared and returns it before
+    // returning -- the forecast path (HitProbability, Inspect) no longer allocates on a gated-in call.
+    // Commit's own path (CommitProbability -> Silhouette, uncalled from here) still needs sil.Intervals alive
+    // for the lateral draw that follows it, so it keeps its own owned array; only the forecast pools.
+    private static (Silhouette Silhouette, float PSpread) Forecast(Weapon weapon, Entity source, Entity target, HullData targetHull, float precision, float range)
+    {
+        var bearing = Bearing(target, TravelDirection(weapon, source, target));
+        var buffer = ArrayPool<Interval>.Shared.Rent(targetHull.Shape.Coordinates.Length);
+        float pSpread;
+        Silhouette sil;
+        try
+        {
+            sil = Silhouette(target, targetHull, source.ResolvedTargetItem, bearing, precision, buffer);
+            var settings = source.ItemManager.GameplaySettings;
+            pSpread = PSpread(weapon.Spread, sil.Span, range, settings.SchematicCellSize);
+        }
+        finally
+        {
+            ArrayPool<Interval>.Shared.Return(buffer);
+        }
+        // sil.Intervals is the returned buffer -- cleared here so nothing outside this function can read it
+        // after it goes back to the pool and another caller starts overwriting it.
+        sil.Intervals = null;
+        return (sil, pSpread);
+    }
+
     public static float HitProbability(Weapon weapon, Entity source, Entity target)
     {
         var pFire = PFire(weapon, source, target, out var range);
         if (pFire <= 0f) return 0f;
 
         var targetHull = source.ItemManager.GetData(target.Hull) as HullData;
-        var bearing = Bearing(target, TravelDirection(weapon, source, target));
-        var sil = Silhouette(target, targetHull, source.ResolvedTargetItem, bearing, Precision(source));
-        var settings = source.ItemManager.GameplaySettings;
-        return pFire * PSpread(weapon.Spread, sil.Span, range, settings.SchematicCellSize) * sil.POnHull;
+        var (sil, pSpread) = Forecast(weapon, source, target, targetHull, Precision(source), range);
+        return pFire * pSpread * sil.POnHull;
     }
 
     // Presentation only: the debug HUD's view of exactly the factors HitProbability multiplies. It computes
@@ -220,9 +256,8 @@ public static class FireControl
         diagnostic.PSensor = PSensor(settings, diagnostic.Resolution, diagnostic.Info);
         diagnostic.PFire = diagnostic.Accuracy * diagnostic.PSensor;
 
-        var bearing = Bearing(target, TravelDirection(weapon, source, target));
-        var sil = Silhouette(target, targetHull, source.ResolvedTargetItem, bearing, diagnostic.Precision);
-        diagnostic.PSpread = PSpread(weapon.Spread, sil.Span, diagnostic.Range, settings.SchematicCellSize);
+        var (sil, pSpread) = Forecast(weapon, source, target, targetHull, diagnostic.Precision, diagnostic.Range);
+        diagnostic.PSpread = pSpread;
         diagnostic.POnHull = sil.POnHull;
 
         diagnostic.PBase = HitProbability(weapon, source, target);
@@ -300,18 +335,19 @@ public static class FireControl
         // R1's engage gate and the shooter-side probability, evaluated now and frozen: nothing at commit time
         // re-reads a stat, an info level or a range. Cut 12.2: PFire no longer carries the spread/hull share --
         // those are priced live at Commit, against the target's facing then, not now (Bearing timing, R10).
-        var pFire = PFire(weapon, source, target);
+        // F8 (Soul's fix batch, 2026-09-24): the `out range` overload is the one range HitProbability now
+        // reads too -- Fire used to recompute its own second copy of `target.Position - source.Position` for
+        // fireRange, right beside the copy PFire's gate already computed.
+        var pFire = PFire(weapon, source, target, out var fireRange);
         var travelDirection = target != null ? TravelDirection(weapon, source, target) : float2(0, 1);
 
         var targetVelocity = float3.zero;
         var targetPosition = source.Position;
         var flightTime = 0f;
-        var fireRange = 0f;
         if (target != null)
         {
             targetVelocity = float3(target.Velocity.x, 0, target.Velocity.y);
             targetPosition = target.Position;
-            fireRange = length(targetPosition - source.Position);
             flightTime = weapon.Velocity > .01f ? fireRange / weapon.Velocity : 0f;
         }
 
@@ -497,7 +533,16 @@ public static class FireControl
             try
             {
                 var count = Lane(hullData, bearing, lateral, buffer);
-                cell = count > 0 ? buffer[0].Cell : int2.zero;
+                // R3: a hit that passed its roll always lands on metal. With LateralDraw's half-open clamp,
+                // the drawn `lateral` always falls strictly inside the interval sil.POnHull priced, so Lane
+                // must find at least one occupied cell -- an empty lane here is not a miss to fall back on
+                // silently (that would put a hit marker on (0,0), which may not even be occupied); it is proof
+                // the draw and the lane have drifted apart.
+                if (count == 0)
+                    throw new InvalidOperationException(
+                        $"shot {shot.ShotId}: Lane found no occupied cell at bearing {bearing} lateral {lateral} " +
+                        "after a hit passed its roll -- LateralDraw and Lane have drifted apart (R3).");
+                cell = buffer[0].Cell;
             }
             finally
             {
@@ -624,24 +669,31 @@ public static class FireControl
     // shipped hulls) plus a sort -- only on this, the gated-in, path (Cut 10's own gated-out guard is
     // unaffected: HitProbability and CommitProbability both bail on a zero shooter/deviation factor before
     // this is ever called).
-    public static Silhouette Silhouette(Entity target, HullData hull, EquippedItem aimed, float2 bearing, float precision)
+    // Cost fix batch (Self, 2026-09-24): `buffer`, when supplied, replaces the `new Interval[coords.Length]`
+    // allocation -- the caller owns renting and returning it (ArrayPool<Interval>.Shared, sized to at least
+    // coords.Length). Only HitProbability's and Inspect's forecast reads POnHull/Span and is done with the
+    // array before returning, so only they pool it; Commit keeps its own array alive across the LateralDraw
+    // call that follows, so it still passes null and gets an owned allocation. A caller-supplied buffer may be
+    // larger than coords.Length (ArrayPool rents "at least"), so every loop below is bounded by coords.Length,
+    // never buffer.Length.
+    public static Silhouette Silhouette(Entity target, HullData hull, EquippedItem aimed, float2 bearing, float precision, Interval[] buffer = null)
     {
         var ell = Lateral(bearing);
         var coords = hull.Shape.Coordinates;
         var h = (abs(ell.x) + abs(ell.y)) / 2f;
 
-        var intervals = new Interval[coords.Length];
+        var intervals = buffer ?? new Interval[coords.Length];
         for (var i = 0; i < coords.Length; i++)
         {
             var centre = dot((float2) coords[i], ell);
             intervals[i] = new Interval { Lo = centre - h, Hi = centre + h };
         }
-        Array.Sort(intervals, (x, y) => x.Lo.CompareTo(y.Lo));
+        Array.Sort(intervals, 0, coords.Length, IntervalByLoComparer.Instance);
 
         // Merge in place: sorted ascending by Lo, so an interval overlaps (or exactly abuts) the last kept
         // interval whenever its own Lo does not exceed that interval's Hi.
         var count = 0;
-        for (var i = 0; i < intervals.Length; i++)
+        for (var i = 0; i < coords.Length; i++)
         {
             if (count > 0 && intervals[i].Lo <= intervals[count - 1].Hi)
                 intervals[count - 1].Hi = max(intervals[count - 1].Hi, intervals[i].Hi);
@@ -699,7 +751,16 @@ public static class FireControl
             {
                 var p = clamp(loValue + (target - cumulative), loValue, hiValue);
                 var s = sil.A + sil.Sigma * SQRT2 * erfinv(2f * p - 1f);
-                return clamp(s, interval.Lo, interval.Hi);
+                // Half-open [lo_k, hi_k), matching the shadow interval itself ("Each occupied cell c projects
+                // to [dot(c,ell)-h, dot(c,ell)+h)"). A draw that rounds to exactly Hi is a real, reachable
+                // float value (Soul found 3 of them enumerating all 2^24 NextFloat outputs on the
+                // TurningArmour geometry) -- clamping to the closed [Lo, Hi] let s == Hi through, which Lane's
+                // own half-open filter (`s >= centre + h` continues) then rejects for every cell, returning an
+                // empty lane for a shot that already passed its roll (R3 violation). The epsilon matches
+                // Lane's own contiguity tolerance; every merged interval is at least one cell's shadow width
+                // wide (>= 2h), far above it.
+                var hiExclusive = max(interval.Lo, interval.Hi - 1e-4f);
+                return clamp(s, interval.Lo, hiExclusive);
             }
 
             cumulative += mass;
@@ -732,18 +793,14 @@ public static class FireControl
 
             if (!SlabAlongB(c, b, ell, s, out var entry, out var exit)) continue; // the shadow test is a conservative bound; the exact slab can still miss
 
-            buffer[n++] = new LaneCell { Cell = coords[i], Entry = entry, Exit = exit };
+            // F9 (Soul's fix batch, 2026-09-24): Projection (dot(cell, b)) is precomputed here, into the
+            // struct, so the sort below needs no closure over `b` -- LaneCellComparer.Instance is a stateless
+            // singleton, not a per-call Comparer<T>.Create allocation the "never allocates" comment used to
+            // contradict.
+            buffer[n++] = new LaneCell { Cell = coords[i], Entry = entry, Exit = exit, Projection = dot(c, b) };
         }
 
-        Array.Sort(buffer, 0, n, Comparer<LaneCell>.Create((x, y) =>
-        {
-            var byEntry = x.Entry.CompareTo(y.Entry);
-            if (byEntry != 0) return byEntry;
-            var byProjection = dot((float2) x.Cell, b).CompareTo(dot((float2) y.Cell, b));
-            if (byProjection != 0) return byProjection;
-            var byX = x.Cell.x.CompareTo(y.Cell.x);
-            return byX != 0 ? byX : x.Cell.y.CompareTo(y.Cell.y);
-        }));
+        Array.Sort(buffer, 0, n, LaneCellComparer.Instance);
 
         var walked = n > 0 ? 1 : 0;
         for (var i = 1; i < n; i++)
@@ -874,6 +931,16 @@ public struct Interval
     public float Hi;
 }
 
+// Cost fix batch (Self, 2026-09-24): a stateless singleton, not a per-call Comparer<T>.Create -- Silhouette's
+// own sort no longer allocates a wrapper on every call, matching the ArrayPool pooling this batch added on the
+// forecast path.
+internal sealed class IntervalByLoComparer : IComparer<Interval>
+{
+    public static readonly IntervalByLoComparer Instance = new IntervalByLoComparer();
+    private IntervalByLoComparer() { }
+    public int Compare(Interval x, Interval y) => x.Lo.CompareTo(y.Lo);
+}
+
 // Cut 12.2: the hull's lateral shadow at one bearing, and the exact Gaussian mass it carries. Intervals holds
 // the merged, sorted shadow (only the first Count entries are valid -- the array is sized to the hull's own
 // occupied-cell count, not trimmed, to avoid a second allocation). A, Sigma and POnHull are read together by
@@ -896,6 +963,28 @@ public struct LaneCell
     public int2 Cell;
     public float Entry;
     public float Exit;
+    // F9 (Soul's fix batch, 2026-09-24): dot(Cell, b), precomputed once per candidate so Lane's sort tie-break
+    // needs no closure over the bearing.
+    public float Projection;
+}
+
+// F9: Lane's own sort order (entry ascending, ties by projection along b, then cell index for full
+// determinism) as a stateless singleton -- Array.Sort's IComparer<T> overload needs an instance, and this one
+// is allocated exactly once, ever, not per Lane() call.
+internal sealed class LaneCellComparer : IComparer<LaneCell>
+{
+    public static readonly LaneCellComparer Instance = new LaneCellComparer();
+    private LaneCellComparer() { }
+
+    public int Compare(LaneCell x, LaneCell y)
+    {
+        var byEntry = x.Entry.CompareTo(y.Entry);
+        if (byEntry != 0) return byEntry;
+        var byProjection = x.Projection.CompareTo(y.Projection);
+        if (byProjection != 0) return byProjection;
+        var byX = x.Cell.x.CompareTo(y.Cell.x);
+        return byX != 0 ? byX : x.Cell.y.CompareTo(y.Cell.y);
+    }
 }
 
 // Cut 3 (docs/fire-control-cut.md, 0b table): a commit. Created once, at ArrivalTime - CommitHorizon (or at

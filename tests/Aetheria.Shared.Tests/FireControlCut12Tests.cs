@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using CultMath;
 using GameCult.Caching;
 using UniRx;
@@ -72,6 +73,8 @@ public sealed class FireControlCut12Tests : IDisposable
         public InstantWeapon Weapon;
         public HullData HullData;
         public EquippedItem[] Markers;
+        public EquippedItem BigMarker;
+        public int2[] BigMarkerCells;
     }
 
     // A shooter off the origin (Cut 11.3), a target over a caller-supplied hull shape, a full-strength
@@ -82,7 +85,7 @@ public sealed class FireControlCut12Tests : IDisposable
         GameplaySettings settings, Shape hullShape, float precision,
         float velocity = 0, float spread = 0, float2? targetFacing = null,
         bool equipShield = false, float shieldCapacity = 30,
-        int2[] markerCells = null, float accuracy = 1f)
+        int2[] markerCells = null, float accuracy = 1f, float penetration = 0, bool equipBigMarker = false)
     {
         var hullData = new HullData
         {
@@ -112,7 +115,7 @@ public sealed class FireControlCut12Tests : IDisposable
             {
                 Damage = Constant(5), Range = Constant(1000), MinRange = Constant(0),
                 Velocity = Constant(velocity), Spread = Constant(spread), DamageSpread = Constant(0),
-                Penetration = Constant(0), Count = Constant(1), BurstTime = Constant(0), Cooldown = Constant(1000),
+                Penetration = Constant(penetration), Count = Constant(1), BurstTime = Constant(0), Cooldown = Constant(1000),
                 DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } }
             } }
         });
@@ -142,12 +145,27 @@ public sealed class FireControlCut12Tests : IDisposable
             Name = "Marker", Hardpoint = HardpointType.Tool, Shape = new Shape(), Durability = 1000000,
             MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000
         });
+        // F7 (Soul's fix batch, 2026-09-24): a 2x2 Tool item -- every "Marker" fixture elsewhere is the
+        // catalog's 1x1 stub, where ResolveAimPoint's average (sum of cells / cell count) can't be
+        // distinguished from summing then multiplying, or from just reading the first cell.
+        var bigMarkerShape = new Shape(2, 2);
+        foreach (var c in bigMarkerShape.AllCoordinates) bigMarkerShape[c] = true;
+        cache.Upsert(new GearData
+        {
+            Name = "BigMarker", Hardpoint = HardpointType.Tool, Shape = bigMarkerShape, Durability = 1000000,
+            MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000
+        });
         cache.FlushAsync().Wait();
 
         var ledger = new ProvenanceLedger();
         for (var i = 1; i <= 24; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = 1 };
         var items = new ItemManager(cache, ledger, settings, _ => { });
-        var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Cut12-" + Guid.NewGuid().ToString("N"), Owner = null }, null);
+        // Cut 6.1's own convention (FireControlCut6Tests.cs:62-63): every engagement shares one fixed
+        // GalaxyZone name, so every Zone this fixture builds shares one CombatSeed and every statistical test
+        // is replayable byte-for-byte across runs. A GUID-suffixed name here (this file's own earlier defect)
+        // reseeded the die on every run, which is exactly what made TurningArmourIntoTheShotTakesItOnTheArmour
+        // flaky (F2, Soul's fix batch, 2026-09-24).
+        var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Cut12", Owner = null }, null);
 
         EquippableItem Make(string name, int lot, float durability) => new EquippableItem
         {
@@ -181,6 +199,18 @@ public sealed class FireControlCut12Tests : IDisposable
             Assert.True(target.TryEquip(m, cell), $"marker must fit at {cell}");
             return target.Equipment.Single(x => x.EquippableItem == m);
         }).ToArray();
+
+        EquippedItem bigMarker = null;
+        int2[] bigMarkerCells = null;
+        if (equipBigMarker)
+        {
+            var bm = Make("BigMarker", lot++, 1000000);
+            Assert.True(target.TryFindSpace(bm, out var bmPos));
+            Assert.True(target.TryEquip(bm, bmPos));
+            bigMarker = target.Equipment.Single(x => x.EquippableItem == bm);
+            bigMarkerCells = hullShape.Coordinates.Where(v => target.GearOccupancy[v.x, v.y] == bigMarker).ToArray();
+            Assert.Equal(4, bigMarkerCells.Length); // fixture precondition: the full 2x2 footprint landed
+        }
 
         if (equipShield)
         {
@@ -217,7 +247,7 @@ public sealed class FireControlCut12Tests : IDisposable
         return new Engagement
         {
             Items = items, Zone = zone, Shooter = shooter, Target = target, WeaponItem = weaponItem, Weapon = weapon,
-            HullData = hullData, Markers = markers
+            HullData = hullData, Markers = markers, BigMarker = bigMarker, BigMarkerCells = bigMarkerCells
         };
     }
 
@@ -393,6 +423,40 @@ public sealed class FireControlCut12Tests : IDisposable
             Assert.True(e.HullData.Shape[outcome.Cell], $"hit landed on {outcome.Cell}, off the hull's own schematic -- the aim point fallback produced NaN");
     }
 
+    // F7 (Soul's fix batch, 2026-09-24): ResolveAimPoint's average was only ever exercised with a 1x1 item
+    // (every other fixture's "Marker"), where sum/length and sum*length agree and "first cell" and "average"
+    // are the same cell. A 2x2 "BigMarker" gives a genuine 4-cell footprint: its true centroid is checked two
+    // ways -- pOnHull does not collapse (the aim point is on the hull, not scaled off it by sum*length), and,
+    // from broadside, the empirical mean lateral offset of hits centres on the real centroid's own lane, not
+    // on any single one of its four cells.
+    [Fact]
+    public void AimingAtAnItemBiggerThanOneCellCentresOnItsCentroid()
+    {
+        var e = Build(TestSettings(), SolidShape(9, 9), precision: 1f, targetFacing: float2(1, 0), equipBigMarker: true);
+        Assert.True(e.Shooter.TrySelectTargetItem(e.BigMarker));
+
+        var travelDirection = FireControl.TravelDirection(e.Weapon, e.Shooter, e.Target);
+        var bearing = normalize(e.Target.ToSchematic(travelDirection));
+        var ell = float2(-bearing.y, bearing.x);
+        var centroid = e.BigMarkerCells.Aggregate(float2.zero, (t, c) => t + (float2) c) / e.BigMarkerCells.Length;
+        var expectedA = dot(centroid, ell);
+
+        // pOnHull must not collapse -- a sum*length aim point would be scaled several cells off the hull
+        // entirely, driving pOnHull toward zero even at Precision 1 (sigma 1, comfortably inside a 9x9 hull).
+        var hud = FireControl.Inspect(e.Weapon, e.Shooter, e.Target);
+        Assert.True(hud.POnHull > .3f, $"pOnHull ({hud.POnHull}) collapsed -- the aim point is likely off the hull");
+
+        var outcomes = FireMany(e, 3000);
+        var hits = outcomes.Where(o => o.Hit).ToList();
+        Assert.True(hits.Count > 300, $"expected a healthy number of hits, got {hits.Count}");
+
+        var empiricalMeanLateral = hits.Average(o => (double) o.Lateral);
+        // Sigma is 1 cell; a "first cell only" aim point sits at least .5 cell off the true centroid on a 2x2
+        // footprint, well outside this tolerance for a few-hundred-shot mean.
+        Assert.True(Math.Abs(empiricalMeanLateral - expectedA) < .25,
+            $"empirical mean lateral offset {empiricalMeanLateral:F3} does not track the centroid's own lane {expectedA:F3}");
+    }
+
     // BroadsideIsEasierThanHeadOn: kills the bearing being ignored and the old max(W,H) bound. A 2x12 hull is
     // much easier to hit broadside (its long axis facing the shot) than head-on (its short axis facing it).
     [Fact]
@@ -463,15 +527,74 @@ public sealed class FireControlCut12Tests : IDisposable
             Assert.True(outcome.Cell.y >= 5.5f, $"expected every hit to land on the bow row (y>=5.5), got cell {outcome.Cell}");
     }
 
+    // F1 (Soul's fix batch, 2026-09-24): LateralDraw's clamp used to close the top of the shadow interval
+    // ([Lo, Hi] instead of the spec's half-open [Lo, Hi)). Soul enumerated all 2^24 NextFloat outputs against
+    // this exact geometry (TurningArmourIntoTheShotTakesItOnTheArmour's own 3x11 hull, bearing (0,-1),
+    // Precision .4 -> interval [-0.5, 2.5]) and found 3 values of u that drew s == Hi == 2.5 exactly, at which
+    // Lane's own half-open filter (`s >= centre + h` continues, :731) then found no candidate cell at all,
+    // returning an empty lane for a shot that had already passed its roll (R3 violation) -- the reflection
+    // call below reproduces that exact draw. u=0 is the analogous exact-Lo case (the first NextFloat output).
+    [Fact]
+    public void LateralDrawIsHalfOpenAtTheShadowsTopEdge()
+    {
+        var hull = new HullData { Name = "H", HullType = HullType.Ship, Shape = SolidShape(3, 11) };
+        var bearing = float2(0, -1);
+        const float precision = .4f;
+        var sil = FireControl.Silhouette(null, hull, null, bearing, precision);
+        Assert.Equal(1, sil.Count); // fixture precondition: one interval, matching Soul's own probe
+        Assert.Equal(-0.5f, sil.Intervals[0].Lo, 3);
+        Assert.Equal(2.5f, sil.Intervals[0].Hi, 3);
+
+        var lateralDraw = (Func<Silhouette, float, float>) typeof(FireControl)
+            .GetMethod("LateralDraw", BindingFlags.NonPublic | BindingFlags.Static)
+            .CreateDelegate(typeof(Func<Silhouette, float, float>));
+
+        void AssertLandsOnMetal(float u, string label)
+        {
+            var s = lateralDraw(sil, u);
+            var buffer = new LaneCell[hull.Shape.Coordinates.Length];
+            var count = FireControl.Lane(hull, bearing, s, buffer);
+            Assert.True(count > 0, $"{label}: u={u:R} drew s={s:R} (interval [{sil.Intervals[0].Lo},{sil.Intervals[0].Hi}]) -- Lane found no occupied cell for a hit that already passed its roll");
+            Assert.True(hull.Shape[buffer[0].Cell], $"{label}: Lane's own first cell {buffer[0].Cell} is not on the hull's schematic");
+        }
+
+        AssertLandsOnMetal(0.9999998f, "at the top edge (u drives s to exactly Hi)");
+        AssertLandsOnMetal(0f, "at the bottom edge (u drives s to exactly Lo)");
+    }
+
+    // Entity.ApplyHit's own penetration march, replicated independently (not by calling ApplyHit or reading
+    // its source beyond the documented convention 12.2 explicitly leaves untouched: cell centres at
+    // +.5, .5-unit steps, hullData.Shape[int2(point)] as the stop condition). Used to compute, from a frozen
+    // Bearing, the full set of cells a march would consume -- independent of which bearing (committed or
+    // live) the test feeds it.
+    private static HashSet<int2> ExpectedMarchCells(HullData hull, int2 cell, float2 bearing, float penetration)
+    {
+        var cells = new HashSet<int2> { cell };
+        if (penetration <= .5f) return cells;
+        var vector = normalize(bearing);
+        var point = (float2) cell + float2(.5f);
+        var distance = 0f;
+        while (distance < penetration && hull.Shape[int2(point)])
+        {
+            distance += .5f;
+            cells.Add(int2(point));
+            point += vector * .5f;
+        }
+        return cells;
+    }
+
     // TurningAfterCommitChangesNothing (R4, closes L464/L465): after commit, turning the target and moving the
-    // shooter must not change where the damage actually lands -- Apply reads no live position or facing. The
-    // armor cell that actually takes damage is checked against an independent lane recompute from the
-    // committed Bearing/Lateral, not from the post-turn facing.
+    // shooter must not change where the damage actually lands -- Apply reads no live position or facing.
+    // F5 (Soul's fix batch, 2026-09-24): the original fixture fired with Penetration 0, so ApplyHit's march
+    // (Entity.cs, gated at `penetration > .5f`) never ran and never actually read the bearing Apply passed it
+    // -- a mutant that fed Apply a live (post-turn) bearing instead of the committed one survived (M2a) because
+    // nothing downstream of Cell ever consumed Bearing. Penetration 3 marches several cells deep, so the full
+    // damaged-cell set is asserted against the committed Bearing/Lateral, not the live one.
     [Fact]
     public void TurningAfterCommitChangesNothing()
     {
         var settings = TestSettings();
-        var e = Build(settings, SolidShape(7, 7), precision: .5f, velocity: 20); // 5s flight, commits at 4.5s
+        var e = Build(settings, SolidShape(7, 7), precision: .5f, velocity: 20, penetration: 3); // 5s flight, commits at 4.5s
 
         ShotOutcome committed = null;
         using var c = e.Zone.ShotCommitted.Subscribe(o => committed = o);
@@ -489,16 +612,34 @@ public sealed class FireControlCut12Tests : IDisposable
         var expectedCell = NearestOccupiedCellAtLateral(e.HullData, committed.Bearing, committed.Lateral);
         Assert.Equal(expectedCell, committed.Cell); // sanity: production's own Lane agrees with the independent recompute
 
+        var expectedFromCommitted = ExpectedMarchCells(e.HullData, committed.Cell, committed.Bearing, 3f);
+
         var before = (float[,]) e.Target.Armor.Clone();
 
         // After commit, before arrival: the target turns 90 degrees and the shooter moves.
-        e.Target.Direction = float2(1, 0);
+        var postTurnFacing = float2(1, 0);
+        e.Target.Direction = postTurnFacing;
         e.Shooter.Position += float3(500, 0, 500);
+
+        // Fixture precondition: the (wrong) march a live-bearing bug would produce must actually differ from
+        // the committed one, or this test cannot tell the two apart. "Live" here means exactly what a mutant
+        // recomputing the bearing fresh at Apply time would read: the current TravelDirection (now stale,
+        // post-move) folded through the target's NEW facing -- both public FireControl functions, not a
+        // hand-rolled copy of the frame math.
+        var liveTravelDirection = FireControl.TravelDirection(e.Weapon, e.Shooter, e.Target);
+        var wrongBearing = normalize(e.Target.ToSchematic(liveTravelDirection));
+        var expectedFromLive = ExpectedMarchCells(e.HullData, committed.Cell, wrongBearing, 3f);
+        Assert.NotEqual(expectedFromCommitted, expectedFromLive);
 
         e.Zone.Update(2f); // past arrival (5s)
 
-        Assert.True(e.Target.Armor[expectedCell.x, expectedCell.y] < before[expectedCell.x, expectedCell.y],
-            "the committed impact cell must be the one that actually took damage, regardless of the post-commit turn");
+        foreach (var cell in expectedFromCommitted)
+            Assert.True(e.Target.Armor[cell.x, cell.y] < before[cell.x, cell.y],
+                $"cell {cell} is on the committed march and must have taken damage, regardless of the post-commit turn");
+
+        foreach (var cell in expectedFromLive)
+            if (!expectedFromCommitted.Contains(cell))
+                Assert.Equal(before[cell.x, cell.y], e.Target.Armor[cell.x, cell.y]);
     }
 
     // PlacementAndProbabilityShareOneSilhouette replaces 6d's PlacementAndProbabilityShareOneKernel: pins that
@@ -588,6 +729,90 @@ public sealed class FireControlCut12Tests : IDisposable
         }
     }
 
+    // F3 (Soul's fix batch, 2026-09-24): every 12.2 fixture, and every shipped hull (Soul's own 360-degree
+    // sweep), projects to exactly ONE merged interval at its test bearing -- LateralDraw's walk past the
+    // first interval (the `cumulative += mass` loop continuation) and a Silhouette built with the wrong sigma
+    // (M12) were both unreachable. This hull is two 2-wide prongs (x in {0,1} and {5,6}, all rows) separated
+    // by a real gap (x in 2..4, unoccupied) -- a dead-ahead bearing (ell=(-1,0)) gives two disjoint shadow
+    // intervals, symmetric around the hull's own centre of mass (3,2), which sits in the gap.
+    [Fact]
+    public void TwoProngHullSplitsTheScatterAcrossBothIntervals()
+    {
+        var shape = new Shape(7, 5);
+        foreach (var x in new[] { 0, 1, 5, 6 })
+        for (var y = 0; y < 5; y++)
+            shape[new int2(x, y)] = true;
+
+        const float sigma = 1.5f;
+        const float precision = 1f / sigma;
+        var e = Build(TestSettings(), shape, precision); // unaimed: centre of mass (3,2)
+
+        // The bearing a shot would freeze, read directly (not through an actual Fire call, which would leave
+        // a stray shot in the queue for FireMany to double-count).
+        var travelDirection = FireControl.TravelDirection(e.Weapon, e.Shooter, e.Target);
+        var bearing = normalize(e.Target.ToSchematic(travelDirection));
+        var ell = float2(-bearing.y, bearing.x);
+        var a = dot(shape.CenterOfMass, ell);
+
+        // Independent shadow (raw per-cell intervals, sorted and merged), the same convention
+        // PlacementAndProbabilityShareOneSilhouette uses.
+        var raw = shape.Coordinates
+            .Select(c => dot((float2) c, ell))
+            .Select(centre => (Lo: centre - (Math.Abs(ell.x) + Math.Abs(ell.y)) / 2f, Hi: centre + (Math.Abs(ell.x) + Math.Abs(ell.y)) / 2f))
+            .OrderBy(iv => iv.Lo)
+            .ToList();
+        var merged = new List<(float Lo, float Hi)>();
+        foreach (var iv in raw)
+        {
+            if (merged.Count > 0 && iv.Lo <= merged[merged.Count - 1].Hi)
+                merged[merged.Count - 1] = (merged[merged.Count - 1].Lo, Math.Max(merged[merged.Count - 1].Hi, iv.Hi));
+            else
+                merged.Add(iv);
+        }
+        Assert.Equal(2, merged.Count); // fixture precondition: a real two-interval shadow
+
+        double Mass((float Lo, float Hi) iv)
+        {
+            const int steps = 4000;
+            var width = (iv.Hi - iv.Lo) / steps;
+            double sum = 0;
+            for (var i = 0; i <= steps; i++)
+            {
+                var x = iv.Lo + i * width;
+                var z = (x - a) / sigma;
+                var pdf = Math.Exp(-z * z / 2.0) / (sigma * Math.Sqrt(2.0 * Math.PI));
+                sum += pdf * (i == 0 || i == steps ? .5 : 1.0);
+            }
+            return sum * width;
+        }
+        var mass0 = Mass(merged[0]);
+        var mass1 = Mass(merged[1]);
+        var totalMass = mass0 + mass1;
+        Assert.True(totalMass > .05 && totalMass < .95, $"fixture: total pOnHull ({totalMass}) must be non-degenerate");
+        Assert.True(Math.Abs(mass0 - mass1) / totalMass < .05, "fixture: the two prongs must be near-symmetric for a clean 50/50 check");
+
+        var outcomes = FireMany(e, 8000);
+        var hits = outcomes.Where(o => o.Hit).ToList();
+        Assert.True(hits.Count > 800, $"expected a healthy number of hits, got {hits.Count}");
+
+        var inProngA = hits.Count(o => o.Cell.x <= 1);
+        var inProngB = hits.Count(o => o.Cell.x >= 5);
+        Assert.Equal(hits.Count, inProngA + inProngB); // every hit lands in one prong or the other, never the gap
+        var empiricalShareA = inProngA / (double) hits.Count;
+        var expectedShareA = mass0 / totalMass;
+        Assert.True(Math.Abs(empiricalShareA - expectedShareA) < .05,
+            $"prong A's empirical share {empiricalShareA:F3} does not match its analytic share {expectedShareA:F3}");
+
+        // Within-prong shape, not just the aggregate share: prong A is x in {0,1}, projected lateral centres
+        // 0 and -1 respectively (ell=(-1,0)); a=-3 sits closer to x=1's centre (-1) than x=0's (0), so a real
+        // Gaussian shape (not a coin flip within the prong, and not "first cell only") puts strictly more mass
+        // on x=1 than x=0.
+        var atNearColumn = hits.Count(o => o.Cell.x == 1);
+        var atFarColumn = hits.Count(o => o.Cell.x == 0);
+        Assert.True(atNearColumn > atFarColumn,
+            $"expected the column nearer the aim point (x=1, {atNearColumn} hits) to outweigh the far one (x=0, {atFarColumn} hits)");
+    }
+
     // HitsLandOnTheFacingEdge supersedes EveryHitLandsOnMetal: on a concave (holed) hull, every hit's Cell is
     // occupied, AND nothing occupied precedes it in its own lane -- the test recomputes the lane from the
     // outcome's own frozen Bearing/Lateral, independently of FireControl.Lane, and checks production picked
@@ -659,29 +884,65 @@ public sealed class FireControlCut12Tests : IDisposable
 
     // TheHudEstimateIsTheCommitPrice: for an in-flight shot, the value the HUD's own estimate (through
     // FireControl.CommitProbability, the function ActionGameManager's pending-shot line now calls) and the p
-    // Commit itself rolls against are the same number at the commit tick. Kills a second formula.
+    // Commit itself rolls against are the same number at the commit tick.
+    // F4 (Soul's fix batch, 2026-09-24): the original test called CommitProbability twice and compared the
+    // two calls to each other -- a self-consistency check that never observed what Commit's own roll actually
+    // uses. Survivors: Commit applying PSpread twice (M15), and Commit rolling against PFire x pOnHull alone,
+    // dropping deviation and PSpread entirely (M16) -- both invisible to a test that never rolls anything.
+    // This version fires many shots against one fixed, non-trivial configuration (nonzero weapon Spread, and
+    // a target jinked off its fire-time projection so pDeviation is strictly less than 1) and checks the
+    // EMPIRICAL hit fraction over the real Commit path against the HUD's own forecast, with a tolerance sized
+    // from the sample (3 sigma of a Bernoulli(p, n)).
     [Fact]
     public void TheHudEstimateIsTheCommitPrice()
     {
-        var e = Build(TestSettings(), SolidShape(5, 7), precision: .5f, velocity: 20); // 5s flight
-        var shotId = FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
-        e.Zone.Update(1f); // still short of the 4.5s commit
+        var e = Build(TestSettings(), SolidShape(5, 7), precision: .5f, velocity: 40, spread: 6f); // 2.5s flight, commits at 2.0s
+        var origin = e.Target.Position;
+        const int shots = 800;
 
-        var pending = e.Zone.PendingShots.Single(s => s.ShotId == shotId);
-        var hudEstimate = FireControl.CommitProbability(pending, e.Zone.Time, out _);
+        var pendingSnapshots = new List<PendingShot>();
+        for (var i = 0; i < shots; i++)
+        {
+            e.Target.Position = origin; // reset before each Fire so every shot freezes the same FireTargetPosition
+            var shotId = FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+            e.Zone.Update(.001f);
+            // The fixture's own Targeting system freezes Tracking = 100000 (full-strength isolation, Build's
+            // own convention) -- against that, a jink small enough to keep the target on this 5x7 hull barely
+            // registers (pDeviation ~= .99996). Lower the frozen Tracking after the fact, the same way
+            // CommitProbabilityIsTheExactProductOfItsFourFactors overrides a frozen field, so the jink below
+            // produces a pDeviation strictly between 0 and 1.
+            var index = e.Zone.PendingShots.FindIndex(s => s.ShotId == shotId);
+            var shot = e.Zone.PendingShots[index];
+            shot.Tracking = 6f;
+            e.Zone.PendingShots[index] = shot;
+            pendingSnapshots.Add(shot);
+        }
 
-        ShotOutcome committed = null;
-        var draws = 0;
-        using var c = e.Zone.ShotCommitted.Subscribe(o => { committed = o; draws++; });
-        e.Zone.Update(4f); // now past commit
-        Assert.NotNull(committed);
-        Assert.Equal(1, draws);
+        // One jink, after every shot is queued, before any of them commit -- pDeviation < 1 for all of them,
+        // uniformly (FireTargetVelocity is 0, so DeviationProbability's projection never drifts with elapsed
+        // time; every shot sees the same deviation regardless of the small firing-order time skew above).
+        e.Target.Position = origin + float3(4, 0, 0);
 
-        // The commit tick's own price, recomputed with the pending shot as it stood before Commit mutated its
-        // Committed flag -- CommitProbability is pure, so calling it again after the fact at the same `now`
-        // reproduces the exact p Commit rolled against.
-        var commitTickEstimate = FireControl.CommitProbability(pending, 1f + 4f, out _);
-        Assert.Equal(hudEstimate, commitTickEstimate, 5); // the target never moved or turned between the two reads
+        var hits = 0;
+        var commits = 0;
+        using var c = e.Zone.ShotCommitted.Subscribe(o => { commits++; if (o.Hit) hits++; });
+        e.Zone.Update(2.1f); // past every shot's 2.0s commit, short of the 2.5s arrival
+
+        Assert.Equal(shots, commits);
+
+        var expected = FireControl.CommitProbability(pendingSnapshots[0], e.Zone.Time, out var sil);
+        Assert.True(sil.POnHull > .02f && sil.POnHull < .98f, $"fixture: pOnHull ({sil.POnHull}) must be non-degenerate");
+        var pDeviation = FireControl.DeviationProbability(pendingSnapshots[0], e.Zone.Time, out var deviation);
+        Assert.True(deviation > 0f, "fixture: the jink must actually move the target off its projection");
+        Assert.True(pDeviation > .02f && pDeviation < .98f, $"fixture: pDeviation ({pDeviation}) must be strictly between 0 and 1");
+        Assert.True(expected > .02f && expected < .98f, $"fixture: the commit price ({expected}) must be strictly between 0 and 1");
+
+        var empirical = hits / (double) shots;
+        // 3 standard deviations of a Bernoulli(expected, shots) draw, so this fails on the real bug (a
+        // dropped or duplicated factor) far more often than on sampling noise.
+        var tolerance = 3.0 * Math.Sqrt(expected * (1 - expected) / shots);
+        Assert.True(Math.Abs(empirical - expected) < tolerance,
+            $"empirical hit rate {empirical:F4} over {shots} shots is not within {tolerance:F4} of the HUD's forecast {expected:F4}");
     }
 
     // TheSigmaFloorHoldsAtHalfACell: pOnHull at Precision 1000 equals pOnHull at Precision 2 on a one-cell
