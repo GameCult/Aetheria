@@ -1745,7 +1745,10 @@ cut's own diff:
 
     dotnet tool restore
     cd tests/Aetheria.Shared.Tests
-    CULTLIB_ROOT=<admitted CultLib worktree> dotnet stryker --since:<base commit>
+    CULTLIB_ROOT=<CultCache worktree> CULTMATH_ROOT=<CultMath worktree> dotnet stryker --since:<base commit>
+
+Each root must sit at its pinned revision in `Directory.Build.props` (see the Cut 12.0
+status note).
 
 **Float-threshold boundary flips are known-equivalent.** Stryker files `>`→`>=`
 under the same Equality mutator as `==`→`!=`, and the latter catches real bugs, so
@@ -2158,8 +2161,15 @@ rotation, while its march and its even split are left untouched until 12.3.
 Two verification lines above were stale when written and are corrected here. CultLib had
 no mutation tooling at all, so there was no "CultLib mutation run"; Stryker.NET was adopted
 in its own cut (`hands/adopt-stryker`) and its CultMath baseline is 2243 mutants, 350
-survived, triaged in that cut's report. The "headless `CultLibRoot` pin" is not a pin
-either: `Directory.Build.props:3-4` resolves it to a sibling path with no revision. The
+survived, triaged in that cut's report. The headless pin needed more than a bump. `Directory.Build.props:5` pins one CultLib revision
+for every package, and that revision (`45c2f40`) is exactly Unity's `caching-unity-v1.4.0` /
+`cultlib-unity-v1.0.60`; moving it to the release would have put six CultNet commits of newer
+CultCache, including a breaking registration change, under the headless tests while Unity
+stayed on 1.4.0. So the headless build now pins per package, mirroring the manifest:
+`CultMathRoot`/`CultMathRevision` at the 0.2.4 tag's merge (`6d5e2096`), `CultLibRoot`/
+`CultLibRevision` still at `45c2f40` for CultCache. A package's pin moves only when its
+manifest tag moves. (Self first repeated Soul's claim that there was no pin, from a read of
+lines 3-4; line 5 is the pin, and the build refused the first attempt to use the release.) The
 Unity manifest lives at `packages/cultmath/unity/org.gamecult.cultmath/package.json`, not
 at the repo root.
 
@@ -2181,7 +2191,16 @@ evaluation on a 128-interval hull, 1.06 µs on 64, and worse under IL2CPP. The A
 `HitProbability` constantly. 12.2 must measure the new placement against the old kernel per
 gated-in evaluation and report both, not assume 1D beats 2D.
 
-**Still owed (the release cut, with its own Soul pass before any tag is pushed):** Unity
+**Released 2026-09-24:** CultLib `20e6da5` (release) and `8c86bc9` (the changelog meta), merged to
+main at `6d5e2096`, tagged `cultmath-unity-v0.2.4`. Release Soul pass: the DLL rebuilt byte-
+identical from source (sha256 `2470cd48…`), public surface +2 (`erf`, `erfinv`), shipped
+`erfinv(±1)` correctly signed; its one finding, `CHANGELOG.md` without a Unity `.meta`, was fixed
+before tagging. Aetheria repinned in `2a68b4c0` (manifest and Unity-written lock, hash
+`6d5e2096`); batchmode resolve and compile clean, no missing-meta warning. Follow-up for CultLib:
+`build-unity-package.ps1:89-90` checks metas only for code and binary files, so it could not see
+the missing `.md` meta.
+
+**Was owed (kept for the record):** Unity
 consumes a *precompiled* `CultMath.dll` pinned at `cultmath-unity-v0.2.3`
 (`Packages/manifest.json:56`), so no Unity-side fire-control code can call `erf` until the
 package is rebuilt, bumped to 0.2.4, tagged and repinned. The headless tests see the

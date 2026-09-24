@@ -1,24 +1,39 @@
 <Project>
+  <!-- One pin per CultLib package, mirroring Packages/manifest.json, which pins each Unity package at its
+       own tag. The headless build must compile the same revisions Unity consumes, so a package moves
+       here only when its manifest tag moves. -->
+  <ItemGroup>
+    <PinnedCultLib Include="CultMath"
+                   Root="$(CultMathRoot)"
+                   Revision="$(CultMathRevision)"
+                   Project="packages\cultmath\src\CultMath\CultMath.csproj"
+                   RootProperty="CultMathRoot" />
+    <PinnedCultLib Include="CultCache"
+                   Root="$(CultLibRoot)"
+                   Revision="$(CultLibRevision)"
+                   Project="src\GameCult.Caching\GameCult.Caching.csproj"
+                   RootProperty="CultLibRoot" />
+  </ItemGroup>
+
   <Target Name="VerifyCultLibRevision"
           BeforeTargets="ResolveProjectReferences"
-          Condition="'$(SkipCultLibRevisionCheck)' != 'true' and '@(ProjectReference->AnyHaveMetadataValue('Identity', '$(CultLibRoot)\packages\cultmath\src\CultMath\CultMath.csproj'))' == 'true'">
-    <Error Condition="!Exists('$(CultLibRoot)\packages\cultmath\src\CultMath\CultMath.csproj')"
-           Text="CultLibRoot '$(CultLibRoot)' does not contain the required CultMath project." />
-    <Error Condition="!Exists('$(CultLibRoot)\src\GameCult.Caching\GameCult.Caching.csproj')"
-           Text="CultLibRoot '$(CultLibRoot)' does not contain the required GameCult.Caching project." />
-    <Exec Command="&quot;$(GitExecutable)&quot; -C &quot;$(CultLibRoot)&quot; rev-parse HEAD"
+          Outputs="%(PinnedCultLib.Identity)"
+          Condition="'$(SkipCultLibRevisionCheck)' != 'true' and '@(ProjectReference->AnyHaveMetadataValue('Identity', '$(CultMathRoot)\packages\cultmath\src\CultMath\CultMath.csproj'))' == 'true'">
+    <Error Condition="!Exists('%(PinnedCultLib.Root)\%(PinnedCultLib.Project)')"
+           Text="%(PinnedCultLib.RootProperty) '%(PinnedCultLib.Root)' does not contain %(PinnedCultLib.Project)." />
+    <Exec Command="&quot;$(GitExecutable)&quot; -C &quot;%(PinnedCultLib.Root)&quot; rev-parse HEAD"
           ConsoleToMSBuild="true"
           StandardOutputImportance="Low">
-      <Output TaskParameter="ConsoleOutput" PropertyName="ActualCultLibRevision" />
+      <Output TaskParameter="ConsoleOutput" PropertyName="ActualPinnedRevision" />
     </Exec>
-    <Error Condition="'$([System.String]::Copy($(ActualCultLibRevision)).Trim())' != '$(CultLibRevision)'"
-           Text="CultLib must be revision $(CultLibRevision); found $([System.String]::Copy($(ActualCultLibRevision)).Trim()). Set CultLibRoot to the admitted clean worktree." />
-    <Exec Command="&quot;$(GitExecutable)&quot; -C &quot;$(CultLibRoot)&quot; status --porcelain --untracked-files=normal"
+    <Error Condition="'$([System.String]::Copy($(ActualPinnedRevision)).Trim())' != '%(PinnedCultLib.Revision)'"
+           Text="%(PinnedCultLib.Identity) must be CultLib revision %(PinnedCultLib.Revision); found $([System.String]::Copy($(ActualPinnedRevision)).Trim()). Set %(PinnedCultLib.RootProperty) to the admitted clean worktree." />
+    <Exec Command="&quot;$(GitExecutable)&quot; -C &quot;%(PinnedCultLib.Root)&quot; status --porcelain --untracked-files=normal"
           ConsoleToMSBuild="true"
           StandardOutputImportance="Low">
-      <Output TaskParameter="ConsoleOutput" PropertyName="CultLibStatus" />
+      <Output TaskParameter="ConsoleOutput" PropertyName="PinnedStatus" />
     </Exec>
-    <Error Condition="'$([System.String]::Copy($(CultLibStatus)).Trim())' != ''"
-           Text="CultLibRoot must be clean before Aetheria consumes it." />
+    <Error Condition="'$([System.String]::Copy($(PinnedStatus)).Trim())' != ''"
+           Text="%(PinnedCultLib.RootProperty) must be clean before Aetheria consumes it." />
   </Target>
 </Project>

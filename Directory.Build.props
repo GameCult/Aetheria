@@ -2,7 +2,12 @@
   <PropertyGroup>
     <CultLibRoot Condition="'$(CultLibRoot)' == '' and '$(CULTLIB_ROOT)' != ''">$(CULTLIB_ROOT)</CultLibRoot>
     <CultLibRoot Condition="'$(CultLibRoot)' == ''">$(MSBuildThisFileDirectory)..\CultLib</CultLibRoot>
+    <!-- CultCache: caching-unity-v1.4.0 / cultlib-unity-v1.0.60 in Packages/manifest.json. -->
     <CultLibRevision>45c2f4006f5f7dab357426cabd3197e8d0a17f66</CultLibRevision>
+    <CultMathRoot Condition="'$(CultMathRoot)' == '' and '$(CULTMATH_ROOT)' != ''">$(CULTMATH_ROOT)</CultMathRoot>
+    <CultMathRoot Condition="'$(CultMathRoot)' == ''">$(CultLibRoot)</CultMathRoot>
+    <!-- CultMath: cultmath-unity-v0.2.4 in Packages/manifest.json. -->
+    <CultMathRevision>6d5e2096563a320933b64ddfd6ded8f2e846ac91</CultMathRevision>
     <GitExecutable Condition="'$(GitExecutable)' == '' and Exists('C:\Program Files\Git\cmd\git.exe')">C:\Program Files\Git\cmd\git.exe</GitExecutable>
     <GitExecutable Condition="'$(GitExecutable)' == ''">git</GitExecutable>
   </PropertyGroup>

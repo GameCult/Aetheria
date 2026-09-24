@@ -24,7 +24,7 @@
     <Compile Include="$(Assets)Plugins\Ink\**\*.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="$(CultLibRoot)\packages\cultmath\src\CultMath\CultMath.csproj" />
+    <ProjectReference Include="$(CultMathRoot)\packages\cultmath\src\CultMath\CultMath.csproj" />
     <ProjectReference Include="$(CultLibRoot)\src\GameCult.Caching\GameCult.Caching.csproj" />
     <ProjectReference Include="$(CultLibRoot)\src\GameCult.Caching.MessagePack\GameCult.Caching.MessagePack.csproj" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
