@@ -446,6 +446,34 @@ public sealed class FireControlCut12Tests : IDisposable
         Assert.Equal(expected, p, 4);
     }
 
+    // :~483 fix batch (Hands, 2026-09-25): `if (p <= 0f) return 0f;` in CommitProbability is a guard against
+    // building a silhouette for a shot that cannot hit -- Stryker's own `p < 0` boundary mutant (excluding only
+    // the single value p == 0 exactly) survived because nothing exercised the guard at exactly 0. A
+    // zero-probability shot must commit as a clean miss AND must do so without ever building a real
+    // Silhouette -- `sil` stays the zeroed default CommitProbability assigns before the early return, not a
+    // Silhouette with real Intervals/Count/POnHull.
+    [Fact]
+    public void ZeroProbabilityShotCommitsAMissWithoutBuildingASilhouette()
+    {
+        var e = Build(TestSettings(), SolidShape(5, 5), precision: 1f);
+        var shotId = FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        var index = e.Zone.PendingShots.FindIndex(s => s.ShotId == shotId);
+        var shot = e.Zone.PendingShots[index];
+        shot.PFire = 0f; // the exact boundary the `p < 0` mutant would let through unnoticed
+        e.Zone.PendingShots[index] = shot;
+
+        var p = FireControl.CommitProbability(shot, e.Zone.Time, out var sil);
+        Assert.Equal(0f, p);
+        Assert.Null(sil.Intervals); // still the zeroed default -- no Silhouette was ever built
+        Assert.Equal(0, sil.Count);
+
+        ShotOutcome outcome = null;
+        using var r = e.Zone.ShotResolved.Subscribe(o => outcome = o);
+        e.Zone.Update(.01f);
+        Assert.NotNull(outcome);
+        Assert.False(outcome.Hit, "fixture: PFire 0 must commit as a clean miss");
+    }
+
     // S4 fix batch (Hands, 2026-09-25): F8 (Soul's earlier fix batch, 2026-09-24) moved range/flightTime
     // computation ahead of the visibility gate, so Fire's own flight time reflects the real distance even when
     // PFire prices the shot at 0 -- but nothing behavioural pinned that. N4 (Soul's mutation set: "range after
