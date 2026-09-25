@@ -372,6 +372,8 @@ better"), so the Q5 text below and every "sized demand" design it belonged to ar
 Open: **Q4** (heading versus aim) blocks only Cut 5. **Q6** (the one weight in Cut 3's solve) does not block
 Hands, who starts at the recommended default; the operator settles it by feel in the Cut 1 play check.
 
+**Tutorial station (operator, 2026-09-25):** "What we're testing is going to be the tutorial level, right? Let's drop a station in there." The live catalog already has a station hull: Zenith, sold by Aeronautics Unlimited. The story-station path is dead because `StoryProcessor` has been commented out at `Galaxy.cs:242` since `ce1a0a46` (2021). Ruled: **faction station now**. The tutorial's entrance zone (`Galaxy.Entrance`) always gets a generated faction station with a docking bay. That is deterministic, not merely likely, and the test pins it on the real tutorial construction path. Reviving the Ink story stations belongs to a later narrative campaign, which must first find out why they were switched off.
+
 Follow-ups outside this campaign:
 - `TurretController` has no `EntityTypeRestriction`, so equipping it on a ship would create a third
   `LookDirection` writer racing the player or agent. Restrict it to non-ship hulls when turret work next opens
