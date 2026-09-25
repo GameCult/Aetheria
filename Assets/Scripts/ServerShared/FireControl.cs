@@ -307,6 +307,20 @@ public static class FireControl
     // of each carrying their own copy of the sign.
     private static float2 Lateral(float2 bearing) => float2(-bearing.y, bearing.x);
 
+    // Cut 12.2 fix batch (S1, Soul's second pass): the one function that projects a unit cell onto an axis --
+    // the exact support of the axis-aligned unit square centred on c along `axis`, half-width
+    // h = (|axis.x| + |axis.y|) / 2. Silhouette's shadow (axis = ell) and Lane's own admission test (axis =
+    // ell) now read this SAME arithmetic instead of Lane re-deriving its own copy of centre/h -- the two used
+    // to differ only in that Lane's copy was a plain re-derivation, not a second formula, but "not a second
+    // formula" is exactly why they never drifted apart in exact arithmetic and exactly why the real defect was
+    // never here: it was the second, independent SlabAlongB gate below, deleted with this fix.
+    private static Interval Extent(float2 c, float2 axis)
+    {
+        var h = (abs(axis.x) + abs(axis.y)) / 2f;
+        var centre = dot(c, axis);
+        return new Interval { Lo = centre - h, Hi = centre + h };
+    }
+
     public static float DeviationProbability(PendingShot shot, float now, out float deviation)
     {
         var elapsed = now - shot.FireTime;
@@ -680,15 +694,11 @@ public static class FireControl
     {
         var ell = Lateral(bearing);
         var coords = hull.Shape.Coordinates;
-        var h = (abs(ell.x) + abs(ell.y)) / 2f;
 
         var intervals = buffer ?? new Interval[coords.Length];
         for (var i = 0; i < coords.Length; i++)
-        {
-            var centre = dot((float2) coords[i], ell);
-            intervals[i] = new Interval { Lo = centre - h, Hi = centre + h };
-        }
-        Array.Sort(intervals, 0, coords.Length, IntervalByLoComparer.Instance);
+            intervals[i] = Extent((float2) coords[i], ell);
+        Array.Sort(intervals, 0, coords.Length);
 
         // Merge in place: sorted ascending by Lo, so an interval overlaps (or exactly abuts) the last kept
         // interval whenever its own Lo does not exceed that interval's Hi.
@@ -778,29 +788,36 @@ public static class FireControl
     // walk's first element is the impact cell. Only that first element is read in 12.2; the rest is 12.3's
     // armour-first absorption march. Writes into the caller-supplied pooled buffer and returns the walked
     // count; never allocates on its own.
+    // Cut 12.2 fix batch (S1, Soul's second pass): admission is now decided ONCE, by the exact same shadow
+    // interval Silhouette sums over (Extent(c, ell), the shared function above) -- not by a re-derivation and
+    // not by a second, independent geometric test. The old code ran two tests: this shadow prefilter (a
+    // "re-derivation" of Silhouette's own centre/h, inline) AND SlabAlongB, an independent 2-axis ray-box
+    // intersection that could reject a cell the shadow test had just admitted, purely on float rounding at an
+    // interval edge -- an empty lane for a shot that had already passed its roll (R3 violation, the crash Soul
+    // reproduced through Zone.Update). Deleting the second gate removes the split authority: a cell the shadow
+    // sum counted metal for can no longer be un-counted here.
     public static int Lane(HullData hull, float2 b, float s, LaneCell[] buffer)
     {
         var ell = Lateral(b);
-        var h = (abs(ell.x) + abs(ell.y)) / 2f;
         var coords = hull.Shape.Coordinates;
 
         var n = 0;
         for (var i = 0; i < coords.Length; i++)
         {
             var c = (float2) coords[i];
-            var centre = dot(c, ell);
-            if (s < centre - h || s >= centre + h) continue; // outside this cell's own lateral shadow
-
-            if (!SlabAlongB(c, b, ell, s, out var entry, out var exit)) continue; // the shadow test is a conservative bound; the exact slab can still miss
+            var lateral = Extent(c, ell);
+            if (s < lateral.Lo || s >= lateral.Hi) continue; // half-open, the same admission Silhouette sums over
 
             // F9 (Soul's fix batch, 2026-09-24): Projection (dot(cell, b)) is precomputed here, into the
-            // struct, so the sort below needs no closure over `b` -- LaneCellComparer.Instance is a stateless
-            // singleton, not a per-call Comparer<T>.Create allocation the "never allocates" comment used to
-            // contradict.
+            // struct, so the sort below needs no closure over `b`. S3 fix batch: the sort itself now uses
+            // LaneCell's own IComparable<LaneCell>, not a per-call Comparer<T>.Create allocation the "never
+            // allocates" comment used to contradict. Projection is also the "along-bearing projection" the cut
+            // doc orders entry by.
+            AlongBearing(c, b, ell, s, out var entry, out var exit);
             buffer[n++] = new LaneCell { Cell = coords[i], Entry = entry, Exit = exit, Projection = dot(c, b) };
         }
 
-        Array.Sort(buffer, 0, n, LaneCellComparer.Instance);
+        Array.Sort(buffer, 0, n);
 
         var walked = n > 0 ? 1 : 0;
         for (var i = 1; i < n; i++)
@@ -811,29 +828,35 @@ public static class FireControl
         return walked;
     }
 
-    // The slab (ray-box) intersection of point(t) = t*b + s*ell against the unit square centred on cell c, one
-    // axis at a time: solving bAxis*t + val in [cLo, cHi] for each of x and y, then entry = the later of the
-    // two lower bounds, exit = the earlier of the two upper bounds. A near-zero bAxis component means the ray
-    // does not move along that axis at all, so it either always satisfies that axis's bound (no constraint on
-    // t) or never does (no intersection).
-    private static bool SlabAlongB(float2 c, float2 b, float2 ell, float s, out float entry, out float exit)
+    // Cut 12.2 fix batch (S1): the along-bearing entry/exit parameters for a cell the shadow test above has
+    // ALREADY admitted -- unconditional, never a gate. The doc's own proof ("s lies in the shadow is exactly
+    // the same event as this lane has metal") makes the intersection this computes a certainty, not a
+    // hypothesis to re-test: for a convex shape, a value inside its projection onto ell is achieved by a
+    // nonempty segment of the line ell=s, so the box-slab solve below cannot come back empty in exact
+    // arithmetic. It only ever disagreed with the shadow test by float rounding at the interval's own edge,
+    // which is exactly where SlabAlongB used to throw the metal away; here that same rounding is absorbed by
+    // clamping entry <= exit instead of rejecting.
+    private static void AlongBearing(float2 c, float2 b, float2 ell, float s, out float entry, out float exit)
     {
         entry = float.NegativeInfinity;
         exit = float.PositiveInfinity;
-        return SlabAxis(b.x, c.x - .5f, c.x + .5f, s * ell.x, ref entry, ref exit)
-            && SlabAxis(b.y, c.y - .5f, c.y + .5f, s * ell.y, ref entry, ref exit);
+        SlabAxis(b.x, c.x - .5f, c.x + .5f, s * ell.x, ref entry, ref exit);
+        SlabAxis(b.y, c.y - .5f, c.y + .5f, s * ell.y, ref entry, ref exit);
+        if (entry > exit) exit = entry; // rounding only -- the shadow test already proved a real intersection
     }
 
-    private static bool SlabAxis(float bAxis, float lo, float hi, float val, ref float entry, ref float exit)
+    // The slab (ray-box) bound of point(t) = t*b + s*ell against the unit square centred on cell c, one axis at
+    // a time: solving bAxis*t + val in [lo, hi], then folding the result into the running (entry, exit) bound.
+    // A near-zero bAxis component means the ray does not move along that axis at all, so it adds no constraint
+    // on t (the shadow test above already established this axis's bound holds).
+    private static void SlabAxis(float bAxis, float lo, float hi, float val, ref float entry, ref float exit)
     {
-        if (abs(bAxis) < 1e-9f)
-            return val >= lo && val <= hi; // no motion along this axis: in bounds forever, or never
+        if (abs(bAxis) < 1e-9f) return; // no motion along this axis: already covered by the shadow admission test
 
         var t1 = (lo - val) / bAxis;
         var t2 = (hi - val) / bAxis;
         entry = max(entry, min(t1, t2));
         exit = min(exit, max(t1, t2));
-        return entry <= exit;
     }
 
     // The cells of the target's hull schematic actually occupied by `item` -- GearOccupancy is the one source
@@ -925,20 +948,15 @@ public struct FireControlDiagnostic
 
 // Cut 12.2 (docs/fire-control-cut.md): a merged interval of a hull's lateral shadow, in the schematic frame's
 // lateral (ell) coordinate.
-public struct Interval
+// S3 fix batch (Hands, 2026-09-25): IComparable<Interval> (sorted by Lo) instead of a separate IComparer<T> --
+// Array.Sort(T[], int, int, IComparer<T>) boxes/wraps the comparer into a fresh delegate on CoreCLR every call
+// even when the comparer instance itself is a cached singleton; Array.Sort(T[], int, int) resolves T's own
+// IComparable<T> at JIT time and allocates nothing per call. Same order as the deleted IntervalByLoComparer.
+public struct Interval : IComparable<Interval>
 {
     public float Lo;
     public float Hi;
-}
-
-// Cost fix batch (Self, 2026-09-24): a stateless singleton, not a per-call Comparer<T>.Create -- Silhouette's
-// own sort no longer allocates a wrapper on every call, matching the ArrayPool pooling this batch added on the
-// forecast path.
-internal sealed class IntervalByLoComparer : IComparer<Interval>
-{
-    public static readonly IntervalByLoComparer Instance = new IntervalByLoComparer();
-    private IntervalByLoComparer() { }
-    public int Compare(Interval x, Interval y) => x.Lo.CompareTo(y.Lo);
+    public int CompareTo(Interval other) => Lo.CompareTo(other.Lo);
 }
 
 // Cut 12.2: the hull's lateral shadow at one bearing, and the exact Gaussian mass it carries. Intervals holds
@@ -958,7 +976,11 @@ public struct Silhouette
 
 // Cut 12.2: one occupied cell FireControl.Lane crossed at a fixed lateral offset, with its own slab entry/exit
 // parameter along the bearing. Entry ascending is nearest-to-farthest along the shot's own travel direction.
-public struct LaneCell
+// S3 fix batch (Hands, 2026-09-25): IComparable<LaneCell> replaces the separate LaneCellComparer, for the same
+// reason Interval's own comparer was deleted -- the (T[], int, int, IComparer<T>) sort overload allocates a
+// wrapper delegate per call even for a cached singleton comparer; (T[], int, int) does not. Same order as the
+// deleted comparer: entry ascending, ties by projection along b, then cell index for full determinism.
+public struct LaneCell : IComparable<LaneCell>
 {
     public int2 Cell;
     public float Entry;
@@ -966,24 +988,15 @@ public struct LaneCell
     // F9 (Soul's fix batch, 2026-09-24): dot(Cell, b), precomputed once per candidate so Lane's sort tie-break
     // needs no closure over the bearing.
     public float Projection;
-}
 
-// F9: Lane's own sort order (entry ascending, ties by projection along b, then cell index for full
-// determinism) as a stateless singleton -- Array.Sort's IComparer<T> overload needs an instance, and this one
-// is allocated exactly once, ever, not per Lane() call.
-internal sealed class LaneCellComparer : IComparer<LaneCell>
-{
-    public static readonly LaneCellComparer Instance = new LaneCellComparer();
-    private LaneCellComparer() { }
-
-    public int Compare(LaneCell x, LaneCell y)
+    public int CompareTo(LaneCell other)
     {
-        var byEntry = x.Entry.CompareTo(y.Entry);
+        var byEntry = Entry.CompareTo(other.Entry);
         if (byEntry != 0) return byEntry;
-        var byProjection = x.Projection.CompareTo(y.Projection);
+        var byProjection = Projection.CompareTo(other.Projection);
         if (byProjection != 0) return byProjection;
-        var byX = x.Cell.x.CompareTo(y.Cell.x);
-        return byX != 0 ? byX : x.Cell.y.CompareTo(y.Cell.y);
+        var byX = Cell.x.CompareTo(other.Cell.x);
+        return byX != 0 ? byX : Cell.y.CompareTo(other.Cell.y);
     }
 }
 
