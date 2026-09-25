@@ -237,9 +237,9 @@ public static class ZoneGenerator
 	        .Take(stationCount)
 	        .Select(p=>orbitMap[p])
 	        .ToArray();
-        if (isTutorialEntrance && selectedStationOrbits.Length == 0)
+        if (isTutorialEntrance && lagrangeCandidates.Length == 0)
 	        throw new InvalidOperationException(
-		        "The tutorial entrance zone must always get a station, but it has no orbit at all -- every planet in the zone is a rootless rosette member with no parent.");
+		        "The tutorial entrance zone must always get a station, but it has no candidate orbit at all -- every planet in the zone is a parentless root.");
 
         var loadoutGenerators = new Dictionary<Faction, LoadoutGenerator>();
 
@@ -257,9 +257,6 @@ public static class ZoneGenerator
 		        Parent = baseOrbit.Parent,
 		        Distance = baseOrbit.Distance,
 		        Phase = baseOrbit.Phase + PI / 3 * sign(random.NextFloat() - .5f),
-		        // Carried through for the tutorial-entrance fallback orbit below, which has no Parent and is
-		        // positioned by FixedPosition alone; every other base orbit here has a Parent and ignores it.
-		        FixedPosition = baseOrbit.FixedPosition,
 	        };
 	        pack.Orbits.Add(cache.Upsert(lagrangeOrbit));
 	        return lagrangeOrbit;
