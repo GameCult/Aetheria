@@ -2371,6 +2371,47 @@ a no-behaviour cut this size folds into 12.2's.
     factor should read higher from the beam.
   - Turn your armoured face into a slow missile and watch where it lands.
 
+**Status (2026-09-25): closed after three Soul passes.** Landed on `codex/fire-control-12`:
+`7dbb3bcf`, `efe4f7c9` (cut and first Stryker batch), `8bd25f6f` (Soul pass 1 fixes), `d38efba3`..`ca1670a2`
+(Soul pass 2 fixes). 263 tests, identical across runs; Unity batchmode compile clean at each stage.
+
+What the Soul passes found, in order, because two of them are lessons for 12.3:
+- **Pass 1.** A lateral draw clamped to closed `[Lo, Hi]` could land exactly on `Hi`, return an empty lane,
+  and fall back silently to cell (0,0), a hit on nothing. The statistical tests used `Guid` zone names, so
+  every run rolled different dice (the source of a "flake" that got its threshold tuned instead of its cause
+  found). Where a hit lands was untested, only its price; the HUD test compared the commit price to itself;
+  `HitProbability` and `Inspect` each assembled the forecast, and only Inspect's copy was guarded; penetration
+  could follow a turn made after commit; multi-cell aimed items were untested.
+- **Pass 2.** The pass-1 fix clamped the top edge with an epsilon and turned the silent (0,0) into a throw.
+  The **bottom** edge still produced empty lanes at angled bearings, so the fix converted a rare wrong result
+  into a rare crash (~1 per 2^24 hits, every shipped hull), reproduced through `Fire`→`Zone.Update`. Root
+  cause: **two geometric models answering one question** — `Silhouette` priced each cell's projected interval,
+  `Lane` re-derived admission with an independent slab test, and floats disagreed at corners. Also: the
+  two-prong placement test passed five wrong-sigma draws; "never allocates" was still false (CoreCLR wraps an
+  `IComparer` in a delegate per sort).
+- **Pass 3 closed it.** `Lane` now admits with the same `Extent` support function `Silhouette` uses, and the
+  slab test is gone (`AlongBearing` survives as a non-rejecting entry/exit computer). Proof and check: all
+  cells' intervals have equal width, so the merge cannot open a gap; exhaustive check at every breakpoint and
+  float neighbour (8.9M lateral values, 13 hulls, 1,540 bearings down to 1e-9 rad) and a 402M-draw enumeration
+  found 0 empty lanes and 0 non-finite values; a split-arithmetic mutant of `Lane` (equal in exact
+  arithmetic, different in float) is killed by two tests, so the one-owner rule is guarded, not incidental.
+  The `Commit` invariant throw is unreachable.
+
+Cost, measured in Release: pooling the forecast's interval buffer took gated-in `HitProbability` on LonginusX
+from 672 to 184 B/call (time unchanged; the ~1.9× over the old kernel is the sort). What remains is outside
+fire control's arithmetic: 40 B per `GetBehavior<T>` (the `Equipment` enumerator), three per call; and with an
+item aimed at, `ResolveAimPoint`→`CellsOf` builds a list and `ToArray`s it every call — 944 B per
+`HitProbability`, 1928 B per `Inspect`. Recorded as follow-ups.
+
+**Carried into 12.3's brief** (low, all on code 12.3 builds on): pin `Lane`'s seam contract (a 2x1 hull at
+b=(0,1): `Lane(s=-0.5)` returns only (0,0), `Lane(s=0.5)` returns nothing — the `s >= Hi` → `s > Hi` mutant
+survives today and would interleave two columns in 12.3's walk); `AlongBearing`/`SlabAxis` have no test of
+their values (every mutant there survives, equivalent for 12.2 only); correct the allocation comments in
+`Forecast` and `LaneAndSilhouetteAllocateNothingGivenAPooledBuffer`; make
+`ZeroProbabilityShotCommitsAMissWithoutBuildingASilhouette` behavioural (produce `PFire = 0` through
+visibility, assert zero allocation rather than `sil.Intervals == null`); drop the unused `System.Reflection`
+import.
+
 ### Cut 12.3. How a direct hit travels
 
 - **Repo/branch:** Aetheria, on top of 12.2.
