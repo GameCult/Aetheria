@@ -74,6 +74,7 @@ public sealed class FireControlCut123Tests : IDisposable
         public HullData HullData;
         public EquippedItem[] Markers;
         public EquippedItem Cockpit;
+        public Dictionary<string, EquippedItem> Custom = new Dictionary<string, EquippedItem>();
     }
 
     // A shooter off the origin (Cut 11.3), a target over a caller-supplied hull shape, straight ahead so the
@@ -87,7 +88,8 @@ public sealed class FireControlCut123Tests : IDisposable
         GameplaySettings settings, Shape hullShape, float precision,
         float penetration = 0, float damageSpread = 0, float2? targetFacing = null,
         (int2 Cell, float Durability)[] markers = null, int2? cockpitCell = null, float cockpitDurability = 40,
-        (int2 Cell, float Durability)[] bars = null, (int2 Cell, float Durability)[] lBars = null)
+        (int2 Cell, float Durability)[] bars = null, (int2 Cell, float Durability)[] lBars = null,
+        (string Name, Shape Shape, int2 Cell, float Durability)[] custom = null)
     {
         var hullData = new HullData
         {
@@ -152,6 +154,10 @@ public sealed class FireControlCut123Tests : IDisposable
             Name = "LBar", Hardpoint = HardpointType.Tool, Shape = LShape(), Durability = 1000000,
             MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000
         });
+        if (custom != null)
+            foreach (var cu in custom)
+                cache.Upsert(new GearData { Name = cu.Name, Hardpoint = HardpointType.Tool, Shape = cu.Shape, Durability = 1000000,
+                    MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000 });
         cache.FlushAsync().Wait();
 
         var ledger = new ProvenanceLedger();
@@ -201,6 +207,15 @@ public sealed class FireControlCut123Tests : IDisposable
                 Assert.True(target.TryEquip(bi, bar.Cell), $"L-bar must fit at {bar.Cell}");
             }
 
+        var customItems = new Dictionary<string, EquippedItem>();
+        if (custom != null)
+            foreach (var cu in custom)
+            {
+                var ci0 = Make(cu.Name, lot++, cu.Durability);
+                Assert.True(target.TryEquip(ci0, cu.Cell), $"custom {cu.Name} must fit at {cu.Cell}");
+                customItems[cu.Name] = target.Equipment.Single(x => x.EquippableItem == ci0);
+            }
+
         EquippedItem cockpit = null;
         if (cockpitCell != null)
         {
@@ -227,7 +242,7 @@ public sealed class FireControlCut123Tests : IDisposable
         return new Engagement
         {
             Items = items, Zone = zone, Shooter = shooter, Target = target, WeaponItem = weaponItem, Weapon = weapon,
-            HullData = hullData, Markers = markerItems, Cockpit = cockpit
+            HullData = hullData, Markers = markerItems, Cockpit = cockpit, Custom = customItems
         };
     }
 
@@ -1577,5 +1592,165 @@ public sealed class FireControlCut123Tests : IDisposable
             }
         }
         Assert.True(trials >= 80, $"fixture: needed at least 80 of the 90 possible resolved trials, got {trials}"); // 2 shapes * 3 bearings * 15 draws
+    }
+
+    // ===================== Soul's own probes (Cut 12.3, one-apply-path fix batch) =====================
+    // These pin the rules the earlier pooled-but-still-branching implementation could not: the cycle tie-break
+    // (two non-convex items crossed by two lanes in opposite relative order), the pooled path's own threshold
+    // gate, and a zero deposit not stalling the pool it belongs to.
+
+    private static Shape CellsShape(int w, int h, params (int x, int y)[] cells)
+    {
+        var s = new Shape(w, h);
+        foreach (var c in cells) s[new int2(c.x, c.y)] = true;
+        return s;
+    }
+
+    private static void ZeroArmor(Engagement e, int w, int h)
+    {
+        for (var x = 0; x < w; x++)
+        for (var y = 0; y < h; y++) { e.Target.Armor[x, y] = 0f; e.Target.MaxArmor[x, y] = 20f; }
+    }
+
+    private static ShotOutcome FireCentre(Engagement e, int centreX, Action reset, float damage)
+    {
+        ShotOutcome outcome = null;
+        for (var attempt = 0; attempt < 800 && (outcome == null || !outcome.Hit || outcome.Cell.x != centreX); attempt++)
+        {
+            reset();
+            outcome = FireUntilHit(e, damageOverride: damage, attempts: 1);
+        }
+        Assert.True(outcome != null && outcome.Hit && outcome.Cell.x == centreX, "fixture: centre hit");
+        return outcome;
+    }
+
+    // A genuine cycle: lane col2 reaches item X before item Y down its own walk; lane col3 reaches Y before X.
+    // Neither item can resolve in either lane's own causal order, so the cycle rule (resolve every open pool at
+    // once) must fire. Fixture B is fixture A reflected about the centre column -- mirror symmetry means the
+    // two per-lane leftovers (the outer marker's and the centre marker's) must come out identical on both, and
+    // total damage must still be fully conserved (armour + items + hull == the shot's own damage) on both.
+    [Fact]
+    public void CycleTieBreakIsMirrorSymmetric()
+    {
+        (float outer, float centre, float conservation) Run(bool mirrored)
+        {
+            var custom = mirrored
+                ? new[]
+                {
+                    ("SoulX", CellsShape(3, 4, (1, 0), (2, 0), (2, 1), (2, 2), (2, 3), (1, 3), (0, 3)), new int2(3, 1), 10f),
+                    ("SoulY", CellsShape(2, 2, (0, 0), (0, 1), (1, 1)), new int2(3, 1), 10f)
+                }
+                : new[]
+                {
+                    ("SoulX", CellsShape(3, 4, (1, 0), (0, 0), (0, 1), (0, 2), (0, 3), (1, 3), (2, 3)), new int2(1, 1), 10f),
+                    ("SoulY", CellsShape(2, 2, (1, 0), (1, 1), (0, 1)), new int2(2, 1), 10f)
+                };
+            var markers = mirrored
+                ? new[] { (new int2(4, 3), 1000f), (new int2(3, 3), 1000f) }
+                : new[] { (new int2(2, 3), 1000f), (new int2(3, 3), 1000f) };
+            var e = Build(TestSettings(), SolidShape(7, 6), precision: .6f, penetration: 10f, damageSpread: 1f,
+                markers: markers, custom: custom);
+            var x = e.Custom["SoulX"];
+            var y = e.Custom["SoulY"];
+            var hullBefore = 0f;
+            void Reset()
+            {
+                ZeroArmor(e, 7, 6);
+                e.Target.Armor[mirrored ? 4 : 2, 1] = 10f;
+                x.EquippableItem.Durability = 10f;
+                y.EquippableItem.Durability = 10f;
+                e.Markers[0].EquippableItem.Durability = 1000f;
+                e.Markers[1].EquippableItem.Durability = 1000f;
+                e.Target.GearOccupancy[0, 0].EquippableItem.Durability = 0f;
+                e.Target.Hull.Durability = 1000000f;
+                hullBefore = e.Target.Hull.Durability;
+            }
+            FireCentre(e, 3, Reset, 90f);
+            var armorLost = 10f;
+            for (var xx = 0; xx < 7; xx++) for (var yy = 0; yy < 6; yy++) armorLost -= e.Target.Armor[xx, yy];
+            var itemsLost = (10f - x.EquippableItem.Durability) + (10f - y.EquippableItem.Durability)
+                + (1000f - e.Markers[0].EquippableItem.Durability) + (1000f - e.Markers[1].EquippableItem.Durability);
+            var hullLost = hullBefore - e.Target.Hull.Durability;
+            var outerMarker = 1000f - e.Markers[0].EquippableItem.Durability;
+            var centreMarker = 1000f - e.Markers[1].EquippableItem.Durability;
+            return (outerMarker, centreMarker, armorLost + itemsLost + hullLost);
+        }
+        var a = Run(false);
+        var b = Run(true);
+        Assert.Equal(90f, a.conservation, 2); // nothing lost: the whole shot lands somewhere
+        Assert.Equal(90f, b.conservation, 2);
+        Assert.Equal(a.outer, b.outer, 2); // mirror symmetry: the tie-break carries no left/right bias
+        Assert.Equal(a.centre, b.centre, 2);
+    }
+
+    // The item's own .1f threshold is decided ONCE on the pooled total, never per contribution. Two lanes
+    // striking a shared 2x1 bar, each depositing the SAME post-armour remainder: with 0.04 each (sum 0.08,
+    // still under .1f) nothing should absorb, matching two separate sub-threshold solo hits. With 0.06 each
+    // (sum 0.12, OVER .1f, but NEITHER contribution alone clears it) the item must still absorb -- a mutant
+    // that moved the threshold onto each contribution individually, instead of the pool total, would leave
+    // this second case untouched, since 0.06 never clears .1f by itself.
+    [Fact]
+    public void PooledPathHonoursTheItemThresholdLikeTheSoloPath()
+    {
+        (float lost, int events) RunShared(float perLanePostArmour)
+        {
+            var e = Build(TestSettings(), SolidShape(5, 4), precision: .6f, penetration: 2.5f, damageSpread: 1f, bars: new[] { (new int2(1, 1), 50f) });
+            var bar = e.Target.GearOccupancy[1, 1];
+            void Reset()
+            {
+                ZeroArmor(e, 5, 4);
+                var armor = 30f - perLanePostArmour; // damagePerLane is 90/3 = 30 (damageSpread 1, 3 lanes)
+                e.Target.Armor[1, 1] = armor; e.Target.Armor[2, 1] = armor; e.Target.MaxArmor[1, 1] = 30; e.Target.MaxArmor[2, 1] = 30;
+                bar.EquippableItem.Durability = 50f;
+                e.Target.GearOccupancy[0, 0].EquippableItem.Durability = 0f;
+            }
+            var n = 0;
+            ShotOutcome o = null;
+            for (var attempt = 0; attempt < 800 && (o == null || !o.Hit || o.Cell.x != 2); attempt++)
+            {
+                Reset();
+                n = 0;
+                using var sub = e.Target.ItemDamage.Subscribe(_ => n++);
+                o = FireUntilHit(e, damageOverride: 90f, attempts: 1);
+            }
+            Assert.NotNull(o);
+            Assert.True(o.Hit && o.Cell.x == 2, "fixture: needed a hit on the centre interior column within the attempt budget");
+            return (50f - bar.EquippableItem.Durability, n);
+        }
+
+        var underThreshold = RunShared(0.04f); // sum 0.08: under .1f either way
+        Assert.Equal(0f, underThreshold.lost, 4);
+        Assert.Equal(0, underThreshold.events);
+
+        var overThreshold = RunShared(0.06f); // sum 0.12: over .1f as a pool, under .1f per contribution
+        Assert.Equal(0.12f, overThreshold.lost, 3);
+        // Soul's own event-cardinality pin: a mutation that deletes the pooled ItemDamage.OnNext call survived
+        // every other test in this file, because most fixtures only ever check durability. One event per
+        // contributing lane (both contributed > 0 here), not one event per resolve.
+        Assert.Equal(2, overThreshold.events);
+    }
+
+    // A lane whose armour eats its entire share before ever reaching a shared item still deposits (a zero
+    // amount) and must not stall the pool waiting for a contribution that will never come with more than zero
+    // in it -- the pool resolves as soon as every OTHER lane that could still reach the item is done, whatever
+    // this lane itself brought.
+    [Fact]
+    public void ZeroDepositDoesNotStall()
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), precision: .6f, penetration: 2.5f, damageSpread: 1f,
+            bars: new[] { (new int2(1, 1), 10f) }, markers: new[] { (new int2(1, 2), 1000f), (new int2(2, 2), 1000f) });
+        var bar = e.Target.GearOccupancy[1, 1];
+        void Reset()
+        {
+            ZeroArmor(e, 5, 4);
+            e.Target.Armor[1, 0] = 1000f; e.Target.MaxArmor[1, 0] = 1000f; e.Target.Armor[2, 1] = 15f;
+            bar.EquippableItem.Durability = 10f;
+            e.Markers[0].EquippableItem.Durability = 1000f; e.Markers[1].EquippableItem.Durability = 1000f;
+            e.Target.GearOccupancy[0, 0].EquippableItem.Durability = 0f;
+        }
+        FireCentre(e, 2, Reset, 90f);
+        Assert.Equal(0f, bar.EquippableItem.Durability, 3); // the bar's own 10 durability, fully spent by column 2 alone
+        Assert.Equal(0f, 1000 - e.Markers[0].EquippableItem.Durability, 3); // column 1's own zero deposit: nothing reaches its marker
+        Assert.Equal(5f, 1000 - e.Markers[1].EquippableItem.Durability, 3); // column 2's own leftover (30-15-10=5) reaches its marker
     }
 }
