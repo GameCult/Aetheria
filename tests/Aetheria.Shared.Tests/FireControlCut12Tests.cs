@@ -446,6 +446,33 @@ public sealed class FireControlCut12Tests : IDisposable
         Assert.Equal(expected, p, 4);
     }
 
+    // S4 fix batch (Hands, 2026-09-25): F8 (Soul's earlier fix batch, 2026-09-24) moved range/flightTime
+    // computation ahead of the visibility gate, so Fire's own flight time reflects the real distance even when
+    // PFire prices the shot at 0 -- but nothing behavioural pinned that. N4 (Soul's mutation set: "range after
+    // visibility gate", reverting F8) survived every existing test. A shot at a target the shooter cannot
+    // currently see must still resolve, as a miss (PFire gates it to 0), at the arrival time the real
+    // range/velocity imply -- not immediately (range 0) and not never (flight time 0 means instant resolve).
+    [Fact]
+    public void InvisibleTargetStillResolvesAtItsRealFlightTime()
+    {
+        var e = Build(TestSettings(), SolidShape(5, 5), precision: 1f, velocity: 20); // range 100 -> 5s flight
+        e.Shooter.VisibleEntities.Remove(e.Target);
+
+        var shotId = FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        var pending = e.Zone.PendingShots.Single(s => s.ShotId == shotId);
+        Assert.Equal(0f, pending.PFire); // fixture precondition: the visibility gate is actually closed
+        var expectedArrival = pending.FireTime + 100f / 20f; // the real range (100) over the real velocity (20)
+        Assert.Equal(expectedArrival, pending.ArrivalTime, 3);
+
+        ShotOutcome outcome = null;
+        using var r = e.Zone.ShotResolved.Subscribe(o => outcome = o);
+        e.Zone.Update(4.9f);
+        Assert.Null(outcome); // not yet: N4's bug (range 0) would have resolved this instantly
+        e.Zone.Update(.2f); // past the real 5s arrival
+        Assert.NotNull(outcome);
+        Assert.False(outcome.Hit, "fixture: PFire 0 (not visible) must resolve as a miss");
+    }
+
     // Stryker survivors: ResolveAimPoint's fallback (aimed but currently occupying zero cells -> hull centre
     // of mass) and its multi-cell average were both untested -- every existing marker fixture uses the
     // catalog's 1x1 "Marker" stub, where sum/length and sum*length agree at length 1, and no fixture ever
