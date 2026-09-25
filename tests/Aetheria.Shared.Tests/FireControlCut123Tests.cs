@@ -446,4 +446,135 @@ public sealed class FireControlCut123Tests : IDisposable
 
         Assert.Equal(hullBefore - 40f, e.Target.Hull.Durability, 2);
     }
+
+    // Stryker survivor triage (this cut's own changed lines): Entity.Absorb's `d > 0f` guard boundary-flipped to
+    // `d >= 0f` survived -- at exactly 0 incoming, real code emits nothing ("only for incoming > 0"), the mutant
+    // would additionally fire ArmorDamage(cell, 0). Not a rare float coincidence: a spent lane (rem already 0)
+    // walks past every remaining cell in FireControl.Apply's own loop, so this is the ordinary "nothing left"
+    // case, not an edge case.
+    [Fact]
+    public void AbsorbEmitsNothingAtExactlyZeroIncomingDamage()
+    {
+        var e = Build(TestSettings(), SolidShape(3, 3), precision: 1f, markers: new[] { (new int2(1, 1), 50f) });
+        e.Target.Armor[1, 1] = 5f; e.Target.MaxArmor[1, 1] = 5f;
+        var marker = e.Markers[0];
+
+        var armorEvents = 0;
+        var itemEvents = 0;
+        using var a = e.Target.ArmorDamage.Subscribe(_ => armorEvents++);
+        using var i = e.Target.ItemDamage.Subscribe(_ => itemEvents++);
+
+        var remainder = e.Target.Absorb(new int2(1, 1), 0f);
+
+        Assert.Equal(0f, remainder);
+        Assert.Equal(0, armorEvents);
+        Assert.Equal(0, itemEvents);
+        Assert.Equal(5f, e.Target.Armor[1, 1]);
+        Assert.Equal(50f, marker.EquippableItem.Durability);
+    }
+
+    // Stryker survivor: Entity.Absorb's `d > 0.1f` item-phase guard boundary-flipped to `d >= 0.1f` survived --
+    // at exactly 0.1f remaining after armor, real code leaves the item untouched (the remainder returns to the
+    // caller instead), the mutant would additionally spend it on the item.
+    [Fact]
+    public void AbsorbLeavesTheItemUntouchedAtExactlyPointOneRemaining()
+    {
+        var e = Build(TestSettings(), SolidShape(3, 3), precision: 1f, markers: new[] { (new int2(1, 1), 50f) });
+        e.Target.Armor[1, 1] = 0f; e.Target.MaxArmor[1, 1] = 0f; // bare, so the whole .1f reaches the item check
+        var marker = e.Markers[0];
+
+        var itemEvents = 0;
+        using var i = e.Target.ItemDamage.Subscribe(_ => itemEvents++);
+
+        var remainder = e.Target.Absorb(new int2(1, 1), 0.1f);
+
+        Assert.Equal(0.1f, remainder, 3);
+        Assert.Equal(0, itemEvents);
+        Assert.Equal(50f, marker.EquippableItem.Durability);
+    }
+
+    // Stryker survivor: Entity.DamageHull's `damage > .1f` guard boundary-flipped to `damage >= .1f` survived --
+    // at exactly 0.1f, real code does nothing; the mutant would subtract it from Hull.Durability and fire
+    // HullDamage.
+    [Fact]
+    public void DamageHullDoesNothingAtExactlyPointOne()
+    {
+        var e = Build(TestSettings(), SolidShape(1, 2), precision: 1f);
+        var before = e.Target.Hull.Durability;
+        var events = 0;
+        using var h = e.Target.HullDamage.Subscribe(_ => events++);
+
+        e.Target.DamageHull(0.1f);
+
+        Assert.Equal(0, events);
+        Assert.Equal(before, e.Target.Hull.Durability);
+    }
+
+    // Stryker survivor: FireControl.Apply's `target.IncomingHit.OnNext(shot.Source)` (moved here from the
+    // deleted Entity.ApplyHit's own first line) survived a Statement-to-";" mutation -- nothing asserted that
+    // it still fires on a resolved, unshielded hit.
+    [Fact]
+    public void ApplyFiresIncomingHitOnAResolvedHit()
+    {
+        var e = Build(TestSettings(), SolidShape(3, 3), precision: 1f);
+        Entity source = null;
+        using var s = e.Target.IncomingHit.Subscribe(src => source = src);
+
+        var outcome = FireUntilHit(e, damageOverride: 5f);
+        Assert.NotNull(outcome);
+        Assert.True(outcome.Hit);
+        Assert.Same(e.Shooter, source);
+    }
+
+    // Stryker survivors: FireControl.Apply's two `walked[li] > 0` checks (metalLanes counting, and the
+    // absorb-loop entry) both boundary-flipped to `walked[li] >= 0` survived -- since a lane count can never be
+    // negative, `>= 0` is always true, so BOTH mutants make every lane count as "met metal" and enter the
+    // absorb loop, even a lane that is entirely off the hull. A 1-wide hull with spread 1 (3 lanes: centre plus
+    // one on each side) puts the two side lanes off-hull by construction -- only the centre lane can ever find
+    // metal. The metalLanes mutant would divide the shot's damage by 3 instead of 1 (a wrong, smaller number
+    // reaching the one real cell); the loop-entry mutant would additionally walk the two off-hull lanes with
+    // `walked[li]` still correctly 0 iterations internally, but still fall through to `hullDamage += rem`
+    // (rem never consumed), leaking a full extra damagePerLane share into the hull for each miss.
+    [Fact]
+    public void LanesThatMissTheHullNeitherDiluteTheSplitNorLeakDamage()
+    {
+        var e = Build(TestSettings(), SolidShape(1, 9), precision: .4f, penetration: 0f, damageSpread: 1f);
+        for (var y = 0; y < 9; y++) { e.Target.Armor[0, y] = 1000f; e.Target.MaxArmor[0, y] = 1000f; }
+
+        var hullBefore = e.Target.Hull.Durability;
+        var hits = new List<(int2 pos, float damage)>();
+        using var s = e.Target.ArmorDamage.Subscribe(x => hits.Add(x));
+
+        var outcome = FireUntilHit(e, damageOverride: 30f);
+        Assert.NotNull(outcome);
+        Assert.True(outcome.Hit);
+
+        Assert.Single(hits); // only the centre lane's own impact cell ever records armour damage
+        Assert.Equal(30f, hits[0].damage, 2); // the WHOLE damage, not damage/3 -- metalLanes counted only the hit
+        Assert.Equal(hullBefore, e.Target.Hull.Durability); // nothing leaked to the hull from the off-hull lanes
+    }
+
+    // Stryker survivor: FireControl.Apply's penetration cutoff (`Entry - impactEntry >= shot.Penetration`)
+    // boundary-flipped to `>` survived -- not a rare float coincidence: an axis-aligned lane's entry values are
+    // exact integers (schematic cell spacing), so penetration authored as an exact integer routinely lands
+    // exactly on a cell's own entry difference. Penetration 2 exactly against a 3-cell column (entries ~0,1,2):
+    // the third cell sits exactly AT the boundary and must be excluded ("< penetration" is reached; the mutant
+    // would let it through).
+    [Fact]
+    public void PenetrationExcludesACellExactlyAtItsOwnBoundary()
+    {
+        var e = Build(TestSettings(), SolidShape(3, 3), precision: 1f, penetration: 2f,
+            markers: new[] { (new int2(1, 1), 1000000f) });
+        foreach (var c in e.HullData.Shape.Coordinates) { e.Target.Armor[c.x, c.y] = 0f; e.Target.MaxArmor[c.x, c.y] = 0f; }
+        e.Target.Armor[1, 2] = 50f; e.Target.MaxArmor[1, 2] = 50f; // exactly at entry-diff 2 == penetration
+
+        ShotOutcome outcome = null;
+        for (var attempt = 0; attempt < 200 && (outcome == null || !outcome.Hit || outcome.Cell.x != 1); attempt++)
+            outcome = FireUntilHit(e, damageOverride: 30f, attempts: 1);
+        Assert.NotNull(outcome);
+        Assert.True(outcome.Hit && outcome.Cell.x == 1, "fixture: needed a hit on the centre column within the attempt budget");
+        Assert.Equal(new int2(1, 0), outcome.Cell);
+
+        Assert.Equal(50f, e.Target.Armor[1, 2]); // exactly at entry-diff 2 -- excluded, not "< penetration"
+    }
 }
