@@ -379,13 +379,16 @@ public static class FireControl
 
         var commitHorizon = source.ItemManager.GameplaySettings.CommitHorizon;
 
-        // Cut 6b, 6.2 (Soul finding 5): airburst is a property of the weapon, resolved and frozen here like
-        // every other payload field -- never decided later by a Unity projectile. A weapon without the
-        // Airburst flag freezes a zero radius, which Step below reads as "resolve this shot with Apply."
+        // Cut 12.4(a) (Q12-6, "WeaponModifiers are labels, not behaviour"): a blast is a property of the
+        // weapon's data fields alone, resolved and frozen here like every other payload field -- never decided
+        // later by a Unity projectile, and never by a label. Fire decides "detonates" once: a fuse is frozen
+        // only when BlastRadius > 0, and null otherwise, so a radius without a fuse or a fuse without a radius
+        // is inert and resolves as a direct hit (nothing polices that). A zero-radius freeze is what Step below
+        // still reads as "resolve this shot with Apply."
         var weaponItemData = item.Data as WeaponItemData;
-        var isAirburst = weaponItemData != null && weaponItemData.WeaponModifiers.HasFlag(WeaponModifiers.Airburst);
-        var burstPosition = isAirburst && target != null ? PredictedIntercept(weapon, source, target) : targetPosition;
-        var burstRadius = isAirburst ? weaponItemData.AirburstRange ?? 0f : 0f;
+        var blastRadius = weaponItemData?.BlastRadius > 0f ? weaponItemData.BlastRadius.Value : 0f;
+        var fuse = blastRadius > 0f ? weaponItemData.Fuse : null;
+        var burstPosition = blastRadius > 0f && target != null ? PredictedIntercept(weapon, source, target) : targetPosition;
 
         var shot = new PendingShot
         {
@@ -410,7 +413,8 @@ public static class FireControl
             ArrivalTime = now + flightTime,
             CommitTime = now + max(0f, flightTime - commitHorizon),
             BurstPosition = burstPosition,
-            BurstRadius = burstRadius,
+            Fuse = fuse,
+            BlastRadius = blastRadius,
             Committed = false
         };
 
@@ -457,10 +461,10 @@ public static class FireControl
 
             if (shot.Committed && now >= shot.ArrivalTime)
             {
-                // Cut 6b, 6.2: an airburst shot (frozen BurstRadius > 0) resolves as an area effect instead of
-                // a discrete hit -- Splash instead of Apply, never both, which is exactly the double-
-                // application Soul was told to hunt for.
-                if (shot.BurstRadius > 0f) Splash(zone, shot.BurstPosition, shot.BurstRadius, shot.Damage, shot.DamageType);
+                // Cut 6b, 6.2 (renamed 12.4(a)): a shot with a frozen BlastRadius > 0 resolves as an area effect
+                // instead of a discrete hit -- Splash instead of Apply, never both, which is exactly the
+                // double-application Soul was told to hunt for. The fuse switch itself is 12.4(b)'s.
+                if (shot.BlastRadius > 0f) Splash(zone, shot.BurstPosition, shot.BlastRadius, shot.Damage, shot.DamageType);
                 else Apply(shot);
                 zone.ShotResolved.OnNext(shot.Outcome);
                 shots.RemoveAt(i);
@@ -1243,11 +1247,13 @@ public struct PendingShot
     public float Spread;
     public float FireRange;
 
-    // Cut 6b, 6.2: the airburst payload, frozen at fire alongside everything else above. BurstRadius is zero
-    // for a weapon without the Airburst flag (WeaponModifiers, Enums.cs) -- Step reads that zero as "resolve
-    // with Apply," not a separate bool.
+    // Cut 12.4(a): the blast payload, frozen at Fire alongside everything else above. BlastRadius is zero for
+    // a weapon whose data does not carry one -- Step reads that zero as "resolve with Apply," not a separate
+    // bool. Fuse is frozen only when BlastRadius > 0 (Fire decides "detonates" once); it is unread until
+    // Apply's fuse switch (12.4(b)).
     public float3 BurstPosition;
-    public float BurstRadius;
+    public WeaponFuse? Fuse;
+    public float BlastRadius;
 
     public float3 FireTargetPosition;
     public float3 FireTargetVelocity;

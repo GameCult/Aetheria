@@ -490,12 +490,20 @@ public class WeaponItemData : GearData
     [Inspectable, JsonProperty("modifiers"), Key(28)]
     public WeaponModifiers WeaponModifiers;
 
-    // Cut 6b (docs/fire-control-cut.md, 6.2): the authored blast radius an Airburst-flagged weapon's shot
-    // splashes with at arrival, frozen into PendingShot.BurstRadius at fire. Zero (and unread) for a weapon
-    // without the Airburst flag. No authored value exists yet -- the flag is wired and unexercised until Cut
-    // 6a or a later authoring pass sets it.
-    [Inspectable, JsonProperty("airburstRange"), Key(29)]
-    public float? AirburstRange;
+    // Cut 12.4(a) (docs/fire-control-cut.md): the authored blast radius a weapon's shot detonates with, in
+    // world units. Renamed from AirburstRange -- the slot and type are unchanged, so CultCache opens the
+    // catalog as compatible drift. Null (every shipped record) means no blast; WeaponModifiers no longer
+    // decides this (Q12-6, "WeaponModifiers are labels, not behaviour").
+    [Inspectable, JsonProperty("blastRadius"), Key(29)]
+    public float? BlastRadius;
+
+    // Cut 12.4(a): what kind of blast BlastRadius describes. Nullable under the 7.4 rule -- null means no
+    // blast, and every shipped record reads null. FireControl.Fire freezes this from the weapon only when
+    // BlastRadius > 0; a fuse without a radius, or a radius without a fuse, is inert and resolves as a direct
+    // hit (nothing polices that, per Q12-6). Key 30 and 31 belong to EquippableItemData's OptimalTemperature
+    // and PlateauWidth, inherited here -- the next free key across WeaponItemData's own ancestry is 32.
+    [Inspectable, JsonProperty("fuse"), Key(32)]
+    public WeaponFuse? Fuse;
 }
 
 [CultDocument("aetheria.hulldata", "1"), Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]

@@ -78,7 +78,7 @@ public sealed class FireControlCut6Tests : IDisposable
         GameplaySettings settings,
         float damage = 10, float range = 1000, float velocity = 0, float spread = 0,
         float accuracy = 1, float resolution = 1, float tracking = 100000,
-        float targetRange = 100, bool airburst = false, float airburstRange = 0)
+        float targetRange = 100, WeaponFuse? fuse = null, float blastRadius = 0)
     {
         var hullShape = SolidShape(5, 5);
         var hullData = new HullData
@@ -91,14 +91,15 @@ public sealed class FireControlCut6Tests : IDisposable
         _openCaches.Add(cache);
         cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
         cache.Upsert(hullData);
-        // Cut 6b, 6.2: a real WeaponItemData (not the bare GearData earlier cuts' fixtures use) -- it is the
-        // one catalog type carrying WeaponModifiers (the Airburst flag) and, since this cut, AirburstRange.
+        // Cut 6b, 6.2 (renamed 12.4(a)): a real WeaponItemData (not the bare GearData earlier cuts' fixtures
+        // use) -- it is the one catalog type carrying Fuse and BlastRadius. WeaponModifiers no longer decides
+        // behaviour (Q12-6), so the fixture does not bother setting it.
         cache.Upsert(new WeaponItemData
         {
             Name = "Gun", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Durability = 1,
             MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000,
-            WeaponModifiers = airburst ? WeaponModifiers.Airburst : WeaponModifiers.None,
-            AirburstRange = airburstRange,
+            Fuse = fuse,
+            BlastRadius = blastRadius,
             Behaviors = { new InstantWeaponData
             {
                 Damage = Constant(damage), Range = Constant(range), MinRange = Constant(0),
@@ -246,7 +247,7 @@ public sealed class FireControlCut6Tests : IDisposable
     {
         var settings = TestSettings();
         var e = Build(settings, damage: 500, velocity: 0, accuracy: 0, resolution: 1, tracking: 100000,
-            targetRange: 50, airburst: true, airburstRange: 100);
+            targetRange: 50, fuse: WeaponFuse.Proximity, blastRadius: 100);
 
         var before = e.Target.Hull.Durability;
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
@@ -265,7 +266,7 @@ public sealed class FireControlCut6Tests : IDisposable
         var settings = TestSettings();
 
         var e = Build(settings, damage: 10, velocity: 0, accuracy: 1, resolution: 1, tracking: 100000,
-            targetRange: 50, airburst: true, airburstRange: 100);
+            targetRange: 50, fuse: WeaponFuse.Proximity, blastRadius: 100);
         var before = e.Target.Hull.Durability;
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
         e.Zone.Update(.01f);
@@ -276,7 +277,7 @@ public sealed class FireControlCut6Tests : IDisposable
         // exactly its own position -- PredictedIntercept falls back to target.Position below weapon.Velocity's
         // .01f floor).
         var e2 = Build(settings, damage: 10, velocity: 0, accuracy: 1, resolution: 1, tracking: 100000,
-            targetRange: 50, airburst: true, airburstRange: 100);
+            targetRange: 50, fuse: WeaponFuse.Proximity, blastRadius: 100);
         var before2 = e2.Target.Hull.Durability;
         FireControl.Splash(e2.Zone, e2.Target.Position, 100, 10, DamageType.Kinetic);
         var expectedDelta = before2 - e2.Target.Hull.Durability;
@@ -285,25 +286,50 @@ public sealed class FireControlCut6Tests : IDisposable
         Assert.Equal(expectedDelta, actualDelta, 3);
     }
 
-    // The other side: a non-airburst shot must never splash, even one that lands exactly on its own frozen
+    // The other side: a shot with no blast must never splash, even one that lands exactly on its own frozen
     // burst position at zero range (a stationary target, so BurstPosition == the target's own position at
     // arrival) -- the zero-radius edge case a careless "splash unconditionally" mutant would still pass
     // through, since distance 0 is never greater than radius 0. Accuracy 0 pins the discrete roll to a
     // guaranteed miss, so the correct path (Apply, gated on Outcome.Hit) deals no damage at all. Mutation:
-    // splash unconditionally at arrival instead of gating on BurstRadius -- Splash does not check Hit, so it
-    // would still deal damage even though this shot never carried the Airburst flag.
+    // splash unconditionally at arrival instead of gating on BlastRadius -- Splash does not check Hit, so it
+    // would still deal damage even though this shot never froze a blast.
     [Fact]
     public void NonAirburstNeverSplashes()
     {
         var settings = TestSettings();
         var e = Build(settings, damage: 1000, velocity: 0, accuracy: 0, resolution: 1, tracking: 100000,
-            targetRange: 50, airburst: false);
+            targetRange: 50);
 
         var before = e.Target.Hull.Durability;
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
         e.Zone.Update(.01f);
 
         Assert.Equal(before, e.Target.Hull.Durability);
+    }
+
+    // ---- Cut 12.4(a): Fire decides "detonates" once, from the weapon's own data fields, never from a label
+    // (Q12-6, "WeaponModifiers are labels, not behaviour"). A fuse without a radius is inert: it freezes null,
+    // not the weapon's Fuse. ----
+
+    // Mutation: freeze `weaponItemData.Fuse` unconditionally instead of gating it on `blastRadius > 0f` -- a
+    // weapon that carries a fuse but no radius would then freeze a fuse it should not, and Apply's future
+    // fuse switch (12.4(b)) would try to detonate a shot with nothing to detonate with.
+    [Fact]
+    public void FireFreezesFuseOnlyWhenBlastRadiusIsPositive()
+    {
+        var settings = TestSettings();
+
+        var withRadius = Build(settings, fuse: WeaponFuse.Delayed, blastRadius: 40);
+        FireControl.Fire(withRadius.Weapon, withRadius.WeaponItem, withRadius.Shooter);
+        var shotWithRadius = withRadius.Zone.PendingShots[0];
+        Assert.Equal(WeaponFuse.Delayed, shotWithRadius.Fuse);
+        Assert.Equal(40f, shotWithRadius.BlastRadius);
+
+        var withoutRadius = Build(settings, fuse: WeaponFuse.Delayed, blastRadius: 0);
+        FireControl.Fire(withoutRadius.Weapon, withoutRadius.WeaponItem, withoutRadius.Shooter);
+        var shotWithoutRadius = withoutRadius.Zone.PendingShots[0];
+        Assert.Null(shotWithoutRadius.Fuse);
+        Assert.Equal(0f, shotWithoutRadius.BlastRadius);
     }
 
     // ---- negative: ItemManager.Random no longer appears in FireControl.cs; Airburst no longer appears
