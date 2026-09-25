@@ -312,6 +312,83 @@ public sealed class MiningCut2Tests : IDisposable
     // separates a same-field-different-index or same-index-different-field pair into different buckets, so a
     // mutant weakening Equals from `&&` to `||` never got exercised by a lookup. This tests the value equality
     // directly, the way the operator's ruling actually describes chunk identity: same field AND same index.
+    // Bug (found dormant, confirmed by Soul, on Cut 4's path): Wear did not check whether the chunk was already
+    // broken. A later hit computed newDamage from a fresh 0f (ChunkWear's default Damage after breaking), stayed
+    // under hitpoints, and wrote BrokenUntil = null -- un-breaking a chunk mid-respawn. The rule: damage to a
+    // currently-broken chunk (zone time < BrokenUntil) changes nothing. It stays broken until its original
+    // respawn time regardless of whether the re-hit is above or below hitpoints, and its wear starts from zero
+    // only once it actually respawns.
+    [Fact]
+    public void HittingABrokenChunkDoesNotUnbreakItEitherBelowOrAboveHitpoints()
+    {
+        var f = BuildFixture();
+        const int index = 4;
+        var chunk = new ChunkId(f.BeltA, index);
+        var hp = f.Settings.AsteroidHitpoints.Evaluate(f.AsteroidsA[index].Size);
+        var respawn = f.Settings.AsteroidRespawnTime.Evaluate(f.AsteroidsA[index].Size);
+
+        Assert.True(f.Zone.Wear(chunk, hp + 1f));
+        Assert.False(f.Zone.ChunkExists(chunk));
+
+        // A hit well under hitpoints, inside the respawn window: must not break it (it is already broken) and
+        // must not touch BrokenUntil.
+        f.Zone.Update(respawn * 0.2f);
+        Assert.False(f.Zone.Wear(chunk, hp * 0.1f), "a hit on an already-broken chunk did not break it");
+        Assert.False(f.Zone.ChunkExists(chunk), "must still be absent -- the old bug un-broke it here");
+        Assert.Equal(0f, f.Zone.ChunkRadius(chunk));
+
+        // A second hit, this one alone well over hitpoints, inside the same window: still must not break it
+        // (it is already broken) and must not push BrokenUntil further out.
+        f.Zone.Update(respawn * 0.3f);
+        Assert.False(f.Zone.Wear(chunk, hp + 50f), "a hit on an already-broken chunk did not break it, even when large");
+        Assert.False(f.Zone.ChunkExists(chunk));
+
+        // Just under the original respawn time (measured from the original break, not from either re-hit):
+        // still broken.
+        f.Zone.Update(respawn * 0.45f);
+        Assert.False(f.Zone.ChunkExists(chunk), "must still be broken just under the ORIGINAL respawn time");
+
+        // Crossing the original respawn time: present again, and unworn -- the re-hits left no residue.
+        f.Zone.Update(respawn * 0.1f);
+        Assert.True(f.Zone.ChunkExists(chunk), "must respawn at its original time despite the re-hits");
+        Assert.Equal(f.Zone.AsteroidBelts[f.BeltA].UndamagedSize(index, f.Settings), f.Zone.ChunkRadius(chunk), 4);
+
+        // Worn again from fresh: breaks on the normal threshold, not one warped by the earlier no-op hits.
+        Assert.False(f.Zone.Wear(chunk, hp * 0.9f));
+        Assert.True(f.Zone.ChunkExists(chunk));
+        Assert.True(f.Zone.Wear(chunk, hp * 0.2f));
+        Assert.False(f.Zone.ChunkExists(chunk));
+    }
+
+    // Same rule, checked across a save/reload: a re-hit taken while a chunk is broken must not move BrokenUntil,
+    // and that must survive the pack/unpack round trip -- not just live in the same Zone instance.
+    [Fact]
+    public void ReHitDuringRespawnSurvivesSaveRoundTripAtTheSameAbsoluteTime()
+    {
+        var f = BuildFixture();
+        const int idx = 3;
+        var chunk = new ChunkId(f.BeltB, idx);
+        var hp = f.Settings.AsteroidHitpoints.Evaluate(f.AsteroidsB[idx].Size);
+        var respawn = f.Settings.AsteroidRespawnTime.Evaluate(f.AsteroidsB[idx].Size);
+
+        Assert.True(f.Zone.Wear(chunk, hp + 1f));
+        f.Zone.Update(respawn * 0.4f);
+        Assert.False(f.Zone.Wear(chunk, hp * 0.5f), "re-hit inside the window did not break an already-broken chunk");
+
+        var pack = f.Zone.PackZone();
+        var reloaded = new Zone(f.Items, f.Settings, pack, new GalaxyZone { Name = "MiningCut2ReHitReload", Owner = null }, null);
+
+        Assert.False(reloaded.ChunkExists(chunk), "still broken immediately after reload");
+
+        // Just under the original respawn time (measured from the original break at zone time 0): still broken.
+        reloaded.Update(respawn * 0.59f);
+        Assert.False(reloaded.ChunkExists(chunk), "must still be broken just under the ORIGINAL respawn time after reload");
+
+        reloaded.Update(respawn * 0.02f);
+        Assert.True(reloaded.ChunkExists(chunk), "must respawn at its original absolute time after reload, unmoved by the re-hit");
+        Assert.Equal(f.Zone.AsteroidBelts[f.BeltB].UndamagedSize(idx, f.Settings), reloaded.ChunkRadius(chunk), 4);
+    }
+
     [Fact]
     public void ChunkIdEqualityRequiresBothFieldAndIndex()
     {

@@ -255,13 +255,18 @@ public class Zone
     // Cut 2: the only writer of chunk wear. Returns whether this hit broke the chunk. The break threshold is
     // strictly greater-than, matching the deleted per-tick miner's own comparison against accumulated damage:
     // damage exactly equal to hitpoints does not yet break the chunk, only damage that exceeds them does.
+    // A chunk that is currently broken (zone time < BrokenUntil) absorbs nothing: this hit did not break it
+    // (it was already broken), and its wear stays zeroed until it respawns and starts fresh.
     public bool Wear(ChunkId chunk, float damage)
     {
+        _wear.TryGetValue(chunk, out var wear);
+        if (wear.BrokenUntil.HasValue && wear.BrokenUntil.Value > _time)
+            return false;
+
         var beltData = (AsteroidBeltData) Planets[chunk.Field];
         var size = beltData.Asteroids[chunk.Index].Size;
         var hitpoints = Settings.AsteroidHitpoints.Evaluate(size);
 
-        _wear.TryGetValue(chunk, out var wear);
         var newDamage = wear.Damage + damage;
 
         if (newDamage > hitpoints)
