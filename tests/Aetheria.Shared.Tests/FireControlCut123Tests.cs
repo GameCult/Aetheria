@@ -760,4 +760,290 @@ public sealed class FireControlCut123Tests : IDisposable
         foreach (var c in hitCells)
             Assert.True(c.x >= 3, $"starboard should face the shot, but {c} is on the port side");
     }
+
+    // ===================== F1: an independent direct-hit model at angled bearings =====================
+    // Every existing test through Fire commits at (0,+-1) -- ARayThroughACornerCrossesTheCornerCell calls Lane
+    // directly instead. This model is an exact double-precision ray/box walk, independent of
+    // FireControl.Lane/AlongBearing/SlabAxis, ported from the Soul probe (SoulApply123.cs) that verified this
+    // cut's arithmetic against production to 14,984/15,000 shots (the 16 mismatches were a float boundary).
+    // Used only to compute these tests' own expected values -- never to call production.
+    private struct MCell { public int2 C; public double En, Ex; }
+
+    private static List<MCell> ModelLane(Shape shape, double bx, double by, double s)
+    {
+        double lx = -by, ly = bx;
+        var all = new List<MCell>();
+        foreach (var c in shape.Coordinates)
+        {
+            double t0 = double.NegativeInfinity, t1 = double.PositiveInfinity; var ok = true;
+            void Ax(double d, double p0, double lo, double hi)
+            {
+                if (!ok) return;
+                if (Math.Abs(d) < 1e-12) { if (!(p0 > lo && p0 < hi)) ok = false; return; }
+                var a = (lo - p0) / d; var q = (hi - p0) / d;
+                t0 = Math.Max(t0, Math.Min(a, q)); t1 = Math.Min(t1, Math.Max(a, q));
+            }
+            Ax(bx, s * lx, c.x - .5, c.x + .5);
+            Ax(by, s * ly, c.y - .5, c.y + .5);
+            if (ok && t1 - t0 > 1e-7) all.Add(new MCell { C = c, En = t0, Ex = t1 });
+        }
+        all.Sort((p, q) => p.En.CompareTo(q.En));
+        var walked = new List<MCell>();
+        for (var i = 0; i < all.Count; i++)
+        {
+            if (i > 0 && all[i].En > all[i - 1].Ex + 1e-4) break;
+            walked.Add(all[i]);
+        }
+        return walked;
+    }
+
+    private static double[,] ToD(float[,] a)
+    {
+        var d = new double[a.GetLength(0), a.GetLength(1)];
+        for (var i = 0; i < a.GetLength(0); i++) for (var j = 0; j < a.GetLength(1); j++) d[i, j] = a[i, j];
+        return d;
+    }
+
+    private sealed class DirectHitModel { public double[,] Armor; public Dictionary<EquippedItem, double> Items; public double Hull; }
+
+    // Single lane (spread 0 -- F2's lane-spacing ruling only concerns spread >= 1): armour, then the occupying
+    // item, then the hull, near-to-far, clipped to the penetration depth from the impact cell's own entry.
+    private static DirectHitModel ModelDirectHit(Engagement e, Shape shape, double[,] armorBefore,
+        Dictionary<EquippedItem, double> itemsBefore, double bx, double by, double s, double damage, double penetration)
+    {
+        var r = new DirectHitModel { Armor = (double[,]) armorBefore.Clone(), Items = new Dictionary<EquippedItem, double>(itemsBefore) };
+        var lane = ModelLane(shape, bx, by, s);
+        if (lane.Count == 0) { r.Hull = damage; return r; }
+        var rem = damage; var en0 = lane[0].En;
+        for (var i = 0; i < lane.Count; i++)
+        {
+            if (i > 0 && lane[i].En - en0 >= penetration) break;
+            var c = lane[i].C;
+            if (rem > 0) { var a = r.Armor[c.x, c.y]; r.Armor[c.x, c.y] = Math.Max(a - rem, 0); rem = Math.Max(rem - a, 0); }
+            if (rem > .1)
+            {
+                var item = e.Target.GearOccupancy[c.x, c.y];
+                if (item != null) { var d = r.Items[item]; r.Items[item] = Math.Max(d - rem, 0); rem = Math.Max(rem - d, 0); }
+            }
+        }
+        r.Hull = rem;
+        return r;
+    }
+
+    // F1: a full per-cell parity check against the independent model above, at three angled bearings -- 45
+    // degrees, a shallow angle (within about 11 degrees of an axis) and one with |bx| > |by|. Kills a 0.5-cell
+    // walk (M4), a mirrored bearing when |bx| > |by| (M6b) and a bearing snapped to the nearest axis (M20): all
+    // three produce a visibly wrong set of cells or a wrong entry order against this model at these bearings.
+    [Fact]
+    public void DirectHitAtAnAngledBearingMatchesAnIndependentModel()
+    {
+        void Check(float2 travelDirection, int seed)
+        {
+            var shape = SolidShape(5, 5);
+            var e = Build(TestSettings(), shape, precision: 1f, penetration: 3f);
+            e.Shooter.Position = e.Target.Position - float3(travelDirection.x, 0, travelDirection.y) * 100f;
+
+            var rng = new System.Random(seed);
+            foreach (var c in shape.Coordinates)
+            {
+                var a = (float) Math.Round(rng.NextDouble() * 6, 2);
+                e.Target.Armor[c.x, c.y] = a; e.Target.MaxArmor[c.x, c.y] = Math.Max(a, 1f);
+            }
+            // Equipment includes the ship's own EquippedHull -- excluded here, or randomising its durability
+            // would corrupt Hull.Durability itself, not a schematic-cell item.
+            foreach (var it in e.Target.Equipment)
+                if (it.EquippableItem != e.Target.Hull)
+                    it.EquippableItem.Durability = (float) Math.Round(rng.NextDouble() * 15, 2);
+
+            var armorBefore = ToD(e.Target.Armor);
+            var itemsBefore = e.Target.Equipment.Where(x => x.EquippableItem != e.Target.Hull)
+                .ToDictionary(x => x, x => (double) x.EquippableItem.Durability);
+
+            ShotOutcome outcome = null;
+            double hullEv = 0;
+            using (e.Target.HullDamage.Subscribe(x => hullEv += x))
+            {
+                for (var attempt = 0; attempt < 400 && (outcome == null || !outcome.Hit); attempt++)
+                    outcome = FireUntilHit(e, damageOverride: 40f, attempts: 1);
+            }
+            Assert.NotNull(outcome);
+            Assert.True(outcome.Hit);
+            // fixture precondition: default facing makes the schematic bearing equal the world travel direction.
+            var actualTravel = FireControl.TravelDirection(e.Weapon, e.Shooter, e.Target);
+            Assert.Equal(travelDirection.x, actualTravel.x, 3);
+            Assert.Equal(travelDirection.y, actualTravel.y, 3);
+
+            var model = ModelDirectHit(e, shape, armorBefore, itemsBefore, outcome.Bearing.x, outcome.Bearing.y, outcome.Lateral, 40, 3);
+
+            foreach (var c in shape.Coordinates)
+                Assert.Equal(model.Armor[c.x, c.y], e.Target.Armor[c.x, c.y], 2);
+            foreach (var kv in model.Items)
+                Assert.Equal(kv.Value, (double) kv.Key.EquippableItem.Durability, 2);
+            Assert.Equal(model.Hull, hullEv, 2);
+        }
+
+        Check(normalize(float2(1, 1)), seed: 1); // 45 degrees
+        Check(normalize(float2(.2f, 1)), seed: 2); // shallow: ~11 degrees off the y-axis
+        Check(normalize(float2(2, 1)), seed: 3); // |bx| > |by|
+    }
+
+    // F1: the spec's own diagonal case (Probe1's corner-crossing lane), through the full Fire -> Commit ->
+    // Apply path rather than a direct Lane call. Retries until a hit's own ArmorDamage events show the lane
+    // walking exactly the three corner cells in order -- kills the same M4/M6b/M20 mutants as above from a
+    // different angle: a 0.5-cell march, a mirrored bearing or an axis-snapped bearing would each produce some
+    // other event sequence (or none matching), and 400 attempts would never find this exact one.
+    [Fact]
+    public void DiagonalDirectHitReachesEveryCornerCellInOrderThroughFireCommitApply()
+    {
+        var shape = SolidShape(3, 3);
+        var e = Build(TestSettings(), shape, precision: 1f, penetration: 100f); // ample: never cuts the walk short
+        e.Shooter.Position = e.Target.Position - float3(1, 0, 1) * (100f / (float) Math.Sqrt(2)); // exactly 45 degrees
+        e.Target.GearOccupancy[0, 0].EquippableItem.Durability = 0f; // remove the bystander Gun's own 1 durability
+
+        // Everything bare except the three corner cells (light armour, so damage passes through every one of
+        // them into whatever comes next): a bearing this close to 45 degrees admits the diagonal's own row/column
+        // neighbours too (their shadow overlaps the corner at this angle -- confirmed by sweeping FireControl.Lane
+        // directly over s), so the walked lane is usually five cells, not three; the spec only requires the
+        // three corner cells to be present and in that relative order (Probe1's own "reaches (2,2)"), the same
+        // standard ARayThroughACornerCrossesTheCornerCell already pins for a direct Lane call.
+        void ResetArmor()
+        {
+            foreach (var c in shape.Coordinates) { e.Target.Armor[c.x, c.y] = 0f; e.Target.MaxArmor[c.x, c.y] = 0f; }
+            e.Target.Armor[0, 0] = 5f; e.Target.MaxArmor[0, 0] = 5f;
+            e.Target.Armor[1, 1] = 5f; e.Target.MaxArmor[1, 1] = 5f;
+            e.Target.Armor[2, 2] = 5f; e.Target.MaxArmor[2, 2] = 5f;
+        }
+        ResetArmor();
+
+        var events = new List<int2>();
+        using var sub = e.Target.ArmorDamage.Subscribe(x => events.Add(x.pos));
+        var found = false;
+        ShotOutcome outcome = null;
+        for (var attempt = 0; attempt < 400 && !found; attempt++)
+        {
+            events.Clear();
+            outcome = FireUntilHit(e, damageOverride: 40f, attempts: 1);
+            var i0 = events.IndexOf(new int2(0, 0));
+            var i1 = events.IndexOf(new int2(1, 1));
+            var i2 = events.IndexOf(new int2(2, 2));
+            found = outcome != null && outcome.Hit && i0 >= 0 && i1 > i0 && i2 > i1;
+            if (!found) ResetArmor(); // a hit landing off the diagonal may have spent some of these cells' armour
+        }
+        Assert.True(found, "fixture: needed a hit whose lane reaches (0,0), then (1,1), then (2,2), in that order");
+
+        Assert.Equal(0f, e.Target.Armor[0, 0]);
+        Assert.Equal(0f, e.Target.Armor[1, 1]);
+        Assert.Equal(0f, e.Target.Armor[2, 2]);
+    }
+
+    // ===================== F2: spread lanes diffuse sideways instead of overlapping =====================
+    // Operator ruling (2026-09-25): "I would prefer if the overlapping damage cells were diffused sideways to
+    // thicken the line rather than doubling up." FireControl.Apply now spaces lanes by the shadow width a cell
+    // casts at the committed bearing rather than by one cell. These tests pin the resulting BEHAVIOUR -- no
+    // cell struck twice, mirrored damage, a footprint that widens at an angle -- not the spacing value itself
+    // (operator, correcting an earlier framing: "test behavior, not shape").
+
+    // No cell is struck by two lanes of one shot: heavy uniform armour so every lane's own impact cell fires
+    // exactly one ArmorDamage event if reached, and a cell reached by two lanes would fire twice. Reverting the
+    // lane spacing to one cell (Apply's pre-fix-batch spelling) fails this at both bearings, because a 45-degree
+    // (or |bx| > |by|) shadow is wider than one cell and adjacent one-cell-spaced lanes then share cells.
+    [Fact]
+    public void NoCellIsStruckByTwoLanesAtAnAngledBearing()
+    {
+        void Check(float2 travelDirection)
+        {
+            var shape = SolidShape(9, 9);
+            var e = Build(TestSettings(), shape, precision: 1f, penetration: 0f, damageSpread: 2f); // 5 lanes
+            e.Shooter.Position = e.Target.Position - float3(travelDirection.x, 0, travelDirection.y) * 100f;
+            foreach (var c in shape.Coordinates) { e.Target.Armor[c.x, c.y] = 1000f; e.Target.MaxArmor[c.x, c.y] = 1000f; }
+
+            var hits = new List<int2>();
+            using var s = e.Target.ArmorDamage.Subscribe(x => hits.Add(x.pos));
+            var outcome = FireUntilHit(e, damageOverride: 50f);
+            Assert.NotNull(outcome);
+            Assert.True(outcome.Hit);
+
+            Assert.True(hits.Count > 1, $"expected several lanes to find metal, got {hits.Count}");
+            Assert.Equal(hits.Count, hits.Distinct().Count()); // no cell fires ArmorDamage twice
+        }
+
+        Check(normalize(float2(1, 1))); // 45 degrees
+        Check(normalize(float2(2, 1))); // |bx| > |by|
+    }
+
+    // Mirror-image shots (opposite bearing across the hull's own vertical symmetry axis) deliver, on average,
+    // mirrored per-cell damage. Reverting the lane spacing to one cell fails this (Soul's own probe found about
+    // 30% asymmetry under it): whichever side's lanes happen to overlap eats extra armour that the mirrored
+    // shot's lanes, overlapping the other way, do not.
+    [Fact]
+    public void MirrorImageShotsProduceStatisticallyMirroredDamage()
+    {
+        var shape = SolidShape(9, 9);
+        var b = normalize(float2(1, 1));
+        var bm = float2(-b.x, b.y); // mirrored across the hull's own vertical (x) symmetry axis
+        const int hitsWanted = 300;
+
+        double[,] Sample(float2 travelDirection)
+        {
+            var e = Build(TestSettings(), shape, precision: 1f, penetration: 0f, damageSpread: 2f);
+            e.Shooter.Position = e.Target.Position - float3(travelDirection.x, 0, travelDirection.y) * 100f;
+            foreach (var c in shape.Coordinates) { e.Target.Armor[c.x, c.y] = 1000f; e.Target.MaxArmor[c.x, c.y] = 1000f; }
+
+            var sums = new double[shape.Width, shape.Height];
+            using var s = e.Target.ArmorDamage.Subscribe(x => sums[x.pos.x, x.pos.y] += x.damage);
+            var got = 0;
+            for (var attempt = 0; attempt < 3000 && got < hitsWanted; attempt++)
+            {
+                var outcome = FireUntilHit(e, damageOverride: 50f, attempts: 1);
+                if (outcome != null && outcome.Hit) got++;
+            }
+            Assert.True(got >= hitsWanted, $"fixture: needed {hitsWanted} hits, got {got}");
+            return sums;
+        }
+
+        var a = Sample(b);
+        var m = Sample(bm);
+
+        double totalA = 0, totalDiff = 0;
+        for (var x = 0; x < shape.Width; x++)
+        for (var y = 0; y < shape.Height; y++)
+        {
+            totalA += a[x, y];
+            totalDiff += Math.Abs(a[x, y] - m[shape.Width - 1 - x, y]);
+        }
+        Assert.True(totalDiff < 0.25 * totalA,
+            $"mirror shots should deliver mirrored damage on average: total {totalA}, mirror mismatch {totalDiff}");
+    }
+
+    // The footprint widens at an angled bearing rather than concentrating: the same spread, on the same hull,
+    // covers more lateral distance at 45 degrees than axis-aligned. Reverting the lane spacing to one cell
+    // removes this widening (every bearing gets the same one-cell spacing regardless of angle).
+    [Fact]
+    public void FootprintWidensAtAnAngledBearingComparedToAxisAligned()
+    {
+        double Span(float2 travelDirection)
+        {
+            var shape = SolidShape(9, 9);
+            var e = Build(TestSettings(), shape, precision: 1f, penetration: 0f, damageSpread: 2f);
+            e.Shooter.Position = e.Target.Position - float3(travelDirection.x, 0, travelDirection.y) * 100f;
+            foreach (var c in shape.Coordinates) { e.Target.Armor[c.x, c.y] = 1000f; e.Target.MaxArmor[c.x, c.y] = 1000f; }
+
+            var hits = new List<int2>();
+            using var s = e.Target.ArmorDamage.Subscribe(x => hits.Add(x.pos));
+            var outcome = FireUntilHit(e, damageOverride: 50f);
+            Assert.NotNull(outcome);
+            Assert.True(outcome.Hit);
+            Assert.True(hits.Count >= 3, $"fixture: needed several lanes to find metal, got {hits.Count}");
+
+            var b = normalize(travelDirection);
+            var ell = float2(-b.y, b.x);
+            var projections = hits.Select(c => (double) dot((float2) c, ell)).ToList();
+            return projections.Max() - projections.Min();
+        }
+
+        var axisSpan = Span(float2(0, 1));
+        var angledSpan = Span(normalize(float2(1, 1)));
+
+        Assert.True(angledSpan > axisSpan * 1.2, $"the footprint should widen at an angled bearing: axis {axisSpan}, 45deg {angledSpan}");
+    }
 }
