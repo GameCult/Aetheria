@@ -1417,11 +1417,10 @@ public sealed class FireControlCut123Tests : IDisposable
     // from a table built once up front): a precomputed-once reach table was tried first and produced a real
     // deadlock on a non-convex item crossed twice by the SAME lane, because a set keyed by item identity cannot
     // tell a two-lane first pool apart from the one-lane pool the item's second visit degenerates into. A
-    // genuine cross-item cycle (every remaining lane blocked, nothing left to converge) is broken by
-    // force-settling whatever is still open, in the REVERSE of first-encountered order -- the opposite
-    // tie-break direction from production's own cycle rule, so the two could only agree on a genuine cycle's
-    // numbers by actually computing the same conservation-respecting split, not by sharing a tie-break
-    // convention.
+    // genuine cross-item cycle (every remaining lane blocked, nothing left to converge) is not modelled at all --
+    // this sweep gates its own draws (`LanesReaching`, below) so a cycle is never actually presented to this
+    // fixed point. Finding one here would mean the gating missed a real case, not a numbers question for this
+    // function to answer with its own tie-break; see the cycle-break check at the end of this function.
     //
     // Geometry itself is NOT reimplemented a third time: which cells belong to which lane is read directly from
     // `FireControl.Lanes`, the one public function this whole cut already treats as the single geometric owner
@@ -1554,12 +1553,15 @@ public sealed class FireControlCut123Tests : IDisposable
                 if (ReadyToSettle(item, openPool[item])) { Settle(item); progressed = true; }
         }
 
-        // Cycle break: a genuine cyclic dependency between two non-convex items leaves pools open with no lane
-        // able to progress. Force-settle whatever remains, in the REVERSE of first-encountered order --
-        // deliberately the opposite tie-break to production's own, so agreement on a genuine cycle's numbers
-        // can only come from both sides actually conserving and splitting correctly.
-        foreach (var item in Enumerable.Reverse(new List<EquippedItem>(openPool.Keys)))
-            if (openPool.ContainsKey(item)) Settle(item);
+        // Cycle break: the model never meets a cycle. This sweep gates its own draws (`LanesReaching`, below) so
+        // a genuine cross-item cycle -- every remaining lane blocked, nothing left to converge -- is never
+        // actually presented to this fixed point. A pool still open here means the gating let a real cycle
+        // through, which is a defect in the sweep, not a numbers question this function should silently answer
+        // with its own tie-break.
+        if (openPool.Count > 0)
+            throw new InvalidOperationException(
+                "FixedPointItemResolution: the model never meets a cycle -- a pool is still open after the fixed " +
+                "point settled, which means this sweep's own gating let a genuine cross-item cycle through.");
 
         return (armor, items, hull);
     }
@@ -1850,5 +1852,112 @@ public sealed class FireControlCut123Tests : IDisposable
         Assert.Equal(0f, bar.EquippableItem.Durability, 3); // the bar's own 10 durability, fully spent by column 2 alone
         Assert.Equal(0f, 1000 - e.Markers[0].EquippableItem.Durability, 3); // column 1's own zero deposit: nothing reaches its marker
         Assert.Equal(5f, 1000 - e.Markers[1].EquippableItem.Durability, 3); // column 2's own leftover (30-15-10=5) reaches its marker
+    }
+
+    // Soul's own claim (2026-09-25, fix batch on 166b6202): a zero-deposit contributor -- column 1's lane here,
+    // whose armour eats its whole share before it ever reaches the bar -- must never fire a phantom ItemDamage
+    // event for that zero. Same fixture as ZeroDepositDoesNotStall above (that test pins durability and marker
+    // leftovers; this one pins the event itself, which Entity.ItemAbsorb's `incoming[i] > 0f` guard decides).
+    // Kills a boundary flip of that guard to `>=` (a zero deposit would then fire) and a swap that reports the
+    // post-split share instead of the incoming one.
+    [Fact]
+    public void ZeroDepositContributorFiresNoItemDamageEvent()
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), precision: .6f, penetration: 2.5f, damageSpread: 1f,
+            bars: new[] { (new int2(1, 1), 10f) }, markers: new[] { (new int2(1, 2), 1000f), (new int2(2, 2), 1000f) });
+        var bar = e.Target.GearOccupancy[1, 1];
+        void Reset()
+        {
+            ZeroArmor(e, 5, 4);
+            e.Target.Armor[1, 0] = 1000f; e.Target.MaxArmor[1, 0] = 1000f; e.Target.Armor[2, 1] = 15f;
+            bar.EquippableItem.Durability = 10f;
+            e.Target.GearOccupancy[0, 0].EquippableItem.Durability = 0f;
+        }
+
+        // A fresh subscription per attempt (the PooledPathHonoursTheItemThresholdLikeTheSoloPath convention,
+        // above): a rejected attempt still fires a real shot, and its events must not contaminate the accepted
+        // attempt's own count.
+        var barEvents = new List<float>();
+        ShotOutcome outcome = null;
+        for (var attempt = 0; attempt < 800 && (outcome == null || !outcome.Hit || outcome.Cell.x != 2); attempt++)
+        {
+            Reset();
+            barEvents.Clear();
+            using var sub = e.Target.ItemDamage.Subscribe(x => { if (x.item == bar) barEvents.Add(x.damage); });
+            outcome = FireUntilHit(e, damageOverride: 90f, attempts: 1);
+        }
+        Assert.True(outcome != null && outcome.Hit && outcome.Cell.x == 2, "fixture: needed a hit on the centre interior column within the attempt budget");
+
+        Assert.Single(barEvents); // column 2's own deposit only -- column 1's zero deposit fires nothing
+        Assert.Equal(15f, barEvents[0], 3); // column 2's post-armour remainder (30 - 15 armour)
+    }
+
+    // An item crossed by a lane whose CLIPPED walk ends before the item's own cell on that lane must not wait
+    // for that lane -- reach is decided by the clipped walk (what Apply's own penetration clip left), never by
+    // the lane's raw, unclipped geometry. A 2x1 bar at row 2; penetration 1.5 clips every lane to rows 0-1, so no
+    // lane can ever reach the bar at all -- if StillReachableByAnotherLane read the raw walk instead, a lane
+    // that (on the raw geometry) also crosses the bar's row would look like a future reacher and the other
+    // lane's own pool would stall waiting for it forever.
+    [Fact]
+    public void ClippedLaneDoesNotHoldThePool()
+    {
+        // 2x1 bar at (1,2)-(2,2); straight shot, lanes cols 1,2,3; penetration 1.5 -> each lane reaches rows 0,1 only.
+        var e = Build(TestSettings(), SolidShape(5, 5), precision: .6f, penetration: 1.5f, damageSpread: 1f,
+            bars: new[] { (new int2(1, 2), 10f) });
+        var bar = e.Target.GearOccupancy[1, 2];
+        void Reset()
+        {
+            ZeroArmor(e, 5, 5);
+            bar.EquippableItem.Durability = 10f;
+            e.Target.GearOccupancy[0, 0].EquippableItem.Durability = 0f;
+        }
+
+        var hull = 0f;
+        ShotOutcome outcome = null;
+        for (var attempt = 0; attempt < 800 && (outcome == null || !outcome.Hit || outcome.Cell.x != 2); attempt++)
+        {
+            Reset();
+            hull = 0f;
+            using var sub = e.Target.HullDamage.Subscribe(d => hull += d);
+            outcome = FireUntilHit(e, damageOverride: 90f, attempts: 1);
+        }
+        Assert.True(outcome != null && outcome.Hit && outcome.Cell.x == 2, "fixture: needed a hit on the centre column within the attempt budget");
+
+        Assert.Equal(10f, bar.EquippableItem.Durability, 3); // never reached -- clipped out before row 2
+        Assert.Equal(90f, hull, 2); // the whole shot (3 lanes x 30, no armour, nothing absorbed) reaches the hull
+    }
+
+    // A lane's own LATER cell of the same item never holds that item's pool open -- only OTHER lanes are future
+    // reachers (StillReachableByAnotherLane's own `alreadyContributed` check, F1 fix batch). Lane column 1
+    // crosses a vertical 1x2 item X twice (X spans rows 1-2 in that single column), then a 2x1 bar Z it shares
+    // with column 2's lane at row 3. Column 2 reaches Z first and must wait for column 1; column 1's two visits
+    // to X are each a solo pool (nothing else ever reaches X) and must resolve at once rather than stalling on
+    // column 1's own second visit, so column 1 goes on to reach Z and the pool there is the genuine
+    // {column 1: 25, column 2: 30} -- not a cycle-rule resolve of Z with column 2 alone (which deleting the
+    // `alreadyContributed` guard produces instead).
+    [Fact]
+    public void OwnRepeatVisitDoesNotHoldThePool()
+    {
+        var e = Build(TestSettings(), SolidShape(5, 6), precision: .6f, penetration: 10f, damageSpread: 1f,
+            bars: new[] { (new int2(1, 3), 20f) }, markers: new[] { (new int2(1, 4), 1000f), (new int2(2, 4), 1000f) },
+            custom: new[] { ("SoulV", CellsShape(1, 2, (0, 0), (0, 1)), new int2(1, 1), 5f) });
+        var z = e.Target.GearOccupancy[1, 3];
+        var x = e.Custom["SoulV"];
+        void Reset()
+        {
+            ZeroArmor(e, 5, 6);
+            z.EquippableItem.Durability = 20f;
+            x.EquippableItem.Durability = 5f;
+            e.Markers[0].EquippableItem.Durability = 1000f;
+            e.Markers[1].EquippableItem.Durability = 1000f;
+            e.Target.GearOccupancy[0, 0].EquippableItem.Durability = 0f;
+        }
+
+        FireCentre(e, 2, Reset, 90f);
+        var l1 = 1000f - e.Markers[0].EquippableItem.Durability;
+        var l2 = 1000f - e.Markers[1].EquippableItem.Durability;
+        Assert.Equal(0f, z.EquippableItem.Durability, 3);
+        Assert.Equal(25f * 35f / 55f, l1, 2); // column 1's own leftover after X (30 - 5, X's own 5 durability): 15.909
+        Assert.Equal(30f * 35f / 55f, l2, 2); // column 2's leftover pooled with column 1's at Z (durability 20): 19.091
     }
 }
