@@ -170,7 +170,7 @@ public interface IPowerConsumer
  Union(23, typeof(ThermotoggleData)),
  Union(24, typeof(EnergyDrawData)),
  // Union(25, typeof(MiningControllerData)),
- Union(26, typeof(MiningToolData)),
+ // Union(26): retired, do not reuse -- was the "hit it with a tool" behavior deleted in Cut 2 (docs/mining-cut.md, Q1=A).
  // Union(27, typeof(SurveyControllerData)),
  Union(28, typeof(ResourceScannerData)),
  // Union(29, typeof(WanderControllerData)),

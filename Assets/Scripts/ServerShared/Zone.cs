@@ -11,7 +11,6 @@ using UniRx;
 using CultMath;
 using static CultMath.math;
 using float2 = CultMath.float2;
-using Random = CultMath.Random;
 
 public class Zone
 {
@@ -28,8 +27,11 @@ public class Zone
 
     private ItemManager _itemManager;
     private double _time;
-    private Random _random;
     public List<Agent> Agents = new List<Agent>();
+
+    // Cut 2 (docs/mining-cut.md): chunk wear, keyed by chunk. Zone.Wear is the only writer; ChunkExists and
+    // ChunkRadius are the only readers besides the pack/unpack round trip below.
+    private Dictionary<ChunkId, ChunkWear> _wear = new Dictionary<ChunkId, ChunkWear>();
 
     // Cut 3 (docs/fire-control-cut.md, 0b table): Zone owns the pending-shot collection and the ShotId
     // namespace; FireControl owns every transition a shot goes through. ShotCommitted publishes once a shot's
@@ -64,7 +66,6 @@ public class Zone
         _itemManager = itemManager;
         Settings = settings;
         CombatSeed = galaxyZone?.Name.StableHash() ?? 1337u;
-        _random = new Random(CombatSeed);
         var cache = itemManager.ItemData;
 
         // Cut 5, 5.6 (docs/fire-control-cut.md, Soul finding 7; operator ruling Q3): death removes the ship,
@@ -98,6 +99,13 @@ public class Zone
                     break;
             }
         }
+
+        // Cut 2 (docs/mining-cut.md): read after belts are built so a later ChunkExists/ChunkRadius call has
+        // Planets/AsteroidBelts populated. A pack from before key 6 existed has ChunkWear == null (nullable
+        // persistence rule); that reads as no wear rather than throwing.
+        if (pack.ChunkWear != null)
+            foreach (var wear in pack.ChunkWear)
+                _wear[new ChunkId(wear.Field, wear.Index)] = new ChunkWear { Damage = wear.Damage, BrokenUntil = wear.BrokenUntil };
 
         foreach (var entityPack in pack.Entities)
         {
@@ -133,9 +141,18 @@ public class Zone
             Entities = Entities.Select(EntitySerializer.Pack).ToList(),
             Orbits = Orbits.Keys.Select(key => new CultRecordRef<OrbitData>(key)).ToList(),
             Planets = Planets.Keys.Select(key => new CultRecordRef<BodyData>(key)).ToList(),
-            Time = _time
+            Time = _time,
+            // Cut 2 (docs/mining-cut.md): drop entries that carry no live information -- healed (no damage) and
+            // not currently broken -- so a save never accumulates wear rows for chunks nobody has touched since
+            // they last respawned.
+            ChunkWear = _wear
+                .Where(kv => !IsExpired(kv.Value))
+                .Select(kv => new ChunkWearPack { Field = kv.Key.Field, Index = kv.Key.Index, Damage = kv.Value.Damage, BrokenUntil = kv.Value.BrokenUntil })
+                .ToList()
         };
     }
+
+    private bool IsExpired(ChunkWear wear) => wear.Damage <= 0f && (!wear.BrokenUntil.HasValue || wear.BrokenUntil.Value <= _time);
 
     public void AddOrbit(OrbitData orbit)
     {
@@ -209,7 +226,54 @@ public class Zone
         return float2.zero;
     }
 
-    public bool AsteroidExists(CultRecordKey planetDataID, int asteroid) => ((AsteroidBeltData) Planets[planetDataID]).Asteroids.Length > asteroid && asteroid >= 0;
+    // Cut 2 (docs/mining-cut.md): the index is in range for its field and the chunk is not broken at zone time.
+    // Respawn is a comparison against zone time, never a per-tick loop or a write on read.
+    public bool ChunkExists(ChunkId chunk)
+    {
+        if (!(Planets.TryGetValue(chunk.Field, out var body) && body is AsteroidBeltData beltData))
+            return false;
+        if (chunk.Index < 0 || chunk.Index >= beltData.Asteroids.Length)
+            return false;
+        return !(_wear.TryGetValue(chunk, out var wear) && wear.BrokenUntil.HasValue && wear.BrokenUntil.Value > _time);
+    }
+
+    // Cut 2: the size rule of AsteroidBelt.Size (Cut 1), now reading wear from its one owner (Zone) instead of
+    // per-belt dictionaries. A broken chunk (BrokenUntil in the future) has no size; an unbroken, undamaged
+    // chunk reads its authored size; a damaged one shrinks toward it.
+    public float ChunkRadius(ChunkId chunk)
+    {
+        var belt = AsteroidBelts[chunk.Field];
+        if (!_wear.TryGetValue(chunk, out var wear))
+            return belt.UndamagedSize(chunk.Index, Settings);
+        if (wear.BrokenUntil.HasValue && wear.BrokenUntil.Value > _time)
+            return 0f;
+        if (wear.Damage <= 0f)
+            return belt.UndamagedSize(chunk.Index, Settings);
+        return belt.DamagedSize(chunk.Index, wear.Damage, Settings);
+    }
+
+    // Cut 2: the only writer of chunk wear. Returns whether this hit broke the chunk. The break threshold is
+    // strictly greater-than, matching the deleted per-tick miner's own comparison against accumulated damage:
+    // damage exactly equal to hitpoints does not yet break the chunk, only damage that exceeds them does.
+    public bool Wear(ChunkId chunk, float damage)
+    {
+        var beltData = (AsteroidBeltData) Planets[chunk.Field];
+        var size = beltData.Asteroids[chunk.Index].Size;
+        var hitpoints = Settings.AsteroidHitpoints.Evaluate(size);
+
+        _wear.TryGetValue(chunk, out var wear);
+        var newDamage = wear.Damage + damage;
+
+        if (newDamage > hitpoints)
+        {
+            var respawnTime = Settings.AsteroidRespawnTime.Evaluate(size);
+            _wear[chunk] = new ChunkWear { Damage = 0f, BrokenUntil = _time + respawnTime };
+            return true;
+        }
+
+        _wear[chunk] = new ChunkWear { Damage = newDamage, BrokenUntil = null };
+        return false;
+    }
 
     // Cut 1 (docs/mining-cut.md): a chunk's pose is a pure function of zone time, computed when asked. No stored
     // pose survives a tick; the sim and the renderer both read it fresh through here.
@@ -217,14 +281,17 @@ public class Zone
     {
         var beltData = Planets[belt] as AsteroidBeltData;
         var parentPosition = GetOrbitPosition(Orbits[beltData.Orbit.Key].Data.Parent.Key);
-        return AsteroidBelts[belt].Pose(index, _time, parentPosition, Settings);
+        var size = ChunkRadius(new ChunkId(belt, index));
+        return AsteroidBelts[belt].Pose(index, _time, parentPosition, Settings, size);
     }
 
     public void EvaluateBelt(CultRecordKey belt, Span<float4> into)
     {
         var beltData = Planets[belt] as AsteroidBeltData;
         var parentPosition = GetOrbitPosition(Orbits[beltData.Orbit.Key].Data.Parent.Key);
-        AsteroidBelts[belt].Evaluate(into, _time, parentPosition, Settings);
+        var beltInstance = AsteroidBelts[belt];
+        for (var i = 0; i < beltData.Asteroids.Length; i++)
+            into[i] = beltInstance.Pose(i, _time, parentPosition, Settings, ChunkRadius(new ChunkId(belt, i)));
     }
 
     public OrbitData CreateOrbit(CultRecordKey parent, float2 position)
@@ -245,46 +312,6 @@ public class Zone
         };
         Orbits.Add(_itemManager.ItemData.Upsert(orbit).Key, new Orbit(Settings, orbit));
         return orbit;
-    }
-
-    public void MineAsteroid(Entity miner, CultRecordKey asteroidBelt, int asteroid, float damage, float efficiency, float penetration)
-    {
-        var beltData = Planets[asteroidBelt] as AsteroidBeltData;
-        var belt = AsteroidBelts[asteroidBelt];
-        //var asteroidTransform = belt.Transforms[asteroid];
-
-        var size = beltData.Asteroids[asteroid].Size;
-        var asteroidHitpoints = Settings.AsteroidHitpoints.Evaluate(size);
-
-        if (!belt.Damage.ContainsKey(asteroid))
-            belt.Damage[asteroid] = 0;
-        belt.Damage[asteroid] = belt.Damage[asteroid] + damage;
-
-        if (!belt.MiningAccumulator.ContainsKey((miner, asteroid)))
-            belt.MiningAccumulator[(miner, asteroid)] = 0;
-        belt.MiningAccumulator[(miner, asteroid)] = belt.MiningAccumulator[(miner, asteroid)] + damage;
-
-        if (belt.Damage[asteroid] > asteroidHitpoints)
-        {
-            belt.RespawnTimers[asteroid] = Settings.AsteroidRespawnTime.Evaluate(size);
-            belt.Damage.Remove(asteroid);
-            belt.MiningAccumulator.Remove((miner, asteroid));
-            return;
-        }
-
-        var resourceCount = beltData.Resources.Sum(x => x.Value);
-        var resource = beltData.Resources.MaxBy(x => pow(x.Value, 1f / penetration) * _random.NextFloat());
-        if (efficiency * _random.NextFloat() * belt.MiningAccumulator[(miner, asteroid)] * resourceCount / Settings.MiningDifficulty > 1)
-        {
-            belt.MiningAccumulator.Remove((miner, asteroid));
-            // var newSimpleCommodity = new SimpleCommodity
-            // {
-            //     Data = resource.Key,
-            //     Quantity = 1
-            // };
-            // TODO: Drop item onto the Grid
-            //miner.AddCargo(newSimpleCommodity);
-        }
     }
 
     public SecurityLevel GetSecurityLevel(float2 pos)
@@ -456,9 +483,6 @@ public class AsteroidBelt
 {
     public AsteroidBeltData Data;
     public float Radius { get; }
-    public Dictionary<int, float> RespawnTimers = new Dictionary<int, float>();
-    public Dictionary<int, float> Damage = new Dictionary<int, float>();
-    public Dictionary<(Entity, int), float> MiningAccumulator = new Dictionary<(Entity, int), float>();
 
     public AsteroidBelt(AsteroidBeltData data)
     {
@@ -467,34 +491,57 @@ public class AsteroidBelt
     }
 
     // Cut 1 (docs/mining-cut.md): the formula of Zone.cs:269-271 verbatim, `time` in double as `_time` was used.
-    // The only place a chunk pose is computed; no per-tick copy survives it.
-    public float4 Pose(int index, double time, float2 parentPosition, PlanetSettings settings)
+    // The only place a chunk pose is computed; no per-tick copy survives it. Cut 2: size is no longer read from
+    // per-belt storage -- Zone owns wear now, so the caller (Zone.ChunkPose/EvaluateBelt) computes it through
+    // Zone.ChunkRadius and passes it in.
+    public float4 Pose(int index, double time, float2 parentPosition, PlanetSettings settings, float size)
     {
         var asteroid = Data.Asteroids[index];
         var rot = (float) (time * asteroid.RotationSpeed % (PI * 2));
         var pos = OrbitData.Evaluate((float) frac(time / settings.OrbitPeriod.Evaluate(asteroid.Distance) +
                                                   asteroid.Phase)) * asteroid.Distance + parentPosition;
-        return float4(pos.x, pos.y, rot, Size(index, settings));
+        return float4(pos.x, pos.y, rot, size);
     }
 
-    // Cut 1 (docs/mining-cut.md): the size rule of Zone.cs:259-267, moved unchanged.
-    public float Size(int index, PlanetSettings settings)
+    // Cut 1's size rule (Zone.cs:259-267), split in Cut 2 into its undamaged and damaged halves now that wear
+    // lives on Zone instead of here. Neither reads wear directly; the caller (Zone.ChunkRadius) decides which
+    // applies and supplies the damage.
+    public float UndamagedSize(int index, PlanetSettings settings) => settings.AsteroidSize.Evaluate(Data.Asteroids[index].Size);
+
+    public float DamagedSize(int index, float damage, PlanetSettings settings)
     {
-        if (RespawnTimers.ContainsKey(index)) return 0;
-        if (Damage.ContainsKey(index))
-        {
-            var asteroidHitpoints = settings.AsteroidHitpoints.Evaluate(Data.Asteroids[index].Size);
-            var damage = (asteroidHitpoints - Damage[index]) / asteroidHitpoints;
-            return settings.AsteroidSize.Evaluate(damage * Data.Asteroids[index].Size);
-        }
-        return settings.AsteroidSize.Evaluate(Data.Asteroids[index].Size);
+        var asteroidHitpoints = settings.AsteroidHitpoints.Evaluate(Data.Asteroids[index].Size);
+        var remaining = (asteroidHitpoints - damage) / asteroidHitpoints;
+        return settings.AsteroidSize.Evaluate(remaining * Data.Asteroids[index].Size);
+    }
+}
+
+// Cut 2 (docs/mining-cut.md): a chunk is (field, index). "Field" is deliberate, not "belt" -- the operator's
+// ruling generalizes chunks to other kinds of debris field later; only AsteroidBelt/AsteroidBeltData, the one
+// live field kind, keep their existing names.
+public readonly struct ChunkId : IEquatable<ChunkId>
+{
+    public readonly CultRecordKey Field;
+    public readonly int Index;
+
+    public ChunkId(CultRecordKey field, int index)
+    {
+        Field = field;
+        Index = index;
     }
 
-    public void Evaluate(Span<float4> into, double time, float2 parentPosition, PlanetSettings settings)
-    {
-        for (var i = 0; i < Data.Asteroids.Length; i++)
-            into[i] = Pose(i, time, parentPosition, settings);
-    }
+    public bool Equals(ChunkId other) => Field.Equals(other.Field) && Index == other.Index;
+    public override bool Equals(object obj) => obj is ChunkId other && Equals(other);
+    public override int GetHashCode() => (Field.GetHashCode() * 397) ^ Index;
+}
+
+// Cut 2: wear on one chunk. BrokenUntil is the absolute zone time the chunk respawns at; null means the chunk
+// carries damage (or none) but is not currently broken. Respawn is read lazily by comparing to zone time --
+// nothing decrements or clears this on a timer.
+public struct ChunkWear
+{
+    public float Damage;
+    public double? BrokenUntil;
 }
 
 public class Orbit

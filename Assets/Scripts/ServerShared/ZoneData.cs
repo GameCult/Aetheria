@@ -35,7 +35,32 @@ public class ZonePack
     [JsonProperty("time"), Key(5)]
     public double Time;
 
+    // Cut 2 (docs/mining-cut.md): chunk wear (damage taken, broken-until time), keyed by chunk. Nullable, not
+    // defaulted to an empty list: an older record has no key 6 at all, and MessagePack fills a missing trailing
+    // key with nil, which a reference-typed field reads back as null. ARunWithoutKeySixLoadsWhole pins that a
+    // record from before this key existed loads with no wear, rather than throwing or silently reading a
+    // default instance.
+    [JsonProperty("chunkWear"), Key(6)]
+    public List<ChunkWearPack> ChunkWear;
+}
 
+// Cut 2 (docs/mining-cut.md): one packed wear entry for one chunk. "Field" names the body that owns the chunk
+// (an asteroid belt today; the operator's ruling generalizes chunks to other kinds of debris field later), not
+// "belt" -- the chunk surface itself must not bake in the one live field kind.
+[MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+public class ChunkWearPack
+{
+    [JsonProperty("field"), Key(0)]
+    public CultRecordKey Field;
+
+    [JsonProperty("index"), Key(1)]
+    public int Index;
+
+    [JsonProperty("damage"), Key(2)]
+    public float Damage;
+
+    [JsonProperty("brokenUntil"), Key(3)]
+    public double? BrokenUntil;
 }
 
 [JsonObject(MemberSerialization.OptIn)]

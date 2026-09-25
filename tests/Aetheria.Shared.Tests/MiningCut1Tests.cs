@@ -173,30 +173,29 @@ public sealed class MiningCut1Tests : IDisposable
         }
     }
 
+    // Cut 2 (docs/mining-cut.md) moved wear off AsteroidBelt and onto Zone, so this now pins only the two pure
+    // size formulas AsteroidBelt still owns (undamaged, and damaged-given-a-damage-value). Whether a chunk is
+    // broken, and what its size reads as when broken, is Zone's decision -- see MiningCut2Tests
+    // (BrokenChunkHasNoRadius, DamagedChunkShrinksTowardBroken).
     [Fact]
-    public void DamagedChunkShrinksAndABrokenOneHasNoSize()
+    public void UndamagedAndDamagedSizeAreThePureCurves()
     {
         var (zone, beltKey, asteroids, settings) = BuildFixture();
         var belt = zone.AsteroidBelts[beltKey];
 
         const int undamagedIndex = 5;
         const int damagedIndex = 9;
-        const int brokenIndex = 14;
 
         var undamagedExpected = settings.AsteroidSize.Evaluate(asteroids[undamagedIndex].Size);
-        Assert.Equal(undamagedExpected, belt.Size(undamagedIndex, settings), 4);
+        Assert.Equal(undamagedExpected, belt.UndamagedSize(undamagedIndex, settings), 4);
 
         var hp = settings.AsteroidHitpoints.Evaluate(asteroids[damagedIndex].Size);
         var damage = hp * 0.6f;
-        belt.Damage[damagedIndex] = damage;
         var damagedExpected = settings.AsteroidSize.Evaluate((hp - damage) / hp * asteroids[damagedIndex].Size);
-        var damagedActual = belt.Size(damagedIndex, settings);
+        var damagedActual = belt.DamagedSize(damagedIndex, damage, settings);
         Assert.Equal(damagedExpected, damagedActual, 4);
         Assert.True(damagedActual < settings.AsteroidSize.Evaluate(asteroids[damagedIndex].Size),
             "a damaged asteroid must be smaller than its undamaged size");
-
-        belt.RespawnTimers[brokenIndex] = settings.AsteroidRespawnTime.Evaluate(asteroids[brokenIndex].Size);
-        Assert.Equal(0f, belt.Size(brokenIndex, settings));
     }
 
     // Stryker gap (2026-09-25 Stryker pass on this cut): nothing called Zone.EvaluateBelt or
