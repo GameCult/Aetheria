@@ -165,7 +165,26 @@ damage channel with its own DPS, efficiency, penetration and range. Nothing assi
 - **Recommended: A.** B is a second hit path with its own dice and its own yield rule, which is exactly the
   split Cut 3 of fire control removed. `ResourceScanner` is Q2's business.
 
-**Q2 (blocks Cut 3). How does a chunk become a target?** This is the architectural fork. The options below were
+**Q2 (blocks Cut 3). How does a chunk become a target?** **Ruled 2026-09-25: A, one slot, two kinds.**
+Operator: "Note that I have been saying chunks specifically because this should generalize to more than just
+asteroid fields ("rocks"), there's various kinds of debris fields we'd want to represent, too. Maybe that's
+pedantic, it doesn't change the schema. One target slot, two kinds." So a target is an `Entity` or a **chunk of a
+field**; asteroid belts are one kind of field and debris fields another. `ChunkId` is `(Field, Index)` (landed in
+Cut 2); new chunk-surface code speaks of chunks and fields, never belts or rocks. Composition and loot tables
+(Q4, Q7) are per field kind: a debris field rolls salvage through the same weighted roll.
+
+**Detection is deferred to the electronic-warfare campaign.** Operator, correcting Self's "rocks never hide": "But
+uh, chunks have the same kind of sensor envelope as a hull, that's what makes masking and hiding possible. They
+have black body emission and an albedo and a cross section." Then: "Put the fields in, defer the signature and
+detection work for the later EW campaign." So, as **explicit placeholders the EW campaign owns and replaces**:
+a chunk passes the visibility gate unconditionally with PSensor 1 (weapon range and arc still gate); targeting a
+chunk is an on-demand query against the field, with no per-tick chunk detection; `ResourceScanner` parks (its data
+stays; its purpose is decided with detection). Handed to EW: chunks present a sensor envelope like a hull
+(black-body emission, albedo, cross-section), which makes masking and hiding in fields possible; per-chunk
+evaluation must stay on demand or be aggregated per field for cost (per-pair detection is ~184 ns per observed body
+per tick, the reason chunks-as-entities was rejected).
+
+The options as mapped, kept for the record: The options below were
 costed against the live code:
 
 - **A. One slot, two kinds.** `Entity.Target` becomes `ReactiveProperty<TargetRef>`, where `TargetRef` is a small
@@ -190,7 +209,7 @@ costed against the live code:
 rock" is the one-owner sentence, and it matches the parked electronic-warfare direction: "every body presents a
 signature through the shared detection interface". Consequences that come with A, named here and not decided
 later:
-- **Visibility.** A chunk passes the visibility gate within the shooter's chunk detection range, and its PSensor is
+- **Visibility (superseded 2026-09-25 by the EW deferral above).** A chunk passes the visibility gate within the shooter's chunk detection range, and its PSensor is
   1, because rocks do not hide. Recommend that range be the equipped `ResourceScanner`'s `Range`, with a
   `GameplaySettings.UnaidedChunkRange` fallback. That is the `TargetingSystem`/`UnaidedTracking` precedent
   (`FireControl.cs:121-125`), and it gives `ResourceScanner` a job: it is to chunks what the targeting system is to
@@ -461,9 +480,11 @@ lot. That includes every existing loadout ammo stack. Reading such a lot through
 
 Status: cut map. Ends are owned by Part I of this document; Part III owns the means.
 
-Rulings (operator): Q1 = A, Q3 = A (2026-09-25). Q2, Q4-Q9 open.
+Rulings (operator): Q1 = A, Q2 = A (with the field generalization and the EW deferral), Q3 = A (2026-09-25). Q4-Q9 open.
 
-Open: Q2, Q4-Q9. Cut 2 is unblocked.
+Open: Q4-Q9. Cut 3 waits only on fire-control Cut 12 closing (it edits `FireControl.cs`).
+
+**Cut 2: landed 2026-09-25** at `3b9f0f1d`, `c924bae0`, `daa64560`. 272 tests; production net −73 lines; `AetherDb census` byte-identical; break threshold kept strictly `>`; `ZonePack` key 6 nullable, proven by a raw-MessagePack older-record test. Spec discrepancy fixed: the retirement comment for union tag 26 no longer names `MiningToolData`, which the cut's own negative grep forbids. Soul pending.
 
 **Cut 1: landed 2026-09-25** at `22a54ccb` and `d9c887c1` (Stryker fix batch: `EvaluateBelt` had no
 coverage and `Radius`'s `Max`→`Min` survived). 262 tests. Probe on the operator's densest zone, 10 runs each:
