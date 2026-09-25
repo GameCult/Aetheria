@@ -188,9 +188,17 @@ public static class FireControl
     // the same thing are two places for the same bug to hide and only be found once.
     // Cost fix batch (Self, 2026-09-24): Forecast reads only sil.POnHull and sil.Span, never sil.Intervals, so
     // it rents the Silhouette's own scratch array from ArrayPool<Interval>.Shared and returns it before
-    // returning -- the forecast path (HitProbability, Inspect) no longer allocates on a gated-in call.
+    // returning -- Silhouette itself (given this pooled buffer) allocates nothing, measured directly.
     // Commit's own path (CommitProbability -> Silhouette, uncalled from here) still needs sil.Intervals alive
     // for the lateral draw that follows it, so it keeps its own owned array; only the forecast pools.
+    // S3 fix batch (Hands, 2026-09-25) correction: "the forecast path no longer allocates on a gated-in call"
+    // overclaimed -- a gated-in HitProbability/Inspect call still allocates roughly 120/280 bytes respectively
+    // (measured, Release), from Accuracy/Resolution's own GetBehavior<T> walking Entity.Equipment and each
+    // item's Behaviors (both ReactiveCollection<T>, whose enumerator is heap-allocated per foreach), not from
+    // anything Silhouette or this pooling touches. That cost predates Cut 12.2 and belongs to Entity's own
+    // collection choice; it is out of this cut's scope. Cut 10's own guard is what actually matters
+    // operationally: HitProbability and CommitProbability both bail before Forecast is ever called for the
+    // common gated-out case (GatedOutHitProbabilityAllocatesNothing pins that at exactly 0).
     private static (Silhouette Silhouette, float PSpread) Forecast(Weapon weapon, Entity source, Entity target, HullData targetHull, float precision, float range)
     {
         var bearing = Bearing(target, TravelDirection(weapon, source, target));

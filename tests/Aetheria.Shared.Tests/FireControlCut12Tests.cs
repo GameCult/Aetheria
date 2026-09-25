@@ -1214,4 +1214,52 @@ public sealed class FireControlCut12Tests : IDisposable
         Assert.True(AbsorbsFrom(float2(0, -1))); // stern toward the shot
         Assert.True(AbsorbsFrom(float2(1, 0)));  // beam
     }
+
+    // S3 fix batch (Hands, 2026-09-25): Lane's own comment ("never allocates on its own") and Silhouette's
+    // pooled path are pinned directly, instead of trusting the comment. Measured (Release, LonginusX-shaped
+    // fixture unavailable to this test file -- a 7x9 solid hull is used instead): Lane and Silhouette (given a
+    // caller-supplied buffer) allocate exactly 0 bytes over 1000 calls, confirming the S3 change itself
+    // (Array.Sort(T[], int, int) resolving Interval/LaneCell's own IComparable<T> at JIT time, not the
+    // (T[], int, int, IComparer<T>) overload that wrapped even a cached singleton comparer in a fresh delegate
+    // per call). A full gated-in HitProbability call is NOT zero-allocation (measured ~120 B/call, Release) --
+    // that cost is Accuracy/Resolution's GetBehavior<T> walking Entity's ReactiveCollection<T> fields, whose
+    // enumerator is heap-allocated per foreach; it predates this cut and is out of its scope (see the corrected
+    // comment on Forecast). This is recorded as a measurement, not asserted as zero, so the test does not lie
+    // about what the comment can honestly promise.
+    [Fact]
+    public void LaneAndSilhouetteAllocateNothingGivenAPooledBuffer()
+    {
+        var e = Build(TestSettings(), SolidShape(7, 9), precision: .5f);
+        var hull = e.HullData;
+        var travelDirection = FireControl.TravelDirection(e.Weapon, e.Shooter, e.Target);
+        var bearing = normalize(e.Target.ToSchematic(travelDirection));
+        var sil = FireControl.Silhouette(e.Target, hull, null, bearing, .5f);
+        var laneBuffer = new LaneCell[hull.Shape.Coordinates.Length];
+        var intervalBuffer = new Interval[hull.Shape.Coordinates.Length];
+
+        for (var i = 0; i < 100; i++) FireControl.Lane(hull, bearing, sil.A, laneBuffer); // JIT warm-up
+        for (var i = 0; i < 100; i++) FireControl.Silhouette(e.Target, hull, null, bearing, .5f, intervalBuffer);
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        for (var i = 0; i < 1000; i++) FireControl.Lane(hull, bearing, sil.A, laneBuffer);
+        var laneAllocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.True(laneAllocated == 0, $"1000 Lane calls allocated {laneAllocated} bytes; \"never allocates\" is not true");
+
+        before = GC.GetAllocatedBytesForCurrentThread();
+        for (var i = 0; i < 1000; i++) FireControl.Silhouette(e.Target, hull, null, bearing, .5f, intervalBuffer);
+        var silhouetteAllocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.True(silhouetteAllocated == 0, $"1000 buffered Silhouette calls allocated {silhouetteAllocated} bytes");
+
+        // Recorded, not asserted zero: the full gated-in HitProbability call still allocates, from Entity's own
+        // collection enumeration (GetBehavior<T> over ReactiveCollection<T>), not from anything this fix batch
+        // touches. A loose upper bound catches a real regression (e.g. a reintroduced comparer wrapper) without
+        // pretending Entity's own cost is Lane's or Silhouette's to fix here.
+        for (var i = 0; i < 100; i++) FireControl.HitProbability(e.Weapon, e.Shooter, e.Target);
+        before = GC.GetAllocatedBytesForCurrentThread();
+        var sum = 0f;
+        for (var i = 0; i < 1000; i++) sum += FireControl.HitProbability(e.Weapon, e.Shooter, e.Target);
+        var hitProbabilityAllocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.True(sum > 0f, "fixture: this must be a real, gated-in call, not a gated-out one");
+        Assert.True(hitProbabilityAllocated < 500_000, $"1000 gated-in HitProbability calls allocated {hitProbabilityAllocated} bytes -- well above Entity's own ~120 B/call baseline; likely a reintroduced Lane/Silhouette allocation");
+    }
 }
