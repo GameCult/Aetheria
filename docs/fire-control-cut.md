@@ -2556,6 +2556,11 @@ a symmetric hull with 2x1 items differ in ~30% of axis-aligned trials). Recommen
 from all lanes that strike it at once, and each lane's leftover is in proportion to what it brought.
 Alternative: keep the processing order and pin it.
 
+**Ruled 2026-09-25: proportional absorption.** Operator: "proportional absorption; go". A multi-cell
+item struck by several lanes of one shot absorbs from their combined incoming damage, and each lane
+carries on with a leftover in proportion to what it brought. The result must not depend on the order
+lanes are processed; with no shared item it equals sequential absorption exactly.
+
 ### Cut 12.4. The detonation primitive
 
 - **Repo/branch:** Aetheria, on top of 12.3. It lands as two commits:
