@@ -758,8 +758,10 @@ public static class FireControl
                     if (contributors[k].lane == li2) { alreadyContributed = true; break; }
                 if (alreadyContributed) continue;
 
-                var start = blocked[li2] ? pointer[li2] + 1 : pointer[li2];
-                for (var i = start; i < walked[li2]; i++)
+                // No +1 needed when li2 is blocked at this same item's cell: `alreadyContributed` above already
+                // caught that case (a blocked lane is always a contributor to the item it is blocked on), so
+                // `pointer[li2]` itself is never this item's own cell by the time this line runs.
+                for (var i = pointer[li2]; i < walked[li2]; i++)
                     if (target.GearOccupancy[buffers[li2][i].Cell.x, buffers[li2][i].Cell.y] == item) return true;
             }
             return false;
@@ -780,7 +782,9 @@ public static class FireControl
                     rem[lane] = amounts[k];
                     blocked[lane] = false;
                     pointer[lane]++;
-                    if (pointer[lane] >= walked[lane]) FinishLane(lane);
+                    // One writer for lane completion: AdvanceLane, not here. Unblocking and advancing the
+                    // pointer is enough -- the next call to AdvanceLane(lane), later this pass or the next while
+                    // iteration, is the one place that checks `pointer >= walked` and calls FinishLane.
                 }
             }
             finally
