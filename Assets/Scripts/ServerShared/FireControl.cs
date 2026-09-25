@@ -622,6 +622,12 @@ public static class FireControl
     // Commit's placement (Lane, the n = 0 case) and Apply's damage split (Lanes, every case) read one function,
     // and resolves the resulting rare cross-lane collision by ownership rather than by a competing formula --
     // see `Lanes`.
+    // Cut 12.3 fix batch (2026-09-25, operator ruling "one code path" -- docs/fire-control-cut.md, Cut 12.3
+    // status): the earlier fix batch's own survey-then-branch (ApplySequential vs. ApplyWithSharedItems) was a
+    // split authority -- a second reachability derivation for "is this item shared" alongside Lanes' own
+    // membership rule, the identical shape of failure as 12.2's empty lane and 12.3's own double strike. There
+    // is now one walk, `ApplyPooled`, in which every item pools the deposits of whatever lanes reach it, a
+    // pool of one lane included -- a single-cell item is this rule's own degenerate case, not a fork.
     private static void Apply(PendingShot shot)
     {
         if (!shot.Outcome.Hit) return;
@@ -656,6 +662,21 @@ public static class FireControl
         for (var li = 0; li < laneCount; li++)
             buffers[li] = ArrayPool<LaneCell>.Shared.Rent(hullData.Shape.Coordinates.Length);
         var walked = Lanes(hullData, bearing, shot.Outcome.Lateral, n, laneSpacing, buffers);
+
+        // Cut 12.3 fix batch ("one code path"): the ONLY penetration derivation in this whole walk -- clip each
+        // lane's own cell run to its penetration depth right here, once, immediately after Lanes returns.
+        // Everything downstream reads `walked` as the lane's entire reach; nothing below ever re-tests a cell's
+        // entry against penetration again, and there is no separate survey of which cells or items a lane can
+        // reach -- ApplyPooled's own walk discovers that live, from `walked` alone.
+        for (var li = 0; li < laneCount; li++)
+        {
+            if (walked[li] == 0) continue;
+            var impactEntry = buffers[li][0].Entry;
+            var clipped = 1;
+            while (clipped < walked[li] && buffers[li][clipped].Entry - impactEntry < shot.Penetration) clipped++;
+            walked[li] = clipped;
+        }
+
         var metalLanes = 0;
         for (var li = 0; li < laneCount; li++)
             if (walked[li] > 0) metalLanes++;
@@ -664,133 +685,57 @@ public static class FireControl
         // guard already proved Lane finds an occupied cell there (R3) -- metalLanes is never 0.
         var damagePerLane = shot.Damage / metalLanes;
 
-        // Cut 12.3 fix batch (2026-09-25, operator: "proportional absorption; go"): survey which items, if
-        // any, are within reach of more than one lane's own (penetration-clipped) walk -- cells are already
-        // disjoint between lanes (Lanes' own ownership rule), so only a multi-cell item can ever be reached by
-        // two different lanes at all. This is a purely geometric question (GearOccupancy and the penetration
-        // cutoff, neither reads remaining damage), so it can be decided up front, before any Absorb call, and
-        // the overwhelmingly common case -- no item shared this shot -- takes the untouched sequential walk
-        // below with no extra allocation.
-        Dictionary<EquippedItem, List<int>> lanesOf = null;
-        Dictionary<EquippedItem, float> itemKey = null;
-        for (var li = 0; li < laneCount; li++)
-        {
-            if (walked[li] == 0) continue;
-            var impactEntry0 = buffers[li][0].Entry;
-            for (var i = 0; i < walked[li]; i++)
-            {
-                if (i > 0 && buffers[li][i].Entry - impactEntry0 >= shot.Penetration) break;
-                var cell = buffers[li][i].Cell;
-                var item = target.GearOccupancy[cell.x, cell.y];
-                if (item == null) continue;
-                lanesOf ??= new Dictionary<EquippedItem, List<int>>();
-                itemKey ??= new Dictionary<EquippedItem, float>();
-                if (!lanesOf.TryGetValue(item, out var list)) lanesOf[item] = list = new List<int>();
-                if (!list.Contains(li)) list.Add(li);
-                if (!itemKey.TryGetValue(item, out var key) || buffers[li][i].Entry < key)
-                    itemKey[item] = buffers[li][i].Entry;
-            }
-        }
-        List<EquippedItem> sharedItems = null;
-        if (lanesOf != null)
-            foreach (var kv in lanesOf)
-                if (kv.Value.Count > 1)
-                    (sharedItems ??= new List<EquippedItem>()).Add(kv.Key);
-
-        var hullDamage = sharedItems == null
-            ? ApplySequential(target, shot, buffers, walked, laneCount, damagePerLane)
-            : ApplyWithSharedItems(target, shot, buffers, walked, laneCount, damagePerLane, lanesOf, sharedItems, itemKey);
+        var hullDamage = ApplyPooled(target, buffers, walked, laneCount, damagePerLane);
 
         for (var li = 0; li < laneCount; li++) ArrayPool<LaneCell>.Shared.Return(buffers[li]);
 
         target.DamageHull(hullDamage);
     }
 
-    // Cut 12.3's original walk, untouched: every lane in isolation, near to far, clipped to its own
-    // penetration depth, remainder to the hull. Taken whenever no item this shot is shared between lanes
-    // (the fix batch's own "exact when nothing is shared" contract) -- byte-for-byte the same calls, in the
-    // same order, as before the fix batch.
-    private static float ApplySequential(Entity target, PendingShot shot, LaneCell[][] buffers, int[] walked, int laneCount, float damagePerLane)
-    {
-        var hullDamage = 0f;
-        for (var li = 0; li < laneCount; li++)
-        {
-            if (walked[li] > 0)
-            {
-                var rem = damagePerLane;
-                var impactEntry = buffers[li][0].Entry;
-                for (var i = 0; i < walked[li]; i++)
-                {
-                    if (i > 0 && buffers[li][i].Entry - impactEntry >= shot.Penetration) break;
-                    rem = target.Absorb(buffers[li][i].Cell, rem);
-                }
-                hullDamage += rem;
-            }
-        }
-        return hullDamage;
-    }
-
-    // Cut 12.3 fix batch (2026-09-25, operator ruling "proportional absorption; go" -- docs/fire-control-cut.md,
-    // Cut 12.3 status): taken only when >=1 item is reachable by more than one lane of this shot. Walks every
-    // lane through its own private cells exactly as ApplySequential does (armour is never shared, so it is
-    // never coordinated -- Entity.ArmorAbsorb runs the moment a lane reaches a cell, same as before). A lane
-    // that reaches a SHARED item's cell instead deposits its own post-armour remainder into that item's pool
-    // and stalls; once every lane that can ever reach the item has deposited, the item absorbs the pool's SUM
-    // (up to its own remaining durability) and each depositing lane resumes with a leftover in proportion to
-    // what it brought -- a sum-then-split, so the result cannot depend on which lane happened to arrive first
-    // (the defect this fix batch replaces: sequential Absorb let the first lane drain the item and hand the
-    // second lane's own damage a leftover carved from an already-emptied item). One ItemDamage event fires per
-    // depositing lane, its own INCOMING contribution -- the same "incoming, not the post-clamp amount"
-    // convention Entity.ItemAbsorb and Entity.ArmorAbsorb already use for a single lane (an overkill hit
-    // against a nearly-dead item still reports the whole swing, not what little durability was left to take) --
-    // matching the one-event-per-Absorb-call cardinality the unshared path already has. A lane's item
-    // durability floor and armour-first ordering are otherwise unchanged: this function only ever changes WHEN
-    // an item's absorption is decided and IN WHAT PROPORTION the leftover is split, never the
-    // armour-then-item-then-hull order along a single lane's own path.
+    // Cut 12.3 fix batch (2026-09-25, operator rulings "proportional absorption; go" and "one code path" --
+    // docs/fire-control-cut.md, Cut 12.3 status): every lane walks its own already-clipped cells near to far.
+    // Armour is never shared between lanes (Lanes' own disjointness rule), so Entity.ArmorAbsorb runs the
+    // instant a lane reaches a cell, exactly as before. A lane that reaches an ITEM cell instead deposits its
+    // own post-armour remainder into that item's pool and blocks there -- a pool of one lane included, so a
+    // single-cell item is this rule's own degenerate case, not a separate fast path. A pool resolves the
+    // moment no other unfinished lane can still reach that item down its own remaining (already-clipped) walk
+    // -- for an item only one lane can ever touch, that is immediately, the same instant it is deposited. Once
+    // resolved the item's pool is gone, so a non-convex item a lane crosses a second time (or a second lane
+    // arriving after a first pool already resolved) opens a brand new pool under the identical rule -- there is
+    // no separate "solo absorb after a forced resolve" behaviour anywhere in this function.
     //
-    // The opposite-order case: two lanes can cross two different shared (multi-cell, non-convex) items in
-    // reversed relative order -- lane A reaches item1 before item2, lane B reaches item2 before item1. Neither
-    // item can then be resolved strictly in each lane's own causal order (item1 needs lane B's arrival, which
-    // needs item2 resolved first; item2 needs lane A's arrival, which needs item1 resolved first) -- every lane
-    // still in play is stalled on some item, a genuine deadlock, not a scheduling accident. Broken
-    // deterministically and order-independently by resolving the stalled, not-yet-resolved item with the
-    // smallest key -- the minimum Entry (along-bearing depth) at which ANY lane can reach it, fixed purely by
-    // hull geometry and computed once up front, never by which lane the loop below happened to visit first --
-    // using only the deposits collected so far. A lane that has not yet arrived at that item resumes normally;
-    // when its own walk later reaches the same (now-resolved) item, it finds `resolved` already contains it
-    // and takes the ordinary single-lane ItemAbsorb path against whatever durability the forced resolution
-    // left, the same path an unshared item always takes. This one deterministic tie-break is the only place a
-    // lane's own local ordering can end up inverted, and only for the geometrically exotic shape that makes
-    // strict per-lane causal order unsatisfiable for every lane at once.
-    private static float ApplyWithSharedItems(Entity target, PendingShot shot, LaneCell[][] buffers, int[] walked,
-        int laneCount, float damagePerLane, Dictionary<EquippedItem, List<int>> lanesOf, List<EquippedItem> sharedItems,
-        Dictionary<EquippedItem, float> itemKey)
+    // Cycle rule (Self's default, recorded as such in the map): two lanes can cross two different shared
+    // (multi-cell, non-convex) items in reversed relative order -- lane A reaches item1 before item2, lane B
+    // reaches item2 before item1 -- so neither pool can ever become ready in each lane's own causal order and
+    // every remaining lane ends up blocked. When that happens (no lane can advance and no pool is
+    // independently ready), every CURRENTLY OPEN pool resolves at once, together, from whatever deposits it
+    // already holds. Each blocked lane sits in exactly one open pool, so this batch always clears every blocked
+    // lane in one pass, needs no ordering key, and is mirror-symmetric by construction (nothing about which
+    // lane is "left" or "right" ever enters the tie-break). If somehow no pool is open when every lane is
+    // blocked, that is a real defect -- rem would otherwise be silently dropped -- so this throws instead of
+    // breaking out of the loop.
+    private static float ApplyPooled(Entity target, LaneCell[][] buffers, int[] walked, int laneCount, float damagePerLane)
     {
-        var sharedSet = new HashSet<EquippedItem>(sharedItems);
-        var pointer = new int[laneCount];
-        var rem = new float[laneCount];
-        var impactEntry = new float[laneCount];
-        var finished = new bool[laneCount];
-        var blocked = new bool[laneCount];
+        // Pooled bookkeeping (this file's own established convention -- ArrayPool is already how Apply rents
+        // its own per-lane cell buffers): a shot that never crosses an item is the overwhelmingly common case,
+        // and must not pay a per-shot heap allocation for lane state it never needs to keep past this call.
+        var pointer = ArrayPool<int>.Shared.Rent(laneCount);
+        var rem = ArrayPool<float>.Shared.Rent(laneCount);
+        var finished = ArrayPool<bool>.Shared.Rent(laneCount);
+        var blocked = ArrayPool<bool>.Shared.Rent(laneCount);
+        try
+        {
         for (var li = 0; li < laneCount; li++)
         {
+            pointer[li] = 0;
+            blocked[li] = false;
             finished[li] = walked[li] == 0;
-            if (!finished[li])
-            {
-                rem[li] = damagePerLane;
-                impactEntry[li] = buffers[li][0].Entry;
-            }
+            rem[li] = finished[li] ? 0f : damagePerLane;
         }
 
-        var remainingContributors = new Dictionary<EquippedItem, int>();
-        var pool = new Dictionary<EquippedItem, List<(int lane, float amount)>>();
-        var resolved = new HashSet<EquippedItem>();
-        foreach (var item in sharedItems)
-        {
-            remainingContributors[item] = lanesOf[item].Count;
-            pool[item] = new List<(int, float)>();
-        }
-
+        // Lazily allocated: a shot that never crosses an item (the overwhelmingly common case) never allocates
+        // a pool at all.
+        Dictionary<EquippedItem, List<(int lane, float amount)>> pools = null;
         var hullDamage = 0f;
 
         void FinishLane(int li)
@@ -799,34 +744,58 @@ public static class FireControl
             hullDamage += rem[li];
         }
 
+        // "No other unfinished lane still has that item among its remaining clipped cells" -- read directly off
+        // each other lane's own remaining walk (from just past wherever it currently sits), never from a
+        // precomputed reachability table. A lane already IN this item's own pool has already arrived and does
+        // not need to arrive again.
+        bool StillReachableByAnotherLane(EquippedItem item, List<(int lane, float amount)> contributors)
+        {
+            for (var li2 = 0; li2 < laneCount; li2++)
+            {
+                if (finished[li2]) continue;
+                var alreadyContributed = false;
+                for (var k = 0; k < contributors.Count; k++)
+                    if (contributors[k].lane == li2) { alreadyContributed = true; break; }
+                if (alreadyContributed) continue;
+
+                var start = blocked[li2] ? pointer[li2] + 1 : pointer[li2];
+                for (var i = start; i < walked[li2]; i++)
+                    if (target.GearOccupancy[buffers[li2][i].Cell.x, buffers[li2][i].Cell.y] == item) return true;
+            }
+            return false;
+        }
+
         void Resolve(EquippedItem item)
         {
-            var contributions = pool[item];
-            var totalIncoming = 0f;
-            for (var k = 0; k < contributions.Count; k++) totalIncoming += contributions[k].amount;
-            var durabilityBefore = item.EquippableItem.Durability;
-            var absorbed = min(totalIncoming, durabilityBefore);
-            if (absorbed > 0f) item.EquippableItem.Durability = max(durabilityBefore - absorbed, 0f);
-            // ItemDamage reports each lane's own INCOMING contribution, not its clamped/actual-absorbed share --
-            // the same "incoming, not the post-clamp amount" convention Entity.ItemAbsorb and Entity.ArmorAbsorb
-            // already use for a single lane (an overkill hit against a nearly-dead item still reports the whole
-            // swing, not what little durability was left to take). One event per contributing lane, matching
-            // the one-event-per-Absorb-call cardinality the unshared path already has.
-            var fraction = totalIncoming > 0f ? absorbed / totalIncoming : 0f;
-            for (var k = 0; k < contributions.Count; k++)
+            var contributors = pools[item];
+            pools.Remove(item); // a later visit to this same item opens a fresh pool under the same rule
+            var amounts = ArrayPool<float>.Shared.Rent(contributors.Count);
+            try
             {
-                var (lane, amount) = contributions[k];
-                if (amount > 0f) target.ItemDamage.OnNext((item, amount));
-                rem[lane] = amount - amount * fraction;
+                for (var k = 0; k < contributors.Count; k++) amounts[k] = contributors[k].amount;
+                target.ItemAbsorb(item, new Span<float>(amounts, 0, contributors.Count));
+                for (var k = 0; k < contributors.Count; k++)
+                {
+                    var lane = contributors[k].lane;
+                    rem[lane] = amounts[k];
+                    blocked[lane] = false;
+                    pointer[lane]++;
+                    if (pointer[lane] >= walked[lane]) FinishLane(lane);
+                }
             }
-            resolved.Add(item);
-            for (var k = 0; k < contributions.Count; k++)
+            finally
             {
-                var lane = contributions[k].lane;
-                blocked[lane] = false;
-                pointer[lane]++;
-                if (pointer[lane] >= walked[lane]) FinishLane(lane);
+                ArrayPool<float>.Shared.Return(amounts);
             }
+        }
+
+        void Deposit(int li, EquippedItem item)
+        {
+            pools ??= new Dictionary<EquippedItem, List<(int, float)>>();
+            if (!pools.TryGetValue(item, out var list)) pools[item] = list = new List<(int, float)>();
+            list.Add((li, rem[li]));
+            blocked[li] = true;
+            if (!StillReachableByAnotherLane(item, list)) Resolve(item);
         }
 
         bool AdvanceLane(int li)
@@ -834,32 +803,18 @@ public static class FireControl
             var moved = false;
             while (!finished[li] && !blocked[li])
             {
-                var i = pointer[li];
-                if (i > 0 && buffers[li][i].Entry - impactEntry[li] >= shot.Penetration)
+                if (pointer[li] >= walked[li])
                 {
                     FinishLane(li);
                     moved = true;
                     break;
                 }
-                var cell = buffers[li][i].Cell;
+                var cell = buffers[li][pointer[li]].Cell;
                 rem[li] = target.ArmorAbsorb(cell, rem[li]);
                 moved = true;
                 var item = target.GearOccupancy[cell.x, cell.y];
-                if (item != null && sharedSet.Contains(item) && !resolved.Contains(item))
-                {
-                    pool[item].Add((li, rem[li]));
-                    remainingContributors[item]--;
-                    blocked[li] = true;
-                    if (remainingContributors[item] == 0) Resolve(item);
-                    break;
-                }
-                if (item != null) rem[li] = target.ItemAbsorb(item, rem[li]);
-                pointer[li]++;
-                if (pointer[li] >= walked[li])
-                {
-                    FinishLane(li);
-                    break;
-                }
+                if (item != null) Deposit(li, item);
+                else pointer[li]++;
             }
             return moved;
         }
@@ -879,20 +834,25 @@ public static class FireControl
 
             if (!progressed)
             {
-                EquippedItem victim = null;
-                var victimKey = float.PositiveInfinity;
-                foreach (var item in sharedItems)
-                {
-                    if (resolved.Contains(item) || pool[item].Count == 0) continue;
-                    var key = itemKey[item];
-                    if (key < victimKey) { victimKey = key; victim = item; }
-                }
-                if (victim == null) break; // unreachable: every unfinished lane is blocked on some pool with >=1 deposit
-                Resolve(victim);
+                if (pools == null || pools.Count == 0)
+                    throw new InvalidOperationException(
+                        "FireControl.ApplyPooled: every remaining lane is blocked but no item pool is open -- " +
+                        "a lane's own damage would be lost rather than reaching an item or the hull.");
+                // Cycle rule: resolve every currently open pool at once, from whatever it already holds -- a
+                // snapshot of the keys, since Resolve mutates `pools` as it goes.
+                foreach (var item in new List<EquippedItem>(pools.Keys)) Resolve(item);
             }
         }
 
         return hullDamage;
+        }
+        finally
+        {
+            ArrayPool<int>.Shared.Return(pointer);
+            ArrayPool<float>.Shared.Return(rem);
+            ArrayPool<bool>.Shared.Return(finished);
+            ArrayPool<bool>.Shared.Return(blocked);
+        }
     }
 
     // Self's fix (2026-09-25): the ONE public membership query behind both Commit's placement and Apply's

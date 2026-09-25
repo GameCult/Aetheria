@@ -349,38 +349,52 @@ public abstract class Entity
         return d;
     }
 
-    // Cut 12.3 fix batch (proportional multi-cell absorption): the item phase, split out of Absorb's own
-    // second half so a caller coordinating several lanes into one shared item (FireControl.Apply) can resolve
-    // that item's absorption once, from the lanes' combined incoming damage, instead of once per lane against
-    // whatever durability the previous lane left behind. Takes the item directly (not a cell) because the
-    // caller may already know it is resolving a specific item for several different cells/lanes at once.
-    // ItemDamage fires only once the post-armour remainder exceeds .1f, same threshold as before the split.
-    public float ItemAbsorb(EquippedItem item, float damage)
+    // Cut 12.3 fix batch (one apply path, operator ruling 2026-09-25 "do not expect items taking up multiple
+    // cells to be an exception, this should be one code path"): the ONE function that decides an item's own
+    // absorption, whatever the item's shape or however many lanes of one shot reach it. `incoming` holds every
+    // contributing lane's own post-armour remainder for this resolve, one lane's worth included -- a
+    // single-lane item is this rule's own degenerate case, not a separate function or a separate threshold.
+    // The existing .1f threshold is decided once, on the POOLED total, never per contribution (a pooled path
+    // that gated each contribution separately would let two shares under .1f each slip past an item that a
+    // single .08f solo hit would already have stopped at). Absorbed durability is split back across `incoming`
+    // in place, pro-rata to what each lane brought (a guarded divide: total is already >.1f whenever this
+    // divides, but 0 is still handled explicitly rather than assumed). ItemDamage fires once per contributing
+    // lane, reporting its own INCOMING share -- not the post-clamp amount, the same convention ArmorAbsorb
+    // already uses -- and only when that lane's own share is itself > 0, so a zero-deposit contributor (a
+    // lane whose armour ate its whole share before reaching this item) never fires a phantom event.
+    public void ItemAbsorb(EquippedItem item, Span<float> incoming)
     {
-        var d = damage;
+        if (item == null) return;
 
-        if (d > 0.1f && item != null)
+        var total = 0f;
+        for (var i = 0; i < incoming.Length; i++) total += incoming[i];
+        if (total <= 0.1f) return;
+
+        var before = item.EquippableItem.Durability;
+        var absorbed = min(total, before);
+        item.EquippableItem.Durability = max(before - absorbed, 0f);
+        var fraction = total > 0f ? absorbed / total : 0f;
+        for (var i = 0; i < incoming.Length; i++)
         {
-            var prevItem = item.EquippableItem.Durability;
-            item.EquippableItem.Durability = max(prevItem - d, 0);
-            ItemDamage.OnNext((item, d));
-            d = max(d - prevItem, 0);
+            if (incoming[i] > 0f) ItemDamage.OnNext((item, incoming[i]));
+            incoming[i] -= incoming[i] * fraction;
         }
-
-        return d;
     }
 
     // Cut 12.3 (docs/fire-control-cut.md): "armour absorbs first" -- armour up to its own value, then the
     // occupying item, then whatever is left over is returned to the caller for the hull's own share (or the
     // next cell down the lane; a lane that keeps carrying a remainder is not this function's concern --
-    // Apply's own loop does that). This is the single-lane path: FireControl.Apply calls ArmorAbsorb/ItemAbsorb
-    // directly instead, only when a cell's item is shared between lanes and needs their combined incoming
-    // damage resolved together; every other caller (an unshared cell, Splash) still goes through Absorb
-    // unchanged, so this function's own behaviour is untouched by the fix batch.
+    // FireControl.Apply's own pooled walk does that). This is the single-lane path: it feeds ItemAbsorb a
+    // pool of exactly one contribution, the same degenerate case Apply's own multi-lane pools reduce to when
+    // only one lane ever reaches an item. Splash is Absorb's only remaining caller (12.4 deletes Splash).
     public float Absorb(int2 cell, float damage)
     {
         var d = ArmorAbsorb(cell, damage);
-        return ItemAbsorb(GearOccupancy[cell.x, cell.y], d);
+        var item = GearOccupancy[cell.x, cell.y];
+        if (item == null) return d;
+        Span<float> incoming = stackalloc float[1] { d };
+        ItemAbsorb(item, incoming);
+        return incoming[0];
     }
 
     // Cut 12.3: moved verbatim from DamageSchematic's own tail (Cut 3) -- the >.1f threshold and the one
