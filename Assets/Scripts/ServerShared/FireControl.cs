@@ -613,8 +613,15 @@ public static class FireControl
     // offset by repeated addition can shift a side lane by an ulp or two, and a shifted s(li) can land inside a
     // NEIGHBOURING cell's half-open interval that its own, unshifted s(li) was never meant to reach -- the same
     // "two derivations of one quantity" defect Cut 12.2's own fix batch found and removed from Lane itself
-    // (S1 above), now recurring one layer up. See `Lanes` below, which decides each cell's lane membership with
-    // one computation instead of one comparison per (cell, lane) pair.
+    // (S1 above), now recurring one layer up.
+    // Self's review (2026-09-25): the first fix for this replaced the per-lane Lane() loop with a ceil-based
+    // index formula that computed lane membership from a cell's own Extent directly -- but that formula and
+    // Lane's own half-open test (Lo <= s < Hi) were still two separate computations, agreeing only when a
+    // cell's own (Hi - Lo) equalled laneSpacing exactly in float. That is the identical trap one level removed,
+    // not removed. `Lanes` below is the actual single owner: it calls Lane() itself once per lane index, so
+    // Commit's placement (Lane, the n = 0 case) and Apply's damage split (Lanes, every case) read one function,
+    // and resolves the resulting rare cross-lane collision by ownership rather than by a competing formula --
+    // see `Lanes`.
     private static void Apply(PendingShot shot)
     {
         if (!shot.Outcome.Hit) return;
@@ -676,49 +683,67 @@ public static class FireControl
         target.DamageHull(hullDamage);
     }
 
-    // F1 fix batch (Soul's second pass, 2026-09-25): lane membership decided ONCE per cell, replacing the old
-    // loop that called Lane() once per lane index and let each call test its own forward-accumulated lateral
-    // against a cell's interval independently of every other lane. Here every candidate cell computes its own
-    // lane index directly from its own (unmodified) Extent interval: k = ceil((Lo - centreLateral) /
-    // laneSpacing) is the unique integer for which centreLateral + k * laneSpacing falls in [Lo, Hi) -- Lane's
-    // own half-open admission -- derived by one division and one Ceiling call from values neither multiplied
-    // nor summed by any other lane's arithmetic. A single Math.Ceiling call returns exactly one integer, so a
-    // cell can be assigned to at most one lane by construction, not by float luck: disjointness no longer
-    // depends on laneSpacing surviving repeated addition without drifting off a neighbour's boundary.
-    // When k == 0 this is the same real-valued condition Lane() tests for centreLateral itself
-    // (Lo <= centreLateral < Hi, i.e. Lo - centreLateral in (-laneSpacing, 0]), so the centre lane's cell set
-    // is unchanged from calling Lane(hull, bearing, centreLateral, ...) directly -- the 12.2 placement contract
-    // (HitsLandOnTheFacingEdge) still holds. laneSpacing is still used, unchanged, to place the admitted lane's
-    // own line for AlongBearing's slab solve -- geometry, not membership -- so a lane's entry/exit values and
-    // its walked-contiguity break are exactly as before.
-    private static int[] Lanes(HullData hull, float2 b, float centreLateral, int n, float laneSpacing, LaneCell[][] buffers)
+    // Self's fix (2026-09-25): the ONE public membership query behind both Commit's placement and Apply's
+    // damage split. Lane(s) is exactly this function's n = 0 case -- Lanes calls Lane(hull, b, centreLateral +
+    // k * laneSpacing, ...) once per lane index k, so a lane's own cell set can never disagree with what
+    // Lane(s) alone returns for that s: there is no second formula for "does this cell belong to this lane",
+    // only Lane's own half-open Extent test, called at 2n+1 different lines. This is what removes the trap a
+    // ceil-based index formula reintroduced one level up from Cut 12.2's own crash (see Apply's comment above):
+    // that formula and Lane's own test were still two computations, agreeing only when a cell's own (Hi - Lo)
+    // equalled the externally supplied laneSpacing exactly in float.
+    // What is left, once every lane's own result is individually exact, is a DIFFERENT and much narrower
+    // question: can two separate calls to Lane(), at two different (and individually correct) lines, still walk
+    // the SAME cell? Yes, rarely -- laneSpacing (F2's shadow width, one value shared by every lane) can differ
+    // by a few ulps from one specific cell's own computed (Hi - Lo), the same float drift Soul's second pass
+    // found. Lanes resolves that by ownership, not by a competing membership rule: a cell walked by more than
+    // one lane keeps the lane closest to the centre (ties are impossible -- equal |k| means the same lane), and
+    // the centre lane (k = 0) never loses a cell to a side lane. Its own final cell set is therefore always
+    // exactly Lane(centreLateral)'s own output, unmodified -- R3 (the centre lane always meets metal, Commit's
+    // own guard) and the 12.2 placement contract (HitsLandOnTheFacingEdge) hold structurally, not by chance. A
+    // side lane that cedes a cell simply omits it from its own walk; the walk's existing contiguity rule (a
+    // cell more than 1e-4 past the previous SURVIVING cell's exit ends the lane) then decides on its own whether
+    // the lane continues past the gap that leaves -- no new rule, the same one `Lane` already applies at a
+    // genuine gap. laneSpacing itself is untouched: it is still the one F2 value that places every lane's own
+    // query line.
+    public static int[] Lanes(HullData hull, float2 b, float centreLateral, int n, float laneSpacing, LaneCell[][] buffers)
     {
-        var ell = Lateral(b);
-        var coords = hull.Shape.Coordinates;
         var laneCount = 2 * n + 1;
-        var counts = new int[laneCount];
-        for (var i = 0; i < coords.Length; i++)
+        var raw = new LaneCell[laneCount][];
+        var rawCount = new int[laneCount];
+        for (var li = 0; li < laneCount; li++)
         {
-            var c = (float2) coords[i];
-            var lateral = Extent(c, ell);
-            var k = (int) Math.Ceiling((lateral.Lo - centreLateral) / laneSpacing);
-            if (k < -n || k > n) continue;
-            var li = k + n;
+            var k = li - n;
             var s = centreLateral + k * laneSpacing;
-            AlongBearing(c, b, ell, s, out var entry, out var exit);
-            buffers[li][counts[li]++] = new LaneCell { Cell = coords[i], Entry = entry, Exit = exit, Projection = dot(c, b) };
+            raw[li] = ArrayPool<LaneCell>.Shared.Rent(hull.Shape.Coordinates.Length);
+            rawCount[li] = Lane(hull, b, s, raw[li]);
+        }
+
+        // Ownership: whichever lane is closest to the centre keeps a cell two lanes both walked; the centre
+        // lane (k = 0, |k| = 0) can never be outranked.
+        var ownerLane = new Dictionary<int2, int>();
+        for (var li = 0; li < laneCount; li++)
+        {
+            var k = Math.Abs(li - n);
+            for (var i = 0; i < rawCount[li]; i++)
+            {
+                var cell = raw[li][i].Cell;
+                if (!ownerLane.TryGetValue(cell, out var curLi) || Math.Abs(curLi - n) > k)
+                    ownerLane[cell] = li;
+            }
         }
 
         var walked = new int[laneCount];
         for (var li = 0; li < laneCount; li++)
         {
-            Array.Sort(buffers[li], 0, counts[li]);
-            walked[li] = counts[li] > 0 ? 1 : 0;
-            for (var i = 1; i < counts[li]; i++)
+            var w = 0;
+            for (var i = 0; i < rawCount[li]; i++)
             {
-                if (buffers[li][i].Entry > buffers[li][i - 1].Exit + 1e-4f) break;
-                walked[li]++;
+                if (ownerLane[raw[li][i].Cell] != li) continue; // ceded to a closer lane -- this lane's own gap
+                if (w > 0 && raw[li][i].Entry > buffers[li][w - 1].Exit + 1e-4f) break;
+                buffers[li][w++] = raw[li][i];
             }
+            walked[li] = w;
+            ArrayPool<LaneCell>.Shared.Return(raw[li]);
         }
         return walked;
     }

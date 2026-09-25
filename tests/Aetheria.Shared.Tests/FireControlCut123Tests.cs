@@ -953,21 +953,137 @@ public sealed class FireControlCut123Tests : IDisposable
     // Lateral's draw visits many different points along the hull's shadow), and ample penetration. Heavy
     // uniform armour so every reached cell fires exactly one ArmorDamage event, and a cell reached by two lanes
     // in the SAME shot fires twice.
-    // F1's own structural fix (`FireControl.Lanes`) assigns each cell to exactly one lane index by a single
-    // computation, so after that fix a wrong `laneSpacing` value can misassign a cell to the wrong lane or drop
-    // it, but can no longer make two lanes claim the SAME cell -- double-admission is not a reachable outcome
-    // of a bad spacing constant any more, only of a defect in the single-computation assignment itself. Hand
-    // verification (fc123fix2-mut.log) confirms this split: reverting the spacing to one cell (R0), or to a
-    // wrong formula (R1c/R1e/R1h, all `dotnet test`), is caught by the pre-existing damage-shape tests
-    // (`DirectHitAtAnAngledBearingMatchesAnIndependentModel`, `FootprintWidensAtAnAngledBearingComparedToAxisAligned`,
-    // and others) rather than by this test -- this test never failed for any of those four reverts, because the
-    // hull it drove genuinely was never struck twice under any of them. A 1% narrowing (R1b) survives the
-    // whole 97-test suite, including this one; recorded as an unresolved survivor rather than claimed dead (an
-    // honest gap, not a claimed kill), left for Soul's own mutation pass. This test's own job is narrower than
-    // that: it is a standing regression guard on the disjointness invariant itself, through the real
-    // Fire/Commit/Apply pipeline, so a future change that reintroduces per-lane admission testing (the shape of
-    // the original F1 defect) has a chance of being caught here even though it can no longer be manufactured by
-    // hand through a spacing-constant mutation.
+    // F1's own structural fix (`FireControl.Lanes`, now built on top of `FireControl.Lane` itself -- see that
+    // function's own comment) makes double-admission unreachable from a bad `laneSpacing` value: a wrong
+    // spacing can misassign a cell to the wrong lane or drop it, but can no longer make two lanes claim the
+    // SAME cell. Hand verification (fc123fix2-mut.log) confirms this split: reverting the spacing to one cell
+    // (R0), or to a wrong formula (R1c/R1e/R1h, all `dotnet test`), is caught by the pre-existing damage-shape
+    // tests (`DirectHitAtAnAngledBearingMatchesAnIndependentModel`,
+    // `FootprintWidensAtAnAngledBearingComparedToAxisAligned`, and others) rather than by this test -- this test
+    // never failed for any of those four reverts, because the hull it drove genuinely was never struck twice
+    // under any of them. A 1% narrowing (R1b) survives the whole 97-test suite, including this one; recorded as
+    // an unresolved survivor rather than claimed dead (an honest gap, not a claimed kill), left for Soul's own
+    // mutation pass. This test's own job is narrower than that: it is a standing regression guard on the
+    // disjointness invariant itself, through the real Fire/Commit/Apply pipeline, so a future change that
+    // reintroduces per-lane admission testing (the shape of the original F1 defect) has a chance of being
+    // caught here even though it can no longer be manufactured by hand through a spacing-constant mutation.
+
+    // ===================== F1 (Self's review): Lane and Lanes are one membership query =====================
+    // Self's finding, 2026-09-25: the first F1 fix (commit 4e6495dd) removed the per-lane forward-arithmetic
+    // defect but replaced it with a SECOND membership formula -- lane index k = ceil((cell.Lo - centreLateral)
+    // / laneSpacing), agreeing with FireControl.Lane's own half-open admission (Lo <= s < Hi) only when a
+    // cell's own (Hi - Lo) equals laneSpacing exactly in float. `FireControl.Lanes` is now built entirely out
+    // of `FireControl.Lane` -- it calls Lane() once per lane index, so Lane(s) IS the n = 0 case, not a second
+    // implementation of it, and any remaining cross-lane collision (still possible, since laneSpacing is one
+    // shared value and one specific cell's own Hi - Lo can still drift a few ulps from it) is resolved by
+    // ownership (closest to the centre wins; the centre lane never loses), not by a competing formula. This
+    // test pins that contract directly through the PUBLIC FireControl.Lanes and FireControl.Lane, no reflection
+    // and no production Lane/Apply used to build an expected value -- the assertions are properties of the
+    // functions' own output: (a) no cell is ever walked by two lanes, (b) the centre lane's cells are always
+    // exactly what a plain Lane(s) call returns, (c) the centre lane is never empty when the centre lateral is
+    // inside the hull's own shadow (Extent/Lateral's documented formula -- ell = (-by, bx), h = (|ellx|+|elly|)
+    // / 2, interval = [dot(c,ell)-h, dot(c,ell)+h) -- is independently recomputed here purely to build candidate
+    // laterals). Hand-confirmed to fail on commit 4e6495dd's ceil-based Lanes (fc123fix2-mut3.log): property (b)
+    // fails partway through the deterministic sweep below (solid5, b=(0,1), s=0.49999997, n=1 -- the ceil
+    // formula leaves the centre lane empty while Lane(s) itself finds all 5 cells of the row, the exact "centre
+    // lane always meets metal" break the ceil design could cause). Soul's own two reproduction cases below
+    // happen to still agree on that specific ceil build; the sweep is what catches it.
+    [Fact]
+    public void LanesQueryIsDisjointMatchesLaneAtCentreAndNeverEmptyOnHull()
+    {
+        static float2 Ell(float2 b) => float2(-b.y, b.x);
+        static (float Lo, float Hi) CellExtent(int2 c, float2 ell)
+        {
+            var h = (Math.Abs(ell.x) + Math.Abs(ell.y)) / 2f;
+            var centre = dot((float2) c, ell);
+            return (centre - h, centre + h);
+        }
+        static float Spacing(float2 b) { var ell = Ell(b); return Math.Abs(ell.x) + Math.Abs(ell.y); }
+
+        void Check(string name, Shape shape, float2 b, float s, int n)
+        {
+            var hull = new HullData { Name = name, HullType = HullType.Ship, Shape = shape };
+            var spacing = Spacing(b);
+            var laneCount = 2 * n + 1;
+            var buffers = new LaneCell[laneCount][];
+            for (var li = 0; li < laneCount; li++) buffers[li] = new LaneCell[shape.Coordinates.Length];
+            var walked = FireControl.Lanes(hull, b, s, n, spacing, buffers);
+
+            // (a) no cell appears in two lanes.
+            var seen = new HashSet<int2>();
+            for (var li = 0; li < laneCount; li++)
+                for (var i = 0; i < walked[li]; i++)
+                    Assert.True(seen.Add(buffers[li][i].Cell),
+                        $"{name} b=({b.x:R},{b.y:R}) s={s:R} n={n}: cell {buffers[li][i].Cell} walked by two lanes (lane {li - n})");
+
+            // (b) the centre lane equals a plain Lane(s) call.
+            var solo = new LaneCell[shape.Coordinates.Length];
+            var soloWalked = FireControl.Lane(hull, b, s, solo);
+            Assert.True(soloWalked == walked[n], $"{name} b=({b.x:R},{b.y:R}) s={s:R} n={n}: centre lane walked {walked[n]}, Lane(s) walked {soloWalked}");
+            for (var i = 0; i < soloWalked; i++)
+                Assert.Equal(solo[i].Cell, buffers[n][i].Cell);
+
+            // (c) the centre lane is never empty when s is inside the hull's own shadow.
+            var ell = Ell(b);
+            var insideShadow = shape.Coordinates.Any(c => { var (lo, hi) = CellExtent(c, ell); return s >= lo && s < hi; });
+            if (insideShadow)
+                Assert.True(walked[n] > 0, $"{name} b=({b.x:R},{b.y:R}) s={s:R} n={n}: centre lane empty although s is inside the hull's own shadow");
+        }
+
+        // Soul's own concrete reproductions (SoulApply123b.Disjoint, 2026-09-25).
+        Check("solid5", SolidShape(5, 5), float2(0, 1), -0.50000006f, 1);
+        Check("solid9", SolidShape(9, 9), normalize(float2(-0.69478226f, 0.7192201f)), -5.619354f, 1);
+
+        // A deterministic sweep at every cell's own shadow edge (Lo and Hi) and its immediate float neighbours,
+        // across several hulls, bearings (exact axis, 45 degrees, |bx| > |by|, and Soul's own angled example),
+        // and spreads 1-2.
+        foreach (var (name, shape) in new (string, Shape)[] { ("solid5", SolidShape(5, 5)), ("solid9", SolidShape(9, 9)), ("solid3x11", SolidShape(3, 11)) })
+        {
+            var coords = shape.Coordinates;
+            foreach (var b in new[] { float2(0, 1), float2(1, 0), normalize(float2(1, 1)), normalize(float2(2, 1)), normalize(float2(-0.69478226f, 0.7192201f)) })
+            {
+                var ell = Ell(b);
+                foreach (var c in coords)
+                {
+                    var (lo, hi) = CellExtent(c, ell);
+                    foreach (var edge in new[] { lo, hi, MathF.BitIncrement(lo), MathF.BitDecrement(lo), MathF.BitIncrement(hi), MathF.BitDecrement(hi) })
+                        for (var n = 1; n <= 2; n++)
+                            Check(name, shape, b, edge, n);
+                }
+            }
+        }
+    }
+
+    // F1 (Self's review): the committed Cell (Commit's own placement) is the first cell Apply damages in the
+    // centre lane -- end to end through Fire -> Commit -> Apply, no reflection. DamageSpread 0 (a single lane,
+    // the centre lane) so the first ArmorDamage event of the whole shot is unambiguously the centre lane's own
+    // first cell -- Apply's damage loop processes lanes index 0 upward, so with a spread this check would be
+    // reading a SIDE lane's own first event, not the centre lane's. Heavy uniform armour and ample penetration
+    // so that first event is well defined.
+    [Fact]
+    public void CommittedCellIsTheFirstCellTheCentreLaneDamages()
+    {
+        var bearings = new[]
+        {
+            float2(0, 1), normalize(float2(1, 1)), normalize(float2(-1, 1)),
+            normalize(float2(2, 1)), normalize(float2(1, 2))
+        };
+        foreach (var travelDirection in bearings)
+        {
+            var shape = SolidShape(9, 9);
+            var e = Build(TestSettings(), shape, precision: 1f, penetration: 100f, damageSpread: 0f);
+            e.Shooter.Position = e.Target.Position - float3(travelDirection.x, 0, travelDirection.y) * 100f;
+            foreach (var c in shape.Coordinates) { e.Target.Armor[c.x, c.y] = 1000f; e.Target.MaxArmor[c.x, c.y] = 1000f; }
+
+            var firstHit = new int2?[1];
+            using var s = e.Target.ArmorDamage.Subscribe(x => { if (firstHit[0] == null) firstHit[0] = x.pos; });
+            var outcome = FireUntilHit(e, damageOverride: 50f);
+            Assert.NotNull(outcome);
+            Assert.True(outcome.Hit);
+            Assert.NotNull(firstHit[0]);
+            Assert.Equal(outcome.Cell, firstHit[0].Value);
+        }
+    }
     [Fact]
     public void NoCellIsStruckByTwoLanesInOneShotAtAnyBearing()
     {
