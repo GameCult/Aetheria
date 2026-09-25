@@ -539,6 +539,7 @@ public static class Program
         foreach (var field in missing) Console.WriteLine($"  {field}");
         return missing.Count;
     }
+
     // Every CultRecordRef in the catalog that resolves to nothing, as "<record> <DeclaringType.Member> -> <key>".
     // Each "clear <DeclaringType.Member>" argument unsets that member's dangling refs, or removes that dictionary's
     // dangling keys (Faction.BossHull clears boss hulls that would claim a chokepoint no boss can spawn in). Dry
