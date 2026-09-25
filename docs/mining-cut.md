@@ -203,7 +203,7 @@ later:
   area(blast disc)`, which is 12.4's own area rule with the chunk disc as the only cell. Untargeted chunks near a
   blast are unaffected, so there is no per-blast scan of belts.
 
-**Q3 (blocks Cut 2). Do chunks respawn, and does wear survive save/continue?**
+**Q3 (blocks Cut 2). Do chunks respawn, and does wear survive save/continue?** **Ruled 2026-09-25: A.**
 Today `MineAsteroid` sets `RespawnTimers` (`Zone.cs:316`), but nothing ever decrements them, and `AsteroidExists`
 (`:247`) ignores them. A broken asteroid renders at size 0 forever and can still be mined **(read)**. None of this
 is persisted.
@@ -461,9 +461,9 @@ lot. That includes every existing loadout ammo stack. Reading such a lot through
 
 Status: cut map. Ends are owned by Part I of this document; Part III owns the means.
 
-Rulings (operator): Q1 = A (2026-09-25). Q2-Q9 open.
+Rulings (operator): Q1 = A, Q3 = A (2026-09-25). Q2, Q4-Q9 open.
 
-Open: Q2-Q9. Cut 1 needs none of them; Cut 2 now waits only on Q3.
+Open: Q2, Q4-Q9. Cut 2 is unblocked.
 
 **Cut 1: landed 2026-09-25** at `22a54ccb` and `d9c887c1` (Stryker fix batch: `EvaluateBelt` had no
 coverage and `Radius`'s `Max`→`Min` survived). 262 tests. Probe on the operator's densest zone, 10 runs each:
