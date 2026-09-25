@@ -128,7 +128,7 @@ nothing per tick.
 
 | Kind | What names it | What happens to it over time | Who decides |
 |---|---|---|---|
-| **Chunk** | `ChunkId = (CultRecordKey Belt, int Index)`. `Belt` is the `AsteroidBeltData` record key in the run store; `Index` indexes its `Asteroids` array. Stable across save/continue, because `RunSave.Commit` writes the run store's whole view, bodies included (`SavedGame.cs:97-99`), and nothing rewrites `Asteroids` after generation. | Born at zone generation (`ZoneGenerator.cs:141-153`). Lives for the run. Removed with every `BodyData` by `RunSave.Clear` (`SavedGame.cs:124`). | `ZoneGenerator` writes `Asteroids` once. Nothing else may write it. |
+| **Chunk** | `ChunkId = (CultRecordKey Field, int Index)`. `Field` is the field's record key in the run store (today always an `AsteroidBeltData`; debris fields are another kind, Q2); `Index` indexes its chunks (`Asteroids` for a belt). Stable across save/continue, because `RunSave.Commit` writes the run store's whole view, bodies included (`SavedGame.cs:97-99`), and nothing rewrites `Asteroids` after generation. | Born at zone generation (`ZoneGenerator.cs:141-153`). Lives for the run. Removed with every `BodyData` by `RunSave.Clear` (`SavedGame.cs:124`). | `ZoneGenerator` writes `Asteroids` once. Nothing else may write it. |
 | **Chunk pose** (position, rotation, velocity) | Derived: `(ChunkId, zone time)`. | Never stored. Evaluated on demand. | One function on `AsteroidBelt` (Cut 1). Forbidden writers: any stored pose array, any per-tick loop. |
 | **Chunk wear** (damage taken, broken-until time) | Keyed by `ChunkId` inside the owning `Zone`. | Damage accumulates at Apply. When it reaches the chunk's hitpoints, the chunk breaks with `RespawnAt = zone time + AsteroidRespawnTime(size)`. At `time >= RespawnAt` it is whole again, read lazily with no timer. Persisted in `ZonePack` (new nullable key 6) with the zone's own `Time`, and pruned of expired entries at pack. | `FireControl.Apply` through one `Zone` method is the only writer. `Zone` owns the storage. |
 | **Chunk composition** | Derived: `(belt identity, ChunkId, catalog ore table)`. | Never stored (recommended, Q7). A retune of the catalog retunes every belt. | The catalog author, through per-ore data on `SimpleCommodityData`. The derivation function is the only reader of that data for belts. |
@@ -484,7 +484,13 @@ Rulings (operator): Q1 = A, Q2 = A (with the field generalization and the EW def
 
 Open: Q4-Q9. Cut 3 waits only on fire-control Cut 12 closing (it edits `FireControl.cs`).
 
-**Cut 2: landed 2026-09-25** at `3b9f0f1d`, `c924bae0`, `daa64560`. 272 tests; production net −73 lines; `AetherDb census` byte-identical; break threshold kept strictly `>`; `ZonePack` key 6 nullable, proven by a raw-MessagePack older-record test. Spec discrepancy fixed: the retirement comment for union tag 26 no longer names `MiningToolData`, which the cut's own negative grep forbids. Soul pending.
+**Cut 2: landed 2026-09-25** at `3b9f0f1d`, `c924bae0`, `daa64560`. 272 tests; production net −73 lines; `AetherDb census` byte-identical; break threshold kept strictly `>`; `ZonePack` key 6 nullable, proven by a raw-MessagePack older-record test. Spec discrepancy fixed: the retirement comment for union tag 26 no longer names `MiningToolData`, which the cut's own negative grep forbids. Soul found one real defect, dormant until Cut 4 wires `FireControl.Apply` into `Wear`: a hit on a chunk that was
+already broken reset `BrokenUntil` and resurrected it on the spot (any shot resolving after the chunk broke —
+travel time, two shots close together). Fixed at `34994732`: a hit on a broken chunk changes nothing and `Wear`
+returns false; pinned below and above hitpoints and across a save taken inside the respawn window (both tests fail
+on the old code). `93bfdebd` removes the dead `MiningDifficulty: 500` still serialized in `Settings.asset`. Soul also
+confirmed the strict `>` threshold cannot stall (wear accumulates across hits; only zero damage never breaks).
+274 tests. **Closed**; the two-commit fix's own check folds into Cut 3's Soul pass.
 
 **Cut 1: landed 2026-09-25** at `22a54ccb` and `d9c887c1` (Stryker fix batch: `EvaluateBelt` had no
 coverage and `Radius`'s `Max`→`Min` survived). 262 tests. Probe on the operator's densest zone, 10 runs each:
@@ -613,7 +619,7 @@ and wear has one owner" (Cut 2).
   - `PlanetSettings.MiningDifficulty` (`Settings.cs:32`). Its only reader is `MineAsteroid`.
   - About 160 lines in total.
 - **Adds:**
-  - `ChunkId` (readonly struct, `(CultRecordKey Belt, int Index)`, with value equality).
+  - `ChunkId` (readonly struct, `(CultRecordKey Field, int Index)`, with value equality).
   - The wear store on `Zone`: `ChunkWear { float Damage; double? BrokenUntil }` keyed by `ChunkId`.
   - `Zone.ChunkExists(ChunkId)`: the index is in range and the chunk is not broken at zone time.
   - `Zone.ChunkRadius(ChunkId)`: `Size` from Cut 1, reading wear.
