@@ -11,8 +11,12 @@ the invariants below are on record before any narrative code or content is writt
    self-contained and whenever you're playing some content from a quest (or inspecting a quest item) you can see
    the quest title and author always on screen in a sticky header. Author field says whose words it is. For a lot
    of the content it's gonna be Opus 5.5, obviously."
-   - **Author is whose words they are**, not who placed, edited or commissioned them. AI-written quests name the
-     model that wrote them (for example "Opus 5.5"); a human writer's quests name that human.
+   - **Author credits everyone whose authorship is in the quest**: whose words they are, and whose authorial intent
+     shaped them. Operator, same day: "or maybe Metacrat + Opus 5.5, there's certainly some authorial intent to be
+     attributed." So a quest Metacrat directed and Opus 5.5 wrote is credited "Metacrat + Opus 5.5"; a human
+     writer's own quest names that human. Placing, formatting or copy-editing someone else's quest is not
+     authorship and adds no name. The field is a list of credited authors, never a single owner slot that forces
+     one name to stand for joint work.
    - **The header is sticky**: it shows for the whole time any content from that quest is on screen — dock text a
      quest injects into a station's story, quest dialogue, and inspecting a quest item — not only on a quest log
      page.
