@@ -221,22 +221,25 @@ public static class ZoneGenerator
 		        .TrueForAll(c => !(c != p && abs(c.Distance - p.Distance) < .1f))) // Filter Rosettes
 	        .OrderBy(p => p.Distance)
 	        .ToArray();
+        // The entrance's own station count is the floor above; its orbit always comes from this same selection.
+        // Ordinarily that selection is potentialLagrangePoints (non-rosette planet orbits). If the entrance zone
+        // has none of those (a boring single-body system, or a system that is entirely one rosette), widen to
+        // every planet orbit ordinary placement's own candidate pool is drawn from before the rosette filter --
+        // still a real, parented planet orbit with a positive Distance -- rather than inventing an unparented,
+        // zero-distance orbit (that gave PlaceTurret's phase = 20*multiplier/orbit.Distance a division by zero,
+        // and left an orbit record with no planet behind it).
+        var lagrangeCandidates = potentialLagrangePoints;
+        if (isTutorialEntrance && lagrangeCandidates.Length == 0)
+	        lagrangeCandidates = planets.Where(p => p.Parent != null).OrderBy(p => p.Distance).ToArray();
         // Pick a selection from the middle of the distribution
-        var selectedStationOrbits = potentialLagrangePoints
-	        .Skip(potentialLagrangePoints.Length / 2)
+        var selectedStationOrbits = lagrangeCandidates
+	        .Skip(lagrangeCandidates.Length / 2)
 	        .Take(stationCount)
 	        .Select(p=>orbitMap[p])
 	        .ToArray();
-        // No planet has a sibling to share a Lagrange point with (a boring single-body system, or none at all),
-        // so there is nowhere the ordinary path would put a station. The entrance zone still needs one: give it
-        // a standalone orbit fixed at a safe distance from the zone centre rather than silently leaving it with
-        // no station.
         if (isTutorialEntrance && selectedStationOrbits.Length == 0)
-        {
-	        var fallbackOrbit = new OrbitData { FixedPosition = random.NextFloat2Direction() * pack.Radius * .5f };
-	        cache.Upsert(fallbackOrbit);
-	        selectedStationOrbits = new[] { fallbackOrbit };
-        }
+	        throw new InvalidOperationException(
+		        "The tutorial entrance zone must always get a station, but it has no orbit at all -- every planet in the zone is a rootless rosette member with no parent.");
 
         var loadoutGenerators = new Dictionary<Faction, LoadoutGenerator>();
 
