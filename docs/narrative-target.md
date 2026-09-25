@@ -59,6 +59,9 @@ the invariants below are on record before any narrative code or content is writt
 - The header needs a quest identity at every surface that can show quest content: the Ink story a line came from,
   injected branches in `LocalMenu`, and quest items. Where that identity lives (Ink global tags read at compile
   time, a typed quest record, or both) is for the campaign's map.
-- **Existing narrative files have no author field.** Their git authors are the accounts `BirgitteSilverbow`
-  (2021-04) and `Reinier Vens` (2021-05). Git accounts are not attribution; whose words each file is must come
-  from the operator, not be inferred.
+- **Existing narrative files are Emily Harvey's.** Operator, 2026-09-25: "Pretty sure those words are all
+  Emily's. Attribution goes to Emily Harvey." `GameData/Narrative/*.ink` (`HeroOrZero`, `ReconStationAlpha`,
+  `RSA/TheActualFactualFactory`, `RSA/QuestTexts`, the Terminus files, `demooutline`) are credited to her when the
+  author field lands, and fall under the same boundary as `AetheriaTexts.ctd`: not edited in place, quoted and
+  attributed, and any extension is a separate, labelled quest crediting its actual authors. Git commit accounts
+  are not attribution and are not a source for it.
