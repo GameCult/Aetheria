@@ -921,14 +921,28 @@ public sealed class FireControlCut12Tests : IDisposable
         Assert.True(Math.Abs(empiricalShareA - expectedShareA) < .05,
             $"prong A's empirical share {empiricalShareA:F3} does not match its analytic share {expectedShareA:F3}");
 
-        // Within-prong shape, not just the aggregate share: prong A is x in {0,1}, projected lateral centres
-        // 0 and -1 respectively (ell=(-1,0)); a=-3 sits closer to x=1's centre (-1) than x=0's (0), so a real
-        // Gaussian shape (not a coin flip within the prong, and not "first cell only") puts strictly more mass
-        // on x=1 than x=0.
+        // S2 fix batch (Hands, 2026-09-25): within-prong SHAPE, pinned by ratio, not just direction. Prong A is
+        // x in {0,1}, projected lateral centres 0 and -1 respectively (ell=(-1,0)), a=-3. The old
+        // "atNearColumn > atFarColumn" check survived M12/M12b (an entire second silhouette built at sigma
+        // floor .5 or at sigma*sqrt(2)) and the sigma/sqrt(2) Stryker mutants at :~753/:~750, because every one
+        // of those wrong sigmas still puts more mass on the nearer column -- direction alone can't tell a
+        // sigma of 1.5 from a sigma of 1.5*sqrt(2). The RATIO can: Soul's own figures are ~2.9 at the true
+        // sigma against ~1.73 at sigma*sqrt(2), well separated at 8000 shots. The near and far columns' own raw
+        // (unmerged) intervals are exactly the two ends of `raw` for prong A, reused here rather than
+        // recomputed.
+        var nearInterval = raw.First(iv => Math.Abs(iv.Lo - (-1.5f)) < 1e-3f); // x=1: [-1.5,-0.5)
+        var farInterval = raw.First(iv => Math.Abs(iv.Lo - (-0.5f)) < 1e-3f);  // x=0: [-0.5,0.5)
+        var nearMass = Mass(nearInterval);
+        var farMass = Mass(farInterval);
+        var analyticRatio = nearMass / farMass;
+        Assert.True(analyticRatio > 2.3, $"fixture: analytic near/far ratio ({analyticRatio:F3}) must be well clear of the wrong-sigma ratio (~1.73) to actually distinguish the two");
+
         var atNearColumn = hits.Count(o => o.Cell.x == 1);
         var atFarColumn = hits.Count(o => o.Cell.x == 0);
-        Assert.True(atNearColumn > atFarColumn,
-            $"expected the column nearer the aim point (x=1, {atNearColumn} hits) to outweigh the far one (x=0, {atFarColumn} hits)");
+        Assert.True(atNearColumn > 0 && atFarColumn > 0, $"expected hits on both columns, got near={atNearColumn} far={atFarColumn}");
+        var empiricalRatio = atNearColumn / (double) atFarColumn;
+        Assert.True(Math.Abs(empiricalRatio - analyticRatio) < .6,
+            $"empirical near/far ratio {empiricalRatio:F3} ({atNearColumn}/{atFarColumn}) does not track the analytic ratio {analyticRatio:F3} -- a sigma perturbed by sqrt(2) would give ~1.73 instead");
     }
 
     // HitsLandOnTheFacingEdge supersedes EveryHitLandsOnMetal: on a concave (holed) hull, every hit's Cell is
