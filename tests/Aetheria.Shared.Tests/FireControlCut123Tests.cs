@@ -972,47 +972,46 @@ public sealed class FireControlCut123Tests : IDisposable
     }
 
     // Mirror-image shots (opposite bearing across the hull's own vertical symmetry axis) deliver, on average,
-    // mirrored per-cell damage. Reverting the lane spacing to one cell fails this (Soul's own probe found about
-    // 30% asymmetry under it): whichever side's lanes happen to overlap eats extra armour that the mirrored
-    // shot's lanes, overlapping the other way, do not.
+    // the same total hull damage. Two overlapping lanes are always processed in the SAME fixed index order
+    // (li = 0 upward, i.e. lateral increasing) regardless of which way the bearing points -- under the old
+    // one-cell spacing that meant whichever side's lanes happened to share a cell, the lane that lost the race
+    // for that cell's (finite) armour dumped its own leftover into the hull, and "lateral increasing" is the
+    // SAME physical side for a shot and its mirror only if the lanes never share a cell to begin with. Armour
+    // is reset to a small, finite value before every shot (not left to deplete across the sample) so the
+    // competition for a shared cell is live on every trial, and only hull damage is compared -- exactly where a
+    // lost race's leftover ends up, whether or not the cell itself still exists to compare position-for-position
+    // afterwards.
     [Fact]
-    public void MirrorImageShotsProduceStatisticallyMirroredDamage()
+    public void MirrorImageShotsProduceStatisticallyMirroredHullDamage()
     {
         var shape = SolidShape(9, 9);
         var b = normalize(float2(1, 1));
         var bm = float2(-b.x, b.y); // mirrored across the hull's own vertical (x) symmetry axis
-        const int hitsWanted = 300;
+        const int hitsWanted = 400;
 
-        double[,] Sample(float2 travelDirection)
+        double SampleHullTotal(float2 travelDirection)
         {
             var e = Build(TestSettings(), shape, precision: 1f, penetration: 0f, damageSpread: 2f);
             e.Shooter.Position = e.Target.Position - float3(travelDirection.x, 0, travelDirection.y) * 100f;
-            foreach (var c in shape.Coordinates) { e.Target.Armor[c.x, c.y] = 1000f; e.Target.MaxArmor[c.x, c.y] = 1000f; }
 
-            var sums = new double[shape.Width, shape.Height];
-            using var s = e.Target.ArmorDamage.Subscribe(x => sums[x.pos.x, x.pos.y] += x.damage);
+            double hullTotal = 0;
+            using var s = e.Target.HullDamage.Subscribe(x => hullTotal += x);
             var got = 0;
-            for (var attempt = 0; attempt < 3000 && got < hitsWanted; attempt++)
+            for (var attempt = 0; attempt < 4000 && got < hitsWanted; attempt++)
             {
+                foreach (var c in shape.Coordinates) { e.Target.Armor[c.x, c.y] = 8f; e.Target.MaxArmor[c.x, c.y] = 8f; }
                 var outcome = FireUntilHit(e, damageOverride: 50f, attempts: 1);
                 if (outcome != null && outcome.Hit) got++;
             }
             Assert.True(got >= hitsWanted, $"fixture: needed {hitsWanted} hits, got {got}");
-            return sums;
+            return hullTotal;
         }
 
-        var a = Sample(b);
-        var m = Sample(bm);
+        var hullA = SampleHullTotal(b);
+        var hullM = SampleHullTotal(bm);
 
-        double totalA = 0, totalDiff = 0;
-        for (var x = 0; x < shape.Width; x++)
-        for (var y = 0; y < shape.Height; y++)
-        {
-            totalA += a[x, y];
-            totalDiff += Math.Abs(a[x, y] - m[shape.Width - 1 - x, y]);
-        }
-        Assert.True(totalDiff < 0.25 * totalA,
-            $"mirror shots should deliver mirrored damage on average: total {totalA}, mirror mismatch {totalDiff}");
+        Assert.True(Math.Abs(hullA - hullM) < 0.15 * Math.Max(hullA, hullM),
+            $"mirror shots should deliver the same total hull damage on average: {hullA} vs {hullM}");
     }
 
     // The footprint widens at an angled bearing rather than concentrating: the same spread, on the same hull,
