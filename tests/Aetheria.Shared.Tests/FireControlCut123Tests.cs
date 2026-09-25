@@ -1404,130 +1404,193 @@ public sealed class FireControlCut123Tests : IDisposable
         Assert.Equal(0, shortfalls);
     }
 
-    // ===================== F8: the model sweep, extended with the proportional rule =====================
-    // Ports SoulApply123b's own independent model (armour, then item, then hull, near-to-far per lane,
-    // ModelLane above -- the exact double-precision ray/box walk F1's own DirectHitAtAnAngledBearingMatches...
-    // test already uses) and extends it with the proportional multi-lane item rule this cut adds: an item
-    // touched by more than one lane absorbs their SUMMED post-armour incoming (up to its own durability), each
-    // lane's leftover in proportion to what it brought. Structured the same way as FireControl.Apply's own new
-    // code (a survey of which items are geometrically shared, then an AdvanceLane/Resolve loop) -- not because
-    // a model must mirror production, but because it is the simplest correct way to get an item's resolution
-    // order-independent of which lane the loop visits first, which is exactly the property under test. Compares
-    // against production Apply through Fire/Commit/Apply (no reflection), over a sweep of shapes, bearings
-    // (axis and angled) and item shapes (2x1 bars and non-convex L-shaped items, LShape above).
-    private static (double[,] armor, Dictionary<EquippedItem, double> items, double hull) ModelWithSharedItems(
-        Entity target, Shape shape, double[,] armorBefore, Dictionary<EquippedItem, double> itemsBefore,
-        double bx, double by, double s, double damage, double penetration, int n)
+    // ===================== F8/Soul: the model sweep, rewritten as an independent fixed point =====================
+    // Soul's finding (2026-09-25): the earlier sweep copied FireControl.Apply's own structure (a survey of
+    // shared items, then an AdvanceLane/Resolve loop, lane-driven) closely enough that reverting production to
+    // a plain sequential per-lane absorb (M1, no pooling at all) still passed it. A model built the same way
+    // production is built can share production's own blind spot. `FixedPointItemResolution` below settles items
+    // in a DIFFERENT order from production's own inline, per-deposit check: it repeats PASSES over every lane
+    // (armour only, never coupled across lanes) and then, once a WHOLE pass of every lane is done, checks every
+    // currently open pool for readiness in one batch (`ReadyToSettle`) -- production instead asks the readiness
+    // question the instant a single lane deposits, mid-walk, never waiting for a whole pass. `ReadyToSettle`
+    // still re-derives its answer fresh from each other lane's CURRENT position every time it is asked (not
+    // from a table built once up front): a precomputed-once reach table was tried first and produced a real
+    // deadlock on a non-convex item crossed twice by the SAME lane, because a set keyed by item identity cannot
+    // tell a two-lane first pool apart from the one-lane pool the item's second visit degenerates into. A
+    // genuine cross-item cycle (every remaining lane blocked, nothing left to converge) is broken by
+    // force-settling whatever is still open, in the REVERSE of first-encountered order -- the opposite
+    // tie-break direction from production's own cycle rule, so the two could only agree on a genuine cycle's
+    // numbers by actually computing the same conservation-respecting split, not by sharing a tie-break
+    // convention.
+    //
+    // Geometry itself is NOT reimplemented a third time: which cells belong to which lane is read directly from
+    // `FireControl.Lanes`, the one public function this whole cut already treats as the single geometric owner
+    // (`LanesQueryIsDisjointMatchesLaneAtCentreAndNeverEmptyOnHull` above pins its own contract independently).
+    // An earlier version of this rewrite reimplemented lane membership with the plain double-precision
+    // `ModelLane` walk (the same primitive F1's own single-lane model uses); reading the real `Lanes` output
+    // instead removes any chance of the model and production disagreeing about which cell belongs to which
+    // lane, leaving only genuine float32-vs-double arithmetic drift in the absorption chain -- small enough
+    // that the tolerance below could actually be tightened, rather than only claimed tightened.
+    private static (double[,] armor, Dictionary<EquippedItem, double> items, double hull) FixedPointItemResolution(
+        Entity target, HullData hullData, double[,] armorBefore, Dictionary<EquippedItem, double> itemsBefore,
+        float2 bearing, float lateral, float damage, float penetration, int n)
     {
         var armor = (double[,]) armorBefore.Clone();
         var items = new Dictionary<EquippedItem, double>(itemsBefore);
-        var laneSpacing = Math.Abs(bx) + Math.Abs(by);
         var laneCount = 2 * n + 1;
-        var lanes = new List<MCell>[laneCount];
-        for (var li = 0; li < laneCount; li++) lanes[li] = ModelLane(shape, bx, by, s + (li - n) * laneSpacing);
-        var metal = lanes.Count(l => l.Count > 0);
-        var per = damage / metal;
+        var ell = float2(-bearing.y, bearing.x);
+        var laneSpacing = Math.Abs(ell.x) + Math.Abs(ell.y); // the same shadow-width formula Extent/Lateral own
 
-        var pointer = new int[laneCount];
-        var rem = new double[laneCount];
-        var finished = new bool[laneCount];
-        var blocked = new bool[laneCount];
-        for (var li = 0; li < laneCount; li++) { finished[li] = lanes[li].Count == 0; rem[li] = per; }
+        var buffers = new LaneCell[laneCount][];
+        for (var li = 0; li < laneCount; li++) buffers[li] = new LaneCell[hullData.Shape.Coordinates.Length];
+        var walked = FireControl.Lanes(hullData, bearing, lateral, n, laneSpacing, buffers);
 
-        // Survey: which items are geometrically reachable by more than one distinct lane, independent of any
-        // remaining damage -- exactly the question FireControl.Apply's own survey asks.
-        var lanesOf = new Dictionary<EquippedItem, List<int>>();
+        // The one clip production performs, against `Lanes`' own real output -- a two-line geometric fact, not
+        // the resolution order under test.
+        var cells = new List<int2>[laneCount];
         for (var li = 0; li < laneCount; li++)
         {
-            if (lanes[li].Count == 0) continue;
-            var en0 = lanes[li][0].En;
-            for (var i = 0; i < lanes[li].Count; i++)
+            var clipped = new List<int2>();
+            if (walked[li] > 0)
             {
-                if (i > 0 && lanes[li][i].En - en0 >= penetration) break;
-                var item = target.GearOccupancy[lanes[li][i].C.x, lanes[li][i].C.y];
-                if (item == null) continue;
-                if (!lanesOf.TryGetValue(item, out var list)) lanesOf[item] = list = new List<int>();
-                if (!list.Contains(li)) list.Add(li);
+                var impactEntry = buffers[li][0].Entry;
+                var count = 1;
+                while (count < walked[li] && buffers[li][count].Entry - impactEntry < penetration) count++;
+                for (var i = 0; i < count; i++) clipped.Add(buffers[li][i].Cell);
             }
+            cells[li] = clipped;
         }
-        var sharedSet = new HashSet<EquippedItem>(lanesOf.Where(kv => kv.Value.Count > 1).Select(kv => kv.Key));
-        var remainingContributors = sharedSet.ToDictionary(it => it, it => lanesOf[it].Count);
-        var pool = sharedSet.ToDictionary(it => it, it => new List<(int lane, double amount)>());
-        var resolved = new HashSet<EquippedItem>();
+        var metal = cells.Count(c => c.Count > 0);
+        var per = (double) damage / metal;
+
+        var at = new int[laneCount]; // how many of this lane's own cells are fully settled
+        var carry = new double[laneCount]; // damage this lane carries into cell `at[li]`
+        var done = new bool[laneCount];
+        for (var li = 0; li < laneCount; li++) { done[li] = cells[li].Count == 0; carry[li] = done[li] ? 0 : per; }
+
         var hull = 0.0;
+        var openPool = new Dictionary<EquippedItem, Dictionary<int, double>>();
 
-        void FinishLane(int li) { finished[li] = true; hull += rem[li]; }
+        void Land(int li) { done[li] = true; hull += carry[li]; }
 
-        void Resolve(EquippedItem item)
+        // Every non-finished lane, at the moment this is called (always AFTER a full pass over every lane, never
+        // mid-pass), is either done or sitting blocked at exactly one item cell -- there is no third "still
+        // walking" state left once a pass completes. So "no other unfinished lane can still reach this item"
+        // reduces to: does `item` occur anywhere in an OTHER non-contributing lane's remaining cell list, from
+        // where it currently sits onward. Unlike a precomputed table keyed by item identity, this re-derives
+        // the answer fresh each time from each lane's CURRENT position -- which is what correctly demotes a
+        // non-convex item's SECOND visit by the same lane to a solo pool once every other lane has already
+        // passed the item for good, without needing a separate notion of "which visit number" this is.
+        bool ReadyToSettle(EquippedItem item, Dictionary<int, double> contributors)
         {
-            var contributions = pool[item];
-            var total = contributions.Sum(c => c.amount);
+            for (var li2 = 0; li2 < laneCount; li2++)
+            {
+                if (done[li2] || contributors.ContainsKey(li2)) continue;
+                for (var i = at[li2]; i < cells[li2].Count; i++)
+                    if (target.GearOccupancy[cells[li2][i].x, cells[li2][i].y] == item) return false;
+            }
+            return true;
+        }
+
+        void Settle(EquippedItem item)
+        {
+            var deposits = openPool[item];
+            openPool.Remove(item); // a later visit opens a fresh pool, the same rule as production
+            var total = deposits.Values.Sum();
+            // Entity.ItemAbsorb's own .1f gate, decided once on the pool total -- an earlier version of this
+            // model omitted it entirely (absorbing any positive total, however small) and it took a real
+            // production trace to catch: a 0.03 pooled total should pass straight through untouched, the same
+            // as a solo 0.03 hit always has, not vanish into an item with plenty of spare durability.
             var before = items[item];
-            var absorbed = Math.Min(total, before);
+            var absorbed = total > 0.1 ? Math.Min(total, before) : 0.0;
             items[item] = Math.Max(before - absorbed, 0);
             var fraction = total > 0 ? absorbed / total : 0;
-            foreach (var (lane, amount) in contributions) rem[lane] = amount - amount * fraction;
-            resolved.Add(item);
-            foreach (var (lane, _) in contributions)
+            foreach (var (lane, amount) in deposits)
             {
-                blocked[lane] = false;
-                pointer[lane]++;
-                if (pointer[lane] >= lanes[lane].Count) FinishLane(lane);
+                carry[lane] = amount - amount * fraction;
+                at[lane]++;
+                if (at[lane] >= cells[lane].Count) Land(lane);
             }
         }
 
-        bool AdvanceLane(int li)
+        // The fixed point: repeat PASSES over lanes (armour only, never coupled across lanes) and then over
+        // every currently open item (settle whichever now has its whole precomputed reach set deposited) until
+        // a whole pass changes nothing.
+        var progressed = true;
+        while (progressed)
         {
-            var moved = false;
-            while (!finished[li] && !blocked[li])
-            {
-                var i = pointer[li];
-                if (i > 0 && lanes[li][i].En - lanes[li][0].En >= penetration) { FinishLane(li); moved = true; break; }
-                var c = lanes[li][i].C;
-                if (rem[li] > 0) { var a = armor[c.x, c.y]; armor[c.x, c.y] = Math.Max(a - rem[li], 0); rem[li] = Math.Max(rem[li] - a, 0); }
-                moved = true;
-                var item = target.GearOccupancy[c.x, c.y];
-                if (item != null && rem[li] > .1 && sharedSet.Contains(item) && !resolved.Contains(item))
-                {
-                    pool[item].Add((li, rem[li]));
-                    remainingContributors[item]--;
-                    blocked[li] = true;
-                    if (remainingContributors[item] == 0) Resolve(item);
-                    break;
-                }
-                if (item != null && rem[li] > .1)
-                {
-                    var d = items[item];
-                    items[item] = Math.Max(d - rem[li], 0);
-                    rem[li] = Math.Max(rem[li] - d, 0);
-                }
-                pointer[li]++;
-                if (pointer[li] >= lanes[li].Count) { FinishLane(li); break; }
-            }
-            return moved;
-        }
+            progressed = false;
 
-        bool AllFinished() { for (var li = 0; li < laneCount; li++) if (!finished[li]) return false; return true; }
-
-        while (!AllFinished())
-        {
-            var progressed = false;
             for (var li = 0; li < laneCount; li++)
-                if (!finished[li] && !blocked[li] && AdvanceLane(li)) progressed = true;
-            if (!progressed)
             {
-                // Deadlock fallback (the "opposite order" case, docs/fire-control-cut.md Cut 12.3 status): not
-                // exercised by this sweep's own single-shared-item fixtures, kept only for parity with
-                // production's own tie-break so an unexpectedly non-convex draw cannot hang the model.
-                EquippedItem victim = null;
-                foreach (var item in sharedSet)
-                    if (!resolved.Contains(item) && pool[item].Count > 0) { victim = item; break; }
-                if (victim == null) break;
-                Resolve(victim);
+                if (done[li]) continue;
+                while (at[li] < cells[li].Count)
+                {
+                    var c = cells[li][at[li]];
+                    var item = target.GearOccupancy[c.x, c.y];
+                    // Already deposited here on an earlier pass, still waiting on the item to settle -- do NOT
+                    // touch armour or deposit again; this cell is not revisited until Settle advances `at[li]`.
+                    if (item != null && openPool.TryGetValue(item, out var waiting) && waiting.ContainsKey(li)) break;
+
+                    // Armour applies at EVERY cell this lane reaches, item or not (armour is never shared --
+                    // Entity.ArmorAbsorb runs unconditionally on a cell before any item check, and this model
+                    // mirrors that ordinary per-lane physics without needing to copy production's own walk).
+                    if (carry[li] > 0) { var a = armor[c.x, c.y]; armor[c.x, c.y] = Math.Max(a - carry[li], 0); carry[li] = Math.Max(carry[li] - a, 0); }
+                    if (item == null)
+                    {
+                        at[li]++;
+                        progressed = true;
+                        continue;
+                    }
+                    if (!openPool.TryGetValue(item, out var deposits)) openPool[item] = deposits = new Dictionary<int, double>();
+                    deposits[li] = carry[li];
+                    progressed = true;
+                    break; // this lane goes no further until the item settles
+                }
+                if (!done[li] && at[li] >= cells[li].Count) Land(li);
             }
+
+            foreach (var item in new List<EquippedItem>(openPool.Keys))
+                if (ReadyToSettle(item, openPool[item])) { Settle(item); progressed = true; }
         }
+
+        // Cycle break: a genuine cyclic dependency between two non-convex items leaves pools open with no lane
+        // able to progress. Force-settle whatever remains, in the REVERSE of first-encountered order --
+        // deliberately the opposite tie-break to production's own, so agreement on a genuine cycle's numbers
+        // can only come from both sides actually conserving and splitting correctly.
+        foreach (var item in Enumerable.Reverse(new List<EquippedItem>(openPool.Keys)))
+            if (openPool.ContainsKey(item)) Settle(item);
 
         return (armor, items, hull);
+    }
+
+    // How many of a shot's own lanes geometrically reach `item` at all, at the COMMITTED bearing/lateral -- read
+    // from the real `FireControl.Lanes`/clip, the same as `FixedPointItemResolution` above. Used only to gate
+    // the sweep below onto draws that actually exercise cross-lane sharing, the same way RunSharedItemCase and
+    // MirrorSymmetryHoldsWithASharedMultiCellItem retry until their own committed column lands where they need
+    // it.
+    private static int LanesReaching(HullData hullData, float2 bearing, float lateral, int n, float penetration, Entity target, EquippedItem item)
+    {
+        var laneCount = 2 * n + 1;
+        var ell = float2(-bearing.y, bearing.x);
+        var laneSpacing = Math.Abs(ell.x) + Math.Abs(ell.y);
+        var buffers = new LaneCell[laneCount][];
+        for (var li = 0; li < laneCount; li++) buffers[li] = new LaneCell[hullData.Shape.Coordinates.Length];
+        var walked = FireControl.Lanes(hullData, bearing, lateral, n, laneSpacing, buffers);
+
+        var count = 0;
+        for (var li = 0; li < laneCount; li++)
+        {
+            if (walked[li] == 0) continue;
+            var impactEntry = buffers[li][0].Entry;
+            var clipped = 1;
+            while (clipped < walked[li] && buffers[li][clipped].Entry - impactEntry < penetration) clipped++;
+            var reached = false;
+            for (var i = 0; i < clipped; i++)
+                if (target.GearOccupancy[buffers[li][i].Cell.x, buffers[li][i].Cell.y] == item) { reached = true; break; }
+            if (reached) count++;
+        }
+        return count;
     }
 
     [Fact]
@@ -1550,13 +1613,17 @@ public sealed class FireControlCut123Tests : IDisposable
                 var useLBar = t % 2 == 0;
                 var itemX = 1 + rng.Next(shape.Width - 3);
                 const int itemY = 1; // the only row that is interior with room for a 2-row-tall L above it (height 4)
-                var durability = (float) (5 + rng.NextDouble() * 20);
+                // Soul: durability BELOW a single lane's own share (damage 40 over up to 5 lanes, so roughly
+                // 8-13 per lane before armour) guarantees the item overflows whenever it is shared -- the
+                // per-lane split always matters, never a coincidental full-absorb-either-way case.
+                var durability = (float) (2 + rng.NextDouble() * 4);
                 var e = useLBar
                     ? Build(TestSettings(), shape, precision: 1f, penetration: 3f, damageSpread: 2f,
                         lBars: new[] { (new int2(itemX, itemY), durability) })
                     : Build(TestSettings(), shape, precision: 1f, penetration: 3f, damageSpread: 2f,
                         bars: new[] { (new int2(itemX, itemY), durability) });
                 e.Shooter.Position = e.Target.Position - float3(travelDirection.x, 0, travelDirection.y) * 100f;
+                var sharedItem = e.Target.GearOccupancy[itemX, itemY];
 
                 foreach (var c in shape.Coordinates)
                 {
@@ -1567,31 +1634,62 @@ public sealed class FireControlCut123Tests : IDisposable
                 var armorBefore = ToD(e.Target.Armor);
                 var itemsBefore = e.Target.Equipment.Where(x => x.EquippableItem != e.Target.Hull)
                     .ToDictionary(x => x, x => (double) x.EquippableItem.Durability);
+                var hullBefore = e.Target.Hull.Durability;
 
-                ShotOutcome outcome = null;
-                for (var attempt = 0; attempt < 400 && (outcome == null || !outcome.Hit); attempt++)
-                    outcome = FireUntilHit(e, damageOverride: 40f, attempts: 1);
-                if (outcome == null || !outcome.Hit) continue; // fixture: rare miss exhaustion, skip this draw
-                trials++;
+                // Every rejected attempt below still fires a real shot and mutates real state -- reset back to
+                // the captured baseline before each one, or a rejected miss/mismatch would silently corrupt the
+                // "before" snapshot the accepted shot is later compared against (the bug that produced this
+                // sweep's very first false failure while writing this rewrite: armour and item durability had
+                // already been chipped by earlier rejected attempts by the time an accepted shot was found).
+                void ResetState()
+                {
+                    foreach (var c in shape.Coordinates) e.Target.Armor[c.x, c.y] = (float) armorBefore[c.x, c.y];
+                    foreach (var kv in itemsBefore) kv.Key.EquippableItem.Durability = (float) kv.Value;
+                    e.Target.Hull.Durability = hullBefore;
+                }
 
                 const int n = 2; // damageSpread 2 -> floor(2.5) = 2
-                var model = ModelWithSharedItems(e.Target, shape, armorBefore, itemsBefore,
-                    outcome.Bearing.x, outcome.Bearing.y, outcome.Lateral, 40, 3, n);
+                ShotOutcome outcome = null;
+                var hullEvent = 0.0;
+                using (e.Target.HullDamage.Subscribe(d => hullEvent += d))
+                {
+                    // Retry until the shot both hits AND actually shares `sharedItem` between >=2 lanes --
+                    // the property this test exists to exercise, not left to chance.
+                    for (var attempt = 0; attempt < 1200; attempt++)
+                    {
+                        ResetState();
+                        hullEvent = 0.0;
+                        var o = FireUntilHit(e, damageOverride: 40f, attempts: 1);
+                        if (o == null || !o.Hit) continue;
+                        if (LanesReaching(e.HullData, o.Bearing, o.Lateral, n, 3f, e.Target, sharedItem) < 2) continue;
+                        outcome = o;
+                        break;
+                    }
+                }
+                if (outcome == null) continue; // fixture: rare exhaustion of the shared-hit budget, skip this draw
+                trials++;
 
-                // Absolute tolerance rather than a fixed decimal-place rounding: the model runs in double and
-                // production in float, so a value that lands within a float ULP or two of a rounding boundary
-                // (e.g. 1.54999995 vs 1.55000019) can round to different digits at 1-2 decimal places despite
-                // agreeing far more closely than that -- exactly the kind of float-vs-double drift F1's own
-                // DirectHitAtAnAngledBearingMatchesAnIndependentModel test already tolerates with its own `, 2`.
+                var model = FixedPointItemResolution(e.Target, e.HullData, armorBefore, itemsBefore,
+                    outcome.Bearing, outcome.Lateral, 40f, 3f, n);
+
+                // Tightened from an earlier `< .1` (Soul, 2026-09-25). That wide tolerance was masking two
+                // different things at once: genuine float32-vs-double arithmetic drift (small, ~1e-3) AND this
+                // sweep's own model disagreeing with `Lanes`' rare cross-lane cell-ownership tie-break (large
+                // enough to read as a clean 0.03-0.09, reproducible, NOT noise -- caught and removed above by
+                // reading lane membership from the real `FireControl.Lanes` instead of reimplementing it).
+                // With that class of disagreement gone, what's left really is arithmetic noise.
+                const double tolerance = .01;
                 foreach (var c in shape.Coordinates)
-                    Assert.True(Math.Abs(model.armor[c.x, c.y] - e.Target.Armor[c.x, c.y]) < .1,
+                    Assert.True(Math.Abs(model.armor[c.x, c.y] - e.Target.Armor[c.x, c.y]) < tolerance,
                         $"armor{c}: model {model.armor[c.x, c.y]:F4} production {e.Target.Armor[c.x, c.y]:F4}");
                 foreach (var kv in model.items)
-                    Assert.True(Math.Abs(kv.Value - (double) kv.Key.EquippableItem.Durability) < .1,
+                    Assert.True(Math.Abs(kv.Value - (double) kv.Key.EquippableItem.Durability) < tolerance,
                         $"item#{kv.Key.GetHashCode()}: model {kv.Value:F4} production {kv.Key.EquippableItem.Durability:F4}");
+                Assert.True(Math.Abs(model.hull - hullEvent) < tolerance,
+                    $"hull: model {model.hull:F4} production {hullEvent:F4}");
             }
         }
-        Assert.True(trials >= 80, $"fixture: needed at least 80 of the 90 possible resolved trials, got {trials}"); // 2 shapes * 3 bearings * 15 draws
+        Assert.True(trials >= 40, $"fixture: needed at least 40 shared-item trials (of up to 90 draws), got {trials}");
     }
 
     // ===================== Soul's own probes (Cut 12.3, one-apply-path fix batch) =====================
