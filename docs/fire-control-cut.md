@@ -2012,7 +2012,8 @@ Second round:
   Readers of the field: `FireControl.cs:284` and `FireControlCut6Tests.cs:81-101, 249, 268,
   279`. `tools/AetherDb` has none. The `AirburstRange:` lines in nine weapon prefabs
   (for example `Flak Cannon.prefab:65`) are orphaned YAML from a deleted MonoBehaviour field:
-  no C# field of that name exists outside `ItemData.cs:498`.
+  no C# field of that name exists outside `ItemData.cs:498`. Measured at `2625768f`: the catalog opens as
+  `CompatibleDrift`, with slot 32 reported as `defaulted_missing_slot`. One write through AetherDb or Studio clears the drift.
 
 ### Frame, geometry and the bearing (the rules every sub-cut reads)
 
@@ -2652,14 +2653,15 @@ The smallest field set: two fields, both on `WeaponItemData` (`ItemData.cs:475-4
 - **Slot 29.** `float? AirburstRange` (`ItemData.cs:497-498`) is renamed `float? BlastRadius`, with JSON name
   `"blastRadius"`. It is in world units and keeps its meaning. The slot and the type are unchanged, so CultCache
   opens the catalog as compatible drift (see 0b).
-- **New slot 30.** `WeaponFuse? Fuse`, with JSON name `"fuse"`, and `enum WeaponFuse { Contact, Proximity,
+- **New slot 32** (landed `2625768f`; the map said 30, but 30 and 31 are `OptimalTemperature`/`PlateauWidth`, inherited from `EquippableItemData`). `WeaponFuse? Fuse`, with JSON name `"fuse"`, and `enum WeaponFuse { Contact, Proximity,
   Delayed }` in `Enums.cs`, beside `WeaponModifiers` (`Enums.cs:97-108`). It is nullable under the 7.4 rule:
   null means no blast, and every shipped record reads as null.
 - **Fire decides "detonates" once.** Fire freezes `PendingShot.Fuse` as the weapon's fuse only when
   `BlastRadius > 0`, and as null otherwise, and it freezes `BlastRadius` beside it. After Fire, nothing
   re-derives whether a shot detonates; every reader reads `shot.Fuse`. A fuse without a radius, or a radius
   without a fuse, is inert and resolves as a direct hit. Nothing reports it: Q12-6 ruled that the catalog is
-  not policed.
+  not policed. The inert half takes effect with (b)'s switch in `Apply`. At (a), `Step` still splashes on
+  `BlastRadius` alone (Soul, `2625768f`).
 - **The drift warnings.** The catalog needs one write through `tools/AetherDb` or Studio to clear them. That
   write is content and changes no data. It belongs to F12-2.
 - **Readers to update:**
@@ -3121,7 +3123,7 @@ Two persisted changes, both on `aetheria.weaponitemdata` v1 and both in 12.4:
 | Field | Slot | Change | Lifecycle | Reader risk |
 |---|---|---|---|---|
 | `BlastRadius` (was `AirburstRange`) | 29 | rename, same `float?` type | authored catalog | compatible drift: `CompareSchemaShapes` ignores member names (`CultCache.cs:672-752`, CultLib `45c2f40`); drift warnings until the next catalog write |
-| `Fuse` | 30 | new, `WeaponFuse?` | authored catalog | nullable, so older records read as null ("no blast"), per the 7.4 rule |
+| `Fuse` | 32 | new, `WeaponFuse?` | authored catalog | nullable, so older records read as null ("no blast"), per the 7.4 rule |
 
 Runtime-only and never serialised (0b table, `FireControl.cs:626-629`, `:686-689`):
 
@@ -3254,7 +3256,7 @@ of (b) can proceed while this waits.
 | 12.1 | est. ~15, **actual 18** | est. ~6, **actual 16** | no behaviour change |
 | 12.2 | est. ~65, **actual 63** | est. ~95, **actual 235** | `Forecast`, pooling, the `Extent` owner and the fix batches |
 | 12.3 | est. ~80, **actual 53** | est. ~45, **actual 227** | `ApplyPooled` (~140), `Lanes` (~40), `ArmorAbsorb`/`ItemAbsorb` |
-| 12.4 (est.) | ~50: Splash (~35), `Absorb` (~9), the label read (~4), `Step`'s branch (~2) | ~110: `Detonate` (~40), the exact overlap (~25), the point transforms (~12), Apply's fuse switch and P (~15), `Reach` (moved, ~+2 net), `WeaponFuse`, slot 30 and `PendingShot.Fuse` (~10) | 8 Splash/airburst tests rewritten, 2 `Absorb` tests retargeted and 1 replaced, ~12 new |
+| 12.4 (est.) | ~50: Splash (~35), `Absorb` (~9), the label read (~4), `Step`'s branch (~2) | ~110: `Detonate` (~40), the exact overlap (~25), the point transforms (~12), Apply's fuse switch and P (~15), `Reach` (moved, ~+2 net), `WeaponFuse`, slot 32 and `PendingShot.Fuse` (~10) | 8 Splash/airburst tests rewritten, 2 `Absorb` tests retargeted and 1 replaced, ~12 new |
 | **Net Aetheria src** | **~184** | **~588** | one persisted slot added (nullable) and one renamed; no targets, dependencies or formats; CultMath gains 2 functions |
 
 Actuals count non-comment, non-blank changed lines under `Assets/Scripts`:
