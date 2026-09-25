@@ -2559,7 +2559,14 @@ Alternative: keep the processing order and pin it.
 **Ruled 2026-09-25: proportional absorption.** Operator: "proportional absorption; go". A multi-cell
 item struck by several lanes of one shot absorbs from their combined incoming damage, and each lane
 carries on with a leftover in proportion to what it brought. The result must not depend on the order
-lanes are processed; with no shared item it equals sequential absorption exactly.
+lanes are processed. A single-lane item is the degenerate case of the same rule, not a separate path.
+
+**Ruled 2026-09-25: one code path.** Operator: "Do not expect items taking up multiple cells to be an
+exception, this should be one code path." The first implementation (`56757913`) surveyed each shot
+for shared items and took either `ApplySequential` or `ApplyWithSharedItems`. That was a split
+authority, and the second reachability derivation it needed is the same failure as the 12.2 empty
+lane and the 12.3 double strike. `Apply` has one walk, in which every item pools the deposits of
+the lanes that reach it, a pool of one lane included. The survey and the sequential path die.
 
 ### Cut 12.4. The detonation primitive
 
