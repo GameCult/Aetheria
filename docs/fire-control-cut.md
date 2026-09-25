@@ -2440,8 +2440,11 @@ import.
 - **Per-file changes:** `FireControl.Apply` (`:449-468`), with the shield branches
   unchanged:
   1. `IncomingHit.OnNext(source)` moves here from `Entity.cs:383`.
-  2. The lanes are `Lateral + k` for `k ∈ [-n, n]`, where `n = (int) floor(DamageSpread +
-     .5f)` (today's rounding, `Entity.cs:389`), spaced one cell *shadow* apart along ℓ, i.e. `2h` (Q12-2 = A, amended 2026-09-25).
+  2. There are `2n+1` lanes, `k ∈ [-n, n]`, where `n = (int) floor(DamageSpread + .5f)` (today's
+     rounding, `Entity.cs:389`). Lane `k` sits `k` cell *shadows* (`2h`) from `Lateral` along ℓ, and
+     **no cell belongs to two lanes** (Q12-2 = A, amended 2026-09-25). Membership is decided once per
+     cell, not by testing float lane positions against float intervals (Soul, 12.3 pass 2: those two
+     derivations disagreed at cell edges and struck a cell twice).
   3. Damage splits evenly over the lanes that meet metal. The centre lane always does.
   4. Each lane walks from its own facing cell, clipped to the penetration depth, with
      `rem = target.Absorb(cell, rem)` at each cell.
