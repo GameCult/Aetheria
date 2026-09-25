@@ -329,14 +329,12 @@ public abstract class Entity
             ? TargetItem.Value
             : null;
 
-    // Cut 12.3 (docs/fire-control-cut.md): "armour absorbs first" -- moved verbatim from DamageSchematic's own
-    // per-cell body (Cut 3), now called once per lane cell (FireControl.Apply) instead of once per hit-shape
-    // cell with an even split. Armor absorbs up to its own value, then the occupying item once the remainder
-    // exceeds .1f, and whatever is left over is returned to the caller for the hull's own share (or the next
-    // cell down the lane, for a lane that keeps carrying a remainder is not this function's concern -- Apply's
-    // own loop does that). ArmorDamage/ItemDamage fire only for incoming > 0 -- a cell a spent lane still walks
-    // past (rem already 0) takes no event and no recorded hit.
-    public float Absorb(int2 cell, float damage)
+    // Cut 12.3 (docs/fire-control-cut.md): "armour absorbs first" -- the per-cell armour phase, split out of
+    // what used to be Absorb's own first half (moved verbatim from DamageSchematic's per-cell body, Cut 3) so
+    // Cut 12.3's fix batch (proportional multi-lane item absorption, below) can call the armour phase once per
+    // cell -- always local to one lane, since armour never spans cells -- while deferring the item phase for a
+    // cell whose item is shared with another lane in the same shot. ArmorDamage fires only for incoming > 0.
+    public float ArmorAbsorb(int2 cell, float damage)
     {
         var d = damage;
 
@@ -348,19 +346,41 @@ public abstract class Entity
             d = max(d - prevArmor, 0);
         }
 
-        if (d > 0.1f)
+        return d;
+    }
+
+    // Cut 12.3 fix batch (proportional multi-cell absorption): the item phase, split out of Absorb's own
+    // second half so a caller coordinating several lanes into one shared item (FireControl.Apply) can resolve
+    // that item's absorption once, from the lanes' combined incoming damage, instead of once per lane against
+    // whatever durability the previous lane left behind. Takes the item directly (not a cell) because the
+    // caller may already know it is resolving a specific item for several different cells/lanes at once.
+    // ItemDamage fires only once the post-armour remainder exceeds .1f, same threshold as before the split.
+    public float ItemAbsorb(EquippedItem item, float damage)
+    {
+        var d = damage;
+
+        if (d > 0.1f && item != null)
         {
-            var item = GearOccupancy[cell.x, cell.y];
-            if (item != null)
-            {
-                var prevItem = item.EquippableItem.Durability;
-                item.EquippableItem.Durability = max(prevItem - d, 0);
-                ItemDamage.OnNext((item, d));
-                d = max(d - prevItem, 0);
-            }
+            var prevItem = item.EquippableItem.Durability;
+            item.EquippableItem.Durability = max(prevItem - d, 0);
+            ItemDamage.OnNext((item, d));
+            d = max(d - prevItem, 0);
         }
 
         return d;
+    }
+
+    // Cut 12.3 (docs/fire-control-cut.md): "armour absorbs first" -- armour up to its own value, then the
+    // occupying item, then whatever is left over is returned to the caller for the hull's own share (or the
+    // next cell down the lane; a lane that keeps carrying a remainder is not this function's concern --
+    // Apply's own loop does that). This is the single-lane path: FireControl.Apply calls ArmorAbsorb/ItemAbsorb
+    // directly instead, only when a cell's item is shared between lanes and needs their combined incoming
+    // damage resolved together; every other caller (an unshared cell, Splash) still goes through Absorb
+    // unchanged, so this function's own behaviour is untouched by the fix batch.
+    public float Absorb(int2 cell, float damage)
+    {
+        var d = ArmorAbsorb(cell, damage);
+        return ItemAbsorb(GearOccupancy[cell.x, cell.y], d);
     }
 
     // Cut 12.3: moved verbatim from DamageSchematic's own tail (Cut 3) -- the >.1f threshold and the one
