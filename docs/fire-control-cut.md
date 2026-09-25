@@ -2568,6 +2568,8 @@ authority, and the second reachability derivation it needed is the same failure 
 lane and the 12.3 double strike. `Apply` has one walk, in which every item pools the deposits of
 the lanes that reach it, a pool of one lane included. The survey and the sequential path die.
 
+**Self's default 2026-09-25 (not an operator ruling): the cycle rule.** When every unfinished lane is blocked at an item pool and no pool is ready (two lanes crossing two shared non-convex items in opposite order), every open pool resolves at once with the deposits it holds. It needs no ordering key, so mirrored shots stay mirrored. The first implementation used the smallest first-contact `Entry`, which ties at axis-aligned bearings and fell back to lane index. Soul broke mirror symmetry with it. The operator may overrule this default.
+
 ### Cut 12.4. The detonation primitive
 
 - **Repo/branch:** Aetheria, on top of 12.3. It lands as two commits:
