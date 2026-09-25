@@ -811,65 +811,68 @@ public sealed class FireControlCut12Tests : IDisposable
     // every mutant there survived in 12.2 because only buffer[0]'s Cell was ever read (S1's own shadow
     // prefilter, Extent, decided admission; AlongBearing's entry/exit were computed but unchecked). 12.3's own
     // walk (FireControl.Apply) reads Entry for penetration and ordering, so a wrong entry/exit here is now a
-    // wrong damage cell, not dead arithmetic. Fixture: a bearing that crosses several cells diagonally (neither
-    // axis-aligned), so entry ordering and contiguity both matter -- this test computes each admitted cell's
-    // own exact slab intersection independently (the same two-axis solve AlongBearing/SlabAxis perform, written
-    // out fresh here rather than called), and checks Lane's own Entry/Exit against it, cell for cell, in order.
+    // wrong damage cell, not dead arithmetic.
+    // F10 fix batch (Soul, 2026-09-25): the previous, single-bearing version of this test wrote out SlabAxis's
+    // OWN threshold (`1e-9f`) and clamp a second time, so a mutant that only moved that threshold (C7b, 1e-9 to
+    // .2) agreed with both copies identically and survived. This version never special-cases a near-zero
+    // bearing component at all: IEEE division by a signed zero already yields the correctly signed infinity, so
+    // an axis with no motion is unconstrained without a hand-written epsilon to disagree with SlabAxis's own.
+    // Checked at several bearings, including one within about 11 degrees of an axis -- inside SlabAxis's
+    // mutated .2f threshold but nowhere near the real 1e-9f one, so C7b now has to answer for a visibly wrong
+    // entry/exit instead of an unstressed one.
     [Fact]
-    public void AlongBearingReturnsTheExactSlabIntersection()
+    public void AlongBearingReturnsTheExactSlabIntersectionAtSeveralBearings()
     {
         var shape = SolidShape(5, 5);
         var hull = new HullData { Name = "Diagonal", HullType = HullType.Ship, Shape = shape };
-        var b = normalize(float2(2, 1)); // neither axis-aligned nor 45 degrees
-        var ell = float2(-b.y, b.x);
-        var s = 0.13f; // off-centre, so the crossed cells are not symmetric about any axis
 
-        (float Entry, float Exit) ExactSlab(int2 c)
+        (double Entry, double Exit) ExactSlabIndependent(int2 c, double bx, double by, double ellx, double elly, double s)
         {
-            var entry = float.NegativeInfinity;
-            var exit = float.PositiveInfinity;
-            void Axis(float bAxis, float lo, float hi, float val)
-            {
-                if (Math.Abs(bAxis) < 1e-9f) return;
-                var t1 = (lo - val) / bAxis;
-                var t2 = (hi - val) / bAxis;
-                entry = Math.Max(entry, Math.Min(t1, t2));
-                exit = Math.Min(exit, Math.Max(t1, t2));
-            }
-            Axis(b.x, c.x - .5f, c.x + .5f, s * ell.x);
-            Axis(b.y, c.y - .5f, c.y + .5f, s * ell.y);
-            if (entry > exit) exit = entry;
+            var valX = s * ellx; var valY = s * elly;
+            var t1X = (c.x - .5 - valX) / bx; var t2X = (c.x + .5 - valX) / bx;
+            var t1Y = (c.y - .5 - valY) / by; var t2Y = (c.y + .5 - valY) / by;
+            var entry = Math.Max(Math.Min(t1X, t2X), Math.Min(t1Y, t2Y));
+            var exit = Math.Min(Math.Max(t1X, t2X), Math.Max(t1Y, t2Y));
             return (entry, exit);
         }
 
-        var h = (Math.Abs(ell.x) + Math.Abs(ell.y)) / 2f; // Extent's own half-width -- NOT .5 off-axis
-        var expectedCells = shape.Coordinates
-            .Select(c => (Cell: c, Centre: dot((float2) c, ell)))
-            .Where(t => s >= t.Centre - h && s < t.Centre + h) // Extent's own half-open shadow
-            .Select(t => t.Cell)
-            .OrderBy(c => dot((float2) c, b))
-            .ThenBy(c => c.x).ThenBy(c => c.y)
-            .ToList();
-        Assert.True(expectedCells.Count >= 4, $"fixture: this bearing/offset must cross several cells, got {expectedCells.Count}");
-
-        var buffer = new LaneCell[shape.Coordinates.Length];
-        var count = FireControl.Lane(hull, b, s, buffer);
-        var actualCells = Enumerable.Range(0, count).Select(i => buffer[i].Cell).ToList();
-
-        Assert.Equal(expectedCells, actualCells); // same cells, same order -- entry ordering and contiguity agree
-
-        for (var i = 0; i < count; i++)
+        void Check(float2 bRaw, float s)
         {
-            var (expectedEntry, expectedExit) = ExactSlab(buffer[i].Cell);
-            Assert.Equal(expectedEntry, buffer[i].Entry, 3);
-            Assert.Equal(expectedExit, buffer[i].Exit, 3);
+            var b = normalize(bRaw);
+            var ell = float2(-b.y, b.x);
+            var h = (Math.Abs(ell.x) + Math.Abs(ell.y)) / 2.0; // Extent's own half-width, written out independently
+            var expectedCells = shape.Coordinates
+                .Select(c => (Cell: c, Centre: (double) dot((float2) c, ell)))
+                .Where(t => s >= t.Centre - h && s < t.Centre + h) // Extent's own half-open shadow
+                .Select(t => t.Cell)
+                .OrderBy(c => dot((float2) c, b))
+                .ThenBy(c => c.x).ThenBy(c => c.y)
+                .ToList();
+            Assert.True(expectedCells.Count >= 3, $"fixture: b={b.x:R},{b.y:R} s={s} must cross several cells, got {expectedCells.Count}");
+
+            var buffer = new LaneCell[shape.Coordinates.Length];
+            var count = FireControl.Lane(hull, b, s, buffer);
+            var actualCells = Enumerable.Range(0, count).Select(i => buffer[i].Cell).ToList();
+
+            Assert.Equal(expectedCells, actualCells); // same cells, same order -- entry ordering and contiguity agree
+
+            for (var i = 0; i < count; i++)
+            {
+                var (expectedEntry, expectedExit) = ExactSlabIndependent(buffer[i].Cell, b.x, b.y, ell.x, ell.y, s);
+                Assert.Equal(expectedEntry, buffer[i].Entry, 3);
+                Assert.Equal(expectedExit, buffer[i].Exit, 3);
+            }
         }
+
+        Check(float2(2, 1), 0.13f); // neither axis-aligned nor 45 degrees (the original fixture)
+        Check(float2(1, .15f), .3f); // ~8.5 degrees off the x-axis -- by sits inside C7b's mutated .2f threshold
+        Check(float2(.15f, 1), -.4f); // the same, off the y-axis -- bx sits inside C7b's mutated .2f threshold
     }
 
     // Cut 12.3: replaces ExpectedMarchCells, which reproduced Entity.ApplyHit's own deleted 0.5-step march --
     // that rule is gone with the function. The rule this now pins is the NEW thing FireControl.Apply's lane
     // walk adds on top of Lane (Lane's own cell set/order/entry values are independently pinned elsewhere, by
-    // AlongBearingReturnsTheExactSlabIntersection and the LaneNeverEmptiesAtAnIntervalEdge sweep): the
+    // AlongBearingReturnsTheExactSlabIntersectionAtSeveralBearings and the LaneNeverEmptiesAtAnIntervalEdge sweep): the
     // penetration cutoff. So this calls the real, already-verified FireControl.Lane for the walked cells and
     // their entry parameters, then applies the cutoff independently -- kept only while within `penetration`
     // cells of the first (impact) cell's own entry; the impact cell is always kept, matching the deleted
