@@ -329,52 +329,55 @@ public abstract class Entity
             ? TargetItem.Value
             : null;
 
-    // Cut 3 (docs/fire-control-cut.md): the damage rule moved verbatim from EntityInstance.cs's Unity
-    // HullCollider subscription (DamageSchematic) -- same arithmetic, same order, same thresholds. The only
-    // thing that changed is the owner: this entity's own schematic, armor and hull, not a Unity component
-    // reacting to a physics collision.
-    public void DamageSchematic(float damage, Shape hitShape)
+    // Cut 12.3 (docs/fire-control-cut.md): "armour absorbs first" -- moved verbatim from DamageSchematic's own
+    // per-cell body (Cut 3), now called once per lane cell (FireControl.Apply) instead of once per hit-shape
+    // cell with an even split. Armor absorbs up to its own value, then the occupying item once the remainder
+    // exceeds .1f, and whatever is left over is returned to the caller for the hull's own share (or the next
+    // cell down the lane, for a lane that keeps carrying a remainder is not this function's concern -- Apply's
+    // own loop does that). ArmorDamage/ItemDamage fire only for incoming > 0 -- a cell a spent lane still walks
+    // past (rem already 0) takes no event and no recorded hit.
+    public float Absorb(int2 cell, float damage)
     {
-        var hullData = ItemManager.GetData(Hull) as HullData;
-        foreach (var v in hitShape.Coordinates)
-            hitShape[v] = hitShape[v] && hullData.Shape[v];
+        var d = damage;
 
-        float hullDamage = 0;
-        var damagePerCell = damage / hitShape.Coordinates.Length;
-        foreach (var v in hitShape.Coordinates)
+        if (d > 0f)
         {
-            var d = damagePerCell;
-
-            // Subtract surface damage from armor, passing on the remainder to the item and then to the hull
-            var prev = Armor[v.x, v.y];
-            Armor[v.x, v.y] = max(prev - d, 0);
-            ArmorDamage.OnNext((v, d));
-            d = max(d - prev, 0);
-
-            if (d > 0.1f)
-            {
-                var item = GearOccupancy[v.x, v.y];
-                if (item != null)
-                {
-                    prev = item.EquippableItem.Durability;
-                    item.EquippableItem.Durability = max(prev - d, 0);
-                    ItemDamage.OnNext((item, d));
-                    d = max(d - prev, 0);
-                }
-            }
-
-            hullDamage += d;
+            var prevArmor = Armor[cell.x, cell.y];
+            Armor[cell.x, cell.y] = max(prevArmor - d, 0);
+            ArmorDamage.OnNext((cell, d));
+            d = max(d - prevArmor, 0);
         }
 
-        if (hullDamage > .1f)
+        if (d > 0.1f)
         {
-            Hull.Durability -= hullDamage;
-            HullDamage.OnNext(hullDamage);
+            var item = GearOccupancy[cell.x, cell.y];
+            if (item != null)
+            {
+                var prevItem = item.EquippableItem.Durability;
+                item.EquippableItem.Durability = max(prevItem - d, 0);
+                ItemDamage.OnNext((item, d));
+                d = max(d - prevItem, 0);
+            }
+        }
+
+        return d;
+    }
+
+    // Cut 12.3: moved verbatim from DamageSchematic's own tail (Cut 3) -- the >.1f threshold and the one
+    // HullDamage event are unchanged. FireControl.Apply calls this once per resolved hit, with the summed
+    // remainder every lane's own walk left over (Q12-3 = A: a lane's remainder goes to the hull wherever the
+    // lane ends -- penetration exhausted, a gap, or the far side).
+    public void DamageHull(float damage)
+    {
+        if (damage > .1f)
+        {
+            Hull.Durability -= damage;
+            HullDamage.OnNext(damage);
         }
     }
 
     // Cut 12.1 (docs/fire-control-cut.md): the one schematic-frame owner. Maps a world-planar vector into this
-    // entity's own schematic frame -- x = starboard, y = bow -- so ApplyHit's penetration march and
+    // entity's own schematic frame -- x = starboard, y = bow -- so FireControl.Apply's lane walk and
     // FireControl.Splash's directional half both read the same transform instead of each carrying their own
     // copy of forward/right.
     public float2 ToSchematic(float2 worldPlanar)
@@ -382,40 +385,6 @@ public abstract class Entity
         var forward = normalize(Direction);
         var right = float2(forward.y, -forward.x);
         return float2(dot(worldPlanar, right), dot(worldPlanar, forward));
-    }
-
-    // Cut 3: the shape construction moved from EntityInstance.cs's Unity HullCollider subscription -- the hit
-    // cell is the rolled Cell FireControl already chose, not a UV texture coordinate.
-    // Cut 12.2 (docs/fire-control-cut.md): `bearing` is already in this entity's own schematic frame -- the
-    // committed ShotOutcome.Bearing FireControl.Commit computed once, at the commit tick -- so the ToSchematic
-    // call this used to make internally (12.1) is gone; ApplyHit no longer touches a world direction or this
-    // entity's own Direction at all.
-    public void ApplyHit(Entity source, int2 cell, float spread, float penetration, float damage, float2 bearing)
-    {
-        IncomingHit.OnNext(source);
-
-        var hullData = ItemManager.GetData(Hull) as HullData;
-        var hitShape = new Shape(hullData.Shape.Width, hullData.Shape.Height);
-        hitShape[cell] = true;
-
-        for (var i = 0; i < (int) floor(spread + .5f); i++)
-            hitShape = hitShape.Expand();
-
-        if (penetration > .5f)
-        {
-            var penetrationVector = normalize(bearing);
-
-            var penetrationPoint = (float2) cell + float2(.5f);
-            var penetrationDistance = 0f;
-            while (penetrationDistance < penetration && hullData.Shape[int2(penetrationPoint)])
-            {
-                penetrationDistance += .5f;
-                hitShape[int2(penetrationPoint)] = true;
-                penetrationPoint += penetrationVector * .5f;
-            }
-        }
-
-        DamageSchematic(damage, hitShape);
     }
 
     // Another entity's stance toward THIS one, as far as this entity can perceive it: unknown (null)

@@ -278,9 +278,9 @@ public class EntityInstance : MonoBehaviour
         }
 
         // Cut 3 (docs/fire-control-cut.md): DamageSchematic and both HullCollider subscriptions (Splash, Hit)
-        // are deleted -- FireControl decides hits now and Entity.ApplyHit/DamageSchematic (ServerShared) apply
-        // them, the single owner in place of what used to exist once per Unity effect. HullColliders no longer
-        // publish Hit/Splash at all (R8).
+        // are deleted -- FireControl decides hits now and applies them through Entity.Absorb/DamageHull
+        // (ServerShared, Cut 12.3; DamageSchematic and ApplyHit are gone), the single owner in place of what
+        // used to exist once per Unity effect. HullColliders no longer publish Hit/Splash at all (R8).
 
         LookAtPoint = new GameObject($"{entity.Name} Look Point").transform;
         

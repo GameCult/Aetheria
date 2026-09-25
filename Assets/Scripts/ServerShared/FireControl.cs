@@ -192,11 +192,15 @@ public static class FireControl
     // Commit's own path (CommitProbability -> Silhouette, uncalled from here) still needs sil.Intervals alive
     // for the lateral draw that follows it, so it keeps its own owned array; only the forecast pools.
     // S3 fix batch (Hands, 2026-09-25) correction: "the forecast path no longer allocates on a gated-in call"
-    // overclaimed -- a gated-in HitProbability/Inspect call still allocates roughly 120/280 bytes respectively
-    // (measured, Release), from Accuracy/Resolution's own GetBehavior<T> walking Entity.Equipment and each
-    // item's Behaviors (both ReactiveCollection<T>, whose enumerator is heap-allocated per foreach), not from
-    // anything Silhouette or this pooling touches. That cost predates Cut 12.2 and belongs to Entity's own
-    // collection choice; it is out of this cut's scope. Cut 10's own guard is what actually matters
+    // overclaimed -- a gated-in HitProbability call still allocates roughly 120 bytes (measured, Release; ~280
+    // for Inspect, which reads one more gated stat). 12.3 fix batch correction: that cost is exactly three
+    // GetBehavior<TargetingSystem> calls (Accuracy, Resolution via PSensor, Precision), at ~40 B each -- each
+    // one walks Entity.Equipment, a ReactiveCollection<T> whose enumerator is heap-allocated per foreach. It is
+    // NOT `Behaviors` (the earlier wording here was wrong): EquippedItem.Behaviors is a plain array, allocates
+    // nothing to enumerate. With an item aimed at, ResolveAimPoint -> CellsOf also allocates (a List, then
+    // ToArray) -- about 944 B per HitProbability, on top of the three GetBehavior calls. None of this is
+    // Silhouette's or this pooling's cost; it predates Cut 12.2 and belongs to Entity's own collection choice
+    // and to CellsOf, out of this cut's scope. Cut 10's own guard is what actually matters
     // operationally: HitProbability and CommitProbability both bail before Forecast is ever called for the
     // common gated-out case (GatedOutHitProbabilityAllocatesNothing pins that at exactly 0).
     private static (Silhouette Silhouette, float PSpread) Forecast(Weapon weapon, Entity source, Entity target, HullData targetHull, float precision, float range)
@@ -583,6 +587,15 @@ public static class FireControl
     // R4: the commit is authoritative and immutable from here on -- this only performs what Commit already
     // decided. The one owner of the shield-absorbs-or-hull-takes-it branch (it used to exist seven times,
     // once per Unity effect).
+    // Cut 12.3 (docs/fire-control-cut.md, "How a direct hit travels"): replaces Entity.ApplyHit's 0.5-step
+    // march and Entity.DamageSchematic's even split over the whole hit shape. Spread is width (Q12-2 = A):
+    // 2n+1 parallel lanes, one cell apart along the committed bearing's own lateral axis, sharing the shot's
+    // damage evenly over whichever lanes actually meet metal -- the centre lane, at the committed Lateral,
+    // always does (Commit already proved it, R3). Each lane is Lane's own contiguous cell run from its own
+    // facing cell, clipped to the penetration depth (a cell is reached when entry - impact.entry < penetration;
+    // the impact cell is always reached, replacing the deleted `> .5f` threshold at zero cost). Whatever a
+    // lane does not spend -- penetration exhausted, a gap, or the far side -- goes to the hull where the lane
+    // ends (Q12-3 = A), summed across every lane into one DamageHull call.
     private static void Apply(PendingShot shot)
     {
         if (!shot.Outcome.Hit) return;
@@ -597,10 +610,50 @@ public static class FireControl
             return;
         }
 
+        var target = shot.Target;
+        // Cut 12.3: moved here from Entity.ApplyHit's own first line -- the shield branches above still return
+        // before this runs, unchanged from 12.2.
+        target.IncomingHit.OnNext(shot.Source);
+
         // Cut 12.2 (R4): the committed geometry, frozen. Apply reads no position or facing of its own --
         // shot.Outcome.Bearing is already the schematic-frame bearing Commit computed at the commit tick, so
         // turning the target after commit changes nothing here (TurningAfterCommitChangesNothing).
-        shot.Target.ApplyHit(shot.Source, shot.Outcome.Cell, shot.DamageSpread, shot.Penetration, shot.Damage, shot.Outcome.Bearing);
+        var hullData = target.ItemManager.GetData(target.Hull) as HullData;
+        var bearing = shot.Outcome.Bearing;
+        var n = (int) floor(shot.DamageSpread + .5f); // today's rounding, Entity.cs:389 before this cut
+        var laneCount = 2 * n + 1;
+
+        var buffers = new LaneCell[laneCount][];
+        var walked = new int[laneCount];
+        var metalLanes = 0;
+        for (var li = 0; li < laneCount; li++)
+        {
+            buffers[li] = ArrayPool<LaneCell>.Shared.Rent(hullData.Shape.Coordinates.Length);
+            walked[li] = Lane(hullData, bearing, shot.Outcome.Lateral + (li - n), buffers[li]);
+            if (walked[li] > 0) metalLanes++;
+        }
+
+        // The centre lane (li == n) always meets metal: it walks from the committed Lateral, and Commit's own
+        // guard already proved Lane finds an occupied cell there (R3) -- metalLanes is never 0.
+        var damagePerLane = shot.Damage / metalLanes;
+        var hullDamage = 0f;
+        for (var li = 0; li < laneCount; li++)
+        {
+            if (walked[li] > 0)
+            {
+                var rem = damagePerLane;
+                var impactEntry = buffers[li][0].Entry;
+                for (var i = 0; i < walked[li]; i++)
+                {
+                    if (i > 0 && buffers[li][i].Entry - impactEntry >= shot.Penetration) break;
+                    rem = target.Absorb(buffers[li][i].Cell, rem);
+                }
+                hullDamage += rem;
+            }
+            ArrayPool<LaneCell>.Shared.Return(buffers[li]);
+        }
+
+        target.DamageHull(hullDamage);
     }
 
     private static ShotOutcome MakeOutcome(PendingShot shot, bool hit, bool shielded, bool shieldBroken, int2 cell, float2 bearing, float lateral, float now)
@@ -626,12 +679,16 @@ public static class FireControl
     // shot. Nothing here draws: a mine or an airburst round always damages everything it catches, the same
     // as the Physics.OverlapSphere queries this replaces always did. Applies the shield-absorb-or-hull-takes-
     // it branch (F5, docs/stats-and-power-cut.md) per target, then -- for a target the shield didn't fully
-    // absorb -- DamageSchematic over the directional half of that target's own hull that faces the blast, the
-    // rule moved verbatim from the Splash subscription EntityInstance.cs carried before Cut 3 deleted it
-    // (git show b7743789^:Assets/Scripts/Gameplay/EntityInstance.cs), made planar (R7): the blast-to-target
-    // direction is measured in the zone's (x,z) plane and rotated into each target's own facing by its
-    // Direction, the same rotation Entity.ApplyHit's penetration march uses, in place of a Unity
-    // InverseTransformDirection.
+    // absorb -- an even split (still today's rule; 12.3 only retired the direct-hit lane's even split, not
+    // Splash's) over the directional half of that target's own hull that faces the blast, the rule moved
+    // verbatim from the Splash subscription EntityInstance.cs carried before Cut 3 deleted it (git show
+    // b7743789^:Assets/Scripts/Gameplay/EntityInstance.cs), made planar (R7): the blast-to-target direction is
+    // measured in the zone's (x,z) plane and rotated into each target's own facing by its Direction, the same
+    // rotation Entity's own schematic frame (ToSchematic) uses.
+    // Cut 12.3: Entity.DamageSchematic is deleted with the direct-hit march it shared a file with -- Splash
+    // now calls Entity.Absorb per footprint cell directly and sums the leftover into one DamageHull call,
+    // arithmetically identical to DamageSchematic's own body (same per-cell split, same order, same
+    // thresholds). Untouched otherwise; deleted in 12.4 along with the rest of the ray model.
     public static void Splash(Zone zone, float3 position, float radius, float damage, DamageType damageType)
     {
         foreach (var target in zone.Entities)
@@ -659,7 +716,12 @@ public static class FireControl
                 if (dot(normalize((float2) v - hullData.Shape.CenterOfMass), localDirection) < 0)
                     hitShape[v] = true;
 
-            target.DamageSchematic(damage, hitShape);
+            var cells = hitShape.Coordinates;
+            var damagePerCell = damage / cells.Length;
+            var hullDamage = 0f;
+            foreach (var v in cells)
+                hullDamage += target.Absorb(v, damagePerCell);
+            target.DamageHull(hullDamage);
         }
     }
 
@@ -868,7 +930,7 @@ public static class FireControl
     }
 
     // The cells of the target's hull schematic actually occupied by `item` -- GearOccupancy is the one source
-    // of truth for where an equipped item's footprint lands, the same table Entity.DamageSchematic reads.
+    // of truth for where an equipped item's footprint lands, the same table Entity.Absorb reads.
     private static int2[] CellsOf(Entity target, EquippedItem item)
     {
         var hullData = target.ItemManager.GetData(target.Hull) as HullData;
