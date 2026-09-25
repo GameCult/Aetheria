@@ -81,10 +81,13 @@ public sealed class FireControlCut123Tests : IDisposable
     // returns target.Position exactly, and the shooter/target share the same world X) -- the same clean
     // geometry FireControlCut12Tests' own SigmaFloor fixture relies on. A full-strength targeting system
     // (Accuracy 1, Resolution huge) so only the fixture's own geometry decides the numbers.
+    private static Shape LShape() { var s = new Shape(2, 2); s[new int2(0, 0)] = true; s[new int2(1, 0)] = true; s[new int2(0, 1)] = true; return s; }
+
     private Engagement Build(
         GameplaySettings settings, Shape hullShape, float precision,
         float penetration = 0, float damageSpread = 0, float2? targetFacing = null,
-        (int2 Cell, float Durability)[] markers = null, int2? cockpitCell = null, float cockpitDurability = 40)
+        (int2 Cell, float Durability)[] markers = null, int2? cockpitCell = null, float cockpitDurability = 40,
+        (int2 Cell, float Durability)[] bars = null, (int2 Cell, float Durability)[] lBars = null)
     {
         var hullData = new HullData
         {
@@ -134,10 +137,25 @@ public sealed class FireControlCut123Tests : IDisposable
             MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000,
             Behaviors = { new CockpitData() }
         });
+        // A multi-cell item (2x1), for the proportional-absorption fix batch's own fixtures -- the only shape
+        // that can ever be shared between two lanes (cells are disjoint between lanes; only an item spanning
+        // several cells can straddle two of them).
+        cache.Upsert(new GearData
+        {
+            Name = "Bar", Hardpoint = HardpointType.Tool, Shape = SolidShape(2, 1), Durability = 1000000,
+            MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000
+        });
+        // A non-convex multi-cell item (an L: three cells of a 2x2 box), for F8's model sweep -- a straight
+        // lane can cross an L's two arms non-contiguously, which a plain 2x1 bar can never do.
+        cache.Upsert(new GearData
+        {
+            Name = "LBar", Hardpoint = HardpointType.Tool, Shape = LShape(), Durability = 1000000,
+            MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000
+        });
         cache.FlushAsync().Wait();
 
         var ledger = new ProvenanceLedger();
-        for (var i = 1; i <= 24; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = 1 };
+        for (var i = 1; i <= 500; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = 1 }; // F8: shared-item fixtures equip more items (bars) than earlier cuts needed
         var items = new ItemManager(cache, ledger, settings, _ => { });
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Cut123", Owner = null }, null);
 
@@ -169,6 +187,19 @@ public sealed class FireControlCut123Tests : IDisposable
             Assert.True(target.TryEquip(mi, m.Cell), $"marker must fit at {m.Cell}");
             return target.Equipment.Single(x => x.EquippableItem == mi);
         }).ToArray();
+
+        if (bars != null)
+            foreach (var bar in bars)
+            {
+                var bi = Make("Bar", lot++, bar.Durability);
+                Assert.True(target.TryEquip(bi, bar.Cell), $"bar must fit at {bar.Cell}");
+            }
+        if (lBars != null)
+            foreach (var bar in lBars)
+            {
+                var bi = Make("LBar", lot++, bar.Durability);
+                Assert.True(target.TryEquip(bi, bar.Cell), $"L-bar must fit at {bar.Cell}");
+            }
 
         EquippedItem cockpit = null;
         if (cockpitCell != null)
@@ -1157,5 +1188,394 @@ public sealed class FireControlCut123Tests : IDisposable
         var angledSpan = Span(normalize(float2(1, 1)));
 
         Assert.True(angledSpan > axisSpan * 1.2, $"the footprint should widen at an angled bearing: axis {axisSpan}, 45deg {angledSpan}");
+    }
+
+    // ===================== F8: proportional absorption when a multi-cell item is shared between lanes =====================
+    // Operator ruling (2026-09-25, docs/fire-control-cut.md, Cut 12.3 status): "proportional absorption; go."
+    // When two or more lanes of one shot reach the same multi-cell item, the item absorbs their COMBINED
+    // incoming damage (up to its own remaining durability) and each lane's leftover is in proportion to what
+    // it brought -- replacing the old behaviour where whichever lane was processed first (always the
+    // lower-indexed, physically left-of-travel lane) drained the item and every other lane inherited whatever
+    // it left behind.
+
+    // F8: the ruling's own literal case, through Fire/Commit/Apply (no reflection). Tool-hardpoint items
+    // (Bar, Marker) can only occupy INTERIOR cells (Entity.ItemFits, `hullData.InteriorCells[itemCoord]` --
+    // Shape.Shrink needs all 8 neighbours present, the same constraint DamageIsAbsorbedInOrderAlongTheRay's own
+    // comment already notes for a single-cell marker on a 3x3 hull). A marker sitting BEHIND the shared item
+    // needs its own interior row too, so this fixture is 4 cells deep: SolidShape(5,4)'s two interior rows are
+    // y=1 (the Bar, columns 1-3) and y=2 (one marker behind each of the Bar's own two cells). Note
+    // Entity.ItemDamage reports each lane's own INCOMING contribution, not the clamped/actual-absorbed amount
+    // (the same convention a single Absorb call already has -- an overkill hit against a nearly-dead item still
+    // reports the whole swing), so it cannot distinguish proportional from sequential absorption by itself;
+    // the item's own durability (the ACTUAL total absorbed) and each marker's own durability (the ACTUAL
+    // leftover that reached it) are the two numbers this test reads.
+    // With damageSpread 1 retried until the committed impact is column 2 (the middle of the three interior
+    // columns), the lanes are columns {1,2,3}: the item's own two cells (1,1)/(2,1) are each a DIFFERENT lane's
+    // own facing cell, so armour placed directly on them (5 and 15) gives the two lanes different post-armour
+    // remainders even though Apply splits the shot's damage evenly per lane before armour: D1 = 30-5 = 25
+    // (column 1), D2 = 30-15 = 15 (column 2). Column 3 carries no item, an unrelated private lane.
+    private (float leftoverLow, float leftoverHigh, float absorbed) RunSharedItemCase(float itemDurability)
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), precision: .6f, penetration: 2.5f, damageSpread: 1f,
+            bars: new[] { (new int2(1, 1), itemDurability) },
+            markers: new[] { (new int2(1, 2), 1000f), (new int2(2, 2), 1000f) });
+        var bar = e.Target.GearOccupancy[1, 1]; // (1,1) and (2,1) are the same Bar
+
+        void ResetState()
+        {
+            for (var x = 0; x < 5; x++)
+            for (var y = 0; y < 4; y++)
+            {
+                e.Target.Armor[x, y] = 0f;
+                e.Target.MaxArmor[x, y] = 20f;
+            }
+            e.Target.Armor[1, 1] = 5f;
+            e.Target.Armor[2, 1] = 15f;
+            bar.EquippableItem.Durability = itemDurability;
+            e.Markers[0].EquippableItem.Durability = 1000f; // behind (1,1)
+            e.Markers[1].EquippableItem.Durability = 1000f; // behind (2,1)
+            e.Target.GearOccupancy[0, 0].EquippableItem.Durability = 0f; // remove the bystander Gun's own 1 durability
+        }
+
+        ShotOutcome outcome = null;
+        for (var attempt = 0; attempt < 400 && (outcome == null || !outcome.Hit || outcome.Cell.x != 2); attempt++)
+        {
+            ResetState();
+            outcome = FireUntilHit(e, damageOverride: 90f, attempts: 1);
+        }
+        Assert.NotNull(outcome);
+        Assert.True(outcome.Hit && outcome.Cell.x == 2, "fixture: needed a hit on the centre interior column within the attempt budget");
+
+        var leftover1 = 1000f - e.Markers[0].EquippableItem.Durability; // column 1's own leftover (D1=25)
+        var leftover2 = 1000f - e.Markers[1].EquippableItem.Durability; // column 2's own leftover (D2=15)
+        var absorbed = itemDurability - bar.EquippableItem.Durability;
+        return leftover1 <= leftover2 ? (leftover1, leftover2, absorbed) : (leftover2, leftover1, absorbed);
+    }
+
+    // Item durability 30 < D1+D2 (40): the item takes all 30 of its own durability (absorbed = min(40,30)); the
+    // combined 10 leftover splits 25*(10/40)=6.25 and 15*(10/40)=3.75 -- proportional to what each lane
+    // brought, not to which lane Apply happens to visit first. Under the pre-fix-batch code (sequential, one
+    // lane draining the item before the other carries on) the two leftovers are not this pair at all -- see
+    // MirrorSymmetryHoldsWithASharedMultiCellItem below for the hand-confirmed pre-fix numbers on this exact
+    // shape of fixture.
+    [Fact]
+    public void ProportionalAbsorptionSplitsTheLeftoverBetweenTheLanes()
+    {
+        var (leftoverLow, leftoverHigh, absorbed) = RunSharedItemCase(itemDurability: 30f);
+        Assert.Equal(3.75f, leftoverLow, 2); // 15 * (10/40)
+        Assert.Equal(6.25f, leftoverHigh, 2); // 25 * (10/40)
+        Assert.Equal(30f, absorbed, 2); // the item's own durability, fully spent
+    }
+
+    // Item durability 50 >= D1+D2 (40): the item takes everything either lane brought; nothing continues past
+    // it into either marker.
+    [Fact]
+    public void ProportionalAbsorptionLeavesNothingWhenTheItemAbsorbsEverything()
+    {
+        var (leftoverLow, leftoverHigh, absorbed) = RunSharedItemCase(itemDurability: 50f);
+        Assert.Equal(0f, leftoverLow, 2);
+        Assert.Equal(0f, leftoverHigh, 2);
+        Assert.Equal(40f, absorbed, 2);
+    }
+
+    // F8: mirror symmetry with a multi-cell item, deterministic. Two fixtures on SolidShape(9,4) (interior rows
+    // y=1, the Bar's own row, and y=2, the marker row behind it -- see RunSharedItemCase above), fired straight
+    // ahead (bearing (0,1)) at damageSpread 1, each retried until the committed impact is the true centre
+    // column (x=4, as CommittedCellIsTheFirstCellTheCentreLaneDamages already relies on for this bearing), so
+    // the three lanes are always columns {3,4,5}. Fixture B's item and armour are fixture A's own layout
+    // reflected about column 4 (mirror(x) = 8-x) -- A's Bar spans {3,4} (centre lane shares it with the LEFT
+    // side lane); B's spans {4,5} (centre lane shares it with the RIGHT side lane), the mirror image of A's
+    // placement. Column 4 is the self-mirror point and carries the same armour (15) on both; column 3 (A,
+    // private) mirrors column 5 (B, private), both armour 2 (irrelevant to the assertion, just present so that
+    // lane is metal).
+    //
+    // Compares the SORTED list of each fixture's own two marker leftovers -- not the bearing or the lateral
+    // draw (which would also have to mirror the float lane-spacing arithmetic to stay exact). A's two D values
+    // are 25 (column 3) and 15 (column 4); B's are 15 (column 4) and 25 (column 5) -- the same two D values on
+    // both fixtures, so the proportional rule (sum then split, independent of which physical lane is which)
+    // gives the SAME sorted leftover pair on both. Item durability 20 (not equal to either D -- 25 was tried
+    // first and turned out degenerate: durability exactly equal to D_high made both fixtures land on {0,15} by
+    // coincidence under the pre-fix code too, since one contributor is always driven to exactly 0 either way).
+    // Hand-confirmed against commit d1cc047a (this cut's own parent, before the fix batch) on this exact
+    // fixture shape at itemDurability 20: A's leftovers sorted {0, 20} vs B's sorted {5, 15} -- different, so
+    // the assertion below fails there. See this cut's own report for the raw per-fixture numbers.
+    [Fact]
+    public void MirrorSymmetryHoldsWithASharedMultiCellItem()
+    {
+        const float itemDurability = 20f;
+
+        (float low, float high) RunFixture(bool mirrored)
+        {
+            var barAnchor = mirrored ? new int2(4, 1) : new int2(3, 1);
+            var markerCells = mirrored
+                ? new[] { (new int2(4, 2), 1000f), (new int2(5, 2), 1000f) }
+                : new[] { (new int2(3, 2), 1000f), (new int2(4, 2), 1000f) };
+            var e = Build(TestSettings(), SolidShape(9, 4), precision: .6f, penetration: 2.5f, damageSpread: 1f,
+                bars: new[] { (barAnchor, itemDurability) }, markers: markerCells);
+            var bar = e.Target.GearOccupancy[barAnchor.x, barAnchor.y];
+
+            void ResetState()
+            {
+                for (var x = 0; x < 9; x++)
+                for (var y = 0; y < 4; y++)
+                {
+                    e.Target.Armor[x, y] = 0f;
+                    e.Target.MaxArmor[x, y] = 20f;
+                }
+                if (!mirrored) { e.Target.Armor[3, 1] = 5f; e.Target.Armor[4, 1] = 15f; e.Target.Armor[5, 1] = 2f; }
+                else { e.Target.Armor[4, 1] = 15f; e.Target.Armor[5, 1] = 5f; e.Target.Armor[3, 1] = 2f; }
+                bar.EquippableItem.Durability = itemDurability;
+                e.Markers[0].EquippableItem.Durability = 1000f;
+                e.Markers[1].EquippableItem.Durability = 1000f;
+                e.Target.GearOccupancy[0, 0].EquippableItem.Durability = 0f; // remove the bystander Gun's own 1 durability
+            }
+
+            ShotOutcome outcome = null;
+            for (var attempt = 0; attempt < 600 && (outcome == null || !outcome.Hit || outcome.Cell.x != 4); attempt++)
+            {
+                ResetState();
+                outcome = FireUntilHit(e, damageOverride: 90f, attempts: 1);
+            }
+            Assert.NotNull(outcome);
+            Assert.True(outcome.Hit && outcome.Cell.x == 4, "fixture: needed a hit on the true centre column within the attempt budget");
+
+            var l0 = 1000f - e.Markers[0].EquippableItem.Durability;
+            var l1 = 1000f - e.Markers[1].EquippableItem.Durability;
+            return l0 <= l1 ? (l0, l1) : (l1, l0);
+        }
+
+        var a = RunFixture(mirrored: false);
+        var b = RunFixture(mirrored: true);
+
+        Assert.Equal(a.low, b.low, 2);
+        Assert.Equal(a.high, b.high, 2);
+    }
+
+    // F8 (Soul's owed test, "Owed with the pending ruling's batch" in docs/fire-control-cut.md, Cut 12.3
+    // status): many axis-aligned spread-n shots on a wide hull, each must strike exactly 2n+1 facing cells --
+    // no column dropped. This is a standing regression guard on the lane-spacing invariant itself (independent
+    // of the proportional-absorption fix batch's own item coordination), pinned through the real
+    // Fire/Commit/Apply pipeline. Hand-confirmed to fail with R1b (lane spacing narrowed by 1%,
+    // `laneSpacing = (shadowExtent.Hi - shadowExtent.Lo) * .99f` at FireControl.cs) because that narrowing
+    // eventually drops a column at a spacing-boundary lateral -- see this cut's own report for the exact
+    // FireControl.cs edit and count.
+    [Fact]
+    public void EveryAxisAlignedSpreadShotStrikesExactlyTwoNPlusOneFacingCells()
+    {
+        var e = Build(TestSettings(), SolidShape(15, 2), precision: .02f, penetration: 0f, damageSpread: 3f); // n=3 -> 7 lanes
+        for (var x = 0; x < 15; x++)
+        for (var y = 0; y < 2; y++)
+        {
+            e.Target.Armor[x, y] = 1000f;
+            e.Target.MaxArmor[x, y] = 1000f;
+        }
+
+        var got = 0;
+        var shortfalls = 0;
+        for (var attempt = 0; attempt < 8000 && got < 400; attempt++)
+        {
+            var hits = new List<int2>();
+            using var s = e.Target.ArmorDamage.Subscribe(x => hits.Add(x.pos));
+            var outcome = FireUntilHit(e, damageOverride: 70f, attempts: 1);
+            if (outcome == null || !outcome.Hit) continue;
+            // Only impacts safely inside the hull count: within 3 columns of either edge, a side lane
+            // legitimately runs off the hull (fewer than 7 facing columns is correct there, not a spacing
+            // defect) -- restricting to the interior keeps this test about the spacing invariant alone.
+            if (outcome.Cell.x < 3 || outcome.Cell.x > 11) continue;
+            got++;
+            if (hits.Select(h => h.x).Distinct().Count() != 7) shortfalls++; // 2*3+1 facing columns, one hit each
+        }
+        Assert.True(got >= 400, $"fixture: needed 400 interior-column hits, got {got}");
+        Assert.Equal(0, shortfalls);
+    }
+
+    // ===================== F8: the model sweep, extended with the proportional rule =====================
+    // Ports SoulApply123b's own independent model (armour, then item, then hull, near-to-far per lane,
+    // ModelLane above -- the exact double-precision ray/box walk F1's own DirectHitAtAnAngledBearingMatches...
+    // test already uses) and extends it with the proportional multi-lane item rule this cut adds: an item
+    // touched by more than one lane absorbs their SUMMED post-armour incoming (up to its own durability), each
+    // lane's leftover in proportion to what it brought. Structured the same way as FireControl.Apply's own new
+    // code (a survey of which items are geometrically shared, then an AdvanceLane/Resolve loop) -- not because
+    // a model must mirror production, but because it is the simplest correct way to get an item's resolution
+    // order-independent of which lane the loop visits first, which is exactly the property under test. Compares
+    // against production Apply through Fire/Commit/Apply (no reflection), over a sweep of shapes, bearings
+    // (axis and angled) and item shapes (2x1 bars and non-convex L-shaped items, LShape above).
+    private static (double[,] armor, Dictionary<EquippedItem, double> items, double hull) ModelWithSharedItems(
+        Entity target, Shape shape, double[,] armorBefore, Dictionary<EquippedItem, double> itemsBefore,
+        double bx, double by, double s, double damage, double penetration, int n)
+    {
+        var armor = (double[,]) armorBefore.Clone();
+        var items = new Dictionary<EquippedItem, double>(itemsBefore);
+        var laneSpacing = Math.Abs(bx) + Math.Abs(by);
+        var laneCount = 2 * n + 1;
+        var lanes = new List<MCell>[laneCount];
+        for (var li = 0; li < laneCount; li++) lanes[li] = ModelLane(shape, bx, by, s + (li - n) * laneSpacing);
+        var metal = lanes.Count(l => l.Count > 0);
+        var per = damage / metal;
+
+        var pointer = new int[laneCount];
+        var rem = new double[laneCount];
+        var finished = new bool[laneCount];
+        var blocked = new bool[laneCount];
+        for (var li = 0; li < laneCount; li++) { finished[li] = lanes[li].Count == 0; rem[li] = per; }
+
+        // Survey: which items are geometrically reachable by more than one distinct lane, independent of any
+        // remaining damage -- exactly the question FireControl.Apply's own survey asks.
+        var lanesOf = new Dictionary<EquippedItem, List<int>>();
+        for (var li = 0; li < laneCount; li++)
+        {
+            if (lanes[li].Count == 0) continue;
+            var en0 = lanes[li][0].En;
+            for (var i = 0; i < lanes[li].Count; i++)
+            {
+                if (i > 0 && lanes[li][i].En - en0 >= penetration) break;
+                var item = target.GearOccupancy[lanes[li][i].C.x, lanes[li][i].C.y];
+                if (item == null) continue;
+                if (!lanesOf.TryGetValue(item, out var list)) lanesOf[item] = list = new List<int>();
+                if (!list.Contains(li)) list.Add(li);
+            }
+        }
+        var sharedSet = new HashSet<EquippedItem>(lanesOf.Where(kv => kv.Value.Count > 1).Select(kv => kv.Key));
+        var remainingContributors = sharedSet.ToDictionary(it => it, it => lanesOf[it].Count);
+        var pool = sharedSet.ToDictionary(it => it, it => new List<(int lane, double amount)>());
+        var resolved = new HashSet<EquippedItem>();
+        var hull = 0.0;
+
+        void FinishLane(int li) { finished[li] = true; hull += rem[li]; }
+
+        void Resolve(EquippedItem item)
+        {
+            var contributions = pool[item];
+            var total = contributions.Sum(c => c.amount);
+            var before = items[item];
+            var absorbed = Math.Min(total, before);
+            items[item] = Math.Max(before - absorbed, 0);
+            var fraction = total > 0 ? absorbed / total : 0;
+            foreach (var (lane, amount) in contributions) rem[lane] = amount - amount * fraction;
+            resolved.Add(item);
+            foreach (var (lane, _) in contributions)
+            {
+                blocked[lane] = false;
+                pointer[lane]++;
+                if (pointer[lane] >= lanes[lane].Count) FinishLane(lane);
+            }
+        }
+
+        bool AdvanceLane(int li)
+        {
+            var moved = false;
+            while (!finished[li] && !blocked[li])
+            {
+                var i = pointer[li];
+                if (i > 0 && lanes[li][i].En - lanes[li][0].En >= penetration) { FinishLane(li); moved = true; break; }
+                var c = lanes[li][i].C;
+                if (rem[li] > 0) { var a = armor[c.x, c.y]; armor[c.x, c.y] = Math.Max(a - rem[li], 0); rem[li] = Math.Max(rem[li] - a, 0); }
+                moved = true;
+                var item = target.GearOccupancy[c.x, c.y];
+                if (item != null && rem[li] > .1 && sharedSet.Contains(item) && !resolved.Contains(item))
+                {
+                    pool[item].Add((li, rem[li]));
+                    remainingContributors[item]--;
+                    blocked[li] = true;
+                    if (remainingContributors[item] == 0) Resolve(item);
+                    break;
+                }
+                if (item != null && rem[li] > .1)
+                {
+                    var d = items[item];
+                    items[item] = Math.Max(d - rem[li], 0);
+                    rem[li] = Math.Max(rem[li] - d, 0);
+                }
+                pointer[li]++;
+                if (pointer[li] >= lanes[li].Count) { FinishLane(li); break; }
+            }
+            return moved;
+        }
+
+        bool AllFinished() { for (var li = 0; li < laneCount; li++) if (!finished[li]) return false; return true; }
+
+        while (!AllFinished())
+        {
+            var progressed = false;
+            for (var li = 0; li < laneCount; li++)
+                if (!finished[li] && !blocked[li] && AdvanceLane(li)) progressed = true;
+            if (!progressed)
+            {
+                // Deadlock fallback (the "opposite order" case, docs/fire-control-cut.md Cut 12.3 status): not
+                // exercised by this sweep's own single-shared-item fixtures, kept only for parity with
+                // production's own tie-break so an unexpectedly non-convex draw cannot hang the model.
+                EquippedItem victim = null;
+                foreach (var item in sharedSet)
+                    if (!resolved.Contains(item) && pool[item].Count > 0) { victim = item; break; }
+                if (victim == null) break;
+                Resolve(victim);
+            }
+        }
+
+        return (armor, items, hull);
+    }
+
+    [Fact]
+    public void ModelSweepAgreesWithProductionIncludingSharedMultiCellItems()
+    {
+        var rng = new System.Random(20260925);
+        // Height 4: an L-shaped item's 2x2 bounding box needs TWO consecutive interior rows (rows 1 and 2 for
+        // height 4 -- Entity.ItemFits requires every one of an item's own cells to be an interior cell, the
+        // same constraint RunSharedItemCase's own comment explains); a plain 2x1 bar only needs one but is kept
+        // on the same row for a uniform itemY across both item shapes.
+        var shapes = new[] { SolidShape(9, 4), SolidShape(7, 4) };
+        var bearings = new[] { float2(0, 1), normalize(float2(1, 1)), normalize(float2(2, 1)) };
+        var trials = 0;
+
+        foreach (var shape in shapes)
+        foreach (var travelDirection in bearings)
+        {
+            for (var t = 0; t < 15; t++)
+            {
+                var useLBar = t % 2 == 0;
+                var itemX = 1 + rng.Next(shape.Width - 3);
+                const int itemY = 1; // the only row that is interior with room for a 2-row-tall L above it (height 4)
+                var durability = (float) (5 + rng.NextDouble() * 20);
+                var e = useLBar
+                    ? Build(TestSettings(), shape, precision: 1f, penetration: 3f, damageSpread: 2f,
+                        lBars: new[] { (new int2(itemX, itemY), durability) })
+                    : Build(TestSettings(), shape, precision: 1f, penetration: 3f, damageSpread: 2f,
+                        bars: new[] { (new int2(itemX, itemY), durability) });
+                e.Shooter.Position = e.Target.Position - float3(travelDirection.x, 0, travelDirection.y) * 100f;
+
+                foreach (var c in shape.Coordinates)
+                {
+                    var a = (float) Math.Round(rng.NextDouble() * 6, 2);
+                    e.Target.Armor[c.x, c.y] = a; e.Target.MaxArmor[c.x, c.y] = Math.Max(a, 1f);
+                }
+
+                var armorBefore = ToD(e.Target.Armor);
+                var itemsBefore = e.Target.Equipment.Where(x => x.EquippableItem != e.Target.Hull)
+                    .ToDictionary(x => x, x => (double) x.EquippableItem.Durability);
+
+                ShotOutcome outcome = null;
+                for (var attempt = 0; attempt < 400 && (outcome == null || !outcome.Hit); attempt++)
+                    outcome = FireUntilHit(e, damageOverride: 40f, attempts: 1);
+                if (outcome == null || !outcome.Hit) continue; // fixture: rare miss exhaustion, skip this draw
+                trials++;
+
+                const int n = 2; // damageSpread 2 -> floor(2.5) = 2
+                var model = ModelWithSharedItems(e.Target, shape, armorBefore, itemsBefore,
+                    outcome.Bearing.x, outcome.Bearing.y, outcome.Lateral, 40, 3, n);
+
+                // Absolute tolerance rather than a fixed decimal-place rounding: the model runs in double and
+                // production in float, so a value that lands within a float ULP or two of a rounding boundary
+                // (e.g. 1.54999995 vs 1.55000019) can round to different digits at 1-2 decimal places despite
+                // agreeing far more closely than that -- exactly the kind of float-vs-double drift F1's own
+                // DirectHitAtAnAngledBearingMatchesAnIndependentModel test already tolerates with its own `, 2`.
+                foreach (var c in shape.Coordinates)
+                    Assert.True(Math.Abs(model.armor[c.x, c.y] - e.Target.Armor[c.x, c.y]) < .1,
+                        $"armor{c}: model {model.armor[c.x, c.y]:F4} production {e.Target.Armor[c.x, c.y]:F4}");
+                foreach (var kv in model.items)
+                    Assert.True(Math.Abs(kv.Value - (double) kv.Key.EquippableItem.Durability) < .1,
+                        $"item#{kv.Key.GetHashCode()}: model {kv.Value:F4} production {kv.Key.EquippableItem.Durability:F4}");
+            }
+        }
+        Assert.True(trials >= 80, $"fixture: needed at least 80 of the 90 possible resolved trials, got {trials}"); // 2 shapes * 3 bearings * 15 draws
     }
 }
