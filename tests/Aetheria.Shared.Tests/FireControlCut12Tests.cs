@@ -533,6 +533,42 @@ public sealed class FireControlCut12Tests : IDisposable
             $"empirical mean lateral offset {empiricalMeanLateral:F3} does not track the centroid's own lane {expectedA:F3}");
     }
 
+    // S8 fix batch (Hands, 2026-09-25): the BigMarker test above only ever exercises a 2x2 (square) footprint,
+    // whose true centroid and bounding-box centre are the same point -- N11 (aim point = bounding-box centre
+    // instead of the cell average) survived because nothing could tell the two apart. An L-tromino (3 of a
+    // 2x2's 4 cells) makes them different points: this fixture pins the aim point against the exact centroid
+    // the test computes itself, and separately checks it against the wrong (bounding-box) candidate to prove
+    // the fixture actually distinguishes them.
+    [Fact]
+    public void AimingAtAnLShapedItemCentresOnItsCentroidNotItsBoundingBox()
+    {
+        // A diagonal facing (not axis-aligned) puts the L-shape's actual asymmetry -- its centroid sits off
+        // the bounding-box centre along the diagonal, not along either grid axis -- fully onto the lateral
+        // axis, instead of losing most of it to the axis a purely axis-aligned facing would leave unmeasured.
+        var e = Build(TestSettings(), SolidShape(9, 9), precision: 1f, targetFacing: normalize(float2(1, 1)), equipLMarker: true);
+        Assert.True(e.Shooter.TrySelectTargetItem(e.LMarker));
+
+        var travelDirection = FireControl.TravelDirection(e.Weapon, e.Shooter, e.Target);
+        var bearing = normalize(e.Target.ToSchematic(travelDirection));
+        var ell = float2(-bearing.y, bearing.x);
+        var centroid = e.LMarkerCells.Aggregate(float2.zero, (t, c) => t + (float2) c) / e.LMarkerCells.Length;
+        var boundingBoxCentre = (float2(e.LMarkerCells.Min(c => c.x), e.LMarkerCells.Min(c => c.y))
+            + float2(e.LMarkerCells.Max(c => c.x), e.LMarkerCells.Max(c => c.y))) / 2f;
+        Assert.True(lengthsq(centroid - boundingBoxCentre) > .01f, "fixture: the L-shape's centroid and bounding-box centre must actually differ");
+
+        var expectedA = dot(centroid, ell);
+        var wrongA = dot(boundingBoxCentre, ell);
+        Assert.True(Math.Abs(expectedA - wrongA) > .15f, "fixture: the two candidate aim points must project to distinguishably different lateral values");
+
+        var outcomes = FireMany(e, 3000);
+        var hits = outcomes.Where(o => o.Hit).ToList();
+        Assert.True(hits.Count > 300, $"expected a healthy number of hits, got {hits.Count}");
+
+        var empiricalMeanLateral = hits.Average(o => (double) o.Lateral);
+        Assert.True(Math.Abs(empiricalMeanLateral - expectedA) < .1,
+            $"empirical mean lateral offset {empiricalMeanLateral:F3} (bounding-box centre would predict {wrongA:F3}) does not track the true centroid's own lane {expectedA:F3}");
+    }
+
     // BroadsideIsEasierThanHeadOn: kills the bearing being ignored and the old max(W,H) bound. A 2x12 hull is
     // much easier to hit broadside (its long axis facing the shot) than head-on (its short axis facing it).
     [Fact]
