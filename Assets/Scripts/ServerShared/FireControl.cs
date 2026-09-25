@@ -605,6 +605,16 @@ public static class FireControl
     // one geometric quantity is exactly how that cut's crash happened. Because each cell's admitted lateral
     // interval is exactly this width wide and half-open, lanes this far apart can never both admit the same
     // cell: no cell is struck twice, and the footprint widens at angles instead of doubling up.
+    // F1 fix batch (Soul's second pass, 2026-09-25): the F2 spacing above is correct in exact arithmetic, but
+    // the loop that used to sit here still asked the wrong question in float: it called Lane() once per lane
+    // index, each call re-deriving that lane's own lateral s(li) = Lateral + (li - n) * laneSpacing by forward
+    // float addition, then testing s(li) against a cell's Extent(c, ell) interval independently of every other
+    // lane's test. Two lane lines are only ever exactly laneSpacing apart in real arithmetic; accumulating that
+    // offset by repeated addition can shift a side lane by an ulp or two, and a shifted s(li) can land inside a
+    // NEIGHBOURING cell's half-open interval that its own, unshifted s(li) was never meant to reach -- the same
+    // "two derivations of one quantity" defect Cut 12.2's own fix batch found and removed from Lane itself
+    // (S1 above), now recurring one layer up. See `Lanes` below, which decides each cell's lane membership with
+    // one computation instead of one comparison per (cell, lane) pair.
     private static void Apply(PendingShot shot)
     {
         if (!shot.Outcome.Hit) return;
@@ -636,14 +646,12 @@ public static class FireControl
         var laneSpacing = shadowExtent.Hi - shadowExtent.Lo;
 
         var buffers = new LaneCell[laneCount][];
-        var walked = new int[laneCount];
+        for (var li = 0; li < laneCount; li++)
+            buffers[li] = ArrayPool<LaneCell>.Shared.Rent(hullData.Shape.Coordinates.Length);
+        var walked = Lanes(hullData, bearing, shot.Outcome.Lateral, n, laneSpacing, buffers);
         var metalLanes = 0;
         for (var li = 0; li < laneCount; li++)
-        {
-            buffers[li] = ArrayPool<LaneCell>.Shared.Rent(hullData.Shape.Coordinates.Length);
-            walked[li] = Lane(hullData, bearing, shot.Outcome.Lateral + (li - n) * laneSpacing, buffers[li]);
             if (walked[li] > 0) metalLanes++;
-        }
 
         // The centre lane (li == n) always meets metal: it walks from the committed Lateral, and Commit's own
         // guard already proved Lane finds an occupied cell there (R3) -- metalLanes is never 0.
@@ -666,6 +674,53 @@ public static class FireControl
         }
 
         target.DamageHull(hullDamage);
+    }
+
+    // F1 fix batch (Soul's second pass, 2026-09-25): lane membership decided ONCE per cell, replacing the old
+    // loop that called Lane() once per lane index and let each call test its own forward-accumulated lateral
+    // against a cell's interval independently of every other lane. Here every candidate cell computes its own
+    // lane index directly from its own (unmodified) Extent interval: k = ceil((Lo - centreLateral) /
+    // laneSpacing) is the unique integer for which centreLateral + k * laneSpacing falls in [Lo, Hi) -- Lane's
+    // own half-open admission -- derived by one division and one Ceiling call from values neither multiplied
+    // nor summed by any other lane's arithmetic. A single Math.Ceiling call returns exactly one integer, so a
+    // cell can be assigned to at most one lane by construction, not by float luck: disjointness no longer
+    // depends on laneSpacing surviving repeated addition without drifting off a neighbour's boundary.
+    // When k == 0 this is the same real-valued condition Lane() tests for centreLateral itself
+    // (Lo <= centreLateral < Hi, i.e. Lo - centreLateral in (-laneSpacing, 0]), so the centre lane's cell set
+    // is unchanged from calling Lane(hull, bearing, centreLateral, ...) directly -- the 12.2 placement contract
+    // (HitsLandOnTheFacingEdge) still holds. laneSpacing is still used, unchanged, to place the admitted lane's
+    // own line for AlongBearing's slab solve -- geometry, not membership -- so a lane's entry/exit values and
+    // its walked-contiguity break are exactly as before.
+    private static int[] Lanes(HullData hull, float2 b, float centreLateral, int n, float laneSpacing, LaneCell[][] buffers)
+    {
+        var ell = Lateral(b);
+        var coords = hull.Shape.Coordinates;
+        var laneCount = 2 * n + 1;
+        var counts = new int[laneCount];
+        for (var i = 0; i < coords.Length; i++)
+        {
+            var c = (float2) coords[i];
+            var lateral = Extent(c, ell);
+            var k = (int) Math.Ceiling((lateral.Lo - centreLateral) / laneSpacing);
+            if (k < -n || k > n) continue;
+            var li = k + n;
+            var s = centreLateral + k * laneSpacing;
+            AlongBearing(c, b, ell, s, out var entry, out var exit);
+            buffers[li][counts[li]++] = new LaneCell { Cell = coords[i], Entry = entry, Exit = exit, Projection = dot(c, b) };
+        }
+
+        var walked = new int[laneCount];
+        for (var li = 0; li < laneCount; li++)
+        {
+            Array.Sort(buffers[li], 0, counts[li]);
+            walked[li] = counts[li] > 0 ? 1 : 0;
+            for (var i = 1; i < counts[li]; i++)
+            {
+                if (buffers[li][i].Entry > buffers[li][i - 1].Exit + 1e-4f) break;
+                walked[li]++;
+            }
+        }
+        return walked;
     }
 
     private static ShotOutcome MakeOutcome(PendingShot shot, bool hit, bool shielded, bool shieldBroken, int2 cell, float2 bearing, float lateral, float now)
