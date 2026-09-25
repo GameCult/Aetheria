@@ -36,8 +36,9 @@ public static class Program
             case "targeting-catalog": return TargetingCatalog(args.Contains("apply"));
             case "targeting-catalog-6c": return TargetingCatalog6c(args.Contains("apply"));
             case "targeting-catalog-6d": return TargetingCatalog6d(args.Contains("apply"));
+            case "fix-loco1": return FixLoco1(args.Contains("apply"));
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], fix-loco1 [apply]");
                 return 1;
         }
     }
@@ -1472,6 +1473,132 @@ public static class Program
         });
 
         Console.WriteLine($"\nLanded {precisionChanges.Length} Precision changes in Aetheria.cc");
+        return 0;
+    }
+
+    // Cut 1 fix batch (docs/locomotion-cut.md, Soul's findings on the restore-hulls landing). One-shot, in the
+    // shape of the other *-migrate/fix commands here: dry run unless "apply", refuses a second apply (Longinus
+    // already carrying its legacy key is the refusal signal), deleted again once landed.
+    //
+    //  1. Djinni.Prefab was a fabricated GUID ("79024f6300000000000000000000000", 31 hex digits); the real one
+    //     is Djinni.prefab.meta's own guid.
+    //  2. All five restored thrusters had ParticlesPrefab null; the legacy record's own thrust behaviour names
+    //     "Assets/Resources/Prefabs/Thrusters/Thruster 1.prefab" for every one of them, the same prefab Large
+    //     Drive already uses.
+    //  3. All five carried invented OptimalTemperature/PlateauWidth (300/100). docs/stats-power-cut1-migration.md's
+    //     precedent for a 200-400 thruster is Large Drive's own 251/24; applied here to all five instead.
+    //  4. ThermalResilience (legacy 2021-04-14 record, decoded directly): 10 for Medium and Small Drive, 15 for
+    //     Victoire, Talaria and RevvITup 2.0. Victoire's Durability is legacy 30, not the invented 100. Victoire
+    //     and Medium Drive's legacy descriptions are restored (Talaria/RevvITup 2.0's legacy descriptions are the
+    //     literal placeholder "[TODO]" and are not).
+    //  5. Djinni.Schematic was null; the live catalog already carries the asset, unused, at
+    //     djinni_schematic_transparent.png's own guid.
+    //  6. Djinni's OptimalTemperature/PlateauWidth (250/24) round the same "apply LonginusX's own optimal-fraction
+    //     and plateau/range ratio to Djinni's band" derivation restore-hulls's own header comment named, but round
+    //     to 250 instead of 251; corrected to match the derivation exactly (LonginusX: (275.15-173.15)/400 =
+    //     .255 of band applied to Djinni's 200-unit band = 251, not 250).
+    //  7. All seven restored records (Longinus, Djinni, five thrusters) landed under freshly minted keys. The
+    //     Cut 9 import precedent (tools/AetherDb/Import.cs, git history) kept every legacy Guid as the record's
+    //     own key. Re-keyed here to each record's own legacy Guid, decoded directly from
+    //     GameData/Legacy/AetherDB.2021-04-14.msgpack, and each record's own FactionProductData.Design ref is
+    //     repointed at the new key.
+    private static int FixLoco1(bool apply)
+    {
+        var db = AetherDb.Open(catalogWritable: apply);
+        var cache = db.Cache;
+
+        // Each record's own legacy key (decoded from the 2021-04-14 msgpack record directly; the .NET Guid
+        // byte layout Import.cs's ReadGuid used, confirmed by this fix's own header note 7).
+        var legacyKeys = new Dictionary<string, string>
+        {
+            ["Longinus"] = "c4b20032-8cd3-4206-807f-97b296797425",
+            ["Djinni"] = "bb5d9f73-612f-4060-8fb4-f72d6b93b616",
+            ["Medium Drive"] = "ef0f782e-9fa8-4059-bb8c-f16e1d3de100",
+            ["Small Drive"] = "9013c312-f37f-42a8-9efc-3d699759923b",
+            ["Victoire"] = "88e81a2b-45fd-49de-830f-c896adae8d5b",
+            ["Talaria"] = "d706ff66-c98c-4e60-a8e5-5dceb8dc3742",
+            ["RevvITup 2.0"] = "ebfb35b5-3905-4510-a8cf-c09528f27172",
+        };
+
+        var longinus = cache.GetByName<HullData>("Longinus");
+        var djinni = cache.GetByName<HullData>("Djinni");
+        var mediumDrive = cache.GetByName<GearData>("Medium Drive");
+        var smallDrive = cache.GetByName<GearData>("Small Drive");
+        var victoire = cache.GetByName<GearData>("Victoire");
+        var talaria = cache.GetByName<GearData>("Talaria");
+        var revvItUp = cache.GetByName<GearData>("RevvITup 2.0");
+        if (new EquippableItemData[] { longinus, djinni, mediumDrive, smallDrive, victoire, talaria, revvItUp }.Any(d => d == null))
+        {
+            Console.WriteLine("Cut 1's restored records are not all present; nothing to fix.");
+            return 1;
+        }
+
+        if (cache.RefOf(longinus).Key.Value == legacyKeys["Longinus"])
+        {
+            Console.WriteLine("Cut 1 fix batch already applied (Longinus already carries its legacy key).");
+            return 1;
+        }
+
+        djinni.Prefab = "79024f635e46f5546b670b58b07fa037"; // Djinni.prefab.meta
+        djinni.Schematic = "66f3acdd44f2d1d4ba287c396b60a494"; // djinni_schematic_transparent.png
+        djinni.OptimalTemperature = 251; // LonginusX's own optimal-fraction (.255) applied to Djinni's 200-unit band
+        djinni.PlateauWidth = 24;
+
+        var fiveThrusters = new[] { mediumDrive, smallDrive, victoire, talaria, revvItUp };
+        foreach (var design in fiveThrusters)
+        {
+            var thruster = (ThrusterData) design.Behaviors.Single(b => b is ThrusterData);
+            thruster.ParticlesPrefab = "016516404b2bc1649bdf789bfc96d1cb"; // Thruster 1.prefab, same as Large Drive
+            design.OptimalTemperature = 251; // Large Drive's own 200-400 precedent (docs/stats-power-cut1-migration.md)
+            design.PlateauWidth = 24;
+        }
+        mediumDrive.ThermalResilience = 10;
+        smallDrive.ThermalResilience = 10;
+        victoire.ThermalResilience = 15;
+        talaria.ThermalResilience = 15;
+        revvItUp.ThermalResilience = 15;
+        victoire.Durability = 30;
+        victoire.Description = "The most responsive thruster on the market, for the most irresponsible of racing pilots.";
+        mediumDrive.Description = "Keeps you going and going and going...";
+
+        var designs = new EquippableItemData[] { longinus, djinni, mediumDrive, smallDrive, victoire, talaria, revvItUp };
+
+        Console.WriteLine("=== Cut 1 fix batch ===");
+        Console.WriteLine("Djinni: Prefab, Schematic, OptimalTemperature 250->251");
+        Console.WriteLine("Medium Drive, Small Drive, Victoire, Talaria, RevvITup 2.0: ParticlesPrefab, OptimalTemperature/PlateauWidth 300/100 -> 251/24");
+        Console.WriteLine("ThermalResilience: Medium Drive/Small Drive -> 10, Victoire/Talaria/RevvITup 2.0 -> 15");
+        Console.WriteLine("Victoire: Durability -> 30, description restored");
+        Console.WriteLine("Medium Drive: description restored");
+        Console.WriteLine("Re-keying to legacy Guids: " + string.Join(", ", designs.Select(d => $"{d.Name} -> {legacyKeys[d.Name]}")));
+
+        foreach (var design in designs) CultRecordRefs.Validate(design);
+
+        if (!apply)
+        {
+            Console.WriteLine("\nDry run. Pass \"apply\" to land these fixes in Aetheria.cc.");
+            return 0;
+        }
+
+        var oldKeys = designs.ToDictionary(d => d.Name, d => cache.RefOf(d).Key);
+        var products = cache.GetAll<FactionProductData>().Where(p => legacyKeys.ContainsKey(p.Name)).ToArray();
+        var productKeys = products.ToDictionary(p => p.Name, p => cache.RefOf(p).Key);
+
+        db.Cache.Commit(batch =>
+        {
+            var newKeys = new Dictionary<string, CultRecordKey>();
+            foreach (var design in designs)
+            {
+                batch.Remove(oldKeys[design.Name]);
+                newKeys[design.Name] = batch.Upsert(design.GetType(), design, new CultRecordKey(legacyKeys[design.Name]));
+            }
+            foreach (var product in products)
+            {
+                product.Design = new CultRecordRef<CraftedItemData>(newKeys[product.Name]);
+                batch.Upsert(typeof(FactionProductData), product, productKeys[product.Name]);
+            }
+        });
+
+        Console.WriteLine($"\nApplied Cut 1 fixes and re-keyed {designs.Length} designs to their legacy Guids in Aetheria.cc");
         return 0;
     }
 }

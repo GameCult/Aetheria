@@ -144,6 +144,20 @@ public sealed class RestoredHullsTests
             Assert.True(ship.TryEquip(gearItem, hardpoint.Position));
         }
 
+        // A reactor: Victoire (one of Cut 1's own restored thrusters, docs/locomotion-cut.md's own note on it)
+        // carries a real EnergyUsage draw unlike its four siblings, so an unpowered ship reads as though only
+        // some fitting thrusters produce thrust -- an artifact of which design TryEquip's own hardpoint search
+        // happens to land on, not of the restored content. Every hull here also has a Reactor hardpoint; a real
+        // ship always carries one, so this fixture should too.
+        var reactorHardpoint = hull.Hardpoints.FirstOrDefault(h => h.Type == HardpointType.Reactor);
+        if (reactorHardpoint != null)
+        {
+            var reactorDesign = cache.GetAll<GearData>().First(g => g.Hardpoint == HardpointType.Reactor &&
+                g.Shape.FitsWithin(reactorHardpoint.Shape, reactorHardpoint.Rotation, out _) && g.Shape.Coordinates.Length == reactorHardpoint.Shape.Coordinates.Length);
+            var reactorItem = new EquippableItem { Data = cache.RefOf<ItemData>(reactorDesign), Durability = reactorDesign.Durability, Lot = lot++ };
+            Assert.True(ship.TryEquip(reactorItem, reactorHardpoint.Position));
+        }
+
         zone.Entities.Add(ship);
         ship.Position = float3.zero;
         ship.Activate();
@@ -155,6 +169,7 @@ public sealed class RestoredHullsTests
         ship.MovementDirection = float2(0, 1); // full forward, same axis ActionGameManager.Input.Player.Move drives
         ship.LookDirection = float3(1, 0, 0); // off-axis target heading, so the mixer's yaw thrusters have work to do
         for (var i = 0; i < 10; i++) zone.Update(1f / 60f);
+        System.Console.WriteLine($"DEBUG end velocity {ship.Velocity} direction {ship.Direction}");
 
         Assert.NotEqual(startVelocity, ship.Velocity);
         Assert.NotEqual(startDirection, ship.Direction);
