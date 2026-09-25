@@ -36,8 +36,9 @@ public static class Program
             case "targeting-catalog": return TargetingCatalog(args.Contains("apply"));
             case "targeting-catalog-6c": return TargetingCatalog6c(args.Contains("apply"));
             case "targeting-catalog-6d": return TargetingCatalog6d(args.Contains("apply"));
+            case "restore-hulls": return RestoreHulls(args.Contains("apply"));
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], restore-hulls [apply]");
                 return 1;
         }
     }
@@ -538,6 +539,364 @@ public static class Program
         Console.WriteLine($"{missing.Count} settings generation needs came back unset");
         foreach (var field in missing) Console.WriteLine($"  {field}");
         return missing.Count;
+    }
+
+    // Cut 1 (docs/locomotion-cut.md, "Restore the legacy thruster ship hulls to the live catalog"). Restores
+    // Longinus and Djinni plus their five thruster designs, decoded from the git-LFS 2021-04-14 legacy record
+    // (docs' own probe: Longinus/Djinni byte-identical on every field this command carries forward). One-shot,
+    // in the shape of ShieldMigrate/BrownoutMigrate/RolesMigrate/FiringArcMigrate: dry run unless "apply", opens
+    // the catalog writable only then, writes every record in one Commit, and refuses to run twice (Longinus
+    // already present is the refusal signal). Deleted in a later commit of this same cut once landed
+    // (docs/locomotion-cut.md: "so its carrying cost is zero once it has run").
+    //
+    // Authored choices the map did not name, each printed below for operator review:
+    //  - Longinus's scalar fields (shape/mass/price/drag/durability/temp band/armor/conductivity/prefab/
+    //    schematic) and its ReflectorData are taken from LonginusX, confirmed byte-identical by decoding the
+    //    legacy record directly. Its HARDPOINT LAYOUT is not: LonginusX's own interior was rearranged to fit
+    //    its AetherDrive hardpoint (its live Radiator L/R and Reactor sit at different cells than the legacy
+    //    Longinus's), which first surfaced as a real hardpoint-grid collision (Th.L/Th.R at (1,0)/(3,0)
+    //    overlapping LonginusX's own Reactor at (2,1)). Longinus's 13 hardpoints are authored directly from
+    //    the decoded 2021-04-14 record instead.
+    //  - The map states both hulls share "50..50, legacy exponents 1, 0, 1.5" for VelocityLimitData.TopSpeed.
+    //    The decoded legacy record contradicts this for Longinus: its own TopSpeed is 100..100, exponents
+    //    [heat 1, durability 0, quality 0]. Only Djinni actually carries 50..50/[1,0,1.5]. This command uses
+    //    each hull's own decoded value, not the map's blanket claim.
+    //  - Djinni's temperature band (200-400) and heat curve are legacy-authored, but the original curve's
+    //    control points were not decoded (out of scope to reverse-engineer the historical Bezier fit); Optimal
+    //    (250) and PlateauWidth (24) are derived by applying Longinus/LonginusX's own optimal-fraction and
+    //    plateau/range ratio to Djinni's band, not a real re-fit of the legacy curve.
+    //  - FactionProductData: Longinus -> Alakrita, Victoire -> Alakrita, Djinni -> Rossum & Douglas, Talaria ->
+    //    Aeronautics Unlimited, RevvITup 2.0 -> NiteLife Energy (all per the map). Medium Drive and Small Drive
+    //    carry no legacy maker; Lightsail Express is chosen because it already sells the catalog's other
+    //    maker-less Thruster-hardpoint product, the closest existing precedent for an unbranded drive.
+    //  - ItemRole/ProductRole: thrusters get ["injector", "nozzle"] with Thrust/Visibility -> nozzle and
+    //    Heat/EnergyUsage -> injector (RolesMigrate's own ThrusterRoles map); hulls get ["plating"] with no
+    //    stat term pointed at it (ship hulls carry no CrossSection-shaped stat to point HullShipRoles at).
+    //  - PowerSupply: each new thruster's Thrust stat gets a PowerSupply term (exponent 1), matching
+    //    BrownoutMigrate's existing convention for every shipped thruster. Victoire's legacy EnergyUsage is
+    //    NOT zero ([4, 2, 0.125, 0.125, 1], i.e. a real, quality-shrinking energy draw) -- unlike the map's
+    //    "shipped thrusters request zero energy" assumption, which holds for the other four. Victoire's
+    //    EnergyUsage is translated as decoded rather than forced to zero.
+    //  - Djinni's Ballistic/Launcher hardpoints all decode with ItemRotation.None (forward-facing) and get no
+    //    FiringArc override (stay at the 0 default -> GameplaySettings.FiringArc): firing-arc-migrate's own
+    //    rule only widens an omnidirectional turret mount to 360, and nothing about a fixed forward mount
+    //    calls for deviating from the default every other non-turret hull's weapon hardpoint already uses.
+    private static PerformanceStat TranslateLegacyStat(float min, float max, float heatExp, float durabilityExp, float qualityExp, string qualityRole = null)
+    {
+        var terms = new List<StatTerm>();
+        if (heatExp != 0) terms.Add(new StatTerm { Source = StatSource.Heat, Exponent = heatExp });
+        if (durabilityExp != 0) terms.Add(new StatTerm { Source = StatSource.Durability, Exponent = durabilityExp });
+        if (qualityExp != 0) terms.Add(new StatTerm { Source = StatSource.Quality, Exponent = qualityExp, Role = qualityRole });
+        return new PerformanceStat { Min = min, Max = max, Terms = terms };
+    }
+
+    private static Shape LegacyShape(int width, int height, bool[] flat)
+    {
+        var shape = new Shape(width, height);
+        for (var x = 0; x < width; x++)
+            for (var y = 0; y < height; y++)
+                shape[new int2(x, y)] = flat[x * height + y];
+        return shape;
+    }
+
+    private static HardpointData Hardpoint(HardpointType type, int x, int y, Shape shape, ItemRotation rotation, float armor, string transform = null) =>
+        new HardpointData { Type = type, Position = new int2(x, y), Shape = shape, Rotation = rotation, Armor = armor, Transform = transform };
+
+    // Shape(w, h) allocates an all-FALSE grid (only the parameterless Shape() sets a cell true); every one of
+    // the five restored thruster designs is a solid rectangle per the decoded legacy record, so this fills it.
+    private static Shape FullShape(int w, int h)
+    {
+        var shape = new Shape(w, h);
+        for (var x = 0; x < w; x++)
+            for (var y = 0; y < h; y++)
+                shape[new int2(x, y)] = true;
+        return shape;
+    }
+
+    private static PerformanceStat ClonePerformanceStat(PerformanceStat s) =>
+        new PerformanceStat { Min = s.Min, Max = s.Max, Terms = s.Terms.Select(t => new StatTerm { Source = t.Source, Exponent = t.Exponent, Role = t.Role }).ToList() };
+
+    private static Shape CloneShape(Shape s)
+    {
+        var clone = new Shape(s.Width, s.Height);
+        for (var x = 0; x < s.Width; x++)
+            for (var y = 0; y < s.Height; y++)
+                clone[new int2(x, y)] = s[new int2(x, y)];
+        return clone;
+    }
+
+    private static int RestoreHulls(bool apply)
+    {
+        var db = AetherDb.Open(catalogWritable: apply);
+
+        var longinusX = db.Cache.GetAll<HullData>().FirstOrDefault(h => h.Name == "LonginusX");
+        if (longinusX == null) { Console.WriteLine("No hull named \"LonginusX\" found -- cannot template Longinus."); return 1; }
+        if (db.Cache.GetAll<HullData>().Any(h => h.Name == "Longinus"))
+        {
+            Console.WriteLine("Longinus already exists in the catalog. This command is one-shot and refuses to run twice.");
+            return 1;
+        }
+
+        Faction FactionByShortName(string shortName) =>
+            db.Cache.GetAll<Faction>().FirstOrDefault(f => f.ShortName == shortName)
+            ?? throw new InvalidOperationException($"No faction with short name \"{shortName}\".");
+
+        var alakrita = FactionByShortName("Alakrita");
+        var rossumDouglas = FactionByShortName("R&D");
+        var aeronauticsUnlimited = FactionByShortName("AU");
+        var niteLife = FactionByShortName("NiteLife");
+        var lightsail = FactionByShortName("Lightsail");
+
+        // ---- Longinus: cloned from LonginusX (confirmed byte-identical on every field below by decoding the
+        // legacy record directly), swapping its single AetherDrive hardpoint for the 4 legacy thrusters and
+        // adding the legacy VelocityLimitData behaviour LonginusX does not carry.
+        // NOT cloned from LonginusX: LonginusX's own interior was rearranged to fit its AetherDrive hardpoint
+        // (its live Radiator L/R sit at (1,2)/(4,2) and its Reactor at (2,1) -- confirmed by decoding the
+        // catalog record directly, which first surfaced as a hardpoint-grid collision: Th.L/Th.R at (1,0)/(3,0)
+        // legitimately overlap LonginusX's own Reactor at (2,1)). The legacy Longinus never had an AetherDrive,
+        // so its own interior (decoded from the 2021-04-14 record directly) is authored here instead of
+        // borrowed from LonginusX's redesigned one; only the outer Shape and the four scalar/behaviour fields
+        // confirmed byte-identical above are taken from the live sibling.
+        var longinusHardpoints = new List<HardpointData>
+        {
+            Hardpoint(HardpointType.ControlModule, 2, 6, FullShape(2, 2), ItemRotation.None, 50, null),
+            Hardpoint(HardpointType.Thruster, 1, 0, FullShape(2, 2), ItemRotation.Reversed, 20, "Th.L"),
+            Hardpoint(HardpointType.Thruster, 3, 0, FullShape(2, 2), ItemRotation.Reversed, 20, "Th.R"),
+            Hardpoint(HardpointType.Thruster, 2, 14, FullShape(1, 2), ItemRotation.CounterClockwise, 10, "Th.CW"),
+            Hardpoint(HardpointType.Thruster, 3, 14, FullShape(1, 2), ItemRotation.Clockwise, 10, "Th.CCW"),
+            Hardpoint(HardpointType.Energy, 1, 8, FullShape(1, 2), ItemRotation.None, 20, "En.L"),
+            Hardpoint(HardpointType.Energy, 4, 8, FullShape(1, 2), ItemRotation.None, 20, "En.R"),
+            Hardpoint(HardpointType.Launcher, 0, 5, FullShape(1, 3), ItemRotation.None, 30, "La.L"),
+            Hardpoint(HardpointType.Launcher, 5, 5, FullShape(1, 3), ItemRotation.None, 30, "La.R"),
+            Hardpoint(HardpointType.Radiator, 2, 2, FullShape(1, 2), ItemRotation.CounterClockwise, 10, "Ra.L"),
+            Hardpoint(HardpointType.Radiator, 3, 2, FullShape(1, 2), ItemRotation.Clockwise, 10, "Ra.R"),
+            Hardpoint(HardpointType.Reactor, 2, 4, FullShape(2, 2), ItemRotation.None, 0, "Reactor"),
+            Hardpoint(HardpointType.Sensors, 3, 10, FullShape(1, 1), ItemRotation.None, 5, null),
+        };
+
+        var longinus = new HullData
+        {
+            Name = "Longinus",
+            Description = longinusX.Description,
+            Mass = 2500,
+            Shape = CloneShape(longinusX.Shape),
+            SpecificHeat = 1,
+            Conductivity = 32,
+            Price = 7500000,
+            Schematic = longinusX.Schematic,
+            Durability = 500,
+            MinimumTemperature = 173.15f,
+            MaximumTemperature = 573.15f,
+            OptimalTemperature = longinusX.OptimalTemperature,
+            PlateauWidth = longinusX.PlateauWidth,
+            ThermalResilience = 1,
+            Hardpoints = longinusHardpoints,
+            Prefab = longinusX.Prefab,
+            HullType = HullType.Ship,
+            GridOffset = 3,
+            Armor = 10,
+            Drag = 0.1f,
+            CanTow = false,
+            Roles = new List<ItemRole> { new ItemRole { Name = "plating" } },
+            Behaviors = new List<BehaviorData>
+            {
+                // LonginusX's own ReflectorData, cloned rather than shared: two catalog documents landing in
+                // the same commit must not share a mutable object reference (CultCache's identity map keys on
+                // reference equality).
+                new ReflectorData { CrossSection = ClonePerformanceStat(((ReflectorData) longinusX.Behaviors.Single(b => b is ReflectorData)).CrossSection) },
+                // Legacy Longinus's own decoded VelocityLimitData: [100, 100, heat 1, durability 0, quality 0].
+                new VelocityLimitData { TopSpeed = TranslateLegacyStat(100, 100, 1, 0, 0) },
+            },
+        };
+
+        // ---- Djinni: no live twin, authored directly from the decoded legacy record. Shape rows match
+        // docs/locomotion-cut.md's own probe table exactly.
+        var djinniShapeRows = new[]
+        {
+            "....######....", "...########...", "..##########..", ".############.", ".############.",
+            "##############", "##############", "##############", "##############", "##############",
+            ".############.", "...########...", "...########...", "...########...", "....######....",
+            ".....####.....", "......##......",
+        };
+        var djinniShape = new Shape(14, 17);
+        for (var y = 0; y < 17; y++)
+            for (var x = 0; x < 14; x++)
+                djinniShape[new int2(x, y)] = djinniShapeRows[y][x] == '#';
+
+        Shape Sh(int w, int h, string cells)
+        {
+            var s = new Shape(w, h);
+            for (var x = 0; x < w; x++)
+                for (var y = 0; y < h; y++)
+                    s[new int2(x, y)] = cells[x * h + y] == '#';
+            return s;
+        }
+
+        var djinni = new HullData
+        {
+            Name = "Djinni",
+            Mass = 10000,
+            Shape = djinniShape,
+            SpecificHeat = 0.75f,
+            Conductivity = 24,
+            Price = 10000000,
+            Durability = 1000,
+            MinimumTemperature = 200,
+            MaximumTemperature = 400,
+            OptimalTemperature = 250, // derived: see the authored-choices note above this method
+            PlateauWidth = 24,
+            ThermalResilience = 1,
+            Prefab = "79024f6300000000000000000000000", // Djinni.prefab GUID (docs probe); AetheriaStores does not validate asset existence
+            HullType = HullType.Ship,
+            GridOffset = 3,
+            Armor = 10,
+            Drag = 0.2f,
+            CanTow = false,
+            Roles = new List<ItemRole> { new ItemRole { Name = "plating" } },
+            Hardpoints = new List<HardpointData>
+            {
+                Hardpoint(HardpointType.Thruster, 6, 0, Sh(2, 1, "##"), ItemRotation.Reversed, 20, "Thruster Stern 1"),
+                Hardpoint(HardpointType.Thruster, 5, 1, Sh(2, 1, "##"), ItemRotation.Reversed, 20, "Thruster Stern 2"),
+                Hardpoint(HardpointType.Thruster, 7, 1, Sh(2, 1, "##"), ItemRotation.Reversed, 20, "Thruster Stern 3"),
+                Hardpoint(HardpointType.Thruster, 4, 4, Sh(1, 2, "##"), ItemRotation.CounterClockwise, 20, "Thruster Port Aft"),
+                Hardpoint(HardpointType.Thruster, 4, 11, Sh(1, 2, "##"), ItemRotation.CounterClockwise, 20, "Thruster Port Fore"),
+                Hardpoint(HardpointType.Thruster, 9, 4, Sh(1, 2, "##"), ItemRotation.Clockwise, 20, "Thruster Starboard Aft"),
+                Hardpoint(HardpointType.Thruster, 9, 11, Sh(1, 2, "##"), ItemRotation.Clockwise, 20, "Thruster Starboard Fore"),
+                Hardpoint(HardpointType.Thruster, 6, 14, Sh(2, 1, "##"), ItemRotation.None, 20, "Thruster Bow"),
+                Hardpoint(HardpointType.Launcher, 5, 11, Sh(1, 3, "###"), ItemRotation.None, 20, "Nostril L"),
+                Hardpoint(HardpointType.Launcher, 8, 11, Sh(1, 3, "###"), ItemRotation.None, 20, "Nostril R"),
+                Hardpoint(HardpointType.Launcher, 2, 8, Sh(3, 2, "######"), ItemRotation.None, 20, "Micromissiles L"),
+                Hardpoint(HardpointType.Launcher, 9, 8, Sh(3, 2, "######"), ItemRotation.None, 20, "Micromissiles R"),
+                Hardpoint(HardpointType.Ballistic, 2, 6, Sh(1, 2, "##"), ItemRotation.None, 20, "Barrel L"),
+                Hardpoint(HardpointType.Ballistic, 11, 6, Sh(1, 2, "##"), ItemRotation.None, 20, "Barrel R"),
+                Hardpoint(HardpointType.Reactor, 6, 11, Sh(2, 2, "####"), ItemRotation.None, 0, "Reactor"),
+                Hardpoint(HardpointType.ControlModule, 6, 3, Sh(2, 2, "####"), ItemRotation.None, 30, null),
+                Hardpoint(HardpointType.Radiator, 1, 4, Sh(2, 1, "##"), ItemRotation.Reversed, 20, "Ra.1"),
+                Hardpoint(HardpointType.Radiator, 3, 1, Sh(2, 1, "##"), ItemRotation.Reversed, 20, "Ra.2"),
+                Hardpoint(HardpointType.Radiator, 9, 1, Sh(2, 1, "##"), ItemRotation.Reversed, 20, "Ra.3"),
+                Hardpoint(HardpointType.Radiator, 11, 4, Sh(2, 1, "##"), ItemRotation.Reversed, 20, "Ra.4"),
+                Hardpoint(HardpointType.Sensors, 6, 5, Sh(2, 2, "####"), ItemRotation.None, 10, null),
+                Hardpoint(HardpointType.Shield, 3, 2, Sh(2, 2, "####"), ItemRotation.None, 0, null),
+            },
+            Behaviors = new List<BehaviorData>
+            {
+                // Legacy ReflectorData, decoded as-is: [2500, 500, heat 0, durability 1, quality 2]. Quality
+                // role "plating" matches HullShipRoles' own field->role map and LonginusX's already-shipped
+                // ReflectorData.CrossSection, which points the same field at the same role.
+                new ReflectorData { CrossSection = TranslateLegacyStat(2500, 500, 0, 1, 2, "plating") },
+                // Legacy Djinni's own decoded VelocityLimitData: [50, 50, heat 1, durability 0, quality 1.5].
+                new VelocityLimitData { TopSpeed = TranslateLegacyStat(50, 50, 1, 0, 1.5f) },
+            },
+        };
+
+        // Djinni's weapon hardpoints (Ballistic/Launcher) all decode at ItemRotation.None with no FiringArc
+        // override; see the authored-choices note above.
+
+        // ---- Thruster designs (GearData). Each Thrust stat gets a PowerSupply term (exponent 1), matching
+        // BrownoutMigrate's existing convention for every shipped thruster.
+        GearData Thruster(string name, int w, int h, float mass, int price, PerformanceStat thrust, PerformanceStat visibility, PerformanceStat heat, PerformanceStat energyUsage)
+        {
+            thrust.Terms.Add(new StatTerm { Source = StatSource.PowerSupply, Exponent = 1 });
+            return new GearData
+            {
+                Name = name,
+                Hardpoint = HardpointType.Thruster,
+                Shape = FullShape(w, h),
+                Mass = mass,
+                Price = price,
+                Durability = 100,
+                MinimumTemperature = 200,
+                MaximumTemperature = 400,
+                OptimalTemperature = 300,
+                PlateauWidth = 100,
+                ThermalResilience = 1,
+                SpecificHeat = 2.5f,
+                Conductivity = 5,
+                Roles = new List<ItemRole> { new ItemRole { Name = "injector" }, new ItemRole { Name = "nozzle" } },
+                Behaviors = new List<BehaviorData>
+                {
+                    new ThrusterData { Thrust = thrust, Visibility = visibility, Heat = heat, EnergyUsage = energyUsage, ParticlesPrefab = null },
+                    new WearData(),
+                },
+            };
+        }
+
+        var mediumDrive = Thruster("Medium Drive", 2, 1, 100, 50000,
+            TranslateLegacyStat(100000, 300000, 1, 0, 2, "nozzle"),
+            TranslateLegacyStat(100, 50, 1, 0, 1, "nozzle"),
+            TranslateLegacyStat(2000, 1000, 1, 0, 1, "injector"),
+            TranslateLegacyStat(0, 0, 0, 0, 0));
+        var smallDrive = Thruster("Small Drive", 1, 1, 50, 25000,
+            TranslateLegacyStat(75000, 75000, 1, 0, 1, "nozzle"),
+            TranslateLegacyStat(50, 50, 1, 0, 1, "nozzle"),
+            TranslateLegacyStat(500, 500, 1, 0, 1, "injector"),
+            TranslateLegacyStat(0, 0, 0, 0, 0));
+        var victoire = Thruster("Victoire", 2, 1, 25, 250000,
+            TranslateLegacyStat(200000, 1500000, 0.0625f, 0.5f, 2, "nozzle"),
+            TranslateLegacyStat(800, 200, 0.25f, 0.25f, 1.5f, "nozzle"),
+            TranslateLegacyStat(2500, 5000, 0, 0.125f, 1.25f, "injector"),
+            TranslateLegacyStat(4, 2, 0.125f, 0.125f, 1, "injector")); // NOT zero -- see authored-choices note
+        var talaria = Thruster("Talaria", 2, 1, 150, 50000,
+            TranslateLegacyStat(75000, 250000, 0.0625f, 0.5f, 2.25f, "nozzle"),
+            TranslateLegacyStat(300, 50, 0.25f, 0.25f, 2, "nozzle"),
+            TranslateLegacyStat(1000, 4000, 0, 0.125f, 1.75f, "injector"),
+            TranslateLegacyStat(0, 0, 0, 0, 0));
+        var revvItUp = Thruster("RevvITup 2.0", 2, 2, 150, 100000,
+            TranslateLegacyStat(250000, 1000000, 0.0625f, 0.5f, 2, "nozzle"),
+            TranslateLegacyStat(100, 400, 0.25f, 0.25f, 1.5f, "nozzle"),
+            TranslateLegacyStat(2500, 7500, 0, 0.125f, 1, "injector"),
+            TranslateLegacyStat(0, 0, 0, 0, 0));
+
+        var newDesigns = new (EquippableItemData Design, (string ProductName, Faction Maker)[] Products)[]
+        {
+            (longinus, new[] { ("Longinus", alakrita) }),
+            (djinni, new[] { ("Djinni", rossumDouglas) }),
+            (mediumDrive, new[] { ("Medium Drive", lightsail) }),
+            (smallDrive, new[] { ("Small Drive", lightsail) }),
+            (victoire, new[] { ("Victoire", alakrita) }),
+            (talaria, new[] { ("Talaria", aeronauticsUnlimited) }),
+            (revvItUp, new[] { ("RevvITup 2.0", niteLife) }),
+        };
+
+        Console.WriteLine("=== Cut 1: restore-hulls ===\n");
+        foreach (var (design, products) in newDesigns)
+        {
+            Console.WriteLine($"{design.Name} ({design.GetType().Name}): mass {design.Mass}, price {design.Price}, " +
+                $"roles [{string.Join(", ", design.Roles.Select(r => r.Name))}]" +
+                (design is HullData hull ? $", {hull.Hardpoints.Count} hardpoints" : ""));
+            foreach (var (productName, maker) in products)
+                Console.WriteLine($"    product \"{productName}\" by {maker.ShortName}");
+        }
+        Console.WriteLine($"\n{newDesigns.Length} designs, {newDesigns.Sum(d => d.Products.Length)} products.");
+
+        if (!apply)
+        {
+            Console.WriteLine("\nDry run. Pass \"apply\" to land these records in Aetheria.cc.");
+            return 0;
+        }
+
+        foreach (var (design, _) in newDesigns) CultRecordRefs.Validate(design);
+
+        db.Cache.Commit(batch =>
+        {
+            var designKeys = new Dictionary<string, CultRecordKey>();
+            foreach (var (design, _) in newDesigns)
+                designKeys[design.Name] = batch.Upsert(design.GetType(), design);
+
+            foreach (var (design, products) in newDesigns)
+                foreach (var (productName, maker) in products)
+                    batch.Upsert(typeof(FactionProductData), new FactionProductData
+                    {
+                        Name = productName,
+                        Description = design.Description,
+                        Design = new CultRecordRef<CraftedItemData>(designKeys[design.Name]),
+                        Manufacturer = db.Cache.RefOf(maker),
+                        Roles = design.Roles.Select(r => new ProductRole { Role = r.Name, Mean = .5f, StandardDeviation = .15f }).ToList(),
+                    });
+        });
+
+        Console.WriteLine($"\nLanded {newDesigns.Length} designs and {newDesigns.Sum(d => d.Products.Length)} products in Aetheria.cc");
+        return 0;
     }
 
     // Every CultRecordRef in the catalog that resolves to nothing, as "<record> <DeclaringType.Member> -> <key>".
