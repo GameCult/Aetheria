@@ -57,6 +57,64 @@ public sealed class RestoredHullsTests
 
     private static CultCache OpenCatalog() => OpenReadOnlyRealCatalog(Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc"));
 
+    // Shared tutorial-galaxy construction settings (Assets/Resources/Settings.asset's own values), factored out
+    // so every test that needs a real tutorial Galaxy -- not just EntranceZoneAlwaysGetsADockedStationAcrossSeeds
+    // -- builds it the same way instead of re-inlining the same ~20 fields.
+    private static ZoneGenerationSettings TutorialZoneSettings() => new ZoneGenerationSettings
+    {
+        PlanetSafetyRadius = new ExponentialCurve { Exponent = .25f, Multiplier = 2.5f, Constant = 0 },
+        MassFloor = 1, SunMass = 5000, GasGiantMass = 1000, PlanetMass = 100,
+        SatellitePasses = 5, SatelliteCreationMassFloor = 100, SatelliteCreationProbability = .25f,
+        BinaryCreationProbability = .1f, RosetteProbability = .1f,
+        ZoneRadius = new ExponentialLerp { Exponent = 1.5f, Minimum = 1000, Maximum = 10000 },
+        ZoneMass = new ExponentialLerp { Exponent = 1.5f, Minimum = 10000, Maximum = 500000 },
+        SubZoneCount = new ExponentialLerp { Exponent = 1.5f, Minimum = 0, Maximum = 8 },
+        ZoneBoundaryRadius = .9f, BeltProbability = .25f, BeltMassCeiling = 500,
+        AsteroidBeltWidth = new ExponentialCurve { Exponent = .666f, Multiplier = 5, Constant = 50 },
+        AsteroidCount = new ExponentialCurve { Exponent = .5f, Multiplier = 1, Constant = 11 },
+        AsteroidRotationSpeed = new ExponentialLerp { Exponent = 2, Minimum = .1f, Maximum = .5f },
+        SunColorSaturation = .85f, SunSecondaryColorDistance = .33f, SunLightSaturation = .5f, SunFogTintSaturation = .55f,
+        GasGiantBandCount = new ExponentialLerp { Exponent = 2, Minimum = 5, Maximum = 8 },
+        GasGiantBandColorSeparation = .25f, GasGiantBandAltColorChance = .25f,
+        GasGiantBandSaturation = new ExponentialLerp { Exponent = .5f, Minimum = 0, Maximum = .8f },
+        GasGiantBandBrightness = new ExponentialLerp { Exponent = .25f, Minimum = .25f, Maximum = 1 },
+        NameData = new string[0],
+    };
+
+    private static TutorialGenerationSettings TutorialGalaxySettings() => new TutorialGenerationSettings
+    {
+        ProtagonistFaction = "Miss", AntagonistFaction = "Zhe", BufferFaction = "Luc",
+        NeutralFactions = new[] { "Aero", "Finch" }, QuestFaction = "Adras", LinkDensity = .5f, ZoneCount = 64,
+    };
+
+    private static SectorBackgroundSettings TutorialBackgroundSettings() => new SectorBackgroundSettings
+    {
+        NoiseAmplitude = 1, NoiseOffset = .3f, NoiseGain = .7f, NoiseLacunarity = 2, NoiseFrequency = .1f,
+        NoisePosition = 536.5106f, CloudExponent = 10, CloudAmplitude = .01f,
+    };
+
+    private static NameGeneratorSettings TutorialNameSettings() =>
+        new NameGeneratorSettings { NameGeneratorMinLength = 5, NameGeneratorMaxLength = 10, NameGeneratorOrder = 3 };
+
+    // A station's orbit is a copy of its source planet's own (Parent, Distance) (ZoneGenerator.CreateLagrangeOrbit),
+    // so it always matches that one planet. It matches MORE than one planet only when the source planet shares its
+    // distance with a sibling under the same parent -- exactly what ZoneGenerator's potentialLagrangePoints filter
+    // excludes. An entrance station whose orbit matches more than one planet orbit this way could therefore only
+    // have come from the widened candidate set, never from the ordinary (non-rosette) Lagrange selection.
+    //
+    // pack.Orbits starts with exactly one orbit per entry of ZoneGenerator's own (unfiltered) `planets` list --
+    // NOT pack.Planets.Count, which excludes rosette-root "Empty" planets that never get a BodyData/PlanetData
+    // entry at all. Every station and turret then appends exactly one more orbit each (CreateLagrangeOrbit,
+    // PlaceTurret), one per resulting OrbitalEntityPack, so the true planet-orbit count is pack.Orbits.Count minus
+    // that many, not pack.Planets.Count.
+    private static bool IsRosetteMember(CultCache cache, ZonePack pack, OrbitData orbit)
+    {
+        if (!orbit.Parent.IsSet()) return false;
+        var planetOrbitCount = pack.Orbits.Count - pack.Entities.OfType<OrbitalEntityPack>().Count();
+        var planetOrbits = pack.Orbits.Take(planetOrbitCount).Select(cache.Get).ToArray();
+        return planetOrbits.Count(o => o.Parent.IsSet() && o.Parent.Key.Equals(orbit.Parent.Key) && abs(o.Distance - orbit.Distance) < .1f) > 1;
+    }
+
     // ZoneGenerator.GenerateZone writes OrbitData/BodyData (run-store types, AetheriaStores.RunTypes), so a
     // catalog-only cache has no home for them. A scratch run file, deleted after the seed that used it.
     private static CultCache OpenReadOnlyRealCatalogWithScratchRun(string catalogPath, string runPath)
@@ -213,40 +271,17 @@ public sealed class RestoredHullsTests
     // Galaxy exactly as Assets/Resources/Settings.asset configures it and ActionGameManager.StartGame ->
     // PopulateLevel(CurrentGalaxy.Entrance) generates it, across seeds, and requires a docked station in every
     // run. It must fail without ZoneGenerator's tutorial-entrance override.
+    //
+    // Also requires that the NORMAL case (a zone with a real Lagrange candidate, the common case across 25 seeds)
+    // seats its station on a genuine, non-rosette Lagrange orbit rather than the widened fallback -- the widened
+    // candidate set is for the rare zone with none, not a replacement for ordinary placement.
     [Fact]
     public void EntranceZoneAlwaysGetsADockedStationAcrossSeeds()
     {
-        var zoneSettings = new ZoneGenerationSettings
-        {
-            PlanetSafetyRadius = new ExponentialCurve { Exponent = .25f, Multiplier = 2.5f, Constant = 0 },
-            MassFloor = 1, SunMass = 5000, GasGiantMass = 1000, PlanetMass = 100,
-            SatellitePasses = 5, SatelliteCreationMassFloor = 100, SatelliteCreationProbability = .25f,
-            BinaryCreationProbability = .1f, RosetteProbability = .1f,
-            ZoneRadius = new ExponentialLerp { Exponent = 1.5f, Minimum = 1000, Maximum = 10000 },
-            ZoneMass = new ExponentialLerp { Exponent = 1.5f, Minimum = 10000, Maximum = 500000 },
-            SubZoneCount = new ExponentialLerp { Exponent = 1.5f, Minimum = 0, Maximum = 8 },
-            ZoneBoundaryRadius = .9f, BeltProbability = .25f, BeltMassCeiling = 500,
-            AsteroidBeltWidth = new ExponentialCurve { Exponent = .666f, Multiplier = 5, Constant = 50 },
-            AsteroidCount = new ExponentialCurve { Exponent = .5f, Multiplier = 1, Constant = 11 },
-            AsteroidRotationSpeed = new ExponentialLerp { Exponent = 2, Minimum = .1f, Maximum = .5f },
-            SunColorSaturation = .85f, SunSecondaryColorDistance = .33f, SunLightSaturation = .5f, SunFogTintSaturation = .55f,
-            GasGiantBandCount = new ExponentialLerp { Exponent = 2, Minimum = 5, Maximum = 8 },
-            GasGiantBandColorSeparation = .25f, GasGiantBandAltColorChance = .25f,
-            GasGiantBandSaturation = new ExponentialLerp { Exponent = .5f, Minimum = 0, Maximum = .8f },
-            GasGiantBandBrightness = new ExponentialLerp { Exponent = .25f, Minimum = .25f, Maximum = 1 },
-            NameData = new string[0],
-        };
-        var tutorialSettings = new TutorialGenerationSettings
-        {
-            ProtagonistFaction = "Miss", AntagonistFaction = "Zhe", BufferFaction = "Luc",
-            NeutralFactions = new[] { "Aero", "Finch" }, QuestFaction = "Adras", LinkDensity = .5f, ZoneCount = 64,
-        };
-        var background = new SectorBackgroundSettings
-        {
-            NoiseAmplitude = 1, NoiseOffset = .3f, NoiseGain = .7f, NoiseLacunarity = 2, NoiseFrequency = .1f,
-            NoisePosition = 536.5106f, CloudExponent = 10, CloudAmplitude = .01f,
-        };
-        var names = new NameGeneratorSettings { NameGeneratorMinLength = 5, NameGeneratorMaxLength = 10, NameGeneratorOrder = 3 };
+        var zoneSettings = TutorialZoneSettings();
+        var tutorialSettings = TutorialGalaxySettings();
+        var background = TutorialBackgroundSettings();
+        var names = TutorialNameSettings();
         var gameData = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
 
         // Galaxy zone-graph generation has a pre-existing, seed-dependent flakiness of its own (a disconnected
@@ -255,6 +290,7 @@ public sealed class RestoredHullsTests
         // not to ZoneGenerator's entrance-station override this test is pinning, so it is skipped rather than
         // asserted on; every seed whose Galaxy actually builds must still get a docked entrance station.
         var succeeded = 0;
+        var sawGenuineLagrangeOrbit = false;
         for (uint seed = 1; seed <= 25; seed++)
         {
             var scratchRun = Path.Combine(Path.GetTempPath(), $"aetheria-entrance-station-{Guid.NewGuid():N}.cc");
@@ -270,9 +306,12 @@ public sealed class RestoredHullsTests
                 var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
                 var pack = ZoneGenerator.GenerateZone(items, zoneSettings, galaxy, galaxy.Entrance, isTutorial: true);
 
-                var docked = pack.Entities.OfType<OrbitalEntityPack>()
-                    .Any(e => (cache.Get(e.Hull.Data) as HullData)?.HullType == HullType.Station && e.DockingBays.Length > 0);
-                Assert.True(docked, $"seed {seed}: the tutorial entrance zone generated no station with a docking bay.");
+                var dockedStation = pack.Entities.OfType<OrbitalEntityPack>()
+                    .FirstOrDefault(e => (cache.Get(e.Hull.Data) as HullData)?.HullType == HullType.Station && e.DockingBays.Length > 0);
+                Assert.True(dockedStation != null, $"seed {seed}: the tutorial entrance zone generated no station with a docking bay.");
+
+                if (!IsRosetteMember(cache, pack, cache.Get(dockedStation.Orbit)))
+                    sawGenuineLagrangeOrbit = true;
             }
             finally
             {
@@ -281,20 +320,36 @@ public sealed class RestoredHullsTests
         }
 
         Assert.True(succeeded >= 15, $"only {succeeded} of 25 seeds produced a Galaxy at all; too few runs to trust this result.");
+        Assert.True(sawGenuineLagrangeOrbit, "none of the 25 seeds seated the entrance station on a genuine (non-rosette) Lagrange orbit.");
     }
 
     // Speed cap (docs/locomotion-cut.md Cut 1 verification): Longinus's restored VelocityLimitData caps it at
-    // 100 (legacy TopSpeed 100..100). Runs it under straight-line full forward thrust -- LookDirection held on
-    // the ship's own heading, so the mixer never spends torque turning and thrust stays aligned with velocity --
-    // long enough to approach its drag/thrust balance well past 100, and asserts the observed speed never
-    // exceeds the cap at any sampled tick. Must fail when VelocityLimitData is removed (docs' own probe: Longinus
-    // reaches 122 without it).
+    // the legacy TopSpeed, 100 (100..100) -- asserted as the literal from the legacy record rather than read
+    // back out of the same catalog value being tested, so a mutated TopSpeed (e.g. 1000) can't also move the
+    // bound this test checks against.
+    //
+    // The comment this replaces claimed the run went "long enough to approach its drag/thrust balance well past
+    // 100" -- false. There is no drag/thrust balance to approach: at full throttle Longinus's own restored
+    // thrusters heat their hull cells past EquippedItem's ThermalOnline shutdown threshold within about a
+    // second (Entity.cs's Wear/ThermalOnline; soul-speed.txt traces it), and once the HULL's own cell goes
+    // offline the same way, VelocityLimit -- a hull behaviour, gated the same way as any other equipped item --
+    // stops running too, so the cap switches off along with thrust and the ship just coasts. The cap was only
+    // ever exercised for the first ~15 ticks. OverrideShutdown (Entity.cs; the same field the cockpit's "Override
+    // Shutdown" control flips, PropertiesPanel.cs) is a real, first-class affordance for forcing equipment to
+    // keep running past a thermal cutoff; setting it on the hull and both firing thrusters keeps thrust -- and
+    // the hull's own VelocityLimit -- running for the whole scenario, so the cap is what actually holds speed
+    // down for the full duration rather than an unreached ceiling. The run stops at 12 s, comfortably before the
+    // forced thrusters' own Durability (unprotected by OverrideShutdown) burns out around 15-16 s.
+    //
+    // Must fail when VelocityLimitData is removed (docs' own probe: Longinus reaches 122 without it) and when
+    // TopSpeed is mutated away from 100.
     [Fact]
     public void LonginusNeverExceedsItsRestoredTopSpeedUnderFullThrust()
     {
+        const float LegacyTopSpeed = 100f; // Longinus's legacy-record TopSpeed (100..100)
+
         using var cache = OpenCatalog();
         var hull = cache.GetByName<HullData>("Longinus");
-        var topSpeed = ((VelocityLimitData) hull.Behaviors.Single(b => b is VelocityLimitData)).TopSpeed.Max;
         var thrusterDesigns = cache.GetAll<GearData>().Where(g => g.Hardpoint == HardpointType.Thruster).ToArray();
 
         var settings = Settings();
@@ -302,14 +357,16 @@ public sealed class RestoredHullsTests
         for (var i = 1; i <= hull.Hardpoints.Count + 1; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = .5f };
         var items = new ItemManager(cache, ledger, settings, _ => { });
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test", Owner = null }, null);
-        var hullItem = new EquippableItem { Data = cache.RefOf<ItemData>(hull), Durability = hull.Durability, Lot = 1 };
-        var ship = new Ship(items, zone, hullItem, settings.DefaultEntitySettings);
+        // OverrideShutdown on both the hull and every thruster: keeps thrust (and the hull's own VelocityLimit)
+        // running for the whole scenario instead of thermally shutting down after ~1 s.
+        var hullItem = new EquippableItem { Data = cache.RefOf<ItemData>(hull), Durability = hull.Durability, Lot = 1, OverrideShutdown = true };
+        var ship = new Ship(items, zone, hullItem, settings.DefaultEntitySettings) { OverrideShutdown = true };
 
         var lot = 2;
         foreach (var hardpoint in hull.Hardpoints.Where(h => h.Type == HardpointType.Thruster))
         {
             var design = thrusterDesigns.First(d => d.Shape.FitsWithin(hardpoint.Shape, hardpoint.Rotation, out _) && d.Shape.Coordinates.Length == hardpoint.Shape.Coordinates.Length);
-            var gearItem = new EquippableItem { Data = cache.RefOf<ItemData>(design), Durability = design.Durability, Lot = lot++ };
+            var gearItem = new EquippableItem { Data = cache.RefOf<ItemData>(design), Durability = design.Durability, Lot = lot++, OverrideShutdown = true };
             Assert.True(ship.TryEquip(gearItem, hardpoint.Position));
         }
         var reactorHardpoint = hull.Hardpoints.First(h => h.Type == HardpointType.Reactor);
@@ -325,16 +382,24 @@ public sealed class RestoredHullsTests
         ship.MovementDirection = float2(0, 1); // full forward
         ship.LookDirection = float3(ship.Direction.x, 0, ship.Direction.y); // straight line: hold the ship's own heading
 
-        for (var i = 0; i < 60 * 20; i++)
+        const int ticks = 60 * 12; // stops well before the forced thrusters' own Durability runs out (~15-16 s)
+        var lastSpeed = 0f;
+        for (var i = 0; i < ticks; i++)
         {
             zone.Update(1f / 60f);
             var speed = length(ship.Velocity);
+            lastSpeed = speed;
             // The mixer applies thrust then VelocityLimit clamps at the START of the next tick (Ship.cs's
             // per-behavior execution order), so one tick's own acceleration can carry speed briefly past the
             // cap before the following tick reins it in. The tolerance below is several times the base flight
             // table's own measured Longinus forward acceleration (172.38 m/s^2) at dt=1/60 (~2.9 per tick).
-            Assert.True(speed <= topSpeed + 10f, $"tick {i}: speed {speed} exceeded the restored top speed {topSpeed} by more than one tick's acceleration.");
+            Assert.True(speed <= LegacyTopSpeed + 10f, $"tick {i}: speed {speed} exceeded the legacy top speed {LegacyTopSpeed} by more than one tick's acceleration.");
         }
+
+        // With shutdown forced off for the whole run, the cap must be what is actually holding speed down by
+        // the end, not merely an unreached ceiling the ship happened to coast under -- this is what makes the
+        // assertion above a test of the cap rather than of thermal shutdown.
+        Assert.True(lastSpeed >= LegacyTopSpeed - 10f, $"final speed {lastSpeed} never converged on the legacy top speed {LegacyTopSpeed}; the cap was never actually binding.");
     }
 
     // Loadout generation (docs/locomotion-cut.md Cut 1 verification): LoadoutGenerator, filtered to each
@@ -364,6 +429,196 @@ public sealed class RestoredHullsTests
                     (cache.Get(e.item.Data) as GearData)?.Hardpoint == HardpointType.Thruster);
                 Assert.True(filled, $"{name}: seed {seed}'s {hardpoint.Transform ?? hardpoint.Type.ToString()} hardpoint at {hardpoint.Position} got no thruster.");
             }
+        }
+    }
+
+    // Builds the real tutorial galaxy for `seed`, then re-targets its Entrance to `entranceZoneName` via the
+    // public SavedGame/SavedZone round trip (RunSave's own shape: Galaxy -> SavedZone[] -> Galaxy(cache,
+    // SavedGame, log)), without touching Galaxy's private Entrance backing field by reflection. Zone content
+    // (planets) is keyed off each zone's own Name/Position, not off which zone happens to be Entrance, so the
+    // re-targeted galaxy's chosen zone generates identically to the original -- letting a test pick, by name, any
+    // real zone from a real galaxy (e.g. one already known to have no Lagrange candidate) and make it the Entrance.
+    private static Galaxy BuildGalaxyWithForcedEntrance(CultCache cache, uint seed, string entranceZoneName)
+    {
+        var galaxy = new Galaxy(TutorialGalaxySettings(), TutorialBackgroundSettings(), TutorialNameSettings(),
+            cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed);
+        var target = galaxy.Zones.Single(z => z.Name == entranceZoneName);
+
+        var factions = galaxy.Factions;
+        var savedZones = galaxy.Zones.Select(zone => new SavedZone
+        {
+            Name = zone.Name,
+            Position = zone.Position,
+            AdjacentZones = zone.AdjacentZones.Select(az => Array.IndexOf(galaxy.Zones, az)).ToArray(),
+            Factions = zone.Factions.Select(f => Array.IndexOf(factions, f)).ToArray(),
+            Contents = zone.PackedContents,
+            Owner = zone.Owner == null ? -1 : Array.IndexOf(factions, zone.Owner),
+        }).ToArray();
+        var keys = savedZones.Select((_, i) => new CultRecordKey($"restoredhullstests-forced-entrance-zone-{i}")).ToArray();
+        cache.Commit(batch => { for (var i = 0; i < keys.Length; i++) batch.Upsert(typeof(SavedZone), savedZones[i], keys[i]); });
+
+        var game = new SavedGame
+        {
+            Zones = keys.Select(k => new CultRecordRef<SavedZone>(k)).ToArray(),
+            Factions = factions.Select(f => cache.RefOf(f)).ToArray(),
+            HomeZones = galaxy.HomeZones.ToDictionary(x => Array.IndexOf(factions, x.Key), x => Array.IndexOf(galaxy.Zones, x.Value)),
+            BossZones = galaxy.BossZones.ToDictionary(x => Array.IndexOf(factions, x.Key), x => Array.IndexOf(galaxy.Zones, x.Value)),
+            Entrance = Array.IndexOf(galaxy.Zones, target),
+            Exit = -1,
+            Relationships = factions.Select(f => galaxy.FactionRelationships[f]).ToArray(),
+            DiscoveredZones = Array.Empty<int>(),
+            Background = galaxy.Background,
+            IsTutorial = true,
+        };
+        return new Galaxy(cache, game, _ => { });
+    }
+
+    // Cut 1 fix batch 2 (Soul's finding #2): the tutorial entrance's widened candidate set. Seed 3's real tutorial
+    // galaxy has a zone, "EAC-7089", whose planets are entirely one rosette with no captured satellites at all: 4
+    // planets sharing one Distance under one Parent, and nothing else -- potentialLagrangePoints is empty for it
+    // (verified directly against this exact fixture, not carried over from Soul's own forced-fallback probe, whose
+    // own candidate check undercounted planet orbits by using pack.Planets.Count -- which excludes Empty rosette
+    // roots -- and so misidentified some zones, including its originally-reported "EAC-3208", as candidate-less
+    // when they were not). Re-targeted here to be the Entrance through BuildGalaxyWithForcedEntrance above. Its
+    // docked station can therefore only have come from the widened candidate set (every parented planet orbit,
+    // not just non-rosette ones), never from a synthesized, unparented fallback orbit. Pins: still docked, and
+    // turrets sit on a real orbit (a real Parent, a finite Phase, and a Distance matching their station's, i.e.
+    // "near their station").
+    [Fact]
+    public void TutorialEntranceWithNoLagrangeCandidateStillSeatsAStationWithFiniteNearbyTurrets()
+    {
+        var gameData = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
+        var scratchRun = Path.Combine(Path.GetTempPath(), $"aetheria-entrance-widened-{Guid.NewGuid():N}.cc");
+        try
+        {
+            using var cache = OpenReadOnlyRealCatalogWithScratchRun(gameData, scratchRun);
+            var galaxy = BuildGalaxyWithForcedEntrance(cache, seed: 3u, "EAC-7089");
+
+            var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+            var pack = ZoneGenerator.GenerateZone(items, TutorialZoneSettings(), galaxy, galaxy.Entrance, isTutorial: true);
+
+            var station = pack.Entities.OfType<OrbitalEntityPack>()
+                .FirstOrDefault(e => (cache.Get(e.Hull.Data) as HullData)?.HullType == HullType.Station && e.DockingBays.Length > 0);
+            Assert.True(station != null, "the known no-Lagrange-candidate entrance zone generated no docked station.");
+            var stationOrbit = cache.Get(station.Orbit);
+
+            // Confirms this fixture still exercises the widened path (a regression here would mean the fixture no
+            // longer probes what this test claims to probe).
+            Assert.True(IsRosetteMember(cache, pack, stationOrbit), "the entrance station no longer sits on a rosette-only orbit -- this fixture no longer tests the widened candidate path.");
+
+            var turrets = pack.Entities.OfType<OrbitalEntityPack>()
+                .Where(e => (cache.Get(e.Hull.Data) as HullData)?.HullType != HullType.Station).ToArray();
+            Assert.NotEmpty(turrets);
+            foreach (var turret in turrets)
+            {
+                var turretOrbit = cache.Get(turret.Orbit);
+                Assert.True(turretOrbit.Parent.IsSet(), "a turret's orbit has no Parent.");
+                Assert.False(float.IsNaN(turretOrbit.Phase) || float.IsInfinity(turretOrbit.Phase), $"a turret's orbit Phase is not finite: {turretOrbit.Phase}.");
+                Assert.Equal(stationOrbit.Distance, turretOrbit.Distance, 3); // "near their station": same orbit, only Phase differs
+            }
+        }
+        finally
+        {
+            if (File.Exists(scratchRun)) File.Delete(scratchRun);
+        }
+    }
+
+    // Cut 1 fix batch 2 (Soul's finding #2, leak check): the entrance override must not leak to (a) other
+    // tutorial zones or (b) a non-tutorial game's own entrance zone. Both are pinned against the same seed-1
+    // galaxy as the widened-candidate test above, so all three tests stand or fall on the same known fixture.
+    [Fact]
+    public void EntranceOverrideDoesNotLeakToOtherTutorialZonesOrNonTutorialGames()
+    {
+        var gameData = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
+        var scratchRun = Path.Combine(Path.GetTempPath(), $"aetheria-entrance-leak-{Guid.NewGuid():N}.cc");
+        try
+        {
+            using var cache = OpenReadOnlyRealCatalogWithScratchRun(gameData, scratchRun);
+            var galaxy = new Galaxy(TutorialGalaxySettings(), TutorialBackgroundSettings(), TutorialNameSettings(),
+                cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed: 1u);
+            var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+
+            int StationCount(GalaxyZone zone, bool isTutorial) =>
+                ZoneGenerator.GenerateZone(items, TutorialZoneSettings(), galaxy, zone, isTutorial)
+                    .Entities.OfType<OrbitalEntityPack>()
+                    .Count(e => (cache.Get(e.Hull.Data) as HullData)?.HullType == HullType.Station);
+
+            // (a) A non-entrance tutorial zone that naturally rolls zero stations keeps that roll under
+            // isTutorial: true -- the floor must not leak past the galaxy.Entrance reference check.
+            var otherZone = galaxy.Zones.Single(z => z.Name == "EAC-2733");
+            Assert.NotSame(galaxy.Entrance, otherZone);
+            Assert.Equal(0, StationCount(otherZone, isTutorial: true));
+
+            // (b) The entrance zone itself, generated for a non-tutorial game (isTutorial: false), keeps its
+            // natural roll too -- the floor must not leak past the isTutorial flag either.
+            Assert.Equal(0, StationCount(galaxy.Entrance, isTutorial: false));
+        }
+        finally
+        {
+            if (File.Exists(scratchRun)) File.Delete(scratchRun);
+        }
+    }
+
+    // Cut 1 fix batch 2 (Soul's finding #2, baseStationCount): the entrance override raises stationCount (the
+    // orbit-selection floor) but must not also raise the enemyCount roll, which is keyed to baseStationCount
+    // (the pre-override value) precisely so the forced station doesn't buy the zone an extra enemy. Seed 1's
+    // entrance zone rolls baseStationCount 0 (confirmed via the isTutorial: false StationCount == 0 above) and
+    // the override raises stationCount to 1; this pins the resulting ship count at the value baseStationCount
+    // produces. It must fail if the enemy-count formula is changed to add stationCount instead (it would add a
+    // ship instead of zero).
+    [Fact]
+    public void ForcedTutorialEntranceStationDoesNotInflateEnemyCount()
+    {
+        var gameData = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
+        var scratchRun = Path.Combine(Path.GetTempPath(), $"aetheria-entrance-enemycount-{Guid.NewGuid():N}.cc");
+        try
+        {
+            using var cache = OpenReadOnlyRealCatalogWithScratchRun(gameData, scratchRun);
+            var galaxy = new Galaxy(TutorialGalaxySettings(), TutorialBackgroundSettings(), TutorialNameSettings(),
+                cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed: 1u);
+            var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+
+            var pack = ZoneGenerator.GenerateZone(items, TutorialZoneSettings(), galaxy, galaxy.Entrance, isTutorial: true);
+            var stationCount = pack.Entities.OfType<OrbitalEntityPack>().Count(e => (cache.Get(e.Hull.Data) as HullData)?.HullType == HullType.Station);
+            var shipCount = pack.Entities.OfType<ShipPack>().Count();
+
+            Assert.Equal(1, stationCount); // the override did raise the station count (from a natural roll of 0)
+            Assert.Equal(2, shipCount); // but the enemy roll stayed keyed to the pre-override count of 0
+        }
+        finally
+        {
+            if (File.Exists(scratchRun)) File.Delete(scratchRun);
+        }
+    }
+
+    // Soul's finding #3 (asset identity): the existence-only check (EveryAssetReferenceResolvesToAMetaGuid) passes
+    // even when Djinni.Prefab is swapped for Longinus's -- both are real GUIDs somewhere under Assets/. This pins
+    // the actual identity: each restored reference names the specific legacy-record file it is supposed to, not
+    // merely some meta file that happens to exist. Must fail under Soul's own "djprefab" mutation (Djinni.Prefab
+    // set to Longinus's GUID).
+    [Fact]
+    public void RestoredAssetReferencesNameTheirOwnLegacyFileNotJustAnyExistingGuid()
+    {
+        string GuidOf(string assetPathUnderRepoRoot)
+        {
+            var meta = Path.Combine(FindRepoRoot(), assetPathUnderRepoRoot + ".meta");
+            return File.ReadLines(meta).First(l => l.StartsWith("guid: ")).Substring("guid: ".Length).Trim();
+        }
+
+        using var cache = OpenCatalog();
+
+        var djinniPrefabGuid = GuidOf("Assets/Content/Prefabs/Ships/Djinni.prefab");
+        var djinni = cache.GetByName<HullData>("Djinni");
+        Assert.Equal(djinniPrefabGuid, djinni.Prefab);
+
+        // Every restored thruster's particle effect is Thruster 1.prefab, by the legacy record (soul-dump.txt).
+        var thruster1Guid = GuidOf("Assets/Content/Prefabs/Thrusters/Thruster 1.prefab");
+        var restoredThrusterNames = new[] { "deep space burnout", "Large Drive", "Victoire", "Small Drive", "Talaria", "RevvITup 2.0", "Medium Drive" };
+        foreach (var name in restoredThrusterNames)
+        {
+            var design = cache.GetAll<GearData>().First(g => g.Name == name);
+            var thrusterBehavior = design.Behaviors.OfType<ThrusterData>().Single();
+            Assert.Equal(thruster1Guid, thrusterBehavior.ParticlesPrefab);
         }
     }
 }
