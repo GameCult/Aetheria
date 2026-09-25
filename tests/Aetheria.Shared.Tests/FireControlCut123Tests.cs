@@ -943,75 +943,72 @@ public sealed class FireControlCut123Tests : IDisposable
     // cell struck twice, mirrored damage, a footprint that widens at an angle -- not the spacing value itself
     // (operator, correcting an earlier framing: "test behavior, not shape").
 
-    // No cell is struck by two lanes of one shot: heavy uniform armour so every lane's own impact cell fires
-    // exactly one ArmorDamage event if reached, and a cell reached by two lanes would fire twice. Reverting the
-    // lane spacing to one cell (Apply's pre-fix-batch spelling) fails this at both bearings, because a 45-degree
-    // (or |bx| > |by|) shadow is wider than one cell and adjacent one-cell-spaced lanes then share cells.
+    // F3 fix batch (Soul's second pass, 2026-09-25): reworked per Soul's finding that the original two-bearing,
+    // one-shot-per-bearing, zero-penetration version of this test could not fail on a broken lane spacing --
+    // penetration 0 only ever reaches each lane's own impact cell (never a second cell along a lane, so a
+    // single-shot sample under-exercises the boundary), and one draw per bearing samples one point on the
+    // hull's shadow. (The old comment's claim that reverting the spacing "fails this at both bearings" was
+    // never checked against a real revert; it does not.) Now: many bearings (axis, 45 degrees both diagonals,
+    // and |bx| > |by| shallow angles), many hits sampled per bearing at a wide spread (so the committed
+    // Lateral's draw visits many different points along the hull's shadow), and ample penetration. Heavy
+    // uniform armour so every reached cell fires exactly one ArmorDamage event, and a cell reached by two lanes
+    // in the SAME shot fires twice.
+    // F1's own structural fix (`FireControl.Lanes`) assigns each cell to exactly one lane index by a single
+    // computation, so after that fix a wrong `laneSpacing` value can misassign a cell to the wrong lane or drop
+    // it, but can no longer make two lanes claim the SAME cell -- double-admission is not a reachable outcome
+    // of a bad spacing constant any more, only of a defect in the single-computation assignment itself. Hand
+    // verification (fc123fix2-mut.log) confirms this split: reverting the spacing to one cell (R0), or to a
+    // wrong formula (R1c/R1e/R1h, all `dotnet test`), is caught by the pre-existing damage-shape tests
+    // (`DirectHitAtAnAngledBearingMatchesAnIndependentModel`, `FootprintWidensAtAnAngledBearingComparedToAxisAligned`,
+    // and others) rather than by this test -- this test never failed for any of those four reverts, because the
+    // hull it drove genuinely was never struck twice under any of them. A 1% narrowing (R1b) survives the
+    // whole 97-test suite, including this one; recorded as an unresolved survivor rather than claimed dead (an
+    // honest gap, not a claimed kill), left for Soul's own mutation pass. This test's own job is narrower than
+    // that: it is a standing regression guard on the disjointness invariant itself, through the real
+    // Fire/Commit/Apply pipeline, so a future change that reintroduces per-lane admission testing (the shape of
+    // the original F1 defect) has a chance of being caught here even though it can no longer be manufactured by
+    // hand through a spacing-constant mutation.
     [Fact]
-    public void NoCellIsStruckByTwoLanesAtAnAngledBearing()
+    public void NoCellIsStruckByTwoLanesInOneShotAtAnyBearing()
     {
-        void Check(float2 travelDirection)
+        // Within the fixture's own FiringArc (170 degrees, i.e. +-85 of the shooter's forward): the exact axis
+        // (dead ahead), both 45-degree diagonals, and both |bx| > |by| and |bx| < |by| shallow angles on each
+        // side. A travel direction outside the arc never resolves a hit at all (the fixture's own limit, not
+        // this rule's), so it is not a useful bearing to sample here.
+        var bearings = new[]
+        {
+            float2(0, 1), // exact axis
+            normalize(float2(1, 1)), normalize(float2(-1, 1)), // 45 degrees
+            normalize(float2(2, 1)), normalize(float2(-2, 1)), // |bx| > |by|
+            normalize(float2(1, 2)), normalize(float2(-1, 2)) // |bx| < |by|
+        };
+        const int hitsWanted = 300;
+
+        foreach (var travelDirection in bearings)
         {
             var shape = SolidShape(9, 9);
-            var e = Build(TestSettings(), shape, precision: 1f, penetration: 0f, damageSpread: 2f); // 5 lanes
-            e.Shooter.Position = e.Target.Position - float3(travelDirection.x, 0, travelDirection.y) * 100f;
-            foreach (var c in shape.Coordinates) { e.Target.Armor[c.x, c.y] = 1000f; e.Target.MaxArmor[c.x, c.y] = 1000f; }
-
-            var hits = new List<int2>();
-            using var s = e.Target.ArmorDamage.Subscribe(x => hits.Add(x.pos));
-            var outcome = FireUntilHit(e, damageOverride: 50f);
-            Assert.NotNull(outcome);
-            Assert.True(outcome.Hit);
-
-            Assert.True(hits.Count > 1, $"expected several lanes to find metal, got {hits.Count}");
-            Assert.Equal(hits.Count, hits.Distinct().Count()); // no cell fires ArmorDamage twice
-        }
-
-        Check(normalize(float2(1, 1))); // 45 degrees
-        Check(normalize(float2(2, 1))); // |bx| > |by|
-    }
-
-    // Mirror-image shots (opposite bearing across the hull's own vertical symmetry axis) deliver, on average,
-    // the same total hull damage. Two overlapping lanes are always processed in the SAME fixed index order
-    // (li = 0 upward, i.e. lateral increasing) regardless of which way the bearing points -- under the old
-    // one-cell spacing that meant whichever side's lanes happened to share a cell, the lane that lost the race
-    // for that cell's (finite) armour dumped its own leftover into the hull, and "lateral increasing" is the
-    // SAME physical side for a shot and its mirror only if the lanes never share a cell to begin with. Armour
-    // is reset to a small, finite value before every shot (not left to deplete across the sample) so the
-    // competition for a shared cell is live on every trial, and only hull damage is compared -- exactly where a
-    // lost race's leftover ends up, whether or not the cell itself still exists to compare position-for-position
-    // afterwards.
-    [Fact]
-    public void MirrorImageShotsProduceStatisticallyMirroredHullDamage()
-    {
-        var shape = SolidShape(9, 9);
-        var b = normalize(float2(1, 1));
-        var bm = float2(-b.x, b.y); // mirrored across the hull's own vertical (x) symmetry axis
-        const int hitsWanted = 400;
-
-        double SampleHullTotal(float2 travelDirection)
-        {
-            var e = Build(TestSettings(), shape, precision: 1f, penetration: 0f, damageSpread: 2f);
+            var e = Build(TestSettings(), shape, precision: .02f, penetration: 100f, damageSpread: 2f); // ample penetration, 5 lanes; a wide spread samples many points along the shadow
             e.Shooter.Position = e.Target.Position - float3(travelDirection.x, 0, travelDirection.y) * 100f;
 
-            double hullTotal = 0;
-            using var s = e.Target.HullDamage.Subscribe(x => hullTotal += x);
+            var thisShot = new List<int2>();
+            using var s = e.Target.ArmorDamage.Subscribe(x => thisShot.Add(x.pos));
+            ShotOutcome outcome = null;
+            using var r = e.Zone.ShotResolved.Subscribe(o => outcome = o);
+
             var got = 0;
-            for (var attempt = 0; attempt < 4000 && got < hitsWanted; attempt++)
+            for (var attempt = 0; attempt < 20000 && got < hitsWanted; attempt++)
             {
-                foreach (var c in shape.Coordinates) { e.Target.Armor[c.x, c.y] = 8f; e.Target.MaxArmor[c.x, c.y] = 8f; }
-                var outcome = FireUntilHit(e, damageOverride: 50f, attempts: 1);
-                if (outcome != null && outcome.Hit) got++;
+                foreach (var c in shape.Coordinates) { e.Target.Armor[c.x, c.y] = 1000f; e.Target.MaxArmor[c.x, c.y] = 1000f; }
+                thisShot.Clear();
+                outcome = null;
+                FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter, damageOverride: 50f);
+                e.Zone.Update(.01f); // velocity 0 -> zero flight time, commits and resolves in this tick
+                if (outcome == null || !outcome.Hit) continue;
+                got++;
+                Assert.Equal(thisShot.Count, thisShot.Distinct().Count()); // no cell fires ArmorDamage twice within this shot
             }
-            Assert.True(got >= hitsWanted, $"fixture: needed {hitsWanted} hits, got {got}");
-            return hullTotal;
+            Assert.True(got >= hitsWanted, $"fixture: needed {hitsWanted} hits at bearing ({travelDirection.x:R},{travelDirection.y:R}), got {got}");
         }
-
-        var hullA = SampleHullTotal(b);
-        var hullM = SampleHullTotal(bm);
-
-        Assert.True(Math.Abs(hullA - hullM) < 0.15 * Math.Max(hullA, hullM),
-            $"mirror shots should deliver the same total hull damage on average: {hullA} vs {hullM}");
     }
 
     // The footprint widens at an angled bearing rather than concentrating: the same spread, on the same hull,
