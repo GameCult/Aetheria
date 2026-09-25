@@ -1938,7 +1938,8 @@ Second round:
   takes the share of the disc that lies inside it. The share of the disc that falls outside
   the hull's occupied cells is lost. Each covered cell absorbs independently, in the
   existing order (armour, then item, then hull). Nothing travels, nothing is occluded, and
-  no remainder is routed anywhere.
+  no remainder is routed anywhere. (Superseded for items by the 2026-09-25 one-path
+  ruling: armour stays per cell, and an item pools its covered cells and resolves once. See 12.4.)
 
   **A shot has a direction; a blast does not.** That sentence is the rule behind the split:
   direct hits keep the lane model of 12.2 and 12.3, and blasts are areas. Where P sits:
@@ -2003,8 +2004,8 @@ Second round:
   embeds each type's schema descriptor, including `{"slot":29,"name":"AirburstRange",
   "type":"System.Nullable<System.Single>"}`, and the wire format is positional
   (`Probe5_Wire`: `[…,12.5,50,20]`, with no field names on the wire). On a content-hash
-  mismatch, `CultCache.ResolveSchema` (`CultCache.cs:590-670`) runs `CompareSchemaShapes`
-  (`:672-744`), which compares slot type, reference, cardinality, target schema, name
+  mismatch, `CultCache.BuildCompatibleResolutionResult` (`CultCache.cs:587-670`) runs `CompareSchemaShapes`
+  (`:672-752`), which compares slot type, reference, cardinality, target schema, name
   semantics and index alias, **not the member name**. So renaming slot 29 opens as
   `CompatibleDrift` with warnings. A new nullable slot opens with a `defaulted_missing_slot`
   warning. The warnings persist until the catalog is next written with the new descriptor.
@@ -2452,7 +2453,7 @@ import.
      exhausted, a gap, or the far side (Q12-3 = A). The remainders are summed and passed to
      `DamageHull` once.
   6. A weapon with a contact or delayed fuse does not take this path. It detonates instead
-     (12.4), never both.
+     (12.4), never both. 12.4 moves this choice into Apply's switch on the frozen `Fuse`; `Step` no longer branches.
 
   **Where 12.3 and 12.4 meet.** Which model a shot uses is decided by the blast radius, not
   by its penetration:
@@ -2547,8 +2548,8 @@ Recorded, not fixed:
   for them.
   - Angled correctness is covered by the model sweep and `DirectHitAtAnAngledBearingMatchesAnIndependentModel`.
   - The cycle rule's symmetry is covered at axis-aligned bearings, and holds at any bearing by construction (it has no ordering key).
-  - If 12.4 grows a seam that takes a built shot, these probes become committable there.
-- `Entity.Absorb` survives only for `Splash`. 12.4's `Detonate` must go through `ItemAbsorb`, not bring `Absorb` back as a second path.
+  - 12.4 grows no such seam. `Detonate` takes a world point, not a lane, so P1 and P2 stay uncommitted (see 12.4, **Test seam**).
+- `Entity.Absorb` is deleted with `Splash` in 12.4, and `Detonate` goes through `ArmorAbsorb` and `ItemAbsorb`.
 
 What the three Soul passes found:
 - **Pass 1.** Production correct (an independent double-precision ray model agreed on 14,984 of
@@ -2599,160 +2600,519 @@ the lanes that reach it, a pool of one lane included. The survey and the sequent
 
 ### Cut 12.4. The detonation primitive
 
+Revised 2026-09-25, after 12.3 closed. The first draft predates 12.3's proportional-absorption and one-path
+rulings, and the parts of it those rulings overturn are listed under **History** at the end of this section.
+Anchors are against `d402283c`. **(probe)** marks claims measured in a scratch worktree at that commit (see
+Part 5 of the revision note); **(read)** marks claims read from source at the cited anchor.
+
 - **Repo/branch:** Aetheria, on top of 12.3. It lands as two commits:
-  - (a) the data fields and the label demotion. This is behaviour-neutral on shipped
-    content, because no weapon carries the label or a radius **(probe)**.
-  - (b) `Detonate`, with Splash deleted.
-- **Deletes first:**
-  - The label read `isAirburst = … WeaponModifiers.HasFlag(WeaponModifiers.Airburst)`
-    (`FireControl.cs:281-284`), in (a). Afterwards `WeaponModifiers` has no simulation
-    reader. `rg -n "WeaponModifiers\." Assets/Scripts/ServerShared` returns nothing (today
-    it returns exactly `FireControl.cs:282`).
-  - `FireControl.Splash` (`:488-529`) and its half-hull footprint, in (b). This absorbs
-    F12-1.
-  - `PendingShot.BurstRadius` (`:648-652`) becomes `BlastRadius`, and `BurstPosition` stays.
-- **Data (smallest field set, both on `WeaponItemData`, `ItemData.cs:476-499`):**
-  - Slot 29, `float? AirburstRange`, is renamed `float? BlastRadius` (JSON `"blastRadius"`),
-    in world units, meaning the same thing it meant for airburst. Same slot, same type:
-    CultCache resolves it as compatible drift (see the probes).
-  - New slot 30: `WeaponFuse? Fuse` (JSON `"fuse"`), with `enum WeaponFuse { Contact,
-    Proximity, Delayed }` in `Enums.cs`. It is nullable per the 7.4 rule. Null means no
-    blast, which is what every shipped record reads as.
-  - A shot detonates iff `Fuse != null && BlastRadius > 0`. Fire freezes both
-    (`PendingShot.Fuse`, `BlastRadius`). A fuse without a radius (or a radius without a
-    fuse) is inert, and nothing reports it: Q12-6 ruled that the catalog is not policed.
-  - The catalog needs one write through `tools/AetherDb` or Studio to clear the drift
-    warnings. That write is content, with no data change, and is recorded as part of the
-    retune follow-up.
-  - Readers to update: `FireControl.cs:284` and `FireControlCut6Tests.cs:81-101, 249, 268,
-    279`, which author `WeaponModifiers.Airburst`. Those fixtures move to
-    `Fuse = Proximity`. Whether those fixtures keep the label is free: Q12-6 ruled that
-    nothing checks labels against behaviour.
-- **Adds:** `FireControl.Detonate(Zone zone, float2 worldPoint, float radius, float damage,
-  DamageType type)`, the one owner of blast damage, plus `Entity.ToSchematicPoint` and
-  `ToWorldPoint` (see the frame rules).
-  - **Where P is:**
-    - Proximity: Step calls it at arrival with the frozen `BurstPosition`
-      (`PredictedIntercept`, `:283`). There is no roll, as today (`AirburstSplashesEvenOnA
-      GuaranteedMiss` stands).
-    - Contact: on a committed, unshielded hit, P is the entry point of the impact cell on
-      the committed lane.
-    - Delayed: on a committed, unshielded hit, P is the end of the penetration walk on that
-      lane (penetration exhausted or first gap). The walk only locates P; nothing is
-      absorbed along it (Q12-8), and that is true only because this weapon carries a blast.
-      A weapon with no blast radius never reaches this path and spends its damage down the
-      lane instead (12.3).
+  - (a) The data fields and the label demotion. On shipped content this changes no behaviour, because no
+    weapon carries the label or a radius. That is the Cut 12 probe (`Probe4`), and `GameData/Aetheria.cc` has
+    not changed since it ran (`git log cd846916..d402283c -- GameData/Aetheria.cc` is empty).
+  - (b) `Detonate`, with `Splash` and `Entity.Absorb` deleted.
 
-    Both contact and delayed are converted with `target.ToWorldPoint`, so every entity in
-    the radius (the host included) is treated alike. A shielded contact or delayed hit is
-    absorbed whole, as a direct hit is, and does not detonate. `Mine.cs:99` calls
-    `Detonate`.
-  - **Area, per entity:**
-    1. Candidates are the entities with `|Position.xz - P| ≤ radius + boundingRadius`,
-       where `boundingRadius = ½·√(W²+H²)·cellSize`.
-    2. For each candidate, `Ps = ToSchematicPoint(P)` and `rCells = radius /
-       SchematicCellSize`.
-    3. For every cell of the candidate's schematic inside the bounding box
-       `[Ps ± (rCells + .5)]`, compute `overlap(c)`, the exact area of the disc of radius
-       `rCells` centred on `Ps` intersected with that cell's unit square.
-    4. An occupied cell takes `damage × overlap(c) / (π · rCells²)` through
-       `Absorb(c, …)`, and the remainder of that share goes to `DamageHull`. An unoccupied
-       cell's share is lost, and so is every part of the disc outside the schematic.
-    5. Entities are independent. Two ships caught by one blast each cover their own cells,
-       and neither shadows the other.
-  - **Why exact overlap and not sampling.** The overlap is the standard circle-rectangle
-    intersection, evaluated per cell from the antiderivative `½(x√(r²-x²) + r²·asin(x/r))`
-    over the cell's clipped x-span, combined across the rectangle's edges. It is closed
-    form, allocation-free, and exactly conservative: the overlaps over the bounding box sum
-    to `π·rCells²`, so shares sum to 1 and the only loss is geometric. Supersampling would
-    be cheaper to write and would break that: a blast smaller than one cell, or one
-    straddling a cell boundary, would deliver the wrong total, and the conservation test
-    below could only be written with a tolerance wide enough to hide real errors.
-  - **Shields:** an entity with an active shield is charged the summed share of the disc
-    that its occupied cells cover, under the same `CanTakeHit`/`Break`/`TakeHit` rules as
-    today.
-    - If the shield absorbs, no cell of that entity takes anything.
-    - If not, it breaks and the cells take their shares.
+#### Deletes first
 
-    Today every shield in radius pays the full damage (`:505-513`). Charging the covered
-    share makes the shield pay only for what reaches the ship, which is consistent with
-    "omnidirectional": the reserve has no facings, but it is not charged for energy that
-    went past the hull.
-  - **Cost:** `candidates × (2·rCells + 2)²` overlap evaluations, about 3 × 27² ≈ 2k for a
-    25-unit blast at the default cell size, once per detonation and never per tick. No
-    allocation: the loop writes nothing but the per-cell absorption.
-  - **Accepted loss.** Interior armour no longer shadows the cells behind it, because
-    nothing is occluded within an area. A bulkhead protects its own cell and no other. The
-    ray model bought that shadowing, and the operator cut the ray model. Falloff toward the
-    rim is F12-7, not this cut.
-  - **HitProbability and Inspect** are unchanged:
-    - A contact or delayed blast still needs the shot to hit, so the same forecast
-      applies.
-    - A proximity blast has no roll and delivers whatever geometry gives. The forecast
-      still reports the direct-hit number for it. That is pre-existing, and AI gating on it
-      is recorded as F12-5.
-- **Authority map:**
-  - Owner: `FireControl.Detonate` owns blast damage and the disc's coverage.
-    `Entity.Absorb` owns per-cell absorption, shared with 12.3. `Lane` owns traversal and
-    is a direct-hit function only; a blast calls it just once, for the delayed fuse's
-    point, on the walk 12.3 already performs.
-  - Inputs:
-    - world P, radius, damage and type;
-    - each entity's position, facing, hull, armour and occupancy at the detonation tick;
-    - the fuse and radius, frozen from weapon data at Fire.
-  - Outputs: the same mutations and events as 12.3.
-  - Derived state: `WeaponModifiers` is display-only: `SchematicListElement.cs:54` icons,
-    `GameSettings.cs:67`, and `GameplaySettingsEditor.cs:44`.
-  - Forbidden writers:
-    - No label decides behaviour.
-    - Nothing but `Detonate` applies area damage.
-    - Mine's Unity `BlastRange` and arming query remain presentation-side inputs (R8
-      residue, Cut 4 Q7) and decide no damage themselves.
-  - Shared paths: the airburst resolution in `Step` (`:356`), Mine (`Mine.cs:99`), and
-    contact and delayed hits from `Apply`.
-  - Deletion line: `Splash` and the label read are deleted before `Detonate` is called.
-- **Verification:**
-  - `TheDiscIsConservedOverTheGrid`: over a solid hull large enough to contain the disc,
-    the total damage delivered equals `damage` within float tolerance, at several radii
-    including one smaller than a cell and one centred on a cell corner. It kills a
-    sampling approximation, a wrong normalizer, and a bounding box that clips the disc.
-  - `EachCellTakesItsShareOfTheDisc`: on a solid hull, the damage on a named cell equals
-    `damage × overlap / (π r²)`, with the overlap computed independently by the test
-    (fine numeric integration). It kills an even split over the covered cells, which is
-    what today's Splash does.
-  - `ExternalBlastWastesMostOfItsEnergy`: a proximity blast beside a hull delivers total
-    armour + item + hull damage well below `damage`. The expected share is the disc's
-    overlap with the schematic, computed by the test.
-  - `InternalBlastDeliversIt`: the same blast deep inside the hull delivers nearly all of
-    `damage`, and damages interior items an external blast of the same radius cannot reach.
-  - `PenetratorBurrowsBeforeItBursts`: a delayed-fuse hit with penetration 2 into the
-    enclosed-cockpit fixture damages the cockpit, while a contact-fuse hit with the same
-    stats does not. It also pins Q12-8's scope, in two halves:
-    - With a blast radius, the armour the burrow passes through absorbs nothing, so the
-      cockpit's share is the full area share of its own cell.
-    - With the radius removed and everything else held, the same shot is a dumb AP round:
-      it damages the cells along its lane in order, and the cockpit gets only what the
-      armour and items in front of it left (12.3). It kills a build that routes every
-      penetrating shot through the fuse path.
-  - `ABlastDamagesTheCellsNearestIt`: a blast to port damages port cells and leaves
-    starboard cells untouched, at facings including |fx| > |fy|. It is the successor of
-    `SplashDamagesTheSideTheBlastCameFrom` and `SplashIsDirectional`, and it is what pins
-    `ToSchematicPoint`'s handedness.
-  - `ShieldPaysForWhatReachesIt`: a shield in radius is charged the covered share, not
-    the whole blast. `SplashShieldAbsorptionDrainsTheReserve` and
-    `SplashBreaksUnabsorbedShield` are rewritten to the covered share, with the expected
-    amounts recomputed rather than loosened.
-  - `LabelsDoNotDecideBehaviour`: a weapon labelled `Airburst` with no fuse resolves as a
-    direct hit, and a weapon with `Fuse = Proximity` and no label detonates.
-  - Kept green: `AirburstSplashesEvenOnAGuaranteedMiss` and its no-double-application twin,
-    re-fixtured to `Fuse`.
-  - Negative: `rg -n "Splash\(|HasFlag\(WeaponModifiers" Assets/Scripts tests` returns
-    nothing. Today it matches `FireControl.cs`, `Mine.cs` and `FireControlCut4/5/6/11Tests.cs`.
-  - Stryker: `--since:<12.3 head>`.
-- **Operator:** author one proximity weapon and one delayed-fuse weapon in a scratch
-  catalog. Watch an airburst beside a LonginusX and a penetrator into its nose, and check
-  that the damage lands where the model shows the blast. That also verifies
-  `ToSchematicPoint`'s centre-of-mass anchor.
+In (a):
+
+- The label read in `Fire`: `FireControl.cs:382-388`, which is the Cut 6b comment, `isAirburst` (`:386`),
+  `burstPosition` (`:387`) and `burstRadius` (`:388`). Afterwards `WeaponModifiers` has no simulation reader.
+  `rg -n "WeaponModifiers\." Assets/Scripts/ServerShared` returns nothing; today it returns exactly `:386`.
+- `PendingShot.BurstRadius` and its comment (`FireControl.cs:1246-1250`) become `Fuse` and `BlastRadius`. The
+  initialiser at `:412-413` changes with them. `BurstPosition` stays, and it now has meaning only for a
+  proximity fuse.
+- The slot 29 comment (`ItemData.cs:493-496`), rewritten for the renamed field.
+
+In (b):
+
+- `FireControl.Splash`, its comment and its half-hull footprint: `FireControl.cs:946-994`. This absorbs F12-1.
+- `Step`'s dispatch between Splash and Apply: `FireControl.cs:458-467`, comment `:460-462`, branch `:463`.
+  `Step` calls `Apply` for every arrived shot, and Apply owns the fuse switch (see **Which model a shot uses**).
+- `Entity.Absorb` and its comment (`Entity.cs:386-400`). It gates the item's `.1f` threshold on each cell
+  separately, which contradicts the one-path ruling as soon as an area covers two cells of one item.
+  **(probe)** `ProbeC2`: a 2x1 item with no armour, and 0.08 on each of its cells. Pooled through `ItemAbsorb`
+  the item absorbs 0.16. Through `Absorb` per cell it absorbs nothing, and 0.16 goes to the hull.
+  12.3 recorded that `Absorb` survives only for Splash; it dies with Splash, and nothing brings it back.
+- Commit's shield decision, for shots that carry a fuse (`FireControl.cs:578-581`), under Q12-9's recommended
+  answer. It is not deleted: it is gated on `shot.Fuse == null`.
+- Apply's inline penetration clip (`FireControl.cs:666-678`) is **moved**, not deleted. It becomes the one
+  reach function (see **The penetrator**).
+- Stale comments that name a deleted owner as live:
+  - `Entity.cs:391` and `:417`;
+  - `FireControl.cs:1201`;
+  - `Gameplay/EntityInstance.cs:280-283`;
+  - `Gameplay/HullCollider.cs:4-6`;
+  - `Gameplay/Weapons/Projectile.cs:8-9`;
+  - `Gameplay/Weapons/Mine.cs:90-95`.
+
+#### Data
+
+The smallest field set: two fields, both on `WeaponItemData` (`ItemData.cs:475-499`).
+
+- **Slot 29.** `float? AirburstRange` (`ItemData.cs:497-498`) is renamed `float? BlastRadius`, with JSON name
+  `"blastRadius"`. It is in world units and keeps its meaning. The slot and the type are unchanged, so CultCache
+  opens the catalog as compatible drift (see 0b).
+- **New slot 30.** `WeaponFuse? Fuse`, with JSON name `"fuse"`, and `enum WeaponFuse { Contact, Proximity,
+  Delayed }` in `Enums.cs`, beside `WeaponModifiers` (`Enums.cs:97-108`). It is nullable under the 7.4 rule:
+  null means no blast, and every shipped record reads as null.
+- **Fire decides "detonates" once.** Fire freezes `PendingShot.Fuse` as the weapon's fuse only when
+  `BlastRadius > 0`, and as null otherwise, and it freezes `BlastRadius` beside it. After Fire, nothing
+  re-derives whether a shot detonates; every reader reads `shot.Fuse`. A fuse without a radius, or a radius
+  without a fuse, is inert and resolves as a direct hit. Nothing reports it: Q12-6 ruled that the catalog is
+  not policed.
+- **The drift warnings.** The catalog needs one write through `tools/AetherDb` or Studio to clear them. That
+  write is content and changes no data. It belongs to F12-2.
+- **Readers to update:**
+  - `FireControl.cs:386-388`.
+  - `FireControlCut6Tests.cs:81`, `:95` and `:100-101`: the fixture's `airburst` and `airburstRange`
+    parameters. They become `fuse` and `blastRadius`. Whether the fixture keeps the label does not matter,
+    because Q12-6 ruled that nothing checks labels against behaviour.
+
+#### Which model a shot uses
+
+`FireControl.Apply` (`:631-693`) is the one owner of this decision, and it switches on the frozen `shot.Fuse`:
+
+- **null: a direct hit.** This is 12.3's lane path, unchanged, and it needs a hit.
+- **Proximity: detonates at arrival, with no roll.** It detonates at `shot.BurstPosition.xz`, which
+  `PredictedIntercept` froze at Fire, whether the shot hit or missed. That keeps today's rule,
+  `AirburstSplashesEvenOnAGuaranteedMiss`.
+- **Contact or Delayed: detonates only on a committed hit.** P comes from the committed lane (see **Where P
+  is**). On a miss nothing happens.
+
+Today `Step` makes this choice at `:463`, and 12.3 describes the same choice as a separate step 6. Both collapse
+into Apply's switch, so `Step` has no damage branch left.
+
+`IncomingHit` (`:648`) fires for a committed hit, for a direct hit and a contact or delayed blast alike, and
+only on the host. A proximity burst and the bystanders in any blast do not fire it, as Splash never did. Its one
+consumer is the player's hit marker (`ActionGameManager.cs:1070`).
+
+This is a default, not a ruling.
+
+#### Where P is
+
+The lane's own parametrisation gives the point directly. `Lane` places the line at lateral offset `s` as
+`point(t) = t·b + s·ℓ`, in schematic cell coordinates (`AlongBearing`/`SlabAxis`, `FireControl.cs:1177-1198`).
+
+**(probe)** `ProbeE`, 20,000 random lanes on a 6x9 hull:
+
+- the mid-slab point of every walked cell lies inside that cell, with a worst Chebyshev distance of 0.499999
+  from its centre;
+- `point(impact.Entry)` lies on the impact cell's boundary to within 9.5e-7.
+
+So the contact and delayed fuse points need no geometry beyond `Lane` and the reach clip.
+
+- **Proximity:** `BurstPosition.xz`, a world point.
+- **Contact:** the schematic point `point(lane[0].Entry)`, on the committed lane: the committed `Bearing` and
+  `Lateral`, and the lane `Lane(hull, Bearing, Lateral)`. That is where the shot strikes the hull's face.
+- **Delayed:** the schematic point `point(t_fuse)`, with
+  `t_fuse = min(lane[0].Entry + Penetration, lane[reach-1].Exit)`, where `reach` comes from the same clip that
+  12.3's walk uses. In words: the fuse fires where the penetration runs out, or where the metal runs out,
+  whichever comes first. Metal runs out at the far side or at the first gap. `t_fuse` lies inside the last
+  reached cell's slab, so the disc is always centred on metal. Penetration 0 gives the contact point.
+- **Which lane.** It is always the centre lane: `Lane(s)` at the committed Lateral, which Commit's guard already
+  proved non-empty (R3), and which `Lanes` guarantees to equal lane `n`. A blast shot's `DamageSpread` is not
+  read. The disc's radius is its width. This is a default, not a ruling.
+- **Conversion to the world.** Contact and delayed points are converted with `host.ToWorldPoint`, using the
+  host's pose at arrival, and handed to `Detonate` like any other world point. The host is then treated like
+  every other entity in the radius: its cells are found again by `ToSchematicPoint`.
+  - That round trip cancels the host's pose, so the host's own damage is fixed by the commit, and R4 holds for
+    it. **(probe)** `ProbeF`: the worst schematic→world→schematic error is 7.6e-4 cells at 4×10⁴ world units.
+  - Bystanders are judged against where the host actually is at arrival. That is the same live rule a
+    proximity burst already applies to everyone.
+
+  There is exactly one input shape, a world point. There is no host-only schematic entry.
+
+#### The penetrator (Q12-8)
+
+A delayed-fuse shot does not spend damage along its burrow. The lane walk **locates P and hands `Detonate`
+the shot's whole `Damage`**.
+
+That keeps the ruling recorded as Q12-8 = A: nothing is absorbed along an explosive penetrator's burrow, and the
+explosion is the payload. See Part 4 of the revision note, because the brief phrased this the other way.
+
+The walk and the blast share exactly one piece: **the reach clip**. Today it is inline at
+`FireControl.cs:666-678`. It moves into `FireControl.Reach(LaneCell[] cells, int walked, float penetration) →
+int` (private). The rule is unchanged: the impact cell is always reached, and a later cell is reached while
+`entry - impact.entry < penetration`.
+
+Two callers read it:
+
+- Apply's direct-hit walk, which calls it once per lane in place of the inline loop;
+- the delayed fuse point, which calls it on the centre lane.
+
+No second "lane damage with a blast" path exists, because no shot does both:
+
+- a null fuse runs the lane walk with `ApplyPooled`, which absorbs;
+- a contact or delayed fuse runs `Lane` and `Reach`, which only locate P, and then `Detonate`.
+
+A shot takes one branch of Apply's switch or the other, never both.
+
+The mutant this must kill is a second reach derivation: for example, a delayed P computed as
+`impact.Entry + Penetration` without the clip, which would detonate past a gap or outside the far side.
+
+#### Area, per entity: `FireControl.Detonate`
+
+The signature is `Detonate(Zone zone, float2 worldPlanar, float radius, float damage, DamageType type)`,
+public, and it is the one owner of blast damage. It is Splash's signature with the point made planar (R7).
+
+- **Callers:** Apply (all three fuses) and `Mine.Explode` (`Mine.cs:99`, which passes
+  `position.ToCultMath().xz`).
+- **Point transforms.** It uses `Entity.ToSchematicPoint(float2) = ToSchematic(w − Position.xz) /
+  SchematicCellSize + hullShape.CenterOfMass` and its inverse, `ToWorldPoint`. These are the frame rules; the
+  frame owner is `ToSchematic` at `Entity.cs:419-424`. `CenterOfMass` is `ItemData.cs:127-128`, and
+  `SchematicCellSize` is `Settings.cs:255`.
+
+For each entity in the zone:
+
+1. **Candidates.** An entity is a candidate when `|Position.xz − P| ≤ radius + ½·√(W²+H²)·SchematicCellSize`.
+   Splash culled on the entity's *centre* being inside the radius (`FireControl.cs:964-965`), which misses a
+   long hull whose end lies inside the blast.
+2. **Shares, computed once.** Take `Ps = ToSchematicPoint(P)` and `rCells = radius / SchematicCellSize`. For
+   every occupied hull cell whose unit square meets the box `Ps ± rCells`, the share is `share_c = damage ×
+   overlap(c) / (π·rCells²)`. Here `overlap(c)` is the exact area of the disc inside that cell's unit square, a
+   cell being the unit square centred on its integer coordinate.
+   - The shares go into one pooled buffer, which the shield step and the absorption step both read. Nothing
+     computes an overlap twice.
+   - Every share of the disc that falls on an unoccupied cell, or outside the schematic, is lost.
+3. **Shield.** Every shield decision for a blast is made here, live, and charged the entity's summed shares,
+   under today's `CanTakeHit`/`Break`/`TakeHit` rules (`Shield.cs:166-190`). That includes the host of a contact
+   or delayed blast, under Q12-9's recommended answer.
+   - If the shield absorbs, no cell of that entity takes anything.
+   - If it cannot, it breaks, and the cells take their shares.
+4. **Armour, per cell.** For each share, `d_c = ArmorAbsorb(c, share_c)` (`Entity.cs:339-352`). Armour protects
+   its own cell's share and nothing else.
+5. **Items, one pool each.** If `GearOccupancy[c]` holds an item, `d_c` is deposited into that item's pool, in
+   hull `Coordinates` order. If not, `d_c` goes to the entity's hull total. Only after every covered cell has
+   deposited does each item resolve, once: `ItemAbsorb(item, pool)` (`Entity.cs:369-384`). The leftovers join
+   the hull total.
+6. **Hull.** The entity's `DamageHull(total)` runs once (`Entity.cs:406-413`).
+
+Entities are independent. Two ships caught by one blast each cover their own cells, and neither shadows the
+other (F12-8).
+
+**Order: armour first per cell, then the item from the pooled post-armour sum.** Existing rulings settle it,
+and no operator question is needed:
+
+- "Armor absorbs first", from the first round of rulings;
+- "Each covered cell absorbs … in the existing order (armour, then item, then hull)", from the area ruling;
+- the proportional ruling, under which a multi-cell item "absorbs from their combined incoming damage", where
+  incoming means the post-armour remainder each contributor brings, exactly as a lane deposits after
+  `ArmorAbsorb`;
+- the one-path ruling: "Do not expect items taking up multiple cells to be an exception."
+
+The area ruling's word "independently" survives for armour, and is superseded for items by the one-path ruling:
+an item's cells deposit into one pool, and they do not absorb independently.
+
+**One owner, and why there is no walk.**
+
+- `ItemAbsorb` is the one owner of what an item does with incoming damage: the `.1f` threshold decided once on
+  the pooled total, the pro-rata split, and one `ItemDamage` event per contributing cell with a positive share.
+- `ArmorAbsorb` is the one owner of what armour does.
+- `Detonate` owns the schedule, and a disc's schedule has no walk. Apply's pooled walk (`ApplyPooled`,
+  `FireControl.cs:717-860`) exists only because lanes are ordered: a lane's deeper cells receive whatever the
+  item in front of them leaves, so a pool must wait until no unfinished lane can still reach it. In a disc, no
+  cell's share depends on another cell's leftover. Every deposit is known before any item resolves, and so the
+  reachability test and the cycle rule have nothing to decide.
+
+The flat pass is exactly `ApplyPooled`'s degenerate case. **(probe)** `ProbeC`: 200 random discs on a 6x4 hull
+with two 2x1 items, a one-cell item and varied armour. `ApplyPooled`, fed one one-cell lane per covered cell
+with that cell's share, left identical armour, item durability and `ItemDamage` event counts in 200 of 200
+discs. Its hull total differed only by float summation order, at most 3.8e-6.
+
+`Detonate` does **not** call `ApplyPooled`. Doing so would mean changing `ApplyPooled`'s signature to take a
+starting amount per lane and renting a `LaneCell[]` per covered cell, and it would buy no behaviour.
+
+**What the pro-rata split does inside a blast:** nothing observable. Every leftover of a blast reaches the same
+per-entity hull sink, so a sequential split and a pro-rata split deliver identical totals. The only
+order-sensitive rule left in a blast is the pooled threshold, and that is what the verification pins.
+
+**Exact overlap, in float.** `overlap(c)` is the standard circle-rectangle intersection. It integrates the
+disc's chord height over the cell's clipped x-span, using the antiderivative `½(x√(r²−x²) + r²·asin(x/r))`
+between the breakpoints where the chord crosses the cell's top and bottom edges. It allocates nothing, and it
+conserves exactly up to float rounding.
+
+- **(probe)** `ProbeA`: in float, the overlaps over the bounding box sum to `π·r²` within 1e-7 relative, at
+  radii 0.3, 0.5, 1.7, 5, 12.5 and 25 cells, centred on a cell centre, on a cell corner and off the grid. Double
+  precision is not needed.
+- **(probe)** `ProbeB`: named cells agree with a 3000² numeric integration within 1.5e-6.
+- Supersampling is rejected, for the reason the first draft gave. It would deliver the wrong total for a disc
+  smaller than a cell, or for one straddling a cell boundary.
+
+**Cost.** Per candidate, there is at most one overlap evaluation per occupied cell inside the box: no more than
+128 on shipped hulls, whatever the radius. It runs once per detonation and never per tick. Allocation is not
+the constraint here (Splash builds a `Shape` per target today), but each share is computed exactly once.
+
+**Accepted loss (unchanged).** Interior armour does not shadow the cells behind it, because nothing inside an
+area is occluded. A bulkhead protects its own cell's share and no other. Falloff toward the rim is F12-7, not
+this cut.
+
+**HitProbability and Inspect are unchanged.** A contact or delayed blast still needs the shot to hit, so the
+forecast still applies. A proximity blast has no roll, and it is still reported with the direct-hit number.
+That is pre-existing, and it is F12-5.
+
+#### Authority map
+
+**Owners:**
+
+- `FireControl.Apply` owns which model a shot uses, through the switch on the frozen `Fuse`.
+- `FireControl.Detonate` owns blast damage: candidates, shares, every blast shield decision, and the
+  per-entity armour→pool→hull pass.
+- `Entity.ArmorAbsorb` owns armour per cell, and `Entity.ItemAbsorb` owns item absorption. Both are shared with
+  12.3's walk.
+- `FireControl.Reach` owns penetration reach, for the direct-hit walk and the delayed fuse point.
+- `FireControl.Lane` owns traversal. A blast shot calls it once, for its fuse point.
+- `Entity.ToSchematicPoint` and `ToWorldPoint` own points. `ToSchematic` still owns the frame.
+
+**Inputs:**
+
+- P, the radius, the damage and the type;
+- each candidate's position, facing, hull, armour, occupancy and shield at the detonation tick;
+- the fuse and the radius, frozen at Fire;
+- for contact and delayed shots, the committed `Bearing` and `Lateral`, and the frozen `Penetration`.
+
+**Outputs:** the same mutations and events as 12.3: `Armor[]`, item durability, hull durability,
+`ArmorDamage`, `ItemDamage`, `HullDamage` and, for the host of a hit, `IncomingHit`.
+
+**Derived state:**
+
+- `WeaponModifiers` is display-only. Its readers are the `SchematicListElement.cs:54` icons,
+  `GameSettings.cs:67` and `GameplaySettingsEditor.cs:44`.
+- `BurstPosition` is read only for a proximity fuse.
+- Under Q12-9 = A, `ShotOutcome.Shielded` and `ShieldBroken` are never set for a shot that carries a fuse.
+  Nothing outside `FireControl.cs` reads either flag (`rg "\.Shielded\b|\.ShieldBroken\b" Assets/Scripts`
+  finds only `FireControl.cs`).
+
+**Forbidden writers:**
+
+- No label decides behaviour.
+- Nothing but `Detonate` applies area damage.
+- No per-cell path gates an item's threshold. `Absorb` is deleted and is not reintroduced under another name.
+- Nothing but `Reach` decides how deep a lane reaches.
+- `Commit` decides no shield for a shot that carries a fuse (Q12-9 = A).
+- `Step` has no damage branch.
+- Mine's Unity `BlastRange` and its arming query stay presentation-side inputs (R8 residue, Cut 4 Q7), and they
+  decide no damage themselves.
+
+**Shared paths:**
+
+- the proximity burst: Apply at arrival, with no roll;
+- the contact and delayed blasts: Apply on a committed hit;
+- `Mine.Explode`;
+- the tests, which call `Detonate` directly (see **Test seam**).
+
+**Deletion line:** `Splash`, `Absorb`, the label read and `Step`'s branch are deleted before `Detonate` has a
+caller.
+
+#### Test seam
+
+`Detonate` takes a world point because its production callers already have one: a proximity burst's frozen
+intercept, a mine's position, and a contact or delayed hit's converted lane point. That is an honest production
+interface and not a hook, and it is public for the same reason `Splash` is today: Mine calls it from
+`Assembly-CSharp`. Blast tests call it directly with exact points. So blast symmetry at angled facings is
+committable with no seam and no reflection.
+
+It does **not** make Soul's 12.3 probes P1 and P2 committable. Those probes measure *direct-hit lane* damage at
+an exact lateral draw. `Detonate` takes a point, not a bearing and a lateral, and no production interface takes
+a built shot or outcome. The delayed fuse point's `Lane`→`Reach`→`point(t)` chain sits inside Apply, and
+exposing it for tests would be exactly the seam the operator forbids. 12.3's record stands:
+
+- angled direct-hit correctness is covered by the model sweep and
+  `DirectHitAtAnAngledBearingMatchesAnIndependentModel`;
+- P1 and P2 stay uncommitted.
+
+#### Verification
+
+These fixture rules apply to every blast test that touches the frame:
+
+- `SchematicCellSize ≠ 1`: use 2. The 12.3 fixture uses 1 (`FireControlCut123Tests.cs:49`), under which a
+  deleted `/ SchematicCellSize` survives.
+- The target is off the origin.
+- The facings include one with |fx| > |fy|.
+- The hull's centre of mass is not at an integer cell, so a missing `+ CenterOfMass` survives nowhere.
+
+Tolerances come from the probes. Conservation holds within 1e-5 relative. Mirrored results agree within 1e-4
+absolute at damage ≤ 150: **(probe)** `ProbeD` measured at most 3.05e-5, all of it float summation order.
+
+**Geometry.**
+
+- `TheDiscIsConservedOverTheGrid`.
+  - Setup: on a solid hull that contains the disc, total armour, item and hull damage delivered, at a radius
+    under one cell, one centred on a cell corner, and one off the grid.
+  - Pass: the total equals `damage`.
+  - Kills: sampling in place of the exact overlap; the normaliser `(2r)²` in place of `πr²`; a bounding box
+    that clips the rim cells; a dropped chord breakpoint.
+- `EachCellTakesItsShareOfTheDisc`.
+  - Setup: a solid hull with no armour and no items.
+  - Pass: a named cell takes `damage × overlap / (πr²)`, with the overlap integrated numerically by the test.
+  - Kills: an even split over the covered cells (Splash's rule), and a share decided by the distance from the
+    cell's centre.
+- `TheShareOffTheHullIsLost` (was `ExternalBlastWastesMostOfItsEnergy`).
+  - Setup: a blast straddling the hull's edge.
+  - Pass: the total delivered equals `damage` times the disc's on-hull fraction, which the test computes. The
+    shares sum to the blast's damage minus what falls off the hull.
+  - Kills: renormalising the shares over the occupied cells, which would deliver the full damage.
+- `CandidatesIncludeHullsWhoseCentreIsOutsideTheRadius`.
+  - Setup: a long hull whose centre lies beyond the radius, while its near end lies inside.
+  - Pass: the near end takes damage.
+  - Kills: Splash's centre-distance cull.
+
+**Absorption order.**
+
+- `ABlastIsAbsorbedThroughArmourFirstPerCell`. This replaces `AbsorbSpendsArmourBeforeTheItemOnTheSameCell`
+  (`FireControlCut123Tests.cs:750`).
+  - Setup: a disc wholly inside one armoured item cell, so its share is the whole damage. The three damage
+    levels of the old test: below the armour, between the armour and armour plus durability, and above both.
+  - Pass: the armour is spent first, the item takes the excess, and the hull takes what remains.
+  - Kills: the item absorbing before the armour, and armour being skipped.
+- `ArmourProtectsOnlyItsOwnCellsShare`.
+  - Setup: a 2x1 item with armour on one cell only, and a disc covering both cells.
+  - Pass: the item takes `(share_A − armour_A)⁺ + share_B`.
+  - Kills: pooling the raw shares and then applying armour to the pool, which would let cell A's plate eat
+    cell B's share.
+- `AMultiCellItemAbsorbsItsCoveredCellsAsOnePool`.
+  - Setup: a 2x1 item with no armour, and a disc straddling its seam that puts less than `.1` on each cell but
+    more than `.1` on the two together (the `ProbeC2` geometry).
+  - Pass: the item absorbs the sum.
+  - Kills: resolving the item per cell, in any form: `Absorb` resurrected, `ItemAbsorb` called per deposit, or
+    a pool that resolves before every covered cell has deposited.
+
+  This test is also what pins that the result does not depend on which cell is considered first. As shown
+  above, the threshold is the only order-sensitive rule a blast has left.
+- `ItemDamageFiresOncePerCoveredCell`.
+  - Pass: for a covered item, the number of `ItemDamage` events equals the number of its cells with a positive
+    post-armour deposit, and each event carries that cell's deposit.
+  - Kills: one event per item, and events for zero-deposit cells.
+
+**Symmetry and frame.**
+
+- `MirroredBlastsDoMirroredDamage`.
+  - Setup: a hull, its armour and its items all mirror-symmetric about the bow axis, facing (2,1)/√5. Pairs of
+    world points mirrored across the target's bow axis, with the mirror computed by the test from the facing
+    and not through `ToSchematic`.
+  - Pass: per-cell armour, item durability and hull damage mirror.
+  - Kills:
+    - the `+ .5` cell convention returning in the overlap (cell bounds `[c, c+1)`);
+    - a missing or wrong `CenterOfMass` anchor;
+    - any scheduling rule that depends on enumeration order.
+
+  It does **not** kill a global handedness flip, because a flipped pair is still a mirrored pair. The next test
+  does.
+- `ABlastDamagesTheCellsNearestIt`. This succeeds `SplashDamagesTheSideTheBlastCameFrom`
+  (`FireControlCut11Tests.cs:371`) and `SplashIsDirectional` (`FireControlCut4Tests.cs:306`).
+  - Setup: facings (0,1), (1,0), (2,1)/√5 and (−.6,.8). A blast to port, with a radius under half the hull's
+    width.
+  - Pass: port cells are damaged, and starboard cells are untouched.
+  - Kills: a flip of `ToSchematicPoint`'s right axis, an x/y swap, and a missing `/ SchematicCellSize`.
+
+**Shields** (under Q12-9 = A).
+
+- `ShieldPaysForWhatReachesIt`.
+  - Pass: the reserve drops by the entity's covered share × `EnergyUsage`, not by the whole blast.
+  - `SplashShieldAbsorptionDrainsTheReserve` (`FireControlCut11Tests.cs:237`) and `SplashBreaksUnabsorbedShield`
+    (`FireControlCut5Tests.cs:507`) are rewritten to `Detonate`, with the expected amounts recomputed from the
+    covered share, never loosened.
+  - Kills: charging the full damage.
+- `ABlastShotsShieldIsDecidedAtDetonation`.
+  - Setup: through `Fire`, a contact-fuse shot at a target whose shield is inactive at commit and active at
+    arrival.
+  - Pass: the shield is charged the covered share.
+  - Second setup: a shield that could absorb the whole shot at commit.
+  - Pass: the shot still detonates, and the shield pays its covered share.
+  - Kills: Commit's shield block left ungated for fused shots, which puts a second shield authority on the
+    host.
+
+**Fuses** (through `Fire`, the 12.3 fixture, `SchematicCellSize` 2).
+
+- `PenetratorBurrowsBeforeItBursts`, which pins Q12-8 in both halves. The fixture is the enclosed cockpit
+  behind an armoured ring, with the penetration chosen so that `t_fuse` falls inside the cockpit cell.
+  - With a delayed fuse and a radius under half a cell, the cockpit takes the whole damage, **and the armour
+    of every ring cell on the lane is unchanged.** Nothing is absorbed along the burrow.
+  - A contact fuse with the same stats leaves the cockpit untouched.
+  - With the fuse removed and everything else held, the shot is a dumb AP round. The lane's armour is spent in
+    order, and the cockpit takes only what the ring left (12.3). Damage in a line.
+  - Kills:
+    - absorbing along the burrow;
+    - a contact fuse reading penetration;
+    - routing every penetrating shot through the fuse path;
+    - a fuse without a radius detonating.
+- `TheFusePointStaysOnMetal`.
+  - Setup: a delayed fuse with a penetration deeper than the hull, and again on a concave hull with a gap
+    behind the first run.
+  - Pass: the damage delivered equals the test's own area integral for a disc centred on the far edge (or the
+    gap's near edge).
+  - Kills: an unclamped `t_fuse`, and a second reach derivation that ignores the gap.
+- `TurningAfterCommitDoesNotMoveTheBlastOnItsHost`.
+  - Setup: a contact-fuse shot. After commit and before arrival, the host turns 90° and moves.
+  - Pass: the host's per-cell damage equals that of the same shot with no turn.
+  - Kills: taking P from the live bearing, or from `Outcome.Cell`'s centre in place of the lane point.
+- `LabelsDoNotDecideBehaviour`.
+  - Pass: a weapon labelled `Airburst` with no fuse resolves as a direct hit, and a weapon with
+    `Fuse = Proximity` and no label detonates.
+- `AFuseWithoutARadiusIsADirectHit`.
+  - Pass: `Fuse = Contact` with a null or zero radius does lane damage.
+  - Kills: Fire freezing `Fuse` without the radius check.
+- Re-fixtured to `Fuse`, with their behaviour unchanged:
+  - `AirburstSplashesEvenOnAGuaranteedMiss` (`FireControlCut6Tests.cs:245`), which becomes
+    `ProximityDetonatesEvenOnAGuaranteedMiss`;
+  - `AirburstAndDiscreteNeverDoubleUp` (`:263`), whose reference becomes a bare `Detonate` call (`:281`);
+  - `NonAirburstNeverSplashes` (`:296`), which becomes `NoFuseNeverDetonates`;
+  - `SplashHitsEveryEntityInRadius` (`FireControlCut4Tests.cs:285`), which becomes
+    `ABlastHitsEveryEntityItCovers`.
+- `AContactBlastReportsTheHit`.
+  - Pass: `IncomingHit` fires once, for the host, on a committed contact hit, and never for a proximity burst.
+  - Kills: `IncomingHit` moved inside the direct-hit branch.
+
+**Retargeted, because `Absorb` is deleted.** These keep their boundary behaviour, called on the public owner:
+
+- `AbsorbEmitsNothingAtExactlyZeroIncomingDamage` (`FireControlCut123Tests.cs:502`) becomes
+  `ArmorAbsorbEmitsNothingAtExactlyZero`, calling `ArmorAbsorb(cell, 0)`. A spent lane still walks cells with
+  a remainder of 0.
+- `AbsorbLeavesTheItemUntouchedAtExactlyPointOneRemaining` (`:526`) becomes a call to `ItemAbsorb` with a pool
+  of `{ .1f }`.
+
+**Kept green:** every 12.3 test, including the model sweep. `Reach` is a move: `ApplyPooled`, `Lanes` and the
+clip rule are otherwise untouched.
+
+**Negative greps:**
+
+- `rg -n "float Absorb\(|\.Absorb\(new int2|arget\.Absorb\(|Splash\(|HasFlag\(WeaponModifiers|AirburstRange|BurstRadius" Assets/Scripts/ServerShared Assets/Scripts/Gameplay/Weapons tests/Aetheria.Shared.Tests`
+  returns nothing. Today it returns 27 lines, in `Entity.cs`, `FireControl.cs`, `ItemData.cs`, `Mine.cs` and
+  `FireControlCut4/5/6/11/123Tests.cs`.
+  - The pattern is code-shaped on purpose. `CapabilityEvents.Absorb` and `ShieldInterceptor.Absorb` are
+    unrelated.
+  - Exclude `StrykerOutput`, `bin` and `obj`.
+- `rg -n "FireControl\.Splash|Entity\.Absorb\b|calls Splash" Assets/Scripts` returns nothing. That is the
+  stale-comment list above.
+
+**Stryker:** `--mutate` on `FireControl.cs` and `Entity.cs`, with the report filtered to the changed lines.
+`--since` does not work in this repo (12.1 status). Float boundary flips count as equivalent (11.2).
+
+#### Operator
+
+- Author one proximity weapon and one delayed-fuse weapon in a scratch catalog.
+- Watch an airburst beside a LonginusX and a penetrator into its nose, and check that the damage lands where
+  the model shows the blast. That verifies `ToSchematicPoint`'s centre-of-mass anchor, which is the half of
+  the frame that only a running blast can show.
+
+#### History (superseded 2026-09-25, kept for the record)
+
+The first draft (2026-09-22) was written before 12.3's rulings. Its design is retired in these parts:
+
+- **"An occupied cell takes its share through `Absorb(c, …)`; each covered cell absorbs independently."**
+  Superseded by the proportional and one-path rulings. `Absorb` gates the item per cell (`ProbeC2`). Armour
+  stays per cell, and the item pools its cells and resolves once through `ItemAbsorb`.
+- **"`Entity.Absorb` owns per-cell absorption, shared with 12.3."** Superseded. 12.3 ended with
+  `ArmorAbsorb` and `ItemAbsorb` as the owners, and `Absorb` dies with Splash.
+- **"A shielded contact or delayed hit is absorbed whole, as a direct hit is, and does not detonate."**
+  Withdrawn pending Q12-9. As written, Commit decided the host's shield on the whole damage, and then
+  `Detonate` decided it again, live. A shield raised between commit and arrival could absorb a hit the commit
+  had judged unshielded: two authorities over one shield.
+- **"Step calls it at arrival with the frozen `BurstPosition`."** Superseded. Apply owns the fuse switch, and
+  `Step` has no damage branch.
+- **"The walk only locates P" for the delayed fuse.** Kept, and made precise: the reach clip becomes the one
+  `Reach` function, and P is `point(min(impact.Entry + Penetration, lastReached.Exit))`.
+- **Anchors.** All anchors were against `cd846916`, and every one has moved. For example, the label read was
+  `:281-284` and is now `:382-388`, and Splash was `:488-529` and is now `:946-994`.
 
 ### 0b. Identity, lifecycle, authority
 
@@ -2760,7 +3120,7 @@ Two persisted changes, both on `aetheria.weaponitemdata` v1 and both in 12.4:
 
 | Field | Slot | Change | Lifecycle | Reader risk |
 |---|---|---|---|---|
-| `BlastRadius` (was `AirburstRange`) | 29 | rename, same `float?` type | authored catalog | compatible drift: `CompareSchemaShapes` ignores member names (`CultCache.cs:672-744`); drift warnings until the next catalog write |
+| `BlastRadius` (was `AirburstRange`) | 29 | rename, same `float?` type | authored catalog | compatible drift: `CompareSchemaShapes` ignores member names (`CultCache.cs:672-752`, CultLib `45c2f40`); drift warnings until the next catalog write |
 | `Fuse` | 30 | new, `WeaponFuse?` | authored catalog | nullable, so older records read as null ("no blast"), per the 7.4 rule |
 
 Runtime-only and never serialised (0b table, `FireControl.cs:626-629`, `:686-689`):
@@ -2806,6 +3166,48 @@ Ruled 2026-09-22 (the words are recorded under **Rulings**):
 
 Open:
 
+**Q12-9 (new, blocks only the contact- and delayed-fuse half of 12.4(b)). Who decides the host's shield for a
+blast that needs a hit?**
+
+The current map lets two places decide it:
+
+- Commit decides the shield on the whole damage (`FireControl.cs:578-581`), as for any hit.
+- `Detonate` then decides every shield in the radius live, and that includes the host.
+
+**(read)** When the commit breaks the shield, Apply calls `Break()` and `Detonate` finds it already broken, so
+the two agree. When the shield is inactive at commit and raised before arrival, `Detonate`'s live check can
+absorb a hit the commit judged unshielded. That is a second authority over one shield: the same kind of split
+this campaign has cut three times.
+
+- **A (recommended): `Detonate` decides every blast's shields, the host included.** Commit decides no shield
+  for a shot that carries a fuse. The shield is charged the host's covered share, like every entity in the
+  radius, live at detonation.
+  - Proximity bursts and mines already work this way, so there is one rule for all blasts: "a blast has no
+    direction", applied to shields.
+  - Cost: a shield that could have absorbed the whole shot now pays only for the part of the disc that
+    reaches the hull. For a contact detonation on the hull's face, that is roughly half.
+  - `ShotOutcome.Shielded` and `ShieldBroken` become direct-hit-only. Nothing outside `FireControl.cs` reads
+    them.
+- **B: Commit owns the host's shield, as it does for a direct hit.** A shielded contact hit is absorbed whole
+  and does not detonate. `Detonate` must then skip the host's shield, which needs an "already decided"
+  parameter: a compensator that keeps two owners alive, one per entity.
+
+What depends on it:
+
+- the gate on Commit's shield block;
+- whether `Detonate` takes a host parameter;
+- `ABlastShotsShieldIsDecidedAtDetonation` and the host case of `ShieldPaysForWhatReachesIt`.
+
+Proximity bursts, mines and the whole area model are unaffected either way, so 12.4(a) and the proximity half
+of (b) can proceed while this waits.
+
+**Defaults taken, not rulings.** The operator may overrule any of these:
+
+- A blast shot ignores `DamageSpread`, and P sits on the centre lane.
+- `IncomingHit` fires for the host of a committed contact or delayed hit, and for no one else in a blast.
+- The delayed fuse point is clamped to the last reached cell's exit.
+- `Detonate` runs a flat armour→pool→hull pass, not `ApplyPooled`. `ProbeC` shows the two are equivalent.
+
 - **Q12-5 (not ruled). Should the HUD show which target items are exposed from the current
   bearing?**
   - **Recommended:** a follow-up after 12.3. It would be a presentation read of `Silhouette`
@@ -2842,22 +3244,33 @@ Open:
 - **Orphaned `Airburst*` YAML** in nine weapon prefabs. It is harmless, and Unity drops it
   on the next save of each prefab.
 
-### Subtraction ledger (estimate)
+### Subtraction ledger (estimates, with actuals)
 
 | Sub-cut | Removed | Added | Notes |
 |---|---|---|---|
 | 12.0 | 0 | ~40 src + ~30 test (CultLib) | release `cultmath-unity-v0.2.4`, manifest bump |
-| 12.1 | ~15 (two frame copies, Aimed plumbing) | ~6 (`ToSchematic`) | no behaviour change |
-| 12.2 | ~65 (HullKernel, WeightedPick, POnHull, live direction, bounding extent, HUD estimate, stale comments) | ~95 (TravelDirection, Silhouette, CommitProbability, lateral draw, Lane, 5 PendingShot/Outcome fields) | 6d kernel tests rewritten (~−150/+220) |
-| 12.3 | ~80 (DamageSchematic, ApplyHit) | ~45 (Absorb, DamageHull, lane orchestration) | 2 FireAuthority tests replaced; ~6 new |
-| 12.4 | ~45 (Splash, its half-hull footprint, the label read, BurstRadius plumbing) | ~60 (Detonate, circle-square overlap, point transforms, `WeaponFuse`, slot 30) | Splash tests rewritten; ~7 new. Areas need no ray loop, so this is smaller than the ray draft |
-| **Net Aetheria src** | **~205** | **~205** | one persisted slot added (nullable), one renamed; no targets, dependencies or formats; CultMath gains 2 functions |
+| 12.1 | est. ~15, **actual 18** | est. ~6, **actual 16** | no behaviour change |
+| 12.2 | est. ~65, **actual 63** | est. ~95, **actual 235** | `Forecast`, pooling, the `Extent` owner and the fix batches |
+| 12.3 | est. ~80, **actual 53** | est. ~45, **actual 227** | `ApplyPooled` (~140), `Lanes` (~40), `ArmorAbsorb`/`ItemAbsorb` |
+| 12.4 (est.) | ~50: Splash (~35), `Absorb` (~9), the label read (~4), `Step`'s branch (~2) | ~110: `Detonate` (~40), the exact overlap (~25), the point transforms (~12), Apply's fuse switch and P (~15), `Reach` (moved, ~+2 net), `WeaponFuse`, slot 30 and `PendingShot.Fuse` (~10) | 8 Splash/airburst tests rewritten, 2 `Absorb` tests retargeted and 1 replaced, ~12 new |
+| **Net Aetheria src** | **~184** | **~588** | one persisted slot added (nullable) and one renamed; no targets, dependencies or formats; CultMath gains 2 functions |
 
-The net is roughly flat: the positive part buys the bearing-aware scatter, sequential
-absorption, and a blast model that replaces a half-hull approximation. The rest is
-subtraction.
+Actuals count non-comment, non-blank changed lines under `Assets/Scripts`:
+
+- 12.1: `b851b0d1^..b851b0d1`;
+- 12.2: `b851b0d1..c7b6e80c`;
+- 12.3: `c7b6e80c..d402283c`.
+
+The net is no longer roughly flat, and the old sentence claiming it was should go. What the growth bought:
+
+- 12.2: exact 1D placement with one geometric owner, and the fix batches that removed two crash classes;
+- 12.3: sequential, proportional, order-free absorption;
+- 12.4: a conserving area model that replaces a half-hull approximation, and a net deletion of `Splash`,
+  `Absorb` and `Step`'s branch.
+
+12.4's own delta is ~+60, and that is the estimate to hold it to.
 
 **Section history:** Cut 6d's "The rule" (the 2D kernel) and its premise that pOnHull folds
-into PBase at Fire, 9.2's SigmaFloor rationale, and Cut 4's Splash rule (`FireControl.cs:488-497`)
+into PBase at Fire, 9.2's SigmaFloor rationale, and Cut 4's Splash rule (`FireControl.cs:946-959`)
 describe models this cut replaces. Self should mark them as history in the status header
 as 12.2 and 12.4 land.
