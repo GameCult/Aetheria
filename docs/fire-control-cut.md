@@ -2517,11 +2517,38 @@ import.
 - **Operator:** a smoke with a GT 3K or pswarm launcher into a LonginusX bow, then from a
   flank. The schematic display should pulse the facing edge only.
 
-**Status (2026-09-25): closed apart from one pending operator ruling** (multi-cell items shared
-between lanes, below). Landed on `codex/fire-control-12`: `70c3e0cc`..`73b15d9f` (cut and first
-Stryker batch), `b82b7eab`..`be538217` (Soul pass 1 fixes and the lane-spacing ruling),
-`4e6495dd`, `742354c6`, `cb71a3cf` (Soul pass 2 fixes). 286 tests; Unity batchmode clean at each
-stage.
+**Status (2026-09-25): closed.** Landed on `codex/fire-control-12`:
+- `70c3e0cc`..`73b15d9f`: the cut and the first Stryker batch.
+- `b82b7eab`..`be538217`: Soul pass 1 fixes and the lane-spacing ruling.
+- `4e6495dd`, `742354c6`, `cb71a3cf`: Soul pass 2 fixes.
+- `56757913`, `b55894a0`: the proportional-absorption batch, since superseded.
+- `e9339a56`, `ab14552a`, `166b6202`: the one-path rebuild.
+- `64d17a29`, `c07b4fee`, `cccf3a2a`: Soul pass 5 fixes.
+
+297 tests. Unity batchmode is clean at `cccf3a2a`.
+
+Proportional absorption, passes 4 and 5:
+- **Pass 4 (on the two-path version).** The split between `ApplySequential` and `ApplyWithSharedItems`
+  was already ruled out by the operator. Soul found three more defects:
+  - The cycle tie-break fell back to lane index at axis-aligned bearings, and a probe broke mirror symmetry.
+  - The pooled resolve skipped the item's `.1f` threshold.
+  - The model sweep still passed with proportionality deleted.
+- **The rebuild.** Every item goes through a pool: clip once, and one pooled walk.
+  `Entity.ItemAbsorb(EquippedItem, Span<float>)` is the one absorption owner. The cycle rule is
+  Self's default (above). `FireControl.cs` shrank by 40 lines against the two-path version.
+- **Pass 5 (on the rebuild).** There was no second authority left, mirror symmetry held at angled
+  bearings across 2,800 draws, damage was conserved, and the cycle rule never fired early.
+  Soul found gaps in the tests (a lane revisiting an item, event cardinality), dead code, and
+  stale comments. All are fixed, and each mutant dies to a committed test.
+
+Recorded, not fixed:
+- Soul's angled-bearing mirror probes (P1, P2) are not committed. They need an exact lateral draw,
+  which only a private seam offers. The operator rule forbids reflection, and no test seam is added
+  for them.
+  - Angled correctness is covered by the model sweep and `DirectHitAtAnAngledBearingMatchesAnIndependentModel`.
+  - The cycle rule's symmetry is covered at axis-aligned bearings, and holds at any bearing by construction (it has no ordering key).
+  - If 12.4 grows a seam that takes a built shot, these probes become committable there.
+- `Entity.Absorb` survives only for `Splash`. 12.4's `Detonate` must go through `ItemAbsorb`, not bring `Absorb` back as a second path.
 
 What the three Soul passes found:
 - **Pass 1.** Production correct (an independent double-precision ray model agreed on 14,984 of
