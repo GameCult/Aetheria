@@ -149,7 +149,8 @@ other way.
 Self delivers these one at a time (memory: pace operator questions). Cut 1 needs no ruling. The CPU-versus-GPU
 belt renderer is a stated default: CPU, one orbit function, so no parity test is needed. Reopen it on request.
 
-**Q1 (blocks Cut 2). What becomes of `MiningTool`, `ResourceScanner` and the Drill Bit?**
+**Q1 (blocks Cut 2). What becomes of `MiningTool`, `ResourceScanner` and the Drill Bit?** **Ruled 2026-09-25: A.**
+Operator: "Bring back the drill, indeed."
 The operator's model is "hit it with a weapon". `MiningTool` (`Behaviors/MiningTool.cs`, 76 lines) is a separate
 damage channel with its own DPS, efficiency, penetration and range. Nothing assigns its target (`AsteroidBelt` and
 `Asteroid` have no writer), and it throws `KeyNotFoundException` if it ever executes with an unset belt
@@ -460,9 +461,9 @@ lot. That includes every existing loadout ammo stack. Reading such a lot through
 
 Status: cut map. Ends are owned by Part I of this document; Part III owns the means.
 
-Rulings (operator): none yet. Q1-Q9 open.
+Rulings (operator): Q1 = A (2026-09-25). Q2-Q9 open.
 
-Open: Q1-Q9. Cut 1 needs none of them.
+Open: Q2-Q9. Cut 1 needs none of them; Cut 2 now waits only on Q3.
 
 **Cut 1: landed 2026-09-25** at `22a54ccb` and `d9c887c1` (Stryker fix batch: `EvaluateBelt` had no
 coverage and `Radius`'s `Max`→`Min` survived). 262 tests. Probe on the operator's densest zone, 10 runs each:
