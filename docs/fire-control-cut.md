@@ -2517,6 +2517,45 @@ import.
 - **Operator:** a smoke with a GT 3K or pswarm launcher into a LonginusX bow, then from a
   flank. The schematic display should pulse the facing edge only.
 
+**Status (2026-09-25): closed apart from one pending operator ruling** (multi-cell items shared
+between lanes, below). Landed on `codex/fire-control-12`: `70c3e0cc`..`73b15d9f` (cut and first
+Stryker batch), `b82b7eab`..`be538217` (Soul pass 1 fixes and the lane-spacing ruling),
+`4e6495dd`, `742354c6`, `cb71a3cf` (Soul pass 2 fixes). 286 tests; Unity batchmode clean at each
+stage.
+
+What the three Soul passes found:
+- **Pass 1.** Production correct (an independent double-precision ray model agreed on 14,984 of
+  15,000 shots; the rest sit on the √2 float boundary), tests blind: no test drove `Apply` at an
+  angled bearing, the gap rule, penetration depth or side-lane remainders; one test could not fail.
+  It also found lanes one cell apart **share cells** at angled bearings, which the operator ruled on
+  (Q12-2 amendment: no doubling up, the line thickens).
+- **Pass 2.** The spacing fix was disjoint only by float luck (78 of 26,377 boundary-lateral hits
+  struck a cell twice), and the disjointness test missed four spacing breakages. Hands' first
+  structural fix (a `ceil` lane index) introduced a **third** membership computation, which left the
+  centre lane empty on `solid5, b=(0,1), s=0.49999997` while `Lane(s)` found the row — a committed hit
+  with no damage. Final shape: `Lanes` is built from `Lane`, `Lane(s)` is literally lane 0, and float
+  drift is resolved by ownership (nearest the centre wins). **The third time this campaign met two
+  derivations of one geometric answer disagreeing in float** (12.2's crash, 12.3's double strike,
+  the `ceil` empty centre); the cure each time was one owner.
+- **Pass 3 closed it.** 2.09M boundary cases over 196 bearings and 9 hull shapes: no cell in two
+  lanes, lane 0 always equals `Lane(s)`, no empty centre lane. The tie-break is mirror-symmetric by
+  construction. Residual float effects (a side lane starting one cell deeper, a column falling
+  between lanes, rarely a footprint narrowed by one column) occur at about 2×10⁻⁶ of draws; damage
+  is never lost.
+
+**Owed with the pending ruling's batch:** a test that many axis-aligned spread-n shots each strike
+exactly 2n+1 facing cells (a 1% spacing error, R1b, survives today and would drop a column from 1-2%
+of spread shots). **Recorded, not reachable through the public pipeline at a usable rate:** nothing
+ties `Apply` to `Lanes` behaviourally (reverting `Apply` to a per-lane `Lane()` loop survives, since
+it only reintroduces boundary double strikes); the behaviour after a cession is unpinned.
+
+**Pending operator ruling (blocks closing 12.3):** when two lanes cross one multi-cell item, the
+first-processed lane drains its durability and the second carries the leftover into its own deeper
+cells, so the left-of-travel lane always gets the damage that passes wide components (mirror shots on
+a symmetric hull with 2x1 items differ in ~30% of axis-aligned trials). Recommended: the item absorbs
+from all lanes that strike it at once, and each lane's leftover is in proportion to what it brought.
+Alternative: keep the processing order and pin it.
+
 ### Cut 12.4. The detonation primitive
 
 - **Repo/branch:** Aetheria, on top of 12.3. It lands as two commits:
