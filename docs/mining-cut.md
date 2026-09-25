@@ -464,10 +464,29 @@ Rulings (operator): none yet. Q1-Q9 open.
 
 Open: Q1-Q9. Cut 1 needs none of them.
 
+**Cut 1: landed 2026-09-25** at `22a54ccb` and `d9c887c1` (Stryker fix batch: `EvaluateBelt` had no
+coverage and `Radius`'s `Max`→`Min` survived). 262 tests. Probe on the operator's densest zone, 10 runs each:
+before, 541-3654 µs wall and 120-391 µs CPU per tick with **3/10 runs crashing** on the belt-task race; after,
+95-185 µs wall and 99-152 µs CPU, **0/10 races**. Soul closed it: no thread or task left in ServerShared, poses a
+pure function of zone time (formula byte-identical to `e729e6d6`), one owner, no per-frame renderer allocation
+(the buffer is allocated once in `LoadPlanet`).
+
+Correction to this map's own baseline: the "31-39 µs with no belt work" figure above does not reproduce for a
+zone of this shape. Soul's independent probe of the same 56-body, 8-belt layout: 100 µs per tick with belts,
+114 µs with the belts replaced by plain bodies at equal orbit count — belts cost nothing per tick. The ~100 µs
+that remains is the pre-existing per-body orbit step (about 2 µs per orbit over ~57 orbits), untouched by this
+cut. The 31-39 µs was measured on a smaller body count.
+
+Still owed for Cut 1: a Unity compile of the renderer change (`ZoneRenderer.cs`, `AsteroidBeltUI`), which runs
+when this branch meets a tree Unity can open; an isolated Stryker rerun by a later Soul (the closing pass's run
+collided with its own concurrent build); and the operator's fly-through.
+
 Follow-ups outside this campaign:
 - `AsteroidBeltUI.Update` feeds `Quaternion.Euler(90, transform.z, 0)` a rotation in radians where the API takes
   degrees (`ZoneRenderer.cs:666`). It is a presentation defect and is not fixed here.
-- The planet orbit step stays per tick (`Zone.cs:156-161`). It is cheap.
+- The planet orbit step stays per tick (`Zone.cs:156-161`). It is now the whole of the zone's per-tick cost
+  (~2 µs per orbit). 2 µs for one orbit evaluation is more than its arithmetic warrants — curve evaluation or
+  the `_updatedOrbits` memo is the likely cost. Measure before touching it; a candidate follow-up, not scope.
 
 ## Cut order
 
