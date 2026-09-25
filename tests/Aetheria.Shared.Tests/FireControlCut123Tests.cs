@@ -560,13 +560,18 @@ public sealed class FireControlCut123Tests : IDisposable
     // exactly on a cell's own entry difference. Penetration 2 exactly against a 3-cell column (entries ~0,1,2):
     // the third cell sits exactly AT the boundary and must be excluded ("< penetration" is reached; the mutant
     // would let it through).
+    // F3 fix batch (Soul, 2026-09-25): the marker at (1,1) used to carry 1e6 durability, so it alone absorbed
+    // the whole 30 damage before the walk could ever reach (1,2) -- the boundary cell took 0 whether the `>`
+    // mutant let it through or not, so the test could not fail. The marker now carries only 10, leaving a
+    // remainder large enough that (1,2) would visibly lose armour if the walk reached it.
     [Fact]
     public void PenetrationExcludesACellExactlyAtItsOwnBoundary()
     {
         var e = Build(TestSettings(), SolidShape(3, 3), precision: 1f, penetration: 2f,
-            markers: new[] { (new int2(1, 1), 1000000f) });
+            markers: new[] { (new int2(1, 1), 10f) });
         foreach (var c in e.HullData.Shape.Coordinates) { e.Target.Armor[c.x, c.y] = 0f; e.Target.MaxArmor[c.x, c.y] = 0f; }
         e.Target.Armor[1, 2] = 50f; e.Target.MaxArmor[1, 2] = 50f; // exactly at entry-diff 2 == penetration
+        var marker = e.Markers[0];
 
         ShotOutcome outcome = null;
         for (var attempt = 0; attempt < 200 && (outcome == null || !outcome.Hit || outcome.Cell.x != 1); attempt++)
@@ -575,6 +580,33 @@ public sealed class FireControlCut123Tests : IDisposable
         Assert.True(outcome.Hit && outcome.Cell.x == 1, "fixture: needed a hit on the centre column within the attempt budget");
         Assert.Equal(new int2(1, 0), outcome.Cell);
 
-        Assert.Equal(50f, e.Target.Armor[1, 2]); // exactly at entry-diff 2 -- excluded, not "< penetration"
+        Assert.Equal(0f, marker.EquippableItem.Durability); // fixture: the marker's own 10 is fully spent, 20 left over
+        Assert.Equal(50f, e.Target.Armor[1, 2]); // exactly at entry-diff 2 -- excluded, not "< penetration" -- the
+                                                  // remaining 20 would otherwise have visibly damaged it
+    }
+
+    // F3: a non-integer penetration depth. Entries down an axis-aligned column are exact integers, so a
+    // fractional penetration is never itself a boundary -- this pins the ordinary "< penetration" comparison at
+    // a depth that isn't a round number, independent of the exact-integer boundary case above.
+    [Fact]
+    public void PenetrationExcludesCellsBeyondANonIntegerDepth()
+    {
+        var e = Build(TestSettings(), SolidShape(1, 4), precision: 1f, penetration: 1.5f);
+        e.Target.Armor[0, 0] = 5f; e.Target.MaxArmor[0, 0] = 5f; // entry-diff 0: always reached
+        e.Target.Armor[0, 1] = 5f; e.Target.MaxArmor[0, 1] = 5f; // entry-diff 1: within 1.5, reached
+        e.Target.Armor[0, 2] = 50f; e.Target.MaxArmor[0, 2] = 50f; // entry-diff 2: beyond 1.5, excluded
+        e.Target.Armor[0, 3] = 50f; e.Target.MaxArmor[0, 3] = 50f; // entry-diff 3: beyond 1.5, excluded
+        e.Target.GearOccupancy[0, 0].EquippableItem.Durability = 0f; // remove the bystander Gun's own 1 durability
+
+        var hullBefore = e.Target.Hull.Durability;
+        var outcome = FireUntilHit(e, damageOverride: 30f);
+        Assert.NotNull(outcome);
+        Assert.True(outcome.Hit);
+
+        Assert.Equal(0f, e.Target.Armor[0, 0]); // 5 consumed
+        Assert.Equal(0f, e.Target.Armor[0, 1]); // 5 consumed
+        Assert.Equal(50f, e.Target.Armor[0, 2]); // untouched -- beyond the 1.5 depth
+        Assert.Equal(50f, e.Target.Armor[0, 3]); // untouched -- beyond the 1.5 depth
+        Assert.Equal(hullBefore - 20f, e.Target.Hull.Durability, 2); // 30 - 5 - 5 left over for the hull
     }
 }

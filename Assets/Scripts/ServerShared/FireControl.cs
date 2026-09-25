@@ -589,13 +589,22 @@ public static class FireControl
     // once per Unity effect).
     // Cut 12.3 (docs/fire-control-cut.md, "How a direct hit travels"): replaces Entity.ApplyHit's 0.5-step
     // march and Entity.DamageSchematic's even split over the whole hit shape. Spread is width (Q12-2 = A):
-    // 2n+1 parallel lanes, one cell apart along the committed bearing's own lateral axis, sharing the shot's
-    // damage evenly over whichever lanes actually meet metal -- the centre lane, at the committed Lateral,
-    // always does (Commit already proved it, R3). Each lane is Lane's own contiguous cell run from its own
-    // facing cell, clipped to the penetration depth (a cell is reached when entry - impact.entry < penetration;
-    // the impact cell is always reached, replacing the deleted `> .5f` threshold at zero cost). Whatever a
-    // lane does not spend -- penetration exhausted, a gap, or the far side -- goes to the hull where the lane
-    // ends (Q12-3 = A), summed across every lane into one DamageHull call.
+    // 2n+1 parallel lanes, sharing the shot's damage evenly over whichever lanes actually meet metal -- the
+    // centre lane, at the committed Lateral, always does (Commit already proved it, R3). Each lane is Lane's
+    // own contiguous cell run from its own facing cell, clipped to the penetration depth (a cell is reached
+    // when entry - impact.entry < penetration; the impact cell is always reached, replacing the deleted
+    // `> .5f` threshold at zero cost). Whatever a lane does not spend -- penetration exhausted, a gap, or the
+    // far side -- goes to the hull where the lane ends (Q12-3 = A), summed across every lane into one
+    // DamageHull call.
+    // F2 fix batch (Soul, 2026-09-25; operator: "I would prefer if the overlapping damage cells were diffused
+    // sideways to thicken the line rather than doubling up"): lanes are spaced by the shadow width a cell
+    // casts at this bearing -- Extent's own h, doubled -- not by one cell. At axis-aligned bearings that width
+    // is exactly 1 (today's spacing, unchanged); at 45 degrees it is sqrt(2). Reusing Extent (the one function
+    // that owns h, Silhouette's shadow and Lane's own admission test) instead of re-deriving |bx|+|by| a
+    // second way is the same discipline Cut 12.2's own fix batch already applied to Lane -- two derivations of
+    // one geometric quantity is exactly how that cut's crash happened. Because each cell's admitted lateral
+    // interval is exactly this width wide and half-open, lanes this far apart can never both admit the same
+    // cell: no cell is struck twice, and the footprint widens at angles instead of doubling up.
     private static void Apply(PendingShot shot)
     {
         if (!shot.Outcome.Hit) return;
@@ -622,6 +631,9 @@ public static class FireControl
         var bearing = shot.Outcome.Bearing;
         var n = (int) floor(shot.DamageSpread + .5f); // today's rounding, Entity.cs:389 before this cut
         var laneCount = 2 * n + 1;
+        // F2: the shadow width at this bearing, from Extent's own h (the cell argument does not affect h).
+        var shadowExtent = Extent(float2.zero, Lateral(bearing));
+        var laneSpacing = shadowExtent.Hi - shadowExtent.Lo;
 
         var buffers = new LaneCell[laneCount][];
         var walked = new int[laneCount];
@@ -629,7 +641,7 @@ public static class FireControl
         for (var li = 0; li < laneCount; li++)
         {
             buffers[li] = ArrayPool<LaneCell>.Shared.Rent(hullData.Shape.Coordinates.Length);
-            walked[li] = Lane(hullData, bearing, shot.Outcome.Lateral + (li - n), buffers[li]);
+            walked[li] = Lane(hullData, bearing, shot.Outcome.Lateral + (li - n) * laneSpacing, buffers[li]);
             if (walked[li] > 0) metalLanes++;
         }
 
