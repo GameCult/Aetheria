@@ -488,64 +488,16 @@ public sealed class FireAuthorityTests : IDisposable
         Assert.True(aimedItem.EquippableItem.Durability < 1f);
     }
 
-    // The damage rule moved verbatim (Entity.DamageSchematic/ApplyHit): damage above armor plus item
-    // durability zeroes the item and the remainder hits the hull. Mutation: skip subtracting armor, or skip
-    // passing the remainder on to the hull.
-    [Fact]
-    public void HardpointHitDamagesItemThenHull()
-    {
-        var cell = new int2(1, 1);
-        EquippableItem occupant = null;
-        var e = Build(TestSettings(), armor: 2, hullDurability: 1000,
-            beforeActivate: (items, shooter, target) =>
-            {
-                // No item occupies (1,1) in this fixture's hull -- occupy it before Activate() so the
-                // item-then-hull chain has an item to pass through at a controlled cell.
-                var occupantRef = items.ItemData.RefOf<ItemData>(items.ItemData.GetByName<GearData>("Targeting"));
-                occupant = new EquippableItem { Data = occupantRef, Durability = 3, Lot = 6 };
-                Assert.True(target.TryEquip(occupant, cell));
-            });
-        var occupantItem = e.Target.Equipment.Single(x => x.EquippableItem == occupant);
-
-        var beforeHull = e.Target.Hull.Durability;
-        // Cut 12.2 (docs/fire-control-cut.md): ApplyHit's direction parameter is now an already-schematic
-        // bearing (the caller's job, formerly ApplyHit's own internal ToSchematic call) -- unread here anyway,
-        // since penetration 0 never enters the march.
-        e.Target.ApplyHit(e.Shooter, cell, spread: 0, penetration: 0, damage: 10, bearing: float2(0, 1));
-
-        Assert.Equal(0f, e.Target.Armor[cell.x, cell.y]); // 2 armor consumed
-        Assert.Equal(0f, occupantItem.EquippableItem.Durability); // 3 item durability consumed
-        Assert.Equal(beforeHull - 5f, e.Target.Hull.Durability, 2); // remaining 5 hits the hull
-    }
-
-    // R7: the penetration march is planar, in the target's own schematic frame. Firing straight into a
-    // target's nose marches the hit shape toward the target's stern, along +Y in this hull's local grid
-    // regardless of which way the entity happens to be facing in world space.
-    // Cut 12.2 (docs/fire-control-cut.md): the world-to-schematic rotation this test pinned moved out of
-    // ApplyHit and into its caller (FireControl.Commit computes `bearing = target.ToSchematic(travelDirection)`
-    // once, at the commit tick, and passes the already-rotated bearing in) -- ApplyHit itself no longer reads
-    // Direction at all. This test now performs that same rotation itself, at the call site, to keep pinning
-    // the march's own planar behaviour once a schematic bearing is in hand; the end-to-end claim that
-    // Direction feeds the rotation correctly is what FireControlCut12Tests.HitsLandOnTheFacingEdge and
-    // TurningArmourIntoTheShotTakesItOnTheArmour now cover, through FireControl.Commit itself.
-    [Fact]
-    public void PenetrationMarchIsPlanar()
-    {
-        var e = Build(TestSettings(), armor: 5);
-        e.Target.Direction = float2(1, 0); // facing world +X, not the default +Z
-
-        var cell = new int2(1, 0);
-        var hitDirection = normalize(float2(1, 0)); // the shot arrived travelling along the target's own forward
-        var bearing = e.Target.ToSchematic(hitDirection);
-        e.Target.ApplyHit(e.Shooter, cell, spread: 0, penetration: 1.5f, damage: 30, bearing: bearing);
-
-        // Rotating hitDirection into this Direction's frame (forward=(1,0), right=(0,-1)) makes the local
-        // penetration vector (0,1): the march should have advanced from (1,0) into (1,1), consuming that
-        // cell's armor too. Mutation: skip the rotation and march along the raw world hitDirection (1,0)
-        // instead, which would consume (2,0) rather than (1,1).
-        Assert.True(e.Target.Armor[1, 1] < e.Target.MaxArmor[1, 1]);
-        Assert.Equal(e.Target.MaxArmor[2, 0], e.Target.Armor[2, 0]); // untouched -- proves it wasn't a world-space march
-    }
+    // HardpointHitDamagesItemThenHull and PenetrationMarchIsPlanar (Entity.ApplyHit/DamageSchematic, deleted by
+    // Cut 12.3 -- docs/fire-control-cut.md) pinned two rules that no longer have that function to call:
+    // - "damage above armor plus item durability zeroes the item and the remainder hits the hull" is now
+    //   FireControlCut123Tests.DamageIsAbsorbedInOrderAlongTheRay, through the real Fire/Commit/Apply path
+    //   rather than a direct ApplyHit call.
+    // - "the penetration march is planar, in the target's own schematic frame" is subsumed by 12.2's own
+    //   FireControlCut12Tests.HitsLandOnTheFacingEdge and TurningArmourIntoTheShotTakesItOnTheArmour (the
+    //   bearing FireControl.Apply's lane walk reads is already the committed, schematic-frame bearing Commit
+    //   computed, the same one those tests pin end-to-end) and by FireControlCut123Tests.ArmourFacesTheShot,
+    //   which pins that the lane's own facing cell is planar across several non-axis-aligned facings.
 
     // The absorb rule now exists once, in FireControl: an active shield that CanTakeHit absorbs, and the
     // schematic is untouched. Mutation: remove the shield branch (the hit always reaches the hull).
