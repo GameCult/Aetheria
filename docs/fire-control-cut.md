@@ -3166,6 +3166,8 @@ Ruled 2026-09-22 (the words are recorded under **Rulings**):
 
 Open:
 
+**Q12-9: A, ruled 2026-09-26.** The blast decides every blast's shields, the host included, live at detonation. Each shield pays for its covered share of the disc. The operator chose the recommended option: "The blast decides". Commit decides no shield for a shot that carries a fuse. The question as asked is kept below.
+
 **Q12-9 (new, blocks only the contact- and delayed-fuse half of 12.4(b)). Who decides the host's shield for a
 blast that needs a hit?**
 
