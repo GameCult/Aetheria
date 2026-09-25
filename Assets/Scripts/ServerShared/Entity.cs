@@ -332,8 +332,10 @@ public abstract class Entity
     // Cut 12.3 (docs/fire-control-cut.md): "armour absorbs first" -- the per-cell armour phase, split out of
     // what used to be Absorb's own first half (moved verbatim from DamageSchematic's per-cell body, Cut 3) so
     // Cut 12.3's fix batch (proportional multi-lane item absorption, below) can call the armour phase once per
-    // cell -- always local to one lane, since armour never spans cells -- while deferring the item phase for a
-    // cell whose item is shared with another lane in the same shot. ArmorDamage fires only for incoming > 0.
+    // cell -- always local to one lane, since armour never spans cells -- while deferring the item phase to
+    // ItemAbsorb's own pool for EVERY occupied cell, not only ones shared with another lane: a lane that turns
+    // out to be an item's only contributor still pools through a list of one (ItemAbsorb's own degenerate
+    // case), never a separate solo path. ArmorDamage fires only for incoming > 0.
     public float ArmorAbsorb(int2 cell, float damage)
     {
         var d = damage;
@@ -357,15 +359,15 @@ public abstract class Entity
     // The existing .1f threshold is decided once, on the POOLED total, never per contribution (a pooled path
     // that gated each contribution separately would let two shares under .1f each slip past an item that a
     // single .08f solo hit would already have stopped at). Absorbed durability is split back across `incoming`
-    // in place, pro-rata to what each lane brought (a guarded divide: total is already >.1f whenever this
-    // divides, but 0 is still handled explicitly rather than assumed). ItemDamage fires once per contributing
-    // lane, reporting its own INCOMING share -- not the post-clamp amount, the same convention ArmorAbsorb
-    // already uses -- and only when that lane's own share is itself > 0, so a zero-deposit contributor (a
-    // lane whose armour ate its whole share before reaching this item) never fires a phantom event.
+    // in place, pro-rata to what each lane brought -- the divide below never sees total <= 0.1f, so it never
+    // sees zero (the guard above already returned). ItemDamage fires once per contributing lane, reporting its
+    // own INCOMING share -- not the post-clamp amount, the same convention ArmorAbsorb already uses -- and only
+    // when that lane's own share is itself > 0, so a zero-deposit contributor (a lane whose armour ate its
+    // whole share before reaching this item) never fires a phantom event. `item` is never null here: both
+    // callers (`Absorb`, below, and `FireControl.ApplyPooled`'s `Resolve`) already guarantee it -- a pool is
+    // only ever opened under a non-null `GearOccupancy` cell.
     public void ItemAbsorb(EquippedItem item, Span<float> incoming)
     {
-        if (item == null) return;
-
         var total = 0f;
         for (var i = 0; i < incoming.Length; i++) total += incoming[i];
         if (total <= 0.1f) return;
@@ -373,7 +375,7 @@ public abstract class Entity
         var before = item.EquippableItem.Durability;
         var absorbed = min(total, before);
         item.EquippableItem.Durability = max(before - absorbed, 0f);
-        var fraction = total > 0f ? absorbed / total : 0f;
+        var fraction = absorbed / total;
         for (var i = 0; i < incoming.Length; i++)
         {
             if (incoming[i] > 0f) ItemDamage.OnNext((item, incoming[i]));
