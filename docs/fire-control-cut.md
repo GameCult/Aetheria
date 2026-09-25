@@ -1916,6 +1916,15 @@ Second round:
   from its own facing cell. Operator: "Spread is width makes sense for shotguns, but what
   about explosive penetrators? Burrowing in before splashing radially would be a satisfying
   way to damage vulnerable internals." That remark became sub-cut 12.4.
+  - **Amended 2026-09-25, lane spacing.** Soul found that lanes one cell apart share cells at
+    angled bearings (a cell's shadow is up to √2 wide), so whichever lane went first ate the
+    shared armour and mirror-image shots did different damage in ~30% of angled spread hits.
+    Operator: "I would prefer if the overlapping damage cells were diffused sideways to
+    thicken the line rather than doubling up." Self's reading, confirmed ("nope, you got it"):
+    **lanes are spaced by one cell's shadow width at the committed bearing** (the `Extent`
+    width `2h`: 1 when axis-aligned, up to √2 at 45°). Each cell's admitted interval is exactly
+    that wide and half-open, so no two lanes can strike the same cell; the footprint widens at
+    angles instead of doubling up, and axis-aligned shots are unchanged.
 - **Q12-3 = A (direct hits):** a lane's remainder goes into the hull wherever the lane
   ends.
 - **Q12-4 = A:** delete `ShotOutcome.Aimed`.
@@ -2432,7 +2441,7 @@ import.
   unchanged:
   1. `IncomingHit.OnNext(source)` moves here from `Entity.cs:383`.
   2. The lanes are `Lateral + k` for `k ∈ [-n, n]`, where `n = (int) floor(DamageSpread +
-     .5f)` (today's rounding, `Entity.cs:389`), spaced one cell apart along ℓ (Q12-2 = A).
+     .5f)` (today's rounding, `Entity.cs:389`), spaced one cell *shadow* apart along ℓ, i.e. `2h` (Q12-2 = A, amended 2026-09-25).
   3. Damage splits evenly over the lanes that meet metal. The centre lane always does.
   4. Each lane walks from its own facing cell, clipped to the penetration depth, with
      `rem = target.Absorb(cell, rem)` at each cell.
