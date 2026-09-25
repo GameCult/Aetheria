@@ -374,6 +374,8 @@ Hands, who starts at the recommended default; the operator settles it by feel in
 
 **Tutorial station (operator, 2026-09-25):** "What we're testing is going to be the tutorial level, right? Let's drop a station in there." The live catalog already has a station hull: Zenith, sold by Aeronautics Unlimited. The story-station path is dead because `StoryProcessor` has been commented out at `Galaxy.cs:242` since `ce1a0a46` (2021). Ruled: **faction station now**. The tutorial's entrance zone (`Galaxy.Entrance`) always gets a generated faction station with a docking bay. That is deterministic, not merely likely, and the test pins it on the real tutorial construction path. Reviving the Ink story stations belongs to a later narrative campaign, which must first find out why they were switched off.
 
+Legacy hazard, recorded 2026-09-26 (Soul, Cut 1 fix batch 2): `VelocityLimit` is a hull behaviour gated by the hull's `Active` (`Entity.cs:1624`, `:1636`, `VelocityLimit.cs:45-49`). Thrusters are items with their own gating. Any path that takes the hull offline while the thrusters keep firing removes the cap. Under frozen fixture physics, with the player's override on the thrusters, speed reached 1237. On the shipped settings the hull did not go offline in 300 s. The behaviour dates from 2020-04 and 2021-03. Cut 3 and Cut 4 measure arrival times under this cap, so they must not assume it always holds.
+
 Follow-ups outside this campaign:
 - `TurretController` has no `EntityTypeRestriction`, so equipping it on a ship would create a third
   `LookDirection` writer racing the player or agent. Restrict it to non-ship hulls when turret work next opens
@@ -452,7 +454,8 @@ has exactly that and nothing else), 8 `ThrusterData` and 9 `WearData` ("deep spa
 `RadiatorData` (Arctica), 7 `ShieldData` (legacy "Shield"), 31 `CapacitorData` (legacy "Capacitor").
 
 The payload is a single `PerformanceStat` in `Key(1)`, `VelocityLimitData.TopSpeed`, authored `50..50` with the
-legacy exponents `1, 0, 1.5` on both hulls. So **both restored hulls cap at 50 units of speed**, where a hull
+legacy exponents `1, 0, 1.5` on both hulls. (Corrected 2026-09-26: the decode behind the restore gives Longinus
+`100..100` with exponents `1, 0, 0` and Djinni `50..50` with `1, 0, 1.5`. The catalog carries those values.) So **both restored hulls are capped**, where a hull
 without the behaviour leaves `Agent.TopSpeed` at its 100 default (`Agent.cs:26`) and leaves the player uncapped.
 `VelocityLimit.Execute` clamps `Entity.Velocity` (`VelocityLimit.cs:48`), so this is a real handling difference on
 the restored hulls and Cut 4's arrival times are measured with it.
