@@ -1052,10 +1052,15 @@ public sealed class FireControlCut12Tests : IDisposable
     // a target jinked off its fire-time projection so pDeviation is strictly less than 1) and checks the
     // EMPIRICAL hit fraction over the real Commit path against the HUD's own forecast, with a tolerance sized
     // from the sample (3 sigma of a Bernoulli(p, n)).
+    // S7 fix batch (Hands, 2026-09-25): Tracking is now authored through Build's own `tracking` parameter (one
+    // authoring path for every frozen shooter stat, matching Precision/Accuracy) instead of patching
+    // PendingShot.Tracking after every Fire -- the operator's own rule (2026-09-22) is that a fixture should
+    // author its state up front, not reach into a frozen field post hoc. An authored Tracking of 6 against this
+    // 5x7 hull and jink gives pDeviation ~= .33, strictly between 0 and 1, with no patching.
     [Fact]
     public void TheHudEstimateIsTheCommitPrice()
     {
-        var e = Build(TestSettings(), SolidShape(5, 7), precision: .5f, velocity: 40, spread: 6f); // 2.5s flight, commits at 2.0s
+        var e = Build(TestSettings(), SolidShape(5, 7), precision: .5f, velocity: 40, spread: 6f, tracking: 6f); // 2.5s flight, commits at 2.0s
         var origin = e.Target.Position;
         const int shots = 800;
 
@@ -1065,16 +1070,8 @@ public sealed class FireControlCut12Tests : IDisposable
             e.Target.Position = origin; // reset before each Fire so every shot freezes the same FireTargetPosition
             var shotId = FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
             e.Zone.Update(.001f);
-            // The fixture's own Targeting system freezes Tracking = 100000 (full-strength isolation, Build's
-            // own convention) -- against that, a jink small enough to keep the target on this 5x7 hull barely
-            // registers (pDeviation ~= .99996). Lower the frozen Tracking after the fact, the same way
-            // CommitProbabilityIsTheExactProductOfItsFourFactors overrides a frozen field, so the jink below
-            // produces a pDeviation strictly between 0 and 1.
             var index = e.Zone.PendingShots.FindIndex(s => s.ShotId == shotId);
-            var shot = e.Zone.PendingShots[index];
-            shot.Tracking = 6f;
-            e.Zone.PendingShots[index] = shot;
-            pendingSnapshots.Add(shot);
+            pendingSnapshots.Add(e.Zone.PendingShots[index]);
         }
 
         // One jink, after every shot is queued, before any of them commit -- pDeviation < 1 for all of them,
