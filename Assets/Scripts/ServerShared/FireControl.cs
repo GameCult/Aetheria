@@ -461,11 +461,11 @@ public static class FireControl
 
             if (shot.Committed && now >= shot.ArrivalTime)
             {
-                // Cut 6b, 6.2 (renamed 12.4(a)): a shot with a frozen BlastRadius > 0 resolves as an area effect
-                // instead of a discrete hit -- Splash instead of Apply, never both, which is exactly the
-                // double-application Soul was told to hunt for. The fuse switch itself is 12.4(b)'s.
-                if (shot.BlastRadius > 0f) Splash(zone, shot.BurstPosition, shot.BlastRadius, shot.Damage, shot.DamageType);
-                else Apply(shot);
+                // Cut 12.4(b) (docs/fire-control-cut.md, "Which model a shot uses"): Apply is the one owner of
+                // which model a shot uses, through its own switch on the frozen Fuse -- Step has no damage
+                // branch left. A direct hit, a proximity burst and a contact or delayed blast all arrive here
+                // the same way; only Apply decides what that means.
+                Apply(shot);
                 zone.ShotResolved.OnNext(shot.Outcome);
                 shots.RemoveAt(i);
             }
@@ -579,10 +579,17 @@ public static class FireControl
                 ArrayPool<LaneCell>.Shared.Return(buffer);
             }
 
-            var shield = shot.Target.Shield;
-            var shieldActive = shield != null && shield.Item.Active.Value;
-            if (shieldActive && shield.CanTakeHit(shot.DamageType, shot.Damage)) shielded = true;
-            else if (shieldActive) shieldBroken = true;
+            // Q12-9 = A (docs/fire-control-cut.md): Commit decides no shield for a shot that carries a fuse --
+            // Detonate decides every blast's shields live, at detonation, the host included, charged the
+            // entity's own covered share. A direct hit (Fuse == null) is unchanged: Commit still decides it here,
+            // on the whole frozen Damage.
+            if (shot.Fuse == null)
+            {
+                var shield = shot.Target.Shield;
+                var shieldActive = shield != null && shield.Item.Active.Value;
+                if (shieldActive && shield.CanTakeHit(shot.DamageType, shot.Damage)) shielded = true;
+                else if (shieldActive) shieldBroken = true;
+            }
         }
 
         return MakeOutcome(shot, hit, shielded, shieldBroken, cell, bearing, lateral, now);
@@ -632,7 +639,45 @@ public static class FireControl
     // membership rule, the identical shape of failure as 12.2's empty lane and 12.3's own double strike. There
     // is now one walk, `ApplyPooled`, in which every item pools the deposits of whatever lanes reach it, a
     // pool of one lane included -- a single-cell item is this rule's own degenerate case, not a fork.
+    //
+    // Cut 12.4(b) (docs/fire-control-cut.md, "Which model a shot uses"): Apply is the one owner of which model
+    // a shot uses, through the switch on the frozen shot.Fuse below. Step has no damage branch left -- every
+    // arrived shot, direct hit or blast, comes through here. A null fuse keeps 12.3's lane path unchanged; a
+    // proximity fuse detonates at arrival with no roll, whether the shot hit or missed
+    // (ProximityDetonatesEvenOnAGuaranteedMiss keeps today's AirburstSplashesEvenOnAGuaranteedMiss rule); a
+    // contact or delayed fuse detonates only on a committed hit, at a point 12.3's own Lane/Reach machinery
+    // locates. This is a default, not a ruling: a blast shot's DamageSpread is not read, and P sits on the
+    // centre lane (see the fuse-point comment on the Contact/Delayed branch below).
     private static void Apply(PendingShot shot)
+    {
+        switch (shot.Fuse)
+        {
+            case null:
+                ApplyDirectHit(shot);
+                return;
+            case WeaponFuse.Proximity:
+                // Detonates at shot.BurstPosition.xz, which PredictedIntercept froze at Fire (today's airburst
+                // rule, unchanged) -- no roll, and no gate on shot.Outcome.Hit.
+                Detonate(shot.Source.Zone, shot.BurstPosition.xz, shot.BlastRadius, shot.Damage, shot.DamageType);
+                return;
+            case WeaponFuse.Contact:
+            case WeaponFuse.Delayed:
+                ApplyBlastHit(shot);
+                return;
+        }
+    }
+
+    // Cut 12.3 (docs/fire-control-cut.md, "How a direct hit travels"): replaces Entity.ApplyHit's 0.5-step
+    // march and Entity.DamageSchematic's even split over the whole hit shape. Spread is width (Q12-2 = A):
+    // 2n+1 parallel lanes, sharing the shot's damage evenly over whichever lanes actually meet metal -- the
+    // centre lane, at the committed Lateral, always does (Commit already proved it, R3). Each lane is Lane's
+    // own contiguous cell run from its own facing cell, clipped to the penetration depth by Reach (the impact
+    // cell is always reached, replacing the deleted `> .5f` threshold at zero cost). Whatever a lane does not
+    // spend -- penetration exhausted, a gap, or the far side -- goes to the hull where the lane ends (Q12-3 =
+    // A), summed across every lane into one DamageHull call.
+    // Cut 12.4(b): unchanged from 12.3 except that the inline penetration clip is now Reach, the shared owner
+    // the delayed fuse point also reads (see "The penetrator").
+    private static void ApplyDirectHit(PendingShot shot)
     {
         if (!shot.Outcome.Hit) return;
 
@@ -648,7 +693,8 @@ public static class FireControl
 
         var target = shot.Target;
         // Cut 12.3: moved here from Entity.ApplyHit's own first line -- the shield branches above still return
-        // before this runs, unchanged from 12.2.
+        // before this runs, unchanged from 12.2. Cut 12.4(b): fires only for a direct hit; a proximity burst
+        // and every bystander in any blast never fire it (AContactBlastReportsTheHit covers the blast half).
         target.IncomingHit.OnNext(shot.Source);
 
         // Cut 12.2 (R4): the committed geometry, frozen. Apply reads no position or facing of its own --
@@ -667,19 +713,10 @@ public static class FireControl
             buffers[li] = ArrayPool<LaneCell>.Shared.Rent(hullData.Shape.Coordinates.Length);
         var walked = Lanes(hullData, bearing, shot.Outcome.Lateral, n, laneSpacing, buffers);
 
-        // Cut 12.3 fix batch ("one code path"): the ONLY penetration derivation in this whole walk -- clip each
-        // lane's own cell run to its penetration depth right here, once, immediately after Lanes returns.
-        // Everything downstream reads `walked` as the lane's entire reach; nothing below ever re-tests a cell's
-        // entry against penetration again, and there is no separate survey of which cells or items a lane can
-        // reach -- ApplyPooled's own walk discovers that live, from `walked` alone.
+        // Cut 12.4(b) ("The penetrator", Q12-8): Reach is now the one penetration-reach owner, shared with the
+        // delayed fuse point below -- no second reach derivation exists anywhere in this file.
         for (var li = 0; li < laneCount; li++)
-        {
-            if (walked[li] == 0) continue;
-            var impactEntry = buffers[li][0].Entry;
-            var clipped = 1;
-            while (clipped < walked[li] && buffers[li][clipped].Entry - impactEntry < shot.Penetration) clipped++;
-            walked[li] = clipped;
-        }
+            walked[li] = Reach(buffers[li], walked[li], shot.Penetration);
 
         var metalLanes = 0;
         for (var li = 0; li < laneCount; li++)
@@ -694,6 +731,66 @@ public static class FireControl
         for (var li = 0; li < laneCount; li++) ArrayPool<LaneCell>.Shared.Return(buffers[li]);
 
         target.DamageHull(hullDamage);
+    }
+
+    // Cut 12.4(b) (docs/fire-control-cut.md, "Where P is"): a contact or delayed blast needs a committed hit --
+    // on a miss nothing happens, exactly like a direct hit's own gate. IncomingHit fires once, for the host,
+    // before the blast is handed to Detonate (which then treats the host like any other entity in the radius:
+    // Detonate never reads a host parameter, and finds the host's own cells again by ToSchematicPoint).
+    private static void ApplyBlastHit(PendingShot shot)
+    {
+        if (!shot.Outcome.Hit) return;
+
+        var target = shot.Target;
+        target.IncomingHit.OnNext(shot.Source);
+
+        // "Where P is": the lane's own parametrisation gives the point directly, point(t) = t*b + s*ell, on the
+        // committed lane (the committed Bearing and Lateral, which Commit's own guard already proved non-empty,
+        // R3). Contact: t is the impact cell's own entry, lane[0].Entry. Delayed: t_fuse is where the frozen
+        // Penetration runs out or the metal does, whichever comes first -- Reach (the same owner the direct-hit
+        // walk reads) decides how deep the lane reaches, and t_fuse clamps to the last reached cell's exit so
+        // the disc is always centred on metal.
+        var hullData = target.ItemManager.GetData(target.Hull) as HullData;
+        var bearing = shot.Outcome.Bearing;
+        var buffer = ArrayPool<LaneCell>.Shared.Rent(hullData.Shape.Coordinates.Length);
+        float2 schematicPoint;
+        try
+        {
+            var walked = Lane(hullData, bearing, shot.Outcome.Lateral, buffer);
+            var t = buffer[0].Entry;
+            if (shot.Fuse == WeaponFuse.Delayed)
+            {
+                var reach = Reach(buffer, walked, shot.Penetration);
+                t = min(buffer[0].Entry + shot.Penetration, buffer[reach - 1].Exit);
+            }
+            schematicPoint = t * bearing + shot.Outcome.Lateral * Lateral(bearing);
+        }
+        finally
+        {
+            ArrayPool<LaneCell>.Shared.Return(buffer);
+        }
+
+        // "Conversion to the world": the round trip through the host's own ToWorldPoint/ToSchematicPoint
+        // cancels the host's pose, so the host's own damage is fixed by the commit (R4 holds for it), while
+        // every bystander is judged against where it actually is at arrival -- the same live rule a proximity
+        // burst already applies to everyone.
+        var worldPoint = target.ToWorldPoint(schematicPoint);
+        Detonate(target.Zone, worldPoint, shot.BlastRadius, shot.Damage, shot.DamageType);
+    }
+
+    // Cut 12.4(b) (docs/fire-control-cut.md, "The penetrator", Q12-8): the one penetration-reach owner, moved
+    // verbatim from Apply's own inline clip (Cut 12.3 fix batch) so the delayed fuse point above can read the
+    // identical rule the direct-hit walk already used. The rule is unchanged: the impact cell is always
+    // reached, and a later cell is reached while entry - impact.entry < penetration. Two callers, and no third:
+    // a null-fuse shot spends damage along the walk (ApplyDirectHit), a contact-or-delayed shot only locates P
+    // (ApplyBlastHit) -- no shot ever takes both branches of Apply's switch.
+    private static int Reach(LaneCell[] cells, int walked, float penetration)
+    {
+        if (walked == 0) return 0;
+        var impactEntry = cells[0].Entry;
+        var reach = 1;
+        while (reach < walked && cells[reach].Entry - impactEntry < penetration) reach++;
+        return reach;
     }
 
     // Cut 12.3 fix batch (2026-09-25, operator rulings "proportional absorption; go" and "one code path" --
@@ -947,54 +1044,199 @@ public static class FireControl
         };
     }
 
-    // Cut 4 (docs/fire-control-cut.md): the one splash rule -- an unconditional area effect, not a rolled
-    // shot. Nothing here draws: a mine or an airburst round always damages everything it catches, the same
-    // as the Physics.OverlapSphere queries this replaces always did. Applies the shield-absorb-or-hull-takes-
-    // it branch (F5, docs/stats-and-power-cut.md) per target, then -- for a target the shield didn't fully
-    // absorb -- an even split (still today's rule; 12.3 only retired the direct-hit lane's even split, not
-    // Splash's) over the directional half of that target's own hull that faces the blast, the rule moved
-    // verbatim from the Splash subscription EntityInstance.cs carried before Cut 3 deleted it (git show
-    // b7743789^:Assets/Scripts/Gameplay/EntityInstance.cs), made planar (R7): the blast-to-target direction is
-    // measured in the zone's (x,z) plane and rotated into each target's own facing by its Direction, the same
-    // rotation Entity's own schematic frame (ToSchematic) uses.
-    // Cut 12.3: Entity.DamageSchematic is deleted with the direct-hit march it shared a file with -- Splash
-    // now calls Entity.Absorb per footprint cell directly and sums the leftover into one DamageHull call,
-    // arithmetically identical to DamageSchematic's own body (same per-cell split, same order, same
-    // thresholds). Untouched otherwise; deleted in 12.4 along with the rest of the ray model.
-    public static void Splash(Zone zone, float3 position, float radius, float damage, DamageType damageType)
+    // Cut 12.4(b) (docs/fire-control-cut.md, "Area, per entity"): the one owner of blast damage -- a blast is
+    // an area, not a bundle of rays (Q12-7 dissolved the ray model's remainder question along with the rays
+    // themselves). Splash's signature with the point made planar (R7). Callers: Apply's three fuse branches and
+    // Mine.Explode. Nothing draws: every candidate entity in radius takes its share, unconditionally.
+    //
+    // For each candidate (an entity whose centre lies within radius plus half its own hull diagonal --
+    // CandidatesIncludeHullsWhoseCentreIsOutsideTheRadius, which Splash's centre-distance cull could not pass):
+    // take Ps = ToSchematicPoint(P) and rCells = radius / SchematicCellSize once, then for every occupied hull
+    // cell whose unit square meets the disc, share_c = damage * overlap(c) / (pi * rCells^2) -- the exact area
+    // of the disc inside that cell's unit square, over the disc's own area. Every share that falls on an
+    // unoccupied cell, or outside the schematic, is lost (TheShareOffTheHullIsLost); nothing renormalises over
+    // the covered cells.
+    //
+    // Every shield decision for a blast is made here, live, charged the entity's summed shares under today's
+    // CanTakeHit/Break/TakeHit rules (Q12-9 = A: the host of a contact or delayed blast decides its shield here
+    // too, never at Commit). If the shield absorbs, no cell of that entity takes anything; if it cannot, it
+    // breaks and the cells take their shares.
+    //
+    // Armour protects only its own cell's share (ArmorProtectsOnlyItsOwnCellsShare) -- "armour absorbs first"
+    // runs per cell, in hull Coordinates order. Only once every covered cell has deposited does an item resolve
+    // its own pool, once (AMultiCellItemAbsorbsItsCoveredCellsAsOnePool): no per-cell item threshold survives
+    // anywhere, because a disc's schedule has no walk -- no cell's share depends on another
+    // cell's leftover, so every deposit is known before any item resolves and there is nothing for a
+    // reachability test or a cycle rule to decide (unlike ApplyPooled's lane walk, which this function does not
+    // call: doing so would buy no behaviour, per ProbeC in the cut doc). Leftovers -- unoccupied-cell shares,
+    // and whatever an item's pool does not absorb -- join one entity-wide hull total, applied through one
+    // DamageHull call.
+    public static void Detonate(Zone zone, float2 worldPlanar, float radius, float damage, DamageType damageType)
     {
-        foreach (var target in zone.Entities)
-        {
-            var toTarget = (target.Position - position).xz;
-            if (length(toTarget) > radius) continue;
+        // F3 (Soul, Cut 12.3 fold-in): Detonate cannot be reached with a nonpositive radius. Fire only ever
+        // freezes a Fuse when BlastRadius > 0 (12.4(a)), so this guard matters only for a direct caller (a
+        // test, or Mine.Explode with a zero BlastRange).
+        if (radius <= 0f) return;
 
-            var shield = target.Shield;
-            var shieldActive = shield != null && shield.Item.Active.Value;
-            var shieldAbsorbs = shieldActive && shield.CanTakeHit(damageType, damage);
-            if (shieldActive && !shieldAbsorbs) shield.Break();
-            if (shieldAbsorbs)
+        foreach (var entity in zone.Entities)
+        {
+            var cellSize = entity.ItemManager.GameplaySettings.SchematicCellSize;
+            var hullData = entity.ItemManager.GetData(entity.Hull) as HullData;
+            var shape = hullData.Shape;
+
+            // Candidates: |Position.xz - P| <= radius + half the hull's own diagonal, in world units -- catches
+            // a long hull whose end lies inside the blast even though its centre does not.
+            var toEntity = length(entity.Position.xz - worldPlanar);
+            var halfDiagonal = .5f * length(float2(shape.Width, shape.Height)) * cellSize;
+            if (toEntity > radius + halfDiagonal) continue;
+
+            var centre = entity.ToSchematicPoint(worldPlanar);
+            var rCells = radius / cellSize;
+            var normaliser = PI * rCells * rCells;
+
+            // Shares, computed once, in hull Coordinates order -- the same order armour absorbs in below and
+            // an item's pool deposits in.
+            var coords = shape.Coordinates;
+            var covered = new List<(int2 Cell, float Share)>();
+            var totalShare = 0f;
+            for (var i = 0; i < coords.Length; i++)
             {
-                shield.TakeHit(damageType, damage);
-                continue;
+                var overlap = CircleSquareOverlap(centre, rCells, coords[i]);
+                if (overlap <= 0f) continue;
+                var share = damage * overlap / normaliser;
+                covered.Add((coords[i], share));
+                totalShare += share;
+            }
+            if (covered.Count == 0) continue;
+
+            var shield = entity.Shield;
+            var shieldActive = shield != null && shield.Item.Active.Value;
+            if (shieldActive)
+            {
+                if (shield.CanTakeHit(damageType, totalShare))
+                {
+                    shield.TakeHit(damageType, totalShare);
+                    continue;
+                }
+                shield.Break();
             }
 
-            var hullData = target.ItemManager.GetData(target.Hull) as HullData;
-            var localDirection = lengthsq(toTarget) > 1e-6f
-                ? normalize(target.ToSchematic(toTarget))
-                : float2(0, 1);
+            // Armour first, per cell; an item's covered cells pool their post-armour deposits and resolve once,
+            // from the pooled sum -- ItemAbsorb's own degenerate case for a pool of one covers a single-cell
+            // item, exactly as it does in ApplyPooled.
+            Dictionary<EquippedItem, List<float>> itemPools = null;
+            var hullTotal = 0f;
+            foreach (var (cell, share) in covered)
+            {
+                var postArmor = entity.ArmorAbsorb(cell, share);
+                var item = entity.GearOccupancy[cell.x, cell.y];
+                if (item == null) { hullTotal += postArmor; continue; }
+                itemPools ??= new Dictionary<EquippedItem, List<float>>();
+                if (!itemPools.TryGetValue(item, out var pool)) itemPools[item] = pool = new List<float>();
+                pool.Add(postArmor);
+            }
 
-            var hitShape = new Shape(hullData.Shape.Width, hullData.Shape.Height);
-            foreach (var v in hullData.Shape.Coordinates)
-                if (dot(normalize((float2) v - hullData.Shape.CenterOfMass), localDirection) < 0)
-                    hitShape[v] = true;
+            if (itemPools != null)
+                foreach (var (item, pool) in itemPools)
+                {
+                    var amounts = pool.ToArray();
+                    entity.ItemAbsorb(item, amounts);
+                    for (var i = 0; i < amounts.Length; i++) hullTotal += amounts[i];
+                }
 
-            var cells = hitShape.Coordinates;
-            var damagePerCell = damage / cells.Length;
-            var hullDamage = 0f;
-            foreach (var v in cells)
-                hullDamage += target.Absorb(v, damagePerCell);
-            target.DamageHull(hullDamage);
+            entity.DamageHull(hullTotal);
         }
+    }
+
+    // Cut 12.4(b) (docs/fire-control-cut.md, "Exact overlap, in float"): the exact area of a unit square,
+    // centred on `cell` (the unit square centred on its integer coordinate, the same convention every other
+    // frame rule uses), that lies inside a disc of radius `r` centred at `diskCentre` -- both in the same
+    // (schematic-cell) units. Allocates nothing.
+    private static float CircleSquareOverlap(float2 diskCentre, float r, int2 cell)
+    {
+        var xlo = cell.x - .5f - diskCentre.x;
+        var xhi = cell.x + .5f - diskCentre.x;
+        var ylo = cell.y - .5f - diskCentre.y;
+        var yhi = cell.y + .5f - diskCentre.y;
+        return RectDiskOverlap(xlo, xhi, ylo, yhi, r);
+    }
+
+    // The area of intersection of a disc of radius r centred at the origin with the axis-aligned rectangle
+    // [xlo,xhi] x [ylo,yhi]. Integrates the disc's chord height over the rectangle's x-span: for a fixed x, the
+    // disc spans y in [-h,h] with h = sqrt(r^2 - x^2), and the covered length there is
+    // min(yhi,h) - max(ylo,-h), clamped to zero. That covered length changes formula only where h(x) crosses
+    // ylo or yhi (or at the rectangle's own edges), so the span is cut at those breakpoints and each piece is
+    // integrated in closed form with AntiderivSqrt, the antiderivative of sqrt(r^2 - x^2).
+    private static float RectDiskOverlap(float xlo, float xhi, float ylo, float yhi, float r)
+    {
+        if (r <= 0f) return 0f;
+        xlo = max(xlo, -r);
+        xhi = min(xhi, r);
+        if (xlo >= xhi) return 0f;
+
+        Span<float> bp = stackalloc float[6];
+        var n = 0;
+        bp[n++] = xlo;
+        bp[n++] = xhi;
+
+        // The breakpoints where h(x) = sqrt(r^2 - x^2) crosses ylo or yhi -- the only places the covered
+        // length's formula (below) can change. No local function: a stackalloc Span cannot be captured by one.
+        Span<float> ys = stackalloc float[2] { ylo, yhi };
+        for (var k = 0; k < 2; k++)
+        {
+            var y = ys[k];
+            if (abs(y) >= r) continue;
+            var xc = sqrt(r * r - y * y);
+            if (-xc > xlo && -xc < xhi) bp[n++] = -xc;
+            if (xc > xlo && xc < xhi) bp[n++] = xc;
+        }
+
+        // Insertion sort: n is at most 6.
+        for (var i = 1; i < n; i++)
+        {
+            var key = bp[i];
+            var j = i - 1;
+            while (j >= 0 && bp[j] > key) { bp[j + 1] = bp[j]; j--; }
+            bp[j + 1] = key;
+        }
+
+        var area = 0f;
+        for (var i = 0; i < n - 1; i++)
+        {
+            var a = bp[i];
+            var b = bp[i + 1];
+            if (b - a < 1e-9f) continue;
+
+            var mid = .5f * (a + b);
+            var h = sqrt(max(0f, r * r - mid * mid));
+            var upperIsDisc = h < yhi;
+            var lowerIsDisc = -h > ylo;
+            var upper = upperIsDisc ? h : yhi;
+            var lower = lowerIsDisc ? -h : ylo;
+            if (upper <= lower) continue;
+
+            float piece;
+            if (upperIsDisc && lowerIsDisc)
+                piece = 2f * (AntiderivSqrt(b, r) - AntiderivSqrt(a, r));
+            else if (upperIsDisc)
+                piece = (AntiderivSqrt(b, r) - AntiderivSqrt(a, r)) - ylo * (b - a);
+            else if (lowerIsDisc)
+                piece = yhi * (b - a) + (AntiderivSqrt(b, r) - AntiderivSqrt(a, r));
+            else
+                piece = (yhi - ylo) * (b - a);
+
+            area += piece;
+        }
+        return max(0f, area);
+    }
+
+    // The antiderivative of sqrt(r^2 - x^2): x/2 * sqrt(r^2 - x^2) + r^2/2 * asin(x/r). Clamped into [-r,r]
+    // first -- every caller here already clips its integration bounds into that range, so this is a guard
+    // against float rounding at the boundary, not a second clipping rule.
+    private static float AntiderivSqrt(float x, float r)
+    {
+        var xc = clamp(x, -r, r);
+        return .5f * (xc * sqrt(max(0f, r * r - xc * xc)) + r * r * asin(xc / r));
     }
 
     // Cut 12.2 (docs/fire-control-cut.md): Sigma keeps its Cut 6d/9.2 rule unchanged -- the frozen Precision's
@@ -1202,7 +1444,7 @@ public static class FireControl
     }
 
     // The cells of the target's hull schematic actually occupied by `item` -- GearOccupancy is the one source
-    // of truth for where an equipped item's footprint lands, the same table Entity.Absorb reads.
+    // of truth for where an equipped item's footprint lands, the same table Detonate and ApplyPooled read.
     private static int2[] CellsOf(Entity target, EquippedItem item)
     {
         var hullData = target.ItemManager.GetData(target.Hull) as HullData;

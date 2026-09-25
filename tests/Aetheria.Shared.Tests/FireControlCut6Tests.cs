@@ -235,15 +235,16 @@ public sealed class FireControlCut6Tests : IDisposable
 
     // ---- 6.2: airburst resolves in the simulation (Soul finding 5). ----
 
-    // An airburst shot resolves via Splash, and Splash does not gate on the discrete hit roll at all -- it
-    // damages everything in radius unconditionally (Cut 4's rule). Accuracy 0 pins PBase (and so Commit's hit)
-    // to false with no dependence on the random draw, so a normal discrete shot would apply no damage
-    // whatsoever (Apply's own `if (!shot.Outcome.Hit) return;`). An airburst shot must still deal its area
-    // damage. Mutation: call Apply as well as Splash -- harmless here (Apply still no-ops on a miss), so this
-    // test alone does not catch that mutation; AirburstAndDiscreteNeverDoubleUp below does, with a guaranteed
-    // hit where an extra Apply call is not a no-op.
+    // A proximity-fuse shot detonates unconditionally, at arrival, with no roll (12.4(b)'s "Which model a shot
+    // uses") -- it damages everything in radius regardless of the discrete hit roll (Cut 4's rule, kept).
+    // Accuracy 0 pins PBase (and so Commit's hit) to false with no dependence on the random draw, so a direct
+    // hit would apply no damage whatsoever (Apply's own gate on shot.Outcome.Hit). A proximity shot must still
+    // deal its area damage. Mutation: route a proximity fuse through the direct-hit branch instead -- harmless
+    // here (that branch still no-ops on a miss), so this test alone does not catch that mutation;
+    // AirburstAndDiscreteNeverDoubleUp below does, with a guaranteed hit where an extra direct-hit application
+    // is not a no-op.
     [Fact]
-    public void AirburstSplashesEvenOnAGuaranteedMiss()
+    public void ProximityDetonatesEvenOnAGuaranteedMiss()
     {
         var settings = TestSettings();
         var e = Build(settings, damage: 500, velocity: 0, accuracy: 0, resolution: 1, tracking: 100000,
@@ -256,45 +257,48 @@ public sealed class FireControlCut6Tests : IDisposable
         Assert.True(e.Target.Hull.Durability < before, "An airburst shot must splash regardless of the discrete hit roll.");
     }
 
-    // The double-application Soul was told to hunt for: with a guaranteed hit (accuracy 1), an airburst shot's
-    // total damage must equal a bare Splash call's own damage -- not more. Mutation: call Apply as well as
-    // Splash at arrival -- Apply's own discrete cell hit would land on top of Splash's area damage, so the
-    // airburst shot's total damage exceeds a lone Splash call's.
+    // The double-application Soul was told to hunt for: with a guaranteed hit (accuracy 1), a proximity shot's
+    // total damage must equal a bare Detonate call's own damage -- not more. Mutation: route the shot through
+    // the direct-hit branch as well as Detonate at arrival -- the direct-hit cell would land on top of
+    // Detonate's area damage, so the shot's total damage exceeds a lone Detonate call's.
     [Fact]
     public void AirburstAndDiscreteNeverDoubleUp()
     {
         var settings = TestSettings();
 
-        var e = Build(settings, damage: 10, velocity: 0, accuracy: 1, resolution: 1, tracking: 100000,
+        // 12.4(b)'s area model spreads damage over pi*r^2, so a radius this much larger than the 5x5 target
+        // needs enough damage that the covered share still clears DamageHull's .1f threshold (matching
+        // ProximityDetonatesEvenOnAGuaranteedMiss's own damage, above).
+        var e = Build(settings, damage: 500, velocity: 0, accuracy: 1, resolution: 1, tracking: 100000,
             targetRange: 50, fuse: WeaponFuse.Proximity, blastRadius: 100);
         var before = e.Target.Hull.Durability;
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
         e.Zone.Update(.01f);
         var actualDelta = before - e.Target.Hull.Durability;
 
-        // A fresh, identically-shaped target, damaged by one bare Splash call with the same parameters
+        // A fresh, identically-shaped target, damaged by one bare Detonate call with the same parameters
         // FireControl.Fire freezes for this weapon (BurstPosition, for a stationary velocity-0 target, is
         // exactly its own position -- PredictedIntercept falls back to target.Position below weapon.Velocity's
         // .01f floor).
-        var e2 = Build(settings, damage: 10, velocity: 0, accuracy: 1, resolution: 1, tracking: 100000,
+        var e2 = Build(settings, damage: 500, velocity: 0, accuracy: 1, resolution: 1, tracking: 100000,
             targetRange: 50, fuse: WeaponFuse.Proximity, blastRadius: 100);
         var before2 = e2.Target.Hull.Durability;
-        FireControl.Splash(e2.Zone, e2.Target.Position, 100, 10, DamageType.Kinetic);
+        FireControl.Detonate(e2.Zone, e2.Target.Position.xz, 100, 500, DamageType.Kinetic);
         var expectedDelta = before2 - e2.Target.Hull.Durability;
 
         Assert.True(expectedDelta > 0);
         Assert.Equal(expectedDelta, actualDelta, 3);
     }
 
-    // The other side: a shot with no blast must never splash, even one that lands exactly on its own frozen
-    // burst position at zero range (a stationary target, so BurstPosition == the target's own position at
-    // arrival) -- the zero-radius edge case a careless "splash unconditionally" mutant would still pass
-    // through, since distance 0 is never greater than radius 0. Accuracy 0 pins the discrete roll to a
-    // guaranteed miss, so the correct path (Apply, gated on Outcome.Hit) deals no damage at all. Mutation:
-    // splash unconditionally at arrival instead of gating on BlastRadius -- Splash does not check Hit, so it
-    // would still deal damage even though this shot never froze a blast.
+    // The other side: a shot with no fuse must never detonate, even one whose frozen burst position (unread,
+    // for a null-fuse shot) would land exactly at zero range on a stationary target -- the zero-radius edge
+    // case a careless "detonate unconditionally" mutant would still pass through, since distance 0 is never
+    // greater than radius 0. Accuracy 0 pins the discrete roll to a guaranteed miss, so the correct path
+    // (Apply's null-fuse branch, gated on Outcome.Hit) deals no damage at all. Mutation: detonate unconditionally
+    // at arrival instead of switching on the frozen Fuse -- Detonate does not check Hit, so it would still deal
+    // damage even though this shot never froze a fuse.
     [Fact]
-    public void NonAirburstNeverSplashes()
+    public void NoFuseNeverDetonates()
     {
         var settings = TestSettings();
         var e = Build(settings, damage: 1000, velocity: 0, accuracy: 0, resolution: 1, tracking: 100000,

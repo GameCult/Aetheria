@@ -88,15 +88,16 @@ public class Mine : MonoBehaviour
     }
 
     // Cut 4 (docs/fire-control-cut.md, Q7): the arming OverlapSphere above stays -- that is contact detection,
-    // not hit detection. Blast damage is not: it goes through the same FireControl.Splash every splash-shaped
-    // weapon uses now, over the zone's own planar entities, not a Unity collider query. Presentation (ShowHit)
-    // goes with the query it depended on -- nothing here decides who was hit any more, so nothing here can
-    // point a hit effect at them; a future pass can rebuild that off FireControl-published state if the mine
-    // ever ships (R9 keeps it regardless).
+    // not hit detection. Blast damage is not: it goes through the same FireControl.Detonate every blast-shaped
+    // weapon uses now (12.4(b) renamed Splash), over the zone's own planar entities, not a Unity collider
+    // query. Presentation (ShowHit) goes with the query it depended on -- nothing here decides who was hit any
+    // more, so nothing here can point a hit effect at them; a future pass can rebuild that off
+    // FireControl-published state if the mine ever ships (R9 keeps it regardless). F12-6: BlastRange stays a
+    // presentation-side input -- Mine has no catalog weapon record carrying Fuse/BlastRadius.
     public void Explode()
     {
         var position = transform.position;
-        FireControl.Splash(Source.Entity.Zone, position.ToCultMath(), BlastRange, Damage, DamageType);
+        FireControl.Detonate(Source.Entity.Zone, position.ToCultMath().xz, BlastRange, Damage, DamageType);
 
         var ht = HitEffect.Instantiate<Transform>();
         ht.position = position;

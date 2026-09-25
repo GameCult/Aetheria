@@ -491,9 +491,9 @@ public class WeaponItemData : GearData
     public WeaponModifiers WeaponModifiers;
 
     // Cut 12.4(a) (docs/fire-control-cut.md): the authored blast radius a weapon's shot detonates with, in
-    // world units. Renamed from AirburstRange -- the slot and type are unchanged, so CultCache opens the
-    // catalog as compatible drift. Null (every shipped record) means no blast; WeaponModifiers no longer
-    // decides this (Q12-6, "WeaponModifiers are labels, not behaviour").
+    // world units. Renamed from slot 29's old airburst-range field -- the slot and type are unchanged, so
+    // CultCache opens the catalog as compatible drift. Null (every shipped record) means no blast; WeaponModifiers
+    // no longer decides this (Q12-6, "WeaponModifiers are labels, not behaviour").
     [Inspectable, JsonProperty("blastRadius"), Key(29)]
     public float? BlastRadius;
 

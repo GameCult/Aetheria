@@ -493,48 +493,45 @@ public sealed class FireControlCut123Tests : IDisposable
         Assert.Equal(hullBefore - 40f, e.Target.Hull.Durability, 2);
     }
 
-    // Stryker survivor triage (this cut's own changed lines): Entity.Absorb's `d > 0f` guard boundary-flipped to
-    // `d >= 0f` survived -- at exactly 0 incoming, real code emits nothing ("only for incoming > 0"), the mutant
-    // would additionally fire ArmorDamage(cell, 0). Not a rare float coincidence: a spent lane (rem already 0)
-    // walks past every remaining cell in FireControl.Apply's own loop, so this is the ordinary "nothing left"
-    // case, not an edge case.
+    // Stryker survivor triage (this cut's own changed lines), retargeted to the public owner after 12.4(b)
+    // deletes Entity.Absorb (docs/fire-control-cut.md, "Retargeted, because Absorb is deleted"):
+    // ArmorAbsorb's `d > 0f` guard boundary-flipped to `d >= 0f` survived -- at exactly 0 incoming, real code
+    // emits nothing ("only for incoming > 0"), the mutant would additionally fire ArmorDamage(cell, 0). Not a
+    // rare float coincidence: a spent lane (rem already 0) walks past every remaining cell in
+    // FireControl.Apply's own loop, so this is the ordinary "nothing left" case, not an edge case.
     [Fact]
-    public void AbsorbEmitsNothingAtExactlyZeroIncomingDamage()
+    public void ArmorAbsorbEmitsNothingAtExactlyZero()
     {
         var e = Build(TestSettings(), SolidShape(3, 3), precision: 1f, markers: new[] { (new int2(1, 1), 50f) });
         e.Target.Armor[1, 1] = 5f; e.Target.MaxArmor[1, 1] = 5f;
-        var marker = e.Markers[0];
 
         var armorEvents = 0;
-        var itemEvents = 0;
         using var a = e.Target.ArmorDamage.Subscribe(_ => armorEvents++);
-        using var i = e.Target.ItemDamage.Subscribe(_ => itemEvents++);
 
-        var remainder = e.Target.Absorb(new int2(1, 1), 0f);
+        var remainder = e.Target.ArmorAbsorb(new int2(1, 1), 0f);
 
         Assert.Equal(0f, remainder);
         Assert.Equal(0, armorEvents);
-        Assert.Equal(0, itemEvents);
         Assert.Equal(5f, e.Target.Armor[1, 1]);
-        Assert.Equal(50f, marker.EquippableItem.Durability);
     }
 
-    // Stryker survivor: Entity.Absorb's `d > 0.1f` item-phase guard boundary-flipped to `d >= 0.1f` survived --
-    // at exactly 0.1f remaining after armor, real code leaves the item untouched (the remainder returns to the
-    // caller instead), the mutant would additionally spend it on the item.
+    // Stryker survivor, retargeted to the public owner after 12.4(b) deletes Entity.Absorb: ItemAbsorb's
+    // `total <= 0.1f` guard survived at exactly 0.1f -- real code leaves the item untouched, the mutant would
+    // additionally spend it on the item. A spent lane still walks cells with a remainder of 0, so this is
+    // pinned as a pool of exactly one contribution, ItemAbsorb's own degenerate case.
     [Fact]
-    public void AbsorbLeavesTheItemUntouchedAtExactlyPointOneRemaining()
+    public void ItemAbsorbLeavesTheItemUntouchedAtExactlyPointOneRemaining()
     {
         var e = Build(TestSettings(), SolidShape(3, 3), precision: 1f, markers: new[] { (new int2(1, 1), 50f) });
-        e.Target.Armor[1, 1] = 0f; e.Target.MaxArmor[1, 1] = 0f; // bare, so the whole .1f reaches the item check
         var marker = e.Markers[0];
 
         var itemEvents = 0;
         using var i = e.Target.ItemDamage.Subscribe(_ => itemEvents++);
 
-        var remainder = e.Target.Absorb(new int2(1, 1), 0.1f);
+        Span<float> incoming = stackalloc float[1] { .1f };
+        e.Target.ItemAbsorb(marker, incoming);
 
-        Assert.Equal(0.1f, remainder, 3);
+        Assert.Equal(0.1f, incoming[0], 3);
         Assert.Equal(0, itemEvents);
         Assert.Equal(50f, marker.EquippableItem.Durability);
     }
@@ -742,35 +739,10 @@ public sealed class FireControlCut123Tests : IDisposable
         Assert.Equal(12f, hullThisAttempt, 2);
     }
 
-    // F6: armour and an occupying item on the SAME cell -- no existing fixture combines them, so "armour
-    // absorbs first" (Entity.Absorb) was only ever exercised with one or the other. Direct calls to Absorb,
-    // matching this file's own existing style for pinning its per-cell arithmetic (AbsorbEmitsNothingAt...,
-    // AbsorbLeavesTheItemUntouchedAt...). Kills a swap of the armour and item blocks in Absorb.
-    [Fact]
-    public void AbsorbSpendsArmourBeforeTheItemOnTheSameCell()
-    {
-        var e = Build(TestSettings(), SolidShape(3, 3), precision: 1f, markers: new[] { (new int2(1, 1), 50f) });
-        var marker = e.Markers[0];
-        void Reset() { e.Target.Armor[1, 1] = 10f; e.Target.MaxArmor[1, 1] = 10f; marker.EquippableItem.Durability = 50f; }
-
-        Reset();
-        var lessThanArmour = e.Target.Absorb(new int2(1, 1), 5f);
-        Assert.Equal(0f, lessThanArmour);
-        Assert.Equal(5f, e.Target.Armor[1, 1]); // 5 of the 10 spent
-        Assert.Equal(50f, marker.EquippableItem.Durability); // item untouched -- armour alone covered it
-
-        Reset();
-        var moreThanArmourLessThanBoth = e.Target.Absorb(new int2(1, 1), 25f);
-        Assert.Equal(0f, moreThanArmourLessThanBoth);
-        Assert.Equal(0f, e.Target.Armor[1, 1]); // the whole 10 spent
-        Assert.Equal(35f, marker.EquippableItem.Durability, 2); // exactly the 15 excess
-
-        Reset();
-        var moreThanBoth = e.Target.Absorb(new int2(1, 1), 80f);
-        Assert.Equal(20f, moreThanBoth, 2); // exactly 80 - 10 - 50
-        Assert.Equal(0f, e.Target.Armor[1, 1]);
-        Assert.Equal(0f, marker.EquippableItem.Durability);
-    }
+    // F6/12.4(b): "armour absorbs first" on one cell shared by armour and an occupying item is now pinned on
+    // the public owner, Detonate, by ABlastIsAbsorbedThroughArmourFirstPerCell in FireControlCut124Tests.cs --
+    // this superseded AbsorbSpendsArmourBeforeTheItemOnTheSameCell, which called the now-deleted Entity.Absorb
+    // directly (docs/fire-control-cut.md, "Absorption order").
 
     // F7: direct-hit frame handedness at |fx| > |fy| is otherwise only guarded by Cut 11's Splash tests, which
     // 12.4 deletes. A target facing (2,1) normalized (|fx| > |fy|), shot from its own starboard side (computed

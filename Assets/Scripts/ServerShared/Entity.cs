@@ -364,8 +364,9 @@ public abstract class Entity
     // own INCOMING share -- not the post-clamp amount, the same convention ArmorAbsorb already uses -- and only
     // when that lane's own share is itself > 0, so a zero-deposit contributor (a lane whose armour ate its
     // whole share before reaching this item) never fires a phantom event. `item` is never null here: both
-    // callers (`Absorb`, below, and `FireControl.ApplyPooled`'s `Resolve`) already guarantee it -- a pool is
-    // only ever opened under a non-null `GearOccupancy` cell.
+    // callers (`FireControl.ApplyPooled`'s `Resolve`, one lane's worth of contributions included, and
+    // `FireControl.Detonate`'s own per-entity item-pool resolution, one covered cell's worth included) already
+    // guarantee it -- a pool is only ever opened under a non-null `GearOccupancy` cell.
     public void ItemAbsorb(EquippedItem item, Span<float> incoming)
     {
         var total = 0f;
@@ -383,22 +384,6 @@ public abstract class Entity
         }
     }
 
-    // Cut 12.3 (docs/fire-control-cut.md): "armour absorbs first" -- armour up to its own value, then the
-    // occupying item, then whatever is left over is returned to the caller for the hull's own share (or the
-    // next cell down the lane; a lane that keeps carrying a remainder is not this function's concern --
-    // FireControl.Apply's own pooled walk does that). This is the single-lane path: it feeds ItemAbsorb a
-    // pool of exactly one contribution, the same degenerate case Apply's own multi-lane pools reduce to when
-    // only one lane ever reaches an item. Splash is Absorb's only remaining caller (12.4 deletes Splash).
-    public float Absorb(int2 cell, float damage)
-    {
-        var d = ArmorAbsorb(cell, damage);
-        var item = GearOccupancy[cell.x, cell.y];
-        if (item == null) return d;
-        Span<float> incoming = stackalloc float[1] { d };
-        ItemAbsorb(item, incoming);
-        return incoming[0];
-    }
-
     // Cut 12.3: moved verbatim from DamageSchematic's own tail (Cut 3) -- the >.1f threshold and the one
     // HullDamage event are unchanged. FireControl.Apply calls this once per resolved hit, with the summed
     // remainder every lane's own walk left over (Q12-3 = A: a lane's remainder goes to the hull wherever the
@@ -414,13 +399,38 @@ public abstract class Entity
 
     // Cut 12.1 (docs/fire-control-cut.md): the one schematic-frame owner. Maps a world-planar vector into this
     // entity's own schematic frame -- x = starboard, y = bow -- so FireControl.Apply's lane walk and
-    // FireControl.Splash's directional half both read the same transform instead of each carrying their own
-    // copy of forward/right.
+    // FireControl.Detonate's per-entity point conversion both read the same transform instead of each carrying
+    // their own copy of forward/right.
     public float2 ToSchematic(float2 worldPlanar)
     {
         var forward = normalize(Direction);
         var right = float2(forward.y, -forward.x);
         return float2(dot(worldPlanar, right), dot(worldPlanar, forward));
+    }
+
+    // Cut 12.4(b) (docs/fire-control-cut.md, "Area, per entity"): the world<->schematic POINT owners, built on
+    // ToSchematic's frame -- the entity's own position is the schematic's centre of mass. FireControl.Detonate
+    // uses ToSchematicPoint to find where a blast sits in each candidate's own schematic (the host of a contact
+    // or delayed blast included: it is treated like any other entity in the radius, its cells found again
+    // here, not carried over from the commit). ToWorldPoint is the inverse, used once, to convert a contact or
+    // delayed fuse point (found on the committed lane, in the host's schematic frame at commit) into the one
+    // world point Detonate's single input shape takes -- the round trip through the host's own pose at arrival
+    // is what fixes the host's damage to the commit (R4) while every bystander is judged live.
+    public float2 ToSchematicPoint(float2 worldPlanar)
+    {
+        var hullData = ItemManager.GetData(Hull) as HullData;
+        var cellSize = ItemManager.GameplaySettings.SchematicCellSize;
+        return ToSchematic(worldPlanar - Position.xz) / cellSize + hullData.Shape.CenterOfMass;
+    }
+
+    public float2 ToWorldPoint(float2 schematicPoint)
+    {
+        var hullData = ItemManager.GetData(Hull) as HullData;
+        var cellSize = ItemManager.GameplaySettings.SchematicCellSize;
+        var local = (schematicPoint - hullData.Shape.CenterOfMass) * cellSize;
+        var forward = normalize(Direction);
+        var right = float2(forward.y, -forward.x);
+        return Position.xz + local.x * right + local.y * forward;
     }
 
     // Another entity's stance toward THIS one, as far as this entity can perceive it: unknown (null)

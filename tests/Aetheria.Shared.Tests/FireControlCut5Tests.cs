@@ -499,12 +499,16 @@ public sealed class FireControlCut5Tests : IDisposable
         Assert.Equal(0, resolvedCount);
     }
 
-    // A named Soul-pass survivor (docs/fire-control-cut.md Cut 5 Verification): FireControl.Splash's shield
-    // branch must actually break an unabsorbed shield, not merely route the remainder to the hull. Mutation:
-    // delete `shield.Break()` from Splash -- the target's hull still takes the blast (SplashHitsEveryEntityInRadius
-    // stays green), but the shield itself never registers the overwhelming hit and keeps absorbing on schedule.
+    // A named Soul-pass survivor (docs/fire-control-cut.md Cut 5 Verification), rewritten to Detonate (12.4(b),
+    // "Retargeted, because Absorb is deleted" / Q12-9 = A): the blast's shield branch must actually break an
+    // unabsorbed shield, not merely route the remainder to the hull. A radius this much larger than the hull
+    // covers essentially the whole disc's damage on the target's own cells, overwhelming a 5-capacity reserve
+    // however the exact per-cell shares fall -- the expected amount is not loosened, it was never asserted
+    // precisely here (only that the shield breaks). Mutation: delete `shield.Break()` from Detonate -- the
+    // target's hull still takes the blast (ABlastHitsEveryEntityItCovers stays green), but the shield itself
+    // never registers the overwhelming hit and keeps absorbing on schedule.
     [Fact]
-    public void SplashBreaksUnabsorbedShield()
+    public void ABlastBreaksUnabsorbedShield()
     {
         var e = Build(TestSettings(), damage: 10, velocity: 0, accuracy: 1, resolution: 1, spread: 0, armor: 0,
             equipShield: true, shieldCapacity: 5);
@@ -512,7 +516,10 @@ public sealed class FireControlCut5Tests : IDisposable
         Assert.False(e.Target.Shield.Broken);
         Assert.False(e.Target.Shield.CanTakeHit(DamageType.Kinetic, 500));
 
-        FireControl.Splash(e.Zone, e.Target.Position, radius: 50, damage: 500, damageType: DamageType.Kinetic);
+        // radius 1, centred on the target's own position (its hull's centre of mass): well inside the 5x5
+        // solid hull's interior, so the disc never spills off the hull and the covered share equals the whole
+        // damage exactly, the same amount Splash always charged.
+        FireControl.Detonate(e.Zone, e.Target.Position.xz, radius: 1, damage: 500, damageType: DamageType.Kinetic);
 
         Assert.True(e.Target.Shield.Broken);
     }

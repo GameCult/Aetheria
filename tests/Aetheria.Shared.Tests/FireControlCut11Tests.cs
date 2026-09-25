@@ -231,10 +231,14 @@ public sealed class FireControlCut11Tests : IDisposable
         Assert.Equal(hull, e.Target.Hull.Durability);                     // and every hit was absorbed
     }
 
-    // The same rule on Splash's path, whose absorb branch had no test coverage at all. Mutation: delete
-    // TakeHit from Splash's absorb branch.
+    // The same rule on a blast's path (12.4(b) rewrites this to Detonate, docs/fire-control-cut.md
+    // "ShieldPaysForWhatReachesIt": "the reserve drops by the entity's covered share, not by the whole
+    // blast"), whose absorb branch had no test coverage at all. The radius sits well inside the hull's own
+    // solid interior (the 5x3 shape's centre of mass, at least 1 cell from every edge) so the disc never spills
+    // off the hull -- the covered share equals the whole damage exactly, the same amount Splash always charged,
+    // so this expectation is not loosened. Mutation: delete TakeHit from Detonate's absorb branch.
     [Fact]
-    public void SplashShieldAbsorptionDrainsTheReserve()
+    public void ABlastShieldAbsorptionDrainsTheReserve()
     {
         var e = Build(equipShield: true, shieldCapacity: 30);
         Charge(e);
@@ -244,7 +248,7 @@ public sealed class FireControlCut11Tests : IDisposable
         var blasts = 0;
         while (e.Target.Shield.CanTakeHit(DamageType.Kinetic, 5) && blasts < 200)
         {
-            FireControl.Splash(e.Zone, e.Target.Position, radius: 20, damage: 5, damageType: DamageType.Kinetic);
+            FireControl.Detonate(e.Zone, e.Target.Position.xz, radius: 1, damage: 5, damageType: DamageType.Kinetic);
             blasts++;
         }
 
@@ -354,40 +358,11 @@ public sealed class FireControlCut11Tests : IDisposable
     }
 
     // ---- Splash damages the side the blast came from. ----
-
-    // The operator's "damage on the wrong side of the ship" was a legacy Unity bug that Splash never shipped,
-    // but nothing defended against it. Flipping the sign in Splash's
-    // `right = float2(forward.y, -forward.x)` survived every earlier suite, and it survives this test too at
-    // the default facing (0, 1): the flip only changes which side is hit when a ship faces more along world x
-    // than z. So the target is spun through facings where the flip bites as well as ones where it does not,
-    // and blasted from each side in turn. The blast side is computed here independently of FireControl --
-    // starboard is the facing rotated clockwise -- so this is not the code checking itself.
-    [Theory]
-    [InlineData(0f, 1f)]
-    [InlineData(1f, 0f)]
-    [InlineData(.8f, .6f)]
-    [InlineData(-.8f, -.6f)]
-    [InlineData(-.6f, .8f)]
-    public void SplashDamagesTheSideTheBlastCameFrom(float fx, float fy)
-    {
-        foreach (var fromStarboard in new[] { true, false })
-        {
-            var e = Build(markers: true);
-            var facing = normalize(float2(fx, fy));
-            e.Target.Direction = facing;
-            var starboard = float2(facing.y, -facing.x);
-            var side = fromStarboard ? starboard : -starboard;
-            var blast = e.Target.Position + float3(side.x, 0, side.y) * 10f;
-
-            FireControl.Splash(e.Zone, blast, radius: 20, damage: 10, damageType: DamageType.Kinetic);
-
-            var nearMarker = fromStarboard ? e.StarboardMarker : e.PortMarker;
-            var farMarker = fromStarboard ? e.PortMarker : e.StarboardMarker;
-            var label = $"facing ({fx}, {fy}), blast from {(fromStarboard ? "starboard" : "port")}";
-            Assert.True(nearMarker.EquippableItem.Durability < 100, $"{label}: the marker facing the blast took no damage");
-            Assert.Equal(100f, farMarker.EquippableItem.Durability);
-        }
-    }
+    //
+    // Superseded (docs/fire-control-cut.md, "Symmetry and frame"): ABlastDamagesTheCellsNearestIt in
+    // FireControlCut124Tests.cs succeeds this test and Cut4Tests.SplashIsDirectional -- a blast is now an area
+    // (12.4(b)), not a directional half-hull split, so "the side the blast came from" is pinned by which cells
+    // the disc actually covers, not by a facing-rotated half-shape.
 
     // ---- pSpread is the share of the spread cone the target's silhouette covers. ----
 

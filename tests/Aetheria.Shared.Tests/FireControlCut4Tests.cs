@@ -247,9 +247,10 @@ public sealed class FireControlCut4Tests : IDisposable
         Assert.Equal(1, resolvedCount);
     }
 
-    // ---- Cut 4's splash rule: FireControl.Splash is an unconditional area effect (no roll), directional per
-    // target's own hull facing. Tested directly against the function, no weapon/gear catalog needed -- Entity.
-    // MapEntity (called from the Entity constructor) is enough to give a Ship its Armor/GearOccupancy/Hull. ----
+    // ---- Cut 4's blast rule (12.4(b) renames FireControl.Splash to Detonate, and areas replace the
+    // directional half-hull split): FireControl.Detonate is an unconditional area effect, no roll. Tested
+    // directly against the function, no weapon/gear catalog needed -- Entity.MapEntity (called from the Entity
+    // constructor) is enough to give a Ship its Armor/GearOccupancy/Hull. ----
 
     private ProvenanceLedger _splashLedger;
 
@@ -279,10 +280,10 @@ public sealed class FireControlCut4Tests : IDisposable
         return ship;
     }
 
-    // Splash is one rule, not per-effect: every entity within radius takes damage, one outside radius takes
+    // A blast is one rule, not per-effect: every entity within radius takes damage, one outside radius takes
     // none. Mutation: damage only the nearest entity in range instead of every one.
     [Fact]
-    public void SplashHitsEveryEntityInRadius()
+    public void ABlastHitsEveryEntityItCovers()
     {
         var (items, zone) = BuildSplashZone(TestSettings());
         var near = AddShip(items, zone, float3(10, 0, 0), float2(0, 1), 1);
@@ -293,39 +294,15 @@ public sealed class FireControlCut4Tests : IDisposable
         var farBefore = far.Hull.Durability;
         var outBefore = outOfRange.Hull.Durability;
 
-        FireControl.Splash(zone, float3.zero, radius: 30, damage: 50, damageType: DamageType.Kinetic);
+        FireControl.Detonate(zone, float2.zero, radius: 30, damage: 50, damageType: DamageType.Kinetic);
 
         Assert.True(near.Hull.Durability < nearBefore);
         Assert.True(far.Hull.Durability < farBefore);
         Assert.Equal(outBefore, outOfRange.Hull.Durability);
     }
 
-    // Splash is directional over each target's own hull: cells facing the blast take it, cells facing away do
-    // not. Mutation: damage the whole shape regardless of direction.
-    [Fact]
-    public void SplashIsDirectional()
-    {
-        // Nonzero armor so an undamaged cell is distinguishable from a damaged one -- with armor 0 every cell
-        // starts and stays at 0 regardless of which half took the schematic hit.
-        var (items, zone) = BuildSplashZone(TestSettings(), armor: 10);
-        // Facing +Z (the default); the blast sits behind the ship along -Z, so the near half of the hull
-        // (negative-Z cells, closest to the blast) should take damage and the far half (positive-Z) should not.
-        var ship = AddShip(items, zone, float3(0, 0, 10), float2(0, 1), 1);
-
-        FireControl.Splash(zone, float3(0, 0, 0), radius: 50, damage: 1000, damageType: DamageType.Kinetic);
-
-        var hullData = (HullData) items.GetData(ship.Hull);
-        var center = hullData.Shape.CenterOfMass;
-        var nearCellDamaged = false;
-        var farCellUntouched = false;
-        foreach (var v in hullData.Shape.Coordinates)
-        {
-            var offset = (float2) v - center;
-            if (offset.y < -.5f && ship.Armor[v.x, v.y] < ship.MaxArmor[v.x, v.y]) nearCellDamaged = true;
-            if (offset.y > .5f && ship.Armor[v.x, v.y] >= ship.MaxArmor[v.x, v.y]) farCellUntouched = true;
-        }
-
-        Assert.True(nearCellDamaged);
-        Assert.True(farCellUntouched);
-    }
+    // Superseded (docs/fire-control-cut.md, "Symmetry and frame"): ABlastDamagesTheCellsNearestIt in
+    // FireControlCut124Tests.cs succeeds this test (SplashIsDirectional) and Cut11Tests'
+    // SplashDamagesTheSideTheBlastCameFrom -- a blast is now an area (12.4(b)), not a directional half-hull
+    // split, so "which cells take it" is pinned by the disc's own coverage, not a facing-rotated half-shape.
 }

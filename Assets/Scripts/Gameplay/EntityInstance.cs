@@ -277,10 +277,11 @@ public class EntityInstance : MonoBehaviour
             }
         }
 
-        // Cut 3 (docs/fire-control-cut.md): DamageSchematic and both HullCollider subscriptions (Splash, Hit)
-        // are deleted -- FireControl decides hits now and applies them through Entity.Absorb/DamageHull
-        // (ServerShared, Cut 12.3; DamageSchematic and ApplyHit are gone), the single owner in place of what
-        // used to exist once per Unity effect. HullColliders no longer publish Hit/Splash at all (R8).
+        // Cut 3 (docs/fire-control-cut.md): DamageSchematic and both HullCollider subscriptions (blast, Hit)
+        // are deleted -- FireControl decides hits now and applies them through Entity.ArmorAbsorb/ItemAbsorb/
+        // DamageHull (ServerShared, Cut 12.3/12.4(b); DamageSchematic, the old per-cell single-lane absorb path
+        // and ApplyHit are all gone), the single owner in place of what used to exist once per Unity effect.
+        // HullColliders no longer publish Hit or a blast event at all (R8).
 
         LookAtPoint = new GameObject($"{entity.Name} Look Point").transform;
         
