@@ -609,4 +609,155 @@ public sealed class FireControlCut123Tests : IDisposable
         Assert.Equal(50f, e.Target.Armor[0, 3]); // untouched -- beyond the 1.5 depth
         Assert.Equal(hullBefore - 20f, e.Target.Hull.Durability, 2); // 30 - 5 - 5 left over for the hull
     }
+
+    // F4: a U-shaped hull, notched. Two arms (x=0 and x=2) rise from a connecting base (y=0); the left arm has
+    // a gap at y=1 -- present at y=0,2,3, missing at y=1 (so the lane hits the base at y=0, a gap at y=1, then
+    // the rest of the arm at y=2,3). An AP round (no blast) with ample penetration must stop at that first gap
+    // and leave the far side of the notch (y=2,3, "the far prong") untouched. Kills the Stryker survivor that
+    // deletes Lane's own contiguity break (`FireControl.cs:~895`, M9): without it, Lane would keep walking past
+    // the gap and Apply would spend damage on cells the real rule says are unreachable.
+    private static Shape NotchedU()
+    {
+        var shape = new Shape(3, 4);
+        shape[new int2(0, 0)] = true; shape[new int2(0, 2)] = true; shape[new int2(0, 3)] = true; // left arm, notch at y=1
+        for (var y = 0; y < 4; y++) shape[new int2(2, y)] = true; // right arm, solid
+        shape[new int2(1, 0)] = true; // the base connecting the two arms
+        return shape;
+    }
+
+    [Fact]
+    public void AnAPRoundStopsAtTheFirstGapAndLeavesTheFarSideOfTheNotchUntouched()
+    {
+        var e = Build(TestSettings(), NotchedU(), precision: 1f, penetration: 10f); // ample: more than the whole hull's depth
+        foreach (var c in e.HullData.Shape.Coordinates) { e.Target.Armor[c.x, c.y] = 0f; e.Target.MaxArmor[c.x, c.y] = 0f; }
+        e.Target.Armor[0, 0] = 5f; e.Target.MaxArmor[0, 0] = 5f; // near side of the notch
+        e.Target.Armor[0, 2] = 1000f; e.Target.MaxArmor[0, 2] = 1000f; // far side -- must stay untouched
+        e.Target.Armor[0, 3] = 1000f; e.Target.MaxArmor[0, 3] = 1000f; // far side -- must stay untouched
+        e.Target.GearOccupancy[0, 0].EquippableItem.Durability = 0f; // remove the bystander Gun's own 1 durability
+
+        // The hull's other arm (x=2) carries no armour, so a stray hit landing there while retrying for the
+        // notched column would leak its own damage straight to the hull -- tracked here per-attempt (reset each
+        // retry) so only the accepted attempt's own contribution is asserted, not a cross-attempt total.
+        var hullThisAttempt = 0f;
+        ShotOutcome outcome = null;
+        using (e.Target.HullDamage.Subscribe(x => hullThisAttempt += x))
+        {
+            for (var attempt = 0; attempt < 200 && (outcome == null || !outcome.Hit || outcome.Cell.x != 0); attempt++)
+            {
+                hullThisAttempt = 0f;
+                outcome = FireUntilHit(e, damageOverride: 40f, attempts: 1);
+            }
+        }
+        Assert.NotNull(outcome);
+        Assert.True(outcome.Hit && outcome.Cell.x == 0, "fixture: needed a hit on the notched arm within the attempt budget");
+        Assert.Equal(new int2(0, 0), outcome.Cell); // fixture precondition: the base is always this lane's impact cell
+
+        Assert.Equal(0f, e.Target.Armor[0, 0]); // 5 consumed
+        Assert.Equal(1000f, e.Target.Armor[0, 2]); // untouched -- beyond the first gap
+        Assert.Equal(1000f, e.Target.Armor[0, 3]); // untouched -- beyond the first gap
+        Assert.Equal(35f, hullThisAttempt, 2); // 40 - 5 left over for the hull, not spent past the gap
+    }
+
+    // F5: side-lane remainders must reach the hull too, axis-aligned so the lanes share no cells and lane
+    // order cannot matter (Q12-3 = A, "the lane remainder goes into the hull where the lane ends"). A 3x2
+    // hull, spread 1 (three one-cell-wide columns), armour only on the facing row: every lane's remainder
+    // survives the facing cell and must land in the hull. Kills the Stryker survivor that guards the
+    // hull-remainder add with `if (li == n)` (only the centre lane's remainder would count).
+    [Fact]
+    public void EverySideLanesRemainderReachesTheHullNotOnlyTheCentreLanes()
+    {
+        var e = Build(TestSettings(), SolidShape(3, 2), precision: .6f, penetration: 2f, damageSpread: 1f);
+        for (var x = 0; x < 3; x++)
+        for (var y = 0; y < 2; y++)
+        {
+            e.Target.Armor[x, y] = y == 0 ? 1f : 0f;
+            e.Target.MaxArmor[x, y] = 1f;
+            var occ = e.Target.GearOccupancy[x, y];
+            if (occ != null) occ.EquippableItem.Durability = 0f; // remove the bystander Gun's own 1 durability
+        }
+
+        // Tracked per-attempt (reset each retry), the same reasoning as the notched-U test above: a stray hit on
+        // the wrong lateral offset still spends real damage on this hull, and would otherwise contaminate a
+        // before/after total taken across every retry.
+        var hullThisAttempt = 0f;
+        ShotOutcome outcome = null;
+        using (e.Target.HullDamage.Subscribe(x => hullThisAttempt += x))
+        {
+            for (var attempt = 0; attempt < 200 && (outcome == null || !outcome.Hit || outcome.Cell.x != 1); attempt++)
+            {
+                hullThisAttempt = 0f;
+                outcome = FireUntilHit(e, damageOverride: 15f, attempts: 1);
+            }
+        }
+        Assert.NotNull(outcome);
+        Assert.True(outcome.Hit && outcome.Cell.x == 1, "fixture: needed a hit landing on the centre column within the attempt budget");
+
+        // Each lane: 15/3 = 5 per lane, minus the facing cell's 1 armour = 4 left over; three lanes -> 12.
+        Assert.Equal(12f, hullThisAttempt, 2);
+    }
+
+    // F6: armour and an occupying item on the SAME cell -- no existing fixture combines them, so "armour
+    // absorbs first" (Entity.Absorb) was only ever exercised with one or the other. Direct calls to Absorb,
+    // matching this file's own existing style for pinning its per-cell arithmetic (AbsorbEmitsNothingAt...,
+    // AbsorbLeavesTheItemUntouchedAt...). Kills a swap of the armour and item blocks in Absorb.
+    [Fact]
+    public void AbsorbSpendsArmourBeforeTheItemOnTheSameCell()
+    {
+        var e = Build(TestSettings(), SolidShape(3, 3), precision: 1f, markers: new[] { (new int2(1, 1), 50f) });
+        var marker = e.Markers[0];
+        void Reset() { e.Target.Armor[1, 1] = 10f; e.Target.MaxArmor[1, 1] = 10f; marker.EquippableItem.Durability = 50f; }
+
+        Reset();
+        var lessThanArmour = e.Target.Absorb(new int2(1, 1), 5f);
+        Assert.Equal(0f, lessThanArmour);
+        Assert.Equal(5f, e.Target.Armor[1, 1]); // 5 of the 10 spent
+        Assert.Equal(50f, marker.EquippableItem.Durability); // item untouched -- armour alone covered it
+
+        Reset();
+        var moreThanArmourLessThanBoth = e.Target.Absorb(new int2(1, 1), 25f);
+        Assert.Equal(0f, moreThanArmourLessThanBoth);
+        Assert.Equal(0f, e.Target.Armor[1, 1]); // the whole 10 spent
+        Assert.Equal(35f, marker.EquippableItem.Durability, 2); // exactly the 15 excess
+
+        Reset();
+        var moreThanBoth = e.Target.Absorb(new int2(1, 1), 80f);
+        Assert.Equal(20f, moreThanBoth, 2); // exactly 80 - 10 - 50
+        Assert.Equal(0f, e.Target.Armor[1, 1]);
+        Assert.Equal(0f, marker.EquippableItem.Durability);
+    }
+
+    // F7: direct-hit frame handedness at |fx| > |fy| is otherwise only guarded by Cut 11's Splash tests, which
+    // 12.4 deletes. A target facing (2,1) normalized (|fx| > |fy|), shot from its own starboard side (computed
+    // here independently of Entity.ToSchematic, as the standard right-perpendicular of the facing -- the same
+    // relationship ToSchematic is supposed to implement, not a call into it). Only starboard-half cells (x >=
+    // width/2 in the hull's own schematic frame) carry armour; port cells (x < width/2) do not. Kills a flip of
+    // ToSchematic's right axis when |fx| > |fy| (M6a).
+    [Fact]
+    public void ADirectHitFromStarboardDamagesStarboardCellsWhenFacingIsMostlyLateral()
+    {
+        var shape = SolidShape(5, 5);
+        var facing = normalize(float2(2, 1)); // |fx| > |fy|
+        var e = Build(TestSettings(), shape, precision: .4f, penetration: 0f, targetFacing: facing);
+
+        // Starboard is the standard right-perpendicular of the facing (forward.y, -forward.x) -- computed here,
+        // not read from Entity.ToSchematic.
+        var starboardWorld = float2(facing.y, -facing.x);
+        e.Shooter.Position = e.Target.Position + float3(starboardWorld.x, 0, starboardWorld.y) * 100f; // shooter sits to starboard
+
+        for (var x = 0; x < 5; x++)
+        for (var y = 0; y < 5; y++)
+        {
+            var starboard = x >= 3; // starboard half; x == 2 (the middle column) is left ambiguous and unarmoured
+            e.Target.Armor[x, y] = x <= 1 ? 0f : starboard ? 1f : 0f;
+            e.Target.MaxArmor[x, y] = 1f;
+        }
+
+        var hitCells = new List<int2>();
+        using var s = e.Target.ArmorDamage.Subscribe(x => hitCells.Add(x.pos));
+        for (var i = 0; i < 80; i++) { FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter); e.Zone.Update(.01f); }
+
+        Assert.True(hitCells.Count > 5, $"expected several hits, got {hitCells.Count}");
+        foreach (var c in hitCells)
+            Assert.True(c.x >= 3, $"starboard should face the shot, but {c} is on the port side");
+    }
 }
