@@ -63,6 +63,19 @@ public sealed class FireControlCut12Tests : IDisposable
         return shape;
     }
 
+    // S1 fix batch: a non-convex hull for the empty-lane sweep -- a solid square with its centre cell punched
+    // out, the same "holed7" shape Soul's own EdgeSweep probe used.
+    private static Shape HoledShape(int w, int h)
+    {
+        var shape = SolidShape(w, h);
+        shape[new int2(w / 2, h / 2)] = false;
+        return shape;
+    }
+
+    // A unit direction at `d` degrees, matching Soul's own probe convention (SoulProbe122b.Deg) -- used here to
+    // name an exact facing/bearing for a crash repro.
+    private static float2 Deg(double d) => float2((float) Math.Sin(d * Math.PI / 180), (float) Math.Cos(d * Math.PI / 180));
+
     private sealed class Engagement
     {
         public ItemManager Items;
@@ -75,6 +88,8 @@ public sealed class FireControlCut12Tests : IDisposable
         public EquippedItem[] Markers;
         public EquippedItem BigMarker;
         public int2[] BigMarkerCells;
+        public EquippedItem LMarker;
+        public int2[] LMarkerCells;
     }
 
     // A shooter off the origin (Cut 11.3), a target over a caller-supplied hull shape, a full-strength
@@ -85,7 +100,19 @@ public sealed class FireControlCut12Tests : IDisposable
         GameplaySettings settings, Shape hullShape, float precision,
         float velocity = 0, float spread = 0, float2? targetFacing = null,
         bool equipShield = false, float shieldCapacity = 30,
-        int2[] markerCells = null, float accuracy = 1f, float penetration = 0, bool equipBigMarker = false)
+        int2[] markerCells = null, float accuracy = 1f, float penetration = 0, bool equipBigMarker = false,
+        // S1 fix batch (Hands, 2026-09-25): a caller-chosen zone name -- Cut 6.1's own convention is one fixed
+        // name so a fixture is replayable byte-for-byte, but Soul's own crash repros (Zone.CombatSeed is
+        // StableHash(name)) each need their OWN exact name to reproduce a specific die roll.
+        string zoneName = "Cut12",
+        // S7 fix batch (Hands, 2026-09-25): Tracking authored through Build, like Precision and Accuracy already
+        // are, instead of a caller patching PendingShot.Tracking after Fire (TheHudEstimateIsTheCommitPrice's own
+        // former shape) -- one authoring path for every frozen shooter stat.
+        float tracking = 100000f,
+        // S8 fix batch (Hands, 2026-09-25): an L-shaped (3-cell, not 2x2) Tool item -- its true centroid differs
+        // from both any single cell and the bounding-box centre a mutant could substitute (N11), which a
+        // rectangular BigMarker cannot distinguish.
+        bool equipLMarker = false)
     {
         var hullData = new HullData
         {
@@ -125,7 +152,7 @@ public sealed class FireControlCut12Tests : IDisposable
             MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000,
             Behaviors = { new TargetingSystemData
             {
-                Accuracy = Constant(accuracy), Resolution = Constant(1000f), Precision = Constant(precision), Tracking = Constant(100000f)
+                Accuracy = Constant(accuracy), Resolution = Constant(1000f), Precision = Constant(precision), Tracking = Constant(tracking)
             } }
         });
         cache.Upsert(new GearData
@@ -155,6 +182,15 @@ public sealed class FireControlCut12Tests : IDisposable
             Name = "BigMarker", Hardpoint = HardpointType.Tool, Shape = bigMarkerShape, Durability = 1000000,
             MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000
         });
+        // S8 fix batch: an L-tromino (3 of a 2x2's 4 cells) -- its centroid ((0,0)+(1,0)+(0,1))/3 = (1/3,1/3) is
+        // neither any one of its own cells nor the bounding box's centre (.5,.5), so a fixture built from it can
+        // tell a true centroid apart from both.
+        var lMarkerShape = new Shape(2, 2) { [new int2(0, 0)] = true, [new int2(1, 0)] = true, [new int2(0, 1)] = true };
+        cache.Upsert(new GearData
+        {
+            Name = "LMarker", Hardpoint = HardpointType.Tool, Shape = lMarkerShape, Durability = 1000000,
+            MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000
+        });
         cache.FlushAsync().Wait();
 
         var ledger = new ProvenanceLedger();
@@ -165,7 +201,7 @@ public sealed class FireControlCut12Tests : IDisposable
         // is replayable byte-for-byte across runs. A GUID-suffixed name here (this file's own earlier defect)
         // reseeded the die on every run, which is exactly what made TurningArmourIntoTheShotTakesItOnTheArmour
         // flaky (F2, Soul's fix batch, 2026-09-24).
-        var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Cut12", Owner = null }, null);
+        var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = zoneName, Owner = null }, null);
 
         EquippableItem Make(string name, int lot, float durability) => new EquippableItem
         {
@@ -212,6 +248,18 @@ public sealed class FireControlCut12Tests : IDisposable
             Assert.Equal(4, bigMarkerCells.Length); // fixture precondition: the full 2x2 footprint landed
         }
 
+        EquippedItem lMarker = null;
+        int2[] lMarkerCells = null;
+        if (equipLMarker)
+        {
+            var lm = Make("LMarker", lot++, 1000000);
+            Assert.True(target.TryFindSpace(lm, out var lmPos));
+            Assert.True(target.TryEquip(lm, lmPos));
+            lMarker = target.Equipment.Single(x => x.EquippableItem == lm);
+            lMarkerCells = hullShape.Coordinates.Where(v => target.GearOccupancy[v.x, v.y] == lMarker).ToArray();
+            Assert.Equal(3, lMarkerCells.Length); // fixture precondition: the full 3-cell L footprint landed
+        }
+
         if (equipShield)
         {
             var reactor = Make("Reactor", lot++, 10);
@@ -247,7 +295,8 @@ public sealed class FireControlCut12Tests : IDisposable
         return new Engagement
         {
             Items = items, Zone = zone, Shooter = shooter, Target = target, WeaponItem = weaponItem, Weapon = weapon,
-            HullData = hullData, Markers = markers, BigMarker = bigMarker, BigMarkerCells = bigMarkerCells
+            HullData = hullData, Markers = markers, BigMarker = bigMarker, BigMarkerCells = bigMarkerCells,
+            LMarker = lMarker, LMarkerCells = lMarkerCells
         };
     }
 
@@ -527,39 +576,108 @@ public sealed class FireControlCut12Tests : IDisposable
             Assert.True(outcome.Cell.y >= 5.5f, $"expected every hit to land on the bow row (y>=5.5), got cell {outcome.Cell}");
     }
 
-    // F1 (Soul's fix batch, 2026-09-24): LateralDraw's clamp used to close the top of the shadow interval
-    // ([Lo, Hi] instead of the spec's half-open [Lo, Hi)). Soul enumerated all 2^24 NextFloat outputs against
-    // this exact geometry (TurningArmourIntoTheShotTakesItOnTheArmour's own 3x11 hull, bearing (0,-1),
-    // Precision .4 -> interval [-0.5, 2.5]) and found 3 values of u that drew s == Hi == 2.5 exactly, at which
-    // Lane's own half-open filter (`s >= centre + h` continues, :731) then found no candidate cell at all,
-    // returning an empty lane for a shot that had already passed its roll (R3 violation) -- the reflection
-    // call below reproduces that exact draw. u=0 is the analogous exact-Lo case (the first NextFloat output).
+    // S1 (Soul's second pass, 2026-09-25): at a non-axis-aligned bearing, a lateral draw exactly at an
+    // interval's Lo used to touch only a cell's corner -- Lane's own shadow prefilter admitted the cell but the
+    // independent SlabAlongB slab test rejected it on float rounding, Lane returned zero cells, and Commit's
+    // own guard threw InvalidOperationException out of Zone.Update (R3 violation: a hit that already passed
+    // its roll must always land on metal). Soul reproduced this live, not through reflection into a private
+    // method: zone name Cut12-edge-68442709 (StableHash seeds Zone.CombatSeed, so this exact name reproduces
+    // the exact die roll), a 7x9 hull, Precision 2, target facing 1 degree, shot 1. Fixed by deleting the
+    // second, disagreeing gate (this fix batch's FireControl.cs change) -- this pins the exact repro against a
+    // real Commit, not a reflection call, and checks the placement lands where the roll priced it.
     [Fact]
-    public void LateralDrawIsHalfOpenAtTheShadowsTopEdge()
+    public void ShotAtBearingLoTouchingOnlyACellCornerHitsMetal()
     {
-        var hull = new HullData { Name = "H", HullType = HullType.Ship, Shape = SolidShape(3, 11) };
-        var bearing = float2(0, -1);
-        const float precision = .4f;
-        var sil = FireControl.Silhouette(null, hull, null, bearing, precision);
-        Assert.Equal(1, sil.Count); // fixture precondition: one interval, matching Soul's own probe
-        Assert.Equal(-0.5f, sil.Intervals[0].Lo, 3);
-        Assert.Equal(2.5f, sil.Intervals[0].Hi, 3);
+        var e = Build(TestSettings(), SolidShape(7, 9), precision: 2f, targetFacing: Deg(1), zoneName: "Cut12-edge-68442709");
 
-        var lateralDraw = (Func<Silhouette, float, float>) typeof(FireControl)
-            .GetMethod("LateralDraw", BindingFlags.NonPublic | BindingFlags.Static)
-            .CreateDelegate(typeof(Func<Silhouette, float, float>));
+        ShotOutcome outcome = null;
+        using var r = e.Zone.ShotResolved.Subscribe(o => outcome = o);
+        FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        e.Zone.Update(.01f);
 
-        void AssertLandsOnMetal(float u, string label)
+        Assert.NotNull(outcome);
+        Assert.True(outcome.Hit, "fixture: this exact seed must roll a hit (this is the repro, not a general property)");
+        Assert.True(e.HullData.Shape[outcome.Cell], $"hit landed on {outcome.Cell}, not on the hull's own schematic");
+
+        var ell = float2(-outcome.Bearing.y, outcome.Bearing.x);
+        var h = (Math.Abs(ell.x) + Math.Abs(ell.y)) / 2f;
+        var centre = dot((float2) outcome.Cell, ell);
+        Assert.True(outcome.Lateral >= centre - h && outcome.Lateral < centre + h,
+            $"hit cell {outcome.Cell}'s own projected lateral interval [{centre - h},{centre + h}) does not contain the drawn Lateral {outcome.Lateral}");
+    }
+
+    // S1: the same class of empty-lane crash on the ruling's own TurningArmourIntoTheShotTakesItOnTheArmour
+    // geometry (3x11 hull, velocity 20, Precision .4, the fire-then-turn sequence that fixture uses) --
+    // Soul's search found a zone name (Cut12-edge-64078070) whose draw lands on an interval edge after the
+    // target turns its bow into the shot.
+    [Fact]
+    public void ShotAtBearingLoOnTurningArmourHitsMetal()
+    {
+        var e = Build(TestSettings(), SolidShape(3, 11), precision: .4f, velocity: 20, zoneName: "Cut12-edge-64078070");
+
+        var shotId = FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        var pending = e.Zone.PendingShots.Single(s => s.ShotId == shotId);
+        var travelDirection = pending.TravelDirection;
+
+        // At Fire: bow faces the same way the shot travels (stern exposed). Before commit: turn the bow to
+        // face the incoming shot head-on, TurningArmourIntoTheShotTakesItOnTheArmour's own sequence.
+        e.Target.Direction = travelDirection;
+        e.Zone.Update(1f);
+        e.Target.Direction = -travelDirection;
+
+        ShotOutcome outcome = null;
+        using var r = e.Zone.ShotResolved.Subscribe(o => outcome = o);
+        e.Zone.Update(4f); // past commit (4.5s), short of arrival (5s)
+        e.Zone.Update(2f); // past arrival
+
+        Assert.NotNull(outcome);
+        Assert.True(outcome.Hit, "fixture: this exact seed/sequence must roll a hit (this is the repro, not a general property)");
+        Assert.True(e.HullData.Shape[outcome.Cell], $"hit landed on {outcome.Cell}, not on the hull's own schematic");
+        Assert.True(outcome.Cell.y >= 5.5f, $"expected the hit to land on the bow row (y>=5.5), got cell {outcome.Cell}");
+
+        var ell = float2(-outcome.Bearing.y, outcome.Bearing.x);
+        var h = (Math.Abs(ell.x) + Math.Abs(ell.y)) / 2f;
+        var centre = dot((float2) outcome.Cell, ell);
+        Assert.True(outcome.Lateral >= centre - h && outcome.Lateral < centre + h,
+            $"hit cell {outcome.Cell}'s own projected lateral interval [{centre - h},{centre + h}) does not contain the drawn Lateral {outcome.Lateral}");
+    }
+
+    // S1 sweep: across many bearings and precisions, on hulls including a non-convex (holed) one, Lane must
+    // find at least one occupied cell for every lateral offset at an interval's own Lo, and just below its Hi
+    // -- the exact edges LateralDraw's own half-open clamp can produce (u=0 draws Lo; u near 1 draws just
+    // below Hi). An empty lane at either edge is precisely the class of crash S1 fixed; this is the general
+    // property the two named-seed repros above are specific instances of.
+    [Fact]
+    public void LaneNeverEmptiesAtAnIntervalEdge()
+    {
+        var shapes = new[] { SolidShape(7, 9), SolidShape(3, 11), HoledShape(7, 7) };
+        var precisions = new[] { .3f, .5f, 1f, 2f };
+        var failures = new List<string>();
+
+        foreach (var shape in shapes)
         {
-            var s = lateralDraw(sil, u);
-            var buffer = new LaneCell[hull.Shape.Coordinates.Length];
-            var count = FireControl.Lane(hull, bearing, s, buffer);
-            Assert.True(count > 0, $"{label}: u={u:R} drew s={s:R} (interval [{sil.Intervals[0].Lo},{sil.Intervals[0].Hi}]) -- Lane found no occupied cell for a hit that already passed its roll");
-            Assert.True(hull.Shape[buffer[0].Cell], $"{label}: Lane's own first cell {buffer[0].Cell} is not on the hull's schematic");
+            var hull = new HullData { Name = "Sweep", HullType = HullType.Ship, Shape = shape };
+            var buffer = new LaneCell[shape.Coordinates.Length];
+            for (var deg = 0; deg < 360; deg += 3)
+            {
+                var b = Deg(deg);
+                foreach (var precision in precisions)
+                {
+                    var sil = FireControl.Silhouette(null, hull, null, b, precision);
+                    for (var k = 0; k < sil.Count; k++)
+                    {
+                        var iv = sil.Intervals[k];
+                        if (FireControl.Lane(hull, b, iv.Lo, buffer) == 0)
+                            failures.Add($"{shape.Width}x{shape.Height} deg={deg} p={precision} k={k} at Lo={iv.Lo:R}");
+                        var justBelowHi = Math.Max(iv.Lo, iv.Hi - 1e-4f - 1e-5f);
+                        if (FireControl.Lane(hull, b, justBelowHi, buffer) == 0)
+                            failures.Add($"{shape.Width}x{shape.Height} deg={deg} p={precision} k={k} just below Hi={iv.Hi:R}");
+                    }
+                }
+            }
         }
 
-        AssertLandsOnMetal(0.9999998f, "at the top edge (u drives s to exactly Hi)");
-        AssertLandsOnMetal(0f, "at the bottom edge (u drives s to exactly Lo)");
+        Assert.True(failures.Count == 0, $"{failures.Count} empty lanes at an interval edge, e.g.: {string.Join("; ", failures.Take(5))}");
     }
 
     // Entity.ApplyHit's own penetration march, replicated independently (not by calling ApplyHit or reading
