@@ -22,17 +22,16 @@ using Random = CultMath.Random;
 // pre-Cut-3 mixer -- proof of the restored content, not of a controller this cut does not touch.
 public sealed class RestoredHullsTests
 {
-    // TorqueMultiplier defaults to 0 on a bare GameplaySettings; Thruster.Execute multiplies its rotation
-    // output by it (Ship.cs's mixer applies Torque*Thrust*TorqueMultiplier/Mass), so leaving it unset makes
-    // every thruster's yaw contribution silently zero regardless of how the ship is equipped -- velocity moves
-    // but Direction never turns, which looks exactly like a content defect instead of a fixture gap.
-    private static GameplaySettings Settings() => new GameplaySettings
-    {
-        DefaultEntitySettings = new EntitySettings(),
-        Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
-        QualityPriceModifier = new ExponentialLerp(),
-        TorqueMultiplier = 1,
-    };
+    // Soul's finding #1 (this cut's fix batch 3): a hand-set GameplaySettings fixture left thermal radiation and
+    // conduction at their bare-class defaults (1/1/1) against the shipped 3 / 1e-8 / 0.01
+    // (Assets/Resources/Settings.asset), so equipped parts froze toward 0 K, performance collapsed to 0 from
+    // cold, and TorqueMultiplier defaulting to 0 on top of that made every thruster's yaw contribution silently
+    // zero (Ship.cs's mixer applies Torque*Thrust*TorqueMultiplier/Mass) -- velocity moved but Direction never
+    // turned, which looks exactly like a content defect instead of a fixture gap. AuthoredSettings
+    // (tools/AetherDb/AuthoredSettings.cs) is the same headless YAML reader tools/AetherDb already uses to
+    // inspect Settings.asset outside Unity; this loads the real GameplaySettings the same way instead of
+    // hand-copying its fields a second time.
+    private static GameplaySettings Settings() => AuthoredSettings.Load(FindRepoRoot()).Read<GameplaySettings>("GameplaySettings");
 
     // Same composition FireControlCut7Tests.OpenReadOnlyRealCatalog uses: a registry scoped to the shipped
     // assembly's own [CultDocument] types, so this test's own process-wide type registration never pollutes the
@@ -328,21 +327,26 @@ public sealed class RestoredHullsTests
     // back out of the same catalog value being tested, so a mutated TopSpeed (e.g. 1000) can't also move the
     // bound this test checks against.
     //
-    // The comment this replaces claimed the run went "long enough to approach its drag/thrust balance well past
-    // 100" -- false. There is no drag/thrust balance to approach: at full throttle Longinus's own restored
-    // thrusters heat their hull cells past EquippedItem's ThermalOnline shutdown threshold within about a
-    // second (Entity.cs's Wear/ThermalOnline; soul-speed.txt traces it), and once the HULL's own cell goes
-    // offline the same way, VelocityLimit -- a hull behaviour, gated the same way as any other equipped item --
-    // stops running too, so the cap switches off along with thrust and the ship just coasts. The cap was only
-    // ever exercised for the first ~15 ticks. OverrideShutdown (Entity.cs; the same field the cockpit's "Override
-    // Shutdown" control flips, PropertiesPanel.cs) is a real, first-class affordance for forcing equipment to
-    // keep running past a thermal cutoff; setting it on the hull and both firing thrusters keeps thrust -- and
-    // the hull's own VelocityLimit -- running for the whole scenario, so the cap is what actually holds speed
-    // down for the full duration rather than an unreached ceiling. The run stops at 12 s, comfortably before the
-    // forced thrusters' own Durability (unprotected by OverrideShutdown) burns out around 15-16 s.
+    // Cut 1 fix batch 3 (Soul's finding #1): the comment this replaces claimed the run went "long enough to
+    // approach its drag/thrust balance well past 100" while forcing OverrideShutdown on the hull and both
+    // firing thrusters for the whole scenario -- a fixture compensating for RestoredHullsTests.Settings() (then
+    // hand-set, thermal radiation/conduction frozen at 1/1/1 against the shipped 3 / 1e-8 / 0.01) making every
+    // part freeze toward 0 K and shut down within about a second on real physics. Settings() now loads the real
+    // GameplaySettings (AuthoredSettings, above), so OverrideShutdown is no longer needed to keep the ship
+    // flying: a real, unforced Longinus holds thrust (and the hull's own VelocityLimit) running well past the
+    // window this test drives.
     //
-    // Must fail when VelocityLimitData is removed (docs' own probe: Longinus reaches 122 without it) and when
-    // TopSpeed is mutated away from 100.
+    // Real settings also retired the old +-10 tolerance's premise. On real physics the mixer's own tick order
+    // (Ship.cs: a tick's thrust-driven velocity is checked against VelocityLimit's cap on the FOLLOWING tick)
+    // settles into a steady state at the cap plus one tick's own forward acceleration, not at the literal cap --
+    // measured here at ~103.3 for this seed's generated loadout, not the ~110 an unconstrained +-10 tolerance
+    // would also accept. +4 keeps that real headroom on the ceiling side. The floor is tighter (-3): a
+    // materially nerfed cap (Soul's own catalog mutant, TopSpeed 100 -> 92) still produces the same kind of
+    // steady state, just a lower one (~95), which -3 catches but +-10 or a +4 ceiling would not.
+    //
+    // Must fail when VelocityLimitData is removed (docs' own probe: Longinus reaches 122 without it), when
+    // TopSpeed is mutated away from 100, and when VelocityLimit's own trigger check is loosened (a "+6 slack"
+    // mutant pushes this same steady state to ~109, over the +4 ceiling).
     [Fact]
     public void LonginusNeverExceedsItsRestoredTopSpeedUnderFullThrust()
     {
@@ -350,29 +354,18 @@ public sealed class RestoredHullsTests
 
         using var cache = OpenCatalog();
         var hull = cache.GetByName<HullData>("Longinus");
-        var thrusterDesigns = cache.GetAll<GearData>().Where(g => g.Hardpoint == HardpointType.Thruster).ToArray();
-
         var settings = Settings();
-        var ledger = new ProvenanceLedger();
-        for (var i = 1; i <= hull.Hardpoints.Count + 1; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = .5f };
-        var items = new ItemManager(cache, ledger, settings, _ => { });
+        var items = new ItemManager(cache, new ProvenanceLedger(), settings, _ => { });
+        // ItemManager.Random defaults to a DateTime.Now-seeded instance; without pinning it here, the item
+        // qualities LoadoutGenerator/EntitySerializer roll through it (not through the `random` below, which
+        // only drives which designs get picked) would make this test's own measured speed non-deterministic.
+        items.Random = new Random(1u);
+        var random = new Random(1);
+        var generator = new LoadoutGenerator(ref random, items, null, null, null, .5f);
+        var pack = generator.GenerateShipLoadout(candidate => candidate == hull);
+        Assert.NotNull(pack);
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test", Owner = null }, null);
-        // OverrideShutdown on both the hull and every thruster: keeps thrust (and the hull's own VelocityLimit)
-        // running for the whole scenario instead of thermally shutting down after ~1 s.
-        var hullItem = new EquippableItem { Data = cache.RefOf<ItemData>(hull), Durability = hull.Durability, Lot = 1, OverrideShutdown = true };
-        var ship = new Ship(items, zone, hullItem, settings.DefaultEntitySettings) { OverrideShutdown = true };
-
-        var lot = 2;
-        foreach (var hardpoint in hull.Hardpoints.Where(h => h.Type == HardpointType.Thruster))
-        {
-            var design = thrusterDesigns.First(d => d.Shape.FitsWithin(hardpoint.Shape, hardpoint.Rotation, out _) && d.Shape.Coordinates.Length == hardpoint.Shape.Coordinates.Length);
-            var gearItem = new EquippableItem { Data = cache.RefOf<ItemData>(design), Durability = design.Durability, Lot = lot++, OverrideShutdown = true };
-            Assert.True(ship.TryEquip(gearItem, hardpoint.Position));
-        }
-        var reactorHardpoint = hull.Hardpoints.First(h => h.Type == HardpointType.Reactor);
-        var reactorDesign = cache.GetAll<GearData>().First(g => g.Hardpoint == HardpointType.Reactor &&
-            g.Shape.FitsWithin(reactorHardpoint.Shape, reactorHardpoint.Rotation, out _) && g.Shape.Coordinates.Length == reactorHardpoint.Shape.Coordinates.Length);
-        Assert.True(ship.TryEquip(new EquippableItem { Data = cache.RefOf<ItemData>(reactorDesign), Durability = reactorDesign.Durability, Lot = lot++ }, reactorHardpoint.Position));
+        var ship = (Ship) EntitySerializer.Unpack(items, zone, pack);
 
         zone.Entities.Add(ship);
         ship.Position = float3.zero;
@@ -382,24 +375,20 @@ public sealed class RestoredHullsTests
         ship.MovementDirection = float2(0, 1); // full forward
         ship.LookDirection = float3(ship.Direction.x, 0, ship.Direction.y); // straight line: hold the ship's own heading
 
-        const int ticks = 60 * 12; // stops well before the forced thrusters' own Durability runs out (~15-16 s)
+        // Soul measured this loadout's forward thrusters crossing 386 K (thermal shutdown) around 7.3 s under
+        // real settings; 5 s keeps every tick inside the window where thrust runs continuously and unforced, so
+        // the cap -- not a coasting or shut-down ship -- is what the assertions below are pinning.
+        const int ticks = 60 * 5;
         var lastSpeed = 0f;
         for (var i = 0; i < ticks; i++)
         {
             zone.Update(1f / 60f);
             var speed = length(ship.Velocity);
             lastSpeed = speed;
-            // The mixer applies thrust then VelocityLimit clamps at the START of the next tick (Ship.cs's
-            // per-behavior execution order), so one tick's own acceleration can carry speed briefly past the
-            // cap before the following tick reins it in. The tolerance below is several times the base flight
-            // table's own measured Longinus forward acceleration (172.38 m/s^2) at dt=1/60 (~2.9 per tick).
-            Assert.True(speed <= LegacyTopSpeed + 10f, $"tick {i}: speed {speed} exceeded the legacy top speed {LegacyTopSpeed} by more than one tick's acceleration.");
+            Assert.True(speed <= LegacyTopSpeed + 4f, $"tick {i}: speed {speed} exceeded the legacy top speed {LegacyTopSpeed} by more than the real tick-order headroom.");
         }
 
-        // With shutdown forced off for the whole run, the cap must be what is actually holding speed down by
-        // the end, not merely an unreached ceiling the ship happened to coast under -- this is what makes the
-        // assertion above a test of the cap rather than of thermal shutdown.
-        Assert.True(lastSpeed >= LegacyTopSpeed - 10f, $"final speed {lastSpeed} never converged on the legacy top speed {LegacyTopSpeed}; the cap was never actually binding.");
+        Assert.True(lastSpeed >= LegacyTopSpeed - 3f, $"final speed {lastSpeed} fell too far below the legacy top speed {LegacyTopSpeed}; the cap looks nerfed.");
     }
 
     // Loadout generation (docs/locomotion-cut.md Cut 1 verification): LoadoutGenerator, filtered to each
