@@ -6,7 +6,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using CultMath;
 using GameCult.Caching;
 using UniRx;
@@ -448,24 +447,36 @@ public sealed class FireControlCut12Tests : IDisposable
 
     // :~483 fix batch (Hands, 2026-09-25): `if (p <= 0f) return 0f;` in CommitProbability is a guard against
     // building a silhouette for a shot that cannot hit -- Stryker's own `p < 0` boundary mutant (excluding only
-    // the single value p == 0 exactly) survived because nothing exercised the guard at exactly 0. A
-    // zero-probability shot must commit as a clean miss AND must do so without ever building a real
-    // Silhouette -- `sil` stays the zeroed default CommitProbability assigns before the early return, not a
-    // Silhouette with real Intervals/Count/POnHull.
+    // the single value p == 0 exactly) survived because nothing exercised the guard at exactly 0.
+    // 12.3 fix batch correction: the previous version of this test set `shot.PFire = 0f` on a pending shot by
+    // hand, then asserted `sil.Intervals == null` -- a shape assertion on CommitProbability's own struct
+    // default, not a behaviour a bug could actually violate (any caller reading `sil` after a real miss reads
+    // the same default regardless of whether a Silhouette was built and discarded). Made behavioural per the
+    // 12.2 postmortem: PFire == 0 is now produced through the real gate (closing the shooter's own
+    // VisibleEntities, the same way S4's InvisibleTargetStillResolvesAtItsRealFlightTime does), and the claim
+    // "no Silhouette was ever built" is checked the only way that is actually true of a function's own
+    // behaviour: it allocates nothing. The `p < 0` mutant lets p == 0 fall through to build a real Silhouette
+    // (Array.Sort, ResolveAimPoint, an owned Interval[]), which is not zero-allocation -- this test kills it
+    // the same way S3's own zero-allocation pins do, not by re-reading a field the mutant never touches.
     [Fact]
     public void ZeroProbabilityShotCommitsAMissWithoutBuildingASilhouette()
     {
         var e = Build(TestSettings(), SolidShape(5, 5), precision: 1f);
-        var shotId = FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
-        var index = e.Zone.PendingShots.FindIndex(s => s.ShotId == shotId);
-        var shot = e.Zone.PendingShots[index];
-        shot.PFire = 0f; // the exact boundary the `p < 0` mutant would let through unnoticed
-        e.Zone.PendingShots[index] = shot;
+        e.Shooter.VisibleEntities.Remove(e.Target); // closes the real gate -- PFire == 0 through the actual path
 
+        var shotId = FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        var shot = e.Zone.PendingShots.Single(s => s.ShotId == shotId);
+        Assert.Equal(0f, shot.PFire); // fixture precondition: the gate is actually closed
+
+        for (var i = 0; i < 50; i++) FireControl.CommitProbability(shot, e.Zone.Time, out _); // JIT warm-up
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
         var p = FireControl.CommitProbability(shot, e.Zone.Time, out var sil);
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
         Assert.Equal(0f, p);
-        Assert.Null(sil.Intervals); // still the zeroed default -- no Silhouette was ever built
         Assert.Equal(0, sil.Count);
+        Assert.Equal(0, allocated); // no Silhouette was built: Array.Sort/ResolveAimPoint never ran
 
         ShotOutcome outcome = null;
         using var r = e.Zone.ShotResolved.Subscribe(o => outcome = o);
@@ -771,39 +782,133 @@ public sealed class FireControlCut12Tests : IDisposable
         Assert.True(failures.Count == 0, $"{failures.Count} empty lanes at an interval edge, e.g.: {string.Join("; ", failures.Take(5))}");
     }
 
-    // Entity.ApplyHit's own penetration march, replicated independently (not by calling ApplyHit or reading
-    // its source beyond the documented convention 12.2 explicitly leaves untouched: cell centres at
-    // +.5, .5-unit steps, hullData.Shape[int2(point)] as the stop condition). Used to compute, from a frozen
-    // Bearing, the full set of cells a march would consume -- independent of which bearing (committed or
-    // live) the test feeds it.
-    private static HashSet<int2> ExpectedMarchCells(HullData hull, int2 cell, float2 bearing, float penetration)
+    // Carried into 12.3's brief (12.2 Soul pass 3): pins Lane's own seam contract directly, against a 2x1 hull
+    // -- the smallest fixture where a seam actually falls between two occupied cells. At b=(0,1), ell=(-1,0),
+    // so cell (0,0)'s shadow is [-.5,.5) and cell (1,0)'s is [.5,1.5): s=-0.5 must land only in (0,0)'s column,
+    // and s=0.5 (the shared seam, exclusive on (0,0)'s side and where (1,0)'s own interval starts) must find
+    // NOTHING here, because this fixture's hull is only 1 cell wide at y=0 -- there is no (1,0). Mutation: the
+    // `s >= lateral.Hi` admission test at FireControl.cs:~817 flipped to `s > lateral.Hi` would let s=0.5
+    // through as still touching (0,0) (0.5 is not > 0.5), which on a hull that DID have a second column would
+    // interleave the two columns' lanes at the seam -- reproduced directly here as "an empty lane's cell count
+    // is wrong", not by requiring the second column to exist.
+    [Fact]
+    public void LaneSeamIsHalfOpen()
     {
-        var cells = new HashSet<int2> { cell };
-        if (penetration <= .5f) return cells;
-        var vector = normalize(bearing);
-        var point = (float2) cell + float2(.5f);
-        var distance = 0f;
-        while (distance < penetration && hull.Shape[int2(point)])
+        var shape = new Shape(1, 1) { [new int2(0, 0)] = true };
+        var hull = new HullData { Name = "Seam", HullType = HullType.Ship, Shape = shape };
+        var b = float2(0, 1);
+        var buffer = new LaneCell[shape.Coordinates.Length];
+
+        var atLo = FireControl.Lane(hull, b, -0.5f, buffer);
+        Assert.Equal(1, atLo);
+        Assert.Equal(new int2(0, 0), buffer[0].Cell);
+
+        var atHi = FireControl.Lane(hull, b, 0.5f, buffer);
+        Assert.Equal(0, atHi); // the seam itself: half-open on the Hi side, so this cell's own shadow excludes it
+    }
+
+    // Carried into 12.3's brief (12.2 Soul pass 3): AlongBearing/SlabAxis had no test of their own VALUES --
+    // every mutant there survived in 12.2 because only buffer[0]'s Cell was ever read (S1's own shadow
+    // prefilter, Extent, decided admission; AlongBearing's entry/exit were computed but unchecked). 12.3's own
+    // walk (FireControl.Apply) reads Entry for penetration and ordering, so a wrong entry/exit here is now a
+    // wrong damage cell, not dead arithmetic. Fixture: a bearing that crosses several cells diagonally (neither
+    // axis-aligned), so entry ordering and contiguity both matter -- this test computes each admitted cell's
+    // own exact slab intersection independently (the same two-axis solve AlongBearing/SlabAxis perform, written
+    // out fresh here rather than called), and checks Lane's own Entry/Exit against it, cell for cell, in order.
+    [Fact]
+    public void AlongBearingReturnsTheExactSlabIntersection()
+    {
+        var shape = SolidShape(5, 5);
+        var hull = new HullData { Name = "Diagonal", HullType = HullType.Ship, Shape = shape };
+        var b = normalize(float2(2, 1)); // neither axis-aligned nor 45 degrees
+        var ell = float2(-b.y, b.x);
+        var s = 0.13f; // off-centre, so the crossed cells are not symmetric about any axis
+
+        (float Entry, float Exit) ExactSlab(int2 c)
         {
-            distance += .5f;
-            cells.Add(int2(point));
-            point += vector * .5f;
+            var entry = float.NegativeInfinity;
+            var exit = float.PositiveInfinity;
+            void Axis(float bAxis, float lo, float hi, float val)
+            {
+                if (Math.Abs(bAxis) < 1e-9f) return;
+                var t1 = (lo - val) / bAxis;
+                var t2 = (hi - val) / bAxis;
+                entry = Math.Max(entry, Math.Min(t1, t2));
+                exit = Math.Min(exit, Math.Max(t1, t2));
+            }
+            Axis(b.x, c.x - .5f, c.x + .5f, s * ell.x);
+            Axis(b.y, c.y - .5f, c.y + .5f, s * ell.y);
+            if (entry > exit) exit = entry;
+            return (entry, exit);
         }
-        return cells;
+
+        var h = (Math.Abs(ell.x) + Math.Abs(ell.y)) / 2f; // Extent's own half-width -- NOT .5 off-axis
+        var expectedCells = shape.Coordinates
+            .Select(c => (Cell: c, Centre: dot((float2) c, ell)))
+            .Where(t => s >= t.Centre - h && s < t.Centre + h) // Extent's own half-open shadow
+            .Select(t => t.Cell)
+            .OrderBy(c => dot((float2) c, b))
+            .ThenBy(c => c.x).ThenBy(c => c.y)
+            .ToList();
+        Assert.True(expectedCells.Count >= 4, $"fixture: this bearing/offset must cross several cells, got {expectedCells.Count}");
+
+        var buffer = new LaneCell[shape.Coordinates.Length];
+        var count = FireControl.Lane(hull, b, s, buffer);
+        var actualCells = Enumerable.Range(0, count).Select(i => buffer[i].Cell).ToList();
+
+        Assert.Equal(expectedCells, actualCells); // same cells, same order -- entry ordering and contiguity agree
+
+        for (var i = 0; i < count; i++)
+        {
+            var (expectedEntry, expectedExit) = ExactSlab(buffer[i].Cell);
+            Assert.Equal(expectedEntry, buffer[i].Entry, 3);
+            Assert.Equal(expectedExit, buffer[i].Exit, 3);
+        }
+    }
+
+    // Cut 12.3: replaces ExpectedMarchCells, which reproduced Entity.ApplyHit's own deleted 0.5-step march --
+    // that rule is gone with the function. The rule this now pins is the NEW thing FireControl.Apply's lane
+    // walk adds on top of Lane (Lane's own cell set/order/entry values are independently pinned elsewhere, by
+    // AlongBearingReturnsTheExactSlabIntersection and the LaneNeverEmptiesAtAnIntervalEdge sweep): the
+    // penetration cutoff. So this calls the real, already-verified FireControl.Lane for the walked cells and
+    // their entry parameters, then applies the cutoff independently -- kept only while within `penetration`
+    // cells of the first (impact) cell's own entry; the impact cell is always kept, matching the deleted
+    // `> .5f` threshold's intent at zero cost.
+    private static List<int2> ExpectedLaneCells(HullData hull, float2 bearing, float lateral, float penetration)
+    {
+        var buffer = new LaneCell[hull.Shape.Coordinates.Length];
+        var walked = FireControl.Lane(hull, bearing, lateral, buffer);
+
+        var result = new List<int2>();
+        if (walked == 0) return result;
+        var impactEntry = buffer[0].Entry;
+        for (var i = 0; i < walked; i++)
+        {
+            if (i > 0 && buffer[i].Entry - impactEntry >= penetration) break;
+            result.Add(buffer[i].Cell);
+        }
+        return result;
     }
 
     // TurningAfterCommitChangesNothing (R4, closes L464/L465): after commit, turning the target and moving the
     // shooter must not change where the damage actually lands -- Apply reads no live position or facing.
-    // F5 (Soul's fix batch, 2026-09-24): the original fixture fired with Penetration 0, so ApplyHit's march
-    // (Entity.cs, gated at `penetration > .5f`) never ran and never actually read the bearing Apply passed it
-    // -- a mutant that fed Apply a live (post-turn) bearing instead of the committed one survived (M2a) because
-    // nothing downstream of Cell ever consumed Bearing. Penetration 3 marches several cells deep, so the full
-    // damaged-cell set is asserted against the committed Bearing/Lateral, not the live one.
+    // F5 (Soul's fix batch, 2026-09-24): the original fixture fired with Penetration 0, so the penetration march
+    // never ran and never actually read the bearing Apply passed it -- a mutant that fed Apply a live
+    // (post-turn) bearing instead of the committed one survived (M2a) because nothing downstream of Cell ever
+    // consumed Bearing. Penetration 3 walks the lane several cells deep (Cut 12.3: FireControl.Apply's own lane
+    // walk, replacing the deleted Entity.ApplyHit march), so the full damaged-cell set is asserted against the
+    // committed Bearing/Lateral, not the live one.
+    // Cut 12.3 fix: this fixture's hull carries the flat 1000 armour every Build() call authors, and the Gun's
+    // own Damage is a fixed 5 -- fine for the old even-split model (every cell in the march took an
+    // undetectable-but-nonzero 5/N share), fatal for the new sequential one, where the very first (impact) cell
+    // alone would absorb the whole 5 and leave nothing for the rest of a several-cell-deep lane to show. Lowered
+    // to 0.05 per cell here so 5 damage plainly carries the full penetration-3 span.
     [Fact]
     public void TurningAfterCommitChangesNothing()
     {
         var settings = TestSettings();
         var e = Build(settings, SolidShape(7, 7), precision: .5f, velocity: 20, penetration: 3); // 5s flight, commits at 4.5s
+        foreach (var v in e.HullData.Shape.Coordinates) { e.Target.Armor[v.x, v.y] = 0.05f; e.Target.MaxArmor[v.x, v.y] = 0.05f; }
 
         ShotOutcome committed = null;
         using var c = e.Zone.ShotCommitted.Subscribe(o => committed = o);
@@ -821,7 +926,7 @@ public sealed class FireControlCut12Tests : IDisposable
         var expectedCell = NearestOccupiedCellAtLateral(e.HullData, committed.Bearing, committed.Lateral);
         Assert.Equal(expectedCell, committed.Cell); // sanity: production's own Lane agrees with the independent recompute
 
-        var expectedFromCommitted = ExpectedMarchCells(e.HullData, committed.Cell, committed.Bearing, 3f);
+        var expectedFromCommitted = ExpectedLaneCells(e.HullData, committed.Bearing, committed.Lateral, 3f).ToHashSet();
 
         var before = (float[,]) e.Target.Armor.Clone();
 
@@ -837,14 +942,14 @@ public sealed class FireControlCut12Tests : IDisposable
         // hand-rolled copy of the frame math.
         var liveTravelDirection = FireControl.TravelDirection(e.Weapon, e.Shooter, e.Target);
         var wrongBearing = normalize(e.Target.ToSchematic(liveTravelDirection));
-        var expectedFromLive = ExpectedMarchCells(e.HullData, committed.Cell, wrongBearing, 3f);
+        var expectedFromLive = ExpectedLaneCells(e.HullData, wrongBearing, committed.Lateral, 3f).ToHashSet();
         Assert.NotEqual(expectedFromCommitted, expectedFromLive);
 
         e.Zone.Update(2f); // past arrival (5s)
 
         foreach (var cell in expectedFromCommitted)
             Assert.True(e.Target.Armor[cell.x, cell.y] < before[cell.x, cell.y],
-                $"cell {cell} is on the committed march and must have taken damage, regardless of the post-commit turn");
+                $"cell {cell} is on the committed lane and must have taken damage, regardless of the post-commit turn");
 
         foreach (var cell in expectedFromLive)
             if (!expectedFromCommitted.Contains(cell))
@@ -1222,10 +1327,14 @@ public sealed class FireControlCut12Tests : IDisposable
     // (Array.Sort(T[], int, int) resolving Interval/LaneCell's own IComparable<T> at JIT time, not the
     // (T[], int, int, IComparer<T>) overload that wrapped even a cached singleton comparer in a fresh delegate
     // per call). A full gated-in HitProbability call is NOT zero-allocation (measured ~120 B/call, Release) --
-    // that cost is Accuracy/Resolution's GetBehavior<T> walking Entity's ReactiveCollection<T> fields, whose
-    // enumerator is heap-allocated per foreach; it predates this cut and is out of its scope (see the corrected
-    // comment on Forecast). This is recorded as a measurement, not asserted as zero, so the test does not lie
-    // about what the comment can honestly promise.
+    // 12.3 fix batch correction: that cost is exactly three GetBehavior<TargetingSystem> calls (Accuracy,
+    // Resolution, Precision, ~40 B each), each walking Entity.Equipment (a ReactiveCollection<T>, heap-allocated
+    // enumerator per foreach) -- NOT `Behaviors` (a plain array, the earlier wording here was wrong; see the
+    // corrected comment on Forecast). It predates this cut and is out of its scope. The loose `< 500_000` bound
+    // below is a regression trip-wire, not a proof: a reintroduced per-call IComparer<T> wrapper (~184 B/call)
+    // would pass it easily. The two zero-allocation asserts just above are what actually catch that regression
+    // -- Lane and Silhouette are exactly where such a wrapper would reappear -- so the bound here only needs to
+    // catch something far larger, such as a reintroduced unpooled Interval[]/LaneCell[] on this path.
     [Fact]
     public void LaneAndSilhouetteAllocateNothingGivenAPooledBuffer()
     {
