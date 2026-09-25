@@ -294,6 +294,63 @@ public sealed class MiningCut2Tests : IDisposable
         Assert.True(zone.ChunkExists(new ChunkId(f.BeltA, 0)));
         Assert.Equal(zone.AsteroidBelts[f.BeltA].UndamagedSize(0, f.Settings), zone.ChunkRadius(new ChunkId(f.BeltA, 0)), 4);
     }
+
+    // Stryker gap (2026-09-25 pass on this cut): ChunkExists's range check reads `chunk.Index < 0 ||
+    // chunk.Index >= length`; nothing exercised either side of that OR alone, or the >= boundary at exactly
+    // `length`, so a mutant weakening it to AND (which can never be true, since an index cannot be both
+    // negative and past the end at once) and a mutant weakening >= to > both survived.
+    [Fact]
+    public void OutOfRangeChunkIndicesDoNotExist()
+    {
+        var f = BuildFixture();
+        Assert.False(f.Zone.ChunkExists(new ChunkId(f.BeltA, -1)), "a negative index alone must already fail");
+        Assert.False(f.Zone.ChunkExists(new ChunkId(f.BeltA, f.AsteroidsA.Length)),
+            "the index exactly at the asteroid count is already past the end (0-based), not the first one out");
+    }
+
+    // Stryker gap: ChunkId.Equals was reachable only through the wear dictionary, whose GetHashCode already
+    // separates a same-field-different-index or same-index-different-field pair into different buckets, so a
+    // mutant weakening Equals from `&&` to `||` never got exercised by a lookup. This tests the value equality
+    // directly, the way the operator's ruling actually describes chunk identity: same field AND same index.
+    [Fact]
+    public void ChunkIdEqualityRequiresBothFieldAndIndex()
+    {
+        var f = BuildFixture();
+        var a0 = new ChunkId(f.BeltA, 0);
+        var a0Again = new ChunkId(f.BeltA, 0);
+        var a1 = new ChunkId(f.BeltA, 1);
+        var b0 = new ChunkId(f.BeltB, 0);
+
+        Assert.Equal(a0, a0Again);
+        Assert.NotEqual(a0, a1);
+        Assert.NotEqual(a0, b0);
+    }
+
+    // Stryker gap: the broken-until comparisons (ChunkExists, ChunkRadius) and the pack-time pruning rule
+    // (IsExpired) all compare BrokenUntil against zone time at their own boundary, and no existing test landed
+    // exactly on it (ABrokenChunkReturnsAtItsRespawnTimeFullyHealed and APackOmitsExpiredWear both advance well
+    // past it). Breaking at time 0 and stepping by exactly the authored respawn time lands zone time on
+    // BrokenUntil bit-for-bit (0.0 + respawnTime, then 0.0 += respawnTime): the chunk must already read as
+    // respawned at that exact instant, not one tick later, and packing at that instant must already prune it.
+    [Fact]
+    public void RespawnAndPruneBoundaryIsInclusiveOfExactlyNow()
+    {
+        var f = BuildFixture();
+        const int index = 7;
+        var chunk = new ChunkId(f.BeltA, index);
+        var hp = f.Settings.AsteroidHitpoints.Evaluate(f.AsteroidsA[index].Size);
+        var respawn = f.Settings.AsteroidRespawnTime.Evaluate(f.AsteroidsA[index].Size);
+
+        Assert.True(f.Zone.Wear(chunk, hp + 1f));
+        f.Zone.Update(respawn); // zone time now equals BrokenUntil exactly, not "respawn plus a margin".
+
+        Assert.True(f.Zone.ChunkExists(chunk), "must read as respawned the instant zone time reaches BrokenUntil, not strictly after it");
+        Assert.Equal(f.Zone.AsteroidBelts[f.BeltA].UndamagedSize(index, f.Settings), f.Zone.ChunkRadius(chunk), 4);
+
+        var pack = f.Zone.PackZone();
+        var stillPacked = pack.ChunkWear?.Exists(w => w.Field.Equals(chunk.Field) && w.Index == chunk.Index) ?? false;
+        Assert.False(stillPacked, "at exactly the respawn instant the entry already carries no live information");
+    }
 }
 
 internal static class MiningCut2TestExtensions
