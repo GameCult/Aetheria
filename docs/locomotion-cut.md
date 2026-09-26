@@ -2,15 +2,15 @@
 
 Date: 2026-09-22
 
-Status: target and cut map, from an Imagination pass, revised twice on 2026-09-22: first after the operator
-ruled Q1, Q2 and Q3 and asked for the legacy thruster hulls back, then after the operator approved the content
-inventory, corrected the hull-behaviour guess and dissolved Q5 by replacing the controller's rotation demand with
-a single full-wrench solve. None of it has landed. **The cuts are renumbered by that
-revision**: the content restore is the new Cut 1, and what the first committed version called Cuts 1 to 4 are now
-Cuts 2 to 5. Every anchor is against
-`origin/codex/item-provenance` at `cd846916`; the working tree on `codex/fire-control-10` (`e8fbb6a6`) has an
-identical tree for every file named below. The first half of this document is the **target** (the ends). The second
-half is the **cut map** (the means). When the campaign closes, split the target out as
+Status: target and cut map, from an Imagination pass revised on 2026-09-22. Cut 1 (the Longinus and Djinni hulls,
+five thruster designs, and tutorial entrance station rule) landed on `codex/locomotion-cut1` and was merged into
+`codex/fire-control-12` at `e160bbe5` on 2026-09-26. Cuts 2 to 5 remain target work. The operator's Q1, Q2,
+Q3 and Q5 rulings below still govern that work. **The cuts were renumbered by the 2026-09-22 revision**: the
+content restore became Cut 1, and what the first committed version called Cuts 1 to 4 became Cuts 2 to 5.
+Historical anchors below are against `origin/codex/item-provenance` at `cd846916`; the then-current working tree
+on `codex/fire-control-10` (`e8fbb6a6`) had an identical tree for every file named below. The first half of this
+document is the **target** (the ends). The second half is the **cut map** (the means). When the campaign closes,
+split the target out as
 `docs/locomotion-target.md` and keep this file as history.
 
 Claims marked **(probe)** come from running code: scratch builds of `Aetheria.Shared` from `cd846916` against
@@ -357,7 +357,7 @@ Item" action). That is fire-control work, and it does not touch motion.
 
 Status: cut map. Ends are owned by Part I above; this section owns the means.
 
-Nothing has landed.
+Cut 1 landed and is merged into `codex/fire-control-12` at `e160bbe5`. Cuts 2 to 5 have not landed.
 
 Rulings (operator, 2026-09-22): **Q1 A** ("The divergence is fine"), **Q2 B** ("that's absolutely viable and can
 be a better decision than turning around the long way, I wouldn't introduce a thruster exclusion for this"), **Q3**
@@ -390,9 +390,8 @@ A pure content cut, separable from every code cut, so Soul can falsify it on its
 we restore these layouts?", and on the inventory below, optional gear included: "Yes and yes". **The list is
 approved**; what is left for review is anything Hands finds that this map did not name.
 
-- **Repo/branch:** Aetheria, a branch from `codex/locomotion`. Depends on nothing. It blocks no code, but nothing
-  in this campaign can be flown on a thruster ship until it lands, and Cuts 3 and 4 get their real fixtures from
-  it. It writes `GameData/Aetheria.cc`, so it must not be in flight while another cut writes the catalog.
+- **Repo/branch:** Aetheria, implemented on `codex/locomotion-cut1` and merged into `codex/fire-control-12` at
+  `e160bbe5`. The restored hulls are now the real fixtures for Cuts 3 and 4. The catalog mutation is complete.
 - **Standing rule** (memory: `aetheria-content-audits-pre-breach`): `GameData/Aetheria.cc` is the post-breach
   bare-minimum rebuild, so absence there is not evidence of absence, and **the operator's word is the authority**
   on what the pre-breach content was. The list below is therefore an **operator review item before Hands writes
