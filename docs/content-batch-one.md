@@ -738,7 +738,8 @@ is ready to write the moment the mint path is.
 
 ## 9. Blockers, mechanism gaps, and operator forks
 
-**F1 — Only one spare ship prefab exists, and two hulls are specified.**
+**F1 — Resolved by the 2026-09-26 hull restore.** The following was the authoring baseline when this batch was
+mapped. Both Longinus and Djinni prefabs are now referenced by live hull records in `GameData/Aetheria.cc`.
 `ZoneRenderer.cs:295` instantiates `EngineAssets.Load<GameObject>(hullData.Prefab)` and calls
 `GetComponent<ShipInstance>()`. A hull with no prefab GUID renders nothing and null-refs. The
 project holds exactly two ship prefabs: `Assets/Content/Prefabs/Ships/Longinus.prefab` (used by
