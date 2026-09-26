@@ -324,6 +324,193 @@ public sealed class RestoredHullsTests
         Assert.True(sawGenuineLagrangeOrbit, "none of the 25 seeds seated the entrance station on a genuine (non-rosette) Lagrange orbit.");
     }
 
+    // Cut 1 fix batch 3 (F6, N1): a per-seed strengthening of the "across seeds" test above. That test only
+    // requires a genuine Lagrange orbit at least once in 25 seeds; it says nothing about a seed where a genuine
+    // candidate DID exist but the station landed on the widened fallback anyway (which the widening condition's
+    // own isTutorialEntrance-and-empty-candidates guard should make impossible). This pins the normal case
+    // directly, seed by seed: whenever the entrance zone actually has a genuine (non-rosette) Lagrange candidate,
+    // its station must be seated on one.
+    [Fact]
+    public void EntranceStationSitsOnAGenuineLagrangeOrbitWheneverOneExists()
+    {
+        var zoneSettings = TutorialZoneSettings();
+        var tutorialSettings = TutorialGalaxySettings();
+        var background = TutorialBackgroundSettings();
+        var names = TutorialNameSettings();
+        var gameData = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
+
+        var succeeded = 0;
+        var sawGenuineCandidate = false;
+        for (uint seed = 1; seed <= 25; seed++)
+        {
+            var scratchRun = Path.Combine(Path.GetTempPath(), $"aetheria-entrance-normalcase-{Guid.NewGuid():N}.cc");
+            try
+            {
+                using var cache = OpenReadOnlyRealCatalogWithScratchRun(gameData, scratchRun);
+                Galaxy galaxy;
+                try { galaxy = new Galaxy(tutorialSettings, background, names, cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed); }
+                catch (Exception) { continue; }
+                succeeded++;
+
+                var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+                var pack = ZoneGenerator.GenerateZone(items, zoneSettings, galaxy, galaxy.Entrance, isTutorial: true);
+
+                var planetOrbits = pack.Planets.Select(p => cache.Get(cache.Get(p).Orbit)).Where(o => o.Parent.IsSet()).ToArray();
+                var hasGenuineCandidate = planetOrbits.Any(o => planetOrbits.Count(c => c.Parent.Key.Equals(o.Parent.Key) && abs(c.Distance - o.Distance) < .1f) == 1);
+                if (!hasGenuineCandidate) continue;
+                sawGenuineCandidate = true;
+
+                var dockedStation = pack.Entities.OfType<OrbitalEntityPack>()
+                    .FirstOrDefault(e => (cache.Get(e.Hull.Data) as HullData)?.HullType == HullType.Station && e.DockingBays.Length > 0);
+                Assert.True(dockedStation != null, $"seed {seed}: the tutorial entrance zone generated no station with a docking bay.");
+                Assert.False(IsRosetteMember(cache, pack, cache.Get(dockedStation.Orbit)),
+                    $"seed {seed}: a genuine Lagrange candidate existed, but the station sat on the widened (rosette) fallback anyway.");
+            }
+            finally
+            {
+                if (File.Exists(scratchRun)) File.Delete(scratchRun);
+            }
+        }
+
+        Assert.True(succeeded >= 15, $"only {succeeded} of 25 seeds produced a Galaxy at all; too few runs to trust this result.");
+        Assert.True(sawGenuineCandidate, "none of the 25 seeds had a genuine Lagrange candidate at all; too few runs to trust this result.");
+    }
+
+    // Cut 1 fix batch 3 (F5): the throw ZoneGenerator.cs's own entrance-station override raises
+    // (ZoneGenerator.cs's "every planet in the zone is a parentless root" case, fixed in this same batch, F3) is
+    // reachable through authored settings, not just a hypothetical: a real seed-1 tutorial entrance with
+    // RosetteProbability 0 (no rosettes to widen into) and MassFloor far above every possible child mass (no
+    // satellite ever clears the floor, so every planet stays a parentless root) leaves the entrance with no
+    // candidate orbit at all, even after widening.
+    [Fact]
+    public void ThrowReachableWithAuthoredSettings()
+    {
+        var gameData = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
+        var scratchRun = Path.Combine(Path.GetTempPath(), $"aetheria-entrance-throw-{Guid.NewGuid():N}.cc");
+        try
+        {
+            using var cache = OpenReadOnlyRealCatalogWithScratchRun(gameData, scratchRun);
+            var galaxy = new Galaxy(TutorialGalaxySettings(), TutorialBackgroundSettings(), TutorialNameSettings(),
+                cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed: 1u);
+            var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+
+            var zoneSettings = TutorialZoneSettings();
+            zoneSettings.RosetteProbability = 0;
+            zoneSettings.MassFloor = 1e9f;
+
+            Assert.Throws<InvalidOperationException>(() =>
+                ZoneGenerator.GenerateZone(items, zoneSettings, galaxy, galaxy.Entrance, isTutorial: true));
+        }
+        finally
+        {
+            if (File.Exists(scratchRun)) File.Delete(scratchRun);
+        }
+    }
+
+    // Cut 1 fix batch 3 (F6, N3): a multi-root, heavily-widened entrance via authored settings -- RosetteProbability
+    // 1 (every subzone becomes a rosette) and a fixed SubZoneCount of 8 (several independent rosette systems, each
+    // its own root, never each other's sibling) with satellite/binary creation turned off so as few non-rosette
+    // orbits form as this generator's own unconditional "captured planet" step (ZoneGenerator.cs's ExpandRosette
+    // caller always adds at least one) allows. Verified directly against seed 1's real entrance: this leaves 14
+    // distinct parents among its planets, not the single root a boring system would have. Whatever candidate
+    // selection actually runs on a topology this fragmented -- ordinary or widened -- every resulting station
+    // orbit must still be a real, positioned orbit: a set Parent and a positive Distance, never the zero-distance,
+    // parentless orbit the pre-F4 fallback used to synthesize.
+    [Fact]
+    public void MultiRootEntranceStationOrbitsAreAlwaysParentedWithPositiveDistance()
+    {
+        var gameData = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
+        var scratchRun = Path.Combine(Path.GetTempPath(), $"aetheria-entrance-multiroot-{Guid.NewGuid():N}.cc");
+        try
+        {
+            using var cache = OpenReadOnlyRealCatalogWithScratchRun(gameData, scratchRun);
+            var galaxy = new Galaxy(TutorialGalaxySettings(), TutorialBackgroundSettings(), TutorialNameSettings(),
+                cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed: 1u);
+            var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+
+            var zoneSettings = TutorialZoneSettings();
+            zoneSettings.RosetteProbability = 1;
+            zoneSettings.SubZoneCount = new ExponentialLerp { Exponent = 1, Minimum = 8, Maximum = 8 };
+            zoneSettings.SatelliteCreationProbability = 0;
+            zoneSettings.BinaryCreationProbability = 0;
+
+            var pack = ZoneGenerator.GenerateZone(items, zoneSettings, galaxy, galaxy.Entrance, isTutorial: true);
+
+            var roots = pack.Planets.Select(p => cache.Get(p).Orbit)
+                .Select(cache.Get)
+                .Select(o => o.Parent.IsSet() ? o.Parent.Key.Value : "(root)")
+                .Distinct().Count();
+            Assert.True(roots > 1, $"this fixture no longer produces a multi-root entrance (only {roots} distinct parent); it no longer tests the fragmented-topology case.");
+
+            var stations = pack.Entities.OfType<OrbitalEntityPack>()
+                .Where(e => (cache.Get(e.Hull.Data) as HullData)?.HullType == HullType.Station).ToArray();
+            Assert.NotEmpty(stations);
+            foreach (var station in stations)
+            {
+                var orbit = cache.Get(station.Orbit);
+                Assert.True(orbit.Parent.IsSet(), "a station's orbit has no Parent.");
+                Assert.True(orbit.Distance > 0, $"a station's orbit Distance is not positive: {orbit.Distance}.");
+            }
+        }
+        finally
+        {
+            if (File.Exists(scratchRun)) File.Delete(scratchRun);
+        }
+    }
+
+    // Cut 1 fix batch 3 (F6, N9): a station-offset pin. CreateLagrangeOrbit (ZoneGenerator.cs) builds the
+    // station's orbit as a COPY of its source planet's (Parent, Distance) but offsets Phase by
+    // PI/3 * sign(random...) -- a real angular displacement, not the same orbital slot. Must fail if that offset
+    // is ever dropped (a mutant that seats the station directly on the planet's own orbit object): the station's
+    // Phase must differ from every planet's Phase among those sharing its own (Parent, Distance), across seeds.
+    [Fact]
+    public void EntranceStationPhaseDiffersFromEveryPlanetAtItsOwnDistanceAcrossSeeds()
+    {
+        var zoneSettings = TutorialZoneSettings();
+        var tutorialSettings = TutorialGalaxySettings();
+        var background = TutorialBackgroundSettings();
+        var names = TutorialNameSettings();
+        var gameData = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
+
+        var checkedAny = false;
+        for (uint seed = 1; seed <= 25; seed++)
+        {
+            var scratchRun = Path.Combine(Path.GetTempPath(), $"aetheria-entrance-offset-{Guid.NewGuid():N}.cc");
+            try
+            {
+                using var cache = OpenReadOnlyRealCatalogWithScratchRun(gameData, scratchRun);
+                Galaxy galaxy;
+                try { galaxy = new Galaxy(tutorialSettings, background, names, cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed); }
+                catch (Exception) { continue; }
+
+                var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+                var pack = ZoneGenerator.GenerateZone(items, zoneSettings, galaxy, galaxy.Entrance, isTutorial: true);
+
+                var dockedStation = pack.Entities.OfType<OrbitalEntityPack>()
+                    .FirstOrDefault(e => (cache.Get(e.Hull.Data) as HullData)?.HullType == HullType.Station && e.DockingBays.Length > 0);
+                if (dockedStation == null) continue;
+                var stationOrbit = cache.Get(dockedStation.Orbit);
+                if (!stationOrbit.Parent.IsSet()) continue;
+
+                var siblingPlanets = pack.Planets.Select(p => cache.Get(cache.Get(p).Orbit))
+                    .Where(o => o.Parent.IsSet() && o.Parent.Key.Equals(stationOrbit.Parent.Key) && abs(o.Distance - stationOrbit.Distance) < .1f)
+                    .ToArray();
+                if (siblingPlanets.Length == 0) continue;
+                checkedAny = true;
+
+                foreach (var planetOrbit in siblingPlanets)
+                    Assert.True(abs(planetOrbit.Phase - stationOrbit.Phase) > 1e-3f,
+                        $"seed {seed}: the docked station's Phase ({stationOrbit.Phase}) matches a planet's own Phase at the same (Parent, Distance) -- it is sitting on the planet's own orbital slot instead of an offset one.");
+            }
+            finally
+            {
+                if (File.Exists(scratchRun)) File.Delete(scratchRun);
+            }
+        }
+
+        Assert.True(checkedAny, "no seed produced a docked entrance station with an identifiable source planet at its own (Parent, Distance); too few runs to trust this result.");
+    }
+
     // Speed cap (docs/locomotion-cut.md Cut 1 verification): Longinus's restored VelocityLimitData caps it at
     // the legacy TopSpeed, 100 (100..100) -- asserted as the literal from the legacy record rather than read
     // back out of the same catalog value being tested, so a mutated TopSpeed (e.g. 1000) can't also move the
