@@ -30,7 +30,12 @@ to Blender's add-on search path, enable `brokkr_bridge` then
 `aetheria_ships`, and install `msgpack` into Blender's Python environment.
 Create a draft with `dotnet run --project tools/AetherDb -- ship-authoring
 create <ship.cc> <stable-id> <name>`, choose that `.cc` in the **Aetheria
-Ship** panel, select a Grease Pencil object, and press **Capture Ship Lines**.
+Ship** panel, select an object in its ship collection, and press **Bind Ship
+Collection**. The collection stores `aetheria.asset_kind=ship`, the stable
+`aetheria.id`, and a relative `.cc` path. Select a Grease Pencil object in
+that bound collection and press **Capture Ship Lines**. Capture checks the
+collection ID against the record before writing; object and collection
+display names are not IDs.
 `ship-authoring inspect <ship.cc>` reads drafts; `validate` requires complete
 hull, model, and anchor authoring.
 
@@ -79,11 +84,14 @@ is not yet an end-to-end ship loader in the current game.
   deletes or demotes the old ship-specific catalog/prefab authority for each
   migrated hull; it does not keep two writable definitions of that hull.
 
-At this proof stage, `ship-authoring validate` is the sole caller of the
-semantic validator. The Blender capture command writes only line data and the
-`inspect` command reads incomplete drafts. Editor preview and runtime loading
-still need to be built. The current gameplay catalog and prefab loader do not
-read these mod records.
+`ship-authoring validate`, the catalog composer, and the visual importer call
+the same semantic validator. Blender capture writes only line data and
+`inspect` reads incomplete drafts. Unity's **Aetheria / Preview Mod Ship
+Package** imports a validated package from disk, resolves stable GLB node IDs,
+and draws the captured polylines directly as 3D line segments. Point opacity
+and color are retained; radius and material-specific stroke styling are not
+rendered yet. The current gameplay catalog and prefab loader do not read mod
+records.
 
 ## Runtime catalog seam
 
@@ -115,12 +123,14 @@ loader and a complete playable ship are still outstanding. In the Quiet probe,
 previous derived file. The probe's four anchors and zero hardpoints are only
 a data-path smoke, not a playable Quiet design.
 
-The construction boundary will resolve a mod hull's authoring record from its
-derived key, load the package's compiled GLB at runtime, and build the
-`ShipInstance` references from validated stable node IDs. It must fail before
-scene construction when an asset or anchor is absent. [Unity glTFast's runtime
+The visual importer uses [Unity glTFast's runtime
 import](https://github.com/Unity-Technologies/com.unity.cloud.gltfast/blob/main/Packages/com.unity.cloud.gltfast/Documentation~/ImportRuntime.md)
-is a candidate for the GLB step; it has not been added to the project.
+to read the package GLB asynchronously and map its stable node IDs to Unity
+transforms. It keeps a partially loaded object inactive and destroys it on
+failure. The remaining construction boundary must wire those transforms to
+`ShipInstance` and preload visual prototypes before synchronous zone loads.
+It must preserve `capturepreset` writes to the shipped catalog and use the
+derived catalog only for gameplay reads.
 
 ## Proof gates
 
@@ -143,13 +153,14 @@ is a candidate for the GLB step; it has not been added to the project.
 ## Structural and build budget
 
 The proof reuses `HullData` simulation semantics, CultCache `.cc` persistence,
-Brokkr's Blender host, and the current `ShipInstance` behavior. This pass adds
-one authoring document type, one validator, and one Blender-facing editor
-surface. A later pass needs one runtime construction boundary. It does not add
-a daemon, a second gameplay
-simulation, or another Unity prefab generator. The existing name-based FBX
-builder remains available to existing content but is not an input to this
-lane. Its retirement is a later cut, after migration.
+Brokkr's Blender host, and the current `ShipInstance` behavior. It adds one
+authoring document type and validator, a Blender-facing line capture surface,
+a disposable catalog composer, and one runtime GLB/line visual importer with
+an Editor preview. The remaining construction work is `ShipInstance` wiring
+and boot-time preloading. No daemon, second gameplay simulation, or Unity
+prefab generator is added. The existing FBX builder remains available to
+existing content but is not an input to this lane. Its retirement follows
+migration.
 
 Focused checks use `Aetheria.Shared` and `tests/Aetheria.Shared.Tests` under
 `netstandard2.1` / `net10.0`, Python CultCache interoperability checks, and

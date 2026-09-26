@@ -10,6 +10,13 @@ using System.Text;
 // mod-owned ship.cc; this output is disposable and never becomes an authoring surface.
 public static class ShipModCatalog
 {
+    public sealed class Package
+    {
+        public ShipAuthoring Ship;
+        public string ModelPath;
+        public Dictionary<string, uint> NodeIndices;
+    }
+
     public static CultRecordKey HullKey(string id) => new CultRecordKey("mod-hull:" + id);
     public static CultRecordKey AuthoringKey(string id) => new CultRecordKey("mod-ship:" + id);
 
@@ -31,20 +38,10 @@ public static class ShipModCatalog
         {
             var path = Path.Combine(directory, "ship.cc");
             if (!File.Exists(path)) continue;
-            var ship = ShipAuthoringStore.Read(path);
-            if (!string.Equals(Path.GetFileName(directory), ship.Id, StringComparison.Ordinal) ||
-                !ids.Add(ship.Id))
-                throw new InvalidOperationException($"{path}: ship ID must uniquely match its package directory name.");
-            var modelPath = Path.GetFullPath(Path.Combine(directory, ship.ModelAsset));
-            if (!modelPath.StartsWith(directory + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
-                !File.Exists(modelPath) || !string.Equals(Path.GetExtension(modelPath), ".glb", StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException($"{ship.Id}: model asset must name an existing GLB inside its package.");
-            var modelNodes = ReadNodeIds(modelPath);
-            foreach (var anchor in ship.Anchors)
-                if (!modelNodes.Contains(anchor.ModelNodeId))
-                    throw new InvalidOperationException($"{ship.Id}: model has no node with aetheria.id={anchor.ModelNodeId} for anchor {anchor.Id}.");
-            CultRecordRefs.Validate(ship.Hull);
-            ships.Add(ship);
+            var package = ReadPackage(path);
+            if (!ids.Add(package.Ship.Id))
+                throw new InvalidOperationException($"{path}: duplicate ship ID {package.Ship.Id}.");
+            ships.Add(package.Ship);
         }
 
         Directory.CreateDirectory(Path.GetDirectoryName(output));
@@ -75,8 +72,27 @@ public static class ShipModCatalog
         }
     }
 
+    public static Package ReadPackage(string shipPath)
+    {
+        var path = Path.GetFullPath(shipPath);
+        var directory = Path.GetDirectoryName(path);
+        var ship = ShipAuthoringStore.Read(path);
+        if (!string.Equals(Path.GetFileName(directory), ship.Id, StringComparison.Ordinal))
+            throw new InvalidOperationException($"{path}: ship ID must match its package directory name.");
+        var modelPath = Path.GetFullPath(Path.Combine(directory, ship.ModelAsset));
+        if (!modelPath.StartsWith(directory + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+            !File.Exists(modelPath) || !string.Equals(Path.GetExtension(modelPath), ".glb", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException($"{ship.Id}: model asset must name an existing GLB inside its package.");
+        var modelNodes = ReadNodeIds(modelPath);
+        foreach (var anchor in ship.Anchors)
+            if (!modelNodes.ContainsKey(anchor.ModelNodeId))
+                throw new InvalidOperationException($"{ship.Id}: model has no node with aetheria.id={anchor.ModelNodeId} for anchor {anchor.Id}.");
+        CultRecordRefs.Validate(ship.Hull);
+        return new Package { Ship = ship, ModelPath = modelPath, NodeIndices = modelNodes };
+    }
+
     // GLB is the xenos asset boundary. Only its node extras are read here; geometry belongs to the runtime importer.
-    public static HashSet<string> ReadNodeIds(string path)
+    public static Dictionary<string, uint> ReadNodeIds(string path)
     {
         using var stream = File.OpenRead(path);
         using var reader = new BinaryReader(stream);
@@ -87,13 +103,16 @@ public static class ShipModCatalog
         if (reader.ReadUInt32() != 0x4E4F534A || chunkLength > stream.Length - stream.Position)
             throw new InvalidOperationException($"{path}: missing GLB JSON chunk.");
         var json = JObject.Parse(Encoding.UTF8.GetString(reader.ReadBytes((int)chunkLength)));
-        var ids = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var node in json["nodes"]?.OfType<JObject>() ?? Enumerable.Empty<JObject>())
+        var ids = new Dictionary<string, uint>(StringComparer.Ordinal);
+        var nodes = json["nodes"]?.OfType<JObject>() ?? Enumerable.Empty<JObject>();
+        uint index = 0;
+        foreach (var node in nodes)
         {
             var id = (string)node["extras"]?["aetheria.id"];
-            if (string.IsNullOrEmpty(id)) continue;
-            if (!ids.Add(id))
+            if (string.IsNullOrEmpty(id)) { index++; continue; }
+            if (!ids.TryAdd(id, index))
                 throw new InvalidOperationException($"{path}: duplicate GLB node aetheria.id={id}.");
+            index++;
         }
         return ids;
     }
