@@ -207,17 +207,39 @@ public static class ZoneGenerator
 
         var storyStations = galaxyZone.Locations.Where(story => story.Type == LocationType.Station).ToArray();
         var stationCount = (int)(random.NextFloat() * (factionPresence + 1)) + storyStations.Length;
+        // Enemy count below is based on this pre-override value, so the tutorial entrance doesn't gain an enemy
+        // just because its station got forced.
+        var baseStationCount = stationCount;
+        // Operator ruling, 2026-09-25 (docs/locomotion-cut.md, "Tutorial station"): the entrance zone always
+        // gets a generated faction station with a docking bay, deterministically. Galaxy.cs halves influence and
+        // picks the lowest-influence unowned zone for Entrance, which otherwise rolls stationCount 0 on every
+        // seed. galaxy.Entrance is reference-identity, not a name comparison.
+        var isTutorialEntrance = isTutorial && galaxyZone == galaxy.Entrance;
+        if (isTutorialEntrance && stationCount < 1) stationCount = 1;
         var potentialLagrangePoints = planets
 	        .Where(p => p.Parent != null && p.Parent.Children
 		        .TrueForAll(c => !(c != p && abs(c.Distance - p.Distance) < .1f))) // Filter Rosettes
 	        .OrderBy(p => p.Distance)
 	        .ToArray();
+        // The entrance's own station count is the floor above; its orbit always comes from this same selection.
+        // Ordinarily that selection is potentialLagrangePoints (non-rosette planet orbits). If the entrance zone
+        // has none of those (a boring single-body system, or a system that is entirely one rosette), widen to
+        // every planet orbit ordinary placement's own candidate pool is drawn from before the rosette filter --
+        // still a real, parented planet orbit with a positive Distance -- rather than inventing an unparented,
+        // zero-distance orbit (that gave PlaceTurret's phase = 20*multiplier/orbit.Distance a division by zero,
+        // and left an orbit record with no planet behind it).
+        var lagrangeCandidates = potentialLagrangePoints;
+        if (isTutorialEntrance && lagrangeCandidates.Length == 0)
+	        lagrangeCandidates = planets.Where(p => p.Parent != null).OrderBy(p => p.Distance).ToArray();
         // Pick a selection from the middle of the distribution
-        var selectedStationOrbits = potentialLagrangePoints
-	        .Skip(potentialLagrangePoints.Length / 2)
+        var selectedStationOrbits = lagrangeCandidates
+	        .Skip(lagrangeCandidates.Length / 2)
 	        .Take(stationCount)
 	        .Select(p=>orbitMap[p])
 	        .ToArray();
+        if (isTutorialEntrance && lagrangeCandidates.Length == 0)
+	        throw new InvalidOperationException(
+		        "The tutorial entrance zone must always get a station, but it has no candidate orbit at all -- every planet in the zone is a parentless root.");
 
         var loadoutGenerators = new Dictionary<Faction, LoadoutGenerator>();
 
@@ -234,7 +256,7 @@ public static class ZoneGenerator
 	        {
 		        Parent = baseOrbit.Parent,
 		        Distance = baseOrbit.Distance,
-		        Phase = baseOrbit.Phase + PI / 3 * sign(random.NextFloat() - .5f)
+		        Phase = baseOrbit.Phase + PI / 3 * sign(random.NextFloat() - .5f),
 	        };
 	        pack.Orbits.Add(cache.Upsert(lagrangeOrbit));
 	        return lagrangeOrbit;
@@ -294,7 +316,13 @@ public static class ZoneGenerator
 
 	        var lagrangeOrbit = CreateLagrangeOrbit(orbit);
 	        var station = GetLoadoutGenerator(nearestFaction).GenerateStationLoadout();
-	        if (station == null) continue;
+	        if (station == null)
+	        {
+		        if (isTutorialEntrance)
+			        throw new InvalidOperationException(
+				        $"The tutorial entrance zone must always get a station, but {nearestFaction?.Name} has no station loadout to generate.");
+		        continue;
+	        }
 	        station.Orbit = cache.RefOf(lagrangeOrbit);
 	        station.SecurityLevel = security;
 	        station.SecurityRadius = pack.Radius;
@@ -303,7 +331,7 @@ public static class ZoneGenerator
 	        PlaceTurrets(lagrangeOrbit, GetLoadoutGenerator(nearestFaction), 2);
         }
 
-        var enemyCount = (int)(random.NextFloat() * factionPresence * 2) + stationCount;
+        var enemyCount = (int)(random.NextFloat() * factionPresence * 2) + baseStationCount;
         for (int i = 0; i < enemyCount; i++)
         {
 	        var ship = GetLoadoutGenerator(nearestFaction).GenerateShipLoadout();
