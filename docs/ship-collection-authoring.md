@@ -1,6 +1,6 @@
 # Ship collection authoring
 
-Status: authoring contract for new ships. Longinus and Djinni predate this contract and keep their current prefabs.
+Status: FBX-to-Unity-prefab contract for ships using the current catalog path. Longinus and Djinni predate this contract and keep their current prefabs. The parallel mod-owned `.cc` path is specified in [moddable-ship-authoring.md](moddable-ship-authoring.md).
 
 ## Objective and ownership
 

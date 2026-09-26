@@ -78,6 +78,9 @@ public static class ShipAuthoringStore
     {
         if (ship == null) throw new InvalidOperationException("Ship authoring record is null.");
         if (string.IsNullOrWhiteSpace(ship.Id)) throw new InvalidOperationException("Ship ID is required.");
+        if (!(ship.Id[0] >= 'a' && ship.Id[0] <= 'z' || ship.Id[0] >= '0' && ship.Id[0] <= '9') || ship.Id.Any(c =>
+                !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '.' || c == '_' || c == '-')))
+            throw new InvalidOperationException($"{ship.Id}: ship ID must use lower-case ASCII letters, digits, dots, underscores, or hyphens.");
         var hull = ship.Hull ?? throw new InvalidOperationException($"{ship.Id}: hull data is required.");
         if (string.IsNullOrWhiteSpace(hull.Name)) throw new InvalidOperationException($"{ship.Id}: hull name is required.");
         if (hull.Shape?.Cells == null || hull.Shape.Width < 1 || hull.Shape.Height < 1 ||
@@ -91,12 +94,15 @@ public static class ShipAuthoringStore
 
         var anchors = ship.Anchors ?? throw new InvalidOperationException($"{ship.Id}: anchors are required.");
         var ids = new HashSet<string>(StringComparer.Ordinal);
+        var nodeIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (var anchor in anchors)
         {
             if (anchor == null || string.IsNullOrWhiteSpace(anchor.Id) || !ids.Add(anchor.Id))
                 throw new InvalidOperationException($"{ship.Id}: anchor IDs must be present and unique.");
             if (string.IsNullOrWhiteSpace(anchor.ModelNodeId))
                 throw new InvalidOperationException($"{ship.Id}: anchor {anchor.Id} needs a model node ID.");
+            if (!nodeIds.Add(anchor.ModelNodeId))
+                throw new InvalidOperationException($"{ship.Id}: model node {anchor.ModelNodeId} is claimed by more than one anchor.");
         }
         foreach (var role in new[] { "map-icon", "hull-collider", "shield", "tractor" })
             if (anchors.Count(anchor => anchor.Role == role) != 1)

@@ -85,6 +85,43 @@ semantic validator. The Blender capture command writes only line data and the
 still need to be built. The current gameplay catalog and prefab loader do not
 read these mod records.
 
+## Runtime catalog seam
+
+`CultCache` routes `ItemData` to one home backing store, and
+`ActionGameManager.CultCache` holds that store for the entire play session.
+Attaching each mod's `.cc` as another item store would violate the cache's
+one-home invariant. `ship-authoring compose` instead derives one runtime catalog from
+the shipped catalog and validated mod packages, preserving all shipped record
+keys. Each mod's stable `ShipAuthoring.Id` yields separate deterministic keys
+for its copied `HullData` and its runtime authoring record. The generated
+catalog is disposable; the shipped catalog and each mod's source `.cc` remain
+the owners. A player session opens one catalog snapshot and cannot hot-swap its
+designs beneath existing entities.
+
+Each immediate child of the mods directory has an ID matching its directory
+name and contains `ship.cc` plus the GLB at the record's relative `ModelAsset`
+path. Every referenced anchor uses an `aetheria.id` custom property exported
+into a GLB node's `extras`. Compose checks the asset, unique IDs, and every
+reference before atomically replacing the derived catalog. For example:
+
+```text
+dotnet run --project tools/AetherDb -- ship-authoring compose GameData/Aetheria.cc GameData/Aetheria.modded.cc GameData/Mods
+```
+
+This command does not yet make the game open `Aetheria.modded.cc`; the runtime
+loader and a complete playable ship are still outstanding. In the Quiet probe,
+206 shipped records became 208 derived records: one `mod-hull:quiet` and one
+`mod-ship:quiet`. A missing GLB node ID was rejected without changing the
+previous derived file. The probe's four anchors and zero hardpoints are only
+a data-path smoke, not a playable Quiet design.
+
+The construction boundary will resolve a mod hull's authoring record from its
+derived key, load the package's compiled GLB at runtime, and build the
+`ShipInstance` references from validated stable node IDs. It must fail before
+scene construction when an asset or anchor is absent. [Unity glTFast's runtime
+import](https://github.com/Unity-Technologies/com.unity.cloud.gltfast/blob/main/Packages/com.unity.cloud.gltfast/Documentation~/ImportRuntime.md)
+is a candidate for the GLB step; it has not been added to the project.
+
 ## Proof gates
 
 1. A typed `.cc` record round-trips between C# and Blender's Python runtime,
@@ -94,7 +131,9 @@ read these mod records.
    not a second copy of hull semantics.
 3. A command-line validator rejects malformed cells, overlapping or dangling
    hardpoints, missing model nodes, and unresolved asset references with
-   precise errors. It changes no live catalog or scene on failure.
+   precise errors. It changes no live catalog or scene on failure. The
+   composer now performs this check for a package before replacing its
+   derived catalog.
 4. A packaged mod ship loads in a built Unity player without Unity Editor or
    Blender installed. Runtime assembly creates the same components the
    current `ShipInstance` expects and uses the existing simulation rules.

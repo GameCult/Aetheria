@@ -10,11 +10,17 @@ public static class ShipAuthoringCommands
     {
         if (args.Length == 0)
         {
-            Console.Error.WriteLine("ship-authoring create <ship.cc> <stable-id> <name> | inspect <ship.cc> | validate <ship.cc>");
+            Console.Error.WriteLine("ship-authoring create <ship.cc> <stable-id> <name> | inspect <ship.cc> | validate <ship.cc> | compose <shipped.cc> <derived.cc> <mods-dir>");
             return 1;
         }
         try
         {
+            if (args[0] == "compose" && args.Length == 4)
+            {
+                var count = ShipModCatalog.Compose(args[1], args[2], args[3]);
+                Console.WriteLine($"Composed {count} mod ships into {Path.GetFullPath(args[2])}");
+                return 0;
+            }
             if (args[0] == "inspect" && args.Length == 2)
             {
                 using var cache = ShipAuthoringStore.Open(args[1]);
@@ -50,7 +56,7 @@ public static class ShipAuthoringCommands
                 Console.WriteLine($"Created draft {path}; fill its model bindings and schematic in Blender.");
                 return 0;
             }
-            Console.Error.WriteLine("ship-authoring create <ship.cc> <stable-id> <name> | inspect <ship.cc> | validate <ship.cc>");
+            Console.Error.WriteLine("ship-authoring create <ship.cc> <stable-id> <name> | inspect <ship.cc> | validate <ship.cc> | compose <shipped.cc> <derived.cc> <mods-dir>");
             return 1;
         }
         catch (Exception ex)

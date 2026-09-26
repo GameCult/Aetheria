@@ -6,7 +6,7 @@ using GameCult.Caching.MessagePack;
 // Aetheria's stores: one home store per type, composed here and nowhere else.
 public static class AetheriaStores
 {
-    public static readonly Type[] CatalogTypes = { typeof(ItemData), typeof(Faction), typeof(FactionProductData), typeof(PersonalityAttribute), typeof(NameFile), typeof(InputLayout), typeof(Loadout) };
+    public static readonly Type[] CatalogTypes = { typeof(ItemData), typeof(ShipAuthoring), typeof(Faction), typeof(FactionProductData), typeof(PersonalityAttribute), typeof(NameFile), typeof(InputLayout), typeof(Loadout) };
     public static readonly Type[] RunTypes = { typeof(OrbitData), typeof(BodyData), typeof(SavedZone), typeof(SavedGame), typeof(ProvenanceLedger) };
     public static readonly Type[] PlayerTypes = { typeof(PlayerSettings) };
 
