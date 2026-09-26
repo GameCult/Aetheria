@@ -23,8 +23,9 @@ authored `HullData.Shape` in the `.cc`; strokes do not decide armor or mount
 footprints.
 
 `tools/blender/aetheria_ships` is a separate Blender add-on in Brokkr's
-sidebar. It uses Brokkr's configured CultLib Python source and edits only the
-line slot of an existing `aetheria.ship_authoring` record. To try it, make
+sidebar. It uses Brokkr's configured CultLib Python source and edits the
+line, hull shape, and hardpoint slots of an existing typed
+`aetheria.ship_authoring` record. To try it, make
 `F:\Projects\Brokkr\surfaces\blender` and this repo's `tools\blender` visible
 to Blender's add-on search path, enable `brokkr_bridge` then
 `aetheria_ships`, and install `msgpack` into Blender's Python environment.
@@ -36,6 +37,16 @@ Collection**. The collection stores `aetheria.asset_kind=ship`, the stable
 that bound collection and press **Capture Ship Lines**. Capture checks the
 collection ID against the record before writing; object and collection
 display names are not IDs.
+**Load Ship Layout** opens the same `.cc` record's hull grid and hardpoints in
+the panel. Toggle occupied grid cells, resize up to 32×32, and edit each
+hardpoint's type, mount ID, position, footprint, rotation, armor, and firing
+arc. A footprint uses top-to-bottom rows of `#` (occupied) and `.` (empty),
+separated by `/`; `##/##` is a 2×2 mount. **Save Layout to .cc** replaces only
+the hull shape and hardpoint slots. It preserves hull stats, anchors, visual
+assets, lines, the record key, and schema. Save rejects a changed ship ID or
+layout revision; reload first if another editor changed those fields. A line
+capture leaves the loaded layout revision intact. The saved layout is a draft until
+its mount IDs resolve to visual anchors and C# validation passes.
 `ship-authoring inspect <ship.cc>` reads drafts; `validate` requires complete
 hull, model, and anchor authoring.
 
@@ -85,8 +96,9 @@ is not yet an end-to-end ship loader in the current game.
   migrated hull; it does not keep two writable definitions of that hull.
 
 `ship-authoring validate`, the catalog composer, and the visual importer call
-the same semantic validator. Blender capture writes only line data and
-`inspect` reads incomplete drafts. Unity's **Aetheria / Preview Mod Ship
+the same semantic validator. Blender edits the hull grid, hardpoints, and
+captured lines in the typed source record; `inspect` reads incomplete drafts.
+Unity's **Aetheria / Preview Mod Ship
 Package** imports a validated package from disk, resolves stable GLB node IDs,
 and draws the captured polylines directly as 3D line segments. Point opacity
 and color are retained; radius and material-specific stroke styling are not
@@ -136,9 +148,10 @@ derived catalog only for gameplay reads.
 
 1. A typed `.cc` record round-trips between C# and Blender's Python runtime,
    preserving unknown future fields and record identity.
-2. Blender edits schematic cells and hardpoints in that record, and validates
-   their association with stable visual node IDs. The model supplies geometry,
-   not a second copy of hull semantics.
+2. Blender edits schematic cells and hardpoints in that record. Stable visual
+   node IDs still need a collection-to-package authoring action; the C#
+   validator checks their association with mount IDs and GLB nodes. The model
+   supplies geometry, not a second copy of hull semantics.
 3. A command-line validator rejects malformed cells, overlapping or dangling
    hardpoints, missing model nodes, and unresolved asset references with
    precise errors. It changes no live catalog or scene on failure. The
@@ -154,7 +167,7 @@ derived catalog only for gameplay reads.
 
 The proof reuses `HullData` simulation semantics, CultCache `.cc` persistence,
 Brokkr's Blender host, and the current `ShipInstance` behavior. It adds one
-authoring document type and validator, a Blender-facing line capture surface,
+authoring document type and validator, Blender-facing layout and line editing,
 a disposable catalog composer, and one runtime GLB/line visual importer with
 an Editor preview. The remaining construction work is `ShipInstance` wiring
 and boot-time preloading. No daemon, second gameplay simulation, or Unity
