@@ -101,16 +101,18 @@ public sealed class RestoredHullsTests
     // excludes. An entrance station whose orbit matches more than one planet orbit this way could therefore only
     // have come from the widened candidate set, never from the ordinary (non-rosette) Lagrange selection.
     //
-    // pack.Orbits starts with exactly one orbit per entry of ZoneGenerator's own (unfiltered) `planets` list --
-    // NOT pack.Planets.Count, which excludes rosette-root "Empty" planets that never get a BodyData/PlanetData
-    // entry at all. Every station and turret then appends exactly one more orbit each (CreateLagrangeOrbit,
-    // PlaceTurret), one per resulting OrbitalEntityPack, so the true planet-orbit count is pack.Orbits.Count minus
-    // that many, not pack.Planets.Count.
+    // Soul's finding (this cut's fix batch 3): counting planet orbits as pack.Orbits.Count minus the
+    // OrbitalEntityPack count (the previous version of this method) over-counts whenever a station or turret
+    // loadout generator returns null -- CreateLagrangeOrbit already appended that orbit to pack.Orbits before the
+    // null check (ZoneGenerator.cs) skips adding the entity, so the subtraction no longer matches. Deriving the
+    // set from pack.Planets' own Orbit refs instead (Census.cs's own approach) sidesteps that entirely: every
+    // real planet, including an ordinary rosette member, names its own orbit directly. Only a rosette ROOT is
+    // excluded this way (it gets no BodyData/PlanetData entry at all), which is fine here -- a root never shares
+    // its own Parent's distance with itself, so it was never a sibling candidate for `orbit` in the first place.
     private static bool IsRosetteMember(CultCache cache, ZonePack pack, OrbitData orbit)
     {
         if (!orbit.Parent.IsSet()) return false;
-        var planetOrbitCount = pack.Orbits.Count - pack.Entities.OfType<OrbitalEntityPack>().Count();
-        var planetOrbits = pack.Orbits.Take(planetOrbitCount).Select(cache.Get).ToArray();
+        var planetOrbits = pack.Planets.Select(p => cache.Get(cache.Get(p).Orbit)).ToArray();
         return planetOrbits.Count(o => o.Parent.IsSet() && o.Parent.Key.Equals(orbit.Parent.Key) && abs(o.Distance - orbit.Distance) < .1f) > 1;
     }
 
@@ -513,8 +515,9 @@ public sealed class RestoredHullsTests
     }
 
     // Cut 1 fix batch 2 (Soul's finding #2, leak check): the entrance override must not leak to (a) other
-    // tutorial zones or (b) a non-tutorial game's own entrance zone. Both are pinned against the same seed-1
-    // galaxy as the widened-candidate test above, so all three tests stand or fall on the same known fixture.
+    // tutorial zones or (b) a non-tutorial game's own entrance zone. Both are pinned against a seed-1 galaxy --
+    // the widened-candidate test above uses a different fixture, seed 3's "EAC-7089" -- so this test and the one
+    // below it stand or fall on this one known fixture, not that one.
     [Fact]
     public void EntranceOverrideDoesNotLeakToOtherTutorialZonesOrNonTutorialGames()
     {
@@ -569,10 +572,97 @@ public sealed class RestoredHullsTests
 
             var pack = ZoneGenerator.GenerateZone(items, TutorialZoneSettings(), galaxy, galaxy.Entrance, isTutorial: true);
             var stationCount = pack.Entities.OfType<OrbitalEntityPack>().Count(e => (cache.Get(e.Hull.Data) as HullData)?.HullType == HullType.Station);
-            var shipCount = pack.Entities.OfType<ShipPack>().Count();
+            // Soul's finding (this cut's fix batch 3): pack.Entities.OfType<ShipPack>().Count() also counts the
+            // zone's neutral wanderers (ZoneGenerator.cs's own EligibleWandererFactions spawn, keyed to
+            // ZoneGenerationSettings.NeutralWandererCount -- 2 by TutorialZoneSettings' own default, unrelated to
+            // this fixture's own enemy roll), so the old assertion of exactly 2 was pinning the wanderer count,
+            // not the enemy count baseStationCount is supposed to gate. The nearest faction here is the same one
+            // ZoneGenerator computes internally (galaxy.HomeZones' own distance-to-zone ordering); every ShipPack
+            // names its faction directly (EntityPack.Faction), so filtering on it separates the two spawns.
+            var nearestFaction = galaxy.Factions.MinBy(f => galaxy.HomeZones[f].Distance[galaxy.Entrance]);
+            var enemyShipCount = pack.Entities.OfType<ShipPack>().Count(s => cache.Get(s.Faction) == nearestFaction);
 
             Assert.Equal(1, stationCount); // the override did raise the station count (from a natural roll of 0)
-            Assert.Equal(2, shipCount); // but the enemy roll stayed keyed to the pre-override count of 0
+            Assert.Equal(0, enemyShipCount); // the enemy roll stayed keyed to the pre-override baseStationCount of 0
+        }
+        finally
+        {
+            if (File.Exists(scratchRun)) File.Delete(scratchRun);
+        }
+    }
+
+    // Cut 1 fix batch 3 (F6, N2): the entrance-only widening must not leak to a non-entrance zone that would
+    // otherwise get zero stations. Seed 3's "EAC-7089" (the same no-Lagrange fixture the widened-candidate test
+    // above uses, this time NOT retargeted as Entrance) rolls a real, nonzero station count on its own -- forced
+    // here by boosting one faction's presence there (HomeZone distance 0, InfluenceDistance 50, so the roll's
+    // floor(rand * (factionPresence+1)) is overwhelmingly likely nonzero) via the same public SavedGame round
+    // trip BuildGalaxyWithForcedEntrance uses, not by touching ZoneGenerator's private roll. Verified directly:
+    // temporarily widening every zone (dropping ZoneGenerator's isTutorialEntrance guard) turns this fixture's
+    // station count from 0 into 2, so a natural nonzero roll really is hiding behind the empty candidate set.
+    // Must fail if that guard is dropped for real.
+    private static Galaxy BuildGalaxyWithBoostedPresence(CultCache cache, uint seed, string zoneName)
+    {
+        var galaxy = new Galaxy(TutorialGalaxySettings(), TutorialBackgroundSettings(), TutorialNameSettings(),
+            cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed);
+        var target = galaxy.Zones.Single(z => z.Name == zoneName);
+
+        var factions = galaxy.Factions;
+        var savedZones = galaxy.Zones.Select(zone => new SavedZone
+        {
+            Name = zone.Name,
+            Position = zone.Position,
+            AdjacentZones = zone.AdjacentZones.Select(az => Array.IndexOf(galaxy.Zones, az)).ToArray(),
+            Factions = zone.Factions.Select(f => Array.IndexOf(factions, f)).ToArray(),
+            Contents = zone.PackedContents,
+            Owner = zone.Owner == null ? -1 : Array.IndexOf(factions, zone.Owner),
+        }).ToArray();
+        var keys = savedZones.Select((_, i) => new CultRecordKey($"restoredhullstests-boosted-presence-zone-{i}")).ToArray();
+        cache.Commit(batch => { for (var i = 0; i < keys.Length; i++) batch.Upsert(typeof(SavedZone), savedZones[i], keys[i]); });
+
+        var homeZones = galaxy.HomeZones.ToDictionary(x => Array.IndexOf(factions, x.Key), x => Array.IndexOf(galaxy.Zones, x.Value));
+        var boosted = Enumerable.Range(0, factions.Length).OrderByDescending(i => factions[i].InfluenceDistance).First();
+        homeZones[boosted] = Array.IndexOf(galaxy.Zones, target);
+        factions[boosted].InfluenceDistance = 50;
+
+        var game = new SavedGame
+        {
+            Zones = keys.Select(k => new CultRecordRef<SavedZone>(k)).ToArray(),
+            Factions = factions.Select(f => cache.RefOf(f)).ToArray(),
+            HomeZones = homeZones,
+            BossZones = galaxy.BossZones.ToDictionary(x => Array.IndexOf(factions, x.Key), x => Array.IndexOf(galaxy.Zones, x.Value)),
+            Entrance = Array.IndexOf(galaxy.Zones, galaxy.Entrance),
+            Exit = -1,
+            Relationships = factions.Select(f => galaxy.FactionRelationships[f]).ToArray(),
+            DiscoveredZones = Array.Empty<int>(),
+            Background = galaxy.Background,
+            IsTutorial = true,
+        };
+        return new Galaxy(cache, game, _ => { });
+    }
+
+    [Fact]
+    public void WideningDoesNotLeakToANonEntranceNoLagrangeZoneThatRollsAStation()
+    {
+        var gameData = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
+        var scratchRun = Path.Combine(Path.GetTempPath(), $"aetheria-widen-leak-{Guid.NewGuid():N}.cc");
+        try
+        {
+            using var cache = OpenReadOnlyRealCatalogWithScratchRun(gameData, scratchRun);
+            var galaxy = BuildGalaxyWithBoostedPresence(cache, seed: 3u, "EAC-7089");
+            var zone = galaxy.Zones.Single(z => z.Name == "EAC-7089");
+            Assert.NotSame(galaxy.Entrance, zone);
+
+            var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+            var pack = ZoneGenerator.GenerateZone(items, TutorialZoneSettings(), galaxy, zone, isTutorial: true);
+
+            // Confirms this fixture still has no genuine (non-rosette) Lagrange candidate -- a regression here
+            // would mean the fixture no longer probes what this test claims to probe.
+            var planetOrbits = pack.Planets.Select(p => cache.Get(cache.Get(p).Orbit)).Where(o => o.Parent.IsSet()).ToArray();
+            var hasGenuineCandidate = planetOrbits.Any(o => planetOrbits.Count(c => c.Parent.Key.Equals(o.Parent.Key) && abs(c.Distance - o.Distance) < .1f) == 1);
+            Assert.False(hasGenuineCandidate, "the entrance-adjacent fixture zone now has a genuine Lagrange candidate; it no longer tests the no-Lagrange leak path.");
+
+            var stationCount = pack.Entities.OfType<OrbitalEntityPack>().Count(e => (cache.Get(e.Hull.Data) as HullData)?.HullType == HullType.Station);
+            Assert.Equal(0, stationCount);
         }
         finally
         {
