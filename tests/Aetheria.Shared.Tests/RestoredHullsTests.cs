@@ -660,8 +660,15 @@ public sealed class RestoredHullsTests
     // when they were not). Re-targeted here to be the Entrance through BuildGalaxyWithForcedEntrance above. Its
     // docked station can therefore only have come from the widened candidate set (every parented planet orbit,
     // not just non-rosette ones), never from a synthesized, unparented fallback orbit. Pins: still docked, and
-    // turrets sit on a real orbit (a real Parent, a finite Phase, and a Distance matching their station's, i.e.
-    // "near their station").
+    // turrets sit on a real orbit (a real Parent, a finite Phase).
+    //
+    // Cut 1 fix batch 3 (F7): the Distance check this comment used to describe as "near their station" was
+    // vacuous -- PlaceTurret (ZoneGenerator.cs) sets a turret orbit's Distance from `orbit.Distance` directly,
+    // unconditionally, the same as CreateLagrangeOrbit does for the station itself, so every turret's Distance
+    // equals the station's by construction regardless of placement; the check could never fail. What actually
+    // makes a turret "near" its station is Phase: PlaceTurrets' own `dist = t/2` gives each turret a small
+    // angular nudge (`20 * dist / orbit.Distance`) off the station's own Phase, not a placement anywhere else on
+    // the orbit. Replaced with a bound on that real offset, generous over PlaceTurrets' own formula.
     [Fact]
     public void TutorialEntranceWithNoLagrangeCandidateStillSeatsAStationWithFiniteNearbyTurrets()
     {
@@ -687,12 +694,17 @@ public sealed class RestoredHullsTests
             var turrets = pack.Entities.OfType<OrbitalEntityPack>()
                 .Where(e => (cache.Get(e.Hull.Data) as HullData)?.HullType != HullType.Station).ToArray();
             Assert.NotEmpty(turrets);
+            // Generous over PlaceTurrets' own max |distanceMultiplier| ((turrets.Length - 1) / 2): a real bound,
+            // not the vacuous Distance-always-matches check this replaces.
+            var maxPhaseOffset = 20f * turrets.Length / stationOrbit.Distance;
             foreach (var turret in turrets)
             {
                 var turretOrbit = cache.Get(turret.Orbit);
                 Assert.True(turretOrbit.Parent.IsSet(), "a turret's orbit has no Parent.");
                 Assert.False(float.IsNaN(turretOrbit.Phase) || float.IsInfinity(turretOrbit.Phase), $"a turret's orbit Phase is not finite: {turretOrbit.Phase}.");
-                Assert.Equal(stationOrbit.Distance, turretOrbit.Distance, 3); // "near their station": same orbit, only Phase differs
+                var phaseDelta = abs(turretOrbit.Phase - stationOrbit.Phase);
+                Assert.True(phaseDelta <= maxPhaseOffset,
+                    $"a turret's Phase ({turretOrbit.Phase}) is not near the station's own Phase ({stationOrbit.Phase}): delta {phaseDelta} > {maxPhaseOffset}.");
             }
         }
         finally
