@@ -1352,22 +1352,35 @@ public sealed class FireControlCut12Tests : IDisposable
         for (var i = 0; i < 100; i++) FireControl.Lane(hull, bearing, sil.A, laneBuffer); // JIT warm-up
         for (var i = 0; i < 100; i++) FireControl.Silhouette(e.Target, hull, null, bearing, .5f, intervalBuffer);
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 1000; i++) FireControl.Lane(hull, bearing, sil.A, laneBuffer);
-        var laneAllocated = GC.GetAllocatedBytesForCurrentThread() - before;
-        Assert.True(laneAllocated == 0, $"1000 Lane calls allocated {laneAllocated} bytes; \"never allocates\" is not true");
+        // Steady state, not first-use: under a whole-suite run the runtime's background tier-up is delayed by the
+        // other tests' JIT activity, so a one-off allocation (measured: 1232 bytes over 1000 calls, in 1 of 12
+        // full-suite runs and 0 of 100 isolated runs) can land inside a single window. That is a cost paid once.
+        // A per-call allocation, the regression this test guards, lands in EVERY round, so the smallest round
+        // over a bounded number of rounds is the steady-state allocation.
+        long SmallestRoundAllocation(Action round)
+        {
+            var smallest = long.MaxValue;
+            for (var r = 0; r < 20 && smallest != 0; r++)
+            {
+                var start = GC.GetAllocatedBytesForCurrentThread();
+                round();
+                smallest = Math.Min(smallest, GC.GetAllocatedBytesForCurrentThread() - start);
+            }
+            return smallest;
+        }
 
-        before = GC.GetAllocatedBytesForCurrentThread();
-        for (var i = 0; i < 1000; i++) FireControl.Silhouette(e.Target, hull, null, bearing, .5f, intervalBuffer);
-        var silhouetteAllocated = GC.GetAllocatedBytesForCurrentThread() - before;
-        Assert.True(silhouetteAllocated == 0, $"1000 buffered Silhouette calls allocated {silhouetteAllocated} bytes");
+        var laneAllocated = SmallestRoundAllocation(() => { for (var i = 0; i < 1000; i++) FireControl.Lane(hull, bearing, sil.A, laneBuffer); });
+        Assert.True(laneAllocated == 0, $"1000 Lane calls allocated {laneAllocated} bytes in every round; \"never allocates\" is not true");
+
+        var silhouetteAllocated = SmallestRoundAllocation(() => { for (var i = 0; i < 1000; i++) FireControl.Silhouette(e.Target, hull, null, bearing, .5f, intervalBuffer); });
+        Assert.True(silhouetteAllocated == 0, $"1000 buffered Silhouette calls allocated {silhouetteAllocated} bytes in every round");
 
         // Recorded, not asserted zero: the full gated-in HitProbability call still allocates, from Entity's own
         // collection enumeration (GetBehavior<T> over ReactiveCollection<T>), not from anything this fix batch
         // touches. A loose upper bound catches a real regression (e.g. a reintroduced comparer wrapper) without
         // pretending Entity's own cost is Lane's or Silhouette's to fix here.
         for (var i = 0; i < 100; i++) FireControl.HitProbability(e.Weapon, e.Shooter, e.Target);
-        before = GC.GetAllocatedBytesForCurrentThread();
+        var before = GC.GetAllocatedBytesForCurrentThread();
         var sum = 0f;
         for (var i = 0; i < 1000; i++) sum += FireControl.HitProbability(e.Weapon, e.Shooter, e.Target);
         var hitProbabilityAllocated = GC.GetAllocatedBytesForCurrentThread() - before;
