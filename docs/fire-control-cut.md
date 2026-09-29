@@ -2641,8 +2641,13 @@ follow-up rulings, all given on 2026-09-30:
 - **Out of arc (operator, 2026-09-30):** a fused weapon whose selected target is out of arc still fires
   (bomb fishing). It bursts at the target's range, clamped to max range, along the arc-clamped aim.
   Non-fused weapons refuse.
-- **Arming distance (operator, 2026-09-30):** a round never bursts closer than its blast radius to its fire
-  origin, and close bursts are pushed out to that distance. A pilot who flies into their own distant burst
+- **Arming distance (operator, 2026-09-30; refined the same day):** it is literal. A round never bursts
+  closer than `BlastRadius` to the ship's centre at fire time (`FireOrigin`), whatever the hull size or the
+  aim. Close bursts are pushed out to that distance, and fire is refused when `Range < BlastRadius`. A large
+  hull can take splash from its own close bursts, and that is accepted.
+- **Demoted rounds keep their target (operator, 2026-09-30):** a round fired at a valid target closer than
+  the blast radius flies to the arming point but stays targeted. If the target leaves before resolution,
+  the round does not burst. A pilot who flies into their own distant burst
   takes the damage. Fire is refused when the live Range cannot clear BlastRadius.
 - **Turret arc ownership (operator, 2026-09-30):** the simulation's arc is authoritative, and Unity barrels
   derive their aim from it. The true owner of an arc is the **pivot**, not the hardpoint. The arc stays on
