@@ -33,21 +33,22 @@ public static class ShipModCatalog
             throw new InvalidOperationException("The derived catalog cannot replace a mod source or asset.");
 
         var ships = new List<ShipAuthoring>();
-        var ids = new HashSet<string>(StringComparer.Ordinal);
         foreach (var directory in Directory.GetDirectories(root).OrderBy(path => path, StringComparer.Ordinal))
         {
             var path = Path.Combine(directory, "ship.cc");
             if (!File.Exists(path)) continue;
-            var package = ReadPackage(path);
-            if (!ids.Add(package.Ship.Id))
-                throw new InvalidOperationException($"{path}: duplicate ship ID {package.Ship.Id}.");
-            ships.Add(package.Ship);
+            // ReadPackage pins each ID to its directory name, so IDs within one mods root are already unique.
+            ships.Add(ReadPackage(path).Ship);
         }
 
         Directory.CreateDirectory(Path.GetDirectoryName(output));
-        var temporary = output + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        // The store keeps a lock file beside every file it opens, so the working copy gets its own directory and the
+        // whole directory goes away, whatever the store left in it.
+        var workspace = output + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        var temporary = Path.Combine(workspace, "catalog.cc");
         try
         {
+            Directory.CreateDirectory(workspace);
             File.Copy(source, temporary);
             using (var cache = AetheriaStores.Open(temporary, catalogWritable: true))
             {
@@ -57,6 +58,13 @@ public static class ShipModCatalog
                     var authoringKey = AuthoringKey(ship.Id);
                     if (cache.AllStoredDocuments.Any(record => record.Key.Equals(hullKey) || record.Key.Equals(authoringKey)))
                         throw new InvalidOperationException($"{ship.Id}: a mod key collides with an existing catalog record.");
+                    // CultCache indexes names per concrete type and lets the last writer win, and GetByName over a base
+                    // type throws on a match across subtypes. A mod hull named like any shipped item, or another mod's
+                    // hull (upserted earlier in this loop), would make name lookups wrong or throw.
+                    if (cache.GetAll<ItemData>().Any(item => string.Equals(item.Name, ship.Hull.Name, StringComparison.Ordinal)))
+                        throw new InvalidOperationException($"{ship.Id}: hull name '{ship.Hull.Name}' collides with an existing catalog item.");
+                    if (cache.GetAll<ShipAuthoring>().Any(existing => string.Equals(existing.Id, ship.Id, StringComparison.Ordinal)))
+                        throw new InvalidOperationException($"{ship.Id}: ship ID collides with an existing catalog ship authoring record.");
                     cache.UpsertAsync(typeof(HullData), ship.Hull, hullKey).GetAwaiter().GetResult();
                     cache.UpsertAsync(typeof(ShipAuthoring), ship, authoringKey).GetAwaiter().GetResult();
                 }
@@ -68,7 +76,7 @@ public static class ShipModCatalog
         }
         finally
         {
-            if (File.Exists(temporary)) File.Delete(temporary);
+            if (Directory.Exists(workspace)) Directory.Delete(workspace, true);
         }
     }
 
@@ -80,8 +88,8 @@ public static class ShipModCatalog
         if (!string.Equals(Path.GetFileName(directory), ship.Id, StringComparison.Ordinal))
             throw new InvalidOperationException($"{path}: ship ID must match its package directory name.");
         var modelPath = Path.GetFullPath(Path.Combine(directory, ship.ModelAsset));
-        if (!modelPath.StartsWith(directory + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
-            !File.Exists(modelPath) || !string.Equals(Path.GetExtension(modelPath), ".glb", StringComparison.OrdinalIgnoreCase))
+        // Containment is ShipAuthoringStore.Validate's job: it refuses rooted and `..` model paths before this line.
+        if (!File.Exists(modelPath) || !string.Equals(Path.GetExtension(modelPath), ".glb", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException($"{ship.Id}: model asset must name an existing GLB inside its package.");
         var modelNodes = ReadNodeIds(modelPath);
         foreach (var anchor in ship.Anchors)
