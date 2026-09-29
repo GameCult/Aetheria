@@ -50,20 +50,45 @@ public class GuidedProjectile : MonoBehaviour
 
     // The simulation's verdict on this round, bound by GuidedProjectileManager to Zone.ShotCommitted and
     // ShotResolved for its ShotId: this object flies and looks, and neither decides where the round bursts nor when.
-    public IDisposable Binding { get; set; }
+    // The one owner of the subscription's lifetime: a new binding disposes the one it replaces, Kill disposes it,
+    // and so does destruction, so a projectile torn down with its scene never leaves an observer on the zone's
+    // subjects to touch a destroyed transform.
+    public IDisposable Binding
+    {
+        get => _binding;
+        set
+        {
+            _binding?.Dispose();
+            _binding = value;
+        }
+    }
+
+    private IDisposable _binding;
+
+    void OnDestroy() => Binding = null;
 
     // The commit named a burst point: fly to it, whatever this round was homing on (a target it would have
-    // passed, or a Range clamp it would have overshot).
+    // passed, or a Range clamp it would have overshot). The point is a static target, so the old target's motion
+    // is dropped with it: the jump to the new point must not feed the guidance a target velocity.
     public void BurstAt(Vector3 point)
     {
         Target = null;
         TargetPosition = () => point;
+        _previousTargetPosition = point;
+        _targetVelocity = Vector3.zero;
     }
 
-    // The resolution: the round bursts now, at the simulation's burst point when it has one.
-    public void Resolve(Vector3? point)
+    // The resolution. A round that detonated (a hit, or a burst) bursts now, at the simulation's burst point when
+    // it has one; a round the simulation resolved without a detonation (a contact or delayed round that missed,
+    // one whose target is gone) just falls away, with no explosion to show.
+    public void Resolve(bool detonated, Vector3? point)
     {
         if (!_alive || !_active) return;
+        if (!detonated)
+        {
+            StartCoroutine(FadeOut());
+            return;
+        }
         if (point.HasValue) transform.position = point.Value;
         if (HitEffect != null)
         {
@@ -195,7 +220,6 @@ public class GuidedProjectile : MonoBehaviour
 
     IEnumerator Kill()
     {
-        Binding?.Dispose();
         Binding = null;
         _active = false;
         _alive = false;

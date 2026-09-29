@@ -16,8 +16,10 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
         Vector3 At(ShotOutcome o) => new Vector3(o.BurstPoint.x, p.transform.position.y, o.BurstPoint.y);
         var bindings = new CompositeDisposable();
         zone.ShotCommitted.Where(o => o.ShotId == shotId && o.HasBurstPoint).Subscribe(o => p.BurstAt(At(o))).AddTo(bindings);
-        zone.ShotResolved.Where(o => o.ShotId == shotId).Subscribe(o => p.Resolve(o.HasBurstPoint ? At(o) : (Vector3?) null)).AddTo(bindings);
-        p.Binding = bindings;
+        zone.ShotResolved.Where(o => o.ShotId == shotId)
+            .Subscribe(o => p.Resolve(o.Result == ShotResult.Hit || o.Result == ShotResult.Burst, o.HasBurstPoint ? At(o) : (Vector3?) null))
+            .AddTo(bindings);
+        p.Binding = bindings; // replaces, and so disposes, any binding the projectile already had
     }
 
     public Prototype ProjectilePrototype;
