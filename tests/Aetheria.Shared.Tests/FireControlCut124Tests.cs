@@ -566,7 +566,7 @@ public sealed class FireControlCut124Tests : IDisposable
 
         Assert.Equal(new[] { 1, 1, 1 }, hullHits);
         Assert.Equal(new[] { 1, 1, 1 }, deaths);
-        foreach (var s in ships) Assert.DoesNotContain(s, e.Zone.Entities);
+        foreach (var s in ships) Assert.False(e.Zone.Entities.Contains(s), "a killed ship must have left the zone");
         Assert.Empty(e.Zone.PendingShots);
         Assert.Equal(1, resolved);
     }
@@ -592,7 +592,7 @@ public sealed class FireControlCut124Tests : IDisposable
 
         Assert.Equal(0, touched);
         Assert.Equal(1f, outside.Hull.Durability);
-        Assert.Contains(outside, e.Zone.Entities);
+        Assert.True(e.Zone.Entities.Contains(outside));
         Assert.True(targetHit + armourHit > 0f, "fixture: the blast must land on the target");
     }
 
@@ -602,6 +602,7 @@ public sealed class FireControlCut124Tests : IDisposable
     public void ADestroyedCockpitRaisesDeathOnce()
     {
         var e = Build(TestSettings(), SolidShape(3, 3), cockpitCell: new int2(1, 1), cockpitDurability: 10f);
+        e.Target.Hull.Durability = 10f; // fragile enough that the blast's own hull damage is lethal too
         var deaths = new List<CauseOfDeath>();
         using var d = e.Target.Death.Subscribe(deaths.Add);
         var hullEvents = 0;
@@ -610,8 +611,9 @@ public sealed class FireControlCut124Tests : IDisposable
         FireControl.Detonate(e.Zone, e.Target.Position.xz, .6f, 5000f, DamageType.Kinetic);
 
         Assert.Equal(new[] { CauseOfDeath.CockpitDestroyed }, deaths);
-        Assert.DoesNotContain(e.Target, e.Zone.Entities);
+        Assert.False(e.Zone.Entities.Contains(e.Target), "the dead target must have left the zone");
         Assert.True(hullEvents >= 1, "fixture: the blast's hull damage still lands after the cockpit dies");
+        Assert.True(e.Target.Hull.Durability < .01f, "fixture: and that hull damage is itself lethal");
     }
 
     // ADirectHullKillRaisesDeathOnce: the non-blast path (Entity.DamageHull straight, as a projectile hit does)
