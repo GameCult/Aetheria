@@ -2600,7 +2600,7 @@ the lanes that reach it, a pool of one lane included. The survey and the sequent
 **Self's default 2026-09-25 (not an operator ruling): the cycle rule.** When every unfinished lane is blocked at an item pool and no pool is ready (two lanes crossing two shared non-convex items in opposite order), every open pool resolves at once with the deposits it holds. It needs no ordering key, so mirrored shots stay mirrored. The first implementation used the smallest first-contact `Entry`, which ties at axis-aligned bearings and fell back to lane index. Soul broke mirror symmetry with it. The operator may overrule this default.
 
 ### Cut 12.4. The detonation primitive
-
+
 **Status (2026-09-29, Self): closed.** 12.4 landed at `2625768f`, `7c99909d` and `7e63d744`.
 
 Soul pass 1 (Opus) found three defects:
