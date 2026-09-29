@@ -103,8 +103,6 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
         // through -- a player's action-bar Activate() reaches this exactly the same way Combat.cs's and
         // TurretController.cs's Activate() calls do.
         if (!ArcAllowsFire) return;
-        // A fused weapon whose Range no longer clears its blast would burst on its shooter.
-        if (!FuseAllowsFire) return;
 
         // If 1 ammo is consumed per burst, perform ammo and energy consumption here
         // UseAmmo returns false when triggering reload; cancel firing if that is the case
@@ -248,6 +246,9 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
             // Unity EntityInstance wiring, docs/headless-playground-cut.md), so a shot silently never fired.
             // Evaluate it into a local first.
             var shotId = FireControl.Fire(this, Item, Entity);
+            // A fused round whose arming distance Range cannot reach is refused (FireControl.Fire returns 0):
+            // nothing was fired, so nothing sounds, wears or heats.
+            if (shotId == 0) continue;
             OnFire?.Invoke(shotId);
             if(!firedThisFrame)
             {

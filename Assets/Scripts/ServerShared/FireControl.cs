@@ -79,10 +79,15 @@ public static class FireControl
         return FuseOf(weapon.Item, out _) != null || InArc(weapon.Item, target.Position - shooter.Position);
     }
 
-    // A fused weapon whose Range, as it stands now (power supply and modifiers included), does not exceed its
-    // blast would burst on its own shooter at max range, so its trigger stays safed. Judged on the effective
-    // Range rather than the catalog's authored floor, which Evaluate can scale below.
-    public static bool FuseCanArm(Weapon weapon) => FuseOf(weapon.Item, out var blastRadius) == null || weapon.Range > blastRadius;
+    // Operator ruling 2026-09-30 (arming distance): a round never bursts closer than its blast radius to where
+    // it was fired, and the disc must clear the shooter's own hull as it stood at fire. So the burst is at least
+    // BlastRadius beyond the far edge of the shooter's hull along the flight line. Close bursts are pushed out
+    // along the aim to this distance; a pilot who flies into their own distant burst takes the damage.
+    private static float ArmingDistance(Entity shooter, float2 direction, float blastRadius)
+    {
+        HullAhead(shooter, shooter.Position.xz, direction, out _, out var exit);
+        return exit + blastRadius;
+    }
 
     // Operator ruling 2026-09-30: a shot with nothing to bear on flies along where its shooter is aiming
     // (Entity.LookDirection -- the player's mouse or a turret's tracking), restricted by the mount's arc. The
@@ -225,8 +230,10 @@ public static class FireControl
         // gate -- Fire reads it through this same overload for flightTime, and flightTime must reflect the
         // real distance even when a gate (not visible, out of arc) already prices the shot at PFire 0. The
         // gates below still short-circuit the rest of the shooter-side probability in the same order as before.
+        // Planar (R7: the simulation is 2D): the range gate, the burst reach and the range clamp all measure the
+        // same distance, so a target's height never moves one of them without the others.
         var toTarget = target.Position - source.Position;
-        range = length(toTarget);
+        range = length(toTarget.xz);
 
         if (!source.VisibleEntities.Contains(target)) return 0f;
         if (range < weapon.MinRange || range > weapon.Range) return 0f;
@@ -316,7 +323,7 @@ public static class FireControl
         if (target == null) return diagnostic;
 
         var toTarget = target.Position - source.Position;
-        diagnostic.Range = length(toTarget);
+        diagnostic.Range = length(toTarget.xz);
         diagnostic.Visible = source.VisibleEntities.Contains(target);
         diagnostic.InRange = diagnostic.Range >= weapon.MinRange && diagnostic.Range <= weapon.Range;
         diagnostic.Locked = !(weapon is LockWeapon lockWeapon) || lockWeapon.IsLocked;
@@ -443,9 +450,35 @@ public static class FireControl
         //    Range, along that same clamped aim: the arc is hoped to land the blast near enough to splash.
         // Either way the round flies at the weapon's Velocity like a targeted shot flies to its intercept. A shot
         // without a fuse keeps its target as before.
+        // Arming distance (operator ruling 2026-09-30): a round never bursts closer than its blast radius past the
+        // shooter's hull, so a burst that would land nearer -- a target close in, or out of arc and inside the
+        // radius -- is pushed out along the aim to that distance, and the round carries no target. A round whose
+        // arming distance exceeds the weapon's Range cannot be fired at all: it is refused here, per round, where
+        // Range is read after Execute refreshed it (a burst's later rounds and a power-starved Range included).
         var engaged = fuse != null && !(designated && inArc) ? null : target;
         var origin = source.Position;
         var travelDirection = engaged != null ? TravelDirection(weapon, source, engaged) : AimDirection(item, source);
+
+        var arming = 0f;
+        var burstPosition = engaged != null ? engaged.Position : origin;
+        if (fuse != null && engaged != null)
+        {
+            // Nothing bursts beyond max range: an intercept a receding target leads the round past Range is
+            // pulled back along its own line to Range.
+            var intercept = PredictedIntercept(weapon, source, engaged);
+            var interceptReach = length((intercept - origin).xz);
+            arming = ArmingDistance(source, travelDirection, blastRadius);
+            if (min(interceptReach, weapon.Range) < arming) engaged = null;
+            else burstPosition = interceptReach > weapon.Range ? origin + (intercept - origin) * (weapon.Range / interceptReach) : intercept;
+        }
+        if (fuse != null && engaged == null)
+        {
+            travelDirection = AimDirection(item, source);
+            arming = ArmingDistance(source, travelDirection, blastRadius);
+            var reach = max(designated ? fireRange : weapon.Range, arming);
+            burstPosition = origin + float3(travelDirection.x, 0, travelDirection.y) * reach;
+        }
+        if (arming > weapon.Range) return 0;
 
         var targetVelocity = float3.zero;
         var targetPosition = origin;
@@ -456,24 +489,13 @@ public static class FireControl
             targetPosition = engaged.Position;
             flightTime = weapon.Velocity > .01f ? fireRange / weapon.Velocity : 0f;
         }
-
-        var commitHorizon = source.ItemManager.GameplaySettings.CommitHorizon;
-
-        var burstPosition = targetPosition;
-        if (fuse != null && engaged != null)
-        {
-            // Nothing bursts beyond max range: an intercept a receding target leads the round past Range is
-            // pulled back along its own line to Range.
-            var intercept = PredictedIntercept(weapon, source, engaged);
-            var reach = length((intercept - origin).xz);
-            burstPosition = reach > weapon.Range ? origin + (intercept - origin) * (weapon.Range / reach) : intercept;
-        }
         else if (fuse != null)
         {
-            var reach = designated ? fireRange : weapon.Range;
-            burstPosition = origin + float3(travelDirection.x, 0, travelDirection.y) * reach;
-            flightTime = weapon.Velocity > .01f ? reach / weapon.Velocity : 0f;
+            var flown = length((burstPosition - origin).xz);
+            flightTime = weapon.Velocity > .01f ? flown / weapon.Velocity : 0f;
         }
+
+        var commitHorizon = source.ItemManager.GameplaySettings.CommitHorizon;
 
         var shot = new PendingShot
         {
@@ -504,6 +526,7 @@ public static class FireControl
             BurstPosition = burstPosition,
             Fuse = fuse,
             BlastRadius = blastRadius,
+            ArmingDistance = arming,
             Committed = false
         };
 
@@ -696,7 +719,11 @@ public static class FireControl
         var proximity = shot.Fuse == WeaponFuse.Proximity;
         var outcome = MakeOutcome(shot, hit ? ShotResult.Hit : proximity ? ShotResult.Burst : ShotResult.Miss,
             shielded, shieldBroken, cell, bearing, lateral, now);
-        if (proximity) outcome.BurstPoint = shot.BurstPosition.xz;
+        if (proximity)
+        {
+            outcome.BurstPoint = shot.BurstPosition.xz;
+            outcome.HasBurstPoint = true;
+        }
         return outcome;
     }
 
@@ -708,8 +735,10 @@ public static class FireControl
     private static ShotOutcome CommitBurst(Zone zone, PendingShot shot, float now)
     {
         var outcome = MakeOutcome(shot, ShotResult.Burst, false, false, int2.zero, float2.zero, 0f, now);
+        outcome.HasBurstPoint = true;
         var reach = length(shot.BurstPosition.xz - shot.FireOrigin.xz);
         var travelled = shot.Fuse == WeaponFuse.Contact ? ContactDistance(zone, shot, reach) : reach;
+        travelled = min(reach, max(travelled, shot.ArmingDistance));
         if (travelled < reach)
         {
             outcome.BurstPoint = shot.FireOrigin.xz + shot.TravelDirection * travelled;
@@ -730,16 +759,18 @@ public static class FireControl
         foreach (var entity in zone.Entities)
         {
             if (entity == shot.Source) continue;
-            nearest = min(nearest, HullEntryDistance(entity, shot.FireOrigin.xz, shot.TravelDirection));
+            if (HullAhead(entity, shot.FireOrigin.xz, shot.TravelDirection, out var entry, out _)) nearest = min(nearest, entry);
         }
         return nearest;
     }
 
-    // World distance from `origin` along the unit planar `direction` to the first metal cell of `entity`'s hull,
-    // or +infinity when the line meets none ahead of it. Read through Lane's own cell admission (CellsOnLine), in
-    // the entity's schematic frame: the line's lateral offset is its own, and cells wholly behind the origin
-    // are skipped. An origin already inside the hull is a distance of zero.
-    private static float HullEntryDistance(Entity entity, float2 origin, float2 direction)
+    // Where the line from `origin` along the unit planar `direction` meets `entity`'s hull, in world distance
+    // from `origin`: `entry` to the first metal cell ahead (+infinity when the line meets none, and negative when the
+    // origin is already inside the hull: the arming distance floors every caller's use of it) and `exit` to the far edge of the last one (zero when none). Read
+    // through Lane's own cell admission (CellsOnLine), in the entity's schematic frame: the line's lateral offset
+    // is its own, and cells wholly behind the origin are skipped. Contact fuses read `entry`; a round's arming
+    // distance reads `exit` of its own shooter.
+    private static bool HullAhead(Entity entity, float2 origin, float2 direction, out float entry, out float exit)
     {
         var hullData = entity.ItemManager.GetData(entity.Hull) as HullData;
         var cellSize = entity.ItemManager.GameplaySettings.SchematicCellSize;
@@ -748,14 +779,19 @@ public static class FireControl
         var lateral = dot(start, Lateral(bearing));
         var along = dot(start, bearing);
 
+        entry = float.PositiveInfinity;
+        exit = 0f;
         var buffer = ArrayPool<LaneCell>.Shared.Rent(hullData.Shape.Coordinates.Length);
         try
         {
             var count = CellsOnLine(hullData, bearing, lateral, buffer);
             for (var i = 0; i < count; i++)
-                if (buffer[i].Exit > along)
-                    return max(buffer[i].Entry - along, 0f) * cellSize;
-            return float.PositiveInfinity;
+            {
+                if (!(buffer[i].Exit > along)) continue;
+                if (float.IsPositiveInfinity(entry)) entry = (buffer[i].Entry - along) * cellSize;
+                exit = max(exit, (buffer[i].Exit - along) * cellSize);
+            }
+            return !float.IsPositiveInfinity(entry);
         }
         finally
         {
@@ -1677,6 +1713,9 @@ public struct PendingShot
     public float3 BurstPosition;
     public WeaponFuse? Fuse;
     public float BlastRadius;
+    // How far along its flight line a fused round may first burst: BlastRadius past the far edge of the
+    // shooter's hull, frozen at Fire (a round outlives its shooter's pose, too).
+    public float ArmingDistance;
 
     // Frozen with the rest of the shooter's decision: where the round left from. A round outlives its shooter, so
     // nothing at resolution reads the shooter's position.
@@ -1785,9 +1824,10 @@ public sealed class ShotOutcome
     // (Burst, at BurstPoint). Hit is derived from it, not stored beside it.
     public ShotResult Result;
     public bool Hit => Result == ShotResult.Hit;
-    // World planar point a proximity or no-target round detonates at, frozen by the commit. Meaningless for any
-    // other round.
+    // World planar point a proximity or no-target round detonates at, frozen by the commit; HasBurstPoint says
+    // whether this round has one (a contact or delayed round detonates where it hits, not at a frozen point).
     public float2 BurstPoint;
+    public bool HasBurstPoint;
     public bool Shielded;
     // Cut 5, 5.2 (Soul finding 4): frozen alongside the rest of the outcome (R4) -- a shield present, active,
     // and unable to CanTakeHit this shot is decided broken right here, so Apply performs Break() rather than

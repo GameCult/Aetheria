@@ -110,9 +110,6 @@ public abstract class Weapon : Behavior, IActivatedBehavior
     // FireControl owns the gate, including its one exemption: a fused weapon fires out of arc.
     public bool ArcAllowsFire => FireControl.ArcPermitsFire(this, Entity);
 
-    // A fused weapon whose current Range does not exceed its blast stays safed (FireControl.FuseCanArm).
-    public bool FuseAllowsFire => FireControl.FuseCanArm(this);
-
     public Weapon(WeaponData data, EquippedItem item) : base(data, item)
     {
         _data = data;

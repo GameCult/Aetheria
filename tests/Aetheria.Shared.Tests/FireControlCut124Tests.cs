@@ -543,10 +543,10 @@ public sealed class FireControlCut124Tests : IDisposable
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
         e.Zone.Update(.01f);
 
-        Assert.Empty(e.Zone.PendingShots);
+        SafeAssert.NoShots(e.Zone);
         Assert.Equal(1, resolved);
-        Assert.DoesNotContain(near, e.Zone.Entities); // fixture: the blast really was lethal to a ship mid-pass
-        Assert.Contains(far, e.Zone.Entities);
+        SafeAssert.NotIn(e.Zone, near); // fixture: the blast really was lethal to a ship mid-pass
+        SafeAssert.In(e.Zone, far);
         Assert.True(targetDamage > 0f, "fixture: the target must be inside the blast");
         var afterFirstTick = targetDamage;
 
@@ -588,7 +588,7 @@ public sealed class FireControlCut124Tests : IDisposable
         Assert.Equal(new[] { 1, 1, 1 }, hullHits);
         Assert.Equal(new[] { 1, 1, 1 }, deaths);
         foreach (var s in ships) Assert.False(e.Zone.Entities.Contains(s), "a killed ship must have left the zone");
-        Assert.Empty(e.Zone.PendingShots);
+        SafeAssert.NoShots(e.Zone);
         Assert.Equal(1, resolved);
     }
 
@@ -1149,7 +1149,7 @@ public sealed class FireControlCut124Tests : IDisposable
         Assert.NotNull(outcome);
         Assert.False(outcome.Hit); // fixture: a guaranteed miss
         Assert.Equal(ShotResult.Miss, outcome.Result);
-        Assert.Empty(e.Zone.PendingShots);
+        SafeAssert.NoShots(e.Zone);
         Assert.Equal(0, events);
         Assert.Equal(before, e.Target.Hull.Durability);
     }
@@ -1189,7 +1189,7 @@ public sealed class FireControlCut124Tests : IDisposable
         e.Zone.Update(.01f);
 
         Assert.Equal(0f, shooterHit);
-        Assert.Empty(e.Zone.PendingShots);
+        SafeAssert.NoShots(e.Zone);
         Assert.False(e.Zone.Entities.Contains(onLine), "the blast must reach the burst point (fixture: 1 durability, so any damage kills it)");
         Assert.True(e.Zone.Entities.Contains(offLine), "the blast must not reach 42 units off the aim line");
     }
@@ -1205,7 +1205,7 @@ public sealed class FireControlCut124Tests : IDisposable
 
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
 
-        var shot = Assert.Single(e.Zone.PendingShots);
+        var shot = SafeAssert.OnlyShot(e.Zone);
         Assert.Equal(NoLockRange / 20f, shot.ArrivalTime - shot.FireTime, 4);
         var burst = AimLine(e);
         Assert.Equal(burst.x, shot.BurstPosition.x, 3);
@@ -1224,7 +1224,7 @@ public sealed class FireControlCut124Tests : IDisposable
         using var i = e.Target.ItemDamage.Subscribe(x => damage += x.damage);
 
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
-        var shot = Assert.Single(e.Zone.PendingShots);
+        var shot = SafeAssert.OnlyShot(e.Zone);
         Assert.Equal(e.Target.Position.x, shot.BurstPosition.x, 3);
         Assert.Equal(e.Target.Position.z, shot.BurstPosition.z, 3);
         e.Zone.Update(.01f);
@@ -1316,7 +1316,7 @@ public sealed class FireControlCut124Tests : IDisposable
         var targetBefore = e.Target.Hull.Durability;
 
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
-        var shot = Assert.Single(e.Zone.PendingShots);
+        var shot = SafeAssert.OnlyShot(e.Zone);
         Assert.True(shot.Target == null, "an invalid target must not ride with the round"); // not Assert.Null: a failure would format the entity graph and overflow the stack
         Assert.Equal(burst.x, shot.BurstPosition.x, 3);
         Assert.Equal(burst.z, shot.BurstPosition.z, 3);
@@ -1339,7 +1339,7 @@ public sealed class FireControlCut124Tests : IDisposable
 
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
 
-        var shot = Assert.Single(e.Zone.PendingShots);
+        var shot = SafeAssert.OnlyShot(e.Zone);
         Assert.True(shot.Target == e.Target, "a locked, visible, in-range, in-arc target rides with the round");
         Assert.Equal(e.Target.Position.z, shot.BurstPosition.z, 3);
     }
@@ -1371,7 +1371,7 @@ public sealed class FireControlCut124Tests : IDisposable
         var targetBefore = e.Target.Hull.Durability;
 
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
-        var shot = Assert.Single(e.Zone.PendingShots);
+        var shot = SafeAssert.OnlyShot(e.Zone);
         Assert.True(shot.Target == null, "a target the weapon cannot bear on must not ride with the round");
         var burst = PointAlong(e, edge, 40f);
         Assert.Equal(burst.x, shot.BurstPosition.x, 3);
@@ -1408,18 +1408,140 @@ public sealed class FireControlCut124Tests : IDisposable
         Assert.Equal(fires ? 1 : 0, committed);
     }
 
-    // A fused weapon safes itself while its effective Range does not exceed its blast, because a round bursting at
-    // max range would land on its own shooter. The gate reads the Range the weapon has NOW: the third row is
-    // Soul's probe (authored Range 100 clears a blast of 30, but at a power supply of 0.1 Range is 10), and the
-    // first two pin the boundary itself (equal refuses). Kills: reading the authored figure instead of the
-    // runtime Range; `>=` for `>`; dropping the gate from InstantWeapon.Trigger.
+    // ==== Operator ruling 2026-09-30, batch 4: the arming distance ====
+    //
+    // A round never bursts closer than its blast radius past the shooter's own hull. The fixture's shooter hull is
+    // a 5x5 block of 2-unit cells centred on the shooter, so its far edge is 5 units out along the axis and
+    // 5 * sqrt(2) along a diagonal; with a blast of 30 the arming distance is 35 (or 30 + 7.07).
+
+    private const float ShooterHullReach = 5f;
+
+    private static float Planar(float3 from, float3 to) => length((to - from).xz);
+
+    // A target inside the arming distance is not detonated on: the round flies along the aim and bursts at the
+    // arming distance, carrying no target, and the shooter that stood beside it is untouched (the probes measured
+    // 7.07 of self-damage for a target at 5, before this). The out-of-arc row is a target 10 away behind the
+    // mount, inside the blast radius, with the mount flipped so the arc is closed. Kills: no arming distance; a
+    // burst that still rides the target; an arming distance measured from the shooter's centre instead of the far
+    // edge of its hull (the burst would land 5 units short and the shooter would still be inside the disc).
     [Theory]
-    [InlineData(30f, 30f, false, false)]
-    [InlineData(31f, 30f, false, true)]
-    [InlineData(100f, 30f, true, false)]
-    public void AFusedWeaponWhoseRangeDoesNotExceedItsBlastStaysSafed(float range, float blast, bool starvedOfPower, bool fires)
+    [InlineData(5f, false)]
+    [InlineData(10f, true)]
+    public void ACloseBurstIsPushedOutAlongTheAimToTheArmingDistance(float targetRange, bool outOfArc)
     {
-        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: WeaponFuse.Proximity, blastRadius: blast, damage: 100f,
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: WeaponFuse.Proximity, blastRadius: 30f, damage: 100f,
+            weaponRange: 60f, targetRange: targetRange);
+        var aim = float2(0, 1);
+        if (outOfArc)
+        {
+            e.Shooter.Direction = float2(0, -1);
+            aim = float2(0, -1);
+        }
+        Aim(e, aim);
+        var burst = PointAlong(e, aim, 30f + ShooterHullReach);
+        var hurt = 0f;
+        using var a = e.Shooter.ArmorDamage.Subscribe(x => hurt += x.damage);
+        using var h = e.Shooter.HullDamage.Subscribe(x => hurt += x);
+        using var i = e.Shooter.ItemDamage.Subscribe(x => hurt += x.damage);
+
+        FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        var shot = SafeAssert.OnlyShot(e.Zone);
+        Assert.True(shot.Target == null, "a burst pushed out to the arming distance carries no target");
+        Assert.Equal(burst.x, shot.BurstPosition.x, 2);
+        Assert.Equal(burst.z, shot.BurstPosition.z, 2);
+        Assert.Equal(35f, shot.ArmingDistance, 2);
+        e.Zone.Update(.01f);
+
+        Assert.Equal(0f, hurt);
+    }
+
+    // The far edge is read along the flight line, not along an axis: aimed down a diagonal the 5x5 hull reaches
+    // 5 * sqrt(2) = 7.07 units, so the burst sits at 30 + 7.07. A close in-arc target makes the arming distance
+    // the burst reach. Kills: an extent read along the mount or the hull's own axes.
+    [Fact]
+    public void TheArmingDistanceIsMeasuredAlongTheFlightLine()
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: WeaponFuse.Proximity, blastRadius: 30f, damage: 100f,
+            weaponRange: 60f, targetRange: 5f);
+        Aim(e, normalize(float2(1, 1)));
+
+        FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+
+        var shot = SafeAssert.OnlyShot(e.Zone);
+        Assert.Equal(30f + ShooterHullReach * sqrt(2f), Planar(e.Shooter.Position, shot.BurstPosition), 1);
+    }
+
+    // A target beyond the arming distance is not pushed anywhere: the round still rides it and bursts at its
+    // intercept. Kills: demoting every fused round to the aim.
+    [Fact]
+    public void ATargetBeyondTheArmingDistanceStillRidesWithTheRound()
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: WeaponFuse.Proximity, blastRadius: 30f, damage: 100f,
+            weaponRange: 60f, targetRange: 40f);
+        Aim(e, float2(0, 1));
+
+        FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+
+        var shot = SafeAssert.OnlyShot(e.Zone);
+        Assert.True(shot.Target == e.Target, "a target the disc clears the shooter to reach is still the round's target");
+        Assert.Equal(40f, Planar(e.Shooter.Position, shot.BurstPosition), 2);
+    }
+
+    // A contact round stops on the first hull it crosses, but never nearer than its arming distance: a blocker
+    // whose near face is 6 units out (centred 10) is passed, and the round bursts at 5 + 4 = 9. Kills: a contact
+    // point taken as the hull face regardless of arming.
+    [Fact]
+    public void AContactRoundNeverStopsNearerThanItsArmingDistance()
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: WeaponFuse.Contact, blastRadius: 4f, damage: 100f, weaponRange: NoLockRange);
+        e.Shooter.Target.Value = null;
+        Aim(e, float2(0, 1));
+        AddShip(e, PointAlong(e, float2(0, 1), 10f), 1f, 300);
+        ShotOutcome outcome = null;
+        using var c = e.Zone.ShotCommitted.Subscribe(o => outcome = o);
+
+        FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        e.Zone.Update(.01f);
+
+        Assert.NotNull(outcome);
+        Assert.Equal(e.Shooter.Position.z + ShooterHullReach + 4f, outcome.BurstPoint.y, 2);
+    }
+
+    // A round fired from inside another hull is already in metal: its contact point is its arming distance. The
+    // host is a column with a 30-unit gap after the cell the muzzle sits in (cells 0-2 and 18-21, the muzzle in
+    // cell 2), so a contact search that skips the cell the origin is inside finds the far block instead of the
+    // muzzle's own. Kills: reading a cell's Entry for its Exit (Soul's M7).
+    [Fact]
+    public void AContactRoundFiredFromInsideAnotherHullBurstsAtTheArmingDistance()
+    {
+        var column = new Shape(1, 22);
+        foreach (var y in new[] { 0, 1, 2, 18, 19, 20, 21 }) column[new int2(0, y)] = true;
+        var e = Build(TestSettings(), column, velocity: 20f, fuse: WeaponFuse.Contact, blastRadius: 4f, damage: 100f, weaponRange: NoLockRange);
+        e.Shooter.Target.Value = null;
+        Aim(e, float2(0, 1));
+        var offset = e.Target.ToWorldPoint(float2(0, 2)) - e.Target.Position.xz;
+        e.Target.Position = float3(e.Shooter.Position.x - offset.x, 0, e.Shooter.Position.z - offset.y);
+        ShotOutcome committed = null;
+        using var c = e.Zone.ShotCommitted.Subscribe(o => committed = o);
+
+        FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        e.Zone.Update(.01f);
+
+        Assert.NotNull(committed);
+        Assert.Equal(e.Shooter.Position.z + ShooterHullReach + 4f, committed.BurstPoint.y, 2);
+    }
+
+    // A fused round is refused, per round and at the moment Fire reads Range, when its arming distance exceeds
+    // that Range: 34.5 against 35 refuses, 35.01 fires, and a power-starved Range (authored 100, forced to about
+    // 10 the way Soul's probe did after the trigger has passed) refuses although the authored figure clears
+    // it. Fire returns 0 and queues nothing. Kills: a gate that reads the authored Range; `>=` for `>`.
+    [Theory]
+    [InlineData(34.5f, false, false)]
+    [InlineData(35.01f, false, true)]
+    [InlineData(100f, true, false)]
+    public void AFusedRoundWhoseArmingDistanceExceedsRangeIsRefusedByFire(float range, bool starvedOfPower, bool fires)
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: WeaponFuse.Proximity, blastRadius: 30f, damage: 100f,
             weaponRange: range, rangeTerm: starvedOfPower ? StatSource.PowerSupply : (StatSource?) null);
         e.Shooter.Target.Value = null;
         Aim(e, float2(0, 1));
@@ -1428,18 +1550,75 @@ public sealed class FireControlCut124Tests : IDisposable
             typeof(EquippedItem).GetProperty("PowerSupply").GetSetMethod(true).Invoke(e.WeaponItem, new object[] { .1f });
             e.Shooter.Resolver.InvalidateSource(e.WeaponItem, StatSource.PowerSupply);
             e.Weapon.GetType().GetMethod("UpdateStats", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(e.Weapon, null);
-            Assert.True(e.Weapon.Range < blast, "fixture: the runtime Range must have fallen below the blast");
+            Assert.True(e.Weapon.Range < 35f, "fixture: the runtime Range must have fallen below the arming distance");
         }
+
+        var shotId = FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+
+        Assert.Equal(fires, shotId != 0);
+        Assert.Equal(fires ? 1 : 0, e.Zone.PendingShots.Count);
+    }
+
+    // The same refusal through the weapon a player uses: a refused round sounds nothing (OnFire never runs) and
+    // queues nothing, and the same weapon with Range to spare fires once. Kills: Execute still announcing a
+    // refused round (Fire's 0 handed to the presentation as a shot id).
+    [Theory]
+    [InlineData(34.5f, 0)]
+    [InlineData(40f, 1)]
+    public void ARefusedRoundIsNotAnnounced(float range, int fired)
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: WeaponFuse.Proximity, blastRadius: 30f, damage: 100f, weaponRange: range);
+        e.Shooter.Target.Value = null;
+        Aim(e, float2(0, 1));
+        var announced = 0;
         var committed = 0;
+        e.Weapon.OnFire += _ => announced++;
         using var c = e.Zone.ShotCommitted.Subscribe(_ => committed++);
 
-        Assert.Equal(fires, e.Weapon.FuseAllowsFire);
         e.Weapon.Activate();
-        // The starved row must not run a full Update first: the power bus would restore the supply we forced.
-        // Activate queues the burst inside Trigger, so one short tick is enough for a commit if it fires.
         for (var i = 0; i < 5; i++) e.Zone.Update(.01f);
 
-        Assert.Equal(fires ? 1 : 0, committed);
+        Assert.Equal(fired, announced);
+        Assert.Equal(fired, committed);
+    }
+
+    // Planar, everywhere the gate, the clamp and the burst meet (R7). A target 50 units above the plane at a
+    // planar range of 40 is 64 units away in three dimensions: inside a Range of 60 by the plane, outside it by
+    // the straight line. It is designated, rides with the round, and the HUD's diagnostic agrees. Kills: a 3D
+    // length in PFire's range or Inspect's.
+    [Fact]
+    public void ATargetsHeightDoesNotMoveTheRangeGate()
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: WeaponFuse.Proximity, blastRadius: 4f, damage: 100f,
+            weaponRange: 60f, targetRange: 40f);
+        e.Target.Position += float3(0, 50, 0);
+        Aim(e, float2(0, 1));
+
+        FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+
+        var shot = SafeAssert.OnlyShot(e.Zone);
+        Assert.True(shot.Target == e.Target, "the target is inside Range in the plane, so it is valid data");
+        Assert.Equal(40f, Planar(e.Shooter.Position, shot.BurstPosition), 2);
+        var diagnostic = FireControl.Inspect(e.Weapon, e.Shooter, e.Target);
+        Assert.True(diagnostic.InRange, "the HUD's range gate is planar too");
+        Assert.Equal(40f, diagnostic.Range, 2);
+    }
+
+    // The F4 clamp is planar as well: the target's height does not change how far the burst is pulled back.
+    [Fact]
+    public void TheRangeClampIgnoresTheTargetsHeight()
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 20f, fuse: WeaponFuse.Proximity, blastRadius: 4f, damage: 100f,
+            weaponRange: 100f, targetRange: 90f);
+        e.Target.Position += float3(0, 200, 0);
+        e.Target.Velocity = float2(6f, 8f);
+        var intercept = FireControl.PredictedIntercept(e.Weapon, e.Shooter, e.Target);
+        Assert.True(Planar(e.Shooter.Position, intercept) > 100f, "fixture: the intercept must lie beyond Range in the plane");
+
+        FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+
+        var shot = SafeAssert.OnlyShot(e.Zone);
+        Assert.Equal(100f, Planar(e.Shooter.Position, shot.BurstPosition), 2);
     }
 
     // Nothing bursts beyond max range. A target receding faster than the round would be led past Range by the
@@ -1459,7 +1638,7 @@ public sealed class FireControlCut124Tests : IDisposable
 
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
 
-        var shot = Assert.Single(e.Zone.PendingShots);
+        var shot = SafeAssert.OnlyShot(e.Zone);
         Assert.Equal(origin.x + toIntercept.x * 100f, shot.BurstPosition.x, 2);
         Assert.Equal(origin.z + toIntercept.y * 100f, shot.BurstPosition.z, 2);
     }
@@ -1509,6 +1688,7 @@ public sealed class FireControlCut124Tests : IDisposable
         Assert.True(results.Any(o => o.Result == ShotResult.Hit), "the stationary, fully-accurate target must be hit at least once");
         Assert.True(results.All(o => abs(o.BurstPoint.x - e.Target.Position.x) < 1e-3f && abs(o.BurstPoint.y - e.Target.Position.z) < 1e-3f),
             "a hit detonates at the intercept too, not at the origin");
+        Assert.True(results.All(o => o.HasBurstPoint), "a proximity outcome names its burst point, hit or not: presentation retargets to it");
         Assert.True(damage > 0f, "the blasts must have landed");
     }
 
@@ -1527,6 +1707,7 @@ public sealed class FireControlCut124Tests : IDisposable
 
         Assert.NotNull(resolved);
         Assert.Equal(ShotResult.Miss, resolved.Result);
+        Assert.False(resolved.HasBurstPoint, "a contact or delayed round has no frozen burst point");
         Assert.True(Alive(e, bystander), "a missed contact or delayed round detonates nowhere");
     }
 
@@ -1540,7 +1721,7 @@ public sealed class FireControlCut124Tests : IDisposable
         var e = Build(TestSettings(), SolidShape(5, 4), velocity: 20f, fuse: WeaponFuse.Proximity, blastRadius: 4f, damage: 100f);
 
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
-        var shot = Assert.Single(e.Zone.PendingShots);
+        var shot = SafeAssert.OnlyShot(e.Zone);
         Assert.Equal(shot.FireTime + 4.5f, shot.CommitTime, 3);
         e.Zone.Update(.01f);
         Assert.False(e.Zone.PendingShots[0].Committed, "a targeted round reads the target's facing late");
@@ -1625,7 +1806,7 @@ public sealed class FireControlCut124Tests : IDisposable
         Assert.True(Alive(e, blocker));
 
         e.Zone.Update(1.1f);
-        Assert.Empty(e.Zone.PendingShots);
+        SafeAssert.NoShots(e.Zone);
         Assert.False(Alive(e, blocker));
     }
 
@@ -1650,7 +1831,7 @@ public sealed class FireControlCut124Tests : IDisposable
         e.Zone.Entities.Remove(e.Shooter);
         e.Zone.Update(4f);
 
-        Assert.Empty(e.Zone.PendingShots);
+        SafeAssert.NoShots(e.Zone);
         Assert.False(Alive(e, witness), "the round must still burst at max range");
     }
 
@@ -1668,7 +1849,7 @@ public sealed class FireControlCut124Tests : IDisposable
         e.Zone.Entities.Remove(e.Shooter);
         e.Zone.Update(6f);
 
-        Assert.Empty(e.Zone.PendingShots);
+        SafeAssert.NoShots(e.Zone);
         Assert.Equal(5.65884256f, damage, 3);
     }
 
@@ -1690,7 +1871,7 @@ public sealed class FireControlCut124Tests : IDisposable
         e.Zone.Entities.Remove(e.Shooter);
         e.Zone.Update(6f);
 
-        Assert.Empty(e.Zone.PendingShots);
+        SafeAssert.NoShots(e.Zone);
         Assert.Equal(12, resolved.Count);
         Assert.True(resolved.Any(o => o.Hit), "at least one round must land on the stationary target");
         Assert.Equal(resolved.Count(o => o.Hit), struck);
@@ -1714,6 +1895,7 @@ public sealed class FireControlCut124Tests : IDisposable
 
         Assert.NotNull(committed);
         Assert.Equal(ShotResult.Burst, committed.Result);
+        Assert.True(committed.HasBurstPoint);
         Assert.False(committed.Hit);
         var burst = PointAlong(e, normalize(float2(2, 1)), NoLockRange);
         Assert.Equal(burst.x, committed.BurstPoint.x, 3);
@@ -1816,7 +1998,7 @@ public sealed class FireControlCut124Tests : IDisposable
         blocker.Position = PointAlong(e, float2(0, 1), 25f);
         e.Zone.Update(4f);
 
-        Assert.Empty(e.Zone.PendingShots);
+        SafeAssert.NoShots(e.Zone);
         Assert.True(Alive(e, blocker), "the round flew through the hull that arrived after Fire and burst at max range");
     }
 
@@ -1863,27 +2045,6 @@ public sealed class FireControlCut124Tests : IDisposable
 
         Assert.Equal(origin.x, committed.BurstPoint.x, 2);
         Assert.Equal(origin.z + (withBlocker ? 21f : 60f), committed.BurstPoint.y, 2);
-    }
-
-    // A round fired from inside another hull bursts at the muzzle: the origin is already in metal, a distance of
-    // zero. Kills: reading a cell's Entry for its Exit (Soul's M7: a cell the origin sits in is skipped and the
-    // round flies on); dropping the clamp at zero (Soul's M8: the negative distance puts the burst behind the
-    // muzzle).
-    [Fact]
-    public void AContactRoundFiredFromInsideAnotherHullBurstsAtTheMuzzle()
-    {
-        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 20f, fuse: WeaponFuse.Contact, blastRadius: 4f, damage: 100f, weaponRange: 60f);
-        e.Shooter.Target.Value = null;
-        Aim(e, float2(0, 1));
-        AddShip(e, e.Shooter.Position + float3(0.5f, 0, 0.5f), 1f, 300);
-        ShotOutcome committed = null;
-        using var c = e.Zone.ShotCommitted.Subscribe(o => committed = o);
-
-        FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
-        e.Zone.Update(.01f);
-
-        Assert.Equal(e.Shooter.Position.x, committed.BurstPoint.x, 2);
-        Assert.Equal(e.Shooter.Position.z, committed.BurstPoint.y, 2);
     }
 
     // A hull wholly behind the muzzle is not on the round's way. Kills: admitting cells whose exit lies behind
@@ -1941,10 +2102,10 @@ public sealed class FireControlCut124Tests : IDisposable
         e.Zone.Update(6f);
 
         foreach (var s in subscriptions) s.Dispose();
-        Assert.Empty(e.Zone.PendingShots);
+        SafeAssert.NoShots(e.Zone);
         Assert.True(bystanders.All(b => Alive(e, b)), "no bystander may take blast damage");
         Assert.Equal(0f, damage);
-        Assert.Equal(ShotResult.Miss, Assert.Single(resolved).Result);
+        Assert.Equal(ShotResult.Miss, SafeAssert.Only(resolved).Result);
     }
 
     // A no-lock round outlives a shooter destroyed outright in flight, for every fuse: Death removes the shooter
@@ -1968,7 +2129,7 @@ public sealed class FireControlCut124Tests : IDisposable
 
         Assert.False(Alive(e, e.Shooter));
         Assert.False(Alive(e, witness), "the round must still burst at max range");
-        Assert.Equal(ShotResult.Burst, Assert.Single(resolved).Result);
+        Assert.Equal(ShotResult.Burst, SafeAssert.Only(resolved).Result);
     }
 
     // ToWorldPoint and ToSchematicPoint are inverses, and ToWorldPoint puts one cell to starboard of the centre
@@ -2116,7 +2277,7 @@ public sealed class FireControlCut124Tests : IDisposable
         Assert.Equal(ShotResult.Hit, outcome.Result);
         Assert.True(armorEvents > 0);
         var shot = e.Zone.PendingShots.Count == 0 ? null : (PendingShot?) e.Zone.PendingShots[0];
-        Assert.Null(shot); // resolved and removed -- confirms it went through Apply's null-fuse path to completion
+        Assert.True(!shot.HasValue, "the shot must be resolved and removed"); // resolved and removed -- confirms it went through Apply's null-fuse path to completion
     }
 
     // ARadiusWithoutAFuseIsADirectHit (Soul F1): the symmetric inert half -- BlastRadius > 0 but the catalog

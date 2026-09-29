@@ -293,10 +293,10 @@ public sealed class FireControlCut8Tests : IDisposable
         e.Zone.Update(.1f);
 
         Assert.True(e.Target.Hull.Durability < .01f);
-        Assert.DoesNotContain(e.Target, e.Zone.Entities);
+        SafeAssert.NotIn(e.Zone, e.Target);
         Assert.False(e.Target.Active);
         Assert.Empty(e.Target.EntityInfoGathered);
-        Assert.Empty(e.Target.VisibleEntities);
+        Assert.True(e.Target.VisibleEntities.Count == 0, "the target's visible set must be empty");
     }
 
     // ---- Ordering risk (8.1's own callout): EntityInstance's loot-drop subscription (EntityInstance.cs:292-325)
