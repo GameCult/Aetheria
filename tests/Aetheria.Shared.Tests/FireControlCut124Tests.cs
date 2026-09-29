@@ -1299,7 +1299,7 @@ public sealed class FireControlCut124Tests : IDisposable
 
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
         var shot = Assert.Single(e.Zone.PendingShots);
-        Assert.Null(shot.Target);
+        Assert.True(shot.Target == null, "an invalid target must not ride with the round"); // not Assert.Null: a failure would format the entity graph and overflow the stack
         Assert.Equal(burst.x, shot.BurstPosition.x, 3);
         Assert.Equal(burst.z, shot.BurstPosition.z, 3);
         e.Zone.Update(.01f);
@@ -1478,7 +1478,7 @@ public sealed class FireControlCut124Tests : IDisposable
         var burst = PointAlong(e, normalize(float2(2, 1)), NoLockRange);
         Assert.Equal(burst.x, committed.BurstPoint.x, 3);
         Assert.Equal(burst.z, committed.BurstPoint.y, 3);
-        Assert.Same(committed, resolved);
+        Assert.True(ReferenceEquals(committed, resolved), "the resolution republishes the commit unchanged");
     }
 
     // ToWorldPoint and ToSchematicPoint are inverses, and ToWorldPoint puts one cell to starboard of the centre
