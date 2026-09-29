@@ -389,6 +389,15 @@ public static class FireControl
         var blastRadius = weaponItemData?.BlastRadius > 0f ? weaponItemData.BlastRadius.Value : 0f;
         var fuse = blastRadius > 0f ? weaponItemData.Fuse : null;
         var burstPosition = blastRadius > 0f && target != null ? PredictedIntercept(weapon, source, target) : targetPosition;
+        // Operator ruling 2026-09-30 ("fused weapons without a lock explode at max range"): a fused shot with no
+        // target bursts where its own aim line ends -- the mount direction at the weapon's Range stat, the same
+        // stat PFire's range gate reads -- and flies there at the weapon's Velocity, like a targeted shot flies
+        // to its intercept. Only the burst point and flight time differ; Apply detonates it through Detonate.
+        if (fuse != null && target == null)
+        {
+            burstPosition = source.Position + MountDirection(item) * weapon.Range;
+            flightTime = weapon.Velocity > .01f ? weapon.Range / weapon.Velocity : 0f;
+        }
 
         var shot = new PendingShot
         {
@@ -650,6 +659,14 @@ public static class FireControl
     // centre lane (see the fuse-point comment on the Contact/Delayed branch below).
     private static void Apply(PendingShot shot)
     {
+        // A fused shot with no target has nothing to hit or miss: whatever its fuse, it bursts at the point Fire
+        // froze (max range along the aim line). Detonate is still the one blast path.
+        if (shot.Fuse != null && shot.Target == null)
+        {
+            Detonate(shot.Source.Zone, shot.BurstPosition.xz, shot.BlastRadius, shot.Damage, shot.DamageType);
+            return;
+        }
+
         switch (shot.Fuse)
         {
             case null:
