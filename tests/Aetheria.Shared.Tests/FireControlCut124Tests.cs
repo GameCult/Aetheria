@@ -90,12 +90,13 @@ public sealed class FireControlCut124Tests : IDisposable
         WeaponModifiers modifiers = WeaponModifiers.None,
         bool equipShield = false, float shieldCapacity = 1000f, bool shieldActive = true,
         int2? cockpitCell = null, float cockpitDurability = 1000f,
-        (string Name, Shape Shape, int2 Cell, float Durability)[] custom = null)
+        (string Name, Shape Shape, int2 Cell, float Durability)[] custom = null,
+        float accuracy = 1f, int2? gunCell = null)
     {
         var hullData = new HullData
         {
             Name = "Hull", HullType = HullType.Ship, Shape = hullShape, Durability = 1000000, Mass = 1000, Armor = 0,
-            Hardpoints = { new HardpointData { Type = HardpointType.Sensors, Position = new int2(0, 0), Shape = new Shape() } }
+            Hardpoints = { new HardpointData { Type = HardpointType.Sensors, Position = gunCell ?? new int2(0, 0), Shape = new Shape() } }
         };
         var shooterHullData = new HullData
         {
@@ -125,7 +126,7 @@ public sealed class FireControlCut124Tests : IDisposable
         {
             Name = "Targeting", Hardpoint = HardpointType.Tool, Shape = new Shape(), Durability = 1,
             MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000,
-            Behaviors = { new TargetingSystemData { Accuracy = Constant(1f), Resolution = Constant(1000f), Precision = Constant(1000f), Tracking = Constant(1000000f) } }
+            Behaviors = { new TargetingSystemData { Accuracy = Constant(accuracy), Resolution = Constant(1000f), Precision = Constant(1000f), Tracking = Constant(1000000f) } }
         });
         cache.Upsert(new GearData
         {
@@ -191,7 +192,7 @@ public sealed class FireControlCut124Tests : IDisposable
 
         var target = new Ship(items, zone, new EquippableItem { Data = hullRef, Durability = 1000000, Lot = lot++ }, new EntitySettings());
         var targetGun = MakeWeapon(lot++);
-        Assert.True(target.TryEquip(targetGun, new int2(0, 0)));
+        Assert.True(target.TryEquip(targetGun, gunCell ?? new int2(0, 0)));
 
         EquippedItem cockpit = null;
         if (cockpitCell != null)
@@ -367,6 +368,171 @@ public sealed class FireControlCut124Tests : IDisposable
         FireControl.Detonate(e.Zone, nearEndWorld, cellSize, 100f, DamageType.Kinetic);
 
         Assert.True(e.Target.Hull.Durability < before, "the near end of a long hull must take damage even though its centre is far outside the radius");
+    }
+
+    // Per-cell armour large enough that ArmorAbsorb never depletes it: every ArmorDamage event then reports its
+    // cell's raw share, whether or not an item sits on the cell.
+    private static void ArmourEverything(Engagement e)
+    {
+        foreach (var c in e.HullData.Shape.Coordinates) { e.Target.Armor[c.x, c.y] = 1e6f; e.Target.MaxArmor[c.x, c.y] = 1e6f; }
+    }
+
+    // The independent expectation: `damage` shared over a disc of radius rCells centred at schematic (cx,cy) in
+    // proportion to numeric overlap with each occupied cell.
+    private static double ExpectedDelivered(Shape shape, double cx, double cy, double rCells, double damage)
+    {
+        var overlap = 0.0;
+        foreach (var c in shape.Coordinates) overlap += DiscAreaInCell(cx, cy, rCells, c);
+        return damage * overlap / (Math.PI * rCells * rCells);
+    }
+
+    // ==== 12.4 fix batch F1: a disc tangent to a cell edge must not count the whole square ====
+
+    // A cell edge exactly r from the centre, with the piece's midpoint at 0, used to fall through
+    // `h < yhi` / `-h > ylo` into the "whole rectangle" branch, so the square counted in full. BlastRadius 1
+    // world unit is half a cell (edges at +-.5 from an integer centre of mass), 3 is one and a half (edges at
+    // +-.5 and +-1.5): both are tangent to cell edges. Measured through Fire before the fix: 127.32 and 100.80
+    // delivered of 100.
+    [Theory]
+    [InlineData(1f)]
+    [InlineData(3f)]
+    public void ATangentDiscDeliversExactlyItsDamageThroughFire(float blastRadius)
+    {
+        var e = Build(TestSettings(), SolidShape(5, 5), velocity: 0, fuse: WeaponFuse.Proximity, blastRadius: blastRadius, damage: 100f);
+        ArmourEverything(e);
+        var total = 0f;
+        using (e.Target.ArmorDamage.Subscribe(x => total += x.damage))
+        {
+            FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+            e.Zone.Update(.01f);
+        }
+        Assert.Equal(100f, total, 2);
+    }
+
+    [Theory]
+    [InlineData(1f)]
+    [InlineData(3f)]
+    public void ATangentDiscDeliversExactlyItsDamageThroughDetonate(float radius)
+    {
+        var e = Build(TestSettings(), SolidShape(5, 5));
+        ArmourEverything(e);
+        var total = 0f;
+        using (e.Target.ArmorDamage.Subscribe(x => total += x.damage))
+            FireControl.Detonate(e.Zone, e.Target.Position.xz, radius, 100f, DamageType.Kinetic);
+        Assert.Equal(100f, total, 2);
+    }
+
+    // ==== 12.4 fix batch F2: the exact overlap is the only decider of "the disc touches the hull" ====
+
+    // An L-shaped hull whose centre of mass sits far from the far end of its long arm. The blast lands on that
+    // arm's end, 14 world units from the centre of mass -- beyond radius + half the bounding box's diagonal
+    // measured from it, which the old candidate cull used, so the cull threw away a blast that overlaps a
+    // cell. Expected value: a numeric overlap of the cells, not the code under test.
+    [Fact]
+    public void ABlastAtTheFarEndOfAnLShapedHullLands()
+    {
+        var s = new Shape(10, 4);
+        foreach (var c in s.AllCoordinates) s[c] = c.x < 4 || c.y == 0;
+        var e = Build(TestSettings(), s);
+        ArmourEverything(e);
+        var com = e.HullData.Shape.CenterOfMass;
+        var p = float2(9.9f, 0f);
+        var expected = ExpectedDelivered(e.HullData.Shape, p.x, p.y, 1.0, 100.0);
+        Assert.True(expected > 10.0, $"fixture: the blast must overlap the hull, expected {expected}");
+
+        var total = 0f;
+        using (e.Target.ArmorDamage.Subscribe(x => total += x.damage))
+            FireControl.Detonate(e.Zone, e.Target.Position.xz + (p - com) * 2f, 2f, 100f, DamageType.Kinetic);
+
+        Assert.Equal(expected, total, 1);
+    }
+
+    // The same rule on the shipped hulls: a blast just grazing the corner farthest from the centre of mass. The
+    // corners of the shipped Longinus and LonginusX reach past the old cull's box-half-diagonal bound.
+    [Theory]
+    [InlineData("Longinus")]
+    [InlineData("LonginusX")]
+    public void AGrazingBlastAtAShippedHullsFarthestCornerLands(string hullName)
+    {
+        Shape shape;
+        var cache = OpenReadOnlyRealCatalog(Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc"), out _);
+        try { shape = cache.GetByName<HullData>(hullName).Shape; }
+        finally { cache.Dispose(); }
+
+        var com = shape.CenterOfMass;
+        var far = float2.zero;
+        var best = -1f;
+        foreach (var c in shape.Coordinates)
+            foreach (var (dx, dy) in new[] { (-.5f, -.5f), (.5f, -.5f), (-.5f, .5f), (.5f, .5f) })
+            {
+                var corner = float2(c.x + dx, c.y + dy);
+                var d = length(corner - com);
+                if (d > best) { best = d; far = corner; }
+            }
+        // One cell of radius, centred .9 cell outward of the corner: the disc reaches the corner by .1 cell.
+        var centre = far + normalize(far - com) * .9f;
+
+        var e = Build(TestSettings(), shape, gunCell: shape.Coordinates[0]);
+        ArmourEverything(e);
+        var expected = ExpectedDelivered(shape, centre.x, centre.y, 1.0, 100.0);
+        Assert.True(expected > .05, $"fixture: the blast must graze the hull, expected {expected}");
+
+        var total = 0f;
+        using (e.Target.ArmorDamage.Subscribe(x => total += x.damage))
+            FireControl.Detonate(e.Zone, e.Target.Position.xz + (centre - com) * 2f, 2f, 100f, DamageType.Kinetic);
+
+        Assert.Equal(expected, total, 1);
+    }
+
+    // ==== 12.4 fix batch F3: a lethal blast must not break the entity enumeration ====
+
+    private Ship AddShip(Engagement e, float3 position, float hullDurability, int lot)
+    {
+        var hullRef = e.Items.ItemData.RefOf<ItemData>(e.Items.ItemData.GetByName<HullData>("Hull"));
+        var ship = new Ship(e.Items, e.Zone, new EquippableItem { Data = hullRef, Durability = hullDurability, Lot = lot }, new EntitySettings());
+        var marker = new EquippableItem
+        {
+            Data = e.Items.ItemData.RefOf<ItemData>(e.Items.ItemData.GetByName<GearData>("Marker")), Durability = 1000000, Lot = lot + 1
+        };
+        Assert.True(ship.TryEquip(marker, new int2(1, 1)));
+        e.Zone.Entities.Add(ship);
+        ship.Activate();
+        ship.Position = position;
+        return ship;
+    }
+
+    // A blast that kills an entity mid-pass: death removes it from Zone.Entities, and the next MoveNext of the
+    // live enumeration threw. The shot was never removed, so it detonated again the next tick (the probe saw
+    // 2.69 then 5.38 on the target). Pass: nothing throws, the shot resolves and leaves exactly once, and the
+    // target is damaged exactly once.
+    [Fact]
+    public void ALethalBlastResolvesOnceAndBreaksNothing()
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: WeaponFuse.Proximity, blastRadius: 30f, damage: 100f);
+        var near = AddShip(e, e.Target.Position + float3(8, 0, 0), 1f, 300);
+        var far = AddShip(e, e.Shooter.Position + float3(-5000, 0, 0), 1f, 302);
+
+        var resolved = 0;
+        var targetDamage = 0f;
+        using var r = e.Zone.ShotResolved.Subscribe(_ => resolved++);
+        using var a = e.Target.ArmorDamage.Subscribe(x => targetDamage += x.damage);
+        using var h = e.Target.HullDamage.Subscribe(x => targetDamage += x);
+        using var i = e.Target.ItemDamage.Subscribe(x => targetDamage += x.damage);
+
+        FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        e.Zone.Update(.01f);
+
+        Assert.Empty(e.Zone.PendingShots);
+        Assert.Equal(1, resolved);
+        Assert.DoesNotContain(near, e.Zone.Entities); // fixture: the blast really was lethal to a ship mid-pass
+        Assert.Contains(far, e.Zone.Entities);
+        Assert.True(targetDamage > 0f, "fixture: the target must be inside the blast");
+        var afterFirstTick = targetDamage;
+
+        e.Zone.Update(.01f);
+
+        Assert.Equal(1, resolved);
+        Assert.Equal(afterFirstTick, targetDamage, 4);
     }
 
     // ==== Absorption order ====
@@ -894,7 +1060,8 @@ public sealed class FireControlCut124Tests : IDisposable
         Assert.True(e.Target.Hull.Durability <= before);
     }
 
-    // Soul F3: Detonate cannot be reached with a nonpositive radius.
+    // Detonate has no radius guard: a nonpositive radius covers no cell (a disc with no area overlaps nothing),
+    // so it delivers nothing and touches no shield.
     [Theory]
     [InlineData(0f)]
     [InlineData(-5f)]

@@ -1073,22 +1073,19 @@ public static class FireControl
     // DamageHull call.
     public static void Detonate(Zone zone, float2 worldPlanar, float radius, float damage, DamageType damageType)
     {
-        // F3 (Soul, Cut 12.3 fold-in): Detonate cannot be reached with a nonpositive radius. Fire only ever
-        // freezes a Fuse when BlastRadius > 0 (12.4(a)), so this guard matters only for a direct caller (a
-        // test, or Mine.Explode with a zero BlastRange).
-        if (radius <= 0f) return;
-
-        foreach (var entity in zone.Entities)
+        // No distance prefilter: RectDiskOverlap is the one decider of whether the disc touches a hull. A
+        // prefilter measured from Position (the centre of mass) with the bounding box's half-diagonal is not a
+        // bound on how far a hull's cells reach from it -- it culled real overlap on an L-shaped hull and on the
+        // shipped Longinus corners. A nonpositive radius needs no guard either: the overlap of a disc with no
+        // area is zero for every cell, so nothing is covered and nothing is delivered.
+        //
+        // The pass runs over a snapshot: a lethal blast fires an entity's Death, which removes it from
+        // Zone.Entities, and the live enumeration threw on the next MoveNext (the same idiom Zone.Update uses).
+        foreach (var entity in zone.Entities.ToArray())
         {
             var cellSize = entity.ItemManager.GameplaySettings.SchematicCellSize;
             var hullData = entity.ItemManager.GetData(entity.Hull) as HullData;
             var shape = hullData.Shape;
-
-            // Candidates: |Position.xz - P| <= radius + half the hull's own diagonal, in world units -- catches
-            // a long hull whose end lies inside the blast even though its centre does not.
-            var toEntity = length(entity.Position.xz - worldPlanar);
-            var halfDiagonal = .5f * length(float2(shape.Width, shape.Height)) * cellSize;
-            if (toEntity > radius + halfDiagonal) continue;
 
             var centre = entity.ToSchematicPoint(worldPlanar);
             var rCells = radius / cellSize;
@@ -1097,17 +1094,18 @@ public static class FireControl
             // Shares, computed once, in hull Coordinates order -- the same order armour absorbs in below and
             // an item's pool deposits in.
             var coords = shape.Coordinates;
-            var covered = new List<(int2 Cell, float Share)>();
+            List<(int2 Cell, float Share)> covered = null;
             var totalShare = 0f;
             for (var i = 0; i < coords.Length; i++)
             {
                 var overlap = CircleSquareOverlap(centre, rCells, coords[i]);
                 if (overlap <= 0f) continue;
                 var share = damage * overlap / normaliser;
-                covered.Add((coords[i], share));
+                (covered ??= new List<(int2 Cell, float Share)>()).Add((coords[i], share));
                 totalShare += share;
             }
-            if (covered.Count == 0) continue;
+            // An entity the disc does not touch has nothing to decide: no shield is consulted, nothing is dealt.
+            if (covered == null) continue;
 
             var shield = entity.Shield;
             var shieldActive = shield != null && shield.Item.Active.Value;
@@ -1209,8 +1207,11 @@ public static class FireControl
 
             var mid = .5f * (a + b);
             var h = sqrt(max(0f, r * r - mid * mid));
-            var upperIsDisc = h < yhi;
-            var lowerIsDisc = -h > ylo;
+            // Inclusive: a rectangle edge exactly tangent to the disc (h == yhi at a piece whose midpoint is 0)
+            // is the disc's own boundary, so the chord is the true bound there. A strict test sent that piece to
+            // the whole-rectangle branch and counted the square in full -- a boundary flip that creates damage.
+            var upperIsDisc = h <= yhi;
+            var lowerIsDisc = -h >= ylo;
             var upper = upperIsDisc ? h : yhi;
             var lower = lowerIsDisc ? -h : ylo;
             if (upper <= lower) continue;
