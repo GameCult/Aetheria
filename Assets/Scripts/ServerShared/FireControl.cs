@@ -57,6 +57,26 @@ public static class FireControl
         return dot(MountDirection(weapon), planarTarget) >= cos(radians(arc / 2f));
     }
 
+    // Operator ruling 2026-09-30: a shot with nothing to bear on flies along where its shooter is aiming
+    // (Entity.LookDirection -- the player's mouse or a turret's tracking), restricted by the mount's arc. The
+    // arc is InArc's own cone: an aim inside it is used as is, one outside it is turned to the nearest edge of
+    // the same cone. There is no second bearing test here; the edge is where InArc stops passing. A shooter
+    // with no aim set (LookDirection zero) aims down the mount, the same fallback InArc takes for a zero bearing.
+    // The simulation had no aim clamp before this: the Unity barrel's ArticulationPoint clamps the picture,
+    // and a target outside the arc merely priced the shot at zero.
+    public static float2 AimDirection(EquippedItem item, Entity shooter)
+    {
+        var mount = MountDirection(item).xz;
+        var look = shooter.LookDirection.xz;
+        if (lengthsq(look) < 1e-6f) return mount;
+        look = normalize(look);
+        if (InArc(item, float3(look.x, 0, look.y))) return look;
+
+        var half = radians(ArcFor(item) / 2f);
+        var turn = mount.x * look.y - mount.y * look.x >= 0f ? half : -half;
+        return float2(mount.x * cos(turn) - mount.y * sin(turn), mount.x * sin(turn) + mount.y * cos(turn));
+    }
+
     // Cut 2, R5: whether `observer` has resolved `item` (which must belong to some entity in the zone) well
     // enough to aim at it. Derived fresh from EntityInfoGathered on every call -- nothing caches a reveal
     // result, so decay drops it the moment info falls back below tier, with no clearing loop anywhere.
@@ -152,15 +172,23 @@ public static class FireControl
     // freezes (R10), gated exactly as HitProbability gates. Nothing about the target's facing or silhouette
     // enters here; that is Silhouette's and PSpread's job, priced fresh by HitProbability below and again,
     // live, by Commit at the commit tick. 0 the moment any gate closes.
-    private static float PFire(Weapon weapon, Entity source, Entity target) => PFire(weapon, source, target, out _);
+    private static float PFire(Weapon weapon, Entity source, Entity target) => PFire(weapon, source, target, out _, out _);
 
     // The `out range` overload is HitProbability's own gate call -- one computation of `target.Position -
     // source.Position`, not two. HitProbability used to recompute its own copy for PSpread, which is exactly
     // the kind of split authority Cut 3 named as the risk (two places computing the same vector, free to
     // drift or to have their subtraction order flipped in only one of them).
-    private static float PFire(Weapon weapon, Entity source, Entity target, out float range)
+    private static float PFire(Weapon weapon, Entity source, Entity target, out float range) =>
+        PFire(weapon, source, target, out range, out _);
+
+    // `bears` is the one answer to "is this target one the weapon can fire at": in range, visible, locked (for a
+    // LockWeapon) and in arc. PFire prices a shot at zero when it is false; Fire reads it to decide that a
+    // fused round has no target at all (operator ruling 2026-09-30: an invalid target counts as no lock).
+    // Inspect recomputes the four gates one by one, to show the HUD which is closed; it decides nothing.
+    private static float PFire(Weapon weapon, Entity source, Entity target, out float range, out bool bears)
     {
         range = 0f;
+        bears = false;
         if (target == null) return 0f;
 
         // F8 correction (Soul's fix batch, 2026-09-24): range is computed for any non-null target, before any
@@ -174,6 +202,7 @@ public static class FireControl
         if (range < weapon.MinRange || range > weapon.Range) return 0f;
         if (weapon is LockWeapon lockWeapon && !lockWeapon.IsLocked) return 0f;
         if (!InArc(weapon.Item, toTarget)) return 0f;
+        bears = true;
 
         var settings = source.ItemManager.GameplaySettings;
         var info = source.EntityInfoGathered.TryGetValue(target, out var gathered) ? gathered : 0f;
@@ -364,20 +393,7 @@ public static class FireControl
         // F8 (Soul's fix batch, 2026-09-24): the `out range` overload is the one range HitProbability now
         // reads too -- Fire used to recompute its own second copy of `target.Position - source.Position` for
         // fireRange, right beside the copy PFire's gate already computed.
-        var pFire = PFire(weapon, source, target, out var fireRange);
-        var travelDirection = target != null ? TravelDirection(weapon, source, target) : float2(0, 1);
-
-        var targetVelocity = float3.zero;
-        var targetPosition = source.Position;
-        var flightTime = 0f;
-        if (target != null)
-        {
-            targetVelocity = float3(target.Velocity.x, 0, target.Velocity.y);
-            targetPosition = target.Position;
-            flightTime = weapon.Velocity > .01f ? fireRange / weapon.Velocity : 0f;
-        }
-
-        var commitHorizon = source.ItemManager.GameplaySettings.CommitHorizon;
+        var pFire = PFire(weapon, source, target, out var fireRange, out var bears);
 
         // Cut 12.4(a) (Q12-6, "WeaponModifiers are labels, not behaviour"): a blast is a property of the
         // weapon's data fields alone, resolved and frozen here like every other payload field -- never decided
@@ -388,14 +404,33 @@ public static class FireControl
         var weaponItemData = item.Data as WeaponItemData;
         var blastRadius = weaponItemData?.BlastRadius > 0f ? weaponItemData.BlastRadius.Value : 0f;
         var fuse = blastRadius > 0f ? weaponItemData.Fuse : null;
-        var burstPosition = blastRadius > 0f && target != null ? PredictedIntercept(weapon, source, target) : targetPosition;
-        // Operator ruling 2026-09-30 ("fused weapons without a lock explode at max range"): a fused shot with no
-        // target bursts where its own aim line ends -- the mount direction at the weapon's Range stat, the same
-        // stat PFire's range gate reads -- and flies there at the weapon's Velocity, like a targeted shot flies
-        // to its intercept. Only the burst point and flight time differ; Apply detonates it through Detonate.
-        if (fuse != null && target == null)
+
+        // Operator rulings 2026-09-30: an invalid target counts as no lock -- a fused round whose selected
+        // target is out of range, out of arc, not visible or not locked (PFire's `bears`) is fired at nothing.
+        // A fused shot with no target bursts where its own aim line ends: the shooter's aim (AimDirection) at
+        // the weapon's Range stat, the same stat PFire's range gate reads, flown at the weapon's Velocity like
+        // a targeted shot flies to its intercept. The round carries no target from here on, so nothing at
+        // resolution asks whether one is still around. A shot without a fuse keeps its target as before.
+        var engaged = fuse != null && !bears ? null : target;
+        var origin = source.Position;
+        var travelDirection = engaged != null ? TravelDirection(weapon, source, engaged) : AimDirection(item, source);
+
+        var targetVelocity = float3.zero;
+        var targetPosition = origin;
+        var flightTime = 0f;
+        if (engaged != null)
         {
-            burstPosition = source.Position + MountDirection(item) * weapon.Range;
+            targetVelocity = float3(engaged.Velocity.x, 0, engaged.Velocity.y);
+            targetPosition = engaged.Position;
+            flightTime = weapon.Velocity > .01f ? fireRange / weapon.Velocity : 0f;
+        }
+
+        var commitHorizon = source.ItemManager.GameplaySettings.CommitHorizon;
+
+        var burstPosition = blastRadius > 0f && engaged != null ? PredictedIntercept(weapon, source, engaged) : targetPosition;
+        if (fuse != null && engaged == null)
+        {
+            burstPosition = origin + float3(travelDirection.x, 0, travelDirection.y) * weapon.Range;
             flightTime = weapon.Velocity > .01f ? weapon.Range / weapon.Velocity : 0f;
         }
 
@@ -403,7 +438,7 @@ public static class FireControl
         {
             ShotId = zone.NextShotId(),
             Source = source,
-            Target = target,
+            Target = engaged,
             Weapon = item,
             Aimed = source.ResolvedTargetItem,
             Damage = damageOverride ?? weapon.Damage,
@@ -417,10 +452,14 @@ public static class FireControl
             Spread = weapon.Spread,
             FireRange = fireRange,
             FireTime = now,
+            FireOrigin = origin,
             FireTargetPosition = targetPosition,
             FireTargetVelocity = targetVelocity,
             ArrivalTime = now + flightTime,
-            CommitTime = now + max(0f, flightTime - commitHorizon),
+            // The commit horizon exists so the target's facing can be read late (Bearing timing). A round fired at
+            // nothing has no facing to read, so it commits at Fire: its burst point is decided from the poses of
+            // the moment it leaves, and a Contact round short of max range can arrive as early as it truly does.
+            CommitTime = fuse != null && engaged == null ? now : now + max(0f, flightTime - commitHorizon),
             BurstPosition = burstPosition,
             Fuse = fuse,
             BlastRadius = blastRadius,
@@ -432,8 +471,11 @@ public static class FireControl
     }
 
     // Cut 3, R4: ages every shot in the zone, commits the ones that have reached their horizon and resolves
-    // the ones that have arrived. Called from Zone.Update after the entity loop. A shot whose source or target
-    // has left the zone resolves as a miss and is removed outright (0b table), whichever stage it is at.
+    // the ones that have arrived. Called from Zone.Update after the entity loop. A shot whose target has left
+    // the zone resolves as a miss and is removed outright (0b table), whichever stage it is at. A round outlives
+    // its shooter (operator ruling 2026-09-30): the shooter is only an identity a shot carries, never asked
+    // for at resolution, so a shooter that died or left the zone in flight changes nothing about the shot.
+    // Resolution reads the zone and the target; there is no credit or loot for a shooter to receive.
     public static void Step(Zone zone, float dt)
     {
         var shots = zone.PendingShots;
@@ -444,16 +486,15 @@ public static class FireControl
         {
             var shot = shots[i];
 
-            var sourceGone = !zone.Entities.Contains(shot.Source);
             var targetGone = shot.Target != null && !zone.Entities.Contains(shot.Target);
-            if (sourceGone || targetGone)
+            if (targetGone)
             {
-                // Cut 11 (Soul C4): a shot whose source or target has left the zone resolves as a miss whichever
+                // Cut 11 (Soul C4): a shot whose target has left the zone resolves as a miss whichever
                 // stage it is at (0b table). The resolution is published as a fresh miss rather than by
                 // rewriting shot.Outcome: a committed outcome is immutable (R4) and stays a true record of what
                 // the commit decided, while ShotResolved reports what actually happened -- nothing, because the
                 // target is gone. Republishing the committed outcome here used to put a hit marker on a corpse.
-                var miss = MakeOutcome(shot, false, false, false, int2.zero, float2.zero, 0f, now);
+                var miss = MakeOutcome(shot, ShotResult.Miss, false, false, int2.zero, float2.zero, 0f, now);
                 if (!shot.Committed) zone.ShotCommitted.OnNext(miss);
                 zone.ShotResolved.OnNext(miss);
                 shots.RemoveAt(i);
@@ -464,6 +505,9 @@ public static class FireControl
             {
                 shot.Outcome = Commit(zone, shot, now);
                 shot.Committed = true;
+                // A contact burst short of max range arrives when the round has flown that far, not at the frozen
+                // max-range time (CommitBurst). Never later than the frozen time.
+                if (shot.Outcome.Result == ShotResult.Burst) shot.ArrivalTime = min(shot.ArrivalTime, now + shot.Outcome.ArrivalIn);
                 zone.ShotCommitted.OnNext(shot.Outcome);
                 shots[i] = shot;
             }
@@ -474,7 +518,7 @@ public static class FireControl
                 // which model a shot uses, through its own switch on the frozen Fuse -- Step has no damage
                 // branch left. A direct hit, a proximity burst and a contact or delayed blast all arrive here
                 // the same way; only Apply decides what that means.
-                Apply(shot);
+                Apply(zone, shot);
                 zone.ShotResolved.OnNext(shot.Outcome);
                 shots.RemoveAt(i);
             }
@@ -522,14 +566,18 @@ public static class FireControl
         if (p <= 0f) return 0f;
 
         var bearing = Bearing(shot.Target, shot.TravelDirection);
-        var hullData = shot.Source.ItemManager.GetData(shot.Target.Hull) as HullData;
+        var hullData = shot.Target.ItemManager.GetData(shot.Target.Hull) as HullData;
         sil = Silhouette(shot.Target, hullData, shot.Aimed, bearing, shot.Precision);
-        var settings = shot.Source.ItemManager.GameplaySettings;
+        var settings = shot.Target.ItemManager.GameplaySettings;
         return p * PSpread(shot.Spread, sil.Span, shot.FireRange, settings.SchematicCellSize) * sil.POnHull;
     }
 
     private static ShotOutcome Commit(Zone zone, PendingShot shot, float now)
     {
+        // A fused round with no target rolls nothing: it bursts. Where is decided here, at the commit, from the
+        // poses of this tick (R4); Apply performs it.
+        if (shot.Fuse != null && shot.Target == null) return CommitBurst(zone, shot, now);
+
         // Cut 6b, 6.1 (Soul finding 6): a shot's dice belong to the shot, not to whatever else happened to
         // draw from the engine-wide shared generator first. A pure function of (zone identity, shot id) --
         // the `| 1u` guards
@@ -567,7 +615,7 @@ public static class FireControl
             bearing = Bearing(shot.Target, shot.TravelDirection);
             lateral = LateralDraw(sil, random.NextFloat());
 
-            var hullData = shot.Source.ItemManager.GetData(shot.Target.Hull) as HullData;
+            var hullData = shot.Target.ItemManager.GetData(shot.Target.Hull) as HullData;
             var buffer = ArrayPool<LaneCell>.Shared.Rent(hullData.Shape.Coordinates.Length);
             try
             {
@@ -601,7 +649,70 @@ public static class FireControl
             }
         }
 
-        return MakeOutcome(shot, hit, shielded, shieldBroken, cell, bearing, lateral, now);
+        return MakeOutcome(shot, hit ? ShotResult.Hit : ShotResult.Miss, shielded, shieldBroken, cell, bearing, lateral, now);
+    }
+
+    // Operator rulings 2026-09-30. A fused round with no target bursts at the max-range point Fire froze along
+    // the aim line, whatever its fuse -- except a Contact round, which bursts at the first hull that line crosses
+    // before that point (a Proximity or Delayed fuse does not trip on a hull with nothing locked). The point is
+    // read from this tick's poses and frozen into the outcome (R4, the same timing Commit reads facing at).
+    // Nothing is rolled or drawn, so determinism needs nothing beyond the frozen inputs.
+    private static ShotOutcome CommitBurst(Zone zone, PendingShot shot, float now)
+    {
+        var outcome = MakeOutcome(shot, ShotResult.Burst, false, false, int2.zero, float2.zero, 0f, now);
+        var reach = length(shot.BurstPosition.xz - shot.FireOrigin.xz);
+        var travelled = shot.Fuse == WeaponFuse.Contact ? ContactDistance(zone, shot, reach) : reach;
+        if (travelled < reach)
+        {
+            outcome.BurstPoint = shot.FireOrigin.xz + shot.TravelDirection * travelled;
+            // The round arrives once it has flown that far, which is sooner than the frozen max-range arrival.
+            outcome.ArrivalIn = max(0f, shot.FireTime + (shot.ArrivalTime - shot.FireTime) * travelled / reach - now);
+        }
+        else outcome.BurstPoint = shot.BurstPosition.xz;
+        return outcome;
+    }
+
+    // The distance along a no-lock round's aim line to the first thing a contact fuse trips on, or `reach` (the
+    // max-range point) when it meets nothing first. The shooter's own hull is never a candidate.
+    // SEAM FOR THE MINING CAMPAIGN: mining chunks are not Entities and are not on this branch. When they land,
+    // whatever they are contributes its own entry distance to this minimum, and nothing else in the file changes.
+    private static float ContactDistance(Zone zone, PendingShot shot, float reach)
+    {
+        var nearest = reach;
+        foreach (var entity in zone.Entities)
+        {
+            if (entity == shot.Source) continue;
+            nearest = min(nearest, HullEntryDistance(entity, shot.FireOrigin.xz, shot.TravelDirection));
+        }
+        return nearest;
+    }
+
+    // World distance from `origin` along the unit planar `direction` to the first metal cell of `entity`'s hull,
+    // or +infinity when the line meets none ahead of it. Read through Lane's own cell admission (CellsOnLine), in
+    // the entity's schematic frame: the line's lateral offset is its own, and cells wholly behind the origin
+    // are skipped. An origin already inside the hull is a distance of zero.
+    private static float HullEntryDistance(Entity entity, float2 origin, float2 direction)
+    {
+        var hullData = entity.ItemManager.GetData(entity.Hull) as HullData;
+        var cellSize = entity.ItemManager.GameplaySettings.SchematicCellSize;
+        var start = entity.ToSchematicPoint(origin);
+        var bearing = Bearing(entity, direction);
+        var lateral = dot(start, Lateral(bearing));
+        var along = dot(start, bearing);
+
+        var buffer = ArrayPool<LaneCell>.Shared.Rent(hullData.Shape.Coordinates.Length);
+        try
+        {
+            var count = CellsOnLine(hullData, bearing, lateral, buffer);
+            for (var i = 0; i < count; i++)
+                if (buffer[i].Exit > along)
+                    return max(buffer[i].Entry - along, 0f) * cellSize;
+            return float.PositiveInfinity;
+        }
+        finally
+        {
+            ArrayPool<LaneCell>.Shared.Return(buffer);
+        }
     }
 
     // R4: the commit is authoritative and immutable from here on -- this only performs what Commit already
@@ -657,13 +768,13 @@ public static class FireControl
     // contact or delayed fuse detonates only on a committed hit, at a point 12.3's own Lane/Reach machinery
     // locates. This is a default, not a ruling: a blast shot's DamageSpread is not read, and P sits on the
     // centre lane (see the fuse-point comment on the Contact/Delayed branch below).
-    private static void Apply(PendingShot shot)
+    private static void Apply(Zone zone, PendingShot shot)
     {
-        // A fused shot with no target has nothing to hit or miss: whatever its fuse, it bursts at the point Fire
-        // froze (max range along the aim line). Detonate is still the one blast path.
-        if (shot.Fuse != null && shot.Target == null)
+        // A fused shot with no target has nothing to hit or miss: its committed outcome is a Burst, and it
+        // detonates at the point Commit decided (Burst outcome's BurstPoint). Detonate is still the one blast path.
+        if (shot.Outcome.Result == ShotResult.Burst)
         {
-            Detonate(shot.Source.Zone, shot.BurstPosition.xz, shot.BlastRadius, shot.Damage, shot.DamageType);
+            Detonate(zone, shot.Outcome.BurstPoint, shot.BlastRadius, shot.Damage, shot.DamageType);
             return;
         }
 
@@ -675,7 +786,7 @@ public static class FireControl
             case WeaponFuse.Proximity:
                 // Detonates at shot.BurstPosition.xz, which PredictedIntercept froze at Fire (today's airburst
                 // rule, unchanged) -- no roll, and no gate on shot.Outcome.Hit.
-                Detonate(shot.Source.Zone, shot.BurstPosition.xz, shot.BlastRadius, shot.Damage, shot.DamageType);
+                Detonate(zone, shot.BurstPosition.xz, shot.BlastRadius, shot.Damage, shot.DamageType);
                 return;
             case WeaponFuse.Contact:
             case WeaponFuse.Delayed:
@@ -1042,7 +1153,7 @@ public static class FireControl
         return walked;
     }
 
-    private static ShotOutcome MakeOutcome(PendingShot shot, bool hit, bool shielded, bool shieldBroken, int2 cell, float2 bearing, float lateral, float now)
+    private static ShotOutcome MakeOutcome(PendingShot shot, ShotResult result, bool shielded, bool shieldBroken, int2 cell, float2 bearing, float lateral, float now)
     {
         return new ShotOutcome
         {
@@ -1050,7 +1161,7 @@ public static class FireControl
             Source = shot.Source,
             Target = shot.Target,
             Weapon = shot.Weapon,
-            Hit = hit,
+            Result = result,
             Shielded = shielded,
             ShieldBroken = shieldBroken,
             Cell = cell,
@@ -1381,24 +1492,10 @@ public static class FireControl
         return sil.A; // sil.Count == 0: no metal in the shadow at all -- unreachable while POnHull > 0 gated Commit's roll
     }
 
-    // Cut 12.2 (docs/fire-control-cut.md, "the rules every sub-cut reads"): exact slab traversal along the
-    // bearing at a fixed lateral offset s, replacing the old 0.5-step sampling march. Collects the occupied
-    // cells whose shadow interval contains s, each with its own entry/exit parameter along b, ordered by
-    // entry (ties broken by dot(cell, b), then cell index for full determinism), then walks forward while
-    // consecutive cells are contiguous (`next.entry <= current.exit + 1e-4`) -- the first gap ends the walk,
-    // the same rule Entity.cs's old march kept. A direct hit starts outside the hull (t -> -infinity), so the
-    // walk's first element is the impact cell. Only that first element is read in 12.2; the rest is 12.3's
-    // armour-first absorption march. Writes into the caller-supplied pooled buffer and returns the walked
-    // count; never allocates on its own.
-    // Cut 12.2 fix batch (S1, Soul's second pass): admission is now decided ONCE, by the exact same shadow
-    // interval Silhouette sums over (Extent(c, ell), the shared function above) -- not by a re-derivation and
-    // not by a second, independent geometric test. The old code ran two tests: this shadow prefilter (a
-    // "re-derivation" of Silhouette's own centre/h, inline) AND SlabAlongB, an independent 2-axis ray-box
-    // intersection that could reject a cell the shadow test had just admitted, purely on float rounding at an
-    // interval edge -- an empty lane for a shot that had already passed its roll (R3 violation, the crash Soul
-    // reproduced through Zone.Update). Deleting the second gate removes the split authority: a cell the shadow
-    // sum counted metal for can no longer be un-counted here.
-    public static int Lane(HullData hull, float2 b, float s, LaneCell[] buffer)
+    // Every occupied cell the line meets, sorted by entry, in the pooled buffer; returns how many. Lane below
+    // walks the contiguous run from the first; a caller that needs the whole line (a contact fuse looking for
+    // the first cell ahead of its origin) reads all of them. One admission test either way.
+    private static int CellsOnLine(HullData hull, float2 b, float s, LaneCell[] buffer)
     {
         var ell = Lateral(b);
         var coords = hull.Shape.Coordinates;
@@ -1420,7 +1517,29 @@ public static class FireControl
         }
 
         Array.Sort(buffer, 0, n);
+        return n;
+    }
 
+    // Cut 12.2 (docs/fire-control-cut.md, "the rules every sub-cut reads"): exact slab traversal along the
+    // bearing at a fixed lateral offset s, replacing the old 0.5-step sampling march. Collects the occupied
+    // cells whose shadow interval contains s, each with its own entry/exit parameter along b, ordered by
+    // entry (ties broken by dot(cell, b), then cell index for full determinism), then walks forward while
+    // consecutive cells are contiguous (`next.entry <= current.exit + 1e-4`) -- the first gap ends the walk,
+    // the same rule Entity.cs's old march kept. A direct hit starts outside the hull (t -> -infinity), so the
+    // walk's first element is the impact cell. Only that first element is read in 12.2; the rest is 12.3's
+    // armour-first absorption march. Writes into the caller-supplied pooled buffer and returns the walked
+    // count; never allocates on its own.
+    // Cut 12.2 fix batch (S1, Soul's second pass): admission is now decided ONCE, by the exact same shadow
+    // interval Silhouette sums over (Extent(c, ell), the shared function above) -- not by a re-derivation and
+    // not by a second, independent geometric test. The old code ran two tests: this shadow prefilter (a
+    // "re-derivation" of Silhouette's own centre/h, inline) AND SlabAlongB, an independent 2-axis ray-box
+    // intersection that could reject a cell the shadow test had just admitted, purely on float rounding at an
+    // interval edge -- an empty lane for a shot that had already passed its roll (R3 violation, the crash Soul
+    // reproduced through Zone.Update). Deleting the second gate removes the split authority: a cell the shadow
+    // sum counted metal for can no longer be un-counted here.
+    public static int Lane(HullData hull, float2 b, float s, LaneCell[] buffer)
+    {
+        var n = CellsOnLine(hull, b, s, buffer);
         var walked = n > 0 ? 1 : 0;
         for (var i = 1; i < n; i++)
         {
@@ -1515,6 +1634,9 @@ public struct PendingShot
     public WeaponFuse? Fuse;
     public float BlastRadius;
 
+    // Frozen with the rest of the shooter's decision: where the round left from. A round outlives its shooter, so
+    // nothing at resolution reads the shooter's position.
+    public float3 FireOrigin;
     public float3 FireTargetPosition;
     public float3 FireTargetVelocity;
     public float FireTime;
@@ -1614,7 +1736,12 @@ public sealed class ShotOutcome
     public Entity Source;
     public Entity Target;
     public EquippedItem Weapon;
-    public bool Hit;
+    // What the commit decided, typed: a shot rolled and missed, rolled and hit, or was a fused round with no
+    // target and so burst without rolling (Burst, at BurstPoint). Hit is derived from it, not stored beside it.
+    public ShotResult Result;
+    public bool Hit => Result == ShotResult.Hit;
+    // World planar point a Burst detonates at, frozen by the commit. Meaningless for any other Result.
+    public float2 BurstPoint;
     public bool Shielded;
     // Cut 5, 5.2 (Soul finding 4): frozen alongside the rest of the outcome (R4) -- a shield present, active,
     // and unable to CanTakeHit this shot is decided broken right here, so Apply performs Break() rather than
@@ -1628,4 +1755,13 @@ public sealed class ShotOutcome
     public float Lateral;
     public float ArrivalIn;
     public DamageType DamageType;
+}
+
+// What a committed shot came to. A Burst is a fused round that had no valid target: it rolled nothing, so it is
+// neither a hit nor a miss, and the presentation must not call it one.
+public enum ShotResult
+{
+    Miss,
+    Hit,
+    Burst
 }

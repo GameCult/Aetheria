@@ -1282,6 +1282,13 @@ public class ActionGameManager : MonoBehaviour
         }
     }
 
+    private static string ResultLabel(ShotResult result) => result switch
+    {
+        ShotResult.Hit => "HIT",
+        ShotResult.Burst => "BURST",
+        _ => "MISS"
+    };
+
     private void UpdateFireControlDebug(Entity target)
     {
         if (DebugInfoText == null) return;
@@ -1310,7 +1317,7 @@ public class ActionGameManager : MonoBehaviour
             var shot = CurrentEntity.Zone.PendingShots[i];
             if (shot.Source != CurrentEntity || shot.Weapon != selectedItem) continue;
             if (shot.Committed)
-                pendingLine = $"shot {shot.ShotId}: committed {(shot.Outcome.Hit ? "HIT" : "MISS")}";
+                pendingLine = $"shot {shot.ShotId}: committed {ResultLabel(shot.Outcome.Result)}";
             else
             {
                 var pDeviation = FireControl.DeviationProbability(shot, CurrentEntity.Zone.Time, out var deviation);
@@ -1324,7 +1331,7 @@ public class ActionGameManager : MonoBehaviour
         }
 
         var lastLine = _debugLastShots.TryGetValue(selectedItem, out var lastShot)
-            ? $"last {lastShot.ShotId}: {(lastShot.Hit ? "HIT" : "MISS")} cell {lastShot.Cell.x},{lastShot.Cell.y}"
+            ? $"last {lastShot.ShotId}: {ResultLabel(lastShot.Result)} cell {lastShot.Cell.x},{lastShot.Cell.y}"
             : "last: none";
         var gates = target == null
             ? "target: none"

@@ -1127,13 +1127,14 @@ public sealed class FireControlCut124Tests : IDisposable
 
         Assert.NotNull(outcome);
         Assert.False(outcome.Hit); // fixture: a guaranteed miss
+        Assert.Equal(ShotResult.Miss, outcome.Result);
         Assert.Empty(e.Zone.PendingShots);
         Assert.Equal(0, events);
         Assert.Equal(before, e.Target.Hull.Durability);
     }
 
     // Operator ruling 2026-09-30: "fused weapons without a lock explode at max range." A fused shot with no
-    // target bursts at the weapon's Range along its aim (the mount direction), whatever its fuse. The fixture
+    // target bursts at the weapon's Range along its aim (Entity.LookDirection), whatever its fuse. The fixture
     // aims the shooter along (2,1), a non-axis facing; witnesses sit at the burst point and beside it. Radius 4
     // with the witness hull 5x4 cells of 2 world units: a witness centred on the burst point is covered, and
     // one 30 units off the aim line is not.
@@ -1153,7 +1154,7 @@ public sealed class FireControlCut124Tests : IDisposable
     {
         var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: fuse, blastRadius: 4f, penetration: 1f, damage: 100f,
             weaponRange: NoLockRange);
-        e.Shooter.Direction = normalize(float2(2, 1));
+        Aim(e, float2(2, 1));
         e.Shooter.Target.Value = null;
         var burst = AimLine(e);
         var onLine = AddShip(e, burst, 1f, 300);
@@ -1178,7 +1179,7 @@ public sealed class FireControlCut124Tests : IDisposable
     {
         var e = Build(TestSettings(), SolidShape(5, 4), velocity: 20f, fuse: WeaponFuse.Proximity, blastRadius: 4f, damage: 100f,
             weaponRange: NoLockRange);
-        e.Shooter.Direction = normalize(float2(2, 1));
+        Aim(e, float2(2, 1));
         e.Shooter.Target.Value = null;
 
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
@@ -1208,6 +1209,276 @@ public sealed class FireControlCut124Tests : IDisposable
         e.Zone.Update(.01f);
 
         Assert.Equal(5.65884256f, damage, 3);
+    }
+
+    // ==== Operator rulings 2026-09-30 (Soul's pass on the no-lock fix): aim, invalid target, contact, shooter ====
+
+    private static void Aim(Engagement e, float2 direction) => e.Shooter.LookDirection = float3(direction.x, 0, direction.y);
+
+    private static float3 PointAlong(Engagement e, float2 direction, float distance) =>
+        e.Shooter.Position + float3(direction.x, 0, direction.y) * distance;
+
+    private static bool Alive(Engagement e, Entity entity) => e.Zone.Entities.Contains(entity);
+
+    // Ruling 1: an aim beyond the mount's arc flies along the nearest edge of that arc. The mount is (0,1), the
+    // arc 170 degrees (edge 85), and the aim (+-1,-1) sits 135 degrees off it; the witness on the edge dies and
+    // the one under the unclamped aim does not (they are 50 units apart). Kills: no clamp; the turn taken the
+    // wrong way round (the mirrored edge holds no witness).
+    [Theory]
+    [InlineData(1f)]
+    [InlineData(-1f)]
+    public void ANoLockShotOutsideTheMountArcFliesAlongTheNearestEdgeOfIt(float side)
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: WeaponFuse.Proximity, blastRadius: 4f, damage: 100f,
+            weaponRange: NoLockRange);
+        e.Shooter.Target.Value = null;
+        Aim(e, float2(side, -1));
+        var edge = float2(side * sin(radians(85f)), cos(radians(85f)));
+        var onEdge = AddShip(e, PointAlong(e, edge, NoLockRange), 1f, 300);
+        var underAim = AddShip(e, PointAlong(e, normalize(float2(side, -1)), NoLockRange), 1f, 302);
+
+        FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        e.Zone.Update(.01f);
+
+        Assert.False(Alive(e, onEdge), "the blast must land on the arc's edge");
+        Assert.True(Alive(e, underAim), "the blast must not follow an aim the arc does not allow");
+    }
+
+    // Ruling 1: an aim inside the arc is used as it is (unnormalised here), and a shooter aiming at nothing
+    // (LookDirection zero) fires down its mount. Kills: reading MountDirection instead of the aim; a missing
+    // zero-aim fallback, which would normalise to NaN and burst nowhere.
+    [Fact]
+    public void ANoLockShotFliesAlongTheAimAndDownTheMountWhenNothingIsAimed()
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: WeaponFuse.Proximity, blastRadius: 4f, damage: 100f,
+            weaponRange: NoLockRange);
+        e.Shooter.Target.Value = null;
+        var mount = float2(0, 1);
+        var aim = normalize(float2(2, 1));
+        var onAim = AddShip(e, PointAlong(e, aim, NoLockRange), 1f, 300);
+        var onMount = AddShip(e, PointAlong(e, mount, NoLockRange), 1f, 302);
+
+        Aim(e, float2(6, 3));
+        FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        e.Zone.Update(.01f);
+        Assert.False(Alive(e, onAim), "the blast must follow the aim");
+        Assert.True(Alive(e, onMount), "the mount direction is not the aim");
+
+        Aim(e, float2(0, 0));
+        FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        e.Zone.Update(.01f);
+        Assert.False(Alive(e, onMount), "with nothing aimed the blast follows the mount");
+    }
+
+    public enum Invalid { OutOfRange, NotVisible, OutOfArc }
+
+    // Ruling 2: a selected target that is out of range, not visible or out of arc counts as no lock -- the round
+    // bursts at max range along the aim, and the target is left alone. The aim is (2,1) except when the target is
+    // behind the mount, where the mount is flipped and the aim follows it. Kills: reading "no lock" as
+    // Target == null alone (the round would burst at the target's intercept, 100 / 40 / 100 units out).
+    // (An unlocked LockWeapon shares the same predicate; the fixture has no LockWeapon.)
+    [Theory]
+    [InlineData(Invalid.OutOfRange)]
+    [InlineData(Invalid.NotVisible)]
+    [InlineData(Invalid.OutOfArc)]
+    public void AnInvalidTargetCountsAsNoLock(Invalid reason)
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: WeaponFuse.Proximity, blastRadius: 4f, damage: 100f,
+            weaponRange: NoLockRange, targetRange: reason == Invalid.NotVisible ? 40f : 100f);
+        var aim = normalize(float2(2, 1));
+        if (reason == Invalid.NotVisible) e.Shooter.VisibleEntities.Remove(e.Target);
+        if (reason == Invalid.OutOfArc)
+        {
+            e.Shooter.Direction = float2(0, -1);
+            aim = float2(0, -1);
+        }
+        Aim(e, aim);
+        var burst = PointAlong(e, aim, NoLockRange);
+        var onAim = AddShip(e, burst, 1f, 300);
+        var targetBefore = e.Target.Hull.Durability;
+
+        FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        var shot = Assert.Single(e.Zone.PendingShots);
+        Assert.Null(shot.Target);
+        Assert.Equal(burst.x, shot.BurstPosition.x, 3);
+        Assert.Equal(burst.z, shot.BurstPosition.z, 3);
+        e.Zone.Update(.01f);
+
+        Assert.False(Alive(e, onAim), "the blast must land at max range along the aim");
+        Assert.Equal(targetBefore, e.Target.Hull.Durability);
+    }
+
+    // Ruling 3: a Contact round with no lock stops on the first hull its aim line crosses before max range; a
+    // Proximity or Delayed round keeps the max-range burst. The blocker's near face sits 21 units out (a 5x4-cell
+    // hull of 2-unit cells centred 25 out), the witness at max range (60). Kills: a Contact fuse that ignores
+    // hulls; a Proximity or Delayed fuse that trips on one.
+    [Theory]
+    [InlineData(WeaponFuse.Contact, true)]
+    [InlineData(WeaponFuse.Proximity, false)]
+    [InlineData(WeaponFuse.Delayed, false)]
+    public void OnlyAContactRoundWithNoLockStopsOnTheFirstHullItCrosses(WeaponFuse fuse, bool stopsOnTheBlocker)
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: fuse, blastRadius: 4f, penetration: 1f, damage: 100f,
+            weaponRange: NoLockRange);
+        e.Shooter.Target.Value = null;
+        Aim(e, float2(0, 1));
+        var blocker = AddShip(e, PointAlong(e, float2(0, 1), 25f), 1f, 300);
+        var atMaxRange = AddShip(e, PointAlong(e, float2(0, 1), NoLockRange), 1f, 302);
+        ShotOutcome outcome = null;
+        using var c = e.Zone.ShotCommitted.Subscribe(o => outcome = o);
+
+        FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        e.Zone.Update(.01f);
+
+        Assert.NotNull(outcome);
+        var expectedReach = stopsOnTheBlocker ? 21f : NoLockRange;
+        Assert.Equal(e.Shooter.Position.z + expectedReach, outcome.BurstPoint.y, 2);
+        Assert.Equal(e.Shooter.Position.x, outcome.BurstPoint.x, 2);
+        Assert.Equal(!stopsOnTheBlocker, Alive(e, blocker));
+        Assert.Equal(stopsOnTheBlocker, Alive(e, atMaxRange));
+    }
+
+    // Ruling 3: a hull beyond max range is not on the round's way, and the shooter's own hull, which the line
+    // starts inside, is never a candidate. Here the target (100 out) lies on the line of a 60-range Contact
+    // round. Kills: a burst point beyond the max-range point; a Contact search that admits the shooter.
+    [Fact]
+    public void AContactRoundWithNoLockBurstsAtMaxRangeWhenNoHullIsInReach()
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: WeaponFuse.Contact, blastRadius: 4f, damage: 100f,
+            weaponRange: NoLockRange);
+        e.Shooter.Target.Value = null;
+        Aim(e, float2(0, 1));
+        var targetBefore = e.Target.Hull.Durability;
+        var shooterHit = 0f;
+        using var a = e.Shooter.ArmorDamage.Subscribe(x => shooterHit += x.damage);
+        using var h = e.Shooter.HullDamage.Subscribe(x => shooterHit += x);
+        using var i = e.Shooter.ItemDamage.Subscribe(x => shooterHit += x.damage);
+        ShotOutcome outcome = null;
+        using var c = e.Zone.ShotCommitted.Subscribe(o => outcome = o);
+
+        FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        e.Zone.Update(.01f);
+
+        Assert.Equal(e.Shooter.Position.z + NoLockRange, outcome.BurstPoint.y, 2);
+        Assert.Equal(targetBefore, e.Target.Hull.Durability);
+        Assert.Equal(0f, shooterHit);
+    }
+
+    // Ruling 3: a Contact round bursting short of max range arrives when it has flown that far -- 21 of 60 units
+    // at 20 units/s is 1.05 s into a 3 s flight -- and the commit says so through ArrivalIn. Kills: an arrival
+    // left at the max-range time (the round would still be pending at 1.2 s, and ArrivalIn would read ~3).
+    [Fact]
+    public void AContactBurstShortOfMaxRangeArrivesWhenTheRoundHasFlownThatFar()
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 20f, fuse: WeaponFuse.Contact, blastRadius: 4f, damage: 100f,
+            weaponRange: NoLockRange);
+        e.Shooter.Target.Value = null;
+        Aim(e, float2(0, 1));
+        var blocker = AddShip(e, PointAlong(e, float2(0, 1), 25f), 1f, 300);
+        ShotOutcome outcome = null;
+        using var c = e.Zone.ShotCommitted.Subscribe(o => outcome = o);
+
+        FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        e.Zone.Update(.01f);
+        Assert.NotNull(outcome);
+        Assert.Equal(1.05f - .01f, outcome.ArrivalIn, 2);
+        Assert.True(Alive(e, blocker));
+
+        e.Zone.Update(1.1f);
+        Assert.Empty(e.Zone.PendingShots);
+        Assert.False(Alive(e, blocker));
+    }
+
+    // Ruling 4: a round outlives its shooter. A no-lock proximity round whose shooter leaves the zone in flight
+    // still detonates at max range, whether the shooter goes before or after the commit; a targeted proximity
+    // round does the same at its intercept, for the same damage a shooter who stayed would have dealt (the value
+    // measured for ATargetedFusedShotIsUnchangedByTheNoLockRule at b66ba524, 5.65884256). Kills: Step
+    // cancelling a shot whose source has left the zone.
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void ANoLockRoundStillBurstsAfterItsShooterLeavesTheZone(int updatesBeforeLeaving)
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 20f, fuse: WeaponFuse.Proximity, blastRadius: 4f, damage: 100f,
+            weaponRange: NoLockRange);
+        e.Shooter.Target.Value = null;
+        Aim(e, float2(0, 1));
+        var witness = AddShip(e, PointAlong(e, float2(0, 1), NoLockRange), 1f, 300);
+
+        FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        for (var i = 0; i < updatesBeforeLeaving; i++) e.Zone.Update(.01f);
+        e.Zone.Entities.Remove(e.Shooter);
+        e.Zone.Update(4f);
+
+        Assert.Empty(e.Zone.PendingShots);
+        Assert.False(Alive(e, witness), "the round must still burst at max range");
+    }
+
+    [Fact]
+    public void ATargetedFusedRoundStillBurstsAfterItsShooterLeavesTheZone()
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 20f, fuse: WeaponFuse.Proximity, blastRadius: 30f, damage: 100f);
+        var damage = 0f;
+        using var a = e.Target.ArmorDamage.Subscribe(x => damage += x.damage);
+        using var h = e.Target.HullDamage.Subscribe(x => damage += x);
+        using var i = e.Target.ItemDamage.Subscribe(x => damage += x.damage);
+
+        FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        e.Zone.Update(.01f);
+        e.Zone.Entities.Remove(e.Shooter);
+        e.Zone.Update(6f);
+
+        Assert.Empty(e.Zone.PendingShots);
+        Assert.Equal(5.65884256f, damage, 3);
+    }
+
+    // Ruling 4, direct hits: rounds fired at a target and in flight when their shooter leaves still hit it. A dozen
+    // shots each roll their own dice (seeded by shot id), and with a stationary target and a full-accuracy
+    // targeting system nearly all land; the test needs only that all resolve and some hit, and that each hit
+    // still names the departed shooter (identity carried, never asked anything).
+    [Fact]
+    public void ADirectRoundStillHitsAfterItsShooterLeavesTheZone()
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 20f, damage: 5f);
+        var resolved = new List<ShotOutcome>();
+        using var r = e.Zone.ShotResolved.Subscribe(o => resolved.Add(o));
+        var struck = 0;
+        using var s = e.Target.IncomingHit.Subscribe(src => { if (src == e.Shooter) struck++; });
+
+        for (var i = 0; i < 12; i++) FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        e.Zone.Update(.01f);
+        e.Zone.Entities.Remove(e.Shooter);
+        e.Zone.Update(6f);
+
+        Assert.Empty(e.Zone.PendingShots);
+        Assert.Equal(12, resolved.Count);
+        Assert.True(resolved.Any(o => o.Hit), "at least one round must land on the stationary target");
+        Assert.Equal(resolved.Count(o => o.Hit), struck);
+    }
+
+    // Ruling 6: what a commit came to is typed. A no-lock burst is neither a hit nor a miss, and reads as neither.
+    // Kills: MakeOutcome collapsing a burst back to a miss (the debug HUD read MISS for a real explosion).
+    [Fact]
+    public void ANoLockBurstCommitsAsABurstNotAMiss()
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: WeaponFuse.Proximity, blastRadius: 4f, damage: 100f,
+            weaponRange: NoLockRange);
+        e.Shooter.Target.Value = null;
+        Aim(e, float2(2, 1));
+        ShotOutcome committed = null, resolved = null;
+        using var c = e.Zone.ShotCommitted.Subscribe(o => committed = o);
+        using var r = e.Zone.ShotResolved.Subscribe(o => resolved = o);
+
+        FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        e.Zone.Update(.01f);
+
+        Assert.NotNull(committed);
+        Assert.Equal(ShotResult.Burst, committed.Result);
+        Assert.False(committed.Hit);
+        var burst = PointAlong(e, normalize(float2(2, 1)), NoLockRange);
+        Assert.Equal(burst.x, committed.BurstPoint.x, 3);
+        Assert.Equal(burst.z, committed.BurstPoint.y, 3);
+        Assert.Same(committed, resolved);
     }
 
     // ToWorldPoint and ToSchematicPoint are inverses, and ToWorldPoint puts one cell to starboard of the centre
@@ -1352,6 +1623,7 @@ public sealed class FireControlCut124Tests : IDisposable
         }
         Assert.NotNull(outcome);
         Assert.True(outcome.Hit);
+        Assert.Equal(ShotResult.Hit, outcome.Result);
         Assert.True(armorEvents > 0);
         var shot = e.Zone.PendingShots.Count == 0 ? null : (PendingShot?) e.Zone.PendingShots[0];
         Assert.Null(shot); // resolved and removed -- confirms it went through Apply's null-fuse path to completion
