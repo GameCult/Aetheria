@@ -2676,6 +2676,14 @@ follow-up rulings, all given on 2026-09-30:
 
   An out-of-arc round with a selected target bursts after that target leaves. That is ruled behaviour: an
   out-of-arc target is invalid, so the round takes the no-lock path.
+- **Landed, 2026-09-29: batches 5-8 merged at `06001b57`.** 476 tests pass on the merged tree, after Soul
+  passes 5-7. Recorded follow-ups:
+  - The push-out follows the flight line, not the ray to the hull point.
+  - The HUD's burst range is an upper bound when a no-lock round stops at an earlier hull.
+  - The first-hull stop reads poses at fire time.
+  - A burst whose first round fails its energy or ammo spend retries every tick, bounded by capacitor refill.
+  - The first-round cooldown divides by `Cooldown` even when the magazine empties (a reload quirk that
+    predates this work).
 - **A round outlives its shooter,** for targeted and no-lock shots alike. Credit and loot with no shooter go
   nowhere.
 
