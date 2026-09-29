@@ -70,7 +70,7 @@ public sealed class ShipAuthoringTests
             ShipAuthoringStore.Validate(ship)).Message);
     }
 
-    private static ShipAuthoring Fixture()
+    internal static ShipAuthoring Fixture()
     {
         var shape = new Shape(2, 2);
         shape.Cells[0, 0] = true;
