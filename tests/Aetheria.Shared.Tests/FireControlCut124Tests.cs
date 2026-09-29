@@ -535,6 +535,100 @@ public sealed class FireControlCut124Tests : IDisposable
         Assert.Equal(afterFirstTick, targetDamage, 4);
     }
 
+    // AOneBlastKillsEveryShipInsideIt: three ships, each dead to one hit, inside one blast. Each takes hull
+    // damage exactly once and dies exactly once, and the shot leaves the queue once. Kills: the snapshot loop
+    // breaking after the first kill (the other two would never be touched).
+    [Fact]
+    public void AOneBlastKillsEveryShipInsideIt()
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: WeaponFuse.Proximity, blastRadius: 30f, damage: 100f);
+        var ships = new[]
+        {
+            AddShip(e, e.Target.Position + float3(8, 0, 0), 1f, 300),
+            AddShip(e, e.Target.Position + float3(-8, 0, 0), 1f, 302),
+            AddShip(e, e.Target.Position + float3(0, 0, 8), 1f, 304),
+        };
+        var hullHits = new int[3];
+        var deaths = new int[3];
+        var subs = new List<IDisposable>();
+        for (var n = 0; n < 3; n++)
+        {
+            var k = n;
+            subs.Add(ships[k].HullDamage.Subscribe(_ => hullHits[k]++));
+            subs.Add(ships[k].Death.Subscribe(_ => deaths[k]++));
+        }
+        var resolved = 0;
+        subs.Add(e.Zone.ShotResolved.Subscribe(_ => resolved++));
+
+        FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        e.Zone.Update(.01f);
+        foreach (var s in subs) s.Dispose();
+
+        Assert.Equal(new[] { 1, 1, 1 }, hullHits);
+        Assert.Equal(new[] { 1, 1, 1 }, deaths);
+        foreach (var s in ships) Assert.DoesNotContain(s, e.Zone.Entities);
+        Assert.Empty(e.Zone.PendingShots);
+        Assert.Equal(1, resolved);
+    }
+
+    // AShieldlessShipOutsideTheDiscIsNotTouched: nothing of any kind reaches an entity the disc does not
+    // overlap. Kills: an uncovered entity falling through to the damage call (`covered ??= new List`).
+    [Fact]
+    public void AShieldlessShipOutsideTheDiscIsNotTouched()
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: WeaponFuse.Proximity, blastRadius: 3f, damage: 100f);
+        var outside = AddShip(e, e.Target.Position + float3(60, 0, 0), 1f, 300);
+        var touched = 0;
+        using var a = outside.ArmorDamage.Subscribe(_ => touched++);
+        using var h = outside.HullDamage.Subscribe(_ => touched++);
+        using var i = outside.ItemDamage.Subscribe(_ => touched++);
+        var targetHit = 0f;
+        using var t = e.Target.HullDamage.Subscribe(x => targetHit += x);
+        var armourHit = 0f;
+        using var ta = e.Target.ArmorDamage.Subscribe(x => armourHit += x.damage);
+
+        FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        e.Zone.Update(.01f);
+
+        Assert.Equal(0, touched);
+        Assert.Equal(1f, outside.Hull.Durability);
+        Assert.Contains(outside, e.Zone.Entities);
+        Assert.True(targetHit + armourHit > 0f, "fixture: the blast must land on the target");
+    }
+
+    // ADestroyedCockpitRaisesDeathOnce: the blast destroys the cockpit, Death removes and deactivates the
+    // entity, and the blast's own DamageHull then still runs; no subscriber sees a second Death.
+    [Fact]
+    public void ADestroyedCockpitRaisesDeathOnce()
+    {
+        var e = Build(TestSettings(), SolidShape(3, 3), cockpitCell: new int2(1, 1), cockpitDurability: 10f);
+        var deaths = new List<CauseOfDeath>();
+        using var d = e.Target.Death.Subscribe(deaths.Add);
+        var hullEvents = 0;
+        using var h = e.Target.HullDamage.Subscribe(_ => hullEvents++);
+
+        FireControl.Detonate(e.Zone, e.Target.Position.xz, .6f, 5000f, DamageType.Kinetic);
+
+        Assert.Equal(new[] { CauseOfDeath.CockpitDestroyed }, deaths);
+        Assert.DoesNotContain(e.Target, e.Zone.Entities);
+        Assert.True(hullEvents >= 1, "fixture: the blast's hull damage still lands after the cockpit dies");
+    }
+
+    // ADirectHullKillRaisesDeathOnce: the non-blast path (Entity.DamageHull straight, as a projectile hit does)
+    // raises Death once, and further damage to the corpse does not raise it again.
+    [Fact]
+    public void ADirectHullKillRaisesDeathOnce()
+    {
+        var e = Build(TestSettings(), SolidShape(3, 3));
+        var deaths = 0;
+        using var d = e.Target.Death.Subscribe(_ => deaths++);
+
+        e.Target.DamageHull(2000000f);
+        e.Target.DamageHull(5f);
+
+        Assert.Equal(1, deaths);
+    }
+
     // ==== Absorption order ====
 
     // ABlastIsAbsorbedThroughArmourFirstPerCell (replaces AbsorbSpendsArmourBeforeTheItemOnTheSameCell): a disc
