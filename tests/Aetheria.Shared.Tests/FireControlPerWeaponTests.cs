@@ -374,7 +374,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
 
     // One discrete weapon, triggered once at no target, with every cost observable: a magazine, an energy charge,
     // a sound bank, wear events, heat and visibility. Range 29.5 refuses (arming 30); Range 40 fires.
-    private Costs Pull(float range, bool single)
+    private Costs Pull(float range, bool single, bool viaTrigger)
     {
         var r = Build(fuse: WeaponFuse.Proximity, blast: 30f, range: range, energy: 50f, heat: 5000f, visibility: 100f, magazine: 5, singleAmmoBurst: single);
         r.Shooter.Target.Value = null;
@@ -393,7 +393,8 @@ public sealed class FireControlPerWeaponTests : IDisposable
         var ammoBefore = weapon.Ammo;
         Assert.True(chargeBefore > 0f && ammoBefore == 5, "fixture: a full buffer and magazine");
 
-        weapon.Activate();
+        if (viaTrigger) weapon.Activate();
+        else typeof(InstantWeapon).GetField("_burstRemaining", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(weapon, 1);
         r.Zone.Update(.01f);
 
         costs.Ammo = ammoBefore - weapon.Ammo;
@@ -405,15 +406,18 @@ public sealed class FireControlPerWeaponTests : IDisposable
 
     // Control: the same weapon with Range to spare pays every cost, so a free refusal below is not a fixture that
     // never spends. Then the refusal costs nothing: no ammo, no energy, no sound, no wear, no heat, no
-    // visibility, no shot. Kills, one per row of the assertions: a spend that precedes the refusal (Execute or
-    // Trigger), an announcement, a sound, wear, heat or visibility left ahead of the `continue`.
-    // `single` is a weapon that pays once per burst, at the trigger rather than at the round.
+    // visibility, no shot. `single` is a weapon that pays once per burst, at the trigger rather than at the round;
+    // `viaTrigger` false authorises the burst directly (the way a trigger that passed leaves it) on a weapon whose
+    // Range is short, so the Trigger check cannot be what stops the round and Execute must refuse it itself.
+    // Kills, one per row of the assertions: a spend that precedes the refusal (Execute or Trigger), an
+    // announcement, a sound, wear, heat or visibility left ahead of the `continue`.
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void ARefusedDiscreteRoundCostsNothing(bool single)
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    public void ARefusedDiscreteRoundCostsNothing(bool single, bool viaTrigger)
     {
-        var fired = Pull(40f, single);
+        var fired = Pull(40f, single, viaTrigger);
         Assert.True(fired.Shots == 1, $"shots {fired.Shots}");
         Assert.True(fired.Ammo == 1, $"ammo spent {fired.Ammo}");
         Assert.True(fired.ChargeSpent > 1f, "a fired round spends its energy");
@@ -423,7 +427,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
         Assert.True(fired.Visible);
         Assert.Equal(1, fired.Announced);
 
-        var refused = Pull(29.5f, single);
+        var refused = Pull(29.5f, single, viaTrigger);
         Assert.Equal(0, refused.Shots);
         Assert.Equal(0, refused.Ammo);
         Assert.Equal(0f, refused.ChargeSpent);
@@ -432,27 +436,6 @@ public sealed class FireControlPerWeaponTests : IDisposable
         Assert.True(fired.Heat - refused.Heat > 5f, $"a refused round adds no heat ({refused.Heat} vs {fired.Heat})");
         Assert.False(refused.Visible);
         Assert.Equal(0, refused.Announced);
-    }
-
-    // The trigger and the round are separate decisions: a burst authorised at the trigger runs its rounds later,
-    // at whatever Range Execute has refreshed by then, and a round that Range no longer reaches is refused before
-    // its spend. The authorisation is set directly (the way a trigger that passed leaves it) on a weapon whose
-    // Range is short of its blast radius, so the Trigger check cannot be what stops it. Kills: Execute spending
-    // before it asks.
-    [Fact]
-    public void ARoundRefusedAfterTheTriggerPassedIsRefusedBeforeItsSpend()
-    {
-        var r = Build(fuse: WeaponFuse.Proximity, blast: 30f, range: 29.5f, magazine: 5);
-        r.Shooter.Target.Value = null;
-        Aim(r, float2(0, 1));
-        var weapon = (InstantWeapon) r.Gun.Weapon;
-        typeof(InstantWeapon).GetField("_burstRemaining", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(weapon, 1);
-
-        r.Zone.Update(.01f);
-
-        Assert.Equal(5, weapon.Ammo);
-        SafeAssert.NoShots(r.Zone);
-        Assert.Equal(0, (int) typeof(InstantWeapon).GetField("_burstRemaining", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(weapon));
     }
 
     // The same rule for a beam: a fused beam whose arming distance exceeds Range fires nothing and draws
