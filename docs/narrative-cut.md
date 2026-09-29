@@ -1,11 +1,35 @@
 # Aetheria narrative: target verification and cut map
 
-Status: Imagination pass, 2026-09-29. Nothing is committed. The ends are owned by
+Status: Imagination pass, 2026-09-29; Q1-Q9 ruled 2026-09-30 (below). No code landed. The ends are owned by
 `docs/narrative-target.md` (on `origin/codex/item-provenance`, `53d0f304`). This document owns the means and
 the corrections that target needs before anyone cuts against it.
 
 Anchors. Every `file:line` is against **`b66ba524`** (`origin/codex/fire-control-12` tip, 2026-09-29), unless
 another SHA is named. The target's own citations were written against `cd846916`.
+
+## Rulings (operator, 2026-09-30)
+
+- **Q1 A.** A quest is a teaching and progression unit: the target's skeleton built on the engine's injection
+  model. It is authored, credited, may grant items and tracks stages. The lore mission contract is a later layer.
+- **Q2 → A (conditional ruling, resolved).** Operator: "I would go for Ink tags iff the assumption holds that
+  Ink files can be fully self-contained questlines. If we need a NarrativeData record anyway, I'd start
+  migrating metadata there." The condition fails: Emily's files cannot take tags without editing (C4, Q5), and
+  RSA spans several files through `INCLUDE` (C3). So identity lives in the typed `NarrativeData` record, and
+  the existing global-tag metadata (`#planet`, `#constraint`, `#trade`) migrates into it too. Ink carries no
+  metadata tags; the loader refuses them.
+- **Q3 A.** Every compiled story, place or quest, has a record and the sticky header.
+- **Q4 both.** Rewards are ordinary lots with a `Granted { Quest }` provenance variant. Story objects are
+  designs owned by a quest (a design-level link). Cut 4 is now mappable.
+- **Q5 B.** `Corvus6.ink2`, `TestLociA-D.ink` and `TestQuestMultiLoci.ink` are Emily's: credited, never
+  edited. `Locations/TestA.ink` and `Quests/TestQuest.ink` are engine fixtures and move under `tests/`.
+- **Q6 A.** The header names the active story. Each injected choice carries a compact credit line until
+  entered.
+- **Q7 A.** Quest progress persists as Ink's state snapshot, an opaque blob sealed in one typed run-store
+  document per quest.
+- **Q8 A (default, follows from Q2 and Q5).** Fixtures live only under `tests/`. A record in the shipped
+  catalog is the only admission.
+- **Q9 A (default, follows from the operator's 2026-09-30 branch cleanup).** Once Cut 0 cherry-picks this doc
+  onto the narrative branch, `origin/codex/item-provenance` is deleted.
 
 ## 0. Lineage (verified)
 
