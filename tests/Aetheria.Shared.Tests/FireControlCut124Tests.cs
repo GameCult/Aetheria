@@ -760,11 +760,40 @@ public sealed class FireControlCut124Tests : IDisposable
         var cellSize = e.Items.GameplaySettings.SchematicCellSize;
         var worldCentre = e.Target.Position.xz + float2(-2.5f * cellSize, 0);
 
+        Assert.True(e.Target.Shield.CanTakeHit(DamageType.Kinetic, 70f));  // fixture: the reserve is exactly full
+        Assert.False(e.Target.Shield.CanTakeHit(DamageType.Kinetic, 70.5f));
+
         // damage 100, half retained (50) -- 50 <= capacity 70, so a correct implementation absorbs it whole and
         // never breaks; a "charge the full 100" mutant would find 100 > 70 and break the shield instead.
+        var cellEvents = 0;
+        using var a = e.Target.ArmorDamage.Subscribe(_ => cellEvents++);
         FireControl.Detonate(e.Zone, worldCentre, .5f * cellSize, 100f, DamageType.Kinetic);
 
         Assert.False(e.Target.Shield.Broken);
+        Assert.Equal(0, cellEvents); // the shield took it all, nothing reached a cell
+        // The reserve dropped by the covered share and by nothing else: 70 - 50 = 20 left. It is read through the
+        // public query as a threshold probe, since no recharge runs between Detonate and here.
+        Assert.True(e.Target.Shield.CanTakeHit(DamageType.Kinetic, 19.9f));
+        Assert.False(e.Target.Shield.CanTakeHit(DamageType.Kinetic, 20.1f));
+    }
+
+    // An entity the disc does not touch has nothing to decide: it is skipped whole, its active shield is not
+    // consulted and nothing is dealt. The blast lands 20 cells away from a shielded hull.
+    [Fact]
+    public void AnUntouchedEntitysShieldIsNotConsulted()
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), equipShield: true, shieldCapacity: 70f);
+        for (var i = 0; i < 30; i++) e.Zone.Update(.1f);
+        Assert.True(e.Target.Shield.CanTakeHit(DamageType.Kinetic, 70f));
+        var events = 0;
+        using var a = e.Target.ArmorDamage.Subscribe(_ => events++);
+        using var h = e.Target.HullDamage.Subscribe(_ => events++);
+
+        FireControl.Detonate(e.Zone, e.Target.Position.xz + float2(40f, 0f), 2f, 1000f, DamageType.Kinetic);
+
+        Assert.Equal(0, events);
+        Assert.False(e.Target.Shield.Broken);
+        Assert.True(e.Target.Shield.CanTakeHit(DamageType.Kinetic, 70f));
     }
 
     // ABlastShotsShieldIsDecidedAtDetonation (Q12-9 = A): Commit decides no shield for a shot that carries a
@@ -790,6 +819,72 @@ public sealed class FireControlCut124Tests : IDisposable
         Assert.True(outcome.Hit);
         Assert.False(outcome.Shielded);
         Assert.False(outcome.ShieldBroken);
+    }
+
+    // The other half of Q12-9 = A: the shield's state at arrival, not at commit, decides. A contact shot in
+    // 2 s of flight commits 1.5 s in; the shield is flipped between commit and arrival, and the blast (radius
+    // 15 cells, so the whole 20-cell hull lies inside the disc and the covered share is exactly
+    // damage * 20 / (pi * 15^2)) must follow the state it finds. The reserve is read through the public
+    // CanTakeHit as a threshold probe: nothing recharges between Detonate and the read.
+    [Fact]
+    public void AShieldRaisedBetweenCommitAndArrivalAbsorbsTheBlast()
+    {
+        const float capacity = 1000f;
+        var share = 50f * 20f / (PI * 15f * 15f);
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 50, targetRange: 100,
+            fuse: WeaponFuse.Contact, blastRadius: 30f, damage: 50f,
+            equipShield: true, shieldCapacity: capacity, shieldActive: false);
+        ArmourEverything(e);
+        var cellDamage = 0f;
+        using var a = e.Target.ArmorDamage.Subscribe(x => cellDamage += x.damage);
+        using var h = e.Target.HullDamage.Subscribe(x => cellDamage += x);
+        ShotOutcome committed = null;
+        using var c = e.Zone.ShotCommitted.Subscribe(o => committed = o);
+
+        var shotId = FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        while (!e.Zone.PendingShots.Any(s => s.ShotId == shotId && s.Committed)) e.Zone.Update(.05f);
+        Assert.True(committed.Hit);
+        Assert.False(committed.Shielded);
+        Assert.False(committed.ShieldBroken);
+
+        e.Target.Shield.Item.Enabled.Value = true; // up before arrival, down at commit
+        for (var i = 0; i < 4; i++) e.Zone.Update(.05f);
+        Assert.True(e.Zone.PendingShots.Any(s => s.ShotId == shotId), "fixture: the shot must still be in flight");
+        Assert.True(e.Target.Shield.CanTakeHit(DamageType.Kinetic, capacity - .1f), "fixture: the reserve must be full");
+        while (e.Zone.PendingShots.Any(s => s.ShotId == shotId)) e.Zone.Update(.05f);
+
+        Assert.Equal(0f, cellDamage); // the shield decided at arrival, so no cell took anything
+        Assert.False(e.Target.Shield.Broken);
+        Assert.True(e.Target.Shield.CanTakeHit(DamageType.Kinetic, capacity - share - .05f));
+        Assert.False(e.Target.Shield.CanTakeHit(DamageType.Kinetic, capacity - share + .05f));
+    }
+
+    // And the reverse: up at commit, down at arrival -- the blast finds no shield and lands on the cells, and
+    // the reserve is not charged.
+    [Fact]
+    public void AShieldDroppedBetweenCommitAndArrivalDoesNotAbsorbTheBlast()
+    {
+        const float capacity = 1000f;
+        var share = 50f * 20f / (PI * 15f * 15f);
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 50, targetRange: 100,
+            fuse: WeaponFuse.Contact, blastRadius: 30f, damage: 50f,
+            equipShield: true, shieldCapacity: capacity);
+        ArmourEverything(e);
+        for (var i = 0; i < 30; i++) e.Zone.Update(.1f);
+        var armour = 0f;
+        using var a = e.Target.ArmorDamage.Subscribe(x => armour += x.damage);
+        ShotOutcome committed = null;
+        using var c = e.Zone.ShotCommitted.Subscribe(o => committed = o);
+
+        var shotId = FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        while (!e.Zone.PendingShots.Any(s => s.ShotId == shotId && s.Committed)) e.Zone.Update(.05f);
+        Assert.False(committed.Shielded);
+
+        e.Target.Shield.Item.Enabled.Value = false;
+        while (e.Zone.PendingShots.Any(s => s.ShotId == shotId)) e.Zone.Update(.05f);
+
+        Assert.Equal(share, armour, 2); // the whole covered share landed on the cells
+        Assert.True(e.Target.Shield.CanTakeHit(DamageType.Kinetic, capacity - .1f)); // and the reserve was not charged
     }
 
     // ==== Fuses (through Fire, SchematicCellSize 2) ====
@@ -880,22 +975,135 @@ public sealed class FireControlCut124Tests : IDisposable
         Assert.Equal(expected, delivered, 0);
     }
 
+    // TheFusePointStaysOnMetal, the concave half: a 1x5 column with cell (0,2) missing. A lane's walk ends at
+    // its first gap, so the reached metal is cells (0,0) and (0,1) whatever the penetration, and the fuse point
+    // must clamp to the last reached cell's exit (schematic y 1.5, the metal's edge) rather than sit at
+    // entry + penetration inside the gap (y 2.4 at penetration 2.9) or on the far segment the walk never
+    // reached (y 2.7 at 3.2). Entries run from -.5, so at penetration 1.5 the point is y 1.0, inside cell (0,1),
+    // with the disc wholly on metal.
+    [Theory]
+    [InlineData(1.5f, 1.0)]
+    [InlineData(2.9f, 1.5)]
+    [InlineData(3.2f, 1.5)]
+    public void TheFusePointStaysOnMetalAcrossAConcaveGap(float penetration, double pointY)
+    {
+        var shape = SolidShape(1, 5);
+        shape[new int2(0, 2)] = false;
+        var e = Build(TestSettings(), shape, penetration: penetration, fuse: WeaponFuse.Delayed, blastRadius: .3f, damage: 100f);
+        var comX = e.HullData.Shape.CenterOfMass.x;
+        var rCells = .3 / e.Items.GameplaySettings.SchematicCellSize;
+        var expected = ExpectedDelivered(e.HullData.Shape, comX, pointY, rCells, 100.0);
+
+        var before = e.Target.Hull.Durability;
+        ShotOutcome outcome = null;
+        for (var attempt = 0; attempt < 60 && (outcome == null || !outcome.Hit); attempt++)
+        {
+            using var s = e.Zone.ShotResolved.Subscribe(o => outcome = o);
+            FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+            e.Zone.Update(.01f);
+        }
+        Assert.NotNull(outcome);
+        Assert.True(outcome.Hit);
+        Assert.Equal(expected, before - e.Target.Hull.Durability, 0);
+    }
+
+    // A contact or delayed blast needs a committed hit, exactly like a direct hit's own gate: on a miss nothing
+    // happens -- no blast, no IncomingHit. Accuracy 0 pins the roll to a miss. Kills: ApplyBlastHit without its
+    // `Outcome.Hit` guard, which would detonate at a point derived from a miss's empty geometry.
+    [Theory]
+    [InlineData(WeaponFuse.Contact)]
+    [InlineData(WeaponFuse.Delayed)]
+    public void AContactOrDelayedBlastOnAMissDoesNothing(WeaponFuse fuse)
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), fuse: fuse, blastRadius: 30f, penetration: 1f, damage: 500f, accuracy: 0f);
+        ArmourEverything(e);
+        var before = e.Target.Hull.Durability;
+        var events = 0;
+        using var a = e.Target.ArmorDamage.Subscribe(_ => events++);
+        using var h = e.Target.HullDamage.Subscribe(_ => events++);
+        using var i = e.Target.ItemDamage.Subscribe(_ => events++);
+        using var hit = e.Target.IncomingHit.Subscribe(_ => events++);
+        ShotOutcome outcome = null;
+        using var r = e.Zone.ShotResolved.Subscribe(o => outcome = o);
+
+        FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        e.Zone.Update(.01f);
+
+        Assert.NotNull(outcome);
+        Assert.False(outcome.Hit); // fixture: a guaranteed miss
+        Assert.Empty(e.Zone.PendingShots);
+        Assert.Equal(0, events);
+        Assert.Equal(before, e.Target.Hull.Durability);
+    }
+
+    // ToWorldPoint and ToSchematicPoint are inverses, and ToWorldPoint puts one cell to starboard of the centre
+    // of mass two world units along the starboard axis (right = (forward.y, -forward.x), spelled out here). At
+    // facing (0,1) a flipped right axis is still masked by a centre-lane point; (2,1) is not.
+    [Fact]
+    public void ToWorldPointIsTheInverseOfToSchematicPointAtANonAxisFacing()
+    {
+        var facing = normalize(float2(2, 1));
+        var e = Build(TestSettings(), SolidShape(5, 4), targetFacing: facing);
+        var t = e.Target;
+        var com = e.HullData.Shape.CenterOfMass;
+        var starboard = float2(facing.y, -facing.x);
+
+        var world = t.Position.xz + float2(7f, -3f);
+        var back = t.ToWorldPoint(t.ToSchematicPoint(world));
+        Assert.Equal(world.x, back.x, 3);
+        Assert.Equal(world.y, back.y, 3);
+
+        var oneToStarboard = t.ToWorldPoint(com + float2(1, 0));
+        Assert.Equal(t.Position.x + 2f * starboard.x, oneToStarboard.x, 3);
+        Assert.Equal(t.Position.z + 2f * starboard.y, oneToStarboard.y, 3);
+        var oneToBow = t.ToWorldPoint(com + float2(0, 1));
+        Assert.Equal(t.Position.x + 2f * facing.x, oneToBow.x, 3);
+        Assert.Equal(t.Position.z + 2f * facing.y, oneToBow.y, 3);
+    }
+
+    // A contact blast on a hull at facing (2,1): the shot enters over the starboard side, off the hull's own
+    // centre line, so the blast point's lateral offset from the centre of mass is not zero and a flipped right
+    // axis in ToWorldPoint would mirror it onto the far side. Placement is asserted per cell: the impact cell
+    // takes a share, and no cell farther than one from it takes anything (radius .15 cells). Kills: a flip of
+    // ToWorldPoint's right axis, which the host's round trip would otherwise hide from every total.
+    [Fact]
+    public void AContactBlastLandsOnTheCellItHitAtANonAxisFacing()
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), targetFacing: float2(2, 1), fuse: WeaponFuse.Contact, blastRadius: .3f, damage: 100f);
+        ArmourEverything(e);
+        var deposits = new Dictionary<int2, float>();
+        using var a = e.Target.ArmorDamage.Subscribe(x => deposits[x.pos] = (deposits.TryGetValue(x.pos, out var d) ? d : 0f) + x.damage);
+        ShotOutcome outcome = null;
+        for (var attempt = 0; attempt < 60 && (outcome == null || !outcome.Hit); attempt++)
+        {
+            using var s = e.Zone.ShotResolved.Subscribe(o => outcome = o);
+            FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+            e.Zone.Update(.01f);
+        }
+        Assert.NotNull(outcome);
+        Assert.True(outcome.Hit);
+
+        Assert.True(deposits.ContainsKey(outcome.Cell), $"the impact cell {outcome.Cell} took nothing; damaged: {string.Join(",", deposits.Keys)}");
+        foreach (var cell in deposits.Keys)
+            Assert.True(Math.Abs(cell.x - outcome.Cell.x) <= 1 && Math.Abs(cell.y - outcome.Cell.y) <= 1,
+                $"cell {cell} took damage far from the impact cell {outcome.Cell}");
+    }
+
     // TurningAfterCommitDoesNotMoveTheBlastOnItsHost: a contact-fuse shot. After commit and before arrival, the
     // host turns and moves. Pass: the host's per-cell damage equals that of the same shot with no turn. Kills:
     // taking P from the live bearing, or from Outcome.Cell's centre in place of the lane point.
     [Fact]
     public void TurningAfterCommitDoesNotMoveTheBlastOnItsHost()
     {
-        float TotalArmorDamage(Action<Engagement> afterCommit)
+        Dictionary<int2, float> ArmorDamageByCell(Action<Engagement> afterCommit)
         {
             var e = Build(TestSettings(commitHorizon: .5f), SolidShape(5, 4), velocity: 50, targetRange: 100,
                 fuse: WeaponFuse.Contact, blastRadius: 3f, damage: 100f);
             foreach (var c in e.HullData.Shape.Coordinates) { e.Target.Armor[c.x, c.y] = 1000f; e.Target.MaxArmor[c.x, c.y] = 1000f; }
 
-            var total = 0f;
-            using var a = e.Target.ArmorDamage.Subscribe(x => total += x.damage);
-            using var h = e.Target.HullDamage.Subscribe(x => total += x);
-            using var i = e.Target.ItemDamage.Subscribe(x => total += x.damage);
+            // Per cell, not a total: a blast that lands on the wrong cells deals the same total.
+            var perCell = new Dictionary<int2, float>();
+            using var a = e.Target.ArmorDamage.Subscribe(x => perCell[x.pos] = (perCell.TryGetValue(x.pos, out var d) ? d : 0f) + x.damage);
 
             var shotId = FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
             // Step to just past commit (flight time 2s, commit horizon 0.5s -> commits at t ~= 1.5s).
@@ -907,18 +1115,19 @@ public sealed class FireControlCut124Tests : IDisposable
             while (e.Zone.PendingShots.Any(s => s.ShotId == shotId))
                 e.Zone.Update(.05f);
 
-            return total;
+            return perCell;
         }
 
-        var noTurn = TotalArmorDamage(null);
-        var turned = TotalArmorDamage(e =>
+        var noTurn = ArmorDamageByCell(null);
+        var turned = ArmorDamageByCell(e =>
         {
             e.Target.Direction = normalize(float2(1, 0));
             e.Target.Position += float3(50, 0, -30);
         });
 
-        Assert.True(noTurn > 0f);
-        Assert.Equal(noTurn, turned, 0);
+        Assert.NotEmpty(noTurn);
+        Assert.Equal(noTurn.Keys.OrderBy(k => k.x).ThenBy(k => k.y), turned.Keys.OrderBy(k => k.x).ThenBy(k => k.y));
+        foreach (var cell in noTurn.Keys) Assert.Equal(noTurn[cell], turned[cell], 2);
     }
 
     // LabelsDoNotDecideBehaviour: a weapon labelled Airburst with no fuse resolves as a direct hit, and a
@@ -1031,33 +1240,35 @@ public sealed class FireControlCut124Tests : IDisposable
         }
     }
 
-    // Soul F2: no test pinned BurstPosition for a moving target. A proximity blast against a moving target
-    // detonates at the predicted intercept PredictedIntercept froze at Fire, not at the target's own arrival
-    // position. Kills: BurstPosition read from the target's live position instead of the frozen intercept.
+    // Fire freezes a proximity shot's burst point at the predicted intercept of a moving target -- where a shot
+    // of the weapon's own velocity, fired now, meets the target -- not at the target's position now. The
+    // expectation is solved here from first principles: |d + v t| = s t for the flight time t, planar, the
+    // shooter's own motion never fed in. Target 100 ahead, drifting (30,0) against a 50 unit/s shot: t = 2.5 s,
+    // so the burst sits 75 units to the side of where the target is at Fire.
+    // Kills: BurstPosition frozen at the target's current position (PredictedIntercept never consulted).
     [Fact]
     public void ProximityBurstPositionIsThePredictedInterceptForAMovingTarget()
     {
-        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, targetRange: 200,
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 50, targetRange: 100,
             fuse: WeaponFuse.Proximity, blastRadius: 3f, damage: 50f);
-        // Give the target a lateral velocity right after Fire so it does not sit at its fire-time position by
-        // arrival, but the weapon's own Velocity (0, an instant hit) still froze the intercept as exactly the
-        // fire-time target position (PredictedIntercept's own fallback below the .01f velocity floor).
+        var v = float2(30f, 0f);
+        e.Target.Velocity = v;
+
+        var s = e.Shooter.Position.xz;
+        var d = e.Target.Position.xz - s;
+        var a = dot(v, v) - 50f * 50f;
+        var b = 2f * dot(d, v);
+        var c = dot(d, d);
+        var t = (-b - sqrt(b * b - 4f * a * c)) / (2f * a); // a < 0: the positive root
+        Assert.Equal(2.5f, t, 3);
+        var expected = e.Target.Position.xz + v * t;
+
         var shotId = FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
-        var shot = e.Zone.PendingShots.Single(s => s.ShotId == shotId);
-        var frozenBurst = shot.BurstPosition;
-        Assert.Equal(e.Target.Position.x, frozenBurst.x, 1);
-        Assert.Equal(e.Target.Position.z, frozenBurst.z, 1);
+        var shot = e.Zone.PendingShots.Single(x => x.ShotId == shotId);
 
-        e.Target.Velocity = float2(30, 0);
-        var before = e.Target.Hull.Durability;
-        e.Zone.Update(1f); // move the target well away from the frozen burst position, then resolve
-
-        // The blast still lands where PredictedIntercept froze it (the fire-time position), not where the
-        // target ended up -- so it still damages the target only because the target has not yet moved far
-        // enough at THIS shot's own (velocity-0, instant) arrival, which happens before the move above can
-        // matter: Zone.Update(1f) advances both the shot and the target in the same step, but the shot resolves
-        // using the frozen BurstPosition regardless of where the target is by then.
-        Assert.True(e.Target.Hull.Durability <= before);
+        Assert.Equal(expected.x, shot.BurstPosition.x, 2);
+        Assert.Equal(expected.y, shot.BurstPosition.z, 2);
+        Assert.True(length(shot.BurstPosition.xz - e.Target.Position.xz) > 70f, "the burst must lead the target, not sit on it");
     }
 
     // Detonate has no radius guard: a nonpositive radius covers no cell (a disc with no area overlaps nothing),
