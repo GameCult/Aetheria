@@ -2600,6 +2600,32 @@ the lanes that reach it, a pool of one lane included. The survey and the sequent
 **Self's default 2026-09-25 (not an operator ruling): the cycle rule.** When every unfinished lane is blocked at an item pool and no pool is ready (two lanes crossing two shared non-convex items in opposite order), every open pool resolves at once with the deposits it holds. It needs no ordering key, so mirrored shots stay mirrored. The first implementation used the smallest first-contact `Entry`, which ties at axis-aligned bearings and fell back to lane index. Soul broke mirror symmetry with it. The operator may overrule this default.
 
 ### Cut 12.4. The detonation primitive
+
+**Status (2026-09-29, Self): closed.** 12.4 landed at `2625768f`, `7c99909d` and `7e63d744`.
+
+Soul pass 1 (Opus) found three defects:
+- **F1:** a tangent disc created damage, 127 of 100.
+- **F2:** a candidate cull measured from the centre of mass missed hull corners.
+- **F3:** a lethal blast threw mid-loop and detonated again.
+
+It also found four rules pinned only by tests that could not fail.
+
+The fixes landed at `8b4bf01e`, `76e98598` and `fd792013`:
+- the tangent comparisons now include equality;
+- the cull and the `radius <= 0` guard are deleted, so `RectDiskOverlap` is the only decider;
+- the blast loop iterates a snapshot.
+
+Soul pass 2 closed it. Conservation held over 1,944 exact-lattice discs, with a worst error
+of 2e-5. A blast costs 0.3-0.7 ms in a zone of 40-100 entities.
+
+Pins landed at `4629bc67` and `c7e20f08`. `Death` fires once per entity (`Entity.cs`, `.Take(1)`),
+which also fixed a direct hit on a corpse raising `Death` again. A three-kill blast test was added.
+362 tests pass.
+
+**Operator ruling needed:** a fused weapon fired with no target bursts at the shooter's own
+position (`FireControl.cs:391`). This predates 12.4. Self recommends a max-range burst along the
+aim line. Recorded unguarded: if a `Death` handler removes another ship mid-blast, that ship
+still takes blast damage.
 
 Revised 2026-09-25, after 12.3 closed. The first draft predates 12.3's proportional-absorption and one-path
 rulings, and the parts of it those rulings overturn are listed under **History** at the end of this section.
