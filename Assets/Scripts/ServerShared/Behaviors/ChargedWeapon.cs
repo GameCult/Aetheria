@@ -160,8 +160,10 @@ public class ChargedWeapon : InstantWeapon
 
     public override void Activate()
     {
+        // CanFire also holds a weapon whose released charge has a burst pending: its cooldown starts at its first round,
+        // so a charge started before then would overlap it.
         // A refused weapon never starts charging: it would pay charge heat and audio for a shot Trigger drops.
-        if(!_charging && !_coolingDown && !FireControl.Refuses(this, Entity))
+        if(!_charging && CanFire && !FireControl.Refuses(this, Entity))
         {
             OnStartCharging?.Invoke();
             Item.FireAudioEvent(ChargedWeaponAudioEvent.Start);

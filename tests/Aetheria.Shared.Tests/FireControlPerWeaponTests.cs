@@ -711,4 +711,79 @@ public sealed class FireControlPerWeaponTests : IDisposable
 
         Assert.False(weapon.CanFire);
     }
+
+    // A charge released with a burst pending has not started its cooldown, but it is not ready either: pressed
+    // again before that burst's first round it would start a second charge over it. Kills: ChargedWeapon.Activate
+    // that reads the cooldown alone instead of CanFire.
+    [Fact]
+    public void AChargedWeaponPressedAgainBeforeItsReleasedRoundFliesStartsNoSecondCharge()
+    {
+        var r = Build(charged: true, range: 100f);
+        r.Shooter.Target.Value = null;
+        Aim(r, float2(0, 1));
+        var weapon = (ChargedWeapon) r.Gun.Weapon;
+        var starts = 0;
+        weapon.OnStartCharging += () => starts++;
+        r.Zone.Update(.01f); // resolves the stats
+        weapon.Activate();
+        for (var i = 0; i < 15; i++) r.Zone.Update(.1f);
+        Assert.Equal(1, starts);
+
+        weapon.Deactivate();
+        weapon.Activate();
+        r.Zone.Update(.1f);
+
+        Assert.Equal(1, starts);
+        Assert.False((bool) typeof(ChargedWeapon).GetField("_charging", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(weapon));
+    }
+
+    // Holding the trigger fires once per Cooldown: the round that starts the cooldown pays for the tick it flew in.
+    // Cooldown 1 at .25 s ticks is a shot every 5 ticks, 12 in 15 s. And a burst whose every round is refused
+    // leaves no cooldown: the same held trigger is ready every tick. Kills: a first round that starts the cooldown
+    // at 1 after the tick's decrement (a shot every 6 ticks, 10 in 15 s); a cooldown left by a refused burst.
+    [Theory]
+    [InlineData(100f, 12)]
+    [InlineData(29.5f, 0)]
+    public void AHeldTriggerFiresOncePerCooldownAndARefusedBurstLeavesNone(float range, int shots)
+    {
+        var r = Build(fuse: WeaponFuse.Proximity, blast: 30f, range: range);
+        r.Shooter.Target.Value = null;
+        Aim(r, float2(0, 1));
+        var weapon = (InstantWeapon) r.Gun.Weapon;
+        var fired = 0;
+        weapon.OnFire += _ => fired++;
+        r.Zone.Update(.25f); // resolves the stats
+        var readyTicks = 0;
+
+        for (var i = 0; i < 60; i++)
+        {
+            weapon.Activate();
+            r.Zone.Update(.25f);
+            if (weapon.CanFire) readyTicks++;
+        }
+
+        Assert.Equal(shots, fired);
+        if (shots == 0) Assert.Equal(60, readyTicks);
+    }
+
+    // Kills: Trigger that leaves _burstStarted true from the previous burst, so the next burst reads as started
+    // (and ready) before its first round has flown.
+    [Fact]
+    public void ABurstTriggeredAfterAFiredOneIsNotReadyBeforeItsFirstRound()
+    {
+        var r = Build(range: 100f);
+        r.Shooter.Target.Value = null;
+        Aim(r, float2(0, 1));
+        var weapon = (InstantWeapon) r.Gun.Weapon;
+        r.Zone.Update(.25f);
+        weapon.Activate();
+        r.Zone.Update(.25f);
+        Assert.False(weapon.CanFire, "control: the first burst fired and is cooling");
+        for (var i = 0; i < 10 && !weapon.CanFire; i++) r.Zone.Update(.25f);
+        Assert.True(weapon.CanFire, "fixture: the cooldown expired");
+
+        weapon.Activate();
+
+        Assert.False(weapon.CanFire);
+    }
 }

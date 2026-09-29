@@ -251,7 +251,8 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
                 if (!_burstStarted)
                 {
                     _burstStarted = true;
-                    _cooldown = 1;
+                    _cooldown = 1 - dt / Cooldown;
+                    // The round starts the cooldown after this tick's decrement above: charge the tick to it, so the cadence stays Cooldown
                     _coolingDown = true;
                 }
             }
