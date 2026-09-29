@@ -2638,6 +2638,16 @@ follow-up rulings, all given on 2026-09-30:
   - A round fired at a valid target that later leaves or becomes invalid does not burst. It resolves
     with no detonation.
   - Validity is judged on the targeting data at fire time.
+- **Out of arc (operator, 2026-09-30):** a fused weapon whose selected target is out of arc still fires
+  (bomb fishing). It bursts at the target's range, clamped to max range, along the arc-clamped aim.
+  Non-fused weapons refuse.
+- **Arming distance (operator, 2026-09-30):** a round never bursts closer than its blast radius to its fire
+  origin, and close bursts are pushed out to that distance. A pilot who flies into their own distant burst
+  takes the damage. Fire is refused when the live Range cannot clear BlastRadius.
+- **Turret arc ownership (operator, 2026-09-30):** the simulation's arc is authoritative, and Unity barrels
+  derive their aim from it. The true owner of an arc is the **pivot**, not the hardpoint. The arc stays on
+  the hardpoint until the moddable-ships campaign adds pivots to `HullData`. Until then, a pivot carrying
+  several hardpoints turns within the **intersection** of their arcs.
 - **A round outlives its shooter,** for targeted and no-lock shots alike. Credit and loot with no shooter go
   nowhere.
 
