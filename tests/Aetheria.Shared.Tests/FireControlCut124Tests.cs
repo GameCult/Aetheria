@@ -1559,6 +1559,25 @@ public sealed class FireControlCut124Tests : IDisposable
         Assert.Equal(fires ? 1 : 0, e.Zone.PendingShots.Count);
     }
 
+    // The boundary itself: a Range exactly equal to the arming distance fires (the disc is tangent to the hull,
+    // which delivers nothing). The arming distance is read from a probe round on the same fixture, so the
+    // equality is exact rather than a decimal that float arithmetic could tip. Kills: `>=` for `>`.
+    [Fact]
+    public void ARangeExactlyEqualToTheArmingDistanceFires()
+    {
+        var probe = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: WeaponFuse.Proximity, blastRadius: 30f, damage: 100f, weaponRange: 60f);
+        probe.Shooter.Target.Value = null;
+        Aim(probe, float2(0, 1));
+        FireControl.Fire(probe.Weapon, probe.WeaponItem, probe.Shooter);
+        var arming = SafeAssert.OnlyShot(probe.Zone).ArmingDistance;
+
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: WeaponFuse.Proximity, blastRadius: 30f, damage: 100f, weaponRange: arming);
+        e.Shooter.Target.Value = null;
+        Aim(e, float2(0, 1));
+
+        Assert.True(FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter) != 0, "a Range equal to the arming distance must fire");
+    }
+
     // The same refusal through the weapon a player uses: a refused round sounds nothing (OnFire never runs) and
     // queues nothing, and the same weapon with Range to spare fires once. Kills: Execute still announcing a
     // refused round (Fire's 0 handed to the presentation as a shot id).
