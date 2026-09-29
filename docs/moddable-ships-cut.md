@@ -115,6 +115,12 @@ evidence. The merge has no conflicts (below), so it costs one merge commit per b
   - F7: a drive-by `using` removal.
   - F5 is settled by MQ1.
 
+- **Pivots own firing arcs (operator, 2026-09-30, from fire control).** A turret's arc belongs to its
+  pivot, not its hardpoints. When this campaign adds pivots to `HullData`, the arc moves from the hardpoint
+  to the pivot, and the interim "intersection of hardpoint arcs per pivot" rule in fire control is deleted.
+  Unity's `Pivot.<group>.<yawMin>.<yawMax>...` node-name parsing (`ShipPrefabAuthoring.cs:144`) must not
+  survive as a second arc authority.
+
 # Part B. Moddable ships
 
 ## B.1 Status header (verified against git)
