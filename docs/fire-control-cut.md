@@ -2629,8 +2629,10 @@ follow-up rulings, all given on 2026-09-30:
   the fix had used the hull-fixed mount.
 - **An invalid target counts as no lock.** A target that is selected but out of range, out of arc, not
   visible, or not locked takes the no-lock path. Nothing bursts beyond max range.
-- **A no-lock contact fuse stops on the first hull on its aim line**, computed at commit. Mining adds chunks
-  to this through a named seam.
+- **A no-lock round of any fuse stops on the first hull on its aim line**, computed at commit, and detonates
+  there. This covers contact, proximity and delayed fuses (operator, 2026-09-30, extending the contact-only
+  ruling). A round fired along a clear line still bursts at max range (bomb fishing). Mining adds chunks to
+  this through a named seam.
 - **Airburst follows player intent (operator, 2026-09-30):** "If I don't have targeting data but decide
   to shoot anyway, my intent is likely to be bomb fishing. If I fire with a target but that target warps
   away, I likely to not want to explode whatever was behind it, and the projectile shouldn't burst."
@@ -2661,6 +2663,18 @@ follow-up rulings, all given on 2026-09-30:
   percentage.
 - **A refused round is free (operator, 2026-09-30):** it spends no ammo or energy, and makes no sound, heat,
   wear or visibility.
+- **Batch 5 Soul pass, 2026-09-30: fix first.** `Solve` is the one decision, and `Fire`, `Inspect` and
+  `Refuses` all read it. Findings in fix batch 6 (Hands, `hands/fuse-fix2`):
+  - Contact and delayed rounds detonate on the hull and ignore the arming push-out.
+  - A refused beam blinks start and stop.
+  - A throwing damage observer re-applies a blast every tick.
+  - The AI selects refused fused weapons.
+  - A single-ammo burst pays, then refuses.
+  - The guided projectile's overshoot explosion ignores the simulation.
+  - Two copies of the range and designation predicates remain.
+
+  An out-of-arc round with a selected target bursts after that target leaves. That is ruled behaviour: an
+  out-of-arc target is invalid, so the round takes the no-lock path.
 - **A round outlives its shooter,** for targeted and no-lock shots alike. Credit and loot with no shooter go
   nowhere.
 
