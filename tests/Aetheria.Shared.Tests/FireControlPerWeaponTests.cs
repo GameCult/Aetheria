@@ -678,4 +678,20 @@ public sealed class FireControlPerWeaponTests : IDisposable
         Assert.Equal(0, refused.Sounds);
         Assert.True(fired.Heat - refused.Heat > 5f, $"a refused weapon adds no charge heat ({refused.Heat} vs {fired.Heat})");
     }
+    // A triggered burst has not started its cooldown, but it is not ready either: pulled again before its first round
+    // flies it would restart the burst. Kills: CanFire that reads the cooldown alone.
+    [Fact]
+    public void ATriggeredBurstIsNotReadyBeforeItsFirstRound()
+    {
+        var r = Build(range: 100f);
+        r.Shooter.Target.Value = null;
+        Aim(r, float2(0, 1));
+        var weapon = (InstantWeapon) r.Gun.Weapon;
+        r.Zone.Update(.01f); // resolves the gun's stats, which size the burst
+        Assert.True(weapon.CanFire);
+
+        weapon.Activate();
+
+        Assert.False(weapon.CanFire);
+    }
 }
