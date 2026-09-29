@@ -2622,9 +2622,33 @@ Pins landed at `4629bc67` and `c7e20f08`. `Death` fires once per entity (`Entity
 which also fixed a direct hit on a corpse raising `Death` again. A three-kill blast test was added.
 362 tests pass.
 
-**Operator ruling needed:** a fused weapon fired with no target bursts at the shooter's own
-position (`FireControl.cs:391`). This predates 12.4. Self recommends a max-range burst along the
-aim line. Recorded unguarded: if a `Death` handler removes another ship mid-blast, that ship
+**Ruled (operator, 2026-09-30): "fused weapons without a lock explode at max range."** This is no longer
+open. Landed at `8c002637` (fix) and `3e8ee022` (tests), and Soul confirmed it. That Soul pass raised four
+follow-up rulings, all given on 2026-09-30:
+- **The aim is `LookDirection`, restricted by the mount's arc.** The operator notes this was already the case;
+  the fix had used the hull-fixed mount.
+- **An invalid target counts as no lock.** A target that is selected but out of range, out of arc, not
+  visible, or not locked takes the no-lock path. Nothing bursts beyond max range.
+- **A no-lock contact fuse stops on the first hull on its aim line**, computed at commit. Mining adds chunks
+  to this through a named seam.
+- **Airburst follows player intent (operator, 2026-09-30):** "If I don't have targeting data but decide
+  to shoot anyway, my intent is likely to be bomb fishing. If I fire with a target but that target warps
+  away, I likely to not want to explode whatever was behind it, and the projectile shouldn't burst."
+  - A round fired without valid targeting data bursts at max range.
+  - A round fired at a valid target that later leaves or becomes invalid does not burst. It resolves
+    with no detonation.
+  - Validity is judged on the targeting data at fire time.
+- **A round outlives its shooter,** for targeted and no-lock shots alike. Credit and loot with no shooter go
+  nowhere.
+
+Soul also found two more defects:
+- A fused weapon with `Range <= BlastRadius` bursts on its shooter. The fix is to refuse it when the catalog
+  opens.
+- A burst without a target reads as MISS in the debug HUD.
+
+Fix batch 2 covers all six, in Hands on `hands/fuse-fix2`. The stale lines about "`BurstPosition` is read
+only for a proximity fuse" and the Apply rules below it are superseded by these rulings.
+Recorded unguarded: if a `Death` handler removes another ship mid-blast, that ship
 still takes blast damage.
 
 Revised 2026-09-25, after 12.3 closed. The first draft predates 12.3's proportional-absorption and one-path
