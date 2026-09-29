@@ -30,7 +30,7 @@ public static class AetheriaStores
             if (missing != null)
                 throw new InvalidOperationException($"Catalog {catalogPath} has no {missing.SchemaName} record; catalog globals are authored, never invented.");
             // Every catalog document is held to the one check Upsert applies on write: R-heat (docs/stats-and-power-
-            // cut.md), stat modifiers, role usage (Cut 7), and the fuse range rule. Fails loudly, naming the item.
+            // cut.md), stat modifiers, role usage (Cut 7). Fails loudly, naming the item.
             foreach (var data in cache.GetAll<EquippableItemData>()) CultRecordRefs.Validate(data);
             foreach (var data in cache.GetAll<ConsumableItemData>()) CultRecordRefs.Validate(data);
             return cache;
@@ -73,7 +73,6 @@ public static class CultRecordRefs
             StatValidation.ValidateHeatResponse(data);
             StatValidation.ValidateStatModifiers(data.Name, data.Behaviors);
             StatValidation.ValidateRoleUsage(data.Name, data.Roles, data.Behaviors);
-            StatValidation.ValidateFuse(data);
         }
         if (document is ConsumableItemData consumable)
         {

@@ -103,6 +103,8 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
         // through -- a player's action-bar Activate() reaches this exactly the same way Combat.cs's and
         // TurretController.cs's Activate() calls do.
         if (!ArcAllowsFire) return;
+        // A fused weapon whose Range no longer clears its blast would burst on its shooter.
+        if (!FuseAllowsFire) return;
 
         // If 1 ammo is consumed per burst, perform ammo and energy consumption here
         // UseAmmo returns false when triggering reload; cancel firing if that is the case

@@ -57,6 +57,33 @@ public static class FireControl
         return dot(MountDirection(weapon), planarTarget) >= cos(radians(arc / 2f));
     }
 
+    // The one place a weapon's payload is read: its blast radius, and the fuse it detonates with. A weapon
+    // detonates only with both a fuse and a radius above zero; either alone is inert and resolves as a direct
+    // hit (nothing polices that), so a null return means "not fused".
+    public static WeaponFuse? FuseOf(EquippedItem item, out float blastRadius)
+    {
+        var data = item?.Data as WeaponItemData;
+        blastRadius = data?.BlastRadius > 0f ? data.BlastRadius.Value : 0f;
+        return blastRadius > 0f ? data.Fuse : null;
+    }
+
+    // The one arc gate on the trigger. A fused weapon fires whatever the arc says: a target it cannot bear on is
+    // no reason to keep it silent, the round flies along the arc-clamped aim and bursts at the target's range
+    // (Fire; operator ruling 2026-09-30, "the user is hoping that the arc gets the weapon close enough to still
+    // splash some damage"). A weapon that only hits what it fires at still refuses. Fire reads InArc itself to
+    // choose that flight, so the two share the one bearing test and differ only in this exemption.
+    public static bool ArcPermitsFire(Weapon weapon, Entity shooter)
+    {
+        var target = shooter.Target.Value;
+        if (target == null) return true;
+        return FuseOf(weapon.Item, out _) != null || InArc(weapon.Item, target.Position - shooter.Position);
+    }
+
+    // A fused weapon whose Range, as it stands now (power supply and modifiers included), does not exceed its
+    // blast would burst on its own shooter at max range, so its trigger stays safed. Judged on the effective
+    // Range rather than the catalog's authored floor, which Evaluate can scale below.
+    public static bool FuseCanArm(Weapon weapon) => FuseOf(weapon.Item, out var blastRadius) == null || weapon.Range > blastRadius;
+
     // Operator ruling 2026-09-30: a shot with nothing to bear on flies along where its shooter is aiming
     // (Entity.LookDirection -- the player's mouse or a turret's tracking), restricted by the mount's arc. The
     // arc is InArc's own cone: an aim inside it is used as is, one outside it is turned to the nearest edge of
@@ -172,23 +199,26 @@ public static class FireControl
     // freezes (R10), gated exactly as HitProbability gates. Nothing about the target's facing or silhouette
     // enters here; that is Silhouette's and PSpread's job, priced fresh by HitProbability below and again,
     // live, by Commit at the commit tick. 0 the moment any gate closes.
-    private static float PFire(Weapon weapon, Entity source, Entity target) => PFire(weapon, source, target, out _, out _);
+    private static float PFire(Weapon weapon, Entity source, Entity target) => PFire(weapon, source, target, out _, out _, out _);
 
     // The `out range` overload is HitProbability's own gate call -- one computation of `target.Position -
     // source.Position`, not two. HitProbability used to recompute its own copy for PSpread, which is exactly
     // the kind of split authority Cut 3 named as the risk (two places computing the same vector, free to
     // drift or to have their subtraction order flipped in only one of them).
     private static float PFire(Weapon weapon, Entity source, Entity target, out float range) =>
-        PFire(weapon, source, target, out range, out _);
+        PFire(weapon, source, target, out range, out _, out _);
 
-    // `bears` is the one answer to "is this target one the weapon can fire at": in range, visible, locked (for a
-    // LockWeapon) and in arc. PFire prices a shot at zero when it is false; Fire reads it to decide that a
-    // fused round has no target at all (operator ruling 2026-09-30: an invalid target counts as no lock).
-    // Inspect recomputes the four gates one by one, to show the HUD which is closed; it decides nothing.
-    private static float PFire(Weapon weapon, Entity source, Entity target, out float range, out bool bears)
+    // `designated` is the one answer to "does the shooter hold valid targeting data on this target": visible, in
+    // range and locked (for a LockWeapon). `inArc` is the bearing test, asked only once a target is designated.
+    // PFire prices a shot at zero unless both hold. Fire reads them to decide what a fused round flies at
+    // (operator rulings 2026-09-30): without valid data it has no target and bursts at max range; with data but
+    // out of arc it bursts at the target's range, along the aim. Inspect recomputes the four gates one by one,
+    // to show the HUD which is closed; it decides nothing.
+    private static float PFire(Weapon weapon, Entity source, Entity target, out float range, out bool designated, out bool inArc)
     {
         range = 0f;
-        bears = false;
+        designated = false;
+        inArc = false;
         if (target == null) return 0f;
 
         // F8 correction (Soul's fix batch, 2026-09-24): range is computed for any non-null target, before any
@@ -201,8 +231,9 @@ public static class FireControl
         if (!source.VisibleEntities.Contains(target)) return 0f;
         if (range < weapon.MinRange || range > weapon.Range) return 0f;
         if (weapon is LockWeapon lockWeapon && !lockWeapon.IsLocked) return 0f;
-        if (!InArc(weapon.Item, toTarget)) return 0f;
-        bears = true;
+        designated = true;
+        inArc = InArc(weapon.Item, toTarget);
+        if (!inArc) return 0f;
 
         var settings = source.ItemManager.GameplaySettings;
         var info = source.EntityInfoGathered.TryGetValue(target, out var gathered) ? gathered : 0f;
@@ -393,7 +424,7 @@ public static class FireControl
         // F8 (Soul's fix batch, 2026-09-24): the `out range` overload is the one range HitProbability now
         // reads too -- Fire used to recompute its own second copy of `target.Position - source.Position` for
         // fireRange, right beside the copy PFire's gate already computed.
-        var pFire = PFire(weapon, source, target, out var fireRange, out var bears);
+        var pFire = PFire(weapon, source, target, out var fireRange, out var designated, out var inArc);
 
         // Cut 12.4(a) (Q12-6, "WeaponModifiers are labels, not behaviour"): a blast is a property of the
         // weapon's data fields alone, resolved and frozen here like every other payload field -- never decided
@@ -401,17 +432,18 @@ public static class FireControl
         // only when BlastRadius > 0, and null otherwise, so a radius without a fuse or a fuse without a radius
         // is inert and resolves as a direct hit (nothing polices that). A zero-radius freeze is what Step below
         // still reads as "resolve this shot with Apply."
-        var weaponItemData = item.Data as WeaponItemData;
-        var blastRadius = weaponItemData?.BlastRadius > 0f ? weaponItemData.BlastRadius.Value : 0f;
-        var fuse = blastRadius > 0f ? weaponItemData.Fuse : null;
+        var fuse = FuseOf(item, out var blastRadius);
 
-        // Operator rulings 2026-09-30: an invalid target counts as no lock -- a fused round whose selected
-        // target is out of range, out of arc, not visible or not locked (PFire's `bears`) is fired at nothing.
-        // A fused shot with no target bursts where its own aim line ends: the shooter's aim (AimDirection) at
-        // the weapon's Range stat, the same stat PFire's range gate reads, flown at the weapon's Velocity like
-        // a targeted shot flies to its intercept. The round carries no target from here on, so nothing at
-        // resolution asks whether one is still around. A shot without a fuse keeps its target as before.
-        var engaged = fuse != null && !bears ? null : target;
+        // Operator rulings 2026-09-30. A fused round flies along the shooter's aim (AimDirection, clamped to the
+        // mount's arc) and carries no target -- so nothing at resolution asks whether one is still around --
+        // unless its target is designated (visible, in range, locked) and in arc:
+        //  * no valid targeting data (no target, or one out of range, not visible or not locked) counts as no
+        //    lock and bursts at the weapon's Range, the stat PFire's range gate reads: bomb fishing;
+        //  * valid data but out of arc bursts at the target's range, which the range gate has already held to
+        //    Range, along that same clamped aim: the arc is hoped to land the blast near enough to splash.
+        // Either way the round flies at the weapon's Velocity like a targeted shot flies to its intercept. A shot
+        // without a fuse keeps its target as before.
+        var engaged = fuse != null && !(designated && inArc) ? null : target;
         var origin = source.Position;
         var travelDirection = engaged != null ? TravelDirection(weapon, source, engaged) : AimDirection(item, source);
 
@@ -427,11 +459,20 @@ public static class FireControl
 
         var commitHorizon = source.ItemManager.GameplaySettings.CommitHorizon;
 
-        var burstPosition = blastRadius > 0f && engaged != null ? PredictedIntercept(weapon, source, engaged) : targetPosition;
-        if (fuse != null && engaged == null)
+        var burstPosition = targetPosition;
+        if (fuse != null && engaged != null)
         {
-            burstPosition = origin + float3(travelDirection.x, 0, travelDirection.y) * weapon.Range;
-            flightTime = weapon.Velocity > .01f ? weapon.Range / weapon.Velocity : 0f;
+            // Nothing bursts beyond max range: an intercept a receding target leads the round past Range is
+            // pulled back along its own line to Range.
+            var intercept = PredictedIntercept(weapon, source, engaged);
+            var reach = length((intercept - origin).xz);
+            burstPosition = reach > weapon.Range ? origin + (intercept - origin) * (weapon.Range / reach) : intercept;
+        }
+        else if (fuse != null)
+        {
+            var reach = designated ? fireRange : weapon.Range;
+            burstPosition = origin + float3(travelDirection.x, 0, travelDirection.y) * reach;
+            flightTime = weapon.Velocity > .01f ? reach / weapon.Velocity : 0f;
         }
 
         var shot = new PendingShot
@@ -649,7 +690,14 @@ public static class FireControl
             }
         }
 
-        return MakeOutcome(shot, hit ? ShotResult.Hit : ShotResult.Miss, shielded, shieldBroken, cell, bearing, lateral, now);
+        // A proximity round detonates at its burst point whether or not the roll hit, so a roll that missed is a
+        // Burst, not a Miss: the outcome types what happened, and the HUD must not call a real explosion a miss. A
+        // contact or delayed round detonates only on a hit, so its miss stays a Miss.
+        var proximity = shot.Fuse == WeaponFuse.Proximity;
+        var outcome = MakeOutcome(shot, hit ? ShotResult.Hit : proximity ? ShotResult.Burst : ShotResult.Miss,
+            shielded, shieldBroken, cell, bearing, lateral, now);
+        if (proximity) outcome.BurstPoint = shot.BurstPosition.xz;
+        return outcome;
     }
 
     // Operator rulings 2026-09-30. A fused round with no target bursts at the max-range point Fire froze along
@@ -770,9 +818,10 @@ public static class FireControl
     // centre lane (see the fuse-point comment on the Contact/Delayed branch below).
     private static void Apply(Zone zone, PendingShot shot)
     {
-        // A fused shot with no target has nothing to hit or miss: its committed outcome is a Burst, and it
-        // detonates at the point Commit decided (Burst outcome's BurstPoint). Detonate is still the one blast path.
-        if (shot.Outcome.Result == ShotResult.Burst)
+        // A Burst outcome detonates at the point Commit decided (its BurstPoint): a fused round with no target,
+        // which has nothing to hit or miss, and a proximity round, which detonates whether its roll hit or not.
+        // Detonate is still the one blast path.
+        if (shot.Outcome.Result == ShotResult.Burst || shot.Fuse == WeaponFuse.Proximity)
         {
             Detonate(zone, shot.Outcome.BurstPoint, shot.BlastRadius, shot.Damage, shot.DamageType);
             return;
@@ -782,11 +831,6 @@ public static class FireControl
         {
             case null:
                 ApplyDirectHit(shot);
-                return;
-            case WeaponFuse.Proximity:
-                // Detonates at shot.BurstPosition.xz, which PredictedIntercept froze at Fire (today's airburst
-                // rule, unchanged) -- no roll, and no gate on shot.Outcome.Hit.
-                Detonate(zone, shot.BurstPosition.xz, shot.BlastRadius, shot.Damage, shot.DamageType);
                 return;
             case WeaponFuse.Contact:
             case WeaponFuse.Delayed:
@@ -1737,10 +1781,12 @@ public sealed class ShotOutcome
     public Entity Target;
     public EquippedItem Weapon;
     // What the commit decided, typed: a shot rolled and missed, rolled and hit, or was a fused round with no
-    // target and so burst without rolling (Burst, at BurstPoint). Hit is derived from it, not stored beside it.
+    // target and so burst without rolling, or a proximity round whose roll missed but which detonates anyway
+    // (Burst, at BurstPoint). Hit is derived from it, not stored beside it.
     public ShotResult Result;
     public bool Hit => Result == ShotResult.Hit;
-    // World planar point a Burst detonates at, frozen by the commit. Meaningless for any other Result.
+    // World planar point a proximity or no-target round detonates at, frozen by the commit. Meaningless for any
+    // other round.
     public float2 BurstPoint;
     public bool Shielded;
     // Cut 5, 5.2 (Soul finding 4): frozen alongside the rest of the outcome (R4) -- a shield present, active,
@@ -1757,8 +1803,9 @@ public sealed class ShotOutcome
     public DamageType DamageType;
 }
 
-// What a committed shot came to. A Burst is a fused round that had no valid target: it rolled nothing, so it is
-// neither a hit nor a miss, and the presentation must not call it one.
+// What a committed shot came to. A Burst is a detonation that is not a hit on a target: a fused round that had no
+// valid target and rolled nothing, or a proximity round whose roll missed but which bursts anyway. It is neither
+// a hit nor a miss, and the presentation must not call it one.
 public enum ShotResult
 {
     Miss,

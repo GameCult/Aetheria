@@ -107,16 +107,11 @@ public abstract class Weapon : Behavior, IActivatedBehavior
     // gate, not the gate itself. With no target set, behaviour is unchanged (nothing to bear on).
     // Cut 5, 5.4 (Soul finding 11): the point-blank special case this used to carry moved into InArc itself --
     // one bearing test, one owner, so every caller (not just this one) gets a point-blank shot that bears.
-    public bool ArcAllowsFire
-    {
-        get
-        {
-            var target = Entity.Target.Value;
-            if (target == null) return true;
-            var toTarget = target.Position - Entity.Position;
-            return FireControl.InArc(Item, toTarget);
-        }
-    }
+    // FireControl owns the gate, including its one exemption: a fused weapon fires out of arc.
+    public bool ArcAllowsFire => FireControl.ArcPermitsFire(this, Entity);
+
+    // A fused weapon whose current Range does not exceed its blast stays safed (FireControl.FuseCanArm).
+    public bool FuseAllowsFire => FireControl.FuseCanArm(this);
 
     public Weapon(WeaponData data, EquippedItem item) : base(data, item)
     {

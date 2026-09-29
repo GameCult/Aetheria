@@ -752,21 +752,6 @@ public static class StatValidation
                 "not exceed them");
     }
 
-    // Operator ruling 2026-09-30 (Soul): a round with a blast that could burst on its own shooter is refused at
-    // the catalog rather than policed at runtime. A weapon that detonates (a fuse and a blast radius above zero,
-    // the two FireControl.Fire freezes together) must reach farther than its blast, at the weakest value its Range
-    // stat can take: a no-lock round bursts at Range, so Range <= BlastRadius would put the shooter inside the
-    // burst, and Range <= 0 is a burst on the muzzle. A fuse without a radius is inert and needs no range.
-    public static void ValidateFuse(EquippableItemData data)
-    {
-        if (!(data is WeaponItemData weapon) || weapon.Fuse == null || !(weapon.BlastRadius > 0f)) return;
-        foreach (var behavior in weapon.Behaviors)
-            if (behavior is WeaponData weaponData && weaponData.Range.Min <= weapon.BlastRadius.Value)
-                throw new InvalidOperationException(
-                    $"{weapon.Name}: fused weapon's Range {weaponData.Range.Min} does not exceed its BlastRadius " +
-                    $"{weapon.BlastRadius.Value} -- a burst at max range would land on the shooter");
-    }
-
     // Cut 2 (docs/stats-and-power-cut.md): a StatReference names its target by (type name, field name) so a
     // modifier can point at any design or behaviour without a hard type reference -- but before this cut an
     // unresolvable reference failed silently: StatModifier.Initialize left `_stats` null and the first

@@ -91,7 +91,7 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerC
     // Cut 5 (docs/fire-control-cut.md, 5.3, Soul finding 9): StanceAllowsFire alone let a side-mounted beam
     // fire forward -- ArcAllowsFire joins it here, matching InstantWeapon.cs's player arc gate (Q2: manual and
     // programmatic are one truth, and a continuous weapon is no exception).
-    public float PowerRequest(float dt) => _firing && StanceAllowsFire && ArcAllowsFire ? EvaluateNominalPower(_data.Energy) * dt : 0f;
+    public float PowerRequest(float dt) => _firing && StanceAllowsFire && ArcAllowsFire && FuseAllowsFire ? EvaluateNominalPower(_data.Energy) * dt : 0f;
 
     // Cut 5 (docs/stats-and-power-cut.md §1.3, PowerTiers.cs): Low -- offense, same as InstantWeapon.
     public int DefaultPowerTier => PowerTiers.Low;
@@ -99,7 +99,7 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerC
     public override bool Execute(float dt)
     {
         base.Execute(dt);
-        if (_firing && !(StanceAllowsFire && ArcAllowsFire))
+        if (_firing && !(StanceAllowsFire && ArcAllowsFire && FuseAllowsFire))
         {
             // Safed: shooter has a target and hasn't declared hostility toward it, or the target no longer
             // bears (5.3: a beam obeys its arc exactly as InstantWeapon's trigger does).
