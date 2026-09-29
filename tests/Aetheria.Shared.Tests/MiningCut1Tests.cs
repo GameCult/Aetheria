@@ -149,6 +149,28 @@ public sealed class MiningCut1Tests : IDisposable
         }
     }
 
+    // The fixture's rotation speeds are under 1.1 rad/s, so the accumulated ~2 s of the test above never
+    // reaches one turn and cannot tell a wrapped rotation from an unwrapped one. Forty seconds turns the
+    // faster asteroids more than once.
+    [Fact]
+    public void ChunkRotationWrapsAtOneTurn()
+    {
+        var (zone, beltKey, asteroids, settings) = BuildFixture();
+        zone.Update(40f);
+        var parentPosition = OrbitPosition(40.0, RootDistance, RootPhase, settings);
+
+        var wrapped = 0;
+        for (var i = 0; i < asteroids.Length; i++)
+        {
+            if (40.0 * asteroids[i].RotationSpeed > PI * 2) wrapped++;
+            var expected = ExpectedPose(40.0, asteroids[i], parentPosition, settings, settings.AsteroidSize.Evaluate(asteroids[i].Size));
+            var actual = zone.ChunkPose(beltKey, i);
+            AssertClose(expected.z, actual.z, 0.001f, $"asteroid {i} rotation");
+            Assert.InRange(actual.z, 0f, PI * 2);
+        }
+        Assert.True(wrapped > 0, "sanity: the fixture must turn at least one asteroid past one full rotation");
+    }
+
     [Fact]
     public void ChunkPoseDoesNotDependOnUpdateCadence()
     {

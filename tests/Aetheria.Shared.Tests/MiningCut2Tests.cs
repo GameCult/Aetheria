@@ -43,7 +43,11 @@ public sealed class MiningCut2Tests : IDisposable
         OrbitPeriod = new ExponentialCurve { Multiplier = 0.6f, Exponent = 1.3f, Constant = 40f },
         AsteroidSize = new ExponentialLerp { Minimum = 2f, Maximum = 9f, Exponent = 1.7f },
         AsteroidHitpoints = new ExponentialLerp { Minimum = 20f, Maximum = 220f, Exponent = 1.6f },
-        AsteroidRespawnTime = new ExponentialLerp { Minimum = 8f, Maximum = 96f, Exponent = 1.2f }
+        AsteroidRespawnTime = new ExponentialLerp { Minimum = 8f, Maximum = 96f, Exponent = 1.2f },
+        // The zone builds a Planet for the fixture's non-belt body; its constructor reads these three.
+        BodyRadius = new ExponentialCurve(),
+        GravityRadius = new ExponentialCurve(),
+        GravityDepth = new ExponentialCurve()
     };
 
     private sealed class Fixture
@@ -53,6 +57,7 @@ public sealed class MiningCut2Tests : IDisposable
         public PlanetSettings Settings;
         public CultRecordKey BeltA;
         public CultRecordKey BeltB;
+        public CultRecordKey Planet;
         public Asteroid[] AsteroidsA;
         public Asteroid[] AsteroidsB;
     }
@@ -92,6 +97,8 @@ public sealed class MiningCut2Tests : IDisposable
 
         var beltAKey = MakeBelt(9, 700f, 0.05f);
         var beltBKey = MakeBelt(5, 1600f, 0.61f);
+        // A body that is not a debris field: a chunk of it must not exist, whatever its index.
+        var planetKey = cache.Upsert(new PlanetData { Orbit = new CultRecordRef<OrbitData>(rootKey) }).Key;
 
         var beltAData = (AsteroidBeltData) cache.Get(beltAKey);
         var beltBData = (AsteroidBeltData) cache.Get(beltBKey);
@@ -99,7 +106,7 @@ public sealed class MiningCut2Tests : IDisposable
         var pack = new ZonePack
         {
             Orbits = { new CultRecordRef<OrbitData>(rootKey) },
-            Planets = { new CultRecordRef<BodyData>(beltAKey), new CultRecordRef<BodyData>(beltBKey) },
+            Planets = { new CultRecordRef<BodyData>(beltAKey), new CultRecordRef<BodyData>(beltBKey), new CultRecordRef<BodyData>(planetKey) },
             Radius = 5000f,
             Mass = 10000f,
             Time = 0
@@ -114,7 +121,7 @@ public sealed class MiningCut2Tests : IDisposable
         return new Fixture
         {
             Zone = zone, Items = items, Settings = settings,
-            BeltA = beltAKey, BeltB = beltBKey,
+            BeltA = beltAKey, BeltB = beltBKey, Planet = planetKey,
             AsteroidsA = beltAData.Asteroids, AsteroidsB = beltBData.Asteroids
         };
     }
@@ -427,6 +434,81 @@ public sealed class MiningCut2Tests : IDisposable
         var pack = f.Zone.PackZone();
         var stillPacked = pack.ChunkWear?.Exists(w => w.Field.Equals(chunk.Field) && w.Index == chunk.Index) ?? false;
         Assert.False(stillPacked, "at exactly the respawn instant the entry already carries no live information");
+    }
+
+    // Soul-debt pass (mining-cut-refresh A.1 item 11): the rules below were unpinned when every mutant of the
+    // chunk surface was run against the Cut 1-2 tests. Each fails under its own mutation.
+    [Fact]
+    public void OnlyADebrisFieldHasChunks()
+    {
+        var f = BuildFixture();
+        Assert.True(f.Zone.Planets.ContainsKey(f.Planet), "sanity: the fixture's planet is a body of the zone");
+        Assert.False(f.Zone.ChunkExists(new ChunkId(f.Planet, 0)), "a planet is a body, not a field of chunks");
+        Assert.False(f.Zone.ChunkExists(new ChunkId(new CultRecordKey(Guid.NewGuid().ToString("N")), 0)), "a key that names no body has no chunks");
+    }
+
+    // The respawn instant belongs to the live chunk on every reader: ChunkExists and ChunkRadius already say so
+    // (RespawnAndPruneBoundaryIsInclusiveOfExactlyNow); Wear, the writer, must agree, or a hit landing on the
+    // instant is swallowed by a chunk every reader shows.
+    [Fact]
+    public void AHitOnTheExactRespawnInstantLandsOnTheLiveChunk()
+    {
+        var f = BuildFixture();
+        const int index = 2;
+        var chunk = new ChunkId(f.BeltA, index);
+        var hp = f.Settings.AsteroidHitpoints.Evaluate(f.AsteroidsA[index].Size);
+        var respawn = f.Settings.AsteroidRespawnTime.Evaluate(f.AsteroidsA[index].Size);
+
+        Assert.True(f.Zone.Wear(chunk, hp + 1f));
+        f.Zone.Update(respawn);
+        Assert.True(f.Zone.ChunkExists(chunk));
+
+        Assert.True(f.Zone.Wear(chunk, hp + 1f), "a hit on the instant of respawn breaks the respawned chunk again");
+        Assert.False(f.Zone.ChunkExists(chunk));
+    }
+
+    // A chunk that has respawned and been worn again is damaged and not broken. Its saved wear says so: no
+    // respawn time is carried over from the break it already recovered from.
+    [Fact]
+    public void WearAfterRespawnPacksWithoutTheOldRespawnTime()
+    {
+        var f = BuildFixture();
+        const int index = 1;
+        var chunk = new ChunkId(f.BeltA, index);
+        var hp = f.Settings.AsteroidHitpoints.Evaluate(f.AsteroidsA[index].Size);
+        var respawn = f.Settings.AsteroidRespawnTime.Evaluate(f.AsteroidsA[index].Size);
+
+        Assert.True(f.Zone.Wear(chunk, hp + 1f));
+        f.Zone.Update(respawn + 1f);
+        Assert.False(f.Zone.Wear(chunk, hp * 0.3f));
+
+        var packed = f.Zone.PackZone().ChunkWear.Find(w => w.Field.Equals(chunk.Field) && w.Index == index);
+        Assert.NotNull(packed);
+        Assert.Equal(hp * 0.3f, packed.Damage, 4);
+        Assert.Null(packed.BrokenUntil);
+    }
+
+    // ChunkPose is the sim's read of a chunk's size as well as its place: worn chunks are smaller, broken ones
+    // have none. Reading the undamaged size here would show a shot-out rock at full size to everything that
+    // asks through ChunkPose.
+    [Fact]
+    public void ChunkPoseCarriesTheChunksWornSize()
+    {
+        var f = BuildFixture();
+        const int index = 3;
+        var chunk = new ChunkId(f.BeltA, index);
+        var hp = f.Settings.AsteroidHitpoints.Evaluate(f.AsteroidsA[index].Size);
+
+        var undamaged = f.Zone.ChunkPose(f.BeltA, index).w;
+        Assert.Equal(f.Zone.AsteroidBelts[f.BeltA].UndamagedSize(index, f.Settings), undamaged, 4);
+
+        Assert.False(f.Zone.Wear(chunk, hp * 0.6f));
+        var worn = f.Zone.ChunkPose(f.BeltA, index).w;
+        Assert.Equal(f.Zone.ChunkRadius(chunk), worn, 4);
+        Assert.True(worn < undamaged, "a worn chunk is smaller than an untouched one");
+
+        Assert.True(f.Zone.Wear(chunk, hp));
+        Assert.Equal(0f, f.Zone.ChunkPose(f.BeltA, index).w);
     }
 }
 
