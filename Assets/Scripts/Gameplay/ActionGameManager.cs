@@ -405,11 +405,8 @@ public class ActionGameManager : MonoBehaviour
 
         // Cut 2 (docs/fire-control-cut.md): cycles the aim point among the current target's revealed
         // subsystems -- decides nothing itself, only calls the one writer (TrySelectTargetItem), same
-        // predicate (FireControl.IsRevealed) the AI path uses. No generated typed accessor exists for this
-        // action yet (it was hand-authored into Aetheria.inputactions rather than regenerated through the
-        // Unity Input Actions editor, unavailable here), so it is looked up by name instead of through
-        // Input.Player.
-        Input.asset.FindAction("Player/Cycle Target Item").performed += context =>
+        // predicate (FireControl.IsRevealed) the AI path uses.
+        Input.Player.CycleTargetItem.performed += context =>
         {
             var target = CurrentEntity.Target.Value;
             if (target == null) return;
