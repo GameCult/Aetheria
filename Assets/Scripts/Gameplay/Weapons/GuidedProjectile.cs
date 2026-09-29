@@ -48,6 +48,31 @@ public class GuidedProjectile : MonoBehaviour
 
     public event Action OnKill;
 
+    // The simulation's verdict on this round, bound by GuidedProjectileManager to Zone.ShotCommitted and
+    // ShotResolved for its ShotId: this object flies and looks, and neither decides where the round bursts nor when.
+    public IDisposable Binding { get; set; }
+
+    // The commit named a burst point: fly to it, whatever this round was homing on (a target it would have
+    // passed, or a Range clamp it would have overshot).
+    public void BurstAt(Vector3 point)
+    {
+        Target = null;
+        TargetPosition = () => point;
+    }
+
+    // The resolution: the round bursts now, at the simulation's burst point when it has one.
+    public void Resolve(Vector3? point)
+    {
+        if (!_alive || !_active) return;
+        if (point.HasValue) transform.position = point.Value;
+        if (HitEffect != null)
+        {
+            var ht = HitEffect.Instantiate<Transform>();
+            ht.position = transform.position;
+        }
+        StartCoroutine(Kill());
+    }
+
     void OnEnable()
     {
         _active = _alive = true;
@@ -170,6 +195,8 @@ public class GuidedProjectile : MonoBehaviour
 
     IEnumerator Kill()
     {
+        Binding?.Dispose();
+        Binding = null;
         _active = false;
         _alive = false;
         Particles.Stop(true, ParticleSystemStopBehavior.StopEmitting);

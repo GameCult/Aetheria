@@ -9,6 +9,17 @@ using static CultMath.math;
 
 public class GuidedProjectileManager : InstantWeaponEffectManager
 {
+    // Presentation follows the committed shot (FireControl): the round retargets to the burst point the commit
+    // names and bursts when the shot resolves, rather than predicting either from its own homing.
+    private static void Bind(GuidedProjectile p, Zone zone, int shotId)
+    {
+        Vector3 At(ShotOutcome o) => new Vector3(o.BurstPoint.x, p.transform.position.y, o.BurstPoint.y);
+        var bindings = new CompositeDisposable();
+        zone.ShotCommitted.Where(o => o.ShotId == shotId && o.HasBurstPoint).Subscribe(o => p.BurstAt(At(o))).AddTo(bindings);
+        zone.ShotResolved.Where(o => o.ShotId == shotId).Subscribe(o => p.Resolve(o.HasBurstPoint ? At(o) : (Vector3?) null)).AddTo(bindings);
+        p.Binding = bindings;
+    }
+
     public Prototype ProjectilePrototype;
 
     public Subject<(Entity source, Transform target, GuidedProjectile missile)> OnFireGuided = new Subject<(Entity source, Transform target, GuidedProjectile missile)>();
@@ -39,7 +50,9 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
             p.Velocity = barrel.forward * weapon.Velocity;
             p.Thrust = item.Evaluate(launcher.Thrust);
             p.TopSpeed = item.Evaluate(launcher.MissileVelocity);
-            OnFireGuided.OnNext((source.Entity, target.transform, p));
+            Bind(p, source.Entity.Zone, shotId);
+            // A round with no target (a fused round fired at none) has no transform to hand a listener.
+            OnFireGuided.OnNext((source.Entity, target != null ? target.transform : null, p));
         }
         else if(weapon.Data is GuidedWeaponData guidance)
         {
@@ -59,6 +72,7 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
             p.Thrust = item.Evaluate(guidance.Thrust);
             p.TopSpeed = item.Evaluate(guidance.MissileVelocity);
             p.TargetPosition = () => (source.Entity.Position + length(source.LookAtPoint.position.ToCultMath() - source.Entity.Position) * source.Entity.LookDirection).ToUnity();
+            Bind(p, source.Entity.Zone, shotId);
         }
         else Debug.LogError($"Weapon {item.Data.Name} linked to {name} effect, but is not a Launcher!");
     }

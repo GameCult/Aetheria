@@ -535,7 +535,7 @@ public class ActionGameManager : MonoBehaviour
                     missileManager.OnFireGuided.Where(x => x.source == _currentEntity).Take(1).Subscribe(x =>
                     {
                         FollowCamera.Follow = x.missile.transform;
-                        FollowCamera.LookAt = x.target;
+                        FollowCamera.LookAt = x.target ? x.target : x.missile.transform;
                         x.missile.OnKill += () =>
                         {
                             FollowCamera.LookAt = ZoneRenderer.EntityInstances[CurrentEntity].LookAtPoint;
