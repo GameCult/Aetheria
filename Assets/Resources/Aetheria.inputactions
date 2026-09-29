@@ -69,6 +69,15 @@
                     "initialStateCheck": false
                 },
                 {
+                    "name": "Cycle Target Item",
+                    "type": "Button",
+                    "id": "3f9a2f0a-6e3f-4a53-9f5e-1a9c1e6d9f7b",
+                    "expectedControlType": "Button",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
                     "name": "Toggle Heatsinks",
                     "type": "Button",
                     "id": "e6c6ff6a-4ac2-4e53-a3c9-9461f52e723f",
@@ -304,6 +313,17 @@
                     "processors": "",
                     "groups": "Keyboard&Mouse",
                     "action": "Target Nearest",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "8c2d5e77-4b18-4f0b-9a2e-6d3f7c1a5e90",
+                    "path": "<Keyboard>/j",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "Keyboard&Mouse",
+                    "action": "Cycle Target Item",
                     "isComposite": false,
                     "isPartOfComposite": false
                 },

@@ -59,7 +59,13 @@ public class LockWeapon : InstantWeapon
     {
         get => saturate(_lock);
     }
-    
+
+    // Cut 3 (docs/fire-control-cut.md): the same threshold CanFire above already gates firing on, exposed so
+    // FireControl.HitProbability can zero an unlocked LockWeapon's probability for AI/HUD decisions made
+    // before a shot is ever attempted.
+    public bool IsLocked => _lock > .99f;
+
+
     public LockWeapon(LockWeaponData data, EquippedItem item) : base(data, item)
     {
         _data = data;

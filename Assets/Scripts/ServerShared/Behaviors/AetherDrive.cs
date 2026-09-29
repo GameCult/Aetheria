@@ -47,7 +47,7 @@ public class AetherDriveData : BehaviorData
     [Inspectable, JsonProperty("torqueAudio"), Key(12), RuntimeInspectable]
     public uint TorqueRatioAudioParameter;
 
-    [Inspectable, CultInspectorAssetPath, JsonProperty("particles"), Key(13)]
+    [Inspectable, CultInspectorAssetGuid, JsonProperty("particles"), Key(13)]
     public string Particles;
     
     public override Behavior CreateInstance(EquippedItem item)
@@ -61,7 +61,7 @@ public class AetherDriveData : BehaviorData
     }
 }
 
-public class AetherDrive : Behavior
+public class AetherDrive : Behavior, IPowerConsumer
 {
     private AetherDriveData _data;
     private float3 _axis;
@@ -72,6 +72,11 @@ public class AetherDrive : Behavior
     public float2 ThrustDirection { get; private set; }
 
     public AetherDriveData DriveData => _data;
+
+    // Cut 8 (operator ask 2026-09-19): the equivalent quantity to Thruster.Condition -- Torque is the stat that
+    // actually governs this behaviour's rotor spin-up (PowerRequest/Execute above both read it), so it is what
+    // "broken" means for a drive. 1f for the item-less ConsumableItemEffect case, same reasoning as Thruster.
+    public float Condition => Item?.ConditionRatio(_data.Torque) ?? 1f;
 
     public float3 Axis
     {
@@ -88,6 +93,38 @@ public class AetherDrive : Behavior
     {
         _data = data;
     }
+
+    // Cut 3 (docs/stats-and-power-cut.md): the request PowerBus needs before Execute runs. Only the rotor
+    // spin-up (torque accelerating Rpm toward MaximumRpm) costs power -- spending existing spin into thrust
+    // (Execute's decay-to-thrust arithmetic below) is free, same as before. Pure and side-effect-free: it reads
+    // Rpm but does not write it, so Execute's own identical arithmetic a few lines later -- which does perform
+    // the real decay -- produces the same numbers Rpm actually moves by. Accepts the recompute (Q3's ruling).
+    //
+    // Nominal-request ruling (docs/stats-and-power-cut.md, operator ruling 2026-09-19): Torque, LambdaMultiplier,
+    // MaximumRpm, PassiveCoupling and EnergyDraw are all registered request fields (StatValidation.
+    // PowerRequestFields) -- read nominally (what full power would produce) so Torque carrying its own
+    // PowerSupply term (Cut 7's brownout curve) no longer makes this tick's request depend on this tick's own
+    // grant. Execute below is unchanged: it calls the real, curved Evaluate, so the actual spin-up still
+    // degrades with whatever the bus actually grants.
+    public float PowerRequest(float dt)
+    {
+        var couplingLambda = _data.CouplingLambda * Item.EvaluateNominalPower(_data.LambdaMultiplier) * max(abs(_axis), EvaluateNominalPower(_data.PassiveCoupling));
+        var rpmAfterDecay = decay(Rpm, couplingLambda, dt);
+        var maximumRpm = EvaluateNominalPower(_data.MaximumRpm);
+        var torqueProfile = float3(
+            _data.TorqueProfile.Evaluate(rpmAfterDecay.x / maximumRpm),
+            _data.TorqueProfile.Evaluate(rpmAfterDecay.y / maximumRpm),
+            _data.TorqueProfile.Evaluate(rpmAfterDecay.z / maximumRpm));
+        var potentialTorque = EvaluateNominalPower(_data.Torque) * torqueProfile;
+        var potentialRpmDelta = potentialTorque / length(_data.RotorMass) * dt;
+        var actualRpmDelta = min(maximumRpm - rpmAfterDecay, potentialRpmDelta);
+        var torqueRatio = actualRpmDelta / potentialRpmDelta;
+        var draw = torqueRatio * EvaluateNominalPower(_data.EnergyDraw) / 3;
+        return (draw.x + draw.y + draw.z) * dt;
+    }
+
+    // Cut 5 (docs/stats-and-power-cut.md §1.3, PowerTiers.cs): Medium -- mobility, same as Thruster.
+    public int DefaultPowerTier => PowerTiers.Medium;
 
     public override bool Execute(float dt)
     {
@@ -129,19 +166,20 @@ public class AetherDrive : Behavior
         var potentialRpmDelta = potentialTorque / length(_data.RotorMass) * dt;
         var actualRpmDelta = min(MaximumRpm - Rpm, potentialRpmDelta);
         var torqueRatio = actualRpmDelta / potentialRpmDelta;
-        var draw = torqueRatio * Evaluate(_data.EnergyDraw) / 3;
-        
+
         Item.SetAudioParameter(SpecialAudioParameter.Intensity, max(max(abs(_axis.x), abs(_axis.y)), abs(_axis.z)));
         Item.SetAudioParameter(_data.RpmAudioParameter, (Rpm.x + Rpm.y + Rpm.z) / 3 / MaximumRpm);
         Item.SetAudioParameter(_data.TorqueRatioAudioParameter, max(max(torqueRatio.x, torqueRatio.y), torqueRatio.z));
         
-        if (Entity.TryConsumeEnergy((draw.x + draw.y + draw.z)*dt))
+        // Cut 7 (docs/stats-and-power-target.md): actualRpmDelta already derives from Evaluate(_data.Torque)
+        // above, so a Torque stat carrying a PowerSupply term already shrinks the rotor's spin-up under a
+        // partial grant -- this no longer demands a full one, only that supply has not been cut to true zero.
+        if (Item.PowerSupply > 1e-4f)
         {
             Rpm += actualRpmDelta;
             return true;
         }
-        
-        
+
         return false;
     }
 }

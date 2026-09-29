@@ -19,10 +19,9 @@ public class ConstantLaserManager : ConstantWeaponEffectManager
         t.SetParent(barrel);
         t.forward = barrel.forward;
         t.position = barrel.position;
-        p.Damage = item.Evaluate(data.Damage);
-        p.Penetration = item.Evaluate(data.Penetration);
-        p.Spread = item.Evaluate(data.DamageSpread);
-        p.DamageType = data.DamageType;
+        // Cut 4 (docs/fire-control-cut.md): FireControl already rolls this weapon's damage; the presentation
+        // only needs to know where to draw the beam.
+        p.TargetTransform = target != null ? target.transform : null;
         _lasers.Add(item, p);
     }
 

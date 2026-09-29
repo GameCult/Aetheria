@@ -1,0 +1,253 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+
+using System.Collections.Generic;
+using System.Linq;
+using static CultMath.math;
+
+// Cut 3 (docs/stats-and-power-cut.md §1.2): the sole owner of every power grant for one Entity, stepped once per
+// tick from Entity.Update, before any equipped item's Behaviors execute. It replaces
+// Entity.TryConsumeEnergy/CanConsumeEnergy: at HEAD every draw succeeded as long as one reactor was online, and
+// any shortfall was silently taxed onto the reactor as heat instead of ever being refused (§0.5). The bus makes
+// the ceiling real: demand beyond what this tick's generation and stored capacitor charge can cover goes unmet.
+//
+// Cut 5 (docs/stats-and-power-cut.md §1.3) replaces the single shared fraction with priority tiers
+// (PowerTiers.cs): the total this tick's supply can cover (TotalGrant, unchanged by tiers -- see below) is
+// walked tier by tier, lowest number first. A tier is fed in full before the next tier sees anything left; a
+// tier with no demand simply passes its whole share down; within a tier, every consumer's own request is
+// rationed by the same fraction, so two requests of unequal size still divide proportionally. This is the death
+// of the old "whoever equipped first drains the capacitors first" hidden priority (§0.5), replaced with an
+// authored one instead of no priority at all.
+//
+// Bus capacitors are charged and drained only here (§0b): Reactor no longer touches them, and neither does any
+// IPowerConsumer. The four instant draws the cut map names (a burst, a shot, a ping, a hit taken) are
+// IPowerConsumers too as of Cut 4: each spends from its own InputCapacitor (InstantWeapon, Sensor, Shield),
+// never from these bus capacitors directly. Entity.TrySpendCapacitorCharge/CanSpendCapacitorCharge, Cut 3's
+// named, temporary exception, died with their last caller.
+public class PowerBus
+{
+    private readonly Entity _entity;
+
+    public PowerBus(Entity entity) => _entity = entity;
+
+    // Every figure below is this tick's, overwritten wholesale by the next Step -- nothing here is persisted
+    // (§0.6); a fresh Entity starts with the defaults below and they read as "fully supplied, nothing drawn"
+    // until the first Step runs.
+    public float TotalGeneration { get; private set; }
+    public float TotalDemand { get; private set; }
+
+    // Energy actually delivered this tick, summed across every tier: generation first, then whatever stored
+    // capacitor charge covers the rest, capped at demand. Equal to TotalDemand whenever supply covers it; equal
+    // to (generation + available charge) otherwise -- never more, which TryConsumeEnergy could never promise (a
+    // reactor always paid the remainder as heat, so overdraw was invisible at this level). Which consumers that
+    // total actually reaches is what tiering (below) decides; this figure is unaffected by tiers -- the ceiling
+    // is a property of supply, not of priority.
+    public float TotalGrant { get; private set; }
+
+    // Aggregate fraction of all demand granted this tick (TotalGrant / TotalDemand) -- a fleet-wide summary, not
+    // what any one consumer necessarily received. Still written onto every consuming EquippedItem.PowerSupply
+    // when every tier in play happens to land on the same ratio (single-tier loadouts, the common case in the
+    // Cut 3/4 test fixtures), but a multi-tier shortfall gives different tiers different ratios -- read
+    // TierGrantRatio or the item's own PowerSupply for that.
+    public float GrantRatio { get; private set; } = 1f;
+
+    // F3 (docs/stats-and-power-cut.md, Soul pass 2026-09-19): the sentinel AllocateTiers writes for a tier with no
+    // consumers equipped in it at all. Distinct from 1f -- an empty tier has not been "fully supplied," there was
+    // nothing to supply, and reporting it as 1f is exactly the fully-satisfied signal a UI is meant to read as
+    // "this tier is fine," on a ship that may be fully blacked out. A reader must treat NaN as "nothing to report
+    // here," not as satisfied or starved.
+    public const float NoDemand = float.NaN;
+
+    // Cut 5: this tick's within-tier grant ratio, indexed by PowerTiers.Critical..Utility. 1f means that tier's
+    // demand was fully met; NoDemand (NaN) means the tier has no consumers at all (see NoDemand above); anything
+    // else below 1f is exactly the "starved" state a future UI (Cut 8) reads instead of reconstructing it from
+    // per-item PowerSupply. A tier below a starved one is always 0f -- §1.3's "a tier boundary does not leak".
+    public float[] TierGrantRatio { get; } = InitFullTiers();
+
+    // Before the bus has ever run a Step, there is no grant information at all yet -- not "fully supplied,"
+    // "nothing to report" (NoDemand), same as an empty tier reads once Step does run.
+    private static float[] InitFullTiers()
+    {
+        var ratios = new float[PowerTiers.Count];
+        for (var i = 0; i < ratios.Length; i++) ratios[i] = NoDemand;
+        return ratios;
+    }
+
+    // What Reactor.Execute reads to run its own heat/throttle arithmetic (Cut 3: "the arithmetic survives, moved
+    // under the bus's numbers"). Positive: demand left unmet after generation AND stored charge, split evenly
+    // across online reactors for overload heat. Negative: generation left over after demand and after topping up
+    // every capacitor, split evenly for the throttling arithmetic. Reactor.Draw no longer feeds this -- it is now
+    // a reported total, not a sink (§1.2).
+    public float NetDraw { get; private set; }
+
+    // One equipped item's power request for this tick, captured once so PowerRequest -- which some behaviours
+    // (Shield, InstantWeapon, Sensor) implement by refreshing their own cached stats -- is never called twice in
+    // one Step.
+    private readonly struct Draw
+    {
+        public readonly EquippedItem Item;
+        public readonly int Tier;
+        public readonly float Request;
+        public Draw(EquippedItem item, int tier, float request) { Item = item; Tier = tier; Request = request; }
+    }
+
+    public void Step(float dt)
+    {
+        var reactors = new List<Reactor>();
+        var capacitors = new List<Capacitor>();
+        var draws = new List<Draw>();
+        foreach (var item in _entity.Equipment)
+        foreach (var behavior in item.Behaviors)
+        {
+            switch (behavior)
+            {
+                // F2 (docs/stats-and-power-cut.md, Soul pass 2026-09-19): this must agree with the one predicate
+                // Entity.Update actually gates Execute on (Active.Value, Entity.cs -- Enabled && Online), in both
+                // directions. Gating on Online alone let a reactor the player switched off (Enabled = false, so
+                // Active is false but Online stays true) keep generating here even though Reactor.Execute -- the
+                // behaviour that produces the heat receipt -- never runs for it: free, heat-free power. Capacitor
+                // has no IPowerConsumer/generation role and is unconditionally a store regardless of its own
+                // item's state (mirrors pre-existing behaviour; nothing in the ruling asks for that to change).
+                case Reactor reactor when item.Active.Value:
+                    reactors.Add(reactor);
+                    break;
+                case Capacitor capacitor:
+                    capacitors.Add(capacitor);
+                    break;
+            }
+            // The other direction of the same rule: a consumer switched off or shut down (Active.Value false)
+            // never runs its Execute, so it must never be billed either -- otherwise a disabled item's demand
+            // starves every live consumer and drains the capacitors for energy nobody spends.
+            if (behavior is IPowerConsumer consumer && item.Active.Value)
+            {
+                // Cut 5 (docs/stats-and-power-cut.md §1.3): the item's own stored choice wins once it has one;
+                // PowerTiers.Unassigned only survives past EquippedItem's constructor for a consumer added to
+                // the game after this unit was minted, which the constructor never saw -- fall back to the
+                // behaviour's own default rather than stranding it at an invalid tier.
+                var tier = item.EquippableItem.PowerTier;
+                if (tier == PowerTiers.Unassigned) tier = consumer.DefaultPowerTier;
+                tier = clamp(tier, 0, PowerTiers.Count - 1);
+                draws.Add(new Draw(item, tier, max(0f, consumer.PowerRequest(dt))));
+            }
+        }
+
+        TotalGeneration = reactors.Sum(r => r.Generation(dt));
+        TotalDemand = draws.Sum(d => d.Request);
+
+        var availableCharge = capacitors.Sum(c => c.Charge);
+        var preCapacitorNet = TotalDemand - TotalGeneration;
+
+        float overload = 0f, unabsorbedSurplus = 0f;
+        if (preCapacitorNet > 0f)
+        {
+            var chargeDrawn = min(preCapacitorNet, availableCharge);
+            if (chargeDrawn > 0f) DrainEvenly(capacitors, chargeDrawn);
+            overload = preCapacitorNet - chargeDrawn;
+        }
+        else if (preCapacitorNet < 0f)
+        {
+            unabsorbedSurplus = FillEvenly(capacitors, -preCapacitorNet);
+        }
+
+        NetDraw = overload - unabsorbedSurplus; // exactly one of the two is ever nonzero
+        TotalGrant = TotalDemand - overload;
+        GrantRatio = TotalDemand <= 1e-4f ? 1f : saturate(TotalGrant / TotalDemand);
+
+        AllocateTiers(draws);
+    }
+
+    // Cut 5 (docs/stats-and-power-cut.md §1.3): walks tiers lowest-number-first, feeding each in full before the
+    // next sees anything. remaining only ever shrinks, and once it hits 0 every later tier's ratio is 0 by the
+    // same division -- a lower tier can never take from a higher one (§1.3 "a tier boundary does not leak"),
+    // because a higher tier's share is committed (remaining -= grant) before a lower tier is even considered.
+    // Within a tier every consumer shares that tier's one ratio against its own request, so two unequal requests
+    // still divide proportionally -- the same property Cut 3 proved for the whole ship, now proved per tier.
+    private void AllocateTiers(List<Draw> draws)
+    {
+        var tierDemand = new float[PowerTiers.Count];
+        // F3 (docs/stats-and-power-cut.md, Soul pass 2026-09-19): demand alone cannot tell "no consumer is
+        // equipped in this tier" from "a real consumer is equipped here and its own request happens to be 0 (or
+        // effectively 0) this tick" -- both sum to the same tierDemand. Only the first is actually empty; the
+        // second still has an item reading this tier's ratio back as its own PowerSupply, and that item is owed
+        // a real answer (trivially 1: it asked for nothing, so nothing it could be short of), not NoDemand.
+        var tierHasConsumer = new bool[PowerTiers.Count];
+        foreach (var draw in draws) { tierDemand[draw.Tier] += draw.Request; tierHasConsumer[draw.Tier] = true; }
+
+        var remaining = TotalGrant;
+        var ratios = TierGrantRatio;
+        for (var tier = 0; tier < PowerTiers.Count; tier++)
+        {
+            // A tier with genuinely no consumers is not satisfied, it is empty: report NoDemand, not the "fully
+            // supplied" signal 1f. Nothing to subtract from `remaining` either way.
+            if (!tierHasConsumer[tier]) { ratios[tier] = NoDemand; continue; }
+            var demand = tierDemand[tier];
+            // This used to short-circuit ANY demand at or below 1e-4 the same way as a genuinely empty tier,
+            // which both reported a grant nobody made (an item reading ratio 1 while the ship generates nothing,
+            // down to Soul's own probe at 5e-5) and leaked that tier's unsubtracted share to every lower one. A
+            // consumer requesting truly nothing (demand <= 0f exactly) is trivially fully met; anything above
+            // that, however tiny, is rationed like any other tier.
+            if (demand <= 0f) { ratios[tier] = 1f; continue; }
+            var grant = min(demand, remaining);
+            ratios[tier] = saturate(grant / demand);
+            remaining -= grant;
+        }
+
+        foreach (var draw in draws)
+        {
+            draw.Item.PowerSupply = ratios[draw.Tier];
+            // Cut 6 (docs/stats-and-power-cut.md): the missing half of the wiring -- a stat with a PowerSupply
+            // term must recompute when the grant actually moves. Called unconditionally, once per draw per tick,
+            // the same shape as EquippedItem.UpdatePerformance's own Heat/Durability invalidation: "recomputes at
+            // most once per tick per (item, stat)," not "only when the value moved." An item with no PowerSupply
+            // term pays nothing extra -- the resolver's per-source generation bookkeeping (StatResolver.Resolve)
+            // only ever looks at sources a stat's own Terms declared.
+            _entity.Resolver.InvalidateSource(draw.Item, StatSource.PowerSupply);
+        }
+    }
+
+    // Mirrors Entity.TryConsumeEnergy's old do/while exactly (draw evenly across every capacitor that still has
+    // charge, repeating as capacitors empty out), just relocated: bus capacitors are drained only by the bus now.
+    private static void DrainEvenly(List<Capacitor> capacitors, float amount)
+    {
+        int chargedCount;
+        do
+        {
+            chargedCount = capacitors.Count(c => c.Charge > .01f);
+            if (chargedCount == 0) break;
+            var share = amount / chargedCount;
+            foreach (var cap in capacitors)
+            {
+                if (cap.Charge <= .01f) continue;
+                var drawn = min(share, cap.Charge);
+                cap.AddCharge(-drawn);
+                amount -= drawn;
+            }
+        } while (chargedCount > 0 && amount > .01f);
+    }
+
+    // Fills every capacitor evenly up to its own capacity and returns whatever would not fit, for Reactor to
+    // throttle away -- the same job Reactor.cs used to do to itself (surplus branch), moved here because bus
+    // capacitors are charged only by the bus (§0b). Resolves Capacity itself rather than reading each
+    // Capacitor's cached property: the bus steps before any behaviour's Execute runs this tick, so that property
+    // still holds last tick's value.
+    private static float FillEvenly(List<Capacitor> capacitors, float amount)
+    {
+        int nonFullCount;
+        do
+        {
+            nonFullCount = capacitors.Count(c => c.Charge < c.ResolveCapacity() - .01f);
+            if (nonFullCount == 0) break;
+            var share = amount / nonFullCount;
+            foreach (var cap in capacitors)
+            {
+                var capacity = cap.ResolveCapacity();
+                if (cap.Charge >= capacity - .01f) continue;
+                var added = min(share, capacity - cap.Charge);
+                cap.AddCharge(added);
+                amount -= added;
+            }
+        } while (nonFullCount > 0 && amount > .01f);
+        return amount;
+    }
+}

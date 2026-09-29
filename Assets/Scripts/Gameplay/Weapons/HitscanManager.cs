@@ -3,7 +3,7 @@ using UnityEngine;
 public class HitscanManager : InstantWeaponEffectManager
 {
     public Prototype Prototype;
-    public override void Fire(InstantWeapon weapon, EquippedItem item, EntityInstance source, EntityInstance target)
+    public override void Fire(InstantWeapon weapon, EquippedItem item, EntityInstance source, EntityInstance target, int shotId)
     {
         var p = Prototype.Instantiate<HitscanEffect>();
         p.SourceEntity = source.Entity;
@@ -15,12 +15,9 @@ public class HitscanManager : InstantWeaponEffectManager
         t.localPosition = Vector3.zero;
         // t.position = barrel.position;
         // t.forward = barrel.forward;
+        p.ShotId = shotId;
         p.Range = weapon.Range;
-        p.Damage = weapon.Damage;
-        p.Penetration = weapon.Penetration;
-        p.Spread = weapon.DamageSpread;
-        p.DamageType = weapon.WeaponData.DamageType;
-        p.Zone = source.Entity.Zone;
+        p.TargetTransform = target != null ? target.transform : null;
         p.Fire();
     }
 }

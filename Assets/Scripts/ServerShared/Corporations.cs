@@ -22,7 +22,7 @@ public class Faction
     [Inspectable, CultInspectorTextArea, JsonProperty("description"), Key(3)]
     public string Description;
 
-    [Inspectable, CultInspectorAssetPath, JsonProperty("logo"), Key(4)]
+    [Inspectable, CultInspectorAssetGuid, JsonProperty("logo"), Key(4)]
     public string Logo;
 
     [Inspectable, CultReference(typeof(PersonalityAttribute), many: true), JsonProperty("personality"), Key(5)]

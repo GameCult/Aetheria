@@ -33,15 +33,36 @@ public class CombatState : BaseState
         
         var toTarget = target.Position - _agent.Ship.Position;
         var targetDistance = length(toTarget);
+
+        // Cut 2 (docs/fire-control-cut.md): aim at whichever revealed weapon on the target hits hardest at
+        // this range, or clear the aim point when nothing qualifies -- the same predicate
+        // (FireControl.IsRevealed) and the same writer (TrySelectTargetItem) the player path uses.
+        EquippedItem bestTargetItem = null;
+        var bestTargetDps = float.MinValue;
+        foreach (var targetItem in target.Equipment)
+        {
+            if (!(targetItem.Behaviors.FirstOrDefault(b => b is Weapon) is Weapon targetWeapon)) continue;
+            if (!FireControl.IsRevealed(_agent.Ship, targetItem)) continue;
+            var dps = targetWeapon.RangeDamagePerSecond(targetDistance);
+            if (dps > bestTargetDps)
+            {
+                bestTargetDps = dps;
+                bestTargetItem = targetItem;
+            }
+        }
+        _agent.Ship.TrySelectTargetItem(bestTargetItem);
+
         for (var i = 0; i < _agent.Ship.WeaponGroups.Length; i++)
         {
             var group = _agent.Ship.WeaponGroups[i];
             var dps = 0f;
             foreach (var weapon in group.weapons)
-                if (weapon.Item.Online.Value && 
-                    weapon.MinRange < targetDistance && 
-                    targetDistance < weapon.Range && 
-                    (weapon is ConstantWeapon || 
+                // The range test is FireControl's (Designated), and a weapon Solve refuses adds nothing to a group's
+                // damage.
+                if (weapon.Item.Online.Value &&
+                    FireControl.Designated(weapon, _agent.Ship, target, out _) &&
+                    !FireControl.Refuses(weapon, _agent.Ship) &&
+                    (weapon is ConstantWeapon ||
                      weapon is InstantWeapon instantWeapon && instantWeapon.CanFire))
                 {
                     if(weapon is LockWeapon lockWeapon)
@@ -83,26 +104,21 @@ public class CombatState : BaseState
             var testWeapon = _agent.Ship.WeaponGroups[selectedGroup].weapons.First();
             if(testWeapon.Velocity > 1)
             {
+                // Cut 3 (docs/fire-control-cut.md): the one prediction function, shared with FireControl.Fire's
+                // own snapshot and the roll's deviation measurement -- two separate predictions here and in the
+                // roll would let an AI aim at one point and get judged for missing a different one.
                 var targetHullData = _agent.ItemManager.GetData(target.Hull) as HullData;
-                var targetVelocity = float3(target.Velocity.x, 0, target.Velocity.y);
-                var shipVelocity = float3(_agent.Ship.Velocity.x, 0, _agent.Ship.Velocity.y);
-                var predictedPosition = first_order_intercept(
-                    _agent.Ship.Position,
-                    float3.zero,
-                    testWeapon.Velocity,
-                    target.Position,
-                    targetVelocity
-                );
+                var predictedPosition = FireControl.PredictedIntercept(testWeapon, _agent.Ship, target);
                 predictedPosition.y = _agent.Ship.Zone.GetHeight(predictedPosition.xz) + targetHullData.GridOffset;
                 toTarget = normalize(predictedPosition - _agent.Ship.Position);
             }
-            
-            var shouldFire = dot(
-                _agent.Ship.HardpointTransforms[_agent.Ship.Hardpoints[testWeapon.Item.Position.x, testWeapon.Item.Position.y]].direction,
-                toTarget) > .99f;
+
+            // Each weapon decides for itself (operator ruling 2026-09-30): a group shares a trigger, not a
+            // verdict. FireControl.AgentFires is the AI's "worth it" heuristic for a weapon that hits what it
+            // fires at, and "the target is designated" for a fused one.
             foreach (var weapon in _agent.Ship.WeaponGroups[selectedGroup].weapons)
             {
-                if (shouldFire)
+                if (FireControl.AgentFires(weapon, _agent.Ship, target))
                     weapon.Activate();
                 else if (weapon.Firing)
                     weapon.Deactivate();

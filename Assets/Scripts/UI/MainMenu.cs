@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using MessagePack;
 using TMPro;
 using UniRx;
 using UnityEngine;
@@ -122,13 +123,15 @@ public class MainMenu : MonoBehaviour
 
                 if (ActionGameManager.PlayerSettings.TutorialPassed)
                 {
-                    Settings.SectorBackgroundSettings.NoisePosition = Random.value * 1000;
+                    var backgroundSettings = MessagePackSerializer.Deserialize<SectorBackgroundSettings>(
+                        MessagePackSerializer.Serialize(Settings.SectorBackgroundSettings));
+                    backgroundSettings.NoisePosition = Random.value * 1000;
                     ActionGameManager.IsTutorial = false;
                     Task.Run(() =>
                     {
                         var sector = new Galaxy(
                             Settings.SectorGenerationSettings,
-                            Settings.SectorBackgroundSettings,
+                            backgroundSettings,
                             Settings.NameGeneratorSettings,
                             ActionGameManager.CultCache,
                             Debug.Log,
@@ -142,19 +145,21 @@ public class MainMenu : MonoBehaviour
                 }
                 else
                 {
+                    var backgroundSettings = MessagePackSerializer.Deserialize<SectorBackgroundSettings>(
+                        MessagePackSerializer.Serialize(Settings.TutorialBackgroundSettings));
                     int iteration = 1;
                     do
                     {
-                        Settings.TutorialBackgroundSettings.NoisePosition = Random.value * 1000;
+                        backgroundSettings.NoisePosition = Random.value * 1000;
                         setState($"Finding Galaxy Position: iteration {iteration++}");
-                    } while (Settings.TutorialBackgroundSettings.CloudDensity(float2(0.5f)) < .5f);
-                    
+                    } while (backgroundSettings.CloudDensity(float2(0.5f)) < .5f);
+
                     ActionGameManager.IsTutorial = true;
                     Task.Run(() =>
                     {
                         var sector = new Galaxy(
                             Settings.TutorialGenerationSettings,
-                            Settings.TutorialBackgroundSettings,
+                            backgroundSettings,
                             Settings.NameGeneratorSettings,
                             ActionGameManager.CultCache,
                             ActionGameManager.PlayerSettings,

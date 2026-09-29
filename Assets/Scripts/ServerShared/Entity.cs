@@ -6,6 +6,7 @@ using GameCult.Caching;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using MessagePack;
 using UniRx;
 using CultMath;
 using static CultMath.math;
@@ -44,6 +45,13 @@ public abstract class Entity
     public List<Entity> Children = new List<Entity>();
     public ReactiveProperty<Entity> Target = new ReactiveProperty<Entity>((Entity)null);
 
+    // Cut 2 (docs/fire-control-cut.md): the stored aim-point slot. Written only by TrySelectTargetItem
+    // below, and nulled whenever Target changes (subscribed in Activate). Do not read this field directly
+    // outside Entity -- read ResolvedTargetItem, which re-validates on every call, so decay (or the item
+    // leaving the target) drops the aim point the moment it is no longer earned, with no loop that has to
+    // notice and clear it.
+    public ReactiveProperty<EquippedItem> TargetItem = new ReactiveProperty<EquippedItem>((EquippedItem)null);
+
     public float3 LookDirection;
     
     public string Name;
@@ -53,13 +61,20 @@ public abstract class Entity
     
     public readonly Dictionary<string, float> Messages = new Dictionary<string, float>();
     public readonly Dictionary<object, float> VisibilitySources = new Dictionary<object, float>();
-    public readonly ReactiveDictionary<Entity, float> EntityInfoGathered = new ReactiveDictionary<Entity, float>(); 
-    public readonly Dictionary<HardpointData, (float3 position, float3 direction)> HardpointTransforms = 
-        new Dictionary<HardpointData, (float3 position, float3 direction)>();
-    
+    public readonly ReactiveDictionary<Entity, float> EntityInfoGathered = new ReactiveDictionary<Entity, float>();
+
     public (List<Weapon> weapons, List<EquippedItem> items)[] WeaponGroups;
 
     public List<IPopulationAssignment> PopulationAssignments = new List<IPopulationAssignment>();
+
+    // Cut 2 (docs/stats-and-power-cut.md): the sole owner of every resolved (item, stat) value for this entity.
+    // Constructed with the entity and reachable only from it -- nothing on the catalog side ever points back --
+    // so it is collected with the entity instead of surviving it for the life of the process (§0.3, §1.1).
+    public readonly StatResolver Resolver = new StatResolver();
+
+    // Cut 3 (docs/stats-and-power-cut.md): the sole owner of every power grant for this entity, same lifecycle
+    // reasoning as Resolver above (§1.2).
+    public readonly PowerBus PowerBus;
 
     public EquippedItem[,] GearOccupancy;
     public HardpointData[,] Hardpoints;
@@ -68,8 +83,6 @@ public abstract class Entity
     
     private EquippedItem[] _orderedEquipment;
     private List<Weapon> _weapons = new List<Weapon>();
-    private List<Capacitor> _capacitors = new List<Capacitor>();
-    private List<Reactor> _reactors = new List<Reactor>();
     private List<Radiator> _heatsinks = new List<Radiator>();
 
     private List<ConsumableItemEffect> _activeConsumables = new List<ConsumableItemEffect>();
@@ -267,9 +280,157 @@ public abstract class Entity
             foreach(var subscription in _watchedEntitySubscriptions[disappearingEntity.Value]) subscription.Dispose();
             _watchedEntitySubscriptions.Remove(disappearingEntity.Value);
         }));
-        
+
+        // Cut 2 (docs/fire-control-cut.md): a Target change nulls the aim point. Fires immediately on
+        // subscribe with whatever Target already holds, which is harmless -- TargetItem starts null anyway.
+        _subscriptions.Add(Target.Subscribe(_ => TargetItem.Value = null));
+
+        // 9.3 (docs/fire-control-cut.md, Soul C3): a Target surviving Deactivate can point at an entity
+        // this zone removed while inactive -- Deactivate disposes the Zone.Entities.ObserveRemove
+        // subscription that is the only thing that nulls a stale Target, and EntityInfoGathered was just
+        // rebuilt above from the zone's *current* membership, not from whatever Target still remembers.
+        // Reconcile here, now that both the fresh EntityInfoGathered and the Target-change subscription
+        // above are live (so this write also clears TargetItem through it): an active entity's Target
+        // must always be an entity it has info on. Activate owns this reconciliation rather than
+        // Deactivate nulling Target outright, because nulling on every dock would throw away a target
+        // that is still alive and simply never changed while docked -- the common case, and not the one
+        // that crashed.
+        if (Target.Value != null && !EntityInfoGathered.ContainsKey(Target.Value))
+            Target.Value = null;
+
         if(WeaponGroups.All(wg=>!wg.items.Any()))
             GenerateWeaponGroups();
+    }
+
+    // Cut 2 (docs/fire-control-cut.md): the only writer of TargetItem. Accepts null (clearing the aim
+    // point) or an item belonging to the current Target that FireControl.IsRevealed resolves true for this
+    // entity as observer. Returns whether the write took effect; a rejected non-null selection leaves
+    // TargetItem unchanged.
+    public bool TrySelectTargetItem(EquippedItem item)
+    {
+        if (item == null)
+        {
+            TargetItem.Value = null;
+            return true;
+        }
+
+        if (Target.Value == null || item.Entity != Target.Value || !FireControl.IsRevealed(this, item))
+            return false;
+
+        TargetItem.Value = item;
+        return true;
+    }
+
+    // The read path for TargetItem (see the field's own comment): null once the aimed item is no longer
+    // revealed to this entity, or no longer belongs to the current Target, even though nothing wrote
+    // TargetItem.Value at the moment that became true. Re-checked on every call; never cached.
+    public EquippedItem ResolvedTargetItem =>
+        TargetItem.Value != null && Target.Value == TargetItem.Value.Entity && FireControl.IsRevealed(this, TargetItem.Value)
+            ? TargetItem.Value
+            : null;
+
+    // Cut 12.3 (docs/fire-control-cut.md): "armour absorbs first" -- the per-cell armour phase, split out of
+    // what used to be Absorb's own first half (moved verbatim from DamageSchematic's per-cell body, Cut 3) so
+    // Cut 12.3's fix batch (proportional multi-lane item absorption, below) can call the armour phase once per
+    // cell -- always local to one lane, since armour never spans cells -- while deferring the item phase to
+    // ItemAbsorb's own pool for EVERY occupied cell, not only ones shared with another lane: a lane that turns
+    // out to be an item's only contributor still pools through a list of one (ItemAbsorb's own degenerate
+    // case), never a separate solo path. ArmorDamage fires only for incoming > 0.
+    public float ArmorAbsorb(int2 cell, float damage)
+    {
+        var d = damage;
+
+        if (d > 0f)
+        {
+            var prevArmor = Armor[cell.x, cell.y];
+            Armor[cell.x, cell.y] = max(prevArmor - d, 0);
+            ArmorDamage.OnNext((cell, d));
+            d = max(d - prevArmor, 0);
+        }
+
+        return d;
+    }
+
+    // Cut 12.3 fix batch (one apply path, operator ruling 2026-09-25 "do not expect items taking up multiple
+    // cells to be an exception, this should be one code path"): the ONE function that decides an item's own
+    // absorption, whatever the item's shape or however many lanes of one shot reach it. `incoming` holds every
+    // contributing lane's own post-armour remainder for this resolve, one lane's worth included -- a
+    // single-lane item is this rule's own degenerate case, not a separate function or a separate threshold.
+    // The existing .1f threshold is decided once, on the POOLED total, never per contribution (a pooled path
+    // that gated each contribution separately would let two shares under .1f each slip past an item that a
+    // single .08f solo hit would already have stopped at). Absorbed durability is split back across `incoming`
+    // in place, pro-rata to what each lane brought -- the divide below never sees total <= 0.1f, so it never
+    // sees zero (the guard above already returned). ItemDamage fires once per contributing lane, reporting its
+    // own INCOMING share -- not the post-clamp amount, the same convention ArmorAbsorb already uses -- and only
+    // when that lane's own share is itself > 0, so a zero-deposit contributor (a lane whose armour ate its
+    // whole share before reaching this item) never fires a phantom event. `item` is never null here: both
+    // callers (`FireControl.ApplyPooled`'s `Resolve`, one lane's worth of contributions included, and
+    // `FireControl.Detonate`'s own per-entity item-pool resolution, one covered cell's worth included) already
+    // guarantee it -- a pool is only ever opened under a non-null `GearOccupancy` cell.
+    public void ItemAbsorb(EquippedItem item, Span<float> incoming)
+    {
+        var total = 0f;
+        for (var i = 0; i < incoming.Length; i++) total += incoming[i];
+        if (total <= 0.1f) return;
+
+        var before = item.EquippableItem.Durability;
+        var absorbed = min(total, before);
+        item.EquippableItem.Durability = max(before - absorbed, 0f);
+        var fraction = absorbed / total;
+        for (var i = 0; i < incoming.Length; i++)
+        {
+            if (incoming[i] > 0f) ItemDamage.OnNext((item, incoming[i]));
+            incoming[i] -= incoming[i] * fraction;
+        }
+    }
+
+    // Cut 12.3: moved verbatim from DamageSchematic's own tail (Cut 3) -- the >.1f threshold and the one
+    // HullDamage event are unchanged. FireControl.Apply calls this once per resolved hit, with the summed
+    // remainder every lane's own walk left over (Q12-3 = A: a lane's remainder goes to the hull wherever the
+    // lane ends -- penetration exhausted, a gap, or the far side).
+    public void DamageHull(float damage)
+    {
+        if (damage > .1f)
+        {
+            Hull.Durability -= damage;
+            HullDamage.OnNext(damage);
+        }
+    }
+
+    // Cut 12.1 (docs/fire-control-cut.md): the one schematic-frame owner. Maps a world-planar vector into this
+    // entity's own schematic frame -- x = starboard, y = bow -- so FireControl.Apply's lane walk and
+    // FireControl.Detonate's per-entity point conversion both read the same transform instead of each carrying
+    // their own copy of forward/right.
+    public float2 ToSchematic(float2 worldPlanar)
+    {
+        var forward = normalize(Direction);
+        var right = float2(forward.y, -forward.x);
+        return float2(dot(worldPlanar, right), dot(worldPlanar, forward));
+    }
+
+    // Cut 12.4(b) (docs/fire-control-cut.md, "Area, per entity"): the world<->schematic POINT owners, built on
+    // ToSchematic's frame -- the entity's own position is the schematic's centre of mass. FireControl.Detonate
+    // uses ToSchematicPoint to find where a blast sits in each candidate's own schematic (the host of a contact
+    // or delayed blast included: it is treated like any other entity in the radius, its cells found again
+    // here, not carried over from the commit). ToWorldPoint is the inverse, used once, to convert a contact or
+    // delayed fuse point (found on the committed lane, in the host's schematic frame at commit) into the one
+    // world point Detonate's single input shape takes -- the round trip through the host's own pose at arrival
+    // is what fixes the host's damage to the commit (R4) while every bystander is judged live.
+    public float2 ToSchematicPoint(float2 worldPlanar)
+    {
+        var hullData = ItemManager.GetData(Hull) as HullData;
+        var cellSize = ItemManager.GameplaySettings.SchematicCellSize;
+        return ToSchematic(worldPlanar - Position.xz) / cellSize + hullData.Shape.CenterOfMass;
+    }
+
+    public float2 ToWorldPoint(float2 schematicPoint)
+    {
+        var hullData = ItemManager.GetData(Hull) as HullData;
+        var cellSize = ItemManager.GameplaySettings.SchematicCellSize;
+        var local = (schematicPoint - hullData.Shape.CenterOfMass) * cellSize;
+        var forward = normalize(Direction);
+        var right = float2(forward.y, -forward.x);
+        return Position.xz + local.x * right + local.y * forward;
     }
 
     // Another entity's stance toward THIS one, as far as this entity can perceive it: unknown (null)
@@ -337,12 +498,13 @@ public abstract class Entity
 
     public Entity(ItemManager itemManager, Zone zone, EquippableItem hull, EntitySettings settings)
     {
-        Settings = settings;
+        Settings = MessagePackSerializer.Deserialize<EntitySettings>(MessagePackSerializer.Serialize(settings));
         ItemManager = itemManager;
         Zone = zone;
         Hull = hull;
         HullData = itemManager.GetData(hull) as HullData;
         Name = HullData.Name;
+        PowerBus = new PowerBus(this);
         MapEntity();
         WeaponGroups = new (List<Weapon> weapons, List<EquippedItem> items)[itemManager.GameplaySettings.WeaponGroupCount];
         for(int i=0; i<itemManager.GameplaySettings.WeaponGroupCount; i++)
@@ -354,7 +516,10 @@ public abstract class Entity
         Death = HullDamage.Where(_ => Hull.Durability < .01f).Select(_ => CauseOfDeath.HullDestroyed)
             .Merge(HeatstrokeDeath.Select(_ => CauseOfDeath.Heatstroke))
             .Merge(HypothermiaDeath.Select(_ => CauseOfDeath.Hypothermia))
-            .Merge(ItemDestroyed.Where(i=>i.GetBehavior<Cockpit>()!=null).Select(_ => CauseOfDeath.CockpitDestroyed));
+            .Merge(ItemDestroyed.Where(i=>i.GetBehavior<Cockpit>()!=null).Select(_ => CauseOfDeath.CockpitDestroyed))
+            // Death is terminal: the first cause ends the stream, so no damage path (a blast whose cockpit kill is
+            // followed by its own hull damage, a second item, a heat tick) can raise it twice to any subscriber.
+            .Take(1);
 
         //CurrentSecurityLevel.Value = SecurityLevel.Open;
     }
@@ -582,7 +747,7 @@ public abstract class Entity
         }
         
         Equipment.Remove(item);
-        _orderedEquipment = Equipment.OrderBy(x => x.SortPosition).ToArray();
+        _orderedEquipment = Equipment.ToArray();
         
         var hullData = ItemManager.GetData(Hull) as HullData;
         var itemData = ItemManager.GetData(item.EquippableItem);
@@ -600,10 +765,6 @@ public abstract class Entity
                 _weapons.Remove(weapon);
                 foreach (var group in WeaponGroups) { group.items.Remove(item); group.weapons.Remove(weapon); }
             }
-            if (b is Capacitor capacitor)
-                _capacitors.Remove(capacitor);
-            if (b is Reactor reactor)
-                _reactors.Remove(reactor);
             if (b is Radiator heatsink)
                 _heatsinks.Remove(heatsink);
             if (b is Shield)
@@ -613,6 +774,11 @@ public abstract class Entity
             if (b is Sensor)
                 Sensor = null;
         }
+
+        // Cut 2 Gate 1 fix (docs/stats-and-power-cut.md): the resolver's §0b lifecycle promise -- a resolver
+        // entry is "destroyed at unequip" -- was never wired up. Without this, every unequipped item stayed
+        // reachable from the resolver's dictionaries for the entity's whole remaining life.
+        Resolver.Forget(item);
 
         return item.EquippableItem;
     }
@@ -780,10 +946,6 @@ public abstract class Entity
         {
             if (b is Weapon weapon)
                 _weapons.Add(weapon);
-            if(b is Capacitor capacitor)
-                _capacitors.Add(capacitor);
-            if(b is Reactor reactor)
-                _reactors.Add(reactor);
             if(b is Radiator heatsink)
                 _heatsinks.Add(heatsink);
             if (b is Shield shield)
@@ -806,7 +968,7 @@ public abstract class Entity
         }
                 
         Mass += itemData.Mass;
-        _orderedEquipment = Equipment.OrderBy(x => x.SortPosition).ToArray();
+        _orderedEquipment = Equipment.ToArray();
         return true;
     }
 
@@ -847,45 +1009,11 @@ public abstract class Entity
         return true;
     }
 
-    public bool CanConsumeEnergy(float energy)
-    {
-        var capEnergy = _capacitors.Sum(cap => cap.Charge);
-        int onlineReactors = _reactors.Count(reactor=>reactor.Item.Online.Value);
-        return capEnergy > energy || onlineReactors > 0;
-    }
-
-    public bool TryConsumeEnergy(float energy)
-    {
-        if (energy < .01f) return true;
-        int chargedCapacitors;
-        do
-        {
-            chargedCapacitors = _capacitors.Count(capacitor => capacitor.Charge > .01f);
-            var chargeToRemove = energy;
-            foreach (var cap in _capacitors)
-            {
-                if(cap.Charge > 0.01f)
-                {
-                    var chargeRemoved = min(chargeToRemove / chargedCapacitors, cap.Charge);
-                    cap.AddCharge(-chargeRemoved);
-                    energy -= chargeRemoved;
-                }
-            }
-        } while (chargedCapacitors > 0 && energy > .01f);
-
-        if (energy < .01f) return true;
-
-        int onlineReactors = _reactors.Count(reactor=>reactor.Item.Online.Value);
-        foreach (var reactor in _reactors)
-        {
-            if (reactor.Item.Online.Value)
-            {
-                reactor.ConsumeEnergy(energy / onlineReactors);
-            }
-        }
-
-        return onlineReactors > 0;
-    }
+    // Cut 4 (docs/stats-and-power-cut.md, Cut 4): CanSpendCapacitorCharge/TrySpendCapacitorCharge died here with
+    // their last caller. Cut 3 named them a temporary exception for the four instant draws (a burst, a shot, a
+    // ping, a hit taken); all four now spend from their own InputCapacitor instead (InstantWeapon, Sensor,
+    // Shield), fed continuously by PowerBus like every other consumer. The entity's shared bus capacitors are
+    // now touched only by PowerBus itself (§0b: "the bus fills; the owning behaviour spends").
 
     private void AddChild(Entity entity)
     {
@@ -943,6 +1071,8 @@ public abstract class Entity
 
     public virtual void Update(float delta)
     {
+        if (!_active) return;
+
         var hullData = ItemManager.GetData(Hull) as HullData;
 
         TargetRange = Target.Value == null ? -1 : length(Position - Target.Value.Position);
@@ -1018,8 +1148,19 @@ public abstract class Entity
             for (var i = 0; i < _activeConsumables.Count; i++)
             {
                 _activeConsumables[i].Update(delta);
-                if(_activeConsumables[i].RemainingDuration < 0) _activeConsumables.RemoveAt(i--);
+                if (_activeConsumables[i].RemainingDuration < 0)
+                {
+                    // Cut 2 Gate 1 fix (docs/stats-and-power-cut.md): an expired consumable dropped out of this
+                    // list without ever telling the resolver, leaving its generation/cache/modifier entries
+                    // reachable (keyed by this ConsumableItemEffect instance) for the rest of the process.
+                    Resolver.Forget(_activeConsumables[i]);
+                    _activeConsumables.RemoveAt(i--);
+                }
             }
+
+            // Cut 3 (docs/stats-and-power-cut.md §1.2): stepped once per tick, before any equipped item's
+            // Behaviors execute, so every IPowerConsumer's grant is decided before it acts on it.
+            PowerBus.Step(delta);
 
             foreach (var equippedItem in _orderedEquipment)
             {
@@ -1137,7 +1278,10 @@ public abstract class Entity
     }
 }
 
-public class ConsumableItemEffect
+// The consumable case: no durability, no modifiers (there is no entity's worth of equipment to modify against),
+// and progress-through-duration substitutes for heat rather than being exponentiated by the stat's heat field.
+// That substitution is the disagreement the map names, kept exactly as it behaved before the collapse.
+public class ConsumableItemEffect : IStatContext
 {
     public float RemainingDuration { get; private set; }
     public Entity Entity { get; }
@@ -1171,24 +1315,36 @@ public class ConsumableItemEffect
         }
 
         RemainingDuration -= delta;
+        // Progress moves every tick; a stat with a ConsumableProgress term must recompute against it, the same
+        // way EquippedItem signals Heat and Durability from UpdatePerformance below.
+        Entity.Resolver.InvalidateSource(this, StatSource.ConsumableProgress);
     }
 
-    public float Evaluate(PerformanceStat stat)
-    {
-        var effectiveness = Data.Effectiveness.Evaluate((Data.Duration - RemainingDuration) / Data.Duration);
-        var quality = pow(Lot.QualityForRole(stat.FromRole), stat.QualityExponent);
+    // Cut 2 (docs/stats-and-power-cut.md): the resolver owns the value; this is the caller's read of it, keyed by
+    // this effect instance (never by Entity, so two active consumables never share an entry).
+    public float Evaluate(PerformanceStat stat) => Entity.Resolver.Resolve(this, stat, this);
 
-        var result = lerp(stat.Min, stat.Max, effectiveness * quality);
-        
-        if (float.IsNaN(result))
-            return stat.Min;
-        return result;
-    }
+    // Cut 1 (docs/stats-and-power-cut.md): progress-through-duration is now its own StatSource
+    // (ConsumableProgress) rather than a hard-coded override of "heat" that applied to every stat regardless of
+    // its declared terms. A consumable stat that wants this must declare a ConsumableProgress term; one that
+    // does not gets the identity (1), same as any other context reading a term it has no source for.
+    public float HeatFactor(float exponent) => 1f;
+    public float DurabilityFactor(float exponent) => 1f;
+    public float ConsumableProgressFactor(float exponent) =>
+        pow(Data.Effectiveness.Evaluate((Data.Duration - RemainingDuration) / Data.Duration), exponent);
+    public float PowerSupplyFactor(float exponent) => 1f;
+    // No modifiers: there is no entity's worth of equipment to modify against (comment above, unchanged by Cut 2).
+    public float ScaleModifier(PerformanceStat stat) => 1f;
+    public float ConstantModifier(PerformanceStat stat) => 0f;
 }
 
-public class EquippedItem
+// The equipped case: the only one with heat, live durability, and modifiers, because it is the only one with an
+// entity and a running simulation behind it.
+public class EquippedItem : IStatContext
 {
-    public int SortPosition;
+    // SortPosition (Cut 3-era, only ever set by Reactor.Order) is deleted by Cut 5 (docs/stats-and-power-cut.md
+    // §1.3): "EquippedItem.SortPosition must no longer influence who is fed" -- the tiered allocation pass
+    // replaces it, and IOrderedBehavior/Reactor.Order go with it (§7 O3).
     public EquippableItem EquippableItem;
     public int2 Position;
 
@@ -1343,30 +1499,134 @@ public class EquippedItem
 
         foreach (var behavior in Behaviors)
         {
-            if (behavior is IOrderedBehavior orderedBehavior)
-                SortPosition = orderedBehavior.Order;
             if(behavior is IPopulationAssignment populationAssignment)
                 entity.PopulationAssignments.Add(populationAssignment);
         }
+
+        // Cut 5 (docs/stats-and-power-cut.md §1.3, Q5 "defaulted per behaviour kind"): seed the stored tier
+        // exactly once, the first time this unit is ever equipped. A unit the player has already assigned a
+        // tier to (or one seeded on an earlier equip) keeps it -- this never runs again for that unit.
+        if (EquippableItem.PowerTier == PowerTiers.Unassigned)
+        {
+            var consumerTiers = Behaviors.OfType<IPowerConsumer>().Select(c => c.DefaultPowerTier).ToArray();
+            if (consumerTiers.Length > 0)
+                EquippableItem.PowerTier = consumerTiers.Min();
+        }
+
+        // Nominal-request ruling (docs/stats-and-power-cut.md, operator ruling 2026-09-19, superseding F6): Cut
+        // 6's static half of this check -- refusing any PowerRequestFields stat whose own Terms named
+        // PowerSupply -- assumed PowerRequest read those stats the same way Execute does. It does not any more:
+        // EvaluateNominalPower (below, and Behavior.EvaluateNominalPower) is what every PowerRequest/RefreshReserve/
+        // RefreshInputCapacitor implementation now calls for a request-field stat, and it pins that stat's own
+        // PowerSupplyFactor to 1 regardless of what Terms the stat declares -- so a direct PowerSupply term on a
+        // request field can no longer make the request depend on its own answer, and the six shipped records this
+        // ruling exists to make legal again (RadiatorData.PumpedHeat, AetherDriveData.Torque) are not an authoring
+        // error to refuse. What is still refused: a request field fed a PowerSupply-tainted value through a
+        // *modifier chain* (StatModifier.ValidateNoPowerSupplyChain, StatModifier.cs) -- EvaluateNominalPower
+        // forwards ScaleModifier/ConstantModifier to the item's real, non-nominal resolver entries (same as
+        // ConditionRatio's NominalContext already did), so a modifier chain that reaches a power-tainted magnitude
+        // stat still corrupts the nominal read too. That dynamic check is unchanged and still runs from
+        // Initialize below via StatModifier -- it is the only surviving half of Cut 6's rule.
     }
 
-    public float Evaluate(PerformanceStat stat)
+    // Cut 2 (docs/stats-and-power-cut.md): the resolver owns the value; this is the caller's read of it, keyed by
+    // this EquippedItem instance, so two ships equipping the same design never share a resolved value.
+    public float Evaluate(PerformanceStat stat) => Entity.Resolver.Resolve(this, stat, this);
+
+    // Nominal-request ruling (docs/stats-and-power-cut.md, operator ruling 2026-09-19): what this item wants at
+    // full power supply, not what it is currently managing -- the read every PowerRequest/RefreshReserve/
+    // RefreshInputCapacitor implementation uses for a stat named in StatValidation.PowerRequestFields, so a stat
+    // that is both what a request asks for and what it also produces (RadiatorData.PumpedHeat, AetherDriveData.
+    // Torque) stops being circular at the root instead of being forbidden outright. Only PowerSupply is pinned:
+    // Heat and Durability are NOT, because they are not the term a request would be circular through -- this
+    // tick's PowerBus.Step (which calls PowerRequest) always runs before this tick's grant exists, so nothing
+    // here could depend on an answer that has not been computed yet, and a hot or worn item honestly asking for
+    // less power is real degradation the ruling never objected to, only "the request depends on its own answer."
+    // Bypasses the resolver's (owner, stat) cache the same way ConditionRatio's NominalContext below does and for
+    // the same reason: the cache key is (this, stat) alone, so resolving a second, different context under that
+    // key would clobber whatever Execute's own real Evaluate(stat) call cached for this same tick.
+    public float EvaluateNominalPower(PerformanceStat stat) => stat.Evaluate(new PowerRequestContext(this));
+
+    // Real-condition view of this same item for EvaluateNominalPower above: everything but PowerSupply is
+    // forwarded to the real item, including ScaleModifier/ConstantModifier -- deliberately NOT pinned, so a
+    // modifier chain that reaches a power-tainted magnitude stat still taints a nominal read through them too.
+    // That is exactly the residual case StatModifier.ValidateNoPowerSupplyChain still refuses: nominalizing this
+    // item's own direct Terms cannot undo a value baked in by another item's modifier.
+    private readonly struct PowerRequestContext : IStatContext
     {
-        var heat = pow(ThermalPerformance, ThermalExponent * stat.HeatExponentMultiplier);
-        var durability = pow(DurabilityPerformance, DurabilityExponent * stat.DurabilityExponentMultiplier);
-        var quality = pow(Lot.QualityForRole(stat.FromRole), stat.QualityExponent);
+        private readonly EquippedItem _item;
+        public PowerRequestContext(EquippedItem item) => _item = item;
+        public Lot Lot => _item.Lot;
+        public float HeatFactor(float exponent) => _item.HeatFactor(exponent);
+        public float DurabilityFactor(float exponent) => _item.DurabilityFactor(exponent);
+        public float ConsumableProgressFactor(float exponent) => _item.ConsumableProgressFactor(exponent);
+        public float PowerSupplyFactor(float exponent) => 1f;
+        public float ScaleModifier(PerformanceStat stat) => _item.ScaleModifier(stat);
+        public float ConstantModifier(PerformanceStat stat) => _item.ConstantModifier(stat);
+    }
 
-        var scaleModifier = 1.0f;
-        var scaleModifiers = stat.GetScaleModifiers(Entity).Values;
-        foreach (var value in scaleModifiers) scaleModifier *= value;
+    public float HeatFactor(float exponent) => pow(ThermalPerformance, ThermalExponent * exponent);
+    public float DurabilityFactor(float exponent) => pow(DurabilityPerformance, DurabilityExponent * exponent);
+    public float ConsumableProgressFactor(float exponent) => 1f;
+    // Cut 6 (docs/stats-and-power-cut.md), applied per F1 (operator ruling 2026-09-19): PerformanceStat.Evaluate
+    // multiplies this straight onto the resolved value rather than blending it into the Min/Max interpolation, so
+    // a stat with a PowerSupply term is exactly unchanged at full supply (pow(1, exponent) == 1 regardless of
+    // exponent) and exactly zero at zero supply (pow(0, exponent) == 0 for any exponent > 0), no matter what Min
+    // is -- "a continuous consumer that degrades instead of stopping" down to genuinely nothing. PowerBus writes
+    // PowerSupply below; the resolver invalidates this source once per tick from the same write (PowerBus.cs
+    // AllocateTiers), so this read is always this tick's own grant, never a stale one.
+    public float PowerSupplyFactor(float exponent) => pow(PowerSupply, exponent);
 
-        float constantModifier = 0;
-        foreach (var value in stat.GetConstantModifiers(Entity).Values) constantModifier += value;
+    // Cut 3 (docs/stats-and-power-cut.md §1.2): PowerBus's grant ratio for this item, in [0,1], from whichever
+    // tick last ran its Step. Display-only and, as of Cut 6, stat-source-only: the only other reader is the
+    // resolver, through PowerSupplyFactor above, on behalf of whichever IPowerConsumer behaviour declared a
+    // PowerSupply term. Forbidden writers: nothing but PowerBus sets this. Defaults to 1 (fully supplied) for an
+    // item that draws no power, or before the bus has run once.
+    public float PowerSupply { get; internal set; } = 1f;
 
-        var result = lerp(stat.Min, stat.Max, durability * quality * heat) * scaleModifier + constantModifier;
-        if (float.IsNaN(result))
-            return stat.Min;
-        return result;
+    // Cut 2: these used to read the catalog stat's own per-entity dictionary (the leak, §0.3). A modifier now
+    // attaches to this entity's resolver, keyed by (this item, stat); reading it here is unchanged.
+    public float ScaleModifier(PerformanceStat stat) => Entity.Resolver.ScaleModifier(this, stat);
+    public float ConstantModifier(PerformanceStat stat) => Entity.Resolver.ConstantModifier(this, stat);
+
+    // Cut 8 (operator ask 2026-09-19): "multiply [emission] by actual performance so a broken thruster emits a
+    // puny flame." One ratio per (item, stat): this item's actually-resolved value against what the same item,
+    // same lot, same quality, same modifier stack would produce with every degradable term at its identity --
+    // full durability, optimal temperature, full power supply. Quality and lot are deliberately NOT part of
+    // "perfect": NominalContext forwards Lot/ScaleModifier/ConstantModifier unchanged and only pins Heat,
+    // Durability, PowerSupply and ConsumableProgress to 1, so a cheap item's honestly-lower ceiling still reads
+    // 1 at full health -- it is not reported as damaged for being cheap.
+    //
+    // Cost: Evaluate(stat) is the same resolver-cached read every other caller already pays for (§ above), so it
+    // is a dictionary hit here unless something already invalidated it this tick. The nominal side cannot reuse
+    // that cache -- the resolver's cache key is (owner, stat) alone, and owner is `this`, so resolving a second,
+    // different context under the same key would clobber the real cached value -- so it calls stat.Evaluate
+    // directly against NominalContext, bypassing the cache entirely. That is one pass over the stat's own Terms
+    // list (Thrust/Torque declare at most three: Quality, Heat or Durability, PowerSupply), each a pow() and a
+    // multiply, i.e. a handful of flops with no allocation (NominalContext is a readonly struct). Cheap enough to
+    // call once per thruster per frame, which is all presentation (ShipInstance.Update) does with it.
+    // No epsilon guard on a zero/near-zero nominal: math.min/max (CultMath's own DXIL-lowering semantics,
+    // math.cs) resolve a NaN operand to the OTHER operand, not to NaN, so saturate(0f/0f) -- the one way nominal
+    // degenerates to exactly 0 (a stat authored with Max <= 0 and no ScaleModifier/ConstantModifier moving it off
+    // that) -- is a real, tested 0f (ConditionIsZeroNotNaNWhenTheNominalValueItselfDegeneratesToZero), not NaN. A
+    // manual guard here would duplicate that behaviour rather than add any.
+    public float ConditionRatio(PerformanceStat stat) => saturate(Evaluate(stat) / stat.Evaluate(new NominalContext(this)));
+
+    // Perfect-conditions view of this same item for ConditionRatio above. Everything but the three degradable
+    // factors is forwarded to the real item so a modifier stack or a cheap lot's lower Quality term still shapes
+    // "perfect" the same way it shapes "actual" -- only Heat/Durability/PowerSupply/ConsumableProgress are
+    // pinned to their identity (1), since those are exactly the terms condition is supposed to measure.
+    private readonly struct NominalContext : IStatContext
+    {
+        private readonly EquippedItem _item;
+        public NominalContext(EquippedItem item) => _item = item;
+        public Lot Lot => _item.Lot;
+        public float HeatFactor(float exponent) => 1f;
+        public float DurabilityFactor(float exponent) => 1f;
+        public float ConsumableProgressFactor(float exponent) => 1f;
+        public float PowerSupplyFactor(float exponent) => 1f;
+        public float ScaleModifier(PerformanceStat stat) => _item.ScaleModifier(stat);
+        public float ConstantModifier(PerformanceStat stat) => _item.ConstantModifier(stat);
     }
 
     public void AddHeat(float heat, bool ignoreThermalMass = false)
@@ -1376,16 +1636,18 @@ public class EquippedItem
     }
 
     public void UpdatePerformance()
-    {        
+    {
         var temp = Temperature;
         ThermalPerformance = Data.Performance(temp);
+        Entity.Resolver.InvalidateSource(this, StatSource.Heat);
         var deltaTemp = math.abs(temp - oldTemperature);
         DurabilityPerformance = EquippableItem.Durability / Data.Durability;
+        Entity.Resolver.InvalidateSource(this, StatSource.Durability);
         var performanceThreshold = Entity.Settings.ShutdownPerformance;
         Wear = (1 - pow(ThermalPerformance,
                 (1 - pow(Lot.Quality, ItemManager.GameplaySettings.QualityWearExponent)) *
                 ItemManager.GameplaySettings.ThermalWearExponent) +
-                deltaTemp * ItemManager.GameplaySettings.DeltaTempWearExponent            
+                deltaTemp * ItemManager.GameplaySettings.DeltaTempWearExponent
             ) * Data.Durability / Data.ThermalResilience;
         ThermalOnline.Value = ThermalPerformance > performanceThreshold || Entity.OverrideShutdown && EquippableItem.OverrideShutdown;
         DurabilityOnline.Value = EquippableItem.Durability > .01f;

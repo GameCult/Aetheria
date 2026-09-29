@@ -75,6 +75,8 @@ public class FieldDriver : MonoBehaviour, IAbsorbPresenter, IGrabPresenter, IMel
     private Material _field;
     private ComputeBuffer _hitBuffer;
     private List<FieldHit> _hits = new List<FieldHit>();
+    private ShieldEnvelope _envelope;
+    private bool _loggedMissingEnvelope;
     private float _waveOffset;
     private float _meleeTime;
     private bool _meleeActive;
@@ -115,14 +117,54 @@ public class FieldDriver : MonoBehaviour, IAbsorbPresenter, IGrabPresenter, IMel
         _collider = GetComponent<MeshCollider>();
         _field = GetComponent<MeshRenderer>().material;
         _hitBuffer = new ComputeBuffer(MaxHits, 32);
+        _envelope = GetComponent<ShieldEnvelope>();
     }
 
+    // Cut 2 of docs/shield-panel-cut.md: FieldDriver no longer owns the ellipsoid envelope --
+    // ShieldEnvelope does, and this transform's localScale is display geometry for the field mesh
+    // only now. Absent an envelope (compatibility path only; every real carrier gets one in this
+    // cut), fall back to the pre-Cut-2 formulas and log once rather than silently keeping a second
+    // opinion about the envelope.
+    private void WarnMissingEnvelopeOnce()
+    {
+        if (_loggedMissingEnvelope) return;
+        _loggedMissingEnvelope = true;
+        Debug.LogWarning("FieldDriver has no ShieldEnvelope; falling back to its own transform for the envelope.", this);
+    }
+
+    private Vector3 EnvelopeRadiiOrFallback()
+    {
+        if (_envelope != null) return _envelope.Radii;
+        WarnMissingEnvelopeOnce();
+        return transform.localScale;
+    }
+
+    // Cut 2 note on the two branches below NOT being the same computation shape: envelope.
+    // ProjectToSurface returns a WORLD-space point (it transforms back through rotation and
+    // translation -- Cut 3's panel presenter needs that). The fallback reproduces the pre-Cut-2
+    // formula exactly instead, which stayed in LOCAL space with no rotation/translation applied,
+    // because that is what the shader consumes here (_Hits is uploaded and read in the field
+    // mesh's own local space, not world space). The two branches are only numerically identical
+    // when the carrier's transform has zero position and identity rotation -- true of the one
+    // FieldDriver carrier in the tree today (FieldShieldTest.unity's cubesphere), NOT true in
+    // general. This is an existing characteristic of Cut 2 as scoped by the map (FieldDriver.cs:125
+    // reads envelope.ProjectToSurface(position) directly, per the map's own Cut 2 text), not
+    // something introduced by this fallback -- flagging it so nobody assumes the two branches are
+    // interchangeable for a future non-origin, non-identity FieldDriver carrier.
     public void AddHit(float3 position, float3 direction, float magnitude)
     {
         if (_hits.Count >= MaxHits) return;
+        Vector3 surfacePosition;
+        if (_envelope != null)
+            surfacePosition = _envelope.ProjectToSurface(position.ToUnity());
+        else
+        {
+            WarnMissingEnvelopeOnce();
+            surfacePosition = ShieldEnvelope.LegacyLocalSurfacePoint(transform, position.ToUnity());
+        }
         var hit = new FieldHit
         {
-            Position = normalize(transform.InverseTransformPoint(position.ToUnity()).ToCultMath()) * transform.localScale.ToCultMath(),
+            Position = surfacePosition.ToCultMath(),
             Direction = normalize((transform.rotation * direction.ToUnity()).ToCultMath()),
             Magnitude = magnitude,
             Time = 0
@@ -198,7 +240,8 @@ public class FieldDriver : MonoBehaviour, IAbsorbPresenter, IGrabPresenter, IMel
         _field.SetFloat("_TwistFront", FrontTwist);
         _field.SetFloat("_TwistRear", RearTwist);
         
-        _field.SetVector("_InverseScale", new Vector4(1/transform.localScale.x,1/transform.localScale.y,1/transform.localScale.z));
+        var envelopeRadii = EnvelopeRadiiOrFallback();
+        _field.SetVector("_InverseScale", new Vector4(1/envelopeRadii.x,1/envelopeRadii.y,1/envelopeRadii.z));
         _field.SetMatrix("_ReflRotate", refractionRotation);
 
         for (int i = 0; i < _hits.Count; i++)
@@ -294,9 +337,10 @@ public class FieldDriver : MonoBehaviour, IAbsorbPresenter, IGrabPresenter, IMel
                     default:
                         throw new ArgumentOutOfRangeException();
                 }
-                _field.SetVector("_TendrilBase", Vector3.Scale(transform.InverseTransformPoint(_tendrilBasePos).normalized, transform.localScale));
-                _field.SetVector("_TendrilBend", Vector3.Scale(transform.InverseTransformPoint(_tendrilBendTarget), transform.localScale));
-                _field.SetVector("_TendrilTarget", Vector3.Scale(transform.InverseTransformPoint(_tendrilTargetPos), transform.localScale));
+                var tendrilRadii = EnvelopeRadiiOrFallback();
+                _field.SetVector("_TendrilBase", Vector3.Scale(transform.InverseTransformPoint(_tendrilBasePos).normalized, tendrilRadii));
+                _field.SetVector("_TendrilBend", Vector3.Scale(transform.InverseTransformPoint(_tendrilBendTarget), tendrilRadii));
+                _field.SetVector("_TendrilTarget", Vector3.Scale(transform.InverseTransformPoint(_tendrilTargetPos), tendrilRadii));
             }
         }
     }

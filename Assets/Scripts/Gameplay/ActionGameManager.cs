@@ -148,6 +148,7 @@ public class ActionGameManager : MonoBehaviour
     public float HitMarkerDuration;
     public SchematicDisplay SchematicDisplay;
     public SchematicDisplay TargetSchematicDisplay;
+    public TextMeshProUGUI DebugInfoText;
     
     [Header("Target Indicator")]
     public PlaceUIElementWorldspace TargetIndicator;
@@ -183,6 +184,7 @@ public class ActionGameManager : MonoBehaviour
     private Dictionary<Entity, VisibleTargetIndicator> _visibleFriendlyIndicators = new Dictionary<Entity, VisibleTargetIndicator>();
     private List<IDisposable> _shipSubscriptions = new List<IDisposable>();
     private List<IDisposable> _targetSubscriptions = new List<IDisposable>();
+    private readonly Dictionary<EquippedItem, ShotOutcome> _debugLastShots = new Dictionary<EquippedItem, ShotOutcome>();
     private float _severeHeatstrokePhase;
     private bool _uiHidden;
     private bool _menuShown;
@@ -224,11 +226,6 @@ public class ActionGameManager : MonoBehaviour
     private Func<DragObject, bool> _endDragCallback;
 
     private List<Story> _stories = new List<Story>();
-
-    public EntitySettings NewEntitySettings
-    {
-        get => MessagePackSerializer.Deserialize<EntitySettings>(MessagePackSerializer.Serialize(Settings.GameplaySettings.DefaultEntitySettings));
-    }
 
     private void OnApplicationQuit()
     {
@@ -405,7 +402,24 @@ public class ActionGameManager : MonoBehaviour
             var currentTargetIndex = Array.IndexOf(targets, CurrentEntity.Target.Value);
             CurrentEntity.Target.Value = targets[(currentTargetIndex + targets.Length - 1) % targets.Length];
         };
-        
+
+        // Cut 2 (docs/fire-control-cut.md): cycles the aim point among the current target's revealed
+        // subsystems -- decides nothing itself, only calls the one writer (TrySelectTargetItem), same
+        // predicate (FireControl.IsRevealed) the AI path uses.
+        Input.Player.CycleTargetItem.performed += context =>
+        {
+            var target = CurrentEntity.Target.Value;
+            if (target == null) return;
+            var revealed = target.Equipment.Where(x => FireControl.IsRevealed(CurrentEntity, x)).ToArray();
+            if (revealed.Length == 0)
+            {
+                CurrentEntity.TrySelectTargetItem(null);
+                return;
+            }
+            var currentItemIndex = Array.IndexOf(revealed, CurrentEntity.ResolvedTargetItem);
+            CurrentEntity.TrySelectTargetItem(revealed[(currentItemIndex + 1) % revealed.Length]);
+        };
+
         #endregion
 
 
@@ -504,10 +518,29 @@ public class ActionGameManager : MonoBehaviour
                 var itemName = string.Join(" ", args);
                 var item = ItemManager.ItemData.GetAll<EquippableItemData>()
                     .FirstOrDefault(itemData => string.Equals(itemData.Name, itemName, StringComparison.InvariantCultureIgnoreCase));
-                if (item != null)
+                if (item == null)
                 {
-                    _currentEntity.CargoBays.First().TryStore(ItemManager.CreateInstance(ItemManager.CreateLot(item, default, .95f)));
+                    ConsoleController.Instance.AppendLogLine($"No equippable item named \"{itemName}\"");
+                    return;
                 }
+                if (item is HullData hull)
+                {
+                    if (hull.HullType != HullType.Ship)
+                    {
+                        ConsoleController.Instance.AppendLogLine($"Refused: {item.Name} is a {hull.HullType} hull, not a ship");
+                        return;
+                    }
+                    if (DockedEntity == null)
+                    {
+                        ConsoleController.Instance.AppendLogLine($"Refused: dock to take delivery of a {item.Name}");
+                        return;
+                    }
+                    CommissionShip(ItemManager.CreateInstance(ItemManager.CreateLot(item, default, .95f)) as EquippableItem);
+                    ConsoleController.Instance.AppendLogLine($"{item.Name} moored at {DockedEntity.Name}");
+                    return;
+                }
+                if (!_currentEntity.CargoBays.First().TryStore(ItemManager.CreateInstance(ItemManager.CreateLot(item, default, .95f))))
+                    ConsoleController.Instance.AppendLogLine($"Refused: no cargo space for {item.Name}");
             });
         
         ConsoleController.AddCommand("trackmissile",
@@ -518,7 +551,7 @@ public class ActionGameManager : MonoBehaviour
                     missileManager.OnFireGuided.Where(x => x.source == _currentEntity).Take(1).Subscribe(x =>
                     {
                         FollowCamera.Follow = x.missile.transform;
-                        FollowCamera.LookAt = x.target;
+                        FollowCamera.LookAt = x.target ? x.target : x.missile.transform;
                         x.missile.OnKill += () =>
                         {
                             FollowCamera.LookAt = ZoneRenderer.EntityInstances[CurrentEntity].LookAtPoint;
@@ -860,6 +893,15 @@ public class ActionGameManager : MonoBehaviour
         }
     }
 
+    // A ship hull acquired while docked becomes a bare player ship moored at the docked entity. It takes no docking
+    // bay: mothballed ships do not need one. Buying from the trade menu and the give command both land here.
+    public Ship CommissionShip(EquippableItem hull)
+    {
+        var ship = new Ship(ItemManager, Zone, hull, ItemManager.GameplaySettings.DefaultEntitySettings) { IsPlayerShip = true };
+        ship.SetParent(DockedEntity);
+        return ship;
+    }
+
     private void DoDock(Entity entity, EquippedDockingBay dockingBay)
     {
         TradeMenu.Inventory = entity.CargoBays.First();
@@ -966,6 +1008,8 @@ public class ActionGameManager : MonoBehaviour
         
         foreach(var subscription in _shipSubscriptions) subscription.Dispose();
         _shipSubscriptions.Clear();
+        _debugLastShots.Clear();
+        if (DebugInfoText != null) DebugInfoText.text = "";
     }
 
     private void BindToEntity(Entity entity)
@@ -994,6 +1038,10 @@ public class ActionGameManager : MonoBehaviour
         GameplayUI.gameObject.SetActive(true);
         ShipPanel.Display(CurrentEntity, true);
         SchematicDisplay.ShowShip(CurrentEntity);
+
+        _shipSubscriptions.Add(CurrentEntity.Zone.ShotResolved
+            .Where(outcome => outcome.Source == CurrentEntity)
+            .Subscribe(outcome => _debugLastShots[outcome.Weapon] = outcome));
         
         FollowCamera.LookAt = ZoneRenderer.EntityInstances[CurrentEntity].LookAtPoint;
         FollowCamera.Follow = ZoneRenderer.EntityInstances[CurrentEntity].transform;
@@ -1241,6 +1289,7 @@ public class ActionGameManager : MonoBehaviour
                 }
 
                 var target = CurrentEntity.Target.Value;
+                UpdateFireControlDebug(target);
                 if (target != null)
                 {
                     var threshold = Settings.GameplaySettings.TargetDetectionInfoThreshold;
@@ -1256,6 +1305,78 @@ public class ActionGameManager : MonoBehaviour
             }
             Zone.Update(Time.deltaTime);
         }
+    }
+
+    private static string ResultLabel(ShotResult result) => result switch
+    {
+        ShotResult.Hit => "HIT",
+        ShotResult.Burst => "BURST",
+        _ => "MISS"
+    };
+
+    private void UpdateFireControlDebug(Entity target)
+    {
+        if (DebugInfoText == null) return;
+
+        EquippedItem selectedItem = null;
+        Weapon selectedWeapon = null;
+        foreach (var item in CurrentEntity.Equipment)
+        {
+            var weapon = item.Behaviors.OfType<Weapon>().FirstOrDefault(x => !(x is LockWeapon));
+            if (weapon == null) continue;
+            selectedItem = item;
+            selectedWeapon = weapon;
+            break;
+        }
+
+        if (selectedWeapon == null)
+        {
+            DebugInfoText.text = "FIRE CONTROL\nNo non-lock weapon";
+            return;
+        }
+
+        var d = FireControl.Inspect(selectedWeapon, CurrentEntity, target);
+        var pendingLine = "pending: none";
+        for (var i = CurrentEntity.Zone.PendingShots.Count - 1; i >= 0; i--)
+        {
+            var shot = CurrentEntity.Zone.PendingShots[i];
+            if (shot.Source != CurrentEntity || shot.Weapon != selectedItem) continue;
+            if (shot.Committed)
+                pendingLine = $"shot {shot.ShotId}: committed {ResultLabel(shot.Outcome.Result)}";
+            else
+            {
+                var pDeviation = FireControl.DeviationProbability(shot, CurrentEntity.Zone.Time, out var deviation);
+                // Cut 12.2 (docs/fire-control-cut.md): retires the inline estimate (shot.PBase * pDeviation),
+                // a second, wrong copy of the model now that the target's facing enters at Commit -- this
+                // calls the same function Commit itself rolls against (TheHudEstimateIsTheCommitPrice).
+                var estimate = FireControl.CommitProbability(shot, CurrentEntity.Zone.Time, out _);
+                pendingLine = $"shot {shot.ShotId}: dev {deviation:F1}/{shot.Tracking:F1} x{pDeviation:F3} estimate {estimate:P1}";
+            }
+            break;
+        }
+
+        var lastLine = _debugLastShots.TryGetValue(selectedItem, out var lastShot)
+            ? $"last {lastShot.ShotId}: {ResultLabel(lastShot.Result)} cell {lastShot.Cell.x},{lastShot.Cell.y}"
+            : "last: none";
+        var gates = target == null
+            ? "target: none"
+            : $"gates designated {d.Designated} arc {d.InArc}";
+
+        // A fused weapon's forecast is its outcome, not a hit chance: the burst point or the refusal.
+        var outcomeLine = d.Outcome == FireOutcome.Burst ? $"burst at {d.BurstReach:F0}"
+            : d.Outcome == FireOutcome.Refused ? "refused: arming distance exceeds range"
+            : $"base {d.PBase:P1}";
+
+        DebugInfoText.text =
+            $"FIRE CONTROL - {selectedItem.Data.Name}\n" +
+            $"{gates}\n" +
+            $"range {d.Range:F0} [{d.MinRange:F0}..{d.MaxRange:F0}]\n" +
+            $"info {d.Info:F3}/{d.InfoDemandCeiling:F3} sensor {d.PSensor:F3}\n" +
+            $"accuracy {d.Accuracy:F3} spread {d.PSpread:F3} hull {d.POnHull:F3}\n" +
+            $"precision {d.Precision:F3} tracking {d.Tracking:F1}\n" +
+            $"{outcomeLine}\n" +
+            $"{pendingLine}\n" +
+            lastLine;
     }
 
     private void LateUpdate()

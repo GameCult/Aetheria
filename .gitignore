@@ -100,6 +100,7 @@ Vault/Aetheria/.obsidian/plugins/copilot/data.json
 # come back.
 .scratch-*
 scratch-*
+tests/_scratch_*
 .codex/
 .codex-tmp/
 .evepkg/
@@ -108,3 +109,6 @@ scratch-*
 .nuget-sandbox/
 .dotnet-sandbox/
 .appdata-sandbox/
+
+# Stryker.NET mutation reports (regenerated per run)
+StrykerOutput/

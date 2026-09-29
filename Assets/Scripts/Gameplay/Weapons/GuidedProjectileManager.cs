@@ -9,50 +9,67 @@ using static CultMath.math;
 
 public class GuidedProjectileManager : InstantWeaponEffectManager
 {
+    // Presentation follows the committed shot (FireControl): the round retargets to the burst point the commit
+    // names and bursts when the shot resolves, rather than predicting either from its own homing.
+    private static void Bind(GuidedProjectile p, Zone zone, int shotId)
+    {
+        Vector3 At(ShotOutcome o) => new Vector3(o.BurstPoint.x, p.transform.position.y, o.BurstPoint.y);
+        var bindings = new CompositeDisposable();
+        zone.ShotCommitted.Where(o => o.ShotId == shotId && o.HasBurstPoint).Subscribe(o => p.BurstAt(At(o))).AddTo(bindings);
+        zone.ShotResolved.Where(o => o.ShotId == shotId)
+            .Subscribe(o => p.Resolve(o.Result == ShotResult.Hit || o.Result == ShotResult.Burst, o.HasBurstPoint ? At(o) : (Vector3?) null))
+            .AddTo(bindings);
+        // The binding outlives a fade-out until the shot's own arrival (the moment the simulation resolves it), plus a
+        // second of margin; a shot no longer pending has nothing left to resolve.
+        p.BindingLifetime = zone.TryGetShot(shotId, out var shot) ? max(0f, shot.ArrivalTime - zone.Time) + 1f : 0f;
+        p.Binding = bindings; // replaces, and so disposes, any binding the projectile already had
+    }
+
     public Prototype ProjectilePrototype;
 
     public Subject<(Entity source, Transform target, GuidedProjectile missile)> OnFireGuided = new Subject<(Entity source, Transform target, GuidedProjectile missile)>();
 
-    public override void Fire(InstantWeapon weapon, EquippedItem item, EntityInstance source, EntityInstance target)
+    public override void Fire(InstantWeapon weapon, EquippedItem item, EntityInstance source, EntityInstance target, int shotId)
     {
         if(weapon.Data is LauncherData launcher)
         {
-            if (target == null) return;
+            // A round the simulation fired at no target (FireControl.Fire: a fused round with no valid targeting
+            // data, or out of arc) flies to the point it bursts at; one with no target and no burst is not a shot.
+            PendingShot shot = default;
+            if (target == null && !(source.Entity.Zone.TryGetShot(shotId, out shot) && shot.Fuse != null)) return;
+            var burst = shot.BurstPosition.ToUnity();
             var p = ProjectilePrototype.Instantiate<GuidedProjectile>();
+            p.ShotId = shotId;
             p.Source = source.transform;
             p.SourceEntity = source.Entity;
-            p.Target = target.transform;
+            if (target != null) p.Target = target.transform;
+            else p.TargetPosition = () => burst;
             p.Frequency = launcher.DodgeFrequency;
             var hp = source.Entity.Hardpoints[item.Position.x, item.Position.y];
             var barrel = source.GetBarrel(hp);
             p.StartPosition = (p.transform.position = barrel.position).ToCultMath();
-            p.Damage = weapon.Damage;
             p.Range = weapon.Range;
-            p.Penetration = weapon.Penetration;
-            p.Spread = weapon.DamageSpread;
-            p.DamageType = weapon.WeaponData.DamageType;
             p.GuidanceCurve = launcher.GuidanceCurve.ToCurve();
             p.LiftCurve = launcher.LiftCurve.ToCurve();
             p.ThrustCurve = launcher.ThrustCurve.ToCurve();
             p.Velocity = barrel.forward * weapon.Velocity;
             p.Thrust = item.Evaluate(launcher.Thrust);
             p.TopSpeed = item.Evaluate(launcher.MissileVelocity);
-            OnFireGuided.OnNext((source.Entity, target.transform, p));
+            Bind(p, source.Entity.Zone, shotId);
+            // A round with no target (a fused round fired at none) has no transform to hand a listener.
+            OnFireGuided.OnNext((source.Entity, target != null ? target.transform : null, p));
         }
         else if(weapon.Data is GuidedWeaponData guidance)
         {
             var p = ProjectilePrototype.Instantiate<GuidedProjectile>();
+            p.ShotId = shotId;
             p.Source = source.transform;
             p.SourceEntity = source.Entity;
             p.Frequency = guidance.DodgeFrequency;
             var hp = source.Entity.Hardpoints[item.Position.x, item.Position.y];
             var barrel = source.GetBarrel(hp);
             p.StartPosition = (p.transform.position = barrel.position).ToCultMath();
-            p.Damage = weapon.Damage;
             p.Range = weapon.Range;
-            p.Penetration = weapon.Penetration;
-            p.Spread = weapon.DamageSpread;
-            p.DamageType = weapon.WeaponData.DamageType;
             p.GuidanceCurve = guidance.GuidanceCurve.ToCurve();
             p.LiftCurve = guidance.LiftCurve.ToCurve();
             p.ThrustCurve = guidance.ThrustCurve.ToCurve();
@@ -60,6 +77,7 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
             p.Thrust = item.Evaluate(guidance.Thrust);
             p.TopSpeed = item.Evaluate(guidance.MissileVelocity);
             p.TargetPosition = () => (source.Entity.Position + length(source.LookAtPoint.position.ToCultMath() - source.Entity.Position) * source.Entity.LookDirection).ToUnity();
+            Bind(p, source.Entity.Zone, shotId);
         }
         else Debug.LogError($"Weapon {item.Data.Name} linked to {name} effect, but is not a Launcher!");
     }

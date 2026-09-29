@@ -32,7 +32,7 @@ public sealed class IffAndCombatTests : IDisposable
         cache.Upsert(new GearData
         {
             Name = "Gun", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Durability = 1,
-            Behaviors = { new InstantWeaponData() }
+            Behaviors = { new InstantWeaponData { Count = new PerformanceStat { Min = 1, Max = 1 }, Cooldown = new PerformanceStat { Min = 1, Max = 1 } } }
         });
         cache.FlushAsync().Wait();
     }
@@ -248,9 +248,11 @@ public sealed class IffAndCombatTests : IDisposable
         shooter.Target.Value = target;
         shooter.SetIff(target, false); // explicitly neutral
 
+        weapon.Execute(.01f); // resolves the gun's stats: a burst has no rounds before the first tick
         weapon.Activate();
+        weapon.Execute(.01f);
 
-        Assert.Equal(0f, weapon.Progress); // Trigger() was safed: no cooldown/burst was started
+        Assert.True(weapon.CanFire); // Trigger() was safed: no burst fired, so no cooldown
     }
 
     [Fact]
@@ -264,9 +266,11 @@ public sealed class IffAndCombatTests : IDisposable
         shooter.Target.Value = target;
         shooter.SetIff(target, true);
 
+        weapon.Execute(.01f); // resolves the gun's stats: a burst has no rounds before the first tick
         weapon.Activate();
+        weapon.Execute(.01f);
 
-        Assert.Equal(1f, weapon.Progress); // Trigger() ran: cooldown/burst started
+        Assert.False(weapon.CanFire); // Trigger() ran: the burst fired and the cooldown runs
     }
 
     [Fact]
@@ -277,9 +281,11 @@ public sealed class IffAndCombatTests : IDisposable
         var shooter = NewShip(items, zone, new Faction { Name = "Shooter" }, equipGun: true);
         var weapon = (InstantWeapon) shooter.Equipment.Single(e => e.Behaviors.Any(b => b is Weapon)).Behaviors.Single(b => b is Weapon);
 
+        weapon.Execute(.01f); // resolves the gun's stats: a burst has no rounds before the first tick
         weapon.Activate();
+        weapon.Execute(.01f);
 
-        Assert.Equal(1f, weapon.Progress);
+        Assert.False(weapon.CanFire); // Trigger() ran: the burst fired and the cooldown runs
     }
 
     [Fact]

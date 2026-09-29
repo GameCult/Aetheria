@@ -23,7 +23,7 @@ public class ThrusterData : BehaviorData
     [Inspectable, JsonProperty("energy"), Key(4), RuntimeInspectable]  
     public PerformanceStat EnergyUsage = new PerformanceStat();
 
-    [Inspectable, CultInspectorAssetPath, JsonProperty("Particles"), Key(5)]
+    [Inspectable, CultInspectorAssetGuid, JsonProperty("Particles"), Key(5)]
     public string ParticlesPrefab;
     
     public override Behavior CreateInstance(EquippedItem item)
@@ -37,7 +37,7 @@ public class ThrusterData : BehaviorData
     }
 }
 
-public class Thruster : Behavior, IAnalogBehavior
+public class Thruster : Behavior, IAnalogBehavior, IPowerConsumer
 {
     public float Thrust { get; private set; }
     public float Torque { get; }
@@ -49,8 +49,14 @@ public class Thruster : Behavior, IAnalogBehavior
     }
 
     private ThrusterData _data;
-    
+
     private float _input;
+
+    // Cut 8 (operator ask 2026-09-19): presentation's read of "how healthy does this thruster actually look" --
+    // Thrust is the stat that governs this behaviour's real output, so it is the equivalent quantity to condition
+    // against. 1f for the ConsumableItemEffect constructor's item-less case; that path has no durability, heat or
+    // power-supply state to be broken by, so it always reads perfect.
+    public float Condition => Item?.ConditionRatio(_data.Thrust) ?? 1f;
 
     public Thruster(ThrusterData data, EquippedItem item) : base(data, item)
     {
@@ -71,10 +77,29 @@ public class Thruster : Behavior, IAnalogBehavior
         Thrust = Evaluate(_data.Thrust);
     }
 
+    // Cut 3 (docs/stats-and-power-cut.md): the resolved stat times the behaviour-supplied throttle scalar (§1.2),
+    // exactly the shape the map names. _input is set externally (the ship's controls) before Entity.Update calls
+    // PowerBus.Step, so it is already current when this runs.
+    //
+    // Nominal-request ruling (docs/stats-and-power-cut.md, operator ruling 2026-09-19): EnergyUsage is a
+    // registered request field (StatValidation.PowerRequestFields) -- read nominally, same reasoning as every
+    // other IPowerConsumer in this cut, though EnergyUsage carries no PowerSupply term in Thruster's own shipped
+    // catalog today; Thrust (the field Cut 7 curves) is a separate stat Execute reads with the real Evaluate.
+    public float PowerRequest(float dt) => _input > .01f ? _input * EvaluateNominalPower(_data.EnergyUsage) : 0f;
+
+    // Cut 5 (docs/stats-and-power-cut.md §1.3, PowerTiers.cs): Medium -- mobility. Losing thrust for a tick
+    // under brownout is an inconvenience, not the cascading failure a starved radiator or shield causes.
+    public int DefaultPowerTier => PowerTiers.Medium;
+
     public override bool Execute(float dt)
     {
         Item.SetAudioParameter(SpecialAudioParameter.Intensity, _input);
-        if(_input > .01f && Entity.TryConsumeEnergy(_input * Evaluate(_data.EnergyUsage)))
+        // Cut 7 (docs/stats-and-power-target.md): "continuous consumers brown out ... through a power supply
+        // curve on their performance stats." Thrust below is a plain Evaluate() read, so once the catalog's own
+        // Thrust stat carries a PowerSupply term, a partial grant already comes back reduced -- this gate no
+        // longer demands a full grant, only that the thruster is being asked to do anything (_input) and that it
+        // has not been cut to true zero supply (the epsilon PowerBus itself already treats as "nothing granted").
+        if(_input > .01f && Item.PowerSupply > 1e-4f)
         {
             Thrust = Evaluate(_data.Thrust);
             Entity.Velocity -= Direction.xz * _input * Thrust / Entity.Mass * dt;

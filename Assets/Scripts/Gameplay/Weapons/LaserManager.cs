@@ -6,7 +6,7 @@ public class LaserManager : InstantWeaponEffectManager
 {
     public Prototype ProjectilePrototype;
 
-    public override void Fire(InstantWeapon weapon, EquippedItem item, EntityInstance source, EntityInstance target)
+    public override void Fire(InstantWeapon weapon, EquippedItem item, EntityInstance source, EntityInstance target, int shotId)
     {
         var p = ProjectilePrototype.Instantiate<Laser>();
         var hp = source.Entity.Hardpoints[item.Position.x, item.Position.y];
@@ -15,11 +15,9 @@ public class LaserManager : InstantWeaponEffectManager
         t.SetParent(barrel);
         t.forward = barrel.forward;
         t.position = barrel.position;
+        p.ShotId = shotId;
         p.SourceEntity = source.Entity;
-        p.Damage = weapon.Damage;
         p.Range = weapon.Range;
-        p.Penetration = weapon.Penetration;
-        p.Spread = weapon.DamageSpread;
-        p.DamageType = weapon.WeaponData.DamageType;
+        p.TargetTransform = target != null ? target.transform : null;
     }
 }

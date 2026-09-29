@@ -50,9 +50,13 @@ public class SensorData : BehaviorData
     }
 }
 
-public class Sensor : Behavior, IEventBehavior
+public class Sensor : Behavior, IEventBehavior, IPowerConsumer
 {
     private SensorData _data;
+
+    // Cut 4 (docs/stats-and-power-cut.md, Cut 4): replaces the direct Entity.TrySpendCapacitorCharge spend in
+    // Ping() below -- the named, temporary exception Cut 3 left standing.
+    private readonly InputCapacitor _capacitor = new InputCapacitor();
     private float _pingCooldown;
     private float _pingLerp;
     private bool _pinging;
@@ -80,9 +84,35 @@ public class Sensor : Behavior, IEventBehavior
         OnPingEnd = null;
     }
 
+    // Cut 4: capacity/rate, resolved fresh (Capacitor.ResolveCapacity's precedent -- PowerBus.Step calls
+    // PowerRequest below before this behaviour's own Execute runs this tick).
+    //
+    // Nominal-request ruling (docs/stats-and-power-cut.md, operator ruling 2026-09-19): PingEnergy and
+    // PingCooldown are registered request fields (StatValidation.PowerRequestFields) -- read nominally, same
+    // reasoning as InstantWeapon's own RefreshInputCapacitor.
+    private void RefreshInputCapacitor()
+    {
+        var energy = EvaluateNominalPower(_data.PingEnergy);
+        var cooldown = EvaluateNominalPower(_data.PingCooldown);
+        _capacitor.UpdateStats(energy, cooldown);
+    }
+
+    // Cut 4: the request PowerBus needs before Execute runs.
+    public float PowerRequest(float dt)
+    {
+        RefreshInputCapacitor();
+        return _capacitor.RequestedFill(dt);
+    }
+
+    // Cut 5 (docs/stats-and-power-cut.md §1.3, PowerTiers.cs): Utility -- everything else.
+    public int DefaultPowerTier => PowerTiers.Utility;
+
     public void Ping()
     {
-        if(_pingCooldown < 0 && Entity.TryConsumeEnergy(Evaluate(_data.PingEnergy)))
+        // Whole-or-nothing against the ping's own input capacitor -- fires only at full charge (operator
+        // ruling: no fraction of a shot). A consumable-hosted instance (Item == null) has no PowerBus entry, so
+        // nothing would ever fill this capacitor; bypass it rather than starving such an instance forever.
+        if(_pingCooldown < 0 && (Item == null || _capacitor.TrySpend(_capacitor.Capacity)))
         {
             Entity.VisibilitySources[this] = Evaluate(_data.PingVisibility);
             _pinging = true;
@@ -106,6 +136,10 @@ public class Sensor : Behavior, IEventBehavior
 
     public override bool Execute(float dt)
     {
+        // Cut 4: this tick's grant, read back via Item.PowerSupply -- Item is non-null here because a null-Item
+        // instance never reaches PowerBus.Step (see Ping()) and so never accrues charge.
+        if (Item != null)
+            _capacitor.AddCharge(_capacitor.RequestedFill(dt) * Item.PowerSupply);
         if (_pinging)
         {
             _pingLerp += dt / _data.PingDuration;

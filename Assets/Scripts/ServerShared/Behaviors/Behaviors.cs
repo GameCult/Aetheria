@@ -27,16 +27,8 @@ public abstract class Behavior
         {
             if(Item != null)
             {
-                var hardpoint = Entity.Hardpoints[Item.Position.x, Item.Position.y];
-                if (hardpoint != null && Entity.HardpointTransforms.ContainsKey(hardpoint))
-                {
-                    return normalize(Entity.HardpointTransforms[hardpoint].direction);
-                }
-                else
-                {
-                    var itemDirection = Entity.Direction.Rotate(Item.EquippableItem.Rotation);
-                    return float3(itemDirection.x, 0, itemDirection.y);
-                }
+                var itemDirection = Entity.Direction.Rotate(Item.EquippableItem.Rotation);
+                return float3(itemDirection.x, 0, itemDirection.y);
             }
 
             return float3(Entity.Direction.x, 0, Entity.Direction.y);
@@ -58,6 +50,13 @@ public abstract class Behavior
     }
     
     public float Evaluate(PerformanceStat stat) => Item?.Evaluate(stat) ?? Consumable.Evaluate(stat);
+
+    // Nominal-request ruling (docs/stats-and-power-cut.md, operator ruling 2026-09-19): the read a PowerRequest
+    // implementation uses for a stat named in StatValidation.PowerRequestFields, in place of Evaluate above. A
+    // consumable-hosted instance (Item == null) never reaches PowerBus.Step at all (see e.g. EnergyDraw.Execute's
+    // own comment), and ConsumableItemEffect.PowerSupplyFactor is already the identity (1) unconditionally, so
+    // Consumable.Evaluate is already nominal with respect to power and needs no separate context.
+    public float EvaluateNominalPower(PerformanceStat stat) => Item?.EvaluateNominalPower(stat) ?? Consumable.Evaluate(stat);
     protected void AddHeat(float heat) => Item?.AddHeat(heat); // TODO: Heat for Consumables
 
     protected void CauseDamage(float damage)
@@ -124,14 +123,25 @@ public interface IProgressBehavior
     float Progress { get; }
 }
 
-public interface IOrderedBehavior
-{
-    int Order { get; }
-}
-
 public interface IPopulationAssignment
 {
     int AssignedPopulation { get; set; }
+}
+
+// Cut 3 (docs/stats-and-power-cut.md §1.2): a behaviour that wants to draw from its entity's PowerBus declares a
+// request instead of spending energy itself. PowerBus.Step calls this on every consumer once per tick, before
+// any behaviour's Execute runs, so PowerRequest must be computable from state that is already current at that
+// point -- a resolved stat and, where the map calls for one, a behaviour-supplied scalar such as Thruster's
+// throttle axis (set externally before the tick) -- never from work Execute itself would otherwise do. The
+// behaviour reads back how much of its own request was granted from Item.PowerSupply during its own Execute.
+//
+// Cut 5 (docs/stats-and-power-cut.md §1.3): every kind of consumer also names the priority tier (PowerTiers.cs)
+// it defaults to. EquippedItem reads this exactly once, to seed EquippableItem.PowerTier the first time an item
+// without a player-chosen tier gets equipped -- after that the stored field is what PowerBus reads, never this.
+public interface IPowerConsumer
+{
+    float PowerRequest(float dt);
+    int DefaultPowerTier { get; }
 }
 
 [Inspectable, 
@@ -173,6 +183,9 @@ public interface IPopulationAssignment
  Union(36, typeof(ConstantWeaponData)),
  Union(37, typeof(ChargedWeaponData)),
  Union(38, typeof(AutoWeaponData)),
+ // Cut 2 (docs/fire-control-cut.md): 39 is the next free index against this list, not the 39 the
+ // superseded draft quoted -- checked directly here rather than trusted from that document.
+ Union(39, typeof(TargetingSystemData)),
  JsonObject(MemberSerialization.OptIn)]
 public abstract class BehaviorData
 {

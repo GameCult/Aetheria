@@ -40,7 +40,7 @@ public abstract class WeaponData : BehaviorData
     [InspectableAnimationCurve, JsonProperty("damageCurve"), Key(7)]
     public BezierCurve DamageCurve;
     
-    [Inspectable, CultInspectorAssetPath, JsonProperty("effect"), Key(8)]  
+    [Inspectable, CultInspectorAssetGuid, JsonProperty("effect"), Key(8)]  
     public string EffectPrefab;
     
     [Inspectable, JsonProperty("energy"), Key(9), RuntimeInspectable]  
@@ -99,6 +99,16 @@ public abstract class Weapon : Behavior, IActivatedBehavior
     // shooter's OWN declared stance toward its target, not the target's stance toward the shooter.
     // With no target set, behaviour is unchanged (nothing to be safe about).
     public bool StanceAllowsFire => Entity.Target.Value == null || Entity.IsHostileTo(Entity.Target.Value);
+
+    // Cut 3 (docs/fire-control-cut.md, Q2): player fire is arc-gated like everyone else's. This is the same
+    // predicate (FireControl.InArc) Combat.cs and TurretController.cs gate AI and turret fire with, read at
+    // the one point every shooter's trigger passes through (InstantWeapon.Trigger) -- not a parallel check, and
+    // not the AI's own AgentMinHitProbability heuristic, which is a "worth it" decision layered above this
+    // gate, not the gate itself. With no target set, behaviour is unchanged (nothing to bear on).
+    // Cut 5, 5.4 (Soul finding 11): the point-blank special case this used to carry moved into InArc itself --
+    // one bearing test, one owner, so every caller (not just this one) gets a point-blank shot that bears.
+    // FireControl owns the gate, including its one exemption: a fused weapon fires out of arc.
+    public bool ArcAllowsFire => FireControl.ArcPermitsFire(this, Entity);
 
     public Weapon(WeaponData data, EquippedItem item) : base(data, item)
     {

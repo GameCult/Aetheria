@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using MessagePack;
 using Newtonsoft.Json;
 using TMPro;
@@ -111,7 +110,7 @@ public class ActionBarConsumableBinding : ActionBarBinding
         {
             Slot.Label.gameObject.SetActive(false);
             Slot.Icon.gameObject.SetActive(true);
-            Slot.Icon.texture = Resources.Load<Texture2D>(data.Icon.Substring("Assets/Resources/".Length).Split('.').First());
+            Slot.Icon.texture = EngineAssets.Load<Texture2D>(data.Icon);
         }
         else Slot.Icon.gameObject.SetActive(false);
     }
@@ -150,7 +149,7 @@ public class ActionBarGearBinding : ActionBarBinding
         Slot.Icon.gameObject.SetActive(true);
         Slot.Label.gameObject.SetActive(false);
         if (!string.IsNullOrEmpty(Item.Data.ActionBarIcon))
-            Slot.Icon.texture = Resources.Load<Texture2D>(Item.Data.ActionBarIcon.Substring("Assets/Resources/".Length).Split('.').First());
+            Slot.Icon.texture = EngineAssets.Load<Texture2D>(Item.Data.ActionBarIcon);
         else if (data is WeaponItemData weaponItemData)
             Slot.Icon.texture = ActionGameManager.Instance.Settings.GetIcon(weaponItemData.WeaponType).texture;
         else Slot.Icon.texture = ActionGameManager.Instance.Settings.GetIcon(data.HardpointType).texture;

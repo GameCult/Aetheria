@@ -42,6 +42,11 @@ public class Capacitor : Behavior
         AddHeat(abs(charge) * (1-Efficiency));
     }
 
+    // Cut 3 (docs/stats-and-power-cut.md): PowerBus needs Capacity before this behaviour's own Execute runs this
+    // tick (the bus steps first, §1.2), so it resolves the stat itself rather than reading the cached property,
+    // which still holds last tick's value at that point.
+    public float ResolveCapacity() => Evaluate(_data.Capacity);
+
     public Capacitor(CapacitorData data, EquippedItem item) : base(data, item)
     {
         _data = data;

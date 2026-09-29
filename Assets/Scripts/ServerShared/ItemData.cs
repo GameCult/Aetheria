@@ -6,6 +6,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using GameCult.Caching;
 using MessagePack;
 using Newtonsoft.Json;
@@ -349,7 +350,7 @@ public class ConsumableItemData : CraftedItemData
     [Inspectable, JsonProperty("duration"), Key(12)]
     public float Duration;
 
-    [Inspectable, CultInspectorAssetPath, JsonProperty("icon"), Key(13)]
+    [Inspectable, CultInspectorAssetGuid, JsonProperty("icon"), Key(13)]
     public string Icon;
 
     [Inspectable, JsonProperty("effectiveness"), Key(14)]
@@ -359,7 +360,7 @@ public class ConsumableItemData : CraftedItemData
 [JsonObject(MemberSerialization.OptIn)]
 public abstract class EquippableItemData : CraftedItemData
 {
-    [Inspectable, CultInspectorAssetPath, JsonProperty("schematic"), Key(10)]
+    [Inspectable, CultInspectorAssetGuid, JsonProperty("schematic"), Key(10)]
     public string Schematic;
     
     [Inspectable, JsonProperty("behaviors"), Key(11)]  
@@ -368,11 +369,17 @@ public abstract class EquippableItemData : CraftedItemData
     [Inspectable, JsonProperty("durability"), Key(12)]
     public float Durability;
     
+    // R-heat requires every equippable to carry a coherent heat response (StatValidation.ValidateHeatResponse
+    // refuses a zero-span range), so these four fields default to a legal, non-degenerate placeholder rather
+    // than to a zero-span trap -- the same shape HeatResponseTests' own fixture authors by hand. A design that
+    // cares about its thermal behaviour overrides all four; one that does not (most test fixtures, most gear
+    // that predates R-heat and has not been reviewed) still opens and evaluates sanely instead of refusing to
+    // load or resolving to a permanently-dead Performance().
     [InspectableTemperature, JsonProperty("minTemp"), Key(13)]
-    public float MinimumTemperature;
+    public float MinimumTemperature = 0;
 
     [InspectableTemperature, JsonProperty("maxTemp"), Key(14)]
-    public float MaximumTemperature;
+    public float MaximumTemperature = 100;
 
     // [InspectableField, JsonProperty("durabilityExponent"), Key(15), SimplePerformanceStat]
     // public PerformanceStat DurabilityExponent = new PerformanceStat();
@@ -380,8 +387,8 @@ public abstract class EquippableItemData : CraftedItemData
     // [InspectableField, JsonProperty("heatExponent"), Key(16), SimplePerformanceStat]
     // public PerformanceStat HeatExponent = new PerformanceStat();
     
-    [InspectableAnimationCurve, JsonProperty("heatCurve"), Key(17)]
-    public BezierCurve HeatPerformanceCurve;
+    // MessagePack key 17 belonged to HeatPerformanceCurve, a BezierCurve; R-heat (docs/stats-and-power-cut.md)
+    // replaced the authored shape with minimum, maximum, optimum and plateau width. Do not reuse.
 
     [Inspectable, JsonProperty("resilience"), Key(18)]
     public float ThermalResilience = 1;
@@ -389,7 +396,7 @@ public abstract class EquippableItemData : CraftedItemData
     // [Inspectable, JsonProperty("sfx"), Key(19)]
     // public string SoundEffectTrigger;
     
-    [Inspectable, CultInspectorAssetPath, JsonProperty("actionIcon"), Key(20)]
+    [Inspectable, CultInspectorAssetGuid, JsonProperty("actionIcon"), Key(20)]
     public string ActionBarIcon;
 
     [Inspectable, JsonProperty("soundBank"), Key(21)]
@@ -400,39 +407,33 @@ public abstract class EquippableItemData : CraftedItemData
     
     [IgnoreMember]
     public abstract HardpointType HardpointType { get; }
-    
-    [IgnoreMember] private const int STEPS = 64;
 
-    [IgnoreMember] private float? _optimum;
-    
-    [IgnoreMember]
-    public float OptimalTemperature
-    {
-        get
-        {
-            if (_optimum==null)
-            {
-                var samples = Enumerable.Range(0, STEPS).Select(i => (float) i / STEPS).ToArray();
-                float max = 0;
-                _optimum = 0;
-                foreach (var f in samples)
-                {
-                    var p = HeatPerformanceCurve?.Evaluate(f)??0;
-                    if (p > max)
-                    {
-                        max = p;
-                        _optimum = f;
-                    }
-                }
-            }
+    // R-heat (docs/stats-and-power-cut.md): the authored shape is minimum, maximum (both above), optimum and
+    // plateau width. Where the part likes to be, and how forgiving it is. Authored, not derived -- the 100-sample
+    // bezier scan that used to infer this from HeatPerformanceCurve is gone, and so is its cache.
+    [InspectableTemperature, JsonProperty("optimalTemperature"), Key(30)]
+    public float OptimalTemperature = 50;
 
-            return (float) (MinimumTemperature + _optimum * (MaximumTemperature - MinimumTemperature));
-        }
-    }
+    // The band, centered on OptimalTemperature, across which performance is 1. Plateau width is the
+    // operational-lifespan lever: inside it, Wear's thermal term is zero (Performance() returns exactly 1), so a
+    // well-managed item takes wear only from deltaTemp (Entity.cs UpdatePerformance).
+    [Inspectable, JsonProperty("plateauWidth"), Key(31)]
+    public float PlateauWidth = 20;
 
+    // Performance is 1 across the plateau and falls linearly to 0 at each bound -- asymmetric whenever the
+    // optimum is off-centre, which is how most gear behaves and how negent gear inverts. The plateau clamps to
+    // the bounds rather than poking past them, defensively, though StatValidation already refuses an authored
+    // overshoot at load -- this is redundant, not load-bearing.
     public float Performance(float temperature)
     {
-        return saturate(HeatPerformanceCurve?.Evaluate(unlerp(MinimumTemperature, MaximumTemperature, temperature))??1);
+        if (temperature <= MinimumTemperature || temperature >= MaximumTemperature) return 0f;
+        var halfPlateau = PlateauWidth * 0.5f;
+        var plateauLow = max(MinimumTemperature, OptimalTemperature - halfPlateau);
+        var plateauHigh = min(MaximumTemperature, OptimalTemperature + halfPlateau);
+        if (temperature >= plateauLow && temperature <= plateauHigh) return 1f;
+        if (temperature < plateauLow)
+            return saturate(unlerp(MinimumTemperature, plateauLow, temperature));
+        return saturate(unlerp(MaximumTemperature, plateauHigh, temperature));
     }
 }
 
@@ -488,6 +489,21 @@ public class WeaponItemData : GearData
     
     [Inspectable, JsonProperty("modifiers"), Key(28)]
     public WeaponModifiers WeaponModifiers;
+
+    // Cut 12.4(a) (docs/fire-control-cut.md): the authored blast radius a weapon's shot detonates with, in
+    // world units. Renamed from slot 29's old airburst-range field -- the slot and type are unchanged, so
+    // CultCache opens the catalog as compatible drift. Null (every shipped record) means no blast; WeaponModifiers
+    // no longer decides this (Q12-6, "WeaponModifiers are labels, not behaviour").
+    [Inspectable, JsonProperty("blastRadius"), Key(29)]
+    public float? BlastRadius;
+
+    // Cut 12.4(a): what kind of blast BlastRadius describes. Nullable under the 7.4 rule -- null means no
+    // blast, and every shipped record reads null. FireControl.Fire freezes this from the weapon only when
+    // BlastRadius > 0; a fuse without a radius, or a radius without a fuse, is inert and resolves as a direct
+    // hit (nothing polices that, per Q12-6). Key 30 and 31 belong to EquippableItemData's OptimalTemperature
+    // and PlateauWidth, inherited here -- the next free key across WeaponItemData's own ancestry is 32.
+    [Inspectable, JsonProperty("fuse"), Key(32)]
+    public WeaponFuse? Fuse;
 }
 
 [CultDocument("aetheria.hulldata", "1"), Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn)]
@@ -496,7 +512,7 @@ public class HullData : EquippableItemData
     [Inspectable, JsonProperty("hardpoints"), Key(23)]  
     public List<HardpointData> Hardpoints = new List<HardpointData>();
 
-    [Inspectable, CultInspectorAssetPath, JsonProperty("prefab"), Key(24)]  
+    [Inspectable, CultInspectorAssetGuid, JsonProperty("prefab"), Key(24)]  
     public string Prefab;
 
     [Inspectable, JsonProperty("hullType"), Key(25)]
@@ -542,6 +558,9 @@ public class HardpointData
     [Inspectable, JsonProperty("transform"), Key(3)] public string Transform;
     [Inspectable, JsonProperty("rotation"), Key(4)] public ItemRotation Rotation;
     [Inspectable, JsonProperty("armor"), Key(5)] public float Armor;
+    // Full arc width in degrees a weapon on this hardpoint may bear across; 0 means "use
+    // GameplaySettings.FiringArc" (docs/fire-control-cut.md R6). Turrets author 360 (Q1).
+    [Inspectable, JsonProperty("firingArc"), Key(6)] public float FiringArc;
 
     public override string ToString()
     {
@@ -572,6 +591,51 @@ public class HardpointData
     private static Dictionary<HardpointType, float3> _tintColors;
 }
 
+// What a PerformanceStat reads to resolve one number: the lot it prices quality against, and the per-context
+// factors that used to be three separate Evaluate bodies. EquippedItem, ConsumableItemEffect and the
+// unequipped case (ItemManager's own private context) are the three implementations; each supplies only the
+// sources it has, and says so through what it returns rather than through a second, quietly different formula.
+// Cut 1 (docs/stats-and-power-cut.md): each factor now takes the declaring term's own exponent rather than
+// reading a fixed field off the stat, because the stat no longer carries one fixed field per source.
+public interface IStatContext
+{
+    Lot Lot { get; }
+    float HeatFactor(float exponent);
+    float DurabilityFactor(float exponent);
+    // Progress through a consumable effect's duration, standing in for "condition" on a consumable the way heat
+    // does for equipped gear. Only ConsumableItemEffect has one; every other context is the identity (1).
+    float ConsumableProgressFactor(float exponent);
+    // Cut 6 (the power bus) wires this to the bus's grant ratio. F1 (docs/stats-and-power-cut.md, operator
+    // ruling 2026-09-19): this is not one of the terms blended into the Min/Max interpolation -- PerformanceStat
+    // applies it as a separate multiplier on the fully-resolved value, so zero supply always resolves to zero.
+    float PowerSupplyFactor(float exponent);
+    float ScaleModifier(PerformanceStat stat);
+    float ConstantModifier(PerformanceStat stat);
+}
+
+// The declared sources a stat term can read. Closed: adding a member is a schema change with a census
+// (docs/stats-and-power-cut.md §2).
+public enum StatSource
+{
+    Heat,
+    Durability,
+    Quality,
+    PowerSupply,
+    ConsumableProgress
+}
+
+// One declared dependency of a stat: a source and the exponent it is raised to inside the stat's Min/Max
+// interpolation. Role is meaningful only for Quality; PerformanceStat.Evaluate refuses it elsewhere.
+[MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+public class StatTerm
+{
+    [JsonProperty("source"), Key(0)] public StatSource Source;
+    [JsonProperty("exponent"), Key(1)] public float Exponent;
+    // The design role whose part quality this term reads; unset reads the item's own workmanship quality.
+    // Njordr states the same rule as a derivation over dimensions; this is that rule with one dimension.
+    [Inspectable, JsonProperty("role"), Key(2)] public string Role;
+}
+
 [MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class PerformanceStat
 {
@@ -579,45 +643,259 @@ public class PerformanceStat
 
     [JsonProperty("max"), Key(1)]  public float Max;
 
-    [JsonProperty("heatExponentMultiplier"), Key(2)] 
-    public float HeatExponentMultiplier;
+    // MessagePack keys 2, 3, 4 and 5 belonged to fixed exponent fields (HeatExponentMultiplier,
+    // DurabilityExponentMultiplier, QualityExponent, FromRole) now expressed as declared Terms below; do not
+    // reuse them.
 
-    [JsonProperty("durabilityExponentMultiplier"), Key(3)] 
-    public float DurabilityExponentMultiplier;
+    [Inspectable, JsonProperty("terms"), Key(6)]
+    public List<StatTerm> Terms = new List<StatTerm>();
 
-    [JsonProperty("qualityExponent"), Key(4)] 
-    public float QualityExponent;
-    
-    // The design role whose part quality this stat reads; unset reads the item's own workmanship quality.
-    // Njordr states the same rule as a derivation over dimensions; this is that rule with one dimension.
-    [Inspectable, JsonProperty("fromRole"), Key(5)]
-    public string FromRole;
-    
-    [IgnoreMember] private Dictionary<Entity,Dictionary<Behavior,float>> _scaleModifiers;
-    [IgnoreMember] private Dictionary<Entity,Dictionary<Behavior,float>> _constantModifiers;
+    // Cut 2 (docs/stats-and-power-cut.md): this catalog object used to hold two Dictionary<Entity, ...> fields
+    // here, keyed by every entity that ever evaluated it, with no removal -- the leak (§0.3). A stat is shared;
+    // a resolved value, and the modifiers that shape it, are not. Both now live in the entity's own StatResolver
+    // (StatResolver.cs), reachable only from the entity, so they die when the entity does instead of when the
+    // process does. Do not reintroduce per-entity state here under any name.
 
-    [IgnoreMember]
-    private Dictionary<Entity, Dictionary<Behavior, float>> ScaleModifiers =>
-        _scaleModifiers = _scaleModifiers ?? new Dictionary<Entity, Dictionary<Behavior, float>>();
-
-    [IgnoreMember]
-    private Dictionary<Entity, Dictionary<Behavior, float>> ConstantModifiers =>
-        _constantModifiers = _constantModifiers ?? new Dictionary<Entity, Dictionary<Behavior, float>>();
-
-    public Dictionary<Behavior, float> GetScaleModifiers(Entity entity)
+    // The one evaluation path. A stat with no terms resolves to Max (the identity factor, 1, times Min/Max
+    // interpolation lands on the top) -- that is the same number a stat with all-zero exponents produced before
+    // this cut, because pow(x, 0) == 1 regardless of x. Callers keep their own NaN handling: an unequipped read
+    // throws with diagnostic detail, an equipped or consumable read falls back to Min. That disagreement is not
+    // named as a defect, so it is not touched here.
+    //
+    // F1 (docs/stats-and-power-cut.md, operator ruling 2026-09-19): PowerSupply is not folded into the
+    // interpolation factor with every other source. Heat, Durability and Quality all describe "how worn/hot/well
+    // made is this part" -- a part that is still there, just less good at its job, so blending toward Min is
+    // right for them. Power is not a degradation of the part; it is whether the part is receiving anything to
+    // work with at all, so it multiplies the fully-interpolated, fully-modified value instead: a PowerSupply term
+    // still lives in this stat's own Terms list (it is still authored per stat, still censused in
+    // PowerRequestFields below), it is just applied as a separate multiplier rather than contributing to
+    // `factor`. Consequences named in the ruling: PowerSupply == 0 makes the whole
+    // expression 0 regardless of Min (pow(0, exponent) == 0 for any exponent > 0), and a Min == Max stat still
+    // responds to a PowerSupply term because the multiplier no longer has to move a degenerate interpolation.
+    public float Evaluate(IStatContext context)
     {
-        if(!ScaleModifiers.ContainsKey(entity))
-            ScaleModifiers[entity] = new Dictionary<Behavior, float>();
+        var factor = 1f;
+        var powerMultiplier = 1f;
+        foreach (var term in Terms)
+        {
+            if (term.Source == StatSource.PowerSupply)
+            {
+                powerMultiplier *= context.PowerSupplyFactor(term.Exponent);
+                continue;
+            }
+            factor *= term.Source switch
+            {
+                // F6 (docs/stats-and-power-cut.md Cut 2 Soul pass): nothing ever calls Resolver.InvalidateSource
+                // for StatSource.Quality. Harmless today because EquippedItem.Lot is set once in the constructor
+                // and never reassigned, so the value this reads never actually moves under a live resolver entry.
+                // §0b designs an upgrade as a lot swap the resolver must see ("an upgrade mints a new lot and
+                // repoints the item, which the resolver sees as a quality-source change") -- that repoint does not
+                // exist yet. Whichever cut adds it must also call InvalidateSource(item, StatSource.Quality) at
+                // the point EquippedItem.Lot is reassigned, or every Quality-termed stat keeps the pre-upgrade
+                // value forever.
+                StatSource.Quality => pow(context.Lot.QualityForRole(term.Role), term.Exponent),
+                StatSource.Heat => context.HeatFactor(term.Exponent),
+                StatSource.Durability => context.DurabilityFactor(term.Exponent),
+                StatSource.ConsumableProgress => context.ConsumableProgressFactor(term.Exponent),
+                _ => throw new ArgumentOutOfRangeException(nameof(term.Source), term.Source, $"Unknown StatSource on {Min}-{Max} stat")
+            };
+        }
+        return (lerp(Min, Max, factor) * context.ScaleModifier(this) + context.ConstantModifier(this)) * powerMultiplier;
+    }
+}
 
-        return ScaleModifiers[entity];
+// Cut 1's loud refusal: the heat-response shape (min, max, optimum, plateau width) must describe a coherent
+// range. Runs at catalog load (AetheriaStores.Open) and at every catalog write that goes through
+// CultRecordRefs.Upsert (AetheriaStores.cs). That is not, in fact, every catalog write in this repository. F7
+// (docs/stats-and-power-cut.md, Soul pass 2026-09-19) found four holes where the two named here left off, not
+// one:
+// - CultCache Studio's generic document editor writes straight through CultCache, bypassing Upsert, and Studio
+//   exposes no per-document validation hook to attach to yet. Still open -- Studio is not this repository's to
+//   patch from here.
+// - tools/AetherDb/Program.cs's Dangling, ShieldMigrate and BrownoutMigrate commands each repair existing
+//   records in place and so cannot go through Upsert (its cache.UpsertAsync(document) does not accept a
+//   caller-supplied key -- see AetheriaStores.cs's own Validate comment); each lands its changes through
+//   `db.Cache.Commit(batch => batch.Upsert(document.GetType(), document, key))`, CultCache's own batch API,
+//   keyed explicitly to preserve the record's existing identity. `brownout-migrate apply` is how the shipped
+//   catalog's PowerSupply terms were actually written (Cut 7), and all three now call
+//   `AetheriaStores.Validate(document)` immediately before that commit -- the same checks Upsert runs, just
+//   invoked directly since the identity-preserving write path cannot call Upsert itself. Closed: a dangling-ref
+//   fixup, a shield migration or a brownout migration can no longer land an EquippableItemData or
+//   ConsumableItemData with an invalid heat response, an unresolvable stat modifier reference, or a power
+//   request that depends on its own supply.
+public static class StatValidation
+{
+    public static void ValidateHeatResponse(EquippableItemData data)
+    {
+        if (float.IsNaN(data.MinimumTemperature) || float.IsNaN(data.MaximumTemperature) ||
+            float.IsNaN(data.OptimalTemperature) || float.IsNaN(data.PlateauWidth))
+            throw new InvalidOperationException(
+                $"{data.Name}: heat response carries NaN (min {data.MinimumTemperature}, max {data.MaximumTemperature}, " +
+                $"optimum {data.OptimalTemperature}, plateau {data.PlateauWidth})");
+        if (data.MinimumTemperature == data.MaximumTemperature)
+            throw new InvalidOperationException(
+                $"{data.Name}: MinimumTemperature and MaximumTemperature are both {data.MinimumTemperature} -- a " +
+                "zero-span range is dead at every temperature, which is an authoring error, not an authored immunity");
+        if (data.OptimalTemperature < data.MinimumTemperature || data.OptimalTemperature > data.MaximumTemperature)
+            throw new InvalidOperationException(
+                $"{data.Name}: OptimalTemperature {data.OptimalTemperature} lies outside its bounds " +
+                $"[{data.MinimumTemperature}, {data.MaximumTemperature}]");
+        if (data.PlateauWidth < 0)
+            throw new InvalidOperationException($"{data.Name}: PlateauWidth {data.PlateauWidth} is negative");
+        var halfPlateau = data.PlateauWidth * 0.5f;
+        var plateauLow = data.OptimalTemperature - halfPlateau;
+        var plateauHigh = data.OptimalTemperature + halfPlateau;
+        if (plateauLow < data.MinimumTemperature || plateauHigh > data.MaximumTemperature)
+            throw new InvalidOperationException(
+                $"{data.Name}: plateau [{plateauLow}, {plateauHigh}] pokes past its bounds " +
+                $"[{data.MinimumTemperature}, {data.MaximumTemperature}] -- the plateau must clamp to the bounds, " +
+                "not exceed them");
     }
 
-    public Dictionary<Behavior, float> GetConstantModifiers(Entity entity)
-    {
-        if(!ConstantModifiers.ContainsKey(entity))
-            ConstantModifiers[entity] = new Dictionary<Behavior, float>();
+    // Cut 2 (docs/stats-and-power-cut.md): a StatReference names its target by (type name, field name) so a
+    // modifier can point at any design or behaviour without a hard type reference -- but before this cut an
+    // unresolvable reference failed silently: StatModifier.Initialize left `_stats` null and the first
+    // ApplyModifier threw an unhelpful NullReferenceException at random equip time. Resolving it here, once,
+    // memoized, and failing loudly at catalog load or Upsert (through ValidateStatModifiers below) names the
+    // record instead of leaving the bug for whoever equips the item first.
+    private static readonly Dictionary<(string Target, string Stat), (Type Type, FieldInfo Field)> _resolvedStatFields =
+        new Dictionary<(string, string), (Type, FieldInfo)>();
 
-        return ConstantModifiers[entity];
+    private static Type[] _statReferenceTypes;
+    private static Type[] StatReferenceTypes => _statReferenceTypes ??= typeof(BehaviorData).GetAllChildClasses()
+        .Concat(typeof(EquippableItemData).GetAllChildClasses()).ToArray();
+
+    public static (Type Type, FieldInfo Field) ResolveStatField(StatReference reference)
+    {
+        var key = (reference.Target, reference.Stat);
+        if (_resolvedStatFields.TryGetValue(key, out var cached)) return cached;
+        var targetType = StatReferenceTypes.FirstOrDefault(t => t.Name == reference.Target);
+        var field = targetType?.GetFields().FirstOrDefault(f => f.FieldType == typeof(PerformanceStat) && f.Name == reference.Stat);
+        if (targetType == null || field == null)
+            throw new InvalidOperationException(
+                $"stat modifier targets \"{reference.Target}.{reference.Stat}\", which does not resolve to a PerformanceStat field");
+        var resolved = (targetType, field);
+        _resolvedStatFields[key] = resolved;
+        return resolved;
+    }
+
+    // Runs wherever ValidateHeatResponse runs (AetheriaStores.Open, CultRecordRefs.Upsert): every StatModifierData
+    // authored on this design must resolve, named here rather than at whichever equip happens to hit it first.
+    public static void ValidateStatModifiers(string ownerName, IEnumerable<BehaviorData> behaviors)
+    {
+        foreach (var behavior in behaviors)
+            if (behavior is StatModifierData modifier)
+                try
+                {
+                    ResolveStatField(modifier.Stat);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    throw new InvalidOperationException($"{ownerName}: {ex.Message}");
+                }
+    }
+
+    // Cut 7 (docs/stats-and-power-cut.md): "a stat naming a role its design lacks" must be refused, not silently
+    // fall back to the lot's own workmanship (Lot.QualityForRole already falls back for a role a lot never rolled
+    // -- that is the intended forward-compat path for an old lot meeting a newly-authored role. This is the other
+    // direction: a StatTerm naming a role the design itself never declared is an authoring mistake, not a lot
+    // predating the role, and must fail loudly rather than silently reading generic quality). Every PerformanceStat
+    // field on every behaviour is walked; only StatSource.Quality terms carry a Role at all (Evaluate ignores Role
+    // for every other source).
+    public static void ValidateRoleUsage(string ownerName, List<ItemRole> roles, IEnumerable<BehaviorData> behaviors)
+    {
+        var declared = new HashSet<string>((roles ?? new List<ItemRole>()).Select(r => r.Name));
+        foreach (var behavior in behaviors ?? Enumerable.Empty<BehaviorData>())
+        {
+            if (behavior == null) continue;
+            foreach (var field in behavior.GetType().GetFields().Where(f => f.FieldType == typeof(PerformanceStat)))
+            {
+                if (!(field.GetValue(behavior) is PerformanceStat stat) || stat.Terms == null) continue;
+                foreach (var term in stat.Terms)
+                {
+                    if (term.Source != StatSource.Quality || string.IsNullOrEmpty(term.Role)) continue;
+                    if (!declared.Contains(term.Role))
+                        throw new InvalidOperationException(
+                            $"{ownerName}: {behavior.GetType().Name}.{field.Name} names role \"{term.Role}\", " +
+                            $"which this design does not declare (declared: {(declared.Count == 0 ? "none" : string.Join(", ", declared))})");
+                }
+            }
+        }
+    }
+
+    // Cut 6 (docs/stats-and-power-cut.md): "a stat that decides a power request may not depend on power supply,
+    // directly or through a modifier chain, and no stat may depend on itself." IPowerConsumer.PowerRequest(dt)
+    // never hands the bus a number it invented on the spot -- each implementation evaluates a fixed set of
+    // PerformanceStat fields on its own BehaviorData. Those fields are a compile-time fact about the C# type, not
+    // something authored per catalog instance, so they are named here once -- the same (type, field) address
+    // ResolveStatField already uses for StatReference -- rather than adding a second reflection idiom or a
+    // per-instance flag. Naming it here (not a new interface member on IPowerConsumer) means the check needs no
+    // Behavior instance, no EquippedItem and no Entity: TryGetPowerRequestBehaviorName below can run over the
+    // catalog's own Data objects with nothing else in hand.
+    //
+    // F6 (docs/stats-and-power-cut.md, Soul pass 2026-09-19) named every field a PowerRequest implementation
+    // actually reads, not just each consumer's top-level request field: Radiator.PowerRequest also reads
+    // PumpedHeat and WasteHeat, AetherDrive.PowerRequest also reads Torque, LambdaMultiplier, MaximumRpm and
+    // PassiveCoupling, Shield.PowerRequest (via RefreshReserve) also reads RefillDuration and RestoreDuration,
+    // InstantWeapon.PowerRequest (via RefreshInputCapacitor) also reads Cooldown and Count, and Sensor.
+    // PowerRequest (via RefreshInputCapacitor) also reads PingCooldown. Audited directly against each
+    // PowerRequest method's own body (and RefreshReserve/RefreshInputCapacitor, which PowerRequest calls into)
+    // rather than guessed from the behaviour's public surface; still the complete census a modifier chain must
+    // be checked against (see TryGetPowerRequestBehaviorName and StatModifier.ValidateNoPowerSupplyChain below).
+    //
+    // Nominal-request ruling (docs/stats-and-power-cut.md, operator ruling 2026-09-19, superseding F6): F6 also
+    // added a static check here -- ValidateNoPowerSupplyOnRequest, refusing any of these fields whose own Terms
+    // named PowerSupply outright -- on the premise that PowerRequest reads these stats the same way Execute
+    // does. It does not any more: every PowerRequest/RefreshReserve/RefreshInputCapacitor implementation now
+    // calls EquippedItem.EvaluateNominalPower (Entity.cs) for a field named here, which pins that stat's own
+    // PowerSupplyFactor to 1 regardless of what Terms it declares -- so a direct PowerSupply term on one of
+    // these fields can no longer make the request depend on its own answer, and that static check was deleted
+    // rather than left enforcing an invariant nominal evaluation had already made false (it would otherwise
+    // still refuse the six shipped records this ruling exists to make legal again). The census below still has
+    // exactly one live reader: TryGetPowerRequestBehaviorName, for the modifier-chain half of the rule
+    // (StatModifier.ValidateNoPowerSupplyChain, StatModifier.cs) -- EvaluateNominalPower forwards
+    // ScaleModifier/ConstantModifier unchanged (real, not nominal), so a modifier chain that reaches a
+    // power-tainted magnitude stat still corrupts a nominal read too, and that is what remains forbidden.
+    public static readonly (Type Type, string Field)[] PowerRequestFields =
+    {
+        (typeof(EnergyDrawData), nameof(EnergyDrawData.EnergyDraw)),
+        (typeof(ThrusterData), nameof(ThrusterData.EnergyUsage)),
+        (typeof(ConstantWeaponData), nameof(WeaponData.Energy)),
+        (typeof(InstantWeaponData), nameof(WeaponData.Energy)),
+        (typeof(InstantWeaponData), nameof(InstantWeaponData.Cooldown)),
+        (typeof(InstantWeaponData), nameof(InstantWeaponData.Count)),
+        (typeof(SensorData), nameof(SensorData.PingEnergy)),
+        (typeof(SensorData), nameof(SensorData.PingCooldown)),
+        (typeof(ShieldData), nameof(ShieldData.Capacity)),
+        (typeof(ShieldData), nameof(ShieldData.RefillDuration)),
+        (typeof(ShieldData), nameof(ShieldData.RestoreDuration)),
+        (typeof(RadiatorData), nameof(RadiatorData.EnergyUsage)),
+        (typeof(RadiatorData), nameof(RadiatorData.PumpedHeat)),
+        (typeof(RadiatorData), nameof(RadiatorData.WasteHeat)),
+        (typeof(AetherDriveData), nameof(AetherDriveData.EnergyDraw)),
+        (typeof(AetherDriveData), nameof(AetherDriveData.Torque)),
+        (typeof(AetherDriveData), nameof(AetherDriveData.LambdaMultiplier)),
+        (typeof(AetherDriveData), nameof(AetherDriveData.MaximumRpm)),
+        (typeof(AetherDriveData), nameof(AetherDriveData.PassiveCoupling)),
+    };
+
+    // Whether `stat` is the request stat of some IPowerConsumer behaviour on `data` -- used by StatModifier's
+    // equip-time chain check to tell "an ordinary modifier target" from "a modifier target that would corrupt a
+    // power request." Returns the owning behaviour's type name for the error message.
+    public static bool TryGetPowerRequestBehaviorName(EquippableItemData data, PerformanceStat stat, out string behaviorName)
+    {
+        foreach (var behavior in data.Behaviors)
+        foreach (var (type, field) in PowerRequestFields)
+        {
+            if (!type.IsInstanceOfType(behavior)) continue;
+            if (ReferenceEquals(type.GetField(field)?.GetValue(behavior), stat))
+            {
+                behaviorName = type.Name;
+                return true;
+            }
+        }
+        behaviorName = null;
+        return false;
     }
 }
 

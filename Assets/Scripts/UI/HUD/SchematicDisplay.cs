@@ -106,8 +106,11 @@ public class SchematicDisplay : MonoBehaviour
                 CargoTemperatureLabel.text = "N/A";
         }
         
+        // Cut 2 (docs/fire-control-cut.md): an enemy schematic shows only what `player` has actually
+        // resolved (FireControl.IsRevealed) -- the same predicate the selection writer and the AI use. The
+        // player's own schematic is unfiltered; there is nothing to reveal about your own ship.
         _schematicItems = entity.Equipment
-            .Where(x => x.Behaviors.Any(b => b.Data is WeaponData))
+            .Where(x => x.Behaviors.Any(b => b.Data is WeaponData) && (!_enemy || FireControl.IsRevealed(player, x)))
             .Select(x => new SchematicDisplayItem
             {
                 Item = x, 
@@ -200,6 +203,13 @@ public class SchematicDisplay : MonoBehaviour
             // {
             //     DistanceLabel.text = $"{(int)length(_entity.Position - _player.Position)}";
             // }
+
+            // Cut 2 (docs/fire-control-cut.md): marks whichever row is the player's current aim point.
+            // Re-checked every frame (not just on ShowShip) because ResolvedTargetItem can drop on its own
+            // as info decays, with no event to hook.
+            if (_enemy && _schematicItems != null)
+                foreach (var x in _schematicItems)
+                    x.ListElement.SetSelected(x.Item == _player.ResolvedTargetItem);
 
             if(VisibilityLabel)
                 VisibilityLabel.text = ((int)_entity.Visibility).ToString();

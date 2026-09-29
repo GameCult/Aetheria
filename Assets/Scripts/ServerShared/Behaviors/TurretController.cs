@@ -73,15 +73,12 @@ public class TurretController : Behavior, IInitializableBehavior
             }
             else
                 Entity.LookDirection = normalize(diff);
-            var dist = length(diff);
 
             foreach (var x in _weapons)
             {
-                var data = x.Data as WeaponData;
-                var fire = dot(
-                    x.Direction,
-                    Entity.LookDirection) > .99f;
-                if (x.Evaluate(data.Range) > dist && fire)
+                // The same per-weapon decision Combat.cs makes; the range test is part of it (a shot out of range
+                // is not designated and prices at zero).
+                if (FireControl.AgentFires(x, Entity, Entity.Target.Value))
                 {
                     x.Activate();
                 }

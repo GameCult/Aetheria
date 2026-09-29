@@ -27,7 +27,7 @@ public class EnergyDrawData : BehaviorData
     }
 }
 
-public class EnergyDraw : Behavior
+public class EnergyDraw : Behavior, IPowerConsumer
 {
     private EnergyDrawData _data;
 
@@ -41,8 +41,30 @@ public class EnergyDraw : Behavior
         _data = data;
     }
 
+    // Cut 3 (docs/stats-and-power-cut.md): the request PowerBus needs before Execute runs, in place of the
+    // direct Entity.TryConsumeEnergy spend that used to happen inside Execute.
+    //
+    // Nominal-request ruling (docs/stats-and-power-cut.md, operator ruling 2026-09-19): EnergyDraw is a
+    // registered request field (StatValidation.PowerRequestFields) -- read nominally, same reasoning as every
+    // other IPowerConsumer in this cut.
+    public float PowerRequest(float dt) => EvaluateNominalPower(_data.EnergyDraw) * (_data.PerSecond ? dt : 1);
+
+    // Cut 5 (docs/stats-and-power-cut.md §1.3, PowerTiers.cs): Utility -- the generic/unclassified draw. An item
+    // that declares power use without asking for a specific tier should not accidentally outrank a named one.
+    public int DefaultPowerTier => PowerTiers.Utility;
+
     public override bool Execute(float dt)
     {
-        return Entity.TryConsumeEnergy(Evaluate(_data.EnergyDraw) * (_data.PerSecond ? dt : 1));
+        // A consumable-hosted instance (Item null) has no PowerBus entry (§1.2's grants are keyed by
+        // EquippedItem); named rather than silently assumed away, it always succeeds here, the same way every
+        // other context-dependent factor a ConsumableItemEffect answers with the identity elsewhere in this cut.
+        //
+        // Cut 7 (docs/stats-and-power-target.md): unlike the other four continuous consumers, EnergyDraw has no
+        // performance stat of its own to curve -- its Execute return value IS its whole effect, the gate that
+        // decides whether the rest of its BehaviorGroup runs at all (Entity.cs's per-group Execute chain). There
+        // is nothing here for a PowerSupply term to degrade continuously, so brownout is expressed the only way
+        // this behaviour can express it: a partial grant still passes (no more flicking off at 80%), and only a
+        // true zero grant closes the gate.
+        return Item == null || Item.PowerSupply > 1e-4f;
     }
 }

@@ -39,8 +39,13 @@ public sealed class LoadoutTests : IDisposable
         var cargo = cache.Upsert(new CargoBayData { Name = "Crate", Shape = new Shape(), InteriorShape = new Shape(), Price = 5 });
         var gun = cache.Upsert(new GearData { Name = "Gun", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 1, Behaviors = { new InstantWeaponData() } });
         cache.Upsert(new GearData { Name = "Orphan", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 1 });
+        // Cut 2 (docs/fire-control-cut.md, Q4): required equipment for any entity with a weapon
+        // (LoadoutGenerator.FillInterior). "Gun" carries a weapon behaviour and shares this catalog's one
+        // Sensors hardpoint type with "Lamp"/"Orphan", so any generated loadout that happens to draw Gun
+        // needs a targeting-system product available or FillInterior throws.
+        var targeting = cache.Upsert(new GearData { Name = "Scope", Hardpoint = HardpointType.Tool, Shape = new Shape(), Price = 1, Behaviors = { new TargetingSystemData() } });
 
-        foreach (var (name, design) in new[] { ("Skiff by Maker", hull.Key), ("Lamp by Maker", gear.Key), ("Crate by Maker", cargo.Key), ("Gun by Maker", gun.Key) })
+        foreach (var (name, design) in new[] { ("Skiff by Maker", hull.Key), ("Lamp by Maker", gear.Key), ("Crate by Maker", cargo.Key), ("Gun by Maker", gun.Key), ("Scope by Maker", targeting.Key) })
             cache.Upsert(new FactionProductData { Name = name, Design = new CultRecordRef<CraftedItemData>(design), Manufacturer = maker });
         cache.FlushAsync().Wait();
     }
@@ -519,8 +524,8 @@ public sealed class LoadoutTests : IDisposable
         var instance = (EquippableItem) items.CreateInstance(commonLot);
         var rareInstance = (EquippableItem) items.CreateInstance(rareLot);
 
-        var withRole = new PerformanceStat { FromRole = "lens", Min = 0, Max = 1, QualityExponent = 1 };
-        var noRole = new PerformanceStat { Min = 0, Max = 1, QualityExponent = 1 };
+        var withRole = new PerformanceStat { Min = 0, Max = 1, Terms = { new StatTerm { Source = StatSource.Quality, Exponent = 1, Role = "lens" } } };
+        var noRole = new PerformanceStat { Min = 0, Max = 1, Terms = { new StatTerm { Source = StatSource.Quality, Exponent = 1 } } };
         Assert.Equal(.9f, items.Evaluate(withRole, instance), 3);
         Assert.Equal(.2f, items.Evaluate(noRole, instance), 3);
         Assert.Equal(.2f, items.GetTier(instance).tier.Quality, 3);
@@ -530,6 +535,24 @@ public sealed class LoadoutTests : IDisposable
         var secondInstance = (EquippableItem) items.CreateInstance(commonLot);
         Assert.Equal(.2f, items.Lots[commonLot].Quality, 3);
         Assert.Equal(.2f, items.GetTier(secondInstance).tier.Quality, 3);
+    }
+
+    // S7 (docs/stats-and-power-cut.md Cut 1 findings): a Quality term must raise the lot's quality to its own
+    // declared Exponent, not always to 1. StatsReadTheLot uses Exponent = 1 throughout, which cannot distinguish
+    // "read the term's exponent" from "always use 1" -- pow(x, 1) == x either way. Exponent = 2 here can: a
+    // mutation that drops the term's own exponent (using 1f regardless of what is declared) reads .5 instead of
+    // the correct .25.
+    [Fact]
+    public void QualityTermAppliesItsOwnExponent()
+    {
+        using var cache = Open();
+        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var lamp = cache.GetByName<GearData>("Lamp");
+        var lotId = items.Lots.Add(new Lot { Design = cache.RefOf<ItemData>(lamp), Origin = new Attributed(), Quality = .5f, Roles = new List<RoleFill>() });
+        var instance = (EquippableItem) items.CreateInstance(lotId);
+
+        var squared = new PerformanceStat { Min = 0, Max = 1, Terms = { new StatTerm { Source = StatSource.Quality, Exponent = 2 } } };
+        Assert.Equal(.25f, items.Evaluate(squared, instance), 3);
     }
 
     // F4: GetPrice reads the lot's quality through GameplaySettings.QualityPriceModifier.
@@ -549,8 +572,8 @@ public sealed class LoadoutTests : IDisposable
     }
 
     // F4: the durability exponent path in ItemManager.Evaluate reads the lot's quality (GameplaySettings.
-    // DurabilityQuality{Min,Max,Exponent}), independently of the quality-for-role term (zeroed here via
-    // QualityExponent 0).
+    // DurabilityQuality{Min,Max,Exponent}), independently of the quality-for-role term (absent here -- the
+    // stat declares only a Durability term).
     [Fact]
     public void EvaluateDurabilityExponentReadsLotQuality()
     {
@@ -566,7 +589,7 @@ public sealed class LoadoutTests : IDisposable
         low.Durability = items.GetData(low).Durability / 2;
         high.Durability = items.GetData(high).Durability / 2;
 
-        var stat = new PerformanceStat { Min = 0, Max = 1, QualityExponent = 0, DurabilityExponentMultiplier = 1 };
+        var stat = new PerformanceStat { Min = 0, Max = 1, Terms = { new StatTerm { Source = StatSource.Durability, Exponent = 1 } } };
         Assert.NotEqual(items.Evaluate(stat, low), items.Evaluate(stat, high));
     }
 
@@ -595,6 +618,135 @@ public sealed class LoadoutTests : IDisposable
         var lowEquipped = BuildWithGearQuality(.1f).Equipment.Single(e => e.Data is GearData);
         var highEquipped = BuildWithGearQuality(.9f).Equipment.Single(e => e.Data is GearData);
         Assert.NotEqual(lowEquipped.ThermalExponent, highEquipped.ThermalExponent);
+    }
+
+    // Cut 0 (docs/stats-and-power-cut.md): the collapsed evaluation path (PerformanceStat.Evaluate(IStatContext))
+    // gives the unequipped and the equipped-at-full-health-and-optimal-temperature cases the same number, for a
+    // design whose heat curve genuinely reaches full performance at its plateau. Before the cut this equality was
+    // not even expressible: the two paths were separate hand-written formulas (ItemManager.Evaluate and
+    // EquippedItem.Evaluate) with no shared entry point to assert against. It is expressible now because both
+    // resolve through the one function via an IStatContext, which is the structural point of the cut.
+    //
+    // Cut 1 (docs/stats-and-power-cut.md), R-heat: the authored shape is minimum, maximum, optimum and plateau
+    // width, with linear falloffs -- no curve. This fixture authors a plateau (40-60 out of a 0-100 range) that
+    // reaches exactly 1.0 across it, the R-heat equivalent of the old flat-topped bezier fixture, so the
+    // equality this test pins (unequipped agrees with equipped-at-optimum) is expressible the same way Cut 0
+    // left it.
+    [Fact]
+    public void UnequippedAgreesWithEquippedAtFullHealthAndOptimalTemperature()
+    {
+        using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
+        var maker = cache.RefOf(cache.GetByName<Faction>("Maker"));
+        var hullData = cache.GetByName<HullData>("Skiff");
+
+        var thermalGear = cache.Upsert(new GearData
+        {
+            Name = "Thermal", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 10,
+            Durability = 100, MinimumTemperature = 0, MaximumTemperature = 100,
+            OptimalTemperature = 50, PlateauWidth = 20
+        });
+        cache.FlushAsync().Wait();
+        var thermalData = cache.Get(thermalGear);
+
+        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var hullItem = (EquippableItem) items.CreateInstance(items.CreateLot(hullData, maker, .5f));
+        var ship = new Ship(items, null, hullItem, new EntitySettings());
+        var gearItem = (EquippableItem) items.CreateInstance(items.CreateLot(thermalData, maker, .5f));
+        Assert.True(ship.TryEquip(gearItem, HardpointCell));
+        var equipped = ship.Equipment.Single(e => e.Data is GearData);
+
+        // Drive the entity's temperature to the design's optimal, at full durability (CreateInstance's default).
+        foreach (var cell in equipped.InsetShape.Coordinates)
+            ship.Temperature[cell.x, cell.y] = thermalData.OptimalTemperature;
+        equipped.UpdatePerformance();
+        Assert.Equal(1f, equipped.ThermalPerformance, 4);
+        Assert.Equal(1f, equipped.DurabilityPerformance, 4);
+
+        var stat = new PerformanceStat
+        {
+            Min = 0, Max = 1,
+            Terms = { new StatTerm { Source = StatSource.Heat, Exponent = 1 }, new StatTerm { Source = StatSource.Durability, Exponent = 1 } }
+        };
+        var equippedResult = equipped.Evaluate(stat);
+        var unequippedResult = items.Evaluate(stat, gearItem);
+        Assert.Equal(unequippedResult, equippedResult, 5);
+    }
+
+    // Cut 0: the unequipped context has no heat, by name (UnequippedStatContext.HeatFactor is a fixed 1),
+    // regardless of the item's actual temperature or the term's exponent. This is one of the two named
+    // disagreements the cut preserves rather than resolves -- the trade menu shows the un-discounted value on
+    // purpose. Mutation: have HeatFactor read a real thermal performance instead of the constant 1; this goes
+    // red because the item is equipped far off its optimal temperature while unequipped stays unchanged.
+    [Fact]
+    public void UnequippedIgnoresHeatRegardlessOfTemperature()
+    {
+        using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
+        var maker = cache.RefOf(cache.GetByName<Faction>("Maker"));
+        var hullData = cache.GetByName<HullData>("Skiff");
+        // A peak with zero plateau width: performance reaches 1.0 only exactly at the optimum, matching the old
+        // curve fixture's single-point peak at .5 of its range.
+        var thermalGear = cache.Upsert(new GearData
+        {
+            Name = "ColdThermal", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 10,
+            Durability = 100, MinimumTemperature = 0, MaximumTemperature = 100,
+            OptimalTemperature = 50, PlateauWidth = 0
+        });
+        cache.FlushAsync().Wait();
+        var thermalData = cache.Get(thermalGear);
+
+        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var hullItem = (EquippableItem) items.CreateInstance(items.CreateLot(hullData, maker, .5f));
+        var ship = new Ship(items, null, hullItem, new EntitySettings());
+        var gearItem = (EquippableItem) items.CreateInstance(items.CreateLot(thermalData, maker, .5f));
+        Assert.True(ship.TryEquip(gearItem, HardpointCell));
+        var equipped = ship.Equipment.Single(e => e.Data is GearData);
+
+        // Drive the item to the coldest end of its range -- far from optimal, ThermalPerformance -> 0.
+        foreach (var cell in equipped.InsetShape.Coordinates)
+            ship.Temperature[cell.x, cell.y] = thermalData.MinimumTemperature;
+        equipped.UpdatePerformance();
+        Assert.True(equipped.ThermalPerformance < 0.01f);
+
+        var stat = new PerformanceStat { Min = 0, Max = 1, Terms = { new StatTerm { Source = StatSource.Heat, Exponent = 1 } } };
+        var equippedResult = equipped.Evaluate(stat);
+        var unequippedResult = items.Evaluate(stat, gearItem);
+        Assert.True(equippedResult < 0.01f); // heat tanks the equipped read
+        Assert.Equal(1f, unequippedResult, 3); // unequipped never reads heat at all
+    }
+
+    // Cut 1: ConsumableItemEffect's progress-through-duration is now its own declared term (ConsumableProgress)
+    // rather than a hard override of "heat" applied to every stat regardless of what it declares. A stat that
+    // declares the term reads progress; one that does not is unaffected by it, the same as any other source a
+    // context has no reader for. Mutation: apply ConsumableProgressFactor unconditionally instead of gating it
+    // on a declared term; the "undeclared" assertion goes red because Undeclared would then also read .5.
+    [Fact]
+    public void ConsumableProgressAppliesOnlyWhenDeclared()
+    {
+        using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
+        var maker = cache.RefOf(cache.GetByName<Faction>("Maker"));
+        var hullData = cache.GetByName<HullData>("Skiff");
+        var ramp = new BezierCurve { Keys = new[] { new float4(0f, 0f, 0f, 0f), new float4(1f, 1f, 0f, 0f) } };
+        var consumableRef = cache.Upsert(new ConsumableItemData { Name = "Booster", Duration = 10, Effectiveness = ramp });
+        cache.FlushAsync().Wait();
+        var consumableData = cache.Get(consumableRef);
+
+        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var hullItem = (EquippableItem) items.CreateInstance(items.CreateLot(hullData, maker, .5f));
+        var ship = new Ship(items, null, hullItem, new EntitySettings());
+        // ItemManager.CreateInstance has no ConsumableItemData branch (it only special-cases EquippableItemData,
+        // falling back to CompoundCommodity otherwise); build the instance directly, as that method does for
+        // EquippableItem.
+        var consumableLot = items.CreateLot(consumableData, maker, .5f);
+        var consumableItem = new ConsumableItem { Data = cache.RefOf<ItemData>(consumableData), Lot = consumableLot };
+        var effect = new ConsumableItemEffect(consumableItem, ship);
+        effect.Update(5f); // half the duration elapsed -> progress .5 -> effectiveness .5 on a linear ramp
+
+        // Exponent 2, not 1: pow(.5, 2) == .25 differs from the raw progress .5, so a mutation that dropped the
+        // term's own exponent (using the raw effectiveness value unexponentiated) is distinguishable from this.
+        var declared = new PerformanceStat { Min = 0, Max = 1, Terms = { new StatTerm { Source = StatSource.ConsumableProgress, Exponent = 2 } } };
+        var undeclared = new PerformanceStat { Min = 0, Max = 1 };
+        Assert.Equal(.25f, effect.Evaluate(declared), 3);
+        Assert.Equal(1f, effect.Evaluate(undeclared), 3);
     }
 
     // F4: CreateLot(product) fills each of the design's roles from the product's own per-role spread
@@ -713,6 +865,33 @@ public sealed class LoadoutTests : IDisposable
             Assert.Equal(groups == null ? 0 : 1, ship.WeaponGroups[0].items.Count);
             ship.GenerateWeaponGroups();
         }
+    }
+
+    // Cut 0 (settings-globals-cut.md): Entity's ctor must copy the template it is given. No entity may alias
+    // GameplaySettings.DefaultEntitySettings, or a write through one ship (InventoryMenu's Shutdown Threshold
+    // edit) would silently move the default for every other ship, and once settings are a catalog global, the
+    // cached record itself.
+    [Fact]
+    public void EntitiesDoNotShareDefaultEntitySettings()
+    {
+        using var cache = Open();
+        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var maker = cache.RefOf(cache.GetByName<Faction>("Maker"));
+        var hullData = cache.GetByName<HullData>("Skiff");
+        var template = items.GameplaySettings.DefaultEntitySettings;
+        var originalThreshold = template.ShutdownPerformance;
+
+        Ship BuildShip() => new Ship(items, null, (EquippableItem) items.CreateInstance(items.CreateLot(hullData, maker, .5f)), template);
+
+        var shipA = BuildShip();
+        var shipB = BuildShip();
+
+        shipA.Settings.ShutdownPerformance = originalThreshold + 1;
+
+        Assert.NotSame(template, shipA.Settings);
+        Assert.NotSame(shipA.Settings, shipB.Settings);
+        Assert.Equal(originalThreshold, shipB.Settings.ShutdownPerformance);
+        Assert.Equal(originalThreshold, template.ShutdownPerformance);
     }
 
     // Everything available: for tests about placement and failure lists.

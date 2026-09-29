@@ -32,11 +32,17 @@ public class InstantWeaponData : WeaponData
     }
 }
 
-public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
+public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerConsumer
 {
     private InstantWeaponData _data;
 
+    // Cut 4 (docs/stats-and-power-cut.md, Cut 4): replaces the direct Entity.TrySpendCapacitorCharge spend at
+    // both Trigger() and Execute() below -- the named, temporary exception Cut 3 left standing.
+    protected readonly InputCapacitor _capacitor = new InputCapacitor();
+
     protected int _burstRemaining;
+    private bool _burstPaid;
+    private bool _burstStarted;
     private float _burstTimer;
     private float _burstInterval;
     protected float _cooldown; // Normalized
@@ -48,7 +54,8 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
     public float Cooldown { get; protected set; }
     public virtual bool CanFire
     {
-        get => !_coolingDown;
+        // A triggered burst that has not yet fired a round is not ready either: its cooldown has not started.
+        get => !_coolingDown && (_burstStarted || _burstRemaining == 0);
     }
 
     public override float DamagePerSecond => Damage / Cooldown;
@@ -66,7 +73,9 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
     public event Action OnReloadBegin;
     public event Action OnReloadComplete;
     public event Action OnCooldownComplete;
-    public event Action OnFire;
+    // Cut 3 (docs/fire-control-cut.md): carries the ShotId FireControl.Fire assigned, so a Unity effect
+    // manager can bind its presentation to the one shot it belongs to instead of applying damage itself.
+    public event Action<int> OnFire;
 
     public virtual void ResetEvents()
     {
@@ -92,16 +101,25 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
     {
         // Safed: shooter has a target and hasn't declared hostility toward it.
         if (!StanceAllowsFire) return;
+        // Cut 3 (docs/fire-control-cut.md, Q2): arc-gated the same way AI and turret fire are (Weapon.
+        // ArcAllowsFire), and applied here because this is the one place every shooter's trigger passes
+        // through -- a player's action-bar Activate() reaches this exactly the same way Combat.cs's and
+        // TurretController.cs's Activate() calls do.
+        if (!ArcAllowsFire) return;
+        // A refused round is free (operator ruling 2026-09-30): no ammo, energy or cooldown is spent on a burst
+        // whose first round FireControl would refuse.
+        if (FireControl.Refuses(this, Entity)) return;
 
-        // If 1 ammo is consumed per burst, perform ammo and energy consumption here
-        // UseAmmo returns false when triggering reload; cancel firing if that is the case
-        if(_data.SingleAmmoBurst && (!Entity.TryConsumeEnergy(Energy) || !UseAmmo())) return;
-        
+        // A burst that pays once (SingleAmmoBurst) pays at its first round that is not refused, in Execute, judged
+        // with the Range that round flies with: paying here would judge with the Range of the previous tick, and a
+        // Range that fell in between would spend the ammo on rounds Fire then refuses.
+        _burstPaid = false;
         _burstRemaining = (int) BurstCount;
         _burstInterval = BurstTime / _burstRemaining;
         _burstTimer = 0;
-        _cooldown = 1;
-        _coolingDown = true;
+        // The cooldown starts with the burst's first round that is not refused (Execute), not here: a burst whose
+        // every round is refused fires nothing and leaves no cooldown behind.
+        _burstStarted = false;
     }
 
     protected override void UpdateStats()
@@ -115,6 +133,45 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
         Heat /= (int) BurstCount;
         Energy /= (int) BurstCount;
     }
+
+    // Cut 4 (docs/stats-and-power-cut.md §7 Q4): capacity and rate, resolved fresh rather than off the cached
+    // Energy/Cooldown properties above -- Capacitor.ResolveCapacity's precedent (PowerBus.Step, which calls
+    // PowerRequest below, runs before this behaviour's own Execute this tick, so those cached properties would
+    // still hold last tick's value). Capacity is one shot's own energy cost, exactly what the two deleted
+    // direct-spend call sites measured. Default rate keeps sustained fire exactly at Cooldown's pace when the
+    // bus grants the full request; RateOverride lets an owner replace that (ChargedWeapon does).
+    protected virtual float RateOverride => 0f;
+
+    // Nominal-request ruling (docs/stats-and-power-cut.md, operator ruling 2026-09-19): Count, Energy and
+    // Cooldown are all registered request fields (StatValidation.PowerRequestFields) -- read nominally here so
+    // the capacitor's own Capacity/Rate this feeds into PowerRequest below never depends on this tick's own
+    // grant. Nothing here needs the real, curved value: PowerRequest only ever asks "how much would a full shot
+    // cost," and the actual charge added back in Execute is separately scaled by Item.PowerSupply.
+    protected void RefreshInputCapacitor()
+    {
+        var burstCount = max(1, (int) EvaluateNominalPower(_data.Count));
+        var perShotEnergy = EvaluateNominalPower(_data.Energy) / burstCount;
+        var cooldown = EvaluateNominalPower(_data.Cooldown);
+        _capacitor.UpdateStats(perShotEnergy, cooldown, rateOverride: RateOverride);
+    }
+
+    // Cut 4: the request PowerBus needs before Execute runs, mirroring EnergyDraw's IPowerConsumer pattern.
+    public float PowerRequest(float dt)
+    {
+        RefreshInputCapacitor();
+        return _capacitor.RequestedFill(dt);
+    }
+
+    // Cut 5 (docs/stats-and-power-cut.md §1.3, PowerTiers.cs): Low -- offense. The ruling's own example of what
+    // a reactor throttle should sacrifice first.
+    public int DefaultPowerTier => PowerTiers.Low;
+
+    // Cut 4: whole-or-nothing against this behaviour's own input capacitor -- the operator's ruling ("no item
+    // ever receives a fraction of a shot") means a fire attempt only ever succeeds at full charge, so the cost
+    // spent is always exactly Capacity, never the possibly-stale cached Energy. A consumable-hosted instance
+    // (Item == null) has no PowerBus entry (Behaviors.cs: "no PowerBus entry ... always succeeds"), so nothing
+    // would ever fill this capacitor -- bypass it entirely rather than starving such an instance forever.
+    protected bool TrySpendActivationEnergy() => Item == null || _capacitor.TrySpend(_capacitor.Capacity);
 
     private bool UseAmmo()
     {
@@ -153,6 +210,10 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
     public override bool Execute(float dt)
     {
         base.Execute(dt);
+        // Cut 4: this tick's grant, read back via Item.PowerSupply -- Item is non-null here because a null-Item
+        // instance never reaches PowerBus.Step (see TrySpendActivationEnergy) and so never accrues charge.
+        if (Item != null)
+            _capacitor.AddCharge(_capacitor.RequestedFill(dt) * Item.PowerSupply);
         if (_coolingDown)
         {
             _cooldown -= dt / (_data.MagazineSize > 0 && _ammo == 0 ? _data.ReloadTime : Cooldown);
@@ -173,17 +234,42 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior
         _burstTimer += dt;
         while (_burstRemaining > 0 && _burstTimer > 0)
         {
-            // If multiple ammo is consumed per burst, perform ammo and energy consumption here
-            // UseAmmo returns false when triggering reload; cancel firing if that is the case
-            if (!_data.SingleAmmoBurst && (!Entity.TryConsumeEnergy(Energy) || !UseAmmo()))
+            // A fused round whose arming distance Range cannot reach is refused, per round, before anything is
+            // spent (operator ruling 2026-09-30): it costs no ammo, energy, sound, heat, wear or visibility.
+            // The decision is FireControl's; Fire makes the same one.
+            var refused = FireControl.Refuses(this, Entity);
+            // Ammo and energy are consumed here, per round, or once per burst at its first unrefused round
+            // (SingleAmmoBurst). UseAmmo returns false when triggering reload; cancel firing if that is the case
+            if (!refused && !_burstPaid && (!TrySpendActivationEnergy() || !UseAmmo()))
             {
                 _burstRemaining = 0;
                 return false;
             }
-            
+            if (!refused)
+            {
+                _burstPaid = _data.SingleAmmoBurst;
+                if (!_burstStarted)
+                {
+                    _burstStarted = true;
+                    _cooldown = 1 - dt / Cooldown;
+                    // The round starts the cooldown after this tick's decrement above: charge the tick to it, so the cadence stays Cooldown
+                    _coolingDown = true;
+                }
+            }
+
             _burstRemaining--;
             _burstTimer -= _burstInterval;
-            OnFire?.Invoke();
+            if (refused) continue;
+            // Cut 3: this is fire authority's one entry point. FireControl.Fire freezes the payload snapshot
+            // (Q6 -- the gun's own stats at this exact instant, base.Execute(dt) above already refreshed them
+            // this tick) and queues a PendingShot; nothing downstream re-evaluates a stat.
+            // Cut 4 fix: FireControl.Fire must run whether or not anything is listening -- inlined into
+            // `OnFire?.Invoke(...)` it looked equivalent but was not. C#'s null-conditional short-circuits the
+            // whole expression, argument included, whenever OnFire has no subscriber (a headless run with no
+            // Unity EntityInstance wiring, docs/headless-playground-cut.md), so a shot silently never fired.
+            // Evaluate it into a local first.
+            var shotId = FireControl.Fire(this, Item, Entity);
+            OnFire?.Invoke(shotId);
             if(!firedThisFrame)
             {
                 Item.FireAudioEvent(WeaponAudioEvent.Fire);

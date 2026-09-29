@@ -192,16 +192,22 @@ public class EntityInstance : MonoBehaviour
                     var data = (InstantWeaponData) instantWeapon.Data;
                     if (!_instantWeaponManagers.ContainsKey(data))
                     {
-                        var managerPrefab = UnityHelpers.LoadAsset<InstantWeaponEffectManager>(data.EffectPrefab);
+                        var managerPrefab = EngineAssets.Load<InstantWeaponEffectManager>(data.EffectPrefab);
                         if(managerPrefab)
                         {
                             _instantWeaponManagers.Add(data, Instantiate(managerPrefab, EffectManagerParent));
                         }
-                        else Debug.LogError($"No InstantWeaponEffectManager prefab found at path {data.EffectPrefab}");
+                        else Debug.LogError($"No InstantWeaponEffectManager prefab found for GUID {data.EffectPrefab}");
                     }
 
-                    instantWeapon.OnFire += () => 
-                        _instantWeaponManagers[data].Fire(instantWeapon, item, this, entity.Target.Value != null && ZoneRenderer.EntityInstances.ContainsKey(entity.Target.Value) ? ZoneRenderer.EntityInstances[entity.Target.Value] : null);
+                    // Cut 3 (docs/fire-control-cut.md): carries the ShotId FireControl.Fire assigned so the
+                    // effect manager (and whatever it spawns) can bind its presentation to Zone.ShotCommitted /
+                    // ShotResolved instead of deciding or applying anything itself.
+                    // The target handed to the effect is the shot's own, not the shooter's selection: a fused round
+                    // whose selected target was invalid, or out of arc, flies at none (FireControl.Fire) and the
+                    // effect must not chase one.
+                    instantWeapon.OnFire += shotId =>
+                        _instantWeaponManagers[data].Fire(instantWeapon, item, this, ShotTarget(shotId), shotId);
 
                     if (behavior is ChargedWeapon chargedWeapon)
                     {
@@ -221,12 +227,12 @@ public class EntityInstance : MonoBehaviour
                     var data = (ConstantWeaponData) constantWeapon.Data;
                     if (!_constantWeaponManagers.ContainsKey(data))
                     {
-                        var managerPrefab = UnityHelpers.LoadAsset<ConstantWeaponEffectManager>(data.EffectPrefab);
+                        var managerPrefab = EngineAssets.Load<ConstantWeaponEffectManager>(data.EffectPrefab);
                         if(managerPrefab)
                         {
                             _constantWeaponManagers.Add(data, Instantiate(managerPrefab, EffectManagerParent));
                         }
-                        else Debug.LogError($"No ConstantWeaponEffectManager prefab found at path {data.EffectPrefab}");
+                        else Debug.LogError($"No ConstantWeaponEffectManager prefab found for GUID {data.EffectPrefab}");
                     }
 
                     constantWeapon.OnStartFiring += () =>
@@ -274,126 +280,11 @@ public class EntityInstance : MonoBehaviour
             }
         }
 
-        void DamageSchematic(float damage, Shape hitShape)
-        {
-            foreach (var v in hitShape.Coordinates)
-                hitShape[v] = hitShape[v] && hullData.Shape[v];
-
-            float hullDamage = 0;
-            var damagePerCell = damage / hitShape.Coordinates.Length;
-            foreach (var v in hitShape.Coordinates)
-            {
-                var d = damagePerCell;
-                
-                // Subtract surface damage from armor, passing on the remainder to the item and then to the hull
-                var prev = entity.Armor[v.x, v.y];
-                entity.Armor[v.x, v.y] = max(prev - d, 0);
-                entity.ArmorDamage.OnNext((v, d));
-                d = max(d - prev, 0);
-
-                if (d > 0.1f)
-                {
-                    var item = entity.GearOccupancy[v.x, v.y];
-                    if (item != null)
-                    {
-                        prev = item.EquippableItem.Durability;
-                        item.EquippableItem.Durability = max(prev - d, 0);
-                        entity.ItemDamage.OnNext((item, d));
-                        d = max(d - prev, 0);
-                    }
-                }
-
-                hullDamage += d;
-            }
-
-            if(hullDamage > .1f)
-            {
-                entity.Hull.Durability -= hullDamage;
-                entity.HullDamage.OnNext(hullDamage);
-            }
-        }
-
-        foreach (var collider in HullColliders)
-        {
-            collider.Splash.Subscribe(splash =>
-            {
-                var hitShape = new Shape(hullData.Shape.Width, hullData.Shape.Height);
-                foreach (var v in hullData.Shape.Coordinates)
-                {
-                    var localHitDirection = transform.InverseTransformDirection(splash.Direction.ToUnity());
-                    var direction = normalize(float2(localHitDirection.x, localHitDirection.z));
-                    var cellDot = dot(normalize(v - hullData.Shape.CenterOfMass), direction);
-                    if (cellDot < 0) hitShape[v] = true;
-                }
-                DamageSchematic(splash.Damage, hitShape);
-            });
-            
-            collider.Hit.Subscribe(hit =>
-            {
-                Entity.IncomingHit.OnNext(hit.Source);
-                var hardpointIndex = (int) hit.TexCoord.x - 1;
-                
-                var hitShape = new Shape(hullData.Shape.Width, hullData.Shape.Height);
-
-                // U coordinate between 0-1 indicates a hit that didn't land directly on a hardpoint
-                // Find the 2D position of the hit scaled to the schematic
-                float2 hitPos = float2.zero;
-                if (hardpointIndex < 0 || hardpointIndex >= hullData.Hardpoints.Count)
-                {
-                    hitPos = float2(hit.TexCoord.x * hullData.Shape.Width, hit.TexCoord.y * hullData.Shape.Height);
-                    // Search all schematic border cells for the cell which is closest to the hit position
-                    var hitCell = int2(-1);
-                    var distance = float.MaxValue;
-                    foreach (var v in hullData.Shape.Coordinates)
-                    {
-                        var cellDist = lengthsq(hitPos - v);
-                        if (cellDist < distance)
-                        {
-                            distance = cellDist;
-                            hitCell = v;
-                            hitPos = v + float2(.5f);
-                        }
-                    }
-
-                    hitShape[hitCell] = true;
-                }
-                else
-                {
-                    // Collider UV coordinates starting with 1 correspond to hardpoint index
-                    var hardpoint = hullData.Hardpoints[hardpointIndex];
-                    
-                    // Obtain the hull coordinates of all cells occupied by the hardpoint
-                    var hardpointCells = hullData.Shape.Inset(hardpoint.Shape, hardpoint.Position);
-                    hitPos = hardpointCells.CenterOfMass;
-                    foreach (var v in hardpointCells.Coordinates)
-                        hitShape[v] = true;
-                }
-                
-                for (int i = 0; i < Mathf.RoundToInt(hit.Spread); i++)
-                {
-                    hitShape = hitShape.Expand();
-                }
-
-                if (hit.Penetration > .5f)
-                {
-                    // Find the local 2D vector corresponding to the direction of the incoming hit
-                    var localHitDirection = transform.InverseTransformDirection(hit.Direction.ToUnity());
-                    var penetrationVector = normalize(float2(localHitDirection.x, localHitDirection.z));
-                    // TODO: Bresenham's line algorithm
-                    // March a ray through the ship from the hit position
-                    var penetrationPoint = hitPos;
-                    var penetrationDistance = 0f;
-                    while (penetrationDistance < hit.Penetration && hullData.Shape[int2(penetrationPoint)])
-                    {
-                        penetrationDistance += .5f;
-                        hitShape[int2(penetrationPoint)] = true;
-                        penetrationPoint += penetrationVector * .5f;
-                    }
-                }
-                
-                DamageSchematic(hit.Damage, hitShape);
-            });
-        }
+        // Cut 3 (docs/fire-control-cut.md): DamageSchematic and both HullCollider subscriptions (blast, Hit)
+        // are deleted -- FireControl decides hits now and applies them through Entity.ArmorAbsorb/ItemAbsorb/
+        // DamageHull (ServerShared, Cut 12.3/12.4(b); DamageSchematic, the old per-cell single-lane absorb path
+        // and ApplyHit are all gone), the single owner in place of what used to exist once per Unity effect.
+        // HullColliders no longer publish Hit or a blast event at all (R8).
 
         LookAtPoint = new GameObject($"{entity.Name} Look Point").transform;
         
@@ -434,7 +325,10 @@ public class EntityInstance : MonoBehaviour
                     var t = Instantiate(DestroyEffect).transform;
                     t.position = transform.position;
                 }
-                entity.Zone.Entities.Remove(entity);
+                // Cut 5, 5.6 (docs/fire-control-cut.md, Soul finding 7): Zone now removes the entity itself
+                // (subscribed to Entity.Death when the entity joined) -- this subscription's own business is
+                // loot and the destroy effect, presentation both, not removal from the simulation's own
+                // collection.
             }
         }));
 
@@ -444,6 +338,10 @@ public class EntityInstance : MonoBehaviour
             _influenceInstance.transform.localScale = Vector3.one * orbital.SecurityRadius;
         }
     }
+
+    private EntityInstance ShotTarget(int shotId) =>
+        Entity.Zone.TryGetShot(shotId, out var shot) && shot.Target != null &&
+        ZoneRenderer.EntityInstances.TryGetValue(shot.Target, out var instance) ? instance : null;
 
     private void OnSensorPingEnd()
     {
@@ -509,11 +407,6 @@ public class EntityInstance : MonoBehaviour
         foreach (var x in RadiatorMeshes)
         {
             x.Value.material.SetFloat("_Emission", Entity.ItemManager.GameplaySettings.TemperatureEmissionCurve.Evaluate(x.Key.RadiatorTemperature));
-        }
-
-        foreach (var x in Barrels)
-        {
-            Entity.HardpointTransforms[x.Key] = (x.Value[0].position.ToCultMath(), x.Value[0].forward.ToCultMath());
         }
 
         LookAtPoint.position = transform.position + Entity.LookDirection.ToUnity() * 

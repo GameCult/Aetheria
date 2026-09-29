@@ -33,6 +33,31 @@ public class Zone
     private Random _random;
     public List<Agent> Agents = new List<Agent>();
 
+    // Cut 3 (docs/fire-control-cut.md, 0b table): Zone owns the pending-shot collection and the ShotId
+    // namespace; FireControl owns every transition a shot goes through. ShotCommitted publishes once a shot's
+    // outcome is decided (R4's commit horizon); ShotResolved republishes the same, unchanged outcome at
+    // arrival, right before the shot is removed. Presentations are the only readers of either.
+    public List<PendingShot> PendingShots = new List<PendingShot>();
+    public Subject<ShotOutcome> ShotCommitted = new Subject<ShotOutcome>();
+    public Subject<ShotOutcome> ShotResolved = new Subject<ShotOutcome>();
+    private int _nextShotId;
+    public int NextShotId() => ++_nextShotId;
+
+    // The committed shot a presentation was handed the id of by OnFire. It carries what the simulation decided
+    // -- the target it flies at (null for a round that carries none) and where it bursts -- so a presentation
+    // reads that rather than the shooter's current selection.
+    public bool TryGetShot(int shotId, out PendingShot shot)
+    {
+        foreach (var pending in PendingShots)
+            if (pending.ShotId == shotId)
+            {
+                shot = pending;
+                return true;
+            }
+        shot = default;
+        return false;
+    }
+
     private List<Task> BeltUpdates = new List<Task>();
 
     public float Time
@@ -43,6 +68,12 @@ public class Zone
     public GalaxyZone GalaxyZone { get; }
     public Galaxy Galaxy { get; }
 
+    // Cut 6b (docs/fire-control-cut.md, 6.1, Soul finding 6): one zone, one stable identity -- a galaxy seed
+    // reproduces it, and nothing else in the zone (an NPC joining, a shop opening, a wormhole exit) can
+    // perturb it. FireControl.Commit builds its own local generator from this and the shot's own id instead
+    // of touching a shared stream.
+    public uint CombatSeed { get; }
+
     public Zone(ItemManager itemManager, PlanetSettings settings, ZonePack pack, GalaxyZone galaxyZone, Galaxy galaxy)
     {
         _time = pack.Time;
@@ -51,8 +82,15 @@ public class Zone
         Pack = pack;
         _itemManager = itemManager;
         Settings = settings;
-        _random = new Random(galaxyZone?.Name.StableHash() ?? 1337u);
+        CombatSeed = galaxyZone?.Name.StableHash() ?? 1337u;
+        _random = new Random(CombatSeed);
         var cache = itemManager.ItemData;
+
+        // Cut 5, 5.6 (docs/fire-control-cut.md, Soul finding 7; operator ruling Q3): death removes the ship,
+        // in the simulation, not only in Unity's own loot-drop subscription. One subscription point covers
+        // every join, whichever call site adds the entity (deserialization below, a jump, a spawned turret) --
+        // ObserveAdd fires for all of them. Forbidden writer: no presentation may remove an entity from Zone.
+        Entities.ObserveAdd().Subscribe(add => add.Value.Death.Subscribe(_ => { Entities.Remove(add.Value); add.Value.Deactivate(); }));
 
         foreach (var orbit in pack.Orbits)
         {
@@ -148,6 +186,11 @@ public class Zone
             agent.Update(deltaTime);
 
         foreach (var entity in Entities.ToArray()) entity.Update(deltaTime);
+
+        // Cut 3: after every entity has had its chance to fire this tick, age and resolve the shots that
+        // firing queued. A shot fired this tick with a flight time shorter than CommitHorizon commits and
+        // resolves in this same call.
+        FireControl.Step(this, deltaTime);
     }
 
     // Determine orbital position recursively, caching parent positions to avoid repeated calculations

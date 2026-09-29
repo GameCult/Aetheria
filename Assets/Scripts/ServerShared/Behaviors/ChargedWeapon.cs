@@ -67,6 +67,13 @@ public class ChargedWeapon : InstantWeapon
     public float ChargeTime { get; protected set; }
     public float ChargeEnergy { get; protected set; }
     public float ChargeHeat { get; protected set; }
+
+    // Cut 4 (docs/stats-and-power-cut.md, Cut 4): "its charge cycle already is a buffer, and ChargeEnergy
+    // should become the fill rate rather than a separate concept." ChargeEnergy was authored but never spent
+    // by anything (Trigger() always paid the base Weapon.Energy per shot); it becomes this weapon's input
+    // capacitor rate instead of the InstantWeapon default (Capacity / Cooldown), so a charged weapon's own
+    // authored charge-up speed IS its sustained rate of fire, not a second, disconnected number.
+    protected override float RateOverride => Evaluate(_data.ChargeEnergy);
     
     public override float DamagePerSecond => Damage * _data.ChargeFiringDamageMultiplier / (Cooldown + ChargeTime);
     public override float RangeDamagePerSecond(float range)
@@ -153,7 +160,10 @@ public class ChargedWeapon : InstantWeapon
 
     public override void Activate()
     {
-        if(!_charging && !_coolingDown)
+        // CanFire also holds a weapon whose released charge has a burst pending: its cooldown starts at its first round,
+        // so a charge started before then would overlap it.
+        // A refused weapon never starts charging: it would pay charge heat and audio for a shot Trigger drops.
+        if(!_charging && CanFire && !FireControl.Refuses(this, Entity))
         {
             OnStartCharging?.Invoke();
             Item.FireAudioEvent(ChargedWeaponAudioEvent.Start);

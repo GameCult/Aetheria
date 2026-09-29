@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using CultMath;
+using CultMath.UnityBridge;
 using static CultMath.math;
 using UnityEngine;
 using Random = UnityEngine.Random;
@@ -86,23 +87,17 @@ public class Mine : MonoBehaviour
         _material.SetFloat("_Emission", _emission * EmissionCurve.Evaluate(_pulseLerp));
     }
 
+    // Cut 4 (docs/fire-control-cut.md, Q7): the arming OverlapSphere above stays -- that is contact detection,
+    // not hit detection. Blast damage is not: it goes through the same FireControl.Detonate every blast-shaped
+    // weapon uses now (12.4(b) renamed Splash), over the zone's own planar entities, not a Unity collider
+    // query. Presentation (ShowHit) goes with the query it depended on -- nothing here decides who was hit any
+    // more, so nothing here can point a hit effect at them; a future pass can rebuild that off
+    // FireControl-published state if the mine ever ships (R9 keeps it regardless). F12-6: BlastRange stays a
+    // presentation-side input -- Mine has no catalog weapon record carrying Fuse/BlastRadius.
     public void Explode()
     {
         var position = transform.position;
-        foreach (var collider in Physics.OverlapSphere(position, BlastRange, 1 | (1 << 17)))
-        {
-            var shield = collider.GetComponent<ShieldManager>();
-            if (shield && (shield.Entity.Shield != null && shield.Entity.Shield.Item.Active.Value && shield.Entity.Shield.CanTakeHit(DamageType, Damage)))
-            {
-                shield.Entity.Shield.TakeHit(DamageType, Damage);
-                shield.ShowHit(position, sqrt(Damage));
-            }
-            var hull = collider.GetComponent<HullCollider>();
-            if (hull && !(hull.Entity.Shield != null && hull.Entity.Shield.Item.Active.Value && hull.Entity.Shield.CanTakeHit(DamageType, Damage)))
-            {
-                hull.SendSplash(Damage, DamageType, Source.Entity, (collider.transform.position - position).normalized);
-            }
-        }
+        FireControl.Detonate(Source.Entity.Zone, position.ToCultMath().xz, BlastRange, Damage, DamageType);
 
         var ht = HitEffect.Instantiate<Transform>();
         ht.position = position;

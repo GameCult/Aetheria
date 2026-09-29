@@ -25,13 +25,16 @@ public class ConstantWeaponData : WeaponData
     }
 }
 
-public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior
+public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerConsumer
 {
     private ConstantWeaponData _data;
     private int _ammo = 1;
     private float _ammoInterval;
     private float _reload;
     private bool _reloading;
+    // Cut 4 (docs/fire-control-cut.md): accumulates while firing; rolled off every time it reaches
+    // GameplaySettings.BeamResolveInterval, through FireControl.Fire/Step exactly like a discrete shot.
+    private float _beamTimer;
     
     public override int Ammo
     {
@@ -53,13 +56,18 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior
     public event Action OnReloadComplete;
     public event Action OnStartFiring;
     public event Action OnStopFiring;
-    
+    // Cut 4 (docs/fire-control-cut.md): carries the ShotId each beam roll's FireControl.Fire assigned, the
+    // same handle InstantWeapon.OnFire gives discrete shots. No presentation binds to it yet -- kept for a
+    // future pass, same as Laser.ShotId.
+    public event Action<int> OnBeamShot;
+
     public void ResetEvents()
     {
         OnReloadBegin = null;
         OnReloadComplete = null;
         OnStartFiring = null;
         OnStopFiring = null;
+        OnBeamShot = null;
     }
 
     public ConstantWeapon(ConstantWeaponData data, EquippedItem item) : base(data, item)
@@ -72,19 +80,47 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior
         _data = data;
     }
 
+    // Cut 3 (docs/stats-and-power-cut.md): the request the bus needs before Execute runs -- what continuing to
+    // fire this tick would cost, or nothing when not firing or safed. _firing is set externally (Activate/
+    // Deactivate) before Entity.Update calls PowerBus.Step, so it is already current when this runs.
+    //
+    // Nominal-request ruling (docs/stats-and-power-cut.md, operator ruling 2026-09-19): Energy is a registered
+    // request field (StatValidation.PowerRequestFields) -- read nominally, same reasoning as every other
+    // IPowerConsumer in this cut. Damage (the field Cut 7 curves) is a separate stat base.Execute reads with the
+    // real Evaluate.
+    // Cut 5 (docs/fire-control-cut.md, 5.3, Soul finding 9): StanceAllowsFire alone let a side-mounted beam
+    // fire forward -- ArcAllowsFire joins it here, matching InstantWeapon.cs's player arc gate (Q2: manual and
+    // programmatic are one truth, and a continuous weapon is no exception).
+    // Operator ruling 2026-09-30: a refused round is free, and a beam is a stream of rounds, so a fused beam whose
+    // arming distance exceeds its Range fires nothing and draws nothing -- no power, ammo, wear, heat or
+    // visibility. FireControl.Refuses is the one arming test; it reads the Range Execute last refreshed, the same
+    // one-tick lag every PowerRequest reads its stats with.
+    private bool MayFire => StanceAllowsFire && ArcAllowsFire && !FireControl.Refuses(this, Entity);
+
+    public float PowerRequest(float dt) => _firing && MayFire ? EvaluateNominalPower(_data.Energy) * dt : 0f;
+
+    // Cut 5 (docs/stats-and-power-cut.md §1.3, PowerTiers.cs): Low -- offense, same as InstantWeapon.
+    public int DefaultPowerTier => PowerTiers.Low;
+
     public override bool Execute(float dt)
     {
         base.Execute(dt);
-        if (_firing && !StanceAllowsFire)
+        if (_firing && !MayFire)
         {
-            // Safed: shooter has a target and hasn't declared hostility toward it.
+            // Safed: shooter has a target and hasn't declared hostility toward it, or the target no longer
+            // bears (5.3: a beam obeys its arc exactly as InstantWeapon's trigger does), or a fused round is
+            // refused.
             _firing = false;
             OnStopFiring?.Invoke();
             return false;
         }
         if (_firing)
         {
-            if (!Entity.TryConsumeEnergy(Evaluate(_data.Energy) * dt))
+            // Cut 7 (docs/stats-and-power-target.md): base.Execute(dt) above already re-read Damage through
+            // Evaluate(_data.Damage), so a Damage stat carrying a PowerSupply term already fires this tick for
+            // less under a partial grant -- the weapon no longer safes itself off (the "flicking off gear" bug
+            // the ruling names) just because the grant fell short of 1. Only true zero supply still stops it.
+            if (Item != null && Item.PowerSupply <= 1e-4f)
             {
                 _firing = false;
                 OnStopFiring?.Invoke();
@@ -135,13 +171,32 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior
             CauseWearDamage(dt);
             AddHeat(Evaluate(_data.Heat) * dt);
             Entity.VisibilitySources[this] = Evaluate(_data.Visibility);
+
+            // Cut 4 (docs/fire-control-cut.md): a beam is a sequence of rolls, not a continuous truth -- one
+            // FireControl.Fire per BeamResolveInterval, for that interval's worth of Damage, through the same
+            // freeze-and-queue path a discrete shot uses (a beam's authored Velocity is 0, so the flight
+            // commits and resolves in this same tick, R4's short-flight degradation).
+            var interval = Entity.ItemManager.GameplaySettings.BeamResolveInterval;
+            _beamTimer += dt;
+            while (_beamTimer >= interval)
+            {
+                _beamTimer -= interval;
+                // FireControl.Fire must run whether or not anything is listening: `OnBeamShot?.Invoke(FireControl.Fire(...))`
+                // looks equivalent but is not -- C#'s null-conditional short-circuits the whole expression,
+                // argument included, when OnBeamShot has no subscriber (true today, R9's "no design uses it
+                // yet"), so the roll would silently never happen. Evaluate it into a local first.
+                var shotId = FireControl.Fire(this, Item, Entity, Damage * interval);
+                OnBeamShot?.Invoke(shotId);
+            }
         }
         return true;
     }
 
     public override void Activate()
     {
-        if(!_firing && !_reloading)
+        // A refused beam never starts (operator ruling 2026-09-30): OnStartFiring drives the beam's visuals and
+        // audio, so starting it only for Execute to stop it a tick later would flash a beam that fires nothing.
+        if(!_firing && !_reloading && !FireControl.Refuses(this, Entity))
         {
             _firing = true;
             OnStartFiring?.Invoke();

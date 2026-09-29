@@ -1,21 +1,23 @@
-using System;
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
-using static CultMath.math;
 
+// Cut 3 (docs/fire-control-cut.md): the raycast, shield branch and SendHit are deleted -- FireControl already
+// rolled and, for a velocity-0 weapon like this one, already resolved this shot before the beam was ever
+// drawn (a short flight commits and resolves in the same Zone.Update tick as Fire). The beam endpoint is
+// presentation, rebuilt from the target's current position rather than a physics hit -- it no longer decides
+// anything (R8).
 public class Laser : MonoBehaviour
 {
     public AnimationCurve IntensityCurve;
     public float Duration;
     public LineRenderer LineRenderer;
-    
-    public float Damage { get; set; }
-    public float Penetration { get; set; }
-    public float Spread { get; set; }
-    public DamageType DamageType { get; set; }
+
     public Entity SourceEntity { get; set; }
     public float Range { get; set; }
+
+    // Cut 3: FireControl.Fire's ShotId. Unused by this simple endpoint-only presentation today, kept so a
+    // future pass can draw the beam to the exact rolled cell instead of the target's overall position.
+    public int ShotId { get; set; }
+    public Transform TargetTransform { get; set; }
 
     private float _startTime;
     private readonly Vector3[] _zeros = {Vector3.zero, Vector3.zero};
@@ -34,38 +36,12 @@ public class Laser : MonoBehaviour
             GetComponent<Prototype>().ReturnToPool();
             return;
         }
-        
+
         LineRenderer.SetPosition(0, transform.position);
-        bool hitFound = false;
-        foreach (var hit in Physics.RaycastAll(new Ray(transform.position, transform.forward), Range, 1 | (1 << 17)))
-        {
-            var shield = hit.collider.GetComponent<ShieldManager>();
-            if (shield)
-            {
-                if (!(shield.Entity.Shield != null && shield.Entity.Shield.Item.Active.Value && shield.Entity.Shield.CanTakeHit(DamageType, Damage))) continue;
-                if (shield.Entity != SourceEntity)
-                {
-                    shield.Entity.Shield.TakeHit(DamageType, Damage);
-                    shield.ShowHit(hit.point, sqrt(Damage));
-                    LineRenderer.SetPosition(1, hit.point);
-                    hitFound = true;
-                    break;
-                }
-            }
-            var hull = hit.collider.GetComponent<HullCollider>();
-            if (hull && !(hull.Entity.Shield != null && hull.Entity.Shield.Item.Active.Value && hull.Entity.Shield.CanTakeHit(DamageType, Damage)))
-            {
-                if (hull.Entity != SourceEntity)
-                {
-                    hull.SendHit(Damage * (Time.deltaTime / Duration), Penetration, Spread, DamageType, SourceEntity, hit.textureCoord, transform.forward);
-                    LineRenderer.SetPosition(1, hit.point);
-                    hitFound = true;
-                    break;
-                }
-            }
-        }
-        if(!hitFound)
-            LineRenderer.SetPosition(1, transform.position + transform.forward * Range);
+        var endpoint = TargetTransform != null
+            ? TargetTransform.position
+            : transform.position + transform.forward * Range;
+        LineRenderer.SetPosition(1, endpoint);
 
         LineRenderer.widthMultiplier = IntensityCurve.Evaluate(lerp);
     }

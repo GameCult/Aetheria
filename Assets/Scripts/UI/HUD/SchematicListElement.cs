@@ -15,7 +15,17 @@ public class SchematicListElement : MonoBehaviour
     public RectTransform CooldownFill;
     public RectTransform HeatFill;
 
+    // Cut 2 (docs/fire-control-cut.md): marks this row as the current aim point (Entity.ResolvedTargetItem)
+    // on an enemy schematic. Unassigned in a prefab that has not been wired up in the Unity editor yet
+    // (unavailable in this pass) -- SetSelected below is a no-op until then, not a null reference.
+    public GameObject SelectedIndicator;
+
     private List<Prototype> _iconInstances = new List<Prototype>();
+
+    public void SetSelected(bool selected)
+    {
+        if (SelectedIndicator != null) SelectedIndicator.SetActive(selected);
+    }
 
     public void ShowWeapon(WeaponItemData weapon)
     {

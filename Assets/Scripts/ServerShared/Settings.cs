@@ -212,10 +212,58 @@ public class GameplaySettings
     public float TargetArmorInfoThreshold;
     public float TargetGearInfoThreshold;
     public float ConvergenceMinimumDistance;
+    public float FiringArc = 120;
+    // Cut 2 (docs/fire-control-cut.md, Q4): what an entity with no working targeting system fires with --
+    // the ceiling FireControl.Accuracy falls back to (Resolution 1, Precision 0 alongside it). Authored low
+    // on purpose ("really, really bad," operator 2026-09-19): .05 against the two catalog designs' own
+    // Accuracy ranges (the authoring spec this cut produces proposes .45-.6 for the 1-cell design and
+    // .65-.85 for the 2-cell one) leaves unaided fire capable of hitting something close, slow and
+    // unaware, and little else. One authored setting, easy to find and turn -- the operator rules the real
+    // figure in play.
+    public float UnaidedAccuracy = .05f;
+    // Cut 5 (docs/fire-control-cut.md, 5.1, Soul finding 3): the unaided fallback for Tracking, alongside
+    // UnaidedAccuracy above -- an entity with no working targeting system used to fall back to Tracking 0,
+    // which Commit turned into a hard wall (any nonzero deviation was an automatic miss). Ten world units of
+    // fire-time-projection deviation forgiveness is the first guess and the operator's knob, the same shape
+    // as UnaidedAccuracy: authored deliberately bad, not authored broken.
+    public float UnaidedTracking = 10f;
+    // Cut 6d (docs/fire-control-cut.md): the unaided fallback for Precision, alongside UnaidedAccuracy and
+    // UnaidedTracking above -- FireControl.Precision falls back to this the same way it already falls back to
+    // UnaidedAccuracy/UnaidedTracking. Precision is now a grouping tightness (FireControl.Sigma = 1/Precision,
+    // in hull-schematic cell units), not the old coin-flip probability, so the unaided floor has to be
+    // authored on that scale. .3 -> sigma 3.33 cells: against the live catalog's own hulls (LonginusX 6x17,
+    // Zenith 12x12, Turret 8x8) that puts pOnHull at the hull's own centre of mass around .5-.84 -- broadly
+    // sprayed across the whole silhouette (sigma is a large fraction of the hull's own width) while still
+    // landing on the ship more often than not. A tighter floor (e.g. .1, sigma 10) was tried first and
+    // rejected: it drove pOnHull for the same hulls down to .08-.18, reading as "can't hit the broad side of a
+    // barn" rather than "sprays the silhouette." First guess, the same deliberately-bad shape as its two
+    // siblings; the operator rules the real figure in play.
+    public float UnaidedPrecision = .3f;
     public float AgentRangeExponent = .25f;
     public float AgentForwardLerp = .5f;
     public float AgentMaxForwardDistance = 50;
-    public float AgentFiringMinDot = .99f;
+
+    // Cut 3 (docs/fire-control-cut.md): first guesses: the headless fixture is the tuning harness, the
+    // operator smoke is the arbiter (§ Risks).
+    //
+    // How long before impact a shot's outcome commits (R4). Deviation counts up to this horizon; after it
+    // the result is frozen and the rest of the flight is pure choreography.
+    public float CommitHorizon = .5f;
+
+    // World units per hull-schematic cell, used only by FireControl.HitProbability's angular-size term
+    // (pSpread) to turn a hull's cell footprint into a real-world silhouette size at range.
+    public float SchematicCellSize = 2f;
+
+    // The floor an AI's own predicted hit probability (FireControl.HitProbability) must clear before it counts
+    // a firing solution worth taking (Combat.cs, TurretController.cs). Player fire is gated on arc alone
+    // (Weapon.ArcAllowsFire, Q2) -- this threshold is an AI fire-discipline heuristic, not part of the roll.
+    public float AgentMinHitProbability = .2f;
+
+    // Cut 4 (docs/fire-control-cut.md): how often a continuous weapon (ConstantWeapon) rolls a discrete
+    // outcome for Damage * this interval, through the same FireControl.Fire/Step pair a discrete shot uses --
+    // a beam is a sequence of rolls, not a continuous truth. First guess; the headless fixture is the tuning
+    // harness, the operator smoke is the arbiter, same as Cut 3's other first guesses.
+    public float BeamResolveInterval = .25f;
 }
 
 [Serializable, MessagePackObject(keyAsPropertyName: true), JsonObject]

@@ -479,14 +479,11 @@ public class PropertiesPanel : MonoBehaviour
 			statusSheet.AddStat("Durability", () => "Item Destroyed!");
 		else statusSheet.AddStat("Durability", () => $"{(int)(item.EquippableItem.Durability / gearData.Durability * 100)}%");
 		statusSheet.AddStat("Temperature", () => ActionGameManager.PlayerSettings.FormatTemperature(item.Temperature));
-		
-		var heatCurve = AddCurveField();
-		heatCurve.Show(
-			"Thermal Performance", 
-			gearData.HeatPerformanceCurve, 
-			t => ActionGameManager.PlayerSettings.FormatTemperature(lerp(gearData.MinimumTemperature, gearData.MaximumTemperature, t)), 
-			true);
-		RefreshPropertyValues += () => heatCurve.SetCurrent(unlerp(gearData.MinimumTemperature, gearData.MaximumTemperature, item.Temperature));
+		// R-heat (docs/stats-and-power-cut.md): the authored shape is min/max/optimum/plateau width, not a
+		// curve, so the thermal performance panel reads those directly rather than sampling a BezierCurve.
+		// Cut 8 owns the real UI reconciliation pass; this keeps the panel legible and compiling in the interim.
+		statusSheet.AddStat("Optimal Temp", () => ActionGameManager.PlayerSettings.FormatTemperature(gearData.OptimalTemperature));
+		statusSheet.AddStat("Thermal Performance", () => $"{(int)(gearData.Performance(item.Temperature) * 100)}%");
 		AddEquippableItemProperties(item.EquippableItem, item.Evaluate);
 		AddSpacer();
 		
@@ -520,12 +517,8 @@ public class PropertiesPanel : MonoBehaviour
 			var gearData = GameManager.ItemManager.GetData(gear);
 			var statusSheet = AddStatSheet();
 			statusSheet.AddStat("Durability", () => $"{(int)(gear.Durability / gearData.Durability * 100)}%");
-			var heatCurve = AddCurveField();
-			heatCurve.Show(
-				"Thermal Performance", 
-				gearData.HeatPerformanceCurve, 
-				t => ActionGameManager.PlayerSettings.FormatTemperature(lerp(gearData.MinimumTemperature, gearData.MaximumTemperature, t)), 
-				true);
+			// R-heat: see the equipped Inspect() overload above for why this is stats, not a curve field.
+			statusSheet.AddStat("Optimal Temp", () => ActionGameManager.PlayerSettings.FormatTemperature(gearData.OptimalTemperature));
 			AddEquippableItemProperties(gear, stat => GameManager.ItemManager.Evaluate(stat, gear));
 		}
 		
