@@ -1573,6 +1573,25 @@ public sealed class FireControlCut124Tests : IDisposable
         Assert.Equal(1.5f, shot.ArrivalTime - shot.FireTime, 3);
     }
 
+    // The same for a no-lock round: a target 10 out behind a mount whose arc is closed is designated but out of
+    // arc, so the round flies the aim to the target's range, inside the blast radius, and is pushed out to 30. It
+    // arrives after 30 units at 20 units/s, not after the 10 it was aimed at. Kills: a no-lock flight distance
+    // that ignores the arming distance.
+    [Fact]
+    public void APushedOutNoLockRoundDoesNotArriveBeforeItHasFlownTheArmingDistance()
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 20f, fuse: WeaponFuse.Proximity, blastRadius: 30f, damage: 100f,
+            weaponRange: 60f, targetRange: 10f);
+        e.Shooter.Direction = float2(0, -1);
+        Aim(e, float2(0, -1));
+
+        FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+
+        var shot = SafeAssert.OnlyShot(e.Zone);
+        Assert.True(shot.Target == null, "fixture: out of arc, the round carries no target");
+        Assert.Equal(1.5f, shot.ArrivalTime - shot.FireTime, 3);
+    }
+
     // What the shooter's own hull takes from one round at `targetRange`, counting only rounds that hit when the
     // fuse needs a hit (a roll can miss, so it retries).
     private static float ShooterSplash(Engagement e, bool needsHit)
