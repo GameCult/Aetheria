@@ -2631,6 +2631,13 @@ follow-up rulings, all given on 2026-09-30:
   visible, or not locked takes the no-lock path. Nothing bursts beyond max range.
 - **A no-lock contact fuse stops on the first hull on its aim line**, computed at commit. Mining adds chunks
   to this through a named seam.
+- **Airburst follows player intent (operator, 2026-09-30):** "If I don't have targeting data but decide
+  to shoot anyway, my intent is likely to be bomb fishing. If I fire with a target but that target warps
+  away, I likely to not want to explode whatever was behind it, and the projectile shouldn't burst."
+  - A round fired without valid targeting data bursts at max range.
+  - A round fired at a valid target that later leaves or becomes invalid does not burst. It resolves
+    with no detonation.
+  - Validity is judged on the targeting data at fire time.
 - **A round outlives its shooter,** for targeted and no-lock shots alike. Credit and loot with no shooter go
   nowhere.
 
