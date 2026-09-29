@@ -2662,7 +2662,8 @@ follow-up rulings, all given on 2026-09-30:
   at N m, Refused). `Fire` and `Inspect` compute it with the same helper. Direct-hit weapons keep the
   percentage.
 - **A refused round is free (operator, 2026-09-30):** it spends no ammo or energy, and makes no sound, heat,
-  wear or visibility.
+  wear or visibility. **It does not start the cooldown either** (operator, same day: "triggering cooldown on
+  refusal would be mostly neutral but punishing for long cooldown weapons, worth the code to fix").
 - **Batch 5 Soul pass, 2026-09-30: fix first.** `Solve` is the one decision, and `Fire`, `Inspect` and
   `Refuses` all read it. Findings in fix batch 6 (Hands, `hands/fuse-fix2`):
   - Contact and delayed rounds detonate on the hull and ignore the arming push-out.
