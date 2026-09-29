@@ -190,6 +190,60 @@ public sealed class AetheriaStoresTests : IDisposable
         Assert.Null(record);
     }
 
+    // Operator ruling 2026-09-30 (Soul): a weapon that detonates must reach farther than its blast, at the
+    // weakest value its Range stat can take, or a max-range burst lands on the shooter. Refused where every
+    // catalog write and every open already checks, not policed at runtime.
+    private static WeaponItemData FusedWeapon(string name, float rangeMin, float rangeMax, float? blastRadius, WeaponFuse? fuse) => new WeaponItemData
+    {
+        Name = name, Hardpoint = HardpointType.Sensors, Shape = new Shape(), Durability = 1,
+        MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000,
+        Fuse = fuse, BlastRadius = blastRadius,
+        Behaviors = { new InstantWeaponData { Range = new PerformanceStat { Min = rangeMin, Max = rangeMax } } }
+    };
+
+    // Kills: a comparison that admits equality (Range == BlastRadius bursts on the shooter's own edge); reading
+    // Range.Max instead of Min (the second row: Max 100 clears the blast, the weakest value does not); a
+    // zero range with a positive blast.
+    [Theory]
+    [InlineData(3f, 3f, 3f)]
+    [InlineData(2f, 2f, 3f)]
+    [InlineData(2f, 100f, 3f)]
+    [InlineData(0f, 0f, .5f)]
+    public void ValidateRefusesAFusedWeaponWhoseRangeDoesNotExceedItsBlast(float rangeMin, float rangeMax, float radius)
+    {
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            CultRecordRefs.Validate(FusedWeapon("ShortFuse", rangeMin, rangeMax, radius, WeaponFuse.Proximity)));
+        Assert.Contains("ShortFuse", error.Message);
+    }
+
+    // A fuse without a radius, a radius without a fuse, and a range that clears the blast are all fine: only a
+    // weapon that will actually detonate is held to the rule.
+    [Theory]
+    [InlineData(1f, 1f, null, WeaponFuse.Contact)]
+    [InlineData(1f, 1f, 0f, WeaponFuse.Contact)]
+    [InlineData(1f, 1f, 30f, null)]
+    [InlineData(60f, 60f, 4f, WeaponFuse.Delayed)]
+    public void ValidateAcceptsAWeaponThatCannotBurstOnItsShooter(float rangeMin, float rangeMax, float? radius, WeaponFuse? fuse)
+    {
+        var record = Record.Exception(() => CultRecordRefs.Validate(FusedWeapon("Fine", rangeMin, rangeMax, radius, fuse)));
+        Assert.Null(record);
+    }
+
+    // Open holds a catalog already on disk to the same rule Upsert applies on write. The bad record is written
+    // past Upsert, straight through the cache, the way a hand-edited or migrated catalog would carry one.
+    [Fact]
+    public void OpenRefusesAFusedWeaponWhoseRangeDoesNotExceedItsBlast()
+    {
+        using (var cache = AetheriaStores.Open(Catalog, catalogWritable: true))
+        {
+            cache.UpsertAsync(FusedWeapon("OnDisk", 2f, 2f, 3f, WeaponFuse.Contact)).Wait();
+            cache.FlushAsync().Wait();
+        }
+
+        var error = Assert.Throws<InvalidOperationException>(() => AetheriaStores.Open(Catalog));
+        Assert.Contains("OnDisk", error.Message);
+    }
+
     // A document type Validate has no opinion about (neither EquippableItemData nor ConsumableItemData) must be
     // a pure no-op, not a crash -- the three tools' change lists carry `object`, and not every migration touches
     // an equippable design (e.g. a future repair over FactionProductData).

@@ -29,22 +29,10 @@ public static class AetheriaStores
                 cache.AllStoredDocuments.All(stored => stored.Descriptor != descriptor));
             if (missing != null)
                 throw new InvalidOperationException($"Catalog {catalogPath} has no {missing.SchemaName} record; catalog globals are authored, never invented.");
-            // R-heat (docs/stats-and-power-cut.md): every equippable design's heat response must describe a
-            // coherent range before anything reads it. Fails loudly, naming the item.
-            foreach (var data in cache.GetAll<EquippableItemData>())
-            {
-                StatValidation.ValidateHeatResponse(data);
-                StatValidation.ValidateStatModifiers(data.Name, data.Behaviors);
-                // Cut 7 (docs/stats-and-power-cut.md): a stat naming a role its design lacks is refused.
-                StatValidation.ValidateRoleUsage(data.Name, data.Roles, data.Behaviors);
-            }
-            // Cut 2 (docs/stats-and-power-cut.md): a consumable's own StatModifierData needs the same check;
-            // consumables carry no heat response, so this is not folded into the loop above.
-            foreach (var data in cache.GetAll<ConsumableItemData>())
-            {
-                StatValidation.ValidateStatModifiers(data.Name, data.Behaviors);
-                StatValidation.ValidateRoleUsage(data.Name, data.Roles, data.Behaviors);
-            }
+            // Every catalog document is held to the one check Upsert applies on write: R-heat (docs/stats-and-power-
+            // cut.md), stat modifiers, role usage (Cut 7), and the fuse range rule. Fails loudly, naming the item.
+            foreach (var data in cache.GetAll<EquippableItemData>()) CultRecordRefs.Validate(data);
+            foreach (var data in cache.GetAll<ConsumableItemData>()) CultRecordRefs.Validate(data);
             return cache;
         }
         catch
@@ -85,6 +73,7 @@ public static class CultRecordRefs
             StatValidation.ValidateHeatResponse(data);
             StatValidation.ValidateStatModifiers(data.Name, data.Behaviors);
             StatValidation.ValidateRoleUsage(data.Name, data.Roles, data.Behaviors);
+            StatValidation.ValidateFuse(data);
         }
         if (document is ConsumableItemData consumable)
         {
