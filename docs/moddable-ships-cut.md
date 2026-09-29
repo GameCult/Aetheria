@@ -91,6 +91,30 @@ evidence. The merge has no conflicts (below), so it costs one merge commit per b
 
 ---
 
+## Rulings (operator, 2026-09-30)
+
+- **MQ1: a ship `.cc` is self-contained.** Operator: "The idea is for the new moddable ships to eventually
+  take over from the existing system. A ship .cc should contain everything needed to instantiate and render a
+  ship." The confirmed reading: the hull is its own `HullData` record and the visual is its own record, both in
+  the one ship `.cc`, side by side. The hull is not embedded in the visual. A hull family such as Longinus and
+  LonginusX lives together in one `.cc`, so variants resolve within one store. S1 follows option B, with both
+  records inside the ship's own store.
+- **MQ2 A for now.** There are no cross-file variants of shipped hulls in this lane. **Operator note, to be
+  carried into CultLib's variants target:** "we'll want cross-store variant support eventually; modders should
+  be able to add variants of existing items without modifying the original".
+- **MQ3 A.** The FBX prefab builder is scaffolding. The typed `.cc` lane replaces the existing system, and the
+  builder dies at S5.
+- **MQ4 A.** Continue refuses loudly and names the missing mod ids.
+- **MQ5 A.** The game composes the modded catalog at boot, from `GameData/Mods`, into a disposable file.
+- **Soul (2026-09-30) on `375d6bd4`** found the Blender↔C# `.cc` round trip real, with no vendored codec.
+  Before any cut builds on it, the S-Soul fix slot must fix:
+  - F1: 8 of 9 validator mutations survive, including the `..` path guard and the prefab refusal.
+  - F2: `Compose`, `ReadPackage` and `ReadNodeIds` are untested.
+  - F3: there are no Python tests; slot numbers and enums are duplicated by position.
+  - F6: `CatalogTypes` includes `ShipAuthoring`. Check name collisions.
+  - F7: a drive-by `using` removal.
+  - F5 is settled by MQ1.
+
 # Part B. Moddable ships
 
 ## B.1 Status header (verified against git)
