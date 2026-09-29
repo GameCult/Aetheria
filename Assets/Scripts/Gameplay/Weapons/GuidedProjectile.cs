@@ -98,11 +98,14 @@ public class GuidedProjectile : MonoBehaviour
             return;
         }
         StopAllCoroutines();
+        // A hit carries no burst point: the effect plays where the round was homing (a round that faded out has stopped
+        // short of it), and is skipped when the round never knew where its target was.
+        Vector3? effectAt = point ?? (TargetPosition != null ? TargetPosition() : Target ? Target.position : (Vector3?) null);
         if (point.HasValue) transform.position = point.Value;
-        if (HitEffect != null)
+        if (HitEffect != null && effectAt.HasValue)
         {
             var ht = HitEffect.Instantiate<Transform>();
-            ht.position = transform.position;
+            ht.position = effectAt.Value;
         }
         StartCoroutine(Kill());
     }
@@ -111,6 +114,7 @@ public class GuidedProjectile : MonoBehaviour
     {
         _active = _alive = true;
         _spawnTime = Time.time;
+        BindingLifetime = 0f; // a pooled round starts unbound; the manager binds it after enabling
         _phase = Random.value * 100;
         _prevDist = Single.MaxValue;
         Particles.startColor = Color.white;
@@ -222,6 +226,8 @@ public class GuidedProjectile : MonoBehaviour
             yield return null;
         }
 
+        // The wait holds still: a round waiting on the verdict must not drift off its last position.
+        Velocity = Vector3.zero;
         // Faded, but the simulation's verdict has not necessarily arrived: wait for it until the shot's flight is over.
         while (Time.time - _spawnTime < BindingLifetime) yield return null;
         StartCoroutine(Kill());
