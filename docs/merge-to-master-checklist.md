@@ -158,3 +158,15 @@ ship is assigned its own docking bay. The code does not do that:
 - `LoadoutGenerator` equips exactly one docking bay per station (`LoadoutGenerator.cs:84-92`), so Zenith has one.
 - The inventory panel's Current button (`InventoryPanel.cs:110-120`) sets the new ship as current and overwrites
   the single bay's `DockedShip`; the previous ship stays a station child with no bay.
+
+**Smoke stopped after step 6 (operator, 2026-09-30).** The operator rejected the script as a monolithic play order
+that does not respect how the game works: step 7 alone meant spawning and fitting a whole Djinni by catalog name.
+Direction: operator checks become a list of behaviours verified over time, each set up by an authored, retained
+scenario selectable from the main menu (a Eureka cut). Steps 7-20 and handoff checks A-F are unplayed. The operator
+prefers to merge now, with those as open entries to verify through scenarios; Self rules on the merge.
+
+**Stale expectations found in this checklist.** Step 6 transcribes `item-provenance-cut.md:529-537` (written
+2026-09-17 03:38, `7425ff1b`). "Starting-ship items show tier colour" was falsified by that day's smoke and recorded
+at `settings-globals-cut.md:150` (`db420981`, 17:36); the provenance map was never corrected and this checklist
+copied it despite its own section 5. "`give Lamp`" names a test fixture (`LoadoutTests.cs:289-312`), never a live
+catalog design, and `give` could not have run at all between `d503f076` (09-14) and `f935c29b`.
