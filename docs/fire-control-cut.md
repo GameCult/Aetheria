@@ -2648,6 +2648,14 @@ follow-up rulings, all given on 2026-09-30:
   derive their aim from it. The true owner of an arc is the **pivot**, not the hardpoint. The arc stays on
   the hardpoint until the moddable-ships campaign adds pivots to `HullData`. Until then, a pivot carrying
   several hardpoints turns within the **intersection** of their arcs.
+- **AI and turrets (operator, 2026-09-30):** each weapon decides for itself, not the group's first weapon.
+  A fused weapon fires whenever its target is designated (visible, in range, locked), whatever the arc. A
+  non-fused weapon keeps the hit-chance threshold. The AI never fires at nothing, so AI does not bomb-fish.
+- **HUD forecast (operator, 2026-09-30):** for a fused weapon, the forecast shows the outcome (Direct, Burst
+  at N m, Refused). `Fire` and `Inspect` compute it with the same helper. Direct-hit weapons keep the
+  percentage.
+- **A refused round is free (operator, 2026-09-30):** it spends no ammo or energy, and makes no sound, heat,
+  wear or visibility.
 - **A round outlives its shooter,** for targeted and no-lock shots alike. Credit and loot with no shooter go
   nowhere.
 
