@@ -586,6 +586,23 @@ public sealed class FireControlPerWeaponTests : IDisposable
         Assert.True(r.Decoy.Weapon.Firing, "the group that can fire is the one picked");
     }
 
+    // Combat's group pick counts only weapons whose target is designated: the stronger gun's Range (10) does not reach the
+    // target (20), so its group is not picked and the decoy's, which does reach, is. Kills: Combat asking
+    // Designated nothing (a group of weapons that cannot reach the target selected).
+    [Fact]
+    public void CombatDoesNotPickAGroupWhoseWeaponCannotReachTheTarget()
+    {
+        var r = Build(range: 10f, targetRange: 20f, decoy: true);
+        Assert.True(r.Gun.Weapon.RangeDamagePerSecond(20f) > r.Decoy.Weapon.RangeDamagePerSecond(20f), "fixture: the short gun is the stronger group");
+        r.Zone.Agents.Add(new Minion(r.Shooter));
+
+        r.Zone.Update(1f);
+        r.Zone.Update(1f);
+
+        Assert.False(r.Gun.Weapon.Firing, "a weapon that cannot reach the target is never activated");
+        Assert.True(r.Decoy.Weapon.Firing, "the group that reaches is the one picked");
+    }
+
     // Combat's range test is Designated's, not a second one: a target exactly at max range is in reach (the old
     // private test was strict). Kills: a range comparison of Combat's own.
     [Fact]
