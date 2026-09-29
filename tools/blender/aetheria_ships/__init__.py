@@ -12,15 +12,12 @@ bl_info = {
 
 import bpy
 
-from .ship_cc import capture_grease_pencil, read, read_layout, replace_layout, replace_lines
+from .ship_cc import (HARDPOINT_TYPE_NAMES, ROTATION_NAMES, capture_grease_pencil, decode_hardpoint,
+                      encode_hardpoint, read, read_layout, replace_layout, replace_lines)
 
 
-HARDPOINT_TYPES = tuple((str(i), name, name) for i, name in enumerate((
-    "Hull", "Tool", "Thermal", "Thruster", "WarpDrive", "Reactor", "Radiator",
-    "Shield", "Sensors", "Energy", "Ballistic", "Launcher", "ControlModule", "AetherDrive",
-)))
-ROTATIONS = (("0", "None", "None"), ("1", "Counterclockwise", "Counterclockwise"),
-             ("2", "Reversed", "Reversed"), ("3", "Clockwise", "Clockwise"))
+HARDPOINT_TYPES = tuple((str(i), name, name) for i, name in enumerate(HARDPOINT_TYPE_NAMES))
+ROTATIONS = tuple((str(i), name, name) for i, name in enumerate(ROTATION_NAMES))
 
 
 class AETHERIA_PG_cell(bpy.types.PropertyGroup):
@@ -97,14 +94,15 @@ class AETHERIA_OT_load_layout(bpy.types.Operator):
                 state.cells.add().occupied = bool(cell)
             state.hardpoints.clear()
             for raw in hardpoints:
+                fields = decode_hardpoint(raw)
                 hp = state.hardpoints.add()
-                hp.kind = str(raw[0])
-                hp.x, hp.y = raw[1]
-                hp.footprint = _footprint(raw[2])
-                hp.mount_id = raw[3] or ""
-                hp.rotation = str(raw[4])
-                hp.armor = raw[5]
-                hp.firing_arc = raw[6]
+                hp.kind = str(fields["Type"])
+                hp.x, hp.y = fields["Position"]
+                hp.footprint = _footprint(fields["Shape"])
+                hp.mount_id = fields["Transform"] or ""
+                hp.rotation = str(fields["Rotation"])
+                hp.armor = fields["Armor"]
+                hp.firing_arc = fields["FiringArc"]
             self.report({"INFO"}, f"Loaded {width}x{height} layout and {len(hardpoints)} hardpoints")
             return {"FINISHED"}
         except (OSError, ValueError, RuntimeError, ImportError, KeyError) as exc:
@@ -165,8 +163,9 @@ class AETHERIA_OT_save_layout(bpy.types.Operator):
             if state.ship_id != collection["aetheria.id"] or state.ship_cc != path:
                 raise ValueError("Load this collection's layout before saving")
             cells = [cell.occupied for cell in state.cells]
-            hardpoints = [[int(hp.kind), [hp.x, hp.y], _parse_footprint(hp.footprint),
-                           hp.mount_id, int(hp.rotation), hp.armor, hp.firing_arc]
+            hardpoints = [encode_hardpoint(
+                              Type=int(hp.kind), Position=[hp.x, hp.y], Shape=_parse_footprint(hp.footprint),
+                              Transform=hp.mount_id, Rotation=int(hp.rotation), Armor=hp.armor, FiringArc=hp.firing_arc)
                           for hp in state.hardpoints]
             state.revision = replace_layout(
                 path, _brokkr_cultlib(context), state.ship_id, state.revision,

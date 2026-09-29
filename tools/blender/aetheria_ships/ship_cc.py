@@ -15,10 +15,31 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA = "aetheria.ship_authoring"
-SCHEMATIC_LINES_SLOT = 4
-HULL_SLOT = 1
-HULL_SHAPE_SLOT = 5
-HULL_HARDPOINTS_SLOT = 23
+
+# MessagePack slots of the C# types, which own them (ShipAuthoring, ItemData.Shape, HullData.Hardpoints,
+# HardpointData). ShipSchemaPinTests in tests/Aetheria.Shared.Tests fails when any number or name below
+# disagrees with those types' [Key] attributes, so a renumbered or added member cannot drift silently.
+SCHEMATIC_LINES_SLOT = 4  # ShipAuthoring.SchematicLines
+HULL_SLOT = 1  # ShipAuthoring.Hull
+HULL_SHAPE_SLOT = 5  # ItemData.Shape
+HULL_HARDPOINTS_SLOT = 23  # HullData.Hardpoints
+# HardpointData member names in slot order; a hardpoint row is one value per name, and any slot past the last
+# name belongs to a later schema and is carried through untouched.
+HARDPOINT_MEMBERS = ("Type", "Position", "Shape", "Transform", "Rotation", "Armor", "FiringArc")
+# Enum member names in value order (HardpointType, ItemRotation).
+HARDPOINT_TYPE_NAMES = ("Hull", "Tool", "Thermal", "Thruster", "WarpDrive", "Reactor", "Radiator",
+                        "Shield", "Sensors", "Energy", "Ballistic", "Launcher", "ControlModule", "AetherDrive")
+ROTATION_NAMES = ("None", "CounterClockwise", "Reversed", "Clockwise")
+
+
+def decode_hardpoint(row: list[Any]) -> dict[str, Any]:
+    return dict(zip(HARDPOINT_MEMBERS, row))
+
+
+def encode_hardpoint(**fields: Any) -> list[Any]:
+    if set(fields) != set(HARDPOINT_MEMBERS):
+        raise ValueError(f"A hardpoint row needs exactly {', '.join(HARDPOINT_MEMBERS)}")
+    return [fields[name] for name in HARDPOINT_MEMBERS]
 
 
 def _libraries(cultlib_packages: str):
@@ -85,17 +106,20 @@ def replace_layout(path: str, cultlib_packages: str, expected_id: str, expected_
         raise ValueError("Hull grid must be 1..32 cells wide and high with one value per cell")
     if not any(cells):
         raise ValueError("Hull grid needs an occupied cell")
-    previous = {hp[3]: hp[7:] for hp in body[HULL_SLOT][HULL_HARDPOINTS_SLOT]
-                if isinstance(hp, list) and len(hp) > 7 and isinstance(hp[3], str)}
+    known = len(HARDPOINT_MEMBERS)
+    previous = {decode_hardpoint(hp)["Transform"]: hp[known:] for hp in hull[HULL_HARDPOINTS_SLOT]
+                if isinstance(hp, list) and len(hp) > known and isinstance(decode_hardpoint(hp)["Transform"], str)}
     updated_hardpoints = []
     for hardpoint in hardpoints:
-        if len(hardpoint) != 7 or not isinstance(hardpoint[3], str) or not hardpoint[3]:
-            raise ValueError("Each hardpoint needs seven typed fields and a stable mount ID")
-        hp_width, hp_height, hp_cells = hardpoint[2][0]
+        fields = decode_hardpoint(hardpoint)
+        mount = fields.get("Transform")
+        if len(hardpoint) != known or not isinstance(mount, str) or not mount:
+            raise ValueError(f"Each hardpoint needs {known} typed fields and a stable mount ID")
+        hp_width, hp_height, hp_cells = fields["Shape"][0]
         if not (1 <= hp_width <= 32 and 1 <= hp_height <= 32 and
                 len(hp_cells) == hp_width * hp_height and any(hp_cells)):
-            raise ValueError(f"Hardpoint {hardpoint[3]} has an invalid footprint")
-        updated_hardpoints.append(hardpoint + previous.get(hardpoint[3], []))
+            raise ValueError(f"Hardpoint {mount} has an invalid footprint")
+        updated_hardpoints.append(hardpoint + previous.get(mount, []))
     hull[HULL_SHAPE_SLOT] = [shape]
     hull[HULL_HARDPOINTS_SLOT] = updated_hardpoints
     store.push(replace(
