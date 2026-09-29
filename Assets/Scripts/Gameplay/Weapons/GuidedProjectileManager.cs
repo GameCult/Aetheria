@@ -17,12 +17,17 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
     {
         if(weapon.Data is LauncherData launcher)
         {
-            if (target == null) return;
+            // A round the simulation fired at no target (FireControl.Fire: a fused round with no valid targeting
+            // data, or out of arc) flies to the point it bursts at; one with no target and no burst is not a shot.
+            PendingShot shot = default;
+            if (target == null && !(source.Entity.Zone.TryGetShot(shotId, out shot) && shot.Fuse != null)) return;
+            var burst = shot.BurstPosition.ToUnity();
             var p = ProjectilePrototype.Instantiate<GuidedProjectile>();
             p.ShotId = shotId;
             p.Source = source.transform;
             p.SourceEntity = source.Entity;
-            p.Target = target.transform;
+            if (target != null) p.Target = target.transform;
+            else p.TargetPosition = () => burst;
             p.Frequency = launcher.DodgeFrequency;
             var hp = source.Entity.Hardpoints[item.Position.x, item.Position.y];
             var barrel = source.GetBarrel(hp);
