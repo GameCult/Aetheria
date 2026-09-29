@@ -91,7 +91,7 @@ public sealed class FireControlCut124Tests : IDisposable
         bool equipShield = false, float shieldCapacity = 1000f, bool shieldActive = true,
         int2? cockpitCell = null, float cockpitDurability = 1000f,
         (string Name, Shape Shape, int2 Cell, float Durability)[] custom = null,
-        float accuracy = 1f, int2? gunCell = null)
+        float accuracy = 1f, int2? gunCell = null, float weaponRange = 100000f)
     {
         var hullData = new HullData
         {
@@ -116,7 +116,7 @@ public sealed class FireControlCut124Tests : IDisposable
             Fuse = fuse, BlastRadius = blastRadius, WeaponModifiers = modifiers,
             Behaviors = { new InstantWeaponData
             {
-                Damage = Constant(damage), Range = Constant(100000), MinRange = Constant(0),
+                Damage = Constant(damage), Range = Constant(weaponRange), MinRange = Constant(0),
                 Velocity = Constant(velocity), Spread = Constant(0), DamageSpread = Constant(0),
                 Penetration = Constant(penetration), Count = Constant(1), BurstTime = Constant(0), Cooldown = Constant(1000),
                 DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } }
@@ -1130,6 +1130,84 @@ public sealed class FireControlCut124Tests : IDisposable
         Assert.Empty(e.Zone.PendingShots);
         Assert.Equal(0, events);
         Assert.Equal(before, e.Target.Hull.Durability);
+    }
+
+    // Operator ruling 2026-09-30: "fused weapons without a lock explode at max range." A fused shot with no
+    // target bursts at the weapon's Range along its aim (the mount direction), whatever its fuse. The fixture
+    // aims the shooter along (2,1), a non-axis facing; witnesses sit at the burst point and beside it. Radius 4
+    // with the witness hull 5x4 cells of 2 world units: a witness centred on the burst point is covered, and
+    // one 30 units off the aim line is not.
+    private const float NoLockRange = 60f;
+
+    private static float3 AimLine(Engagement e)
+    {
+        var aim = normalize(float2(2, 1));
+        return e.Shooter.Position + float3(aim.x, 0, aim.y) * NoLockRange;
+    }
+
+    [Theory]
+    [InlineData(WeaponFuse.Proximity)]
+    [InlineData(WeaponFuse.Contact)]
+    [InlineData(WeaponFuse.Delayed)]
+    public void AFusedShotWithNoTargetBurstsAtMaxRangeAlongTheAimLine(WeaponFuse fuse)
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: fuse, blastRadius: 4f, penetration: 1f, damage: 100f,
+            weaponRange: NoLockRange);
+        e.Shooter.Direction = normalize(float2(2, 1));
+        e.Shooter.Target.Value = null;
+        var burst = AimLine(e);
+        var onLine = AddShip(e, burst, 1f, 300);
+        var offLine = AddShip(e, burst + float3(-30, 0, 30), 1f, 302);
+        var shooterHit = 0f;
+        using var a = e.Shooter.ArmorDamage.Subscribe(x => shooterHit += x.damage);
+        using var h = e.Shooter.HullDamage.Subscribe(x => shooterHit += x);
+        using var i = e.Shooter.ItemDamage.Subscribe(x => shooterHit += x.damage);
+
+        FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        e.Zone.Update(.01f);
+
+        Assert.Equal(0f, shooterHit);
+        Assert.Empty(e.Zone.PendingShots);
+        Assert.False(e.Zone.Entities.Contains(onLine), "the blast must reach the burst point (fixture: 1 durability, so any damage kills it)");
+        Assert.True(e.Zone.Entities.Contains(offLine), "the blast must not reach 42 units off the aim line");
+    }
+
+    // The no-lock shot flies to max range at the weapon's Velocity, like a targeted shot flies to its intercept.
+    [Fact]
+    public void ANoLockFusedShotFliesToMaxRangeAtItsVelocity()
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 20f, fuse: WeaponFuse.Proximity, blastRadius: 4f, damage: 100f,
+            weaponRange: NoLockRange);
+        e.Shooter.Direction = normalize(float2(2, 1));
+        e.Shooter.Target.Value = null;
+
+        FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+
+        var shot = Assert.Single(e.Zone.PendingShots);
+        Assert.Equal(NoLockRange / 20f, shot.ArrivalTime - shot.FireTime, 4);
+        var burst = AimLine(e);
+        Assert.Equal(burst.x, shot.BurstPosition.x, 3);
+        Assert.Equal(burst.z, shot.BurstPosition.z, 3);
+    }
+
+    // A targeted shot is unchanged. Expected values computed at the base commit (b66ba524, before the no-lock
+    // rule), not read back from this code: the target's total damage from a proximity blast at the intercept.
+    [Fact]
+    public void ATargetedFusedShotIsUnchangedByTheNoLockRule()
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: WeaponFuse.Proximity, blastRadius: 30f, damage: 100f);
+        var damage = 0f;
+        using var a = e.Target.ArmorDamage.Subscribe(x => damage += x.damage);
+        using var h = e.Target.HullDamage.Subscribe(x => damage += x);
+        using var i = e.Target.ItemDamage.Subscribe(x => damage += x.damage);
+
+        FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        var shot = Assert.Single(e.Zone.PendingShots);
+        Assert.Equal(e.Target.Position.x, shot.BurstPosition.x, 3);
+        Assert.Equal(e.Target.Position.z, shot.BurstPosition.z, 3);
+        e.Zone.Update(.01f);
+
+        Assert.Equal(5.65884256f, damage, 3);
     }
 
     // ToWorldPoint and ToSchematicPoint are inverses, and ToWorldPoint puts one cell to starboard of the centre
