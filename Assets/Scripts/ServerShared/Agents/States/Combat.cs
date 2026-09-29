@@ -111,13 +111,12 @@ public class CombatState : BaseState
                 toTarget = normalize(predictedPosition - _agent.Ship.Position);
             }
 
-            // Cut 3: replaces Cut 1's bare InArc, which HitProbability already subsumes (it returns zero out
-            // of arc) -- this is the AI's own "worth it" heuristic layered on top of the shared gate, not a
-            // second gate.
-            var shouldFire = FireControl.HitProbability(testWeapon, _agent.Ship, target) >= _agent.Settings.AgentMinHitProbability;
+            // Each weapon decides for itself (operator ruling 2026-09-30): a group shares a trigger, not a
+            // verdict. FireControl.AgentFires is the AI's "worth it" heuristic for a weapon that hits what it
+            // fires at, and "the target is designated" for a fused one.
             foreach (var weapon in _agent.Ship.WeaponGroups[selectedGroup].weapons)
             {
-                if (shouldFire)
+                if (FireControl.AgentFires(weapon, _agent.Ship, target))
                     weapon.Activate();
                 else if (weapon.Firing)
                     weapon.Deactivate();

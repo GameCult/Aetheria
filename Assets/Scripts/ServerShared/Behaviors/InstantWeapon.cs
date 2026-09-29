@@ -103,6 +103,9 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
         // through -- a player's action-bar Activate() reaches this exactly the same way Combat.cs's and
         // TurretController.cs's Activate() calls do.
         if (!ArcAllowsFire) return;
+        // A refused round is free (operator ruling 2026-09-30): no ammo, energy or cooldown is spent on a burst
+        // whose first round FireControl would refuse.
+        if (FireControl.Refuses(this, Entity)) return;
 
         // If 1 ammo is consumed per burst, perform ammo and energy consumption here
         // UseAmmo returns false when triggering reload; cancel firing if that is the case
@@ -227,16 +230,21 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
         _burstTimer += dt;
         while (_burstRemaining > 0 && _burstTimer > 0)
         {
+            // A fused round whose arming distance Range cannot reach is refused, per round, before anything is
+            // spent (operator ruling 2026-09-30): it costs no ammo, energy, sound, heat, wear or visibility.
+            // The decision is FireControl's; Fire makes the same one.
+            var refused = FireControl.Refuses(this, Entity);
             // If multiple ammo is consumed per burst, perform ammo and energy consumption here
             // UseAmmo returns false when triggering reload; cancel firing if that is the case
-            if (!_data.SingleAmmoBurst && (!TrySpendActivationEnergy() || !UseAmmo()))
+            if (!refused && !_data.SingleAmmoBurst && (!TrySpendActivationEnergy() || !UseAmmo()))
             {
                 _burstRemaining = 0;
                 return false;
             }
-            
+
             _burstRemaining--;
             _burstTimer -= _burstInterval;
+            if (refused) continue;
             // Cut 3: this is fire authority's one entry point. FireControl.Fire freezes the payload snapshot
             // (Q6 -- the gun's own stats at this exact instant, base.Execute(dt) above already refreshed them
             // this tick) and queues a PendingShot; nothing downstream re-evaluates a stat.
@@ -246,9 +254,6 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
             // Unity EntityInstance wiring, docs/headless-playground-cut.md), so a shot silently never fired.
             // Evaluate it into a local first.
             var shotId = FireControl.Fire(this, Item, Entity);
-            // A fused round whose arming distance Range cannot reach is refused (FireControl.Fire returns 0):
-            // nothing was fired, so nothing sounds, wears or heats.
-            if (shotId == 0) continue;
             OnFire?.Invoke(shotId);
             if(!firedThisFrame)
             {

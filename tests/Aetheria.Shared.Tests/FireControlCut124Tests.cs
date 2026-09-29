@@ -1410,24 +1410,22 @@ public sealed class FireControlCut124Tests : IDisposable
 
     // ==== Operator ruling 2026-09-30, batch 4: the arming distance ====
     //
-    // A round never bursts closer than its blast radius past the shooter's own hull. The fixture's shooter hull is
-    // a 5x5 block of 2-unit cells centred on the shooter, so its far edge is 5 units out along the axis and
-    // 5 * sqrt(2) along a diagonal; with a blast of 30 the arming distance is 35 (or 30 + 7.07).
-
-    private const float ShooterHullReach = 5f;
+    // A round never bursts closer than its blast radius (its arming distance), measured from the shooter's
+    // position and blind to hull size: the fixture's shooter hull is a 5x5 block of 2-unit cells, and a blast of 30
+    // arms at 30, not 30 plus whatever the hull reaches. A shooter close to its own burst takes the splash.
 
     private static float Planar(float3 from, float3 to) => length((to - from).xz);
 
-    // A target inside the arming distance is not detonated on: the round flies along the aim and bursts at the
-    // arming distance, carrying no target, and the shooter that stood beside it is untouched (the probes measured
-    // 7.07 of self-damage for a target at 5, before this). The out-of-arc row is a target 10 away behind the
-    // mount, inside the blast radius, with the mount flipped so the arc is closed. Kills: no arming distance; a
-    // burst that still rides the target; an arming distance measured from the shooter's centre instead of the far
-    // edge of its hull (the burst would land 5 units short and the shooter would still be inside the disc).
+    // A target inside the arming distance is not detonated on: the round flies on to the arming distance, exactly
+    // the blast radius from the shooter (35 would be the hull-inclusive figure this replaced). An in-arc target
+    // stays the round's target and the burst is pushed out along the line to it; the out-of-arc row is a target 10
+    // away behind the mount, inside the blast radius, with the mount flipped so the arc is closed: no target rides
+    // and the burst is on the aim. Kills: no arming distance; a hull term in it; an in-arc round demoted to no
+    // target; an out-of-arc round that keeps one.
     [Theory]
     [InlineData(5f, false)]
     [InlineData(10f, true)]
-    public void ACloseBurstIsPushedOutAlongTheAimToTheArmingDistance(float targetRange, bool outOfArc)
+    public void ACloseBurstIsPushedOutToTheBlastRadius(float targetRange, bool outOfArc)
     {
         var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: WeaponFuse.Proximity, blastRadius: 30f, damage: 100f,
             weaponRange: 60f, targetRange: targetRange);
@@ -1438,37 +1436,88 @@ public sealed class FireControlCut124Tests : IDisposable
             aim = float2(0, -1);
         }
         Aim(e, aim);
-        var burst = PointAlong(e, aim, 30f + ShooterHullReach);
+        var burst = PointAlong(e, aim, 30f);
+
+        FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        var shot = SafeAssert.OnlyShot(e.Zone);
+        Assert.True((shot.Target == e.Target) == !outOfArc, "only a round with a target it can bear on keeps it");
+        Assert.Equal(burst.x, shot.BurstPosition.x, 2);
+        Assert.Equal(burst.z, shot.BurstPosition.z, 2);
+    }
+
+    // A round pushed out to its arming distance is still a targeted round (operator ruling 2026-09-30): if its target
+    // leaves the zone before it resolves, it does not burst. The target is 5 units away, inside a blast of 30, and
+    // the round flies 1.5 seconds; the target is gone after the first tick. The round resolves as a miss with no
+    // burst point, and the shooter standing inside the would-be disc is untouched. Kills: demoting a close round
+    // to no target (the round then bursts on schedule and hurts the shooter).
+    [Fact]
+    public void APushedOutRoundWhoseTargetLeavesTheZoneDoesNotBurst()
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 20f, fuse: WeaponFuse.Proximity, blastRadius: 30f, damage: 100f,
+            weaponRange: 60f, targetRange: 5f);
+        Aim(e, float2(0, 1));
         var hurt = 0f;
         using var a = e.Shooter.ArmorDamage.Subscribe(x => hurt += x.damage);
         using var h = e.Shooter.HullDamage.Subscribe(x => hurt += x);
         using var i = e.Shooter.ItemDamage.Subscribe(x => hurt += x.damage);
+        ShotOutcome resolved = null;
+        using var r = e.Zone.ShotResolved.Subscribe(o => resolved = o);
 
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
-        var shot = SafeAssert.OnlyShot(e.Zone);
-        Assert.True(shot.Target == null, "a burst pushed out to the arming distance carries no target");
-        Assert.Equal(burst.x, shot.BurstPosition.x, 2);
-        Assert.Equal(burst.z, shot.BurstPosition.z, 2);
-        Assert.Equal(35f, shot.ArmingDistance, 2);
+        Assert.True(SafeAssert.OnlyShot(e.Zone).Target == e.Target, "fixture: the pushed-out round keeps its target");
         e.Zone.Update(.01f);
+        e.Zone.Entities.Remove(e.Target);
+        e.Zone.Update(3f);
 
+        SafeAssert.NoShots(e.Zone);
+        Assert.NotNull(resolved);
+        Assert.Equal(ShotResult.Miss, resolved.Result);
+        Assert.False(resolved.HasBurstPoint, "a round whose target is gone does not burst");
         Assert.Equal(0f, hurt);
     }
 
-    // The far edge is read along the flight line, not along an axis: aimed down a diagonal the 5x5 hull reaches
-    // 5 * sqrt(2) = 7.07 units, so the burst sits at 30 + 7.07. A close in-arc target makes the arming distance
-    // the burst reach. Kills: an extent read along the mount or the hull's own axes.
-    [Fact]
-    public void TheArmingDistanceIsMeasuredAlongTheFlightLine()
-    {
-        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: WeaponFuse.Proximity, blastRadius: 30f, damage: 100f,
-            weaponRange: 60f, targetRange: 5f);
-        Aim(e, normalize(float2(1, 1)));
+    public enum Publication { Committed, Resolved }
 
+    // A presentation observer that throws costs its own notification and nothing more: the shot's queue state is
+    // settled before anything is published, so it is not committed or resolved a second time on every later tick
+    // (the queue used to wedge, re-throwing forever). The first tick throws; the second does not, the shot is gone
+    // or committed exactly once. Kills: publishing before the shot is committed in the list or removed from it.
+    [Theory]
+    [InlineData(Publication.Committed)]
+    [InlineData(Publication.Resolved)]
+    public void AThrowingObserverCannotWedgeTheShotQueue(Publication throwsOn)
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: WeaponFuse.Proximity, blastRadius: 4f, damage: 100f);
+        var commits = 0;
+        var resolutions = 0;
+        using var c = e.Zone.ShotCommitted.Subscribe(_ => { commits++; if (throwsOn == Publication.Committed) throw new InvalidOperationException("observer"); });
+        using var r = e.Zone.ShotResolved.Subscribe(_ => { resolutions++; if (throwsOn == Publication.Resolved) throw new InvalidOperationException("observer"); });
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
 
-        var shot = SafeAssert.OnlyShot(e.Zone);
-        Assert.Equal(30f + ShooterHullReach * sqrt(2f), Planar(e.Shooter.Position, shot.BurstPosition), 1);
+        Assert.ThrowsAny<Exception>(() => e.Zone.Update(.01f));
+        var second = Record.Exception(() => e.Zone.Update(.01f));
+
+        Assert.Null(second);
+        Assert.Equal(1, commits);
+        Assert.True(resolutions <= 1, $"resolved {resolutions} times");
+    }
+
+    // The same for the miss a departed target publishes: the shot is removed before that notification, so an
+    // observer that throws on it cannot keep the shot in the queue to be cancelled, and thrown at, on every tick.
+    // Kills: publishing the miss before removing the shot.
+    [Fact]
+    public void AThrowingObserverOfADepartedTargetsMissCannotWedgeTheShotQueue()
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 20f, fuse: WeaponFuse.Proximity, blastRadius: 4f, damage: 100f);
+        FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        using var c = e.Zone.ShotCommitted.Subscribe(_ => throw new InvalidOperationException("observer"));
+        e.Zone.Entities.Remove(e.Target);
+
+        Assert.ThrowsAny<Exception>(() => e.Zone.Update(.01f));
+        var second = Record.Exception(() => e.Zone.Update(.01f));
+
+        Assert.Null(second);
+        SafeAssert.NoShots(e.Zone);
     }
 
     // A target beyond the arming distance is not pushed anywhere: the round still rides it and bursts at its
@@ -1488,15 +1537,15 @@ public sealed class FireControlCut124Tests : IDisposable
     }
 
     // A contact round stops on the first hull it crosses, but never nearer than its arming distance: a blocker
-    // whose near face is 6 units out (centred 10) is passed, and the round bursts at 5 + 4 = 9. Kills: a contact
-    // point taken as the hull face regardless of arming.
+    // whose near face is 2 units out (centred 6) is passed, and the round bursts at its blast radius, 4. Kills: a
+    // contact point taken as the hull face regardless of arming.
     [Fact]
     public void AContactRoundNeverStopsNearerThanItsArmingDistance()
     {
         var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: WeaponFuse.Contact, blastRadius: 4f, damage: 100f, weaponRange: NoLockRange);
         e.Shooter.Target.Value = null;
         Aim(e, float2(0, 1));
-        AddShip(e, PointAlong(e, float2(0, 1), 10f), 1f, 300);
+        AddShip(e, PointAlong(e, float2(0, 1), 6f), 1f, 300);
         ShotOutcome outcome = null;
         using var c = e.Zone.ShotCommitted.Subscribe(o => outcome = o);
 
@@ -1504,7 +1553,7 @@ public sealed class FireControlCut124Tests : IDisposable
         e.Zone.Update(.01f);
 
         Assert.NotNull(outcome);
-        Assert.Equal(e.Shooter.Position.z + ShooterHullReach + 4f, outcome.BurstPoint.y, 2);
+        Assert.Equal(e.Shooter.Position.z + 4f, outcome.BurstPoint.y, 2);
     }
 
     // A round fired from inside another hull is already in metal: its contact point is its arming distance. The
@@ -1528,16 +1577,16 @@ public sealed class FireControlCut124Tests : IDisposable
         e.Zone.Update(.01f);
 
         Assert.NotNull(committed);
-        Assert.Equal(e.Shooter.Position.z + ShooterHullReach + 4f, committed.BurstPoint.y, 2);
+        Assert.Equal(e.Shooter.Position.z + 4f, committed.BurstPoint.y, 2);
     }
 
-    // A fused round is refused, per round and at the moment Fire reads Range, when its arming distance exceeds
-    // that Range: 34.5 against 35 refuses, 35.01 fires, and a power-starved Range (authored 100, forced to about
+    // A fused round is refused, per round and at the moment Fire reads Range, when its arming distance (the blast
+    // radius, 30) exceeds that Range: 29.5 refuses, 30.01 fires, and a power-starved Range (authored 100, forced to about
     // 10 the way Soul's probe did after the trigger has passed) refuses although the authored figure clears
     // it. Fire returns 0 and queues nothing. Kills: a gate that reads the authored Range; `>=` for `>`.
     [Theory]
-    [InlineData(34.5f, false, false)]
-    [InlineData(35.01f, false, true)]
+    [InlineData(29.5f, false, false)]
+    [InlineData(30.01f, false, true)]
     [InlineData(100f, true, false)]
     public void AFusedRoundWhoseArmingDistanceExceedsRangeIsRefusedByFire(float range, bool starvedOfPower, bool fires)
     {
@@ -1550,7 +1599,7 @@ public sealed class FireControlCut124Tests : IDisposable
             typeof(EquippedItem).GetProperty("PowerSupply").GetSetMethod(true).Invoke(e.WeaponItem, new object[] { .1f });
             e.Shooter.Resolver.InvalidateSource(e.WeaponItem, StatSource.PowerSupply);
             e.Weapon.GetType().GetMethod("UpdateStats", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(e.Weapon, null);
-            Assert.True(e.Weapon.Range < 35f, "fixture: the runtime Range must have fallen below the arming distance");
+            Assert.True(e.Weapon.Range < 30f, "fixture: the runtime Range must have fallen below the arming distance");
         }
 
         var shotId = FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
@@ -1559,19 +1608,12 @@ public sealed class FireControlCut124Tests : IDisposable
         Assert.Equal(fires ? 1 : 0, e.Zone.PendingShots.Count);
     }
 
-    // The boundary itself: a Range exactly equal to the arming distance fires (the disc is tangent to the hull,
-    // which delivers nothing). The arming distance is read from a probe round on the same fixture, so the
-    // equality is exact rather than a decimal that float arithmetic could tip. Kills: `>=` for `>`.
+    // The boundary itself: a Range exactly equal to the arming distance (the blast radius) fires. Kills: `>=` for
+    // `>`.
     [Fact]
     public void ARangeExactlyEqualToTheArmingDistanceFires()
     {
-        var probe = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: WeaponFuse.Proximity, blastRadius: 30f, damage: 100f, weaponRange: 60f);
-        probe.Shooter.Target.Value = null;
-        Aim(probe, float2(0, 1));
-        FireControl.Fire(probe.Weapon, probe.WeaponItem, probe.Shooter);
-        var arming = SafeAssert.OnlyShot(probe.Zone).ArmingDistance;
-
-        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: WeaponFuse.Proximity, blastRadius: 30f, damage: 100f, weaponRange: arming);
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: WeaponFuse.Proximity, blastRadius: 30f, damage: 100f, weaponRange: 30f);
         e.Shooter.Target.Value = null;
         Aim(e, float2(0, 1));
 
@@ -1582,7 +1624,7 @@ public sealed class FireControlCut124Tests : IDisposable
     // queues nothing, and the same weapon with Range to spare fires once. Kills: Execute still announcing a
     // refused round (Fire's 0 handed to the presentation as a shot id).
     [Theory]
-    [InlineData(34.5f, 0)]
+    [InlineData(29.5f, 0)]
     [InlineData(40f, 1)]
     public void ARefusedRoundIsNotAnnounced(float range, int fired)
     {

@@ -91,7 +91,13 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerC
     // Cut 5 (docs/fire-control-cut.md, 5.3, Soul finding 9): StanceAllowsFire alone let a side-mounted beam
     // fire forward -- ArcAllowsFire joins it here, matching InstantWeapon.cs's player arc gate (Q2: manual and
     // programmatic are one truth, and a continuous weapon is no exception).
-    public float PowerRequest(float dt) => _firing && StanceAllowsFire && ArcAllowsFire ? EvaluateNominalPower(_data.Energy) * dt : 0f;
+    // Operator ruling 2026-09-30: a refused round is free, and a beam is a stream of rounds, so a fused beam whose
+    // arming distance exceeds its Range fires nothing and draws nothing -- no power, ammo, wear, heat or
+    // visibility. FireControl.Refuses is the one arming test; it reads the Range Execute last refreshed, the same
+    // one-tick lag every PowerRequest reads its stats with.
+    private bool MayFire => StanceAllowsFire && ArcAllowsFire && !FireControl.Refuses(this, Entity);
+
+    public float PowerRequest(float dt) => _firing && MayFire ? EvaluateNominalPower(_data.Energy) * dt : 0f;
 
     // Cut 5 (docs/stats-and-power-cut.md §1.3, PowerTiers.cs): Low -- offense, same as InstantWeapon.
     public int DefaultPowerTier => PowerTiers.Low;
@@ -99,10 +105,11 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerC
     public override bool Execute(float dt)
     {
         base.Execute(dt);
-        if (_firing && !(StanceAllowsFire && ArcAllowsFire))
+        if (_firing && !MayFire)
         {
             // Safed: shooter has a target and hasn't declared hostility toward it, or the target no longer
-            // bears (5.3: a beam obeys its arc exactly as InstantWeapon's trigger does).
+            // bears (5.3: a beam obeys its arc exactly as InstantWeapon's trigger does), or a fused round is
+            // refused.
             _firing = false;
             OnStopFiring?.Invoke();
             return false;
@@ -179,7 +186,7 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerC
                 // argument included, when OnBeamShot has no subscriber (true today, R9's "no design uses it
                 // yet"), so the roll would silently never happen. Evaluate it into a local first.
                 var shotId = FireControl.Fire(this, Item, Entity, Damage * interval);
-                if (shotId != 0) OnBeamShot?.Invoke(shotId);
+                OnBeamShot?.Invoke(shotId);
             }
         }
         return true;
