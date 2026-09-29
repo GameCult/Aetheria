@@ -250,7 +250,7 @@ public sealed class IffAndCombatTests : IDisposable
 
         weapon.Activate();
 
-        zone.Update(.01f);
+        weapon.Execute(.01f);
 
         Assert.True(weapon.CanFire); // Trigger() was safed: no burst fired, so no cooldown
     }
@@ -267,7 +267,7 @@ public sealed class IffAndCombatTests : IDisposable
         shooter.SetIff(target, true);
 
         weapon.Activate();
-        zone.Update(.01f);
+        weapon.Execute(.01f);
 
         Assert.False(weapon.CanFire); // Trigger() ran: the burst fired and the cooldown runs
     }
@@ -281,7 +281,7 @@ public sealed class IffAndCombatTests : IDisposable
         var weapon = (InstantWeapon) shooter.Equipment.Single(e => e.Behaviors.Any(b => b is Weapon)).Behaviors.Single(b => b is Weapon);
 
         weapon.Activate();
-        zone.Update(.01f);
+        weapon.Execute(.01f);
 
         Assert.False(weapon.CanFire); // Trigger() ran: the burst fired and the cooldown runs
     }
