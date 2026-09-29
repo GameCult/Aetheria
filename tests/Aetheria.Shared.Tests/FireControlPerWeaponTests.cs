@@ -652,7 +652,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
         r.Shooter.Target.Value = null;
         Aim(r, float2(0, 1));
         var weapon = (ChargedWeapon) r.Gun.Weapon;
-        r.Gun.Item.SoundBank = new WwiseMetaSoundBank { IncludedEvents = new[] { new WwiseMetaObject { Id = 7, Name = "gun_fire" } } };
+        r.Gun.Item.SoundBank = new WwiseMetaSoundBank { IncludedEvents = new[] { new WwiseMetaObject { Id = 7, Name = "gun_charge_play" } } };
         var starts = 0;
         var sounds = 0;
         weapon.OnStartCharging += () => starts++;

@@ -250,7 +250,7 @@ public sealed class IffAndCombatTests : IDisposable
 
         weapon.Activate();
 
-        Assert.Equal(0f, weapon.Progress); // Trigger() was safed: no cooldown/burst was started
+        Assert.True(weapon.CanFire); // Trigger() was safed: no burst was started
     }
 
     [Fact]
@@ -266,7 +266,7 @@ public sealed class IffAndCombatTests : IDisposable
 
         weapon.Activate();
 
-        Assert.Equal(1f, weapon.Progress); // Trigger() ran: cooldown/burst started
+        Assert.False(weapon.CanFire); // Trigger() ran: a burst is pending
     }
 
     [Fact]
@@ -279,7 +279,7 @@ public sealed class IffAndCombatTests : IDisposable
 
         weapon.Activate();
 
-        Assert.Equal(1f, weapon.Progress);
+        Assert.False(weapon.CanFire); // Trigger() ran: a burst is pending
     }
 
     [Fact]
