@@ -229,18 +229,13 @@ public static class FireControl
     // visible, out of range) already denies the target. Planar (R7: the simulation is 2D): the range gate, the
     // burst reach and the range clamp all measure the same distance, so a target's height never moves one of
     // them without the others.
-    public static bool Designated(Weapon weapon, Entity source, Entity target, out float range) =>
-        InReach(weapon, source, target, out range) && !(weapon is LockWeapon lockWeapon && !lockWeapon.IsLocked);
-
-    // Designated before the lock: the target is seen and within the weapon's planar range. A LockWeapon acquires
-    // its lock only while its shooter holds the trigger, so an agent asks this to know when to start locking;
-    // every other reader wants Designated. The one range test in the file.
-    public static bool InReach(Weapon weapon, Entity source, Entity target, out float range)
+    public static bool Designated(Weapon weapon, Entity source, Entity target, out float range)
     {
         range = 0f;
         if (target == null) return false;
         range = length((target.Position - source.Position).xz);
-        return source.VisibleEntities.Contains(target) && range >= weapon.MinRange && range <= weapon.Range;
+        return source.VisibleEntities.Contains(target) && range >= weapon.MinRange && range <= weapon.Range &&
+               !(weapon is LockWeapon lockWeapon && !lockWeapon.IsLocked);
     }
 
     // `designated` is the answer above. `inArc` is the bearing test, asked only once a target is designated.

@@ -35,6 +35,7 @@ public class GuidedProjectile : MonoBehaviour
     private float _prevDist;
     private bool _active;
     private bool _alive;
+    private float _spawnTime;
     private Vector3 _targetVelocity;
     private Vector3 _previousTargetPosition;
 
@@ -45,6 +46,11 @@ public class GuidedProjectile : MonoBehaviour
     public float Range { get; set; }
     public Vector3 Velocity { get; set; }
     public Entity SourceEntity { get; set; }
+
+    // How long after spawn the round keeps its binding to the simulation's verdict: the shot's own flight time (the
+    // manager sets it from the committed shot's ArrivalTime), so a round that faded out early still lives to show
+    // the detonation the simulation resolves at arrival. 0 (the default) kills the round when its fade ends.
+    public float BindingLifetime { get; set; }
 
     public event Action OnKill;
 
@@ -83,12 +89,15 @@ public class GuidedProjectile : MonoBehaviour
     // one whose target is gone) just falls away, with no explosion to show.
     public void Resolve(bool detonated, Vector3? point)
     {
-        if (!_alive || !_active) return;
+        // A round that already faded out (overshot, out of flight) still shows the simulation's detonation: only a
+        // round that has been killed is done. The fade is stopped so it cannot Kill the round a second time.
+        if (!_alive) return;
         if (!detonated)
         {
-            StartCoroutine(FadeOut());
+            if (_active) StartCoroutine(FadeOut());
             return;
         }
+        StopAllCoroutines();
         if (point.HasValue) transform.position = point.Value;
         if (HitEffect != null)
         {
@@ -101,6 +110,7 @@ public class GuidedProjectile : MonoBehaviour
     void OnEnable()
     {
         _active = _alive = true;
+        _spawnTime = Time.time;
         _phase = Random.value * 100;
         _prevDist = Single.MaxValue;
         Particles.startColor = Color.white;
@@ -212,6 +222,8 @@ public class GuidedProjectile : MonoBehaviour
             yield return null;
         }
 
+        // Faded, but the simulation's verdict has not necessarily arrived: wait for it until the shot's flight is over.
+        while (Time.time - _spawnTime < BindingLifetime) yield return null;
         StartCoroutine(Kill());
     }
 

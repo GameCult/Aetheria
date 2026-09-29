@@ -84,7 +84,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
     private Rig Build(
         (ItemRotation Rotation, float Arc)[] mounts = null, bool beam = false, WeaponFuse? fuse = null, float blast = 0f,
         float range = 100f, float targetRange = 60f, float accuracy = 1f, float minHit = .2f, bool lockWeapon = false,
-        bool turret = false, float energy = 0f, float heat = 0f, float visibility = 0f, int magazine = 0, bool singleAmmoBurst = false, bool decoy = false)
+        bool turret = false, float energy = 0f, float heat = 0f, float visibility = 0f, int magazine = 0, bool singleAmmoBurst = false, bool decoy = false, bool charged = false, bool auto = false)
     {
         mounts ??= new[] { (ItemRotation.None, 0f) };
         var hullData = new HullData
@@ -120,6 +120,14 @@ public sealed class FireControlPerWeaponTests : IDisposable
                 LockSpeed = Constant(1000), SensorImpact = Constant(1), LockAngle = Constant(0), DirectionImpact = Constant(1), Decay = Constant(1),
                 Count = Constant(1), BurstTime = Constant(0), Cooldown = Constant(1)
             };
+        else if (charged)
+            behavior = new ChargedWeaponData
+            {
+                Count = Constant(1), BurstTime = Constant(0), Cooldown = Constant(1), SingleAmmoBurst = singleAmmoBurst,
+                ChargeTime = Constant(1), ChargeEnergy = Constant(0), ChargeHeat = Constant(5000), CanFireEarly = true
+            };
+        else if (auto)
+            behavior = new AutoWeaponData { Count = Constant(1), BurstTime = Constant(0), Cooldown = Constant(1), SingleAmmoBurst = singleAmmoBurst };
         else
             behavior = new InstantWeaponData { Count = Constant(1), BurstTime = Constant(0), Cooldown = Constant(1), SingleAmmoBurst = singleAmmoBurst };
         behavior.Damage = Constant(100);
@@ -401,13 +409,14 @@ public sealed class FireControlPerWeaponTests : IDisposable
         public bool Visible;
         public int Announced;
         public int Shots;
+        public bool CanFire;
     }
 
     // One discrete weapon, triggered once at no target, with every cost observable: a magazine, an energy charge,
     // a sound bank, wear events, heat and visibility. Range 29.5 refuses (arming 30); Range 40 fires.
-    private Costs Pull(float range, bool single, bool viaTrigger, bool staleRange = false)
+    private Costs Pull(float range, bool single, bool viaTrigger, bool staleRange = false, bool auto = false)
     {
-        var r = Build(fuse: WeaponFuse.Proximity, blast: 30f, range: range, energy: 50f, heat: 5000f, visibility: 100f, magazine: 5, singleAmmoBurst: single);
+        var r = Build(fuse: WeaponFuse.Proximity, blast: 30f, range: range, energy: 50f, heat: 5000f, visibility: 100f, magazine: 5, singleAmmoBurst: single, auto: auto);
         r.Shooter.Target.Value = null;
         Aim(r, float2(0, 1));
         var weapon = (InstantWeapon) r.Gun.Weapon;
@@ -427,7 +436,13 @@ public sealed class FireControlPerWeaponTests : IDisposable
         // The Range the previous tick's Execute left, before this tick refreshes it: a power-dependent Range that
         // has since fallen. Set through the property's own setter, so the trigger sees a Range the round will not.
         if (staleRange) typeof(Weapon).GetProperty("Range").GetSetMethod(true).Invoke(weapon, new object[] { 100f });
-        if (viaTrigger) weapon.Activate();
+        if (auto)
+        {
+            // AutoWeapon's own trigger: a held weapon whose cooldown has run out retriggers inside Execute.
+            typeof(Weapon).GetField("_firing", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(weapon, true);
+            typeof(InstantWeapon).GetField("_cooldown", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(weapon, -1f);
+        }
+        else if (viaTrigger) weapon.Activate();
         else typeof(InstantWeapon).GetField("_burstRemaining", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(weapon, 1);
         r.Zone.Update(.01f);
 
@@ -435,6 +450,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
         costs.ChargeSpent = chargeBefore - capacitor.Charge;
         costs.Heat = r.Gun.Item.Temperature - heatBefore;
         costs.Visible = r.Shooter.VisibilitySources.TryGetValue(weapon, out var v) && v > 1f;
+        costs.CanFire = weapon.CanFire;
         return costs;
     }
 
@@ -603,16 +619,63 @@ public sealed class FireControlPerWeaponTests : IDisposable
 
     // A round refused on a Range that fell between the trigger and the round is still free: the burst is paid
     // (SingleAmmoBurst) at its first round that is not refused, judged with the Range that round flies with.
-    // The trigger saw a stale Range of 100; the round's Range is 29.5, under the arming distance.
-    // Kills: paying for the burst at the trigger.
-    [Fact]
-    public void ARefusedBurstThatPassedTheTriggerOnAStaleRangeCostsNothing()
+    // The trigger saw a stale Range of 100; the round's Range is 29.5, under the arming distance. The refusal
+    // starts no cooldown either (operator ruling 2026-09-30): the weapon can fire again at once, while the
+    // control (Range 40) fired and is cooling down. Covers the player's trigger and AutoWeapon's own.
+    // Kills: paying for the burst at the trigger; starting the cooldown at the trigger (Trigger or AutoWeapon).
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    [InlineData(false, true)]
+    public void ARefusedBurstThatPassedTheTriggerOnAStaleRangeCostsNothing(bool single, bool auto)
     {
-        var refused = Pull(29.5f, single: true, viaTrigger: true, staleRange: true);
+        var fired = Pull(40f, single, viaTrigger: true, staleRange: true, auto: auto);
+        Assert.Equal(1, fired.Shots);
+        Assert.False(fired.CanFire, "control: a fired burst starts the cooldown");
+
+        var refused = Pull(29.5f, single, viaTrigger: true, staleRange: true, auto: auto);
 
         Assert.Equal(0, refused.Shots);
         Assert.Equal(0, refused.Ammo);
         Assert.Equal(0f, refused.ChargeSpent);
         Assert.Equal(0, refused.Announced);
+        Assert.True(refused.CanFire, "a burst that fired nothing leaves no cooldown");
+    }
+
+    // A refused charged weapon never starts charging: no charge heat, no audio, no start event, and it can be
+    // triggered again at once. The control (Range 40) charges, sounds and heats.
+    // Kills: ChargedWeapon.Activate that does not ask FireControl.
+    private (int Starts, int Sounds, float Heat, bool Charging) Charge(float range)
+    {
+        var r = Build(charged: true, fuse: WeaponFuse.Proximity, blast: 30f, range: range);
+        r.Shooter.Target.Value = null;
+        Aim(r, float2(0, 1));
+        var weapon = (ChargedWeapon) r.Gun.Weapon;
+        r.Gun.Item.SoundBank = new WwiseMetaSoundBank { IncludedEvents = new[] { new WwiseMetaObject { Id = 7, Name = "gun_fire" } } };
+        var starts = 0;
+        var sounds = 0;
+        weapon.OnStartCharging += () => starts++;
+        r.Gun.Item.AudioEvents.Subscribe(_ => sounds++);
+        var heatBefore = r.Gun.Item.Temperature;
+
+        weapon.Activate();
+        for (var i = 0; i < 3; i++) r.Zone.Update(.1f);
+
+        return (starts, sounds, r.Gun.Item.Temperature - heatBefore, weapon.Progress > 0f);
+    }
+
+    [Fact]
+    public void ARefusedChargedWeaponNeverStartsCharging()
+    {
+        var fired = Charge(40f);
+        Assert.Equal(1, fired.Starts);
+        Assert.True(fired.Sounds > 0, "control: charging sounds");
+        Assert.True(fired.Heat > 0f, "control: charging heats");
+
+        var refused = Charge(29.5f);
+        Assert.Equal(0, refused.Starts);
+        Assert.Equal(0, refused.Sounds);
+        Assert.True(fired.Heat - refused.Heat > 5f, $"a refused weapon adds no charge heat ({refused.Heat} vs {fired.Heat})");
     }
 }

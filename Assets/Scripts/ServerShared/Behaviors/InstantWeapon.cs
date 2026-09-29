@@ -42,6 +42,7 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
 
     protected int _burstRemaining;
     private bool _burstPaid;
+    private bool _burstStarted;
     private float _burstTimer;
     private float _burstInterval;
     protected float _cooldown; // Normalized
@@ -53,7 +54,8 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
     public float Cooldown { get; protected set; }
     public virtual bool CanFire
     {
-        get => !_coolingDown;
+        // A triggered burst that has not yet fired a round is not ready either: its cooldown has not started.
+        get => !_coolingDown && (_burstStarted || _burstRemaining == 0);
     }
 
     public override float DamagePerSecond => Damage / Cooldown;
@@ -115,8 +117,9 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
         _burstRemaining = (int) BurstCount;
         _burstInterval = BurstTime / _burstRemaining;
         _burstTimer = 0;
-        _cooldown = 1;
-        _coolingDown = true;
+        // The cooldown starts with the burst's first round that is not refused (Execute), not here: a burst whose
+        // every round is refused fires nothing and leaves no cooldown behind.
+        _burstStarted = false;
     }
 
     protected override void UpdateStats()
@@ -242,7 +245,16 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
                 _burstRemaining = 0;
                 return false;
             }
-            if (!refused) _burstPaid = _data.SingleAmmoBurst;
+            if (!refused)
+            {
+                _burstPaid = _data.SingleAmmoBurst;
+                if (!_burstStarted)
+                {
+                    _burstStarted = true;
+                    _cooldown = 1;
+                    _coolingDown = true;
+                }
+            }
 
             _burstRemaining--;
             _burstTimer -= _burstInterval;

@@ -19,6 +19,9 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
         zone.ShotResolved.Where(o => o.ShotId == shotId)
             .Subscribe(o => p.Resolve(o.Result == ShotResult.Hit || o.Result == ShotResult.Burst, o.HasBurstPoint ? At(o) : (Vector3?) null))
             .AddTo(bindings);
+        // The binding outlives a fade-out until the shot's own arrival (the moment the simulation resolves it), plus a
+        // second of margin; a shot no longer pending has nothing left to resolve.
+        p.BindingLifetime = zone.TryGetShot(shotId, out var shot) ? max(0f, shot.ArrivalTime - zone.Time) + 1f : 0f;
         p.Binding = bindings; // replaces, and so disposes, any binding the projectile already had
     }
 

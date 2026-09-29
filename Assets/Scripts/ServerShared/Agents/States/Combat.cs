@@ -57,10 +57,10 @@ public class CombatState : BaseState
             var group = _agent.Ship.WeaponGroups[i];
             var dps = 0f;
             foreach (var weapon in group.weapons)
-                // The range test is FireControl's (InReach, the part of Designated before the lock, which this
-                // loop is what acquires), and a weapon Solve refuses adds nothing to a group's damage.
+                // The range test is FireControl's (Designated), and a weapon Solve refuses adds nothing to a group's
+                // damage.
                 if (weapon.Item.Online.Value &&
-                    FireControl.InReach(weapon, _agent.Ship, target, out _) &&
+                    FireControl.Designated(weapon, _agent.Ship, target, out _) &&
                     !FireControl.Refuses(weapon, _agent.Ship) &&
                     (weapon is ConstantWeapon ||
                      weapon is InstantWeapon instantWeapon && instantWeapon.CanFire))

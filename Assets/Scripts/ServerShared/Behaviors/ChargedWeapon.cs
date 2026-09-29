@@ -160,7 +160,8 @@ public class ChargedWeapon : InstantWeapon
 
     public override void Activate()
     {
-        if(!_charging && !_coolingDown)
+        // A refused weapon never starts charging: it would pay charge heat and audio for a shot Trigger drops.
+        if(!_charging && !_coolingDown && !FireControl.Refuses(this, Entity))
         {
             OnStartCharging?.Invoke();
             Item.FireAudioEvent(ChargedWeaponAudioEvent.Start);
