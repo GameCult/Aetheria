@@ -134,14 +134,11 @@ public class GuidedProjectile : MonoBehaviour
             var targetDist = diff.magnitude;
             var sourceDist = length(StartPosition.xz - position.xz);
             
+            // Out of range, or flown past its target: the round falls away. Only the simulation's detonation
+            // (Resolve) shows an explosion; a round that merely ran out of flight has none.
             if (sourceDist > Range || dot(diff.ToCultMath(), Velocity.ToCultMath()) < 0)
             {
                 StartCoroutine(FadeOut());
-                if (HitEffect != null)
-                {
-                    var ht = HitEffect.Instantiate<Transform>();
-                    ht.position = t.position;
-                }
                 return;
             }
             _prevDist = targetDist;
