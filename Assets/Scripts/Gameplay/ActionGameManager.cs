@@ -518,10 +518,29 @@ public class ActionGameManager : MonoBehaviour
                 var itemName = string.Join(" ", args);
                 var item = ItemManager.ItemData.GetAll<EquippableItemData>()
                     .FirstOrDefault(itemData => string.Equals(itemData.Name, itemName, StringComparison.InvariantCultureIgnoreCase));
-                if (item != null)
+                if (item == null)
                 {
-                    _currentEntity.CargoBays.First().TryStore(ItemManager.CreateInstance(ItemManager.CreateLot(item, default, .95f)));
+                    ConsoleController.Instance.AppendLogLine($"No equippable item named \"{itemName}\"");
+                    return;
                 }
+                if (item is HullData hull)
+                {
+                    if (hull.HullType != HullType.Ship)
+                    {
+                        ConsoleController.Instance.AppendLogLine($"Refused: {item.Name} is a {hull.HullType} hull, not a ship");
+                        return;
+                    }
+                    if (DockedEntity == null)
+                    {
+                        ConsoleController.Instance.AppendLogLine($"Refused: dock to take delivery of a {item.Name}");
+                        return;
+                    }
+                    CommissionShip(ItemManager.CreateInstance(ItemManager.CreateLot(item, default, .95f)) as EquippableItem);
+                    ConsoleController.Instance.AppendLogLine($"{item.Name} moored at {DockedEntity.Name}");
+                    return;
+                }
+                if (!_currentEntity.CargoBays.First().TryStore(ItemManager.CreateInstance(ItemManager.CreateLot(item, default, .95f))))
+                    ConsoleController.Instance.AppendLogLine($"Refused: no cargo space for {item.Name}");
             });
         
         ConsoleController.AddCommand("trackmissile",
@@ -872,6 +891,15 @@ public class ActionGameManager : MonoBehaviour
                 }
             }
         }
+    }
+
+    // A ship hull acquired while docked becomes a bare player ship moored at the docked entity. It takes no docking
+    // bay: mothballed ships do not need one. Buying from the trade menu and the give command both land here.
+    public Ship CommissionShip(EquippableItem hull)
+    {
+        var ship = new Ship(ItemManager, Zone, hull, ItemManager.GameplaySettings.DefaultEntitySettings) { IsPlayerShip = true };
+        ship.SetParent(DockedEntity);
+        return ship;
     }
 
     private void DoDock(Entity entity, EquippedDockingBay dockingBay)

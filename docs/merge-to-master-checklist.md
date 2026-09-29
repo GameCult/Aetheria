@@ -111,3 +111,50 @@ Only what the maps name.
   - CultMath bounded least squares is locomotion Cut 2, not in this stack (`locomotion-cut.md:508`, `:360`). It gates nothing here.
   - Unrecorded: a Unity batchmode compile at the tip `4b594e11`. 12.2 and 12.3 record clean compiles at their own heads.
 - **Soul status at merge time: Self fills in.**
+
+## 8. Results: play smoke, 2026-09-30 (operator plays, agent records)
+
+Tree: `codex/fire-control-12` at `113164fa` plus the fixes listed below. `run.cc` and `player.cc` moved to
+`GameData/stale-2026-09-22/` before launch.
+
+**Compile.** The Unity 6000.3.24f1 batchmode compile at `113164fa` was clean (exit 0, no `error CS`). The four
+never-compiled files needed no fix. One warning, `EntityInstance._destroyed` assigned but never read, is legacy
+(`729ab0e8`).
+
+**Changes made during the smoke.**
+- `e0a80208`: `AetheriaInput.cs` regenerated; Cycle Target Item bound through `Input.Player.CycleTargetItem`,
+  retiring the by-name `FindAction` stopgap. Batchmode recompile clean.
+- `97edf48c`: `ARPG.unity` Debug Info Panel and `FieldShieldTest.unity` shield-panel Cut 4 rig committed.
+- Console: control characters from text input are no longer appended, and Backspace deletes (see step 6 finding).
+- `give` (operator ruling 2026-09-30): an unknown name and a full cargo bay now say so instead of doing nothing. A
+  ship hull is refused unless docked; when docked it goes through `ActionGameManager.CommissionShip`, the same
+  primitive `TradeMenu.Buy` now uses, and moors a bare player ship at the docked entity with no docking bay
+  ("mothballed ships do not require docking bays"). Non-ship hulls are refused. This is the step 7 path to a
+  restored hull.
+- Scratch weapons authored in place in `GameData/Aetheria.cc` (not committed; restore with
+  `git checkout -- GameData/Aetheria.cc`): `Smoke Proximity` (Proximity, blast 8), `Smoke Delayed` (Delayed,
+  blast 4, penetration 2 cells), `Smoke Refused` (Proximity, blast 30, range 20). Each is a Spectra clone, energy,
+  1 column by 2 rows, to fit the test ship's only energy hardpoint.
+
+| Step | Result | Evidence |
+|---|---|---|
+| 3 Launch to main menu | pass | Operator reached play through step 6 with no reported Addressables errors. |
+| 4 New Game | pass | As above. |
+| 5 Addressables, Use Asset Database | partial | Charged weapon (ChargeBlast SG) unprovable: the test ship's only energy hardpoint is 1x2 and ChargeBlast SG is 2x2. Instant weapon not separately reported. |
+| 6 Provenance in play | partial | Properties panel correct for starting gear and for a purchased item. **Tier colours missing everywhere**: known defect, `settings-globals-cut.md:150` (Unity-serialised `RarityTier.Color` loads as zero); fixed by settings-globals Cut 1, not part of this merge. `give Lamp` was first refused (console finding), then silently did nothing: `Lamp` is a test-fixture name, absent from the live catalog, and `give` reported no miss (now it does). No-Manufacturer check still open with a real unbranded design. Loot brand not yet reported. |
+
+**Finding, console (not fire control).** Every console command was refused with "commands take only letters,
+digits, spaces and hyphens", and Backspace inserted a glyph. Cause: `Keyboard.onTextInput` delivers control
+characters (`\b`, `\r`), and `ConsoleView` appended them to the input line. Enter's `\r` rode into every command;
+`d503f076` (2026-09-14, on master) correctly changed the parser from stripping disallowed characters to refusing
+them, which exposed it. Backspace had never been handled (only Delete), which is legacy (`7006a6b0`).
+
+**Feel notes.** Engaging an AI Djinni: the player was destroyed decisively. "Game is hard."
+
+**Finding, ship purchase and docking bays (design gap, not a merge gate).** The intended UX is that a purchased
+ship is assigned its own docking bay. The code does not do that:
+- `TradeMenu.Buy` (`TradeMenu.cs:373-381`) creates a bare `Ship` parented to the docked station and assigns it no
+  bay. It also charges `data.Price` rather than the lot's quality price that `GetPrice` computes for other items.
+- `LoadoutGenerator` equips exactly one docking bay per station (`LoadoutGenerator.cs:84-92`), so Zenith has one.
+- The inventory panel's Current button (`InventoryPanel.cs:110-120`) sets the new ship as current and overwrites
+  the single bay's `DockedShip`; the previous ship stays a station child with no bay.
