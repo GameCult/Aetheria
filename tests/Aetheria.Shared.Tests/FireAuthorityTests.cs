@@ -331,7 +331,7 @@ public sealed class FireAuthorityTests : IDisposable
         e.Zone.Update(10f); // well past arrival
 
         Assert.Equal(before, e.Target.Hull.Durability);
-        Assert.Empty(e.Zone.PendingShots);
+        SafeAssert.NoShots(e.Zone);
     }
 
     // R4: ShotCommitted fires exactly CommitHorizon before ShotResolved, once per shot. Mutation: publish only
@@ -420,7 +420,7 @@ public sealed class FireAuthorityTests : IDisposable
         e.Zone.Update(.016f); // one ordinary tick
 
         Assert.Equal(new[] { "committed", "resolved" }, order);
-        Assert.Empty(e.Zone.PendingShots);
+        SafeAssert.NoShots(e.Zone);
     }
 
     // R10/Q6: a shot's parameters freeze when the trigger is pulled. Changing the weapon's authored Damage

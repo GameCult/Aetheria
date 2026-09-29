@@ -305,19 +305,19 @@ public sealed class FireControlCut11Tests : IDisposable
 
         var shotId = FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
         e.Zone.Update(1f);
-        Assert.Empty(committed);
+        SafeAssert.Empty(committed);
 
         e.Zone.Entities.Remove(e.Target);
         e.Zone.Update(1f);
 
-        foreach (var outcome in new[] { Assert.Single(committed), Assert.Single(resolved) })
+        foreach (var outcome in new[] { SafeAssert.Only(committed), SafeAssert.Only(resolved) })
         {
             Assert.Equal(shotId, outcome.ShotId);
             Assert.False(outcome.Hit);
             Assert.False(outcome.Shielded, "a shot at nothing did not hit a shield");
             Assert.False(outcome.ShieldBroken, "a shot at nothing did not break a shield");
         }
-        Assert.Empty(e.Zone.PendingShots);
+        SafeAssert.NoShots(e.Zone);
     }
 
     // ---- A targeting system's Tracking is what forgives a target that moves off its predicted line. ----

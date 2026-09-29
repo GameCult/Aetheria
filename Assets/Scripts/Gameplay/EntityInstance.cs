@@ -203,8 +203,11 @@ public class EntityInstance : MonoBehaviour
                     // Cut 3 (docs/fire-control-cut.md): carries the ShotId FireControl.Fire assigned so the
                     // effect manager (and whatever it spawns) can bind its presentation to Zone.ShotCommitted /
                     // ShotResolved instead of deciding or applying anything itself.
+                    // The target handed to the effect is the shot's own, not the shooter's selection: a fused round
+                    // whose selected target was invalid, or out of arc, flies at none (FireControl.Fire) and the
+                    // effect must not chase one.
                     instantWeapon.OnFire += shotId =>
-                        _instantWeaponManagers[data].Fire(instantWeapon, item, this, entity.Target.Value != null && ZoneRenderer.EntityInstances.ContainsKey(entity.Target.Value) ? ZoneRenderer.EntityInstances[entity.Target.Value] : null, shotId);
+                        _instantWeaponManagers[data].Fire(instantWeapon, item, this, ShotTarget(shotId), shotId);
 
                     if (behavior is ChargedWeapon chargedWeapon)
                     {
@@ -335,6 +338,10 @@ public class EntityInstance : MonoBehaviour
             _influenceInstance.transform.localScale = Vector3.one * orbital.SecurityRadius;
         }
     }
+
+    private EntityInstance ShotTarget(int shotId) =>
+        Entity.Zone.TryGetShot(shotId, out var shot) && shot.Target != null &&
+        ZoneRenderer.EntityInstances.TryGetValue(shot.Target, out var instance) ? instance : null;
 
     private void OnSensorPingEnd()
     {

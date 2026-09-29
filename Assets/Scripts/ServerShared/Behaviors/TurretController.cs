@@ -73,16 +73,12 @@ public class TurretController : Behavior, IInitializableBehavior
             }
             else
                 Entity.LookDirection = normalize(diff);
-            var dist = length(diff);
 
             foreach (var x in _weapons)
             {
-                var data = x.Data as WeaponData;
-                // Cut 3 (docs/fire-control-cut.md): the same gate and threshold Combat.cs uses -- HitProbability
-                // already subsumes the bare arc test (zero out of arc), so this is the "worth it" heuristic, not
-                // a parallel arc check.
-                var fire = FireControl.HitProbability(x, Entity, Entity.Target.Value) >= Entity.ItemManager.GameplaySettings.AgentMinHitProbability;
-                if (x.Evaluate(data.Range) > dist && fire)
+                // The same per-weapon decision Combat.cs makes; the range test is part of it (a shot out of range
+                // is not designated and prices at zero).
+                if (FireControl.AgentFires(x, Entity, Entity.Target.Value))
                 {
                     x.Activate();
                 }

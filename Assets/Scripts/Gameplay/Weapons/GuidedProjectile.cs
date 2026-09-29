@@ -35,6 +35,7 @@ public class GuidedProjectile : MonoBehaviour
     private float _prevDist;
     private bool _active;
     private bool _alive;
+    private float _spawnTime;
     private Vector3 _targetVelocity;
     private Vector3 _previousTargetPosition;
 
@@ -46,11 +47,74 @@ public class GuidedProjectile : MonoBehaviour
     public Vector3 Velocity { get; set; }
     public Entity SourceEntity { get; set; }
 
+    // How long after spawn the round keeps its binding to the simulation's verdict: the shot's own flight time (the
+    // manager sets it from the committed shot's ArrivalTime), so a round that faded out early still lives to show
+    // the detonation the simulation resolves at arrival. 0 (the default) kills the round when its fade ends.
+    public float BindingLifetime { get; set; }
+
     public event Action OnKill;
+
+    // The simulation's verdict on this round, bound by GuidedProjectileManager to Zone.ShotCommitted and
+    // ShotResolved for its ShotId: this object flies and looks, and neither decides where the round bursts nor when.
+    // The one owner of the subscription's lifetime: a new binding disposes the one it replaces, Kill disposes it,
+    // and so does destruction, so a projectile torn down with its scene never leaves an observer on the zone's
+    // subjects to touch a destroyed transform.
+    public IDisposable Binding
+    {
+        get => _binding;
+        set
+        {
+            _binding?.Dispose();
+            _binding = value;
+        }
+    }
+
+    private IDisposable _binding;
+
+    void OnDestroy() => Binding = null;
+
+    // The commit named a burst point: fly to it, whatever this round was homing on (a target it would have
+    // passed, or a Range clamp it would have overshot). The point is a static target, so the old target's motion
+    // is dropped with it: the jump to the new point must not feed the guidance a target velocity.
+    public void BurstAt(Vector3 point)
+    {
+        Target = null;
+        TargetPosition = () => point;
+        _previousTargetPosition = point;
+        _targetVelocity = Vector3.zero;
+    }
+
+    // The resolution. A round that detonated (a hit, or a burst) bursts now, at the simulation's burst point when
+    // it has one; a round the simulation resolved without a detonation (a contact or delayed round that missed,
+    // one whose target is gone) just falls away, with no explosion to show.
+    public void Resolve(bool detonated, Vector3? point)
+    {
+        // A round that already faded out (overshot, out of flight) still shows the simulation's detonation: only a
+        // round that has been killed is done. The fade is stopped so it cannot Kill the round a second time.
+        if (!_alive) return;
+        if (!detonated)
+        {
+            if (_active) StartCoroutine(FadeOut());
+            return;
+        }
+        StopAllCoroutines();
+        // A hit carries no burst point: the effect plays where the round was homing (a round that faded out has stopped
+        // short of it), and is skipped when the round never knew where its target was.
+        Vector3? effectAt = point ?? (TargetPosition != null ? TargetPosition() : Target ? Target.position : (Vector3?) null);
+        if (point.HasValue) transform.position = point.Value;
+        if (HitEffect != null && effectAt.HasValue)
+        {
+            var ht = HitEffect.Instantiate<Transform>();
+            ht.position = effectAt.Value;
+        }
+        StartCoroutine(Kill());
+    }
 
     void OnEnable()
     {
         _active = _alive = true;
+        _spawnTime = Time.time;
+        BindingLifetime = 0f; // a pooled round starts unbound; the manager binds it after enabling
         _phase = Random.value * 100;
         _prevDist = Single.MaxValue;
         Particles.startColor = Color.white;
@@ -84,14 +148,11 @@ public class GuidedProjectile : MonoBehaviour
             var targetDist = diff.magnitude;
             var sourceDist = length(StartPosition.xz - position.xz);
             
+            // Out of range, or flown past its target: the round falls away. Only the simulation's detonation
+            // (Resolve) shows an explosion; a round that merely ran out of flight has none.
             if (sourceDist > Range || dot(diff.ToCultMath(), Velocity.ToCultMath()) < 0)
             {
                 StartCoroutine(FadeOut());
-                if (HitEffect != null)
-                {
-                    var ht = HitEffect.Instantiate<Transform>();
-                    ht.position = t.position;
-                }
                 return;
             }
             _prevDist = targetDist;
@@ -165,11 +226,16 @@ public class GuidedProjectile : MonoBehaviour
             yield return null;
         }
 
+        // The wait holds still: a round waiting on the verdict must not drift off its last position.
+        Velocity = Vector3.zero;
+        // Faded, but the simulation's verdict has not necessarily arrived: wait for it until the shot's flight is over.
+        while (Time.time - _spawnTime < BindingLifetime) yield return null;
         StartCoroutine(Kill());
     }
 
     IEnumerator Kill()
     {
+        Binding = null;
         _active = false;
         _alive = false;
         Particles.Stop(true, ParticleSystemStopBehavior.StopEmitting);

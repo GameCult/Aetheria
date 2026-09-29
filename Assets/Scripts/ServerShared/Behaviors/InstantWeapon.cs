@@ -41,6 +41,8 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
     protected readonly InputCapacitor _capacitor = new InputCapacitor();
 
     protected int _burstRemaining;
+    private bool _burstPaid;
+    private bool _burstStarted;
     private float _burstTimer;
     private float _burstInterval;
     protected float _cooldown; // Normalized
@@ -52,7 +54,8 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
     public float Cooldown { get; protected set; }
     public virtual bool CanFire
     {
-        get => !_coolingDown;
+        // A triggered burst that has not yet fired a round is not ready either: its cooldown has not started.
+        get => !_coolingDown && (_burstStarted || _burstRemaining == 0);
     }
 
     public override float DamagePerSecond => Damage / Cooldown;
@@ -103,16 +106,20 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
         // through -- a player's action-bar Activate() reaches this exactly the same way Combat.cs's and
         // TurretController.cs's Activate() calls do.
         if (!ArcAllowsFire) return;
+        // A refused round is free (operator ruling 2026-09-30): no ammo, energy or cooldown is spent on a burst
+        // whose first round FireControl would refuse.
+        if (FireControl.Refuses(this, Entity)) return;
 
-        // If 1 ammo is consumed per burst, perform ammo and energy consumption here
-        // UseAmmo returns false when triggering reload; cancel firing if that is the case
-        if(_data.SingleAmmoBurst && (!TrySpendActivationEnergy() || !UseAmmo())) return;
-        
+        // A burst that pays once (SingleAmmoBurst) pays at its first round that is not refused, in Execute, judged
+        // with the Range that round flies with: paying here would judge with the Range of the previous tick, and a
+        // Range that fell in between would spend the ammo on rounds Fire then refuses.
+        _burstPaid = false;
         _burstRemaining = (int) BurstCount;
         _burstInterval = BurstTime / _burstRemaining;
         _burstTimer = 0;
-        _cooldown = 1;
-        _coolingDown = true;
+        // The cooldown starts with the burst's first round that is not refused (Execute), not here: a burst whose
+        // every round is refused fires nothing and leaves no cooldown behind.
+        _burstStarted = false;
     }
 
     protected override void UpdateStats()
@@ -227,16 +234,32 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
         _burstTimer += dt;
         while (_burstRemaining > 0 && _burstTimer > 0)
         {
-            // If multiple ammo is consumed per burst, perform ammo and energy consumption here
-            // UseAmmo returns false when triggering reload; cancel firing if that is the case
-            if (!_data.SingleAmmoBurst && (!TrySpendActivationEnergy() || !UseAmmo()))
+            // A fused round whose arming distance Range cannot reach is refused, per round, before anything is
+            // spent (operator ruling 2026-09-30): it costs no ammo, energy, sound, heat, wear or visibility.
+            // The decision is FireControl's; Fire makes the same one.
+            var refused = FireControl.Refuses(this, Entity);
+            // Ammo and energy are consumed here, per round, or once per burst at its first unrefused round
+            // (SingleAmmoBurst). UseAmmo returns false when triggering reload; cancel firing if that is the case
+            if (!refused && !_burstPaid && (!TrySpendActivationEnergy() || !UseAmmo()))
             {
                 _burstRemaining = 0;
                 return false;
             }
-            
+            if (!refused)
+            {
+                _burstPaid = _data.SingleAmmoBurst;
+                if (!_burstStarted)
+                {
+                    _burstStarted = true;
+                    _cooldown = 1 - dt / Cooldown;
+                    // The round starts the cooldown after this tick's decrement above: charge the tick to it, so the cadence stays Cooldown
+                    _coolingDown = true;
+                }
+            }
+
             _burstRemaining--;
             _burstTimer -= _burstInterval;
+            if (refused) continue;
             // Cut 3: this is fire authority's one entry point. FireControl.Fire freezes the payload snapshot
             // (Q6 -- the gun's own stats at this exact instant, base.Execute(dt) above already refreshed them
             // this tick) and queues a PendingShot; nothing downstream re-evaluates a stat.
