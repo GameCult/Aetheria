@@ -248,8 +248,8 @@ public sealed class IffAndCombatTests : IDisposable
         shooter.Target.Value = target;
         shooter.SetIff(target, false); // explicitly neutral
 
+        weapon.Execute(.01f); // resolves the gun's stats: a burst has no rounds before the first tick
         weapon.Activate();
-
         weapon.Execute(.01f);
 
         Assert.True(weapon.CanFire); // Trigger() was safed: no burst fired, so no cooldown
@@ -266,6 +266,7 @@ public sealed class IffAndCombatTests : IDisposable
         shooter.Target.Value = target;
         shooter.SetIff(target, true);
 
+        weapon.Execute(.01f); // resolves the gun's stats: a burst has no rounds before the first tick
         weapon.Activate();
         weapon.Execute(.01f);
 
@@ -280,6 +281,7 @@ public sealed class IffAndCombatTests : IDisposable
         var shooter = NewShip(items, zone, new Faction { Name = "Shooter" }, equipGun: true);
         var weapon = (InstantWeapon) shooter.Equipment.Single(e => e.Behaviors.Any(b => b is Weapon)).Behaviors.Single(b => b is Weapon);
 
+        weapon.Execute(.01f); // resolves the gun's stats: a burst has no rounds before the first tick
         weapon.Activate();
         weapon.Execute(.01f);
 
