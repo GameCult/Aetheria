@@ -1335,7 +1335,7 @@ public class ActionGameManager : MonoBehaviour
             : "last: none";
         var gates = target == null
             ? "target: none"
-            : $"gates vis {d.Visible} range {d.InRange} arc {d.InArc} lock {d.Locked}";
+            : $"gates designated {d.Designated} arc {d.InArc}";
 
         // A fused weapon's forecast is its outcome, not a hit chance: the burst point or the refusal.
         var outcomeLine = d.Outcome == FireOutcome.Burst ? $"burst at {d.BurstReach:F0}"

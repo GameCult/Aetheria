@@ -41,6 +41,7 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
     protected readonly InputCapacitor _capacitor = new InputCapacitor();
 
     protected int _burstRemaining;
+    private bool _burstPaid;
     private float _burstTimer;
     private float _burstInterval;
     protected float _cooldown; // Normalized
@@ -107,10 +108,10 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
         // whose first round FireControl would refuse.
         if (FireControl.Refuses(this, Entity)) return;
 
-        // If 1 ammo is consumed per burst, perform ammo and energy consumption here
-        // UseAmmo returns false when triggering reload; cancel firing if that is the case
-        if(_data.SingleAmmoBurst && (!TrySpendActivationEnergy() || !UseAmmo())) return;
-        
+        // A burst that pays once (SingleAmmoBurst) pays at its first round that is not refused, in Execute, judged
+        // with the Range that round flies with: paying here would judge with the Range of the previous tick, and a
+        // Range that fell in between would spend the ammo on rounds Fire then refuses.
+        _burstPaid = false;
         _burstRemaining = (int) BurstCount;
         _burstInterval = BurstTime / _burstRemaining;
         _burstTimer = 0;
@@ -234,13 +235,14 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
             // spent (operator ruling 2026-09-30): it costs no ammo, energy, sound, heat, wear or visibility.
             // The decision is FireControl's; Fire makes the same one.
             var refused = FireControl.Refuses(this, Entity);
-            // If multiple ammo is consumed per burst, perform ammo and energy consumption here
-            // UseAmmo returns false when triggering reload; cancel firing if that is the case
-            if (!refused && !_data.SingleAmmoBurst && (!TrySpendActivationEnergy() || !UseAmmo()))
+            // Ammo and energy are consumed here, per round, or once per burst at its first unrefused round
+            // (SingleAmmoBurst). UseAmmo returns false when triggering reload; cancel firing if that is the case
+            if (!refused && !_burstPaid && (!TrySpendActivationEnergy() || !UseAmmo()))
             {
                 _burstRemaining = 0;
                 return false;
             }
+            if (!refused) _burstPaid = _data.SingleAmmoBurst;
 
             _burstRemaining--;
             _burstTimer -= _burstInterval;

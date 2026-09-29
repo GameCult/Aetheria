@@ -194,7 +194,9 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerC
 
     public override void Activate()
     {
-        if(!_firing && !_reloading)
+        // A refused beam never starts (operator ruling 2026-09-30): OnStartFiring drives the beam's visuals and
+        // audio, so starting it only for Execute to stop it a tick later would flash a beam that fires nothing.
+        if(!_firing && !_reloading && !FireControl.Refuses(this, Entity))
         {
             _firing = true;
             OnStartFiring?.Invoke();

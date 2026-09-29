@@ -88,11 +88,15 @@ public static class FireControl
     // The agents' trigger decision (Combat, TurretController), one weapon at a time (operator ruling 2026-09-30).
     // A weapon that fires at what it hits fires when the shot is worth taking. A fused weapon fires whenever its
     // target is designated, whatever the arc: the round is sent out of arc on purpose (Solve). An agent never
-    // fires a fused weapon at nothing -- no target, or one it holds no valid data on, is no reason to fish.
-    public static bool AgentFires(Weapon weapon, Entity shooter, Entity target) =>
-        FuseOf(weapon.Item, out _) != null
-            ? Designated(weapon, shooter, target, out _)
-            : HitProbability(weapon, shooter, target) >= shooter.ItemManager.GameplaySettings.AgentMinHitProbability;
+    // fires a fused weapon at nothing -- no target, or one it holds no valid data on, is no reason to fish -- and
+    // never one Solve refuses: a refused weapon is not a weapon it can use.
+    public static bool AgentFires(Weapon weapon, Entity shooter, Entity target)
+    {
+        if (FuseOf(weapon.Item, out _) == null)
+            return HitProbability(weapon, shooter, target) >= shooter.ItemManager.GameplaySettings.AgentMinHitProbability;
+        var solution = Solve(weapon, weapon.Item, shooter, target);
+        return solution.Designated && solution.Outcome != FireOutcome.Refused;
+    }
 
     // Operator ruling 2026-09-30: a shot with nothing to bear on flies along where its shooter is aiming
     // (Entity.LookDirection -- the player's mouse or a turret's tracking), restricted by the mount's arc. The
@@ -225,21 +229,25 @@ public static class FireControl
     // visible, out of range) already denies the target. Planar (R7: the simulation is 2D): the range gate, the
     // burst reach and the range clamp all measure the same distance, so a target's height never moves one of
     // them without the others.
-    public static bool Designated(Weapon weapon, Entity source, Entity target, out float range)
+    public static bool Designated(Weapon weapon, Entity source, Entity target, out float range) =>
+        InReach(weapon, source, target, out range) && !(weapon is LockWeapon lockWeapon && !lockWeapon.IsLocked);
+
+    // Designated before the lock: the target is seen and within the weapon's planar range. A LockWeapon acquires
+    // its lock only while its shooter holds the trigger, so an agent asks this to know when to start locking;
+    // every other reader wants Designated. The one range test in the file.
+    public static bool InReach(Weapon weapon, Entity source, Entity target, out float range)
     {
         range = 0f;
         if (target == null) return false;
         range = length((target.Position - source.Position).xz);
-        return source.VisibleEntities.Contains(target)
-            && range >= weapon.MinRange && range <= weapon.Range
-            && !(weapon is LockWeapon lockWeapon && !lockWeapon.IsLocked);
+        return source.VisibleEntities.Contains(target) && range >= weapon.MinRange && range <= weapon.Range;
     }
 
     // `designated` is the answer above. `inArc` is the bearing test, asked only once a target is designated.
     // PFire prices a shot at zero unless both hold. Fire reads them to decide what a fused round flies at
     // (operator rulings 2026-09-30): without valid data it has no target and bursts at max range; with data but
-    // out of arc it bursts at the target's range, along the aim. Inspect recomputes the four gates one by one,
-    // to show the HUD which is closed; it decides nothing.
+    // out of arc it bursts at the target's range, along the aim. The HUD reads Designated and the
+    // arc from Solve and Inspect and decides nothing.
     private static float PFire(Weapon weapon, Entity source, Entity target, out float range, out bool designated, out bool inArc)
     {
         range = 0f;
@@ -337,9 +345,7 @@ public static class FireControl
 
         var toTarget = target.Position - source.Position;
         diagnostic.Range = length(toTarget.xz);
-        diagnostic.Visible = source.VisibleEntities.Contains(target);
-        diagnostic.InRange = diagnostic.Range >= weapon.MinRange && diagnostic.Range <= weapon.Range;
-        diagnostic.Locked = !(weapon is LockWeapon lockWeapon) || lockWeapon.IsLocked;
+        diagnostic.Designated = solution.Designated;
         diagnostic.InArc = InArc(weapon.Item, toTarget);
 
         var targetHull = source.ItemManager.GetData(target.Hull) as HullData;
@@ -447,6 +453,9 @@ public static class FireControl
         //    lock and bursts at the weapon's Range, the stat PFire's range gate reads: bomb fishing;
         //  * valid data but out of arc bursts at the target's range, which the range gate has already held to
         //    Range, along that same clamped aim: the arc is hoped to land the blast near enough to splash.
+        // Either way the point frozen here is the farthest the round can burst: whatever its fuse, it detonates at the
+        // first hull on its aim line short of it (CommitBurst; operator ruling 2026-09-30, "a no-lock round stops at
+        // the first hull"), and bomb fishing bursts at this point only when the line is clear.
         // Either way the round flies at the weapon's Velocity like a targeted shot flies to its intercept. A shot
         // without a fuse keeps its target as before.
         // Arming distance (operator ruling 2026-09-30): the blast radius, measured from the shooter's position and
@@ -469,15 +478,15 @@ public static class FireControl
             // pulled back along its own line to Range.
             var intercept = PredictedIntercept(weapon, source, engaged);
             var interceptReach = length((intercept - origin).xz);
-            if (min(interceptReach, weapon.Range) < arming) burstPosition = origin + float3(travelDirection.x, 0, travelDirection.y) * arming;
-            else burstPosition = interceptReach > weapon.Range ? origin + (intercept - origin) * (weapon.Range / interceptReach) : intercept;
+            var point = interceptReach > weapon.Range ? origin + (intercept - origin) * (weapon.Range / interceptReach) : intercept;
+            burstPosition = Armed(origin, travelDirection, arming, point);
             flightDistance = max(fireRange, arming);
         }
         else if (fuse != null)
         {
-            var reach = max(designated ? fireRange : weapon.Range, arming);
-            burstPosition = origin + float3(travelDirection.x, 0, travelDirection.y) * reach;
-            flightDistance = reach;
+            var reach = designated ? fireRange : weapon.Range;
+            burstPosition = Armed(origin, travelDirection, arming, origin + float3(travelDirection.x, 0, travelDirection.y) * reach);
+            flightDistance = max(reach, arming);
         }
         else if (engaged != null) flightDistance = fireRange;
 
@@ -486,6 +495,7 @@ public static class FireControl
             Outcome = weapon.Range < arming ? FireOutcome.Refused : fuse != null ? FireOutcome.Burst : FireOutcome.Direct,
             PFire = pFire,
             FireRange = fireRange,
+            Designated = designated,
             Engaged = engaged,
             TravelDirection = travelDirection,
             BurstPosition = burstPosition,
@@ -496,6 +506,12 @@ public static class FireControl
         };
         return solution;
     }
+
+    // The arming rule, once: a burst point nearer to `origin` than `arming` (planar, blind to hull size) is pushed
+    // out along the unit planar `direction` to it. Solve applies it to the point it plans; the detonation of a
+    // contact or delayed blast, whose point is found on the hull only at resolution, applies it to that point.
+    private static float3 Armed(float3 origin, float2 direction, float arming, float3 point) =>
+        length((point - origin).xz) < arming ? origin + float3(direction.x, 0, direction.y) * arming : point;
 
     // Cut 3, R1: called once per burst step from InstantWeapon.Execute. Computes flight time, freezes the
     // payload snapshot (R10, Q6 -- the gun that fired it, not a re-read later), and queues a PendingShot for
@@ -582,9 +598,10 @@ public static class FireControl
     // its shooter (operator ruling 2026-09-30): the shooter is only an identity a shot carries, never asked
     // for at resolution, so a shooter that died or left the zone in flight changes nothing about the shot.
     // Resolution reads the zone and the target; there is no credit or loot for a shooter to receive.
-    // A shot's queue state is settled before anything is published about it: it is committed in the list before
-    // ShotCommitted fires and removed before ShotResolved fires, so a presentation observer that throws costs
-    // that one notification and cannot leave the shot to be committed or resolved again on every later tick.
+    // A shot's queue state is settled before anything that can run user code: it is committed in the list before
+    // ShotCommitted fires and removed before its damage is applied (damage observers) or ShotResolved fires, so an
+    // observer that throws costs that one notification, or the rest of that blast, and cannot leave the shot to be
+    // committed, resolved or applied again on every later tick.
     public static void Step(Zone zone, float dt)
     {
         var shots = zone.PendingShots;
@@ -627,8 +644,10 @@ public static class FireControl
                 // which model a shot uses, through its own switch on the frozen Fuse -- Step has no damage
                 // branch left. A direct hit, a proximity burst and a contact or delayed blast all arrive here
                 // the same way; only Apply decides what that means.
-                Apply(zone, shot);
+                // Removed first: Apply reaches damage observers (user code), and a shot left in the queue by one
+                // that throws would resolve, and hurt, again on every later tick.
                 shots.RemoveAt(i);
+                Apply(zone, shot);
                 zone.ShotResolved.OnNext(shot.Outcome);
             }
         }
@@ -772,9 +791,9 @@ public static class FireControl
         return outcome;
     }
 
-    // Operator rulings 2026-09-30. A fused round with no target bursts at the max-range point Fire froze along
-    // the aim line, whatever its fuse -- except a Contact round, which bursts at the first hull that line crosses
-    // before that point (a Proximity or Delayed fuse does not trip on a hull with nothing locked). The point is
+    // Operator rulings 2026-09-30. A fused round with no target bursts at the first hull its aim line crosses
+    // before the max-range point Fire froze, whatever its fuse (contact, proximity and delayed alike: a round with
+    // nothing locked stops on what is in its way), and at the max-range point when the line is clear. The point is
     // read from this tick's poses and frozen into the outcome (R4, the same timing Commit reads facing at).
     // Nothing is rolled or drawn, so determinism needs nothing beyond the frozen inputs.
     private static ShotOutcome CommitBurst(Zone zone, PendingShot shot, float now)
@@ -782,8 +801,7 @@ public static class FireControl
         var outcome = MakeOutcome(shot, ShotResult.Burst, false, false, int2.zero, float2.zero, 0f, now);
         outcome.HasBurstPoint = true;
         var reach = length(shot.BurstPosition.xz - shot.FireOrigin.xz);
-        var travelled = shot.Fuse == WeaponFuse.Contact ? ContactDistance(zone, shot, reach) : reach;
-        travelled = min(reach, max(travelled, shot.BlastRadius));
+        var travelled = min(reach, max(HullDistance(zone, shot, reach), shot.BlastRadius));
         if (travelled < reach)
         {
             outcome.BurstPoint = shot.FireOrigin.xz + shot.TravelDirection * travelled;
@@ -794,11 +812,11 @@ public static class FireControl
         return outcome;
     }
 
-    // The distance along a no-lock round's aim line to the first thing a contact fuse trips on, or `reach` (the
+    // The distance along a no-lock round's aim line to the first hull it crosses, or `reach` (the
     // max-range point) when it meets nothing first. The shooter's own hull is never a candidate.
     // SEAM FOR THE MINING CAMPAIGN: mining chunks are not Entities and are not on this branch. When they land,
     // whatever they are contributes its own entry distance to this minimum, and nothing else in the file changes.
-    private static float ContactDistance(Zone zone, PendingShot shot, float reach)
+    private static float HullDistance(Zone zone, PendingShot shot, float reach)
     {
         var nearest = reach;
         foreach (var entity in zone.Entities)
@@ -813,7 +831,7 @@ public static class FireControl
     // `origin` to the first metal cell ahead, +infinity when the line meets none, and negative when the origin is
     // already inside the hull (the blast radius floors every caller's use of it). Read through Lane's own cell
     // admission (CellsOnLine), in the entity's schematic frame: the line's lateral offset is its own, and cells
-    // wholly behind the origin are skipped. Only a contact fuse asks.
+    // wholly behind the origin are skipped. Only a no-lock round asks.
     private static float HullEntry(Entity entity, float2 origin, float2 direction)
     {
         var hullData = entity.ItemManager.GetData(entity.Hull) as HullData;
@@ -1025,7 +1043,10 @@ public static class FireControl
         // cancels the host's pose, so the host's own damage is fixed by the commit (R4 holds for it), while
         // every bystander is judged against where it actually is at arrival -- the same live rule a proximity
         // burst already applies to everyone.
-        var worldPoint = target.ToWorldPoint(schematicPoint);
+        // The arming rule applies to this point as it does to every other burst (Solve's Armed): a hull met nearer
+        // the muzzle than the blast radius is detonated on at the radius, along the round's own flight line.
+        var hullPoint = target.ToWorldPoint(schematicPoint);
+        var worldPoint = Armed(shot.FireOrigin, shot.TravelDirection, shot.BlastRadius, float3(hullPoint.x, shot.FireOrigin.y, hullPoint.y)).xz;
         Detonate(target.Zone, worldPoint, shot.BlastRadius, shot.Damage, shot.DamageType);
     }
 
@@ -1789,6 +1810,8 @@ public struct FireSolution
     public float FlightDistance;
     public float PFire;
     public float FireRange;
+    // Whether the shooter holds valid targeting data on the target (Designated); the HUD and the agents read it here.
+    public bool Designated;
     public Entity Engaged;
     public float2 TravelDirection;
     public float3 BurstPosition;
@@ -1799,9 +1822,7 @@ public struct FireSolution
 public struct FireControlDiagnostic
 {
     public bool HasTarget;
-    public bool Visible;
-    public bool InRange;
-    public bool Locked;
+    public bool Designated;
     public bool InArc;
     public float Range;
     public float MinRange;

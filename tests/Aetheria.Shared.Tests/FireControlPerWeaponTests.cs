@@ -75,6 +75,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
         public Ship Target;
         public List<Gun> Guns = new List<Gun>();
         public Gun Gun => Guns[0];
+        public Gun Decoy;
     }
 
     // Mount 0 (None, arc 0) bears on a target dead ahead; (Clockwise, arc 0) is a side mount the default 170
@@ -83,7 +84,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
     private Rig Build(
         (ItemRotation Rotation, float Arc)[] mounts = null, bool beam = false, WeaponFuse? fuse = null, float blast = 0f,
         float range = 100f, float targetRange = 60f, float accuracy = 1f, float minHit = .2f, bool lockWeapon = false,
-        bool turret = false, float energy = 0f, float heat = 0f, float visibility = 0f, int magazine = 0, bool singleAmmoBurst = false)
+        bool turret = false, float energy = 0f, float heat = 0f, float visibility = 0f, int magazine = 0, bool singleAmmoBurst = false, bool decoy = false)
     {
         mounts ??= new[] { (ItemRotation.None, 0f) };
         var hullData = new HullData
@@ -100,6 +101,14 @@ public sealed class FireControlPerWeaponTests : IDisposable
             {
                 Type = HardpointType.Sensors, Position = new int2(i, 0), Shape = new Shape(),
                 Rotation = mounts[i].Rotation, FiringArc = mounts[i].Arc
+            });
+        // A second weapon type on its own mount (a group of its own, since groups are per item type), dead ahead
+        // and unfused, weaker than the gun: what a group pick falls back to when the gun's group is refused.
+        if (decoy)
+            shooterHullData.Hardpoints.Add(new HardpointData
+            {
+                Type = HardpointType.Sensors, Position = new int2(mounts.Length, 0), Shape = new Shape(),
+                Rotation = ItemRotation.None, FiringArc = 0f
             });
 
         WeaponData behavior;
@@ -137,6 +146,21 @@ public sealed class FireControlPerWeaponTests : IDisposable
             MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000,
             Fuse = fuse, BlastRadius = blast,
             Behaviors = { behavior }
+        });
+        cache.Upsert(new WeaponItemData
+        {
+            Name = "Decoy", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Durability = 1,
+            MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000,
+            Behaviors =
+            {
+                new InstantWeaponData
+                {
+                    Count = Constant(1), BurstTime = Constant(0), Cooldown = Constant(1), Damage = Constant(50), Range = Constant(100),
+                    MinRange = Constant(0), Velocity = Constant(0), Spread = Constant(0), DamageSpread = Constant(0), Penetration = Constant(0),
+                    Energy = Constant(0), Heat = Constant(0), Visibility = Constant(0),
+                    DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } }
+                }
+            }
         });
         cache.Upsert(new GearData
         {
@@ -179,6 +203,13 @@ public sealed class FireControlPerWeaponTests : IDisposable
             Assert.True(shooter.TryEquip(gun, new int2(i, 0)));
             var item = shooter.Equipment.Single(x => x.EquippableItem == gun);
             rig.Guns.Add(new Gun { Item = item, Weapon = (Weapon) item.Behaviors.Single(b => b is Weapon) });
+        }
+        if (decoy)
+        {
+            var d = Make("Decoy", lot++, 1);
+            Assert.True(shooter.TryEquip(d, new int2(mounts.Length, 0)));
+            var item = shooter.Equipment.Single(x => x.EquippableItem == d);
+            rig.Decoy = new Gun { Item = item, Weapon = (Weapon) item.Behaviors.Single(b => b is Weapon) };
         }
         var targeting = Make("Targeting", lot++, 1);
         Assert.True(shooter.TryFindSpace(targeting, out var tpos));
@@ -374,7 +405,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
 
     // One discrete weapon, triggered once at no target, with every cost observable: a magazine, an energy charge,
     // a sound bank, wear events, heat and visibility. Range 29.5 refuses (arming 30); Range 40 fires.
-    private Costs Pull(float range, bool single, bool viaTrigger)
+    private Costs Pull(float range, bool single, bool viaTrigger, bool staleRange = false)
     {
         var r = Build(fuse: WeaponFuse.Proximity, blast: 30f, range: range, energy: 50f, heat: 5000f, visibility: 100f, magazine: 5, singleAmmoBurst: single);
         r.Shooter.Target.Value = null;
@@ -393,6 +424,9 @@ public sealed class FireControlPerWeaponTests : IDisposable
         var ammoBefore = weapon.Ammo;
         Assert.True(chargeBefore > 0f && ammoBefore == 5, "fixture: a full buffer and magazine");
 
+        // The Range the previous tick's Execute left, before this tick refreshes it: a power-dependent Range that
+        // has since fallen. Set through the property's own setter, so the trigger sees a Range the round will not.
+        if (staleRange) typeof(Weapon).GetProperty("Range").GetSetMethod(true).Invoke(weapon, new object[] { 100f });
         if (viaTrigger) weapon.Activate();
         else typeof(InstantWeapon).GetField("_burstRemaining", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(weapon, 1);
         r.Zone.Update(.01f);
@@ -406,7 +440,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
 
     // Control: the same weapon with Range to spare pays every cost, so a free refusal below is not a fixture that
     // never spends. Then the refusal costs nothing: no ammo, no energy, no sound, no wear, no heat, no
-    // visibility, no shot. `single` is a weapon that pays once per burst, at the trigger rather than at the round;
+    // visibility, no shot. `single` is a weapon that pays once per burst, at its first unrefused round rather than at each;
     // `viaTrigger` false authorises the burst directly (the way a trigger that passed leaves it) on a weapon whose
     // Range is short, so the Trigger check cannot be what stops the round and Execute must refuse it itself.
     // Kills, one per row of the assertions: a spend that precedes the refusal (Execute or Trigger), an
@@ -440,7 +474,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
 
     // The same rule for a beam: a fused beam whose arming distance exceeds Range fires nothing and draws
     // nothing. The control (Range 40) rolls shots, wears, draws power and shows; the refused beam does none of
-    // that, asks the bus for nothing, and stops itself the way an out-of-arc beam does.
+    // that, asks the bus for nothing, and never starts (ARefusedBeamNeverStarts).
     // Kills: ConstantWeapon spending (power request, wear, heat, visibility) before the refusal, or not
     // consulting FireControl at all.
     private (int Shots, int Wears, float Request, bool Visible, float Heat, int Stops, bool Firing) Burn(float range)
@@ -481,6 +515,104 @@ public sealed class FireControlPerWeaponTests : IDisposable
         Assert.Equal(0f, refused.Request);
         Assert.False(refused.Visible);
         Assert.True(fired.Heat - refused.Heat > 5f, $"a refused beam adds no heat ({refused.Heat} vs {fired.Heat})");
-        Assert.True(refused.Stops > 0 && !refused.Firing, "a refused beam stops itself, as an out-of-arc beam does");
+        Assert.True(refused.Stops == 0 && !refused.Firing, "a refused beam never starts, so it never has to stop");
+    }
+
+    // A beam is a stream of rounds, so a refused beam never starts: OnStartFiring drives the beam's visuals and
+    // audio, and starting it for Execute to stop a tick later would flash a beam that fires nothing. The control
+    // (Range 40) starts once and keeps firing. Kills: Activate that starts a beam without asking FireControl.
+    [Theory]
+    [InlineData(40f, 1)]
+    [InlineData(29.5f, 0)]
+    public void ARefusedBeamNeverStarts(float range, int starts)
+    {
+        var r = Build(beam: true, fuse: WeaponFuse.Proximity, blast: 30f, range: range);
+        r.Shooter.Target.Value = null;
+        Aim(r, float2(0, 1));
+        var weapon = (ConstantWeapon) r.Gun.Weapon;
+        var started = 0;
+        weapon.OnStartFiring += () => started++;
+
+        weapon.Activate();
+        for (var i = 0; i < 5; i++) r.Zone.Update(.1f);
+
+        Assert.Equal(starts, started);
+        Assert.Equal(starts == 1, weapon.Firing);
+    }
+
+    // A refused weapon is not one an agent can use: a fused weapon whose arming distance (30) exceeds its Range
+    // (29.5) is not fired at a target inside that Range, where the same weapon with Range to spare is.
+    // Kills: AgentFires answering "designated" without asking whether Solve refuses.
+    [Theory]
+    [InlineData(29.5f, false)]
+    [InlineData(40f, true)]
+    public void AnAgentNeverFiresARefusedFusedWeapon(float range, bool fires)
+    {
+        var r = Build(fuse: WeaponFuse.Proximity, blast: 30f, range: range, targetRange: 20f);
+
+        Assert.Equal(fires, FireControl.AgentFires(r.Gun.Weapon, r.Shooter, r.Target));
+    }
+
+    // Combat's group pick counts only weapons that can fire: the refused gun's group out-damages the decoy's, so a
+    // pick that counted it would select a group whose weapons are then never fired, and the decoy would stay silent.
+    // Kills: Combat counting a refused weapon's damage toward its group.
+    [Fact]
+    public void CombatDoesNotPickAGroupWhoseWeaponIsRefused()
+    {
+        var r = Build(fuse: WeaponFuse.Proximity, blast: 30f, range: 29.5f, targetRange: 20f, decoy: true);
+        Assert.True(r.Gun.Weapon.RangeDamagePerSecond(20f) > r.Decoy.Weapon.RangeDamagePerSecond(20f), "fixture: the refused gun is the stronger group");
+        r.Zone.Agents.Add(new Minion(r.Shooter));
+
+        r.Zone.Update(1f);
+        r.Zone.Update(1f);
+
+        Assert.False(r.Gun.Weapon.Firing, "a refused weapon is never activated");
+        Assert.True(r.Decoy.Weapon.Firing, "the group that can fire is the one picked");
+    }
+
+    // Combat's range test is Designated's, not a second one: a target exactly at max range is in reach (the old
+    // private test was strict). Kills: a range comparison of Combat's own.
+    [Fact]
+    public void CombatCountsATargetExactlyAtMaxRangeAsInReach()
+    {
+        var r = Build(range: 60f, targetRange: 60f);
+        // The agent is driven directly, not through the zone, so the shooter stays exactly at max range: the first
+        // update leaves the root state for combat, the second is combat deciding.
+        var agent = new Minion(r.Shooter);
+        agent.Update(.01f);
+        agent.Update(.01f);
+
+        Assert.True(r.Gun.Weapon.Firing);
+    }
+
+    // The trigger's threshold is inclusive: a shot priced exactly at AgentMinHitProbability is worth taking, and
+    // one priced a hair under it is not. Kills: `>` for `>=`.
+    [Fact]
+    public void AnAgentFiresAtExactlyTheHitProbabilityThreshold()
+    {
+        var probe = Build(accuracy: .5f);
+        var price = FireControl.HitProbability(probe.Gun.Weapon, probe.Shooter, probe.Target);
+        Assert.True(price > 0f);
+
+        var atThreshold = Build(accuracy: .5f, minHit: price);
+        var overThreshold = Build(accuracy: .5f, minHit: MathF.BitIncrement(price));
+
+        Assert.True(FireControl.AgentFires(atThreshold.Gun.Weapon, atThreshold.Shooter, atThreshold.Target));
+        Assert.False(FireControl.AgentFires(overThreshold.Gun.Weapon, overThreshold.Shooter, overThreshold.Target));
+    }
+
+    // A round refused on a Range that fell between the trigger and the round is still free: the burst is paid
+    // (SingleAmmoBurst) at its first round that is not refused, judged with the Range that round flies with.
+    // The trigger saw a stale Range of 100; the round's Range is 29.5, under the arming distance.
+    // Kills: paying for the burst at the trigger.
+    [Fact]
+    public void ARefusedBurstThatPassedTheTriggerOnAStaleRangeCostsNothing()
+    {
+        var refused = Pull(29.5f, single: true, viaTrigger: true, staleRange: true);
+
+        Assert.Equal(0, refused.Shots);
+        Assert.Equal(0, refused.Ammo);
+        Assert.Equal(0f, refused.ChargeSpent);
+        Assert.Equal(0, refused.Announced);
     }
 }
