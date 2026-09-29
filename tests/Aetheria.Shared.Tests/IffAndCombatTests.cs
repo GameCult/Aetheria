@@ -32,7 +32,7 @@ public sealed class IffAndCombatTests : IDisposable
         cache.Upsert(new GearData
         {
             Name = "Gun", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Durability = 1,
-            Behaviors = { new InstantWeaponData() }
+            Behaviors = { new InstantWeaponData { Count = new PerformanceStat { Min = 1, Max = 1 }, Cooldown = new PerformanceStat { Min = 1, Max = 1 } } }
         });
         cache.FlushAsync().Wait();
     }
