@@ -28,8 +28,8 @@ footprints.
 
 `tools/blender/aetheria_ships` is a separate Blender add-on in Brokkr's
 sidebar. It uses Brokkr's configured CultLib Python source and edits the
-line, hull shape, and hardpoint slots of an existing typed
-`aetheria.ship_authoring` record. To try it, make
+line slot of a ship file's `aetheria.ship_authoring` visual record and the
+hull shape and hardpoint slots of the `aetheria.hulldata` record beside it. To try it, make
 `F:\Projects\Brokkr\surfaces\blender` and this repo's `tools\blender` visible
 to Blender's add-on search path, enable `brokkr_bridge` then
 `aetheria_ships`, and install `msgpack` into Blender's Python environment.
@@ -41,7 +41,7 @@ Collection**. The collection stores `aetheria.asset_kind=ship`, the stable
 that bound collection and press **Capture Ship Lines**. Capture checks the
 collection ID against the record before writing; object and collection
 display names are not IDs.
-**Load Ship Layout** opens the same `.cc` record's hull grid and hardpoints in
+**Load Ship Layout** opens the same `.cc` file's hull grid and hardpoints in
 the panel. Toggle occupied grid cells, resize up to 32×32, and edit each
 hardpoint's type, mount ID, position, footprint, rotation, armor, and firing
 arc. A footprint uses top-to-bottom rows of `#` (occupied) and `.` (empty),
@@ -56,8 +56,9 @@ hull, model, and anchor authoring.
 
 ## Objective
 
-A mod author edits one typed ship record in a `.cc` file, including the hull
-schematic and every hardpoint. Blender, through Aetheria tooling built on
+A mod author edits one ship `.cc` file, including the hull schematic and every
+hardpoint. The file holds two typed records: the ship's `HullData` and the
+`ShipAuthoring` visual package that hull names through `HullData.Visual`. Blender, through Aetheria tooling built on
 Brokkr, edits that same record while displaying its visual source. The game
 assembles an instance from the record and its referenced asset package at
 runtime. A mod package can be installed without opening the Unity Editor.
@@ -76,9 +77,11 @@ is not yet an end-to-end ship loader in the current game.
 
 ## Target authority map for the parallel lane
 
-- **Owner:** a versioned `ShipAuthoring` document in a mod-owned `.cc` file
-  owns the ship's authored hull, schematic, hardpoints, structural and
-  presentation associations, and asset references. A ship ID is stable across
+- **Owner:** a mod-owned `.cc` file holds two records. Its `HullData` owns the
+  ship's authored hull semantics: schematic, hardpoints, and stats. Its
+  `ShipAuthoring` document owns the visual package: model path, anchor-to-node
+  associations, and schematic lines. `HullData.Visual` is the only binding
+  between them; a hull names exactly one of `Prefab` and `Visual`. A ship ID is stable across
   display-name changes.
 - **Inputs:** the authoring record; a Blender visual source identified by the
   record; compiled mesh, texture, and material artifacts; references to gear
@@ -100,10 +103,10 @@ is not yet an end-to-end ship loader in the current game.
   migrated hull; it does not keep two writable definitions of that hull.
 
 `ship-authoring validate`, the catalog composer, and the visual importer call
-the same semantic validator; that shared path is true of the C# callers only.
+the same `ShipAuthoringStore.Validate(hull, visual)`; that shared path is true of the C# callers only.
 The Blender side checks grid bounds and footprint shape (`ship_cc.py`) and
 nothing semantic. Blender edits the hull grid, hardpoints, and
-captured lines in the typed source record; `inspect` reads incomplete drafts.
+captured lines in the typed source records; `inspect` reads incomplete drafts.
 Unity's **Aetheria / Preview Mod Ship
 Package** imports a validated package from disk, resolves stable GLB node IDs,
 and draws the captured polylines directly as 3D line segments. Point opacity
@@ -126,10 +129,9 @@ one-home invariant. `ship-authoring compose` instead derives one runtime catalog
 the shipped catalog and validated mod packages, preserving all shipped record
 keys. Each mod's stable `ShipAuthoring.Id` yields separate deterministic keys
 for its copied `HullData` (`mod-hull:<id>`) and its runtime authoring record
-(`mod-ship:<id>`). The authoring record's key 1 is the same `HullData`, so the
-derived catalog currently holds each mod hull twice. Gameplay reads only the
-`mod-hull` copy; the `mod-ship` copy is dead weight inside a disposable file
-until the open question on which record owns the hull is settled. The generated
+(`mod-ship:<id>`). A mod's `ship.cc` stores its two records under those same
+keys, and compose copies them verbatim, so the derived catalog holds one hull
+per mod ship and `HullData.Visual` names the `mod-ship` record. The generated
 catalog is disposable; the shipped catalog and each mod's source `.cc` remain
 the owners. A player session opens one catalog snapshot and cannot hot-swap its
 designs beneath existing entities.
