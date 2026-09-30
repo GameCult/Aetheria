@@ -111,8 +111,8 @@ Unity's **Aetheria / Preview Mod Ship
 Package** imports a validated package from disk, resolves stable GLB node IDs,
 and draws the captured polylines directly as 3D line segments. Point opacity
 and color are retained; radius and material-specific stroke styling are not
-rendered yet. The current gameplay catalog and prefab loader do not read mod
-records.
+rendered yet. The game reads mod records through the boot path described
+under Runtime catalog seam.
 
 ## Runtime catalog seam
 
@@ -146,8 +146,11 @@ reference before atomically replacing the derived catalog. For example:
 dotnet run --project tools/AetherDb -- ship-authoring compose GameData/Aetheria.cc GameData/Aetheria.modded.cc GameData/Mods
 ```
 
-This command does not yet make the game open `Aetheria.modded.cc`; the runtime
-loader and a complete playable ship are still outstanding. In the Quiet probe,
+The game does not need this command: at boot, when `GameData/Mods` holds a
+package, it composes the derived catalog into `Application.persistentDataPath`
+(`ShipModCatalog.ResolveCatalog`) and opens that file instead of
+`Aetheria.cc`; with no package it opens the shipped catalog. The derived file is
+recomposed on every launch. A playable ship is still outstanding. In the Quiet probe,
 206 shipped records became 208 derived records: one `mod-hull:quiet` and one
 `mod-ship:quiet`. A missing GLB node ID was rejected without changing the
 previous derived file. The probe's four anchors and zero hardpoints are only
@@ -157,10 +160,20 @@ The visual importer uses [Unity glTFast's runtime
 import](https://github.com/Unity-Technologies/com.unity.cloud.gltfast/blob/main/Packages/com.unity.cloud.gltfast/Documentation~/ImportRuntime.md)
 to read the package GLB asynchronously and map its stable node IDs to Unity
 transforms. It keeps a partially loaded object inactive and destroys it on
-failure. The remaining construction boundary must wire those transforms to
-`ShipInstance` and preload visual prototypes before synchronous zone loads.
-It must preserve `capturepreset` writes to the shipped catalog and use the
-derived catalog only for gameplay reads.
+failure. `ShipModShips` preloads one assembled, inactive prototype per hull
+that names a `Visual`, at boot and before the game scene loads. `ShipModPlan`
+decides which anchor fills which `ShipInstance` slot: the hull's hardpoint type
+says what a mount is, and its anchor (id equal to the mount id) supplies the
+node; a thruster mount needs a `thruster-emitter` anchor, a radiator mount a
+`radiator-mesh` anchor, a weapon mount muzzle anchors parented to it. An
+`articulation` anchor is an ordinary mount node until pivots move onto
+`HullData`. The shared effects (shield, tractor beam, ping, explosion, map
+and invisible materials) come from the Addressable `ShipModTemplate` prefab.
+`ZoneRenderer.LoadEntity` clones the prototype when the hull names a `Visual`.
+Gameplay reads a mod ship's records from the derived catalog; the package
+directory supplies only the GLB. `capturepreset` still writes the shipped
+catalog. Continue refuses a run naming a design the catalog no longer holds
+(`RunSave.RequireDesigns`), naming the missing mod ships.
 
 ## Proof gates
 
@@ -187,8 +200,7 @@ The proof reuses `HullData` simulation semantics, CultCache `.cc` persistence,
 Brokkr's Blender host, and the current `ShipInstance` behavior. It adds one
 authoring document type and validator, Blender-facing layout and line editing,
 a disposable catalog composer, and one runtime GLB/line visual importer with
-an Editor preview. The remaining construction work is `ShipInstance` wiring
-and boot-time preloading. No daemon, second gameplay simulation, or Unity
+an Editor preview, `ShipInstance` assembly and boot-time preloading. No daemon, second gameplay simulation, or Unity
 prefab generator is added. The existing FBX builder remains available to
 existing content but is not an input to this lane. Its retirement follows
 migration.
