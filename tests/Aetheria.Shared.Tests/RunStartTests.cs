@@ -420,6 +420,49 @@ public sealed class RunStartTests : IDisposable
 
     private const float Freezing = 273.15f;
 
+    // A main-sector galaxy (not the prelude, which offers every product): each station's gear must come from
+    // manufacturers its faction can reach, the galaxy's factions its allegiance names.
+    private Galaxy MainGalaxy()
+    {
+        var authored = AuthoredSettings.Load(FindRepoRoot());
+        return new Galaxy(authored.Read<SectorGenerationSettings>("SectorGenerationSettings"),
+            authored.Read<SectorBackgroundSettings>("SectorBackgroundSettings"),
+            authored.Read<NameGeneratorSettings>("NameGeneratorSettings"), _cache, _ => { }, null, GalaxySeed);
+    }
+
+    // Every item a station carries, equipped or stocked, with the faction that made it.
+    private IEnumerable<(string item, Faction maker)> Made(Entity station) =>
+        station.Equipment.Select(item => item.EquippableItem).Cast<CraftedItemInstance>()
+            .Concat(station.CargoBays.SelectMany(bay => bay.Cargo.Keys).OfType<CraftedItemInstance>())
+            .Select(item => (_items.GetData(item).Name, _items.Brand(item).Maker));
+
+    private bool Reaches(Galaxy galaxy, Faction faction, Faction maker) =>
+        maker != null && galaxy.ContainsFaction(_cache.RefOf(maker)) &&
+        faction.Allegiance.Keys.Any(key => key.Key.Equals(_cache.RefOf(maker).Key));
+
+    // Every faction's stations, in a main-sector galaxy, carry a heater and a reactor, and nothing, equipped or
+    // stocked, from a manufacturer that faction cannot reach.
+    [Fact]
+    public void EveryFactionsStationsCarryOnlyGearItCanReachIncludingAHeaterAndAReactor()
+    {
+        var galaxy = MainGalaxy();
+        Assert.False(galaxy.IsPrelude);
+        var zone = Arena(null);
+        foreach (var faction in galaxy.Factions)
+        {
+            var generator = new LoadoutGenerator(ref _items.Random, _items, galaxy, galaxy.Entrance, faction, .5f);
+            for (var i = 0; i < 3; i++)
+            {
+                var station = EntitySerializer.Unpack(_items, zone, generator.GenerateStationLoadout());
+                Assert.True(station.Equipment.Count(IsHeater) == 1, $"{faction.Name} station {i}: no heater");
+                Assert.True(station.Equipment.Any(item => item.Behaviors.OfType<Reactor>().Any()), $"{faction.Name} station {i}: no reactor");
+                var unreachable = Made(station).Where(made => !Reaches(galaxy, faction, made.maker)).ToList();
+                Assert.True(unreachable.Count == 0,
+                    $"{faction.Name} station {i} carries {string.Join(", ", unreachable.Select(u => u.item + " by " + (u.maker?.Name ?? "nobody")))}");
+            }
+        }
+    }
+
     // An idle station, powered by its reactor, holds its heater's cells (where the thermostat reads) above freezing
     // over the second five of ten idle minutes. Unpowered, they cool from 280 K to about 247 K in that time. (The
     // station's border cells still sit near 265 K; how warm the whole hull should run is a tuning question.)
