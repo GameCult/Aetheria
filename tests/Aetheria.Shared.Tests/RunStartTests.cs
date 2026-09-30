@@ -147,8 +147,8 @@ public sealed class RunStartTests : IDisposable
             var player = staged.Player;
             Assert.Equal(hullName, player.HullData.Name);
             Assert.True(player.IsPlayerShip);
-            Assert.Contains(player, zone.Entities);
-            Assert.Same(zone, player.Zone);
+            SafeAssert.In(zone, player, "the player is admitted");
+            Assert.True(zone == player.Zone, "the player's zone is the arena");
             Assert.Equal(float3.zero, player.Position);
             Assert.Same(_protagonist, player.Faction);
             Assert.Equal(0, AgentsOf(zone, player));
@@ -178,7 +178,7 @@ public sealed class RunStartTests : IDisposable
 
         Assert.Equal("Djinni", player.HullData.Name);
         Assert.True(player.IsPlayerShip);
-        Assert.Contains(player, zone.Entities);
+        SafeAssert.In(zone, player, "the player is admitted");
         Assert.Equal(float3(120, 0, -40), player.Position);
         Assert.True(length(player.Direction - float2(.6f, .8f)) < 1e-5f, $"heading {player.Direction}");
         Assert.Equal(
@@ -206,8 +206,8 @@ public sealed class RunStartTests : IDisposable
         Assert.Equal(1, AgentsOf(zone, piloted));
         Assert.Equal(0, AgentsOf(zone, unpiloted));
         Assert.Equal(0, AgentsOf(zone, staged.Player));
-        Assert.Contains(piloted, zone.Entities);
-        Assert.Contains(unpiloted, zone.Entities);
+        SafeAssert.In(zone, piloted, "the piloted entity is admitted");
+        SafeAssert.In(zone, unpiloted, "the unpiloted entity is admitted");
 
         var look = unpiloted.LookDirection;
         for (var tick = 0; tick < 50; tick++)
@@ -276,7 +276,7 @@ public sealed class RunStartTests : IDisposable
             Placed(Bare(TurretHull()), 200, 50, ScenarioStance.Hostile, piloted: false)));
         var turret = Assert.IsType<OrbitalEntity>(staged.Entities[0]);
         Assert.False(turret.OrbitData.IsSet());
-        Assert.Contains(turret, zone.Entities);
+        SafeAssert.In(zone, turret, "the turret is admitted");
         for (var tick = 0; tick < 20; tick++) zone.Update(.1f);
         Assert.Equal(float2(200, 50), turret.Position.xz);
     }
@@ -297,17 +297,19 @@ public sealed class RunStartTests : IDisposable
                  })
         {
             var zone = Arena(null);
-            var before = zone.Entities.ToList();
+            var entities = zone.Entities.ToList();
+            var agents = zone.Agents.ToList();
             var failures = new List<string>();
             Assert.Null(RunStart.Stage(_items, zone, scenario, _startingHull, _protagonist, failures));
             Assert.Contains(failures, failure => failure.Contains(expected));
-            Assert.Equal(before, zone.Entities);
+            SafeAssert.Unchanged(zone, entities, agents);
             Assert.Contains(RunStart.Check(_items, scenario), failure => failure.Contains(expected));
         }
     }
 
     // A scenario naming a missing design or preset fails with each named; the check entry finds the same failures with
-    // no zone and writes no document, and staging admits nothing, not even the parts that built.
+    // no zone and writes no document, and staging admits nothing, not even the parts that built: a player and a piloted
+    // entity that build cleanly stay out when a later entity fails.
     [Fact]
     public void AMissingDesignFailsNamedAndChangesNothing()
     {
@@ -330,8 +332,15 @@ public sealed class RunStartTests : IDisposable
         var failures = new List<string>();
         Assert.Null(RunStart.Stage(_items, zone, scenario, _startingHull, _protagonist, failures));
         Assert.Equal(checkFailures, failures);
-        Assert.Equal(entities, zone.Entities);
-        Assert.Equal(agents, zone.Agents);
+        SafeAssert.Unchanged(zone, entities, agents);
+
+        var lateFailure = Quiet(At(djinni, 0, 0),
+            Placed(Bare(Hull("LonginusX")), 300, 0, ScenarioStance.Hostile, piloted: true),
+            Placed(new CultRecordRef<Loadout>(new CultRecordKey("absent-preset")), -300, 0, ScenarioStance.Neutral, false));
+        failures.Clear();
+        Assert.Null(RunStart.Stage(_items, zone, lateFailure, _startingHull, _protagonist, failures));
+        Assert.Contains("absent-preset", Assert.Single(failures));
+        SafeAssert.Unchanged(zone, entities, agents);
         Assert.Empty(RunStart.Check(_items, null));
     }
 
@@ -366,7 +375,7 @@ public sealed class RunStartTests : IDisposable
         var arriving = (Ship) Loadouts.Materialize(_items, zone, _cache.Get(Bare(Hull("Djinni"))), _ => true, new List<string>());
         var agents = zone.Agents.Count;
         zone.Admit(arriving, piloted: false);
-        Assert.Contains(arriving, zone.Entities);
+        SafeAssert.In(zone, arriving, "the arrival is admitted");
         Assert.Equal(agents, zone.Agents.Count);
     }
 
