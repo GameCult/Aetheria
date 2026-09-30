@@ -2,13 +2,30 @@
 
 Date: 2026-09-30, 02:10 CEST. Imagination pass.
 
-Status: cut map. Nothing has landed. The target lives in section 0 until Self splits it out into
+Status: cut map, ruled 2026-09-30 (see "Rulings" below). Nothing has landed. The target lives in section 0 until Self splits it out into
 `docs/scenarios-target.md`; this document owns the means.
 
 Anchors are against Aetheria `origin/master` `dcd7bbc5` (the fire-control merge), read in the clone
 `C:\ws72-fuse5` with `git show`/`git grep`. The operator's tree `F:\Projects\Aetheria` was not touched. No
 build ran and no Yggdrasil job ran. **(read)** marks a claim read from source at the anchor. **(probe)** marks a
 claim measured against a real file.
+
+---
+
+## Rulings (operator, 2026-09-30)
+
+- **Q1 A.** The arena is the entrance zone of a small prelude galaxy. Operator: "A is fine, I guess, since some of
+  the stuff we'll be testing won't work in an isolated zone with no galaxy."
+- **Q2 B.** The agent records results with `AetherDb record`; the menu shows them read-only.
+- **Q3 A.** Test designs are committed catalog designs with no product.
+- **Q4: none of A-C.** "Debug console commands are hella useful in general and fun for sandbox gamers, never toss a
+  single one." Cut 0 is cancelled: `give` (with its hull route), `spawnturret` and every other console command stay.
+  The neutral wanderers are not a console command and no ruling retires them, so they stay too. Scenarios coexist
+  with the console; they are not its replacement.
+- **Smoke weapons.** The operator will not restore their tree's uncommitted `GameData/Aetheria.cc` themselves:
+  "No I won't, but you may." When Cut 4 lands, Self runs `git checkout -- GameData/Aetheria.cc` in
+  `F:\Projects\Aetheria`. That one file is the only exception to the rule that agents do not touch the
+  operator's tree.
 
 ---
 
@@ -226,7 +243,8 @@ It holds no Unity type.
 - **Derived state:** `ActionGameManager.CurrentEntity` is bound to the returned player. `PendingScenario` is
   transport only.
 - **Forbidden writers:** `StartGame` may not generate, unpack or admit the player ship. `MainMenu` may not stage.
-  No console command admits entities (`give` and `spawnturret` die, Q4).
+  Console commands stay (Q4 ruling), but `give` and `spawnturret` admit through `Zone.Admit`, the same primitive
+  as scenario staging. They get no admission path of their own. Cut 1 repoints them.
 - **Shared paths:** New Game and scenario launch both run menu, galaxy, `StartGame`, `RunStart`. Continue does not
   stage.
 - **Deletion line:** `StartGame` `:805-814` (generator, unpack, add, activate). The only surviving line is the
@@ -290,10 +308,13 @@ Build budget, every cut:
   must refresh that pin, or its content tests read the old catalog. Cut 4's tests that read the ledger mount it the
   same way. Yggdrasil's disk is saturated: one job per cut, `--artifacts-path` in the container.
 
-Order: 0, 1, 2, 3, 4. Cut 0 is subtraction alone, so Soul can falsify it alone. Cuts 1 and 3 are headless. Cut 2
+Order: 1, 2, 3, 4. Cut 0 is cancelled (Q4 ruling). Cuts 1 and 2 branch from `master` directly. Cuts 1 and 3 are headless. Cut 2
 is the only Unity-side cut. Cut 4 is content.
 
-### Cut 0. Retire the ad hoc test affordances (Q4)
+### Cut 0. Retire the ad hoc test affordances (Q4). CANCELLED
+
+**Cancelled 2026-09-30 by the Q4 ruling ("never toss a single one").** Nothing below runs. It is kept as history.
+Cut 1 branches from `master`.
 
 - **Repo/branch:** Aetheria, `codex/scenarios` from `master` `dcd7bbc5`.
 - **Deletes first** (per Q4 A; B keeps the item branch of `give` and the wanderers):
@@ -318,7 +339,7 @@ is the only Unity-side cut. Cut 4 is content.
 
 ### Cut 1. `RunStart`, `Zone.Admit`, and the scenario type (headless)
 
-- **Repo/branch:** Aetheria `codex/scenarios`, on Cut 0. Re-anchor `Zone.cs` if mining has merged.
+- **Repo/branch:** Aetheria `codex/scenarios`, from `master` (Cut 0 cancelled). Re-anchor `Zone.cs` if mining has merged.
 - **First:** with `AetherDb hardpoint-fit` and a scratch `Materialize` against the live catalog, confirm that
   `Djinni`, `LonginusX` and one turret hull each have a product and materialize bare. If one has no product, stop
   and report: the Q3 rule would make it unbranded, which may not be intended for a real hull.
@@ -327,6 +348,10 @@ is the only Unity-side cut. Cut 4 is content.
     calling `RunStart` with no scenario, so behaviour is unchanged).
   - The four hand-written joins: `ActionGameManager.cs:735-736`, `Entity.cs:1006-1007`, `Zone.cs:124-125`, and the
     agent add at `Zone.cs:128`. Each becomes `Admit`.
+- **Repoints (Q4 ruling, console commands stay):** `give`'s hull route (`ActionGameManager.cs:515-544`) and
+  `spawnturret` (`:564-589`) admit through `Zone.Admit`. If either already reaches one of the four joins above,
+  that repoint covers it. A test pins that `give` of a hull and `spawnturret` both land in `Entities` through
+  `Admit`, and its mutation (restoring a direct add) must fail it.
 - **Adds:** `Scenario.cs`, `RunStart.cs`, `Zone.Admit`, the `ambient` parameter on `ZoneGenerator.GenerateZone`
   (`:38-43`; the ship loop `:334-340` and `PlaceTurrets` calls `:309,331` honour it), `Scenario` in
   `AetheriaStores.CatalogTypes` (`:9`), and the two `Materialize` rules (`Loadout.cs:103-115,131`).
@@ -421,8 +446,9 @@ is the only Unity-side cut. Cut 4 is content.
 
 - **Repo/branch:** Aetheria `codex/scenarios`, on Cuts 2 and 3. Hands authors on the branch clone, never in
   `F:\Projects\Aetheria`.
-- **First:** tell the operator that the uncommitted smoke weapons in their tree's `GameData/Aetheria.cc` must be
-  restored (`git checkout -- GameData/Aetheria.cc`, their own command) before they pull. This cut recreates them as
+- **First:** Self restores the uncommitted smoke weapons in the operator's tree (`git checkout --
+  GameData/Aetheria.cc` in `F:\Projects\Aetheria`, that file only, per the smoke-weapons ruling) before the
+  operator pulls. This cut recreates them as
   committed designs.
 - **Adds:**
   - A transient `AetherDb scenario-seed [apply]` command, with the never-clobber rule of section 2.4.
@@ -469,7 +495,7 @@ is the only Unity-side cut. Cut 4 is content.
   anything editing a result; any catalog write at runtime.
 - **Shared paths:** New Game and every scenario launch: one launch body, `StartGame`, `RunStart`, `Admit`. Warp,
   undock, construction and staging: `Admit`.
-- **Deletion line:** Cut 0's affordances; `StartGame` `:805-814`; the four hand-written joins; the duplicated New
+- **Deletion line:** `StartGame` `:805-814`; the four hand-written joins; the duplicated New
   Game branches; the transient seed command.
 
 ---
