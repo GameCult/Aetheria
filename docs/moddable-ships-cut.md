@@ -343,8 +343,17 @@ Unity 6000.3.24f1: compile clean; `ShipModPlaySmoke.Run` (edit mode, real preloa
 the generated mesh fixture. Owed: the operator's play-mode checks (menu dialog for excluded mods, New Game/Continue
 with a mod, zone entry, wormhole, Continue after removal). Recorded, not fixed: two processes sharing
 `Aetheria.modded.cc`; preload running inside the `CultCache` getter; a mod updated in place that changes a hull
-passes the gate; the `equipment` role (operator question). Interim ruling: a non-thruster/radiator/weapon mount
-must be an `articulation` anchor.
+passes the gate. The interim ruling that a non-thruster/radiator/weapon mount must be an `articulation` anchor is
+superseded by the ruling below.
+
+**Mount-point ruling (operator, 2026-09-30):** "Regarding mount points, they're only really needed for hardpoints
+that are externally visible in some way. That's just weapons, radiators, thrusters right now." So a mount anchor
+exists only for the `weapon`, `radiator` and `thruster` roles. There is no `equipment` role and no plain mount.
+Other hardpoints are internal and carry no anchor. Articulation points (turret pivots, `ArticulationPoint.Group`)
+are a separate concept and are not mounts. They stay. Follow-up for S3 prep: find out whether
+`EquipmentHardpoints` (line 314) has a consumer outside anchor wiring. If it has none, delete it, and have the
+validator refuse a mount with any other role. Also: the operator said "Missing design refusal on catalog entries
+is good": keep it.
 
 ### S3. Gate 4: a built player
 
