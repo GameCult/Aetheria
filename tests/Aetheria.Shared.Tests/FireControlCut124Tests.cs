@@ -2600,10 +2600,13 @@ public sealed class FireControlCut124Tests : IDisposable
                 Assert.Null(w.Fuse);
             }
 
+            // Mining Cut 3: a catalog written since slot 32 existed (AetherDb field-kinds rewrote every record) stores
+            // the slot, so its weapons load exactly. A catalog that predates it may drift by slot 32 and nothing else.
             var reports = store.LastSchemaMigrationReports.Where(r => r.LocalSchemaName == "aetheria.weaponitemdata").ToList();
             Assert.NotEmpty(reports);
             foreach (var report in reports)
             {
+                if (report.Kind == CultSchemaMigrationKind.Exact) continue;
                 Assert.Equal(CultSchemaMigrationKind.CompatibleDrift, report.Kind);
                 Assert.Equal(new[] { 32 }, report.DefaultedMissingSlots);
                 Assert.Empty(report.IgnoredExtraSlots);
