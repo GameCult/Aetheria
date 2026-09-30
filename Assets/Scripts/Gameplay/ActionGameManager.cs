@@ -583,9 +583,7 @@ public class ActionGameManager : MonoBehaviour
                 var turret = EntitySerializer.Unpack(ItemManager, Zone, loadoutGenerator.GenerateTurretLoadout());
                 turret.Position.xz = _currentEntity.Position.xz +
                                      ItemManager.Random.NextFloat2Direction() * ItemManager.Random.NextFloat(50, 500);
-                turret.Zone = Zone;
-                Zone.Entities.Add(turret);
-                turret.Activate();
+                Zone.Admit(turret, piloted: false);
             });
         //Temporary, or not
         ConsoleController.AddCommand("tow", _ => TowShip());
@@ -732,8 +730,7 @@ public class ActionGameManager : MonoBehaviour
             CurrentEntity.Deactivate();
             CurrentEntity.Zone.Entities.Remove(CurrentEntity);
             CurrentEntity.Zone = Zone;
-            Zone.Entities.Add(CurrentEntity);
-            CurrentEntity.Activate();
+            Zone.Admit(CurrentEntity, piloted: false);
         }
         
         ZoneRenderer.LoadZone(Zone);
@@ -801,18 +798,14 @@ public class ActionGameManager : MonoBehaviour
             if (saved == null)
             {
                 SectorMap.QueueZoneReveal(CurrentGalaxy.Entrance.AdjacentZones.Prepend(CurrentGalaxy.Entrance));
+                // RunStart owns what a new run starts with (docs/scenarios-cut.md, 2.2); this only enters and binds.
+                RunStart.GenerateArena(ItemManager, Settings.ZoneSettings, CurrentGalaxy, null);
                 PopulateLevel(CurrentGalaxy.Entrance);
-                var loadoutGenerator = new LoadoutGenerator(ref ItemManager.Random, ItemManager, CurrentGalaxy, Zone.GalaxyZone, IsTutorial ? CurrentGalaxy.ResolveFaction(Settings.TutorialGenerationSettings.ProtagonistFaction) : null, 2);
-                var ship = EntitySerializer.Unpack(
-                    ItemManager,
-                    Zone,
-                    loadoutGenerator.GenerateShipLoadout(data => string.IsNullOrEmpty(Settings.StartingHullName) || data.Name==Settings.StartingHullName ));
-                ((Ship) ship).IsPlayerShip = true;
-                ship.Position = float3.zero;
-                ship.Zone = Zone;
-                Zone.Entities.Add(ship);
-                ship.Activate();
-                BindToEntity(ship);
+                var failures = new List<string>();
+                var staged = RunStart.Stage(ItemManager, Zone, null, Settings.StartingHullName,
+                    IsTutorial ? CurrentGalaxy.ResolveFaction(Settings.TutorialGenerationSettings.ProtagonistFaction) : null, failures)
+                    ?? throw new InvalidOperationException($"The new run could not stage: {string.Join("; ", failures)}");
+                BindToEntity(staged.Player);
             }
             else
             {
