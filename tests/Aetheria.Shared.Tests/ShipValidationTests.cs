@@ -34,6 +34,7 @@ public sealed class ShipValidationTests
         ship.Hull.Hardpoints[0].Armor = 5;
         ship.Hull.Hardpoints[0].FiringArc = 360;
         ship.Hull.Hardpoints[0].Type = HardpointType.AetherDrive;
+        ship.Visual.Anchors.Single(anchor => anchor.Id == "thruster.port").Role = "articulation";
         ship.Hull.Hardpoints[0].Rotation = ItemRotation.Clockwise;
         ship.Validate();
     }
