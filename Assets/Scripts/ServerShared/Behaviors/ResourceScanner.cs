@@ -30,30 +30,16 @@ public class ResourceScannerData : BehaviorData
 
 // Cut 2 (docs/mining-cut.md, Q1=A): the dead survey Execute and its scan-target fields are gone
 // (ScanTarget/Asteroid/_scanTime/_scanTarget, and the always-false-until-scanned PlanetSurveyFloor write it
-// worked toward). Range, MinimumDensity and ScanDuration stay authored data on this behavior until Q2 rules
-// whether the scanner becomes a chunk's detection-range gate (docs/mining-cut.md Q2 consequence "Visibility").
-public class ResourceScanner : Behavior, IAlwaysUpdatedBehavior
+// worked toward). Mining Cut 3 (docs/mining-cut-refresh.md): chunks are detected by reflected light, not by a
+// scanner, so the per-tick evaluation of three stats nothing read is gone too. The behavior is parked: its data
+// stays authored, and it does nothing.
+public class ResourceScanner : Behavior
 {
-    private ResourceScannerData _data;
-
-    public float Range { get; private set; }
-    public float MinimumDensity { get; private set; }
-    public float ScanDuration { get; private set; }
-
     public ResourceScanner(ResourceScannerData data, EquippedItem item) : base(data, item)
     {
-        _data = data;
     }
 
     public ResourceScanner(ResourceScannerData data, ConsumableItemEffect item) : base(data, item)
     {
-        _data = data;
-    }
-
-    public void Update(float delta)
-    {
-        Range = Evaluate(_data.Range);
-        MinimumDensity = Evaluate(_data.MinimumDensity);
-        ScanDuration = Evaluate(_data.ScanDuration);
     }
 }
