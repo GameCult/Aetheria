@@ -351,9 +351,10 @@ public sealed class RunSaveTests : IDisposable
         CultRecordRef<ItemData> present;
         using (var setup = AetheriaStores.Open(Catalog, catalogWritable: true))
         {
-            var lamp = setup.GetAll<GearData>().SingleOrDefault(gear => gear.Name == "Lamp") ??
+            var existing = setup.GetAll<GearData>().SingleOrDefault(gear => gear.Name == "Lamp");
+            var lamp = existing != null ? setup.RefOf(existing) :
                 setup.Upsert(new GearData { Name = "Lamp", Hardpoint = HardpointType.Sensors, Shape = new Shape() });
-            present = new CultRecordRef<ItemData>(setup.RefOf(lamp).Key);
+            present = new CultRecordRef<ItemData>(lamp.Key);
             setup.FlushAsync().Wait();
         }
         using var cache = Open();
