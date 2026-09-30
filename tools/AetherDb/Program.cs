@@ -36,10 +36,8 @@ public static class Program
             case "targeting-catalog": return TargetingCatalog(args.Contains("apply"));
             case "targeting-catalog-6c": return TargetingCatalog6c(args.Contains("apply"));
             case "targeting-catalog-6d": return TargetingCatalog6d(args.Contains("apply"));
-            case "station-reactors": return StationReactors(args.Contains("apply"));
-            case "allegiance-self": return AllegianceSelf(args.Contains("apply"));
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], station-reactors [apply], allegiance-self [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply]");
                 return 1;
         }
     }
@@ -1471,121 +1469,6 @@ public static class Program
         });
 
         Console.WriteLine($"\nLanded {precisionChanges.Length} Precision changes in Aetheria.cc");
-        return 0;
-    }
-
-    // Scenarios map, operator ruling 2026-09-30 on station reactors (B): "a station with no access to Zhestokost gear
-    // should not have Zhestokost gear". Every manufacturer that makes reactors gets its own design for Zenith's 16-cell
-    // Reactor hardpoint, scaled by cells from its largest reactor as the Manhattan one was: a full 4x4, charge, mass
-    // and price times 16 over the source's cells, every other value and stat term the source's own, sold by that
-    // manufacturer. The Manhattan-derived "Station Reactor" is renamed to the same pattern.
-    private static int StationReactors(bool apply)
-    {
-        var db = AetherDb.Open(catalogWritable: apply);
-        var cache = db.Cache;
-        var reactors = cache.GetAll<GearData>().Where(d => d.Hardpoint == HardpointType.Reactor).ToArray();
-        var products = cache.GetAll<FactionProductData>().Where(p => p.Manufacturer.IsSet()).ToArray();
-        FactionProductData ProductOf(GearData design) => products.Single(p => p.Design.Key.Equals(cache.RefOf(design).Key));
-
-        var existing = cache.GetAll<GearData>().Single(d => d.Name == "Station Reactor");
-        var existingProduct = ProductOf(existing);
-        var changes = new List<(Type Type, object Document, CultRecordKey Key)>();
-        existing.Name = "Manhattan Station Reactor";
-        existingProduct.Name = "Manhattan Station";
-        changes.Add((typeof(GearData), existing, cache.RefOf(existing).Key));
-        changes.Add((typeof(FactionProductData), existingProduct, cache.RefOf(existingProduct).Key));
-        Console.WriteLine("Renamed: Station Reactor -> Manhattan Station Reactor, product Station Reactor -> Manhattan Station");
-
-        var makers = reactors.Where(r => r.Shape.Coordinates.Length < 16).GroupBy(r => ProductOf(r).Manufacturer.Key)
-            .Where(g => !reactors.Any(r => r.Shape.Coordinates.Length == 16 && ProductOf(r).Manufacturer.Key.Equals(g.Key)));
-        foreach (var group in makers.OrderBy(g => cache.Get<Faction>(g.Key).Name, StringComparer.Ordinal))
-        {
-            var source = group.OrderByDescending(r => r.Shape.Coordinates.Length).ThenByDescending(r => r.Price).First();
-            var sourceProduct = ProductOf(source);
-            var scale = 16f / source.Shape.Coordinates.Length;
-            var shape = new Shape(4, 4);
-            foreach (var cell in shape.AllCoordinates) shape[cell] = true;
-            var design = new GearData
-            {
-                Name = source.Name + " Station Reactor",
-                Description = "A reactor sized for a station's core.",
-                Hardpoint = HardpointType.Reactor,
-                Shape = shape,
-                Mass = source.Mass * scale,
-                Price = (int) Math.Round(source.Price * scale / 50000) * 50000,
-                SpecificHeat = source.SpecificHeat,
-                Conductivity = source.Conductivity,
-                Durability = source.Durability,
-                MinimumTemperature = source.MinimumTemperature,
-                MaximumTemperature = source.MaximumTemperature,
-                OptimalTemperature = source.OptimalTemperature,
-                PlateauWidth = source.PlateauWidth,
-                ThermalResilience = source.ThermalResilience,
-                SoundBank = source.SoundBank,
-                Roles = source.Roles.Select(role => new ItemRole { Name = role.Name }).ToList(),
-                Behaviors = MessagePack.MessagePackSerializer.Deserialize<List<BehaviorData>>(MessagePack.MessagePackSerializer.Serialize(source.Behaviors)),
-            };
-            var reactor = design.Behaviors.OfType<ReactorData>().Single();
-            reactor.Charge.Min *= scale;
-            reactor.Charge.Max *= scale;
-            CultRecordRefs.Validate(design);
-            var key = new CultRecordKey(Guid.NewGuid().ToString("N"));
-            var product = new FactionProductData
-            {
-                Name = sourceProduct.Name + " Station",
-                Description = "",
-                Design = new CultRecordRef<CraftedItemData>(key),
-                Manufacturer = sourceProduct.Manufacturer,
-                Roles = design.Roles.Select(role => new ProductRole { Role = role.Name }).ToList(),
-            };
-            changes.Add((typeof(GearData), design, key));
-            changes.Add((typeof(FactionProductData), product, new CultRecordKey(Guid.NewGuid().ToString("N"))));
-            Console.WriteLine($"{design.Name}: from {source.Name} ({source.Shape.Coordinates.Length} cells) x {scale:F3}, mass {source.Mass} -> {design.Mass}, " +
-                              $"price {source.Price} -> {design.Price}, charge {reactor.Charge.Min / scale}..{reactor.Charge.Max / scale} -> {reactor.Charge.Min}..{reactor.Charge.Max}; " +
-                              $"product {product.Name} by {cache.Get(product.Manufacturer).Name}");
-        }
-
-        if (!apply)
-        {
-            Console.WriteLine("\nDry run. Pass \"apply\" to land it.");
-            return 0;
-        }
-        cache.Commit(batch =>
-        {
-            foreach (var (type, document, key) in changes) batch.Upsert(type, document, key);
-        });
-        Console.WriteLine($"\nLanded {changes.Count} records in Aetheria.cc");
-        return 0;
-    }
-
-    // Scenarios map, operator ruling 2026-09-30 ("removing the 11 self-entries was my intention"): a faction always
-    // reaches its own manufacturer's gear (LoadoutGenerator.IsAvailable), so an allegiance map lists only other
-    // factions. This drops each faction's entry for itself.
-    private static int AllegianceSelf(bool apply)
-    {
-        var db = AetherDb.Open(catalogWritable: apply);
-        var cache = db.Cache;
-        var changed = new List<(Faction Faction, CultRecordKey Key)>();
-        foreach (var faction in cache.GetAll<Faction>().OrderBy(f => f.Name, StringComparer.Ordinal))
-        {
-            var self = cache.RefOf(faction);
-            var entry = faction.Allegiance.Keys.FirstOrDefault(k => k.Key.Equals(self.Key));
-            if (!entry.IsSet()) continue;
-            Console.WriteLine($"{faction.Name}: drop its own allegiance entry ({faction.Allegiance[entry]})");
-            faction.Allegiance.Remove(entry);
-            changed.Add((faction, self.Key));
-        }
-
-        if (!apply)
-        {
-            Console.WriteLine($"\nDry run. Pass \"apply\" to land {changed.Count} changes.");
-            return 0;
-        }
-        cache.Commit(batch =>
-        {
-            foreach (var (faction, key) in changed) batch.Upsert(typeof(Faction), faction, key);
-        });
-        Console.WriteLine($"\nLanded {changed.Count} changes in Aetheria.cc");
         return 0;
     }
 }
