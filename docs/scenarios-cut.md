@@ -44,6 +44,15 @@ claim measured against a real file.
     - The heater shares the cockpit thermostat's owner.
     - It is equippable on any hull.
     - Self default: as generic gear it gets a product, so the census test needs no station exception.
+    **Station power and the Tractor Beam (operator, 2026-09-30):**
+    - "Yep, we need a station reactor." Author a reactor that fits Zenith's 16-cell reactor slot, with a product,
+      so the station heater has power.
+    - "Nope, ships don't need these, 'fits anywhere' was a description of tool-type gear, which doesn't require a
+      specific hardpoint." The heater keeps its 12-cell shape. The ship-heater test is dropped.
+    - "Screw old saves." No retrofit of heaters onto stations loaded from existing saves.
+    - "Tractor Beam is supposed to be for item pickup. A ship without a pickup behavior shouldn't be able to pick
+      things up, but there is currently no such limitation AFAIK." Picking up items requires a pickup Behavior,
+      which the Tractor Beam carries.
   - **Weapons:** Autocannon, LRMM72, SRMM72, Tractor Beam. "yep that's a content gap". They get products.
   - After both, "no product" means exactly "Q3 test design". A census test pins that: every product-less design in
     the shipped catalog is a scenario test design.
