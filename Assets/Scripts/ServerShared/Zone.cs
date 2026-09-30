@@ -101,6 +101,9 @@ public class Zone
             switch (planet)
             {
                 case AsteroidBeltData belt:
+                    // Mining Cut 3 (Q16 B): a belt from before field kinds existed gets its kind here, once, by
+                    // the rule generation uses, and keeps it.
+                    FieldKinds.Ensure(body.Key, belt, cache);
                     AsteroidBelts[body.Key] = new AsteroidBelt(belt);
                     break;
                 case SunData sun:
@@ -305,6 +308,37 @@ public class Zone
         return AsteroidBelts[belt].Pose(index, _time, parentPosition, Settings, size);
     }
 
+    // Mining Cut 3 (docs/mining-cut-refresh.md): how bright a chunk is -- Reflector's rule (cross-section × the light
+    // on it), with the field kind's reflectivity per schematic cell times the chunk's area in cells. Computed when
+    // asked; nothing about it is stored. A worn chunk shrinks and dims; a broken one, or one of a kindless belt, is dark.
+    public float ChunkVisibility(ChunkId chunk)
+    {
+        if (!ChunkExists(chunk)) return 0f;
+        var kind = _itemManager.ItemData.Get(((AsteroidBeltData) Planets[chunk.Field]).Kind);
+        if (kind == null) return 0f;
+        var cells = ChunkRadius(chunk) / _itemManager.GameplaySettings.SchematicCellSize;
+        return kind.CrossSection * PI * cells * cells * GetLight(ChunkPose(chunk.Field, chunk.Index).xy);
+    }
+
+    // Mining Cut 3: the one chunk query -- every chunk that exists and whose centre lies within `range` of
+    // `position`, written into `into` (cleared first). Belts whose annulus cannot reach are skipped whole. It knows
+    // nothing about detection; callers filter by what an observer can see.
+    public void ChunksNear(float2 position, float range, List<ChunkId> into)
+    {
+        into.Clear();
+        foreach (var belt in AsteroidBelts)
+        {
+            var centre = GetOrbitPosition(Orbits[belt.Value.Data.Orbit.Key].Data.Parent.Key);
+            var fromCentre = length(position - centre);
+            if (fromCentre - range > belt.Value.Radius || fromCentre + range < belt.Value.InnerRadius) continue;
+            for (var i = 0; i < belt.Value.Data.Asteroids.Length; i++)
+            {
+                var chunk = new ChunkId(belt.Key, i);
+                if (ChunkExists(chunk) && length(ChunkPose(belt.Key, i).xy - position) <= range) into.Add(chunk);
+            }
+        }
+    }
+
     public void EvaluateBelt(CultRecordKey belt, Span<float4> into)
     {
         var beltData = Planets[belt] as AsteroidBeltData;
@@ -503,11 +537,14 @@ public class AsteroidBelt
 {
     public AsteroidBeltData Data;
     public float Radius { get; }
+    // Mining Cut 3: the belt's inner edge, so the chunk query can skip a belt whose annulus it cannot reach.
+    public float InnerRadius { get; }
 
     public AsteroidBelt(AsteroidBeltData data)
     {
         Data = data;
         Radius = data.Asteroids.Max(a => a.Distance);
+        InnerRadius = data.Asteroids.Min(a => a.Distance);
     }
 
     // Cut 1 (docs/mining-cut.md): the formula of Zone.cs:269-271 verbatim, `time` in double as `_time` was used.
@@ -553,6 +590,37 @@ public readonly struct ChunkId : IEquatable<ChunkId>
     public bool Equals(ChunkId other) => Field.Equals(other.Field) && Index == other.Index;
     public override bool Equals(object obj) => obj is ChunkId other && Equals(other);
     public override int GetHashCode() => (Field.GetHashCode() * 397) ^ Index;
+}
+
+// Mining Cut 3 (docs/mining-cut-refresh.md, Q2 A): what an entity targets -- another entity, a chunk, or nothing.
+// One slot holds either kind (Entity.Target, written only by Entity.SetTarget). A chunk never equals an entity.
+// There is deliberately no == operator: a comparison against null or an entity must say which side it means.
+public readonly struct TargetRef : IEquatable<TargetRef>
+{
+    public readonly Entity Entity;
+    public readonly ChunkId? Chunk;
+
+    public TargetRef(Entity entity)
+    {
+        Entity = entity;
+        Chunk = null;
+    }
+
+    public TargetRef(ChunkId chunk)
+    {
+        Entity = null;
+        Chunk = chunk;
+    }
+
+    public static TargetRef None => default;
+    public bool IsNone => Entity == null && !Chunk.HasValue;
+
+    public static implicit operator TargetRef(Entity entity) => new TargetRef(entity);
+    public static implicit operator TargetRef(ChunkId chunk) => new TargetRef(chunk);
+
+    public bool Equals(TargetRef other) => ReferenceEquals(Entity, other.Entity) && Nullable.Equals(Chunk, other.Chunk);
+    public override bool Equals(object obj) => obj is TargetRef other && Equals(other);
+    public override int GetHashCode() => Chunk.HasValue ? Chunk.Value.GetHashCode() : Entity?.GetHashCode() ?? 0;
 }
 
 // Cut 2: wear on one chunk. BrokenUntil is the absolute zone time the chunk respawns at; null means the chunk

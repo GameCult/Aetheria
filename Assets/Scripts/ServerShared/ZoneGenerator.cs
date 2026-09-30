@@ -197,7 +197,10 @@ public static class ZoneGenerator
             }
 
             // A body is named for the first eight characters of the key the cache mints for it
-            planetData.Name = cache.Upsert(planetData).Key.Value.Substring(0, 8);
+            var bodyKey = cache.Upsert(planetData).Key;
+            planetData.Name = bodyKey.Value.Substring(0, 8);
+            // Mining Cut 3 (Q16 B): a belt's field kind is chosen here, at generation, and saved with it.
+            if (planetData is AsteroidBeltData generatedBelt) FieldKinds.Ensure(bodyKey, generatedBelt, cache);
             return cache.Upsert(planetData);
         }).ToList();
 
