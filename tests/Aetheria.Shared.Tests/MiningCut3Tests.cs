@@ -43,7 +43,8 @@ public sealed class MiningCut3Tests : IDisposable
         VisibilityDecay = .5f,
         TargetInfoDecay = .5f,
         TargetDetectionInfoThreshold = .1f,
-        SchematicCellSize = 2f
+        SchematicCellSize = 2f,
+        FiringArc = 90f
     };
 
     // Flat terrain (no zone depth, no gravity wells), one sun whose light reaches 1000 units, and the chunk
@@ -176,10 +177,11 @@ public sealed class MiningCut3Tests : IDisposable
     // A ship held at a planar position, facing +z. `sensor` fits the scene's sensor; `crossSection` fits a
     // reflector of that cross-section (its own design, so ships in one scene can differ); each of `weaponRanges`
     // fits a gun of that range.
-    private Ship SpawnShip(Scene s, float2 at, bool sensor = false, float crossSection = 0f, params float[] weaponRanges)
+    private Ship SpawnShip(Scene s, float2 at, bool sensor = false, float crossSection = 0f, bool secondSensor = false, params float[] weaponRanges)
     {
         var ship = new Ship(s.Items, s.Zone, Mint(s, s.Hull), new EntitySettings());
         if (sensor) Assert.True(ship.TryEquip(Mint(s, s.Eye)));
+        if (secondSensor) Assert.True(ship.TryEquip(Mint(s, s.Eye)));
         if (crossSection > 0f)
         {
             var mirror = Gear($"Mirror {crossSection}", new ReflectorData { CrossSection = Constant(crossSection) });
@@ -622,6 +624,68 @@ public sealed class MiningCut3Tests : IDisposable
         var items = new ItemManager(reopened, new ProvenanceLedger(), GameSettings(), _ => { });
         var reloaded = new Zone(items, PlanetSettings(), s.Pack, new GalaxyZone { Name = "MiningCut3Reload", Owner = null }, null);
         Assert.True(((AsteroidBeltData) reloaded.Planets[beltKey]).Kind.Key.Equals(assigned));
+    }
+
+    // Q14 A with two sensors: each runs the per-tick rule on the same info, so each adds its gain and each applies
+    // the decay. Two identical sensors settle exactly where one does -- the on-demand value divides the summed rate
+    // by the number of sensors as well as by the decay.
+    [Fact]
+    public void ChunkInfoMatchesAnEntityHeldStillUnderTwoSensors()
+    {
+        var kind = Kind("Asteroid", 1f);
+        var s = BuildScene(new[] { kind }, Belt(kind, Rock(150f)));
+        var chunk = new ChunkId(s.Belts[0], 0);
+        var chunkAt = At(s, chunk);
+        var eyeAt = float2(50, -150);
+        var observer = SpawnShip(s, eyeAt, sensor: true, secondSensor: true);
+        var cells = s.Zone.ChunkRadius(chunk) / 2f;
+        var rock = SpawnShip(s, chunkAt, crossSection: kind.CrossSection * PI * cells * cells);
+
+        for (var tick = 0; tick < 600; tick++) Tick((rock, chunkAt), (observer, eyeAt));
+
+        var settled = observer.ChunkInfo(chunk);
+        var perTick = observer.EntityInfoGathered[rock];
+        Assert.InRange(settled, .12f, .9f);
+        var discrete = settled * (1f - GameSettings().TargetInfoDecay * Dt);
+        Assert.True(abs(perTick - discrete) <= 2e-3f * settled,
+            $"per-tick loop settled at {perTick}, the on-demand value implies {discrete} (settled {settled})");
+    }
+
+    // The per-tick rule saturates info at 1, so the settled value is capped there too: a bright chunk close by is
+    // fully known, not more than fully.
+    [Fact]
+    public void ChunkInfoIsCappedAtOne()
+    {
+        var kind = Kind("Asteroid", 4f);
+        var s = BuildScene(new[] { kind }, Belt(kind, Rock(150f)));
+        var chunk = new ChunkId(s.Belts[0], 0);
+        var eyeAt = At(s, chunk) + float2(0, -30);
+        var observer = SpawnShip(s, eyeAt, sensor: true);
+        Tick((observer, eyeAt));
+        Assert.Equal(1f, observer.ChunkInfo(chunk));
+    }
+
+    // A chunk target bears through its own planar position: the arc gate passes a chunk ahead and refuses one off
+    // to the side (a 90-degree arc facing +z), and a chunk has no stance to safe a weapon against.
+    [Fact]
+    public void AChunkTargetBearsThroughItsOwnPosition()
+    {
+        var kind = Kind("Asteroid", 4f);
+        var s = BuildScene(new[] { kind }, Belt(kind, Rock(150f, .25f), Rock(150f)));
+        var ahead = new ChunkId(s.Belts[0], 0);  // (0, 150)
+        var aside = new ChunkId(s.Belts[0], 1);  // (150, 0)
+        var eyeAt = float2(-10, 50);             // ahead is at (10, 100) from here, aside at (160, -50)
+        var shooter = SpawnShip(s, eyeAt, sensor: true, weaponRanges: 300f);
+        Tick((shooter, eyeAt));
+        var gun = shooter.Weapons.Single();
+
+        Assert.True(shooter.SetTarget(ahead));
+        Assert.True(gun.ArcAllowsFire);
+        Assert.True(gun.StanceAllowsFire);
+
+        Assert.True(shooter.SetTarget(aside));
+        Assert.False(gun.ArcAllowsFire);
+        Assert.True(gun.StanceAllowsFire);
     }
 
     // A writable copy of the shipped catalog plus a scratch run store, through a registry scoped to the shipped
