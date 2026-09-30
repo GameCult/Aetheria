@@ -36,8 +36,9 @@ public static class Program
             case "targeting-catalog": return TargetingCatalog(args.Contains("apply"));
             case "targeting-catalog-6c": return TargetingCatalog6c(args.Contains("apply"));
             case "targeting-catalog-6d": return TargetingCatalog6d(args.Contains("apply"));
+            case "product-gap": return ProductGap(args.Contains("apply"));
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], product-gap [apply]");
                 return 1;
         }
     }
@@ -1472,6 +1473,86 @@ public static class Program
         });
 
         Console.WriteLine($"\nLanded {precisionChanges.Length} Precision changes in Aetheria.cc");
+        return 0;
+    }
+
+    // Scenarios map, operator rulings 2026-09-30 ("the ten product-less designs"): after this, a design with no
+    // product is a Q3 scenario test design and nothing else. The five RTS-era industrial placeholders are deleted
+    // (nothing references them). The four weapons are a content gap and get a product each, from the maker of their
+    // nearest analogue: same hardpoint and firing behaviour, then nearest size. The Industrial Thermostatic Heater is
+    // generic gear every generated station carries; it gets a product from the maker of the cockpit whose thermostat
+    // it shares (Thermotoggle, EnergyDraw, Heat in one group), and the price and durability without which generation
+    // cannot offer it (RandomProducts skips a zero price) and it can never come online (zero durability).
+    private static int ProductGap(bool apply)
+    {
+        var db = AetherDb.Open(catalogWritable: apply);
+        var cache = db.Cache;
+
+        T Design<T>(string name) where T : EquippableItemData =>
+            cache.GetAll<T>().SingleOrDefault(d => d.Name == name) ?? throw new InvalidOperationException($"No design named \"{name}\".");
+        Faction MakerOf(string productName) =>
+            cache.Get(cache.GetAll<FactionProductData>().Single(p => p.Name == productName).Manufacturer);
+        Faction Named(string factionName) => cache.GetAll<Faction>().Single(f => f.Name == factionName);
+        bool HasProduct(EquippableItemData design) =>
+            cache.GetAll<FactionProductData>().Any(p => p.Design.Key.Equals(cache.RefOf(design).Key));
+
+        var industrial = new[] { "Assembly Line", "Deep Ore Extractor", "Surface Ore Extractor", "Refinery", "Shipyard" }
+            .Select(Design<EquippableItemData>).ToArray();
+        foreach (var design in industrial)
+            if (HasProduct(design)) throw new InvalidOperationException($"{design.Name} has a product; it is not a placeholder.");
+
+        var heater = Design<GearData>("Industrial Thermostatic Heater");
+        var products = new (EquippableItemData Design, string Name, string Description, Faction Maker, string Analogue)[]
+        {
+            (Design<EquippableItemData>("Autocannon"), "Autocannon", "", MakerOf("DeathCluster"),
+                "DeathCluster: Ballistic, 4 cells, AutoWeapon"),
+            (Design<EquippableItemData>("LRMM72"), "LRMM72", "", MakerOf("GT 3K"),
+                "GT 3K: the only other unguided LauncherData"),
+            (Design<EquippableItemData>("SRMM72"), "SRMM72", "", MakerOf("scorched void policy"),
+                "scorched void policy: GuidedWeapon launcher, nearest in size and price"),
+            (Design<EquippableItemData>("Tractor Beam"), "Space Tractor", "It's a tractor. In space.", Named("Ewan Hart Inc"),
+                "none (no behaviours); Ewan Hart's wishlist Space Tractor, docs/content-batch-one.md section 10"),
+            (heater, "Industrial Thermostatic Heater", "", MakerOf("Cockpit 2x2"),
+                "Cockpit 2x2: the same thermostat behaviours"),
+        };
+        foreach (var (design, _, _, _, _) in products)
+            if (HasProduct(design)) throw new InvalidOperationException($"{design.Name} already has a product.");
+        const int heaterPrice = 100000;     // between Cockpit 2x2 (50,000) and Fire Control Array (150,000)
+        const float heaterDurability = 100; // Cockpit 2x2's
+
+        Console.WriteLine("Delete (no product, no reference):");
+        foreach (var design in industrial) Console.WriteLine($"  {design.Name}");
+        Console.WriteLine("Products:");
+        foreach (var (design, name, _, maker, analogue) in products)
+            Console.WriteLine($"  {design.Name,-32} -> {name,-32} by {maker.Name,-24} ({analogue})");
+        Console.WriteLine($"Heater design: Price {heater.Price} -> {heaterPrice}, Durability {heater.Durability} -> {heaterDurability}");
+
+        if (!apply)
+        {
+            Console.WriteLine("\nDry run. Pass \"apply\" to land it.");
+            return 0;
+        }
+
+        heater.Price = heaterPrice;
+        heater.Durability = heaterDurability;
+        CultRecordRefs.Validate(heater);
+        var industrialKeys = industrial.Select(design => cache.RefOf(design).Key).ToArray();
+        var heaterKey = cache.RefOf(heater).Key;
+        var made = products.Select(entry => new FactionProductData
+        {
+            Name = entry.Name,
+            Description = entry.Description,
+            Design = new CultRecordRef<CraftedItemData>(cache.RefOf(entry.Design).Key),
+            Manufacturer = cache.RefOf(entry.Maker),
+            Roles = (entry.Design.Roles ?? new List<ItemRole>()).Select(role => new ProductRole { Role = role.Name }).ToList()
+        }).ToArray();
+        cache.Commit(batch =>
+        {
+            foreach (var key in industrialKeys) batch.Remove(key);
+            batch.Upsert(typeof(GearData), heater, heaterKey);
+            foreach (var product in made) batch.Upsert(typeof(FactionProductData), product, new CultRecordKey(Guid.NewGuid().ToString("N")));
+        });
+        Console.WriteLine($"\nLanded {industrial.Length} deletions, {made.Length} products and the heater's price and durability in Aetheria.cc");
         return 0;
     }
 }
