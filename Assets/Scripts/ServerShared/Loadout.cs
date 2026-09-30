@@ -27,7 +27,7 @@ public class LoadoutSlot
     [Key(2)] public CultRecordRef<EquippableItemData> Design;
 }
 
-// The owner of loadouts: capture from a live ship, the only writer, and the only builder of a ship from a loadout.
+// The owner of loadouts: capture from a live ship, the only writer, and the only builder of an entity from a loadout.
 public static class Loadouts
 {
     // Records the hull design and one slot per equipped item (gear, then cargo bays, then docking bays) with its cell,
@@ -86,36 +86,30 @@ public static class Loadouts
         });
     }
 
-    // All-or-nothing: returns a ship only when every design resolved, had an available product and fitted, the loadout
-    // has at most WeaponGroupCount weapon groups, and every group index names a weapon slot. Every failure is listed; on
-    // any failure nothing is returned and the zone and cache are unchanged, but a failed fit has already drawn from
-    // itemManager.Random. A design is built by its first available product in record-key order. A game spawner is to
-    // pass LoadoutGenerator.IsAvailable as isAvailable, with no fallback to any manufacturer. The ship always gets
-    // exactly WeaponGroupCount groups; a loadout with fewer is padded with empty groups. A failed materialization
-    // leaves any minted lots in the live ledger; they are not roots, so the next commit drops them.
-    public static Ship Materialize(ItemManager itemManager, Zone liveZone, Loadout loadout,
+    // The quality a design no manufacturer makes is built at: the console give's.
+    public const float UnbrandedQuality = .95f;
+
+    // All-or-nothing: returns an entity only when every design resolved and fitted, the loadout has at most
+    // WeaponGroupCount weapon groups, and every group index names a weapon slot. Every failure is listed; on any failure
+    // nothing is returned and the zone and cache are unchanged, but a failed fit has already drawn from
+    // itemManager.Random. How each design is built is Resolve's rule. A game spawner is to pass
+    // LoadoutGenerator.IsAvailable as isAvailable, with no fallback to any manufacturer; RunStart does. The hull's type
+    // picks the entity: a ship hull builds a Ship, a turret hull an OrbitalEntity with no orbit, which stays where it is
+    // put; a station hull is refused. The entity always gets exactly WeaponGroupCount groups; a loadout with fewer is
+    // padded with empty groups. A failed materialization leaves any minted lots in the live ledger; they are not roots,
+    // so the next commit drops them.
+    public static Entity Materialize(ItemManager itemManager, Zone liveZone, Loadout loadout,
         Predicate<FactionProductData> isAvailable, List<string> failures)
     {
         var cache = itemManager.ItemData;
-        var products = cache.GetAll<FactionProductData>().OrderBy(p => cache.RefOf(p).Key.Value, StringComparer.Ordinal).ToArray();
+        var products = ProductsInKeyOrder(cache);
         var reported = failures.Count;
 
-        FactionProductData Resolve<T>(CultRecordRef<T> design, string where) where T : EquippableItemData
-        {
-            var data = cache.Get(design);
-            if (data == null)
-            {
-                failures.Add($"{where}: design {design.Key} is not in the catalog");
-                return null;
-            }
-
-            var product = products.FirstOrDefault(p => p.Design.Key.Equals(design.Key) && isAvailable(p));
-            if (product == null) failures.Add($"{where}: no available product of {data.Name}");
-            return product;
-        }
-
-        var hullProduct = Resolve(loadout.Hull, "hull");
-        var slotProducts = loadout.Slots.Select(slot => Resolve(slot.Design, Cell(slot))).ToArray();
+        var hullBuild = Resolve(itemManager, products, loadout.Hull, isAvailable, "hull", failures);
+        var hullData = cache.Get(loadout.Hull);
+        if (hullData is { HullType: HullType.Station })
+            failures.Add($"hull: {hullData.Name} is a station hull; a preset builds a ship or a turret");
+        var slotBuilds = loadout.Slots.Select(slot => Resolve(itemManager, products, slot.Design, isAvailable, Cell(slot), failures)).ToArray();
         var groups = loadout.WeaponGroups ?? new int[0][];
         var groupCount = itemManager.GameplaySettings.WeaponGroupCount;
         if (groups.Length > groupCount) failures.Add($"weapon groups: {groups.Length} groups, at most {groupCount}");
@@ -127,23 +121,26 @@ public static class Loadouts
         }
         if (failures.Count > reported) return null;
 
-        var hull = (EquippableItem) itemManager.CreateInstance(hullProduct);
-        var ship = new Ship(itemManager, liveZone, hull, itemManager.GameplaySettings.DefaultEntitySettings);
+        var hull = hullBuild();
+        var settings = itemManager.GameplaySettings.DefaultEntitySettings;
+        Entity entity = hullData.HullType == HullType.Turret
+            ? new OrbitalEntity(itemManager, liveZone, hull, default, settings)
+            : new Ship(itemManager, liveZone, hull, settings);
         var equipped = new EquippedItem[loadout.Slots.Count];
         for (var i = 0; i < loadout.Slots.Count; i++)
         {
             var slot = loadout.Slots[i];
-            var unit = (EquippableItem) itemManager.CreateInstance(slotProducts[i]);
+            var unit = slotBuilds[i]();
             unit.Rotation = slot.Rotation;
-            if (!ship.TryEquip(unit, slot.Position))
+            if (!entity.TryEquip(unit, slot.Position))
             {
                 failures.Add($"{Cell(slot)}: {cache.Get(slot.Design).Name} does not fit");
                 continue;
             }
 
-            equipped[i] = ship.Equipment
-                .Concat<EquippedItem>(ship.CargoBays)
-                .Concat(ship.DockingBays)
+            equipped[i] = entity.Equipment
+                .Concat<EquippedItem>(entity.CargoBays)
+                .Concat(entity.DockingBays)
                 .First(item => item.EquippableItem == unit);
         }
         if (failures.Count > reported) return null;
@@ -154,9 +151,44 @@ public static class Loadouts
             var items = g < groups.Length ? groups[g].Select(i => equipped[i]).ToList() : new List<EquippedItem>();
             built[g] = (items.Select(item => item.GetBehavior<Weapon>()).ToList(), items);
         }
-        ship.WeaponGroups = built;
-        return ship;
+        entity.WeaponGroups = built;
+        return entity;
     }
+
+    // How one design is built, or null with the failure listed; nothing is minted until the returned builder runs. A
+    // design is built by its first available product in record-key order. A design with no product at all is outside
+    // the economy (docs/scenarios-cut.md, Q3: generation, stock and sale all go through products) and is built
+    // unbranded, with no maker, at UnbrandedQuality. A design whose products are all unavailable is not built.
+    public static Func<EquippableItem> Resolve<T>(ItemManager itemManager, CultRecordRef<T> design,
+        Predicate<FactionProductData> isAvailable, string where, List<string> failures) where T : EquippableItemData =>
+        Resolve(itemManager, ProductsInKeyOrder(itemManager.ItemData), design, isAvailable, where, failures);
+
+    private static Func<EquippableItem> Resolve<T>(ItemManager itemManager, FactionProductData[] products,
+        CultRecordRef<T> design, Predicate<FactionProductData> isAvailable, string where, List<string> failures)
+        where T : EquippableItemData
+    {
+        var data = itemManager.ItemData.Get(design);
+        if (data == null)
+        {
+            failures.Add($"{where}: design {design.Key} is not in the catalog");
+            return null;
+        }
+
+        var made = products.Where(p => p.Design.Key.Equals(design.Key)).ToArray();
+        if (made.Length == 0)
+            return () => (EquippableItem) itemManager.CreateInstance(itemManager.CreateLot(data, default, UnbrandedQuality));
+
+        var product = made.FirstOrDefault(p => isAvailable(p));
+        if (product == null)
+        {
+            failures.Add($"{where}: no available product of {data.Name}");
+            return null;
+        }
+        return () => (EquippableItem) itemManager.CreateInstance(product);
+    }
+
+    private static FactionProductData[] ProductsInKeyOrder(CultCache cache) =>
+        cache.GetAll<FactionProductData>().OrderBy(p => cache.RefOf(p).Key.Value, StringComparer.Ordinal).ToArray();
 
     private static string Cell(LoadoutSlot slot) => $"slot {slot.Position.x},{slot.Position.y}";
 }
