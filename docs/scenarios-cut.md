@@ -87,6 +87,24 @@ claim measured against a real file.
         it. So the Autocannon now has a home (the Turret) and is sold. The Autocannon ruling's own rule, "never
         stock gear no hull can fit", is unchanged.
       - **Batch 3 rulings (operator, 2026-09-30):**
+        - **Soul on batch 4 (`2125f2b1..aa3baf12`, 2026-10-01): do not merge yet.**
+          - **Blocker: origin outside the hardpoint.** The item origin can land outside its hardpoint (`Entity.cs:825`,
+            `:879-885`). Every other hardpoint lookup reads the cell under the origin, `Hardpoints[item.Position]`:
+            ArcFor, barrels, thrusters, `ActionGameManager`. For an L-shaped hardpoint that lookup returns nothing, so
+            Unity throws on the first shot. It is latent: every catalog hardpoint is rectangular today.
+            Two ways to fix it:
+            - keep the origin inside the hardpoint;
+            - look the hardpoint up by the item's cells.
+
+            Probe: `scratchpad/soul5/SoulScen5Probes.cs` P30.
+          - **Minor:**
+            - `IsFilledBy` is its own oracle in the test.
+            - Last-row search and thermostat-order are unpinned.
+            - A gun can't be dragged within its own hardpoint (`InventoryPanel.cs:389`).
+            - The new station-reactor products drop their source products' quality spread.
+          - **Thermal:** the Vulcan Station Reactor burns out within 10 idle minutes. That goes to the thermal
+            campaign. Core Power ship reactors also shut down from heat in fights.
+          - **Queued, not dispatched:** the operator ordered a drain on 2026-10-01.
         - **F1 re-ruled after batch 4 (operator, 2026-09-30): "A, separate thermal balance cut".** Radiators did not fix
           it. Heat cannot cross the hull to Zenith's edge radiators: the reactor runs at 360-436 K while the radiator
           cells sit at their 278 K floor. Every station reactor wears out between minute 20 and minute 100. Ships
