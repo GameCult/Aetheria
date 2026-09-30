@@ -99,6 +99,10 @@ claim measured against a real file.
         - S1: the new belt-failure test is flaky and failed 5 of 8 runs.
         - S2: a second occupancy rule. Entity.cs:820-823 requires every hardpoint cell to be free, while tool gear may
           fill a hardpoint's spare cells. So a generated Turret refuses its own gun back (40 of 955). Operator question.
+        - **S2 RULED B (operator, 2026-09-30): "B is the design intent, saving slots in a hardpoint can be a valid
+          tradeoff for crowded ships if you really need to fit an extra tool".** A hardpoint item needs only its own
+          cells free. A hardpoint's leftover cells may hold general (tool) gear. A hardpoint still holds at most one
+          hardpoint item; option C, two hardpoint items sharing one hardpoint, was not chosen.
         - S3: placement searches fewer offsets than `Takes`, so an L-shaped hardpoint crashes generation. Latent.
         - S4: asteroid respawn timers never count down, so mined asteroids never return. **Already fixed by mining:**
           `codex/mining` deleted the belt task threading (Cut 1, `22a54ccb`), `MineAsteroid` and `RespawnTimers` (Cut 2).
