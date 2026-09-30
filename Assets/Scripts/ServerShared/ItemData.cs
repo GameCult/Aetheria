@@ -567,6 +567,12 @@ public class HardpointData
         return $"{Enum.GetName(typeof(HardpointType), Type)} Hardpoint {Rotation.Arrow()}";
     }
 
+    // The one fit rule for hardpoint gear: its type, laid in at this hardpoint's rotation, filling every cell.
+    public bool Takes(EquippableItemData design) =>
+        design.HardpointType == Type &&
+        design.Shape.FitsWithin(Shape, Rotation, out _) &&
+        design.Shape.Coordinates.Length == Shape.Coordinates.Length;
+
     [IgnoreMember]
     public float3 TintColor
     {

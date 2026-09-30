@@ -486,6 +486,30 @@ public sealed class RunStartTests : IDisposable
         Assert.True(stalls.Count == 0, $"{stalls.Count} readings of an orbit standing still; first {stalls.FirstOrDefault()}");
     }
 
+    // Gear no hull can mount has no home (operator, 2026-09-30): generation never offers it, so no station stocks it
+    // and no loadout carries it, though it keeps its product and price. The Autocannon fits no hardpoint of any
+    // shipped hull. Authoring a hull whose hardpoint takes it makes it one generation offers.
+    [Fact]
+    public void GearNoHullCanMountIsOfferedOnlyOnceAHullTakesIt()
+    {
+        var autocannon = _cache.GetAll<EquippableItemData>().Single(design => design.Name == "Autocannon");
+        Assert.True(autocannon.Price > 0 && _cache.GetAll<FactionProductData>().Any(p => p.Design.Key.Equals(_cache.RefOf(autocannon).Key)),
+            "the Autocannon is priced and sold");
+        var generator = new LoadoutGenerator(ref _items.Random, _items, _galaxy, _galaxy.Entrance, _protagonist, .5f);
+        int Offered() => generator.RandomProducts<EquippableItemData>(2000, 0, design => design.HardpointType == autocannon.HardpointType)
+            .Count(entry => entry.design == autocannon);
+        Assert.Equal(0, Offered());
+
+        var shape = new Shape(autocannon.Shape.Width + 2, autocannon.Shape.Height + 2);
+        foreach (var cell in shape.AllCoordinates) shape[cell] = true;
+        _cache.Upsert(new HullData
+        {
+            Name = "Autocannon Mount", HullType = HullType.Ship, Shape = shape, Durability = 100, Mass = 1000, Price = 1,
+            Hardpoints = { new HardpointData { Type = autocannon.HardpointType, Position = int2(1, 1), Shape = autocannon.Shape } }
+        });
+        Assert.True(Offered() > 0, "a hull that takes the Autocannon gives it a home");
+    }
+
     // Q3, with the operator's 2026-09-30 ruling on the ten product-less designs: a design no product sells is a
     // scenario test design and nothing else. A test design is one a scenario places: its preset's hull or a slot of
     // it, or cargo it carries. These are the unsold designs no scenario places, by name.

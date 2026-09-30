@@ -468,10 +468,7 @@ public static class Program
             foreach (var hardpoint in hull.Hardpoints.OrderByDescending(h => h.Shape.Coordinates.Length))
             {
                 var cells = hardpoint.Shape.Coordinates.Length;
-                var matches = gear.Where(g =>
-                    g.HardpointType == hardpoint.Type &&
-                    g.Shape.FitsWithin(hardpoint.Shape, hardpoint.Rotation, out _) &&
-                    g.Shape.Coordinates.Length == cells).ToArray();
+                var matches = gear.Where(hardpoint.Takes).ToArray();
                 var soldMatches = matches.Where(m => sold.Contains(db.Cache.RefOf(m).Key)).ToArray();
                 if (soldMatches.Length == 0) unfillable++;
                 Console.WriteLine($"  {hardpoint.Type,-14} {cells,2} cells: {matches.Length} designs match, {soldMatches.Length} sold" +

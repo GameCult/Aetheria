@@ -141,12 +141,14 @@ public class LoadoutGenerator
     // lacks variety, so it is logged rather than hidden.
     public (FactionProductData product, T design)[] RandomProducts<T>(int count, float sizeExponent, Predicate<T> filter = null, bool required = false) where T : EquippableItemData
     {
+        var hulls = ItemManager.ItemData.GetAll<HullData>().ToArray();
         var candidates = ItemManager.ItemData.GetAll<FactionProductData>()
             .Select(product => (product, design: ItemManager.ItemData.Get(product.Design) as T))
             .Where(entry =>
                 entry.design != null &&
                 entry.design.Price > 0 &&
                 entry.product.Manufacturer.IsSet() &&
+                HasHome(entry.design, hulls) &&
                 (filter?.Invoke(entry.design) ?? true))
             .ToArray();
         var available = candidates.Where(entry => IsAvailable(entry.product)).ToArray();
@@ -164,6 +166,13 @@ public class LoadoutGenerator
                 pow(entry.design.Price, PriceExponent), // Penalize item price to a controllable degree
             count);
     }
+
+    // Hardpoint gear that no hull in the catalog can mount has no home (operator, 2026-09-30: "we'll need to author a
+    // bunch more hulls before all the gear variety in the game has a home"): generation never offers it, so no station
+    // stocks it. It gains one the moment a hull with a hardpoint that takes it exists. Tool gear goes in any interior.
+    private static bool HasHome(EquippableItemData design, HullData[] hulls) =>
+        design.HardpointType == HardpointType.Tool || design.HardpointType == HardpointType.Hull ||
+        hulls.Any(hull => hull.Hardpoints.Any(hardpoint => hardpoint.Takes(design)));
 
     // No galaxy means no availability to filter by: every product is on offer. A fixture generates loadouts that
     // way, so a test can exercise placement and products without standing up a whole galaxy; no game path does.
@@ -192,10 +201,7 @@ public class LoadoutGenerator
 
     public (FactionProductData product, T design) RandomProduct<T>(HardpointData hardpoint, float sizeExponent, Predicate<T> filter = null, bool required = false) where T : EquippableItemData
     {
-        return RandomProduct<T>(sizeExponent, item => item.HardpointType == hardpoint.Type &&
-                                  (filter?.Invoke(item) ?? true) &&
-                                  item.Shape.FitsWithin(hardpoint.Shape, hardpoint.Rotation, out _) &&
-                                  item.Shape.Coordinates.Length==hardpoint.Shape.Coordinates.Length, required);
+        return RandomProduct<T>(sizeExponent, item => hardpoint.Takes(item) && (filter?.Invoke(item) ?? true), required);
     }
 
     private void OutfitEntity(Entity entity)
@@ -227,7 +233,7 @@ public class LoadoutGenerator
             {
                 // If a previously selected product fits, use that one (this is why we must process larger hardpoints first)
                 var entry = previousProducts
-                    .FirstOrDefault(e => e.design.HardpointType == hardpoint.Type && e.design.Shape.FitsWithin(hardpoint.Shape, hardpoint.Rotation, out _));
+                    .FirstOrDefault(e => hardpoint.Takes(e.design));
                 var previousItem = entity.Equipment.FirstOrDefault(item => item.Data == entry.design);
                 if (entry.design == null) entry = RandomProduct<GearData>(hardpoint, 2);
                 if (entry.design == null) ItemManager.Log($"No compatible item found for entity {Enum.GetName(typeof(HardpointType), hardpoint.Type)} hardpoint!");
