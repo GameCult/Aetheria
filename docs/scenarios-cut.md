@@ -62,6 +62,17 @@ claim measured against a real file.
       gear variety in the game has a home." Self's implementation: generation and stock never offer gear that no
       hull's hardpoint can fit. The rule is derived from hardpoint fit, not a hand list. The Autocannon keeps its
       product and becomes sold automatically once a hull fits it. The census test is unaffected.
+    - Station reactors by manufacturer (operator, 2026-09-30): "On station reactors: A is a compensator that breaks
+      the setting; a station with no access to Zhestokost gear should not have Zhestokost gear, so B."
+      - Batch 2 (`b3e7995c`) authored a Zhestokost Station Reactor scaled from Manhattan. A faction without
+        Zhestokost allegiance got no reactor, so its station heater had no power.
+      - The fix is content, not a generation exception: station reactors are authored for other manufacturers, so
+        that every faction's stations can power their heater from gear the faction can actually get.
+      - The heater must be reachable the same way.
+    - Tractor/pickup (`adad301b`, Hands stopped at the fork): the ruled design is `headless-playground-cut.md` fork
+      L, which needs loot as simulation bodies. That substrate does not exist, so it becomes its own campaign, typed
+      in the new session (`F:\Projects\HANDOFF-eureka-typed-2026-09-30.md`). The census rule "price 0 is unsold"
+      waits for it.
   - **Weapons:** Autocannon, LRMM72, SRMM72, Tractor Beam. "yep that's a content gap". They get products.
   - After both, "no product" means exactly "Q3 test design". A census test pins that: every product-less design in
     the shipped catalog is a scenario test design.
