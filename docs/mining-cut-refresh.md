@@ -33,7 +33,7 @@ proposal.
 The moddable-ships half of v1 lives in `docs/moddable-ships-cut.md` on `codex/moddable-ships`. Section 0's ship
 rows are kept for the combined test count.
 
-## Rulings added 2026-09-30 (Self, after v2)
+## Rulings added 2026-09-30 (Self, after v2; operator confirmed Q14 A and Q16 B the same day)
 
 - **Q14 A.** A ship's knowledge of a rock is the value the per-tick sensor rule would settle at, computed on
   demand through the shared `Sensor.Gain`. It is stateless and costs nothing per tick.
@@ -262,14 +262,13 @@ The Codex numbering is kept so the map's history still reads, and Soul fix slots
 |---|---|---|
 | M0 | Placement: merge master, correct the map | fire-control-12 on master |
 | M-Soul | Fix batch from the parallel Soul pass over Cuts 1-2 (content unknown here) | Soul's report |
-| 3 | A chunk is a target, detected by reflected light; the field-kind record appears | M0; **Q14**, **Q16** |
+| 3 | A chunk is a target, detected by reflected light; the field-kind record appears | M0 (Q14 A, Q16 B ruled) |
 | 4 | A shot at a chunk goes through FireControl (re-anchored to 12.4); blasts cover chunks | 3; the fire-control no-target fuse ruling |
 | 5 | Composition, loot, the mined lot, and the same-path test agent | 4 |
 | ~~6~~ | **Deleted** (Q9 = C). The test agent moved into Cut 5. | — |
 | 7 | Content: field kinds, ores, the Drill Bit, and new Corrosive and Ionizing weapons | 5; variants C4 for families authored as variants |
 
-Every mining question except Q14 and Q16 is ruled. Neither of those blocks Cut 4 or 5 if Cut 3 lands on the
-recommendations.
+Every mining question is ruled.
 
 ### M0. Placement and map correction
 
@@ -315,7 +314,7 @@ recommendations.
 ### Cut 3. A chunk is a target, and is detected by reflected light
 
 - **Repo/branch:** Aetheria, `codex/mining`, after M-Soul.
-- **Written for:** Q13 = A with the detection correction, Q14 = A, Q16 = B (recommended).
+- **Written for:** Q13 = A with the detection correction, Q14 = A, Q16 = B (all ruled).
 
 #### How detection works today (read at `b66ba524`)
 

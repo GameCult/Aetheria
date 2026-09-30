@@ -501,9 +501,8 @@ Rulings (operator), 2026-09-30:
 | Q13 | A, reach is the longest active weapon range |
 | Q2 correction | Chunks are detected by the existing reflectance rule (reflectivity and cross-section, lit by the suns), not deferred to EW. Struck: the scanner as chunk sensor, the fallback range tunable, unconditional visibility, PSensor 1. `ResourceScanner` stays parked |
 
-**Q14 (how a ship's info on a rock integrates over time) and Q16 (how a belt gets its field kind) remain open.** They
-block Cut 3. Self's recommendations (Q14 A, settled value on demand; Q16 B, stored at generation and assigned once for
-old belts) are proposals, not operator rulings; Cut 3 is written for them.
+**Q14 A and Q16 B are operator rulings (confirmed 2026-09-30: "Q14. A (thought I ruled on that previously). Q16.
+B.").** Cut 3 is written for them and is unblocked.
 
 **M-Soul content unknown:** no Soul report for Cuts 1-2 exists; the mutation sweep at `22fb4021` stands in. Cut 3
 does not start until M-Soul is closed or empty.
@@ -556,7 +555,7 @@ Follow-ups outside this campaign:
 | 2 | Subtraction plus one owner: the dead mining path goes, and chunk identity and wear get one owner | Q1, Q3 |
 | M0 | Placement: merge master, correct the map | fire-control-12 on master |
 | M-Soul | Fix slot for the parallel Soul pass over Cuts 1-2 (content unknown) | Soul report |
-| 3 | A chunk is a target, detected by reflected light; the field-kind record appears | M0, M-Soul; Q14, Q16 |
+| 3 | A chunk is a target, detected by reflected light; the field-kind record appears | M0, M-Soul (Q14 A, Q16 B ruled) |
 | 4 | A shot at a chunk goes through FireControl; blasts cover chunks | 3; the fire-control no-target fuse ruling |
 | 5 | Composition, loot roll, provenance, deposit | 4; Q4-Q7 |
 | ~~6~~ | **Deleted** (Q9 = C); the test agent moved into Cut 5 | none |
@@ -690,7 +689,7 @@ and wear has one owner" (Cut 2).
 ### Cut 3. A chunk is a target, and is detected by reflected light
 
 - **Repo/branch:** Aetheria, `codex/mining`, after M-Soul.
-- **Written for:** Q13 = A with the detection correction, Q14 = A, Q16 = B (recommended).
+- **Written for:** Q13 = A with the detection correction, Q14 = A, Q16 = B (all ruled).
 
 #### How detection works today (read at `b66ba524`)
 
