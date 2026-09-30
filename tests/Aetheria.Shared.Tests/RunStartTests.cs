@@ -243,6 +243,56 @@ public sealed class RunStartTests : IDisposable
         Assert.False(neutral.EntityHostility[player]);
     }
 
+    // A stance lasts the sitting: the player docking and undocking leaves it standing both ways. It goes with an entity
+    // gone for good: once an entity is destroyed, the player holds no stance toward it.
+    [Fact]
+    public void AStanceSurvivesDockingButNotDestruction()
+    {
+        var zone = Arena(null);
+        var longinus = Bare(Hull("LonginusX"));
+        var staged = Stage(zone, Quiet(At(Bare(Hull("Djinni")), 0, 0),
+            Placed(longinus, 300, 0, ScenarioStance.Hostile, piloted: false),
+            Placed(longinus, -300, 0, ScenarioStance.Hostile, piloted: false)));
+        var player = staged.Player;
+        var hostile = staged.Entities[0];
+        var doomed = staged.Entities[1];
+        var station = zone.Entities.First(entity => entity is OrbitalEntity && entity.DockingBays.Count > 0);
+
+        Assert.NotNull(station.TryDock(player));
+        SafeAssert.NotIn(zone, player, "a docked ship is out of the zone");
+        Assert.True(station.TryUndock(player));
+        Assert.True(player.IsHostileTo(hostile), "the player's stance was lost over docking");
+        Assert.True(hostile.IsHostileTo(player), "the entity's stance was lost over docking");
+        Assert.True(player.EntityHostility[hostile], "the player's live hostility was lost over docking");
+        Assert.True(hostile.EntityHostility[player], "the entity's live hostility was lost over docking");
+
+        // Presets carry no faction, so without its stance the derived rule is not hostile
+        Assert.True(player.Faction == null && doomed.Faction == null, "the fixture's ships are factionless");
+        Assert.True(player.IsHostileTo(doomed));
+        doomed.Hull.Durability = 0;
+        doomed.HullDamage.OnNext(1);
+        SafeAssert.NotIn(zone, doomed, "a destroyed entity leaves the zone");
+        Assert.False(player.IsHostileTo(doomed), "the stance toward a destroyed entity outlived it");
+    }
+
+    // Undocking admits the ship unpiloted: back in the zone, active (its live hostility is tracked), with no agent.
+    [Fact]
+    public void UndockingAdmitsWithNoAgent()
+    {
+        var zone = Arena(null);
+        var player = Stage(zone, null).Player;
+        var station = zone.Entities.First(entity => entity is OrbitalEntity && entity.DockingBays.Count > 0);
+        var agents = zone.Agents.Count;
+
+        Assert.NotNull(station.TryDock(player));
+        SafeAssert.NotIn(zone, player, "a docked ship is out of the zone");
+        Assert.True(station.TryUndock(player));
+        SafeAssert.In(zone, player, "an undocked ship is back in the zone");
+        Assert.Equal(agents, zone.Agents.Count);
+        Assert.Equal(0, AgentsOf(zone, player));
+        Assert.True(player.EntityHostility.ContainsKey(station), "an undocked ship is active");
+    }
+
     // Ambient: false keeps the stations and drops every generated ship and turret; ambient, and a plain New Game, keep
     // them. The arena is the galaxy's entrance pack. The entrance holds a story station, placed as the narrative would
     // place one, so a story station's own turrets are dropped too.

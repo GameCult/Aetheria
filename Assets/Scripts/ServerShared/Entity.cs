@@ -204,7 +204,9 @@ public abstract class Entity
             VisibleEntities.Remove(remove.Value);
             VisibleEnemies.Remove(remove.Value);
             VisibleFriendlies.Remove(remove.Value);
-            _iffOverrides.Remove(remove.Value);
+            // A stance lasts the sitting: it goes with an entity gone for good (destroyed, warped away, unloaded), not
+            // with a ship docking, which leaves the zone parented to its dock (TryDock) and rejoins it on undock.
+            if (remove.Value.Parent == null) _iffOverrides.Remove(remove.Value);
             if (_grudgeSubscriptions.TryGetValue(remove.Value, out var grudgeSubs))
             {
                 foreach (var s in grudgeSubs) s.Dispose();
