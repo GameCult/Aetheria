@@ -402,6 +402,12 @@ public sealed class ShipModCatalogTests : IDisposable
         Assert.Equal(Path.Combine(Mods, "mod.skiff", "skiff.glb"), package.ModelPath);
         Assert.Equal(ShipFixture.Nodes.Length, package.NodeIndices.Count);
 
+        // The shared validator judges the catalog's records too, not only a ship.cc.
+        hull.Prefab = "Djinni";
+        Assert.Contains("names both a Unity prefab and a visual record", Assert.Throws<InvalidOperationException>(() =>
+            ShipModCatalog.PackageOf(cache, hull, Mods)).Message);
+        hull.Prefab = null;
+
         // A hull whose visual the catalog does not hold, and a mod whose GLB is gone, are refused.
         Assert.Contains("holds no visual record", Assert.Throws<InvalidOperationException>(() =>
             ShipModCatalog.PackageOf(cache, new HullData { Name = "Ghost" }, Mods)).Message);

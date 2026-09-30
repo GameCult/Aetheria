@@ -7,7 +7,7 @@ using Xunit;
 // ShipModPlan: which anchor fills which component slot. The Unity assembler only follows this.
 public sealed class ShipModPlanTests
 {
-    // Thruster, turret and radiator mounts on a 3x1 hull. Muzzles are listed out of Order on purpose.
+    // Thruster, turret and radiator mounts on a 3x1 hull. The muzzles' Order runs against their ids on purpose.
     private static ShipParts Rig()
     {
         var ship = ShipAuthoringTests.Fixture();
@@ -18,8 +18,8 @@ public sealed class ShipModPlanTests
         ship.Hull.Hardpoints.Add(new HardpointData { Type = HardpointType.Energy, Position = new int2(0, 0), Shape = new Shape(), Transform = "gun" });
         ship.Hull.Hardpoints.Add(new HardpointData { Type = HardpointType.Radiator, Position = new int2(1, 0), Shape = new Shape(), Transform = "fin" });
         ship.Visual.Anchors.Add(new ShipAnchor { Id = "gun", Role = "articulation", ModelNodeId = "gun" });
-        ship.Visual.Anchors.Add(new ShipAnchor { Id = "gun.b", Role = "weapon-muzzle", ModelNodeId = "gun-b", ParentId = "gun", Order = 1 });
-        ship.Visual.Anchors.Add(new ShipAnchor { Id = "gun.a", Role = "weapon-muzzle", ModelNodeId = "gun-a", ParentId = "gun", Order = 0 });
+        ship.Visual.Anchors.Add(new ShipAnchor { Id = "gun.a", Role = "weapon-muzzle", ModelNodeId = "gun-a", ParentId = "gun", Order = 1 });
+        ship.Visual.Anchors.Add(new ShipAnchor { Id = "gun.z", Role = "weapon-muzzle", ModelNodeId = "gun-z", ParentId = "gun", Order = 0 });
         ship.Visual.Anchors.Add(new ShipAnchor { Id = "fin", Role = "radiator-mesh", ModelNodeId = "fin" });
         return ship;
     }
@@ -38,7 +38,7 @@ public sealed class ShipModPlanTests
         Assert.Equal(new[] { "fin" }, plan.Radiators);
         var (mount, muzzles) = Assert.Single(plan.Weapons);
         Assert.Equal("gun", mount);
-        Assert.Equal(new[] { "gun.a", "gun.b" }, muzzles);
+        Assert.Equal(new[] { "gun.z", "gun.a" }, muzzles);
     }
 
     [Fact]
@@ -70,16 +70,31 @@ public sealed class ShipModPlanTests
     public void MuzzlesBelongToWeaponMountsAndEveryWeaponHasOne()
     {
         var ship = Rig();
-        ship.Visual.Anchors.Single(anchor => anchor.Id == "gun.a").ParentId = null;
-        Assert.Contains("muzzle gun.a must be parented to a weapon hardpoint's mount", Refusal(ship));
+        ship.Visual.Anchors.Single(anchor => anchor.Id == "gun.z").ParentId = null;
+        Assert.Contains("muzzle gun.z must be parented to a weapon hardpoint's mount", Refusal(ship));
 
         ship = Rig();
-        ship.Visual.Anchors.Single(anchor => anchor.Id == "gun.a").ParentId = "thruster.port";
-        Assert.Contains("muzzle gun.a must be parented to a weapon hardpoint's mount", Refusal(ship));
+        ship.Visual.Anchors.Single(anchor => anchor.Id == "gun.z").ParentId = "thruster.port";
+        Assert.Contains("muzzle gun.z must be parented to a weapon hardpoint's mount", Refusal(ship));
 
         ship = Rig();
         ship.Visual.Anchors.RemoveAll(anchor => anchor.Role == "weapon-muzzle");
         Assert.Contains("weapon hardpoint gun needs at least one muzzle anchor", Refusal(ship));
+    }
+
+    [Theory]
+    [InlineData(HardpointType.Energy)]
+    [InlineData(HardpointType.Ballistic)]
+    [InlineData(HardpointType.Launcher)]
+    public void EveryWeaponHardpointTypeTakesMuzzles(HardpointType type)
+    {
+        var ship = Rig();
+        ship.Hull.Hardpoints.Single(hardpoint => hardpoint.Transform == "gun").Type = type;
+        Assert.Equal("gun", Assert.Single(Plan(ship).Weapons).Mount);
+
+        // Any other type refuses the same muzzles.
+        ship.Hull.Hardpoints.Single(hardpoint => hardpoint.Transform == "gun").Type = HardpointType.Tool;
+        Assert.Contains("must be parented to a weapon hardpoint's mount", Refusal(ship));
     }
 
     [Fact]
