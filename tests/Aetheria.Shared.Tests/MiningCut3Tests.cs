@@ -78,6 +78,7 @@ public sealed class MiningCut3Tests : IDisposable
         public Zone Zone;
         public HullData Hull;
         public GearData Eye;
+        public GearData DimEye;
         public ZonePack Pack;
         public List<CultRecordKey> Belts = new List<CultRecordKey>();
         public List<FieldKindData> Kinds = new List<FieldKindData>();
@@ -94,7 +95,10 @@ public sealed class MiningCut3Tests : IDisposable
     private static Asteroid Rock(float distance, float phase = 0f, float size = .5f) =>
         new Asteroid { Distance = distance, Phase = phase, Size = size, RotationSpeed = .1f };
 
-    private Scene BuildScene(FieldKindData[] kinds = null, params BeltSpec[] belts)
+    private Scene BuildScene(FieldKindData[] kinds = null, params BeltSpec[] belts) => BuildSceneAt(float2.zero, kinds, belts);
+
+    // The same scene with its sun, and so every belt centre, at `sunAt`.
+    private Scene BuildSceneAt(float2 sunAt, FieldKindData[] kinds, params BeltSpec[] belts)
     {
         var dir = Path.Combine(_root, $"scene{_fixtureCount++}");
         Directory.CreateDirectory(dir);
@@ -116,10 +120,23 @@ public sealed class MiningCut3Tests : IDisposable
             PingCooldown = Constant(4f)
         });
         cache.Upsert(eye);
+        // A far weaker sensor, for scenes of ships: a hull's own heat makes it hundreds of times brighter than a rock,
+        // and the ordinary sensor would saturate on it at once.
+        var dimEye = Gear("Dim eye", new SensorData
+        {
+            Sensitivity = Constant(.01f),
+            SensitivityCurve = Falloff(),
+            PingBoost = Constant(.02f),
+            PingEnergy = Constant(0f),
+            PingVisibility = Constant(5f),
+            PingRange = Constant(300f),
+            PingCooldown = Constant(4f)
+        });
+        cache.Upsert(dimEye);
         foreach (var kind in kinds ?? new FieldKindData[0]) cache.Upsert(kind);
         var items = new ItemManager(cache, new ProvenanceLedger(), GameSettings(), _ => { });
 
-        var sunOrbit = cache.Upsert(new OrbitData()).Key;
+        var sunOrbit = cache.Upsert(new OrbitData { FixedPosition = sunAt }).Key;
         var sun = cache.Upsert(new SunData { Orbit = new CultRecordRef<OrbitData>(sunOrbit) }).Key;
         var pack = new ZonePack
         {
@@ -129,7 +146,7 @@ public sealed class MiningCut3Tests : IDisposable
             Mass = 10000f,
             Time = 0
         };
-        var scene = new Scene { Cache = cache, Items = items, Hull = hull, Eye = eye, Pack = pack };
+        var scene = new Scene { Cache = cache, Items = items, Hull = hull, Eye = eye, DimEye = dimEye, Pack = pack };
         scene.Kinds.AddRange(kinds ?? new FieldKindData[0]);
         foreach (var spec in belts)
         {
@@ -177,11 +194,12 @@ public sealed class MiningCut3Tests : IDisposable
     // A ship held at a planar position, facing +z. `sensor` fits the scene's sensor; `crossSection` fits a
     // reflector of that cross-section (its own design, so ships in one scene can differ); each of `weaponRanges`
     // fits a gun of that range.
-    private Ship SpawnShip(Scene s, float2 at, bool sensor = false, float crossSection = 0f, bool secondSensor = false, params float[] weaponRanges)
+    private Ship SpawnShip(Scene s, float2 at, bool sensor = false, float crossSection = 0f, bool secondSensor = false, bool dimSensor = false, params float[] weaponRanges)
     {
         var ship = new Ship(s.Items, s.Zone, Mint(s, s.Hull), new EntitySettings());
         if (sensor) Assert.True(ship.TryEquip(Mint(s, s.Eye)));
         if (secondSensor) Assert.True(ship.TryEquip(Mint(s, s.Eye)));
+        if (dimSensor) Assert.True(ship.TryEquip(Mint(s, s.DimEye)));
         if (crossSection > 0f)
         {
             var mirror = Gear($"Mirror {crossSection}", new ReflectorData { CrossSection = Constant(crossSection) });
@@ -221,11 +239,11 @@ public sealed class MiningCut3Tests : IDisposable
 
     private static uint Bits(float value) => BitConverter.ToUInt32(BitConverter.GetBytes(value), 0);
 
-    // The per-tick entity detection loop is unchanged by the extraction of its gain rule: a fixed scene (two
-    // reflecting ships at different ranges and bearings, a ping part way through) yields the same
-    // EntityInfoGathered trace, bit for bit, as it did before Sensor.Gain existed. The golden hash was recorded
-    // against the pre-extraction Sensor.Execute.
-    private const string Golden = "6C23DF2584646E976A11CB0B8013A18499F5DCCABD86C7A840F201899984D737";
+    // The per-tick entity detection loop is unchanged by the extraction of its gain rule: a fixed scene (two ships
+    // at different ranges and bearings, seen by a weak sensor so neither saturates, a ping part way through)
+    // yields the same EntityInfoGathered trace, bit for bit, as it did before Sensor.Gain existed. The golden hash
+    // was recorded against the pre-extraction Sensor.Execute (cb4a1dbd with this scene patched in).
+    private const string Golden = "919B7EE7C5D1B40F774EE34283D62DE016862FE799B3EF16362D7FC75FD73C79";
 
     [Fact]
     public void SensorGainExtractionChangesNothing()
@@ -233,23 +251,27 @@ public sealed class MiningCut3Tests : IDisposable
         var s = BuildScene();
         var eyeAt = float2(0, 50);
         var nearAt = float2(30, 120);
-        var farAt = float2(-200, 90);
-        var observer = SpawnShip(s, eyeAt, sensor: true);
-        var near = SpawnShip(s, nearAt, crossSection: 40f);
-        var far = SpawnShip(s, farAt, crossSection: 400f);
+        var farAt = float2(-150, 90);
+        var observer = SpawnShip(s, eyeAt, dimSensor: true);
+        var near = SpawnShip(s, nearAt, crossSection: .2f);
+        var far = SpawnShip(s, farAt, crossSection: 9f);
 
         var trace = new List<byte>();
+        var nearTrace = new List<float>();
         for (var tick = 0; tick < 60; tick++)
         {
             if (tick == 5) observer.Sensor.Ping();
             Tick((near, nearAt), (far, farAt), (observer, eyeAt));
             trace.AddRange(BitConverter.GetBytes(Bits(observer.EntityInfoGathered[near])));
             trace.AddRange(BitConverter.GetBytes(Bits(observer.EntityInfoGathered[far])));
+            nearTrace.Add(observer.EntityInfoGathered[near]);
         }
 
-        // Not a degenerate scene: both targets gathered some info, neither saturated.
-        Assert.InRange(observer.EntityInfoGathered[near], .01f, .99f);
-        Assert.InRange(observer.EntityInfoGathered[far], .01f, .99f);
+        // Not a degenerate scene: both targets settle well short of saturation, and the ping visibly lifts the
+        // near one above where it settles, so the trace carries the passive rule, the bearing and the ping.
+        Assert.InRange(observer.EntityInfoGathered[near], .05f, .8f);
+        Assert.InRange(observer.EntityInfoGathered[far], .05f, .8f);
+        Assert.True(nearTrace.Max() > observer.EntityInfoGathered[near] + .1f, "the ping left no mark on the trace");
         var hash = Convert.ToHexString(SHA256.HashData(trace.ToArray()));
         Assert.True(hash == Golden, $"the EntityInfoGathered trace changed: hash {hash}");
     }
@@ -379,7 +401,8 @@ public sealed class MiningCut3Tests : IDisposable
     }
 
     // Q13 A: the reach for offering a chunk is the longest range among the entity's ACTIVE weapons. Two visible
-    // chunks, 200 and about 300 away; guns of 120, 250 and 350, the last switched off.
+    // chunks, 200 and about 300 away; guns of 250, 120 and 350 fitted in that order, the last switched off -- so the
+    // last active gun is not the longest one.
     [Fact]
     public void CyclingReachIsTheLongestActiveWeaponRange()
     {
@@ -389,7 +412,7 @@ public sealed class MiningCut3Tests : IDisposable
         var near = new ChunkId(s.Belts[0], 0);
         var farther = new ChunkId(s.Belts[0], 1);
         var eyeAt = float2(150, -200);
-        var observer = SpawnShip(s, eyeAt, sensor: true, weaponRanges: new[] { 120f, 250f, 350f });
+        var observer = SpawnShip(s, eyeAt, sensor: true, weaponRanges: new[] { 250f, 120f, 350f });
         Tick((observer, eyeAt)); // weapons read their ranges when they run
         Assert.Equal(200f, length(At(s, near) - eyeAt), 2);
         Assert.Equal(300f, length(At(s, farther) - eyeAt), 2);
@@ -422,7 +445,8 @@ public sealed class MiningCut3Tests : IDisposable
     {
         var kind = Kind("Asteroid", 4f);
         var rocks = Enumerable.Range(0, 12).Select(i => Rock(200f + i * 15f, i / 12f)).ToArray();
-        var s = BuildScene(new[] { kind }, Belt(kind, rocks));
+        var centre = float2(400, -250); // off the origin, so a query that ignored the belt centre would disagree
+        var s = BuildSceneAt(centre, new[] { kind }, Belt(kind, rocks));
         var belt = s.Belts[0];
         Assert.True(s.Zone.Wear(new ChunkId(belt, 5), 1e6f)); // broken
 
@@ -430,8 +454,8 @@ public sealed class MiningCut3Tests : IDisposable
         var sawSome = false;
         foreach (var (from, range) in new[]
                  {
-                     (float2(0, 0), 150f), (float2(0, 0), 230f), (float2(0, 0), 400f),
-                     (float2(220, 0), 40f), (float2(-300, 50), 120f), (float2(600, 0), 360f), (float2(600, 0), 200f)
+                     (centre + float2(0, 0), 150f), (centre + float2(0, 0), 230f), (centre + float2(0, 0), 400f),
+                     (centre + float2(220, 0), 40f), (centre + float2(-300, 50), 120f), (centre + float2(600, 0), 360f), (centre + float2(600, 0), 200f)
                  })
         {
             s.Zone.ChunksNear(from, range, found);
@@ -535,6 +559,8 @@ public sealed class MiningCut3Tests : IDisposable
         Assert.False(new TargetRef(default(ChunkId)).Equals(TargetRef.None));
         Assert.False(new TargetRef(ship).IsNone);
         Assert.True(((object) new TargetRef(chunk)).Equals(new TargetRef(chunk)));
+        Assert.Equal(new TargetRef(ship).GetHashCode(), new TargetRef(ship).GetHashCode());
+        Assert.Equal(TargetRef.None.GetHashCode(), new TargetRef((Entity) null).GetHashCode());
     }
 
     // Q12 A: a launcher never locks a chunk. The same lock weapon, geometry and detection build lock on a
@@ -577,9 +603,10 @@ public sealed class MiningCut3Tests : IDisposable
     {
         var light = Kind("Light", 1f, 1f);
         var never = Kind("Never", 1f, 0f);
+        var middle = Kind("Middle", 1f, 2f);
         var heavy = Kind("Heavy", 1f, 3f);
-        var s = BuildScene(new[] { light, never, heavy });
-        var counts = new Dictionary<string, int> { ["Light"] = 0, ["Never"] = 0, ["Heavy"] = 0 };
+        var s = BuildScene(new[] { light, never, middle, heavy });
+        var counts = new Dictionary<string, int> { ["Light"] = 0, ["Never"] = 0, ["Middle"] = 0, ["Heavy"] = 0 };
         for (var i = 0; i < 2000; i++)
         {
             var key = new CultRecordKey($"belt-{i}");
@@ -588,7 +615,9 @@ public sealed class MiningCut3Tests : IDisposable
             counts[s.Cache.Get(picked).Name]++;
         }
         Assert.Equal(0, counts["Never"]);
-        Assert.InRange(counts["Heavy"] / 2000f, .7f, .8f);
+        Assert.InRange(counts["Light"] / 2000f, 1f / 6 - .04f, 1f / 6 + .04f);
+        Assert.InRange(counts["Middle"] / 2000f, 2f / 6 - .04f, 2f / 6 + .04f);
+        Assert.InRange(counts["Heavy"] / 2000f, 3f / 6 - .04f, 3f / 6 + .04f);
 
         var empty = BuildScene(new[] { never });
         Assert.False(FieldKinds.Assign(new CultRecordKey("belt-0"), empty.Cache).IsSet());
