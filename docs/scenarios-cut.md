@@ -133,8 +133,12 @@ claim measured against a real file.
         - S4: asteroid respawn timers never count down, so mined asteroids never return. **Already fixed by mining:**
           `codex/mining` deleted the belt task threading (Cut 1, `22a54ccb`), `MineAsteroid` and `RespawnTimers` (Cut 2).
           Respawn is `Zone.ChunkWear.BrokenUntil`. **Merge rule:** when scenarios and mining meet, mining's side wins
-          for belt and chunk code, and only scenarios' `CreateOrbit`/`AddOrbit` changes are re-applied. Scenarios
-          `f8795271` (`SettleBelts`) is superseded.
+          for belt and chunk code. **Corrected 2026-10-01 by mining Cut 3 Soul (rehearsal `62b7cefb`/`393334c4`, 557/557):**
+          scenarios' `CreateOrbit`/`AddOrbit` changes are only `SettleBelts()` calls, so drop `SettleBelts` and all
+          three calls (lines 169/190/324 on scenarios); they merge cleanly but reference the deleted `BeltUpdates`. Delete
+          scenarios tests `RunStartTests.cs:639` and `:669` (deleted belt API). Conflicts: `CatalogTypes` take both;
+          `Zone.cs` delete `MineAsteroid`; `FireControlCut124Tests.cs:2609` take scenarios' strict Exact;
+          `GameData/Aetheria.cc` take scenarios' `70a7b0a9` then rerun `AetherDb field-kinds apply`.
         - S5: a shield charges while unbilled. This is documented design.
         - S6: pins are missing for the filling preference, product reuse and the thermostat band.
         - Held: F2 (no unbilled running in the catalog, players only warmer), F4 (no nulls; no exceptions in 24k-tick
@@ -822,3 +826,29 @@ Defaults Self took, which you may overrule:
   others; `Program.cs` is 1,477 lines). This is a subtraction pass of its own.
 - `ItemManager`'s clock seed (`ItemManager.cs:20`) makes lot quality vary per scenario launch. It is recorded,
   not fixed here.
+
+## Mining Cut 3: Soul (`codex/mining` `39cec96a..55ca6d3d`, 2026-10-01)
+
+**Verdict: hold for one fix batch.** It is queued, not dispatched, because the operator ordered a drain.
+
+No correctness bug was found. The suite passes 516/516 with the catalog `b698e224` and the settings `b2e346f5` that the commit pins. The shared `pins/data/Settings.asset` (`347752dd`) is scenarios' file, so any runner that mounts that path by default has been testing mining with the wrong settings.
+
+Findings:
+- **F1 (medium, operator):** picking a rock in a big belt costs one scan of every rock the search circle reaches. `Zone.ChunksNear` (`Zone.cs:333`) and `VisibleChunksInReach` (`Entity.cs:378-385`) run on every reticle, next or previous key press. Measured cost: 63 ms at 30k rocks, 449 ms at 300k and 4.3 s at 3M. The per-tick cost is fine.
+- **F2 (medium):** nothing tests that the shipped catalog has a rock kind. Taking either side of the catalog conflict unchanged ships dark belts silently. Add a test for "at least one rock kind with weight above 0".
+- **F3:** the merge rule is corrected above.
+- **F4 (medium):** nothing tests the ping half of `Sensor.Gain`, because the golden fixture saturates at the cap. Two mutants survive (`Sensor.cs:168`, `:189`). Soul's sweep fixture kills both and gives the same hash (`35DE0E26…`) before extraction, at extraction and at the tip.
+- **F5:** `FieldKinds.Ensure`'s explicit save (`ZoneData.cs:162`) is needed on a clean store. Keep it and commit the probe.
+- **F6/F7/F8 (low):** the `SetTarget` refusal is tested only on dark rocks (`Entity.cs:345`). The outer skip edge of `ChunksNear` is untested. Rock reach reads `Enabled`, and nothing tests it.
+- **Deviation (operator):** launchers count toward rock reach (Q13), but under Q12 they can't mine. So after Cut 4 a player can pick a rock that no weapon can act on.
+- **Plausible (operator visual check):** the target indicator uses `AsteroidVerticalOffset`, but the shader also subtracts the nebula surface height.
+
+Promises that held:
+- The `Gain` extraction is bit-identical.
+- `SetTarget` is the only writer.
+- A dark target is dropped on the tick and on `Activate`.
+- Docking, broken rocks and wormholes are handled.
+- The catalog has 206 identical records, plus one kind and 18 weapons now Exact.
+- Old saves get a kind on first load.
+
+The fix batch commits Soul's four probes (in the session scratchpad, `soul-mc3-run/probes/`) and the catalog-kind test.
