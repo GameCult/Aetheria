@@ -790,9 +790,6 @@ public abstract class Entity
     // Check whether the given item will fit when its origin is placed at the given coordinate
     private bool ItemFits(EquippableItemData itemData, HullData hullData, EquippableItem item, int2 hullCoord)
     {
-        // If the given coordinate isn't even in the ship it obviously won't fit
-        if (!hullData.Shape[hullCoord]) return false;
-        
         // Items without specific hardpoints on the ship can be freely rotated and placed anywhere
         if (itemData.HardpointType == HardpointType.Tool)
         {
@@ -809,22 +806,32 @@ public abstract class Entity
         }
         else
         {
-            var hardpoint = Hardpoints[hullCoord.x, hullCoord.y];
-            
-            // If there's no hardpoint there, it won't fit
+            var hardpoint = HardpointAt(itemData, hullData, hullCoord);
             if (hardpoint == null) return false;
-
-            // The one fit rule, at this placement: the item, aligned to the hardpoint's rotation, lies within its cells
-            if (!hardpoint.TakesAt(itemData, hullCoord - hardpoint.Position)) return false;
             item.Rotation = hardpoint.Rotation;
-
-            // One item per hardpoint: every cell of it is free (and so every cell of the item)
-            foreach (var v in hullData.Shape.Inset(hardpoint.Shape, hardpoint.Position).Coordinates)
-                if (GearOccupancy[v.x, v.y] != null)
-                    return false;
         }
 
         return true;
+    }
+
+    // The one placement rule for hardpoint gear. At this origin the item lies within a hardpoint of its type, turned to
+    // that hardpoint's rotation (HardpointData.TakesAt, the fit rule); its own cells are free, since a hardpoint's
+    // leftover cells may hold general gear (operator, 2026-09-30: "saving slots in a hardpoint can be a valid tradeoff
+    // for crowded ships"); and that hardpoint holds no other hardpoint item, since it holds one at most.
+    private HardpointData HardpointAt(EquippableItemData itemData, HullData hullData, int2 hullCoord)
+    {
+        foreach (var hardpoint in hullData.Hardpoints)
+        {
+            if (!hardpoint.TakesAt(itemData, hullCoord - hardpoint.Position)) continue;
+            var ownCellsFree = itemData.Shape.Coordinates
+                .Select(v => hullCoord + itemData.Shape.Rotate(v, hardpoint.Rotation))
+                .All(c => GearOccupancy[c.x, c.y] == null);
+            var holdsAnother = hardpoint.Shape.Coordinates
+                .Select(v => GearOccupancy[hardpoint.Position.x + v.x, hardpoint.Position.y + v.y])
+                .Any(occupant => occupant != null && occupant.Data.HardpointType != HardpointType.Tool);
+            if (ownCellsFree && !holdsAnother) return hardpoint;
+        }
+        return null;
     }
 
     // Check whether the given item will fit when its origin is placed at the given coordinate on the hull
@@ -867,13 +874,15 @@ public abstract class Entity
         // Search the ship for an empty hardpoint that matches the type and shape of the item
         else
         {
+            // Every offset within a hardpoint of the item's type, the same offsets the fit rule tries
             foreach (var hardpoint in hullData.Hardpoints)
             {
                 if(hardpoint.Type == itemData.HardpointType)
                 {
-                    foreach (var hardpointCoord in hardpoint.Shape.Coordinates)
+                    for (var x = 0; x < hardpoint.Shape.Width; x++)
+                    for (var y = 0; y < hardpoint.Shape.Height; y++)
                     {
-                        var hullCoord2 = hardpoint.Position + hardpointCoord;
+                        var hullCoord2 = hardpoint.Position + int2(x, y);
                         if (ItemFits(itemData, hullData, item, hullCoord2))
                         {
                             hullCoord = hullCoord2;

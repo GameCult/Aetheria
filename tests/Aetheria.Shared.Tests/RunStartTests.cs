@@ -825,6 +825,113 @@ public sealed class RunStartTests : IDisposable
         Assert.True(missing.Count == 0, $"sold weapons with no damage curve: {string.Join(", ", missing)}");
     }
 
+    // An empty hull of this kind to equip into by hand.
+    private Entity BareHull(HullData hull) =>
+        new Ship(_items, null, (EquippableItem) _items.CreateInstance(_cache.GetAll<FactionProductData>().First(p => p.Design.Key.Equals(_cache.RefOf(hull).Key))),
+            _items.GameplaySettings.DefaultEntitySettings);
+
+    private HullData ScratchHull(string name, int size, params HardpointData[] hardpoints)
+    {
+        var shape = new Shape(size, size);
+        foreach (var cell in shape.AllCoordinates) shape[cell] = true;
+        var hull = new HullData { Name = name, HullType = HullType.Ship, Shape = shape, Durability = 100, Mass = 1000, Price = 1 };
+        hull.Hardpoints.AddRange(hardpoints);
+        _cache.Upsert(hull);
+        _cache.Upsert(new FactionProductData
+        {
+            Name = name, Design = new CultRecordRef<CraftedItemData>(_cache.RefOf(hull).Key), Manufacturer = _cache.RefOf(_protagonist)
+        });
+        return hull;
+    }
+
+    private EquippableItem Instance(EquippableItemData design) =>
+        (EquippableItem) _items.CreateInstance(_cache.GetAll<FactionProductData>().First(p => p.Design.Key.Equals(_cache.RefOf(design).Key)));
+
+    // Placement searches every offset the fit rule does: an L-shaped hardpoint, whose origin cell is empty, takes the L
+    // design that fills it, by hand and in generation.
+    [Fact]
+    public void AnLShapedHardpointTakesItsLDesign()
+    {
+        var l = new Shape(2, 2);
+        l[int2(1, 0)] = true;
+        l[int2(0, 1)] = true;
+        l[int2(1, 1)] = true;
+        var hull = ScratchHull("L Mount", 9, new HardpointData { Type = HardpointType.Ballistic, Position = int2(1, 1), Shape = l });
+        var gun = ScratchGear("L Gun", HardpointType.Ballistic, 1, 1);
+        gun.Shape = l;
+        Assert.True(hull.Hardpoints[0].IsFilledBy(gun));
+
+        Assert.True(BareHull(hull).TryEquip(Instance(gun)), "equipping by hand");
+        var ship = EntitySerializer.Unpack(_items, null, PreludeGenerator().GenerateShipLoadout(candidate => candidate == hull));
+        Assert.True(ship.Equipment.Any(item => item.Data.HardpointType == HardpointType.Ballistic), "generation equips the L hardpoint");
+    }
+
+    // Generated entities whose hardpoints share leftover cells with general gear, found by generating until enough.
+    private List<(Entity entity, HardpointData hardpoint, EquippedItem held)> SharedHardpoints(int wanted)
+    {
+        var found = new List<(Entity, HardpointData, EquippedItem)>();
+        var generator = PreludeGenerator();
+        for (var i = 0; i < 400 && found.Count < wanted; i++)
+        {
+            var entity = EntitySerializer.Unpack(_items, null, generator.GenerateTurretLoadout());
+            foreach (var hardpoint in entity.HullData.Hardpoints)
+            {
+                var occupants = hardpoint.Shape.Coordinates.Select(c => entity.GearOccupancy[hardpoint.Position.x + c.x, hardpoint.Position.y + c.y])
+                    .Where(o => o != null).Distinct().ToList();
+                var held = occupants.FirstOrDefault(o => o.Data.HardpointType == hardpoint.Type);
+                if (held != null && occupants.Any(o => o.Data.HardpointType == HardpointType.Tool)) found.Add((entity, hardpoint, held));
+            }
+        }
+        return found;
+    }
+
+    // A hardpoint's leftover cells may hold general gear (operator, 2026-09-30, "B is the design intent"): a hardpoint
+    // item needs only its own cells free. So a generated turret whose spare gun-mount cells hold tool gear takes its own
+    // gun back after the gun is pulled.
+    [Fact]
+    public void AHardpointItemGoesBackBesideGearInItsLeftoverCells()
+    {
+        var shared = SharedHardpoints(10);
+        Assert.True(shared.Count > 0, "generation shares hardpoint cells with general gear");
+        foreach (var (entity, hardpoint, held) in shared)
+        {
+            var item = entity.TryUnequip(held);
+            Assert.True(item != null && entity.TryEquip(item), $"{entity.HullData.Name}: {held.Data.Name} back into its {hardpoint.Type} hardpoint");
+        }
+    }
+
+    // A hardpoint holds at most one hardpoint item, however much room it has left.
+    [Fact]
+    public void AHardpointHoldsOneHardpointItem()
+    {
+        var mount = new Shape(8, 8);
+        foreach (var cell in mount.AllCoordinates) mount[cell] = true;
+        var hull = ScratchHull("Roomy Mount", 10, new HardpointData { Type = HardpointType.Ballistic, Position = int2(1, 1), Shape = mount });
+        var gun = ScratchGear("Small Gun", HardpointType.Ballistic, 1, 1);
+        var entity = BareHull(hull);
+        Assert.True(entity.TryEquip(Instance(gun)), "the first gun");
+        Assert.False(entity.TryEquip(Instance(gun)), "a second gun in the same hardpoint");
+    }
+
+    // Loading a saved entity equips its items one by one; the result does not depend on their order, even where general
+    // gear sits in a hardpoint's leftover cells.
+    [Fact]
+    public void SaveLoadGivesTheSameLoadoutInAnyOrder()
+    {
+        var shared = SharedHardpoints(3);
+        Assert.True(shared.Count > 0, "generation shares hardpoint cells with general gear");
+        string Loadout(Entity e) => string.Join(";", e.Equipment.Select(i => $"{i.Data.Name}@{i.Position}").OrderBy(s => s, StringComparer.Ordinal));
+        foreach (var entity in shared.Select(s => s.entity).Distinct())
+        {
+            var pack = EntitySerializer.Pack(entity);
+            var inOrder = Loadout(EntitySerializer.Unpack(_items, null, pack));
+            pack.Equipment = pack.Equipment.Reverse().ToArray();
+            var reversed = Loadout(EntitySerializer.Unpack(_items, null, pack));
+            Assert.Equal(Loadout(entity), inOrder);
+            Assert.Equal(inOrder, reversed);
+        }
+    }
+
     // Q3, with the operator's 2026-09-30 ruling on the ten product-less designs: a design no product sells is a
     // scenario test design and nothing else. A test design is one a scenario places: its preset's hull or a slot of
     // it, or cargo it carries. These are the unsold designs no scenario places, by name.
