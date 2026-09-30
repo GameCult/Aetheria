@@ -244,7 +244,8 @@ public sealed class RunStartTests : IDisposable
     }
 
     // Ambient: false keeps the stations and drops every generated ship and turret; ambient, and a plain New Game, keep
-    // them. The arena is the galaxy's entrance pack.
+    // them. The arena is the galaxy's entrance pack. The entrance holds a story station, placed as the narrative would
+    // place one, so a story station's own turrets are dropped too.
     [Fact]
     public void AQuietArenaHasNoGeneratedShipOrTurretButKeepsItsStations()
     {
@@ -253,6 +254,10 @@ public sealed class RunStartTests : IDisposable
             pack.Entities.OfType<OrbitalEntityPack>().Count(e => ((HullData) _cache.Get(e.Hull.Data)).HullType == HullType.Turret),
             pack.Entities.OfType<OrbitalEntityPack>().Count(e => ((HullData) _cache.Get(e.Hull.Data)).HullType == HullType.Station));
 
+        _galaxy.Entrance.Locations.Add(new LocationStory
+        {
+            Zone = _galaxy.Entrance, Name = "story", Type = LocationType.Station, Faction = _protagonist, Turrets = 2
+        });
         var plain = Census(RunStart.GenerateArena(_items, _zoneSettings, _galaxy, null));
         var ambient = Census(RunStart.GenerateArena(_items, _zoneSettings, _galaxy, new Scenario { Ambient = true }));
         var quietPack = RunStart.GenerateArena(_items, _zoneSettings, _galaxy, new Scenario { Ambient = false });
@@ -265,6 +270,7 @@ public sealed class RunStartTests : IDisposable
         Assert.Equal(0, quiet.turrets);
         Assert.True(quiet.stations > 0);
         Assert.Equal(ambient.stations, quiet.stations);
+        Assert.Contains(quietPack.Entities.OfType<OrbitalEntityPack>(), station => station.Story == 0);
     }
 
     // A turret preset stages as an orbital entity with no orbit, which stays where it is put.
