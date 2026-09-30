@@ -147,8 +147,12 @@ not need it.
 
 **S0 status (2026-09-30):** master `65c63495` (fire control 12, `dcd7bbc5`) merged into `codex/moddable-ships` with
 `--no-ff` at `18e12d81`, no conflicts. Corrections 1-4 applied to `docs/moddable-ship-authoring.md`. Yggdrasil full
-suite on the merge (`dotnet test tests/Aetheria.Shared.Tests`, CultLib `45c2f40`, CultMath `6d5e209`): **615 passed, 0 failed**. The Unity batchmode compile and the `ShipModPreview.Smoke` run are Self's
-steps and have not run.
+suite on the merge (`dotnet test tests/Aetheria.Shared.Tests`, CultLib `45c2f40`, CultMath `6d5e209`): **615 passed, 0 failed**. Self's steps, 2026-09-30 05:15 CEST: the Unity 6000.3.24f1
+batchmode compile of `01e9db1c` has 0 `error CS` and 0 `warning CS`, and `ShipModPreview.Smoke` passed
+(`SHIP_MOD_VISUAL_SMOKE anchors=5 points=2 segments=1`, its first recorded run). **The branch has no committed
+fixture package:** the smoke ran against one generated from `ShipAuthoringTests.Fixture()` with a hand-added glTF
+`scene` (the test GLB has nodes but no scene; whether glTFast instantiates a scene-less GLB is unchecked). S1 should
+commit a scene-bearing fixture package so the smoke is reproducible.
 
 **Anchors re-taken against the merged tree (`18e12d81`).**
 - Unchanged: `ShipAuthoring.cs:15` (`Hull`, key 1), `:84`, `:111-136` (the hardpoint checks are `:112-131`),
