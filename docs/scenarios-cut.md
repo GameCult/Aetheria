@@ -86,6 +86,14 @@ claim measured against a real file.
         hardpoint. Generation, `HasHome`, stock, equip, save load, presets and `AetherDb hardpoint-fit` all use
         it. So the Autocannon now has a home (the Turret) and is sold. The Autocannon ruling's own rule, "never
         stock gear no hull can fit", is unchanged.
+      - **Batch 3 rulings (operator, 2026-09-30):**
+        - Idle station reactor overheating and burnout (F1): **"Stations should have radiators"** (option C). The
+          station has a heat source and no sink.
+        - Per-manufacturer station reactors: **"Keep the variety, not every galaxy will have Zhestokost in it"**.
+          The census showed every main-sector galaxy holds all 12 factions today. The reactors are authored anyway.
+        - Rossum & Douglas missing from its own allegiance: the operator asked "Does allegiance to oneself even make
+          sense?". Self's proposal: a faction always reaches its own manufacturer's gear, and allegiance lists only
+          other factions. This is pending the operator's answer.
       - F5: `_time` is advanced before the belt wait. F6: mining races the belt tasks. F7: reuse by cell count is
         unpinned.
       - Soul did **not** reproduce the Zhestokost gap: every station in 5 seeds and 12 factions got a reactor. The
