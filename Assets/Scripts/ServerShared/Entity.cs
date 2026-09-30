@@ -601,6 +601,8 @@ public abstract class Entity
         var hullData = ItemManager.GetData(Hull) as HullData;
         EquippedHull = new EquippedItem(ItemManager, Hull, int2.zero, this);
         Equipment.Add(EquippedHull);
+        // A bare hull, one TryEquip never ran on, still updates: its ordered equipment is the hull alone.
+        _orderedEquipment = Equipment.ToArray();
         Mass = hullData.Mass;
         Temperature = new float[hullData.Shape.Width, hullData.Shape.Height];
         NewTemperature = new float[hullData.Shape.Width, hullData.Shape.Height];
