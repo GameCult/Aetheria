@@ -1,8 +1,8 @@
-"""Aetheria's Blender-side view of one typed ShipAuthoring CultCache record.
+"""Aetheria's Blender-side view of one ship file: a typed HullData record and the ShipAuthoring visual it names.
 
-The schema and authority live in Aetheria's C# ShipAuthoring type. This module
-preserves the C# schema catalog and all slots it does not edit. Brokkr supplies
-the Blender host and CultLib Python dependency path.
+The schemas and authority live in Aetheria's C# HullData and ShipAuthoring types. This module edits the hull's grid
+and hardpoints and the visual's lines, and preserves the C# schema catalog and every slot it does not edit. Brokkr
+supplies the Blender host and CultLib Python dependency path.
 """
 
 from __future__ import annotations
@@ -12,15 +12,15 @@ import hashlib
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 SCHEMA = "aetheria.ship_authoring"
+HULL_SCHEMA = "aetheria.hulldata"
 
 # MessagePack slots of the C# types, which own them (ShipAuthoring, ItemData.Shape, HullData.Hardpoints,
 # HardpointData). ShipSchemaPinTests in tests/Aetheria.Shared.Tests fails when any number or name below
 # disagrees with those types' [Key] attributes, so a renumbered or added member cannot drift silently.
 SCHEMATIC_LINES_SLOT = 4  # ShipAuthoring.SchematicLines
-HULL_SLOT = 1  # ShipAuthoring.Hull
 HULL_SHAPE_SLOT = 5  # ItemData.Shape
 HULL_HARDPOINTS_SLOT = 23  # HullData.Hardpoints
 # HardpointData member names in slot order; a hardpoint row is one value per name, and any slot past the last
@@ -51,40 +51,65 @@ def _libraries(cultlib_packages: str):
     return cultcache_py, msgpack
 
 
-def read(path: str, cultlib_packages: str):
+class Record(NamedTuple):
+    envelope: Any
+    body: list
+
+
+class ShipFile(NamedTuple):
+    store: Any
+    ship: Record  # the ShipAuthoring visual
+    hull: Record  # the HullData it belongs to
+    msgpack: Any
+
+
+def read(path: str, cultlib_packages: str) -> ShipFile:
     cultcache, msgpack = _libraries(cultlib_packages)
     store = cultcache.SingleFileMessagePackBackingStore(path)
     envelopes = store.pull_all()
     ships = [envelope for envelope in envelopes if envelope.type == SCHEMA]
-    if len(envelopes) != 1 or len(ships) != 1:
-        raise ValueError(f"{path} must hold exactly one {SCHEMA} record")
-    envelope = ships[0]
-    body = msgpack.unpackb(envelope.payload, raw=False)
-    if not isinstance(body, list) or len(body) < SCHEMATIC_LINES_SLOT + 1:
+    hulls = [envelope for envelope in envelopes if envelope.type == HULL_SCHEMA]
+    if len(envelopes) != 2 or len(ships) != 1 or len(hulls) != 1:
+        raise ValueError(f"{path} must hold exactly one {SCHEMA} record and one {HULL_SCHEMA} record")
+    bodies = []
+    for envelope in (ships[0], hulls[0]):
+        body = msgpack.unpackb(envelope.payload, raw=False)
+        if not isinstance(body, list):
+            raise ValueError(f"{path} has an incompatible {envelope.type} payload")
+        bodies.append(Record(envelope, body))
+    ship, hull = bodies
+    if len(ship.body) < SCHEMATIC_LINES_SLOT + 1:
         raise ValueError(f"{path} has an incompatible {SCHEMA} payload")
-    return store, envelope, body, msgpack
+    return ShipFile(store, ship, hull, msgpack)
+
+
+def _stamped(record: Record, msgpack: Any):
+    return replace(
+        record.envelope,
+        payload=msgpack.packb(record.body, use_bin_type=True),
+        stored_at=datetime.now(timezone.utc).isoformat(),
+    )
 
 
 def replace_lines(path: str, cultlib_packages: str, lines: list[list[Any]]) -> int:
-    store, envelope, body, msgpack = read(path, cultlib_packages)
+    file = read(path, cultlib_packages)
     if not lines:
         raise ValueError("No Grease Pencil strokes were captured; the ship record was not changed")
-    body[SCHEMATIC_LINES_SLOT] = lines
-    updated = replace(
-        envelope,
-        payload=msgpack.packb(body, use_bin_type=True),
-        stored_at=datetime.now(timezone.utc).isoformat(),
-    )
-    store.push(updated)
+    file.ship.body[SCHEMATIC_LINES_SLOT] = lines
+    file.store.push(_stamped(file.ship, file.msgpack))
     return len(lines)
 
 
-def read_layout(path: str, cultlib_packages: str):
-    _, _, body, msgpack = read(path, cultlib_packages)
-    hull = body[HULL_SLOT]
-    if not isinstance(hull, list) or len(hull) <= HULL_HARDPOINTS_SLOT:
+def _hull_body(file: ShipFile) -> list:
+    if len(file.hull.body) <= HULL_HARDPOINTS_SLOT:
         raise ValueError("Ship hull has an incompatible typed payload")
-    return hull[HULL_SHAPE_SLOT][0], hull[HULL_HARDPOINTS_SLOT], _layout_revision(hull, msgpack)
+    return file.hull.body
+
+
+def read_layout(path: str, cultlib_packages: str):
+    file = read(path, cultlib_packages)
+    hull = _hull_body(file)
+    return hull[HULL_SHAPE_SLOT][0], hull[HULL_HARDPOINTS_SLOT], _layout_revision(hull, file.msgpack)
 
 
 def _layout_revision(hull, msgpack):
@@ -95,11 +120,11 @@ def _layout_revision(hull, msgpack):
 
 def replace_layout(path: str, cultlib_packages: str, expected_id: str, expected_revision: str,
                    shape: list[Any], hardpoints: list[list[Any]]) -> str:
-    store, envelope, body, msgpack = read(path, cultlib_packages)
-    if body[0] != expected_id:
+    file = read(path, cultlib_packages)
+    if file.ship.body[0] != expected_id:
         raise ValueError("The bound ship ID changed; reload its layout")
-    hull = body[HULL_SLOT]
-    if _layout_revision(hull, msgpack) != expected_revision:
+    hull = _hull_body(file)
+    if _layout_revision(hull, file.msgpack) != expected_revision:
         raise ValueError("The .cc layout changed since Load; reload before saving")
     width, height, cells = shape
     if not (1 <= width <= 32 and 1 <= height <= 32 and len(cells) == width * height):
@@ -122,12 +147,8 @@ def replace_layout(path: str, cultlib_packages: str, expected_id: str, expected_
         updated_hardpoints.append(hardpoint + previous.get(mount, []))
     hull[HULL_SHAPE_SLOT] = [shape]
     hull[HULL_HARDPOINTS_SLOT] = updated_hardpoints
-    store.push(replace(
-        envelope,
-        payload=msgpack.packb(body, use_bin_type=True),
-        stored_at=datetime.now(timezone.utc).isoformat(),
-    ))
-    return _layout_revision(hull, msgpack)
+    file.store.push(_stamped(file.hull, file.msgpack))
+    return _layout_revision(hull, file.msgpack)
 
 
 def capture_grease_pencil(obj: Any, depsgraph: Any, frame_number: int, *, evaluated: bool = True) -> list[list[Any]]:

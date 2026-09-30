@@ -219,15 +219,15 @@ class AETHERIA_OT_bind_ship_collection(bpy.types.Operator):
             else:
                 raise ValueError("Select an object in exactly one ship collection")
             path = bpy.path.abspath(context.scene.aetheria_ship_cc_path)
-            _, _, body, _ = read(path, _brokkr_cultlib(context))
+            ship_id = read(path, _brokkr_cultlib(context)).ship.body[0]
             if collection.get("aetheria.asset_kind") not in (None, "ship"):
                 raise ValueError(f"{collection.name} has another aetheria.asset_kind")
-            if collection.get("aetheria.id") not in (None, body[0]):
+            if collection.get("aetheria.id") not in (None, ship_id):
                 raise ValueError(f"{collection.name} is bound to another ship ID")
             collection["aetheria.asset_kind"] = "ship"
-            collection["aetheria.id"] = body[0]
+            collection["aetheria.id"] = ship_id
             collection["aetheria.ship_cc"] = bpy.path.relpath(path)
-            self.report({"INFO"}, f"Bound {collection.name} to {body[0]}")
+            self.report({"INFO"}, f"Bound {collection.name} to {ship_id}")
             return {"FINISHED"}
         except (OSError, ValueError, RuntimeError, ImportError) as exc:
             self.report({"ERROR"}, str(exc))
@@ -248,8 +248,7 @@ class AETHERIA_OT_capture_ship_lines(bpy.types.Operator):
                 raise ValueError(f"{collection.name} has no bound ship .cc path")
             path = bpy.path.abspath(collection["aetheria.ship_cc"])
             cultlib = _brokkr_cultlib(context)
-            _, _, body, _ = read(path, cultlib)
-            if body[0] != collection["aetheria.id"]:
+            if read(path, cultlib).ship.body[0] != collection["aetheria.id"]:
                 raise ValueError("The bound collection ID does not match its .cc ship ID")
             lines = capture_grease_pencil(
                 obj, context.evaluated_depsgraph_get(), context.scene.frame_current,

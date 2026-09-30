@@ -12,7 +12,8 @@ public static class ShipModCatalog
 {
     public sealed class Package
     {
-        public ShipAuthoring Ship;
+        public HullData Hull;
+        public ShipAuthoring Visual;
         public string ModelPath;
         public Dictionary<string, uint> NodeIndices;
     }
@@ -32,13 +33,13 @@ public static class ShipModCatalog
         if (output.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("The derived catalog cannot replace a mod source or asset.");
 
-        var ships = new List<ShipAuthoring>();
+        var packages = new List<Package>();
         foreach (var directory in Directory.GetDirectories(root).OrderBy(path => path, StringComparer.Ordinal))
         {
             var path = Path.Combine(directory, "ship.cc");
             if (!File.Exists(path)) continue;
             // ReadPackage pins each ID to its directory name, so IDs within one mods root are already unique.
-            ships.Add(ReadPackage(path).Ship);
+            packages.Add(ReadPackage(path));
         }
 
         Directory.CreateDirectory(Path.GetDirectoryName(output));
@@ -52,8 +53,9 @@ public static class ShipModCatalog
             File.Copy(source, temporary);
             using (var cache = AetheriaStores.Open(temporary, catalogWritable: true))
             {
-                foreach (var ship in ships)
+                foreach (var package in packages)
                 {
+                    var (hull, ship) = (package.Hull, package.Visual);
                     var hullKey = HullKey(ship.Id);
                     var authoringKey = AuthoringKey(ship.Id);
                     if (cache.AllStoredDocuments.Any(record => record.Key.Equals(hullKey) || record.Key.Equals(authoringKey)))
@@ -61,18 +63,18 @@ public static class ShipModCatalog
                     // CultCache indexes names per concrete type and lets the last writer win, and GetByName over a base
                     // type throws on a match across subtypes. A mod hull named like any shipped item, or another mod's
                     // hull (upserted earlier in this loop), would make name lookups wrong or throw.
-                    if (cache.GetAll<ItemData>().Any(item => string.Equals(item.Name, ship.Hull.Name, StringComparison.Ordinal)))
-                        throw new InvalidOperationException($"{ship.Id}: hull name '{ship.Hull.Name}' collides with an existing catalog item.");
+                    if (cache.GetAll<ItemData>().Any(item => string.Equals(item.Name, hull.Name, StringComparison.Ordinal)))
+                        throw new InvalidOperationException($"{ship.Id}: hull name '{hull.Name}' collides with an existing catalog item.");
                     if (cache.GetAll<ShipAuthoring>().Any(existing => string.Equals(existing.Id, ship.Id, StringComparison.Ordinal)))
                         throw new InvalidOperationException($"{ship.Id}: ship ID collides with an existing catalog ship authoring record.");
-                    cache.UpsertAsync(typeof(HullData), ship.Hull, hullKey).GetAwaiter().GetResult();
-                    cache.UpsertAsync(typeof(ShipAuthoring), ship, authoringKey).GetAwaiter().GetResult();
+                    // Verbatim: the mod store's own two records, under the keys it already holds them at.
+                    ShipAuthoringStore.Write(cache, hull, ship);
                 }
                 cache.FlushAsync().GetAwaiter().GetResult();
             }
             if (File.Exists(output)) File.Replace(temporary, output, null);
             else File.Move(temporary, output);
-            return ships.Count;
+            return packages.Count;
         }
         finally
         {
@@ -84,7 +86,7 @@ public static class ShipModCatalog
     {
         var path = Path.GetFullPath(shipPath);
         var directory = Path.GetDirectoryName(path);
-        var ship = ShipAuthoringStore.Read(path);
+        var (hull, ship) = ShipAuthoringStore.Read(path);
         if (!string.Equals(Path.GetFileName(directory), ship.Id, StringComparison.Ordinal))
             throw new InvalidOperationException($"{path}: ship ID must match its package directory name.");
         var modelPath = Path.GetFullPath(Path.Combine(directory, ship.ModelAsset));
@@ -95,8 +97,8 @@ public static class ShipModCatalog
         foreach (var anchor in ship.Anchors)
             if (!modelNodes.ContainsKey(anchor.ModelNodeId))
                 throw new InvalidOperationException($"{ship.Id}: model has no node with aetheria.id={anchor.ModelNodeId} for anchor {anchor.Id}.");
-        CultRecordRefs.Validate(ship.Hull);
-        return new Package { Ship = ship, ModelPath = modelPath, NodeIndices = modelNodes };
+        CultRecordRefs.Validate(hull);
+        return new Package { Hull = hull, Visual = ship, ModelPath = modelPath, NodeIndices = modelNodes };
     }
 
     // GLB is the xenos asset boundary. Only its node extras are read here; geometry belongs to the runtime importer.

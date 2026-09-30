@@ -5,6 +5,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using GameCult.Caching;
+using Newtonsoft.Json.Linq;
 using Xunit;
 
 // Compose, ReadPackage and ReadNodeIds: the derived catalog a game would open, and the GLB node ids its anchors bind to.
@@ -14,7 +15,7 @@ public sealed class ShipModCatalogTests : IDisposable
     private string Shipped => Path.Combine(_directory.Path, "Aetheria.cc");
     private string Derived => Path.Combine(_directory.Path, "Derived", "Aetheria.modded.cc");
     private string Mods => Path.Combine(_directory.Path, "Mods");
-    private static readonly string[] FixtureNodes = { "map", "collider", "shield", "tractor", "thruster-port" };
+    private static readonly string[] FixtureNodes = ShipFixture.Nodes;
 
     public ShipModCatalogTests()
     {
@@ -46,6 +47,60 @@ public sealed class ShipModCatalogTests : IDisposable
         Assert.Equal("Skiff", Assert.IsType<HullData>(records[ShipModCatalog.HullKey("mod.skiff").Value]).Name);
         Assert.Equal("mod.skiff", Assert.IsType<ShipAuthoring>(records[ShipModCatalog.AuthoringKey("mod.skiff").Value]).Id);
         AssertOnlyTheDerivedFile();
+    }
+
+    // Correction 2 of the S0 map: the derived catalog held each mod hull twice, once as a HullData and once inside the
+    // ship's authoring record. The hull is now one record, and the visual holds no hull.
+    [Fact]
+    public void ComposedCatalogHoldsOneHullPerModShip()
+    {
+        WritePackage("mod.skiff", hullName: "Skiffhull");
+        ShipModCatalog.Compose(Shipped, Derived, Mods);
+
+        using var cache = AetheriaStores.Open(Derived);
+        Assert.Equal(1, cache.GetAll<HullData>().Count(hull => hull.Name == "Skiffhull"));
+        // The hull's name is stored exactly once in the derived file, so no second copy of the hull hides in another record.
+        Assert.Equal(1, Occurrences(File.ReadAllBytes(Derived), Encoding.UTF8.GetBytes("Skiffhull")));
+        var visual = cache.GetAll<ShipAuthoring>().Single();
+        Assert.Equal("mod.skiff", visual.Id);
+    }
+
+    [Fact]
+    public void ComposeCopiesTheModStoresRecordsUnchangedAndTheHullNamesItsVisualByRef()
+    {
+        WritePackage("mod.skiff");
+        var (modHull, modVisual) = ShipAuthoringStore.Read(Path.Combine(Mods, "mod.skiff", "ship.cc"));
+        ShipModCatalog.Compose(Shipped, Derived, Mods);
+
+        using var cache = AetheriaStores.Open(Derived);
+        var hull = cache.Get<HullData>(ShipModCatalog.HullKey("mod.skiff"));
+        var visual = cache.Get<ShipAuthoring>(ShipModCatalog.AuthoringKey("mod.skiff"));
+        Assert.Same(visual, cache.Get(hull.Visual));
+        var options = GameCult.Caching.MessagePack.CultDocumentMessagePackSerialization.OptionsFor(typeof(ShipAuthoring).Assembly);
+        Assert.Equal(MessagePack.MessagePackSerializer.Serialize(modHull, options), MessagePack.MessagePackSerializer.Serialize(hull, options));
+        Assert.Equal(MessagePack.MessagePackSerializer.Serialize(modVisual, options), MessagePack.MessagePackSerializer.Serialize(visual, options));
+    }
+
+    // The package the Unity smoke (ShipModPreview.Smoke) loads. Set AETHERIA_SHIP_FIXTURE_DIR to have this run leave it
+    // there: `-shipModPath $AETHERIA_SHIP_FIXTURE_DIR/mod.skiff/ship.cc`.
+    [Fact]
+    public void TheFixturePackageIsCompleteAndItsGlbCarriesAScene()
+    {
+        var directory = ShipFixture.WritePackage(Mods, "mod.skiff");
+
+        var package = ShipModCatalog.ReadPackage(Path.Combine(directory, "ship.cc"));
+        Assert.Equal(ShipFixture.Nodes.Length, package.NodeIndices.Count);
+        var glb = File.ReadAllBytes(package.ModelPath);
+        var json = JObject.Parse(Encoding.UTF8.GetString(glb, 20, (int)BitConverter.ToUInt32(glb, 12)));
+        Assert.Equal(0, (int)json["scene"]);
+        Assert.Equal(Enumerable.Range(0, ShipFixture.Nodes.Length), json["scenes"][0]["nodes"].Select(node => (int)node));
+        Assert.Equal(1, ShipModCatalog.Compose(Shipped, Derived, Mods));
+
+        var export = Environment.GetEnvironmentVariable("AETHERIA_SHIP_FIXTURE_DIR");
+        if (string.IsNullOrEmpty(export)) return;
+        var target = Path.Combine(export, "mod.skiff");
+        Directory.CreateDirectory(target);
+        foreach (var name in new[] { "ship.cc", "skiff.glb" }) File.Copy(Path.Combine(directory, name), Path.Combine(target, name), true);
     }
 
     [Fact]
@@ -92,8 +147,7 @@ public sealed class ShipModCatalogTests : IDisposable
         {
             if (authoring)
             {
-                var stranger = ShipAuthoringTests.Fixture();
-                stranger.Id = "stranger";
+                var stranger = ShipAuthoringTests.Fixture().WithId("stranger").Visual;
                 cache.UpsertAsync(typeof(ShipAuthoring), stranger, new CultRecordKey(key)).GetAwaiter().GetResult();
             }
             else
@@ -143,7 +197,7 @@ public sealed class ShipModCatalogTests : IDisposable
     {
         using (var cache = AetheriaStores.Open(Shipped, catalogWritable: true))
         {
-            cache.UpsertAsync(typeof(ShipAuthoring), ShipAuthoringTests.Fixture(), new CultRecordKey("shipped:skiff")).GetAwaiter().GetResult();
+            cache.UpsertAsync(typeof(ShipAuthoring), ShipAuthoringTests.Fixture().Visual, new CultRecordKey("shipped:skiff")).GetAwaiter().GetResult();
             cache.FlushAsync().Wait();
         }
         WritePackage("mod.skiff", hullName: "Different");
@@ -177,7 +231,7 @@ public sealed class ShipModCatalogTests : IDisposable
     {
         WritePackage("mod.skiff");
         var package = ShipModCatalog.ReadPackage(Path.Combine(Mods, "mod.skiff", "ship.cc"));
-        Assert.Equal("mod.skiff", package.Ship.Id);
+        Assert.Equal("mod.skiff", package.Visual.Id);
         Assert.Equal(Path.GetFullPath(Path.Combine(Mods, "mod.skiff", "skiff.glb")), package.ModelPath);
         Assert.Equal(new Dictionary<string, uint> { ["map"] = 0, ["collider"] = 1, ["shield"] = 2, ["tractor"] = 3, ["thruster-port"] = 4 }, package.NodeIndices);
     }
@@ -224,24 +278,24 @@ public sealed class ShipModCatalogTests : IDisposable
     [Fact]
     public void NodeIdsMapToTheirGlbNodeIndexSkippingNodesWithoutOne()
     {
-        var path = Write("nodes.glb", Glb(@"{""asset"":{""version"":""2.0""},""nodes"":[
+        var path = Write("nodes.glb", ShipFixture.Glb(@"{""asset"":{""version"":""2.0""},""nodes"":[
             {""name"":""plain""},{""extras"":{""aetheria.id"":""a""}},{""extras"":{}},{""extras"":{""aetheria.id"":""""}},{""extras"":{""aetheria.id"":""b""}}]}"));
         Assert.Equal(new Dictionary<string, uint> { ["a"] = 1, ["b"] = 4 }, ShipModCatalog.ReadNodeIds(path));
     }
 
     [Fact]
     public void AGlbWithoutNodesHasNoIds() =>
-        Assert.Empty(ShipModCatalog.ReadNodeIds(Write("empty.glb", Glb(@"{""asset"":{""version"":""2.0""}}"))));
+        Assert.Empty(ShipModCatalog.ReadNodeIds(Write("empty.glb", ShipFixture.Glb(@"{""asset"":{""version"":""2.0""}}"))));
 
     [Fact]
     public void ADuplicateNodeIdIsRefused() =>
         Assert.Contains("duplicate GLB node aetheria.id=a", Assert.Throws<InvalidOperationException>(() =>
-            ShipModCatalog.ReadNodeIds(Write("dup.glb", Glb(@"{""nodes"":[{""extras"":{""aetheria.id"":""a""}},{""extras"":{""aetheria.id"":""a""}}]}")))).Message);
+            ShipModCatalog.ReadNodeIds(Write("dup.glb", ShipFixture.Glb(@"{""nodes"":[{""extras"":{""aetheria.id"":""a""}},{""extras"":{""aetheria.id"":""a""}}]}")))).Message);
 
     [Fact]
     public void AMalformedGlbHeaderIsRefused()
     {
-        var good = Glb(@"{""nodes"":[]}");
+        var good = ShipFixture.Glb(@"{""nodes"":[]}");
         void Refuse(string name, byte[] bytes, string message) =>
             Assert.Contains(message, Assert.Throws<InvalidOperationException>(() => ShipModCatalog.ReadNodeIds(Write(name, bytes))).Message);
 
@@ -281,24 +335,6 @@ public sealed class ShipModCatalogTests : IDisposable
         return copy;
     }
 
-    private static byte[] Glb(string json)
-    {
-        var body = Encoding.UTF8.GetBytes(json);
-        var padded = new byte[(body.Length + 3) / 4 * 4];
-        Array.Fill(padded, (byte)' ');
-        body.CopyTo(padded, 0);
-        var bytes = new byte[20 + padded.Length + 8];
-        BitConverter.GetBytes(0x46546C67u).CopyTo(bytes, 0);
-        BitConverter.GetBytes(2u).CopyTo(bytes, 4);
-        BitConverter.GetBytes((uint)bytes.Length).CopyTo(bytes, 8);
-        BitConverter.GetBytes((uint)padded.Length).CopyTo(bytes, 12);
-        BitConverter.GetBytes(0x4E4F534Au).CopyTo(bytes, 16);
-        padded.CopyTo(bytes, 20);
-        BitConverter.GetBytes(0u).CopyTo(bytes, 20 + padded.Length);
-        BitConverter.GetBytes(0x004E4942u).CopyTo(bytes, 24 + padded.Length);
-        return bytes;
-    }
-
     private string Write(string name, byte[] bytes)
     {
         var path = Path.Combine(_directory.Path, name);
@@ -307,23 +343,14 @@ public sealed class ShipModCatalogTests : IDisposable
     }
 
     private void WritePackage(string id, string hullName = "Skiff", string[] nodes = null, string modelAsset = "skiff.glb",
-        Action<ShipAuthoring> tweak = null)
+        Action<ShipParts> tweak = null) => ShipFixture.WritePackage(Mods, id, hullName, nodes, modelAsset, tweak);
+
+    private static int Occurrences(byte[] haystack, byte[] needle)
     {
-        var ship = ShipAuthoringTests.Fixture();
-        tweak?.Invoke(ship);
-        ship.Id = id;
-        ship.Hull.Name = hullName;
-        ship.ModelAsset = modelAsset;
-        var directory = Path.Combine(Mods, id);
-        Directory.CreateDirectory(directory);
-        using (var cache = ShipAuthoringStore.Open(Path.Combine(directory, "ship.cc"), writable: true))
-        {
-            cache.Upsert(ship);
-            cache.FlushAsync().Wait();
-        }
-        var json = @"{""asset"":{""version"":""2.0""},""nodes"":[" +
-            string.Join(",", (nodes ?? FixtureNodes).Select(node => $@"{{""extras"":{{""aetheria.id"":""{node}""}}}}")) + "]}";
-        File.WriteAllBytes(Path.Combine(directory, modelAsset), Glb(json));
+        var count = 0;
+        for (var start = 0; start <= haystack.Length - needle.Length; start++)
+            if (haystack.AsSpan(start, needle.Length).SequenceEqual(needle)) count++;
+        return count;
     }
 
     private static string Hash(string path) => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));

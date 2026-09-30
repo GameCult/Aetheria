@@ -6,13 +6,13 @@ using GameCult.Caching;
 using GameCult.Caching.MessagePack;
 using MessagePack;
 
-// A mod ship's authoring record. Hull is the existing simulation design, embedded here so a
-// proof ship has one writable source; the shipped catalog contains no copy of that ship.
+// A mod ship's visual package: model, anchors, schematic lines. The hull semantics (cells, hardpoints, stats) live in
+// the ship's own HullData record beside this one, and HullData.Visual is the only binding between the two.
 [CultDocument("aetheria.ship_authoring", "1"), MessagePackObject]
 public sealed class ShipAuthoring
 {
     [CultName, Key(0)] public string Id;
-    [Key(1)] public HullData Hull;
+    // Key 1 held the embedded HullData until S1; it is retired and never reused.
     [Key(2)] public string ModelAsset;
     [Key(3)] public List<ShipAnchor> Anchors = new List<ShipAnchor>();
     [Key(4)] public List<ShipPolyline> SchematicLines = new List<ShipPolyline>();
@@ -54,7 +54,7 @@ public static class ShipAuthoringStore
         var cache = new CultCache();
         try
         {
-            cache.AddBackingStore(new SingleFileMessagePackBackingStore(path, !writable), new[] { typeof(ShipAuthoring) });
+            cache.AddBackingStore(new SingleFileMessagePackBackingStore(path, !writable), new[] { typeof(HullData), typeof(ShipAuthoring) });
             return cache;
         }
         catch
@@ -64,29 +64,55 @@ public static class ShipAuthoringStore
         }
     }
 
-    public static ShipAuthoring Read(string path)
+    // Writes one ship's two records under their deterministic keys, the shape Load expects.
+    public static void Write(CultCache cache, HullData hull, ShipAuthoring visual)
     {
-        using var cache = Open(path);
-        var records = cache.GetAll<ShipAuthoring>().ToArray();
-        if (records.Length != 1)
-            throw new InvalidOperationException($"{path} must hold exactly one ship authoring record, found {records.Length}.");
-        Validate(records[0]);
-        return records[0];
+        cache.UpsertAsync(typeof(HullData), hull, ShipModCatalog.HullKey(visual.Id)).GetAwaiter().GetResult();
+        cache.UpsertAsync(typeof(ShipAuthoring), visual, ShipModCatalog.AuthoringKey(visual.Id)).GetAwaiter().GetResult();
     }
 
-    public static void Validate(ShipAuthoring ship)
+    // The structure of a ship file, without judging its content (drafts load): exactly one hull and one visual, each at
+    // its deterministic key, the hull naming that visual by its typed ref.
+    public static (HullData Hull, ShipAuthoring Visual) Load(string path)
+    {
+        using var cache = Open(path);
+        var hulls = cache.GetAll<HullData>().ToArray();
+        var visuals = cache.GetAll<ShipAuthoring>().ToArray();
+        if (visuals.Length != 1)
+            throw new InvalidOperationException($"{path} must hold exactly one ship authoring record, found {visuals.Length}.");
+        if (hulls.Length != 1)
+            throw new InvalidOperationException($"{path} must hold exactly one hull record, found {hulls.Length}.");
+        var (hull, visual) = (hulls[0], visuals[0]);
+        if (!cache.TryGetHandle(hull).Value.Key.Equals(ShipModCatalog.HullKey(visual.Id)) ||
+            !cache.TryGetHandle(visual).Value.Key.Equals(ShipModCatalog.AuthoringKey(visual.Id)))
+            throw new InvalidOperationException($"{path}: {visual.Id}: records must be stored under {ShipModCatalog.HullKey(visual.Id).Value} and {ShipModCatalog.AuthoringKey(visual.Id).Value}.");
+        return (hull, visual);
+    }
+
+    public static (HullData Hull, ShipAuthoring Visual) Read(string path)
+    {
+        var (hull, visual) = Load(path);
+        Validate(hull, visual);
+        return (hull, visual);
+    }
+
+    // The one semantic check every path shares: the hull and its visual, judged together.
+    public static void Validate(HullData hull, ShipAuthoring ship)
     {
         if (ship == null) throw new InvalidOperationException("Ship authoring record is null.");
         if (string.IsNullOrWhiteSpace(ship.Id)) throw new InvalidOperationException("Ship ID is required.");
         if (!(ship.Id[0] >= 'a' && ship.Id[0] <= 'z' || ship.Id[0] >= '0' && ship.Id[0] <= '9') || ship.Id.Any(c =>
                 !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '.' || c == '_' || c == '-')))
             throw new InvalidOperationException($"{ship.Id}: ship ID must use lower-case ASCII letters, digits, dots, underscores, or hyphens.");
-        var hull = ship.Hull ?? throw new InvalidOperationException($"{ship.Id}: hull data is required.");
+        if (hull == null) throw new InvalidOperationException($"{ship.Id}: hull data is required.");
         if (string.IsNullOrWhiteSpace(hull.Name)) throw new InvalidOperationException($"{ship.Id}: hull name is required.");
         if (hull.Shape?.Cells == null || !hull.Shape.Cells.Cast<bool>().Any(occupied => occupied))
             throw new InvalidOperationException($"{ship.Id}: schematic must contain at least one cell.");
+        // A hull names exactly one visual: a Unity prefab (shipped hulls) or a ShipAuthoring record (mod ships).
         if (!string.IsNullOrEmpty(hull.Prefab))
             throw new InvalidOperationException($"{ship.Id}: a mod ship cannot name a Unity prefab.");
+        if (!hull.Visual.Key.Equals(ShipModCatalog.AuthoringKey(ship.Id)))
+            throw new InvalidOperationException($"{ship.Id}: the hull must name its visual record {ShipModCatalog.AuthoringKey(ship.Id).Value}.");
         if (string.IsNullOrWhiteSpace(ship.ModelAsset) || Path.IsPathRooted(ship.ModelAsset) ||
             ship.ModelAsset.Replace('\\', '/').Split('/').Any(part => part == ".."))
             throw new InvalidOperationException($"{ship.Id}: model asset must be a relative package path.");

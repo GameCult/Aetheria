@@ -1,3 +1,4 @@
+using GameCult.Caching;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -23,17 +24,14 @@ public static class ShipAuthoringCommands
             }
             if (args[0] == "inspect" && args.Length == 2)
             {
-                using var cache = ShipAuthoringStore.Open(args[1]);
-                var records = cache.GetAll<ShipAuthoring>().ToArray();
-                if (records.Length != 1) throw new InvalidOperationException($"Expected one ship, found {records.Length}.");
-                var ship = records[0];
-                Console.WriteLine($"{ship.Id}: {ship.Hull?.Name}, {ship.Hull?.Hardpoints?.Count ?? 0} hardpoints, {ship.SchematicLines?.Count ?? 0} lines, {ship.SchematicLines?.Sum(line => line.Points?.Length / 3 ?? 0) ?? 0} points");
+                var (hull, ship) = ShipAuthoringStore.Load(args[1]);
+                Console.WriteLine($"{ship.Id}: {hull.Name}, {hull.Hardpoints?.Count ?? 0} hardpoints, {ship.SchematicLines?.Count ?? 0} lines, {ship.SchematicLines?.Sum(line => line.Points?.Length / 3 ?? 0) ?? 0} points");
                 return 0;
             }
             if (args[0] == "validate" && args.Length == 2)
             {
-                var ship = ShipAuthoringStore.Read(args[1]);
-                Console.WriteLine($"{ship.Id}: {ship.Hull.Name}, {ship.Hull.Hardpoints.Count} hardpoints, {ship.SchematicLines.Count} lines");
+                var (hull, ship) = ShipAuthoringStore.Read(args[1]);
+                Console.WriteLine($"{ship.Id}: {hull.Name}, {hull.Hardpoints.Count} hardpoints, {ship.SchematicLines.Count} lines");
                 return 0;
             }
             if (args[0] == "create" && args.Length == 4)
@@ -41,16 +39,16 @@ public static class ShipAuthoringCommands
                 var path = Path.GetFullPath(args[1]);
                 if (File.Exists(path)) throw new InvalidOperationException($"Refusing to replace {path}");
                 Directory.CreateDirectory(Path.GetDirectoryName(path));
-                var ship = new ShipAuthoring
+                var ship = new ShipAuthoring { Id = args[2], ModelAsset = "ship.glb", Anchors = new List<ShipAnchor>() };
+                var hull = new HullData
                 {
-                    Id = args[2],
-                    Hull = new HullData { Name = args[3], Shape = new Shape() },
-                    ModelAsset = "ship.glb",
-                    Anchors = new List<ShipAnchor>()
+                    Name = args[3],
+                    Shape = new Shape(),
+                    Visual = new CultRecordRef<ShipAuthoring>(ShipModCatalog.AuthoringKey(ship.Id))
                 };
                 using (var cache = ShipAuthoringStore.Open(path, writable: true))
                 {
-                    cache.Upsert(ship);
+                    ShipAuthoringStore.Write(cache, hull, ship);
                     cache.FlushAsync().Wait();
                 }
                 Console.WriteLine($"Created draft {path}; fill its model bindings and schematic in Blender.");

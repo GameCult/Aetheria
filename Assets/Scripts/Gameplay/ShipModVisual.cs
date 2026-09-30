@@ -33,7 +33,7 @@ public static class ShipModVisual
     public static async Task<Instance> LoadAsync(string shipPath, Transform parent)
     {
         var package = ShipModCatalog.ReadPackage(shipPath);
-        var ship = package.Ship;
+        var ship = package.Visual;
 
         var root = new GameObject("mod-ship:" + ship.Id);
         root.SetActive(false);

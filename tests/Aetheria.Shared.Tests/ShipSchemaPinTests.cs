@@ -4,12 +4,13 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using GameCult.Caching;
 using GameCult.Caching.MessagePack;
 using MessagePack;
 using Xunit;
 
-// tools/blender/aetheria_ships/ship_cc.py edits a ShipAuthoring record by MessagePack slot number and by hardpoint
-// member position. These tests bind that file to the C# types that own the numbers: any renumbered, renamed or
+// tools/blender/aetheria_ships/ship_cc.py edits a ship file's HullData and ShipAuthoring records by MessagePack slot
+// number and by hardpoint member position. These tests bind that file to the C# types that own the numbers: any renumbered, renamed or
 // reordered member, enum value, or nested array shape fails here instead of corrupting a ship the next time Blender saves.
 public sealed class ShipSchemaPinTests
 {
@@ -17,13 +18,22 @@ public sealed class ShipSchemaPinTests
 
     [Theory]
     [InlineData("SCHEMATIC_LINES_SLOT", typeof(ShipAuthoring), nameof(ShipAuthoring.SchematicLines))]
-    [InlineData("HULL_SLOT", typeof(ShipAuthoring), nameof(ShipAuthoring.Hull))]
     [InlineData("HULL_SHAPE_SLOT", typeof(HullData), nameof(HullData.Shape))]
     [InlineData("HULL_HARDPOINTS_SLOT", typeof(HullData), nameof(HullData.Hardpoints))]
     public void PythonSlotConstantsAreTheKeysOfTheMembersTheyNameInTheirComments(string constant, Type owner, string member)
     {
         Assert.Equal(KeyOf(owner, member), Integer(constant));
         Assert.Matches(new Regex($@"^{constant} = \d+  # \w+\.{member}\r?$", RegexOptions.Multiline), Source);
+    }
+
+    [Fact]
+    public void PythonSchemaNamesAreTheDocumentsTheyNameAndTheRetiredSlotIsNotReused()
+    {
+        Assert.Equal(typeof(ShipAuthoring).GetCustomAttribute<CultDocumentAttribute>().SchemaName, Text("SCHEMA"));
+        Assert.Equal(typeof(HullData).GetCustomAttribute<CultDocumentAttribute>().SchemaName, Text("HULL_SCHEMA"));
+        // Key 1 held the embedded hull until S1. A later member must not take it, or an old file would decode as it.
+        Assert.DoesNotContain(typeof(ShipAuthoring).GetMembers(BindingFlags.Public | BindingFlags.Instance),
+            member => member.GetCustomAttribute<KeyAttribute>()?.IntKey == 1);
     }
 
     [Fact]
@@ -45,18 +55,23 @@ public sealed class ShipSchemaPinTests
     [Fact]
     public void SerializedShipHasTheNestedArrayShapesPythonIndexes()
     {
-        var ship = ShipAuthoringTests.Fixture();
-        var bytes = MessagePackSerializer.Serialize(ship, CultDocumentMessagePackSerialization.OptionsFor(typeof(ShipAuthoring).Assembly));
-        var body = Assert.IsType<object[]>(MessagePackSerializer.Deserialize<object>(bytes, MessagePackSerializerOptions.Standard));
+        var (hull, visual) = ShipAuthoringTests.Fixture();
+        var options = CultDocumentMessagePackSerialization.OptionsFor(typeof(ShipAuthoring).Assembly);
+        object[] Body(object document) => Assert.IsType<object[]>(MessagePackSerializer.Deserialize<object>(
+            MessagePackSerializer.Serialize(document.GetType(), document, options), MessagePackSerializerOptions.Standard));
 
+        var body = Body(visual);
         Assert.Equal("mod.skiff", body[0]);
-        var hull = Assert.IsType<object[]>(body[Integer("HULL_SLOT")]);
+        var lines = Assert.IsType<object[]>(body[Integer("SCHEMATIC_LINES_SLOT")]);
+        Assert.Equal("Hull", Assert.IsType<object[]>(Assert.Single(lines))[0]);
+
+        var hullBody = Body(hull);
         // A schematic is [[width, height, cells]] with cells flattened x-major (index x * height + y).
-        var hullShape = Assert.IsType<object[]>(Assert.IsType<object[]>(hull[Integer("HULL_SHAPE_SLOT")])[0]);
+        var hullShape = Assert.IsType<object[]>(Assert.IsType<object[]>(hullBody[Integer("HULL_SHAPE_SLOT")])[0]);
         Assert.Equal(new object[] { 2, 2 }, hullShape.Take(2).Select(value => (object)Convert.ToInt32(value)));
         Assert.Equal(new[] { true, false, true, false }, Assert.IsType<object[]>(hullShape[2]).Cast<bool>());
 
-        var hardpoints = Assert.IsType<object[]>(hull[Integer("HULL_HARDPOINTS_SLOT")]);
+        var hardpoints = Assert.IsType<object[]>(hullBody[Integer("HULL_HARDPOINTS_SLOT")]);
         var row = Assert.IsType<object[]>(Assert.Single(hardpoints));
         var members = Strings("HARDPOINT_MEMBERS");
         Assert.True(row.Length >= members.Length);
@@ -65,9 +80,6 @@ public sealed class ShipSchemaPinTests
         Assert.Equal(3, footprint.Length);
         Assert.Equal(new[] { true }, Assert.IsType<object[]>(footprint[2]).Cast<bool>());
         Assert.Equal(new[] { 1, 0 }, Assert.IsType<object[]>(row[Array.IndexOf(members, "Position")]).Select(value => Convert.ToInt32(value)));
-
-        var lines = Assert.IsType<object[]>(body[Integer("SCHEMATIC_LINES_SLOT")]);
-        Assert.Equal("Hull", Assert.IsType<object[]>(Assert.Single(lines))[0]);
     }
 
     private static int KeyOf(Type owner, string member)
@@ -78,6 +90,13 @@ public sealed class ShipSchemaPinTests
 
     private static int Integer(string constant) =>
         int.Parse(Regex.Match(Source, $@"^{constant} = (\d+)", RegexOptions.Multiline).Groups[1].Value);
+
+    private static string Text(string constant)
+    {
+        var match = Regex.Match(Source, $@"^{constant} = ""([^""]*)""", RegexOptions.Multiline);
+        Assert.True(match.Success, $"{constant} is not a string in ship_cc.py");
+        return match.Groups[1].Value;
+    }
 
     private static string[] Strings(string constant)
     {

@@ -1,4 +1,4 @@
-"""Blender-free tests for aetheria_ships/ship_cc.py, the Python view of a typed ShipAuthoring record.
+"""Blender-free tests for aetheria_ships/ship_cc.py, the Python view of a ship file's HullData and ShipAuthoring records.
 
 Run with CultLib's cultcache-py and msgpack importable:
 
@@ -10,6 +10,7 @@ ship_cc's own slot constants; ShipSchemaPinTests (C#) pins those constants to th
 
 import importlib.util
 import os
+import shutil
 import sys
 import tempfile
 import unittest
@@ -40,7 +41,7 @@ def hardpoint_row(mount="thruster.port", tail=("future-hardpoint-slot",)):
     return row + list(tail)
 
 
-def hull_slots():
+def hull_body():
     hull = [None] * (ship_cc.HULL_HARDPOINTS_SLOT + 1)
     hull[1] = "Skiff"
     hull[ship_cc.HULL_SHAPE_SLOT] = [shape(2, 2, [True, False, True, False])]
@@ -55,18 +56,28 @@ LINES = [["Hull", "White", [0.0, 0.0, 0.0, 1.0, 0.0, 0.0], [0.01, 0.01], [1.0, 1
 def ship_body():
     body = [None] * (ship_cc.SCHEMATIC_LINES_SLOT + 1)
     body[0] = "mod.skiff"
-    body[ship_cc.HULL_SLOT] = hull_slots()
     body[2] = "skiff.glb"
     body[3] = [["map", "map-icon", "map", None, 0]]
     body[ship_cc.SCHEMATIC_LINES_SLOT] = LINES
     return body
 
 
-CATALOG = cultcache_py.CultCacheSchemaCatalogEntry(
-    schema_id="ship-authoring-schema-1", schema_name=ship_cc.SCHEMA, schema_version="1",
-    content_hash="hash", canonical_schema_json='{"members":[{"slot":9,"name":"FutureMember"}]}',
-    compatible_schema_ids=("ship-authoring-schema-1",),
-    members=(cultcache_py.CultCacheSchemaCatalogMember(slot=9, member_name="FutureMember", type_name="string"),))
+def catalog(schema_id, schema_name):
+    return cultcache_py.CultCacheSchemaCatalogEntry(
+        schema_id=schema_id, schema_name=schema_name, schema_version="1",
+        content_hash="hash", canonical_schema_json='{"members":[{"slot":9,"name":"FutureMember"}]}',
+        compatible_schema_ids=(schema_id,),
+        members=(cultcache_py.CultCacheSchemaCatalogMember(slot=9, member_name="FutureMember", type_name="string"),))
+
+
+CATALOG = catalog("ship-authoring-schema-1", ship_cc.SCHEMA)
+HULL_CATALOG = catalog("hull-schema-1", ship_cc.HULL_SCHEMA)
+
+
+def envelope(key, schema, entry, body):
+    return cultcache_py.CultCacheEnvelope.create(
+        key=key, type=schema, payload=msgpack.packb(body, use_bin_type=True),
+        schema_id=entry.schema_id, catalog_entry=entry)
 
 
 class ShipFileCase(unittest.TestCase):
@@ -74,38 +85,54 @@ class ShipFileCase(unittest.TestCase):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         self.path = str(Path(directory.name) / "ship.cc")
-        self.write(ship_body())
+        self.write(ship_body(), hull_body())
 
-    def write(self, body, path=None):
-        cultcache_py.SingleFileMessagePackBackingStore(path or self.path).push(cultcache_py.CultCacheEnvelope.create(
-            key="mod.skiff", type=ship_cc.SCHEMA, payload=msgpack.packb(body, use_bin_type=True),
-            schema_id=CATALOG.schema_id, catalog_entry=CATALOG))
+    def write(self, ship, hull, path=None):
+        cultcache_py.SingleFileMessagePackBackingStore(path or self.path).push_all([
+            envelope("mod-ship:mod.skiff", ship_cc.SCHEMA, CATALOG, ship),
+            envelope("mod-hull:mod.skiff", ship_cc.HULL_SCHEMA, HULL_CATALOG, hull)])
 
-    def body(self):
-        return ship_cc.read(self.path, PACKAGES)[2]
+    def ship(self):
+        return ship_cc.read(self.path, PACKAGES).ship.body
+
+    def hull(self):
+        return ship_cc.read(self.path, PACKAGES).hull.body
+
+    def envelopes(self):
+        return {(e.type, e.key): e for e in cultcache_py.SingleFileMessagePackBackingStore(self.path).pull_all()}
 
     def bytes(self):
         return Path(self.path).read_bytes()
 
 
 class ReadTests(ShipFileCase):
-    def test_reads_the_one_ship_record(self):
-        store, envelope, body, _ = ship_cc.read(self.path, PACKAGES)
-        self.assertEqual("mod.skiff", body[0])
-        self.assertEqual(ship_cc.SCHEMA, envelope.type)
+    def test_reads_the_ship_and_its_hull(self):
+        file = ship_cc.read(self.path, PACKAGES)
+        self.assertEqual("mod.skiff", file.ship.body[0])
+        self.assertEqual(ship_cc.SCHEMA, file.ship.envelope.type)
+        self.assertEqual("Skiff", file.hull.body[1])
+        self.assertEqual(ship_cc.HULL_SCHEMA, file.hull.envelope.type)
 
-    def test_refuses_a_file_with_another_record_beside_the_ship(self):
+    def test_refuses_a_file_with_another_record_beside_the_pair(self):
         cultcache_py.SingleFileMessagePackBackingStore(self.path).push(cultcache_py.CultCacheEnvelope.create(
             key="other", type="aetheria.something", payload=msgpack.packb([1], use_bin_type=True)))
         with self.assertRaisesRegex(ValueError, "must hold exactly one"):
             ship_cc.read(self.path, PACKAGES)
 
-    def test_refuses_a_file_whose_only_record_is_not_a_ship(self):
-        other = str(Path(self.path).with_name("other.cc"))
-        cultcache_py.SingleFileMessagePackBackingStore(other).push(cultcache_py.CultCacheEnvelope.create(
-            key="other", type="aetheria.something", payload=msgpack.packb([1], use_bin_type=True)))
+    def test_refuses_a_file_missing_either_half_of_the_pair(self):
+        for name, schema, entry, body in (("hull only", ship_cc.HULL_SCHEMA, HULL_CATALOG, hull_body()),
+                                          ("ship only", ship_cc.SCHEMA, CATALOG, ship_body())):
+            other = str(Path(self.path).with_name(name.replace(" ", "-") + ".cc"))
+            cultcache_py.SingleFileMessagePackBackingStore(other).push(envelope("key", schema, entry, body))
+            with self.subTest(name):
+                with self.assertRaisesRegex(ValueError, "must hold exactly one"):
+                    ship_cc.read(other, PACKAGES)
+
+    def test_refuses_a_file_with_two_hulls(self):
+        cultcache_py.SingleFileMessagePackBackingStore(self.path).push(
+            envelope("mod-hull:mod.other", ship_cc.HULL_SCHEMA, HULL_CATALOG, hull_body()))
         with self.assertRaisesRegex(ValueError, "must hold exactly one"):
-            ship_cc.read(other, PACKAGES)
+            ship_cc.read(self.path, PACKAGES)
 
     def test_refuses_a_file_with_no_record(self):
         empty = str(Path(self.path).with_name("empty.cc"))
@@ -113,15 +140,19 @@ class ReadTests(ShipFileCase):
         with self.assertRaisesRegex(ValueError, "must hold exactly one"):
             ship_cc.read(empty, PACKAGES)
 
-    def test_refuses_a_payload_too_short_for_the_line_slot(self):
-        self.write(["mod.skiff", None])
+    def test_refuses_a_ship_payload_too_short_for_the_line_slot(self):
+        self.write(["mod.skiff", None], hull_body())
         with self.assertRaisesRegex(ValueError, "incompatible"):
             ship_cc.read(self.path, PACKAGES)
 
     def test_refuses_a_payload_that_is_not_an_array(self):
         for payload in ({"Id": "mod.skiff"}, {str(index): index for index in range(9)}, "a string long enough to fill every slot"):
-            with self.subTest(payload=payload):
-                self.write(payload)
+            with self.subTest(ship=payload):
+                self.write(payload, hull_body())
+                with self.assertRaisesRegex(ValueError, "incompatible"):
+                    ship_cc.read(self.path, PACKAGES)
+            with self.subTest(hull=payload):
+                self.write(ship_body(), payload)
                 with self.assertRaisesRegex(ValueError, "incompatible"):
                     ship_cc.read(self.path, PACKAGES)
 
@@ -129,17 +160,22 @@ class ReadTests(ShipFileCase):
 class ReplaceLinesTests(ShipFileCase):
     def test_replaces_only_the_line_slot(self):
         new_lines = [["Detail", "Red", [0.0] * 6, [0.1, 0.1], [1.0, 1.0], True, [1.0, 0.0, 0.0, 1.0]]]
-        before = self.body()
+        before = self.ship()
         self.assertEqual(1, ship_cc.replace_lines(self.path, PACKAGES, new_lines))
-        after = self.body()
+        after = self.ship()
         self.assertEqual(new_lines, after[ship_cc.SCHEMATIC_LINES_SLOT])
         for slot in range(len(before)):
             if slot != ship_cc.SCHEMATIC_LINES_SLOT:
                 self.assertEqual(before[slot], after[slot], f"slot {slot} changed")
 
+    def test_leaves_the_hull_record_byte_identical(self):
+        before = self.envelopes()[(ship_cc.HULL_SCHEMA, "mod-hull:mod.skiff")]
+        ship_cc.replace_lines(self.path, PACKAGES, LINES)
+        self.assertEqual(before, self.envelopes()[(ship_cc.HULL_SCHEMA, "mod-hull:mod.skiff")])
+
     def test_keeps_the_schema_catalog(self):
         ship_cc.replace_lines(self.path, PACKAGES, LINES)
-        envelope = cultcache_py.SingleFileMessagePackBackingStore(self.path).pull_all()[0]
+        envelope = self.envelopes()[(ship_cc.SCHEMA, "mod-ship:mod.skiff")]
         self.assertEqual(CATALOG.members, envelope.catalog_entry.members)
         self.assertEqual(CATALOG.canonical_schema_json, envelope.catalog_entry.canonical_schema_json)
 
@@ -168,13 +204,14 @@ class LayoutTests(ShipFileCase):
 
     def test_the_revision_follows_the_layout_and_only_the_layout(self):
         _, _, revision = self.layout()
-        body = self.body()
-        body[ship_cc.SCHEMATIC_LINES_SLOT] = []
-        body[ship_cc.HULL_SLOT][1] = "Renamed"
-        self.write(body)
+        ship = self.ship()
+        ship[ship_cc.SCHEMATIC_LINES_SLOT] = []
+        hull = self.hull()
+        hull[1] = "Renamed"
+        self.write(ship, hull)
         self.assertEqual(revision, self.layout()[2])
-        body[ship_cc.HULL_SLOT][ship_cc.HULL_SHAPE_SLOT] = [shape(2, 2, [True, True, True, True])]
-        self.write(body)
+        hull[ship_cc.HULL_SHAPE_SLOT] = [shape(2, 2, [True, True, True, True])]
+        self.write(ship, hull)
         self.assertNotEqual(revision, self.layout()[2])
 
     def test_the_revision_follows_the_hardpoints_too(self):
@@ -198,15 +235,16 @@ class LayoutTests(ShipFileCase):
 
     def test_preserves_every_slot_it_does_not_edit(self):
         _, _, revision = self.layout()
-        before = self.body()
+        ship_before, hull_before = self.ship(), self.hull()
+        ship_envelope = self.envelopes()[(ship_cc.SCHEMA, "mod-ship:mod.skiff")]
         self.edit(revision)
-        after = self.body()
-        for slot in range(len(before)):
-            if slot != ship_cc.HULL_SLOT:
-                self.assertEqual(before[slot], after[slot], f"ship slot {slot} changed")
-        for slot in range(len(before[ship_cc.HULL_SLOT])):
+        self.assertEqual(ship_before, self.ship())
+        self.assertEqual(ship_envelope, self.envelopes()[(ship_cc.SCHEMA, "mod-ship:mod.skiff")])
+        hull_after = self.hull()
+        self.assertEqual(len(hull_before), len(hull_after))
+        for slot in range(len(hull_before)):
             if slot not in (ship_cc.HULL_SHAPE_SLOT, ship_cc.HULL_HARDPOINTS_SLOT):
-                self.assertEqual(before[ship_cc.HULL_SLOT][slot], after[ship_cc.HULL_SLOT][slot], f"hull slot {slot} changed")
+                self.assertEqual(hull_before[slot], hull_after[slot], f"hull slot {slot} changed")
 
     def test_carries_a_later_schemas_hardpoint_slots_by_mount_id(self):
         _, _, revision = self.layout()
@@ -225,8 +263,8 @@ class LayoutTests(ShipFileCase):
     def test_keeps_the_schema_catalog(self):
         _, _, revision = self.layout()
         self.edit(revision)
-        envelope = cultcache_py.SingleFileMessagePackBackingStore(self.path).pull_all()[0]
-        self.assertEqual(CATALOG.members, envelope.catalog_entry.members)
+        envelope = self.envelopes()[(ship_cc.HULL_SCHEMA, "mod-hull:mod.skiff")]
+        self.assertEqual(HULL_CATALOG.members, envelope.catalog_entry.members)
 
     def test_refuses_a_ship_id_that_changed_and_writes_nothing(self):
         _, _, revision = self.layout()
@@ -293,12 +331,53 @@ class LayoutTests(ShipFileCase):
                     self.edit(revision, hardpoints=[row])
         self.assertEqual(before, self.bytes())
 
-    def test_refuses_a_payload_without_the_hull_hardpoint_slot(self):
-        body = self.body()
-        body[ship_cc.HULL_SLOT] = body[ship_cc.HULL_SLOT][:ship_cc.HULL_HARDPOINTS_SLOT]
-        self.write(body)
+    def test_refuses_a_hull_payload_without_the_hardpoint_slot(self):
+        hull = self.hull()[:ship_cc.HULL_HARDPOINTS_SLOT]
+        self.write(self.ship(), hull)
         with self.assertRaisesRegex(ValueError, "incompatible typed payload"):
             self.layout()
+
+
+@unittest.skipUnless(os.environ.get("SHIP_FIXTURE_DIR"), "SHIP_FIXTURE_DIR names the C#-written fixture (see below)")
+class CSharpWrittenFixtureTests(unittest.TestCase):
+    """Gate 1's Python half: a package C# wrote survives a Python edit with every untouched slot intact.
+
+    The fixture comes from the C# suite (`AETHERIA_SHIP_FIXTURE_DIR=<dir> dotnet test ... --filter
+    TheFixturePackageIsCompleteAndItsGlbCarriesAScene`). Point SHIP_FIXTURE_DIR at that <dir> and, optionally,
+    SHIP_EDITED_DIR at an empty directory to keep the edited package; C# then reopens and validates it with
+    `dotnet run --project tools/AetherDb -- ship-authoring validate <SHIP_EDITED_DIR>/mod.skiff/ship.cc`.
+    """
+
+    def test_a_layout_and_line_edit_preserves_every_slot_it_does_not_own(self):
+        with tempfile.TemporaryDirectory() as scratch:
+            path = str(Path(scratch) / "ship.cc")
+            shutil.copy(Path(os.environ["SHIP_FIXTURE_DIR"]) / "mod.skiff" / "ship.cc", path)
+            before = ship_cc.read(path, PACKAGES)
+            shape_triple, hardpoints, revision = ship_cc.read_layout(path, PACKAGES)
+            width, height, cells = shape_triple
+            self.assertEqual(64, len(revision))
+            cells = list(cells)
+            cells[-1] = True
+            ship_cc.replace_layout(path, PACKAGES, before.ship.body[0], revision, [width, height, cells], hardpoints)
+            ship_cc.replace_lines(path, PACKAGES, before.ship.body[ship_cc.SCHEMATIC_LINES_SLOT])
+            after = ship_cc.read(path, PACKAGES)
+
+            self.assertEqual(before.ship.body, after.ship.body)
+            self.assertEqual(before.ship.envelope.key, after.ship.envelope.key)
+            self.assertEqual(before.ship.envelope.catalog_entry, after.ship.envelope.catalog_entry)
+            self.assertEqual(before.hull.envelope.key, after.hull.envelope.key)
+            self.assertEqual(before.hull.envelope.catalog_entry, after.hull.envelope.catalog_entry)
+            for slot in range(len(before.hull.body)):
+                if slot != ship_cc.HULL_SHAPE_SLOT:
+                    self.assertEqual(before.hull.body[slot], after.hull.body[slot], f"hull slot {slot} changed")
+            self.assertTrue(after.hull.body[ship_cc.HULL_SHAPE_SLOT][0][2][-1])
+
+            kept = os.environ.get("SHIP_EDITED_DIR")
+            if kept:
+                target = Path(kept) / "mod.skiff"
+                target.mkdir(parents=True, exist_ok=True)
+                shutil.copy(path, target / "ship.cc")
+                shutil.copy(Path(os.environ["SHIP_FIXTURE_DIR"]) / "mod.skiff" / "skiff.glb", target / "skiff.glb")
 
 
 class HardpointRowTests(unittest.TestCase):
