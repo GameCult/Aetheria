@@ -36,6 +36,14 @@ claim measured against a real file.
     of needed, though, because currently stations are mostly idle so there's nothing to keep them above freezing
     and they often cool to near invisibility." Only the other five are deleted. The census test allows product-less
     gear that stations actually equip, and that set is derived from station generation, not from a hand list.
+    **Superseded, same day.** Stations have never equipped the heater. Operator: "Stations freezing is an existing
+    defect, I don't think I ever made those heaters spawn." Station-heater ruling A: "Yep, A. The thermostatic
+    behavior is the same one used in ship cockpits to keep the player from freezing, and the industrial version
+    should fit anywhere as a generic equippable tool."
+    - Every generated station spawns with one heater, through station generation.
+    - The heater shares the cockpit thermostat's owner.
+    - It is equippable on any hull.
+    - Self default: as generic gear it gets a product, so the census test needs no station exception.
   - **Weapons:** Autocannon, LRMM72, SRMM72, Tractor Beam. "yep that's a content gap". They get products.
   - After both, "no product" means exactly "Q3 test design". A census test pins that: every product-less design in
     the shipped catalog is a scenario test design.
