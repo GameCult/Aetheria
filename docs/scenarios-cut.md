@@ -81,6 +81,11 @@ claim measured against a real file.
         stock.
       - F4 (high): LRMM72 and SRMM72 have no `DamageCurve` but now have products, and 22 of 300 NPCs carry them.
         `SampleDps` throws an NRE at `InstantWeapon.cs:64`. Autocannon, pswarm and plight are also missing curves.
+      - **F3 RULED (operator, 2026-09-30): "Hardpoint fit is loose: nobody's gonna stop you from putting a small
+        reactor in a large reactor's hardpoint."** One fit rule: an item fits if its shape fits within the
+        hardpoint. Generation, `HasHome`, stock, equip, save load, presets and `AetherDb hardpoint-fit` all use
+        it. So the Autocannon now has a home (the Turret) and is sold. The Autocannon ruling's own rule, "never
+        stock gear no hull can fit", is unchanged.
       - F5: `_time` is advanced before the belt wait. F6: mining races the belt tasks. F7: reuse by cell count is
         unpinned.
       - Soul did **not** reproduce the Zhestokost gap: every station in 5 seeds and 12 factions got a reactor. The
