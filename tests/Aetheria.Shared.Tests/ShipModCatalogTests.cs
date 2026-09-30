@@ -328,7 +328,7 @@ public sealed class ShipModCatalogTests : IDisposable
         var package = ShipModCatalog.ReadPackage(Path.Combine(Mods, "mod.skiff", "ship.cc"));
         Assert.Equal("mod.skiff", package.Visual.Id);
         Assert.Equal(Path.GetFullPath(Path.Combine(Mods, "mod.skiff", "skiff.glb")), package.ModelPath);
-        Assert.Equal(new Dictionary<string, uint> { ["map"] = 0, ["collider"] = 1, ["shield"] = 2, ["tractor"] = 3, ["thruster-port"] = 4 }, package.NodeIndices);
+        Assert.Equal(new Dictionary<string, uint> { ["map"] = 0, ["collider"] = 1, ["shield"] = 2, ["tractor"] = 3, ["thruster-port"] = 4, ["gun"] = 5, ["gun-muzzle"] = 6 }, package.NodeIndices);
     }
 
     [Fact]
