@@ -461,6 +461,22 @@ public sealed class RunStartTests : IDisposable
         }
     }
 
+    // A faction always reaches its own manufacturer's gear: in a main-sector galaxy every product a faction makes is
+    // on offer to that faction, allegiance or not. And an allegiance map lists only other factions.
+    [Fact]
+    public void AFactionReachesItsOwnGearAndItsAllegianceNamesOnlyOthers()
+    {
+        var galaxy = MainGalaxy();
+        var products = _cache.GetAll<FactionProductData>().Where(p => p.Manufacturer.IsSet()).ToArray();
+        foreach (var faction in galaxy.Factions)
+        {
+            Assert.DoesNotContain(faction.Allegiance.Keys, key => key.Key.Equals(_cache.RefOf(faction).Key));
+            var generator = new LoadoutGenerator(ref _items.Random, _items, galaxy, galaxy.Entrance, faction, .5f);
+            var own = products.Where(p => p.Manufacturer.Key.Equals(_cache.RefOf(faction).Key)).ToList();
+            Assert.True(own.All(generator.IsAvailable), $"{faction.Name} cannot reach its own {string.Join(", ", own.Where(p => !generator.IsAvailable(p)).Select(p => p.Name))}");
+        }
+    }
+
     // A faction with no access to Zhestokost (its allegiance names only AU, Lightsail and NiteLife) gets
     // stations with no Zhestokost gear, powered by a reactor it can reach, and an idle one of them holds its heater's
     // cells above freezing over the second five of ten minutes.
@@ -477,6 +493,10 @@ public sealed class RunStartTests : IDisposable
         var products = _cache.GetAll<FactionProductData>().Where(p => p.Manufacturer.IsSet()).ToArray();
         Assert.DoesNotContain(products.Where(p => p.Manufacturer.Key.Equals(_cache.RefOf(zhestokost).Key)), generator.IsAvailable);
         Assert.Contains(products.Where(p => p.Manufacturer.Key.Equals(_cache.RefOf(Named("AU")).Key)), generator.IsAvailable);
+        // Its allegiance does not name itself, yet it reaches what it makes.
+        var own = new FactionProductData { Name = "Cooperative Capacitor", Design = products.First().Design, Manufacturer = _cache.RefOf(coop) };
+        _cache.Upsert(own);
+        Assert.True(generator.IsAvailable(own), "a faction reaches its own manufacturer's gear");
         var zone = Arena(new Scenario { Ambient = false }); // no ships: nothing but the zone runs
         Entity station = null;
         for (var i = 0; i < 8; i++)

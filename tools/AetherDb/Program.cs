@@ -37,8 +37,9 @@ public static class Program
             case "targeting-catalog-6c": return TargetingCatalog6c(args.Contains("apply"));
             case "targeting-catalog-6d": return TargetingCatalog6d(args.Contains("apply"));
             case "station-reactors": return StationReactors(args.Contains("apply"));
+            case "allegiance-self": return AllegianceSelf(args.Contains("apply"));
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], station-reactors [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], station-reactors [apply], allegiance-self [apply]");
                 return 1;
         }
     }
@@ -1554,6 +1555,37 @@ public static class Program
             foreach (var (type, document, key) in changes) batch.Upsert(type, document, key);
         });
         Console.WriteLine($"\nLanded {changes.Count} records in Aetheria.cc");
+        return 0;
+    }
+
+    // Scenarios map, operator ruling 2026-09-30 ("removing the 11 self-entries was my intention"): a faction always
+    // reaches its own manufacturer's gear (LoadoutGenerator.IsAvailable), so an allegiance map lists only other
+    // factions. This drops each faction's entry for itself.
+    private static int AllegianceSelf(bool apply)
+    {
+        var db = AetherDb.Open(catalogWritable: apply);
+        var cache = db.Cache;
+        var changed = new List<(Faction Faction, CultRecordKey Key)>();
+        foreach (var faction in cache.GetAll<Faction>().OrderBy(f => f.Name, StringComparer.Ordinal))
+        {
+            var self = cache.RefOf(faction);
+            var entry = faction.Allegiance.Keys.FirstOrDefault(k => k.Key.Equals(self.Key));
+            if (!entry.IsSet()) continue;
+            Console.WriteLine($"{faction.Name}: drop its own allegiance entry ({faction.Allegiance[entry]})");
+            faction.Allegiance.Remove(entry);
+            changed.Add((faction, self.Key));
+        }
+
+        if (!apply)
+        {
+            Console.WriteLine($"\nDry run. Pass \"apply\" to land {changed.Count} changes.");
+            return 0;
+        }
+        cache.Commit(batch =>
+        {
+            foreach (var (faction, key) in changed) batch.Upsert(typeof(Faction), faction, key);
+        });
+        Console.WriteLine($"\nLanded {changed.Count} changes in Aetheria.cc");
         return 0;
     }
 }

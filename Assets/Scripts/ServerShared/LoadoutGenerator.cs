@@ -177,9 +177,12 @@ public class LoadoutGenerator
     // No galaxy means no availability to filter by: every product is on offer. A fixture generates loadouts that
     // way, so a test can exercise placement and products without standing up a whole galaxy; no game path does.
     // Loadouts.Materialize takes availability as a predicate; RunStart, the game's one preset spawner, passes this, so
-    // presets and generation share one availability rule.
+    // presets and generation share one availability rule. In a galaxy, a faction always reaches its own manufacturer's
+    // gear, and otherwise gear made by a manufacturer in that galaxy that its allegiance names (operator, 2026-09-30:
+    // allegiance lists only other factions).
     public bool IsAvailable(FactionProductData product) =>
         Galaxy == null || Galaxy.IsPrelude ||
+        Faction != null && ItemManager.ItemData.Get(product.Manufacturer) == Faction ||
         Galaxy.ContainsFaction(product.Manufacturer) && (Faction == null || Faction.Allegiance.ContainsKey(product.Manufacturer));
 
     // Prioritize products from the zone faction and its allies, penalizing distance to the manufacturer's headquarters
