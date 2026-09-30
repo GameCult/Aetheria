@@ -235,6 +235,12 @@ public sealed class RunStartTests : IDisposable
         Assert.True(hostile.IsHostileTo(player));
         Assert.False(player.IsHostileTo(neutral));
         Assert.False(neutral.IsHostileTo(player));
+
+        // Admission activates: the live hostility each side tracks (what targeting and grudges read) agrees.
+        Assert.True(player.EntityHostility[hostile]);
+        Assert.True(hostile.EntityHostility[player]);
+        Assert.False(player.EntityHostility[neutral]);
+        Assert.False(neutral.EntityHostility[player]);
     }
 
     // Ambient: false keeps the stations and drops every generated ship and turret; ambient, and a plain New Game, keep
