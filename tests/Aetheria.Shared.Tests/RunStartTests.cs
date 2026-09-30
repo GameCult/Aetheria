@@ -438,6 +438,54 @@ public sealed class RunStartTests : IDisposable
         Assert.True(coldest > Freezing, $"the heater's cells fell to {coldest} K (station now {station.MinTemp}..{station.MaxTemp} K)");
     }
 
+    // The heater itself warms the station: from a hull at one uniform temperature (so nothing conducts and interior
+    // cells radiate nothing), one tick below the heater's target raises its cells, and one tick above it does not.
+    [Fact]
+    public void AStationHeaterHeatsBelowItsTargetAndNotAbove()
+    {
+        var zone = Arena(new Scenario { Ambient = false }); // no ships: nothing but the zone runs
+        var station = zone.Entities.First(entity => entity is OrbitalEntity && entity.DockingBays.Count > 0);
+        var heater = station.Equipment.Single(IsHeater);
+        var target = heater.Behaviors.OfType<Thermotoggle>().Single().TargetTemperature;
+        for (var tick = 0; tick < 10; tick++) zone.Update(.1f); // the power bus is running
+
+        float Step(float start)
+        {
+            foreach (var v in station.HullData.Shape.Coordinates) station.Temperature[v.x, v.y] = start;
+            zone.Update(.1f);
+            return heater.Temperature - start;
+        }
+        var below = Step(target - 20);
+        var above = Step(target + 20);
+        Assert.True(below > 0, $"below its target the heater's cells moved {below} K");
+        Assert.True(above <= 0, $"above its target the heater's cells moved {above} K");
+    }
+
+    // A consumer runs only when its group's thermostat is open, and is billed only then: a heater above its target
+    // puts no demand on the power bus, below it the bus bills its draw.
+    [Fact]
+    public void AHeaterAboveItsTargetDrawsNoPower()
+    {
+        var zone = Arena(new Scenario { Ambient = false }); // no ships: nothing but the zone runs
+        var station = zone.Entities.First(entity => entity is OrbitalEntity && entity.DockingBays.Count > 0);
+        var heater = station.Equipment.Single(IsHeater);
+        var target = heater.Behaviors.OfType<Thermotoggle>().Single().TargetTemperature;
+        var request = heater.Behaviors.OfType<EnergyDraw>().Single().PowerRequest(.1f);
+        Assert.True(request > 0, "the heater asks for power");
+        for (var tick = 0; tick < 10; tick++) zone.Update(.1f); // the heater is online
+        Assert.True(heater.Active.Value, "the heater is active");
+
+        float Demand(float temperature)
+        {
+            foreach (var v in station.HullData.Shape.Coordinates) station.Temperature[v.x, v.y] = temperature;
+            station.PowerBus.Step(.1f);
+            return station.PowerBus.TotalDemand;
+        }
+        var cold = Demand(target - 20);
+        var warm = Demand(target + 20);
+        Assert.True(cold - warm >= request * .99f, $"demand {cold} below the target, {warm} above; the heater asks {request}");
+    }
+
     // A station hull with no room left for a heater fails its generation by name, rather than spawning a station
     // that will freeze. The only station hull on offer is one whose interior takes the smallest docking bay and no more.
     [Fact]

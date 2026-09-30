@@ -92,6 +92,16 @@ public class PowerBus
         public Draw(EquippedItem item, int tier, float request) { Item = item; Tier = tier; Request = request; }
     }
 
+    private static bool ClosedByThermostat(EquippedItem item, Behavior consumer)
+    {
+        foreach (var behavior in item.BehaviorGroups[consumer.Data.Group].Behaviors)
+        {
+            if (behavior == consumer) return false;
+            if (behavior is Thermotoggle { Open: false }) return true;
+        }
+        return false;
+    }
+
     public void Step(float dt)
     {
         var reactors = new List<Reactor>();
@@ -119,7 +129,9 @@ public class PowerBus
             // The other direction of the same rule: a consumer switched off or shut down (Active.Value false)
             // never runs its Execute, so it must never be billed either -- otherwise a disabled item's demand
             // starves every live consumer and drains the capacitors for energy nobody spends.
-            if (behavior is IPowerConsumer consumer && item.Active.Value)
+            // And a consumer whose group a thermostat has closed ahead of it does not run this tick either, so it is
+            // not billed: a heater above its target draws nothing.
+            if (behavior is IPowerConsumer consumer && item.Active.Value && !ClosedByThermostat(item, behavior))
             {
                 // Cut 5 (docs/stats-and-power-cut.md §1.3): the item's own stored choice wins once it has one;
                 // PowerTiers.Unassigned only survives past EquippedItem's constructor for a consumer added to
