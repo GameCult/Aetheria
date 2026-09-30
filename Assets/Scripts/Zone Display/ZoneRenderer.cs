@@ -289,10 +289,13 @@ public class ZoneRenderer : MonoBehaviour
     void LoadEntity(Entity entity)
     {
         var hullData = ItemManager.GetData(entity.Hull) as HullData;
+        GameObject Body() => hullData.Visual.IsSet()
+            ? ShipModShips.Instantiate(hullData, ZoneRoot)
+            : Instantiate(EngineAssets.Load<GameObject>(hullData.Prefab), ZoneRoot);
         EntityInstance instance;
         if (entity is Ship)
         {
-            instance = Instantiate(EngineAssets.Load<GameObject>(hullData.Prefab), ZoneRoot).GetComponent<ShipInstance>();
+            instance = Body().GetComponent<ShipInstance>();
             if (instance == null)
             {
                 ItemManager.Log($"Failed to instantiate {hullData.Name} ship with invalid prefab: no ShipInstance component!");
@@ -301,7 +304,7 @@ public class ZoneRenderer : MonoBehaviour
         }
         else
         {
-            instance = Instantiate(EngineAssets.Load<GameObject>(hullData.Prefab), ZoneRoot).GetComponent<EntityInstance>();
+            instance = Body().GetComponent<EntityInstance>();
             if (instance == null)
             {
                 ItemManager.Log($"Failed to instantiate {hullData.Name} entity with invalid prefab: no EntityInstance component!");

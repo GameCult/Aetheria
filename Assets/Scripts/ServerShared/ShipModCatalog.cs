@@ -88,8 +88,35 @@ public static class ShipModCatalog
     public static Package ReadPackage(string shipPath)
     {
         var path = Path.GetFullPath(shipPath);
-        var directory = Path.GetDirectoryName(path);
         var (hull, ship) = ShipAuthoringStore.Read(path);
+        return Bind(hull, ship, Path.GetDirectoryName(path), path);
+    }
+
+    // The package a catalog hull names: its two records come from the catalog, and only the GLB comes from the mod
+    // directory (<modsRoot>/<id>/<ModelAsset>). Gameplay reads a mod ship through this, never through its ship.cc.
+    public static Package PackageOf(CultCache catalog, HullData hull, string modsRoot)
+    {
+        var ship = catalog.Get(hull.Visual) ??
+            throw new InvalidOperationException($"{hull.Name}: the catalog holds no visual record {hull.Visual.Key.Value}.");
+        ShipAuthoringStore.Validate(hull, ship);
+        var directory = Path.Combine(Path.GetFullPath(modsRoot), ship.Id);
+        return Bind(hull, ship, directory, Path.Combine(directory, "ship.cc"));
+    }
+
+    // The one game-side choice of catalog: the shipped file when the mods root holds no package, otherwise the derived
+    // file, composed afresh from the shipped one and the packages. Recomposed every call, so the derived file is never
+    // stale and never an authority.
+    public static string ResolveCatalog(string shippedCatalog, string derivedCatalog, string modsRoot)
+    {
+        if (!Directory.Exists(modsRoot) ||
+            !Directory.GetDirectories(modsRoot).Any(directory => File.Exists(Path.Combine(directory, "ship.cc"))))
+            return shippedCatalog;
+        Compose(shippedCatalog, derivedCatalog, modsRoot);
+        return derivedCatalog;
+    }
+
+    private static Package Bind(HullData hull, ShipAuthoring ship, string directory, string path)
+    {
         if (!string.Equals(Path.GetFileName(directory), ship.Id, StringComparison.Ordinal))
             throw new InvalidOperationException($"{path}: ship ID must match its package directory name.");
         var modelPath = Path.GetFullPath(Path.Combine(directory, ship.ModelAsset));

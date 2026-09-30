@@ -102,9 +102,11 @@ public class MainMenu : MonoBehaviour
                 Debug.Log("run store has no SavedGame; Continue disabled");
             _nextMenu.panel.AddButton("Continue", saved == null ? (Action) null : () =>
             {
+                try { RunSave.RequireDesigns(cache, saved); }
+                catch (InvalidOperationException error) { Refuse("Cannot continue this run", error.Message); return; }
                 ActionGameManager.IsTutorial = saved.IsTutorial;
                 ActionGameManager.CurrentGalaxy = new Galaxy(cache, saved, Debug.Log);
-                SceneManager.LoadScene("ARPG");
+                EnterGame();
             });
         }
         _nextMenu.panel.AddButton("New Game",
@@ -139,7 +141,7 @@ public class MainMenu : MonoBehaviour
                         Observable.NextFrame().Subscribe(_ =>
                         {
                             ActionGameManager.CurrentGalaxy = sector;
-                            SceneManager.LoadScene("ARPG");
+                            EnterGame();
                         });
                     }).ContinueWith(t => Debug.LogException(t.Exception), TaskContinuationOptions.OnlyOnFaulted);
                 }
@@ -169,7 +171,7 @@ public class MainMenu : MonoBehaviour
                         Observable.NextFrame().Subscribe(_ =>
                         {
                             ActionGameManager.CurrentGalaxy = sector;
-                            SceneManager.LoadScene("ARPG");
+                            EnterGame();
                         });
                     }).ContinueWith(t => Debug.LogException(t.Exception), TaskContinuationOptions.OnlyOnFaulted);
                 }
@@ -181,6 +183,31 @@ public class MainMenu : MonoBehaviour
                 Fade(true);
             });
         _nextMenu.panel.AddButton("Quit", Application.Quit);
+    }
+
+    // The one way into the game scene. Mod ship prototypes import asynchronously at boot, so the scene waits for them,
+    // and a failed import stops here with its reason rather than in the first zone.
+    private void EnterGame() => StartCoroutine(EnterGameWhenModShipsAreReady());
+
+    private IEnumerator EnterGameWhenModShipsAreReady()
+    {
+        var loading = ShipModShips.Loading;
+        while (!loading.IsCompleted) yield return null;
+        if (loading.IsFaulted)
+        {
+            Refuse("Mod ships failed to load", loading.Exception.GetBaseException().Message);
+            yield break;
+        }
+        SceneManager.LoadScene("ARPG");
+    }
+
+    private void Refuse(string title, string reason)
+    {
+        Debug.LogError($"{title}: {reason}");
+        Dialog.Clear();
+        Dialog.Title.text = title;
+        Dialog.AddProperty(() => reason);
+        Dialog.Show(onCancel: () => { }, cancelText: "OK");
     }
 
     private void ShowSettings()

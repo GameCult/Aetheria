@@ -284,6 +284,80 @@ public sealed class RunSaveTests : IDisposable
         }
     }
 
+    // MQ4: Continue refuses a run that names a design the catalog no longer holds, naming the missing mod ships, and
+    // never edits the save. A design can be named by an item in a zone or only by a minted lot, so each is covered.
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void RunReferencingAMissingModRefusesContinue(bool itemNamesIt, bool lotNamesIt)
+    {
+        var modHull = new CultRecordKey("mod-hull:mod.skiff");
+        var missing = new CultRecordRef<ItemData>(modHull);
+        CultRecordRef<ItemData> present;
+        using (var cache = AetheriaStores.Open(Catalog, catalogWritable: true))
+        {
+            cache.UpsertAsync(typeof(HullData), new HullData { Name = "Skiff" }, modHull).GetAwaiter().GetResult();
+            present = new CultRecordRef<ItemData>(cache.Upsert(new HullData { Name = "Wasp" }).Key);
+            cache.FlushAsync().Wait();
+        }
+        var itemDesign = itemNamesIt ? missing : present;
+        var lotDesign = lotNamesIt ? missing : present;
+
+        void CommitRun()
+        {
+            using var cache = Open();
+            var lots = new ProvenanceLedger { NextLot = 3 };
+            lots.Lots[1] = new Lot { Design = lotDesign, Origin = new Attributed() };
+            // A lot minted before designs were recorded has none; an unset design is not a missing one.
+            lots.Lots[2] = new Lot { Origin = new Attributed() };
+            var zone = new SavedZone
+            {
+                Name = "Zone 0", AdjacentZones = Array.Empty<int>(), Factions = Array.Empty<int>(), Owner = -1,
+                Contents = new ZonePack
+                {
+                    Entities = new List<EntityPack>
+                    {
+                        BarePack(hull: new EquippableItem { Data = itemDesign, Lot = 1 }),
+                        BarePack(hull: new EquippableItem { Lot = 2 })
+                    }
+                }
+            };
+            RunSave.Commit(cache, Game(cache), new[] { zone }, lots);
+        }
+        CommitRun();
+
+        // Installed: nothing is missing.
+        using (var cache = Open()) RunSave.RequireDesigns(cache, cache.GetGlobal<SavedGame>());
+        var before = File.ReadAllBytes(Run);
+
+        using (var cache = AetheriaStores.Open(Catalog, catalogWritable: true))
+            cache.Commit(batch => batch.Remove(modHull));
+        using (var cache = Open())
+        {
+            var refusal = Assert.Throws<InvalidOperationException>(() => RunSave.RequireDesigns(cache, cache.GetGlobal<SavedGame>()));
+            Assert.Contains("missing mod ships: mod.skiff", refusal.Message);
+            Assert.DoesNotContain("other designs", refusal.Message);
+        }
+        Assert.Equal(before, File.ReadAllBytes(Run));
+    }
+
+    [Fact]
+    public void ARunNamingAMissingShippedDesignIsRefusedToo()
+    {
+        var gone = new CultRecordRef<ItemData>(new CultRecordKey("hull:gone"));
+        using var cache = Open();
+        var zone = new SavedZone
+        {
+            Name = "Zone 0", AdjacentZones = Array.Empty<int>(), Factions = Array.Empty<int>(), Owner = -1,
+            Contents = new ZonePack { Entities = new List<EntityPack> { BarePack(hull: new EquippableItem { Data = gone, Lot = 1 }) } }
+        };
+        RunSave.Commit(cache, Game(cache), new[] { zone }, new ProvenanceLedger { NextLot = 2, Lots = { [1] = new Lot { Origin = new Attributed() } } });
+
+        var refusal = Assert.Throws<InvalidOperationException>(() => RunSave.RequireDesigns(cache, cache.GetGlobal<SavedGame>()));
+        Assert.Contains("missing other designs: hull:gone", refusal.Message);
+        Assert.DoesNotContain("mod ships", refusal.Message);
+    }
+
     // A minimal, valid EntityPack with every collection field non-null, for tests that build packs directly rather
     // than through EntitySerializer.Pack.
     private static ShipPack BarePack(EquippableItem hull, EntityPack[] children = null,

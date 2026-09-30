@@ -342,6 +342,79 @@ public sealed class ShipModCatalogTests : IDisposable
         Assert.Equal(new Dictionary<string, uint> { ["a"] = 0 }, ShipModCatalog.ReadNodeIds(Write("full.glb", bytes)));
     }
 
+    // A run store references a mod hull by its key, so the same packages must derive the same records on every launch,
+    // whatever order the directories were created in.
+    [Fact]
+    public void ComposeAtBootIsDeterministic()
+    {
+        var ids = new[] { "mod.a", "mod.b", "mod.c", "mod.d", "mod.e", "mod.f" };
+        foreach (var id in ids.Reverse()) WritePackage(id, hullName: "Hull " + id);
+        var firstMods = Mods;
+        var secondMods = Path.Combine(_directory.Path, "Mods2");
+        foreach (var id in ids) ShipFixture.WritePackage(secondMods, id, "Hull " + id);
+        var second = Path.Combine(_directory.Path, "Derived2", "Aetheria.modded.cc");
+
+        ShipModCatalog.Compose(Shipped, Derived, firstMods);
+        ShipModCatalog.Compose(Shipped, second, secondMods);
+        ShipModCatalog.Compose(Shipped, Path.Combine(_directory.Path, "Derived3", "Aetheria.modded.cc"), firstMods);
+
+        Assert.Equal(Records(Derived), Records(second));
+        Assert.Equal(Records(Derived), Records(Path.Combine(_directory.Path, "Derived3", "Aetheria.modded.cc")));
+        Assert.Contains(ShipModCatalog.HullKey("mod.c").Value, Records(Derived).Keys);
+    }
+
+    [Fact]
+    public void TheBootCatalogIsTheShippedOneUntilAModIsInstalled()
+    {
+        Assert.Equal(Shipped, ShipModCatalog.ResolveCatalog(Shipped, Derived, Path.Combine(_directory.Path, "absent")));
+        Directory.CreateDirectory(Path.Combine(Mods, "notes"));
+        Assert.Equal(Shipped, ShipModCatalog.ResolveCatalog(Shipped, Derived, Mods));
+        Assert.False(File.Exists(Derived));
+
+        WritePackage("mod.skiff");
+        Assert.Equal(Derived, ShipModCatalog.ResolveCatalog(Shipped, Derived, Mods));
+        using (var cache = AetheriaStores.Open(Derived))
+            Assert.Contains("Skiff", cache.GetAll<HullData>().Select(hull => hull.Name));
+
+        // Recomposed on every call: a mod removed since the last boot is gone from the file the game opens next.
+        Directory.Delete(Path.Combine(Mods, "mod.skiff"), true);
+        Assert.Equal(Shipped, ShipModCatalog.ResolveCatalog(Shipped, Derived, Mods));
+        WritePackage("mod.barge", hullName: "Barge");
+        Assert.Equal(Derived, ShipModCatalog.ResolveCatalog(Shipped, Derived, Mods));
+        using (var cache = AetheriaStores.Open(Derived))
+            Assert.Equal(new[] { "Barge", "Wasp" }, cache.GetAll<HullData>().Select(hull => hull.Name).OrderBy(name => name));
+    }
+
+    // Gameplay reads a mod ship's records from the derived catalog; the package directory supplies only the GLB.
+    [Fact]
+    public void PackageOfTakesItsRecordsFromTheCatalogAndOnlyTheGlbFromTheMod()
+    {
+        WritePackage("mod.skiff");
+        ShipModCatalog.Compose(Shipped, Derived, Mods);
+        File.Delete(Path.Combine(Mods, "mod.skiff", "ship.cc"));
+
+        using var cache = AetheriaStores.Open(Derived);
+        var hull = cache.GetAll<HullData>().Single(candidate => candidate.Name == "Skiff");
+        var package = ShipModCatalog.PackageOf(cache, hull, Mods);
+
+        Assert.Same(hull, package.Hull);
+        Assert.Same(cache.Get(hull.Visual), package.Visual);
+        Assert.Equal(Path.Combine(Mods, "mod.skiff", "skiff.glb"), package.ModelPath);
+        Assert.Equal(ShipFixture.Nodes.Length, package.NodeIndices.Count);
+
+        // A hull whose visual the catalog does not hold, and a mod whose GLB is gone, are refused.
+        Assert.Contains("holds no visual record", Assert.Throws<InvalidOperationException>(() =>
+            ShipModCatalog.PackageOf(cache, new HullData { Name = "Ghost" }, Mods)).Message);
+        File.Delete(package.ModelPath);
+        Assert.Contains("model asset must name an existing GLB", Assert.Throws<InvalidOperationException>(() =>
+            ShipModCatalog.PackageOf(cache, hull, Mods)).Message);
+    }
+
+    // Every stored record's key, schema and payload bytes. StoredAt is a write timestamp, not record content.
+    private static Dictionary<string, string> Records(string path) =>
+        GameCult.Caching.MessagePack.CultDocumentMessagePackSerialization.DeserializeSnapshot(File.ReadAllBytes(path)).Records
+            .ToDictionary(record => record.Key, record => record.SchemaId + ":" + Convert.ToHexString(record.Payload));
+
     private void AssertOnlyTheDerivedFile()
     {
         var names = Directory.GetFileSystemEntries(Path.GetDirectoryName(Derived)).Select(entry => Path.GetFileName(entry)).ToArray();

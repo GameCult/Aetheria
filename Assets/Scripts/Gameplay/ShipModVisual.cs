@@ -30,9 +30,8 @@ public static class ShipModVisual
         public Transform Get(uint index) => m_Nodes.TryGetValue(index, out var node) ? node.transform : null;
     }
 
-    public static async Task<Instance> LoadAsync(string shipPath, Transform parent)
+    public static async Task<Instance> LoadAsync(ShipModCatalog.Package package, Transform parent)
     {
-        var package = ShipModCatalog.ReadPackage(shipPath);
         var ship = package.Visual;
 
         var root = new GameObject("mod-ship:" + ship.Id);
