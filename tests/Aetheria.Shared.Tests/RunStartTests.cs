@@ -510,6 +510,19 @@ public sealed class RunStartTests : IDisposable
         Assert.True(Offered() > 0, "a hull that takes the Autocannon gives it a home");
     }
 
+    // A sold weapon can be generated onto an NPC, whose combat state samples its damage at range, so every weapon a
+    // product sells carries a damage curve.
+    [Fact]
+    public void EverySoldWeaponHasADamageCurve()
+    {
+        var sold = _cache.GetAll<FactionProductData>().Select(product => product.Design.Key).ToHashSet();
+        var missing = _cache.GetAll<EquippableItemData>()
+            .Where(design => sold.Contains(_cache.RefOf(design).Key))
+            .Where(design => design.Behaviors.OfType<WeaponData>().Any(weapon => weapon.DamageCurve?.Keys == null || weapon.DamageCurve.Keys.Length == 0))
+            .Select(design => design.Name).OrderBy(name => name, StringComparer.Ordinal).ToList();
+        Assert.True(missing.Count == 0, $"sold weapons with no damage curve: {string.Join(", ", missing)}");
+    }
+
     // Q3, with the operator's 2026-09-30 ruling on the ten product-less designs: a design no product sells is a
     // scenario test design and nothing else. A test design is one a scenario places: its preset's hull or a slot of
     // it, or cargo it carries. These are the unsold designs no scenario places, by name.

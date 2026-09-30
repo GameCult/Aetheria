@@ -36,8 +36,9 @@ public static class Program
             case "targeting-catalog": return TargetingCatalog(args.Contains("apply"));
             case "targeting-catalog-6c": return TargetingCatalog6c(args.Contains("apply"));
             case "targeting-catalog-6d": return TargetingCatalog6d(args.Contains("apply"));
+            case "damage-curves": return DamageCurves(args.Contains("apply"));
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], damage-curves [apply]");
                 return 1;
         }
     }
@@ -1469,6 +1470,50 @@ public static class Program
         });
 
         Console.WriteLine($"\nLanded {precisionChanges.Length} Precision changes in Aetheria.cc");
+        return 0;
+    }
+
+    // Soul's F4 (scenarios batch 3): five sold weapons had no DamageCurve, and the first NPC to sample their damage
+    // at range threw. Each takes the curve of its nearest comparable weapon, same weapon class first, then closest
+    // range and damage. Every curve in the catalog was the same one (full damage at minimum range, falling to none
+    // at maximum), so what is copied is that curve; the source is named so the operator can tune from it.
+    private static int DamageCurves(bool apply)
+    {
+        var db = AetherDb.Open(catalogWritable: apply);
+        var cache = db.Cache;
+        var sources = new (string Weapon, string Source, string Why)[]
+        {
+            ("Autocannon", "DeathCluster", "auto-fire, Ballistic, 4 cells; the other auto-fire Ballistic whose range reaches 1000"),
+            ("LRMM72", "GT 3K", "the only other unguided launcher"),
+            ("SRMM72", "scorched void policy", "guided launcher; SRMM72's 750 range and 128 damage sit inside its 500-1250 and 128-512"),
+            ("pswarm", "scorched void policy", "guided launcher with identical damage, range and cooldown"),
+            ("plight", "ChargeBlast+-", "charged Energy weapon; nearest range (800-1900 against plight's 500-2000)"),
+        };
+        WeaponData WeaponOf(string name) =>
+            cache.GetAll<EquippableItemData>().Single(d => d.Name == name).Behaviors.OfType<WeaponData>().Single();
+        var changed = new List<(EquippableItemData Design, CultRecordKey Key)>();
+        foreach (var (weapon, source, why) in sources)
+        {
+            var target = WeaponOf(weapon);
+            if (target.DamageCurve != null) throw new InvalidOperationException($"{weapon} already has a DamageCurve.");
+            var curve = WeaponOf(source).DamageCurve;
+            target.DamageCurve = new BezierCurve { Keys = curve.Keys.ToArray() };
+            var design = cache.GetAll<EquippableItemData>().Single(d => d.Name == weapon);
+            changed.Add((design, cache.RefOf(design).Key));
+            Console.WriteLine($"{weapon,-10} <- {source,-22} ({why}): keys {string.Join(" ", curve.Keys.Select(k => $"({k.x}, {k.y}, {k.z}, {k.w})"))}");
+        }
+
+        if (!apply)
+        {
+            Console.WriteLine("\nDry run. Pass \"apply\" to land it.");
+            return 0;
+        }
+        foreach (var (design, _) in changed) CultRecordRefs.Validate(design);
+        cache.Commit(batch =>
+        {
+            foreach (var (design, key) in changed) batch.Upsert(design.GetType(), design, key);
+        });
+        Console.WriteLine($"\nLanded {changed.Count} DamageCurves in Aetheria.cc");
         return 0;
     }
 }
