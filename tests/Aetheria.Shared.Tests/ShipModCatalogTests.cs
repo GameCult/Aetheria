@@ -433,6 +433,26 @@ public sealed class ShipModCatalogTests : IDisposable
             Assert.Equal(new[] { "Barge", "Wasp" }, cache.GetAll<HullData>().Select(hull => hull.Name).OrderBy(name => name));
     }
 
+    // A failure of the composition itself is a mod problem too: the game boots on the shipped catalog and names it.
+    [Fact]
+    public void TheBootCatalogSurvivesAComposeThatFails()
+    {
+        WritePackage("mod.skiff");
+        var blocker = Path.Combine(_directory.Path, "blocker");
+        File.WriteAllText(blocker, "a file where the derived catalog's directory should be");
+
+        var (catalog, excluded) = ShipModCatalog.ResolveCatalog(Shipped, Path.Combine(blocker, "Aetheria.modded.cc"), Mods);
+
+        Assert.Equal(Shipped, catalog);
+        var exclusion = Assert.Single(excluded);
+        Assert.Equal("(all mods)", exclusion.Package);
+        Assert.False(string.IsNullOrWhiteSpace(exclusion.Reason));
+        // An invalid output (the shipped catalog itself) is refused the same way, with its reason.
+        (catalog, excluded) = ShipModCatalog.ResolveCatalog(Shipped, Shipped, Mods);
+        Assert.Equal(Shipped, catalog);
+        Assert.Contains("cannot replace the shipped catalog", Assert.Single(excluded).Reason);
+    }
+
     // Gameplay reads a mod ship's records from the derived catalog; the package directory supplies only the GLB.
     [Fact]
     public void PackageOfTakesItsRecordsFromTheCatalogAndOnlyTheGlbFromTheMod()

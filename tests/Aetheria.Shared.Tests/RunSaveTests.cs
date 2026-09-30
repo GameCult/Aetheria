@@ -439,18 +439,46 @@ public sealed class RunSaveTests : IDisposable
             "missing other designs: hull:B, hull:a, hull:b. Reinstall them, or start a new game.", refusal);
     }
 
-    // A save with a null where the walk needs an item is malformed: refused with a message, never a NullReferenceException.
-    [Fact]
-    public void RequireDesignsRefusesAMalformedSaveInsteadOfThrowingNull()
+    // A save can hold a null where the gate needs a value: refused with a message that says where, never a
+    // NullReferenceException. The records are written straight to the run store, since a save never writes them itself.
+    [Theory]
+    [InlineData("item", "an item in savedzone-0 is null")]
+    [InlineData("entity", "an entity is null")]
+    [InlineData("zone", "zone savedzone-1 has no record")]
+    [InlineData("lot", "lot 2 is null")]
+    [InlineData("lots", "the lot ledger has no lots")]
+    public void RequireDesignsRefusesANullWhereTheWalkNeedsAValue(string kind, string where)
     {
-        var refusal = DesignsRefused((present, unit) =>
+        using var cache = Open();
+        var pack = BarePack(new EquippableItem { Data = Key("hull:none"), Lot = 1 });
+        if (kind == "item") pack.Equipment = new[] { (new int2(0, 0), (EquippableItem) null) };
+        if (kind == "entity") pack.Children = new EntityPack[] { null };
+        var ledger = new ProvenanceLedger { NextLot = 3, Lots = { [1] = new Lot { Origin = new Attributed() } } };
+        if (kind == "lot") ledger.Lots[2] = null;
+        if (kind == "lots") ledger.Lots = null;
+        var game = Game(cache);
+        game.Zones = new[] { new CultRecordRef<SavedZone>(new CultRecordKey("savedzone-0")), new CultRecordRef<SavedZone>(new CultRecordKey("savedzone-1")) };
+        cache.Commit(batch =>
         {
-            var pack = BarePack(unit(present, present));
-            pack.Equipment = new[] { (new int2(0, 0), (EquippableItem) null) };
-            return new[] { ZoneOf(pack) };
+            batch.Upsert(typeof(SavedZone), ZoneOf(pack), new CultRecordKey("savedzone-0"));
+            if (kind != "zone") batch.Upsert(typeof(SavedZone), ZoneOf(), new CultRecordKey("savedzone-1"));
+            batch.Upsert(game);
+            batch.Upsert(ledger);
         });
 
-        Assert.Contains("save is malformed", refusal);
+        var refusal = Assert.Throws<InvalidOperationException>(() => RunSave.RequireDesigns(cache, cache.GetGlobal<SavedGame>()));
+        Assert.Contains("save is malformed: " + where, refusal.Message);
+    }
+
+    // The same run with nothing null is not malformed: null contents (a zone never visited) and unset designs are legitimate.
+    [Fact]
+    public void RequireDesignsAcceptsAZoneNeverVisitedAndAnUnsetDesign()
+    {
+        Assert.Null(DesignsRefused((present, unit) => new[]
+        {
+            new SavedZone { Name = "Never", AdjacentZones = Array.Empty<int>(), Factions = Array.Empty<int>(), Owner = -1 },
+            ZoneOf(BarePack(unit(default, default)))
+        }));
     }
 
     [Fact]

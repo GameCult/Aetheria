@@ -158,7 +158,10 @@ public static class ShipModCatalog
         if (!Directory.Exists(modsRoot) ||
             !Directory.GetDirectories(modsRoot).Any(directory => File.Exists(Path.Combine(directory, "ship.cc"))))
             return (shippedCatalog, Array.Empty<Exclusion>());
-        var composition = Compose(shippedCatalog, derivedCatalog, modsRoot);
+        Composition composition;
+        // A failure of the composition itself (an unwritable derived path, say) is still a mod problem, never a reason not to boot.
+        try { composition = Compose(shippedCatalog, derivedCatalog, modsRoot); }
+        catch (Exception error) { return (shippedCatalog, new[] { new Exclusion { Package = "(all mods)", Reason = error.Message } }); }
         return (composition.Included.Length == 0 ? shippedCatalog : derivedCatalog, composition.Excluded);
     }
 

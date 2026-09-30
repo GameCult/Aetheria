@@ -96,22 +96,21 @@ public static class RunSave
     // built; the save is never edited to fit.
     public static void RequireDesigns(CultCache cache, SavedGame game)
     {
-        string[] named;
-        try
+        var designs = new List<CultRecordKey>();
+        foreach (var zoneRef in game.Zones ?? Array.Empty<CultRecordRef<SavedZone>>())
         {
-            named = (game.Zones ?? Array.Empty<CultRecordRef<SavedZone>>())
-                .SelectMany(zone => cache.Get(zone)?.Contents?.Entities ?? new List<EntityPack>())
-                .SelectMany(EntitySerializer.Items).Select(item => item.Data.Key)
-                .Concat(Lots(cache).Lots.Values.Select(lot => lot.Design.Key))
-                .Where(key => key.IsSet()).Distinct()
-                .Where(key => cache.Get<ItemData>(key) == null)
-                .Select(key => key.Value).OrderBy(key => key, StringComparer.Ordinal).ToArray();
+            var where = zoneRef.Key.Value;
+            var zone = cache.Get(zoneRef) ?? throw MalformedSave($"zone {where} has no record");
+            // A zone never visited has no contents: legitimately null.
+            foreach (var pack in zone.Contents?.Entities ?? new List<EntityPack>())
+                foreach (var item in EntitySerializer.Items(pack))
+                    designs.Add((item ?? throw MalformedSave($"an item in {where} is null")).Data.Key);
         }
-        catch (NullReferenceException error)
-        {
-            // A save with a null entity, item or lot where one is required is malformed, and refused like a missing design.
-            throw new InvalidOperationException("This run's save is malformed: an entity, item or lot is missing where one is required. Start a new game.", error);
-        }
+        foreach (var (number, lot) in Lots(cache).Lots ?? throw MalformedSave("the lot ledger has no lots"))
+            designs.Add((lot ?? throw MalformedSave($"lot {number} is null")).Design.Key);
+        var named = designs.Where(key => key.IsSet()).Distinct()
+            .Where(key => cache.Get<ItemData>(key) == null)
+            .Select(key => key.Value).OrderBy(key => key, StringComparer.Ordinal).ToArray();
         if (named.Length == 0) return;
         const string modHull = "mod-hull:";
         var mods = named.Where(key => key.StartsWith(modHull, StringComparison.Ordinal)).Select(key => key.Substring(modHull.Length)).ToArray();
@@ -121,6 +120,9 @@ public static class RunSave
             (others.Length > 0 ? $"; missing other designs: {string.Join(", ", others)}" : "") +
             ". Reinstall them, or start a new game.");
     }
+
+    private static InvalidOperationException MalformedSave(string where) =>
+        new InvalidOperationException($"This run's save is malformed: {where}. Start a new game.");
 
     // The stored ledger, or a fresh empty one when the run has minted nothing yet.
     public static ProvenanceLedger Lots(CultCache cache) => cache.GetGlobal<ProvenanceLedger>() ?? new ProvenanceLedger();
