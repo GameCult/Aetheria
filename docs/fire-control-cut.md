@@ -2601,6 +2601,102 @@ the lanes that reach it, a pool of one lane included. The survey and the sequent
 
 ### Cut 12.4. The detonation primitive
 
+**Status (2026-09-29, Self): closed.** 12.4 landed at `2625768f`, `7c99909d` and `7e63d744`.
+
+Soul pass 1 (Opus) found three defects:
+- **F1:** a tangent disc created damage, 127 of 100.
+- **F2:** a candidate cull measured from the centre of mass missed hull corners.
+- **F3:** a lethal blast threw mid-loop and detonated again.
+
+It also found four rules pinned only by tests that could not fail.
+
+The fixes landed at `8b4bf01e`, `76e98598` and `fd792013`:
+- the tangent comparisons now include equality;
+- the cull and the `radius <= 0` guard are deleted, so `RectDiskOverlap` is the only decider;
+- the blast loop iterates a snapshot.
+
+Soul pass 2 closed it. Conservation held over 1,944 exact-lattice discs, with a worst error
+of 2e-5. A blast costs 0.3-0.7 ms in a zone of 40-100 entities.
+
+Pins landed at `4629bc67` and `c7e20f08`. `Death` fires once per entity (`Entity.cs`, `.Take(1)`),
+which also fixed a direct hit on a corpse raising `Death` again. A three-kill blast test was added.
+362 tests pass.
+
+**Ruled (operator, 2026-09-30): "fused weapons without a lock explode at max range."** This is no longer
+open. Landed at `8c002637` (fix) and `3e8ee022` (tests), and Soul confirmed it. That Soul pass raised four
+follow-up rulings, all given on 2026-09-30:
+- **The aim is `LookDirection`, restricted by the mount's arc.** The operator notes this was already the case;
+  the fix had used the hull-fixed mount.
+- **An invalid target counts as no lock.** A target that is selected but out of range, out of arc, not
+  visible, or not locked takes the no-lock path. Nothing bursts beyond max range.
+- **A no-lock round of any fuse stops on the first hull on its aim line**, computed at commit, and detonates
+  there. This covers contact, proximity and delayed fuses (operator, 2026-09-30, extending the contact-only
+  ruling). A round fired along a clear line still bursts at max range (bomb fishing). Mining adds chunks to
+  this through a named seam.
+- **Airburst follows player intent (operator, 2026-09-30):** "If I don't have targeting data but decide
+  to shoot anyway, my intent is likely to be bomb fishing. If I fire with a target but that target warps
+  away, I likely to not want to explode whatever was behind it, and the projectile shouldn't burst."
+  - A round fired without valid targeting data bursts at max range.
+  - A round fired at a valid target that later leaves or becomes invalid does not burst. It resolves
+    with no detonation.
+  - Validity is judged on the targeting data at fire time.
+- **Out of arc (operator, 2026-09-30):** a fused weapon whose selected target is out of arc still fires
+  (bomb fishing). It bursts at the target's range, clamped to max range, along the arc-clamped aim.
+  Non-fused weapons refuse.
+- **Arming distance (operator, 2026-09-30; refined the same day):** it is literal. A round never bursts
+  closer than `BlastRadius` to the ship's centre at fire time (`FireOrigin`), whatever the hull size or the
+  aim. Close bursts are pushed out to that distance, and fire is refused when `Range < BlastRadius`. A large
+  hull can take splash from its own close bursts, and that is accepted.
+- **Demoted rounds keep their target (operator, 2026-09-30):** a round fired at a valid target closer than
+  the blast radius flies to the arming point but stays targeted. If the target leaves before resolution,
+  the round does not burst. A pilot who flies into their own distant burst
+  takes the damage. Fire is refused when the live Range cannot clear BlastRadius.
+- **Turret arc ownership (operator, 2026-09-30):** the simulation's arc is authoritative, and Unity barrels
+  derive their aim from it. The true owner of an arc is the **pivot**, not the hardpoint. The arc stays on
+  the hardpoint until the moddable-ships campaign adds pivots to `HullData`. Until then, a pivot carrying
+  several hardpoints turns within the **intersection** of their arcs.
+- **AI and turrets (operator, 2026-09-30):** each weapon decides for itself, not the group's first weapon.
+  A fused weapon fires whenever its target is designated (visible, in range, locked), whatever the arc. A
+  non-fused weapon keeps the hit-chance threshold. The AI never fires at nothing, so AI does not bomb-fish.
+- **HUD forecast (operator, 2026-09-30):** for a fused weapon, the forecast shows the outcome (Direct, Burst
+  at N m, Refused). `Fire` and `Inspect` compute it with the same helper. Direct-hit weapons keep the
+  percentage.
+- **A refused round is free (operator, 2026-09-30):** it spends no ammo or energy, and makes no sound, heat,
+  wear or visibility. **It does not start the cooldown either** (operator, same day: "triggering cooldown on
+  refusal would be mostly neutral but punishing for long cooldown weapons, worth the code to fix").
+- **Batch 5 Soul pass, 2026-09-30: fix first.** `Solve` is the one decision, and `Fire`, `Inspect` and
+  `Refuses` all read it. Findings in fix batch 6 (Hands, `hands/fuse-fix2`):
+  - Contact and delayed rounds detonate on the hull and ignore the arming push-out.
+  - A refused beam blinks start and stop.
+  - A throwing damage observer re-applies a blast every tick.
+  - The AI selects refused fused weapons.
+  - A single-ammo burst pays, then refuses.
+  - The guided projectile's overshoot explosion ignores the simulation.
+  - Two copies of the range and designation predicates remain.
+
+  An out-of-arc round with a selected target bursts after that target leaves. That is ruled behaviour: an
+  out-of-arc target is invalid, so the round takes the no-lock path.
+- **Landed, 2026-09-29: batches 5-8 merged at `06001b57`.** 476 tests pass on the merged tree, after Soul
+  passes 5-7. Recorded follow-ups:
+  - The push-out follows the flight line, not the ray to the hull point.
+  - The HUD's burst range is an upper bound when a no-lock round stops at an earlier hull.
+  - The first-hull stop reads poses at fire time.
+  - A burst whose first round fails its energy or ammo spend retries every tick, bounded by capacitor refill.
+  - The first-round cooldown divides by `Cooldown` even when the magazine empties (a reload quirk that
+    predates this work).
+- **A round outlives its shooter,** for targeted and no-lock shots alike. Credit and loot with no shooter go
+  nowhere.
+
+Soul also found two more defects:
+- A fused weapon with `Range <= BlastRadius` bursts on its shooter. The fix is to refuse it when the catalog
+  opens.
+- A burst without a target reads as MISS in the debug HUD.
+
+Fix batch 2 covers all six, in Hands on `hands/fuse-fix2`. The stale lines about "`BurstPosition` is read
+only for a proximity fuse" and the Apply rules below it are superseded by these rulings.
+Recorded unguarded: if a `Death` handler removes another ship mid-blast, that ship
+still takes blast damage.
+
 Revised 2026-09-25, after 12.3 closed. The first draft predates 12.3's proportional-absorption and one-path
 rulings, and the parts of it those rulings overturn are listed under **History** at the end of this section.
 Anchors are against `d402283c`. **(probe)** marks claims measured in a scratch worktree at that commit (see

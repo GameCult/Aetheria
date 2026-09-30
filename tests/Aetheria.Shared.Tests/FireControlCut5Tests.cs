@@ -621,12 +621,12 @@ public sealed class FireControlCut5Tests : IDisposable
         var e = Build(TestSettings(), damage: 10000, velocity: 0, accuracy: 1, resolution: 1, spread: 0,
             hullDurability: 5, armor: 0); // one hit is lethal
 
-        Assert.Contains(e.Target, e.Zone.Entities);
+        SafeAssert.In(e.Zone, e.Target);
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
         e.Zone.Update(.1f);
 
         Assert.True(e.Target.Hull.Durability < .01f);
-        Assert.DoesNotContain(e.Target, e.Zone.Entities);
+        SafeAssert.NotIn(e.Zone, e.Target);
     }
 
     // ---- 5.7: delete the two carried-and-unread fields (Soul finding 12). ----

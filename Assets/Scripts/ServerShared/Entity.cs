@@ -516,7 +516,10 @@ public abstract class Entity
         Death = HullDamage.Where(_ => Hull.Durability < .01f).Select(_ => CauseOfDeath.HullDestroyed)
             .Merge(HeatstrokeDeath.Select(_ => CauseOfDeath.Heatstroke))
             .Merge(HypothermiaDeath.Select(_ => CauseOfDeath.Hypothermia))
-            .Merge(ItemDestroyed.Where(i=>i.GetBehavior<Cockpit>()!=null).Select(_ => CauseOfDeath.CockpitDestroyed));
+            .Merge(ItemDestroyed.Where(i=>i.GetBehavior<Cockpit>()!=null).Select(_ => CauseOfDeath.CockpitDestroyed))
+            // Death is terminal: the first cause ends the stream, so no damage path (a blast whose cockpit kill is
+            // followed by its own hull damage, a second item, a heat tick) can raise it twice to any subscriber.
+            .Take(1);
 
         //CurrentSecurityLevel.Value = SecurityLevel.Open;
     }

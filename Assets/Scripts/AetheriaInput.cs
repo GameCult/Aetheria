@@ -163,6 +163,16 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
                     ""priority"": 0
                 },
                 {
+                    ""name"": ""Cycle Target Item"",
+                    ""type"": ""Button"",
+                    ""id"": ""3f9a2f0a-6e3f-4a53-9f5e-1a9c1e6d9f7b"",
+                    ""expectedControlType"": ""Button"",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": false,
+                    ""priority"": 0
+                },
+                {
                     ""name"": ""Toggle Heatsinks"",
                     ""type"": ""Button"",
                     ""id"": ""e6c6ff6a-4ac2-4e53-a3c9-9461f52e723f"",
@@ -406,6 +416,17 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
                     ""processors"": """",
                     ""groups"": ""Keyboard&Mouse"",
                     ""action"": ""Target Nearest"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""8c2d5e77-4b18-4f0b-9a2e-6d3f7c1a5e90"",
+                    ""path"": ""<Keyboard>/j"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": ""Keyboard&Mouse"",
+                    ""action"": ""Cycle Target Item"",
                     ""isComposite"": false,
                     ""isPartOfComposite"": false
                 },
@@ -1178,6 +1199,7 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
         m_Player_TargetPrevious = m_Player.FindAction("Target Previous", throwIfNotFound: true);
         m_Player_TargetNext = m_Player.FindAction("Target Next", throwIfNotFound: true);
         m_Player_TargetNearest = m_Player.FindAction("Target Nearest", throwIfNotFound: true);
+        m_Player_CycleTargetItem = m_Player.FindAction("Cycle Target Item", throwIfNotFound: true);
         m_Player_ToggleHeatsinks = m_Player.FindAction("Toggle Heatsinks", throwIfNotFound: true);
         m_Player_ToggleShield = m_Player.FindAction("Toggle Shield", throwIfNotFound: true);
         m_Player_ToggleStance = m_Player.FindAction("Toggle Stance", throwIfNotFound: true);
@@ -1294,6 +1316,7 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
     private readonly InputAction m_Player_TargetPrevious;
     private readonly InputAction m_Player_TargetNext;
     private readonly InputAction m_Player_TargetNearest;
+    private readonly InputAction m_Player_CycleTargetItem;
     private readonly InputAction m_Player_ToggleHeatsinks;
     private readonly InputAction m_Player_ToggleShield;
     private readonly InputAction m_Player_ToggleStance;
@@ -1341,6 +1364,10 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
         /// Provides access to the underlying input action "Player/TargetNearest".
         /// </summary>
         public InputAction @TargetNearest => m_Wrapper.m_Player_TargetNearest;
+        /// <summary>
+        /// Provides access to the underlying input action "Player/CycleTargetItem".
+        /// </summary>
+        public InputAction @CycleTargetItem => m_Wrapper.m_Player_CycleTargetItem;
         /// <summary>
         /// Provides access to the underlying input action "Player/ToggleHeatsinks".
         /// </summary>
@@ -1420,6 +1447,9 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
             @TargetNearest.started += instance.OnTargetNearest;
             @TargetNearest.performed += instance.OnTargetNearest;
             @TargetNearest.canceled += instance.OnTargetNearest;
+            @CycleTargetItem.started += instance.OnCycleTargetItem;
+            @CycleTargetItem.performed += instance.OnCycleTargetItem;
+            @CycleTargetItem.canceled += instance.OnCycleTargetItem;
             @ToggleHeatsinks.started += instance.OnToggleHeatsinks;
             @ToggleHeatsinks.performed += instance.OnToggleHeatsinks;
             @ToggleHeatsinks.canceled += instance.OnToggleHeatsinks;
@@ -1476,6 +1506,9 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
             @TargetNearest.started -= instance.OnTargetNearest;
             @TargetNearest.performed -= instance.OnTargetNearest;
             @TargetNearest.canceled -= instance.OnTargetNearest;
+            @CycleTargetItem.started -= instance.OnCycleTargetItem;
+            @CycleTargetItem.performed -= instance.OnCycleTargetItem;
+            @CycleTargetItem.canceled -= instance.OnCycleTargetItem;
             @ToggleHeatsinks.started -= instance.OnToggleHeatsinks;
             @ToggleHeatsinks.performed -= instance.OnToggleHeatsinks;
             @ToggleHeatsinks.canceled -= instance.OnToggleHeatsinks;
@@ -1963,6 +1996,13 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
         /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
         /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
         void OnTargetNearest(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "Cycle Target Item" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnCycleTargetItem(InputAction.CallbackContext context);
         /// <summary>
         /// Method invoked when associated input action "Toggle Heatsinks" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
         /// </summary>
