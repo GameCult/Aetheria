@@ -53,6 +53,11 @@ claim measured against a real file.
     - "Tractor Beam is supposed to be for item pickup. A ship without a pickup behavior shouldn't be able to pick
       things up, but there is currently no such limitation AFAIK." Picking up items requires a pickup Behavior,
       which the Tractor Beam carries.
+    - Starting loadouts (operator): "Yep, everyone gets tractor beams. Pickup behavior was previously discussed as
+      part of the field shield map, as one of the behaviors which we'll have various visual effects for. The tractor
+      beam item would use the existing pickup VFX but with the standardized pickup animation." Every generated ship
+      and the player's starting ship carry a Tractor Beam. The pickup Behavior and its presentation follow
+      `docs/shield-presentation-contract.md` ("Shield and Pickup Presentation Contract").
   - **Weapons:** Autocannon, LRMM72, SRMM72, Tractor Beam. "yep that's a content gap". They get products.
   - After both, "no product" means exactly "Q3 test design". A census test pins that: every product-less design in
     the shipped catalog is a scenario test design.
