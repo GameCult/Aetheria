@@ -814,30 +814,14 @@ public abstract class Entity
             // If there's no hardpoint there, it won't fit
             if (hardpoint == null) return false;
 
-            // If the hardpoint type doesn't match the item, it won't fit
-            if (hardpoint.Type != itemData.HardpointType) return false;
-            
-            // Items placed in hardpoints are automatically aligned to hardpoint rotation
+            // The one fit rule, at this placement: the item, aligned to the hardpoint's rotation, lies within its cells
+            if (!hardpoint.TakesAt(itemData, hullCoord - hardpoint.Position)) return false;
             item.Rotation = hardpoint.Rotation;
 
-            // Inset the shapes of both item and hardpoint
-            var itemShapeInset = hullData.Shape.Inset(itemData.Shape, hullCoord, item.Rotation);
-            var hardpointShapeInset = hullData.Shape.Inset(hardpoint.Shape, hardpoint.Position);
-            
-            // Check every cell of the hardpoint shape for existing items
-            foreach(var v in hardpointShapeInset.Coordinates)
+            // One item per hardpoint: every cell of it is free (and so every cell of the item)
+            foreach (var v in hullData.Shape.Inset(hardpoint.Shape, hardpoint.Position).Coordinates)
                 if (GearOccupancy[v.x, v.y] != null)
                     return false;
-            
-            // Check every cell of the item's shape
-            foreach (var i in itemShapeInset.Coordinates)
-            {
-                // If the hardpoint does not have a matching cell, it wont fit
-                if (!hardpointShapeInset[i]) return false;
-            
-                // If there is any gear already occupying that space, it won't fit
-                if (GearOccupancy[i.x, i.y] != null) return false;
-            }
         }
 
         return true;

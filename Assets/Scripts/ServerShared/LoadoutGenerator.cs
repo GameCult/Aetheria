@@ -201,6 +201,10 @@ public class LoadoutGenerator
 
     public (FactionProductData product, T design) RandomProduct<T>(HardpointData hardpoint, float sizeExponent, Predicate<T> filter = null, bool required = false) where T : EquippableItemData
     {
+        // Every candidate passes the one fit rule, HardpointData.Takes. Generation prefers gear that fills the hardpoint
+        // and falls back to anything that fits only when nothing that fills it is on offer.
+        var filling = RandomProduct<T>(sizeExponent, item => hardpoint.IsFilledBy(item) && (filter?.Invoke(item) ?? true));
+        if (filling.design != null) return filling;
         return RandomProduct<T>(sizeExponent, item => hardpoint.Takes(item) && (filter?.Invoke(item) ?? true), required);
     }
 

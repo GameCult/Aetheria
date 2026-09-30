@@ -486,28 +486,130 @@ public sealed class RunStartTests : IDisposable
         Assert.True(stalls.Count == 0, $"{stalls.Count} readings of an orbit standing still; first {stalls.FirstOrDefault()}");
     }
 
-    // Gear no hull can mount has no home (operator, 2026-09-30): generation never offers it, so no station stocks it
-    // and no loadout carries it, though it keeps its product and price. The Autocannon fits no hardpoint of any
-    // shipped hull. Authoring a hull whose hardpoint takes it makes it one generation offers.
-    [Fact]
-    public void GearNoHullCanMountIsOfferedOnlyOnceAHullTakesIt()
-    {
-        var autocannon = _cache.GetAll<EquippableItemData>().Single(design => design.Name == "Autocannon");
-        Assert.True(autocannon.Price > 0 && _cache.GetAll<FactionProductData>().Any(p => p.Design.Key.Equals(_cache.RefOf(autocannon).Key)),
-            "the Autocannon is priced and sold");
-        var generator = new LoadoutGenerator(ref _items.Random, _items, _galaxy, _galaxy.Entrance, _protagonist, .5f);
-        int Offered() => generator.RandomProducts<EquippableItemData>(2000, 0, design => design.HardpointType == autocannon.HardpointType)
-            .Count(entry => entry.design == autocannon);
-        Assert.Equal(0, Offered());
+    private LoadoutGenerator PreludeGenerator() =>
+        new LoadoutGenerator(ref _items.Random, _items, _galaxy, _galaxy.Entrance, _protagonist, .5f);
 
-        var shape = new Shape(autocannon.Shape.Width + 2, autocannon.Shape.Height + 2);
+    private bool Offered(LoadoutGenerator generator, EquippableItemData design) =>
+        generator.RandomProducts<EquippableItemData>(1, 0, candidate => candidate == design).Length > 0;
+
+    private GearData ScratchGear(string name, HardpointType type, int width, int height)
+    {
+        var shape = new Shape(width, height);
         foreach (var cell in shape.AllCoordinates) shape[cell] = true;
+        var design = new GearData { Name = name, Hardpoint = type, Shape = shape, Durability = 10, Mass = 10, Price = 1000 };
+        _cache.Upsert(design);
+        _cache.Upsert(new FactionProductData
+        {
+            Name = name, Design = new CultRecordRef<CraftedItemData>(_cache.RefOf(design).Key), Manufacturer = _cache.RefOf(_protagonist)
+        });
+        return design;
+    }
+
+    // Hardpoint fit is loose (operator, 2026-09-30: "nobody's gonna stop you from putting a small reactor in a large
+    // reactor's hardpoint"), and there is one fit rule, HardpointData.Takes. Generation offers every sold hardpoint
+    // design that fits some hull's hardpoint of its type, and none that fits no hull.
+    [Fact]
+    public void GenerationOffersExactlyTheSoldGearSomeHullCanFit()
+    {
+        var hulls = _cache.GetAll<HullData>().ToArray();
+        var sold = _cache.GetAll<FactionProductData>().Where(p => p.Manufacturer.IsSet()).Select(p => p.Design.Key).ToHashSet();
+        var generator = PreludeGenerator();
+        var wrong = _cache.GetAll<EquippableItemData>()
+            .Where(design => sold.Contains(_cache.RefOf(design).Key) && design.Price > 0)
+            .Where(design => design.HardpointType != HardpointType.Tool && design.HardpointType != HardpointType.Hull)
+            .Where(design => Offered(generator, design) != hulls.Any(hull => hull.Hardpoints.Any(hardpoint => hardpoint.Takes(design))))
+            .Select(design => design.Name).ToList();
+        Assert.True(wrong.Count == 0, $"offered against the fit rule: {string.Join(", ", wrong)}");
+        Assert.True(Offered(generator, _cache.GetAll<EquippableItemData>().Single(d => d.Name == "Autocannon")),
+            "the Autocannon fits the turret's 8-cell Ballistic hardpoint, so it is offered");
+    }
+
+    // Gear no hull can fit is never offered; authoring a hull whose hardpoint takes it makes it offered.
+    [Fact]
+    public void GearNoHullCanFitIsOfferedOnlyOnceAHullTakesIt()
+    {
+        var huge = ScratchGear("Oversized Cannon", HardpointType.Ballistic, 7, 7);
+        var generator = PreludeGenerator();
+        Assert.False(Offered(generator, huge), "no hull fits a 7x7 Ballistic design");
+
+        var shape = new Shape(9, 9);
+        foreach (var cell in shape.AllCoordinates) shape[cell] = true;
+        var hardpointShape = new Shape(8, 8);
+        foreach (var cell in hardpointShape.AllCoordinates) hardpointShape[cell] = true;
         _cache.Upsert(new HullData
         {
-            Name = "Autocannon Mount", HullType = HullType.Ship, Shape = shape, Durability = 100, Mass = 1000, Price = 1,
-            Hardpoints = { new HardpointData { Type = autocannon.HardpointType, Position = int2(1, 1), Shape = autocannon.Shape } }
+            Name = "Big Mount", HullType = HullType.Ship, Shape = shape, Durability = 100, Mass = 1000, Price = 1,
+            Hardpoints = { new HardpointData { Type = HardpointType.Ballistic, Position = int2(0, 0), Shape = hardpointShape } }
         });
-        Assert.True(Offered() > 0, "a hull that takes the Autocannon gives it a home");
+        Assert.True(Offered(generator, huge), "a hull whose hardpoint takes it gives it a home");
+    }
+
+    // Where nothing fills a hardpoint, generation puts in something that fits: a hull whose only Reactor hardpoint is
+    // 5x5, which no reactor fills, still gets a reactor.
+    [Fact]
+    public void GenerationFitsWhatItCannotFill()
+    {
+        var shape = new Shape(9, 9);
+        foreach (var cell in shape.AllCoordinates) shape[cell] = true;
+        var hardpointShape = new Shape(5, 5);
+        foreach (var cell in hardpointShape.AllCoordinates) hardpointShape[cell] = true;
+        var hull = new HullData
+        {
+            Name = "Odd Reactor Bay", HullType = HullType.Ship, Shape = shape, Durability = 100, Mass = 1000, Price = 1,
+            Hardpoints = { new HardpointData { Type = HardpointType.Reactor, Position = int2(1, 1), Shape = hardpointShape } }
+        };
+        _cache.Upsert(hull);
+        _cache.Upsert(new FactionProductData
+        {
+            Name = "Odd Reactor Bay", Design = new CultRecordRef<CraftedItemData>(_cache.RefOf(hull).Key), Manufacturer = _cache.RefOf(_protagonist)
+        });
+        Assert.DoesNotContain(_cache.GetAll<GearData>(), design => hull.Hardpoints[0].IsFilledBy(design));
+
+        var ship = EntitySerializer.Unpack(_items, null, PreludeGenerator().GenerateShipLoadout(candidate => candidate == hull));
+        Assert.True(ship.Equipment.Any(item => item.Behaviors.OfType<Reactor>().Any()), "the 5x5 Reactor hardpoint got a reactor");
+    }
+
+    // Equipping and generation read the same rule: for every hull, hardpoint and design of that hardpoint's type, the
+    // hardpoint takes the design exactly when an empty hull of that kind accepts it somewhere in that hardpoint.
+    [Fact]
+    public void EquippingAndGenerationAgreeOnEveryDesignAndHardpoint()
+    {
+        var products = _cache.GetAll<FactionProductData>().Where(p => p.Manufacturer.IsSet()).ToArray();
+        var gear = _cache.GetAll<EquippableItemData>().Where(d => d.HardpointType != HardpointType.Tool && d.HardpointType != HardpointType.Hull).ToArray();
+        var disagreements = new List<string>();
+        foreach (var hull in _cache.GetAll<HullData>())
+        {
+            var product = products.FirstOrDefault(p => p.Design.Key.Equals(_cache.RefOf(hull).Key));
+            if (product == null) continue;
+            var entity = new Ship(_items, null, (EquippableItem) _items.CreateInstance(product), _items.GameplaySettings.DefaultEntitySettings);
+            foreach (var hardpoint in hull.Hardpoints)
+            foreach (var design in gear.Where(d => d.HardpointType == hardpoint.Type))
+            {
+                var item = new EquippableItem { Data = _cache.RefOf<ItemData>(design), Durability = design.Durability };
+                var accepted = false;
+                for (var x = 0; x < hardpoint.Shape.Width && !accepted; x++)
+                for (var y = 0; y < hardpoint.Shape.Height && !accepted; y++)
+                    accepted = entity.ItemFits(item, hardpoint.Position + int2(x, y));
+                if (accepted != hardpoint.Takes(design))
+                    disagreements.Add($"{hull.Name} {hardpoint.Type} at {hardpoint.Position}, {design.Name}: equip {accepted}, rule {!accepted}");
+            }
+        }
+        Assert.True(disagreements.Count == 0, string.Join("; ", disagreements.Take(10)) + $" ({disagreements.Count} in all)");
+    }
+
+    // The sold hardpoint gear that no hull fits even loosely today, stated so that authoring a hull that takes one
+    // shows up here as a changed list.
+    [Fact]
+    public void TheSoldHardpointGearWithNoHomeToday()
+    {
+        var hulls = _cache.GetAll<HullData>().ToArray();
+        var sold = _cache.GetAll<FactionProductData>().Select(product => product.Design.Key).ToHashSet();
+        var homeless = _cache.GetAll<EquippableItemData>()
+            .Where(design => sold.Contains(_cache.RefOf(design).Key) && design.Price > 0)
+            .Where(design => design.HardpointType != HardpointType.Tool && design.HardpointType != HardpointType.Hull)
+            .Where(design => !hulls.Any(hull => hull.Hardpoints.Any(hardpoint => hardpoint.Takes(design))))
+            .Select(design => design.Name).OrderBy(name => name, StringComparer.Ordinal).ToArray();
+        Assert.Equal(new[] { "CShot RainbowLite Lazer", "ChargeBlast SG", "ChargeBlast+-", "OK Disperser" }, homeless);
     }
 
     // A sold weapon can be generated onto an NPC, whose combat state samples its damage at range, so every weapon a

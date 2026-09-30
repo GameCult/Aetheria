@@ -204,19 +204,20 @@ public class Shape
             for (int y = 0; y < other.Height - height + 1; y++)
             {
                 position = int2(x, y);
-                var fits = true;
-                foreach (var v in Coordinates)
-                {
-                    fits = fits && other[Rotate(v, rotation) + position];
-                    if (!fits) break;
-                }
-
-                if (fits) return true;
+                if (FitsAt(other, rotation, position)) return true;
             }
         }
 
         position = int2.zero;
         return false;
+    }
+
+    // Whether this shape, turned to a rotation and placed at a position, lies wholly within another shape's cells
+    public bool FitsAt(Shape other, ItemRotation rotation, int2 position)
+    {
+        foreach (var v in Coordinates)
+            if (!other[Rotate(v, rotation) + position]) return false;
+        return true;
     }
 
     // Set every cell on the line from a to b to true according to Bresenham's Line Algorithm
@@ -567,11 +568,19 @@ public class HardpointData
         return $"{Enum.GetName(typeof(HardpointType), Type)} Hardpoint {Rotation.Arrow()}";
     }
 
-    // The one fit rule for hardpoint gear: its type, laid in at this hardpoint's rotation, filling every cell.
+    // The one fit rule for hardpoint gear (operator, 2026-09-30: "Hardpoint fit is loose: nobody's gonna stop you
+    // from putting a small reactor in a large reactor's hardpoint"): gear of this hardpoint's type fits when its shape,
+    // laid in at the hardpoint's rotation, lies within the hardpoint's cells. TakesAt is the same rule at one offset
+    // from the hardpoint's origin, which is where equipping places it.
     public bool Takes(EquippableItemData design) =>
-        design.HardpointType == Type &&
-        design.Shape.FitsWithin(Shape, Rotation, out _) &&
-        design.Shape.Coordinates.Length == Shape.Coordinates.Length;
+        design.HardpointType == Type && design.Shape.FitsWithin(Shape, Rotation, out _);
+
+    public bool TakesAt(EquippableItemData design, int2 offset) =>
+        design.HardpointType == Type && design.Shape.FitsAt(Shape, Rotation, offset);
+
+    // Generation's placement preference, not a fit rule: gear that fits and fills every cell of the hardpoint.
+    public bool IsFilledBy(EquippableItemData design) =>
+        Takes(design) && design.Shape.Coordinates.Length == Shape.Coordinates.Length;
 
     [IgnoreMember]
     public float3 TintColor

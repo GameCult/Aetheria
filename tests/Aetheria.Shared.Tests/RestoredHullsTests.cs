@@ -193,7 +193,7 @@ public sealed class RestoredHullsTests
         foreach (var hardpoint in hull.Hardpoints.Where(h => h.Type == HardpointType.Thruster))
         {
             var cells = hardpoint.Shape.Coordinates.Length;
-            var design = thrusterDesigns.FirstOrDefault(d => d.Shape.FitsWithin(hardpoint.Shape, hardpoint.Rotation, out _) && d.Shape.Coordinates.Length == cells);
+            var design = thrusterDesigns.FirstOrDefault(hardpoint.IsFilledBy);
             Assert.True(design != null, $"{name}'s {hardpoint.Transform ?? hardpoint.Type.ToString()} hardpoint at {hardpoint.Position} has no fitting catalog thruster design (needs {cells} cells).");
             var gearItem = new EquippableItem { Data = cache.RefOf<ItemData>(design), Durability = design.Durability, Lot = lot++ };
             Assert.True(ship.TryEquip(gearItem, hardpoint.Position),
@@ -225,8 +225,7 @@ public sealed class RestoredHullsTests
         var lot = 2;
         foreach (var hardpoint in hull.Hardpoints.Where(h => h.Type == HardpointType.Thruster))
         {
-            var cells = hardpoint.Shape.Coordinates.Length;
-            var design = thrusterDesigns.First(d => d.Shape.FitsWithin(hardpoint.Shape, hardpoint.Rotation, out _) && d.Shape.Coordinates.Length == cells);
+            var design = thrusterDesigns.First(hardpoint.IsFilledBy);
             var gearItem = new EquippableItem { Data = cache.RefOf<ItemData>(design), Durability = design.Durability, Lot = lot++ };
             Assert.True(ship.TryEquip(gearItem, hardpoint.Position));
         }
@@ -239,8 +238,7 @@ public sealed class RestoredHullsTests
         var reactorHardpoint = hull.Hardpoints.FirstOrDefault(h => h.Type == HardpointType.Reactor);
         if (reactorHardpoint != null)
         {
-            var reactorDesign = cache.GetAll<GearData>().First(g => g.Hardpoint == HardpointType.Reactor &&
-                g.Shape.FitsWithin(reactorHardpoint.Shape, reactorHardpoint.Rotation, out _) && g.Shape.Coordinates.Length == reactorHardpoint.Shape.Coordinates.Length);
+            var reactorDesign = cache.GetAll<GearData>().First(reactorHardpoint.IsFilledBy);
             var reactorItem = new EquippableItem { Data = cache.RefOf<ItemData>(reactorDesign), Durability = reactorDesign.Durability, Lot = lot++ };
             Assert.True(ship.TryEquip(reactorItem, reactorHardpoint.Position));
         }
