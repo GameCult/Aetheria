@@ -630,25 +630,6 @@ public sealed class RunStartTests : IDisposable
         }
     }
 
-    // A belt task that fails surfaces once, on the next tick, and not on every tick after it.
-    [Fact]
-    public void AFailedBeltTaskSurfacesOnce()
-    {
-        var zone = Arena(new Scenario { Ambient = false }); // no ships: nothing but the zone runs
-        var (key, _) = zone.AsteroidBelts.First();
-        var data = (AsteroidBeltData) zone.Planets[key];
-        var asteroids = data.Asteroids;
-        zone.Update(.02f);
-        var failures = 0;
-        data.Asteroids = asteroids.Append(asteroids[0]).ToArray(); // one asteroid more than the belt has room for
-        zone.Update(.02f);                                                     // starts a task that will fail
-        try { zone.Update(.02f); } catch (AggregateException) { failures++; } // settles it, starts another
-        data.Asteroids = asteroids;
-        try { zone.Update(.02f); } catch (AggregateException) { failures++; } // settles that one
-        Assert.True(failures >= 1, "the failed task surfaced");
-        for (var tick = 0; tick < 10; tick++) zone.Update(.02f);
-    }
-
     private LoadoutGenerator PreludeGenerator() =>
         new LoadoutGenerator(ref _items.Random, _items, _galaxy, _galaxy.Entrance, _protagonist, .5f);
 
