@@ -66,8 +66,7 @@ internal static class ShipFixture
         string modelAsset = "skiff.glb", Action<ShipParts> tweak = null)
     {
         var ship = ShipAuthoringTests.Fixture();
-        // A playable rig: the thruster outside the schematic, one energy weapon mount inside it, with its muzzle.
-        ship.Hull.Hardpoints[0].Position = new int2(2, 0);
+        // A playable rig: the fixture thruster plus one energy weapon mount on the hull's other cell, with its muzzle.
         ship.Hull.Hardpoints.Add(new HardpointData { Type = HardpointType.Energy, Position = new int2(0, 0), Shape = new Shape(), Transform = "gun" });
         ship.Visual.Anchors.Add(new ShipAnchor { Id = "gun", Role = "articulation", ModelNodeId = "gun" });
         ship.Visual.Anchors.Add(new ShipAnchor { Id = "gun.muzzle", Role = "weapon-muzzle", ModelNodeId = "gun-muzzle", ParentId = "gun" });
