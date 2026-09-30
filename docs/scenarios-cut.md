@@ -58,6 +58,10 @@ claim measured against a real file.
       beam item would use the existing pickup VFX but with the standardized pickup animation." Every generated ship
       and the player's starting ship carry a Tractor Beam. The pickup Behavior and its presentation follow
       `docs/shield-presentation-contract.md` ("Shield and Pickup Presentation Contract").
+    - Autocannon (operator): "Leave the autocannon unsold, we'll need to author a bunch more hulls before all the
+      gear variety in the game has a home." Self's implementation: generation and stock never offer gear that no
+      hull's hardpoint can fit. The rule is derived from hardpoint fit, not a hand list. The Autocannon keeps its
+      product and becomes sold automatically once a hull fits it. The census test is unaffected.
   - **Weapons:** Autocannon, LRMM72, SRMM72, Tractor Beam. "yep that's a content gap". They get products.
   - After both, "no product" means exactly "Q3 test design". A census test pins that: every product-less design in
     the shipped catalog is a scenario test design.
