@@ -95,6 +95,16 @@ claim measured against a real file.
           sense?". Self's proposal: a faction always reaches its own manufacturer's gear, and allegiance lists only
           other factions. **Ruled: "removing the 11 self-entries was my intention".** Own-faction reach is implicit
           in the one reach function.
+      - **Soul on batch 3 (`adad301b..2125f2b1`, 2026-09-30): do not merge yet.**
+        - S1: the new belt-failure test is flaky and failed 5 of 8 runs.
+        - S2: a second occupancy rule. Entity.cs:820-823 requires every hardpoint cell to be free, while tool gear may
+          fill a hardpoint's spare cells. So a generated Turret refuses its own gun back (40 of 955). Operator question.
+        - S3: placement searches fewer offsets than `Takes`, so an L-shaped hardpoint crashes generation. Latent.
+        - S4: asteroid respawn timers never count down, so mined asteroids never return. Sent to mining.
+        - S5: a shield charges while unbilled. This is documented design.
+        - S6: pins are missing for the filling preference, product reuse and the thermostat band.
+        - Held: F2 (no unbilled running in the catalog, players only warmer), F4 (no nulls; no exceptions in 24k-tick
+          ambient runs or crowded fights), the census, rotation, and no other fit checker.
       - F5: `_time` is advanced before the belt wait. F6: mining races the belt tasks. F7: reuse by cell count is
         unpinned.
       - Soul did **not** reproduce the Zhestokost gap: every station in 5 seeds and 12 factions got a reactor. The
