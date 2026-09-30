@@ -77,13 +77,16 @@ public class LockWeapon : InstantWeapon
 
     public override bool Execute(float dt)
     {
-        if (_target != Entity.Target.Value)
+        // Mining Cut 3 (Q12 A): lock builds on an entity only. A chunk target reads as no target here, so a
+        // launcher never locks a rock.
+        var target = Entity.Target.Value.Entity;
+        if (_target != target)
         {
             _lock = 0;
-            _target = Entity.Target.Value;
+            _target = target;
         }
 
-        if (Entity.Target.Value != null && Entity.IsHostileTo(Entity.Target.Value))
+        if (target != null && Entity.IsHostileTo(target))
         {
             LockSpeed = Evaluate(_data.LockSpeed);
             SensorImpact = Evaluate(_data.SensorImpact);
@@ -91,11 +94,11 @@ public class LockWeapon : InstantWeapon
             DirectionImpact = Evaluate(_data.DirectionImpact);
             Decay = Evaluate(_data.Decay);
 
-            var degrees = acos(dot(normalize(Entity.Target.Value.Position - Entity.Position), normalize(Entity.LookDirection))) * 57.2958f;
+            var degrees = acos(dot(normalize(target.Position - Entity.Position), normalize(Entity.LookDirection))) * 57.2958f;
             if (degrees < LockAngle)
             {
                 var lerp = 1 - unlerp(0, 90, degrees);
-                _lock = saturate(_lock + pow(lerp, DirectionImpact) * dt * LockSpeed * pow(Entity.EntityInfoGathered[Entity.Target.Value], SensorImpact));
+                _lock = saturate(_lock + pow(lerp, DirectionImpact) * dt * LockSpeed * pow(Entity.EntityInfoGathered[target], SensorImpact));
             }
             else _lock = saturate(_lock - dt * Decay);
         }

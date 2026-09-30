@@ -183,7 +183,7 @@ public sealed class FireAuthorityTests : IDisposable
 
         shooter.Position = float3.zero;
         target.Position = float3(0, 0, targetRange);
-        shooter.Target.Value = target;
+        shooter.SetTarget(target);
         shooter.EntityInfoGathered[target] = 1f;
         shooter.SetIff(target, true);
 

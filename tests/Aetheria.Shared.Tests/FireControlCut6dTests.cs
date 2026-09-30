@@ -163,7 +163,7 @@ public sealed class FireControlCut6dTests : IDisposable
 
         shooter.Position = float3.zero;
         target.Position = float3(0, 0, targetRange);
-        shooter.Target.Value = target;
+        shooter.SetTarget(target);
         shooter.SetIff(target, true);
         shooter.EntityInfoGathered[target] = 1f; // full reveal: pSensor = 1
 

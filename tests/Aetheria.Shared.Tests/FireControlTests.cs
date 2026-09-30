@@ -205,7 +205,7 @@ public sealed class FireControlTests : IDisposable
         shooter.Position = float3.zero;
         target.Position = float3(0, 0, 10); // dead ahead of the None-rotation hardpoint, well within range and arc
 
-        shooter.Target.Value = target;
+        shooter.SetTarget(target);
         // Cut 3: CombatState now gates on FireControl.HitProbability, which is zero for an undetected target
         // (the target is not in VisibleEntities) regardless of arc -- cross TargetDetectionInfoThreshold
         // directly, the same way a Sensor's own info accrual eventually would.

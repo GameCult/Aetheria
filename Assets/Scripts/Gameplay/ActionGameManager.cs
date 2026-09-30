@@ -362,19 +362,22 @@ public class ActionGameManager : MonoBehaviour
         // reads as non-hostile here, so the first press declares hostile.
         Input.Player.ToggleStance.performed += context =>
         {
-            var target = CurrentEntity.Target.Value;
+            var target = CurrentEntity.Target.Value.Entity;
             if (target == null) return;
             CurrentEntity.SetIff(target, !CurrentEntity.IsHostileTo(target));
         };
 
         #region Targeting
 
+        // Mining Cut 3 (docs/mining-cut-refresh.md): the reticle and cycling offer visible ships and the visible
+        // chunks within reach (Entity.VisibleChunksInReach, Q13), through the one writer, Entity.SetTarget.
         Input.Player.TargetReticle.performed += context =>
         {
-            if (!CurrentEntity.VisibleEntities.Any()) return;
-            var underReticle = CurrentEntity.VisibleEntities.Where(x => x != CurrentEntity)
-                .MaxBy(x => dot(normalize(x.Position - CurrentEntity.Position), CurrentEntity.LookDirection));
-            CurrentEntity.Target.Value = CurrentEntity.Target.Value == underReticle ? null : underReticle;
+            var candidates = TargetCandidates();
+            if (candidates.Length == 0) return;
+            var underReticle = candidates
+                .MaxBy(x => dot(normalize(x.position - CurrentEntity.Position), CurrentEntity.LookDirection)).target;
+            CurrentEntity.SetTarget(CurrentEntity.Target.Value.Equals(underReticle) ? TargetRef.None : underReticle);
         };
 
         // Nearest is enemies-only (it drives weapon lock), and picks the closest target, not the farthest.
@@ -382,33 +385,33 @@ public class ActionGameManager : MonoBehaviour
         {
             if(CurrentEntity.VisibleEnemies.Any())
             {
-                CurrentEntity.Target.Value = CurrentEntity.VisibleEnemies.Where(x => x != CurrentEntity)
-                    .MinBy(x => length(x.Position - CurrentEntity.Position));
+                CurrentEntity.SetTarget(CurrentEntity.VisibleEnemies.Where(x => x != CurrentEntity)
+                    .MinBy(x => length(x.Position - CurrentEntity.Position)));
             }
         };
 
         Input.Player.TargetNext.performed += context =>
         {
-            if (!CurrentEntity.VisibleEntities.Any()) return;
-            var targets = CurrentEntity.VisibleEntities.Where(x => x != CurrentEntity).OrderBy(x => length(x.Position - CurrentEntity.Position)).ToArray();
+            var targets = TargetCandidates().OrderBy(x => length(x.position - CurrentEntity.Position)).Select(x => x.target).ToArray();
+            if (targets.Length == 0) return;
             var currentTargetIndex = Array.IndexOf(targets, CurrentEntity.Target.Value);
-            CurrentEntity.Target.Value = targets[(currentTargetIndex + 1) % targets.Length];
+            CurrentEntity.SetTarget(targets[(currentTargetIndex + 1) % targets.Length]);
         };
 
         Input.Player.TargetPrevious.performed += context =>
         {
-            if (!CurrentEntity.VisibleEntities.Any()) return;
-            var targets = CurrentEntity.VisibleEntities.Where(x => x != CurrentEntity).OrderBy(x => length(x.Position - CurrentEntity.Position)).ToArray();
+            var targets = TargetCandidates().OrderBy(x => length(x.position - CurrentEntity.Position)).Select(x => x.target).ToArray();
+            if (targets.Length == 0) return;
             var currentTargetIndex = Array.IndexOf(targets, CurrentEntity.Target.Value);
-            CurrentEntity.Target.Value = targets[(currentTargetIndex + targets.Length - 1) % targets.Length];
+            CurrentEntity.SetTarget(targets[(currentTargetIndex + targets.Length - 1) % targets.Length]);
         };
 
         // Cut 2 (docs/fire-control-cut.md): cycles the aim point among the current target's revealed
         // subsystems -- decides nothing itself, only calls the one writer (TrySelectTargetItem), same
-        // predicate (FireControl.IsRevealed) the AI path uses.
+        // predicate (FireControl.IsRevealed) the AI path uses. Entity-only: a chunk has no subsystems.
         Input.Player.CycleTargetItem.performed += context =>
         {
-            var target = CurrentEntity.Target.Value;
+            var target = CurrentEntity.Target.Value.Entity;
             if (target == null) return;
             var revealed = target.Equipment.Where(x => FireControl.IsRevealed(CurrentEntity, x)).ToArray();
             if (revealed.Length == 0)
@@ -595,7 +598,7 @@ public class ActionGameManager : MonoBehaviour
         ConsoleController.AddCommand("iff", args =>
         {
             var console = ConsoleController.Instance;
-            var target = _currentEntity?.Target.Value;
+            var target = _currentEntity?.Target.Value.Entity;
             if (target == null) { console.AppendLogLine("iff: no target selected"); return; }
             var mode = args.Length > 0 ? args[0] : "";
             if (mode != "hostile" && mode != "neutral" && mode != "clear")
@@ -1076,9 +1079,10 @@ public class ActionGameManager : MonoBehaviour
             _targetSubscriptions.Clear();
 
             UpdateTargetPanel(target);
-            if (target != null)
+            var targetEntity = target.Entity;
+            if (targetEntity != null)
             {
-                if (target.Shield != null)
+                if (targetEntity.Shield != null)
                 {
                     TargetShieldsBackground.color = new Color(ShieldColor.r, ShieldColor.g, ShieldColor.b, .4f);
                     TargetShieldsIcon.color = ShieldColor;
@@ -1092,7 +1096,7 @@ public class ActionGameManager : MonoBehaviour
                 }
                 
                 // Subscribe to incoming hits from the player ship to display the hit marker
-                _targetSubscriptions.Add(target.IncomingHit.Where(e => e == CurrentEntity).Subscribe(_ =>
+                _targetSubscriptions.Add(targetEntity.IncomingHit.Where(e => e == CurrentEntity).Subscribe(_ =>
                 {
                     HitMarker.SetActive(true);
                     _hitMarkerTime = HitMarkerDuration;
@@ -1152,15 +1156,35 @@ public class ActionGameManager : MonoBehaviour
         SchematicDisplay.ShowShip(CurrentEntity);
     }
 
-    private void UpdateTargetPanel(Entity target)
+    // Mining Cut 3: any target gets the indicator; only a ship target gets the ship panel.
+    private void UpdateTargetPanel(TargetRef target)
     {
-        TargetIndicator.gameObject.SetActive(target != null);
-        TargetShipPanel.gameObject.SetActive(target != null);
-        if (target != null)
+        TargetIndicator.gameObject.SetActive(!target.IsNone);
+        TargetShipPanel.gameObject.SetActive(target.Entity != null);
+        if (target.Entity != null)
         {
-            TargetShipPanel.Display(target, true);
-            TargetSchematicDisplay.ShowShip(target, CurrentEntity);
+            TargetShipPanel.Display(target.Entity, true);
+            TargetSchematicDisplay.ShowShip(target.Entity, CurrentEntity);
         }
+    }
+
+    // Mining Cut 3: what the reticle and cycling can pick -- visible ships, and visible chunks within reach -- each
+    // with a world position to measure bearing and distance against.
+    private readonly List<ChunkId> _chunksInReach = new List<ChunkId>();
+    private (TargetRef target, float3 position)[] TargetCandidates()
+    {
+        CurrentEntity.VisibleChunksInReach(_chunksInReach);
+        return CurrentEntity.VisibleEntities.Where(x => x != CurrentEntity)
+            .Select(x => (target: (TargetRef) x, position: x.Position))
+            .Concat(_chunksInReach.Select(chunk => (target: (TargetRef) chunk, position: ChunkWorldPosition(chunk))))
+            .ToArray();
+    }
+
+    // A chunk's simulated position is planar (Zone.ChunkPose); the renderer draws it at the asteroid layer's height.
+    private float3 ChunkWorldPosition(ChunkId chunk)
+    {
+        var pose = CurrentEntity.Zone.ChunkPose(chunk.Field, chunk.Index);
+        return float3(pose.x, Settings.PlanetSettings.AsteroidVerticalOffset, pose.y);
     }
 
     private void Die(CauseOfDeath cause)
@@ -1246,7 +1270,7 @@ public class ActionGameManager : MonoBehaviour
             {
                 foreach (var indicator in _visibleHostileIndicators)
                 {
-                    indicator.Value.gameObject.SetActive(indicator.Key!=CurrentEntity.Target.Value);
+                    indicator.Value.gameObject.SetActive(indicator.Key!=CurrentEntity.Target.Value.Entity);
                     indicator.Value.Place.Target = indicator.Key.Position.ToUnity();
                     if (!indicator.Key.Active)
                         indicator.Value.Fill.enabled = false;
@@ -1261,7 +1285,7 @@ public class ActionGameManager : MonoBehaviour
                 }
                 foreach (var indicator in _visibleFriendlyIndicators)
                 {
-                    indicator.Value.gameObject.SetActive(indicator.Key!=CurrentEntity.Target.Value);
+                    indicator.Value.gameObject.SetActive(indicator.Key!=CurrentEntity.Target.Value.Entity);
                     indicator.Value.Place.Target = indicator.Key.Position.ToUnity();
                     if (!indicator.Key.Active)
                         indicator.Value.Fill.enabled = false;
@@ -1288,8 +1312,8 @@ public class ActionGameManager : MonoBehaviour
                     ship.MovementDirection = Input.Player.Move.ReadValue<Vector2>().ToCultMath();
                 }
 
-                var target = CurrentEntity.Target.Value;
-                UpdateFireControlDebug(target);
+                UpdateFireControlDebug(CurrentEntity.Target.Value);
+                var target = CurrentEntity.Target.Value.Entity;
                 if (target != null)
                 {
                     var threshold = Settings.GameplaySettings.TargetDetectionInfoThreshold;
@@ -1314,7 +1338,7 @@ public class ActionGameManager : MonoBehaviour
         _ => "MISS"
     };
 
-    private void UpdateFireControlDebug(Entity target)
+    private void UpdateFireControlDebug(TargetRef target)
     {
         if (DebugInfoText == null) return;
 
@@ -1335,7 +1359,8 @@ public class ActionGameManager : MonoBehaviour
             return;
         }
 
-        var d = FireControl.Inspect(selectedWeapon, CurrentEntity, target);
+        // Mining Cut 3: fire control prices ships; a chunk target reads as none there until Cut 4.
+        var d = FireControl.Inspect(selectedWeapon, CurrentEntity, target.Entity);
         var pendingLine = "pending: none";
         for (var i = CurrentEntity.Zone.PendingShots.Count - 1; i >= 0; i--)
         {
@@ -1358,7 +1383,8 @@ public class ActionGameManager : MonoBehaviour
         var lastLine = _debugLastShots.TryGetValue(selectedItem, out var lastShot)
             ? $"last {lastShot.ShotId}: {ResultLabel(lastShot.Result)} cell {lastShot.Cell.x},{lastShot.Cell.y}"
             : "last: none";
-        var gates = target == null
+        var gates = target.Chunk.HasValue ? "target: chunk"
+            : target.Entity == null
             ? "target: none"
             : $"gates designated {d.Designated} arc {d.InArc}";
 
@@ -1389,8 +1415,11 @@ public class ActionGameManager : MonoBehaviour
         if (CurrentEntity == null || CurrentEntity.Parent != null) return;
 
         ViewDot.Target = ZoneRenderer.EntityInstances[CurrentEntity].LookAtPoint.position;
-        if (CurrentEntity.Target.Value != null)
-            TargetIndicator.Target = CurrentEntity.Target.Value.Position.ToUnity();
+        var target = CurrentEntity.Target.Value;
+        if (target.Chunk is ChunkId chunk)
+            TargetIndicator.Target = ChunkWorldPosition(chunk).ToUnity();
+        else if (target.Entity != null)
+            TargetIndicator.Target = target.Entity.Position.ToUnity();
         var distance = length(ViewDot.Target.ToCultMath() - CurrentEntity.Position);
         foreach (var (_, barrels, crosshair) in _articulationGroups)
         {
@@ -1403,11 +1432,11 @@ public class ActionGameManager : MonoBehaviour
         
         foreach (var (targetLock, indicator, spin) in _lockingIndicators)
         {
-            var showLockingIndicator = targetLock.Lock > .01f && CurrentEntity.Target.Value != null && CurrentEntity.IsHostileTo(CurrentEntity.Target.Value);
+            var showLockingIndicator = targetLock.Lock > .01f && CurrentEntity.Target.Value.Entity != null && CurrentEntity.IsHostileTo(CurrentEntity.Target.Value.Entity);
             indicator.gameObject.SetActive(showLockingIndicator);
             if(showLockingIndicator)
             {
-                indicator.Target = CurrentEntity.Target.Value.Position.ToUnity();
+                indicator.Target = CurrentEntity.Target.Value.Entity.Position.ToUnity();
                 indicator.NoiseAmplitude = Settings.GameplaySettings.LockIndicatorNoiseAmplitude * (1 - targetLock.Lock);
                 indicator.NoiseFrequency = Settings.GameplaySettings.LockIndicatorFrequency.Evaluate(targetLock.Lock);
                 spin.Speed = Settings.GameplaySettings.LockSpinSpeed.Evaluate(targetLock.Lock);

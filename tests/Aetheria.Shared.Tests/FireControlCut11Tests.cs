@@ -184,7 +184,7 @@ public sealed class FireControlCut11Tests : IDisposable
 
         shooter.Position = float3(37, 0, -11);
         target.Position = float3(37, 0, 89); // 100 units straight ahead of the shooter
-        shooter.Target.Value = target;
+        shooter.SetTarget(target);
         shooter.EntityInfoGathered[target] = 1f;
         shooter.SetIff(target, true);
         if (equipShield) target.Shield.Item.Enabled.Value = true;

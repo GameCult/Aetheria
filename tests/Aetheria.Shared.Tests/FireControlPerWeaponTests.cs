@@ -245,7 +245,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
 
         shooter.Position = float3(-53, 0, -101);
         target.Position = shooter.Position + float3(0, 0, targetRange);
-        shooter.Target.Value = target;
+        shooter.SetTarget(target);
         shooter.EntityInfoGathered[target] = 1f;
         shooter.SetIff(target, true);
 
@@ -371,10 +371,10 @@ public sealed class FireControlPerWeaponTests : IDisposable
     public void TheForecastIsTheOutcomeFireDelivers(float targetRange, float range, bool noTarget, bool outOfArc, FireOutcome outcome, float reach)
     {
         var r = Build(outOfArc ? SideMount : null, fuse: WeaponFuse.Proximity, blast: 30f, range: range, targetRange: targetRange);
-        if (noTarget) r.Shooter.Target.Value = null;
+        if (noTarget) r.Shooter.SetTarget(TargetRef.None);
         Aim(r, float2(0, 1));
 
-        var d = FireControl.Inspect(r.Gun.Weapon, r.Shooter, r.Shooter.Target.Value);
+        var d = FireControl.Inspect(r.Gun.Weapon, r.Shooter, r.Shooter.Target.Value.Entity);
         var shotId = FireControl.Fire(r.Gun.Weapon, r.Gun.Item, r.Shooter);
 
         Assert.Equal(outcome, d.Outcome);
@@ -417,7 +417,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
     private Costs Pull(float range, bool single, bool viaTrigger, bool staleRange = false, bool auto = false)
     {
         var r = Build(fuse: WeaponFuse.Proximity, blast: 30f, range: range, energy: 50f, heat: 5000f, visibility: 100f, magazine: 5, singleAmmoBurst: single, auto: auto);
-        r.Shooter.Target.Value = null;
+        r.Shooter.SetTarget(TargetRef.None);
         Aim(r, float2(0, 1));
         var weapon = (InstantWeapon) r.Gun.Weapon;
         var capacitor = (InputCapacitor) typeof(InstantWeapon).GetField("_capacitor", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(weapon);
@@ -496,7 +496,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
     private (int Shots, int Wears, float Request, bool Visible, float Heat, int Stops, bool Firing) Burn(float range)
     {
         var r = Build(beam: true, fuse: WeaponFuse.Proximity, blast: 30f, range: range, energy: 50f, heat: 5000f, visibility: 100f);
-        r.Shooter.Target.Value = null;
+        r.Shooter.SetTarget(TargetRef.None);
         Aim(r, float2(0, 1));
         var weapon = (ConstantWeapon) r.Gun.Weapon;
         var wears = 0;
@@ -543,7 +543,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
     public void ARefusedBeamNeverStarts(float range, int starts)
     {
         var r = Build(beam: true, fuse: WeaponFuse.Proximity, blast: 30f, range: range);
-        r.Shooter.Target.Value = null;
+        r.Shooter.SetTarget(TargetRef.None);
         Aim(r, float2(0, 1));
         var weapon = (ConstantWeapon) r.Gun.Weapon;
         var started = 0;
@@ -666,7 +666,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
     private (int Starts, int Sounds, float Heat, bool Charging) Charge(float range)
     {
         var r = Build(charged: true, fuse: WeaponFuse.Proximity, blast: 30f, range: range);
-        r.Shooter.Target.Value = null;
+        r.Shooter.SetTarget(TargetRef.None);
         Aim(r, float2(0, 1));
         var weapon = (ChargedWeapon) r.Gun.Weapon;
         r.Gun.Item.SoundBank = new WwiseMetaSoundBank { IncludedEvents = new[] { new WwiseMetaObject { Id = 7, Name = "gun_charge_play" } } };
@@ -701,7 +701,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
     public void ATriggeredBurstIsNotReadyBeforeItsFirstRound()
     {
         var r = Build(range: 100f);
-        r.Shooter.Target.Value = null;
+        r.Shooter.SetTarget(TargetRef.None);
         Aim(r, float2(0, 1));
         var weapon = (InstantWeapon) r.Gun.Weapon;
         r.Zone.Update(.01f); // resolves the gun's stats, which size the burst
@@ -719,7 +719,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
     public void AChargedWeaponPressedAgainBeforeItsReleasedRoundFliesStartsNoSecondCharge()
     {
         var r = Build(charged: true, range: 100f);
-        r.Shooter.Target.Value = null;
+        r.Shooter.SetTarget(TargetRef.None);
         Aim(r, float2(0, 1));
         var weapon = (ChargedWeapon) r.Gun.Weapon;
         var starts = 0;
@@ -747,7 +747,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
     public void AHeldTriggerFiresOncePerCooldownAndARefusedBurstLeavesNone(float range, int shots)
     {
         var r = Build(fuse: WeaponFuse.Proximity, blast: 30f, range: range);
-        r.Shooter.Target.Value = null;
+        r.Shooter.SetTarget(TargetRef.None);
         Aim(r, float2(0, 1));
         var weapon = (InstantWeapon) r.Gun.Weapon;
         var fired = 0;
@@ -772,7 +772,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
     public void ABurstTriggeredAfterAFiredOneIsNotReadyBeforeItsFirstRound()
     {
         var r = Build(range: 100f);
-        r.Shooter.Target.Value = null;
+        r.Shooter.SetTarget(TargetRef.None);
         Aim(r, float2(0, 1));
         var weapon = (InstantWeapon) r.Gun.Weapon;
         r.Zone.Update(.25f);

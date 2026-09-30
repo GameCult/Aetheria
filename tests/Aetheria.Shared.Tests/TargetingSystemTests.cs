@@ -174,7 +174,7 @@ public sealed class TargetingSystemTests : IDisposable
     {
         var (items, target, weapon, _, _, _) = BuildTarget(TestSettings());
         var observer = BuildObserver(items, target.Zone);
-        observer.Target.Value = target;
+        observer.SetTarget(target);
 
         observer.EntityInfoGathered[target] = .29f; // below the single item's own tier (Armor, N==1)
         Assert.False(observer.TrySelectTargetItem(weapon));
@@ -186,12 +186,12 @@ public sealed class TargetingSystemTests : IDisposable
         Assert.Same(weapon, observer.ResolvedTargetItem);
 
         // A Target change nulls the aim point.
-        observer.Target.Value = null;
+        observer.SetTarget(TargetRef.None);
         Assert.Null(observer.TargetItem.Value);
 
         // Decay: re-select, then let info fall back below tier without touching TargetItem.Value at all --
         // the raw field still holds the item (no loop cleared it), but the read accessor drops it.
-        observer.Target.Value = target;
+        observer.SetTarget(target);
         Assert.True(observer.TrySelectTargetItem(weapon));
         observer.EntityInfoGathered[target] = .1f;
         Assert.Same(weapon, observer.TargetItem.Value);

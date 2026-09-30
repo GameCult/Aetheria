@@ -43,7 +43,10 @@ public abstract class Entity
 
     public Entity Parent;
     public List<Entity> Children = new List<Entity>();
-    public ReactiveProperty<Entity> Target = new ReactiveProperty<Entity>((Entity)null);
+    // Mining Cut 3 (docs/mining-cut-refresh.md): the one target slot -- an entity, a chunk, or none. Read-only from
+    // outside: SetTarget is its one writer, for the player's handlers and the agents alike.
+    private readonly ReactiveProperty<TargetRef> _target = new ReactiveProperty<TargetRef>(TargetRef.None);
+    public IReadOnlyReactiveProperty<TargetRef> Target => _target;
 
     // Cut 2 (docs/fire-control-cut.md): the stored aim-point slot. Written only by TrySelectTargetItem
     // below, and nulled whenever Target changes (subscribed in Activate). Do not read this field directly
@@ -198,7 +201,7 @@ public abstract class Entity
         }));
         _subscriptions.Add(Zone.Entities.ObserveRemove().Subscribe(remove =>
         {
-            if (Target.Value == remove.Value) Target.Value = null;
+            if (Target.Value.Entity == remove.Value) SetTarget(TargetRef.None);
             EntityInfoGathered.Remove(remove.Value);
             EntityHostility.Remove(remove.Value);
             VisibleEntities.Remove(remove.Value);
@@ -224,13 +227,14 @@ public abstract class Entity
         _subscriptions.Add(_iffOverrides.ObserveRemove().Subscribe(remove => RefreshHostilityFromOverride(remove.Key)));
         _subscriptions.Add(VisibleEnemies.ObserveRemove().Subscribe(remove =>
         {
-            if (Target.Value == remove.Value) Target.Value = null;
+            if (Target.Value.Entity == remove.Value) SetTarget(TargetRef.None);
         }));
-        _subscriptions.Add(Target.Subscribe(entity => entity?.TargetedBy.OnNext(this)));
+        // Only an entity is ever targeted by: a chunk has no one to tell.
+        _subscriptions.Add(Target.Subscribe(target => target.Entity?.TargetedBy.OnNext(this)));
         _subscriptions.Add(TargetedBy.Subscribe(enemy =>
         {
             TargetedByCount.Value++;
-            enemy.Target.Where(t => t != this).Take(1).Subscribe(_ => TargetedByCount.Value--);
+            enemy.Target.Where(t => t.Entity != this).Take(1).Subscribe(_ => TargetedByCount.Value--);
         }));
         
         // 
@@ -295,8 +299,11 @@ public abstract class Entity
         // Deactivate nulling Target outright, because nulling on every dock would throw away a target
         // that is still alive and simply never changed while docked -- the common case, and not the one
         // that crashed.
-        if (Target.Value != null && !EntityInfoGathered.ContainsKey(Target.Value))
-            Target.Value = null;
+        // Mining Cut 3: a chunk target is held to the same "still tracked" test through the chunk path -- kept
+        // while this entity can see it, dropped once it cannot (a broken chunk is dark, so it is dropped too).
+        if (Target.Value.Entity != null && !EntityInfoGathered.ContainsKey(Target.Value.Entity) ||
+            Target.Value.Chunk is ChunkId heldChunk && !ChunkVisible(heldChunk))
+            SetTarget(TargetRef.None);
 
         if(WeaponGroups.All(wg=>!wg.items.Any()))
             GenerateWeaponGroups();
@@ -314,7 +321,8 @@ public abstract class Entity
             return true;
         }
 
-        if (Target.Value == null || item.Entity != Target.Value || !FireControl.IsRevealed(this, item))
+        // Mining Cut 3: entity-only. A chunk has no items, so an item never belongs to a chunk target.
+        if (Target.Value.Entity == null || item.Entity != Target.Value.Entity || !FireControl.IsRevealed(this, item))
             return false;
 
         TargetItem.Value = item;
@@ -325,9 +333,61 @@ public abstract class Entity
     // revealed to this entity, or no longer belongs to the current Target, even though nothing wrote
     // TargetItem.Value at the moment that became true. Re-checked on every call; never cached.
     public EquippedItem ResolvedTargetItem =>
-        TargetItem.Value != null && Target.Value == TargetItem.Value.Entity && FireControl.IsRevealed(this, TargetItem.Value)
+        TargetItem.Value != null && Target.Value.Entity == TargetItem.Value.Entity && FireControl.IsRevealed(this, TargetItem.Value)
             ? TargetItem.Value
             : null;
+
+    // Mining Cut 3 (docs/mining-cut-refresh.md): the one writer of Target, called by the player's handlers and the
+    // agents alike. A chunk is taken only while this entity can see it, so a rock in darkness cannot be picked; an
+    // entity is written as given, as every handler wrote it before. Returns whether the write took effect.
+    public bool SetTarget(TargetRef target)
+    {
+        if (target.Chunk is ChunkId chunk && !ChunkVisible(chunk)) return false;
+        _target.Value = target;
+        return true;
+    }
+
+    // Mining Cut 3 (Q14 A): this entity's info on a chunk, computed when asked and stored nowhere. It is the value
+    // the per-tick sensor rule (Sensor.Execute, through Sensor.Gain) would settle at for a target this bright,
+    // here, now. Each active sensor applies x <- saturate(x + G_i dt)(1 - k dt) every tick, so with n sensors the
+    // info settles where the gain balances the decay: sum(G_i) / (n k), capped at 1. A ping adds nothing that
+    // lasts, so only the passive gain enters.
+    public float ChunkInfo(ChunkId chunk)
+    {
+        var visibility = Zone.ChunkVisibility(chunk);
+        if (visibility <= 0f) return 0f;
+        var position = Zone.ChunkPose(chunk.Field, chunk.Index).xy;
+        var rate = 0f;
+        var sensors = 0;
+        foreach (var sensor in ActiveSensors())
+        {
+            rate += sensor.PassiveRate(visibility, position);
+            sensors++;
+        }
+        return sensors == 0 ? 0f : saturate(rate / (sensors * ItemManager.GameplaySettings.TargetInfoDecay));
+    }
+
+    // Mining Cut 3: the detection threshold, read through the chunk path. A chunk is visible exactly as an entity
+    // enters VisibleEntities: its info exceeds TargetDetectionInfoThreshold.
+    public bool ChunkVisible(ChunkId chunk) => ChunkInfo(chunk) > ItemManager.GameplaySettings.TargetDetectionInfoThreshold;
+
+    // Mining Cut 3 (Q13 A): the reach for picking a chunk -- the longest range among this entity's active weapons.
+    // Every visible chunk within it, written into `into` (cleared first). Cycling and any programmatic chunk pick
+    // read this, so there is one reach rule.
+    public void VisibleChunksInReach(List<ChunkId> into)
+    {
+        var reach = 0f;
+        foreach (var weapon in _weapons)
+            if (weapon.Item == null || weapon.Item.Active.Value)
+                reach = max(reach, weapon.Range);
+        Zone.ChunksNear(Position.xz, reach, into);
+        into.RemoveAll(chunk => !ChunkVisible(chunk));
+    }
+
+    // Every sensor behaviour that runs this tick: those on active equipment, and those of active consumables.
+    private IEnumerable<Sensor> ActiveSensors() =>
+        Equipment.Where(item => item.Active.Value).SelectMany(item => item.Behaviors).OfType<Sensor>()
+            .Concat(_activeConsumables.SelectMany(effect => effect.Behaviors).OfType<Sensor>());
 
     // Cut 12.3 (docs/fire-control-cut.md): "armour absorbs first" -- the per-cell armour phase, split out of
     // what used to be Absorb's own first half (moved verbatim from DamageSchematic's per-cell body, Cut 3) so
@@ -1075,7 +1135,12 @@ public abstract class Entity
 
         var hullData = ItemManager.GetData(Hull) as HullData;
 
-        TargetRange = Target.Value == null ? -1 : length(Position - Target.Value.Position);
+        // Mining Cut 3: a chunk target is lost the moment this entity can no longer see it -- the lost-track rule
+        // through the chunk path. One check of the one slot per tick, not a detection loop over chunks.
+        if (Target.Value.Chunk is ChunkId trackedChunk && !ChunkVisible(trackedChunk)) SetTarget(TargetRef.None);
+        TargetRange = Target.Value.Chunk is ChunkId rangedChunk
+            ? length(Position.xz - Zone.ChunkPose(rangedChunk.Field, rangedChunk.Index).xy)
+            : Target.Value.Entity == null ? -1 : length(Position - Target.Value.Entity.Position);
 
         var localSecurityLevel = Zone.GetSecurityLevel(Position.xz);
         if (CurrentSecurityLevel.Value != localSecurityLevel) CurrentSecurityLevel.Value = localSecurityLevel;

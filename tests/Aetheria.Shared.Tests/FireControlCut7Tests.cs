@@ -140,7 +140,7 @@ public sealed class FireControlCut7Tests : IDisposable
 
         shooter.Position = float3.zero;
         target.Position = float3(0, 0, 100);
-        shooter.Target.Value = target;
+        shooter.SetTarget(target);
         shooter.SetIff(target, true);
 
         zone.Update(0f); // warm-up: resolves weapon/targeting stats before Fire reads them

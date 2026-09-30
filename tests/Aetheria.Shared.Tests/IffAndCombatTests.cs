@@ -245,7 +245,7 @@ public sealed class IffAndCombatTests : IDisposable
         var target = NewShip(items, zone, new Faction { Name = "Target" });
         var weapon = (InstantWeapon) shooter.Equipment.Single(e => e.Behaviors.Any(b => b is Weapon)).Behaviors.Single(b => b is Weapon);
 
-        shooter.Target.Value = target;
+        shooter.SetTarget(target);
         shooter.SetIff(target, false); // explicitly neutral
 
         weapon.Execute(.01f); // resolves the gun's stats: a burst has no rounds before the first tick
@@ -263,7 +263,7 @@ public sealed class IffAndCombatTests : IDisposable
         var target = NewShip(items, zone, new Faction { Name = "Target" });
         var weapon = (InstantWeapon) shooter.Equipment.Single(e => e.Behaviors.Any(b => b is Weapon)).Behaviors.Single(b => b is Weapon);
 
-        shooter.Target.Value = target;
+        shooter.SetTarget(target);
         shooter.SetIff(target, true);
 
         weapon.Execute(.01f); // resolves the gun's stats: a burst has no rounds before the first tick
@@ -319,7 +319,7 @@ public sealed class IffAndCombatTests : IDisposable
         };
         var gunItem = shooter.Equipment.Single(e => e.Behaviors.Any(b => b is Weapon));
         var lockWeapon = new LockWeapon(lockWeaponData, gunItem);
-        shooter.Target.Value = target;
+        shooter.SetTarget(target);
 
         lockWeapon.Execute(1f);
 

@@ -233,7 +233,7 @@ public sealed class FireControlCut123Tests : IDisposable
         shooter.Position = float3(37, 0, -11);
         target.Position = float3(37, 0, 89); // 100 units straight ahead of the shooter -- travel direction is exactly (0,1)
         if (targetFacing != null) target.Direction = targetFacing.Value;
-        shooter.Target.Value = target;
+        shooter.SetTarget(target);
         shooter.EntityInfoGathered[target] = 1f;
         shooter.SetIff(target, true);
 
