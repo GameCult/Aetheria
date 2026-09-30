@@ -100,7 +100,11 @@ claim measured against a real file.
         - S2: a second occupancy rule. Entity.cs:820-823 requires every hardpoint cell to be free, while tool gear may
           fill a hardpoint's spare cells. So a generated Turret refuses its own gun back (40 of 955). Operator question.
         - S3: placement searches fewer offsets than `Takes`, so an L-shaped hardpoint crashes generation. Latent.
-        - S4: asteroid respawn timers never count down, so mined asteroids never return. Sent to mining.
+        - S4: asteroid respawn timers never count down, so mined asteroids never return. **Already fixed by mining:**
+          `codex/mining` deleted the belt task threading (Cut 1, `22a54ccb`), `MineAsteroid` and `RespawnTimers` (Cut 2).
+          Respawn is `Zone.ChunkWear.BrokenUntil`. **Merge rule:** when scenarios and mining meet, mining's side wins
+          for belt and chunk code, and only scenarios' `CreateOrbit`/`AddOrbit` changes are re-applied. Scenarios
+          `f8795271` (`SettleBelts`) is superseded.
         - S5: a shield charges while unbilled. This is documented design.
         - S6: pins are missing for the filling preference, product reuse and the thermostat band.
         - Held: F2 (no unbilled running in the catalog, players only warmer), F4 (no nulls; no exceptions in 24k-tick
