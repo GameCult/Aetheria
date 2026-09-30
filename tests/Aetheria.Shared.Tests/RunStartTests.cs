@@ -932,6 +932,92 @@ public sealed class RunStartTests : IDisposable
         }
     }
 
+    // Generation prefers gear that fills a hardpoint: a station's 16-cell Reactor hardpoint always gets a 16-cell
+    // reactor, though smaller ones fit it.
+    [Fact]
+    public void GenerationFillsAHardpointWhenSomethingFillsIt()
+    {
+        var zenith = _cache.GetAll<HullData>().Single(h => h.Name == "Zenith");
+        var reactorPoint = zenith.Hardpoints.Single(h => h.Type == HardpointType.Reactor);
+        Assert.Contains(_cache.GetAll<GearData>(), design => reactorPoint.Takes(design) && !reactorPoint.IsFilledBy(design));
+        var generator = PreludeGenerator();
+        for (var i = 0; i < 50; i++)
+        {
+            var design = generator.RandomProduct<GearData>(reactorPoint, 2).design;
+            Assert.True(reactorPoint.IsFilledBy(design), $"draw {i}: {design.Name} does not fill the hardpoint");
+        }
+    }
+
+    // Matching hardpoints carry matching units: a generated Djinni's eight thruster hardpoints hold one product's lot.
+    [Fact]
+    public void MatchingHardpointsShareOneLot()
+    {
+        var ship = EntitySerializer.Unpack(_items, null, PreludeGenerator().GenerateShipLoadout(hull => hull.Name == "Djinni"));
+        var thrusters = ship.Equipment.Where(item => item.Data.HardpointType == HardpointType.Thruster).ToList();
+        Assert.Equal(8, thrusters.Count);
+        Assert.Single(thrusters.Select(item => item.EquippableItem.Lot).Distinct());
+    }
+
+    // The bus bills a thermostat-gated consumer on exactly the ticks it runs: across 5 K either side of a heater's
+    // target, the heater's draw is billed exactly when its thermostat is open.
+    [Fact]
+    public void TheBusBillsAHeaterExactlyWhenItsThermostatIsOpen()
+    {
+        var zone = Arena(new Scenario { Ambient = false }); // no ships: nothing but the zone runs
+        var station = zone.Entities.First(entity => entity is OrbitalEntity && entity.DockingBays.Count > 0);
+        var heater = station.Equipment.Single(IsHeater);
+        var thermostat = heater.Behaviors.OfType<Thermotoggle>().Single();
+        var request = heater.Behaviors.OfType<EnergyDraw>().Single().PowerRequest(.1f);
+        for (var tick = 0; tick < 10; tick++) zone.Update(.1f);
+
+        float Demand(float temperature)
+        {
+            foreach (var v in station.HullData.Shape.Coordinates) station.Temperature[v.x, v.y] = temperature;
+            station.PowerBus.Step(.1f);
+            return station.PowerBus.TotalDemand;
+        }
+        var unbilled = Demand(thermostat.TargetTemperature + 20); // well above: closed
+        var mismatches = new List<string>();
+        for (var delta = -5f; delta <= 5f; delta += .25f)
+        {
+            var billed = Demand(thermostat.TargetTemperature + delta) - unbilled > request * .5f;
+            if (billed != thermostat.Open) mismatches.Add($"{delta:+0.00;-0.00} K: open {thermostat.Open}, billed {billed}");
+        }
+        Assert.True(mismatches.Count == 0, string.Join("; ", mismatches));
+    }
+
+    // A thermostat gates the rest of its own behaviour group, not the whole item: of two draws on one item, the one
+    // behind a closed thermostat is not billed and the one in another group is.
+    [Fact]
+    public void AThermostatGatesOnlyItsOwnGroup()
+    {
+        var gear = new GearData
+        {
+            Name = "Two Group Gear", Hardpoint = HardpointType.Tool, Shape = new Shape(), Durability = 10, Mass = 10, Price = 1000,
+            MinimumTemperature = 100, MaximumTemperature = 500, OptimalTemperature = 280, PlateauWidth = 200, // online at any hull temperature here
+            Behaviors =
+            {
+                new ThermotoggleData { Group = 0, TargetTemperature = 1 }, // low-pass below 1 K: always closed here
+                new EnergyDrawData { Group = 0, EnergyDraw = new PerformanceStat { Min = 10, Max = 10 }, PerSecond = true },
+                new EnergyDrawData { Group = 1, EnergyDraw = new PerformanceStat { Min = 7, Max = 7 }, PerSecond = true },
+            }
+        };
+        _cache.Upsert(gear);
+        _cache.Upsert(new FactionProductData
+        {
+            Name = "Two Group Gear", Design = new CultRecordRef<CraftedItemData>(_cache.RefOf(gear).Key), Manufacturer = _cache.RefOf(_protagonist)
+        });
+        var zone = Arena(new Scenario { Ambient = false });
+        var ship = BareHull(Hull("Djinni"));
+        ship.Zone = zone;
+        Assert.True(ship.TryEquip(Instance(gear)));
+        zone.Admit(ship, piloted: false);
+        for (var tick = 0; tick < 5; tick++) zone.Update(.1f);
+        Assert.True(ship.Equipment.Single(item => item.Data == gear).Active.Value, "the gear is active");
+        ship.PowerBus.Step(1f);
+        Assert.True(abs(ship.PowerBus.TotalDemand - 7) < .01f, $"billed {ship.PowerBus.TotalDemand} for a closed 10 and an ungated 7");
+    }
+
     // Q3, with the operator's 2026-09-30 ruling on the ten product-less designs: a design no product sells is a
     // scenario test design and nothing else. A test design is one a scenario places: its preset's hull or a slot of
     // it, or cargo it carries. These are the unsold designs no scenario places, by name.
