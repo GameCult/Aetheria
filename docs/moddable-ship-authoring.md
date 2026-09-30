@@ -194,6 +194,22 @@ catalog. Continue refuses a run naming a design the catalog no longer holds
 5. Spawn, equip, thrust, fire, shield, damage, save/reload, and schematic UI
    work for the mod ship. Only then is a shipped hull eligible for migration.
 
+### Unity batch smokes
+
+Both run in batchmode against a package the tests generate: set `AETHERIA_SHIP_FIXTURE_DIR` while running
+`ShipModCatalogTests.TheFixturePackageIsCompleteAndItsGlbCarriesAScene` and it leaves `mod.skiff/ship.cc` and
+`skiff.glb` there (the GLB carries a tetrahedron mesh on the map, collider and thruster anchors, plus a weapon mount
+and muzzle). Neither takes `-quit`: both are `async void` and end the Editor themselves.
+
+- `-executeMethod ShipModPreview.Smoke -shipModPath <dir>/mod.skiff/ship.cc [-assemble]` imports the GLB and checks
+  the anchors; `-assemble` also builds the `ShipInstance` from the template.
+- `-executeMethod ShipModPlaySmoke.Run -shipModPath <dir>/mod.skiff/ship.cc [-shippedCatalog GameData/Aetheria.cc]`
+  composes a derived catalog with the package, runs `ShipModShips.Preload`, instantiates the ship through
+  `ShipModShips.Instantiate` (the call `ZoneRenderer.LoadEntity` makes) under a bare parent transform, and requires
+  thruster and weapon hardpoints (each weapon with a muzzle), one `MeshCollider` over a readable mesh, and a map icon.
+  It prints `SHIP_MOD_PLAY_SMOKE thrusters=N weapons=N collider=ok mapicon=ok` and exits 0, or logs the exception and
+  exits 1. It uses no scene and no zone.
+
 ## Structural and build budget
 
 The proof reuses `HullData` simulation semantics, CultCache `.cc` persistence,
