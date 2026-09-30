@@ -124,6 +124,33 @@ public sealed class ShipModCatalogTests : IDisposable
     }
 
     [Fact]
+    public void TheFixtureGlbCarriesARealMeshOnEveryAnchorTheAssemblerReadsOneFrom()
+    {
+        var package = ShipModCatalog.ReadPackage(Path.Combine(ShipFixture.WritePackage(Mods, "mod.skiff"), "ship.cc"));
+        var glb = File.ReadAllBytes(package.ModelPath);
+        var jsonLength = (int)BitConverter.ToUInt32(glb, 12);
+        var json = JObject.Parse(Encoding.UTF8.GetString(glb, 20, jsonLength));
+        var binLength = (int)BitConverter.ToUInt32(glb, 20 + jsonLength);
+        Assert.Equal(0x004E4942u, BitConverter.ToUInt32(glb, 24 + jsonLength));
+        Assert.Equal(glb.Length, 28 + jsonLength + binLength);
+        Assert.Equal((int)json["buffers"][0]["byteLength"], ShipFixture.MeshBytes().Length);
+        Assert.True(binLength >= ShipFixture.MeshBytes().Length);
+
+        var roles = new[] { "map-icon", "hull-collider", "thruster-emitter", "radiator-mesh" };
+        var needed = package.Visual.Anchors.Where(anchor => roles.Contains(anchor.Role)).ToArray();
+        Assert.Contains(needed, anchor => anchor.Role == "thruster-emitter");
+        foreach (var anchor in needed)
+        {
+            var node = json["nodes"][(int)package.NodeIndices[anchor.ModelNodeId]];
+            var mesh = json["meshes"][(int)node["mesh"]];
+            var accessor = json["accessors"][(int)mesh["primitives"][0]["attributes"]["POSITION"]];
+            Assert.True((int)accessor["count"] >= 4, anchor.Id);
+        }
+        Assert.Contains(package.Visual.Anchors, anchor => anchor.Role == "weapon-muzzle" && anchor.ParentId == "gun");
+        Assert.Contains(package.Hull.Hardpoints, hardpoint => hardpoint.Type == HardpointType.Energy && hardpoint.Transform == "gun");
+    }
+
+    [Fact]
     public void ComposeCountsEveryPackageAndReplacesAnExistingDerivedCatalog()
     {
         WritePackage("mod.skiff");
