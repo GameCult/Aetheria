@@ -37,7 +37,7 @@ public sealed class ShipModCatalogTests : IDisposable
         Directory.CreateDirectory(Path.Combine(Mods, "notes"));
         var shippedBefore = Hash(Shipped);
 
-        Assert.Equal(1, ShipModCatalog.Compose(Shipped, Derived, Mods));
+        Assert.Equal(1, ShipModCatalog.Compose(Shipped, Derived, Mods).Included.Length);
 
         Assert.Equal(shippedBefore, Hash(Shipped));
         using var cache = AetheriaStores.Open(Derived);
@@ -114,7 +114,7 @@ public sealed class ShipModCatalogTests : IDisposable
         var json = JObject.Parse(Encoding.UTF8.GetString(glb, 20, (int)BitConverter.ToUInt32(glb, 12)));
         Assert.Equal(0, (int)json["scene"]);
         Assert.Equal(Enumerable.Range(0, ShipFixture.Nodes.Length), json["scenes"][0]["nodes"].Select(node => (int)node));
-        Assert.Equal(1, ShipModCatalog.Compose(Shipped, Derived, Mods));
+        Assert.Equal(1, ShipModCatalog.Compose(Shipped, Derived, Mods).Included.Length);
 
         var export = Environment.GetEnvironmentVariable("AETHERIA_SHIP_FIXTURE_DIR");
         if (string.IsNullOrEmpty(export)) return;
@@ -127,42 +127,81 @@ public sealed class ShipModCatalogTests : IDisposable
     public void ComposeCountsEveryPackageAndReplacesAnExistingDerivedCatalog()
     {
         WritePackage("mod.skiff");
-        Assert.Equal(1, ShipModCatalog.Compose(Shipped, Derived, Mods));
+        Assert.Equal(1, ShipModCatalog.Compose(Shipped, Derived, Mods).Included.Length);
         WritePackage("mod.barge", hullName: "Barge");
 
-        Assert.Equal(2, ShipModCatalog.Compose(Shipped, Derived, Mods));
+        Assert.Equal(2, ShipModCatalog.Compose(Shipped, Derived, Mods).Included.Length);
 
         using var cache = AetheriaStores.Open(Derived);
         Assert.Equal(new[] { "Barge", "Skiff", "Wasp" }, cache.GetAll<HullData>().Select(hull => hull.Name).OrderBy(name => name));
         AssertOnlyTheDerivedFile();
     }
 
+    // One bad package never stops the game: it is left out and named, and the rest are composed.
     [Fact]
-    public void AFailedComposeLeavesThePreviousDerivedFileAndNoTemporaryFile()
+    public void ABadPackageIsExcludedAndNamedWhileTheGoodOnesCompose()
     {
-        WritePackage("mod.skiff");
-        ShipModCatalog.Compose(Shipped, Derived, Mods);
-        var before = File.ReadAllBytes(Derived);
+        WritePackage("mod.good", hullName: "Good");
+        WritePackage("mod.nomodel", hullName: "Nomodel", nodes: FixtureNodes.Where(node => node != "shield").ToArray());
+        WritePackage("mod.nofile", hullName: "Nofile");
+        File.Delete(Path.Combine(Mods, "mod.nofile", "skiff.glb"));
+        Directory.CreateDirectory(Path.Combine(Mods, "mod.garbage"));
+        File.WriteAllText(Path.Combine(Mods, "mod.garbage", "ship.cc"), "not a ship file");
 
-        WritePackage("mod.barge", hullName: "Wasp");
-        Assert.Contains("collides with an existing catalog item", Assert.Throws<InvalidOperationException>(() =>
-            ShipModCatalog.Compose(Shipped, Derived, Mods)).Message);
-        Assert.Equal(before, File.ReadAllBytes(Derived));
+        var composition = ShipModCatalog.Compose(Shipped, Derived, Mods);
+
+        Assert.Equal(new[] { "mod.good" }, composition.Included);
+        Assert.Equal(new[] { "mod.garbage", "mod.nofile", "mod.nomodel" }, composition.Excluded.Select(exclusion => exclusion.Package));
+        Assert.Contains("model has no node with aetheria.id=shield", composition.Excluded.Single(e => e.Package == "mod.nomodel").Reason);
+        Assert.Contains("must name an existing GLB", composition.Excluded.Single(e => e.Package == "mod.nofile").Reason);
+        Assert.Contains("mod.nofile: ", composition.Excluded.Single(e => e.Package == "mod.nofile").ToString());
+        using (var cache = AetheriaStores.Open(Derived))
+            Assert.Equal(new[] { "Good", "Wasp" }, cache.GetAll<HullData>().Select(hull => hull.Name).OrderBy(name => name));
         AssertOnlyTheDerivedFile();
+    }
 
-        Directory.Delete(Path.Combine(Mods, "mod.barge"), true);
-        WritePackage("mod.barge", hullName: "Barge", nodes: FixtureNodes.Where(node => node != "shield").ToArray());
-        Assert.Contains("model has no node with aetheria.id=shield", Assert.Throws<InvalidOperationException>(() =>
-            ShipModCatalog.Compose(Shipped, Derived, Mods)).Message);
-        Assert.Equal(before, File.ReadAllBytes(Derived));
+    // A name collision leaves out every package that claims the name; the verdict does not depend on directory order.
+    [Fact]
+    public void ACollisionExcludesEveryPackageInvolvedAndNoneOfTheRest()
+    {
+        WritePackage("mod.a", hullName: "Skiff");
+        WritePackage("mod.b", hullName: "Skiff");
+        WritePackage("mod.c", hullName: "Skiff");
+        WritePackage("mod.d", hullName: "Wasp");
+        WritePackage("mod.e", hullName: "Fine");
+
+        var composition = ShipModCatalog.Compose(Shipped, Derived, Mods);
+
+        Assert.Equal(new[] { "mod.e" }, composition.Included);
+        Assert.Equal(new[] { "mod.a", "mod.b", "mod.c", "mod.d" }, composition.Excluded.Select(exclusion => exclusion.Package));
+        Assert.Equal("hull name 'Skiff' is also claimed by mod.b, mod.c.", composition.Excluded[0].Reason);
+        Assert.Equal("hull name 'Skiff' is also claimed by mod.a, mod.c.", composition.Excluded[1].Reason);
+        Assert.Equal("hull name 'Wasp' collides with an existing catalog item.", composition.Excluded[3].Reason);
+        using var cache = AetheriaStores.Open(Derived);
+        Assert.Equal(new[] { "Fine", "Wasp" }, cache.GetAll<HullData>().Select(hull => hull.Name).OrderBy(name => name));
+    }
+
+    // A package that fails for two reasons names both.
+    [Fact]
+    public void APackageThatCollidesTwiceNamesBothReasons()
+    {
+        WritePackage("mod.a", hullName: "Wasp");
+        WritePackage("mod.b", hullName: "Wasp");
+
+        var composition = ShipModCatalog.Compose(Shipped, Derived, Mods);
+
+        Assert.Empty(composition.Included);
+        Assert.Equal("hull name 'Wasp' collides with an existing catalog item.; hull name 'Wasp' is also claimed by mod.b.",
+            composition.Excluded[0].Reason);
     }
 
     [Theory]
     [InlineData("mod-hull:mod.skiff", false)]
     [InlineData("mod-ship:mod.skiff", true)]
-    public void ComposeRefusesAModKeyThatAlreadyExistsInTheCatalog(string key, bool authoring)
+    public void APackageWhoseKeyAlreadyExistsInTheCatalogIsExcluded(string key, bool authoring)
     {
         WritePackage("mod.skiff");
+        WritePackage("mod.other", hullName: "Other");
         using (var cache = AetheriaStores.Open(Shipped, catalogWritable: true))
         {
             if (authoring)
@@ -176,15 +215,17 @@ public sealed class ShipModCatalogTests : IDisposable
             cache.FlushAsync().Wait();
         }
 
-        Assert.Contains("a mod key collides", Assert.Throws<InvalidOperationException>(() =>
-            ShipModCatalog.Compose(Shipped, Derived, Mods)).Message);
-        Assert.False(File.Exists(Derived));
+        var composition = ShipModCatalog.Compose(Shipped, Derived, Mods);
+
+        Assert.Equal(new[] { "mod.other" }, composition.Included);
+        Assert.Contains("a mod key collides", Assert.Single(composition.Excluded).Reason);
+        Assert.Equal("mod.skiff", composition.Excluded[0].Package);
     }
 
     [Theory]
     [InlineData(typeof(HullData))]
     [InlineData(typeof(GearData))]
-    public void ComposeRefusesAHullNamedLikeAShippedItem(Type shippedType)
+    public void APackageWithAHullNamedLikeAShippedItemIsExcluded(Type shippedType)
     {
         using (var cache = AetheriaStores.Open(Shipped, catalogWritable: true))
         {
@@ -196,24 +237,14 @@ public sealed class ShipModCatalogTests : IDisposable
         }
         WritePackage("mod.skiff");
 
-        Assert.Contains("hull name 'Skiff' collides with an existing catalog item", Assert.Throws<InvalidOperationException>(() =>
-            ShipModCatalog.Compose(Shipped, Derived, Mods)).Message);
-        Assert.False(File.Exists(Derived));
+        var composition = ShipModCatalog.Compose(Shipped, Derived, Mods);
+
+        Assert.Empty(composition.Included);
+        Assert.Equal("hull name 'Skiff' collides with an existing catalog item.", Assert.Single(composition.Excluded).Reason);
     }
 
     [Fact]
-    public void ComposeRefusesTwoModsThatShareAHullName()
-    {
-        WritePackage("mod.a", hullName: "Skiff");
-        WritePackage("mod.b", hullName: "Skiff");
-
-        Assert.Contains("mod.b: hull name 'Skiff' collides", Assert.Throws<InvalidOperationException>(() =>
-            ShipModCatalog.Compose(Shipped, Derived, Mods)).Message);
-        Assert.False(File.Exists(Derived));
-    }
-
-    [Fact]
-    public void ComposeRefusesAShipIdThatAShippedAuthoringRecordAlreadyUses()
+    public void APackageWhoseShipIdAShippedAuthoringRecordAlreadyUsesIsExcluded()
     {
         using (var cache = AetheriaStores.Open(Shipped, catalogWritable: true))
         {
@@ -222,12 +253,29 @@ public sealed class ShipModCatalogTests : IDisposable
         }
         WritePackage("mod.skiff", hullName: "Different");
 
-        Assert.Contains("ship ID collides with an existing catalog ship authoring record", Assert.Throws<InvalidOperationException>(() =>
-            ShipModCatalog.Compose(Shipped, Derived, Mods)).Message);
-        Assert.False(File.Exists(Derived));
+        var composition = ShipModCatalog.Compose(Shipped, Derived, Mods);
+
+        Assert.Empty(composition.Included);
+        Assert.Equal("ship ID collides with an existing catalog ship authoring record.", Assert.Single(composition.Excluded).Reason);
     }
 
+    // The game's boot: a bad package is named and the rest boot; with none left, the shipped catalog boots.
     [Fact]
+    public void TheBootCatalogSurvivesBadPackages()
+    {
+        WritePackage("mod.good", hullName: "Good");
+        WritePackage("mod.bad", hullName: "Bad", nodes: FixtureNodes.Where(node => node != "shield").ToArray());
+
+        var (catalog, excluded) = ShipModCatalog.ResolveCatalog(Shipped, Derived, Mods);
+        Assert.Equal(Derived, catalog);
+        Assert.Equal("mod.bad", Assert.Single(excluded).Package);
+
+        Directory.Delete(Path.Combine(Mods, "mod.good"), true);
+        (catalog, excluded) = ShipModCatalog.ResolveCatalog(Shipped, Derived, Mods);
+        Assert.Equal(Shipped, catalog);
+        Assert.Equal("mod.bad", Assert.Single(excluded).Package);
+    }
+
     public void ComposeRefusesUnsafeInputsAndOutputs()
     {
         WritePackage("mod.skiff");
@@ -366,21 +414,21 @@ public sealed class ShipModCatalogTests : IDisposable
     [Fact]
     public void TheBootCatalogIsTheShippedOneUntilAModIsInstalled()
     {
-        Assert.Equal(Shipped, ShipModCatalog.ResolveCatalog(Shipped, Derived, Path.Combine(_directory.Path, "absent")));
+        Assert.Equal(Shipped, ShipModCatalog.ResolveCatalog(Shipped, Derived, Path.Combine(_directory.Path, "absent")).Catalog);
         Directory.CreateDirectory(Path.Combine(Mods, "notes"));
-        Assert.Equal(Shipped, ShipModCatalog.ResolveCatalog(Shipped, Derived, Mods));
+        Assert.Equal(Shipped, ShipModCatalog.ResolveCatalog(Shipped, Derived, Mods).Catalog);
         Assert.False(File.Exists(Derived));
 
         WritePackage("mod.skiff");
-        Assert.Equal(Derived, ShipModCatalog.ResolveCatalog(Shipped, Derived, Mods));
+        Assert.Equal(Derived, ShipModCatalog.ResolveCatalog(Shipped, Derived, Mods).Catalog);
         using (var cache = AetheriaStores.Open(Derived))
             Assert.Contains("Skiff", cache.GetAll<HullData>().Select(hull => hull.Name));
 
         // Recomposed on every call: a mod removed since the last boot is gone from the file the game opens next.
         Directory.Delete(Path.Combine(Mods, "mod.skiff"), true);
-        Assert.Equal(Shipped, ShipModCatalog.ResolveCatalog(Shipped, Derived, Mods));
+        Assert.Equal(Shipped, ShipModCatalog.ResolveCatalog(Shipped, Derived, Mods).Catalog);
         WritePackage("mod.barge", hullName: "Barge");
-        Assert.Equal(Derived, ShipModCatalog.ResolveCatalog(Shipped, Derived, Mods));
+        Assert.Equal(Derived, ShipModCatalog.ResolveCatalog(Shipped, Derived, Mods).Catalog);
         using (var cache = AetheriaStores.Open(Derived))
             Assert.Equal(new[] { "Barge", "Wasp" }, cache.GetAll<HullData>().Select(hull => hull.Name).OrderBy(name => name));
     }

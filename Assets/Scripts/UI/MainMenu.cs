@@ -89,6 +89,8 @@ public class MainMenu : MonoBehaviour
         _fadeFromRight = fromRight;
     }
 
+    private static bool _exclusionsShown;
+
     private void ShowMain()
     {
         _nextMenu.panel.Clear();
@@ -97,6 +99,11 @@ public class MainMenu : MonoBehaviour
         {
             // A run exists only as the run store's SavedGame global.
             var cache = ActionGameManager.CultCache;
+            if (ActionGameManager.ModExclusions.Length > 0 && !_exclusionsShown)
+            {
+                _exclusionsShown = true;
+                Refuse("Some mods were not loaded", string.Join("\n", ActionGameManager.ModExclusions.Select(exclusion => exclusion.ToString())));
+            }
             var saved = cache.GetGlobal<SavedGame>();
             if (saved == null && cache.AllStoredDocuments.Any(stored => RunSave.IsRunRecord(stored.Descriptor.DocumentType)))
                 Debug.Log("run store has no SavedGame; Continue disabled");

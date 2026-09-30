@@ -21,7 +21,31 @@ public static class ShipModCatalog
     public static CultRecordKey HullKey(string id) => new CultRecordKey("mod-hull:" + id);
     public static CultRecordKey AuthoringKey(string id) => new CultRecordKey("mod-ship:" + id);
 
-    public static int Compose(string shippedCatalog, string outputCatalog, string modsRoot)
+    // A key the mods own. The shipped catalog and its authored records never reference one: a mod may be uninstalled.
+    public static bool IsModKey(CultRecordKey key) =>
+        key.IsSet() && (key.Value.StartsWith("mod-hull:", StringComparison.Ordinal) || key.Value.StartsWith("mod-ship:", StringComparison.Ordinal));
+
+    // A package left out of the composition, named by its directory, with every reason it was left out.
+    public sealed class Exclusion
+    {
+        public string Package;
+        public string Reason;
+        public override string ToString() => $"{Package}: {Reason}";
+    }
+
+    public sealed class Composition
+    {
+        // Ship IDs of the packages composed into the derived catalog, in directory order.
+        public string[] Included;
+        // Packages that failed on their own or collided with the catalog or with each other, in directory order.
+        public Exclusion[] Excluded;
+    }
+
+    // One bad package never stops the rest. Each package is read and validated on its own; one that fails is excluded and
+    // named. A collision (with the shipped catalog, or with another package's hull name) excludes every package involved,
+    // since neither has a claim to the name. The derived catalog holds the shipped catalog plus the included packages.
+    // Unsafe inputs and outputs (a missing catalog, a derived file that would replace a source) still throw: nothing is composed.
+    public static Composition Compose(string shippedCatalog, string outputCatalog, string modsRoot)
     {
         var source = Path.GetFullPath(shippedCatalog);
         var output = Path.GetFullPath(outputCatalog);
@@ -33,13 +57,21 @@ public static class ShipModCatalog
         if (output.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("The derived catalog cannot replace a mod source or asset.");
 
-        var packages = new List<Package>();
+        var reasons = new SortedDictionary<string, List<string>>(StringComparer.Ordinal);
+        void Exclude(string package, string reason)
+        {
+            if (!reasons.TryGetValue(package, out var list)) reasons[package] = list = new List<string>();
+            list.Add(reason);
+        }
+        var packages = new List<(string Directory, Package Package)>();
         foreach (var directory in Directory.GetDirectories(root).OrderBy(path => path, StringComparer.Ordinal))
         {
             var path = Path.Combine(directory, "ship.cc");
             if (!File.Exists(path)) continue;
-            // ReadPackage pins each ID to its directory name, so IDs within one mods root are already unique.
-            packages.Add(ReadPackage(path));
+            var name = Path.GetFileName(directory);
+            // A package can fail in any way a hostile or broken file can, so its failure is quarantined whatever it is.
+            try { packages.Add((name, ReadPackage(path))); }
+            catch (Exception error) { Exclude(name, error.Message); }
         }
 
         Directory.CreateDirectory(Path.GetDirectoryName(output));
@@ -51,33 +83,48 @@ public static class ShipModCatalog
         {
             Directory.CreateDirectory(workspace);
             File.Copy(source, temporary);
+            Composition composition;
             using (var cache = AetheriaStores.Open(temporary, catalogWritable: true))
             {
-                foreach (var package in packages)
+                // Collisions are judged against the shipped records alone, before any package is written, so the
+                // verdict does not depend on directory order. CultCache indexes names per concrete type and lets the
+                // last writer win, and GetByName over a base type throws on a match across subtypes: a mod hull named
+                // like any shipped item, or like another mod's hull, would make name lookups wrong or throw.
+                var keys = new HashSet<CultRecordKey>(cache.AllStoredDocuments.Select(record => record.Key));
+                var itemNames = new HashSet<string>(cache.GetAll<ItemData>().Select(item => item.Name), StringComparer.Ordinal);
+                var shipIds = new HashSet<string>(cache.GetAll<ShipAuthoring>().Select(existing => existing.Id), StringComparer.Ordinal);
+                foreach (var (directory, package) in packages)
                 {
                     var (hull, ship) = (package.Hull, package.Visual);
-                    var hullKey = HullKey(ship.Id);
-                    var authoringKey = AuthoringKey(ship.Id);
-                    if (cache.AllStoredDocuments.Any(record => record.Key.Equals(hullKey) || record.Key.Equals(authoringKey)))
-                        throw new InvalidOperationException($"{ship.Id}: a mod key collides with an existing catalog record.");
-                    // CultCache indexes names per concrete type and lets the last writer win, and GetByName over a base
-                    // type throws on a match across subtypes. A mod hull named like any shipped item, or another mod's
-                    // hull (upserted earlier in this loop), would make name lookups wrong or throw.
-                    if (cache.GetAll<ItemData>().Any(item => string.Equals(item.Name, hull.Name, StringComparison.Ordinal)))
-                        throw new InvalidOperationException($"{ship.Id}: hull name '{hull.Name}' collides with an existing catalog item.");
-                    if (cache.GetAll<ShipAuthoring>().Any(existing => string.Equals(existing.Id, ship.Id, StringComparison.Ordinal)))
-                        throw new InvalidOperationException($"{ship.Id}: ship ID collides with an existing catalog ship authoring record.");
-                    // Verbatim: the mod store's own two records, under the keys it already holds them at.
-                    ShipAuthoringStore.Write(cache, hull, ship);
+                    if (keys.Contains(HullKey(ship.Id)) || keys.Contains(AuthoringKey(ship.Id)))
+                        Exclude(directory, $"a mod key collides with an existing catalog record.");
+                    if (itemNames.Contains(hull.Name))
+                        Exclude(directory, $"hull name '{hull.Name}' collides with an existing catalog item.");
+                    if (shipIds.Contains(ship.Id))
+                        Exclude(directory, $"ship ID collides with an existing catalog ship authoring record.");
                 }
+                foreach (var claim in packages.GroupBy(package => package.Package.Hull.Name, StringComparer.Ordinal).Where(group => group.Count() > 1))
+                    foreach (var (directory, package) in claim)
+                        Exclude(directory, $"hull name '{claim.Key}' is also claimed by " +
+                            string.Join(", ", claim.Where(other => other.Directory != directory).Select(other => other.Directory)) + ".");
+
+                var included = packages.Where(package => !reasons.ContainsKey(package.Directory)).Select(package => package.Package).ToArray();
+                foreach (var package in included)
+                    // Verbatim: the mod store's own two records, under the keys it already holds them at.
+                    ShipAuthoringStore.Write(cache, package.Hull, package.Visual);
                 // Shipped hulls too: the derived catalog must not hold a hull that names two bodies.
                 foreach (var hull in cache.GetAll<HullData>())
                     ShipAuthoringStore.RequireOneBody(hull, hull.Name);
                 cache.FlushAsync().GetAwaiter().GetResult();
+                composition = new Composition
+                {
+                    Included = included.Select(package => package.Visual.Id).ToArray(),
+                    Excluded = reasons.Select(entry => new Exclusion { Package = entry.Key, Reason = string.Join("; ", entry.Value) }).ToArray()
+                };
             }
             if (File.Exists(output)) File.Replace(temporary, output, null);
             else File.Move(temporary, output);
-            return packages.Count;
+            return composition;
         }
         finally
         {
@@ -103,16 +150,16 @@ public static class ShipModCatalog
         return Bind(hull, ship, directory, Path.Combine(directory, "ship.cc"));
     }
 
-    // The one game-side choice of catalog: the shipped file when the mods root holds no package, otherwise the derived
-    // file, composed afresh from the shipped one and the packages. Recomposed every call, so the derived file is never
-    // stale and never an authority.
-    public static string ResolveCatalog(string shippedCatalog, string derivedCatalog, string modsRoot)
+    // The one game-side choice of catalog: the shipped file when no package is installed or none survives composition,
+    // otherwise the derived file, composed afresh from the shipped one and the surviving packages. Recomposed every
+    // call, so the derived file is never stale and never an authority. Excluded packages come back named, for the menu.
+    public static (string Catalog, Exclusion[] Excluded) ResolveCatalog(string shippedCatalog, string derivedCatalog, string modsRoot)
     {
         if (!Directory.Exists(modsRoot) ||
             !Directory.GetDirectories(modsRoot).Any(directory => File.Exists(Path.Combine(directory, "ship.cc"))))
-            return shippedCatalog;
-        Compose(shippedCatalog, derivedCatalog, modsRoot);
-        return derivedCatalog;
+            return (shippedCatalog, Array.Empty<Exclusion>());
+        var composition = Compose(shippedCatalog, derivedCatalog, modsRoot);
+        return (composition.Included.Length == 0 ? shippedCatalog : derivedCatalog, composition.Excluded);
     }
 
     private static Package Bind(HullData hull, ShipAuthoring ship, string directory, string path)

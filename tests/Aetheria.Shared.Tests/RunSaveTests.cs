@@ -341,6 +341,117 @@ public sealed class RunSaveTests : IDisposable
         Assert.Equal(before, File.ReadAllBytes(Run));
     }
 
+    // --- RequireDesigns: what it walks, what it lists ---------------------------------------------------------------
+
+    // Commits a run whose zones the caller builds, then returns RequireDesigns' refusal message, or null when it passes.
+    // `present` is a gear item ("Lamp", not a hull) the catalog holds; unit(design, lot) mints an item naming `design`
+    // whose lot names `lot`.
+    private string DesignsRefused(Func<CultRecordRef<ItemData>, Func<CultRecordRef<ItemData>, CultRecordRef<ItemData>, EquippableItem>, SavedZone[]> build)
+    {
+        CultRecordRef<ItemData> present;
+        using (var setup = AetheriaStores.Open(Catalog, catalogWritable: true))
+        {
+            var lamp = setup.GetAll<GearData>().SingleOrDefault(gear => gear.Name == "Lamp") ??
+                setup.Upsert(new GearData { Name = "Lamp", Hardpoint = HardpointType.Sensors, Shape = new Shape() });
+            present = new CultRecordRef<ItemData>(setup.RefOf(lamp).Key);
+            setup.FlushAsync().Wait();
+        }
+        using var cache = Open();
+        var ledger = new ProvenanceLedger();
+        EquippableItem Unit(CultRecordRef<ItemData> design, CultRecordRef<ItemData> lot)
+        {
+            var number = ledger.NextLot++;
+            ledger.Lots[number] = new Lot { Design = lot, Origin = new Attributed() };
+            return new EquippableItem { Data = design, Lot = number };
+        }
+        ledger.NextLot = 1;
+        RunSave.Commit(cache, Game(cache), build(present, Unit), ledger);
+        try { RunSave.RequireDesigns(cache, cache.GetGlobal<SavedGame>()); return null; }
+        catch (InvalidOperationException refusal) { return refusal.Message; }
+    }
+
+    private static CultRecordRef<ItemData> Key(string key) => new CultRecordRef<ItemData>(new CultRecordKey(key));
+
+    private static SavedZone ZoneOf(params EntityPack[] packs) => new SavedZone
+    {
+        Name = "Zone", AdjacentZones = Array.Empty<int>(), Factions = Array.Empty<int>(), Owner = -1,
+        Contents = new ZonePack { Entities = packs.ToList() }
+    };
+
+    // Whatever the slot, a design missing from the catalog is found, and a design the catalog holds (a gear item, not
+    // only a hull) is not: the gate walks every unit an entity carries, recursively, and resolves any item design.
+    [Theory]
+    [InlineData("hull")]
+    [InlineData("equipment")]
+    [InlineData("cargo bay")]
+    [InlineData("docking bay")]
+    [InlineData("cargo contents")]
+    [InlineData("docking contents")]
+    [InlineData("child hull")]
+    [InlineData("child equipment")]
+    public void RequireDesignsFindsAMissingDesignInEverySlotOfAnEntity(string slot)
+    {
+        string Refusal(bool missing) => DesignsRefused((present, unit) =>
+        {
+            EquippableItem Slot(string where) => unit(missing && where == slot ? Key("hull:gone") : present, present);
+            var child = BarePack(Slot("child hull"));
+            child.Equipment = new[] { (new int2(0, 0), Slot("child equipment")) };
+            var pack = BarePack(Slot("hull"), new EntityPack[] { child });
+            pack.Equipment = new[] { (new int2(0, 0), Slot("equipment")) };
+            pack.CargoBays = new[] { (new int2(0, 0), Slot("cargo bay")) };
+            pack.DockingBays = new[] { (new int2(0, 0), Slot("docking bay")) };
+            pack.CargoContents = new[] { new (int2, ItemInstance)[] { (new int2(0, 0), Slot("cargo contents")) } };
+            pack.DockingBayContents = new[] { new (int2, ItemInstance)[] { (new int2(0, 0), Slot("docking contents")) } };
+            return new[] { ZoneOf(pack) };
+        });
+
+        Assert.Null(Refusal(missing: false));
+        Assert.Contains("missing other designs: hull:gone. Reinstall", Refusal(missing: true));
+    }
+
+    // Every zone and every lot is read, not the first: each names its own missing design.
+    [Fact]
+    public void RequireDesignsReadsEveryZoneAndEveryLot()
+    {
+        var refusal = DesignsRefused((present, unit) => new[]
+        {
+            ZoneOf(BarePack(unit(Key("hull:zone-a"), present))),
+            ZoneOf(BarePack(unit(present, present))),
+            ZoneOf(BarePack(unit(Key("hull:zone-b"), present)), BarePack(unit(present, Key("hull:lot-a")))),
+            ZoneOf(BarePack(unit(present, present)), BarePack(unit(present, Key("hull:lot-b"))))
+        });
+
+        Assert.Contains("missing other designs: hull:lot-a, hull:lot-b, hull:zone-a, hull:zone-b. Reinstall", refusal);
+    }
+
+    // Each missing design is listed once however many units name it, ordinally, mod ships apart from the rest.
+    [Fact]
+    public void RequireDesignsListsEachMissingDesignOnceInStableOrder()
+    {
+        var refusal = DesignsRefused((present, unit) => new[]
+        {
+            ZoneOf(BarePack(unit(Key("hull:b"), Key("mod-hull:z"))), BarePack(unit(Key("mod-hull:z"), Key("hull:b")))),
+            ZoneOf(BarePack(unit(Key("hull:B"), Key("mod-hull:m"))), BarePack(unit(Key("hull:a"), Key("hull:b"))))
+        });
+
+        Assert.Equal("This run names designs the catalog no longer holds; missing mod ships: m, z; " +
+            "missing other designs: hull:B, hull:a, hull:b. Reinstall them, or start a new game.", refusal);
+    }
+
+    // A save with a null where the walk needs an item is malformed: refused with a message, never a NullReferenceException.
+    [Fact]
+    public void RequireDesignsRefusesAMalformedSaveInsteadOfThrowingNull()
+    {
+        var refusal = DesignsRefused((present, unit) =>
+        {
+            var pack = BarePack(unit(present, present));
+            pack.Equipment = new[] { (new int2(0, 0), (EquippableItem) null) };
+            return new[] { ZoneOf(pack) };
+        });
+
+        Assert.Contains("save is malformed", refusal);
+    }
+
     [Fact]
     public void ARunNamingAMissingShippedDesignIsRefusedToo()
     {

@@ -18,9 +18,10 @@ public static class ShipAuthoringCommands
         {
             if (args[0] == "compose" && args.Length == 4)
             {
-                var count = ShipModCatalog.Compose(args[1], args[2], args[3]);
-                Console.WriteLine($"Composed {count} mod ships into {Path.GetFullPath(args[2])}");
-                return 0;
+                var composition = ShipModCatalog.Compose(args[1], args[2], args[3]);
+                Console.WriteLine($"Composed {composition.Included.Length} mod ships into {Path.GetFullPath(args[2])}");
+                foreach (var exclusion in composition.Excluded) Console.Error.WriteLine($"Excluded {exclusion}");
+                return composition.Excluded.Length == 0 ? 0 : 1;
             }
             if (args[0] == "inspect" && args.Length == 2)
             {

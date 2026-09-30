@@ -42,6 +42,9 @@ public class ActionGameManager : MonoBehaviour
 
     private static CultCache _cultCache;
 
+    // Mod packages left out of this boot (a bad package, or a name collision), for the main menu to name.
+    public static ShipModCatalog.Exclusion[] ModExclusions { get; private set; } = Array.Empty<ShipModCatalog.Exclusion>();
+
     private static string CatalogPath => Path.Combine(GameDataDirectory.FullName, "Aetheria.cc");
     private static string ModsPath => Path.Combine(GameDataDirectory.FullName, "Mods");
     // Disposable: composed at every boot from the shipped catalog and the mod packages, never authored.
@@ -57,8 +60,10 @@ public class ActionGameManager : MonoBehaviour
             // inside this cache; reopening would replace the catalog instances the galaxy and live entities hold.
             // The catalog is read-only in every build; capturepreset writes through its own cache (Loadouts.Commit) to the
             // shipped file. With mod packages installed the game reads the derived catalog instead.
+            var (catalog, excluded) = ShipModCatalog.ResolveCatalog(CatalogPath, DerivedCatalogPath, ModsPath);
+            ModExclusions = excluded;
             _cultCache = AetheriaStores.Open(
-                ShipModCatalog.ResolveCatalog(CatalogPath, DerivedCatalogPath, ModsPath),
+                catalog,
                 runPath: Path.Combine(GameDataDirectory.FullName, "run.cc"),
                 playerPath: Path.Combine(GameDataDirectory.FullName, "player.cc"));
 

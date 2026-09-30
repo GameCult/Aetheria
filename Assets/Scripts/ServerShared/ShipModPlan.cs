@@ -25,18 +25,15 @@ public sealed class ShipModPlan
         ShipAuthoringStore.Validate(hull, visual);
         var hardpoints = hull.Hardpoints ?? new List<HardpointData>();
         var byMount = hardpoints.ToDictionary(hardpoint => hardpoint.Transform, StringComparer.Ordinal);
-        var role = visual.Anchors.ToDictionary(anchor => anchor.Id, anchor => anchor.Role, StringComparer.Ordinal);
         string Only(string wanted) => visual.Anchors.Single(anchor => anchor.Role == wanted).Id;
 
         foreach (var anchor in visual.Anchors.Where(anchor => anchor.Role == "thruster-emitter" || anchor.Role == "radiator-mesh"))
         {
             var wanted = anchor.Role == "thruster-emitter" ? HardpointType.Thruster : HardpointType.Radiator;
-            if (!byMount.TryGetValue(anchor.Id, out var mount) || mount.Type != wanted)
+            if (!byMount.ContainsKey(anchor.Id))
                 throw new InvalidOperationException($"{visual.Id}: {anchor.Role} anchor {anchor.Id} must be a {wanted} hardpoint's mount.");
         }
-        string[] Mounts(HardpointType type, string wantedRole) => hardpoints.Where(hardpoint => hardpoint.Type == type).Select(hardpoint =>
-            role[hardpoint.Transform] == wantedRole ? hardpoint.Transform :
-            throw new InvalidOperationException($"{visual.Id}: {type} hardpoint {hardpoint.Transform} needs a {wantedRole} anchor of that id.")).ToArray();
+        string[] Mounts(HardpointType type) => hardpoints.Where(hardpoint => hardpoint.Type == type).Select(hardpoint => hardpoint.Transform).ToArray();
 
         var muzzles = visual.Anchors.Where(anchor => anchor.Role == "weapon-muzzle")
             .OrderBy(anchor => anchor.Order).ThenBy(anchor => anchor.Id, StringComparer.Ordinal).ToArray();
@@ -57,8 +54,8 @@ public sealed class ShipModPlan
             Shield = Only("shield"),
             Tractor = Only("tractor"),
             Equipment = hardpoints.Select(hardpoint => hardpoint.Transform).ToArray(),
-            Thrusters = Mounts(HardpointType.Thruster, "thruster-emitter"),
-            Radiators = Mounts(HardpointType.Radiator, "radiator-mesh"),
+            Thrusters = Mounts(HardpointType.Thruster),
+            Radiators = Mounts(HardpointType.Radiator),
             Weapons = weapons
         };
     }

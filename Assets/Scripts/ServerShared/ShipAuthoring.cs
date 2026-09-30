@@ -219,8 +219,15 @@ public static class ShipAuthoringStore
                 if (!occupiedHardpointCells.Add((x, y)))
                     throw new InvalidOperationException($"{ship.Id}: hardpoint {hardpoint.Transform} overlaps another hardpoint.");
             }
-            if (!anchors.Any(anchor => anchor.Id == hardpoint.Transform))
+            var mountAnchor = anchors.FirstOrDefault(anchor => anchor.Id == hardpoint.Transform);
+            if (mountAnchor == null)
                 throw new InvalidOperationException($"{ship.Id}: hardpoint {hardpoint.Transform} has no model anchor.");
+            // A mount's anchor plays the mount, so its role is fixed by the hardpoint type; the structural roles (map-icon,
+            // hull-collider, shield, tractor, weapon-muzzle) name other nodes and never double as a mount.
+            var mountRole = hardpoint.Type == HardpointType.Thruster ? "thruster-emitter" :
+                hardpoint.Type == HardpointType.Radiator ? "radiator-mesh" : "articulation";
+            if (mountAnchor.Role != mountRole)
+                throw new InvalidOperationException($"{ship.Id}: {hardpoint.Type} hardpoint {hardpoint.Transform} needs a {mountRole} anchor of that id.");
         }
         foreach (var anchor in anchors.Where(anchor => !string.IsNullOrEmpty(anchor.ParentId)))
             if (!mounts.Contains(anchor.ParentId))

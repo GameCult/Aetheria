@@ -59,11 +59,24 @@ public sealed class ShipModPlanTests
         // A thruster-emitter anchor on a weapon mount, and a radiator-mesh anchor that is no mount at all.
         var ship = Rig();
         ship.Visual.Anchors.Single(anchor => anchor.Id == "gun").Role = "thruster-emitter";
-        Assert.Contains("thruster-emitter anchor gun must be a Thruster hardpoint's mount", Refusal(ship));
+        Assert.Contains("Energy hardpoint gun needs a articulation anchor of that id", Refusal(ship));
 
         ship = Rig();
         ship.Visual.Anchors.Add(new ShipAnchor { Id = "loose", Role = "radiator-mesh", ModelNodeId = "loose" });
         Assert.Contains("radiator-mesh anchor loose must be a Radiator hardpoint's mount", Refusal(ship));
+    }
+
+    // Equal Order falls back to the id, compared ordinally, whatever order the anchors were authored in.
+    [Fact]
+    public void MuzzlesOfEqualOrderAreTiedByIdOrdinally()
+    {
+        var ship = Rig();
+        ship.Visual.Anchors.RemoveAll(anchor => anchor.Role == "weapon-muzzle");
+        foreach (var id in new[] { "gun.c", "gun.a", "gun.B", "gun.b" })
+            ship.Visual.Anchors.Add(new ShipAnchor { Id = id, Role = "weapon-muzzle", ModelNodeId = id, ParentId = "gun", Order = 2 });
+        ship.Visual.Anchors.Add(new ShipAnchor { Id = "gun.z", Role = "weapon-muzzle", ModelNodeId = "gun.z", ParentId = "gun", Order = 1 });
+
+        Assert.Equal(new[] { "gun.z", "gun.B", "gun.a", "gun.b", "gun.c" }, Assert.Single(Plan(ship).Weapons).Muzzles);
     }
 
     [Fact]
