@@ -301,6 +301,7 @@ public sealed class MiningCut3Tests : IDisposable
         Assert.DoesNotContain(dark, reachable);
 
         var inTheLight = SpawnShip(s, At(s, lit) + float2(0, -30), sensor: true);
+        Tick((inTheLight, At(s, lit) + float2(0, -30))); // equipment comes online on its first tick
         Assert.True(inTheLight.SetTarget(lit));
         Assert.True(inTheLight.Target.Value.Equals(new TargetRef(lit)));
     }
@@ -366,6 +367,7 @@ public sealed class MiningCut3Tests : IDisposable
         var chunk = new ChunkId(s.Belts[0], 0);
         var eyeAt = At(s, chunk) + float2(0, -100);
         var observer = SpawnShip(s, eyeAt, sensor: true);
+        Tick((observer, eyeAt));
         Assert.True(observer.ChunkVisible(chunk));
 
         Assert.True(s.Zone.Wear(chunk, PlanetSettings().AsteroidHitpoints.Evaluate(.5f) * 2f));
@@ -450,6 +452,7 @@ public sealed class MiningCut3Tests : IDisposable
         var chunk = new ChunkId(s.Belts[0], 0);
         var eyeAt = At(s, chunk) + float2(30, -100);
         var observer = SpawnShip(s, eyeAt, sensor: true);
+        Tick((observer, eyeAt));
         Assert.True(observer.SetTarget(chunk));
 
         for (var tick = 0; tick < 5; tick++) Tick((observer, eyeAt));
@@ -472,6 +475,7 @@ public sealed class MiningCut3Tests : IDisposable
 
         // Its own sensor goes off: nothing sees the chunk, and the next tick drops it.
         var blinded = SpawnShip(s, eyeAt, sensor: true);
+        Tick((blinded, eyeAt));
         var first = new ChunkId(s.Belts[0], 0);
         Assert.True(blinded.SetTarget(first));
         blinded.Equipment.Single(item => item.Data.Name == "Eye").Enabled.Value = false;
@@ -480,6 +484,7 @@ public sealed class MiningCut3Tests : IDisposable
 
         // The chunk breaks: it is dark to everyone, and the next tick drops it.
         var watcher = SpawnShip(s, eyeAt, sensor: true);
+        Tick((watcher, eyeAt));
         var second = new ChunkId(s.Belts[0], 1);
         Assert.True(watcher.SetTarget(second));
         Tick((watcher, eyeAt));
@@ -490,6 +495,7 @@ public sealed class MiningCut3Tests : IDisposable
 
         // It breaks while the holder is docked: Activate drops it before any tick runs.
         var docked = SpawnShip(s, eyeAt, sensor: true);
+        Tick((docked, eyeAt));
         var third = new ChunkId(s.Belts[0], 2);
         Assert.True(docked.SetTarget(third));
         docked.Deactivate();
@@ -539,6 +545,7 @@ public sealed class MiningCut3Tests : IDisposable
         var chunk = new ChunkId(s.Belts[0], 0);
         var eyeAt = At(s, chunk) + float2(0, -100);
         var shooter = SpawnShip(s, eyeAt, sensor: true, weaponRanges: 300f);
+        Tick((shooter, eyeAt));
         var enemy = SpawnShip(s, eyeAt + float2(0, 50));
         shooter.SetIff(enemy, true);
         shooter.EntityInfoGathered[enemy] = 1;
@@ -617,6 +624,20 @@ public sealed class MiningCut3Tests : IDisposable
         Assert.True(((AsteroidBeltData) reloaded.Planets[beltKey]).Kind.Key.Equals(assigned));
     }
 
+    // A writable copy of the shipped catalog plus a scratch run store, through a registry scoped to the shipped
+    // assembly's own document types (RestoredHullsTests' composition): this test assembly's own catalog global
+    // would otherwise be demanded of a catalog that was never authored with it.
+    private static CultCache OpenShippedCatalogCopy(string catalogPath, string runPath)
+    {
+        var registry = CultDocumentRegistry.ForTypes(typeof(ItemData).Assembly.GetTypes()
+            .Where(t => t is { IsAbstract: false, IsInterface: false })
+            .Where(t => t.GetCustomAttributes(typeof(CultDocumentAttribute), false).Length > 0));
+        var cache = new CultCache(registry);
+        cache.AddBackingStore(new GameCult.Caching.MessagePack.SingleFileMessagePackBackingStore(catalogPath, false), AetheriaStores.CatalogTypes);
+        cache.AddBackingStore(new GameCult.Caching.MessagePack.SingleFileMessagePackBackingStore(runPath), AetheriaStores.RunTypes);
+        return cache;
+    }
+
     // Q16 B, generation: every belt ZoneGenerator makes carries its kind already, chosen by FieldKinds.Assign on
     // the belt's own key. Runs against a scratch copy of the shipped catalog with three kinds of different
     // weights, so a pick by any other rule would disagree on some belt.
@@ -631,7 +652,7 @@ public sealed class MiningCut3Tests : IDisposable
             Directory.CreateDirectory(dir);
             var catalog = Path.Combine(dir, "Aetheria.cc");
             File.Copy(shipped, catalog);
-            using var cache = AetheriaStores.Open(catalog, Path.Combine(dir, "run.cc"), catalogWritable: true);
+            using var cache = OpenShippedCatalogCopy(catalog, Path.Combine(dir, "run.cc"));
             foreach (var existing in cache.GetAll<FieldKindData>().ToArray())
             {
                 existing.GenerationWeight = 0f;
