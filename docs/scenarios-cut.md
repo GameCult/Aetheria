@@ -26,6 +26,15 @@ claim measured against a real file.
   "No I won't, but you may." When Cut 4 lands, Self runs `git checkout -- GameData/Aetheria.cc` in
   `F:\Projects\Aetheria`. That one file is the only exception to the rule that agents do not touch the
   operator's tree.
+- **The ten real designs with no product (operator, 2026-09-30).** Soul's census of Cut 1 found that "no product"
+  was not a clean marker for Q3 test designs, because ten shipped designs have none. The operator ruled:
+  - **Industrial gear:** Assembly Line, Deep Ore Extractor, Surface Ore Extractor, Industrial Thermostatic Heater,
+    Refinery, Shipyard. "An old carryover from this Aetheria repo's early history as an RTS game. We'll want those
+    when we eventually bring production back, but it's also fine to just delete them since the new economy won't
+    look anything like the old one." **Self: delete them.** Git history keeps them.
+  - **Weapons:** Autocannon, LRMM72, SRMM72, Tractor Beam. "yep that's a content gap". They get products.
+  - After both, "no product" means exactly "Q3 test design". A census test pins that: every product-less design in
+    the shipped catalog is a scenario test design.
 
 ---
 
