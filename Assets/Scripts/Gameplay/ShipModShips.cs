@@ -34,7 +34,9 @@ public static class ShipModShips
             throw new InvalidOperationException($"The ship mod template prefab ({ShipModTemplate.Key}) is not loadable.");
         var root = new GameObject("Mod Ship Prototypes");
         root.SetActive(false);
-        Object.DontDestroyOnLoad(root);
+        // DontDestroyOnLoad is play-mode only; the edit-mode play smoke builds the same prototypes
+        // without it, and nothing there loads scenes.
+        if (Application.isPlaying) Object.DontDestroyOnLoad(root);
         foreach (var hull in hulls)
         {
             var package = ShipModCatalog.PackageOf(catalog, hull, modsRoot);
