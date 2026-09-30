@@ -87,6 +87,14 @@ claim measured against a real file.
         it. So the Autocannon now has a home (the Turret) and is sold. The Autocannon ruling's own rule, "never
         stock gear no hull can fit", is unchanged.
       - **Batch 3 rulings (operator, 2026-09-30):**
+        - **F1 re-ruled after batch 4 (operator, 2026-09-30): "A, separate thermal balance cut".** Radiators did not fix
+          it. Heat cannot cross the hull to Zenith's edge radiators: the reactor runs at 360-436 K while the radiator
+          cells sit at their 278 K floor. Every station reactor wears out between minute 20 and minute 100. Ships
+          show the same imbalance under load: MoveOnPro runs at about 480 K and is thermally shut down for most of a
+          fight (S8). Thermal balance becomes its own campaign, measured by a steady-state harness across all hulls
+          at idle and under load. Its levers are reactor idle heat, hull conductivity, reactor tolerance and radiator
+          placement. Scenarios Cut 1 merges with the station freeze recorded as a known defect, which predates this
+          work. The 120-minute idle test is held for that campaign.
         - Idle station reactor overheating and burnout (F1): **"Stations should have radiators"** (option C). The
           station has a heat source and no sink.
         - Per-manufacturer station reactors: **"Keep the variety, not every galaxy will have Zhestokost in it"**.
