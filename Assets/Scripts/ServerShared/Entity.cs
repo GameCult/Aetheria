@@ -1003,8 +1003,7 @@ public abstract class Entity
 
         bay.DockedShip = null;
         ship.RemoveParent();
-        Zone.Entities.Add(ship);
-        ship.Activate();
+        Zone.Admit(ship, piloted: false);
 
         return true;
     }
