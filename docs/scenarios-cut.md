@@ -32,6 +32,10 @@ claim measured against a real file.
     Refinery, Shipyard. "An old carryover from this Aetheria repo's early history as an RTS game. We'll want those
     when we eventually bring production back, but it's also fine to just delete them since the new economy won't
     look anything like the old one." **Self: delete them.** Git history keeps them.
+    **Correction, same day:** the **Industrial Thermostatic Heater stays**. Operator: "that industrial heater is sort
+    of needed, though, because currently stations are mostly idle so there's nothing to keep them above freezing
+    and they often cool to near invisibility." Only the other five are deleted. The census test allows product-less
+    gear that stations actually equip, and that set is derived from station generation, not from a hand list.
   - **Weapons:** Autocannon, LRMM72, SRMM72, Tractor Beam. "yep that's a content gap". They get products.
   - After both, "no product" means exactly "Q3 test design". A census test pins that: every product-less design in
     the shipped catalog is a scenario test design.
