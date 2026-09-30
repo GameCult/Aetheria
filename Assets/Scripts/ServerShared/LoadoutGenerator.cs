@@ -92,6 +92,19 @@ public class LoadoutGenerator
             throw new InvalidLoadoutException("Failed to equip selected docking bay!");
         }
 
+        // Every station carries a heater (operator, 2026-09-30): an idle station has no other heat source and cools
+        // toward freezing and invisibility. A heater is general gear whose thermostat runs its heat only below a
+        // target, the composition a cockpit uses: a low-pass Thermotoggle, then Heat, in its behaviours.
+        emptyShape = entity.UnoccupiedSpace;
+        var (heaterProduct, heaterData) = RandomProduct<GearData>(2, item => IsHeater(item) && item.Shape.FitsWithin(emptyShape, out _, out _), required: true);
+        if (heaterData == null) throw new InvalidLoadoutException("No compatible heater found for station!");
+
+        heaterData.Shape.FitsWithin(emptyShape, out var heaterRotation, out var heaterPosition);
+        var heater = ItemManager.CreateInstance(heaterProduct) as EquippableItem;
+        heater.Rotation = heaterRotation;
+        if (!entity.TryEquip(heater, heaterPosition))
+            throw new InvalidLoadoutException("Failed to equip selected heater!");
+
         FillInterior(entity);
 
         var cargo = entity.CargoBays.First();
@@ -108,6 +121,11 @@ public class LoadoutGenerator
 
         return EntitySerializer.Pack(entity) as OrbitalEntityPack;
     }
+
+    private static bool IsHeater(GearData item) =>
+        item.HardpointType == HardpointType.Tool &&
+        item.Behaviors.Any(b => b is ThermotoggleData { HighPass: false }) &&
+        item.Behaviors.Any(b => b is HeatData);
 
     // Every entity needs a hull, so hulls are always required
     public (FactionProductData product, HullData design) RandomHull(HullType type, Predicate<HullData> hullFilter = null)

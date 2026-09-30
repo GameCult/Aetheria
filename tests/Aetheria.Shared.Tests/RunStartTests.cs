@@ -400,6 +400,23 @@ public sealed class RunStartTests : IDisposable
         Assert.Empty(RunStart.Check(_items, null));
     }
 
+    // A heater is gear whose thermostat runs its heat only below a target: a low-pass thermotoggle, then heat.
+    private static bool IsHeater(EquippedItem item) =>
+        item.Behaviors.OfType<Thermotoggle>().Any(t => !t.ThermotoggleData.HighPass) && item.Behaviors.OfType<Heat>().Any();
+
+    // Every generated station carries exactly one heater.
+    [Fact]
+    public void EveryGeneratedStationCarriesOneHeater()
+    {
+        var zone = Arena(null);
+        var generator = new LoadoutGenerator(ref _items.Random, _items, _galaxy, _galaxy.Entrance, _protagonist, .5f);
+        for (var i = 0; i < 8; i++)
+        {
+            var station = EntitySerializer.Unpack(_items, zone, generator.GenerateStationLoadout());
+            Assert.True(station.Equipment.Count(IsHeater) == 1, $"station {i} carries {station.Equipment.Count(IsHeater)} heaters");
+        }
+    }
+
     // Q3, with the operator's 2026-09-30 ruling on the ten product-less designs: a design no product sells is a
     // scenario test design and nothing else. A test design is one a scenario places: its preset's hull or a slot of
     // it, or cargo it carries. These are the unsold designs no scenario places, by name.
