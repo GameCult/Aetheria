@@ -166,16 +166,29 @@ public class Zone
 
     public void AddOrbit(OrbitData orbit)
     {
+        SettleBelts();
         Orbits.Add(_itemManager.ItemData.RefOf(orbit).Key, new Orbit(Settings, orbit));
+    }
+
+    // The asteroid belts' tasks read the clock, the orbits and each belt's damage and respawn state. Everything that
+    // writes any of those settles the running tasks first. The list is cleared even when a task failed, so a failure
+    // surfaces once, here, instead of on every later tick.
+    private void SettleBelts()
+    {
+        try
+        {
+            Task.WaitAll(BeltUpdates.ToArray());
+        }
+        finally
+        {
+            BeltUpdates.Clear();
+        }
     }
 
     public void Update(float deltaTime)
     {
+        SettleBelts();
         _time += deltaTime;
-        // Last tick's belt tasks read the orbit cache; they finish before it is cleared.
-        foreach (var t in BeltUpdates)
-            t.Wait();
-        BeltUpdates.Clear();
         _updatedOrbits.Clear();
         foreach (var orbit in Orbits)
         {
@@ -308,6 +321,7 @@ public class Zone
         var currentPhase = frac(_time / period);
         var storedPhase = (float) frac(phase - currentPhase);
 
+        SettleBelts();
         var orbit = new OrbitData
         {
             Distance = distance,
@@ -320,6 +334,7 @@ public class Zone
 
     public void MineAsteroid(Entity miner, CultRecordKey asteroidBelt, int asteroid, float damage, float efficiency, float penetration)
     {
+        SettleBelts();
         var beltData = Planets[asteroidBelt] as AsteroidBeltData;
         var belt = AsteroidBelts[asteroidBelt];
         //var asteroidTransform = belt.Transforms[asteroid];
