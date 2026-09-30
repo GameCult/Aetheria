@@ -172,10 +172,11 @@ public class Zone
     public void Update(float deltaTime)
     {
         _time += deltaTime;
-        _updatedOrbits.Clear();
+        // Last tick's belt tasks read the orbit cache; they finish before it is cleared.
         foreach (var t in BeltUpdates)
             t.Wait();
         BeltUpdates.Clear();
+        _updatedOrbits.Clear();
         foreach (var orbit in Orbits)
         {
             orbit.Value.PreviousPosition = orbit.Value.Position;

@@ -462,6 +462,30 @@ public sealed class RunStartTests : IDisposable
         Assert.Contains("heater", failure.Message);
     }
 
+    // Orbit positions are computed once per tick, before the asteroid belts' tasks start, and those tasks finish
+    // before the next tick clears the cache. Were the cache cleared under a running belt task, an orbit could be
+    // served last tick's position. Over 3000 back-to-back ticks no orbit stands still against its parent. (Measured
+    // against the parent because a moon can genuinely pause in zone space, where its motion cancels its planet's.)
+    [Fact]
+    public void NoOrbitStandsStillAgainstItsParent()
+    {
+        var zone = Arena(new Scenario { Ambient = false }); // no ships: nothing but the zone runs
+        Assert.True(zone.AsteroidBelts.Count > 0, "the arena has an asteroid belt to race against");
+        float2 Relative(Orbit orbit, bool previous) =>
+            (previous ? orbit.PreviousPosition : orbit.Position) -
+            (zone.Orbits.TryGetValue(orbit.Data.Parent.Key, out var parent) ? previous ? parent.PreviousPosition : parent.Position : orbit.Data.FixedPosition);
+        zone.Update(.02f);
+        var stalls = new List<string>();
+        for (var tick = 0; tick < 3000; tick++)
+        {
+            zone.Update(.02f);
+            stalls.AddRange(zone.Orbits.Values
+                .Where(orbit => orbit.Period > .01f && orbit.Data.Distance > 0 && lengthsq(Relative(orbit, false) - Relative(orbit, true)) == 0)
+                .Select(orbit => $"tick {tick}: period {orbit.Period}, distance {orbit.Data.Distance}, at {orbit.Position}"));
+        }
+        Assert.True(stalls.Count == 0, $"{stalls.Count} readings of an orbit standing still; first {stalls.FirstOrDefault()}");
+    }
+
     // Q3, with the operator's 2026-09-30 ruling on the ten product-less designs: a design no product sells is a
     // scenario test design and nothing else. A test design is one a scenario places: its preset's hull or a slot of
     // it, or cargo it carries. These are the unsold designs no scenario places, by name.
