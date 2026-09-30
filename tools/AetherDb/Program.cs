@@ -37,8 +37,9 @@ public static class Program
             case "targeting-catalog-6c": return TargetingCatalog6c(args.Contains("apply"));
             case "targeting-catalog-6d": return TargetingCatalog6d(args.Contains("apply"));
             case "product-gap": return ProductGap(args.Contains("apply"));
+            case "station-reactor": return StationReactor(args.Contains("apply"));
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], product-gap [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], product-gap [apply], station-reactor [apply]");
                 return 1;
         }
     }
@@ -1553,6 +1554,73 @@ public static class Program
             foreach (var product in made) batch.Upsert(typeof(FactionProductData), product, new CultRecordKey(Guid.NewGuid().ToString("N")));
         });
         Console.WriteLine($"\nLanded {industrial.Length} deletions, {made.Length} products and the heater's price and durability in Aetheria.cc");
+        return 0;
+    }
+
+    // Scenarios map, operator ruling 2026-09-30 ("Yep, we need a station reactor"): Zenith's 16-cell Reactor hardpoint
+    // had no design to fill it, so generated stations had no power and their heater never ran. The station reactor is
+    // Manhattan, the largest and most industrial reactor, scaled to the slot: a full 4x4, its charge, mass and price
+    // times 16/9 (its cells over Manhattan's), every other value and stat term Manhattan's own, sold by Manhattan's maker.
+    private static int StationReactor(bool apply)
+    {
+        var db = AetherDb.Open(catalogWritable: apply);
+        var cache = db.Cache;
+        if (cache.GetAll<GearData>().Any(d => d.Name == "Station Reactor")) throw new InvalidOperationException("Station Reactor already exists.");
+        var manhattan = cache.GetAll<GearData>().Single(d => d.Name == "Manhattan");
+        var manhattanProduct = cache.GetAll<FactionProductData>().Single(p => p.Design.Key.Equals(cache.RefOf(manhattan).Key));
+        const float scale = 16f / 9f;
+
+        var shape = new Shape(4, 4);
+        foreach (var cell in shape.AllCoordinates) shape[cell] = true;
+        var design = new GearData
+        {
+            Name = "Station Reactor",
+            Description = "A reactor sized for a station's core.",
+            Hardpoint = HardpointType.Reactor,
+            Shape = shape,
+            Mass = manhattan.Mass * scale,
+            Price = (int) Math.Round(manhattan.Price * scale / 50000) * 50000,
+            SpecificHeat = manhattan.SpecificHeat,
+            Conductivity = manhattan.Conductivity,
+            Durability = manhattan.Durability,
+            MinimumTemperature = manhattan.MinimumTemperature,
+            MaximumTemperature = manhattan.MaximumTemperature,
+            OptimalTemperature = manhattan.OptimalTemperature,
+            PlateauWidth = manhattan.PlateauWidth,
+            ThermalResilience = manhattan.ThermalResilience,
+            SoundBank = manhattan.SoundBank,
+            Roles = manhattan.Roles.Select(role => new ItemRole { Name = role.Name }).ToList(),
+            Behaviors = MessagePack.MessagePackSerializer.Deserialize<List<BehaviorData>>(MessagePack.MessagePackSerializer.Serialize(manhattan.Behaviors)),
+        };
+        var reactor = design.Behaviors.OfType<ReactorData>().Single();
+        reactor.Charge.Min *= scale;
+        reactor.Charge.Max *= scale;
+        var product = new FactionProductData
+        {
+            Name = "Station Reactor",
+            Description = "",
+            Manufacturer = manhattanProduct.Manufacturer,
+            Roles = design.Roles.Select(role => new ProductRole { Role = role.Name }).ToList(),
+        };
+
+        Console.WriteLine($"Station Reactor, from Manhattan x {scale:F3}: shape 4x4 (16), mass {manhattan.Mass} -> {design.Mass}, " +
+                          $"price {manhattan.Price} -> {design.Price}, charge {reactor.Charge.Min / scale}..{reactor.Charge.Max / scale} -> {reactor.Charge.Min}..{reactor.Charge.Max}; " +
+                          $"product by {cache.Get(product.Manufacturer).Name}");
+        if (!apply)
+        {
+            Console.WriteLine("\nDry run. Pass \"apply\" to land it.");
+            return 0;
+        }
+
+        CultRecordRefs.Validate(design);
+        var key = new CultRecordKey(Guid.NewGuid().ToString("N"));
+        product.Design = new CultRecordRef<CraftedItemData>(key);
+        cache.Commit(batch =>
+        {
+            batch.Upsert(typeof(GearData), design, key);
+            batch.Upsert(typeof(FactionProductData), product, new CultRecordKey(Guid.NewGuid().ToString("N")));
+        });
+        Console.WriteLine("\nLanded the Station Reactor and its product in Aetheria.cc");
         return 0;
     }
 }

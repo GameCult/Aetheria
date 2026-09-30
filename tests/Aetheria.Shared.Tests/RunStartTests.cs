@@ -404,9 +404,9 @@ public sealed class RunStartTests : IDisposable
     private static bool IsHeater(EquippedItem item) =>
         item.Behaviors.OfType<Thermotoggle>().Any(t => !t.ThermotoggleData.HighPass) && item.Behaviors.OfType<Heat>().Any();
 
-    // Every generated station carries exactly one heater.
+    // Every generated station carries exactly one heater, and a reactor to power it.
     [Fact]
-    public void EveryGeneratedStationCarriesOneHeater()
+    public void EveryGeneratedStationCarriesOneHeaterAndAReactor()
     {
         var zone = Arena(null);
         var generator = new LoadoutGenerator(ref _items.Random, _items, _galaxy, _galaxy.Entrance, _protagonist, .5f);
@@ -414,7 +414,52 @@ public sealed class RunStartTests : IDisposable
         {
             var station = EntitySerializer.Unpack(_items, zone, generator.GenerateStationLoadout());
             Assert.True(station.Equipment.Count(IsHeater) == 1, $"station {i} carries {station.Equipment.Count(IsHeater)} heaters");
+            Assert.True(station.Equipment.Any(item => item.Behaviors.OfType<Reactor>().Any()), $"station {i} has no reactor");
         }
+    }
+
+    private const float Freezing = 273.15f;
+
+    // An idle station, powered by its reactor, holds its heater's cells (where the thermostat reads) above freezing
+    // over the second five of ten idle minutes. Unpowered, they cool from 280 K to about 247 K in that time. (The
+    // station's border cells still sit near 265 K; how warm the whole hull should run is a tuning question.)
+    [Fact]
+    public void AnIdleStationStaysAboveFreezing()
+    {
+        var zone = Arena(new Scenario { Ambient = false }); // no ships: nothing but the zone runs
+        var station = zone.Entities.First(entity => entity is OrbitalEntity && entity.DockingBays.Count > 0);
+        var heater = station.Equipment.Single(IsHeater);
+        var coldest = float.MaxValue;
+        for (var tick = 0; tick < 6000; tick++)
+        {
+            zone.Update(.1f);
+            if (tick >= 3000) coldest = min(coldest, heater.Temperature);
+        }
+        Assert.True(coldest > Freezing, $"the heater's cells fell to {coldest} K (station now {station.MinTemp}..{station.MaxTemp} K)");
+    }
+
+    // A station hull with no room left for a heater fails its generation by name, rather than spawning a station
+    // that will freeze. The only station hull on offer is one whose interior takes the smallest docking bay and no more.
+    [Fact]
+    public void AStationWithNoRoomForAHeaterFailsLoudly()
+    {
+        var sold = _cache.GetAll<FactionProductData>().Select(product => product.Design.Key).ToHashSet();
+        var bay = _cache.GetAll<DockingBayData>().Where(design => sold.Contains(_cache.RefOf(design).Key))
+            .OrderBy(design => design.Shape.Coordinates.Length).ThenBy(design => design.Name, StringComparer.Ordinal).First();
+        var shape = new Shape(bay.Shape.Width + 2, bay.Shape.Height + 2);
+        foreach (var cell in shape.AllCoordinates) shape[cell] = true;
+        var cramped = new HullData { Name = "Cramped Station", HullType = HullType.Station, Shape = shape, Durability = 100, Mass = 1000, Price = 1 };
+        _cache.Upsert(cramped);
+        _cache.Upsert(new FactionProductData
+        {
+            Name = "Cramped Station", Design = new CultRecordRef<CraftedItemData>(_cache.RefOf(cramped).Key), Manufacturer = _cache.RefOf(_protagonist)
+        });
+        foreach (var hull in _cache.GetAll<HullData>().Where(hull => hull.HullType == HullType.Station && hull != cramped))
+            hull.Price = 0; // generation offers no zero-price design, so the cramped hull is the only station
+        var generator = new LoadoutGenerator(ref _items.Random, _items, _galaxy, _galaxy.Entrance, _protagonist, .5f);
+
+        var failure = Assert.Throws<InvalidLoadoutException>(() => generator.GenerateStationLoadout());
+        Assert.Contains("heater", failure.Message);
     }
 
     // Q3, with the operator's 2026-09-30 ruling on the ten product-less designs: a design no product sells is a
