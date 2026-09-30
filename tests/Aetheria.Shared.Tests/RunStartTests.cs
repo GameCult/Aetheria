@@ -430,18 +430,16 @@ public sealed class RunStartTests : IDisposable
             authored.Read<NameGeneratorSettings>("NameGeneratorSettings"), _cache, _ => { }, null, GalaxySeed);
     }
 
-    // Every item a station carries, equipped or stocked, with the faction that made it.
-    private IEnumerable<(string item, Faction maker)> Made(Entity station) =>
+    // Every item a station carries, equipped or stocked, with the product it was made as.
+    private IEnumerable<(string item, FactionProductData product)> Made(Entity station) =>
         station.Equipment.Select(item => item.EquippableItem).Cast<CraftedItemInstance>()
             .Concat(station.CargoBays.SelectMany(bay => bay.Cargo.Keys).OfType<CraftedItemInstance>())
-            .Select(item => (_items.GetData(item).Name, _items.Brand(item).Maker));
+            .Select(item => (_items.GetData(item).Name, _items.Brand(item).Product));
 
-    private bool Reaches(Galaxy galaxy, Faction faction, Faction maker) =>
-        maker != null && galaxy.ContainsFaction(_cache.RefOf(maker)) &&
-        faction.Allegiance.Keys.Any(key => key.Key.Equals(_cache.RefOf(maker).Key));
+    private string Maker(FactionProductData product) => product == null ? "nobody" : _cache.Get(product.Manufacturer)?.Name ?? "nobody";
 
     // Every faction's stations, in a main-sector galaxy, carry a heater and a reactor, and nothing, equipped or
-    // stocked, from a manufacturer that faction cannot reach.
+    // stocked, from a manufacturer that faction cannot reach (LoadoutGenerator.IsAvailable, the one reach rule).
     [Fact]
     public void EveryFactionsStationsCarryOnlyGearItCanReachIncludingAHeaterAndAReactor()
     {
@@ -456,11 +454,49 @@ public sealed class RunStartTests : IDisposable
                 var station = EntitySerializer.Unpack(_items, zone, generator.GenerateStationLoadout());
                 Assert.True(station.Equipment.Count(IsHeater) == 1, $"{faction.Name} station {i}: no heater");
                 Assert.True(station.Equipment.Any(item => item.Behaviors.OfType<Reactor>().Any()), $"{faction.Name} station {i}: no reactor");
-                var unreachable = Made(station).Where(made => !Reaches(galaxy, faction, made.maker)).ToList();
+                var unreachable = Made(station).Where(made => made.product == null || !generator.IsAvailable(made.product)).ToList();
                 Assert.True(unreachable.Count == 0,
-                    $"{faction.Name} station {i} carries {string.Join(", ", unreachable.Select(u => u.item + " by " + (u.maker?.Name ?? "nobody")))}");
+                    $"{faction.Name} station {i} carries {string.Join(", ", unreachable.Select(u => u.item + " by " + Maker(u.product)))}");
             }
         }
+    }
+
+    // A faction with no access to Zhestokost (its allegiance names only AU, Lightsail and NiteLife) gets
+    // stations with no Zhestokost gear, powered by a reactor it can reach, and an idle one of them holds its heater's
+    // cells above freezing over the second five of ten minutes.
+    [Fact]
+    public void AStationWithoutZhestokostAccessIsPoweredAndStaysAboveFreezing()
+    {
+        var galaxy = MainGalaxy();
+        Faction Named(string shortName) => _cache.GetAll<Faction>().Single(f => f.ShortName == shortName);
+        var coop = new Faction { Name = "Test Cooperative", ShortName = "Coop" };
+        _cache.Upsert(coop);
+        foreach (var ally in new[] { Named("AU"), Named("Lightsail"), Named("NiteLife") }) coop.Allegiance[_cache.RefOf(ally)] = 1;
+        var zhestokost = Named("Zhestokost");
+        var generator = new LoadoutGenerator(ref _items.Random, _items, galaxy, galaxy.Entrance, coop, .5f);
+        var products = _cache.GetAll<FactionProductData>().Where(p => p.Manufacturer.IsSet()).ToArray();
+        Assert.DoesNotContain(products.Where(p => p.Manufacturer.Key.Equals(_cache.RefOf(zhestokost).Key)), generator.IsAvailable);
+        Assert.Contains(products.Where(p => p.Manufacturer.Key.Equals(_cache.RefOf(Named("AU")).Key)), generator.IsAvailable);
+        var zone = Arena(new Scenario { Ambient = false }); // no ships: nothing but the zone runs
+        Entity station = null;
+        for (var i = 0; i < 8; i++)
+        {
+            station = EntitySerializer.Unpack(_items, zone, generator.GenerateStationLoadout());
+            Assert.True(station.Equipment.Any(item => item.Behaviors.OfType<Reactor>().Any()), $"station {i}: no reactor");
+            var foreign = Made(station).Where(made => made.product == null || !generator.IsAvailable(made.product) ||
+                                                      made.product.Manufacturer.Key.Equals(_cache.RefOf(zhestokost).Key)).ToList();
+            Assert.True(foreign.Count == 0, $"station {i} carries {string.Join(", ", foreign.Select(u => u.item + " by " + Maker(u.product)))}");
+        }
+
+        zone.Admit(station, piloted: false);
+        var heater = station.Equipment.Single(IsHeater);
+        var coldest = float.MaxValue;
+        for (var tick = 0; tick < 6000; tick++)
+        {
+            zone.Update(.1f);
+            if (tick >= 3000) coldest = min(coldest, heater.Temperature);
+        }
+        Assert.True(coldest > Freezing, $"the heater's cells fell to {coldest} K (station now {station.MinTemp}..{station.MaxTemp} K)");
     }
 
     // An idle station, powered by its reactor, holds its heater's cells (where the thermostat reads) above freezing
