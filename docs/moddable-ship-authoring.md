@@ -6,6 +6,10 @@ authoring, validation, loading, and play checks.
 
 ## LineArt proof from Quiet.blend
 
+The numbers in this section and in the compose example below come from an
+unrecorded probe. `Build/quiet.cc` is git-ignored and no committed fixture or
+test reproduces them.
+
 `C:\Users\Meta\Desktop\Quiet.blend` is a read-only source for this probe. At frame
 1, `Quiet / Dexter Quiet Lineart` evaluates to 1,040 polylines with 3,125
 points. Blender 5.2.2 wrote those coordinates, point radii and opacities,
@@ -96,7 +100,9 @@ is not yet an end-to-end ship loader in the current game.
   migrated hull; it does not keep two writable definitions of that hull.
 
 `ship-authoring validate`, the catalog composer, and the visual importer call
-the same semantic validator. Blender edits the hull grid, hardpoints, and
+the same semantic validator; that shared path is true of the C# callers only.
+The Blender side checks grid bounds and footprint shape (`ship_cc.py`) and
+nothing semantic. Blender edits the hull grid, hardpoints, and
 captured lines in the typed source record; `inspect` reads incomplete drafts.
 Unity's **Aetheria / Preview Mod Ship
 Package** imports a validated package from disk, resolves stable GLB node IDs,
@@ -107,13 +113,23 @@ records.
 
 ## Runtime catalog seam
 
+`AetheriaStores.CatalogTypes` routes `ShipAuthoring` to the shipped catalog,
+but the shipped catalog contains no `ShipAuthoring` record. This stays correct
+only while nothing writes a `ShipAuthoring` through a catalog-writable cache on
+`Aetheria.cc`; a mod ship's authoring record lives in its own `ship.cc` and in
+the derived catalog.
+
 `CultCache` routes `ItemData` to one home backing store, and
 `ActionGameManager.CultCache` holds that store for the entire play session.
 Attaching each mod's `.cc` as another item store would violate the cache's
 one-home invariant. `ship-authoring compose` instead derives one runtime catalog from
 the shipped catalog and validated mod packages, preserving all shipped record
 keys. Each mod's stable `ShipAuthoring.Id` yields separate deterministic keys
-for its copied `HullData` and its runtime authoring record. The generated
+for its copied `HullData` (`mod-hull:<id>`) and its runtime authoring record
+(`mod-ship:<id>`). The authoring record's key 1 is the same `HullData`, so the
+derived catalog currently holds each mod hull twice. Gameplay reads only the
+`mod-hull` copy; the `mod-ship` copy is dead weight inside a disposable file
+until the open question on which record owns the hull is settled. The generated
 catalog is disposable; the shipped catalog and each mod's source `.cc` remain
 the owners. A player session opens one catalog snapshot and cannot hot-swap its
 designs beneath existing entities.

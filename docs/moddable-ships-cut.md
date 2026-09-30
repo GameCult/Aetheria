@@ -136,9 +136,30 @@ control, which has since moved 8 commits to `b66ba524`. Neither side touches the
 | `375d6bd4` | Blender layout editing (hull grid, hardpoints) through `ship_cc.py` |
 
 The delta is +511 C# (including `tools/AetherDb`), +494 Python, +119 tests, and one new Unity package dependency.
-It also carries a stray fix in `TradeMenu.cs` (an unused `using System.Runtime.Remoting.Contexts`).
+It also carries a stray fix in `Assets/Scripts/UI/Menu/TradeMenu.cs` (an unused `using System.Runtime.Remoting.Contexts`).
+Self's ruling: it stays on this branch as cleanup. Master compiled clean in Unity with the using present, so master does
+not need it.
 
 **Test counts.** The two ship tests pass on the merged tree: 364/364 (section 0).
+
+**S-Soul status:** F1, F2, F3 and F6 fixed at `fe38f288` (479 tests). F4 has no spec entry. The Python tests
+(`tools/blender/tests/test_ship_cc.py`, 32) have no runner yet; run them by hand.
+
+**S0 status (2026-09-30):** master `65c63495` (fire control 12, `dcd7bbc5`) merged into `codex/moddable-ships` with
+`--no-ff` at `18e12d81`, no conflicts. Corrections 1-4 applied to `docs/moddable-ship-authoring.md`. Yggdrasil full
+suite on the merge (`dotnet test tests/Aetheria.Shared.Tests`, CultLib `45c2f40`, CultMath `6d5e209`): **615 passed, 0 failed**. The Unity batchmode compile and the `ShipModPreview.Smoke` run are Self's
+steps and have not run.
+
+**Anchors re-taken against the merged tree (`18e12d81`).**
+- Unchanged: `ShipAuthoring.cs:15` (`Hull`, key 1), `:84`, `:111-136` (the hardpoint checks are `:112-131`),
+  `ShipModCatalog.cs:20-21` (keys), `ItemData.cs:512` (`Hardpoints` `Key(23)`), `:515` (`Prefab` `Key(24)`),
+  `Loadout.cs:74`, `EntityInstance.cs:15-27`, `ZoneRenderer.cs:289-310` (`LoadEntity`), `AetheriaStores.cs:9`.
+- Moved: the second upsert in `ShipModCatalog.Compose` is `:68-69` (was `:60-61`; the F1-F3 fix added the
+  name-collision checks above it). `ship_cc.py`: slot constants are `:23-25`, `replace_layout` is `:96-124`,
+  the `body[HULL_SLOT]` reads are `:84,101`. `ActionGameManager.cs`: the catalog opens at `:55-59`
+  (`AetheriaStores.Open`, not `:45-60`); `capturepreset` is `:621-662`.
+- S1's key 32 for `HullData.Visual` holds: `EquippableItemData` owns 30 and 31, `HullData` uses 23-29, and
+  `WeaponItemData.Fuse` at 32 (`ItemData.cs:505`) is a sibling class, not an ancestor.
 
 **Proof-gate status against the doc's own gates (`docs/moddable-ship-authoring.md:149-164` @`375d6bd4`):**
 
