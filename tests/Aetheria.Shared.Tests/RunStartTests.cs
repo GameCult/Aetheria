@@ -191,7 +191,8 @@ public sealed class RunStartTests : IDisposable
             player.CargoBays.First().Cargo.Keys.Select(item => item.Data.Key.Value).OrderBy(k => k));
     }
 
-    // A piloted entity gets exactly one agent; an unpiloted one gets none and stays where it was put.
+    // A piloted entity gets exactly one agent; an unpiloted one gets none, and nothing steers it. (It is not frozen:
+    // the zone's gravity still moves it, as it moves any ship, so the rule is observed on its steering inputs.)
     [Fact]
     public void APilotedEntityHasOneAgentAndAnUnpilotedOneNoneAndStaysPut()
     {
@@ -208,9 +209,14 @@ public sealed class RunStartTests : IDisposable
         Assert.Contains(piloted, zone.Entities);
         Assert.Contains(unpiloted, zone.Entities);
 
-        var start = unpiloted.Position;
-        for (var tick = 0; tick < 50; tick++) zone.Update(.1f);
-        Assert.True(length(unpiloted.Position - start) < .01f, $"the unpiloted ship moved to {unpiloted.Position}");
+        var look = unpiloted.LookDirection;
+        for (var tick = 0; tick < 50; tick++)
+        {
+            zone.Update(.1f);
+            Assert.Equal(float2.zero, ((Ship) unpiloted).MovementDirection);
+            Assert.Equal(look, unpiloted.LookDirection);
+        }
+        Assert.Equal(0, AgentsOf(zone, unpiloted));
     }
 
     // A stance holds both ways between the entity and the player.
