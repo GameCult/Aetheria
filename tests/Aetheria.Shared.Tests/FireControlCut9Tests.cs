@@ -428,7 +428,7 @@ public sealed class FireControlCut9Tests : IDisposable
                 e.Shooter.EntityInfoGathered[e.Target] = info;
                 var hud = FireControl.Inspect(e.Weapon, e.Shooter, e.Target);
                 var hot = FireControl.HitProbability(e.Weapon, e.Shooter, e.Target);
-                Assert.True(hud.Visible && hud.InRange && hud.Locked && hud.InArc, $"info {info}: precondition, every gate open");
+                Assert.True(hud.Designated && hud.InArc, $"info {info}: precondition, every gate open");
                 Assert.True(hot > 0f, $"info {info}, Precision {precision}: precondition, a shot that can land");
                 Assert.Equal(hot, hud.Accuracy * hud.PSensor * hud.PSpread * hud.POnHull, 5);
                 sawPartialSpread |= hud.PSpread < .99f;
@@ -445,7 +445,7 @@ public sealed class FireControlCut9Tests : IDisposable
             }
 
             e.Target.Position = origin + float3(0, 0, 5000);
-            Closed("out of range", d => d.InRange);
+            Closed("out of range", d => d.Designated);
             e.Target.Position = origin + float3(0, 0, -100);
             Closed("behind the mount", d => d.InArc);
 
@@ -455,13 +455,13 @@ public sealed class FireControlCut9Tests : IDisposable
             e.Target.Position = float3(600, 0, 500);
             var far = FireControl.Inspect(e.Weapon, e.Shooter, e.Target);
             Assert.Equal(500f, far.Range, 3);
-            Assert.True(far.InRange && FireControl.HitProbability(e.Weapon, e.Shooter, e.Target) > 0f, "shooter far from the origin");
+            Assert.True(far.Designated && FireControl.HitProbability(e.Weapon, e.Shooter, e.Target) > 0f, "shooter far from the origin");
             checkedConfigurations++;
             e.Shooter.Position = origin;
             e.Target.Position = origin + float3(0, 0, 100);
 
             e.Shooter.VisibleEntities.Remove(e.Target);
-            Closed("not visible", d => d.Visible);
+            Closed("not visible", d => d.Designated);
 
             Assert.False(FireControl.Inspect(e.Weapon, e.Shooter, null).HasTarget);
             Assert.Equal(0f, FireControl.HitProbability(e.Weapon, e.Shooter, null));

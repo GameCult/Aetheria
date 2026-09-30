@@ -43,6 +43,21 @@ public class Zone
     private int _nextShotId;
     public int NextShotId() => ++_nextShotId;
 
+    // The committed shot a presentation was handed the id of by OnFire. It carries what the simulation decided
+    // -- the target it flies at (null for a round that carries none) and where it bursts -- so a presentation
+    // reads that rather than the shooter's current selection.
+    public bool TryGetShot(int shotId, out PendingShot shot)
+    {
+        foreach (var pending in PendingShots)
+            if (pending.ShotId == shotId)
+            {
+                shot = pending;
+                return true;
+            }
+        shot = default;
+        return false;
+    }
+
     public float Time
     {
         get => (float) _time;

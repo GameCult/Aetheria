@@ -50,7 +50,9 @@ public class ConsoleView : MonoBehaviour {
 		
 		Keyboard.current.onTextInput += c =>
 		{
-			if (!Visible || c == '`') return;
+			// Text input also delivers control characters (backspace as '\b', enter as '\r'); editing keys are
+			// handled in Update, so only printable characters are text.
+			if (!Visible || c == '`' || char.IsControl(c)) return;
 			InputString += c;
 		};
 		InputString = "";
@@ -81,7 +83,7 @@ public class ConsoleView : MonoBehaviour {
 
 		if (!Visible) return;
 		
-		if(keyboard.deleteKey.wasPressedThisFrame && InputString.Length>0)
+		if((keyboard.backspaceKey.wasPressedThisFrame || keyboard.deleteKey.wasPressedThisFrame) && InputString.Length>0)
 	    {
 		    InputString = InputString.Substring(0, InputString.Length - 1);
 	    }

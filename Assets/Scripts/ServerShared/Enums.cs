@@ -107,6 +107,15 @@ public enum WeaponModifiers
     Cluster = 1 << 6
 }
 
+// Cut 12.4(a) (docs/fire-control-cut.md): what a weapon's blast radius (WeaponItemData.BlastRadius) detonates
+// as. Null means no blast at all -- WeaponItemData.Fuse is frozen null unless BlastRadius > 0 (FireControl.Fire).
+public enum WeaponFuse
+{
+    Contact,
+    Proximity,
+    Delayed
+}
+
 public enum DamageType
 {
     Kinetic,

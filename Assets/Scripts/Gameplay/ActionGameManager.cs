@@ -405,11 +405,8 @@ public class ActionGameManager : MonoBehaviour
 
         // Cut 2 (docs/fire-control-cut.md): cycles the aim point among the current target's revealed
         // subsystems -- decides nothing itself, only calls the one writer (TrySelectTargetItem), same
-        // predicate (FireControl.IsRevealed) the AI path uses. No generated typed accessor exists for this
-        // action yet (it was hand-authored into Aetheria.inputactions rather than regenerated through the
-        // Unity Input Actions editor, unavailable here), so it is looked up by name instead of through
-        // Input.Player.
-        Input.asset.FindAction("Player/Cycle Target Item").performed += context =>
+        // predicate (FireControl.IsRevealed) the AI path uses.
+        Input.Player.CycleTargetItem.performed += context =>
         {
             var target = CurrentEntity.Target.Value;
             if (target == null) return;
@@ -521,10 +518,29 @@ public class ActionGameManager : MonoBehaviour
                 var itemName = string.Join(" ", args);
                 var item = ItemManager.ItemData.GetAll<EquippableItemData>()
                     .FirstOrDefault(itemData => string.Equals(itemData.Name, itemName, StringComparison.InvariantCultureIgnoreCase));
-                if (item != null)
+                if (item == null)
                 {
-                    _currentEntity.CargoBays.First().TryStore(ItemManager.CreateInstance(ItemManager.CreateLot(item, default, .95f)));
+                    ConsoleController.Instance.AppendLogLine($"No equippable item named \"{itemName}\"");
+                    return;
                 }
+                if (item is HullData hull)
+                {
+                    if (hull.HullType != HullType.Ship)
+                    {
+                        ConsoleController.Instance.AppendLogLine($"Refused: {item.Name} is a {hull.HullType} hull, not a ship");
+                        return;
+                    }
+                    if (DockedEntity == null)
+                    {
+                        ConsoleController.Instance.AppendLogLine($"Refused: dock to take delivery of a {item.Name}");
+                        return;
+                    }
+                    CommissionShip(ItemManager.CreateInstance(ItemManager.CreateLot(item, default, .95f)) as EquippableItem);
+                    ConsoleController.Instance.AppendLogLine($"{item.Name} moored at {DockedEntity.Name}");
+                    return;
+                }
+                if (!_currentEntity.CargoBays.First().TryStore(ItemManager.CreateInstance(ItemManager.CreateLot(item, default, .95f))))
+                    ConsoleController.Instance.AppendLogLine($"Refused: no cargo space for {item.Name}");
             });
         
         ConsoleController.AddCommand("trackmissile",
@@ -535,7 +551,7 @@ public class ActionGameManager : MonoBehaviour
                     missileManager.OnFireGuided.Where(x => x.source == _currentEntity).Take(1).Subscribe(x =>
                     {
                         FollowCamera.Follow = x.missile.transform;
-                        FollowCamera.LookAt = x.target;
+                        FollowCamera.LookAt = x.target ? x.target : x.missile.transform;
                         x.missile.OnKill += () =>
                         {
                             FollowCamera.LookAt = ZoneRenderer.EntityInstances[CurrentEntity].LookAtPoint;
@@ -875,6 +891,15 @@ public class ActionGameManager : MonoBehaviour
                 }
             }
         }
+    }
+
+    // A ship hull acquired while docked becomes a bare player ship moored at the docked entity. It takes no docking
+    // bay: mothballed ships do not need one. Buying from the trade menu and the give command both land here.
+    public Ship CommissionShip(EquippableItem hull)
+    {
+        var ship = new Ship(ItemManager, Zone, hull, ItemManager.GameplaySettings.DefaultEntitySettings) { IsPlayerShip = true };
+        ship.SetParent(DockedEntity);
+        return ship;
     }
 
     private void DoDock(Entity entity, EquippedDockingBay dockingBay)
@@ -1282,6 +1307,13 @@ public class ActionGameManager : MonoBehaviour
         }
     }
 
+    private static string ResultLabel(ShotResult result) => result switch
+    {
+        ShotResult.Hit => "HIT",
+        ShotResult.Burst => "BURST",
+        _ => "MISS"
+    };
+
     private void UpdateFireControlDebug(Entity target)
     {
         if (DebugInfoText == null) return;
@@ -1310,7 +1342,7 @@ public class ActionGameManager : MonoBehaviour
             var shot = CurrentEntity.Zone.PendingShots[i];
             if (shot.Source != CurrentEntity || shot.Weapon != selectedItem) continue;
             if (shot.Committed)
-                pendingLine = $"shot {shot.ShotId}: committed {(shot.Outcome.Hit ? "HIT" : "MISS")}";
+                pendingLine = $"shot {shot.ShotId}: committed {ResultLabel(shot.Outcome.Result)}";
             else
             {
                 var pDeviation = FireControl.DeviationProbability(shot, CurrentEntity.Zone.Time, out var deviation);
@@ -1324,11 +1356,16 @@ public class ActionGameManager : MonoBehaviour
         }
 
         var lastLine = _debugLastShots.TryGetValue(selectedItem, out var lastShot)
-            ? $"last {lastShot.ShotId}: {(lastShot.Hit ? "HIT" : "MISS")} cell {lastShot.Cell.x},{lastShot.Cell.y}"
+            ? $"last {lastShot.ShotId}: {ResultLabel(lastShot.Result)} cell {lastShot.Cell.x},{lastShot.Cell.y}"
             : "last: none";
         var gates = target == null
             ? "target: none"
-            : $"gates vis {d.Visible} range {d.InRange} arc {d.InArc} lock {d.Locked}";
+            : $"gates designated {d.Designated} arc {d.InArc}";
+
+        // A fused weapon's forecast is its outcome, not a hit chance: the burst point or the refusal.
+        var outcomeLine = d.Outcome == FireOutcome.Burst ? $"burst at {d.BurstReach:F0}"
+            : d.Outcome == FireOutcome.Refused ? "refused: arming distance exceeds range"
+            : $"base {d.PBase:P1}";
 
         DebugInfoText.text =
             $"FIRE CONTROL - {selectedItem.Data.Name}\n" +
@@ -1337,7 +1374,7 @@ public class ActionGameManager : MonoBehaviour
             $"info {d.Info:F3}/{d.InfoDemandCeiling:F3} sensor {d.PSensor:F3}\n" +
             $"accuracy {d.Accuracy:F3} spread {d.PSpread:F3} hull {d.POnHull:F3}\n" +
             $"precision {d.Precision:F3} tracking {d.Tracking:F1}\n" +
-            $"base {d.PBase:P1}\n" +
+            $"{outcomeLine}\n" +
             $"{pendingLine}\n" +
             lastLine;
     }

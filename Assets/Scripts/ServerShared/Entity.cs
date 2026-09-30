@@ -329,54 +329,78 @@ public abstract class Entity
             ? TargetItem.Value
             : null;
 
-    // Cut 3 (docs/fire-control-cut.md): the damage rule moved verbatim from EntityInstance.cs's Unity
-    // HullCollider subscription (DamageSchematic) -- same arithmetic, same order, same thresholds. The only
-    // thing that changed is the owner: this entity's own schematic, armor and hull, not a Unity component
-    // reacting to a physics collision.
-    public void DamageSchematic(float damage, Shape hitShape)
+    // Cut 12.3 (docs/fire-control-cut.md): "armour absorbs first" -- the per-cell armour phase, split out of
+    // what used to be Absorb's own first half (moved verbatim from DamageSchematic's per-cell body, Cut 3) so
+    // Cut 12.3's fix batch (proportional multi-lane item absorption, below) can call the armour phase once per
+    // cell -- always local to one lane, since armour never spans cells -- while deferring the item phase to
+    // ItemAbsorb's own pool for EVERY occupied cell, not only ones shared with another lane: a lane that turns
+    // out to be an item's only contributor still pools through a list of one (ItemAbsorb's own degenerate
+    // case), never a separate solo path. ArmorDamage fires only for incoming > 0.
+    public float ArmorAbsorb(int2 cell, float damage)
     {
-        var hullData = ItemManager.GetData(Hull) as HullData;
-        foreach (var v in hitShape.Coordinates)
-            hitShape[v] = hitShape[v] && hullData.Shape[v];
+        var d = damage;
 
-        float hullDamage = 0;
-        var damagePerCell = damage / hitShape.Coordinates.Length;
-        foreach (var v in hitShape.Coordinates)
+        if (d > 0f)
         {
-            var d = damagePerCell;
-
-            // Subtract surface damage from armor, passing on the remainder to the item and then to the hull
-            var prev = Armor[v.x, v.y];
-            Armor[v.x, v.y] = max(prev - d, 0);
-            ArmorDamage.OnNext((v, d));
-            d = max(d - prev, 0);
-
-            if (d > 0.1f)
-            {
-                var item = GearOccupancy[v.x, v.y];
-                if (item != null)
-                {
-                    prev = item.EquippableItem.Durability;
-                    item.EquippableItem.Durability = max(prev - d, 0);
-                    ItemDamage.OnNext((item, d));
-                    d = max(d - prev, 0);
-                }
-            }
-
-            hullDamage += d;
+            var prevArmor = Armor[cell.x, cell.y];
+            Armor[cell.x, cell.y] = max(prevArmor - d, 0);
+            ArmorDamage.OnNext((cell, d));
+            d = max(d - prevArmor, 0);
         }
 
-        if (hullDamage > .1f)
+        return d;
+    }
+
+    // Cut 12.3 fix batch (one apply path, operator ruling 2026-09-25 "do not expect items taking up multiple
+    // cells to be an exception, this should be one code path"): the ONE function that decides an item's own
+    // absorption, whatever the item's shape or however many lanes of one shot reach it. `incoming` holds every
+    // contributing lane's own post-armour remainder for this resolve, one lane's worth included -- a
+    // single-lane item is this rule's own degenerate case, not a separate function or a separate threshold.
+    // The existing .1f threshold is decided once, on the POOLED total, never per contribution (a pooled path
+    // that gated each contribution separately would let two shares under .1f each slip past an item that a
+    // single .08f solo hit would already have stopped at). Absorbed durability is split back across `incoming`
+    // in place, pro-rata to what each lane brought -- the divide below never sees total <= 0.1f, so it never
+    // sees zero (the guard above already returned). ItemDamage fires once per contributing lane, reporting its
+    // own INCOMING share -- not the post-clamp amount, the same convention ArmorAbsorb already uses -- and only
+    // when that lane's own share is itself > 0, so a zero-deposit contributor (a lane whose armour ate its
+    // whole share before reaching this item) never fires a phantom event. `item` is never null here: both
+    // callers (`FireControl.ApplyPooled`'s `Resolve`, one lane's worth of contributions included, and
+    // `FireControl.Detonate`'s own per-entity item-pool resolution, one covered cell's worth included) already
+    // guarantee it -- a pool is only ever opened under a non-null `GearOccupancy` cell.
+    public void ItemAbsorb(EquippedItem item, Span<float> incoming)
+    {
+        var total = 0f;
+        for (var i = 0; i < incoming.Length; i++) total += incoming[i];
+        if (total <= 0.1f) return;
+
+        var before = item.EquippableItem.Durability;
+        var absorbed = min(total, before);
+        item.EquippableItem.Durability = max(before - absorbed, 0f);
+        var fraction = absorbed / total;
+        for (var i = 0; i < incoming.Length; i++)
         {
-            Hull.Durability -= hullDamage;
-            HullDamage.OnNext(hullDamage);
+            if (incoming[i] > 0f) ItemDamage.OnNext((item, incoming[i]));
+            incoming[i] -= incoming[i] * fraction;
+        }
+    }
+
+    // Cut 12.3: moved verbatim from DamageSchematic's own tail (Cut 3) -- the >.1f threshold and the one
+    // HullDamage event are unchanged. FireControl.Apply calls this once per resolved hit, with the summed
+    // remainder every lane's own walk left over (Q12-3 = A: a lane's remainder goes to the hull wherever the
+    // lane ends -- penetration exhausted, a gap, or the far side).
+    public void DamageHull(float damage)
+    {
+        if (damage > .1f)
+        {
+            Hull.Durability -= damage;
+            HullDamage.OnNext(damage);
         }
     }
 
     // Cut 12.1 (docs/fire-control-cut.md): the one schematic-frame owner. Maps a world-planar vector into this
-    // entity's own schematic frame -- x = starboard, y = bow -- so ApplyHit's penetration march and
-    // FireControl.Splash's directional half both read the same transform instead of each carrying their own
-    // copy of forward/right.
+    // entity's own schematic frame -- x = starboard, y = bow -- so FireControl.Apply's lane walk and
+    // FireControl.Detonate's per-entity point conversion both read the same transform instead of each carrying
+    // their own copy of forward/right.
     public float2 ToSchematic(float2 worldPlanar)
     {
         var forward = normalize(Direction);
@@ -384,38 +408,29 @@ public abstract class Entity
         return float2(dot(worldPlanar, right), dot(worldPlanar, forward));
     }
 
-    // Cut 3: the shape construction moved from EntityInstance.cs's Unity HullCollider subscription -- the hit
-    // cell is the rolled Cell FireControl already chose, not a UV texture coordinate.
-    // Cut 12.2 (docs/fire-control-cut.md): `bearing` is already in this entity's own schematic frame -- the
-    // committed ShotOutcome.Bearing FireControl.Commit computed once, at the commit tick -- so the ToSchematic
-    // call this used to make internally (12.1) is gone; ApplyHit no longer touches a world direction or this
-    // entity's own Direction at all.
-    public void ApplyHit(Entity source, int2 cell, float spread, float penetration, float damage, float2 bearing)
+    // Cut 12.4(b) (docs/fire-control-cut.md, "Area, per entity"): the world<->schematic POINT owners, built on
+    // ToSchematic's frame -- the entity's own position is the schematic's centre of mass. FireControl.Detonate
+    // uses ToSchematicPoint to find where a blast sits in each candidate's own schematic (the host of a contact
+    // or delayed blast included: it is treated like any other entity in the radius, its cells found again
+    // here, not carried over from the commit). ToWorldPoint is the inverse, used once, to convert a contact or
+    // delayed fuse point (found on the committed lane, in the host's schematic frame at commit) into the one
+    // world point Detonate's single input shape takes -- the round trip through the host's own pose at arrival
+    // is what fixes the host's damage to the commit (R4) while every bystander is judged live.
+    public float2 ToSchematicPoint(float2 worldPlanar)
     {
-        IncomingHit.OnNext(source);
-
         var hullData = ItemManager.GetData(Hull) as HullData;
-        var hitShape = new Shape(hullData.Shape.Width, hullData.Shape.Height);
-        hitShape[cell] = true;
+        var cellSize = ItemManager.GameplaySettings.SchematicCellSize;
+        return ToSchematic(worldPlanar - Position.xz) / cellSize + hullData.Shape.CenterOfMass;
+    }
 
-        for (var i = 0; i < (int) floor(spread + .5f); i++)
-            hitShape = hitShape.Expand();
-
-        if (penetration > .5f)
-        {
-            var penetrationVector = normalize(bearing);
-
-            var penetrationPoint = (float2) cell + float2(.5f);
-            var penetrationDistance = 0f;
-            while (penetrationDistance < penetration && hullData.Shape[int2(penetrationPoint)])
-            {
-                penetrationDistance += .5f;
-                hitShape[int2(penetrationPoint)] = true;
-                penetrationPoint += penetrationVector * .5f;
-            }
-        }
-
-        DamageSchematic(damage, hitShape);
+    public float2 ToWorldPoint(float2 schematicPoint)
+    {
+        var hullData = ItemManager.GetData(Hull) as HullData;
+        var cellSize = ItemManager.GameplaySettings.SchematicCellSize;
+        var local = (schematicPoint - hullData.Shape.CenterOfMass) * cellSize;
+        var forward = normalize(Direction);
+        var right = float2(forward.y, -forward.x);
+        return Position.xz + local.x * right + local.y * forward;
     }
 
     // Another entity's stance toward THIS one, as far as this entity can perceive it: unknown (null)
@@ -501,7 +516,10 @@ public abstract class Entity
         Death = HullDamage.Where(_ => Hull.Durability < .01f).Select(_ => CauseOfDeath.HullDestroyed)
             .Merge(HeatstrokeDeath.Select(_ => CauseOfDeath.Heatstroke))
             .Merge(HypothermiaDeath.Select(_ => CauseOfDeath.Hypothermia))
-            .Merge(ItemDestroyed.Where(i=>i.GetBehavior<Cockpit>()!=null).Select(_ => CauseOfDeath.CockpitDestroyed));
+            .Merge(ItemDestroyed.Where(i=>i.GetBehavior<Cockpit>()!=null).Select(_ => CauseOfDeath.CockpitDestroyed))
+            // Death is terminal: the first cause ends the stream, so no damage path (a blast whose cockpit kill is
+            // followed by its own hull damage, a second item, a heat tick) can raise it twice to any subscriber.
+            .Take(1);
 
         //CurrentSecurityLevel.Value = SecurityLevel.Open;
     }
