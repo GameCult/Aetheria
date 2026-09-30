@@ -69,6 +69,22 @@ claim measured against a real file.
       - The fix is content, not a generation exception: station reactors are authored for other manufacturers, so
         that every faction's stations can power their heater from gear the faction can actually get.
       - The heater must be reachable the same way.
+    - **Soul on batch 2 (`89ef80d2..adad301b`, 2026-09-30): do not merge.**
+      - F1 (high): the station reactor burns out after about 20 idle minutes. By minute 40 all 128 cells are
+        below freezing, and at 120 minutes the hull reads 155 K. Minutes 0-20 overshoot to 447 K, which makes the
+        station a sensor beacon.
+      - F2 (high): the idle test samples minutes 5-10 and does not pay for the heater. The inert-thermostat mutant
+        S17 survives.
+      - F3 (medium, operator question): `Entity.ItemFits` (the item fits inside the hardpoint; used for equip, save
+        load and presets) and `HardpointData.Takes` (the item fills the hardpoint; used by generation and
+        `HasHome`) are two fit rules. Under `Takes`, about 15 designs players can mount are kept out of station
+        stock.
+      - F4 (high): LRMM72 and SRMM72 have no `DamageCurve` but now have products, and 22 of 300 NPCs carry them.
+        `SampleDps` throws an NRE at `InstantWeapon.cs:64`. Autocannon, pswarm and plight are also missing curves.
+      - F5: `_time` is advanced before the belt wait. F6: mining races the belt tasks. F7: reuse by cell count is
+        unpinned.
+      - Soul did **not** reproduce the Zhestokost gap: every station in 5 seeds and 12 factions got a reactor. The
+        premise behind the per-manufacturer reactor ruling is being checked (census) before any authoring.
     - Tractor/pickup (`adad301b`, Hands stopped at the fork): the ruled design is `headless-playground-cut.md` fork
       L, which needs loot as simulation bodies. That substrate does not exist, so it becomes its own campaign, typed
       in the new session (`F:\Projects\HANDOFF-eureka-typed-2026-09-30.md`). The census rule "price 0 is unsold"
