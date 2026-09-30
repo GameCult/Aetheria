@@ -335,6 +335,17 @@ resolve the package on first open, like the CultMath tag already does (`docs/mer
 - **Subtraction estimate:** 0 removed, about 150 added (loader, template, preload). This is the capability gate 4
   buys.
 
+**S2 status (2026-09-30, Self):** landed on `codex/moddable-ships` through `48cabc5f`. Soul passes on S2 and its
+fixes (bad packages excluded and named, never fatal; mount anchors typed by hardpoint; `capturepreset` refuses mod
+designs; explicit null checks at Continue; compose failure falls back to the shipped catalog). Headless 684/684.
+Unity 6000.3.24f1: compile clean; `ShipModPlaySmoke.Run` (edit mode, real preload and `Instantiate`) prints
+`SHIP_MOD_PLAY_SMOKE thrusters=1 weapons=1 collider=ok mapicon=ok`; `ShipModPreview.Smoke -assemble` passes against
+the generated mesh fixture. Owed: the operator's play-mode checks (menu dialog for excluded mods, New Game/Continue
+with a mod, zone entry, wormhole, Continue after removal). Recorded, not fixed: two processes sharing
+`Aetheria.modded.cc`; preload running inside the `CultCache` getter; a mod updated in place that changes a hull
+passes the gate; the `equipment` role (operator question). Interim ruling: a non-thruster/radiator/weapon mount
+must be an `articulation` anchor.
+
 ### S3. Gate 4: a built player
 
 A player build loads a composed mod ship without the Editor or Blender. Only Self (the batchmode build) and the
