@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
+using GameCult.Caching.MessagePack;
+using MessagePack;
 using CultMath;
 using GameCult.Caching;
 using Xunit;
@@ -83,7 +86,12 @@ public sealed class ShipAuthoringTests
     {
         var ship = Fixture();
         ship.Hull.Prefab = "Djinni";
-        Assert.Contains("cannot name a Unity prefab", Assert.Throws<InvalidOperationException>(ship.Validate).Message);
+        Assert.Contains("names both a Unity prefab and a visual record", Assert.Throws<InvalidOperationException>(ship.Validate).Message);
+
+        // A whitespace-only prefab is unset.
+        ship = Fixture();
+        ship.Hull.Prefab = " \t";
+        ship.Validate();
 
         ship = Fixture();
         ship.Hull.Visual = default;
@@ -93,7 +101,91 @@ public sealed class ShipAuthoringTests
         ship.Hull.Visual = new CultRecordRef<ShipAuthoring>(ShipModCatalog.AuthoringKey("mod.other"));
         Assert.Contains("the hull must name its visual record mod-ship:mod.skiff", Assert.Throws<InvalidOperationException>(ship.Validate).Message);
 
+        // The key is compared exactly: a differently-cased key is another record.
+        ship = Fixture();
+        ship.Hull.Visual = new CultRecordRef<ShipAuthoring>(new CultRecordKey("MOD-SHIP:mod.skiff"));
+        Assert.Contains("the hull must name its visual record mod-ship:mod.skiff", Assert.Throws<InvalidOperationException>(ship.Validate).Message);
+
         Fixture().Validate();
+    }
+
+    // A hull with both a prefab and a visual is refused wherever hulls are validated or composed.
+    // ShipModCatalogTests.ComposeRefusesAShippedHullThatNamesTwoBodies covers Compose.
+    [Fact]
+    public void RequireOneBodyRefusesBothAndAcceptsEitherAlone()
+    {
+        var hull = Fixture().Hull;
+        ShipAuthoringStore.RequireOneBody(hull, "skiff");
+        hull.Prefab = "Djinni";
+        Assert.Contains("skiff: a hull names one body", Assert.Throws<InvalidOperationException>(() => ShipAuthoringStore.RequireOneBody(hull, "skiff")).Message);
+        hull.Visual = default;
+        ShipAuthoringStore.RequireOneBody(hull, "skiff");
+    }
+
+    // The ship authoring record held the whole hull at key 1 before S1.
+    [Fact]
+    public async Task LoadRefusesAShipAuthoringRecordThatStillCarriesTheRetiredEmbeddedHull()
+    {
+        using var directory = new TempDirectory();
+        var path = Path.Combine(directory.Path, "legacy.cc");
+        using (var cache = ShipAuthoringStore.Open(path, writable: true))
+        {
+            ShipAuthoringStore.Write(cache, Fixture().Hull, Fixture().Visual);
+            await cache.FlushAsync();
+        }
+        RewritePayload(path, "aetheria.ship_authoring", slots => { slots[1] = new object[] { "Skiff" }; });
+        foreach (var load in new Action[] { () => ShipAuthoringStore.Load(path), () => ShipAuthoringStore.Read(path) })
+        {
+            var message = Assert.Throws<InvalidOperationException>(load).Message;
+            Assert.Contains("legacy embedded hull at retired key 1", message);
+            Assert.Contains(path, message);
+        }
+
+        // An old file has no separate hull record at all; it is named for what it is, not for a missing hull.
+        var oldShape = Path.Combine(directory.Path, "old.cc");
+        using (var cache = ShipAuthoringStore.Open(oldShape, writable: true))
+        {
+            cache.UpsertAsync(typeof(ShipAuthoring), Fixture().Visual, ShipModCatalog.AuthoringKey("mod.skiff")).GetAwaiter().GetResult();
+            await cache.FlushAsync();
+        }
+        RewritePayload(oldShape, "aetheria.ship_authoring", slots => { slots[1] = new object[] { "Skiff" }; });
+        var oldMessage = Assert.Throws<InvalidOperationException>(() => ShipAuthoringStore.Load(oldShape)).Message;
+        Assert.Contains("legacy embedded hull", oldMessage);
+        Assert.DoesNotContain("exactly one hull record", oldMessage);
+
+        // A nil in the retired slot is the shape every current file has.
+        RewritePayload(path, "aetheria.ship_authoring", slots => { slots[1] = null; });
+        ShipAuthoringStore.Load(path);
+    }
+
+    // The layout editor's Python once accepted any msgpack value in a cell; C# then failed with a bare serializer exception.
+    [Fact]
+    public async Task LoadNamesTheFileWhoseRecordDoesNotDecode()
+    {
+        using var directory = new TempDirectory();
+        var path = Path.Combine(directory.Path, "cells.cc");
+        using (var cache = ShipAuthoringStore.Open(path, writable: true))
+        {
+            ShipAuthoringStore.Write(cache, Fixture().Hull, Fixture().Visual);
+            await cache.FlushAsync();
+        }
+        // ItemData.Shape is key 5: [[width, height, cells]].
+        RewritePayload(path, "aetheria.hulldata", slots => ((object[])((object[])slots[5])[0])[2] = new object[] { 5, false, true, false });
+        var error = Assert.Throws<InvalidOperationException>(() => ShipAuthoringStore.Load(path));
+        Assert.Contains(path, error.Message);
+        Assert.IsAssignableFrom<MessagePackSerializationException>(error.InnerException);
+    }
+
+    // Decodes one record's payload of the named schema to its slot array, lets the edit change it, and stores it again.
+    private static void RewritePayload(string path, string schemaName, Action<object[]> edit)
+    {
+        var snapshot = CultDocumentMessagePackSerialization.DeserializeSnapshot(File.ReadAllBytes(path));
+        var schemaId = snapshot.SchemaCatalog.Single(entry => entry.SchemaName == schemaName).SchemaId;
+        var record = snapshot.Records.Single(candidate => candidate.SchemaId == schemaId);
+        var slots = MessagePackSerializer.Deserialize<object[]>(record.Payload);
+        edit(slots);
+        record.Payload = MessagePackSerializer.Serialize(slots);
+        File.WriteAllBytes(path, CultDocumentMessagePackSerialization.SerializeSnapshot(snapshot));
     }
 
     [Fact]

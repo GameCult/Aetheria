@@ -18,8 +18,9 @@ SCHEMA = "aetheria.ship_authoring"
 HULL_SCHEMA = "aetheria.hulldata"
 
 # MessagePack slots of the C# types, which own them (ShipAuthoring, ItemData.Shape, HullData.Hardpoints,
-# HardpointData). ShipSchemaPinTests in tests/Aetheria.Shared.Tests fails when any number or name below
+# HardpointData). RETIRED_HULL_SLOT is the ShipAuthoring key that held the embedded hull before S1; no member owns it now. ShipSchemaPinTests in tests/Aetheria.Shared.Tests fails when any number or name below
 # disagrees with those types' [Key] attributes, so a renumbered or added member cannot drift silently.
+RETIRED_HULL_SLOT = 1
 SCHEMATIC_LINES_SLOT = 4  # ShipAuthoring.SchematicLines
 HULL_SHAPE_SLOT = 5  # ItemData.Shape
 HULL_HARDPOINTS_SLOT = 23  # HullData.Hardpoints
@@ -69,6 +70,14 @@ def read(path: str, cultlib_packages: str) -> ShipFile:
     envelopes = store.pull_all()
     ships = [envelope for envelope in envelopes if envelope.type == SCHEMA]
     hulls = [envelope for envelope in envelopes if envelope.type == HULL_SCHEMA]
+    # Before S1 the hull lived inside the ship record. Saving such a file would preserve the stale hull under a ship that
+    # no longer reads it, so it is refused before anything else is said about its shape.
+    for envelope in ships:
+        body = msgpack.unpackb(envelope.payload, raw=False)
+        if isinstance(body, list) and len(body) > RETIRED_HULL_SLOT and body[RETIRED_HULL_SLOT] is not None:
+            raise ValueError(
+                f"{path}: {envelope.key}: legacy embedded hull at retired key {RETIRED_HULL_SLOT} of the {SCHEMA} record; "
+                f"migrate it into its own {HULL_SCHEMA} record that names the visual, and drop key {RETIRED_HULL_SLOT}")
     if len(envelopes) != 2 or len(ships) != 1 or len(hulls) != 1:
         raise ValueError(f"{path} must hold exactly one {SCHEMA} record and one {HULL_SCHEMA} record")
     bodies = []
@@ -129,6 +138,8 @@ def replace_layout(path: str, cultlib_packages: str, expected_id: str, expected_
     width, height, cells = shape
     if not (1 <= width <= 32 and 1 <= height <= 32 and len(cells) == width * height):
         raise ValueError("Hull grid must be 1..32 cells wide and high with one value per cell")
+    if not all(type(cell) is bool for cell in cells):
+        raise ValueError("Hull grid cells must be booleans")
     if not any(cells):
         raise ValueError("Hull grid needs an occupied cell")
     known = len(HARDPOINT_MEMBERS)
@@ -141,6 +152,8 @@ def replace_layout(path: str, cultlib_packages: str, expected_id: str, expected_
         if len(hardpoint) != known or not isinstance(mount, str) or not mount:
             raise ValueError(f"Each hardpoint needs {known} typed fields and a stable mount ID")
         hp_width, hp_height, hp_cells = fields["Shape"][0]
+        if not all(type(cell) is bool for cell in hp_cells):
+            raise ValueError(f"Hardpoint {mount} footprint cells must be booleans")
         if not (1 <= hp_width <= 32 and 1 <= hp_height <= 32 and
                 len(hp_cells) == hp_width * hp_height and any(hp_cells)):
             raise ValueError(f"Hardpoint {mount} has an invalid footprint")

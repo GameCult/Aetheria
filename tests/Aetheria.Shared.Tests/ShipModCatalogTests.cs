@@ -66,6 +66,26 @@ public sealed class ShipModCatalogTests : IDisposable
     }
 
     [Fact]
+    public void ComposeRefusesAShippedHullThatNamesTwoBodies()
+    {
+        WritePackage("mod.skiff");
+        using (var cache = AetheriaStores.Open(Shipped, catalogWritable: true))
+        {
+            cache.Upsert(new HullData
+            {
+                Name = "Chimera",
+                Shape = ShipAuthoringTests.Fixture().Hull.Shape,
+                Prefab = "Djinni",
+                Visual = new CultRecordRef<ShipAuthoring>(ShipModCatalog.AuthoringKey("mod.skiff"))
+            });
+            cache.FlushAsync().Wait();
+        }
+        Assert.Contains("Chimera: a hull names one body",
+            Assert.Throws<InvalidOperationException>(() => ShipModCatalog.Compose(Shipped, Derived, Mods)).Message);
+        Assert.False(File.Exists(Derived));
+    }
+
+    [Fact]
     public void ComposeCopiesTheModStoresRecordsUnchangedAndTheHullNamesItsVisualByRef()
     {
         WritePackage("mod.skiff");

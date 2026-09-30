@@ -70,6 +70,9 @@ public static class ShipModCatalog
                     // Verbatim: the mod store's own two records, under the keys it already holds them at.
                     ShipAuthoringStore.Write(cache, hull, ship);
                 }
+                // Shipped hulls too: the derived catalog must not hold a hull that names two bodies.
+                foreach (var hull in cache.GetAll<HullData>())
+                    ShipAuthoringStore.RequireOneBody(hull, hull.Name);
                 cache.FlushAsync().GetAwaiter().GetResult();
             }
             if (File.Exists(output)) File.Replace(temporary, output, null);

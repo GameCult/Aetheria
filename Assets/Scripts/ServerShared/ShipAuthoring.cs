@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using GameCult.Caching;
 using GameCult.Caching.MessagePack;
 using MessagePack;
@@ -49,6 +50,12 @@ public sealed class ShipPolyline
 
 public static class ShipAuthoringStore
 {
+    // ShipAnchor.Role's vocabulary.
+    private static readonly HashSet<string> Roles = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "map-icon", "hull-collider", "shield", "tractor", "thruster-emitter", "weapon-muzzle", "radiator-mesh", "articulation"
+    };
+
     public static CultCache Open(string path, bool writable = false)
     {
         var cache = new CultCache();
@@ -75,6 +82,49 @@ public static class ShipAuthoringStore
     // its deterministic key, the hull naming that visual by its typed ref.
     public static (HullData Hull, ShipAuthoring Visual) Load(string path)
     {
+        RefuseLegacyEmbeddedHull(path);
+        try { return LoadRecords(path); }
+        catch (MessagePackSerializationException error)
+        {
+            throw new InvalidOperationException($"{path}: a record does not decode as its schema: {error.Message}", error);
+        }
+    }
+
+    // Key 1 of ShipAuthoring held the whole hull before S1. The type no longer has that member, so a deserialized record
+    // shows nothing of it, and a file that still carries one would load as a ship silently ignoring its old hull. The
+    // raw payload is the only place the old shape is visible.
+    private static void RefuseLegacyEmbeddedHull(string path)
+    {
+        if (!File.Exists(path)) return;
+        var bytes = File.ReadAllBytes(path);
+        if (bytes.Length == 0) return;
+        CultPersistedStoreSnapshot snapshot;
+        try { snapshot = CultDocumentMessagePackSerialization.DeserializeSnapshot(bytes); }
+        catch (MessagePackSerializationException error)
+        {
+            throw new InvalidOperationException($"{path}: not a readable ship file: {error.Message}", error);
+        }
+        var schema = typeof(ShipAuthoring).GetCustomAttribute<CultDocumentAttribute>().SchemaName;
+        foreach (var record in snapshot.Records)
+        {
+            if (snapshot.SchemaCatalog.FirstOrDefault(entry => entry.SchemaId == record.SchemaId)?.SchemaName != schema) continue;
+            var reader = new MessagePackReader(record.Payload);
+            if (reader.NextMessagePackType != MessagePackType.Array) continue;
+            var slots = reader.ReadArrayHeader();
+            for (var slot = 0; slot < slots; slot++)
+            {
+                if (slot == RetiredHullKey && !reader.TryReadNil())
+                    throw new InvalidOperationException($"{path}: {record.Key}: legacy embedded hull at retired key {RetiredHullKey} of the ship authoring record. " +
+                        $"Migrate it: write the hull as its own hull record at mod-hull:<id> naming the visual, and rewrite the ship authoring record without key {RetiredHullKey}.");
+                if (slot != RetiredHullKey) reader.Skip();
+            }
+        }
+    }
+
+    private const int RetiredHullKey = 1;
+
+    private static (HullData Hull, ShipAuthoring Visual) LoadRecords(string path)
+    {
         using var cache = Open(path);
         var hulls = cache.GetAll<HullData>().ToArray();
         var visuals = cache.GetAll<ShipAuthoring>().ToArray();
@@ -96,6 +146,15 @@ public static class ShipAuthoringStore
         return (hull, visual);
     }
 
+    // A hull names one body: a Unity prefab (shipped hulls) or a ShipAuthoring record (mod ships), never both, so no
+    // consumer needs a precedence rule. A whitespace-only Prefab is unset. Every path that validates or composes hulls
+    // calls this.
+    public static void RequireOneBody(HullData hull, string label)
+    {
+        if (!string.IsNullOrWhiteSpace(hull.Prefab) && hull.Visual.IsSet())
+            throw new InvalidOperationException($"{label}: a hull names one body, but this one names both a Unity prefab and a visual record.");
+    }
+
     // The one semantic check every path shares: the hull and its visual, judged together.
     public static void Validate(HullData hull, ShipAuthoring ship)
     {
@@ -108,9 +167,7 @@ public static class ShipAuthoringStore
         if (string.IsNullOrWhiteSpace(hull.Name)) throw new InvalidOperationException($"{ship.Id}: hull name is required.");
         if (hull.Shape?.Cells == null || !hull.Shape.Cells.Cast<bool>().Any(occupied => occupied))
             throw new InvalidOperationException($"{ship.Id}: schematic must contain at least one cell.");
-        // A hull names exactly one visual: a Unity prefab (shipped hulls) or a ShipAuthoring record (mod ships).
-        if (!string.IsNullOrEmpty(hull.Prefab))
-            throw new InvalidOperationException($"{ship.Id}: a mod ship cannot name a Unity prefab.");
+        RequireOneBody(hull, ship.Id);
         if (!hull.Visual.Key.Equals(ShipModCatalog.AuthoringKey(ship.Id)))
             throw new InvalidOperationException($"{ship.Id}: the hull must name its visual record {ShipModCatalog.AuthoringKey(ship.Id).Value}.");
         if (string.IsNullOrWhiteSpace(ship.ModelAsset) || Path.IsPathRooted(ship.ModelAsset) ||
@@ -129,6 +186,9 @@ public static class ShipAuthoringStore
             if (!nodeIds.Add(anchor.ModelNodeId))
                 throw new InvalidOperationException($"{ship.Id}: model node {anchor.ModelNodeId} is claimed by more than one anchor.");
         }
+        foreach (var anchor in anchors)
+            if (!Roles.Contains(anchor.Role))
+                throw new InvalidOperationException($"{ship.Id}: anchor {anchor.Id} has unknown role '{anchor.Role}'.");
         foreach (var role in new[] { "map-icon", "hull-collider", "shield", "tractor" })
             if (anchors.Count(anchor => anchor.Role == role) != 1)
                 throw new InvalidOperationException($"{ship.Id}: exactly one {role} anchor is required.");
@@ -140,6 +200,12 @@ public static class ShipAuthoringStore
             if (hardpoint == null || string.IsNullOrWhiteSpace(hardpoint.Transform) ||
                 !mounts.Add(hardpoint.Transform))
                 throw new InvalidOperationException($"{ship.Id}: hardpoint IDs must be present and unique.");
+            if (!Enum.IsDefined(typeof(HardpointType), hardpoint.Type))
+                throw new InvalidOperationException($"{ship.Id}: hardpoint {hardpoint.Transform} has an unknown type {(int)hardpoint.Type}.");
+            if (!Enum.IsDefined(typeof(ItemRotation), hardpoint.Rotation))
+                throw new InvalidOperationException($"{ship.Id}: hardpoint {hardpoint.Transform} has an unknown rotation {(int)hardpoint.Rotation}.");
+            if (!float.IsFinite(hardpoint.Armor) || hardpoint.Armor < 0 || !float.IsFinite(hardpoint.FiringArc) || hardpoint.FiringArc < 0)
+                throw new InvalidOperationException($"{ship.Id}: hardpoint {hardpoint.Transform} armor and firing arc must be finite and not negative.");
             if (hardpoint.Shape?.Cells == null || !hardpoint.Shape.Cells.Cast<bool>().Any(occupied => occupied))
                 throw new InvalidOperationException($"{ship.Id}: hardpoint {hardpoint.Transform} has no cells.");
             for (var cellX = 0; cellX < hardpoint.Shape.Width; cellX++)

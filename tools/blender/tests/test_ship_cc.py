@@ -8,12 +8,14 @@ ship_cc is loaded by path because the package __init__ imports bpy. The record l
 ship_cc's own slot constants; ShipSchemaPinTests (C#) pins those constants to the C# [Key] attributes.
 """
 
+import dataclasses
 import importlib.util
 import os
 import shutil
 import sys
 import tempfile
 import unittest
+from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -140,10 +142,41 @@ class ReadTests(ShipFileCase):
         with self.assertRaisesRegex(ValueError, "must hold exactly one"):
             ship_cc.read(empty, PACKAGES)
 
-    def test_refuses_a_ship_payload_too_short_for_the_line_slot(self):
-        self.write(["mod.skiff", None], hull_body())
-        with self.assertRaisesRegex(ValueError, "incompatible"):
+    def test_refuses_a_ship_record_that_still_carries_the_retired_embedded_hull(self):
+        for name, ship in (("nested hull", ["mod.skiff", hull_body()]),
+                           ("any value", ["mod.skiff", 0])):
+            body = ship_body()
+            body[ship_cc.RETIRED_HULL_SLOT] = ship[1]
+            with self.subTest(name):
+                self.write(body, hull_body())
+                with self.assertRaisesRegex(ValueError, "legacy embedded hull at retired key 1"):
+                    ship_cc.read(self.path, PACKAGES)
+        # Nothing else is said about its shape: an old file has no hull record beside the ship.
+        cultcache_py.SingleFileMessagePackBackingStore(self.path).push_all(
+            [envelope("mod-ship:mod.skiff", ship_cc.SCHEMA, CATALOG, body)])
+        with self.assertRaisesRegex(ValueError, "legacy embedded hull"):
             ship_cc.read(self.path, PACKAGES)
+
+    def test_refuses_a_save_over_a_file_with_the_retired_embedded_hull_and_writes_nothing(self):
+        body = ship_body()
+        body[ship_cc.RETIRED_HULL_SLOT] = hull_body()
+        self.write(body, hull_body())
+        before = self.bytes()
+        with self.assertRaisesRegex(ValueError, "legacy embedded hull"):
+            ship_cc.replace_lines(self.path, PACKAGES, LINES)
+        with self.assertRaisesRegex(ValueError, "legacy embedded hull"):
+            ship_cc.replace_layout(self.path, PACKAGES, "mod.skiff", "any", [2, 2, [True] * 4], [])
+        self.assertEqual(before, self.bytes())
+
+    def test_a_nil_in_the_retired_slot_is_the_current_shape(self):
+        self.assertIsNone(self.ship()[ship_cc.RETIRED_HULL_SLOT])
+
+    def test_refuses_a_ship_payload_too_short_for_the_line_slot(self):
+        for body in (["mod.skiff"], ["mod.skiff", None]):
+            with self.subTest(slots=len(body)):
+                self.write(body, hull_body())
+                with self.assertRaisesRegex(ValueError, "incompatible"):
+                    ship_cc.read(self.path, PACKAGES)
 
     def test_refuses_a_payload_that_is_not_an_array(self):
         for payload in ({"Id": "mod.skiff"}, {str(index): index for index in range(9)}, "a string long enough to fill every slot"):
@@ -167,6 +200,17 @@ class ReplaceLinesTests(ShipFileCase):
         for slot in range(len(before)):
             if slot != ship_cc.SCHEMATIC_LINES_SLOT:
                 self.assertEqual(before[slot], after[slot], f"slot {slot} changed")
+
+    def test_a_save_refreshes_the_stored_at_of_the_record_it_writes_and_only_that_one(self):
+        stale = "2000-01-01T00:00:00+00:00"
+        envelopes = self.envelopes()
+        cultcache_py.SingleFileMessagePackBackingStore(self.path).push_all(
+            [dataclasses.replace(envelopes[key], stored_at=stale) for key in envelopes])
+        ship_cc.replace_lines(self.path, PACKAGES, LINES)
+        after = self.envelopes()
+        self.assertGreater(datetime.fromisoformat(after[(ship_cc.SCHEMA, "mod-ship:mod.skiff")].stored_at),
+                           datetime.fromisoformat(stale))
+        self.assertEqual(stale, after[(ship_cc.HULL_SCHEMA, "mod-hull:mod.skiff")].stored_at)
 
     def test_leaves_the_hull_record_byte_identical(self):
         before = self.envelopes()[(ship_cc.HULL_SCHEMA, "mod-hull:mod.skiff")]
@@ -293,6 +337,38 @@ class LayoutTests(ShipFileCase):
                 self.edit(revision, width=width, height=height, cells=[True] * (width * height), hardpoints=[])
                 revision = self.layout()[2]
         self.assertNotEqual(before, self.bytes())
+
+    def test_a_layout_save_refreshes_the_stored_at_of_the_hull_and_leaves_the_ships(self):
+        stale = "2000-01-01T00:00:00+00:00"
+        envelopes = self.envelopes()
+        cultcache_py.SingleFileMessagePackBackingStore(self.path).push_all(
+            [dataclasses.replace(envelopes[key], stored_at=stale) for key in envelopes])
+        self.edit(self.layout()[2])
+        after = self.envelopes()
+        self.assertGreater(datetime.fromisoformat(after[(ship_cc.HULL_SCHEMA, "mod-hull:mod.skiff")].stored_at),
+                           datetime.fromisoformat(stale))
+        self.assertEqual(stale, after[(ship_cc.SCHEMA, "mod-ship:mod.skiff")].stored_at)
+
+    def test_refuses_cells_that_are_not_booleans_and_writes_nothing(self):
+        _, _, revision = self.layout()
+        before = self.bytes()
+        for name, cells in (("integer", [True, 1, True, False]), ("zero", [True, True, True, 0]),
+                            ("string", [True, "x", True, False]), ("none", [True, None, True, False])):
+            with self.subTest(name):
+                with self.assertRaisesRegex(ValueError, "Hull grid cells must be booleans"):
+                    self.edit(revision, cells=cells)
+        self.assertEqual(before, self.bytes())
+
+    def test_refuses_hardpoint_footprint_cells_that_are_not_booleans_and_writes_nothing(self):
+        _, _, revision = self.layout()
+        before = self.bytes()
+        for name, cells in (("integer", [1, True]), ("none", [True, None])):
+            row = ship_cc.encode_hardpoint(**{**ship_cc.decode_hardpoint(hardpoint_row(tail=())),
+                                              "Shape": [shape(2, 1, cells)]})
+            with self.subTest(name):
+                with self.assertRaisesRegex(ValueError, "thruster.port footprint cells must be booleans"):
+                    self.edit(revision, hardpoints=[row])
+        self.assertEqual(before, self.bytes())
 
     def test_refuses_a_cell_count_that_does_not_fill_the_grid(self):
         _, _, revision = self.layout()

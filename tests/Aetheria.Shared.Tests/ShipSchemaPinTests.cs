@@ -31,9 +31,20 @@ public sealed class ShipSchemaPinTests
     {
         Assert.Equal(typeof(ShipAuthoring).GetCustomAttribute<CultDocumentAttribute>().SchemaName, Text("SCHEMA"));
         Assert.Equal(typeof(HullData).GetCustomAttribute<CultDocumentAttribute>().SchemaName, Text("HULL_SCHEMA"));
+        Assert.Equal(1, Integer("RETIRED_HULL_SLOT"));
         // Key 1 held the embedded hull until S1. A later member must not take it, or an old file would decode as it.
         Assert.DoesNotContain(typeof(ShipAuthoring).GetMembers(BindingFlags.Public | BindingFlags.Instance),
             member => member.GetCustomAttribute<KeyAttribute>()?.IntKey == 1);
+    }
+
+    // HullData.Visual is the one binding between a hull and its visual; its slot is the wire contract.
+    [Fact]
+    public void HullVisualIsKey32()
+    {
+        Assert.Equal(32, KeyOf(typeof(HullData), nameof(HullData.Visual)));
+        var taken = typeof(HullData).GetMembers(BindingFlags.Public | BindingFlags.Instance)
+            .Select(member => member.GetCustomAttribute<KeyAttribute>()?.IntKey).Where(key => key != null).ToArray();
+        Assert.Equal(taken.Length, taken.Distinct().Count());
     }
 
     [Fact]

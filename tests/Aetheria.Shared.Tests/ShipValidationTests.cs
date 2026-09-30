@@ -28,6 +28,17 @@ public sealed class ShipValidationTests
     }
 
     [Fact]
+    public void HardpointsAtTheEdgesOfTheirRangesAreValid()
+    {
+        var ship = ShipAuthoringTests.Fixture();
+        ship.Hull.Hardpoints[0].Armor = 5;
+        ship.Hull.Hardpoints[0].FiringArc = 360;
+        ship.Hull.Hardpoints[0].Type = HardpointType.AetherDrive;
+        ship.Hull.Hardpoints[0].Rotation = ItemRotation.Clockwise;
+        ship.Validate();
+    }
+
+    [Fact]
     public void ValidatorRefusesANullRecord() =>
         Assert.Contains("is null", Assert.Throws<InvalidOperationException>(() => ShipAuthoringStore.Validate(ShipAuthoringTests.Fixture().Hull, null)).Message);
 
@@ -151,7 +162,7 @@ public sealed class ShipValidationTests
         Add("hull-width-zero", s => s.Hull.Shape.Cells = new bool[0, 2], "at least one cell");
         Add("hull-height-zero", s => s.Hull.Shape.Cells = new bool[2, 0], "at least one cell");
         Add("hull-no-occupied-cell", s => s.Hull.Shape.Cells = new bool[2, 2], "at least one cell");
-        Add("hull-names-a-prefab", s => s.Hull.Prefab = "Djinni", "cannot name a Unity prefab");
+        Add("hull-names-a-prefab-and-a-visual", s => s.Hull.Prefab = "Djinni", "names both a Unity prefab and a visual record");
         Add("model-null", s => s.Visual.ModelAsset = null, "relative package path");
         Add("model-blank", s => s.Visual.ModelAsset = " ", "relative package path");
 
@@ -169,6 +180,10 @@ public sealed class ShipValidationTests
             Add("role-doubled-" + role, s => s.Visual.Anchors.Add(new ShipAnchor { Id = "extra", Role = role, ModelNodeId = "extra" }), $"exactly one {role} anchor is required");
         }
 
+        Add("anchor-role-unknown", s => s.Visual.Anchors.Add(new ShipAnchor { Id = "x", Role = "engine", ModelNodeId = "x" }), "has unknown role 'engine'");
+        Add("anchor-role-null", s => s.Visual.Anchors.Add(new ShipAnchor { Id = "x", Role = null, ModelNodeId = "x" }), "has unknown role ''");
+        Add("anchor-role-cased", s => s.Visual.Anchors[0].Role = "Map-Icon", "has unknown role 'Map-Icon'");
+
         Add("hardpoint-null", s => s.Hull.Hardpoints.Add(null), "hardpoint IDs must be present and unique");
         Add("hardpoint-transform-null", s => Mount(s).Transform = null, "hardpoint IDs must be present and unique");
         Add("hardpoint-transform-blank", s => Mount(s).Transform = " ", "hardpoint IDs must be present and unique");
@@ -176,6 +191,16 @@ public sealed class ShipValidationTests
         Add("hardpoint-shape-null", s => Mount(s).Shape = null, "has no cells");
         Add("hardpoint-cells-null", s => Mount(s).Shape.Cells = null, "has no cells");
         Add("hardpoint-cells-all-empty", s => Mount(s).Shape.Cells = new bool[1, 1], "has no cells");
+        Add("hardpoint-type-undefined", s => Mount(s).Type = (HardpointType)99, "unknown type 99");
+        Add("hardpoint-type-negative", s => Mount(s).Type = (HardpointType)(-1), "unknown type -1");
+        Add("hardpoint-rotation-undefined", s => Mount(s).Rotation = (ItemRotation)4, "unknown rotation 4");
+        Add("hardpoint-rotation-negative", s => Mount(s).Rotation = (ItemRotation)(-1), "unknown rotation -1");
+        Add("hardpoint-armor-nan", s => Mount(s).Armor = float.NaN, "armor and firing arc must be finite and not negative");
+        Add("hardpoint-armor-infinite", s => Mount(s).Armor = float.PositiveInfinity, "armor and firing arc must be finite and not negative");
+        Add("hardpoint-armor-negative", s => Mount(s).Armor = -1, "armor and firing arc must be finite and not negative");
+        Add("hardpoint-arc-nan", s => Mount(s).FiringArc = float.NaN, "armor and firing arc must be finite and not negative");
+        Add("hardpoint-arc-infinite", s => Mount(s).FiringArc = float.NegativeInfinity, "armor and firing arc must be finite and not negative");
+        Add("hardpoint-arc-negative", s => Mount(s).FiringArc = -1, "armor and firing arc must be finite and not negative");
         Add("hardpoint-left-of-hull", s => Mount(s).Position = new int2(-1, 0), "outside the hull schematic");
         Add("hardpoint-below-hull", s => Mount(s).Position = new int2(1, -1), "outside the hull schematic");
         Add("hardpoint-right-of-hull", s => Mount(s).Position = new int2(2, 0), "outside the hull schematic");
