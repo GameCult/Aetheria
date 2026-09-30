@@ -1,12 +1,15 @@
 # Mining: Target and Cut Map
 
-Date: 2026-09-25
+Date: 2026-09-25 (corrected for M0, 2026-09-30)
 
-Status: target and cut map, from an Imagination pass. Nothing here has landed. The first half is the
+Status: target and cut map, from an Imagination pass. Cuts 1 and 2 have landed on `codex/mining` (see the status
+header in Part III), which was merged with master at M0 to carry fire control. The first half is the
 **target** (the ends). The second half is the **cut map** (the means). When the campaign closes, split the target
 out as `docs/mining-target.md` and keep this file as history.
 
-Anchors are against `codex/fire-control-12` HEAD `8bd25f6f`, read from a clean worktree of that commit. Claims
+Anchors are against `codex/fire-control-12` HEAD `8bd25f6f`, read from a clean worktree of that commit. **Every
+anchor in a fire-control file is stale at `b66ba524`** (`FireControl.cs` is 1,614 lines there; `Splash` is gone); Cuts 3
+and 4 below carry the re-anchored versions, and the `8bd25f6f` anchors elsewhere are history. Claims
 marked **(probe)** were measured by running code; claims marked **(read)** come from source at the cited anchor.
 Probes live in the session scratchpad and are not kept in the repo:
 
@@ -21,10 +24,10 @@ Probes live in the session scratchpad and are not kept in the repo:
 - The legacy record: `scratchpad/legacy-0305.json` and `legacy-0414.json` (decoded `AetherDB.msgpack` history and
   `Legacy/AetherDB.2021-04-14.msgpack`), and the deleted `GameData/SimpleCommodityData/*.json` at `c6ffcad3^`.
 
-**Scope: mining only.** Fire control is mid-rewrite on this branch (Cut 12.3 and 12.4 of
-`docs/fire-control-cut.md`, being worked in the main tree by other agents). Cuts 3 and 4 below edit `FireControl.cs`
-and `Entity.cs` and must land after fire-control Cut 12 closes, or rebase onto it. Cut 1 and Cut 2 touch no
-fire-control code. §Overlap names every shared line.
+**Scope: mining only.** Fire control Cut 12.4 closed 2026-09-29 (`c50029d5`; 362 tests at that close) and is on
+master (`dcd7bbc5`, 2026-09-30), merged into this branch at M0. Cuts 3 and 4 below edit `FireControl.cs` and
+`Entity.cs`, code fire control rewrote after this map was first written, so they are re-anchored to `b66ba524`. Cut 1
+and Cut 2 touched no fire-control code. §Overlap names every shared line.
 
 ---
 
@@ -114,11 +117,11 @@ nothing per tick.
 
 - Backward economy generation, routes and piracy (next scope, `docs/three-gates-scope.md:141-145`). This campaign
   writes the first real `Extracted` lots, and generation will later synthesize more of the same shape.
-- Refining, crafting from ore, prices for ore (every live simple commodity has `Price 0` **(probe)**).
+- Refining, crafting from ore, prices for ore (every live simple commodity has `Price 0` except Ammo, priced 1000 **(merged-tree census)**).
 - AI cargo offload at a home station (the 2020 controller's `GoHome`). An AI miner with full cargo stops mining.
-- Electronic-warfare clutter ("a ship ... can float in a debris field or asteroid belt and pass as junk",
-  `docs/three-gates-scope.md:155-157`). This is parked there. Q2's recommendation keeps the door open, because a
-  chunk enters through the shared detection gate.
+- Electronic-warfare clutter and masking beyond reflected light ("a ship ... can float in a debris field or asteroid belt
+  and pass as junk", `docs/three-gates-scope.md:155-157`) stays parked there, and so does black-body emission for
+  chunks. Detection of a chunk by reflected light is **in** this campaign (Q2 correction, 2026-09-30; Cut 3).
 - Orbits beyond belts. `Zone.Update` still steps the planet orbits (`:156-161`), which cost about 31 us/tick in the
   probe zone. That is cheap and out of scope.
 
@@ -132,7 +135,7 @@ nothing per tick.
 | **Chunk pose** (position, rotation, velocity) | Derived: `(ChunkId, zone time)`. | Never stored. Evaluated on demand. | One function on `AsteroidBelt` (Cut 1). Forbidden writers: any stored pose array, any per-tick loop. |
 | **Chunk wear** (damage taken, broken-until time) | Keyed by `ChunkId` inside the owning `Zone`. | Damage accumulates at Apply. When it reaches the chunk's hitpoints, the chunk breaks with `RespawnAt = zone time + AsteroidRespawnTime(size)`. At `time >= RespawnAt` it is whole again, read lazily with no timer. Persisted in `ZonePack` (new nullable key 6) with the zone's own `Time`, and pruned of expired entries at pack. | `FireControl.Apply` through one `Zone` method is the only writer. `Zone` owns the storage. |
 | **Chunk composition** | Derived: `(belt identity, ChunkId, catalog ore table)`. | Never stored (recommended, Q7). A retune of the catalog retunes every belt. | The catalog author, through per-ore data on `SimpleCommodityData`. The derivation function is the only reader of that data for belts. |
-| **Ore affinity and abundance** | Per ore: new nullable fields on `SimpleCommodityData` (keys 12 and 13; keys 6, 7, 8 and 11 are retired and must not be reused, `ItemData.cs:304`). | Authored in Studio. Changes with the catalog. | Catalog author. |
+| **Ore affinity and abundance** | Per ore: new nullable fields on `SimpleCommodityData` (keys 12 and 13 are free. Only key 11 is retired on `SimpleCommodityData`; keys 6, 7 and 8 are live, inherited from `ItemData` (`SpecificHeat`, `Conductivity`, `Price`, `ItemData.cs:291-298` @`b66ba524`). The comment at `ItemData.cs:304` wrongly lists 6, 7, 8 and 11). | Authored in Studio. Changes with the catalog. | Catalog author. |
 | **Global loot tunables** | `GameplaySettings` / `PlanetSettings` fields (Cut 5). | Authored. Today they live in `Settings.asset`. They move with the settings-globals campaign (`docs/settings-globals-cut.md`, mapped, not landed). | Catalog author. |
 | **Mined lot** | `LotId` in the run's `ProvenanceLedger`. `Lot { Design = the commodity, Origin = Extracted { Zone, Commodity, Body }, Quality, Roles = null }`. | Minted at the first extraction from a (zone index, belt, commodity) source (Q6). Reused for later units from that source. Collected by `Reachable` when no instance reaches it. A later extraction after collection mints a fresh lot. | `ItemManager.ExtractedLot(zone, belt, commodity)` is the only writer. Its source→lot index is derived at load, not persisted. |
 | **Mined unit** | A `SimpleCommodity` instance, `Data` = commodity, `Lot` = the source lot (`Lot` moves to the `ItemInstance` base, key 11). | Stored in cargo. Stacks merge only within the same `Data` and `Lot`. A split copies `Lot`. | `EquippedCargoBay` owns placement. The mint owns `Lot`. |
@@ -145,6 +148,8 @@ other way.
 ---
 
 ## Operator questions, in the order they block cuts
+
+The 2026-09-30 rulings on Q4-Q13 are recorded in the Part III status header. Where a question below was written before its ruling, the ruling wins and the recommendation text is history.
 
 Self delivers these one at a time (memory: pace operator questions). Cut 1 needs no ruling. The CPU-versus-GPU
 belt renderer is a stated default: CPU, one orbit function, so no parity test is needed. Reopen it on request.
@@ -163,7 +168,7 @@ damage channel with its own DPS, efficiency, penetration and range. Nothing assi
   content keeps its meaning through the one fire path.
 - B: Keep `MiningTool` as a second extraction channel beside weapons.
 - **Recommended: A.** B is a second hit path with its own dice and its own yield rule, which is exactly the
-  split Cut 3 of fire control removed. `ResourceScanner` is Q2's business.
+  split Cut 3 of fire control removed. `ResourceScanner` stays parked (Q2 correction, 2026-09-30).
 
 **Q2 (blocks Cut 3). How does a chunk become a target?** **Ruled 2026-09-25: A, one slot, two kinds.**
 Operator: "Note that I have been saying chunks specifically because this should generalize to more than just
@@ -173,16 +178,7 @@ field**; asteroid belts are one kind of field and debris fields another. `ChunkI
 Cut 2); new chunk-surface code speaks of chunks and fields, never belts or rocks. Composition and loot tables
 (Q4, Q7) are per field kind: a debris field rolls salvage through the same weighted roll.
 
-**Detection is deferred to the electronic-warfare campaign.** Operator, correcting Self's "rocks never hide": "But
-uh, chunks have the same kind of sensor envelope as a hull, that's what makes masking and hiding possible. They
-have black body emission and an albedo and a cross section." Then: "Put the fields in, defer the signature and
-detection work for the later EW campaign." So, as **explicit placeholders the EW campaign owns and replaces**:
-a chunk passes the visibility gate unconditionally with PSensor 1 (weapon range and arc still gate); targeting a
-chunk is an on-demand query against the field, with no per-tick chunk detection; `ResourceScanner` parks (its data
-stays; its purpose is decided with detection). Handed to EW: chunks present a sensor envelope like a hull
-(black-body emission, albedo, cross-section), which makes masking and hiding in fields possible; per-chunk
-evaluation must stay on demand or be aggregated per field for cost (per-pair detection is ~184 ns per observed body
-per tick, the reason chunks-as-entities was rejected).
+**Detection (operator correction, 2026-09-30, replacing the 2026-09-25 "deferred to the electronic-warfare campaign" text).** Operator: "We can just assign a reflectivity and cross section to each chunk just like we do with entities, then their visibility depends on how much light is shining on them, no new mechanism needed ... This is what I actually intended with my ruling about deferring detection."
 
 The options as mapped, kept for the record: The options below were
 costed against the live code:
@@ -190,7 +186,9 @@ costed against the live code:
 - **A. One slot, two kinds.** `Entity.Target` becomes `ReactiveProperty<TargetRef>`, where `TargetRef` is a small
   readonly value that is either an `Entity` or a `ChunkId`, with value equality. Readers that need a ship read
   `Target.Value.Entity` (null for a chunk). FireControl's factor functions take a `TargetRef`, with the chunk
-  branch at each target-shaped read. Blast radius **(read)**: about 60 `Target` reads in 12 files
+  branch at each target-shaped read. Blast radius **(read)**: the count has grown since the first read. At `b66ba524`: 28 `Target` reads in `ActionGameManager.cs`, 22 in
+  `FireControl.cs`, 11 in `Entity.cs`, plus Unity weapon-manager sites (`GuidedProjectileManager`, `LightningGunManager`,
+  `ConstantParticleWeaponManager`, `GuidedProjectile`) the first count omitted. The first read was about 60 in 12 files
   (`ActionGameManager.cs` 20, `FireControl.cs` 11, `Entity.cs` 8, `TurretController.cs` 7, `LockWeapon.cs` 5,
   `EntityInstance.cs` 3, `Weapon.cs` 2, `Combat.cs`, `Minion.cs`, `Ship.cs:84`, `ActionBarSlot.cs`), plus
   `PendingShot.Target` and `ShotOutcome.Target`. Most sites are mechanical (`.Entity`).
@@ -209,18 +207,17 @@ costed against the live code:
 rock" is the one-owner sentence, and it matches the parked electronic-warfare direction: "every body presents a
 signature through the shared detection interface". Consequences that come with A, named here and not decided
 later:
-- **Visibility (superseded 2026-09-25 by the EW deferral above).** A chunk passes the visibility gate within the shooter's chunk detection range, and its PSensor is
-  1, because rocks do not hide. Recommend that range be the equipped `ResourceScanner`'s `Range`, with a
-  `GameplaySettings.UnaidedChunkRange` fallback. That is the `TargetingSystem`/`UnaidedTracking` precedent
-  (`FireControl.cs:121-125`), and it gives `ResourceScanner` a job: it is to chunks what the targeting system is to
-  ships. Its dead survey half (`ResourceScanner.cs:71-107`, `// TODO: Implement Scanning!`) is deleted.
+- **Visibility.** Superseded twice; the live design is Cut 3 (a chunk is detected by reflected light through the
+  shared sensor gain rule). The scanner-as-chunk-sensor plan, the fallback range tunable, unconditional visibility and
+  PSensor 1 are all struck. `ResourceScanner` stays parked.
 - **Stance.** `StanceAllowsFire` (`Weapon.cs:101`) allows fire on a chunk.
 - **Lock weapons.** Launchers cannot lock a chunk. `LockWeapon.cs:86` requires `IsHostileTo`, and rocks are not
   hostile, so guided and lock launchers (GT 3K, LRMM72, SRMM72, pswarm, scorched void policy) cannot mine. Rule it
   if that is wrong.
-- **Blasts (fire-control 12.4).** A blast shot targeting a chunk delivers `damage × area(blast disc ∩ chunk disc) /
-  area(blast disc)`, which is 12.4's own area rule with the chunk disc as the only cell. Untargeted chunks near a
-  blast are unaffected, so there is no per-blast scan of belts.
+- **Blasts (fire-control 12.4).** Superseded by Q10 (ruled A, 2026-09-30): a blast covers every chunk it overlaps, and
+  the shooter gets the loot (Cut 4). The text this replaces was written against `Splash`, which Cut 12.4 replaced with
+  `Detonate(Zone, float2 worldPlanar, float radius, float damage, DamageType)` (`FireControl.cs:1074` @`b66ba524`); that
+  function takes no shooter and walks `zone.Entities` only (`:1084`), so a blast beside a rock did nothing to it.
 
 **Q3 (blocks Cut 2). Do chunks respawn, and does wear survive save/continue?** **Ruled 2026-09-25: A.**
 Today `MineAsteroid` sets `RespawnTimers` (`Zone.cs:316`), but nothing ever decrements them, and `AsteroidExists`
@@ -267,7 +264,7 @@ So the right damage type roughly triples an ore's share, and penetration multipl
 Alternatives to put to the operator:
 - A: the formula above (Damage sets quantity; damage type and penetration set weights).
 - B: A, plus `DamageSpread` as breadth: a yield multiplier `1 + DamageSpread × k`, which strips more rock per hit at
-  the raw composition. It is a benefit, and GT 3K, plight, pswarm and scorched void policy author it **(probe)**.
+  the raw composition. It is a benefit, and GT 3K, plight, pswarm, SRMM72 and scorched void policy author it **(probe)**.
 - C: A, with no penetration term (damage type and composition only). This is the simplest to read.
 - **Recommended: A.** Every term is one sentence, and every weapon stat in it is a benefit. B is a clean add later,
   because it changes no weight. Note: penetration is scheduled for a retune (fire-control F12-2, "Retuning
@@ -295,7 +292,7 @@ CultMath-typed while settings are Unity-serialized (memory: Unity-serialized Cul
 - Lot quality: 1 for extracted lots. Nothing reads a `SimpleCommodity`'s quality (price and tier read
   `CraftedItemInstance` only, `ItemManager.cs:114,224`). Grade can arrive as its own ruling later.
 
-**Q7 (blocks Cut 5). Where does composition live?**
+**Q7 (blocks Cut 5). Where does composition live?** **Resolved 2026-09-30: A′** (a per-kind entry list of commodity, abundance and affinity, derived, never stored per chunk), with Q11 (field kinds are authored catalog records yielding simple commodities). The per-ore `Abundance` on `SimpleCommodityData` recommended below is superseded: it gives one table for every field kind, which the Q2 ruling (tables are per field kind) contradicts.
 `BodyData.Resources` (key 4, `ZoneData.cs:53-54`) is on every body and has never had a writer since the 2020
 generator (`17673cd2`) was commented out. Its only reader is `MineAsteroid` (`Zone.cs:322-323`). No live belt has
 resources **(probe: 8 belts, 0 authored)**.
@@ -310,14 +307,14 @@ resources **(probe: 8 belts, 0 authored)**.
   because a new draw there would shift every later placement in newly generated zones.
 
 **Q8 (blocks Cut 7). The catalog has no Corrosive or Ionizing weapon, now or in its history.** Live weapons use
-Kinetic (10), Optical (3), Electric (3) and Thermal (3) **(probe)**. `legacy-0305` and `legacy-0414` use the same
+Kinetic (9), Optical (3), Electric (3) and Thermal (3) **(probe)**. `legacy-0305` and `legacy-0414` use the same
 four types **(probe)**. An ore whose affinity peaks at Corrosive or Ionizing is unreachable.
 - A: Author affinities over the four types that exist, and add Corrosive and Ionizing weapons when content wants
   them.
 - B: Author new Corrosive and Ionizing weapons in Cut 7.
 - **Recommended: A**, with the gap recorded in Cut 7's review sheet.
 
-**Q9 (blocks Cut 6). Which AI ships mine?** Nothing assigns a `Mining` task today. `Zone.CreateAgent`
+**Q9 (blocks Cut 6). Which AI ships mine?** **Ruled 2026-09-30: C** (defer; against the recommendation below). Cut 6 is deleted. Nothing assigns a `Mining` task today. `Zone.CreateAgent`
 (`Zone.cs:122-129`) gives every NPC a `PatrolOrbitsTask`.
 - A: In a zone with belts, an NPC whose loadout has a weapon with nonzero affinity to some belt ore gets a `Mining`
   task on the nearest belt, with an authored share (`GameplaySettings.AgentMinerShare`).
@@ -393,6 +390,8 @@ from the always-empty `beltData.Resources`, and mints nothing: the `SimpleCommod
 
 ## How FireControl sees a target (what a chunk must answer)
 
+**History, anchored at `8bd25f6f`.** Every line number below is stale (`FireControl.cs` is 1,614 lines at `b66ba524`, `Splash` is gone, and the chunk visibility and info rows are superseded by Cut 3). The re-anchored, live version is in Cuts 3 and 4.
+
 **(read, `FireControl.cs` at `8bd25f6f`)**:
 
 | Read | Where | For a chunk |
@@ -418,13 +417,13 @@ integrator, used by the hull path and `Silhouette.Disc` alike, so no second copy
 ## The catalog and the legacy record (probe)
 
 - **Live simple commodities (13):** Minerals: Hydrogen, Potassium, Rock. Metals: Gold, New Metals, Uranium.
-  Compounds: Methane, Water. Organics: Algae, Animal Products, Bacteria, Fungi. Ammo: Ammo. Every one is priced 0.
+  Compounds: Methane, Water. Organics: Algae, Animal Products, Bacteria, Fungi. Ammo: Ammo. Every one is priced 0 except Ammo (1000). The catalog oid moved after `8bd25f6f` (`4f218e85`, `dd437580`, locomotion Cut 1): `1862ddc4` then, `2aa79c0a` at `b66ba524`.
 - **Legacy (30, identical in `legacy-0305` and `legacy-0414`):** the 13 live ones, plus Crystal, Silicon, Carbon,
   Nitrogen (Minerals); Iron, Titanium, Copper, Lead (Metals); Ethanol, Hydrocarbons, Acid, Oxygen, Carbon Dioxide
   (Compounds); Plant Matter (Organics); and Autocannon, Charged Shotgun, Flak Cannon and Auto Shotgun ammo. That is
   17 missing from live, 14 of them plausible ores.
 - **Resource-distribution data does not survive.** The 2020 fields (`ResourceDensity` map layers, `Minimum`,
-  `Maximum`, `Exponent`, `Floor`; `17673cd2`) are the retired keys 6, 7, 8 and 11. No values remain in the deleted
+  `Maximum`, `Exponent`, `Floor`; `17673cd2`) were keys 6, 7, 8 and 11 on `SimpleCommodityData`. Only key 11 stays retired there; 6, 7 and 8 are live `ItemData` keys (`SpecificHeat`, `Conductivity`, `Price`). No values remain in the deleted
   JSON records at `c6ffcad3^` (for example, `Uranium.json` carries only name, mass and category) or in either
   msgpack.
 - **Mining gear:** Drill Bit and Resource Scanner exist in legacy only (Q1). Surface Ore Extractor and Deep Ore
@@ -464,9 +463,8 @@ lot. That includes every existing loadout ammo stack. Reading such a lot through
   `Forecast`, `HitProbability`, `Inspect`, `CommitProbability`, `Commit`, `Apply`, `Silhouette`, `PendingShot` and
   `ShotOutcome`, and they touch `Splash`'s successor from 12.4. They must follow Cut 12.4. Cuts 1, 2 and 5-7 do not
   touch `FireControl.cs`, except Cut 5's loot-draw lines inside `Commit`, which also wait for 12.4.
-- **Locomotion (`codex/locomotion`).** Its Cut 4 rewrites `MoveTo` and the heading planner. Cut 6 here drives the
-  approach through whatever `MoveToState` is live and adds no motion code, so it waits for, or rebases onto,
-  locomotion Cut 4.
+- **Locomotion (`codex/locomotion`).** Its Cut 4 rewrites `MoveTo` and the heading planner. Cut 6 is deleted (Q9 = C), so
+  this campaign no longer depends on locomotion Cut 4.
 - **Settings globals (`docs/settings-globals-cut.md`).** Cut 5's new tunables join `GameplaySettings` and
   `PlanetSettings` wherever those live when it lands.
 - The uncommitted `AetheriaInput.cs` change in the main tree ("Cycle Target Item") is fire-control work. Cut 3's
@@ -478,11 +476,45 @@ lot. That includes every existing loadout ammo stack. Reading such a lot through
 
 ## Status header
 
-Status: cut map. Ends are owned by Part I of this document; Part III owns the means.
+Status: cut map. Ends are owned by Part I of this document; Part III owns the means. Updated at M0, 2026-09-30.
 
-Rulings (operator): Q1 = A, Q2 = A (with the field generalization and the EW deferral), Q3 = A (2026-09-25). Q4-Q9 open.
+**M0 (2026-09-30):** `codex/mining` merged with master (fire control, `dcd7bbc5`) and this map corrected against
+`docs/mining-cut-refresh.md` (v2). Cuts 3 and 4 below are the refresh's versions. The refresh's Cut 5 and Cut 7 texts are
+the current proposals and are not yet folded into this file; where they differ, the refresh wins.
 
-Open: Q4-Q9. Cut 3 waits only on fire-control Cut 12 closing (it edits `FireControl.cs`).
+Rulings (operator), 2026-09-25: Q1 = A, Q2 = A (one slot, two kinds; field generalization), Q3 = A.
+
+Rulings (operator), 2026-09-30:
+
+| Q | Ruling |
+|---|---|
+| Q4 | A, the formula as written (Cut 5) |
+| Q5 | A, per hit (Cut 5) |
+| Q6a | A, straight into cargo; overflow lost (Cut 5) |
+| Q6b | A, one lot per (zone, field, commodity) source (Cut 5) |
+| Q7 | A′, a per-kind entry list (commodity, abundance, affinity), derived, never stored per chunk (Cuts 3 and 5) |
+| Q8 | **B**, author Corrosive and Ionizing weapons (Cut 7), against the earlier recommendation |
+| Q9 | **C**, AI mining deferred; the path is proven by a test agent in Cut 5. Cut 6 is deleted |
+| Q10 | A, a blast covers every chunk it overlaps; the shooter gets the loot (Cuts 4 and 5) |
+| Q11 | field kinds are authored catalog records; tables yield simple commodities only (Cuts 3, 5, 7) |
+| Q12 | A, launchers cannot mine (Cuts 3 and 4) |
+| Q13 | A, reach is the longest active weapon range |
+| Q2 correction | Chunks are detected by the existing reflectance rule (reflectivity and cross-section, lit by the suns), not deferred to EW. Struck: the scanner as chunk sensor, the fallback range tunable, unconditional visibility, PSensor 1. `ResourceScanner` stays parked |
+
+**Q14 (how a ship's info on a rock integrates over time) and Q16 (how a belt gets its field kind) remain open.** They
+block Cut 3. Self's recommendations (Q14 A, settled value on demand; Q16 B, stored at generation and assigned once for
+old belts) are proposals, not operator rulings; Cut 3 is written for them.
+
+**M-Soul content unknown:** no Soul report for Cuts 1-2 exists; the mutation sweep at `22fb4021` stands in. Cut 3
+does not start until M-Soul is closed or empty.
+
+**Still owed:**
+- From Cut 1: a Unity compile of the `ZoneRenderer` and `AsteroidBeltUI` change (M0 runs it), an isolated Stryker rerun,
+  and the operator's fly-through. Nothing after `d9c887c1` records any of them.
+- From Cut 2: Soul has not verified the two-commit fix (`34994732`, `93bfdebd`). It folds into Cut 3's Soul pass.
+
+Test counts: the map's 274 after Cut 2 were counted on its own `8bd25f6f` base. On the merged tree (`fc90e936`, master plus
+mining) the suite is 498 tests, all passing on Yggdrasil (CultLib `45c2f40`, CultMath `6d5e209`).
 
 **Cut 2: landed 2026-09-25** at `3b9f0f1d`, `c924bae0`, `daa64560`. 272 tests; production net −73 lines; `AetherDb census` byte-identical; break threshold kept strictly `>`; `ZonePack` key 6 nullable, proven by a raw-MessagePack older-record test. Spec discrepancy fixed: the retirement comment for union tag 26 no longer names `MiningToolData`, which the cut's own negative grep forbids. Soul found one real defect, dormant until Cut 4 wires `FireControl.Apply` into `Wear`: a hit on a chunk that was
 already broken reset `BrokenUntil` and resurrected it on the spot (any shot resolving after the chunk broke —
@@ -522,11 +554,13 @@ Follow-ups outside this campaign:
 |---|---|---|
 | 1 | Subtraction: belts evaluated on demand. No threads, no stored poses. | none |
 | 2 | Subtraction plus one owner: the dead mining path goes, and chunk identity and wear get one owner | Q1, Q3 |
-| 3 | Targetable chunks: the one slot, the one chunk query, the HUD | Q2; fire-control Cut 12 closed |
-| 4 | Hit resolution against chunks through FireControl (damage only, no loot) | 3 |
+| M0 | Placement: merge master, correct the map | fire-control-12 on master |
+| M-Soul | Fix slot for the parallel Soul pass over Cuts 1-2 (content unknown) | Soul report |
+| 3 | A chunk is a target, detected by reflected light; the field-kind record appears | M0, M-Soul; Q14, Q16 |
+| 4 | A shot at a chunk goes through FireControl; blasts cover chunks | 3; the fire-control no-target fuse ruling |
 | 5 | Composition, loot roll, provenance, deposit | 4; Q4-Q7 |
-| 6 | AI mining on the same path | 5; Q9; locomotion Cut 4 |
-| 7 | Content: ores, affinities, abundance, Drill Bit, Resource Scanner (operator review) | 5; Q1, Q8 |
+| ~~6~~ | **Deleted** (Q9 = C); the test agent moved into Cut 5 | none |
+| 7 | Content: ores, affinities, abundance, Drill Bit, Corrosive and Ionizing weapons (operator review) | 5; Q1, Q8 |
 
 Cuts 1 and 2 are kept apart so Soul can falsify "nothing changed" (Cut 1) separately from "the dead path is gone
 and wear has one owner" (Cut 2).
@@ -653,91 +687,294 @@ and wear has one owner" (Cut 2).
 
 ---
 
-### Cut 3. A chunk is a target
+### Cut 3. A chunk is a target, and is detected by reflected light
 
-- **Repo/branch:** Aetheria, `codex/mining`, rebased onto the fire-control Cut 12 close. Depends on Cut 2 and Q2.
-  Written for Q2=A.
-- **Deletes first:** none of substance. Reshapes follow.
-- **Adds:**
-  - `TargetRef` (readonly struct: `Entity Entity`, `ChunkId? Chunk`, value equality, `IsNone`).
-  - `Zone.ChunksNear(float2 position, float range, List<ChunkId> into)`. It is the one chunk query: it skips belts
-    whose annulus (`GetOrbitPosition(parent)`, `Radius`) cannot reach, evaluates the rest on demand, and skips broken
-    chunks. The player's reticle pick, target cycling and the AI all call it.
-  - `Zone.ChunkVelocity(ChunkId)`: analytic, `2πD/T · (−sin θ, cos θ)` plus the parent `Orbit.Velocity` (`Zone.cs:160`).
-  - `FireControl.ChunkDetectionRange(Entity)`: the equipped `ResourceScanner`'s `Range` when active, else
-    `GameplaySettings.UnaidedChunkRange` (the `Tracking` shape, `FireControl.cs:121-125`).
-- **Per-file changes** (anchors at `8bd25f6f`; re-anchor after the Cut 12 rebase):
-  - `Entity.cs:46`: `Target` becomes `ReactiveProperty<TargetRef>`. `:201`, `:227`, `:231-234`, `:298-299` compare
-    and clear through `.Entity`. `:317` and `:328` (`TrySelectTargetItem`, `ResolvedTargetItem`) are entity-only,
-    via `.Entity`. `:1060` `TargetRange` reads the chunk position for a chunk.
-  - `ActionGameManager.cs:372-404`: the reticle, next and previous handlers include chunks from `Zone.ChunksNear`
-    within `ChunkDetectionRange`. `TargetNearest` stays enemies-only (`:380-388`, its own comment: it drives weapon
-    lock). The HUD at `:1266-1275` shows the chunk's size, and its wear as hitpoints, for a chunk target. The
-    visibility fills are ship-only. `UpdateFireControlDebug(Entity)` (`:1284`) takes `TargetRef`.
-  - `Weapon.cs:101` `StanceAllowsFire`: a chunk is allowed. `:110-117` `ArcAllowsFire`: reads the target position
-    through the ref.
-  - `LockWeapon.cs:80-98`, `TurretController.cs:60-100`, `Combat.cs:28-126`, `Minion.cs:14,18,21`, `Ship.cs:84`,
-    `EntityInstance.cs:207,236,405`: `.Entity` and null-checks. Turrets and combat never hold a chunk (they write
-    only enemies).
-- **Authority map:**
-  - Owner: `Entity.Target`, the one slot.
-  - Inputs: the player's targeting handlers and the AI states.
-  - Outputs: the current `TargetRef`.
-  - Derived state: `TargetItem` (ship-only, nulled on any change as today, `Entity.cs:286`); `TargetRange`.
-  - Forbidden writers: any second target field; any chunk selection that bypasses `Zone.ChunksNear`.
-  - Shared paths: player reticle, cycling, AI (Cut 6), and dock/undock reactivation (`Entity.cs:298-299`).
-  - Deletion line: no `ReactiveProperty<Entity> Target` remains.
-- **Verification:**
-  - tests:
-    - `ReticleAndCycleOfferChunksWithinDetectionRange`, headless through the same query the handler calls.
-    - `AScannerExtendsChunkDetection` (and `UnaidedFallbackWithoutOne`).
-    - `ABrokenChunkIsNotOffered`.
-    - `TargetingAChunkClearsTheAimedItem`.
-    - `TargetRefEquality`: the same chunk held twice is equal.
-    - Every existing fire-control test still passes unchanged. That is the negative check that ship targeting did
-      not move.
-  - negative: `rg -n "ReactiveProperty<Entity> Target\b"` is empty.
-  - operator: target a rock with the reticle, cycle through rocks and ships, and dock and undock with a rock
-    targeted.
+- **Repo/branch:** Aetheria, `codex/mining`, after M-Soul.
+- **Written for:** Q13 = A with the detection correction, Q14 = A, Q16 = B (recommended).
 
----
+#### How detection works today (read at `b66ba524`)
 
-### Cut 4. A shot at a chunk goes through FireControl
+1. **Emitters write into `Entity.VisibilitySources`** (`Entity.cs:63`, a `Dictionary<object, float>`). Every
+   entry is one source's contribution:
+   - `Reflector.cs:46`: `CrossSection × Zone.GetLight(Position.xz)`. This is the rule the operator named.
+   - Black-body radiation: `Entity.cs:1269`.
+   - Weapons: `InstantWeapon.cs:257`, `ConstantWeapon.cs:166`.
+   - Thrusters: `Thruster.cs:110-111`.
+   - Sensor pings: `Sensor.cs:117`.
+   - `Visibility.cs:44` and `Radiator.cs:121`.
 
-- **Repo/branch:** Aetheria, `codex/mining`. Depends on Cut 3 and fire-control 12.4.
-- **Deletes first:** none. Reshape `PendingShot.Target` and `ShotOutcome.Target` (`FireControl.cs:860,997`) to `TargetRef`.
-- **Adds:** `Silhouette.Disc(float radiusCells, float precision)`, which returns one interval `[-R, R)`, `A = 0`,
-  and `Span = 2R`. The hull path and the disc path share one integrator, extracted from `:710-718`. `ShotOutcome`
-  gains `float3 ImpactPoint` for presentation: the chunk position at commit.
-- **Per-file changes** (re-anchor after 12.4):
-  - `PFire` `:161-181`: for a chunk, the visibility gate is range ≤ `ChunkDetectionRange`, `info = 1`, and a
-    `LockWeapon` is gated out.
-  - `Forecast`, `HitProbability`, `Inspect` (`:194-265`): for a chunk, the silhouette is the disc.
-  - `PredictedIntercept` `:133-139` and `TravelDirection`: position and velocity through the ref.
-  - `Fire` `:329-393`: freezes the ref.
-  - `Step` `:398-443`: `targetGone` includes `!ChunkExists`.
-  - `CommitProbability` and `Commit` (`:476-559`): for a chunk, the disc and no shield.
-  - `Apply` `:564-582`: a chunk hit calls `Zone.Wear(chunk, Damage)`.
-  - Unity presentation: `EntityInstance.cs:207,236` and the effect managers aim at the chunk's rendered position when
-    the target is a chunk. That is presentation only.
-- **Authority map:**
-  - Owner: `FireControl`, unchanged.
-  - New inputs: the chunk pose, velocity and radius through `Zone`.
-  - Forbidden: any hit test against chunk geometry outside `Commit`, and any read of a chunk pose in `Apply` (R4).
-  - Shared: player trigger, AI `Activate`, turrets (which cannot hold chunks).
-  - Deletion line: none.
-- **Verification:**
-  - tests:
-    - `AChunkShotUsesTheSameFactors`: Accuracy, PSpread and Sigma equal a ship shot's at equal range and precision.
-    - `DiscMassIsTheClosedForm`: `POnHull = Φ(R/σ) − Φ(−R/σ)`.
-    - `ABiggerRockIsEasierToHit`.
-    - `AChunkThatBreaksMidFlightIsAMiss`.
-    - `ChunkHitsWearTheChunk`.
-    - `LaunchersCannotFireOnAChunk`.
-    - `ChunkDiceAreTheShotsOwn`: the same galaxy and shot give the same outcome.
-    - Stryker over the new branches.
-  - negative: no `Target.Value.Position`-shaped chunk read outside `Zone.Chunk*` (grep).
-  - operator: shoot a rock with each damage type. It shrinks and breaks, and misses are plausible at range.
+   Sources decay each tick (`Entity.cs:1083-1087`, `VisibilityDecay` 0.5).
+2. **`Entity.Visibility`** (`Entity.cs:136`) is the sum of the sources.
+3. **Each `Sensor` behaviour on an observer** loops over every entity in the zone, every tick
+   (`Sensor.cs:157-189`).
+   - It adds a gain into `EntityInfoGathered[target]` (`Entity.cs:64`, a `ReactiveDictionary`).
+   - Passive gain is `target.Visibility × Sensitivity × SensitivityCurve(angle/π) × dt / dist` (`:179-184`).
+   - Ping gain is `target.Visibility × Sensitivity × PingBoost × dist`, once per ping (`:170-175`).
+   - It then decays: `next *= 1 − TargetInfoDecay × dt` (`:186`; `TargetInfoDecay` 0.5 in shipped
+     `Settings.asset`).
+4. **Crossing `TargetDetectionInfoThreshold`** (0.1) adds the target to or removes it from `VisibleEntities`, via
+   the `ObserveReplace` subscriber at `Entity.cs:237-253`.
+5. **Fire control reads both.** `PFire` gates on `VisibleEntities.Contains` (`FireControl.cs:173`) and prices
+   `PSensor` from the info value (`:179`). The same info also gates the armour and gear reveal thresholds
+   (0.5 and 0.8) through `IsRevealed`.
+6. **Light** is `Zone.GetLight(float2)` (`Zone.cs:369` @`283ce7dc`). It sums `PowerPulse(d / LightRadius, 8)`
+   over every sun within its `LightRadius`. Beyond every sun's radius, light is 0.
+
+#### How a chunk plugs in, without becoming an entity
+
+Two things are needed:
+- **A chunk's visibility**, `V(chunk, t)`: `cross-section(chunk) × GetLight(pose(chunk, t))`. This is
+  `Reflector.cs:46`'s rule, applied to a pose that is already a pure function of time (Cut 1). No stored source,
+  and no decay: a chunk has only the reflected term, because rocks carry no thrusters, weapons or heat
+  (black-body emission is out of scope, per the operator's correction).
+- **An observer's info on a chunk.** The gain rule is the existing one. Q14 decides how it integrates over time.
+  Recommended: the closed-form equilibrium of the per-tick rule, evaluated on demand, with no per-tick state.
+
+**No adapter, and why that is the goal.** The adapter would be a pseudo-entity per chunk, or an `IDetectable`
+wrapper, so that `Sensor.Execute`'s loop over `Zone.Entities` sees rocks. That is rejected option C of the Codex
+Q2 in a costume:
+- It puts every chunk into every sensor's per-tick loop. The map measured 184 ns per observed body per tick,
+  which is 149 µs per sensor-bearing ship for the 809-chunk probe zone.
+- It puts chunks into `EntityInfoGathered`, whose `ObserveReplace` subscriber builds `VisibleEntities`,
+  `VisibleEnemies` and `VisibleFriendlies`. Every consumer of those collections would then have to learn that
+  some "entities" are rocks.
+
+The shared owner has to be **the rule, not the container**. The cut extracts the gain terms at `Sensor.cs:170-184`
+into one static function, and both paths call it:
+- the entity loop, per tick, unchanged in behaviour;
+- the chunk query, on demand.
+
+Nothing about a chunk is stored per observer.
+
+#### Deletes first
+
+- The Codex scanner-as-sensor plan: no `ChunkDetectionRange`, no `UnaidedChunkRange`, and no scanner read
+  anywhere in the target path.
+- The v1 placeholders: unconditional chunk visibility, and PSensor fixed at 1.
+- Optional, Self's call: the parked `ResourceScanner` behaviour still runs a per-tick `Update` over three stats no
+  code reads (`ResourceScanner.cs:35-58` @`283ce7dc`). Delete the `Update` and the properties, and keep
+  `ResourceScannerData` authored.
+
+#### Adds
+
+- **`Sensor.Gain(...)`**, a static function extracted verbatim from `Sensor.cs:170-175` (ping) and `:179-184`
+  (passive). Inputs: target visibility, sensitivity, the curve at the angle, distance, dt, and whether this is a
+  ping. `Sensor.Execute` calls it. This is a pure extraction.
+- **`FieldKindData`**, a new catalog document type (Q11: authored catalog records). Cut 3 introduces it with only
+  what detection needs:
+  - `Name` (`[CultName]`);
+  - `CrossSection` (float): reflectivity per schematic cell of chunk area;
+  - `GenerationWeight` (float), for Q16.
+
+  Cut 5 adds the yield entries. Only one kind exists at first, "Asteroid".
+- **The belt names its kind.** `AsteroidBeltData` gains a nullable `CultRecordRef<FieldKindData> Kind`, at the next
+  free key after `Asteroids` `Key(9)` (`ZoneData.cs:101-105` @`283ce7dc`).
+  - `ZoneGenerator` writes it at generation, through one function `FieldKinds.Assign(belt key, catalog)`: a
+    `StableHash` pick weighted by `GenerationWeight`.
+  - Under Q16 = B, a belt loaded without a kind is assigned by the same function on first load and written back.
+    One derivation serves both the generation path and the load path.
+- **`Zone.ChunkVisibility(ChunkId)`** = `kind.CrossSection × π(ChunkRadius / SchematicCellSize)² × GetLight(ChunkPose.xy)`.
+  - Area in schematic cells keeps the numbers comparable to hull reflectors. The census has Longinus at 500-150
+    over 66 cells and Djinni at 2500-500 over 166, so about 2-15 per cell.
+  - A worn chunk shrinks and dims. A broken chunk has radius 0, so it is invisible.
+- **`Entity.ChunkInfo(ChunkId)`**: the info this observer has on the chunk, from its active `Sensor` behaviours
+  through `Sensor.Gain`, integrated per Q14. Visible means `ChunkInfo > TargetDetectionInfoThreshold`.
+- **`TargetRef`**: a readonly struct holding `Entity Entity` and `ChunkId? Chunk`, with value equality and `IsNone`.
+  It lives beside `ChunkId` (`Zone.cs:527` @`283ce7dc`).
+- **`Zone.ChunksNear(float2 position, float range, List<ChunkId> into)`**: the one chunk query.
+  - Belts whose annulus cannot reach are skipped.
+  - The rest are evaluated through `ChunkPose` (`Zone.cs:285`).
+  - Broken chunks are skipped through `ChunkExists` (`:231`).
+  - It knows nothing about detection. Callers filter by `ChunkInfo`.
+- **`Zone.ChunkVelocity(ChunkId)`**: analytic velocity plus the parent `Orbit.Velocity`.
+- **`Entity.SetTarget(TargetRef)`**: the one writer. The player's handlers and the Cut 5 test agent both call it
+  (target invariant 3, "set by one writer path that both the player and the AI call"). Today every handler writes
+  `Target.Value` directly (`ActionGameManager.cs:377,385,395,403`), so there is no one writer to share.
+- **Reach (Q13 = A):** cycling and any programmatic chunk pick use `ChunksNear(position, longest active weapon
+  Range.Max)`, then filter to chunks the observer can see.
+
+#### Per-file changes (`b66ba524` unless marked)
+
+- `Sensor.cs:170-184`: call `Sensor.Gain`. Behaviour must stay identical; the whole existing suite is the check.
+- `Entity.cs:46`: `Target` becomes `ReactiveProperty<TargetRef>`, written only through `SetTarget`.
+- `Entity.cs:201`, `:227`: entity removal clears the slot only when it holds that entity.
+- `Entity.cs:229`: `TargetedBy` fires for entities only.
+- `Entity.cs:233`: `TargetedByCount` counts entity targets only.
+- **`Entity.cs:298-299`:** today it clears a target missing from `EntityInfoGathered`, which would clear every
+  chunk target on the next pass. For a chunk, it clears when `ChunkInfo ≤ TargetDetectionInfoThreshold`, the same
+  "lost track" rule expressed through the chunk path. A broken chunk has 0 visibility, so it is lost the same way.
+- `Entity.cs:317`: `TrySelectTargetItem` is entity-only.
+- `Entity.cs:1078`: `TargetRange` reads the chunk position for a chunk.
+- `ActionGameManager.cs:365-377` (reticle pick): pick the chunk under the reticle from `ChunksNear` at the
+  reticle, if visible.
+- `ActionGameManager.cs:381-388` (`TargetNearest`): stays enemies-only. It drives lock.
+- `ActionGameManager.cs:390-404` (next and previous): include visible chunks within Q13's reach.
+- `ActionGameManager.cs:412-414` (Cycle Target Item): entity-only.
+- `ActionGameManager.cs:582`, `:745`, `:769`, `:1046`, `:1224`, `:1239`, `:1266-1267`, `:1355-1373`: `.Entity`
+  reads, or the chunk position for the indicator.
+- `ActionGameManager.cs:1285`: `UpdateFireControlDebug` takes `TargetRef`.
+- `Weapon.cs:101` `StanceAllowsFire`: true for a chunk. `Weapon.cs:110` `ArcAllowsFire`: position through the ref.
+- `LockWeapon.cs:86`: a chunk never locks (Q12 = A, ruled).
+- `TurretController`, `Combat.cs`, `Minion.cs`, `Ship.cs`, `EntityInstance.cs`, `PropertiesPanel.cs`,
+  `FieldDriver.cs`, `ActionBarSlot.cs`: `.Entity` and null checks.
+
+#### Authority map
+
+- **Owners:**
+  - `Entity.Target` is the one slot, and `SetTarget` is its one writer.
+  - `Sensor.Gain` is the one detection gain rule.
+  - `FieldKindData` owns a chunk's reflectivity.
+  - `FieldKinds.Assign` owns which kind a belt is.
+- **Inputs:** player handlers and the test agent; sensor stats; chunk pose and radius; sun light.
+- **Outputs:** the current `TargetRef`; `ChunkVisibility`; `ChunkInfo`.
+- **Derived state:**
+  - `ChunkVisibility` and `ChunkInfo` are pure functions of time and are never stored.
+  - `TargetItem` is entity-only.
+  - `TargetRange`.
+- **Forbidden writers:**
+  - any second target field;
+  - any direct `Target.Value =` outside `SetTarget`;
+  - any chunk in `Zone.Entities` or `EntityInfoGathered`;
+  - any per-tick chunk detection loop;
+  - any chunk-specific copy of the gain arithmetic;
+  - any unconditional visibility for chunks.
+- **Shared paths:** reticle, cycling, the test agent, dock and undock re-activation, and belt generation and load
+  (through `FieldKinds.Assign`).
+- **Deletion line:** no `ReactiveProperty<Entity> Target` remains; no `Target.Value =` outside `SetTarget`; no
+  gain arithmetic outside `Sensor.Gain`.
+
+#### Verification
+
+Yggdrasil, the M0 command with `--filter FullyQualifiedName~MiningCut3`, then the full suite.
+
+| Test | Rule it pins |
+|---|---|
+| `SensorGainExtractionChangesNothing` | The existing detection tests, and a recorded `EntityInfoGathered` trace over N ticks for a fixed scene, are byte-equal before and after the extraction. |
+| `ChunkInfoMatchesAnEntityHeldStill` | Q14's parity. An entity with a `Reflector` of the same cross-section, at the chunk's position and held still, converges under the per-tick loop to the value `ChunkInfo` returns (tolerance from the discrete fixed point). **One rule, two integrators.** |
+| `AChunkInDarknessIsNotVisible` | A chunk outside every sun's `LightRadius` has `ChunkVisibility` 0 and cannot be targeted or fired on. |
+| `ABrighterOrBiggerChunkIsSeenFurther` | Monotone in cross-section, radius and light. |
+| `AWornChunkDims`, `ABrokenChunkIsInvisible` | Visibility follows `ChunkRadius`. |
+| `CyclingReachIsTheLongestActiveWeaponRange` | Q13. A visible chunk beyond it is not offered. |
+| `AChunkTargetSurvivesTheInfoPassWhileSeen` | The negative for `Entity.cs:298-299`. It fails on the naive retype. |
+| `AChunkTargetIsDroppedWhenItGoesDark` | The lost-track rule, through the chunk path. |
+| `TargetRefEquality` | Value equality; a chunk never equals an entity. |
+| `ChunkTargetIsNeverLocked` | Q12 = A. |
+| `FieldKindAssignmentIsOneFunction` | Generation and first-load assignment give the same kind for the same belt key; the kind is written back once. |
+| every existing fire-control and sensor test | Pass unchanged. This is the negative that ship detection and targeting did not move. |
+
+Also:
+- Negative greps: `git grep -n "ReactiveProperty<Entity> Target\b"` and `git grep -n "Target.Value ="` outside
+  `Entity.SetTarget` are empty.
+- Stryker over `Sensor.Gain`, `Zone.ChunkVisibility`, `Entity.ChunkInfo`, `ChunksNear` and `TargetRef`.
+- Census before and after: `AsteroidBeltData` is a run-store type and is absent from the catalog, and
+  `FieldKindData` shows one record once Cut 7's content lands. Until then, Cut 3 ships a test fixture kind and a
+  one-record catalog write through `AetherDb`, flagged for operator review.
+- Unity compile: Self.
+- Operator:
+  - target a lit rock with the reticle, and cycle through rocks and ships;
+  - fly into a belt far from the sun and confirm its rocks cannot be picked;
+  - dock and undock with a rock held.
+
+#### Subtraction estimate
+
+About 0 removed (optionally about 15 for the scanner `Update`). About 140 added:
+- `Sensor.Gain` extraction nets about 0;
+- `FieldKindData` plus assignment, about 40;
+- `ChunkVisibility` and `ChunkInfo`, about 30;
+- `TargetRef`, `ChunksNear`, `SetTarget`, about 70.
+
+Plus about 95 mechanical site edits. One new catalog document type (`FieldKindData`), and one nullable
+run-store slot (`AsteroidBeltData.Kind`).
+
+### Cut 4. A shot at a chunk goes through FireControl, and blasts cover chunks (re-anchored to 12.4)
+
+- **Repo/branch:** `codex/mining`, after Cut 3.
+- **Written for:** Q10 = A, Q12 = A (both ruled).
+- **Lands after:** the fire-control no-target fuse ruling (`docs/fire-control-cut.md`, 12.4 status, "a fused
+  weapon fired with no target bursts at the shooter's own position", `FireControl.cs:389`). That ruling's fix
+  edits the same `target != null` branches this cut retypes (`:367`, `:372-378`, `:389`). If the ruling is still
+  open, this cut preserves today's behaviour for the no-target case and says so in its commit.
+
+**Deletes first:** none. `PendingShot.Target` (`:1468`) and `ShotOutcome.Target` (`:1598`) become `TargetRef`.
+
+**Adds:**
+- **`Silhouette.Disc(float radiusCells, float precision)`.** The shared integrator is extracted from `Silhouette`
+  `:1302-1308` (the `Phi` sum over merged intervals, and `span`). The hull path and the disc path call one
+  function. No second `Phi` summation exists.
+- **A chunk pass inside `Detonate`** (Q10 = A). After the entity pass (`:1084-1149`):
+  - `ChunksNear(worldPlanar, radius + max chunk radius)`.
+  - Each covered chunk takes `damage × CircleCircleOverlap(blast, chunk) / (π r_blast²)`, the same normaliser the
+    cell shares use (`:1092`).
+  - `CircleCircleOverlap` is the closed-form lens area, about 12 lines, beside `CircleSquareOverlap` (`:1153`).
+  - Each share goes to `Zone.Wear`.
+  - **One area rule:** a blast's disc is divided over whatever it covers, whether cells or chunks. Conservation
+    holds across both.
+- **`Detonate` gains an optional loot sink**, the detonating shot, so the shooter receives the ore (Q10 = A).
+  - A sourceless blast passes null. None exists today, but a mine is one (F12-6). A null-sink blast wears chunks
+    and yields nothing.
+  - This is the only new parameter. `Detonate` still reads no host (12.4's rule).
+
+**Per-file changes** (`FireControl.cs` @`b66ba524`):
+- `PFire` `:161-181`:
+  - For a chunk, the visibility gate (`:173`) is `ChunkInfo > TargetDetectionInfoThreshold`, and `info` (`:179`)
+    is `ChunkInfo` (Cut 3). **This replaces v1's "no gate, info 1".**
+  - `PSensor` prices a chunk exactly as it prices a ship at the same info.
+  - A `LockWeapon` is gated out (`:175`, Q12 = A). The arc stays (`:176`).
+- `Forecast` `:206`, `HitProbability` `:228`, `Inspect` `:243-283`: the disc silhouette. `Inspect`'s `Visible` and
+  `Info` come from the chunk path.
+- `PredictedIntercept` `:133`, `TravelDirection` `:307`: position and velocity through the ref. `Bearing` `:316`
+  is not called for a chunk, because a disc has no facing.
+- `DeviationProbability` `:336-341`: the live chunk position is `Zone.ChunkPose` at `now`.
+- `Fire` `:355-418`: freezes the ref.
+- `Step` `:439`: `targetGone` includes `!ChunkExists`.
+- `CommitProbability` `:506-520`: for a chunk, the disc (no `GetData(Hull)` at `:516`).
+- `Commit` `:550-600`: for a chunk hit, no `Lane` (`:563-578`) and no shield block (`:585-592`). `Cell`, `Bearing`
+  and `Lateral` stay zero in `MakeOutcome` (`:1028`).
+- `Apply` `:651-678`:
+  - Null fuse on a chunk: `Zone.Wear(chunk, Damage)` (`Zone.cs:260` @`283ce7dc`).
+  - Contact or delayed fuse on a chunk: no `ApplyBlastHit`, which needs a hull (`:747-760`). `Detonate` at the
+    chunk's centre at arrival. The pose is a pure function of time, so the point is exact.
+  - Proximity: `Detonate` as today, now with the chunk pass.
+  - Contact or delayed on a ship: `ApplyBlastHit` as today, and its `Detonate` now also covers nearby chunks.
+- Unity presentation: `EntityInstance.cs` (4 target reads) and the four weapon managers aim at the chunk's
+  rendered position. Presentation only.
+
+**Authority map:**
+- **Owner:** `FireControl`, unchanged. `Detonate` stays the one area owner.
+- **New inputs:** chunk pose, velocity, radius and info, through `Zone` and `Entity.ChunkInfo`.
+- **When blast damage to chunks is decided:** at detonation. Each covered chunk is judged where it is at arrival,
+  which is 12.4's own bystander rule (`ApplyBlastHit`'s comment at `:773-777`: "every bystander is judged against
+  where it actually is at arrival"). A direct hit on a chunk is still decided at `Commit`.
+- **Forbidden writers:**
+  - any chunk hit test outside `Commit`, except `Detonate`'s area pass;
+  - any second area-share formula;
+  - any second `Phi` integrator;
+  - `Detonate` reading a host.
+- **Shared paths:** player trigger, the Cut 5 test agent, AI `Activate` (`Combat.cs:121`), and turrets (which
+  never hold a chunk). Any blast from any source goes through `Detonate`.
+- **Deletion line:** none.
+
+**Verification** (Yggdrasil, `--filter FullyQualifiedName~MiningCut4`, then the full suite):
+
+| Test | Rule it pins |
+|---|---|
+| `AChunkShotUsesTheSameFactors` | `Accuracy`, `PSpread`, `Sigma` and `PSensor` equal a ship shot's at equal range, precision and info. One fire path. |
+| `AnUnseenChunkCannotBeFiredOn` | The gate is the detection rule, not a constant. |
+| `DiscMassIsTheClosedForm` | `POnHull = Φ(R/σ) − Φ(−R/σ)`: the shared integrator. |
+| `HullSilhouetteUnchangedByTheExtraction` | Every existing `Silhouette` test and the `ProbeC` equivalence still pass. The negative for the extraction. |
+| `AChunkThatBreaksMidFlightIsAMiss` | `Step`'s gone rule. |
+| `ChunkHitsWearTheChunk`, `AHitOnABrokenChunkChangesNothing` | Wear; re-pins `34994732` through the real path. |
+| `ABlastConservesAcrossCellsAndChunks` | The shares delivered to cells plus chunks, plus the uncovered area, equal the damage. Same lattice style as 12.4's 1,944-disc conservation probe. |
+| `ABlastBesideAnUntargetedRockWearsIt` | Q10 = A. |
+| `CircleCircleOverlapIsTheLens` | Closed form, with the tangent, contained and disjoint cases (12.4's F1 tangent lesson). |
+| `LaunchersCannotFireOnAChunk` | Q12 = A. |
+| `ChunkDiceAreTheShotsOwn` | The same galaxy and shot id give the same outcome. |
+
+Also: Stryker over the new branches. Operator: shoot a lit rock with each damage type; it shrinks and breaks,
+and misses at range look plausible.
+
+**Subtraction estimate:** about 5 removed (the integrator extraction) and about 115 added (the chunk pass and the
+lens area add about 35 over v1).
 
 ---
 
@@ -797,29 +1034,12 @@ and wear has one owner" (Cut 2).
 
 ---
 
-### Cut 6. The AI mines on the same path
+### Cut 6. Deleted (Q9 = C)
 
-- **Repo/branch:** Aetheria, `codex/mining`, rebased onto locomotion Cut 4. Depends on Cut 5 and Q9.
-- **Deletes first:** `Agents/Tasks/Mining.cs` is reshaped. It is not persisted, so its MessagePack attributes go.
-  It keeps `Belt` (`CultRecordKey`) and a wanted-ore reference.
-- **Adds:** `MiningState` in `Minion` (`Minion.cs:7-22`), entered when `Task is Mining` and no enemy is targeted.
-  It picks a chunk via `Zone.ChunksNear` and writes `Ship.Target` (the same slot the player writes). It approaches
-  through the live `MoveToState` toward `ChunkPosition`. It selects the weapon group whose damage type has the
-  highest `Affinity` for the wanted ore, gates on `FireControl.HitProbability ≥ AgentMinHitProbability`, and calls
-  `weapon.Activate()`, which is exactly `Combat.cs:117-124`. It retargets when `!ChunkExists`, and stops when no
-  cargo bay can take a unit. The combat transition keeps priority: a visible enemy preempts mining
-  (`Minion.cs:14,18`). `Zone.CreateAgent` (`Zone.cs:122-129`) assigns `Mining` by Q9's rule.
-- **Authority map:**
-  - Owner: `MiningState` decides what to shoot.
-  - Forbidden: any AI-only extraction call. The only way ore enters an AI hold is `FireControl.Apply`.
-  - Shared paths: the same target slot, `HitProbability`, `Activate`, `Commit` and `Apply` as the player.
-- **Verification:**
-  - tests:
-    - `AnAgentMinesThroughFireControl`: a headless zone, an agent with a Mining task, N seconds of ticks, then ore in
-      its hold whose lots are `Extracted` from that belt, and every unit traceable to a `ShotOutcome`.
-    - `AnEnemyPreemptsMining`.
-    - `TheAgentPicksTheAffineGroup`.
-  - operator: watch an NPC mine a belt.
+AI mining is deferred, and its same-path proof is the test agent in Cut 5. The original Cut 6 text (`MiningState`, the
+`Mining` task, the locomotion Cut 4 dependency) is in git history at `22fb4021` and in
+`docs/mining-cut-refresh.md`, Cut 6. The campaign that builds AI mining starts from `Zone.CreateAgent`, the `Minion`
+transitions, `Entity.SetTarget` and `Combat.cs:121`.
 
 ---
 
@@ -831,9 +1051,8 @@ and wear has one owner" (Cut 2).
     Hydrocarbons, Acid, Oxygen, Carbon Dioxide, Plant Matter), restored with their legacy mass, specific heat,
     conductivity and category **(probe values in `legacy-0414`)**. The 3 missing ammo types are out of scope.
   - `Abundance` and `Affinity` for each belt ore, over the four damage types that exist (Q8).
-  - The Drill Bit as a mining weapon (Q1), and the Resource Scanner as the chunk sensor (Q2), restored from legacy
-    with their authored ranges.
-  - `AsteroidYield`, `ChunkCompositionVariance`, `MiningDepthPerPenetration` and `UnaidedChunkRange` values.
+  - The Drill Bit as a mining weapon (Q1), restored from legacy with its authored ranges.
+  - `AsteroidYield`, `ChunkCompositionVariance`, and `MiningDepthPerPenetration` values.
   - The Corrosive and Ionizing gap, recorded (Q8).
 - **Verification:** `census` and `dangling` before and after. The loot-table fixture from Cut 5 runs against the live
   catalog, asserting that every belt ore is reachable by at least one live weapon's damage type.
@@ -849,7 +1068,7 @@ and wear has one owner" (Cut 2).
 | 3 | ~0 | ~80, plus ~60 mechanical site edits | `Target` retyped |
 | 4 | ~0 | ~70 | `PendingShot`/`ShotOutcome` target retyped |
 | 5 | 2 (`BodyData.Resources`) | ~150 | `SimpleCommodityData` keys 12 and 13; `Extracted` key 2; `ItemInstance.Lot` moves to the base |
-| 6 | ~15 (`Mining.cs` attributes) | ~90 | none |
+| 6 | deleted (Q9 = C) | 0 | none |
 | 7 | 0 | content only | catalog records |
 
 Net code is roughly flat against about 240 lines deleted. Every addition buys a named capability: targetable chunks,
