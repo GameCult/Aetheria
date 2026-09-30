@@ -97,6 +97,23 @@ public sealed class ShipValidationTests
     }
 
     [Fact]
+    public void EmptyCellsInAHardpointFootprintNeedNotLieOnTheHull()
+    {
+        var ship = ShipAuthoringTests.Fixture();
+        ship.Hull.Hardpoints[0].Shape = new Shape(2, 1);
+        ship.Hull.Hardpoints[0].Shape.Cells[0, 0] = true;
+        ShipAuthoringStore.Validate(ship);
+    }
+
+    [Fact]
+    public void AnEmptyParentIdMeansNoParent()
+    {
+        var ship = ShipAuthoringTests.Fixture();
+        ship.Anchors[0].ParentId = "";
+        ShipAuthoringStore.Validate(ship);
+    }
+
+    [Fact]
     public void AnAnchorMayNameItsHardpointAsParent()
     {
         var ship = ShipAuthoringTests.Fixture();

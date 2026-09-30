@@ -83,8 +83,7 @@ public static class ShipAuthoringStore
             throw new InvalidOperationException($"{ship.Id}: ship ID must use lower-case ASCII letters, digits, dots, underscores, or hyphens.");
         var hull = ship.Hull ?? throw new InvalidOperationException($"{ship.Id}: hull data is required.");
         if (string.IsNullOrWhiteSpace(hull.Name)) throw new InvalidOperationException($"{ship.Id}: hull name is required.");
-        if (hull.Shape?.Cells == null || hull.Shape.Width < 1 || hull.Shape.Height < 1 ||
-            !hull.Shape.Cells.Cast<bool>().Any(occupied => occupied))
+        if (hull.Shape?.Cells == null || !hull.Shape.Cells.Cast<bool>().Any(occupied => occupied))
             throw new InvalidOperationException($"{ship.Id}: schematic must contain at least one cell.");
         if (!string.IsNullOrEmpty(hull.Prefab))
             throw new InvalidOperationException($"{ship.Id}: a mod ship cannot name a Unity prefab.");
@@ -146,7 +145,7 @@ public static class ShipAuthoringStore
                 line.Opacities != null && line.Opacities.Length != count)
                 throw new InvalidOperationException($"{ship.Id}: schematic line point attributes have the wrong length.");
             if (line.Radii != null && line.Radii.Any(value => float.IsNaN(value) || float.IsInfinity(value) || value < 0) ||
-                line.Opacities != null && line.Opacities.Any(value => float.IsNaN(value) || float.IsInfinity(value) || value < 0 || value > 1))
+                line.Opacities != null && line.Opacities.Any(value => float.IsNaN(value) || value < 0 || value > 1))
                 throw new InvalidOperationException($"{ship.Id}: schematic line radius and opacity must be finite and in range.");
             if (line.Color != null && (line.Color.Length != 4 ||
                 line.Color.Any(value => float.IsNaN(value) || float.IsInfinity(value))))

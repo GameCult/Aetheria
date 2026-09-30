@@ -100,6 +100,13 @@ class ReadTests(ShipFileCase):
         with self.assertRaisesRegex(ValueError, "must hold exactly one"):
             ship_cc.read(self.path, PACKAGES)
 
+    def test_refuses_a_file_whose_only_record_is_not_a_ship(self):
+        other = str(Path(self.path).with_name("other.cc"))
+        cultcache_py.SingleFileMessagePackBackingStore(other).push(cultcache_py.CultCacheEnvelope.create(
+            key="other", type="aetheria.something", payload=msgpack.packb([1], use_bin_type=True)))
+        with self.assertRaisesRegex(ValueError, "must hold exactly one"):
+            ship_cc.read(other, PACKAGES)
+
     def test_refuses_a_file_with_no_record(self):
         empty = str(Path(self.path).with_name("empty.cc"))
         Path(empty).write_bytes(b"")
@@ -112,9 +119,11 @@ class ReadTests(ShipFileCase):
             ship_cc.read(self.path, PACKAGES)
 
     def test_refuses_a_payload_that_is_not_an_array(self):
-        self.write({"Id": "mod.skiff"})
-        with self.assertRaisesRegex(ValueError, "incompatible"):
-            ship_cc.read(self.path, PACKAGES)
+        for payload in ({"Id": "mod.skiff"}, {str(index): index for index in range(9)}, "a string long enough to fill every slot"):
+            with self.subTest(payload=payload):
+                self.write(payload)
+                with self.assertRaisesRegex(ValueError, "incompatible"):
+                    ship_cc.read(self.path, PACKAGES)
 
 
 class ReplaceLinesTests(ShipFileCase):
@@ -167,6 +176,14 @@ class LayoutTests(ShipFileCase):
         body[ship_cc.HULL_SLOT][ship_cc.HULL_SHAPE_SLOT] = [shape(2, 2, [True, True, True, True])]
         self.write(body)
         self.assertNotEqual(revision, self.layout()[2])
+
+    def test_the_revision_follows_the_hardpoints_too(self):
+        _, _, revision = self.layout()
+        moved = hardpoint_row(tail=())
+        moved[1] = [0, 0]
+        same_cells = [True, False, True, False]
+        self.assertEqual(revision, self.edit(revision, cells=same_cells, hardpoints=[hardpoint_row(tail=())]))
+        self.assertNotEqual(revision, self.edit(revision, cells=same_cells, hardpoints=[moved]))
 
     def test_saves_the_layout_and_returns_the_new_revision(self):
         _, _, revision = self.layout()

@@ -206,6 +206,14 @@ public sealed class ShipModCatalogTests : IDisposable
     }
 
     [Fact]
+    public void ReadPackageAppliesTheCatalogsItemValidationToTheHull()
+    {
+        WritePackage("mod.skiff", tweak: ship => ship.Hull.MinimumTemperature = ship.Hull.MaximumTemperature);
+        Assert.Contains("zero-span range", Assert.Throws<InvalidOperationException>(() =>
+            ShipModCatalog.ReadPackage(Path.Combine(Mods, "mod.skiff", "ship.cc"))).Message);
+    }
+
+    [Fact]
     public void ReadPackageRefusesAnAnchorWhoseNodeIsNotInTheModel()
     {
         WritePackage("mod.skiff", nodes: FixtureNodes.Where(node => node != "thruster-port").ToArray());
@@ -240,7 +248,8 @@ public sealed class ShipModCatalogTests : IDisposable
         Refuse("short.glb", With(good.Take(19).ToArray(), 8, 19), "invalid GLB 2 header");
         Refuse("magic.glb", With(good, 0, 0x46546C68), "invalid GLB 2 header");
         Refuse("version.glb", With(good, 4, 1), "invalid GLB 2 header");
-        Refuse("length.glb", With(good, 8, (uint)good.Length + 1), "invalid GLB 2 header");
+        Refuse("longer.glb", With(good, 8, (uint)good.Length + 1), "invalid GLB 2 header");
+        Refuse("shorter.glb", With(good, 8, (uint)good.Length - 4), "invalid GLB 2 header");
         Refuse("chunktype.glb", With(good, 16, 0x004E4942), "missing GLB JSON chunk");
         Refuse("chunklength.glb", With(good, 12, (uint)good.Length), "missing GLB JSON chunk");
     }
@@ -261,7 +270,7 @@ public sealed class ShipModCatalogTests : IDisposable
 
     private void AssertOnlyTheDerivedFile()
     {
-        var names = Directory.GetFiles(Path.GetDirectoryName(Derived)).Select(file => Path.GetFileName(file)).ToArray();
+        var names = Directory.GetFileSystemEntries(Path.GetDirectoryName(Derived)).Select(entry => Path.GetFileName(entry)).ToArray();
         Assert.True(names.Length == 1 && names[0] == "Aetheria.modded.cc", string.Join(" | ", names));
     }
 
@@ -297,9 +306,11 @@ public sealed class ShipModCatalogTests : IDisposable
         return path;
     }
 
-    private void WritePackage(string id, string hullName = "Skiff", string[] nodes = null, string modelAsset = "skiff.glb")
+    private void WritePackage(string id, string hullName = "Skiff", string[] nodes = null, string modelAsset = "skiff.glb",
+        Action<ShipAuthoring> tweak = null)
     {
         var ship = ShipAuthoringTests.Fixture();
+        tweak?.Invoke(ship);
         ship.Id = id;
         ship.Hull.Name = hullName;
         ship.ModelAsset = modelAsset;
