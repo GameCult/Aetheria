@@ -400,6 +400,59 @@ public sealed class RunStartTests : IDisposable
         Assert.Empty(RunStart.Check(_items, null));
     }
 
+    // Q3, with the operator's 2026-09-30 ruling on the ten product-less designs: a design no product sells is a
+    // scenario test design and nothing else. A test design is one a scenario places: its preset's hull or a slot of
+    // it, or cargo it carries. These are the unsold designs no scenario places, by name.
+    private static List<string> UnsoldAndUnplaced(CultCache cache)
+    {
+        var sold = cache.GetAll<FactionProductData>().Select(product => product.Design.Key).ToHashSet();
+        var placed = new HashSet<CultRecordKey>();
+        foreach (var scenario in cache.GetAll<Scenario>())
+        foreach (var ship in scenario.Entities.Prepend(scenario.Player).Where(ship => ship != null))
+        {
+            foreach (var cargo in ship.Cargo) placed.Add(cargo.Key);
+            var preset = cache.Get(ship.Loadout);
+            if (preset == null) continue;
+            placed.Add(preset.Hull.Key);
+            foreach (var slot in preset.Slots) placed.Add(slot.Design.Key);
+        }
+        return cache.GetAll<EquippableItemData>()
+            .Where(design => !sold.Contains(cache.RefOf(design).Key) && !placed.Contains(cache.RefOf(design).Key))
+            .Select(design => design.Name).OrderBy(name => name, StringComparer.Ordinal).ToList();
+    }
+
+    // The shipped catalog holds no unsold design outside a scenario (today, none unsold at all). A new unsold design is
+    // flagged until a scenario places it, in a preset's slot or as an entity's cargo.
+    [Fact]
+    public void EveryUnsoldDesignIsAScenarioTestDesign()
+    {
+        Assert.Empty(UnsoldAndUnplaced(_cache));
+
+        GearData Probe(string name)
+        {
+            var design = new GearData { Name = name, Hardpoint = HardpointType.Tool, Shape = new Shape(), Durability = 1 };
+            _cache.Upsert(design);
+            return design;
+        }
+        var fitted = Probe("Census Fitted");
+        var carried = Probe("Census Carried");
+        Assert.Equal(new[] { "Census Carried", "Census Fitted" }, UnsoldAndUnplaced(_cache));
+
+        var preset = Preset(new Loadout
+        {
+            Name = "census preset", Hull = _cache.RefOf(Hull("Djinni")), WeaponGroups = new int[0][],
+            Slots = { new LoadoutSlot { Design = new CultRecordRef<EquippableItemData>(_cache.RefOf(fitted).Key) } }
+        });
+        var scenario = Quiet(At(Bare(Hull("Djinni")), 0, 0), Placed(preset, 100, 0, ScenarioStance.Neutral, false));
+        scenario.Name = "census";
+        _cache.Upsert(scenario);
+        Assert.Equal(new[] { "Census Carried" }, UnsoldAndUnplaced(_cache));
+
+        scenario.Entities[0].Cargo.Add(new CultRecordRef<EquippableItemData>(_cache.RefOf(carried).Key));
+        _cache.Upsert(scenario);
+        Assert.Empty(UnsoldAndUnplaced(_cache));
+    }
+
     // The Q3 rule must not reach a real hull: the hulls scenarios rely on each have a product, and materialize bare,
     // branded, under the prelude's availability.
     [Fact]
