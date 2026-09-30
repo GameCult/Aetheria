@@ -1,0 +1,674 @@
+# Scenarios: Cut Map
+
+Date: 2026-09-30, 02:10 CEST. Imagination pass.
+
+Status: cut map. Nothing has landed. The target lives in section 0 until Self splits it out into
+`docs/scenarios-target.md`; this document owns the means.
+
+Anchors are against Aetheria `origin/master` `dcd7bbc5` (the fire-control merge), read in the clone
+`C:\ws72-fuse5` with `git show`/`git grep`. The operator's tree `F:\Projects\Aetheria` was not touched. No
+build ran and no Yggdrasil job ran. **(read)** marks a claim read from source at the anchor. **(probe)** marks a
+claim measured against a real file.
+
+---
+
+## 0. Target
+
+### 0.1 The request, in the operator's words (2026-09-30)
+
+> "I feel like this would be much more manageable as a list of things to verify over time rather than a
+> monolithic smoke script that doesn't respect how the game works. Move gear onto Djinni? That's a lot of items
+> to spawn, and am I expected to have the catalog memorized to spawn them? If you want me to test a bunch of
+> behaviors under specific conditions, find a way to spawn me in an arena where those conditions are present. If
+> you want me to kill a guy and loot him, spawn me next to a ship with no armor or weapons, that sort of thing. I
+> wouldn't mind a scenario affordance in the main menu for this sort of job, that way the test fixtures can be
+> authored, retained and available. But that sounds like a Eureka cut."
+
+What those words settle, so no question below re-asks them:
+- **A scenario is an arena whose conditions are present at spawn.** The player's ship and every other entity are
+  already fitted and placed. The operator never spawns gear by catalog name and never fits a ship by hand.
+- **The fixtures are authored and retained,** and the main menu lists them.
+- **Verification is a list of behaviours checked over time,** not a play order.
+
+### 0.2 Ends
+
+- The main menu lists scenarios. Picking one starts a run in its arena.
+- A scenario is typed catalog data. It is authored once, kept in git, and replayed at any later revision.
+- Every operator check is a typed **check** record: what to do, what to observe, where the rule came from, and
+  the scenario that sets it up. Results accumulate as typed records carrying the revision they were observed at.
+- Checks A-F and checklist steps 7-20 are the first consumers (section 5).
+
+### 0.3 Invariants
+
+- **One owner decides what a new run starts with.** A plain New Game and a scenario launch share the menu path,
+  the galaxy build, `StartGame` and the staging owner. Scenario launch is New Game with a scenario as input; there
+  is no second boot path. A plain New Game is the absent-scenario case.
+- **One primitive admits an entity into a zone.** Zone construction, staging, warp arrival and undock all admit
+  through it, and agents are created there and nowhere else.
+- **A scenario sets conditions and nothing else.** Once staged, its entities are ordinary run state. The rules
+  under test run through the same code whether or not a scenario started the run. No scenario-only branch exists
+  in simulation code.
+- **Fixtures are typed state.** Scenario, loadout presets and test designs are CultCache catalog records. Checks and
+  results are CultCache records. No load-bearing JSON, text scripts or prose checklists.
+- **A scenario that cannot stage is refused before anything is cleared,** with its failures listed.
+- **The catalog stays read-only at runtime** (`AetheriaStores.cs:13-21`).
+
+### 0.4 Not in scope
+
+- The full run lifecycle owner (`Run`) of `docs/headless-playground-cut.md` Cut 1 (warp, dock, save, death as one
+  ServerShared owner) and its `AetherDb play` interpreter (Cut 3). This map takes over only the new-run staging
+  half. The playground map is stale (anchors `1e647953`, fork S superseded by settings-globals) and must be
+  re-anchored before Hands. When it lands, its `new` command stages a `Scenario` record instead of reading a
+  `.play` text line.
+- Brokkr. It is not needed for any cut here: agents author scenarios headless through `AetherDb`, and the operator
+  launches them from the menu. Brokkr's Unity actions (`setEditorPlayState`, `captureEditorView`, scene edits;
+  `F:\Projects\Brokkr` `1357705`, read) have no way to pick a scenario in the menu. Agent-driven Unity play would
+  need an Aetheria install cut plus a "launch scenario" intent. Recorded as a follow-up, not a fork.
+- The ship-purchase docking-bay gap (checklist section 8). It is a design gap in `TradeMenu.Buy` and
+  `CommissionShip`, not a verification affordance. `CommissionShip` stays; `TradeMenu.Buy` is its consumer.
+- Tier colours (settings-globals Cut 1). The check is recorded as a known failure (section 5).
+- Balance and feel tuning. A check can record a feel call; it does not tune.
+
+---
+
+## 1. Body findings
+
+### 1.1 The new-run path today (read)
+
+| Concern | Anchor | Notes |
+|---|---|---|
+| Menu | `MainMenu.cs:92-184` | Continue `:103-108`; New Game `:110-176`; Settings; Quit. The same component runs in-game (`InGame`, `:96`), so the menu reappears on death (`ActionGameManager.cs:1171`). |
+| Clear the run | `MainMenu.cs:113` | `RunSave.Clear` at click time, before the galaxy is built. |
+| Galaxy | `MainMenu.cs:124-175` | `TutorialPassed` is never set anywhere, so New Game always takes the prelude branch `:146-175`. The background noise position comes from `UnityEngine.Random` (`:128,153`). The seed defaults to the clock (`Galaxy.cs:106,158`). |
+| Handoff | statics `ActionGameManager.CurrentGalaxy`, `IsTutorial` (`:96-97`) | read by `StartGame`, `SectorMap`, and nulled by `Die` (`:1173`). |
+| Start | `StartGame` `:796-834`, called from `Start` `:491` | New run `:803-815`: `PopulateLevel(Entrance)`, `LoadoutGenerator.GenerateShipLoadout` filtered by `GameSettings.StartingHullName` (`GameSettings.cs:13`, authored `LonginusX`), unpack, `Zone.Entities.Add`, `Activate`, `BindToEntity`. Continue `:817-833`. |
+| Zone entry | `PopulateLevel` `:710-744` | generates the pack lazily (`:714-722`), moves the pilot (`:731-737`). |
+
+### 1.2 What a scenario can reuse (read, one probe)
+
+- **Loadout presets already exist.** `aetheria.loadout` (`Loadout.cs:13-20`) holds a hull design, per-cell slot
+  designs with rotation, and weapon groups. It is a catalog type (`AetheriaStores.cs:9`), authored in Studio or by
+  the editor console command `capturepreset` (`ActionGameManager.cs:624-662`, `Loadouts.Commit` `Loadout.cs:70-87`).
+  `Loadouts.Materialize` (`:96-159`) builds a live `Ship` all-or-nothing, listing every failure.
+  - **No game path calls `Materialize`** (`LoadoutGenerator.cs:152-153` says so; only `LoadoutTests.cs:310,899`
+    call it).
+  - **(probe)** The live catalog holds no preset: the schema name `aetheria.loadout` does not occur in
+    `GameData/Aetheria.cc` (12,698,108 bytes at `dcd7bbc5`), while every populated type's name does (for example
+    `aetheria.hulldata`, `aetheria.weaponitemdata`). Method: `grep -a -o` over the file.
+  - `Materialize` always builds a `Ship` (`:131`). A turret hull cannot be materialized.
+  - It resolves every design through a product (`Resolve`, `:103-115`). A design with no product fails.
+- **Unbranded lots exist.** `ItemManager.CreateLot(design, maker, quality)` (`ItemManager.cs:161`) with no maker is
+  how `give` made its items (`ActionGameManager.cs:538,542`). Provenance's "no Manufacturer row" check depends on
+  them.
+- **Economy exclusion follows from products.** Generation iterates products and requires
+  `product.Manufacturer.IsSet()` and `design.Price > 0` (`LoadoutGenerator.cs:126-133`). A design with no product
+  is never generated, stocked or sold. Loot is what a killed entity carries (`EntityInstance.cs:302-321`), so it
+  cannot leak through loot either unless a scenario fits it.
+- **Prelude galaxies offer every product.** `IsAvailable` returns true when `Galaxy.IsPrelude`
+  (`LoadoutGenerator.cs:154-156`). A preset materialized in a prelude arena never fails on faction availability.
+- **Agents are made only at zone construction.** `Zone`'s constructor gives every packed non-player `Ship` a
+  `Minion` (`Zone.cs:120-131`, `CreateAgent` `:135-142`). An entity added later gets none. A `Minion` targets the
+  first visible enemy and fights (`Minion.cs`).
+- **An entity joins a zone in four other places,** each by hand: `spawnturret` (`ActionGameManager.cs:587`),
+  `PopulateLevel` (`:735`), `StartGame` (`:813`) and `Entity.TryUndock` (`Entity.cs:1006`).
+- **IFF overrides are entity-local and unsaved.** `Entity.SetIff(other, bool?)` (`Entity.cs:529-533`) decides
+  `IsHostileTo` ahead of faction rules (`:535-552`). A `Materialize`d ship has no faction, so it is neutral unless
+  overridden.
+- **A target that dies and a target that leaves are the same case in fire control.**
+  `targetGone = shot.Target != null && !zone.Entities.Contains(shot.Target)` (`FireControl.cs:610`), and death
+  removes the entity from `Zone.Entities` (`Zone.cs:93`). Check A.3 ("the target warps away") is therefore set up by
+  killing a fragile target while a fused round is in flight. No departure machinery is needed.
+- **An orbital entity with no orbit stays where it is put** (`OrbitalEntity.cs` `Update`: position follows the
+  orbit only when one is set). That is how `spawnturret` placed turrets (`ActionGameManager.cs:583-588`).
+- **Headless tests already open the live catalog and the authored settings**
+  (`RestoredHullsTests.cs`: `AuthoredSettings.Load`, `OpenReadOnlyRealCatalog`). A staging test can generate a
+  prelude galaxy, build the arena zone and stage a scenario with no Unity.
+
+### 1.3 Debug affordances a scenario replaces (read)
+
+| Affordance | Anchor | Added for |
+|---|---|---|
+| `give <name>` | `ActionGameManager.cs:515-544` | ad hoc items; the hull route through `CommissionShip` was added tonight in `f935c29b` for step 7 |
+| `spawnturret` | `:564-589` | a hostile turret next to the player |
+| Neutral wanderers | `ZoneGenerator.cs:342-356`, `EligibleWandererFactions` `:361-365`, `ZoneGenerationSettings.NeutralWandererCount` (`Settings.cs:156`), tests `IffAndCombatTests.cs:329-350` | commit `f732cff9` (2026-09-17): "Spawn neutral wanderers so combat has something non-hostile to target". The code comment calls it a "Testing affordance". Every generated zone carries two. |
+
+Staying, because no scenario replaces them: `iff` (flip a live target's stance mid-play), `trackmissile` (camera),
+`revealzones` (map), `tow` (a verb bound to the console), `capturepreset` (the in-play authoring tool for presets).
+
+### 1.4 Collisions with open branches (read)
+
+- `codex/mining` rewrites `Zone.cs` (+239/-). Cut 1 edits the constructor loop and adds the admission primitive.
+  Land Cut 1 after mining merges, or re-anchor.
+- `codex/moddable-ships` edits `AetheriaStores.cs` (line 9, the catalog type list). Cuts 1 and 3 edit the same
+  lines.
+- `codex/item-provenance` carries the narrative map, which edits `MainMenu.cs:132,160` and the `Galaxy`
+  constructors. Cut 2 edits the same New Game block.
+
+---
+
+## 0b. Identity, lifecycle, authority
+
+No cut is mapped against an empty cell.
+
+| Kind | What names it | Lifecycle | Who decides |
+|---|---|---|---|
+| **Scenario** (`aetheria.scenario`, catalog) | `CultName` `Name`; key `scenario:<Name>`, derived like `Loadouts.KeyOf` | Authored, then edited in place. A rename is a new record; the old one is deleted, and the checks that pointed at it are repointed in the same commit. A result never points at a scenario (it points at a check), so history survives. A scenario whose presets stop materializing is caught by the staging test (Cut 4), not at play time. | Authored by agents through `AetherDb` or by the operator in Studio. The operator owns what an arena contains. |
+| **Loadout preset** (`aetheria.loadout`, existing) | key `loadout:<Name>` (`Loadout.cs:62`) | Unchanged: authored, replaced only explicitly (`Commit(..., replace)`). | Unchanged. |
+| **Test design** (catalog `ItemData`, no product) | name; key minted by `Upsert` | Authored with the scenario that needs it. Lives as long as a preset references it. Per Q3. | Operator (Q3) on whether they exist at all. |
+| **Check** (`aetheria.check`, ledger store) | `CultName` `Slug`; key `check:<Slug>` | Authored. Its statement is edited in place when a ruling changes (git keeps the history). It is retired, never deleted, once any result references it: `Retired` plus a reason. | The rule's owner (a ruling or a map) decides what it says. Agents transcribe it with a source pointer. |
+| **Check result** (`aetheria.checkresult`, ledger store) | key `checkresult:<Slug>:<At as UTC ticks>` | Append-only. Never edited or deleted. A correction is a new result whose note says what it corrects. The latest by `At` is the current status. Order is carried in the data (`At`), not in delivery. | The operator's observation. Who writes the record is Q2. |
+| **Pending scenario** (runtime) | `ActionGameManager.PendingScenario`, a static | Written once by the menu's launch, read and nulled once by `StartGame`'s new-run branch. Null for Continue. Never saved. | Command-only transport. It decides nothing. |
+| **Staged entities** (runtime, then run state) | ordinary entities | Born at staging. From then on they are run state and saved with the zone like any other entity. Two things are not saved: whether a ship was left unpiloted, and scenario IFF overrides. After Continue, an unpiloted scenario ship gets a `Minion` by the constructor rule and its stance reverts to faction rules (neutral, since presets carry no faction). A scenario run is meant to be played through in one sitting. | `RunStart` at birth; the zone afterwards. |
+
+---
+
+## 2. Target shape
+
+### 2.1 Types (names and rules; bodies are Hands')
+
+`Assets/Scripts/ServerShared/Scenario.cs`, catalog:
+
+- `Scenario` (`aetheria.scenario` v1):
+  - `Name` (`CultName`).
+  - `Brief`: the conditions in one or two lines, shown in the menu.
+  - `Seed` (`uint`): the arena galaxy and the background noise both derive from it, so the arena is the same layout
+    every launch. Combat rolls are already zone-seeded (`Zone.cs:84`). Lot quality still comes from the
+    clock-seeded `ItemManager.Random` (`ItemManager.cs:20`), so stats vary slightly per launch. Accepted.
+  - `Ambient` (`bool`): true keeps the arena zone as generated. False keeps planets, orbits and stations but drops
+    generated ships and turrets, so nothing wanders into the conditions.
+  - `Player` (`ScenarioShip`).
+  - `Entities` (`List<ScenarioEntity>`).
+- `ScenarioShip`: `Loadout` (`CultRecordRef<Loadout>`), `Position` (`float2`, zone xz), `Direction` (`float2`),
+  `Cargo` (`List<CultRecordRef<EquippableItemData>>`, stored in the first cargo bay).
+- `ScenarioEntity : ScenarioShip`: `Stance` (`Neutral | Hostile`, applied both ways through `SetIff`) and `Piloted`
+  (`bool`: a `Minion`, or no agent at all).
+- A preset's hull type picks the entity class: a ship hull gives a `Ship`; a turret hull gives an orbital entity
+  with no orbit, stationary at its position. A station hull is refused as a staging failure.
+
+`Assets/Scripts/ServerShared/Checks.cs`, ledger store (`GameData/Checks.cc`, committed, LFS by the existing
+`GameData/*.cc` rule):
+
+- `Check` (`aetheria.check` v1): `Slug` (`CultName`), `Statement` (what to do and what must be observed),
+  `Source` (the ruling or map pointer, `doc:line`), `Scenario` (`CultRecordRef<Scenario>`, optional), `Setup`
+  (text, only when there is no scenario: "FieldShieldTest scene", "CultCache Studio", "Addressables play mode Use
+  Existing Build"), `Retired` and `RetiredReason`.
+- `CheckResult` (`aetheria.checkresult` v1): `Check` (ref), `Result` (`Pass | Fail | Partial | Blocked`),
+  `Revision` (the commit the operator played, plus `+dirty` when the tree had changes), `At` (UTC), `Note`,
+  `Recorder`.
+
+Naming: "check", not "behaviour". `Behavior` is already the gear-behaviour type family
+(`Assets/Scripts/ServerShared/Behaviors/`), and a document named `Behaviour` beside it reads as a typo.
+
+Where they live, and why:
+- Scenarios, presets and test designs are design-side fixtures. They go in the catalog: presets are already
+  catalog data, cross-type refs resolve inside one store, and Studio edits them side by side.
+- Checks and results are the verification ledger. They go in their own store. The shipped catalog carries no
+  history, results never trigger a catalog write, and "one commit lands in one store" holds: recording a result
+  touches the ledger only.
+
+### 2.2 The staging owner
+
+**Owner: `RunStart`, a static class in `Assets/Scripts/ServerShared/RunStart.cs`.** It decides what a new run
+starts with: how the arena zone is generated, the player ship, the other entities, their stance, pilot and cargo.
+It holds no Unity type.
+
+- **Inputs:** `ItemManager` (and through it the catalog), the `Galaxy`, `ZoneGenerationSettings`, the optional
+  `Scenario`, and, for the absent-scenario case, the default hull filter and faction `StartGame` uses today
+  (`:805-809`).
+- **Outputs:**
+  - the arena's `ZonePack`, with the `Ambient` rule applied inside generation (`ZoneGenerator.GenerateZone`
+    gains the parameter), not generated and then pruned;
+  - the admitted player `Ship`, flagged `IsPlayerShip`;
+  - the admitted scenario entities;
+  - a failure list. Staging is all-or-nothing, as `Materialize` is.
+- **A check entry** that validates a scenario without a zone (every preset materializes, every cargo design
+  exists). The menu calls it before `RunSave.Clear`; the staging tests call it on every catalog scenario.
+- **Derived state:** `ActionGameManager.CurrentEntity` is bound to the returned player. `PendingScenario` is
+  transport only.
+- **Forbidden writers:** `StartGame` may not generate, unpack or admit the player ship. `MainMenu` may not stage.
+  No console command admits entities (`give` and `spawnturret` die, Q4).
+- **Shared paths:** New Game and scenario launch both run menu, galaxy, `StartGame`, `RunStart`. Continue does not
+  stage.
+- **Deletion line:** `StartGame` `:805-814` (generator, unpack, add, activate). The only surviving line is the
+  bind.
+
+**Admission primitive: `Zone.Admit(Entity entity, bool piloted)`.** It adds the entity to `Entities`, activates it,
+and, when `piloted`, gives it the zone's `Minion` (the `CreateAgent` rule, `Zone.cs:135-142`). It is the only writer
+of `Entities.Add` and the only creator of agents.
+- The constructor loop (`:120-131`) calls it with `piloted: ship && !IsPlayerShip`. It keeps its own rule that
+  moves a ship packed at the origin (`:129-130`); that is generation placement, not admission.
+- `PopulateLevel` (`ActionGameManager.cs:735`), `Entity.TryUndock` (`Entity.cs:1006-1007`) and `RunStart` call it.
+  `spawnturret` (`:587`) is deleted.
+- The `Death` subscription (`Zone.cs:93`) stays on `ObserveAdd` and still covers every join.
+
+**`Loadouts.Materialize` gains two rules** (`Loadout.cs:96-159`):
+- A design with **no product at all** is built unbranded, through `CreateLot(design, default, quality)` at one
+  named quality constant (0.95, the quality `give` used). A design whose products are all unavailable still fails,
+  as today. The rule turns "no manufacturer makes it" into "outside the economy", which generation already obeys.
+- The **hull type picks the entity class** (section 2.1).
+- The comment at `LoadoutGenerator.cs:150-153` ("No game path materializes a preset yet") is rewritten to name
+  `RunStart`.
+
+### 2.3 The Unity lowering
+
+- `MainMenu.ShowMain` (`:92-184`) gains **Scenarios**, shown when `Debug.isDebugBuild` (editor and development
+  builds). It opens a panel with one button per catalog scenario, ordered by name. Under each button is its brief
+  and its checks, each with its latest result and revision, read from the ledger (display only). A scenario whose
+  check entry fails shows the failures and is disabled.
+- **One launch body** is extracted from the New Game lambda (`:110-176`). New Game calls it with no scenario; a
+  scenario button calls it with one. With a scenario, it runs the prelude branch (`:146-175`) with `Seed`, derives
+  the noise position from `Seed` instead of `UnityEngine.Random`, sets `PendingScenario`, and loads `ARPG`. The
+  check entry runs first; `RunSave.Clear` (`:113`) moves after it, so a refused scenario leaves the saved run intact.
+- `StartGame`'s new-run branch (`:803-815`) calls `RunStart`, binds the returned player and nulls
+  `PendingScenario`. The Continue branch asserts it is null.
+- `AetheriaStores.Open` gains an optional ledger path. The game attaches `GameData/Checks.cc` read-only; `AetherDb`
+  attaches it writable for the record commands (Cut 3).
+
+### 2.4 Authoring
+
+- **Agents author headless through `AetherDb`.** A seed command (Cut 4) declares the first set in C#. It writes a
+  record only when the key is absent. When the key exists and differs from what it would write, it refuses and
+  reports; that means Studio edited it, and Studio wins. When the key exists and matches, it does nothing. It
+  validates every scenario through the `RunStart` check entry before committing. So the catalog is the authority,
+  and the seed code never clobbers it.
+- **The operator authors in Studio and in play:** Studio for scenario fields; `capturepreset` for a ship fitted by
+  hand in play.
+- Results are recorded per Q2.
+
+---
+
+## 3. Cuts
+
+Build budget, every cut:
+- `Aetheria.Shared` (netstandard2.1, the Unity-independence check), `tests/Aetheria.Shared.Tests`, `tools/AetherDb`
+  (net10.0), Debug.
+- CultLib is unchanged; the pins are those in `hands-fuse8/run.sh`.
+- No new project, target, package or daemon. One new store file (`GameData/Checks.cc`), three new schemas.
+- **Build host:** Yggdrasil builds the headless projects (`run.sh <rev>`). `Assembly-CSharp` is proven only by a
+  Unity 6000.3.24f1 batchmode compile on Starfire, with the editor closed by the operator. Never kill Unity.
+- `run.sh` mounts a pinned `data/Aetheria.cc` over the tree's LFS file. Any cut that changes the catalog (Cut 4)
+  must refresh that pin, or its content tests read the old catalog. Cut 4's tests that read the ledger mount it the
+  same way. Yggdrasil's disk is saturated: one job per cut, `--artifacts-path` in the container.
+
+Order: 0, 1, 2, 3, 4. Cut 0 is subtraction alone, so Soul can falsify it alone. Cuts 1 and 3 are headless. Cut 2
+is the only Unity-side cut. Cut 4 is content.
+
+### Cut 0. Retire the ad hoc test affordances (Q4)
+
+- **Repo/branch:** Aetheria, `codex/scenarios` from `master` `dcd7bbc5`.
+- **Deletes first** (per Q4 A; B keeps the item branch of `give` and the wanderers):
+  - `ActionGameManager.cs:515-544`, `give` (30 lines).
+  - `ActionGameManager.cs:564-589`, `spawnturret` (26 lines).
+  - `ZoneGenerator.cs:342-356`, neutral wanderers (15 lines), and `EligibleWandererFactions` `:361-365` (5).
+  - `Settings.cs:156`, `NeutralWandererCount` (1). It is absent from `Settings.asset` (settings-globals `:72`), so
+    no asset edit is needed.
+  - `IffAndCombatTests.cs:329-350`, the two wanderer tests (22).
+- **Keeps:** `CommissionShip` (`:898-903`) and its consumer `TradeMenu.Buy`; the console fixes in `f935c29b`.
+- **Docs:** `docs/merge-to-master-checklist.md` section 8, the `give` bullet: add "retired by the scenarios cut"
+  with the commit. `docs/settings-globals-cut.md:72,348` get a one-line history note.
+- **Verification:**
+  - builds: `Aetheria.Shared`, the test project. Batchmode compile (`ActionGameManager.cs` changed).
+  - tests: the full suite is green. The locomotion "real enemy-count check" (`95394f78`) counts generated ships;
+    if it counted wanderers, fix its expectation and say so.
+  - negative: `rg -n '"give"|"spawnturret"' Assets/Scripts` is empty;
+    `rg -n "NeutralWanderer|EligibleWandererFactions" Assets tests tools` is empty. Both patterns were checked to
+    match only these sites today.
+  - operator: none. There is nothing to see until Cut 2.
+- **Ledger:** about -99 lines; 0 added.
+
+### Cut 1. `RunStart`, `Zone.Admit`, and the scenario type (headless)
+
+- **Repo/branch:** Aetheria `codex/scenarios`, on Cut 0. Re-anchor `Zone.cs` if mining has merged.
+- **First:** with `AetherDb hardpoint-fit` and a scratch `Materialize` against the live catalog, confirm that
+  `Djinni`, `LonginusX` and one turret hull each have a product and materialize bare. If one has no product, stop
+  and report: the Q3 rule would make it unbranded, which may not be intended for a real hull.
+- **Deletes first:**
+  - `ActionGameManager.cs:805-814`, the new-run spawn (it moves into `RunStart`; this cut leaves `StartGame`
+    calling `RunStart` with no scenario, so behaviour is unchanged).
+  - The four hand-written joins: `ActionGameManager.cs:735-736`, `Entity.cs:1006-1007`, `Zone.cs:124-125`, and the
+    agent add at `Zone.cs:128`. Each becomes `Admit`.
+- **Adds:** `Scenario.cs`, `RunStart.cs`, `Zone.Admit`, the `ambient` parameter on `ZoneGenerator.GenerateZone`
+  (`:38-43`; the ship loop `:334-340` and `PlaceTurrets` calls `:309,331` honour it), `Scenario` in
+  `AetheriaStores.CatalogTypes` (`:9`), and the two `Materialize` rules (`Loadout.cs:103-115,131`).
+- **Authority map:** section 2.2. Owner `RunStart`; admission `Zone.Admit`; deletion line as above.
+- **Verification:**
+  - builds: `Aetheria.Shared`, tests, `AetherDb`. Batchmode compile (`ActionGameManager.cs`, `Entity.cs` changed).
+  - tests (new `RunStartTests`: live catalog, authored settings, a prelude galaxy at a fixed seed). Each rule
+    must fail under its own mutation:
+    - With no scenario, staging yields a player of the `StartingHullName` hull, `IsPlayerShip`, admitted, at the
+      origin. This pins that New Game is unchanged.
+    - With a scenario, the player is the preset's hull and fit at the authored position and direction, and its
+      cargo holds the listed designs.
+    - A piloted entity has exactly one agent in `Zone.Agents`; an unpiloted one has none and stays put over 5 s of
+      `Zone.Update`.
+    - `Hostile` makes both `IsHostileTo` directions true. `Neutral` makes both false.
+    - `Ambient: false` leaves no ship or turret in the arena pack that the scenario did not place. Stations remain.
+    - A turret preset stages as a stationary orbital entity. A station preset is a staging failure.
+    - A scenario naming a missing design fails with that design named. The zone is unchanged, and no
+      `RunSave` call was made (the check entry touches no store).
+    - A product-less design materializes unbranded; a design whose only product is unavailable still fails.
+      This is two tests, because the second case is the existing contract.
+    - `Admit` is the only agent creator: after a warp (`PopulateLevel`'s join through `Admit(pilot, false)`) the
+      pilot has no agent. The constructor's pack path still gives every non-player ship a `Minion`.
+  - Stryker on `RunStart.cs`, `Zone.cs` (`Admit` and the constructor loop), `Loadout.cs` (`Materialize`), scoped
+    to the diff. Triage survivors by name.
+  - negative: `rg -n "Entities\.Add\(" Assets/Scripts --glob '!**/ZoneGenerator.cs'` matches only
+    `Zone.cs` (once, inside `Admit`), `Sensor.cs:169` and `Entity.cs:242` (both are `VisibleEntities`/pings, not
+    zones). `rg -n "new Minion\(" Assets/Scripts` matches only `Zone.cs`.
+  - operator: none beyond the Cut 2 smoke.
+- **Ledger:** `Scenario.cs` +60; `RunStart.cs` +110; `Zone` +12 -8; `Loadout.cs` +20; `ZoneGenerator` +4;
+  `ActionGameManager` -11 +4; `Entity` ±2; `AetheriaStores` ±1; tests +300.
+
+### Cut 2. The main menu launches scenarios (Unity)
+
+- **Repo/branch:** Aetheria `codex/scenarios`, on Cut 1.
+- **Deletes first:** the duplicated body of the two galaxy branches in the New Game lambda (`MainMenu.cs:124-175`)
+  collapses into one launch body. The standard branch (`:124-145`) is live code only when `TutorialPassed` is
+  true, and it is kept. Only the duplication goes.
+- **Adds:** the Scenarios panel, `PendingScenario`, the seed-derived noise, the check entry before
+  `RunSave.Clear`. `StartGame` passes `PendingScenario` to `RunStart`.
+- **Authority map:**
+  - Owner of what the run starts with: `RunStart` (unchanged).
+  - `MainMenu` owns which scenario was picked and when the run is cleared. `PendingScenario` is a command-only
+    transport, consumed once.
+  - Forbidden: `MainMenu` stages nothing and admits nothing. `StartGame` reads `PendingScenario` only in the
+    new-run branch.
+  - Shared paths: both buttons run one launch body. In-game menu (after death) and title menu run the same one.
+- **Verification:**
+  - builds: batchmode compile, editor closed.
+  - negative: `rg -n "RunSave\.Clear" Assets/Scripts/UI/MainMenu.cs` appears once, after the check entry.
+    `rg -n "PendingScenario\s*=" Assets/Scripts` matches the launch body and `StartGame`'s null only.
+  - operator (Unity, Starfire):
+    1. Title menu: Scenarios is listed. New Game still starts a LonginusX at the entrance with a Zenith station
+       (the Cut 1 test pins the ship; this proves the lowering).
+    2. Launch any scenario. The arena matches its brief; launch it again and the layout is the same.
+    3. Die in a scenario. From the in-game menu, relaunch the same scenario.
+    4. Quit mid-scenario, then Continue. The run continues (the 0b rule: unpiloted ships now patrol).
+    5. Break a scenario on purpose in a scratch catalog (a missing design). It is shown disabled with the failure,
+       and Continue still offers the previous run.
+- **Ledger:** `MainMenu` +45 -25; `ActionGameManager` +4; one static.
+
+### Cut 3. The verification ledger (headless; Q2)
+
+- **Repo/branch:** Aetheria `codex/scenarios`, on Cut 1 (independent of Cut 2).
+- **Adds:** `Checks.cs` (`Check`, `CheckResult`); `AetheriaStores.LedgerTypes` and the optional path;
+  `GameData/Checks.cc` (empty, committed).
+  - Under Q2 B, `AetherDb` gains two commands:
+    - `checks [scenario]`: each check with its latest result, its revision, and "never" when there is none.
+    - `record <slug> <pass|fail|partial|blocked> --revision <sha> [--note <text>]`. It refuses an unknown or
+      retired slug. It opens the ledger writable and the catalog read-only.
+  - Under Q2 A, the menu panel gains Pass/Fail/Partial and a note field per check. It writes through the same
+    ledger primitive, and the game attaches the ledger writable.
+- **Authority map:**
+  - Owner of results: the ledger store. The only writer is the Q2 writer, which calls one append primitive,
+    `Ledger.Record`.
+  - Derived, display only: the menu's latest-status line and `checks`' output.
+  - Forbidden: nothing edits or deletes a `CheckResult`; nothing writes a result into the catalog.
+- **Verification:**
+  - tests (new `LedgerTests`, temp stores):
+    - Recording appends and never replaces: two results for one check both survive a reopen, and the latest is
+      the one with the later `At`, even when written first.
+    - A retired or unknown slug is refused with nothing written.
+    - The catalog file is byte-identical after `record` (a catalog opened read-only cannot be written; this pins
+      that the command opened it that way).
+    - A result carries the revision it was given, and `record` without `--revision` is a usage error.
+  - Stryker on `Checks.cs` and the `AetherDb` record path.
+  - negative: `rg -n "CheckResult" Assets/Scripts --glob '!**/Checks.cs'` matches only the menu's read (and under
+    Q2 A its record call).
+- **Ledger:** `Checks.cs` +50; `AetheriaStores` +4; `AetherDb` +90 (B) or `MainMenu` +50 (A); tests +120.
+
+### Cut 4. The first scenarios, checks and history (content)
+
+- **Repo/branch:** Aetheria `codex/scenarios`, on Cuts 2 and 3. Hands authors on the branch clone, never in
+  `F:\Projects\Aetheria`.
+- **First:** tell the operator that the uncommitted smoke weapons in their tree's `GameData/Aetheria.cc` must be
+  restored (`git checkout -- GameData/Aetheria.cc`, their own command) before they pull. This cut recreates them as
+  committed designs.
+- **Adds:**
+  - A transient `AetherDb scenario-seed [apply]` command, with the never-clobber rule of section 2.4.
+    - It writes the test designs (section 5.3), the presets (5.4), the scenarios (5.2) and the checks (5.1).
+    - It imports the 2026-09-30 smoke results (checklist section 8) as `CheckResult`s at revision `113164fa`,
+      recorder "operator (play), recorded by agent".
+    - It runs once, the data is committed, and the command is deleted in the same cut. The catalog is the authority
+      from then on.
+  - `ScenarioConditionTests` (live catalog; pinned catalog refreshed, see the build budget). Per scenario, stage it
+    and assert the conditions its checks need, not the behaviour, which existing suites own. For example:
+    - `Fused rounds`: the bare hull lies within the arc on the player's initial aim line and has no target
+      selected; the close hull is nearer than `Smoke Proximity`'s `BlastRadius`; `Smoke Refused` has
+      `Range < BlastRadius`; a direct-fire weapon can kill the fragile hull.
+    - `Duel`: the AI is piloted, hostile both ways, and carries a slow missile weapon; the player can see it.
+    - `Arcs`: the three bare hulls lie in the bow, beam and stern sectors of the player's mounts; the turret is
+      hostile.
+    - Every catalog scenario passes the check entry. This is the rot test.
+    - Every non-retired check with a scenario points at an existing one. Every check without a scenario has a
+      `Setup`.
+  - Docs: `docs/merge-to-master-checklist.md` sections 2 and 8 get one line: steps 7-20 and handoff checks A-F are
+    now checks in `GameData/Checks.cc`, listed by `AetherDb checks`. The prose steps stay as history.
+- **Verification:**
+  - tests: `ScenarioConditionTests`, with mutation by editing a fixture. Moving the close hull outside the blast
+    radius, dropping the AI's missile weapon, or flipping a stance must each fail its condition. This is a one-off
+    Soul probe, not a committed suite.
+  - `AetherDb checks` lists every check in section 5.1, with the imported results on 3, 4, 5, 6 and "never"
+    elsewhere.
+  - operator: play each scenario and report per check. That report is the first real use of the ledger.
+- **Ledger:** seed command +300 then -300; catalog +5 designs, +11 presets, +10 scenarios; ledger +44 checks, +7
+  results; tests +250; docs ±4.
+
+---
+
+## 4. Authority map (whole campaign)
+
+- **Owner of a new run's contents:** `RunStart`. It reads the scenario (or its absence) and writes the arena pack
+  and the admitted entities.
+- **Owner of zone membership and agents:** `Zone.Admit`.
+- **Owner of fixtures:** the catalog (`Scenario`, `Loadout`, test designs), written by the seed, Studio or
+  `capturepreset`, and read-only at runtime.
+- **Owner of verification history:** the ledger store. It is append-only and written by the Q2 writer.
+- **Derived:** menu status lines; `AetherDb checks`; `PendingScenario` (transport).
+- **Forbidden writers:** `StartGame` spawning ships; `MainMenu` staging; console commands admitting entities;
+  anything editing a result; any catalog write at runtime.
+- **Shared paths:** New Game and every scenario launch: one launch body, `StartGame`, `RunStart`, `Admit`. Warp,
+  undock, construction and staging: `Admit`.
+- **Deletion line:** Cut 0's affordances; `StartGame` `:805-814`; the four hand-written joins; the duplicated New
+  Game branches; the transient seed command.
+
+---
+
+## 5. The first consumers
+
+Sources: `docs/merge-to-master-checklist.md` section 2 (steps 7-20) and section 8; checks A-F from
+`F:\Projects\HANDOFF-aetheria-play-smoke-2026-09-29.md` section 3. That file sits outside the repo, so the checks
+below restate A-F and the ledger becomes their home. The rulings behind A-F are in `fire-control-cut.md`, in the
+block "Ruled (operator, 2026-09-30)" (`:2625-2690`).
+
+### 5.1 Checks
+
+| Slug | Statement (abridged; the record carries the full text) | Source | Setup |
+|---|---|---|---|
+| `restored-hull-flies` | Thrusters move and turn the Djinni. | step 7; `locomotion-cut.md:501` | Djinni shakedown |
+| `restored-hull-speed-cap` | Take the hull offline with thrusters firing; speed does not run away. | step 7; `:377` | Djinni shakedown |
+| `weak-reactor-starves-legibly` | A reactor too small for the loadout shows starvation, not a cooked reactor. | step 8; `stats-and-power-cut.md:705-706` | Starved reactor |
+| `brownout-degrades` | Brownout reads as degradation, not breakage. | step 9; `:774,990` | Starved reactor |
+| `brownout-refill-stutters` | A weapon refilling under brownout stutters rather than firing at full rate. | step 9; `:729-730` | Starved reactor |
+| `memory-flat-across-zones` | Several zones with kills; memory does not climb. | step 10; `:672-673,980-982` | Long haul |
+| `side-mounts-fire-abeam` | Side-mounted weapons fire at the beam target. | step 11; `fire-control-cut.md:397-398` | Arcs |
+| `turret-tracks-round` | The hostile turret tracks the player all the way round. | step 11 | Arcs |
+| `no-fire-through-hull` | Nothing fires at the stern target through the hull. | step 11 | Arcs |
+| `shots-roll` | Rolled impacts and misses; a miss reads as a near-miss; damage matches the HUD. | step 12; `:659-661` | Duel |
+| `subsystem-aim` | Reveal and selection work; aiming at a revealed subsystem concentrates damage. | step 12 | Duel |
+| `kill-drops-loot` | The kill drops its cargo; pickup stores it; the tractor beam pulls. | step 12; `headless-playground-cut.md:789-794` | Duel |
+| `loot-keeps-brand` | Picked-up loot shows its manufacturer. | step 6; `item-provenance-cut.md:528-539` | Duel |
+| `target-vanish-safe` | The target dies with shots in flight: no crash, no frozen ship. | step 12; `fire-control-cut.md:1464-1470` | Duel |
+| `beam-reads-higher` | The HUD `hull` factor reads higher from the beam than from the bow. | step 13; `:2380-2383` | Duel |
+| `armour-face-missile` | Turn the armoured face into the AI's slow missile; it lands there. | step 13 | Duel |
+| `ai-engages` | The AI still engages normally. | D; `:2658-2660` | Duel |
+| `launcher-edge-pulse` | Launcher into the bow, then a flank: the schematic pulses the facing edge only. | step 14; `:2519-2520` | Launcher angles |
+| `guided-explodes-on-detonation` | A guided round's explosion shows only when the simulation detonated. | E | Launcher angles |
+| `guided-target-left-fades` | Kill the target while a guided round flies: the round fades with no explosion. | E | Launcher angles |
+| `guided-hit-at-target` | A guided hit plays its effect at the target. | E | Launcher angles |
+| `fused-clear-line-max-range` | Nothing selected, clear line: the round bursts at max range along the arc-clamped aim. | A.1; `:2625,2636-2642` | Fused rounds |
+| `fused-first-hull-stop` | Nothing selected, aim at the bare hull: the round stops and detonates on it. | A.2; `:2632-2634` | Fused rounds |
+| `fused-target-left-no-burst` | Fire at the fragile target, kill it with the direct weapon before arrival: no burst. | A.3; `:2636-2642`, `FireControl.cs:610` | Fused rounds |
+| `fused-out-of-arc` | Select the stern target: the round fires and bursts at its range along the arc-clamped aim. | A.4; `:2643-2645` | Fused rounds |
+| `fused-arming-pushout` | Select the close hull: the burst is pushed out to `BlastRadius` from the ship's centre. | A.5; `:2646-2653` | Fused rounds |
+| `airburst-at-model` | A proximity airburst beside the LonginusX lands damage where the model shows the blast. | step 15; `:3094-3097` | Fused rounds |
+| `penetrator-reaches-interior` | A delayed penetrator into the LonginusX nose detonates inside. | step 15 | Fused rounds |
+| `hud-forecast-fused` | The HUD shows Direct, Burst at N m or Refused for fused weapons, and a percentage for direct weapons. | C; `:2661-2663` | Fused rounds |
+| `unbranded-no-manufacturer` | An unbranded smoke weapon shows no Manufacturer row. | step 6 | Fused rounds |
+| `refused-shot-free` | A refused shot costs no ammo, energy, heat, sound, visibility or cooldown. | B; `:2664-2666` | Refused rounds |
+| `refused-beam-no-flicker` | A refused beam never starts. | B | Refused rounds |
+| `refused-charge-never-charges` | A refused charged weapon never starts charging. | B | Refused rounds |
+| `instant-and-charged-fire` | Autocannon and ChargeBlast SG fire; effects, particles and action-bar icons show. | step 5; `addressables-cut.md:362-366` | Weapon feel |
+| `burst-cadence` | Burst cadence is unchanged. | F | Weapon feel |
+| `charge-release-press` | A fast release-and-press on a charged weapon starts no second charge. | F | Weapon feel |
+| `existing-build-play` | Under "Use Existing Build", the Weapon feel checks hold (GUID keys in the player catalog). | step 20; `addressables-cut.md:367-370` | Weapon feel, Setup: play mode Use Existing Build |
+| `ai-never-fires-refused` | The hostile AI whose only weapon is refused never fires it. | D | AI fused discipline |
+| `ai-never-bomb-fishes` | The neutral AI carrying a fused weapon never fires it. | D | AI fused discipline |
+| `continue-keeps-items` | Warp, quit, Continue: same items, same tier and brand. | step 16; `item-provenance-cut.md:536-537` | Long haul |
+| `death-ends-run` | Die: Continue is disabled and `run.cc` holds no ledger. | step 17; `:540-541` | Long haul |
+| `shield-panel-rig` | The numbered shield-panel look, including the Cut 5 dicing and break-through. | step 18; `shield-panel-cut.md:683-700,737-739` | Setup: FieldShieldTest scene |
+| `studio-*` (5 checks) | The fire-control union renders; the schematic underlay; restored hull records; the fuse fields edit; the provenance ledger renders from a real `run.cc`. | step 19 | Setup: CultCache Studio |
+| `addressables-duplicates` | Analyze the duplicate dependencies: 5 known leftovers. | step 20 | Setup: Addressables Analyze |
+| `new-game-start`, `purchase-keeps-brand`, `tier-colour` | New Game; buying keeps the brand; tier colours show. | steps 3, 4, 6 | Setup: New Game |
+
+Imported results (checklist section 8, revision `113164fa`, 2026-09-30):
+- `new-game-start`: pass.
+- `purchase-keeps-brand`: pass.
+- `instant-and-charged-fire`: partial ("charged weapon unprovable: 1x2 hardpoint").
+- `tier-colour`: fail ("known defect, `settings-globals-cut.md:150`; fixed by settings-globals Cut 1").
+- `unbranded-no-manufacturer`: blocked ("`give Lamp` named a test fixture").
+- `loot-keeps-brand`: no result ("not yet reported").
+
+### 5.2 Scenarios
+
+All use `Ambient: false` except Long haul. Positions are authored in the seed and pinned by the condition tests.
+
+| Scenario | Player | Entities | Checks |
+|---|---|---|---|
+| Djinni shakedown | Djinni, full fit | none | 2 |
+| Starved reactor | a combat hull with an undersized reactor, energy weapons and a shield | 1 unpiloted bare hull ahead, neutral | 3 |
+| Arcs | a hull with side mounts | 3 unpiloted bare hulls (bow, beam, stern), neutral; 1 turret preset, hostile | 3 |
+| Duel | combat fit | 1 piloted LonginusX, hostile, carrying a slow missile weapon, cargo holding a branded item | 8 |
+| Launcher angles | GT 3K or pswarm plus a direct weapon | 1 unpiloted LonginusX, hostile; 1 fragile bare hull | 4 |
+| Fused rounds | Smoke Proximity, Smoke Delayed, a direct weapon | unpiloted: LonginusX mid range, hostile; bare hull on the clear bearing; fragile bare hull; close bare hull inside `BlastRadius`; stern target | 9 |
+| Refused rounds | Smoke Refused (instant, beam, charged) plus one working weapon | 1 unpiloted bare hull | 3 |
+| Weapon feel | a hull with a 2x2 energy hardpoint: ChargeBlast SG, Autocannon, a burst weapon | 1 unpiloted bare hull | 4 |
+| AI fused discipline | a sturdy hull | 1 piloted neutral with a fused weapon; 1 piloted hostile whose only weapon is refused | 2 |
+| Long haul | standard combat fit, `Ambient: true` | none | 3 |
+
+### 5.3 Test designs (Q3)
+
+None has a product. They are unbranded and outside the economy.
+- `Smoke Proximity`: Proximity, blast 8.
+- `Smoke Delayed`: Delayed, blast 4, penetration 2 cells.
+- `Smoke Refused`: Proximity, blast 30, range 20.
+
+These three are the operator's own designs from tonight, Spectra clones, energy, 1x2.
+- `Smoke Refused Beam` and `Smoke Refused Charge`: a constant weapon and a charged weapon with a fuse and
+  `Range < BlastRadius`.
+- All must pass `CultRecordRefs.Validate` (R-heat, stat modifiers, roles).
+
+### 5.4 Presets
+
+About eleven, named after their scenarios. The seed author picks designs with `AetherDb hardpoint-fit`. The only
+hard constraints are those the condition tests pin.
+
+---
+
+## 6. Subtraction ledger
+
+| Cut | Removed | Added | Targets, schemas, stores |
+|---|---|---|---|
+| 0 | `give` 30, `spawnturret` 26, wanderers 20, setting 1, tests 22 | 0 | no change |
+| 1 | `StartGame` spawn 10, joins 6 | `Scenario.cs` 60, `RunStart.cs` 110, `Admit` 12, `Materialize` 20, `GenerateZone` 4; tests 300 | +1 schema (`aetheria.scenario`) |
+| 2 | duplicated New Game body about 25 | menu panel and launch body about 45; 1 static | none |
+| 3 | none | `Checks.cs` 50, stores 4, `AetherDb` 90 (or the menu 50); tests 120 | +2 schemas, +1 store file |
+| 4 | the seed command, once spent (300) | seed 300; condition tests 250; catalog and ledger data | catalog content, ledger content |
+
+Net production code is about +250. That buys:
+- the main-menu scenario affordance;
+- typed checks with history;
+- one staging owner and one admission primitive (from five hand-written joins);
+- the first game consumer of the presets that already existed.
+
+It removes three ad hoc test affordances and the wanderers that ran in every zone.
+
+---
+
+## 7. Operator questions
+
+Each question stands alone. The first is what the scenario request leaves open.
+
+**Q1. Is a scenario arena part of a real run?**
+Your words settle what an arena holds. They leave open what surrounds it. Checks 16 and 17 (warp, save,
+Continue, death) need a real run. Every other check needs only the arena.
+- **A.** The arena is the entrance zone of a small prelude galaxy built from the scenario's seed. Stations,
+  planets and wormholes are there, and the run saves on warp and quit, continues and ends at death like any run.
+  Launching a scenario replaces your saved run, as New Game does. Scenario-only details (unpiloted ships, forced
+  stances) do not survive a Continue.
+- **B.** A sealed arena: one zone, no galaxy, no saving. Launching never touches your saved run. Checks 16 and 17
+  go back to plain New Game play. This is a second zone-entry path with no galaxy under it, which `PopulateLevel`
+  and the sector map do not support today.
+- **Recommended: A.** It is the same New Game path with an input, so there is no second boot path. Every rule
+  under test then runs exactly as it does in a real run. Replacing the saved run seems harmless for a dev
+  affordance.
+- **Depends on it:** Cut 2's launch body; the 0b lifecycle row for staged entities; whether Long haul exists.
+
+**Q2. Who records a check's result, and where?**
+You play and observe. Something has to write "pass at `abc123`, note ...".
+- **A.** In game. The Scenarios panel gets Pass/Fail/Partial and a note per check. The game writes the ledger file
+  in your working tree, and you commit it with your other work.
+- **B.** The agent. You tell the session what you saw, and it records typed results with `AetherDb record` on a
+  branch and pushes. The menu shows each check's latest result, read-only.
+- **C.** No typed results. Checks are typed, and results go in a prose ledger doc, as checklist section 8 does now.
+- **Recommended: B.** It matches how tonight's smoke already worked: you play, the agent records. Nothing in the
+  game writes a file that git tracks, and no agent needs to touch your tree. The menu still shows what is stale.
+  A can be added later on the same append primitive.
+- **Depends on it:** Cut 3's writer and whether the game attaches the ledger writable.
+
+**Q3. Where do test-only item designs live?**
+Checks A-C need fused weapons the catalog does not ship. Tonight they were authored in place and left
+uncommitted.
+- **A.** Committed catalog designs with no product. With no product nothing makes them, so they are never
+  generated, stocked, sold or looted. A preset builds them unbranded (a new `Materialize` rule). Studio lists them
+  beside real content.
+- **B.** Committed designs with a product and price 0. Generation skips price 0 today, but only through a filter
+  written for another reason, so the exclusion is a coincidence.
+- **C.** A scratch catalog swapped in per session, as checklist step 2a proposed. Scenarios would then depend on
+  which catalog is loaded, and the fixtures would not be retained.
+- **Recommended: A.**
+- **Depends on it:** the `Materialize` rule in Cut 1; section 5.3.
+
+**Q4. Which ad hoc test affordances do scenarios retire?**
+`give` got its hull route tonight (your ruling: "mothballed ships do not require docking bays"), and step 7 was its
+reason. `spawnturret` places a turret. Neutral wanderers spawn two non-hostile ships in every generated zone, "so
+combat has something non-hostile to target" (`f732cff9`).
+- **A.** Delete all three. Scenarios cover ships, cargo, turrets and neutral targets. `CommissionShip` stays for
+  purchases.
+- **B.** Delete the hull route and `spawnturret`. Keep `give` for items (ad hoc poking outside scenarios) and keep
+  the wanderers.
+- **C.** Keep everything.
+- **Recommended: A.** Each one is a second way to create what scenarios now author, and the wanderers change every
+  zone of real play for a testing reason. `iff`, `trackmissile`, `revealzones`, `tow` and `capturepreset` stay.
+- **Depends on it:** Cut 0.
+
+Defaults Self took, which you may overrule:
+- Scenarios show only in editor and development builds.
+- The ledger is its own committed store, `GameData/Checks.cc`, not the catalog.
+- "Check", not "behaviour", because `Behavior` is the gear type family.
+- Brokkr is not installed in this campaign (section 0.4).
+- The scenario record holds no "start docked" field. No first consumer needs one.
+
+---
+
+## 8. Follow-ups outside this campaign
+
+- Re-anchor `docs/headless-playground-cut.md`. Its Cut 1 now builds on `RunStart` and `Zone.Admit`; its `new`
+  command stages a `Scenario`.
+- Brokkr install plus a "launch scenario" intent, if agents should drive Unity play.
+- A durable agent authoring command for presets (fit by design name with validation), instead of transient seed
+  commands.
+- `AetherDb` carries spent one-shot migration commands (`targeting-catalog-6c`, `-6d`, `firing-arc-migrate`, and
+  others; `Program.cs` is 1,477 lines). This is a subtraction pass of its own.
+- `ItemManager`'s clock seed (`ItemManager.cs:20`) makes lot quality vary per scenario launch. It is recorded,
+  not fixed here.
