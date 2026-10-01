@@ -371,14 +371,14 @@ public abstract class Entity
     // enters VisibleEntities: its info exceeds TargetDetectionInfoThreshold.
     public bool ChunkVisible(ChunkId chunk) => ChunkInfo(chunk) > ItemManager.GameplaySettings.TargetDetectionInfoThreshold;
 
-    // Mining Cut 3 (Q13 A): the reach for picking a chunk -- the longest range among this entity's active weapons.
-    // Every visible chunk within it, written into `into` (cleared first). Cycling and any programmatic chunk pick
-    // read this, so there is one reach rule.
+    // Mining Cut 3 (Q13 A): the reach for picking a chunk -- the longest range among this entity's active weapons
+    // that can mine (Weapon.CanMine, Q12 A). Every visible chunk within it, written into `into` (cleared first).
+    // Cycling and any programmatic chunk pick read this, so there is one reach rule.
     public void VisibleChunksInReach(List<ChunkId> into)
     {
         var reach = 0f;
         foreach (var weapon in _weapons)
-            if (weapon.Item == null || weapon.Item.Active.Value)
+            if (weapon.CanMine && (weapon.Item == null || weapon.Item.Active.Value))
                 reach = max(reach, weapon.Range);
         Zone.ChunksNear(Position.xz, reach, into);
         into.RemoveAll(chunk => !ChunkVisible(chunk));

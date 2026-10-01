@@ -88,6 +88,11 @@ public abstract class Weapon : Behavior, IActivatedBehavior
     public float Spread { get; protected set; }
     public float Velocity { get; protected set; }
 
+    // Mining Cut 3 fix (Q12 A, "launchers cannot mine"): whether this weapon can mine a chunk. The one mining
+    // predicate: chunk reach (Entity.VisibleChunksInReach) reads it, and so does anything that decides a weapon
+    // may work a chunk. A launcher overrides it.
+    public virtual bool CanMine => true;
+
     protected bool _firing;
 
     public bool Firing

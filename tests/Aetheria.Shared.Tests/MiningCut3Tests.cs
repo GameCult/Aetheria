@@ -777,4 +777,76 @@ public sealed class MiningCut3Tests : IDisposable
         }
         Assert.True(belts > 0, "no seed generated a belt; the generation path went unexercised");
     }
+
+    // ==== Mining Cut 3 fix batch (Soul's findings) ====
+
+    // Q12 A ("launchers cannot mine") in the reach rule: reach counts only weapons that can mine (Weapon.CanMine).
+    // Two visible rocks, 150 and 250 away. A launcher of range 400 alone is offered neither; a gun of range 200
+    // beside it is offered the near one only, so the launcher's range still counts for nothing.
+    [Fact]
+    public void LaunchersDoNotCountTowardChunkReach()
+    {
+        var kind = Kind("Asteroid", 40f);
+        var eyeAt = float2(150, -250);
+        var nearAt = float2(150, -100);
+        var s = BuildScene(new[] { kind }, Belt(kind, Rock(150f), Rock(length(nearAt), 1f + atan2(nearAt.y, nearAt.x) / (2 * PI))));
+        var far = new ChunkId(s.Belts[0], 0);
+        var near = new ChunkId(s.Belts[0], 1);
+        Assert.Equal(250f, length(At(s, far) - eyeAt), 2);
+        Assert.Equal(150f, length(At(s, near) - eyeAt), 2);
+        var launcher = Gear("Launcher", new LockWeaponData { Range = Constant(400f), LockSpeed = Constant(.5f), LockAngle = Constant(30f), DirectionImpact = Constant(1f) });
+        s.Cache.Upsert(launcher);
+        var gun = Gear("Gun 200", new InstantWeaponData { Range = Constant(200f) });
+        s.Cache.Upsert(gun);
+
+        Ship Fit(params GearData[] weapons)
+        {
+            var ship = new Ship(s.Items, s.Zone, Mint(s, s.Hull), new EntitySettings());
+            Assert.True(ship.TryEquip(Mint(s, s.Eye)));
+            foreach (var weapon in weapons) Assert.True(ship.TryEquip(Mint(s, weapon)));
+            s.Zone.Entities.Add(ship);
+            Hold(ship, eyeAt);
+            ship.LookDirection = float3(0, 0, 1);
+            ship.Activate();
+            Tick((ship, eyeAt)); // weapons read their ranges when they run
+            return ship;
+        }
+
+        var offered = new List<ChunkId>();
+        var launcherOnly = Fit(launcher);
+        Assert.Equal(400f, launcherOnly.Weapons.Single().Range);
+        Assert.True(launcherOnly.ChunkVisible(far));
+        Assert.True(launcherOnly.ChunkVisible(near));
+        launcherOnly.VisibleChunksInReach(offered);
+        Assert.Empty(offered);
+
+        var withGun = Fit(launcher, gun);
+        withGun.VisibleChunksInReach(offered);
+        Assert.Equal(new[] { near }, offered);
+    }
+
+    // Q13 A reads Active, not Enabled (Soul F8): a gun that is switched on but offline (worn out) adds no reach.
+    [Fact]
+    public void AnOfflineWeaponAddsNoReach()
+    {
+        var kind = Kind("Asteroid", 4f);
+        var s = BuildScene(new[] { kind },
+            Belt(kind, Rock(150f), Rock(length(float2(150, 100)), atan2(100f, 150f) / (2 * PI))));
+        var near = new ChunkId(s.Belts[0], 0);
+        var farther = new ChunkId(s.Belts[0], 1);
+        var eyeAt = float2(150, -200);
+        var observer = SpawnShip(s, eyeAt, sensor: true, weaponRanges: new[] { 250f, 350f });
+        Tick((observer, eyeAt));
+        var offered = new List<ChunkId>();
+        observer.VisibleChunksInReach(offered);
+        Assert.Equal(new[] { near, farther }, offered);
+
+        var longGun = observer.Equipment.Single(item => item.Data.Name == "Gun 350");
+        longGun.EquippableItem.Durability = 0f;
+        Tick((observer, eyeAt));
+        Assert.True(longGun.Enabled.Value);
+        Assert.False(longGun.Active.Value);
+        observer.VisibleChunksInReach(offered);
+        Assert.Equal(new[] { near }, offered);
+    }
 }

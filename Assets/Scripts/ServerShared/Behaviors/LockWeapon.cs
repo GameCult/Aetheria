@@ -65,6 +65,9 @@ public class LockWeapon : InstantWeapon
     // before a shot is ever attempted.
     public bool IsLocked => _lock > .99f;
 
+    // Q12 A: a launcher cannot mine.
+    public override bool CanMine => false;
+
 
     public LockWeapon(LockWeaponData data, EquippedItem item) : base(data, item)
     {
