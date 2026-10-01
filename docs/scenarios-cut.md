@@ -852,3 +852,8 @@ Promises that held:
 - Old saves get a kind on first load.
 
 The fix batch commits Soul's four probes (in the session scratchpad, `soul-mc3-run/probes/`) and the catalog-kind test.
+
+**Rulings (operator, 2026-10-01): "Fix the belt freeze; launchers shouldn't count toward reach".**
+- F1: fix it before the merge. The cost of a key press must not grow with belt size.
+- Rock reach counts only weapons that can mine; under Q12 launchers can't. This supersedes Hands' Q13 reading.
+- The fix batch was dispatched with both rulings.
