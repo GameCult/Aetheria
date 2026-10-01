@@ -857,3 +857,13 @@ The fix batch commits Soul's four probes (in the session scratchpad, `soul-mc3-r
 - F1: fix it before the merge. The cost of a key press must not grow with belt size.
 - Rock reach counts only weapons that can mine; under Q12 launchers can't. This supersedes Hands' Q13 reading.
 - The fix batch was dispatched with both rulings.
+
+**Mining fix batch, Hands (2026-10-01): `f88d1fc1`, `83d8371e` on `codex/mining`. 523/523; 9 mutants each killed by their own test.**
+- Launchers: `Weapon.CanMine` (virtual, true by default; `LockWeapon` sets false) is the one predicate. Reach reads `CanMine && Active`. Cut 4's firing gate (`FireControl.cs:175`) must read the same predicate.
+- Soul F2/F4/F5/F6/F7/F8 tests are committed.
+- Belt freeze **not built; stopped at a fork.**
+  - Each rock has its own angular speed (`Distance` is a continuous float), so no band shares a phase.
+  - At 3M rocks, 633k are in reach and 2,240 are visible.
+  - Proposed: a derived per-belt index (bands of 256 by distance, sorted by turn, with the query arc widened by rate spread and at most 8 band re-sorts per query); a visibility upper bound that skips dark bands; best-first next/previous and reticle; the rules move from `ActionGameManager` to `Entity`.
+  - Work in progress (unbuilt) is in the session scratchpad: `hands-mc3fix-index-wip.patch`.
+- Question: today's Previous with no target picks the second-farthest rock (off by one). Hands recommends fixing it.
