@@ -849,4 +849,163 @@ public sealed class MiningCut3Tests : IDisposable
         observer.VisibleChunksInReach(offered);
         Assert.Equal(new[] { near }, offered);
     }
+
+    // Q16 B on the clean-store path (Soul P2): a belt saved kindless, reopened from disk with nothing dirty, and
+    // loaded by a Zone, has its first-load kind saved by the next flush.
+    [Fact]
+    public void AFirstLoadKindIsSavedFromACleanStore()
+    {
+        var kind = Kind("Asteroid", 4f);
+        var s = BuildScene(new[] { kind });
+        var beltOrbit = s.Cache.Upsert(new OrbitData { Parent = s.Pack.Orbits[0], Distance = 150f }).Key;
+        var beltKey = s.Cache.Upsert(new AsteroidBeltData { Orbit = new CultRecordRef<OrbitData>(beltOrbit), Asteroids = new[] { Rock(150f) } }).Key;
+        s.Pack.Orbits.Add(new CultRecordRef<OrbitData>(beltOrbit));
+        s.Pack.Planets.Add(new CultRecordRef<BodyData>(beltKey));
+        s.Cache.FlushAsync().Wait();
+        s.Cache.Dispose();
+        _caches.Remove(s.Cache);
+        var dir = Path.Combine(_root, $"scene{_fixtureCount - 1}");
+
+        var clean = AetheriaStores.Open(Path.Combine(dir, "Aetheria.cc"), Path.Combine(dir, "run.cc"), catalogWritable: true);
+        _caches.Add(clean);
+        Assert.False(clean.IsDirty);
+        Assert.False(((AsteroidBeltData) clean.Get(beltKey)).Kind.IsSet());
+        var zone = new Zone(new ItemManager(clean, new ProvenanceLedger(), GameSettings(), _ => { }), PlanetSettings(), s.Pack,
+            new GalaxyZone { Name = "Clean", Owner = null }, null);
+        var assigned = ((AsteroidBeltData) zone.Planets[beltKey]).Kind;
+        Assert.True(assigned.IsSet());
+        clean.FlushAsync().Wait();
+        clean.Dispose();
+        _caches.Remove(clean);
+
+        var reopened = AetheriaStores.Open(Path.Combine(dir, "Aetheria.cc"), Path.Combine(dir, "run.cc"), catalogWritable: false);
+        _caches.Add(reopened);
+        Assert.True(((AsteroidBeltData) reopened.Get(beltKey)).Kind.Key.Equals(assigned.Key), "the first-load kind was not saved");
+    }
+
+    // SetTarget refuses a lit chunk the entity cannot see because it is too far away, not only a dark one (Soul P9).
+    [Fact]
+    public void SetTargetRefusesALitChunkBeyondSight()
+    {
+        var kind = Kind("Asteroid", 1f);
+        var s = BuildScene(new[] { kind }, Belt(kind, Rock(150f)));
+        var chunk = new ChunkId(s.Belts[0], 0);
+        var eyeAt = At(s, chunk) + float2(0, -900);
+        var ship = SpawnShip(s, eyeAt, sensor: true);
+        Tick((ship, eyeAt));
+        Assert.True(s.Zone.ChunkVisibility(chunk) > 0f);
+        Assert.InRange(ship.ChunkInfo(chunk), 1e-3f, .1f); // seen a little, below the detection threshold
+        Assert.False(ship.ChunkVisible(chunk));
+        Assert.False(ship.SetTarget(chunk));
+        Assert.True(ship.Target.Value.IsNone);
+    }
+
+    // The chunk query equals brute force (Soul P10): 3000 random queries off the origin, over two belts, many of
+    // them from beyond a belt's outer edge where the belt skip decides.
+    [Fact]
+    public void TheChunkQueryMatchesBruteForce()
+    {
+        var kind = Kind("Asteroid", 4f);
+        var rng = new System.Random(11);
+        var rocks = Enumerable.Range(0, 400).Select(i => Rock(200f + (float) rng.NextDouble() * 150f, (float) rng.NextDouble())).ToArray();
+        var centre = float2(-700, 333);
+        var s = BuildSceneAt(centre, new[] { kind }, Belt(kind, rocks), Belt(kind, Rock(600f), Rock(640f, .3f)));
+        var found = new List<ChunkId>();
+        var mismatches = 0;
+        var nonEmpty = 0;
+        var acrossOuterEdge = 0;
+        for (var q = 0; q < 3000; q++)
+        {
+            var angle = (float) (rng.NextDouble() * 2 * PI);
+            var fromCentre = (float) rng.NextDouble() * 900f;
+            var from = centre + fromCentre * float2(cos(angle), sin(angle));
+            var range = (float) rng.NextDouble() * 300f;
+            s.Zone.ChunksNear(from, range, found);
+            var expected = s.Belts
+                .SelectMany(b => Enumerable.Range(0, ((AsteroidBeltData) s.Zone.Planets[b]).Asteroids.Length).Select(i => new ChunkId(b, i)))
+                .Where(c => length(At(s, c) - from) <= range).ToArray();
+            if (!expected.SequenceEqual(found)) mismatches++;
+            if (expected.Length > 0) nonEmpty++;
+            if (fromCentre > 350f && fromCentre - range < 350f) acrossOuterEdge++;
+        }
+        Assert.Equal(0, mismatches);
+        Assert.True(nonEmpty > 300 && acrossOuterEdge > 300, $"degenerate queries: {nonEmpty} non-empty, {acrossOuterEdge} across the outer edge");
+    }
+
+    // The detection loop's ping arm is unchanged by the gain extraction (Soul's ping sweep): the EntityInfoGathered
+    // trace of 18 sensor configurations, some with a ping that lands unsaturated, matches the trace recorded against
+    // the pre-extraction Sensor.Execute (cb4a1dbd). SensorGainExtractionChangesNothing does not see a ping's size;
+    // this sweep does.
+    [Fact]
+    public void ThePingArmIsUnchangedByTheGainExtraction()
+    {
+        var bytes = new List<byte>();
+        var unsaturatedPings = 0;
+        foreach (var sensitivity in new[] { 1e-5f, 3e-5f, 1e-4f, 3e-4f, 1e-3f, 1e-2f })
+        foreach (var boost in new[] { 1e-4f, 1e-3f, 2e-2f })
+        {
+            var (near, far) = PingTrace(sensitivity, boost, true);
+            var (nearQuiet, farQuiet) = PingTrace(sensitivity, boost, false);
+            foreach (var x in near.Concat(far)) bytes.AddRange(BitConverter.GetBytes(x));
+            if (near.Max() < .999f && near.Zip(nearQuiet, (a, b) => abs(a - b)).Max() > .01f) unsaturatedPings++;
+            if (far.Max() < .999f && far.Zip(farQuiet, (a, b) => abs(a - b)).Max() > .01f) unsaturatedPings++;
+        }
+        Assert.True(unsaturatedPings > 0, "no configuration saw a ping land unsaturated");
+        Assert.Equal("35DE0E26ACC5BD51F6B6E170AB890C3FE5D8BB2BE3A9DC3F3EB66CDA0FA23728", Convert.ToHexString(SHA256.HashData(bytes.ToArray())));
+    }
+
+    // One observer and two reflecting ships in an empty zone, 80 ticks, a ping at tick 20 when `ping`.
+    private (float[] near, float[] far) PingTrace(float sensitivity, float boost, bool ping)
+    {
+        var dir = Path.Combine(_root, $"ping{_fixtureCount++}");
+        Directory.CreateDirectory(dir);
+        var cache = AetheriaStores.Open(Path.Combine(dir, "Aetheria.cc"), Path.Combine(dir, "run.cc"), catalogWritable: true);
+        _caches.Add(cache);
+        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        var shape = new Shape(5, 5);
+        foreach (var cell in shape.AllCoordinates) shape[cell] = true;
+        var hull = new HullData { Name = "Skiff", HullType = HullType.Ship, Shape = shape, Durability = 10, Mass = 1000 };
+        cache.Upsert(hull);
+        var eye = Gear("Eye", new SensorData
+        {
+            Sensitivity = Constant(sensitivity), SensitivityCurve = Falloff(), PingBoost = Constant(boost),
+            PingEnergy = Constant(0f), PingVisibility = Constant(5f), PingRange = Constant(300f), PingCooldown = Constant(4f)
+        });
+        cache.Upsert(eye);
+        var items = new ItemManager(cache, new ProvenanceLedger(), GameSettings(), _ => { });
+        var s = new Scene
+        {
+            Cache = cache, Items = items, Hull = hull, Eye = eye,
+            Zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Ping", Owner = null }, null)
+        };
+        var eyeAt = float2(0, 50);
+        var nearAt = float2(30, 120);
+        var farAt = float2(-150, 90);
+        var observer = SpawnShip(s, eyeAt, sensor: true);
+        var near = SpawnShip(s, nearAt, crossSection: .2f);
+        var far = SpawnShip(s, farAt, crossSection: 9f);
+        var nearTrace = new float[80];
+        var farTrace = new float[80];
+        for (var tick = 0; tick < 80; tick++)
+        {
+            if (tick == 20 && ping) observer.Sensor.Ping();
+            Tick((near, nearAt), (far, farAt), (observer, eyeAt));
+            nearTrace[tick] = observer.EntityInfoGathered[near];
+            farTrace[tick] = observer.EntityInfoGathered[far];
+        }
+        return (nearTrace, farTrace);
+    }
+
+    // Soul F2: the shipped catalog authors at least one field kind that generation can pick, so a generated belt is
+    // never left kindless and dark.
+    [Fact]
+    public void TheShippedCatalogHasAPickableFieldKind()
+    {
+        var dir = Path.Combine(_root, "shipped");
+        Directory.CreateDirectory(dir);
+        var catalog = Path.Combine(dir, "Aetheria.cc");
+        File.Copy(Path.Combine(RestoredHullsTests.FindRepoRoot(), "GameData", "Aetheria.cc"), catalog);
+        using var cache = OpenShippedCatalogCopy(catalog, Path.Combine(dir, "run.cc"));
+        Assert.Contains(cache.GetAll<FieldKindData>(), kind => kind.GenerationWeight > 0f);
+    }
 }
