@@ -867,3 +867,10 @@ The fix batch commits Soul's four probes (in the session scratchpad, `soul-mc3-r
   - Proposed: a derived per-belt index (bands of 256 by distance, sorted by turn, with the query arc widened by rate spread and at most 8 band re-sorts per query); a visibility upper bound that skips dark bands; best-first next/previous and reticle; the rules move from `ActionGameManager` to `Entity`.
   - Work in progress (unbuilt) is in the session scratchpad: `hands-mc3fix-index-wip.patch`.
 - Question: today's Previous with no target picks the second-farthest rock (off by one). Hands recommends fixing it.
+
+**Belt-freeze rulings (operator, 2026-10-01):**
+- **Structure:** "Let's go for it. There's a voice in my head screaming that this is too much code and we should just reduce the whole belt to a single entity, but this stuff will be extra important for when we have EW and much more crowded levels. Just don't specialize the indexing too much towards asteroid belts, because we'll want a bunch of subsystems feeding targeting data. Think the spacebound microfauna from the slime mold experiment, pretty sure there's a campaign for that."
+  - The index is a general targeting index that many sources feed: belts, entities, later EW and microfauna. Belts are one provider, not the shape of the index.
+  - The slime-mold experiment is `Assets/Shaders/Compute/Slime/Slime.cs`. No campaign doc was found by grep on master docs or by voidbot; ask the operator before assuming one.
+- **Previous off-by-one:** "Fix the off-by-one". With no current target, Previous picks the farthest rock.
+- **Next step:** an Imagination pass (Opus) maps the general index. Inputs: the provider seam, motion models (orbiting rocks with per-rock rates, and moving entities), the brightness/visibility bound as a per-provider bound, and best-first queries. Hands' work in progress (`hands-mc3fix-index-wip.patch`) is input, not spec. Then Hands on Sonnet, then Soul.
