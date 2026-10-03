@@ -4,6 +4,7 @@ using MessagePack;
 using Newtonsoft.Json;
 using CultMath;
 using static CultMath.math;
+using float2 = CultMath.float2;
 
 [MessagePackObject, JsonObject(MemberSerialization.OptIn)]
 public class BezierCurve
@@ -39,6 +40,31 @@ public class BezierCurve
         }
     }
     
+    // The least and greatest value Evaluate can return, as (min, max): each segment is a cubic Bezier whose control
+    // points are p0, p0 + m0/3, p1 - m1/3 and p1, and a Bezier curve lies within their hull. A stepped segment holds
+    // its left key; outside the keys Evaluate clamps to the end keys. A bound, not the curve's extremes.
+    public float2 HullRange()
+    {
+        var low = float.PositiveInfinity;
+        var high = float.NegativeInfinity;
+        void Include(float value)
+        {
+            low = min(low, value);
+            high = max(high, value);
+        }
+        foreach (var key in Keys) Include(key.y);
+        for (var i = 0; i + 1 < Keys.Length; i++)
+        {
+            var left = Keys[i];
+            var right = Keys[i + 1];
+            if (isinf(left.w) || isinf(right.z)) continue;
+            var dx = right.x - left.x;
+            Include(left.y + left.w * dx / 3);
+            Include(right.y - right.z * dx / 3);
+        }
+        return float2(low, high);
+    }
+
     // Integrate area under curve between start and end time
     public float IntegrateCurve(float startTime, float endTime, int steps)
     {

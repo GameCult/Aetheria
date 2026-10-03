@@ -197,4 +197,13 @@ public class Sensor : Behavior, IEventBehavior, IPowerConsumer
         var angle = acos(dot(Direction.xz, normalize(diff)));
         return Gain(visibility, Evaluate(_data.Sensitivity), _data.SensitivityCurve.Evaluate(angle / PI), length(diff), 1f, false);
     }
+
+    // An upper bound on sensitivity x response over every bearing, so PassiveRate(v, p) <= v x this / distance
+    // (Entity.DetectionReachPerVisibility). The curve lies within its control points' hull.
+    public float PassiveGainBound()
+    {
+        var sensitivity = Evaluate(_data.Sensitivity);
+        var response = _data.SensitivityCurve.HullRange();
+        return max(sensitivity * response.x, sensitivity * response.y);
+    }
 }

@@ -23,6 +23,12 @@ public class Zone
     public Dictionary<CultRecordKey, AsteroidBelt> AsteroidBelts = new Dictionary<CultRecordKey, AsteroidBelt>();
     public PlanetSettings Settings;
 
+    // Mining index (docs/aetheria-release-map.md, L3-L5): every targetable thing in the zone, fed by providers --
+    // the entities, and one provider per belt. The reticle, cycling and any range query over rocks go through it;
+    // nothing else scans a belt.
+    public readonly TargetingIndex Targets = new TargetingIndex();
+    private readonly List<Sun> _suns = new List<Sun>();
+
     private HashSet<CultRecordKey> _updatedOrbits = new HashSet<CultRecordKey>();
 
     private ItemManager _itemManager;
@@ -62,6 +68,9 @@ public class Zone
     {
         get => (float) _time;
     }
+
+    // Zone time at full precision, for the index's orbital keys, which must agree with ChunkPose's own.
+    internal double ExactTime => _time;
     public ZonePack Pack { get; }
     public GalaxyZone GalaxyZone { get; }
     public Galaxy Galaxy { get; }
@@ -89,6 +98,8 @@ public class Zone
         // ObserveAdd fires for all of them. Forbidden writer: no presentation may remove an entity from Zone.
         Entities.ObserveAdd().Subscribe(add => add.Value.Death.Subscribe(_ => { Entities.Remove(add.Value); add.Value.Deactivate(); }));
 
+        Targets.Add(new EntityTargets());
+
         foreach (var orbit in pack.Orbits)
         {
             Orbits.Add(orbit.Key, new Orbit(Settings, cache.Get(orbit)));
@@ -105,9 +116,12 @@ public class Zone
                     // the rule generation uses, and keeps it.
                     FieldKinds.Ensure(body.Key, belt, cache);
                     AsteroidBelts[body.Key] = new AsteroidBelt(belt);
+                    Targets.Add(new BeltTargets(this, body.Key, belt, settings, _time));
                     break;
                 case SunData sun:
-                    PlanetInstances.Add(body.Key, new Sun(settings, sun, Orbits[planet.Orbit.Key]));
+                    var sunInstance = new Sun(settings, sun, Orbits[planet.Orbit.Key]);
+                    PlanetInstances.Add(body.Key, sunInstance);
+                    _suns.Add(sunInstance);
                     break;
                 case GasGiantData gas:
                     PlanetInstances.Add(body.Key, new GasGiant(settings, gas, Orbits[planet.Orbit.Key]));
@@ -320,25 +334,6 @@ public class Zone
         return kind.CrossSection * PI * cells * cells * GetLight(ChunkPose(chunk.Field, chunk.Index).xy);
     }
 
-    // Mining Cut 3: the one chunk query -- every chunk that exists and whose centre lies within `range` of
-    // `position`, written into `into` (cleared first). Belts whose annulus cannot reach are skipped whole. It knows
-    // nothing about detection; callers filter by what an observer can see.
-    public void ChunksNear(float2 position, float range, List<ChunkId> into)
-    {
-        into.Clear();
-        foreach (var belt in AsteroidBelts)
-        {
-            var centre = GetOrbitPosition(Orbits[belt.Value.Data.Orbit.Key].Data.Parent.Key);
-            var fromCentre = length(position - centre);
-            if (fromCentre - range > belt.Value.Radius || fromCentre + range < belt.Value.InnerRadius) continue;
-            for (var i = 0; i < belt.Value.Data.Asteroids.Length; i++)
-            {
-                var chunk = new ChunkId(belt.Key, i);
-                if (ChunkExists(chunk) && length(ChunkPose(belt.Key, i).xy - position) <= range) into.Add(chunk);
-            }
-        }
-    }
-
     public void EvaluateBelt(CultRecordKey belt, Span<float4> into)
     {
         var beltData = Planets[belt] as AsteroidBeltData;
@@ -418,22 +413,19 @@ public class Zone
     public float GetLight(float2 position)
     {
         var light = 0f;
-        foreach (var body in PlanetInstances.Values)
-        {
-            if (body is Sun sun)
-            {
-                var p = position - body.Orbit.Position;
-                var distSqr = lengthsq(p);
-                var lightRadius = sun.LightRadius;
-                if (distSqr < lightRadius * lightRadius)
-                {
-                    light += PowerPulse(sqrt(distSqr) / lightRadius, 8);
-                }
-            }
-        }
-
+        foreach (var sun in _suns)
+            light += SunLight(sun, length(position - sun.Orbit.Position));
         return light;
     }
+
+    // One sun's light at `distance` from it. It never grows with distance, so the light at the nearest point of a
+    // region bounds the light anywhere in it (BeltTargets' visibility bound).
+    public static float SunLight(Sun sun, float distance) =>
+        distance < sun.LightRadius ? PowerPulse(distance / sun.LightRadius, 8) : 0f;
+
+    internal IReadOnlyList<Sun> Suns() => _suns;
+    internal float SchematicCellSize => _itemManager.GameplaySettings.SchematicCellSize;
+    internal float FieldCrossSection(AsteroidBeltData belt) => _itemManager.ItemData.Get(belt.Kind)?.CrossSection ?? 0f;
 
     public float2 GetForce(float2 position)
     {
@@ -537,14 +529,11 @@ public class AsteroidBelt
 {
     public AsteroidBeltData Data;
     public float Radius { get; }
-    // Mining Cut 3: the belt's inner edge, so the chunk query can skip a belt whose annulus it cannot reach.
-    public float InnerRadius { get; }
 
     public AsteroidBelt(AsteroidBeltData data)
     {
         Data = data;
         Radius = data.Asteroids.Max(a => a.Distance);
-        InnerRadius = data.Asteroids.Min(a => a.Distance);
     }
 
     // Cut 1 (docs/mining-cut.md): the formula of Zone.cs:269-271 verbatim, `time` in double as `_time` was used.

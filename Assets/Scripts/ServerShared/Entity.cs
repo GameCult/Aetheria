@@ -372,16 +372,45 @@ public abstract class Entity
     public bool ChunkVisible(ChunkId chunk) => ChunkInfo(chunk) > ItemManager.GameplaySettings.TargetDetectionInfoThreshold;
 
     // Mining Cut 3 (Q13 A): the reach for picking a chunk -- the longest range among this entity's active weapons
-    // that can mine (Weapon.CanMine, Q12 A). Every visible chunk within it, written into `into` (cleared first).
-    // Cycling and any programmatic chunk pick read this, so there is one reach rule.
+    // that can mine (Weapon.CanMine, Q12 A). Every visible chunk within it, written into `into` (cleared first), by
+    // index then field. Cycling and any programmatic chunk pick read this, so there is one reach rule. The zone's
+    // targeting index proposes the chunks that could pass (no observer, so no entities); ChunkVisible decides.
     public void VisibleChunksInReach(List<ChunkId> into)
     {
         var reach = 0f;
         foreach (var weapon in _weapons)
             if (weapon.CanMine && (weapon.Item == null || weapon.Item.Active.Value))
                 reach = max(reach, weapon.Range);
-        Zone.ChunksNear(Position.xz, reach, into);
-        into.RemoveAll(chunk => !ChunkVisible(chunk));
+        into.Clear();
+        Zone.Targets.Within(new TargetSearch(Position.xz, reach, reachPerVisibility: DetectionReachPerVisibility()), _targetCandidates);
+        foreach (var candidate in _targetCandidates)
+            if (candidate.Target.Chunk is ChunkId chunk && ChunkVisible(chunk))
+                into.Add(chunk);
+        into.Sort(ByIndexThenField);
+    }
+
+    private readonly List<TargetCandidate> _targetCandidates = new List<TargetCandidate>();
+    private static readonly Comparison<ChunkId> ByIndexThenField = (a, b) =>
+        a.Index != b.Index ? a.Index.CompareTo(b.Index) : a.Field.GetHashCode().CompareTo(b.Field.GetHashCode());
+
+    // The planar distance per unit of visibility beyond which no target can pass ChunkVisible's threshold: an upper
+    // bound, never a decision. ChunkInfo is saturate(sum_i v s_i c_i(angle) / d / (n k)), linear in v and falling as
+    // 1/d, and a Bezier curve lies within the hull of its control points, so each sensor's s_i c_i is bounded by
+    // Sensor.PassiveGainBound. Zero with no active sensor (nothing is visible); infinity when the threshold is not
+    // positive. Slack covers float rounding and only ever widens it.
+    public float DetectionReachPerVisibility()
+    {
+        var gain = 0f;
+        var sensors = 0;
+        foreach (var sensor in ActiveSensors())
+        {
+            gain += sensor.PassiveGainBound();
+            sensors++;
+        }
+        if (sensors == 0) return 0f;
+        var threshold = ItemManager.GameplaySettings.TargetDetectionInfoThreshold;
+        if (!(threshold > 0f)) return float.PositiveInfinity;
+        return max(gain, 0f) / (sensors * ItemManager.GameplaySettings.TargetInfoDecay * threshold) * 1.0001f;
     }
 
     // Every sensor behaviour that runs this tick: those on active equipment, and those of active consumables.
