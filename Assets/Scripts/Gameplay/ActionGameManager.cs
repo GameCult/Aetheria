@@ -106,7 +106,6 @@ public class ActionGameManager : MonoBehaviour
     }
 
     public static Galaxy CurrentGalaxy;
-    public static bool IsTutorial;
 
     public GameSettings Settings;
     //public string StarterShipTemplate = "Longinus";
@@ -250,7 +249,7 @@ public class ActionGameManager : MonoBehaviour
     {
         if (CurrentGalaxy != null)
         {
-            var (game, zones) = RunSave.Capture(CultCache, CurrentGalaxy, Zone, DockedEntity ?? CurrentEntity, IsTutorial,
+            var (game, zones) = RunSave.Capture(CultCache, CurrentGalaxy, Zone, DockedEntity ?? CurrentEntity,
                 _actionBarSlots.Select(s => s.Save()).ToArray());
             RunSave.Commit(CultCache, game, zones, ItemManager.Lots);
         }
@@ -578,19 +577,7 @@ public class ActionGameManager : MonoBehaviour
             {
                 var nearestFaction = CurrentGalaxy.Factions.MinBy(f => CurrentGalaxy.HomeZones[f].Distance[Zone.GalaxyZone]);
 
-                var loadoutGenerator = IsTutorial ? new LoadoutGenerator(
-                    ref ItemManager.Random,
-                    ItemManager,
-                    CurrentGalaxy,
-                    Zone.GalaxyZone,
-                    nearestFaction,
-                    .5f) : new LoadoutGenerator(
-                    ref ItemManager.Random,
-                    ItemManager,
-                    CurrentGalaxy, 
-                    Zone.GalaxyZone,
-                    nearestFaction,
-                    .5f);
+                var loadoutGenerator = new LoadoutGenerator(ref ItemManager.Random, ItemManager, CurrentGalaxy, Zone.GalaxyZone, nearestFaction, .5f);
 
                 var turret = EntitySerializer.Unpack(ItemManager, Zone, loadoutGenerator.GenerateTurretLoadout());
                 turret.Position.xz = _currentEntity.Position.xz +
@@ -728,7 +715,7 @@ public class ActionGameManager : MonoBehaviour
                 Settings.ZoneSettings,
                 CurrentGalaxy,
                 galaxyZone,
-                IsTutorial
+                CurrentGalaxy.IsPrelude
             );
             galaxyZone.Contents = new Zone(ItemManager, Settings.PlanetSettings, galaxyZone.PackedContents, galaxyZone, CurrentGalaxy);
         }
@@ -815,7 +802,7 @@ public class ActionGameManager : MonoBehaviour
                 PopulateLevel(CurrentGalaxy.Entrance);
                 var failures = new List<string>();
                 var staged = RunStart.Stage(ItemManager, Zone, null, Settings.StartingHullName,
-                    IsTutorial ? CurrentGalaxy.ResolveFaction(Settings.TutorialGenerationSettings.ProtagonistFaction) : null, failures)
+                    CurrentGalaxy.IsPrelude ? CurrentGalaxy.ResolveFaction(Settings.TutorialGenerationSettings.ProtagonistFaction) : null, failures)
                     ?? throw new InvalidOperationException($"The new run could not stage: {string.Join("; ", failures)}");
                 BindToEntity(staged.Player);
             }

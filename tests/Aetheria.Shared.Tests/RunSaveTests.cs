@@ -91,7 +91,7 @@ public sealed class RunSaveTests : IDisposable
             var galaxy = new Galaxy(cache, cache.GetGlobal<SavedGame>(), _ => { });
             var itemManager = new ItemManager(cache, new ProvenanceLedger(), TestSettings(), _ => { });
             galaxy.Zones[0].Contents = new Zone(itemManager, new PlanetSettings(), new ZonePack(), galaxy.Zones[0], galaxy);
-            var (game, zones) = RunSave.Capture(cache, galaxy, galaxy.Zones[0].Contents, null, false, new SavedActionBarBinding[0]);
+            var (game, zones) = RunSave.Capture(cache, galaxy, galaxy.Zones[0].Contents, null, new SavedActionBarBinding[0]);
             RunSave.Commit(cache, game, zones, RunSave.Lots(cache));
         }
 

@@ -111,7 +111,6 @@ public class MainMenu : MonoBehaviour
             {
                 try { RunSave.RequireDesigns(cache, saved); }
                 catch (InvalidOperationException error) { Refuse("Cannot continue this run", error.Message); return; }
-                ActionGameManager.IsTutorial = saved.IsTutorial;
                 ActionGameManager.CurrentGalaxy = new Galaxy(cache, saved, Debug.Log);
                 EnterGame();
             });
@@ -130,29 +129,6 @@ public class MainMenu : MonoBehaviour
                 Dialog.AddProperty(() => generatorState);
                 Dialog.Show();
 
-                if (ActionGameManager.PlayerSettings.TutorialPassed)
-                {
-                    var backgroundSettings = MessagePackSerializer.Deserialize<SectorBackgroundSettings>(
-                        MessagePackSerializer.Serialize(Settings.SectorBackgroundSettings));
-                    backgroundSettings.NoisePosition = Random.value * 1000;
-                    ActionGameManager.IsTutorial = false;
-                    Task.Run(() =>
-                    {
-                        var sector = new Galaxy(
-                            Settings.SectorGenerationSettings,
-                            backgroundSettings,
-                            Settings.NameGeneratorSettings,
-                            ActionGameManager.CultCache,
-                            Debug.Log,
-                            setState);
-                        Observable.NextFrame().Subscribe(_ =>
-                        {
-                            ActionGameManager.CurrentGalaxy = sector;
-                            EnterGame();
-                        });
-                    }).ContinueWith(t => Debug.LogException(t.Exception), TaskContinuationOptions.OnlyOnFaulted);
-                }
-                else
                 {
                     var backgroundSettings = MessagePackSerializer.Deserialize<SectorBackgroundSettings>(
                         MessagePackSerializer.Serialize(Settings.TutorialBackgroundSettings));
@@ -163,7 +139,6 @@ public class MainMenu : MonoBehaviour
                         setState($"Finding Galaxy Position: iteration {iteration++}");
                     } while (backgroundSettings.CloudDensity(float2(0.5f)) < .5f);
 
-                    ActionGameManager.IsTutorial = true;
                     Task.Run(() =>
                     {
                         var sector = new Galaxy(

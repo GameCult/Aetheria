@@ -55,7 +55,7 @@ public static class RunSave
 {
     // The live run as plain documents. Writes nothing.
     public static (SavedGame Game, SavedZone[] Zones) Capture(CultCache cache, Galaxy galaxy, Zone currentZone,
-        Entity currentEntity, bool isTutorial, SavedActionBarBinding[] actionBar)
+        Entity currentEntity, SavedActionBarBinding[] actionBar)
     {
         var factions = galaxy.HomeZones.Keys.ToArray();
         var game = new SavedGame
@@ -74,7 +74,7 @@ public static class RunSave
             CurrentZoneEntity = currentZone.Entities.IndexOf(currentEntity),
             Entrance = Array.IndexOf(galaxy.Zones, galaxy.Entrance),
             Exit = Array.IndexOf(galaxy.Zones, galaxy.Exit),
-            IsTutorial = isTutorial,
+            IsTutorial = galaxy.IsPrelude,
             ActionBarBindings = actionBar
         };
 
