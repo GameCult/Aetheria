@@ -64,6 +64,11 @@ still use a `capturepreset` preset by name.
 - **`verification-ledger-b`.** Operator: "Agree with b." The typed ledger is deferred (follow-up
   `scenarios-verification-ledger`). Each scenario's `Brief` names what to verify; results stay in the prose checklist
   (`docs/merge-to-master-checklist.md` section 8). This supersedes the Q2 B ruling of 2026-09-30.
+- **`weapon-feel-to-smoke-cut-test-hull`** (option A). The Hands probe on master found that no ship hull has a 2x2
+  energy hardpoint, so ChargeBlast SG fits nothing. The Autocannon (ballistic 2x2) fits only the turret, and no ship
+  hull has a side mount: every mount faces forward with the default 120 degree arc. Weapon feel and the Arcs beam
+  check therefore move to S3, on one product-less test hull with a 2x2 energy hardpoint, a 2x2 ballistic hardpoint
+  and side mounts. S2's Arcs keeps the bow, stern and turret checks.
 
 ### R.4 Target shape
 
@@ -98,10 +103,12 @@ arena are scenarios, staged by one owner through one path.
   - `Ship Player(Loadout fit, float2 at, float2 facing = default)`.
   - `Entity Place(Loadout fit, float2 at, float2 facing = default, ScenarioStance stance = Neutral, bool piloted = false)`.
   - `void Cargo(Entity entity, params string[] designs)`.
-  - `Galaxy`, `Arena`, and `StartingHull` (`GameSettings.StartingHullName`), for reading.
+  - `Galaxy`, `Arena`, `StartingHull` (`GameSettings.StartingHullName`) and `TutorialGenerationSettings`, for
+    reading.
 - **The two game modes** (`Assets/Scripts/ServerShared/Scenarios/`):
   - `TutorialGalaxy`: `Generate` returns `stage.Prelude()`. `Stage` places
-    `Generated(StartingHull, Galaxy.ResolveFaction(TutorialGenerationSettings.ProtagonistFaction))` at the origin.
+    `Generated(StartingHull, Galaxy.ResolveFaction(stage.TutorialGenerationSettings.ProtagonistFaction))` at the
+    origin. `ScenarioStage` exposes `TutorialGenerationSettings` for this.
     This is today's New Game, since `TutorialPassed` is never set and New Game always takes the prelude branch.
   - `MainGalaxy`: `Generate` returns `stage.Main()`. `Stage` places `Generated(StartingHull)` with no faction at the
     origin. This is today's `TutorialPassed` branch, which is unreachable.
@@ -124,7 +131,8 @@ arena are scenarios, staged by one owner through one path.
   it. A new run with no pending scenario is an error.
 - **`ActionGameManager.IsTutorial` is no longer an owner.** It duplicates `Galaxy.IsPrelude`: `Galaxy`'s save
   constructor already sets `IsPrelude = savedGame.IsTutorial` (`Galaxy.cs:50`). Its readers read
-  `CurrentGalaxy.IsPrelude` instead: `RunSave.Capture` (`ActionGameManager.cs:253`), `spawnturret` (`:581`),
+  `CurrentGalaxy.IsPrelude` instead: `RunSave.Capture` (`ActionGameManager.cs:253`; it drops its `isTutorial`
+  parameter and reads `galaxy.IsPrelude`), `spawnturret` (`:581`),
   `PopulateLevel` (`:731`) and `StartGame` (`:818`). `SavedGame.IsTutorial` stays as the persisted field.
 - **`PlayerSettings.TutorialPassed` is dead.** It is never written, and its only reader is the deleted branch.
 
@@ -144,17 +152,19 @@ arena are scenarios, staged by one owner through one path.
 
 ### R.6 Cuts
 
-S2 alone delivers the whole menu: the two modes and seven test arenas. S3 adds the three that need test designs.
+S2 alone delivers the whole menu: the two modes and six test arenas. S3 adds the four that need test designs.
 
 **Cut S2. Every setup is a scenario: the harness, the two game modes, the New Game submenu, and seven test arenas.**
 Branch `eureka/aetheria-release-scenarios-menu` from `origin/master`. The arenas: Djinni shakedown, Starved reactor,
-Arcs, Duel, Launcher angles, Weapon feel, Long haul (`Ambient` true). Mind:
-`aetheria-release:cut_spec:cut-scenarios-menu.r2`, which supersedes r1.
+Arcs (bow, stern and turret checks only), Duel, Launcher angles, Long haul (`Ambient` true). Mind:
+`aetheria-release:cut_spec:cut-scenarios-menu.r3`, which supersedes r2 and r1.
 
-**Cut S3. Smoke designs and the fused scenarios** (content), on S2. Five product-less designs (5.3), written by a
-transient `AetherDb smoke-designs apply` that is deleted in the same cut. Scenarios: Fused rounds, Refused rounds, AI
-fused discipline. When S3 lands, Self runs `git checkout -- GameData/Aetheria.cc` in `F:\Projects\Aetheria`. Mind:
-`aetheria-release:cut_spec:cut-scenarios-smoke.r1`.
+**Cut S3. Test designs and the scenarios that need them** (content), on S2. Five product-less smoke weapons (5.3)
+and one product-less test hull, `Smoke Test Hull`, with a 2x2 energy hardpoint, a 2x2 ballistic hardpoint and side
+mounts. A transient `AetherDb smoke-designs apply` writes all six and is deleted in the same cut. Scenarios: Fused
+rounds, Refused rounds, AI fused discipline, and Weapon feel (on the test hull). Arcs gains its beam target and
+check on the test hull. When S3 lands, Self runs `git checkout -- GameData/Aetheria.cc` in `F:\Projects\Aetheria`.
+Mind: `aetheria-release:cut_spec:cut-scenarios-smoke.r2`, which supersedes r1.
 
 ### R.7 Questions
 
@@ -164,8 +174,8 @@ None open. `verification-ledger` was answered B.
 
 | Cut | Removed | Added |
 |---|---|---|
-| S2 | record types 45; `RunStart.Check`, `Build`, `Place` and the null branch 90; New Game's two galaxy branches 60; `IsTutorial` 6; `TutorialPassed` 1; record-shaped test scaffolding 60 | `Scenario` 25; `GalaxyStage` 50; `ScenarioStage` 95; `RunStart` 25; two modes 30; seven arenas 150; menu 35; tests 140 |
-| S3 | the transient command, once spent | five designs (catalog); three scenarios 70; condition tests 80 |
+| S2 | record types 45; `RunStart.Check`, `Build`, `Place` and the null branch 90; New Game's two galaxy branches 60; `IsTutorial` 6; `TutorialPassed` 1; record-shaped test scaffolding 60 | `Scenario` 25; `GalaxyStage` 50; `ScenarioStage` 95; `RunStart` 25; two modes 30; six arenas 130; menu 35; tests 140 |
+| S3 | the transient command, once spent | five weapon designs and one test hull (catalog); four scenarios 95; the Arcs beam target 5; condition tests 100 |
 
 S2 removes the `aetheria.scenario` schema. No store, target, package or daemon is added.
 
