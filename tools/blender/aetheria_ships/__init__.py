@@ -230,9 +230,15 @@ class AETHERIA_OT_bind_ship_collection(bpy.types.Operator):
                 raise ValueError(f"{collection.name} has another aetheria.asset_kind")
             if collection.get("aetheria.id") not in (None, ship_id):
                 raise ValueError(f"{collection.name} is bound to another ship ID")
+            stored = path
+            if bpy.data.filepath:
+                try:
+                    stored = bpy.path.relpath(path)
+                except ValueError:
+                    pass
             collection["aetheria.asset_kind"] = "ship"
             collection["aetheria.id"] = ship_id
-            collection["aetheria.ship_cc"] = bpy.path.relpath(path)
+            collection["aetheria.ship_cc"] = stored
             self.report({"INFO"}, f"Bound {collection.name} to {ship_id}")
             return {"FINISHED"}
         except (OSError, ValueError, RuntimeError, ImportError) as exc:

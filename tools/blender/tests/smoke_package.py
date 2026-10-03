@@ -1,6 +1,6 @@
 """Headless Blender smoke for the Package Ship action, end to end.
 
-    blender --background --factory-startup --python tools/blender/tests/smoke_package.py
+    blender --background --factory-startup --python-use-system-env --python tools/blender/tests/smoke_package.py
 
 Environment: CULTLIB_PACKAGES (CultLib's packages directory, as test_ship_cc.py), and whatever AetherDb's build needs
 (CULTLIB_ROOT and CULTMATH_ROOT at the pinned revisions), since the add-on runs 'dotnet run --project tools/AetherDb'.
@@ -10,6 +10,11 @@ Unity play smoke can load it, and its path is printed as SMOKE_PACKAGE=<ship.cc>
 Pass 1 packages a primitive ship built from role-tagged objects and requires the C# validator to accept it. Pass 2 swaps
 the thruster disc for an empty of the same id and requires the validator to refuse it, naming the anchor. Pass 3 puts
 the disc back and packages again, so the package left behind is the good one.
+
+Before packaging, the bind cases: a bind that fails while computing the stored path leaves no aetheria.* property; an
+unsaved .blend stores the absolute path, which still resolves after Save As to two other folders; a saved .blend on the
+.cc's drive stores a '//'-relative path. SMOKE_OTHER_DRIVE names a directory on another drive than SMOKE_MODS; when set,
+the .blend is saved there before the final bind, so the bind crosses drives and the package passes prove it resolves.
 """
 
 import os
@@ -48,6 +53,64 @@ def tagged(collection, name, data, role=None, anchor_id=None, location=(0, 0, 0)
     obj.parent = parent
     collection.objects.link(obj)
     return obj
+
+
+BIND_KEYS = ("aetheria.asset_kind", "aetheria.id", "aetheria.ship_cc")
+
+
+def same_file(a, b):
+    return os.path.normcase(os.path.normpath(a)) == os.path.normcase(os.path.normpath(b))
+
+
+def bind(ship, label):
+    for key in BIND_KEYS:
+        if key in ship:
+            del ship[key]
+    try:
+        result = bpy.ops.aetheria.bind_ship_collection()
+    except RuntimeError:
+        result = {"CANCELLED"}
+    stored = ship.get("aetheria.ship_cc")
+    print(f"BIND {label} {sorted(result)}: blend={bpy.data.filepath!r} stored={stored!r}")
+    return result, stored
+
+
+def bind_cases(ship, path, mods):
+    if bpy.data.filepath:
+        raise SystemExit("Bind cases need an unsaved .blend to start from")
+    result, stored = bind(ship, "unsaved")
+    if result != {"FINISHED"} or not os.path.isabs(stored) or not same_file(stored, path):
+        raise SystemExit("Bind case unsaved: the stored path is not the absolute .cc path")
+    for folder in ("blend-a", "blend-b"):
+        (mods / folder).mkdir()
+        bpy.ops.wm.save_as_mainfile(filepath=str(mods / folder / "ship.blend"))
+        if not same_file(bpy.path.abspath(ship["aetheria.ship_cc"]), path):
+            raise SystemExit(f"Bind case unsaved: the stored path stopped resolving after Save As to {folder}")
+
+    relpath = bpy.path.relpath
+    bpy.path.relpath = lambda *args, **kwargs: (_ for _ in ()).throw(OSError("probe: relpath failed"))
+    try:
+        result, _ = bind(ship, "failing")
+    finally:
+        bpy.path.relpath = relpath
+    if result != {"CANCELLED"} or any(key in ship for key in BIND_KEYS):
+        raise SystemExit("Bind case failing: a failed bind left aetheria.* properties behind")
+
+    result, stored = bind(ship, "same-drive")
+    if result != {"FINISHED"} or not stored.startswith("//") or not same_file(bpy.path.abspath(stored), path):
+        raise SystemExit("Bind case same-drive: the stored path is not a resolving '//'-relative path")
+
+    other = os.environ.get("SMOKE_OTHER_DRIVE")
+    if not other:
+        print("BIND cross-drive skipped: SMOKE_OTHER_DRIVE is not set")
+        return
+    if os.path.splitdrive(other)[0].lower() == os.path.splitdrive(path)[0].lower():
+        raise SystemExit("SMOKE_OTHER_DRIVE is on the same drive as SMOKE_MODS")
+    Path(other).mkdir(parents=True, exist_ok=True)
+    bpy.ops.wm.save_as_mainfile(filepath=str(Path(other) / "ship.blend"))
+    result, stored = bind(ship, "cross-drive")
+    if result != {"FINISHED"} or not os.path.isabs(stored) or not same_file(stored, path):
+        raise SystemExit("Bind case cross-drive: the stored path is not the absolute .cc path")
 
 
 def package(addon):
@@ -93,8 +156,7 @@ def main():
 
     scene.aetheria_ship_cc_path = path
     bpy.context.view_layer.objects.active = hull
-    if bpy.ops.aetheria.bind_ship_collection() != {"FINISHED"}:
-        raise SystemExit("Bind Ship Collection failed")
+    bind_cases(ship, path, mods)
 
     ship_cc = aetheria_ships.ship_cc
     _, _, revision = ship_cc.read_layout(path, PACKAGES)
