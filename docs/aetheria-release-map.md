@@ -1995,6 +1995,374 @@ contract the hull layout and the anchors already use, and C# stays the one judge
 with its own reader, is a second owner. Nothing in the game needs glTF. The
 loader from records is about the size of the glTFast glue it replaces.
 
+### Ship authoring across Blender and Studio
+
+The operator, 2026-10-03, ruling `studio-is-the-authoring-pane`: "I think
+bridging the data to a place we already control the UI is the smart compromise.
+Studio will need to update its schematic rendering though since we'll be
+shipping the stroke paths directly now." It answers her earlier ask for "a
+dedicated CultCache Studio pane in Blender", after the Eyes pass
+(`F:\Projects\blender-tooling-surface-prior-art.md`) found that Python cannot
+register an editor type. Later the same day she added: "Honestly, I don't love
+the fact that CultCache Studio runs in Unity. We have all this UI lowering infra
+(Eve, now Thing) and our best inspection tool lives in, of all things, IMGUI".
+Question `ship-authoring-host` puts that to her.
+
+Rulings also in force here: `ship-data-all-in-cc`, `ship-model-aetheria-owned` and
+`thrusters-radiators-are-meshes`. Anchors are against Aetheria `origin/master`
+`4895c752`, CultLib `main` `a7966142` and Eve `main` `8e270d6`, all read on
+2026-10-03.
+
+#### Body facts
+
+**M31. Studio draws a hull's schematic as a texture under a checkbox grid, and
+a mod ship has no texture.**
+- `InspectableSchematicShapeDrawer` (`Assets/Scripts/Editor/CultCacheDrawers.cs:93-146`)
+  loads `EquippableItemData.Schematic` as an asset GUID and draws it with
+  `EditorGUI.DrawPreviewTexture` under one `GUILayout.Toggle` per cell. The
+  grid's height is locked to the texture's aspect, and hardpoint cells are
+  tinted.
+- `ShipAuthoringStore` sets `hull.Schematic = null` for a mod hull
+  (`ShipAuthoring.cs:103`). So Studio shows a mod hull's cells over nothing.
+- The strokes live in `ShipAuthoring.SchematicLines` (key 4, `ShipPolyline`:
+  points in Blender space, radii, opacities, colour; `ShipAuthoring.cs:19,40-48`)
+  at `mod-ship:<id>`, in the same `ship.cc` as the hull at `mod-hull:<id>`.
+- A drawer can see the sibling record. `CultInspector.Records` is every stored
+  document in the open store, and `CultInspector.Record` is a read-only copy of
+  the one being drawn (CultLib `CultCacheStudioDrawers.cs:46-49`). A drawer
+  returns a new value only for the member it draws.
+- A hardpoint's footprint is a plain `Shape` (`ItemData.cs:563`). It carries no
+  drawer attribute, so Studio shows it with the default drawing.
+
+**M32. Neither writer guards the file against the other, and they write
+differently.**
+- Python `push` pulls the whole store, replaces one envelope and rewrites the
+  file. Records it did not touch are carried as raw bytes (M28). The add-on's
+  `replace_layout` also checks a hash of the hull body (`ship_cc.py:155-161`).
+  So a Blender write is safe record by record.
+- Studio's Save is `_cache.FlushAsync()` (`CultCacheStudioWindow.cs:423-425`).
+  It rewrites every record from memory. Its only refresh is a manual Reload
+  button (`:94`). There is no file watch and no stale-file check, and CultCache
+  keeps no file version (`CultCache.cs`: no revision or timestamp check on the
+  single-file store).
+- So if Studio has `ship.cc` open while Package writes the model, anchors and
+  lines, its next Save silently restores the old ones.
+
+**M33. Blender already turns a Grease Pencil object into the strokes, and Line
+Art can make that object from the mesh.**
+- Package captures the collection's one Grease Pencil object, evaluated by
+  default, into `SchematicLines` (`__init__.py:387-391`,
+  `ship_cc.capture_grease_pencil` `:198`).
+- Blender's Line Art modifier makes Grease Pencil strokes from mesh feature
+  lines: contour, silhouette, crease, material border, edge marks and
+  intersections, seen from a camera. It is evaluated through the depsgraph like
+  any modifier. So `capture_grease_pencil(..., evaluated=True)` reads its output
+  unchanged.
+
+**M34. Thing cannot carry the ship authoring surface yet.** Thing is the rename
+of Eve (`Eve/docs/thing-campaign.md`). That campaign renames and publishes; it
+adds no primitives.
+- **Component kinds** (`Eve/docs/surface-contract-v1.md:96-106,309-333`):
+  - layout: `surface`, `grid`, `panel`, `card` and similar;
+  - `text`, `image.*`, `graph`, `tree` and `inspector.kv`;
+  - controls: button, toggle, slider, stepper, segmented, colour, select and
+    input;
+  - `inventory.grid`, `inventory.item` and `inventory.drag_session`. These are
+    spatial items with footprints and rotation, and drop operations whose fit is
+    left to the provider.
+- There is no kind for vector strokes or polylines. The browser lowering's only
+  SVG is for `graph` diagrams (`eve-browser-lowering/src/index.ts:1653-1685`).
+- There is no cell-painting kind. Occupancy can be drawn as a `grid` of
+  `control.toggle`, which means 1,024 bindings for a 32 x 32 hull.
+- **Provider side:**
+  - C# `GameCult.Eve.Surface` with CultMesh `OperationBinding` and state
+    bindings (CultLib `src/GameCult.Mesh/docs/getting-started/03-publish-an-eve-surface.md`);
+  - `cultmesh-browser`, a WebSocket client.
+- **Lowerings** (`Eve/docs/renderer-parity.md:32-41`):
+  - The web reference renders fixtures and local advertisements. Its stated gap
+    is "live Odin/CultMesh provider feed and command round-trip tests".
+  - Flutter (Windows, Linux, Android) and iOS are screenshot parity targets on
+    fixtures.
+  - EveUnity has a live CultMesh provider path.
+- `CultInspectorModel` is engine-free C#, but nothing projects it into an Eve
+  surface. The Unity window is its only lowering.
+
+#### The design in brief
+
+```
+Blender (add-on)                         ship.cc (one file, the only truth)          Studio (host per ship-authoring-host)
+ model, materials, UVs                    HullData      mod-hull:<id>  <-- cells, hardpoint values, stats   (Studio edits)
+ Bake Schematic: Line Art GP  --Package-> ShipAuthoring mod-ship:<id>  <-- anchors, SchematicLines         (Blender writes)
+ mount gizmos, cell overlay   --Package-> ShipModel     mod-model:<id> <-- nodes, meshes, surfaces, images (Blender writes)
+ Rasterise (proposes cells)   --replace_layout, revision-checked--> HullData.Shape
+ mount helpers (paired rows)  --replace_layout--> HullData.Hardpoints (type, Transform, Position)
+ overlay reads mod-hull on file change (bpy.app.timers mtime poll)          Studio reloads on file change; refuses a stale Save
+```
+
+**Who owns what.**
+- **Blender owns** the body and everything spatial:
+  - the model;
+  - the strokes, baked from the model;
+  - anchors and mount meshes;
+  - the `Position` of a hardpoint that has a mount object.
+- **Studio owns** the hull's semantics:
+  - cell occupancy after any Rasterise;
+  - each hardpoint's type, footprint, rotation, armour and firing arc;
+  - internal hardpoints and stats.
+- Each record has one writer, except two narrow, revision-checked Blender writes
+  into `HullData`:
+  - Rasterise proposes `Shape`, only when she presses it;
+  - the mount helpers create and remove paired rows and write the mounted
+    `Position`.
+
+**Strokes: Line Art, then Package's existing capture.**
+- `Bake Schematic` creates or refreshes a Grease Pencil object `Schematic` in
+  `Generated`. It carries a Line Art modifier whose source is the render meshes,
+  so `Source` and `Generated` are excluded.
+- The edge types are contour, crease, material border, edge marks and
+  intersection, seen from a top-down orthographic camera that the bake also
+  places in `Generated`.
+- Package already captures the one evaluated Grease Pencil object (M33). So the
+  bake adds no write path.
+- Two ways to change the result:
+  - **Edge marks:** she marks a feature with Mark Freestyle Edge and rebakes.
+  - **Freeze Schematic:** it applies the modifier so she can redraw strokes by
+    hand. This is the Grease Pencil-assisted path, and a frozen object is marked
+    `aetheria.keep`.
+- Silhouette alone loses panel lines. A hand-drawn-only path costs her time on
+  every hull. Line Art gives the feature lines with the hand edit as a fallback.
+
+**Studio: strokes under the grid, footprints painted.**
+- `ShipSchematicProjection` (ServerShared, engine-free) maps `SchematicLines`
+  into cell space:
+  - cell = Blender XY / 2 m, mirrored on both axes, plus `Shape.CenterOfMass`;
+  - schematic +x is Blender −X, and schematic +y is Blender −Y.
+
+  This is `ships-addon-frame`'s grid rule, run backwards.
+- The shape drawer finds `mod-ship:<id>` in `inspector.Records` when the hull
+  has no texture. It draws the projected strokes with `Handles.DrawAAPolyLine`,
+  using each line's colour and radius, and unlocks the height.
+- A new `InspectableFootprint` drawer paints a hardpoint's footprint as a toggle
+  grid with the hull's occupied cells shown around it.
+- The rules live in ServerShared, so a Thing host reuses them and replaces only
+  the drawers.
+
+**The bridge: the shared file, with a stale-write guard and a file watch.**
+- Studio's window gets a `FileSystemWatcher` on the open path:
+  - when the store is not dirty, a change on disk reloads it on the next editor
+    tick;
+  - when it is dirty, Save compares the file's SHA-256 with the one recorded at
+    the last load or flush. If they differ, Save refuses and offers Reload,
+    naming the file.
+- The guard sits in Studio, not in CultCache. The operator's
+  CultCache scope restraint (2026-10-02) keeps CultCache from growing into a database, and
+  Studio is the only writer that flushes whole stores.
+- The add-on polls the file's mtime from a `bpy.app.timers` callback. Blender
+  forbids threads, so there is no watcher thread. On a change it rereads
+  `mod-hull` for its overlay.
+- **Prior art:**
+  - Send2UE ships exported files and remote commands, not live state.
+  - Multi-User replicates Blender datablocks for many editors at once. That is
+    the wrong shape for one operator whose two tools own disjoint records.
+  - CultCache's own write rules are already per record on the Python side (M32).
+- A CultMesh live link earns its place only when a provider process holds the
+  store, which is the Thing host. Then Blender connects through `cultmesh-py`
+  and stops writing the file. Until then it adds a transport and no invariant.
+  This is not a separate fork: it follows `ship-authoring-host`.
+
+**Gizmos and the overlay in Blender.** These go in a `WorkSpaceTool` "Ship
+Mounts" with a `GizmoGroup`, and replace N-panel text entry.
+- **Overlay:** a `gpu` and `blf` draw handler in the 3D view, at Ship Root's
+  placement:
+  - the cell grid, with occupied cells filled;
+  - each hardpoint's footprint, tinted by type;
+  - each weapon's firing arc as a fan.
+
+  It is read-only and replaces `ships-addon-frame` r3's generated Grid object,
+  so there is nothing left to exclude from export.
+- **Mount gizmos:** one per mount object (weapon empty, muzzle, thruster mesh,
+  radiator mesh), coloured by role.
+  - Clicking selects the object and names its hardpoint row in the tool header.
+  - Dragging a weapon snaps it to cell centres. On release its row's `Position`
+    is written through `replace_layout`.
+  - Package re-derives every mounted `Position` from the object (the cell under
+    its bounds centre). So the r3 warning becomes a derivation.
+- **Studio's side:** it shows `Position` read-only on a row whose `Transform`
+  names a mount object.
+- **Not built:**
+  - a Sprytile-style cell painter in Blender (Studio owns cells);
+  - a firing-arc dial gizmo (Studio owns the arc; the overlay only shows it).
+- **Deleted:** the N-panel hull editor:
+  - the cell checkbox grid and the hardpoint boxes;
+  - `AETHERIA_PG_cell`, `AETHERIA_PG_hardpoint` and `AETHERIA_PG_layout`;
+  - Load Layout, Resize Grid, Add Hardpoint, Remove Hardpoint and Save Layout.
+
+#### Authority map
+
+- **Owner.**
+  - `ship.cc` is the only truth.
+  - `HullData` semantics belong to Studio's edits, judged by
+    `ShipAuthoringStore.Validate`.
+  - `ShipAuthoring` and `ShipModel` belong to Package.
+  - Spatial placement belongs to Blender's objects.
+- **Inputs.**
+  - Blender reads its scene and the file's `mod-hull` (for the overlay and the
+    revision).
+  - Studio reads the whole store, and the sibling `mod-ship` for strokes.
+- **Outputs.**
+  - Blender writes `mod-ship`, `mod-model`, a proposed `Shape`, paired
+    hardpoint rows and mounted `Position`s.
+  - Studio writes `mod-hull`.
+- **Derived state.**
+  - The Blender overlay is display-only.
+  - Studio's stroke underlay is display-only.
+  - A mounted hardpoint's `Position` is derived from its object.
+  - The `Schematic` Grease Pencil object is derived from the meshes unless
+    frozen.
+- **Forbidden writers.**
+  - The N-panel layout editor, which is deleted.
+  - A Studio Save over a file that changed on disk since it loaded.
+  - Studio editing a mounted `Position`.
+  - Blender editing a hardpoint's type, footprint, rotation, armour or arc.
+  - Python computing `CenterOfMass`.
+- **Shared paths.**
+  - Every Blender write to `HullData` goes through `replace_layout` and its
+    revision check.
+  - Rasterise, the mount helpers and the gizmo release write through that one
+    path.
+  - Package writes the other two records.
+- **Deletion line.** The N-panel layout editor is cut in `ships-addon-frame` r4,
+  before any overlay or gizmo is added.
+
+#### Questions
+
+**`ship-authoring-host`: where does the hull editor and stroke view run?**
+
+Context:
+- Thing cannot carry it today (M34). It has no stroke kind and no cell-painting
+  kind.
+- No lowering has proven the live CultMesh round trip.
+- Nothing projects `CultInspectorModel` into a surface.
+
+Prior art: the Language Server Protocol and Jupyter's kernel and front-end
+split. In both, one process owns the model and the editors are interchangeable
+clients. This is the target shape doctrine names. Both reached it after a
+working single-host editor existed.
+
+- **a. `thin-imgui-now-thing-next`.**
+  - The Studio drawers above, kept thin: every rule lives in engine-free
+    ServerShared (`ShipSchematicProjection`, the footprint rule) and in
+    `CultInspectorModel`.
+  - The Studio disk guard.
+  - A Thing host for Studio as its own campaign after the release, with the
+    missing pieces named here: a stroke kind, a cell-paint kind, the browser
+    live loop, and a `CultInspectorModel`-to-surface projection.
+  - About 160k Hands tokens now, in two cuts. The IMGUI added is about 150
+    lines of drawer.
+- **b. `thing-now`.**
+  - An Aetheria provider: AetherDb, which already owns `ship-authoring`, holds
+    `ship.cc` and publishes a surface over CultMesh.
+  - New contract kinds `schematic.strokes` and `cells.paint`, in the contract,
+    the browser lowering and conformance fixtures.
+  - The browser live-loop proof.
+  - A `CultInspectorModel` projection limited to the field kinds `HullData`
+    uses.
+  - Blender connects through `cultmesh-py`.
+  - About 5 cuts, roughly 600-800k Hands tokens, across Eve, CultLib and
+    Aetheria. Hull authoring waits on all of it, ahead of the release.
+- **c. `thing-now-minimal`.**
+  - As b, but no new kinds:
+    - the provider renders the strokes server-side as an `image` asset;
+    - cells are a `grid` of `control.toggle`.
+  - About 3 cuts, roughly 300-400k Hands tokens.
+  - It leaves 1,024 bindings per hull and a stroke view that cannot zoom
+    crisply. The Thing campaign would then rebuild that surface.
+
+Recommendation: **a**, confidence medium-high.
+- The release needs hull authoring now. Studio already edits every `HullData`
+  field.
+- The IMGUI cost is held to one drawer file, because the rules sit where a
+  Thing host will read them.
+- b is the right destination, but it would put three unproven pieces (two new
+  kinds and the live loop) on the release's critical path.
+- c builds a surface that b would then throw away.
+
+Depends on: nothing. The Blender cuts are independent of this answer.
+
+#### Cuts
+
+| Spec | Repo | Depends on | Hands budget | What it does |
+|---|---|---|---|---|
+| `ships-studio-schematic` r1 | Aetheria | `ship-authoring-host` | ~90k | `ShipSchematicProjection`; strokes under the grid; the `InspectableFootprint` drawer; tests on the projection |
+| `studio-disk-guard` r1 | CultLib | `ship-authoring-host` | ~70k | File watch, auto-reload when clean, stale-Save refusal by SHA-256, in the Studio window; a CultLib release |
+| `ships-addon-schematic-bake` r1 | Aetheria | — | ~70k | Bake Schematic (Line Art and the ortho camera in `Generated`), Freeze Schematic, its own module; smoke |
+| `ships-addon-frame` r4 | Aetheria | `ships-cc-package` | ~150k | r3 with the `.cc` change, the N-panel layout editor cut first, the Grid object replaced by the cell overlay, Rasterise kept |
+| `ships-addon-mounts` r4 | Aetheria | `ships-addon-frame` | ~110k | r3 without the texture cap and without internal-hardpoint editing; rows are pairs only |
+| `ships-addon-gizmos` r1 | Aetheria | `ships-addon-mounts` | ~120k | The Ship Mounts tool, mount gizmos, the footprint and arc overlay, mounted `Position` derived on release and at Package, Studio's read-only `Position` |
+
+Admitted on 2026-10-03, along with question `ship-authoring-host`:
+`ships-studio-schematic` r1, `ships-addon-schematic-bake` r1 and
+`ships-addon-gizmos` r1. Two batches wait on Self, bounds-checked, in
+`F:\Projects\eureka-scratch-carry\studio-pane\`:
+- `pending-after-ships-cc-package.json`: `ships-addon-frame` r4,
+  `ships-addon-mounts` r4 and their Superseded resolutions of r3. Admission
+  refuses r4 until `ships-cc-package`, which it depends on, is admitted.
+- `pending-after-cultlib-in-campaign.json`: `studio-disk-guard` r1. Admission
+  refuses it because `GameCult/CultLib` is not a repo of the campaign. Self adds
+  the repo (a campaign revision) or routes the cut to a CultLib campaign.
+
+**Specs this changes.**
+- **`ships-addon-frame` r3, superseded by r4.**
+  - It folds in the `.cc` section's change: the model writer leaves out
+    `Source`.
+  - The Grid object becomes the overlay, and the layout editor is cut first.
+- **`ships-addon-mounts` r3, superseded by r4.**
+  - It folds in the `.cc` section's change: the texture cap leaves.
+  - "The layout panel stays the editor" becomes "Studio is the editor".
+  - Add and Remove Hardpoint for internal types leave Blender.
+- **`ships-cc-model` (draft).** It should mark `ShipModel`'s bulk arrays
+  `[CultInspectorHidden]` and show their counts read-only. Otherwise Studio,
+  opening `ship.cc`, tries to draw millions of floats in IMGUI. Self amends the
+  draft before admitting it.
+
+**Order against the `.cc` move on 2026-10-06.**
+- **Before the 6th:**
+  - `ships-studio-schematic` and `studio-disk-guard`, once
+    `ship-authoring-host` is ruled. They read only `HullData` and
+    `ShipAuthoring.SchematicLines`, both on master.
+  - `ships-addon-schematic-bake`. It lives in its own module with a one-line
+    registration, so its merge with `ships-cc-package`'s `__init__.py` edits is
+    trivial. It feeds Package's existing capture.
+- **After `ships-cc-package` lands:** `ships-addon-frame` r4, then
+  `ships-addon-mounts` r4, then `ships-addon-gizmos`. Each builds on
+  `ShipModel`-in-`.cc`, not on the GLB.
+- If she rules b or c, `ships-studio-schematic` and `studio-disk-guard` are
+  withdrawn and the Thing cuts are mapped then. The Blender cuts do not change.
+
+#### Rationale
+
+**Why Studio owns semantics and Blender owns space.**
+- The operator's ruling puts editing where GameCult controls the UI.
+- What Blender knows better than any grid editor is where things are on the
+  mesh. So placement is the one hull value Blender writes, and it is derived
+  from objects, not typed.
+
+**Why Line Art and not silhouette edges or a custom edge extractor.**
+- Line Art is Blender's own feature-line generator. Its output is the Grease
+  Pencil object that Package already captures.
+- A Python edge walker would re-implement occlusion and chaining, and own them
+  forever.
+
+**Why the guard sits in Studio, not in CultCache.**
+- Python already writes safely record by record.
+- Only a whole-store flush from memory can clobber. The editor that does that
+  flush owns the check.
+
+**Rejected.**
+- A Blender fork with a native editor (the Eyes pass, section 2).
+- A Sprytile-style cell painter in Blender: a second editor of cells.
+- A CultMesh link before a provider holds the store.
+
 ### S3: the first playable mod ship in a built player
 
 - **First hull: Headliner.**
