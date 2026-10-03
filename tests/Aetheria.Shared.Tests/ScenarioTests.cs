@@ -161,6 +161,16 @@ public sealed partial class RunStartTests
         Assert.NotEqual(Layout(a), Layout(b));
     }
 
+    // Generating a galaxy writes nothing a later one reads: a prelude leaves the catalog's faction influence as authored.
+    [Fact]
+    public void AGalaxyLeavesTheCatalogsFactionsAsAuthored()
+    {
+        var authored = _cache.GetAll<Faction>().ToDictionary(faction => faction, faction => faction.InfluenceDistance);
+        RunStart.Generate(new TutorialGalaxy(), Inputs());
+        RunStart.Generate(new MainGalaxy(), Inputs());
+        Assert.All(authored, pair => Assert.Equal(pair.Value, pair.Key.InfluenceDistance));
+    }
+
     // A scenario naming one unknown design admits nothing, not even the parts that built, and names the design.
     [Fact]
     public void StagingIsAllOrNothing()
