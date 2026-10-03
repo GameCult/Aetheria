@@ -171,6 +171,65 @@ public sealed partial class RunStartTests
         Assert.All(authored, pair => Assert.Equal(pair.Value, pair.Key.InfluenceDistance));
     }
 
+    // Every zone is linked into one graph. These seeds left zones with no link at all (the vendored float-precision
+    // convex-hull triangulation dropped them), so the constructor threw KeyNotFoundException placing homes (prelude)
+    // or the entrance (main). Each galaxy's links are a subset of its zone positions' Delaunay edges, and the
+    // triangulation agrees with a brute-force empty-circumcircle oracle.
+    [Theory]
+    [InlineData(103u, true)]
+    [InlineData(134u, true)]
+    [InlineData(137u, true)]
+    [InlineData(173u, true)]
+    [InlineData(227u, true)]
+    [InlineData(285u, true)]
+    [InlineData(34u, false)]
+    public void EveryZoneIsLinked(uint seed, bool prelude)
+    {
+        var galaxy = RunStart.Generate(new Scripted(true, _ => { }, seed, stage => prelude ? stage.Prelude() : stage.Main()), Inputs());
+        Assert.All(galaxy.Zones, zone => Assert.Equal(galaxy.Zones.Length, zone.Distance.Count));
+
+        var positions = galaxy.Zones.Select(zone => zone.Position).ToArray();
+        var edges = Delaunay.Edges(positions);
+        Assert.Equal(BruteForceDelaunay(positions), edges);
+        var delaunay = new HashSet<(int, int)>(edges);
+        for (var i = 0; i < galaxy.Zones.Length; i++)
+            foreach (var adjacent in galaxy.Zones[i].AdjacentZones)
+            {
+                var j = Array.IndexOf(galaxy.Zones, adjacent);
+                Assert.Contains((Math.Min(i, j), Math.Max(i, j)), delaunay);
+            }
+    }
+
+    // Every triangle whose circumcircle holds no other point, as sorted edges.
+    private static List<(int a, int b)> BruteForceDelaunay(float2[] points)
+    {
+        var edges = new SortedSet<(int a, int b)>();
+        for (var i = 0; i < points.Length; i++)
+        for (var j = i + 1; j < points.Length; j++)
+        for (var k = j + 1; k < points.Length; k++)
+        {
+            double ax = points[i].x, ay = points[i].y, bx = points[j].x, by = points[j].y, cx = points[k].x, cy = points[k].y;
+            var d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
+            if (d == 0) continue;
+            double a2 = ax * ax + ay * ay, b2 = bx * bx + by * by, c2 = cx * cx + cy * cy;
+            var ux = (a2 * (by - cy) + b2 * (cy - ay) + c2 * (ay - by)) / d;
+            var uy = (a2 * (cx - bx) + b2 * (ax - cx) + c2 * (bx - ax)) / d;
+            var r2 = (ax - ux) * (ax - ux) + (ay - uy) * (ay - uy);
+            var empty = true;
+            for (var m = 0; m < points.Length && empty; m++)
+                if (m != i && m != j && m != k)
+                {
+                    double dx = points[m].x - ux, dy = points[m].y - uy;
+                    empty = dx * dx + dy * dy >= r2;
+                }
+            if (!empty) continue;
+            edges.Add((i, j));
+            edges.Add((j, k));
+            edges.Add((i, k));
+        }
+        return edges.ToList();
+    }
+
     // A scenario naming one unknown design admits nothing, not even the parts that built, and names the design.
     [Fact]
     public void StagingIsAllOrNothing()

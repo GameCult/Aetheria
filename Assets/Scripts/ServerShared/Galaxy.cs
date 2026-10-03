@@ -7,7 +7,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using DataStructures.ViliWonka.Heap;
 using Ink.Runtime;
-using MIConvexHull;
 using JM.LinqFaster;
 using UniRx;
 using CultMath;
@@ -361,22 +360,10 @@ public class Galaxy
         progressCallback?.Invoke("Triangulating Zone Positions");
         if (progressCallback != null) Thread.Sleep(500); // Inserting Delay to make it seem like it's doing more work lmao
 
-        // Create a delaunay triangulation to connect adjacent sectors
-        var triangulation = DelaunayTriangulation<Vertex2<GalaxyZone>, Cell2<GalaxyZone>>
-            .Create(Zones.Select(z => new Vertex2<GalaxyZone>(z.Position, z)).ToList(), 1e-7f);
-        var links = new HashSet<(GalaxyZone, GalaxyZone)>();
-        foreach (var cell in triangulation.Cells)
-        {
-            if (!links.Contains((cell.Vertices[0].StoredObject, cell.Vertices[1].StoredObject)) &&
-                !links.Contains((cell.Vertices[1].StoredObject, cell.Vertices[0].StoredObject)))
-                links.Add((cell.Vertices[0].StoredObject, cell.Vertices[1].StoredObject));
-            if (!links.Contains((cell.Vertices[1].StoredObject, cell.Vertices[2].StoredObject)) &&
-                !links.Contains((cell.Vertices[2].StoredObject, cell.Vertices[1].StoredObject)))
-                links.Add((cell.Vertices[1].StoredObject, cell.Vertices[2].StoredObject));
-            if (!links.Contains((cell.Vertices[0].StoredObject, cell.Vertices[2].StoredObject)) &&
-                !links.Contains((cell.Vertices[2].StoredObject, cell.Vertices[0].StoredObject)))
-                links.Add((cell.Vertices[0].StoredObject, cell.Vertices[2].StoredObject));
-        }
+        // The Delaunay triangulation connects adjacent sectors, every zone among them
+        var links = Delaunay.Edges(Zones.Select(z => z.Position).ToArray())
+            .Select(edge => (Zones[edge.a], Zones[edge.b]))
+            .ToList();
 
         progressCallback?.Invoke("Eliminating Zone Links");
         if (progressCallback != null) Thread.Sleep(500); // Inserting Delay to make it seem like it's doing more work lmao
