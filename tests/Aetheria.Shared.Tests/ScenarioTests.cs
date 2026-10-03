@@ -132,24 +132,55 @@ public sealed partial class RunStartTests
         Assert.Contains(main.arena.Pack.Entities, entity => entity is ShipPack { IsPlayerShip: false });
     }
 
+    // Everything a galaxy's layout fixes: each zone's name, position, owner, factions and links, the homes, the
+    // entrance, the exit and the background.
     private static string Layout(Galaxy galaxy) =>
-        string.Join(";", galaxy.Zones.Select(zone => $"{zone.Name}@{zone.Position}:{zone.Owner?.Name}")) +
-        $" entrance {Array.IndexOf(galaxy.Zones, galaxy.Entrance)} noise {galaxy.Background.NoisePosition}";
+        string.Join(";", galaxy.Zones.Select(zone =>
+            $"{zone.Name}@{zone.Position}:{zone.Owner?.Name}:[{string.Join(",", zone.Factions.Select(faction => faction.Name))}]" +
+            $":[{string.Join(",", zone.AdjacentZones.Select(adjacent => Array.IndexOf(galaxy.Zones, adjacent)).OrderBy(i => i))}]")) +
+        $" homes {string.Join(",", galaxy.HomeZones.Select(home => $"{home.Key.Name}={Array.IndexOf(galaxy.Zones, home.Value)}").OrderBy(home => home))}" +
+        $" entrance {Array.IndexOf(galaxy.Zones, galaxy.Entrance)} exit {Array.IndexOf(galaxy.Zones, galaxy.Exit)} noise {galaxy.Background.NoisePosition}";
 
-    private static string Layout(ZonePack arena) =>
-        $"{arena.Radius} {arena.Mass} {arena.Planets.Count()} {arena.Orbits.Count()} {arena.Entities.Count()}";
+    // An arena's bodies and every entity in it, down to each item's design, maker, workmanship and role fills.
+    private string Layout(ZonePack arena) =>
+        $"{arena.Radius} {arena.Mass} planets [{string.Join(",", arena.Planets.Select(planet => _cache.Get(planet)).Select(body => $"{body.GetType().Name}:{body.Mass}"))}]" +
+        $" orbits [{string.Join(",", arena.Orbits.Select(orbit => _cache.Get(orbit).Distance))}]" +
+        $" entities [{string.Join(",", arena.Entities.Select(Gear))}]";
 
-    // A fixed seed fixes the galaxy, its background and its arena, launch after launch in one session. Seed zero takes
-    // the clock, so two launches at two clock readings are two galaxies.
+    // What a launch staged: the player and everything placed, each where it is and with exactly what it carries.
+    private string Fits(RunStart.Staged staged) =>
+        string.Join(" | ", staged.Entities.Prepend(staged.Player).Select(entity => $"{entity.Name}@{entity.Position}:{Gear(EntitySerializer.Pack(entity))}"));
+
+    private string Gear(EntityPack pack) =>
+        $"{pack.GetType().Name}{(pack is ShipPack ship ? "@" + ship.Position : "")}:{string.Join("/", EntitySerializer.Items(pack).Select(Item))}";
+
+    private string Item(ItemInstance item)
+    {
+        var name = _items.GetData(item)?.Name;
+        if (!(item is CraftedItemInstance crafted)) return name;
+        var lot = _items.GetLot(crafted);
+        return $"{name}<{(lot.Origin as Attributed)?.Faction.Key.Value}>~{lot.Quality}" +
+               string.Concat((lot.Roles ?? new List<RoleFill>()).Select(fill => $"/{fill.Role}={fill.Quality}"));
+    }
+
+    // A fixed seed fixes the galaxy, its background, its arena and every fit, each item's maker and workmanship
+    // included, launch after launch in one session, whatever ran in between. Seed zero takes the clock, so two launches
+    // at two clock readings are two galaxies.
     [Fact]
     public void SeedRules()
     {
-        var arena = new DjinniShakedown();
-        Assert.NotEqual(0u, arena.Seed);
-        var first = Launch(arena);
-        var second = Launch(arena);
-        Assert.Equal(Layout(first.galaxy), Layout(second.galaxy));
-        Assert.Equal(Layout(first.arena.Pack), Layout(second.arena.Pack));
+        foreach (var scenario in Scenarios.Tests)
+        {
+            Assert.NotEqual(0u, scenario.Seed);
+            var first = Launch(scenario);
+            Launch(new MainGalaxy(), Inputs(() => 4242));
+            _items.Random = new CultMath.Random(0xC0FFEE); // play draws from the run's item random
+            var second = Launch(scenario);
+            Assert.True(first.failures.Count == 0, $"{scenario.Name}: {string.Join("; ", first.failures)}");
+            Assert.Equal(Layout(first.galaxy), Layout(second.galaxy));
+            Assert.Equal(Layout(first.arena.Pack), Layout(second.arena.Pack));
+            Assert.Equal(Fits(first.staged), Fits(second.staged));
+        }
 
         var clock = new Queue<uint>(new[] { 1000u, 2000u });
         var inputs = Inputs(() => clock.Dequeue());

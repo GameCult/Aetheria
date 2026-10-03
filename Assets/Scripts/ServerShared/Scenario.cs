@@ -10,7 +10,8 @@ public abstract class Scenario
     public abstract string Brief { get; }
 
     // Zero draws the seed from the clock, so each launch is a new galaxy. Anything else fixes the galaxy, its
-    // background and its arena, so every launch has the same layout.
+    // background, its arena and every fit, each item's maker and workmanship included, so every launch has the same
+    // layout.
     public virtual uint Seed => 0;
 
     // False: the arena keeps its planets, orbits and stations but generates no ship or turret, so nothing wanders into

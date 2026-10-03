@@ -28,6 +28,10 @@ public class Galaxy
     public Dictionary<Faction, FactionRelationship> FactionRelationships { get; } = new Dictionary<Faction, FactionRelationship>();
     private Action<string> Log { get; }
     public bool IsPrelude { get; }
+
+    // The seed this galaxy was generated at, which also seeds its run's item draws (RunStart); zero for a galaxy
+    // restored from a save.
+    public uint Seed { get; }
     
     private HashSet<CultRecordKey> _containedFactions;
     private GalaxyZone[] _exitPath;
@@ -104,7 +108,8 @@ public class Galaxy
         Background = background;
         Log = log;
         var factions = cache.GetAll<Faction>();
-        var random = new Random(seed == 0 ? (uint) (DateTime.Now.Ticks % uint.MaxValue) : seed);
+        Seed = seed == 0 ? (uint) (DateTime.Now.Ticks % uint.MaxValue) : seed;
+        var random = new Random(Seed);
         Factions = factions.OrderBy(x => random.NextFloat()).Take(settings.MegaCount).ToArray();
         foreach (var f in Factions) FactionRelationships[f] = FactionRelationship.Neutral;
 
@@ -159,7 +164,8 @@ public class Galaxy
 
         Background = background;
         Log = log;
-        var random = new Random(seed == 0 ? (uint) (DateTime.Now.Ticks % uint.MaxValue) : seed);
+        Seed = seed == 0 ? (uint) (DateTime.Now.Ticks % uint.MaxValue) : seed;
+        var random = new Random(Seed);
         
         var factions = new List<Faction>();
 

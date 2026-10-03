@@ -64,8 +64,8 @@ public sealed class ScenarioStage
     // A hull with nothing fitted.
     public ScenarioFit Bare(string hull) => Fit(hull);
 
-    // A fit generated as the game generates its ships, for the faction when one is given. An empty hull means any
-    // ship hull.
+    // A fit generated as the game generates its ships, for the faction when one is given, from the run's item draws,
+    // which RunStart seeds from the galaxy's seed. An empty hull means any ship hull.
     public ScenarioFit Generated(string hull, Faction faction = null)
     {
         var generator = new LoadoutGenerator(ref _items.Random, _items, Galaxy, Arena.GalaxyZone, faction, 2);
