@@ -91,6 +91,39 @@ public static class RunSave
         return (game, zones);
     }
 
+    // Continue's gate: every design a saved run names (each zone's items and each minted lot) must be one this catalog
+    // holds. A run made with a mod that is no longer installed is refused, naming the mod ships, before any scene is
+    // built; the save is never edited to fit.
+    public static void RequireDesigns(CultCache cache, SavedGame game)
+    {
+        var designs = new List<CultRecordKey>();
+        foreach (var zoneRef in game.Zones ?? Array.Empty<CultRecordRef<SavedZone>>())
+        {
+            var where = zoneRef.Key.Value;
+            var zone = cache.Get(zoneRef) ?? throw MalformedSave($"zone {where} has no record");
+            // A zone never visited has no contents: legitimately null.
+            foreach (var pack in zone.Contents?.Entities ?? new List<EntityPack>())
+                foreach (var item in EntitySerializer.Items(pack))
+                    designs.Add((item ?? throw MalformedSave($"an item in {where} is null")).Data.Key);
+        }
+        foreach (var (number, lot) in Lots(cache).Lots ?? throw MalformedSave("the lot ledger has no lots"))
+            designs.Add((lot ?? throw MalformedSave($"lot {number} is null")).Design.Key);
+        var named = designs.Where(key => key.IsSet()).Distinct()
+            .Where(key => cache.Get<ItemData>(key) == null)
+            .Select(key => key.Value).OrderBy(key => key, StringComparer.Ordinal).ToArray();
+        if (named.Length == 0) return;
+        const string modHull = "mod-hull:";
+        var mods = named.Where(key => key.StartsWith(modHull, StringComparison.Ordinal)).Select(key => key.Substring(modHull.Length)).ToArray();
+        var others = named.Where(key => !key.StartsWith(modHull, StringComparison.Ordinal)).ToArray();
+        throw new InvalidOperationException("This run names designs the catalog no longer holds" +
+            (mods.Length > 0 ? $"; missing mod ships: {string.Join(", ", mods)}" : "") +
+            (others.Length > 0 ? $"; missing other designs: {string.Join(", ", others)}" : "") +
+            ". Reinstall them, or start a new game.");
+    }
+
+    private static InvalidOperationException MalformedSave(string where) =>
+        new InvalidOperationException($"This run's save is malformed: {where}. Start a new game.");
+
     // The stored ledger, or a fresh empty one when the run has minted nothing yet.
     public static ProvenanceLedger Lots(CultCache cache) => cache.GetGlobal<ProvenanceLedger>() ?? new ProvenanceLedger();
 

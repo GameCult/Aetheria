@@ -531,6 +531,11 @@ public class HullData : EquippableItemData
     [Inspectable, JsonProperty("canTow"), Key(29)]
     public bool CanTow;
 
+    // The hull's visual: a ShipAuthoring record holding its model package, or unset for a Unity-prefab hull. A hull
+    // names exactly one of Prefab and Visual. Keys 30 and 31 are EquippableItemData's, so 32 is the next free key.
+    [Inspectable, JsonProperty("visual"), Key(32)]
+    public CultRecordRef<ShipAuthoring> Visual;
+
     [IgnoreMember]
     public Shape InteriorCells
     {

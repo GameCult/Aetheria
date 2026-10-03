@@ -122,6 +122,29 @@ public sealed class LoadoutTests : IDisposable
         Assert.True(!File.Exists(Player) || !SchemaNames(Player).Contains("aetheria.loadout"));
     }
 
+    // The shipped catalog never references a mod: a mod may be uninstalled, and a preset naming one would dangle. The
+    // refusal is at the only writer, so no caller (the editor command included) can get one into the file.
+    [Theory]
+    [InlineData("hull", "mod-hull:mod.skiff")]
+    [InlineData("slot", "mod-hull:mod.skiff")]
+    [InlineData("slot", "mod-ship:mod.skiff")]
+    public void APresetNamingAModDesignIsRefusedAndNothingIsWritten(string where, string key)
+    {
+        var mod = new CultRecordRef<EquippableItemData>(new CultRecordKey(key));
+        using var cache = Open();
+        var loadout = HandBuilt(cache);
+        if (where == "hull") loadout.Hull = new CultRecordRef<HullData>(new CultRecordKey(key));
+        else loadout.Slots[1].Design = mod;
+        var before = Hash(Catalog);
+
+        var error = Assert.Throws<InvalidOperationException>(() => Loadouts.Commit(Catalog, loadout, replace: false));
+
+        Assert.Contains("names mod designs", error.Message);
+        Assert.Contains(key, error.Message);
+        Assert.Equal(before, Hash(Catalog));
+        Assert.True(Loadouts.Commit(Catalog, HandBuilt(cache), replace: false));
+    }
+
     // Recapturing a name refuses without replace and leaves the file untouched; with replace it replaces, never duplicates.
     [Fact]
     public void SameNameCaptureReplacesOnlyWhenAsked()

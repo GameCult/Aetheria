@@ -64,11 +64,14 @@ public static class Loadouts
     // The only writer of presets. It opens its own short-lived cache over the catalog file, writable, and disposes it
     // after the one commit. No other cache is touched, so no catalog instance play holds (or has mutated) can reach the
     // file; a cache that already has the catalog open sees the preset only once it reloads.
-    // Throws and writes nothing when the file is missing (capture never creates a catalog), when a preset of this name
+    // Throws and writes nothing when the loadout names a mod design (hull or slot), when the file is missing (capture never creates a catalog), when a preset of this name
     // exists under another key, or when one exists under KeyOf(Name) and replace is not set. The commit is conditional
     // on the record at KeyOf(Name), so a preset changed on disk since this open is not clobbered: returns false then.
     public static bool Commit(string catalogPath, Loadout loadout, bool replace)
     {
+        var modDesigns = new[] { loadout.Hull.Key }.Concat(loadout.Slots.Select(slot => slot.Design.Key)).Where(ShipModCatalog.IsModKey).Select(key => key.Value).Distinct().ToArray();
+        if (modDesigns.Length > 0)
+            throw new InvalidOperationException($"Preset '{loadout.Name}' names mod designs ({string.Join(", ", modDesigns)}); the shipped catalog never references a mod, so a mod ship cannot be captured as a preset.");
         if (!File.Exists(catalogPath))
             throw new InvalidOperationException($"Catalog {catalogPath} does not exist; a preset capture never creates one.");
         using var cache = AetheriaStores.Open(catalogPath, catalogWritable: true);

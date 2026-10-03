@@ -26,6 +26,134 @@ claim measured against a real file.
   "No I won't, but you may." When Cut 4 lands, Self runs `git checkout -- GameData/Aetheria.cc` in
   `F:\Projects\Aetheria`. That one file is the only exception to the rule that agents do not touch the
   operator's tree.
+- **The ten real designs with no product (operator, 2026-09-30).** Soul's census of Cut 1 found that "no product"
+  was not a clean marker for Q3 test designs, because ten shipped designs have none. The operator ruled:
+  - **Industrial gear:** Assembly Line, Deep Ore Extractor, Surface Ore Extractor, Industrial Thermostatic Heater,
+    Refinery, Shipyard. "An old carryover from this Aetheria repo's early history as an RTS game. We'll want those
+    when we eventually bring production back, but it's also fine to just delete them since the new economy won't
+    look anything like the old one." **Self: delete them.** Git history keeps them.
+    **Correction, same day:** the **Industrial Thermostatic Heater stays**. Operator: "that industrial heater is sort
+    of needed, though, because currently stations are mostly idle so there's nothing to keep them above freezing
+    and they often cool to near invisibility." Only the other five are deleted. The census test allows product-less
+    gear that stations actually equip, and that set is derived from station generation, not from a hand list.
+    **Superseded, same day.** Stations have never equipped the heater. Operator: "Stations freezing is an existing
+    defect, I don't think I ever made those heaters spawn." Station-heater ruling A: "Yep, A. The thermostatic
+    behavior is the same one used in ship cockpits to keep the player from freezing, and the industrial version
+    should fit anywhere as a generic equippable tool."
+    - Every generated station spawns with one heater, through station generation.
+    - The heater shares the cockpit thermostat's owner.
+    - It is equippable on any hull.
+    - Self default: as generic gear it gets a product, so the census test needs no station exception.
+    **Station power and the Tractor Beam (operator, 2026-09-30):**
+    - "Yep, we need a station reactor." Author a reactor that fits Zenith's 16-cell reactor slot, with a product,
+      so the station heater has power.
+    - "Nope, ships don't need these, 'fits anywhere' was a description of tool-type gear, which doesn't require a
+      specific hardpoint." The heater keeps its 12-cell shape. The ship-heater test is dropped.
+    - "Screw old saves." No retrofit of heaters onto stations loaded from existing saves.
+    - "Tractor Beam is supposed to be for item pickup. A ship without a pickup behavior shouldn't be able to pick
+      things up, but there is currently no such limitation AFAIK." Picking up items requires a pickup Behavior,
+      which the Tractor Beam carries.
+    - Starting loadouts (operator): "Yep, everyone gets tractor beams. Pickup behavior was previously discussed as
+      part of the field shield map, as one of the behaviors which we'll have various visual effects for. The tractor
+      beam item would use the existing pickup VFX but with the standardized pickup animation." Every generated ship
+      and the player's starting ship carry a Tractor Beam. The pickup Behavior and its presentation follow
+      `docs/shield-presentation-contract.md` ("Shield and Pickup Presentation Contract").
+    - Autocannon (operator): "Leave the autocannon unsold, we'll need to author a bunch more hulls before all the
+      gear variety in the game has a home." Self's implementation: generation and stock never offer gear that no
+      hull's hardpoint can fit. The rule is derived from hardpoint fit, not a hand list. The Autocannon keeps its
+      product and becomes sold automatically once a hull fits it. The census test is unaffected.
+    - Station reactors by manufacturer (operator, 2026-09-30): "On station reactors: A is a compensator that breaks
+      the setting; a station with no access to Zhestokost gear should not have Zhestokost gear, so B."
+      - Batch 2 (`b3e7995c`) authored a Zhestokost Station Reactor scaled from Manhattan. A faction without
+        Zhestokost allegiance got no reactor, so its station heater had no power.
+      - The fix is content, not a generation exception: station reactors are authored for other manufacturers, so
+        that every faction's stations can power their heater from gear the faction can actually get.
+      - The heater must be reachable the same way.
+    - **Soul on batch 2 (`89ef80d2..adad301b`, 2026-09-30): do not merge.**
+      - F1 (high): the station reactor burns out after about 20 idle minutes. By minute 40 all 128 cells are
+        below freezing, and at 120 minutes the hull reads 155 K. Minutes 0-20 overshoot to 447 K, which makes the
+        station a sensor beacon.
+      - F2 (high): the idle test samples minutes 5-10 and does not pay for the heater. The inert-thermostat mutant
+        S17 survives.
+      - F3 (medium, operator question): `Entity.ItemFits` (the item fits inside the hardpoint; used for equip, save
+        load and presets) and `HardpointData.Takes` (the item fills the hardpoint; used by generation and
+        `HasHome`) are two fit rules. Under `Takes`, about 15 designs players can mount are kept out of station
+        stock.
+      - F4 (high): LRMM72 and SRMM72 have no `DamageCurve` but now have products, and 22 of 300 NPCs carry them.
+        `SampleDps` throws an NRE at `InstantWeapon.cs:64`. Autocannon, pswarm and plight are also missing curves.
+      - **F3 RULED (operator, 2026-09-30): "Hardpoint fit is loose: nobody's gonna stop you from putting a small
+        reactor in a large reactor's hardpoint."** One fit rule: an item fits if its shape fits within the
+        hardpoint. Generation, `HasHome`, stock, equip, save load, presets and `AetherDb hardpoint-fit` all use
+        it. So the Autocannon now has a home (the Turret) and is sold. The Autocannon ruling's own rule, "never
+        stock gear no hull can fit", is unchanged.
+      - **Batch 3 rulings (operator, 2026-09-30):**
+        - **Soul on batch 4 (`2125f2b1..aa3baf12`, 2026-10-01): do not merge yet.**
+          - **Blocker: origin outside the hardpoint.** The item origin can land outside its hardpoint (`Entity.cs:825`,
+            `:879-885`). Every other hardpoint lookup reads the cell under the origin, `Hardpoints[item.Position]`:
+            ArcFor, barrels, thrusters, `ActionGameManager`. For an L-shaped hardpoint that lookup returns nothing, so
+            Unity throws on the first shot. It is latent: every catalog hardpoint is rectangular today.
+            Two ways to fix it:
+            - keep the origin inside the hardpoint;
+            - look the hardpoint up by the item's cells.
+
+            Probe: `scratchpad/soul5/SoulScen5Probes.cs` P30.
+          - **Minor:**
+            - `IsFilledBy` is its own oracle in the test.
+            - Last-row search and thermostat-order are unpinned.
+            - A gun can't be dragged within its own hardpoint (`InventoryPanel.cs:389`).
+            - The new station-reactor products drop their source products' quality spread.
+          - **Thermal:** the Vulcan Station Reactor burns out within 10 idle minutes. That goes to the thermal
+            campaign. Core Power ship reactors also shut down from heat in fights.
+          - **Queued, not dispatched:** the operator ordered a drain on 2026-10-01.
+        - **F1 re-ruled after batch 4 (operator, 2026-09-30): "A, separate thermal balance cut".** Radiators did not fix
+          it. Heat cannot cross the hull to Zenith's edge radiators: the reactor runs at 360-436 K while the radiator
+          cells sit at their 278 K floor. Every station reactor wears out between minute 20 and minute 100. Ships
+          show the same imbalance under load: MoveOnPro runs at about 480 K and is thermally shut down for most of a
+          fight (S8). Thermal balance becomes its own campaign, measured by a steady-state harness across all hulls
+          at idle and under load. Its levers are reactor idle heat, hull conductivity, reactor tolerance and radiator
+          placement. Scenarios Cut 1 merges with the station freeze recorded as a known defect, which predates this
+          work. The 120-minute idle test is held for that campaign.
+        - Idle station reactor overheating and burnout (F1): **"Stations should have radiators"** (option C). The
+          station has a heat source and no sink.
+        - Per-manufacturer station reactors: **"Keep the variety, not every galaxy will have Zhestokost in it"**.
+          The census showed every main-sector galaxy holds all 12 factions today. The reactors are authored anyway.
+        - Rossum & Douglas missing from its own allegiance: the operator asked "Does allegiance to oneself even make
+          sense?". Self's proposal: a faction always reaches its own manufacturer's gear, and allegiance lists only
+          other factions. **Ruled: "removing the 11 self-entries was my intention".** Own-faction reach is implicit
+          in the one reach function.
+      - **Soul on batch 3 (`adad301b..2125f2b1`, 2026-09-30): do not merge yet.**
+        - S1: the new belt-failure test is flaky and failed 5 of 8 runs.
+        - S2: a second occupancy rule. Entity.cs:820-823 requires every hardpoint cell to be free, while tool gear may
+          fill a hardpoint's spare cells. So a generated Turret refuses its own gun back (40 of 955). Operator question.
+        - **S2 RULED B (operator, 2026-09-30): "B is the design intent, saving slots in a hardpoint can be a valid
+          tradeoff for crowded ships if you really need to fit an extra tool".** A hardpoint item needs only its own
+          cells free. A hardpoint's leftover cells may hold general (tool) gear. A hardpoint still holds at most one
+          hardpoint item; option C, two hardpoint items sharing one hardpoint, was not chosen.
+        - S3: placement searches fewer offsets than `Takes`, so an L-shaped hardpoint crashes generation. Latent.
+        - S4: asteroid respawn timers never count down, so mined asteroids never return. **Already fixed by mining:**
+          `codex/mining` deleted the belt task threading (Cut 1, `22a54ccb`), `MineAsteroid` and `RespawnTimers` (Cut 2).
+          Respawn is `Zone.ChunkWear.BrokenUntil`. **Merge rule:** when scenarios and mining meet, mining's side wins
+          for belt and chunk code. **Corrected 2026-10-01 by mining Cut 3 Soul (rehearsal `62b7cefb`/`393334c4`, 557/557):**
+          scenarios' `CreateOrbit`/`AddOrbit` changes are only `SettleBelts()` calls, so drop `SettleBelts` and all
+          three calls (lines 169/190/324 on scenarios); they merge cleanly but reference the deleted `BeltUpdates`. Delete
+          scenarios tests `RunStartTests.cs:639` and `:669` (deleted belt API). Conflicts: `CatalogTypes` take both;
+          `Zone.cs` delete `MineAsteroid`; `FireControlCut124Tests.cs:2609` take scenarios' strict Exact;
+          `GameData/Aetheria.cc` take scenarios' `70a7b0a9` then rerun `AetherDb field-kinds apply`.
+        - S5: a shield charges while unbilled. This is documented design.
+        - S6: pins are missing for the filling preference, product reuse and the thermostat band.
+        - Held: F2 (no unbilled running in the catalog, players only warmer), F4 (no nulls; no exceptions in 24k-tick
+          ambient runs or crowded fights), the census, rotation, and no other fit checker.
+      - F5: `_time` is advanced before the belt wait. F6: mining races the belt tasks. F7: reuse by cell count is
+        unpinned.
+      - Soul did **not** reproduce the Zhestokost gap: every station in 5 seeds and 12 factions got a reactor. The
+        premise behind the per-manufacturer reactor ruling is being checked (census) before any authoring.
+    - Tractor/pickup (`adad301b`, Hands stopped at the fork): the ruled design is `headless-playground-cut.md` fork
+      L, which needs loot as simulation bodies. That substrate does not exist, so it becomes its own campaign, typed
+      in the new session (`F:\Projects\HANDOFF-eureka-typed-2026-09-30.md`). The census rule "price 0 is unsold"
+      waits for it.
+  - **Weapons:** Autocannon, LRMM72, SRMM72, Tractor Beam. "yep that's a content gap". They get products.
+  - After both, "no product" means exactly "Q3 test design". A census test pins that: every product-less design in
+    the shipped catalog is a scenario test design.
 
 ---
 
@@ -698,3 +826,51 @@ Defaults Self took, which you may overrule:
   others; `Program.cs` is 1,477 lines). This is a subtraction pass of its own.
 - `ItemManager`'s clock seed (`ItemManager.cs:20`) makes lot quality vary per scenario launch. It is recorded,
   not fixed here.
+
+## Mining Cut 3: Soul (`codex/mining` `39cec96a..55ca6d3d`, 2026-10-01)
+
+**Verdict: hold for one fix batch.** It is queued, not dispatched, because the operator ordered a drain.
+
+No correctness bug was found. The suite passes 516/516 with the catalog `b698e224` and the settings `b2e346f5` that the commit pins. The shared `pins/data/Settings.asset` (`347752dd`) is scenarios' file, so any runner that mounts that path by default has been testing mining with the wrong settings.
+
+Findings:
+- **F1 (medium, operator):** picking a rock in a big belt costs one scan of every rock the search circle reaches. `Zone.ChunksNear` (`Zone.cs:333`) and `VisibleChunksInReach` (`Entity.cs:378-385`) run on every reticle, next or previous key press. Measured cost: 63 ms at 30k rocks, 449 ms at 300k and 4.3 s at 3M. The per-tick cost is fine.
+- **F2 (medium):** nothing tests that the shipped catalog has a rock kind. Taking either side of the catalog conflict unchanged ships dark belts silently. Add a test for "at least one rock kind with weight above 0".
+- **F3:** the merge rule is corrected above.
+- **F4 (medium):** nothing tests the ping half of `Sensor.Gain`, because the golden fixture saturates at the cap. Two mutants survive (`Sensor.cs:168`, `:189`). Soul's sweep fixture kills both and gives the same hash (`35DE0E26…`) before extraction, at extraction and at the tip.
+- **F5:** `FieldKinds.Ensure`'s explicit save (`ZoneData.cs:162`) is needed on a clean store. Keep it and commit the probe.
+- **F6/F7/F8 (low):** the `SetTarget` refusal is tested only on dark rocks (`Entity.cs:345`). The outer skip edge of `ChunksNear` is untested. Rock reach reads `Enabled`, and nothing tests it.
+- **Deviation (operator):** launchers count toward rock reach (Q13), but under Q12 they can't mine. So after Cut 4 a player can pick a rock that no weapon can act on.
+- **Plausible (operator visual check):** the target indicator uses `AsteroidVerticalOffset`, but the shader also subtracts the nebula surface height.
+
+Promises that held:
+- The `Gain` extraction is bit-identical.
+- `SetTarget` is the only writer.
+- A dark target is dropped on the tick and on `Activate`.
+- Docking, broken rocks and wormholes are handled.
+- The catalog has 206 identical records, plus one kind and 18 weapons now Exact.
+- Old saves get a kind on first load.
+
+The fix batch commits Soul's four probes (in the session scratchpad, `soul-mc3-run/probes/`) and the catalog-kind test.
+
+**Rulings (operator, 2026-10-01): "Fix the belt freeze; launchers shouldn't count toward reach".**
+- F1: fix it before the merge. The cost of a key press must not grow with belt size.
+- Rock reach counts only weapons that can mine; under Q12 launchers can't. This supersedes Hands' Q13 reading.
+- The fix batch was dispatched with both rulings.
+
+**Mining fix batch, Hands (2026-10-01): `f88d1fc1`, `83d8371e` on `codex/mining`. 523/523; 9 mutants each killed by their own test.**
+- Launchers: `Weapon.CanMine` (virtual, true by default; `LockWeapon` sets false) is the one predicate. Reach reads `CanMine && Active`. Cut 4's firing gate (`FireControl.cs:175`) must read the same predicate.
+- Soul F2/F4/F5/F6/F7/F8 tests are committed.
+- Belt freeze **not built; stopped at a fork.**
+  - Each rock has its own angular speed (`Distance` is a continuous float), so no band shares a phase.
+  - At 3M rocks, 633k are in reach and 2,240 are visible.
+  - Proposed: a derived per-belt index (bands of 256 by distance, sorted by turn, with the query arc widened by rate spread and at most 8 band re-sorts per query); a visibility upper bound that skips dark bands; best-first next/previous and reticle; the rules move from `ActionGameManager` to `Entity`.
+  - Work in progress (unbuilt) is in the session scratchpad: `hands-mc3fix-index-wip.patch`.
+- Question: today's Previous with no target picks the second-farthest rock (off by one). Hands recommends fixing it.
+
+**Belt-freeze rulings (operator, 2026-10-01):**
+- **Structure:** "Let's go for it. There's a voice in my head screaming that this is too much code and we should just reduce the whole belt to a single entity, but this stuff will be extra important for when we have EW and much more crowded levels. Just don't specialize the indexing too much towards asteroid belts, because we'll want a bunch of subsystems feeding targeting data. Think the spacebound microfauna from the slime mold experiment, pretty sure there's a campaign for that."
+  - The index is a general targeting index that many sources feed: belts, entities, later EW and microfauna. Belts are one provider, not the shape of the index.
+  - The slime-mold experiment is `Assets/Shaders/Compute/Slime/Slime.cs`. No campaign doc was found by grep on master docs or by voidbot; ask the operator before assuming one.
+- **Previous off-by-one:** "Fix the off-by-one". With no current target, Previous picks the farthest rock.
+- **Next step:** an Imagination pass (Opus) maps the general index. Inputs: the provider seam, motion models (orbiting rocks with per-rock rates, and moving entities), the brightness/visibility bound as a per-provider bound, and best-first queries. Hands' work in progress (`hands-mc3fix-index-wip.patch`) is input, not spec. Then Hands on Sonnet, then Soul.

@@ -128,6 +128,7 @@ public static class EntitySerializer
     // docking bay units, and their stored contents. The provenance ledger's GC root walk.
     public static IEnumerable<ItemInstance> Items(EntityPack pack)
     {
+        if (pack == null) throw new InvalidOperationException("This run's save is malformed: an entity is null. Start a new game.");
         yield return pack.Hull;
         foreach (var (_, item) in pack.Equipment) yield return item;
         foreach (var (_, item) in pack.CargoBays) yield return item;
