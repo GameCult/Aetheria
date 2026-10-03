@@ -24,8 +24,8 @@ public sealed class ShipAnchor
 {
     // Stable semantic identity. HullData.Hardpoints[].Transform names this ID for mounts.
     [Key(0)] public string Id;
-    // One of: map-icon, hull-collider, shield, tractor, thruster-emitter,
-    // weapon-muzzle, radiator-mesh, or articulation.
+    // One of: map-icon, hull-collider, shield, tractor, thruster-emitter, weapon-mount,
+    // weapon-muzzle, radiator-mesh, or articulation (a pivot, never a mount).
     [Key(1)] public string Role;
     // Stable node ID in the compiled model, never a Blender display name.
     [Key(2)] public string ModelNodeId;
@@ -53,8 +53,18 @@ public static class ShipAuthoringStore
     // ShipAnchor.Role's vocabulary.
     private static readonly HashSet<string> Roles = new HashSet<string>(StringComparer.Ordinal)
     {
-        "map-icon", "hull-collider", "shield", "tractor", "thruster-emitter", "weapon-muzzle", "radiator-mesh", "articulation"
+        "map-icon", "hull-collider", "shield", "tractor", "thruster-emitter", "weapon-mount", "weapon-muzzle", "radiator-mesh",
+        "articulation"
     };
+
+    // The anchor role a visible hardpoint's mount plays, or null for an internal hardpoint, which has no anchor.
+    private static string MountRole(HardpointType type) =>
+        type == HardpointType.Thruster ? "thruster-emitter" :
+        type == HardpointType.Radiator ? "radiator-mesh" :
+        IsWeapon(type) ? "weapon-mount" : null;
+
+    public static bool IsWeapon(HardpointType type) =>
+        type == HardpointType.Energy || type == HardpointType.Ballistic || type == HardpointType.Launcher;
 
     public static CultCache Open(string path, bool writable = false)
     {
@@ -193,13 +203,13 @@ public static class ShipAuthoringStore
             if (anchors.Count(anchor => anchor.Role == role) != 1)
                 throw new InvalidOperationException($"{ship.Id}: exactly one {role} anchor is required.");
 
-        var mounts = new HashSet<string>(StringComparer.Ordinal);
+        var mounts = new Dictionary<string, HardpointData>(StringComparer.Ordinal);
         var occupiedHardpointCells = new HashSet<(int x, int y)>();
         foreach (var hardpoint in hull.Hardpoints ?? new List<HardpointData>())
         {
-            if (hardpoint == null || string.IsNullOrWhiteSpace(hardpoint.Transform) ||
-                !mounts.Add(hardpoint.Transform))
+            if (hardpoint == null || string.IsNullOrWhiteSpace(hardpoint.Transform) || mounts.ContainsKey(hardpoint.Transform))
                 throw new InvalidOperationException($"{ship.Id}: hardpoint IDs must be present and unique.");
+            mounts.Add(hardpoint.Transform, hardpoint);
             if (!Enum.IsDefined(typeof(HardpointType), hardpoint.Type))
                 throw new InvalidOperationException($"{ship.Id}: hardpoint {hardpoint.Transform} has an unknown type {(int)hardpoint.Type}.");
             if (!Enum.IsDefined(typeof(ItemRotation), hardpoint.Rotation))
@@ -219,19 +229,32 @@ public static class ShipAuthoringStore
                 if (!occupiedHardpointCells.Add((x, y)))
                     throw new InvalidOperationException($"{ship.Id}: hardpoint {hardpoint.Transform} overlaps another hardpoint.");
             }
+            // Only a hardpoint that shows on the model has a mount anchor, and its type fixes the role that anchor plays.
             var mountAnchor = anchors.FirstOrDefault(anchor => anchor.Id == hardpoint.Transform);
-            if (mountAnchor == null)
-                throw new InvalidOperationException($"{ship.Id}: hardpoint {hardpoint.Transform} has no model anchor.");
-            // A mount's anchor plays the mount, so its role is fixed by the hardpoint type; the structural roles (map-icon,
-            // hull-collider, shield, tractor, weapon-muzzle) name other nodes and never double as a mount.
-            var mountRole = hardpoint.Type == HardpointType.Thruster ? "thruster-emitter" :
-                hardpoint.Type == HardpointType.Radiator ? "radiator-mesh" : "articulation";
-            if (mountAnchor.Role != mountRole)
+            var mountRole = MountRole(hardpoint.Type);
+            if (mountRole == null && mountAnchor != null)
+                throw new InvalidOperationException($"{ship.Id}: {hardpoint.Type} hardpoint {hardpoint.Transform} is internal, so no anchor may take its id.");
+            if (mountRole != null && mountAnchor == null)
+                throw new InvalidOperationException($"{ship.Id}: {hardpoint.Type} hardpoint {hardpoint.Transform} has no model anchor.");
+            if (mountRole != null && mountAnchor.Role != mountRole)
                 throw new InvalidOperationException($"{ship.Id}: {hardpoint.Type} hardpoint {hardpoint.Transform} needs a {mountRole} anchor of that id.");
         }
-        foreach (var anchor in anchors.Where(anchor => !string.IsNullOrEmpty(anchor.ParentId)))
-            if (!mounts.Contains(anchor.ParentId))
+        foreach (var anchor in anchors)
+        {
+            if (!string.IsNullOrEmpty(anchor.ParentId) && !mounts.ContainsKey(anchor.ParentId))
                 throw new InvalidOperationException($"{ship.Id}: anchor {anchor.Id} has unknown hardpoint parent {anchor.ParentId}.");
+            // A mount-role anchor is the mount of a hardpoint of its type, never a loose node. The hardpoint loop above has
+            // already refused one whose id names a hardpoint of another type, so here it only has to name a hardpoint.
+            if ((anchor.Role == "thruster-emitter" || anchor.Role == "radiator-mesh" || anchor.Role == "weapon-mount") &&
+                !mounts.ContainsKey(anchor.Id))
+                throw new InvalidOperationException($"{ship.Id}: {anchor.Role} anchor {anchor.Id} must be the mount of a hardpoint of its type.");
+            if (anchor.Role == "weapon-muzzle" &&
+                (string.IsNullOrEmpty(anchor.ParentId) || !IsWeapon(mounts[anchor.ParentId].Type)))
+                throw new InvalidOperationException($"{ship.Id}: muzzle {anchor.Id} must be parented to a weapon hardpoint's mount.");
+        }
+        foreach (var hardpoint in mounts.Values.Where(hardpoint => IsWeapon(hardpoint.Type)))
+            if (!anchors.Any(anchor => anchor.Role == "weapon-muzzle" && anchor.ParentId == hardpoint.Transform))
+                throw new InvalidOperationException($"{ship.Id}: weapon hardpoint {hardpoint.Transform} needs at least one muzzle anchor.");
 
         foreach (var line in ship.SchematicLines ?? new List<ShipPolyline>())
         {

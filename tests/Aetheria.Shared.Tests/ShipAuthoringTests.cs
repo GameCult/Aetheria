@@ -230,49 +230,144 @@ public sealed class ShipAuthoringTests
         Assert.Contains("records must be stored under", Assert.Throws<InvalidOperationException>(() => ShipAuthoringStore.Load(wrongVisualKey)).Message);
     }
 
-    // A mount's anchor plays the mount, so a structural anchor (the hull collider, the shield, a muzzle...) is never one.
-    // Interim ruling until an `equipment` role exists: a mount that is not a thruster or radiator is an articulation anchor.
-    [Theory]
-    [InlineData("map-icon", "map")]
-    [InlineData("hull-collider", "collider")]
-    [InlineData("shield", "shield")]
-    [InlineData("tractor", "tractor")]
-    [InlineData("weapon-muzzle", "muzzle")]
-    [InlineData("thruster-emitter", "emitter")]
-    [InlineData("radiator-mesh", "mesh")]
-    public void AStructuralAnchorCannotBeAnEquipmentMount(string role, string anchorId)
+    private static readonly string[] AllRoles =
+    {
+        "map-icon", "hull-collider", "shield", "tractor", "thruster-emitter", "weapon-mount", "weapon-muzzle", "radiator-mesh", "articulation"
+    };
+
+    // The fixture with its thruster swapped for one hardpoint of the given type at mount id "mount", and no anchor for it.
+    private static ShipParts WithOnly(HardpointType type)
     {
         var ship = Fixture();
-        // The extra anchors exist so the role-count and parent checks pass; the Tool hardpoint then claims the anchor.
-        ship.Visual.Anchors.Add(new ShipAnchor { Id = "muzzle", Role = "weapon-muzzle", ModelNodeId = "muzzle", ParentId = "thruster.port" });
-        ship.Visual.Anchors.Add(new ShipAnchor { Id = "emitter", Role = "thruster-emitter", ModelNodeId = "emitter" });
-        ship.Visual.Anchors.Add(new ShipAnchor { Id = "mesh", Role = "radiator-mesh", ModelNodeId = "mesh" });
-        ship.Hull.Hardpoints.Add(new HardpointData { Type = HardpointType.Tool, Position = new int2(0, 0), Shape = new Shape(), Transform = anchorId });
+        ship.Hull.Hardpoints.Clear();
+        ship.Visual.Anchors.RemoveAll(anchor => anchor.Id == "thruster.port");
+        ship.Hull.Hardpoints.Add(new HardpointData { Type = type, Position = new int2(0, 0), Shape = new Shape(), Transform = "mount" });
+        return ship;
+    }
 
-        Assert.Contains($"Tool hardpoint {anchorId} needs a articulation anchor of that id", Assert.Throws<InvalidOperationException>(ship.Validate).Message);
-        ship = Fixture();
-        ship.Visual.Anchors.Add(new ShipAnchor { Id = "tool", Role = "articulation", ModelNodeId = "tool" });
-        ship.Hull.Hardpoints.Add(new HardpointData { Type = HardpointType.Tool, Position = new int2(0, 0), Shape = new Shape(), Transform = "tool" });
-        ship.Validate();
+    private static string Refusal(ShipParts ship) => Assert.Throws<InvalidOperationException>(ship.Validate).Message;
+
+    // Mount anchors exist only for hardpoints that show on the model: weapons, radiators and thrusters.
+    [Theory]
+    [InlineData(HardpointType.Hull), InlineData(HardpointType.Tool), InlineData(HardpointType.Thermal), InlineData(HardpointType.WarpDrive),
+     InlineData(HardpointType.Reactor), InlineData(HardpointType.Shield), InlineData(HardpointType.Sensors),
+     InlineData(HardpointType.ControlModule), InlineData(HardpointType.AetherDrive)]
+    public void AnInternalHardpointCarriesNoAnchor(HardpointType type)
+    {
+        WithOnly(type).Validate();
+
+        // Any anchor taking the mount's id is refused, a mount role or not. (The four structural roles are one-of-a-kind,
+        // so they are covered by renaming the existing anchor.)
+        foreach (var role in AllRoles)
+        {
+            var ship = WithOnly(type);
+            var existing = ship.Visual.Anchors.FirstOrDefault(anchor => anchor.Role == role);
+            if (existing != null) existing.Id = "mount";
+            else ship.Visual.Anchors.Add(new ShipAnchor { Id = "mount", Role = role, ModelNodeId = "mount" });
+            Assert.Contains($"mod.skiff: {type} hardpoint mount is internal, so no anchor may take its id", Refusal(ship));
+        }
+    }
+
+    [Theory]
+    [InlineData(HardpointType.Thruster, "thruster-emitter")]
+    [InlineData(HardpointType.Radiator, "radiator-mesh")]
+    [InlineData(HardpointType.Energy, "weapon-mount")]
+    [InlineData(HardpointType.Ballistic, "weapon-mount")]
+    [InlineData(HardpointType.Launcher, "weapon-mount")]
+    public void EachVisibleHardpointNeedsItsRoleAnchor(HardpointType type, string wanted)
+    {
+        ShipParts Rig()
+        {
+            var ship = WithOnly(type);
+            if (ShipAuthoringStore.IsWeapon(type))
+                ship.Visual.Anchors.Add(new ShipAnchor { Id = "mount.muzzle", Role = "weapon-muzzle", ModelNodeId = "muzzle", ParentId = "mount" });
+            return ship;
+        }
+
+        Assert.Contains($"mod.skiff: {type} hardpoint mount has no model anchor", Refusal(Rig()));
+
+        // A structural anchor (the map icon, the collider...) whose id is the mount, or a mount anchor of the wrong role.
+        foreach (var role in AllRoles.Where(role => role != wanted))
+        {
+            var ship = Rig();
+            var existing = ship.Visual.Anchors.FirstOrDefault(anchor => anchor.Role == role);
+            if (existing != null) existing.Id = "mount";
+            else ship.Visual.Anchors.Add(new ShipAnchor { Id = "mount", Role = role, ModelNodeId = "mount" });
+            Assert.Contains($"mod.skiff: {type} hardpoint mount needs a {wanted} anchor of that id", Refusal(ship));
+        }
+
+        var valid = Rig();
+        valid.Visual.Anchors.Add(new ShipAnchor { Id = "mount", Role = wanted, ModelNodeId = "mount" });
+        valid.Validate();
+    }
+
+    // Called on Validate itself: a mount-role anchor is the mount of a hardpoint of its own type, never a loose node and
+    // never another type's mount.
+    [Theory]
+    [InlineData("thruster-emitter", HardpointType.Radiator)]
+    [InlineData("thruster-emitter", HardpointType.Energy)]
+    [InlineData("thruster-emitter", HardpointType.Reactor)]
+    [InlineData("radiator-mesh", HardpointType.Thruster)]
+    [InlineData("radiator-mesh", HardpointType.Launcher)]
+    [InlineData("radiator-mesh", HardpointType.Sensors)]
+    [InlineData("weapon-mount", HardpointType.Thruster)]
+    [InlineData("weapon-mount", HardpointType.Radiator)]
+    [InlineData("weapon-mount", HardpointType.Tool)]
+    public void AMountRoleAnchorMustBeAMountOfItsType(string role, HardpointType otherType)
+    {
+        string Refused(ShipParts ship) =>
+            Assert.Throws<InvalidOperationException>(() => ShipAuthoringStore.Validate(ship.Hull, ship.Visual)).Message;
+
+        var loose = Fixture();
+        loose.Visual.Anchors.Add(new ShipAnchor { Id = "loose", Role = role, ModelNodeId = "loose" });
+        Assert.Contains($"mod.skiff: {role} anchor loose must be the mount of a hardpoint of its type", Refused(loose));
+
+        // The anchor takes the id of a hardpoint of another type; whichever side the validator reads first, it refuses.
+        var other = WithOnly(otherType);
+        other.Visual.Anchors.Add(new ShipAnchor { Id = "mount", Role = role, ModelNodeId = "mount" });
+        if (ShipAuthoringStore.IsWeapon(otherType))
+            other.Visual.Anchors.Add(new ShipAnchor { Id = "mount.muzzle", Role = "weapon-muzzle", ModelNodeId = "muzzle", ParentId = "mount" });
+        Assert.Contains($"mod.skiff: {otherType} hardpoint mount ", Refused(other));
     }
 
     [Fact]
-    public void EveryHardpointTypeHasOneAnchorRoleForItsMount()
+    public void MuzzleRulesBelongToTheValidator()
     {
-        foreach (HardpointType type in Enum.GetValues(typeof(HardpointType)))
+        ShipParts Armed()
         {
-            var wanted = type == HardpointType.Thruster ? "thruster-emitter" : type == HardpointType.Radiator ? "radiator-mesh" : "articulation";
-            foreach (var role in new[] { "articulation", "thruster-emitter", "radiator-mesh" })
-            {
-                var ship = Fixture();
-                ship.Hull.Hardpoints.Clear();
-                ship.Visual.Anchors.RemoveAll(anchor => anchor.Id == "thruster.port");
-                ship.Hull.Hardpoints.Add(new HardpointData { Type = type, Position = new int2(0, 0), Shape = new Shape(), Transform = "mount" });
-                ship.Visual.Anchors.Add(new ShipAnchor { Id = "mount", Role = role, ModelNodeId = "mount" });
-                if (role == wanted) ship.Validate();
-                else Assert.Contains($"{type} hardpoint mount needs a {wanted} anchor of that id", Assert.Throws<InvalidOperationException>(ship.Validate).Message);
-            }
+            var ship = Fixture();
+            ship.Hull.Hardpoints.Add(new HardpointData { Type = HardpointType.Energy, Position = new int2(0, 0), Shape = new Shape(), Transform = "gun" });
+            ship.Visual.Anchors.Add(new ShipAnchor { Id = "gun", Role = "weapon-mount", ModelNodeId = "gun" });
+            ship.Visual.Anchors.Add(new ShipAnchor { Id = "gun.b", Role = "weapon-muzzle", ModelNodeId = "gun-b", ParentId = "gun", Order = 0 });
+            ship.Visual.Anchors.Add(new ShipAnchor { Id = "gun.a", Role = "weapon-muzzle", ModelNodeId = "gun-a", ParentId = "gun", Order = 0 });
+            ship.Visual.Anchors.Add(new ShipAnchor { Id = "gun.z", Role = "weapon-muzzle", ModelNodeId = "gun-z", ParentId = "gun", Order = -1 });
+            return ship;
         }
+
+        var orphan = Armed();
+        orphan.Visual.Anchors.Single(anchor => anchor.Id == "gun.z").ParentId = null;
+        Assert.Contains("mod.skiff: muzzle gun.z must be parented to a weapon hardpoint's mount", Refusal(orphan));
+
+        var onThruster = Armed();
+        onThruster.Visual.Anchors.Single(anchor => anchor.Id == "gun.z").ParentId = "thruster.port";
+        Assert.Contains("mod.skiff: muzzle gun.z must be parented to a weapon hardpoint's mount", Refusal(onThruster));
+
+        var unarmed = Armed();
+        unarmed.Visual.Anchors.RemoveAll(anchor => anchor.Role == "weapon-muzzle");
+        Assert.Contains("mod.skiff: weapon hardpoint gun needs at least one muzzle anchor", Refusal(unarmed));
+
+        // Each weapon needs a muzzle of its own: another weapon's muzzle does not arm it.
+        var second = Armed();
+        second.Hull.Shape.Cells[0, 1] = true;
+        second.Hull.Hardpoints.Add(new HardpointData { Type = HardpointType.Launcher, Position = new int2(0, 1), Shape = new Shape(), Transform = "tube" });
+        second.Visual.Anchors.Add(new ShipAnchor { Id = "tube", Role = "weapon-mount", ModelNodeId = "tube" });
+        Assert.Contains("mod.skiff: weapon hardpoint tube needs at least one muzzle anchor", Refusal(second));
+
+        // A valid pair plans without a refusal of the plan's own; muzzles by Order, then id ordinally.
+        var valid = Armed();
+        var (mount, muzzles) = Assert.Single(ShipModPlan.Build(valid.Hull, valid.Visual).Weapons);
+        Assert.Equal("gun", mount);
+        Assert.Equal(new[] { "gun.z", "gun.a", "gun.b" }, muzzles);
     }
 
     internal static ShipParts Fixture()

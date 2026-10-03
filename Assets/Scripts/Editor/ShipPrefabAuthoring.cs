@@ -92,7 +92,7 @@ public static class ShipPrefabAuthoring
         var combatLayer = LayerMask.NameToLayer("Combat");
         if (minimapLayer < 0 || combatLayer < 0) throw new InvalidOperationException("Minimap or Combat layer is missing");
 
-        var equipment = new List<Transform>();
+        var hardpoints = 0;
         var thrusters = new List<ThrusterHardpoint>();
         var weapons = new List<WeaponHardpoint>();
         var radiators = new List<RadiatorHardpoint>();
@@ -106,10 +106,9 @@ public static class ShipPrefabAuthoring
                 var parts = name.Split('.');
                 if (parts.Length != 3 || string.IsNullOrWhiteSpace(parts[2]))
                     throw new InvalidOperationException($"Invalid hardpoint name {name}");
-                equipment.Add(node);
+                hardpoints++;
                 switch (parts[1])
                 {
-                    case "Equipment": break;
                     case "Thruster":
                         var emitter = DirectChild(node, "Emitter")?.GetComponent<MeshRenderer>();
                         if (emitter == null) throw new InvalidOperationException($"{name} needs an Emitter mesh child");
@@ -155,7 +154,7 @@ public static class ShipPrefabAuthoring
                      name != "SHIP.Shield" && name != "SHIP.TractorBeam")
                 throw new InvalidOperationException($"Unknown ship anchor {name}");
         }
-        if (equipment.Count == 0) throw new InvalidOperationException("Ship has no HP.* hardpoints");
+        if (hardpoints == 0) throw new InvalidOperationException("Ship has no HP.* hardpoints");
 
         mapIcon.sharedMaterial = mapMaterial;
         mapIcon.gameObject.layer = minimapLayer;
@@ -182,7 +181,6 @@ public static class ShipPrefabAuthoring
         ship.InvisibleMaterial = invisible;
         ship.Shield = shield;
         ship.HullColliders = new[] { hullSurface };
-        ship.EquipmentHardpoints = equipment.ToArray();
         ship.ThrusterHardpoints = thrusters.ToArray();
         ship.WeaponHardpoints = weapons.ToArray();
         ship.RadiatorHardpoints = radiators.ToArray();

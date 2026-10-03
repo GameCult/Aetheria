@@ -122,8 +122,12 @@ public static class ShipModShips
 
         var thrusters = plan.Thrusters.Select(id =>
         {
+            // The thruster's mesh is its exhaust's emission surface, never drawn (ruling thrusters-radiators-are-meshes).
+            // The invisible material is serialized, so it survives the prototype's clone, and EntityInstance keeps it as
+            // this renderer's visible material; forceRenderingOff would not survive Instantiate.
             var hardpoint = AddOrGet<ThrusterHardpoint>(Node(id).gameObject);
             hardpoint.Emitter = Renderer(id);
+            hardpoint.Emitter.sharedMaterials = Enumerable.Repeat(template.Invisible, hardpoint.Emitter.sharedMaterials.Length).ToArray();
             return hardpoint;
         }).ToArray();
         var radiators = plan.Radiators.Select(id =>
@@ -149,7 +153,6 @@ public static class ShipModShips
         instance.InvisibleMaterial = template.Invisible;
         instance.Shield = shield;
         instance.HullColliders = new[] { surface };
-        instance.EquipmentHardpoints = plan.Equipment.Select(Node).ToArray();
         instance.ThrusterHardpoints = thrusters;
         instance.WeaponHardpoints = weapons;
         instance.RadiatorHardpoints = radiators;
