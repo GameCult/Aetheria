@@ -333,12 +333,13 @@ public class Galaxy
         ref Random random,
         Action<string> progressCallback = null)
     {
+        var used = new HashSet<string>();
         for (var i = 0; i < Factions.Length; i++)
         {
             progressCallback?.Invoke($"Feeding Markov Chains: {i + 1} / {Factions.Length}");
             //if(progressCallback!=null) Thread.Sleep(250); // Inserting Delay to make it seem like it's doing more work lmao
             var faction = Factions[i];
-            _nameGenerators[faction] = new MarkovNameGenerator(ref random, cache.Get(faction.GeonameFile).Names, nameGeneratorSettings);
+            _nameGenerators[faction] = new MarkovNameGenerator(ref random, cache.Get(faction.GeonameFile).Names, nameGeneratorSettings, used);
         }
 
         // Generate zone name using the owner's name generator, otherwise assign catalogue ID
