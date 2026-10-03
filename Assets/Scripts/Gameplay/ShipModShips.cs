@@ -149,7 +149,6 @@ public static class ShipModShips
         instance.InvisibleMaterial = template.Invisible;
         instance.Shield = shield;
         instance.HullColliders = new[] { surface };
-        instance.EquipmentHardpoints = plan.Equipment.Select(Node).ToArray();
         instance.ThrusterHardpoints = thrusters;
         instance.WeaponHardpoints = weapons;
         instance.RadiatorHardpoints = radiators;

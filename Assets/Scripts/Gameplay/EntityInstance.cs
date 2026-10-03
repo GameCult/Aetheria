@@ -20,7 +20,6 @@ public class EntityInstance : MonoBehaviour
     public ShieldManager Shield;
     public HullCollider[] HullColliders;
 
-    public Transform[] EquipmentHardpoints;
     public RadiatorHardpoint[] RadiatorHardpoints;
     public ThrusterHardpoint[] ThrusterHardpoints;
     public WeaponHardpoint[] WeaponHardpoints;
@@ -239,16 +238,6 @@ public class EntityInstance : MonoBehaviour
                         _constantWeaponManagers[data].StartFiring(data, item, this, entity.Target.Value != null ? ZoneRenderer.EntityInstances[entity.Target.Value] : null);
                     constantWeapon.OnStopFiring += () => 
                         _constantWeaponManagers[data].StopFiring(item);
-                }
-            }
-            
-            var hp = Entity.Hardpoints[item.Position.x, item.Position.y];
-            if (hp != null && item.Data.SoundBank != 0)
-            {
-                var hardpointTransform = EquipmentHardpoints.FirstOrDefault(x => x.name == hp.Transform);
-                if (hardpointTransform != null)
-                {
-                    var hardpointGameObject = hardpointTransform.gameObject;
                 }
             }
         }

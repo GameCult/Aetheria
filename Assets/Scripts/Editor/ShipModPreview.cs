@@ -53,7 +53,7 @@ public static class ShipModPreview
         var clone = UnityEngine.Object.Instantiate(ship.gameObject).GetComponent<ShipInstance>();
         try { CheckShip(clone, plan, "clone"); }
         finally { UnityEngine.Object.DestroyImmediate(clone.gameObject); }
-        Debug.Log($"SHIP_MOD_ASSEMBLY_SMOKE equipment={plan.Equipment.Length} thrusters={plan.Thrusters.Length} " +
+        Debug.Log($"SHIP_MOD_ASSEMBLY_SMOKE thrusters={plan.Thrusters.Length} " +
                   $"weapons={plan.Weapons.Length} radiators={plan.Radiators.Length}");
     }
 
@@ -64,8 +64,6 @@ public static class ShipModPreview
         Require(ship.HullColliders.Length == 1 && Inside(ship.HullColliders[0]) &&
                 ship.HullColliders[0].GetComponent<MeshCollider>() != null, "one hull collider with a MeshCollider");
         Require(Inside(ship.MapIcon) && Inside(ship.Shield) && Inside(ship.TractorBeam), "map icon, shield and tractor inside the ship");
-        Require(ship.EquipmentHardpoints.Select(node => node.name).SequenceEqual(plan.Equipment) &&
-                ship.EquipmentHardpoints.All(Inside), "equipment hardpoints named by the plan");
         Require(ship.ThrusterHardpoints.Select(node => node.name).SequenceEqual(plan.Thrusters) &&
                 ship.ThrusterHardpoints.All(node => Inside(node) && Inside(node.Emitter)), "thruster hardpoints with emitters");
         Require(ship.RadiatorHardpoints.Select(node => node.name).SequenceEqual(plan.Radiators) &&

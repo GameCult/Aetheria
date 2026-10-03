@@ -10,8 +10,6 @@ public sealed class ShipModPlan
     public string HullCollider;
     public string Shield;
     public string Tractor;
-    // Every hull hardpoint's mount id, in hardpoint order: the anchor node each one is matched to by name.
-    public string[] Equipment;
     // Mount ids whose anchor (role thruster-emitter / radiator-mesh) is the emitter / mesh node itself.
     public string[] Thrusters;
     public string[] Radiators;
@@ -53,7 +51,6 @@ public sealed class ShipModPlan
             HullCollider = Only("hull-collider"),
             Shield = Only("shield"),
             Tractor = Only("tractor"),
-            Equipment = hardpoints.Select(hardpoint => hardpoint.Transform).ToArray(),
             Thrusters = Mounts(HardpointType.Thruster),
             Radiators = Mounts(HardpointType.Radiator),
             Weapons = weapons

@@ -33,7 +33,6 @@ public sealed class ShipModPlanTests
         var plan = Plan(Rig());
 
         Assert.Equal(("map", "collider", "shield", "tractor"), (plan.MapIcon, plan.HullCollider, plan.Shield, plan.Tractor));
-        Assert.Equal(new[] { "thruster.port", "gun", "fin" }, plan.Equipment);
         Assert.Equal(new[] { "thruster.port" }, plan.Thrusters);
         Assert.Equal(new[] { "fin" }, plan.Radiators);
         var (mount, muzzles) = Assert.Single(plan.Weapons);
