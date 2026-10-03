@@ -254,4 +254,38 @@ public sealed partial class RunStartTests
         Assert.Equal(lowFirst, highFirst);
         Assert.True(lowFirst.Distinct().Count() >= 3, $"the ramp crosses both thermostats: bills {string.Join(", ", lowFirst.Distinct())}");
     }
+
+    // The readers that bind muzzles, arcs, thruster emitters and radiators dereference item.Hardpoint: on generated
+    // ships, stations and turrets every weapon, thruster and radiator holds a hardpoint containing all its cells, and
+    // Tool gear and the hull hold none (Soul's scenarios-adopt probe S4, finding headless-reader-input).
+    [Fact]
+    public void GeneratedLoadoutsGiveEveryReaderItsHardpoint()
+    {
+        var sold = _cache.GetAll<FactionProductData>().Select(p => p.Design.Key).ToHashSet();
+        var shipHulls = _cache.GetAll<HullData>()
+            .Where(h => h.HullType == HullType.Ship && sold.Contains(_cache.RefOf(h).Key)).Select(h => h.Name).ToList();
+        var generator = new LoadoutGenerator(ref _items.Random, _items, _galaxy, _galaxy.Entrance, _protagonist, .5f);
+        var packs = shipHulls.SelectMany(name => Enumerable.Range(0, 2).Select(_ => generator.GenerateShipLoadout(h => h.Name == name)))
+            .Concat(Enumerable.Range(0, 4).Select(_ => generator.GenerateStationLoadout()))
+            .Concat(Enumerable.Range(0, 4).Select(_ => generator.GenerateTurretLoadout()))
+            .ToList();
+        var readers = 0;
+        foreach (var pack in packs)
+        {
+            var entity = EntitySerializer.Unpack(_items, null, pack);
+            Assert.Null(entity.EquippedHull.Hardpoint);
+            foreach (var item in entity.Equipment.Where(i => i != entity.EquippedHull))
+            {
+                var label = $"{entity.HullData.Name}/{item.Data.Name}";
+                if (item.Data.HardpointType == HardpointType.Tool) Assert.True(item.Hardpoint == null, $"{label}: Tool gear holds no hardpoint");
+                if (!item.Behaviors.Any(b => b is Weapon || b is Thruster || b is Radiator)) continue;
+                readers++;
+                var hp = item.Hardpoint;
+                Assert.True(hp != null, $"{label}: a reader item holds a hardpoint");
+                var cells = item.Data.Shape.Coordinates.Select(c => item.Position + item.Data.Shape.Rotate(c, item.EquippableItem.Rotation));
+                Assert.True(cells.All(c => hp.Shape[c - hp.Position]), $"{label}: its hardpoint contains every cell");
+            }
+        }
+        Assert.True(readers > 0, "the generated loadouts carry weapons, thrusters or radiators");
+    }
 }
