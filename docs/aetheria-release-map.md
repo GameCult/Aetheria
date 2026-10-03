@@ -1254,8 +1254,9 @@ The operator ruled on 2026-10-03 that this campaign adopts `codex/scenarios` and
 - the re-map of `faction-play-4` to ruling `ballistics-real-ammo`.
 
 The cuts are typed specs in the mind: `scenarios-adopt`, `mining-index`,
-`mining-index-pins`, `mining-target-queries`, `mining-merge`, `loot-1` to `loot-3`,
-`ballistic-ammo` and `faction-play-4` r2. The fork is question `fastblast-ammo`.
+`mining-index-pins`, `mining-target-queries`, `mining-merge`, `mining-index-tree`,
+`mining-belt-cells`, `loot-1` to `loot-3`, `ballistic-ammo` and `faction-play-4` r2.
+The forks are questions `fastblast-ammo`, `reticle-exactness` and `belt-size-tiers`.
 
 The lane tips were read with `git show` in a scratch clone on 2026-10-03:
 - `codex/scenarios` is at `aa3baf12`: 30 ahead of master and 20 behind, base `702b454b`.
@@ -1443,7 +1444,8 @@ belt-freeze rulings (lines 830-876).
 |---|---|---|---|
 | Equipped item's hardpoint | `EquippedItem.Hardpoint`, a reference into the hull's `Hardpoints` list; null for Tool gear. | Set once at equip from the placement rule, and derived again on every load (load re-equips). Never stored. | `Entity.HardpointAt`, through `TryEquip`. No reader derives it from the origin cell. |
 | Targeting index | `Zone.Targets`, one per zone. | Built with the zone. Providers register as belts are built and entities admitted. Rebuilt on load; never saved. | `TargetingIndex` for candidate sets and bounds; each provider for its own motion; `Entity` for detection. |
-| Belt band (provider region) | Belt key plus band index; arc segments by key order. | Derived from `AsteroidBeltData`, `PlanetSettings` and time. Re-keyed lazily, a bounded number per query. Cache only. | `BeltTargets`. |
+| Belt band (provider region) | Belt key plus band index; arc segments by key order. | Derived from `AsteroidBeltData`, `PlanetSettings` and time. Re-keyed lazily, a bounded number per query. Cache only. `mining-belt-cells` replaces it with rings and cells. | `BeltTargets`. |
+| Belt ring and cell (after `mining-belt-cells`) | Belt key, ring index, cell index. A ring is a run of rocks by orbit distance; its cells are equal sectors of a frame turning at the ring's mean rate. | Derived when the belt is built, never saved. A ring is refreshed (its rocks re-bucketed) when its drift passes one cell, within a rock budget per query. | `BeltTargets`. |
 | Target choice | The `TargetRef` a key press writes. | Made per press; no list is kept between presses. | `Entity` (reticle, next, previous, nearest), through `SetTarget`. |
 | Floating item | `FloatingItemId`: a zone counter, never reused in a zone. | Released at death (and later by jettison); drifts; held during a grab; removed into cargo by `TryPickUp`, or at `FloatingItemLifetime`. Not saved: gone when the zone unloads, as Unity loot is today. | `Zone`: release, step, expiry and commit. |
 | Loot dice | Zone `CombatSeed`, loot stream, death ordinal. | One generator per death, discarded after the roll. | `Zone.DropLoot`, on `SimulationDice`. Never `UnityEngine.Random`, never a shared stream. |
@@ -1482,6 +1484,116 @@ Each lane becomes a `eureka/aetheria-release-*` branch; nothing is pushed to
    - scenarios' admission lines: `Zone.Admit`.
 9. **`faction-play-4`** r2, after `faction-play-3` and `ballistic-ammo`.
 10. **Jettison, then pirate collection**, on `Zone.Release` and the grab, after step 6.
+11. **`mining-index-tree`, then `mining-belt-cells`**, at any time after step 4, on a
+    branch from master. They gate nothing, neither the merge nor the release (ruling
+    `targeting-sublinear-wanted-not-critical`). They inherit the tests of
+    `mining-index-pins` and `mining-target-queries`, and tighten the cost pins.
+
+### Mining index: rings, cells and best-first search
+
+**Why the press still grows.** At `a4e8e147`, after `mining-target-queries`, a press is
+one `Best` query. Its cost has two linear terms in the rock count of a fixed belt:
+- **Region enumeration.** `Best` asks every provider for its whole flat region set,
+  bounds each region and sorts the set, before opening one. A band holds a fixed 256
+  rocks, so at 3M rocks a band is 0.05 units wide and a full ring. A 400-unit search
+  crosses about 8,000 of them, and each contributes its arc segments: 30k-64k regions,
+  38-61 ms.
+- **Sliver regions.** A segment of 32 rocks in such a band is a 0.05 x 470-unit
+  sliver. A sliver near the searcher has a small bound but holds rocks spread along
+  hundreds of units, so best-first opens many slivers for few useful rocks.
+
+**The floor.** The press queries are exact: the smallest angle to the look direction
+(reticle), and the successor in (distance, target) order (next, previous). In linear
+space these are thin-cone and thin-ring range queries. Any tree of cells must open
+every cell that the cone's ray or the ring's circle crosses: about the boundary's
+length over the cell size. That is O(sqrt(n)) for n rocks in reach, the kd-tree
+line-query bound (Lee and Wong 1977), and no linear-space structure beats it for
+simplex ranges (Chazelle 1989). The target is therefore sqrt(n), not flat. A flat
+cost needs an approximate answer (question `reticle-exactness`).
+
+**Target growth.** In a fixed belt, regions opened plus rocks examined per press grow
+as the square root of the rock count: at most 4.5x per tenfold rocks (sqrt(10) is
+3.16), against 10x at `a4e8e147`. Visibility tests per press (`ChunkVisible`, the
+expensive part) stay within 2x per tenfold. Building stays O(n) per belt, and a
+refresh costs O(ring).
+
+**Proof by measurement.** Soul's F1 fixture: rocks 300..900 about the sun, light radius
+1000, kind cross-section 5, sensor Eye, guns 150 and 400.
+- Run it at 30k, 300k and 3M rocks, with the eye at chunk 0 + (5, 5), at (310, 0) and
+  at (600, 0).
+- Presses: five `TargetNext` from no target, one `TargetPrevious` from no target, and
+  `TargetUnderReticle` looking along the belt and across it.
+- Record `Opened`, `Examined`, `Tested` and time. Repeat after +300 s (stale rings)
+  and after +1e7 s.
+- The suite pins 30k against 300k. The 3M point is a Soul probe, too slow for the
+  suite.
+- Expected at 3M, with 16-rock cells about 3.5 units across: low thousands examined
+  and hundreds of regions opened per press. Today it is 37k-108k examined and 30k-64k
+  regions.
+
+**The design.** The index owns search order. The belt owns rock motion and cell bounds.
+- **`mining-index-tree` (index only).** The provider seam becomes a hierarchy, `Roots`
+  and `Open`. Opening a region yields child regions, candidates, or both.
+  - `Best` keeps a binary heap of regions by their bound (netstandard2.1 has no
+    `PriorityQueue`). It stops when the next bound exceeds the best key. This is
+    Hjaltason and Samet's incremental distance browsing, now over a tree.
+  - `Within` walks the tree depth-first, pruning with `CanHold`.
+  - `ITargetKey` splits into a cheap geometric `Key` and an expensive `Accepts`
+    (detection). `Accepts` runs only for a candidate that would beat the best so far.
+  - New diagnostics beside `Examined`: `Opened` (regions opened) and `Tested`
+    (`Accepts` calls).
+  - `BeltTargets` and `EntityTargets` are adapted mechanically: today's flat regions
+    become roots that open into candidates. Answers and costs do not change.
+- **`mining-belt-cells` (belt only).** `BeltTargets` is rebuilt as rings of square
+  cells.
+  - Rocks sorted by orbit distance are cut into rings. A ring closes once its width
+    reaches its cell arc (2 pi r x 16 / count), so cells are about square at any
+    density. A ring also closes at a cap of 8,192 rocks, which bounds one refresh.
+  - Each ring turns at its mean rate. Its cells are equal sectors of that turning
+    frame, about 16 rocks each, held as one index array with cell offsets.
+  - A rock drifts against its frame by at most the ring's rate half-spread times the
+    time since the ring was refreshed. That drift widens every cell's sector, so the
+    bounds stay sound without touching a rock.
+  - When the drift passes one cell, the ring is refreshed: every rock is re-bucketed
+    by its current turn in one O(ring) counting pass, with no sort.
+  - A refresh happens only when a ring node is opened, before any of its cells exist
+    in the query, so a query never sees a rock twice.
+  - Each query refreshes at most 16,384 rocks. A ring left stale is searched through
+    its wider sectors, which stays correct.
+  - The tree is implicit: a balanced range tree over ring indices (annulus bounds),
+    whose ring leaves open into halving cell ranges (sector bounds), down to single
+    cells. Today's `Sector` bounds and light bound carry over.
+- Drift in cell units grows at about pi r |d rate / d r| per second, whatever the
+  density.
+  - With period = distance, a ring goes stale every r / pi seconds: about 190 s at
+    r = 600.
+  - Refresh work per unit time is O(n) per belt, amortised over the presses that touch
+    it.
+
+**Prior art**, cited from memory and not re-fetched:
+- Hjaltason and Samet, "Distance browsing in spatial databases" (ACM TODS 1999): the
+  heap-ordered search that `Best` becomes.
+- Šaltenis, Jensen, Leutenegger and Lopez, "Indexing the positions of continuously
+  moving objects" (SIGMOD 2000), the TPR-tree. Its bounds widen with elapsed time by a
+  velocity bound and are tightened on update. Here that is the drift-widened sector
+  and the refresh.
+- Basch, Guibas and Hershberger, "Data structures for mobile data" (SODA 1997). An
+  event-driven kinetic order is rejected: every pair of rocks with different rates
+  eventually swaps, so events grow as the square of a ring's size.
+- Arya, Mount, Netanyahu, Silverman and Wu, "An optimal algorithm for approximate
+  nearest neighbor searching in fixed dimensions" (JACM 1998). A cost flat in density
+  is reachable only for an approximate answer (question `reticle-exactness`).
+- Space games: EVE's belts are static, and Elite Dangerous generates ring rocks per
+  cell around the player. Neither simulates per-rock orbital shear, so they bear on
+  the visual budget, not on this index.
+
+**Forks.**
+- `reticle-exactness`: keep the reticle exact at sqrt(n), or accept an angle tolerance
+  for a flat cost. Next and previous stay exact either way, because cycling must visit
+  every target once.
+- `belt-size-tiers`: give each size class its own provider, so small rocks are pruned
+  at their shorter detection reach. This is a constant factor on `Tested`, not a
+  growth fix.
 
 ### Rationale
 
@@ -1519,32 +1631,26 @@ re-derivations; it adds nothing.
 - Together the two are about 900 lines with tests, over one Hands budget. The seam
   between them, the index's query API, is where Soul can falsify each.
 
-**Why the index fix after Soul's first pass is only pins.**
+**Why the index fix before the merge is only pins, and the cells come after.**
 - Soul (verdict `cut-mining-index.s1`) measured the index at `a4e8e147`. It is correct,
   and the 3M-rock press fell from 4.3 s to 150-600 ms.
-- Press cost still grows with rock count in a fixed belt (finding
-  `f1-press-linear-in-density`). Two things drive it: the press path returns every
-  visible rock, and groups hold a fixed 256 rocks.
-- The operator accepted that growth (ruling `targeting-density-scaling-accepted`):
-  "That targeting scaling is acceptable to me, I'm not planning on having ten thousand
-  entities in range, that's already gonna make the UI layer melt."
-- Rejected under that ruling: a sublinear region structure, meaning square polar cells
-  that co-rotate per ring, refreshed lazily, with best-first search over a ring tree.
-  Two reasons. Exact angle and distance-order queries in linear space cost about the
-  square root of the local rock count anyway: this is the line-query bound for
-  kd-trees and Chazelle's lower bound for simplex range searching. And the in-range
-  counts that design allows are far below where the linear term matters.
-- What is left is `mining-index-pins`: three tests for findings
+- Press cost still grows linearly with rock count in a fixed belt (finding
+  `f1-press-linear-in-density`).
+- The operator ruled that this is not critical, but that the improvement is wanted
+  (ruling `targeting-sublinear-wanted-not-critical`, which supersedes
+  `targeting-density-scaling-accepted`): "O(sqrt(n)) is way better than O(n), my
+  ruling says it's not critical, not that it's undesired".
+- So the merge waits only for `mining-index-pins`: three tests for findings
   `cost-loosening-unpinned` and `exact-reach-unpinned`, which the suite could not see.
   - The share of regions past reach catches a widened arc window or a loosened
     `Nearest`.
   - Examined against an exact per-rock bound catches a loosened visibility bound.
   - A rock exactly at reach, searched from beyond its belt's outer edge too, catches
     a slack sign slip.
-- `mining-target-queries` r1 stands as specced. The one finding that names it (f1:
-  `Best` still enumerates every region) is the growth the ruling accepts; the other
-  two touch only `BeltTargets`' tests. Its `AKeyPressDoesNotGrowWithTheBelt` scales
-  area at constant density, which the ruling leaves in force.
+- `mining-target-queries` r1 stands as specced. Its `AKeyPressDoesNotGrowWithTheBelt`
+  scales area at constant density, which both rulings leave in force.
+- The sublinear structure is the section "Mining index: rings, cells and best-first
+  search" above, as two cuts after `mining-merge`.
 
 **Why loot is three cuts on one branch, merged together.**
 - The ruled design (L8) needs three things:
