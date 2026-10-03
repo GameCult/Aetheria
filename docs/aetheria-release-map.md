@@ -947,6 +947,8 @@ image whose pixels are `(0.5, 0.25, 1.0, 0.5)`, saved as PNG.
 
 #### The hull material model
 
+*Superseded in part by "Hull materials as owned graphs" below: the mask semantics, `HullPaint`, the shader rules and the livery resolution. Kept as the record of revision 2.*
+
 **What a package carries.**
 - **The GLB's core PBR slots,** baked by the operator onto her clean UV0:
   - base colour;
@@ -1055,6 +1057,8 @@ The texture cap stays because it bounds runtime memory.
 
 #### Cuts
 
+*Revised by "Hull materials as owned graphs" below: `ships-hull-material` r3, `ships-addon-paint` r3 and `ships-hull-livery` r2 replace the revisions named here.*
+
 - **`ships-hull-material` r2:** the shader, the generator, `HullPaint` with
   `Mask`, the mask's PNG checks in `Bind`, the linear DXT5 load and `ApplyPaint`.
 - **`ships-hull-livery` r1** (unchanged): `Faction.Livery`. It waits on
@@ -1125,6 +1129,451 @@ over. Each `ships-addon-*` operator check asks which helper earned its place.
 - A thruster's mesh is never drawn, so the hull keeps its nozzle.
 - A radiator's faces are drawn with the radiator material. Leaving them in the hull
   would draw the surface twice.
+
+### Hull materials as owned graphs
+
+This section designs the hull material system as one piece. It replaces the
+mask semantics, the `HullPaint` shape, the shader rules and the livery
+resolution of "The hull material model" above. M13 to M18 and the per-hull steps
+stand, except P6, which is restated below.
+
+The operator's words, in order:
+1. `hull-runtime-materials`: "we want more runtime material control than just a
+   single baked map. See how MechWarrior does it".
+2. `hull-paint-mask-texture`: "I want a mask map per ship for livery, I'll be
+   rebuilding the nonsense geometry and unwrapping anyway".
+3. `mask-channels-place-materials`: "If each channel determines placement of one
+   material, then factions can fly their colors by setting parameters on those
+   hull materials (primary, secondary, trim) and we'd ship eventual faction skins
+   as their own material map... If we also want procedural wear and buildup, we
+   can bake input maps for that, too."
+4. `clean-break-from-substance`: "Let's make a clean break from substance, it's
+   dead".
+5. Not yet a ruling: "Authoring materials as graphs in blender is pretty
+   intuitive, if we're owning material generation, could we not set things up so
+   that we can evaluate the same graph?"
+6. Not yet a ruling: "We may not be allowed to pull blenders math into our
+   runtime, but nothing prevents us from putting our math in blender".
+7. `materials-baked-per-ship-incremental`: "triggering texture bakes per ship
+   only when they spawn or change, and then also only recomputing the parts of
+   the graph that change, which would be just wear for most dynamic changes".
+8. `shaders-own-every-pixel`: "our shaders own every pixel".
+
+Surveys: `F:\Projects\blender-graph-runtime-prior-art.md`,
+`F:\Projects\aetheria-texture-graph-prior-art.md` and
+`F:\Projects\aetheria-hull-materials-prior-art.md` (Eyes, 2026-10-03). Anchors are
+against Aetheria `239f3599` (origin/master, which contains `ships-mounts` and the
+render fixes) and CultLib `a7966142`. Probe scripts are in this pass's scratch
+(`matprobe/probe_bake.py`, `probe_dump.py`, `bench/Program.cs`).
+
+#### Body facts
+
+**M19. The operator's Blender is 5.2.2 LTS from Steam, and Steam updates it.**
+- `C:\Program Files (x86)\Steam\steamapps\common\Blender\blender.exe` reports
+  `5.2.2 LTS`, build hash `d13f752e3b9c`, built 2026-09-15. It is the only
+  Blender in the uninstall registry. A stale 5.0.1 sits in
+  `D:\Steam\SteamApps\common\Blender`.
+- Steam replaces the build when a new one ships. Node semantics changed in 5.0
+  (Voronoi hashing), so a silent update can move her previews away from the game.
+
+**M20. A Cycles Emit bake is an exact point oracle.** Probe `probe_bake.py`,
+Blender 5.2.2, a 64×64 float input image of coordinates read with Closest
+interpolation into a graph, baked by Emit into a 64×64 float image (margin 0):
+
+| Probe | CPU | OptiX (GTX 1070) |
+|---|---|---|
+| P1 identity: the input texel reads back | 4096/4096 exact | 4096/4096 exact |
+| P2 `a*b + c` in two Math nodes | 4096/4096 equal float32 `(a*b)+c`; fused would differ at 1011 | same |
+| P3 CultMath's float-only `mod289((x*34+10)*x)` as Math nodes | 4096/4096 exact | 4096/4096 exact |
+| P4 Noise Texture (3D, detail 0): two bakes | bit-identical; 0.5 at integer points | bit-identical |
+| P5 an OSL Script node (`In[0]*3+1`) in the bake | 4096/4096 within 1e-6 | no result: killed after 4.5 minutes, apparently compiling OSL |
+
+- CPU and OptiX noise agree at 2,764 of 4,096 texels, at most 1.19e-7 apart
+  (1 ulp near 1). Arithmetic agrees bit for bit. So the oracle is CPU Cycles,
+  and noise parity is a ULP tolerance, never bit equality, once a GPU is in the
+  chain.
+- Cycles' CPU kernels do not contract multiply-add (P2), so float-only
+  arithmetic is reproducible from C#.
+
+**M21. The add-on can dump a node group faithfully.** Probe `probe_dump.py`,
+Blender 5.2.2:
+- Group interfaces have panels. A socket reports its panel, type, default,
+  min, max and a stable identifier (`Socket_3`). Panels are typed structure, so
+  a socket's scope (Livery, Ship, Maps) needs no name parsing.
+- `ColorRamp.evaluate(t)` and `CurveMapping.evaluate(curve, t)` run in Python,
+  so ramps and curves export as sampled tables in Blender's own evaluation (a
+  B-spline ramp gives 0.1667, not 0, at t = 0).
+- A group instance is `ShaderNodeGroup` with `node_tree`. Mix exposes
+  `data_type`, `blend_type` and both clamps. Noise exposes dimensions, type and
+  normalize. Math has 41 operations.
+- Shader nodes have no Bit Math or Integer Math in 5.2.2.
+  `FunctionNodeBitMath` exists for geometry nodes only. PCG hashes cannot be
+  built in shader nodes.
+
+**M22. A C# tape interpreter is cheap for arithmetic and slow for noise.**
+Probe `bench`, .NET 10 RyuJIT on Starfire (Ryzen 3 3100, 4 cores), a scalar SSA
+tape interpreted over 256-texel batches at 2048²:
+- 154 arithmetic instructions: 788 ms on one thread (1.2 ns per
+  instruction-texel).
+- Adding 24 CultMath `snoise(float3)` calls: 23.5 s on one thread, 7.1 s on four
+  (about 230 ns per noise call per texel).
+- Unity runs Mono, which is slower than RyuJIT. That was not measured.
+
+A full-resolution noise graph costs seconds per bake on the CPU. Aetheria
+already dispatches compute shaders at runtime (M23), where the same work takes
+milliseconds.
+
+**M23. Aetheria's compute and CultMath substrate.**
+- Runtime compute already ships: `ShieldPanel.cs:293-439` dispatches
+  `ShieldSim.compute`; Stardust, Slime and Lightning have compute kernels under
+  `Assets/Shaders/Compute/`.
+- `Packages/manifest.json:57` pins `org.gamecult.cultmath` at
+  `cultmath-unity-v0.2.4`. CultLib has tagged `cultmath-unity-v0.3.0`.
+  `Aetheria.Shared.csproj:27` compiles CultMath from source.
+- No Shader Graph or SRP package is in the manifest.
+
+**M24. Faction key 16 is taken twice.** `ships-hull-livery` r1 puts `Livery` at
+`Faction` key 16. Rulings `faction-relations-field` and `faction-doctrine-typed`
+put Relations at 16 and Doctrine at 17. `Corporations.cs` uses keys up to 15.
+The livery takes key 18.
+
+**M25. CultMath's seams for new shader code.**
+- `CultMath.hlsl:509-510` includes Phacelle and Interval.
+- `GlslLowering.SeparateFiles` (`GlslLowering.cs:19-24`) lowers a
+  separately-licensed include into its own GLSL file. Its one entry is MPL-2.0
+  Phacelle.
+- C# has `asuint` and `asfloat` (`math.cs:390-391`) but no `uint2/3/4` types.
+  Cycles' hashes are scalar `uint`, so they port without new vector types.
+
+#### The system in brief
+
+```
+Blender (author, preview)        AetherDb (judge)                 Aetheria.cc
+ node group "Hull Standard"  -->  material-graph put  ---------->  MaterialGraph record
+ + per-hull wrapper material      whitelist, contract, cones        (truth)
+                                        |
+                                        v  lowering (Aetheria.Shared)
+                                  CultMath expression IR  --> HLSL kernels: pair, frontier, wear
+                                        |                     (generated, committed, dxc-checked)
+                                        v  reference evaluator (C#, tests only)
+Unity: MaterialBakes  -- dispatch per (hull, livery) and per wear set --> baked textures
+       Aetheria/Hull  -- samples Surface, Worn, Wear, plus the GLB's normal, occlusion, emission
+```
+
+**A material graph is one per-texel function:**
+- **Inputs:**
+  - image roles sampled on UV0 from two package PNGs:
+    - `ship.mask.png`: R, G, B place the primary, secondary and trim materials; A is
+      an authored wear hint.
+    - `ship.maps.png`: R ambient occlusion, G curvature (0.5 flat), B cavity, A grunge.
+  - parameters in two scopes. Livery parameters are set per faction, with a
+    factory default per hull. Ship parameters are set per ship, such as wear level.
+- **Outputs**, a closed vocabulary:
+  - Surface Color, Surface Metallic and Surface Roughness: the finished livery;
+  - Worn Color, Worn Metallic and Worn Roughness: what wear reveals;
+  - Wear, from 0 to 1.
+
+**Authoring in Blender.**
+- A library `.blend` holds node groups built from whitelisted nodes. The interface
+  panels are `Livery`, `Ship` and `Maps`. A Maps socket's name is a role from the
+  closed vocabulary.
+- The per-hull material her add-on sets up is a wrapper:
+  - the group instance;
+  - Image Texture nodes for her mask and maps;
+  - a preview that mixes Surface and Worn by Wear into a Principled BSDF, the same
+    combination the game's shader makes.
+- The wrapper is display only. Only the group is exported.
+
+**The release whitelist** is Blender's primitive and converter nodes, with
+Cycles semantics ported into CultMath:
+- Math (all 41 operations), Vector Math (component-wise operations), Clamp,
+  Map Range (Float, all four modes);
+- Mix (Float, Vector, and Color with every blend mode);
+- Color Ramp and Float Curve, as tables sampled in Python;
+- Separate and Combine XYZ and Color (RGB mode), RGB to BW, Invert;
+- Value, RGB, Reroute, Frame, Group Input and Output, and nested groups (flattened).
+
+Procedural textures (Noise, White Noise, Voronoi, Wave, Gradient) follow the
+release, as question `release-procedural-noise` proposes. Per ruling 3, release
+wear comes from baked maps. Grunge is baked into `ship.maps.png` A.
+
+**Bakes, dirty sets and the memory budget.**
+- The judge computes each output's cone (the nodes it reads) and each node's
+  scope: hull (reads only images), livery, or ship. Surface and Worn cones may
+  not read a Ship parameter; the judge refuses that. So every per-ship cost is
+  the Wear output alone.
+- The **frontier** is the set of values in Wear's cone that read no Ship
+  parameter but feed one that does. At most four scalars, or the judge refuses
+  the graph, so they fit one RGBA16F texture.
+- Three kernels per graph, generated from the record:
+  - **pair**: Surface at R and Worn at R/2, for each (hull, skin, livery). R is
+    2048 by default and 1024 at low quality.
+  - **frontier**: the frontier values at wear resolution, once per pair.
+  - **wear**: only the ship-scope nodes of Wear's cone, reading the frontier,
+    per distinct set of Ship parameters.
+- A Ship parameter change re-runs only the wear kernel. That is ruling 7: cost
+  in proportion to the nodes that changed. A livery change is a different pair.
+- Caches are content-addressed. A pair key hashes the graph record, both PNGs,
+  the skin, the livery bindings and R. A wear key hashes the pair key and the
+  Ship parameter values, quantised to 1/64. Ships with identical inputs share
+  every texture. Entries are refcounted by live bodies and released at zero.
+- Budget, at R = 2048, with BC1 (DXT1) through `Texture2D.Compress` after an async
+  readback:
+
+| Texture | Per | Size with mips |
+|---|---|---|
+| Surface Color and Surface MR (R metal, G roughness) | pair | 2 × 2.7 MiB |
+| Worn Color and Worn MR at 1024² | pair | 2 × 0.67 MiB |
+| Frontier, 512² RGBA16F, no mips | pair | 2 MiB |
+| Wear, 512² R8 | wear set | 0.33 MiB |
+
+  - That is about 8.7 MiB per pair and 0.33 MiB per ship. At R = 1024 a pair is
+    about 2.6 MiB.
+  - A zone with 20 ships in 6 (hull, livery) pairs holds about 59 MiB. Per-ship
+    full bakes would hold about 320 MiB.
+  - Each bake also needs about 70 MiB of transient upload and render textures,
+    released once its readback completes.
+  - Until the compressed copy exists, the ship samples the render textures directly.
+
+**The runtime shader.**
+- `Aetheria/Hull` is `GlowFade`'s surface shader: the same `noambient` volumetric
+  ambient, the same dither fade by `_Fade` and the same edge colour.
+- The albedo, metallic and roughness are `lerp(Surface, Worn, Wear)`. The normal,
+  occlusion and emission come from the GLB's slots.
+- It has no paint logic, no keywords beyond GlowFade's own, and nothing evaluated
+  per frame but that one lerp. The lerp is fixed by the output contract.
+
+**The livery.**
+- `HullPaint` (ShipAuthoring key 5) names:
+  - the graph;
+  - the two PNGs;
+  - the factory livery: bindings of the graph's Livery parameters.
+- `Faction.Livery` (key 18) holds bindings of the same parameters and wins over the
+  factory livery when that faction flies the hull. `HullPaint.Resolve` is the one
+  resolution.
+- A binding names a parameter by its interface identifier. The catalog test checks
+  every binding against the graph: it must exist, be in scope and be in range.
+- Faction skins (another mask per hull) are a later key on `HullPaint`, chosen by
+  the livery.
+
+#### Authority map
+
+- **Owner.** The `MaterialGraph` record in `Aetheria.cc` owns what a hull material
+  computes. CultMath owns what each node means: Cycles semantics ported once, in
+  HLSL with a C# mirror. `MaterialBakes` owns when and at what resolution a graph
+  is evaluated. `HullPaint.Resolve` owns which livery a body shows.
+  `Aetheria/Hull` owns how the three outputs and the GLB slots become a pixel.
+- **Inputs.**
+  - The judge reads the Blender dump.
+  - The lowering reads the record.
+  - `MaterialBakes` reads:
+    - the generated kernels;
+    - the package PNGs;
+    - the resolved livery;
+    - the body's Ship parameters.
+- **Outputs.** The record; the generated kernels; the baked textures per pair and
+  per wear set; one property block per hull renderer.
+- **Derived state.**
+  - The kernels are derived from the record and committed. A test fails when they
+    differ from the lowering.
+  - Baked textures are cache only.
+  - The Blender wrapper and its preview are display only.
+  - Cones, scopes and the frontier are recomputed by every judge and lowering.
+- **Forbidden writers.**
+  - Unity Shader Graph, Mixture and any glTF/ shader on a mod hull.
+  - Any per-frame graph evaluation in the hull shader.
+  - Python encoding a `MaterialGraph` or `HullPaint`.
+  - Blender's GPL EEVEE (`gpu_shader_material_*`) or blenlib noise code in any
+    CultLib or Aetheria file.
+  - A material, role or output chosen by a name outside the closed vocabularies.
+  - A second livery resolution.
+  - `Faction.PrimaryColor` and `SecondaryColor`, which stay map colours.
+- **Shared paths.** Editor play, the preview smoke, the play smoke and the built
+  player all bake through `MaterialBakes` from the same kernels. Every AetherDb
+  path (`put`, `check`, the catalog test) judges through one `MaterialGraphJudge`.
+- **Deletion line.**
+  - r2's region tint (`_PaintStrength`, `RegionLuminance`, a tiling `_WearNoise`)
+    and its `Livery` of three colours are never built.
+  - Revision 1's vertex mask is gone.
+  - The 41 `.sbsar` files go with follow-up `remove-sbsar-files`.
+
+#### Parity
+
+1. **Node semantics, in CultMath.**
+   - Each ported function's HLSL mirrors its C# with bit equality, through the
+     existing mirror tests.
+   - It compiles under dxc and lowers to GLSL through the existing
+     `GlslLowering`. Each new licence file gets a `SeparateFiles` entry.
+   - The C# matches a **Cycles oracle fixture**. A GPL-headed tool script, run only
+     under the pinned Blender (5.2.2 LTS, hash `d13f752e3b9c`), bakes each family
+     on the CPU the M20 way. It refuses any other version. The fixture records the
+     version and hash.
+   - Tolerance is per family: exact for arithmetic (M20 P2, P3), and a stated ULP
+     bound wherever Cycles uses library transcendentals.
+2. **Lowering, in Aetheria.**
+   - A test graph uses every whitelisted node and blend mode. The add-on's test
+     script dumps it and bakes all seven outputs on a 64² fixture under the pinned
+     Blender. The fixture (dump, inputs, outputs) is committed.
+   - The test lowers the dump and runs CultMath's reference evaluator, then
+     compares per output within the family tolerances.
+   - This pins the node-to-function mapping. Neither side's unit tests can see that
+     mapping.
+3. **Kernels.**
+   - The generated HLSL is committed and must equal the lowering's output.
+   - Each kernel compiles under dxc.
+   - A Unity batch smoke on Starfire dispatches the fixture graph on the GPU and
+     reads back. It compares with the reference evaluator within 2 ulp plus the
+     family tolerance. M20 shows a GPU and a CPU Cycles already differ by 1 ulp.
+4. **Drift.**
+   - The add-on stamps the Blender version into each dump.
+   - The judge refuses a dump from a different major and minor version than the
+     pinned semantics, naming both.
+   - Updating Blender is a deliberate cut: regenerate the oracle fixtures, read the
+     diff, and move the pin.
+   - Before then, the operator stops Steam updating Blender, or keeps a pinned
+     portable 5.2.2 for authoring.
+
+#### The tape
+
+The material evaluator is not a second tape if it owns no evaluation semantics.
+- It lowers into CultMath's scalar expression IR: SSA values, operations that
+  are CultMath functions, named inputs, parameters and several outputs, with each
+  instruction's input-dependence mask.
+- Two backends exist now: an HLSL emitter, and a reference evaluator for tests.
+- The tape target's step 2 adds bytecode with point, interval and gradient
+  evaluators over the same IR. Step 4 adds an HLSL interpreter of that bytecode.
+  Neither is built now. Ruling `tape-target-unparks-when-asura-stable` stands
+  for both.
+- What lands now is the IR the tape will consume. Its point evaluator is only a
+  test reference, not a runtime path.
+
+A minimal evaluator is needed now, because ruling 7 requires bakes at spawn and
+at change, and the release hulls need faction colours (`content-bar-one-per-concept`).
+
+Mod-authored graphs need the tape's GPU interpreter, because Unity cannot compile
+a shader at runtime. Until then a mod package uses the shipped graphs with its
+own PNGs and livery values: the MWO model, per the operator's ruling 3.
+
+Question `material-ir-in-cultmath` asks whether this IR may land in CultMath
+while the tape stays parked.
+
+#### Cuts
+
+CultLib, campaign `cultmath-tapes`:
+- **`cycles-converters`.** The Cycles oracle tool and fixture harness. Ports of
+  Cycles' Math, Map Range, Clamp, Mix (every blend mode), RGB to BW and ramp-table
+  lookup, in an Apache-2.0 file pair.
+- **`expr-ir`.** The scalar expression IR, dependence masks, cones and frontier,
+  the reference evaluator and the HLSL emitter.
+- **`cycles-noise`.** Ports of Cycles' hash, Perlin, fBM, the Noise Texture node
+  and White Noise (BSD-3 and Apache file pairs). This follows the release.
+- The CultMath Unity release that ships the new HLSL is a release cut (follow-up
+  `cultmath-unity-material-release`). Aetheria's Unity pin must move to it before
+  `hull-bakes`, whose kernels include those files.
+
+Aetheria, campaign `aetheria-release`:
+- **`material-graph`.** The record, the dump, `MaterialGraphJudge` (whitelist,
+  vocabularies, scopes, the contract, the version pin), and AetherDb
+  `material-graph put|check`.
+- **`material-lowering`.** Lowering to the IR, the generated kernels and their
+  equality test, and the whole-graph Blender oracle.
+- **`material-library-export`.** The add-on's dumper, Export and Check calling
+  AetherDb, and the library `.blend` convention.
+- **`hull-bakes`.** `MaterialBakes`: dispatch, the content-addressed tiers,
+  refcounts, readback and compression, and a GPU parity smoke.
+- **`ships-hull-material` r3.** `HullPaint` reshaped, the PNG checks in Bind,
+  `Aetheria/Hull`, the generator and `ApplyBakes` from `SetEntity`.
+- **`ships-addon-paint` r3.** The maps bake into `ship.maps.png`, the mask tools,
+  Set Up Hull Material (the wrapper), and Package writing both PNGs and `Paint`.
+- **`ships-hull-livery` r2.** `Faction.Livery` at key 18, as bindings checked
+  against the graph.
+
+Order:
+- `cycles-converters`, then `expr-ir`, then the CultMath Unity release.
+- Then `material-graph` (it may start at once; it needs neither CultLib cut),
+  `material-lowering`, `hull-bakes`, `ships-hull-material` r3 and
+  `ships-hull-livery` r2.
+- `material-library-export` follows `material-graph`.
+- `ships-addon-paint` r3 needs `ships-addon-mounts`, `material-library-export`
+  and `ships-hull-material` r3.
+- `ships-player` keeps its dependency on `ships-hull-material`.
+
+**What blocks the release hulls:** every cut above except `cycles-noise`.
+
+**What can follow:**
+- `cycles-noise` and Voronoi, Wave and Gradient;
+- CultMath-native nodes in Blender;
+- the tape's GPU interpreter for mod graphs;
+- faction skins;
+- follow-ups `hull-damage-wear` (the first real Ship parameter), `hull-decals`
+  and `hull-player-paint`;
+- detail normals per material;
+- a GPU BC encoder, if the readback-and-compress hitch measures badly.
+
+#### Model page rows
+
+| Kind | Identity | Lifecycle | Authority |
+|---|---|---|---|
+| Material graph | `MaterialGraph` in `Aetheria.cc`, keyed by its stable id (the group's name lowered, as ship ids are) | Exported from the library `.blend` by `material-graph put`. Re-exported whole on change, never edited in place. The kernels are regenerated in the same command | `MaterialGraphJudge` admits it. The record is truth and the kernels are derived |
+| Hull paint | `ShipAuthoring.Paint` (key 5) in the package | Written at Package. A graph id, two PNG paths and the factory livery bindings | `ship-authoring paint`; Validate, and the catalog test for bindings |
+| Mask and maps PNGs | `ship.mask.png`, `ship.maps.png` in the package, named by `Paint` | Authored and baked in Blender; exported every Package | The operator. `Bind` judges the headers |
+| Faction livery | `Faction.Livery` (key 18) | Authored in the inspector; null keeps the factory livery | The catalog; checked against the hull's graph |
+| Pair bake | Content hash of graph, PNGs, skin, livery and R | Baked when the first body needs it; released when the last is gone | `MaterialBakes`. Cache only |
+| Wear bake | Content hash of the pair key and quantised Ship parameters | Re-baked when a body's Ship parameters change | `MaterialBakes`. Cache only |
+| Cycles oracle fixture | A file per family in CultMath tests, stamped with the Blender version | Regenerated only by a pin-moving cut | The tool script under the pinned Blender |
+
+#### Rationale
+
+**Why generated compute kernels and not a CPU interpreter.** M22 puts a
+noise-bearing full-resolution bake at seconds on the operator's CPU, under a
+faster JIT than Unity's. Aetheria already ships runtime compute (M23). The graphs
+are game-owned, so kernels can be generated ahead of time and compiled into the
+build, where a runtime shader compile is impossible. The cost is that mods cannot
+bring graphs until the tape's GPU interpreter exists. That is question
+`material-evaluator-backend`.
+
+**Why the per-ship cost is the Wear output alone.** Prior art bounds memory one of
+two ways:
+- a shared base with a small per-instance mask, as in Destiny's gearstack wear
+  mask, MW5's wear masks and Star Citizen's vertex-alpha wear;
+- a cap on instance count.
+
+Making it a rule of the output contract, enforced by the judge, makes the budget
+structural rather than a convention. The lerp in the shader is the contract's one
+fixed line, so the shader owns no material meaning.
+
+**Why the frontier is cached at wear resolution.** Ruling 7 asks that a wear change
+recompute only what depends on wear. Caching every node at full resolution is
+Mixture's documented failure: memory linear in node count. One RGBA16F texture at
+512² per pair costs 2 MiB and makes a wear bake a few dozen instructions over
+262k texels.
+
+**Why Cycles semantics are ported, not reimplemented from the manual.**
+- The manual leaves Mix's blend modes, Map Range's smooth modes, ramp
+  interpolation and Smooth Min unspecified (Eyes §3d).
+- The Cycles kernel files are Apache-2.0, and `noise.h` is BSD-3.
+- Porting them into licence-headed CultMath files, as Phacelle is kept under
+  MPL-2.0, gives the exact semantics with provenance.
+- Ramps and curves need no port: Python samples Blender's own evaluation into
+  tables (M21).
+
+**Why the oracle is a CPU bake.** It is exact for arithmetic and reproducible
+(M20). A GPU bake differs by an ulp on noise, and OSL on OptiX did not finish.
+
+**Why the record holds the authored graph, not the IR.** The lowering will change
+as ports are added and the tape arrives. The authored graph is what she made, and
+the IR is a cache of one lowering of it.
+
+**Rejected.**
+- Unity Shader Graph: its Lit target adds Unity's ambient, and ruling 8 makes our
+  shaders own every pixel.
+- Mixture: it adds Shader Graph and SRP Core, and its memory grows with node count.
+- Material Maker: a second authoring application with no runtime parameter path.
+- MaterialX: it has no HLSL generator, Blender's export is partial, and its noise
+  is not Blender's.
+- OSL as an authoring route: Cycles only, no EEVEE preview, and no result on OptiX
+  (M20 P5).
+- Region-luminance tint (r2): every channel now places a whole material.
 
 ### S3: the first playable mod ship in a built player
 
