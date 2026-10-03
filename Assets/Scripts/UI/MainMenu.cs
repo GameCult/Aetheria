@@ -193,7 +193,7 @@ public class MainMenu : MonoBehaviour
     }
 
     // The one way into the game scene. Mod ship prototypes import asynchronously at boot, so the scene waits for them,
-    // and a failed import stops here with its reason rather than in the first zone.
+    // and a preload that could not run at all stops here with its reason rather than in the first zone.
     private void EnterGame() => StartCoroutine(EnterGameWhenModShipsAreReady());
 
     private IEnumerator EnterGameWhenModShipsAreReady()

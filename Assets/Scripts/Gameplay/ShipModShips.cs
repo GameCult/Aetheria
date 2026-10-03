@@ -14,7 +14,9 @@ public static class ShipModShips
     private static readonly Dictionary<CultRecordKey, GameObject> Prototypes = new Dictionary<CultRecordKey, GameObject>();
     private static CultCache _catalog;
 
-    // Set by Preload; complete when every prototype is ready, faulted when any mod ship failed to import or assemble.
+    // Set by Preload; complete when every hull that could be built has its prototype. A mod ship that fails to import or
+    // assemble is skipped and logged, as Compose skips a bad package, so it never stops the rest; Loading faults only
+    // when the preload itself cannot run.
     public static Task Loading { get; private set; } = Task.CompletedTask;
 
     public static Task Preload(CultCache catalog, string modsRoot)
@@ -39,18 +41,19 @@ public static class ShipModShips
         if (Application.isPlaying) Object.DontDestroyOnLoad(root);
         foreach (var hull in hulls)
         {
-            var package = ShipModCatalog.PackageOf(catalog, hull, modsRoot);
-            var visual = await ShipModVisual.LoadAsync(package, root.transform);
+            ShipModVisual.Instance visual = null;
             try
             {
+                var package = ShipModCatalog.PackageOf(catalog, hull, modsRoot);
+                visual = await ShipModVisual.LoadAsync(package, root.transform);
                 visual.Root.SetActive(false);
                 Assemble(visual, package.Hull, package.Visual, template);
                 Prototypes[catalog.RefOf(hull).Key] = visual.Root;
             }
-            catch
+            catch (Exception error)
             {
-                visual.Destroy();
-                throw;
+                visual?.Destroy();
+                Debug.LogError($"Mod ship {hull.Name} skipped: {error.Message}");
             }
         }
     }
