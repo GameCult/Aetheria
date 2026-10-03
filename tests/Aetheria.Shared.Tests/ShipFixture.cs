@@ -25,18 +25,19 @@ internal static class ShipFixture
     public static byte[] MeshBytes() => Tetrahedron.SelectMany(BitConverter.GetBytes).ToArray();
 
     // The GLB carries a glTF scene naming every node: glTFast instantiates a scene, and a scene-less file has none.
-    // Nodes in MeshNodes get the shared tetrahedron mesh, whose vertices live in the BIN chunk (MeshBytes).
-    public static string GlbJson(string[] nodes)
+    // Nodes in meshNodes (default MeshNodes) get the shared tetrahedron mesh, whose vertices live in the BIN chunk (MeshBytes).
+    public static string GlbJson(string[] nodes, string[] meshNodes = null)
     {
+        meshNodes ??= MeshNodes;
         var length = MeshBytes().Length;
-        var mesh = nodes.Any(MeshNodes.Contains)
+        var mesh = nodes.Any(meshNodes.Contains)
             ? @",""meshes"":[{""primitives"":[{""attributes"":{""POSITION"":0}}]}]," +
               @"""accessors"":[{""bufferView"":0,""componentType"":5126,""count"":12,""type"":""VEC3"",""min"":[0,0,0],""max"":[1,1,1]}]," +
               $@"""bufferViews"":[{{""buffer"":0,""byteLength"":{length}}}],""buffers"":[{{""byteLength"":{length}}}]"
             : "";
         return @"{""asset"":{""version"":""2.0""},""scene"":0,""scenes"":[{""nodes"":[" + string.Join(",", nodes.Select((_, index) => index)) + @"]}]" + mesh + @",""nodes"":[" +
             string.Join(",", nodes.Select(node =>
-                $@"{{""name"":""{node}""{(MeshNodes.Contains(node) ? @",""mesh"":0" : "")},""extras"":{{""aetheria.id"":""{node}""}}}}")) + "]}";
+                $@"{{""name"":""{node}""{(meshNodes.Contains(node) ? @",""mesh"":0" : "")},""extras"":{{""aetheria.id"":""{node}""}}}}")) + "]}";
     }
 
     public static byte[] Glb(string json, byte[] bin = null)
@@ -63,7 +64,7 @@ internal static class ShipFixture
 
     // <modsRoot>/<id>/ship.cc plus the GLB at the record's ModelAsset path.
     public static string WritePackage(string modsRoot, string id, string hullName = "Skiff", string[] nodes = null,
-        string modelAsset = "skiff.glb", Action<ShipParts> tweak = null)
+        string modelAsset = "skiff.glb", Action<ShipParts> tweak = null, string[] meshNodes = null)
     {
         var ship = ShipAuthoringTests.Fixture();
         // A playable rig: the fixture thruster plus one energy weapon mount on the hull's other cell, with its muzzle.
@@ -81,7 +82,7 @@ internal static class ShipFixture
             ShipAuthoringStore.Write(cache, ship.Hull, ship.Visual);
             cache.FlushAsync().Wait();
         }
-        File.WriteAllBytes(Path.Combine(directory, modelAsset), Glb(GlbJson(nodes ?? Nodes), MeshBytes()));
+        File.WriteAllBytes(Path.Combine(directory, modelAsset), Glb(GlbJson(nodes ?? Nodes, meshNodes), MeshBytes()));
         return directory;
     }
 }

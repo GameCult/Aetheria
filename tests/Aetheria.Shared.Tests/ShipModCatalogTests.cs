@@ -370,12 +370,71 @@ public sealed class ShipModCatalogTests : IDisposable
             ShipModCatalog.ReadPackage(Path.Combine(Mods, "mod.skiff", "ship.cc"))).Message);
     }
 
+    // Ruling thrusters-radiators-are-meshes: a thruster's mesh is its emission surface and a radiator's is what glows, so
+    // either on an empty node is refused before compose; a weapon mount (and shield, tractor) may be an empty.
+    [Fact]
+    public void AMeshRoleAnchorOnAnEmptyNodeIsRefused()
+    {
+        var withoutThrusterMesh = ShipFixture.MeshNodes.Where(node => node != "thruster-port").ToArray();
+        WritePackage("mod.skiff", meshNodes: withoutThrusterMesh);
+        Assert.Contains("thruster-emitter anchor thruster.port needs a mesh, but model node thruster-port has none", Assert.Throws<InvalidOperationException>(() =>
+            ShipModCatalog.ReadPackage(Path.Combine(Mods, "mod.skiff", "ship.cc"))).Message);
+
+        Directory.Delete(Path.Combine(Mods, "mod.skiff"), true);
+        void AsRadiator(ShipParts ship)
+        {
+            ship.Hull.Hardpoints.Single(hardpoint => hardpoint.Transform == "thruster.port").Type = HardpointType.Radiator;
+            ship.Visual.Anchors.Single(anchor => anchor.Id == "thruster.port").Role = "radiator-mesh";
+        }
+        WritePackage("mod.skiff", tweak: AsRadiator, meshNodes: withoutThrusterMesh);
+        Assert.Contains("radiator-mesh anchor thruster.port needs a mesh", Assert.Throws<InvalidOperationException>(() =>
+            ShipModCatalog.ReadPackage(Path.Combine(Mods, "mod.skiff", "ship.cc"))).Message);
+
+        // The same radiator on a mesh node, and the weapon mount, shield and tractor on empty nodes, are accepted.
+        Directory.Delete(Path.Combine(Mods, "mod.skiff"), true);
+        WritePackage("mod.skiff", tweak: AsRadiator);
+        var nodes = ShipModCatalog.ReadNodeIds(Path.Combine(Mods, "mod.skiff", "skiff.glb"));
+        Assert.False(nodes["gun"].HasMesh || nodes["shield"].HasMesh || nodes["tractor"].HasMesh);
+        Assert.Equal("mod.skiff", ShipModCatalog.ReadPackage(Path.Combine(Mods, "mod.skiff", "ship.cc")).Visual.Id);
+    }
+
+    // AetherDb's validate judges the GLB once it exists, so Blender's Package sees what Compose would refuse.
+    [Fact]
+    public void ValidateCommandReadsTheGlbWhenPresent()
+    {
+        WritePackage("mod.skiff", nodes: FixtureNodes.Where(node => node != "thruster-port").ToArray());
+        var path = Path.Combine(Mods, "mod.skiff", "ship.cc");
+        var (code, output, error) = Run("validate", path);
+        Assert.Equal(1, code);
+        Assert.Contains("model has no node with aetheria.id=thruster-port for anchor thruster.port", error);
+
+        File.Delete(Path.Combine(Mods, "mod.skiff", "skiff.glb"));
+        (code, output, error) = Run("validate", path);
+        Assert.Equal(0, code);
+        Assert.Contains("records only", output);
+
+        WritePackage("mod.good");
+        (code, output, _) = Run("validate", Path.Combine(Mods, "mod.good", "ship.cc"));
+        Assert.Equal(0, code);
+        Assert.Contains("records and model", output);
+    }
+
+    private static (int Code, string Output, string Error) Run(params string[] args)
+    {
+        var (output, error) = (new StringWriter(), new StringWriter());
+        var (previousOut, previousError) = (Console.Out, Console.Error);
+        Console.SetOut(output);
+        Console.SetError(error);
+        try { return (ShipAuthoringCommands.Run(args), output.ToString(), error.ToString()); }
+        finally { Console.SetOut(previousOut); Console.SetError(previousError); }
+    }
+
     [Fact]
     public void NodeIdsMapToTheirGlbNodeIndexSkippingNodesWithoutOne()
     {
         var path = Write("nodes.glb", ShipFixture.Glb(@"{""asset"":{""version"":""2.0""},""nodes"":[
-            {""name"":""plain""},{""extras"":{""aetheria.id"":""a""}},{""extras"":{}},{""extras"":{""aetheria.id"":""""}},{""extras"":{""aetheria.id"":""b""}}]}"));
-        Assert.Equal(new Dictionary<string, uint> { ["a"] = 1, ["b"] = 4 }, ShipModCatalog.ReadNodeIds(path));
+            {""name"":""plain""},{""extras"":{""aetheria.id"":""a""}},{""extras"":{}},{""extras"":{""aetheria.id"":""""}},{""mesh"":0,""extras"":{""aetheria.id"":""b""}}]}"));
+        Assert.Equal(new Dictionary<string, (uint, bool)> { ["a"] = (1, false), ["b"] = (4, true) }, ShipModCatalog.ReadNodeIds(path));
     }
 
     [Fact]
@@ -414,7 +473,7 @@ public sealed class ShipModCatalogTests : IDisposable
         BitConverter.GetBytes((uint)json.Length).CopyTo(bytes, 12);
         BitConverter.GetBytes(0x4E4F534Au).CopyTo(bytes, 16);
         json.CopyTo(bytes, 20);
-        Assert.Equal(new Dictionary<string, uint> { ["a"] = 0 }, ShipModCatalog.ReadNodeIds(Write("full.glb", bytes)));
+        Assert.Equal(new Dictionary<string, uint> { ["a"] = 0 }, Indices(ShipModCatalog.ReadNodeIds(Write("full.glb", bytes))));
     }
 
     // A run store references a mod hull by its key, so the same packages must derive the same records on every launch,
@@ -537,7 +596,10 @@ public sealed class ShipModCatalogTests : IDisposable
     }
 
     private void WritePackage(string id, string hullName = "Skiff", string[] nodes = null, string modelAsset = "skiff.glb",
-        Action<ShipParts> tweak = null) => ShipFixture.WritePackage(Mods, id, hullName, nodes, modelAsset, tweak);
+        Action<ShipParts> tweak = null, string[] meshNodes = null) => ShipFixture.WritePackage(Mods, id, hullName, nodes, modelAsset, tweak, meshNodes);
+
+    private static Dictionary<string, uint> Indices(Dictionary<string, (uint Index, bool HasMesh)> nodes) =>
+        nodes.ToDictionary(node => node.Key, node => node.Value.Index);
 
     private static int Occurrences(byte[] haystack, byte[] needle)
     {

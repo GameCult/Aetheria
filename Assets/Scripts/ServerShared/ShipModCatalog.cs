@@ -177,12 +177,22 @@ public static class ShipModCatalog
         foreach (var anchor in ship.Anchors)
             if (!modelNodes.ContainsKey(anchor.ModelNodeId))
                 throw new InvalidOperationException($"{ship.Id}: model has no node with aetheria.id={anchor.ModelNodeId} for anchor {anchor.Id}.");
+        // A thruster's mesh is its exhaust emission surface and a radiator's mesh is what glows (ruling
+        // thrusters-radiators-are-meshes), so either on an empty node is refused here, before any catalog sees the ship.
+        foreach (var anchor in ship.Anchors)
+            if ((anchor.Role == "thruster-emitter" || anchor.Role == "radiator-mesh") && !modelNodes[anchor.ModelNodeId].HasMesh)
+                throw new InvalidOperationException($"{ship.Id}: {anchor.Role} anchor {anchor.Id} needs a mesh, but model node {anchor.ModelNodeId} has none.");
         CultRecordRefs.Validate(hull);
-        return new Package { Hull = hull, Visual = ship, ModelPath = modelPath, NodeIndices = modelNodes };
+        return new Package
+        {
+            Hull = hull, Visual = ship, ModelPath = modelPath,
+            NodeIndices = modelNodes.ToDictionary(node => node.Key, node => node.Value.Index, StringComparer.Ordinal)
+        };
     }
 
-    // GLB is the xenos asset boundary. Only its node extras are read here; geometry belongs to the runtime importer.
-    public static Dictionary<string, uint> ReadNodeIds(string path)
+    // GLB is the xenos asset boundary. Only its node extras, and whether each node names a mesh, are read here; geometry
+    // belongs to the runtime importer.
+    public static Dictionary<string, (uint Index, bool HasMesh)> ReadNodeIds(string path)
     {
         using var stream = File.OpenRead(path);
         using var reader = new BinaryReader(stream);
@@ -193,14 +203,14 @@ public static class ShipModCatalog
         if (reader.ReadUInt32() != 0x4E4F534A || chunkLength > stream.Length - stream.Position)
             throw new InvalidOperationException($"{path}: missing GLB JSON chunk.");
         var json = JObject.Parse(Encoding.UTF8.GetString(reader.ReadBytes((int)chunkLength)));
-        var ids = new Dictionary<string, uint>(StringComparer.Ordinal);
+        var ids = new Dictionary<string, (uint Index, bool HasMesh)>(StringComparer.Ordinal);
         var nodes = json["nodes"]?.OfType<JObject>() ?? Enumerable.Empty<JObject>();
         uint index = 0;
         foreach (var node in nodes)
         {
             var id = (string)node["extras"]?["aetheria.id"];
             if (string.IsNullOrEmpty(id)) { index++; continue; }
-            if (!ids.TryAdd(id, index))
+            if (!ids.TryAdd(id, (index, node["mesh"] != null && node["mesh"].Type != JTokenType.Null)))
                 throw new InvalidOperationException($"{path}: duplicate GLB node aetheria.id={id}.");
             index++;
         }
