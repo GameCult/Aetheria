@@ -88,6 +88,23 @@ public static class ShipAuthoringStore
         cache.UpsertAsync(typeof(ShipAuthoring), visual, ShipModCatalog.AuthoringKey(visual.Id)).GetAwaiter().GetResult();
     }
 
+    // A new mod hull that flies like a shipped one. Every member of the reference is copied through the type's own
+    // MessagePack round trip, so a member added to HullData later is copied too; then the six that are the shipped ship's
+    // own body and layout are reset: Name, Shape (one occupied cell, so the record loads), Hardpoints, Prefab, Schematic,
+    // and Visual, which names this mod's visual record.
+    public static HullData HullLike(HullData reference, string name, string shipId)
+    {
+        var options = CultDocumentMessagePackSerialization.OptionsFor(typeof(HullData).Assembly);
+        var hull = MessagePackSerializer.Deserialize<HullData>(MessagePackSerializer.Serialize(reference, options), options);
+        hull.Name = name;
+        hull.Shape = new Shape();
+        hull.Hardpoints = new List<HardpointData>();
+        hull.Prefab = null;
+        hull.Schematic = null;
+        hull.Visual = new CultRecordRef<ShipAuthoring>(ShipModCatalog.AuthoringKey(shipId));
+        return hull;
+    }
+
     // The structure of a ship file, without judging its content (drafts load): exactly one hull and one visual, each at
     // its deterministic key, the hull naming that visual by its typed ref.
     public static (HullData Hull, ShipAuthoring Visual) Load(string path)

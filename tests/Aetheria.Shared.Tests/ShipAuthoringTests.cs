@@ -420,6 +420,32 @@ public sealed class ShipAuthoringTests
             }
         };
     }
+
+    // create --like: the shipped hull's stats, never its body or layout. Every member a reference carries is copied,
+    // including one this test does not name, because the copy goes through the type's own serializer.
+    [Fact]
+    public void HullLikeCopiesStatsButNotTheBodyOrLayout()
+    {
+        var reference = new HullData
+        {
+            Name = "Djinni", Price = 1234, Durability = 56, Mass = 78, Armor = 9, Drag = 0.25f, CanTow = true,
+            HullType = HullType.Ship, Shape = new Shape(3, 2), Prefab = "prefab-guid", Schematic = "schematic-guid",
+            Hardpoints = new List<HardpointData> { new HardpointData { Type = HardpointType.Thruster, Shape = new Shape(), Transform = "aft" } },
+        };
+        reference.Shape.Cells[2, 1] = true;
+        var hull = ShipAuthoringStore.HullLike(reference, "Gale", "mod.gale");
+
+        Assert.Equal((1234, 56f, 78f, 9f, 0.25f, true, HullType.Ship),
+            (hull.Price, hull.Durability, hull.Mass, hull.Armor, hull.Drag, hull.CanTow, hull.HullType));
+        Assert.Equal("Gale", hull.Name);
+        Assert.Equal((1, 1, true), (hull.Shape.Width, hull.Shape.Height, hull.Shape.Cells[0, 0]));
+        Assert.Empty(hull.Hardpoints);
+        Assert.Null(hull.Prefab);
+        Assert.Null(hull.Schematic);
+        Assert.Equal(ShipModCatalog.AuthoringKey("mod.gale"), hull.Visual.Key);
+        // A copy, not the reference: the reference keeps its own body.
+        Assert.Equal(("Djinni", "prefab-guid", 1), (reference.Name, reference.Prefab, reference.Hardpoints.Count));
+    }
 }
 
 // One ship's two records: the hull and the visual it names.
