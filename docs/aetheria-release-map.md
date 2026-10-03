@@ -777,6 +777,8 @@ left alone.
 
 ### The Blender package action
 
+*The GLB export and `ModelAsset` below are superseded by "Ship data all in the `.cc`": Package writes `ShipModel` into `ship.cc`.*
+
 The add-on today binds a collection, captures LineArt, and edits the grid and
 hardpoints. It writes no anchors and exports no GLB (`moddable-ship-authoring.md`
 proof gate 2). The design aims at one thing: the operator's time per hull, at one
@@ -1575,6 +1577,424 @@ the IR is a cache of one lowering of it.
   (M20 P5).
 - Region-luminance tint (r2): every channel now places a whole material.
 
+### Ship data all in the `.cc`
+
+The operator, 2026-10-03, admitted as ruling `ship-data-all-in-cc`: "I want all
+the data to live in the .cc. there's no reason our schemas can't hold everything
+we need and it means we benefit from the cross runtime guarantees CultLib
+offers". It restates MQ1 (2026-09-30), "a ship .cc holds everything", which the
+GLB path contradicted.
+
+This section moves the hull's geometry, node tree, surfaces and images out of
+`ship.glb` and the planned PNG sidecars into one typed record in `ship.cc`. It
+changes the package format, the Package action, the validator, the runtime
+loader and five specs. Anchors are against Aetheria `origin/master` `4895c752`
+and CultLib `main` `a7966142`, read on 2026-10-03.
+
+#### Body facts
+
+**M26. The GLB is read in three places, and only for its scene graph and
+meshes.**
+- The add-on exports it at Package with `export_extras` and `export_yup`
+  (`aetheria_ships/__init__.py:343-366`, called at `:385`). The anchors and the
+  layout already go into the `.cc` (`:386`, `ship_cc.py:116-140`).
+- `ShipModCatalog.Bind` reads only the JSON chunk's node `extras` and whether each
+  node names a mesh (`ShipModCatalog.cs:168-218`, through Newtonsoft). AetherDb
+  `validate` reaches it through `ReadPackage` when the file exists
+  (`ShipAuthoringCommands.cs:34-45`).
+- `ShipModVisual.LoadAsync` imports it with glTFast and maps anchors to node
+  indices (`ShipModVisual.cs:33-60`). The assembler then reads three things per
+  node (`ShipModShips.cs:85-120`):
+  - the `MeshRenderer`, for the map icon, the thrusters and the radiators;
+  - the readable `MeshFilter` mesh, for the hull collider;
+  - the shield marker's local scale.
+- glTFast has no other consumer:
+  - `ShipModVisual.cs` is its only `using GLTFast`, and `Packages/manifest.json:9`
+    is its only pin.
+  - `ShipFixture.cs:29-85` hand-builds a GLB for the tests.
+  - `ShipModPreview.cs:28,125` goes through `LoadAsync`.
+
+**M27. No package is committed.**
+- `git ls-tree` of `4895c752` holds no `ship.cc`, `.glb` or `GameData/Mods` path.
+  Only the operator's local drafts exist, and Package landed today (`7d649d5c`).
+- `.gitattributes` puts `GameData/*.cc` and `*.png` in LFS.
+  `GameData/Mods/<id>/ship.cc` matches neither rule.
+
+**M28. CultCache sets no record size limit, but the single-file store works on
+the whole file.**
+- C#: `SingleFileBackingStore` reads the snapshot whole and deserializes every
+  record (`CultCache.cs:3290-3320`). It writes through a temp file and
+  `File.Replace`. It refuses a schema that is not registered (`ToStoredDocument`,
+  `:3209`). So every reader of a ship file must register every record type in it.
+- Python: the MessagePack store's `push` pulls the whole store, replaces one
+  envelope and rewrites the file (`stores.py:103-121`). A record it did not
+  touch is carried as raw bytes.
+- The binding limits are MessagePack's bin32 (4 GiB per value) and .NET's 2 GiB
+  array. A ship file at tens of MiB is far inside both. The real cost is that
+  every Save Layout rewrites the whole file.
+- When Python writes a record kind first, it gets `_default_catalog_entry`: an
+  empty member list (`stores.py:356-368`). So Python may only replace payloads of
+  records whose catalog entry C# wrote. That matches the standing rule that
+  Python never builds a `HullData`.
+
+**M29. CultLib's typed mesh is a chunk payload, not a model.**
+- `GameCult.Geometry` has `CultGeometryTriangleMesh`: positions, normals, UVs,
+  indices and a material per triangle (`CultGeometryDocuments.cs:370-395`).
+- It has no tangents, no submesh ranges, no node tree and no images.
+- Its fingerprint keys the `chunk_artifact` record, so a field added to it
+  changes chunk keys.
+- It has no Python, TypeScript or Rust mirror.
+- `GameCult.Geometry.dll` is not in the CultLib Unity package
+  (`unity/org.gamecult.cultlib/Runtime/Plugins`).
+
+**M30. Blender's conventions already line up with the runtime.**
+- `ShipPolyline` stores Blender's right-handed Z-up space, and the runtime
+  converts with (−x, z, −y) (`ShipModVisual.cs:85-112`).
+- Blender's UV origin and `Image.pixels` row order are bottom-left, and so are
+  Unity's mesh UVs and `Texture2D.LoadRawTextureData`. glTF is top-left, which is
+  why the exporter and glTFast each flip V.
+- Both facts come from the documentation. A probe in `ships-cc-model` proves
+  them.
+
+#### The design in brief
+
+```
+Blender collection                    ship.cc (one file, the only truth)
+ objects, evaluated meshes  --+       HullData        mod-hull:<id>    (C# writes; Python edits layout)
+ material slots, images       +-->    ShipAuthoring   mod-ship:<id>    (anchors, lines, later Paint)
+ (Package, Python, raw slots) |       ShipModel       mod-model:<id>   (nodes, meshes, surfaces, images)
+                              |
+AetherDb ship-authoring       +-- seed-model (C# writes the record's catalog entry), validate
+Unity preload: ShipModel -> GameObjects, Mesh, Texture2D (no importer)
+Compose: HullData + ShipAuthoring into the derived catalog; ShipModel stays in the package
+```
+
+**`ShipModel`** is `[CultDocument("aetheria.ship_model", "1")]`, stored at
+`mod-model:<id>`.
+- One record holds the whole body.
+- Its space is Blender's: right-handed, Z up, metres, UV origin bottom-left.
+
+| Key | Member | Type | Meaning |
+|---|---|---|---|
+| 0 | `Id` | string, `[CultName]` | The ship id |
+| 1 | `Nodes` | `List<ShipNode>` | Parents before children |
+| 2 | `Meshes` | `List<ShipMesh>` | Indexed by `ShipNode.Mesh` |
+| 3 | `Surfaces` | `List<ShipSurface>` | Indexed by `ShipSubmesh.Surface` |
+| 4 | `Images` | `List<ShipImage>` | Indexed by the surface and paint slots |
+
+- **`ShipNode`:**
+  - `Id`: the node's `aetheria.id`, or null for an unanchored render node;
+  - `Parent`: an index, or −1 for the root;
+  - `Translation` (float[3]), `Rotation` (float[4], xyzw) and `Scale` (float[3]);
+  - `Mesh`: an index, or −1 for none.
+- **`ShipMesh`:**
+  - one typed array per attribute: `Positions` (float[3n]), `Normals` (float[3n]),
+    `Tangents` (float[4n], w is the bitangent sign) and `Uv0` (float[2n]);
+  - `Indices` (uint[]);
+  - `Submeshes`, each with `IndexStart`, `IndexCount` and `Surface`.
+
+  Triangles only. Bounds are not stored, because every runtime computes them.
+- **`ShipSurface`:**
+  - `Name`: the Blender material's name, for display;
+  - `BaseColor`: an image index, or −1;
+  - `BaseColorFactor` (float[4]).
+
+  `ships-hull-material` r3 appends the slots its shader reads, such as the normal
+  map and emission.
+- **`ShipImage`:**
+  - `Width` and `Height`;
+  - `Format`, an enum open to later members: `Rgba8Srgb` and `Rgba8Linear` now,
+    plus the block formats if question `ship-image-encoding` rules them;
+  - `Levels` (`List<byte[]>`): mip 0 first, rows bottom to top, tightly packed.
+
+  An image has no role of its own: the slot that names it gives it one.
+- `ships-addon-paint` r3 appends `Mask` and `Maps` to `ShipModel` as image
+  indices. They are not PNG files.
+
+**`ShipAuthoring`.**
+- Key 2 (`ModelAsset`) is retired and never reused, as key 1 was.
+- Nothing in it names the model. The model sits at its deterministic key beside
+  the hull and the visual, and `LoadRecords` already enforces the keys of those
+  two.
+- A file that still carries key 2 loads with no model record, so it is a draft.
+  Nothing is lost silently, because the GLB beside it was never the truth.
+
+**Why the model stays out of the derived catalog.**
+- `Compose` rewrites `Aetheria.modded.cc` every boot (M28). Copying ten hulls at
+  30 to 80 MiB each into it would rewrite hundreds of MiB per boot.
+- So `Compose` keeps writing only the two semantic records.
+- `PackageOf` opens `<modsRoot>/<id>/ship.cc` read-only and takes `ShipModel`
+  from it. The game reads the body from the same file the operator authored.
+
+**Writer: Package, with no GLB.**
+1. `AetherDb ship-authoring seed-model <ship.cc>` adds an empty `ShipModel` at
+   `mod-model:<id>` when none is there.
+   - It is idempotent.
+   - C# writes the catalog entry, so Python only ever replaces a payload (M28).
+   - Drafts made before this cut take the same path, so no migration branch is
+     needed.
+2. Python packs the body by slot in `ship_cc.replace_model`, pinned like the
+   anchor and hardpoint slots, and pushes it. The add-on builds the body:
+   - **Nodes** come from the bound collection, leaving out `Source` and Grease
+     Pencil. A node's TRS is relative to its nearest ancestor in the collection.
+   - **Meshes** come from the evaluated depsgraph, with modifiers applied:
+     - numpy, which Blender bundles, splits corners into vertices by position,
+       normal, tangent and UV;
+     - `calc_tangents` runs on UV0;
+     - each material slot becomes a submesh.
+   - **Surfaces** come from the material slots, and **images** from the images
+     those slots use:
+     - capped at 2048 (the cap moves here from `ships-addon-mounts`);
+     - read with `pixels.foreach_get`;
+     - written as RGBA8 in the image's colour space.
+   - The body is packed with `msgpack.packb(..., use_single_float=True)`. Without
+     that flag each float costs 9 bytes instead of 5.
+3. `replace_visual` writes the anchors only.
+4. `AetherDb ship-authoring validate` judges all three records.
+
+**Reader: Unity builds from records.** `ShipModVisual.Load` becomes synchronous.
+- It makes a `GameObject` per node and converts TRS with the line mesh's
+  (−x, z, −y). That conversion moves into one `ShipSpace` helper shared by lines
+  and meshes.
+- For each mesh it builds a `Mesh`:
+  - UInt32 indices above 65,535 vertices;
+  - positions, normals and tangents converted the same way;
+  - tangent w negated and each triangle's winding reversed, because the map is a
+    reflection;
+  - UVs passed through;
+  - the mesh kept readable for the collider.
+- For each image it builds a `Texture2D` with `LoadRawTextureData`, generates
+  mips, runs `Compress`, and makes the texture non-readable.
+- Until `ships-hull-material` r3, every surface takes one interim template
+  material with its base colour. r3 replaces it with `Aetheria/Hull`.
+- These go: glTFast, `UninterruptedDeferAgent`, the `Nodes` instantiator
+  subclass, `NodeIndices` and `ModelPath`.
+
+**Validation moves onto records.** `ShipAuthoringStore.Validate(hull, ship,
+model)` is the one judge. `model` is null for a draft. It checks:
+- node ids are unique, and every anchor's `ModelNodeId` names one;
+- parents come before children, and every index is in range;
+- each `thruster-emitter`, `radiator-mesh`, `map-icon` or `hull-collider` node
+  has a mesh. Today the first two are checked at `Bind` and the last two only in
+  Unity;
+- the streams:
+  - their lengths match the vertex count;
+  - every float is finite;
+  - every index is below the vertex count;
+  - submesh ranges lie inside the index buffer;
+- the images:
+  - each level is sized exactly for its format;
+  - no side is over 2048;
+  - each image is in a colour space its slot allows.
+
+`Bind` keeps the directory and refs checks, and loses `ReadNodeIds`. AetherDb
+`validate` always reads records, and says "draft, no model yet" when the model
+is missing.
+
+**Sizes.** These are estimates for Headliner (50,008 triangles).
+`ships-cc-package` measures them.
+
+| Part | Raw RGBA8, mip 0 | Block formats with mips |
+|---|---|---|
+| Mesh: ~30k vertices × 12 floats at 5 bytes, plus indices | ~2.3 MB (9.5 MB if every triangle were split) | same |
+| One 2048² image | 16 MiB | 5.3 MiB (BC7 or BC5) |
+| First cut: base colour only | ~19 MiB | ~8 MiB |
+| After paint and r3: base, normal, emission, mask, maps | ~83 MiB | ~29 MiB |
+
+- No CultCache limit binds here (M28).
+- What matters is that every Save Layout rewrites the file. At 80 MiB that is
+  roughly a second in Python, against milliseconds today. That is one input to
+  question `ship-image-encoding`.
+- `GameData/Mods/*/ship.cc` needs an LFS rule (M27). `ships-cc-package` adds it,
+  so `ships-player` no longer has to.
+
+#### Authority map
+
+- **Owner.**
+  - `ship.cc` owns everything about a mod ship.
+  - `ShipModel` owns its body: nodes, meshes, surfaces and images.
+  - `ShipAuthoringStore.Validate` is the one judge of all three records.
+  - C# owns every schema and catalog entry. Python (`ship_cc`) is a pinned writer
+    of payloads that C# seeded.
+- **Inputs.**
+  - Package reads the bound collection's evaluated meshes, materials and images.
+  - The validator reads the three records.
+  - `PackageOf` reads the package's `ship.cc`.
+  - `ShipModVisual` reads the `ShipModel` record.
+- **Outputs.**
+  - The records.
+  - The prototypes' GameObjects, `Mesh` and `Texture2D`. These are cache only and
+    rebuilt every boot.
+- **Derived state.**
+  - Bounds, the Unity-space conversion, mips and compressed textures are derived
+    at load.
+  - The `.blend` is the operator's source. It never decides a semantic.
+- **Forbidden writers.**
+  - Any GLB, glTF or PNG file in a package.
+  - glTFast, or any other importer, on the mod-ship path.
+  - Newtonsoft reading a package.
+  - Python writing a record kind that C# has not seeded.
+  - A second validator, in Python or in Unity.
+  - `Compose` copying `ShipModel` into the derived catalog.
+- **Shared paths.** Each of these reads one `ShipModel` through one `Validate`
+  and one `ShipModVisual.Load`:
+  - the add-on's Package;
+  - AetherDb `validate` and `compose`;
+  - the Editor preview and smoke;
+  - the play smoke;
+  - the built player.
+- **Deletion line,** before the reader lands:
+  - `_export_glb` and `MODEL_ASSET`;
+  - `ModelAsset` and `MODEL_ASSET_SLOT`;
+  - `ReadNodeIds` and its Newtonsoft use;
+  - `Package.ModelPath` and `NodeIndices`;
+  - the `GltfImport` path and the glTFast pin;
+  - `ShipFixture.Glb` and `GlbJson`, and the GLB-shape tests
+    (`ShipModCatalogTests.cs:107-140`).
+
+#### Questions
+
+**`ship-model-owner`: who owns the model schema?**
+- **a. Aetheria, now,** as `aetheria.ship_model`. It is shaped after glTF so that
+  a later lift into CultLib is a schema move with a migration. The lift happens
+  when a second consumer needs it (follow-up `cultlib-model-schema`).
+- **b. CultLib, now:** `GameCult.Geometry` gains `gamecult.geometry.model`, ships
+  it in the CultLib Unity package, and Aetheria wraps it.
+- **c. Extend `CultGeometryTriangleMesh`.** That changes chunk keys (M29) and
+  still has no node tree or images. Not recommended.
+- **Recommendation: a,** with medium confidence.
+  - The guarantees the ruling names are CultCache's: typed envelopes, the schema
+    catalog, slot parity across runtimes, and Python writing pinned slots. They
+    hold for an Aetheria record exactly as they do for a CultLib one.
+  - A CultLib model type would have to serve a general consumer. That means more
+    UV sets, colours, skinning, morph targets and instancing: a glTF-sized
+    surface, mirrored in every runtime. Aetheria needs about a sixth of it.
+  - It would also put a CultLib cut and a Unity release in front of the release
+    hulls.
+- **Prior art.** No engine adopts a neutral interchange format as its runtime
+  format. Each owns a binary form fitted to its loader.
+  - glTF 2.0 keeps one typed accessor per attribute and one primitive per
+    material.
+  - Unity's `Mesh` takes one array per attribute, and `SubMeshDescriptor` ranges
+    over one index buffer.
+  - Godot's `ArrayMesh` keeps per-surface arrays.
+  - Bevy's `Mesh` keeps an attribute map, with U16 or U32 indices.
+  - Unreal splits positions from tangents and UVs into separate vertex buffers.
+  - `ShipMesh` takes their common subset: one array per attribute, which
+    MessagePack types element by element, and submesh ranges.
+  - These are from the engines' documentation and were not re-fetched for this
+    pass.
+
+**`ship-image-encoding`: how are images stored?**
+- **a. RGBA8, mip 0 only.** Unity generates mips and compresses at load
+  (`Texture2D.Compress`, DXT5).
+- **b. Block formats with mips, encoded at Package:** BC7 for colour, mask and
+  maps, BC5 for normals.
+  - Unity loads them with `LoadRawTextureData`, with no decode and no compress
+    hitch.
+  - This needs a native encoder in Blender's Python, supplied by Brokkr: bc7enc
+    (MIT or public domain), etcpak (BSD-3) or Intel's ISPC Texture Compressor
+    (MIT).
+- **c. PNG bytes inside the record,** decoded by `ImageConversion`.
+- **Recommendation: `raw-then-bc`.** `Format` and `Levels` go in the schema from
+  day one; a for the first cut; b as the release encoding, in cut
+  `ships-cc-image-bc`. Confidence is medium-high. The other options are
+  `bc-now`, `raw-only` and `png`.
+  - b makes the file about a third the size, so every save writes less.
+  - b matches the VRAM budget the material plan already assumes (BC).
+  - b removes the load-time compress, which costs hundreds of milliseconds per
+    2048² image.
+  - c puts a xenos codec inside a typed record. Its meaning becomes "whatever a
+    PNG decoder says", not a layout every runtime reads the same way. It still
+    pays the decode and the compress at load.
+  - KTX2 is the prior art for b's shape: a format, a size and an index of level
+    byte ranges, with block formats as ordinary formats. Unity's `Texture2D` and
+    Godot's `.ctex` store the same thing.
+- If she rules b first, `ships-cc-package` takes the encoder and
+  `ships-cc-image-bc` disappears.
+
+#### Cuts
+
+| Cut | Repo | Depends on | Hands budget | What |
+|---|---|---|---|---|
+| `ships-cc-model` r1 | Aetheria | — | ~130k | The schema; `seed-model`; `Validate` on records; `PackageOf` reading the package; `ShipModVisual.Load` from records; glTFast removed; fixtures as records; the coordinate probe; the doc |
+| `ships-cc-package` r1 | Aetheria | `ships-cc-model` | ~110k | `ship_cc.replace_model`; Package without a GLB; the image cap; Blender tests and the headless smoke; the LFS rule; sizes measured |
+| `ships-cc-image-bc` r1 | Aetheria | `ships-cc-package`, `ship-image-encoding` | ~90k | BC7 and BC5 with mips at Package; `LoadRawTextureData` |
+
+**The smallest first cut.** The smallest step that gets her authoring onto the
+`.cc` alone is `ships-cc-model` followed by `ships-cc-package`, merged to master
+together.
+- `ships-cc-model` alone would leave the add-on writing a GLB that nothing reads.
+- No package is committed (M27), so the pair breaks nothing in the repo. The
+  operator's drafts go through `seed-model` on their next Package.
+
+Spec and question drafts for admission, bounds-checked:
+`F:\Projects\eureka-scratch-carry\ship-cc\` (`model.json`, `package.json`,
+`questions.json`).
+
+**Specs this changes.** The Superseded resolutions are Self's to admit.
+- **`ships-hull-material` r2, superseded by r3.** r3 folds this section into
+  "Hull materials as owned graphs":
+  - no glTFast generator: `ShipModVisual` builds materials from `ShipSurface`;
+  - `HullPaint` keeps the graph and the livery, and drops the PNG paths;
+  - Bind's PNG checks become image checks in `Validate`;
+  - surfaces gain the normal and emission slots.
+- **`ships-addon-paint` r2, superseded by r3.** Package writes the mask and maps
+  as `ShipModel` images. There is no PNG export and no `paint --mask <path>`.
+- **`ships-player` r2, superseded by r3:**
+  - "glTFast's shader variants in the player" and the no-`glTF/`-shader check
+    are dropped;
+  - the LFS rule moves to `ships-cc-package`;
+  - the preload log line sums image memory from the records;
+  - it depends on `ships-cc-package`.
+- **`ships-addon-frame` r3, superseded by r4.** "The export leaving out `Source`"
+  becomes "the model writer leaves out `Source`".
+- **`ships-addon-mounts` r3, superseded by r4.** The texture cap leaves it.
+- **The material-system plan,** which is not admitted:
+  - `hull-bakes`' pair key hashes the mask and maps image bytes instead of PNG
+    files;
+  - "the GLB's slots" becomes "the model's surfaces".
+- **`ships-addon-package` r2 needs no revision,** because it has landed.
+  `ships-cc-package` deletes its GLB export, and `ships-cc-model` deletes its GLB
+  read in `validate`.
+
+**Order:**
+- `ships-cc-model` can start now.
+- `ships-addon-frame` and `ships-addon-mounts` touch `__init__.py`, as
+  `ships-cc-package` does. Land the pair before those two.
+- `ships-hull-material` r3 and `ships-addon-paint` r3 then build on records from
+  the start.
+- Follow-up `variants-python-raw-push` gains a consumer: `replace_model` is a
+  raw push, like the other two.
+
+#### Model page rows
+
+| Kind | Identity | Lifecycle | Authority |
+|---|---|---|---|
+| Ship model | `mod-model:<id>` in the package's `ship.cc` | Seeded by `seed-model`; rewritten whole by every Package | Package writes it and `Validate` judges it. It is never copied into the derived catalog |
+| Ship image | An entry of `ShipModel.Images`, named by a surface or paint slot | Captured from Blender at Package, capped at 2048 | The operator's images; `Validate` judges size and format |
+| Mod body prototype | Hull record key | Built at boot from `ShipModel` | `ShipModVisual.Load`. Cache only |
+
+#### Rationale
+
+**Why one record and not a record per image.**
+- Separate image records would need typed refs from `ShipModel` and from
+  `HullPaint`, plus an orphan check.
+- `HullPaint` sits in the derived catalog and `ShipModel` does not, so a ref from
+  one to the other would dangle there.
+- Every Package writes all the images anyway, and the C# store decodes every
+  registered record either way.
+- One record has no refs to keep and nothing to orphan.
+
+**Why Python packs the body instead of handing it to C#.** Any handoff from
+Blender to AetherDb needs a transport. A temporary file in another format would
+be the GLB again. Python writing slots pinned by `ShipSchemaPinTests` is the
+contract the hull layout and the anchors already use, and C# stays the one judge.
+
+**Why not keep the GLB as a cache beside the record.** A second copy of the body,
+with its own reader, is a second owner. Nothing in the game needs glTF. The
+loader from records is about the size of the glTFast glue it replaces.
+
 ### S3: the first playable mod ship in a built player
 
 - **First hull: Headliner.**
@@ -1636,7 +2056,7 @@ the IR is a cache of one lowering of it.
 | Ship package | `GameData/Mods/<id>/`; `<id>` is `ShipAuthoring.Id`, lower-case and stable across renames. | Created by `ship-authoring create`, edited daily in Blender, validated by C#. Removing it makes Continue refuse runs that used it (MQ4). | The package's two records. The `.blend` in `Asset Sources/` is the operator's source and never the owner of semantics. |
 | Hull record | `mod-hull:<id>` in the package. | Stats seeded from a reference hull at create; layout written by Blender's Save and Package. | `HullData` in the package: cells, hardpoints, stats. How it gets a manufacturer is question `release-hull-home`. |
 | Anchor | `ShipAnchor.Id`, equal to the mount id for mounts and to the GLB node's `aetheria.id`. | Written whole by Package from role-tagged objects. Unknown tail slots are carried by id. | Blender objects tagged `aetheria.role` propose; the C# validator decides. |
-| GLB | `ShipAuthoring.ModelAsset`, relative, in the package. | Re-exported by every Package. | Derived from the collection. The package directory supplies it to the game, and the game reads nothing else from there. |
+| GLB | Retired by "Ship data all in the `.cc`": the body is `ShipModel` at `mod-model:<id>`. | Was re-exported by every Package; `ships-cc-package` deletes the export. | None. `ShipAuthoring` key 2 is retired. |
 | Derived catalog | `Aetheria.modded.cc` in the persistent data path. | Recomposed every boot, and disposable. | `ShipModCatalog.Compose`. Never authored. |
 | Mod prototypes | Hull record key. | Built at boot, kept across scenes, gone at exit. | `ShipModShips.Preload`. Cache only. |
 
