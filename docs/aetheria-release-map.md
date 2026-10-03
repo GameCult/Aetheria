@@ -142,10 +142,10 @@ that must be pinned headless must live in `ServerShared`.
 | Player feedback preferences (shake, volumes) | `PlayerSettings` global, player store, keys under `GraphicsSettings` (shake) and a new `AudioSettings` (volumes). | Edited in the settings menu and saved on Back. A new key defaults on load. | The player, through the menu. No runtime writer. |
 | Presentation tuning (effect prefab, intensity scale, impulse shape, sound bank) | A Unity component or asset in `Assets/Content`. | Authored in the editor and versioned with the scene. | The operator. It stays Unity-serialized by fork M (a). |
 | Sound assets | The file under `Assets/Audio`, copied from the Wwise `Originals`. Provenance is recorded per file. | Added per cut. The Wwise project stays as the source archive until `audio-route` and `audio-source-rights` are ruled. | The operator, on rights (`audio-source-rights`). |
-| Ship content (`ShipAuthoring` with GLB) | `aetheria.ship_authoring` id. GLB nodes carry an `aetheria.id` extra. | Owned by the moddable-ships lane until it merges. | The moddable-ships rulings (MQ1-MQ5). This campaign adds no owner. |
+| Ship content (`ShipAuthoring` with GLB) | `aetheria.ship_authoring` id. GLB nodes carry an `aetheria.id` extra. | Adopted by this campaign (ruling `adopt-moddable-ships`). Rows for the package, its anchors and the derived catalog are in "Content: the moddable-ships lane" below. | The moddable-ships rulings (MQ1-MQ5) and this campaign's content strand. |
 
-No cell is empty for the two mapped cuts. The content rows defer to a lane this
-campaign does not own until question `content-lane-owner` is ruled.
+No cell is empty for the two mapped cuts. The content rows are mapped in their own
+section below.
 
 ## Rationale
 
@@ -571,3 +571,392 @@ cut rewrites exactly those lines.
   once while the rest posture. From memory; no primary source fetched.
 - The US Navy's Cooperative Engagement Capability, which engages on remote fused
   tracks. From memory; cited as the path not taken.
+
+## Content: the moddable-ships lane
+
+The operator ruled on 2026-10-03 that this campaign adopts `codex/moddable-ships`
+whole (ruling `adopt-moddable-ships`). This section maps what the adoption takes:
+S2's owed checks, the merge, the Blender package action and S3. S5 stays with the
+variants campaign. The cuts are typed specs in the mind (`ships-merge`,
+`ships-mounts`, `ships-addon-package`, `ships-addon-frame`, `ships-addon-mounts`,
+`ships-player`), and the forks are questions (`ships-merge-gate`,
+`release-hull-home`, `s3-player-build`).
+
+Anchors are against the lane tip `a93625c2`, read with `git show` on 2026-10-03.
+For files the lane does not touch, they hold on `origin/master` `f1dee184` too.
+The lane's own docs (`docs/moddable-ships-cut.md`,
+`docs/moddable-ship-authoring.md`) are body facts from here on.
+
+### Body facts
+
+**M1. The merge into master is trivial.** All 21 commits on `origin/master` since
+the lane's base `65c63495` are `Scenarios map:` doc commits.
+`git merge-tree --write-tree origin/master origin/codex/moddable-ships` is clean
+(tree `7e034e04`). No file is changed on both sides. Fire control and the stack
+reached the lane through its own merge `18e12d81` on 2026-09-30.
+
+**M2. The lane conflicts with the two other open lanes, one line each.**
+- `codex/mining` (`83d8371e`): `AetheriaStores.cs:9` (`CatalogTypes`; mining adds
+  `FieldKindData`, ships add `ShipAuthoring`) and `tools/AetherDb/Program.cs:39-41`
+  (a `case` line and the usage string).
+- `codex/scenarios` (`aa3baf12`): `AetheriaStores.cs:9` (scenarios add `Scenario`).
+  `Program.cs`, `ItemData.cs`, `Loadout.cs` and `LoadoutTests.cs` merge on their own.
+- The resolution is a union in both: keep every type and every command.
+- Probe: `git merge-tree --write-tree origin/<lane> origin/codex/moddable-ships`.
+
+**M3. The cuts already mapped in this campaign meet the lane in one file.**
+- The lane edits `UI/MainMenu.cs` in `ShowMain` and inserts `EnterGame` and `Refuse`
+  just before `ShowSettings` (lane `:195-218`).
+- `audio-1` edits `ShowSettings` (master `:186-200`), so expect an adjacent-hunk
+  conflict there. Resolve it by keeping both.
+- `feedback-1` edits `ShowGraphicsSettings`, which the lane does not touch.
+- Neither cut touches `ActionGameManager.cs`, `ZoneRenderer.cs` or the lane's new
+  files.
+
+**M4. The mount ruling of 2026-09-30 is in the docs, not the code.**
+- `a93625c2` records it: a mount anchor exists only for weapon, radiator and
+  thruster hardpoints.
+- The validator still demands an anchor for every hardpoint
+  (`ShipAuthoring.cs:222-230`), and a weapon's mount must have the role
+  `articulation`.
+- `ShipModPlan` copies every mount into `Equipment` (`ShipModPlan.cs:13-14,56`).
+  `ShipModShips` fills `EquipmentHardpoints` from it (`ShipModShips.cs:152`).
+- The only reader of `EquipmentHardpoints` is the dead `SoundBank` block
+  (`EntityInstance.cs:244-253`), which `audio-1` also deletes. So the array has no
+  consumer.
+- Role-versus-type checks are split. The validator checks thruster and radiator
+  mounts. `ShipModPlan.Build` checks that an emitter is a mount (`:30-35`) and that
+  muzzles hang off weapons (`:38-48`).
+
+**M5. A package can reach the game only through the console.**
+- Generation, station stock and the starting ship all choose from
+  `FactionProductData` (`LoadoutGenerator.RandomProducts`; `RandomHull` at
+  `LoadoutGenerator.cs:113`).
+- A product names a design and a manufacturer `Faction`
+  (`FactionProduct.cs:15-31`). Generation also requires `Price > 0`.
+- A package holds only `HullData` and `ShipAuthoring` (`ShipAuthoring.cs:126-140`
+  refuses a third record; `ship_cc.py:81-82` does the same).
+- So the only way into a zone is the `give <hull name>` console command while
+  docked (`ActionGameManager.cs:527-556`). It commissions a bare hull at the
+  station.
+- A grep of `ConsoleController` and `ConsoleView` found no debug-build gate. It is
+  assumed live in a player; `ships-player` checks it.
+- `ship-authoring create` writes a `HullData` with default stats and `Price` 0
+  (`ShipAuthoringCommands.cs:38-56`).
+- Question `release-hull-home` asks how a release hull gets its manufacturer and
+  price.
+
+**M6. The model must sit on the schematic grid.**
+- `Entity.ToWorldPoint` (`Entity.cs:426-433`) gives
+  `world = (cell − Shape.CenterOfMass) × SchematicCellSize` (2 m, `Settings.cs:255`),
+  with schematic +x to starboard and +y forward.
+- Fire control decides hits in that frame. `feedback-1` places impact sparks at
+  `ToWorldPoint` of the lane entry.
+- A GLB whose origin is not the grid's centre of mass, or whose scale is not 2 m
+  per cell, shows hits beside the hull.
+- Nothing checks this today.
+
+**M7. Axes, probed.**
+- Blender 5.2.2 (`--background --factory-startup`, a cube ship exported with
+  `export_format='GLB', use_active_collection=True, export_extras=True,
+  export_yup=True`):
+  - An object custom property `aetheria.id` lands in the node's `extras`.
+  - Objects outside the active collection are left out.
+  - The GLB has a scene.
+  - Blender `(0, 1.5, 0)` exports as glTF `(0, 0, -1.5)`.
+  - An empty's scale `(2, 3, 1)` exports as `(2, 1, 3)`.
+- With glTFast's handedness flip, Unity sees `(-x, z, -y)`
+  (`ShipModVisual.BuildLineMesh`, `ShipModVisual.cs:98`).
+- So the nose of a ship points along Blender −Y, Blender's own Front, and the
+  ship's starboard side is Blender −X.
+
+**M8. The operator's two Tripo hulls are already in one .blend.** A read-only probe
+of a copy of `C:\Users\Meta\Desktop\Quiet.blend` (Blender 5.2.2):
+
+| Collection | Object | Triangles | Size (Blender units) | Material |
+|---|---|---|---|---|
+| Headliner | `ff611c02…` (and `original`) | 50,008 | 0.68 × 1.00 × 0.35 | one; a 4096² JPG base colour |
+| Quiet | Dexter Quiet | 9,614 | 0.98 × 1.05 × 0.41 | one; a 4096² JPG base colour |
+| Quiet | Sinister Quiet | 10,880 | 1.07 × 1.05 × 0.41 | the same |
+
+- Each collection also holds a Grease Pencil LineArt object. Quiet holds a scaled
+  icosphere, a hand-made shield ellipsoid.
+- Tripo meshes arrive at about 1 unit long, one material, base colour only: no
+  normal, roughness or emissive map. The textures came from FBX imports
+  (`D:\Downloads\tripo_texture_*.fbm`) and are packed into the .blend.
+- Schematic sketches sit beside the .blend: `HeadlinerSchematic.png`,
+  `DexterQuietSchematic.png` and `SinisterQuietSchematic.png`.
+
+**M9. The template lacks a radiator material.**
+- `EntityInstance` heats radiators with `material.SetFloat("_Emission", …)`
+  (`EntityInstance.cs:407-410`). Only Aetheria shaders define `_Emission`
+  (`Assets/Materials/Radiators.mat`).
+- `ShipModTemplate` (`ShipModTemplate.cs:12-16`) carries shield, tractor, ping,
+  destroy effect, invisible and map icon, but no radiator material.
+- A mod radiator therefore keeps its glTF material and never glows.
+- Thruster emitters are particle emission shapes (`ShipInstance.cs:71`,
+  `particlesShape.meshRenderer`). Any mesh works.
+
+**M10. A built player has never loaded a mod ship.** Every proof so far ran in the
+Editor:
+- `ShipModPlaySmoke` and `ShipModPreview.Smoke` passed in Unity 6000.3.24f1
+  (`moddable-ships-cut.md` S2 status).
+- glTFast's manual says a Built-In pipeline player must carry glTFast's shader
+  variants: a `ShaderVariantCollection` in Graphics' Preloaded Shaders, or
+  placeholder materials in `Resources`. This is from the docs, not a probe
+  (https://docs.unity3d.com/Packages/com.unity.cloud.gltfast@6.0/manual/ProjectSetup.html).
+- Whether glTFast keeps meshes readable in a player is also unprobed.
+  `ShipModShips.Assemble` throws if the collider mesh is not readable
+  (`ShipModShips.cs:103-104`).
+- `origin/master` has no player build entry point. `docs/build-delivery-cut.md`
+  Cut 1 maps one (`Assets/Editor/AetheriaBuild.cs`, copying `GameData/Aetheria.cc`).
+  It does not copy `GameData/Mods`, and nobody owns it.
+
+**M11. Git does not yet track packages well.** `.gitattributes` has no `*.glb` rule.
+`GameData/*.cc` covers only direct children of `GameData`, so
+`GameData/Mods/<id>/ship.cc` would be stored as a plain blob.
+
+**M12. The add-on reads CultLib from wherever Brokkr points.** `_libraries` puts
+`<cultlib_py_src>/cultcache-py/src` on `sys.path` (`ship_cc.py:46-52`). Brokkr's
+preference is a working-tree path. Nothing pins the revision the add-on runs
+against. The variants campaign is rewriting Python's write path (spec
+`variants:cut_spec:cut-parity-py.r1`).
+
+### S2's owed checks: what each one checks, and who can prove it
+
+The lane owes six operator checks (`moddable-ships-cut.md`, S2 status). Each check
+is a rule decided in one place, plus the Unity wiring that shows it. The rule is
+agent-provable. The wiring is agent-provable unless it needs clicks through scenes.
+
+| Check | Rule, and where it is decided | Agent proof | Needs the operator |
+|---|---|---|---|
+| C1. The menu names excluded mods | `ShipModCatalog.Compose` and `ResolveCatalog` exclude and name a bad or colliding package, and boot continues. Already headless: `ABadPackageIsExcludedAndNamedWhileTheGoodOnesCompose`, `ACollisionExcludesEveryPackageInvolvedAndNoneOfTheRest`, `TheBootCatalogSurvivesBadPackages`, `TheBootCatalogSurvivesAComposeThatFails`. | Built-player boot smoke (`ships-player`): with one bad package staged, `Player.log` holds `Some mods were not loaded: <dir>: <reason>`. `MainMenu.Refuse` logs it at `MainMenu.cs:213`. | No. |
+| C2. New Game with a mod installed | `EnterGame` waits on `ShipModShips.Loading`, refuses a faulted preload, then loads ARPG (`MainMenu.cs:197-209`). | The preload half: the player smoke's `SHIP_MOD_PRELOAD` line, with no glTFast shader error. | Yes: clicking New Game, and the prototypes surviving the Main Menu → ARPG scene load (`DontDestroyOnLoad`, `ShipModShips.cs:39`). No mod hull appears on New Game anyway (M5). |
+| C3. Continue with a mod | The run stores `mod-hull:<id>` keys, and the recomposed catalog keeps them. Headless: `ComposeAtBootIsDeterministic`. | New sim test `AModShipSurvivesSaveRecomposeAndReopen` (`ships-player`). | A Continue click in the S3 session. |
+| C4. Zone entry | `LoadEntity` branches on `Visual` (`ZoneRenderer.cs:292-294`). `EntityInstance.SetEntity` binds barrels, radiators and thruster emitters by mount name. | `ShipModPlaySmoke` covers instantiation. Extending it to call `SetEntity` over an outfitted mod ship is a probe in `ships-player`. If `SetEntity` needs the live scene, record it as not yet reached. | Yes: the ship looks right, thrusters emit at the nozzles, guns fire from the muzzles, the shield fits, the map icon shows. |
+| C5. Wormhole | Prototypes outlive zone changes, and `LoadEntity` clones again. | Instantiating twice from one prototype in the smoke. | Yes: one transit. |
+| C6. Continue after removal | `RunSave.RequireDesigns` refuses and names the missing mod ids. Headless: `RunReferencingAMissingModRefusesContinue` and its siblings. | Covered by the rule tests. | A glance: the dialog appears on Continue. |
+
+All the operator rows fit in the S3 session, on a built player with the first real
+hull: about fifteen minutes, done once. With no package installed the mod path is
+inert:
+- `ResolveCatalog` returns the shipped catalog
+  (`TheBootCatalogIsTheShippedOneUntilAModIsInstalled`).
+- `Preload` returns at once (`ShipModShips.cs:31`).
+- `Loading` is a completed task.
+
+Merging before the operator session therefore changes nothing a no-mod player sees.
+Question `ships-merge-gate` asks the operator to confirm that.
+
+### The merge
+
+1. Hands creates `eureka/aetheria-release-ships` at `a93625c2`. The Codex branch is
+   never pushed to.
+2. Hands runs `git merge --no-ff origin/master`, which is clean (M1), and verifies:
+   - the headless suite on Yggdrasil (684 at S2; master added no tests);
+   - the Unity compile on Starfire;
+   - both batch smokes against the generated skiff fixture.
+
+   This is cut `ships-merge`.
+3. Soul passes the merge: a narrow pass, because no file changed on both sides.
+4. Self merges the branch into `master` with `--no-ff`, gated by `ships-merge-gate`.
+5. After that, every content cut branches from `master` in its own worktree, on
+   `eureka/aetheria-release-ships-<cut>`. Anchors stay valid, because the master
+   merge changes no lane file.
+6. Mining and scenarios inherit the union resolutions in M2 when they merge
+   (follow-up `lane-merge-union-catalogtypes`).
+
+The stale local ref `codex/moddable-ships` (`375d6bd4`) in the Codex worktree is
+left alone.
+
+### The Blender package action
+
+The add-on today binds a collection, captures LineArt, and edits the grid and
+hardpoints. It writes no anchors and exports no GLB (`moddable-ship-authoring.md`
+proof gate 2). The design aims at one thing: the operator's time per hull, at one
+hull a day. Everything that can be derived from the mesh is generated. Everything
+that needs her eyes takes one click at the 3D cursor.
+
+**Per hull, after the add-on cuts:**
+1. Tripo: image to model, textured. Export GLB. Tripo's smart low-poly option is
+   worth its 10 credits above about 60k triangles.
+2. Blender: import the GLB into a new collection. Press **New Ship**:
+   - Enter the id, the name, a reference hull such as Djinni, and the length in
+     cells.
+   - AetherDb creates `GameData/Mods/<id>/ship.cc` with the reference hull's stats
+     (`create --like`). C# owns the schema, and Python never builds a `HullData`.
+   - The add-on binds the collection, turns the long axis to −Y, scales the mesh to
+     length × 2 m, rasterises a draft grid from the top-down silhouette, and shows
+     the grid as an overlay.
+3. Cleanup, the variable step: delete Tripo debris and check the nose. Decimate if
+   the triangle warning fires.
+4. Mounts. With the 3D cursor on each nozzle, gun and radiator, press **Add
+   Thruster**, **Add Weapon** (Energy, Ballistic or Launcher) or **Add Radiator**.
+   - Each creates the anchor object (an emitter disc, a mount empty with one muzzle,
+     or a panel, or marks the selected object).
+   - Each also creates the hardpoint row on the cell under it, with a 1×1 footprint.
+5. Panel: toggle cells, add the internal hardpoints (reactor, shield, sensors and so
+   on, which carry no anchor), and set footprints.
+6. **Package**, one button:
+   - Recentre the ship on the grid's centre of mass (M6).
+   - Regenerate the structural anchors unless she has marked one as kept:
+     - `hull-collider`: a convex hull of the render meshes, at most 255 faces;
+     - `map-icon`: a flat top-down outline;
+     - `shield`: an ellipsoid empty over the bounds with a margin;
+     - `tractor`: an empty at the nose.
+   - Cap textures at 2048 by default.
+   - Export `ship.glb` with extras.
+   - Write `ModelAsset`, `Anchors`, the layout, and the lines captured from the
+     collection's LineArt.
+   - Run `AetherDb ship-authoring validate`, and show the C# validator's errors by
+     anchor and hardpoint name.
+7. Unity Editor play: dock, `give <name>`, equip, undock, fly.
+
+Steps 2, 4 and 6 replace the hand work that M8 shows she has started. The
+`aetheria.id` of every node is its anchor id, so `ModelNodeId` equals the anchor
+`Id`. Node ids are written by the add-on and never typed by her.
+
+**Material and livery slots.** Materials have one owner per role:
+- **The GLB owns the hull's look.** glTF PBR, imported by glTFast.
+- **The template owns the game's materials, by anchor role:**
+  - `map-icon` gets `MapIcon`, which exists;
+  - the `hull-collider` renderer is forced off, which exists;
+  - `radiator-mesh` gets the new `Radiator` material (`ships-player`, M9).
+- **Thruster emitters** keep their glTF material. She may give them an emissive one.
+- **Livery is deferred** (follow-up `ship-livery`). The release bar is one hull per
+  faction concept, so each hull's own texture already carries its faction look. A
+  faction tint needs a mask texture per hull, and Tripo does not produce one. The
+  slot can be added later without touching packages: a named mask, read by a
+  presenter with a `MaterialPropertyBlock`.
+
+**Colliders.** Hits are fire control's (R8). The hull collider serves only
+ship-on-ship contact and is convex (`ShipModShips.cs:110`), so a generated convex
+hull is the whole job. Unity cooks at most 255 polygons for a convex collider, and
+the generator emits no more.
+
+**Split into three cuts.**
+- `ships-addon-package` is the core: anchors from role-tagged objects, GLB export,
+  `create --like`, validate.
+- `ships-addon-frame`: New Ship, fit, rasterise, the grid, recentring, structural
+  anchors.
+- `ships-addon-mounts`: the mount helpers, texture cap, triangle warning, CultLib
+  revision guard, and the per-hull checklist in the authoring doc.
+
+Each fits well under 200k Hands tokens. The core alone already makes a valid
+package from hand-placed objects.
+
+### S3: the first playable mod ship in a built player
+
+- **First hull: Headliner.**
+  - It is a single hull. Quiet comes as two variants (Dexter and Sinister), and
+    MQ2 A makes them two full packages.
+  - Its 50k triangles exercise the heavy path: collider generation and texture
+    memory.
+  - It is Lucent's duel ship (ruling `lucent-duel-bait`), so `faction-play-2` will
+    want it in Lucent flights.
+  - Its mesh and texture are already in `Quiet.blend`, so no new GLB is needed.
+  - The operator authors it with the add-on, because placing the mounts needs her
+    eyes. She commits the package with the add-on cuts' tooling.
+- **`ships-player` does the agent-side work**, and does not wait on the hull:
+  - the template radiator material;
+  - glTFast's shader variants in the player;
+  - one preload log line with hull count, shader names and texture memory;
+  - LFS rules for packages (M11);
+  - `GameData/Mods` staged into the player;
+  - the C3 sim test;
+  - the `SetEntity` probe;
+  - the built-player boot smoke on Starfire, with the skiff fixture and a bad
+    package.
+- **What it needs to build a player** is question `s3-player-build` (M10).
+- **The operator's S3 session** is gate 4, gate 5 (S4) and C2 to C6: Headliner in a
+  built player, about fifteen minutes.
+
+### S5 and the variants campaign: what this strand needs, and when
+
+- **Nothing before release for S5 itself.**
+  - The bar is 3 shipped prefab hulls plus 10 package hulls
+    (`content-bar-one-per-concept`). The prefab hulls keep working through the
+    `Prefab` branch.
+  - Packages are complete hulls (MQ2 A), so no family needs variants.
+  - S5, which migrates the shipped hulls, retires the FBX builder and collapses
+    families, waits on variants C3 and C4, and stays theirs.
+- **Before the operator's CultLib checkout moves past the C2a merge:**
+  - Python must still write a raw record into a single-file store. `ship_cc` pushes
+    `HullData` and `ShipAuthoring` envelopes (`ship_cc.py:108,163`), and `parity-py`
+    rewrites that write path.
+  - Follow-up `variants-python-raw-push` asks `parity-py` to keep that path or name
+    its replacement, with `tools/blender/tests` as its consumer check.
+  - `ships-addon-mounts` adds a guard: the add-on refuses an untested
+    `cultcache_py` revision (M12).
+- **When C4 brings element ids to Aetheria**, they arrive on `ShipAnchor`,
+  `HardpointData` and `ShipPolyline`.
+  - `ship_cc` already carries hardpoint slots past `FiringArc`, keyed by mount id.
+    `ships-addon-package` does the same for anchors, keyed by anchor id.
+  - Lines are replaced whole, which Q7 allows.
+  - Key 32 (`HullData.Visual`) is taken, and C4 must not reuse it.
+  - The lane's own S5 text puts hull families "in `Aetheria.cc`". MQ1's confirmed
+    reading puts a family in its ship's `.cc`. S5's owner should resolve which one
+    holds before C4 maps it.
+  - This is follow-up `c4-ship-element-ids`.
+
+### Model page rows
+
+| Kind | Identity | Lifecycle | Authority |
+|---|---|---|---|
+| Ship package | `GameData/Mods/<id>/`; `<id>` is `ShipAuthoring.Id`, lower-case and stable across renames. | Created by `ship-authoring create`, edited daily in Blender, validated by C#. Removing it makes Continue refuse runs that used it (MQ4). | The package's two records. The `.blend` in `Asset Sources/` is the operator's source and never the owner of semantics. |
+| Hull record | `mod-hull:<id>` in the package. | Stats seeded from a reference hull at create; layout written by Blender's Save and Package. | `HullData` in the package: cells, hardpoints, stats. How it gets a manufacturer is question `release-hull-home`. |
+| Anchor | `ShipAnchor.Id`, equal to the mount id for mounts and to the GLB node's `aetheria.id`. | Written whole by Package from role-tagged objects. Unknown tail slots are carried by id. | Blender objects tagged `aetheria.role` propose; the C# validator decides. |
+| GLB | `ShipAuthoring.ModelAsset`, relative, in the package. | Re-exported by every Package. | Derived from the collection. The package directory supplies it to the game, and the game reads nothing else from there. |
+| Derived catalog | `Aetheria.modded.cc` in the persistent data path. | Recomposed every boot, and disposable. | `ShipModCatalog.Compose`. Never authored. |
+| Mod prototypes | Hull record key. | Built at boot, kept across scenes, gone at exit. | `ShipModShips.Preload`. Cache only. |
+
+### Rationale
+
+**Why the operator checks move to the S3 session.**
+- They need a mod ship in a zone, which today means the console and a docked
+  player (M5). Done in the Editor with the skiff fixture, they prove the wiring on
+  a tetrahedron.
+- Done once in a built player with Headliner, the same fifteen minutes also give
+  gates 4 and 5, which are owed anyway.
+- The merge is safe without them because the path is inert with no package
+  installed.
+
+**Why mounts before the add-on.** The add-on writes anchors. If it learned
+`articulation` as the weapon role, the first real package would need migrating when
+the ruling's code landed. `ships-mounts` also collapses the role checks into the
+validator (M4), so that the add-on's Validate button and compose refuse the same
+things.
+
+**Why the add-on calls AetherDb instead of growing a Python validator.** The doc's
+shared-path claim is true only for C# (`moddable-ship-authoring.md`, correction 4).
+A second validator in Python would be a second semantic authority. A subprocess
+call costs a few seconds per Package and keeps one owner. The same reasoning makes
+`create --like` a C# command: `HullData` has some 30 slots that Python would
+otherwise copy by hand.
+
+**Why generated structural anchors.** The collider, map icon, shield and tractor
+are functions of the mesh's bounds and silhouette. Hand-making them per hull is the
+work that M8's hand-scaled icosphere already shows. Generating them, with a "keep
+mine" flag, removes about half of the per-hull steps without taking a decision from
+her.
+
+**Why first-party hulls through the package path** (the recommendation in
+`release-hull-home`). In KSP, RimWorld, Factorio and Starsector, the base game's
+content uses the same format and the same loading path as mods:
+- KSP stock parts live in `GameData/Squad`, beside mod folders.
+- Factorio's base game is the `base` mod, read before every other mod and merged
+  into one prototype table.
+- Starsector mods put their ships into an existing faction's fleets and markets with
+  their own `.faction` file. The engine merges that file into the core faction's
+  known-hull lists, so the package carries its own availability.
+- The RimWorld claim is from memory and was not re-fetched.
+
+Dogfooding the mod path means the release exercises the path players' mods will
+take. A package that carries its own product needs no edit to `Aetheria.cc`.
+
+Sources:
+- https://forum.kerbalspaceprogram.com/topic/144858-squad-folder/
+- https://forums.factorio.com/viewtopic.php?t=12564
+- https://spmatlas.com/guides/mods-explained/
+- https://fractalsoftworks.com/forum/index.php?topic=12970.0
+- https://docs.blender.org/manual/en/latest/addons/scene_gltf2.html
