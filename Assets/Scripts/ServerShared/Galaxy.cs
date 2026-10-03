@@ -139,6 +139,11 @@ public class Galaxy
         return _cache.GetAll<Faction>().FirstOrDefault(f => f.Name.StartsWith(name, StringComparison.InvariantCultureIgnoreCase));
     }
 
+    // How many jumps a faction's influence reaches in this galaxy: its authored distance, halved (rounding up) in a
+    // prelude. Derived, never written back to the catalog's Faction, so one galaxy's generation cannot change the next.
+    public int InfluenceOf(Faction faction) =>
+        IsPrelude ? (faction.InfluenceDistance + 1) / 2 : faction.InfluenceDistance;
+
     public Galaxy(
         TutorialGenerationSettings settings,
         SectorBackgroundSettings background,
@@ -177,11 +182,7 @@ public class Galaxy
         factions.AddRange(neutralFactions);
         
         Factions = factions.ToArray();
-        foreach (var faction in Factions)
-        {
-            FactionRelationships[faction] = FactionRelationship.Neutral;
-            faction.InfluenceDistance = (faction.InfluenceDistance + 1) / 2;
-        }
+        foreach (var faction in Factions) FactionRelationships[faction] = FactionRelationship.Neutral;
 
         Zones = GenerateZones(settings.ZoneCount, ref random, progressCallback);
 
@@ -190,13 +191,13 @@ public class Galaxy
         CalculateDistanceMatrix(progressCallback);
 
         HomeZones[protagonistFaction] = Zones
-            .MaxBy(z => ConnectedRegion(z, protagonistFaction.InfluenceDistance).Count);
+            .MaxBy(z => ConnectedRegion(z, InfluenceOf(protagonistFaction)).Count);
 
         HomeZones[antagonistFaction] = Zones
-            .MaxBy(z => ConnectedRegion(z, antagonistFaction.InfluenceDistance).Count * z.Distance[HomeZones[protagonistFaction]]);
+            .MaxBy(z => ConnectedRegion(z, InfluenceOf(antagonistFaction)).Count * z.Distance[HomeZones[protagonistFaction]]);
 
         HomeZones[protagonistFaction] = Zones
-            .MaxBy(z => ConnectedRegion(z, protagonistFaction.InfluenceDistance).Count * sqrt(z.Distance[HomeZones[antagonistFaction]]));
+            .MaxBy(z => ConnectedRegion(z, InfluenceOf(protagonistFaction)).Count * sqrt(z.Distance[HomeZones[antagonistFaction]]));
         
         // var antagonistRegion = ConnectedRegion(HomeZones[antagonistFaction], antagonistFaction.InfluenceDistance);
         // var protagonistRegion = ConnectedRegion(HomeZones[protagonistFaction], protagonistFaction.InfluenceDistance);
@@ -205,13 +206,13 @@ public class Galaxy
         var bufferDistance = Zones.Min(z => abs(z.Distance[HomeZones[antagonistFaction]] - z.Distance[HomeZones[protagonistFaction]]));
         var potentialBufferZones = Zones
             .Where(z => abs(z.Distance[HomeZones[antagonistFaction]] - z.Distance[HomeZones[protagonistFaction]]) == bufferDistance);
-        HomeZones[bufferFaction] = potentialBufferZones.MaxBy(z => ConnectedRegion(z, bufferFaction.InfluenceDistance).Count);
+        HomeZones[bufferFaction] = potentialBufferZones.MaxBy(z => ConnectedRegion(z, InfluenceOf(bufferFaction)).Count);
         
         // Place neutral headquarters away from existing factions while also maximizing territory
         foreach (var faction in neutralFactions)
         {
             HomeZones[faction] = Zones.MaxBy(z =>
-                ConnectedRegion(z, faction.InfluenceDistance).Count *
+                ConnectedRegion(z, InfluenceOf(faction)).Count *
                 HomeZones.Values.Aggregate(1f, (i, os) => i * sqrt(os.Distance[z])));
         }
         
@@ -221,7 +222,7 @@ public class Galaxy
             .Where(z => z.Factions.Contains(antagonistFaction) && z.Factions.Contains(bufferFaction));
         if (potentialQuestZones.Any())
             HomeZones[questFaction] = potentialQuestZones
-                .MaxBy(z => z.Distance[HomeZones[antagonistFaction]] * ConnectedRegion(z, questFaction.InfluenceDistance).Count);
+                .MaxBy(z => z.Distance[HomeZones[antagonistFaction]] * ConnectedRegion(z, InfluenceOf(questFaction)).Count);
         else 
             HomeZones[questFaction] = Zones
                 .Where(z => z.Factions.Contains(antagonistFaction))
@@ -287,9 +288,9 @@ public class Galaxy
         // While occupying as much territory as possible
         foreach (var mega in bossMegas)
         {
-            HomeZones[mega] = ConnectedRegion(BossZones[mega], mega.InfluenceDistance)
+            HomeZones[mega] = ConnectedRegion(BossZones[mega], InfluenceOf(mega))
                 .MaxBy(z =>
-                    ConnectedRegion(z, mega.InfluenceDistance).Count *
+                    ConnectedRegion(z, InfluenceOf(mega)).Count *
                     HomeZones.Values.Aggregate(1f, (i, os) => i * sqrt(os.Distance[z])));
         }
 
@@ -297,7 +298,7 @@ public class Galaxy
         foreach (var mega in Factions.Where(m => !bossMegas.Contains(m)))
         {
             HomeZones[mega] = Zones.MaxBy(z =>
-                pow(ConnectedRegion(z, mega.InfluenceDistance).Count, HomeZones.Count) *
+                pow(ConnectedRegion(z, InfluenceOf(mega)).Count, HomeZones.Count) *
                 Exit.Distance[z] * Entrance.Distance[z] *
                 HomeZones.Values.Aggregate(1f, (i, os) => i * sqrt(os.Distance[z])) *
                 BossZones.Values.Aggregate(1f, (i, os) => i * sqrt(os.Distance[z])));
@@ -315,14 +316,14 @@ public class Galaxy
             // Factions are present in all zones within their sphere of influence
             zone.Factions = Factions
                 .Where(f => HomeZones.ContainsKey(f))
-                .Where(f => zone.Distance[HomeZones[f]] <= f.InfluenceDistance)
+                .Where(f => zone.Distance[HomeZones[f]] <= InfluenceOf(f))
                 .ToArray();
 
             // Owner of a zone is the faction with the nearest headquarters
             var nearestFaction = Factions
                 .Where(f => HomeZones.ContainsKey(f))
                 .MinBy(f => (float)zone.Distance[HomeZones[f]]);
-            if (zone.Distance[HomeZones[nearestFaction]] <= nearestFaction.InfluenceDistance)
+            if (zone.Distance[HomeZones[nearestFaction]] <= InfluenceOf(nearestFaction))
                 zone.Owner = nearestFaction;
         }
     }
