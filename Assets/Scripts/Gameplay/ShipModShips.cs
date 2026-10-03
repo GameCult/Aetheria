@@ -122,8 +122,10 @@ public static class ShipModShips
 
         var thrusters = plan.Thrusters.Select(id =>
         {
+            // The thruster's mesh is its exhaust's emission surface, never drawn (ruling thrusters-radiators-are-meshes).
             var hardpoint = AddOrGet<ThrusterHardpoint>(Node(id).gameObject);
             hardpoint.Emitter = Renderer(id);
+            hardpoint.Emitter.forceRenderingOff = true;
             return hardpoint;
         }).ToArray();
         var radiators = plan.Radiators.Select(id =>

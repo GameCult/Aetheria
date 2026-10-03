@@ -161,13 +161,20 @@ import](https://github.com/Unity-Technologies/com.unity.cloud.gltfast/blob/main/
 to read the package GLB asynchronously and map its stable node IDs to Unity
 transforms. It keeps a partially loaded object inactive and destroys it on
 failure. `ShipModShips` preloads one assembled, inactive prototype per hull
-that names a `Visual`, at boot and before the game scene loads. `ShipModPlan`
-decides which anchor fills which `ShipInstance` slot: the hull's hardpoint type
-says what a mount is, and its anchor (id equal to the mount id) supplies the
-node; a thruster mount needs a `thruster-emitter` anchor, a radiator mount a
-`radiator-mesh` anchor, a weapon mount muzzle anchors parented to it. An
-`articulation` anchor is an ordinary mount node until pivots move onto
-`HullData`. The shared effects (shield, tractor beam, ping, explosion, map
+that names a `Visual`, at boot and before the game scene loads.
+`ShipAuthoringStore.Validate` owns which hardpoints carry anchors and which role
+each anchor plays. Mount anchors exist only for hardpoints that show on the
+model: weapons, radiators and thrusters. Each such hardpoint needs an anchor
+whose id is its mount id: `thruster-emitter` for a thruster, `radiator-mesh` for
+a radiator, `weapon-mount` for an energy, ballistic or launcher hardpoint. An
+internal hardpoint (reactor, sensors, shield and the rest) has no anchor, and
+an anchor taking its id is refused. A thruster's or radiator's anchor node is a
+mesh: the thruster's is not rendered and is the surface its exhaust emits from,
+the radiator's is rendered. A weapon mount is a point, and each one needs at
+least one `weapon-muzzle` anchor whose `ParentId` is the weapon's mount id.
+`articulation` is reserved for pivots and is never a mount; no pivot is
+planned until pivots move onto `HullData`. `ShipModPlan` then maps the
+validated pair to `ShipInstance` slots and refuses nothing itself. The shared effects (shield, tractor beam, ping, explosion, map
 and invisible materials) come from the Addressable `ShipModTemplate` prefab.
 `ZoneRenderer.LoadEntity` clones the prototype when the hull names a `Visual`.
 Gameplay reads a mod ship's records from the derived catalog; the package

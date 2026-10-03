@@ -65,7 +65,8 @@ public static class ShipModPreview
                 ship.HullColliders[0].GetComponent<MeshCollider>() != null, "one hull collider with a MeshCollider");
         Require(Inside(ship.MapIcon) && Inside(ship.Shield) && Inside(ship.TractorBeam), "map icon, shield and tractor inside the ship");
         Require(ship.ThrusterHardpoints.Select(node => node.name).SequenceEqual(plan.Thrusters) &&
-                ship.ThrusterHardpoints.All(node => Inside(node) && Inside(node.Emitter)), "thruster hardpoints with emitters");
+                ship.ThrusterHardpoints.All(node => Inside(node) && Inside(node.Emitter) && node.Emitter.forceRenderingOff),
+                "thruster hardpoints with unrendered emitter meshes");
         Require(ship.RadiatorHardpoints.Select(node => node.name).SequenceEqual(plan.Radiators) &&
                 ship.RadiatorHardpoints.All(node => Inside(node) && Inside(node.Mesh)), "radiator hardpoints with meshes");
         Require(ship.WeaponHardpoints.Select(node => node.name).SequenceEqual(plan.Weapons.Select(weapon => weapon.Mount)) &&
