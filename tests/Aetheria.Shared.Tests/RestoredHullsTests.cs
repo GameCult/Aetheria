@@ -282,25 +282,14 @@ public sealed class RestoredHullsTests
         var background = TutorialBackgroundSettings();
         var names = TutorialNameSettings();
         var gameData = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
-
-        // Galaxy zone-graph generation has a pre-existing, seed-dependent flakiness of its own (a disconnected
-        // zone graph throws inside the Galaxy constructor on roughly 1 seed in 15, confirmed unrelated to this
-        // cut: it reproduces identically against the pre-fix-batch catalog). That failure belongs to Galaxy.cs,
-        // not to ZoneGenerator's entrance-station override this test is pinning, so it is skipped rather than
-        // asserted on; every seed whose Galaxy actually builds must still get a docked entrance station.
-        var succeeded = 0;
         var sawGenuineLagrangeOrbit = false;
         for (uint seed = 1; seed <= 25; seed++)
         {
             var scratchRun = Path.Combine(Path.GetTempPath(), $"aetheria-entrance-station-{Guid.NewGuid():N}.cc");
             try
             {
-                // Galaxy mutates Faction.InfluenceDistance in place; a fresh catalog open per seed keeps runs independent.
                 using var cache = OpenReadOnlyRealCatalogWithScratchRun(gameData, scratchRun);
-                Galaxy galaxy;
-                try { galaxy = new Galaxy(tutorialSettings, background, names, cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed); }
-                catch (Exception) { continue; }
-                succeeded++;
+                var galaxy = new Galaxy(tutorialSettings, background, names, cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed);
 
                 var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
                 var pack = ZoneGenerator.GenerateZone(items, zoneSettings, galaxy, galaxy.Entrance, isTutorial: true);
@@ -317,8 +306,6 @@ public sealed class RestoredHullsTests
                 if (File.Exists(scratchRun)) File.Delete(scratchRun);
             }
         }
-
-        Assert.True(succeeded >= 15, $"only {succeeded} of 25 seeds produced a Galaxy at all; too few runs to trust this result.");
         Assert.True(sawGenuineLagrangeOrbit, "none of the 25 seeds seated the entrance station on a genuine (non-rosette) Lagrange orbit.");
     }
 
@@ -336,8 +323,6 @@ public sealed class RestoredHullsTests
         var background = TutorialBackgroundSettings();
         var names = TutorialNameSettings();
         var gameData = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
-
-        var succeeded = 0;
         var sawGenuineCandidate = false;
         for (uint seed = 1; seed <= 25; seed++)
         {
@@ -345,10 +330,7 @@ public sealed class RestoredHullsTests
             try
             {
                 using var cache = OpenReadOnlyRealCatalogWithScratchRun(gameData, scratchRun);
-                Galaxy galaxy;
-                try { galaxy = new Galaxy(tutorialSettings, background, names, cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed); }
-                catch (Exception) { continue; }
-                succeeded++;
+                var galaxy = new Galaxy(tutorialSettings, background, names, cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed);
 
                 var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
                 var pack = ZoneGenerator.GenerateZone(items, zoneSettings, galaxy, galaxy.Entrance, isTutorial: true);
@@ -369,8 +351,6 @@ public sealed class RestoredHullsTests
                 if (File.Exists(scratchRun)) File.Delete(scratchRun);
             }
         }
-
-        Assert.True(succeeded >= 15, $"only {succeeded} of 25 seeds produced a Galaxy at all; too few runs to trust this result.");
         Assert.True(sawGenuineCandidate, "none of the 25 seeds had a genuine Lagrange candidate at all; too few runs to trust this result.");
     }
 
@@ -477,9 +457,7 @@ public sealed class RestoredHullsTests
             try
             {
                 using var cache = OpenReadOnlyRealCatalogWithScratchRun(gameData, scratchRun);
-                Galaxy galaxy;
-                try { galaxy = new Galaxy(tutorialSettings, background, names, cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed); }
-                catch (Exception) { continue; }
+                var galaxy = new Galaxy(tutorialSettings, background, names, cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed);
 
                 var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
                 var pack = ZoneGenerator.GenerateZone(items, zoneSettings, galaxy, galaxy.Entrance, isTutorial: true);

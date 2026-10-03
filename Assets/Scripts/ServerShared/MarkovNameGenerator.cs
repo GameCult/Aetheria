@@ -14,14 +14,17 @@ public class MarkovNameGenerator
 {
     private Dictionary<string, List<char>> _chains = new Dictionary<string, List<char>>();
     private List<string> _samples = new List<string>();
-    private static List<string> _used = new List<string>();
+    // The names already given, shared by every generator that must not repeat another's: a galaxy passes one set to
+    // all its factions' generators. Never process-wide, so one galaxy's names cannot change the next galaxy's.
+    private readonly HashSet<string> _used;
     private int _order;
     private int _minLength;
     private int _maxLength;
     private Random _random;
 
-    public MarkovNameGenerator(ref Random random, IEnumerable<string> sampleNames, NameGeneratorSettings settings)
+    public MarkovNameGenerator(ref Random random, IEnumerable<string> sampleNames, NameGeneratorSettings settings, HashSet<string> used)
     {
+        _used = used;
         var names = new HashSet<string>();
         foreach (var line in sampleNames)
         {
@@ -41,6 +44,7 @@ public class MarkovNameGenerator
     
     public MarkovNameGenerator(ref Random random, IEnumerable<string> sampleNames, int order, int minLength, int maxLength)
     {
+        _used = new HashSet<string>();
         _random = random;
 
         _order = max(1, order);
@@ -111,12 +115,6 @@ public class MarkovNameGenerator
             _used.Add(s);
             return s;
         }
-    }
-
-    //Reset the used names
-    public void Reset()
-    {
-        _used.Clear();
     }
 
     //Get a random letter from the chain

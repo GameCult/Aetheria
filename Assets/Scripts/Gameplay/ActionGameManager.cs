@@ -106,7 +106,8 @@ public class ActionGameManager : MonoBehaviour
     }
 
     public static Galaxy CurrentGalaxy;
-    public static bool IsTutorial;
+    // The scenario a new run starts from: MainMenu.Launch sets it, and StartGame's new-run branch consumes it once.
+    public static Scenario PendingScenario;
 
     public GameSettings Settings;
     //public string StarterShipTemplate = "Longinus";
@@ -250,7 +251,7 @@ public class ActionGameManager : MonoBehaviour
     {
         if (CurrentGalaxy != null)
         {
-            var (game, zones) = RunSave.Capture(CultCache, CurrentGalaxy, Zone, DockedEntity ?? CurrentEntity, IsTutorial,
+            var (game, zones) = RunSave.Capture(CultCache, CurrentGalaxy, Zone, DockedEntity ?? CurrentEntity,
                 _actionBarSlots.Select(s => s.Save()).ToArray());
             RunSave.Commit(CultCache, game, zones, ItemManager.Lots);
         }
@@ -269,7 +270,9 @@ public class ActionGameManager : MonoBehaviour
         EntityInstance.EffectManagerParent = EffectManagerParent;
         ConsoleController.MessageReceiver = this;
         
-        ItemManager = new ItemManager(CultCache, RunSave.Lots(CultCache), Settings.GameplaySettings, Debug.Log);
+        // A new run mints into an empty ledger; the saved run's stays in the store until the new run has started.
+        ItemManager = new ItemManager(CultCache, PendingScenario != null ? new ProvenanceLedger() : RunSave.Lots(CultCache),
+            Settings.GameplaySettings, Debug.Log);
         ZoneRenderer.ItemManager = ItemManager;
         
         // If hiding minimap asteroids, turn them off to start with
@@ -578,19 +581,7 @@ public class ActionGameManager : MonoBehaviour
             {
                 var nearestFaction = CurrentGalaxy.Factions.MinBy(f => CurrentGalaxy.HomeZones[f].Distance[Zone.GalaxyZone]);
 
-                var loadoutGenerator = IsTutorial ? new LoadoutGenerator(
-                    ref ItemManager.Random,
-                    ItemManager,
-                    CurrentGalaxy,
-                    Zone.GalaxyZone,
-                    nearestFaction,
-                    .5f) : new LoadoutGenerator(
-                    ref ItemManager.Random,
-                    ItemManager,
-                    CurrentGalaxy, 
-                    Zone.GalaxyZone,
-                    nearestFaction,
-                    .5f);
+                var loadoutGenerator = new LoadoutGenerator(ref ItemManager.Random, ItemManager, CurrentGalaxy, Zone.GalaxyZone, nearestFaction, .5f);
 
                 var turret = EntitySerializer.Unpack(ItemManager, Zone, loadoutGenerator.GenerateTurretLoadout());
                 turret.Position.xz = _currentEntity.Position.xz +
@@ -728,7 +719,7 @@ public class ActionGameManager : MonoBehaviour
                 Settings.ZoneSettings,
                 CurrentGalaxy,
                 galaxyZone,
-                IsTutorial
+                CurrentGalaxy.IsPrelude
             );
             galaxyZone.Contents = new Zone(ItemManager, Settings.PlanetSettings, galaxyZone.PackedContents, galaxyZone, CurrentGalaxy);
         }
@@ -806,21 +797,10 @@ public class ActionGameManager : MonoBehaviour
     {
         if (CurrentGalaxy != null)
         {
-            var saved = CultCache.GetGlobal<SavedGame>();
-            if (saved == null)
-            {
-                SectorMap.QueueZoneReveal(CurrentGalaxy.Entrance.AdjacentZones.Prepend(CurrentGalaxy.Entrance));
-                // RunStart owns what a new run starts with (docs/scenarios-cut.md, 2.2); this only enters and binds.
-                RunStart.GenerateArena(ItemManager, Settings.ZoneSettings, CurrentGalaxy, null);
-                PopulateLevel(CurrentGalaxy.Entrance);
-                var failures = new List<string>();
-                var staged = RunStart.Stage(ItemManager, Zone, null, Settings.StartingHullName,
-                    IsTutorial ? CurrentGalaxy.ResolveFaction(Settings.TutorialGenerationSettings.ProtagonistFaction) : null, failures)
-                    ?? throw new InvalidOperationException($"The new run could not stage: {string.Join("; ", failures)}");
-                BindToEntity(staged.Player);
-            }
+            if (PendingScenario != null) StartScenario();
             else
             {
+                var saved = CultCache.GetGlobal<SavedGame>();
                 foreach(var group in CurrentGalaxy.DiscoveredZones
                     .GroupBy(dz=>dz.Distance[CurrentGalaxy.Entrance]))
                     SectorMap.QueueZoneReveal(group);
@@ -843,6 +823,41 @@ public class ActionGameManager : MonoBehaviour
                 }
             }
         }
+    }
+
+    // RunStart owns what a new run starts with (docs/scenarios-cut.md, R.4); this enters and binds. The saved run is
+    // replaced only once the scenario has staged. A start that fails leaves the saved run as it was and says why on
+    // the main menu, where Continue still resumes the saved run.
+    private void StartScenario()
+    {
+        var scenario = PendingScenario;
+        PendingScenario = null;
+        var failures = new List<string>();
+        RunStart.Staged staged = null;
+        try
+        {
+            staged = RunSave.Replace(CultCache, () =>
+            {
+                RunStart.GenerateArena(ItemManager, Settings.ZoneSettings, CurrentGalaxy, scenario);
+                PopulateLevel(CurrentGalaxy.Entrance);
+                return RunStart.Stage(ItemManager, Zone, scenario, Settings.StartingHullName, Settings.TutorialGenerationSettings, failures);
+            });
+        }
+        catch (Exception exception)
+        {
+            Debug.LogException(exception);
+            failures.Add(exception.Message);
+        }
+
+        if (staged == null)
+        {
+            CurrentGalaxy = null;
+            MainMenu.gameObject.SetActive(true);
+            MainMenu.Refuse($"{scenario.Name} could not start", string.Join("\n", failures));
+            return;
+        }
+        SectorMap.QueueZoneReveal(CurrentGalaxy.Entrance.AdjacentZones.Prepend(CurrentGalaxy.Entrance));
+        BindToEntity(staged.Player);
     }
 
     private IEnumerator IntroCutscene(Ship ship)
