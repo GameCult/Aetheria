@@ -17,7 +17,7 @@ using float3 = CultMath.float3;
 // Cut 3 (docs/mining-cut-refresh.md): a chunk is a target, detected by reflected light. One detection gain rule
 // (Sensor.Gain) serves both the per-tick entity loop and the on-demand chunk query, and the chunk query returns
 // the value the per-tick rule settles at (Q14 A). A belt's field kind is chosen once and saved (Q16 B).
-public sealed class MiningCut3Tests : IDisposable
+public sealed partial class MiningCut3Tests : IDisposable
 {
     private const float Dt = .05f;
     private readonly string _root = Path.Combine(Path.GetTempPath(), "aetheria-miningcut3-" + Guid.NewGuid().ToString("N"));
@@ -49,7 +49,7 @@ public sealed class MiningCut3Tests : IDisposable
 
     // Flat terrain (no zone depth, no gravity wells), one sun whose light reaches 1000 units, and the chunk
     // curves MiningCut2Tests uses, so sizes and wear vary over the fixture's range.
-    private static PlanetSettings PlanetSettings() => new PlanetSettings
+    private static PlanetSettings PlanetSettings(float lightRadius = 1000f) => new PlanetSettings
     {
         OrbitPeriod = new ExponentialCurve { Multiplier = 0.6f, Exponent = 1.3f, Constant = 40f },
         AsteroidSize = new ExponentialLerp { Minimum = 2f, Maximum = 9f, Exponent = 1.7f },
@@ -62,7 +62,7 @@ public sealed class MiningCut3Tests : IDisposable
         WaveRadius = new ExponentialCurve(),
         WaveSpeed = new ExponentialCurve(),
         WaveFrequency = new ExponentialCurve(),
-        LightRadius = new ExponentialCurve { Constant = 1000f }
+        LightRadius = new ExponentialCurve { Constant = lightRadius }
     };
 
     // A sensitivity that falls off away from the sensor's facing, so the angle term is exercised, not a constant.
@@ -98,7 +98,11 @@ public sealed class MiningCut3Tests : IDisposable
     private Scene BuildScene(FieldKindData[] kinds = null, params BeltSpec[] belts) => BuildSceneAt(float2.zero, kinds, belts);
 
     // The same scene with its sun, and so every belt centre, at `sunAt`.
-    private Scene BuildSceneAt(float2 sunAt, FieldKindData[] kinds, params BeltSpec[] belts)
+    private Scene BuildSceneAt(float2 sunAt, FieldKindData[] kinds, params BeltSpec[] belts) =>
+        BuildSceneAt(sunAt, 1000f, 0, kinds, belts);
+
+    // The same, with the sun's light radius and the zone's starting time chosen.
+    private Scene BuildSceneAt(float2 sunAt, float lightRadius, double time, FieldKindData[] kinds, params BeltSpec[] belts)
     {
         var dir = Path.Combine(_root, $"scene{_fixtureCount++}");
         Directory.CreateDirectory(dir);
@@ -144,7 +148,7 @@ public sealed class MiningCut3Tests : IDisposable
             Planets = { new CultRecordRef<BodyData>(sun) },
             Radius = 5000f,
             Mass = 10000f,
-            Time = 0
+            Time = time
         };
         var scene = new Scene { Cache = cache, Items = items, Hull = hull, Eye = eye, DimEye = dimEye, Pack = pack };
         scene.Kinds.AddRange(kinds ?? new FieldKindData[0]);
@@ -158,7 +162,7 @@ public sealed class MiningCut3Tests : IDisposable
             pack.Planets.Add(new CultRecordRef<BodyData>(key));
             scene.Belts.Add(key);
         }
-        scene.Zone = new Zone(items, PlanetSettings(), pack, new GalaxyZone { Name = "MiningCut3", Owner = null }, null);
+        scene.Zone = new Zone(items, PlanetSettings(lightRadius), pack, new GalaxyZone { Name = "MiningCut3", Owner = null }, null);
         return scene;
     }
 
@@ -458,11 +462,12 @@ public sealed class MiningCut3Tests : IDisposable
                      (centre + float2(220, 0), 40f), (centre + float2(-300, 50), 120f), (centre + float2(600, 0), 360f), (centre + float2(600, 0), 200f)
                  })
         {
-            s.Zone.ChunksNear(from, range, found);
+            ChunksWithin(s, from, range, found);
             var expected = Enumerable.Range(0, rocks.Length)
                 .Where(i => i != 5 && length(At(s, new ChunkId(belt, i)) - from) <= range)
                 .Select(i => new ChunkId(belt, i)).ToArray();
-            Assert.Equal(expected, found);
+            Assert.Equal(expected.ToHashSet(), found.ToHashSet());
+            Assert.Equal(expected.Length, found.Count);
             sawSome |= expected.Length > 0;
         }
         Assert.True(sawSome);
@@ -920,11 +925,11 @@ public sealed class MiningCut3Tests : IDisposable
             var fromCentre = (float) rng.NextDouble() * 900f;
             var from = centre + fromCentre * float2(cos(angle), sin(angle));
             var range = (float) rng.NextDouble() * 300f;
-            s.Zone.ChunksNear(from, range, found);
+            ChunksWithin(s, from, range, found);
             var expected = s.Belts
                 .SelectMany(b => Enumerable.Range(0, ((AsteroidBeltData) s.Zone.Planets[b]).Asteroids.Length).Select(i => new ChunkId(b, i)))
                 .Where(c => length(At(s, c) - from) <= range).ToArray();
-            if (!expected.SequenceEqual(found)) mismatches++;
+            if (expected.Length != found.Count || !expected.ToHashSet().SetEquals(found)) mismatches++;
             if (expected.Length > 0) nonEmpty++;
             if (fromCentre > 350f && fromCentre - range < 350f) acrossOuterEdge++;
         }
