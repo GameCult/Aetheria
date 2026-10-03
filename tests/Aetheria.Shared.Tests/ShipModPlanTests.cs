@@ -17,7 +17,7 @@ public sealed class ShipModPlanTests
         ship.Hull.Hardpoints[0].Position = new int2(2, 0);
         ship.Hull.Hardpoints.Add(new HardpointData { Type = HardpointType.Energy, Position = new int2(0, 0), Shape = new Shape(), Transform = "gun" });
         ship.Hull.Hardpoints.Add(new HardpointData { Type = HardpointType.Radiator, Position = new int2(1, 0), Shape = new Shape(), Transform = "fin" });
-        ship.Visual.Anchors.Add(new ShipAnchor { Id = "gun", Role = "articulation", ModelNodeId = "gun" });
+        ship.Visual.Anchors.Add(new ShipAnchor { Id = "gun", Role = "weapon-mount", ModelNodeId = "gun" });
         ship.Visual.Anchors.Add(new ShipAnchor { Id = "gun.a", Role = "weapon-muzzle", ModelNodeId = "gun-a", ParentId = "gun", Order = 1 });
         ship.Visual.Anchors.Add(new ShipAnchor { Id = "gun.z", Role = "weapon-muzzle", ModelNodeId = "gun-z", ParentId = "gun", Order = 0 });
         ship.Visual.Anchors.Add(new ShipAnchor { Id = "fin", Role = "radiator-mesh", ModelNodeId = "fin" });
@@ -40,31 +40,6 @@ public sealed class ShipModPlanTests
         Assert.Equal(new[] { "gun.z", "gun.a" }, muzzles);
     }
 
-    [Fact]
-    public void AThrusterOrRadiatorMountMustCarryItsRole()
-    {
-        var ship = Rig();
-        ship.Visual.Anchors.Single(anchor => anchor.Id == "thruster.port").Role = "articulation";
-        Assert.Contains("Thruster hardpoint thruster.port needs a thruster-emitter anchor", Refusal(ship));
-
-        ship = Rig();
-        ship.Visual.Anchors.Single(anchor => anchor.Id == "fin").Role = "articulation";
-        Assert.Contains("Radiator hardpoint fin needs a radiator-mesh anchor", Refusal(ship));
-    }
-
-    [Fact]
-    public void AnEmitterOrMeshAnchorMustBeItsHardpointsMount()
-    {
-        // A thruster-emitter anchor on a weapon mount, and a radiator-mesh anchor that is no mount at all.
-        var ship = Rig();
-        ship.Visual.Anchors.Single(anchor => anchor.Id == "gun").Role = "thruster-emitter";
-        Assert.Contains("Energy hardpoint gun needs a articulation anchor of that id", Refusal(ship));
-
-        ship = Rig();
-        ship.Visual.Anchors.Add(new ShipAnchor { Id = "loose", Role = "radiator-mesh", ModelNodeId = "loose" });
-        Assert.Contains("radiator-mesh anchor loose must be a Radiator hardpoint's mount", Refusal(ship));
-    }
-
     // Equal Order falls back to the id, compared ordinally, whatever order the anchors were authored in.
     [Fact]
     public void MuzzlesOfEqualOrderAreTiedByIdOrdinally()
@@ -78,22 +53,6 @@ public sealed class ShipModPlanTests
         Assert.Equal(new[] { "gun.z", "gun.B", "gun.a", "gun.b", "gun.c" }, Assert.Single(Plan(ship).Weapons).Muzzles);
     }
 
-    [Fact]
-    public void MuzzlesBelongToWeaponMountsAndEveryWeaponHasOne()
-    {
-        var ship = Rig();
-        ship.Visual.Anchors.Single(anchor => anchor.Id == "gun.z").ParentId = null;
-        Assert.Contains("muzzle gun.z must be parented to a weapon hardpoint's mount", Refusal(ship));
-
-        ship = Rig();
-        ship.Visual.Anchors.Single(anchor => anchor.Id == "gun.z").ParentId = "thruster.port";
-        Assert.Contains("muzzle gun.z must be parented to a weapon hardpoint's mount", Refusal(ship));
-
-        ship = Rig();
-        ship.Visual.Anchors.RemoveAll(anchor => anchor.Role == "weapon-muzzle");
-        Assert.Contains("weapon hardpoint gun needs at least one muzzle anchor", Refusal(ship));
-    }
-
     [Theory]
     [InlineData(HardpointType.Energy)]
     [InlineData(HardpointType.Ballistic)]
@@ -103,10 +62,6 @@ public sealed class ShipModPlanTests
         var ship = Rig();
         ship.Hull.Hardpoints.Single(hardpoint => hardpoint.Transform == "gun").Type = type;
         Assert.Equal("gun", Assert.Single(Plan(ship).Weapons).Mount);
-
-        // Any other type refuses the same muzzles.
-        ship.Hull.Hardpoints.Single(hardpoint => hardpoint.Transform == "gun").Type = HardpointType.Tool;
-        Assert.Contains("must be parented to a weapon hardpoint's mount", Refusal(ship));
     }
 
     [Fact]

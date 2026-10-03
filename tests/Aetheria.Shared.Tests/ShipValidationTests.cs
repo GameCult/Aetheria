@@ -34,7 +34,7 @@ public sealed class ShipValidationTests
         ship.Hull.Hardpoints[0].Armor = 5;
         ship.Hull.Hardpoints[0].FiringArc = 360;
         ship.Hull.Hardpoints[0].Type = HardpointType.AetherDrive;
-        ship.Visual.Anchors.Single(anchor => anchor.Id == "thruster.port").Role = "articulation";
+        ship.Visual.Anchors.RemoveAll(anchor => anchor.Id == "thruster.port");
         ship.Hull.Hardpoints[0].Rotation = ItemRotation.Clockwise;
         ship.Validate();
     }
@@ -128,7 +128,9 @@ public sealed class ShipValidationTests
     public void AnAnchorMayNameItsHardpointAsParent()
     {
         var ship = ShipAuthoringTests.Fixture();
-        ship.Visual.Anchors.Add(new ShipAnchor { Id = "muzzle", Role = "weapon-muzzle", ModelNodeId = "muzzle", ParentId = "thruster.port" });
+        ship.Hull.Hardpoints.Add(new HardpointData { Type = HardpointType.Ballistic, Position = new int2(0, 0), Shape = new Shape(), Transform = "gun" });
+        ship.Visual.Anchors.Add(new ShipAnchor { Id = "gun", Role = "weapon-mount", ModelNodeId = "gun" });
+        ship.Visual.Anchors.Add(new ShipAnchor { Id = "muzzle", Role = "weapon-muzzle", ModelNodeId = "muzzle", ParentId = "gun" });
         ship.Validate();
     }
 

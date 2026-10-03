@@ -68,7 +68,7 @@ internal static class ShipFixture
         var ship = ShipAuthoringTests.Fixture();
         // A playable rig: the fixture thruster plus one energy weapon mount on the hull's other cell, with its muzzle.
         ship.Hull.Hardpoints.Add(new HardpointData { Type = HardpointType.Energy, Position = new int2(0, 0), Shape = new Shape(), Transform = "gun" });
-        ship.Visual.Anchors.Add(new ShipAnchor { Id = "gun", Role = "articulation", ModelNodeId = "gun" });
+        ship.Visual.Anchors.Add(new ShipAnchor { Id = "gun", Role = "weapon-mount", ModelNodeId = "gun" });
         ship.Visual.Anchors.Add(new ShipAnchor { Id = "gun.muzzle", Role = "weapon-muzzle", ModelNodeId = "gun-muzzle", ParentId = "gun" });
         tweak?.Invoke(ship);
         ship.WithId(id);

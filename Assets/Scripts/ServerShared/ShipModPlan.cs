@@ -13,37 +13,18 @@ public sealed class ShipModPlan
     // Mount ids whose anchor (role thruster-emitter / radiator-mesh) is the emitter / mesh node itself.
     public string[] Thrusters;
     public string[] Radiators;
-    // A weapon mount's muzzle anchors, by Order then id.
+    // Each weapon mount (role weapon-mount) and its muzzle anchors, by Order then id.
     public (string Mount, string[] Muzzles)[] Weapons;
 
-    // Anchors with role "articulation" become ordinary mount nodes: ArticulationPoint's limits are not authorable until
-    // pivots move onto HullData, so no ArticulationPoint is planned.
+    // Maps a pair Validate accepts; every rule about which anchor may play which part is Validate's, so this refuses nothing.
     public static ShipModPlan Build(HullData hull, ShipAuthoring visual)
     {
         ShipAuthoringStore.Validate(hull, visual);
         var hardpoints = hull.Hardpoints ?? new List<HardpointData>();
-        var byMount = hardpoints.ToDictionary(hardpoint => hardpoint.Transform, StringComparer.Ordinal);
         string Only(string wanted) => visual.Anchors.Single(anchor => anchor.Role == wanted).Id;
-
-        foreach (var anchor in visual.Anchors.Where(anchor => anchor.Role == "thruster-emitter" || anchor.Role == "radiator-mesh"))
-        {
-            var wanted = anchor.Role == "thruster-emitter" ? HardpointType.Thruster : HardpointType.Radiator;
-            if (!byMount.ContainsKey(anchor.Id))
-                throw new InvalidOperationException($"{visual.Id}: {anchor.Role} anchor {anchor.Id} must be a {wanted} hardpoint's mount.");
-        }
         string[] Mounts(HardpointType type) => hardpoints.Where(hardpoint => hardpoint.Type == type).Select(hardpoint => hardpoint.Transform).ToArray();
-
         var muzzles = visual.Anchors.Where(anchor => anchor.Role == "weapon-muzzle")
             .OrderBy(anchor => anchor.Order).ThenBy(anchor => anchor.Id, StringComparer.Ordinal).ToArray();
-        foreach (var muzzle in muzzles)
-            if (string.IsNullOrEmpty(muzzle.ParentId) || !IsWeapon(byMount[muzzle.ParentId].Type))
-                throw new InvalidOperationException($"{visual.Id}: muzzle {muzzle.Id} must be parented to a weapon hardpoint's mount.");
-        var weapons = hardpoints.Where(hardpoint => IsWeapon(hardpoint.Type)).Select(hardpoint => (
-            hardpoint.Transform,
-            muzzles.Where(muzzle => muzzle.ParentId == hardpoint.Transform).Select(muzzle => muzzle.Id).ToArray())).ToArray();
-        foreach (var (mount, ids) in weapons)
-            if (ids.Length == 0)
-                throw new InvalidOperationException($"{visual.Id}: weapon hardpoint {mount} needs at least one muzzle anchor.");
 
         return new ShipModPlan
         {
@@ -53,10 +34,9 @@ public sealed class ShipModPlan
             Tractor = Only("tractor"),
             Thrusters = Mounts(HardpointType.Thruster),
             Radiators = Mounts(HardpointType.Radiator),
-            Weapons = weapons
+            Weapons = hardpoints.Where(hardpoint => ShipAuthoringStore.IsWeapon(hardpoint.Type)).Select(hardpoint => (
+                hardpoint.Transform,
+                muzzles.Where(muzzle => muzzle.ParentId == hardpoint.Transform).Select(muzzle => muzzle.Id).ToArray())).ToArray()
         };
     }
-
-    private static bool IsWeapon(HardpointType type) =>
-        type == HardpointType.Energy || type == HardpointType.Ballistic || type == HardpointType.Launcher;
 }
