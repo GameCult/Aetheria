@@ -6,7 +6,7 @@ public sealed class Arcs : Scenario
     public override string Name => "Arcs";
     public override string Brief => "Forward mounts, a bare hull off the bow, one off the stern, a hostile turret. Verify: the bow " +
                                     "hull can be hit, nothing fires at the stern one through the ship, the turret tracks you all the way round.";
-    public override uint Seed => 103;
+    public override uint Seed => 107;
     public override bool Ambient => false;
 
     // Where the targets sit: the player is at the origin facing +z, and every mount fires forward.
