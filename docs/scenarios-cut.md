@@ -29,6 +29,12 @@ This section owns the remaining scenarios work. Where it disagrees with sections
 > "That's just how I would build it. Keeps things simple, does the job, can be extended, even establishes tools for
 > in game scripting that would be handy for modders."
 
+> "Have you forgotten that the game is open source? We don't need to ship modding tools if anyone can compile plugins
+> and addons with the same toolchain we use"
+
+So a scenario is a C# script compiled with the game. A modder adds one the way we do: a class in the source tree.
+There is no command-sequence format and no script runtime.
+
 Earlier, the purpose: "Scenarios as in game environments specifically crafted to test various game systems, to be
 accessible via the main menu so I don't have to manually recreate all the wild situations the smoke script
 previously asked me to verify to prove the game is working."
@@ -45,17 +51,12 @@ On master **(read)**:
   no catalog record. The hull type picks the entity class.
 - **(probe)** `GameData/Aetheria.cc` at `4895c752` holds no `aetheria.scenario` record, no `aetheria.loadout` record
   and no `Smoke *` design (`grep -a -c`). Deleting the scenario record type migrates no data.
-- Modding today **(read)**: `GameData/Mods` carries ship packages only (`ShipModCatalog.Package`: a hull, its visual
-  and a model), composed into a derived catalog at boot (`ActionGameManager.cs:58-72`). The console commands are
-  `revealzones`, `give`, `trackmissile`, `spawnturret`, `tow`, `iff`, `capturepreset`, `echo`; each acts on the live
-  player in the ARPG scene and none places, fits or sets a stance on an arbitrary entity. The standalone scripting
-  backend is Mono (`ProjectSettings.asset:660`, only Android listed).
 
-The landed record type is a data shape: a player and a list of placed presets. "A scenario is a script that sets up
-the world in whatever way it needs to" is a code shape. That conflict is question `scenario-is-a-script` (R.6). The
-cuts below are written for its recommended option A; under B or C, Cut S2's deletes and adds change and it is revised.
+The landed record type is a data shape: a player and a list of placed presets. The operator's words make a scenario a
+code shape. S2 therefore replaces the record with a script class. Nothing is lost: no record exists, and a script can
+still use a `capturepreset` preset by name.
 
-### R.3 Target shape (under `scenario-is-a-script` A)
+### R.3 Target shape
 
 - **`Scenario` becomes an abstract C# class** in `Assets/Scripts/ServerShared/Scenario.cs` (the file is rewritten):
   `Name`, `Brief` (the conditions and what to verify, shown under the menu button), `Seed` (a fixed default; the
@@ -90,7 +91,7 @@ cuts below are written for its recommended option A; under B or C, Cut S2's dele
 
 | Old machinery | Under the new framing | Proposal |
 |---|---|---|
-| `aetheria.scenario` record, `ScenarioShip`, `ScenarioEntity` | replaced by script classes | **cut** in S2 (question `scenario-is-a-script`) |
+| `aetheria.scenario` record, `ScenarioShip`, `ScenarioEntity` | replaced by script classes | **cut** in S2 |
 | `aetheria.loadout` presets as scenario inputs | optional: a script may use one by name | **keep** (it is `capturepreset`'s type) |
 | `AetherDb scenario-seed` (transient, never-clobber) | scripts are committed code; nothing to seed | **cut** (never built) |
 | check entry before `RunSave.Clear` (`RunStart.Check`) | a script may read the arena, so it cannot be checked without one | **cut**: the rot test stages every scenario headless against the live catalog; a staging failure in play throws with every failure named, as `StartGame` does today |
@@ -98,9 +99,6 @@ cuts below are written for its recommended option A; under B or C, Cut S2's dele
 | per-scenario check lists (5.1) | each scenario's `Brief` names what to verify | **fold** into `Brief` |
 | test designs (Q3 A, ruled) | still needed: the fused and refused scenarios fire weapons the catalog does not ship | **keep**, Cut S3 |
 | condition tests per scenario | the geometry some checks need | **keep, smaller**: only where a check depends on placement (Arcs, Fused rounds) |
-
-The modder angle does not grow S2. The stage verbs are the vocabulary any later modder path binds to; which path is
-question `modder-scenarios`.
 
 ### R.5 Cuts
 
@@ -118,15 +116,10 @@ discipline; their condition tests. When S3 lands, Self runs `git checkout -- Gam
 `F:\Projects\Aetheria` (the smoke-weapons ruling, that file only). Mind:
 `aetheria-release:cut_spec:cut-scenarios-smoke.r1`.
 
-### R.6 Questions (each admitted to the mind)
+### R.6 Question (admitted to the mind)
 
-- `aetheria-release:question:scenario-is-a-script`: script classes (A), the landed data record (B), or both (C).
-  Recommended A.
 - `aetheria-release:question:verification-ledger`: keep Q2 B as ruled (A), defer it with briefs naming the checks
-  (B), or cut it (C). Recommended B.
-- `aetheria-release:question:modder-scenarios`: how a modder adds a scenario: defer with the stage verbs as the API
-  (A), scenario records in mod packages (B), mod assemblies loaded at boot (C), an embedded script runtime (D).
-  Recommended A.
+  (B), or cut it (C). Recommended B. S2 and S3 do not depend on it.
 
 ### R.7 Ledger
 
