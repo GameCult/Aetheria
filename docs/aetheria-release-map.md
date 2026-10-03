@@ -1254,8 +1254,8 @@ The operator ruled on 2026-10-03 that this campaign adopts `codex/scenarios` and
 - the re-map of `faction-play-4` to ruling `ballistics-real-ammo`.
 
 The cuts are typed specs in the mind: `scenarios-adopt`, `mining-index`,
-`mining-target-queries`, `mining-merge`, `loot-1` to `loot-3`, `ballistic-ammo` and
-`faction-play-4` r2. The fork is question `fastblast-ammo`.
+`mining-index-pins`, `mining-target-queries`, `mining-merge`, `loot-1` to `loot-3`,
+`ballistic-ammo` and `faction-play-4` r2. The fork is question `fastblast-ammo`.
 
 The lane tips were read with `git show` in a scratch clone on 2026-10-03:
 - `codex/scenarios` is at `aa3baf12`: 30 ahead of master and 20 behind, base `702b454b`.
@@ -1462,8 +1462,10 @@ Each lane becomes a `eureka/aetheria-release-*` branch; nothing is pushed to
      `AetheriaStores.cs:9`. The blocker fix follows.
    - Scenarios goes before mining for two reasons: its remaining work is one small cut,
      and mining's merge rule was written to resolve scenarios' side.
-3. **`mining-index`, then `mining-target-queries`**, on the mining branch. They touch
-   only mining's own code, so they run in parallel with steps 1 and 2.
+3. **`mining-index`, then `mining-index-pins`, then `mining-target-queries`**, on the
+   mining branch. They touch only mining's own code, so they run in parallel with
+   steps 1 and 2. The pins land first, so the same tests guard `Best` when
+   `mining-target-queries` gives it callers.
 4. **`mining-merge`.** Master (with ships and scenarios) is merged into mining under the
    recorded rule, and the field kinds are applied again to scenarios' catalog.
 5. **`feedback-1` and `audio-1`** may land at any time: their hunks are disjoint from
@@ -1512,9 +1514,37 @@ re-derivations; it adds nothing.
 - The index alone removes the 633k-rock scan, but leaves the handlers sorting every
   visible rock (2,240 at 3M) on each press.
 - The operator's rule is that a press must not grow with belt size. Only best-first
-  answers meet it.
+  answers meet it. After Soul's first pass on the index, the operator accepted the
+  remaining growth with rock density (see below).
 - Together the two are about 900 lines with tests, over one Hands budget. The seam
   between them, the index's query API, is where Soul can falsify each.
+
+**Why the index fix after Soul's first pass is only pins.**
+- Soul (verdict `cut-mining-index.s1`) measured the index at `a4e8e147`. It is correct,
+  and the 3M-rock press fell from 4.3 s to 150-600 ms.
+- Press cost still grows with rock count in a fixed belt (finding
+  `f1-press-linear-in-density`). Two things drive it: the press path returns every
+  visible rock, and groups hold a fixed 256 rocks.
+- The operator accepted that growth (ruling `targeting-density-scaling-accepted`):
+  "That targeting scaling is acceptable to me, I'm not planning on having ten thousand
+  entities in range, that's already gonna make the UI layer melt."
+- Rejected under that ruling: a sublinear region structure, meaning square polar cells
+  that co-rotate per ring, refreshed lazily, with best-first search over a ring tree.
+  Two reasons. Exact angle and distance-order queries in linear space cost about the
+  square root of the local rock count anyway: this is the line-query bound for
+  kd-trees and Chazelle's lower bound for simplex range searching. And the in-range
+  counts that design allows are far below where the linear term matters.
+- What is left is `mining-index-pins`: three tests for findings
+  `cost-loosening-unpinned` and `exact-reach-unpinned`, which the suite could not see.
+  - The share of regions past reach catches a widened arc window or a loosened
+    `Nearest`.
+  - Examined against an exact per-rock bound catches a loosened visibility bound.
+  - A rock exactly at reach, searched from beyond its belt's outer edge too, catches
+    a slack sign slip.
+- `mining-target-queries` r1 stands as specced. The one finding that names it (f1:
+  `Best` still enumerates every region) is the growth the ruling accepts; the other
+  two touch only `BeltTargets`' tests. Its `AKeyPressDoesNotGrowWithTheBelt` scales
+  area at constant density, which the ruling leaves in force.
 
 **Why loot is three cuts on one branch, merged together.**
 - The ruled design (L8) needs three things:
