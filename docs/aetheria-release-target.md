@@ -155,11 +155,27 @@ The typed target carries these as labelled statements. The reasons:
   - `lucent-duel-bait`: Lucent's need for glory lets the player bait it into a
     duel.
 
-  The strand's first cut, when mapped, is the note's smallest proof: Zhestokost,
-  Lucent and AU in one run, with implementation steps 1 to 3. Those steps are
-  `Personality`-driven engagement range and fire discipline, the four shared agent
-  states, and hail barks. The feedback and content strands leave room for faction
-  colour and livery, and decide nothing about them.
+  A fourth ruling, `npc-scripting-may-grow`, lets the strand extend the NPC
+  scripting through its existing extension points. The note had limited itself to
+  four agent states and the unread `Personality` field, and that limit is lifted.
+  Legacy-first still forbids re-architecture. The map's section "Faction play: the
+  NPC scripting" names what grows: a typed doctrine on `Faction`, and one flight per
+  faction per zone that alone decides its members' targets and orders, executed by
+  the existing state graph through two new motor states.
+
+  The strand's first deliverable is the note's smallest proof: Zhestokost, Lucent
+  and AU in one run, which a playtester can describe without being told. It is three
+  cuts:
+  1. doctrine, the flight, engagement with grace and hail, hull break-off and ping
+     cadence (`faction-play-1`);
+  2. pack slots and Lucent's duel (`faction-play-2`, after `feedback-1`);
+  3. support ships, anchor and leash, and Zhestokost's rearm loop
+     (`faction-play-3`).
+
+  All three wait for the mining and scenarios lanes to merge. Relations, track
+  sharing between factions, distress calls and target priority come after the
+  proof. The feedback and content strands leave room for faction colour and
+  livery, and decide nothing about them.
 
 ## Sequencing
 
