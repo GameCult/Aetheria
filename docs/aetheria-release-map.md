@@ -341,7 +341,8 @@ commodities between cargo bays, and weapons draw ammunition from cargo through
 `AmmoType` (`InstantWeapon.cs:187-192`). Dropped items exist only as Unity pickups
 spawned on death (`EntityInstance.cs:304-320`), and the mining lane keeps pickups
 Unity-only (its pickups question, recommendation A). The simulation has no
-floating cargo to jettison into.
+floating cargo to jettison into. The floating-item substrate is mapped as cuts
+`loot-1` to `loot-3` (section "Lanes: scenarios, mining and the loot move", L6-L8).
 
 **F12. Barks and pings already have a channel.** `Entity.SetMessage`
 (`Entity.cs:1275-1278`) shows a line for `MessageDuration`. `Entity.Sensor.Ping()`
@@ -472,8 +473,8 @@ Beyond the proof, three more primitives use the same owners and need no new laye
   Lightsail convoy, Aya cover and the corridor edge come from this plus relations.
 
 Target priority (drives, cargo, structures) extends `CombatState`'s aim-item choice
-by doctrine and the flight's track choice. Jettison waits on question
-`jettison-owner`.
+by doctrine and the flight's track choice. Jettison is ruled (`jettison-shared-floating-items`)
+and builds on `Zone.Release` from `loot-1`.
 
 ### Model page rows
 
@@ -960,3 +961,320 @@ Sources:
 - https://spmatlas.com/guides/mods-explained/
 - https://fractalsoftworks.com/forum/index.php?topic=12970.0
 - https://docs.blender.org/manual/en/latest/addons/scene_gltf2.html
+
+## Lanes: scenarios, mining and the loot move
+
+The operator ruled on 2026-10-03 that this campaign adopts `codex/scenarios` and
+`codex/mining` from where they stand ("Adopt mining and scenarios", ruling
+`adopt-mining-and-scenarios`). This section maps:
+- both adoptions;
+- the loot move into `ServerShared`, which jettison rests on (ruling
+  `jettison-shared-floating-items`);
+- the merge order of every lane and the faction-play cuts;
+- the re-map of `faction-play-4` to ruling `ballistics-real-ammo`.
+
+The cuts are typed specs in the mind: `scenarios-adopt`, `mining-index`,
+`mining-target-queries`, `mining-merge`, `loot-1` to `loot-3`, `ballistic-ammo` and
+`faction-play-4` r2. The fork is question `fastblast-ammo`.
+
+The lane tips were read with `git show` in a scratch clone on 2026-10-03:
+- `codex/scenarios` is at `aa3baf12`: 30 ahead of master and 20 behind, base `702b454b`.
+- `codex/mining` is at `83d8371e`: 32 ahead and 21 behind, base `65c63495`.
+- Everything master gained since either base is `Scenarios map:` doc commits.
+
+The operator's records for both lanes live in `docs/scenarios-cut.md` on master: the
+Soul passes on scenarios batches 2 to 4 (lines 72-140), and the mining Cut 3 Soul and
+belt-freeze rulings (lines 830-876).
+
+### Body facts
+
+**L1. The scenarios blocker is real, latent, and wider than one lookup.**
+- Soul's batch-4 probe P30 exists only in a dead session scratchpad
+  (`...\F--Projects-CultLib\2a6aec4d-...\scratchpad\soul5\SoulScen5Probes.cs`, log
+  `probesC.log`). At `aa3baf12` it returned:
+  - (a) An L-shaped gun in an L-shaped hardpoint equips at origin `(1, 1)`.
+    `Hardpoints[origin]` is NULL, while the hardpoint found by the item's cells is the
+    right one. `ArcFor` returns the default 120 instead of the authored 360.
+  - (b) A design with an empty leading column: `ItemFits(-1, 4)` is true but
+    `TryFindSpace` is false, and `ArcFor` throws `IndexOutOfRangeException`.
+  - (c) Over the catalog with that design, 380 placements are accepted. In 9 the origin
+    is outside every hardpoint, in 7 it is inside another hardpoint (a radiator), and
+    14 offsets are never tried by `TryFindSpace`.
+- 18 readers take an item's hardpoint from its origin cell
+  (`Hardpoints[item.Position.x, item.Position.y]`):
+  - `FireControl.ArcFor` (`:38`);
+  - eleven Unity weapon managers;
+  - `EntityInstance.cs:245,260` and `ShipInstance.cs:70`;
+  - `ActionGameManager.cs:1044,1048,1049`.
+
+  This is a grep at `aa3baf12`. The pattern in `scenarios-adopt`'s negative check
+  matches exactly these 18.
+- `Entity.HardpointAt` (`Entity.cs:820-835`) already finds the right hardpoint at equip.
+  `TryEquip` (`:904-935`) throws that answer away.
+- The defect is latent. A catalog probe at `aa3baf12` with catalog `70a7b0a9` (an xUnit
+  probe run through `ygg-verify`, job `aeth@aa3baf12e4`, 2026-10-03) found:
+  - every catalog hardpoint is a full rectangle;
+  - the only gear designs whose shape lacks its origin cell are the Vulcan reactor and
+    the Industrial Thermostatic Heater (Tool).
+
+  So nothing in the shipped catalog trips it today. The first non-rectangular hardpoint
+  or mount would.
+- The "held fix" was never written. The fix batch was queued and not dispatched under
+  the 2026-10-01 drain (scenarios-cut.md:105-106). P30's harness survives only in that
+  scratchpad, so `scenarios-adopt` commits its fixtures as tests.
+
+**L2. Merge-tree probes between the lane tips** (`git merge-tree --write-tree
+--name-only`, 2026-10-03):
+
+| Pair | Conflicts |
+|---|---|
+| master x scenarios | none |
+| master x mining | none |
+| scenarios x moddable-ships | `AetheriaStores.cs` (`CatalogTypes`, line 9) |
+| mining x moddable-ships | `AetheriaStores.cs`, `tools/AetherDb/Program.cs` |
+| scenarios x mining | `AetheriaStores.cs`; `Zone.cs` (one region: scenarios' `MineAsteroid` against mining's deletion); `GameData/Aetheria.cc`; `FireControlCut124Tests.cs` |
+
+- The scenarios x mining set matches the merge rule recorded in scenarios-cut.md S4
+  (lines 133-140).
+- Only mining changes `Settings.asset` (`347752dd` to `b2e346f5`, `MiningDifficulty`
+  removed), so it merges without a conflict.
+
+**L3. The belt freeze's cause is mapped** (mining Cut 3 Soul F1):
+- Every reticle, next or previous press builds `ActionGameManager.TargetCandidates`
+  (`:1174` at `83d8371e`).
+- That calls `Entity.VisibleChunksInReach` (`Entity.cs:377-385`), which calls
+  `Zone.ChunksNear` (`Zone.cs:326-339`).
+- `ChunksNear` loops over every rock of every belt whose annulus reaches, posing each
+  rock and then testing its visibility.
+- The handlers then sort the whole list by distance and search it with
+  `Array.IndexOf` (`:393-407`).
+- Soul measured 63 ms at 30k rocks, 449 ms at 300k and 4.3 s at 3M. At 3M, 633k rocks
+  are in reach and 2,240 are visible.
+
+**L4. The operator's index ruling, and the visibility bound.**
+- The operator, verbatim: "Just don't specialize the indexing too much towards asteroid
+  belts, because we'll want a bunch of subsystems feeding targeting data"
+  (scenarios-cut.md:871-875).
+- Detection of a rock is the settled sensor rule (Q14 A):
+  `ChunkInfo = saturate(sum_i v * s_i * curve_i(angle) / d / (n k))`. The sources are
+  `Sensor.Gain` (`Sensor.cs:187-199`) and `Entity.ChunkInfo` (`Entity.cs:355-368`).
+- The rule is linear in visibility `v` and falls as `1/d`. A Bezier curve lies inside
+  the hull of its control points. So for a region with a known maximum visibility and
+  a known nearest distance, an upper bound on `ChunkInfo` is cheap to compute.
+- Rock visibility is `CrossSection * pi * cells^2 * light` (`Zone.ChunkVisibility`,
+  `:314-321`).
+- Together these let a provider prune whole regions without deciding detection.
+
+**L5. Hands' unbuilt work in progress** is
+`F:\Projects\HANDOFF-mining-index-wip-2026-10-01.patch`: 257 lines against
+`83d8371e`'s `Zone.cs`.
+- It groups rocks into bands of 256 by orbit distance, each sorted by orbital phase at
+  a key time.
+- It widens the query arc by the band's rate spread, re-keys at most 8 bands per query,
+  bounds the light per band, and counts `ChunksExamined`.
+- Its structure is belt-shaped (`ChunksNear(position, range, distancePerVisibility)` on
+  `Zone`), and its queries still build eager lists.
+- Kept: the kinetic bands. Not kept: the belt-shaped API and the eager queries.
+
+**L6. Nothing of the loot move has landed, on master or on any lane.**
+- `git grep` for `Zone.Loot`, `TryPickUp` and `LootDrop` over every local and remote
+  ref found nothing in code.
+- On master `f1dee184`, the loot path is all Unity:
+  - the roll uses `UnityEngine.Random.value` and `onUnitSphere`
+    (`EntityInstance.cs:302-321`);
+  - pickups are `GridObject`s, moved by Unity (`GridObject.cs`);
+  - collection is `ShieldManager.OnCollisionEnter` (`ShieldManager.cs:40-55`);
+  - the tractor beam pulls by `Physics.SphereCastAll` (`TractorBeam.cs:14-30`).
+- No lane touches these hunks. Mining edits `EntityInstance.cs:236,410` and
+  `ZoneRenderer.cs:72-483`, away from the loot lines. Moddable-ships edits
+  `ZoneRenderer.cs:289-304`.
+
+**L7. Today's loot tuning, read from the assets.**
+- `GameSettings.cs:14-16`: `PickupLifetime` 30, `LootDropProbability` .25,
+  `LootDropVelocity` 25.
+- All five pickup prefabs (`Assets/Prefabs/RPG/Pickups/*.prefab`) carry the same
+  `GridObject` values: `Drag` .05, `LaunchDrag` .2, `Gravity` 1, `GridAttraction` 10,
+  `RotationSpeed` 1.
+- `Tractor Beam.prefab`: `Radius` 25, `Traction` 25, `Distance` 75.
+- `GridObject` also moves mines (`Mine.cs:12`, `MineManager.cs:21-32`).
+
+**L8. Fork L already decides the pickup, and the Tractor Beam has no capability yet.**
+- Fork L was ruled by the operator on 2026-09-17 (headless-playground-cut.md:924-970):
+  - pickup is a simulation-owned timed grab: extend, envelop, pull;
+  - no Unity collision decides a pickup;
+  - the tractor beam is a generic Tool item that provides only pickup;
+  - the simulation owns the grabbed object and its pose;
+  - `GrabEvent` names the object by a typed simulation identity;
+  - loot is a body plus an item instance.
+- Two readings are therefore not the design:
+  - option (a) of that section, "contact detection stays Unity collision", which was
+    recommended before the ruling;
+  - the brief's "`Zone.TryPickUp` from `ShieldManager`".
+
+  The jettison ruling's own words agree: jettisoned cargo "can be picked up without
+  unity's involvement".
+- Scenarios rulings of 2026-09-30 (scenarios-cut.md:46-56): picking up requires a
+  pickup behaviour, which the Tractor Beam carries, and every generated ship and the
+  player's starting ship carry one.
+- The catalog probe (L1's job) found the Tractor Beam as `GearData` on a **Sensors**
+  hardpoint, with **no behaviours** and one product. Nothing in the simulation can grab
+  today.
+- The presentation seam exists, but grabs nothing real:
+  - `GrabEvent` carries an `int TargetHandle` (`CapabilityEvents.cs:53-67`);
+  - `CapabilityPresentationBinder` resolves it to a live `Transform` through delegates
+    (`:16-45`), and only `FieldTester` supplies them.
+
+**L9. The ammunition substrate, by catalog probe** (same job, catalog `70a7b0a9`):
+
+| Hardpoint | Weapon | Behaviour | Magazine | Ammo | Energy |
+|---|---|---|---|---|---|
+| Ballistic | 6k Shooter | Instant | 6 | none | 5 |
+| Ballistic | Autocannon | Auto | 50 | Ammo | 5 |
+| Ballistic | ClearPath | Auto | 0 | none | 1..0.5 |
+| Ballistic | DeathCluster | Auto | 8 | Ammo | 25..5 |
+| Ballistic | Earp | Instant | 6 | none | 5 |
+| Ballistic | pretty pretty bang bang | Charged | 8 | Ammo | 25..50 |
+| Energy | FastBlast+- | Auto | 12 | Ammo | 0 |
+| Energy | ChargeBlast SG, ChargeBlast+-, ColdFire, CShot RainbowLite Lazer, plight, Spectra | mixed | 0 or 1 | none | 0 to 150 |
+| Launcher | GT 3K, LRMM72, pswarm, scorched void policy, SRMM72 | mixed | 2 to 288 | none | 0.1 to 50 |
+
+- The catalog has one ammunition commodity, `Ammo`, at price 1000.
+- One cargo unit is one **magazine**. `InstantWeapon.UseAmmo` removes 1 unit per reload
+  and refills `MagazineSize` rounds (`InstantWeapon.cs:176-202`). `ConstantWeapon` does
+  the same (`:129-160`). So `faction-play-4` r1's "`AmmoMagazines x MagazineSize`
+  rounds" over-stocked by a factor of `MagazineSize`.
+- `UseAmmo` returns true at once when `MagazineSize <= 1` (`:178`), so a one-round gun
+  fires free even with an `AmmoType`.
+- Firing energy reaches a weapon through the power bus:
+  - `PowerBus.cs:122` takes every active `IPowerConsumer`;
+  - an item's `PowerSupply` is its tier's grant ratio (`:196-205`), which is 0 below a
+    starved tier;
+  - so a weapon that requests nothing still reads its tier's ratio, and a brownout
+    still reaches it.
+
+  That is why `ballistic-ammo` takes ammo-fed weapons off the bus instead of zeroing
+  their request.
+- `ChargedWeapon`'s charge is time-based (`_charge += dt / ChargeTime`). Only firing
+  spends the capacitor, so bypassing the spend does not stall a charge.
+
+### Model page rows
+
+| Kind | Identity | Lifecycle | Authority |
+|---|---|---|---|
+| Equipped item's hardpoint | `EquippedItem.Hardpoint`, a reference into the hull's `Hardpoints` list; null for Tool gear. | Set once at equip from the placement rule, and derived again on every load (load re-equips). Never stored. | `Entity.HardpointAt`, through `TryEquip`. No reader derives it from the origin cell. |
+| Targeting index | `Zone.Targets`, one per zone. | Built with the zone. Providers register as belts are built and entities admitted. Rebuilt on load; never saved. | `TargetingIndex` for candidate sets and bounds; each provider for its own motion; `Entity` for detection. |
+| Belt band (provider region) | Belt key plus band index; arc segments by key order. | Derived from `AsteroidBeltData`, `PlanetSettings` and time. Re-keyed lazily, a bounded number per query. Cache only. | `BeltTargets`. |
+| Target choice | The `TargetRef` a key press writes. | Made per press; no list is kept between presses. | `Entity` (reticle, next, previous, nearest), through `SetTarget`. |
+| Floating item | `FloatingItemId`: a zone counter, never reused in a zone. | Released at death (and later by jettison); drifts; held during a grab; removed into cargo by `TryPickUp`, or at `FloatingItemLifetime`. Not saved: gone when the zone unloads, as Unity loot is today. | `Zone`: release, step, expiry and commit. |
+| Loot dice | Zone `CombatSeed`, loot stream, death ordinal. | One generator per death, discarded after the roll. | `Zone.DropLoot`, on `SimulationDice`. Never `UnityEngine.Random`, never a shared stream. |
+| Grab | Holder entity plus `FloatingItemId`. | Started, Extend, Envelop, Pull, then Completed or Cancelled. One holder per item, one grab per Pickup. | The `Pickup` behaviour owns the timeline; `Zone` owns the held pose and the commit. |
+| Pickup capability | `PickupData` (BehaviorData union key 40) on the Tractor Beam design. | Authored by an AetherDb one-shot, then edited in the catalog. Every generated ship carries one. | The catalog author. |
+| Ammunition | An `AmmoType` commodity; one unit is one magazine. | Stocked at generation and in station inventories; consumed one unit per reload; moved by `TryTransferItems` when rearming. | Cargo. `WeaponData.DrawsRounds`, derived from `AmmoType`, decides reactor or magazine. |
+
+### Merge order
+
+Each lane becomes a `eureka/aetheria-release-*` branch; nothing is pushed to
+`codex/*`. In order of landing on master:
+
+1. **`ships-merge`.** Its spec exists; ruling `ships-merge-on-agent-proof`.
+2. **`scenarios-adopt`.**
+   - Master (with ships) is merged into scenarios first. The only conflict is
+     `AetheriaStores.cs:9`. The blocker fix follows.
+   - Scenarios goes before mining for two reasons: its remaining work is one small cut,
+     and mining's merge rule was written to resolve scenarios' side.
+3. **`mining-index`, then `mining-target-queries`**, on the mining branch. They touch
+   only mining's own code, so they run in parallel with steps 1 and 2.
+4. **`mining-merge`.** Master (with ships and scenarios) is merged into mining under the
+   recorded rule, and the field kinds are applied again to scenarios' catalog.
+5. **`feedback-1` and `audio-1`** may land at any time: their hunks are disjoint from
+   all three lanes (B10). `feedback-1` must land before `loot-2`.
+6. **`loot-1` to `loot-3`**, on one branch from master after step 4, merged together.
+   They wait for step 4 because mining's belt code rewrites `Zone.cs`, and the loot
+   cuts edit `Zone`'s constructor and `Update`.
+7. **`ballistic-ammo`**, after step 4: it needs scenarios' `LoadoutGenerator` and
+   mining's `Weapon.cs`. It is independent of the loot cuts.
+8. **`faction-play-1` to `-3`**, re-anchored first (follow-up `faction-play-reanchor`).
+   `faction-play-1` rewrites lines both lanes changed, so it starts only after step 4:
+   - mining's targeting lines: `Minion.cs:14-21`, `Combat.cs:28`, and `Target` as a
+     `TargetRef` written through `SetTarget`;
+   - scenarios' admission lines: `Zone.Admit`.
+9. **`faction-play-4`** r2, after `faction-play-3` and `ballistic-ammo`.
+10. **Jettison, then pirate collection**, on `Zone.Release` and the grab, after step 6.
+
+### Rationale
+
+**Why every item carries its hardpoint, rather than keeping the origin inside it.**
+Soul named both fixes.
+- Keeping the origin inside the hardpoint forbids legal placements. An L-shaped gun
+  could never fill an L-shaped hardpoint whose corner is empty, because the gun's own
+  origin cell is that corner (P30 (a)).
+- Looking the hardpoint up by the item's cells at every reader would put the placement
+  rule in 18 places.
+
+The placement rule already knows the answer at equip. Keeping that answer deletes 18
+re-derivations; it adds nothing.
+
+**Why the index is generic and the belt is a provider.**
+- The operator ruled it (L4).
+- The seam is the smallest that carries both providers in the tree today and the ones
+  the operator named, EW and microfauna. A provider yields regions with a distance
+  interval, a bearing interval and a visibility ceiling, and the candidates for a
+  region.
+- The index owns no motion model. A provider for orbiting rocks, one for moving ships
+  and one for a slime field each keep their own.
+- Prior art, cited from memory and not re-fetched:
+  - best-first incremental search over a region hierarchy: Hjaltason and Samet,
+    "Distance browsing in spatial databases" (ACM TODS 1999);
+  - kinetic sorted orders for moving points: Basch, Guibas and Hershberger, "Data
+    structures for mobile data" (SODA 1997).
+
+**Why the index and the key-press rules are two cuts.**
+- The index alone removes the 633k-rock scan, but leaves the handlers sorting every
+  visible rock (2,240 at 3M) on each press.
+- The operator's rule is that a press must not grow with belt size. Only best-first
+  answers meet it.
+- Together the two are about 900 lines with tests, over one Hands budget. The seam
+  between them, the index's query API, is where Soul can falsify each.
+
+**Why loot is three cuts on one branch, merged together.**
+- The ruled design (L8) needs three things:
+  - floating items in the simulation (`loot-1`);
+  - the grab as a capability, with its catalog entry and generation (`loot-2`);
+  - the presenters (`loot-3`).
+- Together they are about 1,000 lines.
+- Merging after `loot-1` alone would ship a game where loot cannot be collected,
+  because `loot-1` deletes the Unity collection that the ruling retires.
+
+One branch keeps master playable, and three cuts keep each Soul pass small.
+
+**Why floating items are not saved.** Today's Unity loot is not saved either, and a
+floating item lives 30 seconds. Saving them would add a `ZonePack` field and a
+migration for a window shorter than a save cycle. Jettison may want longer lifetimes;
+its cut can revisit this with a reason.
+
+**Why the loot dice are the zone's, keyed by death ordinal.**
+- Fire control's Cut 6b rule is that a roll belongs to the thing rolled for, not to a
+  shared stream, so a UI or another system drawing first cannot change it.
+- The loot roll follows the same rule with its own stream, so it cannot disturb shot
+  dice either (test `LootDiceDoNotTouchShotDice`).
+- The mixing function moves to one owner (`SimulationDice`) instead of being copied.
+  The owner-level fix is CultMath's (follow-up `cultmath-mixed-seed`).
+
+**Why ammo-fed weapons leave the power bus.** By L9, a weapon on the bus reads its
+tier's grant ratio even when it requests nothing. A request of zero would still let a
+brownout silence a gun whose energy comes from its rounds. Off the bus, its supply is
+1 and the reactor cannot touch it. That makes the ruling's trade-off literal: energy
+weapons compete for reactor power, and ballistic weapons compete for cargo.
+
+**Why one ammunition commodity.**
+- The catalog has one (`Ammo`).
+- The mechanism is data (`AmmoType` per weapon), so a split by calibre is a catalog edit
+  that needs no code.
+- A tender carrying one commodity is also the simplest rearm loop to prove.
+
+This is a default, not a ruling. The operator can ask for calibres at any time.
+
+**Why mining's Q6a should be asked again.** Mining ruled that ore is lost when a hold
+is full (Q6a A), because pickups were Unity-only (mining-cut.md:286-287). After
+`loot-1`, overflow could float through `Zone.Release` like any other loot. Follow-up
+`mining-cuts-4-5-7` carries the question to that map.
