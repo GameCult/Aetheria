@@ -4,7 +4,7 @@ Date: 2026-09-30, 02:10 CEST. Imagination pass.
 
 Status: Cut 1 landed on master (`RunStart`, `Zone.Admit`, the `Scenario` record type, the `Materialize` rules).
 Cuts 2-4 were re-scoped on 2026-10-03 to the operator's lighter framing: section R owns them and supersedes the
-old Cut 2-4 text below. Section R's questions are open. This document owns the means; the campaign is
+old Cut 2-4 text below. Section R's questions are answered. This document owns the means; the campaign is
 `aetheria-release` (ruling `adopt-mining-and-scenarios`).
 
 Anchors are against Aetheria `origin/master` `dcd7bbc5` (the fire-control merge), read in the clone
@@ -53,79 +53,118 @@ On master **(read)**:
   and no `Smoke *` design (`grep -a -c`). Deleting the scenario record type migrates no data.
 
 The landed record type is a data shape: a player and a list of placed presets. The operator's words make a scenario a
-code shape. S2 therefore replaces the record with a script class. Nothing is lost: no record exists, and a script can
+code shape, and the two game modes scenarios too (R.3). S2 therefore replaces the record with a script class. Nothing is lost: no record exists, and a script can
 still use a `capturepreset` preset by name.
 
-### R.3 Target shape
+### R.3 Rulings of 2026-10-03
 
-- **`Scenario` becomes an abstract C# class** in `Assets/Scripts/ServerShared/Scenario.cs` (the file is rewritten):
-  `Name`, `Brief` (the conditions and what to verify, shown under the menu button), `Seed` (a fixed default; the
-  prelude arena galaxy and its background noise derive from it, Q1 A), `Ambient` (default false), and
-  `abstract void Stage(ScenarioStage stage)`.
-- **`Scenarios.All`**, a static array in `Assets/Scripts/ServerShared/Scenarios/Scenarios.cs`, lists them in menu
-  order. One file per scenario beside it. No reflection discovery, no registry beyond the array.
-- **`ScenarioStage`** is the script's vocabulary, the "tools for in game scripting". Only `RunStart` builds one.
-  Every verb collects failures by name instead of throwing, and nothing is admitted until the script returns with no
-  failure, so staging stays all-or-nothing:
+- **`game-modes-are-scenarios`.** Operator: "Btw, the two game modes we have now should also be scenarios. The
+  tutorial Galaxy and the main Galaxy are two ways of setting the game up, so they're scenarios now, too." New Game
+  has no setup path of its own.
+- **`verification-ledger-b`.** Operator: "Agree with b." The typed ledger is deferred (follow-up
+  `scenarios-verification-ledger`). Each scenario's `Brief` names what to verify; results stay in the prose checklist
+  (`docs/merge-to-master-checklist.md` section 8). This supersedes the Q2 B ruling of 2026-09-30.
+
+### R.4 Target shape
+
+**A scenario sets up the whole game: the galaxy and the run's first entities.** The two game modes and every test
+arena are scenarios, staged by one owner through one path.
+
+- **`Scenario`**, an abstract C# class (`Assets/Scripts/ServerShared/Scenario.cs`, rewritten):
+  - `Name`, and `Brief` (the conditions and what to verify; shown under the button).
+  - `virtual uint Seed => 0`. Zero means the clock, as `Galaxy`'s constructors already treat it
+    (`Galaxy.cs:108,158`): the two game modes are new every time. A test arena overrides it with a fixed seed, so it
+    has the same layout at every launch.
+  - `abstract Galaxy Generate(GalaxyStage stage)`: which galaxy.
+  - `virtual bool Ambient => true`: whether the entrance zone keeps its generated ships and turrets. Test arenas
+    override it to false.
+  - `abstract void Stage(ScenarioStage stage)`: what the run starts with.
+- **`GalaxyStage`**, the galaxy half of the vocabulary. It wraps the existing constructors and takes their inputs
+  (the sector, tutorial, background and name settings, the cache, `PlayerSettings`, the narrative directory, log and
+  progress callback), which the menu hands to `RunStart`:
+  - `Galaxy Main()`: `new Galaxy(SectorGenerationSettings, ...)` at the scenario's seed.
+  - `Galaxy Prelude()`: `new Galaxy(TutorialGenerationSettings, ..., narrativeDirectory, ...)` at the scenario's seed.
+  - Both derive the background noise position from the seed instead of `UnityEngine.Random`
+    (`MainMenu.cs:137,162`). `Prelude` keeps the search for a noise position whose cloud density at the centre is at
+    least 0.5 (`:160-164`), drawing from the seeded random. Seed zero draws from the clock, so the modes still look
+    different every time.
+- **`ScenarioStage`**, the run half. Only `RunStart` builds it. Every verb collects failures by name, and nothing is
+  admitted until `Stage` returns clean:
   - `Loadout Fit(string hull, params (string design, int2 cell, ItemRotation rotation)[] slots)` and
-    `Loadout Bare(string hull)`: an in-memory `Loadout` by design names.
-  - `Loadout Generated(string hull)`: a fit from `LoadoutGenerator`, as New Game makes one.
-  - `Loadout Preset(string name)`: a catalog `aetheria.loadout` record (from `capturepreset`), when one exists.
+    `Loadout Bare(string hull)`: an in-memory `Loadout`.
+  - `Loadout Generated(string hull, Faction faction = null)`: a `LoadoutGenerator` fit. An empty `hull` means any
+    ship hull. This is the old no-scenario branch of `RunStart.Stage`, now a verb.
+  - `Loadout Preset(string name)`: a `capturepreset` record.
   - `Ship Player(Loadout fit, float2 at, float2 facing = default)`.
   - `Entity Place(Loadout fit, float2 at, float2 facing = default, ScenarioStance stance = Neutral, bool piloted = false)`.
-  - `void Cargo(Entity entity, params string[] designs)`: into the first cargo bay.
-  - `Galaxy` and `Arena` (the zone), for reading: a script may place relative to the station.
-- **`RunStart` keeps ownership** of what a new run starts with and of admission. `Stage(itemManager, arena, scenario,
-  ...)` runs `scenario.Stage(stage)`, then admits the player and every placed entity through `Zone.Admit` with its
-  stance (both ways, `SetIff`) and pilot. `Build` and `Place` move into `ScenarioStage`. `RunStart.Check` is deleted
-  (R.4, "check entry").
-- **Menu.** `MainMenu.ShowMain` gains **Scenarios** (editor and development builds, `Debug.isDebugBuild`), opening a
-  submenu: `foreach (var s in Scenarios.All) panel.AddButton(s.Name, () => Launch(s))`, each with its brief, then
-  Back. The New Game lambda's two galaxy branches (`MainMenu.cs:119-185`) collapse into one `Launch(Scenario)` body;
-  New Game is `Launch(null)`. With a scenario it builds the prelude galaxy at `scenario.Seed`, derives the noise
-  position from the seed, and sets `ActionGameManager.PendingScenario`.
-- **`PendingScenario`** (a static on `ActionGameManager`) is command-only transport: written by `Launch`, read and
-  nulled once by `StartGame`'s new-run branch, which passes it to `GenerateArena` (for `Ambient`) and `Stage`.
+  - `void Cargo(Entity entity, params string[] designs)`.
+  - `Galaxy`, `Arena`, and `StartingHull` (`GameSettings.StartingHullName`), for reading.
+- **The two game modes** (`Assets/Scripts/ServerShared/Scenarios/`):
+  - `TutorialGalaxy`: `Generate` returns `stage.Prelude()`. `Stage` places
+    `Generated(StartingHull, Galaxy.ResolveFaction(TutorialGenerationSettings.ProtagonistFaction))` at the origin.
+    This is today's New Game, since `TutorialPassed` is never set and New Game always takes the prelude branch.
+  - `MainGalaxy`: `Generate` returns `stage.Main()`. `Stage` places `Generated(StartingHull)` with no faction at the
+    origin. This is today's `TutorialPassed` branch, which is unreachable.
+- **`Scenarios`**: two static arrays. `Modes` holds `TutorialGalaxy` and `MainGalaxy`. `Tests` holds the test arenas.
+  There is no flag field on `Scenario`.
+- **`RunStart` is the one owner of a new run.** `RunStart.Generate(scenario, galaxyStage)` builds the galaxy.
+  `GenerateArena(..., scenario)` applies `Ambient`. `Stage(itemManager, arena, scenario, ...)` runs `scenario.Stage`,
+  then admits through `Zone.Admit`. A scenario is always present: there is no null branch.
+- **Menu.** "New Game" opens a submenu listing `Scenarios.Modes` and, when `Debug.isDebugBuild`, `Scenarios.Tests`
+  after them, then Back. Each button runs one `Launch(Scenario)`, which:
+  1. clears the run;
+  2. shows the "Generating Galaxy" dialog;
+  3. on the background task, calls `RunStart.Generate`;
+  4. next frame, sets `CurrentGalaxy` and `PendingScenario`, then `EnterGame`.
 
-### R.4 What the old map's machinery becomes
+  This is the operator's "main menu submenu", and it puts the two modes "in" the list her ruling put them in. Self
+  chose it. Having Tutorial and Main as two top-level buttons is the alternative, and it costs the same if she
+  prefers it.
+- **`PendingScenario`** is command-only transport. `Launch` writes it, and `StartGame`'s new-run branch reads and nulls
+  it. A new run with no pending scenario is an error.
+- **`ActionGameManager.IsTutorial` is no longer an owner.** It duplicates `Galaxy.IsPrelude`: `Galaxy`'s save
+  constructor already sets `IsPrelude = savedGame.IsTutorial` (`Galaxy.cs:50`). Its readers read
+  `CurrentGalaxy.IsPrelude` instead: `RunSave.Capture` (`ActionGameManager.cs:253`), `spawnturret` (`:581`),
+  `PopulateLevel` (`:731`) and `StartGame` (`:818`). `SavedGame.IsTutorial` stays as the persisted field.
+- **`PlayerSettings.TutorialPassed` is dead.** It is never written, and its only reader is the deleted branch.
 
-| Old machinery | Under the new framing | Proposal |
+### R.5 What the old map's machinery becomes
+
+| Old machinery | Now | |
 |---|---|---|
 | `aetheria.scenario` record, `ScenarioShip`, `ScenarioEntity` | replaced by script classes | **cut** in S2 |
-| `aetheria.loadout` presets as scenario inputs | optional: a script may use one by name | **keep** (it is `capturepreset`'s type) |
-| `AetherDb scenario-seed` (transient, never-clobber) | scripts are committed code; nothing to seed | **cut** (never built) |
-| check entry before `RunSave.Clear` (`RunStart.Check`) | a script may read the arena, so it cannot be checked without one | **cut**: the rot test stages every scenario headless against the live catalog; a staging failure in play throws with every failure named, as `StartGame` does today |
-| `Check`/`CheckResult` ledger, `GameData/Checks.cc`, `AetherDb checks`/`record` (Q2 B) | not named by the new framing | **defer** (question `verification-ledger`); the ruling stands until the operator answers |
-| per-scenario check lists (5.1) | each scenario's `Brief` names what to verify | **fold** into `Brief` |
-| test designs (Q3 A, ruled) | still needed: the fused and refused scenarios fire weapons the catalog does not ship | **keep**, Cut S3 |
-| condition tests per scenario | the geometry some checks need | **keep, smaller**: only where a check depends on placement (Arcs, Fused rounds) |
+| the no-scenario path of `RunStart.Stage` and New Game's own galaxy branches | the two mode scenarios | **cut** in S2 |
+| `ActionGameManager.IsTutorial`, `PlayerSettings.TutorialPassed` | `Galaxy.IsPrelude`; nothing | **cut** in S2 |
+| `aetheria.loadout` presets | optional script input | **keep** |
+| `AetherDb scenario-seed` | scripts are code | **cut** (never built) |
+| check entry before `RunSave.Clear` (`RunStart.Check`) | a script may read the arena | **cut**; the rot test stages every scenario headless |
+| ledger (old Cut 3) | ruled `verification-ledger-b` | **deferred**, follow-up `scenarios-verification-ledger` |
+| per-scenario check lists (5.1) | `Brief` | **fold** |
+| test designs (Q3 A) | needed by the fused scenarios | **keep**, S3 |
 
-### R.5 Cuts
+### R.6 Cuts
 
-Fewest cuts: **S2 alone delivers a usable menu with seven scenarios.** S3 adds the three that need test designs. The
-ledger has no cut unless `verification-ledger` is ruled A; then the old Cut 3 is re-specced as S4.
+S2 alone delivers the whole menu: the two modes and seven test arenas. S3 adds the three that need test designs.
 
-**Cut S2. The script harness, the Scenarios submenu, and seven scenarios** (headless plus one Unity compile).
-Branch `eureka/aetheria-release-scenarios-menu` from `origin/master`. The seven scenarios from section 5.2 that need
-no new design: Djinni shakedown, Starved reactor, Arcs, Duel, Launcher angles, Weapon feel, Long haul (`Ambient`
-true). Mind: `aetheria-release:cut_spec:cut-scenarios-menu.r1`.
+**Cut S2. Every setup is a scenario: the harness, the two game modes, the New Game submenu, and seven test arenas.**
+Branch `eureka/aetheria-release-scenarios-menu` from `origin/master`. The arenas: Djinni shakedown, Starved reactor,
+Arcs, Duel, Launcher angles, Weapon feel, Long haul (`Ambient` true). Mind:
+`aetheria-release:cut_spec:cut-scenarios-menu.r2`, which supersedes r1.
 
-**Cut S3. Smoke designs and the fused scenarios** (content), on S2. Five product-less designs (5.3) authored by a
-transient `AetherDb smoke-designs apply`, deleted in the same cut; scenarios Fused rounds, Refused rounds, AI fused
-discipline; their condition tests. When S3 lands, Self runs `git checkout -- GameData/Aetheria.cc` in
-`F:\Projects\Aetheria` (the smoke-weapons ruling, that file only). Mind:
+**Cut S3. Smoke designs and the fused scenarios** (content), on S2. Five product-less designs (5.3), written by a
+transient `AetherDb smoke-designs apply` that is deleted in the same cut. Scenarios: Fused rounds, Refused rounds, AI
+fused discipline. When S3 lands, Self runs `git checkout -- GameData/Aetheria.cc` in `F:\Projects\Aetheria`. Mind:
 `aetheria-release:cut_spec:cut-scenarios-smoke.r1`.
 
-### R.6 Question (admitted to the mind)
+### R.7 Questions
 
-- `aetheria-release:question:verification-ledger`: keep Q2 B as ruled (A), defer it with briefs naming the checks
-  (B), or cut it (C). Recommended B. S2 and S3 do not depend on it.
+None open. `verification-ledger` was answered B.
 
-### R.7 Ledger
+### R.8 Ledger
 
 | Cut | Removed | Added |
 |---|---|---|
-| S2 | record types 45; `RunStart.Check`, `Build`, `Place` 75; the duplicated New Game branch 25; record-shaped test scaffolding 60 | `Scenario` base 20; `ScenarioStage` 90; `RunStart` 20; seven scenarios 150; menu 30; tests 120 |
+| S2 | record types 45; `RunStart.Check`, `Build`, `Place` and the null branch 90; New Game's two galaxy branches 60; `IsTutorial` 6; `TutorialPassed` 1; record-shaped test scaffolding 60 | `Scenario` 25; `GalaxyStage` 50; `ScenarioStage` 95; `RunStart` 25; two modes 30; seven arenas 150; menu 35; tests 140 |
 | S3 | the transient command, once spent | five designs (catalog); three scenarios 70; condition tests 80 |
 
 S2 removes the `aetheria.scenario` schema. No store, target, package or daemon is added.
@@ -136,7 +175,8 @@ S2 removes the `aetheria.scenario` schema. No store, target, package or daemon i
 
 - **Q1 A.** The arena is the entrance zone of a small prelude galaxy. Operator: "A is fine, I guess, since some of
   the stuff we'll be testing won't work in an isolated zone with no galaxy."
-- **Q2 B.** The agent records results with `AetherDb record`; the menu shows them read-only.
+- **Q2 B.** The agent records results with `AetherDb record`; the menu shows them read-only. **Superseded 2026-10-03
+  by `verification-ledger-b` (section R.3): deferred.**
 - **Q3 A.** Test designs are committed catalog designs with no product.
 - **Q4: none of A-C.** "Debug console commands are hella useful in general and fun for sandbox gamers, never toss a
   single one." Cut 0 is cancelled: `give` (with its hull route), `spawnturret` and every other console command stay.
