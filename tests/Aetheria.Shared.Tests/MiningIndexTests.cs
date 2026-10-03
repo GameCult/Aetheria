@@ -94,15 +94,21 @@ public sealed partial class MiningCut3Tests
         Assert.True(nonEmpty > 200, $"degenerate queries: {nonEmpty} non-empty");
     }
 
+    // 4,000 rocks over 300..1300 about `centre`, and a second sun off the belt centre, so the light bound's bearing to
+    // a sun matters.
+    private Scene TwoSunBelt(System.Random rng, float2 centre)
+    {
+        var kind = Kind("Asteroid", 4f);
+        return BuildSceneAt(centre, 1500f, 0, new[] { centre + float2(900, 400) }, new[] { kind }, Belt(kind, Annulus(rng, 4000, 300f, 1300f)));
+    }
+
     // Every bound a belt region states holds for every rock it hands back: distance, bearing and visibility.
     [Fact]
     public void BeltRegionBoundsHoldForEveryRock()
     {
-        var kind = Kind("Asteroid", 4f);
         var rng = new System.Random(8);
         var centre = float2(150, -60);
-        // A second sun off the belt centre, so the light bound's bearing to a sun matters.
-        var s = BuildSceneAt(centre, 1500f, 0, new[] { centre + float2(900, 400) }, new[] { kind }, Belt(kind, Annulus(rng, 4000, 300f, 1300f)));
+        var s = TwoSunBelt(rng, centre);
         var data = (AsteroidBeltData) s.Zone.Planets[s.Belts[0]];
         var belt = new BeltTargets(s.Zone, s.Belts[0], data, s.Zone.Settings, 0);
         var regions = new List<TargetRegion>();
@@ -350,5 +356,138 @@ public sealed partial class MiningCut3Tests
             Assert.InRange(value, range.x, range.y);
         }
         Assert.True(range.y > 1f, $"hull max {range.y} does not reach past the keys");
+    }
+
+    // Rocks of one Size spread evenly over the annulus [inner, outer].
+    private static Asteroid[] AnnulusOfSize(System.Random rng, int count, float inner, float outer, float size) =>
+        Enumerable.Range(0, count).Select(_ =>
+            Rock(sqrt(inner * inner + (float) rng.NextDouble() * (outer * outer - inner * inner)), (float) rng.NextDouble(), size)).ToArray();
+
+    // A belt's regions stay near the search's arc: of the regions a small search gets, few lie wholly past its reach
+    // (the arc window is not widened), and some do (the sector's nearest distance is not loosened toward zero).
+    // Measured on a4e8e147 over these 120 searches, as the share of regions with Nearest > Reach: unmutated 3.97%
+    // (15 of 378). Window widened: BeltTargets.cs:111 asin * 2pi 82.96%, :111 asin(reach * distance) 85.89%, :131
+    // 2 / half 85.89%, :140 Math.Max(to, 1) 75.29%. Nearest loosened: :247 / 2 * pi 0.00%. The ceiling, 20%, is 5.0x
+    // the unmutated share and 3.8x below the least widened mutant; the floor, 2%, is half the unmutated share.
+    [Fact]
+    public void RegionsStayNearTheSearchArc()
+    {
+        var rng = new System.Random(8);
+        var s = TwoSunBelt(rng, float2(150, -60));
+        var data = (AsteroidBeltData) s.Zone.Planets[s.Belts[0]];
+        var belt = new BeltTargets(s.Zone, s.Belts[0], data, s.Zone.Settings, 0);
+        var regions = new List<TargetRegion>();
+        var searches = new System.Random(31);
+        int total = 0, past = 0;
+        // At the key time, and after 5 s, when the arcs have widened by their drift.
+        foreach (var step in new[] { 0f, 5f })
+        {
+            if (step > 0f) s.Zone.Update(step);
+            for (var q = 0; q < 60; q++)
+            {
+                var rock = At(s, new ChunkId(s.Belts[0], searches.Next(data.Asteroids.Length)));
+                var angle = (float) (searches.NextDouble() * 2 * PI);
+                var from = rock + (float) searches.NextDouble() * 20f * float2(cos(angle), sin(angle));
+                var search = new TargetSearch(from, 30f + (float) searches.NextDouble() * 50f);
+                regions.Clear();
+                belt.Regions(search, regions);
+                total += regions.Count;
+                past += regions.Count(r => r.Nearest > search.Reach);
+            }
+        }
+        var share = (double) past / total;
+        Assert.True(share < .2, $"{past} of {total} regions lie past reach: the search window has widened");
+        Assert.True(share > .02, $"{past} of {total} regions lie past reach: region distances have loosened");
+    }
+
+    // The visibility bound prunes: a belt of rocks all of the largest Size, so the belt-wide radius bound is exact per
+    // rock, lit by a sun at its centre whose light ends inside it. Summed over the spots, one VisibleChunksInReach
+    // each, the rocks examined are a small share of the rocks in reach.
+    // Measured on a4e8e147, examined over in reach: unmutated 0.162 (231 of 1,429); BeltTargets.cs:181 radius * cell
+    // size, the bound 16x too loose, 0.434 (620). The ceiling, 0.265, is 1.64x the unmutated share and 1.64x below
+    // the mutant's. (:247 / 2 * pi, which loosens region distances, also fails it at 0.318.) The spots are where
+    // light, not reach, decides which regions survive. In a measurement at 450 units, sector geometry decided
+    // (94 examined unmutated, 105 mutated), and past the light nothing is lit either way.
+    // The cut asked for Examined <= 2x the rocks in reach within their own detection distance. Unmutated it fails: 64
+    // examined for 5 such rocks at 250 units. A region is 32 rocks of a band spanning an eighth of the orbit, so the
+    // segment size sets Examined, not the detectable count.
+    [Fact]
+    public void VisibilityBoundPrunesADimBelt()
+    {
+        var kind = Kind("Asteroid", 4f);
+        var rng = new System.Random(13);
+        var s = BuildSceneAt(float2.zero, 750f, 0, null, new[] { kind }, Belt(kind, AnnulusOfSize(rng, 3000, 200f, 1200f, 1f)));
+        var all = AllChunks(s).ToList();
+        // The sensitivity at which the brightest rock is detectable 120 units away.
+        var brightest = all.Max(c => s.Zone.ChunkVisibility(c));
+        var unit = Observer(s, float2(5000, 0), 350f, 1f, Falloff());
+        var sensitivity = 120f / (brightest * unit.DetectionReachPerVisibility());
+        s.Zone.Entities.Remove(unit);
+
+        var offered = new List<ChunkId>();
+        long examined = 0, inReach = 0;
+        var spots = new System.Random(41);
+        foreach (var radius in new[] { 250f, 350f, 550f, 650f, 700f, 740f })
+        {
+            var angle = (float) (spots.NextDouble() * 2 * PI);
+            var at = radius * float2(cos(angle), sin(angle));
+            var observer = Observer(s, at, 350f, sensitivity, Falloff());
+            Assert.InRange(brightest * observer.DetectionReachPerVisibility(), 80f, 150f);
+            var before = s.Zone.Targets.Examined;
+            observer.VisibleChunksInReach(offered);
+            examined += s.Zone.Targets.Examined - before;
+            inReach += all.Count(c => length(At(s, c) - at) <= 350f);
+            s.Zone.Entities.Remove(observer);
+        }
+        Assert.True(examined < .265 * inReach, $"examined {examined} of {inReach} rocks in reach: the visibility bound has loosened");
+    }
+
+    // A rock exactly at reach is found, and Within equals the scan of every rock in reach. Two belts, one spread over
+    // 50..6000 and one thin and dense over 999..1001, under the fixture's orbit periods and the game's (period =
+    // distance), across time steps up to 3.3e7 s. Every third search starts from a belt's outermost rock, radially
+    // outward and over 50 units past the belt's edge, so the rock lies on its band's outer bound as well as on the
+    // search's reach.
+    // Measured on a4e8e147: unmutated, none of the 240 searches miss. BeltTargets.cs:110 Reach - slack misses 94
+    // (80 of them outer). :109 Outer - distance misses all 80 outer searches. That mutant shortens reach by 0.005 to
+    // 0.03 units only beyond a belt's edge, which drops a rock only when the rock lies on a region's bound. With
+    // random directions, the cut's draft for the outer third, it missed none of 80 here and none of Soul's 640.
+    [Fact]
+    public void ARockExactlyAtReachIsFound()
+    {
+        var kind = Kind("Asteroid", 4f);
+        var rng = new System.Random(101);
+        var centre = float2(40, -70);
+        var spread = Enumerable.Range(0, 700).Select(_ => Rock(50f + (float) rng.NextDouble() * 5950f, (float) rng.NextDouble(), (float) rng.NextDouble())).ToArray();
+        var s = BuildSceneAt(centre, 20000f, 777.25, null, new[] { kind }, Belt(kind, spread), Belt(kind, Annulus(rng, 3000, 999f, 1001f)));
+        var game = PlanetSettings(20000f);
+        game.OrbitPeriod = new ExponentialCurve { Multiplier = 1f, Exponent = 1f, Constant = 0f };
+        var searches = 0;
+        foreach (var zone in new[] { s.Zone, new Zone(s.Items, game, s.Pack, new GalaxyZone { Name = "Game periods", Owner = null }, null) })
+        foreach (var step in new[] { 0f, 13f, 1e4f, 3.3e7f })
+        {
+            if (step > 0f) zone.Update(step);
+            for (var q = 0; q < 30; q++)
+            {
+                var field = s.Belts[q % 2];
+                var rocks = ((AsteroidBeltData) zone.Planets[field]).Asteroids;
+                var edge = q % 3 == 0;
+                var index = edge ? Enumerable.Range(0, rocks.Length).OrderBy(i => rocks[i].Distance).Last() : rng.Next(rocks.Length);
+                var rock = zone.ChunkPose(field, index).xy;
+                var angle = (float) (rng.NextDouble() * 2 * PI);
+                var direction = edge ? normalize(rock - centre) : float2(cos(angle), sin(angle));
+                var from = rock + (edge ? 60f + (float) rng.NextDouble() * 240f : 1f + (float) rng.NextDouble() * 299f) * direction;
+                var reach = length(rock - from);
+                var candidates = new List<TargetCandidate>();
+                zone.Targets.Within(new TargetSearch(from, reach), candidates);
+                var found = candidates.Where(c => c.Target.Chunk.HasValue).Select(c => c.Target.Chunk.Value).ToList();
+                Assert.Contains(new ChunkId(field, index), found);
+                var expected = s.Belts.SelectMany(b => Enumerable.Range(0, ((AsteroidBeltData) zone.Planets[b]).Asteroids.Length).Select(i => new ChunkId(b, i)))
+                    .Where(c => zone.ChunkExists(c) && length(zone.ChunkPose(c.Field, c.Index).xy - from) <= reach).ToList();
+                Assert.True(expected.ToHashSet().SetEquals(found) && expected.Count == found.Count,
+                    $"step {step}, search {q}: {expected.Count} expected, {found.Count} found");
+                searches++;
+            }
+        }
+        Assert.Equal(240, searches);
     }
 }
