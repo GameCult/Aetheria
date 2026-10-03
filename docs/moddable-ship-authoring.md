@@ -34,7 +34,8 @@ hull shape and hardpoint slots of the `aetheria.hulldata` record beside it. To t
 to Blender's add-on search path, enable `brokkr_bridge` then
 `aetheria_ships`, and install `msgpack` into Blender's Python environment.
 Create a draft with `dotnet run --project tools/AetherDb -- ship-authoring
-create <ship.cc> <stable-id> <name>`, choose that `.cc` in the **Aetheria
+create <ship.cc> <stable-id> <name> [--like <shipped hull name>]`; `--like Djinni`
+copies that shipped ship's stats and leaves the body and layout empty. Choose that `.cc` in the **Aetheria
 Ship** panel, select an object in its ship collection, and press **Bind Ship
 Collection**. The collection stores `aetheria.asset_kind=ship`, the stable
 `aetheria.id`, and a relative `.cc` path. Select a Grease Pencil object in
@@ -51,8 +52,20 @@ assets, lines, the record key, and schema. Save rejects a changed ship ID or
 layout revision; reload first if another editor changed those fields. A line
 capture leaves the loaded layout revision intact. The saved layout is a draft until
 its mount IDs resolve to visual anchors and C# validation passes.
+**Package Ship** turns the bound collection into the package. Tag each anchor
+object with the custom properties `aetheria.role` (`map-icon`, `hull-collider`,
+`shield`, `tractor`, `thruster-emitter`, `radiator-mesh`, `weapon-mount`,
+`weapon-muzzle`) and `aetheria.id` (the hardpoint's mount ID for a mount),
+plus `aetheria.order` if a weapon has several muzzles. Parent a muzzle to its
+weapon mount object. Thrusters and radiators are mesh objects; the others may
+be empties. Package exports the collection, Grease Pencil excluded, to
+`ship.glb` beside the `.cc`, writes the anchors, captures the lines when the
+collection holds exactly one Grease Pencil object, and shows AetherDb's
+verdict in the panel. It runs `dotnet run --project <repo>/tools/AetherDb`;
+the repo is the add-on preference **Aetheria repo**, or by default the nearest
+folder above the `.cc` holding `tools/AetherDb`.
 `ship-authoring inspect <ship.cc>` reads drafts; `validate` requires complete
-hull, model, and anchor authoring.
+hull, model, and anchor authoring, and judges `ship.glb` once it exists.
 
 ## Objective
 
@@ -186,10 +199,13 @@ catalog. Continue refuses a run naming a design the catalog no longer holds
 
 1. A typed `.cc` record round-trips between C# and Blender's Python runtime,
    preserving unknown future fields and record identity.
-2. Blender edits schematic cells and hardpoints in that record. Stable visual
-   node IDs still need a collection-to-package authoring action; the C#
-   validator checks their association with mount IDs and GLB nodes. The model
-   supplies geometry, not a second copy of hull semantics.
+2. Blender edits schematic cells and hardpoints in that record. **Package
+   Ship** writes the anchors and `ship.glb` from the bound collection: each
+   object tagged `aetheria.role` becomes an anchor whose id, and GLB node
+   `aetheria.id`, is the object's `aetheria.id`. It then runs
+   `AetherDb ship-authoring validate`, which judges the GLB too: node ids,
+   and a mesh under every thruster and radiator anchor. The model supplies
+   geometry, not a second copy of hull semantics.
 3. A command-line validator rejects malformed cells, overlapping or dangling
    hardpoints, missing model nodes, and unresolved asset references with
    precise errors. It changes no live catalog or scene on failure. The
