@@ -105,11 +105,11 @@ public sealed class BeltTargets : ITargetProvider
         var centre = _zone.GetOrbitPosition(_zone.Orbits[_data.Orbit.Key].Data.Parent.Key);
         var offset = search.Position - centre;
         var distance = length(offset);
-        var turn = Turn(atan2(offset.y, offset.x) / (2 * PI_DBL));
+        var turn = Turn(atan2(offset.y, offset.x) / (2 * Math.PI));
         // Slack covers float rounding in Pose and in these bounds; it only ever widens a region.
         var slack = 1e-4f * (_bands[_bands.Length - 1].Outer + distance) + 1e-3f;
         var reach = search.Reach + slack;
-        var half = distance <= reach ? 1.0 : Math.Asin(reach / distance) / (2 * PI_DBL) + 1e-6;
+        var half = distance <= reach ? 1.0 : Math.Asin(reach / distance) / (2 * Math.PI) + 1e-6;
         var budget = RekeyBudget;
 
         // The first band whose outer edge reaches the search.
@@ -177,7 +177,7 @@ public sealed class BeltTargets : ITargetProvider
             foreach (var sun in _zone.Suns())
             {
                 var fromSun = sun.Orbit.Position - centre;
-                sector.Range(length(fromSun), Turn(atan2(fromSun.y, fromSun.x) / (2 * PI_DBL)), out var sunNearest, out _);
+                sector.Range(length(fromSun), Turn(atan2(fromSun.y, fromSun.x) / (2 * Math.PI)), out var sunNearest, out _);
                 light += Zone.SunLight(sun, max(0f, sunNearest - slack));
             }
             var cells = _largestRadius / _zone.SchematicCellSize;
@@ -241,16 +241,16 @@ public sealed class BeltTargets : ITargetProvider
             if (Width >= 1)
             {
                 offAngle = 0;
-                farAngle = PI_DBL;
+                farAngle = Math.PI;
             }
             else
             {
                 var into = Turn(turn - From);
-                offAngle = into <= Width ? 0 : Math.Min(into - Width, 1 - into) * 2 * PI_DBL;
+                offAngle = into <= Width ? 0 : Math.Min(into - Width, 1 - into) * 2 * Math.PI;
                 // The sector point farthest in angle: the antipode if the sector holds it, else the farther end.
                 farAngle = Turn(turn + .5 - From) <= Width
-                    ? PI_DBL
-                    : Math.Max(Separation(turn, From), Separation(turn, From + Width)) * 2 * PI_DBL;
+                    ? Math.PI
+                    : Math.Max(Separation(turn, From), Separation(turn, From + Width)) * 2 * Math.PI;
             }
             if (offAngle == 0)
                 nearest = max(max(Inner - distance, distance - Outer), 0f);
@@ -276,8 +276,8 @@ public sealed class BeltTargets : ITargetProvider
             }
             else
             {
-                var middleTurn = (From + Width / 2) * 2 * PI_DBL;
-                var halfAngle = Width * PI_DBL;
+                var middleTurn = (From + Width / 2) * 2 * Math.PI;
+                var halfAngle = Width * Math.PI;
                 var middleRadius = (Inner + Outer) / 2;
                 middle = middleRadius * float2((float) Math.Cos(middleTurn), (float) Math.Sin(middleTurn));
                 radius = max(Apart(middleRadius, Inner, halfAngle), Apart(middleRadius, Outer, halfAngle));
