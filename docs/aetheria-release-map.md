@@ -586,7 +586,7 @@ add-on and player cuts and add a material strand: `hull-runtime-materials` and
 `thrusters-radiators-are-meshes`. They are mapped in "Hull materials, mount
 meshes and per-hull prep" below, with the cuts `ships-hull-material`,
 `ships-hull-livery` and `ships-addon-paint` and the questions `hull-paint-mask`
-and `hull-livery-scope`.
+(ruled: `hull-paint-mask-texture`) and `hull-livery-scope`.
 
 Anchors are against the lane tip `a93625c2`, read with `git show` on 2026-10-03.
 For files the lane does not touch, they hold on `origin/master` `f1dee184` too.
@@ -794,8 +794,8 @@ that needs her eyes takes one click at the 3D cursor.
    - The add-on binds the collection, turns the long axis to −Y, scales the mesh to
      length × 2 m, rasterises a draft grid from the top-down silhouette, and shows
      the grid as an overlay.
-3. Cleanup and paint, the variable steps: see "Hull materials, mount meshes and
-   per-hull prep" below (prep steps P3 to P5).
+3. Rebuild, unwrap, rebake and mask: see "Hull materials, mount meshes and
+   per-hull prep" below (steps P3 to P7).
 4. Mounts:
    - Thrusters and radiators are meshes (ruling `thrusters-radiators-are-meshes`).
      Select the nozzle-exit or radiator faces in Edit Mode and press **Add
@@ -847,13 +847,17 @@ new rulings; the section below says what changed.
 
 ### Hull materials, mount meshes and per-hull prep
 
-Two operator rulings of 2026-10-03 drive this section.
+Three operator rulings of 2026-10-03 drive this section.
 - `hull-runtime-materials`: "I expect I'll want to do quite some cleanup and prep
   for the meshes. The geometry is still not ideal, and we want more runtime
   material control than just a single baked map. See how MechWarrior does it, for
   example."
 - `thrusters-radiators-are-meshes`: "Note that both thrusters and radiators should
   be meshes, the former doesn't get rendered but is used as an emission surface".
+- `hull-paint-mask-texture`, answering question `hull-paint-mask` with option
+  `texture-sidecar`: "I want a mask map per ship for livery, I'll be rebuilding
+  the nonsense geometry and unwrapping anyway, I want these to stand up to my own
+  authoring standards even if tripo does a lot of the leg work."
 
 The prior-art survey is `F:\Projects\aetheria-hull-materials-prior-art.md`
 (Eyes, 2026-10-03). Anchors below are against `80de88f2`, the tip of the
@@ -879,31 +883,25 @@ since `a93625c2`.
 - Nothing tints any ship today. `Faction.PrimaryColor` and `SecondaryColor`
   (`Corporations.cs:35-38`) are read only by the sector map (`SectorMap.cs`).
 
-**M14. glTFast keeps meshes readable and passes vertex colours through unchanged.**
-Read from the package source (`com.unity.cloud.gltfast@11ddc2436f97`):
+**M14. glTFast keeps meshes readable and exposes every core material slot.** Read
+from the package source (`com.unity.cloud.gltfast@11ddc2436f97`):
 - `MeshGenerator.cs:539` calls `UploadMeshData(false)`, so meshes stay readable.
   The collider (`ShipModShips.cs:103`) and a particle mesh shape need that, so
   M10's readability doubt is closed for the importer. `ships-player` still checks
   it in a built player.
-- `VertexBufferColors.cs:25,88` stores `COLOR_0` as `float4` with no colour-space
-  conversion. The project is in Linear colour space (`m_ActiveColorSpace: 1`).
 - `IMaterialGenerator.GenerateMaterial(MaterialBase, IGltfReadable, bool)` sees
   every core slot: `PbrMetallicRoughness.BaseColorTexture` and
   `MetallicRoughnessTexture`, `NormalTexture`, `OcclusionTexture`,
   `EmissiveTexture`, each with `index` and `texCoord` (`Schema/Material.cs:48-77`,
   `TextureInfo.cs:42-49`). `IGltfReadable.GetTexture(int)` returns the texture.
+- glTFast decodes images only as parts of a glTF. It has no entry point for a
+  loose PNG.
 
-**M15. Blender exports a named colour attribute exactly.** Probe, Blender 5.2.2,
-`--background --factory-startup`:
-- Setup: a quad with a `FLOAT_COLOR` corner attribute `aetheria.paint` set to
-  `(1, 0.5, 0.25, a)`, with `a` = 0, 0.5, 1, 0.5.
-- Export: `export_vertex_color='NAME', export_vertex_color_name='aetheria.paint',
-  export_all_vertex_colors=False`.
-- Result: one `COLOR_0`, unsigned-short normalised `VEC4`, values exact to 1e-5,
-  alpha kept.
-- With `export_vertex_color='ACTIVE'`, the exporter wrote every colour attribute
-  (`COLOR_0` and `COLOR_1`), and `COLOR_0` was all ones. The add-on must name the
-  attribute.
+**M15. Blender exports a named colour attribute exactly** (probed for the
+rejected vertex-colour option, kept as a fact).
+- A `FLOAT_COLOR` corner attribute exported with `export_vertex_color='NAME'`
+  becomes one exact `COLOR_0`.
+- `'ACTIVE'` wrote every attribute, and its `COLOR_0` was all ones.
 
 **M16. The Tripo hulls, measured.** A read-only probe of a copy of `Quiet.blend`:
 
@@ -913,22 +911,19 @@ Read from the package source (`com.unity.cloud.gltfast@11ddc2436f97`):
 | Dexter Quiet | 9,614 | 12 | 87% | 8 (124 faces) | 524 | 1,386 |
 | Sinister Quiet | 10,880 | 12 | 88% | 7 (114 faces) | 356 | 1,525 |
 
-- Headliner is a kitbash. 124 of its parts are 2 to 10% of its length, so they are
-  greebles, not debris. Deleting small parts automatically would strip its
-  detail.
-- The UV atlases are confetti: 1,400 to 6,200 islands in one 4096² image. A mask
-  painted or filtered in that texture space is unusable, and a clean texture mask
-  would need a fresh unwrap and a rebake per hull.
+- The UV atlases are confetti: 1,400 to 6,200 islands in one 4096² image. Nothing
+  is authored in that space. The operator's rebuild gives each hull a clean UV0,
+  and the Tripo mesh becomes a bake source.
 - K-means (CIELAB, a 512² sample) of the albedos:
   - Headliner's is colourful. With k = 6, the clusters are dark navy (43% of the
     texels), mid grey (21%), beige (13%), lavender (11%), orange (7%) and blue
     (4%).
   - Quiet's is near-greyscale (a* and b* within ±6): light panels (44% at L 69 to
     79), darks and teal accents.
-  - Within-cluster lightness spread is 3 to 12 L. That spread is the baked shading
-    and detail a tint must keep.
-- Probe scripts: `kmeans.py`, `meshstats.py`, `parts.py`, `vcol.py` in this pass's
-  scratch. Their numbers are quoted here.
+  - Within-cluster lightness spread is 3 to 12 L. That spread is baked shading and
+    detail.
+- Probe scripts: `kmeans.py`, `meshstats.py`, `parts.py`, `vcol.py` and
+  `maskpng.py` in this pass's scratch. Their numbers are quoted here.
 
 **M17. Thruster and radiator mounts are already meshes at runtime.**
 - `ShipModShips.Assemble` requires a `MeshRenderer` under both
@@ -942,168 +937,146 @@ Read from the package source (`com.unity.cloud.gltfast@11ddc2436f97`):
   each anchor's node exists (`ShipModCatalog.cs:176-180`), and
   `ship-authoring validate` reads the records alone
   (`ShipAuthoringCommands.cs:32-37`).
-- The add-on side is still the r1 spec: a disc and a panel at the 3D cursor.
+
+**M18. Blender saves a byte mask raw.** Probe, Blender 5.2.2: a 4×4 RGBA byte
+image whose pixels are `(0.5, 0.25, 1.0, 0.5)`, saved as PNG.
+- Tagged Non-Color or sRGB, it is written as 8-bit RGBA (colour type 6) with
+  bytes `128, 64, 255, 128`. The values are raw, with no transfer applied.
+- A float image saves as 16-bit.
+- The `.gitattributes` rule `*.png filter=lfs` already covers package masks.
 
 #### The hull material model
 
-The model buys MechWarrior and Warframe-class control with the fewest new
-surfaces:
-- three paint colours chosen at runtime;
-- a finish per paint;
-- wear on edges and grime in cavities;
-- emissive lights;
-- glowing radiators;
-- livery from the faction, with player paint and patterns as a later step.
-
-It is written for the recommended option of question `hull-paint-mask`.
-
 **What a package carries.**
-- **The GLB's core PBR slots:**
-  - base colour (Tripo's albedo);
+- **The GLB's core PBR slots,** baked by the operator onto her clean UV0:
+  - base colour;
   - metallic-roughness;
   - normal;
   - occlusion;
   - emissive texture and factor.
 
-  Whatever Tripo or the operator's bake provides is used, and missing slots fall
-  back to factors.
-- **`COLOR_0` on the hull meshes, the paint mask.**
-  - RGB is the weight of the primary, secondary and accent paint. Black is bare:
-    the GLB's own surface shows.
-  - Alpha is signed convexity: 0.5 is flat, toward 1 on convex edges (where paint
-    wears off) and toward 0 in cavities (where grime collects).
-  - RGB is authored per face in Blender. Alpha is derived at Package.
+  Missing slots fall back to factors.
+- **`ship.mask.png`, the livery mask:** RGBA8 on UV0, one per hull.
+  - R, G and B are the weights of the primary, secondary and accent paint. Black
+    is bare: the GLB's own surface shows.
+  - A is wear and grime: 0.5 is neutral, toward 1 the paint wears to the base
+    surface, toward 0 grime gathers.
+  - She authors it to her standard. The add-on offers starting points: a region
+    mask baked from albedo clusters, and a wear alpha baked from curvature and AO.
 - **Blender material slots become glTF materials.** These are surface kinds, such
-  as bare metal, glass and lights, each with its own factors. A light is a material
-  with an emissive factor. No texture is needed.
-- **`ShipAuthoring.Paint` (key 5, a `HullPaint`), typed in the package.**
-  - The factory `Livery`: three colours, a metallic and smoothness per slot, wear
-    and grime.
-  - `RegionLuminance`: each region's mean albedo luminance, derived at Package.
-  - Null means an unpainted hull. It renders with the GLB's look, and still fades
-    and is lit like a prefab hull.
+  as bare metal, glass and lights, each with its own factors.
+- **`ShipAuthoring.Paint`** (key 5, a `HullPaint`), typed in the package:
+  - `Mask`, the mask's relative path;
+  - the factory `Livery`: three colours, a metallic and smoothness per slot, wear
+    and grime;
+  - `RegionLuminance`, each region's mean albedo luminance under the mask, derived
+    at Package.
+
+  Null means an unpainted hull. It renders with the GLB's look, and still fades
+  and is lit like a prefab hull.
 
 **What the game owns.**
 - One shader, `Aetheria/Hull`, built on `GlowFade`'s fade, dither and volumetric
-  ambient. Its rules:
+  ambient. It samples the mask on UV0. Its rules:
   - Painted albedo is the slot colour × saturate(lum(base) / region luminance).
-    The factory livery, whose colours are the region means, therefore reproduces
-    the original look. A new colour keeps the original's panel lines and shading.
   - Wear: where alpha is above 0.5 and a tiling noise is under `_Wear`, paint
-    chips to the GLB's surface.
+    chips to the base.
   - Grime: below 0.5, `_Grime` darkens and roughens.
   - Painted metallic and smoothness come from the slot's finish.
-  - It has no `shader_feature` keywords. Its only variants are `GlowFade`'s
-    `multi_compile` set, so build stripping cannot drop one.
-- `HullMaterialGenerator`, a glTFast `IMaterialGenerator`, builds every hull
-  material as a clone of `ShipModTemplate.Hull` with the GLB's slots. No glTF
-  shader is needed at runtime, so `ships-player` r1's variant collection is
-  deleted.
-- `ShipModShips.ApplyPaint` sets the resolved livery on each hull renderer through
-  a `MaterialPropertyBlock` in `ShipInstance.SetEntity`. Property blocks do not
-  survive `Instantiate`, so a prototype cannot carry them.
-- Livery resolution, as one pure function, `HullPaint.Resolve`: the owner
+  - It has no `shader_feature` keywords, so build stripping cannot drop a variant.
+- **Mask import: linear, DXT5, with mips.**
+  - Linear, because the channels are weights and not colours: an sRGB decode
+    would turn a 0.5 wear value into 0.21. M18 shows Blender writes the values
+    raw, so the decode must not apply a transfer either.
+  - DXT5 (BC3) is a quarter of RGBA32's memory: a 2048² mask with mips is about
+    5.3 MB instead of 21 MB.
+  - Its alpha block is the best-kept channel, and the alpha carries wear. Region
+    edges lose only within a 4×4 block, about 2 cm on a 40 m hull at 2048.
+- **`ShipModShips.PreloadAsync`** reads the PNG with `File.ReadAllBytes` and
+  `ImageConversion.LoadImage` into a linear texture with mips, compresses it, and
+  makes it non-readable.
+- **`HullMaterialGenerator`,** a glTFast `IMaterialGenerator` with one instance
+  per package, clones `ShipModTemplate.Hull` with the GLB's slots and the hull's
+  mask. No glTF shader is needed at runtime.
+- **`ShipModShips.ApplyPaint`** sets the resolved livery through a
+  `MaterialPropertyBlock` in `ShipInstance.SetEntity`. Property blocks do not
+  survive `Instantiate`.
+- **Livery resolution** is one pure function, `HullPaint.Resolve`: the owner
   faction's `Livery` (`Faction` key 16, cut `ships-hull-livery`) when set, else
-  the hull's factory livery. Region luminance is always the hull's own.
+  the factory livery. The mask and region luminance are always the hull's.
 
 **Role materials and the two mount meshes** (ruling
 `thrusters-radiators-are-meshes`):
-- **Thruster:** a mesh carrying the invisible material (done in `ships-mounts`). It
-  is the exhaust's emission shape, and its normals point aft.
-- **Radiator:** a mesh rendered with the template's `Radiator` material.
-  `EntityInstance` drives its `_Emission` with temperature (`ships-player`).
+- **Thruster:** a mesh carrying the invisible material. It is the exhaust's
+  emission shape, and its normals point aft.
+- **Radiator:** a mesh rendered with the template's `Radiator` material, which
+  `EntityInstance` heats.
 - **Weapons** stay point anchors.
-- **Map icon and collider:** as before.
 
 **Out of release scope, as follow-ups:**
-- `hull-decals`: insignia and damage decals.
-- `hull-damage-wear`: wear driven by hull durability. The feedback strand owns it.
-- `hull-player-paint`: player paint and patterns, unless question
-  `hull-livery-scope` rules otherwise.
+- `hull-decals`. With a mask texture, painted-in logos can live in the mask; only
+  separate insignia and damage decals remain.
+- `hull-damage-wear`.
+- `hull-player-paint`, unless `hull-livery-scope` rules otherwise.
 
-#### What the operator authors per hull, and what is derived
+#### Per-hull steps
 
-| Step | Operator authors | Derived automatically |
+Ruling `hull-paint-mask-texture` sets the time budget as hers. These are the steps
+and who does each.
+
+| Step | The operator | The add-on |
 |---|---|---|
-| P1 Tripo export | One test regeneration with PBR on (below) | — |
-| P2 New Ship | id, name, reference hull, length | orientation, scale, draft grid, `create --like` |
-| P3 Clean | which selected debris to delete; decimation if warned; normals fixed where wrong | debris and enclosed-part selection, mesh report (tris, parts, non-manifold edges) |
-| P4 Paint regions | each cluster's role; face fixes with Primary, Secondary, Accent and Bare; livery colour tweaks | face clusters from the albedo, default roles, factory colours = cluster means |
-| P5 Surface kinds | material slots for glass and lights, with their factors | — |
-| P6 Mounts | the faces for each thruster and radiator, the 3D cursor for each gun | emitter normals turned aft, hardpoint rows on the cells beneath |
-| P7 Layout | internal hardpoints, cell touch-ups | — |
-| P8 Package | — | recentring, collider, map icon, shield, tractor, wear and grime alpha, region luminance, texture cap, GLB, records, validation |
-| P9 Look | dock, `give`, fly | — |
+| P1 Tripo export | Generate; try PBR and delight once (below) | — |
+| P2 New Ship | id, name, reference hull, length | `create --like`; the Tripo mesh moved into `Source` and oriented and scaled; a draft grid rasterised from it |
+| P3 Rebuild | Retopologise the nonsense geometry under Ship Root, at its final scale, with her own tools | Rasterise again from her meshes |
+| P4 Unwrap | A clean UV0 | Package refuses a mesh without UV0 or with UV0 outside [0, 1] |
+| P5 Rebake | Check and fix the result | Bake From Source: Selected to Active from `Source`, albedo (colour only) and normal, wired into her material |
+| P6 Mask | Paint the mask to her standard | New Mask; Suggest Regions; Bake Starting Mask; Bake Wear (curvature and AO into alpha); factory colours from the clusters |
+| P7 Surface kinds | Material slots for glass and lights | — |
+| P8 Mounts | The faces for each thruster and radiator, the cursor for each gun | Emitter normals aft; hardpoint rows on the cells beneath |
+| P9 Layout | Internal hardpoints, cell touch-ups | — |
+| P10 Package | — | Recentring, collider, map icon, shield, tractor, texture cap, GLB, `ship.mask.png`, region luminance, records, validation |
+| P11 Look | Dock, `give`, fly | — |
 
-**Rejected for the release path: retopology and rebaking.**
-- Decimation keeps Tripo's UVs, and the paint mask lives on faces, so no step needs
-  a new unwrap.
-- A retopologised hull baked Selected to Active (Blender manual, Cycles baking)
-  stays available for a hull whose silhouette or shading needs it.
-- The vendor claims for that path are 2 to 4 hours a hull (survey §4).
+Dropped with the rebuild:
+- `Select Debris` and the mesh report: her new geometry replaces the debris.
+- The triangle-budget warning: her topology is her standard.
 
-**Time budget per hull.** These are estimates, not measurements. The operator
-checks in `ships-addon-frame`, `ships-addon-mounts` and `ships-addon-paint` record
-the real numbers.
-
-| Step | Quiet-class (10k triangles, 12 parts) | Headliner-class (50k, 189 parts) |
-|---|---|---|
-| P2 | 2 min | 2 min |
-| P3 | 10 min | 30 to 45 min |
-| P4 | 15 min | 30 min |
-| P5 | 5 min | 10 min |
-| P6 and P7 | 15 min | 20 min |
-| P8 and P9 | 10 min | 10 min |
-| **Total** | **about 1 hour** | **about 1.5 to 2 hours** |
-
-Ten package hulls (`content-bar-one-per-concept`) cost about 12 to 18 hours of
-operator time with the tooling. The add-on cuts own what shrinks it:
-- debris selection (`ships-addon-frame`);
-- face-based mounts (`ships-addon-mounts`);
-- clustering, roles and derived wear (`ships-addon-paint`).
+The texture cap stays because it bounds runtime memory.
 
 **P1, the Tripo export check: a step for the operator to try.**
 - Tripo's API defaults to `pbr=true`, which yields base colour, metallic,
   roughness and normal maps. Texture version `v3.5-20260815` adds `delight`
-  (default true), which removes baked lighting.
+  (default true).
 - The hulls in `Quiet.blend` arrived with base colour only, and why is unknown.
-- Suggested try: regenerate one hull (Dexter Quiet) on the site and through the
-  API, with PBR on and delight on, then import the GLB into Blender.
-  - If the metallic-roughness and normal maps are present, the generator uses them
-    with no further work.
-  - A delit albedo also makes the region-luminance tint cleaner.
-  - If the site only exports base colour, the API is the route for the release
-    hulls.
-- Nothing in the cuts waits on this.
+- A delit, PBR source makes Bake From Source's albedo cleaner and gives a
+  metallic-roughness map to bake too.
+- Try one hull on the site and through the API. Nothing waits on it.
 
 #### Cuts
 
-- **`ships-hull-material`** (new): `Aetheria/Hull`, `HullMaterialGenerator`,
-  `HullPaint` and `Livery`, `ShipAuthoring.Paint`, the `COLOR_0` package rule and
-  `ApplyPaint` with the factory livery.
-- **`ships-hull-livery`** (new): `Faction.Livery` and its resolution. It waits on
+- **`ships-hull-material` r2:** the shader, the generator, `HullPaint` with
+  `Mask`, the mask's PNG checks in `Bind`, the linear DXT5 load and `ApplyPaint`.
+- **`ships-hull-livery` r1** (unchanged): `Faction.Livery`. It waits on
   `hull-livery-scope`.
-- **`ships-addon-paint`** (new): Suggest and Apply Regions, the role buttons,
-  derived alpha and luminance, the named-attribute export and
-  `ship-authoring paint`.
-- **`ships-addon-package` r2:**
-  - `validate` also reads the GLB (`ReadPackage`);
-  - `Bind` refuses a thruster or radiator anchor whose node has no mesh.
-- **`ships-addon-frame` r2:** Select Debris and the mesh report.
-- **`ships-addon-mounts` r2:**
-  - Add Thruster duplicates selected faces, with normals aft;
-  - Add Radiator separates them;
-  - either one can tag a selected mesh object;
-  - no primitives at the cursor.
-- **`ships-player` r2:**
-  - the glTFast variant collection is deleted;
-  - a no-`glTF/`-shader check;
-  - every radiator submesh gets the radiator material;
-  - an emitter readability probe;
-  - it is no longer blocked (ruling `adopt-build-cut-1`).
+- **`ships-addon-paint` r2:**
+  - the mask slot and New Mask;
+  - Suggest Regions and Bake Starting Mask;
+  - Bake Wear;
+  - the UV0 and mask checks;
+  - the mask export;
+  - `ship-authoring paint --mask`.
+- **`ships-addon-package` r2** (unchanged): `validate` reads the GLB; `Bind`
+  refuses a thruster or radiator node without a mesh.
+- **`ships-addon-frame` r3:** `Source`, rasterising from her meshes, the export
+  leaving out `Source`, and Bake From Source. No debris tools.
+- **`ships-addon-mounts` r3:** face-based thruster and radiator mounts on her
+  meshes, and no triangle warning.
+- **`ships-player` r2** (unchanged): the no-`glTF/`-shader check, radiator
+  material, emitter probe. `*.png` is already LFS.
 
 Order: `ships-mounts`, then `ships-addon-package`, then `ships-addon-frame`, then
-`ships-addon-mounts`. `ships-hull-material` can run beside the add-on cuts, after
+`ships-addon-mounts`. `ships-hull-material` runs beside the add-on cuts after
 `ships-mounts`. `ships-addon-paint` needs both lines; `ships-hull-livery` and
 `ships-player` need `ships-hull-material`.
 
@@ -1111,39 +1084,47 @@ Order: `ships-mounts`, then `ships-addon-package`, then `ships-addon-frame`, the
 
 | Kind | Identity | Lifecycle | Authority |
 |---|---|---|---|
-| Hull paint | `ShipAuthoring.Paint` in the package | Factory livery authored in Blender's panel; region luminance re-derived every Package | `ship-authoring paint` writes it; `ShipAuthoringStore.Validate` judges it |
-| Paint mask | `COLOR_0` on the GLB's unanchored meshes | RGB authored per face; alpha re-derived every Package | Blender's `aetheria.paint` attribute; `Bind` requires it when `Paint` is set |
+| Hull paint | `ShipAuthoring.Paint` in the package | Mask path and factory livery written at Package from the panel; region luminance re-derived every Package | `ship-authoring paint` writes it; `ShipAuthoringStore.Validate` judges it |
+| Livery mask | `ship.mask.png` in the package, named by `Paint.Mask` | Authored by the operator in Blender; capped copy exported every Package | The operator; `Bind` judges the PNG header |
+| Bake source | The `Source` collection in the `.blend` | Imported once from Tripo; never exported | Input to Bake From Source and to the first rasterise only |
 | Faction livery | `Faction.Livery` in `Aetheria.cc` | Authored in the inspector; null keeps factory paint | The catalog |
-| Hull material | One clone of `ShipModTemplate.Hull` per glTF material | Built at preload, cache only | `HullMaterialGenerator` |
+| Hull material | One clone of `ShipModTemplate.Hull` per glTF material | Built at preload with the hull's mask; cache only | `HullMaterialGenerator` |
 
 #### Rationale
 
-**Why vertex colours rather than a mask texture** (the recommendation in
-`hull-paint-mask`):
-- M16 settles it. A texture mask on Tripo's confetti atlases needs a new unwrap and
-  rebake per hull, which is the costliest prep step there is.
-- Hard-surface paint follows panels, and panels are faces, so face-level regions
-  lose little.
-- Star Citizen already carries wear in vertex alpha, and its tint palette is three
-  colours (survey §2).
-- A sidecar texture can be added later as a second source for one hull that needs
-  stripes inside a face. That adds a field, not a rebuild.
+**Why a sidecar PNG loaded by `ImageConversion`, not a texture inside the GLB.**
+- Inside the GLB, the mask would have to be referenced from `extras`. That means a
+  post-export rewrite of the GLB (Blender cannot write a texture index into
+  extras), glTFast's Newtonsoft `ImportAddon` to read it, and load-bearing JSON
+  where the package's other bindings are typed. Binding by image name instead is
+  the name-as-authority the assembler is forbidden.
+- glTFast has no loose-image entry point (M14). `ImageConversion` is built into the
+  engine, so the sidecar costs one typed field, one header check and about a dozen
+  lines of load code.
+- Blender saves the image directly (M18).
 
 **Why a generator instead of post-import material swaps.**
 - glTFast calls the generator once per glTF material, with the slots already
   parsed.
 - Swapping afterwards would leave glTF shaders as build inputs and would decide
-  materials by renderer, which Assemble is forbidden to do by name.
+  materials by renderer.
 
-**Why the tint divides by region luminance.** Warframe asks artists for about 50%
-grey under tinted areas (survey §2). Tripo's albedo is not that: Headliner's navy
-sits at L 16. Dividing by the region's own mean normalises any albedo without
-rewriting the texture, and the factory livery round-trips to the original look.
+**Why the tint still divides by region luminance.**
+- Her rebaked albedo may keep Tripo's colours under painted areas.
+- Dividing by each region's mean keeps panel shading at any livery colour without
+  asking her to author a greyscale albedo. The factory livery's colours,
+  suggested from the cluster means, reproduce the baked look.
+
+**Why the bake helpers are offered at all.** Selected-to-Active needs a selection
+order, a cage or ray distance, the colour-only contributions, new images in the
+right colour space and node wiring, and that setup is repeated per hull and per
+map. Clustering and the curvature-and-AO alpha are starting points she paints
+over. Each `ships-addon-*` operator check asks which helper earned its place.
 
 **Why thrusters duplicate faces but radiators separate them.**
-- A thruster's mesh is never drawn, so the hull must keep its nozzle.
+- A thruster's mesh is never drawn, so the hull keeps its nozzle.
 - A radiator's faces are drawn with the radiator material. Leaving them in the hull
-  would draw the surface twice and fight over depth.
+  would draw the surface twice.
 
 ### S3: the first playable mod ship in a built player
 
