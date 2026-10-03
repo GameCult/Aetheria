@@ -20,7 +20,7 @@ using float3 = CultMath.float3;
 // admission into a zone. Every test stages into a real arena: the entrance zone of a prelude galaxy at a fixed seed,
 // built from the shipped catalog and the authored settings (Assets/Resources/Settings.asset). The presets and
 // scenarios live in a scratch copy of the catalog, because the shipped one holds none.
-public sealed class RunStartTests : IDisposable
+public sealed partial class RunStartTests : IDisposable
 {
     private const uint GalaxySeed = 1;
 
