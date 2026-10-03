@@ -164,15 +164,17 @@ The typed target carries these as labelled statements. The reasons:
   the existing state graph through two new motor states.
 
   The strand's first deliverable is the note's smallest proof: Zhestokost, Lucent
-  and AU in one run, which a playtester can describe without being told. It is three
+  and AU in one run, which a playtester can describe without being told. It is four
   cuts:
-  1. doctrine, the flight, engagement with grace and hail, hull break-off and ping
-     cadence (`faction-play-1`);
-  2. pack slots and Lucent's duel (`faction-play-2`, after `feedback-1`);
-  3. support ships, anchor and leash, and Zhestokost's rearm loop
-     (`faction-play-3`).
+  1. doctrine, the flight, and engagement with grace, hail and compliance
+     (`faction-play-1`);
+  2. pack slots and Lucent's duel, hull break-off and ping cadence
+     (`faction-play-2`, after `feedback-1`);
+  3. support ships, anchor and leash (`faction-play-3`);
+  4. Zhestokost ammunition and the rearm loop, ending in the playtest
+     (`faction-play-4`).
 
-  All three wait for the mining and scenarios lanes to merge. Relations, track
+  All four wait for the mining and scenarios lanes to merge. Relations, track
   sharing between factions, distress calls and target priority come after the
   proof. The feedback and content strands leave room for faction colour and
   livery, and decide nothing about them.

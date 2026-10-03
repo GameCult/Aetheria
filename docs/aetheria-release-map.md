@@ -222,7 +222,7 @@ scripting through the extension points she built into it (ruling
 `npc-scripting-may-grow`). Legacy-first still forbids CultMesh and daemon work. This
 section maps those extension points, names the smallest set of primitives that
 carries every dynamic in `Game Design/Faction Play.md` (AetheriaLore `f3e0e6d`), and
-gives the reasons for the three proof cuts (`faction-play-1` to `-3`), which are
+gives the reasons for the four proof cuts (`faction-play-1` to `-4`), which are
 typed specs in the mind. Anchors are against `origin/master` `f1dee184`, read with
 `git show` on 2026-10-03, unless the line names a lane.
 
@@ -352,6 +352,17 @@ ships and drives detection by writing `EntityInfoGathered`
 (`tests/Aetheria.Shared.Tests/IffAndCombatTests.cs:51-92`). `Agents/` is under
 `ServerShared`, so the whole graph compiles into `Aetheria.Shared` (B11).
 
+**F14. Ammunition is real for three weapons, and nobody is stocked.**
+- Only DeathCluster, FastBlast+- and pretty pretty bang bang carry an `AmmoType`;
+  their refs were repointed in `515859cf` (`docs/cultcache-migration-cut.md:161-163`).
+  Every other weapon, Zhestokost ballistics included, reloads for free.
+- `LoadoutGenerator` puts no rounds in any cargo, and station stock is drawn from
+  `EquippableItemData` only (`LoadoutGenerator.cs:98-99`), so no station sells
+  rounds either. An NPC carrying one of the three ammunition weapons fires its
+  first magazine and then never reloads (`InstantWeapon.cs:186-197`).
+- So Zhestokost's "magazines run low, back to the tender" has no substrate until
+  its weapons draw a commodity and generation stocks it.
+
 ### What the extension points can carry
 
 | Extension point | Carries | Cannot carry |
@@ -431,7 +442,9 @@ the nearest own station, or away from the threat. It triggers on hull fraction
 (Lucent headliners, AU haulers, Alakrita, Cryonix), or on ammunition fraction
 against the count at admission. An ammunition break-off returns to the support
 ship, which transfers rounds through `TryTransferItems` (F11) until the baseline is
-restored; then the member rejoins. This carries the Zhestokost tender loop. Support
+restored; then the member rejoins. This carries the Zhestokost tender loop, once
+Zhestokost weapons draw a commodity and generation stocks it (F14, question
+`zhestokost-ammunition`). Support
 ships use their own role doctrine: the tender follows the column's rear and flees
 early, and the column, anchored to it, follows it home.
 
@@ -508,21 +521,25 @@ writer, the director becomes an input to the flight (a scripted order for named
 members that outranks doctrine), not a second writer. The tutorial cut owns that
 hook; this map records the boundary.
 
-**Why the proof is three cuts.**
+**Why the proof is four cuts.** One cut would be about 2,500 lines with tests, well
+over a Hands budget, so it is split along the primitives:
 - `faction-play-1` lands the owner: doctrine, the flight as the only writer of
-  `Target` and `Task`, the engagement rule with grace, hail and compliance, hull
-  break-off, ping cadence, and the follow and flee states. It already makes
-  Zhestokost hail before it sprays, Lucent ping and protect the brand, and AU
+  `Target` and `Task`, the engagement rule with grace, hail and compliance, the
+  follow state, and per-doctrine range and fire threshold. Zhestokost already hails
+  before it sprays, Lucent announces itself and fires only on good odds, and AU
   escorts shoot the first contact.
-- `faction-play-2` adds slots and the duel. It needs `feedback-1`'s absorb.
-- `faction-play-3` adds roles, support generation, anchor and leash, and
-  ammunition and rearm: the Zhestokost tender and the AU haulers. It ends with the
-  operator's playtest of the three factions.
+- `faction-play-2` adds slots and the duel, hull break-off with the flee state, and
+  ping cadence: Lucent whole. It needs `feedback-1`'s absorb.
+- `faction-play-3` adds roles, support generation, anchor and leash: the tender the
+  column will not leave, and the AU haulers that run while their escorts stay close.
+- `faction-play-4` makes ammunition real for Zhestokost and closes the tender loop
+  (question `zhestokost-ammunition`, F14). It ends with the operator's playtest of
+  the three factions.
 
-Each is sized under 200k Hands tokens. All three wait for `codex/mining` (it
-changes `Target`'s type and edits `Minion.cs`) and `codex/scenarios` (it rewrites
-admission in `Zone.cs`) to merge, because the first cut rewrites exactly those
-lines.
+Each is sized at roughly 550 to 720 lines with tests, under 200k Hands tokens. All
+four wait for `codex/mining` (it changes `Target`'s type and edits `Minion.cs`) and
+`codex/scenarios` (it rewrites admission in `Zone.cs`) to merge, because the first
+cut rewrites exactly those lines.
 
 ### Prior art
 
