@@ -59,11 +59,13 @@ public sealed partial class RunStartTests
             _cache, new PlayerSettings(), Directory.CreateDirectory(Path.Combine(_root, "Narrative")), _ => { }, null, clock);
     }
 
-    // What MainMenu.Launch and StartGame do with a scenario: its galaxy, its arena, then staging.
-    private (Galaxy galaxy, Zone arena, RunStart.Staged staged, List<string> failures) Launch(Scenario scenario, GalaxyStage inputs = null)
+    // What MainMenu.Launch and StartGame do with a scenario: its galaxy, its arena, then staging. beforeStaging stands in
+    // for whatever the game runs between the arena and staging.
+    private (Galaxy galaxy, Zone arena, RunStart.Staged staged, List<string> failures) Launch(Scenario scenario, GalaxyStage inputs = null, Action beforeStaging = null)
     {
         var galaxy = RunStart.Generate(scenario, inputs ?? Inputs());
         var arena = new Zone(_items, _planetSettings, RunStart.GenerateArena(_items, _zoneSettings, galaxy, scenario), galaxy.Entrance, galaxy);
+        beforeStaging?.Invoke();
         var failures = new List<string>();
         var staged = RunStart.Stage(_items, arena, scenario, _startingHull, _tutorialSettings, failures);
         return (galaxy, arena, staged, failures);
@@ -175,7 +177,7 @@ public sealed partial class RunStartTests
             var first = Launch(scenario);
             Launch(new MainGalaxy(), Inputs(() => 4242));
             _items.Random = new CultMath.Random(0xC0FFEE); // play draws from the run's item random
-            var second = Launch(scenario);
+            var second = Launch(scenario, beforeStaging: () => _items.Random = new CultMath.Random(0xBADC0DE));
             Assert.True(first.failures.Count == 0, $"{scenario.Name}: {string.Join("; ", first.failures)}");
             Assert.Equal(Layout(first.galaxy), Layout(second.galaxy));
             Assert.Equal(Layout(first.arena.Pack), Layout(second.arena.Pack));
