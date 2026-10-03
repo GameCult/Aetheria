@@ -33,6 +33,8 @@ public static class ShipPrefabAuthoringSmoke
             Require(ship.RadiatorHardpoints.Length == 1 && ship.RadiatorHardpoints[0].Mesh != null, "radiator mesh");
             Require(ship.ArticulationPoints.Length == 1 && ship.ArticulationPoints[0].Group == 2, "articulation");
             Require(ship.HullColliders.Length == 1 && ship.HullColliders[0].GetComponent<MeshCollider>().convex, "hull collision");
+            Require(Array.TrueForAll(ship.HullColliders[0].GetComponent<MeshRenderer>().sharedMaterials,
+                material => material == ship.InvisibleMaterial), "hull collider drawn with the invisible material only");
             Require(ship.Shield != null && ship.Shield.GetComponent<ShieldEnvelope>() != null, "shield envelope");
             Require(ship.TractorBeam != null && ship.PingPrefab != null && ship.DestroyEffect != null, "shared assets");
             Require(ship.MapIcon != null && ship.MapIcon.gameObject.layer == LayerMask.NameToLayer("Minimap"), "map icon");

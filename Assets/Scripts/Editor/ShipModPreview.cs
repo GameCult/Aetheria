@@ -63,6 +63,9 @@ public static class ShipModPreview
         bool Inside(Component part) => part != null && part.transform.IsChildOf(ship.transform);
         Require(ship.HullColliders.Length == 1 && Inside(ship.HullColliders[0]) &&
                 ship.HullColliders[0].GetComponent<MeshCollider>() != null, "one hull collider with a MeshCollider");
+        Require(ship.HullColliders[0].GetComponentsInChildren<Renderer>(true).All(renderer =>
+                    renderer.sharedMaterials.All(material => material == ship.InvisibleMaterial)),
+                "a hull collider that draws nothing");
         Require(Inside(ship.MapIcon) && Inside(ship.Shield) && Inside(ship.TractorBeam), "map icon, shield and tractor inside the ship");
         Require(ship.ThrusterHardpoints.Select(node => node.name).SequenceEqual(plan.Thrusters) &&
                 ship.ThrusterHardpoints.All(node => Inside(node) && Inside(node.Emitter) &&

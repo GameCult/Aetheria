@@ -103,8 +103,10 @@ public static class ShipModShips
         if (!hullMesh.isReadable)
             throw new InvalidOperationException($"{ship.Id}: the hull-collider mesh imported unreadable, so it cannot back a MeshCollider.");
         hullNode.gameObject.layer = combat;
+        // The collision hull is never drawn. Its renderer takes the invisible material, which is serialized and so survives
+        // the prototype's clone; forceRenderingOff would not survive Instantiate.
         var hullRenderer = hullNode.GetComponent<MeshRenderer>();
-        if (hullRenderer != null) hullRenderer.forceRenderingOff = true;
+        if (hullRenderer != null) Hide(hullRenderer, template.Invisible);
         var collider = AddOrGet<MeshCollider>(hullNode.gameObject);
         collider.sharedMesh = hullMesh;
         collider.convex = true;
@@ -127,7 +129,7 @@ public static class ShipModShips
             // this renderer's visible material; forceRenderingOff would not survive Instantiate.
             var hardpoint = AddOrGet<ThrusterHardpoint>(Node(id).gameObject);
             hardpoint.Emitter = Renderer(id);
-            hardpoint.Emitter.sharedMaterials = Enumerable.Repeat(template.Invisible, hardpoint.Emitter.sharedMaterials.Length).ToArray();
+            Hide(hardpoint.Emitter, template.Invisible);
             return hardpoint;
         }).ToArray();
         var radiators = plan.Radiators.Select(id =>
@@ -161,6 +163,10 @@ public static class ShipModShips
         instance.TractorBeam = tractor;
         return instance;
     }
+
+    // Every material slot takes the invisible material, so the renderer draws nothing on the prototype and on every clone.
+    public static void Hide(Renderer renderer, Material invisible) =>
+        renderer.sharedMaterials = Enumerable.Repeat(invisible, renderer.sharedMaterials.Length).ToArray();
 
     private static void Reset(Transform transform)
     {
