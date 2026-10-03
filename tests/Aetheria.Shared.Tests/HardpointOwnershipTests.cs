@@ -189,7 +189,7 @@ public sealed partial class RunStartTests
     }
 
     // Placement searches the hardpoint's last row and column: in a 3x3 hardpoint whose other cells hold tool gear, a
-    // one-cell gun is placed in the bottom-right cell.
+    // one-cell gun is placed in the bottom-right cell, and once it is, the search finds no space.
     [Fact]
     public void PlacementSearchesTheLastRow()
     {
@@ -203,8 +203,11 @@ public sealed partial class RunStartTests
         foreach (var cell in mount.Coordinates.Select(c => int2(1, 1) + c).Where(c => !c.Equals(last)))
             Assert.True(entity.TryEquip(Instance(tool), cell), $"filler at {cell}");
 
-        Assert.True(entity.TryFindSpace(Instance(gun), out var found));
+        var corner = Instance(gun);
+        Assert.True(entity.TryFindSpace(corner, out var found));
         Assert.Equal(last, found);
+        Assert.True(entity.TryEquip(corner, found));
+        Assert.False(entity.TryFindSpace(Instance(gun), out _), "a full hardpoint offers no space");
     }
 
     // Billing does not depend on equip order: two heaters with different targets and draws, equipped in either order,
