@@ -126,6 +126,56 @@ public sealed class RunSaveTests : IDisposable
         Assert.Equal(before, new[] { Catalog, Player }.Select(Hash).ToArray());
     }
 
+    // A new run's start writes its arena's orbits and bodies while the saved run is still stored. A start that fails,
+    // by returning nothing or by throwing, takes away only what it wrote; one that starts takes away the saved run.
+    [Fact]
+    public void ANewRunReplacesTheSavedRunOnlyOnceItHasStarted()
+    {
+        using (var cache = Open())
+            RunSave.Commit(cache, Game(cache), Zones(3, StageZoneContents(cache), 0), new ProvenanceLedger());
+        string[] saved;
+        using (var cache = Open())
+            saved = RunKeys(cache);
+        Assert.Equal(8, saved.Length);
+
+        using (var cache = Open())
+            Assert.Null(RunSave.Replace<ZonePack>(cache, () =>
+            {
+                StageZoneContents(cache);
+                return null;
+            }));
+        using (var cache = Open())
+        {
+            Assert.Equal(saved, RunKeys(cache));
+            Assert.NotNull(cache.GetGlobal<SavedGame>());
+        }
+
+        using (var cache = Open())
+            Assert.Throws<InvalidOperationException>(() => RunSave.Replace<ZonePack>(cache, () =>
+            {
+                StageZoneContents(cache);
+                throw new InvalidOperationException("the arena would not generate");
+            }));
+        using (var cache = Open())
+            Assert.Equal(saved, RunKeys(cache));
+
+        ZonePack started;
+        using (var cache = Open())
+            started = RunSave.Replace(cache, () => StageZoneContents(cache));
+        using (var cache = Open())
+        {
+            Assert.Null(cache.GetGlobal<SavedGame>());
+            Assert.Equal(started.Orbits.Select(orbit => orbit.Key.Value).Concat(started.Planets.Select(body => body.Key.Value))
+                .OrderBy(key => key, StringComparer.Ordinal), RunKeys(cache));
+        }
+    }
+
+    private static string[] RunKeys(CultCache cache) => cache.AllStoredDocuments
+        .Where(stored => RunSave.IsRunRecord(stored.Descriptor.DocumentType))
+        .Select(stored => stored.Key.Value)
+        .OrderBy(key => key, StringComparer.Ordinal)
+        .ToArray();
+
     // Lot 1 sits on the root ship's hull; lot 3 (Produced from facility 4, input 5) sits in a docked child's
     // docking-bay contents; lots 2 and 6 are minted but referenced by nothing packed. Only the reachable closure
     // {1, 3, 4, 5} survives into the written copy; the live ledger keeps every lot.

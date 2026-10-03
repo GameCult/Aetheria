@@ -17,7 +17,6 @@ public class MainMenu : MonoBehaviour
     public VolumeCloudRenderer CloudRenderer;
     public GameSettings Settings;
     public ConfirmationDialog Dialog;
-    public bool InGame;
     public Prototype PanelPrototype;
     public float FadeTime = .5f;
     public float FadeDistance = 512;
@@ -92,9 +91,10 @@ public class MainMenu : MonoBehaviour
     {
         _nextMenu.panel.Clear();
         _nextMenu.panel.Title.text = TitleSubtitle("aetheria", "terminus");
-        if (!InGame)
+        if (ActionGameManager.CurrentGalaxy == null)
         {
-            // A run exists only as the run store's SavedGame global.
+            // No run is live: at the title, after death, or after a new run failed to start. A saved run exists only as
+            // the run store's SavedGame global.
             var cache = ActionGameManager.CultCache;
             if (ActionGameManager.ModExclusions.Length > 0 && !_exclusionsShown)
             {
@@ -156,11 +156,11 @@ public class MainMenu : MonoBehaviour
         }
     }
 
-    // The only way into a new run: clears the saved run, generates the scenario's galaxy off the main thread, and
-    // enters the game, where StartGame has RunStart stage it.
+    // The only way into a new run: generates the scenario's galaxy off the main thread and enters the game, where
+    // StartGame has RunStart stage it and only then replaces the saved run. A galaxy that cannot generate is refused
+    // here, with the saved run untouched.
     private void Launch(Scenario scenario)
     {
-        RunSave.Clear(ActionGameManager.CultCache);
         var generatorState = "Loading Database Contents";
 
         Fade(true);
@@ -181,16 +181,21 @@ public class MainMenu : MonoBehaviour
             ActionGameManager.GameDataDirectory.CreateSubdirectory("Narrative"),
             Debug.Log,
             state => generatorState = state);
-        Task.Run(() =>
-        {
-            var galaxy = RunStart.Generate(scenario, stage);
+        Task.Run(() => RunStart.Generate(scenario, stage)).ContinueWith(generation =>
             Observable.NextFrame().Subscribe(_ =>
             {
-                ActionGameManager.CurrentGalaxy = galaxy;
+                if (generation.IsFaulted)
+                {
+                    Debug.LogException(generation.Exception);
+                    ShowMain();
+                    Fade(false);
+                    Refuse($"{scenario.Name} could not generate its galaxy", generation.Exception.GetBaseException().Message);
+                    return;
+                }
+                ActionGameManager.CurrentGalaxy = generation.Result;
                 ActionGameManager.PendingScenario = scenario;
                 EnterGame();
-            });
-        }).ContinueWith(t => Debug.LogException(t.Exception), TaskContinuationOptions.OnlyOnFaulted);
+            }));
     }
 
     // The one way into the game scene. Mod ship prototypes import asynchronously at boot, so the scene waits for them,
@@ -209,7 +214,7 @@ public class MainMenu : MonoBehaviour
         SceneManager.LoadScene("ARPG");
     }
 
-    private void Refuse(string title, string reason)
+    public void Refuse(string title, string reason)
     {
         Debug.LogError($"{title}: {reason}");
         Dialog.Clear();
