@@ -5,15 +5,12 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using MessagePack;
 using TMPro;
 using UniRx;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using static CultMath.math;
-using float2 = CultMath.float2;
-using Random = UnityEngine.Random;
 
 public class MainMenu : MonoBehaviour
 {
@@ -118,45 +115,8 @@ public class MainMenu : MonoBehaviour
         _nextMenu.panel.AddButton("New Game",
             () =>
             {
-                RunSave.Clear(ActionGameManager.CultCache);
-                var generatorState = "Loading Database Contents";
-                Action<string> setState = s => generatorState = s;
-
+                ShowScenarios();
                 Fade(true);
-                _nextMenu.panel.gameObject.SetActive(false);
-                Dialog.Clear();
-                Dialog.Title.text = "Generating Galaxy";
-                Dialog.AddProperty(() => generatorState);
-                Dialog.Show();
-
-                {
-                    var backgroundSettings = MessagePackSerializer.Deserialize<SectorBackgroundSettings>(
-                        MessagePackSerializer.Serialize(Settings.TutorialBackgroundSettings));
-                    int iteration = 1;
-                    do
-                    {
-                        backgroundSettings.NoisePosition = Random.value * 1000;
-                        setState($"Finding Galaxy Position: iteration {iteration++}");
-                    } while (backgroundSettings.CloudDensity(float2(0.5f)) < .5f);
-
-                    Task.Run(() =>
-                    {
-                        var sector = new Galaxy(
-                            Settings.TutorialGenerationSettings,
-                            backgroundSettings,
-                            Settings.NameGeneratorSettings,
-                            ActionGameManager.CultCache,
-                            ActionGameManager.PlayerSettings,
-                            ActionGameManager.GameDataDirectory.CreateSubdirectory("Narrative"),
-                            Debug.Log,
-                            setState);
-                        Observable.NextFrame().Subscribe(_ =>
-                        {
-                            ActionGameManager.CurrentGalaxy = sector;
-                            EnterGame();
-                        });
-                    }).ContinueWith(t => Debug.LogException(t.Exception), TaskContinuationOptions.OnlyOnFaulted);
-                }
             });
         _nextMenu.panel.AddButton("Settings",
             () =>
@@ -165,6 +125,72 @@ public class MainMenu : MonoBehaviour
                 Fade(true);
             });
         _nextMenu.panel.AddButton("Quit", Application.Quit);
+    }
+
+    // New Game: every way to set up a run, each with its brief. The test arenas are listed only in editor and
+    // development builds.
+    private void ShowScenarios()
+    {
+        _nextMenu.panel.Clear();
+        _nextMenu.panel.Title.text = TitleSubtitle("new game", "scenarios");
+        AddScenarios(Scenarios.Modes);
+        if (Debug.isDebugBuild)
+        {
+            _nextMenu.panel.AddSection("test arenas");
+            AddScenarios(Scenarios.Tests);
+        }
+        _nextMenu.panel.AddButton("Back",
+            () =>
+            {
+                ShowMain();
+                Fade(false);
+            });
+    }
+
+    private void AddScenarios(IEnumerable<Scenario> scenarios)
+    {
+        foreach (var scenario in scenarios)
+        {
+            _nextMenu.panel.AddButton(scenario.Name, () => Launch(scenario));
+            _nextMenu.panel.AddProperty(() => scenario.Brief);
+        }
+    }
+
+    // The only way into a new run: clears the saved run, generates the scenario's galaxy off the main thread, and
+    // enters the game, where StartGame has RunStart stage it.
+    private void Launch(Scenario scenario)
+    {
+        RunSave.Clear(ActionGameManager.CultCache);
+        var generatorState = "Loading Database Contents";
+
+        Fade(true);
+        _nextMenu.panel.gameObject.SetActive(false);
+        Dialog.Clear();
+        Dialog.Title.text = "Generating Galaxy";
+        Dialog.AddProperty(() => generatorState);
+        Dialog.Show();
+
+        var stage = new GalaxyStage(
+            Settings.SectorGenerationSettings,
+            Settings.SectorBackgroundSettings,
+            Settings.TutorialGenerationSettings,
+            Settings.TutorialBackgroundSettings,
+            Settings.NameGeneratorSettings,
+            ActionGameManager.CultCache,
+            ActionGameManager.PlayerSettings,
+            ActionGameManager.GameDataDirectory.CreateSubdirectory("Narrative"),
+            Debug.Log,
+            state => generatorState = state);
+        Task.Run(() =>
+        {
+            var galaxy = RunStart.Generate(scenario, stage);
+            Observable.NextFrame().Subscribe(_ =>
+            {
+                ActionGameManager.CurrentGalaxy = galaxy;
+                ActionGameManager.PendingScenario = scenario;
+                EnterGame();
+            });
+        }).ContinueWith(t => Debug.LogException(t.Exception), TaskContinuationOptions.OnlyOnFaulted);
     }
 
     // The one way into the game scene. Mod ship prototypes import asynchronously at boot, so the scene waits for them,

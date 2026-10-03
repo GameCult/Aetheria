@@ -106,6 +106,8 @@ public class ActionGameManager : MonoBehaviour
     }
 
     public static Galaxy CurrentGalaxy;
+    // The scenario a new run starts from: MainMenu.Launch sets it, and StartGame's new-run branch consumes it once.
+    public static Scenario PendingScenario;
 
     public GameSettings Settings;
     //public string StarterShipTemplate = "Longinus";
@@ -796,14 +798,15 @@ public class ActionGameManager : MonoBehaviour
             var saved = CultCache.GetGlobal<SavedGame>();
             if (saved == null)
             {
+                var scenario = PendingScenario ?? throw new InvalidOperationException("A new run needs a scenario; MainMenu.Launch sets one.");
+                PendingScenario = null;
                 SectorMap.QueueZoneReveal(CurrentGalaxy.Entrance.AdjacentZones.Prepend(CurrentGalaxy.Entrance));
-                // RunStart owns what a new run starts with (docs/scenarios-cut.md, 2.2); this only enters and binds.
-                RunStart.GenerateArena(ItemManager, Settings.ZoneSettings, CurrentGalaxy, null);
+                // RunStart owns what a new run starts with (docs/scenarios-cut.md, R.4); this only enters and binds.
+                RunStart.GenerateArena(ItemManager, Settings.ZoneSettings, CurrentGalaxy, scenario);
                 PopulateLevel(CurrentGalaxy.Entrance);
                 var failures = new List<string>();
-                var staged = RunStart.Stage(ItemManager, Zone, null, Settings.StartingHullName,
-                    CurrentGalaxy.IsPrelude ? CurrentGalaxy.ResolveFaction(Settings.TutorialGenerationSettings.ProtagonistFaction) : null, failures)
-                    ?? throw new InvalidOperationException($"The new run could not stage: {string.Join("; ", failures)}");
+                var staged = RunStart.Stage(ItemManager, Zone, scenario, Settings.StartingHullName, Settings.TutorialGenerationSettings, failures)
+                    ?? throw new InvalidOperationException($"Scenario {scenario.Name} could not stage: {string.Join("; ", failures)}");
                 BindToEntity(staged.Player);
             }
             else
