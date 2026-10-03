@@ -55,7 +55,7 @@ public static class RunSave
 {
     // The live run as plain documents. Writes nothing.
     public static (SavedGame Game, SavedZone[] Zones) Capture(CultCache cache, Galaxy galaxy, Zone currentZone,
-        Entity currentEntity, bool isTutorial, SavedActionBarBinding[] actionBar)
+        Entity currentEntity, SavedActionBarBinding[] actionBar)
     {
         var factions = galaxy.HomeZones.Keys.ToArray();
         var game = new SavedGame
@@ -74,7 +74,7 @@ public static class RunSave
             CurrentZoneEntity = currentZone.Entities.IndexOf(currentEntity),
             Entrance = Array.IndexOf(galaxy.Zones, galaxy.Entrance),
             Exit = Array.IndexOf(galaxy.Zones, galaxy.Exit),
-            IsTutorial = isTutorial,
+            IsTutorial = galaxy.IsPrelude,
             ActionBarBindings = actionBar
         };
 
@@ -155,17 +155,37 @@ public static class RunSave
     }
 
     // Removes every run record (SavedGame, SavedZone, OrbitData, BodyData, ProvenanceLedger) in one Commit.
-    public static void Clear(CultCache cache)
+    public static void Clear(CultCache cache) => Remove(cache, Records(cache));
+
+    // A new run replaces the saved one only once it has started: start runs with the saved run still in the store.
+    // When it returns a value, the saved run's records go. When it returns null or throws, the records it wrote go and
+    // the saved run stays as it was.
+    public static T Replace<T>(CultCache cache, Func<T> start) where T : class
     {
-        var run = cache.AllStoredDocuments
+        var saved = Records(cache);
+        T started = null;
+        try
+        {
+            started = start();
+        }
+        finally
+        {
+            Remove(cache, started != null ? saved : Records(cache).Except(saved).ToArray());
+        }
+        return started;
+    }
+
+    private static CultRecordKey[] Records(CultCache cache) =>
+        cache.AllStoredDocuments
             .Where(stored => IsRunRecord(stored.Descriptor.DocumentType))
             .Select(stored => stored.Key)
             .ToArray();
+
+    private static void Remove(CultCache cache, CultRecordKey[] records) =>
         cache.Commit(batch =>
         {
-            foreach (var key in run) batch.Remove(key);
+            foreach (var key in records) batch.Remove(key);
         });
-    }
 
     public static bool IsRunRecord(Type documentType) =>
         AetheriaStores.RunTypes.Any(home => home.IsAssignableFrom(documentType));

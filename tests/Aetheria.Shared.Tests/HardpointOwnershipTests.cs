@@ -229,7 +229,7 @@ public sealed partial class RunStartTests
         var low = Heater("P30 Low Heater", 260, 10);
         var high = Heater("P30 High Heater", 320, 7);
         var hull = Hull("Djinni");
-        var zone = Arena(new Scenario { Ambient = false });
+        var zone = Arena(false);
 
         List<float> Bills(params GearData[] order)
         {

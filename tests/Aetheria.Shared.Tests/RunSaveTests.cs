@@ -91,7 +91,7 @@ public sealed class RunSaveTests : IDisposable
             var galaxy = new Galaxy(cache, cache.GetGlobal<SavedGame>(), _ => { });
             var itemManager = new ItemManager(cache, new ProvenanceLedger(), TestSettings(), _ => { });
             galaxy.Zones[0].Contents = new Zone(itemManager, new PlanetSettings(), new ZonePack(), galaxy.Zones[0], galaxy);
-            var (game, zones) = RunSave.Capture(cache, galaxy, galaxy.Zones[0].Contents, null, false, new SavedActionBarBinding[0]);
+            var (game, zones) = RunSave.Capture(cache, galaxy, galaxy.Zones[0].Contents, null, new SavedActionBarBinding[0]);
             RunSave.Commit(cache, game, zones, RunSave.Lots(cache));
         }
 
@@ -125,6 +125,62 @@ public sealed class RunSaveTests : IDisposable
         Assert.Equal(0, RecordsIn(Run));
         Assert.Equal(before, new[] { Catalog, Player }.Select(Hash).ToArray());
     }
+
+    // A new run's start writes its arena's orbits and bodies while the saved run is still stored. A start that fails,
+    // by returning nothing or by throwing, takes away only what it wrote; one that starts takes away the saved run.
+    [Fact]
+    public void ANewRunReplacesTheSavedRunOnlyOnceItHasStarted()
+    {
+        using (var cache = Open())
+            RunSave.Commit(cache, Game(cache), Zones(3, StageZoneContents(cache), 0), new ProvenanceLedger());
+        string[] saved;
+        using (var cache = Open())
+            saved = RunKeys(cache);
+        Assert.Equal(8, saved.Length);
+
+        using (var cache = Open())
+        {
+            Assert.Null(RunSave.Replace<ZonePack>(cache, () =>
+            {
+                WriteAnOrbitTheSavedRunLacks(cache);
+                return null;
+            }));
+            Assert.Equal(saved, RunKeys(cache));
+        }
+        using (var cache = Open())
+        {
+            Assert.Equal(saved, RunKeys(cache));
+            Assert.NotNull(cache.GetGlobal<SavedGame>());
+        }
+
+        using (var cache = Open())
+        {
+            Assert.Throws<InvalidOperationException>(() => RunSave.Replace<ZonePack>(cache, () =>
+            {
+                WriteAnOrbitTheSavedRunLacks(cache);
+                throw new InvalidOperationException("the arena would not generate");
+            }));
+            Assert.Equal(saved, RunKeys(cache));
+        }
+        using (var cache = Open())
+            Assert.Equal(saved, RunKeys(cache));
+
+        ZonePack started;
+        using (var cache = Open())
+            started = RunSave.Replace(cache, () => StageZoneContents(cache));
+        using (var cache = Open())
+        {
+            Assert.Null(cache.GetGlobal<SavedGame>());
+            Assert.Equal(started.Orbits.Select(orbit => orbit.Key.Value).Concat(started.Planets.Select(body => body.Key.Value))
+                .OrderBy(key => key, StringComparer.Ordinal), RunKeys(cache));
+        }
+    }
+
+    private static string[] RunKeys(CultCache cache) => cache.AllStoredDocuments
+        .Where(stored => RunSave.IsRunRecord(stored.Descriptor.DocumentType))
+        .Select(stored => stored.Key.Value)
+        .OrderBy(key => key, StringComparer.Ordinal)
+        .ToArray();
 
     // Lot 1 sits on the root ship's hull; lot 3 (Produced from facility 4, input 5) sits in a docked child's
     // docking-bay contents; lots 2 and 6 are minted but referenced by nothing packed. Only the reachable closure
@@ -531,6 +587,9 @@ public sealed class RunSaveTests : IDisposable
         Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
         QualityPriceModifier = new ExponentialLerp()
     };
+
+    // What a start that fails leaves behind: a record of its own, which the saved run does not hold.
+    private static void WriteAnOrbitTheSavedRunLacks(CultCache cache) => cache.Upsert(new OrbitData { Distance = 99 });
 
     // Two orbits and a body upserted into the run store and left staged, as zone generation leaves them.
     private static ZonePack StageZoneContents(CultCache cache)

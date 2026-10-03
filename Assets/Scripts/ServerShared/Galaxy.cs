@@ -7,7 +7,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using DataStructures.ViliWonka.Heap;
 using Ink.Runtime;
-using MIConvexHull;
 using JM.LinqFaster;
 using UniRx;
 using CultMath;
@@ -29,6 +28,10 @@ public class Galaxy
     public Dictionary<Faction, FactionRelationship> FactionRelationships { get; } = new Dictionary<Faction, FactionRelationship>();
     private Action<string> Log { get; }
     public bool IsPrelude { get; }
+
+    // The seed this galaxy was generated at, which also seeds its run's item draws (RunStart); zero for a galaxy
+    // restored from a save.
+    public uint Seed { get; }
     
     private HashSet<CultRecordKey> _containedFactions;
     private GalaxyZone[] _exitPath;
@@ -105,7 +108,8 @@ public class Galaxy
         Background = background;
         Log = log;
         var factions = cache.GetAll<Faction>();
-        var random = new Random(seed == 0 ? (uint) (DateTime.Now.Ticks % uint.MaxValue) : seed);
+        Seed = seed == 0 ? (uint) (DateTime.Now.Ticks % uint.MaxValue) : seed;
+        var random = new Random(Seed);
         Factions = factions.OrderBy(x => random.NextFloat()).Take(settings.MegaCount).ToArray();
         foreach (var f in Factions) FactionRelationships[f] = FactionRelationship.Neutral;
 
@@ -139,6 +143,11 @@ public class Galaxy
         return _cache.GetAll<Faction>().FirstOrDefault(f => f.Name.StartsWith(name, StringComparison.InvariantCultureIgnoreCase));
     }
 
+    // How many jumps a faction's influence reaches in this galaxy: its authored distance, halved (rounding up) in a
+    // prelude. Derived, never written back to the catalog's Faction, so one galaxy's generation cannot change the next.
+    public int InfluenceOf(Faction faction) =>
+        IsPrelude ? (faction.InfluenceDistance + 1) / 2 : faction.InfluenceDistance;
+
     public Galaxy(
         TutorialGenerationSettings settings,
         SectorBackgroundSettings background,
@@ -155,7 +164,8 @@ public class Galaxy
 
         Background = background;
         Log = log;
-        var random = new Random(seed == 0 ? (uint) (DateTime.Now.Ticks % uint.MaxValue) : seed);
+        Seed = seed == 0 ? (uint) (DateTime.Now.Ticks % uint.MaxValue) : seed;
+        var random = new Random(Seed);
         
         var factions = new List<Faction>();
 
@@ -177,11 +187,7 @@ public class Galaxy
         factions.AddRange(neutralFactions);
         
         Factions = factions.ToArray();
-        foreach (var faction in Factions)
-        {
-            FactionRelationships[faction] = FactionRelationship.Neutral;
-            faction.InfluenceDistance = (faction.InfluenceDistance + 1) / 2;
-        }
+        foreach (var faction in Factions) FactionRelationships[faction] = FactionRelationship.Neutral;
 
         Zones = GenerateZones(settings.ZoneCount, ref random, progressCallback);
 
@@ -190,13 +196,13 @@ public class Galaxy
         CalculateDistanceMatrix(progressCallback);
 
         HomeZones[protagonistFaction] = Zones
-            .MaxBy(z => ConnectedRegion(z, protagonistFaction.InfluenceDistance).Count);
+            .MaxBy(z => ConnectedRegion(z, InfluenceOf(protagonistFaction)).Count);
 
         HomeZones[antagonistFaction] = Zones
-            .MaxBy(z => ConnectedRegion(z, antagonistFaction.InfluenceDistance).Count * z.Distance[HomeZones[protagonistFaction]]);
+            .MaxBy(z => ConnectedRegion(z, InfluenceOf(antagonistFaction)).Count * z.Distance[HomeZones[protagonistFaction]]);
 
         HomeZones[protagonistFaction] = Zones
-            .MaxBy(z => ConnectedRegion(z, protagonistFaction.InfluenceDistance).Count * sqrt(z.Distance[HomeZones[antagonistFaction]]));
+            .MaxBy(z => ConnectedRegion(z, InfluenceOf(protagonistFaction)).Count * sqrt(z.Distance[HomeZones[antagonistFaction]]));
         
         // var antagonistRegion = ConnectedRegion(HomeZones[antagonistFaction], antagonistFaction.InfluenceDistance);
         // var protagonistRegion = ConnectedRegion(HomeZones[protagonistFaction], protagonistFaction.InfluenceDistance);
@@ -205,13 +211,13 @@ public class Galaxy
         var bufferDistance = Zones.Min(z => abs(z.Distance[HomeZones[antagonistFaction]] - z.Distance[HomeZones[protagonistFaction]]));
         var potentialBufferZones = Zones
             .Where(z => abs(z.Distance[HomeZones[antagonistFaction]] - z.Distance[HomeZones[protagonistFaction]]) == bufferDistance);
-        HomeZones[bufferFaction] = potentialBufferZones.MaxBy(z => ConnectedRegion(z, bufferFaction.InfluenceDistance).Count);
+        HomeZones[bufferFaction] = potentialBufferZones.MaxBy(z => ConnectedRegion(z, InfluenceOf(bufferFaction)).Count);
         
         // Place neutral headquarters away from existing factions while also maximizing territory
         foreach (var faction in neutralFactions)
         {
             HomeZones[faction] = Zones.MaxBy(z =>
-                ConnectedRegion(z, faction.InfluenceDistance).Count *
+                ConnectedRegion(z, InfluenceOf(faction)).Count *
                 HomeZones.Values.Aggregate(1f, (i, os) => i * sqrt(os.Distance[z])));
         }
         
@@ -221,7 +227,7 @@ public class Galaxy
             .Where(z => z.Factions.Contains(antagonistFaction) && z.Factions.Contains(bufferFaction));
         if (potentialQuestZones.Any())
             HomeZones[questFaction] = potentialQuestZones
-                .MaxBy(z => z.Distance[HomeZones[antagonistFaction]] * ConnectedRegion(z, questFaction.InfluenceDistance).Count);
+                .MaxBy(z => z.Distance[HomeZones[antagonistFaction]] * ConnectedRegion(z, InfluenceOf(questFaction)).Count);
         else 
             HomeZones[questFaction] = Zones
                 .Where(z => z.Factions.Contains(antagonistFaction))
@@ -287,9 +293,9 @@ public class Galaxy
         // While occupying as much territory as possible
         foreach (var mega in bossMegas)
         {
-            HomeZones[mega] = ConnectedRegion(BossZones[mega], mega.InfluenceDistance)
+            HomeZones[mega] = ConnectedRegion(BossZones[mega], InfluenceOf(mega))
                 .MaxBy(z =>
-                    ConnectedRegion(z, mega.InfluenceDistance).Count *
+                    ConnectedRegion(z, InfluenceOf(mega)).Count *
                     HomeZones.Values.Aggregate(1f, (i, os) => i * sqrt(os.Distance[z])));
         }
 
@@ -297,7 +303,7 @@ public class Galaxy
         foreach (var mega in Factions.Where(m => !bossMegas.Contains(m)))
         {
             HomeZones[mega] = Zones.MaxBy(z =>
-                pow(ConnectedRegion(z, mega.InfluenceDistance).Count, HomeZones.Count) *
+                pow(ConnectedRegion(z, InfluenceOf(mega)).Count, HomeZones.Count) *
                 Exit.Distance[z] * Entrance.Distance[z] *
                 HomeZones.Values.Aggregate(1f, (i, os) => i * sqrt(os.Distance[z])) *
                 BossZones.Values.Aggregate(1f, (i, os) => i * sqrt(os.Distance[z])));
@@ -315,14 +321,14 @@ public class Galaxy
             // Factions are present in all zones within their sphere of influence
             zone.Factions = Factions
                 .Where(f => HomeZones.ContainsKey(f))
-                .Where(f => zone.Distance[HomeZones[f]] <= f.InfluenceDistance)
+                .Where(f => zone.Distance[HomeZones[f]] <= InfluenceOf(f))
                 .ToArray();
 
             // Owner of a zone is the faction with the nearest headquarters
             var nearestFaction = Factions
                 .Where(f => HomeZones.ContainsKey(f))
                 .MinBy(f => (float)zone.Distance[HomeZones[f]]);
-            if (zone.Distance[HomeZones[nearestFaction]] <= nearestFaction.InfluenceDistance)
+            if (zone.Distance[HomeZones[nearestFaction]] <= InfluenceOf(nearestFaction))
                 zone.Owner = nearestFaction;
         }
     }
@@ -332,12 +338,13 @@ public class Galaxy
         ref Random random,
         Action<string> progressCallback = null)
     {
+        var used = new HashSet<string>();
         for (var i = 0; i < Factions.Length; i++)
         {
             progressCallback?.Invoke($"Feeding Markov Chains: {i + 1} / {Factions.Length}");
             //if(progressCallback!=null) Thread.Sleep(250); // Inserting Delay to make it seem like it's doing more work lmao
             var faction = Factions[i];
-            _nameGenerators[faction] = new MarkovNameGenerator(ref random, cache.Get(faction.GeonameFile).Names, nameGeneratorSettings);
+            _nameGenerators[faction] = new MarkovNameGenerator(ref random, cache.Get(faction.GeonameFile).Names, nameGeneratorSettings, used);
         }
 
         // Generate zone name using the owner's name generator, otherwise assign catalogue ID
@@ -359,22 +366,10 @@ public class Galaxy
         progressCallback?.Invoke("Triangulating Zone Positions");
         if (progressCallback != null) Thread.Sleep(500); // Inserting Delay to make it seem like it's doing more work lmao
 
-        // Create a delaunay triangulation to connect adjacent sectors
-        var triangulation = DelaunayTriangulation<Vertex2<GalaxyZone>, Cell2<GalaxyZone>>
-            .Create(Zones.Select(z => new Vertex2<GalaxyZone>(z.Position, z)).ToList(), 1e-7f);
-        var links = new HashSet<(GalaxyZone, GalaxyZone)>();
-        foreach (var cell in triangulation.Cells)
-        {
-            if (!links.Contains((cell.Vertices[0].StoredObject, cell.Vertices[1].StoredObject)) &&
-                !links.Contains((cell.Vertices[1].StoredObject, cell.Vertices[0].StoredObject)))
-                links.Add((cell.Vertices[0].StoredObject, cell.Vertices[1].StoredObject));
-            if (!links.Contains((cell.Vertices[1].StoredObject, cell.Vertices[2].StoredObject)) &&
-                !links.Contains((cell.Vertices[2].StoredObject, cell.Vertices[1].StoredObject)))
-                links.Add((cell.Vertices[1].StoredObject, cell.Vertices[2].StoredObject));
-            if (!links.Contains((cell.Vertices[0].StoredObject, cell.Vertices[2].StoredObject)) &&
-                !links.Contains((cell.Vertices[2].StoredObject, cell.Vertices[0].StoredObject)))
-                links.Add((cell.Vertices[0].StoredObject, cell.Vertices[2].StoredObject));
-        }
+        // The Delaunay triangulation connects adjacent sectors, every zone among them
+        var links = Delaunay.Edges(Zones.Select(z => z.Position).ToArray())
+            .Select(edge => (Zones[edge.a], Zones[edge.b]))
+            .ToList();
 
         progressCallback?.Invoke("Eliminating Zone Links");
         if (progressCallback != null) Thread.Sleep(500); // Inserting Delay to make it seem like it's doing more work lmao
