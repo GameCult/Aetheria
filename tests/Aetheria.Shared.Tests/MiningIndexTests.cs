@@ -9,6 +9,7 @@ using CultMath;
 using Xunit;
 using static CultMath.math;
 using float2 = CultMath.float2;
+using float3 = CultMath.float3;
 using float4 = CultMath.float4;
 
 // Mining index (docs/aetheria-release-map.md, L3-L5; Soul F1, operator 2026-10-01: "Fix the belt freeze"): the zone's
@@ -48,8 +49,15 @@ public sealed partial class MiningCut3Tests
             PingCooldown = Constant(4f)
         });
         s.Cache.Upsert(eye);
-        var ship = SpawnShip(s, at, weaponRanges: reach);
+        var gun = Gear($"Gun {reach}", new InstantWeaponData { Range = Constant(reach) });
+        s.Cache.Upsert(gun);
+        var ship = new Ship(s.Items, s.Zone, Mint(s, s.Hull), new EntitySettings());
         Assert.True(ship.TryEquip(Mint(s, eye)));
+        Assert.True(ship.TryEquip(Mint(s, gun)));
+        s.Zone.Entities.Add(ship);
+        Hold(ship, at);
+        ship.LookDirection = float3(0, 0, 1);
+        ship.Activate();
         Tick((ship, at)); // equipment comes online and weapons read their ranges on the first tick
         return ship;
     }
@@ -64,7 +72,7 @@ public sealed partial class MiningCut3Tests
         var centre = float2(-300, 820);
         var s = BuildSceneAt(centre, 5000f, 1234.5, new[] { kind },
             Belt(kind, Annulus(rng, 3000, 200f, 900f)), Belt(kind, Annulus(rng, 700, 1000f, 1060f)));
-        for (var i = 0; i < 40; i++) Assert.True(s.Zone.Wear(new ChunkId(s.Belts[0], rng.Next(3000)), 1e6f));
+        for (var i = 0; i < 40; i++) Assert.True(s.Zone.Wear(new ChunkId(s.Belts[0], i * 73), 1e6f));
 
         var found = new List<ChunkId>();
         var nonEmpty = 0;
