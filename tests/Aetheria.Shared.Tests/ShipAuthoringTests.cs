@@ -356,6 +356,13 @@ public sealed class ShipAuthoringTests
         unarmed.Visual.Anchors.RemoveAll(anchor => anchor.Role == "weapon-muzzle");
         Assert.Contains("mod.skiff: weapon hardpoint gun needs at least one muzzle anchor", Refusal(unarmed));
 
+        // Each weapon needs a muzzle of its own: another weapon's muzzle does not arm it.
+        var second = Armed();
+        second.Hull.Shape.Cells[0, 1] = true;
+        second.Hull.Hardpoints.Add(new HardpointData { Type = HardpointType.Launcher, Position = new int2(0, 1), Shape = new Shape(), Transform = "tube" });
+        second.Visual.Anchors.Add(new ShipAnchor { Id = "tube", Role = "weapon-mount", ModelNodeId = "tube" });
+        Assert.Contains("mod.skiff: weapon hardpoint tube needs at least one muzzle anchor", Refusal(second));
+
         // A valid pair plans without a refusal of the plan's own; muzzles by Order, then id ordinally.
         var valid = Armed();
         var (mount, muzzles) = Assert.Single(ShipModPlan.Build(valid.Hull, valid.Visual).Weapons);
