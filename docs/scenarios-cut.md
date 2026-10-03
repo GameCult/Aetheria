@@ -2,10 +2,11 @@
 
 Date: 2026-09-30, 02:10 CEST. Imagination pass.
 
-Status: Cut 1 landed on master (`RunStart`, `Zone.Admit`, the `Scenario` record type, the `Materialize` rules).
-Cuts 2-4 were re-scoped on 2026-10-03 to the operator's lighter framing: section R owns them and supersedes the
-old Cut 2-4 text below. Section R's questions are answered. This document owns the means; the campaign is
-`aetheria-release` (ruling `adopt-mining-and-scenarios`).
+Status: Cut 1 and Cut S2 are on master (S2 merged at `a24ffd77`, branch `eureka/aetheria-release-scenarios-menu`, cut
+reports `aetheria-release:cut_report:cut-scenarios-menu.h1` and `.h2`). Every new run now comes from a `Scenario`;
+section R.9 is the map of the machine as built and supersedes R.4 where they differ. Cut S3 (test designs and the
+four scenarios that need them) has not started. Everything outside R.9 and R.6's S3 is history. This document owns the
+means; the campaign is `aetheria-release` (ruling `adopt-mining-and-scenarios`).
 
 Anchors are against Aetheria `origin/master` `dcd7bbc5` (the fire-control merge), read in the clone
 `C:\ws72-fuse5` with `git show`/`git grep`. The operator's tree `F:\Projects\Aetheria` was not touched. No
@@ -178,6 +179,76 @@ None open. `verification-ledger` was answered B.
 | S3 | the transient command, once spent | five weapon designs and one test hull (catalog); four scenarios 95; the Arcs beam target 5; condition tests 100 |
 
 S2 removes the `aetheria.scenario` schema. No store, target, package or daemon is added.
+
+### R.9 The machine as built (Modeling, 2026-10-04; anchors `origin/master` `a24ffd77`, **(read)**)
+
+Owner, inputs, outputs and the rest, per authority. Where this differs from R.4 the build wins (marked *differs*).
+
+**Flow.** `MainMenu.ShowScenarios` (lists `Scenarios.Modes`, then `Scenarios.Tests` when `Debug.isDebugBuild`) ->
+`MainMenu.Launch(scenario)` builds a `GalaxyStage` from the settings and runs `RunStart.Generate` on a background task
+-> next frame writes `ActionGameManager.CurrentGalaxy` and `PendingScenario`, loads scene `ARPG` -> `StartGame` sees
+`PendingScenario != null` and calls `StartScenario` -> inside `RunSave.Replace`: `RunStart.GenerateArena`,
+`PopulateLevel(Entrance)`, `RunStart.Stage` -> `BindToEntity(staged.Player)`. Continue (no pending scenario) takes the
+saved-run branch of `StartGame` unchanged.
+
+| Authority | Owner | Inputs | Outputs | Derived state | Forbidden writers |
+|---|---|---|---|---|---|
+| Which setups exist | `Scenarios` (`Modes`, `Tests`) | source | the menu's list | none | the menu (it lists, never adds), `ActionGameManager` |
+| Setup of one run | `Scenario` subclass (`Name`, `Brief`, `Seed`, `Ambient`, `Generate`, `Stage`) | `GalaxyStage`, `ScenarioStage` | a `Galaxy`; staged fits | none; it declares and holds no Unity type | anything else choosing a new run's galaxy, hull, faction or player |
+| Seed | `Scenario.Seed`; `GalaxyStage.SeedFrom` | scenario seed, clock | `GalaxyStage.Seed`, never 0 | background noise position (`Main`, `Prelude`), `Galaxy.Seed`, item random | `UnityEngine.Random` (no longer read for galaxy setup) |
+| Galaxy construction | `GalaxyStage` (`Main()`, `Prelude()`), `RunStart.Generate` | sector/tutorial/background/name settings, `CultCache`, `PlayerSettings`, narrative directory, log, progress, clock | `Galaxy` | `Galaxy.IsPrelude`, zone links | `MainMenu` (it only builds the stage and hands it over) |
+| Zone links | `Galaxy` via `Delaunay.Edges` (double precision, Bowyer-Watson, `ServerShared/Delaunay.cs`) | zone positions | edges, then the existing link elimination | connected graph for 2+ distinct points | the vendored `NIH/MIConvexHull` (deleted: float precision dropped zones, ~2% of galaxies threw) |
+| Arena | `RunStart.GenerateArena` -> `ZoneGenerator.GenerateZone(..., galaxy.IsPrelude, scenario.Ambient)` | item manager, zone settings, galaxy, scenario | `Entrance.PackedContents` | stations and orbits kept when `Ambient` is false; generated ships and turrets dropped | `Scenario` (declares `Ambient` only) |
+| Item random for staging | `RunStart.SeedItems` | `galaxy.Seed * 0x9E3779B1u + step` (step 1 arena, step 2 staging) | `ItemManager.Random` | lot quality, generated fits, maker and workmanship | the process clock; `PopulateLevel` cannot shift it (the staging step reseeds) |
+| Staging | `RunStart.Stage` with `ScenarioStage` | item manager, arena zone, scenario, `StartingHullName`, `TutorialGenerationSettings`, failure list | `RunStart.Staged` (player, entities in order) or null | `ScenarioStage.Failures`, `Placed`, `PlayerShip` | `Scenario.Stage` (it queues; it cannot admit) |
+| Admission | `Zone.Admit` | entity, `piloted` | the entity in the zone | stance IFF set both ways with the player; a pilot per piloted entity | everything but `RunStart.Stage` for a new run |
+| Tutorial or not | `Galaxy.IsPrelude` only | set by the prelude constructor, or `SavedGame.IsTutorial` on load | read by `RunSave.Capture`, `spawnturret`, `PopulateLevel`, `LoadoutGenerator`, `ZoneGenerator` | `SavedGame.IsTutorial` is the persisted copy, written from `galaxy.IsPrelude` | no static mirror may exist |
+| Saved run vs new run | `RunSave.Replace(cache, start)` (`SavedGame.cs:163`) | start func | a staged result, or null | on success the old run's records go; on null or throw the records the start wrote go and the saved run stays | `MainMenu` (it no longer clears the run before generating) |
+| Scenario transport | `ActionGameManager.PendingScenario` | `Launch` writes, `StartScenario` reads and nulls | none | also switches `ItemManager` to a fresh `ProvenanceLedger` (`:274`) | command-only; nothing derives from it |
+
+*Differs from R.4:* the fit verbs (`Fit`, `Bare`, `Generated`, `Preset`) return a `ScenarioFit` (`ScenarioStage.cs:102`),
+not a `Loadout`; `RunStart.Check` and the cleared-before-check order are gone, replaced by all-or-nothing staging inside
+`RunSave.Replace`; `GalaxyStage` takes an injectable clock for tests; `RunStart.Staged` is the return shape.
+
+**Shared paths.** `Zone.Admit` is shared with docking and undocking (`UndockingAdmitsWithNoAgent`); a stance survives
+docking but not destruction. `ZoneGenerator.GenerateZone` is shared by new runs and by zone loading as the player
+travels. `PlayerSettings` is read by `GalaxyStage.Prelude` (narrative) and written elsewhere; nothing here writes it.
+`SavedGame` is shared with Continue: the new-run path must write what Continue reads (`SaveReadsPrelude`).
+
+**Cut line.** A new scenario is one class in `ServerShared/Scenarios/` plus one entry in `Scenarios.Modes` or `.Tests`;
+nothing else changes. S3 adds content (test hull, weapon designs, four scenarios, the Arcs beam target) and the
+transient `AetherDb smoke-designs apply`; it adds no verb unless the Weapon feel arena needs one.
+
+**Verification layer.** `tests/Aetheria.Shared.Tests/ScenarioTests.cs` (headless, no Unity): `EveryScenarioStages`
+(rot test over `Modes` and `Tests`), `ModesMatchOldNewGame`, `SeedRules` (a fixed seed fixes the layout and every fit,
+including after the item random is scrambled between arena and staging), `EveryZoneIsLinked` (Delaunay, by seed and
+mode), `AGalaxyLeavesTheCatalogsFactionsAsAuthored`, `StagingIsAllOrNothing`, `StanceAndPilot`,
+`AStanceSurvivesDockingButNotDestruction`, `UndockingAdmitsWithNoAgent`,
+`AQuietArenaHasNoGeneratedShipOrTurretButKeepsItsStations`, `AScenarioPlayerIsItsFitAtItsPlaceWithItsCargo`,
+`ATurretStagesAsAStationaryOrbitalEntity`, `AMisplacedHullOrPlayerIsAStagingFailure`, `ArcsGeometry`,
+`EveryUnsoldDesignIsAScenarioTestDesign`, `SaveReadsPrelude`, `OldPlayerSettingsLoad`. `RunSaveTests` pins that a failed
+start's own writes are removed and the saved run stays. Not covered headless: `MainMenu.Launch` and `ShowScenarios`,
+`StartScenario`'s Unity half (`BindToEntity`, `QueueZoneReveal`), and the refuse dialog; those need the in-editor pass
+(`docs/merge-to-master-checklist.md` section 8). No build or test ran for this map.
+
+**Stale docs and state found, not edited here.**
+- `docs/merge-to-master-checklist.md:36`, step 4 "New Game (tutorial)": describes one New Game button; New Game now opens
+  the scenarios submenu and the tutorial is `Tutorial Galaxy` in it.
+- `docs/cultcache-migration-cut.md` (`:98,141,654,2599,2663`, and the `IsTutorial` signatures at `:2440,2607,2614,2654`)
+  and `docs/cultcache-migration-postmortem.md:360`: New Game calls `RunSave.Clear` first. The run is now replaced only
+  after staging (`RunSave.Replace`), which closes the "clears before generation succeeds" scar.
+- `docs/headless-playground-cut.md` (`:110,112,246,308,377,398,415,449,476`): the `IsTutorial` static, `MainMenu.cs`
+  line anchors, `NewRun = (sector, tutorial)` and `Run.New(..., bool isTutorial, ...)` describe the deleted path. The
+  caller-built galaxy it wants is now `RunStart.Generate`. Its acceptance grep for `IsTutorial` assignments is vacuous.
+- `docs/item-provenance-cut.md:255`, `docs/item-provenance-substrate.md:135`: "New Game has already cleared the run
+  store (`MainMenu.cs:111-112`)" is false now; `PendingScenario` swaps in a fresh ledger (`ActionGameManager.cs:274`).
+- `docs/item-provenance-substrate.md:72`, `docs/cultcache-migration-cut.md:1775`: cite `NIH\MIConvexHull`, deleted.
+- `docs/tutorial-script-sketch.md:19`: names `IsTutorial`; it is `Galaxy.IsPrelude`.
+- `docs/scenarios-cut.md` itself: sections 0.2, 0b, 2.x, 3 (Cuts 2-4), 4, 5.1, 6 and the Anchors paragraph describe
+  `aetheria.scenario`, `RunStart.Check` and `AetherDb scenario-seed`; history, marked superseded by R.
+- Not stale: `RestoredHullsTests` passing `isTutorial: true` to `ZoneGenerator.GenerateZone`, because that parameter is
+  the generator's own, fed by `galaxy.IsPrelude`. Name residue only: `ZoneGenerator`'s `isTutorial` parameter and
+  `SavedGame.IsTutorial` (kept deliberately as the persisted field, R.4). Neither is a second owner.
 
 ---
 
