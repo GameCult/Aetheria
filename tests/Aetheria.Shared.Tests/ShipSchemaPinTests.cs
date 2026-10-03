@@ -17,6 +17,8 @@ public sealed class ShipSchemaPinTests
     private static readonly string Source = File.ReadAllText(Locate("tools", "blender", "aetheria_ships", "ship_cc.py"));
 
     [Theory]
+    [InlineData("MODEL_ASSET_SLOT", typeof(ShipAuthoring), nameof(ShipAuthoring.ModelAsset))]
+    [InlineData("ANCHORS_SLOT", typeof(ShipAuthoring), nameof(ShipAuthoring.Anchors))]
     [InlineData("SCHEMATIC_LINES_SLOT", typeof(ShipAuthoring), nameof(ShipAuthoring.SchematicLines))]
     [InlineData("HULL_SHAPE_SLOT", typeof(HullData), nameof(HullData.Shape))]
     [InlineData("HULL_HARDPOINTS_SLOT", typeof(HullData), nameof(HullData.Hardpoints))]
@@ -54,6 +56,15 @@ public sealed class ShipSchemaPinTests
         Assert.Equal(7, members.Length);
         for (var slot = 0; slot < members.Length; slot++)
             Assert.Equal(slot, KeyOf(typeof(HardpointData), members[slot]));
+    }
+
+    [Fact]
+    public void PythonAnchorMembersAreShipAnchorMembersAtTheirPositions()
+    {
+        var members = Strings("ANCHOR_MEMBERS");
+        Assert.Equal(5, members.Length);
+        for (var slot = 0; slot < members.Length; slot++)
+            Assert.Equal(slot, KeyOf(typeof(ShipAnchor), members[slot]));
     }
 
     [Fact]

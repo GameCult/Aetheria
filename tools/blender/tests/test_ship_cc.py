@@ -230,6 +230,59 @@ class ReplaceLinesTests(ShipFileCase):
         self.assertEqual(before, self.bytes())
 
 
+class ReplaceVisualTests(ShipFileCase):
+    def anchor(self, anchor_id, role="map-icon", parent=None, order=0):
+        return [anchor_id, role, anchor_id, parent, order]
+
+    def test_writes_the_model_asset_and_anchor_rows_in_member_order(self):
+        rows = [self.anchor("map"), self.anchor("gun", "weapon-mount"), self.anchor("gun.muzzle", "weapon-muzzle", "gun", 1)]
+        self.assertEqual(3, ship_cc.replace_visual(self.path, PACKAGES, "mod.skiff", "ship.glb", rows))
+        ship = self.ship()
+        self.assertEqual("ship.glb", ship[ship_cc.MODEL_ASSET_SLOT])
+        self.assertEqual(rows, ship[ship_cc.ANCHORS_SLOT])
+        self.assertEqual(dict(zip(ship_cc.ANCHOR_MEMBERS, rows[2])),
+                         {"Id": "gun.muzzle", "Role": "weapon-muzzle", "ModelNodeId": "gun.muzzle", "ParentId": "gun", "Order": 1})
+
+    def test_replace_visual_carries_unknown_anchor_slots_by_id(self):
+        ship = ship_body()
+        ship[ship_cc.ANCHORS_SLOT] = [["map", "map-icon", "map", None, 0, "future-anchor-slot"],
+                                      ["shield", "shield", "shield", None, 0, "shield-future"]]
+        self.write(ship, hull_body())
+        # Reordered, with one new anchor: each known Id keeps its own tail, the new one gets none.
+        ship_cc.replace_visual(self.path, PACKAGES, "mod.skiff", "ship.glb",
+                               [self.anchor("shield", "shield"), self.anchor("tractor", "tractor"), self.anchor("map")])
+        self.assertEqual([["shield", "shield", "shield", None, 0, "shield-future"],
+                          ["tractor", "tractor", "tractor", None, 0],
+                          ["map", "map-icon", "map", None, 0, "future-anchor-slot"]], self.ship()[ship_cc.ANCHORS_SLOT])
+
+    def test_replace_visual_refuses_blank_or_duplicate_ids_and_a_changed_ship(self):
+        before = self.bytes()
+        cases = (("blank", "mod.skiff", [self.anchor(" ")], "needs an ID"),
+                 ("none", "mod.skiff", [[None, "map-icon", "x", None, 0]], "needs an ID"),
+                 ("duplicate", "mod.skiff", [self.anchor("map"), self.anchor("map", "shield")], "used twice"),
+                 ("arity", "mod.skiff", [["map", "map-icon", "map", None]], "exactly"),
+                 ("ship", "mod.other", [self.anchor("map")], "ship ID changed"))
+        for name, ship_id, rows, message in cases:
+            with self.subTest(name):
+                with self.assertRaisesRegex(ValueError, message):
+                    ship_cc.replace_visual(self.path, PACKAGES, ship_id, "ship.glb", rows)
+                self.assertEqual(before, self.bytes())
+
+    def test_replace_visual_touches_only_model_asset_and_anchors(self):
+        hull_before = self.envelopes()[(ship_cc.HULL_SCHEMA, "mod-hull:mod.skiff")]
+        ship_before = self.ship()
+        ship_cc.replace_visual(self.path, PACKAGES, "mod.skiff", "ship.glb", [self.anchor("hull", "hull-collider")])
+        after = self.envelopes()
+        self.assertEqual(hull_before, after[(ship_cc.HULL_SCHEMA, "mod-hull:mod.skiff")])
+        ship_after = self.ship()
+        for slot, (old, new) in enumerate(zip(ship_before, ship_after)):
+            if slot not in (ship_cc.MODEL_ASSET_SLOT, ship_cc.ANCHORS_SLOT):
+                self.assertEqual(old, new, f"slot {slot}")
+        self.assertEqual(len(ship_before), len(ship_after))
+        self.assertEqual(LINES, ship_after[ship_cc.SCHEMATIC_LINES_SLOT])
+        self.assertEqual(CATALOG.schema_id, after[(ship_cc.SCHEMA, "mod-ship:mod.skiff")].schema_id)
+
+
 class LayoutTests(ShipFileCase):
     def layout(self):
         return ship_cc.read_layout(self.path, PACKAGES)

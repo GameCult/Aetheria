@@ -21,12 +21,16 @@ HULL_SCHEMA = "aetheria.hulldata"
 # HardpointData). RETIRED_HULL_SLOT is the ShipAuthoring key that held the embedded hull before S1; no member owns it now. ShipSchemaPinTests in tests/Aetheria.Shared.Tests fails when any number or name below
 # disagrees with those types' [Key] attributes, so a renumbered or added member cannot drift silently.
 RETIRED_HULL_SLOT = 1
+MODEL_ASSET_SLOT = 2  # ShipAuthoring.ModelAsset
+ANCHORS_SLOT = 3  # ShipAuthoring.Anchors
 SCHEMATIC_LINES_SLOT = 4  # ShipAuthoring.SchematicLines
 HULL_SHAPE_SLOT = 5  # ItemData.Shape
 HULL_HARDPOINTS_SLOT = 23  # HullData.Hardpoints
 # HardpointData member names in slot order; a hardpoint row is one value per name, and any slot past the last
 # name belongs to a later schema and is carried through untouched.
 HARDPOINT_MEMBERS = ("Type", "Position", "Shape", "Transform", "Rotation", "Armor", "FiringArc")
+# ShipAnchor member names in slot order; as for hardpoints, slots past the last name are carried through by anchor Id.
+ANCHOR_MEMBERS = ("Id", "Role", "ModelNodeId", "ParentId", "Order")
 # Enum member names in value order (HardpointType, ItemRotation).
 HARDPOINT_TYPE_NAMES = ("Hull", "Tool", "Thermal", "Thruster", "WarpDrive", "Reactor", "Radiator",
                         "Shield", "Sensors", "Energy", "Ballistic", "Launcher", "ControlModule", "AetherDrive")
@@ -107,6 +111,33 @@ def replace_lines(path: str, cultlib_packages: str, lines: list[list[Any]]) -> i
     file.ship.body[SCHEMATIC_LINES_SLOT] = lines
     file.store.push(_stamped(file.ship, file.msgpack))
     return len(lines)
+
+
+def replace_visual(path: str, cultlib_packages: str, expected_id: str, model_asset: str,
+                   anchors: list[list[Any]]) -> int:
+    """Writes the visual's model asset and anchor list (ShipAuthoring slots 2 and 3) and nothing else. Each anchor row is
+    ANCHOR_MEMBERS in order; the slots past Order that the same anchor Id carried before are appended to it unchanged."""
+    file = read(path, cultlib_packages)
+    if file.ship.body[0] != expected_id:
+        raise ValueError("The bound ship ID changed; rebind the collection")
+    known = len(ANCHOR_MEMBERS)
+    ids = set()
+    for anchor in anchors:
+        if len(anchor) != known:
+            raise ValueError(f"Each anchor row needs exactly {', '.join(ANCHOR_MEMBERS)}")
+        anchor_id = anchor[0]
+        if not isinstance(anchor_id, str) or not anchor_id.strip():
+            raise ValueError("Every anchor needs an ID")
+        if anchor_id in ids:
+            raise ValueError(f"Anchor ID {anchor_id} is used twice")
+        ids.add(anchor_id)
+    previous = file.ship.body[ANCHORS_SLOT] if len(file.ship.body) > ANCHORS_SLOT else None
+    later = {row[0]: row[known:] for row in previous or []
+             if isinstance(row, list) and len(row) > known and isinstance(row[0], str)}
+    file.ship.body[MODEL_ASSET_SLOT] = model_asset
+    file.ship.body[ANCHORS_SLOT] = [list(anchor) + later.get(anchor[0], []) for anchor in anchors]
+    file.store.push(_stamped(file.ship, file.msgpack))
+    return len(anchors)
 
 
 def _hull_body(file: ShipFile) -> list:
