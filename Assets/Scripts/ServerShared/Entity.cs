@@ -601,7 +601,7 @@ public abstract class Entity
     private void MapEntity()
     {
         var hullData = ItemManager.GetData(Hull) as HullData;
-        EquippedHull = new EquippedItem(ItemManager, Hull, int2.zero, this);
+        EquippedHull = new EquippedItem(ItemManager, Hull, int2.zero, this, null);
         Equipment.Add(EquippedHull);
         // A bare hull, one TryEquip never ran on, still updates: its ordered equipment is the hull alone.
         _orderedEquipment = Equipment.ToArray();
@@ -787,9 +787,11 @@ public abstract class Entity
         return item.EquippableItem;
     }
 
-    // Check whether the given item will fit when its origin is placed at the given coordinate
-    private bool ItemFits(EquippableItemData itemData, HullData hullData, EquippableItem item, int2 hullCoord)
+    // Check whether the given item will fit when its origin is placed at the given coordinate. For hardpoint gear,
+    // hardpoint is the one hardpoint the item would occupy there (HardpointAt); Tool gear occupies none.
+    private bool ItemFits(EquippableItemData itemData, HullData hullData, EquippableItem item, int2 hullCoord, out HardpointData hardpoint)
     {
+        hardpoint = null;
         // Items without specific hardpoints on the ship can be freely rotated and placed anywhere
         if (itemData.HardpointType == HardpointType.Tool)
         {
@@ -806,7 +808,7 @@ public abstract class Entity
         }
         else
         {
-            var hardpoint = HardpointAt(itemData, hullData, hullCoord);
+            hardpoint = HardpointAt(itemData, hullData, hullCoord);
             if (hardpoint == null) return false;
             item.Rotation = hardpoint.Rotation;
         }
@@ -842,7 +844,7 @@ public abstract class Entity
 
         var itemData = ItemManager.GetData(item);
         var hullData = ItemManager.GetData(Hull) as HullData;
-        return ItemFits(itemData, hullData, item, hullCoord);
+        return ItemFits(itemData, hullData, item, hullCoord, out _);
     }
 
     public bool TryFindSpace(EquippableItem item, out int2 hullCoord)
@@ -862,7 +864,7 @@ public abstract class Entity
         {
             foreach (var hullCoord2 in hullData.InteriorCells.Coordinates)
             {
-                if (ItemFits(itemData, hullData, item, hullCoord2))
+                if (ItemFits(itemData, hullData, item, hullCoord2, out _))
                 {
                     hullCoord = hullCoord2;
                     return true;
@@ -874,16 +876,21 @@ public abstract class Entity
         // Search the ship for an empty hardpoint that matches the type and shape of the item
         else
         {
-            // Every offset within a hardpoint of the item's type, the same offsets the fit rule tries
+            // Every origin the fit rule (HardpointData.TakesAt) can accept: the item, turned to the hardpoint's rotation,
+            // may sit as far up and left as its own extent allows, so a design whose shape lacks its origin cell is
+            // found wherever it fits, not only where its origin lies inside the hardpoint.
             foreach (var hardpoint in hullData.Hardpoints)
             {
                 if(hardpoint.Type == itemData.HardpointType)
                 {
-                    for (var x = 0; x < hardpoint.Shape.Width; x++)
-                    for (var y = 0; y < hardpoint.Shape.Height; y++)
+                    var turned = hardpoint.Rotation == ItemRotation.Clockwise || hardpoint.Rotation == ItemRotation.CounterClockwise
+                        ? int2(itemData.Shape.Height, itemData.Shape.Width)
+                        : int2(itemData.Shape.Width, itemData.Shape.Height);
+                    for (var x = 1 - turned.x; x < hardpoint.Shape.Width; x++)
+                    for (var y = 1 - turned.y; y < hardpoint.Shape.Height; y++)
                     {
                         var hullCoord2 = hardpoint.Position + int2(x, y);
-                        if (ItemFits(itemData, hullData, item, hullCoord2))
+                        if (ItemFits(itemData, hullData, item, hullCoord2, out _))
                         {
                             hullCoord = hullCoord2;
                             return true;
@@ -909,7 +916,7 @@ public abstract class Entity
         var itemData = ItemManager.GetData(item);
         var hullData = ItemManager.GetData(Hull) as HullData;
 
-        if (!ItemFits(itemData, hullData, item, hullCoord)) return false;
+        if (!ItemFits(itemData, hullData, item, hullCoord, out var hardpoint)) return false;
         
         EquippedItem equippedItem;
         if (itemData.HardpointType == HardpointType.Tool)
@@ -929,13 +936,13 @@ public abstract class Entity
             }
             else
             {
-                equippedItem = new EquippedItem(ItemManager, item, hullCoord, this);
+                equippedItem = new EquippedItem(ItemManager, item, hullCoord, this, null);
                 Equipment.Add(equippedItem);
             }
         }
         else
         {
-            equippedItem = new EquippedItem(ItemManager, item, hullCoord, this);
+            equippedItem = new EquippedItem(ItemManager, item, hullCoord, this, hardpoint);
             Equipment.Add(equippedItem);
         }
         
@@ -1358,6 +1365,10 @@ public class EquippedItem : IStatContext
     public float Wear { get; private set; }
     public Shape InsetShape { get; }
     public Entity Entity { get; }
+    // The one hardpoint this item occupies, decided once at equip by the placement rule (Entity.HardpointAt);
+    // null for Tool gear and the hull. The item's origin cell need not lie in it: Entity.Hardpoints[,] is a
+    // per-cell map for armour and display, never an item lookup.
+    public HardpointData Hardpoint { get; }
     public EquippableItemData Data { get; }
     public Lot Lot { get; }
 
@@ -1454,11 +1465,12 @@ public class EquippedItem : IStatContext
         SetAudioParameter(metaObject.Id, v, true);
     }
 
-    public EquippedItem(ItemManager itemManager, EquippableItem item, int2 position, Entity entity)
+    public EquippedItem(ItemManager itemManager, EquippableItem item, int2 position, Entity entity, HardpointData hardpoint)
     {
         ItemManager = itemManager;
         Data = ItemManager.GetData(item);
         Entity = entity;
+        Hardpoint = hardpoint;
         EquippableItem = item;
         Lot = ItemManager.GetLot(item);
         Position = position;
@@ -1707,7 +1719,7 @@ public class EquippedCargoBay : EquippedItem
         }
     }
 
-    public EquippedCargoBay(ItemManager itemManager, EquippableItem item, int2 position, Entity entity, string name) : base(itemManager, item, position, entity)
+    public EquippedCargoBay(ItemManager itemManager, EquippableItem item, int2 position, Entity entity, string name) : base(itemManager, item, position, entity, null)
     {
         Data = ItemManager.GetData(EquippableItem) as CargoBayData;
         Name = name;

@@ -12,7 +12,7 @@ public class ConstantLaserManager : ConstantWeaponEffectManager
     {
         var p = LaserPrototype.Instantiate<ConstantLaser>();
         p.SourceEntity = source.Entity;
-        var hp = source.Entity.Hardpoints[item.Position.x, item.Position.y];
+        var hp = item.Hardpoint;
         var barrel = source.GetBarrel(hp);
         p.Range = item.Evaluate(data.Range);
         var t = p.transform;

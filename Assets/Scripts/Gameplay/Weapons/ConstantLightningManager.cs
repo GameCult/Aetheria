@@ -13,7 +13,7 @@ public class ConstantLightningManager : ConstantWeaponEffectManager
     {
         var p = LightningPrototype.Instantiate<ConstantLightning>();
         p.Source = source;
-        var hp = source.Entity.Hardpoints[item.Position.x, item.Position.y];
+        var hp = item.Hardpoint;
         var barrel = source.GetBarrel(hp);
         p.Barrel = barrel;
         p.Range = item.Evaluate(data.Range);

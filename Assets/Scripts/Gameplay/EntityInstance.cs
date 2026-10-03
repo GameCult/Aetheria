@@ -242,7 +242,7 @@ public class EntityInstance : MonoBehaviour
                 }
             }
             
-            var hp = Entity.Hardpoints[item.Position.x, item.Position.y];
+            var hp = item.Hardpoint;
             if (hp != null && item.Data.SoundBank != 0)
             {
                 var hardpointTransform = EquipmentHardpoints.FirstOrDefault(x => x.name == hp.Transform);
@@ -257,7 +257,7 @@ public class EntityInstance : MonoBehaviour
         BarrelIndices = new Dictionary<HardpointData, int>();
         foreach (var radiator in entity.GetBehaviors<Radiator>())
         {
-            var hp = Entity.Hardpoints[radiator.Item.Position.x, radiator.Item.Position.y];
+            var hp = radiator.Item.Hardpoint;
             if (hp != null && hp.Type == HardpointType.Radiator)
             {
                 var mesh = RadiatorHardpoints.FirstOrDefault(x => x.name == hp.Transform);

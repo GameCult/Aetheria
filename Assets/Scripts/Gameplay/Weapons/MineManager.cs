@@ -13,7 +13,7 @@ public class MineManager : InstantWeaponEffectManager
     public override void Fire(InstantWeapon weapon, EquippedItem item, EntityInstance source, EntityInstance target, int shotId)
     {
         var p = ProjectilePrototype.Instantiate<Mine>();
-        var hp = source.Entity.Hardpoints[item.Position.x, item.Position.y];
+        var hp = item.Hardpoint;
         var barrel = source.GetBarrel(hp);
         var angle = weapon.Spread / 2;
         p.Source = source;

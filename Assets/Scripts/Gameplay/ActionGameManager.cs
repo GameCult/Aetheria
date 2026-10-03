@@ -1053,12 +1053,12 @@ public class ActionGameManager : MonoBehaviour
         _articulationGroups = CurrentEntity.Equipment
             .Where(item => item.Behaviors.Any(x => x.Data is WeaponData && !(x.Data is LauncherData)))
             .GroupBy(item => ZoneRenderer.EntityInstances[CurrentEntity]
-                .GetBarrel(CurrentEntity.Hardpoints[item.Position.x, item.Position.y])
+                .GetBarrel(item.Hardpoint)
                 .GetComponentInParent<ArticulationPoint>()?.Group ?? -1)
             .Select((group, index) => {
                 return (
-                    group.Select(item => CurrentEntity.Hardpoints[item.Position.x, item.Position.y]).ToArray(),
-                    group.Select(item => ZoneRenderer.EntityInstances[CurrentEntity].GetBarrel(CurrentEntity.Hardpoints[item.Position.x, item.Position.y])).ToArray(),
+                    group.Select(item => item.Hardpoint).ToArray(),
+                    group.Select(item => ZoneRenderer.EntityInstances[CurrentEntity].GetBarrel(item.Hardpoint)).ToArray(),
                     Crosshairs[index]
                 );
             }).ToArray();

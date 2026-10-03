@@ -45,7 +45,7 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
             if (target != null) p.Target = target.transform;
             else p.TargetPosition = () => burst;
             p.Frequency = launcher.DodgeFrequency;
-            var hp = source.Entity.Hardpoints[item.Position.x, item.Position.y];
+            var hp = item.Hardpoint;
             var barrel = source.GetBarrel(hp);
             p.StartPosition = (p.transform.position = barrel.position).ToCultMath();
             p.Range = weapon.Range;
@@ -66,7 +66,7 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
             p.Source = source.transform;
             p.SourceEntity = source.Entity;
             p.Frequency = guidance.DodgeFrequency;
-            var hp = source.Entity.Hardpoints[item.Position.x, item.Position.y];
+            var hp = item.Hardpoint;
             var barrel = source.GetBarrel(hp);
             p.StartPosition = (p.transform.position = barrel.position).ToCultMath();
             p.Range = weapon.Range;
