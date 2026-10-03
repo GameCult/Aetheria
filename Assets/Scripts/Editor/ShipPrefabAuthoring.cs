@@ -160,7 +160,8 @@ public static class ShipPrefabAuthoring
         mapIcon.gameObject.layer = minimapLayer;
         hull.gameObject.layer = combatLayer;
         var hullRenderer = hull.GetComponent<MeshRenderer>();
-        if (hullRenderer != null) hullRenderer.forceRenderingOff = true;
+        // Serialized, so it survives SaveAsPrefabAsset and every clone; forceRenderingOff survives neither.
+        if (hullRenderer != null) ShipModShips.Hide(hullRenderer, invisible);
         var collider = AddOrGet<MeshCollider>(hull.gameObject);
         collider.sharedMesh = hullMesh;
         collider.convex = true;

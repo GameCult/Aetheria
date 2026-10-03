@@ -51,9 +51,9 @@ public static class ShipModPreview
 
         // Instantiate clones the assembled root, and Unity must remap every array reference into the clone.
         var clone = UnityEngine.Object.Instantiate(ship.gameObject).GetComponent<ShipInstance>();
-        try { CheckShip(clone, plan, "clone"); }
+        try { CheckShip(clone, plan, "clone"); CheckExhaust(clone); }
         finally { UnityEngine.Object.DestroyImmediate(clone.gameObject); }
-        Debug.Log($"SHIP_MOD_ASSEMBLY_SMOKE thrusters={plan.Thrusters.Length} " +
+        Debug.Log($"SHIP_MOD_ASSEMBLY_SMOKE thrusters={plan.Thrusters.Length} exhaust=ok collider=hidden " +
                   $"weapons={plan.Weapons.Length} radiators={plan.Radiators.Length}");
     }
 
@@ -63,6 +63,9 @@ public static class ShipModPreview
         bool Inside(Component part) => part != null && part.transform.IsChildOf(ship.transform);
         Require(ship.HullColliders.Length == 1 && Inside(ship.HullColliders[0]) &&
                 ship.HullColliders[0].GetComponent<MeshCollider>() != null, "one hull collider with a MeshCollider");
+        Require(ship.HullColliders[0].GetComponentsInChildren<Renderer>(true).All(renderer =>
+                    renderer.sharedMaterials.All(material => material == ship.InvisibleMaterial)),
+                "a hull collider that draws nothing");
         Require(Inside(ship.MapIcon) && Inside(ship.Shield) && Inside(ship.TractorBeam), "map icon, shield and tractor inside the ship");
         Require(ship.ThrusterHardpoints.Select(node => node.name).SequenceEqual(plan.Thrusters) &&
                 ship.ThrusterHardpoints.All(node => Inside(node) && Inside(node.Emitter) &&
@@ -74,6 +77,42 @@ public static class ShipModPreview
                 ship.WeaponHardpoints.Zip(plan.Weapons, (node, weapon) =>
                     Inside(node) && node.FiringPoint.Select(point => point.name).SequenceEqual(weapon.Muzzles) &&
                     node.FiringPoint.All(Inside)).All(ok => ok), "weapon hardpoints with their muzzles in order");
+    }
+
+    // Exhaust from each hidden emitter, wired as ShipInstance wires it, from a particle system left at Unity's defaults
+    // (Use Mesh Colors on). The emitter's invisible material has alpha 0, so mesh colours would make every particle
+    // transparent; the wiring must turn them off.
+    private static void CheckExhaust(ShipInstance ship)
+    {
+        const int count = 200;
+        foreach (var hardpoint in ship.ThrusterHardpoints)
+        {
+            var exhaust = new GameObject("Smoke Exhaust").AddComponent<ParticleSystem>();
+            try
+            {
+                exhaust.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+                var main = exhaust.main;
+                main.playOnAwake = false;
+                main.startSpeed = 0;
+                main.startLifetime = 10;
+                main.maxParticles = count * 2;
+                var emission = exhaust.emission;
+                emission.enabled = false;
+                var shape = exhaust.shape;
+                shape.enabled = true;
+                shape.shapeType = ParticleSystemShapeType.MeshRenderer;
+                if (!shape.useMeshColors) throw new InvalidOperationException("Unity's default Use Mesh Colors is off; the exhaust check proves nothing.");
+                ThrusterHardpoint.WireExhaust(exhaust, hardpoint);
+                exhaust.Emit(count);
+                if (exhaust.particleCount != count)
+                    throw new InvalidOperationException($"clone: exhaust from {hardpoint.name} emitted {exhaust.particleCount} of {count} particles.");
+                var alive = new ParticleSystem.Particle[count];
+                exhaust.GetParticles(alive);
+                if (alive.Any(particle => particle.GetCurrentColor(exhaust).a == 0))
+                    throw new InvalidOperationException($"clone: exhaust from {hardpoint.name} has transparent particles.");
+            }
+            finally { UnityEngine.Object.DestroyImmediate(exhaust.gameObject); }
+        }
     }
 
     [MenuItem("Aetheria/Preview Mod Ship Package")]

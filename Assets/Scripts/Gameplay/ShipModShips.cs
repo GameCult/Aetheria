@@ -14,7 +14,9 @@ public static class ShipModShips
     private static readonly Dictionary<CultRecordKey, GameObject> Prototypes = new Dictionary<CultRecordKey, GameObject>();
     private static CultCache _catalog;
 
-    // Set by Preload; complete when every prototype is ready, faulted when any mod ship failed to import or assemble.
+    // Set by Preload; complete when every hull that could be built has its prototype. A mod ship that fails to import or
+    // assemble is skipped and logged, as Compose skips a bad package, so it never stops the rest; Loading faults only
+    // when the preload itself cannot run.
     public static Task Loading { get; private set; } = Task.CompletedTask;
 
     public static Task Preload(CultCache catalog, string modsRoot)
@@ -39,18 +41,19 @@ public static class ShipModShips
         if (Application.isPlaying) Object.DontDestroyOnLoad(root);
         foreach (var hull in hulls)
         {
-            var package = ShipModCatalog.PackageOf(catalog, hull, modsRoot);
-            var visual = await ShipModVisual.LoadAsync(package, root.transform);
+            ShipModVisual.Instance visual = null;
             try
             {
+                var package = ShipModCatalog.PackageOf(catalog, hull, modsRoot);
+                visual = await ShipModVisual.LoadAsync(package, root.transform);
                 visual.Root.SetActive(false);
                 Assemble(visual, package.Hull, package.Visual, template);
                 Prototypes[catalog.RefOf(hull).Key] = visual.Root;
             }
-            catch
+            catch (Exception error)
             {
-                visual.Destroy();
-                throw;
+                visual?.Destroy();
+                Debug.LogError($"Mod ship {hull.Name} skipped: {error.Message}");
             }
         }
     }
@@ -103,8 +106,10 @@ public static class ShipModShips
         if (!hullMesh.isReadable)
             throw new InvalidOperationException($"{ship.Id}: the hull-collider mesh imported unreadable, so it cannot back a MeshCollider.");
         hullNode.gameObject.layer = combat;
+        // The collision hull is never drawn. Its renderer takes the invisible material, which is serialized and so survives
+        // the prototype's clone; forceRenderingOff would not survive Instantiate.
         var hullRenderer = hullNode.GetComponent<MeshRenderer>();
-        if (hullRenderer != null) hullRenderer.forceRenderingOff = true;
+        if (hullRenderer != null) Hide(hullRenderer, template.Invisible);
         var collider = AddOrGet<MeshCollider>(hullNode.gameObject);
         collider.sharedMesh = hullMesh;
         collider.convex = true;
@@ -127,7 +132,7 @@ public static class ShipModShips
             // this renderer's visible material; forceRenderingOff would not survive Instantiate.
             var hardpoint = AddOrGet<ThrusterHardpoint>(Node(id).gameObject);
             hardpoint.Emitter = Renderer(id);
-            hardpoint.Emitter.sharedMaterials = Enumerable.Repeat(template.Invisible, hardpoint.Emitter.sharedMaterials.Length).ToArray();
+            Hide(hardpoint.Emitter, template.Invisible);
             return hardpoint;
         }).ToArray();
         var radiators = plan.Radiators.Select(id =>
@@ -161,6 +166,10 @@ public static class ShipModShips
         instance.TractorBeam = tractor;
         return instance;
     }
+
+    // Every material slot takes the invisible material, so the renderer draws nothing on the prototype and on every clone.
+    public static void Hide(Renderer renderer, Material invisible) =>
+        renderer.sharedMaterials = Enumerable.Repeat(invisible, renderer.sharedMaterials.Length).ToArray();
 
     private static void Reset(Transform transform)
     {
