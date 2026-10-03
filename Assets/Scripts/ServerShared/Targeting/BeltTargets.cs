@@ -100,7 +100,6 @@ public sealed class BeltTargets : ITargetProvider
 
     public void Regions(in TargetSearch search, List<TargetRegion> into)
     {
-        if (_bands.Length == 0) return;
         var time = _zone.ExactTime;
         var centre = _zone.GetOrbitPosition(_zone.Orbits[_data.Orbit.Key].Data.Parent.Key);
         var offset = search.Position - centre;
@@ -171,7 +170,6 @@ public sealed class BeltTargets : ITargetProvider
             };
             sector.Range(distance, turn, out var nearest, out var farthest);
             nearest = max(0f, nearest - slack);
-            if (nearest > search.Reach) continue;
             sector.Bearing(search.Position - centre, out var bearing, out var bearingHalf);
             var light = 0f;
             foreach (var sun in _zone.Suns())

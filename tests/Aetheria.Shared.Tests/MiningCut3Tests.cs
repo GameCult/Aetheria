@@ -99,10 +99,10 @@ public sealed partial class MiningCut3Tests : IDisposable
 
     // The same scene with its sun, and so every belt centre, at `sunAt`.
     private Scene BuildSceneAt(float2 sunAt, FieldKindData[] kinds, params BeltSpec[] belts) =>
-        BuildSceneAt(sunAt, 1000f, 0, kinds, belts);
+        BuildSceneAt(sunAt, 1000f, 0, null, kinds, belts);
 
-    // The same, with the sun's light radius and the zone's starting time chosen.
-    private Scene BuildSceneAt(float2 sunAt, float lightRadius, double time, FieldKindData[] kinds, params BeltSpec[] belts)
+    // The same, with the suns' light radius, the zone's starting time and more suns (fixed, belt-less) chosen.
+    private Scene BuildSceneAt(float2 sunAt, float lightRadius, double time, float2[] moreSuns, FieldKindData[] kinds, params BeltSpec[] belts)
     {
         var dir = Path.Combine(_root, $"scene{_fixtureCount++}");
         Directory.CreateDirectory(dir);
@@ -150,6 +150,12 @@ public sealed partial class MiningCut3Tests : IDisposable
             Mass = 10000f,
             Time = time
         };
+        foreach (var at in moreSuns ?? new float2[0])
+        {
+            var orbit = cache.Upsert(new OrbitData { FixedPosition = at }).Key;
+            pack.Orbits.Add(new CultRecordRef<OrbitData>(orbit));
+            pack.Planets.Add(new CultRecordRef<BodyData>(cache.Upsert(new SunData { Orbit = new CultRecordRef<OrbitData>(orbit) }).Key));
+        }
         var scene = new Scene { Cache = cache, Items = items, Hull = hull, Eye = eye, DimEye = dimEye, Pack = pack };
         scene.Kinds.AddRange(kinds ?? new FieldKindData[0]);
         foreach (var spec in belts)

@@ -70,7 +70,7 @@ public sealed partial class MiningCut3Tests
         var kind = Kind("Asteroid", 4f);
         var rng = new System.Random(5);
         var centre = float2(-300, 820);
-        var s = BuildSceneAt(centre, 5000f, 1234.5, new[] { kind },
+        var s = BuildSceneAt(centre, 5000f, 1234.5, null, new[] { kind },
             Belt(kind, Annulus(rng, 3000, 200f, 900f)), Belt(kind, Annulus(rng, 700, 1000f, 1060f)));
         for (var i = 0; i < 40; i++) Assert.True(s.Zone.Wear(new ChunkId(s.Belts[0], i * 73), 1e6f));
 
@@ -101,7 +101,8 @@ public sealed partial class MiningCut3Tests
         var kind = Kind("Asteroid", 4f);
         var rng = new System.Random(8);
         var centre = float2(150, -60);
-        var s = BuildSceneAt(centre, 1500f, 0, new[] { kind }, Belt(kind, Annulus(rng, 4000, 300f, 1300f)));
+        // A second sun off the belt centre, so the light bound's bearing to a sun matters.
+        var s = BuildSceneAt(centre, 1500f, 0, new[] { centre + float2(900, 400) }, new[] { kind }, Belt(kind, Annulus(rng, 4000, 300f, 1300f)));
         var data = (AsteroidBeltData) s.Zone.Planets[s.Belts[0]];
         var belt = new BeltTargets(s.Zone, s.Belts[0], data, s.Zone.Settings, 0);
         var regions = new List<TargetRegion>();
@@ -110,11 +111,14 @@ public sealed partial class MiningCut3Tests
         foreach (var step in new[] { 0f, 50f, 2e5f })
         {
             if (step > 0f) s.Zone.Update(step);
-            for (var q = 0; q < 30; q++)
+            for (var q = 0; q < 40; q++)
             {
+                // Every fourth search starts near the centre and reaches the whole belt, so sectors across the
+                // searcher's antipode are bounded too.
+                var whole = q % 4 == 0;
                 var angle = (float) (rng.NextDouble() * 2 * PI);
-                var from = centre + (float) rng.NextDouble() * 1500f * float2(cos(angle), sin(angle));
-                var search = new TargetSearch(from, 50f + (float) rng.NextDouble() * 400f);
+                var from = centre + (float) rng.NextDouble() * (whole ? 120f : 1500f) * float2(cos(angle), sin(angle));
+                var search = new TargetSearch(from, whole ? 1500f : 50f + (float) rng.NextDouble() * 400f);
                 regions.Clear();
                 belt.Regions(search, regions);
                 foreach (var region in regions)
@@ -147,7 +151,7 @@ public sealed partial class MiningCut3Tests
         var kind = Kind("Asteroid", 4f);
         var rng = new System.Random(13);
         // The sun at the belt centre, its light gone by 750: the belt runs from bright to dark.
-        var s = BuildSceneAt(float2.zero, 1500f, 0, new[] { kind }, Belt(kind, Annulus(rng, 4000, 200f, 1200f)));
+        var s = BuildSceneAt(float2.zero, 1500f, 0, null, new[] { kind }, Belt(kind, Annulus(rng, 4000, 200f, 1200f)));
         var overshoot = new BezierCurve { Keys = new[] { new float4(0, .4f, 0, 3f), new float4(1, .1f, -2f, 0) } };
         var offered = new List<ChunkId>();
         var visibleSeen = 0;
@@ -183,13 +187,21 @@ public sealed partial class MiningCut3Tests
         long Examine(int count)
         {
             var outer = sqrt(2000f * 2000f + count * 100f / PI);
-            var s = BuildSceneAt(float2.zero, 20000f, 0, new[] { kind }, Belt(kind, Annulus(new System.Random(21), count, 2000f, outer)));
-            var observer = Observer(s, float2(2100, 0), 150f, 3f, Falloff());
+            var s = BuildSceneAt(float2.zero, 20000f, 0, null, new[] { kind }, Belt(kind, Annulus(new System.Random(21), count, 2000f, outer)));
+            var at = 2100f * float2(cos(1f), sin(1f));
+            var observer = Observer(s, at, 150f, 3f, Falloff());
             var offered = new List<ChunkId>();
             var before = s.Zone.Targets.Examined;
             observer.VisibleChunksInReach(offered);
             Assert.NotEmpty(offered);
-            return s.Zone.Targets.Examined - before;
+            var cost = s.Zone.Targets.Examined - before;
+            // Time passes, too little to shear a band past re-keying: the arcs widen by their drift only.
+            s.Zone.Update(5f);
+            Tick((observer, at));
+            before = s.Zone.Targets.Examined;
+            observer.VisibleChunksInReach(offered);
+            Assert.True(s.Zone.Targets.Examined - before < 2 * cost, $"after 5 s, examined {s.Zone.Targets.Examined - before} against {cost}");
+            return cost;
         }
         var small = Examine(30_000);
         var large = Examine(300_000);
@@ -203,7 +215,7 @@ public sealed partial class MiningCut3Tests
     public void DarkBandsAreSkippedWhole()
     {
         var kind = Kind("Asteroid", 4f);
-        var s = BuildSceneAt(float2.zero, 1000f, 0, new[] { kind }, Belt(kind, Annulus(new System.Random(3), 2000, 1500f, 1600f)));
+        var s = BuildSceneAt(float2.zero, 1000f, 0, null, new[] { kind }, Belt(kind, Annulus(new System.Random(3), 2000, 1500f, 1600f)));
         var at = float2(1550f, 0f);
         var observer = Observer(s, at, 300f, 3f, Falloff());
         var offered = new List<ChunkId>();
@@ -222,13 +234,19 @@ public sealed partial class MiningCut3Tests
     public void ReKeyingIsBoundedPerQuery()
     {
         var kind = Kind("Asteroid", 4f);
-        var s = BuildSceneAt(float2.zero, 5000f, 0, new[] { kind }, Belt(kind, Annulus(new System.Random(17), 256 * 40, 200f, 1200f)));
+        var s = BuildSceneAt(float2.zero, 5000f, 1e5, null, new[] { kind }, Belt(kind, Annulus(new System.Random(17), 256 * 40, 200f, 1200f)));
         var data = (AsteroidBeltData) s.Zone.Planets[s.Belts[0]];
-        var belt = new BeltTargets(s.Zone, s.Belts[0], data, s.Zone.Settings, 0);
-        s.Zone.Update(5e6f);
+        var belt = new BeltTargets(s.Zone, s.Belts[0], data, s.Zone.Settings, 1e5);
         var whole = new TargetSearch(float2(700, 0), 2000f);
         var regions = new List<TargetRegion>();
+        // Ten seconds shear no band past the limit, however late the zone's clock: nothing is re-keyed.
+        s.Zone.Update(10f);
         var before = belt.Rekeys;
+        belt.Regions(whole, regions);
+        Assert.Equal(0, belt.Rekeys - before);
+        regions.Clear();
+        s.Zone.Update(5e6f);
+        before = belt.Rekeys;
         belt.Regions(whole, regions);
         Assert.Equal(8, belt.Rekeys - before);
         regions.Clear();
@@ -251,21 +269,22 @@ public sealed partial class MiningCut3Tests
     public void EntitiesComeFromPerception()
     {
         var s = BuildScene();
-        var observer = SpawnShip(s, float2(0, 0));
-        var seen = SpawnShip(s, float2(40, 0));
-        var unseen = SpawnShip(s, float2(0, 40));
+        var here = float2(300, 200);
+        var observer = SpawnShip(s, here);
+        var seen = SpawnShip(s, here + float2(40, 0));
+        var unseen = SpawnShip(s, here + float2(0, 40));
         var candidates = new List<TargetCandidate>();
-        s.Zone.Targets.Within(new TargetSearch(float2(0, 0), 500f, observer), candidates);
+        s.Zone.Targets.Within(new TargetSearch(here, 500f, observer), candidates);
         Assert.Empty(candidates);
 
         observer.VisibleEntities.Add(seen);
-        s.Zone.Targets.Within(new TargetSearch(float2(0, 0), 500f, observer), candidates);
+        s.Zone.Targets.Within(new TargetSearch(here, 50f, observer), candidates);
         Assert.Equal(new[] { new TargetRef(seen) }, candidates.Select(c => c.Target));
-        Assert.Equal(float2(40, 0), candidates[0].Position);
+        Assert.Equal(here + float2(40, 0), candidates[0].Position);
 
-        s.Zone.Targets.Within(new TargetSearch(float2(0, 0), 20f, observer), candidates);
+        s.Zone.Targets.Within(new TargetSearch(here, 20f, observer), candidates);
         Assert.Empty(candidates);
-        s.Zone.Targets.Within(new TargetSearch(float2(0, 0), 500f), candidates);
+        s.Zone.Targets.Within(new TargetSearch(here, 500f), candidates);
         Assert.Empty(candidates);
         Assert.DoesNotContain(unseen, observer.VisibleEntities);
     }
@@ -289,7 +308,7 @@ public sealed partial class MiningCut3Tests
     {
         var kind = Kind("Asteroid", 4f);
         var rng = new System.Random(29);
-        var s = BuildSceneAt(float2.zero, 5000f, 0, new[] { kind }, Belt(kind, Annulus(rng, 5000, 300f, 1100f)));
+        var s = BuildSceneAt(float2.zero, 5000f, 0, null, new[] { kind }, Belt(kind, Annulus(rng, 5000, 300f, 1100f)));
         s.Zone.Update(777f);
         long bestCost = 0, withinCost = 0;
         var candidates = new List<TargetCandidate>();
