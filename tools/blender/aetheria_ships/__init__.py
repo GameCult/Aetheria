@@ -6,14 +6,20 @@ bl_info = {
     "version": (0, 1, 0),
     "blender": (4, 3, 0),
     "location": "View3D > Sidebar > Brokkr > Aetheria Ship",
-    "description": "Write Grease Pencil ship lines into a typed Aetheria .cc ship record",
+    "description": "Author a typed Aetheria ship package: layout, lines, anchors and its GLB",
     "category": "Object",
 }
+
+import subprocess
+from pathlib import Path
 
 import bpy
 
 from .ship_cc import (HARDPOINT_TYPE_NAMES, ROTATION_NAMES, capture_grease_pencil, decode_hardpoint,
-                      encode_hardpoint, read, read_layout, replace_layout, replace_lines)
+                      encode_hardpoint, read, read_layout, replace_layout, replace_lines, replace_visual)
+
+MODEL_ASSET = "ship.glb"
+AETHERDB_TIMEOUT = 600  # seconds; the first run builds AetherDb
 
 
 HARDPOINT_TYPES = tuple((str(i), name, name) for i, name in enumerate(HARDPOINT_TYPE_NAMES))
@@ -262,6 +268,134 @@ class AETHERIA_OT_capture_ship_lines(bpy.types.Operator):
             return {"CANCELLED"}
 
 
+class AETHERIA_AP_preferences(bpy.types.AddonPreferences):
+    bl_idname = __package__
+
+    aetheria_repo: bpy.props.StringProperty(
+        name="Aetheria repo", subtype="DIR_PATH",
+        description="Aetheria checkout whose tools/AetherDb validates packages. "
+                    "Empty: the nearest folder above the bound .cc that holds tools/AetherDb")
+
+    def draw(self, context):
+        self.layout.prop(self, "aetheria_repo")
+
+
+def _aetheria_repo(context, ship_cc):
+    addon = context.preferences.addons.get(__package__)
+    configured = addon.preferences.aetheria_repo if addon and addon.preferences else ""
+    if configured:
+        repo = Path(bpy.path.abspath(configured))
+        if not (repo / "tools" / "AetherDb").is_dir():
+            raise ValueError(f"The Aetheria repo preference {repo} has no tools/AetherDb")
+        return repo
+    for folder in Path(ship_cc).resolve().parents:
+        if (folder / "tools" / "AetherDb").is_dir():
+            return folder
+    raise ValueError("No Aetheria repo above the ship .cc; set it in the add-on's preferences")
+
+
+def _aetherdb(context, ship_cc, *args):
+    """Runs one AetherDb ship-authoring command; returns its exit code and its output, stdout then stderr. The compiler
+    warnings 'dotnet run' prints when it rebuilds AetherDb are left out; errors are kept."""
+    repo = _aetheria_repo(context, ship_cc)
+    result = subprocess.run(
+        ["dotnet", "run", "--project", str(repo / "tools" / "AetherDb"), "--", "ship-authoring", *args],
+        cwd=repo, capture_output=True, text=True, timeout=AETHERDB_TIMEOUT)
+    lines = (result.stdout + "\n" + result.stderr).splitlines()
+    return result.returncode, "\n".join(line for line in lines if line.strip() and ": warning " not in line)
+
+
+def _layer_collection(layer, collection):
+    if layer.collection == collection:
+        return layer
+    for child in layer.children:
+        found = _layer_collection(child, collection)
+        if found:
+            return found
+    return None
+
+
+def _anchors(collection):
+    """One ShipAnchor row per object tagged aetheria.role. Its aetheria.id is both the anchor id and the GLB node id."""
+    rows = []
+    for obj in sorted(collection.all_objects, key=lambda candidate: candidate.name):
+        role = obj.get("aetheria.role")
+        if role is None:
+            continue
+        anchor_id = obj.get("aetheria.id")
+        if not isinstance(anchor_id, str) or not anchor_id.strip():
+            raise ValueError(f"{obj.name} has aetheria.role {role} but no aetheria.id")
+        parent = None
+        if role == "weapon-muzzle":
+            parent = obj.parent.get("aetheria.id") if obj.parent else None
+            if not parent:
+                raise ValueError(f"Muzzle {obj.name} must be parented to its weapon mount object")
+        rows.append([anchor_id, str(role), anchor_id, parent, int(obj.get("aetheria.order", 0))])
+    return rows
+
+
+def _export_glb(context, collection, filepath):
+    """Exports the collection's objects, Grease Pencil excluded, with custom properties as node extras."""
+    view_layer = context.view_layer
+    layer = _layer_collection(view_layer.layer_collection, collection)
+    if layer is None:
+        raise ValueError(f"{collection.name} is not in the current view layer")
+    previous_layer = view_layer.active_layer_collection
+    previous_selection = [obj for obj in view_layer.objects if obj.select_get()]
+    previous_active = view_layer.objects.active
+    try:
+        view_layer.active_layer_collection = layer
+        for obj in previous_selection:
+            obj.select_set(False)
+        for obj in collection.all_objects:
+            if obj.type != "GREASEPENCIL" and obj.name in view_layer.objects:
+                obj.select_set(True)
+        bpy.ops.export_scene.gltf(
+            filepath=filepath, export_format="GLB", use_active_collection=True, use_selection=True,
+            export_extras=True, export_yup=True, export_apply=True)
+    finally:
+        for obj in view_layer.objects:
+            obj.select_set(obj in previous_selection)
+        view_layer.objects.active = previous_active
+        view_layer.active_layer_collection = previous_layer
+
+
+class AETHERIA_OT_package_ship(bpy.types.Operator):
+    bl_idname = "aetheria.package_ship"
+    bl_label = "Package Ship"
+    bl_description = ("Write the anchors and ship.glb from the bound collection, capture its LineArt, "
+                      "and run AetherDb's validator")
+    bl_options = {"REGISTER"}
+
+    def execute(self, context):
+        scene = context.scene
+        try:
+            collection, path = _layout_path(context)
+            cultlib = _brokkr_cultlib(context)
+            ship_id = collection["aetheria.id"]
+            if read(path, cultlib).ship.body[0] != ship_id:
+                raise ValueError("The bound collection ID does not match its .cc ship ID")
+            anchors = _anchors(collection)
+            _export_glb(context, collection, str(Path(path).with_name(MODEL_ASSET)))
+            replace_visual(path, cultlib, ship_id, MODEL_ASSET, anchors)
+            pencils = [obj for obj in collection.all_objects if obj.type == "GREASEPENCIL"]
+            if len(pencils) == 1:
+                replace_lines(path, cultlib, capture_grease_pencil(
+                    pencils[0], context.evaluated_depsgraph_get(), scene.frame_current,
+                    evaluated=scene.aetheria_capture_evaluated_lines))
+            code, message = _aetherdb(context, path, "validate", path)
+        except (OSError, ValueError, RuntimeError, ImportError, KeyError, subprocess.SubprocessError) as exc:
+            scene.aetheria_package_report = f"Package failed: {exc}"
+            self.report({"ERROR"}, scene.aetheria_package_report)
+            return {"CANCELLED"}
+        scene.aetheria_package_report = message or f"validate exited {code}"
+        if code != 0:
+            self.report({"ERROR"}, f"Packaged {len(anchors)} anchors; the validator refused it: {scene.aetheria_package_report}")
+            return {"CANCELLED"}
+        self.report({"INFO"}, scene.aetheria_package_report)
+        return {"FINISHED"}
+
+
 class AETHERIA_PT_ship(bpy.types.Panel):
     bl_label = "Aetheria Ship"
     bl_idname = "AETHERIA_PT_ship"
@@ -287,6 +421,7 @@ class AETHERIA_PT_ship(bpy.types.Panel):
         layout.operator("aetheria.load_ship_layout", icon="IMPORT")
         state = context.scene.aetheria_layout
         if not state.ship_id:
+            self._draw_package(context, layout)
             return
         layout.label(text=f"Layout: {state.ship_id}")
         dims = layout.row(align=True)
@@ -317,13 +452,24 @@ class AETHERIA_PT_ship(bpy.types.Panel):
             box.prop(hp, "firing_arc")
         layout.operator("aetheria.add_ship_hardpoint", icon="ADD")
         layout.operator("aetheria.save_ship_layout", icon="FILE_TICK")
+        self._draw_package(context, layout)
+
+    @staticmethod
+    def _draw_package(context, layout):
+        layout.separator()
+        layout.operator("aetheria.package_ship", icon="PACKAGE")
+        report = context.scene.aetheria_package_report
+        if report:
+            box = layout.box()
+            for line in report.splitlines():
+                box.label(text=line)
 
 
 classes = (AETHERIA_PG_cell, AETHERIA_PG_hardpoint, AETHERIA_PG_layout,
            AETHERIA_OT_load_layout, AETHERIA_OT_resize_layout,
            AETHERIA_OT_add_hardpoint, AETHERIA_OT_remove_hardpoint,
            AETHERIA_OT_save_layout, AETHERIA_OT_bind_ship_collection,
-           AETHERIA_OT_capture_ship_lines, AETHERIA_PT_ship)
+           AETHERIA_OT_capture_ship_lines, AETHERIA_OT_package_ship, AETHERIA_AP_preferences, AETHERIA_PT_ship)
 
 
 def register():
@@ -333,6 +479,8 @@ def register():
     bpy.types.Scene.aetheria_ship_cc_path = bpy.props.StringProperty(
         name="Ship .cc", subtype="FILE_PATH", description="Existing typed ship authoring record"
     )
+    bpy.types.Scene.aetheria_package_report = bpy.props.StringProperty(
+        name="Package report", description="AetherDb's verdict on the last Package Ship")
     bpy.types.Scene.aetheria_capture_evaluated_lines = bpy.props.BoolProperty(
         name="Evaluated LineArt", default=True,
         description="Capture the visible modifier result at the current frame",
@@ -344,4 +492,5 @@ def unregister():
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
     del bpy.types.Scene.aetheria_capture_evaluated_lines
+    del bpy.types.Scene.aetheria_package_report
     del bpy.types.Scene.aetheria_ship_cc_path
