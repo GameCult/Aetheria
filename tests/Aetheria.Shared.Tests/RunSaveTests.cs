@@ -139,11 +139,14 @@ public sealed class RunSaveTests : IDisposable
         Assert.Equal(8, saved.Length);
 
         using (var cache = Open())
+        {
             Assert.Null(RunSave.Replace<ZonePack>(cache, () =>
             {
-                StageZoneContents(cache);
+                WriteAnOrbitTheSavedRunLacks(cache);
                 return null;
             }));
+            Assert.Equal(saved, RunKeys(cache));
+        }
         using (var cache = Open())
         {
             Assert.Equal(saved, RunKeys(cache));
@@ -151,11 +154,14 @@ public sealed class RunSaveTests : IDisposable
         }
 
         using (var cache = Open())
+        {
             Assert.Throws<InvalidOperationException>(() => RunSave.Replace<ZonePack>(cache, () =>
             {
-                StageZoneContents(cache);
+                WriteAnOrbitTheSavedRunLacks(cache);
                 throw new InvalidOperationException("the arena would not generate");
             }));
+            Assert.Equal(saved, RunKeys(cache));
+        }
         using (var cache = Open())
             Assert.Equal(saved, RunKeys(cache));
 
@@ -581,6 +587,9 @@ public sealed class RunSaveTests : IDisposable
         Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
         QualityPriceModifier = new ExponentialLerp()
     };
+
+    // What a start that fails leaves behind: a record of its own, which the saved run does not hold.
+    private static void WriteAnOrbitTheSavedRunLacks(CultCache cache) => cache.Upsert(new OrbitData { Distance = 99 });
 
     // Two orbits and a body upserted into the run store and left staged, as zone generation leaves them.
     private static ZonePack StageZoneContents(CultCache cache)
