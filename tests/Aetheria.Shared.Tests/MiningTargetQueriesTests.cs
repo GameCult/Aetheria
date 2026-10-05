@@ -195,6 +195,12 @@ public sealed partial class MiningCut3Tests
             var before = s.Zone.Targets.Examined;
             Assert.True(reticle ? observer.TargetUnderReticle() : observer.TargetNext());
             var cost = s.Zone.Targets.Examined - before;
+            // From nothing, nearest first stops at the first region no nearer rock can lie in: a fraction of the rocks in reach.
+            if (!held && !reticle)
+            {
+                var inReach = AllChunks(s).Count(c => length(At(s, c) - at) <= 150f);
+                Assert.True(cost * 4 < inReach, $"Next from nothing examined {cost} of {inReach} rocks in reach");
+            }
             if (!reticle) Assert.Equal(order[held ? order.Count / 2 + 1 : 0], observer.Target.Value);
             return cost;
         }
@@ -211,6 +217,34 @@ public sealed partial class MiningCut3Tests
         }
         Assert.False(grew || over, $"examined rocks per press, ceiling {KeyPressExaminedCeiling}: {string.Join("; ", report)}");
     }
+
+    // Rocks at one distance are ordered by field key, then index, across belts: four rocks on one spot, two in each
+    // of two belts, are walked in exactly that order by Next and, reversed, by Previous.
+    [Fact]
+    public void RocksAtOneDistanceAreOrderedByFieldThenIndex()
+    {
+        var kind = Kind("Asteroid", 40f);
+        var s = BuildScene(new[] { kind }, Belt(kind, Rock(150f), Rock(150f)), Belt(kind, Rock(150f), Rock(150f)));
+        var eyeAt = float2(150, -100);
+        var observer = SpawnShip(s, eyeAt, sensor: true, weaponRanges: new[] { 300f });
+        Tick((observer, eyeAt));
+        var expected = s.Belts.OrderBy(b => b.Value, StringComparer.Ordinal)
+            .SelectMany(b => new[] { new TargetRef(new ChunkId(b, 0)), new TargetRef(new ChunkId(b, 1)) }).ToList();
+        Assert.All(expected, t => Assert.True(observer.ChunkVisible(t.Chunk.Value)));
+        Assert.Equal(expected, ByDistance(s, observer, 300f));
+        for (var i = 0; i < 4; i++)
+        {
+            Assert.True(observer.TargetNext());
+            Assert.Equal(expected[i], observer.Target.Value);
+        }
+        observer.SetTarget(TargetRef.None);
+        for (var i = 3; i >= 0; i--)
+        {
+            Assert.True(observer.TargetPrevious());
+            Assert.Equal(expected[i], observer.Target.Value);
+        }
+    }
+
 
     // No press ever picks a rock this ship cannot see, or one beyond mining reach; launchers add no reach (Q12 A).
     [Fact]
