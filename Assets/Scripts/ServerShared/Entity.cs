@@ -377,16 +377,194 @@ public abstract class Entity
     // targeting index proposes the chunks that could pass (no observer, so no entities); ChunkVisible decides.
     public void VisibleChunksInReach(List<ChunkId> into)
     {
-        var reach = 0f;
-        foreach (var weapon in _weapons)
-            if (weapon.CanMine && (weapon.Item == null || weapon.Item.Active.Value))
-                reach = max(reach, weapon.Range);
         into.Clear();
-        Zone.Targets.Within(new TargetSearch(Position.xz, reach, reachPerVisibility: DetectionReachPerVisibility()), _targetCandidates);
+        Zone.Targets.Within(MiningSearch(), _targetCandidates);
         foreach (var candidate in _targetCandidates)
             if (candidate.Target.Chunk is ChunkId chunk && ChunkVisible(chunk))
                 into.Add(chunk);
         into.Sort(ByIndexThenField);
+    }
+
+    // The one search every chunk question asks the zone's targeting index: from here, as far as the longest range
+    // among this entity's active weapons that can mine (Q13 A; Weapon.CanMine, Q12 A), bounded by what its sensors
+    // could detect.
+    private TargetSearch MiningSearch()
+    {
+        var reach = 0f;
+        foreach (var weapon in _weapons)
+            if (weapon.CanMine && (weapon.Item == null || weapon.Item.Active.Value))
+                reach = max(reach, weapon.Range);
+        return new TargetSearch(Position.xz, reach, reachPerVisibility: DetectionReachPerVisibility());
+    }
+
+    // Mining target-queries cut: which target a press of reticle, next, previous or nearest picks. Each is one
+    // best-first question to the index (no candidate list is built, sorted or kept), answered through SetTarget, the
+    // one writer. Candidates are visible ships at any range and visible chunks within mining reach.
+
+    // The candidate nearest the look direction by planar angle; picking the held target again clears it.
+    public bool TargetUnderReticle()
+    {
+        var look = float2(LookDirection.x, LookDirection.z);
+        if (!PickTarget(new AngleKey(this, Position.xz, look), out var picked)) return false;
+        return SetTarget(Target.Value.Equals(picked) ? TargetRef.None : picked);
+    }
+
+    // Enemies only, as it drives weapon lock; the nearest by distance.
+    public bool TargetNearestEnemy()
+    {
+        Entity nearest = null;
+        var nearestDistance = float.PositiveInfinity;
+        foreach (var enemy in VisibleEnemies)
+        {
+            if (enemy == this) continue;
+            var distance = length(enemy.Position - Position);
+            if (distance < nearestDistance)
+            {
+                nearest = enemy;
+                nearestDistance = distance;
+            }
+        }
+        return nearest != null && SetTarget(nearest);
+    }
+
+    // The next candidate after the current target by (planar distance, TargetRef), wrapping to the nearest; with
+    // nothing targeted, the nearest.
+    public bool TargetNext() => CycleTarget(false);
+
+    // The reverse: the next one nearer, wrapping to the farthest; with nothing targeted, the farthest.
+    public bool TargetPrevious() => CycleTarget(true);
+
+    private bool CycleTarget(bool reverse)
+    {
+        var origin = Position.xz;
+        var current = Target.Value;
+        TargetRef picked = default;
+        var found = !current.IsNone &&
+            PickTarget(new DistanceKey(this, origin, reverse, true, DistanceFrom(origin, current), current), out picked);
+        if (!found && !PickTarget(new DistanceKey(this, origin, reverse, false, 0f, default), out picked)) return false;
+        return SetTarget(picked);
+    }
+
+    private float DistanceFrom(float2 origin, TargetRef target) =>
+        length((target.Chunk is ChunkId chunk ? Zone.ChunkPose(chunk.Field, chunk.Index).xy : target.Entity.Position.xz) - origin);
+
+    // The least-key eligible candidate: the best visible ship, and the index's best chunk within mining reach. Ships
+    // are not bounded by reach, so they are read from VisibleEntities (the ships this entity sees); the belt's size
+    // never enters.
+    private bool PickTarget<TKey>(TKey query, out TargetRef picked) where TKey : ITargetKey
+    {
+        var best = default(TargetCandidate);
+        var bestKey = float.PositiveInfinity;
+        var found = false;
+        foreach (var entity in VisibleEntities)
+            Consider(query, new TargetCandidate(entity, entity.Position.xz), ref found, ref best, ref bestKey);
+        if (Zone.Targets.Best(MiningSearch(), query, out var chunk))
+            Consider(query, chunk, ref found, ref best, ref bestKey);
+        picked = found ? best.Target : TargetRef.None;
+        return found;
+    }
+
+    private static void Consider<TKey>(TKey query, in TargetCandidate candidate, ref bool found, ref TargetCandidate best, ref float bestKey)
+        where TKey : ITargetKey
+    {
+        if (!query.Key(candidate, out var key)) return;
+        if (found && !(key < bestKey || key == bestKey && query.Precedes(candidate, best))) return;
+        best = candidate;
+        bestKey = key;
+        found = true;
+    }
+
+    // What a press may pick: another ship, or a chunk this entity can see. Reach is the index's to apply.
+    private bool Eligible(in TargetCandidate candidate) =>
+        candidate.Target.Chunk is ChunkId chunk ? ChunkVisible(chunk) : candidate.Target.Entity != this;
+
+    // Entities come before chunks; entities by their place in the zone, chunks by field key then index.
+    private static int Order(TargetRef a, TargetRef b)
+    {
+        if (a.Chunk is ChunkId ca)
+        {
+            if (!(b.Chunk is ChunkId cb)) return 1;
+            var byField = string.CompareOrdinal(ca.Field.Value, cb.Field.Value);
+            return byField != 0 ? byField : ca.Index.CompareTo(cb.Index);
+        }
+        if (b.Chunk.HasValue) return -1;
+        var entities = a.Entity.Zone.Entities;
+        return entities.IndexOf(a.Entity).CompareTo(entities.IndexOf(b.Entity));
+    }
+
+    // The planar angle from the look direction to the candidate. A region's least angle is its bearing interval's
+    // distance from the look direction.
+    private readonly struct AngleKey : ITargetKey
+    {
+        private readonly Entity _self;
+        private readonly float2 _origin, _look;
+
+        public AngleKey(Entity self, float2 origin, float2 look)
+        {
+            _self = self;
+            _origin = origin;
+            _look = look;
+        }
+
+        public float Bound(in TargetRegion region)
+        {
+            var off = abs(atan2(_look.y, _look.x) - region.BearingCentre);
+            off = min(off, 2 * PI - off);
+            // Slack covers float rounding in the bearings; it only ever lowers the bound.
+            return max(0f, off - region.BearingHalfWidth - 1e-4f);
+        }
+
+        public bool Key(in TargetCandidate candidate, out float key)
+        {
+            var to = candidate.Position - _origin;
+            key = abs(atan2(_look.x * to.y - _look.y * to.x, dot(_look, to)));
+            return _self.Eligible(candidate);
+        }
+
+        public bool Precedes(in TargetCandidate a, in TargetCandidate b) => Order(a.Target, b.Target) < 0;
+    }
+
+    // Planar distance from the ship, nearest first, or farthest first when reversed. With a pivot only candidates
+    // strictly after it by (distance, TargetRef) are eligible, so cycling is a total, stable order.
+    private readonly struct DistanceKey : ITargetKey
+    {
+        private readonly Entity _self;
+        private readonly float2 _origin;
+        private readonly bool _reverse, _hasPivot;
+        private readonly float _pivotDistance;
+        private readonly TargetRef _pivot;
+
+        public DistanceKey(Entity self, float2 origin, bool reverse, bool hasPivot, float pivotDistance, TargetRef pivot)
+        {
+            _self = self;
+            _origin = origin;
+            _reverse = reverse;
+            _hasPivot = hasPivot;
+            _pivotDistance = pivotDistance;
+            _pivot = pivot;
+        }
+
+        public float Bound(in TargetRegion region)
+        {
+            if (_hasPivot && (_reverse ? region.Nearest > _pivotDistance : region.Farthest < _pivotDistance))
+                return float.PositiveInfinity;
+            return _reverse ? -region.Farthest : region.Nearest;
+        }
+
+        public bool Key(in TargetCandidate candidate, out float key)
+        {
+            var distance = length(candidate.Position - _origin);
+            key = _reverse ? -distance : distance;
+            if (!_self.Eligible(candidate)) return false;
+            if (!_hasPivot) return true;
+            var order = Order(candidate.Target, _pivot);
+            return _reverse
+                ? distance < _pivotDistance || distance == _pivotDistance && order < 0
+                : distance > _pivotDistance || distance == _pivotDistance && order > 0;
+        }
+
+        public bool Precedes(in TargetCandidate a, in TargetCandidate b) =>
+            _reverse ? Order(a.Target, b.Target) > 0 : Order(a.Target, b.Target) < 0;
     }
 
     private readonly List<TargetCandidate> _targetCandidates = new List<TargetCandidate>();

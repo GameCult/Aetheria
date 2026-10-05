@@ -369,42 +369,12 @@ public class ActionGameManager : MonoBehaviour
 
         #region Targeting
 
-        // Mining Cut 3 (docs/mining-cut-refresh.md): the reticle and cycling offer visible ships and the visible
-        // chunks within reach (Entity.VisibleChunksInReach, Q13), through the one writer, Entity.SetTarget.
-        Input.Player.TargetReticle.performed += context =>
-        {
-            var candidates = TargetCandidates();
-            if (candidates.Length == 0) return;
-            var underReticle = candidates
-                .MaxBy(x => dot(normalize(x.position - CurrentEntity.Position), CurrentEntity.LookDirection)).target;
-            CurrentEntity.SetTarget(CurrentEntity.Target.Value.Equals(underReticle) ? TargetRef.None : underReticle);
-        };
-
-        // Nearest is enemies-only (it drives weapon lock), and picks the closest target, not the farthest.
-        Input.Player.TargetNearest.performed += context =>
-        {
-            if(CurrentEntity.VisibleEnemies.Any())
-            {
-                CurrentEntity.SetTarget(CurrentEntity.VisibleEnemies.Where(x => x != CurrentEntity)
-                    .MinBy(x => length(x.Position - CurrentEntity.Position)));
-            }
-        };
-
-        Input.Player.TargetNext.performed += context =>
-        {
-            var targets = TargetCandidates().OrderBy(x => length(x.position - CurrentEntity.Position)).Select(x => x.target).ToArray();
-            if (targets.Length == 0) return;
-            var currentTargetIndex = Array.IndexOf(targets, CurrentEntity.Target.Value);
-            CurrentEntity.SetTarget(targets[(currentTargetIndex + 1) % targets.Length]);
-        };
-
-        Input.Player.TargetPrevious.performed += context =>
-        {
-            var targets = TargetCandidates().OrderBy(x => length(x.position - CurrentEntity.Position)).Select(x => x.target).ToArray();
-            if (targets.Length == 0) return;
-            var currentTargetIndex = Array.IndexOf(targets, CurrentEntity.Target.Value);
-            CurrentEntity.SetTarget(targets[(currentTargetIndex + targets.Length - 1) % targets.Length]);
-        };
+        // The reticle, nearest, next and previous presses each choose through Entity (mining target-queries cut):
+        // the rule lives with the entity, so the player, the test agent and any director pick alike.
+        Input.Player.TargetReticle.performed += context => CurrentEntity.TargetUnderReticle();
+        Input.Player.TargetNearest.performed += context => CurrentEntity.TargetNearestEnemy();
+        Input.Player.TargetNext.performed += context => CurrentEntity.TargetNext();
+        Input.Player.TargetPrevious.performed += context => CurrentEntity.TargetPrevious();
 
         // Cut 2 (docs/fire-control-cut.md): cycles the aim point among the current target's revealed
         // subsystems -- decides nothing itself, only calls the one writer (TrySelectTargetItem), same
@@ -1166,18 +1136,6 @@ public class ActionGameManager : MonoBehaviour
             TargetShipPanel.Display(target.Entity, true);
             TargetSchematicDisplay.ShowShip(target.Entity, CurrentEntity);
         }
-    }
-
-    // Mining Cut 3: what the reticle and cycling can pick -- visible ships, and visible chunks within reach -- each
-    // with a world position to measure bearing and distance against.
-    private readonly List<ChunkId> _chunksInReach = new List<ChunkId>();
-    private (TargetRef target, float3 position)[] TargetCandidates()
-    {
-        CurrentEntity.VisibleChunksInReach(_chunksInReach);
-        return CurrentEntity.VisibleEntities.Where(x => x != CurrentEntity)
-            .Select(x => (target: (TargetRef) x, position: x.Position))
-            .Concat(_chunksInReach.Select(chunk => (target: (TargetRef) chunk, position: ChunkWorldPosition(chunk))))
-            .ToArray();
     }
 
     // A chunk's simulated position is planar (Zone.ChunkPose); the renderer draws it at the asteroid layer's height.
