@@ -20,13 +20,22 @@ public sealed partial class MiningCut3Tests
     // One key press at 30k or 300k rocks of one density examines under this many rocks (measured: see the test).
     private const long KeyPressExaminedCeiling = 3000;
 
-    // A belt, a dense knot of rocks around `at` for the observer to see, and the observer: reach 120, sensor on.
-    private (Scene scene, Ship observer) TargetScene(int seed, float2 at, float reach = 120f, float sensitivity = 3f, int rocks = 3000)
+    // A belt and the observer: reach `reach`, with the dimmest sensor (found by doubling) that sees at least `share`
+    // of the rocks in its reach, so some are lit and some dark whatever the fixture's light.
+    private (Scene scene, Ship observer) TargetScene(int seed, float2 at, float reach = 120f, float share = .4f, int rocks = 3000)
     {
         var kind = Kind("Asteroid", 4f);
         var rng = new System.Random(seed);
         var s = BuildSceneAt(float2.zero, 1500f, 0, null, new[] { kind }, Belt(kind, Annulus(rng, rocks, 300f, 700f)));
-        return (s, Observer(s, at, reach, sensitivity, Falloff()));
+        var inReach = AllChunks(s).Where(c => length(At(s, c) - at) <= reach).ToList();
+        Assert.True(inReach.Count > 20, $"degenerate: {inReach.Count} rocks in reach");
+        for (var sensitivity = .5f; sensitivity < 1e9f; sensitivity *= 2f)
+        {
+            var observer = Observer(s, at, reach, sensitivity, Falloff());
+            if (inReach.Count(observer.ChunkVisible) >= share * inReach.Count) return (s, observer);
+            s.Zone.Entities.Remove(observer);
+        }
+        throw new InvalidOperationException("no sensitivity sees the rocks");
     }
 
     // Visible ships at every range, in the observer's VisibleEntities.
@@ -189,13 +198,18 @@ public sealed partial class MiningCut3Tests
             if (!reticle) Assert.Equal(order[held ? order.Count / 2 + 1 : 0], observer.Target.Value);
             return cost;
         }
+        var report = new List<string>();
+        var grew = false;
+        var over = false;
         foreach (var (held, reticle) in new[] { (false, false), (true, false), (false, true) })
         {
             var small = Press(30_000, held, reticle);
             var large = Press(300_000, held, reticle);
-            Assert.True(large < 2 * small && small < 2 * large, $"held {held} reticle {reticle}: examined {small} at 30k, {large} at 300k");
-            Assert.True(large < KeyPressExaminedCeiling, $"held {held} reticle {reticle}: examined {large}, ceiling {KeyPressExaminedCeiling}");
+            report.Add($"held {held} reticle {reticle}: {small} at 30k, {large} at 300k");
+            grew |= !(large < 2 * small && small < 2 * large);
+            over |= large >= KeyPressExaminedCeiling;
         }
+        Assert.False(grew || over, $"examined rocks per press, ceiling {KeyPressExaminedCeiling}: {string.Join("; ", report)}");
     }
 
     // No press ever picks a rock this ship cannot see, or one beyond mining reach; launchers add no reach (Q12 A).
@@ -204,7 +218,7 @@ public sealed partial class MiningCut3Tests
     {
         var at = float2(500, 0);
         // A dim sensor: only some rocks in reach are visible.
-        var (s, observer) = TargetScene(7, at, reach: 150f, sensitivity: .35f);
+        var (s, observer) = TargetScene(7, at, reach: 150f);
         var inReach = AllChunks(s).Where(c => length(At(s, c) - at) <= 150f).ToList();
         var visible = inReach.Where(observer.ChunkVisible).ToList();
         Assert.True(visible.Count > 3 && visible.Count < inReach.Count, $"degenerate: {visible.Count} of {inReach.Count} visible");
