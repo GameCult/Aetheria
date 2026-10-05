@@ -481,7 +481,6 @@ public sealed partial class MiningCut3Tests
         var s = BuildScene(new[] { kind }, Belt(kind, Rock(150f), Rock(160f, .3f)));
         var eyeAt = float2(150, -100);
         var blind = SpawnShip(s, eyeAt);
-        Tick((blind, eyeAt));
         var held = Unseen(s, float2(100, 0));
         foreach (var target in new[] { TargetRef.None, new TargetRef(held) })
         {
