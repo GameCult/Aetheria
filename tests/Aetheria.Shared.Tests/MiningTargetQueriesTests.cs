@@ -17,8 +17,8 @@ using float3 = CultMath.float3;
 // every visible candidate.
 public sealed partial class MiningCut3Tests
 {
-    // One key press at 30k or 300k rocks of one density examines under this many rocks (measured: see the test).
-    private const long KeyPressExaminedCeiling = 3000;
+    // One key press at 30k or 300k rocks of one density examines under this many rocks (measured at most 620 across the presses below, at both sizes).
+    private const long KeyPressExaminedCeiling = 1500;
 
     // A belt and the observer: reach `reach`, with the dimmest sensor (found by doubling) that sees at least `share`
     // of the rocks in its reach, so some are lit and some dark whatever the fixture's light.
@@ -256,10 +256,13 @@ public sealed partial class MiningCut3Tests
         Tick((ship, at));
         Assert.Contains(ship.Weapons, w => w.Range == 400f);
         Assert.True(AllChunks(s).Any(c => length(At(s, c) - at) <= 400f && ship.ChunkVisible(c)), "there are rocks within the launcher's range");
-        Assert.False(ship.TargetUnderReticle());
-        Assert.False(ship.TargetNext());
-        Assert.False(ship.TargetPrevious());
-        Assert.True(ship.Target.Value.IsNone);
+        // It may see the other ship; it must not pick a rock.
+        foreach (var press in new Func<bool>[] { ship.TargetUnderReticle, ship.TargetNext, ship.TargetPrevious })
+        {
+            ship.SetTarget(TargetRef.None);
+            press();
+            Assert.False(ship.Target.Value.Chunk.HasValue, "a launcher-only ship picked a rock");
+        }
     }
 
     // Nearest stays enemies only: a nearer rock and a nearer friendly ship are ignored.
