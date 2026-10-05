@@ -17,8 +17,8 @@ using float3 = CultMath.float3;
 // every visible candidate.
 public sealed partial class MiningCut3Tests
 {
-    // One key press at 30k or 300k rocks of one density examines under this many rocks (measured at most 620 across the presses below, at both sizes).
-    private const long KeyPressExaminedCeiling = 1500;
+    // One key press at 30k or 300k rocks of one density examines under this many rocks (measured at most 635 across the presses below, at both sizes).
+    private const long KeyPressExaminedCeiling = 700;
 
     // A belt and the observer: reach `reach`, with the dimmest sensor (found by doubling) that sees at least `share`
     // of the rocks in its reach, so some are lit and some dark whatever the fixture's light.
@@ -218,6 +218,59 @@ public sealed partial class MiningCut3Tests
         Assert.False(grew || over, $"examined rocks per press, ceiling {KeyPressExaminedCeiling}: {string.Join("; ", report)}");
     }
 
+    // The pruning of every press, pinned by what a press examines. Each ceiling sits within about 10% of the count
+    // measured at this commit (the same fixture, fixed seed, one density of 100 square units per rock); a press that
+    // loses its angular bound (the reticle), its held-target prune (Next and Previous from a rock at the median
+    // distance) or its angle wrap examines 15% to 55% more than that, and fails. The belt's size and the reach vary:
+    // 30k rocks at reach 150, 300k at reach 150, and 300k at reach 400 with some 5000 rocks in reach.
+    [Fact]
+    public void PressPruningKeepsEachPressNearItsMeasuredCost()
+    {
+        var kind = Kind("Asteroid", 4f);
+        var failures = new List<string>();
+        foreach (var (count, ring, reaches) in new[] { (30_000, 2100f, new[] { 150f }), (300_000, 2800f, new[] { 150f, 400f }) })
+        {
+            var outer = sqrt(2000f * 2000f + count * 100f / PI);
+            var s = BuildSceneAt(float2.zero, 20000f, 0, null, new[] { kind }, Belt(kind, Annulus(new System.Random(21), count, 2000f, outer)));
+            var at = ring * float2(cos(1f), sin(1f));
+            foreach (var reach in reaches)
+            {
+                var observer = Observer(s, at, reach, 3f, Falloff());
+                var order = ByDistance(s, observer, reach);
+                Assert.True(order.Count > 500, $"degenerate: {order.Count} candidates at reach {reach}");
+                var median = order[order.Count / 2];
+                long Cost(Func<bool> press, TargetRef held)
+                {
+                    observer.SetTarget(held);
+                    var before = s.Zone.Targets.Examined;
+                    Assert.True(press());
+                    return s.Zone.Targets.Examined - before;
+                }
+                void Check(string press, long examined, long ceiling)
+                {
+                    if (examined > ceiling) failures.Add($"{count} rocks, reach {reach}, {press}: examined {examined}, ceiling {ceiling}");
+                }
+                var (nextNone, nextHeld, previousNone, previousHeld, reticle) = (count, reach) switch
+                {
+                    (30_000, _) => (100L, 575L, 290L, 590L, 620L),
+                    (_, 150f) => (40L, 560L, 460L, 560L, 680L),
+                    _ => (120L, 4700L, 4600L, 4700L, 5900L)
+                };
+                Check("Next from nothing", Cost(observer.TargetNext, TargetRef.None), nextNone);
+                Check("Next from the median rock", Cost(observer.TargetNext, median), nextHeld);
+                Check("Previous from nothing", Cost(observer.TargetPrevious, TargetRef.None), previousNone);
+                Check("Previous from the median rock", Cost(observer.TargetPrevious, median), previousHeld);
+                foreach (var heading in new[] { 0f, 2f, 4f })
+                {
+                    observer.LookDirection = float3(cos(heading), 0, sin(heading));
+                    Check($"the reticle at {heading}", Cost(observer.TargetUnderReticle, TargetRef.None), reticle);
+                }
+                s.Zone.Entities.Remove(observer);
+            }
+        }
+        Assert.True(failures.Count == 0, string.Join("; ", failures));
+    }
+
     // Rocks at one distance are ordered by field key, then index, across belts: four rocks on one spot, two in each
     // of two belts, are walked in exactly that order by Next and, reversed, by Previous.
     [Fact]
@@ -316,5 +369,183 @@ public sealed partial class MiningCut3Tests
         Assert.False(observer.TargetNearestEnemy());
         Assert.Equal(new TargetRef(friend), observer.Target.Value);
         Assert.NotEqual(new TargetRef(farEnemy), observer.Target.Value);
+    }
+
+    // A ship in the zone that the observer has not detected: it is in Zone.Entities and nowhere in VisibleEntities.
+    private static Ship Unseen(Scene s, float2 at)
+    {
+        var ship = new Ship(s.Items, s.Zone, Mint(s, s.Hull), new EntitySettings());
+        s.Zone.Entities.Add(ship);
+        Hold(ship, at);
+        return ship;
+    }
+
+    // The pilot's instruments bound the pick: a ship the observer has not detected is never offered, whichever end of
+    // the order or look direction it would win. Unseen ships sit nearest, farthest, and dead ahead.
+    [Fact]
+    public void ShipsTheObserverHasNotDetectedAreNeverPicked()
+    {
+        var at = float2(500, 0);
+        var (s, observer) = TargetScene(7, at);
+        Sight(s, observer, at + float2(60, 0));
+        Sight(s, observer, at + float2(0, -900));
+        var hidden = new TargetRef[] { Unseen(s, at + float2(0, 5)), Unseen(s, at + float2(0, 3000)), Unseen(s, at + float2(0, 40)) };
+        var order = ByDistance(s, observer, 120f);
+        Assert.True(order.Count > 5 && order.Count(t => t.Entity != null) == 2, $"degenerate: {order.Count} candidates");
+        Assert.All(hidden, h => Assert.DoesNotContain(h, order));
+
+        observer.SetTarget(TargetRef.None);
+        for (var i = 0; i <= order.Count; i++)
+        {
+            Assert.True(observer.TargetNext());
+            Assert.Equal(order[i % order.Count], observer.Target.Value);
+        }
+        observer.SetTarget(TargetRef.None);
+        for (var i = 0; i <= order.Count; i++)
+        {
+            Assert.True(observer.TargetPrevious());
+            Assert.Equal(order[order.Count - 1 - i % order.Count], observer.Target.Value);
+        }
+        // Looking straight at a hidden ship (heading 0 is dead ahead of the nearest) and in every other direction: a
+        // visible target, never a hidden one.
+        for (var heading = 0f; heading < 2 * PI; heading += .7f)
+        {
+            observer.LookDirection = float3(sin(heading), 0, cos(heading));
+            observer.SetTarget(TargetRef.None);
+            Assert.True(observer.TargetUnderReticle());
+            Assert.DoesNotContain(observer.Target.Value, hidden);
+            Assert.Contains(observer.Target.Value, order);
+        }
+    }
+
+    // Candidates at one distance are ordered entity before chunk, then entities by zone order and chunks by field key
+    // then index; candidates at one bearing tie the same way for the reticle. A ship stands on the rocks' spot, so
+    // all five tie exactly in distance and in angle.
+    [Fact]
+    public void AShipOnTheRocksSpotOrdersBeforeThem()
+    {
+        var kind = Kind("Asteroid", 40f);
+        var s = BuildScene(new[] { kind }, Belt(kind, Rock(150f), Rock(150f)), Belt(kind, Rock(150f), Rock(150f)));
+        var eyeAt = float2(150, -100);
+        var observer = SpawnShip(s, eyeAt, sensor: true, weaponRanges: new[] { 300f });
+        Tick((observer, eyeAt));
+        var chunks = s.Belts.OrderBy(b => b.Value, StringComparer.Ordinal)
+            .SelectMany(b => new[] { new TargetRef(new ChunkId(b, 0)), new TargetRef(new ChunkId(b, 1)) }).ToList();
+        var spot = At(s, chunks[0].Chunk.Value);
+        var ship = Sight(s, observer, spot);
+        var expected = new List<TargetRef> { new TargetRef(ship) };
+        expected.AddRange(chunks);
+        Assert.All(chunks, t => Assert.Equal(spot, At(s, t.Chunk.Value)));
+        Assert.All(chunks, t => Assert.True(observer.ChunkVisible(t.Chunk.Value)));
+        Assert.Equal(expected, ByDistance(s, observer, 300f));
+
+        observer.SetTarget(TargetRef.None);
+        for (var i = 0; i < 5; i++)
+        {
+            Assert.True(observer.TargetNext());
+            Assert.Equal(expected[i], observer.Target.Value);
+        }
+        observer.SetTarget(TargetRef.None);
+        for (var i = 4; i >= 0; i--)
+        {
+            Assert.True(observer.TargetPrevious());
+            Assert.Equal(expected[i], observer.Target.Value);
+        }
+        for (var i = 0; i < 5; i++)
+        {
+            observer.SetTarget(expected[i]);
+            Assert.True(observer.TargetNext());
+            Assert.Equal(expected[(i + 1) % 5], observer.Target.Value);
+            observer.SetTarget(expected[i]);
+            Assert.True(observer.TargetPrevious());
+            Assert.Equal(expected[(i + 4) % 5], observer.Target.Value);
+        }
+
+        // The reticle, looking at the spot: the ship; then with the ship gone from sight, the first chunk.
+        observer.LookDirection = float3(0, 0, 1);
+        observer.SetTarget(TargetRef.None);
+        Assert.True(observer.TargetUnderReticle());
+        Assert.Equal(expected[0], observer.Target.Value);
+        observer.VisibleEntities.Remove(ship);
+        observer.SetTarget(TargetRef.None);
+        Assert.True(observer.TargetUnderReticle());
+        Assert.Equal(expected[1], observer.Target.Value);
+    }
+
+    // A press with nothing to offer returns false and leaves the target as it was: a ship with no sensor sees no rock
+    // and has no mining reach, and sees no ship, whether it holds a target or not.
+    [Fact]
+    public void APressWithNoCandidateReturnsFalseAndKeepsTheTarget()
+    {
+        var kind = Kind("Asteroid", 4f);
+        var s = BuildScene(new[] { kind }, Belt(kind, Rock(150f), Rock(160f, .3f)));
+        var eyeAt = float2(150, -100);
+        var blind = SpawnShip(s, eyeAt);
+        Tick((blind, eyeAt));
+        var held = Unseen(s, float2(100, 0));
+        foreach (var target in new[] { TargetRef.None, new TargetRef(held) })
+        {
+            blind.SetTarget(target);
+            Assert.False(blind.TargetUnderReticle());
+            Assert.False(blind.TargetNext());
+            Assert.False(blind.TargetPrevious());
+            Assert.False(blind.TargetNearestEnemy());
+            Assert.Equal(target, blind.Target.Value);
+        }
+    }
+
+    // Enemies at one distance: the first seen wins, whichever order they were seen in; the observer is never its own
+    // enemy, though it sits at distance zero.
+    [Fact]
+    public void EnemiesAtOneDistanceTieToTheFirstSeenAndNeverTheObserver()
+    {
+        var at = float2(500, 0);
+        var (s, observer) = TargetScene(7, at);
+        var a = Sight(s, observer, at + float2(0, 40), enemy: true);
+        var b = Sight(s, observer, at + float2(40, 0), enemy: true);
+        Assert.Equal(length(a.Position - observer.Position), length(b.Position - observer.Position));
+        Assert.True(observer.TargetNearestEnemy());
+        Assert.Equal(new TargetRef(a), observer.Target.Value);
+
+        observer.VisibleEnemies.Clear();
+        observer.VisibleEnemies.Add(b);
+        observer.VisibleEnemies.Add(a);
+        Assert.True(observer.TargetNearestEnemy());
+        Assert.Equal(new TargetRef(b), observer.Target.Value);
+
+        observer.VisibleEnemies.Clear();
+        observer.VisibleEnemies.Add(observer);
+        observer.VisibleEnemies.Add(a);
+        Assert.True(observer.TargetNearestEnemy());
+        Assert.Equal(new TargetRef(a), observer.Target.Value);
+        observer.VisibleEnemies.Remove(a);
+        observer.SetTarget(TargetRef.None);
+        Assert.False(observer.TargetNearestEnemy());
+        Assert.True(observer.Target.Value.IsNone);
+    }
+
+    // Ships between the mining reach and 250 keep their distance order for Previous: its key is the distance itself
+    // at every range, not a function that agrees with it only near and far.
+    [Fact]
+    public void ShipsBetweenReachAndTwoFiftyAreOrderedByDistanceBothWays()
+    {
+        var at = float2(500, 0);
+        var (s, observer) = TargetScene(7, at);
+        foreach (var offset in new[] { float2(135, 0), float2(0, 160), float2(-185, 0), float2(0, -215) }) Sight(s, observer, at + offset);
+        var order = ByDistance(s, observer, 120f);
+        Assert.True(order.Count(t => t.Chunk.HasValue) >= 8 && order.Count(t => t.Entity != null) == 4, $"degenerate: {order.Count} candidates");
+        Assert.All(order.Take(order.Count - 4), t => Assert.True(t.Chunk.HasValue));
+        observer.SetTarget(TargetRef.None);
+        for (var i = 0; i <= order.Count; i++)
+        {
+            Assert.True(observer.TargetPrevious());
+            Assert.Equal(order[order.Count - 1 - i % order.Count], observer.Target.Value);
+        }
+        observer.SetTarget(TargetRef.None);
+        for (var i = 0; i <= order.Count; i++)
+        {
+            Assert.True(observer.TargetNext());
+            Assert.Equal(order[i % order.Count], observer.Target.Value);
+        }
     }
 }
