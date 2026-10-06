@@ -44,11 +44,14 @@ public sealed partial class RunStartTests
         foreach (var seed in DemoSeeds)
         {
             var galaxy = DemoGalaxy(seed);
+            // Zones are compared by index: xunit formats a failing zone into its message, and a zone drags the galaxy
+            // graph in with it until the test host dies.
+            int At(GalaxyZone zone) => Array.IndexOf(galaxy.Zones, zone);
             var zhestokost = galaxy.Factions.Single(faction => faction.Name == "Zhestokost");
-            Assert.Equal(new[] { zhestokost }, galaxy.BossZones.Keys);
-            Assert.Same(galaxy.HomeZones[zhestokost], galaxy.BossZones[zhestokost]);
-            Assert.Same(galaxy.HomeZones[zhestokost], galaxy.Exit);
-            Assert.NotSame(galaxy.Entrance, galaxy.Exit);
+            Assert.Equal(new[] { "Zhestokost" }, galaxy.BossZones.Keys.Select(faction => faction.Name));
+            Assert.Equal(At(galaxy.HomeZones[zhestokost]), At(galaxy.BossZones[zhestokost]));
+            Assert.Equal(At(galaxy.HomeZones[zhestokost]), At(galaxy.Exit));
+            Assert.NotEqual(At(galaxy.Entrance), At(galaxy.Exit));
         }
     }
 
@@ -132,8 +135,8 @@ public sealed partial class RunStartTests
     {
         var galaxy = RunStart.Generate(new TutorialGalaxy(), Inputs(() => GalaxySeed));
         Assert.Equal(TutorialSeed1, TutorialShape(galaxy));
-        Assert.Null(galaxy.Exit);
-        Assert.Empty(galaxy.BossZones);
+        Assert.True(galaxy.Exit == null, "the tutorial has no exit");
+        Assert.True(galaxy.BossZones.Count == 0, $"the tutorial has {galaxy.BossZones.Count} boss zones");
     }
 
     private static string TutorialShape(Galaxy g) =>
