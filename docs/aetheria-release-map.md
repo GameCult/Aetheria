@@ -3526,3 +3526,298 @@ Source marks as above.
   reads `HelmInput.Demand` and decides nothing.
 - Forbidden: a second hit price or arc test in Gameplay or UI (the HUD reads `Solution`
   and `HitProbability`); a face-aim flag outside `HelmInput`.
+
+## Missiles and point defense
+
+Ruling `missiles-sim-side-light`: "We need missiles sim side, and we can cut that so as to
+enable PDC without requiring full entities. Kind of like the asteroids." Ruling
+`thresholded-autofire`: "I think we need thresholded autofire as an option, otherwise PDC
+would require too much micro." Full munition entities stay later (ruling
+`drones-and-munitions-are-entities`, follow-up `drones-munitions-substrate`); nothing here
+may foreclose them. Anchors are against `origin/master` `26f21e32`, read in a detached
+sparse scratch worktree on 2026-10-06. Cuts: `missile-records`, `munition-shots`,
+`autofire-threshold`, `ai-autofire`.
+
+### Prior art
+
+Source marks as in Controls.
+
+- **Nebulous: Fleet Command** (wiki: the community `mechanics:missiles` page, read in full).
+  Missiles are tracked contacts with hit points by template (10 to 150) and armour as wall
+  thickness, and a radar cross-section that varies with aspect. Point-defense turrets and
+  defensive missiles engage them automatically; decoys soak PD attention (turrets take
+  decoys first). Launch rate is bounded by programming channels, which caps salvo
+  density. Defensive missiles cannot engage other defensive missiles, so two ships cannot
+  dump their magazines at each other's interceptors (snippet, glossary search).
+- **Starsector** (wiki: `Weapon_data.csv`, read in full). A missile is a projectile with
+  "proj hitpoints". Weapon hints decide targeting, not whether a round can physically
+  connect: `PD` targets missiles but prefers missiles in range over ships, `PD_ONLY`
+  targets only missiles (and fighters with `ANTI_FTR`), `PD_ALSO` takes missiles only when
+  nothing else is available. Autofire runs per-weapon target AI (snippet, mod README).
+  Forum consensus (snippet): missile power is non-linear, weak until it saturates PD, then
+  strong until magazines run dry.
+- **FreeSpace 2** (snippet, hard-light wiki `Weapons.tbl` and `Ai_profiles.tbl`). Bombs are
+  "interceptable": weapons with hit points and an enlarged collision radius. Turrets shoot
+  bombs; AI profiles stop turrets targeting bombs beyond their own weapon range; bombs are
+  invulnerable for a short delay after launch.
+- **Children of a Dead Earth** (snippet, forum threads). PD is a saturation contest: either
+  saturate it with many small rounds or send few heavily armoured missiles; small lasers
+  are enough for PD. The counterplay is economic, not a hard counter.
+- **Homeworld** (snippet). Flak and defense-field frigates are the anti-missile and
+  anti-strike roles; no technical detail found.
+
+**Failure modes to design against.**
+1. PD trivialises missiles: perfect interception makes launchers dead weight. Answer: a
+   PD round is priced and rolled like any shot (spread against a small target, range,
+   sensor info), a round that cannot arrive before the missile does has no solution, and
+   heat and ammunition bound how much a group can spend. Saturation then beats PD, as in
+   Starsector and CDE.
+2. PD that never works: interception left to luck the player cannot read. Answer: the HUD
+   marks detected inbound munitions and the ones an autofire gun is engaging, and an
+   intercept shows an effect at the munition's simulated position.
+3. Unreadable salvos: thirty rounds and thirty tracers. Answer: markers only for detected
+   hostile munitions within weapon reach, one shape, no per-gun lines.
+4. Cost blowups: per-missile physics, per-missile agents, per-gun O(contacts) scans every
+   frame. Answer: a missile has no stepping state at all (its pose is a function of its shot
+   and zone time, like a belt rock's), and an autofire gun keeps its subject while it stays
+   worth firing, so the common tick prices one subject per gun.
+5. Recursion: PD missiles shooting PD missiles (Nebulous's explicit rule). Answer: a
+   munition weapon never takes a munition as its subject.
+
+### Body facts
+
+- **M1. A guided round is an ordinary shot in the simulation.** `LauncherData`
+  (`Behaviors/Launcher.cs:10`, a `LockWeaponData`, so a `LockWeapon`) and `GuidedWeaponData`
+  (`:37`, an `InstantWeapon`) fire through `InstantWeapon.Execute` into `FireControl.Fire`
+  (`InstantWeapon.cs:271`) like any gun. Flight time is `FlightDistance / weapon.Velocity`
+  (`FireControl.cs:559`); `CommitTime` is `ArrivalTime - CommitHorizon` (0.5 s,
+  `Settings.cs:250`), or the fire time for a fused round with no target (`:588`); `Commit`
+  rolls at that horizon (`:707`) and `Step` applies at arrival (`:645`). No ServerShared
+  code reads `MissileVelocity`, `Thrust`, `DodgeFrequency` or the three curves.
+- **M2. The flight is Unity's and decides nothing.** `GuidedProjectile.Update`
+  (`Gameplay/Weapons/GuidedProjectile.cs:127-212`) homes with `first_order_intercept`, a
+  noise dodge and the guidance, lift and thrust curves. `GuidedProjectileManager.Bind`
+  (`GuidedProjectileManager.cs:14-26`) subscribes to `ShotCommitted` (retarget to the
+  burst point) and `ShotResolved` (burst or fade). The split branch (`GuidedProjectile.cs:166-194`)
+  spawns visual children that no shot owns. Between fire and arrival a missile is a
+  `PendingShot` with no position and a Unity transform nothing simulated can reach.
+- **M3. The `GuidedWeaponData` branch homes on the aim** (`GuidedProjectileManager.cs:62-80`, the aim at `:79`,
+  `LookDirection`, renamed by `controls-helm`). An unfused round with no engaged target has
+  `FlightDistance` 0 (`FireControl.cs:494`) and so resolves the tick it fires.
+- **M4. The pending shot.** `PendingShot` (`FireControl.cs:1748-1798`) is a struct in
+  `Zone.PendingShots` (`Zone.cs:46`), never saved; `TryGetShot` is a linear scan
+  (`Zone.cs:55-65`). Its `Target` is an `Entity`. `Step` resolves a shot whose target left
+  the zone as a fresh `Miss`, at any stage, without rewriting the committed outcome
+  (`:619-629`): the precedent an intercepted missile follows. `ShotResult` is `Miss`,
+  `Hit`, `Burst` (`:1944-1949`).
+- **M5. Mines are not simulation records.** `Mine` moves by a Unity `GridObject`, arms by
+  `Physics.OverlapSphere` and damages through `FireControl.Detonate`
+  (`Gameplay/Weapons/Mine.cs`, `MineManager.cs`). `Detonate` (`FireControl.cs:1350`) iterates
+  `zone.Entities` only. Follow-up `bodies-entity-and-mines` owns mines; no cut here moves them.
+- **M6. No point defense exists.** A case-insensitive search for `point defen`, `PDC`,
+  `\bPD\b` and `anti-?missile` over `Assets/Scripts` and `tests` returns nothing. Nothing can
+  take a shot as its target.
+- **M7. Targets.** `TargetRef` (`Zone.cs:595-621`) is an `Entity` or a `ChunkId`. The zone
+  registers `EntityTargets` and one `BeltTargets` per belt (`Zone.cs:101`, `:119`). Shots
+  at chunks are not routed yet (`FireControl.cs:533`, mining Cut 4).
+- **M8. A weapon's only subject is its entity's one target.** `Fire` reads
+  `source.Target` (`FireControl.cs:534`), `Refuses` reads it (`:94`), and
+  `Weapon.StanceAllowsFire` reads it (`Weapon.cs:107`).
+- **M9. AI fire is per weapon.** `Combat` (`Agents/States/Combat.cs:119-124`) and
+  `TurretController` (`Behaviors/TurretController.cs:83-96`) activate each weapon when
+  `FireControl.AgentFires` (`FireControl.cs:101-109`) passes: `HitProbability >=
+  AgentMinHitProbability` (0.2, `Settings.cs:259`) for an unfused weapon, designated and not
+  refused for a fused one.
+- **M10. Presenters fly along the barrel.** `ProjectileManager.Fire` launches along
+  `barrel.forward`, not the shot's frozen `TravelDirection`; package hulls have no
+  articulation (C9), so their rounds leave along the hull whatever the simulation decided.
+- **M11. EntityPack keys.** The base `EntityPack` uses keys 0 to 16; `ShipPack` uses 17 to
+  19 and `OrbitalEntityPack` 17 to 20 (`EntitySerializer.cs:153-189`). The next free base key
+  is 21.
+- **M12. Shift is already an action-bar slot.** `GetDefaultPlayerSettings`
+  (`ActionGameManager.cs:95-105`) binds `<Keyboard>/leftShift` to action-bar slot 0, which
+  `controls-helm` r2 also binds to Face Aim. Reported to Self; not this section's cut.
+- **M13. Launcher content.** GT 3K, pswarm and scorched void policy carry guidance-system,
+  thruster and warhead roles; LRMM72 and SRMM72 are flat (`docs/stats-power-cut7-roles.md:139-146`).
+  The Launcher Angles scenario fits a GT 3K and a pswarm (`Scenarios/LauncherAngles.cs`).
+- **M14. Cost, by reading rather than a scratch build.** The design below adds no per-tick
+  work per missile: a pose is a closed-form function evaluated when asked. The costs are the
+  provider's scan of `PendingShots` (O(shots in the zone) per query) and the autofire
+  chooser's pricing (one subject per autofire gun per tick while it stays worth firing;
+  O(munitions plus entities in reach) only when it re-picks). The drones follow-up's
+  measurement of per-entity cost belongs to full munition entities, which this does not
+  build. The cuts pin the costs with counters, as the mining index does.
+
+### The design
+
+**A missile is its pending shot.** A shot is a munition when its weapon data is
+`LauncherData` or `GuidedWeaponData` (`Munitions.IsMunition(EquippedItem)`, the one test)
+and it has not yet arrived. It needs no second record: identity is its `ShotId`, its
+damage taken is one runtime field on the shot (`MunitionWear`), and its position is
+derived. This is the asteroid model: a belt rock's pose is a function of zone time and its
+wear the only stored state; a missile's pose is a function of its shot and zone time, and
+its wear the only stored state. Nothing steps a missile.
+
+**The pose.** `Munitions.Pose(Zone zone, in PendingShot shot, float now) -> (float2
+position, float2 velocity)`: a quadratic Bezier on the plane from the fire origin, through
+a control point ahead of the launcher along its mount (`LaunchDirection`, frozen at fire)
+at `MunitionLaunchArc` times the flight distance, to the end point, at `s = (now -
+FireTime) / (ArrivalTime - FireTime)`. The end point is the live position of the shot's
+target while it has one (so the missile homes), the committed burst point once the commit
+named one, and the frozen burst position for a fused round with no target. Velocity is the
+derivative with the end point held (good enough for intercept lead). The curve reaches its
+end exactly at `ArrivalTime`, so the missile arrives where and when `FireControl` resolves
+it. **The pose decides where a missile is, never whether it hits:** the roll stays at
+`CommitTime` against the same deviation and silhouette as before, and a missile's
+`CommitTime` and `ArrivalTime` are computed by the same lines as any shot's. Height is
+presentation: the simulation is planar, so the presenter may lift the round on its
+`LiftCurve` without disagreeing with anything simulated.
+
+**Killed in flight.** `FireControl.DamageMunition(Zone, MunitionId, float damage)` adds to
+the shot's `MunitionWear`. At the top of each shot's turn in `Step`, a munition whose wear
+has reached `MunitionDurability` resolves as `ShotResult.Intercepted` with its burst point
+at its pose: published on `ShotCommitted` if not yet committed and on `ShotResolved`,
+removed, no damage applied, exactly as a target that left the zone resolves as a fresh
+miss. A kill after the commit cancels the committed hit, because the committed outcome is
+applied only at arrival. A missile destroyed does not detonate.
+
+**Seen like a rock.** A munition's detection uses the passive-sensor balance `ChunkInfo`
+uses, with one visibility for every munition (`GameplaySettings.MunitionVisibility`).
+Durability, radius and visibility are global settings because a light record has no gear;
+full munition entities will take them from their warheads, thrusters and seekers (ruling
+`drones-and-munitions-are-entities`).
+
+**Targetable through the index.** `TargetRef` gains a third case, `MunitionId` (the shot
+id). `MunitionTargets : ITargetProvider`, registered beside `EntityTargets`, offers every
+live munition as a candidate at its pose, with one region whose visibility ceiling is
+`MunitionVisibility`. `Entity.SetTarget` refuses a munition: the player never designates
+one by press; munitions are autofire's business.
+
+**Shots at a munition.** `PendingShot.Subject` (a `TargetRef`) replaces the stored
+`Target`; `Target` stays as a read-only `Subject.Entity`, so every entity path is
+unchanged. For a munition subject `FireControl` decides: designated (detected, in range,
+the weapon is neither a `LockWeapon` nor a munition weapon), in arc of its pose, its
+intercept from the pose and velocity, and the price `Accuracy * PSensor(info) *
+PSpread(spread, 2 * MunitionRadius, range)` with no silhouette, zero when the round cannot
+reach the intercept before the munition's `ArrivalTime`. Commit rolls it with the frozen
+fire-time prediction against the live pose (a curving missile defeats a slow round).
+`Apply` on a hit calls `DamageMunition`. `Detonate` also damages every munition whose pose
+lies within its radius plus `MunitionRadius`, so flak and proximity rounds are point
+defense too. This is the first shot at a non-entity subject; mining Cut 4 routes chunk
+shots through the same `Subject`.
+
+**Thresholded autofire.** A weapon group can be set to autofire with a threshold (default
+`AgentMinHitProbability`, 0.2). Each tick, before behaviours, `Autofire.Update` gives each
+weapon of an autofire group a subject from `FireControl.ChooseSubject` and activates it
+when one is chosen, deactivating it otherwise. `ChooseSubject` keeps the current subject
+while it is still worth firing; otherwise it takes, in order, the most urgent detected
+hostile munition in reach (least time to arrival), then the designated target, then the
+detected hostile entity in reach with the highest price, each only if worth firing.
+"Worth firing" is one function, `FireControl.Worth(weapon, shooter, subject, threshold)`:
+the price against the threshold for an unfused weapon, designated and not refused for a
+fused one. `AgentFires` becomes `Worth` at the agent threshold. `FireControl.SubjectOf(weapon,
+shooter)` is the one answer to "what does this weapon fire at": its autofire subject in an
+autofire group, else the entity's designated target. `Fire`, `Refuses`, `Solution`,
+`ArcPermitsFire` and the stance gate read it.
+
+**What makes a gun point defense** is question `pd-who-engages`. The specs are written for
+the recommended `any-gun`: nothing in data. Any autofire gun can engage a munition, and
+the price decides: a fast, tight, short-flight gun clears a threshold against a small fast
+target, a heavy gun does not. PD is a group the player sets to autofire with light guns in
+it, and heat is the waste guard (Self's proposal to the operator).
+
+**The split Self proposed** (manual fire on the designated target, autofire groups picking
+their own subjects above the threshold) is what this design builds: manual fire is
+`controls-mount-aim` r2 unchanged (`SubjectOf` returns the designated target), and
+autofire's own choice is `ChooseSubject`. Question `controls-solution-subject` stays the
+operator's: under `designated` nothing here changes; under `any-contact` manual fire would
+call the same `ChooseSubject` at threshold zero, an r3 of `controls-mount-aim` and nothing
+else.
+
+**The AI.** Agents fire through the same chooser (`ai-autofire`): `Combat` and
+`TurretController` treat every group as autofire at the agent threshold, with their chosen
+target as the designated one. That is one owner of "which subject, and is it worth it" for
+player and AI alike, and AI point defense against the player's missiles falls out of it.
+Starsector's ships run the same autofire AI as the player's autofire groups.
+
+**The HUD.** An autofire group's action-bar slot shows a filled mark and its threshold
+(Starsector's convention). `ControlsHud` draws a small diamond on each detected hostile
+munition within the ship's longest weapon range, ringed while one of your autofire guns
+has it as subject, and the group crosshair of an autofire group follows its guns'
+solutions as for any group (it reads `Solution` through `SubjectOf`).
+
+### Authority map
+
+- **Owner.** `FireControl` owns every munition transition (fire, commit, damage,
+  interception, resolution) and every subject question (`SubjectOf`, `ChooseSubject`,
+  `Worth`). `Munitions` owns the pure facts of a munition (`IsMunition`, `Pose`, detection
+  info). The player owns which groups are autofire and their thresholds.
+- **Inputs.** The frozen shot, zone time, the target's live position, the committed
+  outcome; the weapon's stats and the shooter's sensors; `Entity.Autofire`.
+- **Outputs.** Munition poses for the index, the HUD and the presenter; `Intercepted`
+  outcomes; weapon activation for autofire groups; the saved autofire settings.
+- **Derived state.** A munition's pose and velocity (on every read); its detection info
+  (on every read); the index's munition region. Never stored, never saved.
+- **Demotions.** `GuidedProjectile` is no longer the owner of a missile's flight; it places
+  its transform at `Munitions.Pose` and owns only how the round looks. `Entity.Target` is no
+  longer every weapon's subject; it is the designated target, the subject of manual fire.
+  `PendingShot.Target` is no longer a stored field; it derives from `Subject`.
+- **Forbidden writers.** Any homing, intercept or guidance arithmetic in `Gameplay` or
+  `UI` for a munition. Any write of `MunitionWear` outside `FireControl.DamageMunition`. Any
+  read of `Entity.Target` as a weapon's subject outside `SubjectOf`. Gameplay or UI code
+  activating an autofire group's weapons. A second worth-it test beside `Worth`. A second
+  record type, list or dictionary of missiles beside `Zone.PendingShots`.
+- **Shared paths.** Player autofire, `Combat` and `TurretController` choose through
+  `ChooseSubject` and decide through `Worth`; manual fire, autofire and the AI all fire
+  through `Fire` reading `SubjectOf`; the presenter, the HUD and the index read the same
+  `Pose`; a PD hit and a blast reach a munition through the same `DamageMunition`.
+- **Deletion line.** Before any new behaviour: `GuidedProjectile`'s homing, dodge, thrust
+  and split code goes, and the stored `PendingShot.Target` field becomes the `Subject`
+  property, so every writer must choose a subject.
+
+### Model page rows
+
+| Kind | Identity | Lifecycle | Authority |
+|---|---|---|---|
+| Munition (light record) | Its `PendingShot`'s `ShotId`, as `MunitionId` in a `TargetRef`. | From fire until arrival or interception; never saved, as pending shots are not. | `FireControl` for transitions; `Munitions.Pose` for where it is. |
+| Munition wear | `PendingShot.MunitionWear`. | Raised by PD hits and blasts; gone with its shot. | `FireControl.DamageMunition`. |
+| Autofire setting | Per weapon group, `Entity.Autofire` (on, threshold). | Set by the player; saved in `EntityPack` key 21. | The player. |
+| Autofire subject | Per weapon, runtime only. | Re-picked by `Autofire.Update` when the current one stops being worth firing. | `FireControl.ChooseSubject`. |
+
+### Rationale
+
+**Why no stepping.** The brief offered stepped homing. A stepped missile has its own
+clock of arrival, which would make `FireControl`'s frozen `CommitTime` and `ArrivalTime`
+a second answer to "when does it land", or force the commit to follow the missile. A
+derived pose keeps one owner of timing and one of outcome and costs nothing per tick. It is
+also exactly how belt rocks became simulation state without becoming entities.
+
+**Why the missile homes on the live target but the roll is unchanged.** Homing is what
+makes a missile read as a missile and what puts it in PD's arc near the target; the roll
+already prices how far the target strays from the fire-time prediction. A target that
+jinks therefore still beats a missile at the commit, while the round flies at it until
+then.
+
+**Why global durability and signature.** Per-weapon values would need catalog fields on
+records the operator has ruled will be replaced by gear-built entities. Global settings
+are one place to tune for the demo and nothing to migrate later.
+
+**Why the player cannot designate a missile.** Presses that land on a swarm of rounds
+instead of the ship behind them are a classic irritation, and the operator asked for
+autofire precisely so that PD needs no micro.
+
+**Cut order.** `missile-records` first: the records, the pose, the provider, interception
+and the presenter, with no change to who can shoot them. It branches after
+`controls-helm`, whose rename touches the line the presenter rewrite deletes.
+`munition-shots` second: the subject widening, munition pricing, PD hits and flak, after
+`controls-mount-aim` (it widens `Solution`'s subject). `autofire-threshold` third, after
+`controls-hud` (it adds to `ControlsHud`). `ai-autofire` last, after
+`controls-ai-bearing` (both change `Combat`).
+
+**Left for later.** Full munition entities (follow-up `drones-munitions-substrate`); per-gear
+durability and signature; decoys and soft kill; mines as records
+(`bodies-entity-and-mines`); whether launchers draw rounds (`launcher-ammunition`); the
+launcher flight fields `missile-records` leaves unread (follow-up `launcher-flight-fields`).
+Whether the demo cast fields launchers for the player's PD to meet is content, not a
+mechanism: the cuts add a `Point Defense` scenario for the operator check, and the demo
+region's hostiles need launchers fitted where the cast allows.
