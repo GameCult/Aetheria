@@ -834,7 +834,7 @@ Defaults Self took, which you may overrule:
 No correctness bug was found. The suite passes 516/516 with the catalog `b698e224` and the settings `b2e346f5` that the commit pins. The shared `pins/data/Settings.asset` (`347752dd`) is scenarios' file, so any runner that mounts that path by default has been testing mining with the wrong settings.
 
 Findings:
-- **F1 (medium, operator):** picking a rock in a big belt costs one scan of every rock the search circle reaches. `Zone.ChunksNear` (`Zone.cs:333`) and `VisibleChunksInReach` (`Entity.cs:378-385`) run on every reticle, next or previous key press. Measured cost: 63 ms at 30k rocks, 449 ms at 300k and 4.3 s at 3M. The per-tick cost is fine.
+- **F1 (medium, operator; fixed on master `df7c44f2` by the targeting index, no longer a scan; still O(rocks) per press, deferred to `mining-index-tree` and `mining-belt-cells`):** picking a rock in a big belt costs one scan of every rock the search circle reaches. `Zone.ChunksNear` (`Zone.cs:333`) and `VisibleChunksInReach` (`Entity.cs:378-385`) run on every reticle, next or previous key press. Measured cost: 63 ms at 30k rocks, 449 ms at 300k and 4.3 s at 3M. The per-tick cost is fine.
 - **F2 (medium):** nothing tests that the shipped catalog has a rock kind. Taking either side of the catalog conflict unchanged ships dark belts silently. Add a test for "at least one rock kind with weight above 0".
 - **F3:** the merge rule is corrected above.
 - **F4 (medium):** nothing tests the ping half of `Sensor.Gain`, because the golden fixture saturates at the cap. Two mutants survive (`Sensor.cs:168`, `:189`). Soul's sweep fixture kills both and gives the same hash (`35DE0E26…`) before extraction, at extraction and at the tip.

@@ -1,5 +1,7 @@
 # Mining: Target and Cut Map
 
+> **Superseded in part (master `df7c44f2`).** Chunk reach and picking no longer go through `Zone.ChunksNear` or an `ActionGameManager` candidate list. `Zone.Targets` (`ServerShared/Targeting/`) answers range and best-first queries, `Entity` owns the reticle, next, previous and nearest rules, and belt tasks, `SettleBelts`, `BeltUpdates` and `MineAsteroid` are gone. Read the as-built section "Mining index: as built" in `docs/aetheria-release-map.md` (branch `eureka/aetheria-release-target`) before any anchor below that names `ChunksNear`, `VisibleChunksInReach`'s old body, `ActionGameManager` target code or belt threading.
+
 Date: 2026-09-25 (corrected for M0, 2026-09-30)
 
 Status: target and cut map, from an Imagination pass. Cuts 1 and 2 have landed on `codex/mining` (see the status

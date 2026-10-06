@@ -1,5 +1,7 @@
 # Mining: refreshed cut map (v2, operator rulings of 2026-09-30)
 
+> **Superseded in part (master `df7c44f2`).** Chunk reach and picking no longer go through `Zone.ChunksNear` or an `ActionGameManager` candidate list. `Zone.Targets` (`ServerShared/Targeting/`) answers range and best-first queries, `Entity` owns the reticle, next, previous and nearest rules, and belt tasks, `SettleBelts`, `BeltUpdates` and `MineAsteroid` are gone. Read the as-built section "Mining index: as built" in `docs/aetheria-release-map.md` (branch `eureka/aetheria-release-target`) before any anchor below that names `ChunksNear`, `VisibleChunksInReach`'s old body, `ActionGameManager` target code or belt threading.
+
 v1 dated 2026-09-29; this is v2, 2026-09-30. Imagination output for Self. It re-anchors the Codex mining lane to
 the Body as it will stand after `codex/fire-control-12` merges to `master`, and it incorporates the operator's
 rulings of 2026-09-30:
