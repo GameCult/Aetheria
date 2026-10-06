@@ -14,11 +14,17 @@ public sealed partial class RunStartTests
 {
     private static readonly uint[] DemoSeeds = { 1, 2, 3, 4, 5 };
 
-    // The catalog record the demo's protagonist needs, until the shipped catalog has one.
-    private void AddPirates() => _cache.Upsert(new Faction
+    // The catalog record the demo's protagonist needs, until the shipped catalog has one. Zone names need a name file,
+    // and the entrance's station needs a faction whose allegiance reaches some manufacturer, so it reaches every one.
+    private void AddPirates()
     {
-        Name = "Pirates", ShortName = "Pirates", GeonameFile = _cache.RefOf(_cache.GetAll<NameFile>().First())
-    });
+        var pirates = new Faction
+        {
+            Name = "Pirates", ShortName = "Pirates", GeonameFile = _cache.RefOf(_cache.GetAll<NameFile>().First())
+        };
+        foreach (var faction in _cache.GetAll<Faction>().ToArray()) pirates.Allegiance[_cache.RefOf(faction)] = 1;
+        _cache.Upsert(pirates);
+    }
 
     private Galaxy DemoGalaxy(uint seed) => RunStart.Generate(new DemoTerminus(), Inputs(() => seed));
 
