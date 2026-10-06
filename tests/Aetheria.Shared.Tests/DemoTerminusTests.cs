@@ -61,7 +61,7 @@ public sealed partial class RunStartTests
         Assert.True(failures.Count == 0, string.Join("; ", failures));
         galaxy.Entrance.Contents = arena;
         var (game, zones) = RunSave.Capture(_cache, galaxy, arena, staged.Player, new SavedActionBarBinding[0]);
-        RunSave.Commit(_cache, game, zones, RunSave.Lots(_cache));
+        RunSave.Commit(_cache, game, zones, _items.Lots);
         var restored = new Galaxy(_cache, _cache.GetGlobal<SavedGame>(), _ => { });
 
         Dictionary<string, FactionRelationship> Standing(Galaxy g) => g.Factions.ToDictionary(faction => faction.Name, faction => g.FactionRelationships[faction]);
