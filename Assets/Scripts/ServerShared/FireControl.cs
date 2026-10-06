@@ -422,12 +422,17 @@ public static class FireControl
         return new Interval { Lo = centre - h, Hi = centre + h };
     }
 
+    // The one deviation shape: the share of a shot that survives `deviation` metres of miss against a shooter that
+    // forgives `tolerance` metres. Every deviation-like price (flight, evasion, a missile's miss) goes through it.
+    public static float PDeviation(float deviation, float tolerance) =>
+        tolerance <= 0f ? (deviation <= 0f ? 1f : 0f) : saturate(1f - deviation / tolerance);
+
     public static float DeviationProbability(PendingShot shot, float now, out float deviation)
     {
         var elapsed = now - shot.FireTime;
         var predicted = shot.FireTargetPosition + shot.FireTargetVelocity * elapsed;
         deviation = shot.Target == null ? 0f : length((shot.Target.Position - predicted).xz);
-        return shot.Target == null ? 1f : saturate(1f - deviation / shot.Tracking);
+        return shot.Target == null ? 1f : PDeviation(deviation, shot.Tracking);
     }
 
     // The one decision about what a round does, made from the shooter's state and a target and nothing else:
