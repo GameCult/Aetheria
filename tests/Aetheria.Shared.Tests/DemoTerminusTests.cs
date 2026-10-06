@@ -128,6 +128,15 @@ public sealed partial class RunStartTests
         Assert.Contains(field, refusal.Message);
     }
 
+    // What a release build lists under New Game is the demo alone; the tutorial and the main galaxy are listed only in
+    // editor and development builds (MainMenu.ShowScenarios), beside the test arenas.
+    [Fact]
+    public void ReleaseBuildsListOnlyTheDemo()
+    {
+        Assert.Equal(new[] { typeof(DemoTerminus) }, Scenarios.Modes.Select(scenario => scenario.GetType()));
+        Assert.Equal(new[] { typeof(TutorialGalaxy), typeof(MainGalaxy) }, Scenarios.Development.Select(scenario => scenario.GetType()));
+    }
+
     // The tutorial is the galaxy it was before the demo: its cast, homes, entrance and ownership at a fixed seed, with
     // no exit and no boss zone.
     [Fact]
