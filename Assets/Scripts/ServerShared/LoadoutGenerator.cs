@@ -92,6 +92,19 @@ public class LoadoutGenerator
             throw new InvalidLoadoutException("Failed to equip selected docking bay!");
         }
 
+        // Every station carries a heater (operator, 2026-09-30): an idle station has no other heat source and cools
+        // toward freezing and invisibility. A heater is general gear whose thermostat runs its heat only below a
+        // target, the composition a cockpit uses: a low-pass Thermotoggle, then Heat, in its behaviours.
+        emptyShape = entity.UnoccupiedSpace;
+        var (heaterProduct, heaterData) = RandomProduct<GearData>(2, item => IsHeater(item) && item.Shape.FitsWithin(emptyShape, out _, out _), required: true);
+        if (heaterData == null) throw new InvalidLoadoutException("No compatible heater found for station!");
+
+        heaterData.Shape.FitsWithin(emptyShape, out var heaterRotation, out var heaterPosition);
+        var heater = ItemManager.CreateInstance(heaterProduct) as EquippableItem;
+        heater.Rotation = heaterRotation;
+        if (!entity.TryEquip(heater, heaterPosition))
+            throw new InvalidLoadoutException("Failed to equip selected heater!");
+
         FillInterior(entity);
 
         var cargo = entity.CargoBays.First();
@@ -109,6 +122,11 @@ public class LoadoutGenerator
         return EntitySerializer.Pack(entity) as OrbitalEntityPack;
     }
 
+    private static bool IsHeater(GearData item) =>
+        item.HardpointType == HardpointType.Tool &&
+        item.Behaviors.Any(b => b is ThermotoggleData { HighPass: false }) &&
+        item.Behaviors.Any(b => b is HeatData);
+
     // Every entity needs a hull, so hulls are always required
     public (FactionProductData product, HullData design) RandomHull(HullType type, Predicate<HullData> hullFilter = null)
     {
@@ -123,12 +141,14 @@ public class LoadoutGenerator
     // lacks variety, so it is logged rather than hidden.
     public (FactionProductData product, T design)[] RandomProducts<T>(int count, float sizeExponent, Predicate<T> filter = null, bool required = false) where T : EquippableItemData
     {
+        var hulls = ItemManager.ItemData.GetAll<HullData>().ToArray();
         var candidates = ItemManager.ItemData.GetAll<FactionProductData>()
             .Select(product => (product, design: ItemManager.ItemData.Get(product.Design) as T))
             .Where(entry =>
                 entry.design != null &&
                 entry.design.Price > 0 &&
                 entry.product.Manufacturer.IsSet() &&
+                HasHome(entry.design, hulls) &&
                 (filter?.Invoke(entry.design) ?? true))
             .ToArray();
         var available = candidates.Where(entry => IsAvailable(entry.product)).ToArray();
@@ -147,12 +167,22 @@ public class LoadoutGenerator
             count);
     }
 
+    // Hardpoint gear that no hull in the catalog can mount has no home (operator, 2026-09-30: "we'll need to author a
+    // bunch more hulls before all the gear variety in the game has a home"): generation never offers it, so no station
+    // stocks it. It gains one the moment a hull with a hardpoint that takes it exists. Tool gear goes in any interior.
+    private static bool HasHome(EquippableItemData design, HullData[] hulls) =>
+        design.HardpointType == HardpointType.Tool || design.HardpointType == HardpointType.Hull ||
+        hulls.Any(hull => hull.Hardpoints.Any(hardpoint => hardpoint.Takes(design)));
+
     // No galaxy means no availability to filter by: every product is on offer. A fixture generates loadouts that
     // way, so a test can exercise placement and products without standing up a whole galaxy; no game path does.
-    // Loadouts.Materialize takes availability as a predicate; a game spawner materializing presets is to pass this, so
-    // presets and generation share one availability rule. No game path materializes a preset yet.
+    // Loadouts.Materialize takes availability as a predicate; RunStart, the game's one preset spawner, passes this, so
+    // presets and generation share one availability rule. In a galaxy, a faction always reaches its own manufacturer's
+    // gear, and otherwise gear made by a manufacturer in that galaxy that its allegiance names (operator, 2026-09-30:
+    // allegiance lists only other factions).
     public bool IsAvailable(FactionProductData product) =>
         Galaxy == null || Galaxy.IsPrelude ||
+        Faction != null && ItemManager.ItemData.Get(product.Manufacturer) == Faction ||
         Galaxy.ContainsFaction(product.Manufacturer) && (Faction == null || Faction.Allegiance.ContainsKey(product.Manufacturer));
 
     // Prioritize products from the zone faction and its allies, penalizing distance to the manufacturer's headquarters
@@ -174,10 +204,11 @@ public class LoadoutGenerator
 
     public (FactionProductData product, T design) RandomProduct<T>(HardpointData hardpoint, float sizeExponent, Predicate<T> filter = null, bool required = false) where T : EquippableItemData
     {
-        return RandomProduct<T>(sizeExponent, item => item.HardpointType == hardpoint.Type &&
-                                  (filter?.Invoke(item) ?? true) &&
-                                  item.Shape.FitsWithin(hardpoint.Shape, hardpoint.Rotation, out _) &&
-                                  item.Shape.Coordinates.Length==hardpoint.Shape.Coordinates.Length, required);
+        // Every candidate passes the one fit rule, HardpointData.Takes. Generation prefers gear that fills the hardpoint
+        // and falls back to anything that fits only when nothing that fills it is on offer.
+        var filling = RandomProduct<T>(sizeExponent, item => hardpoint.IsFilledBy(item) && (filter?.Invoke(item) ?? true));
+        if (filling.design != null) return filling;
+        return RandomProduct<T>(sizeExponent, item => hardpoint.Takes(item) && (filter?.Invoke(item) ?? true), required);
     }
 
     private void OutfitEntity(Entity entity)
@@ -209,7 +240,7 @@ public class LoadoutGenerator
             {
                 // If a previously selected product fits, use that one (this is why we must process larger hardpoints first)
                 var entry = previousProducts
-                    .FirstOrDefault(e => e.design.HardpointType == hardpoint.Type && e.design.Shape.FitsWithin(hardpoint.Shape, hardpoint.Rotation, out _));
+                    .FirstOrDefault(e => hardpoint.Takes(e.design));
                 var previousItem = entity.Equipment.FirstOrDefault(item => item.Data == entry.design);
                 if (entry.design == null) entry = RandomProduct<GearData>(hardpoint, 2);
                 if (entry.design == null) ItemManager.Log($"No compatible item found for entity {Enum.GetName(typeof(HardpointType), hardpoint.Type)} hardpoint!");

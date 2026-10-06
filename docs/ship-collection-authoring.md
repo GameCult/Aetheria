@@ -1,6 +1,6 @@
 # Ship collection authoring
 
-Status: authoring contract for new ships. Longinus and Djinni predate this contract and keep their current prefabs.
+Status: FBX-to-Unity-prefab contract for ships using the current catalog path. Longinus and Djinni predate this contract and keep their current prefabs. The parallel mod-owned `.cc` path is specified in [moddable-ship-authoring.md](moddable-ship-authoring.md).
 
 ## Objective and ownership
 
@@ -44,13 +44,11 @@ reserved. IDs after a role prefix must be unique across the model. Other visual 
     Muzzle.1                   optional additional barrel
   HP.Radiator.Port             empty; exact name copied to the catalog
     RadiatorMesh               one mesh; temperature emission surface
-  HP.Equipment.Reactor         empty; exact name copied to the catalog
   Pivot.0.-90.90.-80.80.60     optional empty parent of articulated mounts
 ```
 
-`HP.Equipment` covers sensors, reactor, shield, cargo, and other mounts without a special visual component.
-`HP.Weapon` covers ballistic, energy, and launcher mounts; the catalog chooses which. Every `HP.*` becomes an
-`EquipmentHardpoints` entry. Thruster, weapon, and radiator roles also get their matching components and arrays.
+`HP.Weapon` covers ballistic, energy, and launcher mounts; the catalog chooses which. Only thrusters, weapons and
+radiators are visible and get a node; internal hardpoints have none. Each role gets its matching component and array.
 `Muzzle.<nonnegative integer>` children are sorted numerically; their transforms become `FiringPoint`. A weapon
 mount requires at least one. A `Pivot` name carries `Group.YawMin.YawMax.PitchMin.PitchMax.Speed` as signed
 integers in degrees and degrees per second. It gets `ArticulationPoint`; child mounts follow its transform. Pivots are

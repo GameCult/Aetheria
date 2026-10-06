@@ -11,7 +11,7 @@ public class ChargeEffectManager : MonoBehaviour
     public void StartCharging(ChargedWeapon weapon, EquippedItem item, EntityInstance source)
     {
         var effect = EffectPrototype.Instantiate<WeaponChargeEffect>();
-        var hp = source.Entity.Hardpoints[item.Position.x, item.Position.y];
+        var hp = item.Hardpoint;
         var barrel = source.GetBarrel(hp);
         var t = effect.transform;
         t.SetParent(barrel);

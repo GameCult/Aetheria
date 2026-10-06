@@ -35,7 +35,7 @@ public static class FireControl
     // GameplaySettings.FiringArc. Zero on the hardpoint means "use the default," not "no arc."
     public static float ArcFor(EquippedItem item)
     {
-        var hardpoint = item.Entity.Hardpoints[item.Position.x, item.Position.y];
+        var hardpoint = item.Hardpoint;
         var arc = hardpoint?.FiringArc ?? 0f;
         return arc > 0 ? arc : item.ItemManager.GameplaySettings.FiringArc;
     }

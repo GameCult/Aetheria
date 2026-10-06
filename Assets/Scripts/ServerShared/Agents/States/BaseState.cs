@@ -12,45 +12,40 @@ public class BaseState
         _agent = agent;
     }
 
-    private static List<BaseState> _lastVisitedStates = new List<BaseState>();
-    private static List<BaseState> _leafStates = new List<BaseState>();
-    private static List<BaseState> _visitedStates = new List<BaseState>();
-    private static HashSet<BaseState> _ignoreStates = new HashSet<BaseState>();
+    // The walk's state is the call's own: zones (and so their Minions) are built on more than one thread.
     public void AddTransition(BaseState targetState, Func<bool> condition, Action onTransition = null, bool includeChildren = false, params BaseState[] ignoreStates)
     {
         Transitions.Add(new StateTransition(targetState, condition, onTransition));
-        
+
         // Traverse the state graph, adding every state that is reachable from this state without traversing over ignored nodes
         if (includeChildren)
         {
-            _visitedStates.Clear();
-            _ignoreStates.Clear();
+            var visitedStates = new List<BaseState>();
+            var ignored = new HashSet<BaseState>();
             if(ignoreStates!=null)
                 foreach (var ignoreState in ignoreStates)
-                    _ignoreStates.Add(ignoreState);
-            _leafStates.Clear();
-            _leafStates.Add(this);
-            _ignoreStates.Add(this);
-            _ignoreStates.Add(targetState);
-            while (_leafStates.Count > 0)
+                    ignored.Add(ignoreState);
+            var leafStates = new List<BaseState> { this };
+            ignored.Add(this);
+            ignored.Add(targetState);
+            while (leafStates.Count > 0)
             {
-                _lastVisitedStates.Clear();
-                _lastVisitedStates.AddRange(_leafStates);
-                _leafStates.Clear();
-                foreach (var state in _lastVisitedStates)
+                var lastVisitedStates = leafStates;
+                leafStates = new List<BaseState>();
+                foreach (var state in lastVisitedStates)
                 {
                     foreach (var transition in state.Transitions)
                     {
-                        if(!_ignoreStates.Contains(transition.TargetState))
+                        if(!ignored.Contains(transition.TargetState))
                         {
-                            _visitedStates.Add(transition.TargetState);
-                            _ignoreStates.Add(transition.TargetState);
-                            _leafStates.Add(transition.TargetState);
+                            visitedStates.Add(transition.TargetState);
+                            ignored.Add(transition.TargetState);
+                            leafStates.Add(transition.TargetState);
                         }
                     }
                 }
             }
-            foreach (var state in _visitedStates)
+            foreach (var state in visitedStates)
             {
                 state.AddTransition(targetState, condition, onTransition);
             }

@@ -5,22 +5,18 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using MessagePack;
 using TMPro;
 using UniRx;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 using static CultMath.math;
-using float2 = CultMath.float2;
-using Random = UnityEngine.Random;
 
 public class MainMenu : MonoBehaviour
 {
     public VolumeCloudRenderer CloudRenderer;
     public GameSettings Settings;
     public ConfirmationDialog Dialog;
-    public bool InGame;
     public Prototype PanelPrototype;
     public float FadeTime = .5f;
     public float FadeDistance = 512;
@@ -89,90 +85,38 @@ public class MainMenu : MonoBehaviour
         _fadeFromRight = fromRight;
     }
 
+    private static bool _exclusionsShown;
+
     private void ShowMain()
     {
         _nextMenu.panel.Clear();
         _nextMenu.panel.Title.text = TitleSubtitle("aetheria", "terminus");
-        if (!InGame)
+        if (ActionGameManager.CurrentGalaxy == null)
         {
-            // A run exists only as the run store's SavedGame global.
+            // No run is live: at the title, after death, or after a new run failed to start. A saved run exists only as
+            // the run store's SavedGame global.
             var cache = ActionGameManager.CultCache;
+            if (ActionGameManager.ModExclusions.Length > 0 && !_exclusionsShown)
+            {
+                _exclusionsShown = true;
+                Refuse("Some mods were not loaded", string.Join("\n", ActionGameManager.ModExclusions.Select(exclusion => exclusion.ToString())));
+            }
             var saved = cache.GetGlobal<SavedGame>();
             if (saved == null && cache.AllStoredDocuments.Any(stored => RunSave.IsRunRecord(stored.Descriptor.DocumentType)))
                 Debug.Log("run store has no SavedGame; Continue disabled");
             _nextMenu.panel.AddButton("Continue", saved == null ? (Action) null : () =>
             {
-                ActionGameManager.IsTutorial = saved.IsTutorial;
+                try { RunSave.RequireDesigns(cache, saved); }
+                catch (InvalidOperationException error) { Refuse("Cannot continue this run", error.Message); return; }
                 ActionGameManager.CurrentGalaxy = new Galaxy(cache, saved, Debug.Log);
-                SceneManager.LoadScene("ARPG");
+                EnterGame();
             });
         }
         _nextMenu.panel.AddButton("New Game",
             () =>
             {
-                RunSave.Clear(ActionGameManager.CultCache);
-                var generatorState = "Loading Database Contents";
-                Action<string> setState = s => generatorState = s;
-
+                ShowScenarios();
                 Fade(true);
-                _nextMenu.panel.gameObject.SetActive(false);
-                Dialog.Clear();
-                Dialog.Title.text = "Generating Galaxy";
-                Dialog.AddProperty(() => generatorState);
-                Dialog.Show();
-
-                if (ActionGameManager.PlayerSettings.TutorialPassed)
-                {
-                    var backgroundSettings = MessagePackSerializer.Deserialize<SectorBackgroundSettings>(
-                        MessagePackSerializer.Serialize(Settings.SectorBackgroundSettings));
-                    backgroundSettings.NoisePosition = Random.value * 1000;
-                    ActionGameManager.IsTutorial = false;
-                    Task.Run(() =>
-                    {
-                        var sector = new Galaxy(
-                            Settings.SectorGenerationSettings,
-                            backgroundSettings,
-                            Settings.NameGeneratorSettings,
-                            ActionGameManager.CultCache,
-                            Debug.Log,
-                            setState);
-                        Observable.NextFrame().Subscribe(_ =>
-                        {
-                            ActionGameManager.CurrentGalaxy = sector;
-                            SceneManager.LoadScene("ARPG");
-                        });
-                    }).ContinueWith(t => Debug.LogException(t.Exception), TaskContinuationOptions.OnlyOnFaulted);
-                }
-                else
-                {
-                    var backgroundSettings = MessagePackSerializer.Deserialize<SectorBackgroundSettings>(
-                        MessagePackSerializer.Serialize(Settings.TutorialBackgroundSettings));
-                    int iteration = 1;
-                    do
-                    {
-                        backgroundSettings.NoisePosition = Random.value * 1000;
-                        setState($"Finding Galaxy Position: iteration {iteration++}");
-                    } while (backgroundSettings.CloudDensity(float2(0.5f)) < .5f);
-
-                    ActionGameManager.IsTutorial = true;
-                    Task.Run(() =>
-                    {
-                        var sector = new Galaxy(
-                            Settings.TutorialGenerationSettings,
-                            backgroundSettings,
-                            Settings.NameGeneratorSettings,
-                            ActionGameManager.CultCache,
-                            ActionGameManager.PlayerSettings,
-                            ActionGameManager.GameDataDirectory.CreateSubdirectory("Narrative"),
-                            Debug.Log,
-                            setState);
-                        Observable.NextFrame().Subscribe(_ =>
-                        {
-                            ActionGameManager.CurrentGalaxy = sector;
-                            SceneManager.LoadScene("ARPG");
-                        });
-                    }).ContinueWith(t => Debug.LogException(t.Exception), TaskContinuationOptions.OnlyOnFaulted);
-                }
             });
         _nextMenu.panel.AddButton("Settings",
             () =>
@@ -181,6 +125,102 @@ public class MainMenu : MonoBehaviour
                 Fade(true);
             });
         _nextMenu.panel.AddButton("Quit", Application.Quit);
+    }
+
+    // New Game: every way to set up a run, each with its brief. The test arenas are listed only in editor and
+    // development builds.
+    private void ShowScenarios()
+    {
+        _nextMenu.panel.Clear();
+        _nextMenu.panel.Title.text = TitleSubtitle("new game", "scenarios");
+        AddScenarios(Scenarios.Modes);
+        if (Debug.isDebugBuild)
+        {
+            _nextMenu.panel.AddSection("test arenas");
+            AddScenarios(Scenarios.Tests);
+        }
+        _nextMenu.panel.AddButton("Back",
+            () =>
+            {
+                ShowMain();
+                Fade(false);
+            });
+    }
+
+    private void AddScenarios(IEnumerable<Scenario> scenarios)
+    {
+        foreach (var scenario in scenarios)
+        {
+            _nextMenu.panel.AddButton(scenario.Name, () => Launch(scenario));
+            _nextMenu.panel.AddProperty(() => scenario.Brief);
+        }
+    }
+
+    // The only way into a new run: generates the scenario's galaxy off the main thread and enters the game, where
+    // StartGame has RunStart stage it and only then replaces the saved run. A galaxy that cannot generate is refused
+    // here, with the saved run untouched.
+    private void Launch(Scenario scenario)
+    {
+        var generatorState = "Loading Database Contents";
+
+        Fade(true);
+        _nextMenu.panel.gameObject.SetActive(false);
+        Dialog.Clear();
+        Dialog.Title.text = "Generating Galaxy";
+        Dialog.AddProperty(() => generatorState);
+        Dialog.Show();
+
+        var stage = new GalaxyStage(
+            Settings.SectorGenerationSettings,
+            Settings.SectorBackgroundSettings,
+            Settings.TutorialGenerationSettings,
+            Settings.TutorialBackgroundSettings,
+            Settings.NameGeneratorSettings,
+            ActionGameManager.CultCache,
+            ActionGameManager.PlayerSettings,
+            ActionGameManager.GameDataDirectory.CreateSubdirectory("Narrative"),
+            Debug.Log,
+            state => generatorState = state);
+        Task.Run(() => RunStart.Generate(scenario, stage)).ContinueWith(generation =>
+            Observable.NextFrame().Subscribe(_ =>
+            {
+                if (generation.IsFaulted)
+                {
+                    Debug.LogException(generation.Exception);
+                    ShowMain();
+                    Fade(false);
+                    Refuse($"{scenario.Name} could not generate its galaxy", generation.Exception.GetBaseException().Message);
+                    return;
+                }
+                ActionGameManager.CurrentGalaxy = generation.Result;
+                ActionGameManager.PendingScenario = scenario;
+                EnterGame();
+            }));
+    }
+
+    // The one way into the game scene. Mod ship prototypes import asynchronously at boot, so the scene waits for them,
+    // and a preload that could not run at all stops here with its reason rather than in the first zone.
+    private void EnterGame() => StartCoroutine(EnterGameWhenModShipsAreReady());
+
+    private IEnumerator EnterGameWhenModShipsAreReady()
+    {
+        var loading = ShipModShips.Loading;
+        while (!loading.IsCompleted) yield return null;
+        if (loading.IsFaulted)
+        {
+            Refuse("Mod ships failed to load", loading.Exception.GetBaseException().Message);
+            yield break;
+        }
+        SceneManager.LoadScene("ARPG");
+    }
+
+    public void Refuse(string title, string reason)
+    {
+        Debug.LogError($"{title}: {reason}");
+        Dialog.Clear();
+        Dialog.Title.text = title;
+        Dialog.AddProperty(() => reason);
+        Dialog.Show(onCancel: () => { }, cancelText: "OK");
     }
 
     private void ShowSettings()

@@ -9638,11 +9638,6 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4533226043457584178, guid: 3d8d9cbf10b12214e98891c1f03c1e99,
         type: 3}
-      propertyPath: InGame
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 4533226043457584178, guid: 3d8d9cbf10b12214e98891c1f03c1e99,
-        type: 3}
       propertyPath: CloudRenderer
       value: 
       objectReference: {fileID: 2115559088}

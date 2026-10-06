@@ -91,7 +91,7 @@ public sealed class RunSaveTests : IDisposable
             var galaxy = new Galaxy(cache, cache.GetGlobal<SavedGame>(), _ => { });
             var itemManager = new ItemManager(cache, new ProvenanceLedger(), TestSettings(), _ => { });
             galaxy.Zones[0].Contents = new Zone(itemManager, new PlanetSettings(), new ZonePack(), galaxy.Zones[0], galaxy);
-            var (game, zones) = RunSave.Capture(cache, galaxy, galaxy.Zones[0].Contents, null, false, new SavedActionBarBinding[0]);
+            var (game, zones) = RunSave.Capture(cache, galaxy, galaxy.Zones[0].Contents, null, new SavedActionBarBinding[0]);
             RunSave.Commit(cache, game, zones, RunSave.Lots(cache));
         }
 
@@ -125,6 +125,62 @@ public sealed class RunSaveTests : IDisposable
         Assert.Equal(0, RecordsIn(Run));
         Assert.Equal(before, new[] { Catalog, Player }.Select(Hash).ToArray());
     }
+
+    // A new run's start writes its arena's orbits and bodies while the saved run is still stored. A start that fails,
+    // by returning nothing or by throwing, takes away only what it wrote; one that starts takes away the saved run.
+    [Fact]
+    public void ANewRunReplacesTheSavedRunOnlyOnceItHasStarted()
+    {
+        using (var cache = Open())
+            RunSave.Commit(cache, Game(cache), Zones(3, StageZoneContents(cache), 0), new ProvenanceLedger());
+        string[] saved;
+        using (var cache = Open())
+            saved = RunKeys(cache);
+        Assert.Equal(8, saved.Length);
+
+        using (var cache = Open())
+        {
+            Assert.Null(RunSave.Replace<ZonePack>(cache, () =>
+            {
+                WriteAnOrbitTheSavedRunLacks(cache);
+                return null;
+            }));
+            Assert.Equal(saved, RunKeys(cache));
+        }
+        using (var cache = Open())
+        {
+            Assert.Equal(saved, RunKeys(cache));
+            Assert.NotNull(cache.GetGlobal<SavedGame>());
+        }
+
+        using (var cache = Open())
+        {
+            Assert.Throws<InvalidOperationException>(() => RunSave.Replace<ZonePack>(cache, () =>
+            {
+                WriteAnOrbitTheSavedRunLacks(cache);
+                throw new InvalidOperationException("the arena would not generate");
+            }));
+            Assert.Equal(saved, RunKeys(cache));
+        }
+        using (var cache = Open())
+            Assert.Equal(saved, RunKeys(cache));
+
+        ZonePack started;
+        using (var cache = Open())
+            started = RunSave.Replace(cache, () => StageZoneContents(cache));
+        using (var cache = Open())
+        {
+            Assert.Null(cache.GetGlobal<SavedGame>());
+            Assert.Equal(started.Orbits.Select(orbit => orbit.Key.Value).Concat(started.Planets.Select(body => body.Key.Value))
+                .OrderBy(key => key, StringComparer.Ordinal), RunKeys(cache));
+        }
+    }
+
+    private static string[] RunKeys(CultCache cache) => cache.AllStoredDocuments
+        .Where(stored => RunSave.IsRunRecord(stored.Descriptor.DocumentType))
+        .Select(stored => stored.Key.Value)
+        .OrderBy(key => key, StringComparer.Ordinal)
+        .ToArray();
 
     // Lot 1 sits on the root ship's hull; lot 3 (Produced from facility 4, input 5) sits in a docked child's
     // docking-bay contents; lots 2 and 6 are minted but referenced by nothing packed. Only the reachable closure
@@ -284,6 +340,220 @@ public sealed class RunSaveTests : IDisposable
         }
     }
 
+    // MQ4: Continue refuses a run that names a design the catalog no longer holds, naming the missing mod ships, and
+    // never edits the save. A design can be named by an item in a zone or only by a minted lot, so each is covered.
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void RunReferencingAMissingModRefusesContinue(bool itemNamesIt, bool lotNamesIt)
+    {
+        var modHull = new CultRecordKey("mod-hull:mod.skiff");
+        var missing = new CultRecordRef<ItemData>(modHull);
+        CultRecordRef<ItemData> present;
+        using (var cache = AetheriaStores.Open(Catalog, catalogWritable: true))
+        {
+            cache.UpsertAsync(typeof(HullData), new HullData { Name = "Skiff" }, modHull).GetAwaiter().GetResult();
+            present = new CultRecordRef<ItemData>(cache.Upsert(new HullData { Name = "Wasp" }).Key);
+            cache.FlushAsync().Wait();
+        }
+        var itemDesign = itemNamesIt ? missing : present;
+        var lotDesign = lotNamesIt ? missing : present;
+
+        void CommitRun()
+        {
+            using var cache = Open();
+            var lots = new ProvenanceLedger { NextLot = 3 };
+            lots.Lots[1] = new Lot { Design = lotDesign, Origin = new Attributed() };
+            // A lot minted before designs were recorded has none; an unset design is not a missing one.
+            lots.Lots[2] = new Lot { Origin = new Attributed() };
+            var zone = new SavedZone
+            {
+                Name = "Zone 0", AdjacentZones = Array.Empty<int>(), Factions = Array.Empty<int>(), Owner = -1,
+                Contents = new ZonePack
+                {
+                    Entities = new List<EntityPack>
+                    {
+                        BarePack(hull: new EquippableItem { Data = itemDesign, Lot = 1 }),
+                        BarePack(hull: new EquippableItem { Lot = 2 })
+                    }
+                }
+            };
+            RunSave.Commit(cache, Game(cache), new[] { zone }, lots);
+        }
+        CommitRun();
+
+        // Installed: nothing is missing.
+        using (var cache = Open()) RunSave.RequireDesigns(cache, cache.GetGlobal<SavedGame>());
+        var before = File.ReadAllBytes(Run);
+
+        using (var cache = AetheriaStores.Open(Catalog, catalogWritable: true))
+            cache.Commit(batch => batch.Remove(modHull));
+        using (var cache = Open())
+        {
+            var refusal = Assert.Throws<InvalidOperationException>(() => RunSave.RequireDesigns(cache, cache.GetGlobal<SavedGame>()));
+            Assert.Contains("missing mod ships: mod.skiff", refusal.Message);
+            Assert.DoesNotContain("other designs", refusal.Message);
+        }
+        Assert.Equal(before, File.ReadAllBytes(Run));
+    }
+
+    // --- RequireDesigns: what it walks, what it lists ---------------------------------------------------------------
+
+    // Commits a run whose zones the caller builds, then returns RequireDesigns' refusal message, or null when it passes.
+    // `present` is a gear item ("Lamp", not a hull) the catalog holds; unit(design, lot) mints an item naming `design`
+    // whose lot names `lot`.
+    private string DesignsRefused(Func<CultRecordRef<ItemData>, Func<CultRecordRef<ItemData>, CultRecordRef<ItemData>, EquippableItem>, SavedZone[]> build)
+    {
+        CultRecordRef<ItemData> present;
+        using (var setup = AetheriaStores.Open(Catalog, catalogWritable: true))
+        {
+            var existing = setup.GetAll<GearData>().SingleOrDefault(gear => gear.Name == "Lamp");
+            var lamp = existing != null ? setup.RefOf(existing) :
+                setup.Upsert(new GearData { Name = "Lamp", Hardpoint = HardpointType.Sensors, Shape = new Shape() });
+            present = new CultRecordRef<ItemData>(lamp.Key);
+            setup.FlushAsync().Wait();
+        }
+        using var cache = Open();
+        var ledger = new ProvenanceLedger();
+        EquippableItem Unit(CultRecordRef<ItemData> design, CultRecordRef<ItemData> lot)
+        {
+            var number = ledger.NextLot++;
+            ledger.Lots[number] = new Lot { Design = lot, Origin = new Attributed() };
+            return new EquippableItem { Data = design, Lot = number };
+        }
+        ledger.NextLot = 1;
+        RunSave.Commit(cache, Game(cache), build(present, Unit), ledger);
+        try { RunSave.RequireDesigns(cache, cache.GetGlobal<SavedGame>()); return null; }
+        catch (InvalidOperationException refusal) { return refusal.Message; }
+    }
+
+    private static CultRecordRef<ItemData> Key(string key) => new CultRecordRef<ItemData>(new CultRecordKey(key));
+
+    private static SavedZone ZoneOf(params EntityPack[] packs) => new SavedZone
+    {
+        Name = "Zone", AdjacentZones = Array.Empty<int>(), Factions = Array.Empty<int>(), Owner = -1,
+        Contents = new ZonePack { Entities = packs.ToList() }
+    };
+
+    // Whatever the slot, a design missing from the catalog is found, and a design the catalog holds (a gear item, not
+    // only a hull) is not: the gate walks every unit an entity carries, recursively, and resolves any item design.
+    [Theory]
+    [InlineData("hull")]
+    [InlineData("equipment")]
+    [InlineData("cargo bay")]
+    [InlineData("docking bay")]
+    [InlineData("cargo contents")]
+    [InlineData("docking contents")]
+    [InlineData("child hull")]
+    [InlineData("child equipment")]
+    public void RequireDesignsFindsAMissingDesignInEverySlotOfAnEntity(string slot)
+    {
+        string Refusal(bool missing) => DesignsRefused((present, unit) =>
+        {
+            EquippableItem Slot(string where) => unit(missing && where == slot ? Key("hull:gone") : present, present);
+            var child = BarePack(Slot("child hull"));
+            child.Equipment = new[] { (new int2(0, 0), Slot("child equipment")) };
+            var pack = BarePack(Slot("hull"), new EntityPack[] { child });
+            pack.Equipment = new[] { (new int2(0, 0), Slot("equipment")) };
+            pack.CargoBays = new[] { (new int2(0, 0), Slot("cargo bay")) };
+            pack.DockingBays = new[] { (new int2(0, 0), Slot("docking bay")) };
+            pack.CargoContents = new[] { new (int2, ItemInstance)[] { (new int2(0, 0), Slot("cargo contents")) } };
+            pack.DockingBayContents = new[] { new (int2, ItemInstance)[] { (new int2(0, 0), Slot("docking contents")) } };
+            return new[] { ZoneOf(pack) };
+        });
+
+        Assert.Null(Refusal(missing: false));
+        Assert.Contains("missing other designs: hull:gone. Reinstall", Refusal(missing: true));
+    }
+
+    // Every zone and every lot is read, not the first: each names its own missing design.
+    [Fact]
+    public void RequireDesignsReadsEveryZoneAndEveryLot()
+    {
+        var refusal = DesignsRefused((present, unit) => new[]
+        {
+            ZoneOf(BarePack(unit(Key("hull:zone-a"), present))),
+            ZoneOf(BarePack(unit(present, present))),
+            ZoneOf(BarePack(unit(Key("hull:zone-b"), present)), BarePack(unit(present, Key("hull:lot-a")))),
+            ZoneOf(BarePack(unit(present, present)), BarePack(unit(present, Key("hull:lot-b"))))
+        });
+
+        Assert.Contains("missing other designs: hull:lot-a, hull:lot-b, hull:zone-a, hull:zone-b. Reinstall", refusal);
+    }
+
+    // Each missing design is listed once however many units name it, ordinally, mod ships apart from the rest.
+    [Fact]
+    public void RequireDesignsListsEachMissingDesignOnceInStableOrder()
+    {
+        var refusal = DesignsRefused((present, unit) => new[]
+        {
+            ZoneOf(BarePack(unit(Key("hull:b"), Key("mod-hull:z"))), BarePack(unit(Key("mod-hull:z"), Key("hull:b")))),
+            ZoneOf(BarePack(unit(Key("hull:B"), Key("mod-hull:m"))), BarePack(unit(Key("hull:a"), Key("hull:b"))))
+        });
+
+        Assert.Equal("This run names designs the catalog no longer holds; missing mod ships: m, z; " +
+            "missing other designs: hull:B, hull:a, hull:b. Reinstall them, or start a new game.", refusal);
+    }
+
+    // A save can hold a null where the gate needs a value: refused with a message that says where, never a
+    // NullReferenceException. The records are written straight to the run store, since a save never writes them itself.
+    [Theory]
+    [InlineData("item", "an item in savedzone-0 is null")]
+    [InlineData("entity", "an entity is null")]
+    [InlineData("zone", "zone savedzone-1 has no record")]
+    [InlineData("lot", "lot 2 is null")]
+    [InlineData("lots", "the lot ledger has no lots")]
+    public void RequireDesignsRefusesANullWhereTheWalkNeedsAValue(string kind, string where)
+    {
+        using var cache = Open();
+        var pack = BarePack(new EquippableItem { Data = Key("hull:none"), Lot = 1 });
+        if (kind == "item") pack.Equipment = new[] { (new int2(0, 0), (EquippableItem) null) };
+        if (kind == "entity") pack.Children = new EntityPack[] { null };
+        var ledger = new ProvenanceLedger { NextLot = 3, Lots = { [1] = new Lot { Origin = new Attributed() } } };
+        if (kind == "lot") ledger.Lots[2] = null;
+        if (kind == "lots") ledger.Lots = null;
+        var game = Game(cache);
+        game.Zones = new[] { new CultRecordRef<SavedZone>(new CultRecordKey("savedzone-0")), new CultRecordRef<SavedZone>(new CultRecordKey("savedzone-1")) };
+        cache.Commit(batch =>
+        {
+            batch.Upsert(typeof(SavedZone), ZoneOf(pack), new CultRecordKey("savedzone-0"));
+            if (kind != "zone") batch.Upsert(typeof(SavedZone), ZoneOf(), new CultRecordKey("savedzone-1"));
+            batch.Upsert(game);
+            batch.Upsert(ledger);
+        });
+
+        var refusal = Assert.Throws<InvalidOperationException>(() => RunSave.RequireDesigns(cache, cache.GetGlobal<SavedGame>()));
+        Assert.Contains("save is malformed: " + where, refusal.Message);
+    }
+
+    // The same run with nothing null is not malformed: null contents (a zone never visited) and unset designs are legitimate.
+    [Fact]
+    public void RequireDesignsAcceptsAZoneNeverVisitedAndAnUnsetDesign()
+    {
+        Assert.Null(DesignsRefused((present, unit) => new[]
+        {
+            new SavedZone { Name = "Never", AdjacentZones = Array.Empty<int>(), Factions = Array.Empty<int>(), Owner = -1 },
+            ZoneOf(BarePack(unit(default, default)))
+        }));
+    }
+
+    [Fact]
+    public void ARunNamingAMissingShippedDesignIsRefusedToo()
+    {
+        var gone = new CultRecordRef<ItemData>(new CultRecordKey("hull:gone"));
+        using var cache = Open();
+        var zone = new SavedZone
+        {
+            Name = "Zone 0", AdjacentZones = Array.Empty<int>(), Factions = Array.Empty<int>(), Owner = -1,
+            Contents = new ZonePack { Entities = new List<EntityPack> { BarePack(hull: new EquippableItem { Data = gone, Lot = 1 }) } }
+        };
+        RunSave.Commit(cache, Game(cache), new[] { zone }, new ProvenanceLedger { NextLot = 2, Lots = { [1] = new Lot { Origin = new Attributed() } } });
+
+        var refusal = Assert.Throws<InvalidOperationException>(() => RunSave.RequireDesigns(cache, cache.GetGlobal<SavedGame>()));
+        Assert.Contains("missing other designs: hull:gone", refusal.Message);
+        Assert.DoesNotContain("mod ships", refusal.Message);
+    }
+
     // A minimal, valid EntityPack with every collection field non-null, for tests that build packs directly rather
     // than through EntitySerializer.Pack.
     private static ShipPack BarePack(EquippableItem hull, EntityPack[] children = null,
@@ -317,6 +587,9 @@ public sealed class RunSaveTests : IDisposable
         Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
         QualityPriceModifier = new ExponentialLerp()
     };
+
+    // What a start that fails leaves behind: a record of its own, which the saved run does not hold.
+    private static void WriteAnOrbitTheSavedRunLacks(CultCache cache) => cache.Upsert(new OrbitData { Distance = 99 });
 
     // Two orbits and a body upserted into the run store and left staged, as zone generation leaves them.
     private static ZonePack StageZoneContents(CultCache cache)

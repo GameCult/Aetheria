@@ -3,6 +3,7 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using System.Collections.Generic;
+using System.Linq;
 using Xunit;
 
 // Assertions over collections of entities and shots. xunit formats a collection's contents into its failure
@@ -34,4 +35,20 @@ internal static class SafeAssert
 
     public static void NotIn(Zone zone, Entity entity, string why = "entity should have left the zone") =>
         Assert.False(zone.Entities.Contains(entity), why);
+
+    // The zone holds exactly the entities and agents it held before, in the same order: nothing admitted, nothing
+    // lost. A failure names what changed by hull name.
+    public static void Unchanged(Zone zone, List<Entity> entities, List<Agent> agents)
+    {
+        Same(entities, zone.Entities.ToList(), entity => entity.Name, "entities");
+        Same(agents, zone.Agents, agent => agent.Ship.Name, "agents");
+    }
+
+    private static void Same<T>(List<T> before, List<T> now, System.Func<T, string> name, string what) where T : class
+    {
+        var added = now.Where(x => !before.Contains(x)).Select(name).ToList();
+        var lost = before.Where(x => !now.Contains(x)).Select(name).ToList();
+        var inOrder = now.Count == before.Count && now.Zip(before, ReferenceEquals).All(same => same);
+        Assert.True(inOrder, $"the zone's {what} changed, {before.Count} -> {now.Count}: added [{string.Join(", ", added)}], lost [{string.Join(", ", lost)}]");
+    }
 }

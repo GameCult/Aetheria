@@ -42,7 +42,13 @@ public class ActionGameManager : MonoBehaviour
 
     private static CultCache _cultCache;
 
+    // Mod packages left out of this boot (a bad package, or a name collision), for the main menu to name.
+    public static ShipModCatalog.Exclusion[] ModExclusions { get; private set; } = Array.Empty<ShipModCatalog.Exclusion>();
+
     private static string CatalogPath => Path.Combine(GameDataDirectory.FullName, "Aetheria.cc");
+    private static string ModsPath => Path.Combine(GameDataDirectory.FullName, "Mods");
+    // Disposable: composed at every boot from the shipped catalog and the mod packages, never authored.
+    private static string DerivedCatalogPath => Path.Combine(Application.persistentDataPath, "Aetheria.modded.cc");
 
     public static CultCache CultCache
     {
@@ -52,11 +58,17 @@ public class ActionGameManager : MonoBehaviour
 
             // All three stores attach once and stay attached until the process exits. The run lifecycle is record-level
             // inside this cache; reopening would replace the catalog instances the galaxy and live entities hold.
-            // The catalog is read-only in every build; capturepreset writes through its own cache (Loadouts.Commit).
+            // The catalog is read-only in every build; capturepreset writes through its own cache (Loadouts.Commit) to the
+            // shipped file. With mod packages installed the game reads the derived catalog instead.
+            var (catalog, excluded) = ShipModCatalog.ResolveCatalog(CatalogPath, DerivedCatalogPath, ModsPath);
+            ModExclusions = excluded;
             _cultCache = AetheriaStores.Open(
-                CatalogPath,
+                catalog,
                 runPath: Path.Combine(GameDataDirectory.FullName, "run.cc"),
                 playerPath: Path.Combine(GameDataDirectory.FullName, "player.cc"));
+
+            // Mod ship prototypes import asynchronously from here; entering a game waits on ShipModShips.Loading.
+            ShipModShips.Preload(_cultCache, ModsPath);
 
             return _cultCache;
         }
@@ -94,7 +106,8 @@ public class ActionGameManager : MonoBehaviour
     }
 
     public static Galaxy CurrentGalaxy;
-    public static bool IsTutorial;
+    // The scenario a new run starts from: MainMenu.Launch sets it, and StartGame's new-run branch consumes it once.
+    public static Scenario PendingScenario;
 
     public GameSettings Settings;
     //public string StarterShipTemplate = "Longinus";
@@ -238,7 +251,7 @@ public class ActionGameManager : MonoBehaviour
     {
         if (CurrentGalaxy != null)
         {
-            var (game, zones) = RunSave.Capture(CultCache, CurrentGalaxy, Zone, DockedEntity ?? CurrentEntity, IsTutorial,
+            var (game, zones) = RunSave.Capture(CultCache, CurrentGalaxy, Zone, DockedEntity ?? CurrentEntity,
                 _actionBarSlots.Select(s => s.Save()).ToArray());
             RunSave.Commit(CultCache, game, zones, ItemManager.Lots);
         }
@@ -257,7 +270,9 @@ public class ActionGameManager : MonoBehaviour
         EntityInstance.EffectManagerParent = EffectManagerParent;
         ConsoleController.MessageReceiver = this;
         
-        ItemManager = new ItemManager(CultCache, RunSave.Lots(CultCache), Settings.GameplaySettings, Debug.Log);
+        // A new run mints into an empty ledger; the saved run's stays in the store until the new run has started.
+        ItemManager = new ItemManager(CultCache, PendingScenario != null ? new ProvenanceLedger() : RunSave.Lots(CultCache),
+            Settings.GameplaySettings, Debug.Log);
         ZoneRenderer.ItemManager = ItemManager;
         
         // If hiding minimap asteroids, turn them off to start with
@@ -539,26 +554,12 @@ public class ActionGameManager : MonoBehaviour
             {
                 var nearestFaction = CurrentGalaxy.Factions.MinBy(f => CurrentGalaxy.HomeZones[f].Distance[Zone.GalaxyZone]);
 
-                var loadoutGenerator = IsTutorial ? new LoadoutGenerator(
-                    ref ItemManager.Random,
-                    ItemManager,
-                    CurrentGalaxy,
-                    Zone.GalaxyZone,
-                    nearestFaction,
-                    .5f) : new LoadoutGenerator(
-                    ref ItemManager.Random,
-                    ItemManager,
-                    CurrentGalaxy, 
-                    Zone.GalaxyZone,
-                    nearestFaction,
-                    .5f);
+                var loadoutGenerator = new LoadoutGenerator(ref ItemManager.Random, ItemManager, CurrentGalaxy, Zone.GalaxyZone, nearestFaction, .5f);
 
                 var turret = EntitySerializer.Unpack(ItemManager, Zone, loadoutGenerator.GenerateTurretLoadout());
                 turret.Position.xz = _currentEntity.Position.xz +
                                      ItemManager.Random.NextFloat2Direction() * ItemManager.Random.NextFloat(50, 500);
-                turret.Zone = Zone;
-                Zone.Entities.Add(turret);
-                turret.Activate();
+                Zone.Admit(turret, piloted: false);
             });
         //Temporary, or not
         ConsoleController.AddCommand("tow", _ => TowShip());
@@ -691,7 +692,7 @@ public class ActionGameManager : MonoBehaviour
                 Settings.ZoneSettings,
                 CurrentGalaxy,
                 galaxyZone,
-                IsTutorial
+                CurrentGalaxy.IsPrelude
             );
             galaxyZone.Contents = new Zone(ItemManager, Settings.PlanetSettings, galaxyZone.PackedContents, galaxyZone, CurrentGalaxy);
         }
@@ -705,8 +706,7 @@ public class ActionGameManager : MonoBehaviour
             CurrentEntity.Deactivate();
             CurrentEntity.Zone.Entities.Remove(CurrentEntity);
             CurrentEntity.Zone = Zone;
-            Zone.Entities.Add(CurrentEntity);
-            CurrentEntity.Activate();
+            Zone.Admit(CurrentEntity, piloted: false);
         }
         
         ZoneRenderer.LoadZone(Zone);
@@ -770,25 +770,10 @@ public class ActionGameManager : MonoBehaviour
     {
         if (CurrentGalaxy != null)
         {
-            var saved = CultCache.GetGlobal<SavedGame>();
-            if (saved == null)
-            {
-                SectorMap.QueueZoneReveal(CurrentGalaxy.Entrance.AdjacentZones.Prepend(CurrentGalaxy.Entrance));
-                PopulateLevel(CurrentGalaxy.Entrance);
-                var loadoutGenerator = new LoadoutGenerator(ref ItemManager.Random, ItemManager, CurrentGalaxy, Zone.GalaxyZone, IsTutorial ? CurrentGalaxy.ResolveFaction(Settings.TutorialGenerationSettings.ProtagonistFaction) : null, 2);
-                var ship = EntitySerializer.Unpack(
-                    ItemManager,
-                    Zone,
-                    loadoutGenerator.GenerateShipLoadout(data => string.IsNullOrEmpty(Settings.StartingHullName) || data.Name==Settings.StartingHullName ));
-                ((Ship) ship).IsPlayerShip = true;
-                ship.Position = float3.zero;
-                ship.Zone = Zone;
-                Zone.Entities.Add(ship);
-                ship.Activate();
-                BindToEntity(ship);
-            }
+            if (PendingScenario != null) StartScenario();
             else
             {
+                var saved = CultCache.GetGlobal<SavedGame>();
                 foreach(var group in CurrentGalaxy.DiscoveredZones
                     .GroupBy(dz=>dz.Distance[CurrentGalaxy.Entrance]))
                     SectorMap.QueueZoneReveal(group);
@@ -811,6 +796,41 @@ public class ActionGameManager : MonoBehaviour
                 }
             }
         }
+    }
+
+    // RunStart owns what a new run starts with (docs/scenarios-cut.md, R.4); this enters and binds. The saved run is
+    // replaced only once the scenario has staged. A start that fails leaves the saved run as it was and says why on
+    // the main menu, where Continue still resumes the saved run.
+    private void StartScenario()
+    {
+        var scenario = PendingScenario;
+        PendingScenario = null;
+        var failures = new List<string>();
+        RunStart.Staged staged = null;
+        try
+        {
+            staged = RunSave.Replace(CultCache, () =>
+            {
+                RunStart.GenerateArena(ItemManager, Settings.ZoneSettings, CurrentGalaxy, scenario);
+                PopulateLevel(CurrentGalaxy.Entrance);
+                return RunStart.Stage(ItemManager, Zone, scenario, Settings.StartingHullName, Settings.TutorialGenerationSettings, failures);
+            });
+        }
+        catch (Exception exception)
+        {
+            Debug.LogException(exception);
+            failures.Add(exception.Message);
+        }
+
+        if (staged == null)
+        {
+            CurrentGalaxy = null;
+            MainMenu.gameObject.SetActive(true);
+            MainMenu.Refuse($"{scenario.Name} could not start", string.Join("\n", failures));
+            return;
+        }
+        SectorMap.QueueZoneReveal(CurrentGalaxy.Entrance.AdjacentZones.Prepend(CurrentGalaxy.Entrance));
+        BindToEntity(staged.Player);
     }
 
     private IEnumerator IntroCutscene(Ship ship)
@@ -1021,12 +1041,12 @@ public class ActionGameManager : MonoBehaviour
         _articulationGroups = CurrentEntity.Equipment
             .Where(item => item.Behaviors.Any(x => x.Data is WeaponData && !(x.Data is LauncherData)))
             .GroupBy(item => ZoneRenderer.EntityInstances[CurrentEntity]
-                .GetBarrel(CurrentEntity.Hardpoints[item.Position.x, item.Position.y])
+                .GetBarrel(item.Hardpoint)
                 .GetComponentInParent<ArticulationPoint>()?.Group ?? -1)
             .Select((group, index) => {
                 return (
-                    group.Select(item => CurrentEntity.Hardpoints[item.Position.x, item.Position.y]).ToArray(),
-                    group.Select(item => ZoneRenderer.EntityInstances[CurrentEntity].GetBarrel(CurrentEntity.Hardpoints[item.Position.x, item.Position.y])).ToArray(),
+                    group.Select(item => item.Hardpoint).ToArray(),
+                    group.Select(item => ZoneRenderer.EntityInstances[CurrentEntity].GetBarrel(item.Hardpoint)).ToArray(),
                     Crosshairs[index]
                 );
             }).ToArray();

@@ -35,12 +35,15 @@ public static class ZoneGenerator
 
 	private const int MaximumPlacementSamples = 32;
 
+	// ambient: false keeps the planets, orbits and stations but generates no ship and no turret, so nothing wanders
+	// into a scenario's authored conditions (docs/scenarios-cut.md, 2.1). The rule is applied here, not by pruning.
 	public static ZonePack GenerateZone(
 		ItemManager itemManager,
 		ZoneGenerationSettings zoneSettings,
 		Galaxy galaxy,
 		GalaxyZone galaxyZone,
-		bool isTutorial = false)
+		bool isTutorial = false,
+		bool ambient = true)
 	{
 		var pack = new ZonePack();
 		var cache = itemManager.ItemData;
@@ -206,7 +209,7 @@ public static class ZoneGenerator
 
         var nearestFaction = galaxy.Factions.MinBy(f => galaxy.HomeZones[f].Distance[galaxyZone]);
         var nearestFactionHomeZone = galaxy.HomeZones[nearestFaction];
-        var factionPresence = nearestFaction.InfluenceDistance - nearestFactionHomeZone.Distance[galaxyZone] + 1;
+        var factionPresence = galaxy.InfluenceOf(nearestFaction) - nearestFactionHomeZone.Distance[galaxyZone] + 1;
 
         var storyStations = galaxyZone.Locations.Where(story => story.Type == LocationType.Station).ToArray();
         var stationCount = (int)(random.NextFloat() * (factionPresence + 1)) + storyStations.Length;
@@ -309,7 +312,7 @@ public static class ZoneGenerator
 	        station.Story = i;
 	        pack.Entities.Add(station);
 
-	        PlaceTurrets(lagrangeOrbit, GetLoadoutGenerator(story.Faction), story.Turrets);
+	        if (ambient) PlaceTurrets(lagrangeOrbit, GetLoadoutGenerator(story.Faction), story.Turrets);
         }
 
         for (var i = storyStations.Length; i < selectedStationOrbits.Length; i++)
@@ -331,8 +334,10 @@ public static class ZoneGenerator
 	        station.SecurityRadius = pack.Radius;
 	        pack.Entities.Add(station);
 
-	        PlaceTurrets(lagrangeOrbit, GetLoadoutGenerator(nearestFaction), 2);
+	        if (ambient) PlaceTurrets(lagrangeOrbit, GetLoadoutGenerator(nearestFaction), 2);
         }
+
+        if (!ambient) return pack;
 
         var enemyCount = (int)(random.NextFloat() * factionPresence * 2) + baseStationCount;
         for (int i = 0; i < enemyCount; i++)

@@ -20,7 +20,6 @@ public class EntityInstance : MonoBehaviour
     public ShieldManager Shield;
     public HullCollider[] HullColliders;
 
-    public Transform[] EquipmentHardpoints;
     public RadiatorHardpoint[] RadiatorHardpoints;
     public ThrusterHardpoint[] ThrusterHardpoints;
     public WeaponHardpoint[] WeaponHardpoints;
@@ -241,23 +240,13 @@ public class EntityInstance : MonoBehaviour
                         _constantWeaponManagers[data].StopFiring(item);
                 }
             }
-            
-            var hp = Entity.Hardpoints[item.Position.x, item.Position.y];
-            if (hp != null && item.Data.SoundBank != 0)
-            {
-                var hardpointTransform = EquipmentHardpoints.FirstOrDefault(x => x.name == hp.Transform);
-                if (hardpointTransform != null)
-                {
-                    var hardpointGameObject = hardpointTransform.gameObject;
-                }
-            }
         }
         RadiatorMeshes = new Dictionary<Radiator, MeshRenderer>();
         Barrels = new Dictionary<HardpointData, Transform[]>();
         BarrelIndices = new Dictionary<HardpointData, int>();
         foreach (var radiator in entity.GetBehaviors<Radiator>())
         {
-            var hp = Entity.Hardpoints[radiator.Item.Position.x, radiator.Item.Position.y];
+            var hp = radiator.Item.Hardpoint;
             if (hp != null && hp.Type == HardpointType.Radiator)
             {
                 var mesh = RadiatorHardpoints.FirstOrDefault(x => x.name == hp.Transform);

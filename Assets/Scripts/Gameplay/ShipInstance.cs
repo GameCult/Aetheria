@@ -65,10 +65,9 @@ public class ShipInstance : EntityInstance
             {
                 var effectData = (ThrusterData) thruster.Data;
                 var particles = Instantiate(EngineAssets.Load<ParticleSystem>(effectData.ParticlesPrefab), transform, false);
-                var particlesShape = particles.shape;
                 var thrusterHardpoint = ThrusterHardpoints
-                    .FirstOrDefault(t => t.name == ship.Hardpoints[thruster.Item.Position.x, thruster.Item.Position.y].Transform);
-                particlesShape.meshRenderer = thrusterHardpoint?.Emitter;
+                    .FirstOrDefault(t => t.name == thruster.Item.Hardpoint.Transform);
+                ThrusterHardpoint.WireExhaust(particles, thrusterHardpoint);
                 // if (!string.IsNullOrEmpty(thruster.Item.Data.SoundEffectTrigger) && thrusterHardpoint != null)
                 // {
                 //     AkSoundEngine.RegisterGameObj(thrusterHardpoint.gameObject);

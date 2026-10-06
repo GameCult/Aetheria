@@ -122,6 +122,29 @@ public sealed class LoadoutTests : IDisposable
         Assert.True(!File.Exists(Player) || !SchemaNames(Player).Contains("aetheria.loadout"));
     }
 
+    // The shipped catalog never references a mod: a mod may be uninstalled, and a preset naming one would dangle. The
+    // refusal is at the only writer, so no caller (the editor command included) can get one into the file.
+    [Theory]
+    [InlineData("hull", "mod-hull:mod.skiff")]
+    [InlineData("slot", "mod-hull:mod.skiff")]
+    [InlineData("slot", "mod-ship:mod.skiff")]
+    public void APresetNamingAModDesignIsRefusedAndNothingIsWritten(string where, string key)
+    {
+        var mod = new CultRecordRef<EquippableItemData>(new CultRecordKey(key));
+        using var cache = Open();
+        var loadout = HandBuilt(cache);
+        if (where == "hull") loadout.Hull = new CultRecordRef<HullData>(new CultRecordKey(key));
+        else loadout.Slots[1].Design = mod;
+        var before = Hash(Catalog);
+
+        var error = Assert.Throws<InvalidOperationException>(() => Loadouts.Commit(Catalog, loadout, replace: false));
+
+        Assert.Contains("names mod designs", error.Message);
+        Assert.Contains(key, error.Message);
+        Assert.Equal(before, Hash(Catalog));
+        Assert.True(Loadouts.Commit(Catalog, HandBuilt(cache), replace: false));
+    }
+
     // Recapturing a name refuses without replace and leaves the file untouched; with replace it replaces, never duplicates.
     [Fact]
     public void SameNameCaptureReplacesOnlyWhenAsked()
@@ -264,13 +287,13 @@ public sealed class LoadoutTests : IDisposable
             Assert.Contains("1,1", failure);
             Assert.Contains("absent-design", failure);
 
-            missing.Slots.Add(new LoadoutSlot { Position = new int2(2, 2), Design = cache.RefOf<EquippableItemData>(cache.GetByName<GearData>("Orphan")) });
+            missing.Slots.Add(new LoadoutSlot { Position = new int2(2, 2), Design = new CultRecordRef<EquippableItemData>(new CultRecordKey("another-absent-design")) });
             failures.Clear();
             Assert.Null(Build(items, missing, failures));
             Assert.Equal(2, failures.Count);
             Assert.Contains("slot 1,1", failures[0]);
             Assert.Contains("slot 2,2", failures[1]);
-            Assert.Contains("no available product of Orphan", failures[1]);
+            Assert.Contains("another-absent-design", failures[1]);
         }
 
         Assert.Equal(before, new[] { Catalog, Run, Player }.Select(Hash).ToArray());
@@ -319,6 +342,34 @@ public sealed class LoadoutTests : IDisposable
         Assert.Empty(failures);
         Assert.Null(LampProduct(p => !p.Name.StartsWith("Lamp") && !p.Name.StartsWith("lamp"), failures));
         Assert.Contains("slot 0,0: no available product of Lamp", Assert.Single(failures));
+    }
+
+    // Scenarios Q3 (docs/scenarios-cut.md): a design no product makes is outside the economy, and a preset builds it
+    // unbranded -- no maker -- at the one named quality. "Orphan" has no product in this catalog.
+    [Fact]
+    public void ADesignWithNoProductBuildsUnbranded()
+    {
+        using var cache = Open();
+        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var failures = new List<string>();
+        var ship = Build(items, WithDesign(HandBuilt(cache), 0, cache, "Orphan"), failures);
+        Assert.Empty(failures);
+        var unit = ship.Equipment.Single(item => item.EquippableItem != ship.Hull && item.Position.Equals(HardpointCell)).EquippableItem;
+        Assert.Equal("Orphan", items.GetData(unit).Name);
+        Assert.Null(items.Brand(unit).Maker);
+        Assert.Equal(Loadouts.UnbrandedQuality, items.GetLot(unit).Quality);
+    }
+
+    // The existing contract Q3 does not loosen: a design that has a product, none of them available, is not built,
+    // unbranded or otherwise.
+    [Fact]
+    public void ADesignWhoseOnlyProductIsUnavailableStillFails()
+    {
+        using var cache = Open();
+        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var failures = new List<string>();
+        Assert.Null(Loadouts.Materialize(items, null, HandBuilt(cache), p => p.Name != "Lamp by Maker", failures));
+        Assert.Equal("slot 0,0: no available product of Lamp", Assert.Single(failures));
     }
 
     // Census's duplicate (maker, design) detector exists precisely because this should never happen in an
@@ -895,7 +946,7 @@ public sealed class LoadoutTests : IDisposable
     }
 
     // Everything available: for tests about placement and failure lists.
-    private static Ship Build(ItemManager items, Loadout loadout, List<string> failures) =>
+    private static Entity Build(ItemManager items, Loadout loadout, List<string> failures) =>
         Loadouts.Materialize(items, null, loadout, _ => true, failures);
 
     private static (int2, ItemRotation, CultRecordKey) Describe(LoadoutSlot slot) => (slot.Position, slot.Rotation, slot.Design.Key);

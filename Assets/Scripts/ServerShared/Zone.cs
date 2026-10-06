@@ -94,7 +94,7 @@ public class Zone
 
         // Cut 5, 5.6 (docs/fire-control-cut.md, Soul finding 7; operator ruling Q3): death removes the ship,
         // in the simulation, not only in Unity's own loot-drop subscription. One subscription point covers
-        // every join, whichever call site adds the entity (deserialization below, a jump, a spawned turret) --
+        // every join, whichever caller admits the entity (deserialization below, a jump, a spawned turret) --
         // ObserveAdd fires for all of them. Forbidden writer: no presentation may remove an entity from Zone.
         Entities.ObserveAdd().Subscribe(add => add.Value.Death.Subscribe(_ => { Entities.Remove(add.Value); add.Value.Deactivate(); }));
 
@@ -142,17 +142,25 @@ public class Zone
         foreach (var entityPack in pack.Entities)
         {
             var entity = EntitySerializer.Unpack(_itemManager, this, entityPack);
-            Entities.Add(entity);
-            entity.Activate();
-            if (entity is Ship {IsPlayerShip: false} ship)
-            {
-                Agents.Add(CreateAgent(ship));
-                if (lengthsq(ship.Position) < 1)
-                    ship.Position = _itemManager.Random.NextFloat3(float3(-pack.Radius * .5f), float3(pack.Radius * .5f));
-            }
+            var ship = entity as Ship;
+            Admit(entity, piloted: ship is {IsPlayerShip: false});
+            // Generation placement, not admission: a ship packed at the origin is scattered across the zone.
+            if (ship is {IsPlayerShip: false} && lengthsq(ship.Position) < 1)
+                ship.Position = _itemManager.Random.NextFloat3(float3(-pack.Radius * .5f), float3(pack.Radius * .5f));
         }
 
         // TODO: Associate planets with stored entities for planetary colonies
+    }
+
+    // The one admission into this zone (docs/scenarios-cut.md, 2.2): the only writer of Entities.Add and the only
+    // creator of agents. Construction, new-run staging (RunStart), warp arrival, undock and the console's spawned
+    // turret all join through here. A piloted entity gets the zone's Minion; an unpiloted one gets no agent at all.
+    // Only a ship can be piloted. The Death subscription above covers every join, whichever caller admits it.
+    public void Admit(Entity entity, bool piloted)
+    {
+        Entities.Add(entity);
+        entity.Activate();
+        if (piloted) Agents.Add(CreateAgent((Ship) entity));
     }
 
     private Agent CreateAgent(Ship ship)

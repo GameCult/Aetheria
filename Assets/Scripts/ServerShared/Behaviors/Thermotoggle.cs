@@ -47,8 +47,8 @@ public class Thermotoggle : Behavior
         TargetTemperature = data.TargetTemperature;
     }
 
-    public override bool Execute(float dt)
-    {
-        return Temperature < TargetTemperature ^ _data.HighPass;
-    }
+    // Whether the rest of this behaviour's group runs this tick: below the target, or above it for a high-pass one.
+    public bool Open => Temperature < TargetTemperature ^ _data.HighPass;
+
+    public override bool Execute(float dt) => Open;
 }

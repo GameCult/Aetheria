@@ -13,7 +13,7 @@ public class ConstantParticleWeaponManager : ConstantWeaponEffectManager
         var p = WeaponPrototype.Instantiate<ConstantParticleWeapon>();
         p.Source = source;
         p.Target = target;
-        var hp = source.Entity.Hardpoints[item.Position.x, item.Position.y];
+        var hp = item.Hardpoint;
         var barrel = source.GetBarrel(hp);
         var t = p.transform;
         t.SetParent(barrel);

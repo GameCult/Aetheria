@@ -36,9 +36,10 @@ public static class Program
             case "targeting-catalog": return TargetingCatalog(args.Contains("apply"));
             case "targeting-catalog-6c": return TargetingCatalog6c(args.Contains("apply"));
             case "targeting-catalog-6d": return TargetingCatalog6d(args.Contains("apply"));
+            case "ship-authoring": return ShipAuthoringCommands.Run(args.Skip(1).ToArray());
             case "field-kinds": return FieldKindsCatalog(args.Contains("apply"));
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], field-kinds [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply]");
                 return 1;
         }
     }
@@ -467,10 +468,7 @@ public static class Program
             foreach (var hardpoint in hull.Hardpoints.OrderByDescending(h => h.Shape.Coordinates.Length))
             {
                 var cells = hardpoint.Shape.Coordinates.Length;
-                var matches = gear.Where(g =>
-                    g.HardpointType == hardpoint.Type &&
-                    g.Shape.FitsWithin(hardpoint.Shape, hardpoint.Rotation, out _) &&
-                    g.Shape.Coordinates.Length == cells).ToArray();
+                var matches = gear.Where(hardpoint.Takes).ToArray();
                 var soldMatches = matches.Where(m => sold.Contains(db.Cache.RefOf(m).Key)).ToArray();
                 if (soldMatches.Length == 0) unfillable++;
                 Console.WriteLine($"  {hardpoint.Type,-14} {cells,2} cells: {matches.Length} designs match, {soldMatches.Length} sold" +

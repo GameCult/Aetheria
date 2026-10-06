@@ -10,7 +10,7 @@ using static CultMath.math;
 public class PlayerSettings
 {
     [Key(0)] public string Name = "Anonymous";
-    [Key(2)] public bool TutorialPassed;
+    // Keys 1 and 2 are retired; an older player.cc that still carries them loads, and they are dropped.
     [Key(3)] public Dictionary<string, string> HashedStoryFiles = new Dictionary<string, string>();
     [Key(4)] public PlayerGameplaySettings GameplaySettings = new PlayerGameplaySettings();
     [Key(5)] public PlayerInputSettings InputSettings = new PlayerInputSettings();

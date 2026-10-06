@@ -2584,7 +2584,8 @@ public sealed class FireControlCut124Tests : IDisposable
     }
 
     // Every WeaponItemData in the shipped catalog has a null BlastRadius and a null Fuse, and the weapon
-    // schema's own migration report is CompatibleDrift with only slot 32 defaulted and no other slots touched.
+    // schema's own migration report is Exact. (Until the scenarios product-gap pass rewrote the catalog on
+    // 2026-09-30 it was CompatibleDrift with only slot 32 defaulted: the file predated BlastRadius and Fuse.)
     [Fact]
     public void ShippedCatalogIsNeutralOnBlastRadiusAndFuse()
     {
@@ -2600,15 +2601,12 @@ public sealed class FireControlCut124Tests : IDisposable
                 Assert.Null(w.Fuse);
             }
 
-            // Mining Cut 3: a catalog written since slot 32 existed (AetherDb field-kinds rewrote every record) stores
-            // the slot, so its weapons load exactly. A catalog that predates it may drift by slot 32 and nothing else.
             var reports = store.LastSchemaMigrationReports.Where(r => r.LocalSchemaName == "aetheria.weaponitemdata").ToList();
             Assert.NotEmpty(reports);
             foreach (var report in reports)
             {
-                if (report.Kind == CultSchemaMigrationKind.Exact) continue;
-                Assert.Equal(CultSchemaMigrationKind.CompatibleDrift, report.Kind);
-                Assert.Equal(new[] { 32 }, report.DefaultedMissingSlots);
+                Assert.Equal(CultSchemaMigrationKind.Exact, report.Kind);
+                Assert.Empty(report.DefaultedMissingSlots);
                 Assert.Empty(report.IgnoredExtraSlots);
             }
         }
