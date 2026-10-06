@@ -107,8 +107,9 @@ public sealed partial class RunStartTests
         var galaxy = DemoGalaxy(1);
         var antagonist = Zhestokost(galaxy);
         var sold = SoldShipHulls();
-        var unsold = _cache.GetAll<HullData>().FirstOrDefault(hull => hull.HullType == HullType.Ship && !sold.Contains(hull));
-        Assert.True(unsold != null, "the catalog needs a ship hull no product sells for this test");
+        // A ship hull no product sells, dearer than any that is sold: the fallback must not pick it.
+        var unsold = new HullData { Name = "Unsold Test Hull", HullType = HullType.Ship, Price = sold.Max(hull => hull.Price) + 1 };
+        _cache.Upsert(unsold);
         antagonist.BossHull = _cache.RefOf(unsold);
         var log = new List<string>();
         var items = LoggingItems(log);
