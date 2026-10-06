@@ -39,13 +39,44 @@ public static class StationServices
         }
     }
 
-    // What the station charges to restore the entity's hull and every item it carries to design durability: each
-    // piece's share of its price in proportion to its wear, scaled by RepairFraction, rounded up.
+    // What the station charges to restore the entity's hull armour, hull and every item it carries to design: each
+    // piece's share of its price in proportion to its wear, scaled by the repair fraction, rounded up. Armour has no
+    // price of its own, so the worn share of the hull's total armour is charged as that share of the hull's price.
     public static int RepairCost(ItemManager items, Entity entity)
     {
-        long total = 0;
-        foreach (var gear in Gear(entity)) total += RepairShare(items, gear);
+        var fraction = RepairFraction(items);
+        long total = (long) Math.Ceiling(ArmourWear(entity) * items.GetPrice(entity.Hull) * fraction);
+        foreach (var gear in Gear(entity)) total += RepairShare(items, gear, fraction);
         return (int) Math.Min(total, int.MaxValue);
+    }
+
+    // What the station charges for each unit of wear it mends: RepairFraction, but never less than SellFraction, so
+    // mending an item before selling it never pays more than the repair cost.
+    private static double RepairFraction(ItemManager items) =>
+        Math.Max(items.GameplaySettings.RepairFraction, items.GameplaySettings.SellFraction);
+
+    // The worn share of the entity's armour, 0 when it is whole or has none.
+    private static double ArmourWear(Entity entity)
+    {
+        double max = 0, worn = 0;
+        for (var x = 0; x < entity.MaxArmor.GetLength(0); x++)
+            for (var y = 0; y < entity.MaxArmor.GetLength(1); y++)
+            {
+                max += entity.MaxArmor[x, y];
+                worn += Math.Max(0, entity.MaxArmor[x, y] - entity.Armor[x, y]);
+            }
+        return max > 0 ? worn / max : 0;
+    }
+
+    // The purchase: the station charges BuyPrice, and `deliver` puts the goods where they go. Credits are checked
+    // and charged here, at the same boundary as TryRepair: a price equal to the credits held is affordable.
+    public static BuyResult TryBuy(ItemManager items, ItemInstance item, int quantity, ref int credits, Func<bool> deliver)
+    {
+        var price = BuyPrice(items, item, quantity);
+        if (price > credits) return BuyResult.ShortOfCredits;
+        if (!deliver()) return BuyResult.NoRoom;
+        credits -= price;
+        return BuyResult.Bought;
     }
 
     // The sale: the item leaves the bay for one of the station's cargo bays and the station pays SellPrice. False,
@@ -61,8 +92,8 @@ public static class StationServices
         return true;
     }
 
-    // The repair: every durability goes back to design and the station charges RepairCost. False, with nothing
-    // restored, when the credits fall short.
+    // The repair: armour and every durability go back to design and the station charges RepairCost. False, with
+    // nothing restored, when the credits fall short.
     public static bool TryRepair(Entity entity, ref int credits)
     {
         var items = entity.ItemManager;
@@ -71,6 +102,7 @@ public static class StationServices
         foreach (var gear in Gear(entity))
             if (items.GetData(gear) is EquippableItemData design && design.Durability > 0)
                 gear.Durability = design.Durability;
+        Array.Copy(entity.MaxArmor, entity.Armor, entity.MaxArmor.Length);
         credits -= cost;
         return true;
     }
@@ -89,9 +121,11 @@ public static class StationServices
         return Math.Max(0, Math.Min(1, gear.Durability / (double) design.Durability));
     }
 
-    private static long RepairShare(ItemManager items, EquippableItem gear)
+    private static long RepairShare(ItemManager items, EquippableItem gear, double fraction)
     {
         var worn = 1 - Condition(items, gear);
-        return (long) Math.Ceiling(worn * items.GetPrice(gear) * items.GameplaySettings.RepairFraction);
+        return (long) Math.Ceiling(worn * items.GetPrice(gear) * fraction);
     }
 }
+
+public enum BuyResult { Bought, ShortOfCredits, NoRoom }

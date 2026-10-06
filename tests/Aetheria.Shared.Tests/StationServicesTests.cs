@@ -23,7 +23,7 @@ public sealed class StationServicesTests : IDisposable
         var shape = new Shape(5, 5);
         foreach (var cell in shape.AllCoordinates) shape[cell] = true;
         var hardpoint = new HardpointData { Type = HardpointType.Sensors, Position = new int2(0, 0), Shape = new Shape() };
-        _cache.Upsert(new HullData { Name = "Skiff", HullType = HullType.Ship, Shape = shape, Price = 1000, Durability = 10, Hardpoints = { hardpoint } });
+        _cache.Upsert(new HullData { Name = "Skiff", HullType = HullType.Ship, Shape = shape, Price = 1000, Durability = 10, Armor = 10, Hardpoints = { hardpoint } });
         _cache.Upsert(new HullData { Name = "Hub", HullType = HullType.Station, Shape = shape, Price = 5000, Durability = 10 });
         _cache.Upsert(new HullData { Name = "Bare Hub", HullType = HullType.Station, Shape = shape, Price = 5000, Durability = 10 });
         _cache.Upsert(new GearData { Name = "Gun", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 400, Durability = 8 });
@@ -113,6 +113,8 @@ public sealed class StationServicesTests : IDisposable
         // A commodity has no wear: its price per unit times the quantity, at the fraction, rounded down.
         Assert.Equal(35, StationServices.SellPrice(_items, Ore(10)));
         Assert.Equal(3, StationServices.SellPrice(_items, Ore(1)));
+        // A stack large enough that a scaled price shows: 7 * 100 * .5 is exactly 350, and a 2% larger fraction pays 357.
+        Assert.Equal(350, StationServices.SellPrice(_items, Ore(100)));
     }
 
     [Fact]
@@ -185,8 +187,8 @@ public sealed class StationServicesTests : IDisposable
         var ship = Ship(hullDurability: 5);
         Assert.True(ship.TryEquip(Mint("Gun", 2)));
         var cost = StationServices.RepairCost(_items, ship);
-        var hull = (int) Math.Ceiling(.5 * _items.GetPrice(ship.Hull) * .25);
-        var gun = (int) Math.Ceiling(.75 * _items.GetPrice(Mint("Gun")) * .25);
+        var hull = (int) Math.Ceiling(.5 * _items.GetPrice(ship.Hull) * .5);
+        var gun = (int) Math.Ceiling(.75 * _items.GetPrice(Mint("Gun")) * .5);
         Assert.Equal(hull + gun, cost);
 
         var shortOfCost = cost - 1;
@@ -225,5 +227,77 @@ public sealed class StationServicesTests : IDisposable
         var credits = 1000000;
         Assert.True(StationServices.TryRepair(ship, ref credits));
         Assert.Equal(4, ship.CargoBays.Single().EquippableItem.Durability);
+    }
+
+    [Fact]
+    public void Repair_restores_armour_at_a_price()
+    {
+        var ship = Ship();
+        Assert.Equal(0, StationServices.RepairCost(_items, ship));
+        ship.Armor[2, 2] = 0;
+        var cells = ship.MaxArmor.Length;
+        var share = 10.0 / (10.0 * cells);
+        var cost = StationServices.RepairCost(_items, ship);
+        Assert.Equal((int) Math.Ceiling(share * _items.GetPrice(ship.Hull) * .5), cost);
+        Assert.True(cost > 0, "armour-only wear offers a repair");
+
+        var short1 = cost - 1;
+        Assert.False(StationServices.TryRepair(ship, ref short1));
+        Assert.Equal(0, ship.Armor[2, 2]);
+
+        var exact = cost;
+        Assert.True(StationServices.TryRepair(ship, ref exact));
+        Assert.Equal(0, exact);
+        Assert.Equal(10, ship.Armor[2, 2]);
+        Assert.Equal(0, StationServices.RepairCost(_items, ship));
+    }
+
+    [Theory]
+    [InlineData(0.1f)]
+    [InlineData(0.25f)]
+    [InlineData(0.5f)]
+    [InlineData(0.9f)]
+    public void Repairing_then_selling_never_nets_credits(float repairFraction)
+    {
+        _items.GameplaySettings.RepairFraction = repairFraction;
+        for (var durability = 0; durability < 8; durability++)
+        {
+            var ship = Ship();
+            var gun = Mint("Gun", durability);
+            Assert.True(ship.TryEquip(gun));
+            var sellWorn = StationServices.SellPrice(_items, gun);
+            var cost = StationServices.RepairCost(_items, ship);
+            var credits = cost;
+            Assert.True(StationServices.TryRepair(ship, ref credits));
+            Assert.Equal(0, credits);
+            var sellFixed = StationServices.SellPrice(_items, gun);
+            Assert.True(sellFixed - cost <= sellWorn, $"durability {durability}: repair {cost} adds {sellFixed - sellWorn}");
+        }
+    }
+
+    [Fact]
+    public void Buy_is_affordable_at_exactly_the_credits_held()
+    {
+        var gun = Mint("Gun");
+        var price = StationServices.BuyPrice(_items, gun);
+        var delivered = 0;
+        var credits = price - 1;
+        Assert.Equal(BuyResult.ShortOfCredits, StationServices.TryBuy(_items, gun, 1, ref credits, () => { delivered++; return true; }));
+        Assert.Equal(price - 1, credits);
+        Assert.Equal(0, delivered);
+
+        credits = price;
+        Assert.Equal(BuyResult.Bought, StationServices.TryBuy(_items, gun, 1, ref credits, () => { delivered++; return true; }));
+        Assert.Equal(0, credits);
+        Assert.Equal(1, delivered);
+
+        credits = price + 5;
+        Assert.Equal(BuyResult.NoRoom, StationServices.TryBuy(_items, gun, 1, ref credits, () => false));
+        Assert.Equal(price + 5, credits);
+
+        var ore = Ore(10);
+        credits = 70;
+        Assert.Equal(BuyResult.Bought, StationServices.TryBuy(_items, ore, 10, ref credits, () => true));
+        Assert.Equal(0, credits);
     }
 }
