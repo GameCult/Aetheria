@@ -31,6 +31,7 @@ public sealed class StationServicesTests : IDisposable
         var bay = new Shape(4, 4);
         foreach (var cell in bay.AllCoordinates) bay[cell] = true;
         _cache.Upsert(new CargoBayData { Name = "Crate", Shape = new Shape(), InteriorShape = bay, Price = 20, Durability = 4 });
+        _cache.Upsert(new DockingBayData { Name = "Berth", Shape = new Shape(), InteriorShape = bay, MaxSize = new int2(2, 2), Price = 60, Durability = 6 });
         _cache.Upsert(new SimpleCommodityData { Name = "Ore", Shape = new Shape(), Price = 7, MaxStack = 100 });
         _cache.FlushAsync().Wait();
 
