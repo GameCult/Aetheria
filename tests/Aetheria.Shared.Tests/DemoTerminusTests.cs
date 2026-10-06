@@ -5,6 +5,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using CultMath;
 using Xunit;
 
 // The demo scenario (aetheria-release, cut demo-galaxy): a prelude galaxy of a fixed cast whose antagonist's home is the
@@ -91,6 +92,58 @@ public sealed partial class RunStartTests
         var refusal = Assert.Throws<InvalidOperationException>(() => DemoGalaxy(1));
         Assert.Contains("Pirates", refusal.Message);
         Assert.Contains(nameof(TutorialGenerationSettings.ProtagonistFaction), refusal.Message);
+    }
+
+    // The operator's ruling is that the first release is a demo: the one scenario a release build lists says so by name.
+    [Fact]
+    public void DemoTerminus_is_named_a_demo()
+    {
+        var listed = Assert.Single(Scenarios.Modes);
+        Assert.IsType<DemoTerminus>(listed);
+        Assert.Equal("Terminus (Demo)", listed.Name);
+    }
+
+    // The run start as New Game runs it: the player flies a Pirates-made hull, at the entrance zone's origin.
+    [Fact]
+    public void DemoTerminus_player_flies_a_pirates_hull_at_the_origin()
+    {
+        AddPirates();
+        foreach (var seed in DemoSeeds)
+        {
+            var (galaxy, _, staged, failures) = Launch(new DemoTerminus(), Inputs(() => seed));
+            Assert.True(failures.Count == 0, string.Join("; ", failures));
+            Assert.Equal("Pirates", staged.Player.Faction.Name);
+            Assert.Same(galaxy.Factions.Single(faction => faction.Name == "Pirates"), staged.Player.Faction);
+            Assert.Equal(_startingHull, staged.Player.HullData.Name);
+            Assert.Equal(float3.zero, staged.Player.Position);
+        }
+    }
+
+    // The demo region's size and connectivity are authored: 64 zones, links thinned to half. The reference galaxy is the
+    // same cast with the thinning written out here, generated at the same seed, so any other density is a different graph.
+    [Fact]
+    public void DemoTerminus_region_is_sixty_four_zones_linked_at_half_density()
+    {
+        AddPirates();
+        string Links(Galaxy g) => string.Join(";", g.Zones.Select(zone =>
+            string.Join(",", zone.AdjacentZones.Select(adjacent => Array.IndexOf(g.Zones, adjacent)).OrderBy(index => index))));
+        Galaxy Reference(uint seed, float density)
+        {
+            var cast = new TutorialGenerationSettings
+            {
+                ProtagonistFaction = "Pirates", AntagonistFaction = "Zhe", BufferFaction = "Luc",
+                NeutralFactions = new[] { "Aero" }, QuestFaction = null, ZoneCount = 64, LinkDensity = density
+            };
+            return RunStart.Generate(new Scripted(false, _ => { }, seed, galaxy => galaxy.Prelude(cast)), Inputs());
+        }
+
+        foreach (var seed in DemoSeeds)
+        {
+            var galaxy = DemoGalaxy(seed);
+            Assert.Equal(64, galaxy.Zones.Length);
+            Assert.Equal(Links(Reference(seed, .5f)), Links(galaxy));
+            Assert.NotEqual(Links(Reference(seed, 1f)), Links(galaxy));
+        }
     }
 
     // A cast that names no quest faction places no quest zone: one home for each of its four factions.
