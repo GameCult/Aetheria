@@ -24,6 +24,7 @@ public sealed class ScenarioStage
         Arena = arena;
         StartingHull = startingHull;
         TutorialGenerationSettings = tutorialGenerationSettings;
+        Credits = items.GameplaySettings.StartingCredits;
         // A fit names designs, not manufacturers, so what the galaxy offers decides which product builds each one.
         _available = new LoadoutGenerator(ref items.Random, items, arena.Galaxy, arena.GalaxyZone, null, 2).IsAvailable;
     }
@@ -32,6 +33,9 @@ public sealed class ScenarioStage
     public Zone Arena { get; }
     public string StartingHull { get; }
     public TutorialGenerationSettings TutorialGenerationSettings { get; }
+
+    // What the run starts with: the gameplay settings' starting credits unless the scenario sets another amount.
+    public int Credits { get; set; }
 
     internal IReadOnlyList<string> Failures => _failures;
     internal bool PlayerPlaced { get; private set; }

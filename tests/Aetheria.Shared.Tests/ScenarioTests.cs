@@ -108,6 +108,21 @@ public sealed partial class RunStartTests
         }
     }
 
+    // A run starts with the gameplay settings' starting credits unless its scenario sets another amount.
+    [Fact]
+    public void StagedCreditsAreTheSettingsUnlessTheScenarioSets()
+    {
+        var plain = Stage(Arena(true), new Scripted(true, stage => stage.Player(stage.Bare("Djinni"), float2(0, 0))));
+        Assert.Equal(_items.GameplaySettings.StartingCredits, plain.Credits);
+
+        var poor = Stage(Arena(true), new Scripted(true, stage =>
+        {
+            stage.Credits = 1234;
+            stage.Player(stage.Bare("Djinni"), float2(0, 0));
+        }));
+        Assert.Equal(1234, poor.Credits);
+    }
+
     // The two game modes are what New Game did: the tutorial a prelude galaxy and a starting-hull ship of the
     // protagonist faction at the entrance's origin; the main galaxy a main galaxy and a starting-hull ship there. Both
     // arenas keep their generated ships.
@@ -533,10 +548,10 @@ public sealed partial class RunStartTests
     public void SaveReadsPrelude()
     {
         var arena = Arena(true);
-        var (prelude, _) = RunSave.Capture(_cache, _galaxy, arena, null, new SavedActionBarBinding[0]);
+        var (prelude, _) = RunSave.Capture(_cache, _galaxy, arena, null, new SavedActionBarBinding[0], 0);
         Assert.True(prelude.IsTutorial);
 
-        var (main, _) = RunSave.Capture(_cache, MainSectorGalaxy(), arena, null, new SavedActionBarBinding[0]);
+        var (main, _) = RunSave.Capture(_cache, MainSectorGalaxy(), arena, null, new SavedActionBarBinding[0], 0);
         Assert.False(main.IsTutorial);
     }
 

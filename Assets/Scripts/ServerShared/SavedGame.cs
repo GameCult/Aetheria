@@ -47,6 +47,9 @@ public class SavedGame
 
     [Key(12)]
     public FactionRelationship[] Relationships;
+
+    [Key(13)]
+    public int Credits;
 }
 
 // The run's lifecycle over the run store. Only Commit creates SavedGame, SavedZone and ProvenanceLedger records;
@@ -55,7 +58,7 @@ public static class RunSave
 {
     // The live run as plain documents. Writes nothing.
     public static (SavedGame Game, SavedZone[] Zones) Capture(CultCache cache, Galaxy galaxy, Zone currentZone,
-        Entity currentEntity, SavedActionBarBinding[] actionBar)
+        Entity currentEntity, SavedActionBarBinding[] actionBar, int credits)
     {
         var factions = galaxy.HomeZones.Keys.ToArray();
         var game = new SavedGame
@@ -75,7 +78,8 @@ public static class RunSave
             Entrance = Array.IndexOf(galaxy.Zones, galaxy.Entrance),
             Exit = Array.IndexOf(galaxy.Zones, galaxy.Exit),
             IsTutorial = galaxy.IsPrelude,
-            ActionBarBindings = actionBar
+            ActionBarBindings = actionBar,
+            Credits = credits
         };
 
         // A zone generated earlier but not loaded this session has no live Contents; its packed contents carry over.

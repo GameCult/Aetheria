@@ -91,7 +91,7 @@ public sealed class RunSaveTests : IDisposable
             var galaxy = new Galaxy(cache, cache.GetGlobal<SavedGame>(), _ => { });
             var itemManager = new ItemManager(cache, new ProvenanceLedger(), TestSettings(), _ => { });
             galaxy.Zones[0].Contents = new Zone(itemManager, new PlanetSettings(), new ZonePack(), galaxy.Zones[0], galaxy);
-            var (game, zones) = RunSave.Capture(cache, galaxy, galaxy.Zones[0].Contents, null, new SavedActionBarBinding[0]);
+            var (game, zones) = RunSave.Capture(cache, galaxy, galaxy.Zones[0].Contents, null, new SavedActionBarBinding[0], 0);
             RunSave.Commit(cache, game, zones, RunSave.Lots(cache));
         }
 
@@ -102,6 +102,26 @@ public sealed class RunSaveTests : IDisposable
             Assert.NotNull(cache.Get(unloaded.Contents.Orbits[1]));
             Assert.NotNull(cache.Get(unloaded.Contents.Planets[0]));
         }
+    }
+
+    // The run's credits ride the save: what Capture is given is what a later Continue reads from the run store.
+    [Fact]
+    public void CreditsSurviveContinue()
+    {
+        using (var cache = Open())
+            RunSave.Commit(cache, Game(cache), Zones(2, StageZoneContents(cache), 0), new ProvenanceLedger());
+
+        using (var cache = Open())
+        {
+            var galaxy = new Galaxy(cache, cache.GetGlobal<SavedGame>(), _ => { });
+            var itemManager = new ItemManager(cache, new ProvenanceLedger(), TestSettings(), _ => { });
+            galaxy.Zones[0].Contents = new Zone(itemManager, new PlanetSettings(), new ZonePack(), galaxy.Zones[0], galaxy);
+            var (game, zones) = RunSave.Capture(cache, galaxy, galaxy.Zones[0].Contents, null, new SavedActionBarBinding[0], 4242);
+            RunSave.Commit(cache, game, zones, RunSave.Lots(cache));
+        }
+
+        using (var cache = Open())
+            Assert.Equal(4242, cache.GetGlobal<SavedGame>().Credits);
     }
 
     [Fact]
