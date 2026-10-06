@@ -2557,7 +2557,7 @@ belt-freeze rulings (lines 830-876).
 - Only mining changes `Settings.asset` (`347752dd` to `b2e346f5`, `MiningDifficulty`
   removed), so it merges without a conflict.
 
-**L3. The belt freeze's cause is mapped** (mining Cut 3 Soul F1):
+**L3. The belt freeze's cause is mapped** (mining Cut 3 Soul F1). Historical: the scan, `ChunksNear` and `ActionGameManager.TargetCandidates` were deleted by `mining-index` and `mining-target-queries`; see "Mining index: as built".
 - Every reticle, next or previous press builds `ActionGameManager.TargetCandidates`
   (`:1174` at `83d8371e`).
 - That calls `Entity.VisibleChunksInReach` (`Entity.cs:377-385`), which calls
@@ -2583,7 +2583,7 @@ belt-freeze rulings (lines 830-876).
   `:314-321`).
 - Together these let a provider prune whole regions without deciding detection.
 
-**L5. Hands' unbuilt work in progress** is
+**L5. Hands' unbuilt work in progress** (superseded by `Targeting/` on master; the patch was not adopted) is
 `F:\Projects\HANDOFF-mining-index-wip-2026-10-01.patch`: 257 lines against
 `83d8371e`'s `Zone.cs`.
 - It groups rocks into bands of 256 by orbit distance, each sorted by orbital phase at
@@ -2725,6 +2725,100 @@ Each lane becomes a `eureka/aetheria-release-*` branch; nothing is pushed to
     branch from master. They gate nothing, neither the merge nor the release (ruling
     `targeting-sublinear-wanted-not-critical`). They inherit the tests of
     `mining-index-pins` and `mining-target-queries`, and tighten the cost pins.
+
+### Mining index: as built (master `df7c44f2`)
+
+Status, read this before L3 to L5 and the cuts above. They are the plan and the pre-cut
+Body. `eureka/aetheria-release-mining` merged to master as `df7c44f2`. Landed: `mining-index`
+(`cut-mining-index.h1`), `mining-index-pins` (`cut-mining-index-pins.h1`),
+`mining-target-queries` (`cut-mining-target-queries.h1` and `.h2`) and `mining-merge`
+(`cut-mining-merge.h1`). Not landed: `mining-index-tree` and `mining-belt-cells`. L3's
+scan, L5's patch and the belt task machine no longer exist.
+
+**Owner, by question.**
+- *Which things can lie in a region, and how visible at most:* `TargetingIndex`
+  (`ServerShared/Targeting/TargetingIndex.cs`), one per zone as `Zone.Targets`. It names
+  no belt, rock or chunk. It owns region ordering and reach.
+- *Where rocks are and which regions bound them:* `BeltTargets`, one provider per belt,
+  registered in `Zone`'s constructor beside `EntityTargets`.
+- *Is this target detected, and which one does a press pick:* `Entity`
+  (`ChunkVisible`, `VisibleEntities`, `TargetUnderReticle`, `TargetNext`,
+  `TargetPrevious`, `TargetNearestEnemy`), through `PickTarget` and `Eligible`.
+- *Who writes the choice:* `Entity.SetTarget`, the one writer.
+- *Rock wear and respawn:* `Zone`'s wear store (`ChunkWear`, `BrokenUntil`). Belts have
+  no task, timer list or update thread: `EvaluateBelt` computes poses on demand for
+  rendering, and `BeltTargets` derives bounds from time.
+
+**Inputs and outputs.**
+- `TargetSearch` in: searcher position, reach, optional observer, and
+  `ReachPerVisibility` (`Entity.DetectionReachPerVisibility`, from sensor gain bounds and
+  the curve's hull).
+- Providers out: `TargetRegion`s (distance interval, bearing interval, visibility
+  ceiling) and `TargetCandidate`s (a `TargetRef` and a planar position).
+- Index out: `Within` returns every candidate within exact reach whose region can be
+  detected, unordered. `Best` takes an `ITargetKey` (`Bound`, `Key`, `Precedes`) and
+  returns the least-key eligible candidate: regions are sorted by bound and opened until
+  a bound exceeds the best key.
+- `Entity` presses: `AngleKey` (reticle: least planar angle to the look direction) and
+  `DistanceKey` (next and previous: the successor or predecessor in (distance, target)
+  order, wrapping, with the held target as pivot). Ties order a ship before a rock,
+  then by chunk field and index.
+- `Entity.VisibleChunksInReach` keeps its contract (visible chunks within mining reach,
+  by index then field) on `Within`.
+
+**Derived state, never saved.** The index and every provider's bands, keys and `Rekeys`
+count are derived from `AsteroidBeltData`, `PlanetSettings` and zone time and rebuilt
+with the zone. Bands re-key lazily, at most 8 per query. `Examined` is a diagnostic
+counter, not state. No candidate list survives a press. The only persisted belt state is
+`ZonePack` key 6 (`ChunkWear`).
+
+**Forbidden writers.**
+- Unity code picks no target. `ActionGameManager` binds four input actions to the four
+  `Entity` methods and does nothing else (`ActionGameManager.cs:389-392`). It builds no
+  candidate list, sorts nothing and calls neither `Within` nor `Best`.
+- Nothing enumerates a belt's rocks to answer a targeting question. The only loop over
+  a belt's rocks outside `BeltTargets` is `Zone.EvaluateBelt` (rendering).
+- The index decides reach and nothing about detection. A provider's bounds must hold for
+  every thing in the region; a provider that loosens them costs speed, one that tightens
+  them past a real rock drops targets.
+- Only `SetTarget` writes `Target`; presses return false and keep the target when no
+  candidate exists.
+- No `UnityEngine.Random` or shared stream in target choice (it has none).
+
+**Shared paths.** Reticle, next, previous and nearest-enemy presses; `VisibleChunksInReach`;
+fire control's use of `Target` (`TargetRef`); the AI's `Minion` and `Combat` target
+writers (F6, still `SetTarget`); load (`Zone` rebuilds providers).
+
+**Verification layer.** `tests/Aetheria.Shared.Tests/MiningIndexTests.cs`: index
+equals brute force (`WithinIsExactlyTheBruteForceSet`, `BestIsTheBruteForceNearest`),
+region bounds hold per rock (`BeltRegionBoundsHoldForEveryRock`,
+`ACurveStaysWithinItsHullRange`), no visible rock dropped, cost pins (`Examined`,
+`DarkBandsAreSkippedWhole`, `ReKeyingIsBoundedPerQuery`, `RegionsStayNearTheSearchArc`,
+`VisibilityBoundPrunesADimBelt`) and `ARockExactlyAtReachIsFound`.
+`MiningTargetQueriesTests.cs`: press rules against a brute-force order, perception
+(`ShipsTheObserverHasNotDetectedAreNeverPicked`), tie orders, empty presses, and
+per-press cost ceilings (`AKeyPressDoesNotGrowWithTheBelt`,
+`PressPruningKeepsEachPressNearItsMeasuredCost`). Both are partial `MiningCut3Tests`
+and compile only `ServerShared` (B11). The Unity side was compiled separately: a
+Unity 6000.3.24f1 batchmode compile at `a83aa54e` on 2026-10-06 (`mining-merge-unity`)
+exited 0 with no `error CS` in any of the five assemblies. Both ships smokes passed, and it
+needed no fix commit, so the cut has no report. Stryker and `tools/mutation-table.sh` covered `Entity.cs` spans fully; survivors in
+`BeltTargets` and `TargetingIndex` are equivalent or float boundaries.
+
+**Live seams and debt.**
+- `EntityTargets` is registered on every zone but no production query reaches it with
+  an observer: `Entity.PickTarget` offers `VisibleEntities` itself, and `MiningSearch`
+  carries no observer. The index owns no ship answer today. Finding
+  `orphaned-index-surfaces`, deferred to `mining-index-tree`.
+- `Entity.VisibleChunksInReach` has tests as its only callers; `Within` has no
+  production caller.
+- A press still costs O(rocks in a fixed belt): `Best` enumerates and sorts the flat
+  region set. Deferred to `mining-index-tree` (hierarchy, heap, `Accepts` split) and
+  `mining-belt-cells` (rings and cells); findings `cut-mining-index-tree.r1` and
+  `cut-mining-belt-cells.r1` carry them. Neither gates the release.
+- The index comment headers (`TargetingIndex.cs:10`, `Zone.cs:26`, both test files)
+  cite `docs/aetheria-release-map.md`, which exists only on
+  `eureka/aetheria-release-target`, not on master.
 
 ### Mining index: rings, cells and best-first search
 
