@@ -2,6 +2,20 @@
 
 Date: 2026-09-11
 
+**Status (2026-10-06).** The first release is a demo: one gate, one region, one boss,
+with a fixed faction cast (rulings `first-release-is-a-demo`, `demo-cut-fixed-region`
+and `demo-cast` in campaign `aetheria-release`). `docs/aetheria-release-target.md` owns
+the release now; this document records the full game's three-gate run, which comes
+after the demo. Where the items below stand:
+
+- Item 1: death deletes the run (`ActionGameManager.Die` calls `RunSave.Clear`). The win
+  screen is cut `boss-gate`; saved credits are cut `station-services`.
+- Item 2: for the demo's one gate, cuts `demo-galaxy` and `boss-gate`. Three sections,
+  locked boss-zone wormholes and difficulty per section are full game.
+- Item 3: cut `station-services` (sell and repair) and cuts `loot-1` to `-3`.
+- Item 4: landed (`docs/fire-control-cut.md`).
+- Items 5 and 6: not in the demo.
+
 Aetheria ships as a short rogue-lite run on the existing Unity game: start at
 the Entrance, fight through three boss chokepoints, reach the Exit. Everything
 the player earns comes from what they destroy. More systems come after this
@@ -46,7 +60,8 @@ AI share it, so AI accuracy is no longer superhuman by construction.
 
 **Ruling (operator, 2026-09-17):** hit detection goes away entirely. A hit is a dice
 roll over weapon stats, the stats of a new targeting-system subsystem, and sensor
-state. Fire control is being mapped as Cut 2 of `docs/headless-playground-cut.md`.
+state. Fire control was mapped from Cut 2 of `docs/headless-playground-cut.md` and has
+landed (`docs/fire-control-cut.md`).
 
 **Ruling (operator, 2026-09-17):** the player and the AI can aim for a specific
 subsystem once they have gathered enough target data to reveal it. Operator's words: "We

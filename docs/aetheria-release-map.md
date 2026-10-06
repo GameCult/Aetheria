@@ -9,7 +9,8 @@ and no ledger: those are typed documents in the Eureka mind. Ends live in
 `F:\Projects\aetheria-release-inventory.md`, which is outside the repo.
 
 Every anchor below is against `origin/master` `f1dee184` and was read in a sparse
-scratch worktree on 2026-10-03, unless the line says otherwise.
+scratch worktree on 2026-10-03, unless the line or its section says otherwise. The section "Demo scope" holds
+the 2026-10-06 re-scope: the release this campaign plans is the demo.
 
 ## Body facts
 
@@ -214,6 +215,167 @@ Serializing them behind audio would idle the slowest resource in the project.
 Two claims were not verified from primary sources on 2026-10-03: which Wwise
 release first supports Unity 6000.x, and the scripting surface of
 `AudioRandomContainer`.
+
+## Demo scope
+
+Re-scope of 2026-10-06 (rulings `first-release-is-a-demo`, `demo-cut-fixed-region`,
+`demo-cast`, `miss-terris-belongs-to-emily-r3`, `ship-authors-need-no-unity`). The
+release this campaign plans is the demo: one gate, one region, one boss, a fixed cast.
+The design review that prompted it is `F:\Projects\aetheria-game-design-review-2026-10-05.md`,
+outside the repo. Anchors in this section are against `origin/master` `df7c44f2` (the
+mining merge), read with `git show` and `git grep` from the Aetheria object store on
+2026-10-06.
+
+### Body facts
+
+- **D1. A fixed-cast generator already exists: the prelude.** `Galaxy.cs:150-262` builds a
+  galaxy from named factions: protagonist, antagonist, buffer, quest and neutrals,
+  resolved by name prefix (`ResolveFaction`, `:141-144`). It places homes so the
+  antagonist is far from the protagonist and the buffer between them, and sets the
+  entrance near the protagonist's home. Its settings are
+  `Assets/Resources/Settings.asset` `TutorialGenerationSettings` (an LFS object, read with
+  `git lfs smudge`): protagonist `Miss`, antagonist `Zhe`, buffer `Luc`, neutrals `Aero`
+  and `Finch`, quest `Adras`, 64 zones. `TutorialGalaxy` stages it. The main galaxy
+  (`Galaxy.cs:96-131`) draws `MegaCount` 12 factions at random from the catalog, places
+  `BossCount` 3 boss zones, and has 128 zones. A prelude galaxy guarantees a station at
+  its entrance (`ZoneGenerator.cs:223-224`) and lets generation use any product
+  (`LoadoutGenerator.cs:184`).
+- **D2. Boss zones and the exit exist only in the main galaxy.** `PlaceFactionsMain`
+  (`Galaxy.cs:265-309`) fills `BossZones` on chokepoints; the main constructor sets
+  `Exit` to the most isolated zone (`:123`). The prelude sets neither. Both persist
+  (`SavedGame` keys 3 and 5).
+- **D3. Nothing spawns a boss.** `Faction.BossHull` is key 10
+  (`Corporations.cs:43-44`) and is unset on all 12 catalog factions. Outside the field
+  and `Galaxy.BossZones`, `BossHull` is read only by `tools/AetherDb`. `ZoneGenerator`
+  generates stations, turrets, faction ships and wanderers (`:280-365`) and no boss.
+- **D4. Wormholes are built in Unity, and the exit does nothing.** `ZoneRenderer.cs:225-236`
+  adds one `Wormhole { Position, Target }` per adjacent zone. Interact
+  (`ActionGameManager.cs:321-327`) enters any wormhole in range; `EnterWormhole`
+  (`:660`) populates the target zone. Nothing checks `Galaxy.Exit`.
+- **D5. Station services are buy-only and credits are not saved.** `TradeMenu` has
+  `Buy(CraftedItemInstance)` (`:366`) and `Buy(SimpleCommodity, int)` (`:405`) and no
+  sell. "Repair" appears in no gameplay or UI script (only AetherDb comments).
+  Credits are `public int Credits = 15000000` on `ActionGameManager` (`:114`);
+  `SavedGame` (keys 0-12) does not carry them, so Continue resets them. The hull branch
+  of `Buy` checks `GetPrice` (`:369-370`) and charges `data.Price` (`:378`). Durability
+  is per instance (`ItemInstance.cs:53`) against the design's (`ItemData.cs:371`), and
+  falls under fire (`Entity.cs:645-664`).
+- **D6. The catalog has no Pirates and the demo cast sells no ship hull.** Decoded from
+  `git show df7c44f2:GameData/Aetheria.cc | git lfs smudge` with Python `msgpack`, using
+  the store's own schema table for slot names. Factions (12): Zhestokost, Finch
+  Cybernetics, Lightsail Express, NiteLife Energy, Death Monkey Explosives, Aeronautics
+  Unlimited, Lucent Media, Alakrita, Ewan Hart Inc, Rossum & Douglas, Adrasteia, Miss
+  Terri's. Hulls (5): Longinus and LonginusX (Alakrita, ship), Djinni (Rossum &
+  Douglas, ship), Zenith (AU, station), Turret (Zhestokost, turret). 64 products; by
+  maker AU 11, Lightsail 9, NiteLife 9, Lucent 7, Death Monkey 6, Zhestokost 6,
+  Rossum & Douglas 6, Alakrita 5, Finch 2, Miss Terri's 1, Adrasteia 1, Ewan Hart 1.
+
+### Why the demo is a prelude galaxy
+
+D1 is already the demo's shape: named factions in fixed roles, a small galaxy, an
+entrance station. The demo needs a different cast from the tutorial (the Pirates as the
+ally, not Miss Terri's), a boss zone and an exit. So the demo is a compiled scenario
+whose script carries its cast and calls the prelude constructor, then places the gate at
+the antagonist's home (`cut-demo-galaxy`). The tutorial's settings and Miss Terri's
+prelude role are untouched. A demo mode flag on the galaxy was rejected: the scenario
+script is the owner the scenario rulings already name.
+
+The gate is in the boss zone itself: an exit wormhole there opens when the zone's boss
+is dead (`cut-boss-gate`). Locking every wormhole out of a boss zone, as Three Gates
+item 2 describes, is the full game's three-section rule; the demo needs one gate and
+lets the player retreat.
+
+### Scope sort
+
+Every cut spec and follow-up in force under root `aetheria-release` on 2026-10-06, after
+this pass's admissions. "Landed" means the spec has a report; it stays in force as a
+record.
+
+| Kind | Id (local) | Scope | Reason |
+|---|---|---|---|
+| spec | `demo-galaxy` | demo | The demo scenario, its cast and the gate's placement. |
+| spec | `boss-gate` | demo | The one boss and the sealed gate; the win. |
+| spec | `station-services` | demo | Sell, repair and saved credits: the run pays. |
+| spec | `feedback-1` | demo | Every hit seen where it lands (target line 5). |
+| spec | `audio-1` | demo | Every action makes a sound (line 4). |
+| spec | `faction-play-1` | demo | Doctrine and the flight for the cast; needs r2 (follow-up `faction-play-reanchor-demo`). |
+| spec | `faction-play-2` | demo | Lucent's duel is the featured neutral's spectacle; needs r2. |
+| spec | `faction-play-3` | demo | Support and anchors; the played proof moves here for the cast; needs r2. |
+| spec | `faction-play-4` | full game | The tender loop on real rounds is depth past the demo's proof. |
+| spec | `loot-1` | demo | Floating items in the simulation; loot is what the player sells. |
+| spec | `loot-2` | demo | Pickup as a capability. |
+| spec | `loot-3` | demo | The grab presented in Unity; merges the loot branch. |
+| spec | `ballistic-ammo` | demo | Ruled for everyone and unblocked; ammunition is a cargo good in the Pirates' game. Needs a balance pass. |
+| spec | `ships-player` | demo | A built player loads package hulls: every demo hull needs it. |
+| spec | `ships-addon-frame` | demo | The Blender step from a Tripo mesh to a hull, no Unity. Stale against `ship-data-all-in-cc` if `demo-ship-cc-timing` rules before-hulls. |
+| spec | `ships-addon-mounts` | demo | Mount helpers for demo hulls. Same caveat. |
+| spec | `ships-hull-material` | demo | One hull shader painted from a mask: the demo's material under `demo-material-scope`'s recommended option. |
+| spec | `ships-addon-paint` | demo | The mask authored in Blender for that shader. |
+| spec | `ships-hull-livery` | demo | Faction liveries for the cast; its Faction key collides (follow-up `livery-key-collision`). |
+| spec | `scenarios-smoke` | demo | Test designs and smoke scenarios: the verification path. |
+| spec | `mining-merge-unity` | demo | The Unity half of the merge that landed. |
+| spec | `material-graph` | full game | Graph record and judge; not demo-bearing under `demo-material-scope` (recommended). |
+| spec | `material-library-export` | full game | Same. |
+| spec | `material-lowering` | full game | Same. |
+| spec | `hull-bakes` | full game | Same. |
+| spec | `ships-studio-schematic` | full game | Authoring comfort in Studio; the demo's few hulls do not need it. |
+| spec | `ships-addon-gizmos` | full game | Same. |
+| spec | `mining-index-tree` | full game | Sublinear index: wanted, not critical (ruling). |
+| spec | `mining-belt-cells` | full game | Same. |
+| spec | `ships-merge`, `ships-mounts`, `ships-addon-package`, `ships-bind-path`, `cut-ship-render-fixes` | demo, landed | The package path the demo hulls use. |
+| spec | `scenarios-adopt`, `scenarios-menu` | demo, landed | Scenarios: the demo is one. |
+| spec | `mining-index`, `mining-target-queries`, `mining-index-pins`, `mining-merge` | demo, landed | Targeting through the index; the belt freeze is gone. |
+| follow-up | `pirates-catalog-record` | demo | The ally needs a Faction record and products. |
+| follow-up | `zhestokost-boss-hull` | demo | The boss hull and `BossHull`. |
+| follow-up | `demo-cast-hulls` | demo | A hull per cast faction. |
+| follow-up | `faction-play-reanchor-demo` | demo | Re-anchor faction play, add the Pirates, play the cast. |
+| follow-up | `livery-key-collision` | demo | Two specs claim Faction key 16. |
+| follow-up | `demo-ux-ledger` | demo | The bar's UX polish pass has no owner. |
+| follow-up | `demo-difficulty-onramp` | demo | "Game is hard"; the region needs a ramp. |
+| follow-up | `vault-docs-sweep` | demo | Stale vault notes mislead the faction-play revision. |
+| follow-up | `controls-facing-and-aim` | demo | Under `demo-controls-rebuild`'s recommended option. |
+| follow-up | `release-target-is-a-demo` | demo | This pass; Self closes it with target r3. |
+| follow-up | `release-map-not-on-master` | demo | Land this map and the target doc on master. |
+| follow-up | `wwise-catalog-fields` | demo | The audio sequel removes the Wwise ids; the boss music field is among them. |
+| follow-up | `scenarios-batch4-minors` | demo | Inventory drag and station-reactor quality: UX ledger items. |
+| follow-up | `hull-damage-wear` | demo | Damage visible on the hull (line 6). |
+| follow-up | `mod-ship-single-existence-gate` | demo | A skipped package throws on spawn; demo hulls are packages. |
+| follow-up | `ambiguous-hardpoint-origin` | demo | Save correctness for package hulls. |
+| follow-up | `remove-sbsar-files` | demo | Clean break from Substance before a public build. |
+| follow-up | `delaunay-exact-predicates` | demo | Galaxy links; a silently unlinked zone could strand a demo run. |
+| follow-up | `failed-start-scene-halts` | demo | The New Game failure path the demo's missing-cast refusal uses. |
+| follow-up | `stale-docs-after-scenarios-menu` | demo | Docs that describe the old New Game path. |
+| follow-up | `scratch-carry-drafts` | demo | The ship `.cc` draft bears on `demo-ship-cc-timing`. |
+| follow-up | `faction-lore-notes-r3` | full game | Vault setting notes; no demo cut reads them. |
+| follow-up | `mining-impacts-through-contract` | full game | Mining Cut 4 is parked. |
+| follow-up | `mining-cuts-4-5-7` | full game | Yield and content; no buyer for ore in the demo. |
+| follow-up | `mining-target-pin-gaps` | full game | Low test pin gaps in landed code. |
+| follow-up | `belt-render-reads-index` | full game | Belt rendering through the index. |
+| follow-up | `c4-ship-element-ids` | full game | Variants campaign. |
+| follow-up | `variants-python-raw-push` | full game | Variants campaign. |
+| follow-up | `mod-hull-changed-under-run` | full game | Mod edits under a run; demo hulls are first-party. |
+| follow-up | `ship-lods` | full game | Only if a profile shows cost. |
+| follow-up | `hull-decals` | full game | Insignia and damage decals. |
+| follow-up | `hull-player-paint` | full game | Player liveries. |
+| follow-up | `blender-pin-operator` | full game | Pins Blender for the material judge. |
+| follow-up | `material-mod-graph-kernels` | full game | Mod material kernels. |
+| follow-up | `material-map-rescope` | full game | Re-scope of the material map, after `demo-material-scope`. |
+| follow-up | `bodies-entity-and-mines` | full game | Bodies for entities and mines. |
+| follow-up | `cultmath-mixed-seed` | full game | CultLib hygiene. |
+| follow-up | `launcher-ammunition` | full game | Missiles and drones campaign. |
+| follow-up | `drones-munitions-substrate` | full game | Same. |
+| follow-up | `articulated-mounts` | full game | Links with arc and traverse. |
+| follow-up | `colosseum-npc-lab` | full game | Its own campaign. |
+| follow-up | `heat-flow-schematic-particles` | full game | Presentation depth past line 6. |
+| follow-up | `scenarios-verification-ledger` | full game | Deferred by ruling. |
+| follow-up | `authored-missions` | full game | Authored scenes and missions. |
+| follow-up | `volumetrics-backport-map` | full game | Visual quality with no demo line. |
+| follow-up | `ghostlight-readme-drift` | full game | Ghostlight, narrative. |
+| follow-up | `faction-play-reanchor`, `faction-lore-notes` | obsolete | Superseded on 2026-10-06 by `faction-play-reanchor-demo` and `faction-lore-notes-r3`. |
+
+Counts: demo 52 (31 specs, 11 of them landed, and 21 follow-ups); full game 34 (9 specs,
+25 follow-ups); obsolete 2 follow-ups. No in-force spec lost its purpose in both scopes,
+so none was withdrawn.
 
 ## Faction play: the NPC scripting
 

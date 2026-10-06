@@ -38,7 +38,7 @@ Compiled 2026-09-29 by Eyes from the maps on the branch. Pointers are `doc:line`
 
 ### 2c. Flight, power and economy
 
-6. **Provenance in play.** Starting-ship items show tier colour; the properties panel shows Manufacturer, product name and flavour for branded gear. Dock and buy: the brand still shows in cargo. `give Lamp` (any design name): no Manufacturer row. Kill an NPC and pick up loot: brand shown (`item-provenance-cut.md:528-539`). Proves: item-provenance Cut C.
+6. **Provenance in play.** Tier colour shows only after settings-globals Cut 1 (this expectation was falsified by the 2026-09-17 smoke, section 8); the properties panel shows Manufacturer, product name and flavour for branded gear. Dock and buy: the brand still shows in cargo. `give Lamp` (any design name): no Manufacturer row. Kill an NPC and pick up loot: brand shown (`item-provenance-cut.md:528-539`). Proves: item-provenance Cut C.
 7. **Fly a restored hull (Longinus or Djinni).** Thrusters move and turn it (`locomotion-cut.md:501`). Watch the speed cap: `VelocityLimit` is gated by the hull's `Active`, and a hull taken offline with thrusters firing loses the cap (`:377`). It did not happen in 300 s on shipped settings; report if you see runaway speed. Unrecorded: how to spawn a restored hull in play (the map names no path).
 8. **Weak reactor (O2).** Fly with a reactor too small for the loadout. Expect visible, legible starvation rather than a cooked reactor (`stats-and-power-cut.md:705-706`). Proves: power bus (map Cut 3).
 9. **Brownout and refill (O6, O4).** Brownout reads as degradation, not breakage (`:774`, `:990`). A weapon refilling under brownout stutters instead of firing full rate and cooking the ship (`:729-730`). Proves: power-supply term, brownout, input capacitors.

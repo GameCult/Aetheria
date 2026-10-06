@@ -683,7 +683,9 @@ moves the `BehaviorData` union list down by 10 lines.
   writes only `LookDirection`) engage only within 60 degrees of their spawn facing. That is
   fork W.
 
-**Death, loot and pickup** (carried from the earlier draft).
+**Death, loot and pickup** (carried from the earlier draft). Loot into the simulation did
+not land with this cut; cut `loot-1` of campaign `aetheria-release` owns it now (ruling
+`jettison-shared-floating-items`).
 - `Zone` subscribes to the `Death` of each entity it adds. On death it:
   - removes the entity and its agent;
   - drops each non-hull item with probability `LootDropProbability`, and all cargo,
