@@ -103,18 +103,23 @@ public sealed partial class RunStartTests
         Assert.Equal("Terminus (Demo)", listed.Name);
     }
 
-    // The run start as New Game runs it: the player flies a Pirates-made hull, at the entrance zone's origin.
+    // The run start as New Game runs it: the player is not a Pirate, so the hull is the base Longinus, made by Alakrita,
+    // not by the Pirates or any cast faction, with no faction on the ship, at the entrance zone's origin.
     [Fact]
-    public void DemoTerminus_player_flies_a_pirates_hull_at_the_origin()
+    public void DemoTerminus_player_flies_a_non_pirates_brand_hull_the_longinus()
     {
         AddPirates();
         foreach (var seed in DemoSeeds)
         {
             var (galaxy, _, staged, failures) = Launch(new DemoTerminus(), Inputs(() => seed));
             Assert.True(failures.Count == 0, string.Join("; ", failures));
-            Assert.Equal("Pirates", staged.Player.Faction.Name);
-            Assert.Same(galaxy.Factions.Single(faction => faction.Name == "Pirates"), staged.Player.Faction);
-            Assert.Equal(_startingHull, staged.Player.HullData.Name);
+            Assert.Equal("Longinus", staged.Player.HullData.Name);
+            var design = _cache.RefOf(staged.Player.HullData).Key;
+            var product = Assert.Single(_cache.GetAll<FactionProductData>(), p => p.Design.Key.Equals(design));
+            var maker = _cache.Get(product.Manufacturer);
+            Assert.Equal("Alakrita", maker.Name);
+            Assert.DoesNotContain(galaxy.Factions, faction => faction.Name == maker.Name);
+            Assert.Null(staged.Player.Faction);
             Assert.Equal(float3.zero, staged.Player.Position);
         }
     }

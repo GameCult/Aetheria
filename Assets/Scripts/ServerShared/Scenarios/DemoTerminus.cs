@@ -2,7 +2,7 @@ using float2 = CultMath.float2;
 
 // The demo: one gate, one region and one boss, with a fixed cast. The Pirates are the protagonist's ostensible
 // employer, Zhestokost the antagonist whose home is the boss zone and the exit, Lucent Media and Aeronautics Unlimited
-// the neutrals. A prelude galaxy of that cast, entered in a Pirates-made hull.
+// the neutrals. A prelude galaxy of that cast; the player, who is not a Pirate, flies the base Longinus.
 public sealed class DemoTerminus : Scenario
 {
     public static readonly TutorialGenerationSettings Cast = new TutorialGenerationSettings
@@ -36,6 +36,6 @@ public sealed class DemoTerminus : Scenario
         galaxy.FactionRelationships[galaxy.ResolveFaction(Cast.BufferFaction)] = FactionRelationship.Neutral;
         foreach (var neutral in Cast.NeutralFactions)
             galaxy.FactionRelationships[galaxy.ResolveFaction(neutral)] = FactionRelationship.Neutral;
-        stage.Player(stage.Generated(stage.StartingHull, pirates), float2.zero);
+        stage.Player(stage.Generated("Longinus"), float2.zero);
     }
 }
