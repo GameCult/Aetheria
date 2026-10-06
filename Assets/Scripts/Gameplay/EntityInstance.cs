@@ -235,7 +235,7 @@ public class EntityInstance : MonoBehaviour
                     }
 
                     constantWeapon.OnStartFiring += () =>
-                        _constantWeaponManagers[data].StartFiring(data, item, this, entity.Target.Value != null ? ZoneRenderer.EntityInstances[entity.Target.Value] : null);
+                        _constantWeaponManagers[data].StartFiring(data, item, this, entity.Target.Value.Entity != null ? ZoneRenderer.EntityInstances[entity.Target.Value.Entity] : null);
                     constantWeapon.OnStopFiring += () => 
                         _constantWeaponManagers[data].StopFiring(item);
                 }
@@ -399,7 +399,7 @@ public class EntityInstance : MonoBehaviour
         }
 
         LookAtPoint.position = transform.position + Entity.LookDirection.ToUnity() * 
-            (Entity.Target.Value != null ? max(Entity.TargetRange,Entity.ItemManager.GameplaySettings.ConvergenceMinimumDistance) : 10000);
+            (!Entity.Target.Value.IsNone ? max(Entity.TargetRange,Entity.ItemManager.GameplaySettings.ConvergenceMinimumDistance) : 10000);
         LocalSpace.localPosition = transform.position = Entity.Position.ToUnity();
         if (_influenceInstance)
             _influenceInstance.position = new Vector3(Entity.Position.x, 0, Entity.Position.z);

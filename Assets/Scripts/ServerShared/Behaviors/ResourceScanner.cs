@@ -2,13 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-using GameCult.Caching;
-using System;
-using System.Linq;
 using MessagePack;
 using Newtonsoft.Json;
-using CultMath;
-using static CultMath.math;
 
 [Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), RuntimeInspectable]
 public class ResourceScannerData : BehaviorData
@@ -33,83 +28,18 @@ public class ResourceScannerData : BehaviorData
     }
 }
 
-public class ResourceScanner : Behavior, IAlwaysUpdatedBehavior
+// Cut 2 (docs/mining-cut.md, Q1=A): the dead survey Execute and its scan-target fields are gone
+// (ScanTarget/Asteroid/_scanTime/_scanTarget, and the always-false-until-scanned PlanetSurveyFloor write it
+// worked toward). Mining Cut 3 (docs/mining-cut-refresh.md): chunks are detected by reflected light, not by a
+// scanner, so the per-tick evaluation of three stats nothing read is gone too. The behavior is parked: its data
+// stays authored, and it does nothing.
+public class ResourceScanner : Behavior
 {
-    public int Asteroid = -1;
-    
-    private ResourceScannerData _data;
-    private float _scanTime;
-    private CultRecordKey _scanTarget;
-
-    public float Range { get; private set; }
-    public float MinimumDensity { get; private set; }
-    public float ScanDuration { get; private set; }
-
-    public CultRecordKey ScanTarget
-    {
-        get => _scanTarget;
-        set
-        {
-            if (!value.Equals(_scanTarget))
-            {
-                _scanTarget = value;
-                _scanTime = 0;
-            }
-        }
-    }
-
     public ResourceScanner(ResourceScannerData data, EquippedItem item) : base(data, item)
     {
-        _data = data;
     }
 
     public ResourceScanner(ResourceScannerData data, ConsumableItemEffect item) : base(data, item)
     {
-        _data = data;
-    }
-
-    public override bool Execute(float dt)
-    {
-        var planetData = Entity.Zone.Planets[ScanTarget];
-        if (planetData != null)
-        {
-            if (planetData is AsteroidBeltData beltData)
-            {
-                if(Asteroid > -1 &&
-                   Asteroid < beltData.Asteroids.Length &&
-                   length(Entity.Position.xz - Entity.Zone.AsteroidBelts[ScanTarget].Transforms[Asteroid].xy) < Range)
-                {
-                    _scanTime += dt;
-                    if (_scanTime > ScanDuration)
-                    {
-                        // TODO: Implement Scanning!
-                        //Context.ItemData.Get<Corporation>(Entity.Corporation).PlanetSurveyFloor[ScanTarget] = MinimumDensity;
-                        _scanTime = 0;
-                    }
-                    return true;
-                }
-            }
-            else
-            {
-                if(length(Entity.Position.xz - Entity.Zone.GetOrbitPosition(planetData.Orbit.Key)) < Range)
-                {
-                    _scanTime += dt;
-                    if (_scanTime > ScanDuration)
-                    {
-                        //Context.ItemData.Get<Corporation>(Entity.Corporation).PlanetSurveyFloor[ScanTarget] = MinimumDensity;
-                        _scanTime = 0;
-                    }
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    public void Update(float delta)
-    {
-        Range = Evaluate(_data.Range);
-        MinimumDensity = Evaluate(_data.MinimumDensity);
-        ScanDuration = Evaluate(_data.ScanDuration);
     }
 }

@@ -46,7 +46,7 @@ public sealed class RestoredHullsTests
         return cache;
     }
 
-    private static string FindRepoRoot()
+    internal static string FindRepoRoot()
     {
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
             if (File.Exists(Path.Combine(dir.FullName, "Aetheria.Shared", "Aetheria.Shared.csproj")))
@@ -59,7 +59,7 @@ public sealed class RestoredHullsTests
     // Shared tutorial-galaxy construction settings (Assets/Resources/Settings.asset's own values), factored out
     // so every test that needs a real tutorial Galaxy -- not just EntranceZoneAlwaysGetsADockedStationAcrossSeeds
     // -- builds it the same way instead of re-inlining the same ~20 fields.
-    private static ZoneGenerationSettings TutorialZoneSettings() => new ZoneGenerationSettings
+    internal static ZoneGenerationSettings TutorialZoneSettings() => new ZoneGenerationSettings
     {
         PlanetSafetyRadius = new ExponentialCurve { Exponent = .25f, Multiplier = 2.5f, Constant = 0 },
         MassFloor = 1, SunMass = 5000, GasGiantMass = 1000, PlanetMass = 100,
@@ -80,19 +80,19 @@ public sealed class RestoredHullsTests
         NameData = new string[0],
     };
 
-    private static TutorialGenerationSettings TutorialGalaxySettings() => new TutorialGenerationSettings
+    internal static TutorialGenerationSettings TutorialGalaxySettings() => new TutorialGenerationSettings
     {
         ProtagonistFaction = "Miss", AntagonistFaction = "Zhe", BufferFaction = "Luc",
         NeutralFactions = new[] { "Aero", "Finch" }, QuestFaction = "Adras", LinkDensity = .5f, ZoneCount = 64,
     };
 
-    private static SectorBackgroundSettings TutorialBackgroundSettings() => new SectorBackgroundSettings
+    internal static SectorBackgroundSettings TutorialBackgroundSettings() => new SectorBackgroundSettings
     {
         NoiseAmplitude = 1, NoiseOffset = .3f, NoiseGain = .7f, NoiseLacunarity = 2, NoiseFrequency = .1f,
         NoisePosition = 536.5106f, CloudExponent = 10, CloudAmplitude = .01f,
     };
 
-    private static NameGeneratorSettings TutorialNameSettings() =>
+    internal static NameGeneratorSettings TutorialNameSettings() =>
         new NameGeneratorSettings { NameGeneratorMinLength = 5, NameGeneratorMaxLength = 10, NameGeneratorOrder = 3 };
 
     // A station's orbit is a copy of its source planet's own (Parent, Distance) (ZoneGenerator.CreateLagrangeOrbit),

@@ -88,6 +88,11 @@ public abstract class Weapon : Behavior, IActivatedBehavior
     public float Spread { get; protected set; }
     public float Velocity { get; protected set; }
 
+    // Mining Cut 3 fix (Q12 A, "launchers cannot mine"): whether this weapon can mine a chunk. The one mining
+    // predicate: chunk reach (Entity.VisibleChunksInReach) reads it, and so does anything that decides a weapon
+    // may work a chunk. A launcher overrides it.
+    public virtual bool CanMine => true;
+
     protected bool _firing;
 
     public bool Firing
@@ -97,8 +102,9 @@ public abstract class Weapon : Behavior, IActivatedBehavior
 
     // Single shared fire gate for player and AI shooters alike: weapons are safed by the
     // shooter's OWN declared stance toward its target, not the target's stance toward the shooter.
-    // With no target set, behaviour is unchanged (nothing to be safe about).
-    public bool StanceAllowsFire => Entity.Target.Value == null || Entity.IsHostileTo(Entity.Target.Value);
+    // With no target set, behaviour is unchanged (nothing to be safe about). Mining Cut 3: a chunk has no stance,
+    // so a weapon is never safed against one.
+    public bool StanceAllowsFire => Entity.Target.Value.Entity == null || Entity.IsHostileTo(Entity.Target.Value.Entity);
 
     // Cut 3 (docs/fire-control-cut.md, Q2): player fire is arc-gated like everyone else's. This is the same
     // predicate (FireControl.InArc) Combat.cs and TurretController.cs gate AI and turret fire with, read at

@@ -253,7 +253,7 @@ public sealed class FireControlCut124Tests : IDisposable
         shooter.Position = float3(-53, 0, -101);
         target.Position = shooter.Position + float3(0, 0, targetRange);
         if (targetFacing != null) target.Direction = normalize(targetFacing.Value);
-        shooter.Target.Value = target;
+        shooter.SetTarget(target);
         shooter.EntityInfoGathered[target] = 1f;
         shooter.SetIff(target, true);
 
@@ -1176,7 +1176,7 @@ public sealed class FireControlCut124Tests : IDisposable
         var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: fuse, blastRadius: 4f, penetration: 1f, damage: 100f,
             weaponRange: NoLockRange);
         Aim(e, float2(2, 1));
-        e.Shooter.Target.Value = null;
+        e.Shooter.SetTarget(TargetRef.None);
         var burst = AimLine(e);
         var onLine = AddShip(e, burst, 1f, 300);
         var offLine = AddShip(e, burst + float3(-30, 0, 30), 1f, 302);
@@ -1201,7 +1201,7 @@ public sealed class FireControlCut124Tests : IDisposable
         var e = Build(TestSettings(), SolidShape(5, 4), velocity: 20f, fuse: WeaponFuse.Proximity, blastRadius: 4f, damage: 100f,
             weaponRange: NoLockRange);
         Aim(e, float2(2, 1));
-        e.Shooter.Target.Value = null;
+        e.Shooter.SetTarget(TargetRef.None);
 
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
 
@@ -1252,7 +1252,7 @@ public sealed class FireControlCut124Tests : IDisposable
     {
         var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: WeaponFuse.Proximity, blastRadius: 4f, damage: 100f,
             weaponRange: NoLockRange);
-        e.Shooter.Target.Value = null;
+        e.Shooter.SetTarget(TargetRef.None);
         Aim(e, float2(side, -1));
         var edge = float2(side * sin(radians(85f)), cos(radians(85f)));
         var onEdge = AddShip(e, PointAlong(e, edge, NoLockRange), 1f, 300);
@@ -1273,7 +1273,7 @@ public sealed class FireControlCut124Tests : IDisposable
     {
         var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: WeaponFuse.Proximity, blastRadius: 4f, damage: 100f,
             weaponRange: NoLockRange);
-        e.Shooter.Target.Value = null;
+        e.Shooter.SetTarget(TargetRef.None);
         var mount = float2(0, 1);
         var aim = normalize(float2(2, 1));
         var onAim = AddShip(e, PointAlong(e, aim, NoLockRange), 1f, 300);
@@ -1659,7 +1659,7 @@ public sealed class FireControlCut124Tests : IDisposable
     public void AContactRoundNeverStopsNearerThanItsArmingDistance()
     {
         var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: WeaponFuse.Contact, blastRadius: 4f, damage: 100f, weaponRange: NoLockRange);
-        e.Shooter.Target.Value = null;
+        e.Shooter.SetTarget(TargetRef.None);
         Aim(e, float2(0, 1));
         AddShip(e, PointAlong(e, float2(0, 1), 6f), 1f, 300);
         ShotOutcome outcome = null;
@@ -1682,7 +1682,7 @@ public sealed class FireControlCut124Tests : IDisposable
         var column = new Shape(1, 22);
         foreach (var y in new[] { 0, 1, 2, 18, 19, 20, 21 }) column[new int2(0, y)] = true;
         var e = Build(TestSettings(), column, velocity: 20f, fuse: WeaponFuse.Contact, blastRadius: 4f, damage: 100f, weaponRange: NoLockRange);
-        e.Shooter.Target.Value = null;
+        e.Shooter.SetTarget(TargetRef.None);
         Aim(e, float2(0, 1));
         var offset = e.Target.ToWorldPoint(float2(0, 2)) - e.Target.Position.xz;
         e.Target.Position = float3(e.Shooter.Position.x - offset.x, 0, e.Shooter.Position.z - offset.y);
@@ -1708,7 +1708,7 @@ public sealed class FireControlCut124Tests : IDisposable
     {
         var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: WeaponFuse.Proximity, blastRadius: 30f, damage: 100f,
             weaponRange: range, rangeTerm: starvedOfPower ? StatSource.PowerSupply : (StatSource?) null);
-        e.Shooter.Target.Value = null;
+        e.Shooter.SetTarget(TargetRef.None);
         Aim(e, float2(0, 1));
         if (starvedOfPower)
         {
@@ -1730,7 +1730,7 @@ public sealed class FireControlCut124Tests : IDisposable
     public void ARangeExactlyEqualToTheArmingDistanceFires()
     {
         var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: WeaponFuse.Proximity, blastRadius: 30f, damage: 100f, weaponRange: 30f);
-        e.Shooter.Target.Value = null;
+        e.Shooter.SetTarget(TargetRef.None);
         Aim(e, float2(0, 1));
 
         Assert.True(FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter) != 0, "a Range equal to the arming distance must fire");
@@ -1745,7 +1745,7 @@ public sealed class FireControlCut124Tests : IDisposable
     public void ARefusedRoundIsNotAnnounced(float range, int fired)
     {
         var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: WeaponFuse.Proximity, blastRadius: 30f, damage: 100f, weaponRange: range);
-        e.Shooter.Target.Value = null;
+        e.Shooter.SetTarget(TargetRef.None);
         Aim(e, float2(0, 1));
         var announced = 0;
         var committed = 0;
@@ -1918,7 +1918,7 @@ public sealed class FireControlCut124Tests : IDisposable
     {
         var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: fuse, blastRadius: 4f, penetration: 1f, damage: 100f,
             weaponRange: NoLockRange);
-        e.Shooter.Target.Value = null;
+        e.Shooter.SetTarget(TargetRef.None);
         Aim(e, float2(0, 1));
         var blocker = AddShip(e, PointAlong(e, float2(0, 1), 25f), 1f, 300);
         var atMaxRange = AddShip(e, PointAlong(e, float2(0, 1), NoLockRange), 1f, 302);
@@ -1944,7 +1944,7 @@ public sealed class FireControlCut124Tests : IDisposable
     {
         var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: WeaponFuse.Contact, blastRadius: 4f, damage: 100f,
             weaponRange: NoLockRange);
-        e.Shooter.Target.Value = null;
+        e.Shooter.SetTarget(TargetRef.None);
         Aim(e, float2(0, 1));
         var targetBefore = e.Target.Hull.Durability;
         var shooterHit = 0f;
@@ -1970,7 +1970,7 @@ public sealed class FireControlCut124Tests : IDisposable
     {
         var e = Build(TestSettings(), SolidShape(5, 4), velocity: 20f, fuse: WeaponFuse.Contact, blastRadius: 4f, damage: 100f,
             weaponRange: NoLockRange);
-        e.Shooter.Target.Value = null;
+        e.Shooter.SetTarget(TargetRef.None);
         Aim(e, float2(0, 1));
         var blocker = AddShip(e, PointAlong(e, float2(0, 1), 25f), 1f, 300);
         ShotOutcome outcome = null;
@@ -1999,7 +1999,7 @@ public sealed class FireControlCut124Tests : IDisposable
     {
         var e = Build(TestSettings(), SolidShape(5, 4), velocity: 20f, fuse: WeaponFuse.Proximity, blastRadius: 4f, damage: 100f,
             weaponRange: NoLockRange);
-        e.Shooter.Target.Value = null;
+        e.Shooter.SetTarget(TargetRef.None);
         Aim(e, float2(0, 1));
         var witness = AddShip(e, PointAlong(e, float2(0, 1), NoLockRange), 1f, 300);
 
@@ -2061,7 +2061,7 @@ public sealed class FireControlCut124Tests : IDisposable
     {
         var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: WeaponFuse.Proximity, blastRadius: 4f, damage: 100f,
             weaponRange: NoLockRange);
-        e.Shooter.Target.Value = null;
+        e.Shooter.SetTarget(TargetRef.None);
         Aim(e, float2(2, 1));
         ShotOutcome committed = null, resolved = null;
         using var c = e.Zone.ShotCommitted.Subscribe(o => committed = o);
@@ -2162,7 +2162,7 @@ public sealed class FireControlCut124Tests : IDisposable
     public void AContactRoundIgnoresAHullThatCrossesItsLineAfterFire()
     {
         var e = Build(TestSettings(), SolidShape(5, 4), velocity: 20f, fuse: WeaponFuse.Contact, blastRadius: 4f, damage: 100f, weaponRange: 60f);
-        e.Shooter.Target.Value = null;
+        e.Shooter.SetTarget(TargetRef.None);
         Aim(e, float2(0, 1));
         var blocker = AddShip(e, PointAlong(e, float2(0, 1), 25f) + float3(300, 0, 0), 1f, 300);
         ShotOutcome committed = null;
@@ -2183,7 +2183,7 @@ public sealed class FireControlCut124Tests : IDisposable
     public void AContactRoundStillBurstsAtAHullThatLeavesItsLineAfterFire()
     {
         var e = Build(TestSettings(), SolidShape(5, 4), velocity: 20f, fuse: WeaponFuse.Contact, blastRadius: 4f, damage: 100f, weaponRange: 60f);
-        e.Shooter.Target.Value = null;
+        e.Shooter.SetTarget(TargetRef.None);
         Aim(e, float2(0, 1));
         var blocker = AddShip(e, PointAlong(e, float2(0, 1), 25f), 1f, 300);
         var atMaxRange = AddShip(e, PointAlong(e, float2(0, 1), 60f), 1f, 302);
@@ -2209,7 +2209,7 @@ public sealed class FireControlCut124Tests : IDisposable
     public void AShooterMovingAfterFireDoesNotMoveTheContactPoint(bool withBlocker)
     {
         var e = Build(TestSettings(), SolidShape(5, 4), velocity: 20f, fuse: WeaponFuse.Contact, blastRadius: 4f, damage: 100f, weaponRange: 60f);
-        e.Shooter.Target.Value = null;
+        e.Shooter.SetTarget(TargetRef.None);
         Aim(e, float2(0, 1));
         var origin = e.Shooter.Position;
         if (withBlocker) AddShip(e, PointAlong(e, float2(0, 1), 25f), 1f, 300);
@@ -2230,7 +2230,7 @@ public sealed class FireControlCut124Tests : IDisposable
     public void AContactRoundIgnoresAHullBehindTheMuzzle()
     {
         var e = Build(TestSettings(), SolidShape(5, 4), velocity: 20f, fuse: WeaponFuse.Contact, blastRadius: 4f, damage: 100f, weaponRange: 60f);
-        e.Shooter.Target.Value = null;
+        e.Shooter.SetTarget(TargetRef.None);
         Aim(e, float2(0, 1));
         AddShip(e, PointAlong(e, float2(0, -1), 25f), 1f, 300);
         ShotOutcome committed = null;
@@ -2294,7 +2294,7 @@ public sealed class FireControlCut124Tests : IDisposable
     public void ANoLockRoundStillBurstsAfterItsShooterIsDestroyed(WeaponFuse fuse)
     {
         var e = Build(TestSettings(), SolidShape(5, 4), velocity: 20f, fuse: fuse, blastRadius: 4f, damage: 100f, weaponRange: 60f);
-        e.Shooter.Target.Value = null;
+        e.Shooter.SetTarget(TargetRef.None);
         Aim(e, float2(0, 1));
         var witness = AddShip(e, PointAlong(e, float2(0, 1), 60f), 1f, 300);
         var resolved = new List<ShotOutcome>();

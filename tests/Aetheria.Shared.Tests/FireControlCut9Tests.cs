@@ -333,7 +333,7 @@ public sealed class FireControlCut9Tests : IDisposable
 
         shooter.Position = float3.zero;
         target.Position = float3(0, 0, 100);
-        shooter.Target.Value = target;
+        shooter.SetTarget(target);
         shooter.SetIff(target, true);
         shooter.EntityInfoGathered[target] = 1f; // full reveal: pSensor = 1
 
@@ -561,7 +561,7 @@ public sealed class FireControlCut9Tests : IDisposable
         locker.Position = float3.zero;
         bystander.Position = float3(0, 0, 100);
         locker.LookDirection = float3(0, 0, 1);
-        locker.Target.Value = bystander;
+        locker.SetTarget(bystander);
         locker.EntityInfoGathered[bystander] = 1f;
         locker.SetIff(bystander, true);
 
@@ -596,7 +596,7 @@ public sealed class FireControlCut9Tests : IDisposable
         // Assert.Null(entity) would hand a live Entity into xUnit's reflection-based failure formatter,
         // which recurses through Zone -> Entities -> Ship -> Zone forever; a plain boolean with its own
         // message sidesteps that entirely.
-        Assert.True(s.Locker.Target.Value == null, "the invariant: an active entity's Target is always a live entity it has info on -- a stale reference to the departed Bystander survived Activate's reconciliation");
+        Assert.True(s.Locker.Target.Value.IsNone, "the invariant: an active entity's Target is always a live entity it has info on -- a stale reference to the departed Bystander survived Activate's reconciliation");
 
         var ex = Record.Exception(() => s.Locker.Update(.1f));
         Assert.Null(ex);

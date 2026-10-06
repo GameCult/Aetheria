@@ -72,18 +72,26 @@ public static class FireControl
     // (Fire; operator ruling 2026-09-30, "the user is hoping that the arc gets the weapon close enough to still
     // splash some damage"). A weapon that only hits what it fires at still refuses. Fire reads InArc itself to
     // choose that flight, so the two share the one bearing test and differ only in this exemption.
+    // Mining Cut 3: a chunk target bears through its own position, on the plane the bearing test reads.
     public static bool ArcPermitsFire(Weapon weapon, Entity shooter)
     {
         var target = shooter.Target.Value;
-        if (target == null) return true;
-        return FuseOf(weapon.Item, out _) != null || InArc(weapon.Item, target.Position - shooter.Position);
+        if (target.IsNone) return true;
+        float3 toTarget;
+        if (target.Chunk is ChunkId chunk)
+        {
+            var at = shooter.Zone.ChunkPose(chunk.Field, chunk.Index).xy;
+            toTarget = float3(at.x, 0, at.y) - shooter.Position;
+        }
+        else toTarget = target.Entity.Position - shooter.Position;
+        return FuseOf(weapon.Item, out _) != null || InArc(weapon.Item, toTarget);
     }
 
     // Whether the shooter's next round from this weapon is refused: the weapons ask before they spend anything, so
     // a refused round costs no ammo, energy, sound, heat, wear or visibility (operator ruling 2026-09-30). The
     // answer is Solve's own -- there is no second copy of the arming test.
     public static bool Refuses(Weapon weapon, Entity shooter) =>
-        Solve(weapon, weapon.Item, shooter, shooter.Target.Value).Outcome == FireOutcome.Refused;
+        Solve(weapon, weapon.Item, shooter, shooter.Target.Value.Entity).Outcome == FireOutcome.Refused;
 
     // The agents' trigger decision (Combat, TurretController), one weapon at a time (operator ruling 2026-09-30).
     // A weapon that fires at what it hits fires when the shot is worth taking. A fused weapon fires whenever its
@@ -522,7 +530,8 @@ public static class FireControl
     public static int Fire(Weapon weapon, EquippedItem item, Entity source, float? damageOverride = null)
     {
         var zone = source.Zone;
-        var target = source.Target.Value;
+        // Mining Cut 3: a chunk target fires as an untargeted round until Cut 4 routes shots at chunks.
+        var target = source.Target.Value.Entity;
         var now = zone.Time;
 
         // R1's engage gate and the shooter-side probability, evaluated now and frozen: nothing at commit time

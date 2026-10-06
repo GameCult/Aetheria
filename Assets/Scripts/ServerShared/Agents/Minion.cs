@@ -11,13 +11,13 @@ public class Minion : Agent
             () => Task is PatrolOrbitsTask,
             () => patrolState.Task = Task as PatrolOrbitsTask);
 
-        Ship.VisibleEnemies.ObserveAdd().Where(_ => Ship.Target.Value == null).Subscribe(add => Ship.Target.Value = add.Value);
+        Ship.VisibleEnemies.ObserveAdd().Where(_ => Ship.Target.Value.IsNone).Subscribe(add => Ship.SetTarget(add.Value));
 
         var combatState = new CombatState(this);
         _rootState.AddTransition(combatState,
-            () => Ship.Target.Value != null, null, true, _rootState);
+            () => Ship.Target.Value.Entity != null, null, true, _rootState);
         
         combatState.AddTransition(_rootState,
-            () => Ship.Target.Value == null, null, true, _rootState);
+            () => Ship.Target.Value.Entity == null, null, true, _rootState);
     }
 }

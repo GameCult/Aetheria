@@ -145,7 +145,7 @@ public sealed class FireControlCut8Tests : IDisposable
 
         shooter.Position = float3.zero;
         target.Position = float3(0, 0, 100);
-        shooter.Target.Value = target;
+        shooter.SetTarget(target);
         shooter.EntityInfoGathered[target] = 1f;
         shooter.SetIff(target, true);
 
@@ -225,7 +225,7 @@ public sealed class FireControlCut8Tests : IDisposable
         locker.Position = float3.zero;
         bystander.Position = float3(0, 0, 100);
         locker.LookDirection = float3(0, 0, 1);
-        locker.Target.Value = bystander;
+        locker.SetTarget(bystander);
         locker.EntityInfoGathered[bystander] = 1f;
         locker.SetIff(bystander, true);
 
@@ -247,7 +247,7 @@ public sealed class FireControlCut8Tests : IDisposable
     public void DeadEntityDoesNotUpdate()
     {
         var e = Build(TestSettings());
-        e.Target.Target.Value = e.Shooter; // give the target its own TargetRange to freeze
+        e.Target.SetTarget(e.Shooter); // give the target its own TargetRange to freeze
         e.Zone.Update(.1f);
         var rangeBeforeDeath = e.Target.TargetRange;
 
@@ -274,7 +274,7 @@ public sealed class FireControlCut8Tests : IDisposable
         s.Locker.Deactivate();
         Assert.False(s.Locker.Active);
         Assert.DoesNotContain(s.Bystander, s.Locker.EntityInfoGathered.Keys);
-        Assert.Equal(s.Bystander, s.Locker.Target.Value); // Deactivate does not null the entity's own Target
+        Assert.Same(s.Bystander, s.Locker.Target.Value.Entity); // Deactivate does not null the entity's own Target
 
         var ex = Record.Exception(() => s.Locker.Update(.1f));
         Assert.Null(ex);

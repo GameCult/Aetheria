@@ -81,7 +81,7 @@ public class Ship : Entity
 
     public void EnterWormhole(float2 wormholePosition)
     {
-        Target.Value = null;
+        SetTarget(TargetRef.None);
         _wormholeAnimationProgress = 0;
         _enteringWormhole = true;
         _wormholeEntryPosition = Position.xz;

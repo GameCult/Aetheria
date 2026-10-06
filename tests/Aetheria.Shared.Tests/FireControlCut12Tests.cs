@@ -279,7 +279,7 @@ public sealed class FireControlCut12Tests : IDisposable
         shooter.Position = float3(37, 0, -11);
         target.Position = float3(37, 0, 89); // 100 units straight ahead of the shooter
         if (targetFacing != null) target.Direction = targetFacing.Value;
-        shooter.Target.Value = target;
+        shooter.SetTarget(target);
         shooter.EntityInfoGathered[target] = 1f;
         shooter.SetIff(target, true);
         if (equipShield)
@@ -390,7 +390,7 @@ public sealed class FireControlCut12Tests : IDisposable
 
         // No target: Fire's own null-target branch must use the fallback directly, not call TravelDirection
         // (which reads target.Position and would NRE).
-        e.Shooter.Target.Value = null;
+        e.Shooter.SetTarget(TargetRef.None);
         var noTargetId = FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
         var noTarget = e.Zone.PendingShots.Single(s => s.ShotId == noTargetId);
         Assert.Equal(0f, noTarget.TravelDirection.x);

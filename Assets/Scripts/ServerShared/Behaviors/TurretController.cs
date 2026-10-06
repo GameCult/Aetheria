@@ -57,16 +57,18 @@ public class TurretController : Behavior, IInitializableBehavior
 
     public override bool Execute(float dt)
     {
-        if (Entity.Target.Value != null)
+        // Mining Cut 3: a turret engages entities only; it never picks a chunk, and reads one as no target.
+        var target = Entity.Target.Value.Entity;
+        if (target != null)
         {
-            var diff = Entity.Target.Value.Position - Entity.Position;
+            var diff = target.Position - Entity.Position;
             if (_predictShots)
             {
-                var targetHullData = Entity.ItemManager.GetData(Entity.Target.Value.Hull) as HullData;
-                var targetVelocity = float3(Entity.Target.Value.Velocity.x, 0, Entity.Target.Value.Velocity.y);
+                var targetHullData = Entity.ItemManager.GetData(target.Hull) as HullData;
+                var targetVelocity = float3(target.Velocity.x, 0, target.Velocity.y);
                 var predictedPosition = first_order_intercept(
                     Entity.Position, float3.zero, _shotSpeed,
-                    Entity.Target.Value.Position, targetVelocity
+                    target.Position, targetVelocity
                 );
                 predictedPosition.y = Entity.Zone.GetHeight(predictedPosition.xz) + targetHullData.GridOffset;
                 Entity.LookDirection = normalize(predictedPosition - Entity.Position);
@@ -78,7 +80,7 @@ public class TurretController : Behavior, IInitializableBehavior
             {
                 // The same per-weapon decision Combat.cs makes; the range test is part of it (a shot out of range
                 // is not designated and prices at zero).
-                if (FireControl.AgentFires(x, Entity, Entity.Target.Value))
+                if (FireControl.AgentFires(x, Entity, target))
                 {
                     x.Activate();
                 }
@@ -93,7 +95,7 @@ public class TurretController : Behavior, IInitializableBehavior
                 if (x.Firing)
                     x.Deactivate();
             }
-            Entity.Target.Value = Entity.VisibleEnemies.FirstOrDefault(e => e is Ship);
+            Entity.SetTarget(Entity.VisibleEnemies.FirstOrDefault(e => e is Ship));
         }
         return true;
     }

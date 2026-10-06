@@ -43,7 +43,10 @@ public abstract class Entity
 
     public Entity Parent;
     public List<Entity> Children = new List<Entity>();
-    public ReactiveProperty<Entity> Target = new ReactiveProperty<Entity>((Entity)null);
+    // Mining Cut 3 (docs/mining-cut-refresh.md): the one target slot -- an entity, a chunk, or none. Read-only from
+    // outside: SetTarget is its one writer, for the player's handlers and the agents alike.
+    private readonly ReactiveProperty<TargetRef> _target = new ReactiveProperty<TargetRef>(TargetRef.None);
+    public IReadOnlyReactiveProperty<TargetRef> Target => _target;
 
     // Cut 2 (docs/fire-control-cut.md): the stored aim-point slot. Written only by TrySelectTargetItem
     // below, and nulled whenever Target changes (subscribed in Activate). Do not read this field directly
@@ -198,7 +201,7 @@ public abstract class Entity
         }));
         _subscriptions.Add(Zone.Entities.ObserveRemove().Subscribe(remove =>
         {
-            if (Target.Value == remove.Value) Target.Value = null;
+            if (Target.Value.Entity == remove.Value) SetTarget(TargetRef.None);
             EntityInfoGathered.Remove(remove.Value);
             EntityHostility.Remove(remove.Value);
             VisibleEntities.Remove(remove.Value);
@@ -226,13 +229,14 @@ public abstract class Entity
         _subscriptions.Add(_iffOverrides.ObserveRemove().Subscribe(remove => RefreshHostilityFromOverride(remove.Key)));
         _subscriptions.Add(VisibleEnemies.ObserveRemove().Subscribe(remove =>
         {
-            if (Target.Value == remove.Value) Target.Value = null;
+            if (Target.Value.Entity == remove.Value) SetTarget(TargetRef.None);
         }));
-        _subscriptions.Add(Target.Subscribe(entity => entity?.TargetedBy.OnNext(this)));
+        // Only an entity is ever targeted by: a chunk has no one to tell.
+        _subscriptions.Add(Target.Subscribe(target => target.Entity?.TargetedBy.OnNext(this)));
         _subscriptions.Add(TargetedBy.Subscribe(enemy =>
         {
             TargetedByCount.Value++;
-            enemy.Target.Where(t => t != this).Take(1).Subscribe(_ => TargetedByCount.Value--);
+            enemy.Target.Where(t => t.Entity != this).Take(1).Subscribe(_ => TargetedByCount.Value--);
         }));
         
         // 
@@ -297,8 +301,11 @@ public abstract class Entity
         // Deactivate nulling Target outright, because nulling on every dock would throw away a target
         // that is still alive and simply never changed while docked -- the common case, and not the one
         // that crashed.
-        if (Target.Value != null && !EntityInfoGathered.ContainsKey(Target.Value))
-            Target.Value = null;
+        // Mining Cut 3: a chunk target is held to the same "still tracked" test through the chunk path -- kept
+        // while this entity can see it, dropped once it cannot (a broken chunk is dark, so it is dropped too).
+        if (Target.Value.Entity != null && !EntityInfoGathered.ContainsKey(Target.Value.Entity) ||
+            Target.Value.Chunk is ChunkId heldChunk && !ChunkVisible(heldChunk))
+            SetTarget(TargetRef.None);
 
         if(WeaponGroups.All(wg=>!wg.items.Any()))
             GenerateWeaponGroups();
@@ -316,7 +323,8 @@ public abstract class Entity
             return true;
         }
 
-        if (Target.Value == null || item.Entity != Target.Value || !FireControl.IsRevealed(this, item))
+        // Mining Cut 3: entity-only. A chunk has no items, so an item never belongs to a chunk target.
+        if (Target.Value.Entity == null || item.Entity != Target.Value.Entity || !FireControl.IsRevealed(this, item))
             return false;
 
         TargetItem.Value = item;
@@ -327,9 +335,268 @@ public abstract class Entity
     // revealed to this entity, or no longer belongs to the current Target, even though nothing wrote
     // TargetItem.Value at the moment that became true. Re-checked on every call; never cached.
     public EquippedItem ResolvedTargetItem =>
-        TargetItem.Value != null && Target.Value == TargetItem.Value.Entity && FireControl.IsRevealed(this, TargetItem.Value)
+        TargetItem.Value != null && Target.Value.Entity == TargetItem.Value.Entity && FireControl.IsRevealed(this, TargetItem.Value)
             ? TargetItem.Value
             : null;
+
+    // Mining Cut 3 (docs/mining-cut-refresh.md): the one writer of Target, called by the player's handlers and the
+    // agents alike. A chunk is taken only while this entity can see it, so a rock in darkness cannot be picked; an
+    // entity is written as given, as every handler wrote it before. Returns whether the write took effect.
+    public bool SetTarget(TargetRef target)
+    {
+        if (target.Chunk is ChunkId chunk && !ChunkVisible(chunk)) return false;
+        _target.Value = target;
+        return true;
+    }
+
+    // Mining Cut 3 (Q14 A): this entity's info on a chunk, computed when asked and stored nowhere. It is the value
+    // the per-tick sensor rule (Sensor.Execute, through Sensor.Gain) would settle at for a target this bright,
+    // here, now. Each active sensor applies x <- saturate(x + G_i dt)(1 - k dt) every tick, so with n sensors the
+    // info settles where the gain balances the decay: sum(G_i) / (n k), capped at 1. A ping adds nothing that
+    // lasts, so only the passive gain enters.
+    public float ChunkInfo(ChunkId chunk)
+    {
+        var visibility = Zone.ChunkVisibility(chunk);
+        if (visibility <= 0f) return 0f;
+        var position = Zone.ChunkPose(chunk.Field, chunk.Index).xy;
+        var rate = 0f;
+        var sensors = 0;
+        foreach (var sensor in ActiveSensors())
+        {
+            rate += sensor.PassiveRate(visibility, position);
+            sensors++;
+        }
+        return sensors == 0 ? 0f : saturate(rate / (sensors * ItemManager.GameplaySettings.TargetInfoDecay));
+    }
+
+    // Mining Cut 3: the detection threshold, read through the chunk path. A chunk is visible exactly as an entity
+    // enters VisibleEntities: its info exceeds TargetDetectionInfoThreshold.
+    public bool ChunkVisible(ChunkId chunk) => ChunkInfo(chunk) > ItemManager.GameplaySettings.TargetDetectionInfoThreshold;
+
+    // Mining Cut 3 (Q13 A): the reach for picking a chunk -- the longest range among this entity's active weapons
+    // that can mine (Weapon.CanMine, Q12 A). Every visible chunk within it, written into `into` (cleared first), by
+    // index then field. Cycling and any programmatic chunk pick read this, so there is one reach rule. The zone's
+    // targeting index proposes the chunks that could pass (no observer, so no entities); ChunkVisible decides.
+    public void VisibleChunksInReach(List<ChunkId> into)
+    {
+        into.Clear();
+        Zone.Targets.Within(MiningSearch(), _targetCandidates);
+        foreach (var candidate in _targetCandidates)
+            if (candidate.Target.Chunk is ChunkId chunk && ChunkVisible(chunk))
+                into.Add(chunk);
+        into.Sort(ByIndexThenField);
+    }
+
+    // The one search every chunk question asks the zone's targeting index: from here, as far as the longest range
+    // among this entity's active weapons that can mine (Q13 A; Weapon.CanMine, Q12 A), bounded by what its sensors
+    // could detect.
+    private TargetSearch MiningSearch()
+    {
+        var reach = 0f;
+        foreach (var weapon in _weapons)
+            if (weapon.CanMine && (weapon.Item == null || weapon.Item.Active.Value))
+                reach = max(reach, weapon.Range);
+        return new TargetSearch(Position.xz, reach, reachPerVisibility: DetectionReachPerVisibility());
+    }
+
+    // Mining target-queries cut: which target a press of reticle, next, previous or nearest picks. Each is one
+    // best-first question to the index (no candidate list is built, sorted or kept), answered through SetTarget, the
+    // one writer. Candidates are visible ships at any range and visible chunks within mining reach.
+
+    // The candidate nearest the look direction by planar angle; picking the held target again clears it.
+    public bool TargetUnderReticle()
+    {
+        var look = float2(LookDirection.x, LookDirection.z);
+        if (!PickTarget(new AngleKey(this, Position.xz, look), out var picked)) return false;
+        return SetTarget(Target.Value.Equals(picked) ? TargetRef.None : picked);
+    }
+
+    // Enemies only, as it drives weapon lock; the nearest by distance.
+    public bool TargetNearestEnemy()
+    {
+        Entity nearest = null;
+        var nearestDistance = float.PositiveInfinity;
+        foreach (var enemy in VisibleEnemies)
+        {
+            if (enemy == this) continue;
+            var distance = length(enemy.Position - Position);
+            if (distance < nearestDistance)
+            {
+                nearest = enemy;
+                nearestDistance = distance;
+            }
+        }
+        return nearest != null && SetTarget(nearest);
+    }
+
+    // The next candidate after the current target by (planar distance, TargetRef), wrapping to the nearest; with
+    // nothing targeted, the nearest.
+    public bool TargetNext() => CycleTarget(false);
+
+    // The reverse: the next one nearer, wrapping to the farthest; with nothing targeted, the farthest.
+    public bool TargetPrevious() => CycleTarget(true);
+
+    private bool CycleTarget(bool reverse)
+    {
+        var origin = Position.xz;
+        var current = Target.Value;
+        TargetRef picked = default;
+        var found = !current.IsNone &&
+            PickTarget(new DistanceKey(this, origin, reverse, true, DistanceFrom(origin, current), current), out picked);
+        if (!found && !PickTarget(new DistanceKey(this, origin, reverse, false, 0f, default), out picked)) return false;
+        return SetTarget(picked);
+    }
+
+    private float DistanceFrom(float2 origin, TargetRef target) =>
+        length((target.Chunk is ChunkId chunk ? Zone.ChunkPose(chunk.Field, chunk.Index).xy : target.Entity.Position.xz) - origin);
+
+    // The least-key eligible candidate: the best visible ship, and the index's best chunk within mining reach. Ships
+    // are not bounded by reach, so they are read from VisibleEntities (the ships this entity sees); the belt's size
+    // never enters.
+    private bool PickTarget<TKey>(TKey query, out TargetRef picked) where TKey : ITargetKey
+    {
+        var best = default(TargetCandidate);
+        var bestKey = float.PositiveInfinity;
+        var found = false;
+        foreach (var entity in VisibleEntities)
+            Consider(query, new TargetCandidate(entity, entity.Position.xz), ref found, ref best, ref bestKey);
+        if (Zone.Targets.Best(MiningSearch(), query, out var chunk))
+            Consider(query, chunk, ref found, ref best, ref bestKey);
+        picked = found ? best.Target : TargetRef.None;
+        return found;
+    }
+
+    private static void Consider<TKey>(TKey query, in TargetCandidate candidate, ref bool found, ref TargetCandidate best, ref float bestKey)
+        where TKey : ITargetKey
+    {
+        if (!query.Key(candidate, out var key)) return;
+        if (found && !(key < bestKey || key == bestKey && query.Precedes(candidate, best))) return;
+        best = candidate;
+        bestKey = key;
+        found = true;
+    }
+
+    // What a press may pick: another ship, or a chunk this entity can see. Reach is the index's to apply.
+    private bool Eligible(in TargetCandidate candidate) =>
+        candidate.Target.Chunk is ChunkId chunk ? ChunkVisible(chunk) : candidate.Target.Entity != this;
+
+    // Entities come before chunks; entities by their place in the zone, chunks by field key then index.
+    private static int Order(TargetRef a, TargetRef b)
+    {
+        if (a.Chunk is ChunkId ca)
+        {
+            if (!(b.Chunk is ChunkId cb)) return 1;
+            var byField = string.CompareOrdinal(ca.Field.Value, cb.Field.Value);
+            return byField != 0 ? byField : ca.Index.CompareTo(cb.Index);
+        }
+        if (b.Chunk.HasValue) return -1;
+        var entities = a.Entity.Zone.Entities;
+        return entities.IndexOf(a.Entity).CompareTo(entities.IndexOf(b.Entity));
+    }
+
+    // The planar angle from the look direction to the candidate. A region's least angle is its bearing interval's
+    // distance from the look direction.
+    private readonly struct AngleKey : ITargetKey
+    {
+        private readonly Entity _self;
+        private readonly float2 _origin, _look;
+
+        public AngleKey(Entity self, float2 origin, float2 look)
+        {
+            _self = self;
+            _origin = origin;
+            _look = look;
+        }
+
+        public float Bound(in TargetRegion region)
+        {
+            var off = abs(atan2(_look.y, _look.x) - region.BearingCentre);
+            off = min(off, 2 * PI - off);
+            // Slack covers float rounding in the bearings; it only ever lowers the bound.
+            return max(0f, off - region.BearingHalfWidth - 1e-4f);
+        }
+
+        public bool Key(in TargetCandidate candidate, out float key)
+        {
+            var to = candidate.Position - _origin;
+            key = abs(atan2(_look.x * to.y - _look.y * to.x, dot(_look, to)));
+            return _self.Eligible(candidate);
+        }
+
+        public bool Precedes(in TargetCandidate a, in TargetCandidate b) => Order(a.Target, b.Target) < 0;
+    }
+
+    // Planar distance from the ship, nearest first, or farthest first when reversed. With a pivot only candidates
+    // strictly after it by (distance, TargetRef) are eligible, so cycling is a total, stable order.
+    private readonly struct DistanceKey : ITargetKey
+    {
+        private readonly Entity _self;
+        private readonly float2 _origin;
+        private readonly bool _reverse, _hasPivot;
+        private readonly float _pivotDistance;
+        private readonly TargetRef _pivot;
+
+        public DistanceKey(Entity self, float2 origin, bool reverse, bool hasPivot, float pivotDistance, TargetRef pivot)
+        {
+            _self = self;
+            _origin = origin;
+            _reverse = reverse;
+            _hasPivot = hasPivot;
+            _pivotDistance = pivotDistance;
+            _pivot = pivot;
+        }
+
+        public float Bound(in TargetRegion region)
+        {
+            if (_hasPivot && (_reverse ? region.Nearest > _pivotDistance : region.Farthest < _pivotDistance))
+                return float.PositiveInfinity;
+            return _reverse ? -region.Farthest : region.Nearest;
+        }
+
+        public bool Key(in TargetCandidate candidate, out float key)
+        {
+            var distance = length(candidate.Position - _origin);
+            key = _reverse ? -distance : distance;
+            if (!_self.Eligible(candidate)) return false;
+            if (!_hasPivot) return true;
+            var order = Order(candidate.Target, _pivot);
+            return _reverse
+                ? distance < _pivotDistance || distance == _pivotDistance && order < 0
+                : distance > _pivotDistance || distance == _pivotDistance && order > 0;
+        }
+
+        public bool Precedes(in TargetCandidate a, in TargetCandidate b) =>
+            _reverse ? Order(a.Target, b.Target) > 0 : Order(a.Target, b.Target) < 0;
+    }
+
+    private readonly List<TargetCandidate> _targetCandidates = new List<TargetCandidate>();
+    private static readonly Comparison<ChunkId> ByIndexThenField = (a, b) =>
+        a.Index != b.Index ? a.Index.CompareTo(b.Index) : a.Field.GetHashCode().CompareTo(b.Field.GetHashCode());
+
+    // The planar distance per unit of visibility beyond which no target can pass ChunkVisible's threshold: an upper
+    // bound, never a decision. ChunkInfo is saturate(sum_i v s_i c_i(angle) / d / (n k)), linear in v and falling as
+    // 1/d, and a Bezier curve lies within the hull of its control points, so each sensor's s_i c_i is bounded by
+    // Sensor.PassiveGainBound. Zero with no active sensor (nothing is visible); infinity when the threshold is not
+    // positive. Slack covers float rounding and only ever widens it.
+    public float DetectionReachPerVisibility()
+    {
+        var gain = 0f;
+        var sensors = 0;
+        foreach (var sensor in ActiveSensors())
+        {
+            gain += sensor.PassiveGainBound();
+            sensors++;
+        }
+        if (sensors == 0) return 0f;
+        var threshold = ItemManager.GameplaySettings.TargetDetectionInfoThreshold;
+        if (!(threshold > 0f)) return float.PositiveInfinity;
+        return max(gain, 0f) / (sensors * ItemManager.GameplaySettings.TargetInfoDecay * threshold) * 1.0001f;
+    }
+
+    // Every sensor behaviour that runs this tick: those on active equipment, and those of active consumables.
+    private IEnumerable<Sensor> ActiveSensors() =>
+        Equipment.Where(item => item.Active.Value).SelectMany(item => item.Behaviors).OfType<Sensor>()
+            .Concat(_activeConsumables.SelectMany(effect => effect.Behaviors).OfType<Sensor>());
 
     // Cut 12.3 (docs/fire-control-cut.md): "armour absorbs first" -- the per-cell armour phase, split out of
     // what used to be Absorb's own first half (moved verbatim from DamageSchematic's per-cell body, Cut 3) so
@@ -1078,7 +1345,12 @@ public abstract class Entity
 
         var hullData = ItemManager.GetData(Hull) as HullData;
 
-        TargetRange = Target.Value == null ? -1 : length(Position - Target.Value.Position);
+        // Mining Cut 3: a chunk target is lost the moment this entity can no longer see it -- the lost-track rule
+        // through the chunk path. One check of the one slot per tick, not a detection loop over chunks.
+        if (Target.Value.Chunk is ChunkId trackedChunk && !ChunkVisible(trackedChunk)) SetTarget(TargetRef.None);
+        TargetRange = Target.Value.Chunk is ChunkId rangedChunk
+            ? length(Position.xz - Zone.ChunkPose(rangedChunk.Field, rangedChunk.Index).xy)
+            : Target.Value.Entity == null ? -1 : length(Position - Target.Value.Entity.Position);
 
         var localSecurityLevel = Zone.GetSecurityLevel(Position.xz);
         if (CurrentSecurityLevel.Value != localSecurityLevel) CurrentSecurityLevel.Value = localSecurityLevel;

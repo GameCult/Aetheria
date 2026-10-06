@@ -153,40 +153,57 @@ public class Sensor : Behavior, IEventBehavior, IPowerConsumer
 
         _pingCooldown -= dt / Evaluate(_data.PingCooldown);
         
-        // TODO: Handle Active Detection / Visibility From Reflected Radiance
         var forward = Direction.xz;
         foreach (var entity in Entity.Zone.Entities)
         {
             if (entity == Entity) continue;
-            
+
             var diff = entity.Position.xz - Entity.Position.xz;
-            var angle = acos(dot(forward, normalize(diff)));
             var dist = length(diff);
             float previous, next;
             Entity.EntityInfoGathered.TryGetValue(entity, out previous);
             if (!_pingedEntities.Contains(entity) && dist < _pingRadius)
             {
                 _pingedEntities.Add(entity);
-                next = saturate(
-                    previous +
-                    entity.Visibility *
-                    Evaluate(_data.Sensitivity) *
-                    Evaluate(_data.PingBoost) *
-                    dist);
+                next = saturate(previous + Gain(entity.Visibility, Evaluate(_data.Sensitivity), Evaluate(_data.PingBoost), dist, dt, true));
             }
             else
             {
-                next = saturate(
-                    previous +
-                    entity.Visibility *
-                    Evaluate(_data.Sensitivity) *
-                    _data.SensitivityCurve.Evaluate(angle / PI) *
-                    dt / dist);
+                var angle = acos(dot(forward, normalize(diff)));
+                next = saturate(previous + Gain(entity.Visibility, Evaluate(_data.Sensitivity), _data.SensitivityCurve.Evaluate(angle / PI), dist, dt, false));
             }
             next *= 1 - ItemManager.GameplaySettings.TargetInfoDecay * dt;
             //Context.Log($"{entity.Name} visibility {(int)(previous * 100)}% -> {(int)(next * 100)}%");
             Entity.EntityInfoGathered[entity] = next;
         }
         return true;
+    }
+
+    // Mining Cut 3 (docs/mining-cut-refresh.md): the one detection gain rule -- the info one observation of a
+    // target adds. A ping adds `visibility × sensitivity × PingBoost × distance` once; a passive tick adds
+    // `visibility × sensitivity × curve(angle/π) × dt / distance`. `response` is PingBoost for a ping and the
+    // sensitivity curve at the bearing for a passive tick. The entity loop above and the chunk query
+    // (Entity.ChunkInfo, through PassiveRate) both call this; nothing else multiplies these terms.
+    public static float Gain(float visibility, float sensitivity, float response, float distance, float dt, bool ping) =>
+        ping
+            ? visibility * sensitivity * response * distance
+            : visibility * sensitivity * response * dt / distance;
+
+    // The passive gain per second this sensor draws from a target of `visibility` at the planar `position`:
+    // Gain over one second, with the bearing measured from this sensor's own facing exactly as Execute does.
+    public float PassiveRate(float visibility, float2 position)
+    {
+        var diff = position - Entity.Position.xz;
+        var angle = acos(dot(Direction.xz, normalize(diff)));
+        return Gain(visibility, Evaluate(_data.Sensitivity), _data.SensitivityCurve.Evaluate(angle / PI), length(diff), 1f, false);
+    }
+
+    // An upper bound on sensitivity x response over every bearing, so PassiveRate(v, p) <= v x this / distance
+    // (Entity.DetectionReachPerVisibility). The curve lies within its control points' hull.
+    public float PassiveGainBound()
+    {
+        var sensitivity = Evaluate(_data.Sensitivity);
+        var response = _data.SensitivityCurve.HullRange();
+        return max(sensitivity * response.x, sensitivity * response.y);
     }
 }

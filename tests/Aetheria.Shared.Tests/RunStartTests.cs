@@ -332,59 +332,6 @@ public sealed partial class RunStartTests : IDisposable
         Assert.True(stalls.Count == 0, $"{stalls.Count} readings of an orbit standing still; first {stalls.FirstOrDefault()}");
     }
 
-    // A belt's asteroids are laid out for one time: the time of the tick that started the belt's task. Were the
-    // clock advanced before that task finished, some asteroids would be placed for the next tick and some for this.
-    [Fact]
-    public void EveryAsteroidInABeltIsPlacedForTheSameTime()
-    {
-        var zone = Arena(false); // no ships: nothing but the zone runs
-        var (key, belt) = zone.AsteroidBelts.First();
-        var asteroids = ((AsteroidBeltData) zone.Planets[key]).Asteroids;
-        const float dt = .02f;
-        float2 At(Asteroid asteroid, float time, float2 center) =>
-            OrbitData.Evaluate((float) frac((double) time / zone.Settings.OrbitPeriod.Evaluate(asteroid.Distance) + asteroid.Phase)) * asteroid.Distance + center;
-        var torn = 0;
-        zone.Update(dt);
-        for (var tick = 0; tick < 3000; tick++)
-        {
-            var started = zone.Time; // the time the running task was started for
-            zone.Update(dt);        // settles that task and publishes its layout
-            for (var i = 0; i < asteroids.Length; i++)
-            {
-                var placed = belt.Transforms[i].xy;
-                var here = At(asteroids[i], started, belt.OrbitPosition);
-                var next = At(asteroids[i], started + dt, belt.OrbitPosition);
-                if (lengthsq(next - here) < 1e-6f) continue; // too slow to tell the two times apart
-                if (lengthsq(placed - here) > lengthsq(placed - next)) torn++;
-            }
-        }
-        Assert.True(torn == 0, $"{torn} asteroid placements were for the next tick");
-    }
-
-    // Mining writes a belt's damage and respawn state, which the belt's task reads, so it waits for the task first.
-    // This drives mining hard while the belt updates and fails on any exception the race throws; the race itself is
-    // rare enough that removing the wait did not fail it in two runs, so it guards, but does not prove, the rule.
-    [Fact]
-    public void MiningWhileTheBeltUpdatesNeverRacesIt()
-    {
-        var zone = Arena(false); // no ships: nothing but the zone runs
-        var (key, _) = zone.AsteroidBelts.First();
-        var data = (AsteroidBeltData) zone.Planets[key];
-        var count = data.Asteroids.Length;
-        var miner = zone.Entities.First();
-        for (var tick = 0; tick < 1000; tick++)
-        {
-            zone.Update(.02f);
-            for (var pass = 0; pass < 4; pass++)
-            {
-                // Chip every asteroid (the belt's damage table fills), then break every one (it empties again).
-                if (data.Resources.Count > 0)
-                    for (var i = 0; i < count; i++) zone.MineAsteroid(miner, key, (i + tick) % count, 1e-3f, 0, 1);
-                for (var i = 0; i < count; i++) zone.MineAsteroid(miner, key, (i + tick) % count, 1e6f, 0, 1);
-            }
-        }
-    }
-
     private LoadoutGenerator PreludeGenerator() =>
         new LoadoutGenerator(ref _items.Random, _items, _galaxy, _galaxy.Entrance, _protagonist, .5f);
 

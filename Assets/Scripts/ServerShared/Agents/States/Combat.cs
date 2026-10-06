@@ -25,7 +25,7 @@ public class CombatState : BaseState
 
     public override void Update(float delta)
     {
-        var target = _agent.Ship.Target.Value;
+        var target = _agent.Ship.Target.Value.Entity;
         if (target == null) return;
         
         _availableGroups.Clear();

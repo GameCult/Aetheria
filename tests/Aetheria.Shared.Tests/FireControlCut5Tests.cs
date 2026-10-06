@@ -191,7 +191,7 @@ public sealed class FireControlCut5Tests : IDisposable
 
         shooter.Position = float3.zero;
         target.Position = float3(0, 0, targetRange);
-        shooter.Target.Value = target;
+        shooter.SetTarget(target);
         shooter.EntityInfoGathered[target] = 1f;
         shooter.SetIff(target, true);
 
@@ -346,7 +346,7 @@ public sealed class FireControlCut5Tests : IDisposable
 
         shooter.Position = float3.zero;
         target.Position = targetPosition;
-        shooter.Target.Value = target;
+        shooter.SetTarget(target);
         shooter.EntityInfoGathered[target] = 1f;
         shooter.SetIff(target, true);
 
@@ -449,7 +449,7 @@ public sealed class FireControlCut5Tests : IDisposable
         // The shared path: Weapon.ArcAllowsFire (the trigger gate every shooter passes through) must agree,
         // now that it no longer carries its own special case and defers to InArc entirely.
         var weapon = (Weapon) weaponItem.Behaviors.Single(b => b is Weapon);
-        shooter.Target.Value = target;
+        shooter.SetTarget(target);
         Assert.True(weapon.ArcAllowsFire);
     }
 
@@ -465,7 +465,7 @@ public sealed class FireControlCut5Tests : IDisposable
         var (_, shooter, target, weaponItem) = BuildPointBlank(settings);
         shooter.Position = float3.zero;
         target.Position = float3(100, 0, 0); // directly abeam
-        shooter.Target.Value = target;
+        shooter.SetTarget(target);
 
         var weapon = (Weapon) weaponItem.Behaviors.Single(b => b is Weapon);
         Assert.False(weapon.ArcAllowsFire);
@@ -488,7 +488,7 @@ public sealed class FireControlCut5Tests : IDisposable
         var e = Build(settings, damage: 10, velocity: 0, accuracy: 1, resolution: 1, spread: 0, targetRange: 100);
         e.Shooter.Position = float3.zero;
         e.Target.Position = float3(100, 0, 0); // abeam -- outside the narrow 60-degree arc
-        e.Shooter.Target.Value = e.Target;
+        e.Shooter.SetTarget(e.Target);
 
         var resolvedCount = 0;
         e.Zone.ShotResolved.Subscribe(_ => resolvedCount++);
@@ -590,7 +590,7 @@ public sealed class FireControlCut5Tests : IDisposable
         var observer = new Ship(items, target.Zone, new EquippableItem { Data = observerHullRef, Durability = 1000, Lot = 1 }, new EntitySettings());
         target.Zone.Entities.Add(observer);
         observer.Activate();
-        observer.Target.Value = target;
+        observer.SetTarget(target);
 
         // With both items alive: Big (index 0) reveals at .2, Medium (index 1) at .8.
         observer.EntityInfoGathered[target] = .3f;

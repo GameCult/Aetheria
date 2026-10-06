@@ -145,7 +145,7 @@ public sealed class FireControlCut6cTests : IDisposable
 
         shooter.Position = float3.zero;
         target.Position = float3(0, 0, targetRange);
-        shooter.Target.Value = target;
+        shooter.SetTarget(target);
         shooter.SetIff(target, true);
 
         zone.Update(0f); // warm-up: resolves the targeting system's stats before HitProbability reads them
