@@ -217,7 +217,7 @@ public class TradeMenu : MonoBehaviour
             x => () => ActionGameManager.PlayerSettings.Format(x.data.Mass), 
             data => data.Mass));
         columns.Add(("Price", 1,
-            x => () => (x.item is CraftedItemInstance craftedItemInstance ? GameManager.ItemManager.GetPrice(craftedItemInstance) : x.data.Price).ToString("N0"),
+            x => () => StationServices.BuyPrice(GameManager.ItemManager, x.item).ToString("N0"),
             data => data.Price));
         columns.Add(("Size", 1,
             x => () => $"{x.data.Shape.Width}x{x.data.Shape.Height}", 
@@ -350,7 +350,7 @@ public class TradeMenu : MonoBehaviour
                                 Dialog.Title.text = $"Buying {i.data.Name}";
                                 Dialog.AddField("Quantity", 
                                     () => quantity, 
-                                    q => quantity = min(min(q, GameManager.Credits / i.data.Price), s.Quantity));
+                                    q => quantity = min(min(q, GameManager.Credits / StationServices.BuyPrice(GameManager.ItemManager, s)), s.Quantity));
                                 Dialog.Show(() =>
                                 {
                                     Buy(s,quantity);
@@ -403,7 +403,7 @@ public class TradeMenu : MonoBehaviour
     private void Buy(CraftedItemInstance item)
     {
         var data = GameManager.ItemManager.GetData(item);
-        var price = GameManager.ItemManager.GetPrice(item);
+        var price = StationServices.BuyPrice(GameManager.ItemManager, item);
         if (price < GameManager.Credits)
         {
             if (data is HullData hullData)
@@ -448,11 +448,12 @@ public class TradeMenu : MonoBehaviour
         for (int i = 0; i < lots; i++)
         {
             int q = min(remaining, data.MaxStack);
-            if (q * data.Price < GameManager.Credits)
+            var cost = StationServices.BuyPrice(GameManager.ItemManager, simpleCommodity, q);
+            if (cost < GameManager.Credits)
             {
                 if (Inventory.TryTransferItem(_targetCargo, simpleCommodity, quantity))
                 {
-                    GameManager.Credits -= q * data.Price;
+                    GameManager.Credits -= cost;
                     UpdateCreditsLabel();
                     remaining -= q;
                 }
