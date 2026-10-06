@@ -124,6 +124,28 @@ public sealed partial class RunStartTests
         }
     }
 
+    // The ruling says the Longinus with its default fit: the fit the game generates for that hull from the run's item
+    // draws, which Stage seeds from the galaxy's seed. The expected fit is that same generation replayed from the same
+    // seed, so no item list is spelled here; a bare hull, a preset, or one item swapped for another differs from it.
+    [Fact]
+    public void DemoTerminus_player_carries_the_longinus_default_fit()
+    {
+        AddPirates();
+        string Fit(Entity ship) => string.Join(";", ship.Equipment
+            .Select(item => $"{item.Data.Name}@{item.Position}/{item.EquippableItem.Rotation}")
+            .OrderBy(entry => entry, StringComparer.Ordinal));
+        foreach (var seed in DemoSeeds)
+        {
+            var (galaxy, arena, staged, failures) = Launch(new DemoTerminus(), Inputs(() => seed));
+            Assert.True(failures.Count == 0, string.Join("; ", failures));
+            _items.Random = new CultMath.Random(galaxy.Seed * 0x9E3779B1u + 2);
+            var generator = new LoadoutGenerator(ref _items.Random, _items, galaxy, arena.GalaxyZone, null, 2);
+            var expected = EntitySerializer.Unpack(_items, null, generator.GenerateShipLoadout(hull => hull.Name == "Longinus"));
+            Assert.NotEmpty(expected.Equipment);
+            Assert.Equal(Fit(expected), Fit(staged.Player));
+        }
+    }
+
     // The demo region's size and connectivity are authored: 64 zones, links thinned to half. The reference galaxy is the
     // same cast with the thinning written out here, generated at the same seed, so any other density is a different graph.
     [Fact]
