@@ -109,8 +109,12 @@ without the operator's call is not a release.
 
 The typed target carries these as labelled statements. The reasons:
 
-- **Legacy first** (operator, 2026-09-11). All work lands in the restored Unity tree.
-  No daemon, CultMesh or Eve re-architecture here.
+- **Ship the game** (operator, 2026-09-11; reframed 2026-10-06). The goal is a shipped
+  game, not new foundations for game development. AetheriaThing was stopped because
+  reinventing the foundations alongside the game grew into an unmaintainable pile of
+  abstraction. So work lands in the existing Unity tree, which is the vehicle and not a
+  value in itself: no daemon, CultMesh or Eve re-architecture here, and shared
+  infrastructure is adopted, never invented.
 - **The simulation owns the facts.** Fire control was rebuilt so that no Unity
   collider or effect decides a hit. Feedback reads `FireControl`'s facts and never
   re-derives them. The same holds for the run: whether the boss lives and whether
