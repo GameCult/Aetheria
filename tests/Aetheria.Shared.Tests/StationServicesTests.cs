@@ -135,6 +135,29 @@ public sealed class StationServicesTests : IDisposable
         Assert.Contains(other, from.Cargo.Keys);
     }
 
+    // A station's first bay being full is no reason to refuse: the goods go to whichever bay takes them.
+    [Fact]
+    public void TrySell_uses_any_station_bay_that_takes_the_goods()
+    {
+        var ship = Ship();
+        var from = ship.CargoBays.Single();
+        var gun = Mint("Gun");
+        var ore = Ore(10);
+        Assert.True(from.TryStore(gun));
+        Assert.True(from.TryStore(ore));
+        var station = Station();
+        Assert.True(station.TryEquip(Mint("Crate"), new int2(2, 2)));
+        var full = station.CargoBays[0];
+        var open = station.CargoBays[1];
+        while (full.TryStore(Mint("Gun"))) { }
+
+        var credits = 0;
+        Assert.True(StationServices.TrySell(from, station, gun, ref credits));
+        Assert.True(StationServices.TrySell(from, station, ore, ref credits));
+        Assert.Contains(gun, open.Cargo.Keys);
+        Assert.Contains(ore, open.Cargo.Keys);
+    }
+
     [Fact]
     public void Repair_restores_and_charges()
     {
@@ -164,6 +187,19 @@ public sealed class StationServicesTests : IDisposable
         Assert.Equal(10, ship.Hull.Durability);
         Assert.Equal(8, ship.Equipment.Single(e => e.EquippableItem != ship.Hull).EquippableItem.Durability);
         Assert.Equal(0, StationServices.RepairCost(_items, ship));
+    }
+
+    [Fact]
+    public void Repair_counts_docking_bays_as_gear()
+    {
+        var ship = Ship();
+        Assert.True(ship.TryEquip(Mint("Berth"), new int2(2, 2)));
+        var berth = ship.DockingBays.Single().EquippableItem;
+        berth.Durability = 3;
+        Assert.True(StationServices.RepairCost(_items, ship) > 0, "a worn docking bay costs to mend");
+        var credits = 1000000;
+        Assert.True(StationServices.TryRepair(ship, ref credits));
+        Assert.Equal(6, berth.Durability);
     }
 
     [Fact]
