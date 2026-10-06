@@ -323,6 +323,19 @@ public class ActionGameManager : MonoBehaviour
                 foreach (var wormhole in ZoneRenderer.WormholeInstances.Keys)
                 {
                     if (!(length(wormhole.Position - CurrentEntity.Position.xz) < Settings.GameplaySettings.WormholeExitRadius)) continue;
+                    if (wormhole.Exit)
+                    {
+                        // The exit gate leads nowhere: RunGoal decides whether it is open, and an open one ends the run.
+                        if (RunGoal.ExitOpen(Zone)) Win();
+                        else
+                        {
+                            Dialog.Clear();
+                            Dialog.Title.text = $"The exit gate is sealed. {RunGoal.Boss(Zone)?.Name ?? "Its guardian"} holds it shut.";
+                            Dialog.Show();
+                            Dialog.MoveToCursor();
+                        }
+                        return;
+                    }
                     EnterWormhole(wormhole);
                 }
                 Dock();
@@ -1165,9 +1178,9 @@ public class ActionGameManager : MonoBehaviour
         return float3(pose.x, Settings.PlanetSettings.AsteroidVerticalOffset, pose.y);
     }
 
-    private void Die(CauseOfDeath cause)
+    // The one way a run ends, won or lost: the run is cleared and the main menu returns.
+    private void EndRun()
     {
-        var deathTime = Time.time;
         UnbindEntity();
         CurrentEntity = null;
         MainMenu.gameObject.SetActive(true);
@@ -1175,6 +1188,21 @@ public class ActionGameManager : MonoBehaviour
         CurrentGalaxy = null;
         RunSave.Clear(CultCache);
         SavePlayerSettings();
+    }
+
+    private void Win()
+    {
+        EndRun();
+        Dialog.Clear();
+        Dialog.Title.text = "You have escaped the Terminus. This was the demo; the whole of it is yet to come.";
+        Dialog.Show();
+        Dialog.MoveToCursor();
+    }
+
+    private void Die(CauseOfDeath cause)
+    {
+        var deathTime = Time.time;
+        EndRun();
         Observable.EveryUpdate()
             .Where(_ => Time.time - deathTime < DeathPostTransitionTime)
             .Subscribe(_ =>
