@@ -3640,6 +3640,38 @@ pass).
   is its lateral acceleration and remaining delta-v over the time to go. The odds below price
   that endgame instead of asking a coarse simulation to decide contact.
 
+**Evasion from agility and unpredictability** (fourth pass, ruling `evasion-is-unpredictability`,
+fetched 2026-10-06).
+
+- **Singer's manoeuvre model** (Singer 1970, as summarised in the tracking literature, e.g.
+  ResearchGate "Comparison of several maneuvering target tracking models"). Target acceleration
+  is a zero-mean first-order Markov process set by two parameters: its variance (bounded by the
+  target's maximum acceleration) and the manoeuvre frequency, the inverse of its time constant.
+  Long time constants make the target a constant-velocity target, short ones a
+  constant-acceleration one. The split this pass uses is the same: what the target *could* do
+  (capability) and how much it *is* changing its acceleration (behaviour).
+- **Naval fire control against zigzags** (Pacific War Online Encyclopedia, "Fire Control";
+  Wikipedia "Ship gun fire-control system"). Analogue fire-control computers assumed a steady
+  course, so a course change during the time of flight defeated the solution. A target on a
+  steady course or a steady turn is predictable; a target that keeps changing its vector is not.
+  "Danger space" (NavWeaps definitions) is the along-range interval a ship can occupy and still
+  be hit: the target's extent, not its motion.
+- **Weaving targets in missile guidance** (Zarchan, "Proportional navigation and weaving
+  targets"; RMS miss against a sinusoidal target). A weave at the right frequency maximises a PN
+  missile's miss; a weave much faster than the guidance loop averages out. High-frequency
+  dithering is not evasion. Hence the behaviour statistic below is low-passed.
+- **EVE Online** (EVE University wiki, "Turret mechanics", fetched). Hit chance is
+  `0.5 ^ ((angular velocity * 40000 / (tracking * signature))^2 + falloff term)`: doubling tracking,
+  doubling signature or halving angular velocity are equivalent. A stationary target is always
+  hit. EVE prices transversal speed because its turrets slew; Aetheria's lead cancels a constant
+  sideways speed exactly (M20), so speed alone is not the analogue here.
+- **Starsector** (wiki, "Movement" and "Auxiliary Thrusters"). Manoeuvrability is acceleration,
+  deceleration and turn rate together; the hull mod that buys it raises all three. Dodging is
+  done by turning and burning, not by a strafe stat.
+- **Elite Dangerous** (player guides, Steam discussions). Pitching the main drive onto a new
+  vector beats lateral thrusters for evasion; lateral thrust matters most on ships built around
+  it. Gimbal jitter makes evasive targets hard to hold even for hitscan lasers.
+
 **Failure modes to design against.**
 1. PD trivialises missiles: perfect interception makes launchers dead weight. Answer: a
    PD round is priced and rolled like any shot (spread against a small target, range,
@@ -3806,6 +3838,55 @@ pass).
   `CommitTime` stays infinite until its terminal gate, which then sets it to the gate's time and
   `ArrivalTime` to the closest approach, goes through the same commit, events and application
   as a gun round.
+- **M23. What the ships can actually reach in the window** (probe for ruling
+  `evasion-is-unpredictability`: `tests/Aetheria.Shared.Tests/EvasionEnvelopeProbe.cs`, a scratch
+  file never merged, run headless on Yggdrasil through `ygg-verify` on probe commit `7ef47d72`
+  over `646057f2`, 2026-10-06, the shipped catalog and authored settings, fixture seed 1).
+  Each ship was fitted by the loadout generator, settled for 2 s, then flown from rest for 0.5 s
+  in the real `Ship.Update` (dt 1/60) under fifteen control policies (strafe, forward, reverse,
+  corner, turn-and-burn at 45, 90, 135 and 180 degrees, each mirrored). The reach is the largest
+  displacement from the idle run along each axis; the half-width is the mean of the two sides.
+
+  | Fit | Mass | Thrust (N) and turn | Nose-on half-width | Broadside half-width |
+  |---|---|---|---|---|
+  | Longinus (generated) | 3,835 | 2 Large Drive forward 250,000 each; 2 Talaria on the flanks at lever 0.998, which cancel to zero net strafe and only turn; no reverse. Forward 130.4 m/s^2, turn 1.95 rad/s by `Thruster.Execute`'s arithmetic | 7.50 m | 8.15 m |
+  | Djinni (generated) | 13,835 | 8 Talaria (3 forward, 1 reverse, 4 lateral at lever 0.73 and 0.87): forward 16.3, reverse 5.4, strafe 10.8 m/s^2 each way, turn 0.86 rad/s | 2.00 m | 2.19 m |
+  | LonginusX (generated) | 3,810 | one Traction aether drive, omnidirectional: measured 109 to 154 m/s^2 on the four axes | 16.81 m | 18.06 m |
+
+  A second generated fit of each agreed within 30% (Longinus 9.77 / 8.13, Djinni 1.65 / 1.80,
+  LonginusX 16.50 / 17.71); the Duel's LonginusX fit gave 11.62 / 12.97. The catalog has three
+  ship hulls (Djinni, Longinus, LonginusX); there is no Gemini, and the LonginusX with its aether
+  drive is the catalog's omnidirectional ship. On the Longinus, turning right also pushes it
+  right: the turning Talaria translate the hull 2.4 m in 0.5 s while turning 59.5 degrees.
+- **M24. Ship's thrust aggregates are not an envelope.** `Ship.LeftStrafeThrust` and
+  `RightStrafeThrust` count the Longinus's two flank Talaria (75,000 N each, 19.6 m/s^2), yet a
+  pure strafe input moves it 0.000 m: the torque compensation in `Ship.Update` (`Ship.cs:257-275`)
+  cancels a lone off-axis strafer completely. Its lateral push exists only while it turns. r1's
+  `min(LeftStrafeThrust, RightStrafeThrust) / Mass` would have rated the Longinus at 19.6 m/s^2 of
+  agility and the Djinni at 10.8, the operator's ships in roughly the wrong proportion for the
+  wrong reason. Aether drives add `drive.Thrust` (`AetherDrive.cs:140`), a per-update impulse
+  times mass, into the same sums as thruster newtons, so `ForwardThrust / Mass` reads 1.9 m/s^2
+  for a LonginusX that accelerates at about 150. `ClockwiseTorque` sums lever arms without thrust
+  (`Ship.cs:225-245`), so `TurnTime` (`Ship.cs:61`) is not in the units `Thruster.Execute` turns
+  by (`Behaviors/Thruster.cs:106-107`: `input * Torque * Thrust * TorqueMultiplier / Mass` rad/s).
+- **M25. The Djinni moves about 1.6 times faster than its stats say.** Full forward for 0.5 s
+  moved the Djinni 3.27 m where `ForwardThrust / Mass` (16.3 m/s^2) predicts 2.03 m; strafe gave
+  2.00 m against 1.36, and it turned 40.8 degrees against 24.7 by the `Execute` arithmetic. The
+  Longinus matches its stats (15.48 m against 16.3 predicted, the gap being drag). Not explained
+  by this pass: thruster `Thrust` read 75,000 after settling and `Mass` 13,835. Whatever the cause,
+  an envelope that reads the stats would misprice the Djinni by that factor, so
+  `evasion-term` r2 pins the envelope against motion measured in `Ship.Update` and stops on a
+  mismatch.
+- **M26. A cheap reach is exact enough.** For a body-frame envelope (forward, reverse, left and
+  right acceleration, a turn rate each way) under kinematic turning (ruling
+  `controls-turn-inertia`), the largest displacement along a direction in a window, taken over
+  eight faces (the four thrust axes and the four corners of the thrust box), each turned toward the
+  direction at full rate while thrusting whenever it points within 90 degrees, then held, matched a
+  brute-force search over turn strategies (one-degree steps, 400-step integration) to within 0.1%
+  on four test envelopes, at 0, 45 and 90 degrees (scratch script, 2026-10-06). Against the real
+  `Ship.Update`, with the Longinus's flank push counted as strafe, it gave 7.31 m nose-on (probe
+  7.50) and 8.61 m broadside (probe 8.15). Cost: one box support and eight faces of two
+  trigonometric calls each, per side.
 
 ### The design
 
@@ -3823,53 +3904,84 @@ contract (M22):
 - At the gate the roll decides *whether it connects*, once, at a price `FireControl` owns. After
   the roll the flight presents the outcome and decides nothing.
 
-**Evasion is a tracking term, one for every shot** (rulings `manoeuvre-penalises-solutions` and
-`evasion-not-only-flight-time`). M20 shows the price has no manoeuvre term and a laser cannot be
-dodged. The term measures how hard the target's current sideways motion makes a solution to
-hold, whatever the flight time, and it adds to the in-flight deviation rather than replacing it.
-`evasion-term` lands it before any missile cut reads it:
+**Evasion is how unpredictably the target can and does change its motion** (rulings
+`manoeuvre-penalises-solutions`, `evasion-not-only-flight-time` and `evasion-is-unpredictability`).
+M20 shows the price has no manoeuvre term and a laser cannot be dodged. r1 answered with one strafe
+figure; the operator ruled that incomplete: "A ship like Longinus has almost zero strafe thrust but
+should still be plenty agile while the Djinni has dedicated strafing thrusters but is too heavy to
+get very far with them. Unpredictability of motion should matter, too." M24 adds that the strafe
+figure is not even what the hull can do. The term (`evasion-term` r2) is the product of two parts,
+each with one owner, and it adds to the in-flight deviation rather than replacing it:
 
-- `FireControl.Agility(Entity)`: a ship's strafe acceleration,
-  `min(LeftStrafeThrust, RightStrafeThrust) / Mass` (M21), 0 for anything else. A munition's
-  agility is its `Thrusters.Lateral` while it has delta-v, 0 dry.
-- `Entity.Acceleration`: the entity's realized planar acceleration over its last update,
-  written once per `Entity.Update`, never saved.
-- `GameplaySettings.SolutionWindow` (0.5 s): the time over which a target's sideways motion
-  counts against holding a solution. A fire-control constant, not a weapon or missile stat.
-- `FireControl.Evasion(agility, velocity, acceleration, lineOfSight, window)`: the sideways
-  distance the target can open on a solution within the window,
-  `min(|v_lat|, agility * window) * window + 0.5 * min(|a_lat|, agility) * window^2`, lateral to
-  the line of sight. Sideways speed counts up to what the hull could reverse in the window, so a
-  heavy hull drifting sideways is still easy to hold; sideways acceleration (a dodge in
-  progress) counts up to the hull's agility. The target's stats set the extent; its motion sets
-  the use.
-- `FireControl.PDeviation(deviation, tolerance)`: `saturate(1 - deviation / tolerance)`, a step
-  at 0 when the tolerance is 0. The one shape every shot uses.
-- Guns, beams and instant weapons alike. `DeviationProbability` adds
-  `Evasion(Agility(target), target velocity, target acceleration, TravelDirection,
-  SolutionWindow)` at the commit to the realized deviation, forgiven by the shooter's
-  `Tracking` as before. `HitProbability` multiplies `PDeviation(Evasion(...), Tracking)`, so the
-  solution the HUD shows, `AgentFires` and autofire's `Worth` all see a dodging target as a
-  worse shot. A laser commits at fire, so its whole penalty is the tracking term.
-  `TheHudEstimateIsTheCommitPrice` keeps holding: at zero realized deviation the forecast is the
-  commit price.
+- **Capability: the reachable spread.** `Ship.Envelope` is a `ManoeuvreEnvelope`: body-frame
+  acceleration forward, reverse, left and right (m/s^2) and turn rate clockwise and
+  counter-clockwise (rad/s), summed from what each live propulsor reports with the arithmetic its
+  own `Execute` uses (a `Thruster` its thrust over mass along its mount and its lever times thrust
+  times `TorqueMultiplier` over mass; an `AetherDrive` its full-axis acceleration at its current
+  rotor state). A thruster that only turns counts as lateral push, because it pushes whenever it
+  turns (M23). Not a `Ship`, no envelope. `FireControl.Reach(envelope, heading, direction,
+  window)` is the largest displacement from the coasting path along `direction` in `window`, by
+  the eight-face form of M26. The capability across a line of sight is the half-width of the
+  reachable interval, `C = (Reach(+n) + Reach(-n)) / 2`, with `n` perpendicular to the line of
+  sight. An omnidirectional hull has the same `C` from any bearing; a Longinus has its largest
+  crossing the line of sight and a smaller one nose-on, because it must turn first.
+- **Behaviour: how much it is changing its vector.** `Entity.Manoeuvre` is a `ManoeuvreTrack`,
+  written once per `Entity.Update` from the measured acceleration (the velocity change across the
+  base update, so thrust and not drag or gravity): a trend `a_bar` (exponential average, time
+  constant `SolutionWindow`), the innovation `a - a_bar` low-passed with time constant
+  `SolutionWindow / 4`, and the exponential average of that innovation's outer product (three
+  floats). `LateralRms(n)` is the root of its projection on `n`. A steady burn is predictable
+  (its innovation decays to zero), coasting is predictable, a weave at the window's scale is not,
+  and dithering much faster than the window averages out (Zarchan, above).
+- **The term.** `FireControl.Evasion(target, lineOfSight)` reads the target's envelope, heading,
+  track and `SolutionWindow` `T`: `u = 0.5 * LateralRms(n) * T^2`, zero when `u` is zero (no
+  envelope work for a coasting target), else `min(C, u)`. Behaviour realises the evasion,
+  capability caps it. A coasting ship evades nothing whatever it could do; a jinking ship evades
+  up to what its envelope reaches across that line of sight. Sideways speed by itself does not
+  count: the lead cancels it (M20) and the in-flight deviation charges what changes during flight
+  (question `evasion-speed`).
+- **Pure core, one entity entry.** `Reach` and the pure `Evasion(envelope, heading, track,
+  lineOfSight, window)` are public and allocation-free; the entity overload is what guns and
+  missiles call. `PDeviation(deviation, tolerance)` stays the one deviation shape.
+  `DeviationProbability` adds `Evasion(target, TravelDirection)` at the commit to the realized
+  deviation; `HitProbability` multiplies `PDeviation(Evasion(...), Tracking(source))`. A laser
+  commits at fire, so its whole penalty is this term. A target moving at constant velocity has
+  `Evasion` 0, so every existing test with a coasting or still target is unchanged.
+
+Measured with this form (scratch model of `Reach` and `ManoeuvreTrack` at dt 1/60, each ship's
+best of a fixed jink set: lateral square wave, a new random direction, and a turn-and-burn weave
+of plus or minus 60 degrees, half-periods 0.5 and 1 s, read over the last 4 s of 8):
+
+| Ship, stats | Window 0.5 s | 0.75 s | 1.0 s | Coasting |
+|---|---|---|---|---|
+| Gemini-like test hull: the Longinus's 130.4 m/s^2 on all four axes, its turn | 11.0 m | 20.9 m | 31.2 m | 0 |
+| Longinus (catalog, M23, flank push as strafe) | 6.4 m | 14.7 m | 24.9 m | 0 |
+| Djinni (catalog stats, M23) | 0.9 m | 1.7 m | 2.6 m | 0 |
+
+The Gemini-like hull is most evasive from every bearing; the Longinus is about seven times the
+Djinni, mostly by turning its drive (nose-on 6.4 m against a strafe-only jink's 1.7); the Djinni
+is limited by its mass. The Longinus crossing the line of sight and only weaving reads 1.5 m, and
+pulsing its drive instead reads about 5.5: its evasion is in its throttle and its turn, not its
+strafe.
 
 **The speed demon's counterplay** (ruling `speed-demon-counterplay`): "Decent chance that unless
 you specced specifically to counter them, the only gun you have that'll hit a speed demon is
 stuff you intended to use for PD. That's what they're counting on, since they sacrificed all
-their armor for that mobility." The term delivers that through two stats and nothing else: a
-light gun's high `Tracking` forgives the evasion a heavy gun's low `Tracking` cannot, and the
-target's agility (strafe over mass) is high exactly when it carries little armour mass.
-`evasion-term` pins it with catalog-like numbers over the 0.5 s window: a speed demon crossing
-at 150 m/s with 60 m/s^2 of strafe and dodging at full strafe opens `30 * 0.5 + 0.5 * 60 *
-0.25 = 22.5` m, so a light gun with `Tracking` 50 keeps 0.55 of its unpenalised price and a heavy
-gun with `Tracking` 10 keeps 0; a heavy hull crossing at the same speed with 10 m/s^2 of strafe
-opens `5 * 0.5 + 0.5 * 10 * 0.25 = 3.75` m, so the heavy gun keeps 0.625 and the light one 0.925. The
-autofire chooser lets PD guns divert: with no worth-firing munition, an autofire gun takes the
-designated target or the best-priced hostile when its price clears the threshold. A
-worth-firing hostile munition preempts an entity subject even while that subject stays worth
-firing (`autofire-threshold` r3), so a PD group that diverted onto a speed demon still turns
-back to the missiles.
+their armor for that mobility." The term delivers that through two stats and nothing else: the
+shooter's `Tracking` forgives the evasion, and the target's envelope is large exactly when it
+carries little mass. Re-measured without r1's speed share: a speed demon with 60 m/s^2 on every
+axis, jinking a lateral square wave at half-period 0.5 s nose-on, opens 5.07 m at window 0.5 s,
+so a shooter with `Tracking` 10 keeps 0.49 and one with `Tracking` 50 keeps 0.90; a heavy hull
+with 10 m/s^2 opens 0.84 m (0.92 and 0.98). At window 0.75 s the speed demon opens 9.63 m (0.04
+and 0.81). r1's numbers (22.5 m, 0 and 0.55) came mostly from the
+150 m/s crossing speed this revision no longer counts. Window 0.75 s is what makes heavy guns
+"mostly miss" a well-flown speed demon while PD-class tracking still lands, so `evasion-term` r2
+authors `SolutionWindow` 0.75; the catalog's shooters track 17 to 38 (M23 probe), and the play
+check owns the final value. The autofire chooser lets PD guns divert: with no worth-firing
+munition, an autofire gun takes the designated target or the best-priced hostile when its price
+clears the threshold. A worth-firing hostile munition preempts an entity subject even while that
+subject stays worth firing (`autofire-threshold` r3), so a PD group that diverted onto a speed
+demon still turns back to the missiles.
 
 **The missile's price** (`missile-odds`). At the gate, the same model with the missile's
 inputs:
@@ -3878,7 +3990,7 @@ inputs:
 |---|---|
 | `PFire` = shooter `Accuracy` x `PSensor(shooter info)` | data: locked, `PSensor(settings, 1, seeker reading)`, its own gathered data; unlocked, the frozen launch `PFire` |
 | realized deviation in flight | zero-effort miss beyond reach, `max(0, ZEM - reach)`, with `reach = max(BlastRadius, SchematicCellSize / 2)` plus half the target's silhouette span across the line of sight |
-| `Evasion` against the gun's bearing | `Evasion(Agility(target), target velocity - missile velocity, target acceleration, line of sight, SolutionWindow)` |
+| `Evasion` against the gun's bearing | `Evasion(target, line of sight)`: the same entity call a gun makes |
 | tolerance `Tracking` | correction: locked, `Cognition * Closable(Lateral, DeltaV, time to go)`; unlocked, 0 |
 | `PSpread`, `POnHull` | 1: a guided round has no barrel spread and steers onto metal |
 
@@ -4005,8 +4117,8 @@ stepped position; `TargetRef` gains `MunitionId`; `Entity.SetTarget` refuses a m
 rounds at a munition are priced and rolled by `FireControl` as the first pass said; lead now
 reads the missile's real velocity, and the deviation term reads its real stepped position
 against the frozen prediction, so jinking is what beats PD. As a target a munition takes the
-shared `Evasion` term with its own agility (`Lateral` while it has delta-v) and the sideways part
-of its last command as its acceleration, so a jinking missile is harder to hold and a dry one is
+shared `Evasion` term with its own envelope (`Lateral` each side while it has delta-v, no turn) and a
+`ManoeuvreTrack` fed its commanded acceleration (`munition-shots` must be revised to this interface), so a jinking missile is harder to hold and a dry one is
 easy prey. The "round arrives too late"
 gate reads `Munitions.TimeToGo` (distance to its aim point over closing speed) instead of a
 fixed arrival.
@@ -4059,13 +4171,13 @@ while one of your autofire guns has it as subject.
 ### Authority map
 
 - **Owner.** `FireControl` owns the one hit price for every shot, gun, beam or guided
-  (`HitProbability`, `CommitProbability`, `Evasion`, `PDeviation`, `Agility`), every munition
+  (`HitProbability`, `CommitProbability`, `Evasion`, `PDeviation`, `Reach`), every munition
   transition (fire, gate, commit, application, interception, lifetime, resolution) and every
   subject question (`SubjectOf`, `ChooseSubject`, `Worth`). `Munitions` owns the pure facts and
   the flight arithmetic (`IsMunition`, `Payload`, `Advance`, `TimeToGo`, `Terminal`, `Reserve`,
   the seeker reading); `FireControl.Step` is its only caller that writes a shot. `MunitionData`
   owns a missile type's stats, cognition included, until gear replaces each group.
-  `Entity.Update` owns `Entity.Acceleration`. The player owns which groups are autofire and
+  `Entity.Update` owns `Entity.Manoeuvre` (and the acceleration it observes); `Ship` owns `Ship.Envelope`, summed from what each propulsor reports. The player owns which groups are autofire and
   their thresholds.
 - **Inputs.** The frozen launch data, the flight state, zone time and dt, the seeker subject's
   live position, velocity, acceleration and visibility, the munition's stats, the count of PD
@@ -4091,8 +4203,8 @@ while one of your autofire guns has it as subject.
   `Fire`, except `Wear` (only `FireControl.DamageMunition`) and `InboundRounds` (only
   `FireControl`'s shot transitions). Any contact, damage or dice in `Munitions`. A commit point
   for a munition other than its terminal gate; a second price for guided rounds beside
-  `CommitProbability`'s munition branch. An evasion, agility or deviation-shape formula outside
-  `FireControl.Evasion`, `Agility` and `PDeviation`. Any write of `Entity.Acceleration` outside
+  `CommitProbability`'s munition branch. An evasion, reach or deviation-shape formula outside
+  `FireControl.Evasion`, `Reach` and `PDeviation`. Any write of `Entity.Manoeuvre` outside
   `Entity.Update`. Homing, intercept or guidance arithmetic in `Gameplay` or `UI`. A copy of
   warhead fields inside `MunitionData`. A global setting standing in for a per-missile stat. Any
   read of `Entity.Target` as a weapon's subject outside `SubjectOf`. A second worth-it test
@@ -4117,7 +4229,8 @@ while one of your autofire guns has it as subject.
 |---|---|---|---|
 | Munition (light record) | Its `PendingShot`'s `ShotId`, as `MunitionId` in a `TargetRef`. | From fire through its terminal gate (commit) to arrival, or until interception or lifetime; never saved, as pending shots are not. | `FireControl` for transitions and the roll; `Munitions.Advance` for flight. |
 | Munition flight | `PendingShot.Flight` (position, velocity, delta-v, command, wear, seeker, lock, faction, inbound rounds). | Stepped every tick; gone with its shot. | `Munitions.Advance` under `FireControl.Step`; wear by `DamageMunition`. |
-| Entity acceleration | `Entity.Acceleration`. | Written every update from the velocity change; never saved. | `Entity.Update`. |
+| Entity manoeuvre track | `Entity.Manoeuvre` (`ManoeuvreTrack`: trend, filtered innovation, its second moment). | Observed every update from the velocity change across the base update; never saved. | `Entity.Update`. |
+| Ship envelope | `Ship.Envelope` (`ManoeuvreEnvelope`: four body-frame accelerations, two turn rates). | Recomputed every update from the live propulsors; never saved. | `Ship`, from each propulsor's report. |
 | Missile stats | `MunitionData` on `LauncherData` / `GuidedWeaponData`, six groups. | Catalog data in `Aetheria.cc`. | The catalog now; gear once munitions are entities. |
 | Autofire setting | Per weapon group, `Entity.Autofire` (on, threshold). | Set by the player; saved in `EntityPack` key 21. | The player. |
 | Autofire subject | Per weapon, runtime only. | Re-picked by `Autofire.Update` when the current one stops being worth firing. | `FireControl.ChooseSubject`. |
@@ -4146,12 +4259,20 @@ flight after it presentation. The flight still matters: it is what spends fuel, 
 and builds the miss the price reads. The entity cut keeps this shape: gear replaces the stats
 the price reads, not the price.
 
-**Why evasion is a tracking term.** Ruling `evasion-not-only-flight-time`: in-flight deviation
-only charges a dodge the round's flight time allows, so a laser cannot be dodged (M20). A
-tracking term charges the target's current sideways motion against the shooter's `Tracking`
-whatever the weapon, in the shape EVE's turrets use, and adds to the in-flight deviation, which
-still rewards a dodge made while a slow round flies. Capping speed by what the hull could
-reverse in the window keeps it a stat: a heavy hull cannot buy evasion by drifting.
+**Why evasion is envelope times unpredictability.** Ruling `evasion-not-only-flight-time`:
+in-flight deviation only charges a dodge the round's flight time allows, so a laser cannot be
+dodged (M20); a tracking term charges every weapon. Ruling `evasion-is-unpredictability` says what
+the term measures: "The Gemini is evasive because it can floor it in any direction at any time
+(with each new vector fouling the targeting solution), whereas the Longinus needs to aim itself
+where it wants to go". That is Singer's split, capability and manoeuvre frequency, and the naval
+lesson that fire control holds a steady course and loses a changing one. The reachable spread is
+the capability because it is the only measure that sees turn time, mass and every thruster at
+once (M24 shows the strafe figure sees none of them correctly). The innovation statistic is the
+behaviour because a steady burn and a coast are both predictable and dithering is not evasion.
+`min` is the product of a saturated use fraction and the capability, written without a tuning
+constant. Rejected: r1's strafe-over-mass agility (M24); EVE's transversal speed (the lead cancels
+it here); instantaneous jerk (frame-dependent, rewards dithering); a per-hull agility stat in data
+(the envelope derives from fitted gear, so refits and damage change evasion with no authoring).
 
 **Why reactive evasion.** The operator's sentence is "a missile that spends fuel evading
 PD". Evasion triggered by inbound rounds makes PD fire cost the missile fuel even when it
