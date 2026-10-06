@@ -3539,10 +3539,27 @@ not have enough left to catch up to a target that is itself also dodging." Rulin
 `missile-stats-now-gear-later`: "For now these stats will belong to the missile, later they
 will be derived from gear." Full munition entities stay later (ruling
 `drones-and-munitions-are-entities`, follow-up `drones-munitions-substrate`); nothing here
-may foreclose them. Anchors are against `origin/master` `c7432f39` (no source change since
-`26f21e32`, where the first pass read them), read in a detached scratch worktree on
-2026-10-06. Cuts: `missile-stats`, `missile-records` (r2), `missile-presenter`,
-`munition-shots` (r2), `autofire-threshold` (r2), `ai-autofire` (r1, unchanged).
+may foreclose them.
+
+The third pass answers four more rulings. `missiles-resolution-model`, geometry-sets-odds: "I
+think geometry should set the odds, though. We're not simulating realistic scale and
+collisions. Going sideways really fast can help you evade both guns and missiles, but the
+extent should be based on stats. If it's only geometry then the missile's terminal
+maneuvering fuel, gathered targeting data and piloting skill don't exist at all as far as hit
+resolution is concerned." `missile-cognition`: "I actually did mean the skill of the missile
+itself. Cognition is a commodity in Aetheria, and a smarter missile can better spend its
+delta v". `manoeuvre-penalises-solutions`: "There is currently no firing solution penalty for
+target maneuvering afaik, which is a real gap for the speed demon hot doctrine glass cannon
+play style." `evasion-not-only-flight-time`: "Deviation from predicted intercept means you
+have to spend your delta as the projectile is in flight. Doesn't help you dodge a laser at
+all." `missiles-seeker-retarget`, hostile-in-cone: "I like the idea of letting them reacquire
+targets. Makes turning invisible and firing decoys a plausible strategy."
+
+Anchors are against `origin/master` `7f51d46d` (nothing under `Assets/Scripts` or `tools`
+changed since `c7432f39`, where the second pass read them), read in a detached scratch
+worktree on 2026-10-06. Cuts: `missile-stats` (r2), `evasion-term` (r1), `missile-records`
+(r3, flight only), `missile-odds` (r1), `missile-presenter` (r2), `munition-shots` (r3),
+`autofire-threshold` (r3), `ai-autofire` (r1, unchanged).
 
 ### Prior art
 
@@ -3609,6 +3626,20 @@ Source marks as in Controls.
   time-to-go is the acceleration a missile still needs. PN needs only the bearing and its
   rate, which is what ruling `shared-track-bearing-only` allows a missile in flight.
 
+**Odds from geometry and stats** (third pass, for rulings `missiles-resolution-model`,
+`manoeuvre-penalises-solutions` and `evasion-not-only-flight-time`; recalled, not fetched this
+pass).
+
+- **EVE Online.** A turret's hit chance falls with the target's angular velocity against the
+  turret's tracking stat and with its signature against the turret's resolution, whatever the
+  round's flight time; a missile's damage falls with the target's speed against the missile's
+  explosion velocity. Going sideways fast helps against both, by an amount the stats set: the
+  operator's sentence, shipped as a tracking term rather than as flight-time dodging.
+- **Zero-effort miss** (Cranfield, above). The miss a guided round would make if neither side
+  manoeuvred from now on is the standard terminal quantity; what the missile can still correct
+  is its lateral acceleration and remaining delta-v over the time to go. The odds below price
+  that endgame instead of asking a coarse simulation to decide contact.
+
 **Failure modes to design against.**
 1. PD trivialises missiles: perfect interception makes launchers dead weight. Answer: a
    PD round is priced and rolled like any shot (spread against a small target, range,
@@ -3636,15 +3667,16 @@ Source marks as in Controls.
    decisive. Answer: evasion and pursuit draw on the same fuel, so PD pressure that a
    missile survives still costs it terminal authority downrange (the operator's sentence),
    and a dodging target spends that authority faster.
-8. Two hit models drifting apart. Answer: one rule says which model a round uses. A round
-   that cannot change its course after it leaves the barrel is rolled at its commit horizon;
-   a round that steers itself flies and fuzes on geometry. PD rounds fired at a missile keep
-   the roll, measured against the missile's real stepped motion, so a jinking missile beats
-   PD through the same deviation term a jinking ship does.
+8. Two hit models drifting apart. Answer: one roll and one price owner for every shot. A gun
+   round is priced from its frozen shooter data, the target's realized deviation in flight and
+   the tracking term; a guided round flies until its terminal gate and is priced there from its
+   own seeker data, its zero-effort miss beyond reach, the same tracking term and its terminal
+   correction. Both commit through `Commit` and apply through `Apply`, read the one
+   `PDeviation` shape and the one `Evasion` term, and nothing after the roll decides again.
 9. Determinism and replay. The zone steps by the frame's delta time (M15), so a stepped
    missile is exactly as replayable as a ship's motion and no less. Answer: no shared random
-   stream (the evasion phase comes from the shot id, as the roll's seed does), and the fuze
-   tests closest approach over the whole step, so a long frame cannot tunnel through a target.
+   stream (the evasion phase comes from the shot id, as the roll's seed does), and the
+   terminal gate tests closest approach of straight motions, so a long frame cannot step past it.
 
 ### Body facts
 
@@ -3708,7 +3740,7 @@ Source marks as in Controls.
   command, one fuel debit, one settled seeker reading (`Sensor.Gain`, no stored info), one
   closest-approach test against its own target, and, while it has no lock, one index query
   per seeker interval. No ServerShared scratch build was run for this pass;
-  `missile-records` r2 measures the step and pins it.
+  `missile-records` r3 measures the step and pins it.
 - **M15. Zone time is the frame's delta time.** `ActionGameManager` calls
   `Zone.Update(Time.deltaTime)` (`Gameplay/ActionGameManager.cs:1308`); `Zone.Update`
   (`Zone.cs:202-221`) advances time, orbits, agents and entities by that dt, then
@@ -3744,43 +3776,128 @@ Source marks as in Controls.
   every entity in the zone (`:1350`), the path mines use (M5). `HullEntry` (`:839`) gives the
   distance along a line to an entity's first metal cell.
 
+- **M20. No manoeuvre enters the price, and none reaches an instant weapon** (probe for
+  rulings `manoeuvre-penalises-solutions` and `evasion-not-only-flight-time`, source read at
+  `7f51d46d` on 2026-10-06). `HitProbability` (`FireControl.cs:316-323`) is
+  `PFire * PSpread * POnHull`: shooter accuracy and info, barrel spread, silhouette. The
+  target's velocity enters only the lead (`PredictedIntercept`, `:202-208`), which cancels a
+  constant sideways speed exactly. The one motion term is the roll's `DeviationProbability`
+  (`:425-431`): the target's realized departure from the fire-time straight-line prediction,
+  forgiven by the shooter's `Tracking`, measured at `CommitTime`. `Fire` sets `CommitTime` to
+  `now + max(0, flightTime - CommitHorizon)` (`:588`, `CommitHorizon` 0.5 s), so a round whose
+  flight is under 0.5 s commits at fire and measures nothing. Beams fire through `Fire` per
+  `BeamResolveInterval` with flight time 0 (`Behaviors/ConstantWeapon.cs:176-188`), as instant
+  weapons do (`InstantWeapon.cs:271`). Result: the solution the HUD, `AgentFires` and autofire
+  read carries no manoeuvre penalty; at the roll only long-flight rounds see manoeuvres, only
+  ones made in flight, and never a sideways speed. A laser cannot be dodged at all. The
+  operator's reading holds.
+- **M21. What agility exists.** No `Agility` stat exists anywhere. `Ship` aggregates
+  `LeftStrafeThrust` and `RightStrafeThrust` from its active lateral thrusters and aether drives
+  (`Ship.cs:52-53`, `:181-220`); a thruster accelerates its entity by `Thrust / Mass`
+  (`Behaviors/Thruster.cs:104`). A hull's strafe acceleration is therefore
+  `min(LeftStrafeThrust, RightStrafeThrust) / Mass`, derived from fitted gear; an entity that is
+  not a `Ship` has none. No entity stores its acceleration. The shooter's tracking is
+  `TargetingSystem.Tracking` (`Behaviors/TargetingSystem.cs:43`, `:80`), falling back to
+  `UnaidedTracking` (10, `Settings.cs:228`) through `FireControl.Tracking` (`:190`): metres of
+  deviation forgiven.
+- **M22. The shot pipeline can carry a guided round.** `Step` (`FireControl.cs:609-656`)
+  commits when `now >= CommitTime` and applies once committed and `now >= ArrivalTime`;
+  `Commit` rolls `CommitProbability` with the per-shot seed (`:707-760`). A munition whose
+  `CommitTime` stays infinite until its terminal gate, which then sets it to the gate's time and
+  `ArrivalTime` to the closest approach, goes through the same commit, events and application
+  as a gun round.
+
 ### The design
 
-**The fork this pass raises** (question `missiles-resolution-model`). `FireControl` resolves
-every shot by a roll on frozen stats at a commit horizon and has no hit detection. A
-manoeuvring, fuel-limited missile must meet that model somehow:
+**The resolution model** is ruled: `missiles-resolution-model`, geometry-sets-odds. The second
+pass recommended pure geometry (a fuze decides contact) and rejected both roll variants as two
+answers to one question. The operator overturned it for a reason that pass did not weigh: the
+simulation is not at a scale where contact means anything, so a fuze makes terminal fuel,
+targeting data and the missile's own skill irrelevant to the hit. The split-brain worry is
+answered by one commit point, after which the flight obeys the roll, which is the gun's own
+contract (M22):
 
-- **geometry** (recommended). A guided round steps in ServerShared with fuel and a seeker
-  and fuzes on geometry: it detonates where it passes its target, through `Detonate`, or
-  self-destructs dry. `FireControl` still owns the shot's whole lifecycle (id, queue,
-  events, application); only the decision "did it connect" moves from the roll to the
-  fuze, for guided rounds only.
-- **live-price-roll.** The missile steps for fuel and seeker but still commits by roll, late,
-  near terminal, at a price computed from its live state (fuel against the target's dodge,
-  lock, wear). Fuel spent on PD lowers the price.
-- **geometry-sets-odds.** The missile steps and its closest-approach distance becomes a
-  probability that is then rolled (miss distance against blast radius).
+- The flight steps as before (PN, fuel, seeker) and decides *whether and when* a missile
+  reaches its terminal gate, and with what left. A missile that runs dry, loses its seeker or is
+  outmanoeuvred arrives with a large miss, or never arrives.
+- At the gate the roll decides *whether it connects*, once, at a price `FireControl` owns. After
+  the roll the flight presents the outcome and decides nothing.
 
-The recommendation is **geometry**, for three reasons. *One owner per decision:* under
-either roll variant the stepped flight already decides where the missile is and whether it
-can still close, and the roll then decides again whether it hit; when they disagree the
-player watches a missile with fuel to spare fly into a ship and miss, or a dry one connect.
-That is two answers to one question, the split the first pass avoided by not stepping at
-all. Under geometry the flight is the one answer. *Prior art:* every game the operator's
-sentence describes resolves guided weapons by flight: Nebulous (burn, coast, terminal
-weave, seeker re-selection), CDE (delta-v phases), DCS (energy and the last-ditch break),
-Starsector (flight time, ECCM against evasive frigates). None rolls a guided hit. *The
-later cut:* full munition entities (ruling `drones-and-munitions-are-entities`) are pushed by
-their thrusters and detonate where they are; geometry is that model on a light record, so
-the entity cut replaces the record's stats with gear (ruling `missile-stats-now-gear-later`)
-and keeps the physics. A roll on a price would be torn out then. The cost is a second hit
-model in `FireControl`, bounded by one rule (failure mode 8): rounds that cannot steer are
-rolled, rounds that steer fly. `Detonate` already applies blasts by geometry for mines and
-fused rounds (M19), so no damage path is new.
+**Evasion is a tracking term, one for every shot** (rulings `manoeuvre-penalises-solutions` and
+`evasion-not-only-flight-time`). M20 shows the price has no manoeuvre term and a laser cannot be
+dodged. The term measures how hard the target's current sideways motion makes a solution to
+hold, whatever the flight time, and it adds to the in-flight deviation rather than replacing it.
+`evasion-term` lands it before any missile cut reads it:
 
-The specs are written for **geometry**. Under either other option `missile-records` r2 stops
-and reports (an r3); `munition-shots` and `autofire-threshold` change only in their
-time-to-go reads.
+- `FireControl.Agility(Entity)`: a ship's strafe acceleration,
+  `min(LeftStrafeThrust, RightStrafeThrust) / Mass` (M21), 0 for anything else. A munition's
+  agility is its `Thrusters.Lateral` while it has delta-v, 0 dry.
+- `Entity.Acceleration`: the entity's realized planar acceleration over its last update,
+  written once per `Entity.Update`, never saved.
+- `GameplaySettings.SolutionWindow` (0.5 s): the time over which a target's sideways motion
+  counts against holding a solution. A fire-control constant, not a weapon or missile stat.
+- `FireControl.Evasion(agility, velocity, acceleration, lineOfSight, window)`: the sideways
+  distance the target can open on a solution within the window,
+  `min(|v_lat|, agility * window) * window + 0.5 * min(|a_lat|, agility) * window^2`, lateral to
+  the line of sight. Sideways speed counts up to what the hull could reverse in the window, so a
+  heavy hull drifting sideways is still easy to hold; sideways acceleration (a dodge in
+  progress) counts up to the hull's agility. The target's stats set the extent; its motion sets
+  the use.
+- `FireControl.PDeviation(deviation, tolerance)`: `saturate(1 - deviation / tolerance)`, a step
+  at 0 when the tolerance is 0. The one shape every shot uses.
+- Guns, beams and instant weapons alike. `DeviationProbability` adds
+  `Evasion(Agility(target), target velocity, target acceleration, TravelDirection,
+  SolutionWindow)` at the commit to the realized deviation, forgiven by the shooter's
+  `Tracking` as before. `HitProbability` multiplies `PDeviation(Evasion(...), Tracking)`, so the
+  solution the HUD shows, `AgentFires` and autofire's `Worth` all see a dodging target as a
+  worse shot. A laser commits at fire, so its whole penalty is the tracking term.
+  `TheHudEstimateIsTheCommitPrice` keeps holding: at zero realized deviation the forecast is the
+  commit price.
+
+**The speed demon's counterplay** (ruling `speed-demon-counterplay`): "Decent chance that unless
+you specced specifically to counter them, the only gun you have that'll hit a speed demon is
+stuff you intended to use for PD. That's what they're counting on, since they sacrificed all
+their armor for that mobility." The term delivers that through two stats and nothing else: a
+light gun's high `Tracking` forgives the evasion a heavy gun's low `Tracking` cannot, and the
+target's agility (strafe over mass) is high exactly when it carries little armour mass.
+`evasion-term` pins it with catalog-like numbers over the 0.5 s window: a speed demon crossing
+at 150 m/s with 60 m/s^2 of strafe and dodging at full strafe opens `30 * 0.5 + 0.5 * 60 *
+0.25 = 22.5` m, so a light gun with `Tracking` 50 keeps 0.55 of its unpenalised price and a heavy
+gun with `Tracking` 10 keeps 0; a heavy hull crossing at the same speed with 10 m/s^2 of strafe
+opens `5 * 0.5 + 0.5 * 10 * 0.25 = 3.75` m, so the heavy gun keeps 0.625 and the light one 0.925. The
+autofire chooser lets PD guns divert: with no worth-firing munition, an autofire gun takes the
+designated target or the best-priced hostile when its price clears the threshold. A
+worth-firing hostile munition preempts an entity subject even while that subject stays worth
+firing (`autofire-threshold` r3), so a PD group that diverted onto a speed demon still turns
+back to the missiles.
+
+**The missile's price** (`missile-odds`). At the gate, the same model with the missile's
+inputs:
+
+| Gun factor | Missile factor |
+|---|---|
+| `PFire` = shooter `Accuracy` x `PSensor(shooter info)` | data: locked, `PSensor(settings, 1, seeker reading)`, its own gathered data; unlocked, the frozen launch `PFire` |
+| realized deviation in flight | zero-effort miss beyond reach, `max(0, ZEM - reach)`, with `reach = max(BlastRadius, SchematicCellSize / 2)` plus half the target's silhouette span across the line of sight |
+| `Evasion` against the gun's bearing | `Evasion(Agility(target), target velocity - missile velocity, target acceleration, line of sight, SolutionWindow)` |
+| tolerance `Tracking` | correction: locked, `Cognition * Closable(Lateral, DeltaV, time to go)`; unlocked, 0 |
+| `PSpread`, `POnHull` | 1: a guided round has no barrel spread and steers onto metal |
+
+`Closable(a, dv, t)` is the sideways distance a missile can still cover in `t` with acceleration
+`a` and delta-v `dv`: `0.5 * a * t^2` when `dv >= a * t`, else `dv * t - dv^2 / (2a)`. Terminal
+fuel, lateral authority and cognition widen the tolerance; seeker data scales the whole; the
+target's motion and agility and the flight's own miss eat into it. An unguided rocket (no
+seeker, no lateral authority) has tolerance 0, so geometry alone decides it: it connects only
+when its straight line passes within reach.
+
+**Cognition** (ruling `missile-cognition`) is `Control.Cognition`, 0 to 1, authored per missile
+and later derived from guidance gear: the missile's skill at spending delta-v, in exactly four
+places. (1) *Efficiency*: the debit is `|command| * dt * (2 - Cognition)`, so a mindless missile
+wastes as much as it uses on corrections. (2) *Reserve*: before the gate, pursuit and evasion
+may not spend below `Cognition * Lateral * CommitHorizon`, the delta-v a full-authority endgame
+needs, so a smart missile arrives with its terminal and a dumb one may arrive dry. (3) *When to
+jink*: evasion against inbound PD draws only on fuel above the reserve, so a dumb missile
+(reserve 0) jinks itself dry while a smart one stops jinking to keep its terminal. (4) *The
+price*: the correction scales with it.
 
 **The missile's stats** (ruling `missile-stats-now-gear-later`). One `MunitionData` object on
 `LauncherData` and on `GuidedWeaponData`, grouped by the gear each group will later come
@@ -3792,7 +3909,7 @@ reshaping anything that reads it:
 | `Hull` (missile hull) | `Durability`, `Radius`, `Signature` | the first pass's global settings |
 | `Thrusters` (missile thruster) | `Acceleration` (main motor), `Lateral` (manoeuvre authority: the sideways acceleration cap), `MaxSpeed` | `Thrust`, `MissileVelocity` |
 | `Sensors` (seeker) | `Sensitivity`, `ConeHalfAngle`, `Range` | nothing (new) |
-| `Control` (guidance) | `Navigation` (PN constant), `Evasion` (share of `Lateral` spent jinking), `EvasionFrequency`, `Lifetime` | `DodgeFrequency`, `GuidanceCurve` |
+| `Control` (guidance, its cognition) | `Navigation` (PN constant), `Evasion` (share of `Lateral` spent jinking), `EvasionFrequency`, `Lifetime`, `Cognition` (skill at spending delta-v, 0 to 1, ruling `missile-cognition`) | `DodgeFrequency`, `GuidanceCurve` |
 | `Fuel` (tank) | `DeltaV` (m/s) | nothing (new) |
 | `Payload` (warhead) | no new field: `Munitions.Payload(item)` reads the weapon's existing `Damage`, `DamageSpread`, `DamageType`, `BlastRadius`, `Fuse` | nothing; one reader |
 
@@ -3810,8 +3927,9 @@ reading them. Together they close follow-up `launcher-flight-fields`.
 **A missile is still its pending shot.** A shot is a munition when its weapon data is
 `LauncherData` or `GuidedWeaponData` (`Munitions.IsMunition`, the one test). Its identity is
 its `ShotId`; its flight state is one inline struct on the shot, `MunitionFlight`: planar
-`Position` and `Velocity`, `DeltaV` remaining, `Throttle` (the last step's commanded
-acceleration over `Acceleration`, for the presenter), `Wear`, its `Seeker` subject (an
+`Position` and `Velocity`, `DeltaV` remaining, `Command` (the last step's commanded
+acceleration; the presenter's throttle is its length over `Acceleration`, and its sideways part
+is the munition's acceleration as a target), `Wear`, its `Seeker` subject (an
 `Entity`, null when it has none), `Locked`, and the source's faction frozen at fire. No second
 list, dictionary or class of missiles exists beside `Zone.PendingShots`. This is still the
 asteroid shape: a light record with a little state, simulated where the simulation lives, no
@@ -3822,8 +3940,9 @@ Entity, gear or agent behind it.
 launcher's lock, M17). The flight starts at the fire origin with the shooter's velocity plus
 `weapon.Velocity` along the mount (`LaunchDirection`), full `DeltaV`, and the shot's target as
 its seeker subject, unlocked (none for a round fired along the aim, whose launch data is
-the aim point or burst position). A munition shot takes no commit horizon and rolls nothing;
-`ArrivalTime` is `FireTime + Control.Lifetime`, its self-destruct time.
+the aim point or burst position). A munition shot's `CommitTime` is infinite until its
+terminal gate opens; `ArrivalTime` is `FireTime + Control.Lifetime`, its self-destruct time,
+until the gate replaces it.
 
 **The step.** `FireControl.Step` advances each live munition once per tick, before its
 resolution tests, through one function `Munitions.Advance(Zone zone, ref PendingShot shot, float dt)`:
@@ -3844,51 +3963,65 @@ resolution tests, through one function `Munitions.Advance(Zone zone, ref Pending
    its rate, so terminal guidance uses no data the ruling forbids.
 4. *Evade.* While PD rounds are inbound at it (`InboundRounds > 0`, which arrives with
    `munition-shots`, the cut that makes it shootable), it adds a jink of `Evasion * Lateral`
-   whose sign follows a phase seeded from its shot id at `EvasionFrequency`. Evasion and
-   pursuit share the clamp and the tank.
-5. *Pay.* `DeltaV -= |commanded acceleration| * dt`. A dry missile commands nothing and
-   coasts on its velocity (Nebulous), still able to fuze (Starsector).
-6. *Move and fuze.* Integrate position. Fuze on the closest approach between the missile's
-   and its subject's straight motion over the step, so no frame length tunnels it: a fused
-   munition detonates when that distance falls within its `BlastRadius`; an unfused one when
-   its step segment enters the subject's hull (`HullEntry`, M19), as a blast of
-   `max(BlastRadius, SchematicCellSize / 2)` at the entry point.
+   whose sign follows a phase seeded from its shot id at `EvasionFrequency`, drawing only on
+   fuel above its reserve (cognition, above). Evasion and pursuit share the clamp and the tank.
+5. *Pay.* `DeltaV -= |command| * dt * (2 - Cognition)`. Before the gate a command that would
+   take `DeltaV` below the reserve `Cognition * Lateral * CommitHorizon` is scaled down to what
+   the reserve allows; after the gate the whole tank is usable. A dry missile commands nothing
+   and coasts on its velocity (Nebulous).
+6. *Move and gate.* Integrate position. `Munitions.Terminal` holds when the missile has a seeker
+   subject and the time to its closest approach with that subject (both straight motions) is
+   within `CommitHorizon` and before its lifetime ends. `missile-odds` opens the gate there
+   (`CommitTime = now`, `ArrivalTime = now + time to go`) and the generic `Commit` rolls. Until
+   `missile-odds` lands nothing opens the gate, and every missile ends at its lifetime.
 
-**Resolution.** A fuzed munition commits a fresh `Burst` outcome at the fuze point (committed
-and published on `ShotCommitted`, removed, `Detonate`, then `ShotResolved`), so presenters
-keep their binding contract. `Detonate` hits whatever the disc covers, the target or not, as
-mines do. A munition that reaches `ArrivalTime` unfuzed resolves `Miss` at its position (no
-damage, a fizzle). Interception keeps the first pass's rule: wear at `Hull.Durability`
-resolves `Intercepted` at its position, no damage. A seeker subject that leaves the zone no
-longer resolves the shot as a miss: the missile goes blind, then acts on question
-`missiles-seeker-retarget`.
+**Resolution.** At the gate the generic `Commit` rolls the munition price with the per-shot
+seed and publishes `ShotCommitted`: `Hit` or `Miss`. Between commit and arrival (at most
+`CommitHorizon`) the flight presents the outcome and decides nothing: after a hit it closes on
+the target's live position with whatever sideways acceleration the closure needs, without
+debit; after a miss it commands nothing and coasts past. At `ArrivalTime` the generic `Apply`
+resolves it. A hit detonates through `Detonate` at the hull entry point on the missile's line to
+the target (`HullEntry`, M19), or at the target's position when the line finds no cell, with
+radius `max(BlastRadius, SchematicCellSize / 2)`. A miss damages nothing: a fused missile's near
+miss is the presenter's flash, not a blast, so the roll is the only thing that decides the
+target's damage. A munition that reaches its lifetime without a gate resolves `Miss` at its
+position (a fizzle). Interception keeps the first pass's rule at every stage, committed
+included: wear at `Hull.Durability` resolves a fresh `Intercepted` outcome, no damage. A seeker
+subject that leaves the zone before the gate makes the missile blind (retargeting, below); after
+the gate it resolves a fresh `Miss`, the target-gone precedent (M4).
 
-**Retargeting** is question `missiles-seeker-retarget`. The specs are written for the
-recommended `hostile-in-cone`: a missile with no subject, or one outside its cone, queries
-the targeting index every `GameplaySettings.SeekerInterval` (0.5 s, Nebulous's re-selection
-period) for entities hostile to the frozen faction, within `Sensors.Range` and the cone, and
-takes the brightest reading above threshold. Under `none` it flies on to the extrapolated
-point and fizzles; under `any-in-cone` friends are candidates too (HighFleet).
+**Retargeting** is ruled: `missiles-seeker-retarget`, hostile-in-cone. A missile with no
+subject, or one outside its cone, queries the targeting index every
+`GameplaySettings.SeekerInterval` (0.5 s, Nebulous's re-selection period) for entities hostile
+to the frozen faction, within `Sensors.Range` and the cone, and takes the brightest reading
+above threshold. Turning invisible works through the same reading: a target whose visibility
+falls below what the seeker needs is lost, and the missile seeks again. Decoys need something a
+seeker can read that is not a hostile ship; no cut here makes one (follow-up
+`missile-decoys-signature`).
 
 **Seen and shot like a rock.** A munition's detectability uses the passive balance with its
 own `Hull.Signature`; the index provider `MunitionTargets` offers every live munition at its
 stepped position; `TargetRef` gains `MunitionId`; `Entity.SetTarget` refuses a munition. PD
 rounds at a munition are priced and rolled by `FireControl` as the first pass said; lead now
 reads the missile's real velocity, and the deviation term reads its real stepped position
-against the frozen prediction, so jinking is what beats PD. The "round arrives too late"
+against the frozen prediction, so jinking is what beats PD. As a target a munition takes the
+shared `Evasion` term with its own agility (`Lateral` while it has delta-v) and the sideways part
+of its last command as its acceleration, so a jinking missile is harder to hold and a dry one is
+easy prey. The "round arrives too late"
 gate reads `Munitions.TimeToGo` (distance to its aim point over closing speed) instead of a
 fixed arrival.
 
 **The presenter.** `GuidedProjectile` places itself at the stepped position (height from
-`LiftCurve` over its life), faces the velocity, and drives its flame from `Throttle`, dark
-when dry. It plays a hit at a `Burst`, a kill at `Intercepted` and a fizzle at a lifetime
-`Miss`.
+`LiftCurve` over its life), faces the velocity, and drives its flame from the length of
+`Command`, dark when dry. Between commit and arrival it follows the record's post-commit
+flight. It plays a hit at a `Hit` (at the burst point), a kill at `Intercepted`, a near-miss
+flash at a committed `Miss` and a fizzle at a lifetime `Miss`.
 
 **Thresholded autofire.** A weapon group can be set to autofire with a threshold (default
 `AgentMinHitProbability`, 0.2). Each tick, before behaviours, `Autofire.Update` gives each
 weapon of an autofire group a subject from `FireControl.ChooseSubject` and activates it
-when one is chosen, deactivating it otherwise. `ChooseSubject` keeps the current subject
-while it is still worth firing; otherwise it takes, in order, the most urgent detected
+when one is chosen, deactivating it otherwise. `ChooseSubject` keeps the current subject while it is still worth firing, except that a
+worth-firing hostile munition preempts an entity subject; otherwise it takes, in order, the most urgent detected
 hostile munition in reach (least `Munitions.TimeToGo`), then the designated target, then the
 detected hostile entity in reach with the highest price, each only if worth firing.
 "Worth firing" is one function, `FireControl.Worth(weapon, shooter, subject, threshold)`:
@@ -3925,50 +4058,66 @@ while one of your autofire guns has it as subject.
 
 ### Authority map
 
-- **Owner.** `FireControl` owns every munition transition (fire, step, fuze, damage,
-  interception, lifetime, resolution) and every subject question (`SubjectOf`,
-  `ChooseSubject`, `Worth`). `Munitions` owns the pure facts and the step arithmetic
-  (`IsMunition`, `Payload`, `Advance`, `TimeToGo`, seeker reading); `FireControl.Step` is its
-  only caller that writes a shot. `MunitionData` owns a missile type's stats until gear
-  replaces each group. The player owns which groups are autofire and their thresholds.
-- **Inputs.** The frozen launch data, the flight state, zone time and dt, the seeker
-  subject's live position, velocity and visibility, the munition's stats, the count of PD
-  rounds inbound; the weapon's stats and the shooter's sensors; `Entity.Autofire`.
-- **Outputs.** Munition positions, velocities and throttle for the index, the HUD and the
-  presenter; `Burst`, `Intercepted` and lifetime `Miss` outcomes; blasts through `Detonate`;
-  weapon activation for autofire groups; the saved autofire settings.
-- **Derived state.** Seeker reading (every step, never stored beyond `Locked`), time-to-go,
-  detectability, the index's munition region.
-- **Demotions.** The first pass's derived pose is gone: a munition's position is stepped
-  state, written only in `Munitions.Advance` under `FireControl.Step`. The commit-horizon roll
-  is no longer the owner of a guided round's outcome; its fuze is. `GuidedProjectile` owns
-  only how a round looks. `Thrust`, `MissileVelocity`, `DodgeFrequency`, `GuidanceCurve` and
-  `ThrustCurve` no longer exist as loose launcher fields; the live stats are `MunitionData`'s.
-  `Entity.Target` is the designated target, the subject of manual fire only.
-  `PendingShot.Target` derives from `Subject`.
+- **Owner.** `FireControl` owns the one hit price for every shot, gun, beam or guided
+  (`HitProbability`, `CommitProbability`, `Evasion`, `PDeviation`, `Agility`), every munition
+  transition (fire, gate, commit, application, interception, lifetime, resolution) and every
+  subject question (`SubjectOf`, `ChooseSubject`, `Worth`). `Munitions` owns the pure facts and
+  the flight arithmetic (`IsMunition`, `Payload`, `Advance`, `TimeToGo`, `Terminal`, `Reserve`,
+  the seeker reading); `FireControl.Step` is its only caller that writes a shot. `MunitionData`
+  owns a missile type's stats, cognition included, until gear replaces each group.
+  `Entity.Update` owns `Entity.Acceleration`. The player owns which groups are autofire and
+  their thresholds.
+- **Inputs.** The frozen launch data, the flight state, zone time and dt, the seeker subject's
+  live position, velocity, acceleration and visibility, the munition's stats, the count of PD
+  rounds inbound; the weapon's stats and the shooter's sensors, accuracy and tracking; the
+  target's strafe thrust and mass; `Entity.Autofire`.
+- **Outputs.** Munition positions, velocities and commands for the index, the HUD and the
+  presenter; `Hit`, `Miss` and `Intercepted` outcomes; blasts through `Detonate`; prices that
+  carry the tracking term for the HUD, the AI and autofire; weapon activation for autofire
+  groups; the saved autofire settings.
+- **Derived state.** Seeker reading (every step, never stored beyond `Locked`), time to go, the
+  terminal fact, reserve, zero-effort miss, correction, agility, evasion, throttle (from
+  `Command`), detectability, the index's munition region.
+- **Demotions.** The first pass's derived pose is gone: a munition's position is stepped state,
+  written only in `Munitions.Advance` under `FireControl.Step`. The second pass's geometric fuze
+  never lands: the flight decides only whether and with what a missile reaches its gate; the
+  roll at the gate decides contact, and the post-commit flight only presents it. Flight time is
+  no longer the only way a manoeuvre reaches a price: the tracking term reaches every shot.
+  `GuidedProjectile` owns only how a round looks. `Thrust`, `MissileVelocity`, `DodgeFrequency`,
+  `GuidanceCurve` and `ThrustCurve` no longer exist as loose launcher fields. `Entity.Target` is
+  the designated target, the subject of manual fire only. `PendingShot.Target` derives from
+  `Subject`.
 - **Forbidden writers.** Any write of a `MunitionFlight` field outside `Munitions.Advance` and
   `Fire`, except `Wear` (only `FireControl.DamageMunition`) and `InboundRounds` (only
-  `FireControl`'s shot transitions). Homing, intercept or guidance arithmetic in `Gameplay`
-  or `UI`. A roll, `CommitTime` or `CommitProbability` path for a munition shot. A copy of
-  warhead fields inside `MunitionData`. A global setting standing in for a per-missile stat.
-  Any read of `Entity.Target` as a weapon's subject outside `SubjectOf`. A second worth-it
-  test beside `Worth`. A second record type, list or dictionary of missiles beside
+  `FireControl`'s shot transitions). Any contact, damage or dice in `Munitions`. A commit point
+  for a munition other than its terminal gate; a second price for guided rounds beside
+  `CommitProbability`'s munition branch. An evasion, agility or deviation-shape formula outside
+  `FireControl.Evasion`, `Agility` and `PDeviation`. Any write of `Entity.Acceleration` outside
+  `Entity.Update`. Homing, intercept or guidance arithmetic in `Gameplay` or `UI`. A copy of
+  warhead fields inside `MunitionData`. A global setting standing in for a per-missile stat. Any
+  read of `Entity.Target` as a weapon's subject outside `SubjectOf`. A second worth-it test
+  beside `Worth`. A second record type, list or dictionary of missiles beside
   `Zone.PendingShots`.
-- **Shared paths.** Fused and unfused munitions, mines and fused rounds all damage through
-  `Detonate`. The seeker and `Entity.ChunkInfo` read the same settled-sensor function over
-  `Sensor.Gain`. Player autofire, `Combat` and `TurretController` choose through
-  `ChooseSubject`; the presenter, the HUD and the index read the same flight state.
+- **Shared paths.** Guns, beams, instant weapons, PD rounds at munitions and guided rounds all
+  price through `PDeviation` and `Evasion`, commit through `Commit` and apply through `Apply`.
+  Missile hits, mines and fused rounds all damage through `Detonate`. The seeker and
+  `Entity.ChunkInfo` read the same settled-sensor function over `Sensor.Gain`. Player autofire,
+  `Combat` and `TurretController` choose through `ChooseSubject`; the presenter, the HUD and the
+  index read the same flight state.
 - **Deletion line.** Before new behaviour: the loose launcher flight fields go in
-  `missile-stats` (migrated, then deleted); `GuidedProjectile`'s homing, dodge and split code
-  and the two curves go in `missile-presenter`; the stored `PendingShot.Target` field becomes `Subject` in
+  `missile-stats` (migrated, then deleted); `DeviationProbability`'s inline
+  `saturate(1 - deviation / Tracking)` becomes `PDeviation` in `evasion-term` before the term is
+  added; `GuidedProjectile`'s homing, dodge and split code and the two curves go in
+  `missile-presenter`; the stored `PendingShot.Target` field becomes `Subject` in
   `munition-shots`.
 
 ### Model page rows
 
 | Kind | Identity | Lifecycle | Authority |
 |---|---|---|---|
-| Munition (light record) | Its `PendingShot`'s `ShotId`, as `MunitionId` in a `TargetRef`. | From fire until fuze, interception or lifetime; never saved, as pending shots are not. | `FireControl` for transitions; `Munitions.Advance` for flight. |
-| Munition flight | `PendingShot.Flight` (position, velocity, delta-v, throttle, wear, seeker, lock, faction, inbound rounds). | Stepped every tick; gone with its shot. | `Munitions.Advance` under `FireControl.Step`; wear by `DamageMunition`. |
+| Munition (light record) | Its `PendingShot`'s `ShotId`, as `MunitionId` in a `TargetRef`. | From fire through its terminal gate (commit) to arrival, or until interception or lifetime; never saved, as pending shots are not. | `FireControl` for transitions and the roll; `Munitions.Advance` for flight. |
+| Munition flight | `PendingShot.Flight` (position, velocity, delta-v, command, wear, seeker, lock, faction, inbound rounds). | Stepped every tick; gone with its shot. | `Munitions.Advance` under `FireControl.Step`; wear by `DamageMunition`. |
+| Entity acceleration | `Entity.Acceleration`. | Written every update from the velocity change; never saved. | `Entity.Update`. |
 | Missile stats | `MunitionData` on `LauncherData` / `GuidedWeaponData`, six groups. | Catalog data in `Aetheria.cc`. | The catalog now; gear once munitions are entities. |
 | Autofire setting | Per weapon group, `Entity.Autofire` (on, threshold). | Set by the player; saved in `EntityPack` key 21. | The player. |
 | Autofire subject | Per weapon, runtime only. | Re-picked by `Autofire.Update` when the current one stops being worth firing. | `FireControl.ChooseSubject`. |
@@ -3988,6 +4137,22 @@ only the line-of-sight angle and its rate, so the law and the ruling agree, and 
 textbook's failure modes (a late hard break, burn-and-coast against augmented PN, low energy
 at long range) become the dodging the operator asked for.
 
+**Why odds at one gate.** Ruling `missiles-resolution-model` reverses the second pass's
+geometry-only recommendation, and the reason is the operator's: at this simulation's scale a
+fuze is not physics, it is a coarse proxy that throws away terminal fuel, seeker data and
+cognition. The second pass's objection to rolls (flight and dice answering one question twice)
+is met by placing the roll where guns place theirs, at a commit before arrival, and making the
+flight after it presentation. The flight still matters: it is what spends fuel, loses seekers
+and builds the miss the price reads. The entity cut keeps this shape: gear replaces the stats
+the price reads, not the price.
+
+**Why evasion is a tracking term.** Ruling `evasion-not-only-flight-time`: in-flight deviation
+only charges a dodge the round's flight time allows, so a laser cannot be dodged (M20). A
+tracking term charges the target's current sideways motion against the shooter's `Tracking`
+whatever the weapon, in the shape EVE's turrets use, and adds to the in-flight deviation, which
+still rewards a dodge made while a slow round flies. Capping speed by what the hull could
+reverse in the window keeps it a stat: a heavy hull cannot buy evasion by drifting.
+
 **Why reactive evasion.** The operator's sentence is "a missile that spends fuel evading
 PD". Evasion triggered by inbound rounds makes PD fire cost the missile fuel even when it
 misses, so a saturating salvo and a well-placed PD group both change what arrives. A
@@ -4003,18 +4168,23 @@ reads `Munitions` changes.
 instead of the ship behind them are a classic irritation, and the operator asked for
 autofire precisely so that PD needs no micro.
 
-**Cut order.** `missile-stats` first: the stat object and the catalog migration, no
-behaviour change. `missile-records` r2 second, after `missile-stats`: the flight, seeker,
-fuel, fuze, lifetime, interception, provider and the cost pin, headless. `missile-presenter`
-after it and `controls-helm`: the presenter follows the stepped flight, and the dead curves
-go. `munition-shots` r2 third (it needs only `missile-records`), after `controls-mount-aim`: the subject widening, munition
-pricing, PD hits and flak, and inbound rounds that trigger evasion. `autofire-threshold` r2
-fourth, after `controls-hud`. `ai-autofire` r1 last, after `controls-ai-bearing`.
+**Cut order.** `missile-stats` (r2) first: the stat object with `Cognition` and the catalog
+migration, no behaviour change. `evasion-term` (r1) needs nothing and may run beside it: the
+tracking term in every gun price. `missile-records` (r3) after `missile-stats`: flight, seeker,
+reacquisition, cognition's efficiency and reserve, the terminal fact, lifetime, interception,
+the provider and the cost pin, headless; missiles fly but never hit. `missile-odds` (r1) after
+`missile-records` and `evasion-term`: the gate, the price, the commit, the post-commit flight and
+the blast. `missile-presenter` (r2) after `missile-odds` and `controls-helm`. `munition-shots`
+(r3) after `missile-odds` and `controls-mount-aim`. `autofire-threshold` (r3) after it and
+`controls-hud`; `ai-autofire` r1 last, after `controls-ai-bearing`. Splitting the old
+`missile-records` keeps each Hands pass inside its budget: the flight alone sat near the
+ceiling, and the price is a second subject with its own tests.
 
 **Left for later.** Full munition entities (follow-up `drones-munitions-substrate`), whose gear
 replaces `MunitionData` group by group; midcourse bearing updates from the launcher over a
 datalink (ruling `shared-track-bearing-only` allows a bearing; nothing sends one yet); seeker
-kinds, decoys, jamming and soft kill; boost and midcourse fuel planning; mines as records
+kinds, decoys (follow-up `missile-decoys-signature`: a decoy needs a signature the seeker's
+reading can take), jamming and soft kill; boost and midcourse fuel planning; mines as records
 (`bodies-entity-and-mines`); whether launchers draw rounds (`launcher-ammunition`). Whether
 the demo cast fields launchers for the player's PD to meet is content: the cuts add a
 `Point Defense` scenario for the operator check.
