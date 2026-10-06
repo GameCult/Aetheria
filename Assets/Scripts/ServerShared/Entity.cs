@@ -16,6 +16,8 @@ public abstract class Entity
 {
     public Zone Zone;
     public Faction Faction;
+    // The mark of a zone's boss, written only by ZoneGenerator and restored from the pack. RunGoal reads it.
+    public bool IsBoss;
     public EquippableItem Hull;
     public EquippedItem EquippedHull;
     
