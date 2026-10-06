@@ -3187,3 +3187,229 @@ This is a default, not a ruling. The operator can ask for calibres at any time.
 is full (Q6a A), because pickups were Unity-only (mining-cut.md:286-287). After
 `loot-1`, overflow could float through `Zone.Release` like any other loot. Follow-up
 `mining-cuts-4-5-7` carries the question to that map.
+
+## Controls
+
+The control rebuild of ruling `facing-separate-from-aim`, which ruling
+`demo-controls-rebuild` puts before the demo. The pilot steers the hull's facing with
+its own input, the cursor aims, fixed mounts fire when the aim is inside their arc and
+turrets track. Articulated mounts (follow-up `articulated-mounts`, ruling
+`arc-and-traverse-on-the-link`) are full game; this section keeps every arc read behind
+the seam they will plug into. Anchors are against `origin/master` `228f241e`, read in a
+detached scratch worktree on 2026-10-06.
+
+### Prior art
+
+Sources are marked: **primary** (the game's own source, manual or developer post, read
+in full), **wiki** (a community wiki page read in full), **snippet** (a search-result
+summary only, not read at source; treat as unverified).
+
+- **Starsector** (wiki: the fandom `Piloting` page, read through the MediaWiki API; the
+  Fractal Softworks manual PDF could not be fetched). WASD is ship-relative: A and D
+  turn, Ctrl-A and Ctrl-D strafe. Holding Shift makes the ship "automatically point
+  towards the mouse"; a setting makes that the default. The mouse aims the selected
+  weapon group, which tracks the cursor and fires on the left button. Shift+1-5 puts a
+  group on autofire: those weapons pick and attack their own targets, and the HUD marks
+  the group with a filled square. R designates the ship under the mouse, and weapons
+  "preferentially fire at the target". The wiki's own advice is to put everything except
+  missiles on autofire so that the mouse governs only shields. That advice is the
+  community's answer to the core failure of a cursor-aimed, arc-limited model: holding
+  the cursor inside a narrow arc while manoeuvring is hard (snippet, forum). Vanilla
+  draws weapon arcs, and a popular mod redraws them (snippet).
+- **Endless Sky** (primary: `source/Preferences.cpp` and `PreferencesPanel.cpp` on
+  `master`). Fixed guns fire along the hull; turrets track. Player options: "Automatic
+  aiming" off / always on / when firing (default when firing), "Automatic firing" off /
+  on / guns only / turrets only (default off), "Aim turrets with mouse", "Turrets focus
+  fire" (default on), "Control ship with mouse", and "Turret overlays" off / always on /
+  blindspots only (default blindspots only). So the arc display defaults to showing only
+  where the guns cannot reach.
+- **Escape Velocity Nova** (primary: the Nova Bible, weapon `Guidance` field). Keyboard
+  turning; fixed guns fire ahead. Guidance 7 is a "front-quadrant turret" that can fire
+  plus or minus 45 degrees off the nose and "fires straight ahead if no target";
+  guidance 8 is the rear quadrant. A designated target pulls a limited-arc turret's
+  rounds onto it, and without one the mount fires down its axis. This is the closest
+  precedent for Aetheria's designation-based fire control.
+- **Cosmoteer** (primary: developer blog, "Cosmoteer 0.14.11 - Arcade Style Ship
+  Controls"). Direct Control: W and S thrust, A and D rotate, Q and E strafe; the mouse
+  aims and fires. Turreted weapons fire on the left button and fixed weapons on the right
+  by default, rebindable per weapon. Rotating to face the cursor is an opt-in setting.
+- **Nebulous: Fleet Command** (snippet). Weapons engage designated targets on their own
+  within their arcs; ships auto-orient to bring mounts to bear. Its known failures are
+  arc failures: narrow-arc guns idle while the ship searches for an angle that brings
+  every turret to bear, and turrets report "target masked by hull".
+- **Battlestar Galactica Deadlock** (snippet). Broadside, bow and stern batteries have
+  about 90-degree arcs; dorsal and ventral guns cover 360 degrees with limited elevation.
+  Arcs show when a turret is clicked in the radial menu, and a key toggles them on the
+  selected ship. Players asked for more visible arcs (a Steam thread title).
+- **SubSpace and Continuum** (snippet). Arrow keys rotate, up thrusts, guns fire along
+  the nose: the pure nose-aim model this ruling retires.
+- **World of Warships** (snippet), added because Aetheria's camera is a chase camera, not
+  top-down (body fact C7). The mouse orbits the camera and aims; the keyboard is the helm.
+  Guns traverse toward the aim at a turret traverse speed. The classic complaint is "the
+  guns won't fire though the view looks on target": the turret has not finished
+  traversing or cannot bear, and the reticle's gun markers carry that state.
+
+**Failure modes to design against.**
+1. "My guns don't fire": the aim or target is outside a mount's arc, or a turret has not
+   traversed yet, and nothing on screen says so (Starsector forum, Nebulous, World of
+   Warships). Answer: the HUD shows each group's state where the eye already is (the
+   group crosshair and the arc fan), and per-group autofire exists for players who would
+   rather manoeuvre.
+2. Holding the cursor inside a narrow arc while also flying the ship is hard (Starsector).
+   Answer: a hold-to-face modifier for nose guns, and autofire for side guns.
+3. Over-eager auto-orientation fights the player (Nebulous ships hunting for an angle).
+   Answer: the player's hull never turns itself; only an AI hull turns to bring a group to
+   bear, and it chooses one group.
+4. Arcs drawn everywhere become clutter. Answer: draw only arcs below 360 degrees, the
+   Endless Sky "blindspots only" default.
+
+### Body facts
+
+- **C1. The input layout.** `Assets/Resources/Aetheria.inputactions`, map Player: `Move`
+  (Vector2: W/S as y, A/D as x, gamepad left stick), `Look` (pointer delta, right stick),
+  and `Turn` (1D axis, Q negative, E positive), which no script reads. Fire is the action
+  bar: `ActionGameManager.cs:101-103` binds the left, right and middle mouse buttons to
+  action-bar slots, and `ActionBarWeaponGroupBinding.Activate` (`ActionBarSlot.cs:189-195`)
+  activates every weapon in its group. No Shift binding exists in the Player or Global maps.
+- **C2. The player's steering is the aim.** `ActionGameManager.cs:1277-1281`: the pointer
+  delta (cursor locked, `:648`) integrates `_entityYawPitch`, which becomes
+  `_viewDirection`, which is written to `CurrentEntity.LookDirection`. `:1290` writes
+  `Move` to `ship.MovementDirection` (x strafe, y thrust).
+- **C3. `LookDirection` is the facing command.** `Ship.Update` (`Ship.cs:278-291`) sets
+  `deltaRot = dot(look, right)`, shapes it `sqrt(|d|) * sign(d)`, feeds it to the rotation
+  thrusters and the aether drives' `Axis.z`, and below `|d| < .01` writes
+  `Direction = lerp(Direction, look, ...)` directly. So aim and facing are one field.
+- **C4. Turning is kinematic.** No angular velocity exists. A thruster rotates
+  `Entity.Direction` by `input * Torque * Thrust * TorqueMultiplier / Mass * dt`
+  (`Thruster.cs:106-107`); an aether drive by `force.z * axis.z * AetherTorqueMultiplier /
+  Mass` (`AetherDrive.cs:154-155`). `Settings.asset` (LFS): `TorqueFloor 0.5`,
+  `TorqueMultiplier 0.1`, `AetherTorqueMultiplier 0.1`. `Ship.TurnTime` (`Ship.cs:61-66`)
+  estimates a turn. Turn rate is therefore torque over mass times one global multiplier.
+- **C5. FireControl's arc.** `ArcFor` (`FireControl.cs:36-41`) is
+  `HardpointData.FiringArc` (`ItemData.cs:569`, key 6) when above zero, else
+  `GameplaySettings.FiringArc` (`Settings.cs:214`, initializer 120; the field is absent
+  from `Settings.asset`, so 120 holds). `InArc` (`:50-58`) compares a planar bearing with
+  `MountDirection` (hull `Direction` rotated by the item's rotation); 360 or more passes,
+  and a bearing under 1e-6 passes. `AimDirection` (`:116-126`) clamps `LookDirection` to
+  the arc's nearer edge. The Turret hull's hardpoints author 360 (`AetherDb
+  firing-arc-migrate`, `Program.cs:1037`).
+- **C6. The trigger gate reads the target, not the aim.** `ArcPermitsFire` (`:76-88`):
+  with no target it passes; with a target it tests the target's bearing, and a fused
+  weapon passes anyway (operator ruling 2026-09-30, `fire-control-cut.md:2628-2640`).
+  `PFire` (`:256-270`) prices a shot at zero out of arc. `Solve` (`:440-473`) flies a
+  round to the target's intercept when it is engaged (`TravelDirection`, `:396-400`), and
+  along `AimDirection` otherwise. So the cursor today decides only facing, reticle
+  targeting (`Entity.TargetUnderReticle`, `Entity.cs:407-412`), no-lock fused flight,
+  the lock cone (`LockWeapon.cs:100`), the tractor (`ShipInstance.cs:116`), guided
+  rounds' aim point (`GuidedProjectileManager.cs:79`) and loot's view direction
+  (`ZoneRenderer.cs:440`).
+- **C7. The camera is a chase camera that looks at the aim.** `FollowCamera` follows the
+  ship and looks at `EntityInstance.LookAtPoint`, set each frame to ship position plus
+  `LookDirection` times the target range, or 10,000 with no target
+  (`EntityInstance.cs:401-402`, `ActionGameManager.cs:1039-1040`). The scene's two
+  framing transposers (`ARPG.unity:4963`, `:21276`) position the camera and do not rotate
+  it, so the camera's heading comes from the aim and survives the split. Which of the two
+  belongs to `FollowCamera` was not resolved.
+- **C8. What the HUD draws.** `UpdateTargetIndicators` (`ActionGameManager.cs:1390-1422`):
+  `ViewDot` at `LookAtPoint`; one crosshair per articulation group at the mean of its
+  barrels' forward rays (`_articulationGroups`, `:1041-1057`, grouped by the barrel's
+  `ArticulationPoint.Group`); the target indicator; lock indicators. `Update` fills the
+  target panel's bars and `UpdateFireControlDebug` (`:1319-1380`) prints the fire-control
+  gates as text, including `arc {d.InArc}`. No arc, no lead marker and no predicted path
+  is drawn.
+- **C9. The barrel picture has its own arc.** `ArticulationPoint` (Unity) slews a barrel
+  toward `Target` (every point's target is `LookAtPoint`, `EntityInstance.cs:278-283`)
+  at `Speed` and clamps yaw to `YawMin..YawMax`, authored by `ShipPrefabAuthoring.cs:141-148`
+  and unrelated to `FiringArc`. Package hulls have none (`ShipModShips.cs:164`): their
+  weapons are points, so every package-hull weapon lands in group -1 and one crosshair.
+- **C10. AI writers treat `LookDirection` as facing.** `Agent.Accelerate`
+  (`Agent.cs:59-79`) writes it to turn toward the velocity error. `Combat` (`:98-128`)
+  calls `Accelerate(noTurn: true)` and then writes `LookDirection = toTarget` (the
+  intercept), which turns the nose to the target. `MoveTo.cs:26` writes it.
+  `TurretController.cs:74-77` writes it; a turret hull has no rotation thrusters, so it
+  only aims. Faction-play r1's new `FollowState` "looks at the anchor" and `FleeState`
+  flies through `Accelerate`, so they inherit the same assumption; their r2 (follow-up
+  `faction-play-reanchor-demo`) must use the helm port below.
+- **C11. The Arcs scenario assumes nose aim.** `Scenarios/Arcs.cs`: forward mounts, a bare
+  hull off the bow and one off the stern, a hostile 360 turret. Its check "nothing fires at
+  the stern one through the ship" could only be reached by turning, because turning the
+  view turned the hull. Checklist item 11 (`merge-to-master-checklist.md:49`) also wants
+  side mounts firing abeam.
+- **C12. Weapon groups persist.** `Entity.WeaponGroups` (`Entity.cs:69`) is saved as
+  `EntityPack` key 16 (`EntitySerializer.cs:189`) and `Loadout` key 3 (`Loadout.cs:19`).
+
+### Authority map
+
+- **Owner.** `Ship` owns facing: `Ship.Update` turns the hull from one demand,
+  `Ship.Turn` (-1..1, positive clockwise), and from nothing else. `Entity.Aim`
+  (`LookDirection` renamed) owns where the pilot points. `FireControl` owns every mount
+  question: its arc (`ArcFor`), its axis (`MountDirection`), whether its trigger is free
+  (`ArcPermitsFire`), and the one direction its next round flies (`MountAim`, new).
+- **Inputs.** The player's `Turn` axis and hold-to-face button, the pointer delta, the AI
+  states' chosen headings, the hardpoint's `FiringArc` and item rotation, the designated
+  target.
+- **Outputs.** Hull rotation through the thrusters and drives; the trigger gate; each
+  round's flight direction; the facts the HUD draws.
+- **Derived state.** `Steering.Toward(ship, heading)` derives a turn demand from a
+  heading (the C3 law, moved). The barrel picture, the group crosshairs, the arc fans,
+  the lead marker and the predicted path are display-only derivations of FireControl and
+  `Ship.Coast`.
+- **Demotions.** `LookDirection` is no longer an owner of facing; it is renamed `Aim` and
+  steers nothing. `ArticulationPoint` is no longer an owner of arcs; its yaw derives from
+  `MountAim`. The barrel transforms are no longer the source of the group crosshair.
+- **Forbidden writers.** Any write of `Entity.Direction` outside the thrusters, the aether
+  drives, wormhole exit, load and staging (the `lerp` snap in `Ship.Update` goes). Any
+  read of `Aim` in `Ship.Update`. Any read of `FiringArc` outside `FireControl.ArcFor`,
+  hardpoint validation and AetherDb. Any arc, bearing or intercept arithmetic in
+  `Assets/Scripts/Gameplay` or `UI`.
+- **Shared paths.** The player and every AI state reach the hull only through `Ship.Turn`;
+  player and AI rounds leave through the same `MountAim`; the HUD, the barrel picture and
+  `Solve` read the same `MountAim`.
+- **Deletion line.** Before any new behaviour: the facing block of `Ship.Update`
+  (`Ship.cs:278-291`) is replaced, the `LookDirection` field is renamed so that every old
+  writer fails to compile until it chooses aim or helm, and `ArticulationPoint`'s yaw
+  clamp is deleted.
+
+### Model page rows
+
+| Kind | Identity | Lifecycle | Authority |
+|---|---|---|---|
+| Turn demand (`Ship.Turn`) | Per ship, runtime only. | Written every frame by the player input or the ship's agent; never saved. | The pilot (input or agent), through `Steering.Toward` for headings. |
+| Aim (`Entity.Aim`) | Per entity, runtime only. | Written every frame by the player's view or the agent; never saved (as `LookDirection` was not). | The pilot. |
+| Mount aim | Derived per weapon from aim, target, arc and mount. | Computed on read. | `FireControl.MountAim`. |
+| Group autofire flag (if question `controls-autofire` rules yes) | Per weapon group of an entity. | Set by the player; saved beside `WeaponGroups` in `EntityPack`. | The player. |
+| Arc-display preference | `PlayerSettings` player store. | Edited by a toggle; persists. | The player. |
+
+### Rationale
+
+**Why rename `LookDirection`.** A rename makes every old writer stop compiling until
+someone decides whether it meant aim or helm. Keeping the name would leave AI states that
+mean "turn there" compiling as "aim there", silently, which is exactly the split-brain the
+rebuild removes. The Gameplay and test call sites are mechanical.
+
+**Why a turn demand rather than a desired heading.** The player's keys command a rate;
+the AI and the hold-to-face button command a heading. A demand is the narrower port: a
+heading converts to it through one function (`Steering.Toward`), and a rate needs no
+conversion. A heading port would force the keys to invent a far-off heading.
+
+**Why the cursor gates and the target lands.** The ruling's words make the aim the
+trigger gate: a fixed mount fires when the aim is inside its arc. FireControl's lock
+model, its hit pricing and its tests are built on a designated target. Question
+`controls-target-pulls-rounds` asks whether a designated target inside the arc pulls the
+rounds and turrets onto it (Escape Velocity's front-quadrant turret), or whether rounds
+always fly along the clamped aim, which would reopen FireControl's pricing.
+
+**Why traverse is not simulated in the demo.** Traverse speed is a stat of the moving
+part (ruling `arc-and-traverse-on-the-link`), and that model is full game. `MountAim` is
+stateless now; articulated mounts make it stateful behind the same signature, and every
+caller (Solve, the trigger, the HUD, the barrel) already reads it, so nothing else moves.
+
+**Why the predicted path is a coast.** It answers "where does this hull go if I let go",
+which is the question gravity wells and slower turns make hard. It reuses the hull's own
+drag and gravity step (extracted to `Ship.Coast`), so the line cannot disagree with the
+simulation. Thrust is not projected: it changes every frame.
+
+**Cut order.** `controls-helm` first: the split itself, and the rename forces every writer
+to be ported in the same cut. `controls-mount-aim` second: the trigger and the one round
+direction. Then `controls-hud`, `controls-autofire` and `controls-ai-bearing`, which are
+independent of each other.
