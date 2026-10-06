@@ -111,7 +111,8 @@ public class ActionGameManager : MonoBehaviour
 
     public GameSettings Settings;
     //public string StarterShipTemplate = "Longinus";
-    public int Credits = 15000000;
+    // The run's credits: seeded from the scenario stage on a new game and from SavedGame on Continue, written by SaveRun.
+    [NonSerialized] public int Credits;
     public float TargetSpottedBlinkFrequency = 20;
     public float TargetSpottedBlinkOffset = -.25f;
     
@@ -252,7 +253,7 @@ public class ActionGameManager : MonoBehaviour
         if (CurrentGalaxy != null)
         {
             var (game, zones) = RunSave.Capture(CultCache, CurrentGalaxy, Zone, DockedEntity ?? CurrentEntity,
-                _actionBarSlots.Select(s => s.Save()).ToArray());
+                _actionBarSlots.Select(s => s.Save()).ToArray(), Credits);
             RunSave.Commit(CultCache, game, zones, ItemManager.Lots);
         }
     }
@@ -774,6 +775,7 @@ public class ActionGameManager : MonoBehaviour
             else
             {
                 var saved = CultCache.GetGlobal<SavedGame>();
+                Credits = saved.Credits;
                 foreach(var group in CurrentGalaxy.DiscoveredZones
                     .GroupBy(dz=>dz.Distance[CurrentGalaxy.Entrance]))
                     SectorMap.QueueZoneReveal(group);
@@ -829,6 +831,7 @@ public class ActionGameManager : MonoBehaviour
             MainMenu.Refuse($"{scenario.Name} could not start", string.Join("\n", failures));
             return;
         }
+        Credits = staged.Credits;
         SectorMap.QueueZoneReveal(CurrentGalaxy.Entrance.AdjacentZones.Prepend(CurrentGalaxy.Entrance));
         BindToEntity(staged.Player);
     }

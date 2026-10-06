@@ -25,6 +25,8 @@ public class TradeMenu : MonoBehaviour
     public TextMeshProUGUI CreditsLabel;
 
     private EquippedCargoBay _targetCargo;
+    // False lists the station's wares to buy; true lists the selected bay's goods to sell.
+    private bool _selling;
     private (ItemFilter filter, HardpointType type) _hardpointFilter;
     private (ItemFilter filter, SimpleCommodityCategory type) _commodityFilter;
     private (ItemFilter filter, CompoundCommodityCategory type) _compoundCommodityFilter;
@@ -36,6 +38,7 @@ public class TradeMenu : MonoBehaviour
     {
         if (GameManager.DockedEntity == null) return;
         _targetCargo = GameManager.DockingBay;
+        _selling = false;
         TargetCargoLabel.text = "Docking Bay";
         Properties.GameManager = GameManager;
         UpdateCreditsLabel();
@@ -220,7 +223,7 @@ public class TradeMenu : MonoBehaviour
             x => () => $"{x.data.Shape.Width}x{x.data.Shape.Height}", 
             data => data.Shape.Width*data.Shape.Height));
         
-        var items = Inventory.Cargo.Keys
+        var items = (_selling ? _targetCargo : Inventory).Cargo.Keys
             .Select<ItemInstance, (ItemInstance item, ItemData data)>(ii=>(ii, GameManager.ItemManager.GetData(ii)));
         
         if (MinimumSizeFilter.gameObject.activeSelf)
@@ -315,6 +318,7 @@ public class TradeMenu : MonoBehaviour
                 OnClick = () => Properties.Inspect(i.item),
                 OnDoubleClick = () =>
                 {
+                    if (_selling) return;
                     switch (i.item)
                     {
                         case CraftedItemInstance c:
@@ -329,7 +333,13 @@ public class TradeMenu : MonoBehaviour
                 },
                 OnRightClick = () =>
                 {
-                    if (i.item is SimpleCommodity s)
+                    if (_selling)
+                    {
+                        ContextMenu.Clear();
+                        ContextMenu.AddOption($"Sell ({StationServices.SellPrice(GameManager.ItemManager, i.item):N0})", () => Sell(i.item));
+                        ContextMenu.Show();
+                    }
+                    else if (i.item is SimpleCommodity s)
                     {
                         ContextMenu.Clear();
                         ContextMenu.AddOption("Buy Quantity",
@@ -363,6 +373,33 @@ public class TradeMenu : MonoBehaviour
         }
     }
 
+    private void Sell(ItemInstance item)
+    {
+        if (StationServices.TrySell(_targetCargo, GameManager.DockedEntity, item, ref GameManager.Credits))
+        {
+            UpdateCreditsLabel();
+            Populate();
+            return;
+        }
+        Dialog.Clear();
+        Dialog.Title.text = "Unable to sell: Station Cargo Full!";
+        Dialog.Show();
+        Dialog.MoveToCursor();
+    }
+
+    private void Repair()
+    {
+        if (StationServices.TryRepair(GameManager.CurrentEntity, ref GameManager.Credits))
+        {
+            UpdateCreditsLabel();
+            return;
+        }
+        Dialog.Clear();
+        Dialog.Title.text = "Unable to repair: Insufficient Credits!";
+        Dialog.Show();
+        Dialog.MoveToCursor();
+    }
+
     private void Buy(CraftedItemInstance item)
     {
         var data = GameManager.ItemManager.GetData(item);
@@ -375,7 +412,7 @@ public class TradeMenu : MonoBehaviour
 
                 GameManager.CommissionShip(item as EquippableItem);
 
-                GameManager.Credits -= data.Price;
+                GameManager.Credits -= price;
                 UpdateCreditsLabel();
             }
             else if (Inventory.TryTransferItem(_targetCargo, item))
@@ -468,6 +505,13 @@ public class TradeMenu : MonoBehaviour
                     }
                 }
             }
+            ContextMenu.AddOption(_selling ? "Buy Goods" : "Sell Goods", () =>
+            {
+                _selling = !_selling;
+                Populate();
+            });
+            var repairCost = StationServices.RepairCost(GameManager.ItemManager, GameManager.CurrentEntity);
+            if (repairCost > 0) ContextMenu.AddOption($"Repair ({repairCost:N0})", Repair);
             ContextMenu.Show();
         });
     }
