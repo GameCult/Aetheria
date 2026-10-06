@@ -95,9 +95,9 @@ public sealed class StationServicesTests : IDisposable
         Assert.Equal((int) Math.Floor(_items.GetPrice(Mint("Lamp")) * .5), StationServices.SellPrice(_items, Mint("Lamp", 0)));
         // Past design durability is no better than new.
         Assert.Equal(StationServices.SellPrice(_items, Mint("Gun")), StationServices.SellPrice(_items, Mint("Gun", 80)));
-        // A commodity has no wear: its price per unit times the quantity, at the fraction.
+        // A commodity has no wear: its price per unit times the quantity, at the fraction, rounded down.
         Assert.Equal(35, StationServices.SellPrice(_items, Ore(10)));
-        Assert.Equal(0, StationServices.SellPrice(_items, Ore(1)));
+        Assert.Equal(3, StationServices.SellPrice(_items, Ore(1)));
     }
 
     [Fact]
