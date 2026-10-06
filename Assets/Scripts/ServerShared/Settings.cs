@@ -161,6 +161,11 @@ public class GameplaySettings
     public EntitySettings DefaultEntitySettings;
     public RarityTier[] Tiers;
     public ExponentialLerp QualityPriceModifier;
+    // What a station pays for goods, as a fraction of their price, scaled further by the item's condition.
+    public float SellFraction = .5f;
+    // What a station charges to restore worn gear, as a fraction of the price of the wear.
+    public float RepairFraction = .25f;
+    public int StartingCredits = 15000000;
     public float DurabilityQualityExponent = 2;
     public float DurabilityQualityMin = 2;
     public float DurabilityQualityMax = .25f;
