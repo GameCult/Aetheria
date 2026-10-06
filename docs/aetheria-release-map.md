@@ -3377,7 +3377,8 @@ summary only, not read at source; treat as unverified).
 | Turn demand (`Ship.Turn`) | Per ship, runtime only. | Written every frame by the player input or the ship's agent; never saved. | The pilot (input or agent), through `Steering.Toward` for headings. |
 | Aim (`Entity.Aim`) | Per entity, runtime only. | Written every frame by the player's view or the agent; never saved (as `LookDirection` was not). | The pilot. |
 | Mount aim | Derived per weapon from aim, target, arc and mount. | Computed on read. | `FireControl.MountAim`. |
-| Group autofire flag (if question `controls-autofire` rules yes) | Per weapon group of an entity. | Set by the player; saved beside `WeaponGroups` in `EntityPack`. | The player. |
+| Gun solution | Derived per weapon from its subject, arc, mount and aim. | Computed on read. | `FireControl.Solution`. |
+| Face-the-aim state | Per player session, runtime only. | Held by Left Shift, latched by Caps Lock; never saved. | `HelmInput`. |
 | Arc-display preference | `PlayerSettings` player store. | Edited by a toggle; persists. | The player. |
 
 ### Rationale
@@ -3411,5 +3412,117 @@ simulation. Thrust is not projected: it changes every frame.
 
 **Cut order.** `controls-helm` first: the split itself, and the rename forces every writer
 to be ported in the same cut. `controls-mount-aim` second: the trigger and the one round
-direction. Then `controls-hud`, `controls-autofire` and `controls-ai-bearing`, which are
-independent of each other.
+direction (revised by "Firing on solutions" below into the per-gun solution). Then
+`controls-hud` and `controls-ai-bearing`, which are independent of each other.
+`controls-autofire` was withdrawn under ruling `fire-on-solutions`.
+
+### Firing on solutions
+
+Revision of 2026-10-06 after the operator's rulings on this section's questions:
+`controls-target-pulls-rounds` (target-pulls), `controls-facing-input` (A/D turn, Q/E
+strafe, Left Shift held or Caps Lock toggled faces the aim), `controls-turn-inertia`
+(kinematic, tuned) and the direction `fire-on-solutions`: "Fire control should surface a
+firing solution for any gun that's in arc, and the player should be able to fire on any
+solution without aiming." The aim stops being the only trigger gate. Question
+`controls-autofire` was withdrawn with it. Anchors are against `origin/master` `e1296f1f`,
+whose code is unchanged from `228f241e`.
+
+#### Prior art: firing without manual aim
+
+Source marks as above.
+
+- **Elite Dangerous** (wiki: the fandom `Category:Weapons` page, read in full through the
+  MediaWiki API). Three mounts of every weapon trade effort for output. Fixed mounts are
+  the strongest and shoot straight ahead with a few degrees of convergence. Gimballed
+  mounts track a locked target inside a cone and "act as a Fixed mount", firing straight
+  ahead, when nothing is locked. Turrets cover 360 degrees and take one global mode:
+  Forward Fire (manual, as fixed), Target Only (track and fire on the locked target inside
+  their arcs once the trigger is pulled) and Fire at Will (any hostile that is firing at
+  you). Chaff breaks gimbal and turret tracking but not fixed mounts. So assisted fire is
+  paid for in damage and is deniable by countermeasures, and manual aim keeps its value.
+- **MechWarrior Online and 5** (snippet). Weapons sit in numbered groups on triggers;
+  a group can chain-fire. Lock-on weapons (LRMs) cannot fire without a lock, which a
+  teammate or your own sensors must hold; Artemis shortens the lock.
+- **Nebulous: Fleet Command** (snippet). Weapons are tasked on designated targets; ships
+  turn to bear. WCON "Free" lets untasked weapons return fire on any contact that attacks
+  the ship; "Tight" fires only on command; Hold Fire keeps the orders. Shift groups like
+  weapons into batteries such as fore and rear.
+- **Battlestar Galactica Deadlock** (snippet, earlier pass). Batteries fire on ordered
+  targets within their arcs; arcs show on demand.
+- **Freelancer** (snippet). The reticle leads the target, and fixed and turret guns are
+  all slaved to the mouse crosshair; the lead cross is the aim aid.
+- **Starsector** (wiki, earlier pass). Autofire groups pick and attack their own targets,
+  preferring the designated one.
+
+**Failure modes.**
+1. Solutions nobody can read in a fight: a marker per gun per contact swamps the screen
+   (Elite's Fire at Will turrets spraying at whatever shoots, Starsector's autofire
+   picking its own targets). Answer: solutions are drawn per weapon group, against one
+   subject, on the group crosshair the player already reads.
+2. No skill left: if every gun fires itself on everything, the player only steers.
+   Answer: the player still designates, chooses which group to fire and when, and steers
+   the arc onto the target. A solution needs targeting data (FireControl's `Designated`
+   and reveal tiers), so a contact you cannot see well gives no solution and free aim keeps
+   its value, as Elite's chaff keeps fixed mounts valuable.
+3. Guns that silently refuse (the old "my guns don't fire"): a group whose trigger is
+   held and does nothing. Answer: each group crosshair shows one of three states, and the
+   arc fans use the same colours.
+
+#### Body facts
+
+- **C13. A solution type already exists.** `FireSolution` (`FireControl.cs:1809-1824`) is
+  `Solve`'s per-shot answer: outcome, `PFire`, `Designated`, the engaged entity and the
+  travel direction. `HitProbability` (`:316-324`) is the one live price, and `Inspect`
+  (`:331`) is its presentation-only breakdown. `PFire` (`:256-270`) holds the two gates a
+  solution needs: `Designated` (visible, in range, locked) and `InArc` of the target.
+- **C14. A target is one entity per shooter.** `Entity.Target` holds one `TargetRef`
+  (an entity or a chunk); reticle, nearest, next and previous are its only player writers
+  (`ActionGameManager.cs:389-392`).
+
+#### The design
+
+- **A solution is per gun and has one owner.** `FireControl.Solution(Weapon, Entity
+  shooter)` answers, for one gun: the subject it is drawn against, whether it bears (the
+  subject is `Designated` and inside this mount's arc, the same two gates `PFire` already
+  applies, now one extracted function `Bears` that `PFire` also calls), and the direction
+  its round would fly (`MountAim`: the subject's intercept when it bears, else the
+  arc-clamped aim). The price stays `HitProbability`; the HUD asks it, never a copy.
+- **What a solution is drawn against** is question `controls-solution-subject`. The specs
+  are written for the recommended option, the designated target.
+- **The trigger.** A gun fires when its trigger is held and one of three holds, checked
+  in this order by one gate (`ArcPermitsFire`): it is fused (the 2026-09-30 exemption); it
+  has a solution, and fires on it without the aim; or the aim is inside its arc (free fire
+  along the aim). Otherwise it holds. Free fire with no solution is the
+  `facing-separate-from-aim` rule unchanged: a fixed mount fires along the aim when the aim
+  is inside its arc.
+- **How the player fires on a solution** is question `controls-solution-trigger`. The
+  specs are written for the recommended option: the existing group triggers, with no new
+  input.
+- **The HUD.** One crosshair per weapon group, in one of three states: on solution (it
+  sits on the subject's intercept, since `MountAim` is the intercept, and shows how many
+  of the group's guns bear and the best `HitProbability` among them); free (it sits on the
+  aim ray); holding (dimmed at the arc edge nearest the aim). Arc fans take the same
+  colours per gun. The separate lead marker of `controls-hud` r1 is dropped: a group
+  crosshair on solution is the lead.
+- **Autofire is not mapped.** Its job was to let side guns fire without the aim; a
+  solution now does that on the group trigger. Firing with no input held is not ruled, so
+  `cut-controls-autofire` is withdrawn.
+- **The AI is unchanged by this.** Agents already fire on what is in arc and worth it
+  (`AgentFires` over `HitProbability`), and their aim is their intercept, so `Solution`
+  and `AgentFires` agree for them. `cut-controls-ai-bearing` still holds.
+- **The face-the-aim state** has one owner, `HelmInput` (engine-free, ServerShared): a
+  held flag fed by Left Shift, a latched flag toggled by Caps Lock, and `FaceAim` as their
+  union. While it is on, the hull turns toward the aim and the A/D axis is ignored. The
+  latch is the game's own state, not the keyboard's Caps Lock light, so the HUD shows a
+  small "face aim" mark while it is latched.
+
+#### Authority map changes
+
+- `FireControl.Solution` is the one owner of a gun's solution; `MountAim` is its
+  direction and is no longer a separate decision. `PFire` and `Solution` share `Bears`.
+- `ArcPermitsFire` is no longer the aim's gate alone; it is the one trigger gate, in the
+  order above.
+- `HelmInput` owns face-the-aim. Shift and Caps Lock are its inputs; `ActionGameManager`
+  reads `HelmInput.Demand` and decides nothing.
+- Forbidden: a second hit price or arc test in Gameplay or UI (the HUD reads `Solution`
+  and `HitProbability`); a face-aim flag outside `HelmInput`.
