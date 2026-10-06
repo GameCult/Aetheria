@@ -22,7 +22,13 @@ public abstract class Entity
     public float3 Position;
     public float2 Direction = float2(0,1);
     public float2 Velocity;
-    
+
+    // Runtime only, never saved; Entity.Update is the one writer of both. Acceleration is the planar velocity change
+    // across the base update over its delta (thrust, not the drag or gravity a subclass applies before calling it),
+    // and Manoeuvre is what that acceleration says about how unpredictably this entity changes its motion.
+    public float2 Acceleration;
+    public ManoeuvreTrack Manoeuvre;
+
     public float[,] Temperature;
     public float[,] NewTemperature;
     public bool2[,] HullConductivity;
@@ -1343,6 +1349,7 @@ public abstract class Entity
     {
         if (!_active) return;
 
+        var velocityBefore = Velocity;
         var hullData = ItemManager.GetData(Hull) as HullData;
 
         // Mining Cut 3: a chunk target is lost the moment this entity can no longer see it -- the lost-track rule
@@ -1458,6 +1465,9 @@ public abstract class Entity
             Velocity = Parent.Velocity;
         }
         else Position.y = Zone.GetHeight(Position.xz) + hullData.GridOffset;
+
+        Acceleration = delta > 0f ? (Velocity - velocityBefore) / delta : float2(0, 0);
+        Manoeuvre.Observe(Acceleration, delta, ItemManager.GameplaySettings.SolutionWindow);
     }
 
     private void UpdateTemperature(float delta)

@@ -249,6 +249,11 @@ public class GameplaySettings
     // the result is frozen and the rest of the flight is pure choreography.
     public float CommitHorizon = .5f;
 
+    // The window of fire control's solution: how far ahead a target's reach counts (Reach, Evasion) and the time
+    // constant of the manoeuvre track that observes it. A fire-control constant, not a weapon or missile stat. First
+    // guess; the operator rules the real figure in play.
+    public float SolutionWindow = .75f;
+
     // World units per hull-schematic cell, used only by FireControl.HitProbability's angular-size term
     // (pSpread) to turn a hull's cell footprint into a real-world silhouette size at range.
     public float SchematicCellSize = 2f;

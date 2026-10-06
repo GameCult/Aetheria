@@ -144,8 +144,22 @@ public class Ship : Entity
 
     #region ThrustCalculation
 
+    // What this ship can do at this instant (see ManoeuvreEnvelope): the sum of what each live propulsor reports with
+    // its own Execute arithmetic. Derived each update, never saved. The aggregates above are not an envelope (they
+    // mix units and cancel a lone off-axis strafer), so nothing in it reads them.
+    public ManoeuvreEnvelope Envelope { get; private set; }
+
+    private void RecalculateEnvelope()
+    {
+        var envelope = default(ManoeuvreEnvelope);
+        foreach (var thruster in _allThrusters) envelope += thruster.Manoeuvre();
+        foreach (var drive in _aetherDrives) envelope += drive.Manoeuvre();
+        Envelope = envelope;
+    }
+
     private void RecalculateThrust()
     {
+        RecalculateEnvelope();
         RecalculateForwardThrust();
         RecalculateReverseThrust();
         RecalculateLeftStrafeThrust();

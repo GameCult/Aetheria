@@ -126,6 +126,30 @@ public class AetherDrive : Behavior, IPowerConsumer
     // Cut 5 (docs/stats-and-power-cut.md §1.3, PowerTiers.cs): Medium -- mobility, same as Thruster.
     public int DefaultPowerTier => PowerTiers.Medium;
 
+    // What this drive adds to the ship's manoeuvre envelope: Execute's own arithmetic at full input on every axis,
+    // as a rate per second at the rotors' current state (the rotors spend what they hold, so a drive that has been
+    // thrusting reports less). Each axis delivers Rpm * lambda * RotorMass * efficiency / Mass, the efficiency
+    // falling as the ship's speed along that axis approaches the rotor speed, so the push along the current
+    // velocity is smaller than against it; the turn is the z axis through AetherTorqueMultiplier, the same both
+    // ways. Zero when the item is offline or unpowered, the gates Execute applies.
+    public ManoeuvreEnvelope Manoeuvre()
+    {
+        if (Item == null || !Item.Active.Value || Item.PowerSupply <= 1e-4f) return default;
+        var forward = normalize(Entity.Direction);
+        var right = forward.Rotate(ItemRotation.Clockwise);
+        var speed = float2(dot(Entity.Velocity, forward), dot(Entity.Velocity, right));
+        var rotorSpeed = max(Rpm * _data.RotorDiameter / 100, 1);
+        var couplingEfficiency = Evaluate(_data.CouplingEfficiency);
+        var perSecond = Rpm * _data.CouplingLambda * Item.Evaluate(_data.LambdaMultiplier) * _data.RotorMass / Entity.Mass;
+        float Push(float axisRate, float axisSpeed, float axisRotorSpeed, float direction) =>
+            axisRate * saturate(1 - axisSpeed / axisRotorSpeed * direction) * couplingEfficiency;
+        return new ManoeuvreEnvelope(
+            Push(perSecond.x, speed.x, rotorSpeed.x, 1), Push(perSecond.x, speed.x, rotorSpeed.x, -1),
+            Push(perSecond.y, speed.y, rotorSpeed.y, -1), Push(perSecond.y, speed.y, rotorSpeed.y, 1),
+            perSecond.z * ItemManager.GameplaySettings.AetherTorqueMultiplier,
+            perSecond.z * ItemManager.GameplaySettings.AetherTorqueMultiplier);
+    }
+
     public override bool Execute(float dt)
     {
         var rotorSpeed = Rpm * _data.RotorDiameter / 100;

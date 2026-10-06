@@ -291,9 +291,13 @@ public static class FireControl
     // and to CellsOf, out of this cut's scope. Cut 10's own guard is what actually matters
     // operationally: HitProbability and CommitProbability both bail before Forecast is ever called for the
     // common gated-out case (GatedOutHitProbabilityAllocatesNothing pins that at exactly 0).
-    private static (Silhouette Silhouette, float PSpread) Forecast(Weapon weapon, Entity source, Entity target, HullData targetHull, float precision, float range)
+    // Evasion fix (evasion-term): the same call also prices how far the target can and does move off the line of
+    // fire, along the same travel direction, so the live price and the HUD read one evasion.
+    private static (Silhouette Silhouette, float PSpread, float Evasion) Forecast(Weapon weapon, Entity source, Entity target, HullData targetHull, float precision, float range)
     {
-        var bearing = Bearing(target, TravelDirection(weapon, source, target));
+        var travel = TravelDirection(weapon, source, target);
+        var evasion = Evasion(target, travel);
+        var bearing = Bearing(target, travel);
         var buffer = ArrayPool<Interval>.Shared.Rent(targetHull.Shape.Coordinates.Length);
         float pSpread;
         Silhouette sil;
@@ -310,7 +314,7 @@ public static class FireControl
         // sil.Intervals is the returned buffer -- cleared here so nothing outside this function can read it
         // after it goes back to the pool and another caller starts overwriting it.
         sil.Intervals = null;
-        return (sil, pSpread);
+        return (sil, pSpread, evasion);
     }
 
     public static float HitProbability(Weapon weapon, Entity source, Entity target)
@@ -319,8 +323,8 @@ public static class FireControl
         if (pFire <= 0f) return 0f;
 
         var targetHull = source.ItemManager.GetData(target.Hull) as HullData;
-        var (sil, pSpread) = Forecast(weapon, source, target, targetHull, Precision(source), range);
-        return pFire * pSpread * sil.POnHull;
+        var (sil, pSpread, evasion) = Forecast(weapon, source, target, targetHull, Precision(source), range);
+        return pFire * pSpread * sil.POnHull * PDeviation(evasion, Tracking(source));
     }
 
     // Presentation only: the debug HUD's view of exactly the factors HitProbability multiplies. It computes
@@ -357,9 +361,11 @@ public static class FireControl
         diagnostic.PSensor = PSensor(settings, diagnostic.Resolution, diagnostic.Info);
         diagnostic.PFire = diagnostic.Accuracy * diagnostic.PSensor;
 
-        var (sil, pSpread) = Forecast(weapon, source, target, targetHull, diagnostic.Precision, diagnostic.Range);
+        var (sil, pSpread, evasion) = Forecast(weapon, source, target, targetHull, diagnostic.Precision, diagnostic.Range);
         diagnostic.PSpread = pSpread;
         diagnostic.POnHull = sil.POnHull;
+        diagnostic.Evasion = evasion;
+        diagnostic.PEvasion = PDeviation(evasion, diagnostic.Tracking);
 
         diagnostic.PBase = HitProbability(weapon, source, target);
         return diagnostic;
@@ -427,12 +433,102 @@ public static class FireControl
     public static float PDeviation(float deviation, float tolerance) =>
         tolerance <= 0f ? (deviation <= 0f ? 1f : 0f) : saturate(1f - deviation / tolerance);
 
+    // The commit price's deviation: what the target has already moved off the frozen forecast, plus what it can and
+    // does move off the line of fire (Evasion). The second part applies at any flight time, so an instant weapon
+    // (flight time 0, realized deviation 0) still feels a jinking target.
     public static float DeviationProbability(PendingShot shot, float now, out float deviation)
     {
         var elapsed = now - shot.FireTime;
         var predicted = shot.FireTargetPosition + shot.FireTargetVelocity * elapsed;
-        deviation = shot.Target == null ? 0f : length((shot.Target.Position - predicted).xz);
+        deviation = shot.Target == null ? 0f : length((shot.Target.Position - predicted).xz) + Evasion(shot.Target, shot.TravelDirection);
         return shot.Target == null ? 1f : PDeviation(deviation, shot.Tracking);
+    }
+
+    // How far a target can and does move off the line of fire in the solution window: the term DeviationProbability
+    // and HitProbability both add. Behaviour (its observed unpredictability across the line of sight) realises the
+    // evasion and capability (its envelope's reach) caps it, so a coasting ship evades nothing whatever it could do
+    // and a steady burn or a dither much faster than the window averages out. A target that is not a Ship has no
+    // envelope. This is the one call guns and munitions make.
+    public static float Evasion(Entity target, float2 lineOfSight)
+    {
+        var ship = target as Ship;
+        return ship == null
+            ? 0f
+            : Evasion(ship.Envelope, ship.Direction, ship.Manoeuvre, lineOfSight, target.ItemManager.GameplaySettings.SolutionWindow);
+    }
+
+    // The pure core, allocation-free. n is perpendicular to the line of sight; u is the half-width the observed
+    // innovation spreads over the window (0.5 * rms * T^2); the answer is that spread, capped by the half-width of
+    // what the envelope can reach across the line of sight. Zero spread returns before any reach is evaluated.
+    public static float Evasion(in ManoeuvreEnvelope envelope, float2 heading, in ManoeuvreTrack track, float2 lineOfSight, float window)
+    {
+        var los = lengthsq(lineOfSight) < 1e-12f ? float2(0, 1) : normalize(lineOfSight);
+        var n = float2(-los.y, los.x);
+        var spread = .5f * track.LateralRms(n) * window * window;
+        if (spread <= 0f) return 0f;
+        return min(.5f * (Reach(envelope, heading, n, window) + Reach(envelope, heading, -n, window)), spread);
+    }
+
+    // The largest displacement from the coasting path along `direction` within `window`, for a ship that turns
+    // kinematically (controls-turn-inertia) and thrusts within its body-frame box. Eight faces (the four thrust axes
+    // and the four corners of the box), each turned toward the direction at full rate and thrusting whenever it
+    // points within 90 degrees of it, then held; and the no-turn support of the box. Matched a brute-force search
+    // within 0.1% (map M26).
+    public static float Reach(in ManoeuvreEnvelope e, float2 heading, float2 direction, float window)
+    {
+        if (lengthsq(heading) < 1e-12f || lengthsq(direction) < 1e-12f) return 0f;
+        var forward = normalize(heading);
+        var right = forward.Rotate(ItemRotation.Clockwise);
+        var wanted = normalize(direction);
+        var beta = atan2(dot(wanted, right), dot(wanted, forward));
+
+        // The box's support along the wanted direction with no turning: thrust is always free to fire the right sign.
+        var c = cos(beta);
+        var s = sin(beta);
+        var best = .5f * ((c > 0f ? e.Forward * c : -e.Reverse * c) + (s > 0f ? e.Right * s : -e.Left * s)) * window * window;
+
+        best = max(best, ReachFace(e.Forward, 0f, beta, e, window));
+        best = max(best, ReachFace(e.Reverse, MathF.PI, beta, e, window));
+        best = max(best, ReachFace(e.Right, MathF.PI / 2f, beta, e, window));
+        best = max(best, ReachFace(e.Left, -MathF.PI / 2f, beta, e, window));
+        best = max(best, ReachFace(sqrt(e.Forward * e.Forward + e.Right * e.Right), atan2(e.Right, e.Forward), beta, e, window));
+        best = max(best, ReachFace(sqrt(e.Forward * e.Forward + e.Left * e.Left), atan2(-e.Left, e.Forward), beta, e, window));
+        best = max(best, ReachFace(sqrt(e.Reverse * e.Reverse + e.Right * e.Right), atan2(e.Right, -e.Reverse), beta, e, window));
+        best = max(best, ReachFace(sqrt(e.Reverse * e.Reverse + e.Left * e.Left), atan2(-e.Left, -e.Reverse), beta, e, window));
+        return best;
+    }
+
+    // One face of acceleration `a`, at body angle `faceAngle` (clockwise from forward), turned to point along the
+    // wanted direction at body angle `beta`, at the rate its side of the envelope allows; thrust only while the face
+    // points within 90 degrees of the wanted direction, so the integrand is (T - t) a cos(angle between).
+    private static float ReachFace(float a, float faceAngle, float beta, in ManoeuvreEnvelope e, float window)
+    {
+        if (a <= 0f) return 0f;
+        var turn = Wrap(beta - faceAngle);
+        var rate = turn > 0f ? e.Clockwise : e.CounterClockwise;
+        var phi0 = abs(turn);
+        if (rate <= 1e-4f) return phi0 <= 1e-6f ? .5f * a * window * window : 0f;
+
+        var turnTime = phi0 / rate;
+        var onTime = phi0 <= MathF.PI / 2f ? 0f : (phi0 - MathF.PI / 2f) / rate;
+        if (onTime >= window) return 0f;
+
+        var endTime = min(turnTime, window);
+        float Integral(float t)
+        {
+            var u = phi0 - rate * t;
+            return -(window - t) * sin(u) / rate - cos(u) / (rate * rate);
+        }
+        var turning = endTime > onTime ? a * (Integral(endTime) - Integral(onTime)) : 0f;
+        var holding = turnTime < window ? .5f * a * (window - turnTime) * (window - turnTime) : 0f;
+        return turning + holding;
+    }
+
+    private static float Wrap(float angle)
+    {
+        while (angle > MathF.PI) angle -= 2f * MathF.PI;
+        while (angle <= -MathF.PI) angle += 2f * MathF.PI;
+        return angle;
     }
 
     // The one decision about what a round does, made from the shooter's state and a target and nothing else:
@@ -1848,11 +1944,60 @@ public struct FireControlDiagnostic
     public float PFire;
     public float PSpread;
     public float POnHull;
+    // The target's evasion along the shot (metres) and the share of the shot that survives it at this shooter's Tracking.
+    public float Evasion;
+    public float PEvasion;
     public float PBase;
     // What a round from this weapon does (Solve): the forecast for a fused weapon, whose percentages above do
     // not describe it. BurstReach is read only when Outcome is Burst.
     public FireOutcome Outcome;
     public float BurstReach;
+}
+
+// What a ship can do at this instant, in its own frame: acceleration along each body axis (m/s^2) and the kinematic
+// turn rate each way (rad/s; turning toward the ship's right is Clockwise). Each propulsor reports its share with
+// its own Execute arithmetic and Ship sums them; nothing stores it. Zero is the envelope of anything that is not a Ship.
+public readonly struct ManoeuvreEnvelope
+{
+    public readonly float Forward, Reverse, Left, Right, Clockwise, CounterClockwise;
+
+    public ManoeuvreEnvelope(float forward, float reverse, float left, float right, float clockwise, float counterClockwise)
+    {
+        Forward = forward;
+        Reverse = reverse;
+        Left = left;
+        Right = right;
+        Clockwise = clockwise;
+        CounterClockwise = counterClockwise;
+    }
+
+    public static ManoeuvreEnvelope operator +(ManoeuvreEnvelope a, ManoeuvreEnvelope b) => new ManoeuvreEnvelope(
+        a.Forward + b.Forward, a.Reverse + b.Reverse, a.Left + b.Left, a.Right + b.Right,
+        a.Clockwise + b.Clockwise, a.CounterClockwise + b.CounterClockwise);
+}
+
+// How unpredictably an entity is changing its motion, observed from its measured acceleration. The trend is an
+// exponential average of the acceleration, the innovation is what departs from it (low-passed at a quarter of the
+// window), and the moments are the exponential average of that innovation's outer product. A steady burn and
+// coasting have no innovation; a weave at the window's scale does; dithering much faster than the window averages out.
+public struct ManoeuvreTrack
+{
+    public float2 Trend;
+    public float2 Innovation;
+    public float3 Moments;
+
+    public void Observe(float2 acceleration, float dt, float window)
+    {
+        if (dt <= 0f || window <= 0f) return;
+        var k = 1f - exp(-dt / window);
+        var k4 = 1f - exp(-4f * dt / window);
+        Trend += k * (acceleration - Trend);
+        Innovation += k4 * ((acceleration - Trend) - Innovation);
+        Moments += k * (float3(Innovation.x * Innovation.x, Innovation.x * Innovation.y, Innovation.y * Innovation.y) - Moments);
+    }
+
+    // The root-mean-square innovation across the axis n (a unit vector).
+    public float LateralRms(float2 n) => sqrt(max(0f, n.x * n.x * Moments.x + 2f * n.x * n.y * Moments.y + n.y * n.y * Moments.z));
 }
 
 // Cut 12.2 (docs/fire-control-cut.md): a merged interval of a hull's lateral shadow, in the schematic frame's
