@@ -8,6 +8,21 @@ using System.Linq;
 // durabilities exactly as they were.
 public static class StationServices
 {
+    // What the station charges for the item, or for `quantity` units of a commodity (a crafted item is one unit). The
+    // number TradeMenu shows, checks against the run's credits and charges.
+    public static int BuyPrice(ItemManager items, ItemInstance item, int quantity = 1)
+    {
+        switch (item)
+        {
+            case CraftedItemInstance crafted:
+                return items.GetPrice(crafted);
+            case SimpleCommodity commodity:
+                return (int) Math.Min((long) items.GetData(commodity).Price * quantity, int.MaxValue);
+            default:
+                throw new ArgumentException($"{item?.GetType().Name ?? "null"} has no buy price.", nameof(item));
+        }
+    }
+
     // What the station pays for the item: its price, scaled by SellFraction and by its condition. A commodity has no
     // wear, so it sells at the fraction alone; a simple commodity's price is per unit.
     public static int SellPrice(ItemManager items, ItemInstance item)

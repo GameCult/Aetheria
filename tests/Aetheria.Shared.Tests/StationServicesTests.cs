@@ -84,6 +84,20 @@ public sealed class StationServicesTests : IDisposable
     }
 
     [Fact]
+    public void BuyPrice_is_the_price_and_the_sale_never_beats_it()
+    {
+        Assert.Equal(_items.GetPrice(Mint("Gun")), StationServices.BuyPrice(_items, Mint("Gun")));
+        // A worn gun costs what a new one does to buy, and pays less to sell.
+        Assert.Equal(StationServices.BuyPrice(_items, Mint("Gun")), StationServices.BuyPrice(_items, Mint("Gun", 4)));
+        // A commodity is priced per unit, times the units asked for.
+        Assert.Equal(7, StationServices.BuyPrice(_items, Ore(10)));
+        Assert.Equal(70, StationServices.BuyPrice(_items, Ore(1), 10));
+        Assert.Equal(int.MaxValue, StationServices.BuyPrice(_items, Ore(1), int.MaxValue));
+        Assert.True(StationServices.SellPrice(_items, Mint("Gun")) < StationServices.BuyPrice(_items, Mint("Gun")));
+        Assert.Throws<ArgumentException>(() => StationServices.BuyPrice(_items, null));
+    }
+
+    [Fact]
     public void SellPrice_scales_with_condition()
     {
         var price = _items.GetPrice(Mint("Gun"));
