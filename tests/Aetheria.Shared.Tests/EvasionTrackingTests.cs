@@ -70,6 +70,9 @@ public sealed partial class RunStartTests
         source.Velocity = float2(30, 40);
         target.Velocity = float2(30, 40);
         Assert.Equal(0f, FireControl.AngularVelocity(source, target), 4);
+        // Wherever the pair stands: the offset is target minus source.
+        source.Position = float3(500, 0, 300);
+        target.Position = float3(1500, 0, 300);
         source.Velocity = float2(0, 100);
         target.Velocity = float2(0, 250);
         Assert.Equal(expected, FireControl.AngularVelocity(source, target), 3);
