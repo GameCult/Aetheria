@@ -758,6 +758,8 @@ public sealed partial class RunStartTests
         var forwardOnly = new ManoeuvreEnvelope(40, 0, 0, 0, 3, 1.5f);
         var slow = new ManoeuvreEnvelope(10, 10, 10, 10, .8f, .8f);
         var cannotTurn = new ManoeuvreEnvelope(20, 10, 5, 15, 0, 0);
+        var leftOnly = new ManoeuvreEnvelope(0, 0, 40, 0, 3, 1.5f);
+        var rightOnly = new ManoeuvreEnvelope(0, 0, 0, 40, 1.5f, 3);
         var quarter = new[] { 0f, 45f, 90f, -45f, -90f };
         var round = new[] { 135f, -135f, 180f, 100f, -100f };
         var cases = new (ManoeuvreEnvelope envelope, float[] windows, float[] bearings)[]
@@ -765,7 +767,12 @@ public sealed partial class RunStartTests
             (gemini, new[] { .5f, .75f }, quarter), (longinus, new[] { .5f, .75f }, quarter), (lopsided, new[] { .5f, .75f }, quarter),
             (forwardOnly, new[] { .5f, .75f }, quarter), (slow, new[] { .5f, .75f }, quarter),
             (gemini, new[] { .5f, .75f }, round), (slow, new[] { .5f, .75f }, round), (cannotTurn, new[] { .5f, .75f }, round.Concat(quarter).ToArray()),
-            (lopsided, new[] { .5f }, new[] { 135f, -135f, 180f, -100f })
+            (lopsided, new[] { .5f }, new[] { 135f, -135f, 180f, -100f }),
+            // Ships that can thrust one way only, over windows long enough for every face to finish its turn: the face that
+            // must turn the long way round, past a right angle and past the wrap at 180 degrees, is the best one.
+            (forwardOnly, new[] { 1f, 1.5f, 2f }, new[] { 180f, 135f, -135f, 170f, 120f, -120f }),
+            (leftOnly, new[] { 1f, 1.5f }, new[] { 180f, 135f, -135f, 170f, -170f, -120f, -100f }),
+            (rightOnly, new[] { 1f, 1.5f }, new[] { 180f, 135f, -135f, 170f, -170f, 120f, 100f })
         };
         var checkedCases = 0;
         foreach (var heading in new[] { float2(0, 1), normalize(float2(2, -1)) })
