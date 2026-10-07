@@ -46,6 +46,9 @@ public class Agent
 
     public void Update(float delta)
     {
+        // The pilot tick writes Turn every tick, in every state: a state that pilots overwrites this zero with its
+        // demand, and one that does not leaves the hull holding course instead of inheriting the last state's rate.
+        Ship.Turn = 0;
         _currentState.Update(delta);
         foreach (var transition in _currentState.Transitions)
             if (transition.Condition())
