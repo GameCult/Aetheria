@@ -495,6 +495,10 @@ public sealed partial class RunStartTests
         {
             shooter.SetTarget(target);
             shooter.EntityInfoGathered[target] = 1f;
+            // These tests price evasion, not the mount: the catalog's authored rates would price a 150 m/s crosser at 200 m
+            // at nothing, so the guns follow anything here. EvasionTrackingTests sets the rates it means (EvMountRange).
+            foreach (var weapon in shooter.GetBehaviors<Weapon>())
+                weapon.WeaponData.Tracking = new PerformanceStat { Min = float.PositiveInfinity, Max = float.PositiveInfinity };
         }
         arena.Update(1f);
         Assert.True(gunner.VisibleEntities.Contains(target) && lasing.VisibleEntities.Contains(target), "fixture: the shooters see the target");
