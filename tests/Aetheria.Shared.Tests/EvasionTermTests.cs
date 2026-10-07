@@ -674,12 +674,15 @@ public sealed partial class RunStartTests
         var (_, longinus, _, _) = EvFleet();
         EvSettle(longinus);
         longinus.Velocity = float2(0, 400);
-        for (var step = 0; step < 4 * 60; step++) longinus.Update(EvDt);
-        Assert.True(length(longinus.Velocity) > 1f);
-        Assert.Equal(0f, FireControl.Evasion(longinus, float2(0, 1)));
-        Assert.Equal(0f, FireControl.Evasion(longinus, EvRight(longinus)));
-        Assert.Equal(0f, longinus.Manoeuvre.Moments.x);
-        Assert.Equal(0f, longinus.Manoeuvre.Moments.z);
+        // Read every tick: the track forgets within a window, so only the ticks right after the clamp can see it.
+        for (var step = 0; step < 2 * 60; step++)
+        {
+            longinus.Update(EvDt);
+            Assert.Equal(0f, FireControl.Evasion(longinus, float2(0, 1)));
+            Assert.Equal(0f, FireControl.Evasion(longinus, EvRight(longinus)));
+            Assert.Equal(0f, longinus.Manoeuvre.Moments.x);
+            Assert.Equal(0f, longinus.Manoeuvre.Moments.z);
+        }
     }
 
     // Finding thruster-thrust-cache: Ship's aggregates read what the thrusters push with now, not what they pushed
