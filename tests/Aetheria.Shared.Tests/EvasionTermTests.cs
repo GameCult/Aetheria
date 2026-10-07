@@ -746,24 +746,35 @@ public sealed partial class RunStartTests
     // Finding reach-geometry-unpinned: Reach is the largest displacement a turn-then-thrust search finds, to the
     // fraction of a percent M26 measured at 0, 45 and 90 degrees, for envelopes whose rates and accelerations all
     // differ from one another and from 1 (a rate or an acceleration of 1 hides a divide that should be a multiply),
-    // two windows, and a heading that is not along an axis.
+    // two windows, and a heading that is not along an axis. The same holds all the way round for the envelopes below
+    // (the corner faces and the wrap past 180 degrees), and for a ship that cannot turn at all, where the answer is
+    // the box support with no turn. The case list was fixed from a Python port of the search before any C# read it.
     [Fact]
     public void ReachMatchesABruteForceSearchOverTurnStrategies()
     {
-        var envelopes = new[]
+        var gemini = new ManoeuvreEnvelope(20, 20, 20, 20, 3, 2.5f);
+        var longinus = new ManoeuvreEnvelope(50, 0, 23, 23, 2.3f, 2.3f);
+        var lopsided = new ManoeuvreEnvelope(30, 10, 5, 15, 2, 1.4f);
+        var forwardOnly = new ManoeuvreEnvelope(40, 0, 0, 0, 3, 1.5f);
+        var slow = new ManoeuvreEnvelope(10, 10, 10, 10, .8f, .8f);
+        var cannotTurn = new ManoeuvreEnvelope(20, 10, 5, 15, 0, 0);
+        var quarter = new[] { 0f, 45f, 90f, -45f, -90f };
+        var round = new[] { 135f, -135f, 180f, 100f, -100f };
+        var cases = new (ManoeuvreEnvelope envelope, float[] windows, float[] bearings)[]
         {
-            new ManoeuvreEnvelope(20, 20, 20, 20, 3, 2.5f), new ManoeuvreEnvelope(50, 0, 23, 23, 2.3f, 2.3f),
-            new ManoeuvreEnvelope(30, 10, 5, 15, 2, 1.4f), new ManoeuvreEnvelope(40, 0, 0, 0, 3, 1.5f),
-            new ManoeuvreEnvelope(10, 10, 10, 10, .8f, .8f)
+            (gemini, new[] { .5f, .75f }, quarter), (longinus, new[] { .5f, .75f }, quarter), (lopsided, new[] { .5f, .75f }, quarter),
+            (forwardOnly, new[] { .5f, .75f }, quarter), (slow, new[] { .5f, .75f }, quarter),
+            (gemini, new[] { .5f, .75f }, round), (slow, new[] { .5f, .75f }, round), (cannotTurn, new[] { .5f, .75f }, round.Concat(quarter).ToArray()),
+            (lopsided, new[] { .5f }, new[] { 135f, -135f, 180f, -100f })
         };
         var checkedCases = 0;
         foreach (var heading in new[] { float2(0, 1), normalize(float2(2, -1)) })
         {
             var forward = normalize(heading);
             var right = forward.Rotate(ItemRotation.Clockwise);
-            foreach (var window in new[] { .5f, .75f })
-                foreach (var envelope in envelopes)
-                    foreach (var bearing in new[] { 0f, 45f, 90f, -45f, -90f })
+            foreach (var (envelope, windows, bearings) in cases)
+                foreach (var window in windows)
+                    foreach (var bearing in bearings)
                     {
                         var wanted = forward * cos(radians(bearing)) + right * sin(radians(bearing));
                         var reach = FireControl.Reach(envelope, heading, wanted, window);
@@ -774,7 +785,88 @@ public sealed partial class RunStartTests
                         checkedCases++;
                     }
         }
-        Assert.Equal(2 * 2 * envelopes.Length * 5, checkedCases);
+        Assert.Equal(2 * cases.Sum(c => c.windows.Length * c.bearings.Length), checkedCases);
+    }
+
+    // Where a ship must turn more than a right angle before a face points the way it wants to go, the eight-face form
+    // undershoots the search (the Longinus, which cannot thrust backwards: 3% at 135 degrees in half a second, 16% in
+    // three quarters). The values are the faces' own, from the Python port of the form (evasion_model.reach_faces), and
+    // pin the time a face spends turning before it may thrust.
+    [Fact]
+    public void ReachPastARightAngleOfTurnIsTheFaceFormsOwn()
+    {
+        var longinus = new ManoeuvreEnvelope(50, 0, 23, 23, 2.3f, 2.3f);
+        var heading = normalize(float2(2, -1));
+        var right = heading.Rotate(ItemRotation.Clockwise);
+        foreach (var (window, bearing, expected) in new[] { (.5f, 135f, 2.5511f), (.75f, 135f, 5.9491f), (.5f, 100f, 3.9492f), (.75f, -100f, 10.4735f), (.5f, -135f, 2.5511f) })
+        {
+            var reach = FireControl.Reach(longinus, heading, heading * cos(radians(bearing)) + right * sin(radians(bearing)), window);
+            Assert.InRange(reach, expected * .995f, expected * 1.005f);
+        }
+    }
+
+    // A line of sight or a heading of no length has no across and no reach: the term falls back to a sight along +y for
+    // the first and reads nothing for the second.
+    [Fact]
+    public void ADegenerateLineOfSightOrHeadingIsHandled()
+    {
+        const float window = .75f;
+        var roomy = new ManoeuvreEnvelope(200, 200, 200, 200, 20, 20);
+        var track = EvAlong(float2(1, 0), window);
+        var fallback = FireControl.Evasion(roomy, float2(0, 1), track, float2(0, 0), window);
+        var along = FireControl.Evasion(roomy, float2(0, 1), track, float2(0, 1), window);
+        Assert.True(along > 3f, $"fixture: the jink spreads across +y ({along})");
+        Assert.InRange(fallback, along * .999f, along * 1.001f);
+        Assert.Equal(0f, FireControl.Reach(roomy, float2(0, 0), float2(1, 0), window));
+        Assert.Equal(0f, FireControl.Reach(roomy, float2(0, 1), float2(0, 0), window));
+    }
+
+    // The track's own guards: a step of no time or a window of none leaves the track as it was, a change of exactly the
+    // threshold is not a change, and the track forgets on the very tick the quiet reaches the window (a quarter-second
+    // step and a one second window are exact in floats).
+    [Fact]
+    public void ATrackCountsQuietExactlyAndIgnoresDegenerateSteps()
+    {
+        var jinked = EvAlong(float2(1, 0), .75f);
+        var before = jinked;
+        jinked.Observe(float2(30, -4), 0f, .75f);
+        jinked.Observe(float2(30, -4), EvDt, 0f);
+        Assert.Equal(before.Last, jinked.Last);
+        Assert.Equal(before.Quiet, jinked.Quiet);
+        Assert.Equal(before.Moments, jinked.Moments);
+
+        var held = default(ManoeuvreTrack);
+        held.Observe(float2(ManoeuvreTrack.ChangeThreshold, 0), EvDt, .75f);
+        Assert.Equal(EvDt, held.Quiet);
+        held.Observe(float2(ManoeuvreTrack.ChangeThreshold, ManoeuvreTrack.ChangeThreshold), EvDt, .75f);
+        Assert.Equal(2 * EvDt, held.Quiet);
+        held.Observe(float2(.5f, ManoeuvreTrack.ChangeThreshold), EvDt, .75f);
+        Assert.Equal(0f, held.Quiet);
+
+        var coarse = default(ManoeuvreTrack);
+        for (var tick = 0; tick < 16; tick++) coarse.Observe(float2(tick % 2 == 0 ? 40f : -40f, 0), .25f, 1f);
+        Assert.True(coarse.Moments.x > 1f, "fixture: the jink is observed");
+        var first = -1;
+        for (var tick = 0; tick < 8; tick++)
+        {
+            coarse.Observe(float2(0, 0), .25f, 1f);
+            if (first < 0 && coarse.Moments.x == 0f) first = tick;
+        }
+        Assert.Equal(4, first);
+    }
+
+    // The acceleration of a step of no time is none, not a division by zero.
+    [Fact]
+    public void AStepOfNoTimeHasNoAcceleration()
+    {
+        var (_, longinus, _, _) = EvFleet();
+        EvSettle(longinus);
+        longinus.MovementDirection = float2(0, 1);
+        for (var step = 0; step < 10; step++) longinus.Update(EvDt);
+        Assert.True(longinus.Acceleration.y > 1f, "fixture: it is burning");
+        longinus.Update(0f);
+        Assert.Equal(0f, longinus.Acceleration.x);
+        Assert.Equal(0f, longinus.Acceleration.y);
     }
 
     // A track of a ship that changes its vector along `direction` every fifth of a second, inside every window the tests use, at 60 m/s^2, for four seconds.
