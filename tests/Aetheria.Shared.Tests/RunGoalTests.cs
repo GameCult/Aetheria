@@ -202,16 +202,19 @@ public sealed partial class RunStartTests
         var zone = ZoneOf(galaxy, galaxy.Exit);
         const float ratio = 0.75f;
         var radius = zone.Pack.Radius * ratio;
-        var origin = galaxy.Exit.Position;
+        // Away from the origin and with close neighbours, so a direction taken from raw positions instead of the
+        // offset from the zone cannot pass.
+        var originalPosition = galaxy.Exit.Position;
+        var origin = galaxy.Exit.Position = math.float2(500, -300);
         var original = galaxy.Exit.AdjacentZones;
         galaxy.Exit.AdjacentZones = neighbourDegrees
             .Select(degrees => new GalaxyZone
             {
-                Position = origin + math.float2((float) Math.Cos(degrees * Math.PI / 180), (float) Math.Sin(degrees * Math.PI / 180)) * 1000
+                Position = origin + math.float2((float) Math.Cos(degrees * Math.PI / 180), (float) Math.Sin(degrees * Math.PI / 180)) * 10
             }).ToList();
         float2 gate;
         try { gate = RunGoal.ExitGatePosition(zone, ratio); }
-        finally { galaxy.Exit.AdjacentZones = original; }
+        finally { galaxy.Exit.AdjacentZones = original; galaxy.Exit.Position = originalPosition; }
 
         Assert.Equal(radius, math.length(gate), 2);
         if (neighbourDegrees.Length == 0) { Assert.Equal(radius, gate.x, 2); Assert.Equal(0, gate.y, 2); return; }
