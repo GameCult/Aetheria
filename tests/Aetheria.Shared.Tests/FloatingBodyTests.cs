@@ -240,7 +240,7 @@ public sealed class FloatingBodyTests : IDisposable
         };
         var ship = new Ship(items, zone, hull, new EntitySettings());
         zone.Entities.Add(ship);
-        ship.LookDirection = float3(0, 0, 1);
+        ship.Aim = float3(0, 0, 1);
         ship.Activate();
         ship.Position = float3(x, 0, 0);
         return ship;
