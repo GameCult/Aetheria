@@ -66,6 +66,11 @@ public abstract class WeaponData : BehaviorData
 
     [Inspectable, JsonProperty("velocity"), Key(16)]
     public PerformanceStat Velocity = new PerformanceStat();
+
+    // How fast the mount follows a target sweeping the shooter's sky, in degrees per second, authored per gun (ruling
+    // weapon-tracking-authored). Unauthored is a mount that follows anything: FireControl.PMount reads +infinity as 1.
+    [Inspectable, JsonProperty("tracking"), Key(33), RuntimeInspectable]
+    public PerformanceStat Tracking = new PerformanceStat { Min = float.PositiveInfinity, Max = float.PositiveInfinity };
 }
 
 public abstract class Weapon : Behavior, IActivatedBehavior
@@ -87,6 +92,7 @@ public abstract class Weapon : Behavior, IActivatedBehavior
     public float Visibility { get; protected set; }
     public float Spread { get; protected set; }
     public float Velocity { get; protected set; }
+    public float Tracking { get; protected set; }
 
     // Mining Cut 3 fix (Q12 A, "launchers cannot mine"): whether this weapon can mine a chunk. The one mining
     // predicate: chunk reach (Entity.VisibleChunksInReach) reads it, and so does anything that decides a weapon
@@ -138,6 +144,7 @@ public abstract class Weapon : Behavior, IActivatedBehavior
         Visibility = Evaluate(_data.Visibility);
         Spread = Evaluate(_data.Spread);
         Velocity = Evaluate(_data.Velocity);
+        Tracking = Evaluate(_data.Tracking);
     }
 
     public override bool Execute(float dt)
