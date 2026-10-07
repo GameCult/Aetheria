@@ -344,34 +344,40 @@ public sealed class StationServicesTests : IDisposable
         return (max, worn);
     }
 
+    // Hull prices odd and even, so an armour price off by one in either direction moves the rounded cost.
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(2)]
     public void Armour_repair_prices_the_worn_share_of_the_hull_and_restores_every_cell(int pattern)
     {
-        var ship = Ship();
-        // 0: every cell stripped. 1: a few cells stripped, one of them the last. 2: every cell a little worn.
-        var (max, worn) = Wound(ship, (x, y) => pattern switch
+        var skiff = _cache.GetByName<HullData>("Skiff");
+        foreach (var hullPrice in new[] { 1000, 1001, 1337, 777, 4 })
         {
-            0 => 0,
-            1 => x + y >= 7 || (x == 0 && y == 0) || (x == 2 && y == 3) ? 0 : 99,
-            _ => 3
-        });
-        Assert.True(worn > 0 && worn <= max);
-        var hullPrice = _items.GetPrice(ship.Hull);
-        var expected = (int) Math.Ceiling(worn / max * hullPrice * .5);
-        var cost = StationServices.RepairCost(_items, ship);
-        Assert.Equal(expected, cost);
-        if (pattern == 0) Assert.Equal((int) Math.Ceiling(hullPrice * .5), cost);
+            skiff.Price = hullPrice;
+            var ship = Ship();
+            // 0: every cell stripped. 1: a few cells stripped, one of them the last. 2: every cell a little worn.
+            var (max, worn) = Wound(ship, (x, y) => pattern switch
+            {
+                0 => 0,
+                1 => x + y >= 7 || (x == 0 && y == 0) || (x == 2 && y == 3) ? 0 : 99,
+                _ => 3
+            });
+            Assert.True(worn > 0 && worn <= max);
+            var price = _items.GetPrice(ship.Hull);
+            var expected = (int) Math.Ceiling(worn / max * price * .5);
+            var cost = StationServices.RepairCost(_items, ship);
+            Assert.Equal(expected, cost);
+            if (pattern == 0) Assert.Equal((int) Math.Ceiling(price * .5), cost);
 
-        var credits = cost;
-        Assert.True(StationServices.TryRepair(ship, ref credits));
-        Assert.Equal(0, credits);
-        for (var x = 0; x < ship.MaxArmor.GetLength(0); x++)
-            for (var y = 0; y < ship.MaxArmor.GetLength(1); y++)
-                Assert.Equal(ship.MaxArmor[x, y], ship.Armor[x, y]);
-        Assert.Equal(0, StationServices.RepairCost(_items, ship));
+            var credits = cost;
+            Assert.True(StationServices.TryRepair(ship, ref credits));
+            Assert.Equal(0, credits);
+            for (var x = 0; x < ship.MaxArmor.GetLength(0); x++)
+                for (var y = 0; y < ship.MaxArmor.GetLength(1); y++)
+                    Assert.Equal(ship.MaxArmor[x, y], ship.Armor[x, y]);
+            Assert.Equal(0, StationServices.RepairCost(_items, ship));
+        }
     }
 
     // Gear alone is charged its wear at the repair fraction, rounded up, never below the sell value mending adds:
