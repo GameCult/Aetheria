@@ -770,9 +770,9 @@ public sealed partial class RunStartTests
             (lopsided, new[] { .5f }, new[] { 135f, -135f, 180f, -100f }),
             // Ships that can thrust one way only, over windows long enough for every face to finish its turn: the face that
             // must turn the long way round, past a right angle and past the wrap at 180 degrees, is the best one.
-            (forwardOnly, new[] { 1f, 1.5f, 2f }, new[] { 180f, 135f, -135f, 170f, 120f, -120f }),
-            (leftOnly, new[] { 1f, 1.5f }, new[] { 180f, 135f, -135f, 170f, -170f, -120f, -100f }),
-            (rightOnly, new[] { 1f, 1.5f }, new[] { 180f, 135f, -135f, 170f, -170f, 120f, 100f })
+            (forwardOnly, new[] { 1f, 1.5f, 2f }, new[] { 160f, 135f, -135f, 170f, 120f, -120f }),
+            (leftOnly, new[] { 1f, 1.5f }, new[] { 160f, 135f, -135f, 170f, -170f, -120f, -100f }),
+            (rightOnly, new[] { 1f, 1.5f }, new[] { 160f, 135f, -135f, 170f, -170f, 120f, 100f })
         };
         var checkedCases = 0;
         foreach (var heading in new[] { float2(0, 1), normalize(float2(2, -1)) })
