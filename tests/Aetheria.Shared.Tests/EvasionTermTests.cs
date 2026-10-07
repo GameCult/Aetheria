@@ -172,21 +172,23 @@ public sealed partial class RunStartTests
         float Evade(ManoeuvreEnvelope envelope, float amplitude, float window) =>
             FireControl.Evasion(envelope, noseOn, EvSquare(amplitude, .5f, 4f, EvDt, window), noseOn, window);
 
+        // What the code gives (probe at 2910a35d and an independent port of Observe and the box reach, agreeing to 0.01%);
+        // the map's 5.07, 9.63 and 0.84 are the model's time means and were never produced by this code. The bound is
+        // 0.5%, so a change to the window, either low-pass constant or the half-width reads as a failure.
         var demonShort = Evade(demon, 60, .5f);
-        Assert.InRange(demonShort, 5.07f * .95f, 5.07f * 1.05f);
-        Assert.InRange(FireControl.PDeviation(demonShort, 10), .49f - .03f, .49f + .03f);
-        Assert.InRange(FireControl.PDeviation(demonShort, 50), .90f - .03f, .90f + .03f);
+        Assert.InRange(demonShort, 5.264f * .995f, 5.264f * 1.005f);
+        Assert.InRange(FireControl.PDeviation(demonShort, 10), .474f - .005f, .474f + .005f);
+        Assert.InRange(FireControl.PDeviation(demonShort, 50), .895f - .005f, .895f + .005f);
 
         var demonLong = Evade(demon, 60, .75f);
-        // The map's 9.63 is the model's time mean; this reads the track at the instant of the last flip, 5.1% above it.
-        Assert.InRange(demonLong, 9.63f * .94f, 9.63f * 1.06f);
-        Assert.InRange(FireControl.PDeviation(demonLong, 10), 0f, .04f + .05f);
-        Assert.InRange(FireControl.PDeviation(demonLong, 50), .81f - .03f, .81f + .03f);
+        Assert.InRange(demonLong, 10.116f * .995f, 10.116f * 1.005f);
+        Assert.Equal(0f, FireControl.PDeviation(demonLong, 10));
+        Assert.InRange(FireControl.PDeviation(demonLong, 50), .798f - .005f, .798f + .005f);
 
         var heavyShort = Evade(heavy, 10, .5f);
-        Assert.InRange(heavyShort, .84f * .95f, .84f * 1.05f);
-        Assert.InRange(FireControl.PDeviation(heavyShort, 10), .92f - .03f, .92f + .03f);
-        Assert.InRange(FireControl.PDeviation(heavyShort, 50), .98f - .03f, .98f + .03f);
+        Assert.InRange(heavyShort, .877f * .995f, .877f * 1.005f);
+        Assert.InRange(FireControl.PDeviation(heavyShort, 10), .912f - .005f, .912f + .005f);
+        Assert.InRange(FireControl.PDeviation(heavyShort, 50), .983f - .005f, .983f + .005f);
     }
 
     // Reach is what the ship can do: the largest displacement from the coasting path in the window, from the
@@ -639,7 +641,7 @@ public sealed partial class RunStartTests
 
     // Finding coasting-memory: a ship that stops jinking stops evading. The track is never reset by hand here: the
     // Gemini jinks for four seconds, the input is cut, and evasion must read exactly 0 within the window plus the
-    // drive's own spin-down (half a second), and stay 0, with the moments back at exactly zero.
+    // drive's own spin-down (a tick or two: the probe reads 0.783 s against a window of 0.75), and stay 0, with the moments back at exactly zero.
     [Fact]
     public void AShipThatStopsJinkingStopsEvading()
     {
@@ -660,7 +662,7 @@ public sealed partial class RunStartTests
             if (zeroAt < 0f && nose == 0f && side == 0f) zeroAt = step * EvDt;
             if (zeroAt >= 0f) Assert.True(nose == 0f && side == 0f, $"evasion came back at {step * EvDt:F2} s: {nose}, {side}");
         }
-        Assert.True(zeroAt >= 0f && zeroAt <= window + .5f, $"evasion reached zero at {zeroAt:F2} s, window {window}");
+        Assert.True(zeroAt >= 0f && zeroAt <= window + 3 * EvDt, $"evasion reached zero at {zeroAt:F2} s, window {window}");
         Assert.Equal(0f, gemini.Manoeuvre.Moments.x);
         Assert.Equal(0f, gemini.Manoeuvre.Moments.y);
         Assert.Equal(0f, gemini.Manoeuvre.Moments.z);
@@ -703,6 +705,283 @@ public sealed partial class RunStartTests
             var stat = ((ThrusterData) thruster.Data).Thrust;
             Assert.Equal(thruster.Evaluate(stat), thruster.Thrust);
             Assert.True(thruster.Thrust > stat.Min * 1.1f, $"idle thrust {thruster.Thrust} against the stat minimum {stat.Min}");
+        }
+    }
+
+    // ---- Fix batch B: the inputs and the geometry the first two passes left unpinned.
+
+    // The brute-force search M26 matched Reach against (scratch script, 2026-10-06; docs/aetheria-release-map.md): turn
+    // monotonically at full rate by some whole number of degrees, then hold, thrusting with the box support of the
+    // wanted direction throughout; 400 midpoint steps; the best of the 361 turns. `beta` is the wanted direction's angle
+    // clockwise from the heading.
+    private static double EvBruteReach(ManoeuvreEnvelope e, double beta, double window)
+    {
+        double Support(double g)
+        {
+            var c = Math.Cos(g);
+            var s = Math.Sin(g);
+            return (c > 0 ? e.Forward * c : -e.Reverse * c) + (s > 0 ? e.Right * s : -e.Left * s);
+        }
+
+        const int steps = 400;
+        var dt = window / steps;
+        var best = 0.0;
+        for (var degrees = -180; degrees <= 180; degrees++)
+        {
+            var delta = degrees * Math.PI / 180;
+            var rate = delta > 0 ? e.Clockwise : e.CounterClockwise;
+            var turnTime = rate > 0 ? Math.Abs(delta) / rate : delta == 0 ? 0 : 1e9;
+            var total = 0.0;
+            for (var k = 0; k < steps; k++)
+            {
+                var t = (k + .5) * dt;
+                var angle = turnTime > 0 ? delta * Math.Min(1, t / turnTime) : delta;
+                total += (window - t) * Math.Max(0, Support(beta - angle)) * dt;
+            }
+            best = Math.Max(best, total);
+        }
+        return best;
+    }
+
+    // Finding reach-geometry-unpinned: Reach is the largest displacement a turn-then-thrust search finds, to the
+    // fraction of a percent M26 measured at 0, 45 and 90 degrees, for envelopes whose rates and accelerations all
+    // differ from one another and from 1 (a rate or an acceleration of 1 hides a divide that should be a multiply),
+    // two windows, and a heading that is not along an axis.
+    [Fact]
+    public void ReachMatchesABruteForceSearchOverTurnStrategies()
+    {
+        var envelopes = new[]
+        {
+            new ManoeuvreEnvelope(20, 20, 20, 20, 3, 2.5f), new ManoeuvreEnvelope(50, 0, 23, 23, 2.3f, 2.3f),
+            new ManoeuvreEnvelope(30, 10, 5, 15, 2, 1.4f), new ManoeuvreEnvelope(40, 0, 0, 0, 3, 1.5f),
+            new ManoeuvreEnvelope(10, 10, 10, 10, .8f, .8f)
+        };
+        var checkedCases = 0;
+        foreach (var heading in new[] { float2(0, 1), normalize(float2(2, -1)) })
+        {
+            var forward = normalize(heading);
+            var right = forward.Rotate(ItemRotation.Clockwise);
+            foreach (var window in new[] { .5f, .75f })
+                foreach (var envelope in envelopes)
+                    foreach (var bearing in new[] { 0f, 45f, 90f, -45f, -90f })
+                    {
+                        var wanted = forward * cos(radians(bearing)) + right * sin(radians(bearing));
+                        var reach = FireControl.Reach(envelope, heading, wanted, window);
+                        var brute = EvBruteReach(envelope, bearing * Math.PI / 180, window);
+                        Assert.True(brute > .5, $"fixture: the search finds a reach ({brute})");
+                        Assert.True(Math.Abs(reach - brute) <= .005 * brute,
+                            $"heading {heading} window {window} bearing {bearing} F{envelope.Forward} R{envelope.Reverse} L{envelope.Left} Rt{envelope.Right} CW{envelope.Clockwise} CCW{envelope.CounterClockwise}: reach {reach:F4}, search {brute:F4}");
+                        checkedCases++;
+                    }
+        }
+        Assert.Equal(2 * 2 * envelopes.Length * 5, checkedCases);
+    }
+
+    // A track of a ship that changes its vector along `direction` every half second, at 40 m/s^2.
+    private static ManoeuvreTrack EvAlong(float2 direction, float window)
+    {
+        var track = default(ManoeuvreTrack);
+        for (var step = 0; step < 240; step++) track.Observe(direction * (step / 30 % 2 == 0 ? 40f : -40f), EvDt, window);
+        return track;
+    }
+
+    // Finding envelope-inputs-unpinned: the line of sight is rotated to find the axis across it, not reflected. Every other
+    // test reads a line of sight along an axis, where the two agree. Here the ship changes its vector along a direction
+    // that is not an axis: seen from a shooter along that direction it evades nothing, from one across it everything the
+    // track spreads over, and the envelope is roomy enough that the spread, not the reach, is what is read.
+    [Fact]
+    public void TheLineOfSightIsRotatedNotReflected()
+    {
+        const float window = .75f;
+        var roomy = new ManoeuvreEnvelope(200, 200, 200, 200, 20, 20);
+        var ahead = float2(0, 1);
+        foreach (var degrees in new[] { 30f, 45f, 120f, 200f })
+        {
+            var along = float2(cos(radians(degrees)), sin(radians(degrees)));
+            var across = float2(-along.y, along.x);
+            var track = EvAlong(along, window);
+            var full = .5f * track.LateralRms(along) * window * window;
+            Assert.True(full > 5f, $"fixture: the jink spreads ({full})");
+            Assert.InRange(FireControl.Evasion(roomy, ahead, track, across, window), full * .999f, full * 1.001f);
+            Assert.True(FireControl.Evasion(roomy, ahead, track, along, window) < .02f * full,
+                $"{degrees} degrees: along the jink {FireControl.Evasion(roomy, ahead, track, along, window)} against {full}");
+        }
+    }
+
+    // Finding envelope-inputs-unpinned: the capability is the envelope's reach from the ship's heading, not from the
+    // way it happens to be moving. A forward-heavy Longinus faces one way and drifts another, and the track is so wild
+    // that the reach is what is read (the spread is thousands of metres).
+    [Fact]
+    public void EvasionIsReadFromTheHeadingNotTheVelocity()
+    {
+        var (_, longinus, _, _) = EvFleet();
+        var window = _items.GameplaySettings.SolutionWindow;
+        EvSettle(longinus);
+        longinus.Update(EvDt);
+        var lineOfSight = normalize(float2(1, 2));
+        var across = float2(-lineOfSight.y, lineOfSight.x);
+        longinus.Direction = across;
+        longinus.Velocity = lineOfSight * 100f;
+        var wild = EvAlong(across, window);
+        wild.Moments *= 1e6f;
+        longinus.Manoeuvre = wild;
+        var envelope = longinus.Envelope;
+        float HalfWidth(float2 heading) => .5f * (FireControl.Reach(envelope, heading, across, window) + FireControl.Reach(envelope, heading, -across, window));
+
+        var evasion = FireControl.Evasion(longinus, lineOfSight);
+        Assert.InRange(evasion, HalfWidth(longinus.Direction) * .999f, HalfWidth(longinus.Direction) * 1.001f);
+        var fromTheVelocity = HalfWidth(normalize(longinus.Velocity));
+        Assert.True(Math.Abs(fromTheVelocity - evasion) > .1f * evasion, $"fixture: the two headings read differently ({evasion}, {fromTheVelocity})");
+    }
+
+    // Finding envelope-inputs-unpinned: Entity.Update observes the acceleration it measures at the solution window. The
+    // ship's own track after a two-second jink is the track a reference fed the same accelerations at that window makes.
+    [Fact]
+    public void TheShipsTrackObservesAtTheSolutionWindow()
+    {
+        var gemini = EvFleet().gemini;
+        var window = _items.GameplaySettings.SolutionWindow;
+        EvSettle(gemini);
+        var reference = gemini.Manoeuvre;
+        for (var step = 0; step < 120; step++)
+        {
+            gemini.MovementDirection = float2(step / 30 % 2 == 0 ? 1 : -1, 0);
+            gemini.Update(EvDt);
+            reference.Observe(gemini.Acceleration, EvDt, window);
+        }
+        Assert.True(reference.Moments.x > 1f, $"fixture: the jink is observed ({reference.Moments.x})");
+        Assert.InRange(gemini.Manoeuvre.Moments.x, reference.Moments.x * .999f, reference.Moments.x * 1.001f);
+        Assert.InRange(gemini.Manoeuvre.Moments.z, reference.Moments.z * .999f - .001f, reference.Moments.z * 1.001f + .001f);
+        Assert.InRange(gemini.Manoeuvre.Trend.x, reference.Trend.x - .001f * Math.Abs(reference.Trend.x) - .001f, reference.Trend.x + .001f * Math.Abs(reference.Trend.x) + .001f);
+    }
+
+    // Finding envelope-inputs-unpinned: a drive that is offline reports nothing, and a working one reports less along the
+    // way the ship is already outrunning the rotor: half the rotor's speed forward leaves half the push forward and the
+    // whole push back, and the same across the ship.
+    [Fact]
+    public void TheDrivesReportReadsItsStateAndTheShipsSpeed()
+    {
+        var gemini = EvFleet().gemini;
+        EvSettle(gemini);
+        gemini.Update(EvDt);
+        var drive = gemini.GetBehaviors<AetherDrive>().Single();
+        var rest = drive.Manoeuvre();
+        Assert.True(rest.Forward > 1f && rest.Reverse > 1f && rest.Left > 1f && rest.Right > 1f && rest.Clockwise > .1f, "fixture: a settled drive pushes every way");
+        var rotor = max(drive.Rpm * drive.DriveData.RotorDiameter / 100, 1);
+        var forward = normalize(gemini.Direction);
+        var right = EvRight(gemini);
+
+        gemini.Velocity = forward * (.5f * rotor.x);
+        var ahead = drive.Manoeuvre();
+        Assert.InRange(ahead.Forward / rest.Forward, .49f, .51f);
+        Assert.InRange(ahead.Reverse / rest.Reverse, .99f, 1.01f);
+        gemini.Velocity = -forward * (.5f * rotor.x);
+        var astern = drive.Manoeuvre();
+        Assert.InRange(astern.Reverse / rest.Reverse, .49f, .51f);
+        Assert.InRange(astern.Forward / rest.Forward, .99f, 1.01f);
+        gemini.Velocity = right * (.5f * rotor.y);
+        var starboard = drive.Manoeuvre();
+        Assert.InRange(starboard.Right / rest.Right, .49f, .51f);
+        Assert.InRange(starboard.Left / rest.Left, .99f, 1.01f);
+        gemini.Velocity = -right * (.5f * rotor.y);
+        var port = drive.Manoeuvre();
+        Assert.InRange(port.Left / rest.Left, .49f, .51f);
+        Assert.InRange(port.Right / rest.Right, .99f, 1.01f);
+
+        gemini.Velocity = float2(0, 0);
+        drive.Item.EquippableItem.Durability = 0f;
+        gemini.Update(EvDt);
+        gemini.Update(EvDt);
+        Assert.False(drive.Item.Active.Value, "fixture: the drive is offline");
+        var offline = drive.Manoeuvre();
+        Assert.Equal(0f, offline.Forward + offline.Reverse + offline.Left + offline.Right + offline.Clockwise + offline.CounterClockwise);
+    }
+
+    // The pure track forgets: after jinking, a track fed a constant acceleration (none at all, or a steady burn) reads
+    // exactly zero from the first tick at which the acceleration has held for the whole window, and not before, for each
+    // window. The change tick itself is tick 0.
+    private static int EvTicksToForget(float window, float2 held)
+    {
+        var track = EvAlong(float2(1, 0), window);
+        Assert.True(track.Moments.x > 1f, "fixture: the jink is observed");
+        var first = -1;
+        for (var tick = 0; tick < 300; tick++)
+        {
+            track.Observe(held, EvDt, window);
+            var zero = track.Moments.x == 0f && track.Moments.y == 0f && track.Moments.z == 0f && track.Innovation.x == 0f && track.Innovation.y == 0f;
+            if (first < 0 && zero) first = tick;
+            if (first >= 0) Assert.True(zero, $"window {window}: the track woke at tick {tick} after forgetting at {first}");
+        }
+        return first;
+    }
+
+    // Findings forget-window-unpinned and steady-burn-forget-unpinned: how long the track waits before it forgets is the
+    // window, whatever the window is, coasting or burning.
+    [Fact]
+    public void ATrackForgetsAWindowAfterTheLastChangeOfVector()
+    {
+        foreach (var window in new[] { .4f, .75f, 1.5f })
+            foreach (var held in new[] { float2(0, 0), float2(15, -8) })
+            {
+                var first = EvTicksToForget(window, held);
+                var ticks = (int) Math.Ceiling(window / EvDt);
+                Assert.True(first >= ticks - 1 && first <= ticks + 1, $"window {window}, held {held}: forgot at tick {first}, expected about {ticks}");
+            }
+    }
+
+    // Finding strafe-readers-unpinned: every one of Ship's thrust aggregates and the strafe torque compensation reads the
+    // live thrust, not the stat minimum a thruster had at construction. The idle Djinni's aggregates are the sums of what
+    // its thrusters push with now, group by group.
+    [Fact]
+    public void EveryAggregateAndTheCompensationReadLiveThrust()
+    {
+        var (_, _, djinni, _) = EvFleet();
+        EvSettle(djinni);
+        djinni.Update(EvDt);
+        Assert.Empty(djinni.GetBehaviors<AetherDrive>());
+        var thrusters = djinni.GetBehaviors<Thruster>().Where(t => t.Item.Active.Value).ToList();
+        float Live(Thruster t) => t.Evaluate(((ThrusterData) t.Data).Thrust);
+        float Mount(ItemRotation rotation, Func<Thruster, float> value) => thrusters.Where(t => t.Item.EquippableItem.Rotation == rotation).Sum(value);
+        foreach (var rotation in new[] { ItemRotation.None, ItemRotation.Clockwise, ItemRotation.CounterClockwise })
+        {
+            var group = thrusters.Where(t => t.Item.EquippableItem.Rotation == rotation).ToList();
+            Assert.NotEmpty(group);
+            Assert.All(group, t => Assert.True(Live(t) > ((ThrusterData) t.Data).Thrust.Min * 1.1f, $"fixture: {rotation} thruster thrust {Live(t)} above its stat minimum"));
+        }
+
+        void Near(float expected, float actual) => Assert.InRange(actual, expected * .999f - 1e-3f, expected * 1.001f + 1e-3f);
+        Near(Mount(ItemRotation.None, Live), djinni.ReverseThrust);
+        Near(Mount(ItemRotation.Clockwise, Live), djinni.LeftStrafeThrust);
+        Near(Mount(ItemRotation.CounterClockwise, Live), djinni.RightStrafeThrust);
+        Near(Mount(ItemRotation.Clockwise, t => t.Torque * Live(t)), djinni.LeftStrafeTotalTorque);
+        Near(Mount(ItemRotation.CounterClockwise, t => t.Torque * Live(t)), djinni.RightStrafeTotalTorque);
+
+        // The compensation trims each torque thruster of a strafing side by the side's mean torque, over that thruster's
+        // own torque at its live thrust.
+        foreach (var (side, field, direction, total) in new[]
+                 {
+                     (ItemRotation.CounterClockwise, "RightStrafeTorqueThrusters", 1f, djinni.RightStrafeTotalTorque),
+                     (ItemRotation.Clockwise, "LeftStrafeTorqueThrusters", -1f, djinni.LeftStrafeTotalTorque)
+                 })
+        {
+            var members = (List<Thruster>) typeof(Ship).GetField(field, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(djinni);
+            Assert.NotEmpty(members);
+            djinni.MovementDirection = float2(direction, 0);
+            djinni.LookDirection = float3(0, 0, 1);
+            djinni.Update(EvDt);
+            var mean = Math.Abs(total) / members.Count;
+            var trimmed = 0;
+            foreach (var thruster in thrusters.Where(t => t.Item.EquippableItem.Rotation == side))
+            {
+                var expected = members.Contains(thruster) ? 1f - mean / (Math.Abs(thruster.Torque) * Live(thruster)) : 1f;
+                expected = Math.Max(0f, Math.Min(1f, expected));
+                if (expected < .99f && expected > .01f) trimmed++;
+                Assert.InRange(thruster.Axis, expected - .002f, expected + .002f);
+            }
+            Assert.True(trimmed > 0, $"fixture: the {side} compensation trims a thruster to somewhere between off and full");
+            djinni.MovementDirection = float2(0, 0);
+            EvSettle(djinni);
+            djinni.Update(EvDt);
         }
     }
 }
