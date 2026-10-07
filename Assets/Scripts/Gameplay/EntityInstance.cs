@@ -398,7 +398,7 @@ public class EntityInstance : MonoBehaviour
             x.Value.material.SetFloat("_Emission", Entity.ItemManager.GameplaySettings.TemperatureEmissionCurve.Evaluate(x.Key.RadiatorTemperature));
         }
 
-        LookAtPoint.position = transform.position + Entity.LookDirection.ToUnity() * 
+        LookAtPoint.position = transform.position + Entity.Aim.ToUnity() * 
             (!Entity.Target.Value.IsNone ? max(Entity.TargetRange,Entity.ItemManager.GameplaySettings.ConvergenceMinimumDistance) : 10000);
         LocalSpace.localPosition = transform.position = Entity.Position.ToUnity();
         if (_influenceInstance)

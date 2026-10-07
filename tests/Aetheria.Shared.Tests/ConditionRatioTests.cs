@@ -95,7 +95,7 @@ public sealed class ConditionRatioTests : IDisposable
         Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("Consumer"))));
 
         zone.Entities.Add(ship);
-        ship.LookDirection = float3(0, 0, 1); // Ship.Update's own steering pass stays a no-op, as BrownoutTests
+        ship.Aim = float3(0, 0, 1); // Turn stays 0, as in BrownoutTests
         ship.Activate();
         consumer = ship.Equipment.Single(e => e.Data.Name == "Consumer");
 

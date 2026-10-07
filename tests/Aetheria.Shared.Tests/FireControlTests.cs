@@ -175,13 +175,8 @@ public sealed class FireControlTests : IDisposable
         Assert.True(FireControl.InArc(defaultArc, AtAngle(5)));
     }
 
-    // The cut's real deliverable: Entity.HardpointTransforms is gone, so a Minion can step through a full
-    // Zone.Update tick and reach the fire decision without Unity ever having run. Before this cut,
-    // Combat.cs:100-102 threw KeyNotFoundException on the first combat tick headless, because the AI's aim
-    // direction was a readback from a renderer that never ran. Mutation: restore the HardpointTransforms
-    // read in Behavior.Direction / Combat.cs -- this throws again outside Unity.
-    [Fact]
-    public void CombatStateStepsHeadless()
+    // A shooter with one in-range, in-arc gun, a detected target at `targetPosition`, and a Minion driving the shooter.
+    private (Ship shooter, Ship target, Zone zone) BuildCombatEncounter(float3 targetPosition)
     {
         var (items, shooter, weapons) = BuildShipWithHardpoints((ItemRotation.None, 0f));
         var weaponData = (InstantWeaponData) weapons[0].Data.Behaviors.Single(b => b is InstantWeaponData);
@@ -203,7 +198,7 @@ public sealed class FireControlTests : IDisposable
         target.Activate();
 
         shooter.Position = float3.zero;
-        target.Position = float3(0, 0, 10); // dead ahead of the None-rotation hardpoint, well within range and arc
+        target.Position = targetPosition;
 
         shooter.SetTarget(target);
         // Cut 3: CombatState now gates on FireControl.HitProbability, which is zero for an undetected target
@@ -216,6 +211,19 @@ public sealed class FireControlTests : IDisposable
         // unaided shot still counts as "worth it."
         items.GameplaySettings.AgentMinHitProbability = 0f;
         zone.Agents.Add(new Minion(shooter));
+        return (shooter, target, zone);
+    }
+
+    // The cut's real deliverable: Entity.HardpointTransforms is gone, so a Minion can step through a full
+    // Zone.Update tick and reach the fire decision without Unity ever having run. Before this cut,
+    // Combat.cs:100-102 threw KeyNotFoundException on the first combat tick headless, because the AI's aim
+    // direction was a readback from a renderer that never ran. Mutation: restore the HardpointTransforms
+    // read in Behavior.Direction / Combat.cs -- this throws again outside Unity.
+    [Fact]
+    public void CombatStateStepsHeadless()
+    {
+        // dead ahead of the None-rotation hardpoint, well within range and arc
+        var (shooter, _, zone) = BuildCombatEncounter(float3(0, 0, 10));
 
         var ex = Record.Exception(() =>
         {
@@ -226,5 +234,24 @@ public sealed class FireControlTests : IDisposable
         Assert.Null(ex);
         var weapon = shooter.Weapons.Single();
         Assert.True(weapon.Firing); // arc + range satisfied: the fight actually decided to fire, not just avoided a crash
+    }
+
+    // Controls cut (helm split): Combat aims the shooter at the intercept (Aim) and commands the hull toward it
+    // through the one steering law (Turn); it never turns the hull by writing Aim.
+    [Fact]
+    public void CombatAimsAtTheInterceptAndTurnsTowardIt()
+    {
+        var (shooter, target, zone) = BuildCombatEncounter(float3(10, 0, 10)); // 45 degrees to starboard, in arc
+        var direction = shooter.Direction;
+
+        zone.Update(1f);
+        zone.Update(1f);
+
+        var bearing = normalize(target.Position.xz - shooter.Position.xz);
+        var aim = normalize(shooter.Aim.xz);
+        Assert.True(dot(aim, bearing) > .999f, "Aim points at the stationary target's intercept");
+        Assert.Equal(direction, shooter.Direction); // no thrusters on this hull: only Turn was commanded
+        Assert.Equal(Steering.Toward(shooter, shooter.Aim.xz), shooter.Turn);
+        Assert.True(abs(shooter.Turn) > .5f);
     }
 }

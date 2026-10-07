@@ -352,7 +352,7 @@ public sealed class TargetingSystemTests : IDisposable
             Assert.True(ship.TryEquip(targeting));
 
             zone.Entities.Add(ship);
-            ship.LookDirection = float3(0, 0, 1);
+            ship.Aim = float3(0, 0, 1);
             ship.Activate();
             return ship;
         }

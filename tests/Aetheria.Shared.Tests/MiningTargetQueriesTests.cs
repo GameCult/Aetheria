@@ -157,7 +157,7 @@ public sealed partial class MiningCut3Tests
         for (var i = 0; i < 60; i++)
         {
             var heading = rng.NextDouble() * 2 * Math.PI;
-            observer.LookDirection = float3((float) Math.Cos(heading), 0, (float) Math.Sin(heading));
+            observer.Aim = float3((float) Math.Cos(heading), 0, (float) Math.Sin(heading));
             double Angle(TargetRef t)
             {
                 var to = Where(t) - at;
@@ -188,7 +188,7 @@ public sealed partial class MiningCut3Tests
             var s = BuildSceneAt(float2.zero, 20000f, 0, null, new[] { kind }, Belt(kind, Annulus(new System.Random(21), count, 2000f, outer)));
             var at = 2100f * float2(cos(1f), sin(1f));
             var observer = Observer(s, at, 150f, 3f, Falloff());
-            observer.LookDirection = float3(1, 0, 0);
+            observer.Aim = float3(1, 0, 0);
             var order = ByDistance(s, observer, 150f);
             Assert.True(order.Count > 5);
             if (held) observer.SetTarget(order[order.Count / 2]);
@@ -262,7 +262,7 @@ public sealed partial class MiningCut3Tests
                 Check("Previous from the median rock", Cost(observer.TargetPrevious, median), previousHeld);
                 foreach (var heading in new[] { 0f, 2f, 4f })
                 {
-                    observer.LookDirection = float3(cos(heading), 0, sin(heading));
+                    observer.Aim = float3(cos(heading), 0, sin(heading));
                     Check($"the reticle at {heading}", Cost(observer.TargetUnderReticle, TargetRef.None), reticle);
                 }
                 s.Zone.Entities.Remove(observer);
@@ -314,7 +314,7 @@ public sealed partial class MiningCut3Tests
         for (var i = 0; i < 200; i++)
         {
             var heading = rng.NextDouble() * 2 * Math.PI;
-            observer.LookDirection = float3((float) Math.Cos(heading), 0, (float) Math.Sin(heading));
+            observer.Aim = float3((float) Math.Cos(heading), 0, (float) Math.Sin(heading));
             observer.SetTarget(TargetRef.None);
             switch (i % 3)
             {
@@ -338,7 +338,7 @@ public sealed partial class MiningCut3Tests
         Assert.True(ship.TryEquip(Mint(s, launcher)));
         s.Zone.Entities.Add(ship);
         Hold(ship, at);
-        ship.LookDirection = float3(0, 0, 1);
+        ship.Aim = float3(0, 0, 1);
         ship.Activate();
         Tick((ship, at));
         Assert.Contains(ship.Weapons, w => w.Range == 400f);
@@ -410,7 +410,7 @@ public sealed partial class MiningCut3Tests
         // visible target, never a hidden one.
         for (var heading = 0f; heading < 2 * PI; heading += .7f)
         {
-            observer.LookDirection = float3(sin(heading), 0, cos(heading));
+            observer.Aim = float3(sin(heading), 0, cos(heading));
             observer.SetTarget(TargetRef.None);
             Assert.True(observer.TargetUnderReticle());
             Assert.DoesNotContain(observer.Target.Value, hidden);
@@ -462,7 +462,7 @@ public sealed partial class MiningCut3Tests
         }
 
         // The reticle, looking at the spot: the ship; then with the ship gone from sight, the first chunk.
-        observer.LookDirection = float3(0, 0, 1);
+        observer.Aim = float3(0, 0, 1);
         observer.SetTarget(TargetRef.None);
         Assert.True(observer.TargetUnderReticle());
         Assert.Equal(expected[0], observer.Target.Value);

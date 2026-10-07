@@ -25,6 +25,9 @@ public class Ship : Entity
     // [IgnoreMember] public Targetable Target;
     public Entity HomeEntity;
     public float2 MovementDirection;
+    // The one facing command, -1..1, positive clockwise. Written each tick by the pilot (player input or the
+    // ship's agent); a heading becomes a demand only through Steering.Toward. Runtime only, never packed.
+    public float Turn;
     public bool IsPlayerShip;
 
     private HashSet<EquippedItem> _thrusterItems;
@@ -275,20 +278,12 @@ public class Ship : Entity
             foreach (var thruster in _forwardThrusters) thruster.Axis += MovementDirection.y;
             foreach (var thruster in _reverseThrusters) thruster.Axis += -MovementDirection.y;
 
-            var look = normalize(LookDirection.xz);
-            var deltaRot = dot(look, normalize(Direction).Rotate(ItemRotation.Clockwise));
-            if (abs(deltaRot) < .01f)
-            {
-                deltaRot = 0;
-                Direction = lerp(Direction, look, min(delta, 1));
-            }
-            deltaRot = pow(abs(deltaRot), .5f) * sign(deltaRot);
-        
-            foreach (var thruster in _clockwiseThrusters) thruster.Axis += deltaRot;
-            foreach (var thruster in _counterClockwiseThrusters) thruster.Axis += -deltaRot;
+            var turn = clamp(Turn, -1f, 1f);
+            foreach (var thruster in _clockwiseThrusters) thruster.Axis += turn;
+            foreach (var thruster in _counterClockwiseThrusters) thruster.Axis += -turn;
 
             foreach (var drive in _aetherDrives)
-                drive.Axis = float3(MovementDirection.y, MovementDirection.x, deltaRot);
+                drive.Axis = float3(MovementDirection.y, MovementDirection.x, turn);
         }
 
         var velocityMagnitude = length(Velocity);

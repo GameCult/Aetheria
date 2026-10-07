@@ -437,7 +437,7 @@ public class ZoneRenderer : MonoBehaviour
         foreach (var loot in _loot)
         {
             loot.ViewOrigin = PerspectiveEntity.Position;
-            loot.ViewDirection = PerspectiveEntity.LookDirection;
+            loot.ViewDirection = PerspectiveEntity.Aim;
         }
         
         // if (SlimeRenderer.SpawnPositions.Length != _suns.Length)

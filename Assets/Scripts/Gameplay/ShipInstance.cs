@@ -113,7 +113,7 @@ public class ShipInstance : EntityInstance
         base.Update();
 
         TractorBeam.Power = Entity.TractorPower;
-        TractorBeam.Direction = Entity.LookDirection.ToUnity();
+        TractorBeam.Direction = Entity.Aim.ToUnity();
 
         if (_aetherDrive != null)
         {
