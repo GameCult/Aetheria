@@ -38,7 +38,6 @@ public class ShieldManager : MonoBehaviour
             if (gridObject)
             {
                 var itemPickup = other.collider.GetComponent<ItemPickup>();
-                var mine = other.collider.GetComponent<Mine>();
                 if (itemPickup)
                 {
                     if (Entity.CargoBays.Any(c => c.TryStore(itemPickup.Item)))
@@ -54,13 +53,9 @@ public class ShieldManager : MonoBehaviour
                         Debug.Log("Attempted item pickup, but no space in cargo bay!");
                     }
                 }
-                else if (mine)
-                {
-                    mine.Explode();
-                }
                 else
                 {
-                    Debug.Log("Shield collision occurred with grid object, but other collider isn't a mine or an item pickup!");
+                    Debug.Log("Shield collision occurred with grid object, but other collider isn't an item pickup!");
                 }
             }
             else
