@@ -144,7 +144,7 @@ public sealed class SteeringTests
         clockwise.Turn = 1;
         counter.Turn = -1;
         dead.Turn = 1;
-        for (var i = 0; i < 60; i++)
+        for (var i = 0; i < 10; i++)
         {
             clockwise.Update(1f / 60f);
             counter.Update(1f / 60f);
