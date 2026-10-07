@@ -247,6 +247,20 @@ public sealed class FireControlCut9Tests : IDisposable
         }
     }
 
+    // Commit's seed is ((CombatSeed * K) ^ ShotId) | 1 before the fmix32: the `| 1` is part of the shot dice that
+    // 9.1 shipped, so two shot ids that differ only in bit 0 share a seed and so a draw. Mutation: drop the
+    // `| 1` -- the pairs below then draw different rolls.
+    [Fact]
+    public void ShotIdsDifferingOnlyInTheLowBitShareTheirDraw()
+    {
+        var e = BuildDieEngagement(TestSettings(), "Cut9-LowBit");
+        var four = BisectRoll(e, 4);
+        Assert.Equal(four, BisectRoll(e, 5), 5);
+        var six = BisectRoll(e, 6);
+        Assert.Equal(six, BisectRoll(e, 7), 5);
+        Assert.NotEqual(four, six, 3);
+    }
+
     // ---------------------------------------------------------------------------------------------------
     // 9.2: pOnHull must stay monotonic in Precision over the whole domain. A neutral shooter/target pair
     // (Accuracy 1, huge Resolution/Tracking, zero weapon Spread), the same isolation convention

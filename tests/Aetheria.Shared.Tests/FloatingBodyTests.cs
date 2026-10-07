@@ -139,6 +139,17 @@ public sealed class FloatingBodyTests : IDisposable
     }
 
     [Fact]
+    public void NeighbouringZonesAndOrdinalsNeverShareADraw()
+    {
+        // Folding stream and ordinal into the zone seed with one xor would make (zone, n) and (zone ^ 1, n ^ 1)
+        // the same seed; the double mix keeps them apart.
+        for (uint zone = 0; zone < 64; zone++)
+        for (uint n = 0; n < 16; n++)
+            Assert.NotEqual(SimulationDice.For(zone, SimulationDice.LootStream, n).NextUInt(),
+                SimulationDice.For(zone ^ 1u, SimulationDice.LootStream, n ^ 1u).NextUInt());
+    }
+
+    [Fact]
     public void BodyIdsAreUniqueInAZone()
     {
         var zone = NewZone();
