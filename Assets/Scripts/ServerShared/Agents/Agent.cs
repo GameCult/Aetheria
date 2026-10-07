@@ -46,6 +46,9 @@ public class Agent
 
     public void Update(float delta)
     {
+        // The pilot tick writes Turn every tick, in every state: a state that pilots overwrites this zero with its
+        // demand, and one that does not leaves the hull holding course instead of inheriting the last state's rate.
+        Ship.Turn = 0;
         _currentState.Update(delta);
         foreach (var transition in _currentState.Transitions)
             if (transition.Condition())
@@ -63,10 +66,10 @@ public class Agent
         // If Delta V is above the threshold, direct the ship towards the delta and use only main thrusters
         if (!noTurn && deltaVMag > FORWARD_DELTA_THRESHOLD)
         {
-            Ship.LookDirection = float3(deltaVDirection.x, 0, deltaVDirection.y);
+            Ship.Turn = Steering.Toward(Ship, deltaVDirection);
             Ship.MovementDirection = float2(0, pow(dot(Ship.Direction, deltaVDirection), 2));
         }
-        // If Delta V is low, direct the ship towards the target and use all thrusters
+        // If Delta V is low, use all thrusters and leave Turn to the caller (MoveTo already pointed it at the target)
         else if(deltaVMag > THRUST_DELTA_THRESHOLD)
         {
             var right = Ship.Direction.Rotate(ItemRotation.Clockwise);

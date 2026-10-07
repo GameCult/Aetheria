@@ -55,7 +55,9 @@ public abstract class Entity
     // notice and clear it.
     public ReactiveProperty<EquippedItem> TargetItem = new ReactiveProperty<EquippedItem>((EquippedItem)null);
 
-    public float3 LookDirection;
+    // Where the pilot points: reticle, lock cone, tractor, guided rounds, fire direction. Steers nothing; the
+    // hull turns only by Ship.Turn.
+    public float3 Aim;
     
     public string Name;
     
@@ -406,7 +408,7 @@ public abstract class Entity
     // The candidate nearest the look direction by planar angle; picking the held target again clears it.
     public bool TargetUnderReticle()
     {
-        var look = float2(LookDirection.x, LookDirection.z);
+        var look = float2(Aim.x, Aim.z);
         if (!PickTarget(new AngleKey(this, Position.xz, look), out var picked)) return false;
         return SetTarget(Target.Value.Equals(picked) ? TargetRef.None : picked);
     }

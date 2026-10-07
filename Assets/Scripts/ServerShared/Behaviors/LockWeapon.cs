@@ -97,7 +97,7 @@ public class LockWeapon : InstantWeapon
             DirectionImpact = Evaluate(_data.DirectionImpact);
             Decay = Evaluate(_data.Decay);
 
-            var degrees = acos(dot(normalize(target.Position - Entity.Position), normalize(Entity.LookDirection))) * 57.2958f;
+            var degrees = acos(dot(normalize(target.Position - Entity.Position), normalize(Entity.Aim))) * 57.2958f;
             if (degrees < LockAngle)
             {
                 var lerp = 1 - unlerp(0, 90, degrees);

@@ -71,10 +71,10 @@ public class TurretController : Behavior, IInitializableBehavior
                     target.Position, targetVelocity
                 );
                 predictedPosition.y = Entity.Zone.GetHeight(predictedPosition.xz) + targetHullData.GridOffset;
-                Entity.LookDirection = normalize(predictedPosition - Entity.Position);
+                Entity.Aim = normalize(predictedPosition - Entity.Position);
             }
             else
-                Entity.LookDirection = normalize(diff);
+                Entity.Aim = normalize(diff);
 
             foreach (var x in _weapons)
             {

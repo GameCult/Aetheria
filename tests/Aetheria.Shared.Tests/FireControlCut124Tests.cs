@@ -1155,7 +1155,7 @@ public sealed class FireControlCut124Tests : IDisposable
     }
 
     // Operator ruling 2026-09-30: "fused weapons without a lock explode at max range." A fused shot with no
-    // target bursts at the weapon's Range along its aim (Entity.LookDirection), whatever its fuse. The fixture
+    // target bursts at the weapon's Range along its aim (Entity.Aim), whatever its fuse. The fixture
     // aims the shooter along (2,1), a non-axis facing; witnesses sit at the burst point and beside it. Radius 4
     // with the witness hull 5x4 cells of 2 world units: a witness centred on the burst point is covered, and
     // one 30 units off the aim line is not.
@@ -1234,7 +1234,7 @@ public sealed class FireControlCut124Tests : IDisposable
 
     // ==== Operator rulings 2026-09-30 (Soul's pass on the no-lock fix): aim, invalid target, contact, shooter ====
 
-    private static void Aim(Engagement e, float2 direction) => e.Shooter.LookDirection = float3(direction.x, 0, direction.y);
+    private static void Aim(Engagement e, float2 direction) => e.Shooter.Aim = float3(direction.x, 0, direction.y);
 
     private static float3 PointAlong(Engagement e, float2 direction, float distance) =>
         e.Shooter.Position + float3(direction.x, 0, direction.y) * distance;
@@ -1266,7 +1266,7 @@ public sealed class FireControlCut124Tests : IDisposable
     }
 
     // Ruling 1: an aim inside the arc is used as it is (unnormalised here), and a shooter aiming at nothing
-    // (LookDirection zero) fires down its mount. Kills: reading MountDirection instead of the aim; a missing
+    // (Aim zero) fires down its mount. Kills: reading MountDirection instead of the aim; a missing
     // zero-aim fallback, which would normalise to NaN and burst nowhere.
     [Fact]
     public void ANoLockShotFliesAlongTheAimAndDownTheMountWhenNothingIsAimed()
@@ -2113,9 +2113,9 @@ public sealed class FireControlCut124Tests : IDisposable
         Near(float2(0, 1), Clamped(e, float2(0, 0)));
         Near(float2(0, 1), Clamped(e, float2(5e-4f, 0)));
         Near(Dir(85), Clamped(e, float2(2e-3f, 0)));
-        e.Shooter.LookDirection = float3(0, 1, 0);
+        e.Shooter.Aim = float3(0, 1, 0);
         Near(float2(0, 1), FireControl.AimDirection(e.WeaponItem, e.Shooter));
-        e.Shooter.LookDirection = float3(float.NaN, 0, float.NaN);
+        e.Shooter.Aim = float3(float.NaN, 0, float.NaN);
         var nan = FireControl.AimDirection(e.WeaponItem, e.Shooter);
         Assert.False(float.IsNaN(nan.x) || float.IsNaN(nan.y), "a NaN aim must not produce a NaN flight direction");
     }

@@ -224,7 +224,7 @@ public sealed partial class MiningCut3Tests : IDisposable
         }
         s.Zone.Entities.Add(ship);
         Hold(ship, at);
-        ship.LookDirection = float3(0, 0, 1);
+        ship.Aim = float3(0, 0, 1);
         ship.Activate();
         return ship;
     }
@@ -588,7 +588,7 @@ public sealed partial class MiningCut3Tests : IDisposable
         var enemy = SpawnShip(s, eyeAt + float2(0, 50));
         shooter.SetIff(enemy, true);
         shooter.EntityInfoGathered[enemy] = 1;
-        shooter.LookDirection = float3(0, 0, 1);
+        shooter.Aim = float3(0, 0, 1);
         var launcher = new LockWeapon(new LockWeaponData
         {
             LockSpeed = Constant(.5f),
@@ -817,7 +817,7 @@ public sealed partial class MiningCut3Tests : IDisposable
             foreach (var weapon in weapons) Assert.True(ship.TryEquip(Mint(s, weapon)));
             s.Zone.Entities.Add(ship);
             Hold(ship, eyeAt);
-            ship.LookDirection = float3(0, 0, 1);
+            ship.Aim = float3(0, 0, 1);
             ship.Activate();
             Tick((ship, eyeAt)); // weapons read their ranges when they run
             return ship;

@@ -307,7 +307,7 @@ public sealed class IffAndCombatTests : IDisposable
         // detected (EntityInfoGathered=1 saturates the sensor-impact term). This makes the assertion
         // below actually depend on the gate, instead of a coincidental zero from unset geometry.
         shooter.Position = float3(0, 0, 0);
-        shooter.LookDirection = float3(0, 0, 1);
+        shooter.Aim = float3(0, 0, 1);
         target.Position = float3(0, 0, 10);
         shooter.EntityInfoGathered[target] = 1;
 

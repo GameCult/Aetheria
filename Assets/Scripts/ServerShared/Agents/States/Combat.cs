@@ -124,7 +124,8 @@ public class CombatState : BaseState
                     weapon.Deactivate();
             }
         }
-        _agent.Ship.LookDirection = toTarget;
+        _agent.Ship.Aim = toTarget;
+        _agent.Ship.Turn = Steering.Toward(_agent.Ship, toTarget.xz);
         _agent.Accelerate(movementDirection * _agent.TopSpeed, true);//selectedGroup >= 0);
 
         // Fire charged guns!

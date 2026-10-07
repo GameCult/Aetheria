@@ -112,16 +112,16 @@ public static class FireControl
     }
 
     // Operator ruling 2026-09-30: a shot with nothing to bear on flies along where its shooter is aiming
-    // (Entity.LookDirection -- the player's mouse or a turret's tracking), restricted by the mount's arc. The
+    // (Entity.Aim -- the player's mouse or a turret's tracking), restricted by the mount's arc. The
     // arc is InArc's own cone: an aim inside it is used as is, one outside it is turned to the nearest edge of
     // the same cone. There is no second bearing test here; the edge is where InArc stops passing. A shooter
-    // with no aim set (LookDirection zero) aims down the mount, the same fallback InArc takes for a zero bearing.
+    // with no aim set (Aim zero) aims down the mount, the same fallback InArc takes for a zero bearing.
     // The simulation had no aim clamp before this: the Unity barrel's ArticulationPoint clamps the picture,
     // and a target outside the arc merely priced the shot at zero.
     public static float2 AimDirection(EquippedItem item, Entity shooter)
     {
         var mount = MountDirection(item).xz;
-        var look = shooter.LookDirection.xz;
+        var look = shooter.Aim.xz;
         if (lengthsq(look) < 1e-6f) return mount;
         look = normalize(look);
         if (InArc(item, float3(look.x, 0, look.y))) return look;

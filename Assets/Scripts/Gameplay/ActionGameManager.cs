@@ -192,6 +192,9 @@ public class ActionGameManager : MonoBehaviour
     // private ShipInput _shipInput;
     private float2 _entityYawPitch;
     private float3 _viewDirection;
+    // The player's face-the-aim state (Left Shift held, Caps Lock latched); Ship.Turn is its only output.
+    private readonly HelmInput _helm = new HelmInput();
+    private TextMeshProUGUI _faceAimMark;
     private (HardpointData[] hardpoints, Transform[] barrels, PlaceUIElementWorldspace crosshair)[] _articulationGroups;
     private (LockWeapon targetLock, PlaceUIElementWorldspace indicator, Rotate spin)[] _lockingIndicators;
     private Dictionary<Entity, VisibleTargetIndicator> _visibleHostileIndicators = new Dictionary<Entity, VisibleTargetIndicator>();
@@ -289,6 +292,20 @@ public class ActionGameManager : MonoBehaviour
 
         InputDisplayLayout.Input = Input.asset;
         Input.Global.Enable();
+
+        // The latch is the game's own, so it can disagree with the keyboard's Caps Lock light: show it.
+        Input.Player.ToggleFaceAim.performed += context => _helm.Toggle();
+        var markParent = GameplayUI != null ? GameplayUI.transform : UiRoot.transform;
+        var markObject = new GameObject("Face Aim Mark", typeof(RectTransform));
+        markObject.transform.SetParent(markParent, false);
+        _faceAimMark = markObject.AddComponent<TextMeshProUGUI>();
+        _faceAimMark.text = "FACE AIM";
+        _faceAimMark.fontSize = 24;
+        _faceAimMark.alignment = TextAlignmentOptions.Center;
+        _faceAimMark.raycastTarget = false;
+        _faceAimMark.rectTransform.anchorMin = _faceAimMark.rectTransform.anchorMax = new Vector2(.5f, .12f);
+        _faceAimMark.rectTransform.sizeDelta = new Vector2(300, 40);
+        _faceAimMark.enabled = false;
 
         _zoomLevelIndex = Settings.DefaultMinimapZoom;
         Input.Player.MinimapZoom.performed += context =>
@@ -663,7 +680,7 @@ public class ActionGameManager : MonoBehaviour
         if (!(CurrentEntity is Ship ship) || ship.WormholeAnimationInProgress) return;
         // var wormholeCameraFollow = new GameObject("Wormhole Camera Follow").transform;
         // wormholeCameraFollow.position = new Vector3(wormhole.Position.x, -50, wormhole.Position.y);
-        // wormholeCameraFollow.rotation = Quaternion.LookRotation(Vector3.down, ship.LookDirection);
+        // wormholeCameraFollow.rotation = Quaternion.LookRotation(Vector3.down, ship.Aim);
         // WormholeCamera.enabled = true;
         // WormholeCamera.Follow = wormholeCameraFollow;
         // FollowCamera.enabled = false;
@@ -1281,16 +1298,19 @@ public class ActionGameManager : MonoBehaviour
                 var sensitivity = PlayerSettings.InputSettings.Sensitivity;
                 _entityYawPitch = float2(_entityYawPitch.x + look.x * sensitivity.x, clamp(_entityYawPitch.y + look.y * sensitivity.y, -.45f * PI, .45f * PI));
                 _viewDirection = mul(float3(0, 0, 1), CultMath.float3x3.Euler(float3(_entityYawPitch.yx, 0), RotationOrder.YXZ));
-                CurrentEntity.LookDirection = _viewDirection;
+                CurrentEntity.Aim = _viewDirection;
                 HeatstrokePost.weight = saturate(unlerp(0, Settings.GameplaySettings.SevereHeatstrokeRiskThreshold, CurrentEntity.Heatstroke));
                 var severeHeatstrokeLerp = saturate(unlerp(Settings.GameplaySettings.SevereHeatstrokeRiskThreshold, 1, CurrentEntity.Heatstroke));
                 SevereHeatstrokePost.weight =
                     severeHeatstrokeLerp + severeHeatstrokeLerp * (1 - severeHeatstrokeLerp) *
                     max(Settings.HeatstrokePhasingFloor, sin(Time.time * Settings.HeatstrokePhasingFrequency));
                 
+                _faceAimMark.enabled = _helm.Latched;
                 if(CurrentEntity is Ship ship)
                 {
                     ship.MovementDirection = Input.Player.Move.ReadValue<Vector2>().ToCultMath();
+                    _helm.Held = Input.Player.FaceAim.IsPressed();
+                    ship.Turn = _helm.Demand(ship, _viewDirection.xz, Input.Player.Turn.ReadValue<float>());
                 }
 
                 UpdateFireControlDebug(CurrentEntity.Target.Value);
