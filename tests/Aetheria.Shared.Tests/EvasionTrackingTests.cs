@@ -112,7 +112,13 @@ public sealed partial class RunStartTests
         var with = EvGuns(range).Select(g => FireControl.TrackingRate(g.weapon, g.shooter)).ToArray();
 
         // The gear off: both guns' rates fall by the same ratio, and the ratio between the guns does not move.
-        foreach (var (_, shooter) in EvGuns(range)) shooter.GetBehavior<TargetingSystem>().Item.Active.Value = false;
+        foreach (var (_, shooter) in EvGuns(range))
+        {
+            shooter.GetBehavior<TargetingSystem>().Item.EquippableItem.Durability = 0f;
+            shooter.Update(EvDt);
+            shooter.Update(EvDt);
+            Assert.Equal(unaided, FireControl.Tracking(shooter));
+        }
         var without = EvGuns(range).Select(g => FireControl.TrackingRate(g.weapon, g.shooter)).ToArray();
         Assert.Equal(40f, without[0], 3);
         Assert.Equal(3f, without[1], 3);
