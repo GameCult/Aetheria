@@ -89,6 +89,21 @@ public sealed class FloatingBodyTests : IDisposable
     }
 
     [Fact]
+    public void OneStepMovesByLaunchPlusDrift()
+    {
+        var s = Settings();
+        var b = new KinematicBody { Velocity = new float2(2f, 0f), Drift = new float2(0f, 1f) };
+        b.Step(.5f, new float2(.4f, 0f), s);
+        var velocity = 2f * exp(-s.FloatingBodyLaunchDrag * .5f);
+        var drift = new float2(.4f * .5f, 1f) * exp(-s.FloatingBodyDrag * .5f);
+        Assert.Equal(velocity, b.Velocity.x, 4);
+        Assert.Equal(drift.x, b.Drift.x, 4);
+        Assert.Equal(drift.y, b.Drift.y, 4);
+        Assert.Equal((velocity + drift.x) * .5f, b.Position.x, 4);
+        Assert.Equal(drift.y * .5f, b.Position.y, 4);
+    }
+
+    [Fact]
     public void ShotDiceAreUnchanged()
     {
         // fmix32 as FireControl.MixSeed wrote it, the function this cut moved.
@@ -120,7 +135,7 @@ public sealed class FloatingBodyTests : IDisposable
 
         // Never seeded 0: the argument set that mixes to zero still rolls.
         var zero = SimulationDice.For(0u, 0u, 0u);
-        Assert.NotEqual(0u, zero.state);
+        Assert.Equal(1u, zero.state);
     }
 
     [Fact]
