@@ -4079,9 +4079,10 @@ each with one owner, and it adds to the in-flight deviation rather than replacin
   acceleration forward, reverse, left and right (m/s^2) and turn rate clockwise and
   counter-clockwise (rad/s), summed from what each live propulsor reports with the arithmetic its
   own `Execute` uses (a `Thruster` its thrust over mass along its mount and its lever times thrust
-  times `TorqueMultiplier` over mass; an `AetherDrive` its full-axis acceleration at its current
-  rotor state). A thruster that only turns counts as lateral push, because it pushes whenever it
-  turns (M23). Not a `Ship`, no envelope. `FireControl.Reach(envelope, heading, direction,
+  times `TorqueMultiplier` over mass). An aether drive reports nothing: the drive is parked out of
+  the demo (ruling `retire-longinusx`), and evasion-term r6 deletes the `AetherDrive.Manoeuvre`
+  report that r2 landed (see "Retiring the LonginusX and parking the aether drive"). A thruster
+  that only turns counts as lateral push, because it pushes whenever it turns (M23). Not a `Ship`, no envelope. `FireControl.Reach(envelope, heading, direction,
   window)` is the largest displacement from the coasting path along `direction` in `window`, by
   the eight-face form of M26. The capability across a line of sight is the half-width of the
   reachable interval, `C = (Reach(+n) + Reach(-n)) / 2`, with `n` perpendicular to the line of
@@ -4273,10 +4274,9 @@ counters must exist and lie outside the big gun:
 
 **Top speed is a hull stat, and so an evasion stat** (M32). The Longinus is capped at 100 m/s and
 the Djinni at 50 by their own `VelocityLimit` behaviour, and the table above is fitted at those
-speeds. The LonginusX carries no cap, so its ceiling is drag and its aether drive, several hundred
-m/s; at 800 m/s, 1,000 m off, only a PD-class gun lands (0.80), ClearPath keeps 0.08 and every
-heavier gun nothing, and at 200 m nothing lands at all. Question `longinusx-top-speed` asks
-whether it gets a cap.
+speeds. The uncapped LonginusX row records what an uncapped hull would do; the hull itself is
+retired (ruling `retire-longinusx`), question `longinusx-top-speed` is withdrawn as moot, and after
+the retirement every ship hull in the shipped catalog carries a cap ("The dock intro", below).
 
 **When articulated mounts arrive** (ruling `arc-and-traverse-on-the-link`, follow-up
 `articulated-mounts`), the link's traverse speed and the gun's tracking compose by the slower of
@@ -4639,3 +4639,159 @@ reading can take), jamming and soft kill; boost and midcourse fuel planning; min
 (`bodies-entity-and-mines`); whether launchers draw rounds (`launcher-ammunition`). Whether
 the demo cast fields launchers for the player's PD to meet is content: the cuts add a
 `Point Defense` scenario for the operator check.
+
+## Retiring the LonginusX and parking the aether drive
+
+Ruling `retire-longinusx`, in the operator's words: "I want to retire the LonginusX, the aether
+drive concept needs a rework and it needn't land in the demo." Ruling `aether-drive-niche` keeps
+the design intent for the rework: "Like, it has a decent niche. It's the only zero-visibility
+mobility option besides velocity conversion (also esoteric gear), and the rotor mechanic limits its
+mobility to bursts, so it's currently pretty trivial to outmaneuver an all aether drive ship if you
+get it to spend its momentum. I think we want to establish the thruster meta before seeing where it
+fits in, though." Follow-up `aether-drive-rework-rotor` carries why it is frustrating to fly today:
+the rotors spin down after the first manoeuvre, so that manoeuvre is the only one a pilot gets.
+
+Two specs carry it: `evasion-term` r6 takes the drive out of the unbuilt evasion work, and
+`retire-longinusx` r1 deletes the hull, the drive and every consumer from master. The drive's code
+and data are kept at the tag `parked/aether-drive`, not on any live path.
+
+### Body facts
+
+- **R1. Catalog consumers** (catalog decode of `GameData/Aetheria.cc` at master `516af3e5`,
+  2026-10-07: Python `msgpack` over the store's own schema table, rows decoded by slot; 217
+  documents in 13 schemas). Exactly four records carry the hull or the drive: `HullData`
+  `LonginusX` (`445d911a-9951-40a3-874e-0b7ce8b35129`, Ship, price 7,500,000; hardpoints Control,
+  AetherDrive (2,3) 2x2, Energy x2, Launcher x2, Radiator x2, Reactor (2,1), Sensors; behaviours
+  Reflector only, no `VelocityLimit`), its `FactionProductData` (maker Alakrita), `GearData`
+  `Traction` (`42d1ffaa-f764-4a65-ba03-43cc4e6fd2bc`, the catalog's only `AetherDriveData`, union 12,
+  plus Wear; hardpoint AetherDrive; price 250,000; its `Particles` is the GUID of
+  `Assets/Content/Prefabs/Thrusters/Aether Drive.prefab`), and its `FactionProductData`
+  (`007ed2b1-8fdf-473d-9ebf-e55fcd1a6903`, maker Aeronautics Unlimited). A byte scan of every row for
+  the two record ids and for the strings `LonginusX` and `Traction` finds only those four. No
+  faction's `BossHull` is set; no station stock record names either, because stations stock from
+  products. No other hull has an AetherDrive hardpoint and no other gear has union 12.
+- **R2. The LonginusX is the Longinus with a drive.** Both hulls share the 6x17 `Shape`, mass 2,500,
+  prefab `4a3db609...` and schematic `51702555...`; Control (2,6), Energy (1,8) and (4,8), Launcher
+  (0,5) and (5,5) and Sensors (3,10) sit in the same cells. The Longinus has four Thruster
+  hardpoints ((1,0) and (3,0) 2x2, (2,14) and (3,14) 1x2), its Reactor at (2,4) and Radiators at
+  (2,2) and (3,2), and a `VelocityLimit` of 100. A bare LonginusX and a bare Longinus differ only by
+  that cap, so a bare-hull target moves to the Longinus unchanged. A fitted LonginusX's Fire Control
+  Array at (2,5) collides with the Longinus's Reactor (2,4)-(3,5), so fits are relaid.
+- **R3. Code consumers on master** (source read at `516af3e5`). Simulation:
+  `Behaviors/AetherDrive.cs` (184 lines), `Behaviors.cs:160` union 12, `Enums.cs:53`
+  `HardpointType.AetherDrive` (last member, so removing it shifts nothing), `Ship.cs` (the
+  `_aetherDrives` sets, `RemoveAetherDrive`, six thrust aggregates and the `drive.Axis` write in
+  `Update`), `ItemData.cs:895-899` (five request-field registry rows), `Settings.cs:211-212`
+  (`AetherTorqueMultiplier`, `AetherHeatMultiplier`, read only by the drive), comments in
+  `PowerTiers.cs:16` and `Entity.cs:1803,1819`. Presentation: `Gameplay/ShipInstance.cs`
+  (`AetherDriveInstance`, drive particles), `UI/HUD/SchematicDisplay.cs` (`AetherDriveUi` and the
+  three RPM label and fill pairs), `Gameplay/ActionGameManager.cs:934` (the undock refusal's drive
+  clause), `Scenes/ARPG.unity` (the `RPM Display` object `1735948311`, active by default, so it
+  shows for every ship once nothing hides it), the `Aether Drive.prefab` and its only material
+  `Dithered Particle Trail AetherDrive.mat`. Tools: `tools/AetherDb/Program.cs` `AetherDriveRoles`
+  in `roles-migrate`, the `AetherDriveData.Torque` row in `brownout-migrate`, comments at `:938` and
+  `:1409`; `tools/blender/aetheria_ships/ship_cc.py:36` `HARDPOINT_TYPE_NAMES`. Settings data:
+  `Assets/Resources/Settings.asset` line 15 `StartingHullName: LonginusX` (read by the Tutorial and
+  Main Galaxy modes through `ActionGameManager.cs:818`; `GameSettings.cs:13` defaults to
+  `Longinus`) and lines 310-311.
+- **R4. Scenario and test consumers.** Scenarios Duel, Arcs, Launcher Angles and Starved Reactor fit
+  a LonginusX with `Traction` and place bare LonginusX targets. Tests: `BrownoutTests` (three drive
+  tests and `RunAetherDrive`), `ShipAuthoringTests:254` and `ShipValidationTests:36` (AetherDrive as
+  an internal hardpoint type), `FireControlCut124Tests:475` (a LonginusX row), `FireControlCut7Tests:215`,
+  `RunStartTests:673`, `ScenarioTests:132` (asserts the starting hull is `LonginusX`) and `:288-340`,
+  `tests/mutation_tests_addressables_cut.py` (a LonginusX record as the known-good mutant), and
+  comments in `FireControlCut9Tests:363`, `FireControlCut12Tests:1327` and `ConditionRatioTests:15`.
+  Docs that describe the live game: `docs/merge-to-master-checklist.md` lines 36, 47, 53 and 59.
+- **R5. Open branches** (read through `origin/*` refs from `C:\ar-retire-map`, 2026-10-07).
+  `eureka/aetheria-release-evasion-term` (tip `e4944549`, fix batch B on top of `46b28501`) adds
+  `AetherDrive.Manoeuvre` (24 lines, `da2957b8`), sums it into `Ship.Envelope`
+  (`RecalculateEnvelope`), and flies a `LonginusX` with `Traction` (`EvGemini`) as the "gemini"
+  in `EvFleet` and the gunner and target fixture. Batch B's `5f404d50` adds
+  `TheDrivesReportReadsItsStateAndTheShipsSpeed`, pinning the drive half of finding
+  `envelope-inputs-unpinned` (offline gate and speed efficiency). `controls-helm` (tip `8c5eb5b7`)
+  rewrites `Ship.Update`'s turn block, including the `drive.Axis` line, and `ScenarioTests:317-322`.
+  `demo-galaxy` and `boss-gate` stage the demo player as `Generated("Longinus")` and touch
+  `ScenarioTests` only at lines 44, 96 and 507; the boss fallback picks the priciest ship hull,
+  the Djinni at 10,000,000, so the retirement changes no boss.
+- **R6. Package hulls and top speed.** `ShipAuthoringStore.HullLike` copies every member of a
+  shipped reference hull, `VelocityLimit` included, for `ship-authoring create --like <hull>`;
+  `create` without `--like` writes a hull with no behaviours, and nothing in `ShipModCatalog` or
+  validation requires one. The dock intro (`ActionGameManager.cs:849`) dereferences
+  `GetBehavior<VelocityLimit>()` unguarded.
+
+### What goes, what is parked
+
+Deleted, because nothing that ships consumes it once the hull is gone: the four catalog records
+(R1), the drive behaviour, union 12 (retired with a do-not-reuse comment, as union 26 is),
+`HardpointType.AetherDrive`, the drive's settings, presenters, HUD, prefab, material and scene
+object, every test and tool row of R3 and R4, and the `StartingHullName` value. The Longinus takes
+the LonginusX's place in every scenario and test, because R2 makes it the same frame without the
+drive. Velocity conversion (union 10) is separate gear and stays.
+
+Parked: the annotated tag `parked/aether-drive` on the retirement's base, the last master commit
+that holds the drive, the Traction record and the drive scenarios. Its message is the park note:
+
+```
+parked/aether-drive: the aether drive and the LonginusX, retired from the demo
+(ruling aetheria-release:ruling:retire-longinusx).
+
+Design intent for the rework (ruling aetheria-release:ruling:aether-drive-niche, the operator,
+2026-10-07): "Like, it has a decent niche. It's the only zero-visibility mobility option besides
+velocity conversion (also esoteric gear), and the rotor mechanic limits its mobility to bursts, so
+it's currently pretty trivial to outmaneuver an all aether drive ship if you get it to spend its
+momentum. I think we want to establish the thruster meta before seeing where it fits in, though."
+
+Why it frustrates today (follow-up aetheria-release:follow_up:aether-drive-rework-rotor): the
+rotors spin down after the first manoeuvre, so the first manoeuvre is the only one you get; judge
+the rework against the game's overall pace, which the operator also finds too fast.
+
+What is here: Assets/Scripts/ServerShared/Behaviors/AetherDrive.cs (rotors, coupling, torque,
+heat), its union 12 and HardpointType.AetherDrive, Ship's drive aggregates, ShipInstance's drive
+particles, SchematicDisplay's RPM display, Aether Drive.prefab, GameplaySettings
+AetherTorqueMultiplier and AetherHeatMultiplier, the LonginusX hull and the Traction drive in
+GameData/Aetheria.cc (LFS), and the Duel, Arcs, Launcher Angles and Starved Reactor fits.
+The drive's evasion envelope report (AetherDrive.Manoeuvre) is on the evasion-term branch at
+da2957b8, tested by 5f404d50; evasion-term r6 removed it before merge.
+Return after the thruster meta is established.
+```
+
+### Ordering
+
+`evasion-term` r5 kept r2's envelope as landed, drive included, and named the LonginusX three
+times: plight's fit, the `evasion-catalog` step that would have capped it, and the test
+`TheLonginusXTopSpeedIsAsRuled`. Its Hands would build and test code this retirement deletes, so r6
+supersedes it now: the drive's report and its sum leave the envelope, the gemini fixtures fly a
+Djinni (the catalog's only ship that strafes, M24 and M25) or a fitted Longinus, and the LonginusX
+steps are gone. r6 does not touch `AetherDrive` itself, `Ship`'s thrust aggregates or the
+scenarios: those are master's, and the retirement deletes them whole.
+
+Between r6 merging and the retirement merging, a LonginusX on master has an empty envelope and so
+no evasion. Nothing ships in that window, and the retirement is the next subtraction, so the
+transient is harmless; it is cheaper than teaching r6 a drive that dies a cut later.
+
+`retire-longinusx` depends on `evasion-term` (its `RecalculateEnvelope` sits beside the aggregates
+the retirement deletes, and both rewrite the LFS catalog, which does not merge) and on
+`controls-helm` (it rewrites the `drive.Axis` line and `ScenarioTests:317-322`, next to the
+retirement's `StanceAndPilot` edit). It need not wait for `demo-galaxy` or `boss-gate` (R5). The
+catalog is rewritten by a one-shot command run on master's catalog as it stands when the branch is
+last rebased, never merged as a binary.
+
+The retirement is a pure subtraction and adds no rule except the catalog test of R6's first half.
+The behaviour change that the drive's absence makes in evasion belongs to `evasion-term` r6, so
+Soul can falsify each alone.
+
+### The dock intro
+
+After the retirement every ship hull in the shipped catalog, the Longinus (100) and the Djinni
+(50), carries a `VelocityLimit`, so for the shipped catalog follow-up
+`dock-intro-velocitylimit-null` reduces to a test, "every ship hull in the shipped catalog has a top
+speed", which the retirement adds. Package hulls (R6) keep the follow-up alive: a hull created
+without `--like` has no cap and throws at the intro. What is left is one owner for package hulls,
+either ship-authoring validation refusing a ship hull with no `VelocityLimit` or the intro handling
+its absence; the demo cast hulls (`demo-cast-hulls`) meet it first.
+
+### Model page rows
+
+| Kind | What names it | Over time | Who decides |
+|---|---|---|---|
+| `parked/aether-drive` tag | The tag name; its message is the park note. | Fixed at the retirement's base; read by the rework, never merged back. | The operator's rework, after the thruster meta. |
