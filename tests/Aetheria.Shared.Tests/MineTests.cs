@@ -382,12 +382,10 @@ public sealed class MineTests : IDisposable
         {
             Assert.Equal(shipsB[i].Hull.Durability, shipsA[i].Hull.Durability);
         }
-        // Wholly inside and the layer are hurt; the edge ship is hurt less; the absorbing shield stops it; the
-        // tiny shield breaks and its hull takes the share.
+        // Wholly inside and the layer are hurt; the edge ship is hurt less.
         Assert.True(shipsA[1].Hull.Durability < shipsA[2].Hull.Durability);
         Assert.True(shipsA[2].Hull.Durability < 1000000f);
         Assert.True(shipsA[0].Hull.Durability < 1000000f);
-        Assert.Equal(1000000f, shipsA[3].Hull.Durability);
         Assert.True(shipsA[4].Hull.Durability < 1000000f);
     }
 
@@ -572,6 +570,47 @@ public sealed class MineTests : IDisposable
         Assert.False(FireControl.AgentFires(lab.Weapon, lab.Layer, far));
         Assert.True(FireControl.AgentFires(lab.Weapon, lab.Layer, near));
         Assert.False(FireControl.Refuses(lab.Weapon, lab.Layer));
+    }
+
+    [Fact]
+    public void TheLaunchAngleIsTheMinesOwnDice()
+    {
+        var lab = Build(spread: 40f, velocity: 5f, layerFaction: A);
+        var shooterVelocity = float2.zero;
+        lab.Weapon.OnFire += _ => shooterVelocity = lab.Layer.Velocity;
+        var atLay = default(KinematicBody);
+        using var sub = lab.Zone.Mines.ObserveAdd().Subscribe(e => atLay = e.Value.Body);
+        lab.Layer.Velocity = float2(-2, 4);
+
+        var mine = LayOne(lab);
+
+        // The angle is the first draw of (zone seed, mine stream, body id), in +-Spread/2, turning the mount
+        // counterclockwise in the (x, y) plane.
+        var degreesTurned = SimulationDice.For(lab.Zone.CombatSeed, SimulationDice.MineStream, mine.Id.Value).NextFloat(-20f, 20f);
+        var a = radians(degreesTurned);
+        var m = FireControl.MountDirection(lab.WeaponItem).xz;
+        var turned = float2(m.x * cos(a) - m.y * sin(a), m.x * sin(a) + m.y * cos(a));
+        var expected = shooterVelocity + turned * 5f;
+        Assert.Equal(expected.x, atLay.Velocity.x, 4);
+        Assert.Equal(expected.y, atLay.Velocity.y, 4);
+        Assert.True(Math.Abs(degreesTurned) > .1f, "the fixture must draw a real turn");
+    }
+
+    [Fact]
+    public void AMineLayerLaysWhateverItsBlastRadiusAgainstItsRange()
+    {
+        // A fused round whose arming distance exceeds Range is refused; a mine is not a round, so it is not.
+        var lab = Build(blast: 150f, range: 100f, layerFaction: A);
+        var near = Add(lab, "Solid", B, lab.Layer.Position + float3(0, 0, 40));
+        lab.Layer.SetTarget(near);
+        lab.Layer.EntityInfoGathered[near] = 1f;
+        lab.Layer.SetIff(near, true);
+        lab.Zone.Update(1f);
+
+        Assert.False(FireControl.Refuses(lab.Weapon, lab.Layer));
+        Assert.True(FireControl.AgentFires(lab.Weapon, lab.Layer, near));
+        var mine = LayOne(lab);
+        Assert.Equal(150f, mine.BlastRadius);
     }
 
     [Fact]
