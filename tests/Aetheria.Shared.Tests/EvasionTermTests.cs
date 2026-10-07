@@ -57,7 +57,7 @@ public sealed partial class RunStartTests
     private static void EvSettle(Ship ship)
     {
         ship.MovementDirection = float2(0, 0);
-        ship.LookDirection = float3(0, 0, 1);
+        EvFace(ship, float3(0, 0, 1));
         for (var step = 0; step < 180; step++) ship.Update(EvDt);
         ship.Velocity = float2(0, 0);
         ship.Direction = float2(0, 1);
@@ -100,11 +100,19 @@ public sealed partial class RunStartTests
                 }
             }
             ship.MovementDirection = movement;
-            ship.LookDirection = look;
+            EvFace(ship, look);
             ship.Update(EvDt);
         }
         ship.MovementDirection = float2(0, 0);
-        ship.LookDirection = float3(0, 0, 1);
+        EvFace(ship, float3(0, 0, 1));
+    }
+
+    // Ship.Update reads only Turn: facing a look direction is the aim plus the heading-to-demand law, asked each tick
+    // (what Ship.Update's own steering pass did before the helm split).
+    private static void EvFace(Ship ship, float3 look)
+    {
+        ship.Aim = look;
+        ship.Turn = Steering.Toward(ship, look.xz);
     }
 
     private static float2 EvRight(Ship ship) => normalize(ship.Direction).Rotate(ItemRotation.Clockwise);
@@ -201,12 +209,12 @@ public sealed partial class RunStartTests
             ship.Velocity = float2(0, 0);
             ship.Direction = float2(0, 1);
             ship.MovementDirection = move;
-            ship.LookDirection = float3(look.x, 0, look.y);
+            EvFace(ship, float3(look.x, 0, look.y));
             var steps = (int) Math.Round(window / EvDt);
             for (var step = 0; step < steps; step++) ship.Update(EvDt);
             var displacement = ship.Position.xz - start.xz;
             ship.MovementDirection = float2(0, 0);
-            ship.LookDirection = float3(0, 0, 1);
+            EvFace(ship, float3(0, 0, 1));
             return displacement;
         }
 
@@ -281,8 +289,11 @@ public sealed partial class RunStartTests
         // they push with, then read the envelope at rest.
         foreach (var look in new[] { float3(1, 0, 0), float3(-1, 0, 0) })
         {
-            longinus.LookDirection = look;
-            for (var step = 0; step < 20; step++) longinus.Update(EvDt);
+            for (var step = 0; step < 20; step++)
+            {
+                EvFace(longinus, look);
+                longinus.Update(EvDt);
+            }
         }
         EvSettle(longinus);
         longinus.Update(EvDt);
@@ -327,8 +338,11 @@ public sealed partial class RunStartTests
                      (float2(0, -1), float3(0, 0, 1)), (float2(0, 0), float3(1, 0, 0)), (float2(0, 0), float3(-1, 0, 0)) })
         {
             djinni.MovementDirection = move;
-            djinni.LookDirection = look;
-            for (var step = 0; step < 20; step++) djinni.Update(EvDt);
+            for (var step = 0; step < 20; step++)
+            {
+                EvFace(djinni, look);
+                djinni.Update(EvDt);
+            }
         }
         EvSettle(djinni);
         djinni.Update(EvDt);
@@ -1006,7 +1020,7 @@ public sealed partial class RunStartTests
             Assert.NotEmpty(members);
             Assert.True(members.Count < onSide.Count, $"fixture: the {side} side has a thruster that turns against its total torque, so membership is exercised");
             djinni.MovementDirection = float2(direction, 0);
-            djinni.LookDirection = float3(0, 0, 1);
+            EvFace(djinni, float3(0, 0, 1));
             djinni.Update(EvDt);
             var mean = Math.Abs(total) / members.Count;
             var trimmed = 0;
