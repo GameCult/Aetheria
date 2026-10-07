@@ -185,4 +185,44 @@ public sealed partial class RunStartTests
             }
         }
     }
+
+    // The gate sits on the wormholes' radius, in the middle of the widest gap between neighbours, whatever the
+    // neighbours' number and order: an empty ring, one, two straddling the +-pi seam, and eight spread evenly (every gap
+    // under one radian). Checked against a brute-force sweep of every direction.
+    [Theory]
+    [InlineData(new double[0])]
+    [InlineData(new[] { 40.0 })]
+    [InlineData(new[] { 170.0, -170.0 })]
+    [InlineData(new[] { 100.0, 10.0, 20.0, 350.0, -90.0 })]
+    [InlineData(new[] { 0.0, 45.0, 90.0, 135.0, 180.0, -135.0, -90.0, -45.0 })]
+    public void Exit_gate_sits_in_the_widest_gap_at_the_wormhole_radius(double[] neighbourDegrees)
+    {
+        AddPirates();
+        var galaxy = DemoGalaxy(1);
+        var zone = ZoneOf(galaxy, galaxy.Exit);
+        const float ratio = 0.75f;
+        var radius = zone.Pack.Radius * ratio;
+        var origin = galaxy.Exit.Position;
+        var original = galaxy.Exit.AdjacentZones;
+        galaxy.Exit.AdjacentZones = neighbourDegrees
+            .Select(degrees => new GalaxyZone
+            {
+                Position = origin + math.float2((float) Math.Cos(degrees * Math.PI / 180), (float) Math.Sin(degrees * Math.PI / 180)) * 1000
+            }).ToList();
+        float2 gate;
+        try { gate = RunGoal.ExitGatePosition(zone, ratio); }
+        finally { galaxy.Exit.AdjacentZones = original; }
+
+        Assert.Equal(radius, math.length(gate), 2);
+        if (neighbourDegrees.Length == 0) { Assert.Equal(radius, gate.x, 2); Assert.Equal(0, gate.y, 2); return; }
+
+        double Separation(double angle) => neighbourDegrees.Min(degrees =>
+        {
+            var difference = Math.Abs(angle - degrees * Math.PI / 180) % (2 * Math.PI);
+            return difference > Math.PI ? 2 * Math.PI - difference : difference;
+        });
+        var best = Enumerable.Range(0, 7200).Max(step => Separation(step * Math.PI / 3600));
+        Assert.True(Separation(Math.Atan2(gate.y, gate.x)) >= best - 0.002,
+            $"the gate's nearest wormhole is {Separation(Math.Atan2(gate.y, gate.x))} rad away; the widest gap's middle is {best}");
+    }
 }
