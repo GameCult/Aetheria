@@ -1980,15 +1980,33 @@ public readonly struct ManoeuvreEnvelope
 // exponential average of the acceleration, the innovation is what departs from it (low-passed at a quarter of the
 // window), and the moments are the exponential average of that innovation's outer product. A steady burn and
 // coasting have no innovation; a weave at the window's scale does; dithering much faster than the window averages out.
+// A change of vector is an acceleration that differs from the last observation's by more than ChangeThreshold. When
+// none has happened for a whole window the unpredictability is over: the track forgets it outright (the moments
+// return to exactly zero and the trend settles on the steady acceleration), so a ship that stops jinking stops
+// evading within the window and the zero-spread early return is reachable again.
 public struct ManoeuvreTrack
 {
+    public const float ChangeThreshold = 0.01f;
+
     public float2 Trend;
     public float2 Innovation;
     public float3 Moments;
+    public float2 Last;
+    public float Quiet;
 
     public void Observe(float2 acceleration, float dt, float window)
     {
         if (dt <= 0f || window <= 0f) return;
+        var changed = abs(acceleration.x - Last.x) > ChangeThreshold || abs(acceleration.y - Last.y) > ChangeThreshold;
+        Quiet = changed ? 0f : Quiet + dt;
+        Last = acceleration;
+        if (Quiet >= window)
+        {
+            Trend = acceleration;
+            Innovation = float2(0, 0);
+            Moments = float3(0, 0, 0);
+            return;
+        }
         var k = 1f - exp(-dt / window);
         var k4 = 1f - exp(-4f * dt / window);
         Trend += k * (acceleration - Trend);

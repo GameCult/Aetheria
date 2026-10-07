@@ -53,7 +53,7 @@ public sealed partial class RunStartTests
     }
 
     // Idle long enough for stats, power and the aether rotors to reach their idle state, then at rest, facing +y,
-    // with nothing observed.
+    // and, after three seconds of coasting, with nothing observed: the track forgets on its own.
     private static void EvSettle(Ship ship)
     {
         ship.MovementDirection = float2(0, 0);
@@ -61,7 +61,6 @@ public sealed partial class RunStartTests
         for (var step = 0; step < 180; step++) ship.Update(EvDt);
         ship.Velocity = float2(0, 0);
         ship.Direction = float2(0, 1);
-        ship.Manoeuvre = default;
     }
 
     // One of the fixed jinks, from rest facing +y: a square wave across the heading (the jink that crosses a shooter
@@ -636,5 +635,71 @@ public sealed partial class RunStartTests
         Assert.Equal(expected, pDeviation, 5);
         Assert.InRange(jinking.commit / coasting.commit, expected * .999f, expected * 1.001f);
         Assert.InRange(jinking.hit / coasting.hit, expected * .999f, expected * 1.001f);
+    }
+
+    // Finding coasting-memory: a ship that stops jinking stops evading. The track is never reset by hand here: the
+    // Gemini jinks for four seconds, the input is cut, and evasion must read exactly 0 within the window plus the
+    // drive's own spin-down (half a second), and stay 0, with the moments back at exactly zero.
+    [Fact]
+    public void AShipThatStopsJinkingStopsEvading()
+    {
+        var (_, _, _, gemini) = EvFleet();
+        var window = _items.GameplaySettings.SolutionWindow;
+        EvSettle(gemini);
+        EvFly(gemini, EvJink.Lateral, 1f, 4f);
+        var jinking = Math.Max(FireControl.Evasion(gemini, float2(0, 1)), FireControl.Evasion(gemini, EvRight(gemini)));
+        Assert.True(jinking > 5f, $"the jink should evade, read {jinking}");
+
+        var zeroAt = -1f;
+        const float bound = 2f;
+        for (var step = 1; step * EvDt <= bound + 3f; step++)
+        {
+            gemini.Update(EvDt);
+            var nose = FireControl.Evasion(gemini, float2(0, 1));
+            var side = FireControl.Evasion(gemini, EvRight(gemini));
+            if (zeroAt < 0f && nose == 0f && side == 0f) zeroAt = step * EvDt;
+            if (zeroAt >= 0f) Assert.True(nose == 0f && side == 0f, $"evasion came back at {step * EvDt:F2} s: {nose}, {side}");
+        }
+        Assert.True(zeroAt >= 0f && zeroAt <= window + .5f, $"evasion reached zero at {zeroAt:F2} s, window {window}");
+        Assert.Equal(0f, gemini.Manoeuvre.Moments.x);
+        Assert.Equal(0f, gemini.Manoeuvre.Moments.y);
+        Assert.Equal(0f, gemini.Manoeuvre.Moments.z);
+    }
+
+    // Finding limit-clamp-evasion: a velocity limiter's clamp is the ceiling, not a change of vector. A Longinus
+    // assigned four times its top speed and given no input evades nothing.
+    [Fact]
+    public void ASpeedAboveTheLimitIsNotEvasion()
+    {
+        var (_, longinus, _, _) = EvFleet();
+        EvSettle(longinus);
+        longinus.Velocity = float2(0, 400);
+        for (var step = 0; step < 4 * 60; step++) longinus.Update(EvDt);
+        Assert.True(length(longinus.Velocity) > 1f);
+        Assert.Equal(0f, FireControl.Evasion(longinus, float2(0, 1)));
+        Assert.Equal(0f, FireControl.Evasion(longinus, EvRight(longinus)));
+        Assert.Equal(0f, longinus.Manoeuvre.Moments.x);
+        Assert.Equal(0f, longinus.Manoeuvre.Moments.z);
+    }
+
+    // Finding thruster-thrust-cache: Ship's aggregates read what the thrusters push with now, not what they pushed
+    // with at construction. The idle Djinni's forward thrust, in newtons, is its envelope's forward acceleration
+    // times its mass,.
+    [Fact]
+    public void TheAggregatesReadLiveThrust()
+    {
+        var (_, _, djinni, _) = EvFleet();
+        EvSettle(djinni);
+        djinni.Update(EvDt);
+        Assert.InRange(djinni.ForwardThrust, djinni.Envelope.Forward * djinni.Mass * .99f, djinni.Envelope.Forward * djinni.Mass * 1.01f);
+        Assert.True(djinni.ForwardThrust > 0f);
+        var thrusters = djinni.GetBehaviors<Thruster>().ToList();
+        Assert.NotEmpty(thrusters);
+        foreach (var thruster in thrusters)
+        {
+            var stat = ((ThrusterData) thruster.Data).Thrust;
+            Assert.Equal(thruster.Evaluate(stat), thruster.Thrust);
+            Assert.True(thruster.Thrust > stat.Min * 1.1f, $"idle thrust {thruster.Thrust} against the stat minimum {stat.Min}");
+        }
     }
 }
