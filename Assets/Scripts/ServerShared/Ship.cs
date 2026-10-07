@@ -299,12 +299,7 @@ public class Ship : Entity
         
         var normal = Zone.GetNormal(Position.xz);
         var force = new float2(normal.x, normal.z);
-        var forceMagnitude = lengthsq(force);
-        if (forceMagnitude > .001f)
-        {
-            var fa = 1 / (1 - forceMagnitude) - 1;
-            Velocity += normalize(force) * Zone.Settings.GravityStrength * fa;
-        }
+        Velocity += Zone.GravityAcceleration(force, Zone.Settings.GravityStrength) * delta;
         var shipRight = Direction.Rotate(ItemRotation.Clockwise);
         var forward = cross(float3(shipRight.x, 0, shipRight.y), normal);
         Rotation = quaternion.LookRotation(forward, normal);

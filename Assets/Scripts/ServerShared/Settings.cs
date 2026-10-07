@@ -173,6 +173,11 @@ public class GameplaySettings
     public float ThermalQualityMin = 2;
     public float ThermalQualityMax = .25f;
     public float DefaultShutdownPerformance = .25f;
+    // Free-floating bodies (floating items, mines): drag on a launch velocity, drag on the force-driven drift, and
+    // how strongly the zone force accelerates it.
+    public float FloatingBodyDrag = .05f;
+    public float FloatingBodyLaunchDrag = .2f;
+    public float FloatingBodyGravity = 1f;
     public float SevereHeatstrokeRiskThreshold = .25f;
     public float WormholeDepth = 1000;
     public float WormholeExitVelocity = 20;

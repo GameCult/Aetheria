@@ -667,22 +667,6 @@ public static class FireControl
     // so whether a gated shot draws is unobservable from anywhere. The claim this comment used to make is
     // gone with the stream it was about, and the test that asserted it became vacuous the same moment; what
     // replaced it pins the live rule instead (combat touches no shared stream, on any path).
-    // 9.1 (docs/fire-control-cut.md): fmix32, MurmurHash3's 32-bit finalizer -- xor-shift, multiply,
-    // xor-shift, multiply, xor-shift. Diffuses a structured seed (here, a zone seed XORed with a small,
-    // low-bits-only ShotId) across every bit before the first xorshift draw reads it, so two seeds that
-    // differ only in ShotId's low bits still land on uncorrelated first outputs. Caller-side mixing only
-    // -- CultMath.Random itself is unchanged (see Commit's own note on why that follow-up is a separate
-    // CultLib cut).
-    private static uint MixSeed(uint seed)
-    {
-        seed ^= seed >> 16;
-        seed *= 0x85ebca6bu;
-        seed ^= seed >> 13;
-        seed *= 0xc2b2ae35u;
-        seed ^= seed >> 16;
-        return seed;
-    }
-
     // Cut 12.2 (docs/fire-control-cut.md, "Bearing timing"): steps 1-5. Everything the shooter decided is
     // frozen in `shot` (R10); everything the target is doing -- position (deviation) and now also facing
     // (bearing) -- is read live, here, at the commit tick. The Cut 7 guard extends to cover the new factors:
@@ -722,11 +706,11 @@ public static class FireControl
         // round for NextFloat's first call, and one round does not diffuse a seed that differs from its
         // neighbours only in ShotId's low bits. Unmixed, every zone's first draw was a near-constant
         // function of ShotId (measured span ~0.125), making a shot a step function of p fixed at zone
-        // creation, not a roll (Soul C1). MixSeed is a standard fmix32 finalizer (MurmurHash3): this is
+        // creation, not a roll (Soul C1). SimulationDice.Mix is a standard fmix32 finalizer (MurmurHash3): this is
         // a caller's obligation, not a CultMath defect -- seeding xorshift with a structured value and
         // drawing once is the documented way to get a correlated first output, and a follow-up to give
         // CultMath.Random a mixed-seed entry point of its own is recorded for a separate CultLib cut.
-        var random = new Random(MixSeed((zone.CombatSeed * 2654435761u) ^ (uint) shot.ShotId | 1u));
+        var random = new Random(SimulationDice.Mix((zone.CombatSeed * 2654435761u) ^ (uint) shot.ShotId | 1u));
         var p = CommitProbability(shot, now, out var sil);
 
         var hit = p > 0f && random.NextFloat() < p;
