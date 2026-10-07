@@ -3695,8 +3695,9 @@ pass of 2026-10-07, source marks as in Controls; the EVE formula is the player w
   engagements; the hard part was mount slew, not ballistics. Its straight-line assumption fails
   against a manoeuvring target.
 - **CIWS** (Wikipedia, Phalanx and Goalkeeper). Point-defense mounts slew at 80 to 115 degrees per
-  second (sources disagree); a battleship turret trains at a few degrees per second. The ladder
-  below spans that range: 46 degrees per second for one cell, 1.7 for nine.
+  second (sources disagree); a battleship turret trains at a few degrees per second. The authored
+  table below spans the low part of that range: a PD-class gun near 40 degrees per second (none is
+  authored yet), the catalog's guns from 12 down to 1.5.
 - **Servo tracking** (arXiv 2408.16870). A proportional-derivative mount following a constant-rate
   target keeps a steady-state error. A mount's lag grows with the rate it is asked to follow,
   which is the shape `PMount` gives.
@@ -3949,7 +3950,8 @@ pass of 2026-10-07, source marks as in Controls; the EVE formula is the player w
   read. A `PerformanceStat` with no terms resolves to `Max`, and a bare `new PerformanceStat()`
   resolves to 0.
 - **M30. A weapon's footprint is its item `Shape`** (source read and catalog probe at `46b28501`,
-  2026-10-07, for ruling `weapon-tracking-defaults`; method as M28). `ItemData.Shape`
+  2026-10-07; method as M28). Footprint is evidence about a gun, not a key to its tracking (ruling
+  `weapon-tracking-authored`, which superseded `weapon-tracking-defaults`). `ItemData.Shape`
   (`ItemData.cs:288-289`, key 5, `[InspectableSchematicShape]`, the cells Studio paints) holds a
   `bool[,]`; `Shape.Coordinates` (`:84-95`) lists its true cells, so the cell count is
   `Shape.Coordinates.Length`. A hardpoint's `HardpointData.Shape` (`:563`, key 2) is the slot, not
@@ -3965,8 +3967,8 @@ pass of 2026-10-07, source marks as in Controls; the EVE formula is the player w
   | 6 | LRMM72 (Launcher, Large), SRMM72 (Launcher, ExtraLarge) |
   | 9 | CShot RainbowLite Lazer (Energy, Small) |
 
-  plight's one cell is authored, not a default: `docs/content-batch-one.md:822` lists it as
-  "Energy, 1x1", fitting the LonginusX's 1x2 Energy hardpoints. Caliber and footprint disagree in
+  plight's one cell is authored, not a default, and it is a content error (ruling
+  `plight-not-one-cell`; its provenance is M35). Caliber and footprint disagree in
   both directions (plight Large in one cell, CShot Small in nine). The hulls' weapon hardpoints:
   Longinus and LonginusX two Energy 1x2 and two Launcher 1x3; Djinni two Ballistic 1x2, two
   Launcher 1x3 and two Launcher 3x2; the station Turret two Ballistic 2x4 at arc 360. No weapon
@@ -3981,20 +3983,72 @@ pass of 2026-10-07, source marks as in Controls; the EVE formula is the player w
   degrees, and the targeting gear's `Tracking` is metres (M27). `PendingShot.PFire` (`:1867`) and
   `Tracking` (`:1868`) are the shooter facts `Fire` freezes (`:663-677`); `CommitProbability`
   (`:792-806`) multiplies `shot.PFire * pDeviation`, then spread and hull.
-- **M32. Top speed is drag's, not gear's** (source read and catalog probe at `46b28501`; arithmetic,
-  not a flight probe). No catalog gear carries `VelocityLimitData` (union 11): none of 32 gear
-  records and 18 weapons. `Agent.TopSpeed` falls back to 100 (`Agents/Agent.cs:26`) for AI
-  steering only. `Ship.Update` decays speed by `decay(|v|, Drag, dt) = |v| * exp(-Drag * dt)`
-  (`Ship.cs:307-310`; CultMath `math.cs:253`), so steady thrust `a` settles at `a / Drag`: about
-  1,300 m/s for the Longinus and LonginusX (about 130 m/s^2, drag 0.1) and 82 m/s for the Djinni
-  by stats (16.3 m/s^2, drag 0.2; M25 says it moves about 1.6 times its stats).
-- **M33. The ladder fit** (probe: `ladder.py`, a scratch script over the catalog decode of M30,
-  not committed, 2026-10-07). It evaluates the mount factor `0.5 ^ ((omega / rate)^2)` and the
-  vector factor `PDeviation(E, Tracking)` for each footprint rung under three targeting fits
-  (unaided 10, Targeting Computer 20 and Fire Control Array 37.5, the designs' midpoints, M28), at
-  the geometries of the table in "Tracking per gun". `omega` comes from speed and range; `E` is
-  the window-0.75 figure the r2 pass measured (the table under "Evasion is how unpredictably",
-  and the speed demon's 9.63 m). The results are in that section.
+- **M32. Top speed is a hull behaviour: the Longinus and the Djinni carry one, the LonginusX does
+  not** (source read and catalog probe at `46b28501`, method as M28, 2026-10-07; corrects an
+  earlier M32 that probed only gear and weapons and concluded top speed was drag's).
+  `VelocityLimitData` (union 11, `Behaviors/VelocityLimit.cs`, one `PerformanceStat TopSpeed` at
+  key 1) is a behaviour on `HullData.Behaviors` (`EquippableItemData`, key 11). Its `Execute`
+  clamps `Entity.Velocity` to `TopSpeed` and books the removed part in `Entity.LimitClamp`, which
+  `Entity.Acceleration` puts back so the clamp is not a manoeuvre (`2cf980e3`, Soul finding
+  `limit-clamp-evasion`, fixed at `46b28501`). The catalog's five hulls: Longinus `TopSpeed`
+  100..100 (terms heat 1), Djinni 50..50 (terms heat 1, quality 1.5; `Min == Max`, so both
+  evaluate flat), LonginusX, Zenith and Turret none. History (`git log -S VelocityLimit`;
+  `docs/locomotion-cut.md` lines 75-81 and 440-460): the code has carried the behaviour since 2020;
+  the Longinus and Djinni records were absent from the catalog until locomotion Cut 1's
+  `restore-hulls` (`3cb6b154`, 2026-09-25, deleted after landing in `819bd6b8`) rebuilt them from
+  the decoded 2021-04-14 legacy record, each with its own legacy `VelocityLimitData`. The legacy
+  LonginusX carried none, and neither does today's, so nothing was dropped that is still missing.
+  Readers: `Agent.TopSpeed` (`Agents/Agent.cs:26`, falling back to 100 for a hull without one, so
+  AI LonginusX steer at 100), and the dock intro (`Gameplay/ActionGameManager.cs:849`), which
+  dereferences `GetBehavior<VelocityLimit>()` with no null check and so throws for a LonginusX
+  player. The cap is the hull's own behaviour, gated by the hull's `Active` (locomotion map, Soul
+  hazard 2026-09-26). The LonginusX's ceiling is physics: drag (`Ship.cs:307-310`, steady thrust
+  `a` settles near `a / Drag`, about 1,300 m/s at 130 m/s^2 and drag 0.1) and its aether drive,
+  whose push falls to zero as speed along an axis reaches the rotor speed (`AetherDrive.cs:140-148`;
+  forward rotor speed is `Rpm * 3 / 100`, 1,200 to 2,400 m/s at the Traction drive's 40,000 to
+  80,000 maximum rpm). Together they put it several hundred m/s up; arithmetic, not a flight probe.
+- **M33. The table fit** (probe: a scratch script over the catalog decode of M30 and M34, not
+  committed, 2026-10-07, for `evasion-term` r5). It evaluates the mount factor
+  `0.5 ^ ((omega / rate)^2)` and the vector factor `PDeviation(E, Tracking)` for each authored rate
+  under three targeting fits (unaided 10, Targeting Computer 20 and Fire Control Array 37.5, the
+  designs' midpoints, M28), at the geometries of the table in "Tracking per gun", with crossing
+  speeds at the hulls' real top speeds (M32). `omega` comes from speed and range; `E` is the
+  window-0.75 figure the r2 pass measured (the table under "Evasion is how unpredictably", and the
+  speed demon's 9.63 m). The results are in that section.
+- **M34. The catalog's guns by role** (catalog probe at `46b28501`, method as M28, 2026-10-07; the
+  weapon behaviour's evaluated range of `Damage` key 2, `Range` key 6 and the shot interval
+  `Cooldown` key 19, with `Count` key 17 pellets per shot):
+
+  | Weapon | Kind, caliber, cells | Mass | Damage x count | Interval (s) | Range (m) |
+  |---|---|---|---|---|---|
+  | ClearPath | Ballistic auto, Small, 2 | 50 | 2-6 | 0.1-0.033 | 250-600 |
+  | Spectra | Energy beam, Small, 2 | 25 | 20-85 | 0.5-0.25 | 800-1,750 |
+  | FastBlast+- | Energy auto, Small, 2 | 125 | 20-80 x 12 | 0.33-0.1 | 500-1,250 |
+  | Earp | Ballistic single, Small, 2 | 75 | 5-25 | trigger | 1,000-2,500 |
+  | 6k Shooter | Ballistic single, Small, 2 | 95 | 4-30 | trigger | 1,000-2,000 |
+  | ColdFire | Energy beam, Small, 2 | 150 | 40-160 | 2.5-1 | 750-2,250 |
+  | Autocannon | Ballistic auto, Medium, 4 | 75 | 3 | 0.5 | 1,000 |
+  | ChargeBlast+- | Energy charged, Medium, 4 | 225 | 25-110 (x3 charged) | 0.75-0.4 | 800-1,900 |
+  | DeathCluster | Ballistic auto, Medium, 4 | 250 | 100-250 x 12-15 | 1-0.25 | 500-1,000 |
+  | ChargeBlast SG | Energy charged, Medium, 4 | 250 | 50-175 x 5 | 0.75-0.4 | 450-950 |
+  | pretty pretty bang bang | Ballistic charged, Medium, 4 | 250 | 64-256 x 5 | 0.67-0.33 | 500-1,250 |
+  | plight | Electrostatic charged, Large, 1 (M35) | 100 | 75-400 (x3 charged) | 4-2, after a 3-2 s charge | 500-2,000 |
+  | CShot RainbowLite Lazer | Energy beam, Small, 9 | 500 | 100-600 | 3-1 | 1,000-3,000 |
+  | GT 3K, pswarm, scorched void policy, LRMM72, SRMM72 | Launcher or guided | 100 | | | |
+
+  "Trigger" is an `InstantWeaponData` whose cooldown is 0.01 s: it fires as fast as the trigger.
+  plight is sold (product DragOnBreath, Lucent Media), so it spawns in generated loadouts.
+- **M35. plight has been one cell since it was created** (git history and vault read,
+  2026-10-07). It first appears in `GameData/WeaponItemData/plight.json` at `85483319` (2021-06-23,
+  "Modular Database Upgrade") with `"shape":{"name":[[true]]}`, caliber Large, the TaranisLG
+  effect prefab, and no other shape in any later revision; the 2021-03 `AetherDB.msgpack` has no
+  plight record. `docs/content-batch-one.md:822` copied the catalog's 1x1. The AetheriaLore vault
+  names it only as Lucent's "TaranisLG lightning gun with vape tie-in" (`Corporate Roster and Item
+  Wishlist.md`, `Faction Flavor and Visual Identity.md`) and gives no size; `Weapon Category
+  Codes.md` defines the ESD lightning-gun code and size letters but no TaranisLG label. Every Energy
+  hardpoint on a flyable hull is 1x2 (M30): a 1x2 plight fits the Longinus and LonginusX as it does
+  today, and any larger shape fits no hull, like CShot. Nothing in the record settles its intended
+  shape; question `plight-shape` asks it.
 
 ### The design
 
@@ -4092,14 +4146,15 @@ clears the threshold. A worth-firing hostile munition preempts an entity subject
 subject stays worth firing (`autofire-threshold` r3), so a PD group that diverted onto a speed
 demon still turns back to the missiles.
 
-**Tracking per gun: a mount's rate against line-of-sight angular velocity** (`evasion-term` r4).
-Ruling `tracking-per-gun`: "gun times ship". Ruling `evasion-angular-velocity`, which replaces
-`evasion-speed`: "now that I think about it, relative velocity should be an evasion term,
-shouldn't it? ... yes, angular velocity is the term I was reaching for". Ruling
-`weapon-tracking-defaults`: "A PD weapon of the sort that can reliably hit a speed demon should
-occupy a single cell. Even a two-cell weapon like the smallest we currently have should
-struggle. Anyway I think the ladder needs to be steep in order to make hitting something fast
-with those big guns as unlikely as it needs to be." Soul's finding
+**Tracking per gun: a mount's rate against line-of-sight angular velocity** (`evasion-term` r4,
+revised by r5). Ruling `tracking-per-gun`: "gun times ship". Ruling `evasion-angular-velocity`,
+which replaces `evasion-speed`: "now that I think about it, relative velocity should be an evasion
+term, shouldn't it? ... yes, angular velocity is the term I was reaching for". Ruling
+`weapon-tracking-authored`, which supersedes `weapon-tracking-defaults`: "I never said footprint
+directly determines tracking." Each gun's rate is authored, on a steep scale: PD-class guns hit a
+speed demon reliably, the current smallest guns struggle, big guns rarely hit something fast.
+Ruling `jink-per-ship`: "Jink per ship is fine, the point is to confuse attacker's fire control
+after all." Soul's finding
 `cut-evasion-term.s1.tracking-per-ship` is the gap this closes: with one `Tracking` per ship
 (M27), a light and a heavy gun on one hull were forgiven alike.
 
@@ -4136,37 +4191,64 @@ fired at nothing has nothing to follow and multiplies by 1. `Inspect` reports `A
 
 `Evasion` never computes the mount term. A guided round's gate price (`missile-odds` r2) reads
 `Evasion(subject, line of sight)` and its own correction, so the angular term does not touch it:
-a missile steers itself, and no mount follows it. Until `missile-records` and `missile-odds` land,
-launchers fire as ordinary shots (M1), so the migration gives them the one-cell rate and their
-rail costs nothing.
+a missile steers itself, and no mount follows it. The table authors every launcher and guided
+weapon at positive infinity on purpose: no mount follows a missile. Until `missile-records` and
+`missile-odds` land, launchers fire as ordinary shots (M1), and their price is exactly what it is
+at `46b28501`.
 
-**The ladder.** The record holds the rate; only the AetherDb `weapon-tracking` migration derives
-it, from the footprint (M30): `rate = 46 * cells^-1.5` degrees per second, rounded to hundredths,
-and 46 for a weapon whose behaviour is `LauncherData` or `GuidedWeaponData`. One cell 46, two
-16.26, three 8.85, four 5.75, six 3.13, nine 1.70. The guns sit on four rungs: one (plight), two
-(the six smallest guns), four (the five Medium guns) and nine (CShot RainbowLite Lazer, which fits
-no hull, M30). A field left unauthored defaults to positive infinity, a mount that follows
-anything, so code-built fixtures price exactly as before; the migration replaces every catalog
-default. Fitted by M33 at the TC / FCA midpoints:
+**The table.** Each weapon's rate is authored on its record (`WeaponData.Tracking`, degrees per
+second, `Min == Max`, no terms), and nothing derives it: not footprint, caliber or hardpoint type
+(ruling `weapon-tracking-authored`). The initial values are written once by a one-shot AetherDb
+migration that carries the table below as a literal list keyed by record, then is deleted, as
+locomotion's `restore-hulls` was (M32), so afterwards the catalog is the table's only copy. The
+scale is steep and anchored on the ruled outcomes, with each gun placed by its role (M34): weight,
+damage per shot, rate of fire and size. Footprint is evidence that agrees with most of it, never
+the key.
 
-| Geometry (degrees per second) | 1 cell | 2 cells | 4 cells | 9 cells |
-|---|---|---|---|---|
-| Speed demon crossing close: 150 m/s at 200 m, steady (43.0) | 0.86 / 0.96 | 0.30 / 0.71 | 0.00 / 0.06 | 0 / 0 |
-| The same at range: 150 m/s at 1,000 m (8.6) | 0.99 / 1.00 | 0.95 / 0.99 | 0.68 / 0.90 | 0.01 / 0.29 |
-| Heavy ship drifting at range: Djinni, 30 m/s at 1,000 m (1.7) | 1.00 / 1.00 | 1.00 / 1.00 | 0.98 / 1.00 | 0.84 / 0.95 |
-| Jinking target: Longinus weaving (14.7 m), 60 m/s at 500 m (6.9) | 0.26 / 0.61 | 0.26 / 0.60 | 0.21 / 0.57 | 0.02 / 0.27 |
-| Speed demon jinking close: 9.63 m, 150 m/s at 200 m (43.0) | 0.45 / 0.71 | 0.15 / 0.53 | 0.00 / 0.05 | 0 / 0 |
+| Rate (deg/s) | Weapons | Why there |
+|---|---|---|
+| about 40 | none yet: PD class, content to author | Hits a speed demon reliably: 0.82 with the Targeting Computer at 150 m/s crossing 200 m. |
+| 12 | ClearPath | Lightest ballistic (50 kg), the lowest damage (2-6) at the highest rate (10-30 shots a second), 600 m reach: a cargo-defence hose, the catalog's nearest thing to PD, still a struggling small gun. |
+| 10 | Spectra | Lightest weapon (25 kg), a light beam (20-85) at 2-4 shots a second. |
+| 9 | FastBlast+- | "Do less damage, faster": 12-pellet bursts of 20-80 at 3-10 a second, but 125 kg. |
+| 8 | Earp | Single shots (5-25) as fast as the trigger, 75 kg, reach to 2,500 m: a precision gun, not a hose. |
+| 7 | 6k Shooter | Earp's role, heavier (95 kg) and shorter. |
+| 6 | ColdFire | Heaviest small gun (150 kg), a 40-160 laser every 1 to 2.5 s to 2,250 m: a small sniper. |
+| 4 | Autocannon | Medium and four cells but light (75 kg) with 3 damage a shot: the quickest of the medium guns. |
+| 3.5 | ChargeBlast+- | 225 kg, one charged knockout shot (25-110, tripled when charged) to 1,900 m. |
+| 3 | DeathCluster, ChargeBlast SG, pretty pretty bang bang | 250 kg each, heavy volleys of 5 to 15 pellets of 50-256: the medium shotguns. |
+| 2 | plight | Large charged lightning, 75-400 (tripled when charged), one shot every 2 to 4 s after a 2 to 3 s charge: a heavy gun (ruling `plight-not-one-cell`). |
+| 1.5 | CShot RainbowLite Lazer | The heaviest gun (500 kg, nine cells), 100-600 to 3,000 m; fits no hull today. |
+| infinity | GT 3K, pswarm, scorched void policy, LRMM72, SRMM72 | No mount follows a missile; the round steers itself (`missile-odds`). |
+
+A field left unauthored defaults to positive infinity, a mount that follows anything, so
+code-built fixtures price exactly as before. That default is harmless only while every shipped gun
+carries a finite rate, which a test over the catalog pins; a weapon authored later without a rate
+would follow anything, and that test is what catches it. Fitted by M33 at the TC / FCA midpoints,
+with crossing speeds at the hulls' real top speeds (M32):
+
+| Geometry (degrees per second) | PD 40 | 12 | 8 | 6 | 4 | 3 | 2 |
+|---|---|---|---|---|---|---|---|
+| Fast crosser close: Longinus at its 100 m/s top speed, 200 m (28.6) | 0.91 / 0.98 | 0.37 / 0.76 | 0.11 / 0.53 | 0.02 / 0.33 | 0.00 / 0.08 | 0.00 / 0.01 | 0 / 0 |
+| The same at range: 100 m/s at 1,000 m (5.7) | 1.00 / 1.00 | 0.96 / 0.99 | 0.91 / 0.98 | 0.85 / 0.96 | 0.70 / 0.90 | 0.53 / 0.84 | 0.24 / 0.67 |
+| Heavy ship at range: Djinni at its 50 m/s top speed, 1,000 m (2.9) | 1.00 / 1.00 | 0.99 / 1.00 | 0.98 / 0.99 | 0.96 / 0.99 | 0.91 / 0.98 | 0.85 / 0.96 | 0.70 / 0.90 |
+| Heavy ship close: Djinni at 50 m/s, 200 m (14.3) | 0.98 / 0.99 | 0.78 / 0.93 | 0.57 / 0.85 | 0.37 / 0.76 | 0.11 / 0.53 | 0.02 / 0.33 | 0.00 / 0.08 |
+| Jinking target: Longinus weaving (14.7 m), 60 m/s at 500 m (6.9) | 0.26 / 0.61 | 0.25 / 0.60 | 0.23 / 0.59 | 0.21 / 0.57 | 0.16 / 0.53 | 0.11 / 0.47 | 0.03 / 0.34 |
+| Speed demon (no hull authored): 150 m/s at 200 m (43.0) | 0.82 / 0.94 | 0.11 / 0.53 | 0.01 / 0.24 | 0.00 / 0.08 | 0 / 0 | 0 / 0 | 0 / 0 |
+| Speed demon jinking close: 9.63 m, 150 m/s at 200 m (43.0) | 0.42 / 0.70 | 0.06 / 0.40 | 0.00 / 0.18 | 0.00 / 0.06 | 0 / 0 | 0 / 0 | 0 / 0 |
+| Uncapped LonginusX: 800 m/s at 1,000 m (45.8) | 0.80 / 0.94 | 0.08 / 0.49 | 0.00 / 0.20 | 0.00 / 0.06 | 0 / 0 | 0 / 0 | 0 / 0 |
 
 Each cell is `PDeviation(E, Tracking) * PMount`, the whole evasion share of the price. Unaided
-(`Tracking` 10), the speed demon crossing close leaves one cell 0.55 and two cells 0.01. Crossing
-at 200 m with the Targeting Computer, by speed: 50 m/s gives 0.98, 0.87 and 0.34 for one, two and
-four cells; 100 m/s gives 0.93, 0.58 and 0.01; 300 m/s gives 0.55, 0.01 and 0. The ruled outcomes
-hold: two cells struggle against a speed demon close (0.30 with the common gear), the big guns
-rarely hit it (at most 0.06), the big guns hit a big ship drifting at range (0.98 and up), and a
-one-cell gun is PD class. Against a jinking target at middle range the gun classes barely differ,
-because the jink is a prediction problem the ship's gear forgives, not the mount; the guns part
-company when the target is close and fast. The ratio between rungs (2.8 per doubling of cells)
-and the base 46 are the play check's levers.
+(`Tracking` 10), the fast crosser close leaves a PD gun 0.70 and ClearPath 0.02. Crossing at 200 m
+with the Targeting Computer, by speed, for PD, 12 and 4: 50 m/s gives 0.98, 0.78 and 0.11; 100 m/s
+gives 0.91, 0.37 and 0; 150 m/s gives 0.82, 0.11 and 0; 300 m/s gives 0.45, 0 and 0. The ruled
+outcomes hold: a PD-class gun hits a fast hull close reliably (0.82 to 0.91 with the common gear),
+the smallest guns struggle (0.37 at best, 0.02 to 0.11 for most), the big guns rarely hit
+something fast (0.08 at most), and the big guns hit a big ship at range (0.70 to 0.91). Against a
+jinking target at middle range the guns barely differ, because the jink is a prediction problem
+the ship's gear forgives (ruling `jink-per-ship`), not the mount; they part company when the
+target is close and fast. The individual rates are the play check's levers; the anchors are the
+ruled outcomes.
 
 **Not imported from EVE.** Signature resolution and signature radius: the probe meets every ruled
 outcome without them, and a target's size already enters the price through its silhouette
@@ -4176,24 +4258,25 @@ outcome without them, and a target's size already enters the price through its s
 while big guns go useless, is the play shape ruling `speed-demon-counterplay` asks for, so the
 counters must exist and lie outside the big gun:
 
-- One-cell guns, PD class by footprint. The catalog has one, plight (M30; question
-  `plight-footprint`); the others are content to author.
-- Gear: the Fire Control Array multiplies every mount by 3 to 4.5, so a two-cell gun on a
-  dedicated fit keeps 0.71 against the close crosser.
-- Range: angular velocity falls with range, so a ship that holds the speed demon off sees it at a
-  fifth of the rate at 1,000 m; the speed demon has to come close to use its own guns, which
-  face the same term.
-- Velocity: a shooter that matches the speed demon's velocity sees no angular velocity, so a fast
+- PD-class guns, authored near 40 deg/s. The catalog has none yet; they are content to author.
+  plight, the one-cell gun, is a heavy gun whose footprint is a content error (M35).
+- Gear: the Fire Control Array multiplies every mount by 3 to 4.5, so ClearPath on a dedicated fit
+  keeps 0.76 against the fast crosser close.
+- Range: angular velocity falls with range, so a ship that holds the crosser off sees it at a
+  fifth of the rate at 1,000 m; the fast ship has to come close to use its own guns, which face
+  the same term.
+- Velocity: a shooter that matches the target's velocity sees no angular velocity, so a fast
   hull of one's own is a counter.
 - Missiles: a guided round has no mount (`missile-odds`), so launchers counter it as drones do
   in EVE.
 - Armour: the speed demon gave its up, so the rounds that land hurt.
 
-**Top speed is now an evasion stat** (M32). With no velocity limit authored, a Longinus or
-LonginusX on a steady burn settles near 1,300 m/s. Crossing at that speed, 1,000 m off, it leaves
-a one-cell gun 0.63 / 0.88, a two-cell gun 0.03 / 0.36 and a four-cell gun nothing; at 200 m every
-gun, PD included, keeps at most 0.04. The play check owns whether that needs `VelocityLimit` gear
-or hull drag tuning; the ladder is fitted at 150 m/s.
+**Top speed is a hull stat, and so an evasion stat** (M32). The Longinus is capped at 100 m/s and
+the Djinni at 50 by their own `VelocityLimit` behaviour, and the table above is fitted at those
+speeds. The LonginusX carries no cap, so its ceiling is drag and its aether drive, several hundred
+m/s; at 800 m/s, 1,000 m off, only a PD-class gun lands (0.80), ClearPath keeps 0.08 and every
+heavier gun nothing, and at 200 m nothing lands at all. Question `longinusx-top-speed` asks
+whether it gets a cap.
 
 **When articulated mounts arrive** (ruling `arc-and-traverse-on-the-link`, follow-up
 `articulated-mounts`), the link's traverse speed and the gun's tracking compose by the slower of
