@@ -613,6 +613,30 @@ public sealed class MineTests : IDisposable
         Assert.Equal(150f, mine.BlastRadius);
     }
 
+    // Steps of .5 land on the delays exactly (binary fractions), so each boundary is met with equality.
+    [Fact]
+    public void EveryDelayIsInclusiveAtItsExactStep()
+    {
+        var lab = Build(arming: 2f, fuse: 1f, life: 100f, layerFaction: A);
+        Add(lab, "Solid", B, lab.Layer.Position);
+        var mine = LayOne(lab, .5f);
+        var removedAt = -1.0;
+        using var sub = lab.Zone.Mines.ObserveRemove().Subscribe(_ => removedAt = lab.Zone.Time);
+        foreach (var step in Steps(6f, .5f)) lab.Zone.Update(step);
+        Assert.Equal(mine.LaidAt + 2.0, mine.TriggeredAt.Value);
+        Assert.Equal(mine.LaidAt + 3.0, removedAt);
+
+        var timed = Build(arming: 1f, fuse: 1f, life: 5f, layerFaction: A);
+        var untriggered = LayOne(timed, .5f);
+        var lifetimeEnd = -1.0;
+        using var sub2 = timed.Zone.Mines.ObserveRemove().Subscribe(_ => lifetimeEnd = timed.Zone.Time);
+        foreach (var step in Steps(8f, .5f)) timed.Zone.Update(step);
+        Assert.Equal(untriggered.LaidAt + 5.0, lifetimeEnd);
+
+        Assert.True(new Mine { LaidAt = 10.0, ArmingDelay = 2f }.Armed(12.0));
+        Assert.False(new Mine { LaidAt = 10.0, ArmingDelay = 2f }.Armed(11.999));
+    }
+
     [Fact]
     public void MinesAreNotSaved()
     {
