@@ -278,12 +278,11 @@ public class Ship : Entity
             foreach (var thruster in _forwardThrusters) thruster.Axis += MovementDirection.y;
             foreach (var thruster in _reverseThrusters) thruster.Axis += -MovementDirection.y;
 
-            var turn = clamp(Turn, -1f, 1f);
-            foreach (var thruster in _clockwiseThrusters) thruster.Axis += turn;
-            foreach (var thruster in _counterClockwiseThrusters) thruster.Axis += -turn;
+            foreach (var thruster in _clockwiseThrusters) thruster.Axis += Turn;
+            foreach (var thruster in _counterClockwiseThrusters) thruster.Axis += -Turn;
 
             foreach (var drive in _aetherDrives)
-                drive.Axis = float3(MovementDirection.y, MovementDirection.x, turn);
+                drive.Axis = float3(MovementDirection.y, MovementDirection.x, Turn);
         }
 
         var velocityMagnitude = length(Velocity);
