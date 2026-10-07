@@ -4921,7 +4921,7 @@ that moves it. Presenters that only read sim state (T7) and input (T8) are not e
 | C5 | `GuidedProjectile.cs`, `GuidedProjectileManager.cs:24-83` | A missile's flight; when its binding ends | `missile-records`, `missile-odds`, `missile-presenter` r3 |
 | C6 | `ActionGameManager.cs:1307-1309` | Tractor spin-up | `loot-2` r2 |
 | C7 | `Projectile.cs:43-50`, `ProjectileManager.cs:16-28` | A round's drawn flight and end | `ballistic-flight` (new) |
-| C8 | `Mine.cs`, `MineManager.cs`, `ShieldManager.cs:57-60` | Mine flight, arming, lifetime, detonation | `retire-unity-mines` (new; unreachable per T13); the design returns under `bodies-entity-and-mines` |
+| C8 | `Mine.cs`, `MineManager.cs`, `ShieldManager.cs:57-60` | Mine flight, arming, lifetime, detonation | `retire-unity-mines` r2 deletes it (unreachable per T13); `sim-mines` brings it back as a sim body (section 'Mines in the sim') |
 | C9 | `GridObject.cs`, `EntityInstance.cs:293-308`, `ZoneRenderer` loot, `ShieldManager.cs:42-56` | Loot drop, drift, expiry, pickup | `loot-1` |
 | C10 | `TractorBeam.cs:21-27`, `FieldDriver.cs:307-323`, binder resolvers | Tractor pull, grabbed pose | `loot-3` |
 | C11 | `ActionGameManager.cs:705-711` | Executes a zone transfer the sim decided | follow-up `zone-transfer-owner` |
@@ -5073,18 +5073,193 @@ the game has it today; deleting it would be a product change no ruling asks for.
 verbatim (the same elastic exchange, once per contact, no push-out) onto a disc that bounds the
 hull, so ships may come a little closer than the shield ellipsoid let them.
 
-**Why the Unity mine is deleted, not moved.** No catalog item fires it (T13), it owns its whole
-life in Unity, and the design (arming, proximity, lifetime, blast) belongs to the simulation
-bodies of `bodies-entity-and-mines` and `drones-munitions-substrate`. Moving it now would build a
-munition entity no demo item uses.
+**Why the Unity mine is deleted, not moved.** No catalog item fires it (T13) and it owns its whole
+life in Unity; moving it would keep Unity deciding. It returns as a simulation body (ruling
+`mines-back-in-sim-asap`; section 'Mines in the sim').
 
 **Why the split.** `sim-speed` lands the fixed step at speed 1 now: at speed 1 the integrators
 still on `Time.deltaTime` run at the sim's average rate, so nothing desyncs, and replays become
 possible (M15). The setting waits for the census, because any open row runs at real speed in a
 slowed world. Ordering: `sim-speed` (after `controls-helm`); then `ballistic-flight` and
 `sim-contact` (independent, small); `missile-presenter` r3 after `missile-odds`; the loot branch
-(`loot-1`, `loot-2` r2, `loot-3`); `retire-unity-mines` after `loot-3`; `sim-speed-scale` last,
+(`loot-1` r2, `loot-2` r2, `loot-3`); `retire-unity-mines` r2 at any time (it no longer waits on
+`loot-3`); `sim-speed-scale` last,
 before the `combat-pace-pass`.
 
 **Why the clock does not own pause.** Pause is the menu's; the menu feeds the clock zero real
 time.
+
+## Mines in the sim
+
+Rulings `mines-back-in-sim-asap` ("yes delete the mines but I want them back in the sim asap"),
+`mines-float-like-loot` ("Mines are free floating just like loot") and `unity-presents-only-r3`.
+Anchors are against `origin/master` `35ea0da4`, read on 2026-10-07 in the read-only worktree
+`C:\ar-mines-map`. None of `loot-1`..`loot-3`, `retire-unity-mines`, `sim-speed`, `sim-contact`,
+`missile-stats` or `missile-records` has landed at this base; `mining-merge` has (the
+`Targeting/` providers are on master).
+
+The cuts: `floating-bodies` (the drifting body loot and mines share), `retire-unity-mines` r2 (the
+Unity mine deleted now, no longer waiting on the loot branch), `sim-mines` (the mine in `Zone`,
+its gear and the catalog item, headless) and `sim-mines-presenter` (Unity draws it). `loot-1` r2
+rebuilds on `floating-bodies`. Questions `mine-trigger-iff` and `mine-owner-leash` gate
+`sim-mines`.
+
+### Body facts
+
+- **N1. How a mine is fired.** `MineManager` (`Gameplay/Weapons/MineManager.cs:13-32`) is an
+  `InstantWeaponEffectManager`, so the launcher is an `InstantWeaponData` item: `InstantWeapon`
+  pays cooldown, ammo, energy, heat and wear and calls `FireControl.Fire`, which queues a
+  `PendingShot` (`InstantWeapon.cs:271`); `OnFire` then makes `MineManager.Fire` spawn the mine
+  at the barrel transform. Launch velocity: `barrel.forward * weapon.Velocity` turned by
+  `UnityEngine.Random` angles in +-`Spread`/2 on all three axes, plus the ship's velocity
+  (`InheritVelocity: 1` in the prefab). The mine copies `weapon.Damage`, `weapon.Range` and
+  `WeaponData.DamageType`. So one trigger pull also queued an ordinary shot at the target.
+- **N2. Flight and drag.** `GridObject` (`Gameplay/GridObject.cs`; prefab values at
+  `Mine Launcher.prefab:173-178`): the launch velocity decays by `1 - LaunchDrag*dt` per frame
+  (`LaunchDrag` 0.2); a separate drift velocity is accelerated down the zone's gravity well by
+  `normalize(f) * GravityStrength * (1/(1-|f|^2) - 1) * Gravity` with no `dt`, so it is
+  frame-rate dependent (`Gravity` 1), and decays by `Drag` 0.05; a vertical spring
+  (`GridAttraction` 10) holds it at the grid height. The pickup prefabs carry the same `Drag`,
+  `LaunchDrag` and `Gravity` (map L7): loot and mines already fly one body.
+- **N3. Arming.** `Mine.Update` (`Mine.cs:53-87`) checks nothing until `ActivationDelay` 2 s of
+  `Time.time` after the mine is enabled (`Mine Launcher.prefab:158`).
+- **N4. Triggering.** Once armed and not yet counting down, `Physics.OverlapSphere(position,
+  BlastRange 25, layer mask 1)`: any collider carrying `HullCollider` starts a countdown of
+  `BlastDelay` 2 s, which never cancels. There is no faction test: the launcher's own hull and
+  its allies trigger it. Mask 1 is the Default layer. The shipped hulls and the turret carry
+  `HullCollider` on layer 0 (`Longinus.prefab`, `Djinni.prefab`, `Turret.prefab`), but
+  `ShipPrefabAuthoring.cs:161` puts mod-package hulls on `Combat`, and station prefabs have no
+  `HullCollider`, so mod ships and stations never trigger a mine. That exclusion is a layer
+  accident, not a rule.
+- **N5. Shield contact is dead.** `ShieldManager.cs:57-60` explodes a mine on shield contact,
+  but the mine object (layer 21, `GridObjects`) has no collider in the prefab, so the branch
+  never runs.
+- **N6. Ends.** Once armed, the mine explodes when its countdown ends, when `Lifetime` 30 s has
+  passed, or when it is farther than `weapon.Range` from its launcher's transform
+  (`Mine.cs:79-84`). Every end is an explosion; none fizzles. A destroyed launcher makes
+  `Source.transform` throw.
+- **N7. The blast.** `Mine.Explode` calls `FireControl.Detonate(zone, position.xz, BlastRange,
+  Damage, DamageType)` (`Mine.cs:97-104`), spawns `HitEffect` (BigExplosion) and returns to the
+  pool. `Detonate` (`FireControl.cs:1350-1422`) spreads `Damage` over the disc's area: each
+  occupied hull cell takes `damage * overlap / (pi r^2)`, so an entity takes damage in
+  proportion to how much of its hull the disc covers, with no radial falloff; an active shield
+  takes the entity's whole share or breaks; armour, then item pools, absorb per cell. It reads
+  no source or faction, so everyone in the disc is harmed, the launcher included. The trigger
+  radius and the blast radius are the one `BlastRange`.
+- **N8. Catalog.** T13 holds at `35ea0da4`: no catalog record names the Mine Launcher prefab.
+  The item existed in the 2021 catalog (`79b0c036` "Mines and Flamethrowers", 2021-02-06); the
+  daemon-era `8c71a637` recovered it from `GameData/Legacy/AetherDB.2021-03-05.msgpack`, an LFS
+  object, and pinned its 2 s activation and 30 s lifetime. `WeaponType.Mine` exists
+  (`Enums.cs:66`). `WeaponItemData` carries `BlastRadius` (key 29) and `Fuse` (key 32), read
+  only through `FireControl.FuseOf`. The behaviour union's next free index is 40
+  (`Behaviors.cs:188`).
+- **N9. Presentation.** `Mine` pulses emission on submesh 2 by `EmissionCurve`: none before
+  arming, `ActiveEmission` on a 1 s cycle when armed, `ArmedEmission` on a 0.25 s cycle while
+  counting down. `GridObject` spins it by `sin` and `cos` of time. All of it presents the
+  arming and countdown facts.
+
+### Prior art
+
+A short check, for the two forks only. EVE Online's bombs are unguided and untargeted, drift
+along the launch line, and hit every ship in the area, the launcher's fleet and the launcher
+included ([EVE University, Bombs](https://wiki.eveuniversity.org/Bombs)). Starsector's Stinger
+mines use a friend-or-foe trigger and detonate when a target comes within range
+([Starsector wiki](https://starsector.fandom.com/wiki/Stinger-class_Proximity_Mine),
+[Mine Strike](https://starsector.wiki.gg/wiki/Mine_Strike)). Freelancer's mines seek hostile
+ships, and FreeSpace minefields hit anything (from memory, unchecked). The common shape is an
+IFF trigger with a blast that does not ask whose it is. No reference leashes a mine to its
+launcher.
+
+### The design
+
+**What a mine is.** A free-floating body (ruling `mines-float-like-loot`) with a frozen payload:
+the `KinematicBody` loot drifts on, plus the time it was laid, its arming delay, fuse delay and
+lifetime, its blast radius, damage and damage type, and its layer's identity (entity and
+faction, frozen at lay). It is not a munition record: it has no seeker, thrust, fuel or shot id,
+and nothing prices or rolls it. It is not an `Entity`.
+
+**What is shared with loot, and what is not.** `floating-bodies` lands what both need:
+`FloatingBodyId` (one zone counter for every free body), `KinematicBody` and its `Step`, the
+three motion settings both already use (N2), and `SimulationDice` (moved out of `FireControl`,
+as `loot-1` r1 planned). Each kind keeps its own collection: `Zone.FloatingItems` (loot,
+`loot-1` r2) and `Zone.Mines`. One collection with a payload switch would let `TryPickUp` see a
+mine and make every reader branch on kind; two typed collections make "a tractor grabs a mine"
+unrepresentable instead of forbidden. Neither kind gets a targeting provider: nothing detects
+or shoots them today, and one detection interface for bodies stays with the follow-up.
+
+**Laying.** `MineLayerData : InstantWeaponData` carries the mine's own stats (arming delay, fuse
+delay, lifetime), as missile stats belong to the missile until gear supplies them (ruling
+`missile-stats-now-gear-later`). `InstantWeapon` keeps paying for the round.
+`FireControl.Fire` and `FireControl.Refuses` route a mine layer to `FireControl.Lay` before
+`Solve`: no target, no arc gate, no `PendingShot`. `Lay` freezes the payload and has `Zone.Lay`
+add the mine at the shooter's position with velocity `shooter velocity +
+rotate(MountDirection.xz, a dice angle in +-Spread/2) * Velocity`, the dice drawn from
+`SimulationDice.For(CombatSeed, MineStream, id)`. This also closes N1's double fire.
+
+**Arming, triggering and the blast.** `Zone.Update` steps mines after the entities and before
+`FireControl.Step`, in lay order. A mine is armed at `LaidAt + ArmingDelay`. While armed and not
+triggered, it triggers on the first eligible entity whose hull the blast disc touches, through
+`FireControl.Touches(entity, point, radius)`, the coverage test extracted from `Detonate`, so
+what triggers a mine and what its blast reaches are one geometry and every hull counts (N4's
+layer accident is not kept). Which entities are eligible is question `mine-trigger-iff`. A
+triggered mine detonates at `TriggeredAt + FuseDelay` whatever moves; an untriggered one at
+`LaidAt + Lifetime`; the leash is question `mine-owner-leash`. Detonation calls
+`FireControl.Detonate` unchanged with the frozen payload and then removes the mine, so every
+removal of a mine is its blast, and that is the fact the presenter draws.
+
+**Presentation.** `MineInstance` replaces `Mine` and `GridObject` on a mine prefab. `ZoneRenderer`
+creates one per `Zone.Mines` add and plays the blast on remove. It draws the body at the grid
+height (ahead by the sim clock's lead once `sim-speed` has landed), spins as `GridObject` did,
+and pulses from `Armed` and `Triggered` in real time (ruling `sim-speed-presentation`). A mine
+layer has no fire effect manager: the mine it lays is its presentation.
+
+### Authority map
+
+- Owner: `Zone` owns every mine's existence (`Lay` the one creator, the mine step the one
+  remover). `FireControl` owns laying's payload (`Lay`) and the blast (`Detonate`, `Touches`).
+  `KinematicBody` owns the drift arithmetic for loot and mines alike.
+- Inputs: the mine layer's evaluated stats at the fire step, the item's `BlastRadius`, the
+  shooter's position, velocity, mount and identity, zone time and force, the zone's entities
+  and hulls.
+- Outputs: `Zone.Mines` add and remove; `Detonate`'s damage.
+- Derived: `Armed` and `Triggered` are read by presenters; the drawn pose and the pulse are
+  presentation only.
+- Forbidden writers: any MonoBehaviour moving, arming, timing or detonating a mine; a creator of
+  mines besides `Zone.Lay`; a blast path besides `Detonate`; `TryPickUp` reaching a mine; a
+  `PendingShot` for a mine layer.
+- Shared paths: player, AI and scenario mine layers all lay through `InstantWeapon` and
+  `FireControl.Fire`; loot and mines drift through one `KinematicBody.Step`.
+- Deletion line: `Mine`, `MineManager`, the Mine Launcher prefab and `ShieldManager`'s mine
+  branch go first (`retire-unity-mines` r2), before any simulated mine exists.
+
+### Model page rows
+
+| Kind | Named by | Over time | Decides |
+|---|---|---|---|
+| Mine | `FloatingBodyId` in its zone, never reused; not saved | Laid, drifts, arms, triggers, detonates, removed | `Zone` (life), `FireControl` (lay, blast) |
+| `KinematicBody` | Its floating item or mine | Stepped each sim step under zone force and drag | `KinematicBody.Step` |
+| `MineLayerData` | A behaviour on a `WeaponType.Mine` catalog item | Authored | Catalog |
+
+### Rationale
+
+**Why mines first, and what "asap" costs either way.** After the whole of `loot-1`, the mine
+waits for the loot branch to merge: `loot-1`, `loot-2` r2 (which also waits on `feedback-1`,
+unreported) and `loot-3` merge together, because between them the player cannot pick anything
+up. That is three or four cuts nobody has started. With `floating-bodies` split out (about 200
+headless lines, no Unity change, no behaviour change), the mine waits only for that:
+`retire-unity-mines` r2 lands now in parallel, then `sim-mines`, then `sim-mines-presenter`. The
+price is one more small cut and a revision of `loot-1` (r2 takes the body from
+`floating-bodies` and inherits the deletion of `GridObject`). The body's shape is fixed before
+loot uses it, a small risk, because loot and mines already fly the same constants (N2).
+
+**Why `retire-unity-mines` no longer waits on `loot-3`.** r1 waited so it could delete
+`GridObject` once the pickups were off it. r2 leaves `GridObject` to `loot-1` r2, whose pickups
+are its last users once the mine is gone.
+
+**Why the trigger shares `Detonate`'s geometry.** The old trigger asked Unity's colliders and the
+blast asked the hull cells, so a mine could trigger on a hull its blast then missed, or the
+reverse. One coverage test makes "triggered by" and "harmed by" the same disc.
+
+**Why no targeting provider or point defense against mines.** The old mine was neither
+detectable nor shootable, and ruling `pd-who-engages` prices munitions, which a mine is not.
+Detection of floating bodies stays with follow-up `bodies-detection`.
