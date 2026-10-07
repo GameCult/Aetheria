@@ -81,6 +81,10 @@ public class Zone
     // of touching a shared stream.
     public uint CombatSeed { get; }
 
+    // The one source of floating item and mine ids: zone-scoped, from 1, never reused. Runtime state, not saved.
+    private uint _lastBodyId;
+    public FloatingBodyId NextBodyId() => new FloatingBodyId(++_lastBodyId);
+
     public Zone(ItemManager itemManager, PlanetSettings settings, ZonePack pack, GalaxyZone galaxyZone, Galaxy galaxy)
     {
         _time = pack.Time;
