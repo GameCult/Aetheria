@@ -195,6 +195,7 @@ public sealed class SteeringTests
         Assert.Equal(float2(0, 0), ship.MovementDirection);
 
         ship.Turn = .37f;
+        ship.MovementDirection = float2(1, 1); // a stale command the hold branch must clear
         agent.Accelerate(float2(1, 0), false); // exactly the thrust threshold: not above it
         Assert.Equal(float2.zero, ship.MovementDirection);
         Assert.Equal(.37f, ship.Turn);
@@ -217,5 +218,120 @@ public sealed class SteeringTests
 
         Assert.Equal(.37f, ship.Turn);
         Assert.Equal(float2.zero, ship.MovementDirection);
+    }
+
+    // Behind the hull is "dot < 0": 100 degrees off the nose is already behind, so it turns at full demand, and
+    // 80 degrees is not, so it is the shaped lateral component.
+    [Fact]
+    public void TheBehindRuleBeginsPastNinetyDegrees()
+    {
+        using var cache = RestoredHullsTests.OpenCatalog();
+        var ship = RestoredHullsTests.BuildThrustedShip(cache, Hull);
+
+        Assert.Equal(1f, Steering.Toward(ship, Heading(ship, 100f)));
+        Assert.Equal(-1f, Steering.Toward(ship, Heading(ship, -100f)));
+        Assert.Equal(1f, Steering.Toward(ship, Heading(ship, 135f)));
+        Assert.Equal(sqrt(sin(radians(80f))), Steering.Toward(ship, Heading(ship, 80f)), 4);
+        Assert.Equal(-sqrt(sin(radians(80f))), Steering.Toward(ship, Heading(ship, -80f)), 4);
+    }
+
+    // Ship.Update clamps the command to -1..1: a Turn of 3 rotates the hull exactly as a Turn of 1 does.
+    [Fact]
+    public void TurnIsClampedToOne()
+    {
+        using var cache = RestoredHullsTests.OpenCatalog();
+        var one = RestoredHullsTests.BuildThrustedShip(cache, Hull);
+        var three = RestoredHullsTests.BuildThrustedShip(cache, Hull);
+        var minusOne = RestoredHullsTests.BuildThrustedShip(cache, Hull);
+        var minusThree = RestoredHullsTests.BuildThrustedShip(cache, Hull);
+
+        one.Turn = 1;
+        three.Turn = 3;
+        minusOne.Turn = -1;
+        minusThree.Turn = -3;
+        for (var i = 0; i < 10; i++)
+        {
+            one.Update(1f / 60f);
+            three.Update(1f / 60f);
+            minusOne.Update(1f / 60f);
+            minusThree.Update(1f / 60f);
+        }
+
+        Assert.True(Angle(one.Direction, Heading(one, 0f)) > radians(.05f), "the reference turn is real");
+        Assert.True(Angle(one.Direction, three.Direction) < radians(.001f), $"{Angle(one.Direction, three.Direction)}");
+        Assert.True(Angle(minusOne.Direction, minusThree.Direction) < radians(.001f));
+    }
+
+    // A state that writes a constant turn, standing for any piloting state.
+    private sealed class SpinState : BaseState
+    {
+        public SpinState(Agent agent) : base(agent) { }
+        public override void Update(float delta) => _agent.Ship.Turn = .5f;
+    }
+
+    // Turn is a rate, so a state that stops piloting must not leave the last state's rate behind: the agent's
+    // tick writes Turn every tick, zero when its state demands none, and the hull then holds its heading.
+    [Fact]
+    public void AnAgentWhoseStateStopsPilotingHoldsItsHeading()
+    {
+        using var cache = RestoredHullsTests.OpenCatalog();
+        var ship = RestoredHullsTests.BuildThrustedShip(cache, Hull);
+        var agent = new Agent(ship);
+        var start = ship.Direction;
+
+        agent.Transition(new SpinState(agent));
+        for (var i = 0; i < 10; i++)
+        {
+            agent.Update(1f / 60f);
+            ship.Update(1f / 60f);
+        }
+        Assert.True(Angle(start, ship.Direction) > radians(.05f), "the piloting state turns the hull");
+        Assert.Equal(.5f, ship.Turn);
+
+        agent.Transition(new BaseState(agent));
+        agent.Update(1f / 60f);
+        ship.Update(1f / 60f);
+        var held = ship.Direction;
+        for (var i = 0; i < 60; i++)
+        {
+            agent.Update(1f / 60f);
+            ship.Update(1f / 60f);
+        }
+
+        Assert.Equal(0f, ship.Turn);
+        Assert.True(Angle(held, ship.Direction) < radians(.01f), $"{Angle(held, ship.Direction)}");
+    }
+
+    private sealed class MoveToPointState : MoveToState
+    {
+        public float2 Point;
+        public MoveToPointState(Agent agent) : base(agent) { }
+        protected override float2 TargetPosition => Point;
+    }
+
+    // MoveTo aims at its target and commands the hull toward it. The ship already flies the wanted velocity, so
+    // Accelerate (which leaves Turn to the caller below its thresholds) writes none of it: what is measured is
+    // MoveTo's own write, to either side.
+    [Theory]
+    [InlineData(90f)]
+    [InlineData(-45f)]
+    public void MoveToAimsAtTheTargetAndTurnsTowardIt(float degrees)
+    {
+        using var cache = RestoredHullsTests.OpenCatalog();
+        var ship = RestoredHullsTests.BuildThrustedShip(cache, Hull);
+        var agent = new Agent(ship);
+        var state = new MoveToPointState(agent);
+        var dir = Heading(ship, degrees);
+        state.Point = dir * 500f;
+        ship.Velocity = dir * agent.TopSpeed; // deltaV is zero: Accelerate holds and leaves Turn alone
+        agent.Transition(state);
+
+        agent.Update(1f / 60f);
+
+        Assert.True(dot(normalize(ship.Aim.xz), dir) > .9999f, $"aim {ship.Aim}");
+        Assert.True(abs(ship.Aim.y) < 1e-6f);
+        Assert.Equal(Steering.Toward(ship, dir), ship.Turn);
+        Assert.True(abs(ship.Turn) > .5f);
+        Assert.Equal(degrees > 0 ? 1f : -1f, sign(ship.Turn));
     }
 }

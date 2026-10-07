@@ -176,7 +176,7 @@ public sealed class FireControlTests : IDisposable
     }
 
     // A shooter with one in-range, in-arc gun, a detected target at `targetPosition`, and a Minion driving the shooter.
-    private (Ship shooter, Ship target, Zone zone) BuildCombatEncounter(float3 targetPosition)
+    private (Ship shooter, Ship target, Zone zone) BuildCombatEncounter(float3 targetPosition, float projectileSpeed = 0f)
     {
         var (items, shooter, weapons) = BuildShipWithHardpoints((ItemRotation.None, 0f));
         var weaponData = (InstantWeaponData) weapons[0].Data.Behaviors.Single(b => b is InstantWeaponData);
@@ -184,6 +184,7 @@ public sealed class FireControlTests : IDisposable
         weaponData.Cooldown = new PerformanceStat { Min = 1, Max = 1 };
         weaponData.Range = new PerformanceStat { Min = 1000, Max = 1000 };
         weaponData.MinRange = new PerformanceStat { Min = 0, Max = 0 };
+        weaponData.Velocity = new PerformanceStat { Min = projectileSpeed, Max = projectileSpeed };
         weaponData.DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } };
 
         var zone = shooter.Zone;
@@ -253,5 +254,46 @@ public sealed class FireControlTests : IDisposable
         Assert.Equal(direction, shooter.Direction); // no thrusters on this hull: only Turn was commanded
         Assert.Equal(Steering.Toward(shooter, shooter.Aim.xz), shooter.Turn);
         Assert.True(abs(shooter.Turn) > .5f);
+    }
+
+    // Against a target that moves, Combat aims at where the round will meet it (FireControl.PredictedIntercept),
+    // not where the target is: the aim leads, and the hull's Turn follows the intercept bearing.
+    [Fact]
+    public void CombatLeadsAMovingTarget()
+    {
+        var (shooter, target, zone) = BuildCombatEncounter(float3(0, 0, 100), projectileSpeed: 20f);
+        zone.Update(1f); // transitions the Minion into CombatState and evaluates weapon stats
+
+        // Agents update before entities, so Combat reads exactly this state on the next tick.
+        target.Position = float3(0, 0, 100);
+        target.Velocity = float2(4, 0);
+        var weapon = shooter.Weapons.Single();
+        var intercept = normalize((FireControl.PredictedIntercept(weapon, shooter, target) - shooter.Position).xz);
+        var bearing = normalize(target.Position.xz - shooter.Position.xz);
+        Assert.True(dot(intercept, bearing) < cos(radians(5f)), "the fixture really leads the target");
+
+        zone.Update(1f);
+
+        var aim = normalize(shooter.Aim.xz);
+        Assert.True(dot(aim, intercept) > .9999f, $"aim {shooter.Aim}");
+        Assert.Equal(Steering.Toward(shooter, intercept), shooter.Turn);
+        Assert.True(shooter.Turn > 0f);
+    }
+
+    // A Minion whose target goes away returns to its root state, which pilots nothing: the hull must stop
+    // turning rather than keep the rate Combat last commanded.
+    [Fact]
+    public void AMinionThatLosesItsTargetStopsTurning()
+    {
+        var (shooter, _, zone) = BuildCombatEncounter(float3(10, 0, 10));
+        zone.Update(1f);
+        zone.Update(1f);
+        Assert.True(abs(shooter.Turn) > .5f, "Combat commanded a turn");
+
+        shooter.SetTarget(TargetRef.None);
+        zone.Update(1f); // Combat has no target and the Minion transitions to its root state
+        zone.Update(1f);
+
+        Assert.Equal(0f, shooter.Turn);
     }
 }
