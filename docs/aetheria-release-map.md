@@ -4795,3 +4795,228 @@ its absence; the demo cast hulls (`demo-cast-hulls`) meet it first.
 | Kind | What names it | Over time | Who decides |
 |---|---|---|---|
 | `parked/aether-drive` tag | The tag name; its message is the park note. | Fixed at the retirement's base; read by the rework, never merged back. | The operator's rework, after the thruster meta. |
+## Sim speed
+
+Rulings `sim-speed-knob` and `sim-speed-presentation`, for the pace named in
+`pace-after-primitives`. Anchors are against `origin/master` `516af3e5`, read on
+2026-10-07 in the read-only worktree `C:\ar-retire-map`. `controls-helm` r2 is in flight
+on `ActionGameManager.cs`, `EntityInstance.cs` and `ShipInstance.cs`, so line numbers
+there move when it lands.
+
+### Body facts
+
+- **T1. One caller steps the simulation, by the frame's dt.** The only `Zone.Update` call
+  in `Assets/Scripts` is `Zone.Update(Time.deltaTime)` at the end of
+  `ActionGameManager.Update` (`Gameplay/ActionGameManager.cs:1311`), inside
+  `if(!_paused)` (`:1244`). `Zone.Update` (`ServerShared/Zone.cs:202-222`) adds dt to
+  `_time`, recomputes orbits and divides their displacement by dt (`:210`, so a zero dt
+  gives an infinite velocity), steps agents, then entities, then `FireControl.Step`.
+  Agents, cooldowns, shields, radiators, stat modifiers, consumables and thrusters all
+  take that dt (`Agent.Update`, `Cooldown.Update`, `Shield.Update`, `Radiator.Update`,
+  `StatModifier.Update`, `Entity.Update` `:1425-1453`). ServerShared reads no Unity
+  clock: its only clock reads are `DateTime.Now` seeds (`ItemManager.cs:20`,
+  `Galaxy.cs:111,167`, `GalaxyStage.cs:49`), which choose seeds and time nothing. This is
+  M15 again: there is no fixed tick, and sim history depends on the frame rate today.
+- **T2. Nothing touches Unity's time scale in the game.** The one `Time.timeScale` write
+  is the `Time Scale` field of `UI/FieldTester.cs:80`, the shield-field lab scene, where
+  slowing presentation is the point. `ProjectSettings/TimeManager.asset` has Fixed
+  Timestep 0.02 and Maximum Allowed Timestep 0.1; no script has a `FixedUpdate`.
+- **T3. Unity physics writes one sim fact.** `HullCollider.OnCollisionEnter`
+  (`Gameplay/HullCollider.cs:14-17`) adds `impulse / Time.deltaTime` to
+  `Entity.Velocity`. The shield rigidbody is kinematic (`Content/Prefabs/Shield.prefab`,
+  `m_IsKinematic: 1`) and ships are placed by transform (`EntityInstance.cs:403`), so the
+  impulses that arrive come from non-kinematic loot and mine bodies
+  (`Prefabs/RPG/Pickups/*.prefab`, `Mine Launcher.prefab`). It divides by the frame's dt,
+  not by any step.
+- **T4. Unity-owned world objects keep their own clocks.** Loot drift and attraction
+  (`GridObject.cs:37-49`), the tractor pull (`TractorBeam.cs:26`), the player's tractor
+  ramp (`ActionGameManager.cs:1308-1309`, written onto `Entity.TractorPower`, read only
+  by `ShipInstance.cs:115`), and mine arming, lifetime and blast delay (`Mine.cs:46-82`,
+  `Time.time`, ending in `Explode`, which calls `FireControl.Detonate`) are world
+  behaviour that Unity integrates on real time. `loot-1`..`loot-3` move loot into the
+  simulation; follow-up `bodies-entity-and-mines` covers mines. Neither has landed.
+- **T5. Presenters that integrate or time a sim quantity.** `Projectile.Update`
+  (`Weapons/Projectile.cs:43-50`) flies a round's drawn position by `Time.deltaTime`
+  until Range or the shot's resolution. `ProjectileManager.cs:25` spreads a spawn along
+  the velocity by `Random.value * Time.deltaTime`. `GuidedProjectile` integrates thrust
+  and position by `Time.deltaTime` (`:143,205,210`) and ends its binding when
+  `Time.time - _spawnTime` passes `BindingLifetime` (`:232`), which
+  `GuidedProjectileManager.cs:24` sets from `shot.ArrivalTime - zone.Time`, a sim
+  interval compared against real time. Entities are drawn at their last stepped pose:
+  `EntityInstance.cs:403` sets the position from `Entity.Position`, and
+  `ShipInstance.cs:141` sets the rotation from `Ship.Rotation`.
+- **T6. Presenters that read sim state and animate in real time.** Charge effects read
+  `Weapon.Charge` (`ParticleChargeEffect.cs:56`). Beams and hitscan flashes
+  (`ConstantLaser.cs`, `ConstantLightning.cs`, `Laser.cs`, `HitscanEffect.cs`) start and
+  stop on sim events and time only their own fades. Shield panels
+  (`ShieldInterceptor.cs:63-146`), fades (`EntityInstance.cs:363,381`), mount slew
+  (`ArticulationPoint.cs:36-47`), field ripples (`FieldDriver.cs`), the sun, volumes and
+  wave scroll (`Zone Display/*`), HUD blinks, the hit marker, the intro and the death
+  transition (`ActionGameManager.cs:857,1173-1185,1246-1289`) and every menu tween are
+  real-time animation. The gas giant's wave phase reads `Zone.Time`
+  (`ZoneRenderer.cs:503`), a sim quantity read, not integrated. No audio presenter is
+  live: the Wwise path is dead and `audio-1` has not landed.
+- **T7. Input.** Each frame `ActionGameManager.Update` writes the view, `LookDirection`
+  (`Aim` after `controls-helm`), `MovementDirection` and, after `controls-helm`,
+  `Ship.Turn`. Weapon slots call `Activate` and `Deactivate` from input callbacks
+  (`:424-425`); `Weapon.Activate` sets a held flag (`Behaviors/Weapon.cs:149-157`) and
+  `InstantWeapon.Activate` fires at once if it can (`InstantWeapon.cs:285-290`). Commands
+  are state the next step reads; no input integrates anything.
+- **T8. Pause.** `_paused` (`ActionGameManager.cs:187`) is set by `ToggleFullscreenMenu`
+  (`:728,740`) and gates the whole of `Update`, the step included.
+- **T9. Saving.** `Zone.Pack` saves `Time` (`Zone.cs:184`), and a zone loads it
+  (`:86`). `PlayerSettings` lives in `player.cc` (`ActionGameManager.cs:68,90`); the
+  Gameplay Settings menu edits `PlayerGameplaySettings` and saves on Back
+  (`UI/MainMenu.cs:262-283`). Designer tuning lives in `GameplaySettings`
+  (`ServerShared/Settings.cs:159`).
+- **T10. Headless tests step zones directly** with chosen dts, `0f` included
+  (`FireAuthorityTests.cs:192`, `FireControlCut11Tests.cs:192,225,411`), and
+  `ScenarioTests.Launch` (`:64-72`) builds a staged arena from any scenario, `Duel`
+  included.
+
+### Does the pace lever hold?
+
+The claim: a sim speed setting leaves every sim-time rule (evasion window, tracking rates,
+cooldowns) numerically unchanged and only slows what the player experiences.
+
+- **Not today.** By T1, the simulation's history is a function of the frame times it was
+  handed. A scaled dt would change the history again: every integration, threshold
+  crossing and per-step statistic sees different steps. The claim holds only once the
+  step is fixed and the scale changes how many steps run per real second.
+- **With the fixed step, it holds exactly for the simulation.** Every rule in ServerShared
+  reads only the step's dt and `Zone.Time`, so a run at scale k is the run at scale 1, step
+  for step, given the same commands at the same steps. TTK, evasion windows, tracking and
+  cooldowns are unchanged in sim seconds. The `combat-pace-pass` measurements stay valid
+  at any scale.
+- **What it changes besides the clock.** Everything the player does in real time gets
+  relatively faster: the view, the reticle, target selection and trigger timing all keep
+  real-time rates while the world slows. At half speed the player has twice the real time
+  per sim second to read, aim and choose; AI agents get no such gift, because they think
+  in sim time. So sim speed is a difficulty lever as well as a pace lever, and it does not
+  change any sim ratio: whether the first manoeuvre decides an engagement
+  (`aether-drive-rework-rotor`) is a sim fact, and the knob cannot fix it. The helm slows
+  with the sim (ruling `sim-speed-presentation`), so a turn takes 1/k real seconds as
+  long; that is intended.
+- **Holes it must close.** T3's physics write and T4's real-time world objects would run
+  at real speed in a slowed world. This cut gives them sim time; it does not move them
+  into the simulation, which the loot cuts and `bodies-entity-and-mines` own.
+
+### The design
+
+One clock, `SimClock` (ServerShared, engine-free), owns the step and the scale.
+
+- `Step` is a constant, 1/60 s. It never changes with the scale or the frame rate.
+- `Scale` is clamped to the setting's range and written only by the settings surface.
+- `Advance(realSeconds, step)` adds `min(realSeconds, MaxFrameSeconds) * Scale` sim
+  seconds to an accumulator, then calls `step(Step)` while the accumulator holds a whole
+  step. `MaxFrameSeconds` is 0.1 s, as Unity's own Maximum Allowed Timestep, so a hitch
+  slows the world instead of spiralling.
+- `SimDelta` is the sim seconds that elapsed this frame (the clamped real seconds times
+  the scale), for presenters that integrate a sim quantity.
+- `Lead` is the sim seconds since the last step (the accumulator, below one step), and
+  `Steps` counts steps, for presenters that draw a pose between steps.
+
+`ActionGameManager` holds the one clock and calls `Clock.Advance(_paused ? 0 :
+Time.deltaTime, Zone.Update)` every frame, outside the pause gate, so a paused frame
+reports zero `SimDelta`. Pause stays the menu's state; it feeds the clock zero real time
+and owns nothing else.
+
+Presenters follow ruling `sim-speed-presentation`, one rule: presentation reads current
+sim state and animates in real time; only presentation that integrates or times a sim
+quantity takes sim time.
+
+| Presenter | Integrates or times a sim quantity? | Clock |
+|---|---|---|
+| Entity pose (`EntityInstance` position, `ShipInstance` rotation) | Draws a pose between steps | `Lead`: position + velocity x `Lead`; rotation carried on by the last step's turn, scaled by `Lead / Step` |
+| `Projectile` flight, `ProjectileManager` spawn spread | Integrates a round's drawn position | `SimDelta`; the trail's fade after `Kill` stays real |
+| `GuidedProjectile` thrust, position and binding life | Integrates position; binding ends with a sim event | `SimDelta`; binding ends when `Zone.Time` passes the shot's arrival plus one sim second; the noise wobble stays real |
+| Loot drift and attraction (`GridObject`), tractor pull, tractor ramp | World motion Unity owns until the loot cuts | `SimDelta`; the spin stays real |
+| Mine arming, lifetime, blast delay | Times a sim event (`Detonate`) | `Zone.Time`; emission and pulse stay real |
+| Charge effects, beams, flashes, shields, fades, mount slew, ripples, sun, volumes, HUD, menus, intro, death transition | No | Real time, unchanged |
+| Thruster flames, particles, audio pitch | No (ruling `sim-speed-presentation`) | Real time, unchanged |
+| Coast path and lead markers (`controls-hud`, not landed) | No: they draw sim predictions from current state | Horizons stay in sim seconds |
+
+`HullCollider`'s write is deleted, not re-timed: Unity physics may not decide a sim fact
+(invariant `sim-owns-facts`), and an impulse divided by a frame dt is not a sim rule at any
+scale. Loot and mines stop nudging ships; collision as a sim rule, if wanted, belongs to the
+entity work that brings bodies into the simulation.
+
+### Authority map
+
+- **Owner.** `SimClock` owns sim time's relation to real time: the step, the scale and the
+  accumulator. `Zone` still owns sim time itself (`_time`) and what a step does.
+- **Inputs.** Real frame seconds and the pause state from `ActionGameManager`; the scale
+  from the settings surface.
+- **Outputs.** `Zone.Update(Step)` calls; `SimDelta`, `Lead` and `Steps` for presenters.
+- **Derived state.** `SimDelta`, `Lead` and `Steps` are presentation-only and never read
+  by ServerShared rules. A ship's previous-step rotation in `ShipInstance` is a
+  presentation cache, written there only, never read by the simulation.
+- **Forbidden writers.** Any `Zone.Update` call in `Assets/Scripts` other than through
+  `SimClock.Advance`; any write of `Time.timeScale` outside `FieldTester`; Unity physics
+  writing `Entity.Velocity` (`HullCollider`); presenters in T5 and T4 reading
+  `Time.deltaTime` or `Time.time` for the quantities the table names.
+- **Shared paths.** The game, every scenario and the headless test of the clock reach the
+  simulation through `SimClock.Advance`; tests that step a zone directly keep doing so,
+  because they choose their own dt on purpose.
+- **Deletion line.** Delete `Zone.Update(Time.deltaTime)` and `HullCollider`'s
+  `OnCollisionEnter` before adding `SimClock`.
+
+### Model page rows
+
+| Kind | Named by | Over time | Decided by |
+|---|---|---|---|
+| Sim speed setting | its field (surface per question `sim-speed-surface`) | Set by the player or operator, saved with its settings | the settings surface; read by `SimClock` |
+| Zone time | `Zone.Time`, saved in `ZonePack.Time` | Advances by `Step` per step | `Zone.Update`, called only by `SimClock` |
+| Clock accumulator | none | Under one step, dropped on load and zone change | `SimClock` |
+
+### Prior art
+
+From documentation and talks already read, not re-fetched for this pass.
+
+- **Gaffer On Games, "Fix Your Timestep!" (Glenn Fiedler, 2004).** A fixed dt fed from
+  an accumulator of real time, a cap on frame time against the spiral of death, and
+  drawing between steps with `alpha = accumulator / dt`. The design is this article,
+  with the scale applied where real time enters the accumulator.
+- **Factorio.** The simulation runs fixed ticks at 60 UPS; `game.speed` changes how many
+  ticks run per real second, never the tick, because the multiplayer lockstep and replays
+  need identical histories.
+- **Paradox grand strategy (EU4, CK3, Stellaris).** Speeds 1-5 change the real time
+  between fixed daily ticks; the day's rules are untouched, which is what keeps
+  multiplayer in sync across speeds.
+- **RTS lockstep and replays (StarCraft II, Age of Empires II).** StarCraft II runs 16
+  game loops per game second; the Faster game speed and replay playback change loops per
+  real second, and a replay re-runs the same loops from recorded commands. This is the
+  test below: same commands at the same steps, same history.
+- **Unity `Time.timeScale`.** Scales `deltaTime` and the physics step for everything
+  that does not ask for unscaled time, particles included, which is why ruling
+  `sim-speed-knob` keeps it out.
+- **Celeste Assist Mode.** Game speed from 50 to 100 percent in 10 percent steps, a
+  saved player option framed as accessibility. It is the precedent for the player-option
+  answer to `sim-speed-surface`.
+
+### Rationale
+
+**Why more steps per second and not a bigger dt.** A scaled dt changes every integration
+and threshold, so the run at half speed would be a different game; the operator's premise
+(rules numerically unchanged) needs the step held fixed. Every precedent above that cares
+about history (Factorio, Paradox, RTS replays) scales the step rate, not the step.
+
+**Why 1/60 s.** It is close to today's typical frame dt, so the fixed step changes today's
+feel least; Factorio uses it; and the headless tests already step at 0.016 and coarser.
+The cost is that the game's sim history no longer follows the frame rate, which is a fix:
+M15 recorded that nothing was replayable.
+
+**Why draw ahead of the step instead of between steps.** At scale 0.25 there are 15 steps
+per real second, so poses must be drawn between steps or ships visibly hop. Drawing ahead
+by `Lead` (velocity times the time since the step) adds no latency and needs no cache for
+position; interpolation would put every drawn ship a step behind the simulation the HUD
+reads. Rotation has no angular velocity in the sim, so the ship's presenter keeps the last
+step's rotation and carries its turn forward; the error is corrected at the next step.
+
+**Why the clock does not own pause.** Pause is the menu's; making the clock answer it would
+give the clock a second reason to stop. The menu feeds it zero real time instead.
+
+**Why re-time T4 now when the loot cuts delete it.** A slowed world with real-speed loot
+and mines is a visible desync, and the change is a few lines on each. The loot cuts and
+`bodies-entity-and-mines` remove these lines when they move the objects into the
+simulation, where `SimClock` steps them anyway.
