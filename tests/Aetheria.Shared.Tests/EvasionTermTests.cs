@@ -777,11 +777,11 @@ public sealed partial class RunStartTests
         Assert.Equal(2 * 2 * envelopes.Length * 5, checkedCases);
     }
 
-    // A track of a ship that changes its vector along `direction` every half second, at 40 m/s^2.
+    // A track of a ship that changes its vector along `direction` every fifth of a second, inside every window the tests use, at 60 m/s^2, for four seconds.
     private static ManoeuvreTrack EvAlong(float2 direction, float window)
     {
         var track = default(ManoeuvreTrack);
-        for (var step = 0; step < 240; step++) track.Observe(direction * (step / 30 % 2 == 0 ? 40f : -40f), EvDt, window);
+        for (var step = 0; step < 240; step++) track.Observe(direction * (step / 12 % 2 == 0 ? 60f : -60f), EvDt, window);
         return track;
     }
 
@@ -949,7 +949,7 @@ public sealed partial class RunStartTests
             Assert.All(group, t => Assert.True(Live(t) > ((ThrusterData) t.Data).Thrust.Min * 1.1f, $"fixture: {rotation} thruster thrust {Live(t)} above its stat minimum"));
         }
 
-        void Near(float expected, float actual) => Assert.InRange(actual, expected * .999f - 1e-3f, expected * 1.001f + 1e-3f);
+        void Near(float expected, float actual) => Assert.InRange(actual, expected - .001f * Math.Abs(expected) - 1e-3f, expected + .001f * Math.Abs(expected) + 1e-3f);
         Near(Mount(ItemRotation.None, Live), djinni.ReverseThrust);
         Near(Mount(ItemRotation.Clockwise, Live), djinni.LeftStrafeThrust);
         Near(Mount(ItemRotation.CounterClockwise, Live), djinni.RightStrafeThrust);
