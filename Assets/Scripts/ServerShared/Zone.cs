@@ -16,6 +16,10 @@ public class Zone
 {
     public Action<string> Log;
     public ReactiveCollection<Entity> Entities = new ReactiveCollection<Entity>();
+
+    // Laid mines, in lay order. Zone owns their existence: Lay is the one adder, the mine step the one remover,
+    // and every removal is a blast. Runtime state, never saved.
+    public ReactiveCollection<Mine> Mines = new ReactiveCollection<Mine>();
     public Dictionary<CultRecordKey, BodyData> Planets = new Dictionary<CultRecordKey, BodyData>();
     public Dictionary<CultRecordKey, Planet> PlanetInstances = new Dictionary<CultRecordKey, Planet>();
 
@@ -219,10 +223,45 @@ public class Zone
 
         foreach (var entity in Entities.ToArray()) entity.Update(deltaTime);
 
+        StepMines(deltaTime);
+
         // Cut 3: after every entity has had its chance to fire this tick, age and resolve the shots that
         // firing queued. A shot fired this tick with a flight time shorter than CommitHorizon commits and
         // resolves in this same call.
         FireControl.Step(this, deltaTime);
+    }
+
+    public void Lay(Mine mine)
+    {
+        mine.LaidAt = _time;
+        Mines.Add(mine);
+    }
+
+    // After the entity loop and before FireControl.Step, in lay order: each mine drifts as a KinematicBody, is
+    // triggered by the first eligible hull its armed disc touches, and detonates through FireControl.Detonate at
+    // its trigger plus fuse delay or at its lifetime, whatever its layer does (ruling mine-owner-leash). The
+    // blast reads no faction; only the trigger does.
+    private void StepMines(float deltaTime)
+    {
+        if (Mines.Count == 0) return;
+        var settings = _itemManager.GameplaySettings;
+        foreach (var mine in Mines.ToArray())
+        {
+            mine.Body.Step(deltaTime, GetForce(mine.Body.Position), settings);
+
+            if (mine.TriggeredAt == null && mine.Armed(_time))
+                foreach (var entity in Entities.ToArray())
+                    if (mine.Triggers(entity) && FireControl.Touches(entity, mine.Body.Position, mine.BlastRadius))
+                    {
+                        mine.TriggeredAt = _time;
+                        break;
+                    }
+
+            var fused = mine.TriggeredAt + mine.FuseDelay <= _time;
+            if (!fused && mine.LaidAt + mine.Lifetime > _time) continue;
+            Mines.Remove(mine);
+            FireControl.Detonate(this, mine.Body.Position, mine.BlastRadius, mine.Damage, mine.DamageType);
+        }
     }
 
     // Determine orbital position recursively, caching parent positions to avoid repeated calculations

@@ -186,6 +186,7 @@ public interface IPowerConsumer
  // Cut 2 (docs/fire-control-cut.md): 39 is the next free index against this list, not the 39 the
  // superseded draft quoted -- checked directly here rather than trusted from that document.
  Union(39, typeof(TargetingSystemData)),
+ Union(40, typeof(MineLayerData)),
  JsonObject(MemberSerialization.OptIn)]
 public abstract class BehaviorData
 {

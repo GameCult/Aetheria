@@ -84,14 +84,17 @@ public static class FireControl
             toTarget = float3(at.x, 0, at.y) - shooter.Position;
         }
         else toTarget = target.Entity.Position - shooter.Position;
-        return FuseOf(weapon.Item, out _) != null || InArc(weapon.Item, toTarget);
+        return FuseOf(weapon.Item, out _) != null || IsMineLayer(weapon) || InArc(weapon.Item, toTarget);
     }
 
     // Whether the shooter's next round from this weapon is refused: the weapons ask before they spend anything, so
     // a refused round costs no ammo, energy, sound, heat, wear or visibility (operator ruling 2026-09-30). The
     // answer is Solve's own -- there is no second copy of the arming test.
     public static bool Refuses(Weapon weapon, Entity shooter) =>
-        Solve(weapon, weapon.Item, shooter, shooter.Target.Value.Entity).Outcome == FireOutcome.Refused;
+        !IsMineLayer(weapon) && Solve(weapon, weapon.Item, shooter, shooter.Target.Value.Entity).Outcome == FireOutcome.Refused;
+
+    // A mine layer lays a body, not a round: it is never refused, never arc-gated, and Fire routes it to Lay.
+    public static bool IsMineLayer(Weapon weapon) => weapon.WeaponData is MineLayerData;
 
     // The agents' trigger decision (Combat, TurretController), one weapon at a time (operator ruling 2026-09-30).
     // A weapon that fires at what it hits fires when the shot is worth taking. A fused weapon fires whenever its
@@ -100,6 +103,8 @@ public static class FireControl
     // never one Solve refuses: a refused weapon is not a weapon it can use.
     public static bool AgentFires(Weapon weapon, Entity shooter, Entity target)
     {
+        // A mine layer lays only at a designated target in range, never at nothing and never on a hit probability.
+        if (IsMineLayer(weapon)) return Solve(weapon, weapon.Item, shooter, target).Designated;
         if (FuseOf(weapon.Item, out _) == null)
             return HitProbability(weapon, shooter, target) >= shooter.ItemManager.GameplaySettings.AgentMinHitProbability;
         var solution = Solve(weapon, weapon.Item, shooter, target);
@@ -530,6 +535,11 @@ public static class FireControl
     public static int Fire(Weapon weapon, EquippedItem item, Entity source, float? damageOverride = null)
     {
         var zone = source.Zone;
+        if (IsMineLayer(weapon))
+        {
+            Lay(weapon, item, source);
+            return 0;
+        }
         // Mining Cut 3: a chunk target fires as an untargeted round until Cut 4 routes shots at chunks.
         var target = source.Target.Value.Entity;
         var now = zone.Time;
@@ -594,6 +604,44 @@ public static class FireControl
 
         zone.PendingShots.Add(shot);
         return shot.ShotId;
+    }
+
+    // Lays a mine for a mine layer: freezes the payload as evaluated now (stats, the item's blast radius, the
+    // layer and its faction) and hands the body to Zone.Lay, the one adder. It launches at the shooter's velocity
+    // plus the mount direction turned by a dice angle within +-Spread/2, times Velocity; the dice are the mine's
+    // own (zone seed, MineStream, body id), so no other roll is perturbed. No target, no PendingShot, no price:
+    // InstantWeapon has already paid. A layer whose item has no blast radius lays nothing.
+    public static void Lay(Weapon weapon, EquippedItem item, Entity source)
+    {
+        var zone = source.Zone;
+        var data = (MineLayerData) weapon.WeaponData;
+        if (FuseOf(item, out var blastRadius) == null)
+        {
+            zone.Log?.Invoke("A mine layer has no blast radius and lays nothing.");
+            return;
+        }
+
+        var id = zone.NextBodyId();
+        var half = weapon.Spread / 2f;
+        var angle = radians(SimulationDice.For(zone.CombatSeed, SimulationDice.MineStream, id.Value).NextFloat(-half, half));
+        var s = sin(angle);
+        var c = cos(angle);
+        var mount = MountDirection(item).xz;
+        var direction = float2(mount.x * c - mount.y * s, mount.x * s + mount.y * c);
+
+        zone.Lay(new Mine
+        {
+            Id = id,
+            Body = new KinematicBody { Position = source.Position.xz, Velocity = source.Velocity + direction * weapon.Velocity },
+            ArmingDelay = data.ArmingDelay,
+            FuseDelay = data.FuseDelay,
+            Lifetime = data.Lifetime,
+            BlastRadius = blastRadius,
+            Damage = weapon.Damage,
+            DamageType = weapon.WeaponData.DamageType,
+            Layer = source,
+            LayerFaction = source.Faction
+        });
     }
 
     // Cut 3, R4: ages every shot in the zone, commits the ones that have reached their horizon and resolves
@@ -1403,6 +1451,19 @@ public static class FireControl
 
             entity.DamageHull(hullTotal);
         }
+    }
+
+    // Whether the disc reaches any occupied hull cell of the entity: Detonate's own coverage test (the same
+    // ToSchematicPoint, SchematicCellSize and CircleSquareOverlap), so what triggers a mine and what its blast
+    // reaches are one geometry.
+    public static bool Touches(Entity entity, float2 worldPlanar, float radius)
+    {
+        var rCells = radius / entity.ItemManager.GameplaySettings.SchematicCellSize;
+        var centre = entity.ToSchematicPoint(worldPlanar);
+        var coords = (entity.ItemManager.GetData(entity.Hull) as HullData).Shape.Coordinates;
+        for (var i = 0; i < coords.Length; i++)
+            if (CircleSquareOverlap(centre, rCells, coords[i]) > 0f) return true;
+        return false;
     }
 
     // Cut 12.4(b) (docs/fire-control-cut.md, "Exact overlap, in float"): the exact area of a unit square,
