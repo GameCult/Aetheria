@@ -189,10 +189,11 @@ public sealed partial class RunStartTests
         var galaxy = DemoGalaxy(1);
         galaxy.BossZones.Clear();
         var log = new List<string>();
-        var pack = BossZonePack(galaxy, LoggingItems(log), galaxy.Exit);
+        var items = LoggingItems(log);
+        var pack = BossZonePack(galaxy, items, galaxy.Exit);
         Assert.False(pack.BossSpawned);
         Assert.Contains(log, line => line.Contains("Galaxy.Exit") && line.Contains("exit-without-boss"));
-        var exit = new Zone(_items, _planetSettings, pack, galaxy.Exit, galaxy);
+        var exit = new Zone(items, _planetSettings, pack, galaxy.Exit, galaxy);
         Assert.False(RunGoal.ExitOpen(exit));
     }
 
