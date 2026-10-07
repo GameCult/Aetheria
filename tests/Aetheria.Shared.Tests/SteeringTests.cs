@@ -53,7 +53,7 @@ public sealed class SteeringTests
         using var cache = RestoredHullsTests.OpenCatalog();
         var ship = RestoredHullsTests.BuildThrustedShip(cache, Hull);
 
-        Assert.Equal(1f, abs(Steering.Toward(ship, -ship.Direction)));
+        Assert.Equal(1f, Steering.Toward(ship, -ship.Direction)); // exactly astern: no lateral component, so +1
         Assert.Equal(-1f, Steering.Toward(ship, Heading(ship, -170f)));
         Assert.Equal(1f, Steering.Toward(ship, Heading(ship, 170f)));
     }
@@ -173,5 +173,49 @@ public sealed class SteeringTests
         agent.Accelerate(-Right(ship) * 100f, true);
         Assert.Equal(.37f, ship.Turn);
         Assert.Equal(aim, ship.Aim);
+    }
+
+    // The thresholds Accelerate steers by: above 20 it turns toward the velocity error, between 1 and 20 it
+    // thrusts sideways and leaves Turn to the caller, at or below 1 it holds still.
+    [Fact]
+    public void AccelerateThresholdsAreExact()
+    {
+        using var cache = RestoredHullsTests.OpenCatalog();
+        var ship = RestoredHullsTests.BuildThrustedShip(cache, Hull);
+        var agent = new Agent(ship);
+        Assert.Equal(float2(0, 1), ship.Direction); // starboard is +x
+
+        ship.Turn = .37f;
+        agent.Accelerate(float2(20, 0), false); // exactly the forward threshold: not above it
+        Assert.Equal(.37f, ship.Turn);
+        Assert.Equal(float2(1, 0), ship.MovementDirection);
+
+        agent.Accelerate(float2(21, 0), false);
+        Assert.True(ship.Turn > .5f);
+        Assert.Equal(float2(0, 0), ship.MovementDirection);
+
+        ship.Turn = .37f;
+        agent.Accelerate(float2(1, 0), false); // exactly the thrust threshold: not above it
+        Assert.Equal(float2.zero, ship.MovementDirection);
+        Assert.Equal(.37f, ship.Turn);
+
+        agent.Accelerate(float2(5, 0), false);
+        Assert.Equal(float2(1, 0), ship.MovementDirection);
+        Assert.Equal(.37f, ship.Turn);
+    }
+
+    [Fact]
+    public void AccelerateSteersByTheVelocityError()
+    {
+        using var cache = RestoredHullsTests.OpenCatalog();
+        var ship = RestoredHullsTests.BuildThrustedShip(cache, Hull);
+        var agent = new Agent(ship);
+        ship.Velocity = float2(100, 0);
+        ship.Turn = .37f;
+
+        agent.Accelerate(float2(100, 0), false); // already at the wanted velocity: nothing to correct
+
+        Assert.Equal(.37f, ship.Turn);
+        Assert.Equal(float2.zero, ship.MovementDirection);
     }
 }
