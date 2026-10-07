@@ -1322,8 +1322,7 @@ public static class FireControl
 
     // Cut 12.4(b) (docs/fire-control-cut.md, "Area, per entity"): the one owner of blast damage -- a blast is
     // an area, not a bundle of rays (Q12-7 dissolved the ray model's remainder question along with the rays
-    // themselves). Splash's signature with the point made planar (R7). Callers: Apply's three fuse branches and
-    // Mine.Explode. Nothing draws: every candidate entity in radius takes its share, unconditionally.
+    // themselves). Splash's signature with the point made planar (R7). Callers: Apply's three fuse branches. Nothing draws: every candidate entity in radius takes its share, unconditionally.
     //
     // For each candidate (an entity whose centre lies within radius plus half its own hull diagonal --
     // CandidatesIncludeHullsWhoseCentreIsOutsideTheRadius, which Splash's centre-distance cull could not pass):
