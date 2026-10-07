@@ -250,4 +250,74 @@ public sealed partial class RunStartTests
         Assert.InRange(price, withoutMount * .999f, withoutMount * 1.001f);
         Assert.True(price > limited * 2f, $"the mount limit priced the limited gun down: {limited} against {price}");
     }
+
+    // The shipped catalog's weapon behaviours: launchers and guided weapons never mount-track, every other gun is a mount.
+    private static bool EvMountless(WeaponData data) => data is LauncherData || data is GuidedWeaponData;
+
+    private IEnumerable<(WeaponItemData item, WeaponData data)> EvCatalogGuns() =>
+        _cache.GetAll<WeaponItemData>().SelectMany(item => item.Behaviors.OfType<WeaponData>().Select(data => (item, data)));
+
+    // Data check, not a behaviour test: it reads the migrated catalog. Pins finiteness and the authored shape of the
+    // value (Min = Max > 0), never a value (ruling weapon-tracking-authored).
+    [Fact]
+    public void EveryCatalogGunTracks()
+    {
+        var guns = EvCatalogGuns().ToArray();
+        Assert.NotEmpty(guns);
+        foreach (var (item, data) in guns)
+        {
+            var rate = data.Tracking;
+            if (EvMountless(data))
+                Assert.True(float.IsPositiveInfinity(rate.Min) && float.IsPositiveInfinity(rate.Max), $"{item.Name} is a launcher or guided weapon and tracks without a mount limit");
+            else
+            {
+                Assert.True(!float.IsInfinity(rate.Min) && !float.IsNaN(rate.Min), $"{item.Name} has a finite rate, not {rate.Min}");
+                Assert.Equal(rate.Min, rate.Max);
+                Assert.True(rate.Min > 0f, $"{item.Name} has a positive rate, not {rate.Min}");
+            }
+        }
+    }
+
+    // Data check, not a behaviour test: the ruled outcomes (weapon-tracking-authored) read from the migrated catalog,
+    // on the Targeting Computer ship. The values are not restated here: only what the operator ruled about them.
+    [Fact]
+    public void TheCatalogMeetsTheRuledOutcomes()
+    {
+        var range = EvMountRange(40f, 3f);
+        var ratio = FireControl.Tracking(range.Gunner) / _items.GameplaySettings.UnaidedTracking;
+        Assert.True(ratio > 1.2f, $"fixture: the Targeting Computer ship tracks better than unaided ({ratio})");
+        var crosser = FireControl.AngularVelocity(float2(0, 200), float2(100, 0));
+        var djinni = FireControl.AngularVelocity(float2(0, 1000), float2(50, 0));
+        var guns = EvCatalogGuns().Where(g => !EvMountless(g.data)).ToArray();
+        Assert.NotEmpty(guns);
+        var big = 0;
+        foreach (var (item, data) in guns)
+        {
+            var rate = data.Tracking.Min * ratio;
+            var close = FireControl.PMount(crosser, rate);
+            Assert.True(close <= .5f, $"{item.Name} follows a 100 m/s crosser at 200 m only half the time at best: {close}");
+            // The cell count picks which guns the ruling calls heavy; it never sets a rate.
+            if (item.Shape.Cells.Cast<bool>().Count(cell => cell) >= 4)
+            {
+                big++;
+                Assert.True(close <= .1f, $"{item.Name}, four cells or more, does not follow the close crosser: {close}");
+            }
+            var far = FireControl.PMount(djinni, rate);
+            Assert.True(far >= .6f, $"{item.Name} follows a Djinni at 50 m/s at 1000 m: {far} (rate {rate})");
+        }
+        Assert.True(big > 0, "fixture: the catalog has a four-cell gun");
+        Assert.True(FireControl.PMount(crosser, 40f * ratio) >= .85f, "a 40 degree per second gun keeps the crosser");
+    }
+
+    // Data check, not a behaviour test: ruling plight-shape, plight is one wide, two high and fits a Longinus Energy hardpoint.
+    [Fact]
+    public void PlightHasItsRuledShape()
+    {
+        var plight = _cache.GetAll<WeaponItemData>().Single(w => w.Name == "plight");
+        Assert.Equal(1, plight.Shape.Width);
+        Assert.Equal(2, plight.Shape.Height);
+        Assert.True(plight.Shape.Cells[0, 0] && plight.Shape.Cells[0, 1], "both cells are occupied");
+        var longinus = _cache.GetAll<HullData>().Single(h => h.Name == "Longinus");
+        Assert.Contains(longinus.Hardpoints, hardpoint => hardpoint.Type == HardpointType.Energy && hardpoint.Takes(plight));
+    }
 }
