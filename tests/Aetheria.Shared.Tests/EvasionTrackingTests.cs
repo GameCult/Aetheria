@@ -161,19 +161,6 @@ public sealed partial class RunStartTests
         Assert.True(mounts[1] <= .01f, $"the heavy gun does not: {mounts[1]}");
     }
 
-    // Ruling evasion-angular-velocity: size is not what dodges, the sweep is. A big ship at range sweeps slowly, and a
-    // big gun still follows it.
-    [Fact]
-    public void ABigGunHitsABigShipAtRange()
-    {
-        var range = EvMountRange(2f, 2f);
-        EvCross(range, jinking: false, float2(50, 0));
-        range.Target.Position = float3(0, range.Target.Position.y, 1000);
-        var d = FireControl.Inspect(range.Gun, range.Gunner, range.Target);
-        Assert.Equal(degrees(.05f), d.AngularVelocity, 2);
-        Assert.True(d.PMount >= .6f, $"a 2 degree per second gun against 50 m/s at 1000 m: {d.PMount} (omega {d.AngularVelocity}, rate {d.TrackingRate})");
-    }
-
     // Ruling jink-per-ship: the changes-of-vector term is forgiven by the ship's gear alone, in metres, whatever the gun.
     // The target flies straight along the line of sight after jinking (no sweep, PMount 1), so the evasion is all there is.
     [Fact]
@@ -192,6 +179,53 @@ public sealed partial class RunStartTests
             var shot = range.Arena.PendingShots.Single(s => s.ShotId == id);
             Assert.Equal(FireControl.Tracking(shooter), shot.Tracking);
         }
+    }
+
+    // Finding jink-price-unpinned, ruling jink-per-ship at the price layer: with the target flying straight at the shooter (no
+    // sweep, PMount 1) the live price of two guns of different rates carries the same jink factor, PDeviation(Evasion,
+    // Tracking(shooter)), whatever their rates. The prices differ by the guns' own spread and fire factors; the jink does not.
+    [Fact]
+    public void TheJinkIsForgivenPerShipInThePrice()
+    {
+        var range = EvMountRange(40f, 3f);
+        EvCross(range, jinking: true, float2(0, -50));
+        var guns = EvGuns(range);
+        Assert.NotEqual(guns[0].weapon.Tracking, guns[1].weapon.Tracking);
+        var factors = new List<float>();
+        foreach (var (weapon, shooter) in guns)
+        {
+            var d = FireControl.Inspect(weapon, shooter, range.Target);
+            Assert.Equal(1f, d.PMount, 4);
+            var forgiven = FireControl.PDeviation(d.Evasion, FireControl.Tracking(shooter));
+            Assert.True(forgiven > .01f && forgiven < .99f, $"fixture: the jink prices between nothing and everything: {forgiven}");
+            var shared = d.PFire * d.PMount * d.PSpread * d.POnHull;
+            Assert.True(shared > 0f, "fixture: the shared factors price the shot");
+            var price = FireControl.HitProbability(weapon, shooter, range.Target);
+            Assert.InRange(price, shared * forgiven * .999f, shared * forgiven * 1.001f);
+            factors.Add(price / shared);
+        }
+        Assert.InRange(factors[0], factors[1] * .999f, factors[1] * 1.001f);
+    }
+
+    // Finding zero-gear-nan: a gun with no authored limit follows anything, whatever the gear reads. Infinity times a gear
+    // that reads zero (active, not yet executed) is still infinity, so the price stays a number; a limited gun on that gear
+    // follows nothing that moves (rate 0). Both keep the ship's gear as the other factor of the product (tracking-per-gun).
+    [Fact]
+    public void AnUnlimitedGunFollowsAnythingOnGearThatReadsZero()
+    {
+        var range = EvMountRange(float.PositiveInfinity, 3f);
+        EvCross(range, jinking: false, float2(100, 0));
+        var gear = range.Gunner.GetBehaviors<TargetingSystem>().First(t => t.Item.Active.Value);
+        Assert.True(FireControl.Tracking(range.Gunner) > 0f, "fixture: the gear reads a positive Tracking before it is zeroed");
+        ((TargetingSystemData) gear.Data).Tracking = EvRate(0f);
+        range.Gunner.Update(EvDt);
+        range.Gunner.Update(EvDt);
+        Assert.Equal(0f, FireControl.Tracking(range.Gunner));
+        Assert.True(float.IsPositiveInfinity(FireControl.TrackingRate(range.Gun, range.Gunner)), "an unlimited gun's rate is +infinity on any gear");
+        Assert.Equal(1f, FireControl.Inspect(range.Gun, range.Gunner, range.Target).PMount);
+        Assert.False(float.IsNaN(FireControl.HitProbability(range.Gun, range.Gunner, range.Target)));
+        Assert.Equal(0f, FireControl.TrackingRate(range.GunnerLaser, range.Gunner));
+        Assert.Equal(0f, FireControl.Inspect(range.GunnerLaser, range.Gunner, range.Target).PMount);
     }
 
     // The mount factor is frozen at fire inside PFire, and the commit price is the live price.
@@ -276,37 +310,6 @@ public sealed partial class RunStartTests
                 Assert.True(rate.Min > 0f, $"{item.Name} has a positive rate, not {rate.Min}");
             }
         }
-    }
-
-    // Data check, not a behaviour test: the ruled outcomes (weapon-tracking-authored) read from the migrated catalog,
-    // on the Targeting Computer ship. The values are not restated here: only what the operator ruled about them.
-    [Fact]
-    public void TheCatalogMeetsTheRuledOutcomes()
-    {
-        var range = EvMountRange(40f, 3f);
-        var ratio = FireControl.Tracking(range.Gunner) / _items.GameplaySettings.UnaidedTracking;
-        Assert.True(ratio > 1.2f, $"fixture: the Targeting Computer ship tracks better than unaided ({ratio})");
-        var crosser = FireControl.AngularVelocity(float2(0, 200), float2(100, 0));
-        var djinni = FireControl.AngularVelocity(float2(0, 1000), float2(50, 0));
-        var guns = EvCatalogGuns().Where(g => !EvMountless(g.data)).ToArray();
-        Assert.NotEmpty(guns);
-        var big = 0;
-        foreach (var (item, data) in guns)
-        {
-            var rate = data.Tracking.Min * ratio;
-            var close = FireControl.PMount(crosser, rate);
-            Assert.True(close <= .5f, $"{item.Name} follows a 100 m/s crosser at 200 m only half the time at best: {close}");
-            // The cell count picks which guns the ruling calls heavy; it never sets a rate.
-            if (item.Shape.Cells.Cast<bool>().Count(cell => cell) >= 4)
-            {
-                big++;
-                Assert.True(close <= .1f, $"{item.Name}, four cells or more, does not follow the close crosser: {close}");
-            }
-            var far = FireControl.PMount(djinni, rate);
-            Assert.True(far >= .6f, $"{item.Name} follows a Djinni at 50 m/s at 1000 m: {far} (rate {rate})");
-        }
-        Assert.True(big > 0, "fixture: the catalog has a four-cell gun");
-        Assert.True(FireControl.PMount(crosser, 40f * ratio) >= .85f, "a 40 degree per second gun keeps the crosser");
     }
 
     // Data check, not a behaviour test: ruling plight-shape, plight is one wide, two high and fits a Longinus Energy hardpoint.

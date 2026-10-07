@@ -211,9 +211,12 @@ public static class FireControl
         AngularVelocity((target.Position - source.Position).xz, target.Velocity - source.Velocity);
 
     // The gun's rate times the ship's gear over the unaided baseline (ruling tracking-per-gun, "gun times ship"): the
-    // one product of the two. An unauthored gun is +infinity and so is its rate.
+    // one product of the two. An unauthored gun is +infinity and so is its rate whatever the gear reads: a mount with no
+    // limit follows anything, and infinity times a gear that reads zero is not a number.
     public static float TrackingRate(Weapon weapon, Entity source) =>
-        weapon.Tracking * Tracking(source) / source.ItemManager.GameplaySettings.UnaidedTracking;
+        float.IsPositiveInfinity(weapon.Tracking)
+            ? weapon.Tracking
+            : weapon.Tracking * Tracking(source) / source.ItemManager.GameplaySettings.UnaidedTracking;
 
     // Cut 3, the risk this map names explicitly: Combat.cs used to run its own first_order_intercept call to
     // aim, while the roll measured deviation against a separately-computed prediction -- two functions

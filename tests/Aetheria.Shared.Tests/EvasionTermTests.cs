@@ -992,14 +992,19 @@ public sealed partial class RunStartTests
 
         // The compensation trims each torque thruster of a strafing side by the side's mean torque, over that thruster's
         // own torque at its live thrust.
-        foreach (var (side, field, direction, total) in new[]
+        foreach (var (side, direction, total) in new[]
                  {
-                     (ItemRotation.CounterClockwise, "RightStrafeTorqueThrusters", 1f, djinni.RightStrafeTotalTorque),
-                     (ItemRotation.Clockwise, "LeftStrafeTorqueThrusters", -1f, djinni.LeftStrafeTotalTorque)
+                     (ItemRotation.CounterClockwise, 1f, djinni.RightStrafeTotalTorque),
+                     (ItemRotation.Clockwise, -1f, djinni.LeftStrafeTotalTorque)
                  })
         {
-            var members = (List<Thruster>) typeof(Ship).GetField(field, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(djinni);
+            // Which thrusters take the trim is the rule under test, so it is read from the thrusters' own torques and not from
+            // Ship's private list (finding compensation-membership-unpinned): the side's thrusters that turn the way the side's
+            // total torque turns. The fixture must have thrusters on both sides of that line, or the rule is not exercised.
+            var onSide = djinni.GetBehaviors<Thruster>().Where(t => t.Item.EquippableItem.Rotation == side).ToList();
+            var members = onSide.Where(t => Math.Sign(t.Torque) == Math.Sign(total)).ToList();
             Assert.NotEmpty(members);
+            Assert.True(members.Count < onSide.Count, $"fixture: the {side} side has a thruster that turns against its total torque, so membership is exercised");
             djinni.MovementDirection = float2(direction, 0);
             djinni.LookDirection = float3(0, 0, 1);
             djinni.Update(EvDt);
