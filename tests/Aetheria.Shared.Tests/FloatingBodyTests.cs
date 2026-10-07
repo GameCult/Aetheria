@@ -156,4 +156,50 @@ public sealed class FloatingBodyTests : IDisposable
         Assert.Equal(new FloatingBodyId(7), new FloatingBodyId(7));
         Assert.NotEqual(new FloatingBodyId(7), new FloatingBodyId(8));
     }
+
+    // The law ships felt at 3035230b, written out here from that tree's Ship.Update (a per-tick velocity add, no dt)
+    // and not from Zone: the pin must not move when Zone's law does.
+    private static float2 LegacyPushPerFrame(float2 f, float strength)
+    {
+        var m = lengthsq(f);
+        if (m <= .001f) return float2.zero;
+        return normalize(f) * strength * (1 / (1 - m) - 1);
+    }
+
+    [Fact]
+    public void TheGravityLawPushesShipsAsItDidAtSixtyFps()
+    {
+        foreach (var strength in new[] { 1f, 7.5f })
+        foreach (var f in new[] { new float2(.1f, 0), new float2(.2f, .1f), new float2(-.3f, .4f), new float2(.5f, -.5f), new float2(0, .7f) })
+        {
+            var legacy = LegacyPushPerFrame(f, strength);
+            var perFrame = Zone.GravityAcceleration(f, strength) * (1f / 60f);
+            var tolerance = Math.Max(1e-7f, length(legacy) * 1e-5f);
+            Assert.InRange(perFrame.x, legacy.x - tolerance, legacy.x + tolerance);
+            Assert.InRange(perFrame.y, legacy.y - tolerance, legacy.y + tolerance);
+        }
+        // Per second: halving dt halves the push, so the law holds at any tick rate.
+        var a = Zone.GravityAcceleration(new float2(.3f, .1f), 2f);
+        Assert.Equal(a.x * .5f, (a * (1f / 120f)).x * 60f, 5);
+        // The gate: |f|^2 at or below .001 pushes nothing.
+        Assert.Equal(float2.zero, Zone.GravityAcceleration(new float2(.03f, 0), 1f));
+        Assert.NotEqual(float2.zero, Zone.GravityAcceleration(new float2(.0317f, 0), 1f));
+    }
+
+    [Fact]
+    public void DriftMatchesLegacyFloatingItemsAtSixtyFps()
+    {
+        // After 5 s at 60 fps with GravityStrength 1 and force magnitude |f|^2 = m, the legacy GridObject drift
+        // position (measured by Soul, 2026-10-07, off 3035230b's GridObject.Update): .05 -> 1.7371, .1 -> 7.0012,
+        // .3 -> 68.55, .5 -> 231.04.
+        var s = Settings();
+        foreach (var (m, expected) in new[] { (.05f, 1.7371f), (.1f, 7.0012f), (.3f, 68.55f), (.5f, 231.04f) })
+        {
+            var f = new float2(sqrt(m), 0);
+            var body = Run(new KinematicBody(), 5f, 1f / 60f, Zone.GravityAcceleration(f, 1f), s);
+            Assert.InRange(body.Position.x, expected * .999f, expected * 1.001f);
+            Assert.Equal(0f, body.Position.y, 4);
+        }
+    }
+
 }

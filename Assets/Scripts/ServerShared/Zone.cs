@@ -439,11 +439,24 @@ public class Zone
     internal float SchematicCellSize => _itemManager.GameplaySettings.SchematicCellSize;
     internal float FieldCrossSection(AsteroidBeltData belt) => _itemManager.ItemData.Get(belt.Kind)?.CrossSection ?? 0f;
 
+    // The one law of how a gravity well pushes anything: ships, floating items and mines all read it. The shape is
+    // the one ships have always felt, normalize(f) * strength * (1 / (1 - |f|^2) - 1), gated off below |f|^2 = .001.
+    // It is an acceleration, per second: the legacy law added that amount once per 60 fps frame with no dt, so
+    // GravityReferenceRate (60) restates it and `acceleration * dt` gives the legacy push at 60 fps.
+    public const float GravityReferenceRate = 60f;
+
+    public static float2 GravityAcceleration(float2 normalXz, float strength)
+    {
+        var magnitude = lengthsq(normalXz);
+        if (magnitude <= .001f) return float2.zero;
+        return normalize(normalXz) * strength * (1 / (1 - magnitude) - 1) * GravityReferenceRate;
+    }
+
+    // The acceleration the well exerts at `position`.
     public float2 GetForce(float2 position)
     {
         var normal = GetNormal(position);
-        var f = new float2(normal.x, normal.z);
-        return f * Settings.GravityStrength * lengthsq(f);
+        return GravityAcceleration(new float2(normal.x, normal.z), Settings.GravityStrength);
     }
 
     public static float PowerPulse(float x, float exponent)
