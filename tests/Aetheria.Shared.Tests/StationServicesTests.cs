@@ -349,6 +349,8 @@ public sealed class StationServicesTests : IDisposable
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
     public void Armour_repair_prices_the_worn_share_of_the_hull_and_restores_every_cell(int pattern)
     {
         var skiff = _cache.GetByName<HullData>("Skiff");
@@ -357,11 +359,14 @@ public sealed class StationServicesTests : IDisposable
             skiff.Price = hullPrice;
             var ship = Ship();
             // 0: every cell stripped. 1: a few cells stripped, one of them the last. 2: every cell a little worn.
+            // 3: every cell worn by a fraction of a cell. 4: one cell worn by a thousandth, the rest whole.
             var (max, worn) = Wound(ship, (x, y) => pattern switch
             {
                 0 => 0,
                 1 => x + y >= 7 || (x == 0 && y == 0) || (x == 2 && y == 3) ? 0 : 99,
-                _ => 3
+                2 => 3,
+                3 => (x + y) % 3 == 0 ? 3.999f : (x + y) % 3 == 1 ? 3.5f : 3.25f,
+                _ => x == 2 && y == 2 ? 4.999f : 99
             });
             Assert.True(worn > 0 && worn <= max);
             var price = _items.GetPrice(ship.Hull);
@@ -400,6 +405,37 @@ public sealed class StationServicesTests : IDisposable
                 var added = (int) Math.Floor(price * .5) - (int) Math.Floor(price * .5 * durability / 20.0);
                 var expected = Math.Max(added, (int) Math.Ceiling(wear * price * .5));
                 Assert.Equal(expected, StationServices.RepairCost(_items, ship));
+            }
+        }
+    }
+
+    // A repair fraction above the sell fraction prices wear at the repair fraction, and the sell value a repair adds
+    // stays at the sell fraction: the cost is the larger of the two, exactly, at every price and wear.
+    [Theory]
+    [InlineData(.3f, .6f)]
+    [InlineData(.5f, .9f)]
+    [InlineData(.1f, .75f)]
+    public void Gear_repair_above_the_sell_fraction_is_priced_at_the_repair_fraction(float sell, float repair)
+    {
+        _items.GameplaySettings.SellFraction = sell;
+        _items.GameplaySettings.RepairFraction = repair;
+        var ship = Ship();
+        var design = _cache.GetByName<GearData>("Sweep");
+        var gear = Mint("Sweep");
+        Assert.True(ship.TryEquip(gear));
+        double sellFraction = sell, repairFraction = repair;
+        for (var dataPrice = 1; dataPrice <= 400; dataPrice++)
+        {
+            design.Price = dataPrice;
+            var price = _items.GetPrice(gear);
+            for (var durability = 0; durability < 20; durability++)
+            {
+                gear.Durability = durability;
+                var condition = durability / 20.0;
+                var added = (int) Math.Floor(price * sellFraction) - (int) Math.Floor(price * sellFraction * condition);
+                var expected = Math.Max(added, (int) Math.Ceiling((1 - condition) * price * repairFraction));
+                Assert.True(expected == StationServices.RepairCost(_items, ship),
+                    $"price {price} durability {durability} of 20 at {sell}/{repair}: expected {expected}");
             }
         }
     }
