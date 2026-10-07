@@ -243,19 +243,14 @@ public class Zone
     // blast reads no faction; only the trigger does.
     private void StepMines(float deltaTime)
     {
-        if (Mines.Count == 0) return;
         var settings = _itemManager.GameplaySettings;
         foreach (var mine in Mines.ToArray())
         {
             mine.Body.Step(deltaTime, GetForce(mine.Body.Position), settings);
 
-            if (mine.TriggeredAt == null && mine.Armed(_time))
-                foreach (var entity in Entities.ToArray())
-                    if (mine.Triggers(entity) && FireControl.Touches(entity, mine.Body.Position, mine.BlastRadius))
-                    {
-                        mine.TriggeredAt = _time;
-                        break;
-                    }
+            if (mine.TriggeredAt == null && mine.Armed(_time) &&
+                Entities.Any(entity => mine.Triggers(entity) && FireControl.Touches(entity, mine.Body.Position, mine.BlastRadius)))
+                mine.TriggeredAt = _time;
 
             var fused = mine.TriggeredAt + mine.FuseDelay <= _time;
             if (!fused && mine.LaidAt + mine.Lifetime > _time) continue;

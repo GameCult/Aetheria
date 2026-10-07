@@ -581,6 +581,8 @@ public sealed class MineTests : IDisposable
         var atLay = default(KinematicBody);
         using var sub = lab.Zone.Mines.ObserveAdd().Subscribe(e => atLay = e.Value.Body);
         lab.Layer.Velocity = float2(-2, 4);
+        // A mount along neither axis, so a wrong term in the turn cannot hide behind a zero component.
+        lab.Layer.Direction = normalize(float2(1, 2));
 
         var mine = LayOne(lab);
 
@@ -662,6 +664,7 @@ public sealed class MineTests : IDisposable
 
         Assert.Empty(lab.Zone.Mines);
         Assert.Single(log);
+        Assert.False(string.IsNullOrWhiteSpace(log[0]));
         Assert.Empty(lab.Zone.PendingShots);
     }
 }
