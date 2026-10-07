@@ -16,25 +16,27 @@ using int2 = CultMath.int2;
 // The evasion term (docs/aetheria-release-map.md, "Evasion is how unpredictably the target can and does change its
 // motion"): how far a target can and does move off the line of fire in the solution window, one factor of every hit
 // price. The fixture is RunStartTests': the shipped catalog and the authored settings, so the ships fly in the real
-// Ship.Update with the real thrusters and aether drive. Ship flights step the ships directly (they are alone in
+// Ship.Update with the real thrusters. Ship flights step the ships directly (they are alone in
 // their arena); the one price test that rolls shots steps only FireControl.
 public sealed partial class RunStartTests
 {
     private const float EvDt = 1f / 60f;
 
-    // The Duel's LonginusX fit: one Traction aether drive that pushes all four ways, with its guns.
-    private static ScenarioFit EvGemini(ScenarioStage stage, string gun = "FastBlast+-") => stage.Fit("LonginusX",
-        ("Cockpit 2x2", int2(2, 6), ItemRotation.None), ("Traction", int2(2, 3), ItemRotation.None), ("Core Power", int2(2, 1), ItemRotation.None),
+    // The Duel's guns on a Longinus: the generated Longinus's thrusters (two Large Drive forward, two Talaria on the
+    // flanks) and power, the Duel's cockpit, guns, launchers and sensor, and the Fire Control Array as its targeting gear.
+    private static ScenarioFit EvLonginus(ScenarioStage stage, string gun = "FastBlast+-") => stage.Fit("Longinus",
+        ("Cockpit 2x2", int2(2, 6), ItemRotation.None), ("Core Power", int2(2, 4), ItemRotation.None),
+        ("Large Drive", int2(1, 0), ItemRotation.Reversed), ("Large Drive", int2(3, 0), ItemRotation.Reversed),
+        ("Talaria", int2(2, 14), ItemRotation.CounterClockwise), ("Talaria", int2(3, 14), ItemRotation.Clockwise),
         ("GT 3K", int2(0, 5), ItemRotation.None), ("GT 3K", int2(5, 5), ItemRotation.None), (gun, int2(1, 8), ItemRotation.None),
-        (gun, int2(4, 8), ItemRotation.None), ("Iapyx", int2(1, 2), ItemRotation.CounterClockwise), ("Iapyx", int2(4, 2), ItemRotation.Clockwise),
-        ("not if i see you first", int2(3, 10), ItemRotation.None), ("PotaT+-", int2(1, 5), ItemRotation.None),
-        ("Fire Control Array", int2(2, 5), ItemRotation.None), ("Store-All Plus", int2(2, 8), ItemRotation.None));
+        (gun, int2(4, 8), ItemRotation.None), ("Iapyx", int2(2, 2), ItemRotation.CounterClockwise), ("Iapyx", int2(3, 2), ItemRotation.Clockwise),
+        ("not if i see you first", int2(3, 10), ItemRotation.None), ("PotaT+-", int2(1, 6), ItemRotation.None),
+        ("Fire Control Array", int2(1, 10), ItemRotation.None), ("Store-All Plus", int2(2, 8), ItemRotation.None));
 
-    // The catalog's three fitted ships, far apart in the fixture arena: the generated Longinus and Djinni at the
-    // fixture seed and the omnidirectional LonginusX.
-    private (Zone arena, Ship longinus, Ship djinni, Ship gemini) EvFleet()
+    // The catalog's two generated ships, far apart in the fixture arena, at the fixture seed.
+    private (Zone arena, Ship longinus, Ship djinni) EvFleet()
     {
-        Ship longinus = null, djinni = null, gemini = null;
+        Ship longinus = null, djinni = null;
         var scenario = new Scripted(false, stage =>
         {
             stage.Player(stage.Bare("Djinni"), float2(-50000, -50000));
@@ -42,17 +44,15 @@ public sealed partial class RunStartTests
             // first, then the Longinus, as the map's probe did (M23).
             djinni = stage.Place(stage.Generated("Djinni"), float2(-10000, -30000), facing: float2(0, 1)) as Ship;
             longinus = stage.Place(stage.Generated("Longinus"), float2(-30000, -30000), facing: float2(0, 1)) as Ship;
-            gemini = stage.Place(EvGemini(stage), float2(10000, -30000), facing: float2(0, 1)) as Ship;
         });
         var (_, arena, _, failures) = Launch(scenario, Inputs(() => GalaxySeed));
         Assert.True(failures.Count == 0, string.Join("; ", failures));
         Assert.NotNull(longinus);
         Assert.NotNull(djinni);
-        Assert.NotNull(gemini);
-        return (arena, longinus, djinni, gemini);
+        return (arena, longinus, djinni);
     }
 
-    // Idle long enough for stats, power and the aether rotors to reach their idle state, then at rest, facing +y,
+    // Idle long enough for stats and power to reach their idle state, then at rest, facing +y,
     // and, after three seconds of coasting, with nothing observed: the track forgets on its own.
     private static void EvSettle(Ship ship)
     {
@@ -117,8 +117,7 @@ public sealed partial class RunStartTests
         foreach (var jink in new[] { EvJink.Lateral, EvJink.Longitudinal, EvJink.Random, EvJink.Weave })
             foreach (var halfPeriod in new[] { .5f, 1f })
             {
-                // A fresh ship each flight where the caller wants one: an aether drive heats and spends its rotors, and a
-                // drive that has run itself offline has no envelope.
+                // A fresh ship each flight where the caller wants one: a ship keeps the track its last flight left.
                 var ship = flightShip();
                 EvSettle(ship);
                 EvFly(ship, jink, halfPeriod, 4f);
@@ -132,19 +131,17 @@ public sealed partial class RunStartTests
         return (noseOn, broadside);
     }
 
-    // Ruling evasion-is-unpredictability: the Gemini is evasive because it can floor it in any direction at any time,
-    // the Longinus needs to aim itself where it wants to go, and the Djinni is somewhere between.
+    // Ruling evasion-is-unpredictability: a ship is evasive by what it can do to its motion at any time. The Longinus has
+    // to aim itself where it wants to go and the Djinni is a lighter ship of small thrusters.
     [Fact]
-    public void TheThreeShipsOrder()
+    public void TheShipsOrder()
     {
-        var (_, longinus, djinni, _) = EvFleet();
-        var g = EvBest(() => EvFleet().gemini);
+        var (_, longinus, djinni) = EvFleet();
         var l = EvBest(() => longinus);
         var d = EvBest(() => djinni);
-        Console.WriteLine($"EVASION window {_items.GameplaySettings.SolutionWindow}: gemini-like nose-on {g.noseOn:F2} broadside {g.broadside:F2}; " +
-                          $"longinus {l.noseOn:F2} {l.broadside:F2}; djinni {d.noseOn:F2} {d.broadside:F2}");
-        Assert.True(g.noseOn > l.noseOn && l.noseOn > d.noseOn, $"nose-on order: {g.noseOn} > {l.noseOn} > {d.noseOn}");
-        Assert.True(g.broadside > l.broadside && l.broadside > d.broadside, $"broadside order: {g.broadside} > {l.broadside} > {d.broadside}");
+        Console.WriteLine($"EVASION window {_items.GameplaySettings.SolutionWindow}: longinus {l.noseOn:F2} {l.broadside:F2}; djinni {d.noseOn:F2} {d.broadside:F2}");
+        Assert.True(l.noseOn > d.noseOn, $"nose-on order: {l.noseOn} > {d.noseOn}");
+        Assert.True(l.broadside > d.broadside, $"broadside order: {l.broadside} > {d.broadside}");
         // Re-measured (M25): the Djinni's thrusters push 1.7 times harder than the figure the map priced it with, so
         // it evades more than the map's 1.7 m and the Longinus leads it by less than the map's factor of eight.
         Assert.True(l.noseOn >= 2 * d.noseOn && l.broadside >= 2 * d.broadside, "the Longinus evades at least twice the Djinni");
@@ -248,7 +245,7 @@ public sealed partial class RunStartTests
     [Fact]
     public void ReachIsWhatTheShipCanDo()
     {
-        var (_, longinus, djinni, _) = EvFleet();
+        var (_, longinus, djinni) = EvFleet();
         const float window = .5f;
         var results = new List<(string name, (float noseOn, float broadside) reach, (float noseOn, float broadside) measured)>();
         foreach (var (name, ship) in new[] { ("longinus", longinus), ("djinni", djinni) })
@@ -278,7 +275,7 @@ public sealed partial class RunStartTests
     [Fact]
     public void TheEnvelopeComesFromTheGear()
     {
-        var (_, longinus, _, gemini) = EvFleet();
+        var (_, longinus, _) = EvFleet();
         EvSettle(longinus);
         // A thruster's Thrust property is refreshed only while it fires: turn each way so the flank thrusters hold what
         // they push with, then read the envelope at rest.
@@ -314,13 +311,6 @@ public sealed partial class RunStartTests
         longinus.Update(EvDt);
         longinus.Update(EvDt);
         Assert.InRange(longinus.Envelope.Forward, envelope.Forward * .49f, envelope.Forward * .51f);
-
-        // The LonginusX's Traction drive pushes and turns every way.
-        EvSettle(gemini);
-        gemini.Update(EvDt);
-        var drive = gemini.Envelope;
-        Assert.True(drive.Forward > 1f && drive.Reverse > 1f && drive.Left > 1f && drive.Right > 1f, $"traction: {drive.Forward} {drive.Reverse} {drive.Left} {drive.Right}");
-        Assert.True(drive.Clockwise > 0f && drive.CounterClockwise > 0f);
     }
 
     // Which thruster pushes which way and turns which way is read from the gear, not assumed symmetric: destroy the
@@ -329,7 +319,7 @@ public sealed partial class RunStartTests
     [Fact]
     public void TheEnvelopeFollowsWhichThrustersAreLeft()
     {
-        var (_, _, djinni, gemini) = EvFleet();
+        var (_, _, djinni) = EvFleet();
         var settings = _items.GameplaySettings;
         EvSettle(djinni);
         // Refresh every thruster's live Thrust by firing it: strafe, burn and turn each way.
@@ -370,14 +360,6 @@ public sealed partial class RunStartTests
         djinni.MovementDirection = float2(-1, 0);
         djinni.Update(EvDt);
         Assert.True(djinni.Acceleration.x < -1f, "it still strafes left");
-
-        // The Traction drive's turn is the rate it turns the hull at when told to turn right.
-        EvSettle(gemini);
-        gemini.MovementDirection = float2(0, 0);
-        gemini.LookDirection = float3(1, 0, 0);
-        gemini.Update(EvDt);
-        var turned = Math.Atan2(gemini.Direction.x, gemini.Direction.y);
-        Assert.InRange((float) turned / EvDt, gemini.Envelope.Clockwise * .9f, gemini.Envelope.Clockwise * 1.1f);
     }
 
     // The reach and the evasion read each side of the envelope for themselves: a forward-only ship that turns clockwise
@@ -425,7 +407,7 @@ public sealed partial class RunStartTests
     [Fact]
     public void ManoeuvreIsObserved()
     {
-        var (_, longinus, djinni, gemini) = EvFleet();
+        var (_, longinus, djinni) = EvFleet();
 
         // Coasting: no acceleration, an all-zero track.
         EvSettle(longinus);
@@ -449,15 +431,6 @@ public sealed partial class RunStartTests
         djinni.Update(EvDt);
         Assert.InRange(djinni.Acceleration.y, djinni.Envelope.Forward * .98f, djinni.Envelope.Forward * 1.02f);
 
-        // Strafing at full thrust for one update on the Traction drive: the drive's own push over the step.
-        EvSettle(gemini);
-        gemini.MovementDirection = float2(1, 0);
-        gemini.Update(EvDt);
-        var drive = gemini.GetBehaviors<AetherDrive>().Single();
-        Assert.True(drive.ThrustDirection.x > 0f);
-        Assert.InRange(gemini.Acceleration.x, drive.ThrustDirection.x / EvDt * .999f, drive.ThrustDirection.x / EvDt * 1.001f);
-        Assert.InRange(gemini.Acceleration.x, gemini.Envelope.Right * .95f, gemini.Envelope.Right * 1.05f);
-
         // The same jink observed at two step sizes reads the same unpredictability.
         var fine = EvSquare(40, .5f, 4f, 1f / 60f, .75f);
         var coarse = EvSquare(40, .5f, 4f, 1f / 30f, .75f);
@@ -471,34 +444,34 @@ public sealed partial class RunStartTests
     public void ASteadyBurnAndDitheringAreNotEvasion()
     {
         var window = _items.GameplaySettings.SolutionWindow;
-        // A fresh ship for each phase: an aether drive heats and spends its rotors as it flies.
-        var gemini = EvFleet().gemini;
-        float Nose() => FireControl.Evasion(gemini, normalize(gemini.Direction));
+        // A fresh ship for each phase: a ship keeps the track and the heat its last flight left.
+        var djinni = EvFleet().djinni;
+        float Nose() => FireControl.Evasion(djinni, normalize(djinni.Direction));
 
-        EvSettle(gemini);
-        EvFly(gemini, EvJink.Lateral, .5f, 4f);
+        EvSettle(djinni);
+        EvFly(djinni, EvJink.Lateral, .5f, 4f);
         var jinking = Nose();
         Assert.True(jinking > 1f, $"fixture: the jink evades ({jinking})");
 
-        gemini = EvFleet().gemini;
-        EvSettle(gemini);
-        gemini.MovementDirection = float2(0, 1);
-        for (var step = 0; step < (int) Math.Round(3 * window / EvDt); step++) gemini.Update(EvDt);
+        djinni = EvFleet().djinni;
+        EvSettle(djinni);
+        djinni.MovementDirection = float2(0, 1);
+        for (var step = 0; step < (int) Math.Round(3 * window / EvDt); step++) djinni.Update(EvDt);
         Assert.True(Nose() < .05f * jinking, $"a steady burn: {Nose()} against {jinking}");
 
-        gemini = EvFleet().gemini;
-        EvSettle(gemini);
-        EvFly(gemini, EvJink.Lateral, .05f, 4f);
+        djinni = EvFleet().djinni;
+        EvSettle(djinni);
+        EvFly(djinni, EvJink.Lateral, .05f, 4f);
         Assert.True(Nose() < .25f * jinking, $"a dither: {Nose()} against {jinking}");
 
-        gemini = EvFleet().gemini;
-        EvSettle(gemini);
-        for (var step = 0; step < 240; step++) gemini.Update(EvDt);
+        djinni = EvFleet().djinni;
+        EvSettle(djinni);
+        for (var step = 0; step < 240; step++) djinni.Update(EvDt);
         Assert.Equal(0f, Nose());
     }
 
     // Two shooters on opposite sides of the same target, 200 m away: one with a projectile gun and one with a laser
-    // (a beam's authored velocity is 0, a flight time of zero). The target is the omnidirectional LonginusX.
+    // (a beam's authored velocity is 0, a flight time of zero). The target is the generated Djinni, the catalog's one ship that strafes.
     private sealed class EvRange
     {
         public Zone Arena;
@@ -512,9 +485,9 @@ public sealed partial class RunStartTests
         var scenario = new Scripted(false, stage =>
         {
             stage.Player(stage.Bare("Djinni"), float2(-50000, -50000));
-            gunner = stage.Place(EvGemini(stage), float2(0, 0), facing: float2(0, 1)) as Ship;
-            target = stage.Place(EvGemini(stage), float2(0, 200), facing: float2(0, 1)) as Ship;
-            lasing = stage.Place(EvGemini(stage, "ColdFire"), float2(0, 400), facing: float2(0, -1)) as Ship;
+            gunner = stage.Place(EvLonginus(stage), float2(0, 0), facing: float2(0, 1)) as Ship;
+            target = stage.Place(stage.Generated("Djinni"), float2(0, 200), facing: float2(0, 1)) as Ship;
+            lasing = stage.Place(EvLonginus(stage, "ColdFire"), float2(0, 400), facing: float2(0, -1)) as Ship;
         });
         var (_, arena, _, failures) = Launch(scenario, Inputs(() => GalaxySeed));
         Assert.True(failures.Count == 0, string.Join("; ", failures));
@@ -640,32 +613,32 @@ public sealed partial class RunStartTests
     }
 
     // Finding coasting-memory: a ship that stops jinking stops evading. The track is never reset by hand here: the
-    // Gemini jinks for four seconds, the input is cut, and evasion must read exactly 0 within the window plus the
-    // drive's own spin-down (a tick or two: the probe reads 0.783 s against a window of 0.75), and stay 0, with the moments back at exactly zero.
+    // Djinni jinks for four seconds, the input is cut, and evasion must read exactly 0 within the window plus a tick
+    // or two, and stay 0, with the moments back at exactly zero.
     [Fact]
     public void AShipThatStopsJinkingStopsEvading()
     {
-        var (_, _, _, gemini) = EvFleet();
+        var (_, _, djinni) = EvFleet();
         var window = _items.GameplaySettings.SolutionWindow;
-        EvSettle(gemini);
-        EvFly(gemini, EvJink.Lateral, 1f, 4f);
-        var jinking = Math.Max(FireControl.Evasion(gemini, float2(0, 1)), FireControl.Evasion(gemini, EvRight(gemini)));
-        Assert.True(jinking > 5f, $"the jink should evade, read {jinking}");
+        EvSettle(djinni);
+        EvFly(djinni, EvJink.Lateral, 1f, 4f);
+        var jinking = Math.Max(FireControl.Evasion(djinni, float2(0, 1)), FireControl.Evasion(djinni, EvRight(djinni)));
+        Assert.True(jinking > 1f, $"the jink should evade, read {jinking}");
 
         var zeroAt = -1f;
         const float bound = 2f;
         for (var step = 1; step * EvDt <= bound + 3f; step++)
         {
-            gemini.Update(EvDt);
-            var nose = FireControl.Evasion(gemini, float2(0, 1));
-            var side = FireControl.Evasion(gemini, EvRight(gemini));
+            djinni.Update(EvDt);
+            var nose = FireControl.Evasion(djinni, float2(0, 1));
+            var side = FireControl.Evasion(djinni, EvRight(djinni));
             if (zeroAt < 0f && nose == 0f && side == 0f) zeroAt = step * EvDt;
             if (zeroAt >= 0f) Assert.True(nose == 0f && side == 0f, $"evasion came back at {step * EvDt:F2} s: {nose}, {side}");
         }
         Assert.True(zeroAt >= 0f && zeroAt <= window + 3 * EvDt, $"evasion reached zero at {zeroAt:F2} s, window {window}");
-        Assert.Equal(0f, gemini.Manoeuvre.Moments.x);
-        Assert.Equal(0f, gemini.Manoeuvre.Moments.y);
-        Assert.Equal(0f, gemini.Manoeuvre.Moments.z);
+        Assert.Equal(0f, djinni.Manoeuvre.Moments.x);
+        Assert.Equal(0f, djinni.Manoeuvre.Moments.y);
+        Assert.Equal(0f, djinni.Manoeuvre.Moments.z);
     }
 
     // Finding limit-clamp-evasion: a velocity limiter's clamp is the ceiling, not a change of vector. A Longinus
@@ -673,7 +646,7 @@ public sealed partial class RunStartTests
     [Fact]
     public void ASpeedAboveTheLimitIsNotEvasion()
     {
-        var (_, longinus, _, _) = EvFleet();
+        var (_, longinus, _) = EvFleet();
         EvSettle(longinus);
         longinus.Velocity = float2(0, 400);
         // Read every tick: the track forgets within a window, so only the ticks right after the clamp can see it.
@@ -693,7 +666,7 @@ public sealed partial class RunStartTests
     [Fact]
     public void TheAggregatesReadLiveThrust()
     {
-        var (_, _, djinni, _) = EvFleet();
+        var (_, _, djinni) = EvFleet();
         EvSettle(djinni);
         djinni.Update(EvDt);
         Assert.InRange(djinni.ForwardThrust, djinni.Envelope.Forward * djinni.Mass * .99f, djinni.Envelope.Forward * djinni.Mass * 1.01f);
@@ -752,7 +725,7 @@ public sealed partial class RunStartTests
     [Fact]
     public void ReachMatchesABruteForceSearchOverTurnStrategies()
     {
-        var gemini = new ManoeuvreEnvelope(20, 20, 20, 20, 3, 2.5f);
+        var omni = new ManoeuvreEnvelope(20, 20, 20, 20, 3, 2.5f);
         var longinus = new ManoeuvreEnvelope(50, 0, 23, 23, 2.3f, 2.3f);
         var lopsided = new ManoeuvreEnvelope(30, 10, 5, 15, 2, 1.4f);
         var forwardOnly = new ManoeuvreEnvelope(40, 0, 0, 0, 3, 1.5f);
@@ -764,9 +737,9 @@ public sealed partial class RunStartTests
         var round = new[] { 135f, -135f, 180f, 100f, -100f };
         var cases = new (ManoeuvreEnvelope envelope, float[] windows, float[] bearings)[]
         {
-            (gemini, new[] { .5f, .75f }, quarter), (longinus, new[] { .5f, .75f }, quarter), (lopsided, new[] { .5f, .75f }, quarter),
+            (omni, new[] { .5f, .75f }, quarter), (longinus, new[] { .5f, .75f }, quarter), (lopsided, new[] { .5f, .75f }, quarter),
             (forwardOnly, new[] { .5f, .75f }, quarter), (slow, new[] { .5f, .75f }, quarter),
-            (gemini, new[] { .5f, .75f }, round), (slow, new[] { .5f, .75f }, round), (cannotTurn, new[] { .5f, .75f }, round.Concat(quarter).ToArray()),
+            (omni, new[] { .5f, .75f }, round), (slow, new[] { .5f, .75f }, round), (cannotTurn, new[] { .5f, .75f }, round.Concat(quarter).ToArray()),
             (lopsided, new[] { .5f }, new[] { 135f, -135f, 180f, -100f }),
             // Ships that can thrust one way only, over windows long enough for every face to finish its turn: the face that
             // must turn the long way round, past a right angle and past the wrap at 180 degrees, is the best one.
@@ -866,7 +839,7 @@ public sealed partial class RunStartTests
     [Fact]
     public void AStepOfNoTimeHasNoAcceleration()
     {
-        var (_, longinus, _, _) = EvFleet();
+        var (_, longinus, _) = EvFleet();
         EvSettle(longinus);
         longinus.MovementDirection = float2(0, 1);
         for (var step = 0; step < 10; step++) longinus.Update(EvDt);
@@ -913,7 +886,7 @@ public sealed partial class RunStartTests
     [Fact]
     public void EvasionIsReadFromTheHeadingNotTheVelocity()
     {
-        var (_, longinus, _, _) = EvFleet();
+        var (_, longinus, _) = EvFleet();
         var window = _items.GameplaySettings.SolutionWindow;
         EvSettle(longinus);
         longinus.Update(EvDt);
@@ -938,62 +911,20 @@ public sealed partial class RunStartTests
     [Fact]
     public void TheShipsTrackObservesAtTheSolutionWindow()
     {
-        var gemini = EvFleet().gemini;
+        var djinni = EvFleet().djinni;
         var window = _items.GameplaySettings.SolutionWindow;
-        EvSettle(gemini);
-        var reference = gemini.Manoeuvre;
+        EvSettle(djinni);
+        var reference = djinni.Manoeuvre;
         for (var step = 0; step < 120; step++)
         {
-            gemini.MovementDirection = float2(step / 30 % 2 == 0 ? 1 : -1, 0);
-            gemini.Update(EvDt);
-            reference.Observe(gemini.Acceleration, EvDt, window);
+            djinni.MovementDirection = float2(step / 30 % 2 == 0 ? 1 : -1, 0);
+            djinni.Update(EvDt);
+            reference.Observe(djinni.Acceleration, EvDt, window);
         }
         Assert.True(reference.Moments.x > 1f, $"fixture: the jink is observed ({reference.Moments.x})");
-        Assert.InRange(gemini.Manoeuvre.Moments.x, reference.Moments.x * .999f, reference.Moments.x * 1.001f);
-        Assert.InRange(gemini.Manoeuvre.Moments.z, reference.Moments.z * .999f - .001f, reference.Moments.z * 1.001f + .001f);
-        Assert.InRange(gemini.Manoeuvre.Trend.x, reference.Trend.x - .001f * Math.Abs(reference.Trend.x) - .001f, reference.Trend.x + .001f * Math.Abs(reference.Trend.x) + .001f);
-    }
-
-    // Finding envelope-inputs-unpinned: a drive that is offline reports nothing, and a working one reports less along the
-    // way the ship is already outrunning the rotor: half the rotor's speed forward leaves half the push forward and the
-    // whole push back, and the same across the ship.
-    [Fact]
-    public void TheDrivesReportReadsItsStateAndTheShipsSpeed()
-    {
-        var gemini = EvFleet().gemini;
-        EvSettle(gemini);
-        gemini.Update(EvDt);
-        var drive = gemini.GetBehaviors<AetherDrive>().Single();
-        var rest = drive.Manoeuvre();
-        Assert.True(rest.Forward > 1f && rest.Reverse > 1f && rest.Left > 1f && rest.Right > 1f && rest.Clockwise > .1f, "fixture: a settled drive pushes every way");
-        var rotor = max(drive.Rpm * drive.DriveData.RotorDiameter / 100, 1);
-        var forward = normalize(gemini.Direction);
-        var right = EvRight(gemini);
-
-        gemini.Velocity = forward * (.5f * rotor.x);
-        var ahead = drive.Manoeuvre();
-        Assert.InRange(ahead.Forward / rest.Forward, .49f, .51f);
-        Assert.InRange(ahead.Reverse / rest.Reverse, .99f, 1.01f);
-        gemini.Velocity = -forward * (.5f * rotor.x);
-        var astern = drive.Manoeuvre();
-        Assert.InRange(astern.Reverse / rest.Reverse, .49f, .51f);
-        Assert.InRange(astern.Forward / rest.Forward, .99f, 1.01f);
-        gemini.Velocity = right * (.5f * rotor.y);
-        var starboard = drive.Manoeuvre();
-        Assert.InRange(starboard.Right / rest.Right, .49f, .51f);
-        Assert.InRange(starboard.Left / rest.Left, .99f, 1.01f);
-        gemini.Velocity = -right * (.5f * rotor.y);
-        var port = drive.Manoeuvre();
-        Assert.InRange(port.Left / rest.Left, .49f, .51f);
-        Assert.InRange(port.Right / rest.Right, .99f, 1.01f);
-
-        gemini.Velocity = float2(0, 0);
-        drive.Item.EquippableItem.Durability = 0f;
-        gemini.Update(EvDt);
-        gemini.Update(EvDt);
-        Assert.False(drive.Item.Active.Value, "fixture: the drive is offline");
-        var offline = drive.Manoeuvre();
-        Assert.Equal(0f, offline.Forward + offline.Reverse + offline.Left + offline.Right + offline.Clockwise + offline.CounterClockwise);
+        Assert.InRange(djinni.Manoeuvre.Moments.x, reference.Moments.x * .999f, reference.Moments.x * 1.001f);
+        Assert.InRange(djinni.Manoeuvre.Moments.z, reference.Moments.z * .999f - .001f, reference.Moments.z * 1.001f + .001f);
+        Assert.InRange(djinni.Manoeuvre.Trend.x, reference.Trend.x - .001f * Math.Abs(reference.Trend.x) - .001f, reference.Trend.x + .001f * Math.Abs(reference.Trend.x) + .001f);
     }
 
     // The pure track forgets: after jinking, a track fed a constant acceleration (none at all, or a steady burn) reads
@@ -1034,10 +965,9 @@ public sealed partial class RunStartTests
     [Fact]
     public void EveryAggregateAndTheCompensationReadLiveThrust()
     {
-        var (_, _, djinni, _) = EvFleet();
+        var (_, _, djinni) = EvFleet();
         EvSettle(djinni);
         djinni.Update(EvDt);
-        Assert.Empty(djinni.GetBehaviors<AetherDrive>());
         var thrusters = djinni.GetBehaviors<Thruster>().Where(t => t.Item.Active.Value).ToList();
         float Live(Thruster t) => t.Evaluate(((ThrusterData) t.Data).Thrust);
         float Mount(ItemRotation rotation, Func<Thruster, float> value) => thrusters.Where(t => t.Item.EquippableItem.Rotation == rotation).Sum(value);
