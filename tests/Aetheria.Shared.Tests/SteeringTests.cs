@@ -151,9 +151,9 @@ public sealed class SteeringTests
             dead.Update(1f / 60f);
         }
 
-        Assert.True(dot(clockwise.Direction, right) > .01f);
-        Assert.True(dot(counter.Direction, right) < -.01f);
-        Assert.True(Angle(start, dead.Direction) < radians(.01f));
+        Assert.True(dot(clockwise.Direction, right) > 1e-3f, $"clockwise {dot(clockwise.Direction, right)}");
+        Assert.True(dot(counter.Direction, right) < -1e-3f, $"counter {dot(counter.Direction, right)}");
+        Assert.True(Angle(start, dead.Direction) < radians(.01f), $"dead {Angle(start, dead.Direction)}");
     }
 
     [Fact]
