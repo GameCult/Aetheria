@@ -200,14 +200,13 @@ public sealed class FloatingBodyTests : IDisposable
     [Fact]
     public void DriftMatchesLegacyFloatingItemsAtSixtyFps()
     {
-        // After 5 s at 60 fps with GravityStrength 1 and force magnitude |f|^2 = m, the legacy GridObject drift
-        // position (measured by Soul, 2026-10-07, off 3035230b's GridObject.Update): .05 -> 1.7371, .1 -> 7.0012,
-        // .3 -> 68.55, .5 -> 231.04.
+        // After 5 s at 60 fps with GravityStrength 1 and a normal of length |f| along x, the legacy GridObject drift
+        // position (measured by Soul, 2026-10-07, off 3035230b's GridObject.Update): |f| .05 -> 1.7371, .1 -> 7.0012,
+        // .3 -> 68.55, .5 -> 231.04. The sim steps the same law with exp decay where GridObject used 1 - k dt.
         var s = Settings();
-        foreach (var (m, expected) in new[] { (.05f, 1.7371f), (.1f, 7.0012f), (.3f, 68.55f), (.5f, 231.04f) })
+        foreach (var (norm, expected) in new[] { (.05f, 1.7371f), (.1f, 7.0012f), (.3f, 68.55f), (.5f, 231.04f) })
         {
-            var f = new float2(sqrt(m), 0);
-            var body = Run(new KinematicBody(), 5f, 1f / 60f, Zone.GravityAcceleration(f, 1f), s);
+            var body = Run(new KinematicBody(), 5f, 1f / 60f, Zone.GravityAcceleration(new float2(norm, 0), 1f), s);
             Assert.InRange(body.Position.x, expected * .999f, expected * 1.001f);
             Assert.Equal(0f, body.Position.y, 4);
         }
