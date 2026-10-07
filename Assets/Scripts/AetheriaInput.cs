@@ -85,8 +85,8 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
     public @AetheriaInput()
     {
         asset = InputActionAsset.FromJson(@"{
-    ""name"": ""Aetheria"",
     ""version"": 1,
+    ""name"": ""Aetheria"",
     ""maps"": [
         {
             ""name"": ""Player"",
