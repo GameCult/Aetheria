@@ -23,7 +23,7 @@ public sealed partial class RunStartTests
     private const float EvDt = 1f / 60f;
 
     // The Duel's guns on a Longinus: the generated Longinus's thrusters (two Large Drive forward, two Talaria on the
-    // flanks) and power, the Duel's cockpit, guns, launchers and sensor, and the Fire Control Array as its targeting gear.
+    // flanks) and power, its Targeting Computer, and the Duel's cockpit, guns, launchers and sensor.
     private static ScenarioFit EvLonginus(ScenarioStage stage, string gun = "FastBlast+-") => stage.Fit("Longinus",
         ("Cockpit 2x2", int2(2, 6), ItemRotation.None), ("Core Power", int2(2, 4), ItemRotation.None),
         ("Large Drive", int2(1, 0), ItemRotation.Reversed), ("Large Drive", int2(3, 0), ItemRotation.Reversed),
@@ -31,7 +31,7 @@ public sealed partial class RunStartTests
         ("GT 3K", int2(0, 5), ItemRotation.None), ("GT 3K", int2(5, 5), ItemRotation.None), (gun, int2(1, 8), ItemRotation.None),
         (gun, int2(4, 8), ItemRotation.None), ("Iapyx", int2(2, 2), ItemRotation.CounterClockwise), ("Iapyx", int2(3, 2), ItemRotation.Clockwise),
         ("not if i see you first", int2(3, 10), ItemRotation.None), ("PotaT+-", int2(1, 6), ItemRotation.None),
-        ("Fire Control Array", int2(1, 10), ItemRotation.None), ("Store-All Plus", int2(2, 8), ItemRotation.None));
+        ("Targeting Computer", int2(1, 7), ItemRotation.None), ("Store-All Plus", int2(2, 8), ItemRotation.None));
 
     // The catalog's two generated ships, far apart in the fixture arena, at the fixture seed.
     private (Zone arena, Ship longinus, Ship djinni) EvFleet()
@@ -621,7 +621,7 @@ public sealed partial class RunStartTests
         var (_, _, djinni) = EvFleet();
         var window = _items.GameplaySettings.SolutionWindow;
         EvSettle(djinni);
-        EvFly(djinni, EvJink.Lateral, 1f, 4f);
+        EvFly(djinni, EvJink.Lateral, .5f, 4f);
         var jinking = Math.Max(FireControl.Evasion(djinni, float2(0, 1)), FireControl.Evasion(djinni, EvRight(djinni)));
         Assert.True(jinking > 1f, $"the jink should evade, read {jinking}");
 
