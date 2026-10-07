@@ -27,6 +27,7 @@ public sealed class StationServicesTests : IDisposable
         _cache.Upsert(new HullData { Name = "Hub", HullType = HullType.Station, Shape = shape, Price = 5000, Durability = 10 });
         _cache.Upsert(new HullData { Name = "Bare Hub", HullType = HullType.Station, Shape = shape, Price = 5000, Durability = 10 });
         _cache.Upsert(new GearData { Name = "Gun", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 400, Durability = 8 });
+        _cache.Upsert(new GearData { Name = "Sweep", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 1, Durability = 20 });
         _cache.Upsert(new GearData { Name = "Lamp", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 90, Durability = 0 });
         var bay = new Shape(4, 4);
         foreach (var cell in bay.AllCoordinates) bay[cell] = true;
@@ -272,6 +273,128 @@ public sealed class StationServicesTests : IDisposable
             Assert.Equal(0, credits);
             var sellFixed = StationServices.SellPrice(_items, gun);
             Assert.True(sellFixed - cost <= sellWorn, $"durability {durability}: repair {cost} adds {sellFixed - sellWorn}");
+        }
+    }
+
+    // Mending an item and then selling it never nets even one credit over selling it worn, whatever the price, the
+    // wear and the fractions. Prices 1..3000 (the sell and repair roundings disagree for some of them in double
+    // arithmetic) at every durability of a design of 20, at the shipped fractions and two other pairs.
+    [Theory]
+    [InlineData(.5f, .25f)]
+    [InlineData(.3f, .1f)]
+    [InlineData(.7f, .2f)]
+    public void Repairing_then_selling_never_nets_a_credit_at_any_price_and_wear(float sell, float repair)
+    {
+        _items.GameplaySettings.SellFraction = sell;
+        _items.GameplaySettings.RepairFraction = repair;
+        var ship = Ship();
+        var design = _cache.GetByName<GearData>("Sweep");
+        var gear = Mint("Sweep");
+        Assert.True(ship.TryEquip(gear));
+        for (var price = 1; price <= 3000; price++)
+        {
+            design.Price = price;
+            for (var durability = 0; durability < 20; durability++)
+            {
+                gear.Durability = durability;
+                var sellWorn = StationServices.SellPrice(_items, gear);
+                var cost = StationServices.RepairCost(_items, ship);
+                var credits = cost;
+                Assert.True(StationServices.TryRepair(ship, ref credits));
+                var sellFixed = StationServices.SellPrice(_items, gear);
+                Assert.True(sellFixed - cost <= sellWorn,
+                    $"price {_items.GetPrice(gear)} durability {durability} of 20 at {sell}/{repair}: sell worn {sellWorn}, repair {cost}, sell fixed {sellFixed}");
+            }
+        }
+    }
+
+    // The case that nets a credit in plain double arithmetic: price 360 at durability 7 of 20 sells worn for 62 but
+    // 180 whole, and a repair rounded up from 65 percent of 180 is 117.
+    [Fact]
+    public void Repairing_a_360_item_at_durability_7_of_20_costs_at_least_what_it_adds()
+    {
+        var design = _cache.GetByName<GearData>("Sweep");
+        var gear = Mint("Sweep");
+        var ship = Ship();
+        Assert.True(ship.TryEquip(gear));
+        design.Price = Enumerable.Range(1, 3000).First(p => { design.Price = p; return _items.GetPrice(gear) == 360; });
+        Assert.Equal(360, _items.GetPrice(gear));
+        gear.Durability = 7;
+        Assert.Equal(62, StationServices.SellPrice(_items, gear));
+        var cost = StationServices.RepairCost(_items, ship);
+        Assert.True(cost >= 180 - 62, $"repair costs {cost}, the repair adds 118");
+        var credits = cost;
+        Assert.True(StationServices.TryRepair(ship, ref credits));
+        Assert.Equal(180, StationServices.SellPrice(_items, gear));
+    }
+
+    // A ship whose armour cells hold different values, wear spread over several cells including the last. Returns the
+    // total armour and the worn amount.
+    private static (double max, double worn) Wound(Ship ship, Func<int, int, float> armourLeft)
+    {
+        double max = 0, worn = 0;
+        for (var x = 0; x < ship.MaxArmor.GetLength(0); x++)
+            for (var y = 0; y < ship.MaxArmor.GetLength(1); y++)
+            {
+                ship.MaxArmor[x, y] = 4 + (x + 2 * y) % 5;
+                ship.Armor[x, y] = Math.Min(ship.MaxArmor[x, y], armourLeft(x, y));
+                max += ship.MaxArmor[x, y];
+                worn += ship.MaxArmor[x, y] - ship.Armor[x, y];
+            }
+        return (max, worn);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void Armour_repair_prices_the_worn_share_of_the_hull_and_restores_every_cell(int pattern)
+    {
+        var ship = Ship();
+        // 0: every cell stripped. 1: a few cells stripped, one of them the last. 2: every cell a little worn.
+        var (max, worn) = Wound(ship, (x, y) => pattern switch
+        {
+            0 => 0,
+            1 => x + y >= 7 || (x == 0 && y == 0) || (x == 2 && y == 3) ? 0 : 99,
+            _ => 3
+        });
+        Assert.True(worn > 0 && worn <= max);
+        var hullPrice = _items.GetPrice(ship.Hull);
+        var expected = (int) Math.Ceiling(worn / max * hullPrice * .5);
+        var cost = StationServices.RepairCost(_items, ship);
+        Assert.Equal(expected, cost);
+        if (pattern == 0) Assert.Equal((int) Math.Ceiling(hullPrice * .5), cost);
+
+        var credits = cost;
+        Assert.True(StationServices.TryRepair(ship, ref credits));
+        Assert.Equal(0, credits);
+        for (var x = 0; x < ship.MaxArmor.GetLength(0); x++)
+            for (var y = 0; y < ship.MaxArmor.GetLength(1); y++)
+                Assert.Equal(ship.MaxArmor[x, y], ship.Armor[x, y]);
+        Assert.Equal(0, StationServices.RepairCost(_items, ship));
+    }
+
+    // Gear alone is charged its wear at the repair fraction, rounded up, never below the sell value mending adds:
+    // odd and even prices at several wears, so a price off by one shows in the rounding.
+    [Fact]
+    public void Gear_repair_is_priced_from_the_gear_price_at_every_wear()
+    {
+        var ship = Ship();
+        var design = _cache.GetByName<GearData>("Sweep");
+        var gear = Mint("Sweep");
+        Assert.True(ship.TryEquip(gear));
+        foreach (var dataPrice in new[] { 3, 11, 37, 101, 250, 777, 1001 })
+        {
+            design.Price = dataPrice;
+            var price = _items.GetPrice(gear);
+            foreach (var durability in new[] { 0, 1, 5, 10, 19 })
+            {
+                gear.Durability = durability;
+                var wear = 1 - durability / 20.0;
+                var added = (int) Math.Floor(price * .5) - (int) Math.Floor(price * .5 * durability / 20.0);
+                var expected = Math.Max(added, (int) Math.Ceiling(wear * price * .5));
+                Assert.Equal(expected, StationServices.RepairCost(_items, ship));
+            }
         }
     }
 
