@@ -322,6 +322,63 @@ public sealed partial class RunStartTests
         Assert.True(drive.Clockwise > 0f && drive.CounterClockwise > 0f);
     }
 
+    // Which thruster pushes which way and turns which way is read from the gear, not assumed symmetric: destroy the
+    // Djinni's right-pushing thrusters and the envelope loses its right push and the turn they gave one way, which
+    // the ship's own flight confirms.
+    [Fact]
+    public void TheEnvelopeFollowsWhichThrustersAreLeft()
+    {
+        var (_, _, djinni, gemini) = EvFleet();
+        var settings = _items.GameplaySettings;
+        EvSettle(djinni);
+        // Refresh every thruster's live Thrust by firing it: strafe, burn and turn each way.
+        foreach (var (move, look) in new[] { (float2(1, 0), float3(0, 0, 1)), (float2(-1, 0), float3(0, 0, 1)), (float2(0, 1), float3(0, 0, 1)),
+                     (float2(0, -1), float3(0, 0, 1)), (float2(0, 0), float3(1, 0, 0)), (float2(0, 0), float3(-1, 0, 0)) })
+        {
+            djinni.MovementDirection = move;
+            djinni.LookDirection = look;
+            for (var step = 0; step < 20; step++) djinni.Update(EvDt);
+        }
+        EvSettle(djinni);
+        djinni.Update(EvDt);
+        var whole = djinni.Envelope;
+
+        // Full reverse for one update accelerates at the reverse push.
+        EvSettle(djinni);
+        djinni.MovementDirection = float2(0, -1);
+        djinni.Update(EvDt);
+        Assert.InRange(-djinni.Acceleration.y, whole.Reverse * .98f, whole.Reverse * 1.02f);
+
+        foreach (var thruster in djinni.GetBehaviors<Thruster>().Where(t => t.Item.EquippableItem.Rotation == ItemRotation.CounterClockwise))
+            thruster.Item.EquippableItem.Durability = 0f;
+        EvSettle(djinni);
+        djinni.Update(EvDt);
+        djinni.Update(EvDt);
+        var maimed = djinni.Envelope;
+        Assert.Equal(0f, maimed.Right);
+        Assert.InRange(maimed.Left, whole.Left * .99f, whole.Left * 1.01f);
+        var live = djinni.GetBehaviors<Thruster>().Where(t => t.Item.Active.Value).ToList();
+        var clockwise = live.Where(t => t.Torque > settings.TorqueFloor).Sum(t => t.Torque * t.Thrust) * settings.TorqueMultiplier / djinni.Mass;
+        var counterClockwise = live.Where(t => t.Torque < -settings.TorqueFloor).Sum(t => -t.Torque * t.Thrust) * settings.TorqueMultiplier / djinni.Mass;
+        Assert.True(Math.Abs(clockwise - counterClockwise) > .05f * clockwise, "fixture: the surviving thrusters turn the two ways unequally");
+        Assert.InRange(maimed.Clockwise, clockwise * .99f, clockwise * 1.01f);
+        Assert.InRange(maimed.CounterClockwise, counterClockwise * .99f, counterClockwise * 1.01f);
+        djinni.MovementDirection = float2(1, 0);
+        djinni.Update(EvDt);
+        Assert.InRange(djinni.Acceleration.x, -.5f, .5f);
+        djinni.MovementDirection = float2(-1, 0);
+        djinni.Update(EvDt);
+        Assert.True(djinni.Acceleration.x < -1f, "it still strafes left");
+
+        // The Traction drive's turn is the rate it turns the hull at when told to turn right.
+        EvSettle(gemini);
+        gemini.MovementDirection = float2(0, 0);
+        gemini.LookDirection = float3(1, 0, 0);
+        gemini.Update(EvDt);
+        var turned = Math.Atan2(gemini.Direction.x, gemini.Direction.y);
+        Assert.InRange((float) turned / EvDt, gemini.Envelope.Clockwise * .9f, gemini.Envelope.Clockwise * 1.1f);
+    }
+
     // A station or any other non-Ship has no envelope; whatever it does, it does not evade.
     [Fact]
     public void NonShipsDoNotEvade()
