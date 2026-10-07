@@ -3663,14 +3663,43 @@ fetched 2026-10-06).
 - **EVE Online** (EVE University wiki, "Turret mechanics", fetched). Hit chance is
   `0.5 ^ ((angular velocity * 40000 / (tracking * signature))^2 + falloff term)`: doubling tracking,
   doubling signature or halving angular velocity are equivalent. A stationary target is always
-  hit. EVE prices transversal speed because its turrets slew; Aetheria's lead cancels a constant
-  sideways speed exactly (M20), so speed alone is not the analogue here.
+  hit. EVE prices transversal speed because its turrets slew. Aetheria's lead cancels a constant
+  sideways speed as a prediction problem (M20), but a mount must still follow the line of sight,
+  so `evasion-term` r4 adopts EVE's angular form for the mount (below, "Tracking per gun").
 - **Starsector** (wiki, "Movement" and "Auxiliary Thrusters"). Manoeuvrability is acceleration,
   deceleration and turn rate together; the hull mod that buys it raises all three. Dodging is
   done by turning and burning, not by a strafe stat.
 - **Elite Dangerous** (player guides, Steam discussions). Pitching the main drive onto a new
   vector beats lateral thrusters for evasion; lateral thrust matters most on ships built around
   it. Gimbal jitter makes evasive targets hard to hold even for hitscan lasers.
+
+**Angular velocity against a mount's rate** (fifth pass, ruling `evasion-angular-velocity`; Eyes
+pass of 2026-10-07, source marks as in Controls; the EVE formula is the player wiki's, not CCP's).
+
+- **EVE turrets** (EVE University wiki, "Turret mechanics" and "Tracking"). The tracking part of the
+  hit chance is `0.5 ^ ((omega * sigRes / (tracking * sigRadius))^2)`, with `omega` the transversal
+  velocity over range in rad/s and tracking in rad/s; radial velocity contributes nothing, and at
+  `omega = tracking` (equal signatures) half the shots hit. The range part sits in the same
+  exponent, so the price is a product of per-term factors. Smaller turrets track faster. The wiki
+  states the failure mode: a close orbit raises `omega` until big guns cannot hit, and the
+  counters lie outside the gun (webifiers, target painters, tracking computers, smaller guns,
+  drones). CCP's 2004 balance note made signature matter so frigates survive guns built for
+  larger ships. EVE has no term for changes of vector; manoeuvre counts only through the angular
+  velocity it makes.
+- **Naval directors** (Naval Ordnance and Gunnery vol. 2, chapters 19 and 24 to 26, transcribed at
+  eugeneleeslover.com). The deflection lead is the line-of-sight angular rate times the time of
+  flight, and the computer assumes constant rates; a change of course or speed during the flight
+  spoils the solution. A steady crosser is a rate problem the director solves; a manoeuvre is the
+  unmodelled term. Two errors, two owners.
+- **Kerrison predictor** (Wikipedia). Low crossing aircraft meant high angular rates and short
+  engagements; the hard part was mount slew, not ballistics. Its straight-line assumption fails
+  against a manoeuvring target.
+- **CIWS** (Wikipedia, Phalanx and Goalkeeper). Point-defense mounts slew at 80 to 115 degrees per
+  second (sources disagree); a battleship turret trains at a few degrees per second. The ladder
+  below spans that range: 46 degrees per second for one cell, 1.7 for nine.
+- **Servo tracking** (arXiv 2408.16870). A proportional-derivative mount following a constant-rate
+  target keeps a steady-state error. A mount's lag grows with the rate it is asked to follow,
+  which is the shape `PMount` gives.
 
 **Failure modes to design against.**
 1. PD trivialises missiles: perfect interception makes launchers dead weight. Answer: a
@@ -3919,6 +3948,53 @@ fetched 2026-10-06).
   schema comparison), so a field initializer is what unmigrated records and code-built fixtures
   read. A `PerformanceStat` with no terms resolves to `Max`, and a bare `new PerformanceStat()`
   resolves to 0.
+- **M30. A weapon's footprint is its item `Shape`** (source read and catalog probe at `46b28501`,
+  2026-10-07, for ruling `weapon-tracking-defaults`; method as M28). `ItemData.Shape`
+  (`ItemData.cs:288-289`, key 5, `[InspectableSchematicShape]`, the cells Studio paints) holds a
+  `bool[,]`; `Shape.Coordinates` (`:84-95`) lists its true cells, so the cell count is
+  `Shape.Coordinates.Length`. A hardpoint's `HardpointData.Shape` (`:563`, key 2) is the slot, not
+  the gun: `Takes` (`:580-581`) fits any design of the slot's type whose shape lies within it.
+  `new Shape()` is one true cell (`:25-29`). The catalog's weapons by cell count:
+
+  | Cells | Weapons (hardpoint, caliber) |
+  |---|---|
+  | 1 | plight (Energy, Large), pswarm (Launcher, Medium) |
+  | 2 | 6k Shooter, ClearPath, Earp (Ballistic, Small); ColdFire, FastBlast+-, Spectra (Energy, Small) |
+  | 3 | GT 3K, scorched void policy (Launcher, Medium) |
+  | 4 | Autocannon, DeathCluster, pretty pretty bang bang (Ballistic, Medium); ChargeBlast SG, ChargeBlast+- (Energy, Medium) |
+  | 6 | LRMM72 (Launcher, Large), SRMM72 (Launcher, ExtraLarge) |
+  | 9 | CShot RainbowLite Lazer (Energy, Small) |
+
+  plight's one cell is authored, not a default: `docs/content-batch-one.md:822` lists it as
+  "Energy, 1x1", fitting the LonginusX's 1x2 Energy hardpoints. Caliber and footprint disagree in
+  both directions (plight Large in one cell, CShot Small in nine). The hulls' weapon hardpoints:
+  Longinus and LonginusX two Energy 1x2 and two Launcher 1x3; Djinni two Ballistic 1x2, two
+  Launcher 1x3 and two Launcher 3x2; the station Turret two Ballistic 2x4 at arc 360. No weapon
+  hardpoint is one cell or 3x3, so CShot fits no hull.
+- **M31. Nothing in the price reads velocity across the line of sight, and nothing models a
+  mount's rate** (source read at `46b28501`). Target velocity enters the lead
+  (`PredictedIntercept`, `FireControl.cs:202-208`, without the shooter's velocity) and the frozen
+  `FireTargetVelocity` that `DeviationProbability` (`:439-445`) projects; `Evasion` (`:452-470`)
+  reads envelope, heading, track, line of sight and window, never a velocity. A steady crosser
+  therefore costs only the in-flight drift, and an instant weapon nothing. No weapon or hardpoint
+  field carries a slew rate: `HardpointData.FiringArc` (`ItemData.cs:567-569`) is an arc in
+  degrees, and the targeting gear's `Tracking` is metres (M27). `PendingShot.PFire` (`:1867`) and
+  `Tracking` (`:1868`) are the shooter facts `Fire` freezes (`:663-677`); `CommitProbability`
+  (`:792-806`) multiplies `shot.PFire * pDeviation`, then spread and hull.
+- **M32. Top speed is drag's, not gear's** (source read and catalog probe at `46b28501`; arithmetic,
+  not a flight probe). No catalog gear carries `VelocityLimitData` (union 11): none of 32 gear
+  records and 18 weapons. `Agent.TopSpeed` falls back to 100 (`Agents/Agent.cs:26`) for AI
+  steering only. `Ship.Update` decays speed by `decay(|v|, Drag, dt) = |v| * exp(-Drag * dt)`
+  (`Ship.cs:307-310`; CultMath `math.cs:253`), so steady thrust `a` settles at `a / Drag`: about
+  1,300 m/s for the Longinus and LonginusX (about 130 m/s^2, drag 0.1) and 82 m/s for the Djinni
+  by stats (16.3 m/s^2, drag 0.2; M25 says it moves about 1.6 times its stats).
+- **M33. The ladder fit** (probe: `ladder.py`, a scratch script over the catalog decode of M30,
+  not committed, 2026-10-07). It evaluates the mount factor `0.5 ^ ((omega / rate)^2)` and the
+  vector factor `PDeviation(E, Tracking)` for each footprint rung under three targeting fits
+  (unaided 10, Targeting Computer 20 and Fire Control Array 37.5, the designs' midpoints, M28), at
+  the geometries of the table in "Tracking per gun". `omega` comes from speed and range; `E` is
+  the window-0.75 figure the r2 pass measured (the table under "Evasion is how unpredictably",
+  and the speed demon's 9.63 m). The results are in that section.
 
 ### The design
 
@@ -3969,16 +4045,17 @@ each with one owner, and it adds to the in-flight deviation rather than replacin
   track and `SolutionWindow` `T`: `u = 0.5 * LateralRms(n) * T^2`, zero when `u` is zero (no
   envelope work for a coasting target), else `min(C, u)`. Behaviour realises the evasion,
   capability caps it. A coasting ship evades nothing whatever it could do; a jinking ship evades
-  up to what its envelope reaches across that line of sight. Sideways speed by itself does not
-  count: the lead cancels it (M20) and the in-flight deviation charges what changes during flight
-  (question `evasion-speed`).
+  up to what its envelope reaches across that line of sight. Sideways speed does not enter this
+  term: the lead cancels it as a prediction problem (M20). It enters the mount's term (ruling
+  `evasion-angular-velocity`, "Tracking per gun" below), which `Evasion` does not compute, so a
+  missile's gate price never sees it.
 - **Pure core, one entity entry.** `Reach` and the pure `Evasion(envelope, heading, track,
   lineOfSight, window)` are public and allocation-free; the entity overload is what guns and
   missiles call. `PDeviation(deviation, tolerance)` stays the one deviation shape.
   `DeviationProbability` adds `Evasion(target, TravelDirection)` at the commit to the realized
   deviation; `HitProbability` multiplies `PDeviation(Evasion(...), Tracking(source))`. A laser
-  commits at fire, so its whole penalty is this term. A target moving at constant velocity has
-  `Evasion` 0, so every existing test with a coasting or still target is unchanged.
+  commits at fire, so its whole vector penalty is this term. A target moving at constant velocity
+  has `Evasion` 0.
 
 Measured with this form (scratch model of `Reach` and `ManoeuvreTrack` at dt 1/60, each ship's
 best of a fixed jink set: lateral square wave, a new random direction, and a turn-and-burn weave
@@ -3999,9 +4076,9 @@ strafe.
 **The speed demon's counterplay** (ruling `speed-demon-counterplay`): "Decent chance that unless
 you specced specifically to counter them, the only gun you have that'll hit a speed demon is
 stuff you intended to use for PD. That's what they're counting on, since they sacrificed all
-their armor for that mobility." The term delivers that through two stats and nothing else: the
-shooter's `Tracking` forgives the evasion, and the target's envelope is large exactly when it
-carries little mass. Re-measured without r1's speed share: a speed demon with 60 m/s^2 on every
+their armor for that mobility." The vector term delivers part of that: the shooter's `Tracking`
+forgives the evasion, and the target's envelope is large exactly when it carries little mass. The
+per-gun part is the mount's term in "Tracking per gun" below. Re-measured without r1's speed share: a speed demon with 60 m/s^2 on every
 axis, jinking a lateral square wave at half-period 0.5 s nose-on, opens 5.07 m at window 0.5 s,
 so a shooter with `Tracking` 10 keeps 0.49 and one with `Tracking` 50 keeps 0.90; a heavy hull
 with 10 m/s^2 opens 0.84 m (0.92 and 0.98). At window 0.75 s the speed demon opens 9.63 m (0.04
@@ -4015,31 +4092,114 @@ clears the threshold. A worth-firing hostile munition preempts an entity subject
 subject stays worth firing (`autofire-threshold` r3), so a PD group that diverted onto a speed
 demon still turns back to the missiles.
 
-**Tracking per gun** (ruling `tracking-per-gun`, "gun times ship"). Soul found (finding
-`cut-evasion-term.s1.tracking-per-ship`) that with one `Tracking` per ship (M27) a light and a
-heavy gun on the same hull are forgiven alike, so the counterplay above worked only between ships.
-`evasion-term` r3 gives `WeaponData` a dimensionless `Tracking` stat (key 33, M29), a multiplier
-of the ship's targeting `Tracking` in metres. `FireControl.Tracking(weapon, source)` is the one
-product; `HitProbability`, `Inspect` and `Fire` read it, and `Fire` freezes it, so a heavy gun is
-also less forgiving of in-flight drift. That is the same physical claim (its mount follows a
-moving target worse), and it keeps one tolerance per shot. The field defaults to 1, so fixtures
-built in code and any unmigrated record behave exactly as before; the catalog's values come from
-an AetherDb migration keyed by `WeaponCaliber` (M28), until the operator authors per-gun values
-(question `weapon-tracking-defaults`). The recommended ladder (Small 1.5, Medium 1, Large 0.6,
-ExtraLarge 0.4; launchers 1, because a guided round's own odds are `missile-odds`' correction,
-not the launcher's tracking) gives these `PEvasion` at window 0.75 s against the Targeting
-Computer (about 20) and the Fire Control Array (about 38), from the model figures above:
+**Tracking per gun: a mount's rate against line-of-sight angular velocity** (`evasion-term` r4).
+Ruling `tracking-per-gun`: "gun times ship". Ruling `evasion-angular-velocity`, which replaces
+`evasion-speed`: "now that I think about it, relative velocity should be an evasion term,
+shouldn't it? ... yes, angular velocity is the term I was reaching for". Ruling
+`weapon-tracking-defaults`: "A PD weapon of the sort that can reliably hit a speed demon should
+occupy a single cell. Even a two-cell weapon like the smallest we currently have should
+struggle. Anyway I think the ladder needs to be steep in order to make hitting something fast
+with those big guns as unlikely as it needs to be." Soul's finding
+`cut-evasion-term.s1.tracking-per-ship` is the gap this closes: with one `Tracking` per ship
+(M27), a light and a heavy gun on one hull were forgiven alike.
 
-| Gun | Speed demon, 9.63 m | Longinus jinking, 14.7 m | Djinni jinking, 1.7 m |
-|---|---|---|---|
-| Small (1.5) | 0.68 / 0.83 | 0.51 / 0.74 | 0.94 / 0.97 |
-| Medium (1.0) | 0.52 / 0.75 | 0.27 / 0.61 | 0.92 / 0.96 |
-| Large (0.6) | 0.20 / 0.58 | 0 / 0.36 | 0.86 / 0.93 |
-| ExtraLarge (0.4) | 0 / 0.37 | 0 / 0.03 | 0.79 / 0.89 |
+Evasion has two terms, each failing the shot for a different reason, each with one owner:
 
-A steeper ladder (2, 1, 0.5, 0.25) widens the gap: against the speed demon Small keeps 0.76 /
-0.87 and Large 0.04 / 0.49, Medium unchanged. The demo's heaviest common guns are Medium (M28),
-so the Small-to-Medium ratio is the lever the play check tunes.
+- **Changes of vector defeat the prediction.** This is r2's term, unchanged: `Evasion(target,
+  lineOfSight)` in metres, forgiven by the ship's targeting gear `Tracking(source)` in metres
+  through `PDeviation`, and frozen as `PendingShot.Tracking`, which also forgives the in-flight
+  drift. Predicting where a target will be is the fire-control computer's job, so this tolerance
+  stays per ship.
+- **Line-of-sight angular velocity defeats the mount.** `FireControl.AngularVelocity(offset,
+  relativeVelocity)` is `degrees(|offset x relativeVelocity| / max(|offset|, 1)^2)`, planar, in
+  degrees per second; the entity overload passes the target's position minus the shooter's and
+  the target's velocity minus the shooter's. Radial velocity contributes nothing and a shooter
+  matching the target's velocity sees none. The shot's tracking rate is
+  `FireControl.TrackingRate(weapon, source) = weapon.Tracking * Tracking(source) /
+  UnaidedTracking`: the gun's own rate in degrees per second (`WeaponData.Tracking`, key 33, a
+  `PerformanceStat` evaluated like `Spread`), times the targeting gear's `Tracking` as a multiple
+  of unaided (1 unaided, 1.5 to 2.5 for the Targeting Computer, 3 to 4.5 for the Fire Control
+  Array). That is ruling `tracking-per-gun`'s product, and EVE's tracking computers work the
+  same way. The factor is `PMount(omega, rate) = 0.5 ^ ((omega / rate)^2)`: 1 for a still
+  line of sight, one half at the mount's rate, a sixteenth at twice it, never a cliff.
+
+`HitProbability` is `PFire * PSpread * POnHull * PDeviation(Evasion, Tracking(source)) *
+PMount(AngularVelocity(source, target), TrackingRate(weapon, source))`. `Fire` freezes the mount
+factor into the shot's shooter-side probability, `PendingShot.PFire = solution.PFire * PMount`:
+the mount follows the target until the round leaves, a fired round cannot be re-laid, and the
+mount is the shooter's, like accuracy and sensor data (M31). `CommitProbability` is unchanged and
+the HUD's estimate at fire is still the commit price. No new shot field: the one hand-built
+`PendingShot` (`FireControlCut9Tests.cs:160`) and every test that sets `PFire` keep their meaning.
+A beam fires through `Fire` every resolve interval, so it is priced afresh each time. A round
+fired at nothing has nothing to follow and multiplies by 1. `Inspect` reports `AngularVelocity`,
+`TrackingRate` and `PMount`, and the debug HUD prints them beside `Tracking`.
+
+`Evasion` never computes the mount term. A guided round's gate price (`missile-odds` r2) reads
+`Evasion(subject, line of sight)` and its own correction, so the angular term does not touch it:
+a missile steers itself, and no mount follows it. Until `missile-records` and `missile-odds` land,
+launchers fire as ordinary shots (M1), so the migration gives them the one-cell rate and their
+rail costs nothing.
+
+**The ladder.** The record holds the rate; only the AetherDb `weapon-tracking` migration derives
+it, from the footprint (M30): `rate = 46 * cells^-1.5` degrees per second, rounded to hundredths,
+and 46 for a weapon whose behaviour is `LauncherData` or `GuidedWeaponData`. One cell 46, two
+16.26, three 8.85, four 5.75, six 3.13, nine 1.70. The guns sit on four rungs: one (plight), two
+(the six smallest guns), four (the five Medium guns) and nine (CShot RainbowLite Lazer, which fits
+no hull, M30). A field left unauthored defaults to positive infinity, a mount that follows
+anything, so code-built fixtures price exactly as before; the migration replaces every catalog
+default. Fitted by M33 at the TC / FCA midpoints:
+
+| Geometry (degrees per second) | 1 cell | 2 cells | 4 cells | 9 cells |
+|---|---|---|---|---|
+| Speed demon crossing close: 150 m/s at 200 m, steady (43.0) | 0.86 / 0.96 | 0.30 / 0.71 | 0.00 / 0.06 | 0 / 0 |
+| The same at range: 150 m/s at 1,000 m (8.6) | 0.99 / 1.00 | 0.95 / 0.99 | 0.68 / 0.90 | 0.01 / 0.29 |
+| Heavy ship drifting at range: Djinni, 30 m/s at 1,000 m (1.7) | 1.00 / 1.00 | 1.00 / 1.00 | 0.98 / 1.00 | 0.84 / 0.95 |
+| Jinking target: Longinus weaving (14.7 m), 60 m/s at 500 m (6.9) | 0.26 / 0.61 | 0.26 / 0.60 | 0.21 / 0.57 | 0.02 / 0.27 |
+| Speed demon jinking close: 9.63 m, 150 m/s at 200 m (43.0) | 0.45 / 0.71 | 0.15 / 0.53 | 0.00 / 0.05 | 0 / 0 |
+
+Each cell is `PDeviation(E, Tracking) * PMount`, the whole evasion share of the price. Unaided
+(`Tracking` 10), the speed demon crossing close leaves one cell 0.55 and two cells 0.01. Crossing
+at 200 m with the Targeting Computer, by speed: 50 m/s gives 0.98, 0.87 and 0.34 for one, two and
+four cells; 100 m/s gives 0.93, 0.58 and 0.01; 300 m/s gives 0.55, 0.01 and 0. The ruled outcomes
+hold: two cells struggle against a speed demon close (0.30 with the common gear), the big guns
+rarely hit it (at most 0.06), the big guns hit a big ship drifting at range (0.98 and up), and a
+one-cell gun is PD class. Against a jinking target at middle range the gun classes barely differ,
+because the jink is a prediction problem the ship's gear forgives, not the mount; the guns part
+company when the target is close and fast. The ratio between rungs (2.8 per doubling of cells)
+and the base 46 are the play check's levers.
+
+**Not imported from EVE.** Signature resolution and signature radius: the probe meets every ruled
+outcome without them, and a target's size already enters the price through its silhouette
+(`PSpread`, `POnHull`). Falloff: range is priced by `PSpread` and the weapon's range gates.
+
+**Counters to the close orbit.** EVE's documented failure mode, the small fast ship orbiting close
+while big guns go useless, is the play shape ruling `speed-demon-counterplay` asks for, so the
+counters must exist and lie outside the big gun:
+
+- One-cell guns, PD class by footprint. The catalog has one, plight (M30; question
+  `plight-footprint`); the others are content to author.
+- Gear: the Fire Control Array multiplies every mount by 3 to 4.5, so a two-cell gun on a
+  dedicated fit keeps 0.71 against the close crosser.
+- Range: angular velocity falls with range, so a ship that holds the speed demon off sees it at a
+  fifth of the rate at 1,000 m; the speed demon has to come close to use its own guns, which
+  face the same term.
+- Velocity: a shooter that matches the speed demon's velocity sees no angular velocity, so a fast
+  hull of one's own is a counter.
+- Missiles: a guided round has no mount (`missile-odds`), so launchers counter it as drones do
+  in EVE.
+- Armour: the speed demon gave its up, so the rounds that land hurt.
+
+**Top speed is now an evasion stat** (M32). With no velocity limit authored, a Longinus or
+LonginusX on a steady burn settles near 1,300 m/s. Crossing at that speed, 1,000 m off, it leaves
+a one-cell gun 0.63 / 0.88, a two-cell gun 0.03 / 0.36 and a four-cell gun nothing; at 200 m every
+gun, PD included, keeps at most 0.04. The play check owns whether that needs `VelocityLimit` gear
+or hull drag tuning; the ladder is fitted at 150 m/s.
+
+**When articulated mounts arrive** (ruling `arc-and-traverse-on-the-link`, follow-up
+`articulated-mounts`), the link's traverse speed and the gun's tracking compose by the slower of
+the two inside `TrackingRate`: a heavy gun on a fast link is still slow, and a pod of small guns on
+a slow link slews slowly, as that ruling says. Until then a fixed mount follows at the gun's own
+rate within its arc.
 
 **The missile's price** (`missile-odds`). At the gate, the same model with the missile's
 inputs:
@@ -4328,9 +4488,38 @@ the capability because it is the only measure that sees turn time, mass and ever
 once (M24 shows the strafe figure sees none of them correctly). The innovation statistic is the
 behaviour because a steady burn and a coast are both predictable and dithering is not evasion.
 `min` is the product of a saturated use fraction and the capability, written without a tuning
-constant. Rejected: r1's strafe-over-mass agility (M24); EVE's transversal speed (the lead cancels
-it here); instantaneous jerk (frame-dependent, rewards dithering); a per-hull agility stat in data
+constant. Rejected: r1's strafe-over-mass agility (M24); transversal speed inside this term (the
+lead cancels it as prediction; ruling `evasion-angular-velocity` prices it in the mount's own
+term instead); instantaneous jerk (frame-dependent, rewards dithering); a per-hull agility stat in data
 (the envelope derives from fitted gear, so refits and damage change evasion with no authoring).
+
+**Why the two evasion terms multiply.** Ruling `evasion-angular-velocity` keeps changes of vector
+and adds the line of sight's angular velocity. They fail a shot for different reasons with
+different owners: a perfect predictor on a slow mount still lags a fast crosser, and a fast mount
+still loses a jink it could not predict. The naval directors split them the same way (the rate
+term solved, the manoeuvre unmodelled), and EVE's exponent sum is itself a product of per-term
+factors. The price was already a product of independent factors (`PFire`, `PSpread`, `POnHull`,
+`PDeviation`), so the mount's factor joins it with no tuning constant between the two terms.
+Rejected: turning the angular velocity into metres (`omega * range * window`) and adding it to
+the deviation. That makes one tolerance answer two questions, couples range into the vector term,
+and would let a mount forgive in-flight drift, which no mount can re-lay once the round has left.
+Rejected: `PDeviation(omega, rate)`, the linear shape. It reaches zero at the mount's rate, so a gun
+goes from fine to never within a factor of two in speed, and "rarely" becomes "never". The
+Gaussian keeps a tail, and its rate reads as the angular velocity at which the gun hits half its
+shots, which a designer can author in the inspector.
+
+**Why the vector tolerance stays per ship and the ship multiplies the mount.** Ruling
+`tracking-per-gun` asked that a shot be forgiven per gun, "gun times ship", when evasion had one
+term. With two terms, the per-gun part belongs where the gun's mount is the limit: the angular
+term, forgiven by the gun's rate times the gear. The jink is a prediction error, which is the
+targeting gear's job (Singer's split, the naval directors), so its tolerance stays the gear's
+metres, and r3's dimensionless multiplier on those metres, never built, is dropped. A heavy gun
+therefore loses to a fast close crosser, not to a weave it cannot predict any worse than a light
+gun can. The gear keeps both of its effects: metres of prediction forgiven, and as a multiple of
+unaided, the rate every mount on the ship follows, as EVE's tracking computers multiply turret
+tracking. Rejected: a per-gun multiplier on the vector tolerance as well, which needs a reference
+rate constant to turn degrees per second into a dimensionless factor, and charges the mount for
+the director's error.
 
 **Why reactive evasion.** The operator's sentence is "a missile that spends fuel evading
 PD". Evasion triggered by inbound rounds makes PD fire cost the missile fuel even when it
