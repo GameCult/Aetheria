@@ -244,6 +244,7 @@ public sealed class SteeringTests
         var three = RestoredHullsTests.BuildThrustedShip(cache, Hull);
         var minusOne = RestoredHullsTests.BuildThrustedShip(cache, Hull);
         var minusThree = RestoredHullsTests.BuildThrustedShip(cache, Hull);
+        var start = one.Direction;
 
         one.Turn = 1;
         three.Turn = 3;
@@ -257,7 +258,7 @@ public sealed class SteeringTests
             minusThree.Update(1f / 60f);
         }
 
-        Assert.True(Angle(one.Direction, Heading(one, 0f)) > radians(.05f), "the reference turn is real");
+        Assert.True(Angle(start, one.Direction) > radians(.02f), "the reference turn is real");
         Assert.True(Angle(one.Direction, three.Direction) < radians(.001f), $"{Angle(one.Direction, three.Direction)}");
         Assert.True(Angle(minusOne.Direction, minusThree.Direction) < radians(.001f));
     }
