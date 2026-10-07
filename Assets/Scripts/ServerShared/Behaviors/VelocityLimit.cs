@@ -45,7 +45,11 @@ public class VelocityLimit : Behavior
     {
         Limit = Evaluate(_data.TopSpeed);
         if (length(Entity.Velocity) > Limit)
-            Entity.Velocity = normalize(Entity.Velocity) * Limit;
+        {
+            var clamped = normalize(Entity.Velocity) * Limit;
+            Entity.LimitClamp += Entity.Velocity - clamped;
+            Entity.Velocity = clamped;
+        }
         return true;
     }
 }
