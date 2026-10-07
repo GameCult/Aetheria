@@ -253,6 +253,63 @@ public sealed class MineTests : IDisposable
         Assert.Equal(triggers, mine.TriggeredAt != null);
     }
 
+    // This fixture differs from OnlyHostilesTriggerAMine only in what the rule cares about: the layer has no
+    // faction and is the only hull in the disc, so nothing but its own identity can keep it from triggering.
+    [Fact]
+    public void AFactionlessLayersOwnHullNeverTriggersItsMine()
+    {
+        var lab = Build(arming: 1f, fuse: 50f, life: 100f, layerFaction: null);
+        var mine = LayOne(lab);
+        Assert.True(FireControl.Touches(lab.Layer, mine.Body.Position, mine.BlastRadius), "the layer's own hull must lie in the disc");
+
+        foreach (var step in Steps(5f, .1f)) lab.Zone.Update(step);
+
+        Assert.Null(mine.TriggeredAt);
+    }
+
+    // The rule reads the faction frozen at lay, whichever way the layer's faction moves afterwards. The other
+    // hull is parked in the disc; only the layer's faction changes between lay and arming.
+    [Theory]
+    [InlineData("B", true)]   // hostile at lay, allied once the layer joins B: still triggers
+    [InlineData("A", false)]  // allied at lay, hostile once the layer joins B: still never triggers
+    public void TheTriggerReadsTheFactionFrozenAtLay(string otherFaction, bool triggers)
+    {
+        var lab = Build(arming: 1f, fuse: 50f, life: 100f, layerFaction: A);
+        Add(lab, "Solid", otherFaction == "A" ? A : B, lab.Layer.Position);
+        var mine = LayOne(lab);
+
+        lab.Layer.Faction = B;
+        foreach (var step in Steps(5f, .1f)) lab.Zone.Update(step);
+
+        Assert.Equal(triggers, mine.TriggeredAt != null);
+    }
+
+    // The trigger disc is the blast disc, not a wider one: a hull the blast disc misses by a hair is not a trigger.
+    [Fact]
+    public void AHullJustOutsideTheBlastDiscDoesNotTrigger()
+    {
+        var lab = Build(layerFaction: A);
+        var ell = Add(lab, "Ell", B, float3(300, 0, 300));
+        // Find the schematic x where the disc of radius 2 stops touching the L's far cell, then stand just beyond it.
+        float lo = 5.4f, hi = 5.6f;
+        Assert.True(FireControl.Touches(ell, ell.ToWorldPoint(float2(lo, 0)), 2f));
+        Assert.False(FireControl.Touches(ell, ell.ToWorldPoint(float2(hi, 0)), 2f));
+        for (var i = 0; i < 30; i++)
+        {
+            var mid = (lo + hi) / 2f;
+            if (FireControl.Touches(ell, ell.ToWorldPoint(float2(mid, 0)), 2f)) lo = mid; else hi = mid;
+        }
+        var at = ell.ToWorldPoint(float2(hi + .01f, 0));
+        Assert.False(FireControl.Touches(ell, at, 2f), "just outside the blast disc");
+        Assert.True(FireControl.Touches(ell, at, 2.2f), "and inside a disc a tenth wider");
+
+        var mine = Place(lab, at, 2f);
+        lab.Zone.Update(.1f);
+        lab.Zone.Update(.1f);
+
+        Assert.Null(mine.TriggeredAt);
+    }
+
     [Fact]
     public void TheLayerNeverTriggersItsOwnMineButItsBlastHurtsIt()
     {
