@@ -85,8 +85,8 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
     public @AetheriaInput()
     {
         asset = InputActionAsset.FromJson(@"{
-    ""version"": 1,
     ""name"": ""Aetheria"",
+    ""version"": 1,
     ""maps"": [
         {
             ""name"": ""Player"",
@@ -251,22 +251,86 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
                     ""interactions"": """",
                     ""initialStateCheck"": true,
                     ""priority"": 0
+                },
+                {
+                    ""name"": ""Face Aim"",
+                    ""type"": ""Button"",
+                    ""id"": ""6d5bd565-8c0e-4789-9d51-177dc0ec8e11"",
+                    ""expectedControlType"": ""Button"",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": false,
+                    ""priority"": 0
+                },
+                {
+                    ""name"": ""Toggle Face Aim"",
+                    ""type"": ""Button"",
+                    ""id"": ""4067c72f-3e3d-4d7b-a8b5-356cab9793fc"",
+                    ""expectedControlType"": ""Button"",
+                    ""processors"": """",
+                    ""interactions"": """",
+                    ""initialStateCheck"": false,
+                    ""priority"": 0
                 }
             ],
             ""bindings"": [
                 {
-                    ""name"": """",
+                    ""name"": ""Gamepad Move"",
                     ""id"": ""978bfe49-cc26-4a3d-ab7b-7d7a29327403"",
-                    ""path"": ""<Gamepad>/leftStick"",
+                    ""path"": ""2DVector(mode=2)"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": """",
+                    ""action"": ""Move"",
+                    ""isComposite"": true,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": ""up"",
+                    ""id"": ""e9c57b4d-1cd8-4b2f-93d6-1745a37cabc9"",
+                    ""path"": ""<Gamepad>/leftStick/up"",
                     ""interactions"": """",
                     ""processors"": """",
                     ""groups"": "";Gamepad"",
                     ""action"": ""Move"",
                     ""isComposite"": false,
-                    ""isPartOfComposite"": false
+                    ""isPartOfComposite"": true
                 },
                 {
-                    ""name"": ""WASD"",
+                    ""name"": ""down"",
+                    ""id"": ""05f19282-8364-4ae0-b5c3-d471c10601a7"",
+                    ""path"": ""<Gamepad>/leftStick/down"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": "";Gamepad"",
+                    ""action"": ""Move"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": true
+                },
+                {
+                    ""name"": ""left"",
+                    ""id"": ""1ce4a07f-43af-4e82-a631-dbb43c8191d3"",
+                    ""path"": ""<Gamepad>/leftShoulder"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": "";Gamepad"",
+                    ""action"": ""Move"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": true
+                },
+                {
+                    ""name"": ""right"",
+                    ""id"": ""bd1aed7e-b80b-4341-a550-4ef10bacf4b4"",
+                    ""path"": ""<Gamepad>/rightShoulder"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": "";Gamepad"",
+                    ""action"": ""Move"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": true
+                },
+                {
+                    ""name"": ""W S Q E"",
                     ""id"": ""00ca640b-d935-4593-8157-c05846ea39b3"",
                     ""path"": ""Dpad(mode=1)"",
                     ""interactions"": """",
@@ -301,7 +365,7 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
                 {
                     ""name"": ""left"",
                     ""id"": ""d2581a9b-1d11-4566-b27d-b92aff5fabbc"",
-                    ""path"": ""<Keyboard>/a"",
+                    ""path"": ""<Keyboard>/q"",
                     ""interactions"": """",
                     ""processors"": """",
                     ""groups"": "";Keyboard&Mouse"",
@@ -312,7 +376,7 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
                 {
                     ""name"": ""right"",
                     ""id"": ""fcfe95b8-67b9-4526-84b5-5d0bc98d6400"",
-                    ""path"": ""<Keyboard>/d"",
+                    ""path"": ""<Keyboard>/e"",
                     ""interactions"": """",
                     ""processors"": """",
                     ""groups"": "";Keyboard&Mouse"",
@@ -521,7 +585,7 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
                 {
                     ""name"": ""negative"",
                     ""id"": ""8536ca60-1fed-4f29-8060-04d46cfffcab"",
-                    ""path"": ""<Keyboard>/q"",
+                    ""path"": ""<Keyboard>/a"",
                     ""interactions"": """",
                     ""processors"": """",
                     ""groups"": """",
@@ -532,13 +596,57 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
                 {
                     ""name"": ""positive"",
                     ""id"": ""19c175bf-d4e6-4626-8bee-91e0c473a94b"",
-                    ""path"": ""<Keyboard>/e"",
+                    ""path"": ""<Keyboard>/d"",
                     ""interactions"": """",
                     ""processors"": """",
                     ""groups"": """",
                     ""action"": ""Turn"",
                     ""isComposite"": false,
                     ""isPartOfComposite"": true
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""fdff8f1f-0824-49bd-b09a-c1b792f16299"",
+                    ""path"": ""<Gamepad>/leftStick/x"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": "";Gamepad"",
+                    ""action"": ""Turn"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""1ee2fadd-3db4-45e6-8fa4-7a621ef7d165"",
+                    ""path"": ""<Keyboard>/leftShift"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": ""Keyboard&Mouse"",
+                    ""action"": ""Face Aim"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""e9520d95-0458-439b-a37c-84c45237e110"",
+                    ""path"": ""<Keyboard>/capsLock"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": ""Keyboard&Mouse"",
+                    ""action"": ""Toggle Face Aim"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
+                },
+                {
+                    ""name"": """",
+                    ""id"": ""596ed367-be34-4951-9aac-d8caa57b411f"",
+                    ""path"": ""<Gamepad>/leftStickPress"",
+                    ""interactions"": """",
+                    ""processors"": """",
+                    ""groups"": "";Gamepad"",
+                    ""action"": ""Toggle Face Aim"",
+                    ""isComposite"": false,
+                    ""isPartOfComposite"": false
                 }
             ]
         },
@@ -1208,6 +1316,8 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
         m_Player_HideUI = m_Player.FindAction("Hide UI", throwIfNotFound: true);
         m_Player_TractorBeam = m_Player.FindAction("Tractor Beam", throwIfNotFound: true);
         m_Player_Turn = m_Player.FindAction("Turn", throwIfNotFound: true);
+        m_Player_FaceAim = m_Player.FindAction("Face Aim", throwIfNotFound: true);
+        m_Player_ToggleFaceAim = m_Player.FindAction("Toggle Face Aim", throwIfNotFound: true);
         // UI
         m_UI = asset.FindActionMap("UI", throwIfNotFound: true);
         m_UI_Navigate = m_UI.FindAction("Navigate", throwIfNotFound: true);
@@ -1325,6 +1435,8 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
     private readonly InputAction m_Player_HideUI;
     private readonly InputAction m_Player_TractorBeam;
     private readonly InputAction m_Player_Turn;
+    private readonly InputAction m_Player_FaceAim;
+    private readonly InputAction m_Player_ToggleFaceAim;
     /// <summary>
     /// Provides access to input actions defined in input action map "Player".
     /// </summary>
@@ -1401,6 +1513,14 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
         /// </summary>
         public InputAction @Turn => m_Wrapper.m_Player_Turn;
         /// <summary>
+        /// Provides access to the underlying input action "Player/FaceAim".
+        /// </summary>
+        public InputAction @FaceAim => m_Wrapper.m_Player_FaceAim;
+        /// <summary>
+        /// Provides access to the underlying input action "Player/ToggleFaceAim".
+        /// </summary>
+        public InputAction @ToggleFaceAim => m_Wrapper.m_Player_ToggleFaceAim;
+        /// <summary>
         /// Provides access to the underlying input action map instance.
         /// </summary>
         public InputActionMap Get() { return m_Wrapper.m_Player; }
@@ -1474,6 +1594,12 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
             @Turn.started += instance.OnTurn;
             @Turn.performed += instance.OnTurn;
             @Turn.canceled += instance.OnTurn;
+            @FaceAim.started += instance.OnFaceAim;
+            @FaceAim.performed += instance.OnFaceAim;
+            @FaceAim.canceled += instance.OnFaceAim;
+            @ToggleFaceAim.started += instance.OnToggleFaceAim;
+            @ToggleFaceAim.performed += instance.OnToggleFaceAim;
+            @ToggleFaceAim.canceled += instance.OnToggleFaceAim;
         }
 
         /// <summary>
@@ -1533,6 +1659,12 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
             @Turn.started -= instance.OnTurn;
             @Turn.performed -= instance.OnTurn;
             @Turn.canceled -= instance.OnTurn;
+            @FaceAim.started -= instance.OnFaceAim;
+            @FaceAim.performed -= instance.OnFaceAim;
+            @FaceAim.canceled -= instance.OnFaceAim;
+            @ToggleFaceAim.started -= instance.OnToggleFaceAim;
+            @ToggleFaceAim.performed -= instance.OnToggleFaceAim;
+            @ToggleFaceAim.canceled -= instance.OnToggleFaceAim;
         }
 
         /// <summary>
@@ -2059,6 +2191,20 @@ public partial class @AetheriaInput: IInputActionCollection2, IDisposable
         /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
         /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
         void OnTurn(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "Face Aim" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnFaceAim(InputAction.CallbackContext context);
+        /// <summary>
+        /// Method invoked when associated input action "Toggle Face Aim" is either <see cref="UnityEngine.InputSystem.InputAction.started" />, <see cref="UnityEngine.InputSystem.InputAction.performed" /> or <see cref="UnityEngine.InputSystem.InputAction.canceled" />.
+        /// </summary>
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.started" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.performed" />
+        /// <seealso cref="UnityEngine.InputSystem.InputAction.canceled" />
+        void OnToggleFaceAim(InputAction.CallbackContext context);
     }
     /// <summary>
     /// Interface to implement callback methods for all input action callbacks associated with input actions defined by "UI" which allows adding and removing callbacks.
