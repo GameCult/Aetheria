@@ -76,7 +76,7 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
             p.Velocity = barrel.forward * weapon.Velocity;
             p.Thrust = item.Evaluate(guidance.Thrust);
             p.TopSpeed = item.Evaluate(guidance.MissileVelocity);
-            p.TargetPosition = () => (source.Entity.Position + length(source.LookAtPoint.position.ToCultMath() - source.Entity.Position) * source.Entity.LookDirection).ToUnity();
+            p.TargetPosition = () => (source.Entity.Position + length(source.LookAtPoint.position.ToCultMath() - source.Entity.Position) * source.Entity.Aim).ToUnity();
             Bind(p, source.Entity.Zone, shotId);
         }
         else Debug.LogError($"Weapon {item.Data.Name} linked to {name} effect, but is not a Launcher!");

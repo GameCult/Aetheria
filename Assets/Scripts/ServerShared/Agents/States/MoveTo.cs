@@ -23,7 +23,8 @@ public abstract class MoveToState : BaseState
         
         // We want to go top speed in the direction of our target
         var desiredVelocity = dir * _agent.TopSpeed;
-        _agent.Ship.LookDirection = float3(dir.x, 0, dir.y);
+        _agent.Ship.Aim = float3(dir.x, 0, dir.y);
+        _agent.Ship.Turn = Steering.Toward(_agent.Ship, dir);
         _agent.Accelerate(desiredVelocity);
     }
 }

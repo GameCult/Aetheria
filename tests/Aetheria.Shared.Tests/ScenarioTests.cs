@@ -317,12 +317,12 @@ public sealed partial class RunStartTests
         Assert.Equal(1, AgentsOf(zone, hostile));
         Assert.Equal(0, AgentsOf(zone, neutral));
         Assert.Equal(0, AgentsOf(zone, player));
-        var look = neutral.LookDirection;
+        var look = neutral.Aim;
         for (var tick = 0; tick < 50; tick++)
         {
             zone.Update(.1f);
             Assert.Equal(float2.zero, ((Ship) neutral).MovementDirection);
-            Assert.Equal(look, neutral.LookDirection);
+            Assert.Equal(look, neutral.Aim);
         }
         Assert.Equal(0, AgentsOf(zone, neutral));
     }

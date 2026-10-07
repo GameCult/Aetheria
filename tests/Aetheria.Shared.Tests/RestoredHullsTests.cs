@@ -18,7 +18,7 @@ using Random = CultMath.Random;
 // Cut 1 (docs/locomotion-cut.md, "Restore the legacy thruster ship hulls to the live catalog"). Verifies the
 // content restore-hulls landed, against the real shipped catalog, read-only: the hulls exist with the expected
 // thruster hardpoint counts, every thruster hardpoint accepts a catalog thruster design through TryEquip at its
-// own position, and the ship then moves and turns for a few ticks under MovementDirection/LookDirection on the
+// own position, and the ship then moves and turns for a few ticks under MovementDirection/Turn on the
 // pre-Cut-3 mixer -- proof of the restored content, not of a controller this cut does not touch.
 public sealed class RestoredHullsTests
 {
@@ -31,7 +31,7 @@ public sealed class RestoredHullsTests
     // (tools/AetherDb/AuthoredSettings.cs) is the same headless YAML reader tools/AetherDb already uses to
     // inspect Settings.asset outside Unity; this loads the real GameplaySettings the same way instead of
     // hand-copying its fields a second time.
-    private static GameplaySettings Settings() => AuthoredSettings.Load(FindRepoRoot()).Read<GameplaySettings>("GameplaySettings");
+    internal static GameplaySettings Settings() => AuthoredSettings.Load(FindRepoRoot()).Read<GameplaySettings>("GameplaySettings");
 
     // Same composition FireControlCut7Tests.OpenReadOnlyRealCatalog uses: a registry scoped to the shipped
     // assembly's own [CultDocument] types, so this test's own process-wide type registration never pollutes the
@@ -54,7 +54,7 @@ public sealed class RestoredHullsTests
         throw new DirectoryNotFoundException("Run from inside the Aetheria repository.");
     }
 
-    private static CultCache OpenCatalog() => OpenReadOnlyRealCatalog(Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc"));
+    internal static CultCache OpenCatalog() => OpenReadOnlyRealCatalog(Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc"));
 
     // Shared tutorial-galaxy construction settings (Assets/Resources/Settings.asset's own values), factored out
     // so every test that needs a real tutorial Galaxy -- not just EntranceZoneAlwaysGetsADockedStationAcrossSeeds
@@ -201,16 +201,10 @@ public sealed class RestoredHullsTests
         }
     }
 
-    // "The ship then moves and turns... for a few ticks" (docs/locomotion-cut.md verification list). Equips
-    // every thruster hardpoint with a fitting design, then drives MovementDirection/LookDirection the same way
-    // ActionGameManager's player-input path does (docs' own consumer audit) and checks Entity.Velocity and
-    // Entity.Direction both move over a few ticks on the current (pre-Cut-3) mixer.
-    [Theory]
-    [InlineData("Longinus")]
-    [InlineData("Djinni")]
-    public void RestoredHullMovesAndTurnsUnderMovementAndLookDirection(string name)
+    // A restored hull with every thruster hardpoint (and its reactor) filled, activated and warmed up: the
+    // rotation thrusters the helm tests need. The caller owns the cache.
+    internal static Ship BuildThrustedShip(CultCache cache, string name)
     {
-        using var cache = OpenCatalog();
         var hull = cache.GetByName<HullData>(name);
         var thrusterDesigns = cache.GetAll<GearData>().Where(g => g.Hardpoint == HardpointType.Thruster).ToArray();
 
@@ -247,12 +241,27 @@ public sealed class RestoredHullsTests
         ship.Position = float3.zero;
         ship.Activate();
         zone.Update(0f); // warm-up: resolves equipment stats before the driven ticks read them
+        return ship;
+    }
+
+    // "The ship then moves and turns... for a few ticks" (docs/locomotion-cut.md verification list). Equips
+    // every thruster hardpoint with a fitting design, then drives MovementDirection/Turn the same way
+    // ActionGameManager's player-input path does (docs' own consumer audit) and checks Entity.Velocity and
+    // Entity.Direction both move over a few ticks on the current (pre-Cut-3) mixer.
+    [Theory]
+    [InlineData("Longinus")]
+    [InlineData("Djinni")]
+    public void RestoredHullMovesAndTurnsUnderMovementAndTurn(string name)
+    {
+        using var cache = OpenCatalog();
+        var ship = BuildThrustedShip(cache, name);
+        var zone = ship.Zone;
 
         var startVelocity = ship.Velocity;
         var startDirection = ship.Direction;
 
         ship.MovementDirection = float2(0, 1); // full forward, same axis ActionGameManager.Input.Player.Move drives
-        ship.LookDirection = float3(1, 0, 0); // off-axis target heading, so the mixer's yaw thrusters have work to do
+        ship.Turn = 1; // a turn command, so the mixer's yaw thrusters have work to do
         for (var i = 0; i < 10; i++) zone.Update(1f / 60f);
 
         Assert.NotEqual(startVelocity, ship.Velocity);
@@ -538,7 +547,6 @@ public sealed class RestoredHullsTests
         zone.Update(0f);
 
         ship.MovementDirection = float2(0, 1); // full forward
-        ship.LookDirection = float3(ship.Direction.x, 0, ship.Direction.y); // straight line: hold the ship's own heading
 
         // Soul measured this loadout's forward thrusters crossing 386 K (thermal shutdown) around 7.3 s under
         // real settings; 5 s keeps every tick inside the window where thrust runs continuously and unforced, so

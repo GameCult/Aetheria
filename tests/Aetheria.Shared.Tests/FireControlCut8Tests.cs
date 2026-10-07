@@ -224,7 +224,7 @@ public sealed class FireControlCut8Tests : IDisposable
 
         locker.Position = float3.zero;
         bystander.Position = float3(0, 0, 100);
-        locker.LookDirection = float3(0, 0, 1);
+        locker.Aim = float3(0, 0, 1);
         locker.SetTarget(bystander);
         locker.EntityInfoGathered[bystander] = 1f;
         locker.SetIff(bystander, true);

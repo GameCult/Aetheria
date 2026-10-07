@@ -56,7 +56,7 @@ public sealed partial class MiningCut3Tests
         Assert.True(ship.TryEquip(Mint(s, gun)));
         s.Zone.Entities.Add(ship);
         Hold(ship, at);
-        ship.LookDirection = float3(0, 0, 1);
+        ship.Aim = float3(0, 0, 1);
         ship.Activate();
         Tick((ship, at)); // equipment comes online and weapons read their ranges on the first tick
         return ship;

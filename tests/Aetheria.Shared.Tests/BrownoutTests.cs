@@ -121,11 +121,9 @@ public sealed class BrownoutTests : IDisposable
         Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("Consumer"))));
 
         zone.Entities.Add(ship);
-        // A ship already "looking" the way Direction already points keeps Ship.Update's own steering pass a
-        // no-op (deltaRot == 0): no NaN from an unset LookDirection propagating into AetherDrive's Axis.z, and
-        // no incidental torque thrust from the ship trying to turn toward a look direction none of these tests
-        // care about.
-        ship.LookDirection = float3(0, 0, 1);
+        // Ship.Turn stays 0, so Ship.Update commands no rotation: no incidental torque thrust from the
+        // ship trying to turn. Aim steers nothing, so this one is only a plausible aim.
+        ship.Aim = float3(0, 0, 1);
         ship.Activate();
         return ship;
     }
@@ -184,7 +182,7 @@ public sealed class BrownoutTests : IDisposable
 
     // --- AetherDrive: PassiveCoupling = 1 engages the rotor regardless of axis input, so the drive can be
     // --- exercised without threading Ship's own movement/torque classification -- Axis stays at Ship.Update's
-    // --- own default (0,0,deltaRot), and deltaRot is 0 by BuildShip's own LookDirection setup. Rpm starts at 0,
+    // --- own default (0,0,Turn), and Turn is 0 by default. Rpm starts at 0,
     // --- so decay(0, ...) contributes nothing and the whole tick's Rpm gain is exactly this behaviour's own
     // --- spin-up under test. ---
     private (float rpmGain, AetherDrive drive) RunAetherDrive(float reactorCharge, float exponent = 1)

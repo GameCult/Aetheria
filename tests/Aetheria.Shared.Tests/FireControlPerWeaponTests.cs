@@ -257,7 +257,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
         return rig;
     }
 
-    private static void Aim(Rig r, float2 direction) => r.Shooter.LookDirection = float3(direction.x, 0, direction.y);
+    private static void Aim(Rig r, float2 direction) => r.Shooter.Aim = float3(direction.x, 0, direction.y);
 
     private static readonly (ItemRotation, float)[] SideThenForward = { (ItemRotation.Clockwise, 0f), (ItemRotation.None, 0f) };
     private static readonly (ItemRotation, float)[] SideMount = { (ItemRotation.Clockwise, 0f) };
