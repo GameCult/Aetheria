@@ -1378,6 +1378,7 @@ public class ActionGameManager : MonoBehaviour
             $"info {d.Info:F3}/{d.InfoDemandCeiling:F3} sensor {d.PSensor:F3}\n" +
             $"accuracy {d.Accuracy:F3} spread {d.PSpread:F3} hull {d.POnHull:F3}\n" +
             $"precision {d.Precision:F3} tracking {d.Tracking:F1}\n" +
+            $"mount {d.AngularVelocity:F1}/{d.TrackingRate:F1} x{d.PMount:F3}\n" +
             $"{outcomeLine}\n" +
             $"{pendingLine}\n" +
             lastLine;
