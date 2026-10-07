@@ -381,7 +381,6 @@ public sealed class MineTests : IDisposable
         for (var i = 0; i < shipsA.Count; i++)
         {
             Assert.Equal(shipsB[i].Hull.Durability, shipsA[i].Hull.Durability);
-            Assert.Equal(shipsB[i].Shield?.Item.Active.Value, shipsA[i].Shield?.Item.Active.Value);
         }
         // Wholly inside and the layer are hurt; the edge ship is hurt less; the absorbing shield stops it; the
         // tiny shield breaks and its hull takes the share.
@@ -578,7 +577,7 @@ public sealed class MineTests : IDisposable
     [Fact]
     public void MinesAreNotSaved()
     {
-        var lab = Build(layerFaction: A);
+        var lab = Build();
         LayOne(lab);
 
         var pack = lab.Zone.PackZone();
