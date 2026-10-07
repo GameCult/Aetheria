@@ -33,13 +33,14 @@ public static class Program
             case "brownout-migrate": return BrownoutMigrate(args.Contains("apply"));
             case "roles-migrate": return RolesMigrate(args.Contains("apply"));
             case "firing-arc-migrate": return FiringArcMigrate(args.Contains("apply"));
+            case "evasion-catalog": return EvasionCatalog(args.Contains("apply"));
             case "targeting-catalog": return TargetingCatalog(args.Contains("apply"));
             case "targeting-catalog-6c": return TargetingCatalog6c(args.Contains("apply"));
             case "targeting-catalog-6d": return TargetingCatalog6d(args.Contains("apply"));
             case "ship-authoring": return ShipAuthoringCommands.Run(args.Skip(1).ToArray());
             case "field-kinds": return FieldKindsCatalog(args.Contains("apply"));
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], evasion-catalog [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply]");
                 return 1;
         }
     }
@@ -1074,6 +1075,114 @@ public static class Program
         {
             Console.WriteLine($"Dry run. Pass \"apply\" to land {changed.Count} changed records.");
             return 0;
+        }
+
+        foreach (var (document, _) in changed) CultRecordRefs.Validate(document);
+        db.Cache.Commit(batch =>
+        {
+            foreach (var (document, key) in changed) batch.Upsert(document.GetType(), document, key);
+        });
+        Console.WriteLine($"Landed {changed.Count} changed records in Aetheria.cc");
+        return 0;
+    }
+
+
+    // Evasion r6 (aetheria-release:cut_spec:cut-evasion-term.r6): authors every weapon's mount rate, in degrees per
+    // second, by name, and gives plight the 1x2 Shape of Spectra (ruling plight-shape). The table is the operator's
+    // authored outcome (ruling weapon-tracking-authored): nothing here reads a footprint, a caliber or a hardpoint to
+    // choose a rate. Launchers and guided weapons never mount-track; they are authored +infinity. Dry run unless passed
+    // "apply". Refuses a weapon without a row, a row without a record, a duplicated name, a rate authored to something
+    // else, and an apply with nothing left to land (the second apply). Deleted in its own commit after apply lands: the
+    // catalog is then the table's only copy.
+    private static int EvasionCatalog(bool apply)
+    {
+        var db = AetherDb.Open(catalogWritable: apply);
+        const float infinity = float.PositiveInfinity;
+        var rates = new (string Name, float Rate)[]
+        {
+            ("ClearPath", 12f), ("Spectra", 10f), ("FastBlast+-", 9f), ("Earp", 8f), ("6k Shooter", 7f),
+            ("ColdFire", 6f), ("Autocannon", 4f), ("ChargeBlast+-", 3.5f), ("DeathCluster", 3f), ("ChargeBlast SG", 3f),
+            ("pretty pretty bang bang", 3f), ("plight", 2f), ("CShot RainbowLite Lazer", 1.5f),
+            ("GT 3K", infinity), ("pswarm", infinity), ("scorched void policy", infinity), ("LRMM72", infinity),
+            ("SRMM72", infinity),
+        };
+
+        var refusals = new List<string>();
+        foreach (var group in rates.GroupBy(r => r.Name, StringComparer.Ordinal).Where(g => g.Count() > 1))
+            refusals.Add($"the table names \"{group.Key}\" twice");
+
+        var weapons = db.Cache.GetAll<WeaponItemData>().ToArray();
+        foreach (var row in rates)
+            if (weapons.Count(w => w.Name == row.Name) != 1)
+                refusals.Add($"table row \"{row.Name}\" matches {weapons.Count(w => w.Name == row.Name)} catalog weapons, not 1");
+        foreach (var weapon in weapons)
+        {
+            if (rates.All(r => r.Name != weapon.Name)) refusals.Add($"catalog weapon \"{weapon.Name}\" has no row");
+            if (!weapon.Behaviors.OfType<WeaponData>().Any()) refusals.Add($"catalog weapon \"{weapon.Name}\" has no weapon behaviour");
+        }
+
+        var spectra = weapons.FirstOrDefault(w => w.Name == "Spectra");
+        var plight = weapons.FirstOrDefault(w => w.Name == "plight");
+        if (spectra != null && (spectra.Shape.Width != 1 || spectra.Shape.Height != 2 || !spectra.Shape.Cells[0, 0] || !spectra.Shape.Cells[0, 1]))
+            refusals.Add("Spectra's Shape is not one wide, two high, both cells occupied");
+        if (refusals.Count > 0)
+        {
+            foreach (var refusal in refusals) Console.WriteLine($"REFUSED: {refusal}");
+            return 1;
+        }
+
+        Console.WriteLine($"{"weapon",-26} {"field",-10} {"was",-14} {"now",-14}");
+        var changed = new List<(object Document, CultRecordKey Key)>();
+        foreach (var (name, rate) in rates)
+        {
+            var weapon = weapons.Single(w => w.Name == name);
+            var touched = false;
+            foreach (var behavior in weapon.Behaviors.OfType<WeaponData>())
+            {
+                var was = behavior.Tracking;
+                var label = was.Min + ".." + was.Max;
+                if (was.Min == rate && was.Max == rate)
+                {
+                    Console.WriteLine($"{name,-26} {"Tracking",-10} {label,-14} {label,-14} (already authored, left alone)");
+                    continue;
+                }
+                if (!float.IsPositiveInfinity(was.Min) || !float.IsPositiveInfinity(was.Max))
+                {
+                    Console.WriteLine($"REFUSED: \"{name}\" Tracking is authored {label}, not the table's {rate}; the catalog was edited since");
+                    return 1;
+                }
+                behavior.Tracking = new PerformanceStat { Min = rate, Max = rate };
+                Console.WriteLine($"{name,-26} {"Tracking",-10} {label,-14} {rate + ".." + rate,-14}");
+                touched = true;
+            }
+            if (touched) changed.Add((weapon, db.Cache.RefOf(weapon).Key));
+        }
+
+        var wasShape = $"{plight.Shape.Width}x{plight.Shape.Height}";
+        if (plight.Shape.Width == spectra.Shape.Width && plight.Shape.Height == spectra.Shape.Height
+            && plight.Shape.Cells.Cast<bool>().SequenceEqual(spectra.Shape.Cells.Cast<bool>()))
+            Console.WriteLine($"{"plight",-26} {"Shape",-10} {wasShape,-14} {wasShape,-14} (already Spectra's, left alone)");
+        else
+        {
+            var copy = new Shape(spectra.Shape.Width, spectra.Shape.Height);
+            for (var x = 0; x < copy.Width; x++)
+                for (var y = 0; y < copy.Height; y++)
+                    copy.Cells[x, y] = spectra.Shape.Cells[x, y];
+            plight.Shape = copy;
+            Console.WriteLine($"{"plight",-26} {"Shape",-10} {wasShape,-14} {plight.Shape.Width + "x" + plight.Shape.Height,-14}");
+            if (!changed.Any(c => ReferenceEquals(c.Document, plight))) changed.Add((plight, db.Cache.RefOf(plight).Key));
+        }
+
+        Console.WriteLine($"\n{changed.Count} weapon records changed");
+        if (!apply)
+        {
+            Console.WriteLine(changed.Count == 0 ? "Dry run. Nothing to land." : $"Dry run. Pass \"apply\" to land {changed.Count} changed records.");
+            return 0;
+        }
+        if (changed.Count == 0)
+        {
+            Console.WriteLine("REFUSED: nothing to land; the catalog already carries the table.");
+            return 1;
         }
 
         foreach (var (document, _) in changed) CultRecordRefs.Validate(document);
