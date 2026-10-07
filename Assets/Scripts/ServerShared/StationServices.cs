@@ -31,7 +31,7 @@ public static class StationServices
         switch (item)
         {
             case CraftedItemInstance crafted:
-                return (int) Math.Floor(items.GetPrice(crafted) * fraction * Condition(items, crafted));
+                return SellValue(items.GetPrice(crafted), fraction, Condition(items, crafted));
             case SimpleCommodity commodity:
                 return (int) Math.Floor((long) items.GetData(commodity).Price * commodity.Quantity * fraction);
             default:
@@ -121,10 +121,20 @@ public static class StationServices
         return Math.Max(0, Math.Min(1, gear.Durability / (double) design.Durability));
     }
 
+    // The sell value of a price at a condition, rounded down. The one place the sell rounding lives: RepairShare
+    // prices the sell value a repair adds from the same function, so the two cannot round apart.
+    private static int SellValue(int price, double fraction, double condition) =>
+        (int) Math.Floor(price * fraction * condition);
+
+    // The share of the repair charge for one piece of gear: its wear at the repair fraction, rounded up, and never
+    // less than the sell value the repair adds, so mending before selling never nets credits.
     private static long RepairShare(ItemManager items, EquippableItem gear, double fraction)
     {
-        var worn = 1 - Condition(items, gear);
-        return (long) Math.Ceiling(worn * items.GetPrice(gear) * fraction);
+        var price = items.GetPrice(gear);
+        var condition = Condition(items, gear);
+        var sellFraction = (double) items.GameplaySettings.SellFraction;
+        var added = SellValue(price, sellFraction, 1) - SellValue(price, sellFraction, condition);
+        return Math.Max(added, (long) Math.Ceiling((1 - condition) * price * fraction));
     }
 }
 
