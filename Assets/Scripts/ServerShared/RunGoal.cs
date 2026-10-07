@@ -11,9 +11,10 @@ public static class RunGoal
 
     public static bool BossAlive(Zone zone) => Boss(zone) != null;
 
-    // The exit gate is open in the galaxy's exit zone once that zone holds no living boss.
+    // The exit gate fails closed: it is open only in the galaxy's exit zone, once a boss was spawned there and no living
+    // boss remains. An exit zone that never got a boss stays sealed, so a missing boss can never read as a dead one.
     public static bool ExitOpen(Zone zone) =>
-        zone.Galaxy?.Exit != null && zone.GalaxyZone == zone.Galaxy.Exit && !BossAlive(zone);
+        zone.Galaxy?.Exit != null && zone.GalaxyZone == zone.Galaxy.Exit && zone.Pack.BossSpawned && !BossAlive(zone);
 
     // Where the exit gate sits: at the adjacency wormholes' radius (the zone's radius times the ratio), in the middle of
     // the widest angular gap between them, so it shares a point with none. A zone with no neighbours gets the +x axis.

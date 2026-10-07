@@ -349,7 +349,11 @@ public static class ZoneGenerator
 	        }
 	        boss.Boss = true;
 	        pack.Entities.Add(boss);
+	        pack.BossSpawned = true;
         }
+
+        if (galaxyZone == galaxy.Exit && !pack.BossSpawned)
+	        itemManager.Log("Galaxy.Exit has no boss: Galaxy.BossZones does not map a boss faction to the exit zone, or its boss could not be generated (ZoneGenerator exit-without-boss). The exit gate stays sealed.");
 
         if (!ambient) return pack;
 

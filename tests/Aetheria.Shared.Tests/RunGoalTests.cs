@@ -164,6 +164,52 @@ public sealed partial class RunStartTests
         Assert.True(RunGoal.ExitOpen(exit));
     }
 
+    // The gate fails closed. The main galaxy puts its bosses on choke points, not at its exit, so its exit zone never gets
+    // one: the gate stays sealed on arrival and when every boss in the galaxy dies, because a boss that never existed is
+    // not a dead one.
+    [Fact]
+    public void Exit_sealed_where_no_boss_was_spawned_main_galaxy()
+    {
+        foreach (var seed in new uint[] { 1, 2, 3, 4, 5, 6, 7, 8 })
+        {
+            var galaxy = RunStart.Generate(new MainGalaxy(), Inputs(() => seed));
+            var exit = ZoneOf(galaxy, galaxy.Exit);
+            Assert.False(RunGoal.ExitOpen(exit), $"seed {seed}: the gate is open on arrival");
+            foreach (var boss in exit.Entities.Where(entity => entity.IsBoss).ToArray())
+                boss.HeatstrokeDeath.OnNext(Unit.Default);
+            Assert.False(RunGoal.ExitOpen(exit), $"seed {seed}: the gate is open with no boss spawned");
+        }
+    }
+
+    // The same for a demo exit whose boss could not be generated: the zone logs the gap by name and the gate stays sealed.
+    [Fact]
+    public void Exit_sealed_and_logged_when_the_boss_cannot_be_generated()
+    {
+        AddPirates();
+        var galaxy = DemoGalaxy(1);
+        galaxy.BossZones.Clear();
+        var log = new List<string>();
+        var pack = BossZonePack(galaxy, LoggingItems(log), galaxy.Exit);
+        Assert.False(pack.BossSpawned);
+        Assert.Contains(log, line => line.Contains("Galaxy.Exit") && line.Contains("exit-without-boss"));
+        var exit = new Zone(_items, _planetSettings, pack, galaxy.Exit, galaxy);
+        Assert.False(RunGoal.ExitOpen(exit));
+    }
+
+    // A boss killed before the save stays dead after it, and the gate stays open: the spawn fact travels with the zone.
+    [Fact]
+    public void Exit_open_after_save_of_a_slain_boss()
+    {
+        AddPirates();
+        var galaxy = DemoGalaxy(1);
+        var exit = ZoneOf(galaxy, galaxy.Exit);
+        Assert.Single(exit.Entities, entity => entity.IsBoss).HeatstrokeDeath.OnNext(Unit.Default);
+        var repacked = exit.PackZone();
+        Assert.True(repacked.BossSpawned);
+        Assert.DoesNotContain(repacked.Entities, entity => entity.Boss);
+        Assert.True(RunGoal.ExitOpen(new Zone(_items, _planetSettings, repacked, galaxy.Exit, galaxy)));
+    }
+
     // The gate shares no point with an adjacency wormhole: every one is farther from it than a ship's wormhole reach.
     [Fact]
     public void Exit_gate_shares_no_point_with_a_wormhole()

@@ -182,6 +182,7 @@ public class Zone
             Orbits = Orbits.Keys.Select(key => new CultRecordRef<OrbitData>(key)).ToList(),
             Planets = Planets.Keys.Select(key => new CultRecordRef<BodyData>(key)).ToList(),
             Time = _time,
+            BossSpawned = Pack.BossSpawned,
             // Cut 2 (docs/mining-cut.md): drop entries that carry no live information -- healed (no damage) and
             // not currently broken -- so a save never accumulates wear rows for chunks nobody has touched since
             // they last respawned.
