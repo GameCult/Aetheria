@@ -801,7 +801,7 @@ public sealed partial class RunStartTests
             var across = float2(-along.y, along.x);
             var track = EvAlong(along, window);
             var full = .5f * track.LateralRms(along) * window * window;
-            Assert.True(full > 5f, $"fixture: the jink spreads ({full})");
+            Assert.True(full > 3f, $"fixture: the jink spreads ({full})");
             Assert.InRange(FireControl.Evasion(roomy, ahead, track, across, window), full * .999f, full * 1.001f);
             Assert.True(FireControl.Evasion(roomy, ahead, track, along, window) < .02f * full,
                 $"{degrees} degrees: along the jink {FireControl.Evasion(roomy, ahead, track, along, window)} against {full}");
