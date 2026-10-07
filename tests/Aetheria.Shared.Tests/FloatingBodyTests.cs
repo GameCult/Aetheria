@@ -212,4 +212,56 @@ public sealed class FloatingBodyTests : IDisposable
         }
     }
 
+    // Ship.Update's own gravity line, through the real ship and a real zone (no planets: the zone's well alone
+    // gives a slope). The expectation is built from the zone's own normal and the 3035230b ship law, so flipping
+    // the sign or changing how delta enters the line fails here, not only the Zone function's pin above.
+    private Ship ShipAt(float x, out Zone zone)
+    {
+        var cache = AetheriaStores.Open(Path.Combine(_root, Guid.NewGuid().ToString("N") + ".cc"), catalogWritable: true);
+        _caches.Add(cache);
+        var hullShape = new Shape(5, 5);
+        foreach (var cell in hullShape.AllCoordinates) hullShape[cell] = true;
+        cache.Upsert(new HullData { Name = "Skiff", HullType = HullType.Ship, Shape = hullShape, Durability = 10, Mass = 1000 });
+        cache.FlushAsync().Wait();
+        var settings = new GameplaySettings
+        {
+            DefaultEntitySettings = new EntitySettings(),
+            Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
+            QualityPriceModifier = new ExponentialLerp()
+        };
+        var items = new ItemManager(cache, new ProvenanceLedger(), settings, _ => { });
+        var planets = new PlanetSettings { ZoneDepth = 1000, ZoneDepthExponent = 1, GravityStrength = 1 };
+        zone = new Zone(items, planets, new ZonePack { Radius = 1000 }, new GalaxyZone { Name = "Test Zone", Owner = null }, null);
+        var design = cache.GetByName<HullData>("Skiff");
+        var hull = new EquippableItem
+        {
+            Data = cache.RefOf<ItemData>(design), Durability = design.Durability,
+            Lot = items.Lots.Add(new Lot { Design = cache.RefOf<ItemData>(design), Origin = new Attributed(), Quality = .5f, Roles = new List<RoleFill>() })
+        };
+        var ship = new Ship(items, zone, hull, new EntitySettings());
+        zone.Entities.Add(ship);
+        ship.LookDirection = float3(0, 0, 1);
+        ship.Activate();
+        ship.Position = float3(x, 0, 0);
+        return ship;
+    }
+
+    [Fact]
+    public void AShipInAWellIsPulledTowardItByTheLawPerSecond()
+    {
+        foreach (var delta in new[] { 1f / 60f, 1f / 30f })
+        {
+            var ship = ShipAt(400f, out var zone);
+            var normal = zone.GetNormal(ship.Position.xz);
+            var push = LegacyPushPerFrame(new float2(normal.x, normal.z), zone.Settings.GravityStrength) * (delta * 60f);
+            Assert.True(push.x < 0f, "the well must pull a ship at +x toward the centre");
+
+            ship.Update(delta);
+
+            var tolerance = Math.Max(1e-6f, length(push) * 1e-4f);
+            Assert.InRange(ship.Velocity.x, push.x - tolerance, push.x + tolerance);
+            Assert.InRange(ship.Velocity.y, push.y - tolerance, push.y + tolerance);
+        }
+    }
+
 }
