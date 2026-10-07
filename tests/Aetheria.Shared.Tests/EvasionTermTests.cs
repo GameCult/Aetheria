@@ -379,6 +379,33 @@ public sealed partial class RunStartTests
         Assert.InRange((float) turned / EvDt, gemini.Envelope.Clockwise * .9f, gemini.Envelope.Clockwise * 1.1f);
     }
 
+    // The reach and the evasion read each side of the envelope for themselves: a forward-only ship that turns clockwise
+    // fast and counter-clockwise slowly reaches further to its right than its left in the window, and its evasion
+    // across a line of sight is the average of what it reaches to either side, capped by the spread it is observed to
+    // make. A diagonal jink reads as unpredictable along the diagonal and not across it.
+    [Fact]
+    public void ReachAndEvasionReadEachSideOfTheEnvelope()
+    {
+        var forwardOnly = new ManoeuvreEnvelope(50, 0, 0, 0, 4, .5f);
+        var ahead = float2(0, 1);
+        var toRight = FireControl.Reach(forwardOnly, ahead, float2(1, 0), .75f);
+        var toLeft = FireControl.Reach(forwardOnly, ahead, float2(-1, 0), .75f);
+        Assert.True(toRight > 2 * toLeft && toLeft > 0f, $"right {toRight}, left {toLeft}");
+
+        var wild = default(ManoeuvreTrack);
+        for (var step = 0; step < 240; step++) wild.Observe(float2(step / 30 % 2 == 0 ? 500 : -500, 0), EvDt, .75f);
+        var evasion = FireControl.Evasion(forwardOnly, ahead, wild, float2(0, 1), .75f);
+        Assert.InRange(evasion, .5f * (toRight + toLeft) * .999f, .5f * (toRight + toLeft) * 1.001f);
+
+        var diagonal = default(ManoeuvreTrack);
+        for (var step = 0; step < 240; step++)
+            diagonal.Observe(float2(1, 1) * (step / 30 % 2 == 0 ? 40 : -40), EvDt, .75f);
+        var along = diagonal.LateralRms(normalize(float2(1, 1)));
+        var across = diagonal.LateralRms(normalize(float2(1, -1)));
+        Assert.InRange(along, diagonal.LateralRms(float2(1, 0)) * 1.414f * .97f, diagonal.LateralRms(float2(1, 0)) * 1.414f * 1.03f);
+        Assert.True(across < .05f * along, $"along {along}, across {across}");
+    }
+
     // A station or any other non-Ship has no envelope; whatever it does, it does not evade.
     [Fact]
     public void NonShipsDoNotEvade()
