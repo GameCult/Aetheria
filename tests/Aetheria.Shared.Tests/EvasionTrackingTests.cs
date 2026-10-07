@@ -28,17 +28,21 @@ public sealed partial class RunStartTests
         Assert.Equal(rate, weapon.Tracking);
     }
 
-    // The range fixture with the projectile gun at one rate and the laser at another, the target seen by both.
+    // The range fixture with the shooter's projectile gun at one rate and its laser at another, the target seen. The
+    // shooter is put back at the origin at rest, so the geometry is exactly what the test says.
     private EvRange EvMountRange(float gunRate, float laserRate)
     {
         var range = EvRangeLaunch();
         EvSetRate(range.Gun, range.Gunner, gunRate);
-        EvSetRate(range.Laser, range.Lasing, laserRate);
-        Assert.True(range.Gunner.VisibleEntities.Contains(range.Target) && range.Lasing.VisibleEntities.Contains(range.Target), "fixture: the shooters still see the target");
+        EvSetRate(range.GunnerLaser, range.Gunner, laserRate);
+        range.Gunner.Position = float3(0, range.Gunner.Position.y, 0);
+        range.Gunner.Velocity = float2(0, 0);
+        Assert.True(range.Gunner.VisibleEntities.Contains(range.Target), "fixture: the shooter still sees the target");
         return range;
     }
 
-    private static (Weapon weapon, Ship shooter)[] EvGuns(EvRange range) => new[] { (range.Gun, range.Gunner), (range.Laser, range.Lasing) };
+    // The two guns of the one shooter: same gear, same ship, so only the gun's own rate differs.
+    private static (Weapon weapon, Ship shooter)[] EvGuns(EvRange range) => new[] { (range.Gun, range.Gunner), (range.GunnerLaser, range.Gunner) };
 
     [Fact]
     public void AngularVelocityIsTransverseOverRange()

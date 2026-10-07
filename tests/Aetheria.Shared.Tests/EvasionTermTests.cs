@@ -24,12 +24,12 @@ public sealed partial class RunStartTests
 
     // The Duel's guns on a Longinus: the generated Longinus's thrusters (two Large Drive forward, two Talaria on the
     // flanks) and power, its Targeting Computer, and the Duel's cockpit, guns, launchers and sensor.
-    private static ScenarioFit EvLonginus(ScenarioStage stage, string gun = "FastBlast+-") => stage.Fit("Longinus",
+    private static ScenarioFit EvLonginus(ScenarioStage stage, string gun = "FastBlast+-", string second = null) => stage.Fit("Longinus",
         ("Cockpit 2x2", int2(2, 6), ItemRotation.None), ("Core Power", int2(2, 4), ItemRotation.None),
         ("Large Drive", int2(1, 0), ItemRotation.Reversed), ("Large Drive", int2(3, 0), ItemRotation.Reversed),
         ("Talaria", int2(2, 14), ItemRotation.CounterClockwise), ("Talaria", int2(3, 14), ItemRotation.Clockwise),
         ("GT 3K", int2(0, 5), ItemRotation.None), ("GT 3K", int2(5, 5), ItemRotation.None), (gun, int2(1, 8), ItemRotation.None),
-        (gun, int2(4, 8), ItemRotation.None), ("Iapyx", int2(2, 2), ItemRotation.CounterClockwise), ("Iapyx", int2(3, 2), ItemRotation.Clockwise),
+        (second ?? gun, int2(4, 8), ItemRotation.None), ("Iapyx", int2(2, 2), ItemRotation.CounterClockwise), ("Iapyx", int2(3, 2), ItemRotation.Clockwise),
         ("not if i see you first", int2(3, 10), ItemRotation.None), ("PotaT+-", int2(1, 6), ItemRotation.None),
         ("Targeting Computer", int2(1, 7), ItemRotation.None), ("Store-All Plus", int2(2, 8), ItemRotation.None));
 
@@ -476,7 +476,7 @@ public sealed partial class RunStartTests
     {
         public Zone Arena;
         public Ship Gunner, Lasing, Target;
-        public Weapon Gun, Laser;
+        public Weapon Gun, Laser, GunnerLaser;
     }
 
     private EvRange EvRangeLaunch()
@@ -485,7 +485,7 @@ public sealed partial class RunStartTests
         var scenario = new Scripted(false, stage =>
         {
             stage.Player(stage.Bare("Djinni"), float2(-50000, -50000));
-            gunner = stage.Place(EvLonginus(stage), float2(0, 0), facing: float2(0, 1)) as Ship;
+            gunner = stage.Place(EvLonginus(stage, "FastBlast+-", "ColdFire"), float2(0, 0), facing: float2(0, 1)) as Ship;
             target = stage.Place(stage.Generated("Djinni"), float2(0, 200), facing: float2(0, 1)) as Ship;
             lasing = stage.Place(EvLonginus(stage, "ColdFire"), float2(0, 400), facing: float2(0, -1)) as Ship;
         });
@@ -500,7 +500,8 @@ public sealed partial class RunStartTests
         Assert.True(gunner.VisibleEntities.Contains(target) && lasing.VisibleEntities.Contains(target), "fixture: the shooters see the target");
         var gun = gunner.GetBehaviors<Weapon>().First(weapon => weapon is AutoWeapon && weapon.Velocity > 100f);
         var laser = lasing.GetBehaviors<Weapon>().First(weapon => weapon is AutoWeapon && weapon.Velocity <= .01f);
-        return new EvRange { Arena = arena, Gunner = gunner, Lasing = lasing, Target = target, Gun = gun, Laser = laser };
+        var gunnerLaser = gunner.GetBehaviors<Weapon>().First(weapon => weapon is AutoWeapon && weapon.Velocity <= .01f);
+        return new EvRange { Arena = arena, Gunner = gunner, Lasing = lasing, Target = target, Gun = gun, Laser = laser, GunnerLaser = gunnerLaser };
     }
 
     // The target crossing at 150 m/s (or at the velocity given), either coasting or after two seconds of jinking, at the
