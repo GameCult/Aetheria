@@ -39,7 +39,8 @@ public class ThrusterData : BehaviorData
 
 public class Thruster : Behavior, IAnalogBehavior, IPowerConsumer
 {
-    public float Thrust { get; private set; }
+    // Live: heat, quality, durability and power move this stat after construction, so it is read, never cached.
+    public float Thrust => Evaluate(_data.Thrust);
     public float Torque { get; }
 
     public float Axis
@@ -67,14 +68,12 @@ public class Thruster : Behavior, IAnalogBehavior, IPowerConsumer
         var itemCenter = hullData.Shape.Inset(itemData.Shape, item.Position, item.EquippableItem.Rotation).CenterOfMass;
         var toCenter = hullCenter - itemCenter;
         Torque = -dot(normalize(toCenter), float2(1, 0).Rotate(item.EquippableItem.Rotation));
-        Thrust = Evaluate(_data.Thrust);
     }
 
     public Thruster(ThrusterData data, ConsumableItemEffect item) : base(data, item)
     {
         _data = data;
         Torque = 0;
-        Thrust = Evaluate(_data.Thrust);
     }
 
     // Cut 3 (docs/stats-and-power-cut.md): the resolved stat times the behaviour-supplied throttle scalar (§1.2),
@@ -91,6 +90,29 @@ public class Thruster : Behavior, IAnalogBehavior, IPowerConsumer
     // under brownout is an inconvenience, not the cascading failure a starved radiator or shield causes.
     public int DefaultPowerTier => PowerTiers.Medium;
 
+    // What this thruster adds to the ship's manoeuvre envelope: Execute's own arithmetic at full input, read live.
+    // Its push is Thrust / Mass along its mount, into the matching body
+    // axis, even for a flank thruster that only turns (it pushes whenever it turns); its turn is |Torque| * Thrust *
+    // TorqueMultiplier / Mass into the side its Torque sign fires on, when |Torque| clears the floor. Zero when the
+    // item is offline or unpowered, the same gates Execute applies.
+    public ManoeuvreEnvelope Manoeuvre()
+    {
+        if (Item == null || !Item.Active.Value || Item.PowerSupply <= 1e-4f) return default;
+        var settings = ItemManager.GameplaySettings;
+        var thrust = Thrust;
+        var acceleration = thrust / Entity.Mass;
+        var forward = normalize(Entity.Direction);
+        var right = forward.Rotate(ItemRotation.Clockwise);
+        var push = -forward.Rotate(Item.EquippableItem.Rotation);
+        var along = dot(push, forward);
+        var across = dot(push, right);
+        var turn = abs(Torque) > settings.TorqueFloor ? abs(Torque) * thrust * settings.TorqueMultiplier / Entity.Mass : 0f;
+        return new ManoeuvreEnvelope(
+            max(along, 0f) * acceleration, max(-along, 0f) * acceleration,
+            max(-across, 0f) * acceleration, max(across, 0f) * acceleration,
+            Torque > 0f ? turn : 0f, Torque < 0f ? turn : 0f);
+    }
+
     public override bool Execute(float dt)
     {
         Item.SetAudioParameter(SpecialAudioParameter.Intensity, _input);
@@ -101,10 +123,10 @@ public class Thruster : Behavior, IAnalogBehavior, IPowerConsumer
         // has not been cut to true zero supply (the epsilon PowerBus itself already treats as "nothing granted").
         if(_input > .01f && Item.PowerSupply > 1e-4f)
         {
-            Thrust = Evaluate(_data.Thrust);
-            Entity.Velocity -= Direction.xz * _input * Thrust / Entity.Mass * dt;
+            var thrust = Thrust;
+            Entity.Velocity -= Direction.xz * _input * thrust / Entity.Mass * dt;
             Entity.Direction = mul(Entity.Direction,
-                CultMath.float2x2.Rotate(_input * Torque * Thrust * ItemManager.GameplaySettings.TorqueMultiplier / Entity.Mass * dt));
+                CultMath.float2x2.Rotate(_input * Torque * thrust * ItemManager.GameplaySettings.TorqueMultiplier / Entity.Mass * dt));
             AddHeat(_input * Evaluate(_data.Heat) * dt);
             var vis = _input * Evaluate(_data.Visibility);
             if (!Entity.VisibilitySources.ContainsKey(this) || vis > Entity.VisibilitySources[this])
