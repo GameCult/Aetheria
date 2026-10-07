@@ -3887,6 +3887,38 @@ fetched 2026-10-06).
   `Ship.Update`, with the Longinus's flank push counted as strafe, it gave 7.31 m nose-on (probe
   7.50) and 8.61 m broadside (probe 8.15). Cost: one box support and eight faces of two
   trigonometric calls each, per side.
+- **M27. Tracking is one number per ship, read in three places** (source read at `46b28501`,
+  the `evasion-term` head Soul held, 2026-10-07, for ruling `tracking-per-gun`).
+  `FireControl.Tracking(Entity)` (`FireControl.cs:190-194`) returns the active
+  `TargetingSystem.Tracking` (`Behaviors/TargetingSystem.cs:43`, `:80`), else
+  `UnaidedTracking` (10, `Settings.cs:228`). Its readers are `HitProbability` (`:327`,
+  `PDeviation(evasion, Tracking(source))`), `Inspect` (`:344`, and `PEvasion` at `:368`) and
+  `Fire`, which freezes it into `PendingShot.Tracking` (`:676`, field `:1868`).
+  `DeviationProbability` (`:444`) forgives realized plus evasion deviation with that frozen
+  value, so the in-flight drift and the evasion term share one tolerance. Nothing outside
+  `FireControl` calls `Tracking(`; the debug HUD only prints `shot.Tracking` and `d.Tracking`
+  (`Gameplay/ActionGameManager.cs:1356`, `:1380`). No weapon field carries tracking.
+- **M28. The catalog's weapons by size class** (probe: `cultcache_py`
+  `SingleFileMessagePackBackingStore` over `GameData/Aetheria.cc` at `46b28501`, payloads
+  decoded by MessagePack key, 2026-10-07; the Sep 30 and Oct 3 AetherDb builds refuse that
+  catalog on the `aetheria.fieldkinddata` schema). 18 `WeaponItemData` records;
+  `WeaponItemData.WeaponCaliber` (`ItemData.cs:483`, key 25: Small, Medium, Large,
+  ExtraLarge) is the only authored size class. Ballistic: Small 6k Shooter, ClearPath, Earp;
+  Medium Autocannon, DeathCluster, pretty pretty bang bang. Energy: Small CShot RainbowLite Lazer,
+  ColdFire, FastBlast+-, Spectra; Medium ChargeBlast SG, ChargeBlast+-; Large plight. Launcher:
+  Medium GT 3K, pswarm, scorched void policy; Large LRMM72; ExtraLarge SRMM72. No ballistic or
+  beam gun is Large or ExtraLarge except plight, so in the demo the heavy guns are Medium. The two
+  targeting designs author `Tracking` 15-25 (Targeting Computer) and 30-45 (Fire Control Array).
+- **M29. Where a weapon stat can live.** `WeaponData` (`Behaviors/Weapon.cs:20`) holds the
+  per-weapon `PerformanceStat`s at keys 1-16 (`Spread` key 15, `Velocity` key 16), evaluated in
+  `Weapon.UpdateStats` (`:131-140`) through the item's heat, durability and quality terms.
+  Subclasses use keys 17 to 32 (`InstantWeaponData` 17-20; `ChargedWeaponData` to 32;
+  `LockWeaponData` 21-25; `LauncherData` 26-31; `GuidedWeaponData` 21-26), so 33 is the first
+  key free across the whole hierarchy. CultCache opens a record missing a local slot as
+  `defaulted_missing_slot` and uses the local default (`CultLib src/GameCult.Caching/CultCache.cs`,
+  schema comparison), so a field initializer is what unmigrated records and code-built fixtures
+  read. A `PerformanceStat` with no terms resolves to `Max`, and a bare `new PerformanceStat()`
+  resolves to 0.
 
 ### The design
 
@@ -3982,6 +4014,32 @@ munition, an autofire gun takes the designated target or the best-priced hostile
 clears the threshold. A worth-firing hostile munition preempts an entity subject even while that
 subject stays worth firing (`autofire-threshold` r3), so a PD group that diverted onto a speed
 demon still turns back to the missiles.
+
+**Tracking per gun** (ruling `tracking-per-gun`, "gun times ship"). Soul found (finding
+`cut-evasion-term.s1.tracking-per-ship`) that with one `Tracking` per ship (M27) a light and a
+heavy gun on the same hull are forgiven alike, so the counterplay above worked only between ships.
+`evasion-term` r3 gives `WeaponData` a dimensionless `Tracking` stat (key 33, M29), a multiplier
+of the ship's targeting `Tracking` in metres. `FireControl.Tracking(weapon, source)` is the one
+product; `HitProbability`, `Inspect` and `Fire` read it, and `Fire` freezes it, so a heavy gun is
+also less forgiving of in-flight drift. That is the same physical claim (its mount follows a
+moving target worse), and it keeps one tolerance per shot. The field defaults to 1, so fixtures
+built in code and any unmigrated record behave exactly as before; the catalog's values come from
+an AetherDb migration keyed by `WeaponCaliber` (M28), until the operator authors per-gun values
+(question `weapon-tracking-defaults`). The recommended ladder (Small 1.5, Medium 1, Large 0.6,
+ExtraLarge 0.4; launchers 1, because a guided round's own odds are `missile-odds`' correction,
+not the launcher's tracking) gives these `PEvasion` at window 0.75 s against the Targeting
+Computer (about 20) and the Fire Control Array (about 38), from the model figures above:
+
+| Gun | Speed demon, 9.63 m | Longinus jinking, 14.7 m | Djinni jinking, 1.7 m |
+|---|---|---|---|
+| Small (1.5) | 0.68 / 0.83 | 0.51 / 0.74 | 0.94 / 0.97 |
+| Medium (1.0) | 0.52 / 0.75 | 0.27 / 0.61 | 0.92 / 0.96 |
+| Large (0.6) | 0.20 / 0.58 | 0 / 0.36 | 0.86 / 0.93 |
+| ExtraLarge (0.4) | 0 / 0.37 | 0 / 0.03 | 0.79 / 0.89 |
+
+A steeper ladder (2, 1, 0.5, 0.25) widens the gap: against the speed demon Small keeps 0.76 /
+0.87 and Large 0.04 / 0.49, Medium unchanged. The demo's heaviest common guns are Medium (M28),
+so the Small-to-Medium ratio is the lever the play check tunes.
 
 **The missile's price** (`missile-odds`). At the gate, the same model with the missile's
 inputs:
