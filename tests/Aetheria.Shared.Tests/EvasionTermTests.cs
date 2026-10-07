@@ -503,14 +503,14 @@ public sealed partial class RunStartTests
         return new EvRange { Arena = arena, Gunner = gunner, Lasing = lasing, Target = target, Gun = gun, Laser = laser };
     }
 
-    // The target crossing at 150 m/s, either coasting or after two seconds of jinking, at the same velocity, heading
-    // and place.
-    private static void EvCross(EvRange range, bool jinking)
+    // The target crossing at 150 m/s (or at the velocity given), either coasting or after two seconds of jinking, at the
+    // same velocity, heading and place.
+    private static void EvCross(EvRange range, bool jinking, float2? velocity = null)
     {
         var target = range.Target;
         EvSettle(target);
         if (jinking) EvFly(target, EvJink.Lateral, .5f, 2f);
-        target.Velocity = float2(150, 0);
+        target.Velocity = velocity ?? float2(150, 0);
         target.Direction = float2(0, 1);
         target.Position = float3(0, target.Position.y, 200);
     }
