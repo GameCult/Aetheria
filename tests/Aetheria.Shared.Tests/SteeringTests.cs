@@ -235,7 +235,8 @@ public sealed class SteeringTests
         Assert.Equal(-sqrt(sin(radians(80f))), Steering.Toward(ship, Heading(ship, -80f)), 4);
     }
 
-    // Ship.Update clamps the command to -1..1: a Turn of 3 rotates the hull exactly as a Turn of 1 does.
+    // A Turn of 3 rotates the hull exactly as a Turn of 1 does. Ship.Update clamps it, and every consumer (Thruster.Axis,
+    // AetherDrive.Axis) clamps again, so removing the Ship clamp alone changes nothing observable.
     [Fact]
     public void TurnIsClampedToOne()
     {
