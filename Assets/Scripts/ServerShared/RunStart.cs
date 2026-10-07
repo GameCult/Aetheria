@@ -12,6 +12,7 @@ public static class RunStart
     public sealed class Staged
     {
         public Ship Player;
+        public int Credits;                       // the run's starting credits, as the scenario left them
         public List<Entity> Entities;             // what the scenario placed besides the player, in its order
     }
 
@@ -54,7 +55,7 @@ public static class RunStart
             player.SetIff(placed.Entity, hostile);
             arena.Admit(placed.Entity, placed.Piloted);
         }
-        return new Staged { Player = player, Entities = stage.Placed.Select(placed => placed.Entity).ToList() };
+        return new Staged { Player = player, Credits = stage.Credits, Entities = stage.Placed.Select(placed => placed.Entity).ToList() };
     }
 
     // A new run's item draws (each lot's quality, each generated fit) come from its galaxy's seed, not the process clock,

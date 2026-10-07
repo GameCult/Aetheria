@@ -25,6 +25,8 @@ public class TradeMenu : MonoBehaviour
     public TextMeshProUGUI CreditsLabel;
 
     private EquippedCargoBay _targetCargo;
+    // False lists the station's wares to buy; true lists the selected bay's goods to sell.
+    private bool _selling;
     private (ItemFilter filter, HardpointType type) _hardpointFilter;
     private (ItemFilter filter, SimpleCommodityCategory type) _commodityFilter;
     private (ItemFilter filter, CompoundCommodityCategory type) _compoundCommodityFilter;
@@ -36,6 +38,7 @@ public class TradeMenu : MonoBehaviour
     {
         if (GameManager.DockedEntity == null) return;
         _targetCargo = GameManager.DockingBay;
+        _selling = false;
         TargetCargoLabel.text = "Docking Bay";
         Properties.GameManager = GameManager;
         UpdateCreditsLabel();
@@ -185,13 +188,13 @@ public class TradeMenu : MonoBehaviour
 
     void Populate()
     {
-        var columns = new List<(string name, int size, Func<(ItemInstance item, ItemData data), Func<string>> output, Func<ItemData, IComparable> sortKey)>();
+        var columns = new List<(string name, int size, Func<(ItemInstance item, ItemData data), Func<string>> output, Func<(ItemInstance item, ItemData data), IComparable> sortKey)>();
         
         columns.Add(("Name", 3,
             x => () => x.item is CraftedItemInstance craftedItemInstance ? 
                 $"<color=#{ColorUtility.ToHtmlStringRGB(GameManager.ItemManager.GetTier(craftedItemInstance).tier.Color.ToColor())}>{x.data.Name}" : 
                 x.data.Name, 
-            data => data.Name));
+            x => x.data.Name));
         if(_hardpointFilter.filter==null)
             columns.Add(("Type", 2,
                 x => () =>
@@ -201,8 +204,9 @@ public class TradeMenu : MonoBehaviour
                     if(x.data is EquippableItemData e) return Enum.GetName(typeof(HardpointType), e.HardpointType);
                     return "None";
                 }, 
-                data => 
+                x =>
                 {
+                    var data = x.data;
                     if (data is SimpleCommodityData s) return (int) s.Category;
                     var offset = Enum.GetValues(typeof(SimpleCommodityCategory)).Length;
                     if(data is CompoundCommodityData c) return (int) c.Category + offset;
@@ -212,15 +216,15 @@ public class TradeMenu : MonoBehaviour
                 }));
         columns.Add(("Mass", 1,
             x => () => ActionGameManager.PlayerSettings.Format(x.data.Mass), 
-            data => data.Mass));
+            x => x.data.Mass));
         columns.Add(("Price", 1,
-            x => () => (x.item is CraftedItemInstance craftedItemInstance ? GameManager.ItemManager.GetPrice(craftedItemInstance) : x.data.Price).ToString("N0"),
-            data => data.Price));
+            x => () => ShownPrice(x.item).ToString("N0"),
+            x => ShownPrice(x.item)));
         columns.Add(("Size", 1,
             x => () => $"{x.data.Shape.Width}x{x.data.Shape.Height}", 
-            data => data.Shape.Width*data.Shape.Height));
+            x => x.data.Shape.Width*x.data.Shape.Height));
         
-        var items = Inventory.Cargo.Keys
+        var items = (_selling ? _targetCargo : Inventory).Cargo.Keys
             .Select<ItemInstance, (ItemInstance item, ItemData data)>(ii=>(ii, GameManager.ItemManager.GetData(ii)));
         
         if (MinimumSizeFilter.gameObject.activeSelf)
@@ -254,8 +258,9 @@ public class TradeMenu : MonoBehaviour
                     {
                         var behavior = ((EquippableItemData) x.data).Behaviors.FirstOrDefault(b => type.IsInstanceOfType(b));
                         return () => ActionGameManager.PlayerSettings.Format((float) field.GetValue(behavior));
-                    }, data =>
+                    }, x =>
                     {
+                        var data = x.data;
                         var behavior = ((EquippableItemData) data).Behaviors.FirstOrDefault(b => type.IsInstanceOfType(b));
                         return (float) field.GetValue(behavior);
                     }));
@@ -264,8 +269,9 @@ public class TradeMenu : MonoBehaviour
                     {
                         var behavior = ((EquippableItemData) x.data).Behaviors.FirstOrDefault(b => type.IsInstanceOfType(b));
                         return () => ((int) field.GetValue(behavior)).ToString();
-                    }, data =>
+                    }, x =>
                     {
+                        var data = x.data;
                         var behavior = ((EquippableItemData) data).Behaviors.FirstOrDefault(b => type.IsInstanceOfType(b));
                         return (int) field.GetValue(behavior);
                     }));
@@ -275,8 +281,9 @@ public class TradeMenu : MonoBehaviour
                     {
                         var behavior = ((EquippableItemData) x.data).Behaviors.FirstOrDefault(b => type.IsInstanceOfType(b));
                         return () => ActionGameManager.PlayerSettings.Format(((PerformanceStat) field.GetValue(behavior)).Max);
-                    }, data =>
+                    }, x =>
                     {
+                        var data = x.data;
                         var behavior = ((EquippableItemData) data).Behaviors.FirstOrDefault(b => type.IsInstanceOfType(b));
                         return ((PerformanceStat) field.GetValue(behavior)).Max;
                     }));
@@ -293,8 +300,9 @@ public class TradeMenu : MonoBehaviour
                     return (_targetCargo.ItemsOfType.ContainsKey(GameManager.ItemManager.ItemData.RefOf(x.data).Key) ? _targetCargo.ItemsOfType[GameManager.ItemManager.ItemData.RefOf(x.data).Key].Cast<SimpleCommodity>().Sum(s=>s.Quantity) : 0).ToString();
                 return (_targetCargo.ItemsOfType.ContainsKey(GameManager.ItemManager.ItemData.RefOf(x.data).Key) ? _targetCargo.ItemsOfType[GameManager.ItemManager.ItemData.RefOf(x.data).Key].Count : 0).ToString();
             }, 
-            data =>
+            x =>
             {
+                var data = x.data;
                 if (data is HullData)
                     return GameManager.DockedEntity.Children.Count(s => s.Hull.Data.Key.Equals(GameManager.ItemManager.ItemData.RefOf(data).Key) && s is Ship {IsPlayerShip: true});
                 if(data is SimpleCommodityData)
@@ -310,11 +318,12 @@ public class TradeMenu : MonoBehaviour
                 Columns = columns.Select(x => new SpreadsheetEntryColumn
                 {
                     Output = x.output(i),
-                    SortKey = x.sortKey(i.data)
+                    SortKey = x.sortKey(i)
                 }).ToArray(),
                 OnClick = () => Properties.Inspect(i.item),
                 OnDoubleClick = () =>
                 {
+                    if (_selling) return;
                     switch (i.item)
                     {
                         case CraftedItemInstance c:
@@ -329,7 +338,13 @@ public class TradeMenu : MonoBehaviour
                 },
                 OnRightClick = () =>
                 {
-                    if (i.item is SimpleCommodity s)
+                    if (_selling)
+                    {
+                        ContextMenu.Clear();
+                        ContextMenu.AddOption($"Sell ({StationServices.SellPrice(GameManager.ItemManager, i.item):N0})", () => Sell(i.item));
+                        ContextMenu.Show();
+                    }
+                    else if (i.item is SimpleCommodity s)
                     {
                         ContextMenu.Clear();
                         ContextMenu.AddOption("Buy Quantity",
@@ -340,7 +355,7 @@ public class TradeMenu : MonoBehaviour
                                 Dialog.Title.text = $"Buying {i.data.Name}";
                                 Dialog.AddField("Quantity", 
                                     () => quantity, 
-                                    q => quantity = min(min(q, GameManager.Credits / i.data.Price), s.Quantity));
+                                    q => quantity = min(min(q, GameManager.Credits / StationServices.BuyPrice(GameManager.ItemManager, s)), s.Quantity));
                                 Dialog.Show(() =>
                                 {
                                     Buy(s,quantity);
@@ -355,6 +370,11 @@ public class TradeMenu : MonoBehaviour
             }));
     }
     
+    // The price the list shows and sorts by: what the station pays for the player's goods, what it charges otherwise.
+    private int ShownPrice(ItemInstance item) => _selling
+        ? StationServices.SellPrice(GameManager.ItemManager, item)
+        : StationServices.BuyPrice(GameManager.ItemManager, item);
+
     private void UpdateCreditsLabel()
     {
         if (CreditsLabel != null)
@@ -363,43 +383,47 @@ public class TradeMenu : MonoBehaviour
         }
     }
 
+    private void Sell(ItemInstance item)
+    {
+        if (StationServices.TrySell(_targetCargo, GameManager.DockedEntity, item, ref GameManager.Credits))
+        {
+            UpdateCreditsLabel();
+            Populate();
+            return;
+        }
+        Dialog.Clear();
+        Dialog.Title.text = "Unable to sell: Station Cargo Full!";
+        Dialog.Show();
+        Dialog.MoveToCursor();
+    }
+
+    private void Repair()
+    {
+        if (StationServices.TryRepair(GameManager.CurrentEntity, ref GameManager.Credits))
+        {
+            UpdateCreditsLabel();
+            return;
+        }
+        Dialog.Clear();
+        Dialog.Title.text = "Unable to repair: Insufficient Credits!";
+        Dialog.Show();
+        Dialog.MoveToCursor();
+    }
+
     private void Buy(CraftedItemInstance item)
     {
         var data = GameManager.ItemManager.GetData(item);
-        var price = GameManager.ItemManager.GetPrice(item);
-        if (price < GameManager.Credits)
+        if (data is HullData hullData && hullData.HullType != HullType.Ship)
+            throw new ArgumentException("Attempted to buy non-ship hull from station, WTF are you doing?!");
+        Bought(StationServices.TryBuy(GameManager.ItemManager, item, 1, ref GameManager.Credits, () =>
         {
-            if (data is HullData hullData)
+            if (data is HullData)
             {
-                if (hullData.HullType != HullType.Ship) throw new ArgumentException("Attempted to buy non-ship hull from station, WTF are you doing?!");
-
                 GameManager.CommissionShip(item as EquippableItem);
-
-                GameManager.Credits -= data.Price;
-                UpdateCreditsLabel();
+                return true;
             }
-            else if (Inventory.TryTransferItem(_targetCargo, item))
-            {
-                GameManager.Credits -= price;
-                UpdateCreditsLabel();
-            }
-            else
-            {
-                Dialog.Clear();
-                Dialog.Title.text = "Unable to buy: Insufficient Cargo Space!";
-                Dialog.Show();
-                Dialog.MoveToCursor();
-                return;
-            }
-        }
-        else
-        {
-            Dialog.Clear();
-            Dialog.Title.text = "Unable to buy: Insufficient Credits!";
-            Dialog.Show();
-            Dialog.MoveToCursor();
-            return;
-        }
+            return Inventory.TryTransferItem(_targetCargo, item);
+        }));
     }
 
     private void Buy(SimpleCommodity simpleCommodity, int quantity)
@@ -411,34 +435,27 @@ public class TradeMenu : MonoBehaviour
         for (int i = 0; i < lots; i++)
         {
             int q = min(remaining, data.MaxStack);
-            if (q * data.Price < GameManager.Credits)
-            {
-                if (Inventory.TryTransferItem(_targetCargo, simpleCommodity, quantity))
-                {
-                    GameManager.Credits -= q * data.Price;
-                    UpdateCreditsLabel();
-                    remaining -= q;
-                }
-                else
-                {
-                    Dialog.Clear();
-                    Dialog.Title.text = "Unable to buy: Insufficient Cargo Space!";
-                    Dialog.Show();
-                    Dialog.MoveToCursor();
-                    return;
-                }
-            }
-            else
-            {
-                Dialog.Clear();
-                Dialog.Title.text = "Unable to buy: Insufficient Credits!";
-                Dialog.Show();
-                Dialog.MoveToCursor();
-                return;
-            }
-
-            
+            if (!Bought(StationServices.TryBuy(GameManager.ItemManager, simpleCommodity, q, ref GameManager.Credits,
+                    () => Inventory.TryTransferItem(_targetCargo, simpleCommodity, quantity)))) return;
+            remaining -= q;
         }
+    }
+
+    // Refreshes the credits after a purchase, or tells the player why the station refused it.
+    private bool Bought(BuyResult result)
+    {
+        if (result == BuyResult.Bought)
+        {
+            UpdateCreditsLabel();
+            return true;
+        }
+        Dialog.Clear();
+        Dialog.Title.text = result == BuyResult.NoRoom
+            ? "Unable to buy: Insufficient Cargo Space!"
+            : "Unable to buy: Insufficient Credits!";
+        Dialog.Show();
+        Dialog.MoveToCursor();
+        return false;
     }
 
     void Start()
@@ -468,6 +485,13 @@ public class TradeMenu : MonoBehaviour
                     }
                 }
             }
+            ContextMenu.AddOption(_selling ? "Buy Goods" : "Sell Goods", () =>
+            {
+                _selling = !_selling;
+                Populate();
+            });
+            var repairCost = StationServices.RepairCost(GameManager.ItemManager, GameManager.CurrentEntity);
+            if (repairCost > 0) ContextMenu.AddOption($"Repair ({repairCost:N0})", Repair);
             ContextMenu.Show();
         });
     }

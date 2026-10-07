@@ -16674,7 +16674,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   Settings: {fileID: 11400000, guid: cd2344e2001a37544aab0960c164d4ff, type: 2}
-  Credits: 100000000
   TargetSpottedBlinkFrequency: 20
   TargetSpottedBlinkOffset: -0.25
   DeathPostTransitionTime: 1
