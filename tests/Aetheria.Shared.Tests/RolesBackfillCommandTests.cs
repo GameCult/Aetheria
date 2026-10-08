@@ -30,31 +30,23 @@ public sealed class RolesBackfillCommandTests : IDisposable
     {
         Directory.CreateDirectory(Path.Combine(_root, "GameData"));
         File.Copy(Path.Combine(AetherDb.FindRoot(), "GameData", "Aetheria.cc"), CatalogPath);
-        // The catalog needs the record AetherDb's process-wide registry demands in this test host (as PiratesFactionCommandTests).
-        using (var cache = new CultCache())
-        {
-            cache.AddBackingStore(new SingleFileMessagePackBackingStore(CatalogPath), AetheriaStores.CatalogTypes);
-            cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
-            cache.FlushAsync().Wait();
-        }
-        var db = AetherDb.Open(root: _root);
-        try
-        {
-            var products = db.Cache.GetAll<FactionProductData>().ToArray();
-            foreach (var design in db.Cache.GetAll<EquippableItemData>().Where(d => Flattened.Contains(d.Name) || Unnamed.Any(u => u.Design == d.Name)))
-                _shipped[design.Name] = Describe(db.Cache, design, products);
-        }
-        finally { db.Cache.Dispose(); }
+        using var cache = new CultCache(ScopedRegistry());
+        cache.AddBackingStore(new SingleFileMessagePackBackingStore(CatalogPath), AetheriaStores.CatalogTypes);
+        var products = cache.GetAll<FactionProductData>().ToArray();
+        foreach (var design in cache.GetAll<EquippableItemData>().Where(d => Flattened.Contains(d.Name) || Unnamed.Any(u => u.Design == d.Name)))
+            _shipped[design.Name] = Describe(cache, design, products);
     }
+
+    // A registry scoped to the shipped assembly, so this test assembly's own documents never reach the real catalog.
+    private static CultDocumentRegistry ScopedRegistry() => CultDocumentRegistry.ForTypes(typeof(ItemData).Assembly.GetTypes()
+        .Where(t => t is { IsAbstract: false, IsInterface: false })
+        .Where(t => t.GetCustomAttribute<CultDocumentAttribute>() != null));
 
     // Puts the named designs back to the state they shipped in before the backfill, through a registry scoped to the shipped
     // assembly (as PiratesFactionCommandTests strips its faction).
     private void Reset(bool flattened, bool unnamed)
     {
-        var registry = CultDocumentRegistry.ForTypes(typeof(ItemData).Assembly.GetTypes()
-            .Where(t => t is { IsAbstract: false, IsInterface: false })
-            .Where(t => t.GetCustomAttribute<CultDocumentAttribute>() != null));
-        using var cache = new CultCache(registry);
+        using var cache = new CultCache(ScopedRegistry());
         cache.AddBackingStore(new SingleFileMessagePackBackingStore(CatalogPath), AetheriaStores.CatalogTypes);
         var designs = cache.GetAll<EquippableItemData>().ToArray();
         var products = cache.GetAll<FactionProductData>().ToArray();
@@ -83,11 +75,13 @@ public sealed class RolesBackfillCommandTests : IDisposable
                 foreach (var term in Stat(design, field).Terms.Where(t => t.Source == StatSource.Quality)) term.Role = null;
                 changed.Add(design);
             }
-        cache.Commit(batch =>
-        {
-            foreach (var document in changed) batch.Upsert(document.GetType(), document, cache.RefOf(document).Key);
-        });
+        if (changed.Count > 0)
+            cache.Commit(batch =>
+            {
+                foreach (var document in changed) batch.Upsert(document.GetType(), document, cache.RefOf(document).Key);
+            });
         cache.FlushAsync().Wait();
+        // Then the record AetherDb's process-wide registry demands in this test host (as PiratesFactionCommandTests).
         using (var plain = new CultCache())
         {
             plain.AddBackingStore(new SingleFileMessagePackBackingStore(CatalogPath), AetheriaStores.CatalogTypes);
@@ -167,6 +161,7 @@ public sealed class RolesBackfillCommandTests : IDisposable
     [Fact]
     public void A_design_the_catalog_does_not_hold_refuses_and_lands_nothing()
     {
+        Reset(flattened: false, unnamed: false);
         var db = AetherDb.Open(catalogWritable: true, root: _root);
         var autocannon = db.Cache.GetAll<WeaponItemData>().Single(weapon => weapon.Name == "Autocannon");
         autocannon.Name = "Autocannon (renamed)";
