@@ -549,6 +549,58 @@ public sealed class FlightTests : IDisposable
         Assert.Same(track, task.Anchor);
     }
 
+    private Minion PatrollingMinion(Ship ship)
+    {
+        var minion = new Minion(ship, FactionDoctrine.Default(_items.GameplaySettings).Combatant)
+            { Task = new PatrolOrbitsTask { Circuit = new CultRecordKey[1] } };
+        for (var i = 0; i < 4; i++) minion.Update(.1f);
+        Assert.IsType<MoveToOrbitState>(CurrentState(minion));
+        return minion;
+    }
+
+    [Fact]
+    public void ATargetPullsAPatrollingPilotIntoCombatAndLosingItReturnsToPatrol()
+    {
+        var ship = Pilot(null);
+        var minion = PatrollingMinion(ship);
+
+        ship.SetTarget(new TargetRef(Track()));
+        minion.Update(.1f);
+        Assert.IsType<CombatState>(CurrentState(minion));
+
+        ship.SetTarget(TargetRef.None);
+        minion.Update(.1f);
+        Assert.IsNotType<CombatState>(CurrentState(minion));
+        minion.Update(.1f);
+        Assert.IsType<PatrolOrbitsState>(CurrentState(minion));
+    }
+
+    [Fact]
+    public void CombatHoldsWhileTheTargetStands()
+    {
+        var ship = Pilot(null);
+        var minion = PatrollingMinion(ship);
+        ship.SetTarget(new TargetRef(Track()));
+
+        for (var i = 0; i < 5; i++)
+        {
+            minion.Update(.1f);
+            Assert.IsType<CombatState>(CurrentState(minion));
+        }
+    }
+
+    [Fact]
+    public void ATaskThatIsNeitherPatrolNorFollowSendsAPatrollingPilotToTheRoot()
+    {
+        var ship = Pilot(null);
+        var minion = PatrollingMinion(ship);
+
+        minion.Task = null;
+        minion.Update(.1f);
+
+        Assert.IsType<BaseState>(CurrentState(minion));
+    }
+
     private static string TempCatalog() => Path.Combine(Path.GetTempPath(), "aetheria-doctrine-" + Guid.NewGuid().ToString("N") + ".cc");
 
     [Fact]
