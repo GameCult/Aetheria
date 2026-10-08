@@ -10,6 +10,7 @@ using System.Linq;
 using System.Reflection;
 using CultMath;
 using GameCult.Caching;
+using GameCult.Caching.MessagePack;
 using Random = CultMath.Random;
 
 // Commands over the game database, run with: dotnet run --project tools/AetherDb -- <command>
