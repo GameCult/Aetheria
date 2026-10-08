@@ -41,7 +41,6 @@ public sealed partial class RunStartTests
     [Fact]
     public void Boss_spawns_once_in_boss_zone()
     {
-        AddPirates();
         foreach (var seed in DemoSeeds.Take(3))
         {
             var galaxy = DemoGalaxy(seed);
@@ -65,7 +64,6 @@ public sealed partial class RunStartTests
     [Fact]
     public void Boss_spawns_in_a_zone_that_is_not_ambient()
     {
-        AddPirates();
         var galaxy = DemoGalaxy(1);
         var pack = BossZonePack(galaxy, _items, galaxy.Exit, ambient: false);
         Assert.Single(pack.Entities, entity => entity.Boss);
@@ -75,7 +73,6 @@ public sealed partial class RunStartTests
     [Fact]
     public void Boss_hull_from_BossHull_else_fallback()
     {
-        AddPirates();
         var galaxy = DemoGalaxy(1);
         var antagonist = Zhestokost(galaxy);
         var hulls = SoldShipHulls().OrderByDescending(hull => hull.Price).ThenBy(hull => hull.Name, StringComparer.Ordinal).ToArray();
@@ -103,7 +100,6 @@ public sealed partial class RunStartTests
     [Fact]
     public void Boss_hull_nobody_sells_falls_back()
     {
-        AddPirates();
         var galaxy = DemoGalaxy(1);
         var antagonist = Zhestokost(galaxy);
         var sold = SoldShipHulls();
@@ -121,7 +117,6 @@ public sealed partial class RunStartTests
     [Fact]
     public void Exit_sealed_until_boss_dies()
     {
-        AddPirates();
         var galaxy = DemoGalaxy(1);
         var exit = ZoneOf(galaxy, galaxy.Exit);
         var boss = Assert.Single(exit.Entities, entity => entity.IsBoss);
@@ -143,7 +138,6 @@ public sealed partial class RunStartTests
     [Fact]
     public void Boss_mark_survives_continue()
     {
-        AddPirates();
         var (galaxy, arena, staged, failures) = Launch(new DemoTerminus(), Inputs(() => 1));
         Assert.True(failures.Count == 0, string.Join("; ", failures));
         galaxy.Entrance.Contents = arena;
@@ -185,7 +179,6 @@ public sealed partial class RunStartTests
     [Fact]
     public void Exit_sealed_and_logged_when_the_boss_cannot_be_generated()
     {
-        AddPirates();
         var galaxy = DemoGalaxy(1);
         galaxy.BossZones.Clear();
         var log = new List<string>();
@@ -201,7 +194,6 @@ public sealed partial class RunStartTests
     [Fact]
     public void Exit_open_after_save_of_a_slain_boss()
     {
-        AddPirates();
         var galaxy = DemoGalaxy(1);
         var exit = ZoneOf(galaxy, galaxy.Exit);
         Assert.Single(exit.Entities, entity => entity.IsBoss).HeatstrokeDeath.OnNext(Unit.Default);
@@ -215,7 +207,6 @@ public sealed partial class RunStartTests
     [Fact]
     public void Exit_gate_shares_no_point_with_a_wormhole()
     {
-        AddPirates();
         var ratio = float.Parse(File.ReadLines(Path.Combine(FindRepoRoot(), "Assets", "Resources", "Settings.asset"))
             .Select(line => Regex.Match(line, @"^  WormholeDistanceRatio: (.+)$")).First(match => match.Success).Groups[1].Value.Trim(),
             System.Globalization.CultureInfo.InvariantCulture);
@@ -244,7 +235,6 @@ public sealed partial class RunStartTests
     [InlineData(new[] { 0.0, 45.0, 90.0, 135.0, 180.0, -135.0, -90.0, -45.0 })]
     public void Exit_gate_sits_in_the_widest_gap_at_the_wormhole_radius(double[] neighbourDegrees)
     {
-        AddPirates();
         var galaxy = DemoGalaxy(1);
         var zone = ZoneOf(galaxy, galaxy.Exit);
         const float ratio = 0.75f;

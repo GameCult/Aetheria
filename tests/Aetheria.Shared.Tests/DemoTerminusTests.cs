@@ -9,30 +9,16 @@ using CultMath;
 using Xunit;
 
 // The demo scenario (aetheria-release, cut demo-galaxy): a prelude galaxy of a fixed cast whose antagonist's home is the
-// boss zone and the exit. The shipped catalog holds no Pirates faction yet, so each test that needs one adds it to its
-// scratch copy of the catalog.
+// boss zone and the exit. The cast, the Pirates included, is in the shipped catalog.
 public sealed partial class RunStartTests
 {
     private static readonly uint[] DemoSeeds = { 1, 2, 3, 4, 5 };
-
-    // The catalog record the demo's protagonist needs, until the shipped catalog has one. Zone names need a name file,
-    // and the entrance's station needs a faction whose allegiance reaches some manufacturer, so it reaches every one.
-    private void AddPirates()
-    {
-        var pirates = new Faction
-        {
-            Name = "Pirates", ShortName = "Pirates", GeonameFile = _cache.RefOf(_cache.GetAll<NameFile>().First())
-        };
-        foreach (var faction in _cache.GetAll<Faction>().ToArray()) pirates.Allegiance[_cache.RefOf(faction)] = 1;
-        _cache.Upsert(pirates);
-    }
 
     private Galaxy DemoGalaxy(uint seed) => RunStart.Generate(new DemoTerminus(), Inputs(() => seed));
 
     [Fact]
     public void DemoTerminus_fixed_cast()
     {
-        AddPirates();
         foreach (var seed in DemoSeeds)
             Assert.Equal(new[] { "Pirates", "Zhestokost", "Lucent Media", "Aeronautics Unlimited" },
                 DemoGalaxy(seed).Factions.Select(faction => faction.Name));
@@ -41,7 +27,6 @@ public sealed partial class RunStartTests
     [Fact]
     public void DemoTerminus_gate_at_antagonist_home()
     {
-        AddPirates();
         foreach (var seed in DemoSeeds)
         {
             var galaxy = DemoGalaxy(seed);
@@ -60,7 +45,6 @@ public sealed partial class RunStartTests
     [Fact]
     public void DemoTerminus_standing_survives_continue()
     {
-        AddPirates();
         var (galaxy, arena, staged, failures) = Launch(new DemoTerminus(), Inputs(() => 1));
         Assert.True(failures.Count == 0, string.Join("; ", failures));
         galaxy.Entrance.Contents = arena;
@@ -83,11 +67,16 @@ public sealed partial class RunStartTests
             restored.BossZones.Select(boss => (boss.Key.Name, Array.IndexOf(restored.Zones, boss.Value))));
     }
 
-    // On the shipped catalog, which has no Pirates, the run does not start: the galaxy refuses, naming the cast field,
-    // and the scenario never reaches staging.
+    // A catalog without the Pirates (the shipped record and its products removed from this scratch copy) does not start the
+    // run: the galaxy refuses, naming the cast field, and the scenario never reaches staging.
     [Fact]
     public void DemoTerminus_missing_cast_refused()
     {
+        var pirates = _cache.GetAll<Faction>().Single(faction => faction.Name == "Pirates");
+        var piratesRef = _cache.RefOf(pirates);
+        foreach (var product in _cache.GetAll<FactionProductData>().Where(product => product.Manufacturer.Equals(piratesRef)).ToArray())
+            Assert.True(_cache.Remove(_cache.RefOf(product).Key));
+        Assert.True(_cache.Remove(piratesRef.Key));
         Assert.DoesNotContain(_cache.GetAll<Faction>(), faction => faction.Name.StartsWith("Pirates", StringComparison.Ordinal));
         var refusal = Assert.Throws<InvalidOperationException>(() => DemoGalaxy(1));
         Assert.Contains("Pirates", refusal.Message);
@@ -108,7 +97,6 @@ public sealed partial class RunStartTests
     [Fact]
     public void DemoTerminus_player_flies_a_non_pirates_brand_hull_the_longinus()
     {
-        AddPirates();
         foreach (var seed in DemoSeeds)
         {
             var (galaxy, _, staged, failures) = Launch(new DemoTerminus(), Inputs(() => seed));
@@ -130,7 +118,6 @@ public sealed partial class RunStartTests
     [Fact]
     public void DemoTerminus_player_carries_the_longinus_default_fit()
     {
-        AddPirates();
         string Fit(Entity ship) => string.Join(";", ship.Equipment
             .Select(item => $"{item.Data.Name}@{item.Position}/{item.EquippableItem.Rotation}")
             .OrderBy(entry => entry, StringComparer.Ordinal));
@@ -151,7 +138,6 @@ public sealed partial class RunStartTests
     [Fact]
     public void DemoTerminus_region_is_sixty_four_zones_linked_at_half_density()
     {
-        AddPirates();
         string Links(Galaxy g) => string.Join(";", g.Zones.Select(zone =>
             string.Join(",", zone.AdjacentZones.Select(adjacent => Array.IndexOf(g.Zones, adjacent)).OrderBy(index => index))));
         Galaxy Reference(uint seed, float density)
@@ -177,7 +163,6 @@ public sealed partial class RunStartTests
     [Fact]
     public void ACastNamingNoQuestFactionPlacesNoQuestZone()
     {
-        AddPirates();
         var galaxy = DemoGalaxy(1);
         Assert.Equal(4, galaxy.HomeZones.Count);
         Assert.Equal(4, galaxy.Factions.Length);

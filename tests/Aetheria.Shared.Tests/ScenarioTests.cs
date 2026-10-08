@@ -96,7 +96,6 @@ public sealed partial class RunStartTests
     [Fact]
     public void EveryScenarioStages()
     {
-        AddPirates();
         Assert.Equal(EveryScenario.Count(), EveryScenario.Select(scenario => scenario.Name).Distinct().Count());
         foreach (var scenario in EveryScenario)
         {
@@ -523,7 +522,6 @@ public sealed partial class RunStartTests
     [Fact]
     public void EveryUnsoldDesignIsAScenarioTestDesign()
     {
-        AddPirates();
         var runs = EveryScenario.Select(scenario => Launch(scenario, Inputs(() => GalaxySeed)).staged).ToList();
         Assert.Empty(UnsoldAndUnplaced(runs));
 
