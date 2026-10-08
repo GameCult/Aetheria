@@ -10,15 +10,22 @@ bl_info = {
     "category": "Object",
 }
 
+import math
 import subprocess
 from pathlib import Path
 
 import bpy
+import numpy
+from mathutils import Matrix
 
+from . import hull_grid
 from .ship_cc import (HARDPOINT_TYPE_NAMES, ROTATION_NAMES, capture_grease_pencil, decode_hardpoint,
                       encode_hardpoint, read, read_layout, replace_layout, replace_lines, replace_visual)
 
 MODEL_ASSET = "ship.glb"
+SOURCE = "Source"  # child collection: the Tripo mesh, input to Rasterise, never exported
+GENERATED = "Generated"  # child collection: derived objects (the Grid), never exported
+SHIP_ROOT = "Ship Root"
 AETHERDB_TIMEOUT = 600  # seconds; the first run builds AetherDb
 
 
@@ -79,6 +86,34 @@ def _layout_path(context):
     return collection, bpy.path.abspath(collection["aetheria.ship_cc"])
 
 
+def _load_layout(context, collection, path):
+    """Fills the scene's layout state from the bound .cc and redraws the Grid; returns (width, height, hardpoints)."""
+    shape, hardpoints, revision = read_layout(path, _brokkr_cultlib(context))
+    width, height, cells = shape
+    state = context.scene.aetheria_layout
+    state.ship_id = collection["aetheria.id"]
+    state.ship_cc = path
+    state.revision = revision
+    state.width = state.new_width = width
+    state.height = state.new_height = height
+    state.cells.clear()
+    for cell in cells:
+        state.cells.add().occupied = bool(cell)
+    state.hardpoints.clear()
+    for raw in hardpoints:
+        fields = decode_hardpoint(raw)
+        hp = state.hardpoints.add()
+        hp.kind = str(fields["Type"])
+        hp.x, hp.y = fields["Position"]
+        hp.footprint = _footprint(fields["Shape"])
+        hp.mount_id = fields["Transform"] or ""
+        hp.rotation = str(fields["Rotation"])
+        hp.armor = fields["Armor"]
+        hp.firing_arc = fields["FiringArc"]
+    _redraw_grid(collection, state)
+    return width, height, len(hardpoints)
+
+
 class AETHERIA_OT_load_layout(bpy.types.Operator):
     bl_idname = "aetheria.load_ship_layout"
     bl_label = "Load Ship Layout"
@@ -87,29 +122,8 @@ class AETHERIA_OT_load_layout(bpy.types.Operator):
     def execute(self, context):
         try:
             collection, path = _layout_path(context)
-            shape, hardpoints, revision = read_layout(path, _brokkr_cultlib(context))
-            width, height, cells = shape
-            state = context.scene.aetheria_layout
-            state.ship_id = collection["aetheria.id"]
-            state.ship_cc = path
-            state.revision = revision
-            state.width = state.new_width = width
-            state.height = state.new_height = height
-            state.cells.clear()
-            for cell in cells:
-                state.cells.add().occupied = bool(cell)
-            state.hardpoints.clear()
-            for raw in hardpoints:
-                fields = decode_hardpoint(raw)
-                hp = state.hardpoints.add()
-                hp.kind = str(fields["Type"])
-                hp.x, hp.y = fields["Position"]
-                hp.footprint = _footprint(fields["Shape"])
-                hp.mount_id = fields["Transform"] or ""
-                hp.rotation = str(fields["Rotation"])
-                hp.armor = fields["Armor"]
-                hp.firing_arc = fields["FiringArc"]
-            self.report({"INFO"}, f"Loaded {width}x{height} layout and {len(hardpoints)} hardpoints")
+            width, height, count = _load_layout(context, collection, path)
+            self.report({"INFO"}, f"Loaded {width}x{height} layout and {count} hardpoints")
             return {"FINISHED"}
         except (OSError, ValueError, RuntimeError, ImportError, KeyError) as exc:
             self.report({"ERROR"}, str(exc))
@@ -177,6 +191,7 @@ class AETHERIA_OT_save_layout(bpy.types.Operator):
                 path, _brokkr_cultlib(context), state.ship_id, state.revision,
                 [state.width, state.height, cells], hardpoints
             )
+            _redraw_grid(collection, state)
             self.report({"INFO"}, f"Saved {len(hardpoints)} hardpoints to {path}")
             return {"FINISHED"}
         except (OSError, ValueError, RuntimeError, ImportError, KeyError) as exc:
@@ -202,6 +217,42 @@ def _ship_collection(context):
     return matches[0]
 
 
+def _choose_collection(context):
+    """The collection a bind acts on: the one marked ship that holds the active object, else the active object's only
+    collection."""
+    obj = context.active_object
+    if obj is None:
+        raise ValueError("Select an object in the ship collection")
+    direct = list(obj.users_collection)
+    marked = [collection for collection in bpy.data.collections
+              if collection.get("aetheria.asset_kind") == "ship" and obj.name in collection.all_objects]
+    if len(marked) == 1:
+        return marked[0]
+    if len(marked) == 0 and len(direct) == 1:
+        return direct[0]
+    raise ValueError("Select an object in exactly one ship collection")
+
+
+def _bind_collection(context, path):
+    """Binds the chosen collection to the ship .cc at path (aetheria.asset_kind, .id and .ship_cc), or changes nothing."""
+    collection = _choose_collection(context)
+    ship_id = read(path, _brokkr_cultlib(context)).ship.body[0]
+    if collection.get("aetheria.asset_kind") not in (None, "ship"):
+        raise ValueError(f"{collection.name} has another aetheria.asset_kind")
+    if collection.get("aetheria.id") not in (None, ship_id):
+        raise ValueError(f"{collection.name} is bound to another ship ID")
+    stored = path
+    if bpy.data.filepath:
+        try:
+            stored = bpy.path.relpath(path)
+        except ValueError:
+            pass
+    collection["aetheria.asset_kind"] = "ship"
+    collection["aetheria.id"] = ship_id
+    collection["aetheria.ship_cc"] = stored
+    return collection
+
+
 class AETHERIA_OT_bind_ship_collection(bpy.types.Operator):
     bl_idname = "aetheria.bind_ship_collection"
     bl_label = "Bind Ship Collection"
@@ -212,34 +263,8 @@ class AETHERIA_OT_bind_ship_collection(bpy.types.Operator):
         try:
             if not context.scene.aetheria_ship_cc_path:
                 raise ValueError("Choose an existing ship authoring .cc file")
-            obj = context.active_object
-            if obj is None:
-                raise ValueError("Select an object in the ship collection")
-            direct = list(obj.users_collection)
-            marked = [collection for collection in bpy.data.collections
-                      if collection.get("aetheria.asset_kind") == "ship" and obj.name in collection.all_objects]
-            if len(marked) == 1:
-                collection = marked[0]
-            elif len(marked) == 0 and len(direct) == 1:
-                collection = direct[0]
-            else:
-                raise ValueError("Select an object in exactly one ship collection")
-            path = bpy.path.abspath(context.scene.aetheria_ship_cc_path)
-            ship_id = read(path, _brokkr_cultlib(context)).ship.body[0]
-            if collection.get("aetheria.asset_kind") not in (None, "ship"):
-                raise ValueError(f"{collection.name} has another aetheria.asset_kind")
-            if collection.get("aetheria.id") not in (None, ship_id):
-                raise ValueError(f"{collection.name} is bound to another ship ID")
-            stored = path
-            if bpy.data.filepath:
-                try:
-                    stored = bpy.path.relpath(path)
-                except ValueError:
-                    pass
-            collection["aetheria.asset_kind"] = "ship"
-            collection["aetheria.id"] = ship_id
-            collection["aetheria.ship_cc"] = stored
-            self.report({"INFO"}, f"Bound {collection.name} to {ship_id}")
+            collection = _bind_collection(context, bpy.path.abspath(context.scene.aetheria_ship_cc_path))
+            self.report({"INFO"}, f"Bound {collection.name} to {collection['aetheria.id']}")
             return {"FINISHED"}
         except (OSError, ValueError, RuntimeError, ImportError) as exc:
             self.report({"ERROR"}, str(exc))
@@ -341,7 +366,8 @@ def _anchors(collection):
 
 
 def _export_glb(context, collection, filepath):
-    """Exports the collection's objects, Grease Pencil excluded, with custom properties as node extras."""
+    """Exports the collection's objects, Grease Pencil and the Source and Generated children excluded, with custom
+    properties as node extras."""
     view_layer = context.view_layer
     layer = _layer_collection(view_layer.layer_collection, collection)
     if layer is None:
@@ -353,8 +379,9 @@ def _export_glb(context, collection, filepath):
         view_layer.active_layer_collection = layer
         for obj in previous_selection:
             obj.select_set(False)
+        derived = _derived_names(collection)
         for obj in collection.all_objects:
-            if obj.type != "GREASEPENCIL" and obj.name in view_layer.objects:
+            if obj.type != "GREASEPENCIL" and obj.name not in derived and obj.name in view_layer.objects:
                 obj.select_set(True)
         bpy.ops.export_scene.gltf(
             filepath=filepath, export_format="GLB", use_active_collection=True, use_selection=True,
@@ -364,6 +391,237 @@ def _export_glb(context, collection, filepath):
             obj.select_set(obj in previous_selection)
         view_layer.objects.active = previous_active
         view_layer.active_layer_collection = previous_layer
+
+
+def _child(collection, kind):
+    """The child collection tagged aetheria.frame == kind. Blender keeps collection names unique per file, so the
+    name 'Source' or 'Generated' cannot identify it."""
+    return next((child for child in collection.children if child.get("aetheria.frame") == kind), None)
+
+
+def _child_or_new(collection, kind, name):
+    child = _child(collection, kind)
+    if child is None:
+        child = bpy.data.collections.new(name)
+        child["aetheria.frame"] = kind
+        collection.children.link(child)
+    return child
+
+
+def _derived_names(collection):
+    """Names of the objects in the Source and Generated children, which are never exported."""
+    return {obj.name for kind in (SOURCE, GENERATED) for child in [_child(collection, kind)] if child
+            for obj in child.all_objects}
+
+
+def _ship_root(collection):
+    return next((obj for obj in collection.objects if obj.get("aetheria.ship_root")), None)
+
+
+def _meshes(objects):
+    return [obj for obj in objects if obj.type == "MESH"]
+
+
+def _render_meshes(collection):
+    """The ship's own meshes: bound-collection meshes outside Source and Generated that carry no aetheria.role."""
+    derived = _derived_names(collection)
+    return [obj for obj in _meshes(collection.all_objects) if obj.name not in derived and "aetheria.role" not in obj]
+
+
+def _world_mesh(obj, depsgraph, matrix):
+    """The evaluated mesh's points through matrix, as (points, triangles) numpy arrays."""
+    evaluated = obj.evaluated_get(depsgraph)
+    mesh = evaluated.to_mesh()
+    try:
+        points = numpy.empty(len(mesh.vertices) * 3, dtype=numpy.float32)
+        mesh.vertices.foreach_get("co", points)
+        mesh.calc_loop_triangles()
+        triangles = numpy.empty(len(mesh.loop_triangles) * 3, dtype=numpy.int32)
+        mesh.loop_triangles.foreach_get("vertices", triangles)
+    finally:
+        evaluated.to_mesh_clear()
+    linear = numpy.array(matrix, dtype=numpy.float64)
+    return points.reshape(-1, 3) @ linear[:3, :3].T + linear[:3, 3], triangles.reshape(-1, 3)
+
+
+def _redraw_grid(collection, state):
+    """Redraws the Grid object from the layout state and the collection's aetheria.grid_origin. A collection without a
+    Ship Root or a grid_origin has no frame yet and gets no Grid."""
+    root = _ship_root(collection)
+    origin = collection.get("aetheria.grid_origin")
+    if root is None or origin is None or len(state.cells) != state.width * state.height:
+        return
+    origin = (float(origin[0]), float(origin[1]))
+    half = hull_grid.CELL_SIZE / 2
+    verts, edges, faces = [], [], []
+    for x in range(state.width):
+        for y in range(state.height):
+            cx, cy = hull_grid.cell_centre(origin, x, y)
+            i = len(verts)
+            verts += [(cx - half, cy - half, 0.0), (cx + half, cy - half, 0.0), (cx + half, cy + half, 0.0),
+                      (cx - half, cy + half, 0.0)]
+            if state.cells[x * state.height + y].occupied:
+                faces.append((i, i + 1, i + 2, i + 3))
+            else:
+                edges += [(i, i + 1), (i + 1, i + 2), (i + 2, i + 3), (i + 3, i)]
+    mesh = bpy.data.meshes.new("Grid")
+    mesh.from_pydata(verts, edges, faces)
+    mesh.update(calc_edges=True)
+    generated = _child_or_new(collection, GENERATED, GENERATED)
+    grid = next((obj for obj in generated.objects if obj.get("aetheria.grid")), None)
+    if grid is None:
+        grid = bpy.data.objects.new("Grid", mesh)
+        grid["aetheria.grid"] = True
+        generated.objects.link(grid)
+    else:
+        previous, grid.data = grid.data, mesh
+        if previous.users == 0:
+            bpy.data.meshes.remove(previous)
+    grid.parent = root
+    grid.matrix_parent_inverse = Matrix.Identity(4)
+    grid.location = (0.0, 0.0, 0.0)
+    grid.rotation_mode = "XYZ"
+    grid.rotation_euler = (0.0, 0.0, 0.0)
+    grid.scale = (1.0, 1.0, 1.0)
+    grid.display_type = "WIRE"
+
+
+def _rasterise(context, collection, path):
+    """Proposes the hull's cells from the render meshes (Source while there are none), top-down in Ship Root's frame,
+    writes them with replace_layout keeping the hardpoint rows, and stores the grid's placement. The only writer of
+    aetheria.grid_origin."""
+    root = _ship_root(collection)
+    if root is None:
+        raise ValueError(f"{collection.name} has no Ship Root; run New Ship first")
+    source = _child(collection, SOURCE)
+    meshes = _render_meshes(collection) or (_meshes(source.all_objects) if source else [])
+    if not meshes:
+        raise ValueError(f"{collection.name} has no render or Source mesh to rasterise")
+    depsgraph = context.evaluated_depsgraph_get()
+    to_root = root.matrix_world.inverted()
+    triangles = []
+    for obj in meshes:
+        points, indices = _world_mesh(obj, depsgraph, to_root @ obj.matrix_world)
+        triangles += points[indices][:, :, :2].tolist()
+    width, height, cells, origin = hull_grid.rasterise(triangles)
+    cultlib = _brokkr_cultlib(context)
+    _, hardpoints, revision = read_layout(path, cultlib)
+    replace_layout(path, cultlib, collection["aetheria.id"], revision, [width, height, cells],
+                   [encode_hardpoint(**decode_hardpoint(row)) for row in hardpoints])
+    collection["aetheria.grid_origin"] = [origin[0], origin[1]]
+    _load_layout(context, collection, path)
+    return width, height
+
+
+class AETHERIA_OT_rasterise_hull(bpy.types.Operator):
+    bl_idname = "aetheria.rasterise_hull"
+    bl_label = "Rasterise Hull"
+    bl_description = "Propose the hull's cells from its top-down silhouette; you edit them afterwards"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        try:
+            collection, path = _layout_path(context)
+            width, height = _rasterise(context, collection, path)
+            self.report({"INFO"}, f"Rasterised a {width}x{height} hull")
+            return {"FINISHED"}
+        except (OSError, ValueError, RuntimeError, ImportError, KeyError) as exc:
+            self.report({"ERROR"}, str(exc))
+            return {"CANCELLED"}
+
+
+class AETHERIA_OT_flip_nose(bpy.types.Operator):
+    bl_idname = "aetheria.flip_nose"
+    bl_label = "Flip Nose"
+    bl_description = "Turn the hull 180 degrees about Ship Root's Z axis, then rasterise it again"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        try:
+            collection, path = _layout_path(context)
+            root = _ship_root(collection)
+            if root is None:
+                raise ValueError(f"{collection.name} has no Ship Root; run New Ship first")
+            turn = root.matrix_world @ Matrix.Rotation(math.pi, 4, "Z") @ root.matrix_world.inverted()
+            for child in root.children:
+                child.matrix_world = turn @ child.matrix_world
+            _rasterise(context, collection, path)
+            self.report({"INFO"}, "Turned the nose about Ship Root")
+            return {"FINISHED"}
+        except (OSError, ValueError, RuntimeError, ImportError, KeyError) as exc:
+            self.report({"ERROR"}, str(exc))
+            return {"CANCELLED"}
+
+
+def _new_ship(context, ship_id, name, reference, length):
+    """Creates the ship .cc from a shipped hull, binds the active collection, moves its meshes into Source under a Ship
+    Root, turns them nose to -Y, sizes them to length cells and rasterises."""
+    if not ship_id or ship_id != ship_id.strip() or any(c in ship_id for c in "/\\:") or not ship_id.strip("."):
+        raise ValueError("The ship ID must be a single name without slashes, colons or surrounding spaces")
+    if not name.strip() or not reference.strip():
+        raise ValueError("Give the ship a display name and a reference hull")
+    collection = _choose_collection(context)
+    meshes = _meshes(collection.objects)
+    if not meshes:
+        raise ValueError(f"{collection.name} holds no mesh objects to make a ship from")
+    if any(obj.data.users > 1 for obj in meshes):
+        raise ValueError("Make the hull meshes single-user before New Ship (Object > Relations > Make Single User)")
+    worlds = {obj: obj.matrix_world.copy() for obj in meshes}
+    depsgraph = context.evaluated_depsgraph_get()
+    points = numpy.vstack([_world_mesh(obj, depsgraph, worlds[obj])[0] for obj in meshes])
+    extent_x, extent_y = (float(v) for v in numpy.ptp(points, axis=0)[:2])
+    longest = max(extent_x, extent_y)
+    if longest <= 0:
+        raise ValueError("The hull meshes have no horizontal extent")
+    repo = _aetheria_repo(context, bpy.data.filepath or ".")
+    path = str(repo / "GameData" / "Mods" / ship_id / "ship.cc")
+    code, message = _aetherdb(context, path, "create", path, ship_id, name, "--like", reference)
+    if code != 0:
+        raise RuntimeError(f"create failed: {message}")
+    collection = _bind_collection(context, path)
+    scale = length * hull_grid.CELL_SIZE / longest
+    transform = Matrix.Diagonal((scale, scale, scale, 1.0))
+    if extent_x > extent_y:
+        transform = transform @ Matrix.Rotation(math.pi / 2, 4, "Z")
+    source = _child_or_new(collection, SOURCE, SOURCE)
+    root = bpy.data.objects.new(SHIP_ROOT, None)
+    root["aetheria.ship_root"] = True
+    collection.objects.link(root)
+    for obj in meshes:
+        placed = transform @ worlds[obj]
+        collection.objects.unlink(obj)
+        source.objects.link(obj)
+        obj.data.transform(placed.to_3x3().to_4x4())
+        if placed.determinant() < 0:
+            obj.data.flip_normals()
+        obj.parent = root
+        obj.matrix_parent_inverse = Matrix.Identity(4)
+        obj.rotation_mode = "XYZ"
+        obj.rotation_euler = (0.0, 0.0, 0.0)
+        obj.scale = (1.0, 1.0, 1.0)
+        obj.location = placed.to_translation()
+    context.scene.aetheria_ship_cc_path = path
+    _rasterise(context, collection, path)
+    return collection
+
+
+class AETHERIA_OT_new_ship(bpy.types.Operator):
+    bl_idname = "aetheria.new_ship"
+    bl_label = "New Ship"
+    bl_description = ("Create the ship .cc beside the Aetheria repo's mods, bind the active collection, and set its "
+                      "meshes up as Source: nose toward -Y, sized to the length, with a drafted grid")
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        scene = context.scene
+        try:
+            collection = _new_ship(context, scene.aetheria_new_ship_id, scene.aetheria_new_ship_name,
+                                   scene.aetheria_new_ship_like, scene.aetheria_new_ship_length)
+            self.report({"INFO"}, f"New ship {collection['aetheria.id']} bound to {collection.name}")
+            return {"FINISHED"}
+        except (OSError, ValueError, RuntimeError, ImportError, KeyError, subprocess.SubprocessError) as exc:
+            self.report({"ERROR"}, str(exc))
+            return {"CANCELLED"}
 
 
 class AETHERIA_OT_package_ship(bpy.types.Operator):
@@ -411,6 +669,12 @@ class AETHERIA_PT_ship(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
+        new = layout.box()
+        new.label(text="New Ship")
+        for prop in ("aetheria_new_ship_id", "aetheria_new_ship_name", "aetheria_new_ship_like",
+                     "aetheria_new_ship_length"):
+            new.prop(context.scene, prop)
+        new.operator("aetheria.new_ship", icon="ADD")
         layout.prop(context.scene, "aetheria_ship_cc_path")
         layout.operator("aetheria.bind_ship_collection", icon="LINKED")
         layout.prop(context.scene, "aetheria_capture_evaluated_lines")
@@ -424,7 +688,10 @@ class AETHERIA_PT_ship(bpy.types.Panel):
         layout.operator("aetheria.capture_ship_lines", icon="GREASEPENCIL")
 
         layout.separator()
-        layout.operator("aetheria.load_ship_layout", icon="IMPORT")
+        row = layout.row(align=True)
+        row.operator("aetheria.load_ship_layout", icon="IMPORT")
+        row.operator("aetheria.flip_nose", icon="LOOP_BACK")
+        row.operator("aetheria.rasterise_hull", icon="MESH_GRID")
         state = context.scene.aetheria_layout
         if not state.ship_id:
             self._draw_package(context, layout)
@@ -475,7 +742,8 @@ classes = (AETHERIA_PG_cell, AETHERIA_PG_hardpoint, AETHERIA_PG_layout,
            AETHERIA_OT_load_layout, AETHERIA_OT_resize_layout,
            AETHERIA_OT_add_hardpoint, AETHERIA_OT_remove_hardpoint,
            AETHERIA_OT_save_layout, AETHERIA_OT_bind_ship_collection,
-           AETHERIA_OT_capture_ship_lines, AETHERIA_OT_package_ship, AETHERIA_AP_preferences, AETHERIA_PT_ship)
+           AETHERIA_OT_capture_ship_lines, AETHERIA_OT_new_ship, AETHERIA_OT_flip_nose,
+           AETHERIA_OT_rasterise_hull, AETHERIA_OT_package_ship, AETHERIA_AP_preferences, AETHERIA_PT_ship)
 
 
 def register():
@@ -485,6 +753,14 @@ def register():
     bpy.types.Scene.aetheria_ship_cc_path = bpy.props.StringProperty(
         name="Ship .cc", subtype="FILE_PATH", description="Existing typed ship authoring record"
     )
+    bpy.types.Scene.aetheria_new_ship_id = bpy.props.StringProperty(
+        name="ID", description="The new ship's ID; also the folder under GameData/Mods")
+    bpy.types.Scene.aetheria_new_ship_name = bpy.props.StringProperty(name="Name", description="Display name")
+    bpy.types.Scene.aetheria_new_ship_like = bpy.props.StringProperty(
+        name="Like", default="Djinni", description="Shipped hull whose stats the new ship starts from")
+    bpy.types.Scene.aetheria_new_ship_length = bpy.props.IntProperty(
+        name="Length (cells)", default=10, min=1, max=hull_grid.MAX_CELLS,
+        description="Cells from stern to nose; the hull's long axis becomes this many 2 m cells")
     bpy.types.Scene.aetheria_package_report = bpy.props.StringProperty(
         name="Package report", description="AetherDb's verdict on the last Package Ship")
     bpy.types.Scene.aetheria_capture_evaluated_lines = bpy.props.BoolProperty(
@@ -498,5 +774,9 @@ def unregister():
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
     del bpy.types.Scene.aetheria_capture_evaluated_lines
+    del bpy.types.Scene.aetheria_new_ship_length
+    del bpy.types.Scene.aetheria_new_ship_like
+    del bpy.types.Scene.aetheria_new_ship_name
+    del bpy.types.Scene.aetheria_new_ship_id
     del bpy.types.Scene.aetheria_package_report
     del bpy.types.Scene.aetheria_ship_cc_path
