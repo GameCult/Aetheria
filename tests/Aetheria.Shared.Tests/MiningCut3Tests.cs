@@ -747,6 +747,13 @@ public sealed partial class MiningCut3Tests : IDisposable
         Assert.True(ahead.Bears);
         Assert.Null(ahead.Subject);
         Assert.False(aside.Bears);
+
+        // The bearing is the chunk's pose minus the shooter's position: from (100, -100) the side chunk at (150, 0)
+        // is 26 degrees off the nose, though its pose sum with the shooter's position would be far abeam.
+        var nearAt = float2(100, -100);
+        var near = SpawnShip(s, nearAt, sensor: true, weaponRanges: 300f);
+        Tick((shooter, eyeAt), (near, nearAt));
+        Assert.True(FireControl.Solution(near.Weapons.Single(), near, new ChunkId(s.Belts[0], 1)).Bears);
     }
 
     // A writable copy of the shipped catalog plus a scratch run store, through a registry scoped to the shipped
