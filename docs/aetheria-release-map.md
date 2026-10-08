@@ -530,6 +530,113 @@ a hull fly with no cap.
 Ruling `demo-content-bar` also needs NPC role hulls (haulers, tenders, miners) and a dockable
 station; follow-up `demo-role-hulls` owns them.
 
+### Full emoji
+
+Anchors are against `origin/master` `4d664b53`. Read by `cut-emoji-font` and `cut-emoji-sequences`;
+question `emoji-art-set` asks which pinned font input and fetch step the font build uses.
+Rulings this rests on: `pirates-record-content` (emoji-names) and the operator's "I totally want
+full emoji support".
+
+- **E1. TextMesh Pro is the one inside `com.unity.ugui` 2.0.0, on Unity 6000.3.24f1.**
+  `ProjectSettings/ProjectVersion.txt`; `Packages/manifest.json:19` (`"com.unity.ugui": "2.0.0"`);
+  there is no separate `com.unity.textmeshpro` entry. Source read from
+  `F:\Projects\Aetheria\Library\PackageCache\com.unity.ugui@b996e7548785\Runtime\TMP` (read only).
+- **E2. TMP Settings today** (`Assets/TextMesh Pro/Resources/TMP Settings.asset`, an LFS file):
+  `m_ActiveFontFeatures: 00000000` (:18), `m_fallbackFontAssets: []` (:36),
+  `m_defaultSpriteAsset` = EmojiOne (`c41005c1…`, :39-40), `m_enableEmojiSupport: 1` (:42),
+  `m_EmojiFallbackTextAssets: []` (:44). Default font asset is LiberationSans SDF (:27).
+- **E3. EmojiOne is a 16-face sample and nothing uses it.** `Assets/TextMesh Pro/Sprites/EmojiOne.json`
+  holds 16 faces (H9). `git grep "<sprite"` outside the TMP folder: nothing. EmojiOne's guid is
+  referenced only by its own meta and TMP Settings; no prefab or scene sets `m_spriteAsset`. Its
+  attribution file says only "review their licensing terms" (EmojiOne/JoyPixels art is not openly
+  licensed).
+- **E4. TMP's emoji path, by source read.**
+  - Lookup: `TextMeshProUGUI.cs:1932-1944` (and `TextMeshPro.cs:1619`): when a code point is an
+    emoji-presentation form not followed by U+FE0E, or an emoji followed by U+FE0F, TMP searches
+    `TMP_Settings.emojiFallbackTextAssets` first, through
+    `TMP_FontAssetUtilities.GetTextElementFromTextAssets`. That list takes font assets.
+  - Sprite assets resolve one code point each (`TMP_SpriteAsset.GetSpriteIndexFromUnicode`,
+    `:216`, a `Dictionary<uint, TMP_SpriteCharacter>`), so a sprite asset cannot match a ZWJ,
+    skin-tone, flag or keycap sequence. Sequences resolve only through a font asset's GSUB
+    ligature records.
+  - Ligatures: `TextMeshProUGUI.cs:2050-2118`. Gated by `bool ligature =
+    m_ActiveFontFeatures.Contains(OTL_FeatureTag.liga)` (`:1824`), per component. Matching skips
+    ZWJ and VS1-VS16 when they are not the expected component
+    (`TMP_TextParsingUtilities.IsIgnorableForLigature`, `:172-178`), consumes a trailing variation
+    selector, and collapses the span into one glyph. The ligature table read is the current font
+    asset's, which is the emoji font when the fallback found the first code point (`:2021-2023`).
+  - Records come from `FontEngine.GetLigatureSubstitutionRecords` as glyphs are added to a dynamic
+    font asset (`TMP_FontAsset.cs:3097-3131`).
+  - Colour glyphs: a font asset in `GlyphRenderMode.COLOR` gets an RGBA32 atlas and the
+    `TextMeshPro/Sprite` shader (`TMP_FontAsset.cs:606-625`); its vertices are forced white, so a
+    `<color>` tag around an emoji does not tint it (`TMP_Text.cs:5376-5385`).
+  - `TMP_Text.OnMissingCharacter` (`TMP_Text.cs:1389`) is a static event raised for every
+    missing code point: the smoke's probe.
+- **E5. No text component has ligatures on.** 154 TMP components in 50 files (48 prefabs, 2
+  scenes), none legacy `UnityEngine.UI.Text`. Serialized feature lists: 24 x `00000000` (legacy:
+  converted on load to `[kern]` when `m_enableKerning`, `TMP_Text.cs:6082-6088`) and 38 x
+  `6e72656b` (`kern`), all in the two scenes (`ARPG.unity` 64 lines with the field,
+  `FieldShieldTest.unity` 1; `grep -rc "m_ActiveFontFeatures: 6e72656b$"` over prefabs and
+  scenes = 38). The 48 prefabs' components have no field and take the same legacy path. One component is
+  created at runtime (`ActionGameManager.cs:301`, the FACE AIM mark).
+- **E6. Turning `liga` on changes no Latin text.** All ten project font assets (`Assets/Fonts/*/*.asset`,
+  LiberationSans SDF) are static (`m_AtlasPopulationMode: 0`) with zero ligature records. Only
+  the emoji font would supply ligatures.
+- **E7. LFS.** `.gitattributes:33` `*.ttf` and `:50` `*.asset` are LFS; TMP Settings.asset,
+  EmojiOne.asset and EmojiOne.png are LFS objects today.
+- **E8. Editor batch pattern.** `Assets/Scripts/Editor/EngineAssetCheck.cs:35-50`: a MenuItem plus
+  `-executeMethod EngineAssetCheck.Run`, exit 1 on failure in batchmode. The emoji builder and
+  smoke follow it.
+- **E9. Prior art (web, 2026-10-08).**
+  - Unity's documented path for colour emoji is a colour font asset in TMP Settings' Emoji
+    Fallback Text Assets (TMP 3.2/4.0 manual "Color emojis"; Unity 6 manual
+    `UIE-color-emojis`). Unsupported: SVG colour glyphs, AAT fonts, COLRv1 (the manual names
+    "Noto Color Emoji" as the COLRv1 case), and chain-context and single-substitution features.
+    Ligature substitution (GSUB type 4), which carries ZWJ, skin-tone and flag sequences, is
+    supported. COLRv0 is supported (the manual's Android note).
+  - Unity forum thread 932305: the CBDT `NotoColorEmoji.ttf` from the googlefonts repo renders
+    through a Color font asset; the Google Fonts download (COLRv1) does not.
+  - Sets: Twemoji (`jdecked/twemoji`, community fork, Emoji 17.0, graphics CC-BY 4.0; distro
+    packages build COLRv0/COLRv1/CBDT TTFs from its SVGs with `nanoemoji`, version 17.0.2).
+    Noto Emoji (`googlefonts/noto-emoji`: fonts OFL 1.1, images Apache 2.0; the prebuilt
+    `NotoColorEmoji.ttf` is CBDT, bitmaps from `png/128`). OpenMoji (CC-BY-SA 4.0; COLRv0 font
+    shipped; outlined line-art).
+  - Not verified here: the exact jdecked release assets (its release page lists two source
+    archives and no TTF), so a Twemoji TTF is built, not downloaded.
+- **E10. Visual identity.** AetheriaLore `Brainstorming/Faction Flavor and Visual Identity.md:532,
+  541, 548`: Pirates' products are named in emoji, a crew vocabulary; hulls carry "large emoji
+  marks". `Ship Design Language.md:222-226`: one large emoji crew emblem painted three times.
+  `Corporate Roster and Item Wishlist.md:85`: "Named entirely in emoji. The flamethrower is" the
+  fire emoji. `Game Design/Visual and Sensory Direction.md` says nothing about an emoji art set;
+  its interface register is "should feel like equipment" (:43).
+
+**Why one colour emoji font asset.** One owner: a colour emoji font asset generated from a pinned
+font file, set as TMP's emoji fallback and appended to TMP's global fallback list. Every TMP text
+renders emoji through it with no per-component wiring, because TMP itself routes emoji code points
+there (E4).
+
+Rejected: a generated TMP sprite asset (the brief's first guess). Sprite lookup is one code point
+per sprite (E4), so full emoji would also need a text preprocessor that rewrites every sequence to
+a private-use code point, installed on every one of 154 components and every runtime text. That is
+more code doing what TMP's font path already does.
+
+Rejected: a runtime-built font asset (`TMP_FontAsset.CreateFontAsset` at boot). It needs
+`Shader.Find("TextMeshPro/Sprite")` in a player (`TMP_FontAsset.cs:625`), which a build strips
+unless the shader is always-included; an editor-built asset references its material and shader.
+
+Sequences need `liga` on the rendering component (E4, E5). There is no global TMP switch, so the
+sequences cut sets it on every serialized component through one editor command and on TMP
+Settings' defaults for new components. It changes no Latin text (E6).
+
+The atlas is dynamic and multi-atlas: glyphs rasterise on first use, so nothing is hand-made and
+nothing is pre-baked. `m_ClearDynamicDataOnBuild: 1` (TMP Settings) already clears dynamic atlases
+at build. The pinned font file is the only binary input, and its provenance is a lock file
+(source, version, sha256 in and out). `emoji-art-set` decides only which pinned input and which
+fetch step; the asset, settings, smoke and deletion are the same for every option. The font build
+itself (option twemoji: nanoemoji) runs under `py -3` on Yggdrasil, not Starfire; the Unity batch
+run is Starfire's. The sequences command touches only the `m_ActiveFontFeatures` line of each of
+48 prefabs and 2 scenes, so it wants the freshest master and a quick merge.
+
 ### Model page rows
 
 | Kind | What names it | Over time | Who decides |
@@ -538,6 +645,13 @@ station; follow-up `demo-role-hulls` owns them.
 | Package product | `mod-product:<id>:<maker key>` in the package's `ship.cc` | Written by `AetherDb ship-authoring product`; copied verbatim by compose; Blender never edits it | The package author |
 | Boss hull | `HullData.Boss` (key 33) | Set by `ship-authoring boss`; a faction's boss hulls are derived per generation from the products it makes | The package author; `BossHullsOf` derives |
 | `Faction.BossHull` (key 10) | Retired | Deleted by `boss-hull-derived` | none |
+| Pirates products | 8 `FactionProductData`, emoji names, over other makers' designs | Authored with the faction in one commit | Ruling `pirates-record-content` |
+| Package hull price | `HullData.Price` | Written by `ship-authoring price` (or `create --like`) | The package author |
+| Emoji font file | `Assets/Fonts/Emoji/<set>.ttf` + `emoji-font.lock` | Rebuilt only by `tools/emoji` at a new pinned version | The operator's `emoji-art-set` ruling |
+| Emoji font asset | `Assets/Fonts/Emoji/Emoji.asset` (dynamic, COLOR, multi-atlas) | Regenerated by `EmojiFont.Build`; atlas filled at runtime, cleared at build | `EmojiFont.Build` |
+| TMP emoji routing | TMP Settings `m_EmojiFallbackTextAssets` and `m_fallbackFontAssets` | Set by `EmojiFont.Build` | `EmojiFont.Build`; no prefab overrides it |
+| Ligatures per text | Each TMP component's `fontFeatures` | `liga` added once by `EmojiFont.EnableLigatures`; new components inherit TMP Settings | `EmojiFont.EnableLigatures`, then the component |
+| EmojiOne sample | none | Deleted by `emoji-font` | none |
 
 ## Faction play: the NPC scripting
 
