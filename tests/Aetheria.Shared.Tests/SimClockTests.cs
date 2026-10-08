@@ -125,6 +125,8 @@ public sealed partial class RunStartTests
         _items.Random = new CultMath.Random(0xC0FFEE);
         launched.staged.Player.MovementDirection = float2(0, 1);
         launched.staged.Player.Turn = .5f;
+        foreach (var ship in launched.arena.Entities.OfType<Ship>())
+            ship.SetTarget(launched.arena.Entities.OfType<Ship>().First(other => other != ship));
         return (launched.arena, launched.staged.Player);
     }
 
@@ -161,6 +163,12 @@ public sealed partial class RunStartTests
         for (var frame = 0; history.Count < HistorySteps; frame++)
             clock.Advance(frames[frame % frames.Length], dt =>
             {
+                // Both ships open fire every 90th step, on the step count, so the fight is the same fight whatever
+                // the frames were.
+                if (history.Count % 90 == 0)
+                    foreach (var ship in zone.Entities.OfType<Ship>())
+                        foreach (var weapon in ship.GetBehaviors<Weapon>())
+                            FireControl.Fire(weapon, weapon.Item, ship);
                 zone.Update(dt);
                 history.Add(Snapshot(zone, shots));
             });
@@ -175,7 +183,7 @@ public sealed partial class RunStartTests
         var first = History(LaunchDuel().arena, new[] { ClockFrame });
         var second = History(LaunchDuel().arena, new[] { ClockFrame });
         Assert.Equal(first, second);
-        Assert.Contains(first, line => !line.EndsWith("shots "));
+        Assert.Contains(first, line => !line.EndsWith("|shots ")); // shots were fired and resolved
     }
 
     [Fact]
@@ -202,7 +210,7 @@ public sealed partial class RunStartTests
             var before = player.Direction;
             arena.Update(ClockFrame);
             var angle = SignedTurn(before, player.Direction);
-            Assert.Equal(abs(angle), abs(player.TurnRate * ClockFrame), 5);
+            Assert.InRange(abs(abs(angle) - abs(player.TurnRate * ClockFrame)), 0f, 1e-6f);
             // A positive turn demand turns clockwise, and TurnRate is signed the way the step turned Direction.
             if (abs(player.TurnRate) > 1e-4f)
             {
@@ -257,6 +265,9 @@ public sealed partial class RunStartTests
         arena.Update(ClockFrame);
         Assert.True(abs(player.TurnRate - rate) < 1e-3f * abs(rate), "the turn is steady");
         var next = player.Rotation;
-        Assert.Equal(1f, abs(drawn.x * next.x + drawn.y * next.y + drawn.z * next.z + drawn.w * next.w), 4);
+        var error = 2 * acos(min(1f, abs(drawn.x * next.x + drawn.y * next.y + drawn.z * next.z + drawn.w * next.w)));
+        var turn = abs(rate * ClockFrame);
+        Assert.True(turn > .005f, "the step turns the ship enough to tell its sense");
+        Assert.True(error < .2f * turn, $"drawn one step ahead is where the sim puts the pose next (off by {error} of a {turn} turn)");
     }
 }

@@ -20,7 +20,7 @@ public static class DrawAhead
         var u = float3(q.x, q.y, q.z);
         var up = float3(0, 1, 0);
         up += 2 * (q.w * cross(u, up) + cross(u, cross(u, up)));
-        var half = -ship.TurnRate * lead * .5f;
+        var half = ship.TurnRate * lead * .5f;
         var s = sin(half);
         var t = new quaternion(up.x * s, up.y * s, up.z * s, cos(half));
         // Hamilton product t * q: CultMath carries no quaternion product (a gap in CultMath, not filled here).
