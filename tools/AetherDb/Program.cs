@@ -38,7 +38,9 @@ public static class Program
             case "targeting-catalog-6d": return TargetingCatalog6d(args.Contains("apply"));
             case "ship-authoring": return ShipAuthoringCommands.Run(args.Skip(1).ToArray());
             case "field-kinds": return FieldKindsCatalog(args.Contains("apply"));
-            case "pirates-faction": return PiratesFaction(args.Contains("apply"));
+            case "pirates-faction":
+                Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+                return PiratesFaction(args.Contains("apply"));
             default:
                 Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], pirates-faction [apply]");
                 return 1;
@@ -1514,10 +1516,9 @@ public static class Program
     // only, written here as \U escapes so no editor or shell mangles them; the dry run prints them raw and as code points.
     //
     // Dry run unless passed "apply", same contract as the other *-migrate commands.
-    private static int PiratesFaction(bool apply)
+    public static int PiratesFaction(bool apply, string root = null)
     {
-        Console.OutputEncoding = new System.Text.UTF8Encoding(false);
-        var db = AetherDb.Open(catalogWritable: apply);
+        var db = AetherDb.Open(catalogWritable: apply, root: root);
 
         var existing = db.Cache.GetAll<Faction>().FirstOrDefault(f => f.Name == "Pirates");
         if (existing != null)
@@ -1571,6 +1572,7 @@ public static class Program
         }).ToArray();
 
         Console.WriteLine($"New faction \"{pirates.Name}\": influence {pirates.InfluenceDistance}, names \"{nameFile.Name}\", allegiance 1.0 to {pirates.Allegiance.Count} factions.");
+        Console.WriteLine($"  colours: primary ({pirates.PrimaryColor.x:0.00}, {pirates.PrimaryColor.y:0.00}, {pirates.PrimaryColor.z:0.00}) primer grey, secondary ({pirates.SecondaryColor.x:0.00}, {pirates.SecondaryColor.y:0.00}, {pirates.SecondaryColor.z:0.00}) hazard orange");
         Console.WriteLine($"  {pirates.Description}");
         Console.WriteLine($"\nNew products ({products.Length}):");
         foreach (var (design, name, description, roles) in products)
