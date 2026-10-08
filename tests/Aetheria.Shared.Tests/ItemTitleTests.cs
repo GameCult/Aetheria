@@ -27,7 +27,7 @@ public sealed class ItemTitleTests : IDisposable
         _cache.Upsert(new SimpleCommodityData { Name = "Ore", Shape = new Shape(), Price = 7, MaxStack = 100 });
         var finch = _cache.Upsert(new Faction { Name = "Finch", ShortName = "FIN" });
         var lucent = _cache.Upsert(new Faction { Name = "Lucent", ShortName = "LUC" });
-        _stranger = _cache.RefOf<Faction>(_cache.Upsert(new Faction { Name = "Stranger", ShortName = "STR" }));
+        _stranger = _cache.Upsert(new Faction { Name = "Stranger", ShortName = "STR" });
         _spice = new CompoundCommodityData { Name = "Spice", Shape = new Shape(), Price = 3 };
         _cache.Upsert(_spice);
         var design = _cache.RefOf<CraftedItemData>(_cache.GetByName<GearData>("Array"));
