@@ -161,13 +161,13 @@ public static class Program
     {
         ["Damage"] = "barrel", ["Range"] = "barrel", ["Velocity"] = "barrel", ["Penetration"] = "barrel",
         ["Cooldown"] = "feed mechanism", ["Spread"] = "feed mechanism", ["Heat"] = "feed mechanism",
-        ["Visibility"] = "feed mechanism", ["Energy"] = "feed mechanism",
+        ["Visibility"] = "feed mechanism", ["Energy"] = "feed mechanism", ["Count"] = "feed mechanism",
     };
 
     private static readonly Dictionary<string, string> EnergyWeaponRoles = new Dictionary<string, string>
     {
         ["Damage"] = "focusing array", ["Range"] = "focusing array", ["Velocity"] = "focusing array",
-        ["Penetration"] = "focusing array",
+        ["Penetration"] = "focusing array", ["DamageSpread"] = "focusing array",
         ["Energy"] = "power coupling", ["Heat"] = "power coupling", ["ChargeTime"] = "power coupling",
         ["ChargeEnergy"] = "power coupling", ["ChargeHeat"] = "power coupling", ["Cooldown"] = "power coupling",
         ["Spread"] = "power coupling", ["Visibility"] = "power coupling",
@@ -178,6 +178,7 @@ public static class Program
         ["Damage"] = "warhead", ["Penetration"] = "warhead", ["DamageSpread"] = "warhead",
         ["LockSpeed"] = "guidance system", ["SensorImpact"] = "guidance system", ["LockAngle"] = "guidance system",
         ["DirectionImpact"] = "guidance system", ["Decay"] = "guidance system", ["Range"] = "guidance system",
+        ["MinRange"] = "guidance system",
         ["Cooldown"] = "guidance system", ["Spread"] = "guidance system", ["Visibility"] = "guidance system",
         ["Energy"] = "guidance system", ["Heat"] = "guidance system",
         ["Thrust"] = "thruster", ["MissileVelocity"] = "thruster", ["Velocity"] = "thruster",
@@ -201,7 +202,7 @@ public static class Program
 
     private static readonly Dictionary<string, string> ReactorRoles = new Dictionary<string, string>
     {
-        ["Charge"] = "core", ["Efficiency"] = "core",
+        ["Charge"] = "core", ["Efficiency"] = "core", ["Modifier"] = "core",
         ["OverloadEfficiency"] = "regulator", ["ThrottlingFactor"] = "regulator",
     };
 
@@ -262,7 +263,8 @@ public static class Program
     // The field->role map for one design, or null when its kind carries no per-part behaviour stat at all
     // (CargoBay, DockingBay, ControlModule, Hull/Station, Hull/Turret -- none of their behaviours read
     // StatSource.Quality today, so there is no natural role to author and the report says so per design).
-    private static Dictionary<string, string> RoleMapFor(EquippableItemData item, string kind) => kind switch
+    private static Dictionary<string, string> RoleMapFor(EquippableItemData item, string kind) =>
+        item.Behaviors != null && item.Behaviors.OfType<MineLayerData>().Any() ? MineLayerRoles : kind switch
     {
         "Weapon/Ballistic" => BallisticWeaponRoles,
         "Weapon/Energy" => EnergyWeaponRoles,
@@ -275,6 +277,9 @@ public static class Program
         "Tool" => ToolRolesByDesign.TryGetValue(item.Name, out var byName) ? byName : null,
         _ => null,
     };
+
+    // Whether CB-R1 maps this design's stats to roles; the catalog test asks the tool, so it keeps no copy of the kinds.
+    public static bool HasRoleMap(EquippableItemData item) => RoleMapFor(item, KindOf(item)) != null;
 
     private sealed record RoleAuthoring(
         EquippableItemData Item, string Kind, List<(string Behavior, string Field, string Role)> StatsAssigned,
@@ -1725,10 +1730,13 @@ public static class Program
     // roles their kind's map names, and every seller authors a ProductRole per role. Each mapped stat becomes a range
     // of value x (0.8, 1.2) that rises with quality for a benefit and falls for a cost, read through one Quality term
     // naming its role (exponent: the mode of the kind's existing designs on that field, 1 when there is none; an
-    // existing Quality term keeps its exponent). Zero stats stay flat. Small Drive joined the set because it declares
-    // roles that no non-flat stat reads. Idempotent: a design with no flat mapped stat is left alone, a product with a
-    // role is left alone. Dry run unless passed "apply".
-    private static readonly string[] BackfillDesigns = { "Autocannon", "LRMM72", "SRMM72", "Mine Launcher", "Large Drive", "Small Drive" };
+    // existing Quality term keeps its exponent). Zero stats stay flat. A mapped stat that already varies keeps its range
+    // and only has its unnamed Quality term pointed at the role. Small Drive joined the set because it declares roles that
+    // no non-flat stat reads; DeathCluster, Flak Gun, GT 3K, plight and the two MoveOnPros because each had a non-flat stat
+    // whose Quality term named no role (CB-R1: each non-flat stat reads exactly one declared role). Idempotent: a design with
+    // no flat mapped stat and no unnamed one is left alone, a product with a role is left alone. Dry run unless passed "apply".
+    private static readonly string[] BackfillDesigns = { "Autocannon", "LRMM72", "SRMM72", "Mine Launcher", "Large Drive", "Small Drive",
+        "DeathCluster", "Flak Gun", "GT 3K", "plight", "MoveOnPro", "MoveOnPro Station Reactor" };
 
     private static readonly HashSet<string> CostStats = new HashSet<string>(StringComparer.Ordinal)
     {
@@ -1736,17 +1744,14 @@ public static class Program
         "SensorImpact", "DirectionImpact", "Decay",
     };
 
-    private static Dictionary<string, string> BackfillMapFor(EquippableItemData item) =>
-        item.Behaviors.OfType<MineLayerData>().Any() ? MineLayerRoles : RoleMapFor(item, KindOf(item));
-
     private static IEnumerable<PerformanceStat> StatsOf(EquippableItemData item) =>
         (item.Behaviors ?? new List<BehaviorData>()).Where(b => b != null)
             .SelectMany(b => b.GetType().GetFields().Where(f => f.FieldType == typeof(PerformanceStat)).Select(f => f.GetValue(b) as PerformanceStat))
             .Where(s => s?.Terms != null);
 
-    private static int RolesBackfill(bool apply)
+    public static int RolesBackfill(bool apply, string root = null)
     {
-        var db = AetherDb.Open(catalogWritable: apply);
+        var db = AetherDb.Open(catalogWritable: apply, root: root);
         var items = db.Cache.GetAll<EquippableItemData>().ToArray();
         var products = db.Cache.GetAll<FactionProductData>().ToArray();
         var targets = BackfillDesigns.Select(name => items.Where(i => i.Name == name).ToArray())
@@ -1768,22 +1773,23 @@ public static class Program
         foreach (var design in targets)
         {
             var kind = KindOf(design);
-            var map = BackfillMapFor(design) ?? throw new InvalidOperationException($"\"{design.Name}\" has no role map.");
+            var map = RoleMapFor(design, kind) ?? throw new InvalidOperationException($"\"{design.Name}\" has no role map.");
             var lines = new List<string>();
             foreach (var behavior in design.Behaviors.Where(b => b != null))
                 foreach (var field in behavior.GetType().GetFields().Where(f => f.FieldType == typeof(PerformanceStat)))
                 {
                     if (!map.TryGetValue(field.Name, out var role) || !(field.GetValue(behavior) is PerformanceStat stat)) continue;
-                    if (stat.Min != stat.Max || stat.Min == 0f || float.IsInfinity(stat.Min)) continue;
-                    var value = stat.Min;
-                    (stat.Min, stat.Max) = CostStats.Contains(field.Name) ? (value * 1.2f, value * .8f) : (value * .8f, value * 1.2f);
                     stat.Terms ??= new List<StatTerm>();
                     var quality = stat.Terms.FirstOrDefault(t => t.Source == StatSource.Quality);
-                    if (quality == null)
+                    var value = stat.Min;
+                    if (stat.Min == stat.Max)
                     {
-                        quality = new StatTerm { Source = StatSource.Quality, Exponent = ExponentFor(kind, field.Name) };
-                        stat.Terms.Add(quality);
+                        if (stat.Min == 0f || float.IsInfinity(stat.Min)) continue;
+                        (stat.Min, stat.Max) = CostStats.Contains(field.Name) ? (value * 1.2f, value * .8f) : (value * .8f, value * 1.2f);
+                        quality ??= new StatTerm { Source = StatSource.Quality, Exponent = ExponentFor(kind, field.Name) };
+                        if (!stat.Terms.Contains(quality)) stat.Terms.Add(quality);
                     }
+                    else if (quality == null || !string.IsNullOrEmpty(quality.Role)) continue; // already named, or not quality-driven
                     quality.Role = role;
                     lines.Add($"      {behavior.GetType().Name}.{field.Name,-16} {value:0.####} -> {stat.Min:0.####}..{stat.Max:0.####}  {role} ^{quality.Exponent:0.##}");
                 }
