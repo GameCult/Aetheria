@@ -12,7 +12,7 @@ using static CultMath.math;
 // Should multiply that by actual performance." EquippedItem.ConditionRatio (Entity.cs) is the one number that
 // answers "how healthy does this item actually look": the item's resolved value for a stat against what the
 // same item, same lot, same modifiers would produce with Heat/Durability/PowerSupply pinned to their identity.
-// Thruster.Condition and AetherDrive.Condition (Thruster.cs/AetherDrive.cs) are that ratio read against each
+// Thruster.Condition (Thruster.cs) is that ratio read against each
 // behaviour's own governing stat (Thrust, Torque); ShipInstance.cs (Unity-side, not covered here) multiplies
 // presentation intent by it instead of recomputing any durability/heat/power arithmetic of its own.
 // Each rule here has a matching mutation in tests/mutation_tests_condition_ratio_cut8.py.

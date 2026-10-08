@@ -670,7 +670,7 @@ public sealed partial class RunStartTests : IDisposable
     public void TheRealHullsMaterializeBareFromABrandedProduct()
     {
         var available = new LoadoutGenerator(ref _items.Random, _items, _galaxy, _galaxy.Entrance, null, 2);
-        foreach (var hull in new[] { Hull("Djinni"), Hull("LonginusX"), TurretHull() })
+        foreach (var hull in new[] { Hull("Djinni"), Hull("Longinus"), TurretHull() })
         {
             var failures = new List<string>();
             var entity = Loadouts.Materialize(_items, null, BareLoadout(hull), available.IsAvailable, failures);

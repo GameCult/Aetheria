@@ -16,18 +16,21 @@ public sealed class Arcs : Scenario
 
     public override void Stage(ScenarioStage stage)
     {
-        var fighter = stage.Fit("LonginusX",
+        var fighter = stage.Fit("Longinus",
             ("Cockpit 2x2", int2(2, 6), None),
-            ("Traction", int2(2, 3), None),
-            ("Core Power", int2(2, 1), None),
+            ("Large Drive", int2(1, 0), Reversed),
+            ("Large Drive", int2(3, 0), Reversed),
+            ("Talaria", int2(2, 14), CounterClockwise),
+            ("Talaria", int2(3, 14), Clockwise),
+            ("Core Power", int2(2, 4), None),
             ("GT 3K", int2(0, 5), None),
             ("GT 3K", int2(5, 5), None),
             ("FastBlast+-", int2(1, 8), None),
             ("FastBlast+-", int2(4, 8), None),
-            ("Iapyx", int2(1, 2), CounterClockwise),
-            ("Iapyx", int2(4, 2), Clockwise),
+            ("Iapyx", int2(2, 2), CounterClockwise),
+            ("Iapyx", int2(3, 2), Clockwise),
             ("not if i see you first", int2(3, 10), None),
-            ("Fire Control Array", int2(2, 5), None));
+            ("Fire Control Array", int2(1, 6), None));
         var turret = stage.Fit("Turret",
             ("ClearPath", int2(1, 2), None),
             ("ClearPath", int2(5, 2), None),
@@ -39,8 +42,8 @@ public sealed class Arcs : Scenario
             ("Fire Control Array", int2(3, 6), None));
 
         stage.Player(fighter, float2(0, 0), facing: float2(0, 1));
-        stage.Place(stage.Bare("LonginusX"), Bow);
-        stage.Place(stage.Bare("LonginusX"), Stern);
+        stage.Place(stage.Bare("Longinus"), Bow);
+        stage.Place(stage.Bare("Longinus"), Stern);
         stage.Place(turret, Turret, stance: ScenarioStance.Hostile);
     }
 }

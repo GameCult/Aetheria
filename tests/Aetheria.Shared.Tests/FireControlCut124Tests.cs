@@ -469,10 +469,9 @@ public sealed class FireControlCut124Tests : IDisposable
     }
 
     // The same rule on the shipped hulls: a blast just grazing the corner farthest from the centre of mass. The
-    // corners of the shipped Longinus and LonginusX reach past the old cull's box-half-diagonal bound.
+    // corner of the shipped Longinus reaches past the old cull's box-half-diagonal bound.
     [Theory]
     [InlineData("Longinus")]
-    [InlineData("LonginusX")]
     public void AGrazingBlastAtAShippedHullsFarthestCornerLands(string hullName)
     {
         Shape shape;
