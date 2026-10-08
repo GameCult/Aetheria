@@ -377,6 +377,168 @@ Counts: demo 52 (31 specs, 11 of them landed, and 21 follow-ups); full game 34 (
 25 follow-ups); obsolete 2 follow-ups. No in-force spec lost its purpose in both scopes,
 so none was withdrawn.
 
+### Demo hulls, the Pirates and the boss
+
+Anchors are against `origin/master` `4d664b53`, unless marked `@2a5fc00b`, the tip of the
+unmerged `eureka/aetheria-release-boss-gate` branch (which contains demo-galaxy). Read by
+`cut-pirates-record`, `cut-package-product`, `cut-boss-hull-derived` and `cut-demo-cast-hulls`;
+question `pirates-record-content` ruled the record's content (see "The Pirates record" below).
+
+- **H1. The catalog at `4d664b53` still has no Pirates, and no faction has a boss hull.** Probe:
+  `git show 4d664b53:GameData/Aetheria.cc | git lfs smudge`, decoded with Python `msgpack`
+  using the store's own schema table. Result: 12 `aetheria.faction` records, the same twelve
+  as D6, with no Pirates. `BossHull` (slot 10) is the empty key `''` on all twelve. Each
+  faction's `Allegiance` holds 11 entries, one for every other faction. Influence runs from
+  2 to 6. There are 12 `NameFile` records: Australia, Congo, Germany, India, Iran, Japan,
+  Mexico, Russia, Swahili, Thailand, USA and pleiades. There are 5 hulls: LonginusX, Longinus
+  and Djinni (`HullType` 0, ship), Zenith (1, station) and Turret (2, turret). Their prices
+  are 7.5M, 7.5M, 10M, 10M and 0.5M. There are 64 products. The catalog changed once after
+  `df7c44f2`: `3d77f2e0` (evasion-catalog tracking).
+- **H2. "Pirates" appears only on the unmerged demo branches.** `git grep -i pirate` over
+  `*.cs` at `4d664b53` returns nothing. At `@2a5fc00b`, `DemoTerminus.cs:10` sets
+  `ProtagonistFaction = "Pirates"`, which `Galaxy.ResolveFaction` resolves by name prefix.
+  The test partial `RunStartTests` copies `GameData/Aetheria.cc` into a scratch directory
+  (`RunStartTests.cs:36-46 @2a5fc00b`). `AddPirates()` (`DemoTerminusTests.cs:20-28
+  @2a5fc00b`) upserts a stand-in Pirates record whose allegiance covers every faction. It is
+  called 21 times: DemoTerminusTests 9, RunGoalTests 10, ScenarioTests 2. Test
+  `DemoTerminus_missing_cast_refused` (`DemoTerminusTests.cs:86-95 @2a5fc00b`) asserts that
+  the shipped catalog has no Pirates. Once the record lands, both the stand-in and that
+  assertion are wrong: the stand-in duplicates the record and the assertion fails.
+- **H3. demo-galaxy and boss-gate are held but unmerged.** `boss-gate` contains
+  `demo-galaxy`; its tip is `2a5fc00b`, 17 commits ahead of master and 94 behind. Verdicts
+  `cut-demo-galaxy.s4` and `cut-boss-gate.s2` hold. Finding
+  `cut-boss-gate.s1.boss-hull-is-a-strangers` records that the demo cannot be generated on
+  the bare catalog, because the Pirates record is missing.
+- **H4. A package holds exactly two records, and no product.** `ShipAuthoringStore.LoadRecords`
+  (`ShipAuthoring.cs:155-167`) refuses any count other than one hull and one visual.
+  `ship_cc.py:85-86` refuses any file that does not hold exactly two envelopes.
+  `ShipModCatalog.Compose` (`ShipModCatalog.cs:48-133`) writes only those two records
+  (`:113-115`). Generation, station stock and the boss all choose from
+  `FactionProductData` (M5). A package hull is therefore reachable only through the
+  console's `give` command. Ruling `package-carries-product` is not implemented on master.
+- **H5. Mod keys.** `IsModKey` (`ShipModCatalog.cs:25-26`) recognises `mod-hull:` and
+  `mod-ship:`. Its comment states the rule that the shipped catalog never references a mod
+  key, because a mod may be uninstalled. A shipped `Faction.BossHull` therefore cannot name
+  a package hull.
+- **H6. Package hulls and top speed.** `ship-authoring create` without `--like`
+  (`ShipAuthoringCommands.cs:45-66`) writes a hull with no behaviours and `Price` 0.
+  `HullLike` copies the reference's members, `VelocityLimit` and `Price` included
+  (`ShipAuthoring.cs:91-106`). `Validate` (`ShipAuthoring.cs:186-293`) has no rule about top
+  speed or price. This is R6, still true. Generation silently skips price-0 products (M5).
+- **H7. Where boss and hull type are read.** At `@2a5fc00b`:
+  - `LoadoutGenerator.GenerateBossLoadout` (`:178-196`) uses `Faction.BossHull` when it is
+    set and sold. Otherwise it falls back to the priciest ship hull on offer.
+  - `RandomHull` (`:131-136`) is the one hull chooser. `GenerateShipLoadout` reaches it at
+    `:37`.
+  - The station stock filter (`:112`) admits ship hulls only.
+  - `Galaxy.PlaceFactionsMain` picks its boss factions by `BossHull.IsSet()` (`:296-299`).
+  - AetherDb's `factions` command prints `BossHull` (`Program.cs:662-672`), and `dangling`
+    mentions it (`:544`).
+
+  No other reader exists. `HullType` is `Ship | Station | Turret` (`Enums.cs:140-145`).
+  Thrusters carry `EntityTypeRestriction(HullType.Ship)`, so a boss must be a `Ship`, not a
+  new `HullType`.
+- **H8. HullData's free key.** Keys in use: ItemData 1, 2, 4-8; CraftedItemData 9;
+  EquippableItemData 10-16, 18-22, 30, 31; HullData 23-29, 32. Key 33 is free on
+  `HullData`. evasion-term's key 33 is on `WeaponData`, a sibling type.
+- **H9. Emoji in names.** The TextMesh Pro default sprite asset
+  (`Assets/TextMesh Pro/Sprites/EmojiOne.json`) holds 16 face glyphs (1f600-1f923, 263a,
+  2639) and no others. The fire emoji in the Pirate Coalition's equipment copy would not
+  render without a new emoji asset (see "Full emoji").
+- **H10. Pirates lore that the record reads from.** Sources:
+  - The vault note `Worldbuilding/Pre-Elysium/Factions/Powers/Major/Pirate Coalition.md`:
+    a loose network, no central command.
+  - `Brainstorming/Faction Flavor and Visual Identity.md:526-557`. Its points: stolen and
+    adapted equipment gives the faction its range rather than an exclusive technology;
+    products are named in emoji; hulls show several surviving finishes interrupted by primer,
+    with one crew accent colour.
+  - `Game Design/Faction Play.md:395` and `:416`: pirates buy everyone's gear.
+  - Corporate Roster: the pirate name is rolled per run. The demo's record is fixed.
+- **H11. Packages in git and in builds.** At `4d664b53`, `.gitattributes` has no `*.glb`
+  rule, and `GameData/*.cc` does not match `GameData/Mods/<id>/ship.cc` (M11 still true).
+  There is no player build entry point; `ships-player` owns staging. `ActionGameManager`
+  composes from `GameData/Mods` (`:49`, `:63`), so editor play reads packages from the repo.
+
+#### The Pirates record
+
+Draft for question `pirates-record-content`.
+
+| Field | Draft | Why |
+|---|---|---|
+| Name, ShortName | `Pirates`, `Pirates` | DemoTerminus's cast field and ruling `demo-cast` both say "Pirates" |
+| Description | "A loose coalition of crews and hidden docks moving people and goods outside official control. No command, no common law: possession has a maintenance schedule." | Vault note; Faction Play's operating logic |
+| PrimaryColor | (0.42, 0.40, 0.37), primer grey | "finishes interrupted by primer" |
+| SecondaryColor | (1.00, 0.45, 0.05), the crew's accent colour | "a crew's chosen accent colour" |
+| GeonameFile | `pleiades` | Star names suit hidden docks; it is not one of the cast's files |
+| InfluenceDistance | 3 | Scattered bases, no continuous territory |
+| Allegiance | 1.0 to each of the 12 other factions; no other faction's allegiance changes | Pirates buy everyone's gear. Only the Pirates field Pirates-made products, including their hull |
+| Personality, music, BossHull | Empty or unset | Doctrine arrives with faction-play r2; the Pirates are not a boss |
+
+Products: stolen-and-adapted rebrands over other makers' designs. The Pirates own no design;
+their range is what they took (Faction Flavor `:532`). Each product's roles: one ProductRole per
+role the design declares, mean .45, sd .22 (middling and inconsistent, against makers' .15).
+Names are emoji; the text gloss is for the operator's review and is not stored.
+
+| Product name | Gloss | Design (current maker) | Description |
+|---|---|---|---|
+| 🫳🔫 | finders keepers | Autocannon (Zhestokost) | "Serial number filed off. Still shoots." |
+| 🪦🤠 | second owner | Earp (Aeronautics Unlimited) | "The previous owner had no further use for it." |
+| 🧾🚫 | no receipt | FastBlast+- (NiteLife Energy) | "Warranty void where prohibited, which is everywhere." |
+| 🎨🙈 | overpainted | 6k Shooter (Zhestokost) | "The logo underneath is somebody else's problem." |
+| 🔥 | the fire | scorched void policy (Death Monkey Explosives) | "Turns out we did start the fire after all." (the roster's line, `Corporate Roster and Item Wishlist.md:85`) |
+| 👀🎯 | borrowed eyes | Targeting Computer (generic) | "Somebody else's eyes. They still work." |
+| 🔑🏃💨 | hotwired | Small Drive (Lightsail Express) | "Hotwired. Do not ask about the ignition." |
+| 📦🤫 | not as declared | Store-All Plus (Lightsail Express) | "Contents not as declared." |
+
+None is on a Miss Terri's design. Each (Pirates, design) pair is new, so `Brand` stays
+unambiguous (CG4). The fire product moves to the flamethrower design if follow-up
+`pirates-flamethrower` lands one.
+
+The record's data does not depend on the emoji font: the simulation owns facts and the font is a
+presenter (invariant `sim-owns-facts`). So the record waits on boss-gate (H2) and not on the emoji
+cuts, and the demo's Pirates (finding `boss-hull-is-a-strangers`) are not held behind a Unity
+presentation cut. Until the emoji font lands, editor play shows the names as missing-glyph boxes.
+
+#### The boss hull is derived, not named
+
+Follow-up `zhestokost-boss-hull` left this map to choose between two options. One was an
+AetherDb command that names the package hull from `Faction.BossHull`. The other was a package
+that declares which faction it is the boss of. The first is ruled out by H5: the shipped
+catalog would name a mod key, and uninstalling the package would leave the reference
+dangling.
+
+The second option, built from parts that already exist:
+- `HullData.Boss` (key 33, bool) marks a hull that only bosses fly.
+- The package's own products name the faction as manufacturer (`package-carries-product`).
+- A faction's boss hull is then the `Boss` hull it manufactures.
+- `Faction.BossHull` has no writer in the catalog (H1), so it is deleted. Key 10 is retired,
+  as `ShipAuthoring` key 1 was.
+
+Starsector is the prior art: a mod puts its ships into an existing faction by shipping a
+faction file that the engine merges. The package therefore carries its own availability (map
+"Why first-party hulls through the package path").
+
+The consequence for the product: a `Boss` hull is never station stock, never ordinary traffic,
+and never offered by `RandomHull` unless the caller asks for a boss. That keeps the boss
+unique. If a faction makes no `Boss` hull, boss-gate's logged fallback stands.
+
+**Why top speed is refused at `Validate`.** `Validate` is the one owner of top speed (follow-up
+`package-hull-top-speed`): compose then excludes a speedless package with its name, and the
+dock intro never sees one. Handling the absence at the intro was rejected because it would let
+a hull fly with no cap.
+
+Ruling `demo-content-bar` also needs NPC role hulls (haulers, tenders, miners) and a dockable
+station; follow-up `demo-role-hulls` owns them.
+
+### Model page rows
+
+| Kind | What names it | Over time | Who decides |
+|---|---|---|---|
+| Pirates `Faction` | Catalog record, name `Pirates` | Authored once by `AetherDb pirates-faction apply`; doctrine is added by faction-play r2 | Ruling `pirates-record-content`; the operator sees the dry run |
+| Package product | `mod-product:<id>:<maker key>` in the package's `ship.cc` | Written by `AetherDb ship-authoring product`; copied verbatim by compose; Blender never edits it | The package author |
+| Boss hull | `HullData.Boss` (key 33) | Set by `ship-authoring boss`; a faction's boss hulls are derived per generation from the products it makes | The package author; `BossHullsOf` derives |
+| `Faction.BossHull` (key 10) | Retired | Deleted by `boss-hull-derived` | none |
+
 ## Faction play: the NPC scripting
 
 The operator ruled on 2026-10-03 that the faction dynamics may elaborate the NPC
