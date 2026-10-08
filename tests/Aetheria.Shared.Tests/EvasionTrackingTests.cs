@@ -285,8 +285,9 @@ public sealed partial class RunStartTests
         Assert.True(price > limited * 2f, $"the mount limit priced the limited gun down: {limited} against {price}");
     }
 
-    // The shipped catalog's weapon behaviours: launchers and guided weapons never mount-track, every other gun is a mount.
-    private static bool EvMountless(WeaponData data) => data is LauncherData || data is GuidedWeaponData;
+    // The shipped catalog's weapon behaviours: launchers, guided weapons and mine layers (which lay at no bearing)
+    // never mount-track, every other gun is a mount.
+    private static bool EvMountless(WeaponData data) => data is LauncherData || data is GuidedWeaponData || data is MineLayerData;
 
     private IEnumerable<(WeaponItemData item, WeaponData data)> EvCatalogGuns() =>
         _cache.GetAll<WeaponItemData>().SelectMany(item => item.Behaviors.OfType<WeaponData>().Select(data => (item, data)));

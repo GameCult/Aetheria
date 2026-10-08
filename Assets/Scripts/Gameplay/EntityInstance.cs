@@ -187,7 +187,8 @@ public class EntityInstance : MonoBehaviour
                     sensor.OnPingEnd += OnSensorPingEnd;
                 }
                 
-                if (behavior is InstantWeapon instantWeapon)
+                // A mine layer's presentation is the mine it lays (MineInstance, drawn by ZoneRenderer from Zone.Mines).
+                if (behavior is InstantWeapon instantWeapon && !FireControl.IsMineLayer(instantWeapon))
                 {
                     var data = (InstantWeaponData) instantWeapon.Data;
                     if (!_instantWeaponManagers.ContainsKey(data))
