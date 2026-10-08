@@ -71,6 +71,7 @@ public sealed partial class FireControlCut124Tests
         Assert.True(solution.Free);
         Assert.True(FireControl.ArcPermitsFire(e.Weapon, e.Shooter));
         Near(float2(0, 1), solution.Direction);
+        Assert.Same(e.Target, solution.Subject);
         Assert.Equal(0f, FireControl.HitProbability(e.Weapon, e.Shooter, e.Target));
     }
 
@@ -176,5 +177,34 @@ public sealed partial class FireControlCut124Tests
         Assert.True(FireControl.ArcPermitsFire(e.Weapon, e.Shooter));
         Assert.True(FireControl.AgentFires(e.Weapon, e.Shooter, e.Target));
         Near(intercept, solution.Direction);
+    }
+
+    // Solve flies along the solution against the target it is given, not the shooter's designated one (the HUD forecast
+    // and an agent's burst ask about other entities). A decoy 40 degrees off, in the same zone, is passed while the
+    // designated target sits dead ahead; the round goes to the decoy's intercept. Kills a Solve that reads the shooter's
+    // target, a constant, or a swapped argument; the fixture checks the two intercepts differ.
+    [Fact]
+    public void SolveFliesToTheTargetItIsGiven()
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), hardpointArc: SolutionArc, weaponRange: 200f);
+        var hull = e.Items.ItemData.RefOf<ItemData>(e.HullData);
+        var decoy = new Ship(e.Items, e.Zone, new EquippableItem { Data = hull, Durability = 1000000, Lot = 9000 }, new EntitySettings());
+        e.Zone.Entities.Add(decoy);
+        decoy.Activate();
+        var at = radians(40f);
+        decoy.Position = e.Shooter.Position + float3(sin(at), 0, cos(at)) * 100f;
+        e.Shooter.VisibleEntities.Add(decoy);
+        e.Shooter.EntityInfoGathered[decoy] = 1f;
+        e.Shooter.SetIff(decoy, true);
+        Aim(e, float2(0, -1));
+
+        var designated = FireControl.Solution(e.Weapon, e.Shooter, e.Target).Direction;
+        var other = FireControl.Solution(e.Weapon, e.Shooter, decoy).Direction;
+        Assert.True(FireControl.Bears(e.Weapon, e.Shooter, decoy, out _));
+        Assert.True(length(designated - other) > .3f, "fixture: the two intercepts must differ");
+        Assert.Same(e.Target, e.Shooter.Target.Value.Entity);
+
+        Near(other, FireControl.Solve(e.Weapon, e.WeaponItem, e.Shooter, decoy).TravelDirection);
+        Near(designated, FireControl.Solve(e.Weapon, e.WeaponItem, e.Shooter, e.Target).TravelDirection);
     }
 }
