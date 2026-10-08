@@ -198,7 +198,7 @@ public class LoadoutGenerator
     // Hardpoint gear that no hull in the catalog can mount has no home (operator, 2026-09-30: "we'll need to author a
     // bunch more hulls before all the gear variety in the game has a home"): generation never offers it, so no station
     // stocks it. It gains one the moment a hull with a hardpoint that takes it exists. Tool gear goes in any interior.
-    private static bool HasHome(EquippableItemData design, HullData[] hulls) =>
+    public static bool HasHome(EquippableItemData design, HullData[] hulls) =>
         design.HardpointType == HardpointType.Tool || design.HardpointType == HardpointType.Hull ||
         hulls.Any(hull => hull.Hardpoints.Any(hardpoint => hardpoint.Takes(design)));
 

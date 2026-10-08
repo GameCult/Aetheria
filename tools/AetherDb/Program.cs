@@ -42,8 +42,11 @@ public static class Program
             case "field-kinds": return FieldKindsCatalog(args.Contains("apply"));
             case "pd-gear": return PdGearCatalog(args.Contains("apply"));
             case "mine-launcher": return MineLauncherCatalog(args.Contains("apply"));
+            case "pirates-faction":
+                Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+                return PiratesFaction(args.Contains("apply"));
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], pd-gear [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], pd-gear [apply], pirates-faction [apply]");
                 return 1;
         }
     }
@@ -1700,6 +1703,113 @@ public static class Program
             });
         });
         Console.WriteLine($"\nAuthored \"{name}\" in Aetheria.cc");
+        return 0;
+    }
+
+    // Aetheria release, cut pirates-record (rulings pirates-record-content, catalog-grows-generic-designs-branded-products):
+    // the Pirates faction and eight rebrands of other makers' designs, named in emoji. The Pirates own no design: their range
+    // is what they took, so every product points at a design someone else also makes. Each product carries one ProductRole per
+    // role its design declares, middling and inconsistent (mean .45, sd .22, against makers' .15). Names are stored as the emoji
+    // only, written here as \U escapes so no editor or shell mangles them; the dry run prints them raw and as code points.
+    //
+    // Dry run unless passed "apply", same contract as the other *-migrate commands.
+    public static int PiratesFaction(bool apply, string root = null)
+    {
+        var db = AetherDb.Open(catalogWritable: apply, root: root);
+
+        var existing = db.Cache.GetAll<Faction>().FirstOrDefault(f => f.Name == "Pirates");
+        if (existing != null)
+        {
+            Console.WriteLine("A faction named \"Pirates\" already exists; nothing to do.");
+            return 0;
+        }
+
+        CraftedItemData DesignByName(string name)
+        {
+            var matches = db.Cache.GetAll<CraftedItemData>().Where(i => i.Name == name).ToArray();
+            if (matches.Length != 1) throw new InvalidOperationException($"Expected exactly one design named \"{name}\", found {matches.Length}.");
+            return matches[0];
+        }
+
+        string CodePoints(string text) => string.Join(" ", text.EnumerateRunes().Select(r => $"U+{r.Value:X4}"));
+
+        var nameFile = db.Cache.GetAll<NameFile>().FirstOrDefault(n => n.Name == "pleiades");
+        if (nameFile == null) throw new InvalidOperationException("No name file named \"pleiades\".");
+
+        var others = db.Cache.GetAll<Faction>().ToArray();
+        var pirates = new Faction
+        {
+            Name = "Pirates",
+            ShortName = "Pirates",
+            Description = "A loose coalition of crews and hidden docks moving people and goods outside official control. No command, no common law: possession has a maintenance schedule.",
+            PrimaryColor = new float3(.42f, .40f, .37f),
+            SecondaryColor = new float3(1f, .45f, .05f),
+            GeonameFile = db.Cache.RefOf(nameFile),
+            InfluenceDistance = 3,
+        };
+        foreach (var other in others) pirates.Allegiance[db.Cache.RefOf(other)] = 1f;
+
+        var rebrands = new (string Design, string Name, string Description)[]
+        {
+            ("Autocannon", "\U0001FAF3\U0001F52B", "Serial number filed off. Still shoots."),
+            ("Earp", "\U0001FAA6\U0001F920", "The previous owner had no further use for it."),
+            ("FastBlast+-", "\U0001F9FE\U0001F6AB", "Warranty void where prohibited, which is everywhere."),
+            ("6k Shooter", "\U0001F3A8\U0001F648", "The logo underneath is somebody else's problem."),
+            ("scorched void policy", "\U0001F525", "Turns out we did start the fire after all."),
+            ("Targeting Computer", "\U0001F440\U0001F3AF", "Somebody else's eyes. They still work."),
+            ("Small Drive", "\U0001F511\U0001F3C3\U0001F4A8", "Hotwired. Do not ask about the ignition."),
+            ("Store-All Plus", "\U0001F4E6\U0001F92B", "Contents not as declared."),
+        };
+
+        var products = rebrands.Select(r =>
+        {
+            var design = DesignByName(r.Design);
+            return (Design: design, r.Name, r.Description,
+                Roles: (design.Roles ?? new List<ItemRole>()).Select(role => new ProductRole { Role = role.Name, Mean = .45f, StandardDeviation = .22f }).ToList());
+        }).ToArray();
+
+        Console.WriteLine($"New faction \"{pirates.Name}\": influence {pirates.InfluenceDistance}, names \"{nameFile.Name}\", allegiance 1.0 to {pirates.Allegiance.Count} factions.");
+        Console.WriteLine($"  colours: primary ({pirates.PrimaryColor.x:0.00}, {pirates.PrimaryColor.y:0.00}, {pirates.PrimaryColor.z:0.00}) primer grey, secondary ({pirates.SecondaryColor.x:0.00}, {pirates.SecondaryColor.y:0.00}, {pirates.SecondaryColor.z:0.00}) hazard orange");
+        Console.WriteLine($"  {pirates.Description}");
+        Console.WriteLine($"\nNew products ({products.Length}):");
+        foreach (var (design, name, description, roles) in products)
+        {
+            var makers = db.Cache.GetAll<FactionProductData>()
+                .Where(p => p.Design.Key.Equals(db.Cache.RefOf(design).Key))
+                .Select(p => db.Cache.Get(p.Manufacturer)?.ShortName).OrderBy(n => n, StringComparer.Ordinal);
+            Console.WriteLine($"  {name}  [{CodePoints(name)}]");
+            Console.WriteLine($"    design {design.GetType().Name} \"{design.Name}\" (made by {string.Join(", ", makers)}), roles [{string.Join(", ", roles.Select(r => r.Role))}]");
+            Console.WriteLine($"    \"{description}\"");
+        }
+
+        CultRecordRefs.Validate(pirates);
+        foreach (var (design, name, description, roles) in products)
+            CultRecordRefs.Validate(new FactionProductData
+            {
+                Name = name, Description = description, Roles = roles,
+                Design = new CultRecordRef<CraftedItemData>(db.Cache.RefOf(design).Key),
+                Manufacturer = db.Cache.RefOf(others[0]),
+            });
+
+        if (!apply)
+        {
+            Console.WriteLine($"\nDry run. Pass \"apply\" to land the Pirates faction and {products.Length} products.");
+            return 0;
+        }
+
+        db.Cache.Commit(batch =>
+        {
+            var piratesKey = batch.Upsert(typeof(Faction), pirates);
+            foreach (var (design, name, description, roles) in products)
+                batch.Upsert(typeof(FactionProductData), new FactionProductData
+                {
+                    Name = name, Description = description, Roles = roles,
+                    Design = new CultRecordRef<CraftedItemData>(db.Cache.RefOf(design).Key),
+                    Manufacturer = new CultRecordRef<Faction>(piratesKey),
+                });
+        });
+
+        Console.WriteLine($"\nLanded the Pirates faction and {products.Length} products in Aetheria.cc");
         return 0;
     }
 }
