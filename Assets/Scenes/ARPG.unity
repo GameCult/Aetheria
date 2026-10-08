@@ -16855,6 +16855,8 @@ MonoBehaviour:
     type: 3}
   WeaponPickup: {fileID: 8842807112802394818, guid: d2cec1d8c3d94074e9d2e6088e1c02d7,
     type: 3}
+  MinePrefab: {fileID: 7283754118921506074, guid: b04728b2b65e057429eb6e8529299c8a,
+    type: 3}
   MapGravityMaterials:
   - {fileID: 2100000, guid: 841e4091d19548347bd59115047b4e49, type: 2}
   - {fileID: 2100000, guid: a92fc6d958edb9f46b6e58134f609cc0, type: 2}
