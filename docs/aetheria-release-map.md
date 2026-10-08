@@ -6488,3 +6488,229 @@ Follow-ups: `mirv-split-munition`, `homeless-calibers`, `matrix-rounds`. Left fo
 follow-up `gear-product-lines` is absorbed by product-lines-gear (close it when that merges);
 follow-up `pirates-flamethrower`'s design half is absorbed by matrix-flamers (its product move
 stays the Pirates' record's).
+
+## Consumables: the host fix, supply, throttle lock and vapour cloud
+
+Pass: Imagination `imagination-consumables`, session `self-2026-10-08b`. Self merges this into
+`docs/aetheria-release-map.md`; nothing here is committed. Body: `GameCult/Aetheria` origin/master
+`a8f71d463bf1160de0b5f23caa56dc7957252345` (fetched 2026-10-08 ~20:00 UTC; the pirates-record merge had
+not landed), detached worktree in the session scratchpad, removed at the end. Catalog: LFS blob
+`GameData/Aetheria.cc` sha256 `5ecf375f...a011`, decoded with `cultcache_py`
+`SingleFileMessagePackBackingStore.pull_all()` and `msgpack` (payloads are arrays indexed by MessagePack
+key). Scratch probes `q1_thrust_speed.py`, `q2_templates.py`, not committed.
+
+Rulings applied: `catalog-breadth-weapons-gear-consumables` (operator: "consumables (goofy stuff like
+juicing your thrusters for a few seconds but locking the throttle at max, or a consumable coolant that
+turns into a cloud of vapor to break locks)"), `catalog-breadth-roles-and-components` ("All this comes
+with roles and components too, right?"), `catalog-grows-generic-designs-branded-products`,
+`sensor-stat-set`. Reused unchanged from parts (a) and (b)
+(`F:\Projects\aetheria-map-addenda-catalog-breadth-2026-10-08.md`): CB-R1 (roles), CB-R2 (authoring),
+CB-R5 (catalog blob), and the stacking rule of question `boost-stacking` through cut `modifier-stacking`.
+Prior art: `F:\Projects\aetheria-consumables-prior-art-2026-10-08.md` (cited below as PA section n).
+
+### Body facts
+
+- **CC1. The consumable mechanism exists end to end in code, and no record uses it.** Census: no
+  `aetheria.consumableitemdata` record in the catalog (decode). `ConsumableItemData : CraftedItemData`
+  (`ItemData.cs:342-358`, keys 10 Behaviors, 11 Stackable, 12 Duration, 13 Icon, 14 Effectiveness;
+  Roles at key 9 from CraftedItemData). Instance `ConsumableItem` (`ItemInstance.cs:65`, union 3 and 2).
+  Activation: `Entity.TryActivateConsumable` (`Entity.cs:872-884`) refuses a second active effect of a
+  non-Stackable design (`CanActivateConsumable`, `:867-870`), takes the first instance of that design
+  from cargo, builds a `ConsumableItemEffect` and removes the instance. Each tick
+  (`Entity.cs:1443-1454`) the effect updates its behaviours in order, stopping at the first that fails
+  (`ConsumableItemEffect.Update`, `:1604-1619`), and at `RemainingDuration < 0` is dropped after
+  `Resolver.Forget(effect)`. Catalog load validates a consumable's modifiers and role usage
+  (`AetheriaStores.cs:77-80`).
+- **CC2. Player input exists; AI input does not.** The player drags a consumable from cargo onto an
+  action-bar slot (`ActionGameManager.cs:484-485`), the slot calls `TryActivateConsumable`
+  (`ActionBarSlot.cs:118-121`), shows the count in cargo and the remaining-duration fill
+  (`:128-134`), and the binding is saved (`SavedGame.cs:221,230`). Nothing in `Agents/` calls it
+  (grep: the only caller is `ActionBarSlot.cs:120`).
+- **CC3. Defect: a consumable's stat modifier never reaches anything, and would throw.**
+  `StatModifier.Initialize` (`StatModifier.cs:82-89`) is what computes `_targets`; the only caller of
+  `IInitializableBehavior.Initialize` is `Entity.Activate` over `Equipment` (`Entity.cs:202-207`).
+  `ActivateConsumable` (`Entity.cs:857-860`) never calls it, so `_targets` stays null. The effect's
+  `Update` runs `IAlwaysUpdatedBehavior.Update` before `Execute`; on the second tick `_executed && !_applied`
+  calls `ApplyModifier` (`:224-230`), which iterates the null `_targets`: a NullReferenceException.
+  Source read; no test covers it (the expiry test `StatResolverTests.cs:363` uses a consumable with no
+  behaviours). Body fact CB10's claim that consumable effects attach through the resolver holds for the
+  resolver's API, not for this host path.
+- **CC4. Defect: an expired consumable's modifiers would outlive it.** Attachments are keyed by the
+  target item as owner and the `StatModifier` instance as modifier key (`StatModifier.cs:224-237`).
+  Expiry calls `Resolver.Forget(effect)` (`Entity.cs:1451`), which removes only entries whose owner is
+  the effect (`StatResolver.cs:154-170`); nothing calls `StatModifier.Dispose` (`:245-249`). Once CC3 is
+  fixed, a boost would stay attached to the thrusters forever.
+- **CC5. Defect: a bought or generated consumable is not a ConsumableItem.**
+  `ItemManager.CreateInstance(int lot)` (`ItemManager.cs:173-189`) returns `EquippableItem` or else
+  `CompoundCommodity`; `TryActivateConsumable` then casts the cargo instance to `ConsumableItem`
+  (`Entity.cs:880`), an InvalidCastException. The tests build `ConsumableItem` by hand for this reason
+  (`LoadoutTests.cs:787-791`).
+- **CC6. Nobody sells consumables, and nothing restocks.** Station stock is
+  `RandomProducts<EquippableItemData>(16, 1, ...)` into the station's cargo at generation
+  (`LoadoutGenerator.cs:110-119`); `RandomProducts` and `AvailableProducts` are constrained to
+  `EquippableItemData` (`:142`, `:154`) because the availability rule includes `HasHome` (`:164`).
+  Stations are generated once per zone (`ZoneGenerator.cs:303,324`); no code restocks a station
+  (grep `Restock`, `GenerateStationLoadout`). The trade menu sells out of station cargo
+  (`StationServices.TryBuy`, `StationServices.cs:73`; `BuyPrice` prices any CraftedItemInstance, `:13-24`).
+- **CC7. Cargo is the inventory.** A crafted instance occupies its design's `Shape` cells in a cargo bay
+  (`Entity.cs:2187-2207`); there is no item stack for crafted items. A consumable design therefore needs
+  a Shape (ItemData key 5); CompoundCommodity records have none (decode: Shape None, Price 0), so they are
+  not templates. Targeting Computer `c07ea205` is the 1x1 template for mass, specific heat and
+  conductivity (CB11).
+- **CC8. How locks are decided.** Per observer, `EntityInfoGathered[target]` rises by `Sensor.Gain`
+  (`Sensor.cs:187-189`: passive `visibility x sensitivity x curve(bearing) x dt / distance`, ping
+  `visibility x sensitivity x PingBoost x distance` once) and decays by `TargetInfoDecay` each tick
+  (`Sensor.cs:155-178`). Crossing `TargetDetectionInfoThreshold` adds or removes the target from
+  `VisibleEnemies` (`Entity.cs:261-277`); leaving `VisibleEnemies` clears the observer's target
+  (`Entity.cs:248-250`), which zeroes every `LockWeapon` lock (target changed, `LockWeapon.cs:85-90`).
+  Lock rate is `LockSpeed x info^SensorImpact` inside `LockAngle` (`:98-105`); launchers are
+  LockWeapons (`Launcher.cs:7`, `CreateInstance` returns `LockWeapon`). FireControl's sensor factor
+  also reads info (`FireControl.cs:439-442`). Minions retarget when an enemy re-enters
+  `VisibleEnemies` (`Minion.cs:13`). A missile already in flight is a Unity `GuidedProjectile` that
+  follows its `Target` transform (`GuidedProjectile.cs:44,142`); the simulation does not re-decide it.
+  The same `Gain` serves chunk detection through `PassiveRate` (`Sensor.cs:194-199`, `Entity.cs:384`),
+  and `MiningCut3Tests.cs:254` pins the entity info trace bit for bit.
+- **CC9. How thrust and the throttle work.** `Ship.MovementDirection` (`Ship.cs:27`) has two writers, the
+  player's input (`ActionGameManager.cs:1339`) and the agent (`Agent.cs:70-80`); `Ship.Update`
+  (`Ship.cs:231-257`) turns it into each thruster's `Axis` (strafe at `:241-252`, forward and reverse at
+  `:255-256`) and `Turn` into rotation. A thruster pushes by `Thrust` and adds heat and visibility
+  proportional to its input, not to thrust (`Thruster.cs:116-137`), so a Thrust multiplier alone costs no
+  heat. Top speed is a hull's `VelocityLimitData.TopSpeed` (decode: Djinni 50, Longinus 100), clamped in
+  `VelocityLimit.Execute`; the hull is in `Equipment` (`Entity.cs:886`, MapEntity), so a modifier on
+  `VelocityLimitData.TopSpeed` reaches it. Catalog thrusters: Small Drive 75k, Talaria 75k-250k, Medium
+  Drive 100k-300k, deep space burnout and RevvITup 250k-1M, Victoire 200k-1.5M (Thrust Min-Max).
+- **CC10. Zone bodies.** A mine is a runtime-only `KinematicBody` in `Zone.Mines` (`Mines.cs`,
+  `Zone.cs:22`), added only by `Zone.Lay` (`:235-239`), stepped and removed only by `StepMines`
+  (`:245-260`) after the entity loop, never saved, and drawn by one `ZoneRenderer` subscription
+  (`ZoneRenderer.cs:225-264`, `MinePrefab` `:47`). This is the pattern a vapour cloud follows.
+- **CC11. A consumable's own heat does nothing.** `Behavior.AddHeat` is a no-op for a consumable host
+  (`Behaviors.cs:60`, "TODO: Heat for Consumables"). The first set takes its heat cost through the
+  thrusters' own Heat stat instead.
+- **CC12. Record keys.** `BehaviorData` union ids run to 40 (`MineLayerData`, `Behaviors.cs:189`); 12 and
+  26 are retired. No remote branch (71 refs, `git show <ref>:.../Behaviors.cs`) claims 41 or above. This
+  pass claims **41 `ThrottleLockData`** and **42 `VapourDumpData`**. No key is added to Faction,
+  ConsumableItemData or any saved type; the Faction 16-19 collision is untouched. `VapourCloud` is
+  runtime only, like `Mine`.
+
+### Model page row changes
+
+- **ConsumableItemData (catalog)**: new live row. Named by record key; a design with roles (CB-R1),
+  Shape 1x1, a Price, Stackable false, a Duration, and behaviours. Decided by its AetherDb command.
+- **ConsumableItem (run save, cargo)**: created by `ItemManager.CreateInstance` for a consumable design;
+  lives in a cargo bay; consumed by `TryActivateConsumable`.
+- **ConsumableItemEffect (runtime)**: one per activation; owns its behaviours' lifetime: initialised at
+  activation, disposed at expiry, then forgotten by the resolver. Not saved.
+- **Entity.ThrottleLocked (derived)**: true while any active effect carries a `ThrottleLock`. Nobody
+  writes it. `Ship.Update` is the one place that turns intent (`MovementDirection`) into thruster axes,
+  and it reads the lock there.
+- **VapourCloud (runtime, Zone.Clouds)**: added only by `Zone.Vent`, stepped and removed only by
+  `Zone.StepClouds`. `Zone.Obscuration(a, b)` is derived from the live clouds; `Sensor.Gain` is its one
+  reader.
+
+### Rules (cited by the specs)
+
+- **CS-R1, the consumable mechanic.** A consumable is a cargo item, single use, activated from the action
+  bar (player) or by an agent rule (AI). Its effect is timed (`Duration`) and carries its own drawback in
+  the same record. A non-Stackable design allows one active effect at a time, so its Duration is also its
+  cooldown; no second cooldown mechanism. Boosts from a consumable stack with gear under the one resolver
+  rule (`modifier-stacking`).
+- **CS-R2, roles.** Per CB-R1, every non-flat effect stat reads one declared role and every product
+  authors one ProductRole per role. Benefit magnitudes rise with quality, cost magnitudes fall.
+- **CS-R3, the throttle lock.** While locked, the effective movement intent is full forward, no strafe,
+  no reverse; turning stays with the pilot (question `overdrive-steering`). Intent writers keep writing;
+  they are not owners of the thruster axes.
+- **CS-R4, obscuration.** A cloud is a disc with an opacity that fades linearly to 0 over its lifetime.
+  Every sensor gain (passive, ping and chunk) is multiplied by the product of `(1 - opacity)` over the
+  clouds the sight line crosses, endpoints inside counting as crossing; with no cloud crossed no
+  multiplication happens, so the info trace is bit-identical. Symmetric: the venting ship sees out no
+  better than others see in. Lock loss is the existing rule (CC8): info decays below the detection
+  threshold and the target is dropped. A sensor strong or close enough still burns through.
+
+### Design tables
+
+**Thruster Overdrive** (cut `consumables-first-set`; ConsumableItemData; Shape 1x1; Mass 10; Price
+6,000; Stackable false; Duration 5 s; roles **propellant**, **regulator**; behaviours in order:
+ThrottleLock, then four StatModifierData Multipliers):
+
+| Target stat | Magnitude Min-Max | Role |
+|---|---|---|
+| ThrusterData.Thrust | 2.0-3.0 | propellant |
+| VelocityLimitData.TopSpeed | 1.5-2.0 | propellant |
+| ThrusterData.Heat | 4.0-2.5 | regulator |
+| ThrusterData.Visibility | 4.0-2.5 | regulator |
+
+Products: **send it** (Death Monkey Explosives), **Updraft** (Finch Cybernetics). The heat and plume cost
+is real because thrusters heat by input, not thrust (CC9): a locked throttle runs every forward thruster
+at full input for 5 s at up to 4x heat and plume. Prior art: Starsector Burn Drive (+200 speed for 5 s,
+no steering, PA 1), Plasma Jets (+375% acceleration, 3 s, PA 1), EVE overheating (+50% propulsion, heat
+damage, PA 5).
+
+**Coolant Vent** (same cut; ConsumableItemData; Shape 1x1; Mass 15; Price 4,000; Stackable false;
+Duration 12 s; roles **nozzle**, **coolant**; behaviours in order: VapourDump, then one StatModifierData
+Multiplier):
+
+| Stat | Min-Max | Role |
+|---|---|---|
+| VapourDumpData.Radius | authored so the cloud encloses the largest ship hull (Djinni, 14x17 cells) at Min; Max 1.5x Min | nozzle |
+| VapourDumpData.Opacity | 0.80-0.95 | nozzle |
+| VapourDumpData.Lifetime | 10-14 s | coolant |
+| RadiatorData.Emissivity (penalty, the drawback: the coolant is gone) | 0.4-0.6 | coolant |
+
+Products: **Smoke Machine** (NiteLife Energy), **Morning Fog** (Lightsail Express). Prior art: Nebulous
+jamming against seeker return (PA 8), Elite heat sink and silent running (PA 3), Star Citizen chaff as a
+field effect (PA 9), EVE ECM chance as strength against sensor strength (PA 5).
+
+### Rationale
+
+**Fix the host before adding content.** The mechanism the brief names (CB12) exists but is broken in
+three places (CC3, CC4, CC5): a consumable with a stat modifier throws on its second tick, would leak its
+boost if it did not, and can never be bought. `consumable-host` is the smallest cut that makes the
+existing path true; no new owner. Cut `modifier-stacking`'s test `AConsumableBoostStacksWithGear` cannot
+pass before it, so its r2 adds the dependency and nothing else.
+
+**Why the throttle lock is derived, not latched.** Two writers already set `MovementDirection` (CC9). A
+third writer (the consumable) would race them; a latch set by a behaviour and cleared each tick is a
+second owner of time. `Entity.ThrottleLocked` derived from the active effects, read once in
+`Ship.Update`, cannot outlive its effect and needs no reset path.
+
+**Why obscuration and not a flat break.** The sim already decides locks by information against a
+threshold (CC8), and lock loss already clears targets and zeroes locks. Scaling gain along the sight line
+makes the cloud a contest of signal against obscurant, the Nebulous shape (PA 8: a seeker's return must
+exceed the jamming it feels; burnthrough exists), and EVE's lesson that a guaranteed area break is
+unreliable or oppressive is avoided (PA 5). A flat break would add a second rule that drops targets,
+beside the one that exists. The cloud rides `Sensor.Gain`, which survives the `sensor-stat-set` rebuild
+(every emitter still produces a gain). In-flight missiles are not re-decided by the sim (CC8): the cloud
+denies the lock before launch; seekers in flight are follow-up `cloud-vs-missiles-in-flight`.
+
+**Why the cloud is a zone body that inherits velocity.** Vented gas keeps the ship's velocity
+(KinematicBody, CC10), so a coasting ship stays inside it and a ship that burns leaves it: the two
+consumables combine (vent, then overdrive out of the cloud) and their drawbacks bite each other (the
+overdrive plume is bright; leaving the cloud ends the cover). The symmetric rule makes hiding blind.
+
+**Hoarding.** The elixir literature (PA 10) names scarcity, unlimited inventory and unclear purpose as
+causes, and caps, abundance and situational need as cures. Here: cargo cells and mass are the cap (CC7),
+both designs are cheap (6,000 and 4,000 against 25,000-250,000 for a drive) and stocked at every station
+under question `consumable-supply`, AI pilots use them (cut `consumable-ai`) so the player sees what
+they do, and each solves a moment (being locked, needing distance) rather than adding a stat the player
+could save for a boss. Neither is a permanent advantage: each carries its drawback inside the effect.
+X4's lesson (PA 9: flares strong in AI hands, worthless in the player's) is answered by giving the player
+and the AI the same rule and the same information (a painted target always knows, `sensor-stat-set`).
+
+**Magnitudes** are authored ranges grounded in the prior art above; follow-up `combat-pace-pass`
+measures time-to-kill and engagement distance and tunes them with everything else. No question is
+raised on them.
+
+**Cut order.** `consumable-host`, `throttle-lock` and `vapour-cloud` are independent. `consumable-supply`
+needs the host (instances). `vapour-cloud-presenter` needs the cloud. `consumables-first-set` needs the
+host, the lock and the cloud. `consumable-ai` needs all of those and supply. `modifier-stacking` r2 now
+waits on the host.
+
+### Admitted
+
+Receipt `mind-commit-06b3cb76...` (2026-10-08 20:05 UTC). Questions: `consumable-supply` (raised in
+consumable-supply), `vapour-cloud-model` (raised in vapour-cloud), `overdrive-steering` (raised in
+throttle-lock). Cut specs r1: consumable-host, consumable-supply, throttle-lock, vapour-cloud,
+vapour-cloud-presenter, consumables-first-set, consumable-ai; modifier-stacking r2 (adds depends_on
+consumable-host) with resolution `cut_spec.cut-modifier-stacking.r1.n1` (Superseded). Follow-ups:
+`cloud-vs-missiles-in-flight`, `modifier-magnitude-frozen-at-attach`, `consumable-heat-noop`,
+`station-restock`. Claimed keys: BehaviorData union 41 ThrottleLockData, 42 VapourDumpData (keys 1-3).
