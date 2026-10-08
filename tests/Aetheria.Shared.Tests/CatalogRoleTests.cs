@@ -20,6 +20,21 @@ public sealed class CatalogRoleTests
     internal static string[] NamedQualityRoles(PerformanceStat stat) =>
         stat.Terms.Where(t => t.Source == StatSource.Quality && !string.IsNullOrEmpty(t.Role)).Select(t => t.Role).ToArray();
 
+    // CB-R1 for one stat. A non-flat stat carries exactly one Quality term, it names a declared role, and its exponent is
+    // positive (a role that cannot move the stat is not read). A flat stat carries no Quality term that names a role.
+    // Returns the fault, or null.
+    internal static string StatFault(PerformanceStat stat, string[] declared)
+    {
+        var quality = stat.Terms.Where(t => t.Source == StatSource.Quality).ToArray();
+        if (stat.Min == stat.Max)
+            return quality.Any(t => !string.IsNullOrEmpty(t.Role)) ? $"is flat but a Quality term names [{string.Join(", ", NamedQualityRoles(stat))}]" : null;
+        if (quality.Length != 1)
+            return $"is non-flat with {quality.Length} Quality terms, not one";
+        if (string.IsNullOrEmpty(quality[0].Role) || !declared.Contains(quality[0].Role))
+            return $"is non-flat and reads [{quality[0].Role}], not one of its declared roles [{string.Join(", ", declared)}]";
+        return quality[0].Exponent > 0f ? null : $"is non-flat but its role \"{quality[0].Role}\" has exponent {quality[0].Exponent}";
+    }
+
     // The whole of CB-R1 over every design in the catalog: each non-flat stat reads exactly one declared role, every
     // declared role is read, and every seller authors each role once. Weapons, and designs of a kind the tool keeps a role
     // map for, must also carry a non-flat stat (a design with no stat at all has nothing for quality to vary).
@@ -34,11 +49,10 @@ public sealed class CatalogRoleTests
             var stats = StatsOf(design).ToArray();
             var varying = stats.Where(s => s.Stat.Min != s.Stat.Max).ToArray();
             var declared = (design.Roles ?? new List<ItemRole>()).Select(r => r.Name).OrderBy(r => r, StringComparer.Ordinal).ToArray();
-            foreach (var (name, stat) in varying)
+            foreach (var (name, stat) in stats)
             {
-                var named = NamedQualityRoles(stat);
-                if (named.Length != 1 || !declared.Contains(named[0]))
-                    broken.Add($"{design.Name}: non-flat {name} reads [{string.Join(", ", named)}], not one of its declared roles [{string.Join(", ", declared)}]");
+                var fault = StatFault(stat, declared);
+                if (fault != null) broken.Add($"{design.Name}: {name} {fault}");
             }
             var read = varying.SelectMany(s => NamedQualityRoles(s.Stat)).Distinct().OrderBy(r => r, StringComparer.Ordinal).ToArray();
             if (!read.SequenceEqual(declared))
@@ -53,6 +67,23 @@ public sealed class CatalogRoleTests
             }
         }
         Assert.True(broken.Count == 0, string.Join("\n", broken));
+    }
+
+    private static PerformanceStat Ranged(params StatTerm[] terms) => new PerformanceStat { Min = 1f, Max = 2f, Terms = terms.ToList() };
+    private static StatTerm Quality(string role, float exponent = 1f) => new StatTerm { Source = StatSource.Quality, Role = role, Exponent = exponent };
+
+    // The stat check refuses what the shipped catalog does not hold but a later content cut could author.
+    [Fact]
+    public void TheStatCheckRefusesGenericQualityDeadRolesAndNamedFlatStats()
+    {
+        var declared = new[] { "barrel" };
+        Assert.Null(StatFault(Ranged(Quality("barrel")), declared));
+        Assert.Null(StatFault(new PerformanceStat { Min = 3f, Max = 3f, Terms = new List<StatTerm>() }, declared));
+        Assert.NotNull(StatFault(Ranged(Quality("barrel"), Quality(null)), declared));
+        Assert.NotNull(StatFault(Ranged(Quality("barrel", 0f)), declared));
+        Assert.NotNull(StatFault(Ranged(Quality(null)), declared));
+        Assert.NotNull(StatFault(Ranged(Quality("bogus")), declared));
+        Assert.NotNull(StatFault(new PerformanceStat { Min = 3f, Max = 3f, Terms = new List<StatTerm> { Quality("bogus") } }, declared));
     }
 
     // A product with no maker would title as its design and take no maker profile for its roles.
