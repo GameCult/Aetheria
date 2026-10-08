@@ -71,7 +71,7 @@ public sealed partial class FireControlCut124Tests
         Assert.True(solution.Free);
         Assert.True(FireControl.ArcPermitsFire(e.Weapon, e.Shooter));
         Near(float2(0, 1), solution.Direction);
-        Assert.Same(e.Target, solution.Subject);
+        Assert.True(ReferenceEquals(e.Target, solution.Subject), "a designated target out of arc is still the solution's subject");
         Assert.Equal(0f, FireControl.HitProbability(e.Weapon, e.Shooter, e.Target));
     }
 
