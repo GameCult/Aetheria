@@ -140,6 +140,7 @@ public class ItemManager
         {
             Design = ItemData.RefOf<ItemData>(design),
             Origin = new Attributed { Faction = product.Manufacturer },
+            Product = ItemData.RefOf(product),
             Quality = RollQuality(),
             Roles = new List<RoleFill>()
         };
@@ -200,9 +201,10 @@ public class ItemManager
         return CreateInstance(CreateLot(product));
     }
 
-    // Who made an item and what it is branded as, derived from its lot's provenance. Null maker (an unset faction,
-    // or an Extracted lot with none) means no brand at all; a set maker with no matching product still shows the
-    // maker, with no product name or flavour text.
+    // Who made an item and what it is branded as. The maker derives from its lot's provenance and the product is the
+    // one its lot records; nothing re-derives it. Null maker (an unset faction, or an Extracted lot with none) means
+    // no brand at all; a set maker whose lot records no product (or one the catalog no longer holds) still shows
+    // the maker, with no product name or flavour text.
     public (Faction Maker, FactionProductData Product) Brand(CraftedItemInstance item)
     {
         var lot = GetLot(item);
@@ -214,14 +216,11 @@ public class ItemManager
         };
         if (!maker.IsSet()) return (null, null);
 
-        var product = ItemData.GetAll<FactionProductData>()
-            .Where(p => p.Manufacturer.Key.Equals(maker.Key) && p.Design.Key.Equals(item.Data.Key))
-            .OrderBy(p => ItemData.RefOf(p).Key.Value, StringComparer.Ordinal)
-            .FirstOrDefault();
+        var product = lot.Product.IsSet() ? ItemData.Get(lot.Product) : null;
         return (ItemData.Get(maker), product);
     }
 
-    // What the player reads an item as: its product's name when its lot's maker has a product of this design,
+    // What the player reads an item as: its lot's product name when it records one,
     // otherwise the design's own name (unbranded, console-given and extracted lots, and commodities).
     public string Title(ItemInstance item) =>
         (item is CraftedItemInstance crafted ? Brand(crafted).Product?.Name : null) ?? GetData(item).Name;

@@ -52,7 +52,7 @@ public static class Program
         var products = db.Cache.GetAll<FactionProductData>()
             .OrderBy(p => db.Cache.RefOf(p).Key.Value, StringComparer.Ordinal).ToArray();
 
-        // The manufacturer no longer lives on the design; a runtime item picks one via Brand()'s tie-break, but
+        // The manufacturer no longer lives on the design; a runtime item's brand is the product its lot records, but
         // census must not invent that same attribution for a design with several sellers. Instead it lists every
         // distinct maker that sells the design (via products), in record-key order. A design no product sells,
         // or that only unset-manufacturer products sell, shows "(none)".
@@ -120,22 +120,6 @@ public static class Program
             }
         }
         Console.WriteLine($"\n{roleGaps} (product, role) pairs where a sold, role-bearing design's product authors no matching spread");
-
-        // Brand() picks the first (maker, design) product in record-key order; more than one means the choice is
-        // arbitrary rather than authored, which the rule until segment bands exist forbids.
-        var duplicateBrands = products
-            .Where(p => p.Manufacturer.IsSet())
-            .GroupBy(p => (Maker: p.Manufacturer.Key, Design: p.Design.Key))
-            .Where(g => g.Count() > 1)
-            .ToArray();
-        Console.WriteLine($"\n{duplicateBrands.Length} (maker, design) pairs with more than one product:");
-        foreach (var group in duplicateBrands)
-        {
-            var maker = db.Cache.Get<Faction>(group.Key.Maker);
-            var design = db.Cache.Get<CraftedItemData>(group.Key.Design);
-            Console.WriteLine($"  {maker?.ShortName ?? "(unknown)"} / {design?.Name ?? group.Key.Design.Value}: " +
-                string.Join(", ", group.Select(p => p.Name)));
-        }
         return 0;
     }
 
