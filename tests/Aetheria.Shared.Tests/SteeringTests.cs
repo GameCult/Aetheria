@@ -161,7 +161,7 @@ public sealed class SteeringTests
     {
         using var cache = RestoredHullsTests.OpenCatalog();
         var ship = RestoredHullsTests.BuildThrustedShip(cache, Hull);
-        var agent = new Agent(ship);
+        var agent = new Agent(ship, FactionDoctrine.Default(ship.ItemManager.GameplaySettings).Combatant);
         var aim = float3(0, 0, 1);
         ship.Aim = aim;
 
@@ -182,7 +182,7 @@ public sealed class SteeringTests
     {
         using var cache = RestoredHullsTests.OpenCatalog();
         var ship = RestoredHullsTests.BuildThrustedShip(cache, Hull);
-        var agent = new Agent(ship);
+        var agent = new Agent(ship, FactionDoctrine.Default(ship.ItemManager.GameplaySettings).Combatant);
         Assert.Equal(float2(0, 1), ship.Direction); // starboard is +x
 
         ship.Turn = .37f;
@@ -210,7 +210,7 @@ public sealed class SteeringTests
     {
         using var cache = RestoredHullsTests.OpenCatalog();
         var ship = RestoredHullsTests.BuildThrustedShip(cache, Hull);
-        var agent = new Agent(ship);
+        var agent = new Agent(ship, FactionDoctrine.Default(ship.ItemManager.GameplaySettings).Combatant);
         ship.Velocity = float2(100, 0);
         ship.Turn = .37f;
 
@@ -332,7 +332,7 @@ public sealed class SteeringTests
     {
         using var cache = RestoredHullsTests.OpenCatalog();
         var ship = RestoredHullsTests.BuildThrustedShip(cache, Hull);
-        var agent = new Agent(ship);
+        var agent = new Agent(ship, FactionDoctrine.Default(ship.ItemManager.GameplaySettings).Combatant);
         var start = ship.Direction;
 
         agent.Transition(new SpinState(agent));
@@ -375,7 +375,7 @@ public sealed class SteeringTests
     {
         using var cache = RestoredHullsTests.OpenCatalog();
         var ship = RestoredHullsTests.BuildThrustedShip(cache, Hull);
-        var agent = new Agent(ship);
+        var agent = new Agent(ship, FactionDoctrine.Default(ship.ItemManager.GameplaySettings).Combatant);
         var state = new MoveToPointState(agent);
         var dir = Heading(ship, degrees);
         state.Point = dir * 500f;
