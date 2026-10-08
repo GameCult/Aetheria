@@ -1510,15 +1510,39 @@ public static class Program
     // sim-mines-presenter: the Mine Launcher item, so a ship can be fitted with the sim's mine layer. Its numbers
     // are the 2021 record's (GameData/Legacy/AetherDB.2021-03-05.msgpack, recovered in 8c71a637: mass 75, price
     // 125000, damage 50, range 2000, energy 15, heat 500, visibility 10, magazine 6, reload 5, spread 5, velocity
-    // 50, cooldown 2, thermal limits 173.15..473.15 K read here as -100..200); BlastRadius 25, the delays 2 and 2
-    // and the 30 s lifetime are the retired prefab's. Dry run unless passed "apply".
+    // 50, cooldown 2, thermal limits 173.15..473.15 K, kelvin like every shipped item); BlastRadius 25, the delays
+    // 2 and 2 and the 30 s lifetime are the retired prefab's. The optimum and plateau are the 2021 record's
+    // sibling weapon's (it carries 173.15..473.15 K too), because that record sets neither. An already authored
+    // Mine Launcher has its thermal envelope brought to these values. Dry run unless passed "apply".
     private static int MineLauncherCatalog(bool apply)
     {
         const string name = "Mine Launcher";
         var db = AetherDb.Open(catalogWritable: apply);
-        if (db.Cache.GetAll<GearData>().Any(gear => gear.Name == name))
+        const float minimumTemperature = 173.15f, maximumTemperature = 473.15f, optimalTemperature = 249.65f, plateauWidth = 36f;
+        if (db.Cache.GetAll<GearData>().SingleOrDefault(gear => gear.Name == name) is { } authored)
         {
-            Console.WriteLine($"\"{name}\" is already authored; nothing to do.");
+            if (authored is not WeaponItemData existing) throw new InvalidOperationException($"\"{name}\" exists and is not a weapon.");
+            if (existing.MinimumTemperature == minimumTemperature && existing.MaximumTemperature == maximumTemperature &&
+                existing.OptimalTemperature == optimalTemperature && existing.PlateauWidth == plateauWidth)
+            {
+                Console.WriteLine($"\"{name}\" is already authored; nothing to do.");
+                return 0;
+            }
+            Console.WriteLine($"\"{name}\" thermal envelope {existing.MinimumTemperature}..{existing.MaximumTemperature} (optimum {existing.OptimalTemperature}, plateau {existing.PlateauWidth}) -> {minimumTemperature}..{maximumTemperature} K (optimum {optimalTemperature}, plateau {plateauWidth}).");
+            if (!apply)
+            {
+                Console.WriteLine("
+Dry run. Pass \"apply\" to correct it.");
+                return 0;
+            }
+            existing.MinimumTemperature = minimumTemperature;
+            existing.MaximumTemperature = maximumTemperature;
+            existing.OptimalTemperature = optimalTemperature;
+            existing.PlateauWidth = plateauWidth;
+            CultRecordRefs.Validate(existing);
+            db.Cache.Commit(batch => batch.Upsert(typeof(GearData), existing, db.Cache.RefOf(existing).Key));
+            Console.WriteLine($"
+Corrected \"{name}\" in Aetheria.cc");
             return 0;
         }
 
@@ -1536,8 +1560,10 @@ public static class Program
             Mass = 75f,
             Price = 125000,
             Durability = 100f,
-            MinimumTemperature = -100f,
-            MaximumTemperature = 200f,
+            MinimumTemperature = minimumTemperature,
+            MaximumTemperature = maximumTemperature,
+            OptimalTemperature = optimalTemperature,
+            PlateauWidth = plateauWidth,
             Behaviors =
             {
                 new MineLayerData

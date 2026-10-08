@@ -14,6 +14,9 @@ using int2 = CultMath.int2;
 
 public abstract class Entity
 {
+    // Every hull cell's temperature (kelvin) when the entity is built.
+    public const float StartingCellTemperature = 280;
+
     public Zone Zone;
     public Faction Faction;
     public EquippableItem Hull;
@@ -911,7 +914,7 @@ public abstract class Entity
                 Armor[v.x, v.y] += Hardpoints[v.x, v.y].Armor;
                 MaxArmor[v.x, v.y] += Hardpoints[v.x, v.y].Armor;
             }
-            Temperature[v.x, v.y] = 280;
+            Temperature[v.x, v.y] = StartingCellTemperature;
             ThermalMass[v.x, v.y] = hullData.Mass * hullData.SpecificHeat / cellCount;
         }
         GearOccupancy = new EquippedItem[hullData.Shape.Width, hullData.Shape.Height];
