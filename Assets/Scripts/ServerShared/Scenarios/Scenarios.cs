@@ -6,6 +6,6 @@ public static class Scenarios
 
     public static readonly Scenario[] Tests =
     {
-        new DjinniShakedown(), new StarvedReactor(), new Arcs(), new Duel(), new LauncherAngles(), new LongHaul()
+        new DjinniShakedown(), new StarvedReactor(), new Arcs(), new Broadside(), new Duel(), new LauncherAngles(), new LongHaul()
     };
 }
