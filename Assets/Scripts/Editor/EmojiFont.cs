@@ -6,8 +6,10 @@ using UnityEngine.TextCore.LowLevel;
 
 // The one writer of the emoji font asset and of TMP Settings' emoji routing. The font file is the
 // output of tools/emoji/fetch_emoji_font.py; the asset is a dynamic COLOR font asset whose atlas pages
-// are cache, filled on first use at runtime and cleared here. Every TMP text reaches emoji through
-// TMP Settings' emoji fallback and global fallback list; no component names an emoji font.
+// are cache, filled on first use at runtime and cleared here. Every TMP text reaches emoji through ONE
+// route, TMP Settings' global fallback list; the emoji fallback list stays empty, and no component names
+// an emoji font. (Measured: the global list alone resolves every single code point; the emoji list alone
+// leaves 200 text-presentation emoji unresolved. A second route could only disagree with the first.)
 public static class EmojiFont
 {
     public const string FontPath = "Assets/Fonts/Emoji/Twemoji.ttf";
@@ -61,16 +63,15 @@ public static class EmojiFont
         // The atlas pages are cache: Build leaves them empty, the same state EmojiCheck restores.
         asset.ClearFontAssetData(true);
 
-        // Text-presentation emoji (U+263A without FE0F) are not routed through the emoji list, so the
-        // asset is also the global fallback.
-        TMP_Settings.emojiFallbackTextAssets = new List<TMP_Asset> { asset };
+        // One route: the global fallback. It also serves text-presentation emoji (U+263A without FE0F).
+        TMP_Settings.emojiFallbackTextAssets = new List<TMP_Asset>();
         TMP_Settings.fallbackFontAssets = new List<TMP_FontAsset> { asset };
         TMP_Settings.defaultSpriteAsset = null;
 
         EditorUtility.SetDirty(asset);
         EditorUtility.SetDirty(TMP_Settings.instance);
         AssetDatabase.SaveAssets();
-        message = "EmojiFont: built " + AssetPath + " and routed TMP Settings' emoji fallback to it.";
+        message = "EmojiFont: built " + AssetPath + " and made it TMP Settings' only emoji route (the global fallback).";
         return true;
     }
 }

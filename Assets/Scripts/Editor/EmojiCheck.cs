@@ -6,21 +6,19 @@ using TMPro;
 using UnityEditor;
 using UnityEngine;
 
-// Every single-code-point emoji the pinned font set draws, and the Pirates product names, render through an
-// ordinary TMP text on the game's body font with no missing code point and with ink in the emoji atlas.
+// Every single-code-point emoji of the pinned Unicode Emoji version that Twemoji draws, and the Pirates product
+// names read from the shipped catalog, render through an ordinary TMP text on the game's body font with no
+// missing code point, no blank glyph, ink in the emoji atlas, and each glyph served by the emoji asset or by the
+// body font itself, never by a third font. TMP Settings must route emoji by exactly one entry: the global
+// fallback (the emoji fallback list stays empty), so dropping that entry or re-adding the second route fails.
 // Run as -executeMethod EmojiCheck.Run (exit 1 on failure in batchmode, as EngineAssetCheck). Corpus:
-// tools/emoji/emoji-singles.txt; -emojiLimit N spreads N entries evenly across it for the spike.
+// tools/emoji/emoji-singles.txt (from emoji-test.txt); the emoji Twemoji lacks are listed in
+// tools/emoji/emoji-unsupported.txt and reported, not rendered; -emojiLimit N spreads N entries evenly for a spike.
 public static class EmojiCheck
 {
     const string BodyFontPath = "Assets/Fonts/Ubuntu/Ubuntu-L Small SDF.asset";
+    const string PiratesFaction = "Pirates";
     const int Chunk = 64;
-
-    // The eight Pirates products (addenda "The Pirates record r2"), written as code points.
-    static readonly string[] PiratesNames =
-    {
-        "\U0001FAF3\U0001F52B", "\U0001FAA6\U0001F920", "\U0001F9FE\U0001F6AB", "\U0001F3A8\U0001F648",
-        "\U0001F525", "\U0001F440\U0001F3AF", "\U0001F511\U0001F3C3\U0001F4A8", "\U0001F4E6\U0001F92B",
-    };
 
     [MenuItem("Aetheria/Text/Check Emoji Rendering")]
     public static void Run()
@@ -32,7 +30,8 @@ public static class EmojiCheck
         if (Application.isBatchMode) EditorApplication.Exit(failures.Count == 0 ? 0 : 1);
     }
 
-    static string RunCheck(List<string> failures)
+    // Public so a scratch driver can mutate TMP Settings in memory and watch this fail; adds to failures.
+    public static string RunCheck(List<string> failures)
     {
         var emoji = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(EmojiFont.AssetPath);
         var body = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(BodyFontPath);
@@ -42,7 +41,14 @@ public static class EmojiCheck
             return "nothing checked";
         }
 
-        var corpus = LoadSingles();
+        // One route: the global fallback names the emoji asset, and the emoji fallback list is empty.
+        if (TMP_Settings.emojiFallbackTextAssets != null && TMP_Settings.emojiFallbackTextAssets.Count > 0)
+            failures.Add("TMP Settings' emoji fallback list is not empty: a second emoji route exists (EmojiFont.Build leaves it empty).");
+        if (TMP_Settings.fallbackFontAssets == null || !TMP_Settings.fallbackFontAssets.Contains(emoji))
+            failures.Add("TMP Settings' global fallback list does not name Emoji.asset: the only emoji route is gone.");
+
+        var unsupported = new HashSet<int>(LoadCodePoints("emoji-unsupported.txt"));
+        var corpus = LoadSingles().Where(cp => !unsupported.Contains(cp)).ToList();
         var missing = new HashSet<int>();
         TMP_Text.MissingCharacterEventCallback onMissing = (unicode, index, source, asset, component) => missing.Add(unicode);
         TMP_Text.OnMissingCharacter += onMissing;
@@ -54,7 +60,8 @@ public static class EmojiCheck
         text.textWrappingMode = TextWrappingModes.NoWrap;
         text.rectTransform.sizeDelta = new Vector2(100000, 100000);
 
-        int viaEmoji = 0, viaOther = 0, blank = 0;
+        int viaEmoji = 0, viaBody = 0, blank = 0, pirateNames = 0;
+        var strays = new HashSet<string>();
         try
         {
             void Render(string content, string label)
@@ -65,7 +72,10 @@ public static class EmojiCheck
                 {
                     var info = text.textInfo.characterInfo[i];
                     if (info.character == ' ' || info.elementType != TMP_TextElementType.Character) continue;
-                    if (info.fontAsset == emoji) viaEmoji++; else viaOther++;
+                    if (info.fontAsset == emoji) viaEmoji++;
+                    else if (info.fontAsset == body) viaBody++;
+                    else if (strays.Add($"{info.fontAsset.name}:{(int)info.character:X}"))
+                        failures.Add($"U+{(int)info.character:X4} in {label} was served by {info.fontAsset.name}, not Emoji.asset or the body font");
                     if (info.fontAsset == emoji && info.textElement.glyph.glyphRect.width <= 0)
                     {
                         blank++;
@@ -79,7 +89,24 @@ public static class EmojiCheck
                 var slice = corpus.Skip(i).Take(Chunk).ToList();
                 Render(string.Join(" ", slice.Select(char.ConvertFromUtf32)), $"chunk {i}");
             }
-            foreach (var name in PiratesNames) Render(name, "Pirates name");
+
+            // The Pirates names as the shipped catalog stores them, through the game's own catalog reader.
+            var catalogPath = Path.Combine(Directory.GetParent(Application.dataPath).FullName, "GameData", "Aetheria.cc");
+            using (var catalog = AetheriaStores.Open(catalogPath))
+            {
+                var pirates = catalog.GetAll<Faction>().SingleOrDefault(faction => faction.Name == PiratesFaction);
+                if (pirates == null) failures.Add($"the catalog has no {PiratesFaction} faction");
+                else
+                {
+                    var key = catalog.RefOf(pirates);
+                    foreach (var product in catalog.GetAll<FactionProductData>().Where(product => product.Manufacturer.Equals(key)))
+                    {
+                        pirateNames++;
+                        Render(product.Name, $"Pirates product name \"{product.Name}\"");
+                    }
+                    if (pirateNames == 0) failures.Add($"the catalog has no {PiratesFaction} products");
+                }
+            }
         }
         finally
         {
@@ -89,12 +116,13 @@ public static class EmojiCheck
 
         foreach (var cp in missing.OrderBy(c => c)) failures.Add($"missing code point U+{cp:X4}");
 
+        // TMP over-allocates atlasTextures by doubling its capacity when a page is added, so entries past
+        // atlasTextureCount are null by design (3 pages in a 4-slot array). Only the used pages count.
         long ink = 0, colour = 0;
-        int pages = 0, nullPages = 0;
-        foreach (var page in emoji.atlasTextures)
+        for (var i = 0; i < emoji.atlasTextureCount; i++)
         {
-            if (page == null) { nullPages++; continue; }
-            pages++;
+            var page = emoji.atlasTextures[i];
+            if (page == null) { failures.Add($"emoji atlas page {i} of {emoji.atlasTextureCount} is null"); continue; }
             var pixels = page.GetPixels32();
             ink += pixels.LongCount(p => p.a != 0);
             colour += pixels.LongCount(p => p.a != 0 && (p.r != p.g || p.g != p.b));
@@ -102,20 +130,30 @@ public static class EmojiCheck
         if (ink == 0) failures.Add("the emoji atlas holds no ink after rendering");
         else if (colour == 0) failures.Add("the emoji atlas holds no coloured pixel: the glyphs rendered monochrome");
 
+        var pages = emoji.atlasTextureCount;
         // Dynamic atlas content is cache: drop it so this check leaves the asset as Build wrote it.
         emoji.ClearFontAssetData(true);
-        return $"checked {corpus.Count} single code points + {PiratesNames.Length} Pirates names, {missing.Count} missing, " +
-               $"{viaEmoji} glyphs via the emoji asset, {viaOther} via other fonts, {blank} blank, {ink} atlas ink pixels of which {colour} coloured, {pages} atlas pages ({nullPages} null)";
+        if (unsupported.Count > 0)
+            Debug.LogWarning($"EmojiCheck: Twemoji lacks {unsupported.Count} single-code-point emoji of the Emoji version: " +
+                             string.Join(" ", unsupported.OrderBy(c => c).Select(c => $"U+{c:X4}")));
+        return $"checked {corpus.Count} single code points ({unsupported.Count} not drawn by Twemoji, listed in the warning) + {pirateNames} Pirates product names, " +
+               $"{missing.Count} missing, {viaEmoji} glyphs via the emoji asset, {viaBody} via the body font, {strays.Count} via other fonts, {blank} blank, " +
+               $"{ink} atlas ink pixels of which {colour} coloured, {pages} atlas pages";
     }
 
     static List<int> LoadSingles()
     {
-        var path = Path.Combine(Directory.GetParent(Application.dataPath).FullName, "tools", "emoji", "emoji-singles.txt");
-        var all = File.ReadAllLines(path).Where(l => l.Length > 0).Select(l => Convert.ToInt32(l, 16)).ToList();
+        var all = LoadCodePoints("emoji-singles.txt");
         var args = Environment.GetCommandLineArgs();
         var at = Array.IndexOf(args, "-emojiLimit");
         if (at < 0 || at + 1 >= args.Length) return all;
         var limit = int.Parse(args[at + 1]);
         return Enumerable.Range(0, limit).Select(i => all[i * all.Count / limit]).ToList();
+    }
+
+    static List<int> LoadCodePoints(string file)
+    {
+        var path = Path.Combine(Directory.GetParent(Application.dataPath).FullName, "tools", "emoji", file);
+        return File.ReadAllLines(path).Where(l => l.Length > 0).Select(l => Convert.ToInt32(l, 16)).ToList();
     }
 }
