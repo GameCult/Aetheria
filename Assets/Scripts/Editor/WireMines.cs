@@ -16,12 +16,14 @@ public static class WireMines
     private const long MeshFileId = -5495902117074765545;
     private const string BigExplosionGuid = "e1b08032bec16ba4eb1ae23cbd572664";
 
-    private static readonly (string guid, long fileId)[] Materials =
+    // The Substance archives (.sbsar) import nothing in this Unity, so their materials fall back to the project's
+    // plain material of the same finish (red car paint, magenta car paint, and Steel for titanium).
+    private static readonly (string guid, long fileId, string fallback)[] Materials =
     {
-        ("504c7bfe0d50ff64a88b8eac2ceb46f8", 3720744386649352057),
-        ("a1d39ea984432bf44b4a0686afe2bf1a", 3720744386649352057),
-        ("e879c37f3520bf14a8a6075581faf7b2", 2100000),
-        ("58e16b7dbc1c31f4585e11544cdce127", 9178725544925813344),
+        ("504c7bfe0d50ff64a88b8eac2ceb46f8", 3720744386649352057, "Assets/Materials/Car Paint Red.mat"),
+        ("a1d39ea984432bf44b4a0686afe2bf1a", 3720744386649352057, "Assets/Materials/Car Paint Magenta.mat"),
+        ("e879c37f3520bf14a8a6075581faf7b2", 2100000, null),
+        ("58e16b7dbc1c31f4585e11544cdce127", 9178725544925813344, "Assets/Materials/Steel.mat"),
     };
 
     [MenuItem("Aetheria/Wire Mines")]
@@ -45,7 +47,7 @@ public static class WireMines
         {
             root.AddComponent<MeshFilter>().sharedMesh = Load<Mesh>(MeshGuid, MeshFileId);
             var meshRenderer = root.AddComponent<MeshRenderer>();
-            meshRenderer.sharedMaterials = Materials.Select(m => Load<Material>(m.guid, m.fileId)).ToArray();
+            meshRenderer.sharedMaterials = Materials.Select(m => MaterialFor(m.guid, m.fileId, m.fallback)).ToArray();
 
             var mine = root.AddComponent<MineInstance>();
             mine.MeshRenderer = meshRenderer;
@@ -73,18 +75,29 @@ public static class WireMines
         }
     }
 
+    private static Material MaterialFor(string guid, long fileId, string fallback)
+    {
+        var path = AssetDatabase.GUIDToAssetPath(guid);
+        if (!string.IsNullOrEmpty(path))
+        {
+            var loaded = AssetDatabase.LoadAllAssetsAtPath(path).OfType<Material>().FirstOrDefault(m => IsLocal(m, fileId));
+            if (loaded != null) return loaded;
+        }
+        var substitute = fallback == null ? null : AssetDatabase.LoadAssetAtPath<Material>(fallback);
+        if (substitute == null) throw new System.InvalidOperationException($"No material for {guid} and no fallback loads");
+        Debug.Log($"WireMines: {guid} did not load; using {fallback}");
+        return substitute;
+    }
+
+    private static bool IsLocal(Object asset, long fileId) =>
+        AssetDatabase.TryGetGUIDAndLocalFileIdentifier(asset, out _, out long id) && id == fileId;
+
     private static T Load<T>(string guid, long fileId) where T : Object
     {
         var path = AssetDatabase.GUIDToAssetPath(guid);
         if (string.IsNullOrEmpty(path)) throw new System.InvalidOperationException($"No asset for guid {guid}");
-        // A Substance archive's material is regenerated on import under another local id, so a path holding
-        // exactly one T is that T whatever its id.
-        var assets = AssetDatabase.LoadAllAssetsAtPath(path).OfType<T>().ToArray();
-        foreach (var asset in assets)
-            if (AssetDatabase.TryGetGUIDAndLocalFileIdentifier(asset, out _, out long id) && id == fileId)
-                return asset;
-        if (assets.Length == 1) return assets[0];
-        throw new System.InvalidOperationException($"No {typeof(T).Name} with file id {fileId} in {path}; it holds " +
-            string.Join(", ", AssetDatabase.LoadAllAssetsAtPath(path).Select(a => $"{a.GetType().Name} {a.name}")));
+        foreach (var asset in AssetDatabase.LoadAllAssetsAtPath(path).OfType<T>())
+            if (IsLocal(asset, fileId)) return asset;
+        throw new System.InvalidOperationException($"No {typeof(T).Name} with file id {fileId} in {path}");
     }
 }
