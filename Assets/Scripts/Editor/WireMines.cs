@@ -77,9 +77,13 @@ public static class WireMines
     {
         var path = AssetDatabase.GUIDToAssetPath(guid);
         if (string.IsNullOrEmpty(path)) throw new System.InvalidOperationException($"No asset for guid {guid}");
-        foreach (var asset in AssetDatabase.LoadAllAssetsAtPath(path).OfType<T>())
+        // A Substance archive's material is regenerated on import under another local id, so a path holding
+        // exactly one T is that T whatever its id.
+        var assets = AssetDatabase.LoadAllAssetsAtPath(path).OfType<T>().ToArray();
+        foreach (var asset in assets)
             if (AssetDatabase.TryGetGUIDAndLocalFileIdentifier(asset, out _, out long id) && id == fileId)
                 return asset;
+        if (assets.Length == 1) return assets[0];
         throw new System.InvalidOperationException($"No {typeof(T).Name} with file id {fileId} in {path}");
     }
 }

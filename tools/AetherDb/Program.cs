@@ -1527,6 +1527,7 @@ public static class Program
         {
             Name = name,
             Hardpoint = HardpointType.Launcher,
+            Shape = new Shape(),
             WeaponType = WeaponType.Mine,
             WeaponRange = WeaponRange.Medium,
             WeaponCaliber = WeaponCaliber.Medium,
@@ -1567,8 +1568,27 @@ public static class Program
             return 0;
         }
 
+        // A design no product sells cannot spawn, and the shipped catalog holds none: sell it as the first
+        // shipped launcher is sold, by the same maker.
+        var launcherProducts = db.Cache.GetAll<FactionProductData>()
+            .Where(p => db.Cache.Get(p.Design) is WeaponItemData weapon && weapon.Hardpoint == HardpointType.Launcher)
+            .OrderBy(p => db.Cache.RefOf(p).Key.Value, StringComparer.Ordinal).ToArray();
+        if (launcherProducts.Length == 0) throw new InvalidOperationException("No shipped launcher product names a maker for the Mine Launcher.");
+        var maker = launcherProducts[0].Manufacturer;
+        Console.WriteLine($"Sold by {db.Cache.Get(maker)?.ShortName ?? "(none)"}, as the first shipped launcher product is.");
+
         CultRecordRefs.Validate(launcher);
-        db.Cache.Commit(batch => batch.Upsert(typeof(GearData), launcher));
+        db.Cache.Commit(batch =>
+        {
+            var design = batch.Upsert(typeof(GearData), launcher);
+            batch.Upsert(typeof(FactionProductData), new FactionProductData
+            {
+                Name = name,
+                Description = "Lays a drifting proximity mine that arms after two seconds.",
+                Design = new CultRecordRef<CraftedItemData>(design),
+                Manufacturer = maker
+            });
+        });
         Console.WriteLine($"\nAuthored \"{name}\" in Aetheria.cc");
         return 0;
     }

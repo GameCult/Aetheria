@@ -2595,7 +2595,8 @@ public sealed class FireControlCut124Tests : IDisposable
         {
             var weapons = cache.GetAll<WeaponItemData>().ToList();
             Assert.NotEmpty(weapons);
-            foreach (var w in weapons)
+            // A mine layer is the one shipped weapon that carries a blast: its radius is the mine's (MineLauncherCatalogTests).
+            foreach (var w in weapons.Where(w => !w.Behaviors.OfType<MineLayerData>().Any()))
             {
                 Assert.Null(w.BlastRadius);
                 Assert.Null(w.Fuse);

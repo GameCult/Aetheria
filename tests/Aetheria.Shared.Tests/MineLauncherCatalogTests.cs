@@ -13,6 +13,8 @@ public sealed class MineLauncherCatalogTests
         var launcher = Assert.Single(cache.GetAll<GearData>().OfType<WeaponItemData>(), item => item.Name == "Mine Launcher");
 
         Assert.Equal(HardpointType.Launcher, launcher.HardpointType);
+        Assert.NotNull(launcher.Shape);
+        Assert.Contains(cache.GetAll<FactionProductData>(), product => cache.RefOf(launcher).Key.Equals(product.Design.Key));
         Assert.Equal(WeaponType.Mine, launcher.WeaponType);
         Assert.Equal(WeaponFuse.Proximity, launcher.Fuse);
         Assert.Equal(25f, launcher.BlastRadius);
