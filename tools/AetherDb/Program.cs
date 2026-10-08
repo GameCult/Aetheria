@@ -203,12 +203,6 @@ public static class Program
         ["Heat"] = "injector", ["EnergyUsage"] = "injector",
     };
 
-    private static readonly Dictionary<string, string> AetherDriveRoles = new Dictionary<string, string>
-    {
-        ["MaximumRpm"] = "rotor", ["Torque"] = "rotor",
-        ["CouplingEfficiency"] = "coupling", ["PassiveCoupling"] = "coupling", ["EnergyDraw"] = "coupling",
-    };
-
     private static readonly Dictionary<string, string> HullShipRoles = new Dictionary<string, string>
     {
         ["CrossSection"] = "plating",
@@ -251,7 +245,6 @@ public static class Program
         "Reactor" => ReactorRoles,
         "Sensors" => SensorRoles,
         "Thruster" => ThrusterRoles,
-        "AetherDrive" => AetherDriveRoles,
         _ when kind == "Hull/Ship" => HullShipRoles,
         "Tool" => ToolRolesByDesign.TryGetValue(item.Name, out var byName) ? byName : null,
         _ => null,
@@ -936,11 +929,11 @@ public static class Program
     // only has anything to curve if some shipped stat actually declares a PowerSupply term -- otherwise every
     // one of those stats keeps answering PowerSupplyFactor's identity (Entity.cs), and removing the gates makes
     // a partial grant read exactly like a full one instead of a reduced one. This authors the term, once, on the
-    // one performance stat each of the four curve-eligible behaviours (EnergyDraw has none -- see EnergyDraw.cs)
-    // actually reads for its continuous effect: ThrusterData.Thrust, AetherDriveData.Torque,
-    // RadiatorData.PumpedHeat, ConstantWeaponData.Damage. Two of the four (AetherDriveData.Torque,
-    // RadiatorData.PumpedHeat) are ALSO power-request fields (StatValidation.PowerRequestFields) -- at the time
-    // this tool authored the shipped catalog's curves that briefly made those two records illegal under F6's
+    // one performance stat each of the three curve-eligible behaviours (EnergyDraw has none -- see EnergyDraw.cs)
+    // actually reads for its continuous effect: ThrusterData.Thrust,
+    // RadiatorData.PumpedHeat, ConstantWeaponData.Damage. One of the three (RadiatorData.PumpedHeat)
+    // is ALSO a power-request field (StatValidation.PowerRequestFields) -- at the time
+    // this tool authored the shipped catalog's curves that briefly made that record illegal under F6's
     // now-deleted static check (StatValidation.ValidateNoPowerSupplyOnRequest); the nominal-request ruling
     // (docs/stats-and-power-cut.md, operator ruling 2026-09-19, see ItemData.cs's PowerRequestFields comment)
     // resolved that by having PowerRequest read request fields nominally instead of forbidding the term, so
@@ -953,12 +946,11 @@ public static class Program
         var db = AetherDb.Open(catalogWritable: apply);
         const float gentleExponent = 1f;
 
-        // (behaviour type, target performance-stat field, short label) -- two of these are also request fields
+        // (behaviour type, target performance-stat field, short label) -- one of these is also a request field
         // (StatValidation.PowerRequestFields); that is legal under the nominal-request ruling above.
         var targets = new (Type BehaviorType, string Field, string Label)[]
         {
             (typeof(ThrusterData), nameof(ThrusterData.Thrust), "thrust"),
-            (typeof(AetherDriveData), nameof(AetherDriveData.Torque), "torque"),
             (typeof(RadiatorData), nameof(RadiatorData.PumpedHeat), "pumpedHeat"),
             (typeof(ConstantWeaponData), nameof(WeaponData.Damage), "damage"),
         };
@@ -1472,7 +1464,7 @@ public static class Program
     // and are meaningless as written under the new one -- re-authored here on the sigma-reciprocal scale
     // instead, same convention as 6c.1's Resolution fix.
     //
-    // Both ranges are chosen against real hull scale (GameData/Aetheria.cc's own hulls: LonginusX 6x17,
+    // Both ranges are chosen against real hull scale (GameData/Aetheria.cc's own hulls: Longinus 6x17,
     // Zenith 12x12, Turret 8x8) and the unaided floor this cut adds alongside them
     // (GameplaySettings.UnaidedPrecision, .3 -> sigma 3.33 cells): a design that did not clear the unaided
     // floor by a wide margin would make the required Tool item pointless to equip.

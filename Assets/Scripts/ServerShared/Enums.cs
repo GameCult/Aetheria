@@ -49,8 +49,7 @@ public enum HardpointType
     Energy,
     Ballistic,
     Launcher,
-    ControlModule,
-    AetherDrive
+    ControlModule
 }
 
 public enum WeaponType

@@ -1818,7 +1818,7 @@ public class EquippedItem : IStatContext
         // RefreshInputCapacitor implementation now calls for a request-field stat, and it pins that stat's own
         // PowerSupplyFactor to 1 regardless of what Terms the stat declares -- so a direct PowerSupply term on a
         // request field can no longer make the request depend on its own answer, and the six shipped records this
-        // ruling exists to make legal again (RadiatorData.PumpedHeat, AetherDriveData.Torque) are not an authoring
+        // ruling exists to make legal again (RadiatorData.PumpedHeat) are not an authoring
         // error to refuse. What is still refused: a request field fed a PowerSupply-tainted value through a
         // *modifier chain* (StatModifier.ValidateNoPowerSupplyChain, StatModifier.cs) -- EvaluateNominalPower
         // forwards ScaleModifier/ConstantModifier to the item's real, non-nominal resolver entries (same as
@@ -1834,8 +1834,8 @@ public class EquippedItem : IStatContext
     // Nominal-request ruling (docs/stats-and-power-cut.md, operator ruling 2026-09-19): what this item wants at
     // full power supply, not what it is currently managing -- the read every PowerRequest/RefreshReserve/
     // RefreshInputCapacitor implementation uses for a stat named in StatValidation.PowerRequestFields, so a stat
-    // that is both what a request asks for and what it also produces (RadiatorData.PumpedHeat, AetherDriveData.
-    // Torque) stops being circular at the root instead of being forbidden outright. Only PowerSupply is pinned:
+    // that is both what a request asks for and what it also produces (RadiatorData.PumpedHeat)
+    // stops being circular at the root instead of being forbidden outright. Only PowerSupply is pinned:
     // Heat and Durability are NOT, because they are not the term a request would be circular through -- this
     // tick's PowerBus.Step (which calls PowerRequest) always runs before this tick's grant exists, so nothing
     // here could depend on an answer that has not been computed yet, and a hot or worn item honestly asking for

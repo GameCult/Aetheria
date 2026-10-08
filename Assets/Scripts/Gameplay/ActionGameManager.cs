@@ -948,7 +948,7 @@ public class ActionGameManager : MonoBehaviour
                 Dialog.MoveToCursor();
                 // TODO: SFX: Fail
             }
-            else if (CurrentEntity.GetBehavior<Thruster>() == null && CurrentEntity.GetBehavior<AetherDrive>() == null)
+            else if (CurrentEntity.GetBehavior<Thruster>() == null)
             {
                 Dialog.Clear();
                 Dialog.Title.text = "Can't undock. Missing thruster component!";

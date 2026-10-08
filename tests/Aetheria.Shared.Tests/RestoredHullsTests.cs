@@ -201,6 +201,23 @@ public sealed class RestoredHullsTests
         }
     }
 
+    // The dock intro dereferences the ship's VelocityLimit unguarded (ActionGameManager), so every ship hull the catalog
+    // ships carries exactly one, with a top speed that is a finite positive number. After the LonginusX's retirement
+    // (ruling retire-longinusx) the shipped ship hulls are the Longinus and the Djinni.
+    [Fact]
+    public void EveryShippedShipHullHasATopSpeed()
+    {
+        using var cache = OpenCatalog();
+        var ships = cache.GetAll<HullData>().Where(h => h.HullType == HullType.Ship).OrderBy(h => h.Name, StringComparer.Ordinal).ToArray();
+        Assert.Equal(new[] { "Djinni", "Longinus" }, ships.Select(h => h.Name));
+        foreach (var hull in ships)
+        {
+            Assert.Single(hull.Behaviors.OfType<VelocityLimitData>());
+            var limit = BuildThrustedShip(cache, hull.Name).GetBehavior<VelocityLimit>().Limit;
+            Assert.True(float.IsFinite(limit) && limit > 0f, $"{hull.Name}'s top speed is {limit}");
+        }
+    }
+
     // A restored hull with every thruster hardpoint (and its reactor) filled, activated and warmed up: the
     // rotation thrusters the helm tests need. The caller owns the cache.
     internal static Ship BuildThrustedShip(CultCache cache, string name)

@@ -1324,7 +1324,7 @@ public sealed class FireControlCut12Tests : IDisposable
     }
 
     // S3 fix batch (Hands, 2026-09-25): Lane's own comment ("never allocates on its own") and Silhouette's
-    // pooled path are pinned directly, instead of trusting the comment. Measured (Release, LonginusX-shaped
+    // pooled path are pinned directly, instead of trusting the comment. Measured (Release, Longinus-shaped
     // fixture unavailable to this test file -- a 7x9 solid hull is used instead): Lane and Silhouette (given a
     // caller-supplied buffer) allocate exactly 0 bytes over 1000 calls, confirming the S3 change itself
     // (Array.Sort(T[], int, int) resolving Interval/LaneCell's own IComparable<T> at JIT time, not the
