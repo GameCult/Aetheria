@@ -89,4 +89,46 @@ public sealed partial class RunStartTests
         Assert.NotEmpty(present);
         Assert.All(present, product => Assert.False(generator.IsAvailable(product), product.Name));
     }
+
+    // Preference only weighs by distance when there is a galaxy and a faction to weigh for.
+    [Fact]
+    public void PreferenceIsNeutralWithoutAGalaxyOrAFaction()
+    {
+        var galaxy = MainSectorGalaxy();
+        var (product, absent) = AbsentMaker("AbsentNeutral");
+        var faction = galaxy.Factions.First();
+        var noGalaxy = new LoadoutGenerator(ref _items.Random, _items, null, null, faction, .5f);
+        var noFaction = new LoadoutGenerator(ref _items.Random, _items, galaxy, galaxy.Entrance, null, .5f);
+        Assert.Equal(1f, noGalaxy.ManufacturerPreference(product.Manufacturer));
+        Assert.Equal(1f, noFaction.ManufacturerPreference(product.Manufacturer));
+    }
+
+    // A maker the generator's faction does not name weighs nothing, present or not.
+    [Fact]
+    public void AMakerOutsideAllegianceWeighsNothing()
+    {
+        var galaxy = MainSectorGalaxy();
+        var (product, _) = AbsentMaker("AbsentUnnamed");
+        var generator = GeneratorFor(galaxy, "Hermit");
+        var stranger = galaxy.Factions.First();
+        Assert.Equal(0f, generator.ManufacturerPreference(product.Manufacturer));
+        Assert.Equal(0f, generator.ManufacturerPreference(_cache.RefOf(stranger)));
+    }
+
+    // The distance table decides: a present maker whose home the table does not reach adds no distance, an absent
+    // maker is one jump past the table's farthest zone, and an empty table adds none either way.
+    [Fact]
+    public void ADistanceTableOnlyDistancesTheMakersItNames()
+    {
+        var galaxy = MainSectorGalaxy();
+        var (product, absent) = AbsentMaker("AbsentOffTable");
+        var present = galaxy.Factions.First(f => galaxy.HomeZones.TryGetValue(f, out var home) && home != galaxy.Entrance);
+        var friend = GeneratorFor(galaxy, "Ally", absent, present);
+        var table = new GalaxyZone { Distance = new Dictionary<GalaxyZone, int> { { galaxy.Entrance, 0 } } };
+        var generator = new LoadoutGenerator(ref _items.Random, _items, galaxy, table, friend.Faction, .5f);
+        Assert.Equal(1f, generator.ManufacturerPreference(_cache.RefOf(present))); // home not in the table: distance 0
+        Assert.Equal(.5f, generator.ManufacturerPreference(product.Manufacturer)); // absent: 0 + 1
+        var empty = new LoadoutGenerator(ref _items.Random, _items, galaxy, new GalaxyZone { Distance = new Dictionary<GalaxyZone, int>() }, friend.Faction, .5f);
+        Assert.Equal(1f, empty.ManufacturerPreference(product.Manufacturer));
+    }
 }
