@@ -59,8 +59,8 @@ public sealed class SimClockTests
         Assert.InRange(clock.Steps, Math.Round(elapsed * 60) - 1, Math.Round(elapsed * 60) + 1);
 
         // A frame that pays for exactly one step runs it (binary-exact seconds, so nothing rounds).
-        var exact = new SimClock(.25f, 4);
-        Assert.Equal(1, exact.Advance(.25f, _ => { }));
+        var exact = new SimClock(.25f, 16);
+        Assert.Equal(1, exact.Advance(.0625f, _ => { }));
         Assert.Equal(0f, exact.Lead);
 
         var slow = new SimClock(1f / 60f, 30);
