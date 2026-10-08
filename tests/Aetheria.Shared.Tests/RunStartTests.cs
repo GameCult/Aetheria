@@ -18,7 +18,7 @@ using float3 = CultMath.float3;
 
 // RunStart owns what a new run starts with, and Zone.Admit is the one admission into a zone (docs/scenarios-cut.md,
 // 2.2 and R). Every test stages into a real arena: the entrance zone of a prelude galaxy at a fixed seed, built from a
-// scratch copy of the shipped catalog and the authored settings (Assets/Resources/Settings.asset).
+// scratch copy of the catalog the game boots (TestCatalog) and the authored settings (Assets/Resources/Settings.asset).
 public sealed partial class RunStartTests : IDisposable
 {
     private const uint GalaxySeed = 1;
@@ -38,7 +38,7 @@ public sealed partial class RunStartTests : IDisposable
         var repo = FindRepoRoot();
         Directory.CreateDirectory(_root);
         var catalog = Path.Combine(_root, "Aetheria.cc");
-        File.Copy(Path.Combine(repo, "GameData", "Aetheria.cc"), catalog);
+        File.Copy(TestCatalog.Repo, catalog);
 
         // A registry scoped to the shipped assembly's own [CultDocument] types, as RestoredHullsTests composes it, so
         // this test assembly's own documents never reach the real catalog's validation.
@@ -72,7 +72,7 @@ public sealed partial class RunStartTests : IDisposable
         .Where(t => t is { IsAbstract: false, IsInterface: false })
         .Where(t => t.GetCustomAttribute<CultDocumentAttribute>() != null));
 
-    private static string FindRepoRoot()
+    internal static string FindRepoRoot()
     {
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
             if (File.Exists(Path.Combine(dir.FullName, "Aetheria.Shared", "Aetheria.Shared.csproj")))
