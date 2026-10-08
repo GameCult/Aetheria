@@ -564,7 +564,9 @@ public sealed class FlightTests : IDisposable
         var ship = Pilot(null);
         var minion = PatrollingMinion(ship);
 
-        ship.SetTarget(new TargetRef(Track()));
+        var track = Track();
+        See(ship, track);
+        ship.SetTarget(new TargetRef(track));
         minion.Update(.1f);
         Assert.IsType<CombatState>(CurrentState(minion));
 
@@ -580,7 +582,9 @@ public sealed class FlightTests : IDisposable
     {
         var ship = Pilot(null);
         var minion = PatrollingMinion(ship);
-        ship.SetTarget(new TargetRef(Track()));
+        var track = Track();
+        See(ship, track);
+        ship.SetTarget(new TargetRef(track));
 
         for (var i = 0; i < 5; i++)
         {
