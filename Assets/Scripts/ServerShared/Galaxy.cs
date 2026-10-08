@@ -33,7 +33,6 @@ public class Galaxy
     // restored from a save.
     public uint Seed { get; }
     
-    private HashSet<CultRecordKey> _containedFactions;
     private GalaxyZone[] _exitPath;
     private Dictionary<Faction, MarkovNameGenerator> _nameGenerators = new Dictionary<Faction, MarkovNameGenerator>();
     private readonly CultCache _cache;
@@ -430,12 +429,6 @@ public class Galaxy
             zone.Distance = ConnectedRegionDistance(zone);
             zone.Isolation = zone.Distance.Sum(x => x.Value);
         }
-    }
-
-    public bool ContainsFaction(CultRecordRef<Faction> faction)
-    {
-        _containedFactions ??= new HashSet<CultRecordKey>(Factions.Select(f => _cache.RefOf(f).Key));
-        return _containedFactions.Contains(faction.Key);
     }
 
     class DijkstraVertex

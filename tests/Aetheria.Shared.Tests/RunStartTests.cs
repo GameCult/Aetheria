@@ -119,8 +119,8 @@ public sealed partial class RunStartTests : IDisposable
 
     private const float Freezing = 273.15f;
 
-    // A main-sector galaxy (not the prelude, which offers every product): each station's gear must come from
-    // manufacturers its faction can reach, the galaxy's factions its allegiance names.
+    // A main-sector galaxy: each station's gear must come from manufacturers its faction can reach, the makers its
+    // allegiance names, present in the galaxy or not.
     private Galaxy MainSectorGalaxy()
     {
         var authored = AuthoredSettings.Load(FindRepoRoot());

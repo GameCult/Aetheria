@@ -743,19 +743,11 @@ public static class Program
     }
 
     // Runs the real LoadoutGenerator against every hull, so a generation failure reproduces here instead of on a
-    // flight to a populated sector. No galaxy by default, so this covers placement, roles and products but NOT
+    // flight to a populated sector. No galaxy, so this covers placement, roles and products but NOT
     // availability filtering or distance weighting, which need a real galaxy. Seeded: a failure repeats.
-    //
-    // Cut 6c, 6c.2 verification: "exclude-sellers Short1,Short2,..." builds a minimal one-zone Galaxy (the same
-    // SavedGame/Galaxy round trip FireControlCut6cTests uses) whose faction roster is every catalog faction
-    // EXCEPT the named ones, so IsAvailable actually rejects their products instead of the null-Galaxy "every
-    // product is on offer" shortcut this command otherwise takes. That is the one way to reproduce the single
-    // point of failure 6c.2 fixed: a null-galaxy run can never exercise Galaxy.ContainsFaction at all.
     private static int Loadout(string[] args)
     {
-        var seedArgument = args.FirstOrDefault(a => !a.StartsWith("exclude-sellers"));
-        var excludeArg = args.FirstOrDefault(a => a.StartsWith("exclude-sellers"));
-        var seed = uint.TryParse(seedArgument, out var parsed) ? parsed : 1u;
+        var seed = uint.TryParse(args.FirstOrDefault(), out var parsed) ? parsed : 1u;
         var db = AetherDb.Open();
         var settings = new GameplaySettings
         {
@@ -763,45 +755,6 @@ public static class Program
             Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
             QualityPriceModifier = new ExponentialLerp()
         };
-
-        Galaxy galaxy = null;
-        CultCache galaxyCache = null;
-        if (excludeArg != null)
-        {
-            var excludedShortNames = excludeArg.Contains(':')
-                ? excludeArg.Substring(excludeArg.IndexOf(':') + 1).Split(',', StringSplitOptions.RemoveEmptyEntries)
-                : Array.Empty<string>();
-            var excluded = new HashSet<string>(excludedShortNames);
-
-            // A second, scratch-run-store cache over the SAME catalog file, read-only on the catalog side --
-            // RunSave.Commit only ever touches run-store record types (SavedGame, SavedZone, ProvenanceLedger),
-            // but it needs a store that is "home" to them, which the plain read-only db.Cache above is not.
-            // The scratch run.cc lives in the OS temp directory, never under GameData, so this command cannot
-            // leave behind or corrupt a real save. Factions are looked up through THIS cache instance, not
-            // db.Cache -- CultCache.RefOf needs the document to be one this specific instance's identity map
-            // tracks, and two Open() calls over the same file do not share object identity.
-            var scratchRun = Path.Combine(Path.GetTempPath(), $"aetherdb-loadout-exclude-{Guid.NewGuid():N}.cc");
-            galaxyCache = AetheriaStores.Open(Path.Combine(db.Root, "GameData", "Aetheria.cc"), runPath: scratchRun);
-            var includedFactions = galaxyCache.GetAll<Faction>().Where(f => !excluded.Contains(f.ShortName)).ToArray();
-            Console.WriteLine($"Excluding sellers [{string.Join(", ", excluded)}] -- galaxy carries {includedFactions.Length} of {galaxyCache.GetAll<Faction>().Count()} factions.\n");
-
-            var game = new SavedGame
-            {
-                Factions = includedFactions.Select(f => galaxyCache.RefOf(f)).ToArray(),
-                Relationships = includedFactions.Select(_ => FactionRelationship.Neutral).ToArray(),
-                HomeZones = new Dictionary<int, int> { { 0, 0 } },
-                BossZones = new Dictionary<int, int>(),
-                DiscoveredZones = new[] { 0 },
-                ActionBarBindings = new SavedActionBarBinding[0],
-                Exit = -1
-            };
-            var zones = new[]
-            {
-                new SavedZone { Name = "Zone 0", Position = new float2(0, 0), AdjacentZones = Array.Empty<int>(), Factions = new[] { 0 }, Owner = 0, Contents = null }
-            };
-            RunSave.Commit(galaxyCache, game, zones, new ProvenanceLedger());
-            galaxy = new Galaxy(galaxyCache, galaxyCache.GetGlobal<SavedGame>(), _ => { });
-        }
 
         var log = new List<string>();
         var itemManager = new ItemManager(db.Cache, new ProvenanceLedger(), settings, log.Add);
@@ -811,7 +764,7 @@ public static class Program
         foreach (var hull in db.Cache.GetAll<HullData>().OrderBy(h => h.HullType).ThenBy(h => h.Name))
         {
             var random = new Random(seed);
-            var generator = new LoadoutGenerator(ref random, itemManager, galaxy, null, null, .5f);
+            var generator = new LoadoutGenerator(ref random, itemManager, null, null, null, .5f);
             log.Clear();
             string outcome;
             try
@@ -837,7 +790,6 @@ public static class Program
         }
 
         Console.WriteLine($"\n{failures} hulls failed to generate a loadout (seed {seed}), {targetingGaps} armed hulls generated with no targeting system (fired unaided)");
-        galaxyCache?.Dispose();
         return failures;
     }
 
