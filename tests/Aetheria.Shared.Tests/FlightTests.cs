@@ -265,10 +265,13 @@ public sealed class FlightTests : IDisposable
 
         dies.Hull.Durability = 0;
         dies.HullDamage.OnNext(1f);
-        _zone.Entities.Remove(leaves);
+        Assert.Equal(new[] { leaves, stays }, _zone.Agents.Select(a => a.Ship));
+        Assert.Equal(2, flight.Count);
 
+        _zone.Entities.Remove(leaves);
         Assert.Equal(new[] { stays }, _zone.Agents.Select(a => a.Ship));
         Assert.Equal(1, flight.Count);
+        Assert.True(flight.Contains(_zone.Agents.Single()));
         Assert.DoesNotContain(_zone.Agents, a => a.Ship == player);
     }
 
@@ -301,6 +304,29 @@ public sealed class FlightTests : IDisposable
 
         Assert.Same(track, member.Target.Value.Entity);
         Assert.Null(member.IffOverride(track));
+    }
+
+    [Fact]
+    public void EachFactionFliesAFlightOfItsOwnAndUnaffiliatedShipsShareOne()
+    {
+        Pilot(new Faction { Name = "One" });
+        Pilot(new Faction { Name = "Two" });
+        Pilot(null);
+        Pilot(null);
+
+        Assert.Equal(new[] { 1, 1, 2 }, _zone.Flights.Select(f => f.Count).OrderBy(c => c));
+    }
+
+    [Fact]
+    public void TheZoneTickRunsTheFlightsBeforeTheAgents()
+    {
+        var member = Pilot(new Faction { Name = "Plain" });
+        var track = Track();
+        See(member, track);
+
+        _zone.Update(.1f);
+
+        Assert.Same(track, member.Target.Value.Entity);
     }
 
     [Fact]

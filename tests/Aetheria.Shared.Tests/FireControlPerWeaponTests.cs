@@ -656,7 +656,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
         float Optimum(float exponent) =>
             new CombatState(new Minion(r.Shooter, new RoleDoctrine { RangeExponent = exponent, MinHitProbability = .2f })).OptimumRange;
 
-        Assert.True(Optimum(0f) < Optimum(1f));
+        Assert.True(Optimum(1f) - Optimum(0f) > 100f);
     }
 
     // A round refused on a Range that fell between the trigger and the round is still free: the burst is paid
