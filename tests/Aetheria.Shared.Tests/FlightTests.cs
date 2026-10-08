@@ -551,6 +551,8 @@ public sealed class FlightTests : IDisposable
 
     private Minion PatrollingMinion(Ship ship)
     {
+        // Far from the (unresolved) circuit point, so MoveToOrbit does not hand back to patrol on arrival every tick.
+        ship.Position = new float3(500, 0, 0);
         var minion = new Minion(ship, FactionDoctrine.Default(_items.GameplaySettings).Combatant)
             { Task = new PatrolOrbitsTask { Circuit = new CultRecordKey[1] } };
         for (var i = 0; i < 4; i++) minion.Update(.1f);
