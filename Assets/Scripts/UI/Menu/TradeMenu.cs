@@ -192,9 +192,9 @@ public class TradeMenu : MonoBehaviour
         
         columns.Add(("Name", 3,
             x => () => x.item is CraftedItemInstance craftedItemInstance ? 
-                $"<color=#{ColorUtility.ToHtmlStringRGB(GameManager.ItemManager.GetTier(craftedItemInstance).tier.Color.ToColor())}>{x.data.Name}" : 
-                x.data.Name, 
-            x => x.data.Name));
+                $"<color=#{ColorUtility.ToHtmlStringRGB(GameManager.ItemManager.GetTier(craftedItemInstance).tier.Color.ToColor())}>{GameManager.ItemManager.Title(x.item)}" : 
+                GameManager.ItemManager.Title(x.item), 
+            x => GameManager.ItemManager.Title(x.item)));
         if(_hardpointFilter.filter==null)
             columns.Add(("Type", 2,
                 x => () =>
@@ -352,7 +352,7 @@ public class TradeMenu : MonoBehaviour
                             {
                                 int quantity = 1;
                                 Dialog.Clear();
-                                Dialog.Title.text = $"Buying {i.data.Name}";
+                                Dialog.Title.text = $"Buying {GameManager.ItemManager.Title(i.item)}";
                                 Dialog.AddField("Quantity", 
                                     () => quantity, 
                                     q => quantity = min(min(q, GameManager.Credits / StationServices.BuyPrice(GameManager.ItemManager, s)), s.Quantity));
