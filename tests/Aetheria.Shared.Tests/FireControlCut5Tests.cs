@@ -473,6 +473,7 @@ public sealed class FireControlCut5Tests : IDisposable
         Assert.False(weapon.ArcAllowsFire);
 
         target.Position = float3(0, 0, 100); // dead ahead
+        shooter.Aim = float3(0, 0, 1);       // the free aim fires, as a gun with no target would
         Assert.True(weapon.ArcAllowsFire);
     }
 
