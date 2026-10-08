@@ -4518,6 +4518,93 @@ pass of 2026-10-07, source marks as in Controls; the EVE formula is the player w
   today, and any larger shape fits no hull, like CShot. Nothing in the record settles its intended
   shape; question `plight-shape` asks it.
 
+### Body facts: evasion core, mount term and autofire seams (2026-10-08)
+
+Body: `origin/master` `4d664b53`, read in a detached worktree. The in-flight branch
+`origin/eureka/aetheria-release-controls-mount-aim` (e103b90a, 538b11b4) was read with `git diff
+4d664b53 <branch>`, never checked out. Read by `cut-munition-shots`, `cut-munition-jink`,
+`cut-autofire-threshold` and `cut-autofire-controls`.
+
+- **MA1. Master's evasion is two factors in one price** (source read, `FireControl.cs`).
+  `HitProbability` (:350-357) is `PFire * PMount(AngularVelocity(source, target),
+  TrackingRate(weapon, source)) * PSpread * POnHull * PDeviation(evasion, Tracking(source))`.
+  `Forecast` (:326) computes `evasion = Evasion(target, TravelDirection)`. The mount factor reads
+  the gun's rate times the ship's gear (`TrackingRate`, :221-224); the jink factor reads the ship's
+  gear alone in metres (`Tracking`, :195-199), as rulings `tracking-per-gun` and `jink-per-ship`
+  say.
+- **MA2. The evasion core is already subject-free** (`FireControl.cs:496-516`).
+  `Evasion(Entity, los)` returns 0 for a non-Ship and otherwise calls the pure
+  `Evasion(in ManoeuvreEnvelope, float2 heading, in ManoeuvreTrack, float2 los, float window)`,
+  whose comment calls it "the one call guns and munitions make". A munition can answer it with its
+  own envelope, heading and track without a second evasion function.
+- **MA3. The envelope and track types** (`FireControl.cs:2049-2115`). `ManoeuvreEnvelope` is six
+  accelerations (Forward, Reverse, Left, Right in m/s^2 along body axes; Clockwise,
+  CounterClockwise turn rates). `ManoeuvreTrack.Observe(float2 acceleration, float dt, float
+  window)` keeps trend, innovation and second moments and forgets a window after the last change
+  of vector. `Reach` (:521-546) with both turn rates zero reduces to the box's no-turn support
+  `0.5 * (face along) * T^2` plus faces whose turn is zero (`ReachFace` returns 0 for a turned face
+  when its rate is below 1e-4, :552). So a point-mass munition with no turn rate is priced by its
+  box alone, which is what a vector-commanded munition can do.
+- **MA4. Who writes a ship's track** (grep over `Assets/Scripts/ServerShared`). One writer:
+  `Entity.Update` at `Entity.cs:1478` (`Manoeuvre.Observe(Acceleration, delta, SolutionWindow)`),
+  acceleration being the base update's velocity change with the limit clamp added back (:1477).
+  Thrusters supply the envelope (`Thruster.Manoeuvre()`, `Thruster.cs:98`); `Ship.Envelope` sums
+  them (`Ship.cs:153-159`).
+- **MA5. Fire freezes the mount for an entity subject only** (`FireControl.cs:688`). `pFire =
+  solution.PFire * (solution.Engaged != null ? PMount(AngularVelocity(source, solution.Engaged),
+  TrackingRate(weapon, source)) : 1f)`. `CommitProbability` (:864-878) multiplies the frozen
+  `PFire` by `DeviationProbability` (:483-489), which adds `Evasion(shot.Target, ...)` to the
+  realised drift. A munition subject needs both: the mount frozen at fire from its own position and
+  velocity, and the evasion at commit from its own track.
+- **MA6. `AngularVelocity` has a planar overload** (`FireControl.cs:209-213`):
+  `AngularVelocity(float2 offset, float2 relativeVelocity)`, range floored at 1 m. A munition's
+  offset is `Flight.Position - source.Position.xz` and its relative velocity `Flight.Velocity -
+  source.Velocity`; no new geometry is needed.
+- **MA7. No munition code is on master** (`ls Assets/Scripts/ServerShared`, grep `MunitionId`).
+  `Munitions.cs`, `MunitionFlight` and `MunitionId` do not exist; `TargetRef` (`Zone.cs:646-670`)
+  has only Entity and Chunk. missile-stats, missile-records and missile-odds had no report
+  (specs-with-no-report query, as of ordinal 750). munition-shots' anchors into that code are by
+  name.
+- **MA8. controls-mount-aim, in execution, changes the seams these cuts touch** (diff of
+  4d664b53..origin/eureka/aetheria-release-controls-mount-aim, FireControl.cs and Weapon.cs): adds
+  `Solution(Weapon, Entity shooter, TargetRef subject)` after `AimDirection` returning `GunSolution
+  { Entity Subject; bool Bears; bool Free; float2 Direction }`; adds `Bears(weapon, source, Entity
+  target, out range)` and routes `PFire` through it; rewrites `ArcPermitsFire` to `fused || mine
+  layer || Solution(weapon, shooter, shooter.Target.Value)` bears or free; Solve's travel direction
+  becomes `Solution(weapon, source, target).Direction`. The branch dropped the Broadside scenario
+  (538b11b4: no catalog hull has side-rotated gun hardpoints).
+- **MA9. PendingShot construction sites** (grep `new PendingShot` over Assets/Scripts and tests):
+  two, `FireControl.Fire` and `FireControlCut9Tests.cs`. Readers of `shot.Target` in FireControl:
+  :487-488, :808, :867-876, :884, :920-950, :1132-1140, :1190, :1483; outside:
+  `EntityInstance.cs:331-333`.
+- **MA10. Autofire seams on master** (source reads): `Entity.WeaponGroups` `Entity.cs:82`, sized
+  :791-793, removal path :1050; `PowerBus.Step` :1453 then the equipment loop :1455-1458 (the only
+  place equipped behaviours execute in `Entity.Update`); `Weapon.Activate/Deactivate` set `_firing`
+  only (`Weapon.cs:156-164`), so a weapon draws no power by being triggered. `StanceAllowsFire`
+  `Weapon.cs:113`, `ArcAllowsFire` :123. `Refuses` `FireControl.cs:93-95`, `AgentFires` :104-112
+  (its first branch is the mine layer's: worth it when `Solve` says Designated). `Fire` reads
+  `source.Target.Value.Entity` at :683. `EntityPack` keys 0-16 on the base class, subclasses use
+  17-20, key 21 unused (`EntitySerializer.cs`). `ActionBarWeaponGroupBinding`
+  `ActionBarSlot.cs:177-210`; slot input actions are created in `ActionGameManager.createBinding`
+  (:434-442, `started` activates, `canceled` deactivates). `ControlsHud.cs` does not exist on master
+  (controls-hud creates it). `Zone.Targets.Within(in TargetSearch, List<TargetCandidate> into)`
+  (`TargetingIndex.cs:99`) fills a caller's list. `Scenarios.Tests` (`Scenarios.cs:7-10`) ends with
+  `LauncherAngles, LongHaul`.
+- **MA11. The close-crosser fixture already exists**
+  (`tests/Aetheria.Shared.Tests/EvasionTrackingTests.cs`). `EvMountRange(gunRate, laserRate)` sets
+  two guns on one shooter to authored rates through `EvSetRate` (:23-29), and
+  `LightAndHeavyGunsSplitOnAFastCloseCrosser` (:139-160) with rates 40 and 3 and `EvCross(range,
+  jinking: false, float2(100, 0))` at 200 m measures PMount >= 0.85 and <= 0.01. The steady
+  crosser's evasion is zero (EvCross settles the track), so the split is the mount term alone. The
+  fixture places the target with `ScenarioStance.Neutral` (default of `ScenarioStage.Place`,
+  `ScenarioStage.cs:109`); `Entity.SetIff(other, true)` (`Entity.cs:810`) or
+  `ScenarioStance.Hostile` makes it hostile.
+- **MA12. No PD-class gun is in the catalog** (tracking table). The highest authored rates are
+  ClearPath 12 and Spectra 10 deg/s; launchers are +infinity. Against inbound missiles the angular
+  velocity is small (mostly radial approach), so these suffice to engage salvos in a scenario;
+  against a fast close crosser ClearPath prices 0.37 / 0.76 (TC / FCA, map table). The catalog
+  growth section's PD guns (CG-probes) are the content that closes this.
+
 ### The design
 
 **The resolution model** is ruled: `missiles-resolution-model`, geometry-sets-odds. The second
@@ -4997,12 +5084,12 @@ while one of your autofire guns has it as subject.
 | Kind | Identity | Lifecycle | Authority |
 |---|---|---|---|
 | Munition (light record) | Its `PendingShot`'s `ShotId`, as `MunitionId` in a `TargetRef`. | From fire through its terminal gate (commit) to arrival, or until interception or lifetime; never saved, as pending shots are not. | `FireControl` for transitions and the roll; `Munitions.Advance` for flight. |
-| Munition flight | `PendingShot.Flight` (position, velocity, delta-v, command, wear, seeker, lock, faction, inbound rounds). | Stepped every tick; gone with its shot. | `Munitions.Advance` under `FireControl.Step`; wear by `DamageMunition`. |
+| Munition flight | `PendingShot.Flight` (position, velocity, delta-v, command, wear, seeker, lock, faction, inbound rounds, `Track`). | Stepped every tick; gone with its shot. `Flight.Track` observes the command Advance applied each step; it is runtime, never saved, and discarded with the shot. | `Munitions.Advance` under `FireControl.Step`, the one writer of the track (as `Entity.Update` is for a ship); `Munitions.Envelope` derives what it can reach from its stats and fuel, and `FireControl` prices it through the same evasion core as a ship; wear by `DamageMunition`. |
 | Entity manoeuvre track | `Entity.Manoeuvre` (`ManoeuvreTrack`: trend, filtered innovation, its second moment). | Observed every update from the velocity change across the base update; never saved. | `Entity.Update`. |
 | Ship envelope | `Ship.Envelope` (`ManoeuvreEnvelope`: four body-frame accelerations, two turn rates). | Recomputed every update from the live propulsors; never saved. | `Ship`, from each propulsor's report. |
 | Missile stats | `MunitionData` on `LauncherData` / `GuidedWeaponData`, six groups. | Catalog data in `Aetheria.cc`. | The catalog now; gear once munitions are entities. |
 | Autofire setting | Per weapon group, `Entity.Autofire` (on, threshold). | Set by the player; saved in `EntityPack` key 21. | The player. |
-| Autofire subject | Per weapon, runtime only. | Re-picked by `Autofire.Update` when the current one stops being worth firing. | `FireControl.ChooseSubject`. |
+| Autofire subject | Per weapon, `Weapon.AutofireSubject`, runtime only. | Re-picked every tick, and when the current one stops being worth firing. | `FireControl.ChooseSubject`. |
 
 ### Rationale
 
@@ -5107,6 +5194,68 @@ reading can take), jamming and soft kill; boost and midcourse fuel planning; min
 (`bodies-entity-and-mines`); whether launchers draw rounds (`launcher-ammunition`). Whether
 the demo cast fields launchers for the player's PD to meet is content: the cuts add a
 `Point Defense` scenario for the operator check.
+
+**Why a munition's evasion goes through the ship's core.** Follow-up
+`munition-shots-evasion-interface` (absorbed by `cut-munition-shots`) asked that a munition answer
+`FireControl.Evasion` "with its own manoeuvre envelope (from its missile-stats thruster group) and
+its own course-change record, like ships do". The earlier price went through a direct agility
+(`Stats.Lateral` while fuelled) and the command vector, which is the strafe-only reading ruling
+`evasion-is-unpredictability` overturned for ships. The munition now gives the core the two inputs
+it reads: `Munitions.Envelope(flight)` (faces equal to Advance's own command clamps; no turn rates,
+because a munition commands any planar vector at once, MA3) and `Flight.Track` (observed by
+Advance, MA4's pattern). Then `Evasion(flight, los)` is one line over the shared core, a jinking
+missile is evasive because its track sees changes of vector, and a dry one is not because its
+envelope is zero. A missile pursuing a weaving target also shows innovation from its PN commands;
+that is evasion by the ruling's own measure ("how much the ship is actually changing its vector"),
+not a defect.
+
+**Why the mount term is the munition's own geometry.** Follow-up `munition-shots-mount-term`:
+`PMount(AngularVelocity(Flight.Position - source.Position.xz, Flight.Velocity - source.Velocity),
+TrackingRate(weapon, source))` (MA6), frozen at fire like an entity's (MA5), with the jink forgiven
+per ship by `Tracking(source)` (ruling `jink-per-ship`). Inbound missiles approach mostly radially,
+so their angular velocity is small and PD guns hold them; a missile crossing close is hard to
+follow, which is the CIWS geometry and EVE's tracking formula `0.5^((omega/rate)^2)` the mount term
+already is.
+
+**Why the box support is enough.** `Reach`'s no-turn support assumes the lateral and along-track
+faces fire independently (a box), while Advance clamps the total command to `Stats.Acceleration` (a
+disc with a lateral cap). Across the line of sight the binding limit is the lateral face, which the
+box and the disc share; the corners overstate reach only on oblique lines of sight, and the
+observed track caps the evasion before the envelope does in every case the tests build. A disc
+support would be a second reach function for one corner case; not bought.
+
+**Why munition-shots is split.** The earlier estimate was 465 lines and 12 tests across Solve,
+Fire, Step, Commit, Apply, Detonate, Solution and Advance, and the envelope, track and mount term
+add to it. The evasion-term cut of similar reach took 190 calls and overran (memory
+`hands-batch-sizing-and-stryker-offsets`). The jink (inbound-round count, Advance step 4 and the
+fuel-spend tests) is a separate behaviour with its own rulings (`missiles-fuel-and-seekers`,
+`missile-cognition`) and its own failure modes, and it reaches the PD price only through the track.
+So `munition-shots` is the subject, price and resolution (about 380 lines) and `munition-jink` is
+the jink (about 170 lines), each falsifiable alone.
+
+**Why the autofire divert test uses a steady close crosser.** Under ruling
+`evasion-angular-velocity-r2` a steady fast crosser close in evades through the mount term even
+with no jink, and that is exactly where ruling `speed-demon-counterplay` wants light guns to hold a
+ship heavy guns cannot. MA11's fixture gives the split (PMount >= 0.85 against <= 0.01) with zero
+evasion, so the test proves the chooser reads the per-gun price and nothing else. The threshold is
+set inside the interval between the heavy gun's price and the lower of the light gun's price and
+the heavy gun's price without the mount, so a Worth that drops the mount, or reads the ship's gear
+in place of the gun's rate, lets the heavy gun fire and fails.
+
+**Why autofire-threshold is split too.** The earlier version (about 520 lines) mixed the headless
+chooser, Worth, SubjectOf, the saved settings and 13 tests with Unity work (action-bar modifiers,
+HUD diamonds, a new scenario) whose every loop needs a Starfire compile. `autofire-threshold` keeps
+the sim half (about 360 lines) and gives the settings one writer, `Entity.SetAutofire`, so the
+presentation half, `autofire-controls` (about 190 lines), writes nothing else.
+
+**Unowned checks.**
+- `missile-odds` was written against evasion-term. It prices a missile's hit on a ship with the
+  target's evasion; whether a missile as shooter takes any mount term was never ruled (the tracking
+  table lists launchers at +infinity: "the round steers itself"). Worth a check before missile-odds
+  is dispatched, if no parallel pass already owns it.
+- No PD-class gun existed (MA12). The Point Defense scenario and the speed-demon play check could
+  run on ClearPath and Spectra, but the ruled outcome "PD-class guns hit a speed demon reliably"
+  has no catalog gun to show it until one is authored (see "Catalog growth").
 
 ## Retiring the LonginusX and parking the aether drive
 
