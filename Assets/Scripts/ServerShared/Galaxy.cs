@@ -107,7 +107,7 @@ public class Galaxy
         IsPrelude = false;
         Background = background;
         Log = log;
-        var factions = cache.GetAll<Faction>();
+        var factions = cache.GetAll<Faction>().Where(f => !f.ManufacturerOnly);
         Seed = seed == 0 ? (uint) (DateTime.Now.Ticks % uint.MaxValue) : seed;
         var random = new Random(Seed);
         Factions = factions.OrderBy(x => random.NextFloat()).Take(settings.MegaCount).ToArray();

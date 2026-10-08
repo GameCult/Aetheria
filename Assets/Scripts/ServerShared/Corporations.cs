@@ -57,6 +57,10 @@ public class Faction
 
     [Inspectable, JsonProperty("bossMusic"), Key(15)]
     public uint BossMusic;
+
+    // A manufacturer-only faction sells through other factions' allegiance and never holds territory (ruling minor-power-brands).
+    [Inspectable, JsonProperty("manufacturerOnly"), Key(19)]
+    public bool ManufacturerOnly;
 }
 
 [CultDocument("aetheria.namefile", "1"), Inspectable, MessagePackObject]
