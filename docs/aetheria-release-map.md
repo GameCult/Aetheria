@@ -377,6 +377,373 @@ Counts: demo 52 (31 specs, 11 of them landed, and 21 follow-ups); full game 34 (
 25 follow-ups); obsolete 2 follow-ups. No in-force spec lost its purpose in both scopes,
 so none was withdrawn.
 
+### Demo hulls, the Pirates and the boss
+
+Anchors are against `origin/master` `4d664b53`, unless marked `@2a5fc00b`, the tip of the
+unmerged `eureka/aetheria-release-boss-gate` branch (which contains demo-galaxy). Read by
+`cut-pirates-record`, `cut-package-product`, `cut-boss-hull-derived` and `cut-demo-cast-hulls`;
+question `pirates-record-content` ruled the record's content (see "The Pirates record" below).
+
+- **H1. The catalog at `4d664b53` still has no Pirates, and no faction has a boss hull.** Probe:
+  `git show 4d664b53:GameData/Aetheria.cc | git lfs smudge`, decoded with Python `msgpack`
+  using the store's own schema table. Result: 12 `aetheria.faction` records, the same twelve
+  as D6, with no Pirates. `BossHull` (slot 10) is the empty key `''` on all twelve. Each
+  faction's `Allegiance` holds 11 entries, one for every other faction. Influence runs from
+  2 to 6. There are 12 `NameFile` records: Australia, Congo, Germany, India, Iran, Japan,
+  Mexico, Russia, Swahili, Thailand, USA and pleiades. There are 5 hulls: LonginusX, Longinus
+  and Djinni (`HullType` 0, ship), Zenith (1, station) and Turret (2, turret). Their prices
+  are 7.5M, 7.5M, 10M, 10M and 0.5M. There are 64 products. The catalog changed once after
+  `df7c44f2`: `3d77f2e0` (evasion-catalog tracking).
+- **H2. "Pirates" appears only on the unmerged demo branches.** `git grep -i pirate` over
+  `*.cs` at `4d664b53` returns nothing. At `@2a5fc00b`, `DemoTerminus.cs:10` sets
+  `ProtagonistFaction = "Pirates"`, which `Galaxy.ResolveFaction` resolves by name prefix.
+  The test partial `RunStartTests` copies `GameData/Aetheria.cc` into a scratch directory
+  (`RunStartTests.cs:36-46 @2a5fc00b`). `AddPirates()` (`DemoTerminusTests.cs:20-28
+  @2a5fc00b`) upserts a stand-in Pirates record whose allegiance covers every faction. It is
+  called 21 times: DemoTerminusTests 9, RunGoalTests 10, ScenarioTests 2. Test
+  `DemoTerminus_missing_cast_refused` (`DemoTerminusTests.cs:86-95 @2a5fc00b`) asserts that
+  the shipped catalog has no Pirates. Once the record lands, both the stand-in and that
+  assertion are wrong: the stand-in duplicates the record and the assertion fails.
+- **H3. demo-galaxy and boss-gate are held but unmerged.** `boss-gate` contains
+  `demo-galaxy`; its tip is `2a5fc00b`, 17 commits ahead of master and 94 behind. Verdicts
+  `cut-demo-galaxy.s4` and `cut-boss-gate.s2` hold. Finding
+  `cut-boss-gate.s1.boss-hull-is-a-strangers` records that the demo cannot be generated on
+  the bare catalog, because the Pirates record is missing.
+- **H4. A package holds exactly two records, and no product.** `ShipAuthoringStore.LoadRecords`
+  (`ShipAuthoring.cs:155-167`) refuses any count other than one hull and one visual.
+  `ship_cc.py:85-86` refuses any file that does not hold exactly two envelopes.
+  `ShipModCatalog.Compose` (`ShipModCatalog.cs:48-133`) writes only those two records
+  (`:113-115`). Generation, station stock and the boss all choose from
+  `FactionProductData` (M5). A package hull is therefore reachable only through the
+  console's `give` command. Ruling `package-carries-product` is not implemented on master.
+- **H5. Mod keys.** `IsModKey` (`ShipModCatalog.cs:25-26`) recognises `mod-hull:` and
+  `mod-ship:`. Its comment states the rule that the shipped catalog never references a mod
+  key, because a mod may be uninstalled. A shipped `Faction.BossHull` therefore cannot name
+  a package hull.
+- **H6. Package hulls and top speed.** `ship-authoring create` without `--like`
+  (`ShipAuthoringCommands.cs:45-66`) writes a hull with no behaviours and `Price` 0.
+  `HullLike` copies the reference's members, `VelocityLimit` and `Price` included
+  (`ShipAuthoring.cs:91-106`). `Validate` (`ShipAuthoring.cs:186-293`) has no rule about top
+  speed or price. This is R6, still true. Generation silently skips price-0 products (M5).
+- **H7. Where boss and hull type are read.** At `@2a5fc00b`:
+  - `LoadoutGenerator.GenerateBossLoadout` (`:178-196`) uses `Faction.BossHull` when it is
+    set and sold. Otherwise it falls back to the priciest ship hull on offer.
+  - `RandomHull` (`:131-136`) is the one hull chooser. `GenerateShipLoadout` reaches it at
+    `:37`.
+  - The station stock filter (`:112`) admits ship hulls only.
+  - `Galaxy.PlaceFactionsMain` picks its boss factions by `BossHull.IsSet()` (`:296-299`).
+  - AetherDb's `factions` command prints `BossHull` (`Program.cs:662-672`), and `dangling`
+    mentions it (`:544`).
+
+  No other reader exists. `HullType` is `Ship | Station | Turret` (`Enums.cs:140-145`).
+  Thrusters carry `EntityTypeRestriction(HullType.Ship)`, so a boss must be a `Ship`, not a
+  new `HullType`.
+- **H8. HullData's free key.** Keys in use: ItemData 1, 2, 4-8; CraftedItemData 9;
+  EquippableItemData 10-16, 18-22, 30, 31; HullData 23-29, 32. Key 33 is free on
+  `HullData`. evasion-term's key 33 is on `WeaponData`, a sibling type.
+- **H9. Emoji in names.** The TextMesh Pro default sprite asset
+  (`Assets/TextMesh Pro/Sprites/EmojiOne.json`) holds 16 face glyphs (1f600-1f923, 263a,
+  2639) and no others. The fire emoji in the Pirate Coalition's equipment copy would not
+  render without a new emoji asset (see "Full emoji").
+- **H10. Pirates lore that the record reads from.** Sources:
+  - The vault note `Worldbuilding/Pre-Elysium/Factions/Powers/Major/Pirate Coalition.md`:
+    a loose network, no central command.
+  - `Brainstorming/Faction Flavor and Visual Identity.md:526-557`. Its points: stolen and
+    adapted equipment gives the faction its range rather than an exclusive technology;
+    products are named in emoji; hulls show several surviving finishes interrupted by primer,
+    with one crew accent colour.
+  - `Game Design/Faction Play.md:395` and `:416`: pirates buy everyone's gear.
+  - Corporate Roster: the pirate name is rolled per run. The demo's record is fixed.
+- **H11. Packages in git and in builds.** At `4d664b53`, `.gitattributes` has no `*.glb`
+  rule, and `GameData/*.cc` does not match `GameData/Mods/<id>/ship.cc` (M11 still true).
+  There is no player build entry point; `ships-player` owns staging. `ActionGameManager`
+  composes from `GameData/Mods` (`:49`, `:63`), so editor play reads packages from the repo.
+
+#### The Pirates record
+
+Draft for question `pirates-record-content`.
+
+| Field | Draft | Why |
+|---|---|---|
+| Name, ShortName | `Pirates`, `Pirates` | DemoTerminus's cast field and ruling `demo-cast` both say "Pirates" |
+| Description | "A loose coalition of crews and hidden docks moving people and goods outside official control. No command, no common law: possession has a maintenance schedule." | Vault note; Faction Play's operating logic |
+| PrimaryColor | (0.42, 0.40, 0.37), primer grey | "finishes interrupted by primer" |
+| SecondaryColor | (1.00, 0.45, 0.05), the crew's accent colour | "a crew's chosen accent colour" |
+| GeonameFile | `pleiades` | Star names suit hidden docks; it is not one of the cast's files |
+| InfluenceDistance | 3 | Scattered bases, no continuous territory |
+| Allegiance | 1.0 to each of the 12 other factions; no other faction's allegiance changes | Pirates buy everyone's gear. Only the Pirates field Pirates-made products, including their hull |
+| Personality, music, BossHull | Empty or unset | Doctrine arrives with faction-play r2; the Pirates are not a boss |
+
+Products: stolen-and-adapted rebrands over other makers' designs. The Pirates own no design;
+their range is what they took (Faction Flavor `:532`). Each product's roles: one ProductRole per
+role the design declares, mean .45, sd .22 (middling and inconsistent, against makers' .15).
+Names are emoji; the text gloss is for the operator's review and is not stored.
+
+| Product name | Gloss | Design (current maker) | Description |
+|---|---|---|---|
+| 🫳🔫 | finders keepers | Autocannon (Zhestokost) | "Serial number filed off. Still shoots." |
+| 🪦🤠 | second owner | Earp (Aeronautics Unlimited) | "The previous owner had no further use for it." |
+| 🧾🚫 | no receipt | FastBlast+- (NiteLife Energy) | "Warranty void where prohibited, which is everywhere." |
+| 🎨🙈 | overpainted | 6k Shooter (Zhestokost) | "The logo underneath is somebody else's problem." |
+| 🔥 | the fire | scorched void policy (Death Monkey Explosives) | "Turns out we did start the fire after all." (the roster's line, `Corporate Roster and Item Wishlist.md:85`) |
+| 👀🎯 | borrowed eyes | Targeting Computer (generic) | "Somebody else's eyes. They still work." |
+| 🔑🏃💨 | hotwired | Small Drive (Lightsail Express) | "Hotwired. Do not ask about the ignition." |
+| 📦🤫 | not as declared | Store-All Plus (Lightsail Express) | "Contents not as declared." |
+
+None is on a Miss Terri's design. Each (Pirates, design) pair is new, so `Brand` stays
+unambiguous (CG4). The fire product moves to the flamethrower design if follow-up
+`pirates-flamethrower` lands one.
+
+The record's data does not depend on the emoji font: the simulation owns facts and the font is a
+presenter (invariant `sim-owns-facts`). So the record waits on boss-gate (H2) and not on the emoji
+cuts, and the demo's Pirates (finding `boss-hull-is-a-strangers`) are not held behind a Unity
+presentation cut. Until the emoji font lands, editor play shows the names as missing-glyph boxes.
+
+#### The boss hull is derived, not named
+
+Follow-up `zhestokost-boss-hull` left this map to choose between two options. One was an
+AetherDb command that names the package hull from `Faction.BossHull`. The other was a package
+that declares which faction it is the boss of. The first is ruled out by H5: the shipped
+catalog would name a mod key, and uninstalling the package would leave the reference
+dangling.
+
+The second option, built from parts that already exist:
+- `HullData.Boss` (key 33, bool) marks a hull that only bosses fly.
+- The package's own products name the faction as manufacturer (`package-carries-product`).
+- A faction's boss hull is then the `Boss` hull it manufactures.
+- `Faction.BossHull` has no writer in the catalog (H1), so it is deleted. Key 10 is retired,
+  as `ShipAuthoring` key 1 was.
+
+Starsector is the prior art: a mod puts its ships into an existing faction by shipping a
+faction file that the engine merges. The package therefore carries its own availability (map
+"Why first-party hulls through the package path").
+
+The consequence for the product: a `Boss` hull is never station stock, never ordinary traffic,
+and never offered by `RandomHull` unless the caller asks for a boss. That keeps the boss
+unique. If a faction makes no `Boss` hull, boss-gate's logged fallback stands.
+
+**Why top speed is refused at `Validate`.** `Validate` is the one owner of top speed (follow-up
+`package-hull-top-speed`): compose then excludes a speedless package with its name, and the
+dock intro never sees one. Handling the absence at the intro was rejected because it would let
+a hull fly with no cap.
+
+Ruling `demo-content-bar` also needs NPC role hulls (haulers, tenders, miners) and a dockable
+station; follow-up `demo-role-hulls` owns them.
+
+### Full emoji
+
+Anchors are against `origin/master` `4d664b53`. Read by `cut-emoji-font` and `cut-emoji-sequences`;
+question `emoji-art-set` asks which pinned font input and fetch step the font build uses.
+Rulings this rests on: `pirates-record-content` (emoji-names) and the operator's "I totally want
+full emoji support".
+
+- **E1. TextMesh Pro is the one inside `com.unity.ugui` 2.0.0, on Unity 6000.3.24f1.**
+  `ProjectSettings/ProjectVersion.txt`; `Packages/manifest.json:19` (`"com.unity.ugui": "2.0.0"`);
+  there is no separate `com.unity.textmeshpro` entry. Source read from
+  `F:\Projects\Aetheria\Library\PackageCache\com.unity.ugui@b996e7548785\Runtime\TMP` (read only).
+- **E2. TMP Settings today** (`Assets/TextMesh Pro/Resources/TMP Settings.asset`, an LFS file):
+  `m_ActiveFontFeatures: 00000000` (:18), `m_fallbackFontAssets: []` (:36),
+  `m_defaultSpriteAsset` = EmojiOne (`c41005c1…`, :39-40), `m_enableEmojiSupport: 1` (:42),
+  `m_EmojiFallbackTextAssets: []` (:44). Default font asset is LiberationSans SDF (:27).
+- **E3. EmojiOne is a 16-face sample and nothing uses it.** `Assets/TextMesh Pro/Sprites/EmojiOne.json`
+  holds 16 faces (H9). `git grep "<sprite"` outside the TMP folder: nothing. EmojiOne's guid is
+  referenced only by its own meta and TMP Settings; no prefab or scene sets `m_spriteAsset`. Its
+  attribution file says only "review their licensing terms" (EmojiOne/JoyPixels art is not openly
+  licensed).
+- **E4. TMP's emoji path, by source read.**
+  - Lookup: `TextMeshProUGUI.cs:1932-1944` (and `TextMeshPro.cs:1619`): when a code point is an
+    emoji-presentation form not followed by U+FE0E, or an emoji followed by U+FE0F, TMP searches
+    `TMP_Settings.emojiFallbackTextAssets` first, through
+    `TMP_FontAssetUtilities.GetTextElementFromTextAssets`. That list takes font assets.
+  - Sprite assets resolve one code point each (`TMP_SpriteAsset.GetSpriteIndexFromUnicode`,
+    `:216`, a `Dictionary<uint, TMP_SpriteCharacter>`), so a sprite asset cannot match a ZWJ,
+    skin-tone, flag or keycap sequence. Sequences resolve only through a font asset's GSUB
+    ligature records.
+  - Ligatures: `TextMeshProUGUI.cs:2050-2118`. Gated by `bool ligature =
+    m_ActiveFontFeatures.Contains(OTL_FeatureTag.liga)` (`:1824`), per component. Matching skips
+    ZWJ and VS1-VS16 when they are not the expected component
+    (`TMP_TextParsingUtilities.IsIgnorableForLigature`, `:172-178`), consumes a trailing variation
+    selector, and collapses the span into one glyph. The ligature table read is the current font
+    asset's, which is the emoji font when the fallback found the first code point (`:2021-2023`).
+  - Records come from `FontEngine.GetLigatureSubstitutionRecords` as glyphs are added to a dynamic
+    font asset (`TMP_FontAsset.cs:3097-3131`).
+  - Colour glyphs: a font asset in `GlyphRenderMode.COLOR` gets an RGBA32 atlas and the
+    `TextMeshPro/Sprite` shader (`TMP_FontAsset.cs:606-625`); its vertices are forced white, so a
+    `<color>` tag around an emoji does not tint it (`TMP_Text.cs:5376-5385`).
+  - `TMP_Text.OnMissingCharacter` (`TMP_Text.cs:1389`) is a static event raised for every
+    missing code point: the smoke's probe.
+- **E5. No text component has ligatures on.** 154 TMP components in 50 files (48 prefabs, 2
+  scenes), none legacy `UnityEngine.UI.Text`. Serialized feature lists: 24 x `00000000` (legacy:
+  converted on load to `[kern]` when `m_enableKerning`, `TMP_Text.cs:6082-6088`) and 38 x
+  `6e72656b` (`kern`), all in the two scenes (`ARPG.unity` 64 lines with the field,
+  `FieldShieldTest.unity` 1; `grep -rc "m_ActiveFontFeatures: 6e72656b$"` over prefabs and
+  scenes = 38). The 48 prefabs' components have no field and take the same legacy path. One component is
+  created at runtime (`ActionGameManager.cs:301`, the FACE AIM mark).
+- **E6. Turning `liga` on changes no Latin text.** All ten project font assets (`Assets/Fonts/*/*.asset`,
+  LiberationSans SDF) are static (`m_AtlasPopulationMode: 0`) with zero ligature records. Only
+  the emoji font would supply ligatures.
+- **E7. LFS.** `.gitattributes:33` `*.ttf` and `:50` `*.asset` are LFS; TMP Settings.asset,
+  EmojiOne.asset and EmojiOne.png are LFS objects today.
+- **E8. Editor batch pattern.** `Assets/Scripts/Editor/EngineAssetCheck.cs:35-50`: a MenuItem plus
+  `-executeMethod EngineAssetCheck.Run`, exit 1 on failure in batchmode. The emoji builder and
+  smoke follow it.
+- **E9. Prior art (web, 2026-10-08).**
+  - Unity's documented path for colour emoji is a colour font asset in TMP Settings' Emoji
+    Fallback Text Assets (TMP 3.2/4.0 manual "Color emojis"; Unity 6 manual
+    `UIE-color-emojis`). Unsupported: SVG colour glyphs, AAT fonts, COLRv1 (the manual names
+    "Noto Color Emoji" as the COLRv1 case), and chain-context and single-substitution features.
+    Ligature substitution (GSUB type 4), which carries ZWJ, skin-tone and flag sequences, is
+    supported. COLRv0 is supported (the manual's Android note).
+  - Unity forum thread 932305: the CBDT `NotoColorEmoji.ttf` from the googlefonts repo renders
+    through a Color font asset; the Google Fonts download (COLRv1) does not.
+  - Sets: Twemoji (`jdecked/twemoji`, community fork, Emoji 17.0, graphics CC-BY 4.0; distro
+    packages build COLRv0/COLRv1/CBDT TTFs from its SVGs with `nanoemoji`, version 17.0.2).
+    Noto Emoji (`googlefonts/noto-emoji`: fonts OFL 1.1, images Apache 2.0; the prebuilt
+    `NotoColorEmoji.ttf` is CBDT, bitmaps from `png/128`). OpenMoji (CC-BY-SA 4.0; COLRv0 font
+    shipped; outlined line-art).
+  - Not verified here: the exact jdecked release assets (its release page lists two source
+    archives and no TTF), so a Twemoji TTF is built, not downloaded.
+- **E10. Visual identity.** AetheriaLore `Brainstorming/Faction Flavor and Visual Identity.md:532,
+  541, 548`: Pirates' products are named in emoji, a crew vocabulary; hulls carry "large emoji
+  marks". `Ship Design Language.md:222-226`: one large emoji crew emblem painted three times.
+  `Corporate Roster and Item Wishlist.md:85`: "Named entirely in emoji. The flamethrower is" the
+  fire emoji. `Game Design/Visual and Sensory Direction.md` says nothing about an emoji art set;
+  its interface register is "should feel like equipment" (:43).
+
+**Why one colour emoji font asset.** One owner: a colour emoji font asset generated from a pinned
+font file, set as TMP's emoji fallback and appended to TMP's global fallback list. Every TMP text
+renders emoji through it with no per-component wiring, because TMP itself routes emoji code points
+there (E4).
+
+Rejected: a generated TMP sprite asset (the brief's first guess). Sprite lookup is one code point
+per sprite (E4), so full emoji would also need a text preprocessor that rewrites every sequence to
+a private-use code point, installed on every one of 154 components and every runtime text. That is
+more code doing what TMP's font path already does.
+
+Rejected: a runtime-built font asset (`TMP_FontAsset.CreateFontAsset` at boot). It needs
+`Shader.Find("TextMeshPro/Sprite")` in a player (`TMP_FontAsset.cs:625`), which a build strips
+unless the shader is always-included; an editor-built asset references its material and shader.
+
+Sequences need `liga` on the rendering component (E4, E5). There is no global TMP switch, so the
+sequences cut sets it on every serialized component through one editor command and on TMP
+Settings' defaults for new components. It changes no Latin text (E6).
+
+The atlas is dynamic and multi-atlas: glyphs rasterise on first use, so nothing is hand-made and
+nothing is pre-baked. `m_ClearDynamicDataOnBuild: 1` (TMP Settings) already clears dynamic atlases
+at build. The pinned font file is the only binary input, and its provenance is a lock file
+(source, version, sha256 in and out). `emoji-art-set` decides only which pinned input and which
+fetch step; the asset, settings, smoke and deletion are the same for every option. The font build
+itself (option twemoji: nanoemoji) runs under `py -3` on Yggdrasil, not Starfire; the Unity batch
+run is Starfire's. The sequences command touches only the `m_ActiveFontFeatures` line of each of
+48 prefabs and 2 scenes, so it wants the freshest master and a quick merge.
+
+### Retiring the prelude and the tutorial
+
+Body: `origin/master` `4d664b53`; "merge tree M" as in the faction-play re-anchor (BS-probes), unless
+noted. Read by `cut-retire-prelude` and `cut-gear-without-presence`; question `dev-scenarios-cast`
+asks which galaxy the six test scenarios use once the authored cast goes. D1 and "Why the demo is a
+prelude galaxy" describe the code before this retirement.
+
+- **PR1.** `Galaxy.IsPrelude` (`Galaxy.cs:30`) is written by three constructors: the save
+  constructor from `SavedGame.IsTutorial` (`:53`), the main constructor `false` (`:107`), the
+  prelude constructor `true` (`:175`). Its readers (grep over Assets, tests, tools): `InfluenceOf`
+  (`:158-161`, halves influence rounding up), `LoadoutGenerator.IsAvailable` (`:211-214`, every
+  product on offer), `RunStart.GenerateArena` (`RunStart.cs:29`) and
+  `ActionGameManager.PopulateLevel` (`ActionGameManager.cs:721-727`) as ZoneGenerator's
+  `isTutorial`, `RunSave.Capture` (`SavedGame.cs:77`), and tests (`RunGoalTests.cs:22`,
+  `RunStartTests.cs:146`, `ScenarioTests.cs:137, :146, :554-557`).
+- **PR2.** `InfluenceOf` feeds both generation and later zone generation: `Galaxy.cs:214-247`
+  (cast homes), `:314-324` (main homes), `:342-349` (influence), and `ZoneGenerator.cs:212`
+  (`factionPresence`, which sets station and enemy counts). A restored galaxy generates unvisited
+  zones through `PopulateLevel`, so the halving must persist with the run, today through
+  `SavedGame.IsTutorial` (key 11).
+- **PR3.** `ZoneGenerator.GenerateZone(..., bool isTutorial = false, bool ambient = true)`
+  (`:40-46`): the entrance station floor at `:223-224`, the widened orbit pool at `:238` and
+  `:246-248`, and the throw at `:327-329` all apply only to `isTutorial && galaxyZone ==
+  galaxy.Entrance`. Source: operator 2026-09-25 "Tutorial station" (`docs/locomotion-cut.md:375`),
+  scoped to the tutorial level.
+- **PR4.** The cast type is `TutorialGenerationSettings` (`Settings.cs:96-106`): five faction
+  names, LinkDensity, ZoneCount. Readers: `GameSettings.cs:30` (field, plus
+  `TutorialBackgroundSettings` `:31`), `GalaxyStage.cs:16, :29, :71-74` (`Prelude()` and
+  `Prelude(cast)`), `RunStart.cs:36-37`, `ScenarioStage.cs:21-35` (read only by
+  `TutorialGalaxy.cs:13`), `MainMenu.cs:178-179`, `ActionGameManager.cs:848`,
+  `DemoTerminus.cs:8` (the demo's cast), `tools/AetherDb/Program.cs:489-533` (`settings` and
+  `settings-dump`).
+- **PR5.** `Assets/Resources/Settings.asset` (LFS, smudged at 4d664b53) `:43-52`: the authored cast
+  is protagonist `Miss`, antagonist `Zhe`, buffer `Luc`, neutrals `Aero` and `Finch`, quest
+  `Adras`, 64 zones; `TutorialBackgroundSettings` at `:53`.
+- **PR6.** Six test scenarios generate `stage.Prelude()`, the authored cast: Arcs, DjinniShakedown,
+  Duel, LauncherAngles, LongHaul, StarvedReactor (`Scenarios/*.cs`, one line each).
+  `Scenarios.Development` is `{ TutorialGalaxy, MainGalaxy }` (`Scenarios.cs:8`). Their galaxy
+  includes Miss Terri's as protagonist.
+- **PR7.** The prelude constructor's `playerSettings` and `narrativeDirectory` parameters feed only
+  the StoryProcessor lines commented out at `Galaxy.cs:258-260` (dead since ce1a0a46, 2021, per
+  locomotion-cut.md:375).
+- **PR8.** `LoadoutGenerator.IsAvailable` (`:211-214`) and `ManufacturerPreference` (`:217-226`):
+  availability requires `Galaxy.ContainsFaction(manufacturer)` unless the galaxy is a prelude; an
+  absent manufacturer has no home zone, so `ManufacturerPreference` gives it distance 0, the
+  highest weight its allegiance allows. `Galaxy.ContainsFaction` (`:453-457`, cache
+  `_containedFactions` `:36`) has one game reader (IsAvailable); other readers are
+  `FireControlCut6cTests.cs:253` and the AetherDb `loadout exclude-sellers` mode
+  (`Program.cs:745-790`), which builds a galaxy without named factions precisely to exercise the
+  presence gate. `ScenarioStage.cs:29` builds its availability with Faction null, which today means
+  every present maker.
+- **PR9.** `SavedGame` (`SavedGame.cs:9-52`) is an int-keyed MessagePack document
+  `aetheria.savedgame` v1, keys 0-13; `IsTutorial` is key 11.
+- **PR10.** Tests touching the concept (grep -c "tutorial|prelude", case-insensitive):
+  RestoredHullsTests 65, ScenarioTests 30, DemoTerminusTests 29, RunStartTests 16, MiningCut3Tests
+  3, RunGoalTests 1. Most are the `TutorialGalaxySettings()` fixture family in RestoredHullsTests
+  and the `isTutorial:` argument.
+- **PR11.** Open boss-gate finding `test-reads-isprelude` (verdict cut-boss-gate.s1) is
+  `RunGoalTests.cs:22`; retiring the flag removes it by construction.
+
+**Why two cuts.** The follow-up asks to absorb gear-availability-without-presence and to keep the
+subtraction separate from behaviour. Removing the presence gate changes what every galaxy
+generates, so it is its own cut (`gear-without-presence`), landed first; `retire-prelude` then
+deletes the flag with no behaviour change except where named.
+
+**Why `IsPrelude` is split by rule, not renamed.** It bundles four unrelated rules, and each goes
+to its owner:
+- influence halving -> the cast's own `InfluenceScale` (the demo's cast sets .5, so its galaxy is
+  unchanged), carried by the Galaxy and the save (key 14) because later zones read it (PR2);
+- the entrance station -> `Scenario.EntranceStation`, a declaration beside `Ambient`, default true,
+  false for MainGalaxy, so every scenario's arena is unchanged; RunStart.GenerateArena applies it;
+- availability -> the general rule of gear-without-presence;
+- the save flag -> deleted (key 11 retired; ruling `no-save-compatibility-before-players`).
+
+A renamed flag on Galaxy was rejected: it would keep one switch deciding four things.
+
+**Absent manufacturers.** Preference weights by distance to the maker's headquarters, and an absent
+maker has none. The cut weighs it one jump beyond the farthest zone. Prior art: the gravity model
+of trade (Tinbergen 1962; Anderson and van Wincoop 2003) weights flows by distance decay, and a
+supplier with no local presence carries the largest trade cost, so it is reachable but least
+preferred. Zero distance (today's accident) would make absent makers the most preferred, inverting
+the rule.
+
+**Old saves.** Key 14 absent decodes as 0 and the save constructor refuses a non-positive scale by
+name. Per ruling `no-save-compatibility-before-players` nothing reads key 11.
+
+### Model page rows
+
+| Kind | What names it | Over time | Who decides |
+|---|---|---|---|
+| Pirates `Faction` | Catalog record, name `Pirates` | Authored once by `AetherDb pirates-faction apply`; doctrine is added by faction-play r2 | Ruling `pirates-record-content`; the operator sees the dry run |
+| Package product | `mod-product:<id>:<maker key>` in the package's `ship.cc` | Written by `AetherDb ship-authoring product`; copied verbatim by compose; Blender never edits it | The package author |
+| Boss hull | `HullData.Boss` (key 33) | Set by `ship-authoring boss`; a faction's boss hulls are derived per generation from the products it makes | The package author; `BossHullsOf` derives |
+| `Faction.BossHull` (key 10) | Retired | Deleted by `boss-hull-derived` | none |
+| Pirates products | 8 `FactionProductData`, emoji names, over other makers' designs | Authored with the faction in one commit | Ruling `pirates-record-content` |
+| Package hull price | `HullData.Price` | Written by `ship-authoring price` (or `create --like`) | The package author |
+| Emoji font file | `Assets/Fonts/Emoji/<set>.ttf` + `emoji-font.lock` | Rebuilt only by `tools/emoji` at a new pinned version | The operator's `emoji-art-set` ruling |
+| Emoji font asset | `Assets/Fonts/Emoji/Emoji.asset` (dynamic, COLOR, multi-atlas) | Regenerated by `EmojiFont.Build`; atlas filled at runtime, cleared at build | `EmojiFont.Build` |
+| TMP emoji routing | TMP Settings `m_EmojiFallbackTextAssets` and `m_fallbackFontAssets` | Set by `EmojiFont.Build` | `EmojiFont.Build`; no prefab overrides it |
+| Ligatures per text | Each TMP component's `fontFeatures` | `liga` added once by `EmojiFont.EnableLigatures`; new components inherit TMP Settings | `EmojiFont.EnableLigatures`, then the component |
+| EmojiOne sample | none | Deleted by `emoji-font` | none |
+| Galaxy cast (replaces `TutorialGenerationSettings`) | A scenario's code constant (`DemoTerminus.Cast`) | Compiled with the game; no authored settings copy | The scenario |
+| `Galaxy.InfluenceScale` | Its galaxy | Set by the constructor (the cast's value, 1 for main), saved as `SavedGame` key 14 | The cast |
+| `Scenario.EntranceStation` | Its scenario | Compiled | The scenario; `RunStart` applies it |
+| `SavedGame` key 11 (`IsTutorial`) | Retired | Not read, not written | none |
+| `Galaxy.IsPrelude`, `TutorialGalaxy`, `TutorialGenerationSettings`, `GameSettings.TutorialGenerationSettings` | Deleted by `retire-prelude` | | none |
+
 ## Faction play: the NPC scripting
 
 The operator ruled on 2026-10-03 that the faction dynamics may elaborate the NPC
@@ -642,8 +1009,9 @@ and builds on `Zone.Release` from `loot-1`.
 
 | Kind | Identity | Lifecycle | Authority |
 |---|---|---|---|
-| Doctrine | `Faction.Doctrine`, catalog, key 17. | Authored through an `AetherDb` catalog command, as the targeting migrations were. | The catalog author. Read when a ship joins a flight. |
-| Flight | Runtime: zone plus faction. | Formed at admission, rebuilt on load, gone with the zone. Never persisted. | Itself alone, for members' `Target`, `Task`, hails and pings. |
+| Doctrine | `Faction.Doctrine`, catalog, key 17. | Authored through an `AetherDb` catalog command, as the targeting migrations were. Null reads as the default doctrine built from `GameplaySettings`. | The catalog author. Read when a ship joins a flight. |
+| Agent (`Zone.Agents`) | Its ship. | Created by `Zone.Admit`, removed on the `Entities` removal path (it was never removed before). | `Zone`. |
+| Flight | Runtime: zone plus faction. | Created on first join, rebuilt on load; members leave on removal or death, and it goes with the zone. Never persisted. | Itself alone, for members' `Target`, `Task`, hails and pings. |
 | Track (flight picture) | Runtime: flight plus hostile entity. | Lives while any member sees it, or a sharer lends it. | The flight, from members' perception. Never written into `EntityInfoGathered`. |
 | Duel | Runtime: flight plus challenger. | Offered, then held or broken. Ends when the challenger leaves the picture or dies. | The flight, from landed hits with their source. |
 | Ammunition baseline | Runtime: member. | Counted at admission. | The flight. Rearm moves real cargo through `TryTransferItems`. |
@@ -703,6 +1071,106 @@ Each is sized at roughly 550 to 720 lines with tests, under 200k Hands tokens. A
 four wait for `codex/mining` (it changes `Target`'s type and edits `Minion.cs`) and
 `codex/scenarios` (it rewrites admission in `Zone.cs`) to merge, because the first
 cut rewrites exactly those lines.
+
+### Re-anchor on master 4d664b53 (2026-10-08)
+
+Body: `origin/master` `4d664b537f76029fbaee94392da3d8a122f81339`, read in a detached scratch
+worktree. Where a probe says "merge tree M", it read `git merge-tree --write-tree origin/master
+origin/eureka/aetheria-release-boss-gate` = tree `8387b47214ef6e44cae28a4e6a2b9b91d51464d9`
+(boss-gate `2a5fc00b` contains demo-galaxy `85d0a148`; the merge is clean, no conflicts) with
+`git show <tree>:<path>`. No commit was made. Read by the faction-play cuts, r2 and later.
+
+- **BS1. Branch state.** `git merge-base --is-ancestor`: `codex/mining`, `codex/scenarios`,
+  `eureka/aetheria-release-mining` and `-scenarios` are ancestors of master.
+  `eureka/aetheria-release-demo-galaxy` (85d0a148) and `-boss-gate` (2a5fc00b) are NOT.
+  demo-galaxy's merge base with master is 228f241e; master is 94 commits ahead of it.
+  `-retire-longinusx` on origin equals master (4d664b53): its Hands had not pushed.
+- **BS2.** `git merge-tree --write-tree --name-only origin/master <branch>`: demo-galaxy and
+  boss-gate each merge into master with no conflicting path (trees f3f69e84 and 8387b472).
+- **BS3.** feedback-1, ballistic-ammo, controls-mount-aim, controls-ai-bearing, autofire-threshold
+  and ai-autofire had in-force specs and no report (specs-with-no-report query, as of ordinal 753).
+  `CapabilityEvents.PublishAbsorb` has no caller in `Assets/Scripts/ServerShared` (grep):
+  feedback-1's absorb publish sites do not exist yet.
+- **FP1.** `Minion.cs:7-22`: constructor `Minion(Ship ship)`; `:14` is the one VisibleEnemies
+  subscription that writes `Ship.SetTarget(add.Value)` when `Target.Value.IsNone`; combat
+  transitions read `Ship.Target.Value.Entity` (`:18`, `:21`).
+- **FP2.** `Zone.cs`: `Agents` `:40`; `Admit` `:167-172` is the only `Agents.Add` in Assets (grep)
+  and the comment names it the one admission; `CreateAgent` `:174-181` draws the circuit at `:178`
+  and assigns `agent.Task` at `:179`; the agent loop `:221-222`; the only Entities subscription is
+  the death subscription at `:107` (ObserveAdd -> Death -> Remove + Deactivate).
+- **FP3. Nothing ever removes an agent.** `Agents.Remove`/`Clear` appear nowhere in Assets or tests
+  (grep). A dead or departed ship's Minion keeps running every tick. Removal from `Zone.Entities`
+  happens at `Zone.cs:107` (death), `Entity.cs:1268` (docking) and `ActionGameManager.cs:725` (the
+  player's zone transfer).
+- **FP4.** `Entity.cs`: `_iffOverrides` `:53`; `Target` `:60` (TargetRef, one writer `SetTarget`
+  `:358`); `SetIff` `:811-815`; `IsHostileTo` `:817-836`; `GetFactionRelationship` `:838-845` reads
+  `Galaxy.FactionRelationships` only for the player's ship, so NPC-vs-NPC hostility is still only
+  trespass in an owned zone plus reciprocity ("TODO: Inter-faction hostility"). Consequence for the
+  demo: the allied Pirates and the antagonist Zhestokost do not fight each other; the Pirates'
+  doctrine is seen only against trespassers in Pirates zones. Relations (key 16) remain unmapped.
+- **FP5.** `FireControl.cs:104-112` `AgentFires(weapon, shooter, target)` reads
+  `GameplaySettings.AgentMinHitProbability` at `:109`. Callers: `Combat.cs:121` and
+  `TurretController.cs:83` (grep). `Combat.cs:159` reads `AgentRangeExponent`; `_optimumRange`
+  `:13`. `Settings.cs:251` and `:274` hold the two globals. Ten FireControl test fixtures set
+  `AgentMinHitProbability = 0f` in their settings.
+- **FP6.** `Agent.cs`: `Task` `:22`, `Settings` `:25`, constructor `:28-36`, `Update` `:47-59` zeroes
+  `Ship.Turn` each tick (controls-helm), `Accelerate` `:61-84`. `TaskType` `AgentTask.cs:24-33` has
+  no Follow or Flee. States live in `Agents/States` (BaseState, Combat, MoveTo); `PatrolOrbitsState`
+  is in `Agents/Tasks/PatrolOrbits.cs:10`.
+- **FP7.** `Corporations.cs`: Faction keys run to `BossMusic` Key(15) at `:58-59`; keys 16 and 17
+  are free.
+- **FP8.** `tools/AetherDb/Program.cs` command switch `:23-40`; `TargetingCatalog(bool apply)` at
+  `:1096` is the dry-run/apply precedent.
+- **FP9.** Tests that construct `new Minion(ship)` directly: `FireControlPerWeaponTests.cs:276,
+  :291, :580, :597` and `FireControlTests.cs:214`; `RunStartTests.cs:100` and `SafeAssert.cs:44`
+  read `zone.Agents`.
+- **FP10.** `LoadoutGenerator.cs`: `GenerateShipLoadout(Predicate<HullData>)` `:35-50`,
+  `EquipHardpoints` `:220-263`, `FillInterior` `:265`. `ZoneGenerator.cs`: faction ships
+  `:342-348`, wanderers `:350-364`, `return pack` `:366`. boss-gate adds a boss block to both files
+  (+38 and +18 lines), so anchors in them move by symbol after it merges.
+- **FP11.** `Entity.TryTransferItems(Entity, CultRecordKey, int)` at `Entity.cs:977`. No
+  `GeneratedMagazines` or `AmmoType` exists in `LoadoutGenerator.cs` or `Settings.cs`:
+  ballistic-ammo has not landed.
+- **FP12.** `Entity.Sensor` `:142`; `Sensor.Ping()` `Sensor.cs:110`.
+- **FP13.** Catalog `GameData/Aetheria.cc` at 4d664b53 (LFS, smudged in the worktree): the string
+  "Pirates" occurs only inside geoname lists, no Faction record (H1). Follow-up
+  `pirates-catalog-record` is the owner.
+- **FP14.** Lore source for the Pirates' doctrine: AetheriaLore `Aetheria/Game Design/Faction
+  Play.md` section "Pirate Coalition" (`:333-338`) and the summary row `:386`: crews want cargo,
+  not death; demand a drop, hit drives, leave fights they are losing. Of these, the flight
+  primitives express the demand (hail and grace) and leaving a losing fight (break-off). Demanding
+  a drop as compliance and aiming for drives need jettison (map item 10) and subsystem aim, which
+  no cut builds yet.
+
+**What changed from the first anchor.** The first faction-play pass anchored on `f1dee184` and
+waited for the mining and scenarios lanes. Both are merged (BS1), so the later specs branch from
+master and anchor on 4d664b53. Target is a TargetRef written only through `SetTarget`, and
+`Zone.Admit` is the only creator of agents, as the follow-up says.
+
+Agents are also removed on entity removal (FP3). A flight whose membership follows removal while
+the agent list does not would leave two answers to "who is in this zone"; one subscription now
+decides both.
+
+The Pirates' doctrine is authored in the doctrine-catalog command's table. While the catalog lacks
+the Pirates record (FP13), the command names the missing faction and writes the rest; once the
+record lands, re-running apply writes it. No doctrine, barks or levers for Miss Terri's.
+
+The played proof sits in the DemoTerminus scenario with the demo cast, because the third cut
+completes the behaviours the demo cast shows (Zhestokost's tender column, Lucent's duel, AU's
+haulers); the fourth keeps the tender loop as full-game scope with no proof.
+
+The ping cadence asks `Sensor.Ping()` and nothing more. Follow-up `sensor-stat-set-cut` is a
+separate, larger mapping (per-sensor power, beam width, passive gear, shared tracks) and was not
+mapped here; whatever Ping becomes, the flight only decides when to ask.
+
+Key layout on Faction: Relations 16 (reserved, ruling `faction-relations-field`), Doctrine 17
+(ruling `faction-doctrine-typed`). ships-hull-livery's Livery at 16 must move to 18 (follow-up
+`livery-key-collision`, owner ships-hull-livery's next revision).
+
+Collision: `ai-autofire` rewrites Combat's and TurretController's fire decision "at the agent
+threshold". After faction-play-1 the agent threshold is the member's
+`RoleDoctrine.MinHitProbability` (turrets keep the global). Whichever lands second re-anchors; the
+next ai-autofire revision should read `_agent.Doctrine.MinHitProbability`.
 
 ### Prior art
 
@@ -4050,6 +4518,93 @@ pass of 2026-10-07, source marks as in Controls; the EVE formula is the player w
   today, and any larger shape fits no hull, like CShot. Nothing in the record settles its intended
   shape; question `plight-shape` asks it.
 
+### Body facts: evasion core, mount term and autofire seams (2026-10-08)
+
+Body: `origin/master` `4d664b53`, read in a detached worktree. The in-flight branch
+`origin/eureka/aetheria-release-controls-mount-aim` (e103b90a, 538b11b4) was read with `git diff
+4d664b53 <branch>`, never checked out. Read by `cut-munition-shots`, `cut-munition-jink`,
+`cut-autofire-threshold` and `cut-autofire-controls`.
+
+- **MA1. Master's evasion is two factors in one price** (source read, `FireControl.cs`).
+  `HitProbability` (:350-357) is `PFire * PMount(AngularVelocity(source, target),
+  TrackingRate(weapon, source)) * PSpread * POnHull * PDeviation(evasion, Tracking(source))`.
+  `Forecast` (:326) computes `evasion = Evasion(target, TravelDirection)`. The mount factor reads
+  the gun's rate times the ship's gear (`TrackingRate`, :221-224); the jink factor reads the ship's
+  gear alone in metres (`Tracking`, :195-199), as rulings `tracking-per-gun` and `jink-per-ship`
+  say.
+- **MA2. The evasion core is already subject-free** (`FireControl.cs:496-516`).
+  `Evasion(Entity, los)` returns 0 for a non-Ship and otherwise calls the pure
+  `Evasion(in ManoeuvreEnvelope, float2 heading, in ManoeuvreTrack, float2 los, float window)`,
+  whose comment calls it "the one call guns and munitions make". A munition can answer it with its
+  own envelope, heading and track without a second evasion function.
+- **MA3. The envelope and track types** (`FireControl.cs:2049-2115`). `ManoeuvreEnvelope` is six
+  accelerations (Forward, Reverse, Left, Right in m/s^2 along body axes; Clockwise,
+  CounterClockwise turn rates). `ManoeuvreTrack.Observe(float2 acceleration, float dt, float
+  window)` keeps trend, innovation and second moments and forgets a window after the last change
+  of vector. `Reach` (:521-546) with both turn rates zero reduces to the box's no-turn support
+  `0.5 * (face along) * T^2` plus faces whose turn is zero (`ReachFace` returns 0 for a turned face
+  when its rate is below 1e-4, :552). So a point-mass munition with no turn rate is priced by its
+  box alone, which is what a vector-commanded munition can do.
+- **MA4. Who writes a ship's track** (grep over `Assets/Scripts/ServerShared`). One writer:
+  `Entity.Update` at `Entity.cs:1478` (`Manoeuvre.Observe(Acceleration, delta, SolutionWindow)`),
+  acceleration being the base update's velocity change with the limit clamp added back (:1477).
+  Thrusters supply the envelope (`Thruster.Manoeuvre()`, `Thruster.cs:98`); `Ship.Envelope` sums
+  them (`Ship.cs:153-159`).
+- **MA5. Fire freezes the mount for an entity subject only** (`FireControl.cs:688`). `pFire =
+  solution.PFire * (solution.Engaged != null ? PMount(AngularVelocity(source, solution.Engaged),
+  TrackingRate(weapon, source)) : 1f)`. `CommitProbability` (:864-878) multiplies the frozen
+  `PFire` by `DeviationProbability` (:483-489), which adds `Evasion(shot.Target, ...)` to the
+  realised drift. A munition subject needs both: the mount frozen at fire from its own position and
+  velocity, and the evasion at commit from its own track.
+- **MA6. `AngularVelocity` has a planar overload** (`FireControl.cs:209-213`):
+  `AngularVelocity(float2 offset, float2 relativeVelocity)`, range floored at 1 m. A munition's
+  offset is `Flight.Position - source.Position.xz` and its relative velocity `Flight.Velocity -
+  source.Velocity`; no new geometry is needed.
+- **MA7. No munition code is on master** (`ls Assets/Scripts/ServerShared`, grep `MunitionId`).
+  `Munitions.cs`, `MunitionFlight` and `MunitionId` do not exist; `TargetRef` (`Zone.cs:646-670`)
+  has only Entity and Chunk. missile-stats, missile-records and missile-odds had no report
+  (specs-with-no-report query, as of ordinal 750). munition-shots' anchors into that code are by
+  name.
+- **MA8. controls-mount-aim, in execution, changes the seams these cuts touch** (diff of
+  4d664b53..origin/eureka/aetheria-release-controls-mount-aim, FireControl.cs and Weapon.cs): adds
+  `Solution(Weapon, Entity shooter, TargetRef subject)` after `AimDirection` returning `GunSolution
+  { Entity Subject; bool Bears; bool Free; float2 Direction }`; adds `Bears(weapon, source, Entity
+  target, out range)` and routes `PFire` through it; rewrites `ArcPermitsFire` to `fused || mine
+  layer || Solution(weapon, shooter, shooter.Target.Value)` bears or free; Solve's travel direction
+  becomes `Solution(weapon, source, target).Direction`. The branch dropped the Broadside scenario
+  (538b11b4: no catalog hull has side-rotated gun hardpoints).
+- **MA9. PendingShot construction sites** (grep `new PendingShot` over Assets/Scripts and tests):
+  two, `FireControl.Fire` and `FireControlCut9Tests.cs`. Readers of `shot.Target` in FireControl:
+  :487-488, :808, :867-876, :884, :920-950, :1132-1140, :1190, :1483; outside:
+  `EntityInstance.cs:331-333`.
+- **MA10. Autofire seams on master** (source reads): `Entity.WeaponGroups` `Entity.cs:82`, sized
+  :791-793, removal path :1050; `PowerBus.Step` :1453 then the equipment loop :1455-1458 (the only
+  place equipped behaviours execute in `Entity.Update`); `Weapon.Activate/Deactivate` set `_firing`
+  only (`Weapon.cs:156-164`), so a weapon draws no power by being triggered. `StanceAllowsFire`
+  `Weapon.cs:113`, `ArcAllowsFire` :123. `Refuses` `FireControl.cs:93-95`, `AgentFires` :104-112
+  (its first branch is the mine layer's: worth it when `Solve` says Designated). `Fire` reads
+  `source.Target.Value.Entity` at :683. `EntityPack` keys 0-16 on the base class, subclasses use
+  17-20, key 21 unused (`EntitySerializer.cs`). `ActionBarWeaponGroupBinding`
+  `ActionBarSlot.cs:177-210`; slot input actions are created in `ActionGameManager.createBinding`
+  (:434-442, `started` activates, `canceled` deactivates). `ControlsHud.cs` does not exist on master
+  (controls-hud creates it). `Zone.Targets.Within(in TargetSearch, List<TargetCandidate> into)`
+  (`TargetingIndex.cs:99`) fills a caller's list. `Scenarios.Tests` (`Scenarios.cs:7-10`) ends with
+  `LauncherAngles, LongHaul`.
+- **MA11. The close-crosser fixture already exists**
+  (`tests/Aetheria.Shared.Tests/EvasionTrackingTests.cs`). `EvMountRange(gunRate, laserRate)` sets
+  two guns on one shooter to authored rates through `EvSetRate` (:23-29), and
+  `LightAndHeavyGunsSplitOnAFastCloseCrosser` (:139-160) with rates 40 and 3 and `EvCross(range,
+  jinking: false, float2(100, 0))` at 200 m measures PMount >= 0.85 and <= 0.01. The steady
+  crosser's evasion is zero (EvCross settles the track), so the split is the mount term alone. The
+  fixture places the target with `ScenarioStance.Neutral` (default of `ScenarioStage.Place`,
+  `ScenarioStage.cs:109`); `Entity.SetIff(other, true)` (`Entity.cs:810`) or
+  `ScenarioStance.Hostile` makes it hostile.
+- **MA12. No PD-class gun is in the catalog** (tracking table). The highest authored rates are
+  ClearPath 12 and Spectra 10 deg/s; launchers are +infinity. Against inbound missiles the angular
+  velocity is small (mostly radial approach), so these suffice to engage salvos in a scenario;
+  against a fast close crosser ClearPath prices 0.37 / 0.76 (TC / FCA, map table). The catalog
+  growth section's PD guns (CG-probes) are the content that closes this.
+
 ### The design
 
 **The resolution model** is ruled: `missiles-resolution-model`, geometry-sets-odds. The second
@@ -4529,12 +5084,12 @@ while one of your autofire guns has it as subject.
 | Kind | Identity | Lifecycle | Authority |
 |---|---|---|---|
 | Munition (light record) | Its `PendingShot`'s `ShotId`, as `MunitionId` in a `TargetRef`. | From fire through its terminal gate (commit) to arrival, or until interception or lifetime; never saved, as pending shots are not. | `FireControl` for transitions and the roll; `Munitions.Advance` for flight. |
-| Munition flight | `PendingShot.Flight` (position, velocity, delta-v, command, wear, seeker, lock, faction, inbound rounds). | Stepped every tick; gone with its shot. | `Munitions.Advance` under `FireControl.Step`; wear by `DamageMunition`. |
+| Munition flight | `PendingShot.Flight` (position, velocity, delta-v, command, wear, seeker, lock, faction, inbound rounds, `Track`). | Stepped every tick; gone with its shot. `Flight.Track` observes the command Advance applied each step; it is runtime, never saved, and discarded with the shot. | `Munitions.Advance` under `FireControl.Step`, the one writer of the track (as `Entity.Update` is for a ship); `Munitions.Envelope` derives what it can reach from its stats and fuel, and `FireControl` prices it through the same evasion core as a ship; wear by `DamageMunition`. |
 | Entity manoeuvre track | `Entity.Manoeuvre` (`ManoeuvreTrack`: trend, filtered innovation, its second moment). | Observed every update from the velocity change across the base update; never saved. | `Entity.Update`. |
 | Ship envelope | `Ship.Envelope` (`ManoeuvreEnvelope`: four body-frame accelerations, two turn rates). | Recomputed every update from the live propulsors; never saved. | `Ship`, from each propulsor's report. |
 | Missile stats | `MunitionData` on `LauncherData` / `GuidedWeaponData`, six groups. | Catalog data in `Aetheria.cc`. | The catalog now; gear once munitions are entities. |
 | Autofire setting | Per weapon group, `Entity.Autofire` (on, threshold). | Set by the player; saved in `EntityPack` key 21. | The player. |
-| Autofire subject | Per weapon, runtime only. | Re-picked by `Autofire.Update` when the current one stops being worth firing. | `FireControl.ChooseSubject`. |
+| Autofire subject | Per weapon, `Weapon.AutofireSubject`, runtime only. | Re-picked every tick, and when the current one stops being worth firing. | `FireControl.ChooseSubject`. |
 
 ### Rationale
 
@@ -4639,6 +5194,379 @@ reading can take), jamming and soft kill; boost and midcourse fuel planning; min
 (`bodies-entity-and-mines`); whether launchers draw rounds (`launcher-ammunition`). Whether
 the demo cast fields launchers for the player's PD to meet is content: the cuts add a
 `Point Defense` scenario for the operator check.
+
+**Why a munition's evasion goes through the ship's core.** Follow-up
+`munition-shots-evasion-interface` (absorbed by `cut-munition-shots`) asked that a munition answer
+`FireControl.Evasion` "with its own manoeuvre envelope (from its missile-stats thruster group) and
+its own course-change record, like ships do". The earlier price went through a direct agility
+(`Stats.Lateral` while fuelled) and the command vector, which is the strafe-only reading ruling
+`evasion-is-unpredictability` overturned for ships. The munition now gives the core the two inputs
+it reads: `Munitions.Envelope(flight)` (faces equal to Advance's own command clamps; no turn rates,
+because a munition commands any planar vector at once, MA3) and `Flight.Track` (observed by
+Advance, MA4's pattern). Then `Evasion(flight, los)` is one line over the shared core, a jinking
+missile is evasive because its track sees changes of vector, and a dry one is not because its
+envelope is zero. A missile pursuing a weaving target also shows innovation from its PN commands;
+that is evasion by the ruling's own measure ("how much the ship is actually changing its vector"),
+not a defect.
+
+**Why the mount term is the munition's own geometry.** Follow-up `munition-shots-mount-term`:
+`PMount(AngularVelocity(Flight.Position - source.Position.xz, Flight.Velocity - source.Velocity),
+TrackingRate(weapon, source))` (MA6), frozen at fire like an entity's (MA5), with the jink forgiven
+per ship by `Tracking(source)` (ruling `jink-per-ship`). Inbound missiles approach mostly radially,
+so their angular velocity is small and PD guns hold them; a missile crossing close is hard to
+follow, which is the CIWS geometry and EVE's tracking formula `0.5^((omega/rate)^2)` the mount term
+already is.
+
+**Why the box support is enough.** `Reach`'s no-turn support assumes the lateral and along-track
+faces fire independently (a box), while Advance clamps the total command to `Stats.Acceleration` (a
+disc with a lateral cap). Across the line of sight the binding limit is the lateral face, which the
+box and the disc share; the corners overstate reach only on oblique lines of sight, and the
+observed track caps the evasion before the envelope does in every case the tests build. A disc
+support would be a second reach function for one corner case; not bought.
+
+**Why munition-shots is split.** The earlier estimate was 465 lines and 12 tests across Solve,
+Fire, Step, Commit, Apply, Detonate, Solution and Advance, and the envelope, track and mount term
+add to it. The evasion-term cut of similar reach took 190 calls and overran (memory
+`hands-batch-sizing-and-stryker-offsets`). The jink (inbound-round count, Advance step 4 and the
+fuel-spend tests) is a separate behaviour with its own rulings (`missiles-fuel-and-seekers`,
+`missile-cognition`) and its own failure modes, and it reaches the PD price only through the track.
+So `munition-shots` is the subject, price and resolution (about 380 lines) and `munition-jink` is
+the jink (about 170 lines), each falsifiable alone.
+
+**Why the autofire divert test uses a steady close crosser.** Under ruling
+`evasion-angular-velocity-r2` a steady fast crosser close in evades through the mount term even
+with no jink, and that is exactly where ruling `speed-demon-counterplay` wants light guns to hold a
+ship heavy guns cannot. MA11's fixture gives the split (PMount >= 0.85 against <= 0.01) with zero
+evasion, so the test proves the chooser reads the per-gun price and nothing else. The threshold is
+set inside the interval between the heavy gun's price and the lower of the light gun's price and
+the heavy gun's price without the mount, so a Worth that drops the mount, or reads the ship's gear
+in place of the gun's rate, lets the heavy gun fire and fails.
+
+**Why autofire-threshold is split too.** The earlier version (about 520 lines) mixed the headless
+chooser, Worth, SubjectOf, the saved settings and 13 tests with Unity work (action-bar modifiers,
+HUD diamonds, a new scenario) whose every loop needs a Starfire compile. `autofire-threshold` keeps
+the sim half (about 360 lines) and gives the settings one writer, `Entity.SetAutofire`, so the
+presentation half, `autofire-controls` (about 190 lines), writes nothing else.
+
+**Unowned checks.**
+- `missile-odds` was written against evasion-term. It prices a missile's hit on a ship with the
+  target's evasion; whether a missile as shooter takes any mount term was never ruled (the tracking
+  table lists launchers at +infinity: "the round steers itself"). Worth a check before missile-odds
+  is dispatched, if no parallel pass already owns it.
+- No PD-class gun existed (MA12). The Point Defense scenario and the speed-demon play check could
+  run on ClearPath and Spectra, but the ruled outcome "PD-class guns hit a speed demon reliably"
+  has no catalog gun to show it until one is authored (see "Catalog growth").
+
+## Catalog growth: generic designs, branded products
+
+Ruling `catalog-grows-generic-designs-branded-products` (operator, 2026-10-08): designs are generic
+and branding lives in products. A design is expected to carry several products. `Title` is the one
+owner of an item's displayed title (`ItemManager.Title`, landed by `product-titles`); there is no
+`DisplayName`. Body: `GameCult/Aetheria` `origin/master` `4d664b537f76029fbaee94392da3d8a122f81339`,
+unless a fact names another anchor (LP facts read the `product-titles` head `7f700d3c`). Read by
+`cut-pd-gear`, `cut-lot-product`, `cut-generic-design-names`, `cut-product-lines-weapons`,
+`cut-product-titles` and `cut-pirates-record`; question `minor-power-brands` and follow-up
+`gear-product-lines` own the rest of the gear.
+
+### Body facts
+
+Catalog decode method for CG1-CG4: `cultcache_py` `SingleFileMessagePackBackingStore.
+pull_all()` over `GameData/Aetheria.cc` at `4d664b53` (LFS pulled into the worktree), each payload
+`msgpack.unpackb`ed and read by MessagePack key (the M28 method); the store is `cultcache.store.v1`
+with 13 schemas and 217 records. Scratch scripts were not committed.
+
+- **CG1. The catalog's record census at 4d664b53.** 64 FactionProductData, 51 CompoundCommodityData,
+  32 GearData, 18 WeaponItemData, 13 SimpleCommodityData, 12 Faction, 12 NameFile, 5 HullData,
+  4 CargoBayData, 1 FieldKindData, 1 DockingBayData, 1 InputLayout, 0 Loadout. Factions (short
+  names): AU, Adrasteia, Alakrita, DME, Ewan Hart, Finch, Lightsail, Lucent, Miss Terri's,
+  NiteLife, R&D, Zhestokost. No Pirates record yet (H1).
+- **CG2. The data model already separates design from product; the content does not** (source read
+  plus CG1). `FactionProductData` (`ServerShared/FactionProduct.cs:14-31`: Name 1, Description 2,
+  Design 3 `CultRecordRef<CraftedItemData>`, Manufacturer 4 `CultRecordRef<Faction>`, Roles 5
+  `ProductRole{Role, Mean, StandardDeviation}`) is a manufacturer's branded variant of a design; its
+  own comment says a market segment is "a second product with a role pumped up". Price is on the
+  design, not the product (`HullData.Price`, H1). Generation and station stock pick products, not
+  designs (`LoadoutGenerator.RandomProducts`, `:142-171`; `GenerateStationLoadout` stocks 16 random
+  products, `:107-114`). Presets build a design by its first available product in record-key order
+  (`Loadout.Resolve`, `Loadout.cs:160-191`). But of the 59 sold designs only Targeting Computer and
+  Fire Control Array carry more than one product (3 each: Panopticon Prime by Finch, ClapBack Ultra
+  by Lucent, LockOn Pro by NiteLife on the array, and Panopticon, ClapBack, LockOn on the
+  computer); every other design has exactly one product, and in 49 of them the design's own name is
+  the brand (product name equals design name: ClearPath, Spectra, Earp, Manhattan, Store-All Plus
+  ...). Three designs already have generic names under a brand product (Core Power -> Steadfast,
+  plight -> DragOnBreath, pswarm -> Leonid); seven generic-named designs sell a product of the same
+  generic name (Autocannon, Cockpit 2x2, Turret Control Module, Industrial Thermostatic Heater,
+  Medium Drive, Small Drive, Medium Docking Bay). Most designs' `Description` is the brand's voice
+  ("Defend your precious cargo and have fun doing it"); 20 products carry an empty or `[TODO]`
+  description. 64 products over 60 designs; 0 duplicate (design, maker) pairs.
+- **CG3. Where the player sees a name** (source read, master). `PropertiesPanel.GetTitle`
+  (`UI/Properties Panel/PropertiesPanel.cs:431-437`, `data.Name`) and the trade list
+  (`UI/Menu/TradeMenu.cs:193-197`, the Name column, tier-coloured) and buy dialog (`:355`) show the
+  design `Name`. The product name and description appear only as extra property lines after `Brand`
+  (`PropertiesPanel.cs:370-380`); `Inspect(ItemData)` shows the design as `Type` (`:530`). So today
+  the brand reaches the headline only because design names are brand names, and a product named in
+  emoji would be listed under its design's name. `product-titles` moves the headline to the
+  product (see LP3).
+- **CG4. A lot does not record its product** (source read, master). `Lot`
+  (`ServerShared/Provenance.cs:64-70`) holds Design 0, Origin 1, Quality 2, Roles 3.
+  `ItemManager.CreateLot(product)` (`ItemManager.cs:134-155`) writes the maker into `Origin` and
+  drops the product. `ItemManager.Brand` (`:206-222`) re-derives the product as the lowest-key
+  `FactionProductData` with that maker and design. Two products of one design by one maker (the
+  market segment `ProductRole`'s comment designs for) are therefore indistinguishable after
+  creation: the player sees the lower-key product's name and text whatever was bought. Today no
+  maker sells two products of one design (CG2), so nothing shows it yet.
+- **CG5. Weapon fields and the reference small guns** (source read `Behaviors/Weapon.cs:20-72`,
+  `Behaviors/InstantWeapon.cs:10-20`, `ItemData.cs:477-509`; catalog decode). WeaponData keys:
+  DamageType 1, Damage 2, Penetration 3, DamageSpread 4, MinRange 5, Range 6, DamageCurve 7,
+  EffectPrefab 8, Energy 9, Heat 10, Visibility 11, AmmoType 12, MagazineSize 13, ReloadTime 14,
+  Spread 15, Velocity 16, Tracking 33; InstantWeaponData Count 17, BurstTime 18, Cooldown 19;
+  WeaponItemData WeaponRange 24, Caliber 25, WeaponType 26, FireTypes 27, Modifiers 28,
+  BlastRadius 29, Fuse 32; GearData Hardpoint 23 (enum order Hull..AetherDrive: Energy 9,
+  Ballistic 10, Launcher 11). Shape is `[width, height, cells]`. Evaluated (Min-Max):
+
+  | Design | HP | Mass | Price | Dmg | Range | Cooldown | Count | Spread | Velocity | Energy | Ammo/Mag | Tracking |
+  |---|---|---|---|---|---|---|---|---|---|---|---|---|
+  | ClearPath | Ballistic 2 cells | 50 | 50,000 | 2-6 | 250-600 | 0.1-0.033 | 1 | 1.25-0.25 | 700-1250 | 1-0.5 | none / 0 | 12 |
+  | Spectra | Energy 2 | 25 | 125,000 | 20-85 | 800-1750 | 0.5-0.25 | 1 | 0.1-0 | 0 (beam) | 20-40 | none | 10 |
+  | FastBlast+- | Energy 2 | 125 | 150,000 | 20-80 | 500-1250 | 0.33-0.1 | 12 | 3-1 | 400-900 | 0 | cells / 12 | 9 |
+  | Autocannon | Ballistic 4 | 75 | 250,000 | 3 | 1000 | 0.5 | 1 | 0.5 | 500 | 5 | Ammo / 50 | 4 |
+  | DeathCluster | Ballistic 4 | 250 | 450,000 | 100-250 | 500-1000 | 1-0.25 | 12-15 | 3-0.5 | 750-1500 | 25-5 | Ammo / 8 | 3 |
+
+  Damage, Heat and Energy are divided by the burst count per pellet (`InstantWeapon.cs:128-134`).
+  The ammunition commodity is the SimpleCommodity that Autocannon's AmmoType names (`3085fc8a...`).
+- **CG6. Homes for one-cell guns** (source read `LoadoutGenerator.HasHome`, `:173-176`;
+  `HardpointData.Takes`, M30). A design is offered only if some catalog hull has a hardpoint that
+  `Takes` it, which is any design of the slot's type whose shape lies within the slot. Longinus has
+  two Energy 1x2 hardpoints, Djinni two Ballistic 1x2, the station Turret two Ballistic 2x4. So a
+  1x1 Ballistic or Energy gun and a 1x2 Ballistic gun all have homes on master.
+- **CG7. Munitions on master.** `missile-records`, `missile-stats`, `munition-shots`,
+  `autofire-threshold` and `autofire-controls` had no report: master has no munition record yet
+  (MA7). missile-stats authors munition `Durability 20`. `Detonate` is the one blast path and
+  damages entities, not munitions (missile-odds, "Detonate is the one blast path").
+- **CG8. A shipped weapon may not carry a fuse today.**
+  `FireControlCut124Tests.ShippedCatalogIsNeutralOnBlastRadiusAndFuse`
+  (`tests/Aetheria.Shared.Tests/FireControlCut124Tests.cs:2591-2610`) asserts every shipped weapon's
+  BlastRadius and Fuse are null. An airburst flak gun would break it; the flak below is a pellet gun.
+- **CG9. The catalog tracking test** (`tests/Aetheria.Shared.Tests/EvasionTrackingTests.cs:290-313`,
+  `EveryCatalogGunTracks`) requires every non-launcher gun's Tracking finite, Min = Max > 0. New
+  guns must author it.
+- **CG10. Design names in code at 4d664b53** (`git grep -F` over `*.cs` for the quoted names of
+  the generic-names table). 61 hits in 12 files: scenarios Arcs.cs 14, Duel.cs 11,
+  LauncherAngles.cs 8, StarvedReactor.cs 6; tests EvasionTermTests 10, BrownoutTests,
+  EvasionTrackingTests, PowerCurveTests, RestoredHullsTests, RunStartTests, ScenarioTests 1 each;
+  tools/AetherDb/Program.cs 6. Loadout and product references are by record key, unaffected by a
+  rename.
+- **CG11. Behaviour index 31 is CapacitorData** (`ServerShared/Behaviors/Behaviors.cs:178`), so
+  PotaT+- is NiteLife's capacitor. The wishlist's "capacitors: no products" line is stale.
+- **CG12. Vault sources read** (AetheriaLore `33cd06a`): `Aetheria/Game Design/Faction Play.md`
+  (loadout and quirk lines 118-266, 307-357), `Aetheria/Brainstorming/Faction Flavor and Visual
+  Identity.md` (Aya point defense and interceptors :458, Megiddo decoys and interception :566),
+  `Aetheria/Brainstorming/Corporate Roster and Item Wishlist.md` (item ideas :57-87, gaps :97-146;
+  its "What this is for" names the design/product text split). Zhestokost's loadout names "flak and
+  shrapnel (MFer, DeathCluster)" against missiles; Lightsail's names ClearPath as its machine gun
+  and Cetacean Navigators' Waykeeper escorts carry point defense with Lightsail haulers; Aya and
+  Megiddo are the heavy-PD and decoy factions but are not catalog factions. `Ship Play Concepts.md`
+  was not found in either repo at these heads.
+- **LP1. `Lot` keys** (`Assets/Scripts/ServerShared/Provenance.cs:63-80`, at 7f700d3c). Keys 0-3
+  (Design, Origin, Quality, Roles); key 4 is free. Lots and origins already carry
+  `CultRecordRef<ItemData|Faction|SimpleCommodityData>` through MessagePack (:66, :101, :108, :119),
+  so a fourth `CultRecordRef<T>` needs no formatter work.
+- **LP2.** `ItemManager.Brand` (ItemManager.cs:206-222) derives the product at :217-220 with
+  `GetAll<FactionProductData>().Where(maker and design).OrderBy(key).FirstOrDefault()`. It is the
+  only such derivation in Assets/ (git grep `GetAll<FactionProductData>`: ItemManager :217, plus
+  Loadout :194 and LoadoutGenerator :145, which choose a product to mint, not read an item's).
+- **LP3.** `Title` (ItemManager.cs:226-227) reads `Brand(crafted).Product?.Name`. Brand's readers:
+  Title, PropertiesPanel.cs:374 (Manufacturer and description), tests LoadoutTests
+  :336/:359/:395/:844 and RunStartTests :136/:678. Nothing else reads an item's brand, so fixing
+  Brand fixes every reader.
+- **LP4.** Lot writers in Assets/: only `CreateLot(product)` (:136-158) and `CreateLot(design,
+  maker, quality)` (:161-170). Production callers of the second: ActionGameManager.cs:544/:548
+  (console give, no maker) and Loadout.cs:182 (unbranded preset, no maker). No `new Produced` in
+  Assets/ or tools/; Produced lots exist only in tests.
+- **LP5.** Behaviour change: a lot from `CreateLot(design, maker, q)` whose maker sells that design
+  used to brand as the maker's key-first product; once the lot records its product it brands
+  (maker, null) and titles by design. No production path mints such a lot (LP4).
+- **LP6.** Tests pinning the derivation: LoadoutTests
+  `BrandPicksFirstProductInKeyOrderForSameMakerAndDesign` (:375-397) pins the tie-break that goes
+  away; its comment says the census's duplicate detector exists because of it. Stale comment in
+  LoadoutTests :315-317 ("Brand() requires at most one product per (maker, design)").
+- **LP7.** AetherDb census (tools/AetherDb/Program.cs:124-138) prints "(maker, design) pairs with
+  more than one product" as a fault, justified by Brand's tie-break. Under the ruling a design
+  carries several products, and a maker may sell two of one design; with `Lot.Product` the pair is
+  no longer ambiguous.
+- **LP8.** Run save: `RunSave.Commit` (SavedGame.cs:138) writes the reachable ledger;
+  `RunSave.Lots(cache)` (:132) reads it back. RunSaveTests :382-400 shows the fixture shape (a
+  ledger plus a SavedZone whose pack references the lot).
+- **LP9.** ItemTitleTests (tests/Aetheria.Shared.Tests/ItemTitleTests.cs) builds Array with
+  products Panopticon Prime (Finch, key array-finch) and ClapBack Ultra (Lucent); Soul's probe added
+  a second Finch product of Array and saw Title return the first (finding `title-key-first-product`).
+
+### Content tables
+
+Drafted content that specs cite. Names are drafts the operator may rename.
+
+**Maker profiles** (one Mean / StandardDeviation applied to every role of the design, from Faction
+Play's loadout lines and the existing products' roles):
+
+| Maker | Mean | Dev | Why |
+|---|---|---|---|
+| Zhestokost | .50 | .08 | armour and consistency, no finesse |
+| AU | .50 | .12 | "mid-quality, consistent: the all-rounder" |
+| Lightsail | .55 | .10 | freight reliability |
+| R&D | .60 | .15 | compute, contractor quality |
+| Lucent | .60 | .15 | premium, loud |
+| NiteLife | .55 | .12 | energy specialist |
+| Finch | .65 | .20 | "high variance in role quality" |
+| Alakrita | .60 | .14 | light, fragile, excellent |
+| DME | .55 | .20 | runs hot, uneven |
+| Adrasteia | .60 | .10 | exacting |
+
+No product is authored for Miss Terri's (ruling `miss-terris-belongs-to-emily-r3`) or the Pirates
+(the Pirates record owns their products, ruling `pirates-record-content`).
+
+**PD products** (`pd-gear`; the three new designs are the Point Defense Gun, Point Defense Laser and
+Flak Gun, whose stats follow under the rationale):
+
+| Design | Product | Maker | Description |
+|---|---|---|---|
+| Point Defense Gun | Waykeeper | Lightsail | Freight first, questions later. Keeps a hauler's paint unscratched through a full salvo. |
+| Point Defense Gun | Rampart | Zhestokost | A column does not dodge. It does not need to. |
+| Point Defense Gun | Swatter | AU | Keeps the rocks and the rockets off your back while you work. |
+| Point Defense Gun | Catch-All | R&D | Guaranteed to stop the missile!* *Missile defined as whatever it stops. |
+| Point Defense Laser | Glare | Lucent | Every missile gets its moment in the spotlight. A short one. |
+| Point Defense Laser | Nightlight | NiteLife | Lights out for anything with a warhead. Shares the bus with your blasters, so mind the meter. |
+| Point Defense Laser | Wren | Finch | Small, quiet and quicker than it looks, most days. |
+| Point Defense Laser | Gnat | Alakrita | Weighs less than your conscience and keeps the fast pass fast. |
+| Flak Gun | MFer | Zhestokost | Our shrapnel turns your enemies into scrapnel. (the operator's own line, Item Wishlist :57) |
+| Flak Gun | Hailstorm | AU | A wall of steel for crews who would rather not count missiles. |
+| Flak Gun | sky full of teeth | DME | light it up/ shake it loose/ nothing gets through tonight |
+
+**Generic design names** (`generic-design-names`; hulls, Traction and already generic names
+excluded: hull names are the model names other passes are revising, retire-longinusx deletes
+Traction):
+
+| Old design name | Generic design | Functional description |
+|---|---|---|
+| ClearPath | Light Machine Gun | Light ballistic hose: many small rounds at short range. |
+| 6k Shooter | Slug Rifle | Single heavy slugs, fired as fast as the trigger. |
+| Earp | Long Slug Rifle | A lighter slug rifle with the longest ballistic reach. |
+| DeathCluster | Cluster Cannon | Medium shotgun: a heavy volley of pellets. |
+| pretty pretty bang bang | Charged Scattergun | Ballistic shotgun that charges for a heavier volley. |
+| Spectra | Light Laser | The lightest beam: low damage, quick cycle, long reach. |
+| FastBlast+- | Cell Blaster | Rapid energy bursts fed by cells that cut its reactor draw. |
+| ColdFire | Long Laser | Heavy small beam: slow, hard-hitting, long reach. |
+| CShot RainbowLite Lazer | Heavy Beam Laser | The heaviest beam: nine cells, enormous damage and reach. |
+| ChargeBlast+- | Charged Blaster | One charged knockout shot. |
+| ChargeBlast SG | Charged Scatter Blaster | Charged energy shotgun. |
+| plight | Lightning Projector | Charged chain lightning. |
+| GT 3K | Guided Missile Launcher | Fires guided missiles. |
+| LRMM72 | Long-Range Missile Rack | Large missile rack for long engagements. |
+| SRMM72 | Short-Range Missile Rack | Extra-large rack of short-range missiles. |
+| pswarm | Swarm Rocket Pod | Dumbfire rockets in a swarm. |
+| scorched void policy | Incendiary Rocket Pod | Incendiary dumbfire rockets. |
+| Arctica | Adaptive Radiator | Radiator whose output scales widely with conditions. |
+| Iapyx | Radiator | Standard two-cell radiator. |
+| Skiron | Long Radiator | Four-cell radiator with a large surface. |
+| OK Disperser | Heat Pump | Moves heat to where it can be shed. |
+| cold like my heart | Cryogenic Heat Pump | Heavy heat pump that drives temperatures far down. |
+| Core Power | Compact Reactor | Small reactor. |
+| Manhattan | Heavy Reactor | Large three-by-three reactor. |
+| Notorious | High-Yield Reactor | Large reactor with a wide output range. |
+| Vulcan | Ring Reactor | Ring-shaped reactor, four by four. |
+| MoveOnPro | Muon Fusion Reactor | Compact fusion reactor that draws a reservoir. |
+| Core Power Station Reactor | Station Reactor | A reactor sized for a station's core. |
+| Manhattan Station Reactor | Heavy Station Reactor | A heavy reactor sized for a station's core. |
+| Notorious Station Reactor | High-Yield Station Reactor | A high-yield reactor sized for a station's core. |
+| Vulcan Station Reactor | Ring Station Reactor | A ring reactor sized for a station's core. |
+| MoveOnPro Station Reactor | Muon Fusion Station Reactor | A muon fusion reactor sized for a station's core. |
+| RevvITup 2.0 | High-Thrust Drive | Large drive: huge thrust, little torque. |
+| deep space burnout | Burn Drive | Large drive that runs very hot. |
+| Talaria | Rugged Drive | Two-cell working drive. |
+| Victoire | Racing Drive | Feather-light two-cell drive with extreme response. |
+| The Bat | Sensor Array | Two-by-two long-range sensor array. |
+| not if i see you first | Compact Sensor | One-cell sensor. |
+| PotaT+- | Capacitor | Stores charge for burst draw. |
+| SafeStuff II | Secure Cargo Bay | Three-by-three secured hold. |
+| Store-All Enterprise Edition | Large Cargo Bay | Six-by-six hold. |
+| Store-All Plus | Cargo Bay | Two-by-two hold. |
+| Store-All Plus Mini | Small Cargo Bay | One-cell hold. |
+
+The product keeps the old name, so the brand survives as the product. Products whose name equals a
+generic design get a brand: Autocannon (Zhestokost) -> Hammerfall; Cockpit 2x2 (Lightsail) ->
+Wheelhouse; Industrial Thermostatic Heater (Lightsail) -> Hearth; Medium Drive (Lightsail) -> Steady
+Haul; Small Drive (Lightsail) -> Short Hop; Turret Control Module (AU) -> Watchtower; Medium Docking
+Bay (AU) -> Open Berth. The Bat's product is Miss Terri's: its record is not touched; only the
+generic design under it is renamed. Description move: the design's old text goes to its product
+when the product's is empty, `[TODO]` or identical; otherwise the product keeps its own and the
+dropped design text is printed in the dry run and the commit message.
+
+**Weapon product lines** (`product-lines-weapons`):
+
+| Design | New product | Maker | Description |
+|---|---|---|---|
+| Light Machine Gun | Rattler | AU | Cheap, loud, and there when the rocks start moving. |
+| Slug Rifle | SM-6 Marksman | R&D | Standardised, certified, guaranteed to hit the target.* |
+| Long Slug Rifle | Longshot | Finch | Light, quiet and dead accurate, when it feels like it. |
+| Autocannon | Workhorse | AU | Feeds from anything, fires at anything. |
+| Cluster Cannon | everything at once | DME | why aim/ when you can be everywhere |
+| Charged Scattergun | Grapeshot | Zhestokost | The old answer to boarders, sized for the void. |
+| Light Laser | Sparrow | Finch | Barely registers on the scale, or on their sensors. |
+| Light Laser | Spotlight | Lucent | Make sure they know who got them. |
+| Cell Blaster | Strobe | Lucent | Fast, bright, and very hard to ignore. |
+| Long Laser | Kestrel | Finch | Hovers at the edge of range, then stoops. |
+| Heavy Beam Laser | Afterglow | NiteLife | Keeps glowing long after the fight is over. |
+| Charged Blaster | Encore | Lucent | One more, for the fans. |
+| Charged Scatter Blaster | nobody leaves early | DME | doors are locked/ lights are low/ stay for the finale |
+| Lightning Projector | Static Shock | NiteLife | A jolt for every ship in reach. |
+| Guided Missile Launcher | Homer | Finch | Finds its way, mostly. |
+| Long-Range Missile Rack | Long Haul | AU | Delivers to the far side of the zone. |
+| Short-Range Missile Rack | Short Fuse | AU | For problems already too close. |
+| Swarm Rocket Pod | Confetti | Lucent | Every launch is a celebration. |
+| Incendiary Rocket Pod | Trebuchet | Zhestokost | Siege fire for a column that does not stop. |
+
+### Model page rows
+
+| Kind | What names it | Over time | Who decides |
+|---|---|---|---|
+| `FactionProductData` (catalog) | Its record | Every sold design carries at least one product whose name differs from the design's, and is expected to carry several | The catalog author: the brand a player sees |
+| Item title | `ItemManager.Title(item)` | Derived on each read from the lot's brand; the design name stays as `Type` | `ItemManager.Title`, the one owner; there is no `DisplayName` |
+| `Lot` (run save) | `Lot.Product` (key 4) | Written once by `CreateLot(product)`; a lot made without a product (console give, extraction) has none and shows its maker only. A product that no longer resolves reads as unbranded | `CreateLot`; `Brand` reads it and nothing re-derives a product from maker and design |
+| `WeaponItemData` (catalog) | Three new generic designs: Point Defense Gun, Point Defense Laser, Flak Gun | Authored once by `pd-gear` | The catalog author |
+
+### Rationale
+
+**Titles name the product.** One engine-free derivation in ServerShared, `ItemManager.Title(
+CraftedItemInstance)`: the brand's product name, else the design name. Every title site reads it.
+This is what makes "branding lives in products" visible, and what shows the Pirates' emoji names.
+`lot-product` moves the brand's authority from a catalog query (LP2) into the lot, so that two
+products of one design by one maker stay distinct (CG4, LP9). A first plan for it added a
+`DisplayName` over the same hunks as `Title`; Soul verdict `cut-product-titles.s1` found two title
+owners in force (`title-vs-displayname-split`) and Self ruled Title the one owner. A lot whose
+product no longer resolves (a removed mod's product) reads as unbranded: `Brand` returns (maker,
+null) and `Title` falls back to the design; `RequireDesigns` is not widened (ruling
+`no-save-compatibility-before-players`). The census duplicate-brand block (LP7) goes away.
+
+**Why three PD designs and not five.** The missile-defence rulings in force are `pd-who-engages`
+(any gun, priced by its own stats), `missiles-sim-side-light` (missiles are lightweight records PD
+can engage), `weapon-tracking-authored` (a PD class near 40 deg/s exists to be authored) and
+`speed-demon-counterplay`. They need guns with PD stats, which the catalog lacks: the PD Gun
+(ballistic hose, the Djinni's slots), the PD Laser (energy, the Longinus's slots, so the demo's
+starting hull can fit PD) and the Flak Gun (Zhestokost's flak doctrine as a pellet gun, which needs
+no new rule: each pellet rolls). An interceptor launcher needs missiles that take munition subjects
+and a decoy launcher needs a signature the seeker can read that is not a ship; both are new
+mechanics, which the target's not-in-scope line excludes until ruled. They are follow-ups
+`interceptor-launcher` and `missile-decoys-signature`, not catalog content. An airburst flak (a
+blast that wears munitions in its disc) is follow-up `flak-airburst-at-munitions`.
+
+**Derivation of the PD stats** (from CG5 and the tracking table). Tracking 40 is the table's PD
+anchor (0.82 / 0.94 against the speed demon at TC / FCA). PD Gun is ClearPath's role pushed to its
+extreme: one cell, lighter (40 kg), less damage per round (1.5-4) at a higher rate (0.06-0.025 s)
+and shorter reach (300-550 m), because a munition has 20 durability (CG7): 5 to 14 rounds kill one.
+It draws ammunition (`ballistics-real-ammo`) and a small cycling energy, 0.4-0.2
+(`ballistics-cycle-power`). PD Laser is Spectra's role: instant beam, 5-12 per shot every 0.2-0.1 s
+to 400-750 m, energy-limited at 6-10 a shot, 2 to 4 hits a missile. Flak Gun is DeathCluster's
+shotgun at small calibre, 1x2: 6-8 pellets sharing 30-70 damage a volley, 350-800 m, Tracking 20
+(between PD and ClearPath, because pellets cover what tracking misses).
 
 ## Retiring the LonginusX and parking the aether drive
 
