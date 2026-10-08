@@ -151,7 +151,7 @@ public sealed partial class RunStartTests
         var before = Assert.Single(galaxy.Exit.Contents.Entities, entity => entity.IsBoss);
         Assert.False(RunGoal.ExitOpen(galaxy.Exit.Contents));
 
-        var (game, zones) = RunSave.Capture(_cache, galaxy, arena, staged.Player, new SavedActionBarBinding[0]);
+        var (game, zones) = RunSave.Capture(_cache, galaxy, arena, staged.Player, new SavedActionBarBinding[0], 0);
         RunSave.Commit(_cache, game, zones, _items.Lots);
         var restored = new Galaxy(_cache, _cache.GetGlobal<SavedGame>(), _ => { });
         var exit = new Zone(_items, _planetSettings, restored.Exit.PackedContents, restored.Exit, restored);

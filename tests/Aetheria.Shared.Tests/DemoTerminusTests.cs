@@ -64,7 +64,7 @@ public sealed partial class RunStartTests
         var (galaxy, arena, staged, failures) = Launch(new DemoTerminus(), Inputs(() => 1));
         Assert.True(failures.Count == 0, string.Join("; ", failures));
         galaxy.Entrance.Contents = arena;
-        var (game, zones) = RunSave.Capture(_cache, galaxy, arena, staged.Player, new SavedActionBarBinding[0]);
+        var (game, zones) = RunSave.Capture(_cache, galaxy, arena, staged.Player, new SavedActionBarBinding[0], 0);
         RunSave.Commit(_cache, game, zones, _items.Lots);
         var restored = new Galaxy(_cache, _cache.GetGlobal<SavedGame>(), _ => { });
 
