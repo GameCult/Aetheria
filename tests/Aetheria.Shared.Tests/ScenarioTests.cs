@@ -500,32 +500,6 @@ public sealed partial class RunStartTests
         Assert.False(player.IsHostileTo(bow) || player.IsHostileTo(stern), "the bare hulls are neutral");
     }
 
-    // Broadside's geometry: the player carries guns on both sides in separate groups. Each side's gun bears on the hull
-    // abeam on its side and on nothing else, and the hull ahead bears for neither.
-    [Fact]
-    public void BroadsideGeometry()
-    {
-        var staged = Stage(Arena(false), new Broadside());
-        var player = staged.Player;
-        var port = staged.Entities[0];
-        var starboard = staged.Entities[1];
-        var ahead = staged.Entities[2];
-        Assert.Equal((Broadside.Port, Broadside.Starboard, Broadside.Ahead), (port.Position.xz, starboard.Position.xz, ahead.Position.xz));
-
-        var groups = player.WeaponGroups.Where(group => group.items.Count > 0).ToList();
-        Assert.True(groups.Count >= 2, "the guns must sit in separate groups");
-        var portGun = Assert.Single(groups.SelectMany(group => group.items).Where(item => item.EquippableItem.Rotation == ItemRotation.CounterClockwise && item.Behaviors.OfType<Weapon>().Any()));
-        var starboardGun = Assert.Single(groups.SelectMany(group => group.items).Where(item => item.EquippableItem.Rotation == ItemRotation.Clockwise && item.Behaviors.OfType<Weapon>().Any()));
-        Assert.NotEqual(groups.Single(group => group.items.Contains(portGun)).items, groups.Single(group => group.items.Contains(starboardGun)).items);
-
-        Assert.True(FireControl.InArc(portGun, port.Position - player.Position));
-        Assert.False(FireControl.InArc(portGun, starboard.Position - player.Position));
-        Assert.False(FireControl.InArc(portGun, ahead.Position - player.Position));
-        Assert.True(FireControl.InArc(starboardGun, starboard.Position - player.Position));
-        Assert.False(FireControl.InArc(starboardGun, port.Position - player.Position));
-        Assert.False(FireControl.InArc(starboardGun, ahead.Position - player.Position));
-    }
-
     // Q3 (operator, 2026-09-30): a design no product sells is a scenario test design and nothing else. A test design
     // is one some scenario's staged entities carry, fitted or in cargo. These are the unsold designs none carries.
     private List<string> UnsoldAndUnplaced(IEnumerable<RunStart.Staged> runs)

@@ -364,6 +364,7 @@ public sealed class FireControlCut5Tests : IDisposable
         var settings = TestSettings();
         settings.FiringArc = 60; // narrow -- an abeam target is well outside it
         var e = BuildBeam(settings, float3(100, 0, 0)); // directly abeam
+        e.Shooter.Aim = float3(0, 0, -1); // astern, outside the arc: nothing bears and the aim is not free
 
         e.Weapon.Activate();
         Assert.True(e.Weapon.Firing); // Activate() sets _firing unconditionally, same as InstantWeapon.Trigger
@@ -466,6 +467,7 @@ public sealed class FireControlCut5Tests : IDisposable
         shooter.Position = float3.zero;
         target.Position = float3(100, 0, 0); // directly abeam
         shooter.SetTarget(target);
+        shooter.Aim = float3(0, 0, -1); // astern, outside the arc: only a solution can fire the gun
 
         var weapon = (Weapon) weaponItem.Behaviors.Single(b => b is Weapon);
         Assert.False(weapon.ArcAllowsFire);
@@ -489,6 +491,7 @@ public sealed class FireControlCut5Tests : IDisposable
         e.Shooter.Position = float3.zero;
         e.Target.Position = float3(100, 0, 0); // abeam -- outside the narrow 60-degree arc
         e.Shooter.SetTarget(e.Target);
+        e.Shooter.Aim = float3(0, 0, -1); // astern, outside the arc: nothing bears and the aim is not free
 
         var resolvedCount = 0;
         e.Zone.ShotResolved.Subscribe(_ => resolvedCount++);
