@@ -719,6 +719,7 @@ public sealed partial class MiningCut3Tests : IDisposable
         Tick((shooter, eyeAt));
         var gun = shooter.Weapons.Single();
 
+        shooter.Aim = float3(0, 0, -1); // astern: only a solution can fire the gun
         Assert.True(shooter.SetTarget(ahead));
         Assert.True(gun.ArcAllowsFire);
         Assert.True(gun.StanceAllowsFire);
@@ -726,6 +727,33 @@ public sealed partial class MiningCut3Tests : IDisposable
         Assert.True(shooter.SetTarget(aside));
         Assert.False(gun.ArcAllowsFire);
         Assert.True(gun.StanceAllowsFire);
+    }
+
+    // The same bearing through the solution: a chunk ahead is a solution, one to the side is not, and a chunk is a
+    // solution without a subject entity (its round flies the aim, as an untargeted one).
+    [Fact]
+    public void AChunkTargetBearsByItsPose()
+    {
+        var kind = Kind("Asteroid", 4f);
+        var s = BuildScene(new[] { kind }, Belt(kind, Rock(150f, .25f), Rock(150f)));
+        var eyeAt = float2(-10, 50);
+        var shooter = SpawnShip(s, eyeAt, sensor: true, weaponRanges: 300f);
+        Tick((shooter, eyeAt));
+        var gun = shooter.Weapons.Single();
+
+        var ahead = FireControl.Solution(gun, shooter, new ChunkId(s.Belts[0], 0));
+        var aside = FireControl.Solution(gun, shooter, new ChunkId(s.Belts[0], 1));
+
+        Assert.True(ahead.Bears);
+        Assert.Null(ahead.Subject);
+        Assert.False(aside.Bears);
+
+        // The bearing is the chunk's pose minus the shooter's position: from (100, -100) the side chunk at (150, 0)
+        // is 26 degrees off the nose, though its pose sum with the shooter's position would be far abeam.
+        var nearAt = float2(100, -100);
+        var near = SpawnShip(s, nearAt, sensor: true, weaponRanges: 300f);
+        Tick((shooter, eyeAt), (near, nearAt));
+        Assert.True(FireControl.Solution(near.Weapons.Single(), near, new ChunkId(s.Belts[0], 1)).Bears);
     }
 
     // A writable copy of the shipped catalog plus a scratch run store, through a registry scoped to the shipped

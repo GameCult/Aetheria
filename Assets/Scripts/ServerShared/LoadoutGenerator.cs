@@ -141,6 +141,18 @@ public class LoadoutGenerator
     // lacks variety, so it is logged rather than hidden.
     public (FactionProductData product, T design)[] RandomProducts<T>(int count, float sizeExponent, Predicate<T> filter = null, bool required = false) where T : EquippableItemData
     {
+        var (available, preferManufacturers) = AvailableProducts(filter, required);
+        return available.WeightedRandomElements(ref Random, entry =>
+                (preferManufacturers ? ManufacturerPreference(entry.product.Manufacturer) : 1) *
+                pow(entry.design.Shape.Coordinates.Length, sizeExponent) / // Prioritize larger items
+                pow(entry.design.Price, PriceExponent), // Penalize item price to a controllable degree
+            count);
+    }
+
+    // The products this faction can be offered for a design kind, and whether manufacturer preference applies (it does
+    // not once a required item has fallen back to any manufacturer). The one availability rule for every selection.
+    private ((FactionProductData product, T design)[] available, bool preferManufacturers) AvailableProducts<T>(Predicate<T> filter, bool required) where T : EquippableItemData
+    {
         var hulls = ItemManager.ItemData.GetAll<HullData>().ToArray();
         var candidates = ItemManager.ItemData.GetAll<FactionProductData>()
             .Select(product => (product, design: ItemManager.ItemData.Get(product.Design) as T))
@@ -160,11 +172,27 @@ public class LoadoutGenerator
             preferManufacturers = false;
         }
 
-        return available.WeightedRandomElements(ref Random, entry =>
-                (preferManufacturers ? ManufacturerPreference(entry.product.Manufacturer) : 1) *
-                pow(entry.design.Shape.Coordinates.Length, sizeExponent) / // Prioritize larger items
-                pow(entry.design.Price, PriceExponent), // Penalize item price to a controllable degree
-            count);
+        return (available, preferManufacturers);
+    }
+
+    // A faction's boss: its BossHull when the faction sets one and a product sells it, else the most expensive ship hull
+    // the faction can be offered, with the gap logged. Null only when no ship hull is on offer at all.
+    public EntityPack GenerateBossLoadout()
+    {
+        var bossHull = Faction != null && Faction.BossHull.IsSet() ? ItemManager.ItemData.Get(Faction.BossHull) : null;
+        if (bossHull != null)
+        {
+            var boss = GenerateShipLoadout(hull => hull == bossHull);
+            if (boss != null) return boss;
+            ItemManager.Log($"{Faction.Name}'s BossHull {bossHull.Name} is not sold by any product; its boss flies the most expensive ship hull instead.");
+        }
+        else
+            ItemManager.Log($"{Faction?.Name ?? "This faction"} has no BossHull; its boss flies the most expensive ship hull instead.");
+
+        var (available, _) = AvailableProducts<HullData>(hull => hull.HullType == HullType.Ship, required: true);
+        if (available.Length == 0) return null;
+        var priciest = available.OrderByDescending(entry => entry.design.Price).ThenBy(entry => entry.design.Name, StringComparer.Ordinal).First().design;
+        return GenerateShipLoadout(hull => hull == priciest);
     }
 
     // Hardpoint gear that no hull in the catalog can mount has no home (operator, 2026-09-30: "we'll need to author a
@@ -174,26 +202,30 @@ public class LoadoutGenerator
         design.HardpointType == HardpointType.Tool || design.HardpointType == HardpointType.Hull ||
         hulls.Any(hull => hull.Hardpoints.Any(hardpoint => hardpoint.Takes(design)));
 
-    // No galaxy means no availability to filter by: every product is on offer. A fixture generates loadouts that
-    // way, so a test can exercise placement and products without standing up a whole galaxy; no game path does.
-    // Loadouts.Materialize takes availability as a predicate; RunStart, the game's one preset spawner, passes this, so
-    // presets and generation share one availability rule. In a galaxy, a faction always reaches its own manufacturer's
-    // gear, and otherwise gear made by a manufacturer in that galaxy that its allegiance names (operator, 2026-09-30:
-    // allegiance lists only other factions).
+    // No galaxy, or no faction, means no allegiance to filter by: every product is on offer. A fixture generates
+    // loadouts that way, so a test can exercise placement and products without standing up a whole galaxy; a scenario
+    // stage has no faction and reaches every maker. Loadouts.Materialize takes availability as a predicate; RunStart,
+    // the game's one preset spawner, passes this, so presets and generation share one availability rule. A faction
+    // always reaches its own manufacturer's gear, and otherwise gear made by a manufacturer its allegiance names
+    // (operator, 2026-09-30: allegiance lists only other factions). Whether that manufacturer is present in the galaxy
+    // does not matter (operator, 2026-10-06: a faction need not be present for its gear to be available).
     public bool IsAvailable(FactionProductData product) =>
-        Galaxy == null || Galaxy.IsPrelude ||
-        Faction != null && ItemManager.ItemData.Get(product.Manufacturer) == Faction ||
-        Galaxy.ContainsFaction(product.Manufacturer) && (Faction == null || Faction.Allegiance.ContainsKey(product.Manufacturer));
+        Galaxy == null || Faction == null ||
+        ItemManager.ItemData.Get(product.Manufacturer) == Faction || Faction.Allegiance.ContainsKey(product.Manufacturer);
 
-    // Prioritize products from the zone faction and its allies, penalizing distance to the manufacturer's headquarters
-    private float ManufacturerPreference(CultRecordRef<Faction> manufacturer)
+    // Prioritize products from the zone faction and its allies, penalizing distance to the manufacturer's headquarters.
+    // A manufacturer with no home zone in this galaxy weighs as if its headquarters lay one jump beyond the farthest
+    // zone this zone reaches: reachable through allegiance, least preferred.
+    public float ManufacturerPreference(CultRecordRef<Faction> manufacturer)
     {
         if (Faction == null || Galaxy == null) return 1;
         var maker = ItemManager.ItemData.Get(manufacturer);
         var allegiance = maker == Faction ? 1 :
             Faction.Allegiance.TryGetValue(manufacturer, out var a) ? a : 0;
         var home = maker != null && Galaxy.HomeZones.TryGetValue(maker, out var h) ? h : null;
-        var distance = home != null && Zone?.Distance != null && Zone.Distance.TryGetValue(home, out var d) ? d : 0;
+        var distance = Zone?.Distance == null ? 0 :
+            home != null && Zone.Distance.TryGetValue(home, out var d) ? d :
+            home == null && Zone.Distance.Count > 0 ? Zone.Distance.Values.Max() + 1 : 0;
         return allegiance / (1 + distance);
     }
 

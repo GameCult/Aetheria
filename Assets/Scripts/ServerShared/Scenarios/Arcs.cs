@@ -4,8 +4,9 @@ using static ItemRotation;
 public sealed class Arcs : Scenario
 {
     public override string Name => "Arcs";
-    public override string Brief => "Forward mounts, a bare hull off the bow, one off the stern, a hostile turret. Verify: the bow " +
-                                    "hull can be hit, nothing fires at the stern one through the ship, the turret tracks you all the way round.";
+    public override string Brief => "Forward mounts, a bare hull off the bow, one off the stern, a hostile turret. Verify: the hull keeps its " +
+                                    "heading while you aim at the stern hull, and the forward guns hold. Designate the bow hull and fire with the " +
+                                    "aim anywhere: the forward guns fire on it and hit. The turret tracks you all the way round.";
     public override uint Seed => 103;
     public override bool Ambient => false;
 

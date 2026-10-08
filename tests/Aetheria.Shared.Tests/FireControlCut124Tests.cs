@@ -23,7 +23,7 @@ using int2 = CultMath.int2;
 // follows, with the rules this cut's own tests must obey: SchematicCellSize 2 throughout (the 12.3 fixture's
 // cell size of 1 would hide a missing `/ SchematicCellSize`), the target off the origin, and a hull whose
 // centre of mass is not an integer cell.
-public sealed class FireControlCut124Tests : IDisposable
+public sealed partial class FireControlCut124Tests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "aetheria-firecontrolcut124-" + Guid.NewGuid().ToString("N"));
     private string Catalog => Path.Combine(_root, "Aetheria.cc");
@@ -1396,7 +1396,7 @@ public sealed class FireControlCut124Tests : IDisposable
         var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: fuse, blastRadius: 4f, damage: 100f,
             weaponRange: NoLockRange, targetRange: 40f);
         e.Shooter.Direction = float2(0, -1);
-        Aim(e, float2(0, -1));
+        Aim(e, float2(0, 1)); // outside the flipped mount's arc too: no solution, and the aim is not free
         Assert.Equal(fires, e.Weapon.ArcAllowsFire);
         var committed = 0;
         using var c = e.Zone.ShotCommitted.Subscribe(_ => committed++);
@@ -2594,7 +2594,8 @@ public sealed class FireControlCut124Tests : IDisposable
         {
             var weapons = cache.GetAll<WeaponItemData>().ToList();
             Assert.NotEmpty(weapons);
-            foreach (var w in weapons)
+            // A mine layer is the one shipped weapon that carries a blast: its radius is the mine's (MineLauncherCatalogTests).
+            foreach (var w in weapons.Where(w => !w.Behaviors.OfType<MineLayerData>().Any()))
             {
                 Assert.Null(w.BlastRadius);
                 Assert.Null(w.Fuse);

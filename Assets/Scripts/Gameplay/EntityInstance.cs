@@ -64,6 +64,7 @@ public class EntityInstance : MonoBehaviour
     public Dictionary<HardpointData, int> BarrelIndices { get; private set; }
     public Dictionary<Radiator, MeshRenderer> RadiatorMeshes { get; private set; }
     public Transform LookAtPoint { get; private set; }
+    private Dictionary<int, Transform> _groupAims;
     public Entity Entity { get; private set; }
     public ZoneRenderer ZoneRenderer { get; private set; }
     public Transform LocalSpace { get; private set; }
@@ -186,7 +187,8 @@ public class EntityInstance : MonoBehaviour
                     sensor.OnPingEnd += OnSensorPingEnd;
                 }
                 
-                if (behavior is InstantWeapon instantWeapon)
+                // A mine layer's presentation is the mine it lays (MineInstance, drawn by ZoneRenderer from Zone.Mines).
+                if (behavior is InstantWeapon instantWeapon && !FireControl.IsMineLayer(instantWeapon))
                 {
                     var data = (InstantWeaponData) instantWeapon.Data;
                     if (!_instantWeaponManagers.ContainsKey(data))
@@ -276,10 +278,14 @@ public class EntityInstance : MonoBehaviour
         // HullColliders no longer publish Hit or a blast event at all (R8).
 
         LookAtPoint = new GameObject($"{entity.Name} Look Point").transform;
-        
+
+        // One aim point per articulation group, placed each LateUpdate where the group's first weapon aims.
+        _groupAims = new Dictionary<int, Transform>();
         foreach (var articulationPoint in ArticulationPoints)
         {
-            articulationPoint.Target = LookAtPoint;
+            if (!_groupAims.TryGetValue(articulationPoint.Group, out var aim))
+                _groupAims[articulationPoint.Group] = aim = new GameObject($"{entity.Name} Aim {articulationPoint.Group}").transform;
+            articulationPoint.Target = aim;
         }
 
         _subscriptions.Add(Entity.HullDamage.Subscribe(_ =>
@@ -398,8 +404,18 @@ public class EntityInstance : MonoBehaviour
             x.Value.material.SetFloat("_Emission", Entity.ItemManager.GameplaySettings.TemperatureEmissionCurve.Evaluate(x.Key.RadiatorTemperature));
         }
 
-        LookAtPoint.position = transform.position + Entity.Aim.ToUnity() * 
-            (!Entity.Target.Value.IsNone ? max(Entity.TargetRange,Entity.ItemManager.GameplaySettings.ConvergenceMinimumDistance) : 10000);
+        var aimDistance = !Entity.Target.Value.IsNone
+            ? max(Entity.TargetRange, Entity.ItemManager.GameplaySettings.ConvergenceMinimumDistance)
+            : 10000;
+        LookAtPoint.position = transform.position + Entity.Aim.ToUnity() * aimDistance;
+        foreach (var group in _groupAims)
+        {
+            var weapon = group.Key >= 0 && group.Key < Entity.WeaponGroups.Length ? Entity.WeaponGroups[group.Key].weapons.FirstOrDefault() : null;
+            if (weapon == null) { group.Value.position = LookAtPoint.position; continue; }
+            var barrel = Barrels.TryGetValue(weapon.Item.Hardpoint, out var barrels) ? barrels[0].position : transform.position;
+            var direction = FireControl.Solution(weapon, Entity, Entity.Target.Value).Direction;
+            group.Value.position = barrel + new Vector3(direction.x, 0, direction.y) * aimDistance;
+        }
         LocalSpace.localPosition = transform.position = Entity.Position.ToUnity();
         if (_influenceInstance)
             _influenceInstance.position = new Vector3(Entity.Position.x, 0, Entity.Position.z);

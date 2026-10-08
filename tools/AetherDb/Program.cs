@@ -38,8 +38,9 @@ public static class Program
             case "targeting-catalog-6d": return TargetingCatalog6d(args.Contains("apply"));
             case "ship-authoring": return ShipAuthoringCommands.Run(args.Skip(1).ToArray());
             case "field-kinds": return FieldKindsCatalog(args.Contains("apply"));
+            case "mine-launcher": return MineLauncherCatalog(args.Contains("apply"));
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply]");
                 return 1;
         }
     }
@@ -736,19 +737,11 @@ public static class Program
     }
 
     // Runs the real LoadoutGenerator against every hull, so a generation failure reproduces here instead of on a
-    // flight to a populated sector. No galaxy by default, so this covers placement, roles and products but NOT
+    // flight to a populated sector. No galaxy, so this covers placement, roles and products but NOT
     // availability filtering or distance weighting, which need a real galaxy. Seeded: a failure repeats.
-    //
-    // Cut 6c, 6c.2 verification: "exclude-sellers Short1,Short2,..." builds a minimal one-zone Galaxy (the same
-    // SavedGame/Galaxy round trip FireControlCut6cTests uses) whose faction roster is every catalog faction
-    // EXCEPT the named ones, so IsAvailable actually rejects their products instead of the null-Galaxy "every
-    // product is on offer" shortcut this command otherwise takes. That is the one way to reproduce the single
-    // point of failure 6c.2 fixed: a null-galaxy run can never exercise Galaxy.ContainsFaction at all.
     private static int Loadout(string[] args)
     {
-        var seedArgument = args.FirstOrDefault(a => !a.StartsWith("exclude-sellers"));
-        var excludeArg = args.FirstOrDefault(a => a.StartsWith("exclude-sellers"));
-        var seed = uint.TryParse(seedArgument, out var parsed) ? parsed : 1u;
+        var seed = uint.TryParse(args.FirstOrDefault(), out var parsed) ? parsed : 1u;
         var db = AetherDb.Open();
         var settings = new GameplaySettings
         {
@@ -756,45 +749,6 @@ public static class Program
             Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
             QualityPriceModifier = new ExponentialLerp()
         };
-
-        Galaxy galaxy = null;
-        CultCache galaxyCache = null;
-        if (excludeArg != null)
-        {
-            var excludedShortNames = excludeArg.Contains(':')
-                ? excludeArg.Substring(excludeArg.IndexOf(':') + 1).Split(',', StringSplitOptions.RemoveEmptyEntries)
-                : Array.Empty<string>();
-            var excluded = new HashSet<string>(excludedShortNames);
-
-            // A second, scratch-run-store cache over the SAME catalog file, read-only on the catalog side --
-            // RunSave.Commit only ever touches run-store record types (SavedGame, SavedZone, ProvenanceLedger),
-            // but it needs a store that is "home" to them, which the plain read-only db.Cache above is not.
-            // The scratch run.cc lives in the OS temp directory, never under GameData, so this command cannot
-            // leave behind or corrupt a real save. Factions are looked up through THIS cache instance, not
-            // db.Cache -- CultCache.RefOf needs the document to be one this specific instance's identity map
-            // tracks, and two Open() calls over the same file do not share object identity.
-            var scratchRun = Path.Combine(Path.GetTempPath(), $"aetherdb-loadout-exclude-{Guid.NewGuid():N}.cc");
-            galaxyCache = AetheriaStores.Open(Path.Combine(db.Root, "GameData", "Aetheria.cc"), runPath: scratchRun);
-            var includedFactions = galaxyCache.GetAll<Faction>().Where(f => !excluded.Contains(f.ShortName)).ToArray();
-            Console.WriteLine($"Excluding sellers [{string.Join(", ", excluded)}] -- galaxy carries {includedFactions.Length} of {galaxyCache.GetAll<Faction>().Count()} factions.\n");
-
-            var game = new SavedGame
-            {
-                Factions = includedFactions.Select(f => galaxyCache.RefOf(f)).ToArray(),
-                Relationships = includedFactions.Select(_ => FactionRelationship.Neutral).ToArray(),
-                HomeZones = new Dictionary<int, int> { { 0, 0 } },
-                BossZones = new Dictionary<int, int>(),
-                DiscoveredZones = new[] { 0 },
-                ActionBarBindings = new SavedActionBarBinding[0],
-                Exit = -1
-            };
-            var zones = new[]
-            {
-                new SavedZone { Name = "Zone 0", Position = new float2(0, 0), AdjacentZones = Array.Empty<int>(), Factions = new[] { 0 }, Owner = 0, Contents = null }
-            };
-            RunSave.Commit(galaxyCache, game, zones, new ProvenanceLedger());
-            galaxy = new Galaxy(galaxyCache, galaxyCache.GetGlobal<SavedGame>(), _ => { });
-        }
 
         var log = new List<string>();
         var itemManager = new ItemManager(db.Cache, new ProvenanceLedger(), settings, log.Add);
@@ -804,7 +758,7 @@ public static class Program
         foreach (var hull in db.Cache.GetAll<HullData>().OrderBy(h => h.HullType).ThenBy(h => h.Name))
         {
             var random = new Random(seed);
-            var generator = new LoadoutGenerator(ref random, itemManager, galaxy, null, null, .5f);
+            var generator = new LoadoutGenerator(ref random, itemManager, null, null, null, .5f);
             log.Clear();
             string outcome;
             try
@@ -830,7 +784,6 @@ public static class Program
         }
 
         Console.WriteLine($"\n{failures} hulls failed to generate a loadout (seed {seed}), {targetingGaps} armed hulls generated with no targeting system (fired unaided)");
-        galaxyCache?.Dispose();
         return failures;
     }
 
@@ -1495,6 +1448,117 @@ public static class Program
         CultRecordRefs.Validate(asteroid);
         db.Cache.Commit(batch => batch.Upsert(typeof(FieldKindData), asteroid));
         Console.WriteLine("\nAuthored \"Asteroid\" in Aetheria.cc");
+        return 0;
+    }
+
+    // sim-mines-presenter: the Mine Launcher item, so a ship can be fitted with the sim's mine layer. Its numbers
+    // are the 2021 record's (GameData/Legacy/AetherDB.2021-03-05.msgpack, recovered in 8c71a637: mass 75, price
+    // 125000, damage 50, range 2000, energy 15, heat 500, visibility 10, magazine 6, reload 5, spread 5, velocity
+    // 50, cooldown 2, thermal limits 173.15..473.15 K, kelvin like every shipped item); BlastRadius 25, the delays
+    // 2 and 2 and the 30 s lifetime are the retired prefab's. The optimum and plateau are the 2021 record's
+    // sibling weapon's (it carries 173.15..473.15 K too), because that record sets neither. An already authored
+    // Mine Launcher has its thermal envelope brought to these values. Dry run unless passed "apply".
+    private static int MineLauncherCatalog(bool apply)
+    {
+        const string name = "Mine Launcher";
+        var db = AetherDb.Open(catalogWritable: apply);
+        const float minimumTemperature = 173.15f, maximumTemperature = 473.15f, optimalTemperature = 249.65f, plateauWidth = 36f;
+        if (db.Cache.GetAll<GearData>().SingleOrDefault(gear => gear.Name == name) is { } authored)
+        {
+            if (authored is not WeaponItemData existing) throw new InvalidOperationException($"\"{name}\" exists and is not a weapon.");
+            if (existing.MinimumTemperature == minimumTemperature && existing.MaximumTemperature == maximumTemperature &&
+                existing.OptimalTemperature == optimalTemperature && existing.PlateauWidth == plateauWidth)
+            {
+                Console.WriteLine($"\"{name}\" is already authored; nothing to do.");
+                return 0;
+            }
+            Console.WriteLine($"\"{name}\" thermal envelope {existing.MinimumTemperature}..{existing.MaximumTemperature} (optimum {existing.OptimalTemperature}, plateau {existing.PlateauWidth}) -> {minimumTemperature}..{maximumTemperature} K (optimum {optimalTemperature}, plateau {plateauWidth}).");
+            if (!apply)
+            {
+                Console.WriteLine("\nDry run. Pass \"apply\" to correct it.");
+                return 0;
+            }
+            existing.MinimumTemperature = minimumTemperature;
+            existing.MaximumTemperature = maximumTemperature;
+            existing.OptimalTemperature = optimalTemperature;
+            existing.PlateauWidth = plateauWidth;
+            CultRecordRefs.Validate(existing);
+            db.Cache.Commit(batch => batch.Upsert(typeof(GearData), existing, db.Cache.RefOf(existing).Key));
+            Console.WriteLine($"\nCorrected \"{name}\" in Aetheria.cc");
+            return 0;
+        }
+
+        PerformanceStat Constant(float v) => new PerformanceStat { Min = v, Max = v };
+        var launcher = new WeaponItemData
+        {
+            Name = name,
+            Hardpoint = HardpointType.Launcher,
+            Shape = new Shape(),
+            WeaponType = WeaponType.Mine,
+            WeaponRange = WeaponRange.Medium,
+            WeaponCaliber = WeaponCaliber.Medium,
+            Fuse = WeaponFuse.Proximity,
+            BlastRadius = 25f,
+            Mass = 75f,
+            Price = 125000,
+            Durability = 100f,
+            MinimumTemperature = minimumTemperature,
+            MaximumTemperature = maximumTemperature,
+            OptimalTemperature = optimalTemperature,
+            PlateauWidth = plateauWidth,
+            Behaviors =
+            {
+                new MineLayerData
+                {
+                    DamageType = DamageType.Kinetic,
+                    DamageCurve = new BezierCurve { Keys = new[] { new float4(0f, 1f, 0f, 0f), new float4(1f, 1f, 0f, 0f) } },
+                    Damage = Constant(50f),
+                    Range = Constant(2000f),
+                    MinRange = Constant(0f),
+                    Energy = Constant(15f),
+                    Heat = Constant(500f),
+                    Visibility = Constant(10f),
+                    MagazineSize = 6,
+                    ReloadTime = 5f,
+                    Spread = Constant(5f),
+                    Velocity = Constant(50f),
+                    Count = Constant(1f),
+                    Cooldown = Constant(2f),
+                    ArmingDelay = 2f,
+                    FuseDelay = 2f,
+                    Lifetime = 30f
+                }
+            }
+        };
+        Console.WriteLine($"Adds \"{name}\": Launcher, Mine, Proximity fuse, blast radius 25, one MineLayerData (arming 2, fuse 2, lifetime 30).");
+        if (!apply)
+        {
+            Console.WriteLine("\nDry run. Pass \"apply\" to author it.");
+            return 0;
+        }
+
+        // A design no product sells cannot spawn, and the shipped catalog holds none: sell it as the first
+        // shipped launcher is sold, by the same maker.
+        var launcherProducts = db.Cache.GetAll<FactionProductData>()
+            .Where(p => db.Cache.Get(p.Design) is WeaponItemData weapon && weapon.Hardpoint == HardpointType.Launcher)
+            .OrderBy(p => db.Cache.RefOf(p).Key.Value, StringComparer.Ordinal).ToArray();
+        if (launcherProducts.Length == 0) throw new InvalidOperationException("No shipped launcher product names a maker for the Mine Launcher.");
+        var maker = launcherProducts[0].Manufacturer;
+        Console.WriteLine($"Sold by {db.Cache.Get(maker)?.ShortName ?? "(none)"}, as the first shipped launcher product is.");
+
+        CultRecordRefs.Validate(launcher);
+        db.Cache.Commit(batch =>
+        {
+            var design = batch.Upsert(typeof(GearData), launcher);
+            batch.Upsert(typeof(FactionProductData), new FactionProductData
+            {
+                Name = name,
+                Description = "Lays a drifting proximity mine that arms after two seconds.",
+                Design = new CultRecordRef<CraftedItemData>(design),
+                Manufacturer = maker
+            });
+        });
+        Console.WriteLine($"\nAuthored \"{name}\" in Aetheria.cc");
         return 0;
     }
 }
