@@ -10,11 +10,16 @@ using static CultMath.math;
 // one, a previous state or a velocity of its own.
 public static class DrawAhead
 {
+    // A ship in a wormhole animation has its pose scripted by the step, not integrated from Velocity and TurnRate,
+    // so it is drawn where the step put it: extrapolating a scripted pose draws a streak that resets every step.
     public static float3 Position(Entity entity, float lead) =>
-        entity.Position + float3(entity.Velocity.x, 0, entity.Velocity.y) * lead;
+        entity is Ship { WormholeAnimationInProgress: true }
+            ? entity.Position
+            : entity.Position + float3(entity.Velocity.x, 0, entity.Velocity.y) * lead;
 
     // The ship's rotation turned about its own up axis by the rate its last step turned, for lead seconds.
-    public static quaternion Rotation(Ship ship, float lead) => Turned(ship.Rotation, ship.TurnRate * lead);
+    public static quaternion Rotation(Ship ship, float lead) =>
+        ship.WormholeAnimationInProgress ? ship.Rotation : Turned(ship.Rotation, ship.TurnRate * lead);
 
     // q turned about its own up axis by the angle, in the sense Direction turns for a positive TurnRate.
     public static quaternion Turned(quaternion q, float angle)
@@ -32,7 +37,4 @@ public static class DrawAhead
             t.w * q.z + t.x * q.y - t.y * q.x + t.z * q.w,
             t.w * q.w - t.x * q.x - t.y * q.y - t.z * q.z));
     }
-
-    // Zone time for a presenter that evaluates a sim function of time (FireControl.RoundAt).
-    public static float Time(Zone zone, float lead) => zone.Time + lead;
 }

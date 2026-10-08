@@ -229,7 +229,8 @@ public class ActionGameManager : MonoBehaviour
     
     public ItemManager ItemManager { get; private set; }
     public Zone Zone { get; private set; }
-    public static SimClock Clock { get; private set; }
+    public static SimClock Clock { get; } = new SimClock(1f / 60f);
+    private bool _zoneEntered;
 
     private readonly (float2 direction, string name)[] _directions = {
         (float2(0, 1), "Front"),
@@ -727,7 +728,7 @@ public class ActionGameManager : MonoBehaviour
             galaxyZone.Contents = new Zone(ItemManager, Settings.PlanetSettings, galaxyZone.PackedContents, galaxyZone, CurrentGalaxy);
         }
         Zone = galaxyZone.Contents;
-        Clock = new SimClock(1f / 60f);
+        _zoneEntered = true; // the clock forgets its lead between frames, never inside a step
         PlayMusic(MusicType.Overworld);
         
         Zone.Log = s => Debug.Log($"Zone: {s}");
@@ -1328,7 +1329,12 @@ public class ActionGameManager : MonoBehaviour
             }
         }
         // One clock steps the zone, paused or not: a paused frame feeds it no real time.
-        Clock.Advance(_paused ? 0f : Time.deltaTime, Zone.Update);
+        // A zone entered inside a step (a wormhole) ends this frame's stepping: the rest of its steps are the old zone's.
+        void EnterNewZone() { if (_zoneEntered) { Clock.Reset(); _zoneEntered = false; } }
+        EnterNewZone();
+        var steppedZone = Zone;
+        Clock.Advance(_paused ? 0f : Time.deltaTime, delta => { if (Zone == steppedZone) steppedZone.Update(delta); });
+        EnterNewZone();
     }
 
     private static string ResultLabel(ShotResult result) => result switch

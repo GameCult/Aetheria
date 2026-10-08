@@ -16,6 +16,7 @@ public sealed class SimClock
 
     private readonly double _period;
     private double _accumulator;
+    private bool _advancing;
 
     public SimClock(float step, float stepsPerRealSecond = 60)
     {
@@ -36,19 +37,32 @@ public sealed class SimClock
     // Sim seconds since the last step, 0 <= Lead < Step.
     public float Lead => (float) (_accumulator * StepsPerRealSecond * Step);
 
+    // Forgets the real time paid toward the next step (a new zone starts between steps). A step cannot do this to the
+    // clock that is running it.
+    public void Reset()
+    {
+        if (_advancing) throw new InvalidOperationException("A step cannot reset the clock that is running it.");
+        _accumulator = 0;
+    }
+
     // Feeds real seconds (negative counts as none, one frame counts at most MaxFrameSeconds) and runs the whole
     // steps they pay for. Returns how many ran.
     public int Advance(float realSeconds, Action<float> step)
     {
         _accumulator += Math.Min(Math.Max(realSeconds, 0f), MaxFrameSeconds);
         var ran = 0;
-        while (_accumulator >= _period)
+        _advancing = true;
+        try
         {
-            _accumulator -= _period;
-            step(Step);
-            Steps++;
-            ran++;
+            while (_accumulator >= _period)
+            {
+                _accumulator -= _period;
+                step(Step);
+                Steps++;
+                ran++;
+            }
         }
+        finally { _advancing = false; }
         return ran;
     }
 }

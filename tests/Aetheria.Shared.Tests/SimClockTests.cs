@@ -78,6 +78,18 @@ public sealed class SimClockTests
     }
 
     [Fact]
+    public void AStepCannotResetItsClock()
+    {
+        var clock = new SimClock(1f / 60f);
+        Assert.Throws<InvalidOperationException>(() => clock.Advance(1f / 60f, _ => clock.Reset()));
+        clock.Advance(.005f, _ => { });
+        Assert.True(clock.Lead > 0);
+        clock.Reset();
+        Assert.Equal(0f, clock.Lead);
+        Assert.Equal(1, clock.Advance(1f / 60f, _ => { }));
+    }
+
+    [Fact]
     public void PauseFeedsNothing()
     {
         var clock = new SimClock(1f / 60f);
@@ -252,8 +264,28 @@ public sealed partial class RunStartTests
         Assert.Equal(player.Position.x + player.Velocity.x * lead, ahead.x, 6);
         Assert.Equal(player.Position.y, ahead.y);
         Assert.Equal(player.Position.z + player.Velocity.y * lead, ahead.z, 6);
-        Assert.Equal(arena.Time + lead, DrawAhead.Time(arena, lead));
         Assert.Equal(before, Snapshot(arena, new List<string>()));
+    }
+
+    // A pose the step scripts (the wormhole animation) is drawn where the step put it, at any lead.
+    [Fact]
+    public void ScriptedPosesAreNotDrawnAhead()
+    {
+        var (arena, player) = LaunchDuel();
+        for (var step = 0; step < 120; step++) arena.Update(ClockFrame);
+        player.EnterWormhole(player.Position.xz + float2(50, 0));
+        arena.Update(ClockFrame);
+        Assert.True(player.WormholeAnimationInProgress);
+        Assert.True(length(player.Velocity) > .01f, "the ship carries speed into the animation");
+        var position = DrawAhead.Position(player, ClockFrame);
+        Assert.Equal(player.Position.x, position.x);
+        Assert.Equal(player.Position.y, position.y);
+        Assert.Equal(player.Position.z, position.z);
+        var rotation = DrawAhead.Rotation(player, ClockFrame);
+        Assert.Equal(player.Rotation.x, rotation.x);
+        Assert.Equal(player.Rotation.y, rotation.y);
+        Assert.Equal(player.Rotation.z, rotation.z);
+        Assert.Equal(player.Rotation.w, rotation.w);
     }
 
     // The turn a presenter draws ahead is the turn the next step makes: a ship held in a steady turn, drawn one whole
