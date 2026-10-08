@@ -312,6 +312,73 @@ public sealed partial class RunStartTests
         }
     }
 
+    private WeaponItemData PdDesign(string name) => _cache.GetAll<WeaponItemData>().Single(w => w.Name == name);
+
+    // Data check, not a behaviour test: cut pd-gear's authored catalog (ruling catalog-grows-generic-designs-branded-products):
+    // three generic designs, each with several products, no maker twice on one design, and no brand on a design.
+    [Fact]
+    public void PdGearIsAuthored()
+    {
+        var expected = new (string design, HardpointType hardpoint, int width, int height, float tracking)[]
+        {
+            ("Point Defense Gun", HardpointType.Ballistic, 1, 1, 40f),
+            ("Point Defense Laser", HardpointType.Energy, 1, 1, 40f),
+            ("Flak Gun", HardpointType.Ballistic, 1, 2, 20f),
+        };
+        var products = _cache.GetAll<FactionProductData>().ToArray();
+        foreach (var (name, hardpoint, width, height, tracking) in expected)
+        {
+            var design = PdDesign(name);
+            Assert.Equal(hardpoint, design.HardpointType);
+            Assert.Equal(width, design.Shape.Width);
+            Assert.Equal(height, design.Shape.Height);
+            Assert.True(design.Shape.Cells.Cast<bool>().All(cell => cell), $"{name} occupies every cell of its shape");
+            var rate = design.Behaviors.OfType<WeaponData>().Single().Tracking;
+            Assert.Equal(tracking, rate.Min);
+            Assert.Equal(tracking, rate.Max);
+
+            var key = _cache.RefOf(design).Key;
+            var sold = products.Where(p => p.Design.Key == key).ToArray();
+            Assert.True(sold.Length >= 3, $"{name} has at least three products, not {sold.Length}");
+            var makers = sold.Select(p => _cache.Get(p.Manufacturer)).ToArray();
+            Assert.DoesNotContain(null, makers);
+            Assert.Equal(makers.Length, makers.Select(m => m.ShortName).Distinct().Count());
+            Assert.DoesNotContain(makers, m => m.ShortName == "Miss Terri's");
+            Assert.All(sold, p => Assert.NotEqual(design.Name, p.Name));
+            Assert.All(sold, p => Assert.Equal(design.Roles.Select(r => r.Name).OrderBy(n => n), p.Roles.Select(r => r.Role).OrderBy(n => n)));
+        }
+    }
+
+    // Data check: a design is offered only if some hull has a hardpoint that takes it (LoadoutGenerator.HasHome), so these
+    // guns are stocked and fitted only while a catalog hull takes them (body fact CG6).
+    [Fact]
+    public void PdGunsHaveHomes()
+    {
+        var djinni = _cache.GetAll<HullData>().Single(h => h.Name == "Djinni");
+        var longinus = _cache.GetAll<HullData>().Single(h => h.Name == "Longinus");
+        foreach (var name in new[] { "Point Defense Gun", "Flak Gun" })
+            Assert.Contains(djinni.Hardpoints, hardpoint => hardpoint.Type == HardpointType.Ballistic && hardpoint.Takes(PdDesign(name)));
+        Assert.Contains(longinus.Hardpoints, hardpoint => hardpoint.Type == HardpointType.Energy && hardpoint.Takes(PdDesign("Point Defense Laser")));
+    }
+
+    // Ruling weapon-tracking-authored, in play: a PD gun follows a speed demon crossing close in, and the machine gun does not.
+    [Fact]
+    public void PdGunHoldsASpeedDemon()
+    {
+        var range = EvMountRange(40f, 3f);
+        EvCross(range, jinking: false, float2(150, 0));
+        var shooter = range.Gunner;
+        var omega = FireControl.AngularVelocity(shooter, range.Target);
+        Assert.InRange(omega, degrees(150f / 200f) * .999f, degrees(150f / 200f) * 1.001f);
+        var gear = FireControl.Tracking(shooter) / _items.GameplaySettings.UnaidedTracking;
+        Assert.True(gear > 1.2f, $"fixture: the shooter's targeting gear tracks better than unaided ({gear})");
+        float RateOf(string design) => PdDesign(design).Behaviors.OfType<WeaponData>().Single().Tracking.Max * gear;
+        var pd = FireControl.PMount(omega, RateOf("Point Defense Gun"));
+        var clearPath = FireControl.PMount(omega, RateOf("ClearPath"));
+        Assert.True(pd >= .75f, $"the PD gun follows a speed demon: {pd}");
+        Assert.True(clearPath <= .25f, $"the machine gun does not: {clearPath}");
+    }
+
     // Data check, not a behaviour test: ruling plight-shape, plight is one wide, two high and fits a Longinus Energy hardpoint.
     [Fact]
     public void PlightHasItsRuledShape()
