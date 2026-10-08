@@ -93,6 +93,18 @@ public sealed class ItemTitleTests : IDisposable
     }
 
     [Fact]
+    public void A_lot_whose_product_left_the_catalog_brands_its_maker_only()
+    {
+        var lot = _items.CreateLot(_panopticon);
+        _items.Lots[lot].Product = new CultRecordRef<FactionProductData>(new CultRecordKey("removed-product"));
+        var unit = (CraftedItemInstance) _items.CreateInstance(lot);
+        var (maker, product) = _items.Brand(unit);
+        Assert.Equal("Finch", maker.Name);
+        Assert.Null(product);
+        Assert.Equal("Array", _items.Title(unit));
+    }
+
+    [Fact]
     public void Unbranded_units_are_titled_by_design()
     {
         var given = _items.CreateInstance(_items.CreateLot(_array, default, .5f));

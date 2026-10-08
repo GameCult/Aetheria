@@ -216,7 +216,7 @@ public class ItemManager
         };
         if (!maker.IsSet()) return (null, null);
 
-        var product = lot.Product.IsSet() ? ItemData.Get(lot.Product) : null;
+        var product = ItemData.Get(lot.Product);
         return (ItemData.Get(maker), product);
     }
 
