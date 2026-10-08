@@ -27,6 +27,7 @@ public class PatrolOrbitsState : BaseState
         Transitions.Add(new StateTransition(patrolMoveState, 
             () => true, 
             () => patrolMoveState.Orbit = CurrentTarget));
-        patrolMoveState.Transitions.Add(new StateTransition(this, () => patrolMoveState.Distance < 10, NextTarget));
+        // Arrival advances the circuit only while the pilot is still on this task: a task change leaves the patrol first.
+        patrolMoveState.Transitions.Add(new StateTransition(this, () => patrolMoveState.Distance < 10 && agent.Task == Task, NextTarget));
     }
 }
