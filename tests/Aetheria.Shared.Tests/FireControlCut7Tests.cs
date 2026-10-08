@@ -212,7 +212,7 @@ public sealed class FireControlCut7Tests : IDisposable
         Assert.NotEmpty(equippable);
         Assert.Contains(equippable, e => e is WeaponItemData);
 
-        var hull = cache.GetByName<HullData>("LonginusX");
+        var hull = cache.GetByName<HullData>("Longinus");
         Assert.NotNull(hull);
 
         var settings = new GameplaySettings

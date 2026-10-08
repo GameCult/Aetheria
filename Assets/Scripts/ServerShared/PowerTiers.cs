@@ -13,7 +13,7 @@
 //   every other item on the hull (EquippedItem.UpdatePerformance). Feed it first or lose the rest anyway.
 // - High: Shield. Hull survival the player is actively trading power for; not a life-support constant, so it
 //   sits below Radiator rather than beside it.
-// - Medium: Thruster, AetherDrive. Mobility -- needed to hold position, evade, or disengage, but a ship that
+// - Medium: Thruster. Mobility -- needed to hold position, evade, or disengage, but a ship that
 //   loses thrust for a tick under brownout is inconvenienced, not dead the way an overheating hull is.
 // - Low: ConstantWeapon, InstantWeapon. Offense. The ruling's own framing ("low-priority subsystems starve
 //   first") names weapons as the default example of what a reactor throttle should sacrifice first.

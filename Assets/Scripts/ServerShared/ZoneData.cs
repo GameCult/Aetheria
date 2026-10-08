@@ -43,6 +43,11 @@ public class ZonePack
     // default instance.
     [JsonProperty("chunkWear"), Key(6)]
     public List<ChunkWearPack> ChunkWear;
+
+    // True once this zone's boss has been spawned. The dead boss leaves no entity, so this is the one fact that tells a
+    // slain boss from one that never existed; RunGoal.ExitOpen reads it. Written only by ZoneGenerator, carried by PackZone.
+    [JsonProperty("bossSpawned"), Key(7)]
+    public bool BossSpawned;
 }
 
 // Cut 2 (docs/mining-cut.md): one packed wear entry for one chunk. "Field" names the body that owns the chunk

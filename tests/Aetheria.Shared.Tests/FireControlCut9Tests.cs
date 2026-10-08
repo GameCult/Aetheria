@@ -374,7 +374,7 @@ public sealed class FireControlCut9Tests : IDisposable
         // Even extents: CenterOfMass is the raw mean of integer cell coordinates (ItemData.cs), with no
         // +0.5 cell-centre offset -- an odd extent's mean lands exactly on an occupied cell (no cliff to
         // reproduce), while an even one lands on the half-cell boundary between two cells, the same
-        // off-integer shape every shipped hull's real (irregular) footprint produces (LonginusX 2.5/6.697,
+        // off-integer shape every shipped hull's real (irregular) footprint produces (Longinus 2.5/6.697,
         // Zenith 5.5/5.5, Turret 3.5/3.5).
         var hullShape = SolidShape(6, 12);
 

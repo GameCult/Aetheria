@@ -376,7 +376,6 @@ public class PropertiesPanel : MonoBehaviour
 				sheet.AddStat("Manufacturer", () => maker.Name);
 			if (product != null)
 			{
-				AddProperty(product.Name);
 				AddProperty(product.Description);
 			}
 		}
@@ -430,10 +429,9 @@ public class PropertiesPanel : MonoBehaviour
 
 	private string GetTitle(EquippableItem item)
 	{
-		var data = GameManager.ItemManager.GetData(item);
 		var (tier, upgrades) = GameManager.ItemManager.GetTier(item);
 		return
-			$"<color=#{ColorUtility.ToHtmlStringRGB(tier.Color.ToColor())}>{data.Name}</color><smallcaps><size=60%> ({tier.Name}{new string('+', upgrades)})";
+			$"<color=#{ColorUtility.ToHtmlStringRGB(tier.Color.ToColor())}>{GameManager.ItemManager.Title(item)}</color><smallcaps><size=60%> ({tier.Name}{new string('+', upgrades)})";
 	}
 
 	public void Inspect(EquippedItem item)

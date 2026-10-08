@@ -337,6 +337,24 @@ public static class ZoneGenerator
 	        if (ambient) PlaceTurrets(lagrangeOrbit, GetLoadoutGenerator(nearestFaction), 2);
         }
 
+        // A boss zone gets its faction's boss whether or not the zone is ambient: the boss is the run's goal, not
+        // wandering traffic. RunGoal reads the mark; nothing else decides whether a boss lives.
+        foreach (var bossFaction in galaxy.BossZones.Where(entry => entry.Value == galaxyZone).Select(entry => entry.Key))
+        {
+	        var boss = GetLoadoutGenerator(bossFaction).GenerateBossLoadout();
+	        if (boss == null)
+	        {
+		        itemManager.Log($"No boss could be generated for {bossFaction.Name}; its boss zone has no boss to kill!");
+		        continue;
+	        }
+	        boss.Boss = true;
+	        pack.Entities.Add(boss);
+	        pack.BossSpawned = true;
+        }
+
+        if (galaxyZone == galaxy.Exit && !pack.BossSpawned)
+	        itemManager.Log("Galaxy.Exit has no boss: Galaxy.BossZones does not map a boss faction to the exit zone, or its boss could not be generated (ZoneGenerator exit-without-boss). The exit gate stays sealed.");
+
         if (!ambient) return pack;
 
         var enemyCount = (int)(random.NextFloat() * factionPresence * 2) + baseStationCount;

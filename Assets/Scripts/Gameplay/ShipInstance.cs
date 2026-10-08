@@ -18,16 +18,7 @@ public class ShipInstance : EntityInstance
         public int MaxParticleCount;
     }
 
-    private class AetherDriveInstance
-    {
-        public AetherDrive Drive;
-        public ParticleSystem Particles;
-        public float BaseEmission;
-        public float BaseForce;
-    }
-    
     private ThrusterInstance[] _thrusters;
-    private AetherDriveInstance _aetherDrive;
     
     public Ship Ship { get; private set; }
 
@@ -47,20 +38,6 @@ public class ShipInstance : EntityInstance
             return;
         }
         Ship = ship;
-        var drive = ship.GetBehavior<AetherDrive>();
-        if (drive != null)
-        {
-            var particles = Instantiate(EngineAssets.Load<ParticleSystem>(drive.DriveData.Particles), transform, false);
-            var main = particles.main;
-            main.customSimulationSpace = LocalSpace;
-            _aetherDrive = new AetherDriveInstance
-            {
-                Drive = drive,
-                BaseEmission = particles.emission.rateOverTimeMultiplier,
-                Particles = particles,
-                BaseForce = particles.forceOverLifetime.z.curveMultiplier
-            };
-        }
         _thrusters = ship.GetBehaviors<Thruster>().Select(thruster =>
             {
                 var effectData = (ThrusterData) thruster.Data;
@@ -114,19 +91,6 @@ public class ShipInstance : EntityInstance
 
         TractorBeam.Power = Entity.TractorPower;
         TractorBeam.Direction = Entity.Aim.ToUnity();
-
-        if (_aetherDrive != null)
-        {
-            var thrust = length(_aetherDrive.Drive.ThrustDirection);
-            var forceOverLifetime = _aetherDrive.Particles.forceOverLifetime;
-            forceOverLifetime.xMultiplier = _aetherDrive.Drive.ThrustDirection.x * _aetherDrive.BaseForce;
-            forceOverLifetime.zMultiplier = _aetherDrive.Drive.ThrustDirection.y * _aetherDrive.BaseForce;
-            var emissionModule = _aetherDrive.Particles.emission;
-            // Cut 8 (operator ask 2026-09-19): intent (thrust) times condition -- presentation reads the
-            // simulation's own ratio rather than recomputing any part of it. AetherDrive.Condition is the
-            // equivalent of Thruster.Condition below (Torque in place of Thrust).
-            emissionModule.rateOverTimeMultiplier = _aetherDrive.BaseEmission * thrust * _aetherDrive.Drive.Condition;
-        }
 
         foreach (var thrusterInstance in _thrusters)
         {

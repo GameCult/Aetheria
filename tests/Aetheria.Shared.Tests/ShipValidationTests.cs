@@ -33,7 +33,7 @@ public sealed class ShipValidationTests
         var ship = ShipAuthoringTests.Fixture();
         ship.Hull.Hardpoints[0].Armor = 5;
         ship.Hull.Hardpoints[0].FiringArc = 360;
-        ship.Hull.Hardpoints[0].Type = HardpointType.AetherDrive;
+        ship.Hull.Hardpoints[0].Type = HardpointType.ControlModule;
         ship.Visual.Anchors.RemoveAll(anchor => anchor.Id == "thruster.port");
         ship.Hull.Hardpoints[0].Rotation = ItemRotation.Clockwise;
         ship.Validate();
