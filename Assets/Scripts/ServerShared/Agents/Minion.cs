@@ -14,11 +14,11 @@ public class Minion : Agent
         _rootState.AddTransition(followState, () => Task is FollowTask);
 
         // A Task change switches the substate in one update, from wherever the pilot is in the old task. includeChildren
-        // reaches the sub-states (MoveToOrbit) that Update actually sits in.
+        // reaches the patrol sub-states (MoveToOrbit) that Update actually sits in; the walk never enters the other task's state.
         patrolState.AddTransition(followState, () => Task is FollowTask, null, true, _rootState);
-        followState.AddTransition(patrolState, () => Task is PatrolOrbitsTask, Patrol, true, _rootState);
-        patrolState.AddTransition(_rootState, () => !(Task is PatrolOrbitsTask), null, true, _rootState);
-        followState.AddTransition(_rootState, () => !(Task is FollowTask), null, true, _rootState);
+        patrolState.AddTransition(_rootState, () => !(Task is PatrolOrbitsTask), null, true, _rootState, followState);
+        followState.AddTransition(patrolState, () => Task is PatrolOrbitsTask, Patrol);
+        followState.AddTransition(_rootState, () => !(Task is FollowTask));
 
         var combatState = new CombatState(this);
         _rootState.AddTransition(combatState,
