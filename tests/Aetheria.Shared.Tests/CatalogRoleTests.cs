@@ -34,7 +34,9 @@ public sealed class CatalogRoleTests
                      .Where(i => i is WeaponItemData || (i is GearData && QualityGearKinds.Contains(i.HardpointType)))
                      .OrderBy(i => i.Name, StringComparer.Ordinal))
         {
-            var varying = StatsOf(design).Where(s => s.Min != s.Max).ToArray();
+            var stats = StatsOf(design).ToArray();
+            if (stats.Length == 0) continue; // Tractor Beam: a thruster kind with no stat at all, so nothing for quality to vary
+            var varying = stats.Where(s => s.Min != s.Max).ToArray();
             var read = varying.SelectMany(NamedQualityRoles).Distinct().OrderBy(r => r, StringComparer.Ordinal).ToArray();
             var declared = (design.Roles ?? new List<ItemRole>()).Select(r => r.Name).OrderBy(r => r, StringComparer.Ordinal).ToArray();
             if (varying.Length == 0) broken.Add($"{design.Name}: every stat is flat");

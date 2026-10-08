@@ -283,7 +283,17 @@ public sealed partial class RunStartTests
     [Fact]
     public void TheEnvelopeComesFromTheGear()
     {
-        var (_, longinus, _) = EvFleet();
+        // The Longinus is fitted by name, not generated: what the generator picks follows the item stream, and every role a
+        // product authors draws from it (roles-backfill), so a generated hull would stop carrying these drives.
+        Ship longinus = null;
+        var scenario = new Scripted(false, stage =>
+        {
+            stage.Player(stage.Bare("Djinni"), float2(-50000, -50000));
+            longinus = stage.Place(EvLonginus(stage), float2(-30000, -30000), facing: float2(0, 1)) as Ship;
+        });
+        var (_, _, _, failures) = Launch(scenario, Inputs(() => GalaxySeed));
+        Assert.True(failures.Count == 0, string.Join("; ", failures));
+        Assert.NotNull(longinus);
         EvSettle(longinus);
         // A thruster's Thrust property is refreshed only while it fires: turn each way so the flank thrusters hold what
         // they push with, then read the envelope at rest.
@@ -306,7 +316,8 @@ public sealed partial class RunStartTests
 
         var envelope = longinus.Envelope;
         var mass = longinus.Mass;
-        Assert.InRange(envelope.Forward, 500000f / mass * .99f, 500000f / mass * 1.01f);
+        var forward = largeDrives.Sum(t => t.Thrust) / mass; // each drive's own thrust: a Large Drive's roll moves it between 0.8x and 1.2x
+        Assert.InRange(envelope.Forward, forward * .99f, forward * 1.01f);
         Assert.Equal(0f, envelope.Reverse);
         var flankAcceleration = flanks.Max(t => t.Thrust) / mass;
         Assert.InRange(envelope.Left, flankAcceleration * .99f, flankAcceleration * 1.01f);
