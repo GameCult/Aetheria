@@ -637,6 +637,92 @@ itself (option twemoji: nanoemoji) runs under `py -3` on Yggdrasil, not Starfire
 run is Starfire's. The sequences command touches only the `m_ActiveFontFeatures` line of each of
 48 prefabs and 2 scenes, so it wants the freshest master and a quick merge.
 
+### Retiring the prelude and the tutorial
+
+Body: `origin/master` `4d664b53`; "merge tree M" as in the faction-play re-anchor (BS-probes), unless
+noted. Read by `cut-retire-prelude` and `cut-gear-without-presence`; question `dev-scenarios-cast`
+asks which galaxy the six test scenarios use once the authored cast goes. D1 and "Why the demo is a
+prelude galaxy" describe the code before this retirement.
+
+- **PR1.** `Galaxy.IsPrelude` (`Galaxy.cs:30`) is written by three constructors: the save
+  constructor from `SavedGame.IsTutorial` (`:53`), the main constructor `false` (`:107`), the
+  prelude constructor `true` (`:175`). Its readers (grep over Assets, tests, tools): `InfluenceOf`
+  (`:158-161`, halves influence rounding up), `LoadoutGenerator.IsAvailable` (`:211-214`, every
+  product on offer), `RunStart.GenerateArena` (`RunStart.cs:29`) and
+  `ActionGameManager.PopulateLevel` (`ActionGameManager.cs:721-727`) as ZoneGenerator's
+  `isTutorial`, `RunSave.Capture` (`SavedGame.cs:77`), and tests (`RunGoalTests.cs:22`,
+  `RunStartTests.cs:146`, `ScenarioTests.cs:137, :146, :554-557`).
+- **PR2.** `InfluenceOf` feeds both generation and later zone generation: `Galaxy.cs:214-247`
+  (cast homes), `:314-324` (main homes), `:342-349` (influence), and `ZoneGenerator.cs:212`
+  (`factionPresence`, which sets station and enemy counts). A restored galaxy generates unvisited
+  zones through `PopulateLevel`, so the halving must persist with the run, today through
+  `SavedGame.IsTutorial` (key 11).
+- **PR3.** `ZoneGenerator.GenerateZone(..., bool isTutorial = false, bool ambient = true)`
+  (`:40-46`): the entrance station floor at `:223-224`, the widened orbit pool at `:238` and
+  `:246-248`, and the throw at `:327-329` all apply only to `isTutorial && galaxyZone ==
+  galaxy.Entrance`. Source: operator 2026-09-25 "Tutorial station" (`docs/locomotion-cut.md:375`),
+  scoped to the tutorial level.
+- **PR4.** The cast type is `TutorialGenerationSettings` (`Settings.cs:96-106`): five faction
+  names, LinkDensity, ZoneCount. Readers: `GameSettings.cs:30` (field, plus
+  `TutorialBackgroundSettings` `:31`), `GalaxyStage.cs:16, :29, :71-74` (`Prelude()` and
+  `Prelude(cast)`), `RunStart.cs:36-37`, `ScenarioStage.cs:21-35` (read only by
+  `TutorialGalaxy.cs:13`), `MainMenu.cs:178-179`, `ActionGameManager.cs:848`,
+  `DemoTerminus.cs:8` (the demo's cast), `tools/AetherDb/Program.cs:489-533` (`settings` and
+  `settings-dump`).
+- **PR5.** `Assets/Resources/Settings.asset` (LFS, smudged at 4d664b53) `:43-52`: the authored cast
+  is protagonist `Miss`, antagonist `Zhe`, buffer `Luc`, neutrals `Aero` and `Finch`, quest
+  `Adras`, 64 zones; `TutorialBackgroundSettings` at `:53`.
+- **PR6.** Six test scenarios generate `stage.Prelude()`, the authored cast: Arcs, DjinniShakedown,
+  Duel, LauncherAngles, LongHaul, StarvedReactor (`Scenarios/*.cs`, one line each).
+  `Scenarios.Development` is `{ TutorialGalaxy, MainGalaxy }` (`Scenarios.cs:8`). Their galaxy
+  includes Miss Terri's as protagonist.
+- **PR7.** The prelude constructor's `playerSettings` and `narrativeDirectory` parameters feed only
+  the StoryProcessor lines commented out at `Galaxy.cs:258-260` (dead since ce1a0a46, 2021, per
+  locomotion-cut.md:375).
+- **PR8.** `LoadoutGenerator.IsAvailable` (`:211-214`) and `ManufacturerPreference` (`:217-226`):
+  availability requires `Galaxy.ContainsFaction(manufacturer)` unless the galaxy is a prelude; an
+  absent manufacturer has no home zone, so `ManufacturerPreference` gives it distance 0, the
+  highest weight its allegiance allows. `Galaxy.ContainsFaction` (`:453-457`, cache
+  `_containedFactions` `:36`) has one game reader (IsAvailable); other readers are
+  `FireControlCut6cTests.cs:253` and the AetherDb `loadout exclude-sellers` mode
+  (`Program.cs:745-790`), which builds a galaxy without named factions precisely to exercise the
+  presence gate. `ScenarioStage.cs:29` builds its availability with Faction null, which today means
+  every present maker.
+- **PR9.** `SavedGame` (`SavedGame.cs:9-52`) is an int-keyed MessagePack document
+  `aetheria.savedgame` v1, keys 0-13; `IsTutorial` is key 11.
+- **PR10.** Tests touching the concept (grep -c "tutorial|prelude", case-insensitive):
+  RestoredHullsTests 65, ScenarioTests 30, DemoTerminusTests 29, RunStartTests 16, MiningCut3Tests
+  3, RunGoalTests 1. Most are the `TutorialGalaxySettings()` fixture family in RestoredHullsTests
+  and the `isTutorial:` argument.
+- **PR11.** Open boss-gate finding `test-reads-isprelude` (verdict cut-boss-gate.s1) is
+  `RunGoalTests.cs:22`; retiring the flag removes it by construction.
+
+**Why two cuts.** The follow-up asks to absorb gear-availability-without-presence and to keep the
+subtraction separate from behaviour. Removing the presence gate changes what every galaxy
+generates, so it is its own cut (`gear-without-presence`), landed first; `retire-prelude` then
+deletes the flag with no behaviour change except where named.
+
+**Why `IsPrelude` is split by rule, not renamed.** It bundles four unrelated rules, and each goes
+to its owner:
+- influence halving -> the cast's own `InfluenceScale` (the demo's cast sets .5, so its galaxy is
+  unchanged), carried by the Galaxy and the save (key 14) because later zones read it (PR2);
+- the entrance station -> `Scenario.EntranceStation`, a declaration beside `Ambient`, default true,
+  false for MainGalaxy, so every scenario's arena is unchanged; RunStart.GenerateArena applies it;
+- availability -> the general rule of gear-without-presence;
+- the save flag -> deleted (key 11 retired; ruling `no-save-compatibility-before-players`).
+
+A renamed flag on Galaxy was rejected: it would keep one switch deciding four things.
+
+**Absent manufacturers.** Preference weights by distance to the maker's headquarters, and an absent
+maker has none. The cut weighs it one jump beyond the farthest zone. Prior art: the gravity model
+of trade (Tinbergen 1962; Anderson and van Wincoop 2003) weights flows by distance decay, and a
+supplier with no local presence carries the largest trade cost, so it is reachable but least
+preferred. Zero distance (today's accident) would make absent makers the most preferred, inverting
+the rule.
+
+**Old saves.** Key 14 absent decodes as 0 and the save constructor refuses a non-positive scale by
+name. Per ruling `no-save-compatibility-before-players` nothing reads key 11.
+
 ### Model page rows
 
 | Kind | What names it | Over time | Who decides |
@@ -652,6 +738,11 @@ run is Starfire's. The sequences command touches only the `m_ActiveFontFeatures`
 | TMP emoji routing | TMP Settings `m_EmojiFallbackTextAssets` and `m_fallbackFontAssets` | Set by `EmojiFont.Build` | `EmojiFont.Build`; no prefab overrides it |
 | Ligatures per text | Each TMP component's `fontFeatures` | `liga` added once by `EmojiFont.EnableLigatures`; new components inherit TMP Settings | `EmojiFont.EnableLigatures`, then the component |
 | EmojiOne sample | none | Deleted by `emoji-font` | none |
+| Galaxy cast (replaces `TutorialGenerationSettings`) | A scenario's code constant (`DemoTerminus.Cast`) | Compiled with the game; no authored settings copy | The scenario |
+| `Galaxy.InfluenceScale` | Its galaxy | Set by the constructor (the cast's value, 1 for main), saved as `SavedGame` key 14 | The cast |
+| `Scenario.EntranceStation` | Its scenario | Compiled | The scenario; `RunStart` applies it |
+| `SavedGame` key 11 (`IsTutorial`) | Retired | Not read, not written | none |
+| `Galaxy.IsPrelude`, `TutorialGalaxy`, `TutorialGenerationSettings`, `GameSettings.TutorialGenerationSettings` | Deleted by `retire-prelude` | | none |
 
 ## Faction play: the NPC scripting
 
@@ -918,8 +1009,9 @@ and builds on `Zone.Release` from `loot-1`.
 
 | Kind | Identity | Lifecycle | Authority |
 |---|---|---|---|
-| Doctrine | `Faction.Doctrine`, catalog, key 17. | Authored through an `AetherDb` catalog command, as the targeting migrations were. | The catalog author. Read when a ship joins a flight. |
-| Flight | Runtime: zone plus faction. | Formed at admission, rebuilt on load, gone with the zone. Never persisted. | Itself alone, for members' `Target`, `Task`, hails and pings. |
+| Doctrine | `Faction.Doctrine`, catalog, key 17. | Authored through an `AetherDb` catalog command, as the targeting migrations were. Null reads as the default doctrine built from `GameplaySettings`. | The catalog author. Read when a ship joins a flight. |
+| Agent (`Zone.Agents`) | Its ship. | Created by `Zone.Admit`, removed on the `Entities` removal path (it was never removed before). | `Zone`. |
+| Flight | Runtime: zone plus faction. | Created on first join, rebuilt on load; members leave on removal or death, and it goes with the zone. Never persisted. | Itself alone, for members' `Target`, `Task`, hails and pings. |
 | Track (flight picture) | Runtime: flight plus hostile entity. | Lives while any member sees it, or a sharer lends it. | The flight, from members' perception. Never written into `EntityInfoGathered`. |
 | Duel | Runtime: flight plus challenger. | Offered, then held or broken. Ends when the challenger leaves the picture or dies. | The flight, from landed hits with their source. |
 | Ammunition baseline | Runtime: member. | Counted at admission. | The flight. Rearm moves real cargo through `TryTransferItems`. |
@@ -979,6 +1071,106 @@ Each is sized at roughly 550 to 720 lines with tests, under 200k Hands tokens. A
 four wait for `codex/mining` (it changes `Target`'s type and edits `Minion.cs`) and
 `codex/scenarios` (it rewrites admission in `Zone.cs`) to merge, because the first
 cut rewrites exactly those lines.
+
+### Re-anchor on master 4d664b53 (2026-10-08)
+
+Body: `origin/master` `4d664b537f76029fbaee94392da3d8a122f81339`, read in a detached scratch
+worktree. Where a probe says "merge tree M", it read `git merge-tree --write-tree origin/master
+origin/eureka/aetheria-release-boss-gate` = tree `8387b47214ef6e44cae28a4e6a2b9b91d51464d9`
+(boss-gate `2a5fc00b` contains demo-galaxy `85d0a148`; the merge is clean, no conflicts) with
+`git show <tree>:<path>`. No commit was made. Read by the faction-play cuts, r2 and later.
+
+- **BS1. Branch state.** `git merge-base --is-ancestor`: `codex/mining`, `codex/scenarios`,
+  `eureka/aetheria-release-mining` and `-scenarios` are ancestors of master.
+  `eureka/aetheria-release-demo-galaxy` (85d0a148) and `-boss-gate` (2a5fc00b) are NOT.
+  demo-galaxy's merge base with master is 228f241e; master is 94 commits ahead of it.
+  `-retire-longinusx` on origin equals master (4d664b53): its Hands had not pushed.
+- **BS2.** `git merge-tree --write-tree --name-only origin/master <branch>`: demo-galaxy and
+  boss-gate each merge into master with no conflicting path (trees f3f69e84 and 8387b472).
+- **BS3.** feedback-1, ballistic-ammo, controls-mount-aim, controls-ai-bearing, autofire-threshold
+  and ai-autofire had in-force specs and no report (specs-with-no-report query, as of ordinal 753).
+  `CapabilityEvents.PublishAbsorb` has no caller in `Assets/Scripts/ServerShared` (grep):
+  feedback-1's absorb publish sites do not exist yet.
+- **FP1.** `Minion.cs:7-22`: constructor `Minion(Ship ship)`; `:14` is the one VisibleEnemies
+  subscription that writes `Ship.SetTarget(add.Value)` when `Target.Value.IsNone`; combat
+  transitions read `Ship.Target.Value.Entity` (`:18`, `:21`).
+- **FP2.** `Zone.cs`: `Agents` `:40`; `Admit` `:167-172` is the only `Agents.Add` in Assets (grep)
+  and the comment names it the one admission; `CreateAgent` `:174-181` draws the circuit at `:178`
+  and assigns `agent.Task` at `:179`; the agent loop `:221-222`; the only Entities subscription is
+  the death subscription at `:107` (ObserveAdd -> Death -> Remove + Deactivate).
+- **FP3. Nothing ever removes an agent.** `Agents.Remove`/`Clear` appear nowhere in Assets or tests
+  (grep). A dead or departed ship's Minion keeps running every tick. Removal from `Zone.Entities`
+  happens at `Zone.cs:107` (death), `Entity.cs:1268` (docking) and `ActionGameManager.cs:725` (the
+  player's zone transfer).
+- **FP4.** `Entity.cs`: `_iffOverrides` `:53`; `Target` `:60` (TargetRef, one writer `SetTarget`
+  `:358`); `SetIff` `:811-815`; `IsHostileTo` `:817-836`; `GetFactionRelationship` `:838-845` reads
+  `Galaxy.FactionRelationships` only for the player's ship, so NPC-vs-NPC hostility is still only
+  trespass in an owned zone plus reciprocity ("TODO: Inter-faction hostility"). Consequence for the
+  demo: the allied Pirates and the antagonist Zhestokost do not fight each other; the Pirates'
+  doctrine is seen only against trespassers in Pirates zones. Relations (key 16) remain unmapped.
+- **FP5.** `FireControl.cs:104-112` `AgentFires(weapon, shooter, target)` reads
+  `GameplaySettings.AgentMinHitProbability` at `:109`. Callers: `Combat.cs:121` and
+  `TurretController.cs:83` (grep). `Combat.cs:159` reads `AgentRangeExponent`; `_optimumRange`
+  `:13`. `Settings.cs:251` and `:274` hold the two globals. Ten FireControl test fixtures set
+  `AgentMinHitProbability = 0f` in their settings.
+- **FP6.** `Agent.cs`: `Task` `:22`, `Settings` `:25`, constructor `:28-36`, `Update` `:47-59` zeroes
+  `Ship.Turn` each tick (controls-helm), `Accelerate` `:61-84`. `TaskType` `AgentTask.cs:24-33` has
+  no Follow or Flee. States live in `Agents/States` (BaseState, Combat, MoveTo); `PatrolOrbitsState`
+  is in `Agents/Tasks/PatrolOrbits.cs:10`.
+- **FP7.** `Corporations.cs`: Faction keys run to `BossMusic` Key(15) at `:58-59`; keys 16 and 17
+  are free.
+- **FP8.** `tools/AetherDb/Program.cs` command switch `:23-40`; `TargetingCatalog(bool apply)` at
+  `:1096` is the dry-run/apply precedent.
+- **FP9.** Tests that construct `new Minion(ship)` directly: `FireControlPerWeaponTests.cs:276,
+  :291, :580, :597` and `FireControlTests.cs:214`; `RunStartTests.cs:100` and `SafeAssert.cs:44`
+  read `zone.Agents`.
+- **FP10.** `LoadoutGenerator.cs`: `GenerateShipLoadout(Predicate<HullData>)` `:35-50`,
+  `EquipHardpoints` `:220-263`, `FillInterior` `:265`. `ZoneGenerator.cs`: faction ships
+  `:342-348`, wanderers `:350-364`, `return pack` `:366`. boss-gate adds a boss block to both files
+  (+38 and +18 lines), so anchors in them move by symbol after it merges.
+- **FP11.** `Entity.TryTransferItems(Entity, CultRecordKey, int)` at `Entity.cs:977`. No
+  `GeneratedMagazines` or `AmmoType` exists in `LoadoutGenerator.cs` or `Settings.cs`:
+  ballistic-ammo has not landed.
+- **FP12.** `Entity.Sensor` `:142`; `Sensor.Ping()` `Sensor.cs:110`.
+- **FP13.** Catalog `GameData/Aetheria.cc` at 4d664b53 (LFS, smudged in the worktree): the string
+  "Pirates" occurs only inside geoname lists, no Faction record (H1). Follow-up
+  `pirates-catalog-record` is the owner.
+- **FP14.** Lore source for the Pirates' doctrine: AetheriaLore `Aetheria/Game Design/Faction
+  Play.md` section "Pirate Coalition" (`:333-338`) and the summary row `:386`: crews want cargo,
+  not death; demand a drop, hit drives, leave fights they are losing. Of these, the flight
+  primitives express the demand (hail and grace) and leaving a losing fight (break-off). Demanding
+  a drop as compliance and aiming for drives need jettison (map item 10) and subsystem aim, which
+  no cut builds yet.
+
+**What changed from the first anchor.** The first faction-play pass anchored on `f1dee184` and
+waited for the mining and scenarios lanes. Both are merged (BS1), so the later specs branch from
+master and anchor on 4d664b53. Target is a TargetRef written only through `SetTarget`, and
+`Zone.Admit` is the only creator of agents, as the follow-up says.
+
+Agents are also removed on entity removal (FP3). A flight whose membership follows removal while
+the agent list does not would leave two answers to "who is in this zone"; one subscription now
+decides both.
+
+The Pirates' doctrine is authored in the doctrine-catalog command's table. While the catalog lacks
+the Pirates record (FP13), the command names the missing faction and writes the rest; once the
+record lands, re-running apply writes it. No doctrine, barks or levers for Miss Terri's.
+
+The played proof sits in the DemoTerminus scenario with the demo cast, because the third cut
+completes the behaviours the demo cast shows (Zhestokost's tender column, Lucent's duel, AU's
+haulers); the fourth keeps the tender loop as full-game scope with no proof.
+
+The ping cadence asks `Sensor.Ping()` and nothing more. Follow-up `sensor-stat-set-cut` is a
+separate, larger mapping (per-sensor power, beam width, passive gear, shared tracks) and was not
+mapped here; whatever Ping becomes, the flight only decides when to ask.
+
+Key layout on Faction: Relations 16 (reserved, ruling `faction-relations-field`), Doctrine 17
+(ruling `faction-doctrine-typed`). ships-hull-livery's Livery at 16 must move to 18 (follow-up
+`livery-key-collision`, owner ships-hull-livery's next revision).
+
+Collision: `ai-autofire` rewrites Combat's and TurretController's fire decision "at the agent
+threshold". After faction-play-1 the agent threshold is the member's
+`RoleDoctrine.MinHitProbability` (turrets keep the global). Whichever lands second re-anchors; the
+next ai-autofire revision should read `_agent.Doctrine.MinHitProbability`.
 
 ### Prior art
 
