@@ -202,7 +202,7 @@ public sealed class RestoredHullsTests
     }
 
     // The dock intro dereferences the ship's VelocityLimit unguarded (ActionGameManager), so every ship hull the catalog
-    // ships carries exactly one, with a top speed that is a finite positive number. After the LonginusX's retirement
+    // ships carries exactly one, with a top speed that is a finite positive number. After the retirement
     // (ruling retire-longinusx) the shipped ship hulls are the Longinus and the Djinni.
     [Fact]
     public void EveryShippedShipHullHasATopSpeed()
