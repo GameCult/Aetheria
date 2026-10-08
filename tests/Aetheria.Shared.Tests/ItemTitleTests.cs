@@ -12,7 +12,9 @@ public sealed class ItemTitleTests : IDisposable
     private readonly string _root = Path.Combine(Path.GetTempPath(), "aetheria-itemtitle-" + Guid.NewGuid().ToString("N"));
     private readonly CultCache _cache;
     private readonly ItemManager _items;
-    private readonly FactionProductData _panopticon, _clapBack;
+    private readonly FactionProductData _panopticon, _clapBack, _spiceBlend;
+    private readonly CultRecordRef<Faction> _stranger;
+    private readonly CompoundCommodityData _spice;
     private readonly GearData _array;
 
     public ItemTitleTests()
@@ -25,11 +27,16 @@ public sealed class ItemTitleTests : IDisposable
         _cache.Upsert(new SimpleCommodityData { Name = "Ore", Shape = new Shape(), Price = 7, MaxStack = 100 });
         var finch = _cache.Upsert(new Faction { Name = "Finch", ShortName = "FIN" });
         var lucent = _cache.Upsert(new Faction { Name = "Lucent", ShortName = "LUC" });
+        _stranger = _cache.RefOf<Faction>(_cache.Upsert(new Faction { Name = "Stranger", ShortName = "STR" }));
+        _spice = new CompoundCommodityData { Name = "Spice", Shape = new Shape(), Price = 3 };
+        _cache.Upsert(_spice);
         var design = _cache.RefOf<CraftedItemData>(_cache.GetByName<GearData>("Array"));
         _panopticon = new FactionProductData { Name = "Panopticon Prime", Design = design, Manufacturer = finch };
         _clapBack = new FactionProductData { Name = "ClapBack Ultra", Design = design, Manufacturer = lucent };
         _cache.Commit(batch => batch.Upsert(typeof(FactionProductData), _panopticon, new CultRecordKey("array-finch")));
         _cache.Commit(batch => batch.Upsert(typeof(FactionProductData), _clapBack, new CultRecordKey("array-lucent")));
+        _spiceBlend = new FactionProductData { Name = "Finch Reserve", Design = _cache.RefOf<CraftedItemData>(_spice), Manufacturer = finch };
+        _cache.Commit(batch => batch.Upsert(typeof(FactionProductData), _spiceBlend, new CultRecordKey("spice-finch")));
         _items = new ItemManager(_cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
     }
 
@@ -71,5 +78,21 @@ public sealed class ItemTitleTests : IDisposable
 
         var ore = new SimpleCommodity { Data = _cache.RefOf<ItemData>(_cache.GetByName<SimpleCommodityData>("Ore")), Quantity = 3 };
         Assert.Equal("Ore", _items.Title(ore));
+    }
+
+    [Fact]
+    public void A_maker_without_a_product_of_the_design_is_titled_by_design()
+    {
+        var unit = _items.CreateInstance(_items.CreateLot(_array, _stranger, .5f));
+        Assert.Equal("Stranger", _items.Brand(unit).Maker.Name);
+        Assert.Equal("Array", _items.Title(unit));
+    }
+
+    [Fact]
+    public void A_crafted_commodity_with_a_product_is_titled_by_its_product()
+    {
+        var unit = _items.CreateInstance(_items.CreateLot(_spiceBlend));
+        Assert.IsType<CompoundCommodity>(unit);
+        Assert.Equal("Finch Reserve", _items.Title(unit));
     }
 }
