@@ -1,0 +1,146 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using GameCult.Caching;
+using GameCult.Caching.MessagePack;
+using Xunit;
+
+// AetherDb's roles-backfill command (aetheria-release, cut roles-backfill) run on a scratch copy of the shipped catalog,
+// with the designs it backfills put back to the state they shipped in before it: flat stats at the middle of their range,
+// no roles, no seller quality, and the unnamed Quality terms of the stats that already varied. The shipped catalog is the
+// oracle, since the command produced it.
+public sealed class RolesBackfillCommandTests : IDisposable
+{
+    private static readonly string[] Flattened = { "Autocannon", "LRMM72", "SRMM72", "Mine Launcher", "Large Drive", "Small Drive" };
+
+    // Designs that shipped with non-flat stats whose Quality term named no role; the field is the stat to unname.
+    private static readonly (string Design, string Field)[] Unnamed =
+    {
+        ("DeathCluster", "Count"), ("Flak Gun", "Count"), ("GT 3K", "MinRange"), ("plight", "DamageSpread"),
+        ("MoveOnPro", "Modifier"), ("MoveOnPro Station Reactor", "Modifier"),
+    };
+
+    private readonly string _root = Path.Combine(Path.GetTempPath(), "roles-backfill-" + Guid.NewGuid().ToString("N"));
+    private string CatalogPath => Path.Combine(_root, "GameData", "Aetheria.cc");
+    private readonly Dictionary<string, string> _shipped = new Dictionary<string, string>();
+
+    public RolesBackfillCommandTests()
+    {
+        Directory.CreateDirectory(Path.Combine(_root, "GameData"));
+        File.Copy(Path.Combine(AetherDb.FindRoot(), "GameData", "Aetheria.cc"), CatalogPath);
+        // As PiratesFactionCommandTests: edit through a registry scoped to the shipped assembly, then give the catalog the
+        // record AetherDb's process-wide registry demands in this test host.
+        var registry = CultDocumentRegistry.ForTypes(typeof(ItemData).Assembly.GetTypes()
+            .Where(t => t is { IsAbstract: false, IsInterface: false })
+            .Where(t => t.GetCustomAttribute<CultDocumentAttribute>() != null));
+        using (var cache = new CultCache(registry))
+        {
+            cache.AddBackingStore(new SingleFileMessagePackBackingStore(CatalogPath), AetheriaStores.CatalogTypes);
+            var designs = cache.GetAll<EquippableItemData>().ToArray();
+            var products = cache.GetAll<FactionProductData>().ToArray();
+            var changed = new List<object>();
+            foreach (var design in designs.Where(d => Flattened.Contains(d.Name)))
+            {
+                _shipped[design.Name] = Describe(cache, design, products);
+                foreach (var (_, stat) in CatalogRoleTests.StatsOf(design))
+                {
+                    if (stat.Min != stat.Max) stat.Min = stat.Max = (stat.Min + stat.Max) / 2f;
+                    stat.Terms.RemoveAll(t => t.Source == StatSource.Quality);
+                }
+                design.Roles = new List<ItemRole>();
+                changed.Add(design);
+                foreach (var product in products.Where(p => p.Design.Key.Equals(cache.RefOf(design).Key)))
+                {
+                    product.Roles = new List<ProductRole>();
+                    changed.Add(product);
+                }
+            }
+            foreach (var (name, field) in Unnamed)
+            {
+                var design = designs.Single(d => d.Name == name);
+                _shipped[name] = Describe(cache, design, products);
+                foreach (var term in Stat(design, field).Terms.Where(t => t.Source == StatSource.Quality)) term.Role = null;
+                changed.Add(design);
+            }
+            cache.Commit(batch =>
+            {
+                foreach (var document in changed) batch.Upsert(document.GetType(), document, cache.RefOf(document).Key);
+            });
+            cache.FlushAsync().Wait();
+        }
+        using (var cache = new CultCache())
+        {
+            cache.AddBackingStore(new SingleFileMessagePackBackingStore(CatalogPath), AetheriaStores.CatalogTypes);
+            cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+            cache.FlushAsync().Wait();
+        }
+    }
+
+    public void Dispose() => Directory.Delete(_root, true);
+
+    private static PerformanceStat Stat(EquippableItemData design, string field) =>
+        Assert.Single(CatalogRoleTests.StatsOf(design), s => s.Name.EndsWith("." + field)).Stat;
+
+    // Everything the command decides about one design: its roles, each stat's range and role, and its sellers' role quality.
+    private static string Describe(CultCache cache, EquippableItemData design, FactionProductData[] products)
+    {
+        static string F(float v) => float.IsInfinity(v) ? v.ToString() : ((double) v).ToString("G5");
+        var stats = CatalogRoleTests.StatsOf(design).Select(s =>
+            $"{s.Name} {F(s.Stat.Min)}..{F(s.Stat.Max)} {string.Join("+", CatalogRoleTests.NamedQualityRoles(s.Stat))}");
+        var sellers = products.Where(p => p.Design.Key.Equals(cache.RefOf(design).Key)).OrderBy(p => p.Name, StringComparer.Ordinal)
+            .Select(p => $"{p.Name}: " + string.Join(", ", (p.Roles ?? new List<ProductRole>()).OrderBy(r => r.Role, StringComparer.Ordinal)
+                .Select(r => $"{r.Role} {F(r.Mean)}/{F(r.StandardDeviation)}")));
+        var roles = "roles " + string.Join(", ", (design.Roles ?? new List<ItemRole>()).Select(r => r.Name).OrderBy(r => r, StringComparer.Ordinal));
+        return string.Join("\n", new[] { roles }.Concat(stats).Concat(sellers));
+    }
+
+    private Dictionary<string, string> Read()
+    {
+        var db = AetherDb.Open(root: _root);
+        try
+        {
+            var products = db.Cache.GetAll<FactionProductData>().ToArray();
+            return db.Cache.GetAll<EquippableItemData>().Where(d => _shipped.ContainsKey(d.Name))
+                .ToDictionary(d => d.Name, d => Describe(db.Cache, d, products));
+        }
+        finally { db.Cache.Dispose(); }
+    }
+
+    [Fact]
+    public void A_dry_run_writes_nothing_and_apply_lands_what_the_catalog_ships_and_replays_as_a_no_op()
+    {
+        var before = File.ReadAllBytes(CatalogPath);
+        var start = Read();
+        Assert.All(_shipped.Keys, name => Assert.NotEqual(_shipped[name], start[name]));
+
+        Assert.Equal(0, Program.RolesBackfill(apply: false, root: _root));
+        Assert.Equal(before, File.ReadAllBytes(CatalogPath));
+
+        Assert.Equal(0, Program.RolesBackfill(apply: true, root: _root));
+        var landed = File.ReadAllBytes(CatalogPath);
+        Assert.NotEqual(before, landed);
+        var after = Read();
+        foreach (var name in _shipped.Keys.OrderBy(n => n, StringComparer.Ordinal))
+            Assert.Equal(_shipped[name], after[name]);
+
+        // A second apply finds every stat ranged and named and every seller authored, and writes nothing.
+        Assert.Equal(0, Program.RolesBackfill(apply: true, root: _root));
+        Assert.Equal(landed, File.ReadAllBytes(CatalogPath));
+    }
+
+    [Fact]
+    public void A_design_the_catalog_does_not_hold_refuses_and_lands_nothing()
+    {
+        var db = AetherDb.Open(catalogWritable: true, root: _root);
+        var autocannon = db.Cache.GetAll<WeaponItemData>().Single(weapon => weapon.Name == "Autocannon");
+        autocannon.Name = "Autocannon (renamed)";
+        db.Cache.Commit(batch => batch.Upsert(typeof(WeaponItemData), autocannon, db.Cache.RefOf(autocannon).Key));
+        db.Cache.Dispose();
+        var before = File.ReadAllBytes(CatalogPath);
+
+        Assert.Throws<InvalidOperationException>(() => Program.RolesBackfill(apply: true, root: _root));
+        Assert.Equal(before, File.ReadAllBytes(CatalogPath));
+    }
+}

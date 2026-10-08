@@ -316,7 +316,11 @@ public sealed partial class RunStartTests
 
         var envelope = longinus.Envelope;
         var mass = longinus.Mass;
-        var forward = largeDrives.Sum(t => t.Thrust) / mass; // each drive's own thrust: a Large Drive's roll moves it between 0.8x and 1.2x
+        // The shipped Large Drive's Thrust is a range its lot's roll moves it through, so each drive pushes within the catalog's
+        // range and the envelope forward is what the two push together.
+        var catalogThrust = _cache.GetAll<GearData>().Single(gear => gear.Name == "Large Drive").Behaviors.OfType<ThrusterData>().Single().Thrust;
+        Assert.All(largeDrives, t => Assert.InRange(t.Thrust, catalogThrust.Min * .99f, catalogThrust.Max * 1.01f));
+        var forward = largeDrives.Sum(t => t.Thrust) / mass;
         Assert.InRange(envelope.Forward, forward * .99f, forward * 1.01f);
         Assert.Equal(0f, envelope.Reverse);
         // One Talaria pushes each way, and each has its own lot's thrust: the sides are the two flanks' accelerations.
