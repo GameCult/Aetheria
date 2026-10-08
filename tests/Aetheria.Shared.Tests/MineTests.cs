@@ -446,20 +446,22 @@ public sealed class MineTests : IDisposable
         Assert.True(shipsA[4].Hull.Durability < 1000000f);
     }
 
-    // The trigger gate never arcs a mine layer (FireControl.ArcPermitsFire): it lays a body, not a round, so a cursor
-    // outside its arc still lays. The layer is unfused (no Fuse), so the fused exemption cannot cover it and only the
-    // mine-layer exemption can; the fixture checks the aim is outside the arc and the gate would hold any other gun.
+    // The trigger gate never arcs a mine layer (FireControl.ArcPermitsFire; IsMineLayer is its own half of the
+    // exemption). The layer is unfused, so the fused half cannot pass it: only the mine-layer exemption can. An unfused
+    // layer lays nothing (Lay), so the gate is the layer this is decided at. The fixture checks the aim is outside
+    // the arc, with no target designated, so the gate has no other way to pass.
     [Fact]
-    public void AMineLayerLaysWithTheAimOutsideItsArc()
+    public void AMineLayerPassesTheTriggerGateWithTheAimOutsideItsArc()
     {
         var lab = Build(fuseKind: null);
         Assert.Null(FireControl.FuseOf(lab.WeaponItem, out _));
-        var mount = FireControl.MountDirection(lab.WeaponItem);
-        lab.Layer.Aim = -mount;
+        Assert.True(FireControl.IsMineLayer(lab.Weapon));
+        lab.Layer.Aim = -FireControl.MountDirection(lab.WeaponItem);
         Assert.False(FireControl.InArc(lab.WeaponItem, lab.Layer.Aim), "fixture: the aim must be outside the arc");
+        Assert.False(FireControl.Solution(lab.Weapon, lab.Layer, lab.Layer.Target.Value).Free);
+        Assert.False(FireControl.Solution(lab.Weapon, lab.Layer, lab.Layer.Target.Value).Bears);
 
         Assert.True(FireControl.ArcPermitsFire(lab.Weapon, lab.Layer));
-        LayOne(lab);
     }
 
     [Fact]

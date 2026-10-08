@@ -188,7 +188,7 @@ public sealed partial class FireControlCut124Tests
     {
         var e = Build(TestSettings(), SolidShape(5, 4), hardpointArc: SolutionArc, weaponRange: 200f);
         var hull = e.Items.ItemData.RefOf<ItemData>(e.HullData);
-        var decoy = new Ship(e.Items, e.Zone, new EquippableItem { Data = hull, Durability = 1000000, Lot = 9000 }, new EntitySettings());
+        var decoy = new Ship(e.Items, e.Zone, new EquippableItem { Data = hull, Durability = 1000000, Lot = 400 }, new EntitySettings());
         e.Zone.Entities.Add(decoy);
         decoy.Activate();
         var at = radians(40f);
