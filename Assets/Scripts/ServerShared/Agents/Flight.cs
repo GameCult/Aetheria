@@ -150,8 +150,10 @@ public class Flight
             return;
         }
 
+        // No engaged track in this member's own sensors: it steers on the flight's picture, a bearing and never targeting
+        // data (ruling shared-track-bearing-only). That is the hailed and the complied, and an engaged track only a flightmate sees.
         Aim(ship, null);
-        var held = picture.Where(e => _tracks[e].Phase == Phase.Hailing || _tracks[e].Phase == Phase.Complied).ToList();
+        var held = picture.Where(e => _tracks[e].Phase != Phase.None).ToList();
         if (held.Count > 0)
         {
             var anchor = member.Agent.Task is FollowTask follow && held.Contains(follow.Anchor)

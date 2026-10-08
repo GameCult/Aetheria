@@ -533,6 +533,22 @@ public sealed class FlightTests : IDisposable
         Assert.IsNotType<FollowState>(CurrentState(minion));
     }
 
+    [Fact]
+    public void AMemberThatCannotSeeTheEngagedTrackClosesOnItsBearing()
+    {
+        var faction = WithDoctrine(EngageOn.Detection);
+        var sighted = Pilot(faction);
+        var blind = Pilot(faction, 10);
+        var track = Track();
+        See(sighted, track);
+        Tick(.1f);
+
+        Assert.Same(track, sighted.Target.Value.Entity);
+        Assert.True(blind.Target.Value.IsNone);
+        var task = Assert.IsType<FollowTask>(_zone.Agents.Single(a => a.Ship == blind).Task);
+        Assert.Same(track, task.Anchor);
+    }
+
     private static string TempCatalog() => Path.Combine(Path.GetTempPath(), "aetheria-doctrine-" + Guid.NewGuid().ToString("N") + ".cc");
 
     [Fact]
