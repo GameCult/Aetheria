@@ -1531,8 +1531,7 @@ public static class Program
             Console.WriteLine($"\"{name}\" thermal envelope {existing.MinimumTemperature}..{existing.MaximumTemperature} (optimum {existing.OptimalTemperature}, plateau {existing.PlateauWidth}) -> {minimumTemperature}..{maximumTemperature} K (optimum {optimalTemperature}, plateau {plateauWidth}).");
             if (!apply)
             {
-                Console.WriteLine("
-Dry run. Pass \"apply\" to correct it.");
+                Console.WriteLine("\nDry run. Pass \"apply\" to correct it.");
                 return 0;
             }
             existing.MinimumTemperature = minimumTemperature;
@@ -1541,8 +1540,7 @@ Dry run. Pass \"apply\" to correct it.");
             existing.PlateauWidth = plateauWidth;
             CultRecordRefs.Validate(existing);
             db.Cache.Commit(batch => batch.Upsert(typeof(GearData), existing, db.Cache.RefOf(existing).Key));
-            Console.WriteLine($"
-Corrected \"{name}\" in Aetheria.cc");
+            Console.WriteLine($"\nCorrected \"{name}\" in Aetheria.cc");
             return 0;
         }
 
