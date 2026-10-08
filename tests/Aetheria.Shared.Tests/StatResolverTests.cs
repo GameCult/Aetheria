@@ -96,10 +96,10 @@ public sealed class StatResolverTests : IDisposable
         cache.FlushAsync().Wait();
         var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
         var ship = BuildActivatedShip(cache, items, withBooster: true);
+        ship.Deactivate(); // TryEquip refuses while deployed
         Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("AutoGun")), FirstGunCell));
         Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("ChargedGun")), SecondGunCell));
         // Re-activate so the booster's Initialize sees the guns it did not see at the first activation.
-        ship.Deactivate();
         ship.Activate();
         var booster = ship.Equipment.Single(e => e.Data.Name == "Booster");
         var behavior = booster.GetBehavior<StatModifier>();
