@@ -33,6 +33,7 @@ public static class Program
             case "brownout-migrate": return BrownoutMigrate(args.Contains("apply"));
             case "roles-migrate": return RolesMigrate(args.Contains("apply"));
             case "firing-arc-migrate": return FiringArcMigrate(args.Contains("apply"));
+            case "retire-longinusx": return RetireLonginusX(args.Contains("apply"));
             case "targeting-catalog": return TargetingCatalog(args.Contains("apply"));
             case "targeting-catalog-6c": return TargetingCatalog6c(args.Contains("apply"));
             case "targeting-catalog-6d": return TargetingCatalog6d(args.Contains("apply"));
@@ -1082,6 +1083,69 @@ public static class Program
             foreach (var (document, key) in changed) batch.Upsert(document.GetType(), document, key);
         });
         Console.WriteLine($"Landed {changed.Count} changed records in Aetheria.cc");
+        return 0;
+    }
+
+    // retire-longinusx (docs/aetheria-release-map.md, "Retiring the LonginusX and parking the aether drive"): deletes
+    // HullData LonginusX, GearData Traction and the two FactionProductData that sell them, in one Commit. Dry run unless
+    // passed "apply". It refuses unless exactly those four records are present, and refuses when any other record's
+    // serialized bytes name one of their ids or the names LonginusX or Traction. A second apply finds nothing and refuses.
+    private static int RetireLonginusX(bool apply)
+    {
+        var hullId = "445d911a-9951-40a3-874e-0b7ce8b35129";
+        var gearId = "42d1ffaa-f764-4a65-ba03-43cc4e6fd2bc";
+        var gearProductId = "007ed2b1-8fdf-473d-9ebf-e55fcd1a6903";
+        var db = AetherDb.Open(catalogWritable: apply);
+
+        var stored = db.Cache.AllStoredDocuments.ToArray();
+        var hull = stored.FirstOrDefault(d => d.Document is HullData && string.Equals(d.Key.Value, hullId, StringComparison.OrdinalIgnoreCase));
+        var gear = stored.FirstOrDefault(d => d.Document is GearData && string.Equals(d.Key.Value, gearId, StringComparison.OrdinalIgnoreCase));
+        if (hull == null || gear == null)
+        {
+            Console.WriteLine("Nothing to retire: the LonginusX hull and the Traction gear are not both present.");
+            return 1;
+        }
+
+        var doomed = new List<CultStoredDocument> { hull, gear };
+        doomed.AddRange(stored.Where(d => d.Document is FactionProductData product &&
+            (product.Design.Key.Value == hull.Key.Value || product.Design.Key.Value == gear.Key.Value)));
+        if (doomed.Count != 4 || doomed.Count(d => string.Equals(d.Key.Value, gearProductId, StringComparison.OrdinalIgnoreCase)) != 1)
+        {
+            Console.WriteLine($"Refused: expected the hull, the gear and their two products, found {doomed.Count} records.");
+            return 1;
+        }
+
+        var needles = doomed.Select(d => d.Key.Value).Concat(new[] { "LonginusX", "Traction" })
+            .Select(System.Text.Encoding.UTF8.GetBytes).ToArray();
+        var doomedKeys = new HashSet<string>(doomed.Select(d => d.Key.Value));
+        var named = 0;
+        foreach (var other in stored.Where(d => !doomedKeys.Contains(d.Key.Value)))
+        {
+            var options = CultDocumentMessagePackSerialization.OptionsFor(other.Document.GetType().Assembly);
+            var bytes = MessagePack.MessagePackSerializer.Serialize(other.Document.GetType(), other.Document, options);
+            if (!needles.Any(needle => bytes.AsSpan().IndexOf(needle) >= 0)) continue;
+            Console.WriteLine($"Named by {other.Document.GetType().Name} {NameOf(other.Document) ?? other.Key.Value}");
+            named++;
+        }
+        if (named > 0)
+        {
+            Console.WriteLine($"Refused: {named} other records name the retiring records.");
+            return 1;
+        }
+
+        foreach (var d in doomed)
+            Console.WriteLine($"{(apply ? "Deleting" : "Would delete")} {d.Document.GetType().Name} {NameOf(d.Document)} {d.Key.Value}");
+        if (!apply)
+        {
+            Console.WriteLine("Dry run. Pass \"apply\" to delete 4 records.");
+            return 0;
+        }
+
+        db.Cache.Commit(batch =>
+        {
+            foreach (var d in doomed) batch.Remove(d.Key);
+        });
+        Console.WriteLine("Deleted 4 records from Aetheria.cc");
         return 0;
     }
 
