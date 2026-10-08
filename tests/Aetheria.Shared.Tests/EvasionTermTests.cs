@@ -319,9 +319,11 @@ public sealed partial class RunStartTests
         var forward = largeDrives.Sum(t => t.Thrust) / mass; // each drive's own thrust: a Large Drive's roll moves it between 0.8x and 1.2x
         Assert.InRange(envelope.Forward, forward * .99f, forward * 1.01f);
         Assert.Equal(0f, envelope.Reverse);
-        var flankAcceleration = flanks.Max(t => t.Thrust) / mass;
-        Assert.InRange(envelope.Left, flankAcceleration * .99f, flankAcceleration * 1.01f);
-        Assert.InRange(envelope.Right, flankAcceleration * .99f, flankAcceleration * 1.01f);
+        // One Talaria pushes each way, and each has its own lot's thrust: the sides are the two flanks' accelerations.
+        var flankAccelerations = flanks.Select(t => t.Thrust / mass).OrderBy(a => a).ToArray();
+        var sides = new[] { envelope.Left, envelope.Right }.OrderBy(a => a).ToArray();
+        Assert.InRange(sides[0], flankAccelerations[0] * .99f, flankAccelerations[0] * 1.01f);
+        Assert.InRange(sides[1], flankAccelerations[1] * .99f, flankAccelerations[1] * 1.01f);
         var clockwise = thrusters.Where(t => t.Torque > settings.TorqueFloor).Sum(t => t.Torque * t.Thrust) * settings.TorqueMultiplier / mass;
         var counterClockwise = thrusters.Where(t => t.Torque < -settings.TorqueFloor).Sum(t => -t.Torque * t.Thrust) * settings.TorqueMultiplier / mass;
         Assert.InRange(envelope.Clockwise, clockwise * .99f, clockwise * 1.01f);
