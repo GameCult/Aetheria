@@ -140,12 +140,10 @@ public static class ShipPrefabAuthoring
                 if (values.Length != 7) throw new InvalidOperationException($"Invalid pivot name {name}");
                 var pivot = AddOrGet<ArticulationPoint>(node.gameObject);
                 pivot.Group = ParseInt(values[1], name);
-                pivot.YawMin = ParseInt(values[2], name);
-                pivot.YawMax = ParseInt(values[3], name);
                 pivot.PitchMin = ParseInt(values[4], name);
                 pivot.PitchMax = ParseInt(values[5], name);
                 pivot.Speed = ParseInt(values[6], name);
-                if (pivot.YawMin > pivot.YawMax || pivot.PitchMin > pivot.PitchMax || pivot.Speed <= 0)
+                if (pivot.PitchMin > pivot.PitchMax || pivot.Speed <= 0)
                     throw new InvalidOperationException($"Invalid articulation range or speed in {name}");
                 pivots.Add(pivot);
             }

@@ -38,8 +38,6 @@ public class Ship : Entity
     private HashSet<Thruster> _leftThrusters;
     private HashSet<Thruster> _clockwiseThrusters;
     private HashSet<Thruster> _counterClockwiseThrusters;
-    private HashSet<EquippedItem> _aetherDriveItems;
-    private HashSet<AetherDrive> _aetherDrives;
 
     private bool _exitingWormhole = false;
     private bool _enteringWormhole = false;
@@ -96,9 +94,6 @@ public class Ship : Entity
     {
         base.Activate();
 
-        _aetherDrives = new HashSet<AetherDrive>(GetBehaviors<AetherDrive>());
-        _aetherDriveItems = new HashSet<EquippedItem>(_aetherDrives.Select(x => x.Item));
-        
         _allThrusters = GetBehaviors<Thruster>().ToArray();
         _thrusterItems = new HashSet<EquippedItem>(_allThrusters.Select(x=>x.Item));
         
@@ -124,13 +119,6 @@ public class Ship : Entity
     public Ship(ItemManager itemManager, Zone zone, EquippableItem hull, EntitySettings settings) : base(itemManager, zone, hull, settings)
     {
         ItemDestroyed.Where(item=>_thrusterItems.Contains(item)).Subscribe(RemoveThruster);
-        ItemDestroyed.Where(item=>_aetherDriveItems.Contains(item)).Subscribe(RemoveAetherDrive);
-    }
-
-    private void RemoveAetherDrive(EquippedItem item)
-    {
-        _aetherDriveItems.Remove(item);
-        _aetherDrives.Remove(item.GetBehavior<AetherDrive>());
     }
 
     private void RemoveThruster(EquippedItem item)
@@ -176,10 +164,6 @@ public class Ship : Entity
         foreach (var thruster in _forwardThrusters)
             if (thruster.Item.Active.Value)
                 ForwardThrust += thruster.Thrust;
-
-        foreach (var drive in _aetherDrives)
-            if (drive.Item.Active.Value)
-                ForwardThrust += drive.Thrust.x;
     }
 
     private void RecalculateReverseThrust()
@@ -188,10 +172,6 @@ public class Ship : Entity
         foreach (var thruster in _reverseThrusters)
             if (thruster.Item.Active.Value)
                 ReverseThrust += thruster.Thrust;
-
-        foreach (var drive in _aetherDrives)
-            if (drive.Item.Active.Value)
-                ReverseThrust += drive.Thrust.x;
     }
 
     private void RecalculateLeftStrafeThrust()
@@ -210,10 +190,6 @@ public class Ship : Entity
         foreach(var thruster in _leftThrusters)
             if (abs(sign(thruster.Torque) - sign(LeftStrafeTotalTorque)) < .01f)
                 LeftStrafeTorqueThrusters.Add(thruster);
-
-        foreach (var drive in _aetherDrives)
-            if (drive.Item.Active.Value)
-                LeftStrafeThrust += drive.Thrust.y;
     }
 
     private void RecalculateRightStrafeThrust()
@@ -232,10 +208,6 @@ public class Ship : Entity
         foreach(var thruster in _rightThrusters)
             if (abs(sign(thruster.Torque) - sign(RightStrafeTotalTorque)) < .01f)
                 RightStrafeTorqueThrusters.Add(thruster);
-
-        foreach (var drive in _aetherDrives)
-            if (drive.Item.Active.Value)
-                RightStrafeThrust += drive.Thrust.y;
     }
 
     private void RecalculateClockwiseTorque()
@@ -244,10 +216,6 @@ public class Ship : Entity
         foreach (var thruster in _clockwiseThrusters)
             if (thruster.Item.Active.Value)
                 ClockwiseTorque += thruster.Torque;
-
-        foreach (var drive in _aetherDrives)
-            if (drive.Item.Active.Value)
-                ClockwiseTorque += drive.Thrust.z;
     }
 
     private void RecalculateCounterClockwiseTorque()
@@ -256,10 +224,6 @@ public class Ship : Entity
         foreach (var thruster in _counterClockwiseThrusters)
             if (thruster.Item.Active.Value)
                 CounterClockwiseTorque -= thruster.Torque;
-
-        foreach (var drive in _aetherDrives)
-            if (drive.Item.Active.Value)
-                CounterClockwiseTorque += drive.Thrust.z;
     }
 
     #endregion
@@ -293,9 +257,6 @@ public class Ship : Entity
 
             foreach (var thruster in _clockwiseThrusters) thruster.Axis += Turn;
             foreach (var thruster in _counterClockwiseThrusters) thruster.Axis += -Turn;
-
-            foreach (var drive in _aetherDrives)
-                drive.Axis = float3(MovementDirection.y, MovementDirection.x, Turn);
         }
 
         var velocityMagnitude = length(Velocity);

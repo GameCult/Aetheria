@@ -157,7 +157,7 @@ public interface IPowerConsumer
  Union(9, typeof(WearData)),
  Union(10, typeof(VelocityConversionData)),
  Union(11, typeof(VelocityLimitData)),
- Union(12, typeof(AetherDriveData)),
+ // Union(12): retired, do not reuse -- was AetherDriveData (retire-longinusx; parked/aether-drive)
  // Union(14, typeof(TowingControllerData)),
  Union(15, typeof(CooldownData)),
  Union(16, typeof(HeatData)),

@@ -6191,3 +6191,300 @@ reverse. One coverage test makes "triggered by" and "harmed by" the same disc.
 **Why no targeting provider or point defense against mines.** The old mine was neither
 detectable nor shootable, and ruling `pd-who-engages` prices munitions, which a mine is not.
 Detection of floating bodies stays with follow-up `bodies-detection`.
+
+## Catalog breadth: the weapon matrix, roles backfill and stat-boosting gear
+
+Pass: Imagination `imagination-catalog-breadth`, session `self-2026-10-08b`. Self merges this into
+`docs/aetheria-release-map.md`; nothing here is committed. Body: `GameCult/Aetheria` origin/master
+`a8f71d463bf1160de0b5f23caa56dc7957252345` (fetched 2026-10-08), detached worktree in the session
+scratchpad, removed at the end. Rulings applied: `catalog-breadth-weapons-gear-consumables`,
+`catalog-grows-generic-designs-branded-products`, `tech-lineage-per-component-role`,
+`weapon-tracking-authored`, `plight-not-one-cell`, `plight-shape`. Operator, 2026-10-08, relayed by
+Self: "All this comes with roles and components too, right?" (not yet admitted as a ruling; Self
+should admit it so specs can cite it by id).
+
+Part (c), consumables, is not mapped here. The component-role rule (CB-R1) and the stacking rule
+(question `boost-stacking`) are written so that pass reuses them unchanged.
+
+### Body facts
+
+Decode method: `cultcache_py` `SingleFileMessagePackBackingStore.pull_all()` over
+`GameData/Aetheria.cc` at a8f71d46 (LFS pulled into the worktree), payloads `msgpack.unpackb`ed and
+read by MessagePack key. Scratch scripts `cat.py`, `wm.py`, `stats.py`, not committed.
+
+- **CB1. Census at a8f71d46.** 74 FactionProductData, 51 CompoundCommodityData, 31 GearData,
+  22 WeaponItemData, 13 SimpleCommodityData, 12 Faction, 12 NameFile, 4 CargoBayData, 4 HullData,
+  3 PersonalityAttribute, 1 FieldKindData, 1 DockingBayData, 1 InputLayout. pd-gear and the Mine
+  Launcher are on master; the Pirates (pirates-record 8e51016f), lot-product (ec081b9b),
+  generic-design-names, product-lines-weapons, maker-only-faction (5dce222b), mods-in-tree
+  (cc83f5ad) and faction-play-1 (b3d1e929) are not. Design names are still the branded ones.
+- **CB2. The catalog already has a category axis and a size axis on weapons** (source read
+  `ItemData.cs:477-487`, `Enums.cs:55-83`). `WeaponItemData.WeaponType` (key 26: ElectromagneticallyPropelled,
+  ExplosivelyPropelled, Laser, Electrostatic, ParticleProjection, Missile, MicroMissile, SplitMissile,
+  Mine, Jet) and `WeaponCaliber` (key 25: Small, Medium, Large, ExtraLarge). The operator's vault note
+  `AetheriaLore Aetheria/Worldbuilding/Post-Elysium/Reference/Weapon Category Codes.md` (33cd06a)
+  defines the same taxonomy: caliber S/M/L/XL, weapon types EMPS, XPS, L, PL, ESD, PPC, launchers
+  M, MM, MIRV with guidance D/G/S. The enum lacks PL (pulse laser) and adds Mine and Jet. The only
+  code readers are the action-bar icon (`Gameplay/ActionBarSlot.cs:154`, `GameSettings.cs:52-54`).
+- **CB3. The matrix at a8f71d46** (type x authored caliber, with cell footprint):
+
+  | Type | Small | Medium | Large | ExtraLarge |
+  |---|---|---|---|---|
+  | XPS (Ballistic) | ClearPath 2, Earp 2, 6k Shooter 2, PD Gun 1 | Autocannon 4, DeathCluster 4, pretty pretty bang bang 4, Flak Gun 2 | - | - |
+  | EMPS | - | - | - | - |
+  | Laser (Energy) | Spectra 2, ColdFire 2, PD Laser 1, CShot RainbowLite Lazer 9 | - | - | - |
+  | ESD (Energy) | - | - | plight 2 | - |
+  | PPC (Energy) | FastBlast+- 2 | ChargeBlast+- 4, ChargeBlast SG 4 | - | - |
+  | Missile (Launcher) | - | GT 3K 3 | - | - |
+  | MicroMissile (Launcher) | - | scorched void policy 3, pswarm 1 | LRMM72 6 | SRMM72 6 |
+  | SplitMissile | - | - | - | - |
+  | Mine (Launcher) | - | Mine Launcher 1 | - | - |
+  | Jet | - | - | - | - |
+
+  Caliber and footprint disagree in six designs: CShot (Small, 9 cells), plight (Large, 2),
+  pswarm (Medium, 1), SRMM72 (ExtraLarge, 6 like LRMM72's Large), Mine Launcher (Medium, 1),
+  Flak Gun (Medium, 2). Map M30 already recorded CShot and plight.
+- **CB4. Weapon homes on master** (`HullData.Hardpoints`, key 23). Longinus: Energy 1x2 x2,
+  Launcher 1x3 x2. Djinni: Ballistic 1x2 x2, Launcher 1x3 x2, Launcher 3x2 x2. Turret (station):
+  Ballistic 2x4 x2. Zenith: none. `LoadoutGenerator.HasHome` (`:201`) offers a design only if some
+  hull's hardpoint `Takes` it, so a Large or ExtraLarge Energy gun, an ExtraLarge launcher and a
+  2x2 Energy gun have no home until a hull carries such a mount. No mod package is in the tree yet.
+- **CB5. Roles and components today** (source read `ItemData.cs:315-331`, `FactionProduct.cs:14-40`,
+  `Provenance.cs:73`, `ItemData.cs:640-720`). A design declares `Roles` (`ItemRole`, a name only;
+  its comment: "the part itself earns a record when crafting needs one to exist"). A product
+  authors `ProductRole{Role, Mean, StandardDeviation}` per role; `ItemManager.CreateLot`
+  (`ItemManager.cs:149`) rolls each role's quality into the lot; a stat reads it through a
+  `StatTerm{Source: Quality, Role}`. No record type for a component item exists; the 51
+  CompoundCommodityData (Circuit Board, Reaction Chamber, Heat Sink Tile, Trigger ...) carry no
+  roles and nothing links a role to them. Lineage (`tech-lineage-per-component-role`) has no field.
+- **CB6. Roles are live only where a stat reads them.** `AetherDb roles-migrate`
+  (`tools/AetherDb/Program.cs:255-378`) assigned roles per kind from fixed field maps
+  (`:156-216`) and skipped flat stats (`Min == Max`) and kinds with no quality-reading behaviour.
+  The census prints, but no test fails on, products that author no spread for a role
+  (`Program.cs:110-127`).
+- **CB7. The audit of in-flight content for roles** (decode plus pirates-record diff read):
+  - pd-gear (merged): all three designs declare their kind's roles, each read by non-flat stats;
+    every product authors ProductRole for each. No gap.
+  - Pirates (pirates-record 8e51016f, `Program.cs` diff lines 66-82): every rebrand mirrors its
+    design's roles at apply time (mean .45, sd .22). It inherits the design's gaps: its Autocannon
+    rebrand carries no roles because Autocannon declares none.
+  - Mine Launcher (merged): no roles, every MineLayerData stat flat with no terms at all; its DME
+    product authors none.
+  - Also role-less with flat stats: Autocannon, LRMM72, SRMM72 (every stat Min == Max, Quality term
+    with no role). Large Drive reads Quality with no role and declares none. Cargo bays, docking
+    bay, Cockpit 2x2, Turret Control Module and Tractor Beam carry no quality-reading stat.
+- **CB8. Stat modifiers exist and work for passive gear** (source read
+  `Behaviors/StatModifier.cs`, `StatResolver.cs:108-145`, `Entity.cs:1960-1980`).
+  `StatModifierData` (behaviour union 4) names a target `StatReference{Target type name, Stat
+  field}`, a magnitude `PerformanceStat` (so per-role quality works), `Constant` or `Multiplier`,
+  and an optional `RequireBehavior`. While the gear is Active its behaviour groups execute in order
+  and stop at the first that fails (`Entity.cs:1969-1976`), so an `EnergyDraw` before the modifier
+  gates it on power; the modifier attaches to every matching stat on the same entity and detaches
+  when it stops executing. `PerformanceStat.Evaluate` applies `lerp * Scale + Constant`, then the
+  power factor (`ItemData.cs:700-722`). The sim reads every boosted stat through `Evaluate`
+  (Thruster.cs:43, Sensor.cs:168, Radiator.cs:118, Weapon.cs:133-143, VelocityLimit.cs:35,
+  TargetingSystem.cs:80). The catalog's one modifier: MoveOnPro (both sizes) scales
+  `CapacitorData.Capacity` by 1.1-1.25.
+- **CB9. Gap: a modifier cannot target a base behaviour type.** `TargetsOf`
+  (`StatModifier.cs:91-114`) matches `GetType() == targetType` at `:98`, `:102` and `:104`, while
+  `ResolveStatField` resolves any `BehaviorData` subtype by name, abstract ones included
+  (`ItemData.cs:785-799`, `Extensions.cs:36-44`). A modifier on `WeaponData.Damage` validates and
+  then attaches to nothing, because every gun's behaviour is a concrete subtype (AutoWeaponData,
+  InstantWeaponData, ChargedWeaponData, ConstantWeaponData, LauncherData, MineLayerData).
+- **CB10. Stacking today is unbounded.** `StatResolver.ScaleModifier` multiplies every attached
+  scale and `ConstantModifier` sums every constant (`StatResolver.cs:108-122`). Ten 1.15
+  multipliers compound to 4.0x. Consumable effects attach through the same resolver
+  (`Entity.cs:857-881`, `StatModifier.cs:63`), so the stacking rule is shared with part (c).
+- **CB11. Where stat gear lives.** Tool gear has no hardpoint and fits any free interior cell
+  (`Entity.cs:1076-1090`); Targeting Computer (Tool 1x1: TargetingSystem, EnergyDraw 2, Heat 15) is
+  the closest template for a powered booster.
+- **CB12. Consumables already have a sim mechanism** (for part (c), not mapped here):
+  `ConsumableItemData` (`ItemData.cs`, keys 10-14: Behaviors, Stackable, Duration, Icon,
+  Effectiveness) is a CraftedItemData, so it declares roles; `Entity.TryActivateConsumable`
+  (`:872`) and `ConsumableItemEffect` (`:1582`) run its behaviours, including StatModifier, with a
+  `ConsumableProgress` stat source. The catalog holds no consumable record.
+
+### Model page row changes
+
+- **WeaponItemData (catalog)**: who decides gains "the matrix cell": `WeaponType` and
+  `WeaponCaliber` are the authored category and size (question `weapon-matrix-axes`); footprint
+  lies in its caliber's band (Small 1-2 cells, Medium 3-4, Large 5-6, ExtraLarge 7-9).
+- **CraftedItemData.Roles / FactionProductData.Roles**: a design declares a role only if a non-flat
+  stat reads it; every product authors one ProductRole per role (rule CB-R1).
+- **StatModifierData**: targets a behaviour type and its subtypes (after modifier-subtypes); the
+  resolver's stacking rule is the one for gear and consumables alike (question `boost-stacking`).
+
+### Rules (cited by the specs)
+
+- **CB-R1, roles and components (the whole ruling, consumables included).** A crafted design
+  (weapon, gear, consumable) declares roles iff it has a stat that varies with quality. Each
+  declared role is read by at least one non-flat stat's `Quality` term; each non-flat stat reads
+  exactly one declared role; every product that sells the design authors one ProductRole per
+  role, from its maker's profile (catalog-growth addenda table; Pirates .45/.22 per pirates-record).
+  Roles come from the kind's field map in `Program.cs:156-216`, extended for new kinds as named in
+  each spec. A consumable's roles govern its effect magnitude stats the same way. Under the
+  recommended option of question `component-items`, the component is the (design role, product
+  ProductRole) pair: no component item record until crafting reads one, and the lineage mark of
+  `tech-lineage-per-component-role` lands on ProductRole when the first aethertech product does.
+- **CB-R2, authoring a new design.** Copy a template by record key (never by name, so it holds
+  across generic-design-names), set the shape, caliber, type and name, set every authored stat by
+  the ladder below as a Min-Max range of value x (0.8, 1.2) (benefit stats rise with quality, cost
+  stats fall), keep the template's non-quality terms, point each Quality term at its role, author
+  Tracking per weapon with no terms (`weapon-tracking-authored`), carry no BlastRadius or Fuse
+  (`FireControlCut124Tests.cs:2589`), no AmmoType (the ballistic-ammo revision owns rounds), and a
+  description with no maker name. Two or more products from distinct makers, never Miss Terri's or
+  the Pirates, product name never the design name.
+- **CB-R3, caliber ladder** (per step from the template's caliber): Damage per shot x2.0, Range
+  x1.2, Mass x2.0, Price x2.0, Energy and Heat x1.8, Cooldown x1.25, Spread x0.85, Visibility x1.5.
+  Tracking (authored, steep): 2-cell Small 10-12, Medium 5-6, Large 3, ExtraLarge 1.5; flame guns
+  double those (the cone covers what tracking misses).
+- **CB-R4, footprints for new designs.** Small 1x2, Medium 2x2 (launchers 1x3), Large 2x3
+  (launchers 3x2), ExtraLarge 2x4 (fits the station Turret's Ballistic 2x4).
+- **CB-R5, catalog blob.** Each content cut lands through one idempotent AetherDb command; under
+  follow-up `catalog-blob-merge-order` its merge takes master's catalog, reruns the command's
+  `apply`, commits the regenerated blob in its own LFS commit with the dry-run text and reruns the
+  suite. No cut picks a side's blob.
+
+### Design tables
+
+Product names are drafts in each maker's voice (profiles: catalog-growth addenda); Hands writes the
+one-line descriptions in that voice.
+
+**matrix-coilguns** (EMPS, Ballistic hardpoint, template ClearPath `0271bb97` for Small and
+Autocannon `13116166` above; EMPS vs XPS at one caliber: Velocity x2.5, Penetration authored high,
+Energy x3 per `ballistics-cycle-power`, Damage x1.2, Cooldown x1.6; roles barrel, feed mechanism):
+
+| Design | Caliber | Shape | Products (maker) |
+|---|---|---|---|
+| Light Coilgun | Small | 1x2 | RC-1 Needle (R&D), Pin (Finch) |
+| Coilgun | Medium | 2x2 | RC-4 Spindle (R&D), Plumb Line (Adrasteia) |
+| Railgun | Large | 2x3 | True Meridian (Adrasteia), RX-9 Lancer (R&D), Gavel (Zhestokost) |
+| Heavy Railgun | ExtraLarge | 2x4 | Axis (Adrasteia), Long Reach (AU) |
+
+**matrix-cannons** (XPS, template Autocannon, AutoWeaponData; barrel, feed mechanism):
+
+| Heavy Autocannon | Large | 2x3 | Bulwark (Zhestokost), Foreman (AU) |
+|---|---|---|---|
+| Siege Cannon | ExtraLarge | 2x4 | Last Word (Zhestokost), big red problem (DME) |
+
+**matrix-beams** (Energy; Laser from ColdFire `2933c4ce`, PPC from ChargeBlast+- `499f7891`;
+focusing array, power coupling):
+
+| Medium Beam Laser | Medium | 2x2 | Filament (Alakrita), Limelight (Lucent) |
+|---|---|---|---|
+| Large Beam Laser | Large | 2x3 | Marquee (Lucent), Clear Sight (Adrasteia) |
+| Heavy Ion Cannon | Large | 2x3 | Blackout (NiteLife), short circuit (DME) |
+| Ion Lance | ExtraLarge | 2x4 | Lights Out (NiteLife), IX-12 Breaker (R&D) |
+
+**matrix-lightning** (ESD, ChargedWeaponData from plight `632420a6`; focusing array, power coupling):
+
+| Arc Thrower | Small | 1x2 | Sparkler (Lucent), Live Wire (NiteLife) |
+|---|---|---|---|
+| Storm Projector | Medium | 2x2 | Thunderhead (NiteLife), everybody dance (DME) |
+| Tempest Projector | ExtraLarge | 2x4 | Grand Finale (Lucent), Mains (NiteLife) |
+
+**matrix-missiles** (Launcher; Missile from GT 3K `5ee2ff03`, MicroMissile from LRMM72 `32157982`;
+guidance system, thruster, warhead):
+
+| Light Missile Launcher | Small | 1x2 | Fledgling (Finch), Courier (AU) |
+|---|---|---|---|
+| Heavy Missile Launcher | Large | 3x2 | GT 6K (R&D), Freight Forward (AU) |
+| Torpedo Launcher | ExtraLarge | 2x4 | Battering Ram (Zhestokost), GT 12K (R&D) |
+| Micromissile Battery | ExtraLarge | 2x4 | the whole show (DME), Fireworks (Lucent) |
+
+**matrix-mines** (Launcher, MineLayerData from Mine Launcher `1b4a2bb3`; new role map: warhead
+reads Damage, Penetration, DamageSpread; dispenser reads Range, Cooldown, Spread, Velocity, Energy,
+Heat, Visibility; ArmingDelay, FuseDelay and Lifetime stay authored per design, not ladder-scaled):
+
+| Mine Rack | Medium | 1x3 | party favours (DME), Caltrop (Zhestokost) |
+|---|---|---|---|
+| Heavy Mine Layer | Large | 3x2 | surprise party (DME), Wake Warden (Lightsail) |
+| Minefield Projector | ExtraLarge | 2x4 | Exclusion Zone (Zhestokost), do not enter (DME) |
+
+**matrix-flamers** (Jet, Ballistic hardpoint, InstantWeaponData pellet gun from Flak Gun
+`6af6446e`: DamageType Thermal, Count 8-12, Spread 25-35 deg, Range 150-300 at Small, Velocity
+300; roles nozzle (Range, Spread, Velocity) and fuel pump (Damage, Cooldown, Energy, Heat,
+Visibility)). Absorbs follow-up `pirates-flamethrower`'s design; the Pirates' own 🔥 product moves
+in their own record, not here.
+
+| Light Flamethrower | Small | 1x2 | hot take (DME), Scorch (Zhestokost) |
+|---|---|---|---|
+| Flamethrower | Medium | 2x2 | keep it lit (DME), Brushfire (AU) |
+| Heavy Flamethrower | Large | 2x3 | Purifier (Zhestokost), burn the boats (DME) |
+| Inferno Projector | ExtraLarge | 2x4 | Ashfall (Zhestokost), Afterparty (NiteLife) |
+
+After these, every cell of CB3 is filled except the SplitMissile row (follow-up
+`mirv-split-munition`): 24 new designs, 49 new products.
+
+**Stat boosters** (Tool 1x1, template Targeting Computer `c07ea205`'s EnergyDraw and Heat, then a
+StatModifierData Multiplier in the same group so power gates it; roles amplifier (the magnitude)
+and regulator (EnergyDraw, Heat); magnitude per question `boost-strength`):
+
+| Design | Targets | Products (maker) | Cut |
+|---|---|---|---|
+| Thrust Amplifier | ThrusterData.Thrust | Tailwind (Finch), Second Wind (Lightsail) | boost-gear-systems |
+| Signal Amplifier | SensorData.Sensitivity | Earful (Finch), Lookout (AU) | boost-gear-systems |
+| Emissivity Booster | RadiatorData.Emissivity | Cold Read (Adrasteia), Cool Head (Lightsail) | boost-gear-systems |
+| Reactor Overclock | ReactorData.Charge | Afterhours (NiteLife), redline (DME) | boost-gear-systems |
+| Damage Amplifier | WeaponData.Damage | Showstopper (Lucent), Heavy Hand (Zhestokost) | boost-gear-combat |
+| Range Extender | WeaponData.Range | Far Sight (Adrasteia), Long Look (Finch) | boost-gear-combat |
+| Shield Booster | ShieldData.Capacity | Thick Skin (AU), SB-2 Bastion (R&D) | boost-gear-combat |
+
+### Rationale
+
+**Why the category is WeaponType and the size is WeaponCaliber.** The operator's own taxonomy
+(CB2) names exactly these two axes, and the catalog already carries both fields. Footprint is mount
+space, which the brief's "sizes (cell footprints)" reads as the size; the two disagree in six
+records (CB3). Recommended: caliber is the one authored size, and a catalog test holds every
+footprint inside its caliber's band, so neither can drift; the six are fixed as content. plight is
+the exception the operator holds open (ruling `plight-shape`, Defaulted, revisit after play): it
+stays Large, and the band test names that ruling as its one exemption. Prior art: Starsector mounts
+are type x size (small/medium/large; ballistic/energy/missile) and every type exists at every size;
+Elite's hardpoints are class 1-4 with weapon families not filling every class.
+
+**Why MIRV waits.** A split missile with no split is a mislabelled missile. Missiles become stepped
+munition records only after missile-records (r3, no report); splitting belongs on that record.
+
+**Why components are the role and its ProductRole.** No system reads a part record (crafting is not
+in the demo; the target's not-in-scope line excludes new mechanics), so a component item now would
+be inert data. X4 and EVE give components item records because their economies produce and consume
+them; the role-quality pair already carries what the operator's examples need (a laser better at
+what its focusing role governs). Question `component-items` asks the operator.
+
+**Why the stacking question recommends diminishing returns.** Interior cells are cheap compared with
+hardpoints, so unbounded multiplication (CB10) makes a hold full of amplifiers the dominant fit.
+EVE University, Stacking penalties (fetched 2026-10-08): the n-th percentage modifier on one
+attribute is multiplied by S(n-1), S(u) = e^-(u/2.67)^2, strongest first, so 100%, 86.9%, 57.1%,
+28.3%, 10.6%, 3.0%; absolute effects are never penalized; positive and negative effects are
+penalized separately. Starsector hullmods are on or off per ship and priced in ordnance points
+(starsector.wiki.gg/wiki/Hullmods, fetched 2026-10-08: Unstable Injector raises speed and cuts
+weapon range 25%); the exact bonus values were not on that page. Nebulous jammers stack on a similar
+diminishing curve (consumables prior-art file, "Stacking and exclusivity"). Because consumables
+attach through the same resolver, whichever rule the operator picks covers part (c) too.
+
+**Cut order.** roles-backfill and modifier-subtypes are independent of everything here. The seven
+matrix cuts are independent of one another and of generic-design-names (templates by key, new
+designs born generic); they wait only on the axis ruling. caliber-bands lands last: it recalibers
+six records and adds the band and coverage tests that would fail before the matrix fills.
+product-lines-weapons r2 adds roles-backfill to r1's dependencies so its new products of Autocannon,
+LRMM72, SRMM72 and Mine Launcher author ProductRole for real roles. product-lines-gear turns
+follow-up `gear-product-lines` into a spec (Self withdraws the follow-up as absorbed when it
+admits nothing else over it). boost-gear-combat waits on modifier-subtypes; modifier-stacking and
+both boost cuts wait on the operator.
+
+**Record keys.** No cut here adds a MessagePack key to any type, so none touches the Faction key
+collision (maker-only-faction 19, faction-play-1 Doctrine, livery 18).
+
+### Admitted (mind receipts 2026-10-08 19:48-19:50 UTC)
+
+Questions: `weapon-matrix-axes` (raised in matrix-coilguns, blocks every matrix cut and
+caliber-bands), `component-items` (raised in nothing: the specs follow its recommended option and
+stay valid under the others), `boost-strength` (raised in boost-gear-systems), `boost-stacking`
+(raised in modifier-stacking). Cut specs r1: roles-backfill, modifier-subtypes, modifier-stacking,
+boost-gear-systems, boost-gear-combat, matrix-coilguns, matrix-cannons, matrix-beams,
+matrix-lightning, matrix-missiles, matrix-mines, matrix-flamers, caliber-bands, product-lines-gear;
+product-lines-weapons r2 with resolution `cut_spec.cut-product-lines-weapons.r1.n1` (Superseded).
+Follow-ups: `mirv-split-munition`, `homeless-calibers`, `matrix-rounds`. Left for Self:
+follow-up `gear-product-lines` is absorbed by product-lines-gear (close it when that merges);
+follow-up `pirates-flamethrower`'s design half is absorbed by matrix-flamers (its product move
+stays the Pirates' record's).

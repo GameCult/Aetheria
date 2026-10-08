@@ -96,7 +96,6 @@ public sealed partial class RunStartTests
     [Fact]
     public void EveryScenarioStages()
     {
-        AddPirates();
         Assert.Equal(EveryScenario.Count(), EveryScenario.Select(scenario => scenario.Name).Distinct().Count());
         foreach (var scenario in EveryScenario)
         {
@@ -130,7 +129,7 @@ public sealed partial class RunStartTests
     [Fact]
     public void ModesMatchOldNewGame()
     {
-        Assert.Equal("LonginusX", _startingHull);
+        Assert.Equal("Longinus", _startingHull);
 
         var tutorial = Launch(new TutorialGalaxy(), Inputs(() => GalaxySeed));
         Assert.Empty(tutorial.failures);
@@ -286,8 +285,8 @@ public sealed partial class RunStartTests
         var failures = Refused(Arena(true), new Scripted(true, stage =>
         {
             stage.Player(stage.Bare("Djinni"), float2(0, 0));
-            stage.Place(stage.Generated("LonginusX"), float2(300, 0), stance: ScenarioStance.Hostile, piloted: true);
-            stage.Place(stage.Fit("LonginusX", ("No Such Gun", int2(1, 8), ItemRotation.None)), float2(-300, 0));
+            stage.Place(stage.Generated("Longinus"), float2(300, 0), stance: ScenarioStance.Hostile, piloted: true);
+            stage.Place(stage.Fit("Longinus", ("No Such Gun", int2(1, 8), ItemRotation.None)), float2(-300, 0));
         }));
         Assert.Contains("No Such Gun", Assert.Single(failures));
     }
@@ -302,8 +301,8 @@ public sealed partial class RunStartTests
         var staged = Stage(zone, new Scripted(true, stage =>
         {
             stage.Player(stage.Bare("Djinni"), float2(0, 0));
-            stage.Place(stage.Generated("LonginusX"), float2(300, 0), stance: ScenarioStance.Hostile, piloted: true);
-            stage.Place(stage.Bare("LonginusX"), float2(-300, 0), stance: ScenarioStance.Neutral, piloted: false);
+            stage.Place(stage.Generated("Longinus"), float2(300, 0), stance: ScenarioStance.Hostile, piloted: true);
+            stage.Place(stage.Bare("Longinus"), float2(-300, 0), stance: ScenarioStance.Neutral, piloted: false);
         }));
         var player = staged.Player;
         var hostile = staged.Entities[0];
@@ -337,8 +336,8 @@ public sealed partial class RunStartTests
         var staged = Stage(zone, new Scripted(true, stage =>
         {
             stage.Player(stage.Bare("Djinni"), float2(0, 0));
-            stage.Place(stage.Bare("LonginusX"), float2(300, 0), stance: ScenarioStance.Hostile);
-            stage.Place(stage.Bare("LonginusX"), float2(-300, 0), stance: ScenarioStance.Hostile);
+            stage.Place(stage.Bare("Longinus"), float2(300, 0), stance: ScenarioStance.Hostile);
+            stage.Place(stage.Bare("Longinus"), float2(-300, 0), stance: ScenarioStance.Hostile);
         }));
         var player = staged.Player;
         var hostile = staged.Entities[0];
@@ -523,7 +522,6 @@ public sealed partial class RunStartTests
     [Fact]
     public void EveryUnsoldDesignIsAScenarioTestDesign()
     {
-        AddPirates();
         var runs = EveryScenario.Select(scenario => Launch(scenario, Inputs(() => GalaxySeed)).staged).ToList();
         Assert.Empty(UnsoldAndUnplaced(runs));
 

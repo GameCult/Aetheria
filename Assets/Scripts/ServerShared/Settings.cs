@@ -213,8 +213,6 @@ public class GameplaySettings
     public ExponentialLerp LockSpinSpeed;
     public float TorqueFloor;
     public float TorqueMultiplier;
-    public float AetherTorqueMultiplier;
-    public float AetherHeatMultiplier;
     public float VisibilityDecay;
     public float TargetInfoDecay;
     public float TargetDetectionInfoThreshold;
@@ -240,7 +238,7 @@ public class GameplaySettings
     // UnaidedTracking above -- FireControl.Precision falls back to this the same way it already falls back to
     // UnaidedAccuracy/UnaidedTracking. Precision is now a grouping tightness (FireControl.Sigma = 1/Precision,
     // in hull-schematic cell units), not the old coin-flip probability, so the unaided floor has to be
-    // authored on that scale. .3 -> sigma 3.33 cells: against the live catalog's own hulls (LonginusX 6x17,
+    // authored on that scale. .3 -> sigma 3.33 cells: against the live catalog's own hulls (Longinus 6x17,
     // Zenith 12x12, Turret 8x8) that puts pOnHull at the hull's own centre of mass around .5-.84 -- broadly
     // sprayed across the whole silhouette (sigma is a large fraction of the hull's own width) while still
     // landing on the ship more often than not. A tighter floor (e.g. .1, sigma 10) was tried first and
