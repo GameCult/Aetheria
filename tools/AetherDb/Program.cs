@@ -10,6 +10,8 @@ using System.Linq;
 using System.Reflection;
 using CultMath;
 using GameCult.Caching;
+using GameCult.Caching.MessagePack;
+using MessagePack;
 using Random = CultMath.Random;
 
 // Commands over the game database, run with: dotnet run --project tools/AetherDb -- <command>
@@ -38,8 +40,9 @@ public static class Program
             case "targeting-catalog-6d": return TargetingCatalog6d(args.Contains("apply"));
             case "ship-authoring": return ShipAuthoringCommands.Run(args.Skip(1).ToArray());
             case "field-kinds": return FieldKindsCatalog(args.Contains("apply"));
+            case "pd-gear": return PdGearCatalog(args.Contains("apply"));
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], pd-gear [apply]");
                 return 1;
         }
     }
@@ -1503,6 +1506,144 @@ public static class Program
         CultRecordRefs.Validate(asteroid);
         db.Cache.Commit(batch => batch.Upsert(typeof(FieldKindData), asteroid));
         Console.WriteLine("\nAuthored \"Asteroid\" in Aetheria.cc");
+        return 0;
+    }
+
+    // Aetheria release, cut pd-gear (ruling catalog-grows-generic-designs-branded-products): the catalog's first
+    // point-defence class guns. Nothing in data marks a gun as PD (ruling pd-who-engages); these are PD by their
+    // stats: a hose of light rounds, a quick light beam, and a small pellet volley. Each design is a deep copy of a
+    // template weapon (so roles, effect, sound and temperatures are inherited) with only the stats below overridden;
+    // each carries several products, and branding lives in the products alone. Dry run unless passed "apply".
+    private static int PdGearCatalog(bool apply)
+    {
+        var db = AetherDb.Open(catalogWritable: apply);
+        var weapons = db.Cache.GetAll<WeaponItemData>().ToArray();
+
+        var designNames = new[] { "Point Defense Gun", "Point Defense Laser", "Flak Gun" };
+        var already = designNames.Count(name => weapons.Any(w => w.Name == name));
+        if (already == designNames.Length)
+        {
+            Console.WriteLine("Point-defence gear is already authored; nothing to do.");
+            return 0;
+        }
+        if (already != 0) throw new InvalidOperationException("Point-defence gear is partly authored; the catalog needs a human.");
+
+        WeaponItemData Template(string name) =>
+            weapons.FirstOrDefault(w => w.Name == name) ?? throw new InvalidOperationException($"No weapon design named \"{name}\".");
+        Faction Maker(string shortName) =>
+            db.Cache.GetAll<Faction>().FirstOrDefault(f => f.ShortName == shortName) ?? throw new InvalidOperationException($"No faction with short name \"{shortName}\".");
+
+        var ammoRef = Template("Autocannon").Behaviors.OfType<InstantWeaponData>().Single().AmmoType;
+        var ammunition = db.Cache.Get<SimpleCommodityData>(ammoRef.Key) ?? throw new InvalidOperationException("Autocannon's ammunition commodity is not in the catalog.");
+
+        var options = CultDocumentMessagePackSerialization.OptionsFor(typeof(WeaponItemData).Assembly);
+        WeaponItemData Copy(WeaponItemData template, string name, string description, float mass, int price, float durability, int width, int height, WeaponModifiers modifiers)
+        {
+            var design = MessagePackSerializer.Deserialize<WeaponItemData>(MessagePackSerializer.Serialize(template, options), options);
+            design.Name = name;
+            design.Description = description;
+            design.Mass = mass;
+            design.Price = price;
+            design.Durability = durability;
+            design.Shape = new Shape(width, height);
+            for (var x = 0; x < width; x++)
+                for (var y = 0; y < height; y++) design.Shape.Cells[x, y] = true;
+            design.WeaponModifiers = modifiers;
+            return design;
+        }
+
+        // The stat keeps the template's terms (so quality still moves it as it moves the template); only Min and Max are authored.
+        static void Set(PerformanceStat stat, float min, float max) { stat.Min = min; stat.Max = max; }
+        static void Track(WeaponData data, float rate) => data.Tracking = new PerformanceStat { Min = rate, Max = rate, Terms = new List<StatTerm>() };
+
+        var gun = Copy(Template("ClearPath"), designNames[0], "Close-in defence gun: a hose of light rounds.", 40f, 80000, 60f, 1, 1, WeaponModifiers.RapidFire);
+        var gunData = gun.Behaviors.OfType<InstantWeaponData>().Single();
+        Set(gunData.Damage, 1.5f, 4f); Set(gunData.Range, 300f, 550f); Set(gunData.MinRange, 0f, 0f);
+        Set(gunData.Cooldown, .06f, .025f); Set(gunData.Count, 1f, 1f); Set(gunData.Spread, 1f, .3f);
+        Set(gunData.Velocity, 1100f, 1600f); Set(gunData.Energy, .4f, .2f); Set(gunData.Heat, 40f, 15f); Set(gunData.Visibility, 400f, 150f);
+        gunData.AmmoType = db.Cache.RefOf(ammunition); gunData.MagazineSize = 250; gunData.ReloadTime = 3f;
+        Track(gunData, 40f);
+
+        var laser = Copy(Template("Spectra"), designNames[1], "Close-in defence beam: quick, light, instant.", 30f, 110000, 30f, 1, 1, Template("Spectra").WeaponModifiers);
+        var laserData = laser.Behaviors.OfType<InstantWeaponData>().Single();
+        Set(laserData.Damage, 5f, 12f); Set(laserData.Range, 400f, 750f); Set(laserData.MinRange, 0f, 0f);
+        Set(laserData.Cooldown, .2f, .1f); Set(laserData.Count, 1f, 1f); Set(laserData.Spread, .05f, 0f);
+        Set(laserData.Velocity, 0f, 0f); Set(laserData.Energy, 6f, 10f); Set(laserData.Heat, 300f, 150f); Set(laserData.Visibility, 300f, 100f);
+        Track(laserData, 40f);
+
+        var flak = Copy(Template("DeathCluster"), designNames[2], "Small flak gun: a short-range pellet volley.", 120f, 180000, 80f, 1, 2, WeaponModifiers.Cluster);
+        var flakData = flak.Behaviors.OfType<InstantWeaponData>().Single();
+        Set(flakData.Damage, 30f, 70f); Set(flakData.Count, 6f, 8f); Set(flakData.Range, 350f, 800f); Set(flakData.MinRange, 0f, 0f);
+        Set(flakData.Cooldown, .6f, .35f); Set(flakData.Spread, 4f, 2f); Set(flakData.Velocity, 900f, 1300f);
+        Set(flakData.Energy, 1f, .5f); Set(flakData.Heat, 300f, 150f); Set(flakData.Visibility, 800f, 300f);
+        flakData.AmmoType = db.Cache.RefOf(ammunition); flakData.MagazineSize = 40; flakData.ReloadTime = 4f;
+        Track(flakData, 20f);
+
+        var makers = new Dictionary<string, (float Mean, float Dev)>
+        {
+            ["Zhestokost"] = (.50f, .08f), ["AU"] = (.50f, .12f), ["Lightsail"] = (.55f, .10f), ["R&D"] = (.60f, .15f),
+            ["Lucent"] = (.60f, .15f), ["NiteLife"] = (.55f, .12f), ["Finch"] = (.65f, .20f), ["Alakrita"] = (.60f, .14f),
+            ["DME"] = (.55f, .20f), ["Adrasteia"] = (.60f, .10f),
+        };
+        var products = new (WeaponItemData Design, string Name, string Maker, string Description)[]
+        {
+            (gun, "Waykeeper", "Lightsail", "Freight first, questions later. Keeps a hauler's paint unscratched through a full salvo."),
+            (gun, "Rampart", "Zhestokost", "A column does not dodge. It does not need to."),
+            (gun, "Swatter", "AU", "Keeps the rocks and the rockets off your back while you work."),
+            (gun, "Catch-All", "R&D", "Guaranteed to stop the missile!* *Missile defined as whatever it stops."),
+            (laser, "Glare", "Lucent", "Every missile gets its moment in the spotlight. A short one."),
+            (laser, "Nightlight", "NiteLife", "Lights out for anything with a warhead. Shares the bus with your blasters, so mind the meter."),
+            (laser, "Wren", "Finch", "Small, quiet and quicker than it looks, most days."),
+            (laser, "Gnat", "Alakrita", "Weighs less than your conscience and keeps the fast pass fast."),
+            (flak, "MFer", "Zhestokost", "Our shrapnel turns your enemies into scrapnel."),
+            (flak, "Hailstorm", "AU", "A wall of steel for crews who would rather not count missiles."),
+            (flak, "sky full of teeth", "DME", "light it up/ shake it loose/ nothing gets through tonight"),
+        };
+        foreach (var product in products) Maker(product.Maker);
+
+        void Describe(WeaponItemData design)
+        {
+            var data = design.Behaviors.OfType<InstantWeaponData>().Single();
+            Console.WriteLine($"  {design.Name,-20} {design.HardpointType,-9} {design.Shape.Width}x{design.Shape.Height}  mass {design.Mass:0.##}  price {design.Price}  durability {design.Durability:0.##}  modifiers {design.WeaponModifiers}");
+            Console.WriteLine($"      damage {data.Damage.Min:0.##}-{data.Damage.Max:0.##}  count {data.Count.Min:0.##}-{data.Count.Max:0.##}  range {data.Range.Min:0.##}-{data.Range.Max:0.##}  cooldown {data.Cooldown.Min:0.###}-{data.Cooldown.Max:0.###}  spread {data.Spread.Min:0.##}-{data.Spread.Max:0.##}  velocity {data.Velocity.Min:0.##}-{data.Velocity.Max:0.##}");
+            Console.WriteLine($"      energy {data.Energy.Min:0.##}-{data.Energy.Max:0.##}  heat {data.Heat.Min:0.##}-{data.Heat.Max:0.##}  visibility {data.Visibility.Min:0.##}-{data.Visibility.Max:0.##}  ammo {(data.AmmoType.IsSet() ? ammunition.Name : "none")}  magazine {data.MagazineSize}  reload {data.ReloadTime:0.##}  tracking {data.Tracking.Min:0.##}  roles [{string.Join(", ", design.Roles.Select(r => r.Name))}]");
+            Console.WriteLine($"      \"{design.Description}\"");
+        }
+
+        Console.WriteLine("New designs:");
+        foreach (var design in new[] { gun, laser, flak }) Describe(design);
+        Console.WriteLine("\nNew products:");
+        foreach (var (design, name, maker, description) in products)
+        {
+            var (mean, dev) = makers[maker];
+            Console.WriteLine($"  {design.Name} -> \"{name}\" by {maker}, every role mean {mean:0.##} dev {dev:0.##}: {description}");
+        }
+
+        if (!apply)
+        {
+            Console.WriteLine($"\nDry run. Pass \"apply\" to author 3 designs and {products.Length} products.");
+            return 0;
+        }
+
+        foreach (var design in new[] { gun, laser, flak }) CultRecordRefs.Validate(design);
+        db.Cache.Commit(batch =>
+        {
+            var keys = new Dictionary<WeaponItemData, CultRecordKey>();
+            foreach (var design in new[] { gun, laser, flak }) keys[design] = batch.Upsert(typeof(WeaponItemData), design);
+            foreach (var (design, name, maker, description) in products)
+            {
+                var (mean, dev) = makers[maker];
+                batch.Upsert(typeof(FactionProductData), new FactionProductData
+                {
+                    Name = name,
+                    Description = description,
+                    Design = new CultRecordRef<CraftedItemData>(keys[design]),
+                    Manufacturer = db.Cache.RefOf(Maker(maker)),
+                    Roles = design.Roles.Select(r => new ProductRole { Role = r.Name, Mean = mean, StandardDeviation = dev }).ToList(),
+                });
+            }
+        });
+        Console.WriteLine($"\nAuthored 3 designs and {products.Length} products in Aetheria.cc");
         return 0;
     }
 }
