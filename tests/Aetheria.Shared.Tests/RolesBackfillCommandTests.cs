@@ -51,7 +51,8 @@ public sealed class RolesBackfillCommandTests : IDisposable
                 }
                 design.Roles = new List<ItemRole>();
                 changed.Add(design);
-                foreach (var product in products.Where(p => p.Design.Key.Equals(cache.RefOf(design).Key)))
+                // Small Drive shipped with its sellers' quality already authored (roles-migrate); only its stats were flat.
+                foreach (var product in products.Where(p => design.Name != "Small Drive" && p.Design.Key.Equals(cache.RefOf(design).Key)))
                 {
                     product.Roles = new List<ProductRole>();
                     changed.Add(product);
