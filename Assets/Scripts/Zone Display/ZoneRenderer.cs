@@ -44,6 +44,7 @@ public class ZoneRenderer : MonoBehaviour
     public GridObject CompoundCommodityPickup;
     public GridObject GearPickup;
     public GridObject WeaponPickup;
+    public MineInstance MinePrefab;
     public Material[] MapGravityMaterials;
 
     [Header("Tour")] public bool Tour;
@@ -93,6 +94,7 @@ public class ZoneRenderer : MonoBehaviour
 
     public Dictionary<Wormhole, (GameObject gravity, CompassIcon icon)> WormholeInstances = new Dictionary<Wormhole, (GameObject, CompassIcon)>();
     private List<ItemPickup> _loot = new List<ItemPickup>();
+    private Dictionary<Mine, MineInstance> _mines = new Dictionary<Mine, MineInstance>();
 
     public Zone Zone { get; private set; }
     public ItemManager ItemManager { get; set; }
@@ -222,6 +224,16 @@ public class ZoneRenderer : MonoBehaviour
             UnloadEntity(e.Value);
         }));
 
+        // Every mine, whoever laid it, is drawn through this one subscription. A mine leaves Zone.Mines only by
+        // its blast, so a removal plays the blast; ClearZone below destroys the rest without one.
+        foreach (var mine in zone.Mines) LoadMine(zone, mine);
+        _zoneSubscriptions.Add(zone.Mines.ObserveAdd().Subscribe(e => LoadMine(zone, e.Value)));
+        _zoneSubscriptions.Add(zone.Mines.ObserveRemove().Subscribe(e =>
+        {
+            if (!_mines.Remove(e.Value, out var instance)) return;
+            instance.Blast();
+        }));
+
         if (zone.GalaxyZone != null)
         {
             foreach (var adjacentZone in zone.GalaxyZone.AdjacentZones)
@@ -234,6 +246,13 @@ public class ZoneRenderer : MonoBehaviour
                 });
             }
         }
+    }
+
+    private void LoadMine(Zone zone, Mine mine)
+    {
+        var instance = Instantiate(MinePrefab);
+        instance.Bind(zone, mine);
+        _mines.Add(mine, instance);
     }
 
     public void AddWormhole(Wormhole wormhole)
@@ -259,6 +278,10 @@ public class ZoneRenderer : MonoBehaviour
             subscription.Dispose();
         _zoneSubscriptions.Clear();
         
+        foreach (var instance in _mines.Values)
+            if (instance) Destroy(instance.gameObject);
+        _mines.Clear();
+
         foreach(var gridObject in _loot) 
             if(gridObject) Destroy(gridObject.gameObject);
         _loot.Clear();

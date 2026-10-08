@@ -38,8 +38,9 @@ public static class Program
             case "targeting-catalog-6d": return TargetingCatalog6d(args.Contains("apply"));
             case "ship-authoring": return ShipAuthoringCommands.Run(args.Skip(1).ToArray());
             case "field-kinds": return FieldKindsCatalog(args.Contains("apply"));
+            case "mine-launcher": return MineLauncherCatalog(args.Contains("apply"));
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply]");
                 return 1;
         }
     }
@@ -1503,6 +1504,72 @@ public static class Program
         CultRecordRefs.Validate(asteroid);
         db.Cache.Commit(batch => batch.Upsert(typeof(FieldKindData), asteroid));
         Console.WriteLine("\nAuthored \"Asteroid\" in Aetheria.cc");
+        return 0;
+    }
+
+    // sim-mines-presenter: the Mine Launcher item, so a ship can be fitted with the sim's mine layer. Its numbers
+    // are the 2021 record's (GameData/Legacy/AetherDB.2021-03-05.msgpack, recovered in 8c71a637: mass 75, price
+    // 125000, damage 50, range 2000, energy 15, heat 500, visibility 10, magazine 6, reload 5, spread 5, velocity
+    // 50, cooldown 2, thermal limits 173.15..473.15 K read here as -100..200); BlastRadius 25, the delays 2 and 2
+    // and the 30 s lifetime are the retired prefab's. Dry run unless passed "apply".
+    private static int MineLauncherCatalog(bool apply)
+    {
+        const string name = "Mine Launcher";
+        var db = AetherDb.Open(catalogWritable: apply);
+        if (db.Cache.GetAll<GearData>().Any(gear => gear.Name == name))
+        {
+            Console.WriteLine($"\"{name}\" is already authored; nothing to do.");
+            return 0;
+        }
+
+        PerformanceStat Constant(float v) => new PerformanceStat { Min = v, Max = v };
+        var launcher = new WeaponItemData
+        {
+            Name = name,
+            Hardpoint = HardpointType.Launcher,
+            WeaponType = WeaponType.Mine,
+            WeaponRange = WeaponRange.Medium,
+            WeaponCaliber = WeaponCaliber.Medium,
+            Fuse = WeaponFuse.Proximity,
+            BlastRadius = 25f,
+            Mass = 75f,
+            Price = 125000,
+            Durability = 100f,
+            MinimumTemperature = -100f,
+            MaximumTemperature = 200f,
+            Behaviors =
+            {
+                new MineLayerData
+                {
+                    DamageType = DamageType.Kinetic,
+                    Damage = Constant(50f),
+                    Range = Constant(2000f),
+                    MinRange = Constant(0f),
+                    Energy = Constant(15f),
+                    Heat = Constant(500f),
+                    Visibility = Constant(10f),
+                    MagazineSize = 6,
+                    ReloadTime = 5f,
+                    Spread = Constant(5f),
+                    Velocity = Constant(50f),
+                    Count = Constant(1f),
+                    Cooldown = Constant(2f),
+                    ArmingDelay = 2f,
+                    FuseDelay = 2f,
+                    Lifetime = 30f
+                }
+            }
+        };
+        Console.WriteLine($"Adds \"{name}\": Launcher, Mine, Proximity fuse, blast radius 25, one MineLayerData (arming 2, fuse 2, lifetime 30).");
+        if (!apply)
+        {
+            Console.WriteLine("\nDry run. Pass \"apply\" to author it.");
+            return 0;
+        }
+
+        CultRecordRefs.Validate(launcher);
+        db.Cache.Commit(batch => batch.Upsert(typeof(GearData), launcher));
+        Console.WriteLine($"\nAuthored \"{name}\" in Aetheria.cc");
         return 0;
     }
 }
