@@ -28,6 +28,7 @@ public static class EntitySerializer
         else throw new ArgumentException("Attempted to pack an instance of abstract class Entity!");
 
         pack.Settings = entity.Settings;
+        pack.Boss = entity.IsBoss;
 
         pack.Hull = entity.Hull;
         pack.Name = entity.Name;
@@ -81,6 +82,7 @@ public static class EntitySerializer
     private static void Restore(ItemManager itemManager, Zone zone, EntityPack pack, Entity entity)
     {
         entity.Name = pack.Name;
+        entity.IsBoss = pack.Boss;
         entity.Faction = itemManager.ItemData.Get(pack.Faction);
         entity.Children = pack.Children.Select(c =>
         {
@@ -187,6 +189,8 @@ public abstract class EntityPack
     [Key(14)] public EntitySettings Settings;
     [Key(15)] public CultRecordRef<Faction> Faction;
     [Key(16)] public int[][] WeaponGroups;
+    // Keys 17-20 belong to the subclasses; the base's next free key is 21.
+    [Key(21)] public bool Boss;
 
     private int _price;
 

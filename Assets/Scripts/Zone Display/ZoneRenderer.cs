@@ -245,6 +245,14 @@ public class ZoneRenderer : MonoBehaviour
                     Position = dir * zone.Pack.Radius * Settings.WormholeDistanceRatio
                 });
             }
+
+            // The run's exit gate is presentation only: whether it opens is RunGoal.ExitOpen, read when it is used.
+            if (zone.GalaxyZone == zone.Galaxy.Exit)
+                AddWormhole(new Wormhole
+                {
+                    Exit = true,
+                    Position = RunGoal.ExitGatePosition(zone, Settings.WormholeDistanceRatio)
+                });
         }
     }
 
