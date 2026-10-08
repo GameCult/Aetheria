@@ -10,8 +10,9 @@ import importlib.util
 import unittest
 from pathlib import Path
 
+# The dotted name is the module's path from the repo root, which mutmut keys its mutants by.
 _spec = importlib.util.spec_from_file_location(
-    "hull_grid", Path(__file__).resolve().parents[1] / "aetheria_ships" / "hull_grid.py")
+    "tools.blender.aetheria_ships.hull_grid", Path(__file__).resolve().parents[1] / "aetheria_ships" / "hull_grid.py")
 hull_grid = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(hull_grid)
 
