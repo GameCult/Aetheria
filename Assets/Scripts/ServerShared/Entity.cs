@@ -29,7 +29,7 @@ public abstract class Entity
     public float2 Velocity;
     // Rad per sim second, signed as the step turns Direction: the sum of this step's rotation actuators' applied
     // angle over the step. Runtime only, zeroed at the start of Update, so a staged, loaded or wormhole write to
-    // Direction is never a turn. Read only by DrawAhead.
+    // Direction is never a turn. Read only by presenters that draw ahead of the step.
     public float TurnRate;
 
     // Runtime only, never saved; Entity.Update is the one writer of both. Acceleration is the planar velocity change
