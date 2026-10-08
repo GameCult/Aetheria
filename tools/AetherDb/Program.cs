@@ -1543,6 +1543,7 @@ public static class Program
                 new MineLayerData
                 {
                     DamageType = DamageType.Kinetic,
+                    DamageCurve = new BezierCurve { Keys = new[] { new float4(0f, 1f, 0f, 0f), new float4(1f, 1f, 0f, 0f) } },
                     Damage = Constant(50f),
                     Range = Constant(2000f),
                     MinRange = Constant(0f),

@@ -84,6 +84,7 @@ public static class WireMines
             if (AssetDatabase.TryGetGUIDAndLocalFileIdentifier(asset, out _, out long id) && id == fileId)
                 return asset;
         if (assets.Length == 1) return assets[0];
-        throw new System.InvalidOperationException($"No {typeof(T).Name} with file id {fileId} in {path}");
+        throw new System.InvalidOperationException($"No {typeof(T).Name} with file id {fileId} in {path}; it holds " +
+            string.Join(", ", AssetDatabase.LoadAllAssetsAtPath(path).Select(a => $"{a.GetType().Name} {a.name}")));
     }
 }
