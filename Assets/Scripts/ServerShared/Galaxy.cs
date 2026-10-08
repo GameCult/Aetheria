@@ -24,7 +24,7 @@ public class Galaxy
     public Faction[] Factions { get; }
     public GalaxyZone[] Zones { get; }
     public GalaxyZone Entrance { get; }
-    public GalaxyZone Exit { get; }
+    public GalaxyZone Exit { get; private set; }
     public Dictionary<Faction, FactionRelationship> FactionRelationships { get; } = new Dictionary<Faction, FactionRelationship>();
     private Action<string> Log { get; }
     public bool IsPrelude { get; }
@@ -143,6 +143,18 @@ public class Galaxy
         return _cache.GetAll<Faction>().FirstOrDefault(f => f.Name.StartsWith(name, StringComparison.InvariantCultureIgnoreCase));
     }
 
+    // A cast member of a prelude galaxy, by name. A name the catalog does not hold refuses the galaxy, naming the field.
+    private Faction ResolveCast(string field, string name) =>
+        ResolveFaction(name) ?? throw new InvalidOperationException($"cast faction {name} ({field}) is not in the catalog");
+
+    // Gives a prelude galaxy its gate: the antagonist's home is the boss zone and the exit. The only writer of Exit
+    // besides the constructors.
+    public void PlaceGate(Faction antagonist)
+    {
+        BossZones[antagonist] = HomeZones[antagonist];
+        Exit = HomeZones[antagonist];
+    }
+
     // How many jumps a faction's influence reaches in this galaxy: its authored distance, halved (rounding up) in a
     // prelude. Derived, never written back to the catalog's Faction, so one galaxy's generation cannot change the next.
     public int InfluenceOf(Faction faction) =>
@@ -169,20 +181,23 @@ public class Galaxy
         
         var factions = new List<Faction>();
 
-        var protagonistFaction = ResolveFaction(settings.ProtagonistFaction);
+        var protagonistFaction = ResolveCast(nameof(settings.ProtagonistFaction), settings.ProtagonistFaction);
         factions.Add(protagonistFaction);
         
-        var antagonistFaction = ResolveFaction(settings.AntagonistFaction);
+        var antagonistFaction = ResolveCast(nameof(settings.AntagonistFaction), settings.AntagonistFaction);
         factions.Add(antagonistFaction);
         
-        var bufferFaction = ResolveFaction(settings.BufferFaction);
+        var bufferFaction = ResolveCast(nameof(settings.BufferFaction), settings.BufferFaction);
         factions.Add(bufferFaction);
         
-        var questFaction = ResolveFaction(settings.QuestFaction);
-        factions.Add(questFaction);
+        // A cast without a quest faction places no quest zone.
+        var questFaction = string.IsNullOrEmpty(settings.QuestFaction)
+            ? null
+            : ResolveCast(nameof(settings.QuestFaction), settings.QuestFaction);
+        if (questFaction != null) factions.Add(questFaction);
         
         var neutralFactions = settings.NeutralFactions
-            .Select(ResolveFaction)
+            .Select(name => ResolveCast(nameof(settings.NeutralFactions), name))
             .ToArray();
         factions.AddRange(neutralFactions);
         
@@ -223,17 +238,20 @@ public class Galaxy
         
         CalculateFactionInfluence(progressCallback);
 
-        var potentialQuestZones = Zones
-            .Where(z => z.Factions.Contains(antagonistFaction) && z.Factions.Contains(bufferFaction));
-        if (potentialQuestZones.Any())
-            HomeZones[questFaction] = potentialQuestZones
-                .MaxBy(z => z.Distance[HomeZones[antagonistFaction]] * ConnectedRegion(z, InfluenceOf(questFaction)).Count);
-        else 
-            HomeZones[questFaction] = Zones
-                .Where(z => z.Factions.Contains(antagonistFaction))
-                .MinBy(z=>z.Distance[HomeZones[bufferFaction]]);
-        
-        CalculateFactionInfluence(progressCallback);
+        if (questFaction != null)
+        {
+            var potentialQuestZones = Zones
+                .Where(z => z.Factions.Contains(antagonistFaction) && z.Factions.Contains(bufferFaction));
+            if (potentialQuestZones.Any())
+                HomeZones[questFaction] = potentialQuestZones
+                    .MaxBy(z => z.Distance[HomeZones[antagonistFaction]] * ConnectedRegion(z, InfluenceOf(questFaction)).Count);
+            else 
+                HomeZones[questFaction] = Zones
+                    .Where(z => z.Factions.Contains(antagonistFaction))
+                    .MinBy(z=>z.Distance[HomeZones[bufferFaction]]);
+            
+            CalculateFactionInfluence(progressCallback);
+        }
 
         Entrance = Zones.Where(z => z.Owner == null).MinBy(z => z.Distance[HomeZones[protagonistFaction]]);
         
