@@ -5,6 +5,9 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Reflection;
+using GameCult.Caching;
+using GameCult.Caching.MessagePack;
 using Xunit;
 
 // AetherDb's pirates-faction command (aetheria-release, cut pirates-record), run on a scratch copy of the shipped catalog
@@ -18,13 +21,28 @@ public sealed class PiratesFactionCommandTests : IDisposable
     {
         Directory.CreateDirectory(Path.Combine(_root, "GameData"));
         File.Copy(Path.Combine(AetherDb.FindRoot(), "GameData", "Aetheria.cc"), CatalogPath);
-        var db = AetherDb.Open(catalogWritable: true, root: _root);
-        var pirates = db.Cache.GetAll<Faction>().Single(faction => faction.Name == "Pirates");
-        var ours = db.Cache.RefOf(pirates);
-        foreach (var product in db.Cache.GetAll<FactionProductData>().Where(product => product.Manufacturer.Equals(ours)).ToArray())
-            Assert.True(db.Cache.Remove(db.Cache.RefOf(product).Key));
-        Assert.True(db.Cache.Remove(ours.Key));
-        db.Cache.Dispose();
+        // AetherDb.Open composes the process-wide registry, which in this test host also sees this assembly's TestCatalogGlobal
+        // (see FireControlCut7Tests). So the copy is stripped through a registry scoped to the shipped assembly and then given
+        // the record that registry's shared sibling demands, as AetheriaStoresTests does.
+        var registry = CultDocumentRegistry.ForTypes(typeof(ItemData).Assembly.GetTypes()
+            .Where(t => t is { IsAbstract: false, IsInterface: false })
+            .Where(t => t.GetCustomAttribute<CultDocumentAttribute>() != null));
+        using (var cache = new CultCache(registry))
+        {
+            cache.AddBackingStore(new SingleFileMessagePackBackingStore(CatalogPath), AetheriaStores.CatalogTypes);
+            var pirates = cache.GetAll<Faction>().Single(faction => faction.Name == "Pirates");
+            var ours = cache.RefOf(pirates);
+            foreach (var product in cache.GetAll<FactionProductData>().Where(product => product.Manufacturer.Equals(ours)).ToArray())
+                Assert.True(cache.Remove(cache.RefOf(product).Key));
+            Assert.True(cache.Remove(ours.Key));
+            cache.FlushAsync().Wait();
+        }
+        using (var cache = new CultCache())
+        {
+            cache.AddBackingStore(new SingleFileMessagePackBackingStore(CatalogPath), AetheriaStores.CatalogTypes);
+            cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+            cache.FlushAsync().Wait();
+        }
     }
 
     public void Dispose() => Directory.Delete(_root, true);
