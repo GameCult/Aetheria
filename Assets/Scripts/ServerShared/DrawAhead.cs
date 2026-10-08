@@ -14,13 +14,15 @@ public static class DrawAhead
         entity.Position + float3(entity.Velocity.x, 0, entity.Velocity.y) * lead;
 
     // The ship's rotation turned about its own up axis by the rate its last step turned, for lead seconds.
-    public static quaternion Rotation(Ship ship, float lead)
+    public static quaternion Rotation(Ship ship, float lead) => Turned(ship.Rotation, ship.TurnRate * lead);
+
+    // q turned about its own up axis by the angle, in the sense Direction turns for a positive TurnRate.
+    public static quaternion Turned(quaternion q, float angle)
     {
-        var q = ship.Rotation;
         var u = float3(q.x, q.y, q.z);
         var up = float3(0, 1, 0);
         up += 2 * (q.w * cross(u, up) + cross(u, cross(u, up)));
-        var half = ship.TurnRate * lead * .5f;
+        var half = angle * .5f;
         var s = sin(half);
         var t = new quaternion(up.x * s, up.y * s, up.z * s, cos(half));
         // Hamilton product t * q: CultMath carries no quaternion product (a gap in CultMath, not filled here).

@@ -58,6 +58,11 @@ public sealed class SimClockTests
         Assert.InRange(elapsed, 10.0, 10.1);
         Assert.InRange(clock.Steps, Math.Round(elapsed * 60) - 1, Math.Round(elapsed * 60) + 1);
 
+        // A frame that pays for exactly one step runs it (binary-exact seconds, so nothing rounds).
+        var exact = new SimClock(.25f, 4);
+        Assert.Equal(1, exact.Advance(.25f, _ => { }));
+        Assert.Equal(0f, exact.Lead);
+
         var slow = new SimClock(1f / 60f, 30);
         for (var frame = 0; frame < 600; frame++) slow.Advance(1f / 60, _ => { });
         Assert.InRange(slow.Steps, 299, 301);
@@ -269,5 +274,51 @@ public sealed partial class RunStartTests
         var turn = abs(rate * ClockFrame);
         Assert.True(turn > .005f, "the step turns the ship enough to tell its sense");
         Assert.True(error < .2f * turn, $"drawn one step ahead is where the sim puts the pose next (off by {error} of a {turn} turn)");
+    }
+
+    // Thrusters turn the same way: a Longinus held in a turn, settled, turns each step by exactly its TurnRate.
+    [Fact]
+    public void ThrustersReportTheirTurn()
+    {
+        var (_, longinus, _) = EvFleet();
+        EvSettle(longinus);
+        longinus.Turn = 1f;
+        var turned = 0;
+        for (var step = 0; step < 120; step++)
+        {
+            var before = longinus.Direction;
+            longinus.Update(ClockFrame);
+            Assert.InRange(abs(abs(SignedTurn(before, longinus.Direction)) - abs(longinus.TurnRate * ClockFrame)), 0f, 1e-6f);
+            if (abs(longinus.TurnRate) > 1e-4f)
+            {
+                turned++;
+                Assert.True(longinus.TurnRate > 0 == dot(longinus.Direction, before.Rotate(ItemRotation.Clockwise)) > 0);
+            }
+        }
+        Assert.True(turned > 30, "the thrusters turned the ship");
+    }
+
+    // The draw-ahead turn on a pose that is not flat: the up axis stays the pose's up, and the forward axis swings about
+    // it by the angle (Rodrigues' rotation, written out apart from DrawAhead's quaternion product).
+    [Fact]
+    public void TheDrawnTurnIsAboutThePosesOwnUp()
+    {
+        var up = normalize(float3(.3f, .8f, -.2f));
+        var pose = quaternion.LookRotation(normalize(cross(float3(1, 0, .4f), up)), up);
+        const float angle = .6f;
+        var turned = DrawAhead.Turned(pose, angle);
+
+        float3 Axis(quaternion q, float3 v)
+        {
+            var u = float3(q.x, q.y, q.z);
+            return v + 2 * (q.w * cross(u, v) + cross(u, cross(u, v)));
+        }
+        float3 Close(float3 a, float3 b) => float3(abs(a.x - b.x), abs(a.y - b.y), abs(a.z - b.z));
+        var forward = Axis(pose, float3(0, 0, 1));
+        var rodrigues = forward * cos(angle) + cross(Axis(pose, float3(0, 1, 0)), forward) * sin(angle);
+        var upBefore = Axis(pose, float3(0, 1, 0));
+        var tolerance = float3(1e-5f, 1e-5f, 1e-5f);
+        Assert.True(all(Close(Axis(turned, float3(0, 1, 0)), upBefore) < tolerance), "the pose's up does not move");
+        Assert.True(all(Close(Axis(turned, float3(0, 0, 1)), rodrigues) < tolerance), "the forward axis swings about it by the angle");
     }
 }
