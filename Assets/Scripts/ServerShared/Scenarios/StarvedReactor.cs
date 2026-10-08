@@ -25,7 +25,7 @@ public sealed class StarvedReactor : Scenario
             ("Iapyx", int2(2, 2), CounterClockwise),
             ("Iapyx", int2(3, 2), Clockwise),
             ("not if i see you first", int2(3, 10), None),
-            ("Fire Control Array", int2(0, 4), None));
+            ("Fire Control Array", int2(1, 6), Clockwise));
         stage.Player(starved, float2(0, 0));
         stage.Place(stage.Bare("Longinus"), float2(0, 400));
     }

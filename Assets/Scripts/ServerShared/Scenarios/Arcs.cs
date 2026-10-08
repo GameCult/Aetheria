@@ -30,7 +30,7 @@ public sealed class Arcs : Scenario
             ("Iapyx", int2(2, 2), CounterClockwise),
             ("Iapyx", int2(3, 2), Clockwise),
             ("not if i see you first", int2(3, 10), None),
-            ("Fire Control Array", int2(0, 4), None));
+            ("Fire Control Array", int2(1, 6), Clockwise));
         var turret = stage.Fit("Turret",
             ("ClearPath", int2(1, 2), None),
             ("ClearPath", int2(5, 2), None),

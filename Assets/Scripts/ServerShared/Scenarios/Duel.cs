@@ -28,7 +28,7 @@ public sealed class Duel : Scenario
             ("Iapyx", int2(3, 2), Clockwise),
             ("not if i see you first", int2(3, 10), None),
             ("PotaT+-", int2(1, 5), None),
-            ("Fire Control Array", int2(0, 4), None),
+            ("Fire Control Array", int2(1, 6), Clockwise),
             ("Store-All Plus", int2(2, 8), None));
 
         stage.Player(fighter, float2(0, 0));
