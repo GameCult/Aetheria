@@ -3,6 +3,7 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -102,7 +103,7 @@ public sealed class PiratesFactionCommandTests : IDisposable
                 var design = (CraftedItemData) db.Cache.Get(product.Design);
                 Assert.Equal(designName, design.Name);
                 Assert.Equal(description, product.Description);
-                Assert.Equal(design.Roles.Select(role => role.Name), product.Roles.Select(role => role.Role));
+                Assert.Equal((design.Roles ?? new List<ItemRole>()).Select(role => role.Name), (product.Roles ?? new List<ProductRole>()).Select(role => role.Role));
                 Assert.All(product.Roles, role => { Assert.Equal(.45f, role.Mean); Assert.Equal(.22f, role.StandardDeviation); });
             }
         }
@@ -145,6 +146,7 @@ public sealed class PiratesFactionCommandTests : IDisposable
         var db = AetherDb.Open(catalogWritable: true, root: _root);
         var pleiades = db.Cache.GetAll<NameFile>().Single(file => file.Name == "pleiades");
         Assert.True(db.Cache.Remove(db.Cache.RefOf(pleiades).Key));
+        db.Cache.FlushAsync().Wait();
         db.Cache.Dispose();
 
         Assert.Throws<InvalidOperationException>(() => Program.PiratesFaction(apply: true, root: _root));
