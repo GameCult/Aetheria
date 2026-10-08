@@ -273,7 +273,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
         var r = Build(SideThenForward);
         var group = r.Shooter.WeaponGroups.Single(g => g.weapons.Count == 2).weapons;
         Assert.True(ReferenceEquals(group[0], r.Guns[0].Weapon), "fixture: the side mount leads the group");
-        r.Zone.Agents.Add(new Minion(r.Shooter));
+        r.Zone.Agents.Add(new Minion(r.Shooter, FactionDoctrine.Default(r.Shooter.ItemManager.GameplaySettings).Combatant));
 
         r.Zone.Update(1f);
         r.Zone.Update(1f);
@@ -288,7 +288,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
     public void CombatFiresAFusedWeaponAtADesignatedTargetOutOfArc()
     {
         var r = Build(SideThenForward, fuse: WeaponFuse.Proximity, blast: 4f);
-        r.Zone.Agents.Add(new Minion(r.Shooter));
+        r.Zone.Agents.Add(new Minion(r.Shooter, FactionDoctrine.Default(r.Shooter.ItemManager.GameplaySettings).Combatant));
 
         r.Zone.Update(1f);
         r.Zone.Update(1f);
@@ -328,7 +328,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
         if (reason == Withheld.NoTarget) target = null;
         if (reason == Withheld.NotVisible) r.Shooter.VisibleEntities.Remove(r.Target);
 
-        Assert.False(FireControl.AgentFires(r.Gun.Weapon, r.Shooter, target));
+        Assert.False(FireControl.AgentFires(r.Gun.Weapon, r.Shooter, target, r.Shooter.ItemManager.GameplaySettings.AgentMinHitProbability));
     }
 
     [Fact]
@@ -337,7 +337,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
         // Accuracy 0 prices every direct hit at zero; the fused weapon is unmoved.
         var r = Build(SideMount, fuse: WeaponFuse.Proximity, blast: 4f, accuracy: 0f);
 
-        Assert.True(FireControl.AgentFires(r.Gun.Weapon, r.Shooter, r.Target));
+        Assert.True(FireControl.AgentFires(r.Gun.Weapon, r.Shooter, r.Target, r.Shooter.ItemManager.GameplaySettings.AgentMinHitProbability));
     }
 
     // A weapon that fires at what it hits keeps the AgentMinHitProbability threshold, per weapon.
@@ -351,7 +351,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
         var p = FireControl.HitProbability(r.Gun.Weapon, r.Shooter, r.Target);
         Assert.True(p > .3f && p < .7f, $"fixture: the shot must price near the accuracy, priced {p}");
 
-        Assert.Equal(fires, FireControl.AgentFires(r.Gun.Weapon, r.Shooter, r.Target));
+        Assert.Equal(fires, FireControl.AgentFires(r.Gun.Weapon, r.Shooter, r.Target, r.Shooter.ItemManager.GameplaySettings.AgentMinHitProbability));
     }
 
     // ==== Ruling 2: the HUD forecast is Fire's own decision ====
@@ -566,7 +566,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
     {
         var r = Build(fuse: WeaponFuse.Proximity, blast: 30f, range: range, targetRange: 20f);
 
-        Assert.Equal(fires, FireControl.AgentFires(r.Gun.Weapon, r.Shooter, r.Target));
+        Assert.Equal(fires, FireControl.AgentFires(r.Gun.Weapon, r.Shooter, r.Target, r.Shooter.ItemManager.GameplaySettings.AgentMinHitProbability));
     }
 
     // Combat's group pick counts only weapons that can fire: the refused gun's group out-damages the decoy's, so a
@@ -577,7 +577,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
     {
         var r = Build(fuse: WeaponFuse.Proximity, blast: 30f, range: 29.5f, targetRange: 20f, decoy: true);
         Assert.True(r.Gun.Weapon.RangeDamagePerSecond(20f) > r.Decoy.Weapon.RangeDamagePerSecond(20f), "fixture: the refused gun is the stronger group");
-        r.Zone.Agents.Add(new Minion(r.Shooter));
+        r.Zone.Agents.Add(new Minion(r.Shooter, FactionDoctrine.Default(r.Shooter.ItemManager.GameplaySettings).Combatant));
 
         r.Zone.Update(1f);
         r.Zone.Update(1f);
@@ -594,7 +594,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
     {
         var r = Build(range: 10f, targetRange: 20f, decoy: true);
         Assert.True(r.Gun.Weapon.RangeDamagePerSecond(20f) > r.Decoy.Weapon.RangeDamagePerSecond(20f), "fixture: the short gun is the stronger group");
-        r.Zone.Agents.Add(new Minion(r.Shooter));
+        r.Zone.Agents.Add(new Minion(r.Shooter, FactionDoctrine.Default(r.Shooter.ItemManager.GameplaySettings).Combatant));
 
         r.Zone.Update(1f);
         r.Zone.Update(1f);
@@ -611,7 +611,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
         var r = Build(range: 60f, targetRange: 60f);
         // The agent is driven directly, not through the zone, so the shooter stays exactly at max range: the first
         // update leaves the root state for combat, the second is combat deciding.
-        var agent = new Minion(r.Shooter);
+        var agent = new Minion(r.Shooter, FactionDoctrine.Default(r.Shooter.ItemManager.GameplaySettings).Combatant);
         agent.Update(.01f);
         agent.Update(.01f);
 
@@ -630,8 +630,33 @@ public sealed class FireControlPerWeaponTests : IDisposable
         var atThreshold = Build(accuracy: .5f, minHit: price);
         var overThreshold = Build(accuracy: .5f, minHit: MathF.BitIncrement(price));
 
-        Assert.True(FireControl.AgentFires(atThreshold.Gun.Weapon, atThreshold.Shooter, atThreshold.Target));
-        Assert.False(FireControl.AgentFires(overThreshold.Gun.Weapon, overThreshold.Shooter, overThreshold.Target));
+        Assert.True(FireControl.AgentFires(atThreshold.Gun.Weapon, atThreshold.Shooter, atThreshold.Target, atThreshold.Shooter.ItemManager.GameplaySettings.AgentMinHitProbability));
+        Assert.False(FireControl.AgentFires(overThreshold.Gun.Weapon, overThreshold.Shooter, overThreshold.Target, overThreshold.Shooter.ItemManager.GameplaySettings.AgentMinHitProbability));
+    }
+
+    // The threshold is the doctrine's, passed in: the settings global (zero here) decides nothing for a pilot. Kills: a
+    // reintroduced read of AgentMinHitProbability inside AgentFires.
+    [Fact]
+    public void TheDoctrinesThresholdDecidesFire()
+    {
+        var r = Build(accuracy: .5f, minHit: 0f);
+        var price = FireControl.HitProbability(r.Gun.Weapon, r.Shooter, r.Target);
+        Assert.True(price > 0f);
+
+        Assert.True(FireControl.AgentFires(r.Gun.Weapon, r.Shooter, r.Target, price));
+        Assert.False(FireControl.AgentFires(r.Gun.Weapon, r.Shooter, r.Target, MathF.BitIncrement(price)));
+    }
+
+    // A long and a short weapon: the exponent biases the preferred range outward. Kills: the optimum read from the
+    // settings global instead of the member's RoleDoctrine.
+    [Fact]
+    public void TheDoctrinesExponentMovesTheOptimumRange()
+    {
+        var r = Build(range: 400f, decoy: true);
+        float Optimum(float exponent) =>
+            new CombatState(new Minion(r.Shooter, new RoleDoctrine { RangeExponent = exponent, MinHitProbability = .2f })).OptimumRange;
+
+        Assert.True(Optimum(0f) < Optimum(1f));
     }
 
     // A round refused on a Range that fell between the trigger and the round is still free: the burst is paid

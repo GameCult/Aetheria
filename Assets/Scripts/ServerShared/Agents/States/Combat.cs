@@ -11,6 +11,7 @@ public class CombatState : BaseState
 {
     private const int DPS_SAMPLE_COUNT = 32;
     private float _optimumRange;
+    public float OptimumRange => _optimumRange;
     private readonly List<(int index, float dps)> _availableGroups = new List<(int index, float dps)>();
     private readonly List<LockWeapon> _availableLockingWeapons = new List<LockWeapon>();
     
@@ -118,7 +119,7 @@ public class CombatState : BaseState
             // fires at, and "the target is designated" for a fused one.
             foreach (var weapon in _agent.Ship.WeaponGroups[selectedGroup].weapons)
             {
-                if (FireControl.AgentFires(weapon, _agent.Ship, target))
+                if (FireControl.AgentFires(weapon, _agent.Ship, target, _agent.Doctrine.MinHitProbability))
                     weapon.Activate();
                 else if (weapon.Firing)
                     weapon.Deactivate();
@@ -156,7 +157,7 @@ public class CombatState : BaseState
             }
 
             // Multiply by range raised to a (sublinear) exponent to bias DPS preference towards longer ranges
-            dps *= pow(range, _agent.Settings.AgentRangeExponent);
+            dps *= pow(range, _agent.Doctrine.RangeExponent);
 
             if (dps > optimumDPS)
             {

@@ -80,7 +80,7 @@ public class TurretController : Behavior, IInitializableBehavior
             {
                 // The same per-weapon decision Combat.cs makes; the range test is part of it (a shot out of range
                 // is not designated and prices at zero).
-                if (FireControl.AgentFires(x, Entity, target))
+                if (FireControl.AgentFires(x, Entity, target, Entity.ItemManager.GameplaySettings.AgentMinHitProbability))
                 {
                     x.Activate();
                 }

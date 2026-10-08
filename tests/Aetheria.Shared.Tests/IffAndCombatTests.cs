@@ -48,7 +48,7 @@ public sealed class IffAndCombatTests : IDisposable
     // A world with one empty zone (no faction/security machinery engaged: GalaxyZone.Owner is null and
     // every test ship is non-player, so PresencePermitted stays at its default true and derived hostility
     // between non-owner factions is always false). Individual tests layer overrides/factions on top.
-    private (ItemManager items, Zone zone) BuildWorld()
+    internal (ItemManager items, Zone zone) BuildWorld()
     {
         _openCache = AetheriaStores.Open(Catalog, catalogWritable: true);
         var ledger = new ProvenanceLedger();
@@ -69,7 +69,7 @@ public sealed class IffAndCombatTests : IDisposable
         TargetDetectionInfoThreshold = .5f
     };
 
-    private Ship NewShip(ItemManager items, Zone zone, Faction faction = null, bool isPlayerShip = false, bool equipGun = false)
+    internal Ship NewShip(ItemManager items, Zone zone, Faction faction = null, bool isPlayerShip = false, bool equipGun = false, bool piloted = false)
     {
         var hullRef = items.ItemData.RefOf<ItemData>(items.ItemData.GetByName<HullData>("Skiff"));
         var hull = new EquippableItem { Data = hullRef, Durability = 1, Lot = 1 };
@@ -82,14 +82,19 @@ public sealed class IffAndCombatTests : IDisposable
             Assert.True(ship.TryEquip(gun, HardpointCell));
         }
 
-        zone.Entities.Add(ship);
-        ship.Activate();
+        // A piloted ship joins as every piloted admission does (Zone.Admit), and so gets its agent and its flight.
+        if (piloted) zone.Admit(ship, true);
+        else
+        {
+            zone.Entities.Add(ship);
+            ship.Activate();
+        }
         return ship;
     }
 
     // Marks entity `observer` as having detected `target`, the same way Sensor ramps EntityInfoGathered
     // past TargetDetectionInfoThreshold in the real game.
-    private static void Detect(Entity observer, Entity target) => observer.EntityInfoGathered[target] = 1;
+    internal static void Detect(Entity observer, Entity target) => observer.EntityInfoGathered[target] = 1;
 
     [Fact]
     public void OverrideDecidesOutrightOverDerivedRule()

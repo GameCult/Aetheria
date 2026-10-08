@@ -211,7 +211,7 @@ public sealed class FireControlTests : IDisposable
         // decision at all (Cut 1's regression), not AgentMinHitProbability tuning -- zero the threshold so an
         // unaided shot still counts as "worth it."
         items.GameplaySettings.AgentMinHitProbability = 0f;
-        zone.Agents.Add(new Minion(shooter));
+        zone.Agents.Add(new Minion(shooter, FactionDoctrine.Default(shooter.ItemManager.GameplaySettings).Combatant));
         return (shooter, target, zone);
     }
 

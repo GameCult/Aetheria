@@ -101,12 +101,13 @@ public static class FireControl
     // target is designated, whatever the arc: the round is sent out of arc on purpose (Solve). An agent never
     // fires a fused weapon at nothing -- no target, or one it holds no valid data on, is no reason to fish -- and
     // never one Solve refuses: a refused weapon is not a weapon it can use.
-    public static bool AgentFires(Weapon weapon, Entity shooter, Entity target)
+    // The hit-probability threshold is the shooter's doctrine (RoleDoctrine.MinHitProbability), or the turret's global.
+    public static bool AgentFires(Weapon weapon, Entity shooter, Entity target, float minHitProbability)
     {
         // A mine layer lays only at a designated target in range, never at nothing and never on a hit probability.
         if (IsMineLayer(weapon)) return Solve(weapon, weapon.Item, shooter, target).Designated;
         if (FuseOf(weapon.Item, out _) == null)
-            return HitProbability(weapon, shooter, target) >= shooter.ItemManager.GameplaySettings.AgentMinHitProbability;
+            return HitProbability(weapon, shooter, target) >= minHitProbability;
         var solution = Solve(weapon, weapon.Item, shooter, target);
         return solution.Designated && solution.Outcome != FireOutcome.Refused;
     }

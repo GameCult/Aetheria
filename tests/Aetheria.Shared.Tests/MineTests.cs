@@ -623,9 +623,9 @@ public sealed class MineTests : IDisposable
         }
         lab.Zone.Update(1f);
 
-        Assert.False(FireControl.AgentFires(lab.Weapon, lab.Layer, null));
-        Assert.False(FireControl.AgentFires(lab.Weapon, lab.Layer, far));
-        Assert.True(FireControl.AgentFires(lab.Weapon, lab.Layer, near));
+        Assert.False(FireControl.AgentFires(lab.Weapon, lab.Layer, null, lab.Layer.ItemManager.GameplaySettings.AgentMinHitProbability));
+        Assert.False(FireControl.AgentFires(lab.Weapon, lab.Layer, far, lab.Layer.ItemManager.GameplaySettings.AgentMinHitProbability));
+        Assert.True(FireControl.AgentFires(lab.Weapon, lab.Layer, near, lab.Layer.ItemManager.GameplaySettings.AgentMinHitProbability));
         Assert.False(FireControl.Refuses(lab.Weapon, lab.Layer));
     }
 
@@ -667,7 +667,7 @@ public sealed class MineTests : IDisposable
         lab.Zone.Update(1f);
 
         Assert.False(FireControl.Refuses(lab.Weapon, lab.Layer));
-        Assert.True(FireControl.AgentFires(lab.Weapon, lab.Layer, near));
+        Assert.True(FireControl.AgentFires(lab.Weapon, lab.Layer, near, lab.Layer.ItemManager.GameplaySettings.AgentMinHitProbability));
         var mine = LayOne(lab);
         Assert.Equal(150f, mine.BlastRadius);
     }

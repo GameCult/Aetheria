@@ -814,6 +814,9 @@ public abstract class Entity
         else _iffOverrides.Remove(other);
     }
 
+    // The override this entity holds on another, or null when it holds none (the derived rule decides).
+    public bool? IffOverride(Entity other) => _iffOverrides.TryGetValue(other, out var hostile) ? hostile : (bool?) null;
+
     public bool IsHostileTo(Entity other, bool recursive = false)
     {
         // An override decides only the stance of the entity that holds it. The recursive=true calls

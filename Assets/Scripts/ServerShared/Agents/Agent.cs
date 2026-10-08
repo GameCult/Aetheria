@@ -23,11 +23,14 @@ public class Agent
     public Ship Ship { get; }
     public ItemManager ItemManager { get; }
     public GameplaySettings Settings { get; }
+    // How this pilot fights: its faction's doctrine for its role (Zone.CreateAgent resolves it).
+    public RoleDoctrine Doctrine { get; }
     public float TopSpeed => _velocityLimit?.Limit ?? 100;
 
-    public Agent(Ship ship)
+    public Agent(Ship ship, RoleDoctrine doctrine)
     {
         Ship = ship;
+        Doctrine = doctrine;
         ItemManager = Ship.ItemManager;
         Settings = Ship.ItemManager.GameplaySettings;
 

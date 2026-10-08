@@ -38,6 +38,11 @@ public class Zone
     private ItemManager _itemManager;
     private double _time;
     public List<Agent> Agents = new List<Agent>();
+    // One flight per faction, created on its first piloted join; unaffiliated ships share Unaffiliated. A flight owns
+    // what its members target and do (Agents/Flight.cs).
+    private static readonly Faction Unaffiliated = new Faction();
+    private readonly Dictionary<Faction, Flight> _flights = new Dictionary<Faction, Flight>();
+    public IEnumerable<Flight> Flights => _flights.Values;
 
     // Cut 2 (docs/mining-cut.md): chunk wear, keyed by chunk. Zone.Wear is the only writer; ChunkExists and
     // ChunkRadius are the only readers besides the pack/unpack round trip below.
@@ -106,6 +111,16 @@ public class Zone
         // ObserveAdd fires for all of them. Forbidden writer: no presentation may remove an entity from Zone.
         Entities.ObserveAdd().Subscribe(add => add.Value.Death.Subscribe(_ => { Entities.Remove(add.Value); add.Value.Deactivate(); }));
 
+        // Leaving Entities, by death, docking or a transfer, is leaving the zone's pilots: the agent and its flight
+        // membership go with the ship, so nothing keeps flying a hull that is not here.
+        Entities.ObserveRemove().Subscribe(remove =>
+        {
+            var agent = Agents.FirstOrDefault(a => a.Ship == remove.Value);
+            if (agent == null) return;
+            Agents.Remove(agent);
+            foreach (var flight in _flights.Values) flight.Leave(agent);
+        });
+
         Targets.Add(new EntityTargets());
 
         foreach (var orbit in pack.Orbits)
@@ -173,10 +188,13 @@ public class Zone
 
     private Agent CreateAgent(Ship ship)
     {
-        var agent = new Minion(ship);
+        var key = ship.Faction ?? Unaffiliated;
+        if (!_flights.TryGetValue(key, out var flight))
+            _flights[key] = flight = new Flight(ship.Faction?.Doctrine, _itemManager.GameplaySettings);
+        var agent = new Minion(ship, flight.Combatant);
         var task = new PatrolOrbitsTask();
         task.Circuit = Orbits.OrderBy(_ => _itemManager.Random.NextFloat()).Take(4).Select(x => x.Key).ToArray();
-        agent.Task = task;
+        flight.Join(agent, task);
         return agent;
     }
 
@@ -218,7 +236,8 @@ public class Zone
             orbit.Value.Velocity = (orbit.Value.Position - orbit.Value.PreviousPosition) / deltaTime;
         }
 
-        foreach(var agent in Agents)
+        foreach (var flight in _flights.Values) flight.Update(deltaTime);
+        foreach(var agent in Agents.ToArray())
             agent.Update(deltaTime);
 
         foreach (var entity in Entities.ToArray()) entity.Update(deltaTime);
