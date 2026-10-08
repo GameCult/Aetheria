@@ -1116,8 +1116,9 @@ public static class Program
             return 1;
         }
 
+        // A needle is the whole serialized string: a name inside a longer string (a name list entry) is not a reference.
         var needles = doomed.Select(d => d.Key.Value).Concat(new[] { "LonginusX", "Traction" })
-            .Select(System.Text.Encoding.UTF8.GetBytes).ToArray();
+            .Select(text => MessagePack.MessagePackSerializer.Serialize(text)).ToArray();
         var doomedKeys = new HashSet<string>(doomed.Select(d => d.Key.Value));
         var named = 0;
         foreach (var other in stored.Where(d => !doomedKeys.Contains(d.Key.Value)))
