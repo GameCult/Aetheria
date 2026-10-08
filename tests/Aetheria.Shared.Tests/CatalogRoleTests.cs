@@ -52,8 +52,7 @@ public sealed class CatalogRoleTests
                     broken.Add($"{design.Name}: product \"{product.Name}\" authors [{string.Join(", ", authored)}], not each of [{string.Join(", ", declared)}] once");
             }
         }
-        Assert.True(broken.Count == 0, string.Join("
-", broken));
+        Assert.True(broken.Count == 0, string.Join("\n", broken));
     }
 
     // A product with no maker would title as its design and take no maker profile for its roles.
