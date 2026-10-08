@@ -369,7 +369,7 @@ public sealed class RunSaveTests : IDisposable
         using (var cache = AetheriaStores.Open(Catalog, catalogWritable: true))
         {
             var lamp = new CultRecordRef<CraftedItemData>(cache.Upsert(new GearData { Name = "Lamp" }).Key);
-            var maker = cache.Upsert(new Faction { Name = "Maker", ShortName = "MAK" });
+            var maker = cache.RefOf(cache.GetAll<Faction>().Single());
             product = new CultRecordRef<FactionProductData>(cache.Upsert(
                 new FactionProductData { Name = "Lamp Prime", Design = lamp, Manufacturer = maker }).Key);
             cache.FlushAsync().Wait();
