@@ -6714,3 +6714,202 @@ vapour-cloud-presenter, consumables-first-set, consumable-ai; modifier-stacking 
 consumable-host) with resolution `cut_spec.cut-modifier-stacking.r1.n1` (Superseded). Follow-ups:
 `cloud-vs-missiles-in-flight`, `modifier-magnitude-frozen-at-attach`, `consumable-heat-noop`,
 `station-restock`. Claimed keys: BehaviorData union 41 ThrottleLockData, 42 VapourDumpData (keys 1-3).
+
+## Ships add-on frame r5: authoring without the repo
+
+Imagination, agent `imagination-addon-frame`, session `self-2026-10-08b`. Campaign
+`aetheria-release`. Builds on `F:\Projects\aetheria-map-addenda-addon-refresh-2026-10-08.md`
+(A1 to A14); A14 recorded the tension this page resolves. Numbering continues at B1.
+
+Pinned heads: Aetheria `07dcb580` (branch `eureka/aetheria-release-ships-addon-frame-r4`,
+local and on origin; the brief's name `eureka/aetheria-release-ships-addon-frame` does not
+exist), CultLib `05e67014` (main), CultLib `45c2f400` (Aetheria's pinned
+`CultLibRevision`, `Directory.Build.props:6`). Every line number below is at `07dcb580`.
+
+### Body facts
+
+**B1. What New Ship needs from the repo (source read).** `_new_ship`
+(`tools/blender/aetheria_ships/__init__.py:556-605`) finds the repo by walking up for
+`tools/AetherDb` (`_aetheria_repo`, 314-325), writes to `<repo>/GameData/Mods/<id>/ship.cc`,
+and runs `dotnet run --project <repo>/tools/AetherDb -- ship-authoring create` (`_aetherdb`,
+328-336). `create` (`tools/AetherDb/ShipAuthoringCommands.cs:47-67`) reads the reference
+hull from `GameData/Aetheria.cc` through `AetherDb.Open()`, whose `FindRoot`
+(`tools/AetherDb/AetherDb.cs:26-32`) keys on `Aetheria.Shared/Aetheria.Shared.csproj`, and
+builds the hull with `ShipAuthoringStore.HullLike`
+(`Assets/Scripts/ServerShared/ShipAuthoring.cs:95-106`): copy every member, reset Name,
+Shape (`new Shape()`), Hardpoints, Prefab, Schematic and Visual. `create` does not run the
+ship-ID rule; only `Validate` (`ShipAuthoring.cs:189-192`) does.
+
+The same `_aetherdb` port also carries Package's `validate` (`__init__.py:650`), and the
+specs in force add `centre` (package-frame r1) and `paint` (paint r3). So the repo and
+dotnet dependency is the port's, not New Ship's alone: Package already needs both today.
+
+**B2. Where an author's machine gets the shipped catalog (source read).** The game reads
+`<install>/GameData/Aetheria.cc` and `<install>/GameData/Mods`
+(`Assets/Scripts/Gameplay/ActionGameManager.cs:40,48-49`), with `GameData` beside the
+player's data folder. A ship author who has the game has both. No build or release script
+in the repo copies `GameData` into a player build (searched `Assets/Scripts/Editor`,
+`tools`, workflow files): the runtime contract is the only evidence that a release carries
+it.
+
+**B3. Studio needs Unity (source read).** CultCache Studio is
+`CultCacheStudioWindow : EditorWindow` (`CultLib src/GameCult.Unity/Assets/Caching/Editor/
+CultCacheStudioWindow.cs`), opened from a Unity menu item. Ruling
+`authoring-host-thin-imgui-then-thing` keeps it an IMGUI skin until a Thing host after the
+release. Studio therefore cannot be the repo-free and Unity-free creator before then.
+
+**B4. The shipped catalog's schema catalog (probe `probes/p1_catalog.py` on the
+`07dcb580` LFS object `9e75d9a4...`).** 13 catalog entries, 219 records, 5 hulldata
+records (LonginusX, Zenith, Turret, Djinni, Longinus; Djinni, Longinus and LonginusX are
+`HullType` 0, Ship). It carries an `aetheria.hulldata` entry and **no
+`aetheria.ship_authoring` entry**: the C# store writes catalog entries only for types it
+holds records of.
+
+**B5. cultcache-py cannot derive a C# catalog identity (probe `p3_schema_id.py` and source
+read).** For all 13 C#-written entries, `content_hash == sha256(canonical_schema_json)`
+but `schema_id != sha256(canonical_schema_json)`: C# derives the id from a semantic
+fingerprint over its member descriptors (`CultLib src/GameCult.Caching/CultCache.cs:
+655-658`), with type names from `CultSchemaTypeNames.FromType`. cultcache-py's
+`DocumentDefinition.catalog_entry` (`packages/cultcache-py/src/cultcache_py/documents.py:
+105-143`) defaults the schema id and content hash to the type name, and its store's
+default entry for an unregistered envelope is a stub with no members
+(`stores.py:356-368`). Python can carry a C#-written entry through a write; it cannot
+author one.
+
+**B6. Encode and decode probe on Yggdrasil (`ygg-verify.sh`, image
+mcr.microsoft.com/dotnet/sdk:10.0, Aetheria `07dcb580`, CultLib `45c2f400` staged,
+logs `scratchpad/probes/ygg-create-1.log` and `ygg-publish-2.log`).** Reference:
+`dotnet run ... ship-authoring create /tmp/o/dn/ship.cc probe.a "Probe A" --like Djinni`.
+
+| Candidate | catalog hulldata | catalog ship_authoring | hull record | ship record | C# `inspect` |
+|---|---|---|---|---|---|
+| cultcache-py, no template (`py_create.py`) | identical (copied from the shipped catalog) | **differs**: stub, schema id `aetheria.ship_authoring`, version `aetheria.ship_authoring.v1`, members `[]` | equal values | identical bytes | loads: `probe.a: Probe A, 0 hardpoints` |
+| cultcache-py with the C# file's ship_authoring entry | identical | identical | **equal values, different bytes**: 20 `float32` (`0xca`) slots re-encoded `float64` (`0xcb`), 204 to 284 bytes | identical | loads |
+| published AetherDb (B7) | identical | identical | identical | identical | loads |
+
+`stored_at` is ignored throughout. `new Shape()` encodes `[[1, 1, [true]]]`. The C# reader
+accepted the stub catalog by schema name (compatible drift, `CultCache.cs:518-522,
+803-830`), reporting every slot as `defaulted_missing_slot` while still decoding the
+payload's values: that warning text and the observed behaviour disagree, so a file that
+relies on it relies on a CultLib behaviour nobody owns. The float widening is the same in
+today's `ship_cc.replace_layout`, which re-packs the whole hull body on every Save; C#
+reads `float64` into `float` (smoke_frame's Package validated after a Rasterise write), so
+it is a wire-parity gap, not a corruption (follow-up `py-float-width-parity`).
+
+**B7. A published AetherDb needs neither dotnet nor the repo (Yggdrasil, log
+`ygg-nodotnet-5.log`).** `dotnet publish tools/AetherDb -c Release -r linux-x64
+--self-contained -p:PublishSingleFile=true` gave one 77,287,607-byte executable (75 MB
+folder with pdbs). Run in `debian:bookworm-slim` with no dotnet (`command -v dotnet`:
+none), from a folder holding only `GameData/Aetheria.cc` plus an empty
+`Aetheria.Shared/Aetheria.Shared.csproj` (the current `FindRoot` marker), `create ...
+--like Djinni` took 1.1 s and wrote a file whose catalog and both records are byte-identical
+to the dotnet-run reference. The first run aborted with `No usable version of libssl was
+found`; with `libssl3` and `libicu72` installed it ran. Windows needs neither package; the
+win-x64 publish was not probed.
+
+**B8. The reserved-name gap is the owner's (same log).** The published tool created
+`/out/con/ship.cc` for ID `con` and `inspect` loaded it: the C# rule (`ShipAuthoring.cs:
+190-192`) admits Windows device names, and `create` does not run it at all (B1).
+
+**B9. Downstream specs read (mind, 2026-10-08).** package-frame r1 says "after frame r4 has
+merged" and its recentre test edits cells and Packages with no Save; mounts r4's Package
+writes derived Positions straight to the .cc through `replace_layout`; gizmos r2's drag
+release writes through `replace_layout` from an interactive (undoable) tool. bake r1,
+guards r1, mesh-mounts r1, mask-bakes r1 and paint r3 do not depend on what r5 changes
+(paint's `paint` command goes through the `_aetherdb` port, which the tool cut moves).
+
+### The owner answer
+
+**What can create and write a ship .cc on an author's machine without the repo or
+dotnet?** Two things, by probe: cultcache-py, if a C#-written `aetheria.ship_authoring`
+catalog entry is handed to it (B5, B6); or AetherDb itself, published self-contained
+(B7). Studio cannot before the Thing host (B3).
+
+Recommendation: the published AetherDb (question `authoring-tool-without-repo`, option
+`published-aetherdb`). It keeps C# the single owner of every ship-package rule the add-on
+calls (HullLike, the ID rule, Validate, CenterOfMass, Paint) and removes the repo and the
+SDK from all four commands at once, which the Python route does not: Package, centre and
+paint would still need the repo. The Python route needs a second copy of HullLike's reset
+list and a pinned catalog entry, and widens floats until CultLib fixes B6. The repo-free
+reference hull is the author's own game install (`GameData/Aetheria.cc`, B2).
+
+Prior art (from knowledge; no Eyes pass was run in this budget, so confidence is medium):
+game modding kits that keep one rule owner ship the game's own code compiled to modders
+rather than re-implementing it in the content tool: Valve's Source SDK ships compiled
+studiomdl, vbsp and vrad; Bethesda's Creation Kit is built on the engine's record code;
+games that ship no tool (Factorio, KSP, Minecraft data packs) validate content at game
+load, which Aetheria also does (`ShipModCatalog.ResolveCatalog` excludes a bad package and
+names it). Blender add-ons that drive external compilers (the Source Engine tools add-on,
+io_scene_valvesource, calling studiomdl) take the executable's path as a preference.
+
+### Authority map, r5
+
+- **Owner of the .cc on the author's machine:** two explicit, non-undo writers. Save
+  Layout owns cells and hardpoints (and the first Save of a new ship creates the file
+  through the published AetherDb `create`). Package owns the visual (model asset, anchors,
+  lines) and, from mounts r5, saves the layout buffer through Save's writer. C# (through
+  the published AetherDb) owns HullLike, the ship-ID rule, Validate, CenterOfMass and Paint.
+- **Owner of the frame:** the .blend. The layout buffer (`scene.aetheria_layout`),
+  `aetheria.grid_origin` with the grid size it was computed for, Ship Root and the objects
+  under it all live in the .blend, so Blender's undo moves them together.
+- **Demotions.** Rasterise and Flip Nose are no longer .cc writers; they propose cells
+  into the buffer. New Ship is no longer a .cc writer; it binds a pending ship. The repo is
+  no longer an input; the game data folder is. `dotnet run` is no longer a path.
+- **Package and an unsaved buffer.** Package refuses while the bound collection's buffer
+  differs from the .cc ("Save Layout first"), so it never packages cells the author has
+  not saved. The comparison is ship_cc's own layout revision of the buffer against the
+  revision Load or Save recorded. Mounts r5 derives Positions into the buffer after that
+  check and saves them through Save's writer.
+- **One chooser** decides which collection is the ship; Bind and New Ship accept an
+  unbound collection through it, everything else requires a bound one.
+- **One frame predicate:** the ship's meshes are Ship Root's descendants outside Source
+  and Generated with no `aetheria.role`. Rasterise reads them; Flip Nose turns Ship Root's
+  children; package-frame's recentre moves Ship Root. A mesh in the bound collection that
+  is not under Ship Root is refused by Rasterise, Flip Nose and Package with a count, never
+  silently left out.
+
+### Rationale
+
+**Why Save, not the UNDO operators, writes the .cc.** Blender's memfile undo restores the
+.blend and cannot restore a file on disk. Any undoable operator that writes the .cc splits
+the grid's truth (finding `undo-splits-origin-from-cells`), and dropping the UNDO flag does
+not help: the next undo push still restores the scene to the step before. So no undoable
+operator writes the disk, and the .cc changes only on an explicit Save or Package. This is
+the editor-buffer pattern Blender itself follows for external files (images are edited in
+memory and saved with Image > Save; the .blend is saved explicitly).
+
+**Why New Ship creates nothing on disk (`new-ship-orphans-cc`).** Creation is deferred to
+the first Save, which creates and fills the file in one operator: `create`, then the
+buffer through `replace_layout`, and on any failure after `create` it removes the file and
+the folder it made. Nothing persists unless the ship is valid enough to save, and an undone
+New Ship leaves nothing to orphan.
+
+**Grid placement against outside edits.** Studio can resize the grid. `grid_origin` is
+stored with the width and height it was computed for, and the Grid is drawn only while the
+buffer has that size; otherwise the panel asks for Rasterise again. This keeps a stale
+origin from placing cells, without moving the origin into the .cc (the runtime derives
+alignment from the centre of mass after package-frame and never needs it).
+
+**Errors (`create-failure-echoes-inputs`).** Operator reports carry fixed text per failure;
+AetherDb's own output goes to the system console, not the report.
+
+**Ship IDs (`ship-id-allows-reserved-names`).** The rule stays C#'s
+(`ShipAuthoringStore`), gains the Windows device names (con, prn, aux, nul, com1-9,
+lpt1-9, alone or before a dot) and is run by `create`. New Ship checks it before anything
+moves through `ship_cc.valid_ship_id`, whose constants ShipSchemaPinTests pins to the C#
+rule, as it already pins the slot numbers.
+
+**Rejected.** Studio owning creation (needs Unity until the Thing host, B3). A local
+encoder or catalog entry in the add-on derived by hand (B5: Python cannot derive C#'s
+schema id; the brief forbids it). Relying on cultcache-py's stub catalog entry (B6: the C#
+reader's behaviour contradicts its own warning). A framework-dependent publish (it needs
+the .NET runtime installed, which is the install the ruling removes).
+
+### Model page rows (changed)
+
+| Kind | Named by | Over time | Decides |
+|---|---|---|---|
+| Ship .cc | `GameData/Mods/<id>/ship.cc` under the author's game data folder | created by the first Save of a pending ship; changed by Save, Package, Capture Lines | Save (layout), Package (visual), C# rules through the published AetherDb |
+| Layout buffer | `scene.aetheria_layout` | filled by Load or New Ship, edited by Rasterise, Flip Nose, Resize and hardpoint ops, undoable | the author; persisted only by Save |
+| Grid placement | `aetheria.grid_origin` = [x, y, width, height] on the collection | written by Rasterise only, undoable | Rasterise |
+| Pending ship | `aetheria.pending` = [name, reference] on the collection | set by New Ship, cleared by the Save that creates the file | New Ship, then Save |
