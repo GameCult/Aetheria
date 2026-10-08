@@ -338,7 +338,7 @@ public sealed partial class RunStartTests
             Assert.Equal(tracking, rate.Max);
 
             var key = _cache.RefOf(design).Key;
-            var sold = products.Where(p => p.Design.Key == key).ToArray();
+            var sold = products.Where(p => p.Design.Key.Equals(key)).ToArray();
             Assert.True(sold.Length >= 3, $"{name} has at least three products, not {sold.Length}");
             var makers = sold.Select(p => _cache.Get(p.Manufacturer)).ToArray();
             Assert.DoesNotContain(null, makers);
