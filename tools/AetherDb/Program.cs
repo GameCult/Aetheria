@@ -1783,7 +1783,8 @@ public static class Program
                 foreach (var field in behavior.GetType().GetFields().Where(f => f.FieldType == typeof(PerformanceStat)))
                 {
                     var stat = field.GetValue(behavior) as PerformanceStat;
-                    if (stat == null || !map.TryGetValue(field.Name, out var role)) continue;
+                    if (stat == null) continue;
+                    if (!map.TryGetValue(field.Name, out var role)) continue;
                     stat.Terms ??= new List<StatTerm>();
                     var quality = stat.Terms.FirstOrDefault(t => t.Source == StatSource.Quality);
                     var value = stat.Min;
