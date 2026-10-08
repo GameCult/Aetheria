@@ -95,12 +95,12 @@ public sealed class RolesBackfillCommandTests : IDisposable
     private static PerformanceStat Stat(EquippableItemData design, string field) =>
         Assert.Single(CatalogRoleTests.StatsOf(design), s => s.Name.EndsWith("." + field)).Stat;
 
-    // Everything the command decides about one design: its roles, each stat's range and role, and its sellers' role quality.
+    // Everything the command decides about one design: its roles, each stat's range, role and exponent, and its sellers' role quality.
     private static string Describe(CultCache cache, EquippableItemData design, FactionProductData[] products)
     {
         static string F(float v) => float.IsInfinity(v) ? v.ToString() : ((double) v).ToString("G5");
         var stats = CatalogRoleTests.StatsOf(design).Select(s =>
-            $"{s.Name} {F(s.Stat.Min)}..{F(s.Stat.Max)} {string.Join("+", CatalogRoleTests.NamedQualityRoles(s.Stat))}");
+            $"{s.Name} {F(s.Stat.Min)}..{F(s.Stat.Max)} {string.Join("+", s.Stat.Terms.Where(t => t.Source == StatSource.Quality && !string.IsNullOrEmpty(t.Role)).Select(t => $"{t.Role}^{F(t.Exponent)}"))}");
         var sellers = products.Where(p => p.Design.Key.Equals(cache.RefOf(design).Key)).OrderBy(p => p.Name, StringComparer.Ordinal)
             .Select(p => $"{p.Name}: " + string.Join(", ", (p.Roles ?? new List<ProductRole>()).OrderBy(r => r.Role, StringComparer.Ordinal)
                 .Select(r => $"{r.Role} {F(r.Mean)}/{F(r.StandardDeviation)}")));
@@ -156,6 +156,57 @@ public sealed class RolesBackfillCommandTests : IDisposable
         Assert.NotEqual(before, File.ReadAllBytes(CatalogPath));
         var after = Read();
         foreach (var (name, _) in Unnamed) Assert.Equal(_shipped[name], after[name]);
+    }
+
+    // The exponents a first apply authors do not depend on which designs it targets: applied to the base-shaped catalog, the
+    // command reproduces the shipped exponents of Autocannon and LRMM72, which differ across stats (the mode is not one value).
+    [Fact]
+    public void Apply_on_the_base_shaped_catalog_reproduces_the_shipped_exponents()
+    {
+        static Dictionary<string, float> Exponents(EquippableItemData d) => CatalogRoleTests.StatsOf(d)
+            .SelectMany(s => s.Stat.Terms.Where(t => t.Source == StatSource.Quality && !string.IsNullOrEmpty(t.Role)).Select(t => (s.Name, t.Exponent)))
+            .ToDictionary(x => x.Name, x => x.Exponent);
+        var designs = new[] { "Autocannon", "LRMM72" };
+        Dictionary<string, Dictionary<string, float>> Read(string root)
+        {
+            var db = AetherDb.Open(root: root);
+            try { return db.Cache.GetAll<EquippableItemData>().Where(d => designs.Contains(d.Name)).ToDictionary(d => d.Name, Exponents); }
+            finally { db.Cache.Dispose(); }
+        }
+        var shipped = Read(AetherDb.FindRoot());
+        Assert.All(designs, name => Assert.True(shipped[name].Values.Distinct().Count() > 1, name + " exponents are one value; the test would not tell a mode from a default"));
+
+        Reset(flattened: true, unnamed: true);
+        Assert.Equal(0, Program.RolesBackfill(apply: true, root: _root));
+        var after = Read(_root);
+        foreach (var name in designs) Assert.Equal(shipped[name].OrderBy(x => x.Key, StringComparer.Ordinal), after[name].OrderBy(x => x.Key, StringComparer.Ordinal));
+    }
+
+    // A seller that authors one of a design's two roles gets only the other one added, and keeps the one it authored.
+    [Fact]
+    public void A_seller_with_one_of_two_roles_authored_gains_only_the_missing_role()
+    {
+        Reset(flattened: false, unnamed: false);
+        var db = AetherDb.Open(catalogWritable: true, root: _root);
+        var autocannon = db.Cache.GetAll<WeaponItemData>().Single(weapon => weapon.Name == "Autocannon");
+        var seller = db.Cache.GetAll<FactionProductData>().OrderBy(p => p.Name, StringComparer.Ordinal).First(p => p.Design.Key.Equals(db.Cache.RefOf(autocannon).Key) && p.Roles.Count == 2);
+        var kept = seller.Roles.OrderBy(r => r.Role, StringComparer.Ordinal).First();
+        kept.Mean = .91f;
+        seller.Roles = new List<ProductRole> { kept };
+        var sellerName = seller.Name;
+        var keptRole = kept.Role;
+        db.Cache.Commit(batch => batch.Upsert(typeof(FactionProductData), seller, db.Cache.RefOf(seller).Key));
+        db.Cache.Dispose();
+
+        Assert.Equal(0, Program.RolesBackfill(apply: true, root: _root));
+        db = AetherDb.Open(root: _root);
+        try
+        {
+            var after = db.Cache.GetAll<FactionProductData>().Single(p => p.Name == sellerName);
+            Assert.Equal(new[] { "barrel", "feed mechanism" }, after.Roles.Select(r => r.Role).OrderBy(r => r, StringComparer.Ordinal).ToArray());
+            Assert.Equal(.91f, after.Roles.Single(r => r.Role == keptRole).Mean, 3);
+        }
+        finally { db.Cache.Dispose(); }
     }
 
     [Fact]

@@ -1762,15 +1762,21 @@ public static class Program
             .Select((found, i) => found.Length == 1 ? found[0] : throw new InvalidOperationException(
                 $"Expected exactly one design named \"{BackfillDesigns[i]}\", found {found.Length}.")).ToArray();
 
+        // The precedent is read once, before any target changes: the named Quality exponents of every design that declares
+        // roles, so a design the command names later never leaves the pool another target draws from, and a design that
+        // starts with no named term contributes nothing.
+        var precedent = items.Where(i => i.Roles != null && i.Roles.Count > 0)
+            .SelectMany(i => (i.Behaviors ?? new List<BehaviorData>()).Where(b => b != null)
+                .SelectMany(b => b.GetType().GetFields().Where(f => f.FieldType == typeof(PerformanceStat)).Select(f => (Kind: KindOf(i), Field: f.Name, Stat: f.GetValue(b) as PerformanceStat))))
+            .Where(x => x.Stat?.Terms != null && x.Stat.Min != x.Stat.Max)
+            .SelectMany(x => x.Stat.Terms.Where(t => t.Source == StatSource.Quality && !string.IsNullOrEmpty(t.Role)).Select(t => (x.Kind, x.Field, t.Exponent)))
+            .ToArray();
+
         float ExponentFor(string kind, string field)
         {
-            var precedent = items.Except(targets).Where(i => KindOf(i) == kind && i.Roles != null && i.Roles.Count > 0)
-                .SelectMany(i => i.Behaviors ?? new List<BehaviorData>()).Where(b => b != null)
-                .SelectMany(b => b.GetType().GetFields().Where(f => f.Name == field && f.FieldType == typeof(PerformanceStat)).Select(f => f.GetValue(b) as PerformanceStat))
-                .Where(s => s?.Terms != null && s.Min != s.Max)
-                .SelectMany(s => s.Terms.Where(t => t.Source == StatSource.Quality && !string.IsNullOrEmpty(t.Role)).Select(t => t.Exponent))
+            var modes = precedent.Where(p => p.Kind == kind && p.Field == field).Select(p => p.Exponent)
                 .GroupBy(e => e).OrderByDescending(g => g.Count()).ThenBy(g => g.Key).Select(g => g.Key).ToArray();
-            return precedent.Length > 0 ? precedent[0] : 1f;
+            return modes.Length > 0 ? modes[0] : 1f;
         }
 
         var changedDesigns = new List<(EquippableItemData Document, CultRecordKey Key)>();
