@@ -125,8 +125,9 @@ public class Thruster : Behavior, IAnalogBehavior, IPowerConsumer
         {
             var thrust = Thrust;
             Entity.Velocity -= Direction.xz * _input * thrust / Entity.Mass * dt;
-            Entity.Direction = mul(Entity.Direction,
-                CultMath.float2x2.Rotate(_input * Torque * thrust * ItemManager.GameplaySettings.TorqueMultiplier / Entity.Mass * dt));
+            var turnRate = _input * Torque * thrust * ItemManager.GameplaySettings.TorqueMultiplier / Entity.Mass;
+            Entity.Direction = mul(Entity.Direction, CultMath.float2x2.Rotate(turnRate * dt));
+            Entity.TurnRate += turnRate;
             AddHeat(_input * Evaluate(_data.Heat) * dt);
             var vis = _input * Evaluate(_data.Visibility);
             if (!Entity.VisibilitySources.ContainsKey(this) || vis > Entity.VisibilitySources[this])

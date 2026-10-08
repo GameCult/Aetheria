@@ -151,8 +151,9 @@ public class AetherDrive : Behavior, IPowerConsumer
         ThrustDirection = forward * (_axis.x * force.x / Entity.Mass) + right * (_axis.y * force.y / Entity.Mass);
         Entity.Velocity += ThrustDirection;
         
-        Entity.Direction = mul(Entity.Direction,
-            CultMath.float2x2.Rotate(force.z * _axis.z * ItemManager.GameplaySettings.AetherTorqueMultiplier / Entity.Mass));
+        var turn = force.z * _axis.z * ItemManager.GameplaySettings.AetherTorqueMultiplier / Entity.Mass;
+        Entity.Direction = mul(Entity.Direction, CultMath.float2x2.Rotate(turn));
+        if (dt > 0) Entity.TurnRate += turn / dt;
 
         if(float.IsNaN(Entity.Velocity.x))
             ItemManager.Log("FUCK FUCK FUCK FUCK");
