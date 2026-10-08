@@ -1423,7 +1423,7 @@ public class ActionGameManager : MonoBehaviour
             : $"base {d.PBase:P1}";
 
         DebugInfoText.text =
-            $"FIRE CONTROL - {selectedItem.Data.Name}\n" +
+            $"FIRE CONTROL - {ItemManager.Title(selectedItem.EquippableItem)}\n" +
             $"{gates}\n" +
             $"range {d.Range:F0} [{d.MinRange:F0}..{d.MaxRange:F0}]\n" +
             $"info {d.Info:F3}/{d.InfoDemandCeiling:F3} sensor {d.PSensor:F3}\n" +

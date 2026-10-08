@@ -221,6 +221,11 @@ public class ItemManager
         return (ItemData.Get(maker), product);
     }
 
+    // What the player reads an item as: its product's name when its lot's maker has a product of this design,
+    // otherwise the design's own name (unbranded, console-given and extracted lots, and commodities).
+    public string Title(ItemInstance item) =>
+        (item is CraftedItemInstance crafted ? Brand(crafted).Product?.Name : null) ?? GetData(item).Name;
+
     public (RarityTier tier, int upgrades) GetTier(CraftedItemInstance item)
     {
         var quality = GetLot(item).Quality;
