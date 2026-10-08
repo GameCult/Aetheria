@@ -4,15 +4,14 @@ using UnityEngine;
 using CultMath;
 using static CultMath.math;
 
+// Presentation only: the barrel follows the point its group's solution places (EntityInstance), which FireControl has
+// already clamped to the arc. This decides no arc; Speed and the pitch clamp are how the picture slews.
 public class ArticulationPoint : MonoBehaviour
 {
     public Transform Target;
 
     public int Group;
     
-    public float YawMin;
-    public float YawMax;
-
     public float PitchMin;
     public float PitchMax;
 
@@ -30,7 +29,7 @@ public class ArticulationPoint : MonoBehaviour
             var yaw = Vector2.SignedAngle(new Vector2(0, 1), new Vector2(targetLocal.x, targetLocal.z));
             var pitch = Vector2.SignedAngle(new Vector2(1, 0), new Vector2(targetLocal.z, targetLocal.y));
 
-            var targetYaw = clamp(_yaw - yaw, YawMin, YawMax);
+            var targetYaw = _yaw - yaw;
             var targetPitch = clamp(_pitch - pitch, PitchMin, PitchMax);
 
             if (abs(targetYaw - _yaw) < Speed * Time.deltaTime)

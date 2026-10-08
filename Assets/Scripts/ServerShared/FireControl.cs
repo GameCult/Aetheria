@@ -67,24 +67,18 @@ public static class FireControl
         return blastRadius > 0f ? data.Fuse : null;
     }
 
-    // The one arc gate on the trigger. A fused weapon fires whatever the arc says: a target it cannot bear on is
-    // no reason to keep it silent, the round flies along the arc-clamped aim and bursts at the target's range
-    // (Fire; operator ruling 2026-09-30, "the user is hoping that the arc gets the weapon close enough to still
-    // splash some damage"). A weapon that only hits what it fires at still refuses. Fire reads InArc itself to
-    // choose that flight, so the two share the one bearing test and differ only in this exemption.
-    // Mining Cut 3: a chunk target bears through its own position, on the plane the bearing test reads.
+    // The one gate on the trigger (operator rulings fire-on-solutions, controls-solution-trigger, 2026-10-06). A gun
+    // fires on its solution without the aim, else free along the aim if the aim is inside its arc, else it holds.
+    // A fused weapon fires whatever the arc says: a target it cannot bear on is no reason to keep it silent, the
+    // round flies along the arc-clamped aim and bursts at the target's range (Fire; operator ruling 2026-09-30,
+    // "the user is hoping that the arc gets the weapon close enough to still splash some damage"). A mine layer
+    // lays a body, not a round, and is never arc-gated. The price of a free shot at a target that does not bear is
+    // HitProbability's: zero.
     public static bool ArcPermitsFire(Weapon weapon, Entity shooter)
     {
-        var target = shooter.Target.Value;
-        if (target.IsNone) return true;
-        float3 toTarget;
-        if (target.Chunk is ChunkId chunk)
-        {
-            var at = shooter.Zone.ChunkPose(chunk.Field, chunk.Index).xy;
-            toTarget = float3(at.x, 0, at.y) - shooter.Position;
-        }
-        else toTarget = target.Entity.Position - shooter.Position;
-        return FuseOf(weapon.Item, out _) != null || IsMineLayer(weapon) || InArc(weapon.Item, toTarget);
+        if (FuseOf(weapon.Item, out _) != null || IsMineLayer(weapon)) return true;
+        var solution = Solution(weapon, shooter, shooter.Target.Value);
+        return solution.Bears || solution.Free;
     }
 
     // Whether the shooter's next round from this weapon is refused: the weapons ask before they spend anything, so
@@ -129,6 +123,33 @@ public static class FireControl
         var half = radians(ArcFor(item) / 2f);
         var turn = mount.x * look.y - mount.y * look.x >= 0f ? half : -half;
         return float2(mount.x * cos(turn) - mount.y * sin(turn), mount.x * sin(turn) + mount.y * cos(turn));
+    }
+
+    // The one owner of a gun's solution against its subject (the designated target; ruling controls-solution-subject).
+    // Bears: the gun can engage the subject, so the player fires on it without the aim. Free: the aim is inside the
+    // arc, so the gun can fire along it. Direction: where a round from this gun travels and where its barrel points --
+    // the subject's intercept when it bears, else the arc-clamped aim. A chunk subject bears through its pose and
+    // flies the aim, as an untargeted round (Subject is null for it). Derived on every read and never stored: turrets
+    // traverse instantly in the simulation. Traverse speed belongs to the link (ruling arc-and-traverse-on-the-link),
+    // which will make this stateful behind the same signature. It never prices; HitProbability is the one price.
+    public static GunSolution Solution(Weapon weapon, Entity shooter, TargetRef subject)
+    {
+        var bears = false;
+        if (subject.Entity != null) bears = Bears(weapon, shooter, subject.Entity, out _);
+        else if (subject.Chunk is ChunkId chunk)
+        {
+            var at = shooter.Zone.ChunkPose(chunk.Field, chunk.Index).xy;
+            bears = InArc(weapon.Item, float3(at.x, 0, at.y) - shooter.Position);
+        }
+        return new GunSolution
+        {
+            Subject = subject.Entity,
+            Bears = bears,
+            Free = InArc(weapon.Item, shooter.Aim),
+            Direction = bears && subject.Entity != null
+                ? TravelDirection(weapon, shooter, subject.Entity)
+                : AimDirection(weapon.Item, shooter)
+        };
     }
 
     // Cut 2, R5: whether `observer` has resolved `item` (which must belong to some entity in the zone) well
@@ -276,21 +297,26 @@ public static class FireControl
                !(weapon is LockWeapon lockWeapon && !lockWeapon.IsLocked);
     }
 
-    // `designated` is the answer above. `inArc` is the bearing test, asked only once a target is designated.
+    // Whether this gun can engage this target: designated and inside the arc. The one test of it; PFire prices a shot
+    // at zero unless it holds, and Solution reads it to decide whether the gun fires on the target. `designated` is
+    // the answer above, kept apart for Solve's burst flight: a designated target out of arc still sets the burst range.
+    public static bool Bears(Weapon weapon, Entity source, Entity target, out float range) =>
+        Bears(weapon, source, target, out range, out _);
+
+    private static bool Bears(Weapon weapon, Entity source, Entity target, out float range, out bool designated)
+    {
+        designated = Designated(weapon, source, target, out range);
+        return designated && InArc(weapon.Item, target.Position - source.Position);
+    }
+
+    // `designated` is the answer above. `inArc` is Bears, asked only once a target is designated.
     // PFire prices a shot at zero unless both hold. Fire reads them to decide what a fused round flies at
     // (operator rulings 2026-09-30): without valid data it has no target and bursts at max range; with data but
     // out of arc it bursts at the target's range, along the aim. The HUD reads Designated and the
     // arc from Solve and Inspect and decides nothing.
     private static float PFire(Weapon weapon, Entity source, Entity target, out float range, out bool designated, out bool inArc)
     {
-        range = 0f;
-        designated = false;
-        inArc = false;
-        if (target == null) return 0f;
-
-        designated = Designated(weapon, source, target, out range);
-        if (!designated) return 0f;
-        inArc = InArc(weapon.Item, target.Position - source.Position);
+        inArc = Bears(weapon, source, target, out range, out designated);
         if (!inArc) return 0f;
 
         var settings = source.ItemManager.GameplaySettings;
@@ -615,7 +641,7 @@ public static class FireControl
         // burst's later rounds and a power-starved Range included).
         var engaged = fuse != null && !(designated && inArc) ? null : target;
         var origin = source.Position;
-        var travelDirection = engaged != null ? TravelDirection(weapon, source, engaged) : AimDirection(item, source);
+        var travelDirection = Solution(weapon, source, target).Direction;
 
         var arming = fuse != null ? blastRadius : 0f;
         var burstPosition = engaged != null ? engaged.Position : origin;
@@ -1987,6 +2013,16 @@ public enum FireOutcome
     Direct,
     Burst,
     Refused
+}
+
+// A gun's solution against its subject (FireControl.Solution): whether the gun bears on the subject, whether the
+// aim is free (inside the arc), and the direction a round from it travels.
+public struct GunSolution
+{
+    public Entity Subject;
+    public bool Bears;
+    public bool Free;
+    public float2 Direction;
 }
 
 // Solve's answer. Outcome and BurstReach (planar distance from the shooter to the burst point, read for Burst
