@@ -349,6 +349,75 @@ public sealed partial class RunStartTests
         }
     }
 
+    private static void PdStat(string design, string stat, PerformanceStat actual, float min, float max) =>
+        Assert.True(actual.Min == min && actual.Max == max, $"{design} {stat} is {min}-{max}, not {actual.Min}-{actual.Max}");
+
+    // Data check: the authored numbers of the three designs, read from the shipped catalog through the production load path
+    // (addenda "Catalog growth: generic designs, branded products", the Derivation of the PD stats). Each is a lever the
+    // operator tunes, so each is pinned; the ammunition is the commodity Autocannon's rounds are.
+    [Fact]
+    public void PdGearStatsAreAuthored()
+    {
+        var ammunition = PdDesign("Autocannon").Behaviors.OfType<InstantWeaponData>().Single().AmmoType.Key;
+        var expected = new (string name, float mass, int price, float durability, WeaponModifiers modifiers, (float min, float max) damage,
+            (float min, float max) count, (float min, float max) range, (float min, float max) cooldown, (float min, float max) spread,
+            (float min, float max) velocity, (float min, float max) energy, (float min, float max) heat, (float min, float max) visibility,
+            bool ammo, int magazine, float reload)[]
+        {
+            ("Point Defense Gun", 40f, 80000, 60f, WeaponModifiers.RapidFire, (1.5f, 4f), (1f, 1f), (300f, 550f), (.06f, .025f), (1f, .3f),
+                (1100f, 1600f), (.4f, .2f), (40f, 15f), (400f, 150f), true, 250, 3f),
+            ("Point Defense Laser", 30f, 110000, 30f, PdDesign("Spectra").WeaponModifiers, (5f, 12f), (1f, 1f), (400f, 750f), (.2f, .1f), (.05f, 0f),
+                (0f, 0f), (6f, 10f), (300f, 150f), (300f, 100f), false, PdDesign("Spectra").Behaviors.OfType<InstantWeaponData>().Single().MagazineSize, PdDesign("Spectra").Behaviors.OfType<InstantWeaponData>().Single().ReloadTime),
+            ("Flak Gun", 120f, 180000, 80f, WeaponModifiers.Cluster, (30f, 70f), (6f, 8f), (350f, 800f), (.6f, .35f), (4f, 2f),
+                (900f, 1300f), (1f, .5f), (300f, 150f), (800f, 300f), true, 40, 4f),
+        };
+        foreach (var e in expected)
+        {
+            var design = PdDesign(e.name);
+            var data = design.Behaviors.OfType<InstantWeaponData>().Single();
+            Assert.Equal(e.mass, design.Mass);
+            Assert.Equal(e.price, design.Price);
+            Assert.Equal(e.durability, design.Durability);
+            Assert.Equal(e.modifiers, design.WeaponModifiers);
+            PdStat(e.name, "damage", data.Damage, e.damage.min, e.damage.max);
+            PdStat(e.name, "count", data.Count, e.count.min, e.count.max);
+            PdStat(e.name, "range", data.Range, e.range.min, e.range.max);
+            PdStat(e.name, "min range", data.MinRange, 0f, 0f);
+            PdStat(e.name, "cooldown", data.Cooldown, e.cooldown.min, e.cooldown.max);
+            PdStat(e.name, "spread", data.Spread, e.spread.min, e.spread.max);
+            PdStat(e.name, "velocity", data.Velocity, e.velocity.min, e.velocity.max);
+            PdStat(e.name, "energy", data.Energy, e.energy.min, e.energy.max);
+            PdStat(e.name, "heat", data.Heat, e.heat.min, e.heat.max);
+            PdStat(e.name, "visibility", data.Visibility, e.visibility.min, e.visibility.max);
+            Assert.Equal(e.magazine, data.MagazineSize);
+            Assert.Equal(e.reload, data.ReloadTime);
+            if (e.ammo) Assert.True(data.AmmoType.Key.Equals(ammunition), $"{e.name} draws the ammunition commodity");
+            else Assert.False(data.AmmoType.IsSet(), $"{e.name} draws no ammunition");
+        }
+        Assert.Equal("Close-in defence gun: a hose of light rounds.", PdDesign("Point Defense Gun").Description);
+        Assert.Equal("Close-in defence beam: quick, light, instant.", PdDesign("Point Defense Laser").Description);
+        Assert.Equal("Small flak gun: a short-range pellet volley.", PdDesign("Flak Gun").Description);
+    }
+
+    // Rule test (ruling catalog-grows-generic-designs-branded-products): branding lives in the products, so no PD design's
+    // name or description carries any maker's name or short name. The makers are enumerated from the catalog.
+    [Fact]
+    public void PdDesignsCarryNoMakerName()
+    {
+        var makers = _cache.GetAll<Faction>().SelectMany(f => new[] { f.Name, f.ShortName }).Where(n => !string.IsNullOrWhiteSpace(n)).Distinct().ToArray();
+        Assert.True(makers.Length > 10, $"fixture: the catalog lists its makers ({makers.Length})");
+        foreach (var name in new[] { "Point Defense Gun", "Point Defense Laser", "Flak Gun" })
+        {
+            var design = PdDesign(name);
+            foreach (var maker in makers)
+            {
+                var word = new System.Text.RegularExpressions.Regex($@"(?<!\w){System.Text.RegularExpressions.Regex.Escape(maker)}(?!\w)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                Assert.False(word.IsMatch(design.Name ?? ""), $"{name}'s name carries the maker {maker}");
+                Assert.False(word.IsMatch(design.Description ?? ""), $"{name}'s description carries the maker {maker}");
+            }
+        }
+    }
+
     // Data check: a design is offered only if some hull has a hardpoint that takes it (LoadoutGenerator.HasHome), so these
     // guns are stocked and fitted only while a catalog hull takes them (body fact CG6).
     [Fact]
@@ -372,7 +441,12 @@ public sealed partial class RunStartTests
         Assert.InRange(omega, degrees(150f / 200f) * .999f, degrees(150f / 200f) * 1.001f);
         var gear = FireControl.Tracking(shooter) / _items.GameplaySettings.UnaidedTracking;
         Assert.True(gear > 1.2f, $"fixture: the shooter's targeting gear tracks better than unaided ({gear})");
-        float RateOf(string design) => PdDesign(design).Behaviors.OfType<WeaponData>().Single().Tracking.Max * gear;
+        // The rate the production path reads: the catalog design's authored Tracking on the weapon, times the shooter's gear.
+        float RateOf(string design)
+        {
+            EvSetRate(range.Gun, range.Gunner, PdDesign(design).Behaviors.OfType<WeaponData>().Single().Tracking.Max);
+            return FireControl.TrackingRate(range.Gun, range.Gunner);
+        }
         var pd = FireControl.PMount(omega, RateOf("Point Defense Gun"));
         var clearPath = FireControl.PMount(omega, RateOf("ClearPath"));
         Assert.True(pd >= .75f, $"the PD gun follows a speed demon: {pd}");
