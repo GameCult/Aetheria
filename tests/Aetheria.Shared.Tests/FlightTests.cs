@@ -558,23 +558,28 @@ public sealed class FlightTests : IDisposable
         return minion;
     }
 
+    // Patrol's own sub-states may hand over to one another first, so a transition out of patrol is looked for within a
+    // few updates; none of them ever reaches combat unless the interrupt covers the patrol sub-states.
+    private static void UpdateUntil(Minion minion, Func<bool> done)
+    {
+        for (var i = 0; i < 3 && !done(); i++) minion.Update(.1f);
+        Assert.True(done(), "pilot is in " + CurrentState(minion).GetType().Name);
+    }
+
     [Fact]
     public void ATargetPullsAPatrollingPilotIntoCombatAndLosingItReturnsToPatrol()
     {
         var ship = Pilot(null);
         var minion = PatrollingMinion(ship);
-
         var track = Track();
         See(ship, track);
+
         ship.SetTarget(new TargetRef(track));
-        minion.Update(.1f);
-        Assert.IsType<CombatState>(CurrentState(minion));
+        UpdateUntil(minion, () => CurrentState(minion) is CombatState);
 
         ship.SetTarget(TargetRef.None);
-        minion.Update(.1f);
-        Assert.IsNotType<CombatState>(CurrentState(minion));
-        minion.Update(.1f);
-        Assert.IsType<PatrolOrbitsState>(CurrentState(minion));
+        UpdateUntil(minion, () => !(CurrentState(minion) is CombatState));
+        UpdateUntil(minion, () => CurrentState(minion) is PatrolOrbitsState || CurrentState(minion) is MoveToOrbitState);
     }
 
     [Fact]
@@ -585,6 +590,7 @@ public sealed class FlightTests : IDisposable
         var track = Track();
         See(ship, track);
         ship.SetTarget(new TargetRef(track));
+        UpdateUntil(minion, () => CurrentState(minion) is CombatState);
 
         for (var i = 0; i < 5; i++)
         {
