@@ -5257,6 +5257,317 @@ presentation half, `autofire-controls` (about 190 lines), writes nothing else.
   run on ClearPath and Spectra, but the ruled outcome "PD-class guns hit a speed demon reliably"
   has no catalog gun to show it until one is authored (see "Catalog growth").
 
+## Catalog growth: generic designs, branded products
+
+Ruling `catalog-grows-generic-designs-branded-products` (operator, 2026-10-08): designs are generic
+and branding lives in products. A design is expected to carry several products. `Title` is the one
+owner of an item's displayed title (`ItemManager.Title`, landed by `product-titles`); there is no
+`DisplayName`. Body: `GameCult/Aetheria` `origin/master` `4d664b537f76029fbaee94392da3d8a122f81339`,
+unless a fact names another anchor (LP facts read the `product-titles` head `7f700d3c`). Read by
+`cut-pd-gear`, `cut-lot-product`, `cut-generic-design-names`, `cut-product-lines-weapons`,
+`cut-product-titles` and `cut-pirates-record`; question `minor-power-brands` and follow-up
+`gear-product-lines` own the rest of the gear.
+
+### Body facts
+
+Catalog decode method for CG1-CG4: `cultcache_py` `SingleFileMessagePackBackingStore.
+pull_all()` over `GameData/Aetheria.cc` at `4d664b53` (LFS pulled into the worktree), each payload
+`msgpack.unpackb`ed and read by MessagePack key (the M28 method); the store is `cultcache.store.v1`
+with 13 schemas and 217 records. Scratch scripts were not committed.
+
+- **CG1. The catalog's record census at 4d664b53.** 64 FactionProductData, 51 CompoundCommodityData,
+  32 GearData, 18 WeaponItemData, 13 SimpleCommodityData, 12 Faction, 12 NameFile, 5 HullData,
+  4 CargoBayData, 1 FieldKindData, 1 DockingBayData, 1 InputLayout, 0 Loadout. Factions (short
+  names): AU, Adrasteia, Alakrita, DME, Ewan Hart, Finch, Lightsail, Lucent, Miss Terri's,
+  NiteLife, R&D, Zhestokost. No Pirates record yet (H1).
+- **CG2. The data model already separates design from product; the content does not** (source read
+  plus CG1). `FactionProductData` (`ServerShared/FactionProduct.cs:14-31`: Name 1, Description 2,
+  Design 3 `CultRecordRef<CraftedItemData>`, Manufacturer 4 `CultRecordRef<Faction>`, Roles 5
+  `ProductRole{Role, Mean, StandardDeviation}`) is a manufacturer's branded variant of a design; its
+  own comment says a market segment is "a second product with a role pumped up". Price is on the
+  design, not the product (`HullData.Price`, H1). Generation and station stock pick products, not
+  designs (`LoadoutGenerator.RandomProducts`, `:142-171`; `GenerateStationLoadout` stocks 16 random
+  products, `:107-114`). Presets build a design by its first available product in record-key order
+  (`Loadout.Resolve`, `Loadout.cs:160-191`). But of the 59 sold designs only Targeting Computer and
+  Fire Control Array carry more than one product (3 each: Panopticon Prime by Finch, ClapBack Ultra
+  by Lucent, LockOn Pro by NiteLife on the array, and Panopticon, ClapBack, LockOn on the
+  computer); every other design has exactly one product, and in 49 of them the design's own name is
+  the brand (product name equals design name: ClearPath, Spectra, Earp, Manhattan, Store-All Plus
+  ...). Three designs already have generic names under a brand product (Core Power -> Steadfast,
+  plight -> DragOnBreath, pswarm -> Leonid); seven generic-named designs sell a product of the same
+  generic name (Autocannon, Cockpit 2x2, Turret Control Module, Industrial Thermostatic Heater,
+  Medium Drive, Small Drive, Medium Docking Bay). Most designs' `Description` is the brand's voice
+  ("Defend your precious cargo and have fun doing it"); 20 products carry an empty or `[TODO]`
+  description. 64 products over 60 designs; 0 duplicate (design, maker) pairs.
+- **CG3. Where the player sees a name** (source read, master). `PropertiesPanel.GetTitle`
+  (`UI/Properties Panel/PropertiesPanel.cs:431-437`, `data.Name`) and the trade list
+  (`UI/Menu/TradeMenu.cs:193-197`, the Name column, tier-coloured) and buy dialog (`:355`) show the
+  design `Name`. The product name and description appear only as extra property lines after `Brand`
+  (`PropertiesPanel.cs:370-380`); `Inspect(ItemData)` shows the design as `Type` (`:530`). So today
+  the brand reaches the headline only because design names are brand names, and a product named in
+  emoji would be listed under its design's name. `product-titles` moves the headline to the
+  product (see LP3).
+- **CG4. A lot does not record its product** (source read, master). `Lot`
+  (`ServerShared/Provenance.cs:64-70`) holds Design 0, Origin 1, Quality 2, Roles 3.
+  `ItemManager.CreateLot(product)` (`ItemManager.cs:134-155`) writes the maker into `Origin` and
+  drops the product. `ItemManager.Brand` (`:206-222`) re-derives the product as the lowest-key
+  `FactionProductData` with that maker and design. Two products of one design by one maker (the
+  market segment `ProductRole`'s comment designs for) are therefore indistinguishable after
+  creation: the player sees the lower-key product's name and text whatever was bought. Today no
+  maker sells two products of one design (CG2), so nothing shows it yet.
+- **CG5. Weapon fields and the reference small guns** (source read `Behaviors/Weapon.cs:20-72`,
+  `Behaviors/InstantWeapon.cs:10-20`, `ItemData.cs:477-509`; catalog decode). WeaponData keys:
+  DamageType 1, Damage 2, Penetration 3, DamageSpread 4, MinRange 5, Range 6, DamageCurve 7,
+  EffectPrefab 8, Energy 9, Heat 10, Visibility 11, AmmoType 12, MagazineSize 13, ReloadTime 14,
+  Spread 15, Velocity 16, Tracking 33; InstantWeaponData Count 17, BurstTime 18, Cooldown 19;
+  WeaponItemData WeaponRange 24, Caliber 25, WeaponType 26, FireTypes 27, Modifiers 28,
+  BlastRadius 29, Fuse 32; GearData Hardpoint 23 (enum order Hull..AetherDrive: Energy 9,
+  Ballistic 10, Launcher 11). Shape is `[width, height, cells]`. Evaluated (Min-Max):
+
+  | Design | HP | Mass | Price | Dmg | Range | Cooldown | Count | Spread | Velocity | Energy | Ammo/Mag | Tracking |
+  |---|---|---|---|---|---|---|---|---|---|---|---|---|
+  | ClearPath | Ballistic 2 cells | 50 | 50,000 | 2-6 | 250-600 | 0.1-0.033 | 1 | 1.25-0.25 | 700-1250 | 1-0.5 | none / 0 | 12 |
+  | Spectra | Energy 2 | 25 | 125,000 | 20-85 | 800-1750 | 0.5-0.25 | 1 | 0.1-0 | 0 (beam) | 20-40 | none | 10 |
+  | FastBlast+- | Energy 2 | 125 | 150,000 | 20-80 | 500-1250 | 0.33-0.1 | 12 | 3-1 | 400-900 | 0 | cells / 12 | 9 |
+  | Autocannon | Ballistic 4 | 75 | 250,000 | 3 | 1000 | 0.5 | 1 | 0.5 | 500 | 5 | Ammo / 50 | 4 |
+  | DeathCluster | Ballistic 4 | 250 | 450,000 | 100-250 | 500-1000 | 1-0.25 | 12-15 | 3-0.5 | 750-1500 | 25-5 | Ammo / 8 | 3 |
+
+  Damage, Heat and Energy are divided by the burst count per pellet (`InstantWeapon.cs:128-134`).
+  The ammunition commodity is the SimpleCommodity that Autocannon's AmmoType names (`3085fc8a...`).
+- **CG6. Homes for one-cell guns** (source read `LoadoutGenerator.HasHome`, `:173-176`;
+  `HardpointData.Takes`, M30). A design is offered only if some catalog hull has a hardpoint that
+  `Takes` it, which is any design of the slot's type whose shape lies within the slot. Longinus has
+  two Energy 1x2 hardpoints, Djinni two Ballistic 1x2, the station Turret two Ballistic 2x4. So a
+  1x1 Ballistic or Energy gun and a 1x2 Ballistic gun all have homes on master.
+- **CG7. Munitions on master.** `missile-records`, `missile-stats`, `munition-shots`,
+  `autofire-threshold` and `autofire-controls` had no report: master has no munition record yet
+  (MA7). missile-stats authors munition `Durability 20`. `Detonate` is the one blast path and
+  damages entities, not munitions (missile-odds, "Detonate is the one blast path").
+- **CG8. A shipped weapon may not carry a fuse today.**
+  `FireControlCut124Tests.ShippedCatalogIsNeutralOnBlastRadiusAndFuse`
+  (`tests/Aetheria.Shared.Tests/FireControlCut124Tests.cs:2591-2610`) asserts every shipped weapon's
+  BlastRadius and Fuse are null. An airburst flak gun would break it; the flak below is a pellet gun.
+- **CG9. The catalog tracking test** (`tests/Aetheria.Shared.Tests/EvasionTrackingTests.cs:290-313`,
+  `EveryCatalogGunTracks`) requires every non-launcher gun's Tracking finite, Min = Max > 0. New
+  guns must author it.
+- **CG10. Design names in code at 4d664b53** (`git grep -F` over `*.cs` for the quoted names of
+  the generic-names table). 61 hits in 12 files: scenarios Arcs.cs 14, Duel.cs 11,
+  LauncherAngles.cs 8, StarvedReactor.cs 6; tests EvasionTermTests 10, BrownoutTests,
+  EvasionTrackingTests, PowerCurveTests, RestoredHullsTests, RunStartTests, ScenarioTests 1 each;
+  tools/AetherDb/Program.cs 6. Loadout and product references are by record key, unaffected by a
+  rename.
+- **CG11. Behaviour index 31 is CapacitorData** (`ServerShared/Behaviors/Behaviors.cs:178`), so
+  PotaT+- is NiteLife's capacitor. The wishlist's "capacitors: no products" line is stale.
+- **CG12. Vault sources read** (AetheriaLore `33cd06a`): `Aetheria/Game Design/Faction Play.md`
+  (loadout and quirk lines 118-266, 307-357), `Aetheria/Brainstorming/Faction Flavor and Visual
+  Identity.md` (Aya point defense and interceptors :458, Megiddo decoys and interception :566),
+  `Aetheria/Brainstorming/Corporate Roster and Item Wishlist.md` (item ideas :57-87, gaps :97-146;
+  its "What this is for" names the design/product text split). Zhestokost's loadout names "flak and
+  shrapnel (MFer, DeathCluster)" against missiles; Lightsail's names ClearPath as its machine gun
+  and Cetacean Navigators' Waykeeper escorts carry point defense with Lightsail haulers; Aya and
+  Megiddo are the heavy-PD and decoy factions but are not catalog factions. `Ship Play Concepts.md`
+  was not found in either repo at these heads.
+- **LP1. `Lot` keys** (`Assets/Scripts/ServerShared/Provenance.cs:63-80`, at 7f700d3c). Keys 0-3
+  (Design, Origin, Quality, Roles); key 4 is free. Lots and origins already carry
+  `CultRecordRef<ItemData|Faction|SimpleCommodityData>` through MessagePack (:66, :101, :108, :119),
+  so a fourth `CultRecordRef<T>` needs no formatter work.
+- **LP2.** `ItemManager.Brand` (ItemManager.cs:206-222) derives the product at :217-220 with
+  `GetAll<FactionProductData>().Where(maker and design).OrderBy(key).FirstOrDefault()`. It is the
+  only such derivation in Assets/ (git grep `GetAll<FactionProductData>`: ItemManager :217, plus
+  Loadout :194 and LoadoutGenerator :145, which choose a product to mint, not read an item's).
+- **LP3.** `Title` (ItemManager.cs:226-227) reads `Brand(crafted).Product?.Name`. Brand's readers:
+  Title, PropertiesPanel.cs:374 (Manufacturer and description), tests LoadoutTests
+  :336/:359/:395/:844 and RunStartTests :136/:678. Nothing else reads an item's brand, so fixing
+  Brand fixes every reader.
+- **LP4.** Lot writers in Assets/: only `CreateLot(product)` (:136-158) and `CreateLot(design,
+  maker, quality)` (:161-170). Production callers of the second: ActionGameManager.cs:544/:548
+  (console give, no maker) and Loadout.cs:182 (unbranded preset, no maker). No `new Produced` in
+  Assets/ or tools/; Produced lots exist only in tests.
+- **LP5.** Behaviour change: a lot from `CreateLot(design, maker, q)` whose maker sells that design
+  used to brand as the maker's key-first product; once the lot records its product it brands
+  (maker, null) and titles by design. No production path mints such a lot (LP4).
+- **LP6.** Tests pinning the derivation: LoadoutTests
+  `BrandPicksFirstProductInKeyOrderForSameMakerAndDesign` (:375-397) pins the tie-break that goes
+  away; its comment says the census's duplicate detector exists because of it. Stale comment in
+  LoadoutTests :315-317 ("Brand() requires at most one product per (maker, design)").
+- **LP7.** AetherDb census (tools/AetherDb/Program.cs:124-138) prints "(maker, design) pairs with
+  more than one product" as a fault, justified by Brand's tie-break. Under the ruling a design
+  carries several products, and a maker may sell two of one design; with `Lot.Product` the pair is
+  no longer ambiguous.
+- **LP8.** Run save: `RunSave.Commit` (SavedGame.cs:138) writes the reachable ledger;
+  `RunSave.Lots(cache)` (:132) reads it back. RunSaveTests :382-400 shows the fixture shape (a
+  ledger plus a SavedZone whose pack references the lot).
+- **LP9.** ItemTitleTests (tests/Aetheria.Shared.Tests/ItemTitleTests.cs) builds Array with
+  products Panopticon Prime (Finch, key array-finch) and ClapBack Ultra (Lucent); Soul's probe added
+  a second Finch product of Array and saw Title return the first (finding `title-key-first-product`).
+
+### Content tables
+
+Drafted content that specs cite. Names are drafts the operator may rename.
+
+**Maker profiles** (one Mean / StandardDeviation applied to every role of the design, from Faction
+Play's loadout lines and the existing products' roles):
+
+| Maker | Mean | Dev | Why |
+|---|---|---|---|
+| Zhestokost | .50 | .08 | armour and consistency, no finesse |
+| AU | .50 | .12 | "mid-quality, consistent: the all-rounder" |
+| Lightsail | .55 | .10 | freight reliability |
+| R&D | .60 | .15 | compute, contractor quality |
+| Lucent | .60 | .15 | premium, loud |
+| NiteLife | .55 | .12 | energy specialist |
+| Finch | .65 | .20 | "high variance in role quality" |
+| Alakrita | .60 | .14 | light, fragile, excellent |
+| DME | .55 | .20 | runs hot, uneven |
+| Adrasteia | .60 | .10 | exacting |
+
+No product is authored for Miss Terri's (ruling `miss-terris-belongs-to-emily-r3`) or the Pirates
+(the Pirates record owns their products, ruling `pirates-record-content`).
+
+**PD products** (`pd-gear`; the three new designs are the Point Defense Gun, Point Defense Laser and
+Flak Gun, whose stats follow under the rationale):
+
+| Design | Product | Maker | Description |
+|---|---|---|---|
+| Point Defense Gun | Waykeeper | Lightsail | Freight first, questions later. Keeps a hauler's paint unscratched through a full salvo. |
+| Point Defense Gun | Rampart | Zhestokost | A column does not dodge. It does not need to. |
+| Point Defense Gun | Swatter | AU | Keeps the rocks and the rockets off your back while you work. |
+| Point Defense Gun | Catch-All | R&D | Guaranteed to stop the missile!* *Missile defined as whatever it stops. |
+| Point Defense Laser | Glare | Lucent | Every missile gets its moment in the spotlight. A short one. |
+| Point Defense Laser | Nightlight | NiteLife | Lights out for anything with a warhead. Shares the bus with your blasters, so mind the meter. |
+| Point Defense Laser | Wren | Finch | Small, quiet and quicker than it looks, most days. |
+| Point Defense Laser | Gnat | Alakrita | Weighs less than your conscience and keeps the fast pass fast. |
+| Flak Gun | MFer | Zhestokost | Our shrapnel turns your enemies into scrapnel. (the operator's own line, Item Wishlist :57) |
+| Flak Gun | Hailstorm | AU | A wall of steel for crews who would rather not count missiles. |
+| Flak Gun | sky full of teeth | DME | light it up/ shake it loose/ nothing gets through tonight |
+
+**Generic design names** (`generic-design-names`; hulls, Traction and already generic names
+excluded: hull names are the model names other passes are revising, retire-longinusx deletes
+Traction):
+
+| Old design name | Generic design | Functional description |
+|---|---|---|
+| ClearPath | Light Machine Gun | Light ballistic hose: many small rounds at short range. |
+| 6k Shooter | Slug Rifle | Single heavy slugs, fired as fast as the trigger. |
+| Earp | Long Slug Rifle | A lighter slug rifle with the longest ballistic reach. |
+| DeathCluster | Cluster Cannon | Medium shotgun: a heavy volley of pellets. |
+| pretty pretty bang bang | Charged Scattergun | Ballistic shotgun that charges for a heavier volley. |
+| Spectra | Light Laser | The lightest beam: low damage, quick cycle, long reach. |
+| FastBlast+- | Cell Blaster | Rapid energy bursts fed by cells that cut its reactor draw. |
+| ColdFire | Long Laser | Heavy small beam: slow, hard-hitting, long reach. |
+| CShot RainbowLite Lazer | Heavy Beam Laser | The heaviest beam: nine cells, enormous damage and reach. |
+| ChargeBlast+- | Charged Blaster | One charged knockout shot. |
+| ChargeBlast SG | Charged Scatter Blaster | Charged energy shotgun. |
+| plight | Lightning Projector | Charged chain lightning. |
+| GT 3K | Guided Missile Launcher | Fires guided missiles. |
+| LRMM72 | Long-Range Missile Rack | Large missile rack for long engagements. |
+| SRMM72 | Short-Range Missile Rack | Extra-large rack of short-range missiles. |
+| pswarm | Swarm Rocket Pod | Dumbfire rockets in a swarm. |
+| scorched void policy | Incendiary Rocket Pod | Incendiary dumbfire rockets. |
+| Arctica | Adaptive Radiator | Radiator whose output scales widely with conditions. |
+| Iapyx | Radiator | Standard two-cell radiator. |
+| Skiron | Long Radiator | Four-cell radiator with a large surface. |
+| OK Disperser | Heat Pump | Moves heat to where it can be shed. |
+| cold like my heart | Cryogenic Heat Pump | Heavy heat pump that drives temperatures far down. |
+| Core Power | Compact Reactor | Small reactor. |
+| Manhattan | Heavy Reactor | Large three-by-three reactor. |
+| Notorious | High-Yield Reactor | Large reactor with a wide output range. |
+| Vulcan | Ring Reactor | Ring-shaped reactor, four by four. |
+| MoveOnPro | Muon Fusion Reactor | Compact fusion reactor that draws a reservoir. |
+| Core Power Station Reactor | Station Reactor | A reactor sized for a station's core. |
+| Manhattan Station Reactor | Heavy Station Reactor | A heavy reactor sized for a station's core. |
+| Notorious Station Reactor | High-Yield Station Reactor | A high-yield reactor sized for a station's core. |
+| Vulcan Station Reactor | Ring Station Reactor | A ring reactor sized for a station's core. |
+| MoveOnPro Station Reactor | Muon Fusion Station Reactor | A muon fusion reactor sized for a station's core. |
+| RevvITup 2.0 | High-Thrust Drive | Large drive: huge thrust, little torque. |
+| deep space burnout | Burn Drive | Large drive that runs very hot. |
+| Talaria | Rugged Drive | Two-cell working drive. |
+| Victoire | Racing Drive | Feather-light two-cell drive with extreme response. |
+| The Bat | Sensor Array | Two-by-two long-range sensor array. |
+| not if i see you first | Compact Sensor | One-cell sensor. |
+| PotaT+- | Capacitor | Stores charge for burst draw. |
+| SafeStuff II | Secure Cargo Bay | Three-by-three secured hold. |
+| Store-All Enterprise Edition | Large Cargo Bay | Six-by-six hold. |
+| Store-All Plus | Cargo Bay | Two-by-two hold. |
+| Store-All Plus Mini | Small Cargo Bay | One-cell hold. |
+
+The product keeps the old name, so the brand survives as the product. Products whose name equals a
+generic design get a brand: Autocannon (Zhestokost) -> Hammerfall; Cockpit 2x2 (Lightsail) ->
+Wheelhouse; Industrial Thermostatic Heater (Lightsail) -> Hearth; Medium Drive (Lightsail) -> Steady
+Haul; Small Drive (Lightsail) -> Short Hop; Turret Control Module (AU) -> Watchtower; Medium Docking
+Bay (AU) -> Open Berth. The Bat's product is Miss Terri's: its record is not touched; only the
+generic design under it is renamed. Description move: the design's old text goes to its product
+when the product's is empty, `[TODO]` or identical; otherwise the product keeps its own and the
+dropped design text is printed in the dry run and the commit message.
+
+**Weapon product lines** (`product-lines-weapons`):
+
+| Design | New product | Maker | Description |
+|---|---|---|---|
+| Light Machine Gun | Rattler | AU | Cheap, loud, and there when the rocks start moving. |
+| Slug Rifle | SM-6 Marksman | R&D | Standardised, certified, guaranteed to hit the target.* |
+| Long Slug Rifle | Longshot | Finch | Light, quiet and dead accurate, when it feels like it. |
+| Autocannon | Workhorse | AU | Feeds from anything, fires at anything. |
+| Cluster Cannon | everything at once | DME | why aim/ when you can be everywhere |
+| Charged Scattergun | Grapeshot | Zhestokost | The old answer to boarders, sized for the void. |
+| Light Laser | Sparrow | Finch | Barely registers on the scale, or on their sensors. |
+| Light Laser | Spotlight | Lucent | Make sure they know who got them. |
+| Cell Blaster | Strobe | Lucent | Fast, bright, and very hard to ignore. |
+| Long Laser | Kestrel | Finch | Hovers at the edge of range, then stoops. |
+| Heavy Beam Laser | Afterglow | NiteLife | Keeps glowing long after the fight is over. |
+| Charged Blaster | Encore | Lucent | One more, for the fans. |
+| Charged Scatter Blaster | nobody leaves early | DME | doors are locked/ lights are low/ stay for the finale |
+| Lightning Projector | Static Shock | NiteLife | A jolt for every ship in reach. |
+| Guided Missile Launcher | Homer | Finch | Finds its way, mostly. |
+| Long-Range Missile Rack | Long Haul | AU | Delivers to the far side of the zone. |
+| Short-Range Missile Rack | Short Fuse | AU | For problems already too close. |
+| Swarm Rocket Pod | Confetti | Lucent | Every launch is a celebration. |
+| Incendiary Rocket Pod | Trebuchet | Zhestokost | Siege fire for a column that does not stop. |
+
+### Model page rows
+
+| Kind | What names it | Over time | Who decides |
+|---|---|---|---|
+| `FactionProductData` (catalog) | Its record | Every sold design carries at least one product whose name differs from the design's, and is expected to carry several | The catalog author: the brand a player sees |
+| Item title | `ItemManager.Title(item)` | Derived on each read from the lot's brand; the design name stays as `Type` | `ItemManager.Title`, the one owner; there is no `DisplayName` |
+| `Lot` (run save) | `Lot.Product` (key 4) | Written once by `CreateLot(product)`; a lot made without a product (console give, extraction) has none and shows its maker only. A product that no longer resolves reads as unbranded | `CreateLot`; `Brand` reads it and nothing re-derives a product from maker and design |
+| `WeaponItemData` (catalog) | Three new generic designs: Point Defense Gun, Point Defense Laser, Flak Gun | Authored once by `pd-gear` | The catalog author |
+
+### Rationale
+
+**Titles name the product.** One engine-free derivation in ServerShared, `ItemManager.Title(
+CraftedItemInstance)`: the brand's product name, else the design name. Every title site reads it.
+This is what makes "branding lives in products" visible, and what shows the Pirates' emoji names.
+`lot-product` moves the brand's authority from a catalog query (LP2) into the lot, so that two
+products of one design by one maker stay distinct (CG4, LP9). A first plan for it added a
+`DisplayName` over the same hunks as `Title`; Soul verdict `cut-product-titles.s1` found two title
+owners in force (`title-vs-displayname-split`) and Self ruled Title the one owner. A lot whose
+product no longer resolves (a removed mod's product) reads as unbranded: `Brand` returns (maker,
+null) and `Title` falls back to the design; `RequireDesigns` is not widened (ruling
+`no-save-compatibility-before-players`). The census duplicate-brand block (LP7) goes away.
+
+**Why three PD designs and not five.** The missile-defence rulings in force are `pd-who-engages`
+(any gun, priced by its own stats), `missiles-sim-side-light` (missiles are lightweight records PD
+can engage), `weapon-tracking-authored` (a PD class near 40 deg/s exists to be authored) and
+`speed-demon-counterplay`. They need guns with PD stats, which the catalog lacks: the PD Gun
+(ballistic hose, the Djinni's slots), the PD Laser (energy, the Longinus's slots, so the demo's
+starting hull can fit PD) and the Flak Gun (Zhestokost's flak doctrine as a pellet gun, which needs
+no new rule: each pellet rolls). An interceptor launcher needs missiles that take munition subjects
+and a decoy launcher needs a signature the seeker can read that is not a ship; both are new
+mechanics, which the target's not-in-scope line excludes until ruled. They are follow-ups
+`interceptor-launcher` and `missile-decoys-signature`, not catalog content. An airburst flak (a
+blast that wears munitions in its disc) is follow-up `flak-airburst-at-munitions`.
+
+**Derivation of the PD stats** (from CG5 and the tracking table). Tracking 40 is the table's PD
+anchor (0.82 / 0.94 against the speed demon at TC / FCA). PD Gun is ClearPath's role pushed to its
+extreme: one cell, lighter (40 kg), less damage per round (1.5-4) at a higher rate (0.06-0.025 s)
+and shorter reach (300-550 m), because a munition has 20 durability (CG7): 5 to 14 rounds kill one.
+It draws ammunition (`ballistics-real-ammo`) and a small cycling energy, 0.4-0.2
+(`ballistics-cycle-power`). PD Laser is Spectra's role: instant beam, 5-12 per shot every 0.2-0.1 s
+to 400-750 m, energy-limited at 6-10 a shot, 2 to 4 hits a missile. Flak Gun is DeathCluster's
+shotgun at small calibre, 1x2: 6-8 pellets sharing 30-70 damage a volley, 350-800 m, Tracking 20
+(between PD and ClearPath, because pellets cover what tracking misses).
+
 ## Retiring the LonginusX and parking the aether drive
 
 Ruling `retire-longinusx`, in the operator's words: "I want to retire the LonginusX, the aether
