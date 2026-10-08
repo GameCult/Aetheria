@@ -64,4 +64,20 @@ public sealed partial class RunStartTests
             .ToArray();
         Assert.Empty(twice);
     }
+
+    // A unit minted from a Pirates rebrand titles and brands as that rebrand: the lot records its product, so the
+    // emoji name shows although the same design is also sold by its original maker.
+    [Fact]
+    public void PiratesRebrandUnitsTitleAsTheirOwnProduct()
+    {
+        var pirates = ShippedPirates();
+        foreach (var product in PiratesProducts())
+        {
+            var unit = _items.CreateInstance(_items.CreateLot(product));
+            Assert.Equal(product.Name, _items.Title(unit));
+            var brand = _items.Brand((CraftedItemInstance) unit);
+            Assert.Same(product, brand.Product);
+            Assert.Same(pirates, brand.Maker);
+        }
+    }
 }
