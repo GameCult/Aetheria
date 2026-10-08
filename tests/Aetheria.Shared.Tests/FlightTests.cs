@@ -6,6 +6,7 @@ using CultMath;
 using GameCult.Caching;
 using UniRx;
 using Xunit;
+using static CultMath.math;
 
 // The flight (Agents/Flight.cs) is the only writer of its members' Target and Task. These tests drive it on the
 // IffAndCombatTests world. Perception is the sensors' output (VisibleEnemies, EntityInfoGathered), which
@@ -255,6 +256,241 @@ public sealed class FlightTests : IDisposable
         Assert.Equal(new[] { stays }, _zone.Agents.Select(a => a.Ship));
         Assert.Equal(1, flight.Count);
         Assert.DoesNotContain(_zone.Agents, a => a.Ship == player);
+    }
+
+    private static void Forbid(Ship track) => track.PresencePermitted = Observable.Return(false).ToReadOnlyReactiveProperty();
+
+    [Fact]
+    public void TrespassEngagesOnlyWhatTheZoneDoesNotPermit()
+    {
+        var member = Pilot(WithDoctrine(EngageOn.Trespass));
+        var welcome = Track(80);
+        var trespasser = Track(120);
+        See(member, welcome);
+        See(member, trespasser);
+        welcome.PresencePermitted = Observable.Return(true).ToReadOnlyReactiveProperty();
+        Forbid(trespasser);
+
+        Tick(.1f);
+
+        Assert.Same(trespasser, member.Target.Value.Entity);
+    }
+
+    [Fact]
+    public void ADetectionDoctrineEngagesWhateverIsVisibleWithoutAGrudge()
+    {
+        var member = Pilot(WithDoctrine(EngageOn.Detection));
+        var track = Track();
+        See(member, track);
+
+        Tick(.1f);
+
+        Assert.Same(track, member.Target.Value.Entity);
+        Assert.Null(member.IffOverride(track));
+    }
+
+    [Fact]
+    public void ADoctrineWithoutACombatantFightsWithTheDefaultRole()
+    {
+        var faction = new Faction { Name = "Sparse", Doctrine = new FactionDoctrine { EngageOn = EngageOn.Detection } };
+        Pilot(faction);
+
+        var combatant = _zone.Flights.Single().Combatant;
+
+        Assert.Equal(_items.GameplaySettings.AgentRangeExponent, combatant.RangeExponent);
+        Assert.Equal(_items.GameplaySettings.AgentMinHitProbability, combatant.MinHitProbability);
+    }
+
+    [Fact]
+    public void AnyMembersGrudgeEngagesTheWholeFlight()
+    {
+        var faction = WithDoctrine(EngageOn.Provoked);
+        var angry = Pilot(faction);
+        var calm = Pilot(faction, 10);
+        var track = Track();
+        See(angry, track);
+        See(calm, track);
+        angry.SetIff(track, true);
+
+        Tick(.1f);
+
+        Assert.Same(track, angry.Target.Value.Entity);
+        Assert.Same(track, calm.Target.Value.Entity);
+    }
+
+    [Fact]
+    public void TheGraceEndsExactlyWhenItIsUp()
+    {
+        var member = Pilot(WithDoctrine(EngageOn.Detection, grace: 5, hail: "Hold."));
+        See(member, Track());
+
+        Tick(.5f); // hailing starts at 0.5 s
+        Tick(4.5f);
+        Assert.True(member.Target.Value.IsNone, "4.5 s into a 5 s grace");
+        Tick(.5f);
+        Assert.False(member.Target.Value.IsNone, "5.0 s in");
+    }
+
+    [Fact]
+    public void NothingComplyingMeansTheGraceEndsInEngagement()
+    {
+        var member = Pilot(WithDoctrine(EngageOn.Detection, grace: 1, hail: "Hold.", comply: 0));
+        See(member, Track());
+
+        Tick(.5f);
+        Tick(1f);
+
+        Assert.False(member.Target.Value.IsNone);
+    }
+
+    [Fact]
+    public void ATrackExactlyAtComplySpeedDoesNotComply()
+    {
+        var member = Pilot(WithDoctrine(EngageOn.Detection, grace: 1, hail: "Hold.", comply: 10));
+        var track = Track();
+        track.Velocity = new float2(10, 0);
+        See(member, track);
+
+        Tick(.5f);
+        Tick(1f);
+
+        Assert.Same(track, member.Target.Value.Entity);
+    }
+
+    [Fact]
+    public void ACompliantTrackAtExactlyComplySpeedIsEngaged()
+    {
+        var member = Pilot(WithDoctrine(EngageOn.Detection, grace: 1, hail: "Hold.", comply: 10));
+        var track = Track();
+        See(member, track);
+
+        Tick(.5f);
+        Tick(1f);
+        Assert.True(member.Target.Value.IsNone, "complied while still");
+
+        track.Velocity = new float2(10, 0);
+        Tick(.1f);
+        Assert.Same(track, member.Target.Value.Entity);
+    }
+
+    [Fact]
+    public void AMemberKeepsItsTargetWhileThatTrackStaysEngaged()
+    {
+        var member = Pilot(new Faction { Name = "Plain" });
+        var first = Track(50);
+        var second = Track(200);
+        See(member, first);
+        See(member, second);
+
+        Tick(.1f);
+        Assert.Same(first, member.Target.Value.Entity); // the nearer
+
+        first.Position = new float3(500, 0, 0);
+        second.Position = new float3(10, 0, 0);
+        Tick(.1f);
+        Assert.Same(first, member.Target.Value.Entity); // kept, though the other is nearer now
+    }
+
+    [Fact]
+    public void HoldersCloseOnTheNearestHeldTrackAndKeepItWhileItIsHeld()
+    {
+        var member = Pilot(WithDoctrine(EngageOn.Detection, grace: 5, hail: "Hold."));
+        var near = Track(50);
+        var far = Track(300);
+        See(member, near);
+        See(member, far);
+
+        Tick(.1f);
+        Assert.Same(near, ((FollowTask) _zone.Agents.Single().Task).Anchor);
+
+        near.Position = new float3(900, 0, 0);
+        far.Position = new float3(10, 0, 0);
+        Tick(.1f);
+        Assert.Same(near, ((FollowTask) _zone.Agents.Single().Task).Anchor);
+    }
+
+    [Fact]
+    public void ATrackThatLeavesForgetsItsPhaseAndTheMemberResumesItsPatrol()
+    {
+        var member = Pilot(WithDoctrine(EngageOn.Detection, grace: 5, hail: "Hold."));
+        var agent = _zone.Agents.Single();
+        var patrol = agent.Task;
+        var track = Track();
+        See(member, track);
+
+        Tick(.1f);
+        Assert.IsType<FollowTask>(agent.Task);
+
+        member.VisibleEnemies.Remove(track);
+        Tick(.1f);
+        Assert.Same(patrol, agent.Task);
+        Assert.Equal(Flight.Phase.None, _zone.Flights.Single().PhaseOf(track));
+
+        member.Messages.Clear();
+        See(member, track);
+        Tick(.1f);
+        Assert.True(member.Messages.ContainsKey("Hold."), "a returning track is hailed again");
+    }
+
+    [Fact]
+    public void AnAuthoredStandoffIsTheHoldDistance()
+    {
+        var faction = WithDoctrine(EngageOn.Detection, grace: 5);
+        faction.Doctrine.Combatant.HoldStandoff = 40;
+        var member = Pilot(faction);
+        See(member, Track());
+
+        Tick(.1f);
+
+        Assert.Equal(40f, ((FollowTask) _zone.Agents.Single().Task).Standoff);
+    }
+
+    [Fact]
+    public void FollowTurnsTowardTheAnchorWhenFarAndAwayFromItWhenNear()
+    {
+        var anchor = Track();
+
+        float Turn(float anchorX)
+        {
+            var ship = Pilot(null);
+            anchor.Position = new float3(anchorX, 0, 0);
+            var minion = new Minion(ship, FactionDoctrine.Default(_items.GameplaySettings).Combatant)
+                { Task = new FollowTask { Anchor = anchor, Standoff = 100 } };
+            minion.Update(.1f);
+            minion.Update(.1f);
+            return ship.Turn;
+        }
+
+        var far = Turn(300);
+        var near = Turn(20);
+
+        Assert.NotEqual(0f, far);
+        Assert.NotEqual(0f, near);
+        Assert.Equal(sign(far), -sign(near));
+    }
+
+    [Fact]
+    public void ATaskChangeBackToPatrolLeavesTheFollowState()
+    {
+        var ship = Pilot(null);
+        var anchor = Track();
+        var minion = new Minion(ship, FactionDoctrine.Default(_items.GameplaySettings).Combatant)
+            { Task = new FollowTask { Anchor = anchor, Standoff = 50 } };
+        minion.Update(.1f);
+        minion.Update(.1f);
+        Assert.IsType<FollowState>(CurrentState(minion));
+
+        minion.Task = new PatrolOrbitsTask { Circuit = new CultRecordKey[1] };
+        minion.Update(.1f);
+        Assert.IsType<PatrolOrbitsState>(CurrentState(minion));
+
+        minion.Task = new FollowTask { Anchor = anchor, Standoff = 50 };
+        minion.Update(.1f);
+        minion.Update(.1f);
+        minion.Task = null;
+        minion.Update(.1f);
+        minion.Update(.1f);
+        Assert.IsNotType<FollowState>(CurrentState(minion));
     }
 
     private static string TempCatalog() => Path.Combine(Path.GetTempPath(), "aetheria-doctrine-" + Guid.NewGuid().ToString("N") + ".cc");
