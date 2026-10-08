@@ -71,8 +71,42 @@ public sealed class PiratesFactionCommandTests : IDisposable
         Assert.Equal(0, Program.PiratesFaction(apply: true, root: _root));
         var landed = File.ReadAllBytes(CatalogPath);
         var (pirates, products) = Read();
-        Assert.Single(pirates);
-        Assert.Equal(8, products.Length);
+        var faction = Assert.Single(pirates);
+        Assert.Equal("Pirates", faction.ShortName);
+        Assert.StartsWith("A loose coalition of crews and hidden docks", faction.Description);
+        Assert.Equal(3, faction.InfluenceDistance);
+        Assert.Equal(new CultMath.float3(.42f, .40f, .37f), faction.PrimaryColor);
+        Assert.Equal(new CultMath.float3(1f, .45f, .05f), faction.SecondaryColor);
+        Assert.Equal(12, faction.Allegiance.Count);
+        Assert.All(faction.Allegiance.Values, value => Assert.Equal(1f, value));
+
+        var db = AetherDb.Open(root: _root);
+        try
+        {
+            Assert.Equal("pleiades", db.Cache.Get(faction.GeonameFile).Name);
+            var expected = new (string Design, string Name, string Description)[]
+            {
+                ("Autocannon", "🫳🔫", "Serial number filed off. Still shoots."),
+                ("Earp", "🪦🤠", "The previous owner had no further use for it."),
+                ("FastBlast+-", "🧾🚫", "Warranty void where prohibited, which is everywhere."),
+                ("6k Shooter", "🎨🙈", "The logo underneath is somebody else's problem."),
+                ("scorched void policy", "🔥", "Turns out we did start the fire after all."),
+                ("Targeting Computer", "👀🎯", "Somebody else's eyes. They still work."),
+                ("Small Drive", "🔑🏃💨", "Hotwired. Do not ask about the ignition."),
+                ("Store-All Plus", "📦🤫", "Contents not as declared."),
+            };
+            Assert.Equal(expected.Select(e => e.Name).OrderBy(n => n, StringComparer.Ordinal), products.Select(p => p.Name).OrderBy(n => n, StringComparer.Ordinal));
+            foreach (var (designName, name, description) in expected)
+            {
+                var product = products.Single(p => p.Name == name);
+                var design = (CraftedItemData) db.Cache.Get(product.Design);
+                Assert.Equal(designName, design.Name);
+                Assert.Equal(description, product.Description);
+                Assert.Equal(design.Roles.Select(role => role.Name), product.Roles.Select(role => role.Role));
+                Assert.All(product.Roles, role => { Assert.Equal(.45f, role.Mean); Assert.Equal(.22f, role.StandardDeviation); });
+            }
+        }
+        finally { db.Cache.Dispose(); }
 
         // A second apply finds the faction and changes nothing.
         Assert.Equal(0, Program.PiratesFaction(apply: true, root: _root));
@@ -99,6 +133,18 @@ public sealed class PiratesFactionCommandTests : IDisposable
         var autocannon = db.Cache.GetAll<WeaponItemData>().Single(weapon => weapon.Name == "Autocannon");
         autocannon.Name = "Autocannon (renamed)";
         db.Cache.Commit(batch => batch.Upsert(typeof(WeaponItemData), autocannon, db.Cache.RefOf(autocannon).Key));
+        db.Cache.Dispose();
+
+        Assert.Throws<InvalidOperationException>(() => Program.PiratesFaction(apply: true, root: _root));
+        Assert.Empty(Read().Pirates);
+    }
+
+    [Fact]
+    public void A_missing_name_file_refuses_and_lands_nothing()
+    {
+        var db = AetherDb.Open(catalogWritable: true, root: _root);
+        var pleiades = db.Cache.GetAll<NameFile>().Single(file => file.Name == "pleiades");
+        Assert.True(db.Cache.Remove(db.Cache.RefOf(pleiades).Key));
         db.Cache.Dispose();
 
         Assert.Throws<InvalidOperationException>(() => Program.PiratesFaction(apply: true, root: _root));
