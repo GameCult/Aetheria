@@ -57,7 +57,9 @@ public static class EmojiFont
             asset.material.name = "Emoji Atlas Material";
             AssetDatabase.AddObjectToAsset(asset.material, asset);
         }
-        else asset.ClearFontAssetData(true);
+
+        // The atlas pages are cache: Build leaves them empty, the same state EmojiCheck restores.
+        asset.ClearFontAssetData(true);
 
         // Text-presentation emoji (U+263A without FE0F) are not routed through the emoji list, so the
         // asset is also the global fallback.

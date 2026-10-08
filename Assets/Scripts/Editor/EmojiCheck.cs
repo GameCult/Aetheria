@@ -90,8 +90,11 @@ public static class EmojiCheck
         foreach (var cp in missing.OrderBy(c => c)) failures.Add($"missing code point U+{cp:X4}");
 
         long ink = 0, colour = 0;
+        int pages = 0, nullPages = 0;
         foreach (var page in emoji.atlasTextures)
         {
+            if (page == null) { nullPages++; continue; }
+            pages++;
             var pixels = page.GetPixels32();
             ink += pixels.LongCount(p => p.a != 0);
             colour += pixels.LongCount(p => p.a != 0 && (p.r != p.g || p.g != p.b));
@@ -102,7 +105,7 @@ public static class EmojiCheck
         // Dynamic atlas content is cache: drop it so this check leaves the asset as Build wrote it.
         emoji.ClearFontAssetData(true);
         return $"checked {corpus.Count} single code points + {PiratesNames.Length} Pirates names, {missing.Count} missing, " +
-               $"{viaEmoji} glyphs via the emoji asset, {viaOther} via other fonts, {blank} blank, {ink} atlas ink pixels of which {colour} coloured";
+               $"{viaEmoji} glyphs via the emoji asset, {viaOther} via other fonts, {blank} blank, {ink} atlas ink pixels of which {colour} coloured, {pages} atlas pages ({nullPages} null)";
     }
 
     static List<int> LoadSingles()

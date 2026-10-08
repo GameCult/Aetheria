@@ -1,0 +1,14 @@
+source_url=https://github.com/jdecked/twemoji/archive/refs/tags/v17.0.3.tar.gz
+source_version=v17.0.3
+source_sha256=a0855654b633045ae2337537e77f1bb4361162f7fcd910e613eaab1d6d9c5fca
+svg_count=4009
+single_codepoint_count=1425
+tool_nanoemoji=0.16.0
+tool_fonttools=4.66.1
+tool_picosvg=0.23.0
+tool_ninja=1.13.2
+source_date_epoch=1780352497
+color_format=glyf_colr_0
+font_file=Twemoji.ttf
+font_sha256=de66290bfa98226e40d8999a3ab024c2242e8d2938f939d9a85c1494844f6aa0
+singles_sha256=d07a0693cef0530acf540cdeb60d341912f639370e7e30271e90452a8aecdc0d
