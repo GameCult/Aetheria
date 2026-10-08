@@ -30,20 +30,38 @@ public sealed class RolesBackfillCommandTests : IDisposable
     {
         Directory.CreateDirectory(Path.Combine(_root, "GameData"));
         File.Copy(Path.Combine(AetherDb.FindRoot(), "GameData", "Aetheria.cc"), CatalogPath);
-        // As PiratesFactionCommandTests: edit through a registry scoped to the shipped assembly, then give the catalog the
-        // record AetherDb's process-wide registry demands in this test host.
+        // The catalog needs the record AetherDb's process-wide registry demands in this test host (as PiratesFactionCommandTests).
+        using (var cache = new CultCache())
+        {
+            cache.AddBackingStore(new SingleFileMessagePackBackingStore(CatalogPath), AetheriaStores.CatalogTypes);
+            cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+            cache.FlushAsync().Wait();
+        }
+        var db = AetherDb.Open(root: _root);
+        try
+        {
+            var products = db.Cache.GetAll<FactionProductData>().ToArray();
+            foreach (var design in db.Cache.GetAll<EquippableItemData>().Where(d => Flattened.Contains(d.Name) || Unnamed.Any(u => u.Design == d.Name)))
+                _shipped[design.Name] = Describe(db.Cache, design, products);
+        }
+        finally { db.Cache.Dispose(); }
+    }
+
+    // Puts the named designs back to the state they shipped in before the backfill, through a registry scoped to the shipped
+    // assembly (as PiratesFactionCommandTests strips its faction).
+    private void Reset(bool flattened, bool unnamed)
+    {
         var registry = CultDocumentRegistry.ForTypes(typeof(ItemData).Assembly.GetTypes()
             .Where(t => t is { IsAbstract: false, IsInterface: false })
             .Where(t => t.GetCustomAttribute<CultDocumentAttribute>() != null));
-        using (var cache = new CultCache(registry))
-        {
-            cache.AddBackingStore(new SingleFileMessagePackBackingStore(CatalogPath), AetheriaStores.CatalogTypes);
-            var designs = cache.GetAll<EquippableItemData>().ToArray();
-            var products = cache.GetAll<FactionProductData>().ToArray();
-            var changed = new List<object>();
+        using var cache = new CultCache(registry);
+        cache.AddBackingStore(new SingleFileMessagePackBackingStore(CatalogPath), AetheriaStores.CatalogTypes);
+        var designs = cache.GetAll<EquippableItemData>().ToArray();
+        var products = cache.GetAll<FactionProductData>().ToArray();
+        var changed = new List<object>();
+        if (flattened)
             foreach (var design in designs.Where(d => Flattened.Contains(d.Name)))
             {
-                _shipped[design.Name] = Describe(cache, design, products);
                 foreach (var (_, stat) in CatalogRoleTests.StatsOf(design))
                 {
                     if (stat.Min != stat.Max) stat.Min = stat.Max = (stat.Min + stat.Max) / 2f;
@@ -58,24 +76,23 @@ public sealed class RolesBackfillCommandTests : IDisposable
                     changed.Add(product);
                 }
             }
+        if (unnamed)
             foreach (var (name, field) in Unnamed)
             {
                 var design = designs.Single(d => d.Name == name);
-                _shipped[name] = Describe(cache, design, products);
                 foreach (var term in Stat(design, field).Terms.Where(t => t.Source == StatSource.Quality)) term.Role = null;
                 changed.Add(design);
             }
-            cache.Commit(batch =>
-            {
-                foreach (var document in changed) batch.Upsert(document.GetType(), document, cache.RefOf(document).Key);
-            });
-            cache.FlushAsync().Wait();
-        }
-        using (var cache = new CultCache())
+        cache.Commit(batch =>
         {
-            cache.AddBackingStore(new SingleFileMessagePackBackingStore(CatalogPath), AetheriaStores.CatalogTypes);
-            cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
-            cache.FlushAsync().Wait();
+            foreach (var document in changed) batch.Upsert(document.GetType(), document, cache.RefOf(document).Key);
+        });
+        cache.FlushAsync().Wait();
+        using (var plain = new CultCache())
+        {
+            plain.AddBackingStore(new SingleFileMessagePackBackingStore(CatalogPath), AetheriaStores.CatalogTypes);
+            plain.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+            plain.FlushAsync().Wait();
         }
     }
 
@@ -112,6 +129,7 @@ public sealed class RolesBackfillCommandTests : IDisposable
     [Fact]
     public void A_dry_run_writes_nothing_and_apply_lands_what_the_catalog_ships_and_replays_as_a_no_op()
     {
+        Reset(flattened: true, unnamed: true);
         var before = File.ReadAllBytes(CatalogPath);
         var start = Read();
         Assert.All(_shipped.Keys, name => Assert.NotEqual(_shipped[name], start[name]));
@@ -129,6 +147,21 @@ public sealed class RolesBackfillCommandTests : IDisposable
         // A second apply finds every stat ranged and named and every seller authored, and writes nothing.
         Assert.Equal(0, Program.RolesBackfill(apply: true, root: _root));
         Assert.Equal(landed, File.ReadAllBytes(CatalogPath));
+    }
+
+    // Only unnamed Quality terms to name: no seller and no range changes, and apply must still land the designs.
+    [Fact]
+    public void Naming_an_unnamed_term_alone_lands_without_touching_ranges_or_sellers()
+    {
+        Reset(flattened: false, unnamed: true);
+        var before = File.ReadAllBytes(CatalogPath);
+        var start = Read();
+        Assert.All(Unnamed.Select(u => u.Design), name => Assert.NotEqual(_shipped[name], start[name]));
+
+        Assert.Equal(0, Program.RolesBackfill(apply: true, root: _root));
+        Assert.NotEqual(before, File.ReadAllBytes(CatalogPath));
+        var after = Read();
+        foreach (var (name, _) in Unnamed) Assert.Equal(_shipped[name], after[name]);
     }
 
     [Fact]
