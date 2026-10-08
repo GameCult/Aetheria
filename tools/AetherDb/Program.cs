@@ -1738,6 +1738,10 @@ public static class Program
     private static readonly string[] BackfillDesigns = { "Autocannon", "LRMM72", "SRMM72", "Mine Launcher", "Large Drive", "Small Drive",
         "DeathCluster", "Flak Gun", "GT 3K", "plight", "MoveOnPro", "MoveOnPro Station Reactor" };
 
+    // Stats the backfill names but never ranges: a shot count is whole, and which way a launcher's MinRange should fall is
+    // each design's own call (GT 3K authors it as a cost already).
+    private static readonly HashSet<string> RoleOnlyStats = new HashSet<string>(StringComparer.Ordinal) { "Count", "MinRange" };
+
     private static readonly HashSet<string> CostStats = new HashSet<string>(StringComparer.Ordinal)
     {
         "Cooldown", "Spread", "Heat", "Visibility", "Energy", "EnergyUsage", "ChargeTime", "ChargeEnergy", "ChargeHeat",
@@ -1784,6 +1788,7 @@ public static class Program
                     var value = stat.Min;
                     if (stat.Min == stat.Max)
                     {
+                        if (RoleOnlyStats.Contains(field.Name)) continue; // a count or a per-design bound: never ranged
                         if (stat.Min == 0f || float.IsInfinity(stat.Min)) continue;
                         (stat.Min, stat.Max) = CostStats.Contains(field.Name) ? (value * 1.2f, value * .8f) : (value * .8f, value * 1.2f);
                         quality ??= new StatTerm { Source = StatSource.Quality, Exponent = ExponentFor(kind, field.Name) };
