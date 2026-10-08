@@ -235,6 +235,20 @@ public sealed class FlightTests : IDisposable
         Assert.IsType<FollowState>(CurrentState(minion));
     }
 
+    [Fact]
+    public void APatrollingPilotStaysOnPatrol()
+    {
+        var ship = Pilot(null);
+        var minion = new Minion(ship, FactionDoctrine.Default(_items.GameplaySettings).Combatant)
+            { Task = new PatrolOrbitsTask { Circuit = new CultRecordKey[1] } };
+
+        for (var i = 0; i < 30; i++)
+        {
+            minion.Update(.1f);
+            if (i > 0) Assert.IsNotType<BaseState>(CurrentState(minion));
+        }
+    }
+
     private static BaseState CurrentState(Agent agent) =>
         (BaseState) typeof(Agent).GetField("_currentState", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(agent);
 
