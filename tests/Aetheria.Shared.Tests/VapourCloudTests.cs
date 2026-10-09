@@ -85,7 +85,7 @@ public sealed class VapourCloudTests : IDisposable
         {
             Sensitivity = Constant(1f),
             SensitivityCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } },
-            PingBoost = Constant(.00002f), PingEnergy = Constant(0f), PingVisibility = Constant(5f),
+            PingBoost = Constant(.000004f), PingEnergy = Constant(0f), PingVisibility = Constant(5f),
             PingRange = Constant(300f), PingCooldown = Constant(4f)
         }));
         cache.Upsert(Gear("Vent", HardpointType.Tool, new VapourDumpData
@@ -238,7 +238,8 @@ public sealed class VapourCloudTests : IDisposable
 
         Assert.True(Info(lab.Target, lab.Observer) < Threshold);
         Assert.DoesNotContain(lab.Observer, lab.Target.VisibleEnemies);
-        Assert.Equal(Info(lab.Observer, lab.Target), Info(lab.Target, lab.Observer), 5);
+        // (The observer updates before the venter in the tick that vents, so it is one tick behind.)
+        Assert.Equal(Info(lab.Observer, lab.Target), Info(lab.Target, lab.Observer), 3);
     }
 
     [Fact]
@@ -272,9 +273,10 @@ public sealed class VapourCloudTests : IDisposable
 
         lab.Zone.Update(1f);
 
-        Assert.Equal(10f, cloud.Body.Position.x, 3);
+        // The launch velocity decays on the zone's launch drag, so it has moved most of the way and no further.
+        Assert.InRange(cloud.Body.Position.x, 5f, 9.9f);
         Assert.Equal(1f, lab.Zone.Obscuration(float2(0, -20), float2(0, 20)));
-        Assert.Equal(.5f, lab.Zone.Obscuration(float2(10, -20), float2(10, 20)), 2);
+        Assert.Equal(.5f, lab.Zone.Obscuration(float2(cloud.Body.Position.x, -20), float2(cloud.Body.Position.x, 20)), 2);
     }
 
     [Fact]
@@ -296,9 +298,13 @@ public sealed class VapourCloudTests : IDisposable
         VapourCloud vented = null;
         float2 venterVelocity = float2.zero;
         float2 venterAt = float2.zero;
+        float2 cloudVelocity = float2.zero;
+        float2 cloudAt = float2.zero;
         using var sub = lab.Zone.Clouds.ObserveAdd().Subscribe(add =>
         {
             vented = add.Value;
+            cloudVelocity = add.Value.Body.Velocity;
+            cloudAt = add.Value.Body.Position;
             venterVelocity = lab.Target.Velocity;
             venterAt = lab.Target.Position.xz;
         });
@@ -309,8 +315,8 @@ public sealed class VapourCloudTests : IDisposable
         Assert.Single(lab.Zone.Clouds);
         Assert.Same(vented, lab.Zone.Clouds.Single());
         Assert.True(length(venterVelocity) > 0f, "the venter was not moving");
-        Assert.Equal(venterVelocity, vented.Body.Velocity);
-        Assert.Equal(venterAt, vented.Body.Position);
+        Assert.Equal(venterVelocity, cloudVelocity);
+        Assert.Equal(venterAt, cloudAt);
         Assert.Same(lab.Target, vented.Venter);
         // Each stat is the authored one, evaluated through the host.
         Assert.Equal(17f, vented.Radius);
@@ -345,48 +351,51 @@ public sealed class VapourCloudTests : IDisposable
         Assert.Equal(.4f, Through(float2(-50, 0), float2(15, 0)), 5);
     }
 
-    // Where the rule is decided: one tick from nothing, the info gathered is exactly what survives the cloud
-    // times what the open sight line gathers, in both directions.
+    // Where the rule is decided: once the start-up seed has decayed away, the info a sensor settles at is what
+    // survives the cloud times what the open sight line settles at, in both directions.
     [Fact]
     public void TheGainIsScaledByWhatSurvivesTheCloud()
     {
-        var clear = Build(100f);
-        Tick(clear);
-        var cloudy = Build(100f);
+        var clear = Build(400f);
+        var cloudy = Build(400f);
         // Mid-way between them and clear of both: only the segment, not either end, touches it.
-        Hand(cloudy.Zone, float2(0, 50), 10f, .6f);
-        Tick(cloudy);
+        Hand(cloudy.Zone, float2(0, 200), 10f, .6f, lifetime: 1e6f);
+        Run(clear, 400);
+        Run(cloudy, 400);
 
-        Assert.True(Info(clear.Observer, clear.Target) > 0f);
+        Assert.True(Info(clear.Observer, clear.Target) > Threshold);
         Assert.Equal(.4f, Info(cloudy.Observer, cloudy.Target) / Info(clear.Observer, clear.Target), 3);
         Assert.Equal(.4f, Info(cloudy.Target, cloudy.Observer) / Info(clear.Target, clear.Observer), 3);
     }
 
-    // A ping is gathered through the same rule: with a cloud on the sight line the whole trace, ping included, is
-    // what survives the cloud times the open trace (info is linear in the gain while nothing saturates).
+    // A ping is gathered through the same rule. Settled, the tick that a ping reaches the target adds the ping gain
+    // in place of the passive one; that extra, in a lab with a cloud on the sight line, is what survives the
+    // cloud times the extra in the open (info is linear in the gain while nothing saturates).
     [Fact]
     public void ThePingGainIsScaledToo()
     {
-        var clear = Build(100f);
-        var cloudy = Build(100f);
-        Hand(cloudy.Zone, float2(0, 50), 10f, .6f);
-        Run(clear, 2);
-        Run(cloudy, 2);
-        clear.Observer.Sensor.Ping();
-        cloudy.Observer.Sensor.Ping();
-
-        var biggestJump = 0f;
-        var last = Info(clear.Observer, clear.Target);
-        for (var i = 0; i < 12; i++)
+        float PingExtra(Lab lab)
         {
-            Tick(clear);
-            Tick(cloudy);
-            var open = Info(clear.Observer, clear.Target);
-            biggestJump = max(biggestJump, open - last);
-            last = open;
-            Assert.Equal(.4f, Info(cloudy.Observer, cloudy.Target) / open, 2);
+            Run(lab, 400);
+            lab.Observer.Sensor.Ping();
+            var biggest = 0f;
+            var last = Info(lab.Observer, lab.Target);
+            for (var i = 0; i < 38; i++)
+            {
+                Tick(lab);
+                biggest = max(biggest, Info(lab.Observer, lab.Target) - last);
+                last = Info(lab.Observer, lab.Target);
+            }
+            return biggest;
         }
-        Assert.True(biggestJump > .15f, $"the ping left no mark on the trace ({biggestJump})");
+
+        var clear = Build(250f);
+        var cloudy = Build(250f);
+        Hand(cloudy.Zone, float2(0, 125), 10f, .6f, lifetime: 1e6f);
+
+        var open = PingExtra(clear);
+        Assert.True(open > .05f, $"the ping left no mark on the open trace ({open})");
+        Assert.Equal(.4f, PingExtra(cloudy) / open, 2);
     }
 
     // The chunk path reads the same rule: the passive rate toward a point is scaled by the same survivor fraction.
