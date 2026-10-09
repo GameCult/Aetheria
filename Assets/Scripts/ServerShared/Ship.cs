@@ -233,27 +233,29 @@ public class Ship : Entity
         if (_active && !_exitingWormhole && !_enteringWormhole)
         {
             RecalculateThrust();
+            // The lock replaces intent here, once; player and agent intent both pass through this one read.
+            var move = ThrottleLocked ? float2(0, 1) : MovementDirection;
             foreach (var thruster in _allThrusters) thruster.Axis = 0;
             var rightThrusterTorqueCompensation = abs(RightStrafeTotalTorque) / RightStrafeTorqueThrusters.Count;
             foreach (var thruster in _rightThrusters)
             {
                 var thrust = 0f;
-                thrust += MovementDirection.x;
+                thrust += move.x;
                 if (RightStrafeTorqueThrusters.Contains(thruster))
-                    thrust -= MovementDirection.x * (rightThrusterTorqueCompensation / (abs(thruster.Torque) * thruster.Thrust));
+                    thrust -= move.x * (rightThrusterTorqueCompensation / (abs(thruster.Torque) * thruster.Thrust));
                 thruster.Axis = thrust;
             }
             var leftThrusterTorqueCompensation = abs(LeftStrafeTotalTorque) / LeftStrafeTorqueThrusters.Count;
             foreach (var thruster in _leftThrusters)
             {
                 var thrust = 0f;
-                thrust += -MovementDirection.x;
+                thrust += -move.x;
                 if (LeftStrafeTorqueThrusters.Contains(thruster))
-                    thrust += MovementDirection.x * (leftThrusterTorqueCompensation / (abs(thruster.Torque) * thruster.Thrust));
+                    thrust += move.x * (leftThrusterTorqueCompensation / (abs(thruster.Torque) * thruster.Thrust));
                 thruster.Axis = thrust;
             }
-            foreach (var thruster in _forwardThrusters) thruster.Axis += MovementDirection.y;
-            foreach (var thruster in _reverseThrusters) thruster.Axis += -MovementDirection.y;
+            foreach (var thruster in _forwardThrusters) thruster.Axis += move.y;
+            foreach (var thruster in _reverseThrusters) thruster.Axis += -move.y;
 
             foreach (var thruster in _clockwiseThrusters) thruster.Axis += Turn;
             foreach (var thruster in _counterClockwiseThrusters) thruster.Axis += -Turn;

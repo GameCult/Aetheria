@@ -863,6 +863,9 @@ public abstract class Entity
         _activeConsumables.Add(new ConsumableItemEffect(item, this));
     }
 
+    // Derived, never written: true iff an active consumable effect carries a ThrottleLock.
+    public bool ThrottleLocked => _activeConsumables.Any(e => e.Behaviors.OfType<ThrottleLock>().Any());
+
     public ConsumableItemEffect FindActiveConsumable(ConsumableItemData data)
     {
         return _activeConsumables.FirstOrDefault(ac => ac.Data == data);
