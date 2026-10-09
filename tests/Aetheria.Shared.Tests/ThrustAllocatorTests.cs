@@ -240,6 +240,14 @@ public class ThrustAllocatorTests
         var nanYaw = Duel();
         nanYaw[0] = new float3(0, 1, float.NaN);
         Assert.All(Solve(nanYaw, 0, 1, 0), t => Assert.Equal(0f, t));
+
+        // A bad column zeroes the answer even after a good call left throttles in the warm start and in the caller's buffer.
+        var allocator = new ThrustAllocator();
+        var buffer = new float[4];
+        allocator.Allocate(Duel(), new float2(0, 1), .5f, buffer);
+        Assert.Contains(buffer, t => t > .1f);
+        allocator.Allocate(withNaN, new float2(0, 1), .5f, buffer);
+        Assert.All(buffer, t => Assert.Equal(0f, t));
     }
 
     [Fact]
