@@ -220,7 +220,7 @@ public sealed partial class RunStartTests
         " | zones " + g.Zones.Length +
         " | owners " + string.Join(",", g.Zones.Select(z => z.Owner == null ? "-" : z.Owner.ShortName));
 
-    // Measured on 228f241e, before the demo cut, at seed 1.
+    // Measured at seed 1 under CultMath 0.3.0 (cultmath-unity-v0.3.0); the noise kernel changed there, which re-rolled the galaxy.
     private const string TutorialSeed1 =
-        "Miss Terri’s Sugariffic Snack Company,Zhestokost,Lucent Media,Adrasteia,Aeronautics Unlimited,Finch Cybernetics | homes 47,10,17,49,35,1 | entrance 25 | zones 64 | owners Zhestokost,Finch,Lucent,Zhestokost,Finch,Adrasteia,Zhestokost,Adrasteia,Zhestokost,Zhestokost,Zhestokost,Zhestokost,Finch,Lucent,Adrasteia,Adrasteia,Zhestokost,Lucent,Finch,Finch,Lucent,Lucent,Finch,AU,Adrasteia,-,-,Adrasteia,Lucent,-,AU,Lucent,Zhestokost,Lucent,Lucent,AU,Adrasteia,AU,Lucent,AU,Finch,Finch,-,Lucent,Zhestokost,Zhestokost,Miss Terri's,Miss Terri's,Miss Terri's,Adrasteia,Finch,-,-,Miss Terri's,Lucent,AU,Miss Terri's,Zhestokost,Lucent,Lucent,Lucent,Finch,-,-";
+        "Miss Terri’s Sugariffic Snack Company,Zhestokost,Lucent Media,Adrasteia,Aeronautics Unlimited,Finch Cybernetics | homes 3,44,40,19,0,30 | entrance 12 | zones 64 | owners AU,AU,Finch,Miss Terri's,Lucent,Zhestokost,-,Lucent,AU,AU,Lucent,Adrasteia,-,Finch,Zhestokost,-,Adrasteia,-,AU,Adrasteia,AU,Zhestokost,Miss Terri's,-,AU,Finch,Miss Terri's,-,Zhestokost,-,Finch,-,-,AU,-,-,-,-,Miss Terri's,AU,Lucent,-,Finch,-,Zhestokost,AU,-,Zhestokost,Adrasteia,Adrasteia,AU,Miss Terri's,Finch,AU,Finch,-,Lucent,Zhestokost,-,AU,Miss Terri's,Zhestokost,-,Lucent";
 }
