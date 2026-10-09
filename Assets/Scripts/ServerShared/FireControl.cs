@@ -515,12 +515,12 @@ public static class FireControl
     }
 
     // Where a ballistic round is at a sim time: the one statement of the round's line, from its frozen origin along its
-    // frozen direction at its frozen speed, held at the FireRange point once it has flown that far. Pure: it reads the
+    // frozen direction at its frozen speed, held at the MaxRange point once it has flown that far. Pure: it reads the
     // shot alone, and the simulation's own arithmetic (Step, Commit, Apply) does not call it. Presenters draw rounds here.
     public static float2 RoundAt(in PendingShot shot, float time)
     {
         if (shot.Speed <= .01f) return shot.FireOrigin.xz;
-        var flown = clamp(time - shot.FireTime, 0f, shot.FireRange / shot.Speed);
+        var flown = clamp(time - shot.FireTime, 0f, shot.MaxRange / shot.Speed);
         return shot.FireOrigin.xz + shot.TravelDirection * (shot.Speed * flown);
     }
 
@@ -766,6 +766,7 @@ public static class FireControl
             FireRange = fireRange,
             FireTime = now,
             Speed = weapon.Velocity,
+            MaxRange = weapon.Range,
             FireOrigin = origin,
             FireTargetPosition = targetPosition,
             FireTargetVelocity = targetVelocity,
@@ -2012,6 +2013,9 @@ public struct PendingShot
     public float FireTime;
     // The weapon's Velocity at Fire: frozen with the rest, so RoundAt states the same line whatever happens to the stat later.
     public float Speed;
+    // The weapon's Range at Fire, likewise frozen: how far the round can fly, which RoundAt clamps at. FireRange above is the
+    // distance to the engaged target (0 for a round with none), not how far a round that misses flies on.
+    public float MaxRange;
     public float CommitTime;
     public float ArrivalTime;
 

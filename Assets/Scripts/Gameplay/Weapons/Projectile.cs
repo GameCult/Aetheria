@@ -8,7 +8,7 @@ using static CultMath.math;
 // (origin, direction, speed, fire time, arrival, range: the PendingShot copy taken at spawn), so this object stores no
 // velocity or position of its own and integrates nothing: each frame it asks RoundAt where the round is at sim time
 // plus the clock's Lead (the same draw-ahead ships use), and the simulation's ShotResolved ends a round that hit or
-// burst. A round that missed flies on to the FireRange point RoundAt clamps at, and is done there. The barrel is only
+// burst. A round that missed flies on to the MaxRange point RoundAt clamps at, and is done there. The barrel is only
 // where the round is first seen: its offset from the sim line decays to zero over BlendTime sim seconds. The trail's
 // fade after the end stays real time (pure presentation, ruling sim-speed-presentation).
 public class Projectile : MonoBehaviour
@@ -50,7 +50,7 @@ public class Projectile : MonoBehaviour
         if (!_alive) return;
         var time = _zone.Time + ActionGameManager.Clock.Lead;
         transform.position = At(FireControl.RoundAt(_shot, time), time);
-        var end = _shot.Speed > .01f ? _shot.FireTime + _shot.FireRange / _shot.Speed : _shot.FireTime;
+        var end = _shot.Speed > .01f ? _shot.FireTime + _shot.MaxRange / _shot.Speed : _shot.FireTime;
         if (time >= end) Finish();
     }
 

@@ -48,7 +48,7 @@ public sealed partial class FireControlCut124Tests
         Assert.Equal(burst.BurstPosition.x, arrival.x, 3);
         Assert.Equal(burst.BurstPosition.z, arrival.y, 3);
 
-        // Past the range it is held at the FireRange point, however late it is asked.
+        // Past the weapon's range it is held at the range point, however late it is asked.
         var held = FireControl.RoundAt(burst, burst.FireTime + NoLockRange / BallisticSpeed + 50f);
         Assert.Equal(origin.x + aim.x * NoLockRange, held.x, 3);
         Assert.Equal(origin.z + aim.y * NoLockRange, held.y, 3);
@@ -57,7 +57,7 @@ public sealed partial class FireControlCut124Tests
         Assert.Equal(origin.x, before.x, 3);
         Assert.Equal(origin.z, before.y, 3);
 
-        // Direct round at a stationary target 100 ahead (+z): arrives on the target, and holds at the range point.
+        // Direct round at a stationary target 100 ahead (+z): arrives on the target, and a miss would fly on to the weapon's range.
         var d = Build(TestSettings(), SolidShape(5, 4), velocity: BallisticSpeed, weaponRange: 1000f);
         var dOrigin = d.Shooter.Position;
         FireControl.Fire(d.Weapon, d.WeaponItem, d.Shooter);
@@ -66,8 +66,8 @@ public sealed partial class FireControlCut124Tests
         Assert.Equal(d.Target.Position.x, hit.x, 2);
         Assert.Equal(d.Target.Position.z, hit.y, 2);
         Assert.Equal(dOrigin.z + 100f / 2f, FireControl.RoundAt(direct, direct.FireTime + 2.5f).y, 2);
-        var heldDirect = FireControl.RoundAt(direct, direct.FireTime + direct.FireRange / BallisticSpeed + 99f);
-        Assert.Equal(dOrigin.z + direct.FireRange, heldDirect.y, 2);
+        var heldDirect = FireControl.RoundAt(direct, direct.FireTime + 1000f / BallisticSpeed + 99f);
+        Assert.Equal(dOrigin.z + 1000f, heldDirect.y, 2);
     }
 
     // A round with no speed (the weapon authors Velocity 0, or effectively 0) does not fly: it is at its origin at any
