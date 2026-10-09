@@ -6418,7 +6418,9 @@ After these, every cell of CB3 is filled except the SplitMissile row (follow-up
 
 **Stat boosters** (Tool 1x1, template Targeting Computer `c07ea205`'s EnergyDraw and Heat, then a
 StatModifierData Multiplier in the same group so power gates it; roles amplifier (the magnitude)
-and regulator (EnergyDraw, Heat); magnitude per question `boost-strength`):
+and regulator (EnergyDraw, Heat); magnitude per question `boost-strength`). Superseded 2026-10-09 by
+ruling `boost-strength-tiered-by-size`: each stat gets a modest 1x1 and a strong 2x2 design, tabled in
+'Spec refresh 2026-10-09' below):
 
 | Design | Targets | Products (maker) | Cut |
 |---|---|---|---|
@@ -6612,8 +6614,8 @@ Prior art: `F:\Projects\aetheria-consumables-prior-art-2026-10-08.md` (cited bel
 - **CS-R1, the consumable mechanic.** A consumable is a cargo item, single use, activated from the action
   bar (player) or by an agent rule (AI). Its effect is timed (`Duration`) and carries its own drawback in
   the same record. A non-Stackable design allows one active effect at a time, so its Duration is also its
-  cooldown; no second cooldown mechanism. Boosts from a consumable stack with gear under the one resolver
-  rule (`modifier-stacking`).
+  cooldown; no second cooldown mechanism. Boosts from a consumable multiply with gear under the one resolver
+  rule (ruling `boost-stacking-multiply`; pinned by cut `modifier-stacking` r3).
 - **CS-R2, roles.** Per CB-R1, every non-flat effect stat reads one declared role and every product
   authors one ProductRole per role. Benefit magnitudes rise with quality, cost magnitudes fall.
 - **CS-R3, the throttle lock.** While locked, the effective movement intent is full forward, no strafe,
@@ -6687,7 +6689,9 @@ denies the lock before launch; seekers in flight are follow-up `cloud-vs-missile
 consumables combine (vent, then overdrive out of the cloud) and their drawbacks bite each other (the
 overdrive plume is bright; leaving the cloud ends the cover). The symmetric rule makes hiding blind.
 
-**Hoarding.** The elixir literature (PA 10) names scarcity, unlimited inventory and unclear purpose as
+**Hoarding** (written for the abundant option; the operator ruled `consumables-scarce` on 2026-10-09 and
+accepted the hoarding risk, so the cheap, everywhere-stocked half of this paragraph no longer holds: see
+'Spec refresh 2026-10-09'). The elixir literature (PA 10) names scarcity, unlimited inventory and unclear purpose as
 causes, and caps, abundance and situational need as cures. Here: cargo cells and mass are the cap (CC7),
 both designs are cheap (6,000 and 4,000 against 25,000-250,000 for a drive) and stocked at every station
 under question `consumable-supply`, AI pilots use them (cut `consumable-ai`) so the player sees what
@@ -7068,3 +7072,179 @@ That file's Cut 4 (AI heading planner) and Cut 5 (combat facing) are carried as 
   specified, then `thrust-allocator` deletes the mixer, keeps throttle-lock's one intent line as the
   allocator's input and rewrites throttle-lock's two mixer-shaped tests in allocator terms. One owner of
   `Ship.Update`'s thruster block at every step.
+
+## Spec refresh 2026-10-09: scarce consumables, the fog bank, multiply, tiered boosters, the shipped AetherDb
+
+Pass: Imagination `imagination-spec-refresh`, session `self-2026-10-09-morning`, follow-up
+`rulings-2026-10-09-spec-refresh`. Body: `GameCult/Aetheria` origin/master `439d488a` (and `07dcb580`, the
+frame-r4 branch, for the authoring tool), detached worktree `C:\aeth-wt\imag-refresh`, removed at the end.
+Rulings applied (read their `operator_quote` in the mind): `consumables-scarce`, `vapour-cloud-obscuration`,
+`boost-stacking-multiply`, `boost-strength-tiered-by-size`, `components-are-roles-for-demo`,
+`published-aetherdb-with-game`, `overdrive-keep-steering`; composed with `flight-control-allocates-thrust`
+and `turn-authority-full` (section 'Flight control allocates thrust' above). No question is raised: every
+choice below is a project default or authored content that follow-up `combat-pace-pass` tunes.
+
+### Body facts
+
+- **RF1. The cloud patch layer (scene and source read).** `ARPG.unity` holds a camera named `Patch`
+  (GameObject 559840914, local y 10 under the fog camera parent, culling mask 2048 = layer 11 `Patch`
+  in `ProjectSettings/TagManager.asset`) whose target is `Assets/Resources/Fog Patch.renderTexture`
+  (guid `c618a6b2...`). `VolumeSampling.cs:69` publishes it as `_NebulaPatch`; `Volumetric.cginc:95-98`
+  reads it as the patch's vertical thickness: `saturate((-abs(y + disp - FloorOffset) + patch) /
+  PatchBlend) * PatchDensity`. The one environment is `Settings.DefaultEnvironment`
+  (`ActionGameManager.cs:216-222`): PatchDensity .35, FloorOffset -20, PatchBlend 25
+  (`Assets/Resources/Settings.asset:389-392`). What paints the layer today: two quads under
+  `SectorBrushes`, `Depth Micro` and `Depth Macro`, with `Sector Patch Depth Small/Large.mat` on
+  `Brushes/Simplex Brush` (additive `Blend One One`, world-space noise, `_Depth` 10 and 20). A fog-bank
+  brush already exists and nothing references it: `Assets/Prefabs/RPG/Fog Patch.prefab` (layer 11, a quad
+  rotated to face up, `Fog Brush.mat` on `Brushes/Power Brush`, `_Depth` 80, `_Power` 16, `_Cutoff` 1;
+  prefab guid `4084aa3d...`, grep of every scene, prefab and asset: no reference). A quad of side 2R
+  carries the brush's pulse out to radius R (`PowerBrush.shader`: `dist = length(uv - .5) * 2`).
+- **RF2. Drawing a zone body ahead.** `DrawAhead.cs:15-18` draws an entity at `Position + Velocity *
+  Lead`; `KinematicBody.TotalVelocity` (`FloatingBodies.cs:31-32`) is commented "What a presenter draws
+  ahead with". `MineInstance.Place` draws the latest body with no lead. The mine presenter's hooks at
+  `439d488a`: `ZoneRenderer.cs:47` (MinePrefab), `:97` (`_mines`), `:227-235` (load and subscribe),
+  `:259-264` (LoadMine), `:289-291` (ClearZone).
+- **RF3. Generation draws (source read).** `LoadoutGenerator` holds its own copy of the caller's
+  `Random` (`LoadoutGenerator.cs:27`), and the wanderer generator is reused across ships
+  (`ZoneGenerator.cs:378`), so one extra draw in `GenerateShipLoadout` shifts every later wanderer.
+  `ItemManager.CreateInstance` rolls lot quality on `ItemManager.Random` (`ItemManager.cs:123`), so
+  every extra instance shifts later lots. The catalog at `439d488a` holds no consumable record (CC1), so
+  a consumable step that draws only when a consumable is on offer leaves every current golden untouched.
+- **RF4. Death drops carry.** Today `EntityInstance.cs:296-316` drops each cargo item on death; cut
+  `loot-1` r2 moves this into `Zone.DropLoot` ("every cargo stack drops"). A consumable an AI ship
+  carries is therefore loot when it dies, through the owner that already decides loot.
+- **RF5. Multiply is the rule and nothing pins it.** `StatResolver.ScaleModifier`
+  (`StatResolver.cs:108-114`) multiplies every attached scale; `ConstantModifier` (`:116-122`) sums.
+  `StatResolverTests.cs` (455 lines) has no test with two scales on one stat. No spec in force names
+  `modifier-stacking` in `depends_on` (specs-with-no-report recipe, 2026-10-09).
+- **RF6. No player build entry point exists.** No `BuildPipeline`, `BuildPlayerOptions` or
+  `IPostprocessBuild` anywhere in `Assets/Scripts` or `Assets/Editor` (which holds only
+  `Epiphany/EpiphanyEditorBridge.cs`). Ruling `adopt-build-cut-1` (2026-10-03) ordered
+  `docs/build-delivery-cut.md` Cut 1 mapped as one cut; none was admitted, and `ships-player` r2 adds its
+  Mods staging to "the committed entry point". The game reads `<dataPath>/../GameData`
+  (`ActionGameManager.cs:37-41`, `:48-49`). `GameData` at `439d488a` holds `Aetheria.cc`, `Narrative/`
+  (read by `MainMenu.cs:183`) and `SoundbanksInfo.json`, which no C# file reads (grep) and which
+  `audio-1` retires with Wwise. Addressables: `m_BuildAddressablesWithPlayerBuild: 0`
+  (`AddressableAssetSettings.asset:61`, PreferencesValue), so whether content builds with the player is
+  a per-machine preference today. Build-delivery 0.2 (probe, 2026-09-17) found a read-only
+  `AetheriaStores.Open` of a missing catalog silent; not re-probed at `439d488a` (`AetheriaStores.cs:16-31`
+  is unchanged in kind), so its test is written first and must fail first.
+- **RF7. The install's tool folder cannot be `Tools`.** The repo has `tools/`; Windows paths are
+  case-insensitive, so a developer publishing AetherDb into `<repo>/Tools` would write into `tools/`.
+  The install folder is `ModTools/`, gitignored at the repo root.
+- **RF8. The add-on anchors at `07dcb580` are r1's** (`__init__.py:29` timeout, `:302-311`
+  preference, `:314-325` `_aetheria_repo`, `:328-336` `_aetherdb`, `:576-577` New Ship's target;
+  `AetherDb.cs:26-32` FindRoot, identical on `439d488a`).
+
+### Model page rows (changed)
+
+| Kind | Named by | Over time | Decides |
+|---|---|---|---|
+| Consumable stock (runtime, station cargo) | the station | rolled once at generation: a station stocks with chance `StationConsumableChance`, then one product, 1 to `StationConsumableUnits` units | `LoadoutGenerator`, through `AvailableProducts` |
+| Carried consumable (runtime, ship cargo) | the ship | rolled once at generation with chance `ShipConsumableChance`, one unit; spent by `consumable-ai` or dropped as loot on death | `LoadoutGenerator`; then the consumable host or `Zone.DropLoot` |
+| Fog bank (presentation) | its `VapourCloud` | one patch brush per cloud, depth = authored depth x the cloud's opacity fraction, destroyed when the cloud leaves `Zone.Clouds` | `ZoneRenderer`'s one subscription; writes nothing to the sim |
+| Player directory | the build output root | made by one `AetheriaBuild` run: player, `GameData/Aetheria.cc`, `GameData/Narrative/**`, `GameData/Mods/**`, `ModTools/AetherDb.exe` | `AetheriaBuild` alone |
+| Ship author's game folder | the add-on's one preference | the folder whose `GameData` holds `Aetheria.cc`; `ModTools/AetherDb` is found under it | the author |
+
+### Design tables
+
+**Stat boosters, tiered by size** (ruling `boost-strength-tiered-by-size`). Shape and template per CB-R2
+and the r1 table: Tool gear, Targeting Computer `c07ea205`'s EnergyDraw and Heat, then a StatModifierData
+Multiplier in the same group; roles amplifier (magnitude) and regulator (EnergyDraw, Heat). The 1x1 keeps
+the template's EnergyDraw, Heat, Mass and Price; the 2x2 takes 3x EnergyDraw and Heat and 4x Mass and
+Price. Magnitude Min-Max (rises with amplifier quality): 1x1 **1.03-1.08**, 2x2 **1.20-1.40**. Both
+designs on one stat multiply (ruling `boost-stacking-multiply`), so a 1x1 and a 2x2 at best quality give
+1.512.
+
+| Stat | 1x1 design: products | 2x2 design: products | Cut |
+|---|---|---|---|
+| ThrusterData.Thrust | Thrust Amplifier: Tailwind (Finch), Second Wind (Lightsail) | Thrust Amplifier Array: Jetstream (Finch), Trade Wind (Lightsail) | boost-gear-systems |
+| SensorData.Sensitivity | Signal Amplifier: Earful (Finch), Lookout (AU) | Signal Amplifier Array: Big Ears (Finch), Watchtower (AU) | boost-gear-systems |
+| RadiatorData.Emissivity | Emissivity Booster: Cold Read (Adrasteia), Cool Head (Lightsail) | Emissivity Booster Array: Dead Calm (Adrasteia), Cold Storage (Lightsail) | boost-gear-systems |
+| ReactorData.Charge | Reactor Overclock: Afterhours (NiteLife), redline (DME) | Reactor Overclock Array: Last Call (NiteLife), meltdown (DME) | boost-gear-systems |
+| WeaponData.Damage | Damage Amplifier: Showstopper (Lucent), Heavy Hand (Zhestokost) | Damage Amplifier Array: Encore (Lucent), Iron Fist (Zhestokost) | boost-gear-combat |
+| WeaponData.Range | Range Extender: Far Sight (Adrasteia), Long Look (Finch) | Range Extender Array: Horizon Line (Adrasteia), Far Flight (Finch) | boost-gear-combat |
+| ShieldData.Capacity | Shield Booster: Thick Skin (AU), SB-2 Bastion (R&D) | Shield Booster Array: Hard Shell (AU), SB-8 Rampart (R&D) | boost-gear-combat |
+
+Both boost cuts are held behind follow-up `role-targeted-adjacent-boosts`: if the operator rules that
+boosters address a role (and adjacency), the Target column changes and these specs get another revision.
+
+**The first consumables, strengthened** (ruling `consumables-scarce`: rare, stronger). Changes from the
+'Consumables' tables above; everything not named is unchanged.
+
+| Design | Field | Was | Now |
+|---|---|---|---|
+| Thruster Overdrive | Duration | 5 s | 6 s |
+| | Price | 6,000 | 18,000 |
+| | Thrust (propellant) | 2.0-3.0 | 3.0-4.5 |
+| | TopSpeed (propellant) | 1.5-2.0 | 2.0-3.0 |
+| | Thruster Heat, Visibility (regulator, falling) | 4.0-2.5 | 5.0-3.0 |
+| Coolant Vent | Duration | 12 s | 15 s |
+| | Price | 4,000 | 12,000 |
+| | Radius Min | half the Djinni diagonal x 1.25 | x 1.5 (Max stays 1.5x Min) |
+| | Opacity (nozzle) | .80-.95 | .90-.98 |
+| | Lifetime (coolant) | 10-14 s | 14-20 s |
+| | Radiator Emissivity penalty (coolant) | .4-.6 | .3-.5 |
+
+**Supply, scarce.** `StationConsumableChance` .25, `StationConsumableUnits` 2 (one product, 1-2 units),
+`ShipConsumableChance` .10, `ShipConsumableUnits` 1. Named constants in `LoadoutGenerator` beside the gear
+stock's literal 16, as r1 had them.
+
+### Rationale
+
+**Scarcity through the owners that exist.** "Rare loot and a few stations" needs no loot table: a ship
+that carries a consumable drops it on death through the one loot owner (RF4), and only a quarter of
+stations stock any. The same roll makes AI use rare, so when the player meets a vent or an overdrive in
+an AI's hands it is an event, and killing that ship before it fires is a reason to loot it. Stronger
+effects at a higher price follow the ruling; the hoarding risk is the operator's, accepted. The consumable
+step draws nothing when no consumable is on offer (RF3), so this cut re-rolls no current fixture; once
+`consumables-first-set` lands the generated galaxy re-rolls once, which
+`no-save-compatibility-before-players` covers.
+
+**The fog bank is a patch brush.** The operator's words in `vapour-cloud-obscuration`: painting into the
+patch layer is the presenter. The volumetric pass already turns patch thickness into fog the ship flies
+inside (RF1), so a cloud is one more additive brush on layer `Patch`, and `Fog Patch.prefab` is that brush,
+already authored. Its depth is the authored depth times `OpacityAt / Opacity`, so the fog thins exactly as
+the sim's obscuration does and is gone when the cloud is removed (opacity reaches 0 at Lifetime). r1's
+particle system is dropped: a second renderer for a thing the nebula already draws.
+
+**Multiply needs a test, not code.** The ruling keeps today's arithmetic (RF5), so `modifier-stacking`
+shrinks to the tests that pin it, gear with gear and consumable with gear. A rule nobody pins is a rule a
+later "balance" patch removes silently.
+
+**The boost tiers.** A strong 2x2 and a modest 1x1 per stat lets cell budget, not a stacking curve, bound a
+ship: four cells buy x1.20-1.40 from one array or x1.13-1.36 from four 1x1s (1.03^4 to 1.08^4) at 4x the
+power and heat, so at equal quality the array is the better use of cells and power and a hold full of
+smalls is the expensive fit. Under multiply nothing else bounds stacking, so these two ranges are the
+bound; combat-pace-pass tunes them.
+
+**How the boosts and the overdrive compose with flight control.** A Thrust multiplier (Thrust Amplifier,
+Thruster Overdrive) changes only the resolved `ThrusterData.Thrust`. From `thrust-allocator` on, the
+allocator's columns are the thrusters' `EvaluateNominalPower(Thrust)` each tick (TA6), so a boosted drive
+is a stronger column and the yaw-first solve still holds heading when one drive is boosted and its twin
+is not; the evasion envelope reads the same columns (`envelope-from-columns`). The overdrive's lock is
+intent (throttle-lock), not throttles: under the allocator "throttle at max" means full forward intent,
+and a drive may be trimmed below 1 to hold heading. So no booster or consumable spec writes an `Axis`,
+touches `Ship.Update` or `Thruster.cs`, or asserts per-thruster throttles; their tests observe resolved
+stats, `ThrottleLocked` and motion, which hold before and after the allocator lands.
+
+**The shipped tool and the player build are two owners, in order.** `ships-authoring-tool` owns where the
+add-on finds AetherDb (the game folder's `ModTools/`) and what AetherDb treats as its root (a folder whose
+`GameData` holds `Aetheria.cc`). `player-build` owns what a player directory contains, the published
+AetherDb included. A self-contained single-file publish was probed at 77 MB for linux-x64 (B7); the
+Windows player carries the win-x64 one. One preference replaces r1's two: the tool's path is derived from
+the game folder, so the two cannot disagree. `ships-player` r3 drops its own Mods staging line and builds
+through `player-build`, so one cut decides the staging list.
+
+**Component records** are owed after the demo cut (ruling `components-are-roles-for-demo`); follow-up
+`component-records-after-demo` carries the mapping so it outlives this refresh.
+
+### Admitted
+
+Receipts `mind-commit-d41d568c...`, `mind-commit-dc5c5a2a...`, `mind-commit-c2edfe6d...` (2026-10-09
+13:24-13:28 UTC). Revisions, each with the resolution superseding its predecessor: consumable-supply r2,
+vapour-cloud-presenter r2, modifier-stacking r3 (shrunk to tests), consumables-first-set r2 (not named in the
+follow-up; reshaped by `consumables-scarce`), boost-gear-systems r2 and boost-gear-combat r2 (held),
+ships-authoring-tool r2, ships-player r3. New: cut player-build r1, follow-up
+`component-records-after-demo`. No question raised.
