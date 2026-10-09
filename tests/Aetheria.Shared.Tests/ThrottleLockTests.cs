@@ -41,7 +41,8 @@ public sealed class ThrottleLockTests : IDisposable
         public ItemManager Items;
         public Ship Ship;
         public ConsumableItemData Lock;
-        public Thruster Forward, Reverse, Right, Left, Clockwise;
+        public Thruster Forward, Reverse, Clockwise;
+        public Thruster[] Right, Left; // pairs on either side of the centre line: a lone off-axis strafe thruster cancels its own torque
 
         public void ActivateLock() => Ship.ActivateConsumable(new ConsumableItem
         {
@@ -77,8 +78,10 @@ public sealed class ThrottleLockTests : IDisposable
         Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.Reversed), new int2(2, 1)));
         Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.None), new int2(1, 2)));
         Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.None), new int2(3, 2)));
+        Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.CounterClockwise), new int2(1, 3)));
         Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.CounterClockwise), new int2(3, 3)));
-        Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.Clockwise), new int2(1, 3)));
+        Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.Clockwise), new int2(1, 1)));
+        Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.Clockwise), new int2(3, 1)));
         zone.Entities.Add(ship);
         ship.Aim = float3(0, 0, 1);
         ship.Activate();
@@ -88,8 +91,8 @@ public sealed class ThrottleLockTests : IDisposable
         {
             Cache = cache, Items = items, Ship = ship, Lock = cache.GetByName<ConsumableItemData>("Overdrive"),
             Forward = thrusters.Single(t => t.Item.EquippableItem.Rotation == ItemRotation.Reversed),
-            Right = thrusters.Single(t => t.Item.EquippableItem.Rotation == ItemRotation.CounterClockwise),
-            Left = thrusters.Single(t => t.Item.EquippableItem.Rotation == ItemRotation.Clockwise),
+            Right = thrusters.Where(t => t.Item.EquippableItem.Rotation == ItemRotation.CounterClockwise).ToArray(),
+            Left = thrusters.Where(t => t.Item.EquippableItem.Rotation == ItemRotation.Clockwise).ToArray(),
             Reverse = thrusters.First(t => t.Item.EquippableItem.Rotation == ItemRotation.None && t.Torque <= 0),
             Clockwise = thrusters.First(t => t.Item.EquippableItem.Rotation == ItemRotation.None && t.Torque > 0)
         };
@@ -112,8 +115,8 @@ public sealed class ThrottleLockTests : IDisposable
             f.Ship.Update(0.01f);
             Assert.Equal(1f, f.Forward.Axis);
             Assert.Equal(0f, f.Reverse.Axis);
-            Assert.Equal(0f, f.Right.Axis);
-            Assert.Equal(0f, f.Left.Axis);
+            Assert.All(f.Right, t => Assert.Equal(0f, t.Axis));
+            Assert.All(f.Left, t => Assert.Equal(0f, t.Axis));
         }
 
         // Turning stays with the pilot: the clockwise-torque thruster follows Turn while the lock holds.
@@ -162,9 +165,14 @@ public sealed class ThrottleLockTests : IDisposable
 
         f.Ship.MovementDirection = float2(1, 0);
         f.Ship.Update(0.01f);
-        Assert.Equal(1f, f.Right.Axis);
-        Assert.Equal(0f, f.Left.Axis);
+        Assert.All(f.Right, t => Assert.Equal(1f, t.Axis));
+        Assert.All(f.Left, t => Assert.Equal(0f, t.Axis));
         Assert.Equal(0f, f.Forward.Axis);
+
+        f.Ship.MovementDirection = float2(-1, 0);
+        f.Ship.Update(0.01f);
+        Assert.All(f.Left, t => Assert.Equal(1f, t.Axis));
+        Assert.All(f.Right, t => Assert.Equal(0f, t.Axis));
 
         f.Ship.MovementDirection = float2(0, 1);
         f.Ship.Update(0.01f);
