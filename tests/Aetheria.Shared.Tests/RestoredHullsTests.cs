@@ -116,6 +116,36 @@ public sealed class RestoredHullsTests
         return planetOrbits.Count(o => o.Parent.IsSet() && o.Parent.Key.Equals(orbit.Parent.Key) && abs(o.Distance - orbit.Distance) < .1f) > 1;
     }
 
+    // The zone a test needs is chosen by the property its claim is about, from the galaxy the generator rolled, because
+    // which zone has that property follows the noise kernel (CultMath 0.3.0 re-rolled "EAC-7089" and "EAC-2733" away).
+    // A planet orbit is a genuine Lagrange candidate when it is the only planet at its distance under its parent --
+    // exactly what ZoneGenerator's potentialLagrangePoints filter keeps.
+    private static OrbitData[] ParentedPlanetOrbits(CultCache cache, ZonePack pack) =>
+        pack.Planets.Select(p => cache.Get(cache.Get(p).Orbit)).Where(o => o.Parent.IsSet()).ToArray();
+
+    private static bool HasGenuineLagrangeCandidate(OrbitData[] planetOrbits) =>
+        planetOrbits.Any(o => planetOrbits.Count(c => c.Parent.Key.Equals(o.Parent.Key) && abs(c.Distance - o.Distance) < .1f) == 1);
+
+    // The first seed, and in its tutorial galaxy the first non-entrance zone, that has planets every one of which is a
+    // rosette member: no genuine Lagrange candidate, so only the entrance's widened candidate set can seat a station
+    // there. Such a zone is rare, so seeds are tried in order until one has it.
+    private static (uint seed, string zoneName) NoLagrangeCandidateZone(CultCache cache)
+    {
+        var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+        for (var seed = 1u; seed <= 64u; seed++)
+        {
+            var galaxy = new Galaxy(TutorialGalaxySettings(), TutorialBackgroundSettings(), TutorialNameSettings(),
+                cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed);
+            foreach (var zone in galaxy.Zones.Where(z => !ReferenceEquals(z, galaxy.Entrance)))
+            {
+                var orbits = ParentedPlanetOrbits(cache, ZoneGenerator.GenerateZone(items, TutorialZoneSettings(), galaxy, zone, isTutorial: false, ambient: false));
+                if (orbits.Length > 0 && !HasGenuineLagrangeCandidate(orbits)) return (seed, zone.Name);
+            }
+        }
+        Assert.True(false, "fixture: no tutorial galaxy at seeds 1-64 has a zone whose planets are all rosette members.");
+        return default;
+    }
+
     // ZoneGenerator.GenerateZone writes OrbitData/BodyData (run-store types, AetheriaStores.RunTypes), so a
     // catalog-only cache has no home for them. A scratch run file, deleted after the seed that used it.
     private static CultCache OpenReadOnlyRealCatalogWithScratchRun(string catalogPath, string runPath)
@@ -652,8 +682,8 @@ public sealed class RestoredHullsTests
         return new Galaxy(cache, game, _ => { });
     }
 
-    // Cut 1 fix batch 2 (Soul's finding #2): the tutorial entrance's widened candidate set. Seed 3's real tutorial
-    // galaxy has a zone, "EAC-7089", whose planets are entirely one rosette with no captured satellites at all: 4
+    // Cut 1 fix batch 2 (Soul's finding #2): the tutorial entrance's widened candidate set. A real tutorial
+    // galaxy has a zone (NoLagrangeCandidateZone finds one; under CultMath 0.2.x it was seed 3's "EAC-7089"), whose planets are entirely one rosette with no captured satellites at all: 4
     // planets sharing one Distance under one Parent, and nothing else -- potentialLagrangePoints is empty for it
     // (verified directly against this exact fixture, not carried over from Soul's own forced-fallback probe, whose
     // own candidate check undercounted planet orbits by using pack.Planets.Count -- which excludes Empty rosette
@@ -678,7 +708,8 @@ public sealed class RestoredHullsTests
         try
         {
             using var cache = OpenReadOnlyRealCatalogWithScratchRun(gameData, scratchRun);
-            var galaxy = BuildGalaxyWithForcedEntrance(cache, seed: 3u, "EAC-7089");
+            var (seed, zoneName) = NoLagrangeCandidateZone(cache);
+            var galaxy = BuildGalaxyWithForcedEntrance(cache, seed, zoneName);
 
             var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
             var pack = ZoneGenerator.GenerateZone(items, TutorialZoneSettings(), galaxy, galaxy.Entrance, isTutorial: true);
@@ -716,7 +747,7 @@ public sealed class RestoredHullsTests
 
     // Cut 1 fix batch 2 (Soul's finding #2, leak check): the entrance override must not leak to (a) other
     // tutorial zones or (b) a non-tutorial game's own entrance zone. Both are pinned against a seed-1 galaxy --
-    // the widened-candidate test above uses a different fixture, seed 3's "EAC-7089" -- so this test and the one
+    // the widened-candidate test above uses a different fixture, NoLagrangeCandidateZone's -- so this test and the one
     // below it stand or fall on this one known fixture, not that one.
     [Fact]
     public void EntranceOverrideDoesNotLeakToOtherTutorialZonesOrNonTutorialGames()
@@ -737,8 +768,8 @@ public sealed class RestoredHullsTests
 
             // (a) A non-entrance tutorial zone that naturally rolls zero stations keeps that roll under
             // isTutorial: true -- the floor must not leak past the galaxy.Entrance reference check.
-            var otherZone = galaxy.Zones.Single(z => z.Name == "EAC-2733");
-            Assert.NotSame(galaxy.Entrance, otherZone);
+            // The zone is chosen by its natural roll: zero stations without the tutorial floor (isTutorial: false).
+            var otherZone = galaxy.Zones.First(z => !ReferenceEquals(z, galaxy.Entrance) && StationCount(z, isTutorial: false) == 0);
             Assert.Equal(0, StationCount(otherZone, isTutorial: true));
 
             // (b) The entrance zone itself, generated for a non-tutorial game (isTutorial: false), keeps its
@@ -792,7 +823,7 @@ public sealed class RestoredHullsTests
     }
 
     // Cut 1 fix batch 3 (F6, N2): the entrance-only widening must not leak to a non-entrance zone that would
-    // otherwise get zero stations. Seed 3's "EAC-7089" (the same no-Lagrange fixture the widened-candidate test
+    // otherwise get zero stations. NoLagrangeCandidateZone's zone (the same no-Lagrange fixture the widened-candidate test
     // above uses, this time NOT retargeted as Entrance) rolls a real, nonzero station count on its own -- forced
     // here by boosting one faction's presence there (HomeZone distance 0, InfluenceDistance 50, so the roll's
     // floor(rand * (factionPresence+1)) is overwhelmingly likely nonzero) via the same public SavedGame round
@@ -848,8 +879,9 @@ public sealed class RestoredHullsTests
         try
         {
             using var cache = OpenReadOnlyRealCatalogWithScratchRun(gameData, scratchRun);
-            var galaxy = BuildGalaxyWithBoostedPresence(cache, seed: 3u, "EAC-7089");
-            var zone = galaxy.Zones.Single(z => z.Name == "EAC-7089");
+            var (seed, zoneName) = NoLagrangeCandidateZone(cache);
+            var galaxy = BuildGalaxyWithBoostedPresence(cache, seed, zoneName);
+            var zone = galaxy.Zones.Single(z => z.Name == zoneName);
             Assert.NotSame(galaxy.Entrance, zone);
 
             var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
@@ -857,8 +889,7 @@ public sealed class RestoredHullsTests
 
             // Confirms this fixture still has no genuine (non-rosette) Lagrange candidate -- a regression here
             // would mean the fixture no longer probes what this test claims to probe.
-            var planetOrbits = pack.Planets.Select(p => cache.Get(cache.Get(p).Orbit)).Where(o => o.Parent.IsSet()).ToArray();
-            var hasGenuineCandidate = planetOrbits.Any(o => planetOrbits.Count(c => c.Parent.Key.Equals(o.Parent.Key) && abs(c.Distance - o.Distance) < .1f) == 1);
+            var hasGenuineCandidate = HasGenuineLagrangeCandidate(ParentedPlanetOrbits(cache, pack));
             Assert.False(hasGenuineCandidate, "the entrance-adjacent fixture zone now has a genuine Lagrange candidate; it no longer tests the no-Lagrange leak path.");
 
             var stationCount = pack.Entities.OfType<OrbitalEntityPack>().Count(e => (cache.Get(e.Hull.Data) as HullData)?.HullType == HullType.Station);
