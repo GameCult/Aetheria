@@ -42,7 +42,7 @@ public sealed class ThrottleLockTests : IDisposable
         public Ship Ship;
         public ConsumableItemData Lock;
         public Thruster Forward, Reverse, Clockwise;
-        public Thruster[] Right, Left; // pairs on either side of the centre line: a lone off-axis strafe thruster cancels its own torque
+        public Thruster[] Right, Left; // pairs with opposing torque: a lone off-axis strafe thruster cancels its own torque
 
         public void ActivateLock() => Ship.ActivateConsumable(new ConsumableItem
         {
@@ -78,10 +78,11 @@ public sealed class ThrottleLockTests : IDisposable
         Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.Reversed), new int2(2, 1)));
         Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.None), new int2(1, 2)));
         Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.None), new int2(3, 2)));
+        // Strafe pairs sit either side of the centre line across the ship's length, so their torques oppose.
+        Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.CounterClockwise), new int2(1, 1)));
         Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.CounterClockwise), new int2(1, 3)));
-        Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.CounterClockwise), new int2(3, 3)));
-        Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.Clockwise), new int2(1, 1)));
         Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.Clockwise), new int2(3, 1)));
+        Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.Clockwise), new int2(3, 3)));
         zone.Entities.Add(ship);
         ship.Aim = float3(0, 0, 1);
         ship.Activate();
