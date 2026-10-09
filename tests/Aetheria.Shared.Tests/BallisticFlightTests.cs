@@ -35,6 +35,8 @@ public sealed partial class FireControlCut124Tests
         var e = FireBurstRound(out var origin);
         var burst = SafeAssert.OnlyShot(e.Zone);
         var aim = normalize(float2(2, 1));
+        // The shooter moves on after the round left: the line is the one frozen at Fire, not one drawn from where it is now.
+        e.Shooter.Position += float3(7, 0, 3);
 
         var start = FireControl.RoundAt(burst, burst.FireTime);
         Assert.Equal(origin.x, start.x, 3);
