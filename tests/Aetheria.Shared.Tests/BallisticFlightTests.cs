@@ -364,13 +364,13 @@ public sealed partial class FireControlCut124Tests
         }
     }
 
-    // Today's sim geometry: the round flies the line frozen at Fire and stops at the arrival point on it, whatever the
+    // Today's sim geometry (a target crossing at 10 against a speed of 20, so an intercept exists): the round flies the line frozen at Fire and stops at the arrival point on it, whatever the
     // target does afterwards. (Where a leading round's arrival should lie is the sim's question, never Projectile's.)
     [Fact]
     public void AHitOnAMovingTargetStopsOnItsFrozenLine()
     {
         var e = Build(TestSettings(), SolidShape(5, 4), velocity: BallisticSpeed, weaponRange: 1000f);
-        e.Target.Velocity = float2(30, 0);
+        e.Target.Velocity = float2(10, 0);
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
         var shot = SafeAssert.OnlyShot(e.Zone);
         Assert.True(shot.TravelDirection.x > 0f, "the round did not lead the target");
