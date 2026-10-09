@@ -239,6 +239,7 @@ public sealed partial class RunStartTests
 
         // A write to Direction between steps (staging, a load, a wormhole exit) is not a turn.
         player.Turn = 0;
+        player.MovementDirection = float2(0, 0); // two backfilled drives differ in quality, so a held thrust is a net torque
         for (var step = 0; step < 600 && abs(player.TurnRate) > 0; step++) arena.Update(ClockFrame);
         player.Direction = normalize(float2(3, -4));
         arena.Update(ClockFrame);
