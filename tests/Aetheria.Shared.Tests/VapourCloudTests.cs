@@ -190,6 +190,56 @@ public sealed class VapourCloudTests : IDisposable
     }
 
     [Fact]
+    public void ACloudBreaksALockAtRange()
+    {
+        var lab = Build(400f);
+        Establish(lab);
+
+        Vent(lab);
+        var ticks = 0;
+        while (ticks++ < 600 && !lab.Observer.Target.Value.IsNone) Tick(lab);
+
+        Assert.True(lab.Observer.Target.Value.IsNone, "the cloud never broke the target");
+        Assert.True(Info(lab.Observer, lab.Target) < Threshold, $"info {Info(lab.Observer, lab.Target)} is above the threshold");
+        Run(lab, 3);
+        Assert.Equal(0f, lab.Lock.Lock);
+        Assert.DoesNotContain(lab.Target, lab.Observer.VisibleEnemies);
+    }
+
+    [Fact]
+    public void AStrongCloseSensorBurnsThrough()
+    {
+        var lab = Build(40f);
+        Establish(lab);
+        var before = Info(lab.Observer, lab.Target);
+
+        Vent(lab);
+        Run(lab, 600);
+
+        var after = Info(lab.Observer, lab.Target);
+        Assert.True(after < before - .2f, $"the cloud thinned nothing: {before} -> {after}");
+        Assert.True(after > Threshold, $"info {after} fell below the threshold");
+        Assert.Equal(lab.Target, lab.Observer.Target.Value.Entity);
+        Assert.True(lab.Lock.IsLocked);
+    }
+
+    [Fact]
+    public void TheCloudBlindsItsVenter()
+    {
+        var lab = Build(400f);
+        Run(lab, 100);
+        Assert.True(Info(lab.Target, lab.Observer) > Threshold, "the venter never gathered the observer");
+        Assert.Contains(lab.Observer, lab.Target.VisibleEnemies);
+
+        Vent(lab);
+        Run(lab, 300);
+
+        Assert.True(Info(lab.Target, lab.Observer) < Threshold);
+        Assert.DoesNotContain(lab.Observer, lab.Target.VisibleEnemies);
+        Assert.Equal(Info(lab.Observer, lab.Target), Info(lab.Target, lab.Observer), 5);
+    }
+
+    [Fact]
     public void ACloudFadesAndIsRemoved()
     {
         var lab = Build(400f);
@@ -269,5 +319,34 @@ public sealed class VapourCloudTests : IDisposable
         Hand(lab.Zone, float2(30, 0), 5f, .5f);
         Assert.Equal(.2f, Through(float2(-50, 0), float2(50, 0)), 5);
         Assert.Equal(.4f, Through(float2(-50, 0), float2(15, 0)), 5);
+    }
+
+    // Where the rule is decided: one tick from nothing, the info gathered is exactly what survives the cloud
+    // times what the open sight line gathers, in both directions.
+    [Fact]
+    public void TheGainIsScaledByWhatSurvivesTheCloud()
+    {
+        var clear = Build(100f);
+        Tick(clear);
+        var cloudy = Build(100f);
+        Hand(cloudy.Zone, float2(0, 100), 20f, .6f);
+        Tick(cloudy);
+
+        Assert.True(Info(clear.Observer, clear.Target) > 0f);
+        Assert.Equal(.4f, Info(cloudy.Observer, cloudy.Target) / Info(clear.Observer, clear.Target), 3);
+        Assert.Equal(.4f, Info(cloudy.Target, cloudy.Observer) / Info(clear.Target, clear.Observer), 3);
+    }
+
+    // The chunk path reads the same rule: the passive rate toward a point is scaled by the same survivor fraction.
+    [Fact]
+    public void TheChunkRateIsScaledByTheSameFactor()
+    {
+        var lab = Build(100f);
+        var at = float2(0, 100);
+        var open = lab.Observer.Sensor.PassiveRate(100f, at);
+        Assert.True(open > 0f);
+
+        Hand(lab.Zone, at, 20f, .6f);
+        Assert.Equal(.4f, lab.Observer.Sensor.PassiveRate(100f, at) / open, 5);
     }
 }

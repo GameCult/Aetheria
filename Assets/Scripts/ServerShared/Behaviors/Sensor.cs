@@ -160,17 +160,18 @@ public class Sensor : Behavior, IEventBehavior, IPowerConsumer
 
             var diff = entity.Position.xz - Entity.Position.xz;
             var dist = length(diff);
+            var obscuration = Entity.Zone.Obscuration(Entity.Position.xz, entity.Position.xz);
             float previous, next;
             Entity.EntityInfoGathered.TryGetValue(entity, out previous);
             if (!_pingedEntities.Contains(entity) && dist < _pingRadius)
             {
                 _pingedEntities.Add(entity);
-                next = saturate(previous + Gain(entity.Visibility, Evaluate(_data.Sensitivity), Evaluate(_data.PingBoost), dist, dt, true));
+                next = saturate(previous + Gain(entity.Visibility, Evaluate(_data.Sensitivity), Evaluate(_data.PingBoost), dist, dt, true, obscuration));
             }
             else
             {
                 var angle = acos(dot(forward, normalize(diff)));
-                next = saturate(previous + Gain(entity.Visibility, Evaluate(_data.Sensitivity), _data.SensitivityCurve.Evaluate(angle / PI), dist, dt, false));
+                next = saturate(previous + Gain(entity.Visibility, Evaluate(_data.Sensitivity), _data.SensitivityCurve.Evaluate(angle / PI), dist, dt, false, obscuration));
             }
             next *= 1 - ItemManager.GameplaySettings.TargetInfoDecay * dt;
             //Context.Log($"{entity.Name} visibility {(int)(previous * 100)}% -> {(int)(next * 100)}%");
@@ -182,12 +183,14 @@ public class Sensor : Behavior, IEventBehavior, IPowerConsumer
     // Mining Cut 3 (docs/mining-cut-refresh.md): the one detection gain rule -- the info one observation of a
     // target adds. A ping adds `visibility × sensitivity × PingBoost × distance` once; a passive tick adds
     // `visibility × sensitivity × curve(angle/π) × dt / distance`. `response` is PingBoost for a ping and the
-    // sensitivity curve at the bearing for a passive tick. The entity loop above and the chunk query
-    // (Entity.ChunkInfo, through PassiveRate) both call this; nothing else multiplies these terms.
-    public static float Gain(float visibility, float sensitivity, float response, float distance, float dt, bool ping) =>
-        ping
+    // sensitivity curve at the bearing for a passive tick. `obscuration` is the fraction of the signal that
+    // survives the vapour clouds on the sight line (Zone.Obscuration, 1f with none), scaling both. The entity
+    // loop above and the chunk query (Entity.ChunkInfo, through PassiveRate) both call this; nothing else
+    // multiplies these terms.
+    public static float Gain(float visibility, float sensitivity, float response, float distance, float dt, bool ping, float obscuration) =>
+        (ping
             ? visibility * sensitivity * response * distance
-            : visibility * sensitivity * response * dt / distance;
+            : visibility * sensitivity * response * dt / distance) * obscuration;
 
     // The passive gain per second this sensor draws from a target of `visibility` at the planar `position`:
     // Gain over one second, with the bearing measured from this sensor's own facing exactly as Execute does.
@@ -195,7 +198,8 @@ public class Sensor : Behavior, IEventBehavior, IPowerConsumer
     {
         var diff = position - Entity.Position.xz;
         var angle = acos(dot(Direction.xz, normalize(diff)));
-        return Gain(visibility, Evaluate(_data.Sensitivity), _data.SensitivityCurve.Evaluate(angle / PI), length(diff), 1f, false);
+        return Gain(visibility, Evaluate(_data.Sensitivity), _data.SensitivityCurve.Evaluate(angle / PI), length(diff), 1f, false,
+            Entity.Zone.Obscuration(Entity.Position.xz, position));
     }
 
     // An upper bound on sensitivity x response over every bearing, so PassiveRate(v, p) <= v x this / distance
