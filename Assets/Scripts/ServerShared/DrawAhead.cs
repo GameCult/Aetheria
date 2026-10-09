@@ -40,7 +40,7 @@ public static class DrawAhead
     }
 
     // A ballistic round at a sim time (the clock's Zone.Time + Lead): on FireControl's line for what the sim has published
-    // of its outcome, with the barrel's offset from that line decaying to nothing over blendTime sim seconds from FireTime.
+    // of its outcome, with the barrel's offset from that line decaying to nothing over blendTime sim seconds from the moment of firing.
     public static float3 Round(in PendingShot shot, ShotResult? known, float3 barrel, float blendTime, float time) =>
         Lifted(shot, FireControl.RoundAt(shot, known, time), barrel, blendTime, time);
 
