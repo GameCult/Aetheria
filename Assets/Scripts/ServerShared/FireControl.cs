@@ -514,6 +514,16 @@ public static class FireControl
         return shot.Target == null ? 1f : PDeviation(deviation, shot.Tracking);
     }
 
+    // Where a ballistic round is at a sim time: the one statement of the round's line, from its frozen origin along its
+    // frozen direction at its frozen speed, held at the FireRange point once it has flown that far. Pure: it reads the
+    // shot alone, and the simulation's own arithmetic (Step, Commit, Apply) does not call it. Presenters draw rounds here.
+    public static float2 RoundAt(in PendingShot shot, float time)
+    {
+        if (shot.Speed <= .01f) return shot.FireOrigin.xz;
+        var flown = clamp(time - shot.FireTime, 0f, shot.FireRange / shot.Speed);
+        return shot.FireOrigin.xz + shot.TravelDirection * (shot.Speed * flown);
+    }
+
     // How far a target can and does move off the line of fire in the solution window: the term DeviationProbability
     // and HitProbability both add. Behaviour (its observed unpredictability across the line of sight) realises the
     // evasion and capability (its envelope's reach) caps it, so a coasting ship evades nothing whatever it could do
@@ -755,6 +765,7 @@ public static class FireControl
             Spread = weapon.Spread,
             FireRange = fireRange,
             FireTime = now,
+            Speed = weapon.Velocity,
             FireOrigin = origin,
             FireTargetPosition = targetPosition,
             FireTargetVelocity = targetVelocity,
@@ -1999,6 +2010,8 @@ public struct PendingShot
     public float3 FireTargetPosition;
     public float3 FireTargetVelocity;
     public float FireTime;
+    // The weapon's Velocity at Fire: frozen with the rest, so RoundAt states the same line whatever happens to the stat later.
+    public float Speed;
     public float CommitTime;
     public float ArrivalTime;
 
