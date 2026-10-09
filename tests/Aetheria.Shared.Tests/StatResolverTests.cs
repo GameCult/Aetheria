@@ -17,6 +17,8 @@ public sealed class StatResolverTests : IDisposable
     private string Catalog => Path.Combine(_root, "Aetheria.cc");
     private static readonly int2 HardpointCell = new int2(0, 0);
     private static readonly int2 SecondHardpointCell = new int2(1, 0);
+    private static readonly int2 FirstGunCell = new int2(2, 0);
+    private static readonly int2 SecondGunCell = new int2(0, 1);
 
     public StatResolverTests() => Directory.CreateDirectory(_root);
     public void Dispose() => Directory.Delete(_root, true);
@@ -40,7 +42,9 @@ public sealed class StatResolverTests : IDisposable
             Hardpoints =
             {
                 new HardpointData { Type = HardpointType.Sensors, Position = HardpointCell, Shape = new Shape() },
-                new HardpointData { Type = HardpointType.Sensors, Position = SecondHardpointCell, Shape = new Shape() }
+                new HardpointData { Type = HardpointType.Sensors, Position = SecondHardpointCell, Shape = new Shape() },
+                new HardpointData { Type = HardpointType.Sensors, Position = FirstGunCell, Shape = new Shape() },
+                new HardpointData { Type = HardpointType.Sensors, Position = SecondGunCell, Shape = new Shape() }
             }
         });
         cache.Upsert(new GearData { Name = "Battery", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Durability = 10, Behaviors = { capacitor } });
@@ -70,6 +74,61 @@ public sealed class StatResolverTests : IDisposable
         zone.Entities.Add(ship);
         ship.Activate();
         return ship;
+    }
+
+    // A modifier's StatReference names a behaviour type, and WeaponData.Damage is declared once on the abstract
+    // base. A ship carrying an AutoWeapon gun and a ChargedWeapon gun and a Booster whose modifier aims at
+    // `target` is the real case; the two tests below read each gun's resolved Damage through EquippedItem.Evaluate.
+    private (CultCache Cache, EquippedItem Auto, EquippedItem Charged, PerformanceStat AutoDamage, PerformanceStat ChargedDamage)
+        BuildGunShipWithBooster(string target)
+    {
+        var autoDamage = new PerformanceStat { Min = 10, Max = 10 };
+        var chargedDamage = new PerformanceStat { Min = 10, Max = 10 };
+        var modifier = new StatModifierData
+        {
+            Stat = new StatReference { Target = target, Stat = nameof(WeaponData.Damage) },
+            Modifier = new PerformanceStat { Min = 3, Max = 3 },
+            Type = StatModifierType.Multiplier
+        };
+        var cache = OpenCatalog(new CapacitorData { Capacity = new PerformanceStat { Min = 1, Max = 1 } }, modifier);
+        cache.Upsert(new GearData { Name = "AutoGun", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Durability = 10, Behaviors = { new AutoWeaponData { Damage = autoDamage } } });
+        cache.Upsert(new GearData { Name = "ChargedGun", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Durability = 10, Behaviors = { new ChargedWeaponData { Damage = chargedDamage } } });
+        cache.FlushAsync().Wait();
+        var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+        var ship = BuildActivatedShip(cache, items, withBooster: true);
+        ship.Deactivate(); // TryEquip refuses while deployed
+        Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("AutoGun")), FirstGunCell));
+        Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("ChargedGun")), SecondGunCell));
+        // Re-activate so the booster's Initialize sees the guns it did not see at the first activation.
+        ship.Activate();
+        var booster = ship.Equipment.Single(e => e.Data.Name == "Booster");
+        var behavior = booster.GetBehavior<StatModifier>();
+        behavior.Execute(0f);
+        behavior.Update(0f);
+        return (cache, ship.Equipment.Single(e => e.Data.Name == "AutoGun"), ship.Equipment.Single(e => e.Data.Name == "ChargedGun"), autoDamage, chargedDamage);
+    }
+
+    // A modifier aimed at the abstract base reaches every subtype carried. Mutation: restore exact-type matching
+    // (`bd.GetType() == targetType`) in either behaviour filter of StatModifier.TargetsOf and both guns read 10.
+    [Fact]
+    public void AModifierOnABaseTypeReachesEverySubtype()
+    {
+        var (cache, auto, charged, autoDamage, chargedDamage) = BuildGunShipWithBooster(nameof(WeaponData));
+        using var _ = cache;
+
+        Assert.Equal(30f, auto.Evaluate(autoDamage), 3);
+        Assert.Equal(30f, charged.Evaluate(chargedDamage), 3);
+    }
+
+    // A modifier aimed at one concrete subtype leaves its sibling alone: assignability is downward only.
+    [Fact]
+    public void AModifierOnAConcreteTypeReachesOnlyIt()
+    {
+        var (cache, auto, charged, autoDamage, chargedDamage) = BuildGunShipWithBooster(nameof(AutoWeaponData));
+        using var _ = cache;
+
+        Assert.Equal(30f, auto.Evaluate(autoDamage), 3);
+        Assert.Equal(10f, charged.Evaluate(chargedDamage), 3);
     }
 
     // §1.1's authority claim, structurally: "StatResolver, one per Entity, constructed with it." Mutation: make
