@@ -102,6 +102,6 @@ public class ShipInstance : EntityInstance
             emissionModule.rateOverTimeMultiplier = thrusterInstance.BaseEmission * thrusterInstance.Thruster.Axis * thrusterInstance.Thruster.Condition;
         }
 
-        transform.rotation = Ship.Rotation.ToUnity();
+        transform.rotation = DrawAhead.Rotation(Ship, ActionGameManager.Clock.Lead).ToUnity();
     }
 }
