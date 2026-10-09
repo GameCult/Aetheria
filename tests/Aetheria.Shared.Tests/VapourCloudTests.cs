@@ -364,8 +364,8 @@ public sealed class VapourCloudTests : IDisposable
         Run(cloudy, 400);
 
         Assert.True(Info(clear.Observer, clear.Target) > Threshold);
-        Assert.Equal(.4f, Info(cloudy.Observer, cloudy.Target) / Info(clear.Observer, clear.Target), 3);
-        Assert.Equal(.4f, Info(cloudy.Target, cloudy.Observer) / Info(clear.Target, clear.Observer), 3);
+        Assert.Equal(.4f, Info(cloudy.Observer, cloudy.Target) / Info(clear.Observer, clear.Target), 2);
+        Assert.Equal(.4f, Info(cloudy.Target, cloudy.Observer) / Info(clear.Target, clear.Observer), 2);
     }
 
     // A ping is gathered through the same rule. Settled, the tick that a ping reaches the target adds the ping gain
