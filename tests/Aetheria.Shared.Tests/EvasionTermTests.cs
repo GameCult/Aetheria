@@ -502,13 +502,25 @@ public sealed partial class RunStartTests
     }
 
     // Two shooters on opposite sides of the same target, 200 m away: one with a projectile gun and one with a laser
-    // (a beam's authored velocity is 0, a flight time of zero). The target is the generated Djinni, the catalog's one ship that strafes.
+    // (a beam's authored velocity is 0, a flight time of zero). The target is the fitted Djinni, the catalog's one ship that strafes.
     private sealed class EvRange
     {
         public Zone Arena;
         public Ship Gunner, Lasing, Target;
         public Weapon Gun, Laser, GunnerLaser;
     }
+
+    // The target's fit, written out: the Djinni's own hardpoints filled with the Talaria it is generated with, its
+    // reactor, cockpit and radiators. What the evasion tests price is this ship's strafing, not whatever the generator
+    // rolls for it from the galaxy.
+    private static ScenarioFit EvDjinni(ScenarioStage stage) => stage.Fit("Djinni",
+        ("Cockpit 2x2", int2(6, 3), ItemRotation.None), ("Core Power", int2(6, 11), ItemRotation.None),
+        ("Talaria", int2(6, 0), ItemRotation.Reversed), ("Talaria", int2(5, 1), ItemRotation.Reversed), ("Talaria", int2(7, 1), ItemRotation.Reversed),
+        ("Talaria", int2(4, 4), ItemRotation.CounterClockwise), ("Talaria", int2(4, 11), ItemRotation.CounterClockwise),
+        ("Talaria", int2(9, 4), ItemRotation.Clockwise), ("Talaria", int2(9, 11), ItemRotation.Clockwise),
+        ("Talaria", int2(6, 14), ItemRotation.None),
+        ("Iapyx", int2(1, 4), ItemRotation.Reversed), ("Iapyx", int2(3, 1), ItemRotation.Reversed),
+        ("Iapyx", int2(9, 1), ItemRotation.Reversed), ("Iapyx", int2(11, 4), ItemRotation.Reversed));
 
     private EvRange EvRangeLaunch()
     {
@@ -517,7 +529,7 @@ public sealed partial class RunStartTests
         {
             stage.Player(stage.Bare("Djinni"), float2(-50000, -50000));
             gunner = stage.Place(EvLonginus(stage, "FastBlast+-", "ColdFire"), float2(0, 0), facing: float2(0, 1)) as Ship;
-            target = stage.Place(stage.Generated("Djinni"), float2(0, 200), facing: float2(0, 1)) as Ship;
+            target = stage.Place(EvDjinni(stage), float2(0, 200), facing: float2(0, 1)) as Ship;
             lasing = stage.Place(EvLonginus(stage, "ColdFire"), float2(0, 400), facing: float2(0, -1)) as Ship;
         });
         var (_, arena, _, failures) = Launch(scenario, Inputs(() => GalaxySeed));
@@ -572,6 +584,10 @@ public sealed partial class RunStartTests
         return (hits, price);
     }
 
+    // The two volleys' hit counts are rolls, so their gap is the price gap plus noise. At the price gap this fixture
+    // has (about .06 on .44) 200 shots flip the comparison one seed in eight; this many keeps it near four standard deviations.
+    private const int EvVolleySize = 2000;
+
     // The evasion term is in the live price, the HUD's forecast and the roll: a ship crossing at 150 m/s that has been
     // jinking is harder to hit than the same ship coasting, for a projectile gun.
     [Fact]
@@ -585,7 +601,7 @@ public sealed partial class RunStartTests
         EvCross(range, jinking: false);
         var coastingDiagnostic = FireControl.Inspect(gun, shooter, target);
         var coastingPrice = FireControl.HitProbability(gun, shooter, target);
-        var coasting = EvVolley(range, gun, shooter, 200);
+        var coasting = EvVolley(range, gun, shooter, EvVolleySize);
         Assert.Equal(0f, coastingDiagnostic.Evasion);
         Assert.Equal(1f, coastingDiagnostic.PEvasion);
         Assert.True(coastingPrice > .2f, $"fixture: a coasting target is hittable ({coastingPrice})");
@@ -593,10 +609,10 @@ public sealed partial class RunStartTests
         EvCross(range, jinking: true);
         var jinkingDiagnostic = FireControl.Inspect(gun, shooter, target);
         var jinkingPrice = FireControl.HitProbability(gun, shooter, target);
-        var jinking = EvVolley(range, gun, shooter, 200);
-        Console.WriteLine($"EVASION price: coasting {coastingPrice:F3} hits {coasting.hits}/200 committed {coasting.price:F3}; " +
+        var jinking = EvVolley(range, gun, shooter, EvVolleySize);
+        Console.WriteLine($"EVASION price: coasting {coastingPrice:F3} hits {coasting.hits}/{EvVolleySize} committed {coasting.price:F3}; " +
                           $"jinking {jinkingPrice:F3} (evasion {jinkingDiagnostic.Evasion:F2} m, tracking {jinkingDiagnostic.Tracking:F1}, PEvasion {jinkingDiagnostic.PEvasion:F3}) " +
-                          $"hits {jinking.hits}/200 committed {jinking.price:F3}");
+                          $"hits {jinking.hits}/{EvVolleySize} committed {jinking.price:F3}");
 
         Assert.True(jinkingDiagnostic.Evasion > 0f);
         Assert.True(jinkingDiagnostic.PEvasion < 1f);
