@@ -4,6 +4,8 @@ using System.IO;
 using System.Linq;
 using CultMath;
 using GameCult.Caching;
+using GameCult.Caching.MessagePack;
+using MessagePack;
 using UniRx;
 using Xunit;
 using static CultMath.math;
@@ -83,7 +85,7 @@ public sealed class VapourCloudTests : IDisposable
         {
             Sensitivity = Constant(1f),
             SensitivityCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } },
-            PingBoost = Constant(.02f), PingEnergy = Constant(0f), PingVisibility = Constant(5f),
+            PingBoost = Constant(.00002f), PingEnergy = Constant(0f), PingVisibility = Constant(5f),
             PingRange = Constant(300f), PingCooldown = Constant(4f)
         }));
         cache.Upsert(Gear("Vent", HardpointType.Tool, new VapourDumpData
@@ -243,6 +245,8 @@ public sealed class VapourCloudTests : IDisposable
     public void ACloudFadesAndIsRemoved()
     {
         var lab = Build(400f);
+        // Vented 3s into the zone's life: the fade runs from the vent, not from the zone's start.
+        for (var i = 0; i < 3; i++) lab.Zone.Update(1f);
         var cloud = Hand(lab.Zone, float2(0, 0), 10f, .8f, lifetime: 10f);
         var a = float2(-5, 0);
         var b = float2(5, 0);
@@ -259,6 +263,21 @@ public sealed class VapourCloudTests : IDisposable
     }
 
     [Fact]
+    public void ACloudDriftsWithItsVelocityUntilItFades()
+    {
+        var lab = Build(400f);
+        var cloud = new VapourCloud { Body = new KinematicBody { Position = float2(0, 0), Velocity = float2(10, 0) }, Radius = 5f, Opacity = .5f, Lifetime = 1000f };
+        lab.Zone.Vent(cloud);
+        Assert.Equal(.5f, lab.Zone.Obscuration(float2(0, -20), float2(0, 20)), 5);
+
+        lab.Zone.Update(1f);
+
+        Assert.Equal(10f, cloud.Body.Position.x, 3);
+        Assert.Equal(1f, lab.Zone.Obscuration(float2(0, -20), float2(0, 20)));
+        Assert.Equal(.5f, lab.Zone.Obscuration(float2(10, -20), float2(10, 20)), 2);
+    }
+
+    [Fact]
     public void ACloudWithNoLifetimeObscuresNothing()
     {
         var lab = Build(400f);
@@ -270,7 +289,7 @@ public sealed class VapourCloudTests : IDisposable
     [Fact]
     public void AnEffectVentsOnce()
     {
-        var lab = Build(400f);
+        var lab = Build(400f, radius: 17f, opacity: .7f, lifetime: 123f);
         lab.HoldTarget = false;
         Run(lab, 2);
         lab.Target.Velocity = float2(3, 0);
@@ -293,13 +312,17 @@ public sealed class VapourCloudTests : IDisposable
         Assert.Equal(venterVelocity, vented.Body.Velocity);
         Assert.Equal(venterAt, vented.Body.Position);
         Assert.Same(lab.Target, vented.Venter);
+        // Each stat is the authored one, evaluated through the host.
+        Assert.Equal(17f, vented.Radius);
+        Assert.Equal(.7f, vented.Opacity);
+        Assert.Equal(123f, vented.Lifetime);
     }
 
     [Fact]
     public void ACloudThinsOnlyTheSightLinesItTouches()
     {
         var lab = Build(400f);
-        Hand(lab.Zone, float2(0, 0), 10f, .6f);
+        var first = Hand(lab.Zone, float2(0, 0), 10f, .6f);
         float Through(float2 a, float2 b) => lab.Zone.Obscuration(a, b);
 
         Assert.Equal(.4f, Through(float2(-50, 0), float2(50, 0)), 5);
@@ -316,7 +339,8 @@ public sealed class VapourCloudTests : IDisposable
         Assert.Equal(1f, Through(float2(20, 0), float2(50, 0)));
 
         // Two clouds on one sight line multiply.
-        Hand(lab.Zone, float2(30, 0), 5f, .5f);
+        var second = Hand(lab.Zone, float2(30, 0), 5f, .5f);
+        Assert.NotEqual(first.Id, second.Id);
         Assert.Equal(.2f, Through(float2(-50, 0), float2(50, 0)), 5);
         Assert.Equal(.4f, Through(float2(-50, 0), float2(15, 0)), 5);
     }
@@ -329,12 +353,40 @@ public sealed class VapourCloudTests : IDisposable
         var clear = Build(100f);
         Tick(clear);
         var cloudy = Build(100f);
-        Hand(cloudy.Zone, float2(0, 100), 20f, .6f);
+        // Mid-way between them and clear of both: only the segment, not either end, touches it.
+        Hand(cloudy.Zone, float2(0, 50), 10f, .6f);
         Tick(cloudy);
 
         Assert.True(Info(clear.Observer, clear.Target) > 0f);
         Assert.Equal(.4f, Info(cloudy.Observer, cloudy.Target) / Info(clear.Observer, clear.Target), 3);
         Assert.Equal(.4f, Info(cloudy.Target, cloudy.Observer) / Info(clear.Target, clear.Observer), 3);
+    }
+
+    // A ping is gathered through the same rule: with a cloud on the sight line the whole trace, ping included, is
+    // what survives the cloud times the open trace (info is linear in the gain while nothing saturates).
+    [Fact]
+    public void ThePingGainIsScaledToo()
+    {
+        var clear = Build(100f);
+        var cloudy = Build(100f);
+        Hand(cloudy.Zone, float2(0, 50), 10f, .6f);
+        Run(clear, 2);
+        Run(cloudy, 2);
+        clear.Observer.Sensor.Ping();
+        cloudy.Observer.Sensor.Ping();
+
+        var biggestJump = 0f;
+        var last = Info(clear.Observer, clear.Target);
+        for (var i = 0; i < 12; i++)
+        {
+            Tick(clear);
+            Tick(cloudy);
+            var open = Info(clear.Observer, clear.Target);
+            biggestJump = max(biggestJump, open - last);
+            last = open;
+            Assert.Equal(.4f, Info(cloudy.Observer, cloudy.Target) / open, 2);
+        }
+        Assert.True(biggestJump > .15f, $"the ping left no mark on the trace ({biggestJump})");
     }
 
     // The chunk path reads the same rule: the passive rate toward a point is scaled by the same survivor fraction.
@@ -346,7 +398,25 @@ public sealed class VapourCloudTests : IDisposable
         var open = lab.Observer.Sensor.PassiveRate(100f, at);
         Assert.True(open > 0f);
 
-        Hand(lab.Zone, at, 20f, .6f);
+        Hand(lab.Zone, float2(0, 50), 10f, .6f);
         Assert.Equal(.4f, lab.Observer.Sensor.PassiveRate(100f, at) / open, 5);
+    }
+
+    // The dump's wire shape: BehaviorData union 42, its radius, opacity and lifetime at keys 1, 2 and 3.
+    [Fact]
+    public void TheDumpIsUnion42WithRadiusOpacityLifetimeAtKeys1To3()
+    {
+        var options = CultDocumentMessagePackSerialization.OptionsFor(typeof(ZonePack).Assembly);
+        var data = new VapourDumpData { Radius = Constant(1f), Opacity = Constant(2f), Lifetime = Constant(3f) };
+        var bytes = MessagePackSerializer.Serialize<BehaviorData>(data, options);
+
+        var reader = new MessagePackReader(bytes);
+        Assert.Equal(2, reader.ReadArrayHeader());
+        Assert.Equal(42, reader.ReadInt32());
+        Assert.Equal(4, reader.ReadArrayHeader());
+        reader.Skip();
+        Assert.Equal(1f, MessagePackSerializer.Deserialize<PerformanceStat>(ref reader, options).Min);
+        Assert.Equal(2f, MessagePackSerializer.Deserialize<PerformanceStat>(ref reader, options).Min);
+        Assert.Equal(3f, MessagePackSerializer.Deserialize<PerformanceStat>(ref reader, options).Min);
     }
 }
