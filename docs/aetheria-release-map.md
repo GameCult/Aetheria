@@ -5835,6 +5835,15 @@ factor), which waits on all of them.
   a smaller step means more decisions per sim second, the same per real second. No ruling
   fixes a per-step count.
 
+**Body facts for ballistic-flight r2** (source reads at e56f9c8b, 2026-10-09, imagination-aeth-ballistic-r2):
+
+- B-r2-1. FireControl.Step writes a committed shot back (`shots[i] = shot`, FireControl.cs:868) before `ShotCommitted` fires (:869). A no-lock fused round stopped by a hull has its `ArrivalTime` shortened at that commit (:867; CommitBurst :1024). A presenter's fire-time copy of the shot therefore carries a stale arrival unless it re-reads the record at `ShotCommitted`.
+- B-r2-2. `FireControl.Designated` measures `range` to any non-null target before the in-range test (:293-297), and a direct round's FlightDistance is that range. A direct round can therefore be fired at a target beyond Range and arrive after `FireTime + MaxRange/Speed`.
+- B-r2-3. `InstantWeapon.Execute` calls `FireControl.Fire` and then `OnFire` (:271-272) inside the entity loop, and `FireControl.Step` runs after it (Zone.cs:232). A presenter spawned from `OnFire` binds `ShotCommitted` and `ShotResolved` before its shot can commit or resolve, including a round fired at nothing that commits and misses in the same step.
+- B-r2-4. Solve aims a direct or engaged fused round at the predicted intercept (`Solution().Direction`, :135-156) but sets FlightDistance to the current planar range (:654-666), so on a moving target the arrival point on the frozen line is not where the target is. Open as question direct-arrival-at-intercept.
+
+**Why a round's end is one sim statement.** The sim resolves a round at `ArrivalTime`. A drawn round that ends anywhere else needs a second owner of the end, which is what ballistic-flight s1 found in Projectile. `FireControl.RoundEnd(shot, known)` states the end for what the sim has published about the outcome: arrival for a hit, a burst or an unknown outcome, and the frozen weapon range for a miss, never short of arrival. `RoundAt` clamps there. A round whose outcome is not yet published waits at its arrival point for at most one step instead of overshooting. The drawing rules (placement, barrel blend, stop, done) are pure statics in DrawAhead, beside the ships' draw-ahead, so the headless suite tests them by behaviour rather than by grep.
+
 ### Census
 
 Every Unity-side place that integrates, times or decides a sim fact at `6d427b7a`, and the cut
