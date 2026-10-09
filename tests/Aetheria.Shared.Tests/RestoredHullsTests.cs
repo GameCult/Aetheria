@@ -129,7 +129,27 @@ public sealed class RestoredHullsTests
     // The first seed, and in its tutorial galaxy the first non-entrance zone, that has planets every one of which is a
     // rosette member: no genuine Lagrange candidate, so only the entrance's widened candidate set can seat a station
     // there. Such a zone is rare, so seeds are tried in order until one has it.
-    private static (uint seed, string zoneName) NoLagrangeCandidateZone(CultCache cache)
+    // The scan is the cost (tens of seconds), and it depends only on the generator, so both tests share one result
+    // through a lazy computed under its own scratch run store.
+    private static readonly Lazy<(uint seed, string zoneName)> NoLagrangeCandidateZoneScan = new(ScanForNoLagrangeCandidateZone);
+
+    private static (uint seed, string zoneName) NoLagrangeCandidateZone() => NoLagrangeCandidateZoneScan.Value;
+
+    private static (uint seed, string zoneName) ScanForNoLagrangeCandidateZone()
+    {
+        var scratchRun = Path.Combine(Path.GetTempPath(), $"aetheria-nolagrange-scan-{Guid.NewGuid():N}.cc");
+        try
+        {
+            using var cache = OpenReadOnlyRealCatalogWithScratchRun(Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc"), scratchRun);
+            return ScanForNoLagrangeCandidateZone(cache);
+        }
+        finally
+        {
+            if (File.Exists(scratchRun)) File.Delete(scratchRun);
+        }
+    }
+
+    private static (uint seed, string zoneName) ScanForNoLagrangeCandidateZone(CultCache cache)
     {
         var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
         for (var seed = 1u; seed <= 64u; seed++)
@@ -142,8 +162,7 @@ public sealed class RestoredHullsTests
                 if (orbits.Length > 0 && !HasGenuineLagrangeCandidate(orbits)) return (seed, zone.Name);
             }
         }
-        Assert.True(false, "fixture: no tutorial galaxy at seeds 1-64 has a zone whose planets are all rosette members.");
-        return default;
+        return Assert.Fail("fixture: no tutorial galaxy at seeds 1-64 has a zone whose planets are all rosette members.");
     }
 
     // ZoneGenerator.GenerateZone writes OrbitData/BodyData (run-store types, AetheriaStores.RunTypes), so a
@@ -708,7 +727,7 @@ public sealed class RestoredHullsTests
         try
         {
             using var cache = OpenReadOnlyRealCatalogWithScratchRun(gameData, scratchRun);
-            var (seed, zoneName) = NoLagrangeCandidateZone(cache);
+            var (seed, zoneName) = NoLagrangeCandidateZone();
             var galaxy = BuildGalaxyWithForcedEntrance(cache, seed, zoneName);
 
             var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
@@ -770,6 +789,7 @@ public sealed class RestoredHullsTests
             // isTutorial: true -- the floor must not leak past the galaxy.Entrance reference check.
             // The zone is chosen by its natural roll: zero stations without the tutorial floor (isTutorial: false).
             var otherZone = galaxy.Zones.First(z => !ReferenceEquals(z, galaxy.Entrance) && StationCount(z, isTutorial: false) == 0);
+            Assert.NotSame(galaxy.Entrance, otherZone);
             Assert.Equal(0, StationCount(otherZone, isTutorial: true));
 
             // (b) The entrance zone itself, generated for a non-tutorial game (isTutorial: false), keeps its
@@ -879,7 +899,7 @@ public sealed class RestoredHullsTests
         try
         {
             using var cache = OpenReadOnlyRealCatalogWithScratchRun(gameData, scratchRun);
-            var (seed, zoneName) = NoLagrangeCandidateZone(cache);
+            var (seed, zoneName) = NoLagrangeCandidateZone();
             var galaxy = BuildGalaxyWithBoostedPresence(cache, seed, zoneName);
             var zone = galaxy.Zones.Single(z => z.Name == zoneName);
             Assert.NotSame(galaxy.Entrance, zone);
