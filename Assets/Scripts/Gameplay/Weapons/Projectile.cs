@@ -2,15 +2,15 @@
 using System.Collections;
 using UniRx;
 using UnityEngine;
-using static CultMath.math;
 
-// A ballistic round, drawn on FireControl.RoundAt and deciding nothing. The simulation owns the round's whole flight
-// (origin, direction, speed, fire time, arrival, range: the PendingShot copy taken at spawn), so this object stores no
-// velocity or position of its own and integrates nothing: each frame it asks RoundAt where the round is at sim time
-// plus the clock's Lead (the same draw-ahead ships use), and the simulation's ShotResolved ends a round that hit or
-// burst. A round that missed flies on to the MaxRange point RoundAt clamps at, and is done there. The barrel is only
-// where the round is first seen: its offset from the sim line decays to zero over BlendTime sim seconds. The trail's
-// fade after the end stays real time (pure presentation, ruling sim-speed-presentation).
+// A ballistic round, drawn by DrawAhead's round statics and deciding nothing. The simulation owns the round's whole
+// flight (the PendingShot copy taken at spawn, replaced by the sim's record at ShotCommitted, and the outcome it
+// publishes), so this object stores no motion state of its own and computes no position, time or range: each frame it
+// asks DrawAhead.Round where the round is at sim time plus the clock's Lead (the same draw-ahead ships use), and the
+// round ends on the sim's word: ShotResolved stops a round that hit or burst where DrawAhead.RoundStop puts it, and
+// DrawAhead.RoundOver ends one the sim published as a miss. The barrel is only where the round is first seen: its
+// offset from the sim line decays to zero over BlendTime sim seconds. The trail's fade after the end stays real time
+// (pure presentation, ruling sim-speed-presentation).
 public class Projectile : MonoBehaviour
 {
     public TrailRenderer Trail;
@@ -21,49 +21,58 @@ public class Projectile : MonoBehaviour
 
     private PendingShot _shot;
     private Zone _zone;
-    private Vector3 _barrelOffset;
+    private CultMath.float3 _barrel;
+    private ShotResult? _known;
     private bool _alive;
-    private IDisposable _binding;
+    private CompositeDisposable _binding;
 
-    // Takes the frozen shot, the zone whose sim time it is drawn at, and where the barrel is as this round is first seen.
+    // Takes the shot as the sim holds it, the zone whose sim time it is drawn at, and where the barrel is as this round is first seen.
     public void Launch(Zone zone, PendingShot shot, Vector3 barrel)
     {
         _zone = zone;
         _shot = shot;
-        var origin = shot.FireOrigin;
-        _barrelOffset = barrel - new Vector3(origin.x, origin.y, origin.z);
+        _barrel = new CultMath.float3(barrel.x, barrel.y, barrel.z);
+        _known = null;
         _binding?.Dispose();
-        _binding = zone.ShotResolved.Where(o => o.ShotId == shot.ShotId).Subscribe(Resolve);
+        _binding = new CompositeDisposable(
+            zone.ShotCommitted.Where(o => o.ShotId == shot.ShotId).Subscribe(Committed),
+            zone.ShotResolved.Where(o => o.ShotId == shot.ShotId).Subscribe(Resolve));
         _alive = true;
         transform.forward = new Vector3(shot.TravelDirection.x, 0, shot.TravelDirection.y);
-        transform.position = barrel;
-    }
-
-    private Vector3 At(CultMath.float2 planar, float time)
-    {
-        var blend = BlendTime > 0 ? saturate(1 - (time - _shot.FireTime) / BlendTime) : 0f;
-        return new Vector3(planar.x, _shot.FireOrigin.y, planar.y) + _barrelOffset * blend;
+        Draw();
     }
 
     void Update()
     {
-        if (!_alive) return;
-        var time = _zone.Time + ActionGameManager.Clock.Lead;
-        transform.position = At(FireControl.RoundAt(_shot, time), time);
-        var end = _shot.Speed > .01f ? _shot.FireTime + _shot.MaxRange / _shot.Speed : _shot.FireTime;
-        if (time >= end) Finish();
+        if (_alive) Draw();
     }
 
-    // The simulation's verdict. A round that hit or burst stops where the sim put it, at the outcome's burst point,
-    // else where it arrives on its line; a miss keeps flying.
+    private void Draw()
+    {
+        var time = _zone.Time + ActionGameManager.Clock.Lead;
+        transform.position = V(DrawAhead.Round(_shot, _known, _barrel, BlendTime, time));
+        if (DrawAhead.RoundOver(_shot, _known, time)) Finish();
+    }
+
+    // The sim's commit: the record it holds now (a contact burst's arrival is shortened here) and what it decided.
+    private void Committed(ShotOutcome outcome)
+    {
+        if (_zone.TryGetShot(outcome.ShotId, out var record)) _shot = record;
+        _known = outcome.Result;
+    }
+
+    // The simulation's verdict. A round that hit or burst stops where the sim put it; a miss keeps flying.
     private void Resolve(ShotOutcome outcome)
     {
-        if (!_alive || (outcome.Result != ShotResult.Hit && outcome.Result != ShotResult.Burst)) return;
-        var planar = outcome.HasBurstPoint ? outcome.BurstPoint : FireControl.RoundAt(_shot, _shot.ArrivalTime);
-        transform.position = At(planar, _shot.ArrivalTime);
+        if (!_alive) return;
+        _known = outcome.Result;
+        if (outcome.Result == ShotResult.Miss) return;
+        transform.position = V(DrawAhead.RoundStop(_shot, outcome, _barrel, BlendTime));
         if (HitEffect != null) HitEffect.Instantiate<Transform>().position = transform.position;
         Finish();
     }
+
+    private static Vector3 V(CultMath.float3 p) => new Vector3(p.x, p.y, p.z);
 
     private void Finish()
     {
