@@ -203,12 +203,10 @@ public abstract class Entity
             return presencePermitted;
         }), initialValue: true);
         
-        foreach (var item in Equipment)
-        foreach (var behavior in item.Behaviors)
-        {
-            if(behavior is IInitializableBehavior initializableBehavior)
-                initializableBehavior.Initialize();
-        }
+        // One initialiser for everything that computes targets here: gear and the effects still running, so a
+        // consumable active across a refit retargets to the new items exactly as gear does.
+        InitializeBehaviors(Equipment.SelectMany(item => item.Behaviors));
+        InitializeBehaviors(_activeConsumables.SelectMany(effect => effect.Behaviors));
         foreach(var entity in Zone.Entities)
         {
             EntityInfoGathered[entity] = 0;
@@ -863,10 +861,15 @@ public abstract class Entity
         var effect = new ConsumableItemEffect(item, this);
         // The same hook Activate runs over Equipment: a behaviour that computes its targets there (StatModifier)
         // would otherwise reach its second tick uninitialised.
-        foreach (var behavior in effect.Behaviors)
+        InitializeBehaviors(effect.Behaviors);
+        _activeConsumables.Add(effect);
+    }
+
+    private static void InitializeBehaviors(IEnumerable<Behavior> behaviors)
+    {
+        foreach (var behavior in behaviors.ToList())
             if (behavior is IInitializableBehavior initializable)
                 initializable.Initialize();
-        _activeConsumables.Add(effect);
     }
 
     public ConsumableItemEffect FindActiveConsumable(ConsumableItemData data)

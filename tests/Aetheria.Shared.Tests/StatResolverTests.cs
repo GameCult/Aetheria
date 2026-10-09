@@ -441,7 +441,7 @@ public sealed class StatResolverTests : IDisposable
         for (var i = 0; i < 20; i++)
         {
             var lot = items.Lots.Add(new Lot { Design = cache.RefOf<ItemData>(boosterData), Origin = new Attributed(), Quality = .5f, Roles = new List<RoleFill>() });
-            var consumableItem = new ConsumableItem { Data = cache.RefOf<ItemData>(boosterData), Lot = lot };
+            var consumableItem = Assert.IsType<ConsumableItem>(items.CreateInstance(lot));
             ship.ActivateConsumable(consumableItem);
 
             // Duration is 0.01s; one 1-second tick expires it and drives Entity.Update's expiry branch.

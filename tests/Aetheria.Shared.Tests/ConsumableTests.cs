@@ -27,10 +27,13 @@ public sealed class ConsumableTests : IDisposable
         public EquippedItem Engine;
         public PerformanceStat Thrust;
         public ConsumableItemData Consumable;
+        public ConsumableItemData Other; // a second, unrelated non-stackable design
+        public Func<EquippableItem> NewEngine;
         public CultRecordKey Key;
         public CultRecordRef<Faction> Maker;
 
-        public ConsumableItem Mint() => Assert.IsType<ConsumableItem>(Items.CreateInstance(Items.CreateLot(Consumable, Maker, .5f)));
+        public ConsumableItem Mint(ConsumableItemData design = null) =>
+            Assert.IsType<ConsumableItem>(Items.CreateInstance(Items.CreateLot(design ?? Consumable, Maker, .5f)));
         public EquippedCargoBay Hold => Ship.CargoBays.Single();
         public int InCargo => Hold.Cargo.Keys.Count(i => i is ConsumableItem);
     }
@@ -70,6 +73,7 @@ public sealed class ConsumableTests : IDisposable
                 }
             }
         });
+        var otherRef = cache.Upsert(new ConsumableItemData { Name = "Flare", Duration = 1f, Shape = new Shape() });
         cache.FlushAsync().Wait();
 
         var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
@@ -84,7 +88,8 @@ public sealed class ConsumableTests : IDisposable
         var data = cache.Get(consumableRef);
         return new Rig
         {
-            Cache = cache, Items = items, Ship = ship, Thrust = thrust, Consumable = data,
+            Cache = cache, Items = items, Ship = ship, Thrust = thrust, Consumable = data, Other = cache.Get(otherRef),
+            NewEngine = () => Gear(cache.Get(engineRef)),
             Key = items.ItemData.RefOf<ItemData>(data).Key,
             Engine = ship.Equipment.Single(e => e.Data.Name == "Engine"),
             Maker = makerRef
@@ -148,5 +153,95 @@ public sealed class ConsumableTests : IDisposable
         Tick(rig, 5, .3f); // the first effect has run out
         Assert.True(rig.Ship.TryActivateConsumable(rig.Consumable));
         Assert.Equal(0, rig.InCargo);
+    }
+
+    // The expiry boundary: Duration 1 with 0.3 s ticks leaves 0.1 s after the third tick (still active) and
+    // -0.2 s after the fourth (gone). An expiry one tick early or one tick late changes one of these two reads.
+    [Fact]
+    public void AConsumableLivesForItsDurationAndNoLonger()
+    {
+        var rig = Build();
+        using var _ = rig.Cache;
+        rig.Ship.ActivateConsumable(rig.Mint());
+        Tick(rig, 3, .3f);
+        Assert.Equal(20f, rig.Engine.Evaluate(rig.Thrust), 3);
+        Tick(rig, 1, .3f);
+        Assert.Equal(10f, rig.Engine.Evaluate(rig.Thrust), 3);
+    }
+
+    // CS-R1, the stackable side: a stackable design activates again while its first effect runs, and every
+    // multiplier on the stat multiplies.
+    [Fact]
+    public void TwoStackableConsumablesOverlapAndMultiply()
+    {
+        var rig = Build(stackable: true);
+        using var _ = rig.Cache;
+        Assert.True(rig.Hold.TryStore(rig.Mint()));
+        Assert.True(rig.Hold.TryStore(rig.Mint()));
+
+        Assert.True(rig.Ship.TryActivateConsumable(rig.Consumable));
+        Assert.True(rig.Ship.TryActivateConsumable(rig.Consumable));
+        Assert.Equal(0, rig.InCargo);
+        Tick(rig, 2, .3f);
+        Assert.Equal(40f, rig.Engine.Evaluate(rig.Thrust), 3);
+    }
+
+    // Two modifiers share one resolver entry. The first expires while the second still runs: the second's
+    // boost stays, and when it expires too nothing is left behind.
+    [Fact]
+    public void AnExpiringConsumableLeavesAnOverlappingOnesBoost()
+    {
+        var rig = Build(stackable: true);
+        using var _ = rig.Cache;
+        var resolver = rig.Ship.Resolver;
+        var baseline = resolver.ModifierEntryCount;
+        Assert.True(rig.Hold.TryStore(rig.Mint()));
+        Assert.True(rig.Hold.TryStore(rig.Mint()));
+
+        Assert.True(rig.Ship.TryActivateConsumable(rig.Consumable));
+        Tick(rig, 2, .3f);
+        Assert.True(rig.Ship.TryActivateConsumable(rig.Consumable));
+        Tick(rig, 2, .3f); // the first ran out on the fourth tick overall; the second has 0.4 s left
+        Assert.Equal(20f, rig.Engine.Evaluate(rig.Thrust), 3);
+        Assert.True(resolver.ModifierEntryCount > baseline);
+
+        Tick(rig, 2, .3f);
+        Assert.Equal(10f, rig.Engine.Evaluate(rig.Thrust), 3);
+        Assert.Equal(baseline, resolver.ModifierEntryCount);
+    }
+
+    // CS-R1: the cooldown is per design. A running effect of one design does not refuse another design.
+    [Fact]
+    public void ADesignsCooldownDoesNotBlockAnotherDesign()
+    {
+        var rig = Build();
+        using var _ = rig.Cache;
+        Assert.True(rig.Hold.TryStore(rig.Mint()));
+        Assert.True(rig.Hold.TryStore(rig.Mint(rig.Other)));
+
+        Assert.True(rig.Ship.TryActivateConsumable(rig.Consumable));
+        Assert.True(rig.Ship.TryActivateConsumable(rig.Other));
+        Assert.Equal(0, rig.InCargo);
+    }
+
+    // Docking: an effect still running when the entity deactivates, is refitted and activates again boosts the
+    // items now fitted, as gear modifiers do, not the thruster that was swapped out.
+    [Fact]
+    public void AConsumableActiveAcrossARefitBoostsTheNewItems()
+    {
+        var rig = Build();
+        using var _ = rig.Cache;
+        rig.Ship.ActivateConsumable(rig.Mint());
+        Tick(rig, 2, .3f);
+        Assert.Equal(20f, rig.Engine.Evaluate(rig.Thrust), 3);
+
+        rig.Ship.Deactivate();
+        Assert.NotNull(rig.Ship.TryUnequip(rig.Engine));
+        Assert.True(rig.Ship.TryEquip(rig.NewEngine(), EngineCell));
+        rig.Ship.Activate();
+        Tick(rig, 2, .1f); // 0.2 s more: the effect still has 0.2 s of its second
+        var fitted = rig.Ship.Equipment.Single(e => e.Data.Name == "Engine");
+        Assert.NotSame(rig.Engine, fitted);
+        Assert.Equal(20f, fitted.Evaluate(rig.Thrust), 3);
     }
 }
