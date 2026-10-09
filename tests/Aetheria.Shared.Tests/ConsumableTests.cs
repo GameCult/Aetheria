@@ -169,6 +169,22 @@ public sealed class ConsumableTests : IDisposable
         Assert.Equal(10f, rig.Engine.Evaluate(rig.Thrust), 3);
     }
 
+    // An effect runs for exactly its Duration: Duration 1 with 0.25 s ticks (exact in floats) executes its
+    // behaviours on four ticks and is gone when the fourth ends, not on a fifth.
+    [Fact]
+    public void AConsumableRunsForExactlyItsDurationInTicks()
+    {
+        var rig = Build();
+        using var _ = rig.Cache;
+        rig.Ship.ActivateConsumable(rig.Mint());
+        Tick(rig, 3, .25f);
+        Assert.NotNull(rig.Ship.FindActiveConsumable(rig.Consumable));
+        Assert.Equal(20f, rig.Engine.Evaluate(rig.Thrust), 3);
+        Tick(rig, 1, .25f); // the fourth tick spends the last of the Duration
+        Assert.Null(rig.Ship.FindActiveConsumable(rig.Consumable));
+        Assert.Equal(10f, rig.Engine.Evaluate(rig.Thrust), 3);
+    }
+
     // CS-R1, the stackable side: a stackable design activates again while its first effect runs, and every
     // multiplier on the stat multiplies.
     [Fact]

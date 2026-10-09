@@ -1457,7 +1457,7 @@ public abstract class Entity
             for (var i = 0; i < _activeConsumables.Count; i++)
             {
                 _activeConsumables[i].Update(delta);
-                if (_activeConsumables[i].RemainingDuration < 0)
+                if (_activeConsumables[i].RemainingDuration <= 0)
                 {
                     // Cut 2 Gate 1 fix (docs/stats-and-power-cut.md): an expired consumable dropped out of this
                     // list without ever telling the resolver, leaving its generation/cache/modifier entries
