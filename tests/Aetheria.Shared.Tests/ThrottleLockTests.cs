@@ -180,4 +180,92 @@ public sealed class ThrottleLockTests : IDisposable
         Assert.Equal(1f, f.Forward.Axis);
         Assert.Equal(0f, f.Reverse.Axis);
     }
+
+    // Finding zero-stick-unpinned. Mutation: float2(0, length(MovementDirection)) as the locked intent. The lock
+    // supplies full forward whatever the stick's magnitude, including none and a short reverse push.
+    [Fact]
+    public void ALockedShipGetsFullForwardWhateverTheStickLength()
+    {
+        var f = Build(100f);
+        using var _ = f.Cache;
+        f.ActivateLock();
+        foreach (var intent in new[] { float2(0, 0), float2(.3f, .2f), float2(-.5f, -.5f) })
+        {
+            f.Ship.MovementDirection = intent;
+            f.Ship.Turn = 0;
+            f.Ship.Update(0.01f);
+            Assert.Equal(1f, f.Forward.Axis);
+            Assert.Equal(0f, f.Reverse.Axis);
+            Assert.All(f.Right, t => Assert.Equal(0f, t.Axis));
+            Assert.All(f.Left, t => Assert.Equal(0f, t.Axis));
+        }
+    }
+
+    // Finding ccw-turn-unpinned. Mutation: drop the counter-clockwise Turn. Turn in either sign reaches only the
+    // thrusters with torque of that sign, at full, while the lock holds forward.
+    [Fact]
+    public void ALockedShipTurnsBothWays()
+    {
+        var f = Build(100f);
+        using var _ = f.Cache;
+        f.ActivateLock();
+        var all = f.Ship.GetBehaviors<Thruster>().ToArray();
+        var cw = all.Where(t => t.Torque > 0 && t.Item.EquippableItem.Rotation == ItemRotation.None).ToArray();
+        var ccw = all.Where(t => t.Torque < 0 && t.Item.EquippableItem.Rotation == ItemRotation.None).ToArray();
+        Assert.NotEmpty(cw);
+        Assert.NotEmpty(ccw);
+        f.Ship.MovementDirection = float2(1, -1);
+        foreach (var turn in new[] { 1f, -1f })
+        {
+            f.Ship.Turn = turn;
+            f.Ship.Update(0.01f);
+            Assert.All(turn > 0 ? cw : ccw, t => Assert.Equal(1f, t.Axis));
+            Assert.All(turn > 0 ? ccw : cw, t => Assert.Equal(0f, t.Axis));
+            Assert.Equal(1f, f.Forward.Axis);
+        }
+    }
+
+    // Finding non-lock-consumable-unpinned. Mutation: any active consumable locks. A consumable without
+    // ThrottleLockData leaves the pilot's intent in force.
+    [Fact]
+    public void AConsumableWithoutTheLockDoesNotLock()
+    {
+        var f = Build(100f);
+        using var _ = f.Cache;
+        var plain = new ConsumableItemData { Name = "Plain", Duration = 100f };
+        f.Cache.Upsert(plain);
+        f.Ship.ActivateConsumable(new ConsumableItem
+        {
+            Data = f.Cache.RefOf<ItemData>(plain),
+            Lot = f.Items.Lots.Add(new Lot { Design = f.Cache.RefOf<ItemData>(plain), Origin = new Attributed(), Quality = .5f, Roles = new List<RoleFill>() })
+        });
+        Assert.False(f.Ship.ThrottleLocked);
+        f.Ship.MovementDirection = float2(0, -1);
+        f.Ship.Update(0.01f);
+        Assert.Equal(1f, f.Reverse.Axis);
+        Assert.Equal(0f, f.Forward.Axis);
+    }
+
+    // Finding lock-end-boundary-unpinned. Mutation: the lock ends at half Duration. Stepped in quarter-second
+    // ticks over a 1 s Duration, the lock holds through 0.75 s and is gone by 2 s. The exact tick of expiry is
+    // consumable-host's rule and is not pinned here.
+    [Fact]
+    public void TheLockHoldsThroughMostOfItsDurationAndEndsAfter()
+    {
+        var f = Build(1f);
+        using var _ = f.Cache;
+        f.ActivateLock();
+        f.Ship.MovementDirection = float2(0, -1);
+        for (var i = 0; i < 3; i++)
+        {
+            f.Ship.Update(.25f);
+            Assert.True(f.Ship.ThrottleLocked);
+        }
+        f.Ship.Update(.25f);
+        Assert.Equal(0f, f.Reverse.Axis);
+        for (var i = 0; i < 4; i++) f.Ship.Update(.25f);
+        Assert.False(f.Ship.ThrottleLocked);
+        f.Ship.Update(.25f);
+        Assert.Equal(1f, f.Reverse.Axis);
+    }
 }
