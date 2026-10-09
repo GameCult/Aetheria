@@ -502,13 +502,25 @@ public sealed partial class RunStartTests
     }
 
     // Two shooters on opposite sides of the same target, 200 m away: one with a projectile gun and one with a laser
-    // (a beam's authored velocity is 0, a flight time of zero). The target is the generated Djinni, the catalog's one ship that strafes.
+    // (a beam's authored velocity is 0, a flight time of zero). The target is the fitted Djinni, the catalog's one ship that strafes.
     private sealed class EvRange
     {
         public Zone Arena;
         public Ship Gunner, Lasing, Target;
         public Weapon Gun, Laser, GunnerLaser;
     }
+
+    // The target's fit, written out: the Djinni's own hardpoints filled with the Talaria it is generated with, its
+    // reactor, cockpit and radiators. What the evasion tests price is this ship's strafing, not whatever the generator
+    // rolls for it from the galaxy.
+    private static ScenarioFit EvDjinni(ScenarioStage stage) => stage.Fit("Djinni",
+        ("Cockpit 2x2", int2(6, 3), ItemRotation.None), ("Core Power", int2(6, 11), ItemRotation.None),
+        ("Talaria", int2(6, 0), ItemRotation.Reversed), ("Talaria", int2(5, 1), ItemRotation.Reversed), ("Talaria", int2(7, 1), ItemRotation.Reversed),
+        ("Talaria", int2(4, 4), ItemRotation.CounterClockwise), ("Talaria", int2(4, 11), ItemRotation.CounterClockwise),
+        ("Talaria", int2(9, 4), ItemRotation.Clockwise), ("Talaria", int2(9, 11), ItemRotation.Clockwise),
+        ("Talaria", int2(6, 14), ItemRotation.None),
+        ("Iapyx", int2(1, 4), ItemRotation.Reversed), ("Iapyx", int2(3, 1), ItemRotation.Reversed),
+        ("Iapyx", int2(9, 1), ItemRotation.Reversed), ("Iapyx", int2(11, 4), ItemRotation.Reversed));
 
     private EvRange EvRangeLaunch()
     {
@@ -517,7 +529,7 @@ public sealed partial class RunStartTests
         {
             stage.Player(stage.Bare("Djinni"), float2(-50000, -50000));
             gunner = stage.Place(EvLonginus(stage, "FastBlast+-", "ColdFire"), float2(0, 0), facing: float2(0, 1)) as Ship;
-            target = stage.Place(stage.Generated("Djinni"), float2(0, 200), facing: float2(0, 1)) as Ship;
+            target = stage.Place(EvDjinni(stage), float2(0, 200), facing: float2(0, 1)) as Ship;
             lasing = stage.Place(EvLonginus(stage, "ColdFire"), float2(0, 400), facing: float2(0, -1)) as Ship;
         });
         var (_, arena, _, failures) = Launch(scenario, Inputs(() => GalaxySeed));
