@@ -9,7 +9,6 @@ using UniRx;
 using Xunit;
 using static CultMath.math;
 using float2 = CultMath.float2;
-using float2x2 = CultMath.float2x2;
 using float3 = CultMath.float3;
 using int2 = CultMath.int2;
 
@@ -429,7 +428,7 @@ public sealed partial class FireControlCut124Tests
             var position = e.Target.Position;
             var direction = e.Target.Direction;
             e.Target.Position += float3(e.Target.Velocity.x, 0, e.Target.Velocity.y) * lead;
-            e.Target.Direction = mul(e.Target.Direction, float2x2.Rotate(e.Target.TurnRate * lead));
+            e.Target.Direction = mul(e.Target.Direction, CultMath.float2x2.Rotate(e.Target.TurnRate * lead));
             var cellPoint = e.Target.ToWorldPoint((float2) cell);
             var expected = float3(cellPoint.x, e.Target.Position.y, cellPoint.y);
             e.Target.Position = position;

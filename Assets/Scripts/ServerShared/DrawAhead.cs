@@ -63,7 +63,7 @@ public static class DrawAhead
     {
         var at = Position(target, lead);
         var offset = target.ToWorldPoint((float2) cell) - target.Position.xz;
-        var turned = mul(offset, float2x2.Rotate(Turn(target, lead)));
+        var turned = mul(offset, CultMath.float2x2.Rotate(Turn(target, lead)));
         return float3(at.x + turned.x, at.y, at.z + turned.y);
     }
 
