@@ -113,7 +113,7 @@ public sealed class ConsumableTests : IDisposable
         Assert.Equal(20f, rig.Engine.Evaluate(rig.Thrust), 3);
         Assert.True(resolver.ModifierEntryCount > baseline);
 
-        Tick(rig, 3, .3f); // 0.9s elapsed in all: expired on the third of these ticks
+        Tick(rig, 3, .3f); // 1.5s elapsed in all: the effect ran out on the fourth tick
         Assert.Equal(10f, rig.Engine.Evaluate(rig.Thrust), 3);
         Assert.Equal(baseline, resolver.ModifierEntryCount);
     }

@@ -860,7 +860,13 @@ public abstract class Entity
 
     public void ActivateConsumable(ConsumableItem item)
     {
-        _activeConsumables.Add(new ConsumableItemEffect(item, this));
+        var effect = new ConsumableItemEffect(item, this);
+        // The same hook Activate runs over Equipment: a behaviour that computes its targets there (StatModifier)
+        // would otherwise reach its second tick uninitialised.
+        foreach (var behavior in effect.Behaviors)
+            if (behavior is IInitializableBehavior initializable)
+                initializable.Initialize();
+        _activeConsumables.Add(effect);
     }
 
     public ConsumableItemEffect FindActiveConsumable(ConsumableItemData data)
@@ -1453,6 +1459,11 @@ public abstract class Entity
                     // Cut 2 Gate 1 fix (docs/stats-and-power-cut.md): an expired consumable dropped out of this
                     // list without ever telling the resolver, leaving its generation/cache/modifier entries
                     // reachable (keyed by this ConsumableItemEffect instance) for the rest of the process.
+                    // A StatModifier's attachments are keyed by its target items, not by the effect, so Forget alone
+                    // leaves a boost attached to its targets: dispose each behaviour first.
+                    foreach (var behavior in _activeConsumables[i].Behaviors)
+                        if (behavior is IDisposable disposable)
+                            disposable.Dispose();
                     Resolver.Forget(_activeConsumables[i]);
                     _activeConsumables.RemoveAt(i--);
                 }
