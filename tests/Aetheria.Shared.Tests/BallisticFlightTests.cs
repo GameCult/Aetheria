@@ -382,4 +382,31 @@ public sealed partial class FireControlCut124Tests
         Assert.Equal(shot.FireOrigin.y, stop.y, 3);
         Assert.Equal(line.y, stop.z, 3);
     }
+
+    // A proximity round at a target that recedes faster than the round closes bursts at the weapon's range, pulled back
+    // along its line, while it arrives when it has flown the distance the target was fired at: its burst point is not
+    // the line at its arrival. The stop is the sim's burst point, so a presenter that stopped at the arrival line would
+    // end the tracer short of where the round burst.
+    [Fact]
+    public void ABurstRoundStopsAtItsBurstPointNotItsArrivalLine()
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: BallisticSpeed, fuse: WeaponFuse.Proximity, blastRadius: 4f,
+            damage: 100f, weaponRange: NoLockRange, targetRange: 50f);
+        e.Target.Velocity = float2(0, 15);
+        ShotOutcome outcome = null;
+        using var c = e.Zone.ShotCommitted.Subscribe(o => outcome = o);
+        FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        var origin = SafeAssert.OnlyShot(e.Zone).FireOrigin;
+        for (var i = 0; i < 100 && outcome == null; i++) e.Zone.Update(.05f);
+        Assert.NotNull(outcome);
+        Assert.True(outcome.HasBurstPoint);
+        Assert.True(e.Zone.TryGetShot(outcome.ShotId, out var record));
+
+        Assert.Equal(origin.x, outcome.BurstPoint.x, 3);
+        Assert.Equal(origin.z + NoLockRange, outcome.BurstPoint.y, 3);
+        Assert.Equal(origin.z + 50f, FireControl.RoundAt(record, outcome.Result, record.ArrivalTime).y, 3);
+        var stop = DrawAhead.RoundStop(record, outcome, record.FireOrigin, 0f);
+        Assert.Equal(outcome.BurstPoint.x, stop.x, 3);
+        Assert.Equal(outcome.BurstPoint.y, stop.z, 3);
+    }
 }
