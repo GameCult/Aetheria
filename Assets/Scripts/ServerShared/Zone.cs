@@ -20,6 +20,10 @@ public class Zone
     // Laid mines, in lay order. Zone owns their existence: Lay is the one adder, the mine step the one remover,
     // and every removal is a blast. Runtime state, never saved.
     public ReactiveCollection<Mine> Mines = new ReactiveCollection<Mine>();
+
+    // Vented vapour clouds, in vent order. Zone owns their existence: Vent is the one adder, StepClouds the one
+    // remover, and Obscuration the one reader that detection uses. Runtime state, never saved.
+    public ReactiveCollection<VapourCloud> Clouds = new ReactiveCollection<VapourCloud>();
     public Dictionary<CultRecordKey, BodyData> Planets = new Dictionary<CultRecordKey, BodyData>();
     public Dictionary<CultRecordKey, Planet> PlanetInstances = new Dictionary<CultRecordKey, Planet>();
 
@@ -225,6 +229,7 @@ public class Zone
         foreach (var entity in Entities.ToArray()) entity.Update(deltaTime);
 
         StepMines(deltaTime);
+        StepClouds(deltaTime);
 
         // Cut 3: after every entity has had its chance to fire this tick, age and resolve the shots that
         // firing queued. A shot fired this tick with a flight time shorter than CommitHorizon commits and
@@ -236,6 +241,39 @@ public class Zone
     {
         mine.LaidAt = _time;
         Mines.Add(mine);
+    }
+
+    public void Vent(VapourCloud cloud)
+    {
+        cloud.Id = NextBodyId();
+        cloud.VentedAt = _time;
+        Clouds.Add(cloud);
+    }
+
+    // The fraction of a sight line's signal that survives the clouds between `a` and `b`: the product of
+    // (1 - opacity now) over every cloud whose disc the segment touches, so 1f when none does. Derived from the
+    // live clouds at each call and stored nowhere; Sensor.Gain is where it enters detection.
+    public float Obscuration(float2 a, float2 b)
+    {
+        var through = 1f;
+        for (var i = 0; i < Clouds.Count; i++)
+        {
+            var cloud = Clouds[i];
+            if (cloud.Touches(a, b)) through *= 1f - cloud.OpacityAt(_time);
+        }
+        return through;
+    }
+
+    // After StepMines: each cloud drifts as a KinematicBody on the zone's force, as a mine does, and is removed
+    // once its lifetime has run out. Nothing else removes a cloud.
+    private void StepClouds(float deltaTime)
+    {
+        var settings = _itemManager.GameplaySettings;
+        foreach (var cloud in Clouds.ToArray())
+        {
+            cloud.Body.Step(deltaTime, GetForce(cloud.Body.Position), settings);
+            if (cloud.VentedAt + cloud.Lifetime <= _time) Clouds.Remove(cloud);
+        }
     }
 
     // After the entity loop and before FireControl.Step, in lay order: each mine drifts as a KinematicBody, is
