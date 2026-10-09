@@ -514,13 +514,23 @@ public static class FireControl
         return shot.Target == null ? 1f : PDeviation(deviation, shot.Tracking);
     }
 
+    // The sim time a ballistic round's drawn flight ends, for what is known of its outcome: the one statement of a round's
+    // end. A round that hit or burst (or whose outcome is not yet published) ends at its ArrivalTime. A round the sim has
+    // published as a Miss flies on to the weapon's frozen range and never ends short of its own arrival (a direct round's
+    // FireRange is measured to any target, in range or not). Pure: it reads the shot alone, and the simulation's own
+    // arithmetic (Step, Commit, Apply) does not call it. Presenters end rounds here, through DrawAhead.
+    public static float RoundEnd(in PendingShot shot, ShotResult? known) =>
+        known == ShotResult.Miss
+            ? max(shot.ArrivalTime, shot.FireTime + (shot.Speed > .01f ? shot.MaxRange / shot.Speed : 0f))
+            : shot.ArrivalTime;
+
     // Where a ballistic round is at a sim time: the one statement of the round's line, from its frozen origin along its
-    // frozen direction at its frozen speed, held at the MaxRange point once it has flown that far. Pure: it reads the
-    // shot alone, and the simulation's own arithmetic (Step, Commit, Apply) does not call it. Presenters draw rounds here.
-    public static float2 RoundAt(in PendingShot shot, float time)
+    // frozen direction at its frozen speed, held at RoundEnd once it has flown that far. With no outcome known the round is
+    // drawn no further than its arrival point and waits there for the sim to publish one. Pure, like RoundEnd.
+    public static float2 RoundAt(in PendingShot shot, ShotResult? known, float time)
     {
         if (shot.Speed <= .01f) return shot.FireOrigin.xz;
-        var flown = clamp(time - shot.FireTime, 0f, shot.MaxRange / shot.Speed);
+        var flown = clamp(time - shot.FireTime, 0f, RoundEnd(shot, known) - shot.FireTime);
         return shot.FireOrigin.xz + shot.TravelDirection * (shot.Speed * flown);
     }
 
@@ -865,6 +875,8 @@ public static class FireControl
                 // A contact burst short of max range arrives when the round has flown that far, not at the frozen
                 // max-range time (CommitBurst). Never later than the frozen time.
                 if (shot.Outcome.Result == ShotResult.Burst) shot.ArrivalTime = min(shot.ArrivalTime, now + shot.Outcome.ArrivalIn);
+                // Written back before ShotCommitted fires: a presenter re-reading the record there (Zone.TryGetShot) sees
+                // the committed ArrivalTime a contact burst has just shortened.
                 shots[i] = shot;
                 zone.ShotCommitted.OnNext(shot.Outcome);
             }
@@ -2013,8 +2025,8 @@ public struct PendingShot
     public float FireTime;
     // The weapon's Velocity at Fire: frozen with the rest, so RoundAt states the same line whatever happens to the stat later.
     public float Speed;
-    // The weapon's Range at Fire, likewise frozen: how far the round can fly, which RoundAt clamps at. FireRange above is the
-    // distance to the engaged target (0 for a round with none), not how far a round that misses flies on.
+    // The weapon's Range at Fire, likewise frozen: how far a round that misses flies on, read only by RoundEnd. FireRange above
+    // is the distance to the engaged target (0 for a round with none), not how far a round that misses flies on.
     public float MaxRange;
     public float CommitTime;
     public float ArrivalTime;
