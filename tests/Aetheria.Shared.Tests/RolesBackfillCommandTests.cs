@@ -57,7 +57,10 @@ public sealed class RolesBackfillCommandTests : IDisposable
                 foreach (var (_, stat) in CatalogRoleTests.StatsOf(design))
                 {
                     if (stat.Min != stat.Max) stat.Min = stat.Max = (stat.Min + stat.Max) / 2f;
-                    stat.Terms.RemoveAll(t => t.Source == StatSource.Quality);
+                    // The drives shipped with unnamed Quality terms on their flat stats (roles-migrate); the command keeps those
+                    // exponents and names them. The other four shipped with no term at all.
+                    if (design.Name.EndsWith(" Drive", StringComparison.Ordinal)) foreach (var term in stat.Terms.Where(t => t.Source == StatSource.Quality)) term.Role = null;
+                    else stat.Terms.RemoveAll(t => t.Source == StatSource.Quality);
                 }
                 design.Roles = new List<ItemRole>();
                 changed.Add(design);
