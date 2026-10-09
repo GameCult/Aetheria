@@ -54,7 +54,7 @@ public sealed class ConsumableTests : IDisposable
             Name = "Engine", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Durability = 10,
             Behaviors = { new ThrusterData { Thrust = thrust } }
         });
-        var interior = new Shape(1, 1);
+        var interior = new Shape(2, 1); // room for two consumables
         foreach (var cell in interior.AllCoordinates) interior[cell] = true;
         var holdRef = cache.Upsert(new CargoBayData { Name = "Hold", Shape = new Shape(), InteriorShape = interior, Durability = 10 });
         var consumableRef = cache.Upsert(new ConsumableItemData
