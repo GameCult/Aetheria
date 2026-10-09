@@ -5844,6 +5844,17 @@ factor), which waits on all of them.
 
 **Why a round's end is one sim statement.** The sim resolves a round at `ArrivalTime`. A drawn round that ends anywhere else needs a second owner of the end, which is what ballistic-flight s1 found in Projectile. `FireControl.RoundEnd(shot, known)` states the end for what the sim has published about the outcome: arrival for a hit, a burst or an unknown outcome, and the frozen weapon range for a miss, never short of arrival. `RoundAt` clamps there. A round whose outcome is not yet published waits at its arrival point for at most one step instead of overshooting. The drawing rules (placement, barrel blend, stop, done) are pure statics in DrawAhead, beside the ships' draw-ahead, so the headless suite tests them by behaviour rather than by grep.
 
+**Ballistic flight is presentation (r3, 2026-10-09).** After rulings projectile-flight-is-presentation, sim-hooks-presentation-agnostic and direct-arrival-keep-timing, FireControl owns only a shot's facts: the outcome, when damage lands (ArrivalTime, a contact burst's shortened arrival, the commit tick), the impact cell with its target, and a fused round's burst point. DrawAhead owns the drawn round, as pure statics tested headless.
+
+Probes at d98818ea:
+(1) The impact cell is already on the outcome: on a hit, Commit stores the first cell of the shot's lane (FireControl.cs:960-988), MakeOutcome copies Cell and Target (:1527-1544), and ShotCommitted and ShotResolved publish the outcome (:881, :894). No sim hook was needed.
+(2) Entity.ToWorldPoint (Entity.cs:717-725) is the one schematic-to-world frame. The step turns Direction by `mul(Direction, float2x2.Rotate(TurnRate*dt))` (Thruster.cs:129), so the cell on the drawn pose is `Position(target, lead).xz + Rotate(ToWorldPoint(cell) - Position.xz, TurnRate*lead)`, exactly.
+(3) The commit tick equals `record.ArrivalTime - outcome.ArrivalIn` for every result (:877-881, :1541).
+(4) An engaged proximity round is Hit or Burst, never Miss; it bursts at BurstPosition frozen at Fire (:1009-1017, :1148-1150), and it is drawn there.
+(5) A target that leaves the zone mid-flight resolves as a fresh Miss (:857-868).
+
+Rationale: a hit follows its frozen line until the commit tick, then blends onto its impact cell on the target's drawn pose, so it lands on the hull rather than at the frozen line's arrival point. The sim's damage timing is unchanged. A miss flies on to the weapon's frozen range, which is DrawAhead.RoundEnd's choice. A kink at the commit frame (at most one step's share of the line-to-hull gap) and a snap back to the line after a target-gone Miss are accepted presentation. Rejected: publishing the lane's entry point as a new sim field; the ruling names the cell, so a hit effect may sit up to half a cell inside the hull skin. Risk: a hull mesh not aligned with its schematic makes hits land beside the mesh; that is a content fault, and the operator's moving-target check shows it.
+
 ### Census
 
 Every Unity-side place that integrates, times or decides a sim fact at `6d427b7a`, and the cut
