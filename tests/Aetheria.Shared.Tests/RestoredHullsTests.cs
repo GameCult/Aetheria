@@ -162,7 +162,8 @@ public sealed class RestoredHullsTests
                 if (orbits.Length > 0 && !HasGenuineLagrangeCandidate(orbits)) return (seed, zone.Name);
             }
         }
-        return Assert.Fail("fixture: no tutorial galaxy at seeds 1-64 has a zone whose planets are all rosette members.");
+        Assert.Fail("fixture: no tutorial galaxy at seeds 1-64 has a zone whose planets are all rosette members.");
+        return default;
     }
 
     // ZoneGenerator.GenerateZone writes OrbitData/BodyData (run-store types, AetheriaStores.RunTypes), so a
