@@ -6913,3 +6913,158 @@ the .NET runtime installed, which is the install the ruling removes).
 | Layout buffer | `scene.aetheria_layout` | filled by Load or New Ship, edited by Rasterise, Flip Nose, Resize and hardpoint ops, undoable | the author; persisted only by Save |
 | Grid placement | `aetheria.grid_origin` = [x, y, width, height] on the collection | written by Rasterise only, undoable | Rasterise |
 | Pending ship | `aetheria.pending` = [name, reference] on the collection | set by New Ship, cleared by the Save that creates the file | New Ship, then Save |
+
+## Flight control allocates thrust
+
+Pass: Imagination, session `self-2026-10-09-morning`. Body: `GameCult/Aetheria` origin/master `80d2c7f3`,
+detached worktree, removed at the end. Ruling: `flight-control-allocates-thrust` (operator words in its
+`operator_quote`). Prior art: `F:\Projects\aetheria-thrust-allocation-prior-art-2026-10-09.md` (Eyes; cited
+as PA). This section supersedes the body facts, consumer audit and Cuts 2-3 of `docs/locomotion-cut.md`
+(2026-09-22), which predate the aether drive's deletion (`2cfdc728`) and the LookDirection-to-Turn change.
+That file's Cut 4 (AI heading planner) and Cut 5 (combat facing) are carried as follow-ups, not as specs.
+
+### Body facts
+
+- **TA1. The plant.** 2D translation plus kinematic yaw. `Thruster` is the only propulsor
+  (`Ship.cs:138-139`). Per unit throttle a thruster adds `-push * Thrust / Mass` to velocity along its mount
+  and turns `Direction` by `Torque * Thrust * TorqueMultiplier / Mass` rad/s (`Thruster.cs:127-130`).
+  `Torque` is the sine of the moment arm (`Thruster.cs:65-70`). `Axis` saturates to [0,1]
+  (`Thruster.cs:46-50`). Authored `TorqueFloor` 0.5, `TorqueMultiplier` 0.1 (`Settings.asset`, read by
+  the probe through `AuthoredSettings`).
+- **TA2. The mixer and its satellites** (`Ship.cs` at `80d2c7f3`): bucket sets `:33-40`, built in
+  `Activate` `:97-116` from mount rotation and from `Torque` against `TorqueFloor`; aggregates `:51-60`;
+  `TurnTime` `:62-67` (no caller); `ItemDestroyed` pruning `:121`, `:124-134`; `RecalculateThrust` and six
+  `Recalculate*` `:150-227`; the mixer `:236-259` (strafe trim with an unguarded division by the trim
+  count at `:237`, `:246`). Readers outside `Ship.cs`: the aggregates only in
+  `EvasionTermTests.cs:708-709` and `:997-1056`; `TurnTime` none; `IAnalogBehavior`
+  (`Behaviors.cs:96-99`) only `Thruster.cs:40` and a comment at `Entity.cs:2343`. `Thruster.Manoeuvre`
+  (`Thruster.cs:98-114`) is the envelope's per-thruster term and the only other `TorqueFloor` reader in
+  source (`:109`); tests read the floor at `EvasionTermTests.cs:331-332,383-384` and
+  `SteeringTests.cs:304-305`.
+- **TA3. The Duel ship, probed** (scratch test in `RunStartTests`, Yggdrasil job, CultMath `614fd445`,
+  2026-10-09). Longinus, mass 4235, four thrusters. Per unit throttle (starboard m/s^2, forward m/s^2,
+  clockwise deg/s):
+
+  | Thruster | Cell, mount | Thrust | Column |
+  |---|---|---|---|
+  | Large Drive | (1,0) Reversed | 228441 | (0, 53.94, +49.24) |
+  | Large Drive | (3,0) Reversed | 259158 | (0, 61.19, -55.86) |
+  | Talaria | (2,14) CounterClockwise | 123144 | (+29.08, 0, +166.26) |
+  | Talaria | (3,14) Clockwise | 92312 | (-21.80, 0, -124.63) |
+
+  The two drives share a design and a lot quality (0.300) and still differ by 13% in live thrust, so
+  held forward thrust is a 6.6 deg/s turn. The two Talarias have equal torque-to-sideways ratios, so
+  together they cannot make a pure torque: any turn on this hull pushes it sideways.
+- **TA4. Allocation probe** (same job; `player.Update` stepped alone at 1/60 s; a scratch hook replaced
+  the mixer with a `BoundedLeastSquares` solve; rows normalised per axis by the box extreme, ridge 1e-3;
+  "prio" is a yaw row weight of 1000; heading in degrees, clockwise positive; axes are the four throttles
+  in the table's order):
+
+  | Case | mixer | WLS w=1 | WLS w=3 | prio |
+  |---|---|---|---|---|
+  | forward, intact, 2 s heading | -12.09 | -6.41 | -1.38 | **0.017** |
+  | forward, strong drive off, 2 s | 97.41 | 59.06 | 14.24 | **-0.014** (axes .92 0 0 .36) |
+  | forward, weak drive off, 2 s | -109.65 | -56.22 | -11.47 | **0.026** (axes 0 .90 .29 0) |
+  | forward, nose Talaria (2,14) off, 2 s | -12.09 | -8.83 | -2.97 | **0.012** |
+  | strafe right, 2 s | 0 (no strafe at all) | 181.39 | 39.29 | **0.023** (axes 0 .85 .28 0) |
+  | forward + Turn 1, mean deg/s | 159.9 | 94.2 | 189.0 | **214.9** (axes 1 0 1 0) |
+  | Turn 1 in place, mean deg/s | 166.1 (axes 0 0 1 0) | 97.8 (.57 0 .42 0) | 188.9 (1 0 .84 0) | **214.9** (1 0 1 0) |
+  | Turn -1 in place | -124.6 | -81.8 | -158.8 | **-179.6** |
+  | Turn 1, Talaria (2,14) off | 0 (stuck) | 12.4 | 36.8 | **48.8** (drive only) |
+  | intent zero | 0 | 0 | 0 | 0 |
+
+  Box extremes: clockwise 215.5 deg/s, counter-clockwise 180.5 deg/s, forward 115.1 m/s^2, starboard
+  29.1, port 21.8. A yaw-first solve holds heading to hundredths of a degree whatever is lost; a weighted
+  solve at the old map's default (w = 3) leaves a drift the ruling forbids. Solve cost: 14.2 us mean
+  (including per-call allocation, n = 4), at most 11 active-set iterations over 2000 random intents.
+- **TA5. The Execute gate drops small balancing throttles.** `Thruster.Execute` and `PowerRequest` act only
+  above throttle .01 (`Thruster.cs:87,124`). Probe: weighted solve, full forward, 10 s: heading -7.49 deg
+  with the gate, -4.56 without; forward 0.3, 10 s: -0.213 deg with, -0.028 without. A balancing throttle
+  below .01 on a 166 deg/s Talaria leaves up to 1.7 deg/s unbalanced.
+- **TA6. A power-gated column deadlocks.** `PowerRequest` is proportional to the throttle
+  (`Thruster.cs:87`) and `PowerBus.Step` grants after `Ship.Update` (`Entity.cs:1463`), so a column zeroed
+  for `PowerSupply <= 1e-4` gets throttle 0, requests nothing, and is never granted. The column's thrust is
+  therefore `EvaluateNominalPower(Thrust)` (full grant; heat, durability, quality and modifiers live,
+  `Entity.cs:1856`) and its liveness is `Item.Active` only. A browned-out thruster still under-delivers
+  after the solve (follow-up `allocator-brownout-columns`).
+- **TA7. The Duel arena moves the player by itself.** With forward thrust the player's velocity swings
+  between about +28 and -28 m/s along the nose every ~60 ticks with no `VelocityLimit` clamp (limit 100,
+  drag 0.1), while intent zero leaves it at rest. Translation measured in the Duel is not thrust; tests that
+  measure translation use `RestoredHullsTests.BuildThrustedShip`. Cause not traced (the zone's field at
+  the spawn is the first suspect).
+- **TA8. CultMath 0.3.0 re-rolls generated content.** Full suite at `80d2c7f3` with only
+  `CultMathRevision` moved to `614fd445` (tag `cultmath-unity-v0.3.0`): 1057 pass, 5 fail.
+  `TutorialGalaxy_unchanged` (faction homes differ), three `RestoredHullsTests` that pick zones by name
+  (`RestoredHullsTests.cs:624,740,807`: "EAC-7089", "EAC-2733" no longer exist) and
+  `ACoastingAgileShipIsEasierToHitThanTheSameShipJinking` (hits 95 jinking against 78 coasting; its target
+  is `stage.Generated("Djinni")`, `EvasionTermTests.cs:520`, so the target's fit follows the galaxy). The
+  cause is 0.3.0's breaking `snoise` kernel (its CHANGELOG), read in C# by `Settings.cs:72-73` (galaxy
+  cloud density), `GlobalData.cs:30` and `Environment.cs:132,144`. Shaders use the GPU Noise plugin, not
+  CultMath (`Background.shader:39`), so nothing on the GPU moves. Every other DemoTerminus test passes.
+  Between the tags CultMath also adds `phacelle` (MPL-2.0 files), `cellular`, `smin_grad`, the `*_grad`
+  noises and `BoundedLeastSquares`; no existing signature changes.
+- **TA9. The pin guard.** `Directory.Build.targets:21` conditions `VerifyCultLibRevision` on a
+  backslash-spelled project identity; `docs/mining-cut-refresh.md:155-157` infers it never fires on Linux.
+  Yggdrasil's `~/eureka-verify/pins` holds `cultlib-45c2f40` and `cultlib-6d5e209` only;
+  `~/eureka-verify/repos/CultLib.git` contains `614fd445`.
+
+### Authority map
+
+- **Owner:** `ThrustAllocator` (new, one per `Ship`, stepped in `Ship.Update`) turns intent into every
+  thruster's throttle.
+- **Inputs:** intent (`MovementDirection`, or full forward while `Entity.ThrottleLocked`; `Turn`), and one
+  column per thruster: its body push and turn per unit throttle at full grant, zero when the item is not
+  `Active`.
+- **Outputs:** `Thruster.Axis` for the tick, read only by `Execute`, `PowerRequest` and presentation.
+- **Derived:** the box extremes (what intent is a fraction of) are derived from the columns each tick; the
+  envelope becomes the same extremes (cut `envelope-from-columns`). The warm start is command state, never
+  truth.
+- **Demoted or dead:** the bucket sets, aggregates, strafe trim, `TurnTime`, `RemoveThruster` pruning and
+  `IAnalogBehavior` are deleted. `TorqueFloor` is no longer an owner of anything; it dies with
+  `Thruster.Manoeuvre`. A thruster's capability is no longer classified by mount or by a floor; it is its
+  column.
+- **Forbidden writers:** any `Axis` write outside `Ship.Update`; any rule that classifies a thruster as
+  "for" rotation or translation; any second solve or fallback mixer; any liveness set kept across ticks.
+- **Shared paths:** player helm, agents, the throttle lock and tests all reach the throttles only through
+  intent.
+
+### Model page rows (changed)
+
+| Kind | Named by | Over time | Decides |
+|---|---|---|---|
+| Thruster column (runtime) | the `Thruster` behaviour | rebuilt every tick from live stats and `Item.Active` | `ThrustAllocator` reads; item state stays `EquippedItem`'s and `PowerBus`'s |
+| Allocator warm start (runtime) | the ship's `ThrustAllocator` | last tick's throttles; reset when the thruster count changes | `ThrustAllocator`; never saved |
+| `GameplaySettings.TorqueFloor` (authored) | field name | deleted by `envelope-from-columns`; the `Settings.asset` line is left for Unity to drop (it lands in `AuthoredSettings.Unplaced`) | nobody after the cut |
+
+### Rationale
+
+- **Yaw before translation for a hold.** The ruling forbids yaw from asymmetry, and TA4 shows a weighted
+  solve cannot deliver that at any weight that also lets a turn trade: holding is exact only when the yaw
+  row dominates. Prior art agrees for spacecraft-like plants: MechJeb weights torque 200 times translation,
+  and the Space Engineers allocation proposal serves rotation authority first (PA A3). Multirotors do the
+  opposite (PX4 and ArduPilot sacrifice yaw, PA A2) because yaw is not their stability axis. Translation
+  first was rejected: it reproduces the mixer's drift. What gives under saturation is translation, so a
+  damaged ship crabs rather than spins; the operator expected exactly that ("crab walking just became
+  optimal", `docs/locomotion-cut.md:25-29` at `80d2c7f3`).
+- **What a full turn spends is the operator's call** (question `turn-authority`), because the operator's
+  2026-09-22 words on rotation demand (`docs/locomotion-cut.md:82-87` at `80d2c7f3`) and TA4's numbers pull different
+  ways.
+- **One solve with a large yaw weight, not two sequential solves.** The large-weight form approximates
+  sequential least squares (PA A1, Schofield) with one call, deterministic and allocation-free; a yaw
+  weight of 1000 against a ridge of 1e-4 keeps the conditioning near 1e5, inside the range the solver
+  documents as exact (`BoundedLeastSquares.cs` remarks).
+- **The ridge** makes the optimum unique, so the warm start never changes the answer and two equal
+  thrusters share a demand. It costs 0.01% of full thrust.
+- **No actuator interface.** One kind of actuator exists. The allocator takes columns and returns
+  throttles, so a vectored row (follow-up `vectored-thruster-rows`) is more columns: a row tilting within
+  +-theta becomes an axial variable in [0,1] and a lateral variable in [-sin theta, sin theta], and its slew
+  rate narrows the lateral variable's bounds each tick. Bounds stay boxes, which is what the solver takes;
+  the row maps its two solved variables back to a throttle and an angle.
+- **The pin bump is its own cut.** The solver exists only from 0.3.0, and 0.3.0 re-rolls generated content
+  (TA8). Backporting the solver to a 0.2.5 was rejected: CultLib releases from main, and a branch release
+  would carry the old noise kernel's seam bug forward. `no-save-compatibility-before-players` covers the
+  re-rolled galaxy.
+- **Order.** `cultmath-0-3-pin`, then `thrust-allocator-core`; `throttle-lock` lands on the mixer as
+  specified, then `thrust-allocator` deletes the mixer, keeps throttle-lock's one intent line as the
+  allocator's input and rewrites throttle-lock's two mixer-shaped tests in allocator terms. One owner of
+  `Ship.Update`'s thruster block at every step.
