@@ -3,13 +3,13 @@ using System.Collections;
 using UniRx;
 using UnityEngine;
 
-// A ballistic round, drawn by DrawAhead's round statics and deciding nothing. The simulation owns the round's whole
-// flight (the PendingShot copy taken at spawn, replaced by the sim's record at ShotCommitted, and the outcome it
-// publishes), so this object stores no motion state of its own and computes no position, time or range: each frame it
-// asks DrawAhead.Round where the round is at sim time plus the clock's Lead (the same draw-ahead ships use), and the
-// round ends on the sim's word: ShotResolved stops a round that hit or burst where DrawAhead.RoundStop puts it, and
+// A ballistic round, drawn by DrawAhead.Round from what the simulation publishes and deciding nothing. The simulation
+// owns the round's facts (the PendingShot copy taken at spawn, replaced by the sim's record at ShotCommitted, and the
+// outcome it publishes), so this object stores no motion state of its own and computes no position, time, range or
+// impact point: each frame it asks DrawAhead.Round where the round is at sim time plus the clock's Lead (the same
+// draw-ahead ships use). The round ends on the sim's word: ShotResolved ends one that hit or burst, and
 // DrawAhead.RoundOver ends one the sim published as a miss. The barrel is only where the round is first seen: its
-// offset from the sim line decays to zero over BlendTime sim seconds. The trail's fade after the end stays real time
+// offset from the drawn line decays to zero over BlendTime sim seconds. The trail's fade after the end stays real time
 // (pure presentation, ruling sim-speed-presentation).
 public class Projectile : MonoBehaviour
 {
@@ -22,7 +22,7 @@ public class Projectile : MonoBehaviour
     private PendingShot _shot;
     private Zone _zone;
     private CultMath.float3 _barrel;
-    private ShotResult? _known;
+    private ShotOutcome _known;
     private bool _alive;
     private CompositeDisposable _binding;
 
@@ -49,25 +49,25 @@ public class Projectile : MonoBehaviour
 
     private void Draw()
     {
-        var time = _zone.Time + ActionGameManager.Clock.Lead;
-        transform.position = V(DrawAhead.Round(_shot, _known, _barrel, BlendTime, time));
-        if (DrawAhead.RoundOver(_shot, _known, time)) Finish();
+        var lead = ActionGameManager.Clock.Lead;
+        transform.position = V(DrawAhead.Round(_shot, _known, _barrel, BlendTime, _zone.Time, lead));
+        if (DrawAhead.RoundOver(_shot, _known, _zone.Time, lead)) Finish();
     }
 
     // The sim's commit: the record it holds now (a contact burst's arrival is shortened here) and what it decided.
     private void Committed(ShotOutcome outcome)
     {
         if (_zone.TryGetShot(outcome.ShotId, out var record)) _shot = record;
-        _known = outcome.Result;
+        _known = outcome;
     }
 
-    // The simulation's verdict. A round that hit or burst stops where the sim put it; a miss keeps flying.
+    // The simulation's verdict. A round that hit or burst is drawn at its end and stops; a miss keeps flying.
     private void Resolve(ShotOutcome outcome)
     {
         if (!_alive) return;
-        _known = outcome.Result;
+        _known = outcome;
         if (outcome.Result == ShotResult.Miss) return;
-        transform.position = V(DrawAhead.RoundStop(_shot, outcome, _barrel, BlendTime));
+        Draw();
         if (HitEffect != null) HitEffect.Instantiate<Transform>().position = transform.position;
         Finish();
     }

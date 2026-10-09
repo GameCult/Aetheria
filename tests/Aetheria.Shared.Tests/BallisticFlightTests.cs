@@ -4,18 +4,23 @@
 
 using System;
 using System.Linq;
+using System.Reflection;
 using UniRx;
 using Xunit;
 using static CultMath.math;
 using float2 = CultMath.float2;
+using float2x2 = CultMath.float2x2;
 using float3 = CultMath.float3;
+using int2 = CultMath.int2;
 
-// Ballistic flight: FireControl.RoundAt is the one statement of where a fired round is at a sim time, from the
-// PendingShot's frozen origin, direction, speed and fire time, and FireControl.RoundEnd the one statement of when its
-// drawn flight ends for what the sim has published of its outcome. Unity draws rounds through DrawAhead's round statics
-// and integrates nothing, so these tests pin the line, the end and the drawing against first principles (the shooter's
-// position, the aim, the authored velocity and range) rather than against the code that computes them. Shares the
-// Cut 12.4 engagement fixture.
+// Ballistic flight: a round's flight is presentation (ruling projectile-flight-is-presentation). The simulation publishes
+// the facts (the PendingShot's frozen origin, direction, speed, fire time and arrival, the outcome with its commit tick,
+// impact cell and burst point) and DrawAhead's statics draw the round from them: Round the one statement of where a round
+// is at a sim time, Impact where a hit lands on the target's drawn pose, RoundEnd and RoundOver when its drawn flight
+// ends. FireControl owns none of it (ruling direct-arrival-keep-timing: damage keeps landing at the arrival time, the
+// hit is drawn at its cell). Unity's Projectile calls Round and integrates nothing, so these tests pin the drawing
+// against first principles (the shooter's position, the aim, the authored velocity and range, the hull's own frame)
+// rather than against the code that computes it. Shares the Cut 12.4 engagement fixture.
 public sealed partial class FireControlCut124Tests
 {
     private const float BallisticSpeed = 20f;
@@ -32,57 +37,77 @@ public sealed partial class FireControlCut124Tests
         return e;
     }
 
+    // What the sim publishes for a shot, as a presenter holds it: only the result (no impact, no burst point).
+    private static ShotOutcome Known(in PendingShot shot, ShotResult result) =>
+        new ShotOutcome { ShotId = shot.ShotId, Result = result, ArrivalIn = max(0f, shot.ArrivalTime - shot.CommitTime) };
+
+    // A hit on a cell of the target, committed at `commit`: ArrivalIn is how long after the commit damage lands.
+    private static ShotOutcome Hit(in PendingShot shot, Entity target, int2 cell, float commit) =>
+        new ShotOutcome { ShotId = shot.ShotId, Result = ShotResult.Hit, Target = target, Cell = cell, ArrivalIn = shot.ArrivalTime - commit };
+
+    // The hull's occupied coordinate farthest from its centre of mass: a cell well off the target's position.
+    private static int2 FarCell(Engagement e) =>
+        e.HullData.Shape.Coordinates.OrderByDescending(c => length((float2) c - e.HullData.Shape.CenterOfMass)).First();
+
     [Fact]
-    public void RoundAtIsTheFiredLine()
+    public void ARoundIsDrawnOnItsFiredLine()
     {
         // Burst round: leaves the shooter, is where its own speed puts it a second in, and ends on the burst point.
         var e = FireBurstRound(out var origin);
-        var burst = SafeAssert.OnlyShot(e.Zone);
+        ShotOutcome outcome = null;
+        PendingShot burst = default;
+        using var c = e.Zone.ShotCommitted.Subscribe(o =>
+        {
+            outcome = o;
+            e.Zone.TryGetShot(o.ShotId, out burst);
+        });
+        e.Zone.Update(.01f);
+        Assert.NotNull(outcome);
+        Assert.True(outcome.HasBurstPoint);
         var aim = normalize(float2(2, 1));
         // The shooter moves on after the round left: the line is the one frozen at Fire, not one drawn from where it is now.
         e.Shooter.Position += float3(7, 0, 3);
 
-        var start = FireControl.RoundAt(burst, null, burst.FireTime);
+        var start = DrawAhead.Round(burst, null, burst.FireOrigin, 0f, burst.FireTime, 0f);
         Assert.Equal(origin.x, start.x, 3);
-        Assert.Equal(origin.z, start.y, 3);
+        Assert.Equal(origin.z, start.z, 3);
 
-        var second = FireControl.RoundAt(burst, null, burst.FireTime + 1f);
+        var second = DrawAhead.Round(burst, null, burst.FireOrigin, 0f, burst.FireTime + 1f, 0f);
         Assert.Equal(origin.x + aim.x * BallisticSpeed, second.x, 3);
-        Assert.Equal(origin.z + aim.y * BallisticSpeed, second.y, 3);
+        Assert.Equal(origin.z + aim.y * BallisticSpeed, second.z, 3);
 
-        foreach (ShotResult? known in new ShotResult?[] { null, ShotResult.Burst })
+        foreach (var known in new[] { null, outcome })
             foreach (var later in new[] { 0f, 1f, 50f })
             {
-                var arrival = FireControl.RoundAt(burst, known, burst.ArrivalTime + later);
+                var arrival = DrawAhead.Round(burst, known, burst.FireOrigin, 0f, burst.ArrivalTime + later, 0f);
                 Assert.Equal(burst.BurstPosition.x, arrival.x, 3);
-                Assert.Equal(burst.BurstPosition.z, arrival.y, 3);
+                Assert.Equal(burst.BurstPosition.z, arrival.z, 3);
             }
 
         // Past the weapon's range it is held at the range point, however late it is asked.
-        var held = FireControl.RoundAt(burst, ShotResult.Miss, burst.FireTime + NoLockRange / BallisticSpeed + 50f);
+        var held = DrawAhead.Round(burst, Known(burst, ShotResult.Miss), burst.FireOrigin, 0f, burst.FireTime + NoLockRange / BallisticSpeed + 50f, 0f);
         Assert.Equal(origin.x + aim.x * NoLockRange, held.x, 3);
-        Assert.Equal(origin.z + aim.y * NoLockRange, held.y, 3);
+        Assert.Equal(origin.z + aim.y * NoLockRange, held.z, 3);
         // Before it was fired it is still at the origin, not behind it.
-        var before = FireControl.RoundAt(burst, null, burst.FireTime - 5f);
+        var before = DrawAhead.Round(burst, null, burst.FireOrigin, 0f, burst.FireTime - 5f, 0f);
         Assert.Equal(origin.x, before.x, 3);
-        Assert.Equal(origin.z, before.y, 3);
+        Assert.Equal(origin.z, before.z, 3);
 
         // Direct round at a stationary target 100 ahead (+z): arrives on the target, and a miss would fly on to the weapon's range.
         var d = Build(TestSettings(), SolidShape(5, 4), velocity: BallisticSpeed, weaponRange: 1000f);
         var dOrigin = d.Shooter.Position;
         FireControl.Fire(d.Weapon, d.WeaponItem, d.Shooter);
         var direct = SafeAssert.OnlyShot(d.Zone);
-        foreach (ShotResult? known in new ShotResult?[] { null, ShotResult.Hit })
-            // A round not known to miss waits at its arrival point however late it is asked.
-            foreach (var at in new[] { direct.ArrivalTime, direct.FireTime + 99f })
-            {
-                var hit = FireControl.RoundAt(direct, known, at);
-                Assert.Equal(d.Target.Position.x, hit.x, 2);
-                Assert.Equal(d.Target.Position.z, hit.y, 2);
-            }
-        Assert.Equal(dOrigin.z + 100f / 2f, FireControl.RoundAt(direct, null, direct.FireTime + 2.5f).y, 2);
-        var heldDirect = FireControl.RoundAt(direct, ShotResult.Miss, direct.FireTime + 1000f / BallisticSpeed + 99f);
-        Assert.Equal(dOrigin.z + 1000f, heldDirect.y, 2);
+        // A round not known to miss waits at its arrival point however late it is asked.
+        foreach (var at in new[] { direct.ArrivalTime, direct.FireTime + 99f })
+        {
+            var waiting = DrawAhead.Round(direct, null, direct.FireOrigin, 0f, at, 0f);
+            Assert.Equal(d.Target.Position.x, waiting.x, 2);
+            Assert.Equal(d.Target.Position.z, waiting.z, 2);
+        }
+        Assert.Equal(dOrigin.z + 100f / 2f, DrawAhead.Round(direct, null, direct.FireOrigin, 0f, direct.FireTime + 2.5f, 0f).z, 2);
+        var heldDirect = DrawAhead.Round(direct, Known(direct, ShotResult.Miss), direct.FireOrigin, 0f, direct.FireTime + 1000f / BallisticSpeed + 99f, 0f);
+        Assert.Equal(dOrigin.z + 1000f, heldDirect.z, 2);
     }
 
     // A round with no speed (the weapon authors Velocity 0, or effectively 0) does not fly: it is at its origin at any
@@ -95,9 +120,9 @@ public sealed partial class FireControlCut124Tests
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
         var shot = SafeAssert.OnlyShot(e.Zone);
 
-        var late = FireControl.RoundAt(shot, ShotResult.Miss, shot.FireTime + 5000f);
+        var late = DrawAhead.Round(shot, Known(shot, ShotResult.Miss), shot.FireOrigin, 0f, shot.FireTime + 5000f, 0f);
         Assert.Equal(origin.x, late.x, 3);
-        Assert.Equal(origin.z, late.y, 3);
+        Assert.Equal(origin.z, late.z, 3);
     }
 
     [Fact]
@@ -115,39 +140,44 @@ public sealed partial class FireControlCut124Tests
         var after = SafeAssert.OnlyShot(e.Zone);
         Assert.Equal(BallisticSpeed, after.Speed, 4);
         var aim = normalize(float2(2, 1));
-        var at = FireControl.RoundAt(after, null, after.FireTime + 1f);
+        var at = DrawAhead.Round(after, null, after.FireOrigin, 0f, after.FireTime + 1f, 0f);
         Assert.Equal(origin.x + aim.x * BallisticSpeed, at.x, 3);
-        Assert.Equal(origin.z + aim.y * BallisticSpeed, at.y, 3);
+        Assert.Equal(origin.z + aim.y * BallisticSpeed, at.z, 3);
     }
 
     [Fact]
-    public void RoundAtIsPure()
+    public void ARoundIsPure()
     {
-        var e = FireBurstRound(out _);
+        var e = FireDirectRound(20f, 1000f);
         var shot = SafeAssert.OnlyShot(e.Zone);
+        e.Target.Direction = normalize(float2(1, 2));
+        e.Target.TurnRate = 3f;
         var time = e.Zone.Time;
         var entities = e.Zone.Entities.ToList();
         var positions = entities.Select(x => x.Position).ToList();
         var velocities = entities.Select(x => x.Velocity).ToList();
+        var directions = entities.Select(x => x.Direction).ToList();
+        var turnRates = entities.Select(x => x.TurnRate).ToList();
 
         var barrel = shot.FireOrigin + float3(1, .5f, -2);
-        for (var i = 0; i < 25; i++)
-        {
-            var at = shot.FireTime + i * .37f;
-            foreach (ShotResult? known in new ShotResult?[] { null, ShotResult.Miss })
+        var cell = FarCell(e);
+        foreach (var known in new[] { null, Known(shot, ShotResult.Miss), Hit(shot, e.Target, cell, shot.CommitTime) })
+            for (var i = 0; i < 25; i++)
             {
-                FireControl.RoundAt(shot, known, at);
-                FireControl.RoundEnd(shot, known);
-                DrawAhead.Round(shot, known, barrel, .1f, at);
-                DrawAhead.RoundOver(shot, known, at);
+                var at = shot.FireTime + i * .37f;
+                DrawAhead.Round(shot, known, barrel, .1f, at, .01f);
+                DrawAhead.RoundOver(shot, known, at, .01f);
+                DrawAhead.RoundEnd(shot, known?.Result);
+                DrawAhead.Impact(e.Target, cell, .01f * i);
             }
-        }
 
         Assert.Equal(time, e.Zone.Time);
         Assert.True(e.Zone.PendingShots.Count == 1 && e.Zone.PendingShots[0].Equals(shot), "the pending shot changed");
         Assert.True(e.Zone.Entities.SequenceEqual(entities), "the zone's entities changed");
         Assert.True(entities.Select(x => x.Position).SequenceEqual(positions), "an entity moved");
         Assert.True(entities.Select(x => x.Velocity).SequenceEqual(velocities), "an entity's velocity changed");
+        Assert.True(entities.Select(x => x.Direction).SequenceEqual(directions), "an entity turned");
+        Assert.True(entities.Select(x => x.TurnRate).SequenceEqual(turnRates), "an entity's turn rate changed");
     }
 
     // The weapon's Range is frozen with the rest: a round that misses flies on to the range it left with, whatever the stat
@@ -158,7 +188,7 @@ public sealed partial class FireControlCut124Tests
         var e = FireBurstRound(out var origin);
         var shot = SafeAssert.OnlyShot(e.Zone);
         Assert.Equal(NoLockRange, shot.MaxRange, 4);
-        var endBefore = FireControl.RoundEnd(shot, ShotResult.Miss);
+        var endBefore = DrawAhead.RoundEnd(shot, ShotResult.Miss);
 
         // The stat changes after the round left, and the weapon re-reads it.
         ((InstantWeaponData) e.Weapon.WeaponData).Range = Constant(NoLockRange * 5f);
@@ -167,11 +197,11 @@ public sealed partial class FireControlCut124Tests
 
         var after = SafeAssert.OnlyShot(e.Zone);
         Assert.Equal(NoLockRange, after.MaxRange, 4);
-        Assert.Equal(endBefore, FireControl.RoundEnd(after, ShotResult.Miss), 4);
+        Assert.Equal(endBefore, DrawAhead.RoundEnd(after, ShotResult.Miss), 4);
         var aim = normalize(float2(2, 1));
-        var held = FireControl.RoundAt(after, ShotResult.Miss, after.FireTime + 1000f);
+        var held = DrawAhead.Round(after, Known(after, ShotResult.Miss), after.FireOrigin, 0f, after.FireTime + 1000f, 0f);
         Assert.Equal(origin.x + aim.x * NoLockRange, held.x, 3);
-        Assert.Equal(origin.z + aim.y * NoLockRange, held.y, 3);
+        Assert.Equal(origin.z + aim.y * NoLockRange, held.z, 3);
     }
 
     // A direct round at a stationary target `targetRange` ahead (+z) of the shooter, weapon Range `range`, at `speed`;
@@ -198,29 +228,30 @@ public sealed partial class FireControlCut124Tests
             var d = FireDirectRound(speed, 1000f);
             var direct = SafeAssert.OnlyShot(d.Zone);
             Assert.Equal(direct.FireTime + 100f / speed, direct.ArrivalTime, 4);
-            Assert.Equal(direct.FireTime + 100f / speed, FireControl.RoundEnd(direct, null), 4);
-            Assert.Equal(direct.FireTime + 100f / speed, FireControl.RoundEnd(direct, ShotResult.Hit), 4);
-            Assert.Equal(direct.FireTime + 100f / speed, FireControl.RoundEnd(direct, ShotResult.Burst), 4);
-            Assert.Equal(direct.FireTime + 1000f / speed, FireControl.RoundEnd(direct, ShotResult.Miss), 4);
+            Assert.Equal(direct.FireTime + 100f / speed, DrawAhead.RoundEnd(direct, null), 4);
+            Assert.Equal(direct.FireTime + 100f / speed, DrawAhead.RoundEnd(direct, ShotResult.Hit), 4);
+            Assert.Equal(direct.FireTime + 100f / speed, DrawAhead.RoundEnd(direct, ShotResult.Burst), 4);
+            Assert.Equal(direct.FireTime + 1000f / speed, DrawAhead.RoundEnd(direct, ShotResult.Miss), 4);
 
-            foreach (ShotResult? known in new ShotResult?[] { null, ShotResult.Hit, ShotResult.Burst })
-                Assert.False(DrawAhead.RoundOver(direct, known, direct.FireTime + 10000f));
+            Assert.False(DrawAhead.RoundOver(direct, null, direct.FireTime + 10000f, 0f));
+            foreach (var result in new[] { ShotResult.Hit, ShotResult.Burst })
+                Assert.False(DrawAhead.RoundOver(direct, Known(direct, result), direct.FireTime + 10000f, 0f));
             var missEnd = direct.FireTime + 1000f / speed;
-            Assert.False(DrawAhead.RoundOver(direct, ShotResult.Miss, missEnd - .01f));
-            Assert.True(DrawAhead.RoundOver(direct, ShotResult.Miss, missEnd));
+            Assert.False(DrawAhead.RoundOver(direct, Known(direct, ShotResult.Miss), missEnd - .01f, 0f));
+            Assert.True(DrawAhead.RoundOver(direct, Known(direct, ShotResult.Miss), missEnd, 0f));
 
             // A target beyond the weapon's range: a miss never ends short of its own arrival.
             var far = FireDirectRound(speed, 100f, targetRange: 150f);
             var beyond = SafeAssert.OnlyShot(far.Zone);
             Assert.Equal(beyond.FireTime + 150f / speed, beyond.ArrivalTime, 4);
-            Assert.Equal(beyond.FireTime + 150f / speed, FireControl.RoundEnd(beyond, ShotResult.Miss), 4);
+            Assert.Equal(beyond.FireTime + 150f / speed, DrawAhead.RoundEnd(beyond, ShotResult.Miss), 4);
 
             // A round fired at nothing arrives where it left, and a miss flies on to the range.
             var none = FireDirectRound(speed, 100f, atNothing: true);
             var nothing = SafeAssert.OnlyShot(none.Zone);
             Assert.Equal(nothing.FireTime, nothing.ArrivalTime, 4);
-            Assert.Equal(nothing.FireTime, FireControl.RoundEnd(nothing, null), 4);
-            Assert.Equal(nothing.FireTime + 100f / speed, FireControl.RoundEnd(nothing, ShotResult.Miss), 4);
+            Assert.Equal(nothing.FireTime, DrawAhead.RoundEnd(nothing, null), 4);
+            Assert.Equal(nothing.FireTime + 100f / speed, DrawAhead.RoundEnd(nothing, ShotResult.Miss), 4);
 
         }
     }
@@ -239,21 +270,17 @@ public sealed partial class FireControlCut124Tests
 
         foreach (var lead in new[] { 0f, step / 2f, .999f * step })
         {
-            var time = shot.ArrivalTime + lead;
-            foreach (ShotResult? known in new ShotResult?[] { null, ShotResult.Hit, ShotResult.Burst })
-            {
-                var drawn = DrawAhead.Round(shot, known, shot.FireOrigin, 0f, time);
-                Assert.Equal(origin.x, drawn.x, 3);
-                Assert.Equal(origin.z + 100f, drawn.z, 3);
-            }
-            var missed = DrawAhead.Round(shot, ShotResult.Miss, shot.FireOrigin, 0f, time);
+            var waiting = DrawAhead.Round(shot, null, shot.FireOrigin, 0f, shot.ArrivalTime, lead);
+            Assert.Equal(origin.x, waiting.x, 3);
+            Assert.Equal(origin.z + 100f, waiting.z, 3);
+            var missed = DrawAhead.Round(shot, Known(shot, ShotResult.Miss), shot.FireOrigin, 0f, shot.ArrivalTime, lead);
             Assert.Equal(origin.x, missed.x, 3);
             Assert.Equal(origin.z + 100f + lead * speed, missed.z, 3);
         }
 
         for (var time = shot.FireTime; time <= shot.ArrivalTime + 1f; time += 1f / 144f)
         {
-            var drawn = DrawAhead.Round(shot, null, shot.FireOrigin, 0f, time);
+            var drawn = DrawAhead.Round(shot, null, shot.FireOrigin, 0f, time, 0f);
             Assert.True(drawn.z - origin.z <= 100f + 1e-3f, "the round was drawn past its arrival point");
         }
     }
@@ -289,7 +316,7 @@ public sealed partial class FireControlCut124Tests
         Assert.Equal(fired.FireTime + 1.05f, record.ArrivalTime, 2);
         Assert.True(record.ArrivalTime < fired.ArrivalTime);
 
-        var stop = DrawAhead.RoundStop(record, outcome, record.FireOrigin, 0f);
+        var stop = DrawAhead.Round(record, outcome, record.FireOrigin, 0f, record.ArrivalTime, 0f);
         var expected = outcome.HasBurstPoint
             ? outcome.BurstPoint
             : record.FireOrigin.xz + record.TravelDirection * (20f * (record.ArrivalTime - record.FireTime));
@@ -297,7 +324,7 @@ public sealed partial class FireControlCut124Tests
         Assert.Equal(expected.y, stop.z, 3);
         foreach (var later in new[] { 0f, .5f, 5f })
         {
-            var drawn = DrawAhead.Round(record, ShotResult.Burst, record.FireOrigin, 0f, record.ArrivalTime + later);
+            var drawn = DrawAhead.Round(record, outcome, record.FireOrigin, 0f, record.ArrivalTime + later, 0f);
             Assert.Equal(expected.x, drawn.x, 3);
             Assert.Equal(expected.y, drawn.z, 3);
         }
@@ -324,11 +351,11 @@ public sealed partial class FireControlCut124Tests
             Assert.Equal(want.z, got.z, 3);
         }
 
-        Close(barrel, DrawAhead.Round(shot, null, barrel, blend, shot.FireTime));
-        Close(Line(blend / 2f) + offset * .5f, DrawAhead.Round(shot, null, barrel, blend, shot.FireTime + blend / 2f));
-        Close(Line(blend), DrawAhead.Round(shot, null, barrel, blend, shot.FireTime + blend));
-        Close(Line(2f * blend), DrawAhead.Round(shot, null, barrel, blend, shot.FireTime + 2f * blend));
-        Close(Line(0f), DrawAhead.Round(shot, null, barrel, 0f, shot.FireTime));
+        Close(barrel, DrawAhead.Round(shot, null, barrel, blend, shot.FireTime, 0f));
+        Close(Line(blend / 2f) + offset * .5f, DrawAhead.Round(shot, null, barrel, blend, shot.FireTime + blend / 2f, 0f));
+        Close(Line(blend), DrawAhead.Round(shot, null, barrel, blend, shot.FireTime + blend, 0f));
+        Close(Line(2f * blend), DrawAhead.Round(shot, null, barrel, blend, shot.FireTime + 2f * blend, 0f));
+        Close(Line(0f), DrawAhead.Round(shot, null, barrel, 0f, shot.FireTime, 0f));
     }
 
     // Placement depends on sim time alone: any history of frames walked to a checkpoint draws what a fresh call draws, which
@@ -342,6 +369,7 @@ public sealed partial class FireControlCut124Tests
         var shot = SafeAssert.OnlyShot(e.Zone);
         var checkpoints = new[] { .05f, .3f, 1f, 3f };
         var histories = new[] { new[] { 1f / 144f }, new[] { 1f / 30f }, new[] { 1f / 144f, 1f / 30f, 1f / 90f } };
+        var miss = Known(shot, ShotResult.Miss);
 
         foreach (var frames in histories)
         {
@@ -352,10 +380,18 @@ public sealed partial class FireControlCut124Tests
                 while (elapsed + 1e-4f < checkpoint)
                 {
                     elapsed = min(checkpoint, elapsed + frames[frame++ % frames.Length]);
-                    DrawAhead.Round(shot, ShotResult.Miss, shot.FireOrigin, .1f, shot.FireTime + elapsed);
+                    DrawAhead.Round(shot, miss, shot.FireOrigin, .1f, shot.FireTime + elapsed, 0f);
                 }
-                var drawn = DrawAhead.Round(shot, ShotResult.Miss, shot.FireOrigin, .1f, shot.FireTime + checkpoint);
-                var fresh = DrawAhead.Round(shot, ShotResult.Miss, shot.FireOrigin, .1f, shot.FireTime + checkpoint);
+                var drawn = DrawAhead.Round(shot, miss, shot.FireOrigin, .1f, shot.FireTime + checkpoint, 0f);
+                var fresh = DrawAhead.Round(shot, miss, shot.FireOrigin, .1f, shot.FireTime + checkpoint, 0f);
+                // A frame that falls `lead` after the step draws what the sim time lead later would.
+                foreach (var lead in new[] { 1f / 60f, 1f / 90f })
+                {
+                    var ahead = DrawAhead.Round(shot, miss, shot.FireOrigin, .1f, shot.FireTime + checkpoint - lead, lead);
+                    Assert.Equal(fresh.x, ahead.x, 3);
+                    Assert.Equal(fresh.y, ahead.y, 3);
+                    Assert.Equal(fresh.z, ahead.z, 3);
+                }
                 Assert.Equal(fresh.z, drawn.z, 3);
                 Assert.Equal(shot.FireOrigin.z + speed * min(checkpoint, 1000f / speed), drawn.z, 3);
                 Assert.Equal(shot.FireOrigin.x, drawn.x, 3);
@@ -364,31 +400,118 @@ public sealed partial class FireControlCut124Tests
         }
     }
 
-    // Today's sim geometry (a target crossing at 10 against a speed of 20, so an intercept exists): the round flies the line frozen at Fire and stops at the arrival point on it, whatever the
-    // target does afterwards. (Where a leading round's arrival should lie is the sim's question, never Projectile's.)
-    [Fact]
-    public void AHitOnAMovingTargetStopsOnItsFrozenLine()
+    // A hit ends at its impact cell on the target's drawn pose when damage lands, not at the arrival point of the line
+    // frozen at Fire (ruling direct-arrival-keep-timing): the target has moved and turned since, and is drawn ahead by its
+    // last step's velocity and turn. The expected point is computed apart from DrawAhead, by moving the entity itself and
+    // asking its own schematic frame (Entity.ToWorldPoint) where the cell is.
+    [Theory]
+    [InlineData(20f)]
+    [InlineData(200f)]
+    public void AHitEndsAtItsImpactCellOnTheTargetsDrawnPose(float speed)
     {
-        var e = Build(TestSettings(), SolidShape(5, 4), velocity: BallisticSpeed, weaponRange: 1000f);
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: speed, weaponRange: 1000f);
         e.Target.Velocity = float2(10, 0);
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
         var shot = SafeAssert.OnlyShot(e.Zone);
         Assert.True(shot.TravelDirection.x > 0f, "the round did not lead the target");
+        const float step = 1f / 30f;
 
         e.Target.Position += float3(40, 0, 0);
-        var stop = DrawAhead.RoundStop(shot, new ShotOutcome { ShotId = shot.ShotId, Result = ShotResult.Hit }, shot.FireOrigin, 0f);
-        var line = shot.FireOrigin.xz + shot.TravelDirection * (BallisticSpeed * (shot.ArrivalTime - shot.FireTime));
-        Assert.Equal(line.x, stop.x, 3);
-        Assert.Equal(shot.FireOrigin.y, stop.y, 3);
-        Assert.Equal(line.y, stop.z, 3);
+        e.Target.Direction = normalize(float2(1, 2));
+        e.Target.TurnRate = 3f;
+        var cell = FarCell(e);
+        var hit = Hit(shot, e.Target, cell, shot.CommitTime);
+        var arrivalOnTheLine = DrawAhead.Round(shot, null, shot.FireOrigin, 0f, shot.ArrivalTime, 0f);
+        var cellSize = e.Items.GameplaySettings.SchematicCellSize;
+
+        foreach (var lead in new[] { 0f, step / 2f, .999f * step })
+        {
+            var position = e.Target.Position;
+            var direction = e.Target.Direction;
+            e.Target.Position += float3(e.Target.Velocity.x, 0, e.Target.Velocity.y) * lead;
+            e.Target.Direction = mul(e.Target.Direction, float2x2.Rotate(e.Target.TurnRate * lead));
+            var cellPoint = e.Target.ToWorldPoint((float2) cell);
+            var expected = float3(cellPoint.x, e.Target.Position.y, cellPoint.y);
+            e.Target.Position = position;
+            e.Target.Direction = direction;
+
+            Assert.True(length((expected - arrivalOnTheLine).xz) > cellSize, "the fixture put the cell on the frozen line's arrival point");
+            var impact = DrawAhead.Impact(e.Target, cell, lead);
+            Assert.Equal(expected.x, impact.x, 3);
+            Assert.Equal(expected.y, impact.y, 3);
+            Assert.Equal(expected.z, impact.z, 3);
+            foreach (var simTime in new[] { shot.ArrivalTime, shot.ArrivalTime + .5f })
+            {
+                var drawn = DrawAhead.Round(shot, hit, shot.FireOrigin, .1f, simTime, lead);
+                Assert.Equal(expected.x, drawn.x, 3);
+                Assert.Equal(expected.y, drawn.y, 3);
+                Assert.Equal(expected.z, drawn.z, 3);
+            }
+        }
+    }
+
+    // A hit leaves its frozen line at the commit tick and steers onto its end by the time damage lands: before the commit it
+    // is on the line, half way through the steer it is half way to the impact cell, and a frame drawn ahead by the clock's
+    // lead places the round where the sim time that much later would.
+    [Fact]
+    public void ASteeredRoundLeavesItsLineAtTheCommit()
+    {
+        var e = FireDirectRound(20f, 1000f);
+        var shot = SafeAssert.OnlyShot(e.Zone);
+        Assert.Equal(shot.FireTime + 5f, shot.ArrivalTime, 3);
+        var cell = FarCell(e);
+        var commit = shot.ArrivalTime - 2f;
+        var hit = Hit(shot, e.Target, cell, commit);
+
+        foreach (var t in new[] { commit - 1f, commit })
+        {
+            var steered = DrawAhead.Round(shot, hit, shot.FireOrigin, 0f, t, 0f);
+            var line = DrawAhead.Round(shot, null, shot.FireOrigin, 0f, t, 0f);
+            Assert.Equal(line.x, steered.x, 3);
+            Assert.Equal(line.y, steered.y, 3);
+            Assert.Equal(line.z, steered.z, 3);
+        }
+
+        var m = commit + 1f;
+        var onTheLine = DrawAhead.Round(shot, null, shot.FireOrigin, 0f, m, 0f);
+        var end = DrawAhead.Impact(e.Target, cell, 0f);
+        Assert.True(length((end - onTheLine).xz) > 1f, "the fixture put the impact cell on the line");
+        var halfway = DrawAhead.Round(shot, hit, shot.FireOrigin, 0f, m, 0f);
+        Assert.Equal(onTheLine.x + (end.x - onTheLine.x) * .5f, halfway.x, 3);
+        Assert.Equal(onTheLine.y + (end.y - onTheLine.y) * .5f, halfway.y, 3);
+        Assert.Equal(onTheLine.z + (end.z - onTheLine.z) * .5f, halfway.z, 3);
+
+        var ahead = DrawAhead.Round(shot, hit, shot.FireOrigin, 0f, m - .02f, .02f);
+        Assert.Equal(halfway.x, ahead.x, 3);
+        Assert.Equal(halfway.y, ahead.y, 3);
+        Assert.Equal(halfway.z, ahead.z, 3);
+    }
+
+    // The sim states facts and draws nothing: no drawing function, and no lead, blend or barrel, lives in FireControl;
+    // those belong to DrawAhead, the presentation statics.
+    [Fact]
+    public void FireControlHasNoDrawingFunctions()
+    {
+        const BindingFlags all = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance | BindingFlags.DeclaredOnly;
+        var methods = typeof(FireControl).GetMethods(all).Cast<MethodBase>().Concat(typeof(FireControl).GetConstructors(all)).ToList();
+        Assert.NotEmpty(methods);
+        foreach (var method in methods)
+        {
+            Assert.False(method.Name.StartsWith("Round") || method.Name.StartsWith("Draw"), "FireControl has a drawing function: " + method.Name);
+            foreach (var parameter in method.GetParameters())
+                Assert.False(new[] { "lead", "blendTime", "barrel" }.Contains(parameter.Name), "FireControl takes a drawing parameter: " + parameter.Name);
+        }
+
+        foreach (var name in new[] { "Round", "Impact", "RoundOver", "RoundEnd" })
+            Assert.NotNull(typeof(DrawAhead).GetMethod(name, BindingFlags.Public | BindingFlags.Static));
     }
 
     // A proximity round at a target that recedes faster than the round closes bursts at the weapon's range, pulled back
     // along its line, while it arrives when it has flown the distance the target was fired at: its burst point is not
-    // the line at its arrival. The stop is the sim's burst point, so a presenter that stopped at the arrival line would
+    // the line at its arrival. The end is the sim's burst point, so a presenter that ended at the arrival line would
     // end the tracer short of where the round burst.
     [Fact]
-    public void ABurstRoundStopsAtItsBurstPointNotItsArrivalLine()
+    public void ABurstRoundEndsAtItsBurstPointNotItsArrivalLine()
     {
         var e = Build(TestSettings(), SolidShape(5, 4), velocity: BallisticSpeed, fuse: WeaponFuse.Proximity, blastRadius: 4f,
             damage: 100f, weaponRange: NoLockRange, targetRange: 50f);
@@ -404,8 +527,8 @@ public sealed partial class FireControlCut124Tests
 
         Assert.Equal(origin.x, outcome.BurstPoint.x, 3);
         Assert.Equal(origin.z + NoLockRange, outcome.BurstPoint.y, 3);
-        Assert.Equal(origin.z + 50f, FireControl.RoundAt(record, outcome.Result, record.ArrivalTime).y, 3);
-        var stop = DrawAhead.RoundStop(record, outcome, record.FireOrigin, 0f);
+        Assert.Equal(origin.z + 50f, DrawAhead.Round(record, null, record.FireOrigin, 0f, record.ArrivalTime, 0f).z, 3);
+        var stop = DrawAhead.Round(record, outcome, record.FireOrigin, 0f, record.ArrivalTime, 0f);
         Assert.Equal(outcome.BurstPoint.x, stop.x, 3);
         Assert.Equal(outcome.BurstPoint.y, stop.z, 3);
     }
