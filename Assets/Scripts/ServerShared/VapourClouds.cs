@@ -16,8 +16,9 @@ public sealed class VapourCloud
     public float Opacity;
     public Entity Venter;
 
+    // A cloud with no lifetime divides by zero; saturate maps the NaN and the infinity to nothing left.
     public float OpacityAt(double now) =>
-        Lifetime <= 0f ? 0f : saturate(Opacity) * saturate(1f - (float) (now - VentedAt) / Lifetime);
+        saturate(Opacity) * saturate(1f - (float) (now - VentedAt) / Lifetime);
 
     // Whether the segment a-b reaches the disc: the closest point of the segment to the centre lies within the
     // radius. A cloud past either end of the segment touches it only if it is near that end.
