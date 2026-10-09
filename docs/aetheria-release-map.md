@@ -7073,6 +7073,66 @@ That file's Cut 4 (AI heading planner) and Cut 5 (combat facing) are carried as 
   allocator's input and rewrites throttle-lock's two mixer-shaped tests in allocator terms. One owner of
   `Ship.Update`'s thruster block at every step.
 
+### Revision: translation error costs linearly (core r2)
+
+Pass: Imagination, session `self-2026-10-09-morning`, after Hands stopped on `cut-thrust-allocator-core.r1`
+(question `allocator-translation-cost-l2-has-no-onset`, ruling `allocator-l1-translation-cost`, operator
+ruling `turn-authority-full`). Probes ran the real `CultMath.BoundedLeastSquares` (CultLib `614fd445`, the
+pinned 0.3.0) in a scratch console on Yggdrasil, logs `l1probe1.log` to `l1probe3.log` in the session
+scratchpad (`imag-allocator-r2`). Column sets: TA3 (Duel Longinus); TA3 with the clockwise Talaria zeroed;
+a symmetric Djinni-like hull (mains (0,50,+-20), fore laterals (+-20,0,+-80), aft laterals (+-20,0,-+60),
+bow (0,-30,0)); drives 0.3% apart for the tiny-imbalance hold.
+
+- **TA10. A squared translation cost has no onset** (Hands' probe, confirmed): r1's TA-R2 mixes the
+  drive into a turn from Turn 0 for any weights, so it cannot meet `turn-authority-full`.
+- **TA11. The split form works only when the solver resolves it.** Variables: throttles and four error
+  variables e+x, e-x, e+y, e-y in [0,2]; rows H*(B_r u / s_r - e+ + e-) = H d_r / s_r, the yaw row
+  Wy * B_z u / s_z = Wy d_z / s_z, a cost row w*e = -w*kappa per error variable (linear slope
+  L = 2 w^2 kappa, quadratic part at most e/(2 kappa) of it), a ridge row rho*u per throttle.
+  At the solver's fixed KKT tolerance (1e-6 of the gradient at the origin) every one of 84 settings in two
+  grids failed somewhere: Hands' (H 300, Wy 1, w .01, kappa 2, rho .01) and the first choice (H 100, Wy 10,
+  w .01, kappa 10, rho 1e-3) gave all-zero throttles for move (0,1) and for a strafe, because the cost
+  signal L is below the tolerance against the H^2 and Wy^2 terms; larger L settings served translation
+  but gave throttles that depended on the warm start by up to 0.62 (ties the ridge cannot resolve below
+  the tolerance). The chain the form needs, tolerance << rho^2 << L << H^2, Wy^2, with L/H^2 about 1e-4
+  for a sharp onset and L/Wy^2 about 1e-6 for the hold, spans more than the 1e6 that tolerance leaves.
+- **TA12. With the tolerance at 1e-12 everything holds** (`l1probe3.log`, same grid, scratch change of
+  the constant): warm-start difference 0 in every setting, IterationLimit never reached, at most 10
+  iterations. Chosen H 100, Wy 1000, w .3, kappa 10, rho .1:
+
+  | Check | Result |
+  |---|---|
+  | Duel onset, clockwise / counter-clockwise | .772 / .691 (columns: 166.26/215.50 = .7715, 124.63/180.49 = .6905) |
+  | Duel, clockwise Talaria lost | drive from Turn > 0, Turn .1 gives drive .0999; Turn 1 gives 49.23 deg/s |
+  | Symmetric hull | no translation up to Turn .88 (pure-torque pairs, then mains cancelled by the bow); strafe .95 of the extreme |
+  | Hold, forward, yaw rate (deg/s) | intact -.0003, strong drive off .0003, weak drive off -.0002, drives .3% apart .0003 |
+  | Forward served, move (0,1) | 1.000 of the forward extreme |
+  | Largest throttle step per .001 of Turn over [-1,1] | .0133 (the steepest column ratio; Duel's drive slope is .0044) |
+  | Largest yaw residual in the sweeps | .0006 deg/s |
+  | cond(A), estimated from A^T A | 1.0e4; the solver documents exact results through 3e5 |
+
+  Neighbouring settings fail one check each: H 30 leaks the drive at Turn .001; w 1 or 3 leaks it at
+  .0014 throttle before the onset (L/H^2 too large); rho .03 makes throttles jump up to .12 per .001 of
+  Turn (near-ties resolved too steeply); Wy 300 lets the hold drift .003 deg/s.
+- **TA13. The Duel Longinus does not strafe.** Under the linear cost a starboard strafe would need the
+  counter-turning drive at full to hold heading, which costs more forward error than the strafe gains,
+  so move (1,0) gives no throttle. Today's mixer gives none either (TA4). The symmetric hull strafes.
+
+Rationale changes:
+
+- **The solve keeps one call; the tolerance is the solver owner's to expose.** CultMath's
+  `BoundedLeastSquares.Solve` gets an optional relative KKT tolerance (default unchanged, 1e-6), filled in
+  CultLib, never worked around in Aetheria; the allocator passes 1e-12 and relies on the solver's
+  progress rule to stop at its noise floor. Follow-up `cultmath-bls-kkt-tolerance` carries it; Aetheria
+  takes it by a pin bump in the core cut's first commit.
+- **The onset is an ordering, not a label.** Under a linear cost the actuator with the least normalised
+  translation per unit of turn serves first and the next joins only when it saturates; on the Duel that
+  is the Talaria, so the onset is the Talaria's share of the turn extreme and moves with the columns
+  (damage, heat, brownout). Nothing classifies a thruster as attitude or drive.
+- The bullets "One solve with a large yaw weight" and "The ridge" above describe r1 and are superseded
+  by this revision: the yaw weight is 1000 against a ridge of .1, and uniqueness of the answer depends on
+  the tolerance as well as the ridge.
+
 ## Spec refresh 2026-10-09: scarce consumables, the fog bank, multiply, tiered boosters, the shipped AetherDb
 
 Pass: Imagination `imagination-spec-refresh`, session `self-2026-10-09-morning`, follow-up
