@@ -7328,3 +7328,191 @@ vapour-cloud-presenter r2, modifier-stacking r3 (shrunk to tests), consumables-f
 follow-up; reshaped by `consumables-scarce`), boost-gear-systems r2 and boost-gear-combat r2 (held),
 ships-authoring-tool r2, ships-player r3. New: cut player-build r1, follow-up
 `component-records-after-demo`. No question raised.
+
+## Articulated mounts
+
+Mapped 2026-10-09 by Imagination (`imagination-aeth-articulated`, session `self-2026-10-09-ag`) for follow-up
+`articulated-mounts`, against `origin/master` `6d83597b`. Rulings: `arc-and-traverse-on-the-link`,
+`rig-is-presentation`, `sim-hooks-presentation-agnostic`, `projectile-flight-is-presentation`,
+`ship-roles-are-tags`, `thrusters-radiators-are-meshes`; follow-up `articulated-mount-traverse-min`.
+Anchors are exact at `6d83597b`.
+
+**Scope tension for Self.** Target r4's `not_in_scope` lists "articulated mounts". The operator asked for this work
+now (her hermit-crab hull carries its big gun on a jointed arm). The cuts are admitted; the target needs a revision
+that takes articulated mounts out of `not_in_scope` before Hands is briefed.
+
+### Body facts
+
+**AM1. Arc is per hardpoint today, not per weapon.** `FireControl.ArcFor` (`FireControl.cs:36-41`) reads
+`HardpointData.FiringArc` (`ItemData.cs:567-569`, key 6) when above zero, else `GameplaySettings.FiringArc`
+(`Settings.cs:222`, initializer 120). `InArc` (`:50-58`) passes 360 or more unconditionally. The only shipped writer
+was `AetherDb firing-arc-migrate` (`tools/AetherDb/Program.cs:998-1047`), which set 360 on the Turret hull's
+Ballistic hardpoints. Twenty-three hardpoint initializers author `FiringArc`, all in tests (`git grep -nE
+"[{,] *FiringArc = |^ +FiringArc = "` over tests, Assets/Scripts and tools: 23), and eight accessors read or write
+it (`hardpoint\??\.FiringArc|Mount\(s\)\.FiringArc|Hardpoints\[0\]\.FiringArc`: 8). The brief's "per weapon,
+default 120, turret 360" is this per-hardpoint rule.
+
+**AM2. Traverse is not simulated; it only prices.** `Solution` (`FireControl.cs:128-152`) says turrets traverse
+instantly in the simulation and that link traverse "will make this stateful behind the same signature".
+`TrackingRate` (`:238-245`) is the gun's `Weapon.Tracking` times the ship's targeting gear over `UnaidedTracking`,
++infinity for an unauthored gun, and only `PMount` reads it (`:383`, `:427`, `:720`). Follow-up
+`articulated-mount-traverse-min` puts the link's traverse inside `TrackingRate` as the slower of the two. These cuts
+add no slew state: arc and aim stay derived on every read.
+
+**AM3. The visual record reserves a pivot role nobody uses.** `ShipAuthoringStore.Roles` (`ShipAuthoring.cs:50-58`)
+includes `articulation`, "a pivot, never a mount". No add-on code tags it, and `ShipModShips.Assemble` gives every
+mod ship `ArticulationPoints = Array.Empty<ArticulationPoint>()` (`ShipModShips.cs:164`). The authoring doc says no
+pivot is planned "until pivots move onto `HullData`" (`docs/moddable-ship-authoring.md:188-189`).
+
+**AM4. `ArticulationPoint` is one yaw/pitch pivot with no yaw clamp.** `ArticulationPoint.cs:9-48` slews yaw and
+pitch toward `Target` at `Speed` and clamps only pitch. `ShipPrefabAuthoring.cs:139-149` parses
+`Pivot.Group.YawMin.YawMax.PitchMin.PitchMax.Speed` but stores no yaw limit, so the Controls section's C9 line
+("clamps yaw to YawMin..YawMax") is wrong on this base. A single pivot needs no IK. `EntityInstance.cs:282-289`
+gives each articulation group an aim transform, and `LateUpdate` places it (`:410-417`) from
+`FireControl.Solution(...).Direction` of the group's first weapon. A link presenter follows that read. The Eyes IK
+report (AM11) found the same two facts.
+
+**AM5. The GLB path maps every node that carries `aetheria.id`.** `ShipModCatalog.ReadNodeIds`
+(`ShipModCatalog.cs:195-218`) reads node extras, refuses a duplicate id and records whether the node has a mesh; it
+keeps no parent relation. `Bind` (`:168-191`) checks each anchor's node. `ShipModVisual.LoadAsync` maps anchors to
+Transforms through glTFast's instantiator (`ShipModVisual.cs:51-54`). A joint is an ordinary glTF node, so the same
+map reaches it once it carries an id.
+
+**AM6. Probe: the add-on's export keeps an armature, its skin and data-bone extras.** Run on Starfire 2026-10-09
+with Blender 5.2.2 LTS at `C:\Program Files (x86)\Steam\steamapps\common\Blender\blender.exe`
+(`--background --factory-startup`). Script `probe_rig_export.py` in the session scratchpad
+(`...\scratchpad\imagination-aeth-articulated\`). It builds a collection with a hull cube; an armature
+Shoulder > Elbow > Wrist; a cylinder skinned to Wrist through an Armature modifier; an empty `weapon-mount`
+parented to the Wrist bone (`parent_type = BONE`) with a muzzle child; a Limit Rotation constraint on Elbow; and
+custom properties on the Wrist data bone (`aetheria.role=link`, `aetheria.id=link.claw`) and on the Wrist pose bone.
+It exports with the add-on's options (`__init__.py:359-361`: GLB, `use_active_collection`, `use_selection`,
+`export_extras`, `export_yup`, `export_apply`). Result:
+- One skin with joints `Shoulder, Elbow, Wrist`; the barrel node has `skin: 0` and a mesh. `export_apply` did not
+  bake the armature away.
+- Joints are ordinary nodes in the hierarchy (`Arm > Shoulder > Elbow > Wrist > ClawGun > ClawGun.Muzzle`): the
+  bone-parented empty is a child of the Wrist joint node and keeps its extras.
+- Data-bone custom properties export as the joint node's `extras` (`Wrist` carried `aetheria.role` and
+  `aetheria.id`). The pose-bone property did **not** export. A tag set by hand in Pose Mode's custom-properties
+  panel is lost; the add-on must write data-bone properties.
+- The Limit Rotation constraint left no trace in the GLB (no extension, no extras). glTF carries no joint limits,
+  so the add-on must package them.
+- The armature object's own custom property exported as extras on the `Arm` node.
+
+**AM7. The ship file carries unknown slots through.** `ship_cc.replace_layout` (`ship_cc.py:161-195`) and
+`replace_visual` (`:116-140`) append each row's slots past the known members by mount or anchor id, and edit only
+their own slots. `ShipSchemaPinTests` pins the Python slot numbers and member orders to the C# keys and asserts
+`HARDPOINT_MEMBERS` has 7 names. A C# cut that adds `HardpointData` key 7 or `HullData` key 33 therefore needs no
+Python change: the add-on carries both untouched until the add-on cut names them.
+
+**AM8. The schema version string is not a gate.** CultCache resolves a persisted record by schema name when the
+local type has one version (CultLib `src/GameCult.Caching/CultCache.cs:518-523`). `aetheria.hulldata` and
+`aetheria.ship_authoring` are both `"1"` (`ItemData.cs:510`, `ShipAuthoring.cs:12`). Bumping either buys no
+refusal. A retired slot is guarded by a raw-payload refusal instead, as `RefuseLegacyEmbeddedHull`
+(`ShipAuthoring.cs:124-151`) guards ShipAuthoring key 1. Every cut here keeps both versions at `"1"`.
+
+**AM9. Calibre is a footprint band, held only in a test so far.** `WeaponItemData.WeaponCaliber`
+(`ItemData.cs:482-483`) runs Small to ExtraLarge (`Enums.cs:77-83`). Cut `caliber-bands` (unlanded) states the bands
+(Small 1-2 cells, Medium 3-4, Large 5-6, ExtraLarge 7-9) only inside its test. No balance source names an arc cap
+per calibre: AetheriaLore `Game Design/Ship Play Concepts.md` fork 2 (line 24, read in the ship-language
+worktree) gives the trade without numbers.
+
+**AM10. In-flight add-on specs that touch arcs.** Among in-force specs with no report, only `ships-addon-gizmos` r3
+(arc fan from the row's arc) and `ships-addon-mounts` r5 (row defaults include `FiringArc`; a negative grep on
+`.firing_arc =`) name a hardpoint arc. `controls-hud` r2, `controls-ai-bearing` r1 and `munition-shots` r5 read
+`ArcFor` or `TrackingRate`, whose signatures these cuts keep.
+
+**AM11. Eyes prior art on IK** (`C:\Users\Meta\AppData\Local\Temp\claude\F--Projects-CultLib\f24b705c-99b0-4915-8cd0-d31d652edbbf\scratchpad\eyes-ik-prior-art\ik-prior-art.md`).
+Damped least squares, min `||[J; lambda I] dtheta - [e; 0]||^2` with the joint bounds as the box, has exactly the
+form of CultMath's existing `BoundedLeastSquares`. Every engine Eyes checked (Unity Animation Rigging, Godot 4.6,
+Unreal Control Rig) keeps IK in the animation layer; none was found in a math library. Aim-an-axis leaves twist
+about the aim free, so a chain aims with two effective degrees of freedom.
+
+### Model page
+
+| Kind | Identity | Lifecycle | Authority |
+|---|---|---|---|
+| Link (`LinkData` in `HullData.Links`, key 33) | `Id`: the `aetheria.id` that Tag Link writes on the data bone or object (ruling `ship-roles-are-tags`). Renaming never changes it. For a shipped hull, the id the migration writes. | Edited in Blender's layout buffer and written by Save or Package. A package edited after a save changes the arc or traverse a run's guns use on Continue. No save names a link, because the sim holds no slew state (AM2). If a link is removed while a hardpoint names it, the judge fails the package, compose excludes it, and Continue refuses the run, naming the missing design (`RunSave.RequireDesigns`). It adds nothing to `mod-hull-changed-under-run`, because a link change moves no cell. | The author, through the add-on, for arc and traverse. `HullLinks.Validate` judges it. `FireControl` reads it, only through `ArcFor` and `TrackingRate`. |
+| Hardpoint on a link (`HardpointData.Link`, key 7) | The hardpoint's mount id (`Transform`) plus the link id. Empty means a fixed mount: the default arc and the gun's own traverse. | Derived at Package from the mount object's ancestry (the nearest ancestor tagged link, through a bone parent), as mounted `Position` is derived from the object. A mount re-parented in Blender changes link at the next Package. For `ambiguous-hardpoint-origin`, a link is one more way two hardpoints at one origin differ (arc, as rotation already does), so it neither fixes nor worsens that defect. The fix there is to save the hardpoint's identity: C4's element id on `HardpointData`. | The mount's place in the Blender hierarchy; Package derives it. The panel and Studio show it read-only for a mounted row. The judge refuses a name that is not a link of the hull. |
+| Rig chain (`ShipJoint` in `ShipAuthoring.Joints`, key 5, and the `link` anchors) | Each joint's `Id` is its bone's `aetheria.id`, assigned once by Package (`joint.<n>`) and kept on the data bone. A link anchor's id is its link's id. | Re-rigging changes only the visual record, and every Package and compose judges it again. No save, sim fact or catalog record names a joint. The Unity rig components are cache-only and rebuilt each boot with the prototype. | The author's Blender bone IK settings (lock, limit, min, max), copied by Package. The judge checks the tree and that the yaw reach covers the link's arc. Unity reads and drives it. No joint feeds a sim fact (ruling `rig-is-presentation`). |
+
+**C4 (follow-up `c4-ship-element-ids`).** Links are a fourth element kind for variants: `LinkData` rows keyed by
+`Id`, as hardpoints are keyed by `Transform`. A heavy variant that narrows a link's arc is a tail-slot patch by link
+id. `ship_cc` carries link rows' unknown slots by id, as it does for hardpoints and anchors; `ships-addon-links`
+lands that.
+
+### Authority map
+
+- **Owner.** `LinkData`, authored per hull, owns arc width and traverse speed. The Blender hierarchy owns whether a
+  hardpoint is on a link, derived into `HardpointData.Link` at Package. The Blender bone IK settings own the joint
+  limits, packaged into `ShipAuthoring.Joints`.
+- **Sim inputs.** `HullData.Links` and `HardpointData.Link`, nothing else.
+- **Outputs.** `ArcFor`, `InArc`, `AimDirection` and `TrackingRate`, signatures unchanged. Presentation reads
+  `GunSolution.Direction` of a link's lead weapon and the link's traverse.
+- **Derived.** `HardpointData.Link`, from the hierarchy. A fixed mount's arc, which is `GameplaySettings.FiringArc`.
+  An object link's joint (one yaw degree of freedom, plus or minus half the arc), at Package. The Unity link rigs
+  (cache-only).
+- **Demoted, then cut.** `HardpointData.FiringArc` is no longer an owner; the link is. `links-record` refuses a
+  hardpoint that names a link while its `FiringArc` is set. `links-arc` stops reading it and refuses it on packages.
+  `retire-firing-arc` deletes it and retires key 6. `link-rig-record` replaces the `articulation` role with `link`.
+- **Forbidden writers.** No joint limit, bone length, IK result or Unity transform feeds `ArcFor` or
+  `TrackingRate`. No panel or Studio edit writes a mounted row's `Link`. No helper invents an arc or a traverse.
+
+### Rationale
+
+**Links are flat in `HullData`; chains live in the visual record.** The sim reads only the link a hardpoint names
+(ruling `rig-is-presentation`). A turret on a turret is a chain of joints, and a chain is presentation, so `LinkData`
+has no parent: its arc is the whole coverage the author grants that part. Parenting lives in `ShipJoint.Parent`. A
+link's chain runs from its joint up to the nearest ancestor that is a link, or to the root, and parent links solve
+first.
+
+**One facing per link.** Weapon hardpoints on one link must share a `Rotation`. `MountDirection` stays derived from
+the item's rotation (`FireControl.cs:28-33`), the link needs no facing field, and the presenter's lead weapon aims
+for every gun on the part.
+
+**Why `FiringArc` is retired rather than kept for fixed mounts.** Two places that state an arc are two owners. A
+fixed mount is the degenerate case: no link, the default arc, the gun's own traverse. Any other arc is a link,
+including the shipped Turret hull's, which migrates to one link with arc 360 and traverse +infinity, so its behaviour
+is unchanged. The subtraction is its own cut and lands after the add-on cuts that edit the same panel, so no open
+cut's hunks are stranded.
+
+**Traverse +infinity means no mechanical limit.** It matches `Weapon.Tracking`'s convention ("an unauthored gun is
++infinity", `FireControl.cs:238-245`), so `min` needs no special case. The add-on shows it as a Free traverse
+toggle; zero and NaN are refused.
+
+**Joint limits come from Blender's bone IK settings, not from Limit Rotation constraints.** Blender's own IK solver
+honours `lock_ik_*`, `use_ik_limit_*` and `ik_min_*`/`ik_max_*`, so an author previewing with an IK constraint sees
+the limits the game uses. The semantics follow Blender's: an axis is free unless locked or limited. Package writes
+each degree of freedom as a unit axis in Ship Root space at rest, converted to glTF axes, with a min and max in
+degrees. This keeps the record independent of the exporter's bone-axis correction, which this map did not verify.
+
+**The reach check is yaw only, and conservative.** The sim is planar. A link's chain covers its arc when the summed
+ranges of the chain's degrees of freedom whose axis lies within 5 degrees of Ship Root up reach the arc (an arc of
+360 needs a summed 360). Serial joints about parallel axes add, so the sum is exact for the arms the add-on makes. A
+chain whose yaw comes only from tilted axes is refused with a message naming the link. That is the price of a check
+the judge can state in one line.
+
+**The solver is behind a port.** Aetheria's presenter needs only this: a chain (joints root-first, their rest
+offsets, their degrees of freedom with limits), an effector (the muzzle offset and its local aim axis), the current
+angles and a target direction; it gets back new angles. `link-rig-presenter` codes against that port. Question
+`solver-owner` decides who implements it.
+
+**Thrusters on links stay a follow-up.** A gimballed thruster changes where thrust points. That is a sim fact, and
+the thrust allocator (cuts `thrust-allocator-core`, `thrust-allocator` and `envelope-from-columns`, all in flight)
+reads thrusters as fixed columns. Putting thrusters on links now would reopen those cuts. The judge refuses a
+non-weapon hardpoint on a link and names follow-up `gimballed-thrusters`.
+
+**Cut order.** `links-record` (types and judge), then `links-arc` (FireControl reads the link; the Turret hull and
+the test fixtures migrate), carry the sim. `link-rig-record` adds the joint record and the GLB checks.
+`ships-addon-links` lands the Blender side after `ships-addon-mounts`. Mounts r5 needs no revision: it writes no
+arc, and `ships-addon-links` extends its derivation. `ships-addon-gizmos` r4 replaces r3. `link-rig-presenter`
+waits on `solver-owner`, `link-calibre-judge` waits on `calibre-arc-caps`, and `retire-firing-arc` goes last.
+
+### Admitted
+
+Receipts `mind-commit-b0c6b373...`, `mind-commit-c00a16b5...`, `mind-commit-08fce00f...` and `mind-commit-06e09a45...`
+(2026-10-09 21:18-21:24 UTC). New cuts: links-record r1, links-arc r1, link-rig-record r2 (r1 superseded for one
+out-of-range anchor), ships-addon-link-rows r1, ships-addon-link-package r1, link-rig-presenter r1, link-calibre-judge
+r1, retire-firing-arc r1. Revised: ships-addon-gizmos r5 (r3 superseded by r4 and r4 by r5 for an untested negative
+pattern). ships-addon-mounts r5 is unchanged. Questions: `solver-owner` (raised in link-rig-presenter) and
+`calibre-arc-caps` (raised in link-calibre-judge). Follow-ups: `gimballed-thrusters`, `caliber-bands-one-table`.
+context-pack read every anchor SAME at `6d83597b`.
