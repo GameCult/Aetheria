@@ -170,18 +170,17 @@ public sealed class RolesBackfillCommandTests : IDisposable
             .SelectMany(s => s.Stat.Terms.Where(t => t.Source == StatSource.Quality && !string.IsNullOrEmpty(t.Role)).Select(t => (s.Name, t.Exponent)))
             .ToDictionary(x => x.Name, x => x.Exponent);
         var designs = new[] { "Autocannon", "LRMM72" };
-        Dictionary<string, Dictionary<string, float>> Read(string root)
-        {
-            var db = AetherDb.Open(root: root);
-            try { return db.Cache.GetAll<EquippableItemData>().Where(d => designs.Contains(d.Name)).ToDictionary(d => d.Name, Exponents); }
-            finally { db.Cache.Dispose(); }
-        }
-        var shipped = Read(AetherDb.FindRoot());
+        Dictionary<string, Dictionary<string, float>> shipped;
+        Dictionary<string, Dictionary<string, float>> Read(EquippableItemData[] all) => all.Where(d => designs.Contains(d.Name)).ToDictionary(d => d.Name, Exponents);
+        using (var catalog = RestoredHullsTests.OpenCatalog()) shipped = Read(catalog.GetAll<EquippableItemData>().ToArray());
         Assert.All(designs, name => Assert.True(shipped[name].Values.Distinct().Count() > 1, name + " exponents are one value; the test would not tell a mode from a default"));
 
         Reset(flattened: true, unnamed: true);
         Assert.Equal(0, Program.RolesBackfill(apply: true, root: _root));
-        var after = Read(_root);
+        var db = AetherDb.Open(root: _root);
+        Dictionary<string, Dictionary<string, float>> after;
+        try { after = Read(db.Cache.GetAll<EquippableItemData>().ToArray()); }
+        finally { db.Cache.Dispose(); }
         foreach (var name in designs) Assert.Equal(shipped[name].OrderBy(x => x.Key, StringComparer.Ordinal), after[name].OrderBy(x => x.Key, StringComparer.Ordinal));
     }
 
