@@ -186,8 +186,8 @@ public sealed class ConsumableTests : IDisposable
         Assert.Equal(40f, rig.Engine.Evaluate(rig.Thrust), 3);
     }
 
-    // Two modifiers share one resolver entry. The first expires while the second still runs: the second's
-    // boost stays, and when it expires too nothing is left behind.
+    // Two modifiers share one resolver entry, both attached. The first expires while the second still runs: the
+    // second's boost stays, and when it expires too nothing is left behind.
     [Fact]
     public void AnExpiringConsumableLeavesAnOverlappingOnesBoost()
     {
@@ -199,13 +199,16 @@ public sealed class ConsumableTests : IDisposable
         Assert.True(rig.Hold.TryStore(rig.Mint()));
 
         Assert.True(rig.Ship.TryActivateConsumable(rig.Consumable));
-        Tick(rig, 2, .3f);
+        Tick(rig, 1, .3f);
         Assert.True(rig.Ship.TryActivateConsumable(rig.Consumable));
-        Tick(rig, 2, .3f); // the first ran out on the fourth tick overall; the second has 0.4 s left
+        Tick(rig, 2, .3f); // both attached: the first has 0.1 s left, the second 0.4 s
+        Assert.Equal(40f, rig.Engine.Evaluate(rig.Thrust), 3);
+
+        Tick(rig, 1, .3f); // the first ran out; the second's boost is still on the shared entry
         Assert.Equal(20f, rig.Engine.Evaluate(rig.Thrust), 3);
         Assert.True(resolver.ModifierEntryCount > baseline);
 
-        Tick(rig, 2, .3f);
+        Tick(rig, 1, .3f); // and now the second
         Assert.Equal(10f, rig.Engine.Evaluate(rig.Thrust), 3);
         Assert.Equal(baseline, resolver.ModifierEntryCount);
     }
