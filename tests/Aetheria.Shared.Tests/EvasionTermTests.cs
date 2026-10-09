@@ -584,6 +584,10 @@ public sealed partial class RunStartTests
         return (hits, price);
     }
 
+    // The two volleys' hit counts are rolls, so their gap is the price gap plus noise. At the price gap this fixture
+    // has (about .06 on .44) 200 shots flip the comparison one seed in eight; this many keeps it near four standard deviations.
+    private const int EvVolleySize = 2000;
+
     // The evasion term is in the live price, the HUD's forecast and the roll: a ship crossing at 150 m/s that has been
     // jinking is harder to hit than the same ship coasting, for a projectile gun.
     [Fact]
@@ -597,7 +601,7 @@ public sealed partial class RunStartTests
         EvCross(range, jinking: false);
         var coastingDiagnostic = FireControl.Inspect(gun, shooter, target);
         var coastingPrice = FireControl.HitProbability(gun, shooter, target);
-        var coasting = EvVolley(range, gun, shooter, 200);
+        var coasting = EvVolley(range, gun, shooter, EvVolleySize);
         Assert.Equal(0f, coastingDiagnostic.Evasion);
         Assert.Equal(1f, coastingDiagnostic.PEvasion);
         Assert.True(coastingPrice > .2f, $"fixture: a coasting target is hittable ({coastingPrice})");
@@ -605,10 +609,10 @@ public sealed partial class RunStartTests
         EvCross(range, jinking: true);
         var jinkingDiagnostic = FireControl.Inspect(gun, shooter, target);
         var jinkingPrice = FireControl.HitProbability(gun, shooter, target);
-        var jinking = EvVolley(range, gun, shooter, 200);
-        Console.WriteLine($"EVASION price: coasting {coastingPrice:F3} hits {coasting.hits}/200 committed {coasting.price:F3}; " +
+        var jinking = EvVolley(range, gun, shooter, EvVolleySize);
+        Console.WriteLine($"EVASION price: coasting {coastingPrice:F3} hits {coasting.hits}/{EvVolleySize} committed {coasting.price:F3}; " +
                           $"jinking {jinkingPrice:F3} (evasion {jinkingDiagnostic.Evasion:F2} m, tracking {jinkingDiagnostic.Tracking:F1}, PEvasion {jinkingDiagnostic.PEvasion:F3}) " +
-                          $"hits {jinking.hits}/200 committed {jinking.price:F3}");
+                          $"hits {jinking.hits}/{EvVolleySize} committed {jinking.price:F3}");
 
         Assert.True(jinkingDiagnostic.Evasion > 0f);
         Assert.True(jinkingDiagnostic.PEvasion < 1f);
