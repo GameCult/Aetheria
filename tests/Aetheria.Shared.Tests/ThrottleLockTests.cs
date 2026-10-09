@@ -75,8 +75,8 @@ public sealed class ThrottleLockTests : IDisposable
         var ship = new Ship(items, zone, Mint(cache, items, cache.GetByName<HullData>("Skiff")), new EntitySettings());
         var gear = cache.GetByName<GearData>("Thruster");
         Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.Reversed), new int2(2, 1)));
-        Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.None), new int2(0, 2)));
-        Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.None), new int2(4, 2)));
+        Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.None), new int2(1, 2)));
+        Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.None), new int2(3, 2)));
         Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.CounterClockwise), new int2(3, 3)));
         Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.Clockwise), new int2(1, 3)));
         zone.Entities.Add(ship);
