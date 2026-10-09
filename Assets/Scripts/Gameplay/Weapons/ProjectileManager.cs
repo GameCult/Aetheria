@@ -1,32 +1,17 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using UnityEngine;
-using Random = UnityEngine.Random;
+﻿using UnityEngine;
 
 public class ProjectileManager : InstantWeaponEffectManager
 {
     public Prototype ProjectilePrototype;
-    public bool InheritVelocity;
 
+    // The round is drawn on the line the simulation flies it (FireControl.RoundAt), so there is nothing to aim, jitter
+    // or inherit here: spread is priced by FireControl, and the sim's round inherits nothing from its shooter.
     public override void Fire(InstantWeapon weapon, EquippedItem item, EntityInstance source, EntityInstance target, int shotId)
     {
+        var zone = source.Entity.Zone;
+        if (!zone.TryGetShot(shotId, out var shot)) return;
         var p = ProjectilePrototype.Instantiate<Projectile>();
-        var hp = item.Hardpoint;
-        var barrel = source.GetBarrel(hp);
-        var angle = weapon.Spread / 2;
-        p.ShotId = shotId;
-        p.SourceEntity = source.Entity;
-        p.Velocity = Quaternion.Euler(
-                         Random.Range(-angle, angle),
-                         Random.Range(-angle, angle),
-                         Random.Range(-angle, angle)) *
-                     barrel.forward *
-                     weapon.Velocity;
-        p.StartPosition = p.transform.position = barrel.position + p.Velocity * (Random.value * Time.deltaTime);
-        if(InheritVelocity)
-            p.Velocity += new Vector3(source.Entity.Velocity.x, 0, source.Entity.Velocity.y);
-        p.Range = weapon.Range;
-        p.Zone = source.Entity.Zone;
+        p.Launch(zone, shot, source.GetBarrel(item.Hardpoint).position);
         p.Trail.Clear();
     }
 }
