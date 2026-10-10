@@ -12,6 +12,7 @@ bl_info = {
 
 import math
 import subprocess
+import sys
 from pathlib import Path
 
 import bpy
@@ -26,7 +27,7 @@ MODEL_ASSET = "ship.glb"
 SOURCE = "Source"  # child collection: the Tripo mesh, input to Rasterise, never exported
 GENERATED = "Generated"  # child collection: derived objects (the Grid), never exported
 SHIP_ROOT = "Ship Root"
-AETHERDB_TIMEOUT = 600  # seconds; the first run builds AetherDb
+AETHERDB_TIMEOUT = 120  # seconds
 
 
 HARDPOINT_TYPES = tuple((str(i), name, name) for i, name in enumerate(HARDPOINT_TYPE_NAMES))
@@ -302,38 +303,49 @@ class AETHERIA_OT_capture_ship_lines(bpy.types.Operator):
 class AETHERIA_AP_preferences(bpy.types.AddonPreferences):
     bl_idname = __package__
 
-    aetheria_repo: bpy.props.StringProperty(
-        name="Aetheria repo", subtype="DIR_PATH",
-        description="Aetheria checkout whose tools/AetherDb validates packages. "
-                    "Empty: the nearest folder above the bound .cc that holds tools/AetherDb")
+    game_folder: bpy.props.StringProperty(
+        name="Game folder", subtype="DIR_PATH",
+        description="The folder whose GameData holds Aetheria.cc and Mods (the install folder); its ModTools holds "
+                    "AetherDb. Empty: the nearest folder above the bound .cc whose GameData holds Aetheria.cc")
 
     def draw(self, context):
-        self.layout.prop(self, "aetheria_repo")
+        self.layout.prop(self, "game_folder")
 
 
-def _aetheria_repo(context, ship_cc):
+GAME_FOLDER_REFUSAL = ("Set the add-on's Game folder preference to the folder whose GameData holds Aetheria.cc "
+                       "and whose ModTools holds AetherDb")
+
+
+def _game_folder(context, ship_cc=None):
+    """The folder AetherDb runs against: the Game folder preference, else the nearest folder above the bound .cc whose
+    GameData holds Aetheria.cc. Refusals name the preference and never a path."""
     addon = context.preferences.addons.get(__package__)
-    configured = addon.preferences.aetheria_repo if addon and addon.preferences else ""
+    configured = addon.preferences.game_folder if addon and addon.preferences else ""
     if configured:
-        repo = Path(bpy.path.abspath(configured))
-        if not (repo / "tools" / "AetherDb").is_dir():
-            raise ValueError(f"The Aetheria repo preference {repo} has no tools/AetherDb")
-        return repo
-    for folder in Path(ship_cc).resolve().parents:
-        if (folder / "tools" / "AetherDb").is_dir():
-            return folder
-    raise ValueError("No Aetheria repo above the ship .cc; set it in the add-on's preferences")
+        folder = Path(bpy.path.abspath(configured))
+        if not (folder / "GameData" / "Aetheria.cc").is_file():
+            raise ValueError(GAME_FOLDER_REFUSAL)
+        return folder
+    if ship_cc:
+        for folder in Path(ship_cc).resolve().parents:
+            if (folder / "GameData" / "Aetheria.cc").is_file():
+                return folder
+    raise ValueError(GAME_FOLDER_REFUSAL)
 
 
-def _aetherdb(context, ship_cc, *args):
-    """Runs one AetherDb ship-authoring command; returns its exit code and its output, stdout then stderr. The compiler
-    warnings 'dotnet run' prints when it rebuilds AetherDb are left out; errors are kept."""
-    repo = _aetheria_repo(context, ship_cc)
-    result = subprocess.run(
-        ["dotnet", "run", "--project", str(repo / "tools" / "AetherDb"), "--", "ship-authoring", *args],
-        cwd=repo, capture_output=True, text=True, timeout=AETHERDB_TIMEOUT)
-    lines = (result.stdout + "\n" + result.stderr).splitlines()
-    return result.returncode, "\n".join(line for line in lines if line.strip() and ": warning " not in line)
+def _aetherdb(context, *args, ship_cc=None):
+    """Runs one AetherDb ship-authoring command from the game folder's ModTools; returns its exit code and its output,
+    stdout then stderr. ship_cc is the bound .cc the game folder is found from when the preference is empty."""
+    folder = _game_folder(context, ship_cc)
+    tool = folder / "ModTools" / ("AetherDb.exe" if sys.platform == "win32" else "AetherDb")
+    if not tool.is_file():
+        raise ValueError(GAME_FOLDER_REFUSAL)
+    result = subprocess.run([str(tool), "ship-authoring", *args], cwd=folder, capture_output=True, text=True,
+                            timeout=AETHERDB_TIMEOUT)
+    lines = (result.stdout + "
+" + result.stderr).splitlines()
+    return result.returncode, "
+".join(line for line in lines if line.strip())
 
 
 def _layer_collection(layer, collection):
@@ -573,9 +585,8 @@ def _new_ship(context, ship_id, name, reference, length):
     longest = max(extent_x, extent_y)
     if longest <= 0:
         raise ValueError("The hull meshes have no horizontal extent")
-    repo = _aetheria_repo(context, bpy.data.filepath or ".")
-    path = str(repo / "GameData" / "Mods" / ship_id / "ship.cc")
-    code, message = _aetherdb(context, path, "create", path, ship_id, name, "--like", reference)
+    path = str(_game_folder(context, bpy.data.filepath or None) / "GameData" / "Mods" / ship_id / "ship.cc")
+    code, message = _aetherdb(context, "create", path, ship_id, name, "--like", reference, ship_cc=path)
     if code != 0:
         raise RuntimeError(f"create failed: {message}")
     collection = _bind_collection(context, path)
@@ -647,7 +658,7 @@ class AETHERIA_OT_package_ship(bpy.types.Operator):
                 replace_lines(path, cultlib, capture_grease_pencil(
                     pencils[0], context.evaluated_depsgraph_get(), scene.frame_current,
                     evaluated=scene.aetheria_capture_evaluated_lines))
-            code, message = _aetherdb(context, path, "validate", path)
+            code, message = _aetherdb(context, "validate", path, ship_cc=path)
         except (OSError, ValueError, RuntimeError, ImportError, KeyError, subprocess.SubprocessError) as exc:
             scene.aetheria_package_report = f"Package failed: {exc}"
             self.report({"ERROR"}, scene.aetheria_package_report)

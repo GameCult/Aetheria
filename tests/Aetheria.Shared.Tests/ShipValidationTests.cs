@@ -59,7 +59,25 @@ public sealed class ShipValidationTests
     {
         var ship = ShipAuthoringTests.Fixture();
         ship.WithId(id);
-        Assert.Contains("ship ID must use", Assert.Throws<InvalidOperationException>(ship.Validate).Message);
+        Assert.Contains("Ship ID must use", Assert.Throws<InvalidOperationException>(ship.Validate).Message);
+    }
+
+    [Theory]
+    [InlineData("com0"), InlineData("console"), InlineData("lpt"), InlineData("auxiliary"), InlineData("a.con"), InlineData("com10")]
+    public void IdsThatOnlyResembleDeviceNamesAreAdmitted(string id)
+    {
+        var ship = ShipAuthoringTests.Fixture();
+        ship.WithId(id);
+        ship.Validate();
+    }
+
+    [Theory]
+    [InlineData("con"), InlineData("abc.")]
+    public void IdRefusalsNameNoValue(string id)
+    {
+        var ship = ShipAuthoringTests.Fixture();
+        ship.WithId(id);
+        Assert.DoesNotContain(id, Assert.Throws<InvalidOperationException>(ship.Validate).Message);
     }
 
     [Theory]
@@ -157,6 +175,11 @@ public sealed class ShipValidationTests
 
         Add("id-null", s => s.Visual.Id = null, "Ship ID is required");
         Add("id-blank", s => s.Visual.Id = "  ", "Ship ID is required");
+        Add("id-device-con", s => s.Visual.Id = "con", "Windows device name");
+        Add("id-device-with-extension", s => s.Visual.Id = "nul.x", "Windows device name");
+        Add("id-device-com1", s => s.Visual.Id = "com1", "Windows device name");
+        Add("id-device-lpt9", s => s.Visual.Id = "lpt9", "Windows device name");
+        Add("id-trailing-dot", s => s.Visual.Id = "abc.", "must not end with a dot");
         Add("hull-null", s => s.Hull = null, "hull data is required");
         Add("hull-name-null", s => s.Hull.Name = null, "hull name is required");
         Add("hull-name-blank", s => s.Hull.Name = " ", "hull name is required");

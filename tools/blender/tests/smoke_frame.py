@@ -2,9 +2,9 @@
 
     blender --background --factory-startup --python-use-system-env --python tools/blender/tests/smoke_frame.py
 
-Environment as smoke_package.py's header says: CULTLIB_PACKAGES, plus CULTLIB_ROOT and CULTMATH_ROOT at the pinned
-revisions for the 'dotnet run --project tools/AetherDb' calls, and msgpack importable. New Ship writes the ship under
-<repo>/GameData/Mods/smoke.frame, which this smoke removes when it ends.
+Environment as smoke_package.py's header says: CULTLIB_PACKAGES and SMOKE_GAME_FOLDER (the published AetherDb under its
+ModTools, no dotnet), and msgpack importable. New Ship writes the ship under <game folder>/GameData/Mods/smoke.frame,
+which this smoke removes when it ends.
 
 Pass 1 sends a UV sphere (1 x 0.6 x 0.4, long axis X, off the origin) through New Ship, length 10, like Djinni.
 Pass 2 adds a render mesh (a copy of the sphere) and a nub at the +Y end, rasterises, flips the nose, and requires the
@@ -27,7 +27,8 @@ import bpy
 REPO = Path(__file__).resolve().parents[3]
 PACKAGES = os.environ.get("CULTLIB_PACKAGES") or sys.exit("Set CULTLIB_PACKAGES to CultLib's packages directory")
 SHIP_ID = "smoke.frame"
-MODS = REPO / "GameData" / "Mods"
+GAME = Path(os.environ.get("SMOKE_GAME_FOLDER") or sys.exit("Set SMOKE_GAME_FOLDER to a folder holding GameData/Aetheria.cc and ModTools/AetherDb"))
+MODS = GAME / "GameData" / "Mods"
 
 
 def new_object(collection, name, mesh, location=(0, 0, 0), parent=None):
@@ -95,7 +96,7 @@ def main():
     addon_utils.enable("aetheria_ships", default_set=True, handle_error=None)
     import aetheria_ships
     aetheria_ships._brokkr_cultlib = lambda context: PACKAGES
-    bpy.context.preferences.addons["aetheria_ships"].preferences.aetheria_repo = str(REPO)
+    bpy.context.preferences.addons["aetheria_ships"].preferences.game_folder = str(GAME)
     require(not (MODS / SHIP_ID).exists(), f"{MODS / SHIP_ID} exists; remove it first")
 
     scene = bpy.context.scene

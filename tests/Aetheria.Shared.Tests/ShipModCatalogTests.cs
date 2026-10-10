@@ -419,6 +419,17 @@ public sealed class ShipModCatalogTests : IDisposable
         Assert.Contains("records and model", output);
     }
 
+    [Theory]
+    [InlineData("con"), InlineData("nul.x"), InlineData("abc.")]
+    public void CreateRefusesABadIdBeforeTouchingTheDisk(string id)
+    {
+        var target = Path.Combine(_directory.Path, "GameData", "Mods", id, "ship.cc");
+        var (code, output, error) = Run("create", target, id, "Probe", "--like", "Djinni");
+        Assert.Equal(1, code);
+        Assert.Contains("Ship ID", error);
+        Assert.False(Directory.Exists(Path.Combine(_directory.Path, "GameData")));
+    }
+
     private static (int Code, string Output, string Error) Run(params string[] args)
     {
         var (output, error) = (new StringWriter(), new StringWriter());
