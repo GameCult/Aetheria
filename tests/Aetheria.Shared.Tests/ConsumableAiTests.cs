@@ -361,9 +361,6 @@ public sealed class ConsumableAiTests : IDisposable
         var after1 = Dump("after1");
         s.Zone.Update(1f);
         var after2 = Dump("after2");
-        Assert.True(false, "
-" + before + "
-" + after1 + "
-" + after2);
+        Assert.True(false, string.Join(" ## ", before, after1, after2));
     }
 }
