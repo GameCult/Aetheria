@@ -237,30 +237,49 @@ public sealed class VerseGrammarTests : IDisposable
     // ---- the fixture writer ----
 
     // The minimal catalog Ghostlight's grammar-reader reads: the grammar global, three verbs, two factions with an allegiance.
-    // Written through a registry scoped to the shipped assembly, so it holds nothing from this test assembly.
+    // Written through a registry scoped to the shipped assembly, so it holds nothing from this test assembly. Record keys are
+    // fixed (CultCache would mint a random one per record; the shipped catalog's are random, so a reader must key on the
+    // document's Name, never on the record key).
     public static void WriteFixture(string path)
     {
         if (File.Exists(path)) File.Delete(path);
         using var cache = OpenScoped(path, false);
         cache.Upsert(new VerseGrammar { Revision = 1, Description = "Fixture grammar." });
-        cache.Upsert(new VerseVerb { Name = "haul", RenderPath = VerseRenderPath.ShipAction, Description = "Carry cargo to a place.",
-            Roles = new[] { new VerseRole { Name = "cargo", Binds = VerseReferentKind.Cargo }, new VerseRole { Name = "destination", Binds = VerseReferentKind.Place } } });
-        cache.Upsert(new VerseVerb { Name = "attack", RenderPath = VerseRenderPath.ShipAction, Description = "Attack a faction.",
-            Roles = new[] { new VerseRole { Name = "target", Binds = VerseReferentKind.Faction } } });
-        cache.Upsert(new VerseVerb { Name = "speak", RenderPath = VerseRenderPath.Conversation, Description = "Say a thing.", Roles = new VerseRole[0] });
+        cache.Upsert(typeof(VerseVerb), new VerseVerb { Name = "haul", RenderPath = VerseRenderPath.ShipAction, Description = "Carry cargo to a place.",
+            Roles = new[] { new VerseRole { Name = "cargo", Binds = VerseReferentKind.Cargo }, new VerseRole { Name = "destination", Binds = VerseReferentKind.Place } } }, new CultRecordKey("verb-haul"));
+        cache.Upsert(typeof(VerseVerb), new VerseVerb { Name = "attack", RenderPath = VerseRenderPath.ShipAction, Description = "Attack a faction.",
+            Roles = new[] { new VerseRole { Name = "target", Binds = VerseReferentKind.Faction } } }, new CultRecordKey("verb-attack"));
+        cache.Upsert(typeof(VerseVerb), new VerseVerb { Name = "speak", RenderPath = VerseRenderPath.Conversation, Description = "Say a thing.", Roles = new VerseRole[0] },
+            new CultRecordKey("verb-speak"));
+        var firstKey = new CultRecordKey("faction-adrasteia");
+        var secondKey = new CultRecordKey("faction-brannoch");
         var first = new Faction { Name = "Adrasteia", ShortName = "ADR", Description = "First.", PrimaryColor = new float3(1, .5f, .25f) };
         var second = new Faction { Name = "Brannoch", ShortName = "BRN", Description = "Second.", PrimaryColor = new float3(.25f, .5f, 1) };
-        var firstRef = cache.Upsert(first);
-        var secondRef = cache.Upsert(second);
-        first.Allegiance[secondRef] = .75f;
-        second.Allegiance[firstRef] = .25f;
-        cache.Upsert(first);
-        cache.Upsert(second);
+        first.Allegiance[new CultRecordRef<Faction>(secondKey)] = .75f;
+        second.Allegiance[new CultRecordRef<Faction>(firstKey)] = .25f;
+        cache.Upsert(typeof(Faction), first, firstKey);
+        cache.Upsert(typeof(Faction), second, secondKey);
         cache.FlushAsync().Wait();
     }
 
-    // Two writes of the fixture are the same bytes, so Ghostlight's copy of it is reproducible and a diff of it means the
-    // grammar changed. With AETHERIA_VERSE_FIXTURE_PATH set, the fixture is left at that path for Ghostlight to copy.
+    // Everything the file says except CultCache's own wall-clock storedAt stamp: schema, record key and the grammar and
+    // faction content a reader consumes.
+    private static string[] Content(string path)
+    {
+        using var cache = OpenScoped(path, true);
+        return cache.AllStoredDocuments.Select(stored => $"{stored.Descriptor.SchemaName}|{stored.Key.Value}|" + stored.Document switch
+        {
+            VerseGrammar grammar => $"{grammar.Revision}|{grammar.Description}",
+            VerseVerb verb => $"{verb.Name}|{verb.RenderPath}|{verb.Description}|{string.Join(",", verb.Roles.Select(r => $"{r.Name}:{r.Binds}"))}",
+            Faction faction => $"{faction.Name}|{faction.ShortName}|{faction.Description}|{string.Join(",", faction.Allegiance.Select(a => $"{a.Key.Key.Value}={a.Value}"))}",
+            var other => throw new InvalidOperationException($"The fixture holds a {other.GetType().Name}."),
+        }).OrderBy(line => line, StringComparer.Ordinal).ToArray();
+    }
+
+    // Two writes of the fixture say the same thing: the same records under the same keys with the same content. (The file's
+    // bytes differ by CultCache's storedAt stamps, which it mints from the wall clock and no caller can set.) So Ghostlight's
+    // copy of it is reproducible and a diff of its content means the grammar changed. With AETHERIA_VERSE_FIXTURE_PATH set,
+    // the fixture is left at that path for Ghostlight to copy.
     [Fact]
     public void Fixture_writer_is_deterministic_and_emits_what_the_grammar_reader_needs()
     {
@@ -268,12 +287,18 @@ public sealed class VerseGrammarTests : IDisposable
         var right = PathOf("fixture-right");
         WriteFixture(left);
         WriteFixture(right);
-        Assert.Equal(File.ReadAllBytes(left), File.ReadAllBytes(right));
+        var content = Content(left);
+        Assert.Equal(content, Content(right));
+        Assert.Equal(6, content.Length);
 
         var emitted = Environment.GetEnvironmentVariable(FixturePathVariable);
-        if (!string.IsNullOrEmpty(emitted)) WriteFixture(emitted);
+        if (!string.IsNullOrEmpty(emitted))
+        {
+            WriteFixture(emitted);
+            Assert.Equal(content, Content(emitted));
+        }
 
-        using var cache = OpenScoped(emitted is { Length: > 0 } ? emitted : left, true);
+        using var cache = OpenScoped(left, true);
         Assert.Equal(1, cache.GetGlobal<VerseGrammar>().Revision);
         Assert.Equal(new[] { "attack", "haul", "speak" }, cache.GetAll<VerseVerb>().Select(verb => verb.Name).OrderBy(name => name, StringComparer.Ordinal));
         Assert.All(cache.GetAll<VerseVerb>(), VerseGrammarValidation.Validate);
