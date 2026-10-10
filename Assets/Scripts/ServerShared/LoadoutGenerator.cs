@@ -16,6 +16,14 @@ public class LoadoutGenerator
     public Faction Faction { get; }
     public float PriceExponent { get; }
 
+    // Consumables are scarce (operator, 2026-10-09): a quarter of stations stock one product, one ship in ten carries
+    // one unit, and a carried consumable becomes loot when its ship dies. The units are the most a roll can stock; a
+    // station draws 1 to the maximum.
+    public const float StationConsumableChance = .25f;
+    public const int StationConsumableUnits = 2;
+    public const float ShipConsumableChance = .1f;
+    public const int ShipConsumableUnits = 1;
+
     public LoadoutGenerator(
         ref Random random,
         ItemManager itemManager,
@@ -46,6 +54,7 @@ public class LoadoutGenerator
         var entity = new Ship(ItemManager, null, hull, ItemManager.GameplaySettings.DefaultEntitySettings);
         entity.Faction = Faction;
         OutfitEntity(entity);
+        StockConsumables(entity, ShipConsumableChance, ShipConsumableUnits);
         return EntitySerializer.Pack(entity);
     }
 
@@ -117,9 +126,30 @@ public class LoadoutGenerator
             cargo.TryStore(instance);
         }
 
+        StockConsumables(entity, StationConsumableChance, StationConsumableUnits);
+
         entity.CanTow = hullData.CanTow;
 
         return EntitySerializer.Pack(entity) as OrbitalEntityPack;
+    }
+
+    // The last thing a loadout does. With no consumable on offer, or no hold to put one in, nothing is drawn, so a
+    // catalog without consumables generates exactly what it did before them. Otherwise one roll decides whether the
+    // entity has any, and a hit stocks 1 to maxUnits instances of one product, stopping when no hold takes another.
+    private void StockConsumables(Entity entity, float chance, int maxUnits)
+    {
+        var (available, _) = AvailableProducts<ConsumableItemData>(null, false);
+        if (available.Length == 0 || !entity.CargoBays.Any()) return;
+        if (Random.NextFloat() >= chance) return;
+
+        var (product, design) = RandomProducts<ConsumableItemData>(1, 0).FirstOrDefault();
+        if (design == null) return;
+        var units = Random.NextInt(1, maxUnits + 1);
+        for (var i = 0; i < units; i++)
+        {
+            var instance = ItemManager.CreateInstance(product);
+            if (!entity.CargoBays.Any(bay => bay.TryStore(instance))) break;
+        }
     }
 
     private static bool IsHeater(GearData item) =>
@@ -139,7 +169,7 @@ public class LoadoutGenerator
     // Products normally come only from manufacturers present in the galaxy and known to the zone's faction; a
     // required item falls back to any manufacturer when none of those make one, which means the product table
     // lacks variety, so it is logged rather than hidden.
-    public (FactionProductData product, T design)[] RandomProducts<T>(int count, float sizeExponent, Predicate<T> filter = null, bool required = false) where T : EquippableItemData
+    public (FactionProductData product, T design)[] RandomProducts<T>(int count, float sizeExponent, Predicate<T> filter = null, bool required = false) where T : CraftedItemData
     {
         var (available, preferManufacturers) = AvailableProducts(filter, required);
         return available.WeightedRandomElements(ref Random, entry =>
@@ -149,9 +179,9 @@ public class LoadoutGenerator
             count);
     }
 
-    // The products this faction can be offered for a design kind, and whether manufacturer preference applies (it does
+    // The products this faction can be offered for a design kind (only gear needs a home), and whether manufacturer preference applies (it does
     // not once a required item has fallen back to any manufacturer). The one availability rule for every selection.
-    private ((FactionProductData product, T design)[] available, bool preferManufacturers) AvailableProducts<T>(Predicate<T> filter, bool required) where T : EquippableItemData
+    private ((FactionProductData product, T design)[] available, bool preferManufacturers) AvailableProducts<T>(Predicate<T> filter, bool required) where T : CraftedItemData
     {
         var hulls = ItemManager.ItemData.GetAll<HullData>().ToArray();
         var candidates = ItemManager.ItemData.GetAll<FactionProductData>()
@@ -160,7 +190,7 @@ public class LoadoutGenerator
                 entry.design != null &&
                 entry.design.Price > 0 &&
                 entry.product.Manufacturer.IsSet() &&
-                HasHome(entry.design, hulls) &&
+                (!(entry.design is EquippableItemData equippable) || HasHome(equippable, hulls)) &&
                 (filter?.Invoke(entry.design) ?? true))
             .ToArray();
         var available = candidates.Where(entry => IsAvailable(entry.product)).ToArray();
