@@ -132,8 +132,7 @@ public sealed partial class RunStartTests
         for (var seg = 0; seg < 10; seg++)
         {
             drift += AllocFly(ship, 60);
-            log += $"
-{seg}: {drift:F3} " + string.Join(" ", ship.GetBehaviors<Thruster>().Select(d => $"[{d.Item.EquippableItem.Rotation} {(d.Item.Active.Value ? "on" : "OFF")} {d.Thrust:F0}/{d.Axis:F4} t{d.Item.Temperature:F0}]"));
+            log += $" || {seg}: {drift:F3} " + string.Join(" ", ship.GetBehaviors<Thruster>().Select(d => $"[{d.Item.EquippableItem.Rotation} {(d.Item.Active.Value ? "on" : "OFF")} {d.Thrust:F0}/{d.Axis:F4} t{d.Item.Temperature:F0}]"));
         }
         Assert.True(abs(drift) < .05f, log);
     }
