@@ -424,10 +424,20 @@ public sealed class ShipModCatalogTests : IDisposable
     public void CreateRefusesABadIdBeforeTouchingTheDisk(string id)
     {
         var target = Path.Combine(_directory.Path, "GameData", "Mods", id, "ship.cc");
-        var (code, output, error) = Run("create", target, id, "Probe", "--like", "Djinni");
+        // The display name is itself a valid ship ID, so a rule applied to it instead of the ID would not refuse.
+        var (code, output, error) = Run("create", target, id, "probe", "--like", "Djinni");
         Assert.Equal(1, code);
         Assert.Contains("Ship ID", error);
         Assert.False(Directory.Exists(Path.Combine(_directory.Path, "GameData")));
+    }
+
+    [Fact]
+    public void CreateJudgesTheIdAndTakesAnyDisplayName()
+    {
+        var target = Path.Combine(_directory.Path, "GameData", "Mods", "probe.a", "ship.cc");
+        var (code, output, error) = Run("create", target, "probe.a", "Probe A");
+        Assert.Equal(0, code);
+        Assert.True(File.Exists(target), error);
     }
 
     private static (int Code, string Output, string Error) Run(params string[] args)

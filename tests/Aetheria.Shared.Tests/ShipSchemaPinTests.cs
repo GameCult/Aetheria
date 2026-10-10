@@ -67,6 +67,39 @@ public sealed class ShipSchemaPinTests
             Assert.Equal(slot, KeyOf(typeof(ShipAnchor), members[slot]));
     }
 
+    // New Ship refuses a bad ship ID before it touches anything, with ship_cc.valid_ship_id; these two constants are that
+    // rule's data, so the C# rule that create and Validate share must agree with them on every character and every stem.
+    [Fact]
+    public void PythonShipIdConstantsAreTheRuleRequireShipIdEnforces()
+    {
+        var allowed = Text("SHIP_ID_CHARS");
+        var reserved = Strings("RESERVED_SHIP_IDS");
+        for (var code = 0; code < 256; code++)
+        {
+            var c = (char)code;
+            Assert.Equal(allowed.Contains(c), Accepts("a" + c));
+            Assert.Equal(allowed.Contains(c) && c != '.' && c != '_' && c != '-', Accepts(c + "a"));
+        }
+        var stems = new List<string>();
+        for (var a = 'a'; a <= 'z'; a++)
+            for (var b = 'a'; b <= 'z'; b++)
+                for (var c = 'a'; c <= 'z'; c++)
+                    stems.Add($"{a}{b}{c}");
+        for (var digit = 0; digit <= 9; digit++)
+            stems.AddRange(new[] { $"com{digit}", $"lpt{digit}" });
+        foreach (var stem in stems)
+        {
+            Assert.Equal(!reserved.Contains(stem), Accepts(stem));
+            Assert.Equal(!reserved.Contains(stem), Accepts(stem + ".x"));
+        }
+    }
+
+    private static bool Accepts(string id)
+    {
+        try { ShipAuthoringStore.RequireShipId(id); return true; }
+        catch (InvalidOperationException) { return false; }
+    }
+
     [Fact]
     public void PythonEnumNamesAreTheEnumsInValueOrder()
     {

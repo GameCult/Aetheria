@@ -311,6 +311,16 @@ class LayoutTests(ShipFileCase):
         self.write(ship, hull)
         self.assertNotEqual(revision, self.layout()[2])
 
+    def test_layout_revision_is_the_revision_replace_layout_returns_for_the_same_shape_and_rows(self):
+        _, _, revision = self.layout()
+        cells = [True, True, True, False]
+        rows = [hardpoint_row("thruster.starboard", tail=())]  # a mount the file carried no later slots for
+        saved = self.edit(revision, cells=cells, hardpoints=rows)
+        self.assertEqual(saved, ship_cc.layout_revision(shape(2, 2, cells), rows))
+        self.assertEqual(saved, self.layout()[2])
+        self.assertNotEqual(saved, ship_cc.layout_revision(shape(2, 2, [True, True, False, False]), rows))
+        self.assertNotEqual(saved, ship_cc.layout_revision(shape(2, 2, cells), []))
+
     def test_the_revision_follows_the_hardpoints_too(self):
         _, _, revision = self.layout()
         moved = hardpoint_row(tail=())
@@ -419,7 +429,7 @@ class LayoutTests(ShipFileCase):
             row = ship_cc.encode_hardpoint(**{**ship_cc.decode_hardpoint(hardpoint_row(tail=())),
                                               "Shape": [shape(2, 1, cells)]})
             with self.subTest(name):
-                with self.assertRaisesRegex(ValueError, "thruster.port footprint cells must be booleans"):
+                with self.assertRaisesRegex(ValueError, "Hardpoint footprint cells must be booleans"):
                     self.edit(revision, hardpoints=[row])
         self.assertEqual(before, self.bytes())
 
@@ -456,7 +466,7 @@ class LayoutTests(ShipFileCase):
                                 ("short", shape(2, 1, [True])), ("empty", shape(1, 1, [False]))):
             row = ship_cc.encode_hardpoint(**{**ship_cc.decode_hardpoint(hardpoint_row(tail=())), "Shape": [footprint]})
             with self.subTest(name):
-                with self.assertRaisesRegex(ValueError, "thruster.port has an invalid footprint"):
+                with self.assertRaisesRegex(ValueError, "hardpoint has an invalid footprint"):
                     self.edit(revision, hardpoints=[row])
         self.assertEqual(before, self.bytes())
 
@@ -507,6 +517,23 @@ class CSharpWrittenFixtureTests(unittest.TestCase):
                 target.mkdir(parents=True, exist_ok=True)
                 shutil.copy(path, target / "ship.cc")
                 shutil.copy(Path(os.environ["SHIP_FIXTURE_DIR"]) / "mod.skiff" / "skiff.glb", target / "skiff.glb")
+
+
+class ShipIdTests(unittest.TestCase):
+    def test_admits_the_ids_the_c_sharp_rule_admits(self):
+        for ship_id in ("probe.a", "a", "0x", "a_b-c", "com10", "com0", "lpt0", "console", "aux2", "a.nul", "x.com1"):
+            with self.subTest(ship_id):
+                self.assertTrue(ship_cc.valid_ship_id(ship_id))
+
+    def test_refuses_device_names_alone_or_before_a_dot_and_every_other_malformed_id(self):
+        for ship_id in ("con", "nul.x", "com1", "lpt9", "prn", "aux.txt", "com5.a", "abc.", "a..", "Upper", ".x", "_x",
+                        "-x", "", "a b", "a/b", "a:b", "abé", "a\b"):
+            with self.subTest(ship_id):
+                self.assertFalse(ship_cc.valid_ship_id(ship_id))
+
+    def test_the_constants_name_the_allowed_characters_and_the_reserved_stems(self):
+        self.assertEqual(set("abcdefghijklmnopqrstuvwxyz0123456789._-"), set(ship_cc.SHIP_ID_CHARS))
+        self.assertEqual(22, len(ship_cc.RESERVED_SHIP_IDS))
 
 
 class HardpointRowTests(unittest.TestCase):

@@ -30,6 +30,15 @@ public sealed class AetherDbRootTests : IDisposable
     }
 
     [Fact]
+    public void TheRootIsTheWorkingDirectoryItselfWhenItsGameDataHoldsAetheriaCc()
+    {
+        Directory.CreateDirectory(Path.Combine(_game.Path, "GameData"));
+        File.WriteAllBytes(Path.Combine(_game.Path, "GameData", "Aetheria.cc"), Array.Empty<byte>());
+        Environment.CurrentDirectory = _game.Path;
+        Assert.Equal(Environment.CurrentDirectory, AetherDb.FindRoot());
+    }
+
+    [Fact]
     public void AFolderHoldingOnlyTheRepositoryMarkerIsNotARoot()
     {
         Directory.CreateDirectory(Path.Combine(_game.Path, "Aetheria.Shared"));
