@@ -90,9 +90,7 @@ public static class VerseGrammarCommand
         {
             if (!grammarCurrent)
             {
-                var record = grammar ?? new VerseGrammar();
-                record.Revision = StarterRevision;
-                record.Description = StarterDescription;
+                var record = new VerseGrammar { Revision = StarterRevision, Description = StarterDescription };
                 if (grammar == null) batch.Upsert(typeof(VerseGrammar), record);
                 else batch.Upsert(typeof(VerseGrammar), record, cache.RefOf(grammar).Key);
             }

@@ -278,7 +278,10 @@ public sealed class VerseGrammarTests : IDisposable
 
         using var cache = OpenScoped(CatalogOf(root), true);
         Assert.Equal(1, cache.GetAll<VerseVerb>().Count(verb => verb.Name == "haul"));
-        Assert.True(VerseGrammarCommand.Same(starter, cache.GetByName<VerseVerb>("haul")));
+        var landed = cache.GetByName<VerseVerb>("haul");
+        Assert.Equal(starter.Description, landed.Description);
+        Assert.Equal(VerseRenderPath.ShipAction, landed.RenderPath);
+        Assert.Equal(new[] { "cargo:Cargo", "destination:Place" }, landed.Roles.Select(r => $"{r.Name}:{r.Binds}"));
     }
 
     // The grammar global is updated in place (one record) when its revision or its description is not the starter's.
