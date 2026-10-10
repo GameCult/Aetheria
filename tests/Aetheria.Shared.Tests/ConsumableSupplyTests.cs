@@ -16,11 +16,11 @@ using Random = CultMath.Random;
 // Consumables are scarce (ruling consumables-scarce): a quarter of stations stock one product, one ship in ten carries
 // one unit, and the one availability rule (LoadoutGenerator.AvailableProducts) decides which products a faction is
 // offered. Every count here is measured on packs the production generator returns, from fixed seeds, so the runs are
-// deterministic; the 3-sigma band is the binomial one, sigma = sqrt(n p (1 - p)) with n = 400 seeds, and a rule that
+// deterministic; the 3-sigma band is the binomial one, sigma = sqrt(n p (1 - p)) with n the seed count, and a rule that
 // breaks (chance 1, chance 0, an unconditional roll) lands far outside it.
 public sealed class ConsumableSupplyTests : IDisposable
 {
-    private const int Seeds = 400;
+    private const int Seeds = 1500;
 
     // Ships are cheap to generate and the ruling's one in ten is a narrow target: at 3000 seeds the 3-sigma band is
     // +/- 49 around 300, which chances of .12, .15 and .05 all fall outside.
@@ -104,7 +104,7 @@ public sealed class ConsumableSupplyTests : IDisposable
             var sold = new List<(string, CultRecordKey)>();
             if (holds != Holds.Pinned)
             {
-                sold.Add(("Cutter", seed.Upsert(new HullData { Name = "Cutter", HullType = HullType.Ship, Shape = Solid(3, 3), Price = 100 }).Key));
+                sold.Add(("Cutter", seed.Upsert(new HullData { Name = "Cutter", HullType = HullType.Ship, Shape = Solid(5, 3), Price = 100 }).Key));
                 sold.Add(("Outpost", seed.Upsert(new HullData { Name = "Outpost", HullType = HullType.Station, Shape = Solid(4, 4), Price = 100 }).Key));
                 sold.Add(("Plate", seed.Upsert(new GearData { Name = "Plate", Hardpoint = HardpointType.Tool, Shape = Solid(2, 2), Price = 1 }).Key));
             }
@@ -161,7 +161,7 @@ public sealed class ConsumableSupplyTests : IDisposable
         pack.CargoContents.Concat(pack.DockingBayContents ?? Array.Empty<(int2 position, ItemInstance item)[]>())
             .SelectMany(bay => bay).Select(entry => entry.item).OfType<ConsumableItem>().ToArray();
 
-    // Distinct, fixed seeds: the same 400 generators on every run.
+    // Distinct, fixed seeds: the same generators on every run.
     private static uint SeedOf(int i) => (uint) (i * 7919 + 13);
 
     private static void AssertWithinThreeSigma(int observed, int of, float chance, string what)
@@ -186,7 +186,8 @@ public sealed class ConsumableSupplyTests : IDisposable
         var stocked = 0;
         var byHull = new Dictionary<string, (int hits, int of)>();
         var makers = new HashSet<string>();
-        int fullest = 0, thinnest = int.MaxValue;
+        int thinnest = int.MaxValue;
+        var fullestByHull = new Dictionary<string, int>();
         for (var i = 0; i < Seeds; i++)
         {
             var random = new Random(SeedOf(i));
@@ -198,7 +199,7 @@ public sealed class ConsumableSupplyTests : IDisposable
             byHull[hull] = (seen.hits + (held.Length > 0 ? 1 : 0), seen.of + 1);
             if (held.Length == 0) continue;
             stocked++;
-            fullest = Math.Max(fullest, held.Length);
+            fullestByHull[hull] = Math.Max(fullestByHull.GetValueOrDefault(hull), held.Length);
             thinnest = Math.Min(thinnest, held.Length);
             Assert.InRange(held.Length, 1, StationUnits);
             var brands = held.Select(item => rig.Items.Brand(item)).ToArray();
@@ -208,7 +209,7 @@ public sealed class ConsumableSupplyTests : IDisposable
         }
         AssertWithinThreeSigma(stocked, Seeds, StationChance, "stations stocking a consumable");
         AssertEachHullWithinThreeSigma(byHull, StationChance, "stations stocking a consumable");
-        Assert.Equal(StationUnits, fullest); // a roll can stock up to the maximum
+        Assert.Equal(new[] { StationUnits, StationUnits }, fullestByHull.Values); // a roll on either hull can stock up to the maximum
         Assert.Equal(1, thinnest); // and as few as one
         Assert.Equal(2, makers.Count); // the pick is among the products on offer, not always the first
     }
