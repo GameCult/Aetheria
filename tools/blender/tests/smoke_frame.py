@@ -48,7 +48,9 @@ MODS = GAME / "GameData" / "Mods"
 COLLECTION = "Smoke Frame"
 GUARD_A, GUARD_B, UNDO_SHIP = "smoke.guard.a", "smoke.guard.b", "smoke.undo"
 PACKAGE_FRAME_SHIP = "smoke.pframe"
-EXTRA_IDS = (GUARD_A, GUARD_B, UNDO_SHIP, PACKAGE_FRAME_SHIP)
+PACKAGE_L_SHIP = "smoke.pellhull"
+PACKAGE_SOURCE_SHIP = "smoke.psource"
+EXTRA_IDS = (GUARD_A, GUARD_B, UNDO_SHIP, PACKAGE_FRAME_SHIP, PACKAGE_L_SHIP, PACKAGE_SOURCE_SHIP)
 NAMES_NOT_ECHOED = (SHIP_ID, COLLECTION, "Second Frame", "Loose Nub", "Hull", "NoSuchHullXYZ", str(GAME), GAME.name)
 
 
@@ -477,6 +479,7 @@ def main():
     guards_pass(aetheria_ships)
     print("PASS 7 guards ok")
     package_frame_pass(aetheria_ships)
+    package_asymmetric_pass(aetheria_ships)
     print("PASS 7b package frame ok")
     undo_pass()
     print("PASS 8 native undo ok")
@@ -630,6 +633,64 @@ def package_frame_pass(aetheria_ships):
     require(result == {"FINISHED"} and "the validator accepted the ship" in report, f"Package with a collider: {report}")
     require(not any(obj.get("aetheria.role") == "hull-collider" for obj in child(collection, "Generated").objects),
             "Package never generates a collider: Generated holds one")
+
+
+def package_asymmetric_pass(aetheria_ships):
+    """Where generation takes its centre and its meshes from, and what the stale sweep may delete."""
+    scene = bpy.context.scene
+    for ship_id in (PACKAGE_L_SHIP, PACKAGE_SOURCE_SHIP):
+        require(not (MODS / ship_id).exists(), f"{MODS / ship_id} exists; remove it first")
+
+    # An L-shaped render hull: its bounds centre (0, 4, 0.15) differs from the mean of its vertices (1, 2.5, 0.4) and
+    # from Ship Root's origin, and Ship Root sits away from the world origin, so a centre taken from any of those lands
+    # elsewhere. Generated map-icon, shield and tractor are in Ship Root's frame.
+    collection, _ = ship_from_box(scene, "Frame L", PACKAGE_L_SHIP, (0, 0, 0))
+    root = next(obj for obj in collection.objects if obj.get("aetheria.ship_root"))
+    root.location = (7.0, -3.0, 0.0)
+    bpy.context.view_layer.update()
+    new_object(collection, "L Long", box("L Long", 3.0, 1.0, 1.0), (0, 0, 0), root)
+    arm = new_object(collection, "L Arm", box("L Arm", 0.5, 4.0, 0.5), (2.0, 5.0, 0.8), root)
+    select(arm)
+    result, message = run(bpy.ops.aetheria.rasterise_hull)
+    require(result == {"FINISHED"}, f"Rasterise of the L hull was refused: {message}")
+    result, message = run(bpy.ops.aetheria.save_ship_layout)
+    require(result == {"FINISHED"}, f"Save of the L hull was refused: {message}")
+    select(arm)
+    run(bpy.ops.aetheria.package_ship)
+    generated = child(collection, "Generated")
+    made = {obj["aetheria.role"]: obj for obj in generated.objects if "aetheria.role" in obj}
+    require(set(made) == {"map-icon", "shield", "tractor"}, f"Generated holds {sorted(made)} for the L hull")
+    tractor, shield = made["tractor"].location, made["shield"]
+    require(all(abs(a - b) < 1e-3 for a, b in zip(tractor, (0.0, -1.0, 0.15))),
+            f"The tractor is not at the L hull's bounds centre X and minimum Y: {tuple(tractor)}")
+    require(all(abs(a - b) < 1e-3 for a, b in zip(shield.location, (0.0, 4.0, 0.15))) and
+            all(abs(a - b) < 1e-3 for a, b in zip(shield.scale, (1.15 * 3.0, 1.15 * 5.0, 1.15 * 1.15))),
+            f"The shield is not at the L hull's bounds centre: {tuple(shield.location)} {tuple(shield.scale)}")
+
+    # The author's hull collider is hers wherever she keeps it: Package's stale sweep removes only what Package made.
+    own = new_object(collection, "L Collider", tetrahedron("L Collider"), parent=root)
+    tag(own, "hull-collider", "collider")
+    for holder in own.users_collection:
+        holder.objects.unlink(own)
+    generated.objects.link(own)
+    select(arm)
+    run(bpy.ops.aetheria.package_ship)
+    require(bpy.data.objects.get("L Collider") is not None and own.name in generated.objects,
+            "Package deleted the author's hull collider from Generated")
+    require(not any(obj.get("aetheria.generated") for obj in generated.objects if obj.get("aetheria.role") == "hull-collider"),
+            "Package marked the author's collider as its own")
+
+    # A ship with Source meshes and no render mesh: Package generates nothing; the Source fallback is Rasterise's.
+    collection, source_hull = ship_from_box(scene, "Frame Source", PACKAGE_SOURCE_SHIP, (0, 0, 0))
+    select(source_hull)
+    result, message = run(bpy.ops.aetheria.rasterise_hull)
+    require(result == {"FINISHED"}, f"Rasterise of the Source-only ship was refused: {message}")
+    result, message = run(bpy.ops.aetheria.save_ship_layout)
+    require(result == {"FINISHED"}, f"Save of the Source-only ship was refused: {message}")
+    select(source_hull)
+    run(bpy.ops.aetheria.package_ship)
+    require(not any("aetheria.role" in obj for obj in child(collection, "Generated").objects),
+            "Package generated anchors from Source meshes")
 
 
 def ship_from_box(scene, name, ship_id, location):

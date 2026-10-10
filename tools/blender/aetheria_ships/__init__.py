@@ -690,11 +690,12 @@ def _recentre(root, point):
 
 def _regenerate_anchors(context, collection, root):
     """Rebuilds Generated's map-icon, shield and tractor from the render meshes (_own_meshes) in Ship Root's frame:
-    every Generated anchor not marked aetheria.keep is discarded, then each of the three roles no other object in the
+    every anchor Package itself generated (marked aetheria.generated) and not marked aetheria.keep is discarded; anything
+    else in Generated, a collider included, is the operator's and stays. Then each of the three roles no other object in the
     collection carries is made again. The operator's own object, or a kept one, owns its role. Everything that can
     refuse comes before the first change."""
     generated = _child_or_new(collection, GENERATED, GENERATED)
-    stale = [obj for obj in generated.all_objects if "aetheria.role" in obj and not obj.get("aetheria.keep")]
+    stale = [obj for obj in generated.all_objects if obj.get("aetheria.generated") and not obj.get("aetheria.keep")]
     stale_names = {obj.name for obj in stale}
     held = {obj["aetheria.role"] for obj in collection.all_objects
             if "aetheria.role" in obj and obj.name not in stale_names}
@@ -731,6 +732,7 @@ def _regenerate_anchors(context, collection, root):
         obj["aetheria.role"] = role
         obj["aetheria.id"] = anchor_id
         obj["aetheria.keep"] = False
+        obj["aetheria.generated"] = True
         generated.objects.link(obj)
         _attach_to_root(obj, root)
         if at is not None:
