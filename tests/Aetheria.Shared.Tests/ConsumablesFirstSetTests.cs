@@ -123,22 +123,8 @@ public sealed class ConsumablesFirstSetTests
 
         public Run()
         {
-            Ship = RestoredHullsTests.BuildThrustedShip(Cache, "Djinni");
+            Ship = RestoredHullsTests.BuildThrustedShip(Cache, "Djinni", HardpointType.Radiator);
             Zone = Ship.Zone;
-            var hull = Cache.GetByName<HullData>("Djinni");
-            // The first radiator hardpoint that takes a radiator design; a hull has several and not every pairing fits.
-            var fitted = false;
-            foreach (var hardpoint in hull.Hardpoints.Where(h => h.Type == HardpointType.Radiator).TakeWhile(_ => !fitted))
-                foreach (var design in Cache.GetAll<GearData>().Where(g => hardpoint.IsFilledBy(g) && g.Behaviors.OfType<RadiatorData>().Any()))
-                {
-                    var item = new EquippableItem
-                    {
-                        Data = Cache.RefOf<ItemData>(design), Durability = design.Durability,
-                        Lot = Ship.ItemManager.Lots.Add(new Lot { Design = Cache.RefOf<ItemData>(design), Origin = new Attributed(), Quality = .5f, Roles = new List<RoleFill>() })
-                    };
-                    if (fitted = Ship.TryEquip(item, hardpoint.Position)) break;
-                }
-            Assert.True(fitted, "no radiator fits the Djinni");
             Zone.Update(0f);
         }
 

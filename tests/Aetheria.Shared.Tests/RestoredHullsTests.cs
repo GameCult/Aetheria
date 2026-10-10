@@ -268,9 +268,9 @@ public sealed class RestoredHullsTests
         }
     }
 
-    // A restored hull with every thruster hardpoint (and its reactor) filled, activated and warmed up: the
-    // rotation thrusters the helm tests need. The caller owns the cache.
-    internal static Ship BuildThrustedShip(CultCache cache, string name)
+    // A restored hull with every thruster hardpoint (and its reactor, and the first hardpoint of each type in
+    // alsoFill) filled, activated and warmed up: the rotation thrusters the helm tests need. The caller owns the cache.
+    internal static Ship BuildThrustedShip(CultCache cache, string name, params HardpointType[] alsoFill)
     {
         var hull = cache.GetByName<HullData>(name);
         var thrusterDesigns = cache.GetAll<GearData>().Where(g => g.Hardpoint == HardpointType.Thruster).ToArray();
@@ -296,12 +296,15 @@ public sealed class RestoredHullsTests
         // some fitting thrusters produce thrust -- an artifact of which design TryEquip's own hardpoint search
         // happens to land on, not of the restored content. Every hull here also has a Reactor hardpoint; a real
         // ship always carries one, so this fixture should too.
-        var reactorHardpoint = hull.Hardpoints.FirstOrDefault(h => h.Type == HardpointType.Reactor);
-        if (reactorHardpoint != null)
+        // Types named by the caller (a radiator, say) are filled the same way, one hardpoint each; a ship cannot be
+        // equipped once it is active.
+        foreach (var type in new[] { HardpointType.Reactor }.Concat(alsoFill))
         {
-            var reactorDesign = cache.GetAll<GearData>().First(reactorHardpoint.IsFilledBy);
-            var reactorItem = new EquippableItem { Data = cache.RefOf<ItemData>(reactorDesign), Durability = reactorDesign.Durability, Lot = lot++ };
-            Assert.True(ship.TryEquip(reactorItem, reactorHardpoint.Position));
+            var filled = hull.Hardpoints.FirstOrDefault(h => h.Type == type);
+            if (filled == null) continue;
+            var filler = cache.GetAll<GearData>().First(filled.IsFilledBy);
+            var fillerItem = new EquippableItem { Data = cache.RefOf<ItemData>(filler), Durability = filler.Durability, Lot = lot++ };
+            Assert.True(ship.TryEquip(fillerItem, filled.Position));
         }
 
         zone.Entities.Add(ship);
