@@ -240,7 +240,7 @@ public sealed class SteeringTests
         Assert.Equal(-sqrt(sin(radians(80f))), Steering.Toward(ship, Heading(ship, -80f)), 4);
     }
 
-    // The turn bound has one owner, the actuators: Ship.Update hands Turn to them unclamped, Thruster.Axis saturates to
+    // The turn bound has one owner, the actuators: the allocator clamps the intent to -1..1 and Thruster.Axis saturates to
     // 0..1. A Turn of 3 therefore rotates the hull as a Turn of 1.
     [Fact]
     public void TheActuatorsBoundATurnBeyondOne()
@@ -278,17 +278,19 @@ public sealed class SteeringTests
         }
     }
 
-    // The size of a turn, computed from the hull and not read back from the code under test: each rotation thruster
-    // at Axis 1 turns the hull by Torque * Thrust * TorqueMultiplier / Mass * dt per tick (Thruster.Execute's law,
-    // summed here from the thrusters' own stats over the sets whose Torque clears the floor).
+    // The size of a turn, computed from the hull and not read back from the code under test: Turn is that fraction of
+    // the hull's whole turn in the direction asked (turn-authority-full). The whole turn is every thruster firing at
+    // full grant on the side it turns toward, Torque * Thrust * TorqueMultiplier / Mass per thruster, with no floor
+    // (Thruster.Execute's law, summed here from the thrusters' own stats).
     [Theory]
     [InlineData(1f)]
     [InlineData(-1f)]
     [InlineData(.5f)]
     [InlineData(-.5f)]
-    public void ATurnRotatesAtTheRateTheHullsTorqueGives(float turn)
+    public void ATurnIsThatFractionOfTheHullsTurn(float turn)
     {
         using var cache = RestoredHullsTests.OpenCatalog();
+        RestoredHullsTests.FreeThrusterPower(cache);
         var ship = RestoredHullsTests.BuildThrustedShip(cache, Hull);
         var settings = RestoredHullsTests.Settings();
         const float dt = 1f / 60f;
@@ -299,16 +301,15 @@ public sealed class SteeringTests
         ship.Turn = turn;
         ship.Update(dt);
 
-        float Rate(Func<Thruster, bool> set, float axis) =>
-            thrusters.Where(set).Sum(t => axis * t.Torque * t.Thrust * settings.TorqueMultiplier / ship.Mass * dt);
-        var clockwise = Rate(t => t.Torque > settings.TorqueFloor, max(turn, 0f));
-        var counter = Rate(t => t.Torque < -settings.TorqueFloor, max(-turn, 0f));
-        var expected = clockwise + counter;
+        float Whole(Func<float, bool> side) =>
+            thrusters.Select(t => t.Torque * t.NominalThrust * settings.TorqueMultiplier / ship.Mass * dt).Where(side).Sum(abs);
+        var expected = turn * (turn > 0 ? Whole(r => r > 0) : Whole(r => r < 0));
 
         var after = normalize(ship.Direction);
         var turned = atan2(dot(after, right), dot(after, nose)); // positive is clockwise
         Assert.True(abs(expected) > radians(.01f), $"the expected turn is real: {expected}");
         Assert.InRange(abs(turned / expected), .98f, 1.02f);
+        Assert.True(turned * turn > 0f, "the turn goes the way it was asked");
     }
 
     // A state that writes a constant turn, standing for any piloting state.

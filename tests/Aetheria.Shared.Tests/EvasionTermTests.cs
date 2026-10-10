@@ -243,10 +243,29 @@ public sealed partial class RunStartTests
         return ((right + left) / 2, (forward + back) / 2);
     }
 
-    private static (float noseOn, float broadside) EvReach(Ship ship, float window)
+    // What the allocator can hold the heading and still push, per half-axis, from the live columns the ship allocates
+    // with: the allocator's net push for a full-stick intent on each axis with no turn asked. The turn limits stay the
+    // envelope's.
+    private static ManoeuvreEnvelope EvAllocatedEnvelope(Ship ship)
+    {
+        var columns = ship.GetBehaviors<Thruster>().Select(t => t.Column(t.NominalThrust)).ToArray();
+        var throttles = new float[columns.Length];
+        float Push(float2 move, float2 axis)
+        {
+            new ThrustAllocator().Allocate(columns, move, 0f, throttles);
+            var net = float2(0, 0);
+            for (var i = 0; i < columns.Length; i++) net += columns[i].xy * throttles[i];
+            return dot(net, axis);
+        }
+        var e = ship.Envelope;
+        return new ManoeuvreEnvelope(Push(float2(0, 1), float2(0, 1)), Push(float2(0, -1), float2(0, -1)),
+            Push(float2(-1, 0), float2(-1, 0)), Push(float2(1, 0), float2(1, 0)), e.Clockwise, e.CounterClockwise);
+    }
+
+    private static (float noseOn, float broadside) EvReach(ManoeuvreEnvelope envelope, float window)
     {
         var heading = float2(0, 1);
-        float Half(float2 n) => .5f * (FireControl.Reach(ship.Envelope, heading, n, window) + FireControl.Reach(ship.Envelope, heading, -n, window));
+        float Half(float2 n) => .5f * (FireControl.Reach(envelope, heading, n, window) + FireControl.Reach(envelope, heading, -n, window));
         return (Half(float2(1, 0)), Half(float2(0, 1)));
     }
 
@@ -255,27 +274,42 @@ public sealed partial class RunStartTests
     {
         var (_, longinus, djinni) = EvFleet();
         const float window = .5f;
-        var results = new List<(string name, (float noseOn, float broadside) reach, (float noseOn, float broadside) measured)>();
+        var results = new List<(string name, (float noseOn, float broadside) reach, (float noseOn, float broadside) allocated, (float noseOn, float broadside) measured)>();
         foreach (var (name, ship) in new[] { ("longinus", longinus), ("djinni", djinni) })
         {
             var measured = EvMeasuredHalfWidths(ship, window);
             EvSettle(ship);
             ship.Update(EvDt);
-            var reach = EvReach(ship, window);
+            var reach = EvReach(ship.Envelope, window);
+            var allocated = EvReach(EvAllocatedEnvelope(ship), window);
+            Console.WriteLine($"ALLOC {name}: allocated nose-on {allocated.noseOn:F3} broadside {allocated.broadside:F3}");
             Console.WriteLine($"REACH {name}: nose-on reach {reach.noseOn:F3} measured {measured.noseOn:F3}; broadside reach {reach.broadside:F3} measured {measured.broadside:F3}");
-            results.Add((name, reach, measured));
+            results.Add((name, reach, allocated, measured));
         }
-        // The reach is the capability and the measured motion is the best of fifteen fixed control policies, so reach may
-        // sit above it: by up to 15% for the Longinus, whose controller shapes its turn input (a square root of the
-        // remaining angle) where the reach turns at full rate.
-        foreach (var (name, reach, measured) in results)
+        // The envelope's reach is the capability and the measured motion is the best of fifteen fixed control policies, so
+        // the reach covers it: no more than 10% below it.
+        // The Djinni's measured motion sits further below its reach (+38% nose-on, +26% broadside at the last measurement):
+        // its strafers are off-axis and the envelope, summed from what each thruster can push, does not model that. Its
+        // allocator holds the whole box (its allocated reach is the envelope's), so the allocated reach says nothing more
+        // about it. The bound still pins that the reach covers what the ship does.
+        // The Longinus's allocator holds the heading and pays for the drive torque out of the flank thrusters (ruling
+        // allocator-divergence-accepted), so the envelope's box support overstates what a controlled flight spends. Its
+        // measured motion is bounded by the reach of the push the allocator itself gives it on each half-axis, from the
+        // columns it allocates with: not below 90% of it, and above it by no more than the 15% a turning policy gains.
+        foreach (var (name, reach, allocated, measured) in results)
         {
-            // The Djinni's measured motion is further below its reach (+53% nose-on, +27% broadside at the last measurement): its
-            // strafers are off-axis and Ship.Update cancels their torque (M24), which the envelope, summed from what each thruster
-            // can push, does not model. Stated deviation; the bound still pins that the reach covers what the ship does.
-            var ceiling = name == "djinni" ? 1.6f : 1.15f;
-            Assert.InRange(reach.noseOn, measured.noseOn * .9f, measured.noseOn * ceiling);
-            Assert.InRange(reach.broadside, measured.broadside * .9f, measured.broadside * ceiling);
+            if (name == "djinni")
+            {
+                Assert.InRange(reach.noseOn, measured.noseOn * .9f, measured.noseOn * 1.6f);
+                Assert.InRange(reach.broadside, measured.broadside * .9f, measured.broadside * 1.6f);
+            }
+            else
+            {
+                Assert.InRange(reach.noseOn, measured.noseOn * .9f, float.MaxValue);
+                Assert.InRange(reach.broadside, measured.broadside * .9f, float.MaxValue);
+                Assert.InRange(measured.noseOn, allocated.noseOn * .9f, allocated.noseOn * 1.15f);
+                Assert.InRange(measured.broadside, allocated.broadside * .9f, allocated.broadside * 1.15f);
+            }
         }
     }
 
@@ -712,17 +746,14 @@ public sealed partial class RunStartTests
         }
     }
 
-    // Finding thruster-thrust-cache: Ship's aggregates read what the thrusters push with now, not what they pushed
-    // with at construction. The idle Djinni's forward thrust, in newtons, is its envelope's forward acceleration
-    // times its mass,.
+    // Finding thruster-thrust-cache: each thruster reads what it pushes with now, not what it pushed with at
+    // construction.
     [Fact]
-    public void TheAggregatesReadLiveThrust()
+    public void TheThrustersReadLiveThrust()
     {
         var (_, _, djinni) = EvFleet();
         EvSettle(djinni);
         djinni.Update(EvDt);
-        Assert.InRange(djinni.ForwardThrust, djinni.Envelope.Forward * djinni.Mass * .99f, djinni.Envelope.Forward * djinni.Mass * 1.01f);
-        Assert.True(djinni.ForwardThrust > 0f);
         var thrusters = djinni.GetBehaviors<Thruster>().ToList();
         Assert.NotEmpty(thrusters);
         foreach (var thruster in thrusters)
@@ -1009,65 +1040,5 @@ public sealed partial class RunStartTests
                 var ticks = (int) Math.Ceiling(window / EvDt);
                 Assert.True(first >= ticks - 1 && first <= ticks + 1, $"window {window}, held {held}: forgot at tick {first}, expected about {ticks}");
             }
-    }
-
-    // Finding strafe-readers-unpinned: every one of Ship's thrust aggregates and the strafe torque compensation reads the
-    // live thrust, not the stat minimum a thruster had at construction. The idle Djinni's aggregates are the sums of what
-    // its thrusters push with now, group by group.
-    [Fact]
-    public void EveryAggregateAndTheCompensationReadLiveThrust()
-    {
-        var (_, _, djinni) = EvFleet();
-        EvSettle(djinni);
-        djinni.Update(EvDt);
-        var thrusters = djinni.GetBehaviors<Thruster>().Where(t => t.Item.Active.Value).ToList();
-        float Live(Thruster t) => t.Evaluate(((ThrusterData) t.Data).Thrust);
-        float Mount(ItemRotation rotation, Func<Thruster, float> value) => thrusters.Where(t => t.Item.EquippableItem.Rotation == rotation).Sum(value);
-        foreach (var rotation in new[] { ItemRotation.None, ItemRotation.Clockwise, ItemRotation.CounterClockwise })
-        {
-            var group = thrusters.Where(t => t.Item.EquippableItem.Rotation == rotation).ToList();
-            Assert.NotEmpty(group);
-            Assert.All(group, t => Assert.True(Live(t) > ((ThrusterData) t.Data).Thrust.Min * 1.1f, $"fixture: {rotation} thruster thrust {Live(t)} above its stat minimum"));
-        }
-
-        void Near(float expected, float actual) => Assert.InRange(actual, expected - .001f * Math.Abs(expected) - 1e-3f, expected + .001f * Math.Abs(expected) + 1e-3f);
-        Near(Mount(ItemRotation.None, Live), djinni.ReverseThrust);
-        Near(Mount(ItemRotation.Clockwise, Live), djinni.LeftStrafeThrust);
-        Near(Mount(ItemRotation.CounterClockwise, Live), djinni.RightStrafeThrust);
-        Near(Mount(ItemRotation.Clockwise, t => t.Torque * Live(t)), djinni.LeftStrafeTotalTorque);
-        Near(Mount(ItemRotation.CounterClockwise, t => t.Torque * Live(t)), djinni.RightStrafeTotalTorque);
-
-        // The compensation trims each torque thruster of a strafing side by the side's mean torque, over that thruster's
-        // own torque at its live thrust.
-        foreach (var (side, direction, total) in new[]
-                 {
-                     (ItemRotation.CounterClockwise, 1f, djinni.RightStrafeTotalTorque),
-                     (ItemRotation.Clockwise, -1f, djinni.LeftStrafeTotalTorque)
-                 })
-        {
-            // Which thrusters take the trim is the rule under test, so it is read from the thrusters' own torques and not from
-            // Ship's private list (finding compensation-membership-unpinned): the side's thrusters that turn the way the side's
-            // total torque turns. The fixture must have thrusters on both sides of that line, or the rule is not exercised.
-            var onSide = djinni.GetBehaviors<Thruster>().Where(t => t.Item.EquippableItem.Rotation == side).ToList();
-            var members = onSide.Where(t => Math.Sign(t.Torque) == Math.Sign(total)).ToList();
-            Assert.NotEmpty(members);
-            Assert.True(members.Count < onSide.Count, $"fixture: the {side} side has a thruster that turns against its total torque, so membership is exercised");
-            djinni.MovementDirection = float2(direction, 0);
-            EvFace(djinni, float3(0, 0, 1));
-            djinni.Update(EvDt);
-            var mean = Math.Abs(total) / members.Count;
-            var trimmed = 0;
-            foreach (var thruster in thrusters.Where(t => t.Item.EquippableItem.Rotation == side))
-            {
-                var expected = members.Contains(thruster) ? 1f - mean / (Math.Abs(thruster.Torque) * Live(thruster)) : 1f;
-                expected = Math.Max(0f, Math.Min(1f, expected));
-                if (expected < .99f && expected > .01f) trimmed++;
-                Assert.InRange(thruster.Axis, expected - .002f, expected + .002f);
-            }
-            Assert.True(trimmed > 0, $"fixture: the {side} compensation trims a thruster to somewhere between off and full");
-            djinni.MovementDirection = float2(0, 0);
-            EvSettle(djinni);
-            djinni.Update(EvDt);
-        }
     }
 }

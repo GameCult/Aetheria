@@ -37,11 +37,23 @@ public class ThrusterData : BehaviorData
     }
 }
 
-public class Thruster : Behavior, IAnalogBehavior, IPowerConsumer
+public class Thruster : Behavior, IPowerConsumer
 {
     // Live: heat, quality, durability and power move this stat after construction, so it is read, never cached.
     public float Thrust => Evaluate(_data.Thrust);
+    // Thrust at a full grant, the same stat read without the power-supply term: what a column promises. Live, like Thrust.
+    public float NominalThrust => EvaluateNominalPower(_data.Thrust);
     public float Torque { get; }
+
+    // This thruster's effect per unit throttle at the given thrust, in the body frame: xy is the push (x starboard, y
+    // forward), z the clockwise yaw rate in rad/s. Zero when the item is absent or offline. The one geometry owner for
+    // the allocator and the envelope.
+    public float3 Column(float thrust)
+    {
+        if (Item == null || !Item.Active.Value) return default;
+        var push = -float2(0, 1).Rotate(Item.EquippableItem.Rotation) * thrust / Entity.Mass;
+        return float3(push.x, push.y, Torque * thrust * ItemManager.GameplaySettings.TorqueMultiplier / Entity.Mass);
+    }
 
     public float Axis
     {
@@ -84,7 +96,7 @@ public class Thruster : Behavior, IAnalogBehavior, IPowerConsumer
     // registered request field (StatValidation.PowerRequestFields) -- read nominally, same reasoning as every
     // other IPowerConsumer in this cut, though EnergyUsage carries no PowerSupply term in Thruster's own shipped
     // catalog today; Thrust (the field Cut 7 curves) is a separate stat Execute reads with the real Evaluate.
-    public float PowerRequest(float dt) => _input > .01f ? _input * EvaluateNominalPower(_data.EnergyUsage) : 0f;
+    public float PowerRequest(float dt) => _input > 0f ? _input * EvaluateNominalPower(_data.EnergyUsage) : 0f;
 
     // Cut 5 (docs/stats-and-power-cut.md §1.3, PowerTiers.cs): Medium -- mobility. Losing thrust for a tick
     // under brownout is an inconvenience, not the cascading failure a starved radiator or shield causes.
@@ -121,7 +133,7 @@ public class Thruster : Behavior, IAnalogBehavior, IPowerConsumer
         // Thrust stat carries a PowerSupply term, a partial grant already comes back reduced -- this gate no
         // longer demands a full grant, only that the thruster is being asked to do anything (_input) and that it
         // has not been cut to true zero supply (the epsilon PowerBus itself already treats as "nothing granted").
-        if(_input > .01f && Item.PowerSupply > 1e-4f)
+        if(_input > 0f && Item.PowerSupply > 1e-4f)
         {
             var thrust = Thrust;
             Entity.Velocity -= Direction.xz * _input * thrust / Entity.Mass * dt;

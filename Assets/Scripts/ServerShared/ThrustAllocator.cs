@@ -31,11 +31,18 @@ public sealed class ThrustAllocator
     int _columns = -1;
     float[] _a, _b, _lo, _hi, _x, _workspace;
 
-    public void Allocate(ReadOnlySpan<float3> columns, float2 move, float turn, Span<float> throttle)
+    /// <summary>
+    /// Solves the throttles for the intent. <paramref name="forwardFloor"/> is the throttle lock: every thruster whose
+    /// column pushes forward is bounded below at full, the stick is ignored (forward is the only translation asked, so
+    /// nothing fires against the floored drives), and the turn is served by what remains.
+    /// </summary>
+    public void Allocate(ReadOnlySpan<float3> columns, float2 move, float turn, Span<float> throttle, bool forwardFloor = false)
     {
         var n = columns.Length;
         if (n != _columns) Resize(n);
         for (var i = 0; i < n; i++) throttle[i] = 0;
+        if (forwardFloor) move = new float2(0, 1);
+        for (var i = 0; i < n; i++) _lo[i] = forwardFloor && columns[i].y > 0 ? 1f : 0f;
 
         // Nothing asked, nothing fired: that is a fact about the intent, decided before the solve. The solver's warm
         // start is left as the last solved point, which is where the next non-zero call resumes.

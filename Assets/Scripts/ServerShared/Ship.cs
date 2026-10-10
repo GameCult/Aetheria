@@ -9,7 +9,6 @@ using System.Linq;
 using System.Reflection;
 using MessagePack;
 using Newtonsoft.Json;
-using UniRx;
 using CultMath;
 using static CultMath.math;
 using quaternion = CultMath.quaternion;
@@ -30,14 +29,11 @@ public class Ship : Entity
     public float Turn;
     public bool IsPlayerShip;
 
-    private HashSet<EquippedItem> _thrusterItems;
     private Thruster[] _allThrusters;
-    private HashSet<Thruster> _forwardThrusters;
-    private HashSet<Thruster> _reverseThrusters;
-    private HashSet<Thruster> _rightThrusters;
-    private HashSet<Thruster> _leftThrusters;
-    private HashSet<Thruster> _clockwiseThrusters;
-    private HashSet<Thruster> _counterClockwiseThrusters;
+    // One column per thruster (its effect per unit throttle, in the body frame) and the throttles the allocator answers with.
+    private float3[] _columns;
+    private float[] _throttles;
+    private readonly ThrustAllocator _allocator = new ThrustAllocator();
 
     private bool _exitingWormhole = false;
     private bool _enteringWormhole = false;
@@ -48,23 +44,6 @@ public class Ship : Entity
     private float2 _wormholeExitVelocity;
 
     public bool WormholeAnimationInProgress => _enteringWormhole || _exitingWormhole;
-    public float ForwardThrust { get; private set; }
-    public float ReverseThrust { get; private set; }
-    public float LeftStrafeThrust { get; private set; }
-    public float RightStrafeThrust { get; private set; }
-    public float ClockwiseTorque { get; private set; }
-    public float CounterClockwiseTorque { get; private set; }
-    public float LeftStrafeTotalTorque { get; private set; }
-    private List<Thruster> LeftStrafeTorqueThrusters = new List<Thruster>();
-    public float RightStrafeTotalTorque { get; private set; }
-    private List<Thruster> RightStrafeTorqueThrusters = new List<Thruster>();
-
-    public float TurnTime(float2 direction)
-    {
-        var angleDiff = Direction.Angle(normalize(direction));
-        var clockwise = dot(direction, Direction.Rotate(ItemRotation.Clockwise)) > 0;
-        return angleDiff / ((clockwise ? ClockwiseTorque : CounterClockwiseTorque) / Mass);
-    }
 
     public event Action OnExitedWormhole;
     public event Action OnEnteredWormhole;
@@ -95,49 +74,18 @@ public class Ship : Entity
         base.Activate();
 
         _allThrusters = GetBehaviors<Thruster>().ToArray();
-        _thrusterItems = new HashSet<EquippedItem>(_allThrusters.Select(x=>x.Item));
-        
-        _forwardThrusters = new HashSet<Thruster>(_allThrusters
-            .Where(x => x.Item.EquippableItem.Rotation == ItemRotation.Reversed));
-
-        _reverseThrusters = new HashSet<Thruster>(_allThrusters
-            .Where(x => x.Item.EquippableItem.Rotation == ItemRotation.None));
-        
-        _rightThrusters = new HashSet<Thruster>(_allThrusters
-            .Where(x => x.Item.EquippableItem.Rotation == ItemRotation.CounterClockwise));
-        
-        _leftThrusters = new HashSet<Thruster>(_allThrusters
-            .Where(x => x.Item.EquippableItem.Rotation == ItemRotation.Clockwise));
-        
-        _counterClockwiseThrusters = new HashSet<Thruster>(_allThrusters
-            .Where(x => x.Torque < -ItemManager.GameplaySettings.TorqueFloor));
-        
-        _clockwiseThrusters = new HashSet<Thruster>(_allThrusters
-            .Where(x => x.Torque > ItemManager.GameplaySettings.TorqueFloor));
+        _columns = new float3[_allThrusters.Length];
+        _throttles = new float[_allThrusters.Length];
     }
 
     public Ship(ItemManager itemManager, Zone zone, EquippableItem hull, EntitySettings settings) : base(itemManager, zone, hull, settings)
     {
-        ItemDestroyed.Where(item=>_thrusterItems.Contains(item)).Subscribe(RemoveThruster);
-    }
-
-    private void RemoveThruster(EquippedItem item)
-    {
-        _thrusterItems.Remove(item);
-        var thruster = item.GetBehavior<Thruster>();
-        if (_forwardThrusters.Contains(thruster)) _forwardThrusters.Remove(thruster);
-        if (_reverseThrusters.Contains(thruster)) _reverseThrusters.Remove(thruster);
-        if (_rightThrusters.Contains(thruster)) _rightThrusters.Remove(thruster);
-        if (_leftThrusters.Contains(thruster)) _leftThrusters.Remove(thruster);
-        if (_clockwiseThrusters.Contains(thruster)) _clockwiseThrusters.Remove(thruster);
-        if (_counterClockwiseThrusters.Contains(thruster)) _counterClockwiseThrusters.Remove(thruster);
     }
 
     #region ThrustCalculation
 
     // What this ship can do at this instant (see ManoeuvreEnvelope): the sum of what each live propulsor reports with
-    // its own Execute arithmetic; thrusters are its only propulsors. Derived each update, never saved. The aggregates above are not an envelope (they
-    // mix units and cancel a lone off-axis strafer), so nothing in it reads them.
+    // its own Execute arithmetic; thrusters are its only propulsors. Derived each update, never saved.
     public ManoeuvreEnvelope Envelope { get; private set; }
 
     private void RecalculateEnvelope()
@@ -147,120 +95,23 @@ public class Ship : Entity
         Envelope = envelope;
     }
 
-    private void RecalculateThrust()
-    {
-        RecalculateEnvelope();
-        RecalculateForwardThrust();
-        RecalculateReverseThrust();
-        RecalculateLeftStrafeThrust();
-        RecalculateRightStrafeThrust();
-        RecalculateClockwiseTorque();
-        RecalculateCounterClockwiseTorque();
-    }
-    
-    private void RecalculateForwardThrust()
-    {
-        ForwardThrust = 0;
-        foreach (var thruster in _forwardThrusters)
-            if (thruster.Item.Active.Value)
-                ForwardThrust += thruster.Thrust;
-    }
-
-    private void RecalculateReverseThrust()
-    {
-        ReverseThrust = 0;
-        foreach (var thruster in _reverseThrusters)
-            if (thruster.Item.Active.Value)
-                ReverseThrust += thruster.Thrust;
-    }
-
-    private void RecalculateLeftStrafeThrust()
-    {
-        LeftStrafeThrust = 0;
-        LeftStrafeTotalTorque = 0;
-        foreach (var thruster in _leftThrusters)
-        {
-            if(thruster.Item.Active.Value)
-            {
-                LeftStrafeThrust += thruster.Thrust;
-                LeftStrafeTotalTorque += thruster.Torque * thruster.Thrust;
-            }
-        }
-        LeftStrafeTorqueThrusters.Clear();
-        foreach(var thruster in _leftThrusters)
-            if (abs(sign(thruster.Torque) - sign(LeftStrafeTotalTorque)) < .01f)
-                LeftStrafeTorqueThrusters.Add(thruster);
-    }
-
-    private void RecalculateRightStrafeThrust()
-    {
-        RightStrafeThrust = 0;
-        RightStrafeTotalTorque = 0;
-        foreach (var thruster in _rightThrusters)
-        {
-            if(thruster.Item.Active.Value)
-            {
-                RightStrafeThrust += thruster.Thrust;
-                RightStrafeTotalTorque += thruster.Torque * thruster.Thrust;
-            }
-        }
-        RightStrafeTorqueThrusters.Clear();
-        foreach(var thruster in _rightThrusters)
-            if (abs(sign(thruster.Torque) - sign(RightStrafeTotalTorque)) < .01f)
-                RightStrafeTorqueThrusters.Add(thruster);
-    }
-
-    private void RecalculateClockwiseTorque()
-    {
-        ClockwiseTorque = 0;
-        foreach (var thruster in _clockwiseThrusters)
-            if (thruster.Item.Active.Value)
-                ClockwiseTorque += thruster.Torque;
-    }
-
-    private void RecalculateCounterClockwiseTorque()
-    {
-        CounterClockwiseTorque = 0;
-        foreach (var thruster in _counterClockwiseThrusters)
-            if (thruster.Item.Active.Value)
-                CounterClockwiseTorque -= thruster.Torque;
-    }
-
     #endregion
+
+    // Called by Entity.Update once the items' performance is current and before the power bus is stepped and the items
+    // execute: liveness, thrust and the throttles they decide are one phase, the one Execute acts on. The lock is a
+    // bound on the allocator's solve; intent reaches the allocator here and nowhere else.
+    protected override void UpdateThrottles()
+    {
+        if (_exitingWormhole || _enteringWormhole) return;
+        RecalculateEnvelope();
+        for (var i = 0; i < _allThrusters.Length; i++)
+            _columns[i] = _allThrusters[i].Column(_allThrusters[i].NominalThrust);
+        _allocator.Allocate(_columns, MovementDirection, Turn, _throttles, ThrottleLocked);
+        for (var i = 0; i < _allThrusters.Length; i++) _allThrusters[i].Axis = _throttles[i];
+    }
 
     public override void Update(float delta)
     {
-        if (_active && !_exitingWormhole && !_enteringWormhole)
-        {
-            RecalculateThrust();
-            // The lock replaces intent here, once; player and agent intent both pass through this one read.
-            var move = ThrottleLocked ? float2(0, 1) : MovementDirection;
-            foreach (var thruster in _allThrusters) thruster.Axis = 0;
-            var rightThrusterTorqueCompensation = abs(RightStrafeTotalTorque) / RightStrafeTorqueThrusters.Count;
-            foreach (var thruster in _rightThrusters)
-            {
-                var thrust = 0f;
-                thrust += move.x;
-                if (RightStrafeTorqueThrusters.Contains(thruster))
-                    thrust -= move.x * (rightThrusterTorqueCompensation / (abs(thruster.Torque) * thruster.Thrust));
-                thruster.Axis = thrust;
-            }
-            var leftThrusterTorqueCompensation = abs(LeftStrafeTotalTorque) / LeftStrafeTorqueThrusters.Count;
-            foreach (var thruster in _leftThrusters)
-            {
-                var thrust = 0f;
-                thrust += -move.x;
-                if (LeftStrafeTorqueThrusters.Contains(thruster))
-                    thrust += move.x * (leftThrusterTorqueCompensation / (abs(thruster.Torque) * thruster.Thrust));
-                thruster.Axis = thrust;
-            }
-            foreach (var thruster in _forwardThrusters) thruster.Axis += move.y;
-            foreach (var thruster in _reverseThrusters) thruster.Axis += -move.y;
-
-            foreach (var thruster in _clockwiseThrusters) thruster.Axis += Turn;
-            foreach (var thruster in _counterClockwiseThrusters) thruster.Axis += -Turn;
-        }
-
         var velocityMagnitude = length(Velocity);
         if(velocityMagnitude > .01f)
             Velocity = normalize(Velocity) * decay(velocityMagnitude, HullData.Drag, delta);

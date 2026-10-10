@@ -19,14 +19,14 @@ using Random = CultMath.Random;
 // content restore-hulls landed, against the real shipped catalog, read-only: the hulls exist with the expected
 // thruster hardpoint counts, every thruster hardpoint accepts a catalog thruster design through TryEquip at its
 // own position, and the ship then moves and turns for a few ticks under MovementDirection/Turn on the
-// pre-Cut-3 mixer -- proof of the restored content, not of a controller this cut does not touch.
+// thrust allocator -- proof of the restored content, not of a controller this cut does not touch.
 public sealed class RestoredHullsTests
 {
     // Soul's finding #1 (this cut's fix batch 3): a hand-set GameplaySettings fixture left thermal radiation and
     // conduction at their bare-class defaults (1/1/1) against the shipped 3 / 1e-8 / 0.01
     // (Assets/Resources/Settings.asset), so equipped parts froze toward 0 K, performance collapsed to 0 from
     // cold, and TorqueMultiplier defaulting to 0 on top of that made every thruster's yaw contribution silently
-    // zero (Ship.cs's mixer applies Torque*Thrust*TorqueMultiplier/Mass) -- velocity moved but Direction never
+    // zero (Thruster.Column applies Torque*Thrust*TorqueMultiplier/Mass) -- velocity moved but Direction never
     // turned, which looks exactly like a content defect instead of a fixture gap. AuthoredSettings
     // (tools/AetherDb/AuthoredSettings.cs) is the same headless YAML reader tools/AetherDb already uses to
     // inspect Settings.asset outside Unity; this loads the real GameplaySettings the same way instead of
@@ -264,6 +264,16 @@ public sealed class RestoredHullsTests
         }
     }
 
+    // For a fixture that pins flight, not brownout: the thrusters draw no power. A ship with every thruster firing asks
+    // for more than its reactor gives, and a brownout scales the thrusters' thrust unevenly (follow-up
+    // allocator-brownout-columns), so the turn or heading a test reads would be the brownout's.
+    internal static void FreeThrusterPower(CultCache cache)
+    {
+        foreach (var gear in cache.GetAll<GearData>())
+            foreach (var thruster in gear.Behaviors.OfType<ThrusterData>())
+                thruster.EnergyUsage = new PerformanceStat { Min = 0, Max = 0 };
+    }
+
     // A restored hull with every thruster hardpoint (and its reactor, and the first hardpoint of each type in
     // alsoFill) filled, activated and warmed up: the rotation thrusters the helm tests need. The caller owns the cache.
     internal static Ship BuildThrustedShip(CultCache cache, string name, params HardpointType[] alsoFill)
@@ -313,7 +323,7 @@ public sealed class RestoredHullsTests
     // "The ship then moves and turns... for a few ticks" (docs/locomotion-cut.md verification list). Equips
     // every thruster hardpoint with a fitting design, then drives MovementDirection/Turn the same way
     // ActionGameManager's player-input path does (docs' own consumer audit) and checks Entity.Velocity and
-    // Entity.Direction both move over a few ticks on the current (pre-Cut-3) mixer.
+    // Entity.Direction both move over a few ticks under the thrust allocator.
     [Theory]
     [InlineData("Longinus")]
     [InlineData("Djinni")]
@@ -327,7 +337,7 @@ public sealed class RestoredHullsTests
         var startDirection = ship.Direction;
 
         ship.MovementDirection = float2(0, 1); // full forward, same axis ActionGameManager.Input.Player.Move drives
-        ship.Turn = 1; // a turn command, so the mixer's yaw thrusters have work to do
+        ship.Turn = 1; // a turn command, so the allocator's yaw thrusters have work to do
         for (var i = 0; i < 10; i++) zone.Update(1f / 60f);
 
         Assert.NotEqual(startVelocity, ship.Velocity);
@@ -576,8 +586,8 @@ public sealed class RestoredHullsTests
     // flying: a real, unforced Longinus holds thrust (and the hull's own VelocityLimit) running well past the
     // window this test drives.
     //
-    // Real settings also retired the old +-10 tolerance's premise. On real physics the mixer's own tick order
-    // (Ship.cs: a tick's thrust-driven velocity is checked against VelocityLimit's cap on the FOLLOWING tick)
+    // Real settings also retired the old +-10 tolerance's premise. On real physics the tick order
+    // (Entity: a tick's thrust-driven velocity is checked against VelocityLimit's cap on the FOLLOWING tick)
     // settles into a steady state at the cap plus one tick's own forward acceleration, not at the literal cap --
     // measured here at ~103.3 for this seed's generated loadout, not the ~110 an unconstrained +-10 tolerance
     // would also accept. +4 keeps that real headroom on the ceiling side. The floor is tighter (-3): a

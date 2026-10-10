@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using CultMath;
 using Xunit;
 
@@ -419,5 +420,85 @@ public class ThrustAllocatorTests
         var duel = Duel();
         Assert.InRange(Solve(duel, 0, 0, .5f)[0], 1.2e-4f, LeakBound);
         Assert.InRange(Solve(duel, 0, 0, -.5f)[1], 1.05e-4f, LeakBound);
+    }
+
+    [Fact]
+    public void TheForwardFloorHoldsEveryColumnThatPushesForward()
+    {
+        // The throttle lock (ruling overdrive-forward-floor): a column is floored by the sign of its own forward push, not
+        // by its size or its torque. A sliver of forward push is held at full through a hard turn either way, and the
+        // columns that push nowhere or back are free.
+        var hull = new[] { Col(0, 53.94f, 49.24f), Col(0, 61.19f, -55.86f), Col(0, .01f, -80f), Col(29.08f, 0, 166.26f), Col(0, -40f, 90f) };
+        var allocator = new ThrustAllocator();
+        foreach (var turn in new[] { 1f, -1f })
+        {
+            var throttle = new float[hull.Length];
+            allocator.Allocate(hull, new float2(1, -1), turn, throttle, forwardFloor: true);
+            Assert.All(throttle.Take(3), t => Assert.True(t > .9999f, "a forward-pushing column holds full"));
+
+            var blind = new float[hull.Length];
+            new ThrustAllocator().Allocate(hull, default, turn, blind, forwardFloor: true);
+            var apart = throttle.Zip(blind, (a, b) => MathF.Abs(a - b)).Max();
+            Assert.True(apart < 1e-6f, $"the stick changed the floored throttles by {apart}");
+
+            var open = new float[hull.Length];
+            new ThrustAllocator().Allocate(hull, new float2(0, 1), turn, open);
+            Assert.True(open.Take(3).Min() < .5f, "fixture: unfloored, the turn idles a forward drive");
+        }
+    }
+
+    [Fact]
+    public void TheThrottlesStayInBoundsWhateverTheSolveEnds()
+    {
+        // The solver can stop at its iteration limit rather than converge. Probed on 64000 calls over 1 to 32 columns, scales
+        // 1e-6 to 1e6, micro and ordinary intents (2026-10-10): 8 of 60297 solves reached it, all on 32 synthetic columns, all with
+        // intents near 1e-8, none from a fresh allocator, none on a shipped hull (the largest has 8 thrusters). Wherever the
+        // solve ends, the allocator hands back what it has: finite, within [0,1], and the floored columns at full.
+        var rng = new System.Random(20261010);
+        float Rand(float lo, float hi) => lo + (float) rng.NextDouble() * (hi - lo);
+        foreach (var scale in new[] { 1e-3f, 1f })
+            for (var round = 0; round < 12; round++)
+            {
+                var hull = Enumerable.Range(0, 32).Select(_ => new float3(Rand(-1, 1) * scale, Rand(-1, 1) * scale, rng.Next(4) == 0 ? 0 : Rand(-.3f, .3f) * scale)).ToArray();
+                var allocator = new ThrustAllocator();
+                var throttle = new float[hull.Length];
+                for (var call = 0; call < 40; call++)
+                {
+                    var micro = rng.Next(4) == 0 ? 1e-7f : 1f;
+                    var floor = rng.Next(3) == 0;
+                    allocator.Allocate(hull, new float2(Rand(-1, 1) * micro, Rand(-1, 1) * micro), Rand(-1.5f, 1.5f) * micro, throttle, floor);
+                    Assert.All(throttle, t => Assert.InRange(t, 0f, 1f));
+                    if (floor)
+                        for (var i = 0; i < hull.Length; i++)
+                            if (hull[i].y > 0) Assert.Equal(1f, throttle[i]);
+                }
+            }
+    }
+
+    [Fact]
+    public void AMicroIntentIsServed()
+    {
+        // Zero is a fact about the intent alone (follow-up allocator-residual-pins): an intent of 1e-6 or 1e-10 of the
+        // half-axis is not zero, so something fires and the net goes the way it was asked.
+        void Served(float3[] hull, float x, float y, float turn, string what)
+        {
+            var throttle = Solve(hull, x, y, turn);
+            var net = Net(hull, throttle);
+            var asked = x != 0 ? x : y != 0 ? y : turn;
+            var got = x != 0 ? net.x : y != 0 ? net.y : net.z;
+            Assert.True(throttle.Max() > 0f, $"{what}: nothing fired");
+            Assert.True(got * asked > 0f, $"{what}: the net does not go the way it was asked");
+        }
+
+        foreach (var micro in new[] { 1e-6f, 1e-10f })
+        {
+            Served(Duel(), 0, 0, micro, "duel turn +");
+            Served(Duel(), 0, 0, -micro, "duel turn -");
+            Served(Duel(), 0, micro, 0, "duel forward");
+            Served(Symmetric(), micro, 0, 0, "symmetric starboard");
+            Served(Symmetric(), -micro, 0, 0, "symmetric port");
+            Served(Symmetric(), 0, micro, 0, "symmetric forward");
+            Served(Symmetric(), 0, -micro, 0, "symmetric reverse");
+        }
     }
 }

@@ -93,11 +93,6 @@ public interface IActivatedBehavior
     void Deactivate();
 }
 
-public interface IAnalogBehavior
-{
-    float Axis { get; set; }
-}
-
 public interface IEventBehavior
 {
     void ResetEvents();

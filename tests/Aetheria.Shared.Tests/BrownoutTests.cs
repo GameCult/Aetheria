@@ -109,7 +109,9 @@ public sealed class BrownoutTests : IDisposable
         var reactorData = cache.GetByName<GearData>("Reactor");
         ((ReactorData) reactorData.Behaviors[0]).Charge = Constant(reactorCharge);
         Assert.True(ship.TryEquip(Mint(cache, items, reactorData)));
-        Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("Consumer"))));
+        // The Skiff's centre column: a thruster there has no torque, so the allocator can fire it alone. These tests pin power,
+        // not flight, and a lone off-centre thruster could not fire without turning.
+        Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("Consumer")), new int2(2, 1)));
 
         zone.Entities.Add(ship);
         // Ship.Turn stays 0, so Ship.Update commands no rotation: no incidental torque thrust from the
@@ -129,9 +131,47 @@ public sealed class BrownoutTests : IDisposable
             Thrust = Curved(100, exponent), Visibility = Constant(0), Heat = Constant(0), EnergyUsage = Constant(100)
         });
         var ship = BuildShip(cache, reactorCharge);
+        Assert.True(ship.GetBehavior<Thruster>().Torque == 0f, "the lone thruster turns nothing");
+        ship.Equipment.Single(e => e.Data.Name == "Consumer").UpdatePerformance(); // live from its first performance update
         ship.MovementDirection = float2(0, -1); // reverse-thruster axis += -MovementDirection.y == 1
         ship.Update(1f);
         return (-ship.Velocity.y, ship.GetBehavior<Thruster>());
+    }
+
+    // A throttle the old .01 gate cut off still asks for its share of the power (the allocator balances a drive pair
+    // with throttles of a thousandth).
+    [Fact]
+    public void ASmallThrottleStillAsksForItsPower()
+    {
+        using var cache = OpenCatalog(new ThrusterData
+        {
+            Thrust = Constant(100), Visibility = Constant(0), Heat = Constant(0), EnergyUsage = Constant(100)
+        });
+        var thruster = BuildShip(cache, reactorCharge: 1000).GetBehavior<Thruster>();
+        thruster.Axis = .005f;
+        Assert.Equal(.5f, thruster.PowerRequest(1f), 4);
+    }
+
+    // TA6: a column promises what the thruster does at a full grant, never what the grant currently allows. Mutations:
+    // the allocator reads Column(Thrust) (live, power-curved) for Column(NominalThrust), and Column returns nothing
+    // while the grant is nil. With no power at all the thruster's live thrust is zero, yet the allocator still asks
+    // it for its throttle (Execute then gates on the grant, and the thruster does nothing).
+    [Fact]
+    public void ATotalBrownoutStillAllocatesTheThrusterItsNominalColumn()
+    {
+        using var cache = OpenCatalog(new ThrusterData
+        {
+            Thrust = Curved(100, 1), Visibility = Constant(0), Heat = Constant(0), EnergyUsage = Constant(100)
+        });
+        var ship = BuildShip(cache, reactorCharge: 0);
+        var thruster = ship.GetBehavior<Thruster>();
+        ship.MovementDirection = float2(0, -1);
+        ship.Update(1f);
+        ship.Update(1f);
+        Assert.Equal(0f, thruster.Item.PowerSupply, 3);
+        Assert.Equal(0f, thruster.Thrust, 3);
+        Assert.True(thruster.Column(thruster.NominalThrust).y < 0f, "the nominal column pushes the reverse thruster's way");
+        Assert.True(thruster.Axis > .5f, "the allocator asks for the throttle whatever the grant");
     }
 
     [Fact]
@@ -336,9 +376,11 @@ public sealed class BrownoutTests : IDisposable
         var energyUsage = Curved(100, exponent: 1);
         using var cache = OpenCatalog(new ThrusterData
         {
-            Thrust = Constant(0), Visibility = Constant(0), Heat = Constant(0), EnergyUsage = energyUsage
+            Thrust = Constant(100), Visibility = Constant(0), Heat = Constant(0), EnergyUsage = energyUsage
         });
         var ship = BuildShip(cache, reactorCharge: 25); // demand 100 (nominal), generation 25 -> ratio .25
+        // The allocator fires a thruster that can push; it is live from its first performance update.
+        ship.Equipment.Single(e => e.Data.Name == "Consumer").UpdatePerformance();
         ship.MovementDirection = float2(0, -1);
         ship.Update(1f);
         var thruster = ship.GetBehavior<Thruster>();
