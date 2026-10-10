@@ -66,12 +66,13 @@ public sealed class ConsumableSupplyTests : IDisposable
             var stranger = seed.Upsert(new Faction { Name = "Stranger", ShortName = "STR" });
             maker = seed.Upsert(new Faction { Name = "Maker", ShortName = "MKR", Allegiance = { { ally, 1f } } });
 
-            var skiff = seed.Upsert(new HullData { Name = "Skiff", HullType = HullType.Ship, Shape = Solid(5, 5), Price = 100 });
+            var skiff = seed.Upsert(new HullData { Name = "Skiff", HullType = HullType.Ship, Shape = Solid(3, 3), Price = 100 });
             var platform = seed.Upsert(new HullData { Name = "Platform", HullType = HullType.Station, Shape = Solid(5, 5), Price = 100 });
-            // A hold with no cell cannot take a consumable; the others take up to eight.
+            // A hold with no cell cannot take a consumable. The others are large: a station stocks up to sixteen
+            // picks of gear (drawn with replacement) before its consumable, and a full hold would refuse it.
             var crate = seed.Upsert(new CargoBayData
             {
-                Name = "Crate", Shape = new Shape(), Price = 5, InteriorShape = holdless ? new Shape(1, 1) : Solid(4, 2)
+                Name = "Crate", Shape = new Shape(), Price = 5, InteriorShape = holdless ? new Shape(1, 1) : Solid(16, 12)
             });
             var dock = seed.Upsert(new DockingBayData { Name = "Dock", Shape = new Shape(), Price = 5, InteriorShape = Solid(1, 1) });
             var capacitor = seed.Upsert(new GearData { Name = "Cap", Hardpoint = HardpointType.Tool, Shape = new Shape(), Price = 1, Behaviors = { new CapacitorData() } });
@@ -152,26 +153,24 @@ public sealed class ConsumableSupplyTests : IDisposable
         var rig = Build(Offer.Reachable);
         var stocked = 0;
         var makers = new HashSet<string>();
-        var hist = new int[4]; int dockN = 0, crateN = 0;
+        var fullest = 0;
         for (var i = 0; i < Seeds; i++)
         {
             var random = new Random(SeedOf(i));
             var pack = rig.Generator(ref random).GenerateStationLoadout();
-            hist[Math.Min(3, Consumables(pack).Length)]++;
-            dockN += (pack.DockingBayContents ?? new (int2, ItemInstance)[0][]).SelectMany(b => b).Count(e => e.item is ConsumableItem);
-            crateN += pack.CargoContents.SelectMany(b => b).Count(e => e.item is ConsumableItem);
             Assert.NotEmpty(pack.CargoContents.SelectMany(bay => bay)); // the gear stock is read from the same pack
             var held = Consumables(pack);
             if (held.Length == 0) continue;
             stocked++;
+            fullest = Math.Max(fullest, held.Length);
             Assert.InRange(held.Length, 1, LoadoutGenerator.StationConsumableUnits);
             var brands = held.Select(item => rig.Items.Brand(item)).ToArray();
             var product = Assert.Single(brands.Select(brand => brand.Product.Name).Distinct()); // exactly one product
             Assert.Contains(product, new[] { "Overdrive by Maker", "Overdrive by Ally" }); // sold by a maker on offer
             makers.Add(product);
         }
-        Assert.True(false, $"PROBE stocked={stocked} hist={string.Join(",", hist)} dock={dockN} crate={crateN} none={Enumerable.Range(0, 0).Count()}");
         AssertWithinThreeSigma(stocked, LoadoutGenerator.StationConsumableChance, "stations stocking a consumable");
+        Assert.Equal(LoadoutGenerator.StationConsumableUnits, fullest); // a roll can stock up to the maximum
         Assert.Equal(2, makers.Count); // the pick is among the products on offer, not always the first
     }
 
