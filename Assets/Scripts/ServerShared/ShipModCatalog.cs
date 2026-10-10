@@ -45,7 +45,7 @@ public static class ShipModCatalog
     // named. A collision (with the shipped catalog, or with another package's hull name) excludes every package involved,
     // since neither has a claim to the name. The derived catalog holds the shipped catalog plus the included packages.
     // Unsafe inputs and outputs (a missing catalog, a derived file that would replace a source) still throw: nothing is composed.
-    public static Composition Compose(string shippedCatalog, string outputCatalog, string modsRoot)
+    public static Composition Compose(string shippedCatalog, string outputCatalog, string modsRoot, CultDocumentRegistry registry = null)
     {
         var source = Path.GetFullPath(shippedCatalog);
         var output = Path.GetFullPath(outputCatalog);
@@ -67,8 +67,9 @@ public static class ShipModCatalog
         foreach (var directory in Directory.GetDirectories(root).OrderBy(path => path, StringComparer.Ordinal))
         {
             var path = Path.Combine(directory, "ship.cc");
-            if (!File.Exists(path)) continue;
             var name = Path.GetFileName(directory);
+            // A package directory without its ship.cc is a package that lost its records, named like any other failure.
+            if (!File.Exists(path)) { Exclude(name, "the package holds no ship.cc."); continue; }
             // A package can fail in any way a hostile or broken file can, so its failure is quarantined whatever it is.
             try { packages.Add((name, ReadPackage(path))); }
             catch (Exception error) { Exclude(name, error.Message); }
@@ -84,7 +85,7 @@ public static class ShipModCatalog
             Directory.CreateDirectory(workspace);
             File.Copy(source, temporary);
             Composition composition;
-            using (var cache = AetheriaStores.Open(temporary, catalogWritable: true))
+            using (var cache = AetheriaStores.Open(temporary, catalogWritable: true, registry: registry))
             {
                 // Collisions are judged against the shipped records alone, before any package is written, so the
                 // verdict does not depend on directory order. CultCache indexes names per concrete type and lets the
@@ -153,14 +154,14 @@ public static class ShipModCatalog
     // The one game-side choice of catalog: the shipped file when no package is installed or none survives composition,
     // otherwise the derived file, composed afresh from the shipped one and the surviving packages. Recomposed every
     // call, so the derived file is never stale and never an authority. Excluded packages come back named, for the menu.
-    public static (string Catalog, Exclusion[] Excluded) ResolveCatalog(string shippedCatalog, string derivedCatalog, string modsRoot)
+    public static (string Catalog, Exclusion[] Excluded) ResolveCatalog(string shippedCatalog, string derivedCatalog, string modsRoot,
+        CultDocumentRegistry registry = null)
     {
-        if (!Directory.Exists(modsRoot) ||
-            !Directory.GetDirectories(modsRoot).Any(directory => File.Exists(Path.Combine(directory, "ship.cc"))))
+        if (!Directory.Exists(modsRoot) || Directory.GetDirectories(modsRoot).Length == 0)
             return (shippedCatalog, Array.Empty<Exclusion>());
         Composition composition;
         // A failure of the composition itself (an unwritable derived path, say) is still a mod problem, never a reason not to boot.
-        try { composition = Compose(shippedCatalog, derivedCatalog, modsRoot); }
+        try { composition = Compose(shippedCatalog, derivedCatalog, modsRoot, registry); }
         catch (Exception error) { return (shippedCatalog, new[] { new Exclusion { Package = "(all mods)", Reason = error.Message } }); }
         return (composition.Included.Length == 0 ? shippedCatalog : derivedCatalog, composition.Excluded);
     }
@@ -171,7 +172,7 @@ public static class ShipModCatalog
             throw new InvalidOperationException($"{path}: ship ID must match its package directory name.");
         var modelPath = Path.GetFullPath(Path.Combine(directory, ship.ModelAsset));
         // Containment is ShipAuthoringStore.Validate's job: it refuses rooted and `..` model paths before this line.
-        if (!File.Exists(modelPath) || !string.Equals(Path.GetExtension(modelPath), ".glb", StringComparison.OrdinalIgnoreCase))
+        if (!File.Exists(modelPath) || !string.Equals(Path.GetExtension(modelPath), ".glb", StringComparison.Ordinal))
             throw new InvalidOperationException($"{ship.Id}: model asset must name an existing GLB inside its package.");
         var modelNodes = ReadNodeIds(modelPath);
         foreach (var anchor in ship.Anchors)

@@ -42,7 +42,7 @@ public sealed partial class RunStartTests : IDisposable
 
         // A registry scoped to the shipped assembly's own [CultDocument] types, as RestoredHullsTests composes it, so
         // this test assembly's own documents never reach the real catalog's validation.
-        _cache = new CultCache(Registry());
+        _cache = new CultCache(TestCatalog.Registry());
         _cache.AddBackingStore(new SingleFileMessagePackBackingStore(catalog), AetheriaStores.CatalogTypes);
         _cache.AddBackingStore(new SingleFileMessagePackBackingStore(Path.Combine(_root, "run.cc")), AetheriaStores.RunTypes);
 
@@ -67,10 +67,6 @@ public sealed partial class RunStartTests : IDisposable
         _cache.Dispose();
         Directory.Delete(_root, true);
     }
-
-    private static CultDocumentRegistry Registry() => CultDocumentRegistry.ForTypes(typeof(ItemData).Assembly.GetTypes()
-        .Where(t => t is { IsAbstract: false, IsInterface: false })
-        .Where(t => t.GetCustomAttribute<CultDocumentAttribute>() != null));
 
     internal static string FindRepoRoot()
     {

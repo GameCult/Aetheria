@@ -16,9 +16,7 @@ public sealed class TestCatalogTests : IDisposable
     public TestCatalogTests()
     {
         Directory.CreateDirectory(Mods);
-        using var cache = AetheriaStores.Open(Shipped, catalogWritable: true);
-        // The test assembly registers TestCatalogGlobal (AetheriaStoresTests), so any populated catalog must hold one.
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        using var cache = AetheriaStores.Open(Shipped, catalogWritable: true, registry: TestCatalog.Registry());
         cache.Upsert(new HullData { Name = "Wasp", Shape = ShipAuthoringTests.Fixture().Hull.Shape });
         cache.FlushAsync().Wait();
     }
@@ -44,7 +42,7 @@ public sealed class TestCatalogTests : IDisposable
         var catalog = TestCatalog.Resolve(Shipped, Mods, Work);
 
         Assert.NotEqual(Shipped, catalog);
-        using var cache = AetheriaStores.Open(catalog);
+        using var cache = AetheriaStores.Open(catalog, registry: TestCatalog.Registry());
         Assert.Equal("Skiff", cache.Get<HullData>(ShipModCatalog.HullKey("mod.skiff")).Name);
         Assert.Contains("Wasp", cache.GetAll<HullData>().Select(hull => hull.Name));
     }
@@ -59,6 +57,39 @@ public sealed class TestCatalogTests : IDisposable
         var error = Assert.Throws<InvalidOperationException>(() => TestCatalog.Resolve(Shipped, Mods, Work));
 
         Assert.Contains("mod.broken", error.Message);
+        Assert.DoesNotContain("mod.good", error.Message);
+    }
+
+    [Fact]
+    public void AFirstPartyPackageComposesOverTheRealCatalog()
+    {
+        // A repository root holding the real shipped catalog (which has no TestCatalogGlobal record) and one valid package
+        // under GameData/Mods, the layout TestCatalog.Repo resolves from.
+        var root = Path.Combine(_directory.Path, "repo");
+        Directory.CreateDirectory(Path.Combine(root, "GameData"));
+        File.Copy(Path.Combine(RunStartTests.FindRepoRoot(), "GameData", "Aetheria.cc"), Path.Combine(root, "GameData", "Aetheria.cc"));
+        ShipFixture.WritePackage(Path.Combine(root, "GameData", "Mods"), "mod.skiff", hullName: "FixtureSkiff");
+
+        var catalog = TestCatalog.ForRepo(root);
+
+        Assert.NotEqual(Path.Combine(root, "GameData", "Aetheria.cc"), catalog);
+        // Opened as RunStartTests opens it: the shipped assembly's registry, the game's own global check.
+        using var cache = AetheriaStores.Open(catalog, registry: TestCatalog.Registry());
+        Assert.Equal("FixtureSkiff", cache.Get<HullData>(ShipModCatalog.HullKey("mod.skiff")).Name);
+        Assert.NotEmpty(cache.GetAll<HullData>().Where(hull => hull.Name != "FixtureSkiff"));
+    }
+
+    [Fact]
+    public void APackageWithoutItsShipFileFailsLoudly()
+    {
+        ShipFixture.WritePackage(Mods, "mod.good", hullName: "Good");
+        ShipFixture.WritePackage(Mods, "mod.lost", hullName: "Lost");
+        File.Delete(Path.Combine(Mods, "mod.lost", "ship.cc"));
+
+        var error = Assert.Throws<InvalidOperationException>(() => TestCatalog.Resolve(Shipped, Mods, Work));
+
+        Assert.Contains("mod.lost", error.Message);
+        Assert.Contains("ship.cc", error.Message);
         Assert.DoesNotContain("mod.good", error.Message);
     }
 }
