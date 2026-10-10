@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using GameCult.Caching;
 using GameCult.Caching.MessagePack;
@@ -15,6 +16,9 @@ public static class AetheriaStores
     // no records at all, a seed store being authored from nothing; a populated catalog is held to it however it opens.
     public static CultCache Open(string catalogPath, string runPath = null, string playerPath = null, bool catalogWritable = false)
     {
+        // A read-only open of an absent catalog would hydrate an empty game; a shipped player missing its catalog stops here.
+        if (!catalogWritable && !File.Exists(catalogPath))
+            throw new InvalidOperationException($"Catalog {catalogPath} does not exist; a read-only open never invents one.");
         var cache = new CultCache();
         try
         {
