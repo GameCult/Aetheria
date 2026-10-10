@@ -115,6 +115,10 @@ def row_count(cells, y):
     return sum(1 for _, cy in cells if cy == y)
 
 
+def rounded(matrix):
+    return tuple(round(value, 4) for row in matrix for value in row)
+
+
 def digest(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
@@ -335,7 +339,8 @@ def main():
     select(render)
     snapshot = (buffer(bpy.context.scene), list(collection["aetheria.grid_origin"]),
                 [tuple(map(tuple, child_obj.matrix_world)) for child_obj in root.children])
-    for operator, what in ((bpy.ops.aetheria.flip_nose, "Flip Nose"), (bpy.ops.aetheria.rasterise_hull, "Rasterise")):
+    for operator, what in ((bpy.ops.aetheria.flip_nose, "Flip Nose"), (bpy.ops.aetheria.rasterise_hull, "Rasterise"),
+                           (bpy.ops.aetheria.package_ship, "Package")):
         refused(operator, "2 meshes in the ship collection are not under Ship Root", f"{what} with loose meshes")
         require(nub.select_get() and render.select_get(), f"{what} did not select the loose meshes")
         require(snapshot == (buffer(bpy.context.scene), list(collection["aetheria.grid_origin"]),
@@ -352,6 +357,19 @@ def main():
     aft, forward = row_count(before, 0), row_count(before, height - 1)
     print(f"RASTERISE {width}x{height} aft={aft} forward={forward}")
     require(aft > forward, "The nub's cells are not on the aft rows before the flip")
+    real_rasterise = aetheria_ships._rasterise
+    turned = [rounded(child_obj.matrix_world) for child_obj in root.children]
+
+    def failing_rasterise(*args, **kwargs):
+        raise ValueError("probe: rasterise failed")
+
+    aetheria_ships._rasterise = failing_rasterise
+    try:
+        refused(bpy.ops.aetheria.flip_nose, "probe: rasterise failed", "Flip Nose whose Rasterise fails")
+    finally:
+        aetheria_ships._rasterise = real_rasterise
+    require(turned == [rounded(child_obj.matrix_world) for child_obj in root.children],
+            "A Flip Nose whose Rasterise failed left the hull turned")
     result, message = run(bpy.ops.aetheria.flip_nose)
     require(result == {"FINISHED"}, f"Flip Nose was refused: {message}")
     _, _, after, _ = buffer(bpy.context.scene)
@@ -398,6 +416,19 @@ def main():
     require("Source Sphere" not in names and "Grid" not in names, "The GLB holds the Source or the Grid")
     require("the validator accepted the ship" in report and not any(name in report for name in NAMES_NOT_ECHOED),
             f"Package's report is not the fixed text: {report}")
+    # Members a later schema adds to a hardpoint row are not unsaved edits.
+    real_read_layout = aetheria_ships.read_layout
+
+    def later_schema(*args, **kwargs):
+        shape, rows, revision = real_read_layout(*args, **kwargs)
+        return shape, [list(row) + [0] for row in rows], revision
+
+    aetheria_ships.read_layout = later_schema
+    try:
+        result, message = run(bpy.ops.aetheria.package_ship)
+    finally:
+        aetheria_ships.read_layout = real_read_layout
+    require(result == {"FINISHED"}, f"A .cc whose rows carry a later schema's members read as unsaved edits: {message}")
     # A library error is the console's, not the panel's: a directory where ship.glb goes fails the exporter.
     glb = Path(path).with_name("ship.glb")
     glb.unlink()
@@ -469,9 +500,26 @@ def guards_pass(aetheria_ships):
     require(Path(path_a).is_file() and digest(path_a) == saved, "A refused Save deleted or changed the author's ship.cc")
     del collection_a["aetheria.pending"]
 
+    # A collection with a mesh in a child collection is not made a ship.
+    child_host = bpy.data.collections.new("Guard Child")
+    scene.collection.children.link(child_host)
+    nested = bpy.data.collections.new("Guard Nested")
+    child_host.children.link(nested)
+    new_object(nested, "Guard Nested Mesh", box("Nested", 1.0, 1.0, 1.0))
+    select(new_object(child_host, "Guard Child Hull", box("Child", 1.0, 3.0, 0.5)))
+    scene.aetheria_new_ship_id = "smoke.guard.c"
+    scene.aetheria_new_ship_name, scene.aetheria_new_ship_like = "Guard Child", "Djinni"
+    refused(bpy.ops.aetheria.new_ship, "must sit directly in it", "New Ship with a mesh in a child collection")
+    require("aetheria.id" not in child_host, "A refused New Ship bound the collection")
+
     # Ship B takes none of ship A's hardpoints.
     collection_b, hull_b = ship_from_box(scene, "Guard B", GUARD_B, (0, 0, 0))
     require(buffer(bpy.context.scene)[3] == 0, "New Ship kept the previous ship's hardpoints in the buffer")
+
+    # A pending ship is not packaged, and nothing is written for it.
+    select(hull_b)
+    refused(bpy.ops.aetheria.package_ship, "Save Layout first", "Package of a pending ship")
+    require(not (MODS / GUARD_B).exists(), "Package wrote for a pending ship")
 
     # A buffer that belongs to ship B is neither saved into ship A's file nor rasterised onto ship A.
     select(hull_a)
@@ -501,6 +549,25 @@ def guards_pass(aetheria_ships):
     result, message = run(bpy.ops.aetheria.save_ship_layout)
     require(result == {"FINISHED"} and keep.is_file(), f"The retried Save was refused or took the author's file: {message}")
     require(saved_layout(path_b, aetheria_ships)[3] == [], "Ship B's file holds hardpoints from ship A")
+
+    # Another ship's unsaved buffer is no reason to refuse Package: ship A's own file is what it checks.
+    select(hull_a)
+    result, message = run(bpy.ops.aetheria.package_ship)
+    require("Save Layout first" not in message and "Save Layout first" not in scene.aetheria_package_report,
+            "Package read another ship's buffer as ship A's unsaved edits")
+
+    # A buffer whose cells do not fill its size draws no Grid.
+    generated_b = child(collection_b, "Generated")
+    state = bpy.context.scene.aetheria_layout
+    require(any(obj.get("aetheria.grid") for obj in generated_b.objects), "Ship B has no Grid")
+    state.cells.remove(len(state.cells) - 1)
+    aetheria_ships._redraw_grid(collection_b, state)
+    require(not any(obj.get("aetheria.grid") for obj in generated_b.objects), "A Grid is drawn from a buffer that lacks cells")
+
+    # Rasterise needs the Ship Root New Ship made.
+    select(hull_b)
+    bpy.data.objects.remove(next(obj for obj in collection_b.objects if obj.get("aetheria.ship_root")))
+    refused(bpy.ops.aetheria.rasterise_hull, "has no Ship Root", "Rasterise without a Ship Root")
 
 
 def undo_pass():
