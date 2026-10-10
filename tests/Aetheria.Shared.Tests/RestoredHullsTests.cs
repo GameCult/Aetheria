@@ -38,9 +38,7 @@ public sealed class RestoredHullsTests
     // real catalog's validation the way the shared, AppDomain-scanning CultCache() default would.
     private static CultCache OpenReadOnlyRealCatalog(string catalogPath)
     {
-        var registry = CultDocumentRegistry.ForTypes(typeof(ItemData).Assembly.GetTypes()
-            .Where(t => t is { IsAbstract: false, IsInterface: false })
-            .Where(t => t.GetCustomAttribute<CultDocumentAttribute>() != null));
+        var registry = TestCatalog.Registry();
         var cache = new CultCache(registry);
         cache.AddBackingStore(new SingleFileMessagePackBackingStore(catalogPath, true), AetheriaStores.CatalogTypes);
         return cache;
@@ -54,7 +52,7 @@ public sealed class RestoredHullsTests
         throw new DirectoryNotFoundException("Run from inside the Aetheria repository.");
     }
 
-    internal static CultCache OpenCatalog() => OpenReadOnlyRealCatalog(Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc"));
+    internal static CultCache OpenCatalog() => OpenReadOnlyRealCatalog(TestCatalog.Repo);
 
     // Shared tutorial-galaxy construction settings (Assets/Resources/Settings.asset's own values), factored out
     // so every test that needs a real tutorial Galaxy -- not just EntranceZoneAlwaysGetsADockedStationAcrossSeeds
@@ -140,7 +138,7 @@ public sealed class RestoredHullsTests
         var scratchRun = Path.Combine(Path.GetTempPath(), $"aetheria-nolagrange-scan-{Guid.NewGuid():N}.cc");
         try
         {
-            using var cache = OpenReadOnlyRealCatalogWithScratchRun(Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc"), scratchRun);
+            using var cache = OpenReadOnlyRealCatalogWithScratchRun(TestCatalog.Repo, scratchRun);
             return ScanForNoLagrangeCandidateZone(cache);
         }
         finally
@@ -170,9 +168,7 @@ public sealed class RestoredHullsTests
     // catalog-only cache has no home for them. A scratch run file, deleted after the seed that used it.
     private static CultCache OpenReadOnlyRealCatalogWithScratchRun(string catalogPath, string runPath)
     {
-        var registry = CultDocumentRegistry.ForTypes(typeof(ItemData).Assembly.GetTypes()
-            .Where(t => t is { IsAbstract: false, IsInterface: false })
-            .Where(t => t.GetCustomAttribute<CultDocumentAttribute>() != null));
+        var registry = TestCatalog.Registry();
         var cache = new CultCache(registry);
         cache.AddBackingStore(new SingleFileMessagePackBackingStore(catalogPath, true), AetheriaStores.CatalogTypes);
         cache.AddBackingStore(new SingleFileMessagePackBackingStore(runPath), AetheriaStores.RunTypes);
@@ -357,7 +353,7 @@ public sealed class RestoredHullsTests
         var tutorialSettings = TutorialGalaxySettings();
         var background = TutorialBackgroundSettings();
         var names = TutorialNameSettings();
-        var gameData = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
+        var gameData = TestCatalog.Repo;
         var sawGenuineLagrangeOrbit = false;
         for (uint seed = 1; seed <= 25; seed++)
         {
@@ -398,7 +394,7 @@ public sealed class RestoredHullsTests
         var tutorialSettings = TutorialGalaxySettings();
         var background = TutorialBackgroundSettings();
         var names = TutorialNameSettings();
-        var gameData = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
+        var gameData = TestCatalog.Repo;
         var sawGenuineCandidate = false;
         for (uint seed = 1; seed <= 25; seed++)
         {
@@ -439,7 +435,7 @@ public sealed class RestoredHullsTests
     [Fact]
     public void ThrowReachableWithAuthoredSettings()
     {
-        var gameData = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
+        var gameData = TestCatalog.Repo;
         var scratchRun = Path.Combine(Path.GetTempPath(), $"aetheria-entrance-throw-{Guid.NewGuid():N}.cc");
         try
         {
@@ -473,7 +469,7 @@ public sealed class RestoredHullsTests
     [Fact]
     public void MultiRootEntranceStationOrbitsAreAlwaysParentedWithPositiveDistance()
     {
-        var gameData = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
+        var gameData = TestCatalog.Repo;
         var scratchRun = Path.Combine(Path.GetTempPath(), $"aetheria-entrance-multiroot-{Guid.NewGuid():N}.cc");
         try
         {
@@ -524,7 +520,7 @@ public sealed class RestoredHullsTests
         var tutorialSettings = TutorialGalaxySettings();
         var background = TutorialBackgroundSettings();
         var names = TutorialNameSettings();
-        var gameData = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
+        var gameData = TestCatalog.Repo;
 
         var checkedAny = false;
         for (uint seed = 1; seed <= 25; seed++)
@@ -723,7 +719,7 @@ public sealed class RestoredHullsTests
     [Fact]
     public void TutorialEntranceWithNoLagrangeCandidateStillSeatsAStationWithFiniteNearbyTurrets()
     {
-        var gameData = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
+        var gameData = TestCatalog.Repo;
         var scratchRun = Path.Combine(Path.GetTempPath(), $"aetheria-entrance-widened-{Guid.NewGuid():N}.cc");
         try
         {
@@ -772,7 +768,7 @@ public sealed class RestoredHullsTests
     [Fact]
     public void EntranceOverrideDoesNotLeakToOtherTutorialZonesOrNonTutorialGames()
     {
-        var gameData = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
+        var gameData = TestCatalog.Repo;
         var scratchRun = Path.Combine(Path.GetTempPath(), $"aetheria-entrance-leak-{Guid.NewGuid():N}.cc");
         try
         {
@@ -813,7 +809,7 @@ public sealed class RestoredHullsTests
     [Fact]
     public void ForcedTutorialEntranceStationDoesNotInflateEnemyCount()
     {
-        var gameData = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
+        var gameData = TestCatalog.Repo;
         var scratchRun = Path.Combine(Path.GetTempPath(), $"aetheria-entrance-enemycount-{Guid.NewGuid():N}.cc");
         try
         {
@@ -895,7 +891,7 @@ public sealed class RestoredHullsTests
     [Fact]
     public void WideningDoesNotLeakToANonEntranceNoLagrangeZoneThatRollsAStation()
     {
-        var gameData = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
+        var gameData = TestCatalog.Repo;
         var scratchRun = Path.Combine(Path.GetTempPath(), $"aetheria-widen-leak-{Guid.NewGuid():N}.cc");
         try
         {
