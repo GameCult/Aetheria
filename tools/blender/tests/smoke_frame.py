@@ -35,7 +35,7 @@ SHIP_ID = "smoke.frame"
 GAME = Path(os.environ.get("SMOKE_GAME_FOLDER") or sys.exit("Set SMOKE_GAME_FOLDER to a folder holding GameData/Aetheria.cc and ModTools/AetherDb"))
 MODS = GAME / "GameData" / "Mods"
 COLLECTION = "Smoke Frame"
-NAMES_NOT_ECHOED = (SHIP_ID, COLLECTION, "Second Frame", "Loose Nub", "Hull", str(GAME), GAME.name)
+NAMES_NOT_ECHOED = (SHIP_ID, COLLECTION, "Second Frame", "Loose Nub", "Hull", "NoSuchHullXYZ", str(GAME), GAME.name)
 
 
 def new_object(collection, name, mesh, location=(0, 0, 0), parent=None):
@@ -237,7 +237,12 @@ def main():
     root = bpy.data.objects["Ship Root"]
     print("PASS 1 new ship ok")
 
-    # Pass 2: a Save that fails after create removes what it made; the retry succeeds.
+    # Pass 2: a Save that fails in create or after it leaves nothing behind and tells the author nothing of the input;
+    # the retry succeeds.
+    collection["aetheria.pending"] = ["Smoke Frame", "NoSuchHullXYZ"]
+    refused(bpy.ops.aetheria.save_ship_layout, "AetherDb refused to create the ship", "Save with an unknown reference hull")
+    require(not (MODS / SHIP_ID).exists(), "A refused create left the ship folder behind")
+    collection["aetheria.pending"] = ["Smoke Frame", "Djinni"]
     real = aetheria_ships.replace_layout
 
     def failing(*args, **kwargs):
@@ -323,9 +328,10 @@ def main():
         require(snapshot == (buffer(bpy.context.scene), list(collection["aetheria.grid_origin"]),
                              [tuple(map(tuple, child_obj.matrix_world)) for child_obj in root.children]),
                 f"{what} changed the scene while refusing")
-    for obj in (render, nub):
-        obj.parent = root
-        obj.matrix_parent_inverse = root.matrix_world.inverted()
+    render.parent = root  # Ship Root's descendants count, however deep: the nub hangs from the hull
+    render.matrix_parent_inverse = root.matrix_world.inverted()
+    nub.parent = render
+    nub.matrix_parent_inverse = render.matrix_world.inverted()
     select(render)
     result, message = run(bpy.ops.aetheria.rasterise_hull)
     require(result == {"FINISHED"}, f"Rasterise Hull was refused: {message}")

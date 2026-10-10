@@ -519,6 +519,27 @@ class CSharpWrittenFixtureTests(unittest.TestCase):
                 shutil.copy(Path(os.environ["SHIP_FIXTURE_DIR"]) / "mod.skiff" / "skiff.glb", target / "skiff.glb")
 
 
+class RefusalsNameNoInputTests(ShipFileCase):
+    def test_refusals_name_no_path_mount_or_anchor_id(self):
+        _, _, revision = ship_cc.read_layout(self.path, PACKAGES)
+        mount = "mount.zq-unique"
+        duplicate = [[ "anchor.zq-unique", "map-icon", "n1", None, 0], ["anchor.zq-unique", "shield", "n2", None, 0]]
+        bad_footprint = ship_cc.encode_hardpoint(
+            Type=3, Position=[1, 0], Shape=[[1, 1, [0]]], Transform=mount, Rotation=0, Armor=0.0, FiringArc=0.0)
+        empty_footprint = ship_cc.encode_hardpoint(
+            Type=3, Position=[1, 0], Shape=[[1, 1, [False]]], Transform=mount, Rotation=0, Armor=0.0, FiringArc=0.0)
+        calls = (lambda: ship_cc.replace_visual(self.path, PACKAGES, "mod.skiff", "ship.glb", duplicate),
+                 lambda: ship_cc.replace_layout(self.path, PACKAGES, "mod.skiff", revision, [2, 2, [True] * 4], [bad_footprint]),
+                 lambda: ship_cc.replace_layout(self.path, PACKAGES, "mod.skiff", revision, [2, 2, [True] * 4], [empty_footprint]),
+                 lambda: ship_cc.read(os.path.join(self.path, "missing.cc"), PACKAGES))
+        for call in calls:
+            with self.subTest(call):
+                with self.assertRaises(Exception) as caught:
+                    call()
+                for forbidden in ("zq-unique", self.path, os.path.dirname(self.path)):
+                    self.assertNotIn(forbidden, str(caught.exception))
+
+
 class ShipIdTests(unittest.TestCase):
     def test_admits_the_ids_the_c_sharp_rule_admits(self):
         for ship_id in ("probe.a", "a", "0x", "a_b-c", "com10", "com0", "lpt0", "console", "aux2", "a.nul", "x.com1"):
