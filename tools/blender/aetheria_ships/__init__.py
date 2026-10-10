@@ -342,10 +342,8 @@ def _aetherdb(context, *args, ship_cc=None):
         raise ValueError(GAME_FOLDER_REFUSAL)
     result = subprocess.run([str(tool), "ship-authoring", *args], cwd=folder, capture_output=True, text=True,
                             timeout=AETHERDB_TIMEOUT)
-    lines = (result.stdout + "
-" + result.stderr).splitlines()
-    return result.returncode, "
-".join(line for line in lines if line.strip())
+    lines = (result.stdout + "\n" + result.stderr).splitlines()
+    return result.returncode, "\n".join(line for line in lines if line.strip())
 
 
 def _layer_collection(layer, collection):
