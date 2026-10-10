@@ -83,3 +83,23 @@ def rasterise(triangles_xy, cell_size=CELL_SIZE, samples=SAMPLES):
         counts[key] = counts.get(key, 0) + 1
     cells = [2 * counts.get((x, y), 0) >= samples * samples for x in range(width) for y in range(height)]
     return width, height, cells, origin
+
+
+def convex_outline(points_xy):
+    """The convex hull of 2D points, counter-clockwise from the lowest-then-leftmost point (monotone chain). Duplicate
+    and interior points drop out. Fewer than three non-collinear points have no outline: ValueError."""
+    points = sorted({(float(x), float(y)) for x, y in points_xy})
+
+    def half(sequence):
+        chain = []
+        for point in sequence:
+            while len(chain) >= 2 and ((chain[-1][0] - chain[-2][0]) * (point[1] - chain[-2][1])
+                                       - (chain[-1][1] - chain[-2][1]) * (point[0] - chain[-2][0])) <= 0:
+                chain.pop()
+            chain.append(point)
+        return chain[:-1]
+
+    outline = half(points) + half(reversed(points))
+    if len(outline) < 3:
+        raise ValueError("The points have no outline: they are fewer than three or collinear")
+    return outline
