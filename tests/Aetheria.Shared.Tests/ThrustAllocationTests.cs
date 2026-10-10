@@ -92,8 +92,11 @@ public sealed partial class RunStartTests
         // The drive is heated a little off its plateau: its live thrust moves, and a column cached before would not.
         var weakened = drives[^1];
         var before = weakened.Thrust;
-        foreach (var cell in weakened.Item.InsetShape.Coordinates) player.Temperature[cell.x, cell.y] += 5f;
-        weakened.Item.UpdatePerformance();
+        for (var step = 0; step < 20 && weakened.Thrust > before * .9f; step++)
+        {
+            foreach (var cell in weakened.Item.InsetShape.Coordinates) player.Temperature[cell.x, cell.y] += 2f;
+            weakened.Item.UpdatePerformance();
+        }
         Assert.True(weakened.Thrust < before * .95f && weakened.Item.Active.Value, "fixture: the heated drive pushes measurably less");
         Assert.True(abs(AllocFly(player, 60)) < .1f);
     }
@@ -124,7 +127,8 @@ public sealed partial class RunStartTests
 
         ship.MovementDirection = float2(0, 1);
         ship.Turn = 0;
-        Assert.True(abs(AllocFly(ship, 600)) < .05f);
+        var drift = AllocFly(ship, 600);
+        Assert.True(abs(drift) < .05f, $"heading changed {drift} deg; drives {string.Join(" ", drives.Select(d => $"{d.Thrust:F0}/{d.Axis:F3}"))}");
     }
 
     [Fact]
