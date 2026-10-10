@@ -55,8 +55,8 @@ public class VerseVerb
 
 public static class VerseGrammarValidation
 {
-    private static readonly Regex VerbName = new Regex("^[a-z][a-z0-9_]{0,47}\z", RegexOptions.CultureInvariant);
-    private static readonly Regex RoleName = new Regex("^[a-z][a-z0-9_]{0,31}\z", RegexOptions.CultureInvariant);
+    private static readonly Regex VerbName = new Regex("^[a-z][a-z0-9_]{0,47}\\z", RegexOptions.CultureInvariant);
+    private static readonly Regex RoleName = new Regex("^[a-z][a-z0-9_]{0,31}\\z", RegexOptions.CultureInvariant);
 
     // Canonical names, unique role names, defined enum values. A failure names the field and the rule, and the verb once
     // its name is known canonical; it never prints a value the author wrote that is itself the fault.
