@@ -183,6 +183,9 @@ public class ItemManager
             };
         }
 
+        if (design is ConsumableItemData)
+            return new ConsumableItem { Data = l.Design, Lot = lot };
+
         return new CompoundCommodity
         {
             Data = l.Design, Lot = lot

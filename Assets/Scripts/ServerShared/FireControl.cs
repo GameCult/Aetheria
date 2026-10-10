@@ -755,6 +755,8 @@ public static class FireControl
             Spread = weapon.Spread,
             FireRange = fireRange,
             FireTime = now,
+            Speed = weapon.Velocity,
+            MaxRange = weapon.Range,
             FireOrigin = origin,
             FireTargetPosition = targetPosition,
             FireTargetVelocity = targetVelocity,
@@ -853,6 +855,8 @@ public static class FireControl
                 // A contact burst short of max range arrives when the round has flown that far, not at the frozen
                 // max-range time (CommitBurst). Never later than the frozen time.
                 if (shot.Outcome.Result == ShotResult.Burst) shot.ArrivalTime = min(shot.ArrivalTime, now + shot.Outcome.ArrivalIn);
+                // Written back before ShotCommitted fires: a presenter re-reading the record there (Zone.TryGetShot) sees
+                // the committed ArrivalTime a contact burst has just shortened.
                 shots[i] = shot;
                 zone.ShotCommitted.OnNext(shot.Outcome);
             }
@@ -1999,6 +2003,11 @@ public struct PendingShot
     public float3 FireTargetPosition;
     public float3 FireTargetVelocity;
     public float FireTime;
+    // The weapon's Velocity at Fire, frozen with the rest so a presenter draws the same line whatever happens to the stat later.
+    public float Speed;
+    // The weapon's Range at Fire, likewise frozen: how far a presenter may draw a round that misses. FireRange above
+    // is the distance to the engaged target (0 for a round with none), not how far a round that misses flies on.
+    public float MaxRange;
     public float CommitTime;
     public float ArrivalTime;
 
