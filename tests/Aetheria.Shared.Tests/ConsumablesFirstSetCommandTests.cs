@@ -63,6 +63,15 @@ public sealed class ConsumablesFirstSetCommandTests : IDisposable
         var (designs, products) = Read();
         Assert.Equal(DesignNames.OrderBy(n => n, StringComparer.Ordinal), designs.Select(d => d.Name).OrderBy(n => n, StringComparer.Ordinal));
         Assert.Equal(4, products.Length);
+        // What the command authors, not only what the shipped catalog holds: the thermal constants come from its template
+        // and every Quality term is linear.
+        foreach (var design in designs)
+        {
+            Assert.Equal(ConsumablesFirstSetTests.SpecificHeat, design.SpecificHeat);
+            Assert.Equal(ConsumablesFirstSetTests.Conductivity, design.Conductivity);
+            Assert.All(design.Behaviors.OfType<StatModifierData>().Select(m => m.Modifier), stat => Assert.All(stat.Terms, term => Assert.Equal(1f, term.Exponent)));
+            Assert.All(design.Behaviors.OfType<VapourDumpData>().SelectMany(d => new[] { d.Radius, d.Opacity, d.Lifetime }), stat => Assert.All(stat.Terms, term => Assert.Equal(1f, term.Exponent)));
+        }
 
         // A second apply finds both designs authored and writes nothing; so does a dry run.
         Assert.Equal(0, Program.ConsumablesFirstSetCatalog(apply: true, root: _root));

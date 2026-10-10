@@ -14,8 +14,8 @@ public sealed class ConsumablesFirstSetTests
 {
     private const string OverdriveName = "Thruster Overdrive";
     private const string VentName = "Coolant Vent";
-    private const float SpecificHeat = 1f;
-    private const float Conductivity = 1f;
+    internal const float SpecificHeat = 1f;
+    internal const float Conductivity = 1f;
     private const float Tick = .25f; // exact in floats, so a duration of 6 s is 24 ticks and 15 s is 60
 
     private static ConsumableItemData Design(CultCache cache, string name) => Assert.Single(cache.GetAll<ConsumableItemData>(), c => c.Name == name);
