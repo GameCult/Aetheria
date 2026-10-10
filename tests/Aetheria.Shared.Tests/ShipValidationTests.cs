@@ -172,17 +172,39 @@ public sealed class ShipValidationTests
         Add("anchors-null", s => s.Visual.Anchors = null, "anchors are required");
         Add("anchor-null", s => s.Visual.Anchors.Add(null), "anchor IDs must be present and unique");
         Add("anchor-id-null", s => s.Visual.Anchors[4].Id = null, "anchor IDs must be present and unique");
-        Add("anchor-id-blank", s => s.Visual.Anchors.Add(new ShipAnchor { Id = " ", Role = "articulation", ModelNodeId = "x" }), "anchor IDs must be present and unique");
-        Add("anchor-id-duplicate", s => s.Visual.Anchors.Add(new ShipAnchor { Id = "map", Role = "articulation", ModelNodeId = "x" }), "anchor IDs must be present and unique");
+        Add("anchor-id-blank", s => s.Visual.Anchors.Add(new ShipAnchor { Id = " ", Role = "weapon-muzzle", ModelNodeId = "x" }), "anchor IDs must be present and unique");
+        Add("anchor-id-duplicate", s => s.Visual.Anchors.Add(new ShipAnchor { Id = "map", Role = "weapon-muzzle", ModelNodeId = "x" }), "anchor IDs must be present and unique");
         Add("anchor-node-null", s => s.Visual.Anchors[4].ModelNodeId = null, "needs a model node ID");
         Add("anchor-node-blank", s => s.Visual.Anchors[4].ModelNodeId = " ", "needs a model node ID");
-        Add("anchor-node-shared", s => s.Visual.Anchors.Add(new ShipAnchor { Id = "other", Role = "articulation", ModelNodeId = "map" }), "claimed by more than one anchor");
+        Add("anchor-node-shared", s => s.Visual.Anchors.Add(new ShipAnchor { Id = "other", Role = "weapon-muzzle", ModelNodeId = "map" }), "claimed by more than one anchor");
         foreach (var role in new[] { "map-icon", "hull-collider", "shield", "tractor" })
         {
             Add("role-missing-" + role, s => s.Visual.Anchors.RemoveAll(a => a.Role == role), $"exactly one {role} anchor is required");
             Add("role-doubled-" + role, s => s.Visual.Anchors.Add(new ShipAnchor { Id = "extra", Role = role, ModelNodeId = "extra" }), $"exactly one {role} anchor is required");
         }
 
+        void Joint(ShipParts s, string id, string parent, float[] axes, float[] min, float[] max) =>
+            s.Visual.Joints.Add(new ShipJoint { Id = id, Parent = parent, Axes = axes, Min = min, Max = max });
+        var yaw = new[] { 0f, 1f, 0f };
+        Add("joint-id-blank", s => Joint(s, " ", null, yaw, new[] { -1f }, new[] { 1f }), "joint IDs must be present and unique");
+        Add("joint-null", s => s.Visual.Joints.Add(null), "joint IDs must be present and unique");
+        Add("joint-id-duplicate", s => { Joint(s, "j", null, yaw, new[] { -1f }, new[] { 1f }); Joint(s, "j", null, yaw, new[] { -1f }, new[] { 1f }); }, "joint IDs must be present and unique");
+        Add("joint-id-is-an-anchor-node", s => Joint(s, "map", null, yaw, new[] { -1f }, new[] { 1f }), "is also an anchor's model node");
+        Add("joint-axes-length-four", s => Joint(s, "j", null, new[] { 0f, 1f, 0f, 0f }, new[] { -1f }, new[] { 1f }), "needs one or more degrees of freedom");
+        Add("joint-no-degrees-of-freedom", s => Joint(s, "j", null, new float[0], new float[0], new float[0]), "needs one or more degrees of freedom");
+        Add("joint-null-limits", s => Joint(s, "j", null, yaw, null, null), "needs one or more degrees of freedom");
+        Add("joint-max-count-differs", s => Joint(s, "j", null, yaw, new[] { -1f }, new[] { 1f, 2f }), "needs one or more degrees of freedom");
+        Add("joint-axis-not-unit", s => Joint(s, "j", null, new[] { 0f, 2f, 0f }, new[] { -1f }, new[] { 1f }), "must be a unit vector");
+        Add("joint-axis-not-finite", s => Joint(s, "j", null, new[] { 0f, float.NaN, 0f }, new[] { -1f }, new[] { 1f }), "axes and limits must be finite");
+        Add("joint-limit-not-finite", s => Joint(s, "j", null, yaw, new[] { -1f }, new[] { float.PositiveInfinity }), "axes and limits must be finite");
+        Add("joint-min-above-max", s => Joint(s, "j", null, yaw, new[] { 10f }, new[] { 5f }), "must satisfy -180 <= Min <= Max <= 180");
+        Add("joint-max-181", s => Joint(s, "j", null, yaw, new[] { 0f }, new[] { 181f }), "must satisfy -180 <= Min <= Max <= 180");
+        Add("joint-min-minus-181", s => Joint(s, "j", null, yaw, new[] { -181f }, new[] { 0f }), "must satisfy -180 <= Min <= Max <= 180");
+        Add("joint-parent-dangling", s => Joint(s, "j", "ghost", yaw, new[] { -1f }, new[] { 1f }), "has an unknown parent joint");
+        Add("joint-cycle", s => { Joint(s, "a", "b", yaw, new[] { -1f }, new[] { 1f }); Joint(s, "b", "a", yaw, new[] { -1f }, new[] { 1f }); }, "is on a parent cycle");
+        Add("joint-on-a-thruster-mount", s => { Joint(s, "j", null, yaw, new[] { -1f }, new[] { 1f }); s.Visual.Anchors[4].Joint = "j"; }, "gimballed-thrusters");
+        Add("joint-on-a-radiator-mount", s => { Joint(s, "j", null, yaw, new[] { -1f }, new[] { 1f }); s.Visual.Anchors[4].Role = "radiator-mesh"; s.Visual.Anchors[4].Joint = "j"; s.Hull.Hardpoints[0].Type = HardpointType.Radiator; }, "gimballed-thrusters");
+        Add("joint-on-a-map-icon", s => { Joint(s, "j", null, yaw, new[] { -1f }, new[] { 1f }); s.Visual.Anchors[0].Joint = "j"; }, "may not name a joint");
         Add("anchor-role-unknown", s => s.Visual.Anchors.Add(new ShipAnchor { Id = "x", Role = "engine", ModelNodeId = "x" }), "has unknown role 'engine'");
         Add("anchor-role-null", s => s.Visual.Anchors.Add(new ShipAnchor { Id = "x", Role = null, ModelNodeId = "x" }), "has unknown role ''");
         Add("anchor-role-cased", s => s.Visual.Anchors[0].Role = "Map-Icon", "has unknown role 'Map-Icon'");
