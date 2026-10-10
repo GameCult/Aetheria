@@ -37,7 +37,7 @@ public class ThrusterData : BehaviorData
     }
 }
 
-public class Thruster : Behavior, IAnalogBehavior, IPowerConsumer
+public class Thruster : Behavior, IPowerConsumer
 {
     // Live: heat, quality, durability and power move this stat after construction, so it is read, never cached.
     public float Thrust => Evaluate(_data.Thrust);

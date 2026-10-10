@@ -59,13 +59,6 @@ public class Ship : Entity
     public float RightStrafeTotalTorque { get; private set; }
     private List<Thruster> RightStrafeTorqueThrusters = new List<Thruster>();
 
-    public float TurnTime(float2 direction)
-    {
-        var angleDiff = Direction.Angle(normalize(direction));
-        var clockwise = dot(direction, Direction.Rotate(ItemRotation.Clockwise)) > 0;
-        return angleDiff / ((clockwise ? ClockwiseTorque : CounterClockwiseTorque) / Mass);
-    }
-
     public event Action OnExitedWormhole;
     public event Action OnEnteredWormhole;
     

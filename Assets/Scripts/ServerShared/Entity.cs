@@ -2356,6 +2356,4 @@ public class BehaviorGroup
 
         return null;
     }
-    
-    //public IAnalogBehavior Axis;
 }
