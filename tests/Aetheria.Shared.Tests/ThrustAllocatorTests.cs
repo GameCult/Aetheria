@@ -311,4 +311,18 @@ public class ThrustAllocatorTests
         for (var i = 0; i < warm.Length; i++) Assert.True(MathF.Abs(warm[i] - fresh[i]) <= 1e-5f, $"throttle {i}: {warm[i]} vs {fresh[i]}");
         Assert.True(warm[1] > .9f, $"{warm[1]}");
     }
+
+    [Fact]
+    public void AtTheIterationCapTheIterateIsKept()
+    {
+        // 128 torque-free forward thrusters from a cold start: the active set frees about one throttle per iteration, so
+        // the solver stops at its iteration cap (measured: IterationLimit at 100). TA-R4 keeps the iterate it reached,
+        // which already carries a share of the forward demand; a call that zeroed it would give nothing.
+        var forward = new float3[128];
+        for (var i = 0; i < forward.Length; i++) forward[i] = Col(0, 30f + i % 7, 0);
+        var throttle = Solve(forward, 0, 1, 0);
+        var reached = Net(forward, throttle).y;
+        var extreme = Extremes(forward, 1).plus;
+        Assert.True(reached > .1f * extreme, $"{reached} of {extreme}");
+    }
 }
