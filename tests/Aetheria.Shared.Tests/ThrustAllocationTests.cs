@@ -252,4 +252,31 @@ public sealed partial class RunStartTests
         Assert.True(previous > 10f, "fixture: the ship got going");
         Assert.True(abs(degrees(SignedTurn(start, player.Direction))) < .1f);
     }
+
+    // The allocator runs while the ship flies and not while a wormhole animation scripts it: the throttles a ship
+    // carries into the animation are the ones it keeps, whatever the pilot asks meanwhile.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void TheThrottlesFreezeForAWormholeAnimation(bool entering)
+    {
+        var (_, player) = AllocDuel();
+        var thrusters = player.GetBehaviors<Thruster>().ToArray();
+        player.MovementDirection = float2(0, 1);
+        player.Turn = 0;
+        for (var tick = 0; tick < 30; tick++) player.Update(AllocDt);
+        var flying = thrusters.Select(t => t.Axis).ToArray();
+        Assert.True(flying.Max() > .5f, "fixture: the allocator drives the thrusters while the ship flies");
+
+        if (entering) player.EnterWormhole(player.Position.xz + float2(50, 0));
+        else player.ExitWormhole(player.Position.xz + float2(50, 0), float2(0, 20));
+        player.MovementDirection = float2(0, 0);
+        player.Turn = 1;
+        for (var tick = 0; tick < 5; tick++)
+        {
+            player.Update(AllocDt);
+            Assert.True(player.WormholeAnimationInProgress, "fixture: the animation is still running");
+            Assert.Equal(flying, thrusters.Select(t => t.Axis).ToArray());
+        }
+    }
 }

@@ -5,9 +5,9 @@
 using MessagePack;
 using Newtonsoft.Json;
 
-// Presence marks the lock: Entity.ThrottleLocked is true while an active effect carries one, and Ship.Update
-// then reads full forward intent in place of MovementDirection. The behaviour holds no state and does nothing
-// itself; turning stays with the pilot.
+// Presence marks the lock: Entity.ThrottleLocked is true while an active effect carries one, and the thrust
+// allocator then bounds every forward-pushing column at full throttle from below in its solve. The behaviour
+// holds no state and does nothing itself; turning stays with the pilot.
 [Inspectable, MessagePackObject, JsonObject(MemberSerialization.OptIn), RuntimeInspectable]
 public class ThrottleLockData : BehaviorData
 {
