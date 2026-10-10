@@ -132,7 +132,8 @@ public sealed class ConsumableSupplyTests : IDisposable
     }
 
     private static ConsumableItem[] Consumables(EntityPack pack) =>
-        pack.CargoContents.SelectMany(bay => bay).Select(entry => entry.item).OfType<ConsumableItem>().ToArray();
+        pack.CargoContents.Concat(pack.DockingBayContents ?? Array.Empty<(int2 position, ItemInstance item)[]>())
+            .SelectMany(bay => bay).Select(entry => entry.item).OfType<ConsumableItem>().ToArray();
 
     // Distinct, fixed seeds: the same 400 generators on every run.
     private static uint SeedOf(int i) => (uint) (i * 7919 + 13);
