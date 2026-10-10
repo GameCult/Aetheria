@@ -243,10 +243,29 @@ public sealed partial class RunStartTests
         return ((right + left) / 2, (forward + back) / 2);
     }
 
-    private static (float noseOn, float broadside) EvReach(Ship ship, float window)
+    // What the allocator can hold the heading and still push, per half-axis, from the live columns the ship allocates
+    // with: the allocator's net push for a full-stick intent on each axis with no turn asked. The turn limits stay the
+    // envelope's.
+    private static ManoeuvreEnvelope EvAllocatedEnvelope(Ship ship)
+    {
+        var columns = ship.GetBehaviors<Thruster>().Select(t => t.Column(t.NominalThrust)).ToArray();
+        var throttles = new float[columns.Length];
+        float Push(float2 move, float2 axis)
+        {
+            new ThrustAllocator().Allocate(columns, move, 0f, throttles);
+            var net = float2(0, 0);
+            for (var i = 0; i < columns.Length; i++) net += columns[i].xy * throttles[i];
+            return dot(net, axis);
+        }
+        var e = ship.Envelope;
+        return new ManoeuvreEnvelope(Push(float2(0, 1), float2(0, 1)), Push(float2(0, -1), float2(0, -1)),
+            Push(float2(-1, 0), float2(-1, 0)), Push(float2(1, 0), float2(1, 0)), e.Clockwise, e.CounterClockwise);
+    }
+
+    private static (float noseOn, float broadside) EvReach(Ship ship, float window, ManoeuvreEnvelope envelope)
     {
         var heading = float2(0, 1);
-        float Half(float2 n) => .5f * (FireControl.Reach(ship.Envelope, heading, n, window) + FireControl.Reach(ship.Envelope, heading, -n, window));
+        float Half(float2 n) => .5f * (FireControl.Reach(envelope, heading, n, window) + FireControl.Reach(envelope, heading, -n, window));
         return (Half(float2(1, 0)), Half(float2(0, 1)));
     }
 
@@ -261,7 +280,9 @@ public sealed partial class RunStartTests
             var measured = EvMeasuredHalfWidths(ship, window);
             EvSettle(ship);
             ship.Update(EvDt);
-            var reach = EvReach(ship, window);
+            var reach = EvReach(ship, window, ship.Envelope);
+            var allocated = EvReach(ship, window, EvAllocatedEnvelope(ship));
+            Console.WriteLine($"ALLOC {name}: allocated nose-on {allocated.noseOn:F3} broadside {allocated.broadside:F3}");
             Console.WriteLine($"REACH {name}: nose-on reach {reach.noseOn:F3} measured {measured.noseOn:F3}; broadside reach {reach.broadside:F3} measured {measured.broadside:F3}");
             results.Add((name, reach, measured));
         }
