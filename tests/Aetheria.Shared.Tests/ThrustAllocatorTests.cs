@@ -435,7 +435,11 @@ public class ThrustAllocatorTests
             var throttle = new float[hull.Length];
             allocator.Allocate(hull, new float2(1, -1), turn, throttle, forwardFloor: true);
             Assert.All(throttle.Take(3), t => Assert.True(t > .9999f, "a forward-pushing column holds full"));
-            Assert.True(throttle[4] < 1e-3f, "reverse stays off: the stick is ignored under the floor");
+
+            var blind = new float[hull.Length];
+            new ThrustAllocator().Allocate(hull, default, turn, blind, forwardFloor: true);
+            var apart = throttle.Zip(blind, (a, b) => MathF.Abs(a - b)).Max();
+            Assert.True(apart < 1e-6f, $"the stick changed the floored throttles by {apart}");
 
             var open = new float[hull.Length];
             new ThrustAllocator().Allocate(hull, new float2(0, 1), turn, open);

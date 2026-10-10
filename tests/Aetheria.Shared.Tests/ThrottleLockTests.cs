@@ -137,7 +137,8 @@ public sealed class ThrottleLockTests : IDisposable
         ship.Ship.Turn = twin.Ship.Turn = turn;
         ship.Ship.Update(dt);
         twin.Ship.Update(dt);
-        Assert.True(Apart(Axes(ship), Axes(twin)) < 1e-6f, "the ship's throttles differ from its full-forward twin's");
+        var apart = Apart(Axes(ship), Axes(twin));
+        Assert.True(apart < 1e-6f, $"the ship's throttles differ from its full-forward twin's by {apart}: [{string.Join(" ", Axes(ship))}] against [{string.Join(" ", Axes(twin))}]");
         Assert.True(twin.Forward.Axis > .98f, "fixture: the twin's forward drive is at full");
     }
 
