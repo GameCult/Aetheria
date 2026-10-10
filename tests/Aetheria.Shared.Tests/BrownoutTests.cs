@@ -168,6 +168,7 @@ public sealed class BrownoutTests : IDisposable
         ship.Equipment.Single(e => e.Data.Name == "Consumer").UpdatePerformance();
         ship.MovementDirection = float2(0, -1);
         ship.Update(1f);
+        ship.Update(1f); // the envelope is derived before the power bus steps, from the grant the last tick left
         Assert.True(thruster.Thrust > 1f && thruster.Thrust < .9f * thruster.NominalThrust, "fixture: the grant is partial");
         var expected = thruster.Thrust / ship.Mass;
         Assert.InRange(ship.Envelope.Reverse, expected * .9999f, expected * 1.0001f);
