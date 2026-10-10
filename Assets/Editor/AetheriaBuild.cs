@@ -33,7 +33,7 @@ public static class AetheriaBuild
             var repoRoot = Directory.GetParent(UnityEngine.Application.dataPath).FullName;
 
             step = "version";
-            PlayerSettings.bundleVersion = version;
+            UnityEditor.PlayerSettings.bundleVersion = version; // the game has its own global PlayerSettings
 
             step = "addressables";
             AddressableAssetSettings.BuildPlayerContent(out var content);
