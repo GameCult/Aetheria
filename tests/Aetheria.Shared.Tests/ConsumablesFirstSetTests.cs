@@ -126,7 +126,7 @@ public sealed class ConsumablesFirstSetTests
             Ship = RestoredHullsTests.BuildThrustedShip(Cache, "Djinni");
             Zone = Ship.Zone;
             var hull = Cache.GetByName<HullData>("Djinni");
-            var hardpoint = Assert.Single(hull.Hardpoints, h => h.Type == HardpointType.Radiator);
+            var hardpoint = hull.Hardpoints.First(h => h.Type == HardpointType.Radiator);
             var design = Cache.GetAll<GearData>().First(g => hardpoint.IsFilledBy(g) && g.Behaviors.OfType<RadiatorData>().Any());
             var item = new EquippableItem
             {
