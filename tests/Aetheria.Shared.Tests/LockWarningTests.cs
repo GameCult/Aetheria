@@ -154,7 +154,6 @@ public sealed class LockWarningTests : IDisposable
     [InlineData(1.55f, .93f)]
     [InlineData(1.6f, .96f)]
     [InlineData(1.65f, .99f)]
-    [InlineData(5f, 1f)]
     public void StrengthIsTheLockAcrossItsWholeRange(float dt, float expectedLock)
     {
         var locker = NewShip(float3(0, 0, 0), "Launcher");
@@ -162,11 +161,25 @@ public sealed class LockWarningTests : IDisposable
 
         Aim(locker, b);
         Tick(dt);
-        // A full lock fires the launcher and spends the lock, so the emitter's own Lock is read only below it.
-        if (expectedLock < 1f) Assert.Equal(expectedLock, LauncherOf(locker).Lock, 4);
+        Assert.Equal(expectedLock, LauncherOf(locker).Lock, 4);
         Tick(0f);
 
         Assert.Equal(expectedLock, Assert.Single(b.IncomingLocks).Strength, 4);
+    }
+
+    // A saturated lock is a strength of exactly 1: the launcher's own Execute outside the zone tick, so that the
+    // zone's fire resolution does not run on the shot a full lock fires.
+    [Fact]
+    public void AFullLockIsAStrengthOfOne()
+    {
+        var locker = NewShip(float3(0, 0, 0), "Launcher");
+        var b = NewShip(float3(0, 0, 9));
+
+        Aim(locker, b);
+        LauncherOf(locker).Execute(5f);
+        Tick(0f);
+
+        Assert.Equal(1f, Assert.Single(b.IncomingLocks).Strength, 4);
     }
 
     // The lock's progress terms: direction (lerp ^ DirectionImpact) and sensor info (info ^ SensorImpact), each
