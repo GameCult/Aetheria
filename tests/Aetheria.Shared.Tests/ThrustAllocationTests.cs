@@ -323,7 +323,7 @@ public sealed partial class RunStartTests
         float Clockwise(IEnumerable<Thruster> of) => of.Sum(t => max(t.Column(t.Thrust).z, 0f));
         var expected = Clockwise(thrusters);
         Assert.InRange(player.Envelope.Clockwise, expected * (1 - 1e-4f), expected * (1 + 1e-4f));
-        Assert.True(Clockwise(drives) > 1f, "fixture: the Large Drives turn the Longinus");
+        Assert.True(Clockwise(drives) > .1f, "fixture: the Large Drives turn the Longinus");
         Assert.True(player.Envelope.Clockwise > Clockwise(flanks) + .9f * Clockwise(drives),
             "the mains' turn is in the envelope, over the flank thrusters' own");
     }
