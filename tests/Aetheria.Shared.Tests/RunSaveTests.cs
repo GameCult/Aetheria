@@ -360,6 +360,48 @@ public sealed class RunSaveTests : IDisposable
         }
     }
 
+    // A lot's product is what names its units, so it must come back from the run file as the same product key; a lot
+    // minted without one reads unset.
+    [Fact]
+    public void ALotsProductSurvivesTheRunSave()
+    {
+        CultRecordRef<FactionProductData> product;
+        using (var cache = AetheriaStores.Open(Catalog, catalogWritable: true))
+        {
+            var lamp = new CultRecordRef<CraftedItemData>(cache.Upsert(new GearData { Name = "Lamp" }).Key);
+            var maker = cache.RefOf(cache.GetAll<Faction>().Single());
+            product = new CultRecordRef<FactionProductData>(cache.Upsert(
+                new FactionProductData { Name = "Lamp Prime", Design = lamp, Manufacturer = maker }).Key);
+            cache.FlushAsync().Wait();
+        }
+        using (var cache = Open())
+        {
+            var design = cache.RefOf<ItemData>(cache.GetByName<GearData>("Lamp"));
+            var lots = new ProvenanceLedger { NextLot = 3 };
+            lots.Lots[1] = new Lot { Design = design, Origin = new Attributed(), Product = product };
+            lots.Lots[2] = new Lot { Design = design, Origin = new Attributed() };
+            var zone = new SavedZone
+            {
+                Name = "Zone 0", AdjacentZones = Array.Empty<int>(), Factions = Array.Empty<int>(), Owner = -1,
+                Contents = new ZonePack
+                {
+                    Entities = new List<EntityPack>
+                    {
+                        BarePack(hull: new EquippableItem { Data = design, Lot = 1 }),
+                        BarePack(hull: new EquippableItem { Data = design, Lot = 2 })
+                    }
+                }
+            };
+            RunSave.Commit(cache, Game(cache), new[] { zone }, lots);
+        }
+        using (var cache = Open())
+        {
+            var stored = RunSave.Lots(cache);
+            Assert.Equal(product.Key, stored[1].Product.Key);
+            Assert.False(stored[2].Product.IsSet());
+        }
+    }
+
     // MQ4: Continue refuses a run that names a design the catalog no longer holds, naming the missing mod ships, and
     // never edits the save. A design can be named by an item in a zone or only by a minted lot, so each is covered.
     [Theory]

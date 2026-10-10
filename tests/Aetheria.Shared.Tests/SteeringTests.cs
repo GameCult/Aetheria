@@ -241,7 +241,7 @@ public sealed class SteeringTests
     }
 
     // The turn bound has one owner, the actuators: Ship.Update hands Turn to them unclamped, Thruster.Axis saturates to
-    // 0..1 and AetherDrive.Axis clamps to -1..1. A Turn of 3 therefore rotates the hull as a Turn of 1.
+    // 0..1. A Turn of 3 therefore rotates the hull as a Turn of 1.
     [Fact]
     public void TheActuatorsBoundATurnBeyondOne()
     {
@@ -276,13 +276,6 @@ public sealed class SteeringTests
             thruster.Axis = -3f;
             Assert.Equal(0f, thruster.Axis);
         }
-
-        // Axis is a pure property; no catalog hull carries a drive, so the instance is made without its item.
-        var drive = (AetherDrive)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(AetherDrive));
-        drive.Axis = float3(3f, -3f, 3f);
-        Assert.Equal(float3(1f, -1f, 1f), drive.Axis);
-        drive.Axis = float3(0f, 0f, -3f);
-        Assert.Equal(-1f, drive.Axis.z);
     }
 
     // The size of a turn, computed from the hull and not read back from the code under test: each rotation thruster

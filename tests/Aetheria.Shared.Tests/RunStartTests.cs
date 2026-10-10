@@ -119,8 +119,8 @@ public sealed partial class RunStartTests : IDisposable
 
     private const float Freezing = 273.15f;
 
-    // A main-sector galaxy (not the prelude, which offers every product): each station's gear must come from
-    // manufacturers its faction can reach, the galaxy's factions its allegiance names.
+    // A main-sector galaxy: each station's gear must come from manufacturers its faction can reach, the makers its
+    // allegiance names, present in the galaxy or not.
     private Galaxy MainSectorGalaxy()
     {
         var authored = AuthoredSettings.Load(FindRepoRoot());
@@ -670,7 +670,7 @@ public sealed partial class RunStartTests : IDisposable
     public void TheRealHullsMaterializeBareFromABrandedProduct()
     {
         var available = new LoadoutGenerator(ref _items.Random, _items, _galaxy, _galaxy.Entrance, null, 2);
-        foreach (var hull in new[] { Hull("Djinni"), Hull("LonginusX"), TurretHull() })
+        foreach (var hull in new[] { Hull("Djinni"), Hull("Longinus"), TurretHull() })
         {
             var failures = new List<string>();
             var entity = Loadouts.Materialize(_items, null, BareLoadout(hull), available.IsAvailable, failures);

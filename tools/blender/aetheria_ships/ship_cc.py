@@ -33,7 +33,7 @@ HARDPOINT_MEMBERS = ("Type", "Position", "Shape", "Transform", "Rotation", "Armo
 ANCHOR_MEMBERS = ("Id", "Role", "ModelNodeId", "ParentId", "Order")
 # Enum member names in value order (HardpointType, ItemRotation).
 HARDPOINT_TYPE_NAMES = ("Hull", "Tool", "Thermal", "Thruster", "WarpDrive", "Reactor", "Radiator",
-                        "Shield", "Sensors", "Energy", "Ballistic", "Launcher", "ControlModule", "AetherDrive")
+                        "Shield", "Sensors", "Energy", "Ballistic", "Launcher", "ControlModule")
 ROTATION_NAMES = ("None", "CounterClockwise", "Reversed", "Clockwise")
 
 

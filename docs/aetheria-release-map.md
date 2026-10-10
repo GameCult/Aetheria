@@ -5835,6 +5835,26 @@ factor), which waits on all of them.
   a smaller step means more decisions per sim second, the same per real second. No ruling
   fixes a per-step count.
 
+**Body facts for ballistic-flight r2** (source reads at e56f9c8b, 2026-10-09, imagination-aeth-ballistic-r2):
+
+- B-r2-1. FireControl.Step writes a committed shot back (`shots[i] = shot`, FireControl.cs:868) before `ShotCommitted` fires (:869). A no-lock fused round stopped by a hull has its `ArrivalTime` shortened at that commit (:867; CommitBurst :1024). A presenter's fire-time copy of the shot therefore carries a stale arrival unless it re-reads the record at `ShotCommitted`.
+- B-r2-2. `FireControl.Designated` measures `range` to any non-null target before the in-range test (:293-297), and a direct round's FlightDistance is that range. A direct round can therefore be fired at a target beyond Range and arrive after `FireTime + MaxRange/Speed`.
+- B-r2-3. `InstantWeapon.Execute` calls `FireControl.Fire` and then `OnFire` (:271-272) inside the entity loop, and `FireControl.Step` runs after it (Zone.cs:232). A presenter spawned from `OnFire` binds `ShotCommitted` and `ShotResolved` before its shot can commit or resolve, including a round fired at nothing that commits and misses in the same step.
+- B-r2-4. Solve aims a direct or engaged fused round at the predicted intercept (`Solution().Direction`, :135-156) but sets FlightDistance to the current planar range (:654-666), so on a moving target the arrival point on the frozen line is not where the target is. Open as question direct-arrival-at-intercept.
+
+**Why a round's end is one sim statement.** The sim resolves a round at `ArrivalTime`. A drawn round that ends anywhere else needs a second owner of the end, which is what ballistic-flight s1 found in Projectile. `FireControl.RoundEnd(shot, known)` states the end for what the sim has published about the outcome: arrival for a hit, a burst or an unknown outcome, and the frozen weapon range for a miss, never short of arrival. `RoundAt` clamps there. A round whose outcome is not yet published waits at its arrival point for at most one step instead of overshooting. The drawing rules (placement, barrel blend, stop, done) are pure statics in DrawAhead, beside the ships' draw-ahead, so the headless suite tests them by behaviour rather than by grep.
+
+**Ballistic flight is presentation (r3, 2026-10-09).** After rulings projectile-flight-is-presentation, sim-hooks-presentation-agnostic and direct-arrival-keep-timing, FireControl owns only a shot's facts: the outcome, when damage lands (ArrivalTime, a contact burst's shortened arrival, the commit tick), the impact cell with its target, and a fused round's burst point. DrawAhead owns the drawn round, as pure statics tested headless.
+
+Probes at d98818ea:
+(1) The impact cell is already on the outcome: on a hit, Commit stores the first cell of the shot's lane (FireControl.cs:960-988), MakeOutcome copies Cell and Target (:1527-1544), and ShotCommitted and ShotResolved publish the outcome (:881, :894). No sim hook was needed.
+(2) Entity.ToWorldPoint (Entity.cs:717-725) is the one schematic-to-world frame. The step turns Direction by `mul(Direction, float2x2.Rotate(TurnRate*dt))` (Thruster.cs:129), so the cell on the drawn pose is `Position(target, lead).xz + Rotate(ToWorldPoint(cell) - Position.xz, TurnRate*lead)`, exactly.
+(3) The commit tick equals `record.ArrivalTime - outcome.ArrivalIn` for every result (:877-881, :1541).
+(4) An engaged proximity round is Hit or Burst, never Miss; it bursts at BurstPosition frozen at Fire (:1009-1017, :1148-1150), and it is drawn there.
+(5) A target that leaves the zone mid-flight resolves as a fresh Miss (:857-868).
+
+Rationale: a hit follows its frozen line until the commit tick, then blends onto its impact cell on the target's drawn pose, so it lands on the hull rather than at the frozen line's arrival point. The sim's damage timing is unchanged. A miss flies on to the weapon's frozen range, which is DrawAhead.RoundEnd's choice. A kink at the commit frame (at most one step's share of the line-to-hull gap) and a snap back to the line after a target-gone Miss are accepted presentation. Rejected: publishing the lane's entry point as a new sim field; the ruling names the cell, so a hit effect may sit up to half a cell inside the hull skin. Risk: a hull mesh not aligned with its schematic makes hits land beside the mesh; that is a content fault, and the operator's moving-target check shows it.
+
 ### Census
 
 Every Unity-side place that integrates, times or decides a sim fact at `6d427b7a`, and the cut
@@ -6191,3 +6211,1415 @@ reverse. One coverage test makes "triggered by" and "harmed by" the same disc.
 **Why no targeting provider or point defense against mines.** The old mine was neither
 detectable nor shootable, and ruling `pd-who-engages` prices munitions, which a mine is not.
 Detection of floating bodies stays with follow-up `bodies-detection`.
+
+## Catalog breadth: the weapon matrix, roles backfill and stat-boosting gear
+
+Pass: Imagination `imagination-catalog-breadth`, session `self-2026-10-08b`. Self merges this into
+`docs/aetheria-release-map.md`; nothing here is committed. Body: `GameCult/Aetheria` origin/master
+`a8f71d463bf1160de0b5f23caa56dc7957252345` (fetched 2026-10-08), detached worktree in the session
+scratchpad, removed at the end. Rulings applied: `catalog-breadth-weapons-gear-consumables`,
+`catalog-grows-generic-designs-branded-products`, `tech-lineage-per-component-role`,
+`weapon-tracking-authored`, `plight-not-one-cell`, `plight-shape`. Operator, 2026-10-08, relayed by
+Self: "All this comes with roles and components too, right?" (not yet admitted as a ruling; Self
+should admit it so specs can cite it by id).
+
+Part (c), consumables, is not mapped here. The component-role rule (CB-R1) and the stacking rule
+(question `boost-stacking`) are written so that pass reuses them unchanged.
+
+### Body facts
+
+Decode method: `cultcache_py` `SingleFileMessagePackBackingStore.pull_all()` over
+`GameData/Aetheria.cc` at a8f71d46 (LFS pulled into the worktree), payloads `msgpack.unpackb`ed and
+read by MessagePack key. Scratch scripts `cat.py`, `wm.py`, `stats.py`, not committed.
+
+- **CB1. Census at a8f71d46.** 74 FactionProductData, 51 CompoundCommodityData, 31 GearData,
+  22 WeaponItemData, 13 SimpleCommodityData, 12 Faction, 12 NameFile, 4 CargoBayData, 4 HullData,
+  3 PersonalityAttribute, 1 FieldKindData, 1 DockingBayData, 1 InputLayout. pd-gear and the Mine
+  Launcher are on master; the Pirates (pirates-record 8e51016f), lot-product (ec081b9b),
+  generic-design-names, product-lines-weapons, maker-only-faction (5dce222b), mods-in-tree
+  (cc83f5ad) and faction-play-1 (b3d1e929) are not. Design names are still the branded ones.
+- **CB2. The catalog already has a category axis and a size axis on weapons** (source read
+  `ItemData.cs:477-487`, `Enums.cs:55-83`). `WeaponItemData.WeaponType` (key 26: ElectromagneticallyPropelled,
+  ExplosivelyPropelled, Laser, Electrostatic, ParticleProjection, Missile, MicroMissile, SplitMissile,
+  Mine, Jet) and `WeaponCaliber` (key 25: Small, Medium, Large, ExtraLarge). The operator's vault note
+  `AetheriaLore Aetheria/Worldbuilding/Post-Elysium/Reference/Weapon Category Codes.md` (33cd06a)
+  defines the same taxonomy: caliber S/M/L/XL, weapon types EMPS, XPS, L, PL, ESD, PPC, launchers
+  M, MM, MIRV with guidance D/G/S. The enum lacks PL (pulse laser) and adds Mine and Jet. The only
+  code readers are the action-bar icon (`Gameplay/ActionBarSlot.cs:154`, `GameSettings.cs:52-54`).
+- **CB3. The matrix at a8f71d46** (type x authored caliber, with cell footprint):
+
+  | Type | Small | Medium | Large | ExtraLarge |
+  |---|---|---|---|---|
+  | XPS (Ballistic) | ClearPath 2, Earp 2, 6k Shooter 2, PD Gun 1 | Autocannon 4, DeathCluster 4, pretty pretty bang bang 4, Flak Gun 2 | - | - |
+  | EMPS | - | - | - | - |
+  | Laser (Energy) | Spectra 2, ColdFire 2, PD Laser 1, CShot RainbowLite Lazer 9 | - | - | - |
+  | ESD (Energy) | - | - | plight 2 | - |
+  | PPC (Energy) | FastBlast+- 2 | ChargeBlast+- 4, ChargeBlast SG 4 | - | - |
+  | Missile (Launcher) | - | GT 3K 3 | - | - |
+  | MicroMissile (Launcher) | - | scorched void policy 3, pswarm 1 | LRMM72 6 | SRMM72 6 |
+  | SplitMissile | - | - | - | - |
+  | Mine (Launcher) | - | Mine Launcher 1 | - | - |
+  | Jet | - | - | - | - |
+
+  Caliber and footprint disagree in six designs: CShot (Small, 9 cells), plight (Large, 2),
+  pswarm (Medium, 1), SRMM72 (ExtraLarge, 6 like LRMM72's Large), Mine Launcher (Medium, 1),
+  Flak Gun (Medium, 2). Map M30 already recorded CShot and plight.
+- **CB4. Weapon homes on master** (`HullData.Hardpoints`, key 23). Longinus: Energy 1x2 x2,
+  Launcher 1x3 x2. Djinni: Ballistic 1x2 x2, Launcher 1x3 x2, Launcher 3x2 x2. Turret (station):
+  Ballistic 2x4 x2. Zenith: none. `LoadoutGenerator.HasHome` (`:201`) offers a design only if some
+  hull's hardpoint `Takes` it, so a Large or ExtraLarge Energy gun, an ExtraLarge launcher and a
+  2x2 Energy gun have no home until a hull carries such a mount. No mod package is in the tree yet.
+- **CB5. Roles and components today** (source read `ItemData.cs:315-331`, `FactionProduct.cs:14-40`,
+  `Provenance.cs:73`, `ItemData.cs:640-720`). A design declares `Roles` (`ItemRole`, a name only;
+  its comment: "the part itself earns a record when crafting needs one to exist"). A product
+  authors `ProductRole{Role, Mean, StandardDeviation}` per role; `ItemManager.CreateLot`
+  (`ItemManager.cs:149`) rolls each role's quality into the lot; a stat reads it through a
+  `StatTerm{Source: Quality, Role}`. No record type for a component item exists; the 51
+  CompoundCommodityData (Circuit Board, Reaction Chamber, Heat Sink Tile, Trigger ...) carry no
+  roles and nothing links a role to them. Lineage (`tech-lineage-per-component-role`) has no field.
+- **CB6. Roles are live only where a stat reads them.** `AetherDb roles-migrate`
+  (`tools/AetherDb/Program.cs:255-378`) assigned roles per kind from fixed field maps
+  (`:156-216`) and skipped flat stats (`Min == Max`) and kinds with no quality-reading behaviour.
+  The census prints, but no test fails on, products that author no spread for a role
+  (`Program.cs:110-127`).
+- **CB7. The audit of in-flight content for roles** (decode plus pirates-record diff read):
+  - pd-gear (merged): all three designs declare their kind's roles, each read by non-flat stats;
+    every product authors ProductRole for each. No gap.
+  - Pirates (pirates-record 8e51016f, `Program.cs` diff lines 66-82): every rebrand mirrors its
+    design's roles at apply time (mean .45, sd .22). It inherits the design's gaps: its Autocannon
+    rebrand carries no roles because Autocannon declares none.
+  - Mine Launcher (merged): no roles, every MineLayerData stat flat with no terms at all; its DME
+    product authors none.
+  - Also role-less with flat stats: Autocannon, LRMM72, SRMM72 (every stat Min == Max, Quality term
+    with no role). Large Drive reads Quality with no role and declares none. Cargo bays, docking
+    bay, Cockpit 2x2, Turret Control Module and Tractor Beam carry no quality-reading stat.
+- **CB8. Stat modifiers exist and work for passive gear** (source read
+  `Behaviors/StatModifier.cs`, `StatResolver.cs:108-145`, `Entity.cs:1960-1980`).
+  `StatModifierData` (behaviour union 4) names a target `StatReference{Target type name, Stat
+  field}`, a magnitude `PerformanceStat` (so per-role quality works), `Constant` or `Multiplier`,
+  and an optional `RequireBehavior`. While the gear is Active its behaviour groups execute in order
+  and stop at the first that fails (`Entity.cs:1969-1976`), so an `EnergyDraw` before the modifier
+  gates it on power; the modifier attaches to every matching stat on the same entity and detaches
+  when it stops executing. `PerformanceStat.Evaluate` applies `lerp * Scale + Constant`, then the
+  power factor (`ItemData.cs:700-722`). The sim reads every boosted stat through `Evaluate`
+  (Thruster.cs:43, Sensor.cs:168, Radiator.cs:118, Weapon.cs:133-143, VelocityLimit.cs:35,
+  TargetingSystem.cs:80). The catalog's one modifier: MoveOnPro (both sizes) scales
+  `CapacitorData.Capacity` by 1.1-1.25.
+- **CB9. Gap: a modifier cannot target a base behaviour type.** `TargetsOf`
+  (`StatModifier.cs:91-114`) matches `GetType() == targetType` at `:98`, `:102` and `:104`, while
+  `ResolveStatField` resolves any `BehaviorData` subtype by name, abstract ones included
+  (`ItemData.cs:785-799`, `Extensions.cs:36-44`). A modifier on `WeaponData.Damage` validates and
+  then attaches to nothing, because every gun's behaviour is a concrete subtype (AutoWeaponData,
+  InstantWeaponData, ChargedWeaponData, ConstantWeaponData, LauncherData, MineLayerData).
+- **CB10. Stacking today is unbounded.** `StatResolver.ScaleModifier` multiplies every attached
+  scale and `ConstantModifier` sums every constant (`StatResolver.cs:108-122`). Ten 1.15
+  multipliers compound to 4.0x. Consumable effects attach through the same resolver
+  (`Entity.cs:857-881`, `StatModifier.cs:63`), so the stacking rule is shared with part (c).
+- **CB11. Where stat gear lives.** Tool gear has no hardpoint and fits any free interior cell
+  (`Entity.cs:1076-1090`); Targeting Computer (Tool 1x1: TargetingSystem, EnergyDraw 2, Heat 15) is
+  the closest template for a powered booster.
+- **CB12. Consumables already have a sim mechanism** (for part (c), not mapped here):
+  `ConsumableItemData` (`ItemData.cs`, keys 10-14: Behaviors, Stackable, Duration, Icon,
+  Effectiveness) is a CraftedItemData, so it declares roles; `Entity.TryActivateConsumable`
+  (`:872`) and `ConsumableItemEffect` (`:1582`) run its behaviours, including StatModifier, with a
+  `ConsumableProgress` stat source. The catalog holds no consumable record.
+
+### Model page row changes
+
+- **WeaponItemData (catalog)**: who decides gains "the matrix cell": `WeaponType` and
+  `WeaponCaliber` are the authored category and size (question `weapon-matrix-axes`); footprint
+  lies in its caliber's band (Small 1-2 cells, Medium 3-4, Large 5-6, ExtraLarge 7-9).
+- **CraftedItemData.Roles / FactionProductData.Roles**: a design declares a role only if a non-flat
+  stat reads it; every product authors one ProductRole per role (rule CB-R1).
+- **StatModifierData**: targets a behaviour type and its subtypes (after modifier-subtypes); the
+  resolver's stacking rule is the one for gear and consumables alike (question `boost-stacking`).
+
+### Rules (cited by the specs)
+
+- **CB-R1, roles and components (the whole ruling, consumables included).** A crafted design
+  (weapon, gear, consumable) declares roles iff it has a stat that varies with quality. Each
+  declared role is read by at least one non-flat stat's `Quality` term; each non-flat stat reads
+  exactly one declared role; every product that sells the design authors one ProductRole per
+  role, from its maker's profile (catalog-growth addenda table; Pirates .45/.22 per pirates-record).
+  Roles come from the kind's field map in `Program.cs:156-216`, extended for new kinds as named in
+  each spec. A consumable's roles govern its effect magnitude stats the same way. Under the
+  recommended option of question `component-items`, the component is the (design role, product
+  ProductRole) pair: no component item record until crafting reads one, and the lineage mark of
+  `tech-lineage-per-component-role` lands on ProductRole when the first aethertech product does.
+- **CB-R2, authoring a new design.** Copy a template by record key (never by name, so it holds
+  across generic-design-names), set the shape, caliber, type and name, set every authored stat by
+  the ladder below as a Min-Max range of value x (0.8, 1.2) (benefit stats rise with quality, cost
+  stats fall), keep the template's non-quality terms, point each Quality term at its role, author
+  Tracking per weapon with no terms (`weapon-tracking-authored`), carry no BlastRadius or Fuse
+  (`FireControlCut124Tests.cs:2589`), no AmmoType (the ballistic-ammo revision owns rounds), and a
+  description with no maker name. Two or more products from distinct makers, never Miss Terri's or
+  the Pirates, product name never the design name.
+- **CB-R3, caliber ladder** (per step from the template's caliber): Damage per shot x2.0, Range
+  x1.2, Mass x2.0, Price x2.0, Energy and Heat x1.8, Cooldown x1.25, Spread x0.85, Visibility x1.5.
+  Tracking (authored, steep): 2-cell Small 10-12, Medium 5-6, Large 3, ExtraLarge 1.5; flame guns
+  double those (the cone covers what tracking misses).
+- **CB-R4, footprints for new designs.** Small 1x2, Medium 2x2 (launchers 1x3), Large 2x3
+  (launchers 3x2), ExtraLarge 2x4 (fits the station Turret's Ballistic 2x4).
+- **CB-R5, catalog blob.** Each content cut lands through one idempotent AetherDb command; under
+  follow-up `catalog-blob-merge-order` its merge takes master's catalog, reruns the command's
+  `apply`, commits the regenerated blob in its own LFS commit with the dry-run text and reruns the
+  suite. No cut picks a side's blob.
+
+### Design tables
+
+Product names are drafts in each maker's voice (profiles: catalog-growth addenda); Hands writes the
+one-line descriptions in that voice.
+
+**matrix-coilguns** (EMPS, Ballistic hardpoint, template ClearPath `0271bb97` for Small and
+Autocannon `13116166` above; EMPS vs XPS at one caliber: Velocity x2.5, Penetration authored high,
+Energy x3 per `ballistics-cycle-power`, Damage x1.2, Cooldown x1.6; roles barrel, feed mechanism):
+
+| Design | Caliber | Shape | Products (maker) |
+|---|---|---|---|
+| Light Coilgun | Small | 1x2 | RC-1 Needle (R&D), Pin (Finch) |
+| Coilgun | Medium | 2x2 | RC-4 Spindle (R&D), Plumb Line (Adrasteia) |
+| Railgun | Large | 2x3 | True Meridian (Adrasteia), RX-9 Lancer (R&D), Gavel (Zhestokost) |
+| Heavy Railgun | ExtraLarge | 2x4 | Axis (Adrasteia), Long Reach (AU) |
+
+**matrix-cannons** (XPS, template Autocannon, AutoWeaponData; barrel, feed mechanism):
+
+| Heavy Autocannon | Large | 2x3 | Bulwark (Zhestokost), Foreman (AU) |
+|---|---|---|---|
+| Siege Cannon | ExtraLarge | 2x4 | Last Word (Zhestokost), big red problem (DME) |
+
+**matrix-beams** (Energy; Laser from ColdFire `2933c4ce`, PPC from ChargeBlast+- `499f7891`;
+focusing array, power coupling):
+
+| Medium Beam Laser | Medium | 2x2 | Filament (Alakrita), Limelight (Lucent) |
+|---|---|---|---|
+| Large Beam Laser | Large | 2x3 | Marquee (Lucent), Clear Sight (Adrasteia) |
+| Heavy Ion Cannon | Large | 2x3 | Blackout (NiteLife), short circuit (DME) |
+| Ion Lance | ExtraLarge | 2x4 | Lights Out (NiteLife), IX-12 Breaker (R&D) |
+
+**matrix-lightning** (ESD, ChargedWeaponData from plight `632420a6`; focusing array, power coupling):
+
+| Arc Thrower | Small | 1x2 | Sparkler (Lucent), Live Wire (NiteLife) |
+|---|---|---|---|
+| Storm Projector | Medium | 2x2 | Thunderhead (NiteLife), everybody dance (DME) |
+| Tempest Projector | ExtraLarge | 2x4 | Grand Finale (Lucent), Mains (NiteLife) |
+
+**matrix-missiles** (Launcher; Missile from GT 3K `5ee2ff03`, MicroMissile from LRMM72 `32157982`;
+guidance system, thruster, warhead):
+
+| Light Missile Launcher | Small | 1x2 | Fledgling (Finch), Courier (AU) |
+|---|---|---|---|
+| Heavy Missile Launcher | Large | 3x2 | GT 6K (R&D), Freight Forward (AU) |
+| Torpedo Launcher | ExtraLarge | 2x4 | Battering Ram (Zhestokost), GT 12K (R&D) |
+| Micromissile Battery | ExtraLarge | 2x4 | the whole show (DME), Fireworks (Lucent) |
+
+**matrix-mines** (Launcher, MineLayerData from Mine Launcher `1b4a2bb3`; new role map: warhead
+reads Damage, Penetration, DamageSpread; dispenser reads Range, Cooldown, Spread, Velocity, Energy,
+Heat, Visibility; ArmingDelay, FuseDelay and Lifetime stay authored per design, not ladder-scaled):
+
+| Mine Rack | Medium | 1x3 | party favours (DME), Caltrop (Zhestokost) |
+|---|---|---|---|
+| Heavy Mine Layer | Large | 3x2 | surprise party (DME), Wake Warden (Lightsail) |
+| Minefield Projector | ExtraLarge | 2x4 | Exclusion Zone (Zhestokost), do not enter (DME) |
+
+**matrix-flamers** (Jet, Ballistic hardpoint, InstantWeaponData pellet gun from Flak Gun
+`6af6446e`: DamageType Thermal, Count 8-12, Spread 25-35 deg, Range 150-300 at Small, Velocity
+300; roles nozzle (Range, Spread, Velocity) and fuel pump (Damage, Cooldown, Energy, Heat,
+Visibility)). Absorbs follow-up `pirates-flamethrower`'s design; the Pirates' own 🔥 product moves
+in their own record, not here.
+
+| Light Flamethrower | Small | 1x2 | hot take (DME), Scorch (Zhestokost) |
+|---|---|---|---|
+| Flamethrower | Medium | 2x2 | keep it lit (DME), Brushfire (AU) |
+| Heavy Flamethrower | Large | 2x3 | Purifier (Zhestokost), burn the boats (DME) |
+| Inferno Projector | ExtraLarge | 2x4 | Ashfall (Zhestokost), Afterparty (NiteLife) |
+
+After these, every cell of CB3 is filled except the SplitMissile row (follow-up
+`mirv-split-munition`): 24 new designs, 49 new products.
+
+**Stat boosters** (Tool 1x1, template Targeting Computer `c07ea205`'s EnergyDraw and Heat, then a
+StatModifierData Multiplier in the same group so power gates it; roles amplifier (the magnitude)
+and regulator (EnergyDraw, Heat); magnitude per question `boost-strength`). Superseded 2026-10-09 by
+ruling `boost-strength-tiered-by-size`: each stat gets a modest 1x1 and a strong 2x2 design, tabled in
+'Spec refresh 2026-10-09' below):
+
+| Design | Targets | Products (maker) | Cut |
+|---|---|---|---|
+| Thrust Amplifier | ThrusterData.Thrust | Tailwind (Finch), Second Wind (Lightsail) | boost-gear-systems |
+| Signal Amplifier | SensorData.Sensitivity | Earful (Finch), Lookout (AU) | boost-gear-systems |
+| Emissivity Booster | RadiatorData.Emissivity | Cold Read (Adrasteia), Cool Head (Lightsail) | boost-gear-systems |
+| Reactor Overclock | ReactorData.Charge | Afterhours (NiteLife), redline (DME) | boost-gear-systems |
+| Damage Amplifier | WeaponData.Damage | Showstopper (Lucent), Heavy Hand (Zhestokost) | boost-gear-combat |
+| Range Extender | WeaponData.Range | Far Sight (Adrasteia), Long Look (Finch) | boost-gear-combat |
+| Shield Booster | ShieldData.Capacity | Thick Skin (AU), SB-2 Bastion (R&D) | boost-gear-combat |
+
+### Rationale
+
+**Why the category is WeaponType and the size is WeaponCaliber.** The operator's own taxonomy
+(CB2) names exactly these two axes, and the catalog already carries both fields. Footprint is mount
+space, which the brief's "sizes (cell footprints)" reads as the size; the two disagree in six
+records (CB3). Recommended: caliber is the one authored size, and a catalog test holds every
+footprint inside its caliber's band, so neither can drift; the six are fixed as content. plight is
+the exception the operator holds open (ruling `plight-shape`, Defaulted, revisit after play): it
+stays Large, and the band test names that ruling as its one exemption. Prior art: Starsector mounts
+are type x size (small/medium/large; ballistic/energy/missile) and every type exists at every size;
+Elite's hardpoints are class 1-4 with weapon families not filling every class.
+
+**Why MIRV waits.** A split missile with no split is a mislabelled missile. Missiles become stepped
+munition records only after missile-records (r3, no report); splitting belongs on that record.
+
+**Why components are the role and its ProductRole.** No system reads a part record (crafting is not
+in the demo; the target's not-in-scope line excludes new mechanics), so a component item now would
+be inert data. X4 and EVE give components item records because their economies produce and consume
+them; the role-quality pair already carries what the operator's examples need (a laser better at
+what its focusing role governs). Question `component-items` asks the operator.
+
+**Why the stacking question recommends diminishing returns.** Interior cells are cheap compared with
+hardpoints, so unbounded multiplication (CB10) makes a hold full of amplifiers the dominant fit.
+EVE University, Stacking penalties (fetched 2026-10-08): the n-th percentage modifier on one
+attribute is multiplied by S(n-1), S(u) = e^-(u/2.67)^2, strongest first, so 100%, 86.9%, 57.1%,
+28.3%, 10.6%, 3.0%; absolute effects are never penalized; positive and negative effects are
+penalized separately. Starsector hullmods are on or off per ship and priced in ordnance points
+(starsector.wiki.gg/wiki/Hullmods, fetched 2026-10-08: Unstable Injector raises speed and cuts
+weapon range 25%); the exact bonus values were not on that page. Nebulous jammers stack on a similar
+diminishing curve (consumables prior-art file, "Stacking and exclusivity"). Because consumables
+attach through the same resolver, whichever rule the operator picks covers part (c) too.
+
+**Cut order.** roles-backfill and modifier-subtypes are independent of everything here. The seven
+matrix cuts are independent of one another and of generic-design-names (templates by key, new
+designs born generic); they wait only on the axis ruling. caliber-bands lands last: it recalibers
+six records and adds the band and coverage tests that would fail before the matrix fills.
+product-lines-weapons r2 adds roles-backfill to r1's dependencies so its new products of Autocannon,
+LRMM72, SRMM72 and Mine Launcher author ProductRole for real roles. product-lines-gear turns
+follow-up `gear-product-lines` into a spec (Self withdraws the follow-up as absorbed when it
+admits nothing else over it). boost-gear-combat waits on modifier-subtypes; modifier-stacking and
+both boost cuts wait on the operator.
+
+**Record keys.** No cut here adds a MessagePack key to any type, so none touches the Faction key
+collision (maker-only-faction 19, faction-play-1 Doctrine, livery 18).
+
+### Admitted (mind receipts 2026-10-08 19:48-19:50 UTC)
+
+Questions: `weapon-matrix-axes` (raised in matrix-coilguns, blocks every matrix cut and
+caliber-bands), `component-items` (raised in nothing: the specs follow its recommended option and
+stay valid under the others), `boost-strength` (raised in boost-gear-systems), `boost-stacking`
+(raised in modifier-stacking). Cut specs r1: roles-backfill, modifier-subtypes, modifier-stacking,
+boost-gear-systems, boost-gear-combat, matrix-coilguns, matrix-cannons, matrix-beams,
+matrix-lightning, matrix-missiles, matrix-mines, matrix-flamers, caliber-bands, product-lines-gear;
+product-lines-weapons r2 with resolution `cut_spec.cut-product-lines-weapons.r1.n1` (Superseded).
+Follow-ups: `mirv-split-munition`, `homeless-calibers`, `matrix-rounds`. Left for Self:
+follow-up `gear-product-lines` is absorbed by product-lines-gear (close it when that merges);
+follow-up `pirates-flamethrower`'s design half is absorbed by matrix-flamers (its product move
+stays the Pirates' record's).
+
+## Consumables: the host fix, supply, throttle lock and vapour cloud
+
+Pass: Imagination `imagination-consumables`, session `self-2026-10-08b`. Self merges this into
+`docs/aetheria-release-map.md`; nothing here is committed. Body: `GameCult/Aetheria` origin/master
+`a8f71d463bf1160de0b5f23caa56dc7957252345` (fetched 2026-10-08 ~20:00 UTC; the pirates-record merge had
+not landed), detached worktree in the session scratchpad, removed at the end. Catalog: LFS blob
+`GameData/Aetheria.cc` sha256 `5ecf375f...a011`, decoded with `cultcache_py`
+`SingleFileMessagePackBackingStore.pull_all()` and `msgpack` (payloads are arrays indexed by MessagePack
+key). Scratch probes `q1_thrust_speed.py`, `q2_templates.py`, not committed.
+
+Rulings applied: `catalog-breadth-weapons-gear-consumables` (operator: "consumables (goofy stuff like
+juicing your thrusters for a few seconds but locking the throttle at max, or a consumable coolant that
+turns into a cloud of vapor to break locks)"), `catalog-breadth-roles-and-components` ("All this comes
+with roles and components too, right?"), `catalog-grows-generic-designs-branded-products`,
+`sensor-stat-set`. Reused unchanged from parts (a) and (b)
+(`F:\Projects\aetheria-map-addenda-catalog-breadth-2026-10-08.md`): CB-R1 (roles), CB-R2 (authoring),
+CB-R5 (catalog blob), and the stacking rule of question `boost-stacking` through cut `modifier-stacking`.
+Prior art: `F:\Projects\aetheria-consumables-prior-art-2026-10-08.md` (cited below as PA section n).
+
+### Body facts
+
+- **CC1. The consumable mechanism exists end to end in code, and no record uses it.** Census: no
+  `aetheria.consumableitemdata` record in the catalog (decode). `ConsumableItemData : CraftedItemData`
+  (`ItemData.cs:342-358`, keys 10 Behaviors, 11 Stackable, 12 Duration, 13 Icon, 14 Effectiveness;
+  Roles at key 9 from CraftedItemData). Instance `ConsumableItem` (`ItemInstance.cs:65`, union 3 and 2).
+  Activation: `Entity.TryActivateConsumable` (`Entity.cs:872-884`) refuses a second active effect of a
+  non-Stackable design (`CanActivateConsumable`, `:867-870`), takes the first instance of that design
+  from cargo, builds a `ConsumableItemEffect` and removes the instance. Each tick
+  (`Entity.cs:1443-1454`) the effect updates its behaviours in order, stopping at the first that fails
+  (`ConsumableItemEffect.Update`, `:1604-1619`), and at `RemainingDuration < 0` is dropped after
+  `Resolver.Forget(effect)`. Catalog load validates a consumable's modifiers and role usage
+  (`AetheriaStores.cs:77-80`).
+- **CC2. Player input exists; AI input does not.** The player drags a consumable from cargo onto an
+  action-bar slot (`ActionGameManager.cs:484-485`), the slot calls `TryActivateConsumable`
+  (`ActionBarSlot.cs:118-121`), shows the count in cargo and the remaining-duration fill
+  (`:128-134`), and the binding is saved (`SavedGame.cs:221,230`). Nothing in `Agents/` calls it
+  (grep: the only caller is `ActionBarSlot.cs:120`).
+- **CC3. Defect: a consumable's stat modifier never reaches anything, and would throw.**
+  `StatModifier.Initialize` (`StatModifier.cs:82-89`) is what computes `_targets`; the only caller of
+  `IInitializableBehavior.Initialize` is `Entity.Activate` over `Equipment` (`Entity.cs:202-207`).
+  `ActivateConsumable` (`Entity.cs:857-860`) never calls it, so `_targets` stays null. The effect's
+  `Update` runs `IAlwaysUpdatedBehavior.Update` before `Execute`; on the second tick `_executed && !_applied`
+  calls `ApplyModifier` (`:224-230`), which iterates the null `_targets`: a NullReferenceException.
+  Source read; no test covers it (the expiry test `StatResolverTests.cs:363` uses a consumable with no
+  behaviours). Body fact CB10's claim that consumable effects attach through the resolver holds for the
+  resolver's API, not for this host path.
+- **CC4. Defect: an expired consumable's modifiers would outlive it.** Attachments are keyed by the
+  target item as owner and the `StatModifier` instance as modifier key (`StatModifier.cs:224-237`).
+  Expiry calls `Resolver.Forget(effect)` (`Entity.cs:1451`), which removes only entries whose owner is
+  the effect (`StatResolver.cs:154-170`); nothing calls `StatModifier.Dispose` (`:245-249`). Once CC3 is
+  fixed, a boost would stay attached to the thrusters forever.
+- **CC5. Defect: a bought or generated consumable is not a ConsumableItem.**
+  `ItemManager.CreateInstance(int lot)` (`ItemManager.cs:173-189`) returns `EquippableItem` or else
+  `CompoundCommodity`; `TryActivateConsumable` then casts the cargo instance to `ConsumableItem`
+  (`Entity.cs:880`), an InvalidCastException. The tests build `ConsumableItem` by hand for this reason
+  (`LoadoutTests.cs:787-791`).
+- **CC6. Nobody sells consumables, and nothing restocks.** Station stock is
+  `RandomProducts<EquippableItemData>(16, 1, ...)` into the station's cargo at generation
+  (`LoadoutGenerator.cs:110-119`); `RandomProducts` and `AvailableProducts` are constrained to
+  `EquippableItemData` (`:142`, `:154`) because the availability rule includes `HasHome` (`:164`).
+  Stations are generated once per zone (`ZoneGenerator.cs:303,324`); no code restocks a station
+  (grep `Restock`, `GenerateStationLoadout`). The trade menu sells out of station cargo
+  (`StationServices.TryBuy`, `StationServices.cs:73`; `BuyPrice` prices any CraftedItemInstance, `:13-24`).
+- **CC7. Cargo is the inventory.** A crafted instance occupies its design's `Shape` cells in a cargo bay
+  (`Entity.cs:2187-2207`); there is no item stack for crafted items. A consumable design therefore needs
+  a Shape (ItemData key 5); CompoundCommodity records have none (decode: Shape None, Price 0), so they are
+  not templates. Targeting Computer `c07ea205` is the 1x1 template for mass, specific heat and
+  conductivity (CB11).
+- **CC8. How locks are decided.** Per observer, `EntityInfoGathered[target]` rises by `Sensor.Gain`
+  (`Sensor.cs:187-189`: passive `visibility x sensitivity x curve(bearing) x dt / distance`, ping
+  `visibility x sensitivity x PingBoost x distance` once) and decays by `TargetInfoDecay` each tick
+  (`Sensor.cs:155-178`). Crossing `TargetDetectionInfoThreshold` adds or removes the target from
+  `VisibleEnemies` (`Entity.cs:261-277`); leaving `VisibleEnemies` clears the observer's target
+  (`Entity.cs:248-250`), which zeroes every `LockWeapon` lock (target changed, `LockWeapon.cs:85-90`).
+  Lock rate is `LockSpeed x info^SensorImpact` inside `LockAngle` (`:98-105`); launchers are
+  LockWeapons (`Launcher.cs:7`, `CreateInstance` returns `LockWeapon`). FireControl's sensor factor
+  also reads info (`FireControl.cs:439-442`). Minions retarget when an enemy re-enters
+  `VisibleEnemies` (`Minion.cs:13`). A missile already in flight is a Unity `GuidedProjectile` that
+  follows its `Target` transform (`GuidedProjectile.cs:44,142`); the simulation does not re-decide it.
+  The same `Gain` serves chunk detection through `PassiveRate` (`Sensor.cs:194-199`, `Entity.cs:384`),
+  and `MiningCut3Tests.cs:254` pins the entity info trace bit for bit.
+- **CC9. How thrust and the throttle work.** `Ship.MovementDirection` (`Ship.cs:27`) has two writers, the
+  player's input (`ActionGameManager.cs:1339`) and the agent (`Agent.cs:70-80`); `Ship.Update`
+  (`Ship.cs:231-257`) turns it into each thruster's `Axis` (strafe at `:241-252`, forward and reverse at
+  `:255-256`) and `Turn` into rotation. A thruster pushes by `Thrust` and adds heat and visibility
+  proportional to its input, not to thrust (`Thruster.cs:116-137`), so a Thrust multiplier alone costs no
+  heat. Top speed is a hull's `VelocityLimitData.TopSpeed` (decode: Djinni 50, Longinus 100), clamped in
+  `VelocityLimit.Execute`; the hull is in `Equipment` (`Entity.cs:886`, MapEntity), so a modifier on
+  `VelocityLimitData.TopSpeed` reaches it. Catalog thrusters: Small Drive 75k, Talaria 75k-250k, Medium
+  Drive 100k-300k, deep space burnout and RevvITup 250k-1M, Victoire 200k-1.5M (Thrust Min-Max).
+- **CC10. Zone bodies.** A mine is a runtime-only `KinematicBody` in `Zone.Mines` (`Mines.cs`,
+  `Zone.cs:22`), added only by `Zone.Lay` (`:235-239`), stepped and removed only by `StepMines`
+  (`:245-260`) after the entity loop, never saved, and drawn by one `ZoneRenderer` subscription
+  (`ZoneRenderer.cs:225-264`, `MinePrefab` `:47`). This is the pattern a vapour cloud follows.
+- **CC11. A consumable's own heat does nothing.** `Behavior.AddHeat` is a no-op for a consumable host
+  (`Behaviors.cs:60`, "TODO: Heat for Consumables"). The first set takes its heat cost through the
+  thrusters' own Heat stat instead.
+- **CC12. Record keys.** `BehaviorData` union ids run to 40 (`MineLayerData`, `Behaviors.cs:189`); 12 and
+  26 are retired. No remote branch (71 refs, `git show <ref>:.../Behaviors.cs`) claims 41 or above. This
+  pass claims **41 `ThrottleLockData`** and **42 `VapourDumpData`**. No key is added to Faction,
+  ConsumableItemData or any saved type; the Faction 16-19 collision is untouched. `VapourCloud` is
+  runtime only, like `Mine`.
+
+### Model page row changes
+
+- **ConsumableItemData (catalog)**: new live row. Named by record key; a design with roles (CB-R1),
+  Shape 1x1, a Price, Stackable false, a Duration, and behaviours. Decided by its AetherDb command.
+- **ConsumableItem (run save, cargo)**: created by `ItemManager.CreateInstance` for a consumable design;
+  lives in a cargo bay; consumed by `TryActivateConsumable`.
+- **ConsumableItemEffect (runtime)**: one per activation; owns its behaviours' lifetime: initialised at
+  activation, disposed at expiry, then forgotten by the resolver. Not saved.
+- **Entity.ThrottleLocked (derived)**: true while any active effect carries a `ThrottleLock`. Nobody
+  writes it. `Ship.Update` is the one place that turns intent (`MovementDirection`) into thruster axes,
+  and it reads the lock there.
+- **VapourCloud (runtime, Zone.Clouds)**: added only by `Zone.Vent`, stepped and removed only by
+  `Zone.StepClouds`. `Zone.Obscuration(a, b)` is derived from the live clouds; `Sensor.Gain` is its one
+  reader.
+
+### Rules (cited by the specs)
+
+- **CS-R1, the consumable mechanic.** A consumable is a cargo item, single use, activated from the action
+  bar (player) or by an agent rule (AI). Its effect is timed (`Duration`) and carries its own drawback in
+  the same record. A non-Stackable design allows one active effect at a time, so its Duration is also its
+  cooldown; no second cooldown mechanism. Boosts from a consumable multiply with gear under the one resolver
+  rule (ruling `boost-stacking-multiply`; pinned by cut `modifier-stacking` r3).
+- **CS-R2, roles.** Per CB-R1, every non-flat effect stat reads one declared role and every product
+  authors one ProductRole per role. Benefit magnitudes rise with quality, cost magnitudes fall.
+- **CS-R3, the throttle lock.** While locked, the effective movement intent is full forward, no strafe,
+  no reverse; turning stays with the pilot (question `overdrive-steering`). Intent writers keep writing;
+  they are not owners of the thruster axes.
+- **CS-R4, obscuration.** A cloud is a disc with an opacity that fades linearly to 0 over its lifetime.
+  Every sensor gain (passive, ping and chunk) is multiplied by the product of `(1 - opacity)` over the
+  clouds the sight line crosses, endpoints inside counting as crossing; with no cloud crossed no
+  multiplication happens, so the info trace is bit-identical. Symmetric: the venting ship sees out no
+  better than others see in. Lock loss is the existing rule (CC8): info decays below the detection
+  threshold and the target is dropped. A sensor strong or close enough still burns through.
+
+### Design tables
+
+**Thruster Overdrive** (cut `consumables-first-set`; ConsumableItemData; Shape 1x1; Mass 10; Price
+6,000; Stackable false; Duration 5 s; roles **propellant**, **regulator**; behaviours in order:
+ThrottleLock, then four StatModifierData Multipliers):
+
+| Target stat | Magnitude Min-Max | Role |
+|---|---|---|
+| ThrusterData.Thrust | 2.0-3.0 | propellant |
+| VelocityLimitData.TopSpeed | 1.5-2.0 | propellant |
+| ThrusterData.Heat | 4.0-2.5 | regulator |
+| ThrusterData.Visibility | 4.0-2.5 | regulator |
+
+Products: **send it** (Death Monkey Explosives), **Updraft** (Finch Cybernetics). The heat and plume cost
+is real because thrusters heat by input, not thrust (CC9): a locked throttle runs every forward thruster
+at full input for 5 s at up to 4x heat and plume. Prior art: Starsector Burn Drive (+200 speed for 5 s,
+no steering, PA 1), Plasma Jets (+375% acceleration, 3 s, PA 1), EVE overheating (+50% propulsion, heat
+damage, PA 5).
+
+**Coolant Vent** (same cut; ConsumableItemData; Shape 1x1; Mass 15; Price 4,000; Stackable false;
+Duration 12 s; roles **nozzle**, **coolant**; behaviours in order: VapourDump, then one StatModifierData
+Multiplier):
+
+| Stat | Min-Max | Role |
+|---|---|---|
+| VapourDumpData.Radius | authored so the cloud encloses the largest ship hull (Djinni, 14x17 cells) at Min; Max 1.5x Min | nozzle |
+| VapourDumpData.Opacity | 0.80-0.95 | nozzle |
+| VapourDumpData.Lifetime | 10-14 s | coolant |
+| RadiatorData.Emissivity (penalty, the drawback: the coolant is gone) | 0.4-0.6 | coolant |
+
+Products: **Smoke Machine** (NiteLife Energy), **Morning Fog** (Lightsail Express). Prior art: Nebulous
+jamming against seeker return (PA 8), Elite heat sink and silent running (PA 3), Star Citizen chaff as a
+field effect (PA 9), EVE ECM chance as strength against sensor strength (PA 5).
+
+### Rationale
+
+**Fix the host before adding content.** The mechanism the brief names (CB12) exists but is broken in
+three places (CC3, CC4, CC5): a consumable with a stat modifier throws on its second tick, would leak its
+boost if it did not, and can never be bought. `consumable-host` is the smallest cut that makes the
+existing path true; no new owner. Cut `modifier-stacking`'s test `AConsumableBoostStacksWithGear` cannot
+pass before it, so its r2 adds the dependency and nothing else.
+
+**Why the throttle lock is derived, not latched.** Two writers already set `MovementDirection` (CC9). A
+third writer (the consumable) would race them; a latch set by a behaviour and cleared each tick is a
+second owner of time. `Entity.ThrottleLocked` derived from the active effects, read once in
+`Ship.Update`, cannot outlive its effect and needs no reset path.
+
+**Why obscuration and not a flat break.** The sim already decides locks by information against a
+threshold (CC8), and lock loss already clears targets and zeroes locks. Scaling gain along the sight line
+makes the cloud a contest of signal against obscurant, the Nebulous shape (PA 8: a seeker's return must
+exceed the jamming it feels; burnthrough exists), and EVE's lesson that a guaranteed area break is
+unreliable or oppressive is avoided (PA 5). A flat break would add a second rule that drops targets,
+beside the one that exists. The cloud rides `Sensor.Gain`, which survives the `sensor-stat-set` rebuild
+(every emitter still produces a gain). In-flight missiles are not re-decided by the sim (CC8): the cloud
+denies the lock before launch; seekers in flight are follow-up `cloud-vs-missiles-in-flight`.
+
+**Why the cloud is a zone body that inherits velocity.** Vented gas keeps the ship's velocity
+(KinematicBody, CC10), so a coasting ship stays inside it and a ship that burns leaves it: the two
+consumables combine (vent, then overdrive out of the cloud) and their drawbacks bite each other (the
+overdrive plume is bright; leaving the cloud ends the cover). The symmetric rule makes hiding blind.
+
+**Hoarding** (written for the abundant option; the operator ruled `consumables-scarce` on 2026-10-09 and
+accepted the hoarding risk, so the cheap, everywhere-stocked half of this paragraph no longer holds: see
+'Spec refresh 2026-10-09'). The elixir literature (PA 10) names scarcity, unlimited inventory and unclear purpose as
+causes, and caps, abundance and situational need as cures. Here: cargo cells and mass are the cap (CC7),
+both designs are cheap (6,000 and 4,000 against 25,000-250,000 for a drive) and stocked at every station
+under question `consumable-supply`, AI pilots use them (cut `consumable-ai`) so the player sees what
+they do, and each solves a moment (being locked, needing distance) rather than adding a stat the player
+could save for a boss. Neither is a permanent advantage: each carries its drawback inside the effect.
+X4's lesson (PA 9: flares strong in AI hands, worthless in the player's) is answered by giving the player
+and the AI the same rule and the same information (a painted target always knows, `sensor-stat-set`).
+
+**Magnitudes** are authored ranges grounded in the prior art above; follow-up `combat-pace-pass`
+measures time-to-kill and engagement distance and tunes them with everything else. No question is
+raised on them.
+
+**Cut order.** `consumable-host`, `throttle-lock` and `vapour-cloud` are independent. `consumable-supply`
+needs the host (instances). `vapour-cloud-presenter` needs the cloud. `consumables-first-set` needs the
+host, the lock and the cloud. `consumable-ai` needs all of those and supply. `modifier-stacking` r2 now
+waits on the host.
+
+### Admitted
+
+Receipt `mind-commit-06b3cb76...` (2026-10-08 20:05 UTC). Questions: `consumable-supply` (raised in
+consumable-supply), `vapour-cloud-model` (raised in vapour-cloud), `overdrive-steering` (raised in
+throttle-lock). Cut specs r1: consumable-host, consumable-supply, throttle-lock, vapour-cloud,
+vapour-cloud-presenter, consumables-first-set, consumable-ai; modifier-stacking r2 (adds depends_on
+consumable-host) with resolution `cut_spec.cut-modifier-stacking.r1.n1` (Superseded). Follow-ups:
+`cloud-vs-missiles-in-flight`, `modifier-magnitude-frozen-at-attach`, `consumable-heat-noop`,
+`station-restock`. Claimed keys: BehaviorData union 41 ThrottleLockData, 42 VapourDumpData (keys 1-3).
+
+## Ships add-on frame r5: authoring without the repo
+
+Imagination, agent `imagination-addon-frame`, session `self-2026-10-08b`. Campaign
+`aetheria-release`. Builds on `F:\Projects\aetheria-map-addenda-addon-refresh-2026-10-08.md`
+(A1 to A14); A14 recorded the tension this page resolves. Numbering continues at B1.
+
+Pinned heads: Aetheria `07dcb580` (branch `eureka/aetheria-release-ships-addon-frame-r4`,
+local and on origin; the brief's name `eureka/aetheria-release-ships-addon-frame` does not
+exist), CultLib `05e67014` (main), CultLib `45c2f400` (Aetheria's pinned
+`CultLibRevision`, `Directory.Build.props:6`). Every line number below is at `07dcb580`.
+
+### Body facts
+
+**B1. What New Ship needs from the repo (source read).** `_new_ship`
+(`tools/blender/aetheria_ships/__init__.py:556-605`) finds the repo by walking up for
+`tools/AetherDb` (`_aetheria_repo`, 314-325), writes to `<repo>/GameData/Mods/<id>/ship.cc`,
+and runs `dotnet run --project <repo>/tools/AetherDb -- ship-authoring create` (`_aetherdb`,
+328-336). `create` (`tools/AetherDb/ShipAuthoringCommands.cs:47-67`) reads the reference
+hull from `GameData/Aetheria.cc` through `AetherDb.Open()`, whose `FindRoot`
+(`tools/AetherDb/AetherDb.cs:26-32`) keys on `Aetheria.Shared/Aetheria.Shared.csproj`, and
+builds the hull with `ShipAuthoringStore.HullLike`
+(`Assets/Scripts/ServerShared/ShipAuthoring.cs:95-106`): copy every member, reset Name,
+Shape (`new Shape()`), Hardpoints, Prefab, Schematic and Visual. `create` does not run the
+ship-ID rule; only `Validate` (`ShipAuthoring.cs:189-192`) does.
+
+The same `_aetherdb` port also carries Package's `validate` (`__init__.py:650`), and the
+specs in force add `centre` (package-frame r1) and `paint` (paint r3). So the repo and
+dotnet dependency is the port's, not New Ship's alone: Package already needs both today.
+
+**B2. Where an author's machine gets the shipped catalog (source read).** The game reads
+`<install>/GameData/Aetheria.cc` and `<install>/GameData/Mods`
+(`Assets/Scripts/Gameplay/ActionGameManager.cs:40,48-49`), with `GameData` beside the
+player's data folder. A ship author who has the game has both. No build or release script
+in the repo copies `GameData` into a player build (searched `Assets/Scripts/Editor`,
+`tools`, workflow files): the runtime contract is the only evidence that a release carries
+it.
+
+**B3. Studio needs Unity (source read).** CultCache Studio is
+`CultCacheStudioWindow : EditorWindow` (`CultLib src/GameCult.Unity/Assets/Caching/Editor/
+CultCacheStudioWindow.cs`), opened from a Unity menu item. Ruling
+`authoring-host-thin-imgui-then-thing` keeps it an IMGUI skin until a Thing host after the
+release. Studio therefore cannot be the repo-free and Unity-free creator before then.
+
+**B4. The shipped catalog's schema catalog (probe `probes/p1_catalog.py` on the
+`07dcb580` LFS object `9e75d9a4...`).** 13 catalog entries, 219 records, 5 hulldata
+records (LonginusX, Zenith, Turret, Djinni, Longinus; Djinni, Longinus and LonginusX are
+`HullType` 0, Ship). It carries an `aetheria.hulldata` entry and **no
+`aetheria.ship_authoring` entry**: the C# store writes catalog entries only for types it
+holds records of.
+
+**B5. cultcache-py cannot derive a C# catalog identity (probe `p3_schema_id.py` and source
+read).** For all 13 C#-written entries, `content_hash == sha256(canonical_schema_json)`
+but `schema_id != sha256(canonical_schema_json)`: C# derives the id from a semantic
+fingerprint over its member descriptors (`CultLib src/GameCult.Caching/CultCache.cs:
+655-658`), with type names from `CultSchemaTypeNames.FromType`. cultcache-py's
+`DocumentDefinition.catalog_entry` (`packages/cultcache-py/src/cultcache_py/documents.py:
+105-143`) defaults the schema id and content hash to the type name, and its store's
+default entry for an unregistered envelope is a stub with no members
+(`stores.py:356-368`). Python can carry a C#-written entry through a write; it cannot
+author one.
+
+**B6. Encode and decode probe on Yggdrasil (`ygg-verify.sh`, image
+mcr.microsoft.com/dotnet/sdk:10.0, Aetheria `07dcb580`, CultLib `45c2f400` staged,
+logs `scratchpad/probes/ygg-create-1.log` and `ygg-publish-2.log`).** Reference:
+`dotnet run ... ship-authoring create /tmp/o/dn/ship.cc probe.a "Probe A" --like Djinni`.
+
+| Candidate | catalog hulldata | catalog ship_authoring | hull record | ship record | C# `inspect` |
+|---|---|---|---|---|---|
+| cultcache-py, no template (`py_create.py`) | identical (copied from the shipped catalog) | **differs**: stub, schema id `aetheria.ship_authoring`, version `aetheria.ship_authoring.v1`, members `[]` | equal values | identical bytes | loads: `probe.a: Probe A, 0 hardpoints` |
+| cultcache-py with the C# file's ship_authoring entry | identical | identical | **equal values, different bytes**: 20 `float32` (`0xca`) slots re-encoded `float64` (`0xcb`), 204 to 284 bytes | identical | loads |
+| published AetherDb (B7) | identical | identical | identical | identical | loads |
+
+`stored_at` is ignored throughout. `new Shape()` encodes `[[1, 1, [true]]]`. The C# reader
+accepted the stub catalog by schema name (compatible drift, `CultCache.cs:518-522,
+803-830`), reporting every slot as `defaulted_missing_slot` while still decoding the
+payload's values: that warning text and the observed behaviour disagree, so a file that
+relies on it relies on a CultLib behaviour nobody owns. The float widening is the same in
+today's `ship_cc.replace_layout`, which re-packs the whole hull body on every Save; C#
+reads `float64` into `float` (smoke_frame's Package validated after a Rasterise write), so
+it is a wire-parity gap, not a corruption (follow-up `py-float-width-parity`).
+
+**B7. A published AetherDb needs neither dotnet nor the repo (Yggdrasil, log
+`ygg-nodotnet-5.log`).** `dotnet publish tools/AetherDb -c Release -r linux-x64
+--self-contained -p:PublishSingleFile=true` gave one 77,287,607-byte executable (75 MB
+folder with pdbs). Run in `debian:bookworm-slim` with no dotnet (`command -v dotnet`:
+none), from a folder holding only `GameData/Aetheria.cc` plus an empty
+`Aetheria.Shared/Aetheria.Shared.csproj` (the current `FindRoot` marker), `create ...
+--like Djinni` took 1.1 s and wrote a file whose catalog and both records are byte-identical
+to the dotnet-run reference. The first run aborted with `No usable version of libssl was
+found`; with `libssl3` and `libicu72` installed it ran. Windows needs neither package; the
+win-x64 publish was not probed.
+
+**B8. The reserved-name gap is the owner's (same log).** The published tool created
+`/out/con/ship.cc` for ID `con` and `inspect` loaded it: the C# rule (`ShipAuthoring.cs:
+190-192`) admits Windows device names, and `create` does not run it at all (B1).
+
+**B9. Downstream specs read (mind, 2026-10-08).** package-frame r1 says "after frame r4 has
+merged" and its recentre test edits cells and Packages with no Save; mounts r4's Package
+writes derived Positions straight to the .cc through `replace_layout`; gizmos r2's drag
+release writes through `replace_layout` from an interactive (undoable) tool. bake r1,
+guards r1, mesh-mounts r1, mask-bakes r1 and paint r3 do not depend on what r5 changes
+(paint's `paint` command goes through the `_aetherdb` port, which the tool cut moves).
+
+### The owner answer
+
+**What can create and write a ship .cc on an author's machine without the repo or
+dotnet?** Two things, by probe: cultcache-py, if a C#-written `aetheria.ship_authoring`
+catalog entry is handed to it (B5, B6); or AetherDb itself, published self-contained
+(B7). Studio cannot before the Thing host (B3).
+
+Recommendation: the published AetherDb (question `authoring-tool-without-repo`, option
+`published-aetherdb`). It keeps C# the single owner of every ship-package rule the add-on
+calls (HullLike, the ID rule, Validate, CenterOfMass, Paint) and removes the repo and the
+SDK from all four commands at once, which the Python route does not: Package, centre and
+paint would still need the repo. The Python route needs a second copy of HullLike's reset
+list and a pinned catalog entry, and widens floats until CultLib fixes B6. The repo-free
+reference hull is the author's own game install (`GameData/Aetheria.cc`, B2).
+
+Prior art (from knowledge; no Eyes pass was run in this budget, so confidence is medium):
+game modding kits that keep one rule owner ship the game's own code compiled to modders
+rather than re-implementing it in the content tool: Valve's Source SDK ships compiled
+studiomdl, vbsp and vrad; Bethesda's Creation Kit is built on the engine's record code;
+games that ship no tool (Factorio, KSP, Minecraft data packs) validate content at game
+load, which Aetheria also does (`ShipModCatalog.ResolveCatalog` excludes a bad package and
+names it). Blender add-ons that drive external compilers (the Source Engine tools add-on,
+io_scene_valvesource, calling studiomdl) take the executable's path as a preference.
+
+### Authority map, r5
+
+- **Owner of the .cc on the author's machine:** two explicit, non-undo writers. Save
+  Layout owns cells and hardpoints (and the first Save of a new ship creates the file
+  through the published AetherDb `create`). Package owns the visual (model asset, anchors,
+  lines) and, from mounts r5, saves the layout buffer through Save's writer. C# (through
+  the published AetherDb) owns HullLike, the ship-ID rule, Validate, CenterOfMass and Paint.
+- **Owner of the frame:** the .blend. The layout buffer (`scene.aetheria_layout`),
+  `aetheria.grid_origin` with the grid size it was computed for, Ship Root and the objects
+  under it all live in the .blend, so Blender's undo moves them together.
+- **Demotions.** Rasterise and Flip Nose are no longer .cc writers; they propose cells
+  into the buffer. New Ship is no longer a .cc writer; it binds a pending ship. The repo is
+  no longer an input; the game data folder is. `dotnet run` is no longer a path.
+- **Package and an unsaved buffer.** Package refuses while the bound collection's buffer
+  differs from the .cc ("Save Layout first"), so it never packages cells the author has
+  not saved. The comparison is ship_cc's own layout revision of the buffer against the
+  revision Load or Save recorded. Mounts r5 derives Positions into the buffer after that
+  check and saves them through Save's writer.
+- **One chooser** decides which collection is the ship; Bind and New Ship accept an
+  unbound collection through it, everything else requires a bound one.
+- **One frame predicate:** the ship's meshes are Ship Root's descendants outside Source
+  and Generated with no `aetheria.role`. Rasterise reads them; Flip Nose turns Ship Root's
+  children; package-frame's recentre moves Ship Root. A mesh in the bound collection that
+  is not under Ship Root is refused by Rasterise, Flip Nose and Package with a count, never
+  silently left out.
+
+### Rationale
+
+**Why Save, not the UNDO operators, writes the .cc.** Blender's memfile undo restores the
+.blend and cannot restore a file on disk. Any undoable operator that writes the .cc splits
+the grid's truth (finding `undo-splits-origin-from-cells`), and dropping the UNDO flag does
+not help: the next undo push still restores the scene to the step before. So no undoable
+operator writes the disk, and the .cc changes only on an explicit Save or Package. This is
+the editor-buffer pattern Blender itself follows for external files (images are edited in
+memory and saved with Image > Save; the .blend is saved explicitly).
+
+**Why New Ship creates nothing on disk (`new-ship-orphans-cc`).** Creation is deferred to
+the first Save, which creates and fills the file in one operator: `create`, then the
+buffer through `replace_layout`, and on any failure after `create` it removes the file and
+the folder it made. Nothing persists unless the ship is valid enough to save, and an undone
+New Ship leaves nothing to orphan.
+
+**Grid placement against outside edits.** Studio can resize the grid. `grid_origin` is
+stored with the width and height it was computed for, and the Grid is drawn only while the
+buffer has that size; otherwise the panel asks for Rasterise again. This keeps a stale
+origin from placing cells, without moving the origin into the .cc (the runtime derives
+alignment from the centre of mass after package-frame and never needs it).
+
+**Errors (`create-failure-echoes-inputs`).** Operator reports carry fixed text per failure;
+AetherDb's own output goes to the system console, not the report.
+
+**Ship IDs (`ship-id-allows-reserved-names`).** The rule stays C#'s
+(`ShipAuthoringStore`), gains the Windows device names (con, prn, aux, nul, com1-9,
+lpt1-9, alone or before a dot) and is run by `create`. New Ship checks it before anything
+moves through `ship_cc.valid_ship_id`, whose constants ShipSchemaPinTests pins to the C#
+rule, as it already pins the slot numbers.
+
+**Rejected.** Studio owning creation (needs Unity until the Thing host, B3). A local
+encoder or catalog entry in the add-on derived by hand (B5: Python cannot derive C#'s
+schema id; the brief forbids it). Relying on cultcache-py's stub catalog entry (B6: the C#
+reader's behaviour contradicts its own warning). A framework-dependent publish (it needs
+the .NET runtime installed, which is the install the ruling removes).
+
+### Model page rows (changed)
+
+| Kind | Named by | Over time | Decides |
+|---|---|---|---|
+| Ship .cc | `GameData/Mods/<id>/ship.cc` under the author's game data folder | created by the first Save of a pending ship; changed by Save, Package, Capture Lines | Save (layout), Package (visual), C# rules through the published AetherDb |
+| Layout buffer | `scene.aetheria_layout` | filled by Load or New Ship, edited by Rasterise, Flip Nose, Resize and hardpoint ops, undoable | the author; persisted only by Save |
+| Grid placement | `aetheria.grid_origin` = [x, y, width, height] on the collection | written by Rasterise only, undoable | Rasterise |
+| Pending ship | `aetheria.pending` = [name, reference] on the collection | set by New Ship, cleared by the Save that creates the file | New Ship, then Save |
+
+## Flight control allocates thrust
+
+Pass: Imagination, session `self-2026-10-09-morning`. Body: `GameCult/Aetheria` origin/master `80d2c7f3`,
+detached worktree, removed at the end. Ruling: `flight-control-allocates-thrust` (operator words in its
+`operator_quote`). Prior art: `F:\Projects\aetheria-thrust-allocation-prior-art-2026-10-09.md` (Eyes; cited
+as PA). This section supersedes the body facts, consumer audit and Cuts 2-3 of `docs/locomotion-cut.md`
+(2026-09-22), which predate the aether drive's deletion (`2cfdc728`) and the LookDirection-to-Turn change.
+That file's Cut 4 (AI heading planner) and Cut 5 (combat facing) are carried as follow-ups, not as specs.
+
+### Body facts
+
+- **TA1. The plant.** 2D translation plus kinematic yaw. `Thruster` is the only propulsor
+  (`Ship.cs:138-139`). Per unit throttle a thruster adds `-push * Thrust / Mass` to velocity along its mount
+  and turns `Direction` by `Torque * Thrust * TorqueMultiplier / Mass` rad/s (`Thruster.cs:127-130`).
+  `Torque` is the sine of the moment arm (`Thruster.cs:65-70`). `Axis` saturates to [0,1]
+  (`Thruster.cs:46-50`). Authored `TorqueFloor` 0.5, `TorqueMultiplier` 0.1 (`Settings.asset`, read by
+  the probe through `AuthoredSettings`).
+- **TA2. The mixer and its satellites** (`Ship.cs` at `80d2c7f3`): bucket sets `:33-40`, built in
+  `Activate` `:97-116` from mount rotation and from `Torque` against `TorqueFloor`; aggregates `:51-60`;
+  `TurnTime` `:62-67` (no caller); `ItemDestroyed` pruning `:121`, `:124-134`; `RecalculateThrust` and six
+  `Recalculate*` `:150-227`; the mixer `:236-259` (strafe trim with an unguarded division by the trim
+  count at `:237`, `:246`). Readers outside `Ship.cs`: the aggregates only in
+  `EvasionTermTests.cs:708-709` and `:997-1056`; `TurnTime` none; `IAnalogBehavior`
+  (`Behaviors.cs:96-99`) only `Thruster.cs:40` and a comment at `Entity.cs:2343`. `Thruster.Manoeuvre`
+  (`Thruster.cs:98-114`) is the envelope's per-thruster term and the only other `TorqueFloor` reader in
+  source (`:109`); tests read the floor at `EvasionTermTests.cs:331-332,383-384` and
+  `SteeringTests.cs:304-305`.
+- **TA3. The Duel ship, probed** (scratch test in `RunStartTests`, Yggdrasil job, CultMath `614fd445`,
+  2026-10-09). Longinus, mass 4235, four thrusters. Per unit throttle (starboard m/s^2, forward m/s^2,
+  clockwise deg/s):
+
+  | Thruster | Cell, mount | Thrust | Column |
+  |---|---|---|---|
+  | Large Drive | (1,0) Reversed | 228441 | (0, 53.94, +49.24) |
+  | Large Drive | (3,0) Reversed | 259158 | (0, 61.19, -55.86) |
+  | Talaria | (2,14) CounterClockwise | 123144 | (+29.08, 0, +166.26) |
+  | Talaria | (3,14) Clockwise | 92312 | (-21.80, 0, -124.63) |
+
+  The two drives share a design and a lot quality (0.300) and still differ by 13% in live thrust, so
+  held forward thrust is a 6.6 deg/s turn. The two Talarias have equal torque-to-sideways ratios, so
+  together they cannot make a pure torque: any turn on this hull pushes it sideways.
+- **TA4. Allocation probe** (same job; `player.Update` stepped alone at 1/60 s; a scratch hook replaced
+  the mixer with a `BoundedLeastSquares` solve; rows normalised per axis by the box extreme, ridge 1e-3;
+  "prio" is a yaw row weight of 1000; heading in degrees, clockwise positive; axes are the four throttles
+  in the table's order):
+
+  | Case | mixer | WLS w=1 | WLS w=3 | prio |
+  |---|---|---|---|---|
+  | forward, intact, 2 s heading | -12.09 | -6.41 | -1.38 | **0.017** |
+  | forward, strong drive off, 2 s | 97.41 | 59.06 | 14.24 | **-0.014** (axes .92 0 0 .36) |
+  | forward, weak drive off, 2 s | -109.65 | -56.22 | -11.47 | **0.026** (axes 0 .90 .29 0) |
+  | forward, nose Talaria (2,14) off, 2 s | -12.09 | -8.83 | -2.97 | **0.012** |
+  | strafe right, 2 s | 0 (no strafe at all) | 181.39 | 39.29 | **0.023** (axes 0 .85 .28 0) |
+  | forward + Turn 1, mean deg/s | 159.9 | 94.2 | 189.0 | **214.9** (axes 1 0 1 0) |
+  | Turn 1 in place, mean deg/s | 166.1 (axes 0 0 1 0) | 97.8 (.57 0 .42 0) | 188.9 (1 0 .84 0) | **214.9** (1 0 1 0) |
+  | Turn -1 in place | -124.6 | -81.8 | -158.8 | **-179.6** |
+  | Turn 1, Talaria (2,14) off | 0 (stuck) | 12.4 | 36.8 | **48.8** (drive only) |
+  | intent zero | 0 | 0 | 0 | 0 |
+
+  Box extremes: clockwise 215.5 deg/s, counter-clockwise 180.5 deg/s, forward 115.1 m/s^2, starboard
+  29.1, port 21.8. A yaw-first solve holds heading to hundredths of a degree whatever is lost; a weighted
+  solve at the old map's default (w = 3) leaves a drift the ruling forbids. Solve cost: 14.2 us mean
+  (including per-call allocation, n = 4), at most 11 active-set iterations over 2000 random intents.
+- **TA5. The Execute gate drops small balancing throttles.** `Thruster.Execute` and `PowerRequest` act only
+  above throttle .01 (`Thruster.cs:87,124`). Probe: weighted solve, full forward, 10 s: heading -7.49 deg
+  with the gate, -4.56 without; forward 0.3, 10 s: -0.213 deg with, -0.028 without. A balancing throttle
+  below .01 on a 166 deg/s Talaria leaves up to 1.7 deg/s unbalanced.
+- **TA6. A power-gated column deadlocks.** `PowerRequest` is proportional to the throttle
+  (`Thruster.cs:87`) and `PowerBus.Step` grants after `Ship.Update` (`Entity.cs:1463`), so a column zeroed
+  for `PowerSupply <= 1e-4` gets throttle 0, requests nothing, and is never granted. The column's thrust is
+  therefore `EvaluateNominalPower(Thrust)` (full grant; heat, durability, quality and modifiers live,
+  `Entity.cs:1856`) and its liveness is `Item.Active` only. A browned-out thruster still under-delivers
+  after the solve (follow-up `allocator-brownout-columns`).
+- **TA7. The Duel arena moves the player by itself.** With forward thrust the player's velocity swings
+  between about +28 and -28 m/s along the nose every ~60 ticks with no `VelocityLimit` clamp (limit 100,
+  drag 0.1), while intent zero leaves it at rest. Translation measured in the Duel is not thrust; tests that
+  measure translation use `RestoredHullsTests.BuildThrustedShip`. Cause not traced (the zone's field at
+  the spawn is the first suspect).
+- **TA8. CultMath 0.3.0 re-rolls generated content.** Full suite at `80d2c7f3` with only
+  `CultMathRevision` moved to `614fd445` (tag `cultmath-unity-v0.3.0`): 1057 pass, 5 fail.
+  `TutorialGalaxy_unchanged` (faction homes differ), three `RestoredHullsTests` that pick zones by name
+  (`RestoredHullsTests.cs:624,740,807`: "EAC-7089", "EAC-2733" no longer exist) and
+  `ACoastingAgileShipIsEasierToHitThanTheSameShipJinking` (hits 95 jinking against 78 coasting; its target
+  is `stage.Generated("Djinni")`, `EvasionTermTests.cs:520`, so the target's fit follows the galaxy). The
+  cause is 0.3.0's breaking `snoise` kernel (its CHANGELOG), read in C# by `Settings.cs:72-73` (galaxy
+  cloud density), `GlobalData.cs:30` and `Environment.cs:132,144`. Shaders use the GPU Noise plugin, not
+  CultMath (`Background.shader:39`), so nothing on the GPU moves. Every other DemoTerminus test passes.
+  Between the tags CultMath also adds `phacelle` (MPL-2.0 files), `cellular`, `smin_grad`, the `*_grad`
+  noises and `BoundedLeastSquares`; no existing signature changes.
+- **TA9. The pin guard.** `Directory.Build.targets:21` conditions `VerifyCultLibRevision` on a
+  backslash-spelled project identity; `docs/mining-cut-refresh.md:155-157` infers it never fires on Linux.
+  Yggdrasil's `~/eureka-verify/pins` holds `cultlib-45c2f40` and `cultlib-6d5e209` only;
+  `~/eureka-verify/repos/CultLib.git` contains `614fd445`.
+
+### Authority map
+
+- **Owner:** `ThrustAllocator` (new, one per `Ship`, stepped in `Ship.Update`) turns intent into every
+  thruster's throttle.
+- **Inputs:** intent (`MovementDirection`, or full forward while `Entity.ThrottleLocked`; `Turn`), and one
+  column per thruster: its body push and turn per unit throttle at full grant, zero when the item is not
+  `Active`.
+- **Outputs:** `Thruster.Axis` for the tick, read only by `Execute`, `PowerRequest` and presentation.
+- **Derived:** the box extremes (what intent is a fraction of) are derived from the columns each tick; the
+  envelope becomes the same extremes (cut `envelope-from-columns`). The warm start is command state, never
+  truth.
+- **Demoted or dead:** the bucket sets, aggregates, strafe trim, `TurnTime`, `RemoveThruster` pruning and
+  `IAnalogBehavior` are deleted. `TorqueFloor` is no longer an owner of anything; it dies with
+  `Thruster.Manoeuvre`. A thruster's capability is no longer classified by mount or by a floor; it is its
+  column.
+- **Forbidden writers:** any `Axis` write outside `Ship.Update`; any rule that classifies a thruster as
+  "for" rotation or translation; any second solve or fallback mixer; any liveness set kept across ticks.
+- **Shared paths:** player helm, agents, the throttle lock and tests all reach the throttles only through
+  intent.
+
+### Model page rows (changed)
+
+| Kind | Named by | Over time | Decides |
+|---|---|---|---|
+| Thruster column (runtime) | the `Thruster` behaviour | rebuilt every tick from live stats and `Item.Active` | `ThrustAllocator` reads; item state stays `EquippedItem`'s and `PowerBus`'s |
+| Allocator warm start (runtime) | the ship's `ThrustAllocator` | last tick's throttles; reset when the thruster count changes | `ThrustAllocator`; never saved |
+| `GameplaySettings.TorqueFloor` (authored) | field name | deleted by `envelope-from-columns`; the `Settings.asset` line is left for Unity to drop (it lands in `AuthoredSettings.Unplaced`) | nobody after the cut |
+
+### Rationale
+
+- **Yaw before translation for a hold.** The ruling forbids yaw from asymmetry, and TA4 shows a weighted
+  solve cannot deliver that at any weight that also lets a turn trade: holding is exact only when the yaw
+  row dominates. Prior art agrees for spacecraft-like plants: MechJeb weights torque 200 times translation,
+  and the Space Engineers allocation proposal serves rotation authority first (PA A3). Multirotors do the
+  opposite (PX4 and ArduPilot sacrifice yaw, PA A2) because yaw is not their stability axis. Translation
+  first was rejected: it reproduces the mixer's drift. What gives under saturation is translation, so a
+  damaged ship crabs rather than spins; the operator expected exactly that ("crab walking just became
+  optimal", `docs/locomotion-cut.md:25-29` at `80d2c7f3`).
+- **What a full turn spends is the operator's call** (question `turn-authority`), because the operator's
+  2026-09-22 words on rotation demand (`docs/locomotion-cut.md:82-87` at `80d2c7f3`) and TA4's numbers pull different
+  ways.
+- **One solve with a large yaw weight, not two sequential solves.** The large-weight form approximates
+  sequential least squares (PA A1, Schofield) with one call, deterministic and allocation-free; a yaw
+  weight of 1000 against a ridge of 1e-4 keeps the conditioning near 1e5, inside the range the solver
+  documents as exact (`BoundedLeastSquares.cs` remarks).
+- **The ridge** makes the optimum unique, so the warm start never changes the answer and two equal
+  thrusters share a demand. It costs 0.01% of full thrust.
+- **No actuator interface.** One kind of actuator exists. The allocator takes columns and returns
+  throttles, so a vectored row (follow-up `vectored-thruster-rows`) is more columns: a row tilting within
+  +-theta becomes an axial variable in [0,1] and a lateral variable in [-sin theta, sin theta], and its slew
+  rate narrows the lateral variable's bounds each tick. Bounds stay boxes, which is what the solver takes;
+  the row maps its two solved variables back to a throttle and an angle.
+- **The pin bump is its own cut.** The solver exists only from 0.3.0, and 0.3.0 re-rolls generated content
+  (TA8). Backporting the solver to a 0.2.5 was rejected: CultLib releases from main, and a branch release
+  would carry the old noise kernel's seam bug forward. `no-save-compatibility-before-players` covers the
+  re-rolled galaxy.
+- **Order.** `cultmath-0-3-pin`, then `thrust-allocator-core`; `throttle-lock` lands on the mixer as
+  specified, then `thrust-allocator` deletes the mixer, keeps throttle-lock's one intent line as the
+  allocator's input and rewrites throttle-lock's two mixer-shaped tests in allocator terms. One owner of
+  `Ship.Update`'s thruster block at every step.
+
+### Revision: translation error costs linearly (core r2)
+
+Pass: Imagination, session `self-2026-10-09-morning`, after Hands stopped on `cut-thrust-allocator-core.r1`
+(question `allocator-translation-cost-l2-has-no-onset`, ruling `allocator-l1-translation-cost`, operator
+ruling `turn-authority-full`). Probes ran the real `CultMath.BoundedLeastSquares` (CultLib `614fd445`, the
+pinned 0.3.0) in a scratch console on Yggdrasil, logs `l1probe1.log` to `l1probe3.log` in the session
+scratchpad (`imag-allocator-r2`). Column sets: TA3 (Duel Longinus); TA3 with the clockwise Talaria zeroed;
+a symmetric Djinni-like hull (mains (0,50,+-20), fore laterals (+-20,0,+-80), aft laterals (+-20,0,-+60),
+bow (0,-30,0)); drives 0.3% apart for the tiny-imbalance hold.
+
+- **TA10. A squared translation cost has no onset** (Hands' probe, confirmed): r1's TA-R2 mixes the
+  drive into a turn from Turn 0 for any weights, so it cannot meet `turn-authority-full`.
+- **TA11. The split form works only when the solver resolves it.** Variables: throttles and four error
+  variables e+x, e-x, e+y, e-y in [0,2]; rows H*(B_r u / s_r - e+ + e-) = H d_r / s_r, the yaw row
+  Wy * B_z u / s_z = Wy d_z / s_z, a cost row w*e = -w*kappa per error variable (linear slope
+  L = 2 w^2 kappa, quadratic part at most e/(2 kappa) of it), a ridge row rho*u per throttle.
+  At the solver's fixed KKT tolerance (1e-6 of the gradient at the origin) every one of 84 settings in two
+  grids failed somewhere: Hands' (H 300, Wy 1, w .01, kappa 2, rho .01) and the first choice (H 100, Wy 10,
+  w .01, kappa 10, rho 1e-3) gave all-zero throttles for move (0,1) and for a strafe, because the cost
+  signal L is below the tolerance against the H^2 and Wy^2 terms; larger L settings served translation
+  but gave throttles that depended on the warm start by up to 0.62 (ties the ridge cannot resolve below
+  the tolerance). The chain the form needs, tolerance << rho^2 << L << H^2, Wy^2, with L/H^2 about 1e-4
+  for a sharp onset and L/Wy^2 about 1e-6 for the hold, spans more than the 1e6 that tolerance leaves.
+- **TA12. With the tolerance at 1e-12 everything holds** (`l1probe3.log`, same grid, scratch change of
+  the constant): warm-start difference 0 in every setting, IterationLimit never reached, at most 10
+  iterations. Chosen H 100, Wy 1000, w .3, kappa 10, rho .1:
+
+  | Check | Result |
+  |---|---|
+  | Duel onset, clockwise / counter-clockwise | .772 / .691 (columns: 166.26/215.50 = .7715, 124.63/180.49 = .6905) |
+  | Duel, clockwise Talaria lost | drive from Turn > 0, Turn .1 gives drive .0999; Turn 1 gives 49.23 deg/s |
+  | Symmetric hull | no translation up to Turn .88 (pure-torque pairs, then mains cancelled by the bow); strafe .95 of the extreme |
+  | Hold, forward, yaw rate (deg/s) | intact -.0003, strong drive off .0003, weak drive off -.0002, drives .3% apart .0003 |
+  | Forward served, move (0,1) | 1.000 of the forward extreme |
+  | Largest throttle step per .001 of Turn over [-1,1] | .0133 (the steepest column ratio; Duel's drive slope is .0044) |
+  | Largest yaw residual in the sweeps | .0006 deg/s |
+  | cond(A), estimated from A^T A | 1.0e4; the solver documents exact results through 3e5 |
+
+  Neighbouring settings fail one check each: H 30 leaks the drive at Turn .001; w 1 or 3 leaks it at
+  .0014 throttle before the onset (L/H^2 too large); rho .03 makes throttles jump up to .12 per .001 of
+  Turn (near-ties resolved too steeply); Wy 300 lets the hold drift .003 deg/s.
+- **TA13. The Duel Longinus does not strafe.** Under the linear cost a starboard strafe would need the
+  counter-turning drive at full to hold heading, which costs more forward error than the strafe gains,
+  so move (1,0) gives no throttle. Today's mixer gives none either (TA4). The symmetric hull strafes.
+
+Rationale changes:
+
+- **The solve keeps one call; the tolerance is the solver owner's to expose.** CultMath's
+  `BoundedLeastSquares.Solve` gets an optional relative KKT tolerance (default unchanged, 1e-6), filled in
+  CultLib, never worked around in Aetheria; the allocator passes 1e-12 and relies on the solver's
+  progress rule to stop at its noise floor. Follow-up `cultmath-bls-kkt-tolerance` carries it; Aetheria
+  takes it by a pin bump in the core cut's first commit.
+- **The onset is an ordering, not a label.** Under a linear cost the actuator with the least normalised
+  translation per unit of turn serves first and the next joins only when it saturates; on the Duel that
+  is the Talaria, so the onset is the Talaria's share of the turn extreme and moves with the columns
+  (damage, heat, brownout). Nothing classifies a thruster as attitude or drive.
+- The bullets "One solve with a large yaw weight" and "The ridge" above describe r1 and are superseded
+  by this revision: the yaw weight is 1000 against a ridge of .1, and uniqueness of the answer depends on
+  the tolerance as well as the ridge.
+
+## Spec refresh 2026-10-09: scarce consumables, the fog bank, multiply, tiered boosters, the shipped AetherDb
+
+Pass: Imagination `imagination-spec-refresh`, session `self-2026-10-09-morning`, follow-up
+`rulings-2026-10-09-spec-refresh`. Body: `GameCult/Aetheria` origin/master `439d488a` (and `07dcb580`, the
+frame-r4 branch, for the authoring tool), detached worktree `C:\aeth-wt\imag-refresh`, removed at the end.
+Rulings applied (read their `operator_quote` in the mind): `consumables-scarce`, `vapour-cloud-obscuration`,
+`boost-stacking-multiply`, `boost-strength-tiered-by-size`, `components-are-roles-for-demo`,
+`published-aetherdb-with-game`, `overdrive-keep-steering`; composed with `flight-control-allocates-thrust`
+and `turn-authority-full` (section 'Flight control allocates thrust' above). No question is raised: every
+choice below is a project default or authored content that follow-up `combat-pace-pass` tunes.
+
+### Body facts
+
+- **RF1. The cloud patch layer (scene and source read).** `ARPG.unity` holds a camera named `Patch`
+  (GameObject 559840914, local y 10 under the fog camera parent, culling mask 2048 = layer 11 `Patch`
+  in `ProjectSettings/TagManager.asset`) whose target is `Assets/Resources/Fog Patch.renderTexture`
+  (guid `c618a6b2...`). `VolumeSampling.cs:69` publishes it as `_NebulaPatch`; `Volumetric.cginc:95-98`
+  reads it as the patch's vertical thickness: `saturate((-abs(y + disp - FloorOffset) + patch) /
+  PatchBlend) * PatchDensity`. The one environment is `Settings.DefaultEnvironment`
+  (`ActionGameManager.cs:216-222`): PatchDensity .35, FloorOffset -20, PatchBlend 25
+  (`Assets/Resources/Settings.asset:389-392`). What paints the layer today: two quads under
+  `SectorBrushes`, `Depth Micro` and `Depth Macro`, with `Sector Patch Depth Small/Large.mat` on
+  `Brushes/Simplex Brush` (additive `Blend One One`, world-space noise, `_Depth` 10 and 20). A fog-bank
+  brush already exists and nothing references it: `Assets/Prefabs/RPG/Fog Patch.prefab` (layer 11, a quad
+  rotated to face up, `Fog Brush.mat` on `Brushes/Power Brush`, `_Depth` 80, `_Power` 16, `_Cutoff` 1;
+  prefab guid `4084aa3d...`, grep of every scene, prefab and asset: no reference). A quad of side 2R
+  carries the brush's pulse out to radius R (`PowerBrush.shader`: `dist = length(uv - .5) * 2`).
+- **RF2. Drawing a zone body ahead.** `DrawAhead.cs:15-18` draws an entity at `Position + Velocity *
+  Lead`; `KinematicBody.TotalVelocity` (`FloatingBodies.cs:31-32`) is commented "What a presenter draws
+  ahead with". `MineInstance.Place` draws the latest body with no lead. The mine presenter's hooks at
+  `439d488a`: `ZoneRenderer.cs:47` (MinePrefab), `:97` (`_mines`), `:227-235` (load and subscribe),
+  `:259-264` (LoadMine), `:289-291` (ClearZone).
+- **RF3. Generation draws (source read).** `LoadoutGenerator` holds its own copy of the caller's
+  `Random` (`LoadoutGenerator.cs:27`), and the wanderer generator is reused across ships
+  (`ZoneGenerator.cs:378`), so one extra draw in `GenerateShipLoadout` shifts every later wanderer.
+  `ItemManager.CreateInstance` rolls lot quality on `ItemManager.Random` (`ItemManager.cs:123`), so
+  every extra instance shifts later lots. The catalog at `439d488a` holds no consumable record (CC1), so
+  a consumable step that draws only when a consumable is on offer leaves every current golden untouched.
+- **RF4. Death drops carry.** Today `EntityInstance.cs:296-316` drops each cargo item on death; cut
+  `loot-1` r2 moves this into `Zone.DropLoot` ("every cargo stack drops"). A consumable an AI ship
+  carries is therefore loot when it dies, through the owner that already decides loot.
+- **RF5. Multiply is the rule and nothing pins it.** `StatResolver.ScaleModifier`
+  (`StatResolver.cs:108-114`) multiplies every attached scale; `ConstantModifier` (`:116-122`) sums.
+  `StatResolverTests.cs` (455 lines) has no test with two scales on one stat. No spec in force names
+  `modifier-stacking` in `depends_on` (specs-with-no-report recipe, 2026-10-09).
+- **RF6. No player build entry point exists.** No `BuildPipeline`, `BuildPlayerOptions` or
+  `IPostprocessBuild` anywhere in `Assets/Scripts` or `Assets/Editor` (which holds only
+  `Epiphany/EpiphanyEditorBridge.cs`). Ruling `adopt-build-cut-1` (2026-10-03) ordered
+  `docs/build-delivery-cut.md` Cut 1 mapped as one cut; none was admitted, and `ships-player` r2 adds its
+  Mods staging to "the committed entry point". The game reads `<dataPath>/../GameData`
+  (`ActionGameManager.cs:37-41`, `:48-49`). `GameData` at `439d488a` holds `Aetheria.cc`, `Narrative/`
+  (read by `MainMenu.cs:183`) and `SoundbanksInfo.json`, which no C# file reads (grep) and which
+  `audio-1` retires with Wwise. Addressables: `m_BuildAddressablesWithPlayerBuild: 0`
+  (`AddressableAssetSettings.asset:61`, PreferencesValue), so whether content builds with the player is
+  a per-machine preference today. Build-delivery 0.2 (probe, 2026-09-17) found a read-only
+  `AetheriaStores.Open` of a missing catalog silent; not re-probed at `439d488a` (`AetheriaStores.cs:16-31`
+  is unchanged in kind), so its test is written first and must fail first.
+- **RF7. The install's tool folder cannot be `Tools`.** The repo has `tools/`; Windows paths are
+  case-insensitive, so a developer publishing AetherDb into `<repo>/Tools` would write into `tools/`.
+  The install folder is `ModTools/`, gitignored at the repo root.
+- **RF8. The add-on anchors at `07dcb580` are r1's** (`__init__.py:29` timeout, `:302-311`
+  preference, `:314-325` `_aetheria_repo`, `:328-336` `_aetherdb`, `:576-577` New Ship's target;
+  `AetherDb.cs:26-32` FindRoot, identical on `439d488a`).
+
+### Model page rows (changed)
+
+| Kind | Named by | Over time | Decides |
+|---|---|---|---|
+| Consumable stock (runtime, station cargo) | the station | rolled once at generation: a station stocks with chance `StationConsumableChance`, then one product, 1 to `StationConsumableUnits` units | `LoadoutGenerator`, through `AvailableProducts` |
+| Carried consumable (runtime, ship cargo) | the ship | rolled once at generation with chance `ShipConsumableChance`, one unit; spent by `consumable-ai` or dropped as loot on death | `LoadoutGenerator`; then the consumable host or `Zone.DropLoot` |
+| Fog bank (presentation) | its `VapourCloud` | one patch brush per cloud, depth = authored depth x the cloud's opacity fraction, destroyed when the cloud leaves `Zone.Clouds` | `ZoneRenderer`'s one subscription; writes nothing to the sim |
+| Player directory | the build output root | made by one `AetheriaBuild` run: player, `GameData/Aetheria.cc`, `GameData/Narrative/**`, `GameData/Mods/**`, `ModTools/AetherDb.exe` | `AetheriaBuild` alone |
+| Ship author's game folder | the add-on's one preference | the folder whose `GameData` holds `Aetheria.cc`; `ModTools/AetherDb` is found under it | the author |
+
+### Design tables
+
+**Stat boosters, tiered by size** (ruling `boost-strength-tiered-by-size`). Shape and template per CB-R2
+and the r1 table: Tool gear, Targeting Computer `c07ea205`'s EnergyDraw and Heat, then a StatModifierData
+Multiplier in the same group; roles amplifier (magnitude) and regulator (EnergyDraw, Heat). The 1x1 keeps
+the template's EnergyDraw, Heat, Mass and Price; the 2x2 takes 3x EnergyDraw and Heat and 4x Mass and
+Price. Magnitude Min-Max (rises with amplifier quality): 1x1 **1.03-1.08**, 2x2 **1.20-1.40**. Both
+designs on one stat multiply (ruling `boost-stacking-multiply`), so a 1x1 and a 2x2 at best quality give
+1.512.
+
+| Stat | 1x1 design: products | 2x2 design: products | Cut |
+|---|---|---|---|
+| ThrusterData.Thrust | Thrust Amplifier: Tailwind (Finch), Second Wind (Lightsail) | Thrust Amplifier Array: Jetstream (Finch), Trade Wind (Lightsail) | boost-gear-systems |
+| SensorData.Sensitivity | Signal Amplifier: Earful (Finch), Lookout (AU) | Signal Amplifier Array: Big Ears (Finch), Watchtower (AU) | boost-gear-systems |
+| RadiatorData.Emissivity | Emissivity Booster: Cold Read (Adrasteia), Cool Head (Lightsail) | Emissivity Booster Array: Dead Calm (Adrasteia), Cold Storage (Lightsail) | boost-gear-systems |
+| ReactorData.Charge | Reactor Overclock: Afterhours (NiteLife), redline (DME) | Reactor Overclock Array: Last Call (NiteLife), meltdown (DME) | boost-gear-systems |
+| WeaponData.Damage | Damage Amplifier: Showstopper (Lucent), Heavy Hand (Zhestokost) | Damage Amplifier Array: Encore (Lucent), Iron Fist (Zhestokost) | boost-gear-combat |
+| WeaponData.Range | Range Extender: Far Sight (Adrasteia), Long Look (Finch) | Range Extender Array: Horizon Line (Adrasteia), Far Flight (Finch) | boost-gear-combat |
+| ShieldData.Capacity | Shield Booster: Thick Skin (AU), SB-2 Bastion (R&D) | Shield Booster Array: Hard Shell (AU), SB-8 Rampart (R&D) | boost-gear-combat |
+
+Both boost cuts are held behind follow-up `role-targeted-adjacent-boosts`: if the operator rules that
+boosters address a role (and adjacency), the Target column changes and these specs get another revision.
+
+**The first consumables, strengthened** (ruling `consumables-scarce`: rare, stronger). Changes from the
+'Consumables' tables above; everything not named is unchanged.
+
+| Design | Field | Was | Now |
+|---|---|---|---|
+| Thruster Overdrive | Duration | 5 s | 6 s |
+| | Price | 6,000 | 18,000 |
+| | Thrust (propellant) | 2.0-3.0 | 3.0-4.5 |
+| | TopSpeed (propellant) | 1.5-2.0 | 2.0-3.0 |
+| | Thruster Heat, Visibility (regulator, falling) | 4.0-2.5 | 5.0-3.0 |
+| Coolant Vent | Duration | 12 s | 15 s |
+| | Price | 4,000 | 12,000 |
+| | Radius Min | half the Djinni diagonal x 1.25 | x 1.5 (Max stays 1.5x Min) |
+| | Opacity (nozzle) | .80-.95 | .90-.98 |
+| | Lifetime (coolant) | 10-14 s | 14-20 s |
+| | Radiator Emissivity penalty (coolant) | .4-.6 | .3-.5 |
+
+**Supply, scarce.** `StationConsumableChance` .25, `StationConsumableUnits` 2 (one product, 1-2 units),
+`ShipConsumableChance` .10, `ShipConsumableUnits` 1. Named constants in `LoadoutGenerator` beside the gear
+stock's literal 16, as r1 had them.
+
+### Rationale
+
+**Scarcity through the owners that exist.** "Rare loot and a few stations" needs no loot table: a ship
+that carries a consumable drops it on death through the one loot owner (RF4), and only a quarter of
+stations stock any. The same roll makes AI use rare, so when the player meets a vent or an overdrive in
+an AI's hands it is an event, and killing that ship before it fires is a reason to loot it. Stronger
+effects at a higher price follow the ruling; the hoarding risk is the operator's, accepted. The consumable
+step draws nothing when no consumable is on offer (RF3), so this cut re-rolls no current fixture; once
+`consumables-first-set` lands the generated galaxy re-rolls once, which
+`no-save-compatibility-before-players` covers.
+
+**The fog bank is a patch brush.** The operator's words in `vapour-cloud-obscuration`: painting into the
+patch layer is the presenter. The volumetric pass already turns patch thickness into fog the ship flies
+inside (RF1), so a cloud is one more additive brush on layer `Patch`, and `Fog Patch.prefab` is that brush,
+already authored. Its depth is the authored depth times `OpacityAt / Opacity`, so the fog thins exactly as
+the sim's obscuration does and is gone when the cloud is removed (opacity reaches 0 at Lifetime). r1's
+particle system is dropped: a second renderer for a thing the nebula already draws.
+
+**Multiply needs a test, not code.** The ruling keeps today's arithmetic (RF5), so `modifier-stacking`
+shrinks to the tests that pin it, gear with gear and consumable with gear. A rule nobody pins is a rule a
+later "balance" patch removes silently.
+
+**The boost tiers.** A strong 2x2 and a modest 1x1 per stat lets cell budget, not a stacking curve, bound a
+ship: four cells buy x1.20-1.40 from one array or x1.13-1.36 from four 1x1s (1.03^4 to 1.08^4) at 4x the
+power and heat, so at equal quality the array is the better use of cells and power and a hold full of
+smalls is the expensive fit. Under multiply nothing else bounds stacking, so these two ranges are the
+bound; combat-pace-pass tunes them.
+
+**How the boosts and the overdrive compose with flight control.** A Thrust multiplier (Thrust Amplifier,
+Thruster Overdrive) changes only the resolved `ThrusterData.Thrust`. From `thrust-allocator` on, the
+allocator's columns are the thrusters' `EvaluateNominalPower(Thrust)` each tick (TA6), so a boosted drive
+is a stronger column and the yaw-first solve still holds heading when one drive is boosted and its twin
+is not; the evasion envelope reads the same columns (`envelope-from-columns`). The overdrive's lock is
+intent (throttle-lock), not throttles: under the allocator "throttle at max" means full forward intent,
+and a drive may be trimmed below 1 to hold heading. So no booster or consumable spec writes an `Axis`,
+touches `Ship.Update` or `Thruster.cs`, or asserts per-thruster throttles; their tests observe resolved
+stats, `ThrottleLocked` and motion, which hold before and after the allocator lands.
+
+**The shipped tool and the player build are two owners, in order.** `ships-authoring-tool` owns where the
+add-on finds AetherDb (the game folder's `ModTools/`) and what AetherDb treats as its root (a folder whose
+`GameData` holds `Aetheria.cc`). `player-build` owns what a player directory contains, the published
+AetherDb included. A self-contained single-file publish was probed at 77 MB for linux-x64 (B7); the
+Windows player carries the win-x64 one. One preference replaces r1's two: the tool's path is derived from
+the game folder, so the two cannot disagree. `ships-player` r3 drops its own Mods staging line and builds
+through `player-build`, so one cut decides the staging list.
+
+**Component records** are owed after the demo cut (ruling `components-are-roles-for-demo`); follow-up
+`component-records-after-demo` carries the mapping so it outlives this refresh.
+
+### Admitted
+
+Receipts `mind-commit-d41d568c...`, `mind-commit-dc5c5a2a...`, `mind-commit-c2edfe6d...` (2026-10-09
+13:24-13:28 UTC). Revisions, each with the resolution superseding its predecessor: consumable-supply r2,
+vapour-cloud-presenter r2, modifier-stacking r3 (shrunk to tests), consumables-first-set r2 (not named in the
+follow-up; reshaped by `consumables-scarce`), boost-gear-systems r2 and boost-gear-combat r2 (held),
+ships-authoring-tool r2, ships-player r3. New: cut player-build r1, follow-up
+`component-records-after-demo`. No question raised.
+
+## Articulated mounts
+
+Mapped 2026-10-09 by Imagination (`imagination-aeth-articulated`, session `self-2026-10-09-ag`) for follow-up
+`articulated-mounts`, against `origin/master` `6d83597b`. Re-mapped 2026-10-10 by Imagination
+(`imagination-aeth-articulated-r2`, session `self-2026-10-10-ag`) against `origin/master` `acea1aa7`, after the
+operator's rulings `mount-arc-gun-traverse` (arc on the hardpoint, traverse on the weapon, the link presentation
+only; it supersedes `arc-on-the-hardpoint`, which superseded `arc-and-traverse-on-the-link`) and
+`solver-in-gamecult-animation`. Rulings in force: `mount-arc-gun-traverse`, `rig-is-presentation`,
+`solver-in-gamecult-animation`, `sim-hooks-presentation-agnostic`, `projectile-flight-is-presentation`,
+`ship-roles-are-tags`, `thrusters-radiators-are-meshes`. AM1-AM11 were probed at `6d83597b`; AM12-AM17 at
+`acea1aa7`. Every anchor in the specs is exact at `acea1aa7`. Where AM1-AM11 speak of links, read them as the
+2026-10-09 model; AM12-AM17 and everything after them are the live model.
+
+**Scope tension for Self.** Target r4's `not_in_scope` lists "articulated mounts". The operator asked for this work
+(her hermit-crab hull carries its big gun on a jointed arm). The target needs a revision that takes articulated
+mounts out of `not_in_scope` before Hands is briefed.
+
+### Body facts
+
+**AM1. Arc is per hardpoint today, not per weapon.** `FireControl.ArcFor` (`FireControl.cs:36-41`) reads
+`HardpointData.FiringArc` (`ItemData.cs:567-569`, key 6) when above zero, else `GameplaySettings.FiringArc`
+(`Settings.cs:222`, initializer 120). `InArc` (`:50-58`) passes 360 or more unconditionally. The only shipped writer
+was `AetherDb firing-arc-migrate` (`tools/AetherDb/Program.cs:998-1047`), which set 360 on the Turret hull's
+Ballistic hardpoints. Twenty-three hardpoint initializers author `FiringArc`, all in tests (`git grep -nE
+"[{,] *FiringArc = |^ +FiringArc = "` over tests, Assets/Scripts and tools: 23), and eight accessors read or write
+it (`hardpoint\??\.FiringArc|Mount\(s\)\.FiringArc|Hardpoints\[0\]\.FiringArc`: 8). The brief's "per weapon,
+default 120, turret 360" is this per-hardpoint rule.
+
+**AM2. Traverse is not simulated; it only prices.** `Solution` (`FireControl.cs:128-152`) says turrets traverse
+instantly in the simulation and that link traverse "will make this stateful behind the same signature".
+`TrackingRate` (`:238-245`) is the gun's `Weapon.Tracking` times the ship's targeting gear over `UnaidedTracking`,
++infinity for an unauthored gun, and only `PMount` reads it (`:383`, `:427`, `:720`). Follow-up
+`articulated-mount-traverse-min` puts the link's traverse inside `TrackingRate` as the slower of the two. These cuts
+add no slew state: arc and aim stay derived on every read.
+
+**AM3. The visual record reserves a pivot role nobody uses.** `ShipAuthoringStore.Roles` (`ShipAuthoring.cs:50-58`)
+includes `articulation`, "a pivot, never a mount". No add-on code tags it, and `ShipModShips.Assemble` gives every
+mod ship `ArticulationPoints = Array.Empty<ArticulationPoint>()` (`ShipModShips.cs:164`). The authoring doc says no
+pivot is planned "until pivots move onto `HullData`" (`docs/moddable-ship-authoring.md:188-189`).
+
+**AM4. `ArticulationPoint` is one yaw/pitch pivot with no yaw clamp.** `ArticulationPoint.cs:9-48` slews yaw and
+pitch toward `Target` at `Speed` and clamps only pitch. `ShipPrefabAuthoring.cs:139-149` parses
+`Pivot.Group.YawMin.YawMax.PitchMin.PitchMax.Speed` but stores no yaw limit, so the Controls section's C9 line
+("clamps yaw to YawMin..YawMax") is wrong on this base. A single pivot needs no IK. `EntityInstance.cs:282-289`
+gives each articulation group an aim transform, and `LateUpdate` places it (`:410-417`) from
+`FireControl.Solution(...).Direction` of the group's first weapon. A link presenter follows that read. The Eyes IK
+report (AM11) found the same two facts.
+
+**AM5. The GLB path maps every node that carries `aetheria.id`.** `ShipModCatalog.ReadNodeIds`
+(`ShipModCatalog.cs:195-218`) reads node extras, refuses a duplicate id and records whether the node has a mesh; it
+keeps no parent relation. `Bind` (`:168-191`) checks each anchor's node. `ShipModVisual.LoadAsync` maps anchors to
+Transforms through glTFast's instantiator (`ShipModVisual.cs:51-54`). A joint is an ordinary glTF node, so the same
+map reaches it once it carries an id.
+
+**AM6. Probe: the add-on's export keeps an armature, its skin and data-bone extras.** Run on Starfire 2026-10-09
+with Blender 5.2.2 LTS at `C:\Program Files (x86)\Steam\steamapps\common\Blender\blender.exe`
+(`--background --factory-startup`). Script `probe_rig_export.py` in the session scratchpad
+(`...\scratchpad\imagination-aeth-articulated\`). It builds a collection with a hull cube; an armature
+Shoulder > Elbow > Wrist; a cylinder skinned to Wrist through an Armature modifier; an empty `weapon-mount`
+parented to the Wrist bone (`parent_type = BONE`) with a muzzle child; a Limit Rotation constraint on Elbow; and
+custom properties on the Wrist data bone (`aetheria.role=link`, `aetheria.id=link.claw`) and on the Wrist pose bone.
+It exports with the add-on's options (`__init__.py:359-361`: GLB, `use_active_collection`, `use_selection`,
+`export_extras`, `export_yup`, `export_apply`). Result:
+- One skin with joints `Shoulder, Elbow, Wrist`; the barrel node has `skin: 0` and a mesh. `export_apply` did not
+  bake the armature away.
+- Joints are ordinary nodes in the hierarchy (`Arm > Shoulder > Elbow > Wrist > ClawGun > ClawGun.Muzzle`): the
+  bone-parented empty is a child of the Wrist joint node and keeps its extras.
+- Data-bone custom properties export as the joint node's `extras` (`Wrist` carried `aetheria.role` and
+  `aetheria.id`). The pose-bone property did **not** export. A tag set by hand in Pose Mode's custom-properties
+  panel is lost; the add-on must write data-bone properties.
+- The Limit Rotation constraint left no trace in the GLB (no extension, no extras). glTF carries no joint limits,
+  so the add-on must package them.
+- The armature object's own custom property exported as extras on the `Arm` node.
+
+**AM7. The ship file carries unknown slots through.** `ship_cc.replace_layout` (`ship_cc.py:161-195`) and
+`replace_visual` (`:116-140`) append each row's slots past the known members by mount or anchor id, and edit only
+their own slots. `ShipSchemaPinTests` pins the Python slot numbers and member orders to the C# keys and asserts
+`HARDPOINT_MEMBERS` has 7 names. A C# cut that adds `HardpointData` key 7 or `HullData` key 33 therefore needs no
+Python change: the add-on carries both untouched until the add-on cut names them.
+
+**AM8. The schema version string is not a gate.** CultCache resolves a persisted record by schema name when the
+local type has one version (CultLib `src/GameCult.Caching/CultCache.cs:518-523`). `aetheria.hulldata` and
+`aetheria.ship_authoring` are both `"1"` (`ItemData.cs:510`, `ShipAuthoring.cs:12`). Bumping either buys no
+refusal. A retired slot is guarded by a raw-payload refusal instead, as `RefuseLegacyEmbeddedHull`
+(`ShipAuthoring.cs:124-151`) guards ShipAuthoring key 1. Every cut here keeps both versions at `"1"`.
+
+**AM9. Calibre is a footprint band, held only in a test so far.** `WeaponItemData.WeaponCaliber`
+(`ItemData.cs:482-483`) runs Small to ExtraLarge (`Enums.cs:77-83`). Cut `caliber-bands` (unlanded) states the bands
+(Small 1-2 cells, Medium 3-4, Large 5-6, ExtraLarge 7-9) only inside its test. No balance source names an arc cap
+per calibre: AetheriaLore `Game Design/Ship Play Concepts.md` fork 2 (line 24, read in the ship-language
+worktree) gives the trade without numbers.
+
+**AM10. In-flight add-on specs that touch arcs.** Among in-force specs with no report, only `ships-addon-gizmos` r3
+(arc fan from the row's arc) and `ships-addon-mounts` r5 (row defaults include `FiringArc`; a negative grep on
+`.firing_arc =`) name a hardpoint arc. `controls-hud` r2, `controls-ai-bearing` r1 and `munition-shots` r5 read
+`ArcFor` or `TrackingRate`, whose signatures these cuts keep.
+
+**AM11. Eyes prior art on IK** (`C:\Users\Meta\AppData\Local\Temp\claude\F--Projects-CultLib\f24b705c-99b0-4915-8cd0-d31d652edbbf\scratchpad\eyes-ik-prior-art\ik-prior-art.md`).
+Damped least squares, min `||[J; lambda I] dtheta - [e; 0]||^2` with the joint bounds as the box, has exactly the
+form of CultMath's existing `BoundedLeastSquares`. Every engine Eyes checked (Unity Animation Rigging, Godot 4.6,
+Unreal Control Rig) keeps IK in the animation layer; none was found in a math library. Aim-an-axis leaves twist
+about the aim free, so a chain aims with two effective degrees of freedom.
+
+**AM12. The sim already matches ruling `mount-arc-gun-traverse`; no sim cut is owed.** Probed at `acea1aa7`.
+Arc: `HardpointData.FiringArc` (`ItemData.cs:567-569`, key 6) is the per-hardpoint, per-hull arc, and
+`FireControl.ArcFor` (`FireControl.cs:34-41`) reads it, falling back to `GameplaySettings.FiringArc` (120) at 0.
+Traverse: `WeaponData.Tracking` (`Behaviors/Weapon.cs:70-73`, key 33, degrees per second, +infinity when
+unauthored; ruling `weapon-tracking-authored`) is a weapon stat, and `FireControl.TrackingRate`
+(`FireControl.cs:239-245`) is that rate times the ship's targeting gear. Nothing reads a link, and no `LinkData`,
+`HullLinks` or `HardpointData.Link` exists (`git grep` over Assets, tests and tools: 0). The only stale text is the
+comment at `FireControl.cs:133-134`, which says traverse belongs to the link and cites the superseded ruling.
+`ShipAuthoring.cs`, `ShipModCatalog.cs`, `ShipModPlan.cs`, `ItemData.cs`, `ShipModVisual.cs`, `ShipModShips.cs`,
+`EntityInstance.cs`, `CultCacheDrawers.cs`, `tools/blender`, `docs/moddable-ship-authoring.md` and the ship tests
+are byte-identical between `6d83597b` and `acea1aa7` (`git diff --stat`); `FireControl.cs` gained 9 lines, all
+below line 755.
+
+**AM13. Shipped traverse falls with calibre already.** Probe `probe_track.py` (scratchpad
+`imagination-aeth-articulated-r2`, cultcache-py over `GameData/Aetheria.cc` at `acea1aa7`), `WeaponData.Tracking`
+per weapon item: Small guns 1.5 to 40 degrees per second (ClearPath 12, Earp 8, Spectra 10, ColdFire 6, the two
+point-defence guns 40, RainbowLite 1.5); Medium guns 3 to 20 (Autocannon 4, ChargeBlast 3 and 3.5, Flak 20); the
+one Large gun (plight) 2; launchers and the mine launcher +infinity. Twenty-two weapon items in all.
+
+**AM14. Shipped hardpoints and arcs.** Probe `probe_arcs.py` (same scratchpad): the catalog holds four hulls. Only
+the Turret hull authors an arc: its two Ballistic hardpoints, 8 cells each (2x4, the ExtraLarge band), at 360. Ship
+hulls carry weapon hardpoints of 2 cells (Energy, Ballistic) and 3 or 6 cells (Launcher), all at `FiringArc` 0, so
+the default 120 applies. Cut `caliber-bands` (unlanded) states the bands Small 1-2 cells, Medium 3-4, Large 5-6,
+ExtraLarge 7-9 only in its test (AM9).
+
+**AM15. What CultMath has for the rig today.** `F:\Projects\CultLib\packages\cultmath\src\CultMath`, read
+2026-10-10: `quaternion` (`quaternion.cs`) is a plain struct with `identity`, `LookRotation(forward, up)` and float4
+conversions; `math.normalize(quaternion)` (`math.cs:225-235`) is the only quaternion operation. There is no
+quaternion product, conjugate, axis-angle constructor, vector rotation by a quaternion, slerp, swing-twist split or
+joint clamp. `BoundedLeastSquares.Solve(m, n, a, b, lo, hi, x, workspace, out iterations, ...)` minimises
+`||A x - b||^2` in a box, dense and allocation-free, with `WorkspaceLength(n)`. That is the solve AM11 names.
+
+**AM16. A moving part needs no record of its own.** The joint tree (AM6: bones export as ordinary nodes with their
+data-bone extras) already says which moving part a weapon mount rides: the nearest joint above the mount's node.
+A tag on that bone adds nothing the hierarchy does not say, and the arc and traverse the link record carried now
+live on the hardpoint and the weapon (AM12).
+
+**AM17. The add-on chain under these cuts is unlanded.** Specs `ships-addon-frame` r5, `ships-addon-mounts` r5 and
+`ships-addon-mesh-mounts` r1 have no report; `tools/blender` at `acea1aa7` is the pre-r5 add-on (`_save_layout`
+absent; Save Layout writes `FiringArc` from the panel's `firing_arc`, `__init__.py:43`, `:111`, `:174`, `:458`).
+The add-on specs below are anchored at `acea1aa7` and name the region to re-find once that chain merges.
+
+### Model page
+
+| Kind | Identity | Lifecycle | Authority |
+|---|---|---|---|
+| Hardpoint arc (`HardpointData.FiringArc`, key 6, unchanged) | The hardpoint's mount id (`Transform`) on its hull. 0 is a fixed mount at `GameplaySettings.FiringArc`. | Authored per hull in the add-on's panel (or Studio for a shipped hull) and written by Save or Package. A package edited after a save changes the arc a run's guns use on Continue; it moves no cell, so it adds nothing to `mod-hull-changed-under-run`. | The ship author. `ShipAuthoringStore.Validate` judges it finite and non-negative and, for a mount on a joint, positive and within the joint chain's yaw reach. `FireControl.ArcFor` is its one reader. |
+| Traverse (`WeaponData.Tracking`, key 33, unchanged) | A stat of the weapon item. | Authored per weapon design; any gun goes on any mount (ruling `mount-arc-gun-traverse`). | The weapon designer. `FireControl.TrackingRate` prices it; the rig presenter slews the picture at the same rate. |
+| Joint (`ShipJoint` in `ShipAuthoring.Joints`, key 5) | Its bone's `aetheria.id`, which is its GLB node id. Package assigns `joint.<n>` once to a data bone on a weapon mount's chain and keeps it there. | Re-rigging changes only the visual record; every Package and compose judges it again. No save, sim fact or catalog record names a joint. | The author's Blender bone IK settings (lock, limit, min, max), copied by Package. Validate judges the tree and the reach; Bind judges it against the GLB. No joint feeds a sim fact (ruling `rig-is-presentation`). |
+| A mount's joint (`ShipAnchor.Joint`, key 5) | On a `weapon-mount` anchor only: the nearest joint above the mount's node; empty for a fixed mount. | Derived at Package from the mount's bone ancestry, as mounted `Position` is derived from the object. Re-parenting in Blender changes it at the next Package. | The Blender hierarchy; Package derives it; Bind refuses a GLB whose hierarchy disagrees. No panel or Studio edit writes it. |
+| Rig (the Unity `MountRig`, one per driven joint) | The driven joint's id. | Cache-only: built with the prototype at boot from `ShipModPlan.Rigs` and the rest pose. | Writes only its joints' Transforms. Reads the lead weapon's `GunSolution.Direction` and `TrackingRate`. |
+
+A driven joint is a joint some weapon-mount anchor names. Its chain is that joint and its ancestors up to, not
+including, the nearest ancestor that is itself driven, so a turret on a turret solves as two chains and the outer
+chain never moves under the inner gun's solve.
+
+**C4 (follow-up `c4-ship-element-ids`).** No link element kind exists for variants: a variant that narrows a gun's
+arc is a hardpoint tail-slot patch on `FiringArc`, by mount id, which C4 already plans.
+
+### Authority map
+
+- **Owner.** The hardpoint owns its arc (`FiringArc`), per hull. The weapon owns its traverse (`Tracking`). The
+  Blender hierarchy owns which joint a mount rides, derived into `ShipAnchor.Joint` at Package. The bone IK settings
+  own the joint limits, packaged into `ShipAuthoring.Joints`. FireControl owns the aim (`GunSolution.Direction`).
+- **Sim inputs.** `HardpointData.FiringArc` and `WeaponData.Tracking`, as on `acea1aa7`. Nothing the rig adds.
+- **Outputs.** `ArcFor`, `InArc`, `AimDirection`, `Solution` and `TrackingRate`, unchanged. Presentation reads the
+  lead weapon's `GunSolution.Direction` and `TrackingRate`.
+- **Derived.** `ShipAnchor.Joint`, from the hierarchy. A driven joint's chain, from the joint tree. Yaw reach, from
+  the chain's degrees of freedom. The rigs and their `AimChain`s (cache-only).
+- **No longer owners.** The link is not a record: `LinkData`, `HullData.Links`, `HardpointData.Link`, the Tag Link
+  operator and link rows are not built (cuts `links-record`, `links-arc`, `ships-addon-link-rows` withdrawn).
+  `FiringArc` is not retired (cut `retire-firing-arc` withdrawn). The `articulation` role is cut; a joint is not an
+  anchor.
+- **Forbidden writers.** No joint limit, bone length, IK result or Unity transform feeds `ArcFor`, `TrackingRate`
+  or any sim fact. No panel or Studio edit writes `ShipAnchor.Joint`. No helper invents an arc. The add-on keeps no
+  copy of `GameplaySettings.FiringArc`.
+- **Shared paths.** Validate's reach check and `ShipModPlan.Rigs` define a chain through one helper. Package and
+  the gizmo drag derive a mount's place through the same hull_grid functions.
+
+### Rationale
+
+**A moving part is a joint, not a record.** The operator ruled the link carries no sim stat (AM12). What remained
+of it was a tag and a row holding nothing but an id. The joint tree already says which part a mount rides (AM16),
+so the record keeps only what the presenter and the judge need: the joints with their limits, and on each weapon
+mount the joint it rides. Moving parts come from armature bones only. A turret built from plain objects is a
+one-bone armature; there is no object-link path, so joints have one source.
+
+**A bone with no free axis is not a joint.** Package turns a chain bone into a joint only when its IK settings
+leave at least one degree of freedom. A gun on a fully locked bone has no joint above it and is a fixed mount at
+its own arc, the default included.
+
+**A gun on a joint states its arc.** The judge checks the chain's yaw reach against the arc, and the judge has no
+`GameplaySettings` (the default is a game setting, and the add-on keeps no copy of it either). So a weapon whose
+mount rides a joint must author `FiringArc` above 0. Weapons on one joint share one `Rotation` and one `FiringArc`,
+because the lead weapon's aim moves them all.
+
+**The reach check is yaw only, and conservative** (unchanged from 2026-10-09). The sim is planar. A chain covers the
+arc when the summed ranges of its degrees of freedom whose axis lies within 5 degrees of Ship Root up reach the
+arc, capped at 360. Serial parallel axes add, so the sum is exact for the arms the add-on makes. A chain whose yaw
+comes only from tilted axes is refused with a message naming the joint.
+
+**Joint limits come from Blender's bone IK settings, not from Limit Rotation constraints** (unchanged). Blender's
+own IK honours `lock_ik_*`, `use_ik_limit_*` and `ik_min_*`/`ik_max_*`; glTF carries no constraint (AM6).
+
+**The presenter slews at the weapon's traverse.** It turns its aim toward the lead weapon's
+`GunSolution.Direction` (already arc-clamped by the sim) at most `FireControl.TrackingRate(lead, entity)` degrees
+per second, the rate the sim prices the angular term with. +infinity is no slew. The sim stays stateless.
+
+**No Aetheria-side solver port.** Ruling `solver-in-gamecult-animation` puts the solve in a pure CultLib package.
+The presenter calls that package's API; an Aetheria interface with one implementation would be a second surface
+buying nothing a pure, headless-testable library does not already give.
+
+**Calibre and arc.** The operator's own examples put a heavy gun on a wide arc (the crab's claw) and a light gun in
+a narrow port, and her ruling says calibre caps are enforced "if at all". The shipped Turret's ExtraLarge
+hardpoints sweep 360 (AM14), and the weapon's traverse already falls with calibre (AM13), which prices a heavy gun
+on a wide arc through `TrackingRate`. Question `hardpoint-arc-caps` puts the choice to her with no-cap recommended.
+Under no-cap, follow-up `caliber-bands-one-table` is moot: the band table stays in `caliber-bands`' test, its only
+reader. Under either cap option the judge reads the bands, so they become one table in ServerShared and that test
+reads it.
+
+**Thrusters on joints stay a follow-up.** A gimballed thruster changes where thrust points, which is a sim fact the
+thrust allocator does not model. Validate refuses `ShipAnchor.Joint` on any non-weapon anchor and Bind refuses a
+thruster or radiator node under a joint, both naming follow-up `gimballed-thrusters`.
+
+### The rig's interface to GameCult.Animation and CultMath
+
+This is what `link-rig-presenter` calls; a later cultlib-gaps pass maps the cuts that provide it. Types and
+operations only. Angles are radians at this API (the record's degrees convert once, when the presenter builds its
+chain).
+
+CultMath (`quaternion`, `float3`; pure and allocation-free):
+- `math.mul(quaternion a, quaternion b) -> quaternion`, composing in the Unity.Mathematics convention (`mul(a, b)`
+  applies `b` first).
+- `math.rotate(quaternion q, float3 v) -> float3`.
+- `math.conjugate(quaternion q) -> quaternion` and `math.inverse(quaternion q) -> quaternion`.
+- `quaternion.AxisAngle(float3 unitAxis, float radians) -> quaternion`.
+- `math.slerp(quaternion a, quaternion b, float t) -> quaternion` (shortest arc).
+- Swing-twist and joint clamps, which the ruling also gives CultMath. The presenter does not call them (its degrees
+  of freedom are per-axis boxes); GameCult.Animation may: `math.swing_twist(quaternion q, float3 unitTwistAxis, out
+  quaternion swing, out quaternion twist)`, `math.clamp_hinge(quaternion q, float3 unitAxis, float min, float max)
+  -> quaternion`, `math.clamp_cone(quaternion swing, float3 unitAxis, float maxAngle) -> quaternion`,
+  `math.clamp_twist(quaternion twist, float3 unitAxis, float min, float max) -> quaternion`.
+
+GameCult.Animation (a new CultLib package, netstandard2.1, depending only on CultMath, and published as a UPM package
+`org.gamecult.animation` beside `org.gamecult.cultmath` so Aetheria's `Packages/manifest.json` pins it the same way):
+- `AimJoint { float3 RestPosition; quaternion RestRotation; }`: rest offset and rotation relative to the previous
+  joint (the first relative to the chain root's frame).
+- `AimDof { int Joint; float3 Axis; float Min; float Max; }`: a unit axis in that joint's local frame and its bounds.
+- `AimEffector { float3 Offset; float3 Axis; }`: the muzzle's offset and unit aim axis in the last joint's frame.
+- `AimChain.Create(ReadOnlySpan<AimJoint> joints, ReadOnlySpan<AimDof> dofs, AimEffector effector) -> AimChain`:
+  validates (finite values, unit axes within a tolerance, `Min <= Max`, `Joint` ascending and in range) and throws
+  `ArgumentException` naming the field, never the value. Exposes `JointCount` and `DofCount`.
+- `AimChain.WorkspaceLength(in AimChain chain) -> int`.
+- `AimChainSolver.Solve(in AimChain chain, ReadOnlySpan<float> current, float3 targetDirection, Span<float> next,
+  Span<float> workspace) -> AimSolveStatus` (`Converged`, `IterationCap`, `InvalidInput`): turns the effector's aim
+  axis toward `targetDirection` (chain root frame) by damped least squares over `BoundedLeastSquares`, every angle
+  in `next` inside its `[Min, Max]`, twist about the aim left free; deterministic, allocation-free, warm-started from
+  `current`.
+- `AimChain.Pose(in AimChain chain, ReadOnlySpan<float> angles, Span<quaternion> localRotations)`: each joint's
+  local rotation, its rest rotation times the product of its degrees of freedom's axis-angle rotations in DOF order.
+- `AimChain.EffectorDirection(in AimChain chain, ReadOnlySpan<float> angles) -> float3`: the aim axis in the chain
+  root's frame (forward kinematics), for tests and the presenter's settled check.
+
+Aetheria keeps the glTF-to-Unity axis conversion (`JointAxes.ToLocal`, ServerShared, pure), the slew (planar angle
+arithmetic over the existing `math.atan2` and `math.rotate(float2, radians)`), and the `UnityEngine.Quaternion`
+conversion at the Transform write.
+
+### Cut order
+
+1. `link-rig-record` r3, no dependency: the joint record, the judge's rig rules, Bind's GLB checks,
+   `ShipModPlan.Rigs`, and the stale FireControl comment. **First.**
+2. `ships-addon-gizmos` r6 after `ships-addon-mesh-mounts`: arc fans from the row's `FiringArc`.
+3. `ships-addon-link-package` r3 after `link-rig-record`, `ships-addon-mounts` and `ships-addon-mesh-mounts`:
+   Package writes the joints and each weapon mount's joint.
+4. `link-rig-presenter` r2 after `link-rig-record`, `ships-addon-link-package`, and the CultLib release carrying the
+   interface above (cultlib-gaps), pinned.
+5. `link-calibre-judge` r2: blocked on question `hardpoint-arc-caps`; withdrawn if she rules no-cap.
+
+Withdrawn: `links-record` r1, `links-arc` r1, `retire-firing-arc` r1, `ships-addon-link-rows` r1, and question
+`calibre-arc-caps`.
+
+### Admitted
+
+2026-10-09 (`imagination-aeth-articulated`): receipts `mind-commit-b0c6b373...`, `mind-commit-c00a16b5...`,
+`mind-commit-08fce00f...`, `mind-commit-06e09a45...`.
+
+2026-10-10 (`imagination-aeth-articulated-r2`): receipts `mind-commit-0b2e932e...` (withdrew links-record r1, links-arc r1,
+retire-firing-arc r1, ships-addon-link-rows r1; link-rig-record r3; ships-addon-gizmos r6),
+`mind-commit-0c23fa01...` (ships-addon-link-package r2, link-rig-presenter r2, link-calibre-judge r2, question
+`hardpoint-arc-caps`, withdrew question `calibre-arc-caps`) and `mind-commit-40788d58...` (ships-addon-link-package r3,
+r2's arm smoke pins fixed). context-pack read every anchor SAME at `acea1aa7`.

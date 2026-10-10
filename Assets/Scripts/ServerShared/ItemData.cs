@@ -855,8 +855,7 @@ public static class StatValidation
     //
     // F6 (docs/stats-and-power-cut.md, Soul pass 2026-09-19) named every field a PowerRequest implementation
     // actually reads, not just each consumer's top-level request field: Radiator.PowerRequest also reads
-    // PumpedHeat and WasteHeat, AetherDrive.PowerRequest also reads Torque, LambdaMultiplier, MaximumRpm and
-    // PassiveCoupling, Shield.PowerRequest (via RefreshReserve) also reads RefillDuration and RestoreDuration,
+    // PumpedHeat and WasteHeat, Shield.PowerRequest (via RefreshReserve) also reads RefillDuration and RestoreDuration,
     // InstantWeapon.PowerRequest (via RefreshInputCapacitor) also reads Cooldown and Count, and Sensor.
     // PowerRequest (via RefreshInputCapacitor) also reads PingCooldown. Audited directly against each
     // PowerRequest method's own body (and RefreshReserve/RefreshInputCapacitor, which PowerRequest calls into)
@@ -892,11 +891,6 @@ public static class StatValidation
         (typeof(RadiatorData), nameof(RadiatorData.EnergyUsage)),
         (typeof(RadiatorData), nameof(RadiatorData.PumpedHeat)),
         (typeof(RadiatorData), nameof(RadiatorData.WasteHeat)),
-        (typeof(AetherDriveData), nameof(AetherDriveData.EnergyDraw)),
-        (typeof(AetherDriveData), nameof(AetherDriveData.Torque)),
-        (typeof(AetherDriveData), nameof(AetherDriveData.LambdaMultiplier)),
-        (typeof(AetherDriveData), nameof(AetherDriveData.MaximumRpm)),
-        (typeof(AetherDriveData), nameof(AetherDriveData.PassiveCoupling)),
     };
 
     // Whether `stat` is the request stat of some IPowerConsumer behaviour on `data` -- used by StatModifier's

@@ -231,9 +231,9 @@ public sealed class FireControlCut6cTests : IDisposable
         var cache = AetheriaStores.Open(Catalog, Run(), Player());
         _openCaches.Add(cache);
 
-        // A minimal one-zone galaxy whose faction roster excludes Targeting Maker entirely, the same
-        // SavedGame/Galaxy round trip RunSaveTests uses to build a real Galaxy without standing up full
-        // procedural generation.
+        // A minimal one-zone galaxy the same SavedGame/Galaxy round trip RunSaveTests uses builds, without standing
+        // up full procedural generation. Its generator's faction is Maker, whose allegiance does not name
+        // Targeting Maker, so IsAvailable rejects Targeting Maker's products by allegiance.
         var game = new SavedGame
         {
             Factions = new[] { maker },
@@ -250,13 +250,14 @@ public sealed class FireControlCut6cTests : IDisposable
         };
         RunSave.Commit(cache, game, zones, new ProvenanceLedger());
         var galaxy = new Galaxy(cache, cache.GetGlobal<SavedGame>(), _ => { });
-        Assert.False(galaxy.ContainsFaction(targetingMaker));
+        var makerFaction = cache.Get(maker);
+        Assert.False(makerFaction.Allegiance.ContainsKey(targetingMaker));
 
         var random = new Random(1u);
         var settings = TestSettings();
         var log = new List<string>();
         var items = new ItemManager(cache, new ProvenanceLedger(), settings, log.Add);
-        var generator = new LoadoutGenerator(ref random, items, galaxy, null, null, .5f);
+        var generator = new LoadoutGenerator(ref random, items, galaxy, null, makerFaction, .5f);
 
         var pack = generator.GenerateShipLoadout(candidate => candidate.Name == "Armed");
 
