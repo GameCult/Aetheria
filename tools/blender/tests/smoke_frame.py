@@ -541,13 +541,13 @@ def package_frame_pass(aetheria_ships):
     require(abs(before.x) > 0.5 or abs(before.y) > 0.5, "The fixture's centre of mass starts at the origin")
     result, message = run(bpy.ops.aetheria.package_ship)
     report = scene.aetheria_package_report
+    require(not any(obj.get("aetheria.role") == "hull-collider" for obj in collection.all_objects),
+            "Package never generates a collider: the collection holds one")
     require(result == {"CANCELLED"} and "the validator refused the ship" in report, f"Package without a collider: {report}")
     after = centre_of_mass_world()
     require(abs(after.x) < 1e-3 and abs(after.y) < 1e-3, f"The centre of mass is not at the origin: {tuple(after)}")
     code, output = aetheria_ships._aetherdb(bpy.context, "validate", path, ship_cc=path)
     require(code != 0 and "hull-collider" in output, "The validator did not refuse a package without a hull-collider")
-    require(not any(obj.get("aetheria.role") == "hull-collider" for obj in collection.all_objects),
-            "Package never generates a collider: the collection holds one")
     nodes = glb_nodes(glb)
     require(not any((node.get("extras") or {}).get("aetheria.role") == "hull-collider" or "collider" in (node.get("name") or "").lower()
                     for node in nodes), "Package never generates a collider: the GLB holds one")
@@ -593,6 +593,26 @@ def package_frame_pass(aetheria_ships):
     made = {obj["aetheria.role"]: obj for obj in child(collection, "Generated").objects if "aetheria.role" in obj}
     require(tuple(made["tractor"].location) == kept_at, "Package rebuilt a kept anchor")
     require(all(abs(a - b) < 1e-4 for a, b in zip(made["shield"].location, centre)), "Package did not rebuild an unkept anchor")
+
+    # A flat hull still gets a shield: its scale is floored at 0.1 on the thin axis.
+    render.scale.z = 0.01
+    select(render)
+    run(bpy.ops.aetheria.package_ship)
+    shield = next(obj for obj in child(collection, "Generated").objects if obj.get("aetheria.role") == "shield")
+    require(all(abs(a - b) < 1e-4 for a, b in zip(shield.scale, (1.15 * half[0], 1.15 * half[1], 0.1))),
+            f"A flat hull's shield is not floored at 0.1: {tuple(shield.scale)}")
+    render.scale.z = 1.0
+
+    # A render mesh with no outline from above refuses Package before it changes anything: Ship Root, displaced here so
+    # that a recentre would move it, stays where it is and the generated anchors stay.
+    root.location.x += 3.0
+    bpy.context.view_layer.update()
+    render.scale.x = 0.0
+    select(render)
+    unchanged = world_state()
+    refused(bpy.ops.aetheria.package_ship, "no outline", "Package of a hull with no outline from above")
+    require(world_state() == unchanged, "A refused Package moved Ship Root or changed the objects")
+    render.scale.x = 1.0
 
     # An anchor the author made owns its role: its generated twin goes and is not made again.
     own = new_object(collection, "My Map Icon", box("My Map Icon", 0.5, 0.5, 0.01), (0, 0, 0), root)
