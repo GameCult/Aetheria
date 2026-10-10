@@ -14,6 +14,8 @@ public sealed class ConsumablesFirstSetTests
 {
     private const string OverdriveName = "Thruster Overdrive";
     private const string VentName = "Coolant Vent";
+    private const float SpecificHeat = -1f;
+    private const float Conductivity = -1f;
     private const float Tick = .25f; // exact in floats, so a duration of 6 s is 24 ticks and 15 s is 60
 
     private static ConsumableItemData Design(CultCache cache, string name) => Assert.Single(cache.GetAll<ConsumableItemData>(), c => c.Name == name);
@@ -25,6 +27,7 @@ public sealed class ConsumablesFirstSetTests
         var term = Assert.Single(stat.Terms);
         Assert.Equal(StatSource.Quality, term.Source);
         Assert.Equal(role, term.Role);
+        Assert.Equal(1f, term.Exponent); // linear in the role's quality: a design's range is the whole of what quality changes
     }
 
     private static void AssertModifier(BehaviorData behavior, string target, string stat, float min, float max, string role)
@@ -85,7 +88,9 @@ public sealed class ConsumablesFirstSetTests
         foreach (var design in new[] { overdrive, vent })
         {
             CultRecordRefs.Validate(design); // every modifier resolves and every role a stat reads is declared
-            Assert.True(design.SpecificHeat > 0f && design.Conductivity > 0f);
+            // The thermal constants are the catalog's 1x1 tool's (the Targeting Computer), pinned so a re-author cannot drift them.
+            Assert.Equal(SpecificHeat, design.SpecificHeat);
+            Assert.Equal(Conductivity, design.Conductivity);
 
             var products = cache.GetAll<FactionProductData>().Where(p => p.Design.Key.Equals(cache.RefOf(design).Key)).ToArray();
             Assert.Equal(2, products.Length);
