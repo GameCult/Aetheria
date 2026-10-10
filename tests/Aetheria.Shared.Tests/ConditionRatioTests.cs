@@ -92,7 +92,10 @@ public sealed class ConditionRatioTests : IDisposable
         var reactorData = cache.GetByName<GearData>("Reactor");
         ((ReactorData) reactorData.Behaviors[0]).Charge = Constant(reactorCharge);
         Assert.True(ship.TryEquip(Mint(cache, items, reactorData)));
-        Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("Consumer"))));
+        // The Skiff's centre column: a thruster there has no torque, so the allocator can fire it alone. These tests pin power,
+        // not flight, and a lone off-centre thruster could not fire without turning.
+        Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("Consumer")), new int2(2, 0)));
+        Assert.True(ship.GetBehavior<Thruster>().Torque == 0f, "the lone thruster turns nothing");
 
         zone.Entities.Add(ship);
         ship.Aim = float3(0, 0, 1); // Turn stays 0, as in BrownoutTests

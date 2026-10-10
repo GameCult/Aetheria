@@ -420,4 +420,31 @@ public class ThrustAllocatorTests
         Assert.InRange(Solve(duel, 0, 0, .5f)[0], 1.2e-4f, LeakBound);
         Assert.InRange(Solve(duel, 0, 0, -.5f)[1], 1.05e-4f, LeakBound);
     }
+
+    [Fact]
+    public void AMicroIntentIsServed()
+    {
+        // Zero is a fact about the intent alone (follow-up allocator-residual-pins): an intent of 1e-6 or 1e-10 of the
+        // half-axis is not zero, so something fires and the net goes the way it was asked.
+        void Served(float3[] hull, float x, float y, float turn, string what)
+        {
+            var throttle = Solve(hull, x, y, turn);
+            var net = Net(hull, throttle);
+            var asked = x != 0 ? x : y != 0 ? y : turn;
+            var got = x != 0 ? net.x : y != 0 ? net.y : net.z;
+            Assert.True(throttle.Max() > 0f, $"{what}: nothing fired");
+            Assert.True(got * asked > 0f, $"{what}: the net does not go the way it was asked");
+        }
+
+        foreach (var micro in new[] { 1e-6f, 1e-10f })
+        {
+            Served(Duel(), 0, 0, micro, "duel turn +");
+            Served(Duel(), 0, 0, -micro, "duel turn -");
+            Served(Duel(), 0, micro, 0, "duel forward");
+            Served(Symmetric(), micro, 0, 0, "symmetric starboard");
+            Served(Symmetric(), -micro, 0, 0, "symmetric port");
+            Served(Symmetric(), 0, micro, 0, "symmetric forward");
+            Served(Symmetric(), 0, -micro, 0, "symmetric reverse");
+        }
+    }
 }

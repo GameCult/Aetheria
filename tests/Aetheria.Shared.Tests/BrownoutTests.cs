@@ -109,7 +109,10 @@ public sealed class BrownoutTests : IDisposable
         var reactorData = cache.GetByName<GearData>("Reactor");
         ((ReactorData) reactorData.Behaviors[0]).Charge = Constant(reactorCharge);
         Assert.True(ship.TryEquip(Mint(cache, items, reactorData)));
-        Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("Consumer"))));
+        // The Skiff's centre column: a thruster there has no torque, so the allocator can fire it alone. These tests pin power,
+        // not flight, and a lone off-centre thruster could not fire without turning.
+        Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("Consumer")), new int2(2, 0)));
+        Assert.True(ship.GetBehavior<Thruster>().Torque == 0f, "the lone thruster turns nothing");
 
         zone.Entities.Add(ship);
         // Ship.Turn stays 0, so Ship.Update commands no rotation: no incidental torque thrust from the

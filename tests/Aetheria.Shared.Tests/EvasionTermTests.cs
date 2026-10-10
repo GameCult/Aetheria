@@ -712,17 +712,14 @@ public sealed partial class RunStartTests
         }
     }
 
-    // Finding thruster-thrust-cache: Ship's aggregates read what the thrusters push with now, not what they pushed
-    // with at construction. The idle Djinni's forward thrust, in newtons, is its envelope's forward acceleration
-    // times its mass,.
+    // Finding thruster-thrust-cache: each thruster reads what it pushes with now, not what it pushed with at
+    // construction.
     [Fact]
-    public void TheAggregatesReadLiveThrust()
+    public void TheThrustersReadLiveThrust()
     {
         var (_, _, djinni) = EvFleet();
         EvSettle(djinni);
         djinni.Update(EvDt);
-        Assert.InRange(djinni.ForwardThrust, djinni.Envelope.Forward * djinni.Mass * .99f, djinni.Envelope.Forward * djinni.Mass * 1.01f);
-        Assert.True(djinni.ForwardThrust > 0f);
         var thrusters = djinni.GetBehaviors<Thruster>().ToList();
         Assert.NotEmpty(thrusters);
         foreach (var thruster in thrusters)
@@ -1009,65 +1006,5 @@ public sealed partial class RunStartTests
                 var ticks = (int) Math.Ceiling(window / EvDt);
                 Assert.True(first >= ticks - 1 && first <= ticks + 1, $"window {window}, held {held}: forgot at tick {first}, expected about {ticks}");
             }
-    }
-
-    // Finding strafe-readers-unpinned: every one of Ship's thrust aggregates and the strafe torque compensation reads the
-    // live thrust, not the stat minimum a thruster had at construction. The idle Djinni's aggregates are the sums of what
-    // its thrusters push with now, group by group.
-    [Fact]
-    public void EveryAggregateAndTheCompensationReadLiveThrust()
-    {
-        var (_, _, djinni) = EvFleet();
-        EvSettle(djinni);
-        djinni.Update(EvDt);
-        var thrusters = djinni.GetBehaviors<Thruster>().Where(t => t.Item.Active.Value).ToList();
-        float Live(Thruster t) => t.Evaluate(((ThrusterData) t.Data).Thrust);
-        float Mount(ItemRotation rotation, Func<Thruster, float> value) => thrusters.Where(t => t.Item.EquippableItem.Rotation == rotation).Sum(value);
-        foreach (var rotation in new[] { ItemRotation.None, ItemRotation.Clockwise, ItemRotation.CounterClockwise })
-        {
-            var group = thrusters.Where(t => t.Item.EquippableItem.Rotation == rotation).ToList();
-            Assert.NotEmpty(group);
-            Assert.All(group, t => Assert.True(Live(t) > ((ThrusterData) t.Data).Thrust.Min * 1.1f, $"fixture: {rotation} thruster thrust {Live(t)} above its stat minimum"));
-        }
-
-        void Near(float expected, float actual) => Assert.InRange(actual, expected - .001f * Math.Abs(expected) - 1e-3f, expected + .001f * Math.Abs(expected) + 1e-3f);
-        Near(Mount(ItemRotation.None, Live), djinni.ReverseThrust);
-        Near(Mount(ItemRotation.Clockwise, Live), djinni.LeftStrafeThrust);
-        Near(Mount(ItemRotation.CounterClockwise, Live), djinni.RightStrafeThrust);
-        Near(Mount(ItemRotation.Clockwise, t => t.Torque * Live(t)), djinni.LeftStrafeTotalTorque);
-        Near(Mount(ItemRotation.CounterClockwise, t => t.Torque * Live(t)), djinni.RightStrafeTotalTorque);
-
-        // The compensation trims each torque thruster of a strafing side by the side's mean torque, over that thruster's
-        // own torque at its live thrust.
-        foreach (var (side, direction, total) in new[]
-                 {
-                     (ItemRotation.CounterClockwise, 1f, djinni.RightStrafeTotalTorque),
-                     (ItemRotation.Clockwise, -1f, djinni.LeftStrafeTotalTorque)
-                 })
-        {
-            // Which thrusters take the trim is the rule under test, so it is read from the thrusters' own torques and not from
-            // Ship's private list (finding compensation-membership-unpinned): the side's thrusters that turn the way the side's
-            // total torque turns. The fixture must have thrusters on both sides of that line, or the rule is not exercised.
-            var onSide = djinni.GetBehaviors<Thruster>().Where(t => t.Item.EquippableItem.Rotation == side).ToList();
-            var members = onSide.Where(t => Math.Sign(t.Torque) == Math.Sign(total)).ToList();
-            Assert.NotEmpty(members);
-            Assert.True(members.Count < onSide.Count, $"fixture: the {side} side has a thruster that turns against its total torque, so membership is exercised");
-            djinni.MovementDirection = float2(direction, 0);
-            EvFace(djinni, float3(0, 0, 1));
-            djinni.Update(EvDt);
-            var mean = Math.Abs(total) / members.Count;
-            var trimmed = 0;
-            foreach (var thruster in thrusters.Where(t => t.Item.EquippableItem.Rotation == side))
-            {
-                var expected = members.Contains(thruster) ? 1f - mean / (Math.Abs(thruster.Torque) * Live(thruster)) : 1f;
-                expected = Math.Max(0f, Math.Min(1f, expected));
-                if (expected < .99f && expected > .01f) trimmed++;
-                Assert.InRange(thruster.Axis, expected - .002f, expected + .002f);
-            }
-            Assert.True(trimmed > 0, $"fixture: the {side} compensation trims a thruster to somewhere between off and full");
-            djinni.MovementDirection = float2(0, 0);
-            EvSettle(djinni);
-            djinni.Update(EvDt);
-        }
     }
 }

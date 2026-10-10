@@ -8,8 +8,10 @@ using Xunit;
 using static CultMath.math;
 
 // A ThrottleLock on an active consumable replaces the pilot's movement intent with full forward, read once at
-// the top of Ship.Update's active branch. Turn is untouched. Every observation is a thruster's Axis after a real
-// Ship.Update, with the effect started through Entity.ActivateConsumable.
+// the top of Ship.Update's active branch; the allocator is the only thing that turns intent into throttles. Turn is
+// untouched. Every observation is a thruster's Axis after a real Ship.Update, with the effect started through
+// Entity.ActivateConsumable. A lock is observed against an unlocked twin of the same fleet fed full forward and the same
+// Turn through the same ticks: the two must answer alike, with no constant of the old mixer in the assertion.
 public sealed class ThrottleLockTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "aetheria-throttlelock-" + Guid.NewGuid().ToString("N"));
@@ -22,7 +24,8 @@ public sealed class ThrottleLockTests : IDisposable
     {
         DefaultEntitySettings = new EntitySettings(),
         Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
-        QualityPriceModifier = new ExponentialLerp()
+        QualityPriceModifier = new ExponentialLerp(),
+        TorqueMultiplier = 1f
     };
 
     private static PerformanceStat Constant(float v) => new PerformanceStat { Min = v, Max = v };
@@ -99,59 +102,73 @@ public sealed class ThrottleLockTests : IDisposable
         };
     }
 
-    // Spec ALockedThrottleIgnoresIntent. Mutation: read MovementDirection in place of move at any of the six
-    // sites in Ship.Update and the matching assertion goes red.
+    private static float[] Axes(Fixture f) => f.Ship.GetBehaviors<Thruster>().Select(t => t.Axis).ToArray();
+
+    private static float Apart(float[] a, float[] b) => a.Zip(b, (x, y) => Math.Abs(x - y)).Max();
+
+    // Drives a (possibly locked) ship at `intent` and its unlocked twin at full forward, both at the same Turn and dt, and
+    // requires every thruster to answer alike.
+    private static void Tick(Fixture ship, Fixture twin, float2 intent, float turn, float dt)
+    {
+        ship.Ship.MovementDirection = intent;
+        twin.Ship.MovementDirection = float2(0, 1);
+        ship.Ship.Turn = twin.Ship.Turn = turn;
+        ship.Ship.Update(dt);
+        twin.Ship.Update(dt);
+        Assert.True(Apart(Axes(ship), Axes(twin)) < 1e-6f, "the ship's throttles differ from its full-forward twin's");
+        Assert.True(twin.Forward.Axis > .5f, "fixture: the twin's forward drive is firing");
+    }
+
+    // Spec ALockedThrottleIgnoresIntent. Mutation: read MovementDirection in place of move in Ship.Update and a locked
+    // ship stops answering as its full-forward twin does.
     [Fact]
     public void ALockedThrottleIgnoresIntent()
     {
         var f = Build(100f);
+        var twin = Build(100f);
         using var _ = f.Cache;
+        using var __ = twin.Cache;
         f.ActivateLock();
         Assert.True(f.Ship.ThrottleLocked);
+        Assert.False(twin.Ship.ThrottleLocked);
 
         foreach (var intent in new[] { float2(0, -1), float2(1, 0), float2(-1, 0) })
-        {
-            f.Ship.MovementDirection = intent;
-            f.Ship.Turn = 0;
-            f.Ship.Update(0.01f);
-            Assert.Equal(1f, f.Forward.Axis);
-            Assert.Equal(0f, f.Reverse.Axis);
-            Assert.All(f.Right, t => Assert.Equal(0f, t.Axis));
-            Assert.All(f.Left, t => Assert.Equal(0f, t.Axis));
-        }
+            Tick(f, twin, intent, 0, 0.01f);
 
-        // Turning stays with the pilot: the clockwise-torque thruster follows Turn while the lock holds.
-        f.Ship.MovementDirection = float2(0, -1);
-        f.Ship.Turn = 1;
-        f.Ship.Update(0.01f);
-        Assert.Equal(1f, f.Clockwise.Axis);
-        f.Ship.Turn = 0;
-        f.Ship.Update(0.01f);
-        Assert.Equal(0f, f.Clockwise.Axis);
+        // Turning stays with the pilot: a Turn moves the throttles while the lock holds, and the lock follows it.
+        Tick(f, twin, float2(0, -1), 1, 0.01f);
+        var turning = Axes(twin);
+        Tick(f, twin, float2(0, -1), 0, 0.01f);
+        Assert.True(Apart(turning, Axes(twin)) > .01f, "a Turn changes the throttles");
     }
 
-    // Spec TheLockEndsWithItsEffect. Mutation: make ThrottleLocked a latch (set on activation, never cleared)
-    // and the post-expiry reverse axis stays 0.
+    // Spec TheLockEndsWithItsEffect. Mutation: make ThrottleLocked a latch (set on activation, never cleared) and the
+    // ship keeps answering as its full-forward twin after expiry.
     [Fact]
     public void TheLockEndsWithItsEffect()
     {
         var f = Build(1f);
+        var twin = Build(1f);
         using var _ = f.Cache;
+        using var __ = twin.Cache;
         f.ActivateLock();
-        f.Ship.MovementDirection = float2(0, -1);
-        f.Ship.Update(0.5f);
-        Assert.Equal(0f, f.Reverse.Axis);
+        Tick(f, twin, float2(0, -1), 0, 0.5f);
+        Assert.True(f.Reverse.Axis < 1e-6f);
 
-        f.Ship.Update(2f); // runs past the Duration; the effect leaves at the end of this tick
+        Tick(f, twin, float2(0, -1), 0, 2f); // runs past the Duration; the effect leaves at the end of this tick
         Assert.False(f.Ship.ThrottleLocked);
 
+        f.Ship.MovementDirection = float2(0, -1);
+        twin.Ship.MovementDirection = float2(0, 1);
         f.Ship.Update(0.01f);
-        Assert.Equal(1f, f.Reverse.Axis);
-        Assert.Equal(0f, f.Forward.Axis);
+        twin.Ship.Update(0.01f);
+        Assert.True(f.Reverse.Axis > .5f);
+        Assert.True(f.Forward.Axis < 1e-6f);
+        Assert.True(Apart(Axes(f), Axes(twin)) > .5f, "the unlocked ship follows its stick, not the twin's full forward");
     }
 
-    // Spec AnUnlockedShipFollowsIntent. Mutation: replace the conditional by an unconditional float2(0, 1) and
-    // the reverse and strafe assertions go red.
+    // Spec AnUnlockedShipFollowsIntent. Mutation: replace the conditional by an unconditional float2(0, 1) and the four
+    // intents give the same throttles.
     [Fact]
     public void AnUnlockedShipFollowsIntent()
     {
@@ -159,26 +176,33 @@ public sealed class ThrottleLockTests : IDisposable
         using var _ = f.Cache;
         Assert.False(f.Ship.ThrottleLocked);
 
-        f.Ship.MovementDirection = float2(0, -1);
-        f.Ship.Update(0.01f);
-        Assert.Equal(1f, f.Reverse.Axis);
-        Assert.Equal(0f, f.Forward.Axis);
+        float[] Fly(float2 intent)
+        {
+            f.Ship.MovementDirection = intent;
+            f.Ship.Update(0.01f);
+            return Axes(f);
+        }
 
-        f.Ship.MovementDirection = float2(1, 0);
-        f.Ship.Update(0.01f);
-        Assert.All(f.Right, t => Assert.Equal(1f, t.Axis));
-        Assert.All(f.Left, t => Assert.Equal(0f, t.Axis));
-        Assert.Equal(0f, f.Forward.Axis);
+        var back = Fly(float2(0, -1));
+        Assert.True(f.Reverse.Axis > .5f);
+        Assert.True(f.Forward.Axis < 1e-6f);
 
-        f.Ship.MovementDirection = float2(-1, 0);
-        f.Ship.Update(0.01f);
-        Assert.All(f.Left, t => Assert.Equal(1f, t.Axis));
-        Assert.All(f.Right, t => Assert.Equal(0f, t.Axis));
+        var right = Fly(float2(1, 0));
+        Assert.True(f.Right.Max(t => t.Axis) > .5f);
+        Assert.All(f.Left, t => Assert.True(t.Axis < 1e-6f));
 
-        f.Ship.MovementDirection = float2(0, 1);
-        f.Ship.Update(0.01f);
-        Assert.Equal(1f, f.Forward.Axis);
-        Assert.Equal(0f, f.Reverse.Axis);
+        var left = Fly(float2(-1, 0));
+        Assert.True(f.Left.Max(t => t.Axis) > .5f);
+        Assert.All(f.Right, t => Assert.True(t.Axis < 1e-6f));
+
+        var forward = Fly(float2(0, 1));
+        Assert.True(f.Forward.Axis > .5f);
+        Assert.True(f.Reverse.Axis < 1e-6f);
+
+        var all = new[] { back, right, left, forward };
+        for (var a = 0; a < all.Length; a++)
+            for (var b = a + 1; b < all.Length; b++)
+                Assert.True(Apart(all[a], all[b]) > .1f, "two different intents gave the same throttles");
     }
 
     // Finding zero-stick-unpinned. Mutation: float2(0, length(MovementDirection)) as the locked intent. The lock
@@ -187,51 +211,42 @@ public sealed class ThrottleLockTests : IDisposable
     public void ALockedShipGetsFullForwardWhateverTheStickLength()
     {
         var f = Build(100f);
+        var twin = Build(100f);
         using var _ = f.Cache;
+        using var __ = twin.Cache;
         f.ActivateLock();
         foreach (var intent in new[] { float2(0, 0), float2(.3f, .2f), float2(-.5f, -.5f) })
-        {
-            f.Ship.MovementDirection = intent;
-            f.Ship.Turn = 0;
-            f.Ship.Update(0.01f);
-            Assert.Equal(1f, f.Forward.Axis);
-            Assert.Equal(0f, f.Reverse.Axis);
-            Assert.All(f.Right, t => Assert.Equal(0f, t.Axis));
-            Assert.All(f.Left, t => Assert.Equal(0f, t.Axis));
-        }
+            Tick(f, twin, intent, 0, 0.01f);
     }
 
-    // Finding ccw-turn-unpinned. Mutation: drop the counter-clockwise Turn. Turn in either sign reaches only the
-    // thrusters with torque of that sign, at full, while the lock holds forward.
+    // Finding ccw-turn-unpinned. Mutation: drop the counter-clockwise Turn. Turn in either sign gives the locked ship
+    // its full-forward twin's throttles, and the twin's solved net turns the way it was asked.
     [Fact]
     public void ALockedShipTurnsBothWays()
     {
         var f = Build(100f);
+        var twin = Build(100f);
         using var _ = f.Cache;
+        using var __ = twin.Cache;
         f.ActivateLock();
-        var all = f.Ship.GetBehaviors<Thruster>().ToArray();
-        var cw = all.Where(t => t.Torque > 0 && t.Item.EquippableItem.Rotation == ItemRotation.None).ToArray();
-        var ccw = all.Where(t => t.Torque < 0 && t.Item.EquippableItem.Rotation == ItemRotation.None).ToArray();
-        Assert.NotEmpty(cw);
-        Assert.NotEmpty(ccw);
-        f.Ship.MovementDirection = float2(1, -1);
+        var thrusters = twin.Ship.GetBehaviors<Thruster>().ToArray();
         foreach (var turn in new[] { 1f, -1f })
         {
-            f.Ship.Turn = turn;
-            f.Ship.Update(0.01f);
-            Assert.All(turn > 0 ? cw : ccw, t => Assert.Equal(1f, t.Axis));
-            Assert.All(turn > 0 ? ccw : cw, t => Assert.Equal(0f, t.Axis));
-            Assert.Equal(1f, f.Forward.Axis);
+            Tick(f, twin, float2(1, -1), turn, 0.01f);
+            var yaw = thrusters.Sum(t => t.Axis * t.Column(t.NominalThrust).z);
+            Assert.True(yaw * turn > 1e-4f, "the solved net turns the way it was asked");
         }
     }
 
     // Finding non-lock-consumable-unpinned. Mutation: any active consumable locks. A consumable without
-    // ThrottleLockData leaves the pilot's intent in force.
+    // ThrottleLockData leaves the pilot's intent in force: the ship answers as an unlocked ship at the same stick.
     [Fact]
     public void AConsumableWithoutTheLockDoesNotLock()
     {
         var f = Build(100f);
+        var twin = Build(100f);
         using var _ = f.Cache;
+        using var __ = twin.Cache;
         var plain = new ConsumableItemData { Name = "Plain", Duration = 100f };
         f.Cache.Upsert(plain);
         f.Ship.ActivateConsumable(new ConsumableItem
@@ -240,15 +255,17 @@ public sealed class ThrottleLockTests : IDisposable
             Lot = f.Items.Lots.Add(new Lot { Design = f.Cache.RefOf<ItemData>(plain), Origin = new Attributed(), Quality = .5f, Roles = new List<RoleFill>() })
         });
         Assert.False(f.Ship.ThrottleLocked);
-        f.Ship.MovementDirection = float2(0, -1);
+        f.Ship.MovementDirection = twin.Ship.MovementDirection = float2(0, -1);
         f.Ship.Update(0.01f);
-        Assert.Equal(1f, f.Reverse.Axis);
-        Assert.Equal(0f, f.Forward.Axis);
+        twin.Ship.Update(0.01f);
+        Assert.True(Apart(Axes(f), Axes(twin)) < 1e-6f);
+        Assert.True(f.Reverse.Axis > .5f);
+        Assert.True(f.Forward.Axis < 1e-6f);
     }
 
     // Finding lock-end-boundary-unpinned, finding lock-end-at-90pct-unpinned. Mutations: the lock ends at half
     // Duration, at 0.8 or 0.9 of Duration, or one tick late. Duration 1 stepped in 0.25 s ticks (exact in
-    // floats) locks the axes on exactly four ticks (reverse stays 0), the effect is gone when the fourth ends,
+    // floats) answers as the full-forward twin on exactly four ticks, the effect is gone when the fourth ends,
     // and the fifth tick follows the stick. The count scales with Duration: 2 s locks eight ticks.
     [Theory]
     [InlineData(1f, 4)]
@@ -256,19 +273,22 @@ public sealed class ThrottleLockTests : IDisposable
     public void TheLockEndsAtTheExactTickOfItsDuration(float duration, int lockedTicks)
     {
         var f = Build(duration);
+        var twin = Build(duration);
         using var _ = f.Cache;
+        using var __ = twin.Cache;
         f.ActivateLock();
-        f.Ship.MovementDirection = float2(0, -1);
         for (var i = 0; i < lockedTicks; i++)
         {
             Assert.True(f.Ship.ThrottleLocked);
-            f.Ship.Update(.25f);
-            Assert.Equal(0f, f.Reverse.Axis);
-            Assert.Equal(1f, f.Forward.Axis);
+            Tick(f, twin, float2(0, -1), 0, .25f);
+            Assert.True(f.Reverse.Axis < 1e-6f);
         }
         Assert.False(f.Ship.ThrottleLocked);
+        f.Ship.MovementDirection = float2(0, -1);
+        twin.Ship.MovementDirection = float2(0, 1);
         f.Ship.Update(.25f);
-        Assert.Equal(1f, f.Reverse.Axis);
-        Assert.Equal(0f, f.Forward.Axis);
+        twin.Ship.Update(.25f);
+        Assert.True(f.Reverse.Axis > .5f);
+        Assert.True(f.Forward.Axis < 1e-6f);
     }
 }
