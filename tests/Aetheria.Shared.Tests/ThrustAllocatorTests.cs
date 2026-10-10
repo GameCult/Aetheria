@@ -345,4 +345,28 @@ public class ThrustAllocatorTests
             Assert.True(MathF.Abs(yaw - extreme) <= 1e-4f * extreme, $"move ({x},{y}): yaw {yaw / Deg} of {extreme / Deg}");
         }
     }
+
+    [Fact]
+    public void NothingAskedAfterACallFiresNothing()
+    {
+        // The warm start left by a call must not leak into a hold of zero intent: exactly zero, not solver residue.
+        foreach (var hull in new[] { Duel(), Symmetric() })
+            foreach (var previous in new[] { (.5f, .5f, .5f), (1f, 1f, 1f), (-.3f, .8f, .6f), (0f, 0f, -1f), (0f, 1f, 0f) })
+            {
+                var allocator = new ThrustAllocator();
+                Solve(allocator, hull, previous.Item1, previous.Item2, previous.Item3);
+                Assert.All(Solve(allocator, hull, 0, 0, 0), t => Assert.Equal(0f, t));
+            }
+    }
+
+    [Fact]
+    public void TheDriveCarriesTheLinearCostsLeakBeforeTheOnset()
+    {
+        // The error variables are paid linearly toward zero (TA-R2): that cost, against the ridge, holds the drive at a
+        // small constant throttle before the onset, 1.30e-4 at turn .5 and 1.14e-4 at turn -.5 on the Duel (a cost row
+        // pulling the errors the other way gives 1.06e-4 and 0.93e-4). The bounds are the measured value less 8%.
+        var duel = Duel();
+        Assert.InRange(Solve(duel, 0, 0, .5f)[0], 1.2e-4f, LeakBound);
+        Assert.InRange(Solve(duel, 0, 0, -.5f)[1], 1.05e-4f, LeakBound);
+    }
 }
