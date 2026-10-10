@@ -200,6 +200,22 @@ public sealed class AetheriaStoresTests : IDisposable
         Assert.Null(record);
     }
 
+    // A shipped player with no catalog must not boot into an empty game: a read-only open of a missing path throws
+    // naming the path, and does not create the file. A writable open still seeds an empty catalog.
+    [Fact]
+    public void AStoreRefusesAMissingCatalog()
+    {
+        var missing = Path.Combine(_root, "absent", "Aetheria.cc");
+
+        var error = Assert.Throws<InvalidOperationException>(() => AetheriaStores.Open(missing));
+        Assert.Contains(missing, error.Message);
+        Assert.False(File.Exists(missing));
+        Assert.False(Directory.Exists(Path.GetDirectoryName(missing)));
+
+        using (var seeded = AetheriaStores.Open(missing, catalogWritable: true))
+            Assert.Empty(seeded.GetAll<Faction>());
+    }
+
     private static string Hash(string path) => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));
 
     private static string[] SchemaNames(string path)
