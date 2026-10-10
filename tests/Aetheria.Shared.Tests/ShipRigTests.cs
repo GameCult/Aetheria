@@ -88,6 +88,22 @@ public sealed class ShipRigTests : IDisposable
         Assert.Contains("reaches 360 degrees", Refusal(OneGun(400, (Up, -180f, 180f), (Up, -180f, 180f))));
     }
 
+    // Reach is Max - Min per degree of freedom, however the limits sit about zero: a sweep from 20 to 50 reaches 30, and one from
+    // -10 to 50 reaches 60. Symmetric limits cannot tell that from |Min| + |Max| (70, 60) or twice the larger side (100, 100).
+    [Fact]
+    public void ReachIsMaxMinusMinForLimitsThatSitOffCentre()
+    {
+        OneGun(30, (Up, 20f, 50f)).Validate();
+        Assert.Contains("reaches 30 degrees", Refusal(OneGun(31, (Up, 20f, 50f))));
+        OneGun(60, (Up, -10f, 50f)).Validate();
+        Assert.Contains("reaches 60 degrees", Refusal(OneGun(61, (Up, -10f, 50f))));
+        OneGun(50, (Up, -50f, 0f)).Validate();
+        Assert.Contains("reaches 50 degrees", Refusal(OneGun(51, (Up, -50f, 0f))));
+        // Off-centre limits on two serial degrees of freedom add their own ranges: 30 + 60.
+        OneGun(90, (Up, 20f, 50f), (Up, -10f, 50f)).Validate();
+        Assert.Contains("reaches 90 degrees", Refusal(OneGun(91, (Up, 20f, 50f), (Up, -10f, 50f))));
+    }
+
     [Fact]
     public void AnAxisWithinFiveDegreesOfUpIsYawAndOneBeyondItIsNot()
     {
@@ -228,6 +244,24 @@ public sealed class ShipRigTests : IDisposable
         Assert.Equal(new[] { "arm", "elbow", "wrist" }, package.Visual.Joints.Select(joint => joint.Id));
     }
 
+    // The exporter tags nodes that are not joints (a bracket, a forearm mesh). They sit between a mount and its joint and
+    // between a joint and its parent joint, and the nearest JOINT above is still what Bind compares.
+    [Fact]
+    public void BindWalksPastTaggedNodesThatAreNotJoints()
+    {
+        var nodes = RigNodes.Select(node => node.Name switch
+        {
+            "bracket" => node with { Id = "bracket" },
+            "wrist" => node with { Parent = "forearm" },
+            _ => node
+        }).Append(new Node("forearm", "forearm", "elbow")).ToArray();
+
+        var package = ShipModCatalog.ReadPackage(Package(null, nodes));
+
+        Assert.Equal(new[] { "arm", "elbow", "wrist" }, package.Visual.Joints.Select(joint => joint.Id));
+        Assert.Equal("wrist", package.Visual.Anchors.Single(anchor => anchor.Id == "gun").Joint);
+    }
+
     [Fact]
     public void BindRefusesAMountWhoseJointIsNotTheNearestOneAboveItsNode()
     {
@@ -300,6 +334,35 @@ public sealed class ShipRigTests : IDisposable
         Assert.Equal("turret", rigs[1].Joint);
         Assert.Equal(new[] { "turret" }, rigs[1].Chain);
         Assert.Equal(("g1", "g1.z"), (rigs[1].LeadMount, rigs[1].LeadMuzzle));
+    }
+
+    // Hull order, not name order: the first gun rides "turret" and the second "barrel".
+    [Fact]
+    public void RigsFollowHullOrderAndNotTheOrderOfTheJointNames()
+    {
+        var ship = Armed("turret", "barrel");
+        ship.Visual.Joints.Add(Joint("turret", null, (Up, -180f, 180f)));
+        ship.Visual.Joints.Add(Joint("barrel", null, (Up, -180f, 180f)));
+
+        var rigs = ShipModPlan.Build(ship.Hull, ship.Visual).Rigs;
+
+        Assert.Equal(new[] { "turret", "barrel" }, rigs.Select(rig => rig.Joint));
+        Assert.Equal(new[] { "g0", "g1" }, rigs.Select(rig => rig.LeadMount));
+    }
+
+    // g1 is listed before g0 in the hull though its name sorts after it.
+    [Fact]
+    public void TheLeadMountOfAJointIsItsFirstWeaponInHullOrderWhateverTheNames()
+    {
+        var ship = Armed("j", "j");
+        ship.Visual.Joints.Add(Joint("j", null, (Up, -180f, 180f)));
+        var g1 = ship.Hull.Hardpoints.Single(hardpoint => hardpoint.Transform == "g1");
+        ship.Hull.Hardpoints.Remove(g1);
+        ship.Hull.Hardpoints.Insert(ship.Hull.Hardpoints.FindIndex(hardpoint => hardpoint.Transform == "g0"), g1);
+
+        var rig = Assert.Single(ShipModPlan.Build(ship.Hull, ship.Visual).Rigs);
+
+        Assert.Equal(("g1", "g1.muzzle"), (rig.LeadMount, rig.LeadMuzzle));
     }
 
     [Fact]
