@@ -162,12 +162,11 @@ public sealed class LockWarningTests : IDisposable
 
         Aim(locker, b);
         Tick(dt);
-        Assert.Equal(expectedLock, LauncherOf(locker).Lock, 4);
+        // A full lock fires the launcher and spends the lock, so the emitter's own Lock is read only below it.
+        if (expectedLock < 1f) Assert.Equal(expectedLock, LauncherOf(locker).Lock, 4);
         Tick(0f);
 
-        var strength = Assert.Single(b.IncomingLocks).Strength;
-        Assert.Equal(expectedLock, strength, 4);
-        Assert.Equal(LauncherOf(locker).Lock, strength, 4);
+        Assert.Equal(expectedLock, Assert.Single(b.IncomingLocks).Strength, 4);
     }
 
     // The lock's progress terms: direction (lerp ^ DirectionImpact) and sensor info (info ^ SensorImpact), each
