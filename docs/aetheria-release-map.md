@@ -5835,6 +5835,26 @@ factor), which waits on all of them.
   a smaller step means more decisions per sim second, the same per real second. No ruling
   fixes a per-step count.
 
+**Body facts for ballistic-flight r2** (source reads at e56f9c8b, 2026-10-09, imagination-aeth-ballistic-r2):
+
+- B-r2-1. FireControl.Step writes a committed shot back (`shots[i] = shot`, FireControl.cs:868) before `ShotCommitted` fires (:869). A no-lock fused round stopped by a hull has its `ArrivalTime` shortened at that commit (:867; CommitBurst :1024). A presenter's fire-time copy of the shot therefore carries a stale arrival unless it re-reads the record at `ShotCommitted`.
+- B-r2-2. `FireControl.Designated` measures `range` to any non-null target before the in-range test (:293-297), and a direct round's FlightDistance is that range. A direct round can therefore be fired at a target beyond Range and arrive after `FireTime + MaxRange/Speed`.
+- B-r2-3. `InstantWeapon.Execute` calls `FireControl.Fire` and then `OnFire` (:271-272) inside the entity loop, and `FireControl.Step` runs after it (Zone.cs:232). A presenter spawned from `OnFire` binds `ShotCommitted` and `ShotResolved` before its shot can commit or resolve, including a round fired at nothing that commits and misses in the same step.
+- B-r2-4. Solve aims a direct or engaged fused round at the predicted intercept (`Solution().Direction`, :135-156) but sets FlightDistance to the current planar range (:654-666), so on a moving target the arrival point on the frozen line is not where the target is. Open as question direct-arrival-at-intercept.
+
+**Why a round's end is one sim statement.** The sim resolves a round at `ArrivalTime`. A drawn round that ends anywhere else needs a second owner of the end, which is what ballistic-flight s1 found in Projectile. `FireControl.RoundEnd(shot, known)` states the end for what the sim has published about the outcome: arrival for a hit, a burst or an unknown outcome, and the frozen weapon range for a miss, never short of arrival. `RoundAt` clamps there. A round whose outcome is not yet published waits at its arrival point for at most one step instead of overshooting. The drawing rules (placement, barrel blend, stop, done) are pure statics in DrawAhead, beside the ships' draw-ahead, so the headless suite tests them by behaviour rather than by grep.
+
+**Ballistic flight is presentation (r3, 2026-10-09).** After rulings projectile-flight-is-presentation, sim-hooks-presentation-agnostic and direct-arrival-keep-timing, FireControl owns only a shot's facts: the outcome, when damage lands (ArrivalTime, a contact burst's shortened arrival, the commit tick), the impact cell with its target, and a fused round's burst point. DrawAhead owns the drawn round, as pure statics tested headless.
+
+Probes at d98818ea:
+(1) The impact cell is already on the outcome: on a hit, Commit stores the first cell of the shot's lane (FireControl.cs:960-988), MakeOutcome copies Cell and Target (:1527-1544), and ShotCommitted and ShotResolved publish the outcome (:881, :894). No sim hook was needed.
+(2) Entity.ToWorldPoint (Entity.cs:717-725) is the one schematic-to-world frame. The step turns Direction by `mul(Direction, float2x2.Rotate(TurnRate*dt))` (Thruster.cs:129), so the cell on the drawn pose is `Position(target, lead).xz + Rotate(ToWorldPoint(cell) - Position.xz, TurnRate*lead)`, exactly.
+(3) The commit tick equals `record.ArrivalTime - outcome.ArrivalIn` for every result (:877-881, :1541).
+(4) An engaged proximity round is Hit or Burst, never Miss; it bursts at BurstPosition frozen at Fire (:1009-1017, :1148-1150), and it is drawn there.
+(5) A target that leaves the zone mid-flight resolves as a fresh Miss (:857-868).
+
+Rationale: a hit follows its frozen line until the commit tick, then blends onto its impact cell on the target's drawn pose, so it lands on the hull rather than at the frozen line's arrival point. The sim's damage timing is unchanged. A miss flies on to the weapon's frozen range, which is DrawAhead.RoundEnd's choice. A kink at the commit frame (at most one step's share of the line-to-hull gap) and a snap back to the line after a target-gone Miss are accepted presentation. Rejected: publishing the lane's entry point as a new sim field; the ruling names the cell, so a hit effect may sit up to half a cell inside the hull skin. Risk: a hull mesh not aligned with its schematic makes hits land beside the mesh; that is a content fault, and the operator's moving-target check shows it.
+
 ### Census
 
 Every Unity-side place that integrates, times or decides a sim fact at `6d427b7a`, and the cut
@@ -7073,6 +7093,66 @@ That file's Cut 4 (AI heading planner) and Cut 5 (combat facing) are carried as 
   allocator's input and rewrites throttle-lock's two mixer-shaped tests in allocator terms. One owner of
   `Ship.Update`'s thruster block at every step.
 
+### Revision: translation error costs linearly (core r2)
+
+Pass: Imagination, session `self-2026-10-09-morning`, after Hands stopped on `cut-thrust-allocator-core.r1`
+(question `allocator-translation-cost-l2-has-no-onset`, ruling `allocator-l1-translation-cost`, operator
+ruling `turn-authority-full`). Probes ran the real `CultMath.BoundedLeastSquares` (CultLib `614fd445`, the
+pinned 0.3.0) in a scratch console on Yggdrasil, logs `l1probe1.log` to `l1probe3.log` in the session
+scratchpad (`imag-allocator-r2`). Column sets: TA3 (Duel Longinus); TA3 with the clockwise Talaria zeroed;
+a symmetric Djinni-like hull (mains (0,50,+-20), fore laterals (+-20,0,+-80), aft laterals (+-20,0,-+60),
+bow (0,-30,0)); drives 0.3% apart for the tiny-imbalance hold.
+
+- **TA10. A squared translation cost has no onset** (Hands' probe, confirmed): r1's TA-R2 mixes the
+  drive into a turn from Turn 0 for any weights, so it cannot meet `turn-authority-full`.
+- **TA11. The split form works only when the solver resolves it.** Variables: throttles and four error
+  variables e+x, e-x, e+y, e-y in [0,2]; rows H*(B_r u / s_r - e+ + e-) = H d_r / s_r, the yaw row
+  Wy * B_z u / s_z = Wy d_z / s_z, a cost row w*e = -w*kappa per error variable (linear slope
+  L = 2 w^2 kappa, quadratic part at most e/(2 kappa) of it), a ridge row rho*u per throttle.
+  At the solver's fixed KKT tolerance (1e-6 of the gradient at the origin) every one of 84 settings in two
+  grids failed somewhere: Hands' (H 300, Wy 1, w .01, kappa 2, rho .01) and the first choice (H 100, Wy 10,
+  w .01, kappa 10, rho 1e-3) gave all-zero throttles for move (0,1) and for a strafe, because the cost
+  signal L is below the tolerance against the H^2 and Wy^2 terms; larger L settings served translation
+  but gave throttles that depended on the warm start by up to 0.62 (ties the ridge cannot resolve below
+  the tolerance). The chain the form needs, tolerance << rho^2 << L << H^2, Wy^2, with L/H^2 about 1e-4
+  for a sharp onset and L/Wy^2 about 1e-6 for the hold, spans more than the 1e6 that tolerance leaves.
+- **TA12. With the tolerance at 1e-12 everything holds** (`l1probe3.log`, same grid, scratch change of
+  the constant): warm-start difference 0 in every setting, IterationLimit never reached, at most 10
+  iterations. Chosen H 100, Wy 1000, w .3, kappa 10, rho .1:
+
+  | Check | Result |
+  |---|---|
+  | Duel onset, clockwise / counter-clockwise | .772 / .691 (columns: 166.26/215.50 = .7715, 124.63/180.49 = .6905) |
+  | Duel, clockwise Talaria lost | drive from Turn > 0, Turn .1 gives drive .0999; Turn 1 gives 49.23 deg/s |
+  | Symmetric hull | no translation up to Turn .88 (pure-torque pairs, then mains cancelled by the bow); strafe .95 of the extreme |
+  | Hold, forward, yaw rate (deg/s) | intact -.0003, strong drive off .0003, weak drive off -.0002, drives .3% apart .0003 |
+  | Forward served, move (0,1) | 1.000 of the forward extreme |
+  | Largest throttle step per .001 of Turn over [-1,1] | .0133 (the steepest column ratio; Duel's drive slope is .0044) |
+  | Largest yaw residual in the sweeps | .0006 deg/s |
+  | cond(A), estimated from A^T A | 1.0e4; the solver documents exact results through 3e5 |
+
+  Neighbouring settings fail one check each: H 30 leaks the drive at Turn .001; w 1 or 3 leaks it at
+  .0014 throttle before the onset (L/H^2 too large); rho .03 makes throttles jump up to .12 per .001 of
+  Turn (near-ties resolved too steeply); Wy 300 lets the hold drift .003 deg/s.
+- **TA13. The Duel Longinus does not strafe.** Under the linear cost a starboard strafe would need the
+  counter-turning drive at full to hold heading, which costs more forward error than the strafe gains,
+  so move (1,0) gives no throttle. Today's mixer gives none either (TA4). The symmetric hull strafes.
+
+Rationale changes:
+
+- **The solve keeps one call; the tolerance is the solver owner's to expose.** CultMath's
+  `BoundedLeastSquares.Solve` gets an optional relative KKT tolerance (default unchanged, 1e-6), filled in
+  CultLib, never worked around in Aetheria; the allocator passes 1e-12 and relies on the solver's
+  progress rule to stop at its noise floor. Follow-up `cultmath-bls-kkt-tolerance` carries it; Aetheria
+  takes it by a pin bump in the core cut's first commit.
+- **The onset is an ordering, not a label.** Under a linear cost the actuator with the least normalised
+  translation per unit of turn serves first and the next joins only when it saturates; on the Duel that
+  is the Talaria, so the onset is the Talaria's share of the turn extreme and moves with the columns
+  (damage, heat, brownout). Nothing classifies a thruster as attitude or drive.
+- The bullets "One solve with a large yaw weight" and "The ridge" above describe r1 and are superseded
+  by this revision: the yaw weight is 1000 against a ridge of .1, and uniqueness of the answer depends on
+  the tolerance as well as the ridge.
+
 ## Spec refresh 2026-10-09: scarce consumables, the fog bank, multiply, tiered boosters, the shipped AetherDb
 
 Pass: Imagination `imagination-spec-refresh`, session `self-2026-10-09-morning`, follow-up
@@ -7248,3 +7328,444 @@ vapour-cloud-presenter r2, modifier-stacking r3 (shrunk to tests), consumables-f
 follow-up; reshaped by `consumables-scarce`), boost-gear-systems r2 and boost-gear-combat r2 (held),
 ships-authoring-tool r2, ships-player r3. New: cut player-build r1, follow-up
 `component-records-after-demo`. No question raised.
+
+## Articulated mounts
+
+Mapped 2026-10-09 by Imagination (`imagination-aeth-articulated`, session `self-2026-10-09-ag`) for follow-up
+`articulated-mounts`, against `origin/master` `6d83597b`. Re-mapped 2026-10-10 by Imagination
+(`imagination-aeth-articulated-r2`, session `self-2026-10-10-ag`) against `origin/master` `acea1aa7`, after the
+operator's rulings `mount-arc-gun-traverse` (arc on the hardpoint, traverse on the weapon, the link presentation
+only; it supersedes `arc-on-the-hardpoint`, which superseded `arc-and-traverse-on-the-link`) and
+`solver-in-gamecult-animation`. Rulings in force: `mount-arc-gun-traverse`, `rig-is-presentation`,
+`solver-in-gamecult-animation`, `sim-hooks-presentation-agnostic`, `projectile-flight-is-presentation`,
+`ship-roles-are-tags`, `thrusters-radiators-are-meshes`. AM1-AM11 were probed at `6d83597b`; AM12-AM17 at
+`acea1aa7`. Every anchor in the specs is exact at `acea1aa7`. Where AM1-AM11 speak of links, read them as the
+2026-10-09 model; AM12-AM17 and everything after them are the live model.
+
+**Scope tension for Self.** Target r4's `not_in_scope` lists "articulated mounts". The operator asked for this work
+(her hermit-crab hull carries its big gun on a jointed arm). The target needs a revision that takes articulated
+mounts out of `not_in_scope` before Hands is briefed.
+
+### Body facts
+
+**AM1. Arc is per hardpoint today, not per weapon.** `FireControl.ArcFor` (`FireControl.cs:36-41`) reads
+`HardpointData.FiringArc` (`ItemData.cs:567-569`, key 6) when above zero, else `GameplaySettings.FiringArc`
+(`Settings.cs:222`, initializer 120). `InArc` (`:50-58`) passes 360 or more unconditionally. The only shipped writer
+was `AetherDb firing-arc-migrate` (`tools/AetherDb/Program.cs:998-1047`), which set 360 on the Turret hull's
+Ballistic hardpoints. Twenty-three hardpoint initializers author `FiringArc`, all in tests (`git grep -nE
+"[{,] *FiringArc = |^ +FiringArc = "` over tests, Assets/Scripts and tools: 23), and eight accessors read or write
+it (`hardpoint\??\.FiringArc|Mount\(s\)\.FiringArc|Hardpoints\[0\]\.FiringArc`: 8). The brief's "per weapon,
+default 120, turret 360" is this per-hardpoint rule.
+
+**AM2. Traverse is not simulated; it only prices.** `Solution` (`FireControl.cs:128-152`) says turrets traverse
+instantly in the simulation and that link traverse "will make this stateful behind the same signature".
+`TrackingRate` (`:238-245`) is the gun's `Weapon.Tracking` times the ship's targeting gear over `UnaidedTracking`,
++infinity for an unauthored gun, and only `PMount` reads it (`:383`, `:427`, `:720`). Follow-up
+`articulated-mount-traverse-min` puts the link's traverse inside `TrackingRate` as the slower of the two. These cuts
+add no slew state: arc and aim stay derived on every read.
+
+**AM3. The visual record reserves a pivot role nobody uses.** `ShipAuthoringStore.Roles` (`ShipAuthoring.cs:50-58`)
+includes `articulation`, "a pivot, never a mount". No add-on code tags it, and `ShipModShips.Assemble` gives every
+mod ship `ArticulationPoints = Array.Empty<ArticulationPoint>()` (`ShipModShips.cs:164`). The authoring doc says no
+pivot is planned "until pivots move onto `HullData`" (`docs/moddable-ship-authoring.md:188-189`).
+
+**AM4. `ArticulationPoint` is one yaw/pitch pivot with no yaw clamp.** `ArticulationPoint.cs:9-48` slews yaw and
+pitch toward `Target` at `Speed` and clamps only pitch. `ShipPrefabAuthoring.cs:139-149` parses
+`Pivot.Group.YawMin.YawMax.PitchMin.PitchMax.Speed` but stores no yaw limit, so the Controls section's C9 line
+("clamps yaw to YawMin..YawMax") is wrong on this base. A single pivot needs no IK. `EntityInstance.cs:282-289`
+gives each articulation group an aim transform, and `LateUpdate` places it (`:410-417`) from
+`FireControl.Solution(...).Direction` of the group's first weapon. A link presenter follows that read. The Eyes IK
+report (AM11) found the same two facts.
+
+**AM5. The GLB path maps every node that carries `aetheria.id`.** `ShipModCatalog.ReadNodeIds`
+(`ShipModCatalog.cs:195-218`) reads node extras, refuses a duplicate id and records whether the node has a mesh; it
+keeps no parent relation. `Bind` (`:168-191`) checks each anchor's node. `ShipModVisual.LoadAsync` maps anchors to
+Transforms through glTFast's instantiator (`ShipModVisual.cs:51-54`). A joint is an ordinary glTF node, so the same
+map reaches it once it carries an id.
+
+**AM6. Probe: the add-on's export keeps an armature, its skin and data-bone extras.** Run on Starfire 2026-10-09
+with Blender 5.2.2 LTS at `C:\Program Files (x86)\Steam\steamapps\common\Blender\blender.exe`
+(`--background --factory-startup`). Script `probe_rig_export.py` in the session scratchpad
+(`...\scratchpad\imagination-aeth-articulated\`). It builds a collection with a hull cube; an armature
+Shoulder > Elbow > Wrist; a cylinder skinned to Wrist through an Armature modifier; an empty `weapon-mount`
+parented to the Wrist bone (`parent_type = BONE`) with a muzzle child; a Limit Rotation constraint on Elbow; and
+custom properties on the Wrist data bone (`aetheria.role=link`, `aetheria.id=link.claw`) and on the Wrist pose bone.
+It exports with the add-on's options (`__init__.py:359-361`: GLB, `use_active_collection`, `use_selection`,
+`export_extras`, `export_yup`, `export_apply`). Result:
+- One skin with joints `Shoulder, Elbow, Wrist`; the barrel node has `skin: 0` and a mesh. `export_apply` did not
+  bake the armature away.
+- Joints are ordinary nodes in the hierarchy (`Arm > Shoulder > Elbow > Wrist > ClawGun > ClawGun.Muzzle`): the
+  bone-parented empty is a child of the Wrist joint node and keeps its extras.
+- Data-bone custom properties export as the joint node's `extras` (`Wrist` carried `aetheria.role` and
+  `aetheria.id`). The pose-bone property did **not** export. A tag set by hand in Pose Mode's custom-properties
+  panel is lost; the add-on must write data-bone properties.
+- The Limit Rotation constraint left no trace in the GLB (no extension, no extras). glTF carries no joint limits,
+  so the add-on must package them.
+- The armature object's own custom property exported as extras on the `Arm` node.
+
+**AM7. The ship file carries unknown slots through.** `ship_cc.replace_layout` (`ship_cc.py:161-195`) and
+`replace_visual` (`:116-140`) append each row's slots past the known members by mount or anchor id, and edit only
+their own slots. `ShipSchemaPinTests` pins the Python slot numbers and member orders to the C# keys and asserts
+`HARDPOINT_MEMBERS` has 7 names. A C# cut that adds `HardpointData` key 7 or `HullData` key 33 therefore needs no
+Python change: the add-on carries both untouched until the add-on cut names them.
+
+**AM8. The schema version string is not a gate.** CultCache resolves a persisted record by schema name when the
+local type has one version (CultLib `src/GameCult.Caching/CultCache.cs:518-523`). `aetheria.hulldata` and
+`aetheria.ship_authoring` are both `"1"` (`ItemData.cs:510`, `ShipAuthoring.cs:12`). Bumping either buys no
+refusal. A retired slot is guarded by a raw-payload refusal instead, as `RefuseLegacyEmbeddedHull`
+(`ShipAuthoring.cs:124-151`) guards ShipAuthoring key 1. Every cut here keeps both versions at `"1"`.
+
+**AM9. Calibre is a footprint band, held only in a test so far.** `WeaponItemData.WeaponCaliber`
+(`ItemData.cs:482-483`) runs Small to ExtraLarge (`Enums.cs:77-83`). Cut `caliber-bands` (unlanded) states the bands
+(Small 1-2 cells, Medium 3-4, Large 5-6, ExtraLarge 7-9) only inside its test. No balance source names an arc cap
+per calibre: AetheriaLore `Game Design/Ship Play Concepts.md` fork 2 (line 24, read in the ship-language
+worktree) gives the trade without numbers.
+
+**AM10. In-flight add-on specs that touch arcs.** Among in-force specs with no report, only `ships-addon-gizmos` r3
+(arc fan from the row's arc) and `ships-addon-mounts` r5 (row defaults include `FiringArc`; a negative grep on
+`.firing_arc =`) name a hardpoint arc. `controls-hud` r2, `controls-ai-bearing` r1 and `munition-shots` r5 read
+`ArcFor` or `TrackingRate`, whose signatures these cuts keep.
+
+**AM11. Eyes prior art on IK** (`C:\Users\Meta\AppData\Local\Temp\claude\F--Projects-CultLib\f24b705c-99b0-4915-8cd0-d31d652edbbf\scratchpad\eyes-ik-prior-art\ik-prior-art.md`).
+Damped least squares, min `||[J; lambda I] dtheta - [e; 0]||^2` with the joint bounds as the box, has exactly the
+form of CultMath's existing `BoundedLeastSquares`. Every engine Eyes checked (Unity Animation Rigging, Godot 4.6,
+Unreal Control Rig) keeps IK in the animation layer; none was found in a math library. Aim-an-axis leaves twist
+about the aim free, so a chain aims with two effective degrees of freedom.
+
+**AM12. The sim already matches ruling `mount-arc-gun-traverse`; no sim cut is owed.** Probed at `acea1aa7`.
+Arc: `HardpointData.FiringArc` (`ItemData.cs:567-569`, key 6) is the per-hardpoint, per-hull arc, and
+`FireControl.ArcFor` (`FireControl.cs:34-41`) reads it, falling back to `GameplaySettings.FiringArc` (120) at 0.
+Traverse: `WeaponData.Tracking` (`Behaviors/Weapon.cs:70-73`, key 33, degrees per second, +infinity when
+unauthored; ruling `weapon-tracking-authored`) is a weapon stat, and `FireControl.TrackingRate`
+(`FireControl.cs:239-245`) is that rate times the ship's targeting gear. Nothing reads a link, and no `LinkData`,
+`HullLinks` or `HardpointData.Link` exists (`git grep` over Assets, tests and tools: 0). The only stale text is the
+comment at `FireControl.cs:133-134`, which says traverse belongs to the link and cites the superseded ruling.
+`ShipAuthoring.cs`, `ShipModCatalog.cs`, `ShipModPlan.cs`, `ItemData.cs`, `ShipModVisual.cs`, `ShipModShips.cs`,
+`EntityInstance.cs`, `CultCacheDrawers.cs`, `tools/blender`, `docs/moddable-ship-authoring.md` and the ship tests
+are byte-identical between `6d83597b` and `acea1aa7` (`git diff --stat`); `FireControl.cs` gained 9 lines, all
+below line 755.
+
+**AM13. Shipped traverse falls with calibre already.** Probe `probe_track.py` (scratchpad
+`imagination-aeth-articulated-r2`, cultcache-py over `GameData/Aetheria.cc` at `acea1aa7`), `WeaponData.Tracking`
+per weapon item: Small guns 1.5 to 40 degrees per second (ClearPath 12, Earp 8, Spectra 10, ColdFire 6, the two
+point-defence guns 40, RainbowLite 1.5); Medium guns 3 to 20 (Autocannon 4, ChargeBlast 3 and 3.5, Flak 20); the
+one Large gun (plight) 2; launchers and the mine launcher +infinity. Twenty-two weapon items in all.
+
+**AM14. Shipped hardpoints and arcs.** Probe `probe_arcs.py` (same scratchpad): the catalog holds four hulls. Only
+the Turret hull authors an arc: its two Ballistic hardpoints, 8 cells each (2x4, the ExtraLarge band), at 360. Ship
+hulls carry weapon hardpoints of 2 cells (Energy, Ballistic) and 3 or 6 cells (Launcher), all at `FiringArc` 0, so
+the default 120 applies. Cut `caliber-bands` (unlanded) states the bands Small 1-2 cells, Medium 3-4, Large 5-6,
+ExtraLarge 7-9 only in its test (AM9).
+
+**AM15. What CultMath has for the rig today.** `F:\Projects\CultLib\packages\cultmath\src\CultMath`, read
+2026-10-10: `quaternion` (`quaternion.cs`) is a plain struct with `identity`, `LookRotation(forward, up)` and float4
+conversions; `math.normalize(quaternion)` (`math.cs:225-235`) is the only quaternion operation. There is no
+quaternion product, conjugate, axis-angle constructor, vector rotation by a quaternion, slerp, swing-twist split or
+joint clamp. `BoundedLeastSquares.Solve(m, n, a, b, lo, hi, x, workspace, out iterations, ...)` minimises
+`||A x - b||^2` in a box, dense and allocation-free, with `WorkspaceLength(n)`. That is the solve AM11 names.
+
+**AM16. A moving part needs no record of its own.** The joint tree (AM6: bones export as ordinary nodes with their
+data-bone extras) already says which moving part a weapon mount rides: the nearest joint above the mount's node.
+A tag on that bone adds nothing the hierarchy does not say, and the arc and traverse the link record carried now
+live on the hardpoint and the weapon (AM12).
+
+**AM17. The add-on chain under these cuts is unlanded.** Specs `ships-addon-frame` r5, `ships-addon-mounts` r5 and
+`ships-addon-mesh-mounts` r1 have no report; `tools/blender` at `acea1aa7` is the pre-r5 add-on (`_save_layout`
+absent; Save Layout writes `FiringArc` from the panel's `firing_arc`, `__init__.py:43`, `:111`, `:174`, `:458`).
+The add-on specs below are anchored at `acea1aa7` and name the region to re-find once that chain merges.
+
+### Model page
+
+| Kind | Identity | Lifecycle | Authority |
+|---|---|---|---|
+| Hardpoint arc (`HardpointData.FiringArc`, key 6, unchanged) | The hardpoint's mount id (`Transform`) on its hull. 0 is a fixed mount at `GameplaySettings.FiringArc`. | Authored per hull in the add-on's panel (or Studio for a shipped hull) and written by Save or Package. A package edited after a save changes the arc a run's guns use on Continue; it moves no cell, so it adds nothing to `mod-hull-changed-under-run`. | The ship author. `ShipAuthoringStore.Validate` judges it finite and non-negative and, for a mount on a joint, positive and within the joint chain's yaw reach. `FireControl.ArcFor` is its one reader. |
+| Traverse (`WeaponData.Tracking`, key 33, unchanged) | A stat of the weapon item. | Authored per weapon design; any gun goes on any mount (ruling `mount-arc-gun-traverse`). | The weapon designer. `FireControl.TrackingRate` prices it; the rig presenter slews the picture at the same rate. |
+| Joint (`ShipJoint` in `ShipAuthoring.Joints`, key 5) | Its bone's `aetheria.id`, which is its GLB node id. Package assigns `joint.<n>` once to a data bone on a weapon mount's chain and keeps it there. | Re-rigging changes only the visual record; every Package and compose judges it again. No save, sim fact or catalog record names a joint. | The author's Blender bone IK settings (lock, limit, min, max), copied by Package. Validate judges the tree and the reach; Bind judges it against the GLB. No joint feeds a sim fact (ruling `rig-is-presentation`). |
+| A mount's joint (`ShipAnchor.Joint`, key 5) | On a `weapon-mount` anchor only: the nearest joint above the mount's node; empty for a fixed mount. | Derived at Package from the mount's bone ancestry, as mounted `Position` is derived from the object. Re-parenting in Blender changes it at the next Package. | The Blender hierarchy; Package derives it; Bind refuses a GLB whose hierarchy disagrees. No panel or Studio edit writes it. |
+| Rig (the Unity `MountRig`, one per driven joint) | The driven joint's id. | Cache-only: built with the prototype at boot from `ShipModPlan.Rigs` and the rest pose. | Writes only its joints' Transforms. Reads the lead weapon's `GunSolution.Direction` and `TrackingRate`. |
+
+A driven joint is a joint some weapon-mount anchor names. Its chain is that joint and its ancestors up to, not
+including, the nearest ancestor that is itself driven, so a turret on a turret solves as two chains and the outer
+chain never moves under the inner gun's solve.
+
+**C4 (follow-up `c4-ship-element-ids`).** No link element kind exists for variants: a variant that narrows a gun's
+arc is a hardpoint tail-slot patch on `FiringArc`, by mount id, which C4 already plans.
+
+### Authority map
+
+- **Owner.** The hardpoint owns its arc (`FiringArc`), per hull. The weapon owns its traverse (`Tracking`). The
+  Blender hierarchy owns which joint a mount rides, derived into `ShipAnchor.Joint` at Package. The bone IK settings
+  own the joint limits, packaged into `ShipAuthoring.Joints`. FireControl owns the aim (`GunSolution.Direction`).
+- **Sim inputs.** `HardpointData.FiringArc` and `WeaponData.Tracking`, as on `acea1aa7`. Nothing the rig adds.
+- **Outputs.** `ArcFor`, `InArc`, `AimDirection`, `Solution` and `TrackingRate`, unchanged. Presentation reads the
+  lead weapon's `GunSolution.Direction` and `TrackingRate`.
+- **Derived.** `ShipAnchor.Joint`, from the hierarchy. A driven joint's chain, from the joint tree. Yaw reach, from
+  the chain's degrees of freedom. The rigs and their `AimChain`s (cache-only).
+- **No longer owners.** The link is not a record: `LinkData`, `HullData.Links`, `HardpointData.Link`, the Tag Link
+  operator and link rows are not built (cuts `links-record`, `links-arc`, `ships-addon-link-rows` withdrawn).
+  `FiringArc` is not retired (cut `retire-firing-arc` withdrawn). The `articulation` role is cut; a joint is not an
+  anchor.
+- **Forbidden writers.** No joint limit, bone length, IK result or Unity transform feeds `ArcFor`, `TrackingRate`
+  or any sim fact. No panel or Studio edit writes `ShipAnchor.Joint`. No helper invents an arc. The add-on keeps no
+  copy of `GameplaySettings.FiringArc`.
+- **Shared paths.** Validate's reach check and `ShipModPlan.Rigs` define a chain through one helper. Package and
+  the gizmo drag derive a mount's place through the same hull_grid functions.
+
+### Rationale
+
+**A moving part is a joint, not a record.** The operator ruled the link carries no sim stat (AM12). What remained
+of it was a tag and a row holding nothing but an id. The joint tree already says which part a mount rides (AM16),
+so the record keeps only what the presenter and the judge need: the joints with their limits, and on each weapon
+mount the joint it rides. Moving parts come from armature bones only. A turret built from plain objects is a
+one-bone armature; there is no object-link path, so joints have one source.
+
+**A bone with no free axis is not a joint.** Package turns a chain bone into a joint only when its IK settings
+leave at least one degree of freedom. A gun on a fully locked bone has no joint above it and is a fixed mount at
+its own arc, the default included.
+
+**A gun on a joint states its arc.** The judge checks the chain's yaw reach against the arc, and the judge has no
+`GameplaySettings` (the default is a game setting, and the add-on keeps no copy of it either). So a weapon whose
+mount rides a joint must author `FiringArc` above 0. Weapons on one joint share one `Rotation` and one `FiringArc`,
+because the lead weapon's aim moves them all.
+
+**The reach check is yaw only, and conservative** (unchanged from 2026-10-09). The sim is planar. A chain covers the
+arc when the summed ranges of its degrees of freedom whose axis lies within 5 degrees of Ship Root up reach the
+arc, capped at 360. Serial parallel axes add, so the sum is exact for the arms the add-on makes. A chain whose yaw
+comes only from tilted axes is refused with a message naming the joint.
+
+**Joint limits come from Blender's bone IK settings, not from Limit Rotation constraints** (unchanged). Blender's
+own IK honours `lock_ik_*`, `use_ik_limit_*` and `ik_min_*`/`ik_max_*`; glTF carries no constraint (AM6).
+
+**The presenter slews at the weapon's traverse.** It turns its aim toward the lead weapon's
+`GunSolution.Direction` (already arc-clamped by the sim) at most `FireControl.TrackingRate(lead, entity)` degrees
+per second, the rate the sim prices the angular term with. +infinity is no slew. The sim stays stateless.
+
+**No Aetheria-side solver port.** Ruling `solver-in-gamecult-animation` puts the solve in a pure CultLib package.
+The presenter calls that package's API; an Aetheria interface with one implementation would be a second surface
+buying nothing a pure, headless-testable library does not already give.
+
+**Calibre and arc.** The operator's own examples put a heavy gun on a wide arc (the crab's claw) and a light gun in
+a narrow port, and her ruling says calibre caps are enforced "if at all". The shipped Turret's ExtraLarge
+hardpoints sweep 360 (AM14), and the weapon's traverse already falls with calibre (AM13), which prices a heavy gun
+on a wide arc through `TrackingRate`. Question `hardpoint-arc-caps` puts the choice to her with no-cap recommended.
+Under no-cap, follow-up `caliber-bands-one-table` is moot: the band table stays in `caliber-bands`' test, its only
+reader. Under either cap option the judge reads the bands, so they become one table in ServerShared and that test
+reads it.
+
+**Thrusters on joints stay a follow-up.** A gimballed thruster changes where thrust points, which is a sim fact the
+thrust allocator does not model. Validate refuses `ShipAnchor.Joint` on any non-weapon anchor and Bind refuses a
+thruster or radiator node under a joint, both naming follow-up `gimballed-thrusters`.
+
+### The rig's interface to GameCult.Animation and CultMath
+
+This is what `link-rig-presenter` calls; a later cultlib-gaps pass maps the cuts that provide it. Types and
+operations only. Angles are radians at this API (the record's degrees convert once, when the presenter builds its
+chain).
+
+CultMath (`quaternion`, `float3`; pure and allocation-free):
+- `math.mul(quaternion a, quaternion b) -> quaternion`, composing in the Unity.Mathematics convention (`mul(a, b)`
+  applies `b` first).
+- `math.rotate(quaternion q, float3 v) -> float3`.
+- `math.conjugate(quaternion q) -> quaternion` and `math.inverse(quaternion q) -> quaternion`.
+- `quaternion.AxisAngle(float3 unitAxis, float radians) -> quaternion`.
+- `math.slerp(quaternion a, quaternion b, float t) -> quaternion` (shortest arc).
+- Swing-twist and joint clamps, which the ruling also gives CultMath. The presenter does not call them (its degrees
+  of freedom are per-axis boxes); GameCult.Animation may: `math.swing_twist(quaternion q, float3 unitTwistAxis, out
+  quaternion swing, out quaternion twist)`, `math.clamp_hinge(quaternion q, float3 unitAxis, float min, float max)
+  -> quaternion`, `math.clamp_cone(quaternion swing, float3 unitAxis, float maxAngle) -> quaternion`,
+  `math.clamp_twist(quaternion twist, float3 unitAxis, float min, float max) -> quaternion`.
+
+GameCult.Animation (a new CultLib package, netstandard2.1, depending only on CultMath, and published as a UPM package
+`org.gamecult.animation` beside `org.gamecult.cultmath` so Aetheria's `Packages/manifest.json` pins it the same way):
+- `AimJoint { float3 RestPosition; quaternion RestRotation; }`: rest offset and rotation relative to the previous
+  joint (the first relative to the chain root's frame).
+- `AimDof { int Joint; float3 Axis; float Min; float Max; }`: a unit axis in that joint's local frame and its bounds.
+- `AimEffector { float3 Offset; float3 Axis; }`: the muzzle's offset and unit aim axis in the last joint's frame.
+- `AimChain.Create(ReadOnlySpan<AimJoint> joints, ReadOnlySpan<AimDof> dofs, AimEffector effector) -> AimChain`:
+  validates (finite values, unit axes within a tolerance, `Min <= Max`, `Joint` ascending and in range) and throws
+  `ArgumentException` naming the field, never the value. Exposes `JointCount` and `DofCount`.
+- `AimChain.WorkspaceLength(in AimChain chain) -> int`.
+- `AimChainSolver.Solve(in AimChain chain, ReadOnlySpan<float> current, float3 targetDirection, Span<float> next,
+  Span<float> workspace) -> AimSolveStatus` (`Converged`, `IterationCap`, `InvalidInput`): turns the effector's aim
+  axis toward `targetDirection` (chain root frame) by damped least squares over `BoundedLeastSquares`, every angle
+  in `next` inside its `[Min, Max]`, twist about the aim left free; deterministic, allocation-free, warm-started from
+  `current`.
+- `AimChain.Pose(in AimChain chain, ReadOnlySpan<float> angles, Span<quaternion> localRotations)`: each joint's
+  local rotation, its rest rotation times the product of its degrees of freedom's axis-angle rotations in DOF order.
+- `AimChain.EffectorDirection(in AimChain chain, ReadOnlySpan<float> angles) -> float3`: the aim axis in the chain
+  root's frame (forward kinematics), for tests and the presenter's settled check.
+
+Aetheria keeps the glTF-to-Unity axis conversion (`JointAxes.ToLocal`, ServerShared, pure), the slew (planar angle
+arithmetic over the existing `math.atan2` and `math.rotate(float2, radians)`), and the `UnityEngine.Quaternion`
+conversion at the Transform write.
+
+### Cut order
+
+1. `link-rig-record` r3, no dependency: the joint record, the judge's rig rules, Bind's GLB checks,
+   `ShipModPlan.Rigs`, and the stale FireControl comment. **First.**
+2. `ships-addon-gizmos` r6 after `ships-addon-mesh-mounts`: arc fans from the row's `FiringArc`.
+3. `ships-addon-link-package` r3 after `link-rig-record`, `ships-addon-mounts` and `ships-addon-mesh-mounts`:
+   Package writes the joints and each weapon mount's joint.
+4. `link-rig-presenter` r2 after `link-rig-record`, `ships-addon-link-package`, and the CultLib release carrying the
+   interface above (cultlib-gaps), pinned.
+5. `link-calibre-judge` r2: blocked on question `hardpoint-arc-caps`; withdrawn if she rules no-cap.
+
+Withdrawn: `links-record` r1, `links-arc` r1, `retire-firing-arc` r1, `ships-addon-link-rows` r1, and question
+`calibre-arc-caps`.
+
+### Admitted
+
+2026-10-09 (`imagination-aeth-articulated`): receipts `mind-commit-b0c6b373...`, `mind-commit-c00a16b5...`,
+`mind-commit-08fce00f...`, `mind-commit-06e09a45...`.
+
+2026-10-10 (`imagination-aeth-articulated-r2`): receipts `mind-commit-0b2e932e...` (withdrew links-record r1, links-arc r1,
+retire-firing-arc r1, ships-addon-link-rows r1; link-rig-record r3; ships-addon-gizmos r6),
+`mind-commit-0c23fa01...` (ships-addon-link-package r2, link-rig-presenter r2, link-calibre-judge r2, question
+`hardpoint-arc-caps`, withdrew question `calibre-arc-caps`) and `mind-commit-40788d58...` (ships-addon-link-package r3,
+r2's arm smoke pins fixed). context-pack read every anchor SAME at `acea1aa7`.
+
+## Vectored thruster rows
+
+Pass: Imagination (`imagination-aeth-vectoring`), session `self-2026-10-10-ag`. Body: `GameCult/Aetheria` origin/master
+`30d02719`; the allocator at `1fc98bdc` (branch `eureka/aetheria-release-thrust-allocator-core`, read-only, a fix
+batch in flight); the rig record at `562de34c` (branch `eureka/aetheria-release-link-rig-record`, Soul pass running);
+CultMath `BoundedLeastSquares` at CultLib origin/main `50512e6e`. One design owns follow-ups `vectored-thruster-rows`
+(operator: "if that dine and dash could tilt that vector for each row of thrusters it would be even more hyper
+maneuverable"; a gimbal per row, not per thruster) and `gimballed-thrusters`. Prior art:
+`docs/research/thrust-vectoring-prior-art.md` at `30d02719` (cited as VP, by section).
+
+### Body facts
+
+- **V1. A column is linear in the push direction.** The allocator's column is xy = push * thrust / mass and
+  z = `Torque` * thrust * `TorqueMultiplier` / mass (spec `cut-thrust-allocator.r1`, adds; `ThrustAllocator.cs:8-18`
+  at `1fc98bdc`). `Torque` is `-dot(normalize(toCenter), float2(1,0).Rotate(rotation))` (`Thruster.cs:62-71`), linear
+  in the direction vector. So a thruster tilted by angle a has column c(a) = cos a * c(0) + sin a * c(pi/2): two fixed
+  columns per thruster carry every tilt. This is VP 1.1's virtual-actuator trick, exact for Aetheria's planar plant.
+- **V2. BoundedLeastSquares has box bounds only** (`BoundedLeastSquares.cs`, CultLib `50512e6e`: `lo <= x <= hi`,
+  dense primal active set, iteration cap 100, warm start in `x`). A gimbal wedge |v| <= tan(theta) u is not a box
+  (VP 2). The design below never needs the wedge: the per-tick slew window in the row's own frame is narrow (3 deg at
+  90 deg/s and 30 Hz, 12 deg at 360 deg/s), so v is boxed by the sine of the window and the recovered angle is
+  clamped to the window and the gimbal. No CultMath capability is missing, so no cultlib-gaps follow-up.
+- **V3. The sim already has the data seam.** `HardpointData.FiringArc` (key 6) is the hardpoint's arc
+  (`ItemData.cs:567-569`); `EquippedItem.Hardpoint` gives a behaviour its hardpoint (`Entity.cs:1688`, read by
+  `FireControl.ArcFor`, `FireControl.cs:36-41`). `HardpointData` uses keys 0-6; `ThrusterData` keys 1-5
+  (`Thruster.cs:12-27`; `BehaviorData` owns key 0). At `562de34c` the judge refuses a `thruster-emitter` anchor on a
+  joint, naming follow-up `gimballed-thrusters` (`ShipAuthoring.cs:360-363`), and checks that weapon mounts on one
+  joint share `Rotation` and `FiringArc` and that the chain's yaw reach covers the arc (`:370-385`).
+- **V4. The gimbal is a sim fact.** By V1 the angle changes push and turn, which the allocator and the evasion
+  envelope read. In V6, fixed rows leave forward and reverse at E 0.361 on the small hull; tilting rows take both to
+  0.000. So the row angle, its limit and its slew are simulation state and stats (target invariant `sim-owns-facts`);
+  the joint only draws `Thruster.Angle` (rulings `rig-is-presentation`, `mount-arc-gun-traverse`).
+- **V5. Probe harness.** Scratch C# console at `scratchpad/imagination-aeth-vectoring/harness` (local commit
+  `b5162ab`, then a v2 that fixed M4's scoring and added M3c and M5), `Program.cs` plus a verbatim copy of
+  `BoundedLeastSquares.cs` from `50512e6e`, run on Yggdrasil through `ygg-verify.sh` (`dotnet run -c Release`, image
+  `mcr.microsoft.com/dotnet/sdk:10.0`), 2026-10-10, exit 0 both runs (`run1.log`, `run2.log` beside it). The core
+  solve copies `ThrustAllocator` at `1fc98bdc` exactly (weights 100 and 1000, L1 split error variables, ridge 0.1,
+  KKT 1e-12, cap 100); every method shares it and shares one demand scale (V7). Hulls: *small*, two mains (accel 10)
+  and two side rows of four (accel 2, pushing across the hull, gimbal +-45 deg); *large*, four mains and four rows of
+  eight (36 thrusters). 30 Hz, 90 ticks per intent from rows at 0, 12 intents (full strafes, forward, reverse, two
+  diagonals, full turns, forward plus turn, strafe plus half turn, two partial). E is the realized wrench's error
+  against the demand, normalised per axis by the box extreme. REF is a brute-force grid over both row angles
+  (37 x 37, no slew limit) with the fixed-column solve inside, minimum weighted error.
+- **V6. Results** (mean E over the 12 intents after 90 ticks; worst single solve's iterations; us per tick on
+  Yggdrasil):
+
+  | Method | small 90 deg/s | small 360 deg/s | large 90 deg/s | solves/tick | worst iters (large) | us/tick (large) |
+  |---|---|---|---|---|---|---|
+  | REF grid (static optimum, shared row angle) | 0.134 | 0.134 | n/a | 1369 | n/a | n/a |
+  | M0 fixed rows (today) | 0.298 | 0.298 | 0.310 | 1 | 95 | 36 |
+  | M1 row as one actuator: shared throttle, (u, v) in the row frame, slew-boxed | 0.142 | 0.138 | 0.133 | 1 | 20 | 3 |
+  | M2 cascade: per-thruster (u, v), one angle per row, re-solve | 0.137 | 0.131 | 0.131 | 2 | 95 | 267 |
+  | M3 angle step linearised at last tick's throttles, one solve | 0.201 | 0.196 | 0.215 | 1 | 95 | 74 |
+  | M3c as M3, idle rows linearised at throttle .25 | 0.138 | 0.136 | 0.132 | 1 | 100 (2 IterationLimit) | 79 |
+  | M5 M1's angle, then per-thruster re-solve | 0.142 | 0.138 | 0.131 | 2 | 95 | 44 |
+  | M4 per-thruster gimbals (no row constraint; upper bound) | 0.138 | 0.135 | 0.129 | 1 | 89 | 328 |
+
+  No method produced NaN. M1, M2, M3c, M4 and M5 reach E 0.000 on forward and reverse (M0 and M3: 0.361). The large
+  hull's 95-iteration solves are the fixed per-thruster solve itself (M0 is also 95): finding
+  `cut-thrust-allocator-core.s1.large-hull-degradation`, follow-up `allocator-large-hull`. M1 collapses each row to
+  two variables (12 on the large hull instead of 36) and stays at 20 iterations, which is the "group identical
+  columns" remedy that follow-up names, arrived at for free.
+- **V7. The demand scale must be the gimbal reach.** The allocator scales intent by box extremes it sums from the
+  columns it is given (`ThrustAllocator.cs:44-61`). With rows tilting, current-column extremes move every tick, so
+  "full forward" would change meaning as the rows swing. The probe scales by the reach: per thruster and half-axis,
+  the maximum of A cos a + B sin a over the gimbal (closed form: sqrt(A^2 + B^2) when atan2(B, A) lies inside the arc,
+  else the better end). Small hull: +y 31.3 (mains 20, eight row thrusters 2 sin 45 deg each), -y 11.3, +-x 8.0,
+  +-z 12.53. The same reach is the envelope's box (cut `envelope-from-columns`), so intent and evasion read one
+  geometry.
+- **V8. Zero thrust: hold the angle, but never linearise through the throttle.** Schedule strafe right, idle, strafe
+  left, forward, idle, reverse, 30 ticks each, both hulls, 90 deg/s. M1 and M5: every step within the window (3.00
+  deg max), idle drift 0.000 deg, idle throttle 0, no sign flips in the late half of any phase, and reverse ends at
+  -45/45 (correct). M2: one or two late sign flips, and 3 deg of idle drift on the large hull (its stage one aims
+  idle rows with v alone). M3 is trapped: a row at zero throttle has a zero angle column, so it never tilts, forward
+  stays at E 0.361 and reverse ends at 45/-45 (the wrong way). M3c unsticks it but chatters (15 late flips), fires
+  at full throttle while idle on the large hull and hits the cap. Holding the previous angle when the row's (u, v)
+  is near zero (|(u, v)| < 1e-6) is enough once (u, v) are free variables: v can aim an idle row without thrust, and
+  the box's overcount is useful there.
+
+### Model page rows
+
+| Kind | Identity | Lifecycle | Authority |
+|---|---|---|---|
+| Gimbal limit (`HardpointData.FiringArc`, key 6, on a `Thruster` hardpoint; question `vector-row-data-home`) | The hardpoint's mount id (`Transform`) on its hull. Full width in degrees, as for a gun; the row swings +-FiringArc/2 about `Rotation`. 0 is a fixed thruster; thrusters get no `GameplaySettings.FiringArc` fallback. | Authored per hull with the other hardpoint fields; Save or Package writes it; a package edit changes it on Continue (moves no cell). | The ship author. The judge requires every member of a row to share it and the row's joint chain to reach it. The thruster reads it at activation. |
+| Row (`HardpointData.Row`, new key 7, string) | Unique within its hull; empty means not in a row. A `Thruster` hardpoint with `FiringArc` > 0 and no `Row` is a row of one. | Authored per hull; renaming a row changes no save (no save names a row; ruling `no-save-compatibility-before-players`). | The ship author. Judge: only on `Thruster` hardpoints; members share `Rotation` and a `FiringArc` > 0. Never derived from a joint (ruling `rig-is-presentation`). |
+| Slew rate (`ThrusterData.Slew`, new key 6, `PerformanceStat`, deg/s) | A stat of the thruster design. | Authored per design; heat, durability and quality move it live like `Thrust`. A row slews at its slowest live member. | The gear designer, as a weapon's traverse is (ruling `mount-arc-gun-traverse`). |
+| Live row angle (`Thruster.Angle`, runtime) | The thruster behaviour; every member of a row holds the same value. Radians from the hardpoint's `Rotation`. | 0 at `Activate`; moves at most slew x dt per tick; held while the row is idle; never saved (a load restarts at 0). | `ThrustAllocator` decides it; `Ship.Update` is its one writer. `Execute`, the envelope and presentation read it. The rig draws it and never writes it. |
+| Row actuator (runtime) | The row, built at `Activate` from its members' hardpoints. | Rebuilt when the thruster set changes (the allocator's resize rule). A dead member's columns are zero, so the row keeps steering with the rest. | `ThrustAllocator` reads the summed along and across columns and the slew window, and decides one throttle and one angle step per row. |
+
+### Authority map
+
+- **Owner.** `ThrustAllocator` decides every fixed thruster's throttle and every row's throttle and angle step, in one
+  `BoundedLeastSquares` solve (question `vector-row-formulation`, recommended `shared-throttle-row`).
+- **Inputs.** Intent (unchanged); each fixed thruster's column; per row, the summed column along and across its live
+  angle and its slew window [max(-arc/2 - angle, -slew dt), min(arc/2 - angle, slew dt)]; the reach (V7).
+- **Outputs.** `Thruster.Axis` for every thruster (a row's members share the row's) and `Thruster.Angle` for every
+  row member, read by `Execute`, `PowerRequest`, the envelope and presentation.
+- **Derived.** The reach and the envelope (one helper); a row's summed columns; the slew window.
+- **No longer owners.** `Allocate` no longer sums its box extremes from the current columns; they come from the reach
+  helper. A joint, its limits and the IK pose decide nothing in the sim.
+- **Forbidden writers.** Any `Angle` write outside `Ship.Update`; any read of `ShipJoint`, `ShipAnchor.Joint` or a
+  Unity transform in `Thruster`, `Ship` or `ThrustAllocator`; a second throttle solve or fallback mixer; an angle step
+  linearised through last tick's throttles (M3, V8).
+- **Shared paths.** Player helm, agents, the throttle lock and tests reach rows only through intent.
+  `Thruster.Column(angle)` is the one geometry function `Execute`, the allocator and the envelope call.
+
+### Rationale
+
+- **Why one actuator per row.** M1 matches M5 (per-member throttles after the same angle) within 0.002 mean E on all
+  three sweeps, is within 0.008 of the static optimum, keeps the allocator's one solve (ruling
+  `one-weighted-solve-no-rotation-demand`; the thrust-allocator authority map forbids a second solve) and is the
+  cheapest in iterations and time. M2 is the most accurate (0.131) but doubles the variables, reaches 95 of 100
+  iterations on 36 thrusters and drifts idle rows. What M1 gives up is differential throttle inside a row: on these
+  hulls it measured nothing, and a row that needs it can be authored as two rows. The operator decides: question
+  `vector-row-formulation`.
+- **Why the limit is the hardpoint's arc and the slew the gear's.** It is ruling `mount-arc-gun-traverse` applied to
+  thrusters: how far a mount swings is ship authoring; how fast is the part's own stat. Reusing `FiringArc` adds no
+  field that the add-on, Studio and C4 must learn; its meaning (how far the mounted item may point from `Rotation`)
+  already fits. Question `vector-row-data-home` holds the alternatives.
+- **Why the envelope counts the whole gimbal, not the slew.** The envelope already ignores the time to swing the
+  hull (cut `envelope-from-columns` sums box extremes); counting slew time only for rows would be a second,
+  inconsistent time model. If the pace pass finds slow gimbals over-credited, slew time enters the envelope for hull
+  turn and rows together.
+- **Sequence.** Both cuts land after `thrust-allocator` and `envelope-from-columns`, whose `Ship.Update` wiring and
+  `RecalculateEnvelope` they change, and after `link-rig-record`, whose judge they extend. The rig and the add-on are
+  follow-up `vector-rows-presentation`: nothing authors a `Row` until the add-on does, so the record cut is inert
+  data until then.
+
+### Cut order
+
+1. `vector-rows-record` after `link-rig-record`, `thrust-allocator` and `envelope-from-columns`:
+   `HardpointData.Row`, `ThrusterData.Slew`, the judge's row rules, thruster anchors allowed on joints with the
+   reach check.
+2. `vector-rows-allocator` after `vector-rows-record`, `thrust-allocator-core`, `thrust-allocator` and
+   `envelope-from-columns`: rows as one actuator each in the solve, `Thruster.Angle`, `Column(angle)`, the reach
+   helper for demand and envelope. Its `Ship.cs` anchors are written against the merged wiring at Hands time
+   (the spec says where).
+
+### Admitted
+
+2026-10-10 (`imagination-aeth-vectoring`): receipt `mind-commit-2829a7e1...` (cut_specs `cut-vector-rows-record.r1`,
+`cut-vector-rows-allocator.r1`, questions `vector-row-formulation` and `vector-row-data-home`, follow-up
+`vector-rows-presentation`) and `mind-commit-e1337a9c...` (`cut-vector-rows-record.r2` superseding r1: its
+ShipValidationTests anchor named the wrong class). context-pack read every anchor SAME: record r2 at `562de34c`,
+allocator r1 at `1fc98bdc`.

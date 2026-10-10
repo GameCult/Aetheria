@@ -760,11 +760,7 @@ public sealed class LoadoutTests : IDisposable
         var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
         var hullItem = (EquippableItem) items.CreateInstance(items.CreateLot(hullData, maker, .5f));
         var ship = new Ship(items, null, hullItem, new EntitySettings());
-        // ItemManager.CreateInstance has no ConsumableItemData branch (it only special-cases EquippableItemData,
-        // falling back to CompoundCommodity otherwise); build the instance directly, as that method does for
-        // EquippableItem.
-        var consumableLot = items.CreateLot(consumableData, maker, .5f);
-        var consumableItem = new ConsumableItem { Data = cache.RefOf<ItemData>(consumableData), Lot = consumableLot };
+        var consumableItem = (ConsumableItem) items.CreateInstance(items.CreateLot(consumableData, maker, .5f));
         var effect = new ConsumableItemEffect(consumableItem, ship);
         effect.Update(5f); // half the duration elapsed -> progress .5 -> effectiveness .5 on a linear ramp
 
