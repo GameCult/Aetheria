@@ -57,6 +57,9 @@ public static class VerseGrammarValidation
     public const int VerbNameMaxLength = 48;
     public const int RoleNameMaxLength = 32;
 
+    // The invoking subject, never a role (Ghostlight refuses a world affordance that names it: ReservedRole).
+    public const string ActorRole = "actor";
+
     // Canonical: a lower-case letter, then lower-case letters, digits and underscores, at most maxLength characters.
     private static bool Canonical(string name, int maxLength)
     {
@@ -65,6 +68,18 @@ public static class VerseGrammarValidation
         foreach (var c in name)
             if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_')) return false;
         return true;
+    }
+
+    // Every verb valid and no two sharing a name: a verb is found by name (Ghostlight refuses DuplicateAffordanceKind).
+    public static void ValidateAll(IEnumerable<VerseVerb> verbs)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var verb in verbs)
+        {
+            Validate(verb);
+            if (!seen.Add(verb.Name))
+                throw new InvalidOperationException($"VerseVerb \"{verb.Name}\": duplicate verb name.");
+        }
     }
 
     // Canonical names, unique role names, defined enum values. A failure names the field and the rule, and the verb once
@@ -82,6 +97,8 @@ public static class VerseGrammarValidation
         {
             if (role == null || !Canonical(role.Name, RoleNameMaxLength))
                 throw new InvalidOperationException($"VerseVerb \"{verb.Name}\" Roles.Name: not a canonical role name ([a-z][a-z0-9_], 1 to {RoleNameMaxLength} characters).");
+            if (role.Name == ActorRole)
+                throw new InvalidOperationException($"VerseVerb \"{verb.Name}\" Roles.Name: reserved for the invoking subject, never a role.");
             if (!seen.Add(role.Name))
                 throw new InvalidOperationException($"VerseVerb \"{verb.Name}\" Roles.Name: duplicate role name.");
             if (!Enum.IsDefined(typeof(VerseReferentKind), role.Binds))

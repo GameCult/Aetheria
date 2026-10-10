@@ -49,10 +49,7 @@ public sealed class VerseGrammarTests : IDisposable
 
     private static CultCache OpenScoped(string path, bool readOnly)
     {
-        var registry = CultDocumentRegistry.ForTypes(typeof(ItemData).Assembly.GetTypes()
-            .Where(t => t is { IsAbstract: false, IsInterface: false })
-            .Where(t => t.GetCustomAttribute<CultDocumentAttribute>() != null));
-        var cache = new CultCache(registry);
+        var cache = new CultCache(TestCatalog.Registry());
         cache.AddBackingStore(new SingleFileMessagePackBackingStore(path, readOnly), AetheriaStores.CatalogTypes);
         return cache;
     }
@@ -105,6 +102,10 @@ public sealed class VerseGrammarTests : IDisposable
         new object[] { "duplicate role name", (Action<VerseVerb>)(v => v.Roles = new[] { Good("x").Roles[0], Good("x").Roles[0] }), "duplicate role name", null },
         new object[] { "role name with a capital", (Action<VerseVerb>)(v => v.Roles[0].Name = "Site"), "Roles.Name", "Site" },
         new object[] { "role name one past 32 characters", (Action<VerseVerb>)(v => v.Roles[0].Name = "r" + new string('s', 32)), "Roles.Name", new string('s', 32) },
+        new object[] { "a role named for the actor", (Action<VerseVerb>)(v => v.Roles[1].Name = "actor"), "reserved", null },
+        new object[] { "a null role element", (Action<VerseVerb>)(v => v.Roles = new VerseRole[] { null }), "Roles.Name", null },
+        new object[] { "name starting with an underscore", (Action<VerseVerb>)(v => v.Name = "_haul"), "VerseVerb.Name", "_haul" },
+        new object[] { "role name starting with a digit", (Action<VerseVerb>)(v => v.Roles[0].Name = "0site"), "Roles.Name", "0site" },
         new object[] { "referent kind zero", (Action<VerseVerb>)(v => v.Roles[0].Binds = 0), "Roles.Binds", null },
         new object[] { "undefined referent kind", (Action<VerseVerb>)(v => v.Roles[0].Binds = (VerseReferentKind)99), "Roles.Binds", null },
     };
@@ -138,6 +139,35 @@ public sealed class VerseGrammarTests : IDisposable
         Assert.Contains("VerseVerb.Name", Assert.Throws<InvalidOperationException>(() => VerseGrammarValidation.Validate(verb)).Message);
     }
 
+    // The class edges: a and z, 0 and 9, and the underscore, in the first, middle and last position of a verb and a role.
+    [Theory]
+    [InlineData("z")]
+    [InlineData("a")]
+    [InlineData("zz")]
+    [InlineData("a0")]
+    [InlineData("a9")]
+    [InlineData("a_")]
+    [InlineData("a_b")]
+    [InlineData("z0z9_az")]
+    public void Names_at_the_edges_of_the_canonical_class_are_accepted(string name)
+    {
+        var verb = Good(name);
+        verb.Roles[0].Name = name;
+        var path = Author("edges-" + name, new VerseGrammar { Revision = 1 }, verb);
+        using var cache = AetheriaStores.Open(path);
+        Assert.Equal(name, cache.GetAll<VerseVerb>().Single().Name);
+    }
+
+    // A verb is found by name: two with one name are refused wherever they sit.
+    [Fact]
+    public void Open_refuses_two_verbs_with_one_name()
+    {
+        var path = Author("twins", new VerseGrammar { Revision = 1 }, Good("alpha"), Good("twin"), Good("beta"), Good("twin"));
+        var error = Assert.Throws<InvalidOperationException>(() => AetheriaStores.Open(path));
+        Assert.Contains("duplicate verb name", error.Message);
+        Assert.Contains("\"twin\"", error.Message);
+    }
+
     [Fact]
     public void The_longest_canonical_names_are_accepted()
     {
@@ -153,7 +183,10 @@ public sealed class VerseGrammarTests : IDisposable
     // A scratch root holding a copy of the shipped catalog with its verse grammar removed: the catalog as it was before the
     // command ran. The catalog is stripped and read through a registry scoped to the shipped assembly, as
     // PiratesFactionCommandTests does.
-    private string RootWithoutGrammar(params VerseVerb[] preexisting)
+    private string RootWithoutGrammar(params VerseVerb[] preexisting) => RootWith(null, preexisting);
+
+    // The same, holding `grammar` (when given) and the preexisting verbs.
+    private string RootWith(VerseGrammar grammar, params VerseVerb[] preexisting)
     {
         var gameData = Path.Combine(_root, "cmd", "GameData");
         Directory.CreateDirectory(gameData);
@@ -163,6 +196,7 @@ public sealed class VerseGrammarTests : IDisposable
         {
             foreach (var grammar in cache.GetAll<VerseGrammar>().ToArray()) Assert.True(cache.Remove(cache.RefOf(grammar).Key));
             foreach (var verb in cache.GetAll<VerseVerb>().ToArray()) Assert.True(cache.Remove(cache.RefOf(verb).Key));
+            if (grammar != null) cache.Upsert(grammar);
             foreach (var verb in preexisting) cache.Upsert(verb);
             cache.FlushAsync().Wait();
         }
@@ -227,6 +261,39 @@ public sealed class VerseGrammarTests : IDisposable
         Assert.Equal(2, cache.GetByName<VerseVerb>("mine").Roles.Length);
         Assert.NotNull(cache.GetByName<VerseVerb>("levy"));
         Assert.Equal(1, cache.GetAll<VerseVerb>().Count(verb => verb.Name == "mine"));
+    }
+
+    // A starter verb that differs in only its description, or only its render path, is replaced too (one record each).
+    [Theory]
+    [InlineData("description")]
+    [InlineData("render path")]
+    public void Apply_replaces_a_starter_verb_that_differs_in_one_field(string field)
+    {
+        var starter = VerseGrammarCommand.StarterVerbs().Single(v => v.Name == "haul");
+        var stale = new VerseVerb { Name = starter.Name, RenderPath = starter.RenderPath, Description = starter.Description, Roles = starter.Roles };
+        if (field == "description") stale.Description = "An older description.";
+        else stale.RenderPath = VerseRenderPath.Conversation;
+        var root = RootWithoutGrammar(stale);
+        Assert.Equal(0, VerseGrammarCommand.Run(apply: true, root: root));
+
+        using var cache = OpenScoped(CatalogOf(root), true);
+        Assert.Equal(1, cache.GetAll<VerseVerb>().Count(verb => verb.Name == "haul"));
+        Assert.True(VerseGrammarCommand.Same(starter, cache.GetByName<VerseVerb>("haul")));
+    }
+
+    // The grammar global is updated in place (one record) when its revision or its description is not the starter's.
+    [Theory]
+    [InlineData(0, VerseGrammarCommand.StarterDescription)]
+    [InlineData(VerseGrammarCommand.StarterRevision, "An older description.")]
+    public void Apply_updates_a_grammar_global_that_is_not_the_starter_in_place(int revision, string description)
+    {
+        var root = RootWith(new VerseGrammar { Revision = revision, Description = description });
+        Assert.Equal(0, VerseGrammarCommand.Run(apply: true, root: root));
+
+        using var cache = OpenScoped(CatalogOf(root), true);
+        var grammar = Assert.Single(cache.GetAll<VerseGrammar>());
+        Assert.Equal(VerseGrammarCommand.StarterRevision, grammar.Revision);
+        Assert.Equal(VerseGrammarCommand.StarterDescription, grammar.Description);
     }
 
     // The shipped catalog carries the command's output.
@@ -318,6 +385,11 @@ public sealed class VerseGrammarTests : IDisposable
         Assert.Equal(2, factions.Length);
         Assert.All(factions, faction => Assert.Single(faction.Allegiance));
         var adrasteia = cache.GetByName<Faction>("Adrasteia");
-        Assert.Equal(.75f, adrasteia.Allegiance[cache.RefOf(cache.GetByName<Faction>("Brannoch"))]);
+        var brannoch = cache.GetByName<Faction>("Brannoch");
+        Assert.Equal(.75f, adrasteia.Allegiance[cache.RefOf(brannoch)]);
+        Assert.Equal(.25f, brannoch.Allegiance[cache.RefOf(adrasteia)]);
+        var speak = cache.GetByName<VerseVerb>("speak");
+        Assert.Equal(VerseRenderPath.Conversation, speak.RenderPath);
+        Assert.Empty(speak.Roles);
     }
 }

@@ -40,7 +40,7 @@ public static class AetheriaStores
             // cut.md), stat modifiers, role usage (Cut 7). Fails loudly, naming the item.
             foreach (var data in cache.GetAll<EquippableItemData>()) CultRecordRefs.Validate(data);
             foreach (var data in cache.GetAll<ConsumableItemData>()) CultRecordRefs.Validate(data);
-            foreach (var verb in cache.GetAll<VerseVerb>()) VerseGrammarValidation.Validate(verb);
+            VerseGrammarValidation.ValidateAll(cache.GetAll<VerseVerb>());
             return cache;
         }
         catch
