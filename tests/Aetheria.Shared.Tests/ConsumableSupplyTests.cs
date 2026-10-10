@@ -20,6 +20,11 @@ public sealed class ConsumableSupplyTests : IDisposable
 {
     private const int Seeds = 400;
 
+    // The ruling's numbers, spelled out: a quarter of stations stock one product of 1-2 units, one ship in ten
+    // carries one unit. The tests read these, never LoadoutGenerator's constants, so a changed constant fails them.
+    private const float StationChance = .25f, ShipChance = .1f;
+    private const int StationUnits = 2, ShipUnits = 1;
+
     private readonly string _root = Path.Combine(Path.GetTempPath(), "aetheria-consumablesupply-" + Guid.NewGuid().ToString("N"));
     private readonly List<CultCache> _caches = new List<CultCache>();
     private int _rigs;
@@ -164,14 +169,14 @@ public sealed class ConsumableSupplyTests : IDisposable
             stocked++;
             fullest = Math.Max(fullest, held.Length);
             thinnest = Math.Min(thinnest, held.Length);
-            Assert.InRange(held.Length, 1, LoadoutGenerator.StationConsumableUnits);
+            Assert.InRange(held.Length, 1, StationUnits);
             var brands = held.Select(item => rig.Items.Brand(item)).ToArray();
             var product = Assert.Single(brands.Select(brand => brand.Product.Name).Distinct()); // exactly one product
             Assert.Contains(product, new[] { "Overdrive by Maker", "Overdrive by Ally" }); // sold by a maker on offer
             makers.Add(product);
         }
-        AssertWithinThreeSigma(stocked, LoadoutGenerator.StationConsumableChance, "stations stocking a consumable");
-        Assert.Equal(LoadoutGenerator.StationConsumableUnits, fullest); // a roll can stock up to the maximum
+        AssertWithinThreeSigma(stocked, StationChance, "stations stocking a consumable");
+        Assert.Equal(StationUnits, fullest); // a roll can stock up to the maximum
         Assert.Equal(1, thinnest); // and as few as one
         Assert.Equal(2, makers.Count); // the pick is among the products on offer, not always the first
     }
@@ -187,9 +192,9 @@ public sealed class ConsumableSupplyTests : IDisposable
             var held = Consumables(rig.Generator(ref random).GenerateShipLoadout());
             if (held.Length == 0) continue;
             carrying++;
-            Assert.Equal(LoadoutGenerator.ShipConsumableUnits, held.Length);
+            Assert.Equal(ShipUnits, held.Length);
         }
-        AssertWithinThreeSigma(carrying, LoadoutGenerator.ShipConsumableChance, "ships carrying a consumable");
+        AssertWithinThreeSigma(carrying, ShipChance, "ships carrying a consumable");
 
         // A ship whose only hold has no free cell takes none, and generating it does not throw.
         var holdless = Build(Offer.Reachable, holdless: true);
