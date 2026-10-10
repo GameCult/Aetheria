@@ -295,7 +295,7 @@ public sealed partial class RunStartTests
         // The Longinus's allocator holds the heading and pays for the drive torque out of the flank thrusters (ruling
         // allocator-divergence-accepted), so the envelope's box support overstates what a controlled flight spends. Its
         // measured motion is bounded by the reach of the push the allocator itself gives it on each half-axis, from the
-        // columns it allocates with: not below 90% of it, and above it by no more than the 15% a turning policy gains.
+        // columns it allocates with: not below 90% of it (85% broadside: the allocated reach now carries the drives' yaw in its turn terms), and above it by no more than the 15% a turning policy gains.
         foreach (var (name, reach, allocated, measured) in results)
         {
             if (name == "djinni")
@@ -305,10 +305,14 @@ public sealed partial class RunStartTests
             }
             else
             {
-                Assert.InRange(reach.noseOn, measured.noseOn * .9f, float.MaxValue);
-                Assert.InRange(reach.broadside, measured.broadside * .9f, float.MaxValue);
+                // The envelope sums the live columns, the drives' yaw among them (turn-authority-full), so its reach sits above
+                // the allocated one by the turn the drives add: 1.24 nose-on and 1.12 broadside at the last measurement. The
+                // ceiling is that, from the columns the allocator solves with, not an open bound: an envelope inflated by a
+                // factor (doubled: 2.5 and 2.2) breaks it.
+                Assert.InRange(reach.noseOn, measured.noseOn * .9f, allocated.noseOn * 1.3f);
+                Assert.InRange(reach.broadside, measured.broadside * .9f, allocated.broadside * 1.2f);
                 Assert.InRange(measured.noseOn, allocated.noseOn * .9f, allocated.noseOn * 1.15f);
-                Assert.InRange(measured.broadside, allocated.broadside * .9f, allocated.broadside * 1.15f);
+                Assert.InRange(measured.broadside, allocated.broadside * .85f, allocated.broadside * 1.15f);
             }
         }
     }
