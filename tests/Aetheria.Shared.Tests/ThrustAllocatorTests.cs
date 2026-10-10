@@ -325,4 +325,24 @@ public class ThrustAllocatorTests
         var extreme = Extremes(forward, 1).plus;
         Assert.True(reached > .1f * extreme, $"{reached} of {extreme}");
     }
+
+    [Fact]
+    public void AFullTurnAgainstAFullReverseKeepsItsWholeYaw()
+    {
+        // The only clockwise actuator also pushes forward and the only reverse actuator turns the other way. Delivering
+        // a full turn against a full reverse leaves a forward error of 2, the top of TA-R2's error box: an error bound
+        // below 2 would take yaw back to pay for it, and turn-authority-full says the turn is whole.
+        foreach (var (columns, x, y) in new[]
+                 {
+                     (new[] { Col(0, 50, 100), Col(0, -50, -100) }, 0f, -1f),
+                     (new[] { Col(50, 0, 100), Col(-50, 0, -100) }, -1f, 0f),
+                     (new[] { Col(0, -50, 100), Col(0, 50, -100) }, 0f, 1f),
+                     (new[] { Col(-50, 0, 100), Col(50, 0, -100) }, 1f, 0f),
+                 })
+        {
+            var yaw = Net(columns, Solve(columns, x, y, 1)).z;
+            var extreme = Extremes(columns, 2).plus;
+            Assert.True(MathF.Abs(yaw - extreme) <= 1e-4f * extreme, $"move ({x},{y}): yaw {yaw / Deg} of {extreme / Deg}");
+        }
+    }
 }
