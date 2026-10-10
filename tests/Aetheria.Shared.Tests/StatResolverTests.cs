@@ -452,4 +452,125 @@ public sealed class StatResolverTests : IDisposable
         Assert.Equal(baselineCache, resolver.CacheEntryCount);
         Assert.Equal(baselineModifiers, resolver.ModifierEntryCount);
     }
+
+    // Ruling boost-stacking-multiply: every multiplier on one stat multiplies, with no stacking penalty, and every
+    // constant adds. The rig is the production path end to end: gear carrying StatModifierData is equipped on a ship
+    // beside a thruster, a consumable is minted through ItemManager.CreateInstance and activated on the ship, and
+    // the resolved value is read through EquippedItem.Evaluate. Nothing here calls AttachModifier by hand.
+    private sealed class ThrustRig
+    {
+        public CultCache Cache;
+        public ItemManager Items;
+        public Ship Ship;
+        public EquippedItem Engine;
+        public PerformanceStat Thrust;
+        public Func<ConsumableItem> Consumable; // null when the rig was built without one
+
+        public float Resolved => Engine.Evaluate(Thrust);
+        // Two ticks: the first executes every modifier, the second applies it (StatModifier.Update).
+        public void Tick(float dt) { for (var i = 0; i < 2; i++) Ship.Update(dt); }
+    }
+
+    private static StatModifierData ThrustModifier(StatModifierType type, float value) => new StatModifierData
+    {
+        Stat = new StatReference { Target = nameof(ThrusterData), Stat = nameof(ThrusterData.Thrust) },
+        Modifier = new PerformanceStat { Min = value, Max = value },
+        Type = type
+    };
+
+    // A Thrust-10 thruster and one gear per entry of `gear`, in that attach order, plus (optionally) a consumable
+    // whose single modifier is `consumable`. The hull has four hardpoints, so at most three gear modifiers.
+    private ThrustRig BuildThrustRig((StatModifierType Type, float Value)[] gear, (StatModifierType Type, float Value)? consumable = null)
+    {
+        var thrust = new PerformanceStat { Min = 10, Max = 10 };
+        var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
+        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        var hullShape = new Shape(3, 3);
+        foreach (var cell in hullShape.AllCoordinates) hullShape[cell] = true;
+        var cells = new[] { HardpointCell, SecondHardpointCell, FirstGunCell, SecondGunCell };
+        cache.Upsert(new HullData
+        {
+            Name = "Skiff", HullType = HullType.Ship, Shape = hullShape, Durability = 10,
+            Hardpoints = cells.Select(c => new HardpointData { Type = HardpointType.Sensors, Position = c, Shape = new Shape() }).ToList()
+        });
+        cache.Upsert(new GearData { Name = "Engine", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Durability = 10, Behaviors = { new ThrusterData { Thrust = thrust } } });
+        for (var i = 0; i < gear.Length; i++)
+            cache.Upsert(new GearData { Name = "Boost" + i, Hardpoint = HardpointType.Sensors, Shape = new Shape(), Durability = 10, Behaviors = { ThrustModifier(gear[i].Type, gear[i].Value) } });
+        if (consumable != null)
+            cache.Upsert(new ConsumableItemData { Name = "Stim", Duration = 1f, Shape = new Shape(), Behaviors = { ThrustModifier(consumable.Value.Type, consumable.Value.Value) } });
+        cache.FlushAsync().Wait();
+
+        var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+        var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test Zone", Owner = null }, null);
+        var ship = new Ship(items, zone, Mint(cache, items, cache.GetByName<HullData>("Skiff")), new EntitySettings());
+        Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("Engine")), cells[0]));
+        for (var i = 0; i < gear.Length; i++)
+            Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("Boost" + i)), cells[i + 1]));
+        zone.Entities.Add(ship);
+        ship.Activate();
+
+        Func<ConsumableItem> mint = null;
+        if (consumable != null)
+        {
+            var design = cache.GetByName<ConsumableItemData>("Stim");
+            mint = () => Assert.IsType<ConsumableItem>(items.CreateInstance(items.Lots.Add(
+                new Lot { Design = cache.RefOf<ItemData>(design), Origin = new Attributed(), Quality = .5f, Roles = new List<RoleFill>() })));
+        }
+        return new ThrustRig { Cache = cache, Items = items, Ship = ship, Engine = ship.Equipment.Single(e => e.Data.Name == "Engine"), Thrust = thrust, Consumable = mint };
+    }
+
+    // Two scales multiply: x1.2 and x1.25 on one stat resolve to base x1.5, and x1.1, x1.2, x1.25 to base x1.65,
+    // whatever order they attach in. Mutations at StatResolver.ScaleModifier: a sum of excesses reads 14.5 and
+    // 15.5, the strongest-only rule 12.5, a diminishing curve 14.67, and `result *= value * value` or
+    // `result *= value + 0.01f` (functions of the scale itself) read off 15.
+    [Theory]
+    [InlineData(new[] { 1.2f, 1.25f }, 15f)]
+    [InlineData(new[] { 1.25f, 1.2f }, 15f)]
+    [InlineData(new[] { 1.1f, 1.2f, 1.25f }, 16.5f)]
+    [InlineData(new[] { 1.25f, 1.1f, 1.2f }, 16.5f)]
+    [InlineData(new[] { 1.2f, 1.25f, 1.1f }, 16.5f)]
+    public void TwoScalesOnOneStatMultiply(float[] scales, float expected)
+    {
+        var rig = BuildThrustRig(scales.Select(s => (StatModifierType.Multiplier, s)).ToArray());
+        using var _ = rig.Cache;
+        Assert.Equal(10f, rig.Resolved, 3); // modifiers not yet applied
+        rig.Tick(.1f);
+        Assert.Equal(expected, rig.Resolved, 3);
+    }
+
+    // A gear modifier and a consumable modifier on one drive's Thrust share one entry and multiply: x1.2 gear and
+    // x1.5 consumable read x1.8, and when the consumable expires only the gear's x1.2 remains.
+    [Fact]
+    public void AConsumableBoostMultipliesWithGear()
+    {
+        var rig = BuildThrustRig(new[] { (StatModifierType.Multiplier, 1.2f) }, (StatModifierType.Multiplier, 1.5f));
+        using var _ = rig.Cache;
+        rig.Tick(.1f);
+        Assert.Equal(12f, rig.Resolved, 3); // gear alone
+
+        rig.Ship.ActivateConsumable(rig.Consumable());
+        rig.Tick(.1f); // 0.8s of the 1s remain
+        Assert.Equal(18f, rig.Resolved, 3);
+
+        rig.Tick(.5f); // the consumable's duration has run out
+        Assert.Equal(12f, rig.Resolved, 3);
+    }
+
+    // Constants add, and compose with scales through PerformanceStat.Evaluate: (base x scale) + constant. +3 and +4
+    // resolve as a constant of 7; with a x2 scale beside them the value is Evaluate's for scale 2 and constant 7,
+    // (10 x 2) + 7. Mutations at ConstantModifier: `result = Math.Max(result, value)` reads constant 4;
+    // `result += value * 2` reads constant 14.
+    [Theory]
+    [InlineData(new[] { 3f, 4f }, new float[0], 1f, 7f, 17f)]
+    [InlineData(new[] { 3f, 4f }, new[] { 2f }, 2f, 7f, 27f)]
+    public void TwoConstantsOnOneStatAdd(float[] constants, float[] scales, float expectedScale, float expectedConstant, float expected)
+    {
+        var rig = BuildThrustRig(constants.Select(c => (StatModifierType.Constant, c))
+            .Concat(scales.Select(s => (StatModifierType.Multiplier, s))).ToArray());
+        using var _ = rig.Cache;
+        rig.Tick(.1f);
+        Assert.Equal(expectedScale, rig.Ship.Resolver.ScaleModifier(rig.Engine, rig.Thrust), 3);
+        Assert.Equal(expectedConstant, rig.Ship.Resolver.ConstantModifier(rig.Engine, rig.Thrust), 3);
+        Assert.Equal(expected, rig.Resolved, 3);
+    }
 }
