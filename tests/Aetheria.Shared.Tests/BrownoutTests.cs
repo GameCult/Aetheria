@@ -152,6 +152,45 @@ public sealed class BrownoutTests : IDisposable
         Assert.Equal(.5f, thruster.PowerRequest(1f), 4);
     }
 
+    // The evasion envelope is the box extremes of the columns at live, granted thrust (cut envelope-from-columns): the
+    // allocator solves with the full-grant column, the envelope reports what the grant lets the ship do. A reverse
+    // thruster at half grant adds half its nominal push to the envelope's reverse; with no grant at all it adds nothing
+    // even when its thrust stat carries no power term, because an unpowered thruster does not fire.
+    [Fact]
+    public void TheEnvelopeIsWhatTheGrantAllows()
+    {
+        using var cache = OpenCatalog(new ThrusterData
+        {
+            Thrust = Curved(100, 1), Visibility = Constant(0), Heat = Constant(0), EnergyUsage = Constant(100)
+        });
+        var ship = BuildShip(cache, reactorCharge: 50);
+        var thruster = ship.GetBehavior<Thruster>();
+        ship.Equipment.Single(e => e.Data.Name == "Consumer").UpdatePerformance();
+        ship.MovementDirection = float2(0, -1);
+        ship.Update(1f);
+        Assert.True(thruster.Thrust > 1f && thruster.Thrust < .9f * thruster.NominalThrust, "fixture: the grant is partial");
+        var expected = thruster.Thrust / ship.Mass;
+        Assert.InRange(ship.Envelope.Reverse, expected * .9999f, expected * 1.0001f);
+        Assert.Equal(0f, ship.Envelope.Forward);
+    }
+
+    [Fact]
+    public void AnUnpoweredThrusterAddsNothingToTheEnvelope()
+    {
+        using var cache = OpenCatalog(new ThrusterData
+        {
+            Thrust = Constant(100), Visibility = Constant(0), Heat = Constant(0), EnergyUsage = Constant(100)
+        });
+        var ship = BuildShip(cache, reactorCharge: 0);
+        var thruster = ship.GetBehavior<Thruster>();
+        ship.MovementDirection = float2(0, -1);
+        ship.Update(1f);
+        ship.Update(1f);
+        Assert.Equal(0f, thruster.Item.PowerSupply, 3);
+        Assert.True(thruster.Thrust > 1f, "fixture: the stat carries no power term, so the thruster's stat is not zero");
+        Assert.Equal(0f, ship.Envelope.Reverse);
+    }
+
     // TA6: a column promises what the thruster does at a full grant, never what the grant currently allows. Mutations:
     // the allocator reads Column(Thrust) (live, power-curved) for Column(NominalThrust), and Column returns nothing
     // while the grant is nil. With no power at all the thruster's live thrust is zero, yet the allocator still asks
