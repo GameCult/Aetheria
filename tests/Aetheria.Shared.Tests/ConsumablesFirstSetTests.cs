@@ -84,7 +84,7 @@ public sealed class ConsumablesFirstSetTests
 
         foreach (var design in new[] { overdrive, vent })
         {
-            AetheriaStores.Validate(design); // every modifier resolves and every role a stat reads is declared
+            CultRecordRefs.Validate(design); // every modifier resolves and every role a stat reads is declared
             Assert.True(design.SpecificHeat > 0f && design.Conductivity > 0f);
 
             var products = cache.GetAll<FactionProductData>().Where(p => p.Design.Key.Equals(cache.RefOf(design).Key)).ToArray();
