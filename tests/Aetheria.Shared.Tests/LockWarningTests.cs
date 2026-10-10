@@ -74,7 +74,7 @@ public sealed class LockWarningTests : IDisposable
         MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000,
         Behaviors =
         {
-            new LockWeaponData
+            new LauncherData // the production launcher type; the catalog round-trips it (a bare LockWeaponData is not a stored union member)
             {
                 Damage = Const(0), Range = Const(1000), MinRange = Const(0), Velocity = Const(0),
                 Spread = Const(0), DamageSpread = Const(0), Penetration = Const(0), Count = Const(1),
