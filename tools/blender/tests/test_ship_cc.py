@@ -190,6 +190,34 @@ class ReadTests(ShipFileCase):
                     ship_cc.read(self.path, PACKAGES)
 
 
+class RigCarryThroughTests(ShipFileCase):
+    """The rig (ShipAuthoring slot 5 Joints, ShipAnchor slot 5 Joint) lies past every slot this module edits, so a save keeps it."""
+
+    JOINTS = [["turret", None, [0.0, 1.0, 0.0], [-30.0], [30.0]]]
+
+    def setUp(self):
+        super().setUp()
+        ship = ship_body()
+        ship.append(self.JOINTS)
+        ship[ship_cc.ANCHORS_SLOT] = [["gun", "weapon-mount", "gun", None, 0, "turret"], ["map", "map-icon", "map", None, 0]]
+        self.write(ship, hull_body())
+
+    def test_replace_visual_keeps_the_joints_and_each_mounts_joint_by_anchor_id(self):
+        ship_cc.replace_visual(self.path, PACKAGES, "mod.skiff", "ship.glb",
+                               [["map", "map-icon", "map", None, 0], ["gun", "weapon-mount", "gun", None, 0]])
+        ship = self.ship()
+        self.assertEqual(self.JOINTS, ship[5])
+        self.assertEqual([["map", "map-icon", "map", None, 0], ["gun", "weapon-mount", "gun", None, 0, "turret"]],
+                         ship[ship_cc.ANCHORS_SLOT])
+
+    def test_replace_lines_keeps_the_joints_and_the_anchor_rows(self):
+        before = self.ship()
+        ship_cc.replace_lines(self.path, PACKAGES, LINES)
+        after = self.ship()
+        self.assertEqual(self.JOINTS, after[5])
+        self.assertEqual(before[ship_cc.ANCHORS_SLOT], after[ship_cc.ANCHORS_SLOT])
+
+
 class ReplaceLinesTests(ShipFileCase):
     def test_replaces_only_the_line_slot(self):
         new_lines = [["Detail", "Red", [0.0] * 6, [0.1, 0.1], [1.0, 1.0], True, [1.0, 0.0, 0.0, 1.0]]]
