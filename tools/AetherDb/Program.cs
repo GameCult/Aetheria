@@ -1953,9 +1953,9 @@ public static class Program
     // the catalog's 1x1 tool; mass, price, shape and every effect are authored here. The vent's cloud encloses the
     // largest hull (the Djinni) at its minimum radius: half the hull's diagonal in zone units, times 1.5. Dry run
     // unless passed "apply".
-    private static int ConsumablesFirstSetCatalog(bool apply)
+    public static int ConsumablesFirstSetCatalog(bool apply, string root = null)
     {
-        var db = AetherDb.Open(catalogWritable: apply);
+        var db = AetherDb.Open(catalogWritable: apply, root: root);
         var designNames = new[] { "Thruster Overdrive", "Coolant Vent" };
         var already = designNames.Count(name => db.Cache.GetAll<ConsumableItemData>().Any(c => c.Name == name));
         if (already == designNames.Length)
@@ -1967,7 +1967,7 @@ public static class Program
 
         var template = db.Cache.GetAll<GearData>().Single(g => g.Name == "Targeting Computer");
         var djinni = db.Cache.GetAll<HullData>().Single(h => h.Name == "Djinni");
-        var cellSize = AuthoredSettings.Load(AetherDb.FindRoot()).Read<GameplaySettings>("GameplaySettings").SchematicCellSize;
+        var cellSize = AuthoredSettings.Load(db.Root).Read<GameplaySettings>("GameplaySettings").SchematicCellSize;
         var halfDiagonal = .5f * cellSize * MathF.Sqrt(djinni.Shape.Width * djinni.Shape.Width + djinni.Shape.Height * djinni.Shape.Height);
         var radiusMin = 1.5f * halfDiagonal;
 
