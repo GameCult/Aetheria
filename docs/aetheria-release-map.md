@@ -7014,8 +7014,9 @@ That file's Cut 4 (AI heading planner) and Cut 5 (combat facing) are carried as 
 - **TA7. The Duel arena moves the player by itself.** With forward thrust the player's velocity swings
   between about +28 and -28 m/s along the nose every ~60 ticks with no `VelocityLimit` clamp (limit 100,
   drag 0.1), while intent zero leaves it at rest. Translation measured in the Duel is not thrust; tests that
-  measure translation use `RestoredHullsTests.BuildThrustedShip`. Cause not traced (the zone's field at
-  the spawn is the first suspect).
+  measure translation use `RestoredHullsTests.BuildThrustedShip`. Traced 2026-10-10 (TW1 below): a
+  harness artifact of stepping `player.Update` without `Zone.Update`, which leaves every orbit at the
+  origin and stacks the zone's gravity wells on the spawn.
 - **TA8. CultMath 0.3.0 re-rolls generated content.** Full suite at `80d2c7f3` with only
   `CultMathRevision` moved to `614fd445` (tag `cultmath-unity-v0.3.0`): 1057 pass, 5 fail.
   `TutorialGalaxy_unchanged` (faction homes differ), three `RestoredHullsTests` that pick zones by name
@@ -7152,6 +7153,87 @@ Rationale changes:
 - The bullets "One solve with a large yaw weight" and "The ridge" above describe r1 and are superseded
   by this revision: the yaw weight is 1000 against a ridge of .1, and uniqueness of the answer depends on
   the tolerance as well as the ridge.
+
+### Wiring refresh at `08d064c8` (2026-10-10)
+
+Pass: Imagination `imagination-aeth-allocator-wiring`, session `self-2026-10-10-ag`. Body:
+`GameCult/Aetheria` origin/master `08d064c8` (thrust-allocator-core merged, CultMath pinned at 0.4.0,
+`CultMathRoot` `cultlib-252e226c` on Yggdrasil), detached worktree `C:\aeth-wt\map-articulated`. Probes:
+scratch partial `RunStartTests` facts `ImagProbeDuelOscillation` and `ImagProbeCatalogThrusters`, run on
+Yggdrasil through the stopgap (logs `j2.log`, `j3.log` in the session scratchpad
+`imagination-aeth-allocator-wiring`). The allocator cases patched the scratch clone's `Ship.Update` only:
+after the mixer, a static flag overwrote every `Axis` with `ThrustAllocator.Allocate` over columns built
+from live `Thrust` (equal to `NominalThrust` on the fully powered Duel ship). Each case is a fresh Duel
+launch stepped 240 ticks at 1/60 s; heading in degrees from the launch heading.
+
+- **TW1. The Duel oscillation is a harness artifact** (follow-up `duel-velocity-oscillation`, TA7).
+  `Orbit.Position` starts at `float2.zero` (`Zone.cs:726`) and is set only by `Zone.Update`
+  (`Zone.cs:218-223`). Stepping `player.Update` alone leaves all 38 bodies of the Duel's arena zone (4 suns,
+  4 gas giants, 30 planets, wells 546-9420 m wide) at the origin, which is the player's spawn
+  (`Duel.cs`: `stage.Player(fighter, float2(0, 0))`). Their wells stack there: `Zone.GetForce` is 0 at the
+  origin, -64 m/s^2 at (0,5), -982 at (0,20), -8082 at (0,80). Under thrust the ship climbs out and falls
+  back through the stack, which is the swing TA7 saw:
+
+  | Case (Duel player, 240 ticks) | Along-nose speed, max / min (m/s) | Heading at tick 120 / 240 |
+  |---|---|---|
+  | A mixer, forward, `player.Update` | 31.5 / -30.6 (first below -1 at tick 36) | -12.09 / -21.94 |
+  | B mixer, forward, `arena.Update` | 101.7 / 1.9 | -12.09 / -21.94 |
+  | C mixer, forward, `player.Update`, `GravityStrength` 0 | 101.7 / 1.9 (B to the digit) | as B |
+  | D mixer, intent zero, `player.Update` | 0 / 0 | 0 |
+  | E allocator, forward, `player.Update` | 31.5 / -30.8 | .018 / .036 |
+  | F allocator, forward, `player.Update`, `GravityStrength` 0 | 101.9 / 0 | .018 / .036 |
+  | I mixer, forward .3, `player.Update` | 12.7 / -12.3 | -3.88 / -7.56 |
+  | J allocator, forward .3, `player.Update` | 12.7 / -12.3 | .001 / .002 |
+
+  The first `Zone.Update` moves the bodies to their orbits: the spawn's height goes from -3316 to -69 and
+  the field at the player stays under 4.3 m/s^2 for the whole run (case B). The game ticks the zone before
+  any ship (`Zone.Update` sets orbits first), so play never sees the stack. Neither the mixer, damping, the
+  tick nor `Steering.Toward` is involved (no `Turn` in A to J; D and C rule out drift and drag).
+- **TW2. Wiring is irrelevant to the oscillation and removes the drift.** E and J match A and I in speed
+  (the well decides it) and hold heading to hundredths of a degree where the mixer turns 6.4 deg/s (TA3,
+  reproduced at `08d064c8`: -12.09 deg in 120 ticks). Full forward: both drives at 1 and the Talaria (2,14)
+  at .039 falling to .027 as heat moves the drives, so the ship crabs to starboard at 1.6 m/s at top speed.
+  Forward .3: drives at .319 and .283, no Talaria. With `Turn` .5 (LaunchDuel's intent) the allocator
+  turns 107 deg/s (.5 of the 215.5 extreme, Talaria .68, both drives 1); the mixer 77.
+- **TW3. Top speed overshoots the limit by one tick of thrust.** Case B settles at 101.4-101.7 m/s against
+  `VelocityLimit` 100 with `LimitClamp` about 1.7 m/s each tick: the limit clamps before the drives push in
+  the same tick. Mixer and allocator alike; nothing in this campaign's flight cuts owns the order.
+- **TW4. No shipped hull reaches the allocator's large-hull regime.** The catalog holds two Ship hulls:
+  Djinni, 8 thruster hardpoints (Reversed 3, CounterClockwise 2, Clockwise 2, None 1), and Longinus, 4.
+  `GameData` holds only `Aetheria.cc`, `Narrative/` and `SoundbanksInfo.json`; no package hull is in the
+  tree. Finding `large-hull-degradation` starts at about 32 thrusters.
+- **TW5. Every thruster's Thrust carries PowerSupply^1.** All seven catalog thruster designs (Large,
+  Medium, Small Drive, Talaria, Victoire, RevvITup 2.0, deep space burnout) carry `PowerSupply` with
+  exponent 1 on `Thrust`; none carries it on `EnergyUsage`. All thrusters share `PowerTiers.Medium`
+  (`Thruster.cs:91`). Under a brownout that grants one fraction to the whole tier every column scales
+  alike and the solved balance survives; it breaks only where grants differ within the tier. That is the
+  question follow-up `allocator-brownout-columns` keeps.
+- **TW6. What moved since `80d2c7f3`.** `Ship.cs` gained only throttle-lock's two lines (`:236-237`): the
+  mixer is now `:238-261` inside the gate `:233-262`. `Thruster.cs`, `Behaviors.cs:96-99`,
+  `Settings.cs:214`, `SteeringTests.cs`, `BrownoutTests.cs`, `ConditionRatioTests.cs`, `SimClockTests.cs`
+  and `RunStartTests.cs` are unchanged. `Entity.cs`'s commented `IAnalogBehavior` field is `:2360`.
+  `EvasionTermTests.cs` moved +16: `TheAggregatesReadLiveThrust` `:716-734` (the `ForwardThrust` asserts
+  `:724-725`), `EveryAggregateAndTheCompensationReadLiveThrust` `:1013-1072`. `ThrottleLockTests.cs`
+  exists (274 lines, 7 facts and theories); every assertion is an exact mixer `Axis` (1 or 0) on a fixture
+  whose thrusters are found by mount rotation. `ThrustAllocatorTests.TheStartDoesNotChangeTheAnswer`
+  (`:253-265`) asserts start independence at 1e-5 on one point while finding `solver-converged-early`
+  stands; the CultMath stop fix (`cultlib-gaps:cut_spec:cut-bls-release-stop.r1`) owns what happens to it.
+
+Refresh decisions (specs `cut-thrust-allocator.r3`, `cut-envelope-from-columns.r2`):
+
+- **Translation may be measured in the Duel if the arena is stepped.** TA7's rule is replaced by TW1's
+  cause: a test that reads velocity steps `arena.Update`, or uses `BuildThrustedShip`; a test that reads
+  only heading may step `player.Update` (heading in A equals B to the digit). The unplaced-orbit defect
+  is the zone's, not flight's (follow-up `zone-orbits-unplaced-before-first-tick`).
+- **`Column(thrust)` from the first cut.** The wiring cut adds `Column(float thrust)` and passes
+  `NominalThrust`; envelope-from-columns passes live thrust to the same method. r1 had the envelope cut
+  change the signature, which was churn on one owner.
+- **Folded:** `allocator-residual-pins` (a micro-intent test in `ThrustAllocatorTests`). **Left, with
+  reasons:** `allocator-large-hull` (TW4: no shipped hull is near 32 thrusters; it gates on package hulls);
+  `allocator-brownout-columns` (TW5: a design question, not the wiring); `steering-feasible-direction`
+  (reads the envelope's clockwise and counter-clockwise terms, so it follows envelope-from-columns);
+  `allocator-ai-planner` (plans through the wired allocator, so it follows this cut). Answered by the
+  wiring when it holds: `asymmetric-drive-torque` (flight control balances the drives, TW2).
 
 ## Spec refresh 2026-10-09: scarce consumables, the fog bank, multiply, tiered boosters, the shipped AetherDb
 
@@ -7623,3 +7705,298 @@ retire-firing-arc r1, ships-addon-link-rows r1; link-rig-record r3; ships-addon-
 `mind-commit-0c23fa01...` (ships-addon-link-package r2, link-rig-presenter r2, link-calibre-judge r2, question
 `hardpoint-arc-caps`, withdrew question `calibre-arc-caps`) and `mind-commit-40788d58...` (ships-addon-link-package r3,
 r2's arm smoke pins fixed). context-pack read every anchor SAME at `acea1aa7`.
+
+## Vectored thruster rows
+
+Pass: Imagination (`imagination-aeth-vectoring`), session `self-2026-10-10-ag`. Body: `GameCult/Aetheria` origin/master
+`30d02719`; the allocator at `1fc98bdc` (branch `eureka/aetheria-release-thrust-allocator-core`, read-only, a fix
+batch in flight); the rig record at `562de34c` (branch `eureka/aetheria-release-link-rig-record`, Soul pass running);
+CultMath `BoundedLeastSquares` at CultLib origin/main `50512e6e`. One design owns follow-ups `vectored-thruster-rows`
+(operator: "if that dine and dash could tilt that vector for each row of thrusters it would be even more hyper
+maneuverable"; a gimbal per row, not per thruster) and `gimballed-thrusters`. Prior art:
+`docs/research/thrust-vectoring-prior-art.md` at `30d02719` (cited as VP, by section).
+
+### Body facts
+
+- **V1. A column is linear in the push direction.** The allocator's column is xy = push * thrust / mass and
+  z = `Torque` * thrust * `TorqueMultiplier` / mass (spec `cut-thrust-allocator.r1`, adds; `ThrustAllocator.cs:8-18`
+  at `1fc98bdc`). `Torque` is `-dot(normalize(toCenter), float2(1,0).Rotate(rotation))` (`Thruster.cs:62-71`), linear
+  in the direction vector. So a thruster tilted by angle a has column c(a) = cos a * c(0) + sin a * c(pi/2): two fixed
+  columns per thruster carry every tilt. This is VP 1.1's virtual-actuator trick, exact for Aetheria's planar plant.
+- **V2. BoundedLeastSquares has box bounds only** (`BoundedLeastSquares.cs`, CultLib `50512e6e`: `lo <= x <= hi`,
+  dense primal active set, iteration cap 100, warm start in `x`). A gimbal wedge |v| <= tan(theta) u is not a box
+  (VP 2). The design below never needs the wedge: the per-tick slew window in the row's own frame is narrow (3 deg at
+  90 deg/s and 30 Hz, 12 deg at 360 deg/s), so v is boxed by the sine of the window and the recovered angle is
+  clamped to the window and the gimbal. No CultMath capability is missing, so no cultlib-gaps follow-up.
+- **V3. The sim already has the data seam.** `HardpointData.FiringArc` (key 6) is the hardpoint's arc
+  (`ItemData.cs:567-569`); `EquippedItem.Hardpoint` gives a behaviour its hardpoint (`Entity.cs:1688`, read by
+  `FireControl.ArcFor`, `FireControl.cs:36-41`). `HardpointData` uses keys 0-6; `ThrusterData` keys 1-5
+  (`Thruster.cs:12-27`; `BehaviorData` owns key 0). At `562de34c` the judge refuses a `thruster-emitter` anchor on a
+  joint, naming follow-up `gimballed-thrusters` (`ShipAuthoring.cs:360-363`), and checks that weapon mounts on one
+  joint share `Rotation` and `FiringArc` and that the chain's yaw reach covers the arc (`:370-385`).
+- **V4. The gimbal is a sim fact.** By V1 the angle changes push and turn, which the allocator and the evasion
+  envelope read. In V6, fixed rows leave forward and reverse at E 0.361 on the small hull; tilting rows take both to
+  0.000. So the row angle, its limit and its slew are simulation state and stats (target invariant `sim-owns-facts`);
+  the joint only draws `Thruster.Angle` (rulings `rig-is-presentation`, `mount-arc-gun-traverse`).
+- **V5. Probe harness.** Scratch C# console at `scratchpad/imagination-aeth-vectoring/harness` (local commit
+  `b5162ab`, then a v2 that fixed M4's scoring and added M3c and M5), `Program.cs` plus a verbatim copy of
+  `BoundedLeastSquares.cs` from `50512e6e`, run on Yggdrasil through `ygg-verify.sh` (`dotnet run -c Release`, image
+  `mcr.microsoft.com/dotnet/sdk:10.0`), 2026-10-10, exit 0 both runs (`run1.log`, `run2.log` beside it). The core
+  solve copies `ThrustAllocator` at `1fc98bdc` exactly (weights 100 and 1000, L1 split error variables, ridge 0.1,
+  KKT 1e-12, cap 100); every method shares it and shares one demand scale (V7). Hulls: *small*, two mains (accel 10)
+  and two side rows of four (accel 2, pushing across the hull, gimbal +-45 deg); *large*, four mains and four rows of
+  eight (36 thrusters). 30 Hz, 90 ticks per intent from rows at 0, 12 intents (full strafes, forward, reverse, two
+  diagonals, full turns, forward plus turn, strafe plus half turn, two partial). E is the realized wrench's error
+  against the demand, normalised per axis by the box extreme. REF is a brute-force grid over both row angles
+  (37 x 37, no slew limit) with the fixed-column solve inside, minimum weighted error.
+- **V6. Results** (mean E over the 12 intents after 90 ticks; worst single solve's iterations; us per tick on
+  Yggdrasil):
+
+  | Method | small 90 deg/s | small 360 deg/s | large 90 deg/s | solves/tick | worst iters (large) | us/tick (large) |
+  |---|---|---|---|---|---|---|
+  | REF grid (static optimum, shared row angle) | 0.134 | 0.134 | n/a | 1369 | n/a | n/a |
+  | M0 fixed rows (today) | 0.298 | 0.298 | 0.310 | 1 | 95 | 36 |
+  | M1 row as one actuator: shared throttle, (u, v) in the row frame, slew-boxed | 0.142 | 0.138 | 0.133 | 1 | 20 | 3 |
+  | M2 cascade: per-thruster (u, v), one angle per row, re-solve | 0.137 | 0.131 | 0.131 | 2 | 95 | 267 |
+  | M3 angle step linearised at last tick's throttles, one solve | 0.201 | 0.196 | 0.215 | 1 | 95 | 74 |
+  | M3c as M3, idle rows linearised at throttle .25 | 0.138 | 0.136 | 0.132 | 1 | 100 (2 IterationLimit) | 79 |
+  | M5 M1's angle, then per-thruster re-solve | 0.142 | 0.138 | 0.131 | 2 | 95 | 44 |
+  | M4 per-thruster gimbals (no row constraint; upper bound) | 0.138 | 0.135 | 0.129 | 1 | 89 | 328 |
+
+  No method produced NaN. M1, M2, M3c, M4 and M5 reach E 0.000 on forward and reverse (M0 and M3: 0.361). The large
+  hull's 95-iteration solves are the fixed per-thruster solve itself (M0 is also 95): finding
+  `cut-thrust-allocator-core.s1.large-hull-degradation`, follow-up `allocator-large-hull`. M1 collapses each row to
+  two variables (12 on the large hull instead of 36) and stays at 20 iterations, which is the "group identical
+  columns" remedy that follow-up names, arrived at for free.
+- **V7. The demand scale must be the gimbal reach.** The allocator scales intent by box extremes it sums from the
+  columns it is given (`ThrustAllocator.cs:44-61`). With rows tilting, current-column extremes move every tick, so
+  "full forward" would change meaning as the rows swing. The probe scales by the reach: per thruster and half-axis,
+  the maximum of A cos a + B sin a over the gimbal (closed form: sqrt(A^2 + B^2) when atan2(B, A) lies inside the arc,
+  else the better end). Small hull: +y 31.3 (mains 20, eight row thrusters 2 sin 45 deg each), -y 11.3, +-x 8.0,
+  +-z 12.53. The same reach is the envelope's box (cut `envelope-from-columns`), so intent and evasion read one
+  geometry.
+- **V8. Zero thrust: hold the angle, but never linearise through the throttle.** Schedule strafe right, idle, strafe
+  left, forward, idle, reverse, 30 ticks each, both hulls, 90 deg/s. M1 and M5: every step within the window (3.00
+  deg max), idle drift 0.000 deg, idle throttle 0, no sign flips in the late half of any phase, and reverse ends at
+  -45/45 (correct). M2: one or two late sign flips, and 3 deg of idle drift on the large hull (its stage one aims
+  idle rows with v alone). M3 is trapped: a row at zero throttle has a zero angle column, so it never tilts, forward
+  stays at E 0.361 and reverse ends at 45/-45 (the wrong way). M3c unsticks it but chatters (15 late flips), fires
+  at full throttle while idle on the large hull and hits the cap. Holding the previous angle when the row's (u, v)
+  is near zero (|(u, v)| < 1e-6) is enough once (u, v) are free variables: v can aim an idle row without thrust, and
+  the box's overcount is useful there.
+
+### Model page rows
+
+| Kind | Identity | Lifecycle | Authority |
+|---|---|---|---|
+| Gimbal limit (`HardpointData.FiringArc`, key 6, on a `Thruster` hardpoint; question `vector-row-data-home`) | The hardpoint's mount id (`Transform`) on its hull. Full width in degrees, as for a gun; the row swings +-FiringArc/2 about `Rotation`. 0 is a fixed thruster; thrusters get no `GameplaySettings.FiringArc` fallback. | Authored per hull with the other hardpoint fields; Save or Package writes it; a package edit changes it on Continue (moves no cell). | The ship author. The judge requires every member of a row to share it and the row's joint chain to reach it. The thruster reads it at activation. |
+| Row (`HardpointData.Row`, new key 7, string) | Unique within its hull; empty means not in a row. A `Thruster` hardpoint with `FiringArc` > 0 and no `Row` is a row of one. | Authored per hull; renaming a row changes no save (no save names a row; ruling `no-save-compatibility-before-players`). | The ship author. Judge: only on `Thruster` hardpoints; members share `Rotation` and a `FiringArc` > 0. Never derived from a joint (ruling `rig-is-presentation`). |
+| Slew rate (`ThrusterData.Slew`, new key 6, `PerformanceStat`, deg/s) | A stat of the thruster design. | Authored per design; heat, durability and quality move it live like `Thrust`. A row slews at its slowest live member. | The gear designer, as a weapon's traverse is (ruling `mount-arc-gun-traverse`). |
+| Live row angle (`Thruster.Angle`, runtime) | The thruster behaviour; every member of a row holds the same value. Radians from the hardpoint's `Rotation`. | 0 at `Activate`; moves at most slew x dt per tick; held while the row is idle; never saved (a load restarts at 0). | `ThrustAllocator` decides it; `Ship.Update` is its one writer. `Execute`, the envelope and presentation read it. The rig draws it and never writes it. |
+| Row actuator (runtime) | The row, built at `Activate` from its members' hardpoints. | Rebuilt when the thruster set changes (the allocator's resize rule). A dead member's columns are zero, so the row keeps steering with the rest. | `ThrustAllocator` reads the summed along and across columns and the slew window, and decides one throttle and one angle step per row. |
+
+### Authority map
+
+- **Owner.** `ThrustAllocator` decides every fixed thruster's throttle and every row's throttle and angle step, in one
+  `BoundedLeastSquares` solve (question `vector-row-formulation`, recommended `shared-throttle-row`).
+- **Inputs.** Intent (unchanged); each fixed thruster's column; per row, the summed column along and across its live
+  angle and its slew window [max(-arc/2 - angle, -slew dt), min(arc/2 - angle, slew dt)]; the reach (V7).
+- **Outputs.** `Thruster.Axis` for every thruster (a row's members share the row's) and `Thruster.Angle` for every
+  row member, read by `Execute`, `PowerRequest`, the envelope and presentation.
+- **Derived.** The reach and the envelope (one helper); a row's summed columns; the slew window.
+- **No longer owners.** `Allocate` no longer sums its box extremes from the current columns; they come from the reach
+  helper. A joint, its limits and the IK pose decide nothing in the sim.
+- **Forbidden writers.** Any `Angle` write outside `Ship.Update`; any read of `ShipJoint`, `ShipAnchor.Joint` or a
+  Unity transform in `Thruster`, `Ship` or `ThrustAllocator`; a second throttle solve or fallback mixer; an angle step
+  linearised through last tick's throttles (M3, V8).
+- **Shared paths.** Player helm, agents, the throttle lock and tests reach rows only through intent.
+  `Thruster.Column(angle)` is the one geometry function `Execute`, the allocator and the envelope call.
+
+### Rationale
+
+- **Why one actuator per row.** M1 matches M5 (per-member throttles after the same angle) within 0.002 mean E on all
+  three sweeps, is within 0.008 of the static optimum, keeps the allocator's one solve (ruling
+  `one-weighted-solve-no-rotation-demand`; the thrust-allocator authority map forbids a second solve) and is the
+  cheapest in iterations and time. M2 is the most accurate (0.131) but doubles the variables, reaches 95 of 100
+  iterations on 36 thrusters and drifts idle rows. What M1 gives up is differential throttle inside a row: on these
+  hulls it measured nothing, and a row that needs it can be authored as two rows. The operator decides: question
+  `vector-row-formulation`.
+- **Why the limit is the hardpoint's arc and the slew the gear's.** It is ruling `mount-arc-gun-traverse` applied to
+  thrusters: how far a mount swings is ship authoring; how fast is the part's own stat. Reusing `FiringArc` adds no
+  field that the add-on, Studio and C4 must learn; its meaning (how far the mounted item may point from `Rotation`)
+  already fits. Question `vector-row-data-home` holds the alternatives.
+- **Why the envelope counts the whole gimbal, not the slew.** The envelope already ignores the time to swing the
+  hull (cut `envelope-from-columns` sums box extremes); counting slew time only for rows would be a second,
+  inconsistent time model. If the pace pass finds slow gimbals over-credited, slew time enters the envelope for hull
+  turn and rows together.
+- **Sequence.** Both cuts land after `thrust-allocator` and `envelope-from-columns`, whose `Ship.Update` wiring and
+  `RecalculateEnvelope` they change, and after `link-rig-record`, whose judge they extend. The rig and the add-on are
+  follow-up `vector-rows-presentation`: nothing authors a `Row` until the add-on does, so the record cut is inert
+  data until then.
+
+### Cut order
+
+1. `vector-rows-record` after `link-rig-record`, `thrust-allocator` and `envelope-from-columns`:
+   `HardpointData.Row`, `ThrusterData.Slew`, the judge's row rules, thruster anchors allowed on joints with the
+   reach check.
+2. `vector-rows-allocator` after `vector-rows-record`, `thrust-allocator-core`, `thrust-allocator` and
+   `envelope-from-columns`: rows as one actuator each in the solve, `Thruster.Angle`, `Column(angle)`, the reach
+   helper for demand and envelope. Its `Ship.cs` anchors are written against the merged wiring at Hands time
+   (the spec says where).
+
+### Admitted
+
+2026-10-10 (`imagination-aeth-vectoring`): receipt `mind-commit-2829a7e1...` (cut_specs `cut-vector-rows-record.r1`,
+`cut-vector-rows-allocator.r1`, questions `vector-row-formulation` and `vector-row-data-home`, follow-up
+`vector-rows-presentation`) and `mind-commit-e1337a9c...` (`cut-vector-rows-record.r2` superseding r1: its
+ShipValidationTests anchor named the wrong class). context-pack read every anchor SAME: record r2 at `562de34c`,
+allocator r1 at `1fc98bdc`.
+# Lock warning (cut lock-warning) and consumable-ai r2
+
+Imagination imagination-aeth-lock-warning, session self-2026-10-10-ag, 2026-10-10.
+Pinned to Aetheria origin/master 08d064c8dce6081bb48e1922a3090c855db2e7c6 (lock-warning)
+and to branch eureka/aetheria-release-consumable-ai head f2ecc96a (consumable-ai r2,
+not merged to master). For Self to fold into docs/aetheria-release-map.md.
+
+## Body facts (probes and source reads)
+
+LW1. The sim has no fact a ship owns about locks on it. `Entity.TargetedBy`
+(Subject) and `Entity.TargetedByCount` (Entity.cs:174-175 at 08d064c8) count ships
+whose *selected* target is this one (Entity.cs:255-259). Selecting a target emits
+nothing, so that count is not something the targeted ship can sense. Its one
+reader is the HUD's music switch (ActionGameManager.cs:1063).
+
+LW2. The HUD's lock bar is the player's own *outgoing* lock: one `LockIndicator`
+per own `LockWeapon` (ActionGameManager.cs:1139-1144), driven by `targetLock.Lock`
+(noise, frequency, spin; :1440-1452). No incoming-lock presenter exists.
+
+LW3. A lock is built only inside `LockWeapon.Execute` (LockWeapon.cs:81-110): the
+lock resets when the target changes (86-90); it grows only on a hostile entity
+target while the angle between the shooter's Aim and the target is under
+LockAngle (100-105); outside that it decays (106). The lock speed scales with
+`Entity.EntityInfoGathered[target]` raised to SensorImpact, the shooter's private
+sensor state. `IsLocked` is `_lock > .99` (66).
+
+LW4. Behaviours execute only while their item is Active
+(EquippedItem.Update, Entity.cs:1982-1998; consumable effects at 1626-1635).
+A behaviour that stops executing leaves its fields as they were, so any
+"painting" flag stored on the weapon goes stale when the launcher goes offline.
+A warning must therefore be re-asserted each tick by the emitter, never read
+from emitter state that might be stale.
+
+LW5. `Entity.Update` returns at once when the entity is inactive
+(Entity.cs:1376-1379) and already walks `Zone.Entities` every tick for
+hostility (1406-1414). `Deactivate` (772-787) disposes subscriptions and clears
+the visibility collections. `Entity.VisibilitySources` (88, decayed in Update
+1395-1400) is the existing precedent for state other entities push onto a ship.
+
+LW6. consumable-ai h1 (f2ecc96a) reads `e.Weapons.OfType<LockWeapon>().Any(w =>
+w.Lock > .5)` over `ship.VisibleEnemies` filtered to enemies targeting this ship
+(Combat.cs:147-148), after the `target == null` early return (Combat.cs:33-34).
+Finding reads-enemy-weapon-state: private emitter state, and the unseen-locker
+case inverted (a locker the ship cannot see never warns).
+
+LW7. `Entity.TryActivateConsumable` (Entity.cs:895-907 at f2ecc96a) has no
+liveness guard, and `CanActivateConsumable` (883-886) admits a Stackable design
+every call. A dead or docked ship's agent still ticks (finding
+deactivated-ship-spends-cargo); a stack of vents drains one per locked tick
+(finding stackable-vent-drained-per-tick).
+
+LW8. ConsumableAiTests (f2ecc96a) holds a lock steady by turning lockers away
+after one tick (`HoldLocks`, 204-210). Once warnings come from paints, a locker
+looking away is the no-paint case, so every vent fixture must keep its lockers
+painting.
+
+## Authority map: the incoming-lock warning
+
+- Owner: `Entity` (ServerShared) owns `IncomingLocks`, the ship's list of
+  `LockWarning` facts, published once per Entity.Update.
+- Emission owner: `LockWeapon.Execute` is the one place that decides a beam is
+  on a ship (the LockAngle test it already makes). Each tick it paints, it
+  pushes one paint to the target: `target.ReceivePaint(Entity.Position,
+  Item?.Data, Lock)`. Nothing else calls ReceivePaint.
+- Inputs: paints received since the ship's last Update (emitter position,
+  emitting gear design, lock strength). Never the emitter's weapon list, target
+  slot or EntityInfoGathered.
+- Outputs: `IReadOnlyList<LockWarning> IncomingLocks`, each with Bearing (unit
+  xz direction from this ship to the emitter at paint time), EmitterClass (the
+  emitting gear's `EquippableItemData`, null for a consumable-borne emitter)
+  and Strength (0..1; content is question lock-warning-content).
+- Derived state: the paint inbox is a one-tick buffer, swapped into
+  IncomingLocks at the top of the receiver's Update and cleared. The list is
+  empty on an inactive ship and cleared by Deactivate.
+- Forbidden writers and readers: CombatState and every Agents/ file read no
+  `LockWeapon`, `.Lock` or `IsLocked` of another ship; ActionGameManager reads
+  enemy lock state only through `CurrentEntity.IncomingLocks`.
+  `TargetedBy`/`TargetedByCount` are not lock facts and nothing new reads them.
+- Shared paths: the AI's vent rule (CombatState) and the player's HUD
+  indicator read the same list: same ship, same information (ruling
+  same-ship-same-inputs, finding reads-enemy-weapon-state).
+- Timing: an emitter that executes after the receiver in tick N is published at
+  the receiver's tick N+1, so each publish window holds each emitter's one
+  Execute; a warning lags its paint by at most one tick and never outlives it by
+  more than one (LW4 is why: no stale flags).
+- Deletion line: none in this cut (additive); consumable-ai r2 deletes the
+  `VisibleEnemies`/`LockWeapon.Lock` read at Combat.cs:147-148.
+
+## Rationale
+
+- Push from the beam, not a scan by the receiver. A receiver-side scan of
+  `Zone.Entities` for lock weapons aimed at it would re-derive LockWeapon's arc
+  test (two owners of "the beam is on you") or read a stored painting flag that
+  goes stale offline (LW4). The push re-asserts the paint every tick it is true,
+  in the code that already decides it, and the receiver owns only what it
+  learns.
+- Why the receiver is still the owner: the warning is a fact about what this
+  ship senses (ruling sensor-stat-set item 4), and a later receiver stat
+  (passive listening gear, the sensor-stat-set cut) belongs here, not on the
+  emitter.
+- Search versus track is not in this cut. The only emitter in the sim is the
+  LockWeapon, a narrow track beam by nature (item 1). A Mode field would have
+  one producer and no reader that could ever see the other value. The
+  sensor-stat-set cut adds Mode when it lands the first wide search emitter.
+  This cut is the first slice of follow-up sensor-stat-set-cut: the receiver
+  half of item 4 for the emitter that exists. That follow-up stays open for
+  power, beam width, intercept factor, passive listening, shared tracks and
+  search mode.
+- What the ship learns about lock progress is a product fork: item 4 lists
+  bearing, emitter class and search versus track, not progress. Question
+  lock-warning-content. Recommendation `strength`; see the question.
+- Prior art for that fork (from general knowledge, no Eyes pass this time;
+  confidence moderate): a real radar warning receiver shows emitter type,
+  bearing, a relative signal strength (closeness and threat, not the shooter's
+  lock progress) and mode (search, track, launch). Flight games mostly reduce
+  this to stages: a "locking" tone, a "locked" tone, then a missile alert.
+  A continuous lock-progress readout is a game abstraction, chosen for the
+  reaction window it gives.
+- The music switch (LW1) is a separate instruments-bound leak and a separate
+  product choice (gun-only enemies never paint), so it is a follow-up, not part
+  of this cut.
+
+## consumable-ai r2
+
+- The vent rule reads `ship.IncomingLocks`: vent when any one warning's
+  Strength passes .5 (the strongest, never a sum), before the `target == null`
+  return so a ship painted by a locker it cannot see or has not targeted still
+  vents. The unseen-locker test flips from "does not vent" to "vents".
+- `TryActivateConsumable` refuses on an inactive entity: the one path guards
+  player and AI alike (finding deactivated-ship-spends-cargo).
+- The AI does not activate a consumable whose kind already has an active
+  effect, Stackable or not (finding stackable-vent-drained-per-tick). The
+  player may still stack by hand; `CanActivateConsumable` is unchanged.
+- Tests pin the vent edge at .49/.51, the arc at 14/16 degrees, and an optimum
+  range distinct from the shortest gun's range (findings
+  lock-and-arc-bands-unpinned, optimum-range-not-pinned).
+- Order: the consumable-only edits land on the branch at f2ecc96a, then Hands
+  merges origin/master (with lock-warning merged), then rewrites the vent rule;
+  Combat.cs is untouched by lock-warning, so its anchors read the same after
+  the merge.
+
+## Admitted (receipt mind-commit-35d69407...)
+
+- cut_spec cut-lock-warning.r1 (base 08d064c8), question lock-warning-content
+  (raised in it, recommended `strength`), cut_spec cut-consumable-ai.r2 (base
+  f2ecc96a, depends_on lock-warning), resolution superseding consumable-ai r1,
+  follow-ups music-reads-targeted-count and lock-warning-audio-cue.
+- context-pack: lock-warning 9/9 anchors SAME at 08d064c8; consumable-ai r2
+  12/12 SAME at f2ecc96a (temporary detached worktrees, removed).

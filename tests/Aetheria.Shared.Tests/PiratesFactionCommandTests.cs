@@ -23,10 +23,8 @@ public sealed class PiratesFactionCommandTests : IDisposable
         Directory.CreateDirectory(Path.Combine(_root, "GameData"));
         File.Copy(Path.Combine(AetherDb.FindRoot(), "GameData", "Aetheria.cc"), CatalogPath);
         // AetherDb.Open composes the process-wide registry. So the copy is stripped through a registry scoped to the shipped
-        // assembly (see FireControlCut7Tests) and then given the grammar global every populated catalog must hold.
-        var registry = CultDocumentRegistry.ForTypes(typeof(ItemData).Assembly.GetTypes()
-            .Where(t => t is { IsAbstract: false, IsInterface: false })
-            .Where(t => t.GetCustomAttribute<CultDocumentAttribute>() != null));
+        // assembly (TestCatalog.Registry); the shipped catalog already holds the grammar global.
+        var registry = TestCatalog.Registry();
         using (var cache = new CultCache(registry))
         {
             cache.AddBackingStore(new SingleFileMessagePackBackingStore(CatalogPath), AetheriaStores.CatalogTypes);
@@ -35,12 +33,6 @@ public sealed class PiratesFactionCommandTests : IDisposable
             foreach (var product in cache.GetAll<FactionProductData>().Where(product => product.Manufacturer.Equals(ours)).ToArray())
                 Assert.True(cache.Remove(cache.RefOf(product).Key));
             Assert.True(cache.Remove(ours.Key));
-            cache.FlushAsync().Wait();
-        }
-        using (var cache = new CultCache())
-        {
-            cache.AddBackingStore(new SingleFileMessagePackBackingStore(CatalogPath), AetheriaStores.CatalogTypes);
-            cache.Upsert(new VerseGrammar { Revision = 1 });
             cache.FlushAsync().Wait();
         }
     }

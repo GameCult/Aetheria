@@ -475,7 +475,7 @@ public sealed partial class FireControlCut124Tests : IDisposable
     public void AGrazingBlastAtAShippedHullsFarthestCornerLands(string hullName)
     {
         Shape shape;
-        var cache = OpenReadOnlyRealCatalog(Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc"), out _);
+        var cache = OpenReadOnlyRealCatalog(TestCatalog.Repo, out _);
         try { shape = cache.GetByName<HullData>(hullName).Shape; }
         finally { cache.Dispose(); }
 
@@ -2573,9 +2573,7 @@ public sealed partial class FireControlCut124Tests : IDisposable
 
     private static CultCache OpenReadOnlyRealCatalog(string catalogPath, out SingleFileMessagePackBackingStore store)
     {
-        var registry = CultDocumentRegistry.ForTypes(typeof(ItemData).Assembly.GetTypes()
-            .Where(t => t is { IsAbstract: false, IsInterface: false })
-            .Where(t => t.GetCustomAttribute<CultDocumentAttribute>() != null));
+        var registry = TestCatalog.Registry();
         var cache = new CultCache(registry);
         store = new SingleFileMessagePackBackingStore(catalogPath, true);
         cache.AddBackingStore(store, AetheriaStores.CatalogTypes);
@@ -2588,7 +2586,7 @@ public sealed partial class FireControlCut124Tests : IDisposable
     [Fact]
     public void ShippedCatalogIsNeutralOnBlastRadiusAndFuse()
     {
-        var gameData = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
+        var gameData = TestCatalog.Repo;
         var cache = OpenReadOnlyRealCatalog(gameData, out var store);
         try
         {
@@ -2621,7 +2619,7 @@ public sealed partial class FireControlCut124Tests : IDisposable
     [Fact]
     public void WeaponFuseAndBlastRadiusRoundTripThroughAWrittenCatalog()
     {
-        var src = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
+        var src = TestCatalog.Repo;
         var fuseValues = new WeaponFuse?[] { null, WeaponFuse.Contact, WeaponFuse.Proximity, WeaponFuse.Delayed };
         var radiusValues = new float?[] { null, 0f, 12.5f };
 
@@ -2636,9 +2634,7 @@ public sealed partial class FireControlCut124Tests : IDisposable
                     var cache = OpenReadOnlyRealCatalog(tmp, out _);
                     cache.Dispose();
                 }
-                var writeCache = new CultCache(CultDocumentRegistry.ForTypes(typeof(ItemData).Assembly.GetTypes()
-                    .Where(t => t is { IsAbstract: false, IsInterface: false })
-                    .Where(t => t.GetCustomAttribute<CultDocumentAttribute>() != null)));
+                var writeCache = new CultCache(TestCatalog.Registry());
                 writeCache.AddBackingStore(new SingleFileMessagePackBackingStore(tmp, false), AetheriaStores.CatalogTypes);
                 var w = writeCache.GetAll<WeaponItemData>().OrderBy(x => x.Name).First();
                 w.Fuse = fuse;

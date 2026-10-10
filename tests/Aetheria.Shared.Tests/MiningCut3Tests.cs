@@ -761,9 +761,7 @@ public sealed partial class MiningCut3Tests : IDisposable
     // would otherwise be demanded of a catalog that was never authored with it.
     private static CultCache OpenShippedCatalogCopy(string catalogPath, string runPath)
     {
-        var registry = CultDocumentRegistry.ForTypes(typeof(ItemData).Assembly.GetTypes()
-            .Where(t => t is { IsAbstract: false, IsInterface: false })
-            .Where(t => t.GetCustomAttributes(typeof(CultDocumentAttribute), false).Length > 0));
+        var registry = TestCatalog.Registry();
         var cache = new CultCache(registry);
         cache.AddBackingStore(new GameCult.Caching.MessagePack.SingleFileMessagePackBackingStore(catalogPath, false), AetheriaStores.CatalogTypes);
         cache.AddBackingStore(new GameCult.Caching.MessagePack.SingleFileMessagePackBackingStore(runPath), AetheriaStores.RunTypes);
@@ -776,7 +774,7 @@ public sealed partial class MiningCut3Tests : IDisposable
     [Fact]
     public void GenerationChoosesTheKindByTheSameFunction()
     {
-        var shipped = Path.Combine(RestoredHullsTests.FindRepoRoot(), "GameData", "Aetheria.cc");
+        var shipped = TestCatalog.Repo;
         var belts = 0;
         for (uint seed = 1; seed <= 25 && belts < 3; seed++)
         {
@@ -1043,7 +1041,7 @@ public sealed partial class MiningCut3Tests : IDisposable
         var dir = Path.Combine(_root, "shipped");
         Directory.CreateDirectory(dir);
         var catalog = Path.Combine(dir, "Aetheria.cc");
-        File.Copy(Path.Combine(RestoredHullsTests.FindRepoRoot(), "GameData", "Aetheria.cc"), catalog);
+        File.Copy(TestCatalog.Repo, catalog);
         using var cache = OpenShippedCatalogCopy(catalog, Path.Combine(dir, "run.cc"));
         Assert.Contains(cache.GetAll<FieldKindData>(), kind => kind.GenerationWeight > 0f);
     }

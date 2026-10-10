@@ -112,7 +112,10 @@ public sealed class AetheriaStoresTests : IDisposable
     public void MissingCatalogGlobalIsLoud()
     {
         var empty = Path.Combine(_root, "empty.cc");
-        using (AetheriaStores.Open(empty, catalogWritable: true)) { }
+        // A catalog file that exists but lacks the global: the read-only open reaches the global check.
+        File.Copy(Catalog, empty);
+        using (var seed = AetheriaStores.Open(empty, catalogWritable: true))
+            Assert.True(seed.Commit(batch => batch.Remove(seed.RefOf(seed.GetGlobal<VerseGrammar>()).Key)));
         var error = Assert.Throws<InvalidOperationException>(() => AetheriaStores.Open(empty));
         Assert.Contains("aetheria.verse_grammar", error.Message);
         using (AetheriaStores.Open(Catalog)) { }
@@ -194,6 +197,23 @@ public sealed class AetheriaStoresTests : IDisposable
     {
         var record = Record.Exception(() => CultRecordRefs.Validate(new Faction { Name = "Unrelated" }));
         Assert.Null(record);
+    }
+
+    // A shipped player with no catalog must not boot into an empty game: a read-only open of a missing path throws
+    // naming the path, and does not create the file. A writable open still seeds an empty catalog.
+    [Fact]
+    public void AStoreRefusesAMissingCatalog()
+    {
+        var missing = Path.Combine(_root, "absent", "Aetheria.cc");
+
+        // FileNotFoundException, not the catalog-global check: that one also throws on a missing file whenever a global is registered.
+        var error = Assert.Throws<FileNotFoundException>(() => AetheriaStores.Open(missing));
+        Assert.Contains(missing, error.Message);
+        Assert.False(File.Exists(missing));
+        Assert.False(Directory.Exists(Path.GetDirectoryName(missing)));
+
+        using (var seeded = AetheriaStores.Open(missing, catalogWritable: true))
+            Assert.Empty(seeded.GetAll<Faction>());
     }
 
     private static string Hash(string path) => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));

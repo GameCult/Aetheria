@@ -232,7 +232,7 @@ public sealed class ShipAuthoringTests
 
     private static readonly string[] AllRoles =
     {
-        "map-icon", "hull-collider", "shield", "tractor", "thruster-emitter", "weapon-mount", "weapon-muzzle", "radiator-mesh", "articulation"
+        "map-icon", "hull-collider", "shield", "tractor", "thruster-emitter", "weapon-mount", "weapon-muzzle", "radiator-mesh"
     };
 
     // The fixture with its thruster swapped for one hardpoint of the given type at mount id "mount", and no anchor for it.

@@ -6,8 +6,8 @@
     <CultLibRevision>45c2f4006f5f7dab357426cabd3197e8d0a17f66</CultLibRevision>
     <CultMathRoot Condition="'$(CultMathRoot)' == '' and '$(CULTMATH_ROOT)' != ''">$(CULTMATH_ROOT)</CultMathRoot>
     <CultMathRoot Condition="'$(CultMathRoot)' == ''">$(CultLibRoot)</CultMathRoot>
-    <!-- CultMath: cultmath-unity-v0.3.0 in Packages/manifest.json. -->
-    <CultMathRevision>614fd445845f6251ee2986707beecea0bb211791</CultMathRevision>
+    <!-- CultMath: cultmath-unity-v0.4.0 in Packages/manifest.json. -->
+    <CultMathRevision>252e226c51826d626f4113673f31d96577b67ec9</CultMathRevision>
     <GitExecutable Condition="'$(GitExecutable)' == '' and Exists('C:\Program Files\Git\cmd\git.exe')">C:\Program Files\Git\cmd\git.exe</GitExecutable>
     <GitExecutable Condition="'$(GitExecutable)' == ''">git</GitExecutable>
   </PropertyGroup>
