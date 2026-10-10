@@ -1373,6 +1373,10 @@ public abstract class Entity
                     yield return b;
     }
 
+    // The phase between the items' performance update and the power bus: what an entity commands its items to do this
+    // tick, read from the same liveness and stats Execute then acts on. Ship's allocation lives here.
+    protected virtual void UpdateThrottles() { }
+
     public virtual void Update(float delta)
     {
         TurnRate = 0;
@@ -1402,6 +1406,7 @@ public abstract class Entity
         UpdateTemperature(delta);
 
         foreach (var item in _orderedEquipment) item.UpdatePerformance();
+        UpdateThrottles();
 
         if (_active)
         {

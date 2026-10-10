@@ -98,19 +98,21 @@ public class Ship : Entity
 
     #endregion
 
+    // Called by Entity.Update once the items' performance is current and before the power bus is stepped and the items
+    // execute: liveness, thrust and the throttles they decide are one phase, the one Execute acts on. The lock is a
+    // bound on the allocator's solve; intent reaches the allocator here and nowhere else.
+    protected override void UpdateThrottles()
+    {
+        if (_exitingWormhole || _enteringWormhole) return;
+        RecalculateEnvelope();
+        for (var i = 0; i < _allThrusters.Length; i++)
+            _columns[i] = _allThrusters[i].Column(_allThrusters[i].NominalThrust);
+        _allocator.Allocate(_columns, MovementDirection, Turn, _throttles, ThrottleLocked);
+        for (var i = 0; i < _allThrusters.Length; i++) _allThrusters[i].Axis = _throttles[i];
+    }
+
     public override void Update(float delta)
     {
-        if (_active && !_exitingWormhole && !_enteringWormhole)
-        {
-            RecalculateEnvelope();
-            // The lock replaces intent here, once; player and agent intent both pass through this one read.
-            var move = ThrottleLocked ? float2(0, 1) : MovementDirection;
-            for (var i = 0; i < _allThrusters.Length; i++)
-                _columns[i] = _allThrusters[i].Column(_allThrusters[i].NominalThrust);
-            _allocator.Allocate(_columns, move, Turn, _throttles);
-            for (var i = 0; i < _allThrusters.Length; i++) _allThrusters[i].Axis = _throttles[i];
-        }
-
         var velocityMagnitude = length(Velocity);
         if(velocityMagnitude > .01f)
             Velocity = normalize(Velocity) * decay(velocityMagnitude, HullData.Drag, delta);
