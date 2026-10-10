@@ -201,6 +201,11 @@ public sealed class ThrottleLockTests : IDisposable
         Assert.True(f.Forward.Axis > .5f);
         Assert.True(f.Reverse.Axis < 1e-6f);
 
+        // The stick's length is the fraction of the hull's forward thrust asked for, and no stick asks for nothing.
+        Fly(float2(0, .5f));
+        Assert.InRange(f.Forward.Axis, .4f, .6f);
+        Assert.All(Fly(float2(0, 0)), a => Assert.True(a < 1e-6f));
+
         var all = new[] { back, right, left, forward };
         for (var a = 0; a < all.Length; a++)
             for (var b = a + 1; b < all.Length; b++)

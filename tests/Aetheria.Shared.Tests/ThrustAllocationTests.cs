@@ -127,14 +127,8 @@ public sealed partial class RunStartTests
 
         ship.MovementDirection = float2(0, 1);
         ship.Turn = 0;
-        var log = "";
-        float drift = 0;
-        for (var seg = 0; seg < 10; seg++)
-        {
-            drift += AllocFly(ship, 60);
-            log += $" || {seg}: {drift:F3} " + string.Join(" ", ship.GetBehaviors<Thruster>().Select(d => $"[{d.Item.EquippableItem.Rotation} {(d.Item.Active.Value ? "on" : "OFF")} {d.Thrust:F0}/{d.Axis:F4} t{d.Item.Temperature:F0}]"));
-        }
-        Assert.True(abs(drift) < .05f, log);
+        // Six seconds: the ship has no heatsinks, and its drives overheat and shut down at about seven.
+        Assert.True(abs(AllocFly(ship, 360)) < .05f);
     }
 
     [Fact]
