@@ -244,21 +244,24 @@ public sealed class VerseGrammarTests : IDisposable
     {
         if (File.Exists(path)) File.Delete(path);
         using var cache = OpenScoped(path, false);
-        cache.Upsert(new VerseGrammar { Revision = 1, Description = "Fixture grammar." });
-        cache.Upsert(typeof(VerseVerb), new VerseVerb { Name = "haul", RenderPath = VerseRenderPath.ShipAction, Description = "Carry cargo to a place.",
-            Roles = new[] { new VerseRole { Name = "cargo", Binds = VerseReferentKind.Cargo }, new VerseRole { Name = "destination", Binds = VerseReferentKind.Place } } }, new CultRecordKey("verb-haul"));
-        cache.Upsert(typeof(VerseVerb), new VerseVerb { Name = "attack", RenderPath = VerseRenderPath.ShipAction, Description = "Attack a faction.",
-            Roles = new[] { new VerseRole { Name = "target", Binds = VerseReferentKind.Faction } } }, new CultRecordKey("verb-attack"));
-        cache.Upsert(typeof(VerseVerb), new VerseVerb { Name = "speak", RenderPath = VerseRenderPath.Conversation, Description = "Say a thing.", Roles = new VerseRole[0] },
-            new CultRecordKey("verb-speak"));
         var firstKey = new CultRecordKey("faction-adrasteia");
         var secondKey = new CultRecordKey("faction-brannoch");
         var first = new Faction { Name = "Adrasteia", ShortName = "ADR", Description = "First.", PrimaryColor = new float3(1, .5f, .25f) };
         var second = new Faction { Name = "Brannoch", ShortName = "BRN", Description = "Second.", PrimaryColor = new float3(.25f, .5f, 1) };
         first.Allegiance[new CultRecordRef<Faction>(secondKey)] = .75f;
         second.Allegiance[new CultRecordRef<Faction>(firstKey)] = .25f;
-        cache.Upsert(typeof(Faction), first, firstKey);
-        cache.Upsert(typeof(Faction), second, secondKey);
+        cache.Commit(batch =>
+        {
+            batch.Upsert(typeof(VerseGrammar), new VerseGrammar { Revision = 1, Description = "Fixture grammar." });
+            batch.Upsert(typeof(VerseVerb), new VerseVerb { Name = "haul", RenderPath = VerseRenderPath.ShipAction, Description = "Carry cargo to a place.",
+                Roles = new[] { new VerseRole { Name = "cargo", Binds = VerseReferentKind.Cargo }, new VerseRole { Name = "destination", Binds = VerseReferentKind.Place } } }, new CultRecordKey("verb-haul"));
+            batch.Upsert(typeof(VerseVerb), new VerseVerb { Name = "attack", RenderPath = VerseRenderPath.ShipAction, Description = "Attack a faction.",
+                Roles = new[] { new VerseRole { Name = "target", Binds = VerseReferentKind.Faction } } }, new CultRecordKey("verb-attack"));
+            batch.Upsert(typeof(VerseVerb), new VerseVerb { Name = "speak", RenderPath = VerseRenderPath.Conversation, Description = "Say a thing.", Roles = new VerseRole[0] },
+                new CultRecordKey("verb-speak"));
+            batch.Upsert(typeof(Faction), first, firstKey);
+            batch.Upsert(typeof(Faction), second, secondKey);
+        });
         cache.FlushAsync().Wait();
     }
 
