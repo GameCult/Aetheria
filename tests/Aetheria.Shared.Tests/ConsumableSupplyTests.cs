@@ -153,7 +153,7 @@ public sealed class ConsumableSupplyTests : IDisposable
         var rig = Build(Offer.Reachable);
         var stocked = 0;
         var makers = new HashSet<string>();
-        var fullest = 0;
+        int fullest = 0, thinnest = int.MaxValue;
         for (var i = 0; i < Seeds; i++)
         {
             var random = new Random(SeedOf(i));
@@ -163,6 +163,7 @@ public sealed class ConsumableSupplyTests : IDisposable
             if (held.Length == 0) continue;
             stocked++;
             fullest = Math.Max(fullest, held.Length);
+            thinnest = Math.Min(thinnest, held.Length);
             Assert.InRange(held.Length, 1, LoadoutGenerator.StationConsumableUnits);
             var brands = held.Select(item => rig.Items.Brand(item)).ToArray();
             var product = Assert.Single(brands.Select(brand => brand.Product.Name).Distinct()); // exactly one product
@@ -171,6 +172,7 @@ public sealed class ConsumableSupplyTests : IDisposable
         }
         AssertWithinThreeSigma(stocked, LoadoutGenerator.StationConsumableChance, "stations stocking a consumable");
         Assert.Equal(LoadoutGenerator.StationConsumableUnits, fullest); // a roll can stock up to the maximum
+        Assert.Equal(1, thinnest); // and as few as one
         Assert.Equal(2, makers.Count); // the pick is among the products on offer, not always the first
     }
 
