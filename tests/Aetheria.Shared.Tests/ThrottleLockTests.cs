@@ -89,6 +89,8 @@ public sealed class ThrottleLockTests : IDisposable
         zone.Entities.Add(ship);
         ship.Aim = float3(0, 0, 1);
         ship.Activate();
+        // A thruster is live from its first performance update; the allocator reads that every tick.
+        foreach (var item in ship.Equipment) item.UpdatePerformance();
 
         var thrusters = ship.GetBehaviors<Thruster>().ToArray();
         return new Fixture

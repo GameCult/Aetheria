@@ -268,6 +268,16 @@ public sealed class RestoredHullsTests
         }
     }
 
+    // For a fixture that pins flight, not brownout: the thrusters draw no power. A ship with every thruster firing asks
+    // for more than its reactor gives, and a brownout scales the thrusters' thrust unevenly (follow-up
+    // allocator-brownout-columns), so the turn or heading a test reads would be the brownout's.
+    internal static void FreeThrusterPower(CultCache cache)
+    {
+        foreach (var gear in cache.GetAll<GearData>())
+            foreach (var thruster in gear.Behaviors.OfType<ThrusterData>())
+                thruster.EnergyUsage = new PerformanceStat { Min = 0, Max = 0 };
+    }
+
     // A restored hull with every thruster hardpoint (and its reactor) filled, activated and warmed up: the
     // rotation thrusters the helm tests need. The caller owns the cache.
     internal static Ship BuildThrustedShip(CultCache cache, string name)

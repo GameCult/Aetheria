@@ -273,7 +273,11 @@ public sealed partial class RunStartTests
             // The Djinni's measured motion is further below its reach (+53% nose-on, +27% broadside at the last measurement): its
             // strafers are off-axis and Ship.Update cancels their torque (M24), which the envelope, summed from what each thruster
             // can push, does not model. Stated deviation; the bound still pins that the reach covers what the ship does.
-            var ceiling = name == "djinni" ? 1.6f : 1.15f;
+            // The Longinus's reach sits 19.5% (nose-on) and 24.9% (broadside) above what the allocator's flight measures
+            // (ruling allocator-divergence-accepted): the allocator holds the heading and pays for the drive torque out of
+            // the flank thrusters, so the envelope's box support (cut envelope-from-columns reads the allocator's columns)
+            // promises more than a controlled flight spends.
+            var ceiling = name == "djinni" ? 1.6f : 1.3f;
             Assert.InRange(reach.noseOn, measured.noseOn * .9f, measured.noseOn * ceiling);
             Assert.InRange(reach.broadside, measured.broadside * .9f, measured.broadside * ceiling);
         }

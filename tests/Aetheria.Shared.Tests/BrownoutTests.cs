@@ -111,8 +111,7 @@ public sealed class BrownoutTests : IDisposable
         Assert.True(ship.TryEquip(Mint(cache, items, reactorData)));
         // The Skiff's centre column: a thruster there has no torque, so the allocator can fire it alone. These tests pin power,
         // not flight, and a lone off-centre thruster could not fire without turning.
-        Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("Consumer")), new int2(2, 0)));
-        Assert.True(ship.GetBehavior<Thruster>().Torque == 0f, "the lone thruster turns nothing");
+        Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("Consumer")), new int2(2, 1)));
 
         zone.Entities.Add(ship);
         // Ship.Turn stays 0, so Ship.Update commands no rotation: no incidental torque thrust from the
@@ -132,6 +131,8 @@ public sealed class BrownoutTests : IDisposable
             Thrust = Curved(100, exponent), Visibility = Constant(0), Heat = Constant(0), EnergyUsage = Constant(100)
         });
         var ship = BuildShip(cache, reactorCharge);
+        Assert.True(ship.GetBehavior<Thruster>().Torque == 0f, "the lone thruster turns nothing");
+        ship.Equipment.Single(e => e.Data.Name == "Consumer").UpdatePerformance(); // live from its first performance update
         ship.MovementDirection = float2(0, -1); // reverse-thruster axis += -MovementDirection.y == 1
         ship.Update(1f);
         return (-ship.Velocity.y, ship.GetBehavior<Thruster>());
@@ -339,9 +340,11 @@ public sealed class BrownoutTests : IDisposable
         var energyUsage = Curved(100, exponent: 1);
         using var cache = OpenCatalog(new ThrusterData
         {
-            Thrust = Constant(0), Visibility = Constant(0), Heat = Constant(0), EnergyUsage = energyUsage
+            Thrust = Constant(100), Visibility = Constant(0), Heat = Constant(0), EnergyUsage = energyUsage
         });
         var ship = BuildShip(cache, reactorCharge: 25); // demand 100 (nominal), generation 25 -> ratio .25
+        // The allocator fires a thruster that can push; it is live from its first performance update.
+        ship.Equipment.Single(e => e.Data.Name == "Consumer").UpdatePerformance();
         ship.MovementDirection = float2(0, -1);
         ship.Update(1f);
         var thruster = ship.GetBehavior<Thruster>();

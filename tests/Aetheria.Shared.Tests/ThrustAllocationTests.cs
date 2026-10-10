@@ -43,10 +43,11 @@ public sealed partial class RunStartTests
     {
         var (_, player) = AllocDuel();
         var drives = AllocDrives(player);
-        Assert.True(drives.Length >= 2 && drives[^1].NominalThrust > drives[0].NominalThrust * 1.05f, "fixture: the drives are mismatched");
         player.MovementDirection = float2(0, 1);
         player.Turn = 0;
         Assert.True(abs(AllocFly(player, 120)) < .1f);
+        // The drives start alike and heat apart as they fire: by now they are mismatched and both pushing.
+        Assert.True(drives.Length >= 2 && drives[^1].NominalThrust > drives[0].NominalThrust * 1.05f, "fixture: the drives are mismatched");
         Assert.All(drives, d => Assert.True(d.Axis > .5f, "fixture: the drives are pushing"));
     }
 
@@ -88,11 +89,12 @@ public sealed partial class RunStartTests
         player.Turn = 0;
         Assert.True(abs(AllocFly(player, 30)) < .1f);
 
+        // The drive is heated a little off its plateau: its live thrust moves, and a column cached before would not.
         var weakened = drives[^1];
         var before = weakened.Thrust;
-        weakened.Item.EquippableItem.Durability *= .5f;
+        foreach (var cell in weakened.Item.InsetShape.Coordinates) player.Temperature[cell.x, cell.y] += 5f;
         weakened.Item.UpdatePerformance();
-        Assert.True(weakened.Thrust < before * .95f, "fixture: halving durability weakens the drive");
+        Assert.True(weakened.Thrust < before * .95f && weakened.Item.Active.Value, "fixture: the heated drive pushes measurably less");
         Assert.True(abs(AllocFly(player, 60)) < .1f);
     }
 
@@ -100,6 +102,7 @@ public sealed partial class RunStartTests
     public void ATinyImbalanceStillHolds()
     {
         using var cache = RestoredHullsTests.OpenCatalog();
+        RestoredHullsTests.FreeThrusterPower(cache);
         var ship = RestoredHullsTests.BuildThrustedShip(cache, "Longinus");
         var drives = AllocDrives(ship);
         Assert.True(drives.Length >= 2);

@@ -94,13 +94,13 @@ public sealed class ConditionRatioTests : IDisposable
         Assert.True(ship.TryEquip(Mint(cache, items, reactorData)));
         // The Skiff's centre column: a thruster there has no torque, so the allocator can fire it alone. These tests pin power,
         // not flight, and a lone off-centre thruster could not fire without turning.
-        Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("Consumer")), new int2(2, 0)));
-        Assert.True(ship.GetBehavior<Thruster>().Torque == 0f, "the lone thruster turns nothing");
+        Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("Consumer")), new int2(2, 1)));
 
         zone.Entities.Add(ship);
         ship.Aim = float3(0, 0, 1); // Turn stays 0, as in BrownoutTests
         ship.Activate();
         consumer = ship.Equipment.Single(e => e.Data.Name == "Consumer");
+        Assert.True(ship.GetBehavior<Thruster>().Torque == 0f, "the lone thruster turns nothing");
 
         // Settle at the plateau's center: two ticks so UpdatePerformance's deltaTemp term reads 0 before a test
         // drives its own change, matching HeatResponseTests' own settle pattern.

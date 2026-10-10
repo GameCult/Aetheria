@@ -290,6 +290,7 @@ public sealed class SteeringTests
     public void ATurnIsThatFractionOfTheHullsTurn(float turn)
     {
         using var cache = RestoredHullsTests.OpenCatalog();
+        RestoredHullsTests.FreeThrusterPower(cache);
         var ship = RestoredHullsTests.BuildThrustedShip(cache, Hull);
         var settings = RestoredHullsTests.Settings();
         const float dt = 1f / 60f;
