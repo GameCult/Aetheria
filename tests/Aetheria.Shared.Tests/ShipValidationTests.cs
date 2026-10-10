@@ -175,10 +175,8 @@ public sealed class ShipValidationTests
 
         Add("id-null", s => s.Visual.Id = null, "Ship ID is required");
         Add("id-blank", s => s.Visual.Id = "  ", "Ship ID is required");
-        Add("id-device-con", s => s.Visual.Id = "con", "Windows device name");
-        Add("id-device-with-extension", s => s.Visual.Id = "nul.x", "Windows device name");
-        Add("id-device-com1", s => s.Visual.Id = "com1", "Windows device name");
-        Add("id-device-lpt9", s => s.Visual.Id = "lpt9", "Windows device name");
+        foreach (var device in new[] { "con", "prn", "aux", "nul", "nul.x", "com1", "com9", "lpt1", "lpt9", "con.txt" })
+            Add("id-device-" + device, s => s.Visual.Id = device, "Windows device name");
         Add("id-trailing-dot", s => s.Visual.Id = "abc.", "must not end with a dot");
         Add("hull-null", s => s.Hull = null, "hull data is required");
         Add("hull-name-null", s => s.Hull.Name = null, "hull name is required");
