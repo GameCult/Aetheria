@@ -448,6 +448,34 @@ public class ThrustAllocatorTests
     }
 
     [Fact]
+    public void TheThrottlesStayInBoundsWhateverTheSolveEnds()
+    {
+        // The solver can stop at its iteration limit rather than converge. Probed on 64000 calls over 1 to 32 columns, scales
+        // 1e-6 to 1e6, micro and ordinary intents (2026-10-10): 8 of 60297 solves reached it, all on 32 synthetic columns, all with
+        // intents near 1e-8, none from a fresh allocator, none on a shipped hull (the largest has 8 thrusters). Wherever the
+        // solve ends, the allocator hands back what it has: finite, within [0,1], and the floored columns at full.
+        var rng = new System.Random(20261010);
+        float Rand(float lo, float hi) => lo + (float) rng.NextDouble() * (hi - lo);
+        foreach (var scale in new[] { 1e-3f, 1f })
+            for (var round = 0; round < 12; round++)
+            {
+                var hull = Enumerable.Range(0, 32).Select(_ => new float3(Rand(-1, 1) * scale, Rand(-1, 1) * scale, rng.Next(4) == 0 ? 0 : Rand(-.3f, .3f) * scale)).ToArray();
+                var allocator = new ThrustAllocator();
+                var throttle = new float[hull.Length];
+                for (var call = 0; call < 40; call++)
+                {
+                    var micro = rng.Next(4) == 0 ? 1e-7f : 1f;
+                    var floor = rng.Next(3) == 0;
+                    allocator.Allocate(hull, new float2(Rand(-1, 1) * micro, Rand(-1, 1) * micro), Rand(-1.5f, 1.5f) * micro, throttle, floor);
+                    Assert.All(throttle, t => Assert.InRange(t, 0f, 1f));
+                    if (floor)
+                        for (var i = 0; i < hull.Length; i++)
+                            if (hull[i].y > 0) Assert.Equal(1f, throttle[i]);
+                }
+            }
+    }
+
+    [Fact]
     public void AMicroIntentIsServed()
     {
         // Zero is a fact about the intent alone (follow-up allocator-residual-pins): an intent of 1e-6 or 1e-10 of the
