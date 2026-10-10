@@ -309,6 +309,11 @@ def main():
     cell.occupied = False
     result, message = run(bpy.ops.aetheria.save_ship_layout)
     require(result == {"FINISHED"} and grid_faces() == faces - 1, "Toggling a cell and Save did not redraw the Grid")
+    state.new_width = state.width + 1  # a layout resized after the grid was placed: the placement no longer fits it
+    bpy.ops.aetheria.resize_ship_layout()
+    result, message = run(bpy.ops.aetheria.save_ship_layout)
+    require(result == {"FINISHED"} and bpy.data.objects.get("Grid") is None,
+            "A Grid placed for another size is still drawn after the layout was resized")
     print("PASS 4 hardpoints and save ok")
 
     # Pass 5: meshes outside Ship Root stop Flip Nose and Rasterise; parented, the flip moves the nub's cells.
