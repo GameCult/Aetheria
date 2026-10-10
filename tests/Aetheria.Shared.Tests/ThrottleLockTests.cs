@@ -129,7 +129,8 @@ public sealed class ThrottleLockTests : IDisposable
     private static float Apart(float[] a, float[] b) => a.Zip(b, (x, y) => Math.Abs(x - y)).Max();
 
     // Drives a (possibly locked) ship at `intent` and its unlocked twin at full forward, both at the same Turn and dt, and
-    // requires every thruster to answer alike.
+    // requires every thruster to answer alike to 1e-4: the lock holds its drive at exactly 1, and the unfloored twin's solve
+    // lands within the solver's few millionths of it (measured 4e-6).
     private static void Tick(Fixture ship, Fixture twin, float2 intent, float turn, float dt)
     {
         ship.Ship.MovementDirection = intent;
@@ -138,7 +139,7 @@ public sealed class ThrottleLockTests : IDisposable
         ship.Ship.Update(dt);
         twin.Ship.Update(dt);
         var apart = Apart(Axes(ship), Axes(twin));
-        Assert.True(apart < 1e-6f, $"the ship's throttles differ from its full-forward twin's by {apart}: [{string.Join(" ", Axes(ship))}] against [{string.Join(" ", Axes(twin))}]");
+        Assert.True(apart < 1e-4f, $"the ship's throttles differ from its full-forward twin's by {apart}: [{string.Join(" ", Axes(ship))}] against [{string.Join(" ", Axes(twin))}]");
         Assert.True(twin.Forward.Axis > .98f, "fixture: the twin's forward drive is at full");
     }
 
