@@ -793,6 +793,16 @@ public abstract class Entity
         _incomingLocks.Clear();
     }
 
+    // Zone.Update runs this on every entity before any entity updates, so a paint made during tick N is published
+    // at the start of tick N+1 whatever order the emitter and this ship update in; a paint that stops is gone
+    // one tick later for every ordering.
+    internal void PublishPaints()
+    {
+        _incomingLocks.Clear();
+        _incomingLocks.AddRange(_paintInbox);
+        _paintInbox.Clear();
+    }
+
     // The only caller is LockWeapon.Execute; strength is the emitter's own Lock at that paint.
     internal void ReceivePaint(float3 emitterPosition, EquippableItemData emitterClass, float strength)
     {
@@ -1392,10 +1402,6 @@ public abstract class Entity
     {
         TurnRate = 0;
         if (!_active) return;
-
-        _incomingLocks.Clear();
-        _incomingLocks.AddRange(_paintInbox);
-        _paintInbox.Clear();
 
         var velocityBefore = Velocity;
         LimitClamp = float2(0, 0);

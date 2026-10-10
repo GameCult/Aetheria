@@ -1453,9 +1453,7 @@ public class ActionGameManager : MonoBehaviour
             if(showLockingIndicator)
             {
                 indicator.Target = CurrentEntity.Target.Value.Entity.Position.ToUnity();
-                indicator.NoiseAmplitude = Settings.GameplaySettings.LockIndicatorNoiseAmplitude * (1 - targetLock.Lock);
-                indicator.NoiseFrequency = Settings.GameplaySettings.LockIndicatorFrequency.Evaluate(targetLock.Lock);
-                spin.Speed = Settings.GameplaySettings.LockSpinSpeed.Evaluate(targetLock.Lock);
+                ApplyLockProgress(indicator, spin, targetLock.Lock);
             }
         }
 
@@ -1472,10 +1470,16 @@ public class ActionGameManager : MonoBehaviour
             var warning = warnings[strongest];
             incomingIndicator.Target = CurrentEntity.Position.ToUnity() +
                 new Vector3(warning.Bearing.x, 0, warning.Bearing.y) * IncomingLockIndicatorDistance;
-            incomingIndicator.NoiseAmplitude = Settings.GameplaySettings.LockIndicatorNoiseAmplitude * (1 - warning.Strength);
-            incomingIndicator.NoiseFrequency = Settings.GameplaySettings.LockIndicatorFrequency.Evaluate(warning.Strength);
-            incomingSpin.Speed = Settings.GameplaySettings.LockSpinSpeed.Evaluate(warning.Strength);
+            ApplyLockProgress(incomingIndicator, incomingSpin, warning.Strength);
         }
+    }
+
+    // The one lock-indicator curve: outgoing (the player's own lock) and incoming (the warning's strength) both tighten through it.
+    private void ApplyLockProgress(PlaceUIElementWorldspace indicator, Rotate spin, float progress)
+    {
+        indicator.NoiseAmplitude = Settings.GameplaySettings.LockIndicatorNoiseAmplitude * (1 - progress);
+        indicator.NoiseFrequency = Settings.GameplaySettings.LockIndicatorFrequency.Evaluate(progress);
+        spin.Speed = Settings.GameplaySettings.LockSpinSpeed.Evaluate(progress);
     }
 }
 
