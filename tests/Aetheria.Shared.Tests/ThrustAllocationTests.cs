@@ -127,8 +127,15 @@ public sealed partial class RunStartTests
 
         ship.MovementDirection = float2(0, 1);
         ship.Turn = 0;
-        var drift = AllocFly(ship, 600);
-        Assert.True(abs(drift) < .05f, $"heading changed {drift} deg; drives {string.Join(" ", drives.Select(d => $"{d.Thrust:F0}/{d.Axis:F3}"))}");
+        var log = "";
+        float drift = 0;
+        for (var seg = 0; seg < 10; seg++)
+        {
+            drift += AllocFly(ship, 60);
+            log += $"
+{seg}: {drift:F3} " + string.Join(" ", ship.GetBehaviors<Thruster>().Select(d => $"[{d.Item.EquippableItem.Rotation} {(d.Item.Active.Value ? "on" : "OFF")} {d.Thrust:F0}/{d.Axis:F4} t{d.Item.Temperature:F0}]"));
+        }
+        Assert.True(abs(drift) < .05f, log);
     }
 
     [Fact]
