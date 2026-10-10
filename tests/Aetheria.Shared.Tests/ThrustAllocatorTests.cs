@@ -350,7 +350,7 @@ public class ThrustAllocatorTests
     // ship. Deterministic from the seed.
     static float3[] LargeHull(int n, int seed)
     {
-        var rng = new Random(seed);
+        var rng = new System.Random(seed);
         var columns = new float3[n];
         for (var i = 0; i < n; i++)
         {
