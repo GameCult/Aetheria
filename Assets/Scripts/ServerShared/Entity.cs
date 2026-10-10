@@ -27,6 +27,10 @@ public abstract class Entity
     public float3 Position;
     public float2 Direction = float2(0,1);
     public float2 Velocity;
+    // Rad per sim second, signed as the step turns Direction: the sum of this step's rotation actuators' applied
+    // angle over the step. Runtime only, zeroed at the start of Update, so a staged, loaded or wormhole write to
+    // Direction is never a turn. Read only by presenters that draw ahead of the step.
+    public float TurnRate;
 
     // Runtime only, never saved; Entity.Update is the one writer of both. Acceleration is the planar velocity change
     // across the base update over its delta (thrust, not the drag or gravity a subclass applies before calling it),
@@ -199,12 +203,10 @@ public abstract class Entity
             return presencePermitted;
         }), initialValue: true);
         
-        foreach (var item in Equipment)
-        foreach (var behavior in item.Behaviors)
-        {
-            if(behavior is IInitializableBehavior initializableBehavior)
-                initializableBehavior.Initialize();
-        }
+        // One initialiser for everything that computes targets here: gear and the effects still running, so a
+        // consumable active across a refit retargets to the new items exactly as gear does.
+        InitializeBehaviors(Equipment.SelectMany(item => item.Behaviors));
+        InitializeBehaviors(_activeConsumables.SelectMany(effect => effect.Behaviors));
         foreach(var entity in Zone.Entities)
         {
             EntityInfoGathered[entity] = 0;
@@ -856,8 +858,22 @@ public abstract class Entity
 
     public void ActivateConsumable(ConsumableItem item)
     {
-        _activeConsumables.Add(new ConsumableItemEffect(item, this));
+        var effect = new ConsumableItemEffect(item, this);
+        // The same hook Activate runs over Equipment: a behaviour that computes its targets there (StatModifier)
+        // would otherwise reach its second tick uninitialised.
+        InitializeBehaviors(effect.Behaviors);
+        _activeConsumables.Add(effect);
     }
+
+    private static void InitializeBehaviors(IEnumerable<Behavior> behaviors)
+    {
+        foreach (var behavior in behaviors.ToList())
+            if (behavior is IInitializableBehavior initializable)
+                initializable.Initialize();
+    }
+
+    // Derived, never written: true iff an active consumable effect carries a ThrottleLock.
+    public bool ThrottleLocked => _activeConsumables.Any(e => e.Behaviors.OfType<ThrottleLock>().Any());
 
     public ConsumableItemEffect FindActiveConsumable(ConsumableItemData data)
     {
@@ -1359,6 +1375,7 @@ public abstract class Entity
 
     public virtual void Update(float delta)
     {
+        TurnRate = 0;
         if (!_active) return;
 
         var velocityBefore = Velocity;
@@ -1443,11 +1460,16 @@ public abstract class Entity
             for (var i = 0; i < _activeConsumables.Count; i++)
             {
                 _activeConsumables[i].Update(delta);
-                if (_activeConsumables[i].RemainingDuration < 0)
+                if (_activeConsumables[i].RemainingDuration <= 0)
                 {
                     // Cut 2 Gate 1 fix (docs/stats-and-power-cut.md): an expired consumable dropped out of this
                     // list without ever telling the resolver, leaving its generation/cache/modifier entries
                     // reachable (keyed by this ConsumableItemEffect instance) for the rest of the process.
+                    // A StatModifier's attachments are keyed by its target items, not by the effect, so Forget alone
+                    // leaves a boost attached to its targets: dispose each behaviour first.
+                    foreach (var behavior in _activeConsumables[i].Behaviors)
+                        if (behavior is IDisposable disposable)
+                            disposable.Dispose();
                     Resolver.Forget(_activeConsumables[i]);
                     _activeConsumables.RemoveAt(i--);
                 }
@@ -1823,7 +1845,7 @@ public class EquippedItem : IStatContext
         // RefreshInputCapacitor implementation now calls for a request-field stat, and it pins that stat's own
         // PowerSupplyFactor to 1 regardless of what Terms the stat declares -- so a direct PowerSupply term on a
         // request field can no longer make the request depend on its own answer, and the six shipped records this
-        // ruling exists to make legal again (RadiatorData.PumpedHeat, AetherDriveData.Torque) are not an authoring
+        // ruling exists to make legal again (RadiatorData.PumpedHeat) are not an authoring
         // error to refuse. What is still refused: a request field fed a PowerSupply-tainted value through a
         // *modifier chain* (StatModifier.ValidateNoPowerSupplyChain, StatModifier.cs) -- EvaluateNominalPower
         // forwards ScaleModifier/ConstantModifier to the item's real, non-nominal resolver entries (same as
@@ -1839,8 +1861,8 @@ public class EquippedItem : IStatContext
     // Nominal-request ruling (docs/stats-and-power-cut.md, operator ruling 2026-09-19): what this item wants at
     // full power supply, not what it is currently managing -- the read every PowerRequest/RefreshReserve/
     // RefreshInputCapacitor implementation uses for a stat named in StatValidation.PowerRequestFields, so a stat
-    // that is both what a request asks for and what it also produces (RadiatorData.PumpedHeat, AetherDriveData.
-    // Torque) stops being circular at the root instead of being forbidden outright. Only PowerSupply is pinned:
+    // that is both what a request asks for and what it also produces (RadiatorData.PumpedHeat)
+    // stops being circular at the root instead of being forbidden outright. Only PowerSupply is pinned:
     // Heat and Durability are NOT, because they are not the term a request would be circular through -- this
     // tick's PowerBus.Step (which calls PowerRequest) always runs before this tick's grant exists, so nothing
     // here could depend on an answer that has not been computed yet, and a hot or worn item honestly asking for

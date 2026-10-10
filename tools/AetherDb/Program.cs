@@ -10,6 +10,8 @@ using System.Linq;
 using System.Reflection;
 using CultMath;
 using GameCult.Caching;
+using GameCult.Caching.MessagePack;
+using MessagePack;
 using Random = CultMath.Random;
 
 // Commands over the game database, run with: dotnet run --project tools/AetherDb -- <command>
@@ -38,9 +40,14 @@ public static class Program
             case "targeting-catalog-6d": return TargetingCatalog6d(args.Contains("apply"));
             case "ship-authoring": return ShipAuthoringCommands.Run(args.Skip(1).ToArray());
             case "field-kinds": return FieldKindsCatalog(args.Contains("apply"));
+            case "pd-gear": return PdGearCatalog(args.Contains("apply"));
             case "mine-launcher": return MineLauncherCatalog(args.Contains("apply"));
+            case "roles-backfill": return RolesBackfill(args.Contains("apply"));
+            case "pirates-faction":
+                Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+                return PiratesFaction(args.Contains("apply"));
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], roles-backfill [apply], pd-gear [apply], pirates-faction [apply]");
                 return 1;
         }
     }
@@ -53,7 +60,7 @@ public static class Program
         var products = db.Cache.GetAll<FactionProductData>()
             .OrderBy(p => db.Cache.RefOf(p).Key.Value, StringComparer.Ordinal).ToArray();
 
-        // The manufacturer no longer lives on the design; a runtime item picks one via Brand()'s tie-break, but
+        // The manufacturer no longer lives on the design; a runtime item's brand is the product its lot records, but
         // census must not invent that same attribution for a design with several sellers. Instead it lists every
         // distinct maker that sells the design (via products), in record-key order. A design no product sells,
         // or that only unset-manufacturer products sell, shows "(none)".
@@ -121,22 +128,6 @@ public static class Program
             }
         }
         Console.WriteLine($"\n{roleGaps} (product, role) pairs where a sold, role-bearing design's product authors no matching spread");
-
-        // Brand() picks the first (maker, design) product in record-key order; more than one means the choice is
-        // arbitrary rather than authored, which the rule until segment bands exist forbids.
-        var duplicateBrands = products
-            .Where(p => p.Manufacturer.IsSet())
-            .GroupBy(p => (Maker: p.Manufacturer.Key, Design: p.Design.Key))
-            .Where(g => g.Count() > 1)
-            .ToArray();
-        Console.WriteLine($"\n{duplicateBrands.Length} (maker, design) pairs with more than one product:");
-        foreach (var group in duplicateBrands)
-        {
-            var maker = db.Cache.Get<Faction>(group.Key.Maker);
-            var design = db.Cache.Get<CraftedItemData>(group.Key.Design);
-            Console.WriteLine($"  {maker?.ShortName ?? "(unknown)"} / {design?.Name ?? group.Key.Design.Value}: " +
-                string.Join(", ", group.Select(p => p.Name)));
-        }
         return 0;
     }
 
@@ -154,13 +145,13 @@ public static class Program
     {
         ["Damage"] = "barrel", ["Range"] = "barrel", ["Velocity"] = "barrel", ["Penetration"] = "barrel",
         ["Cooldown"] = "feed mechanism", ["Spread"] = "feed mechanism", ["Heat"] = "feed mechanism",
-        ["Visibility"] = "feed mechanism", ["Energy"] = "feed mechanism",
+        ["Visibility"] = "feed mechanism", ["Energy"] = "feed mechanism", ["Count"] = "feed mechanism",
     };
 
     private static readonly Dictionary<string, string> EnergyWeaponRoles = new Dictionary<string, string>
     {
         ["Damage"] = "focusing array", ["Range"] = "focusing array", ["Velocity"] = "focusing array",
-        ["Penetration"] = "focusing array",
+        ["Penetration"] = "focusing array", ["DamageSpread"] = "focusing array",
         ["Energy"] = "power coupling", ["Heat"] = "power coupling", ["ChargeTime"] = "power coupling",
         ["ChargeEnergy"] = "power coupling", ["ChargeHeat"] = "power coupling", ["Cooldown"] = "power coupling",
         ["Spread"] = "power coupling", ["Visibility"] = "power coupling",
@@ -171,9 +162,19 @@ public static class Program
         ["Damage"] = "warhead", ["Penetration"] = "warhead", ["DamageSpread"] = "warhead",
         ["LockSpeed"] = "guidance system", ["SensorImpact"] = "guidance system", ["LockAngle"] = "guidance system",
         ["DirectionImpact"] = "guidance system", ["Decay"] = "guidance system", ["Range"] = "guidance system",
+        ["MinRange"] = "guidance system",
         ["Cooldown"] = "guidance system", ["Spread"] = "guidance system", ["Visibility"] = "guidance system",
         ["Energy"] = "guidance system", ["Heat"] = "guidance system",
         ["Thrust"] = "thruster", ["MissileVelocity"] = "thruster", ["Velocity"] = "thruster",
+    };
+
+    // Warhead and dispenser: a mine layer is a launcher without guidance or thrust, so its stats split between the
+    // charge it lays and the mechanism that lays it. ArmingDelay, FuseDelay and Lifetime are timings, not stats.
+    private static readonly Dictionary<string, string> MineLayerRoles = new Dictionary<string, string>
+    {
+        ["Damage"] = "warhead", ["Penetration"] = "warhead", ["DamageSpread"] = "warhead",
+        ["Range"] = "dispenser", ["Cooldown"] = "dispenser", ["Spread"] = "dispenser", ["Velocity"] = "dispenser",
+        ["Energy"] = "dispenser", ["Heat"] = "dispenser", ["Visibility"] = "dispenser",
     };
 
     private static readonly Dictionary<string, string> RadiatorRoles = new Dictionary<string, string>
@@ -185,7 +186,7 @@ public static class Program
 
     private static readonly Dictionary<string, string> ReactorRoles = new Dictionary<string, string>
     {
-        ["Charge"] = "core", ["Efficiency"] = "core",
+        ["Charge"] = "core", ["Efficiency"] = "core", ["Modifier"] = "core",
         ["OverloadEfficiency"] = "regulator", ["ThrottlingFactor"] = "regulator",
     };
 
@@ -200,12 +201,6 @@ public static class Program
     {
         ["Thrust"] = "nozzle", ["Visibility"] = "nozzle",
         ["Heat"] = "injector", ["EnergyUsage"] = "injector",
-    };
-
-    private static readonly Dictionary<string, string> AetherDriveRoles = new Dictionary<string, string>
-    {
-        ["MaximumRpm"] = "rotor", ["Torque"] = "rotor",
-        ["CouplingEfficiency"] = "coupling", ["PassiveCoupling"] = "coupling", ["EnergyDraw"] = "coupling",
     };
 
     private static readonly Dictionary<string, string> HullShipRoles = new Dictionary<string, string>
@@ -231,6 +226,17 @@ public static class Program
             },
         };
 
+    // One Mean / StandardDeviation per maker, applied to every role of a design the maker sells (catalog-growth
+    // addenda, "Maker profiles"); the Pirates are middling and inconsistent (pirates-record).
+    private static readonly Dictionary<string, (float Mean, float Dev)> MakerProfiles = new Dictionary<string, (float Mean, float Dev)>
+    {
+        ["Zhestokost"] = (.50f, .08f), ["AU"] = (.50f, .12f), ["Lightsail"] = (.55f, .10f), ["R&D"] = (.60f, .15f),
+        ["Lucent"] = (.60f, .15f), ["NiteLife"] = (.55f, .12f), ["Finch"] = (.65f, .20f), ["Alakrita"] = (.60f, .14f),
+        ["DME"] = (.55f, .20f), ["Adrasteia"] = (.60f, .10f),
+    };
+
+    private static readonly (float Mean, float Dev) PirateProfile = (.45f, .22f);
+
     private static string KindOf(EquippableItemData item) =>
         item is HullData hull ? $"Hull/{hull.HullType}"
         : item is DockingBayData ? "DockingBay"
@@ -241,7 +247,8 @@ public static class Program
     // The field->role map for one design, or null when its kind carries no per-part behaviour stat at all
     // (CargoBay, DockingBay, ControlModule, Hull/Station, Hull/Turret -- none of their behaviours read
     // StatSource.Quality today, so there is no natural role to author and the report says so per design).
-    private static Dictionary<string, string> RoleMapFor(EquippableItemData item, string kind) => kind switch
+    private static Dictionary<string, string> RoleMapFor(EquippableItemData item, string kind) =>
+        item.Behaviors != null && item.Behaviors.OfType<MineLayerData>().Any() ? MineLayerRoles : kind switch
     {
         "Weapon/Ballistic" => BallisticWeaponRoles,
         "Weapon/Energy" => EnergyWeaponRoles,
@@ -250,11 +257,13 @@ public static class Program
         "Reactor" => ReactorRoles,
         "Sensors" => SensorRoles,
         "Thruster" => ThrusterRoles,
-        "AetherDrive" => AetherDriveRoles,
         _ when kind == "Hull/Ship" => HullShipRoles,
         "Tool" => ToolRolesByDesign.TryGetValue(item.Name, out var byName) ? byName : null,
         _ => null,
     };
+
+    // Whether CB-R1 maps this design's stats to roles; the catalog test asks the tool, so it keeps no copy of the kinds.
+    public static bool HasRoleMap(EquippableItemData item) => RoleMapFor(item, KindOf(item)) != null;
 
     private sealed record RoleAuthoring(
         EquippableItemData Item, string Kind, List<(string Behavior, string Field, string Role)> StatsAssigned,
@@ -887,11 +896,11 @@ public static class Program
     // only has anything to curve if some shipped stat actually declares a PowerSupply term -- otherwise every
     // one of those stats keeps answering PowerSupplyFactor's identity (Entity.cs), and removing the gates makes
     // a partial grant read exactly like a full one instead of a reduced one. This authors the term, once, on the
-    // one performance stat each of the four curve-eligible behaviours (EnergyDraw has none -- see EnergyDraw.cs)
-    // actually reads for its continuous effect: ThrusterData.Thrust, AetherDriveData.Torque,
-    // RadiatorData.PumpedHeat, ConstantWeaponData.Damage. Two of the four (AetherDriveData.Torque,
-    // RadiatorData.PumpedHeat) are ALSO power-request fields (StatValidation.PowerRequestFields) -- at the time
-    // this tool authored the shipped catalog's curves that briefly made those two records illegal under F6's
+    // one performance stat each of the three curve-eligible behaviours (EnergyDraw has none -- see EnergyDraw.cs)
+    // actually reads for its continuous effect: ThrusterData.Thrust,
+    // RadiatorData.PumpedHeat, ConstantWeaponData.Damage. One of the three (RadiatorData.PumpedHeat)
+    // is ALSO a power-request field (StatValidation.PowerRequestFields) -- at the time
+    // this tool authored the shipped catalog's curves that briefly made that record illegal under F6's
     // now-deleted static check (StatValidation.ValidateNoPowerSupplyOnRequest); the nominal-request ruling
     // (docs/stats-and-power-cut.md, operator ruling 2026-09-19, see ItemData.cs's PowerRequestFields comment)
     // resolved that by having PowerRequest read request fields nominally instead of forbidding the term, so
@@ -904,12 +913,11 @@ public static class Program
         var db = AetherDb.Open(catalogWritable: apply);
         const float gentleExponent = 1f;
 
-        // (behaviour type, target performance-stat field, short label) -- two of these are also request fields
+        // (behaviour type, target performance-stat field, short label) -- one of these is also a request field
         // (StatValidation.PowerRequestFields); that is legal under the nominal-request ruling above.
         var targets = new (Type BehaviorType, string Field, string Label)[]
         {
             (typeof(ThrusterData), nameof(ThrusterData.Thrust), "thrust"),
-            (typeof(AetherDriveData), nameof(AetherDriveData.Torque), "torque"),
             (typeof(RadiatorData), nameof(RadiatorData.PumpedHeat), "pumpedHeat"),
             (typeof(ConstantWeaponData), nameof(WeaponData.Damage), "damage"),
         };
@@ -1359,7 +1367,7 @@ public static class Program
     // and are meaningless as written under the new one -- re-authored here on the sigma-reciprocal scale
     // instead, same convention as 6c.1's Resolution fix.
     //
-    // Both ranges are chosen against real hull scale (GameData/Aetheria.cc's own hulls: LonginusX 6x17,
+    // Both ranges are chosen against real hull scale (GameData/Aetheria.cc's own hulls: Longinus 6x17,
     // Zenith 12x12, Turret 8x8) and the unaided floor this cut adds alongside them
     // (GameplaySettings.UnaidedPrecision, .3 -> sigma 3.33 cells): a design that did not clear the unaided
     // floor by a wide margin would make the required Tool item pointless to equip.
@@ -1456,6 +1464,138 @@ public static class Program
         CultRecordRefs.Validate(asteroid);
         db.Cache.Commit(batch => batch.Upsert(typeof(FieldKindData), asteroid));
         Console.WriteLine("\nAuthored \"Asteroid\" in Aetheria.cc");
+        return 0;
+    }
+
+    // Aetheria release, cut pd-gear (ruling catalog-grows-generic-designs-branded-products): the catalog's first
+    // point-defence class guns. Nothing in data marks a gun as PD (ruling pd-who-engages); these are PD by their
+    // stats: a hose of light rounds, a quick light beam, and a small pellet volley. Each design is a deep copy of a
+    // template weapon (so roles, effect, sound and temperatures are inherited) with only the stats below overridden;
+    // each carries several products, and branding lives in the products alone. Dry run unless passed "apply".
+    private static int PdGearCatalog(bool apply)
+    {
+        var db = AetherDb.Open(catalogWritable: apply);
+        var weapons = db.Cache.GetAll<WeaponItemData>().ToArray();
+
+        var designNames = new[] { "Point Defense Gun", "Point Defense Laser", "Flak Gun" };
+        var already = designNames.Count(name => weapons.Any(w => w.Name == name));
+        if (already == designNames.Length)
+        {
+            Console.WriteLine("Point-defence gear is already authored; nothing to do.");
+            return 0;
+        }
+        if (already != 0) throw new InvalidOperationException("Point-defence gear is partly authored; the catalog needs a human.");
+
+        WeaponItemData Template(string name) =>
+            weapons.FirstOrDefault(w => w.Name == name) ?? throw new InvalidOperationException($"No weapon design named \"{name}\".");
+        Faction Maker(string shortName) =>
+            db.Cache.GetAll<Faction>().FirstOrDefault(f => f.ShortName == shortName) ?? throw new InvalidOperationException($"No faction with short name \"{shortName}\".");
+
+        var ammoRef = Template("Autocannon").Behaviors.OfType<InstantWeaponData>().Single().AmmoType;
+        var ammunition = db.Cache.Get<SimpleCommodityData>(ammoRef.Key) ?? throw new InvalidOperationException("Autocannon's ammunition commodity is not in the catalog.");
+
+        var options = CultDocumentMessagePackSerialization.OptionsFor(typeof(WeaponItemData).Assembly);
+        WeaponItemData Copy(WeaponItemData template, string name, string description, float mass, int price, float durability, int width, int height, WeaponModifiers modifiers)
+        {
+            var design = MessagePackSerializer.Deserialize<WeaponItemData>(MessagePackSerializer.Serialize(template, options), options);
+            design.Name = name;
+            design.Description = description;
+            design.Mass = mass;
+            design.Price = price;
+            design.Durability = durability;
+            design.Shape = new Shape(width, height);
+            for (var x = 0; x < width; x++)
+                for (var y = 0; y < height; y++) design.Shape.Cells[x, y] = true;
+            design.WeaponModifiers = modifiers;
+            return design;
+        }
+
+        // The stat keeps the template's terms (so quality still moves it as it moves the template); only Min and Max are authored.
+        static void Set(PerformanceStat stat, float min, float max) { stat.Min = min; stat.Max = max; }
+        static void Track(WeaponData data, float rate) => data.Tracking = new PerformanceStat { Min = rate, Max = rate, Terms = new List<StatTerm>() };
+
+        var gun = Copy(Template("ClearPath"), designNames[0], "Close-in defence gun: a hose of light rounds.", 40f, 80000, 60f, 1, 1, WeaponModifiers.RapidFire);
+        var gunData = gun.Behaviors.OfType<InstantWeaponData>().Single();
+        Set(gunData.Damage, 1.5f, 4f); Set(gunData.Range, 300f, 550f); Set(gunData.MinRange, 0f, 0f);
+        Set(gunData.Cooldown, .06f, .025f); Set(gunData.Count, 1f, 1f); Set(gunData.Spread, 1f, .3f);
+        Set(gunData.Velocity, 1100f, 1600f); Set(gunData.Energy, .4f, .2f); Set(gunData.Heat, 40f, 15f); Set(gunData.Visibility, 400f, 150f);
+        gunData.AmmoType = db.Cache.RefOf(ammunition); gunData.MagazineSize = 250; gunData.ReloadTime = 3f;
+        Track(gunData, 40f);
+
+        var laser = Copy(Template("Spectra"), designNames[1], "Close-in defence beam: quick, light, instant.", 30f, 110000, 30f, 1, 1, Template("Spectra").WeaponModifiers);
+        var laserData = laser.Behaviors.OfType<InstantWeaponData>().Single();
+        Set(laserData.Damage, 5f, 12f); Set(laserData.Range, 400f, 750f); Set(laserData.MinRange, 0f, 0f);
+        Set(laserData.Cooldown, .2f, .1f); Set(laserData.Count, 1f, 1f); Set(laserData.Spread, .05f, 0f);
+        Set(laserData.Velocity, 0f, 0f); Set(laserData.Energy, 6f, 10f); Set(laserData.Heat, 300f, 150f); Set(laserData.Visibility, 300f, 100f);
+        Track(laserData, 40f);
+
+        var flak = Copy(Template("DeathCluster"), designNames[2], "Small flak gun: a short-range pellet volley.", 120f, 180000, 80f, 1, 2, WeaponModifiers.Cluster);
+        var flakData = flak.Behaviors.OfType<InstantWeaponData>().Single();
+        Set(flakData.Damage, 30f, 70f); Set(flakData.Count, 6f, 8f); Set(flakData.Range, 350f, 800f); Set(flakData.MinRange, 0f, 0f);
+        Set(flakData.Cooldown, .6f, .35f); Set(flakData.Spread, 4f, 2f); Set(flakData.Velocity, 900f, 1300f);
+        Set(flakData.Energy, 1f, .5f); Set(flakData.Heat, 300f, 150f); Set(flakData.Visibility, 800f, 300f);
+        flakData.AmmoType = db.Cache.RefOf(ammunition); flakData.MagazineSize = 40; flakData.ReloadTime = 4f;
+        Track(flakData, 20f);
+
+        var products = new (WeaponItemData Design, string Name, string Maker, string Description)[]
+        {
+            (gun, "Waykeeper", "Lightsail", "Freight first, questions later. Keeps a hauler's paint unscratched through a full salvo."),
+            (gun, "Rampart", "Zhestokost", "A column does not dodge. It does not need to."),
+            (gun, "Swatter", "AU", "Keeps the rocks and the rockets off your back while you work."),
+            (gun, "Catch-All", "R&D", "Guaranteed to stop the missile!* *Missile defined as whatever it stops."),
+            (laser, "Glare", "Lucent", "Every missile gets its moment in the spotlight. A short one."),
+            (laser, "Nightlight", "NiteLife", "Lights out for anything with a warhead. Shares the bus with your blasters, so mind the meter."),
+            (laser, "Wren", "Finch", "Small, quiet and quicker than it looks, most days."),
+            (laser, "Gnat", "Alakrita", "Weighs less than your conscience and keeps the fast pass fast."),
+            (flak, "MFer", "Zhestokost", "Our shrapnel turns your enemies into scrapnel."),
+            (flak, "Hailstorm", "AU", "A wall of steel for crews who would rather not count missiles."),
+            (flak, "sky full of teeth", "DME", "light it up/ shake it loose/ nothing gets through tonight"),
+        };
+        foreach (var product in products) Maker(product.Maker);
+
+        void Describe(WeaponItemData design)
+        {
+            var data = design.Behaviors.OfType<InstantWeaponData>().Single();
+            Console.WriteLine($"  {design.Name,-20} {design.HardpointType,-9} {design.Shape.Width}x{design.Shape.Height}  mass {design.Mass:0.##}  price {design.Price}  durability {design.Durability:0.##}  modifiers {design.WeaponModifiers}");
+            Console.WriteLine($"      damage {data.Damage.Min:0.##}-{data.Damage.Max:0.##}  count {data.Count.Min:0.##}-{data.Count.Max:0.##}  range {data.Range.Min:0.##}-{data.Range.Max:0.##}  cooldown {data.Cooldown.Min:0.###}-{data.Cooldown.Max:0.###}  spread {data.Spread.Min:0.##}-{data.Spread.Max:0.##}  velocity {data.Velocity.Min:0.##}-{data.Velocity.Max:0.##}");
+            Console.WriteLine($"      energy {data.Energy.Min:0.##}-{data.Energy.Max:0.##}  heat {data.Heat.Min:0.##}-{data.Heat.Max:0.##}  visibility {data.Visibility.Min:0.##}-{data.Visibility.Max:0.##}  ammo {(data.AmmoType.IsSet() ? ammunition.Name : "none")}  magazine {data.MagazineSize}  reload {data.ReloadTime:0.##}  tracking {data.Tracking.Min:0.##}  roles [{string.Join(", ", design.Roles.Select(r => r.Name))}]");
+            Console.WriteLine($"      \"{design.Description}\"");
+        }
+
+        Console.WriteLine("New designs:");
+        foreach (var design in new[] { gun, laser, flak }) Describe(design);
+        Console.WriteLine("\nNew products:");
+        foreach (var (design, name, maker, description) in products)
+        {
+            var (mean, dev) = MakerProfiles[maker];
+            Console.WriteLine($"  {design.Name} -> \"{name}\" by {maker}, every role mean {mean:0.##} dev {dev:0.##}: {description}");
+        }
+
+        if (!apply)
+        {
+            Console.WriteLine($"\nDry run. Pass \"apply\" to author 3 designs and {products.Length} products.");
+            return 0;
+        }
+
+        foreach (var design in new[] { gun, laser, flak }) CultRecordRefs.Validate(design);
+        db.Cache.Commit(batch =>
+        {
+            var keys = new Dictionary<WeaponItemData, CultRecordKey>();
+            foreach (var design in new[] { gun, laser, flak }) keys[design] = batch.Upsert(typeof(WeaponItemData), design);
+            foreach (var (design, name, maker, description) in products)
+            {
+                var (mean, dev) = MakerProfiles[maker];
+                batch.Upsert(typeof(FactionProductData), new FactionProductData
+                {
+                    Name = name,
+                    Description = description,
+                    Design = new CultRecordRef<CraftedItemData>(keys[design]),
+                    Manufacturer = db.Cache.RefOf(Maker(maker)),
+                    Roles = design.Roles.Select(r => new ProductRole { Role = r.Name, Mean = mean, StandardDeviation = dev }).ToList(),
+                });
+            }
+        });
+        Console.WriteLine($"\nAuthored 3 designs and {products.Length} products in Aetheria.cc");
         return 0;
     }
 
@@ -1567,6 +1707,241 @@ public static class Program
             });
         });
         Console.WriteLine($"\nAuthored \"{name}\" in Aetheria.cc");
+        return 0;
+    }
+
+    // Aetheria release, cut roles-backfill (rule CB-R1): designs that shipped with flat stats and no roles get the
+    // roles their kind's map names, and every seller authors a ProductRole per role. Each mapped stat becomes a range
+    // of value x (0.8, 1.2) that rises with quality for a benefit and falls for a cost, read through one Quality term
+    // naming its role (exponent: the mode of the kind's existing designs on that field, 1 when there is none; an
+    // existing Quality term keeps its exponent). Zero stats stay flat. A mapped stat that already varies keeps its range
+    // and only has its unnamed Quality term pointed at the role. Small Drive joined the set because it declares roles that
+    // no non-flat stat reads; DeathCluster, Flak Gun, GT 3K, plight and the two MoveOnPros because each had a non-flat stat
+    // whose Quality term named no role (CB-R1: each non-flat stat reads exactly one declared role). Idempotent: a design with
+    // no flat mapped stat and no unnamed one is left alone, a product with a role is left alone. Dry run unless passed "apply".
+    private static readonly string[] BackfillDesigns = { "Autocannon", "LRMM72", "SRMM72", "Mine Launcher", "Large Drive", "Small Drive",
+        "DeathCluster", "Flak Gun", "GT 3K", "plight", "MoveOnPro", "MoveOnPro Station Reactor" };
+
+    // Stats the backfill names but never ranges: a shot count is whole, and which way a launcher's MinRange should fall is
+    // each design's own call (GT 3K authors it as a cost already).
+    private static readonly HashSet<string> RoleOnlyStats = new HashSet<string>(StringComparer.Ordinal) { "Count", "MinRange" };
+
+    private static readonly HashSet<string> CostStats = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "Cooldown", "Spread", "Heat", "Visibility", "Energy", "EnergyUsage", "ChargeTime", "ChargeEnergy", "ChargeHeat",
+        "SensorImpact", "DirectionImpact", "Decay",
+    };
+
+    private static IEnumerable<PerformanceStat> StatsOf(EquippableItemData item) =>
+        (item.Behaviors ?? new List<BehaviorData>()).Where(b => b != null)
+            .SelectMany(b => b.GetType().GetFields().Where(f => f.FieldType == typeof(PerformanceStat)).Select(f => f.GetValue(b) as PerformanceStat))
+            .Where(s => s?.Terms != null);
+
+    public static int RolesBackfill(bool apply, string root = null)
+    {
+        var db = AetherDb.Open(catalogWritable: apply, root: root);
+        var items = db.Cache.GetAll<EquippableItemData>().ToArray();
+        var products = db.Cache.GetAll<FactionProductData>().ToArray();
+        var targets = BackfillDesigns.Select(name => items.Where(i => i.Name == name).ToArray())
+            .Select((found, i) => found.Length == 1 ? found[0] : throw new InvalidOperationException(
+                $"Expected exactly one design named \"{BackfillDesigns[i]}\", found {found.Length}.")).ToArray();
+
+        // The precedent is read once, before any target changes: the named Quality exponents of every design that declares
+        // roles, so a design the command names later never leaves the pool another target draws from, and a design that
+        // starts with no named term contributes nothing.
+        var precedent = items.Where(i => i.Roles != null && i.Roles.Count > 0)
+            .SelectMany(i => (i.Behaviors ?? new List<BehaviorData>()).Where(b => b != null)
+                .SelectMany(b => b.GetType().GetFields().Where(f => f.FieldType == typeof(PerformanceStat)).Select(f => (Kind: KindOf(i), Field: f.Name, Stat: f.GetValue(b) as PerformanceStat))))
+            .Where(x => x.Stat?.Terms != null && x.Stat.Min != x.Stat.Max)
+            .SelectMany(x => x.Stat.Terms.Where(t => t.Source == StatSource.Quality && !string.IsNullOrEmpty(t.Role)).Select(t => (x.Kind, x.Field, t.Exponent)))
+            .ToArray();
+
+        float ExponentFor(string kind, string field)
+        {
+            var modes = precedent.Where(p => p.Kind == kind && p.Field == field).Select(p => p.Exponent)
+                .GroupBy(e => e).OrderByDescending(g => g.Count()).ThenBy(g => g.Key).Select(g => g.Key).ToArray();
+            return modes.Length > 0 ? modes[0] : 1f;
+        }
+
+        var changedDesigns = new List<(EquippableItemData Document, CultRecordKey Key)>();
+        foreach (var design in targets)
+        {
+            var kind = KindOf(design);
+            var map = RoleMapFor(design, kind) ?? throw new InvalidOperationException($"\"{design.Name}\" has no role map.");
+            var lines = new List<string>();
+            foreach (var behavior in design.Behaviors.Where(b => b != null))
+                foreach (var field in behavior.GetType().GetFields().Where(f => f.FieldType == typeof(PerformanceStat)))
+                {
+                    var stat = field.GetValue(behavior) as PerformanceStat;
+                    if (stat == null) continue;
+                    if (!map.TryGetValue(field.Name, out var role)) continue;
+                    stat.Terms ??= new List<StatTerm>();
+                    var quality = stat.Terms.FirstOrDefault(t => t.Source == StatSource.Quality);
+                    var value = stat.Min;
+                    if (stat.Min == stat.Max)
+                    {
+                        if (RoleOnlyStats.Contains(field.Name)) continue; // a count or a per-design bound: never ranged
+                        if (stat.Min == 0f || float.IsInfinity(stat.Min)) continue;
+                        (stat.Min, stat.Max) = CostStats.Contains(field.Name) ? (value * 1.2f, value * .8f) : (value * .8f, value * 1.2f);
+                        quality ??= new StatTerm { Source = StatSource.Quality, Exponent = ExponentFor(kind, field.Name) };
+                        if (!stat.Terms.Contains(quality)) stat.Terms.Add(quality);
+                    }
+                    else if (quality == null || !string.IsNullOrEmpty(quality.Role)) continue; // already named, or not quality-driven
+                    quality.Role = role;
+                    lines.Add($"      {behavior.GetType().Name}.{field.Name,-16} {value:0.####} -> {stat.Min:0.####}..{stat.Max:0.####}  {role} ^{quality.Exponent:0.##}");
+                }
+            if (lines.Count == 0) continue;
+            design.Roles = StatsOf(design).Where(s => s.Min != s.Max)
+                .SelectMany(s => s.Terms.Where(t => t.Source == StatSource.Quality && !string.IsNullOrEmpty(t.Role)).Select(t => t.Role))
+                .Distinct().OrderBy(r => r, StringComparer.Ordinal).Select(r => new ItemRole { Name = r }).ToList();
+            Console.WriteLine($"  {design.Name}  ({kind})  roles [{string.Join(", ", design.Roles.Select(r => r.Name))}]");
+            foreach (var line in lines) Console.WriteLine(line);
+            changedDesigns.Add((design, db.Cache.RefOf(design).Key));
+        }
+
+        var changedProducts = new List<(FactionProductData Document, CultRecordKey Key)>();
+        foreach (var design in targets)
+            foreach (var product in products.Where(p => p.Design.Key.Equals(db.Cache.RefOf(design).Key)).OrderBy(p => p.Name, StringComparer.Ordinal))
+            {
+                var maker = db.Cache.Get(product.Manufacturer);
+                var profile = maker?.Name == "Pirates" ? PirateProfile
+                    : maker != null && MakerProfiles.TryGetValue(maker.ShortName, out var found) ? found
+                    : throw new InvalidOperationException($"No maker profile for the seller of \"{design.Name}\" ({maker?.ShortName ?? "no maker"}).");
+                product.Roles ??= new List<ProductRole>();
+                var missing = design.Roles.Select(r => r.Name).Where(r => product.Roles.All(p => p.Role != r)).ToArray();
+                if (missing.Length == 0) continue;
+                foreach (var role in missing)
+                    product.Roles.Add(new ProductRole { Role = role, Mean = profile.Mean, StandardDeviation = profile.Dev });
+                Console.WriteLine($"  {product.Name,-28} ({design.Name}, {maker.ShortName}) {string.Join(", ", missing)} at {profile.Mean:0.00}/{profile.Dev:0.00}");
+                changedProducts.Add((product, db.Cache.RefOf(product).Key));
+            }
+
+        if (changedDesigns.Count == 0 && changedProducts.Count == 0)
+        {
+            Console.WriteLine("Roles backfill is already authored; nothing to do.");
+            return 0;
+        }
+        Console.WriteLine($"\n{changedDesigns.Count} design(s) and {changedProducts.Count} product(s) to author.");
+        if (!apply)
+        {
+            Console.WriteLine("Dry run. Pass \"apply\" to land them.");
+            return 0;
+        }
+        foreach (var (document, _) in changedDesigns) CultRecordRefs.Validate(document);
+        foreach (var (document, _) in changedProducts) CultRecordRefs.Validate(document);
+        db.Cache.Commit(batch =>
+        {
+            foreach (var (document, key) in changedDesigns) batch.Upsert(document is WeaponItemData ? typeof(WeaponItemData) : typeof(GearData), document, key);
+            foreach (var (document, key) in changedProducts) batch.Upsert(typeof(FactionProductData), document, key);
+        });
+        Console.WriteLine($"Landed {changedDesigns.Count} design(s) and {changedProducts.Count} product(s) in Aetheria.cc");
+        return 0;
+    }
+
+    // Aetheria release, cut pirates-record (rulings pirates-record-content, catalog-grows-generic-designs-branded-products):
+    // the Pirates faction and eight rebrands of other makers' designs, named in emoji. The Pirates own no design: their range
+    // is what they took, so every product points at a design someone else also makes. Each product carries one ProductRole per
+    // role its design declares, middling and inconsistent (mean .45, sd .22, against makers' .15). Names are stored as the emoji
+    // only, written here as \U escapes so no editor or shell mangles them; the dry run prints them raw and as code points.
+    //
+    // Dry run unless passed "apply", same contract as the other *-migrate commands.
+    public static int PiratesFaction(bool apply, string root = null)
+    {
+        var db = AetherDb.Open(catalogWritable: apply, root: root);
+
+        var existing = db.Cache.GetAll<Faction>().FirstOrDefault(f => f.Name == "Pirates");
+        if (existing != null)
+        {
+            Console.WriteLine("A faction named \"Pirates\" already exists; nothing to do.");
+            return 0;
+        }
+
+        CraftedItemData DesignByName(string name)
+        {
+            var matches = db.Cache.GetAll<CraftedItemData>().Where(i => i.Name == name).ToArray();
+            if (matches.Length != 1) throw new InvalidOperationException($"Expected exactly one design named \"{name}\", found {matches.Length}.");
+            return matches[0];
+        }
+
+        string CodePoints(string text) => string.Join(" ", text.EnumerateRunes().Select(r => $"U+{r.Value:X4}"));
+
+        var nameFile = db.Cache.GetAll<NameFile>().FirstOrDefault(n => n.Name == "pleiades");
+        if (nameFile == null) throw new InvalidOperationException("No name file named \"pleiades\".");
+
+        var others = db.Cache.GetAll<Faction>().ToArray();
+        var pirates = new Faction
+        {
+            Name = "Pirates",
+            ShortName = "Pirates",
+            Description = "A loose coalition of crews and hidden docks moving people and goods outside official control. No command, no common law: possession has a maintenance schedule.",
+            PrimaryColor = new float3(.42f, .40f, .37f),
+            SecondaryColor = new float3(1f, .45f, .05f),
+            GeonameFile = db.Cache.RefOf(nameFile),
+            InfluenceDistance = 3,
+        };
+        foreach (var other in others) pirates.Allegiance[db.Cache.RefOf(other)] = 1f;
+
+        var rebrands = new (string Design, string Name, string Description)[]
+        {
+            ("Autocannon", "\U0001FAF3\U0001F52B", "Serial number filed off. Still shoots."),
+            ("Earp", "\U0001FAA6\U0001F920", "The previous owner had no further use for it."),
+            ("FastBlast+-", "\U0001F9FE\U0001F6AB", "Warranty void where prohibited, which is everywhere."),
+            ("6k Shooter", "\U0001F3A8\U0001F648", "The logo underneath is somebody else's problem."),
+            ("scorched void policy", "\U0001F525", "Turns out we did start the fire after all."),
+            ("Targeting Computer", "\U0001F440\U0001F3AF", "Somebody else's eyes. They still work."),
+            ("Small Drive", "\U0001F511\U0001F3C3\U0001F4A8", "Hotwired. Do not ask about the ignition."),
+            ("Store-All Plus", "\U0001F4E6\U0001F92B", "Contents not as declared."),
+        };
+
+        var products = rebrands.Select(r =>
+        {
+            var design = DesignByName(r.Design);
+            return (Design: design, r.Name, r.Description,
+                Roles: (design.Roles ?? new List<ItemRole>()).Select(role => new ProductRole { Role = role.Name, Mean = PirateProfile.Mean, StandardDeviation = PirateProfile.Dev }).ToList());
+        }).ToArray();
+
+        Console.WriteLine($"New faction \"{pirates.Name}\": influence {pirates.InfluenceDistance}, names \"{nameFile.Name}\", allegiance 1.0 to {pirates.Allegiance.Count} factions.");
+        Console.WriteLine($"  colours: primary ({pirates.PrimaryColor.x:0.00}, {pirates.PrimaryColor.y:0.00}, {pirates.PrimaryColor.z:0.00}) primer grey, secondary ({pirates.SecondaryColor.x:0.00}, {pirates.SecondaryColor.y:0.00}, {pirates.SecondaryColor.z:0.00}) hazard orange");
+        Console.WriteLine($"  {pirates.Description}");
+        Console.WriteLine($"\nNew products ({products.Length}):");
+        foreach (var (design, name, description, roles) in products)
+        {
+            var makers = db.Cache.GetAll<FactionProductData>()
+                .Where(p => p.Design.Key.Equals(db.Cache.RefOf(design).Key))
+                .Select(p => db.Cache.Get(p.Manufacturer)?.ShortName).OrderBy(n => n, StringComparer.Ordinal);
+            Console.WriteLine($"  {name}  [{CodePoints(name)}]");
+            Console.WriteLine($"    design {design.GetType().Name} \"{design.Name}\" (made by {string.Join(", ", makers)}), roles [{string.Join(", ", roles.Select(r => r.Role))}]");
+            Console.WriteLine($"    \"{description}\"");
+        }
+
+        CultRecordRefs.Validate(pirates);
+        foreach (var (design, name, description, roles) in products)
+            CultRecordRefs.Validate(new FactionProductData
+            {
+                Name = name, Description = description, Roles = roles,
+                Design = new CultRecordRef<CraftedItemData>(db.Cache.RefOf(design).Key),
+                Manufacturer = db.Cache.RefOf(others[0]),
+            });
+
+        if (!apply)
+        {
+            Console.WriteLine($"\nDry run. Pass \"apply\" to land the Pirates faction and {products.Length} products.");
+            return 0;
+        }
+
+        db.Cache.Commit(batch =>
+        {
+            var piratesKey = batch.Upsert(typeof(Faction), pirates);
+            foreach (var (design, name, description, roles) in products)
+                batch.Upsert(typeof(FactionProductData), new FactionProductData
+                {
+                    Name = name, Description = description, Roles = roles,
+                    Design = new CultRecordRef<CraftedItemData>(db.Cache.RefOf(design).Key),
+                    Manufacturer = new CultRecordRef<Faction>(piratesKey),
+                });
+        });
+
+        Console.WriteLine($"\nLanded the Pirates faction and {products.Length} products in Aetheria.cc");
         return 0;
     }
 }

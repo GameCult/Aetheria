@@ -283,7 +283,17 @@ public sealed partial class RunStartTests
     [Fact]
     public void TheEnvelopeComesFromTheGear()
     {
-        var (_, longinus, _) = EvFleet();
+        // The Longinus is fitted by name, not generated: what the generator picks follows the item stream, and every role a
+        // product authors draws from it (roles-backfill), so a generated hull would stop carrying these drives.
+        Ship longinus = null;
+        var scenario = new Scripted(false, stage =>
+        {
+            stage.Player(stage.Bare("Djinni"), float2(-50000, -50000));
+            longinus = stage.Place(EvLonginus(stage), float2(-30000, -30000), facing: float2(0, 1)) as Ship;
+        });
+        var (_, _, _, failures) = Launch(scenario, Inputs(() => GalaxySeed));
+        Assert.True(failures.Count == 0, string.Join("; ", failures));
+        Assert.NotNull(longinus);
         EvSettle(longinus);
         // A thruster's Thrust property is refreshed only while it fires: turn each way so the flank thrusters hold what
         // they push with, then read the envelope at rest.
@@ -306,11 +316,18 @@ public sealed partial class RunStartTests
 
         var envelope = longinus.Envelope;
         var mass = longinus.Mass;
-        Assert.InRange(envelope.Forward, 500000f / mass * .99f, 500000f / mass * 1.01f);
+        // The shipped Large Drive's Thrust is a range its lot's roll moves it through, so each drive pushes within the catalog's
+        // range and the envelope forward is what the two push together.
+        var catalogThrust = _cache.GetAll<GearData>().Single(gear => gear.Name == "Large Drive").Behaviors.OfType<ThrusterData>().Single().Thrust;
+        Assert.All(largeDrives, t => Assert.InRange(t.Thrust, catalogThrust.Min * .99f, catalogThrust.Max * 1.01f));
+        var forward = largeDrives.Sum(t => t.Thrust) / mass;
+        Assert.InRange(envelope.Forward, forward * .99f, forward * 1.01f);
         Assert.Equal(0f, envelope.Reverse);
-        var flankAcceleration = flanks.Max(t => t.Thrust) / mass;
-        Assert.InRange(envelope.Left, flankAcceleration * .99f, flankAcceleration * 1.01f);
-        Assert.InRange(envelope.Right, flankAcceleration * .99f, flankAcceleration * 1.01f);
+        // One Talaria pushes each way, and each has its own lot's thrust: the sides are the two flanks' accelerations.
+        var flankAccelerations = flanks.Select(t => t.Thrust / mass).OrderBy(a => a).ToArray();
+        var sides = new[] { envelope.Left, envelope.Right }.OrderBy(a => a).ToArray();
+        Assert.InRange(sides[0], flankAccelerations[0] * .99f, flankAccelerations[0] * 1.01f);
+        Assert.InRange(sides[1], flankAccelerations[1] * .99f, flankAccelerations[1] * 1.01f);
         var clockwise = thrusters.Where(t => t.Torque > settings.TorqueFloor).Sum(t => t.Torque * t.Thrust) * settings.TorqueMultiplier / mass;
         var counterClockwise = thrusters.Where(t => t.Torque < -settings.TorqueFloor).Sum(t => -t.Torque * t.Thrust) * settings.TorqueMultiplier / mass;
         Assert.InRange(envelope.Clockwise, clockwise * .99f, clockwise * 1.01f);
@@ -485,13 +502,25 @@ public sealed partial class RunStartTests
     }
 
     // Two shooters on opposite sides of the same target, 200 m away: one with a projectile gun and one with a laser
-    // (a beam's authored velocity is 0, a flight time of zero). The target is the generated Djinni, the catalog's one ship that strafes.
+    // (a beam's authored velocity is 0, a flight time of zero). The target is the fitted Djinni, the catalog's one ship that strafes.
     private sealed class EvRange
     {
         public Zone Arena;
         public Ship Gunner, Lasing, Target;
         public Weapon Gun, Laser, GunnerLaser;
     }
+
+    // The target's fit, written out: the Djinni's own hardpoints filled with the Talaria it is generated with, its
+    // reactor, cockpit and radiators. What the evasion tests price is this ship's strafing, not whatever the generator
+    // rolls for it from the galaxy.
+    private static ScenarioFit EvDjinni(ScenarioStage stage) => stage.Fit("Djinni",
+        ("Cockpit 2x2", int2(6, 3), ItemRotation.None), ("Core Power", int2(6, 11), ItemRotation.None),
+        ("Talaria", int2(6, 0), ItemRotation.Reversed), ("Talaria", int2(5, 1), ItemRotation.Reversed), ("Talaria", int2(7, 1), ItemRotation.Reversed),
+        ("Talaria", int2(4, 4), ItemRotation.CounterClockwise), ("Talaria", int2(4, 11), ItemRotation.CounterClockwise),
+        ("Talaria", int2(9, 4), ItemRotation.Clockwise), ("Talaria", int2(9, 11), ItemRotation.Clockwise),
+        ("Talaria", int2(6, 14), ItemRotation.None),
+        ("Iapyx", int2(1, 4), ItemRotation.Reversed), ("Iapyx", int2(3, 1), ItemRotation.Reversed),
+        ("Iapyx", int2(9, 1), ItemRotation.Reversed), ("Iapyx", int2(11, 4), ItemRotation.Reversed));
 
     private EvRange EvRangeLaunch()
     {
@@ -500,7 +529,7 @@ public sealed partial class RunStartTests
         {
             stage.Player(stage.Bare("Djinni"), float2(-50000, -50000));
             gunner = stage.Place(EvLonginus(stage, "FastBlast+-", "ColdFire"), float2(0, 0), facing: float2(0, 1)) as Ship;
-            target = stage.Place(stage.Generated("Djinni"), float2(0, 200), facing: float2(0, 1)) as Ship;
+            target = stage.Place(EvDjinni(stage), float2(0, 200), facing: float2(0, 1)) as Ship;
             lasing = stage.Place(EvLonginus(stage, "ColdFire"), float2(0, 400), facing: float2(0, -1)) as Ship;
         });
         var (_, arena, _, failures) = Launch(scenario, Inputs(() => GalaxySeed));
@@ -555,6 +584,10 @@ public sealed partial class RunStartTests
         return (hits, price);
     }
 
+    // The two volleys' hit counts are rolls, so their gap is the price gap plus noise. At the price gap this fixture
+    // has (about .06 on .44) 200 shots flip the comparison one seed in eight; this many keeps it near four standard deviations.
+    private const int EvVolleySize = 2000;
+
     // The evasion term is in the live price, the HUD's forecast and the roll: a ship crossing at 150 m/s that has been
     // jinking is harder to hit than the same ship coasting, for a projectile gun.
     [Fact]
@@ -568,7 +601,7 @@ public sealed partial class RunStartTests
         EvCross(range, jinking: false);
         var coastingDiagnostic = FireControl.Inspect(gun, shooter, target);
         var coastingPrice = FireControl.HitProbability(gun, shooter, target);
-        var coasting = EvVolley(range, gun, shooter, 200);
+        var coasting = EvVolley(range, gun, shooter, EvVolleySize);
         Assert.Equal(0f, coastingDiagnostic.Evasion);
         Assert.Equal(1f, coastingDiagnostic.PEvasion);
         Assert.True(coastingPrice > .2f, $"fixture: a coasting target is hittable ({coastingPrice})");
@@ -576,10 +609,10 @@ public sealed partial class RunStartTests
         EvCross(range, jinking: true);
         var jinkingDiagnostic = FireControl.Inspect(gun, shooter, target);
         var jinkingPrice = FireControl.HitProbability(gun, shooter, target);
-        var jinking = EvVolley(range, gun, shooter, 200);
-        Console.WriteLine($"EVASION price: coasting {coastingPrice:F3} hits {coasting.hits}/200 committed {coasting.price:F3}; " +
+        var jinking = EvVolley(range, gun, shooter, EvVolleySize);
+        Console.WriteLine($"EVASION price: coasting {coastingPrice:F3} hits {coasting.hits}/{EvVolleySize} committed {coasting.price:F3}; " +
                           $"jinking {jinkingPrice:F3} (evasion {jinkingDiagnostic.Evasion:F2} m, tracking {jinkingDiagnostic.Tracking:F1}, PEvasion {jinkingDiagnostic.PEvasion:F3}) " +
-                          $"hits {jinking.hits}/200 committed {jinking.price:F3}");
+                          $"hits {jinking.hits}/{EvVolleySize} committed {jinking.price:F3}");
 
         Assert.True(jinkingDiagnostic.Evasion > 0f);
         Assert.True(jinkingDiagnostic.PEvasion < 1f);

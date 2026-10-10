@@ -13,17 +13,20 @@ public sealed class StarvedReactor : Scenario
 
     public override void Stage(ScenarioStage stage)
     {
-        var starved = stage.Fit("LonginusX",
+        var starved = stage.Fit("Longinus",
             ("Cockpit 2x2", int2(2, 6), None),
-            ("Traction", int2(2, 3), None),
-            ("MoveOnPro", int2(2, 1), None),
+            ("Large Drive", int2(1, 0), Reversed),
+            ("Large Drive", int2(3, 0), Reversed),
+            ("Talaria", int2(2, 14), CounterClockwise),
+            ("Talaria", int2(3, 14), Clockwise),
+            ("MoveOnPro", int2(2, 4), None),
             ("Spectra", int2(1, 8), None),
             ("Spectra", int2(4, 8), None),
-            ("Iapyx", int2(1, 2), CounterClockwise),
-            ("Iapyx", int2(4, 2), Clockwise),
+            ("Iapyx", int2(2, 2), CounterClockwise),
+            ("Iapyx", int2(3, 2), Clockwise),
             ("not if i see you first", int2(3, 10), None),
-            ("Fire Control Array", int2(2, 5), None));
+            ("Fire Control Array", int2(1, 6), Clockwise));
         stage.Player(starved, float2(0, 0));
-        stage.Place(stage.Bare("LonginusX"), float2(0, 400));
+        stage.Place(stage.Bare("Longinus"), float2(0, 400));
     }
 }

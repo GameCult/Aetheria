@@ -416,9 +416,10 @@ public class EntityInstance : MonoBehaviour
             var direction = FireControl.Solution(weapon, Entity, Entity.Target.Value).Direction;
             group.Value.position = barrel + new Vector3(direction.x, 0, direction.y) * aimDistance;
         }
-        LocalSpace.localPosition = transform.position = Entity.Position.ToUnity();
+        var drawn = DrawAhead.Position(Entity, ActionGameManager.Clock.Lead);
+        LocalSpace.localPosition = transform.position = drawn.ToUnity();
         if (_influenceInstance)
-            _influenceInstance.position = new Vector3(Entity.Position.x, 0, Entity.Position.z);
+            _influenceInstance.position = new Vector3(drawn.x, 0, drawn.z);
     }
 
     public virtual void OnDestroy()

@@ -177,8 +177,6 @@ public class ActionGameManager : MonoBehaviour
     public Sprite ShieldIcon;
     public Sprite NoShieldIcon;
 
-    public float IntroDuration;
-    
     //public PlayerInput Input;
     
     // private CinemachineFramingTransposer _transposer;
@@ -231,6 +229,8 @@ public class ActionGameManager : MonoBehaviour
     
     public ItemManager ItemManager { get; private set; }
     public Zone Zone { get; private set; }
+    public static SimClock Clock { get; } = new SimClock(1f / 60f);
+    private bool _zoneEntered;
 
     private readonly (float2 direction, string name)[] _directions = {
         (float2(0, 1), "Front"),
@@ -728,6 +728,7 @@ public class ActionGameManager : MonoBehaviour
             galaxyZone.Contents = new Zone(ItemManager, Settings.PlanetSettings, galaxyZone.PackedContents, galaxyZone, CurrentGalaxy);
         }
         Zone = galaxyZone.Contents;
+        _zoneEntered = true; // the clock forgets its lead between frames, never inside a step
         PlayMusic(MusicType.Overworld);
         
         Zone.Log = s => Debug.Log($"Zone: {s}");
@@ -818,7 +819,6 @@ public class ActionGameManager : MonoBehaviour
                 }
                 else
                 {
-                    //StartCoroutine(IntroCutscene(targetEntity as Ship));
                     BindToEntity(targetEntity);
                 }
         
@@ -864,35 +864,6 @@ public class ActionGameManager : MonoBehaviour
         Credits = staged.Credits;
         SectorMap.QueueZoneReveal(CurrentGalaxy.Entrance.AdjacentZones.Prepend(CurrentGalaxy.Entrance));
         BindToEntity(staged.Player);
-    }
-
-    private IEnumerator IntroCutscene(Ship ship)
-    {
-        ZoneRenderer.PerspectiveEntity = ship;
-        var entityPosition = ship.Position.xz;
-        var followOrbit = Zone.Orbits.Keys.MinBy(o => lengthsq(Zone.GetOrbitPosition(o) - entityPosition));
-        var followPlanet = ZoneRenderer.Planets[Zone.Planets.FirstOrDefault(p => p.Value.Orbit.Key.Equals(followOrbit)).Key];
-        DockCamera.Follow = followPlanet.Body.transform;
-        var rootOrbit = followOrbit;
-        while (Zone.Orbits[rootOrbit].Data.Parent.IsSet())
-            rootOrbit = Zone.Orbits[rootOrbit].Data.Parent.Key;
-        var rootPlanet = ZoneRenderer.Planets[Zone.Planets.FirstOrDefault(p => p.Value.Orbit.Key.Equals(rootOrbit)).Key];
-        DockCamera.LookAt = rootPlanet.Body.transform;
-
-        var shipVelocity = ship.GetBehavior<VelocityLimit>().Limit;
-        var followOrbitPosition = Zone.GetOrbitPosition(followOrbit);
-        var shipDirection = normalize(Zone.GetOrbitPosition(rootOrbit) - followOrbitPosition);
-        ship.Position.xz = followOrbitPosition - shipDirection * shipVelocity * IntroDuration;
-
-        var startTime = Time.time;
-        while (Time.time - startTime < IntroDuration)
-        {
-            ship.Direction = shipDirection;
-            ship.Velocity = shipDirection * shipVelocity;
-            yield return null;
-        }
-        
-        BindToEntity(ship);
     }
 
     public void Dock()
@@ -961,7 +932,7 @@ public class ActionGameManager : MonoBehaviour
                 Dialog.MoveToCursor();
                 // TODO: SFX: Fail
             }
-            else if (CurrentEntity.GetBehavior<Thruster>() == null && CurrentEntity.GetBehavior<AetherDrive>() == null)
+            else if (CurrentEntity.GetBehavior<Thruster>() == null)
             {
                 Dialog.Clear();
                 Dialog.Title.text = "Can't undock. Missing thruster component!";
@@ -1356,8 +1327,14 @@ public class ActionGameManager : MonoBehaviour
                 CurrentEntity.TractorPower =
                     saturate(CurrentEntity.TractorPower + sign(tractorPower - CurrentEntity.TractorPower) * Time.deltaTime * 2);
             }
-            Zone.Update(Time.deltaTime);
         }
+        // One clock steps the zone, paused or not: a paused frame feeds it no real time.
+        // A zone entered inside a step (a wormhole) ends this frame's stepping: the rest of its steps are the old zone's.
+        void EnterNewZone() { if (_zoneEntered) { Clock.Reset(); _zoneEntered = false; } }
+        EnterNewZone();
+        var steppedZone = Zone;
+        Clock.Advance(_paused ? 0f : Time.deltaTime, delta => { if (Zone == steppedZone) steppedZone.Update(delta); });
+        EnterNewZone();
     }
 
     private static string ResultLabel(ShotResult result) => result switch
