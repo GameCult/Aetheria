@@ -96,6 +96,8 @@ public sealed class VerseGrammarTests : IDisposable
         new object[] { "name with a space", (Action<VerseVerb>)(v => v.Name = "bad name"), "VerseVerb.Name", "bad name" },
         new object[] { "name starting with a digit", (Action<VerseVerb>)(v => v.Name = "9haul"), "VerseVerb.Name", "9haul" },
         new object[] { "upper-case name", (Action<VerseVerb>)(v => v.Name = "Haul"), "VerseVerb.Name", "Haul" },
+        new object[] { "upper-case letter inside a name", (Action<VerseVerb>)(v => v.Name = "haUl"), "VerseVerb.Name", "haUl" },
+        new object[] { "name with a hyphen", (Action<VerseVerb>)(v => v.Name = "ha-ul"), "VerseVerb.Name", "ha-ul" },
         new object[] { "name one past 48 characters", (Action<VerseVerb>)(v => v.Name = "a" + new string('b', 48)), "VerseVerb.Name", new string('b', 48) },
         new object[] { "render path zero", (Action<VerseVerb>)(v => v.RenderPath = 0), "RenderPath", null },
         new object[] { "undefined render path", (Action<VerseVerb>)(v => v.RenderPath = (VerseRenderPath)3), "RenderPath", null },
@@ -125,6 +127,15 @@ public sealed class VerseGrammarTests : IDisposable
             if (canonicalName != null) Assert.Contains($"\"{canonicalName}\"", error.Message);
             if (echoedValue != null) Assert.DoesNotContain(echoedValue, error.Message);
         }
+    }
+
+    // The rule itself, without a store: an empty name is a refusal, not an index error.
+    [Fact]
+    public void Validate_refuses_an_empty_name_as_a_refusal()
+    {
+        var verb = Good("alpha");
+        verb.Name = "";
+        Assert.Contains("VerseVerb.Name", Assert.Throws<InvalidOperationException>(() => VerseGrammarValidation.Validate(verb)).Message);
     }
 
     [Fact]

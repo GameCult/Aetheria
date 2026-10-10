@@ -4,7 +4,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Text.RegularExpressions;
 using GameCult.Caching;
 using MessagePack;
 
@@ -55,15 +54,25 @@ public class VerseVerb
 
 public static class VerseGrammarValidation
 {
-    private static readonly Regex VerbName = new Regex("^[a-z][a-z0-9_]{0,47}\\z", RegexOptions.CultureInvariant);
-    private static readonly Regex RoleName = new Regex("^[a-z][a-z0-9_]{0,31}\\z", RegexOptions.CultureInvariant);
+    public const int VerbNameMaxLength = 48;
+    public const int RoleNameMaxLength = 32;
+
+    // Canonical: a lower-case letter, then lower-case letters, digits and underscores, at most maxLength characters.
+    private static bool Canonical(string name, int maxLength)
+    {
+        if (name == null || name.Length == 0 || name.Length > maxLength) return false;
+        if (name[0] < 'a' || name[0] > 'z') return false;
+        foreach (var c in name)
+            if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_')) return false;
+        return true;
+    }
 
     // Canonical names, unique role names, defined enum values. A failure names the field and the rule, and the verb once
     // its name is known canonical; it never prints a value the author wrote that is itself the fault.
     public static void Validate(VerseVerb verb)
     {
-        if (verb.Name == null || !VerbName.IsMatch(verb.Name))
-            throw new InvalidOperationException("VerseVerb.Name: not a canonical verb name ([a-z][a-z0-9_]{0,47}).");
+        if (!Canonical(verb.Name, VerbNameMaxLength))
+            throw new InvalidOperationException($"VerseVerb.Name: not a canonical verb name ([a-z][a-z0-9_], 1 to {VerbNameMaxLength} characters).");
         if (!Enum.IsDefined(typeof(VerseRenderPath), verb.RenderPath))
             throw new InvalidOperationException($"VerseVerb \"{verb.Name}\" RenderPath: not a defined render path.");
         if (verb.Roles == null)
@@ -71,8 +80,8 @@ public static class VerseGrammarValidation
         var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var role in verb.Roles)
         {
-            if (role == null || role.Name == null || !RoleName.IsMatch(role.Name))
-                throw new InvalidOperationException($"VerseVerb \"{verb.Name}\" Roles.Name: not a canonical role name ([a-z][a-z0-9_]{{0,31}}).");
+            if (role == null || !Canonical(role.Name, RoleNameMaxLength))
+                throw new InvalidOperationException($"VerseVerb \"{verb.Name}\" Roles.Name: not a canonical role name ([a-z][a-z0-9_], 1 to {RoleNameMaxLength} characters).");
             if (!seen.Add(role.Name))
                 throw new InvalidOperationException($"VerseVerb \"{verb.Name}\" Roles.Name: duplicate role name.");
             if (!Enum.IsDefined(typeof(VerseReferentKind), role.Binds))
