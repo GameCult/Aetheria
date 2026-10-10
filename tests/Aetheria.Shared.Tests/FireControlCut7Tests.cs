@@ -80,7 +80,7 @@ public sealed class FireControlCut7Tests : IDisposable
 
         var cache = AetheriaStores.Open(Catalog + Guid.NewGuid().ToString("N"), catalogWritable: true);
         _openCaches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(hullData);
         cache.Upsert(new GearData
         {
@@ -200,7 +200,7 @@ public sealed class FireControlCut7Tests : IDisposable
     [Fact]
     public void ShippedCatalogOpensAndGeneratesAnArmedHull()
     {
-        var gameData = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
+        var gameData = TestCatalog.Repo;
         using var cache = OpenReadOnlyRealCatalog(gameData);
 
         // Force every EquippableItemData -- WeaponItemData included, the type the broken merge could not
@@ -239,25 +239,17 @@ public sealed class FireControlCut7Tests : IDisposable
         throw new DirectoryNotFoundException("Run from inside the Aetheria repository -- built test output was not under a recognizable repo root.");
     }
 
-    // AetheriaStores.Open (Assets/Scripts/ServerShared/AetheriaStores.cs) uses `new CultCache()`, whose
-    // default registry (CultDocumentRegistry.Shared) auto-discovers every [CultDocument] type loaded
-    // ANYWHERE in the current process by scanning the whole AppDomain -- including this very test
-    // assembly's own TestCatalogGlobal (AetheriaStoresTests.cs: [CultGlobal], routed to the catalog through
-    // PersonalityAttribute). The shipped catalog naturally carries no record of a test-only type it has
-    // never heard of, so opening it through the shared, process-wide registry throws "no
-    // aetheria.tests.catalogglobal record" -- a same-process, cross-assembly artifact of this test suite,
-    // not something the real game process (which never loads TestCatalogGlobal) can ever hit.
+    // AetheriaStores.Open uses `new CultCache()`, whose default registry (CultDocumentRegistry.Shared) discovers every
+    // [CultDocument] type loaded anywhere in the current process by scanning the whole AppDomain.
     //
     // This reproduces AetheriaStores.Open's own composition and validation exactly, scoped to a registry
     // built only from the shipped assembly's own [CultDocument] types (CultDocumentRegistry.ForTypes does
     // not re-scan the AppDomain the way the default constructor's Refresh() does), so this test still opens
     // the catalog the same way the game does -- same backing store, same missing-global check, same R-heat
-    // validation loop -- without the test assembly's own fixture type poisoning it.
+    // validation loop -- without scanning the whole AppDomain.
     private static CultCache OpenReadOnlyRealCatalog(string catalogPath)
     {
-        var registry = CultDocumentRegistry.ForTypes(typeof(ItemData).Assembly.GetTypes()
-            .Where(t => t is { IsAbstract: false, IsInterface: false })
-            .Where(t => t.GetCustomAttribute<CultDocumentAttribute>() != null));
+        var registry = TestCatalog.Registry();
         var cache = new CultCache(registry);
         try
         {

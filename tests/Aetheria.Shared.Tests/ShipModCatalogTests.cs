@@ -21,8 +21,8 @@ public sealed class ShipModCatalogTests : IDisposable
     {
         Directory.CreateDirectory(Mods);
         using var cache = AetheriaStores.Open(Shipped, catalogWritable: true);
-        // The test assembly registers TestCatalogGlobal (AetheriaStoresTests), so any populated catalog must hold one.
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        // A populated catalog must hold the VerseGrammar global.
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(new HullData { Name = "Wasp", Shape = ShipAuthoringTests.Fixture().Hull.Shape });
         cache.Upsert(new GearData { Name = "Widget" });
         cache.FlushAsync().Wait();
@@ -286,6 +286,18 @@ public sealed class ShipModCatalogTests : IDisposable
         Assert.Equal("ship ID collides with an existing catalog ship authoring record.", Assert.Single(composition.Excluded).Reason);
     }
 
+    // The loader and the LFS rule (GameData/Mods/**/*.glb) agree: only a lowercase .glb is a model.
+    [Fact]
+    public void AModelWithAnUppercaseExtensionIsRefused()
+    {
+        WritePackage("mod.skiff", modelAsset: "skiff.GLB");
+
+        var excluded = Assert.Single(ShipModCatalog.Compose(Shipped, Derived, Mods).Excluded);
+
+        Assert.Equal("mod.skiff", excluded.Package);
+        Assert.Contains("GLB", excluded.Reason);
+    }
+
     // The game's boot: a bad package is named and the rest boot; with none left, the shipped catalog boots.
     [Fact]
     public void TheBootCatalogSurvivesBadPackages()
@@ -434,7 +446,7 @@ public sealed class ShipModCatalogTests : IDisposable
     {
         var path = Write("nodes.glb", ShipFixture.Glb(@"{""asset"":{""version"":""2.0""},""nodes"":[
             {""name"":""plain""},{""extras"":{""aetheria.id"":""a""}},{""extras"":{}},{""extras"":{""aetheria.id"":""""}},{""mesh"":0,""extras"":{""aetheria.id"":""b""}}]}"));
-        Assert.Equal(new Dictionary<string, (uint, bool)> { ["a"] = (1, false), ["b"] = (4, true) }, ShipModCatalog.ReadNodeIds(path));
+        Assert.Equal(new Dictionary<string, (uint, bool, int)> { ["a"] = (1, false, -1), ["b"] = (4, true, -1) }, ShipModCatalog.ReadNodeIds(path));
     }
 
     [Fact]
@@ -598,7 +610,7 @@ public sealed class ShipModCatalogTests : IDisposable
     private void WritePackage(string id, string hullName = "Skiff", string[] nodes = null, string modelAsset = "skiff.glb",
         Action<ShipParts> tweak = null, string[] meshNodes = null) => ShipFixture.WritePackage(Mods, id, hullName, nodes, modelAsset, tweak, meshNodes);
 
-    private static Dictionary<string, uint> Indices(Dictionary<string, (uint Index, bool HasMesh)> nodes) =>
+    private static Dictionary<string, uint> Indices(Dictionary<string, (uint Index, bool HasMesh, int Parent)> nodes) =>
         nodes.ToDictionary(node => node.Key, node => node.Value.Index);
 
     private static int Occurrences(byte[] haystack, byte[] needle)

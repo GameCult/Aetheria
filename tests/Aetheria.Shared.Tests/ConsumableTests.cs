@@ -43,7 +43,7 @@ public sealed class ConsumableTests : IDisposable
     {
         var thrust = new PerformanceStat { Min = 10, Max = 10 };
         var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(new Faction { Name = "Maker", ShortName = "MKR" });
         var hullShape = new Shape(3, 3);
         foreach (var cell in hullShape.AllCoordinates) hullShape[cell] = true;

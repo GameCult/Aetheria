@@ -89,7 +89,7 @@ public sealed class FireControlCut6Tests : IDisposable
 
         var cache = AetheriaStores.Open(Catalog + Guid.NewGuid().ToString("N"), catalogWritable: true);
         _openCaches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(hullData);
         // Cut 6b, 6.2 (renamed 12.4(a)): a real WeaponItemData (not the bare GearData earlier cuts' fixtures
         // use) -- it is the one catalog type carrying Fuse and BlastRadius. WeaponModifiers no longer decides

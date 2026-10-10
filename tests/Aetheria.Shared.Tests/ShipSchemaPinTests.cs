@@ -67,6 +67,15 @@ public sealed class ShipSchemaPinTests
             Assert.Equal(slot, KeyOf(typeof(ShipAnchor), members[slot]));
     }
 
+    // ship_cc.py edits slots 2 to 4 of a ship and the first five slots of an anchor row, and carries every later slot (replace_visual
+    // by anchor Id). The rig lives in those later slots; their numbers are the contract that carry-through keeps.
+    [Fact]
+    public void TheRigLivesInTheSlotsPastTheOnesPythonEdits()
+    {
+        Assert.Equal(Integer("SCHEMATIC_LINES_SLOT") + 1, KeyOf(typeof(ShipAuthoring), nameof(ShipAuthoring.Joints)));
+        Assert.Equal(Strings("ANCHOR_MEMBERS").Length, KeyOf(typeof(ShipAnchor), nameof(ShipAnchor.Joint)));
+    }
+
     [Fact]
     public void PythonEnumNamesAreTheEnumsInValueOrder()
     {

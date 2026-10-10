@@ -17,6 +17,22 @@ public sealed class ShipAuthoring
     [Key(2)] public string ModelAsset;
     [Key(3)] public List<ShipAnchor> Anchors = new List<ShipAnchor>();
     [Key(4)] public List<ShipPolyline> SchematicLines = new List<ShipPolyline>();
+    // The moving parts of the rig, presentation only (ruling rig-is-presentation): no joint value feeds the simulation.
+    [Key(5)] public List<ShipJoint> Joints = new List<ShipJoint>();
+}
+
+// A rig joint: a bone of the model's armature. Axes are three floats per degree of freedom, a unit vector in Ship Root
+// space at rest (glTF axes, +Y up); Min and Max are that degree of freedom's limits in degrees.
+[MessagePackObject]
+public sealed class ShipJoint
+{
+    // The bone's aetheria.id, which is also its GLB node id.
+    [Key(0)] public string Id;
+    // The nearest joint above this one in the model, or null for a root joint.
+    [Key(1)] public string Parent;
+    [Key(2)] public float[] Axes;
+    [Key(3)] public float[] Min;
+    [Key(4)] public float[] Max;
 }
 
 [MessagePackObject]
@@ -25,13 +41,15 @@ public sealed class ShipAnchor
     // Stable semantic identity. HullData.Hardpoints[].Transform names this ID for mounts.
     [Key(0)] public string Id;
     // One of: map-icon, hull-collider, shield, tractor, thruster-emitter, weapon-mount,
-    // weapon-muzzle, radiator-mesh, or articulation (a pivot, never a mount).
+    // weapon-muzzle, or radiator-mesh.
     [Key(1)] public string Role;
     // Stable node ID in the compiled model, never a Blender display name.
     [Key(2)] public string ModelNodeId;
     // Only child roles use ParentId; e.g. a muzzle names its weapon hardpoint.
     [Key(3)] public string ParentId;
     [Key(4)] public int Order;
+    // On a weapon-mount anchor: the id of the nearest joint above its node in the model; null or empty is a fixed mount.
+    [Key(5)] public string Joint;
 }
 
 // Evaluated or baked Grease Pencil stroke coordinates in Blender's right-handed Z-up
@@ -53,8 +71,7 @@ public static class ShipAuthoringStore
     // ShipAnchor.Role's vocabulary.
     private static readonly HashSet<string> Roles = new HashSet<string>(StringComparer.Ordinal)
     {
-        "map-icon", "hull-collider", "shield", "tractor", "thruster-emitter", "weapon-mount", "weapon-muzzle", "radiator-mesh",
-        "articulation"
+        "map-icon", "hull-collider", "shield", "tractor", "thruster-emitter", "weapon-mount", "weapon-muzzle", "radiator-mesh"
     };
 
     // The anchor role a visible hardpoint's mount plays, or null for an internal hardpoint, which has no anchor.
@@ -272,6 +289,7 @@ public static class ShipAuthoringStore
         foreach (var hardpoint in mounts.Values.Where(hardpoint => IsWeapon(hardpoint.Type)))
             if (!anchors.Any(anchor => anchor.Role == "weapon-muzzle" && anchor.ParentId == hardpoint.Transform))
                 throw new InvalidOperationException($"{ship.Id}: weapon hardpoint {hardpoint.Transform} needs at least one muzzle anchor.");
+        ValidateRig(ship, anchors, mounts, nodeIds);
 
         foreach (var line in ship.SchematicLines ?? new List<ShipPolyline>())
         {
@@ -290,5 +308,112 @@ public static class ShipAuthoringStore
                 line.Color.Any(value => float.IsNaN(value) || float.IsInfinity(value))))
                 throw new InvalidOperationException($"{ship.Id}: schematic line color must be finite RGBA.");
         }
+    }
+
+    // A degree of freedom counts as yaw when its axis lies within 5 degrees of Ship Root up (glTF +Y).
+    private static readonly float YawAxisCos = MathF.Cos(5f * MathF.PI / 180f);
+
+    // The joints, which anchors ride them, and whether each driven joint's chain can sweep the arc its guns state. The
+    // joints are presentation, so this judges only that the rig could point the gun where the hardpoint says it may fire.
+    private static void ValidateRig(ShipAuthoring ship, List<ShipAnchor> anchors, Dictionary<string, HardpointData> mounts, HashSet<string> nodeIds)
+    {
+        var joints = ship.Joints ?? new List<ShipJoint>();
+        var byId = new Dictionary<string, ShipJoint>(StringComparer.Ordinal);
+        foreach (var joint in joints)
+        {
+            if (joint == null || string.IsNullOrWhiteSpace(joint.Id) || byId.ContainsKey(joint.Id))
+                throw new InvalidOperationException($"{ship.Id}: joint IDs must be present and unique.");
+            if (nodeIds.Contains(joint.Id))
+                throw new InvalidOperationException($"{ship.Id}: joint {joint.Id} is also an anchor's model node.");
+            byId.Add(joint.Id, joint);
+        }
+        foreach (var joint in joints)
+        {
+            var dofs = joint.Min?.Length ?? 0;
+            if (dofs < 1 || joint.Max?.Length != dofs || joint.Axes?.Length != 3 * dofs)
+                throw new InvalidOperationException($"{ship.Id}: joint {joint.Id} needs one or more degrees of freedom: Axes holds three values each, Min and Max one each.");
+            for (var dof = 0; dof < dofs; dof++)
+            {
+                var (x, y, z) = (joint.Axes[3 * dof], joint.Axes[3 * dof + 1], joint.Axes[3 * dof + 2]);
+                var (min, max) = (joint.Min[dof], joint.Max[dof]);
+                if (!float.IsFinite(x) || !float.IsFinite(y) || !float.IsFinite(z) || !float.IsFinite(min) || !float.IsFinite(max))
+                    throw new InvalidOperationException($"{ship.Id}: joint {joint.Id} axes and limits must be finite.");
+                if (MathF.Abs(MathF.Sqrt(x * x + y * y + z * z) - 1f) > 1e-3f)
+                    throw new InvalidOperationException($"{ship.Id}: joint {joint.Id} axis {dof} must be a unit vector.");
+                if (min < -180f || max > 180f || min > max)
+                    throw new InvalidOperationException($"{ship.Id}: joint {joint.Id} limits {dof} must satisfy -180 <= Min <= Max <= 180.");
+            }
+            if (!string.IsNullOrEmpty(joint.Parent) && !byId.ContainsKey(joint.Parent))
+                throw new InvalidOperationException($"{ship.Id}: joint {joint.Id} has an unknown parent joint.");
+        }
+        foreach (var joint in joints)
+        {
+            var step = joint;
+            for (var depth = 0; !string.IsNullOrEmpty(step.Parent); depth++)
+            {
+                if (depth >= joints.Count)
+                    throw new InvalidOperationException($"{ship.Id}: joint {joint.Id} is on a parent cycle.");
+                step = byId[step.Parent];
+            }
+        }
+
+        foreach (var anchor in anchors.Where(anchor => !string.IsNullOrEmpty(anchor.Joint)))
+        {
+            if (anchor.Role == "thruster-emitter" || anchor.Role == "radiator-mesh")
+                throw new InvalidOperationException($"{ship.Id}: {anchor.Role} anchor {anchor.Id} may not ride a joint (follow-up gimballed-thrusters).");
+            if (anchor.Role != "weapon-mount")
+                throw new InvalidOperationException($"{ship.Id}: {anchor.Role} anchor {anchor.Id} may not name a joint; only a weapon mount rides one.");
+            if (!byId.ContainsKey(anchor.Joint))
+                throw new InvalidOperationException($"{ship.Id}: weapon mount {anchor.Id} names an unknown joint.");
+        }
+
+        var ridden = anchors.Where(anchor => anchor.Role == "weapon-mount" && !string.IsNullOrEmpty(anchor.Joint))
+            .Select(anchor => (Hardpoint: mounts[anchor.Id], Joint: anchor.Joint)).ToArray();
+        foreach (var (hardpoint, _) in ridden)
+            if (!(hardpoint.FiringArc > 0f))
+                throw new InvalidOperationException($"{ship.Id}: weapon hardpoint {hardpoint.Transform} rides a joint, so it must state its firing arc above 0.");
+        foreach (var group in ridden.GroupBy(mount => mount.Joint, StringComparer.Ordinal))
+        {
+            var lead = group.First().Hardpoint;
+            foreach (var (hardpoint, _) in group)
+                if (hardpoint.Rotation != lead.Rotation || hardpoint.FiringArc != lead.FiringArc)
+                    throw new InvalidOperationException($"{ship.Id}: weapon hardpoints {lead.Transform} and {hardpoint.Transform} ride joint {group.Key} and must share Rotation and FiringArc.");
+            var reach = YawReach(ship, group.Key);
+            if (reach < lead.FiringArc)
+                throw new InvalidOperationException($"{ship.Id}: joint {group.Key} chain reaches {reach} degrees of yaw, short of the {lead.FiringArc} degree firing arc of {lead.Transform}.");
+        }
+    }
+
+    // The yaw a driven joint's chain can sweep: the summed range of every degree of freedom whose axis is yaw, capped at a turn.
+    private static float YawReach(ShipAuthoring ship, string jointId)
+    {
+        var joints = ship.Joints.ToDictionary(joint => joint.Id, StringComparer.Ordinal);
+        var reach = 0f;
+        foreach (var joint in RigChains.Chain(ship, jointId).Select(id => joints[id]))
+            for (var dof = 0; dof < joint.Min.Length; dof++)
+                if (MathF.Abs(joint.Axes[3 * dof + 1]) >= YawAxisCos)
+                    reach += joint.Max[dof] - joint.Min[dof];
+        return MathF.Min(reach, 360f);
+    }
+}
+
+// A rig's driven joints and the chains that move them. A driven joint is one a weapon-mount anchor names. Its chain runs
+// from the joint up through its ancestors and stops before the nearest ancestor that is itself driven (that joint has
+// its own gun, and its pose is that gun's business), listed root-first. The judge and the plan both read this one rule.
+public static class RigChains
+{
+    public static HashSet<string> Driven(ShipAuthoring ship) =>
+        new HashSet<string>(ship.Anchors.Where(anchor => anchor.Role == "weapon-mount" && !string.IsNullOrEmpty(anchor.Joint)).Select(anchor => anchor.Joint),
+            StringComparer.Ordinal);
+
+    public static string[] Chain(ShipAuthoring ship, string jointId)
+    {
+        var joints = ship.Joints.ToDictionary(joint => joint.Id, StringComparer.Ordinal);
+        var driven = Driven(ship);
+        var chain = new List<string> { jointId };
+        for (var parent = joints[jointId].Parent; !string.IsNullOrEmpty(parent) && !driven.Contains(parent); parent = joints[parent].Parent)
+            chain.Add(parent);
+        chain.Reverse();
+        return chain.ToArray();
     }
 }

@@ -64,7 +64,7 @@ public sealed class PowerCurveTests : IDisposable
     private CultCache OpenCatalog(PerformanceStat curveStat)
     {
         var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         var hullShape = new Shape(5, 5);
         foreach (var cell in hullShape.AllCoordinates) hullShape[cell] = true;
         cache.Upsert(new HullData { Name = "Skiff", HullType = HullType.Ship, Shape = hullShape, Durability = 10, Mass = 1000 });
@@ -274,7 +274,7 @@ public sealed class PowerCurveTests : IDisposable
         var goodEnergy = new PerformanceStat { Min = 1, Max = 1, Terms = { new StatTerm { Source = StatSource.PowerSupply, Exponent = 1 } } };
         using (var cache = AetheriaStores.Open(Catalog, catalogWritable: true))
         {
-            cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+            cache.Upsert(new VerseGrammar { Revision = 1 });
             cache.UpsertAsync(new GearData
             {
                 Name = "CurvedThruster", Hardpoint = HardpointType.Tool, Shape = new Shape(), Durability = 10,
@@ -294,7 +294,7 @@ public sealed class PowerCurveTests : IDisposable
     {
         var goodEnergy = new PerformanceStat { Min = 1, Max = 1, Terms = { new StatTerm { Source = StatSource.PowerSupply, Exponent = 1 } } };
         using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
 
         cache.Upsert(new GearData
         {
@@ -318,7 +318,7 @@ public sealed class PowerCurveTests : IDisposable
     {
         var curvedPumpedHeat = new PerformanceStat { Min = 1000, Max = 4000, Terms = { new StatTerm { Source = StatSource.PowerSupply, Exponent = 1 } } };
         using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
 
         cache.Upsert(new GearData
         {
@@ -342,7 +342,7 @@ public sealed class PowerCurveTests : IDisposable
     {
         var curvedRefillDuration = new PerformanceStat { Min = 2, Max = 2, Terms = { new StatTerm { Source = StatSource.PowerSupply, Exponent = 1 } } };
         using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
 
         cache.Upsert(new GearData
         {
@@ -376,7 +376,7 @@ public sealed class PowerCurveTests : IDisposable
         };
 
         using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         var hullShape = new Shape(3, 3);
         foreach (var cell in hullShape.AllCoordinates) hullShape[cell] = true;
         cache.Upsert(new HullData

@@ -69,7 +69,7 @@ public sealed class TargetingSystemTests : IDisposable
 
         using (var buildCache = AetheriaStores.Open(Catalog, catalogWritable: true))
         {
-            buildCache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+            buildCache.Upsert(new VerseGrammar { Revision = 1 });
             buildCache.Upsert(hullData);
             buildCache.Upsert(new GearData
             {
@@ -303,7 +303,7 @@ public sealed class TargetingSystemTests : IDisposable
     public void StarvedTargetingRollsWorse()
     {
         using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         var hullShape = new Shape(5, 5);
         foreach (var cell in hullShape.AllCoordinates) hullShape[cell] = true;
         cache.Upsert(new HullData { Name = "Skiff", HullType = HullType.Ship, Shape = hullShape, Durability = 10, Mass = 1000 });
@@ -378,7 +378,7 @@ public sealed class TargetingSystemTests : IDisposable
     public void EveryArmedLoadoutGetsATargetingSystem()
     {
         using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         var maker = cache.Upsert(new Faction { Name = "Maker", ShortName = "MKR" });
 
         var hullShape = new Shape(5, 5);

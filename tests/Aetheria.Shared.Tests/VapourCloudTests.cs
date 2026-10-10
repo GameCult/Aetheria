@@ -69,7 +69,7 @@ public sealed class VapourCloudTests : IDisposable
         };
         var cache = AetheriaStores.Open(Path.Combine(_root, Guid.NewGuid().ToString("N") + ".cc"), catalogWritable: true);
         _caches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(new HullData
         {
             Name = "Hull", HullType = HullType.Ship, Shape = Solid(5, 5), Durability = 1000000, Mass = 1000,

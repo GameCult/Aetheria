@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using GameCult.Caching;
 using GameCult.Caching.MessagePack;
@@ -6,16 +7,22 @@ using GameCult.Caching.MessagePack;
 // Aetheria's stores: one home store per type, composed here and nowhere else.
 public static class AetheriaStores
 {
-    public static readonly Type[] CatalogTypes = { typeof(ItemData), typeof(ShipAuthoring), typeof(Faction), typeof(FactionProductData), typeof(PersonalityAttribute), typeof(NameFile), typeof(InputLayout), typeof(Loadout), typeof(FieldKindData) };
+    public static readonly Type[] CatalogTypes = { typeof(ItemData), typeof(ShipAuthoring), typeof(Faction), typeof(FactionProductData), typeof(PersonalityAttribute), typeof(NameFile), typeof(InputLayout), typeof(Loadout), typeof(FieldKindData), typeof(VerseGrammar), typeof(VerseVerb) };
     public static readonly Type[] RunTypes = { typeof(OrbitData), typeof(BodyData), typeof(SavedZone), typeof(SavedGame), typeof(ProvenanceLedger) };
     public static readonly Type[] PlayerTypes = { typeof(PlayerSettings) };
 
     // Attaches (hydrates) the catalog read-only unless catalogWritable, then the run and player stores when given.
     // Throws when a [CultGlobal] type routed to the catalog has no record. The one exemption is a writable catalog with
     // no records at all, a seed store being authored from nothing; a populated catalog is held to it however it opens.
-    public static CultCache Open(string catalogPath, string runPath = null, string playerPath = null, bool catalogWritable = false)
+    // The registry is the process-wide one unless the caller scopes it (the test host does, so its own document types never
+    // become catalog globals); the global check above is judged against whichever registry opened the cache.
+    public static CultCache Open(string catalogPath, string runPath = null, string playerPath = null, bool catalogWritable = false,
+        CultDocumentRegistry registry = null)
     {
-        var cache = new CultCache();
+        // A read-only open of an absent catalog would hydrate an empty game; a shipped player missing its catalog stops here.
+        if (!catalogWritable && !File.Exists(catalogPath))
+            throw new FileNotFoundException($"Catalog {catalogPath} does not exist; a read-only open never invents one.", catalogPath);
+        var cache = new CultCache(registry);
         try
         {
             cache.AddBackingStore(new SingleFileMessagePackBackingStore(catalogPath, !catalogWritable), CatalogTypes);
@@ -33,6 +40,7 @@ public static class AetheriaStores
             // cut.md), stat modifiers, role usage (Cut 7). Fails loudly, naming the item.
             foreach (var data in cache.GetAll<EquippableItemData>()) CultRecordRefs.Validate(data);
             foreach (var data in cache.GetAll<ConsumableItemData>()) CultRecordRefs.Validate(data);
+            VerseGrammarValidation.ValidateAll(cache.GetAll<VerseVerb>());
             return cache;
         }
         catch

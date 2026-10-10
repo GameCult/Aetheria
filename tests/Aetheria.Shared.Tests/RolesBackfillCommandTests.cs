@@ -30,7 +30,7 @@ public sealed class RolesBackfillCommandTests : IDisposable
     {
         Directory.CreateDirectory(Path.Combine(_root, "GameData"));
         File.Copy(Path.Combine(AetherDb.FindRoot(), "GameData", "Aetheria.cc"), CatalogPath);
-        using var cache = new CultCache(ScopedRegistry());
+        using var cache = new CultCache(TestCatalog.Registry());
         cache.AddBackingStore(new SingleFileMessagePackBackingStore(CatalogPath), AetheriaStores.CatalogTypes);
         var products = cache.GetAll<FactionProductData>().ToArray();
         foreach (var design in cache.GetAll<EquippableItemData>().Where(d => Flattened.Contains(d.Name) || Unnamed.Any(u => u.Design == d.Name)))
@@ -38,15 +38,11 @@ public sealed class RolesBackfillCommandTests : IDisposable
     }
 
     // A registry scoped to the shipped assembly, so this test assembly's own documents never reach the real catalog.
-    private static CultDocumentRegistry ScopedRegistry() => CultDocumentRegistry.ForTypes(typeof(ItemData).Assembly.GetTypes()
-        .Where(t => t is { IsAbstract: false, IsInterface: false })
-        .Where(t => t.GetCustomAttribute<CultDocumentAttribute>() != null));
-
     // Puts the named designs back to the state they shipped in before the backfill, through a registry scoped to the shipped
     // assembly (as PiratesFactionCommandTests strips its faction).
     private void Reset(bool flattened, bool unnamed)
     {
-        using var cache = new CultCache(ScopedRegistry());
+        using var cache = new CultCache(TestCatalog.Registry());
         cache.AddBackingStore(new SingleFileMessagePackBackingStore(CatalogPath), AetheriaStores.CatalogTypes);
         var designs = cache.GetAll<EquippableItemData>().ToArray();
         var products = cache.GetAll<FactionProductData>().ToArray();
@@ -88,7 +84,7 @@ public sealed class RolesBackfillCommandTests : IDisposable
         using (var plain = new CultCache())
         {
             plain.AddBackingStore(new SingleFileMessagePackBackingStore(CatalogPath), AetheriaStores.CatalogTypes);
-            plain.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+            plain.Upsert(new VerseGrammar { Revision = 1 });
             plain.FlushAsync().Wait();
         }
     }

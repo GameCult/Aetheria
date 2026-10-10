@@ -23,7 +23,7 @@ public sealed class RunSaveTests : IDisposable
         using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
         cache.Commit(batch =>
         {
-            batch.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+            batch.Upsert(new VerseGrammar { Revision = 1 });
             batch.Upsert(new Faction { Name = "Adrasteia", ShortName = "ADR" });
         });
     }
