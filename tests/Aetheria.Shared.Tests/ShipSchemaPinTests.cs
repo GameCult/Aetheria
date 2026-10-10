@@ -77,7 +77,7 @@ public sealed class ShipSchemaPinTests
         for (var code = 0; code < 256; code++)
         {
             var c = (char)code;
-            Assert.Equal(allowed.Contains(c), Accepts("a" + c));
+            Assert.Equal(allowed.Contains(c), Accepts("a" + c + "a"));
             Assert.Equal(allowed.Contains(c) && c != '.' && c != '_' && c != '-', Accepts(c + "a"));
         }
         var stems = new List<string>();
