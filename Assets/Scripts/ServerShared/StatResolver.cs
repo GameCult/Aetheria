@@ -141,6 +141,9 @@ public class StatResolver
         {
             set.Scale.Remove(modifierKey);
             set.Constant.Remove(modifierKey);
+            // An entry with nothing attached is no entry: a modifier that is gone leaves no trace in the resolver.
+            if (set.Scale.Count == 0 && set.Constant.Count == 0)
+                _modifiers.Remove(entry);
         }
         _cache.Remove(entry);
     }
