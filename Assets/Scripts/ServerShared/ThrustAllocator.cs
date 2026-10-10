@@ -23,9 +23,6 @@ public sealed class ThrustAllocator
     const float ErrorCostWeight = .3f;
     const float ErrorCostOffset = 10f;
     const float Ridge = .1f;
-    // The solver stops within its tolerance of the optimum, so a throttle that should be zero can come back as 1e-34 after
-    // a warm start. Below this a throttle is that residue, not an ask: nothing asked is nothing fired.
-    const float ThrottleResidue = 1e-9f;
     const float ErrorMax = 2f;
     const double KktRelativeTolerance = 1e-12;
     const int ErrorVariables = 4;
@@ -39,6 +36,10 @@ public sealed class ThrustAllocator
         var n = columns.Length;
         if (n != _columns) Resize(n);
         for (var i = 0; i < n; i++) throttle[i] = 0;
+
+        // Nothing asked, nothing fired: that is a fact about the intent, decided before the solve. The solver's warm
+        // start is left as the last solved point, which is where the next non-zero call resumes.
+        if (Intent(move, turn, 0) == 0 && Intent(move, turn, 1) == 0 && Intent(move, turn, 2) == 0) return;
 
         var vars = n + ErrorVariables;
         var rows = FixedRows + n;
@@ -54,7 +55,7 @@ public sealed class ThrustAllocator
                 else if (c < 0) minus -= c;
             }
             var extreme = Math.Max(plus, minus);
-            var intent = Math.Min(Math.Max(axis == 0 ? move.x : axis == 1 ? move.y : turn, -1f), 1f);
+            var intent = Intent(move, turn, axis);
             var weight = axis == 2 ? YawWeight : TranslationWeight;
             // Intent is a fraction of the half-axis extreme it points into.
             var demand = intent >= 0 ? intent * plus : intent * minus;
@@ -80,8 +81,11 @@ public sealed class ThrustAllocator
 
         var status = BoundedLeastSquares.Solve(rows, vars, _a, _b, _lo, _hi, _x, _workspace, out _, KktRelativeTolerance);
         if (status == BoundedLeastSquaresStatus.InvalidInput) return;
-        for (var i = 0; i < n; i++) throttle[i] = _x[i] > ThrottleResidue ? _x[i] : 0;
+        for (var i = 0; i < n; i++) throttle[i] = _x[i];
     }
+
+    static float Intent(float2 move, float turn, int axis) =>
+        Math.Min(Math.Max(axis == 0 ? move.x : axis == 1 ? move.y : turn, -1f), 1f);
 
     static float Component(float3 c, int axis) => axis == 0 ? c.x : axis == 1 ? c.y : c.z;
 

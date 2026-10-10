@@ -346,6 +346,57 @@ public class ThrustAllocatorTests
         }
     }
 
+    // Forty thrusters of 20..60 m/s^2 on random half-axes with random yaw, the shape of a hull far larger than any demo
+    // ship. Deterministic from the seed.
+    static float3[] LargeHull(int n, int seed)
+    {
+        var rng = new Random(seed);
+        var columns = new float3[n];
+        for (var i = 0; i < n; i++)
+        {
+            var a = 20f + 40f * (float)rng.NextDouble();
+            var yaw = (float)(rng.NextDouble() * 2 - 1) * 120f;
+            var dir = rng.Next(10);
+            columns[i] = dir < 4 ? Col(0, a, yaw) : dir < 6 ? Col(0, -a, yaw) : dir < 8 ? Col(a, 0, yaw) : Col(-a, 0, yaw);
+        }
+        return columns;
+    }
+
+    [Fact]
+    public void NothingAskedAfterAnIterationCapCallFiresNothing()
+    {
+        // On this hull the warm solve of a zero-intent call needs more than the solver's 100 iterations, and the iterate it
+        // stopped at fired throttles up to 1.0 with nothing asked. Whether nothing is asked is decided from the intent, not
+        // by how far the solver gets.
+        var histories = new[]
+        {
+            (Seed: 9039, History: new[] { (0.0112729073f, -0.170811713f, 0.809294581f), (-0.474286854f, 0.703138232f, 0f), (0.294080615f, 0.934491992f, -0.776120305f) }),
+            (Seed: 9079, History: new[] { (0.607828975f, 1f, 0.202640772f), (-0.620587587f, 0.0162956715f, -0.898228765f), (0.0739500523f, 1f, -0.903907537f) }),
+        };
+        foreach (var (seed, history) in histories)
+        {
+            var hull = LargeHull(40, seed);
+            var allocator = new ThrustAllocator();
+            foreach (var (x, y, turn) in history) Solve(allocator, hull, x, y, turn);
+            Assert.All(Solve(allocator, hull, 0, 0, 0), t => Assert.Equal(0f, t));
+            Assert.All(Solve(allocator, hull, 0, 0, 0), t => Assert.Equal(0f, t));
+        }
+    }
+
+    [Fact]
+    public void ASmallIntentIsStillAnsweredWhateverTheColumnScale()
+    {
+        // Zero is a fact about the intent alone: an intent of 1e-3 of the half-axis is served at any scale of thrust.
+        foreach (var scale in new[] { 1e-3f, 1f, 1e3f })
+        {
+            var hull = Duel();
+            for (var i = 0; i < hull.Length; i++) hull[i] *= scale;
+            var extreme = Extremes(hull, 2).plus;
+            var yaw = Net(hull, Solve(hull, 0, 0, 1e-3f)).z;
+            Assert.True(yaw > .5e-3f * extreme, $"scale {scale}: yaw {yaw} of {extreme}");
+        }
+    }
+
     [Fact]
     public void NothingAskedAfterACallFiresNothing()
     {
