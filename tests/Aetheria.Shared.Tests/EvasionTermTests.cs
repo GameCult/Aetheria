@@ -362,8 +362,8 @@ public sealed partial class RunStartTests
         var sides = new[] { envelope.Left, envelope.Right }.OrderBy(a => a).ToArray();
         Assert.InRange(sides[0], flankAccelerations[0] * .99f, flankAccelerations[0] * 1.01f);
         Assert.InRange(sides[1], flankAccelerations[1] * .99f, flankAccelerations[1] * 1.01f);
-        var clockwise = thrusters.Where(t => t.Torque > settings.TorqueFloor).Sum(t => t.Torque * t.Thrust) * settings.TorqueMultiplier / mass;
-        var counterClockwise = thrusters.Where(t => t.Torque < -settings.TorqueFloor).Sum(t => -t.Torque * t.Thrust) * settings.TorqueMultiplier / mass;
+        var clockwise = thrusters.Where(t => t.Torque > 0f).Sum(t => t.Torque * t.Thrust) * settings.TorqueMultiplier / mass;
+        var counterClockwise = thrusters.Where(t => t.Torque < 0f).Sum(t => -t.Torque * t.Thrust) * settings.TorqueMultiplier / mass;
         Assert.InRange(envelope.Clockwise, clockwise * .99f, clockwise * 1.01f);
         Assert.InRange(envelope.CounterClockwise, counterClockwise * .99f, counterClockwise * 1.01f);
         Assert.True(clockwise > 1f && counterClockwise > 1f, "the flank thrusters turn the Longinus");
@@ -414,8 +414,8 @@ public sealed partial class RunStartTests
         Assert.Equal(0f, maimed.Right);
         Assert.InRange(maimed.Left, whole.Left * .99f, whole.Left * 1.01f);
         var live = djinni.GetBehaviors<Thruster>().Where(t => t.Item.Active.Value).ToList();
-        var clockwise = live.Where(t => t.Torque > settings.TorqueFloor).Sum(t => t.Torque * t.Thrust) * settings.TorqueMultiplier / djinni.Mass;
-        var counterClockwise = live.Where(t => t.Torque < -settings.TorqueFloor).Sum(t => -t.Torque * t.Thrust) * settings.TorqueMultiplier / djinni.Mass;
+        var clockwise = live.Where(t => t.Torque > 0f).Sum(t => t.Torque * t.Thrust) * settings.TorqueMultiplier / djinni.Mass;
+        var counterClockwise = live.Where(t => t.Torque < 0f).Sum(t => -t.Torque * t.Thrust) * settings.TorqueMultiplier / djinni.Mass;
         Assert.True(Math.Abs(clockwise - counterClockwise) > .05f * clockwise, "fixture: the surviving thrusters turn the two ways unequally");
         Assert.InRange(maimed.Clockwise, clockwise * .99f, clockwise * 1.01f);
         Assert.InRange(maimed.CounterClockwise, counterClockwise * .99f, counterClockwise * 1.01f);

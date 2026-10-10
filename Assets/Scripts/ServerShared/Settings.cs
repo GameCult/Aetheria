@@ -211,7 +211,6 @@ public class GameplaySettings
     public float LockIndicatorNoiseAmplitude = 50f;
     public ExponentialLerp LockIndicatorFrequency;
     public ExponentialLerp LockSpinSpeed;
-    public float TorqueFloor;
     public float TorqueMultiplier;
     public float VisibilityDecay;
     public float TargetInfoDecay;
