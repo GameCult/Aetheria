@@ -220,7 +220,8 @@ def _save_layout(context, collection, state):
     pending = collection.get("aetheria.pending")
     folder = Path(path).parent
     if pending and Path(path).exists():
-        raise ValueError("A ship file already exists at the bound path; Bind it instead")
+        raise ValueError("A ship file already exists at the bound path (Ctrl+Z past a first Save leaves it there); "
+                         "use Bind Ship Collection with that ship.cc, then Load Layout")
     made_folder = bool(pending) and not folder.exists()
     revision = state.revision
     try:
@@ -560,6 +561,12 @@ def _world_mesh(obj, depsgraph, matrix):
     return points.reshape(-1, 3) @ linear[:3, :3].T + linear[:3, 3], triangles.reshape(-1, 3)
 
 
+def _held(matrix):
+    """The world matrix an object holds after matrix_world = matrix: Blender keeps location, rotation and scale, so a
+    shear (a non-uniform scaled parent under rotation) is dropped. The hull the author sees afterwards is this one."""
+    return Matrix.LocRotScale(*matrix.decompose())
+
+
 def _triangles_xy(depsgraph, placements):
     """The top-down triangles of the evaluated meshes, each through its matrix: what the author sees from above.
     placements is [(object, matrix)]."""
@@ -700,7 +707,9 @@ def _new_ship(context, ship_id, name, reference, length):
         raise ValueError("Give the ship a display name and a reference hull")
     path = _game_folder(context, bpy.data.filepath or None) / "GameData" / "Mods" / ship_id / "ship.cc"
     if path.exists():
-        raise ValueError("A ship with this ID already exists")
+        raise ValueError("A ship with this ID already exists under GameData/Mods (Ctrl+Z past a first Save leaves it "
+                         "there); use Bind Ship Collection with its ship.cc, then Load Layout, or give the new ship "
+                         "another ID")
     collection = _ship_collection(context, unbound_ok=True)
     if collection.get("aetheria.id") is not None or _ship_root(collection) is not None:
         raise ValueError("The collection is already a ship")
@@ -720,7 +729,7 @@ def _new_ship(context, ship_id, name, reference, length):
     transform = Matrix.Diagonal((scale, scale, scale, 1.0))
     if extent_x > extent_y:
         transform = transform @ Matrix.Rotation(math.pi / 2, 4, "Z")
-    placed = {obj: transform @ worlds[obj] for obj in meshes}
+    placed = {obj: _held(transform @ worlds[obj]) for obj in meshes}
     width, height, cells, origin = hull_grid.rasterise(_triangles_xy(depsgraph, [(obj, placed[obj]) for obj in meshes]))
     _bind_collection(collection, str(path), ship_id, [name, reference])
     source = _child_or_new(collection, SOURCE, SOURCE)

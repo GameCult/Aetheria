@@ -462,6 +462,8 @@ def main():
     print("PASS 6 package ok")
     mirror_pass()
     print("PASS 6b mirror ok")
+    shear_pass()
+    print("PASS 6c shear ok")
     guards_pass(aetheria_ships)
     print("PASS 7 guards ok")
     undo_pass()
@@ -509,6 +511,27 @@ def mirror_pass():
     require(half == solid, "A Mirror-modified half hull does not get the cells of the hand-mirrored solid")
 
 
+def shear_pass():
+    """A hull parented to a rotated, non-uniformly scaled empty has a sheared world matrix, which an object cannot hold:
+    New Ship drafts the cells of the hull it leaves, so Rasterise on that hull proposes the same cells."""
+    scene = bpy.context.scene
+    collection = bpy.data.collections.new("Shear")
+    scene.collection.children.link(collection)
+    holder = bpy.data.objects.new("Shear Holder", None)
+    holder.rotation_euler = (0, 0, 0.7)
+    holder.scale = (3, 1, 1)
+    collection.objects.link(holder)
+    hull = new_object(collection, "Shear Hull", box("Shear", 1.0, 0.5, 0.1), parent=holder)
+    hull.rotation_euler = (0, 0, 0.5)
+    select(hull)
+    result, message = new_ship(scene, "smoke.shear", "Shear", "Djinni", 10)
+    require(result == {"FINISHED"}, f"New Ship under a sheared parent was refused: {message}")
+    made = buffer(bpy.context.scene)[:3]
+    result, message = run(bpy.ops.aetheria.rasterise_hull)
+    require(result == {"FINISHED"} and buffer(bpy.context.scene)[:3] == made,
+            f"The cells New Ship drafted under a sheared parent are not the cells of the hull it left: {message}")
+
+
 def guards_pass(aetheria_ships):
     scene = bpy.context.scene
     path_a, path_b = str(MODS / GUARD_A / "ship.cc"), str(MODS / GUARD_B / "ship.cc")
@@ -530,9 +553,45 @@ def guards_pass(aetheria_ships):
     # A pending ship over an existing ship.cc (what Ctrl+Z past a first Save restores) is refused, and the file stays.
     saved = digest(path_a)
     collection_a["aetheria.pending"] = ["Guard A", "Djinni"]
-    refused(bpy.ops.aetheria.save_ship_layout, "A ship file already exists at the bound path", "Save of a pending ship over its file")
+    refused(bpy.ops.aetheria.save_ship_layout, "use Bind Ship Collection with that ship.cc, then Load Layout", "Save of a pending ship over its file")
     require(Path(path_a).is_file() and digest(path_a) == saved, "A refused Save deleted or changed the author's ship.cc")
     del collection_a["aetheria.pending"]
+
+    # A failed Save of a saved ship (a write that raises, then a .cc that changed since Load) leaves its real ship.cc.
+    real = aetheria_ships.replace_layout
+
+    def failing(*args, **kwargs):
+        raise ValueError("probe: replace_layout failed")
+
+    aetheria_ships.replace_layout = failing
+    try:
+        refused(bpy.ops.aetheria.save_ship_layout, "probe: replace_layout failed", "Save of a saved ship with a failing write")
+    finally:
+        aetheria_ships.replace_layout = real
+    require(Path(path_a).is_file() and digest(path_a) == saved, "A failed Save deleted or changed a saved ship's ship.cc")
+    state = bpy.context.scene.aetheria_layout
+    revision, state.revision = state.revision, "changed outside Blender"
+    refused(bpy.ops.aetheria.save_ship_layout, "changed since Load", "Save with a stale revision")
+    state.revision = revision
+    require(Path(path_a).is_file() and digest(path_a) == saved, "A stale-revision Save deleted or changed the ship.cc")
+
+    # New Ship checks everything, the rasterising included, before it changes the collection: a vertical wall has
+    # horizontal extent and no top-down area.
+    wall_collection = bpy.data.collections.new("Guard Wall")
+    scene.collection.children.link(wall_collection)
+    wall_mesh = bpy.data.meshes.new("Guard Wall")
+    wall_mesh.from_pydata([(-2, 0, -1), (2, 0, -1), (2, 0, 1), (-2, 0, 1)], [], [(0, 1, 2, 3)])
+    wall = new_object(wall_collection, "Guard Wall Hull", wall_mesh)
+    select(wall)
+    scene.aetheria_new_ship_id = "smoke.guard.w"
+    scene.aetheria_new_ship_name, scene.aetheria_new_ship_like = "Guard Wall", "Djinni"
+    for attempt in ("first", "retry"):
+        refused(bpy.ops.aetheria.new_ship, "no triangle with area", f"New Ship on a wall ({attempt})")
+        require(not any(key.startswith("aetheria.") for key in wall_collection.keys()), "A refused New Ship bound the collection")
+        require(wall.parent is None and wall.users_collection == (wall_collection,) and not wall_collection.children
+                and not any(obj.get("aetheria.ship_root") for obj in wall_collection.objects),
+                "A refused New Ship moved the meshes or made a Ship Root")
+    select(hull_a)
 
     # A collection with a mesh in a child collection is not made a ship.
     child_host = bpy.data.collections.new("Guard Child")
@@ -661,6 +720,24 @@ def undo_pass():
     result, _ = run(bpy.ops.ed.undo)
     require(result == {"FINISHED"} and frame()[2:] != flipped[2:], "Save is undoable: one undo took back Save and not the step before it")
     require(path.is_file(), "Undo changed the .cc")
+
+    # Ctrl+Z past the first Save leaves the .cc behind an unbound collection: New Ship with the ID is refused with the
+    # way forward, and following it (Bind, Load, Save) works.
+    for _ in range(12):
+        if not frame()[0]:
+            break
+        require(run(bpy.ops.ed.undo)[0] == {"FINISHED"}, "ed.undo past the first Save did not run")
+    require(not frame()[0] and path.is_file(), "Undo past the first Save did not unbind the collection or changed the .cc")
+    scene = bpy.context.scene
+    select(bpy.data.objects["Undo Hull"])
+    scene.aetheria_new_ship_id, scene.aetheria_new_ship_name = UNDO_SHIP, "Undo Ship"
+    scene.aetheria_new_ship_like, scene.aetheria_new_ship_length = "Djinni", 10
+    refused(bpy.ops.aetheria.new_ship, "use Bind Ship Collection with its ship.cc, then Load Layout", "New Ship over the ship the first Save made")
+    scene.aetheria_ship_cc_path = str(path)
+    for operator, what in ((bpy.ops.aetheria.bind_ship_collection, "Bind"), (bpy.ops.aetheria.load_ship_layout, "Load"),
+                           (bpy.ops.aetheria.save_ship_layout, "Save")):
+        result, message = run(operator)
+        require(result == {"FINISHED"}, f"{what} on the way forward after undoing past the first Save was refused: {message}")
 
 
 def _root_count():
