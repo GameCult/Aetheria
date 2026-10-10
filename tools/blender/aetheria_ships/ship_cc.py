@@ -37,6 +37,21 @@ HARDPOINT_TYPE_NAMES = ("Hull", "Tool", "Thermal", "Thruster", "WarpDrive", "Rea
 ROTATION_NAMES = ("None", "CounterClockwise", "Reversed", "Clockwise")
 
 
+# ShipAuthoringStore.RequireShipId's rule, mirrored so New Ship refuses before it touches anything; ShipSchemaPinTests
+# pins both constants and valid_ship_id to the C# rule.
+SHIP_ID_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789._-"
+RESERVED_SHIP_IDS = ("con", "prn", "aux", "nul", "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8", "com9",
+                     "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9")
+
+
+def valid_ship_id(ship_id: str) -> bool:
+    """True when ShipAuthoringStore.RequireShipId would accept the ID: lower-case ASCII letters, digits, dots,
+    underscores and hyphens, starting with a letter or digit, not ending in a dot, and whose stem before the first dot
+    is not a Windows device name."""
+    return (bool(ship_id) and ship_id[0] not in "._-" and all(c in SHIP_ID_CHARS for c in ship_id)
+            and not ship_id.endswith(".") and ship_id.split(".")[0] not in RESERVED_SHIP_IDS)
+
+
 def decode_hardpoint(row: list[Any]) -> dict[str, Any]:
     return dict(zip(HARDPOINT_MEMBERS, row))
 
@@ -80,19 +95,19 @@ def read(path: str, cultlib_packages: str) -> ShipFile:
         body = msgpack.unpackb(envelope.payload, raw=False)
         if isinstance(body, list) and len(body) > RETIRED_HULL_SLOT and body[RETIRED_HULL_SLOT] is not None:
             raise ValueError(
-                f"{path}: {envelope.key}: legacy embedded hull at retired key {RETIRED_HULL_SLOT} of the {SCHEMA} record; "
+                f"The ship file has a legacy embedded hull at retired key {RETIRED_HULL_SLOT} of the {SCHEMA} record; "
                 f"migrate it into its own {HULL_SCHEMA} record that names the visual, and drop key {RETIRED_HULL_SLOT}")
     if len(envelopes) != 2 or len(ships) != 1 or len(hulls) != 1:
-        raise ValueError(f"{path} must hold exactly one {SCHEMA} record and one {HULL_SCHEMA} record")
+        raise ValueError(f"The ship file must hold exactly one {SCHEMA} record and one {HULL_SCHEMA} record")
     bodies = []
     for envelope in (ships[0], hulls[0]):
         body = msgpack.unpackb(envelope.payload, raw=False)
         if not isinstance(body, list):
-            raise ValueError(f"{path} has an incompatible {envelope.type} payload")
+            raise ValueError(f"The ship file has an incompatible {envelope.type} payload")
         bodies.append(Record(envelope, body))
     ship, hull = bodies
     if len(ship.body) < SCHEMATIC_LINES_SLOT + 1:
-        raise ValueError(f"{path} has an incompatible {SCHEMA} payload")
+        raise ValueError(f"The ship file has an incompatible {SCHEMA} payload")
     return ShipFile(store, ship, hull, msgpack)
 
 
@@ -129,7 +144,7 @@ def replace_visual(path: str, cultlib_packages: str, expected_id: str, model_ass
         if not isinstance(anchor_id, str) or not anchor_id.strip():
             raise ValueError("Every anchor needs an ID")
         if anchor_id in ids:
-            raise ValueError(f"Anchor ID {anchor_id} is used twice")
+            raise ValueError("An anchor ID is used twice")
         ids.add(anchor_id)
     previous = file.ship.body[ANCHORS_SLOT] if len(file.ship.body) > ANCHORS_SLOT else None
     later = {row[0]: row[known:] for row in previous or []
@@ -149,13 +164,14 @@ def _hull_body(file: ShipFile) -> list:
 def read_layout(path: str, cultlib_packages: str):
     file = read(path, cultlib_packages)
     hull = _hull_body(file)
-    return hull[HULL_SHAPE_SLOT][0], hull[HULL_HARDPOINTS_SLOT], _layout_revision(hull, file.msgpack)
+    return hull[HULL_SHAPE_SLOT][0], hull[HULL_HARDPOINTS_SLOT], layout_revision(hull[HULL_SHAPE_SLOT][0], hull[HULL_HARDPOINTS_SLOT])
 
 
-def _layout_revision(hull, msgpack):
-    return hashlib.sha256(msgpack.packb(
-        [hull[HULL_SHAPE_SLOT], hull[HULL_HARDPOINTS_SLOT]], use_bin_type=True
-    )).hexdigest()
+def layout_revision(shape: list[Any], hardpoints: list[list[Any]]) -> str:
+    """The revision of a layout: a hash of its shape ([width, height, cells]) and hardpoint rows as the file stores
+    them. replace_layout returns it, Load records it, and Package compares the layout buffer's against the file's."""
+    import msgpack  # type: ignore
+    return hashlib.sha256(msgpack.packb([[shape], hardpoints], use_bin_type=True)).hexdigest()
 
 
 def replace_layout(path: str, cultlib_packages: str, expected_id: str, expected_revision: str,
@@ -164,7 +180,7 @@ def replace_layout(path: str, cultlib_packages: str, expected_id: str, expected_
     if file.ship.body[0] != expected_id:
         raise ValueError("The bound ship ID changed; reload its layout")
     hull = _hull_body(file)
-    if _layout_revision(hull, file.msgpack) != expected_revision:
+    if layout_revision(hull[HULL_SHAPE_SLOT][0], hull[HULL_HARDPOINTS_SLOT]) != expected_revision:
         raise ValueError("The .cc layout changed since Load; reload before saving")
     width, height, cells = shape
     if not (1 <= width <= 32 and 1 <= height <= 32 and len(cells) == width * height):
@@ -184,20 +200,20 @@ def replace_layout(path: str, cultlib_packages: str, expected_id: str, expected_
             raise ValueError(f"Each hardpoint needs {known} typed fields and a stable mount ID")
         hp_width, hp_height, hp_cells = fields["Shape"][0]
         if not all(type(cell) is bool for cell in hp_cells):
-            raise ValueError(f"Hardpoint {mount} footprint cells must be booleans")
+            raise ValueError("Hardpoint footprint cells must be booleans")
         if not (1 <= hp_width <= 32 and 1 <= hp_height <= 32 and
                 len(hp_cells) == hp_width * hp_height and any(hp_cells)):
-            raise ValueError(f"Hardpoint {mount} has an invalid footprint")
+            raise ValueError("A hardpoint has an invalid footprint")
         updated_hardpoints.append(hardpoint + previous.get(mount, []))
     hull[HULL_SHAPE_SLOT] = [shape]
     hull[HULL_HARDPOINTS_SLOT] = updated_hardpoints
     file.store.push(_stamped(file.hull, file.msgpack))
-    return _layout_revision(hull, file.msgpack)
+    return layout_revision(hull[HULL_SHAPE_SLOT][0], hull[HULL_HARDPOINTS_SLOT])
 
 
 def capture_grease_pencil(obj: Any, depsgraph: Any, frame_number: int, *, evaluated: bool = True) -> list[list[Any]]:
     if obj.type != "GREASEPENCIL":
-        raise ValueError(f"{obj.name} is not a Grease Pencil object")
+        raise ValueError("The selected object is not a Grease Pencil object")
     source = obj.evaluated_get(depsgraph) if evaluated else obj
     lines: list[list[Any]] = []
     for layer in source.data.layers:

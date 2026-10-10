@@ -199,14 +199,26 @@ public static class ShipAuthoringStore
             throw new InvalidOperationException($"{label}: a hull names one body, but this one names both a Unity prefab and a visual record.");
     }
 
+    // The one ship-ID rule, shared by Validate and ship-authoring create. The ID becomes a folder name on every platform, so
+    // Windows device names (alone or before a dot) and a trailing dot are refused too. The messages name the rule, never the value.
+    public static void RequireShipId(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id)) throw new InvalidOperationException("Ship ID is required.");
+        if (!(id[0] >= 'a' && id[0] <= 'z' || id[0] >= '0' && id[0] <= '9') || id.Any(c =>
+                !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '.' || c == '_' || c == '-')))
+            throw new InvalidOperationException("Ship ID must use lower-case ASCII letters, digits, dots, underscores, or hyphens.");
+        if (id[id.Length - 1] == '.') throw new InvalidOperationException("Ship ID must not end with a dot.");
+        var stem = id.Split('.')[0];
+        if (stem is "con" or "prn" or "aux" or "nul"
+            || stem.Length == 4 && (stem.StartsWith("com") || stem.StartsWith("lpt")) && stem[3] >= '1' && stem[3] <= '9')
+            throw new InvalidOperationException("Ship ID must not be a Windows device name.");
+    }
+
     // The one semantic check every path shares: the hull and its visual, judged together.
     public static void Validate(HullData hull, ShipAuthoring ship)
     {
         if (ship == null) throw new InvalidOperationException("Ship authoring record is null.");
-        if (string.IsNullOrWhiteSpace(ship.Id)) throw new InvalidOperationException("Ship ID is required.");
-        if (!(ship.Id[0] >= 'a' && ship.Id[0] <= 'z' || ship.Id[0] >= '0' && ship.Id[0] <= '9') || ship.Id.Any(c =>
-                !(c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '.' || c == '_' || c == '-')))
-            throw new InvalidOperationException($"{ship.Id}: ship ID must use lower-case ASCII letters, digits, dots, underscores, or hyphens.");
+        RequireShipId(ship.Id);
         if (hull == null) throw new InvalidOperationException($"{ship.Id}: hull data is required.");
         if (string.IsNullOrWhiteSpace(hull.Name)) throw new InvalidOperationException($"{ship.Id}: hull name is required.");
         if (hull.Shape?.Cells == null || !hull.Shape.Cells.Cast<bool>().Any(occupied => occupied))

@@ -2,14 +2,17 @@
 
     blender --background --factory-startup --python-use-system-env --python tools/blender/tests/smoke_package.py
 
-Environment: CULTLIB_PACKAGES (CultLib's packages directory, as test_ship_cc.py), and whatever AetherDb's build needs
-(CULTLIB_ROOT and CULTMATH_ROOT at the pinned revisions), since the add-on runs 'dotnet run --project tools/AetherDb'.
+Environment: CULTLIB_PACKAGES (CultLib's packages directory, as test_ship_cc.py) and SMOKE_GAME_FOLDER, a folder holding
+GameData/Aetheria.cc and the published AetherDb under ModTools (AetherDb.exe on Windows), which the smoke sets as the
+add-on's Game folder. No dotnet is needed: the add-on runs the published tool and nothing else.
 SMOKE_MODS names the mods directory to write into (default: a new temp directory); the package is left there so the
 Unity play smoke can load it, and its path is printed as SMOKE_PACKAGE=<ship.cc>.
 
 Pass 1 packages a primitive ship built from role-tagged objects and requires the C# validator to accept it. Pass 2 swaps
 the thruster disc for an empty of the same id and requires the validator to refuse it, naming the anchor. Pass 3 puts
-the disc back and packages again, so the package left behind is the good one.
+the disc back and packages again, so the package left behind is the good one. Pass 4 points Game folder at a folder
+that holds Aetheria.cc but no ModTools/AetherDb, and at one that holds a ModTools tool but no Aetheria.cc, and
+requires Package to report the fixed preference text and no path.
 
 Before packaging, the bind cases: a bind that fails while computing the stored path leaves no aetheria.* property; an
 unsaved .blend stores the absolute path, which still resolves after Save As to two other folders; a saved .blend on the
@@ -17,6 +20,8 @@ unsaved .blend stores the absolute path, which still resolves after Save As to t
 the .blend is saved there before the final bind, so the bind crosses drives and the package passes prove it resolves.
 """
 
+import contextlib
+import io
 import os
 import sys
 import tempfile
@@ -27,6 +32,7 @@ import addon_utils
 import bpy
 
 REPO = Path(__file__).resolve().parents[3]
+GAME = Path(os.environ.get("SMOKE_GAME_FOLDER") or sys.exit("Set SMOKE_GAME_FOLDER to a folder holding GameData/Aetheria.cc and ModTools/AetherDb"))
 PACKAGES = os.environ.get("CULTLIB_PACKAGES") or sys.exit("Set CULTLIB_PACKAGES to CultLib's packages directory")
 SHIP_ID = "smoke.gale"
 
@@ -113,14 +119,20 @@ def bind_cases(ship, path, mods):
         raise SystemExit("Bind case cross-drive: the stored path is not the absolute .cc path")
 
 
+CONSOLE = []  # what the last package() sent to the system console
+
+
 def package(addon):
     # An operator that reports an error raises it out of bpy.ops; the panel's report is the verdict either way.
+    console = io.StringIO()
     try:
-        result = bpy.ops.aetheria.package_ship()
+        with contextlib.redirect_stdout(console):
+            result = bpy.ops.aetheria.package_ship()
     except RuntimeError:
         result = {"CANCELLED"}
+    CONSOLE[:] = [console.getvalue()]
     report = bpy.context.scene.aetheria_package_report
-    print(f"PACKAGE {sorted(result)}: {report}")
+    print(f"PACKAGE {sorted(result)}: {report}{CONSOLE[0]}")
     return result, report
 
 
@@ -130,13 +142,13 @@ def main():
     import aetheria_ships
     # Brokkr is the Blender host's CultLib path provider and is not installed in a factory-startup Blender.
     aetheria_ships._brokkr_cultlib = lambda context: PACKAGES
-    bpy.context.preferences.addons["aetheria_ships"].preferences.aetheria_repo = str(REPO)
+    bpy.context.preferences.addons["aetheria_ships"].preferences.game_folder = str(GAME)
 
     mods = Path(os.environ.get("SMOKE_MODS") or tempfile.mkdtemp(prefix="aetheria-smoke-mods-"))
     path = str(mods / SHIP_ID / "ship.cc")
     if Path(path).exists():
         raise SystemExit(f"{path} already exists; point SMOKE_MODS at an empty directory")
-    code, message = aetheria_ships._aetherdb(bpy.context, path, "create", path, SHIP_ID, "Smoke Gale", "--like", "Djinni")
+    code, message = aetheria_ships._aetherdb(bpy.context, "create", path, SHIP_ID, "Smoke Gale", "--like", "Djinni")
     print(f"CREATE {code}: {message}")
     if code != 0:
         raise SystemExit("create --like Djinni failed")
@@ -176,14 +188,34 @@ def main():
     ship.objects.unlink(disc)
     hollow = tagged(ship, "Thruster Empty", None, "thruster-emitter", "thruster", (0, -1, 0))
     result, report = package(aetheria_ships)
-    if result != {"CANCELLED"} or "thruster-emitter anchor thruster needs a mesh" not in report:
-        raise SystemExit("Pass 2: an empty thruster node was not refused by name")
+    if result != {"CANCELLED"} or "the validator refused the ship" not in report or "thruster" in report or SHIP_ID in report:
+        raise SystemExit("Pass 2: an empty thruster node was not refused with the fixed text")
+    if "thruster-emitter anchor thruster needs a mesh" not in CONSOLE[0]:
+        raise SystemExit("Pass 2: the validator's message naming the anchor did not reach the system console")
 
     ship.objects.unlink(hollow)
     ship.objects.link(disc)
     result, report = package(aetheria_ships)
     if result != {"FINISHED"}:
         raise SystemExit("Pass 3: the restored ship was refused")
+
+    bare = Path(tempfile.mkdtemp(prefix="aetheria-smoke-bare-"))
+    (bare / "GameData").mkdir()
+    (bare / "GameData" / "Aetheria.cc").write_bytes(b"")
+    bpy.context.preferences.addons["aetheria_ships"].preferences.game_folder = str(bare)
+    result, report = package(aetheria_ships)
+    if result != {"CANCELLED"} or report != "Package failed: " + aetheria_ships.GAME_FOLDER_REFUSAL \
+            or "Game folder" not in report or str(bare) in report or str(GAME) in report:
+        raise SystemExit("Pass 4: a game folder without ModTools/AetherDb was not refused with the fixed text")
+    # A tool under ModTools does not make a folder a game folder: GameData/Aetheria.cc is the marker.
+    unmarked = Path(tempfile.mkdtemp(prefix="aetheria-smoke-unmarked-"))
+    (unmarked / "ModTools").mkdir()
+    (unmarked / "ModTools" / ("AetherDb.exe" if sys.platform == "win32" else "AetherDb")).write_bytes(b"")
+    bpy.context.preferences.addons["aetheria_ships"].preferences.game_folder = str(unmarked)
+    result, report = package(aetheria_ships)
+    if result != {"CANCELLED"} or report != "Package failed: " + aetheria_ships.GAME_FOLDER_REFUSAL:
+        raise SystemExit("Pass 4: a folder without GameData/Aetheria.cc was not refused with the fixed text")
+    bpy.context.preferences.addons["aetheria_ships"].preferences.game_folder = str(GAME)
     print(f"SMOKE_PACKAGE={path}")
     print("SMOKE_PACKAGE_OK")
 

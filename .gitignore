@@ -66,6 +66,7 @@ GameData/*.lock
 /Aetheria.Shared/obj/
 /tools/**/bin/
 /tools/**/obj/
+/ModTools/
 /tests/**/bin/
 /tests/**/obj/
 

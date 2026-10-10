@@ -61,11 +61,29 @@ weapon mount object. Thrusters and radiators are mesh objects; the others may
 be empties. Package exports the collection, Grease Pencil excluded, to
 `ship.glb` beside the `.cc`, writes the anchors, captures the lines when the
 collection holds exactly one Grease Pencil object, and shows AetherDb's
-verdict in the panel. It runs `dotnet run --project <repo>/tools/AetherDb`;
-the repo is the add-on preference **Aetheria repo**, or by default the nearest
-folder above the `.cc` holding `tools/AetherDb`.
+verdict in the panel. It runs the AetherDb in the game folder's `ModTools`
+(see Tools below).
 `ship-authoring inspect <ship.cc>` reads drafts; `validate` requires complete
 hull, model, and anchor authoring, and judges `ship.glb` once it exists.
+
+## Tools
+
+Install Blender and the `aetheria_ships` add-on. In the add-on's preferences set
+**Game folder** to your Aetheria install, the folder holding `GameData` (its
+`GameData/Aetheria.cc` and `GameData/Mods`). Left empty, the add-on uses the
+nearest folder above the bound `.cc` whose `GameData` holds `Aetheria.cc`.
+AetherDb ships with the game in `ModTools`; the add-on runs it with the game
+folder as its working directory, and needs neither Unity, the Aetheria repository
+nor dotnet. New Ship creates the package under `<game folder>/GameData/Mods/<id>`.
+
+From a repository checkout, publish AetherDb into the ignored `<repo>/ModTools` and
+author from the repo as the game folder:
+
+    dotnet publish tools/AetherDb -c Release -r <rid> --self-contained -p:PublishSingleFile=true -o ModTools
+
+with `<rid>` one of `win-x64`, `linux-x64`, `osx-arm64`. Linux needs `libssl3`
+and `libicu`; on macOS clear the quarantine flag (`xattr -d com.apple.quarantine
+ModTools/AetherDb`).
 
 ## Objective
 

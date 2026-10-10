@@ -46,6 +46,7 @@ public static class ShipAuthoringCommands
             }
             if (args[0] == "create" && (args.Length == 4 || args.Length == 6 && args[4] == "--like"))
             {
+                ShipAuthoringStore.RequireShipId(args[2]);
                 var path = Path.GetFullPath(args[1]);
                 if (File.Exists(path)) throw new InvalidOperationException($"Refusing to replace {path}");
                 Directory.CreateDirectory(Path.GetDirectoryName(path));
