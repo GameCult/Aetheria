@@ -276,7 +276,7 @@ public sealed class ConsumableAiTests : IDisposable
         painted.Store(painted.VentDesign);
         Face(painted, 0);
         Settle(painted);
-        Assert.True(painted.Active(painted.VentDesign));
+        Assert.True(painted.Active(painted.VentDesign), string.Join(",", painted.Lockers.Select(l => l.Weapons.OfType<LockWeapon>().Single().Lock)) + " visible " + painted.Agent.VisibleEnemies.Count);
     }
 
     // Venting is the answer to a lock; the surge to close distance is the answer when nobody is locking.
