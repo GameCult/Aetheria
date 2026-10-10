@@ -246,26 +246,29 @@ public sealed class ThrottleLockTests : IDisposable
         Assert.Equal(0f, f.Forward.Axis);
     }
 
-    // Finding lock-end-boundary-unpinned. Mutation: the lock ends at half Duration. Stepped in quarter-second
-    // ticks over a 1 s Duration, the lock holds through 0.75 s and is gone by 2 s. The exact tick of expiry is
-    // consumable-host's rule and is not pinned here.
-    [Fact]
-    public void TheLockHoldsThroughMostOfItsDurationAndEndsAfter()
+    // Finding lock-end-boundary-unpinned, finding lock-end-at-90pct-unpinned. Mutations: the lock ends at half
+    // Duration, at 0.8 or 0.9 of Duration, or one tick late. Duration 1 stepped in 0.25 s ticks (exact in
+    // floats) locks the axes on exactly four ticks (reverse stays 0), the effect is gone when the fourth ends,
+    // and the fifth tick follows the stick. The count scales with Duration: 2 s locks eight ticks.
+    [Theory]
+    [InlineData(1f, 4)]
+    [InlineData(2f, 8)]
+    public void TheLockEndsAtTheExactTickOfItsDuration(float duration, int lockedTicks)
     {
-        var f = Build(1f);
+        var f = Build(duration);
         using var _ = f.Cache;
         f.ActivateLock();
         f.Ship.MovementDirection = float2(0, -1);
-        for (var i = 0; i < 3; i++)
+        for (var i = 0; i < lockedTicks; i++)
         {
-            f.Ship.Update(.25f);
             Assert.True(f.Ship.ThrottleLocked);
+            f.Ship.Update(.25f);
+            Assert.Equal(0f, f.Reverse.Axis);
+            Assert.Equal(1f, f.Forward.Axis);
         }
-        f.Ship.Update(.25f);
-        Assert.Equal(0f, f.Reverse.Axis);
-        for (var i = 0; i < 4; i++) f.Ship.Update(.25f);
         Assert.False(f.Ship.ThrottleLocked);
         f.Ship.Update(.25f);
         Assert.Equal(1f, f.Reverse.Axis);
+        Assert.Equal(0f, f.Forward.Axis);
     }
 }
