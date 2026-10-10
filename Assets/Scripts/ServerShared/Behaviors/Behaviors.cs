@@ -187,6 +187,8 @@ public interface IPowerConsumer
  // superseded draft quoted -- checked directly here rather than trusted from that document.
  Union(39, typeof(TargetingSystemData)),
  Union(40, typeof(MineLayerData)),
+ Union(41, typeof(ThrottleLockData)),
+ Union(42, typeof(VapourDumpData)),
  JsonObject(MemberSerialization.OptIn)]
 public abstract class BehaviorData
 {
