@@ -197,6 +197,8 @@ public sealed class ShipValidationTests
         Add("joint-axis-not-unit", s => Joint(s, "j", null, new[] { 0f, 2f, 0f }, new[] { -1f }, new[] { 1f }), "must be a unit vector");
         Add("joint-axis-not-finite", s => Joint(s, "j", null, new[] { 0f, float.NaN, 0f }, new[] { -1f }, new[] { 1f }), "axes and limits must be finite");
         Add("joint-limit-not-finite", s => Joint(s, "j", null, yaw, new[] { -1f }, new[] { float.PositiveInfinity }), "axes and limits must be finite");
+        Add("joint-min-not-finite", s => Joint(s, "j", null, yaw, new[] { float.NaN }, new[] { 1f }), "axes and limits must be finite");
+        Add("joint-max-not-a-number", s => Joint(s, "j", null, yaw, new[] { -1f }, new[] { float.NaN }), "axes and limits must be finite");
         Add("joint-min-above-max", s => Joint(s, "j", null, yaw, new[] { 10f }, new[] { 5f }), "must satisfy -180 <= Min <= Max <= 180");
         Add("joint-max-181", s => Joint(s, "j", null, yaw, new[] { 0f }, new[] { 181f }), "must satisfy -180 <= Min <= Max <= 180");
         Add("joint-min-minus-181", s => Joint(s, "j", null, yaw, new[] { -181f }, new[] { 0f }), "must satisfy -180 <= Min <= Max <= 180");
