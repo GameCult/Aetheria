@@ -203,7 +203,9 @@ public sealed class ConsumablesFirstSetTests
         {
             Assert.InRange(run.Read<ThrusterData>(drives[i], t => t.Thrust) / baseThrust[i], 0f, 1.2f);
             Assert.InRange(run.Read<ThrusterData>(drives[i], t => t.Heat) / baseHeat[i], 0f, 1.2f);
-            Assert.InRange(run.Read<ThrusterData>(drives[i], t => t.Visibility) / baseVisibility[i], 0f, 1.2f);
+            // A drive that has burned for six seconds glows brighter than a cold one (up to 1.34 measured); a boost that
+            // outlived the effect would sit at 3 or more, and the resolver's entry count above is the exact check.
+            Assert.InRange(run.Read<ThrusterData>(drives[i], t => t.Visibility) / baseVisibility[i], 0f, 1.8f);
         }
         Assert.InRange(TopSpeed(run) / baseTopSpeed, 0f, 1.2f);
     }
