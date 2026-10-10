@@ -9,7 +9,6 @@ using System.Linq;
 using System.Reflection;
 using MessagePack;
 using Newtonsoft.Json;
-using UniRx;
 using CultMath;
 using static CultMath.math;
 using quaternion = CultMath.quaternion;

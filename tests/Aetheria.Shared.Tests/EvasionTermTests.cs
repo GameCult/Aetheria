@@ -262,7 +262,7 @@ public sealed partial class RunStartTests
             Push(float2(-1, 0), float2(-1, 0)), Push(float2(1, 0), float2(1, 0)), e.Clockwise, e.CounterClockwise);
     }
 
-    private static (float noseOn, float broadside) EvReach(Ship ship, float window, ManoeuvreEnvelope envelope)
+    private static (float noseOn, float broadside) EvReach(ManoeuvreEnvelope envelope, float window)
     {
         var heading = float2(0, 1);
         float Half(float2 n) => .5f * (FireControl.Reach(envelope, heading, n, window) + FireControl.Reach(envelope, heading, -n, window));
@@ -274,33 +274,42 @@ public sealed partial class RunStartTests
     {
         var (_, longinus, djinni) = EvFleet();
         const float window = .5f;
-        var results = new List<(string name, (float noseOn, float broadside) reach, (float noseOn, float broadside) measured)>();
+        var results = new List<(string name, (float noseOn, float broadside) reach, (float noseOn, float broadside) allocated, (float noseOn, float broadside) measured)>();
         foreach (var (name, ship) in new[] { ("longinus", longinus), ("djinni", djinni) })
         {
             var measured = EvMeasuredHalfWidths(ship, window);
             EvSettle(ship);
             ship.Update(EvDt);
-            var reach = EvReach(ship, window, ship.Envelope);
-            var allocated = EvReach(ship, window, EvAllocatedEnvelope(ship));
+            var reach = EvReach(ship.Envelope, window);
+            var allocated = EvReach(EvAllocatedEnvelope(ship), window);
             Console.WriteLine($"ALLOC {name}: allocated nose-on {allocated.noseOn:F3} broadside {allocated.broadside:F3}");
             Console.WriteLine($"REACH {name}: nose-on reach {reach.noseOn:F3} measured {measured.noseOn:F3}; broadside reach {reach.broadside:F3} measured {measured.broadside:F3}");
-            results.Add((name, reach, measured));
+            results.Add((name, reach, allocated, measured));
         }
-        // The reach is the capability and the measured motion is the best of fifteen fixed control policies, so reach may
-        // sit above it: by up to 15% for the Longinus, whose controller shapes its turn input (a square root of the
-        // remaining angle) where the reach turns at full rate.
-        foreach (var (name, reach, measured) in results)
+        // The envelope's reach is the capability and the measured motion is the best of fifteen fixed control policies, so
+        // the reach covers it: no more than 10% below it.
+        // The Djinni's measured motion sits further below its reach (+38% nose-on, +26% broadside at the last measurement):
+        // its strafers are off-axis and the envelope, summed from what each thruster can push, does not model that. Its
+        // allocator holds the whole box (its allocated reach is the envelope's), so the allocated reach says nothing more
+        // about it. The bound still pins that the reach covers what the ship does.
+        // The Longinus's allocator holds the heading and pays for the drive torque out of the flank thrusters (ruling
+        // allocator-divergence-accepted), so the envelope's box support overstates what a controlled flight spends. Its
+        // measured motion is bounded by the reach of the push the allocator itself gives it on each half-axis, from the
+        // columns it allocates with: not below 90% of it, and above it by no more than the 15% a turning policy gains.
+        foreach (var (name, reach, allocated, measured) in results)
         {
-            // The Djinni's measured motion is further below its reach (+53% nose-on, +27% broadside at the last measurement): its
-            // strafers are off-axis and Ship.Update cancels their torque (M24), which the envelope, summed from what each thruster
-            // can push, does not model. Stated deviation; the bound still pins that the reach covers what the ship does.
-            // The Longinus's reach sits 19.5% (nose-on) and 24.9% (broadside) above what the allocator's flight measures
-            // (ruling allocator-divergence-accepted): the allocator holds the heading and pays for the drive torque out of
-            // the flank thrusters, so the envelope's box support (cut envelope-from-columns reads the allocator's columns)
-            // promises more than a controlled flight spends.
-            var ceiling = name == "djinni" ? 1.6f : 1.3f;
-            Assert.InRange(reach.noseOn, measured.noseOn * .9f, measured.noseOn * ceiling);
-            Assert.InRange(reach.broadside, measured.broadside * .9f, measured.broadside * ceiling);
+            if (name == "djinni")
+            {
+                Assert.InRange(reach.noseOn, measured.noseOn * .9f, measured.noseOn * 1.6f);
+                Assert.InRange(reach.broadside, measured.broadside * .9f, measured.broadside * 1.6f);
+            }
+            else
+            {
+                Assert.InRange(reach.noseOn, measured.noseOn * .9f, float.MaxValue);
+                Assert.InRange(reach.broadside, measured.broadside * .9f, float.MaxValue);
+                Assert.InRange(measured.noseOn, allocated.noseOn * .9f, allocated.noseOn * 1.15f);
+                Assert.InRange(measured.broadside, allocated.broadside * .9f, allocated.broadside * 1.15f);
+            }
         }
     }
 

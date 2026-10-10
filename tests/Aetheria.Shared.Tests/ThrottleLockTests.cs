@@ -57,8 +57,8 @@ public sealed class ThrottleLockTests : IDisposable
     }
 
     // One thruster per intent direction, plus two reverse thrusters either side of the centre line, one of
-    // which has clockwise torque (the one Turn reaches). Thrusters are found by their item's rotation, as Ship
-    // sorts them.
+    // which has clockwise torque (the one Turn reaches). Thrusters are found by their item's rotation, as the
+    // allocator's columns carry them.
     // With `drivePair`, the forward drive on the centre line is replaced by a strong drive and a weak one either side of
     // it (their torques differ), so a hard turn has a drive to idle; the front strafe thrusters give way to them.
     private Fixture Build(float lockDuration, bool drivePair = false)
