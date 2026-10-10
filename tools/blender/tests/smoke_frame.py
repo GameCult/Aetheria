@@ -13,6 +13,12 @@ and ed.undo returns the cells and the grid placement together. Pass 4 adds hardp
 outside Ship Root: Flip Nose and Rasterise refuse and change nothing; parented, Flip Nose moves the nub's cells from the
 aft rows to the forward rows. Pass 6 packages: an unsaved buffer is refused, the saved one validates, and the GLB holds
 neither the Source nor the Grid. Every refusal report names neither the ship ID, the collection, an object nor a path.
+
+Pass 7 pins the guards that protect an author's files: a Save over an existing ship.cc is refused and leaves it, a failed
+Save leaves the files that were in the folder before, New Ship takes none of the previous ship's hardpoints, and a buffer
+that belongs to another ship is neither saved nor rasterised. Pass 8 calls the operators with undo=True, which pushes the
+native undo step in background Blender only for an operator that carries UNDO: Rasterise, Flip Nose and New Ship are
+undoable, Save is not.
 """
 
 import hashlib
@@ -35,6 +41,8 @@ SHIP_ID = "smoke.frame"
 GAME = Path(os.environ.get("SMOKE_GAME_FOLDER") or sys.exit("Set SMOKE_GAME_FOLDER to a folder holding GameData/Aetheria.cc and ModTools/AetherDb"))
 MODS = GAME / "GameData" / "Mods"
 COLLECTION = "Smoke Frame"
+GUARD_A, GUARD_B, UNDO_SHIP = "smoke.guard.a", "smoke.guard.b", "smoke.undo"
+EXTRA_IDS = (GUARD_A, GUARD_B, UNDO_SHIP)
 NAMES_NOT_ECHOED = (SHIP_ID, COLLECTION, "Second Frame", "Loose Nub", "Hull", "NoSuchHullXYZ", str(GAME), GAME.name)
 
 
@@ -380,7 +388,140 @@ def main():
     require("Hull" in names and "Loose Nub" in names, "The GLB lacks the render meshes")
     require("Source Sphere" not in names and "Grid" not in names, "The GLB holds the Source or the Grid")
     print("PASS 6 package ok")
+    guards_pass(aetheria_ships)
+    print("PASS 7 guards ok")
+    undo_pass()
+    print("PASS 8 native undo ok")
     print("SMOKE_FRAME_OK")
+
+
+def ship_from_box(scene, name, ship_id, location):
+    """A fresh collection holding one box, made a pending ship by New Ship; returns the collection and the box."""
+    collection = bpy.data.collections.new(name)
+    scene.collection.children.link(collection)
+    hull = new_object(collection, name + " Hull", box(name, 1.0, 3.0, 0.5), location)
+    select(hull)
+    result, message = new_ship(scene, ship_id, name, "Djinni", 10)
+    require(result == {"FINISHED"}, f"New Ship for {ship_id} was refused: {message}")
+    return collection, hull
+
+
+def guards_pass(aetheria_ships):
+    scene = bpy.context.scene
+    path_a, path_b = str(MODS / GUARD_A / "ship.cc"), str(MODS / GUARD_B / "ship.cc")
+    for ship_id in EXTRA_IDS:
+        require(not (MODS / ship_id).exists(), f"{MODS / ship_id} exists; remove it first")
+
+    # Ship A with two hardpoints in its buffer, saved.
+    collection_a, hull_a = ship_from_box(scene, "Guard A", GUARD_A, (2, 1, 0))
+    require(buffer(bpy.context.scene)[3] == 0, "New Ship kept the hardpoints of the ship before it in the buffer")
+    for index, mount in enumerate(("mount.a", "mount.b")):
+        select(hull_a)
+        bpy.ops.aetheria.add_ship_hardpoint()
+        hp = bpy.context.scene.aetheria_layout.hardpoints[index]
+        hp.mount_id, hp.kind, hp.x, hp.y, hp.footprint = mount, "5", index + 1, 2, "#"
+    select(hull_a)
+    result, message = run(bpy.ops.aetheria.save_ship_layout)
+    require(result == {"FINISHED"} and len(saved_layout(path_a, aetheria_ships)[3]) == 2, f"Ship A was not saved: {message}")
+
+    # A pending ship over an existing ship.cc (what Ctrl+Z past a first Save restores) is refused, and the file stays.
+    saved = digest(path_a)
+    collection_a["aetheria.pending"] = ["Guard A", "Djinni"]
+    refused(bpy.ops.aetheria.save_ship_layout, "A ship file already exists at the bound path", "Save of a pending ship over its file")
+    require(Path(path_a).is_file() and digest(path_a) == saved, "A refused Save deleted or changed the author's ship.cc")
+    del collection_a["aetheria.pending"]
+
+    # Ship B takes none of ship A's hardpoints.
+    collection_b, hull_b = ship_from_box(scene, "Guard B", GUARD_B, (0, 0, 0))
+    require(buffer(bpy.context.scene)[3] == 0, "New Ship kept the previous ship's hardpoints in the buffer")
+
+    # A buffer that belongs to ship B is neither saved into ship A's file nor rasterised onto ship A.
+    select(hull_a)
+    refused(bpy.ops.aetheria.save_ship_layout, "Load this collection's layout before saving", "Save with another ship's buffer")
+    require(digest(path_a) == saved, "Save wrote another ship's buffer into ship A's file")
+    before = buffer(bpy.context.scene)
+    refused(bpy.ops.aetheria.rasterise_hull, "Load this collection's layout first", "Rasterise with another ship's buffer")
+    require(buffer(bpy.context.scene) == before, "Rasterise replaced another ship's buffer")
+
+    # A failed Save leaves what the author had in a Mods/<id> folder that existed before it; the retry succeeds.
+    (MODS / GUARD_B).mkdir(parents=True)
+    keep = MODS / GUARD_B / "keep.txt"
+    keep.write_text("an author file")
+    select(hull_b)
+    real = aetheria_ships.replace_layout
+
+    def failing(*args, **kwargs):
+        raise ValueError("probe: replace_layout failed")
+
+    aetheria_ships.replace_layout = failing
+    try:
+        refused(bpy.ops.aetheria.save_ship_layout, "probe: replace_layout failed", "Save with a failing write into an existing folder")
+    finally:
+        aetheria_ships.replace_layout = real
+    require(keep.is_file(), "A failed Save deleted a file the author had in the ship folder")
+    require(not Path(path_b).exists() and collection_b.get("aetheria.pending") is not None, "A failed Save left a half-made ship")
+    result, message = run(bpy.ops.aetheria.save_ship_layout)
+    require(result == {"FINISHED"} and keep.is_file(), f"The retried Save was refused or took the author's file: {message}")
+    require(saved_layout(path_b, aetheria_ships)[3] == [], "Ship B's file holds hardpoints from ship A")
+
+
+def undo_pass():
+    scene = bpy.context.scene
+    collection = bpy.data.collections.new("Undo Ship")
+    scene.collection.children.link(collection)
+    hull = new_object(collection, "Undo Hull", box("Undo Hull", 1.0, 3.0, 0.5), (2, 1, 0))
+    select(hull)
+    scene.aetheria_new_ship_id, scene.aetheria_new_ship_name = UNDO_SHIP, "Undo Ship"
+    scene.aetheria_new_ship_like, scene.aetheria_new_ship_length = "Djinni", 10
+
+    def frame():
+        """The ship collection, its buffer, its grid placement and the hull's placement, read fresh: undo replaces the
+        data-blocks."""
+        col, obj = bpy.data.collections["Undo Ship"], bpy.data.objects["Undo Hull"]
+        origin = col.get("aetheria.grid_origin")
+        return (col.get("aetheria.id") is not None, col.get("aetheria.pending") is not None, buffer(bpy.context.scene),
+                tuple(round(v, 4) for v in origin) if origin else None,
+                tuple(round(v, 4) for row in obj.matrix_world for v in row), tuple(round(v, 4) for v in obj.scale))
+
+    def native(operator):
+        """The operator as the UI calls it: its undo step is pushed when, and only when, it carries UNDO."""
+        return run(lambda: operator("EXEC_DEFAULT", True))
+
+    def undoable(operator, what):
+        before = frame()
+        result, message = native(operator)
+        require(result == {"FINISHED"}, f"{what} was refused: {message}")
+        after = frame()
+        require(after != before, f"{what} changed nothing")
+        result, _ = run(bpy.ops.ed.undo)
+        require(result == {"FINISHED"} and frame() == before, f"{what} is not one undo step of its own (no UNDO)")
+        select(bpy.data.objects["Undo Hull"])
+
+    bpy.ops.ed.undo_push(message="start")
+    undoable(bpy.ops.aetheria.new_ship, "New Ship")
+    result, message = native(bpy.ops.aetheria.new_ship)
+    require(result == {"FINISHED"}, f"New Ship was refused: {message}")
+    select(bpy.data.objects["Undo Hull"])
+    bpy.data.objects["Undo Hull"].scale = (0.5, 1, 1)
+    bpy.ops.ed.undo_push(message="Scale")  # the step the UI pushes for the author's own edit
+    undoable(bpy.ops.aetheria.rasterise_hull, "Rasterise")
+    result, message = native(bpy.ops.aetheria.rasterise_hull)
+    require(result == {"FINISHED"}, f"Rasterise was refused: {message}")
+    select(bpy.data.objects["Undo Hull"])
+    undoable(bpy.ops.aetheria.flip_nose, "Flip Nose")
+
+    # Save pushes no step: one undo after it takes back the step before it, and the file stays.
+    result, message = native(bpy.ops.aetheria.flip_nose)
+    require(result == {"FINISHED"}, f"Flip Nose was refused: {message}")
+    select(bpy.data.objects["Undo Hull"])
+    flipped = frame()
+    result, message = native(bpy.ops.aetheria.save_ship_layout)
+    require(result == {"FINISHED"}, f"Save was refused: {message}")
+    path = MODS / UNDO_SHIP / "ship.cc"
+    require(path.is_file(), "Save did not create the file")
+    result, _ = run(bpy.ops.ed.undo)
+    require(result == {"FINISHED"} and frame()[2:] != flipped[2:], "Save is undoable: one undo took back Save and not the step before it")
+    require(path.is_file(), "Undo changed the .cc")
 
 
 def _root_count():
@@ -416,7 +557,8 @@ else:
     code = 0
 finally:
     if not existed:
-        shutil.rmtree(MODS / SHIP_ID, ignore_errors=True)
+        for leftover in (SHIP_ID, *EXTRA_IDS):
+            shutil.rmtree(MODS / leftover, ignore_errors=True)
     if created_mods and not existed:
         shutil.rmtree(MODS, ignore_errors=True)
 sys.stdout.flush()
