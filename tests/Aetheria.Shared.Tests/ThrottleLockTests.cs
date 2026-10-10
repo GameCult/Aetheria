@@ -7,11 +7,12 @@ using GameCult.Caching;
 using Xunit;
 using static CultMath.math;
 
-// A ThrottleLock on an active consumable replaces the pilot's movement intent with full forward, read once at
-// the top of Ship.Update's active branch; the allocator is the only thing that turns intent into throttles. Turn is
-// untouched. Every observation is a thruster's Axis after a real Ship.Update, with the effect started through
-// Entity.ActivateConsumable. A lock is observed against an unlocked twin of the same fleet fed full forward and the same
-// Turn through the same ticks: the two must answer alike, with no constant of the old mixer in the assertion.
+// A ThrottleLock on an active consumable is a bound on the allocator's solve (ruling overdrive-forward-floor): the stick
+// is ignored, forward is the only translation asked, and every thruster whose live column pushes forward is held at
+// full; Turn is served by what remains. Every observation is a thruster's Axis after a real Ship.Update, with the effect
+// started through Entity.ActivateConsumable. In the default fixture the one forward drive sits on the centre line, so
+// the floor changes nothing there and a locked ship answers as an unlocked twin fed full forward and the same Turn
+// through the same ticks; the drive-pair fixture is where the floor shows.
 public sealed class ThrottleLockTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "aetheria-throttlelock-" + Guid.NewGuid().ToString("N"));
@@ -45,6 +46,7 @@ public sealed class ThrottleLockTests : IDisposable
         public Ship Ship;
         public ConsumableItemData Lock;
         public Thruster Forward, Reverse, Clockwise;
+        public Thruster[] Drives; // every forward-pushing thruster
         public Thruster[] Right, Left; // pairs with opposing torque: a lone off-axis strafe thruster cancels its own torque
 
         public void ActivateLock() => Ship.ActivateConsumable(new ConsumableItem
@@ -57,13 +59,21 @@ public sealed class ThrottleLockTests : IDisposable
     // One thruster per intent direction, plus two reverse thrusters either side of the centre line, one of
     // which has clockwise torque (the one Turn reaches). Thrusters are found by their item's rotation, as Ship
     // sorts them.
-    private Fixture Build(float lockDuration)
+    // With `drivePair`, the forward drive on the centre line is replaced by a strong drive and a weak one either side of
+    // it (their torques differ), so a hard turn has a drive to idle; the front strafe thrusters give way to them.
+    private Fixture Build(float lockDuration, bool drivePair = false)
     {
         var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
         cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
         var hullShape = new Shape(5, 5);
         foreach (var cell in hullShape.AllCoordinates) hullShape[cell] = true;
         cache.Upsert(new HullData { Name = "Skiff", HullType = HullType.Ship, Shape = hullShape, Durability = 10, Mass = 1000 });
+        cache.Upsert(new GearData
+        {
+            Name = "Weak Thruster", Hardpoint = HardpointType.Tool, Shape = new Shape(), Durability = 10,
+            MinimumTemperature = 0, MaximumTemperature = 1000, OptimalTemperature = 280, PlateauWidth = 400,
+            Behaviors = { new ThrusterData { Thrust = Constant(20), Visibility = Constant(0), Heat = Constant(0), EnergyUsage = Constant(0) } }
+        });
         cache.Upsert(new GearData
         {
             Name = "Thruster", Hardpoint = HardpointType.Tool, Shape = new Shape(), Durability = 10,
@@ -78,13 +88,22 @@ public sealed class ThrottleLockTests : IDisposable
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test Zone", Owner = null }, null);
         var ship = new Ship(items, zone, Mint(cache, items, cache.GetByName<HullData>("Skiff")), new EntitySettings());
         var gear = cache.GetByName<GearData>("Thruster");
-        Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.Reversed), new int2(2, 1)));
+        var weak = cache.GetByName<GearData>("Weak Thruster");
+        if (drivePair)
+        {
+            Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.Reversed), new int2(1, 1)));
+            Assert.True(ship.TryEquip(Mint(cache, items, weak, ItemRotation.Reversed), new int2(3, 1)));
+        }
+        else Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.Reversed), new int2(2, 1)));
         Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.None), new int2(1, 2)));
         Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.None), new int2(3, 2)));
         // Strafe pairs sit either side of the centre line across the ship's length, so their torques oppose.
-        Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.CounterClockwise), new int2(1, 1)));
+        if (!drivePair)
+        {
+            Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.CounterClockwise), new int2(1, 1)));
+            Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.Clockwise), new int2(3, 1)));
+        }
         Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.CounterClockwise), new int2(1, 3)));
-        Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.Clockwise), new int2(3, 1)));
         Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.Clockwise), new int2(3, 3)));
         zone.Entities.Add(ship);
         ship.Aim = float3(0, 0, 1);
@@ -96,7 +115,8 @@ public sealed class ThrottleLockTests : IDisposable
         return new Fixture
         {
             Cache = cache, Items = items, Ship = ship, Lock = cache.GetByName<ConsumableItemData>("Overdrive"),
-            Forward = thrusters.Single(t => t.Item.EquippableItem.Rotation == ItemRotation.Reversed),
+            Drives = thrusters.Where(t => t.Item.EquippableItem.Rotation == ItemRotation.Reversed).ToArray(),
+            Forward = thrusters.First(t => t.Item.EquippableItem.Rotation == ItemRotation.Reversed),
             Right = thrusters.Where(t => t.Item.EquippableItem.Rotation == ItemRotation.CounterClockwise).ToArray(),
             Left = thrusters.Where(t => t.Item.EquippableItem.Rotation == ItemRotation.Clockwise).ToArray(),
             Reverse = thrusters.First(t => t.Item.EquippableItem.Rotation == ItemRotation.None && t.Torque <= 0),
@@ -224,6 +244,58 @@ public sealed class ThrottleLockTests : IDisposable
         f.ActivateLock();
         foreach (var intent in new[] { float2(0, 0), float2(.3f, .2f), float2(-.5f, -.5f) })
             Tick(f, twin, intent, 0, 0.01f);
+    }
+
+    private static float Yaw(Fixture f) => f.Ship.GetBehaviors<Thruster>().Sum(t => t.Axis * t.Column(t.NominalThrust).z);
+
+    // Ruling overdrive-forward-floor. Mutations: no floor (the lock is only the intent (0,1)); the floor on a function of
+    // the column (y above half the strongest forward push, which spares the weak drive); the floor by type. Under the
+    // lock every thruster whose live column pushes forward holds full through a hard turn either way, the turn is
+    // slower than the unlocked ship's, the stick is ignored, and a drive that is not live is not floored.
+    [Theory]
+    [InlineData(1f)]
+    [InlineData(-1f)]
+    public void ALockedHardTurnKeepsEveryForwardDriveAtFull(float turn)
+    {
+        var locked = Build(100f, drivePair: true);
+        var open = Build(100f, drivePair: true);
+        var blind = Build(100f, drivePair: true);
+        using var _ = locked.Cache;
+        using var __ = open.Cache;
+        using var ___ = blind.Cache;
+        locked.ActivateLock();
+        blind.ActivateLock();
+        Assert.Equal(2, locked.Drives.Length);
+        for (var tick = 0; tick < 3; tick++)
+        {
+            locked.Ship.MovementDirection = float2(1, -1);
+            blind.Ship.MovementDirection = float2(0, 0);
+            open.Ship.MovementDirection = float2(0, 1);
+            foreach (var f in new[] { locked, open, blind }) { f.Ship.Turn = turn; f.Ship.Update(0.01f); }
+        }
+        Assert.All(locked.Drives, d => Assert.True(d.Axis > .98f, "a forward-pushing thruster holds full under the lock"));
+        Assert.True(open.Drives.Min(d => d.Axis) < .9f, "fixture: the unlocked ship idles a drive to turn");
+        Assert.True(Yaw(locked) * turn < Yaw(open) * turn - 1e-4f, "the locked turn is what remains after the drives");
+        Assert.True(Apart(Axes(locked), Axes(blind)) < 1e-6f, "the stick is ignored under the lock");
+    }
+
+    [Fact]
+    public void ALockHoldsOnlyTheDrivesThatPushForward()
+    {
+        var f = Build(100f, drivePair: true);
+        using var _ = f.Cache;
+        f.ActivateLock();
+        var down = f.Drives[0];
+        down.Item.Enabled.Value = false;
+        for (var tick = 0; tick < 3; tick++)
+        {
+            f.Ship.MovementDirection = float2(0, 1);
+            f.Ship.Turn = 1;
+            f.Ship.Update(0.01f);
+        }
+        Assert.False(down.Item.Active.Value);
+        Assert.Equal(0f, down.Axis);
+        Assert.True(f.Drives[1].Axis > .98f);
     }
 
     // Finding ccw-turn-unpinned. Mutation: drop the counter-clockwise Turn. Turn in either sign gives the locked ship

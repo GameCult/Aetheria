@@ -131,6 +131,41 @@ public sealed partial class RunStartTests
         Assert.True(abs(AllocFly(ship, 360)) < .05f);
     }
 
+    // Finding liveness-read-before-performance. Mutation: allocate in Ship.Update before base.Update (the first wiring), so
+    // liveness and thrust are read before the performance update that shuts a drive down. A drive heated gradually
+    // until it shuts off is balanced out on the tick it dies, not the tick after: the heading steps no more than the
+    // disabled path's (0.0002 deg at Enabled = false), the dying drive carries no throttle that tick, and the heading
+    // held through the heat-up.
+    [Fact]
+    public void AThermalShutdownHoldsHeadingOnItsDeathTick()
+    {
+        var (_, player) = AllocDuel();
+        player.MovementDirection = float2(0, 1);
+        player.Turn = 0;
+        for (var tick = 0; tick < 30; tick++) player.Update(AllocDt);
+        var dying = AllocDrives(player)[^1];
+        var start = player.Direction;
+        var shutdown = -1;
+        var deathStep = 0f;
+        var axisOnDeathTick = -1f;
+        for (var tick = 1; tick <= 600 && shutdown < 0; tick++)
+        {
+            foreach (var cell in dying.Item.InsetShape.Coordinates) player.Temperature[cell.x, cell.y] += 4f;
+            var before = player.Direction;
+            var wasActive = dying.Item.Active.Value;
+            player.Update(AllocDt);
+            if (!wasActive || dying.Item.Active.Value) continue;
+            shutdown = tick;
+            deathStep = degrees(SignedTurn(before, player.Direction));
+            axisOnDeathTick = dying.Axis;
+        }
+        Assert.True(shutdown > 0, "fixture: the heated drive shut down");
+        Assert.Equal(0f, axisOnDeathTick);
+        Assert.True(abs(deathStep) < .005f, $"the death tick stepped the heading {deathStep} deg");
+        Assert.True(abs(degrees(SignedTurn(start, player.Direction))) < .05f, "the heading held through the heat-up");
+        Assert.True(abs(AllocFly(player, 60)) < .1f);
+    }
+
     [Fact]
     public void ARepairedDriveRejoins()
     {

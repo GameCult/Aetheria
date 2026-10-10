@@ -152,6 +152,28 @@ public sealed class BrownoutTests : IDisposable
         Assert.Equal(.5f, thruster.PowerRequest(1f), 4);
     }
 
+    // TA6: a column promises what the thruster does at a full grant, never what the grant currently allows. Mutations:
+    // the allocator reads Column(Thrust) (live, power-curved) for Column(NominalThrust), and Column returns nothing
+    // while the grant is nil. With no power at all the thruster's live thrust is zero, yet the allocator still asks
+    // it for its throttle (Execute then gates on the grant, and the thruster does nothing).
+    [Fact]
+    public void ATotalBrownoutStillAllocatesTheThrusterItsNominalColumn()
+    {
+        using var cache = OpenCatalog(new ThrusterData
+        {
+            Thrust = Curved(100, 1), Visibility = Constant(0), Heat = Constant(0), EnergyUsage = Constant(100)
+        });
+        var ship = BuildShip(cache, reactorCharge: 0);
+        var thruster = ship.GetBehavior<Thruster>();
+        ship.MovementDirection = float2(0, -1);
+        ship.Update(1f);
+        ship.Update(1f);
+        Assert.Equal(0f, thruster.Item.PowerSupply, 3);
+        Assert.Equal(0f, thruster.Thrust, 3);
+        Assert.True(thruster.Column(thruster.NominalThrust).y < 0f, "the nominal column pushes the reverse thruster's way");
+        Assert.True(thruster.Axis > .5f, "the allocator asks for the throttle whatever the grant");
+    }
+
     [Fact]
     public void ThrusterAtHalfGrantProducesReducedNotZeroNotFullThrust()
     {

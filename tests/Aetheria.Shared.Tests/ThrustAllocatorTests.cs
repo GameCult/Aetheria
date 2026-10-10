@@ -423,6 +423,27 @@ public class ThrustAllocatorTests
     }
 
     [Fact]
+    public void TheForwardFloorHoldsEveryColumnThatPushesForward()
+    {
+        // The throttle lock (ruling overdrive-forward-floor): a column is floored by the sign of its own forward push, not
+        // by its size or its torque. A sliver of forward push is held at full through a hard turn either way, and the
+        // columns that push nowhere or back are free.
+        var hull = new[] { Col(0, 53.94f, 49.24f), Col(0, 61.19f, -55.86f), Col(0, .01f, -80f), Col(29.08f, 0, 166.26f), Col(0, -40f, 90f) };
+        var allocator = new ThrustAllocator();
+        foreach (var turn in new[] { 1f, -1f })
+        {
+            var throttle = new float[hull.Length];
+            allocator.Allocate(hull, new float2(1, -1), turn, throttle, forwardFloor: true);
+            Assert.All(throttle.Take(3), t => Assert.True(t > .9999f, "a forward-pushing column holds full"));
+            Assert.True(throttle[4] < 1e-3f, "reverse stays off: the stick is ignored under the floor");
+
+            var open = new float[hull.Length];
+            new ThrustAllocator().Allocate(hull, new float2(0, 1), turn, open);
+            Assert.True(open.Take(3).Min() < .5f, "fixture: unfloored, the turn idles a forward drive");
+        }
+    }
+
+    [Fact]
     public void AMicroIntentIsServed()
     {
         // Zero is a fact about the intent alone (follow-up allocator-residual-pins): an intent of 1e-6 or 1e-10 of the
