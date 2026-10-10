@@ -118,7 +118,7 @@ public sealed class ThrottleLockTests : IDisposable
         ship.Ship.Update(dt);
         twin.Ship.Update(dt);
         Assert.True(Apart(Axes(ship), Axes(twin)) < 1e-6f, "the ship's throttles differ from its full-forward twin's");
-        Assert.True(twin.Forward.Axis > .5f, "fixture: the twin's forward drive is firing");
+        Assert.True(twin.Forward.Axis > .98f, "fixture: the twin's forward drive is at full");
     }
 
     // Spec ALockedThrottleIgnoresIntent. Mutation: read MovementDirection in place of move in Ship.Update and a locked
@@ -198,7 +198,7 @@ public sealed class ThrottleLockTests : IDisposable
         Assert.All(f.Right, t => Assert.True(t.Axis < 1e-6f));
 
         var forward = Fly(float2(0, 1));
-        Assert.True(f.Forward.Axis > .5f);
+        Assert.True(f.Forward.Axis > .98f, "a full stick asks for the hull's whole forward thrust");
         Assert.True(f.Reverse.Axis < 1e-6f);
 
         // The stick's length is the fraction of the hull's forward thrust asked for, and no stick asks for nothing.
