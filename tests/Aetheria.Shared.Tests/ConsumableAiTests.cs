@@ -188,6 +188,7 @@ public sealed class ConsumableAiTests : IDisposable
         for (var i = 0; i < scene.Lockers.Count; i++)
         {
             var locker = scene.Lockers[i];
+            if (!lockers[i].onAgent) locker.SetIff(scene.Prey, true); // a lock builds only on a hostile target
             locker.SetTarget(lockers[i].onAgent ? scene.Agent : (Entity) scene.Prey);
             Aim(locker, towards: true);
         }
@@ -257,6 +258,7 @@ public sealed class ConsumableAiTests : IDisposable
 
         var elsewhere = Build(100, (.9f, false));
         HoldLocks(elsewhere);
+        Assert.Equal(.9f, elsewhere.Lockers[0].Weapons.OfType<LockWeapon>().Single().Lock, 3); // the lock exists, on the prey
         elsewhere.Store(elsewhere.VentDesign);
         Face(elsewhere, 0);
         Settle(elsewhere);
