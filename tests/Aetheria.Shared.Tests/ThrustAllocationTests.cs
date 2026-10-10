@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using CultMath;
+using UniRx;
 using Xunit;
 using static CultMath.math;
 using float2 = CultMath.float2;
