@@ -11,7 +11,8 @@ Unity play smoke can load it, and its path is printed as SMOKE_PACKAGE=<ship.cc>
 Pass 1 packages a primitive ship built from role-tagged objects and requires the C# validator to accept it. Pass 2 swaps
 the thruster disc for an empty of the same id and requires the validator to refuse it, naming the anchor. Pass 3 puts
 the disc back and packages again, so the package left behind is the good one. Pass 4 points Game folder at a folder
-that holds Aetheria.cc but no ModTools/AetherDb and requires Package to report the fixed preference text and no path.
+that holds Aetheria.cc but no ModTools/AetherDb, and at one that holds a ModTools tool but no Aetheria.cc, and
+requires Package to report the fixed preference text and no path.
 
 Before packaging, the bind cases: a bind that fails while computing the stored path leaves no aetheria.* property; an
 unsaved .blend stores the absolute path, which still resolves after Save As to two other folders; a saved .blend on the
@@ -193,8 +194,17 @@ def main():
     (bare / "GameData" / "Aetheria.cc").write_bytes(b"")
     bpy.context.preferences.addons["aetheria_ships"].preferences.game_folder = str(bare)
     result, report = package(aetheria_ships)
-    if result != {"CANCELLED"} or report != "Package failed: " + aetheria_ships.GAME_FOLDER_REFUSAL             or "Game folder" not in report or str(bare) in report or str(GAME) in report:
+    if result != {"CANCELLED"} or report != "Package failed: " + aetheria_ships.GAME_FOLDER_REFUSAL \
+            or "Game folder" not in report or str(bare) in report or str(GAME) in report:
         raise SystemExit("Pass 4: a game folder without ModTools/AetherDb was not refused with the fixed text")
+    # A tool under ModTools does not make a folder a game folder: GameData/Aetheria.cc is the marker.
+    unmarked = Path(tempfile.mkdtemp(prefix="aetheria-smoke-unmarked-"))
+    (unmarked / "ModTools").mkdir()
+    (unmarked / "ModTools" / ("AetherDb.exe" if sys.platform == "win32" else "AetherDb")).write_bytes(b"")
+    bpy.context.preferences.addons["aetheria_ships"].preferences.game_folder = str(unmarked)
+    result, report = package(aetheria_ships)
+    if result != {"CANCELLED"} or report != "Package failed: " + aetheria_ships.GAME_FOLDER_REFUSAL:
+        raise SystemExit("Pass 4: a folder without GameData/Aetheria.cc was not refused with the fixed text")
     bpy.context.preferences.addons["aetheria_ships"].preferences.game_folder = str(GAME)
     print(f"SMOKE_PACKAGE={path}")
     print("SMOKE_PACKAGE_OK")
