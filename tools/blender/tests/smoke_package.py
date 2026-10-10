@@ -106,6 +106,43 @@ def bind_cases(ship, path, mods):
     if result != {"FINISHED"} or not stored.startswith("//") or not same_file(bpy.path.abspath(stored), path):
         raise SystemExit("Bind case same-drive: the stored path is not a resolving '//'-relative path")
 
+    # relpath raises ValueError across drives: the bind completes with the absolute path, without a second drive.
+    bpy.path.relpath = lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("probe: path is on mount 'D:'"))
+    try:
+        result, stored = bind(ship, "cross-drive-forced")
+    finally:
+        bpy.path.relpath = relpath
+    if result != {"FINISHED"} or not os.path.isabs(stored) or not same_file(stored, path):
+        raise SystemExit("Bind case cross-drive-forced: the stored path is not the absolute .cc path")
+
+    # A value the ID-property store refuses leaves the collection exactly as it was, bound or not.
+    import aetheria_ships
+    for label, ship_id, pending in (("bad-id", object(), None), ("bad-pending", SHIP_ID, [object()])):
+        for key in list(ship.keys()):
+            if key.startswith("aetheria."):
+                del ship[key]
+        for bound in (False, True):
+            if bound:
+                aetheria_ships._bind_collection(ship, path, SHIP_ID, ["Old", "Ref"])
+            before = {key: ship[key] for key in ship.keys() if key.startswith("aetheria.")}
+            before = {key: (value.to_list() if hasattr(value, "to_list") else value) for key, value in before.items()}
+            try:
+                aetheria_ships._bind_collection(ship, path, ship_id, pending)
+            except Exception:
+                pass
+            else:
+                raise SystemExit(f"Bind case {label}: the store did not refuse the value")
+            after = {key: ship[key] for key in ship.keys() if key.startswith("aetheria.")}
+            after = {key: (value.to_list() if hasattr(value, "to_list") else value) for key, value in after.items()}
+            if after != before:
+                raise SystemExit(f"Bind case {label} bound={bound}: a refused bind left the collection half-bound")
+    aetheria_ships._bind_collection(ship, path, SHIP_ID)
+    for key in BIND_KEYS:
+        if key not in ship:
+            raise SystemExit("Bind case rebind: the collection lost its binding")
+    if "aetheria.pending" in ship:
+        raise SystemExit("Bind case rebind: a bind without pending kept the old pending")
+
     other = os.environ.get("SMOKE_OTHER_DRIVE")
     if not other:
         print("BIND cross-drive skipped: SMOKE_OTHER_DRIVE is not set")

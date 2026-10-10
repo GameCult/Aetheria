@@ -300,13 +300,23 @@ def _bind_collection(collection, path, ship_id, pending=None):
             stored = bpy.path.relpath(path)
         except ValueError:
             pass
-    collection["aetheria.asset_kind"] = "ship"
-    collection["aetheria.id"] = ship_id
-    collection["aetheria.ship_cc"] = stored
+    keys = ("aetheria.asset_kind", "aetheria.id", "aetheria.ship_cc", "aetheria.pending")
+    before = {key: collection[key] for key in keys if key in collection}
+    values = {"aetheria.asset_kind": "ship", "aetheria.id": ship_id, "aetheria.ship_cc": stored}
     if pending:
-        collection["aetheria.pending"] = pending
-    elif "aetheria.pending" in collection:
-        del collection["aetheria.pending"]
+        values["aetheria.pending"] = pending
+    try:
+        for key, value in values.items():
+            collection[key] = value
+        if not pending and "aetheria.pending" in collection:
+            del collection["aetheria.pending"]
+    except Exception:
+        for key in keys:  # the ID-property store refused a value: put every key back as it was
+            if key in before:
+                collection[key] = before[key]
+            elif key in collection:
+                del collection[key]
+        raise
 
 
 class AETHERIA_OT_bind_ship_collection(bpy.types.Operator):
