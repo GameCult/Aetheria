@@ -213,9 +213,10 @@ def main():
     source = child(collection, "Source")
     require(source is not None and sphere.users_collection == (source,), "The sphere is not in Source alone")
     require(sphere.parent == root, "The sphere is not parented to Ship Root")
-    require(tuple(sphere.scale) == (1, 1, 1) and all(abs(a) < 1e-9 for a in sphere.rotation_euler),
-            "Rotation and scale were not applied to the sphere")
-    dx, dy, _ = sphere.dimensions
+    require(max(vertex.co.length for vertex in sphere.data.vertices) < 0.5 + 1e-6 and sphere.scale.x > 1,
+            "New Ship baked the placement into the mesh instead of the object's own matrix")
+    world = [sphere.matrix_world @ vertex.co for vertex in sphere.data.vertices]
+    dx, dy = (max(v[i] for v in world) - min(v[i] for v in world) for i in (0, 1))
     print(f"DIMENSIONS {dx:.3f} x {dy:.3f}")
     require(abs(dy - 20.0) < 0.4 and dx < dy, f"The sphere's long extent is not 20 m on Y: {dx} x {dy}")
     width, height, cells, hardpoints = buffer(scene)
@@ -247,6 +248,7 @@ def main():
     result, message = new_ship(scene)
     require(result == {"FINISHED"}, f"New Ship after undo was refused: {message}")
     root = bpy.data.objects["Ship Root"]
+    placed_scale, placed_rotation = tuple(sphere.scale), tuple(sphere.rotation_euler)
     print("PASS 1 new ship ok")
 
     # Pass 2: a Save that fails in create or after it leaves nothing behind and tells the author nothing of the input;
@@ -284,7 +286,7 @@ def main():
     before_origin = list(collection["aetheria.grid_origin"])
     select(bpy.data.objects["Source Sphere"])
     bpy.ops.ed.undo_push(message="before scale")
-    bpy.data.objects["Source Sphere"].scale = (0.5, 1, 1)
+    bpy.data.objects["Source Sphere"].scale = (placed_scale[0] / 2, placed_scale[1], placed_scale[2])
     result, message = run(bpy.ops.aetheria.rasterise_hull)
     require(result == {"FINISHED"}, f"Rasterise was refused: {message}")
     after = buffer(scene)
@@ -332,9 +334,10 @@ def main():
     collection = bpy.data.collections[COLLECTION]
     root = bpy.data.objects["Ship Root"]
     sphere = bpy.data.objects["Source Sphere"]
-    sphere.scale = (1, 1, 1)
+    sphere.scale = placed_scale
     centre = sphere.matrix_world.translation
     render = new_object(collection, "Hull", bpy.data.meshes["Sphere"].copy(), location=tuple(sphere.location))
+    render.scale, render.rotation_euler = placed_scale, placed_rotation
     nub = new_object(collection, "Loose Nub", box("Nub", 4.0, 3.0, 0.5), location=(centre.x, centre.y + 12.0, 0))
     select(render)
     snapshot = (buffer(bpy.context.scene), list(collection["aetheria.grid_origin"]),
@@ -457,6 +460,8 @@ def main():
     result, message = run(bpy.ops.aetheria.package_ship)
     require(result == {"FINISHED"}, f"Package after the failed export was refused: {scene.aetheria_package_report}")
     print("PASS 6 package ok")
+    mirror_pass()
+    print("PASS 6b mirror ok")
     guards_pass(aetheria_ships)
     print("PASS 7 guards ok")
     undo_pass()
@@ -473,6 +478,35 @@ def ship_from_box(scene, name, ship_id, location):
     result, message = new_ship(scene, ship_id, name, "Djinni", 10)
     require(result == {"FINISHED"}, f"New Ship for {ship_id} was refused: {message}")
     return collection, hull
+
+
+def mirror_pass():
+    """A half hull with a Mirror modifier, its long axis on X, gets the cells of the hull the author sees: the same
+    cells as the hand-mirrored solid, 10 long."""
+    scene = bpy.context.scene
+
+    def ship_cells(name, corners_y, modifier):
+        collection = bpy.data.collections.new(name)
+        scene.collection.children.link(collection)
+        mesh = bpy.data.meshes.new(name)
+        corners = [(x, y, z) for x in (0.0, 6.0) for y in corners_y for z in (-0.5, 0.5)]
+        mesh.from_pydata(corners, [], [(0, 1, 3, 2), (4, 6, 7, 5), (0, 4, 5, 1), (2, 3, 7, 6), (0, 2, 6, 4), (1, 5, 7, 3)])
+        hull = new_object(collection, name + " Hull", mesh)
+        if modifier:
+            hull.modifiers.new("Mirror", "MIRROR").use_axis = (False, True, False)
+        select(hull)
+        result, message = new_ship(scene, "smoke.mirror", name, "Djinni", 10)
+        require(result == {"FINISHED"}, f"New Ship for {name} was refused: {message}")
+        made = buffer(bpy.context.scene)[:3]
+        result, message = run(bpy.ops.aetheria.rasterise_hull)  # reads the objects as New Ship left them
+        require(result == {"FINISHED"} and buffer(bpy.context.scene)[:3] == made,
+                f"{name}: the cells New Ship drafted are not the cells of the hull it left: {message}")
+        return made
+
+    half = ship_cells("Mirror Half", (0.0, 1.0), True)
+    solid = ship_cells("Mirror Solid", (-1.0, 1.0), False)
+    require(half[1] == 10, f"The mirrored half hull is {half[1]} cells long, not 10")
+    require(half == solid, "A Mirror-modified half hull does not get the cells of the hand-mirrored solid")
 
 
 def guards_pass(aetheria_ships):

@@ -560,6 +560,16 @@ def _world_mesh(obj, depsgraph, matrix):
     return points.reshape(-1, 3) @ linear[:3, :3].T + linear[:3, 3], triangles.reshape(-1, 3)
 
 
+def _triangles_xy(depsgraph, placements):
+    """The top-down triangles of the evaluated meshes, each through its matrix: what the author sees from above.
+    placements is [(object, matrix)]."""
+    triangles = []
+    for obj, matrix in placements:
+        points, indices = _world_mesh(obj, depsgraph, matrix)
+        triangles += points[indices][:, :, :2].tolist()
+    return triangles
+
+
 def _grid_current(collection, state):
     """Whether the Grid can be drawn: grid_origin was computed for the buffer's own size."""
     origin = collection.get("aetheria.grid_origin")
@@ -619,20 +629,21 @@ def _redraw_grid(collection, state):
 
 def _rasterise(context, collection, state):
     """Proposes the hull's cells from the frame meshes, top-down in Ship Root's frame, into the layout buffer (its
-    hardpoints stay) and stores the grid's placement with the size it was computed for. Writes no file. The only writer
-    of aetheria.grid_origin."""
+    hardpoints stay) and stores the grid's placement with the size it was computed for. Writes no file."""
     root, meshes = _frame_inputs(context, collection, state)
-    depsgraph = context.evaluated_depsgraph_get()
     to_root = root.matrix_world.inverted()
-    triangles = []
-    for obj in meshes:
-        points, indices = _world_mesh(obj, depsgraph, to_root @ obj.matrix_world)
-        triangles += points[indices][:, :, :2].tolist()
-    width, height, cells, origin = hull_grid.rasterise(triangles)
+    width, height, cells, origin = hull_grid.rasterise(_triangles_xy(
+        context.evaluated_depsgraph_get(), [(obj, to_root @ obj.matrix_world) for obj in meshes]))
+    _place_grid(collection, state, width, height, cells, origin)
+    return width, height
+
+
+def _place_grid(collection, state, width, height, cells, origin):
+    """Puts a rasterised hull into the layout buffer (its hardpoints stay), stores the grid's placement with the size it
+    was computed for and redraws the Grid. The only writer of aetheria.grid_origin."""
     _set_cells(state, width, height, cells)
     collection["aetheria.grid_origin"] = [float(origin[0]), float(origin[1]), width, height]
     _redraw_grid(collection, state)
-    return width, height
 
 
 class AETHERIA_OT_rasterise_hull(bpy.types.Operator):
@@ -678,8 +689,10 @@ class AETHERIA_OT_flip_nose(bpy.types.Operator):
 
 def _new_ship(context, ship_id, name, reference, length):
     """Sets the active collection up as a pending ship: binds it, moves its meshes into Source under a Ship Root, turns
-    them nose to -Y, sizes them to length cells, fills the layout buffer and rasterises. Every check comes first and
-    nothing is written to disk: the first Save creates the file."""
+    them nose to -Y, sizes them to length cells, fills the layout buffer and draws the Grid. The meshes keep their data:
+    the placement is the objects' own matrix, so modifiers act as the author saw them and the cells are the ones checked
+    here. Every check and the rasterising come first; after the bind nothing can refuse. Nothing is written to disk: the
+    first Save creates the file."""
     if not valid_ship_id(ship_id):
         raise ValueError("The ship ID must use lower-case letters, digits, dots, underscores or hyphens, must not end "
                          "in a dot, and must not be a Windows device name")
@@ -696,8 +709,6 @@ def _new_ship(context, ship_id, name, reference, length):
         raise ValueError("The ship collection holds no mesh objects to make a ship from")
     if len(_meshes(collection.all_objects)) != len(meshes):
         raise ValueError("The ship collection's meshes must sit directly in it, not in child collections")
-    if any(obj.data.users > 1 for obj in meshes):
-        raise ValueError("Make the hull meshes single-user before New Ship (Object > Relations > Make Single User)")
     worlds = {obj: obj.matrix_world.copy() for obj in meshes}
     depsgraph = context.evaluated_depsgraph_get()
     points = numpy.vstack([_world_mesh(obj, depsgraph, worlds[obj])[0] for obj in meshes])
@@ -710,11 +721,7 @@ def _new_ship(context, ship_id, name, reference, length):
     if extent_x > extent_y:
         transform = transform @ Matrix.Rotation(math.pi / 2, 4, "Z")
     placed = {obj: transform @ worlds[obj] for obj in meshes}
-    triangles = []
-    for obj in meshes:
-        placed_points, indices = _world_mesh(obj, depsgraph, placed[obj])
-        triangles += placed_points[indices][:, :, :2].tolist()
-    width, height, cells, _ = hull_grid.rasterise(triangles)
+    width, height, cells, origin = hull_grid.rasterise(_triangles_xy(depsgraph, [(obj, placed[obj]) for obj in meshes]))
     _bind_collection(collection, str(path), ship_id, [name, reference])
     source = _child_or_new(collection, SOURCE, SOURCE)
     root = bpy.data.objects.new(SHIP_ROOT, None)
@@ -723,22 +730,15 @@ def _new_ship(context, ship_id, name, reference, length):
     for obj in meshes:
         collection.objects.unlink(obj)
         source.objects.link(obj)
-        obj.data.transform(placed[obj].to_3x3().to_4x4())
-        if placed[obj].determinant() < 0:
-            obj.data.flip_normals()
         obj.parent = root
         obj.matrix_parent_inverse = Matrix.Identity(4)
-        obj.rotation_mode = "XYZ"
-        obj.rotation_euler = (0.0, 0.0, 0.0)
-        obj.scale = (1.0, 1.0, 1.0)
-        obj.location = placed[obj].to_translation()
+        obj.matrix_world = placed[obj]
     state = context.scene.aetheria_layout
     state.ship_id = ship_id
     state.ship_cc = bpy.path.abspath(collection["aetheria.ship_cc"])
     state.revision = ""
     state.hardpoints.clear()
-    _set_cells(state, width, height, cells)
-    _rasterise(context, collection, state)
+    _place_grid(collection, state, width, height, cells, origin)
 
 
 class AETHERIA_OT_new_ship(bpy.types.Operator):
