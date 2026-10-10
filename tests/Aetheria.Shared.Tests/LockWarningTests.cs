@@ -74,7 +74,7 @@ public sealed class LockWarningTests : IDisposable
             {
                 LockSpeed = Const(.6f), SensorImpact = Const(1), LockAngle = Const(30),
                 DirectionImpact = Const(1), Decay = Const(.1f)
-            }, ship.Equipment.Single());
+            }, GearOf(ship));
         }
         _zone.Entities.Add(ship);
         ship.Activate();
@@ -83,6 +83,7 @@ public sealed class LockWarningTests : IDisposable
     }
 
     private readonly System.Collections.Generic.Dictionary<Entity, LockWeapon> _launchers = new System.Collections.Generic.Dictionary<Entity, LockWeapon>();
+    private static EquippedItem GearOf(Entity e) => e.Equipment.Single(i => i.Behaviors.Any(b => b is Weapon));
     private LockWeapon LauncherOf(Entity e) => _launchers[e];
 
     // The locker targets `target`, hostile to it, aimed straight at it (or along `aim`), then the launcher ticks.
@@ -109,7 +110,7 @@ public sealed class LockWarningTests : IDisposable
         var warning = Assert.Single(b.IncomingLocks);
         Assert.Equal(-.6f, warning.Bearing.x, 4);
         Assert.Equal(-.8f, warning.Bearing.y, 4);
-        Assert.Same(locker.Equipment.Single().Data, warning.EmitterClass);
+        Assert.Same(GearOf(locker).Data, warning.EmitterClass);
         Assert.Equal(.3f, launcher.Lock, 4); // fixture: 0.6 speed * 0.5 s on a dead-on, fully sensed target
         Assert.Equal(.3f, warning.Strength, 4);
 
