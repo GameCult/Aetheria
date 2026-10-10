@@ -40,7 +40,6 @@ public sealed class ThrustAllocator
         var vars = n + ErrorVariables;
         var rows = FixedRows + n;
         Array.Clear(_a, 0, rows * vars);
-        Array.Clear(_b, 0, rows);
 
         // Rows 0 and 1 are the translation axes (starboard, forward), row 2 the yaw.
         for (var axis = 0; axis < 3; axis++)

@@ -290,4 +290,25 @@ public class ThrustAllocatorTests
             for (var i = 0; i < columns.Length; i++) Assert.True(MathF.Abs(warm[i] - fresh[i]) <= 1e-5f, $"{columns.Length} columns: throttle {i}");
         }
     }
+
+    [Fact]
+    public void AShipWithOneThrusterIsFlownFromItsFirstCall()
+    {
+        var throttle = Solve(new[] { Col(0, 50, 0) }, 0, 1, 0);
+        Assert.True(throttle[0] > .99f, $"{throttle[0]}");
+    }
+
+    [Fact]
+    public void ChangedColumnsOfTheSameCountLeaveNothingBehind()
+    {
+        // Thruster 1 first strafes, then only pushes forward: the strafe row it left must not shape the second answer.
+        var strafing = new[] { Col(0, 60, 0), Col(30, 0, 0), Col(-20, 0, 0) };
+        var forwardOnly = new[] { Col(0, 60, 0), Col(0, 40, 0), Col(0, -20, 0) };
+        var allocator = new ThrustAllocator();
+        Solve(allocator, strafing, 1, 1, .5f);
+        var warm = Solve(allocator, forwardOnly, 0, 1, 0);
+        var fresh = Solve(forwardOnly, 0, 1, 0);
+        for (var i = 0; i < warm.Length; i++) Assert.True(MathF.Abs(warm[i] - fresh[i]) <= 1e-5f, $"throttle {i}: {warm[i]} vs {fresh[i]}");
+        Assert.True(warm[1] > .9f, $"{warm[1]}");
+    }
 }
