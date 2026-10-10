@@ -179,7 +179,7 @@ public sealed class ConsumableAiTests : IDisposable
         for (var i = 0; i < scene.Lockers.Count; i++)
         {
             var locker = scene.Lockers[i];
-            locker.Position = float3(30 * (i + 1), 0, 30);
+            locker.Position = float3(0, 0, -40 * (i + 1)); // dead astern: a lock's bearing is then exact, never a rounding error from 1
             scene.Agent.EntityInfoGathered[locker] = 1f;
             locker.EntityInfoGathered[scene.Agent] = 1f;
             locker.EntityInfoGathered[scene.Prey] = 1f;
@@ -276,7 +276,7 @@ public sealed class ConsumableAiTests : IDisposable
         painted.Store(painted.VentDesign);
         Face(painted, 0);
         Settle(painted);
-        Assert.True(painted.Active(painted.VentDesign), string.Join(" | ", painted.Lockers.Select(l => { var w = l.Weapons.OfType<LockWeapon>().Single(); return $"lock {w.Lock} speed {w.LockSpeed} angle {w.LockAngle} online {w.Item.Online.Value} target {l.Target.Value.Entity == painted.Agent} info {l.EntityInfoGathered[painted.Agent]} hostile {l.IsHostileTo(painted.Agent)} pos {l.Position} aim {l.Aim}"; })));
+        Assert.True(painted.Active(painted.VentDesign));
     }
 
     // Venting is the answer to a lock; the surge to close distance is the answer when nobody is locking.
@@ -349,18 +349,5 @@ public sealed class ConsumableAiTests : IDisposable
         Assert.False(s.Active(s.DecoyDesign));
         Assert.False(s.Agent.ThrottleLocked);
         Assert.Equal(carriesOnlyADecoy ? 1 : 0, s.Carried);
-    }
-
-    [Fact]
-    public void DiagLockers()
-    {
-        var s = Build(100, (.3f, true), (.3f, true), (.3f, true));
-        string Dump(string tag) => tag + ": " + string.Join(" | ", s.Lockers.Select(l => { var w = l.Weapons.OfType<LockWeapon>().Single(); return $"lock {w.Lock} online {w.Item.Online.Value} pos {l.Position} aim {l.Aim} tgt {l.Target.Value.Entity == s.Agent}"; })) + " agentpos " + s.Agent.Position;
-        var before = Dump("before");
-        s.Zone.Update(1f);
-        var after1 = Dump("after1");
-        s.Zone.Update(1f);
-        var after2 = Dump("after2");
-        Assert.True(false, string.Join(" ## ", before, after1, after2));
     }
 }
