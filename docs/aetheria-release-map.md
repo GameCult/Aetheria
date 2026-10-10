@@ -7623,3 +7623,149 @@ retire-firing-arc r1, ships-addon-link-rows r1; link-rig-record r3; ships-addon-
 `mind-commit-0c23fa01...` (ships-addon-link-package r2, link-rig-presenter r2, link-calibre-judge r2, question
 `hardpoint-arc-caps`, withdrew question `calibre-arc-caps`) and `mind-commit-40788d58...` (ships-addon-link-package r3,
 r2's arm smoke pins fixed). context-pack read every anchor SAME at `acea1aa7`.
+
+## Vectored thruster rows
+
+Pass: Imagination (`imagination-aeth-vectoring`), session `self-2026-10-10-ag`. Body: `GameCult/Aetheria` origin/master
+`30d02719`; the allocator at `1fc98bdc` (branch `eureka/aetheria-release-thrust-allocator-core`, read-only, a fix
+batch in flight); the rig record at `562de34c` (branch `eureka/aetheria-release-link-rig-record`, Soul pass running);
+CultMath `BoundedLeastSquares` at CultLib origin/main `50512e6e`. One design owns follow-ups `vectored-thruster-rows`
+(operator: "if that dine and dash could tilt that vector for each row of thrusters it would be even more hyper
+maneuverable"; a gimbal per row, not per thruster) and `gimballed-thrusters`. Prior art:
+`docs/research/thrust-vectoring-prior-art.md` at `30d02719` (cited as VP, by section).
+
+### Body facts
+
+- **V1. A column is linear in the push direction.** The allocator's column is xy = push * thrust / mass and
+  z = `Torque` * thrust * `TorqueMultiplier` / mass (spec `cut-thrust-allocator.r1`, adds; `ThrustAllocator.cs:8-18`
+  at `1fc98bdc`). `Torque` is `-dot(normalize(toCenter), float2(1,0).Rotate(rotation))` (`Thruster.cs:62-71`), linear
+  in the direction vector. So a thruster tilted by angle a has column c(a) = cos a * c(0) + sin a * c(pi/2): two fixed
+  columns per thruster carry every tilt. This is VP 1.1's virtual-actuator trick, exact for Aetheria's planar plant.
+- **V2. BoundedLeastSquares has box bounds only** (`BoundedLeastSquares.cs`, CultLib `50512e6e`: `lo <= x <= hi`,
+  dense primal active set, iteration cap 100, warm start in `x`). A gimbal wedge |v| <= tan(theta) u is not a box
+  (VP 2). The design below never needs the wedge: the per-tick slew window in the row's own frame is narrow (3 deg at
+  90 deg/s and 30 Hz, 12 deg at 360 deg/s), so v is boxed by the sine of the window and the recovered angle is
+  clamped to the window and the gimbal. No CultMath capability is missing, so no cultlib-gaps follow-up.
+- **V3. The sim already has the data seam.** `HardpointData.FiringArc` (key 6) is the hardpoint's arc
+  (`ItemData.cs:567-569`); `EquippedItem.Hardpoint` gives a behaviour its hardpoint (`Entity.cs:1688`, read by
+  `FireControl.ArcFor`, `FireControl.cs:36-41`). `HardpointData` uses keys 0-6; `ThrusterData` keys 1-5
+  (`Thruster.cs:12-27`; `BehaviorData` owns key 0). At `562de34c` the judge refuses a `thruster-emitter` anchor on a
+  joint, naming follow-up `gimballed-thrusters` (`ShipAuthoring.cs:360-363`), and checks that weapon mounts on one
+  joint share `Rotation` and `FiringArc` and that the chain's yaw reach covers the arc (`:370-385`).
+- **V4. The gimbal is a sim fact.** By V1 the angle changes push and turn, which the allocator and the evasion
+  envelope read. In V6, fixed rows leave forward and reverse at E 0.361 on the small hull; tilting rows take both to
+  0.000. So the row angle, its limit and its slew are simulation state and stats (target invariant `sim-owns-facts`);
+  the joint only draws `Thruster.Angle` (rulings `rig-is-presentation`, `mount-arc-gun-traverse`).
+- **V5. Probe harness.** Scratch C# console at `scratchpad/imagination-aeth-vectoring/harness` (local commit
+  `b5162ab`, then a v2 that fixed M4's scoring and added M3c and M5), `Program.cs` plus a verbatim copy of
+  `BoundedLeastSquares.cs` from `50512e6e`, run on Yggdrasil through `ygg-verify.sh` (`dotnet run -c Release`, image
+  `mcr.microsoft.com/dotnet/sdk:10.0`), 2026-10-10, exit 0 both runs (`run1.log`, `run2.log` beside it). The core
+  solve copies `ThrustAllocator` at `1fc98bdc` exactly (weights 100 and 1000, L1 split error variables, ridge 0.1,
+  KKT 1e-12, cap 100); every method shares it and shares one demand scale (V7). Hulls: *small*, two mains (accel 10)
+  and two side rows of four (accel 2, pushing across the hull, gimbal +-45 deg); *large*, four mains and four rows of
+  eight (36 thrusters). 30 Hz, 90 ticks per intent from rows at 0, 12 intents (full strafes, forward, reverse, two
+  diagonals, full turns, forward plus turn, strafe plus half turn, two partial). E is the realized wrench's error
+  against the demand, normalised per axis by the box extreme. REF is a brute-force grid over both row angles
+  (37 x 37, no slew limit) with the fixed-column solve inside, minimum weighted error.
+- **V6. Results** (mean E over the 12 intents after 90 ticks; worst single solve's iterations; us per tick on
+  Yggdrasil):
+
+  | Method | small 90 deg/s | small 360 deg/s | large 90 deg/s | solves/tick | worst iters (large) | us/tick (large) |
+  |---|---|---|---|---|---|---|
+  | REF grid (static optimum, shared row angle) | 0.134 | 0.134 | n/a | 1369 | n/a | n/a |
+  | M0 fixed rows (today) | 0.298 | 0.298 | 0.310 | 1 | 95 | 36 |
+  | M1 row as one actuator: shared throttle, (u, v) in the row frame, slew-boxed | 0.142 | 0.138 | 0.133 | 1 | 20 | 3 |
+  | M2 cascade: per-thruster (u, v), one angle per row, re-solve | 0.137 | 0.131 | 0.131 | 2 | 95 | 267 |
+  | M3 angle step linearised at last tick's throttles, one solve | 0.201 | 0.196 | 0.215 | 1 | 95 | 74 |
+  | M3c as M3, idle rows linearised at throttle .25 | 0.138 | 0.136 | 0.132 | 1 | 100 (2 IterationLimit) | 79 |
+  | M5 M1's angle, then per-thruster re-solve | 0.142 | 0.138 | 0.131 | 2 | 95 | 44 |
+  | M4 per-thruster gimbals (no row constraint; upper bound) | 0.138 | 0.135 | 0.129 | 1 | 89 | 328 |
+
+  No method produced NaN. M1, M2, M3c, M4 and M5 reach E 0.000 on forward and reverse (M0 and M3: 0.361). The large
+  hull's 95-iteration solves are the fixed per-thruster solve itself (M0 is also 95): finding
+  `cut-thrust-allocator-core.s1.large-hull-degradation`, follow-up `allocator-large-hull`. M1 collapses each row to
+  two variables (12 on the large hull instead of 36) and stays at 20 iterations, which is the "group identical
+  columns" remedy that follow-up names, arrived at for free.
+- **V7. The demand scale must be the gimbal reach.** The allocator scales intent by box extremes it sums from the
+  columns it is given (`ThrustAllocator.cs:44-61`). With rows tilting, current-column extremes move every tick, so
+  "full forward" would change meaning as the rows swing. The probe scales by the reach: per thruster and half-axis,
+  the maximum of A cos a + B sin a over the gimbal (closed form: sqrt(A^2 + B^2) when atan2(B, A) lies inside the arc,
+  else the better end). Small hull: +y 31.3 (mains 20, eight row thrusters 2 sin 45 deg each), -y 11.3, +-x 8.0,
+  +-z 12.53. The same reach is the envelope's box (cut `envelope-from-columns`), so intent and evasion read one
+  geometry.
+- **V8. Zero thrust: hold the angle, but never linearise through the throttle.** Schedule strafe right, idle, strafe
+  left, forward, idle, reverse, 30 ticks each, both hulls, 90 deg/s. M1 and M5: every step within the window (3.00
+  deg max), idle drift 0.000 deg, idle throttle 0, no sign flips in the late half of any phase, and reverse ends at
+  -45/45 (correct). M2: one or two late sign flips, and 3 deg of idle drift on the large hull (its stage one aims
+  idle rows with v alone). M3 is trapped: a row at zero throttle has a zero angle column, so it never tilts, forward
+  stays at E 0.361 and reverse ends at 45/-45 (the wrong way). M3c unsticks it but chatters (15 late flips), fires
+  at full throttle while idle on the large hull and hits the cap. Holding the previous angle when the row's (u, v)
+  is near zero (|(u, v)| < 1e-6) is enough once (u, v) are free variables: v can aim an idle row without thrust, and
+  the box's overcount is useful there.
+
+### Model page rows
+
+| Kind | Identity | Lifecycle | Authority |
+|---|---|---|---|
+| Gimbal limit (`HardpointData.FiringArc`, key 6, on a `Thruster` hardpoint; question `vector-row-data-home`) | The hardpoint's mount id (`Transform`) on its hull. Full width in degrees, as for a gun; the row swings +-FiringArc/2 about `Rotation`. 0 is a fixed thruster; thrusters get no `GameplaySettings.FiringArc` fallback. | Authored per hull with the other hardpoint fields; Save or Package writes it; a package edit changes it on Continue (moves no cell). | The ship author. The judge requires every member of a row to share it and the row's joint chain to reach it. The thruster reads it at activation. |
+| Row (`HardpointData.Row`, new key 7, string) | Unique within its hull; empty means not in a row. A `Thruster` hardpoint with `FiringArc` > 0 and no `Row` is a row of one. | Authored per hull; renaming a row changes no save (no save names a row; ruling `no-save-compatibility-before-players`). | The ship author. Judge: only on `Thruster` hardpoints; members share `Rotation` and a `FiringArc` > 0. Never derived from a joint (ruling `rig-is-presentation`). |
+| Slew rate (`ThrusterData.Slew`, new key 6, `PerformanceStat`, deg/s) | A stat of the thruster design. | Authored per design; heat, durability and quality move it live like `Thrust`. A row slews at its slowest live member. | The gear designer, as a weapon's traverse is (ruling `mount-arc-gun-traverse`). |
+| Live row angle (`Thruster.Angle`, runtime) | The thruster behaviour; every member of a row holds the same value. Radians from the hardpoint's `Rotation`. | 0 at `Activate`; moves at most slew x dt per tick; held while the row is idle; never saved (a load restarts at 0). | `ThrustAllocator` decides it; `Ship.Update` is its one writer. `Execute`, the envelope and presentation read it. The rig draws it and never writes it. |
+| Row actuator (runtime) | The row, built at `Activate` from its members' hardpoints. | Rebuilt when the thruster set changes (the allocator's resize rule). A dead member's columns are zero, so the row keeps steering with the rest. | `ThrustAllocator` reads the summed along and across columns and the slew window, and decides one throttle and one angle step per row. |
+
+### Authority map
+
+- **Owner.** `ThrustAllocator` decides every fixed thruster's throttle and every row's throttle and angle step, in one
+  `BoundedLeastSquares` solve (question `vector-row-formulation`, recommended `shared-throttle-row`).
+- **Inputs.** Intent (unchanged); each fixed thruster's column; per row, the summed column along and across its live
+  angle and its slew window [max(-arc/2 - angle, -slew dt), min(arc/2 - angle, slew dt)]; the reach (V7).
+- **Outputs.** `Thruster.Axis` for every thruster (a row's members share the row's) and `Thruster.Angle` for every
+  row member, read by `Execute`, `PowerRequest`, the envelope and presentation.
+- **Derived.** The reach and the envelope (one helper); a row's summed columns; the slew window.
+- **No longer owners.** `Allocate` no longer sums its box extremes from the current columns; they come from the reach
+  helper. A joint, its limits and the IK pose decide nothing in the sim.
+- **Forbidden writers.** Any `Angle` write outside `Ship.Update`; any read of `ShipJoint`, `ShipAnchor.Joint` or a
+  Unity transform in `Thruster`, `Ship` or `ThrustAllocator`; a second throttle solve or fallback mixer; an angle step
+  linearised through last tick's throttles (M3, V8).
+- **Shared paths.** Player helm, agents, the throttle lock and tests reach rows only through intent.
+  `Thruster.Column(angle)` is the one geometry function `Execute`, the allocator and the envelope call.
+
+### Rationale
+
+- **Why one actuator per row.** M1 matches M5 (per-member throttles after the same angle) within 0.002 mean E on all
+  three sweeps, is within 0.008 of the static optimum, keeps the allocator's one solve (ruling
+  `one-weighted-solve-no-rotation-demand`; the thrust-allocator authority map forbids a second solve) and is the
+  cheapest in iterations and time. M2 is the most accurate (0.131) but doubles the variables, reaches 95 of 100
+  iterations on 36 thrusters and drifts idle rows. What M1 gives up is differential throttle inside a row: on these
+  hulls it measured nothing, and a row that needs it can be authored as two rows. The operator decides: question
+  `vector-row-formulation`.
+- **Why the limit is the hardpoint's arc and the slew the gear's.** It is ruling `mount-arc-gun-traverse` applied to
+  thrusters: how far a mount swings is ship authoring; how fast is the part's own stat. Reusing `FiringArc` adds no
+  field that the add-on, Studio and C4 must learn; its meaning (how far the mounted item may point from `Rotation`)
+  already fits. Question `vector-row-data-home` holds the alternatives.
+- **Why the envelope counts the whole gimbal, not the slew.** The envelope already ignores the time to swing the
+  hull (cut `envelope-from-columns` sums box extremes); counting slew time only for rows would be a second,
+  inconsistent time model. If the pace pass finds slow gimbals over-credited, slew time enters the envelope for hull
+  turn and rows together.
+- **Sequence.** Both cuts land after `thrust-allocator` and `envelope-from-columns`, whose `Ship.Update` wiring and
+  `RecalculateEnvelope` they change, and after `link-rig-record`, whose judge they extend. The rig and the add-on are
+  follow-up `vector-rows-presentation`: nothing authors a `Row` until the add-on does, so the record cut is inert
+  data until then.
+
+### Cut order
+
+1. `vector-rows-record` after `link-rig-record`, `thrust-allocator` and `envelope-from-columns`:
+   `HardpointData.Row`, `ThrusterData.Slew`, the judge's row rules, thruster anchors allowed on joints with the
+   reach check.
+2. `vector-rows-allocator` after `vector-rows-record`, `thrust-allocator-core`, `thrust-allocator` and
+   `envelope-from-columns`: rows as one actuator each in the solve, `Thruster.Angle`, `Column(angle)`, the reach
+   helper for demand and envelope. Its `Ship.cs` anchors are written against the merged wiring at Hands time
+   (the spec says where).
+
+### Admitted
+
+2026-10-10 (`imagination-aeth-vectoring`): receipt `mind-commit-2829a7e1...` (cut_specs `cut-vector-rows-record.r1`,
+`cut-vector-rows-allocator.r1`, questions `vector-row-formulation` and `vector-row-data-home`, follow-up
+`vector-rows-presentation`) and `mind-commit-e1337a9c...` (`cut-vector-rows-record.r2` superseding r1: its
+ShipValidationTests anchor named the wrong class). context-pack read every anchor SAME: record r2 at `562de34c`,
+allocator r1 at `1fc98bdc`.
