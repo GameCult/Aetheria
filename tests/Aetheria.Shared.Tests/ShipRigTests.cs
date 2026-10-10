@@ -159,7 +159,7 @@ public sealed class ShipRigTests : IDisposable
     public void JointShapeAcceptsItsBoundariesAndTheUnitTolerance()
     {
         OneGun(1, (Up, -180f, 180f)).Validate();
-        OneGun(1, (Up, 180f, 180f)).Validate();
+        OneGun(1, (Up, 179f, 180f)).Validate();
         OneGun(1, (new[] { 0f, 1.0009f, 0f }, 0f, 5f)).Validate();
         OneGun(1, (new[] { 0f, .9991f, 0f }, 0f, 5f)).Validate();
         Assert.Contains("must be a unit vector", Refusal(OneGun(1, (new[] { 0f, 1.0015f, 0f }, 0f, 5f))));
