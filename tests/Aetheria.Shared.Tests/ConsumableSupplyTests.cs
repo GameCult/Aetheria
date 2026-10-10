@@ -152,10 +152,14 @@ public sealed class ConsumableSupplyTests : IDisposable
         var rig = Build(Offer.Reachable);
         var stocked = 0;
         var makers = new HashSet<string>();
+        var hist = new int[4]; int dockN = 0, crateN = 0;
         for (var i = 0; i < Seeds; i++)
         {
             var random = new Random(SeedOf(i));
             var pack = rig.Generator(ref random).GenerateStationLoadout();
+            hist[Math.Min(3, Consumables(pack).Length)]++;
+            dockN += (pack.DockingBayContents ?? new (int2, ItemInstance)[0][]).SelectMany(b => b).Count(e => e.item is ConsumableItem);
+            crateN += pack.CargoContents.SelectMany(b => b).Count(e => e.item is ConsumableItem);
             Assert.NotEmpty(pack.CargoContents.SelectMany(bay => bay)); // the gear stock is read from the same pack
             var held = Consumables(pack);
             if (held.Length == 0) continue;
@@ -166,6 +170,7 @@ public sealed class ConsumableSupplyTests : IDisposable
             Assert.Contains(product, new[] { "Overdrive by Maker", "Overdrive by Ally" }); // sold by a maker on offer
             makers.Add(product);
         }
+        Assert.True(false, $"PROBE stocked={stocked} hist={string.Join(",", hist)} dock={dockN} crate={crateN} none={Enumerable.Range(0, 0).Count()}");
         AssertWithinThreeSigma(stocked, LoadoutGenerator.StationConsumableChance, "stations stocking a consumable");
         Assert.Equal(2, makers.Count); // the pick is among the products on offer, not always the first
     }
