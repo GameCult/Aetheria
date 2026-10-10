@@ -19,7 +19,7 @@ from pathlib import Path
 
 import bpy
 import numpy
-from mathutils import Matrix
+from mathutils import Matrix, Vector
 
 from . import hull_grid
 from .ship_cc import (HARDPOINT_MEMBERS, HARDPOINT_TYPE_NAMES, ROTATION_NAMES, capture_grease_pencil, decode_hardpoint,
@@ -28,7 +28,7 @@ from .ship_cc import (HARDPOINT_MEMBERS, HARDPOINT_TYPE_NAMES, ROTATION_NAMES, c
 
 MODEL_ASSET = "ship.glb"
 SOURCE = "Source"  # child collection: the Tripo mesh, input to Rasterise, never exported
-GENERATED = "Generated"  # child collection: derived objects (the Grid), never exported
+GENERATED = "Generated"  # child collection: derived objects, the Grid (never exported) and the anchors Package makes (exported)
 SHIP_ROOT = "Ship Root"
 AETHERDB_TIMEOUT = 120  # seconds
 
@@ -446,8 +446,8 @@ def _anchors(collection):
 
 
 def _export_glb(context, collection, filepath):
-    """Exports the collection's objects, Grease Pencil and the Source and Generated children excluded, with custom
-    properties as node extras."""
+    """Exports the collection's objects with custom properties as node extras: Generated's anchors are exported; Grease
+    Pencil, Source and the Grid are not."""
     view_layer = context.view_layer
     layer = _layer_collection(view_layer.layer_collection, collection)
     if layer is None:
@@ -492,9 +492,9 @@ def _child_or_new(collection, kind, name):
 
 
 def _derived_names(collection):
-    """Names of the objects in the Source and Generated children, which are never exported."""
+    """Names of the objects that are never exported: Source's, and Generated's that carry no aetheria.role (the Grid)."""
     return {obj.name for kind in (SOURCE, GENERATED) for child in [_child(collection, kind)] if child
-            for obj in child.all_objects}
+            for obj in child.all_objects if kind == SOURCE or "aetheria.role" not in obj}
 
 
 def _ship_root(collection):
@@ -505,14 +505,17 @@ def _meshes(objects):
     return [obj for obj in objects if obj.type == "MESH"]
 
 
-def _frame_meshes(collection):
-    """The ship's own meshes: Ship Root's descendants outside Source and Generated that carry no aetheria.role; the
-    Source meshes while there are none."""
+def _own_meshes(collection):
+    """The ship's own render meshes: Ship Root's descendants outside Source and Generated that carry no aetheria.role."""
     derived = _derived_names(collection)
-    own = [obj for obj in _meshes(_ship_root(collection).children_recursive)
-           if obj.name not in derived and "aetheria.role" not in obj]
+    return [obj for obj in _meshes(_ship_root(collection).children_recursive)
+            if obj.name not in derived and "aetheria.role" not in obj]
+
+
+def _frame_meshes(collection):
+    """The meshes Rasterise reads: the ship's own, the Source meshes while there are none."""
     source = _child(collection, SOURCE)
-    return own or (_meshes(source.all_objects) if source else [])
+    return _own_meshes(collection) or (_meshes(source.all_objects) if source else [])
 
 
 def _loose_meshes(collection):
@@ -594,6 +597,24 @@ def _grid_current(collection, state):
             and len(state.cells) == state.width * state.height)
 
 
+def _discard_object(obj):
+    """Removes obj, then its mesh when nothing else uses it."""
+    mesh = obj.data if obj.type == "MESH" else None
+    bpy.data.objects.remove(obj)
+    if mesh is not None and mesh.users == 0:
+        bpy.data.meshes.remove(mesh)
+
+
+def _attach_to_root(obj, root):
+    """Parents obj to root with an identity parent inverse and a zero local transform: its local frame is Ship Root's."""
+    obj.parent = root
+    obj.matrix_parent_inverse = Matrix.Identity(4)
+    obj.location = (0.0, 0.0, 0.0)
+    obj.rotation_mode = "XYZ"
+    obj.rotation_euler = (0.0, 0.0, 0.0)
+    obj.scale = (1.0, 1.0, 1.0)
+
+
 def _redraw_grid(collection, state):
     """Redraws the Grid object from the layout buffer and the collection's aetheria.grid_origin while the origin was
     computed for the buffer's size; otherwise removes the Grid. A collection without a Ship Root or a grid_origin has no
@@ -606,10 +627,7 @@ def _redraw_grid(collection, state):
     grid = next((obj for obj in generated.objects if obj.get("aetheria.grid")), None)
     if not _grid_current(collection, state):
         if grid is not None:
-            stale = grid.data
-            bpy.data.objects.remove(grid)
-            if stale.users == 0:
-                bpy.data.meshes.remove(stale)
+            _discard_object(grid)
         return
     origin = (float(origin[0]), float(origin[1]))
     half = hull_grid.CELL_SIZE / 2
@@ -635,12 +653,7 @@ def _redraw_grid(collection, state):
         previous, grid.data = grid.data, mesh
         if previous.users == 0:
             bpy.data.meshes.remove(previous)
-    grid.parent = root
-    grid.matrix_parent_inverse = Matrix.Identity(4)
-    grid.location = (0.0, 0.0, 0.0)
-    grid.rotation_mode = "XYZ"
-    grid.rotation_euler = (0.0, 0.0, 0.0)
-    grid.scale = (1.0, 1.0, 1.0)
+    _attach_to_root(grid, root)
     grid.display_type = "WIRE"
 
 
@@ -661,6 +674,69 @@ def _place_grid(collection, state, width, height, cells, origin):
     _set_cells(state, width, height, cells)
     collection["aetheria.grid_origin"] = [float(origin[0]), float(origin[1]), width, height]
     _redraw_grid(collection, state)
+
+
+GENERATED_ROLES = (("map-icon", "map", "Map Icon"), ("shield", "shield", "Shield"), ("tractor", "tractor", "Tractor"))
+
+
+def _recentre(root, point):
+    """Moves Ship Root, and the ship with it, so that its local point (x, y) sits at world X = Y = 0."""
+    world = root.matrix_world @ Vector((point[0], point[1], 0.0))
+    moved = root.matrix_world.copy()
+    moved.translation.x -= world.x
+    moved.translation.y -= world.y
+    root.matrix_world = moved
+
+
+def _regenerate_anchors(context, collection, root):
+    """Rebuilds Generated's map-icon, shield and tractor from the render meshes (_own_meshes) in Ship Root's frame:
+    every Generated anchor not marked aetheria.keep is discarded, then each of the three roles no other object in the
+    collection carries is made again. The operator's own object, or a kept one, owns its role. Everything that can
+    refuse comes before the first change."""
+    generated = _child_or_new(collection, GENERATED, GENERATED)
+    stale = [obj for obj in generated.all_objects if "aetheria.role" in obj and not obj.get("aetheria.keep")]
+    stale_names = {obj.name for obj in stale}
+    held = {obj["aetheria.role"] for obj in collection.all_objects
+            if "aetheria.role" in obj and obj.name not in stale_names}
+    meshes = _own_meshes(collection)
+    missing = [entry for entry in GENERATED_ROLES if meshes and entry[0] not in held]
+    made = []
+    if missing:
+        depsgraph = context.evaluated_depsgraph_get()
+        to_root = root.matrix_world.inverted()
+        points = numpy.vstack([_world_mesh(obj, depsgraph, to_root @ obj.matrix_world)[0] for obj in meshes])
+        if not len(points):
+            raise ValueError("The render meshes have no points to derive the map icon, shield and tractor from")
+        low, high = points.min(axis=0), points.max(axis=0)
+        centre, half = (low + high) / 2, (high - low) / 2
+        for role, anchor_id, name in missing:
+            if role == "map-icon":
+                outline = hull_grid.convex_outline(points[:, :2].tolist())
+                mesh = bpy.data.meshes.new(name)
+                mesh.from_pydata([(x, y, float(centre[2])) for x, y in outline], [], [tuple(range(len(outline)))])
+                mesh.update()
+                made.append((role, anchor_id, bpy.data.objects.new(name, mesh), None, None))
+            elif role == "shield":
+                empty = bpy.data.objects.new(name, None)
+                empty.empty_display_type = "SPHERE"
+                made.append((role, anchor_id, empty, tuple(float(v) for v in centre),
+                             [max(1.15 * float(h), 0.1) for h in half]))
+            else:
+                empty = bpy.data.objects.new(name, None)
+                empty.empty_display_type = "ARROWS"
+                made.append((role, anchor_id, empty, (float(centre[0]), float(low[1]), float(centre[2])), None))
+    for obj in stale:
+        _discard_object(obj)
+    for role, anchor_id, obj, at, scale in made:
+        obj["aetheria.role"] = role
+        obj["aetheria.id"] = anchor_id
+        obj["aetheria.keep"] = False
+        generated.objects.link(obj)
+        _attach_to_root(obj, root)
+        if at is not None:
+            obj.location = at
+        if scale is not None:
+            obj.scale = scale
 
 
 class AETHERIA_OT_rasterise_hull(bpy.types.Operator):
@@ -778,11 +854,40 @@ class AETHERIA_OT_new_ship(bpy.types.Operator):
             return _refuse(self, exc)
 
 
+def _ship_centre(context, path):
+    """The saved Shape's centre of mass in cell coordinates, from AetherDb: C# owns it."""
+    code, output = _aetherdb(context, "centre", path, ship_cc=path)
+    try:
+        parts = output.split()
+        if code != 0 or len(parts) != 2:
+            raise ValueError
+        centre = (float(parts[0]), float(parts[1]))
+        if not all(map(math.isfinite, centre)):
+            raise ValueError
+    except ValueError:
+        print(output)
+        raise RuntimeError("AetherDb could not report the ship centre; its message is in the system console") from None
+    return centre
+
+
+def _frame_ship(context, collection, root, path, saved_shape):
+    """Package's frame step for a ship with a Ship Root: the grid must match the saved layout, then the anchors are
+    regenerated and Ship Root is moved last, so that the saved Shape's centre of mass sits at the world origin. The
+    anchors are read from the children's world matrices, so they are made before the move."""
+    origin = collection.get("aetheria.grid_origin")
+    if origin is None or len(origin) != 4 or (int(origin[2]), int(origin[3])) != (saved_shape[0], saved_shape[1]):
+        raise ValueError("Rasterise again: the grid no longer matches the saved layout")
+    centre = _ship_centre(context, path)
+    _regenerate_anchors(context, collection, root)
+    _recentre(root, hull_grid.cell_centre((float(origin[0]), float(origin[1])), centre[0], centre[1]))
+
+
 class AETHERIA_OT_package_ship(bpy.types.Operator):
     bl_idname = "aetheria.package_ship"
     bl_label = "Package Ship"
-    bl_description = ("Write the anchors and ship.glb from the bound collection, capture its LineArt, "
-                      "and run AetherDb's validator")
+    bl_description = ("Put the grid's centre of mass at the world origin, derive the missing map icon, shield and "
+                      "tractor, write the anchors and ship.glb from the bound collection, capture its LineArt, and "
+                      "run AetherDb's validator")
     bl_options = {"REGISTER"}
 
     def execute(self, context):
@@ -795,14 +900,17 @@ class AETHERIA_OT_package_ship(bpy.types.Operator):
             cultlib = _brokkr_cultlib(context)
             ship_id = collection["aetheria.id"]
             state = scene.aetheria_layout
+            saved_shape, saved_rows, _ = read_layout(path, cultlib)
             if state.ship_id == ship_id and state.ship_cc == path:
                 shape, rows = _encode_buffer(state)
-                saved_shape, saved_rows, _ = read_layout(path, cultlib)
                 if layout_revision(shape, rows) != layout_revision(
                         saved_shape, [row[:len(HARDPOINT_MEMBERS)] for row in saved_rows]):
                     raise ValueError("Save Layout first")
             if read(path, cultlib).ship.body[0] != ship_id:
                 raise ValueError("The bound collection ID does not match its .cc ship ID")
+            root = _ship_root(collection)
+            if root is not None:
+                _frame_ship(context, collection, root, path, saved_shape)
             anchors = _anchors(collection)
             _export_glb(context, collection, str(Path(path).with_name(MODEL_ASSET)))
             replace_visual(path, cultlib, ship_id, MODEL_ASSET, anchors)
@@ -904,6 +1012,15 @@ class AETHERIA_PT_ship(bpy.types.Panel):
     def _draw_package(context, layout):
         layout.separator()
         layout.operator("aetheria.package_ship", icon="PACKAGE")
+        obj = context.active_object
+        if obj is not None and "aetheria.role" in obj:
+            try:
+                generated = _child(_ship_collection(context), GENERATED)
+            except ValueError:
+                generated = None
+            if generated is not None and obj.name in generated.all_objects:
+                layout.prop(obj, '["aetheria.keep"]', text="Keep")
+                layout.label(text="Generated: Package rebuilds it unless Kept")
         report = context.scene.aetheria_package_report
         if report:
             box = layout.box()

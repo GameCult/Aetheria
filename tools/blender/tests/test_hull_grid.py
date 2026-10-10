@@ -166,5 +166,20 @@ class RasteriseTests(unittest.TestCase):
             self.assertEqual(cells, [True], line)
 
 
+class ConvexOutlineTests(unittest.TestCase):
+    def test_a_square_with_interior_and_duplicate_points_is_its_four_corners_counter_clockwise(self):
+        points = [(2, 2), (0, 0), (1, 1), (2, 0), (0, 2), (1, 0), (0, 0), (1.5, 0.5), (2, 2)]
+        self.assertEqual(hull_grid.convex_outline(points), [(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)])
+
+    def test_a_concave_l_keeps_only_its_hull(self):
+        points = [(0, 0), (4, 0), (4, 1), (1, 1), (1, 4), (0, 4)]
+        self.assertEqual(hull_grid.convex_outline(points), [(0.0, 0.0), (4.0, 0.0), (4.0, 1.0), (1.0, 4.0), (0.0, 4.0)])
+
+    def test_fewer_than_three_non_collinear_points_have_no_outline(self):
+        for points in ([], [(1, 1)], [(0, 0), (1, 1)], [(0, 0), (1, 1), (2, 2), (3, 3)], [(1, 1), (1, 1), (1, 1)]):
+            with self.assertRaises(ValueError):
+                hull_grid.convex_outline(points)
+
+
 if __name__ == "__main__":
     unittest.main()

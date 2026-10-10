@@ -115,8 +115,10 @@ def bind_cases(ship, path, mods):
     if result != {"FINISHED"} or not os.path.isabs(stored) or not same_file(stored, path):
         raise SystemExit("Bind case cross-drive-forced: the stored path is not the absolute .cc path")
 
-    # A value the ID-property store refuses leaves the collection exactly as it was, bound or not.
+    # A value the ID-property store refuses leaves the collection exactly as it was, bound or not. A bound collection is
+    # rebound to a different .cc, so a rollback that puts the keys back but not their values leaves the new path behind.
     import aetheria_ships
+    rebound = str(Path(path).with_name("rebound.cc"))
     for label, ship_id, pending in (("bad-id", object(), None), ("bad-pending", SHIP_ID, [object()])):
         for key in list(ship.keys()):
             if key.startswith("aetheria."):
@@ -127,7 +129,7 @@ def bind_cases(ship, path, mods):
             before = {key: ship[key] for key in ship.keys() if key.startswith("aetheria.")}
             before = {key: (value.to_list() if hasattr(value, "to_list") else value) for key, value in before.items()}
             try:
-                aetheria_ships._bind_collection(ship, path, ship_id, pending)
+                aetheria_ships._bind_collection(ship, rebound if bound else path, ship_id, pending)
             except Exception:
                 pass
             else:
@@ -218,9 +220,14 @@ def main():
         hardpoint("Thruster", 0, "thruster"), hardpoint("Radiator", 1, "radiator"),
         hardpoint("Energy", 2, "gun"), hardpoint("Reactor", 3, "reactor")])
 
+    objects_before = sorted(obj.name for obj in bpy.data.objects)
     result, report = package(aetheria_ships)
     if result != {"FINISHED"}:
         raise SystemExit("Pass 1: the validator refused the primitive ship")
+    # A collection with no Ship Root is packaged exactly as before: the frame step makes and moves nothing.
+    if sorted(obj.name for obj in bpy.data.objects) != objects_before or any(
+            child.get("aetheria.frame") for child in ship.children):
+        raise SystemExit("Pass 1: Package of a collection with no Ship Root created objects or a Generated collection")
 
     ship.objects.unlink(disc)
     hollow = tagged(ship, "Thruster Empty", None, "thruster-emitter", "thruster", (0, -1, 0))

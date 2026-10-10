@@ -452,6 +452,27 @@ public sealed class ShipModCatalogTests : IDisposable
         Assert.True(File.Exists(target), error);
     }
 
+    [Fact]
+    public void CentreCommandPrintsShapeCenterOfMass()
+    {
+        // An L: its centre of mass (1.2, 0.2) is not the bounds centre (1.5, 0.5).
+        var shape = new Shape(4, 2);
+        foreach (var (x, y) in new[] { (0, 0), (1, 0), (2, 0), (3, 0), (0, 1) }) shape.Cells[x, y] = true;
+        var target = Path.Combine(_directory.Path, "GameData", "Mods", "probe.l", "ship.cc");
+        Assert.Equal(0, Run("create", target, "probe.l", "Probe L").Code);
+        var (hull, ship) = ShipAuthoringStore.Load(target);
+        hull.Shape = shape;
+        using (var cache = ShipAuthoringStore.Open(target, writable: true))
+        {
+            ShipAuthoringStore.Write(cache, hull, ship);
+            cache.FlushAsync().Wait();
+        }
+        var (code, output, error) = Run("centre", target);
+        Assert.Equal(0, code);
+        Assert.Equal("1.2 0.2", output.Trim());
+        Assert.Equal("", error);
+    }
+
     private static (int Code, string Output, string Error) Run(params string[] args)
     {
         var (output, error) = (new StringWriter(), new StringWriter());

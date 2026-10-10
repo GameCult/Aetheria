@@ -1,13 +1,14 @@
 using GameCult.Caching;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 
 // Uses the existing database executable; mod authoring does not earn another binary target.
 public static class ShipAuthoringCommands
 {
-    private const string Usage = "ship-authoring create <ship.cc> <stable-id> <name> [--like <shipped hull name>] | inspect <ship.cc> | validate <ship.cc> | compose <shipped.cc> <derived.cc> <mods-dir>";
+    private const string Usage = "ship-authoring create <ship.cc> <stable-id> <name> [--like <shipped hull name>] | inspect <ship.cc> | centre <ship.cc> | validate <ship.cc> | compose <shipped.cc> <derived.cc> <mods-dir>";
 
     public static int Run(string[] args)
     {
@@ -29,6 +30,13 @@ public static class ShipAuthoringCommands
             {
                 var (hull, ship) = ShipAuthoringStore.Load(args[1]);
                 Console.WriteLine($"{ship.Id}: {hull.Name}, {hull.Hardpoints?.Count ?? 0} hardpoints, {ship.SchematicLines?.Count ?? 0} lines, {ship.SchematicLines?.Sum(line => line.Points?.Length / 3 ?? 0) ?? 0} points");
+                return 0;
+            }
+            if (args[0] == "centre" && args.Length == 2)
+            {
+                // The one centre of mass Blender places a ship by: Shape.CenterOfMass in cell coordinates, as "x y".
+                var centre = ShipAuthoringStore.Load(args[1]).Hull.Shape.CenterOfMass;
+                Console.WriteLine(string.Create(CultureInfo.InvariantCulture, $"{centre.x:R} {centre.y:R}"));
                 return 0;
             }
             if (args[0] == "validate" && args.Length == 2)
