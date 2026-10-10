@@ -183,6 +183,7 @@ public static class ShipModCatalog
         foreach (var anchor in ship.Anchors)
             if ((anchor.Role == "thruster-emitter" || anchor.Role == "radiator-mesh") && !modelNodes[anchor.ModelNodeId].HasMesh)
                 throw new InvalidOperationException($"{ship.Id}: {anchor.Role} anchor {anchor.Id} needs a mesh, but model node {anchor.ModelNodeId} has none.");
+        BindRig(ship, modelNodes);
         CultRecordRefs.Validate(hull);
         return new Package
         {
@@ -191,9 +192,43 @@ public static class ShipModCatalog
         };
     }
 
-    // GLB is the xenos asset boundary. Only its node extras, and whether each node names a mesh, are read here; geometry
-    // belongs to the runtime importer.
-    public static Dictionary<string, (uint Index, bool HasMesh)> ReadNodeIds(string path)
+    // The rig the record states must be the rig the model has: every joint is a node, each joint's Parent and each mount's
+    // Joint is the nearest joint above its node, ancestors without an id being walked through by ReadNodeIds, and a thruster or radiator
+    // mesh sits under no joint (follow-up gimballed-thrusters).
+    private static void BindRig(ShipAuthoring ship, Dictionary<string, (uint Index, bool HasMesh, int Parent)> nodes)
+    {
+        var joints = new HashSet<string>((ship.Joints ?? new List<ShipJoint>()).Select(joint => joint.Id), StringComparer.Ordinal);
+        var idAt = nodes.ToDictionary(node => (int)node.Value.Index, node => node.Key);
+        // Parent is already the nearest ancestor that carries an id, so the walk up is the chain of those.
+        string JointAbove(string nodeId)
+        {
+            // glTF forbids cycles; the bound keeps a malformed model from hanging the binder.
+            var parent = nodes[nodeId].Parent;
+            for (var steps = 0; parent >= 0 && steps <= nodes.Count; steps++, parent = nodes[idAt[parent]].Parent)
+                if (joints.Contains(idAt[parent])) return idAt[parent];
+            return null;
+        }
+
+        foreach (var joint in ship.Joints ?? new List<ShipJoint>())
+        {
+            if (!nodes.ContainsKey(joint.Id))
+                throw new InvalidOperationException($"{ship.Id}: model has no node with aetheria.id={joint.Id} for a joint.");
+            if (!string.Equals(JointAbove(joint.Id) ?? "", joint.Parent ?? "", StringComparison.Ordinal))
+                throw new InvalidOperationException($"{ship.Id}: joint {joint.Id} must name the nearest joint above its model node as its Parent.");
+        }
+        foreach (var anchor in ship.Anchors.Where(anchor => anchor.Role == "weapon-mount" || anchor.Role == "thruster-emitter" || anchor.Role == "radiator-mesh"))
+        {
+            var above = JointAbove(anchor.ModelNodeId);
+            if (string.Equals(above ?? "", anchor.Joint ?? "", StringComparison.Ordinal)) continue;
+            throw new InvalidOperationException(anchor.Role == "weapon-mount"
+                ? $"{ship.Id}: weapon mount {anchor.Id} must name the nearest joint above its model node as its Joint."
+                : $"{ship.Id}: {anchor.Role} anchor {anchor.Id} sits under a joint in the model (follow-up gimballed-thrusters).");
+        }
+    }
+
+    // GLB is the xenos asset boundary. Only its node extras, whether each node names a mesh, and its nearest identified ancestor's node index
+    // (-1 for none) are read here; geometry belongs to the runtime importer.
+    public static Dictionary<string, (uint Index, bool HasMesh, int Parent)> ReadNodeIds(string path)
     {
         using var stream = File.OpenRead(path);
         using var reader = new BinaryReader(stream);
@@ -204,17 +239,29 @@ public static class ShipModCatalog
         if (reader.ReadUInt32() != 0x4E4F534A || chunkLength > stream.Length - stream.Position)
             throw new InvalidOperationException($"{path}: missing GLB JSON chunk.");
         var json = JObject.Parse(Encoding.UTF8.GetString(reader.ReadBytes((int)chunkLength)));
-        var ids = new Dictionary<string, (uint Index, bool HasMesh)>(StringComparer.Ordinal);
-        var nodes = json["nodes"]?.OfType<JObject>() ?? Enumerable.Empty<JObject>();
+        var ids = new Dictionary<string, (uint Index, bool HasMesh, int Parent)>(StringComparer.Ordinal);
+        var nodes = (json["nodes"]?.OfType<JObject>() ?? Enumerable.Empty<JObject>()).ToArray();
+        var parents = Enumerable.Repeat(-1, nodes.Length).ToArray();
+        for (var parent = 0; parent < nodes.Length; parent++)
+            foreach (var child in nodes[parent]["children"]?.Select(token => (int)token) ?? Enumerable.Empty<int>())
+                if (child >= 0 && child < nodes.Length) parents[child] = parent;
         uint index = 0;
         foreach (var node in nodes)
         {
             var id = (string)node["extras"]?["aetheria.id"];
             if (string.IsNullOrEmpty(id)) { index++; continue; }
-            if (!ids.TryAdd(id, (index, node["mesh"] != null && node["mesh"].Type != JTokenType.Null)))
+            if (!ids.TryAdd(id, (index, node["mesh"] != null && node["mesh"].Type != JTokenType.Null, IdentifiedAncestor(parents, nodes, (int)index))))
                 throw new InvalidOperationException($"{path}: duplicate GLB node aetheria.id={id}.");
             index++;
         }
         return ids;
+    }
+
+    private static int IdentifiedAncestor(int[] parents, JObject[] nodes, int index)
+    {
+        var parent = parents[index];
+        for (var steps = 0; parent >= 0 && steps <= nodes.Length; steps++, parent = parents[parent])
+            if (!string.IsNullOrEmpty((string)nodes[parent]["extras"]?["aetheria.id"])) return parent;
+        return -1;
     }
 }

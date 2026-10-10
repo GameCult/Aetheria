@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using GameCult.Caching;
 using GameCult.Caching.MessagePack;
@@ -18,6 +19,9 @@ public static class AetheriaStores
     public static CultCache Open(string catalogPath, string runPath = null, string playerPath = null, bool catalogWritable = false,
         CultDocumentRegistry registry = null)
     {
+        // A read-only open of an absent catalog would hydrate an empty game; a shipped player missing its catalog stops here.
+        if (!catalogWritable && !File.Exists(catalogPath))
+            throw new FileNotFoundException($"Catalog {catalogPath} does not exist; a read-only open never invents one.", catalogPath);
         var cache = new CultCache(registry);
         try
         {
