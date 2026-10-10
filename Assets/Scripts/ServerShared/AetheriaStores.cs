@@ -6,7 +6,7 @@ using GameCult.Caching.MessagePack;
 // Aetheria's stores: one home store per type, composed here and nowhere else.
 public static class AetheriaStores
 {
-    public static readonly Type[] CatalogTypes = { typeof(ItemData), typeof(ShipAuthoring), typeof(Faction), typeof(FactionProductData), typeof(PersonalityAttribute), typeof(NameFile), typeof(InputLayout), typeof(Loadout), typeof(FieldKindData) };
+    public static readonly Type[] CatalogTypes = { typeof(ItemData), typeof(ShipAuthoring), typeof(Faction), typeof(FactionProductData), typeof(PersonalityAttribute), typeof(NameFile), typeof(InputLayout), typeof(Loadout), typeof(FieldKindData), typeof(VerseGrammar), typeof(VerseVerb) };
     public static readonly Type[] RunTypes = { typeof(OrbitData), typeof(BodyData), typeof(SavedZone), typeof(SavedGame), typeof(ProvenanceLedger) };
     public static readonly Type[] PlayerTypes = { typeof(PlayerSettings) };
 
@@ -33,6 +33,7 @@ public static class AetheriaStores
             // cut.md), stat modifiers, role usage (Cut 7). Fails loudly, naming the item.
             foreach (var data in cache.GetAll<EquippableItemData>()) CultRecordRefs.Validate(data);
             foreach (var data in cache.GetAll<ConsumableItemData>()) CultRecordRefs.Validate(data);
+            foreach (var verb in cache.GetAll<VerseVerb>()) VerseGrammarValidation.Validate(verb);
             return cache;
         }
         catch
