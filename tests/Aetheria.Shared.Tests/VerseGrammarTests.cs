@@ -41,7 +41,7 @@ public sealed class VerseGrammarTests : IDisposable
     {
         var path = PathOf(name);
         using var cache = AetheriaStores.Open(path, catalogWritable: true);
-        if (grammar != null) cache.Upsert(grammar);
+        if (kept != null) cache.Upsert(kept);
         foreach (var verb in verbs) cache.Upsert(verb);
         cache.FlushAsync().Wait();
         return path;
@@ -185,8 +185,8 @@ public sealed class VerseGrammarTests : IDisposable
     // PiratesFactionCommandTests does.
     private string RootWithoutGrammar(params VerseVerb[] preexisting) => RootWith(null, preexisting);
 
-    // The same, holding `grammar` (when given) and the preexisting verbs.
-    private string RootWith(VerseGrammar grammar, params VerseVerb[] preexisting)
+    // The same, holding `kept` (when given) and the preexisting verbs.
+    private string RootWith(VerseGrammar kept, params VerseVerb[] preexisting)
     {
         var gameData = Path.Combine(_root, "cmd", "GameData");
         Directory.CreateDirectory(gameData);
@@ -196,7 +196,7 @@ public sealed class VerseGrammarTests : IDisposable
         {
             foreach (var grammar in cache.GetAll<VerseGrammar>().ToArray()) Assert.True(cache.Remove(cache.RefOf(grammar).Key));
             foreach (var verb in cache.GetAll<VerseVerb>().ToArray()) Assert.True(cache.Remove(cache.RefOf(verb).Key));
-            if (grammar != null) cache.Upsert(grammar);
+            if (kept != null) cache.Upsert(kept);
             foreach (var verb in preexisting) cache.Upsert(verb);
             cache.FlushAsync().Wait();
         }
