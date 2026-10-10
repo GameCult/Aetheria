@@ -209,7 +209,8 @@ public sealed class AetheriaStoresTests : IDisposable
     {
         var missing = Path.Combine(_root, "absent", "Aetheria.cc");
 
-        var error = Assert.Throws<InvalidOperationException>(() => AetheriaStores.Open(missing));
+        // FileNotFoundException, not the catalog-global check: that one also throws on a missing file whenever a global is registered.
+        var error = Assert.Throws<FileNotFoundException>(() => AetheriaStores.Open(missing));
         Assert.Contains(missing, error.Message);
         Assert.False(File.Exists(missing));
         Assert.False(Directory.Exists(Path.GetDirectoryName(missing)));
