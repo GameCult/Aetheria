@@ -36,13 +36,11 @@ public sealed class VerseGrammarTests : IDisposable
         Roles = new[] { new VerseRole { Name = "site", Binds = VerseReferentKind.Place }, new VerseRole { Name = "load", Binds = VerseReferentKind.Cargo } },
     };
 
-    // A catalog authored through AetheriaStores.Open; TestCatalogGlobal is the record the shared registry in this test host
-    // demands (see AetheriaStoresTests).
+    // A catalog authored through AetheriaStores.Open; a null grammar leaves the catalog without its global.
     private string Author(string name, VerseGrammar grammar, params VerseVerb[] verbs)
     {
         var path = PathOf(name);
         using var cache = AetheriaStores.Open(path, catalogWritable: true);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
         if (grammar != null) cache.Upsert(grammar);
         foreach (var verb in verbs) cache.Upsert(verb);
         cache.FlushAsync().Wait();
@@ -143,7 +141,7 @@ public sealed class VerseGrammarTests : IDisposable
 
     // A scratch root holding a copy of the shipped catalog with its verse grammar removed: the catalog as it was before the
     // command ran. The catalog is stripped and read through a registry scoped to the shipped assembly, as
-    // PiratesFactionCommandTests does, so the test assembly's TestCatalogGlobal does not poison it.
+    // PiratesFactionCommandTests does.
     private string RootWithoutGrammar(params VerseVerb[] preexisting)
     {
         var gameData = Path.Combine(_root, "cmd", "GameData");

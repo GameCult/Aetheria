@@ -33,7 +33,7 @@ public sealed class StatResolverTests : IDisposable
     private CultCache OpenCatalog(CapacitorData capacitor, StatModifierData modifier = null)
     {
         var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         var hullShape = new Shape(3, 3);
         foreach (var cell in hullShape.AllCoordinates) hullShape[cell] = true;
         cache.Upsert(new HullData
@@ -267,7 +267,7 @@ public sealed class StatResolverTests : IDisposable
             Type = StatModifierType.Constant
         };
         using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         var hullShape = new Shape(3, 3);
         foreach (var cell in hullShape.AllCoordinates) hullShape[cell] = true;
         cache.Upsert(new HullData

@@ -25,7 +25,7 @@ public sealed class LoadoutTests : IDisposable
     {
         Directory.CreateDirectory(_root);
         using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         var maker = cache.Upsert(new Faction { Name = "Maker", ShortName = "MKR" });
 
         var hullShape = new Shape(3, 3);

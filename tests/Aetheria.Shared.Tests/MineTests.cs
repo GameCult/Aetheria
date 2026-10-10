@@ -79,7 +79,7 @@ public sealed class MineTests : IDisposable
         };
         var cache = AetheriaStores.Open(Path.Combine(_root, Guid.NewGuid().ToString("N") + ".cc"), catalogWritable: true);
         _caches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         HullData Hull(string name, Shape shape) => new HullData
         {
             Name = name, HullType = HullType.Ship, Shape = shape, Durability = 1000000, Mass = 1000, Armor = 0,

@@ -41,7 +41,7 @@ public sealed class PowerBusTests : IDisposable
     private CultCache OpenCatalog()
     {
         var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         var hullShape = new Shape(5, 5);
         foreach (var cell in hullShape.AllCoordinates) hullShape[cell] = true;
         // Mass must be nonzero: HullData.SpecificHeat defaults to 1 but Mass defaults to 0, and Entity.MapEntity

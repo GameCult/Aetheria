@@ -23,7 +23,7 @@ public sealed class ItemTitleTests : IDisposable
     {
         Directory.CreateDirectory(_root);
         _cache = AetheriaStores.Open(Path.Combine(_root, "Aetheria.cc"), catalogWritable: true);
-        _cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        _cache.Upsert(new VerseGrammar { Revision = 1 });
         _array = new GearData { Name = "Array", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 10, Durability = 5 };
         _cache.Upsert(_array);
         _cache.Upsert(new SimpleCommodityData { Name = "Ore", Shape = new Shape(), Price = 7, MaxStack = 100 });

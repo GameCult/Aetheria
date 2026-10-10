@@ -57,7 +57,7 @@ public sealed class FireControlTests : IDisposable
 
         using (var buildCache = AetheriaStores.Open(Catalog, catalogWritable: true))
         {
-            buildCache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+            buildCache.Upsert(new VerseGrammar { Revision = 1 });
             buildCache.Upsert(hullData);
             buildCache.Upsert(new GearData
             {

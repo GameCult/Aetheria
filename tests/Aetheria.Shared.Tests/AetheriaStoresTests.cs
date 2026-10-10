@@ -8,10 +8,6 @@ using GameCult.Caching.MessagePack;
 using MessagePack;
 using Xunit;
 
-// A [CultGlobal] routed to the catalog (PersonalityAttribute is a catalog home). The game has none yet, so this is
-// the only way to prove a read-only catalog refuses to open without one.
-[CultDocument("aetheria.tests.catalogglobal", "1"), CultGlobal, MessagePackObject]
-public class TestCatalogGlobal : PersonalityAttribute { }
 
 // Each test gets its own temp directory holding a catalog built through Open(catalogWritable: true).
 public sealed class AetheriaStoresTests : IDisposable
@@ -25,7 +21,7 @@ public sealed class AetheriaStoresTests : IDisposable
     {
         Directory.CreateDirectory(_root);
         using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         var faction = new Faction { Name = "Adrasteia", ShortName = "ADR", PrimaryColor = new float3(1, .5f, .25f) };
         faction.Allegiance[cache.Upsert(faction)] = 1;
         cache.Upsert(faction);
@@ -118,7 +114,7 @@ public sealed class AetheriaStoresTests : IDisposable
         var empty = Path.Combine(_root, "empty.cc");
         using (AetheriaStores.Open(empty, catalogWritable: true)) { }
         var error = Assert.Throws<InvalidOperationException>(() => AetheriaStores.Open(empty));
-        Assert.Contains("aetheria.tests.catalogglobal", error.Message);
+        Assert.Contains("aetheria.verse_grammar", error.Message);
         using (AetheriaStores.Open(Catalog)) { }
     }
 
@@ -128,13 +124,13 @@ public sealed class AetheriaStoresTests : IDisposable
     {
         using (var cache = AetheriaStores.Open(Catalog, catalogWritable: true))
         {
-            var global = cache.GetGlobal<TestCatalogGlobal>();
+            var global = cache.GetGlobal<VerseGrammar>();
             var key = cache.RefOf(global).Key;
             Assert.True(cache.Commit(batch => batch.Remove(key)));
         }
 
         var error = Assert.Throws<InvalidOperationException>(() => AetheriaStores.Open(Catalog, catalogWritable: true));
-        Assert.Contains("aetheria.tests.catalogglobal", error.Message);
+        Assert.Contains("aetheria.verse_grammar", error.Message);
     }
 
     // The game opens the catalog read-only with its run and player stores, in the editor as in a build: a populated
@@ -143,10 +139,10 @@ public sealed class AetheriaStoresTests : IDisposable
     public void GameShapedOpenMissingGlobalIsLoud()
     {
         using (var cache = AetheriaStores.Open(Catalog, catalogWritable: true))
-            Assert.True(cache.Commit(batch => batch.Remove(cache.RefOf(cache.GetGlobal<TestCatalogGlobal>()).Key)));
+            Assert.True(cache.Commit(batch => batch.Remove(cache.RefOf(cache.GetGlobal<VerseGrammar>()).Key)));
 
         var error = Assert.Throws<InvalidOperationException>(() => AetheriaStores.Open(Catalog, Run, Player));
-        Assert.Contains("aetheria.tests.catalogglobal", error.Message);
+        Assert.Contains("aetheria.verse_grammar", error.Message);
     }
 
     // --- F7 (docs/stats-and-power-cut.md, Soul pass 2026-09-19): "there are at least four [write bypasses]."

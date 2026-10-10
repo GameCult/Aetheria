@@ -97,7 +97,7 @@ public sealed class FireControlCut5Tests : IDisposable
 
         var cache = AetheriaStores.Open(Catalog + Guid.NewGuid().ToString("N"), catalogWritable: true);
         _openCaches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(hullData);
         cache.Upsert(new GearData
         {
@@ -284,7 +284,7 @@ public sealed class FireControlCut5Tests : IDisposable
     {
         var cache = AetheriaStores.Open(Catalog + Guid.NewGuid().ToString("N"), catalogWritable: true);
         _openCaches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(new HullData
         {
             Name = "Hull", HullType = HullType.Ship, Shape = SolidShape(5, 5), Durability = 1000, Mass = 1000,
@@ -393,7 +393,7 @@ public sealed class FireControlCut5Tests : IDisposable
     {
         var cache = AetheriaStores.Open(Catalog + Guid.NewGuid().ToString("N"), catalogWritable: true);
         _openCaches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(new HullData
         {
             Name = "Hull", HullType = HullType.Ship, Shape = SolidShape(3, 3), Durability = 1000, Mass = 1000,
@@ -534,7 +534,7 @@ public sealed class FireControlCut5Tests : IDisposable
     {
         var cache = AetheriaStores.Open(Catalog + Guid.NewGuid().ToString("N"), catalogWritable: true);
         _openCaches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(new HullData
         {
             Name = "Hull", HullType = HullType.Ship, Shape = SolidShape(6, 4), Durability = 1000, Mass = 1000

@@ -83,7 +83,7 @@ public sealed class FireControlCut6cTests : IDisposable
 
         var cache = AetheriaStores.Open(Catalog + Guid.NewGuid().ToString("N"), catalogWritable: true);
         _openCaches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(hullData);
         cache.Upsert(new GearData
         {
@@ -198,7 +198,7 @@ public sealed class FireControlCut6cTests : IDisposable
         CultRecordRef<Faction> maker, targetingMaker;
         using (var seedCache = AetheriaStores.Open(Catalog, catalogWritable: true))
         {
-            seedCache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+            seedCache.Upsert(new VerseGrammar { Revision = 1 });
             maker = seedCache.Upsert(new Faction { Name = "Maker", ShortName = "MKR" });
             targetingMaker = seedCache.Upsert(new Faction { Name = "Targeting Maker", ShortName = "TGM" });
 

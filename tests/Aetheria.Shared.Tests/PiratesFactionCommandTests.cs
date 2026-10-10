@@ -22,9 +22,8 @@ public sealed class PiratesFactionCommandTests : IDisposable
     {
         Directory.CreateDirectory(Path.Combine(_root, "GameData"));
         File.Copy(Path.Combine(AetherDb.FindRoot(), "GameData", "Aetheria.cc"), CatalogPath);
-        // AetherDb.Open composes the process-wide registry, which in this test host also sees this assembly's TestCatalogGlobal
-        // (see FireControlCut7Tests). So the copy is stripped through a registry scoped to the shipped assembly and then given
-        // the record that registry's shared sibling demands, as AetheriaStoresTests does.
+        // AetherDb.Open composes the process-wide registry. So the copy is stripped through a registry scoped to the shipped
+        // assembly (see FireControlCut7Tests) and then given the grammar global every populated catalog must hold.
         var registry = CultDocumentRegistry.ForTypes(typeof(ItemData).Assembly.GetTypes()
             .Where(t => t is { IsAbstract: false, IsInterface: false })
             .Where(t => t.GetCustomAttribute<CultDocumentAttribute>() != null));
@@ -41,7 +40,7 @@ public sealed class PiratesFactionCommandTests : IDisposable
         using (var cache = new CultCache())
         {
             cache.AddBackingStore(new SingleFileMessagePackBackingStore(CatalogPath), AetheriaStores.CatalogTypes);
-            cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+            cache.Upsert(new VerseGrammar { Revision = 1 });
             cache.FlushAsync().Wait();
         }
     }

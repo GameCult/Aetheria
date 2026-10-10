@@ -21,8 +21,8 @@ public sealed class ShipModCatalogTests : IDisposable
     {
         Directory.CreateDirectory(Mods);
         using var cache = AetheriaStores.Open(Shipped, catalogWritable: true);
-        // The test assembly registers TestCatalogGlobal (AetheriaStoresTests), so any populated catalog must hold one.
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        // A populated catalog must hold the VerseGrammar global.
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(new HullData { Name = "Wasp", Shape = ShipAuthoringTests.Fixture().Hull.Shape });
         cache.Upsert(new GearData { Name = "Widget" });
         cache.FlushAsync().Wait();

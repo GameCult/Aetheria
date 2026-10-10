@@ -88,7 +88,7 @@ public sealed class RolesBackfillCommandTests : IDisposable
         using (var plain = new CultCache())
         {
             plain.AddBackingStore(new SingleFileMessagePackBackingStore(CatalogPath), AetheriaStores.CatalogTypes);
-            plain.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+            plain.Upsert(new VerseGrammar { Revision = 1 });
             plain.FlushAsync().Wait();
         }
     }

@@ -82,7 +82,7 @@ public sealed class FireControlCut4Tests : IDisposable
     {
         var cache = AetheriaStores.Open(Catalog + Guid.NewGuid().ToString("N"), catalogWritable: true);
         _openCaches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(MakeHullData());
         cache.Upsert(new GearData
         {
@@ -205,7 +205,7 @@ public sealed class FireControlCut4Tests : IDisposable
     {
         var cache = AetheriaStores.Open(Catalog + Guid.NewGuid().ToString("N"), catalogWritable: true);
         _openCaches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(MakeHullData());
         cache.Upsert(new GearData
         {
@@ -258,7 +258,7 @@ public sealed class FireControlCut4Tests : IDisposable
     {
         var cache = AetheriaStores.Open(Catalog + Guid.NewGuid().ToString("N"), catalogWritable: true);
         _openCaches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(MakeHullData(armor));
         cache.FlushAsync().Wait();
 
