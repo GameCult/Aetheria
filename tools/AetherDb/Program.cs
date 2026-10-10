@@ -43,11 +43,12 @@ public static class Program
             case "pd-gear": return PdGearCatalog(args.Contains("apply"));
             case "mine-launcher": return MineLauncherCatalog(args.Contains("apply"));
             case "roles-backfill": return RolesBackfill(args.Contains("apply"));
+            case "consumables-first-set": return ConsumablesFirstSetCatalog(args.Contains("apply"));
             case "pirates-faction":
                 Console.OutputEncoding = new System.Text.UTF8Encoding(false);
                 return PiratesFaction(args.Contains("apply"));
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], roles-backfill [apply], pd-gear [apply], pirates-faction [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], pirates-faction [apply]");
                 return 1;
         }
     }
@@ -1942,6 +1943,140 @@ public static class Program
         });
 
         Console.WriteLine($"\nLanded the Pirates faction and {products.Length} products in Aetheria.cc");
+        return 0;
+    }
+
+    // aetheria-release cut consumables-first-set (rulings consumables-scarce, overdrive-keep-steering,
+    // vapour-cloud-obscuration): the first two consumables, scarce and strong, each with the roles its effect stats
+    // read and two products from distinct makers. Specific heat and conductivity come from the Targeting Computer,
+    // the catalog's 1x1 tool; mass, price, shape and every effect are authored here. The vent's cloud encloses the
+    // largest hull (the Djinni) at its minimum radius: half the hull's diagonal in zone units, times 1.5. Dry run
+    // unless passed "apply".
+    private static int ConsumablesFirstSetCatalog(bool apply)
+    {
+        var db = AetherDb.Open(catalogWritable: apply);
+        var designNames = new[] { "Thruster Overdrive", "Coolant Vent" };
+        var already = designNames.Count(name => db.Cache.GetAll<ConsumableItemData>().Any(c => c.Name == name));
+        if (already == designNames.Length)
+        {
+            Console.WriteLine("The first consumables are already authored; nothing to do.");
+            return 0;
+        }
+        if (already != 0) throw new InvalidOperationException("The first consumables are partly authored; the catalog needs a human.");
+
+        var template = db.Cache.GetAll<GearData>().Single(g => g.Name == "Targeting Computer");
+        var djinni = db.Cache.GetAll<HullData>().Single(h => h.Name == "Djinni");
+        var cellSize = AuthoredSettings.Load(AetherDb.FindRoot()).Read<GameplaySettings>("GameplaySettings").SchematicCellSize;
+        var halfDiagonal = .5f * cellSize * MathF.Sqrt(djinni.Shape.Width * djinni.Shape.Width + djinni.Shape.Height * djinni.Shape.Height);
+        var radiusMin = 1.5f * halfDiagonal;
+
+        Faction Maker(string shortName) =>
+            db.Cache.GetAll<Faction>().FirstOrDefault(f => f.ShortName == shortName) ?? throw new InvalidOperationException($"No faction with short name \"{shortName}\".");
+
+        // Min applies at quality 0 of the role and Max at quality 1, so a rising benefit is authored Min < Max and a
+        // falling cost Min > Max, in the order the design tables give.
+        PerformanceStat Rolled(float min, float max, string role) => new PerformanceStat
+        {
+            Min = min,
+            Max = max,
+            Terms = new List<StatTerm> { new StatTerm { Source = StatSource.Quality, Exponent = 1f, Role = role } },
+        };
+        StatModifierData Multiply(string behavior, string stat, float min, float max, string role) => new StatModifierData
+        {
+            Stat = new StatReference { Target = behavior, Stat = stat },
+            Modifier = Rolled(min, max, role),
+            Type = StatModifierType.Multiplier,
+        };
+        ConsumableItemData Design(string name, string description, float mass, int price, float duration, string[] roles, params BehaviorData[] behaviors) => new ConsumableItemData
+        {
+            Name = name,
+            Description = description,
+            Mass = mass,
+            Price = price,
+            Duration = duration,
+            Stackable = false,
+            Shape = new Shape(),
+            SpecificHeat = template.SpecificHeat,
+            Conductivity = template.Conductivity,
+            Roles = roles.Select(r => new ItemRole { Name = r }).ToList(),
+            Behaviors = behaviors.ToList(),
+        };
+
+        var overdrive = Design(designNames[0], "Opens every drive wide and holds it there. The ship is thrown forward on a bright, hot plume while the pilot keeps the wheel.",
+            10f, 18000, 6f, new[] { "propellant", "regulator" },
+            new ThrottleLockData(),
+            Multiply(nameof(ThrusterData), nameof(ThrusterData.Thrust), 3f, 4.5f, "propellant"),
+            Multiply(nameof(VelocityLimitData), nameof(VelocityLimitData.TopSpeed), 2f, 3f, "propellant"),
+            Multiply(nameof(ThrusterData), nameof(ThrusterData.Heat), 5f, 3f, "regulator"),
+            Multiply(nameof(ThrusterData), nameof(ThrusterData.Visibility), 5f, 3f, "regulator"));
+        var vent = Design(designNames[1], "Dumps the coolant loop into space as a spreading bank of vapour. Sensors lose whoever is inside it, and the radiators pay for the loss.",
+            15f, 12000, 15f, new[] { "nozzle", "coolant" },
+            new VapourDumpData { Radius = Rolled(radiusMin, 1.5f * radiusMin, "nozzle"), Opacity = Rolled(.90f, .98f, "nozzle"), Lifetime = Rolled(14f, 20f, "coolant") },
+            Multiply(nameof(RadiatorData), nameof(RadiatorData.Emissivity), .3f, .5f, "coolant"));
+
+        var products = new (ConsumableItemData Design, string Name, string Maker, string Description)[]
+        {
+            (overdrive, "send it", "DME", "no brakes/ no regrets/ one good burn"),
+            (overdrive, "Updraft", "Finch", "Light as a feather and, for six seconds, about as fast as one in a gale."),
+            (vent, "Smoke Machine", "NiteLife", "Fills the room. Nobody can say who came in with you."),
+            (vent, "Morning Fog", "Lightsail", "Rolls in thick, lifts slowly, and leaves the bills with the other fellow."),
+        };
+        foreach (var product in products) Maker(product.Maker);
+
+        Console.WriteLine($"Vent radius Min {radiusMin:0.##} (Djinni {djinni.Shape.Width}x{djinni.Shape.Height} cells at {cellSize:0.##} units: half diagonal {halfDiagonal:0.##}, x1.5), Max {1.5f * radiusMin:0.##}");
+        Console.WriteLine("New designs:");
+        foreach (var design in new[] { overdrive, vent })
+        {
+            Console.WriteLine($"  {design.Name,-20} {design.Shape.Width}x{design.Shape.Height}  mass {design.Mass:0.##}  price {design.Price}  stackable {design.Stackable}  duration {design.Duration:0.##}  roles [{string.Join(", ", design.Roles.Select(r => r.Name))}]");
+            foreach (var behavior in design.Behaviors)
+            {
+                switch (behavior)
+                {
+                    case StatModifierData m:
+                        Console.WriteLine($"      {m.Type} {m.Stat.Target}.{m.Stat.Stat} {m.Modifier.Min:0.##}-{m.Modifier.Max:0.##} ({m.Modifier.Terms.Single().Role})");
+                        break;
+                    case VapourDumpData d:
+                        Console.WriteLine($"      VapourDump radius {d.Radius.Min:0.##}-{d.Radius.Max:0.##} ({d.Radius.Terms.Single().Role}), opacity {d.Opacity.Min:0.##}-{d.Opacity.Max:0.##} ({d.Opacity.Terms.Single().Role}), lifetime {d.Lifetime.Min:0.##}-{d.Lifetime.Max:0.##} ({d.Lifetime.Terms.Single().Role})");
+                        break;
+                    default:
+                        Console.WriteLine($"      {behavior.GetType().Name}");
+                        break;
+                }
+            }
+            Console.WriteLine($"      \"{design.Description}\"");
+        }
+        Console.WriteLine("\nNew products:");
+        foreach (var (design, name, maker, description) in products)
+        {
+            var (mean, dev) = MakerProfiles[maker];
+            Console.WriteLine($"  {design.Name} -> \"{name}\" by {maker}, every role mean {mean:0.##} dev {dev:0.##}: {description}");
+        }
+
+        if (!apply)
+        {
+            Console.WriteLine($"\nDry run. Pass \"apply\" to author 2 designs and {products.Length} products.");
+            return 0;
+        }
+
+        foreach (var design in new[] { overdrive, vent }) CultRecordRefs.Validate(design);
+        db.Cache.Commit(batch =>
+        {
+            var keys = new Dictionary<ConsumableItemData, CultRecordKey>();
+            foreach (var design in new[] { overdrive, vent }) keys[design] = batch.Upsert(typeof(ConsumableItemData), design);
+            foreach (var (design, name, maker, description) in products)
+            {
+                var (mean, dev) = MakerProfiles[maker];
+                batch.Upsert(typeof(FactionProductData), new FactionProductData
+                {
+                    Name = name,
+                    Description = description,
+                    Design = new CultRecordRef<CraftedItemData>(keys[design]),
+                    Manufacturer = db.Cache.RefOf(Maker(maker)),
+                    Roles = design.Roles.Select(r => new ProductRole { Role = r.Name, Mean = mean, StandardDeviation = dev }).ToList(),
+                });
+            }
+        });
+        Console.WriteLine($"\nAuthored 2 designs and {products.Length} products in Aetheria.cc");
         return 0;
     }
 }
