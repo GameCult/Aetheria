@@ -39,7 +39,6 @@ public sealed class ThrustAllocator
 
         var vars = n + ErrorVariables;
         var rows = FixedRows + n;
-        Array.Clear(_a, 0, rows * vars);
 
         // Rows 0 and 1 are the translation axes (starboard, forward), row 2 the yaw.
         for (var axis = 0; axis < 3; axis++)
@@ -60,10 +59,11 @@ public sealed class ThrustAllocator
             var row = axis * vars;
             for (var i = 0; i < n; i++) _a[row + i] = Component(columns[i], axis) * scale;
             _b[axis] = demand * scale;
-            if (axis < 2 && extreme > 0)
+            if (axis < 2)
             {
-                _a[row + n + 2 * axis] = -weight;
-                _a[row + n + 2 * axis + 1] = weight;
+                var errorWeight = extreme > 0 ? weight : 0f;
+                _a[row + n + 2 * axis] = -errorWeight;
+                _a[row + n + 2 * axis + 1] = errorWeight;
             }
         }
 
