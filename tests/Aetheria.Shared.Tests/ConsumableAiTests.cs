@@ -116,8 +116,8 @@ public sealed class ConsumableAiTests : IDisposable
 
         var items = new ItemManager(cache, new ProvenanceLedger(), settings, _ => { });
         var maker = cache.RefOf(cache.GetByName<Faction>("Maker"));
-        EquippableItem Make(string name) =>
-            (EquippableItem) items.CreateInstance(items.CreateLot(cache.GetByName<GearData>(name), maker, .5f));
+        EquippableItem Make<T>(string name) where T : CraftedItemData =>
+            (EquippableItem) items.CreateInstance(items.CreateLot(cache.GetByName<T>(name), maker, .5f));
         var zone = new Zone(items, new PlanetSettings { }, new ZonePack { Radius = 5000 }, new GalaxyZone { Name = "Ai", Owner = null }, null);
         var hull = cache.GetByName<HullData>("Hull");
         Ship NewShip() => new Ship(items, zone, (EquippableItem) items.CreateInstance(items.CreateLot(hull, maker, .5f)), new EntitySettings());
@@ -130,9 +130,9 @@ public sealed class ConsumableAiTests : IDisposable
         };
 
         scene.Agent = NewShip();
-        Assert.True(scene.Agent.TryEquip(Make("ShortGun"), new int2(0, 0)));
-        Assert.True(scene.Agent.TryEquip(Make("LongGun"), new int2(1, 0)));
-        Assert.True(scene.Agent.TryEquip(Make("Hold"), new int2(3, 3)));
+        Assert.True(scene.Agent.TryEquip(Make<GearData>("ShortGun"), new int2(0, 0)));
+        Assert.True(scene.Agent.TryEquip(Make<GearData>("LongGun"), new int2(1, 0)));
+        Assert.True(scene.Agent.TryEquip(Make<CargoBayData>("Hold"), new int2(3, 3)));
         scene.Hold = scene.Agent.CargoBays.Single();
 
         scene.NewLocker = data =>
