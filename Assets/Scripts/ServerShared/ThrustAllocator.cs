@@ -23,6 +23,9 @@ public sealed class ThrustAllocator
     const float ErrorCostWeight = .3f;
     const float ErrorCostOffset = 10f;
     const float Ridge = .1f;
+    // The solver stops within its tolerance of the optimum, so a throttle that should be zero can come back as 1e-34 after
+    // a warm start. Below this a throttle is that residue, not an ask: nothing asked is nothing fired.
+    const float ThrottleResidue = 1e-9f;
     const float ErrorMax = 2f;
     const double KktRelativeTolerance = 1e-12;
     const int ErrorVariables = 4;
@@ -77,7 +80,7 @@ public sealed class ThrustAllocator
 
         var status = BoundedLeastSquares.Solve(rows, vars, _a, _b, _lo, _hi, _x, _workspace, out _, KktRelativeTolerance);
         if (status == BoundedLeastSquaresStatus.InvalidInput) return;
-        for (var i = 0; i < n; i++) throttle[i] = _x[i];
+        for (var i = 0; i < n; i++) throttle[i] = _x[i] > ThrottleResidue ? _x[i] : 0;
     }
 
     static float Component(float3 c, int axis) => axis == 0 ? c.x : axis == 1 ? c.y : c.z;
