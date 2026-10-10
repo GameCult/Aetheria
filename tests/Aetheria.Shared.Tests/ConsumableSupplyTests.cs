@@ -6,8 +6,10 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using CultMath;
 using GameCult.Caching;
+using GameCult.Caching.MessagePack;
 using Xunit;
 using Random = CultMath.Random;
 
@@ -19,6 +21,10 @@ using Random = CultMath.Random;
 public sealed class ConsumableSupplyTests : IDisposable
 {
     private const int Seeds = 400;
+
+    // Ships are cheap to generate and the ruling's one in ten is a narrow target: at 3000 seeds the 3-sigma band is
+    // +/- 49 around 300, which chances of .12, .15 and .05 all fall outside.
+    private const int ShipSeeds = 3000;
 
     // The ruling's numbers, spelled out: a quarter of stations stock one product of 1-2 units, one ship in ten
     // carries one unit. The tests read these, never LoadoutGenerator's constants, so a changed constant fails them.
@@ -39,6 +45,12 @@ public sealed class ConsumableSupplyTests : IDisposable
 
     private enum Offer { None, Reachable, Stranger }
 
+    // Pinned is the original one-hull-each catalog with a roomy hold, which AvailabilityGatesTheDraw's pinned values
+    // were measured on. Tight adds a second ship hull, a second station hull and a 2x2 gear whose sixteen picks fill
+    // a 12-cell hold, as the shipped holds do. Holdless gives every hold no free cell. DockRefuses is Tight with a
+    // docking bay that has no free cell, so a station's first bay refuses and only a later bay can take a consumable.
+    private enum Holds { Pinned, Tight, Holdless, DockRefuses }
+
     // One catalog: a ship hull, a station hull and the station's required fittings, all made by Maker; and, when
     // offered, one consumable design with a product from each of Maker, its ally and (unless the offer is Stranger
     // only) a stranger Maker's allegiance does not name.
@@ -58,7 +70,7 @@ public sealed class ConsumableSupplyTests : IDisposable
         return shape;
     }
 
-    private Rig Build(Offer offer, bool holdless = false)
+    private Rig Build(Offer offer, Holds holds = Holds.Pinned)
     {
         var root = Path.Combine(_root, "rig" + _rigs++);
         Directory.CreateDirectory(root);
@@ -73,13 +85,13 @@ public sealed class ConsumableSupplyTests : IDisposable
 
             var skiff = seed.Upsert(new HullData { Name = "Skiff", HullType = HullType.Ship, Shape = Solid(4, 3), Price = 100 });
             var platform = seed.Upsert(new HullData { Name = "Platform", HullType = HullType.Station, Shape = Solid(5, 5), Price = 100 });
-            // A hold with no cell cannot take a consumable. The others are large: a station stocks up to sixteen
-            // picks of gear (drawn with replacement) before its consumable, and a full hold would refuse it.
+            // A hold with no cell cannot take a consumable.
             var crate = seed.Upsert(new CargoBayData
             {
-                Name = "Crate", Shape = new Shape(), Price = 5, InteriorShape = holdless ? new Shape(1, 1) : Solid(16, 12)
+                Name = "Crate", Shape = new Shape(), Price = 5,
+                InteriorShape = holds == Holds.Holdless ? new Shape(1, 1) : holds == Holds.Pinned ? Solid(16, 12) : Solid(4, 3)
             });
-            var dock = seed.Upsert(new DockingBayData { Name = "Dock", Shape = new Shape(), Price = 5, InteriorShape = Solid(1, 1) });
+            var dock = seed.Upsert(new DockingBayData { Name = "Dock", Shape = new Shape(), Price = 5, InteriorShape = holds == Holds.DockRefuses ? new Shape(1, 1) : Solid(1, 1) });
             var capacitor = seed.Upsert(new GearData { Name = "Cap", Hardpoint = HardpointType.Tool, Shape = new Shape(), Price = 1, Behaviors = { new CapacitorData() } });
             var heater = seed.Upsert(new GearData
             {
@@ -89,13 +101,21 @@ public sealed class ConsumableSupplyTests : IDisposable
             // Hardpoint gear no hull in this catalog has a hardpoint for: it has no home.
             var orphan = seed.Upsert(new GearData { Name = "Orphan", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 1 });
 
+            var sold = new List<(string, CultRecordKey)>();
+            if (holds != Holds.Pinned)
+            {
+                sold.Add(("Cutter", seed.Upsert(new HullData { Name = "Cutter", HullType = HullType.Ship, Shape = Solid(3, 3), Price = 100 }).Key));
+                sold.Add(("Outpost", seed.Upsert(new HullData { Name = "Outpost", HullType = HullType.Station, Shape = Solid(4, 4), Price = 100 }).Key));
+                sold.Add(("Plate", seed.Upsert(new GearData { Name = "Plate", Hardpoint = HardpointType.Tool, Shape = Solid(2, 2), Price = 1 }).Key));
+            }
+
             void Sell(string name, CultRecordKey design, CultRecordRef<Faction> by) =>
                 seed.Upsert(new FactionProductData { Name = name, Design = new CultRecordRef<CraftedItemData>(design), Manufacturer = by });
             foreach (var (name, design) in new[]
                      {
                          ("Skiff", skiff.Key), ("Platform", platform.Key), ("Crate", crate.Key), ("Dock", dock.Key),
                          ("Cap", capacitor.Key), ("Heater", heater.Key), ("Orphan", orphan.Key)
-                     })
+                     }.Concat(sold))
                 Sell(name + " by Maker", design, maker);
 
             if (offer != Offer.None)
@@ -144,19 +164,27 @@ public sealed class ConsumableSupplyTests : IDisposable
     // Distinct, fixed seeds: the same 400 generators on every run.
     private static uint SeedOf(int i) => (uint) (i * 7919 + 13);
 
-    private static void AssertWithinThreeSigma(int observed, float chance, string what)
+    private static void AssertWithinThreeSigma(int observed, int of, float chance, string what)
     {
-        var expected = Seeds * chance;
-        var sigma = MathF.Sqrt(Seeds * chance * (1 - chance));
+        var expected = of * chance;
+        var sigma = MathF.Sqrt(of * chance * (1 - chance));
         Assert.True(MathF.Abs(observed - expected) <= 3 * sigma,
-            $"{what}: {observed} of {Seeds}, expected {expected} +/- {3 * sigma}");
+            $"{what}: {observed} of {of}, expected {expected} +/- {3 * sigma}");
+    }
+
+    // Hits and trials per hull name, so a chance that scales with hull size is measured on each hull it scales.
+    private static void AssertEachHullWithinThreeSigma(Dictionary<string, (int hits, int of)> byHull, float chance, string what)
+    {
+        Assert.Equal(2, byHull.Count); // both hulls are drawn
+        foreach (var (hull, (hits, of)) in byHull) AssertWithinThreeSigma(hits, of, chance, $"{what} on {hull}");
     }
 
     [Fact]
     public void AFewStationsStockConsumables()
     {
-        var rig = Build(Offer.Reachable);
+        var rig = Build(Offer.Reachable, Holds.Tight);
         var stocked = 0;
+        var byHull = new Dictionary<string, (int hits, int of)>();
         var makers = new HashSet<string>();
         int fullest = 0, thinnest = int.MaxValue;
         for (var i = 0; i < Seeds; i++)
@@ -165,6 +193,9 @@ public sealed class ConsumableSupplyTests : IDisposable
             var pack = rig.Generator(ref random).GenerateStationLoadout();
             Assert.NotEmpty(pack.CargoContents.SelectMany(bay => bay)); // the gear stock is read from the same pack
             var held = Consumables(pack);
+            var hull = rig.Items.GetData(pack.Hull).Name;
+            byHull.TryGetValue(hull, out var seen);
+            byHull[hull] = (seen.hits + (held.Length > 0 ? 1 : 0), seen.of + 1);
             if (held.Length == 0) continue;
             stocked++;
             fullest = Math.Max(fullest, held.Length);
@@ -175,7 +206,8 @@ public sealed class ConsumableSupplyTests : IDisposable
             Assert.Contains(product, new[] { "Overdrive by Maker", "Overdrive by Ally" }); // sold by a maker on offer
             makers.Add(product);
         }
-        AssertWithinThreeSigma(stocked, StationChance, "stations stocking a consumable");
+        AssertWithinThreeSigma(stocked, Seeds, StationChance, "stations stocking a consumable");
+        AssertEachHullWithinThreeSigma(byHull, StationChance, "stations stocking a consumable");
         Assert.Equal(StationUnits, fullest); // a roll can stock up to the maximum
         Assert.Equal(1, thinnest); // and as few as one
         Assert.Equal(2, makers.Count); // the pick is among the products on offer, not always the first
@@ -184,25 +216,89 @@ public sealed class ConsumableSupplyTests : IDisposable
     [Fact]
     public void FewShipsCarryOne()
     {
-        var rig = Build(Offer.Reachable);
+        var rig = Build(Offer.Reachable, Holds.Tight);
         var carrying = 0;
-        for (var i = 0; i < Seeds; i++)
+        var byHull = new Dictionary<string, (int hits, int of)>();
+        for (var i = 0; i < ShipSeeds; i++)
         {
             var random = new Random(SeedOf(i));
-            var held = Consumables(rig.Generator(ref random).GenerateShipLoadout());
+            var pack = rig.Generator(ref random).GenerateShipLoadout();
+            var held = Consumables(pack);
+            var hull = rig.Items.GetData(pack.Hull).Name;
+            byHull.TryGetValue(hull, out var seen);
+            byHull[hull] = (seen.hits + (held.Length > 0 ? 1 : 0), seen.of + 1);
             if (held.Length == 0) continue;
             carrying++;
             Assert.Equal(ShipUnits, held.Length);
         }
-        AssertWithinThreeSigma(carrying, ShipChance, "ships carrying a consumable");
+        AssertWithinThreeSigma(carrying, ShipSeeds, ShipChance, "ships carrying a consumable");
+        AssertEachHullWithinThreeSigma(byHull, ShipChance, "ships carrying a consumable");
 
         // A ship whose only hold has no free cell takes none, and generating it does not throw.
-        var holdless = Build(Offer.Reachable, holdless: true);
+        var holdless = Build(Offer.Reachable, Holds.Holdless);
         for (var i = 0; i < 100; i++)
         {
             var random = new Random(SeedOf(i));
             Assert.Empty(Consumables(holdless.Generator(ref random).GenerateShipLoadout()));
         }
+    }
+
+    // The first bay may refuse (a docking bay with no free cell); a later bay that takes the unit still holds it.
+    [Fact]
+    public void AStationWhoseFirstBayRefusesStocksInAnotherBay()
+    {
+        var rig = Build(Offer.Reachable, Holds.DockRefuses);
+        var stocked = 0;
+        for (var i = 0; i < Seeds; i++)
+        {
+            var random = new Random(SeedOf(i));
+            if (Consumables(rig.Generator(ref random).GenerateStationLoadout()).Length > 0) stocked++;
+        }
+        AssertWithinThreeSigma(stocked, Seeds, StationChance, "stations stocking a consumable past a refusing first bay");
+    }
+
+    // The ruled rates hold on the shipped catalog's own station and ship hulls and holds, with one consumable on offer
+    // (the shipped catalog has none yet): a station rolled to stock one must end holding one, however full gear fills
+    // its hold.
+    [Fact]
+    public void TheShippedHullsKeepTheRuledRates()
+    {
+        var repo = Repo();
+        var catalog = Path.Combine(_root, "shipped.cc");
+        File.Copy(Path.Combine(repo, "GameData", "Aetheria.cc"), catalog);
+        var cache = new CultCache(CultDocumentRegistry.ForTypes(typeof(ItemData).Assembly.GetTypes()
+            .Where(t => t is { IsAbstract: false, IsInterface: false }).Where(t => t.GetCustomAttribute<CultDocumentAttribute>() != null)));
+        cache.AddBackingStore(new SingleFileMessagePackBackingStore(catalog), AetheriaStores.CatalogTypes);
+        cache.AddBackingStore(new SingleFileMessagePackBackingStore(Path.Combine(_root, "shipped-run.cc")), AetheriaStores.RunTypes);
+        _caches.Add(cache);
+        var maker = cache.RefOf(cache.GetAll<Faction>().First());
+        var overdrive = cache.Upsert(new ConsumableItemData { Name = "Overdrive", Duration = 1f, Shape = new Shape(), Price = 50 });
+        cache.Upsert(new FactionProductData { Name = "Overdrive by Maker", Design = new CultRecordRef<CraftedItemData>(overdrive.Key), Manufacturer = maker });
+
+        var authored = AuthoredSettings.Load(repo);
+        var galaxy = new Galaxy(authored.Read<TutorialGenerationSettings>("TutorialGenerationSettings"),
+            authored.Read<SectorBackgroundSettings>("TutorialBackgroundSettings"), authored.Read<NameGeneratorSettings>("NameGeneratorSettings"),
+            cache, new PlayerSettings(), Directory.CreateDirectory(Path.Combine(_root, "Narrative")), _ => { }, null, 1);
+        var items = new ItemManager(cache, new ProvenanceLedger(), authored.Read<GameplaySettings>("GameplaySettings"), _ => { });
+
+        int stations = 0, ships = 0;
+        for (var i = 0; i < Seeds; i++)
+        {
+            items.Random = new Random(SeedOf(i));
+            var random = new Random(SeedOf(i));
+            var generator = new LoadoutGenerator(ref random, items, galaxy, galaxy.Entrance, null, .5f);
+            if (Consumables(generator.GenerateStationLoadout()).Length > 0) stations++;
+            if (Consumables(generator.GenerateShipLoadout()).Length > 0) ships++;
+        }
+        AssertWithinThreeSigma(stations, Seeds, StationChance, "shipped stations stocking a consumable");
+        AssertWithinThreeSigma(ships, Seeds, ShipChance, "shipped ships carrying a consumable");
+    }
+
+    private static string Repo()
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
+            if (File.Exists(Path.Combine(dir.FullName, "Aetheria.Shared", "Aetheria.Shared.csproj"))) return dir.FullName;
+        throw new DirectoryNotFoundException();
     }
 
     [Fact]
