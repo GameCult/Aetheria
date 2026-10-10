@@ -286,27 +286,6 @@ public sealed class ShipModCatalogTests : IDisposable
         Assert.Equal("ship ID collides with an existing catalog ship authoring record.", Assert.Single(composition.Excluded).Reason);
     }
 
-    // A package directory that lost its ship.cc is a package left out, named with the reason; it never vanishes silently.
-    [Fact]
-    public void APackageDirectoryWithoutAShipFileIsExcludedWithAReason()
-    {
-        WritePackage("mod.good", hullName: "Good");
-        WritePackage("mod.lost", hullName: "Lost");
-        File.Delete(Path.Combine(Mods, "mod.lost", "ship.cc"));
-
-        var composition = ShipModCatalog.Compose(Shipped, Derived, Mods);
-
-        Assert.Equal(new[] { "mod.good" }, composition.Included);
-        var lost = Assert.Single(composition.Excluded);
-        Assert.Equal("mod.lost", lost.Package);
-        Assert.Equal("the package holds no ship.cc.", lost.Reason);
-
-        Directory.Delete(Path.Combine(Mods, "mod.good"), true);
-        var (catalog, excluded) = ShipModCatalog.ResolveCatalog(Shipped, Derived, Mods);
-        Assert.Equal(Shipped, catalog);
-        Assert.Equal("mod.lost", Assert.Single(excluded).Package);
-    }
-
     // The loader and the LFS rule (GameData/Mods/**/*.glb) agree: only a lowercase .glb is a model.
     [Fact]
     public void AModelWithAnUppercaseExtensionIsRefused()

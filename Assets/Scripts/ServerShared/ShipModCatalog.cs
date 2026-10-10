@@ -67,9 +67,8 @@ public static class ShipModCatalog
         foreach (var directory in Directory.GetDirectories(root).OrderBy(path => path, StringComparer.Ordinal))
         {
             var path = Path.Combine(directory, "ship.cc");
+            if (!File.Exists(path)) continue;
             var name = Path.GetFileName(directory);
-            // A package directory without its ship.cc is a package that lost its records, named like any other failure.
-            if (!File.Exists(path)) { Exclude(name, "the package holds no ship.cc."); continue; }
             // A package can fail in any way a hostile or broken file can, so its failure is quarantined whatever it is.
             try { packages.Add((name, ReadPackage(path))); }
             catch (Exception error) { Exclude(name, error.Message); }
@@ -157,7 +156,8 @@ public static class ShipModCatalog
     public static (string Catalog, Exclusion[] Excluded) ResolveCatalog(string shippedCatalog, string derivedCatalog, string modsRoot,
         CultDocumentRegistry registry = null)
     {
-        if (!Directory.Exists(modsRoot) || Directory.GetDirectories(modsRoot).Length == 0)
+        if (!Directory.Exists(modsRoot) ||
+            !Directory.GetDirectories(modsRoot).Any(directory => File.Exists(Path.Combine(directory, "ship.cc"))))
             return (shippedCatalog, Array.Empty<Exclusion>());
         Composition composition;
         // A failure of the composition itself (an unwritable derived path, say) is still a mod problem, never a reason not to boot.

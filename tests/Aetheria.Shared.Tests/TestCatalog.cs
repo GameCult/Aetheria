@@ -36,6 +36,14 @@ internal static class TestCatalog
 
     public static string Resolve(string shippedCatalog, string modsRoot, string workDir)
     {
+        // Every directory under the first-party tree is a package. The game treats a directory without a ship.cc as not a
+        // package (a stray folder is not an error for a player), so the compose never names it; a first-party package whose
+        // ship.cc is gone must not vanish from the catalog the suite stages from.
+        var lost = Directory.Exists(modsRoot)
+            ? Directory.GetDirectories(modsRoot).Where(directory => !File.Exists(Path.Combine(directory, "ship.cc"))).Select(Path.GetFileName).OrderBy(name => name, StringComparer.Ordinal).ToArray()
+            : Array.Empty<string>();
+        if (lost.Length > 0)
+            throw new InvalidOperationException("First-party packages hold no ship.cc: " + string.Join(", ", lost));
         var (catalog, excluded) = ShipModCatalog.ResolveCatalog(shippedCatalog, Path.Combine(workDir, "derived.cc"), modsRoot, Registry());
         if (excluded.Length > 0)
             throw new InvalidOperationException("First-party packages were excluded from the catalog: " +
