@@ -505,7 +505,14 @@ public sealed class StatResolverTests : IDisposable
         var ship = new Ship(items, zone, Mint(cache, items, cache.GetByName<HullData>("Skiff")), new EntitySettings());
         Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("Engine")), cells[0]));
         for (var i = 0; i < gear.Length; i++)
-            Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("Boost" + i)), cells[i + 1]));
+        {
+            // A test gear has no authored heat response, so its thermal performance reads 0 and it would sit offline;
+            // the override is the entity's own switch for keeping a part running, not a stand-in for the rule.
+            var boost = Mint(cache, items, cache.GetByName<GearData>("Boost" + i));
+            boost.OverrideShutdown = true;
+            Assert.True(ship.TryEquip(boost, cells[i + 1]));
+        }
+        ship.OverrideShutdown = true;
         zone.Entities.Add(ship);
         ship.Activate();
 
