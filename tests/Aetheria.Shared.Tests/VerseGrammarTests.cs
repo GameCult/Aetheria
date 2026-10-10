@@ -41,7 +41,7 @@ public sealed class VerseGrammarTests : IDisposable
     {
         var path = PathOf(name);
         using var cache = AetheriaStores.Open(path, catalogWritable: true);
-        if (kept != null) cache.Upsert(kept);
+        if (grammar != null) cache.Upsert(grammar);
         foreach (var verb in verbs) cache.Upsert(verb);
         cache.FlushAsync().Wait();
         return path;
