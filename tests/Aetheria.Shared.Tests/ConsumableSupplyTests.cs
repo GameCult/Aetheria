@@ -78,7 +78,7 @@ public sealed class ConsumableSupplyTests : IDisposable
         CultRecordRef<Faction> maker;
         using (var seed = AetheriaStores.Open(catalog, catalogWritable: true))
         {
-            seed.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+            seed.Upsert(new VerseGrammar { Revision = 1 });
             var ally = seed.Upsert(new Faction { Name = "Ally", ShortName = "ALY" });
             var stranger = seed.Upsert(new Faction { Name = "Stranger", ShortName = "STR" });
             maker = seed.Upsert(new Faction { Name = "Maker", ShortName = "MKR", Allegiance = { { ally, 1f } } });
