@@ -252,5 +252,12 @@ public sealed class LockWarningTests : IDisposable
         b.Activate();
         b.Update(.01f);
         Assert.Empty(b.IncomingLocks); // the paint received while inactive was never stored
+
+        // A paint still waiting in the inbox when the ship deactivates does not survive to the next activation.
+        Aim(locker, b, .5f);
+        b.Deactivate();
+        b.Activate();
+        b.Update(.01f);
+        Assert.Empty(b.IncomingLocks);
     }
 }
