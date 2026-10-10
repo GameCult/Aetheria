@@ -116,9 +116,10 @@ public sealed class AetheriaStoresTests : IDisposable
     public void MissingCatalogGlobalIsLoud()
     {
         var empty = Path.Combine(_root, "empty.cc");
-        // An existing catalog with no records: a read-only open refuses a missing file before it checks globals.
-        using (var seed = AetheriaStores.Open(empty, catalogWritable: true)) seed.FlushAsync().Wait();
-        Assert.True(File.Exists(empty));
+        // A catalog file that exists but lacks the global: the read-only open reaches the global check.
+        File.Copy(Catalog, empty);
+        using (var seed = AetheriaStores.Open(empty, catalogWritable: true))
+            Assert.True(seed.Commit(batch => batch.Remove(seed.RefOf(seed.GetGlobal<TestCatalogGlobal>()).Key)));
         var error = Assert.Throws<InvalidOperationException>(() => AetheriaStores.Open(empty));
         Assert.Contains("aetheria.tests.catalogglobal", error.Message);
         using (AetheriaStores.Open(Catalog)) { }
