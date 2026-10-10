@@ -116,6 +116,11 @@ public class LoadoutGenerator
 
         FillInterior(entity);
 
+        // The consumable goes in before the gear stock: sixteen gear picks drawn with replacement can fill a real hold,
+        // and a roll that hit must leave the entity holding one (the ruled rate is the rule). With no consumable on
+        // offer nothing is drawn here, so the gear draws are exactly what they were.
+        StockConsumables(entity, StationConsumableChance, StationConsumableUnits);
+
         var cargo = entity.CargoBays.First();
         var inventory = RandomProducts<EquippableItemData>(16, 1,
             data => !(data is HullData hull && hull.HullType != HullType.Ship) && !(data is CargoBayData))
@@ -126,14 +131,12 @@ public class LoadoutGenerator
             cargo.TryStore(instance);
         }
 
-        StockConsumables(entity, StationConsumableChance, StationConsumableUnits);
-
         entity.CanTow = hullData.CanTow;
 
         return EntitySerializer.Pack(entity) as OrbitalEntityPack;
     }
 
-    // The last thing a loadout does. With no consumable on offer, or no hold to put one in, nothing is drawn, so a
+    // A loadout's one consumable step. With no consumable on offer, or no hold to put one in, nothing is drawn, so a
     // catalog without consumables generates exactly what it did before them. Otherwise one roll decides whether the
     // entity has any, and a hit stocks 1 to maxUnits instances of one product, stopping when no hold takes another.
     private void StockConsumables(Entity entity, float chance, int maxUnits)
