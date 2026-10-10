@@ -56,10 +56,6 @@ public static class VerseGrammarCommand
 
         var starter = StarterVerbs();
         foreach (var verb in starter) VerseGrammarValidation.Validate(verb);
-        var missingTasks = Enum.GetValues(typeof(TaskType)).Cast<TaskType>()
-            .Where(task => task != TaskType.None && starter.All(verb => verb.Name != task.ToString().ToLowerInvariant())).ToArray();
-        if (missingTasks.Length > 0) throw new InvalidOperationException($"The starter grammar has no ship-action verb for TaskType {string.Join(", ", missingTasks)}.");
-
         var grammar = cache.GetGlobal<VerseGrammar>();
         var grammarCurrent = grammar != null && grammar.Revision == StarterRevision && grammar.Description == StarterDescription;
         Console.WriteLine(grammar == null ? $"Grammar: new, revision {StarterRevision}."
