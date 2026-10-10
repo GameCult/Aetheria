@@ -138,6 +138,20 @@ public sealed class BrownoutTests : IDisposable
         return (-ship.Velocity.y, ship.GetBehavior<Thruster>());
     }
 
+    // A throttle the old .01 gate cut off still asks for its share of the power (the allocator balances a drive pair
+    // with throttles of a thousandth).
+    [Fact]
+    public void ASmallThrottleStillAsksForItsPower()
+    {
+        using var cache = OpenCatalog(new ThrusterData
+        {
+            Thrust = Constant(100), Visibility = Constant(0), Heat = Constant(0), EnergyUsage = Constant(100)
+        });
+        var thruster = BuildShip(cache, reactorCharge: 1000).GetBehavior<Thruster>();
+        thruster.Axis = .005f;
+        Assert.Equal(.5f, thruster.PowerRequest(1f), 4);
+    }
+
     [Fact]
     public void ThrusterAtHalfGrantProducesReducedNotZeroNotFullThrust()
     {
