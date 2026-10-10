@@ -34,15 +34,7 @@ public sealed class LockWarningTests : IDisposable
             cache.Upsert(new GearData
             {
                 Name = "Launcher", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Durability = 1,
-                Behaviors =
-                {
-                    new LockWeaponData
-                    {
-                        Count = Const(1), Cooldown = Const(1),
-                        LockSpeed = Const(.6f), SensorImpact = Const(1), LockAngle = Const(30),
-                        DirectionImpact = Const(1), Decay = Const(.1f)
-                    }
-                }
+                Behaviors = { new InstantWeaponData { Count = Const(1), Cooldown = Const(1) } }
             });
             cache.FlushAsync().Wait();
         }
@@ -78,6 +70,11 @@ public sealed class LockWarningTests : IDisposable
         {
             var gearRef = _items.ItemData.RefOf<ItemData>(_items.ItemData.GetByName<GearData>("Launcher"));
             Assert.True(ship.TryEquip(new EquippableItem { Data = gearRef, Durability = 1, Lot = 2 }, HardpointCell));
+            _launchers[ship] = new LockWeapon(new LockWeaponData
+            {
+                LockSpeed = Const(.6f), SensorImpact = Const(1), LockAngle = Const(30),
+                DirectionImpact = Const(1), Decay = Const(.1f)
+            }, ship.Equipment.Single());
         }
         _zone.Entities.Add(ship);
         ship.Activate();
@@ -85,11 +82,11 @@ public sealed class LockWarningTests : IDisposable
         return ship;
     }
 
-    private static LockWeapon LauncherOf(Entity e) =>
-        (LockWeapon) e.Equipment.Single().Behaviors.Single(b => b is LockWeapon);
+    private readonly System.Collections.Generic.Dictionary<Entity, LockWeapon> _launchers = new System.Collections.Generic.Dictionary<Entity, LockWeapon>();
+    private LockWeapon LauncherOf(Entity e) => _launchers[e];
 
     // The locker targets `target`, hostile to it, aimed straight at it (or along `aim`), then the launcher ticks.
-    private static LockWeapon Aim(Ship locker, Ship target, float dt, float3? aim = null)
+    private LockWeapon Aim(Ship locker, Ship target, float dt, float3? aim = null)
     {
         locker.SetIff(target, true);
         locker.EntityInfoGathered[target] = 1;
