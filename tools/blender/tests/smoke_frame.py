@@ -358,6 +358,15 @@ def main():
     require(row_count(after, height - 1) == aft and row_count(after, 0) == forward,
             "Flip Nose did not move the nub's cells from the aft rows to the forward rows")
     require({(width - 1 - x, height - 1 - y) for x, y in before} == after, "The flipped grid is not the turned grid")
+    # A Source mesh that is not parented to Ship Root is loose too: Rasterise would read it and Flip Nose would not turn it.
+    sphere = bpy.data.objects["Source Sphere"]
+    sphere.parent = None
+    for operator, what in ((bpy.ops.aetheria.flip_nose, "Flip Nose"), (bpy.ops.aetheria.rasterise_hull, "Rasterise")):
+        select(render)
+        refused(operator, "1 meshes in the ship collection are not under Ship Root", f"{what} with an unparented Source mesh")
+        require(sphere.select_get(), f"{what} did not select the unparented Source mesh")
+    sphere.parent = root
+    select(render)
     print("PASS 5 loose meshes, rasterise and flip nose ok")
 
     # Pass 6: Package refuses an unsaved buffer, then the saved one validates; the GLB leaves Source and Grid out.
@@ -387,6 +396,35 @@ def main():
     print(f"GLB nodes: {sorted(n for n in names if n)}")
     require("Hull" in names and "Loose Nub" in names, "The GLB lacks the render meshes")
     require("Source Sphere" not in names and "Grid" not in names, "The GLB holds the Source or the Grid")
+    require("the validator accepted the ship" in report and not any(name in report for name in NAMES_NOT_ECHOED),
+            f"Package's report is not the fixed text: {report}")
+    # A library error is the console's, not the panel's: a directory where ship.glb goes fails the exporter.
+    glb = Path(path).with_name("ship.glb")
+    glb.unlink()
+    glb.mkdir()
+    try:
+        result, message = run(bpy.ops.aetheria.package_ship)
+        report = scene.aetheria_package_report
+    finally:
+        glb.rmdir()
+    require(result == {"CANCELLED"} and "The GLB export failed" in report, f"A failed GLB export was not refused: {report}")
+    require("Traceback" not in report and not any(name in report for name in NAMES_NOT_ECHOED),
+            f"A library error reached the report: {report}")
+    real_visual = aetheria_ships.replace_visual
+
+    def unwritable(*args, **kwargs):
+        raise OSError(f"probe: cannot write {path}")
+
+    aetheria_ships.replace_visual = unwritable
+    try:
+        result, message = run(bpy.ops.aetheria.package_ship)
+        report = scene.aetheria_package_report
+    finally:
+        aetheria_ships.replace_visual = real_visual
+    require(result == {"CANCELLED"} and report == "Package failed: Stopped by OSError; see the system console",
+            f"A library error of another type is not reported by its type alone: {report}")
+    result, message = run(bpy.ops.aetheria.package_ship)
+    require(result == {"FINISHED"}, f"Package after the failed export was refused: {scene.aetheria_package_report}")
     print("PASS 6 package ok")
     guards_pass(aetheria_ships)
     print("PASS 7 guards ok")

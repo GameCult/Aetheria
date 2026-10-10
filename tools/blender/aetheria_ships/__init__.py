@@ -455,6 +455,9 @@ def _export_glb(context, collection, filepath):
         bpy.ops.export_scene.gltf(
             filepath=filepath, export_format="GLB", use_active_collection=True, use_selection=True,
             export_extras=True, export_yup=True, export_apply=True)
+    except RuntimeError:  # the exporter's text holds paths and a traceback
+        traceback.print_exc()
+        raise RuntimeError("The GLB export failed; its message is in the system console") from None
     finally:
         for obj in view_layer.objects:
             obj.select_set(obj in previous_selection)
@@ -502,11 +505,13 @@ def _frame_meshes(collection):
 
 
 def _loose_meshes(collection):
-    """Meshes of a collection that has a Ship Root which sit outside Source and Generated and are not under the root."""
+    """Meshes of a collection that has a Ship Root which are not under the root, Generated's apart. Source meshes count:
+    Rasterise reads them and Flip Nose turns only what hangs from Ship Root."""
     root = _ship_root(collection)
     if root is None:
         return []
-    derived = _derived_names(collection)
+    generated = _child(collection, GENERATED)
+    derived = {obj.name for obj in generated.all_objects} if generated else set()
     framed = {obj.name for obj in root.children_recursive}
     return [obj for obj in _meshes(collection.all_objects) if obj.name not in derived and obj.name not in framed]
 
@@ -792,10 +797,14 @@ class AETHERIA_OT_package_ship(bpy.types.Operator):
             scene.aetheria_package_report = f"Package failed: {_failure_text(exc)}"
             self.report({"ERROR"}, scene.aetheria_package_report)
             return {"CANCELLED"}
-        scene.aetheria_package_report = message or f"validate exited {code}"
+        if message:
+            print(message)
         if code != 0:
-            self.report({"ERROR"}, f"Packaged {len(anchors)} anchors; the validator refused it: {scene.aetheria_package_report}")
+            scene.aetheria_package_report = (f"Packaged {len(anchors)} anchors; the validator refused the ship; "
+                                             "its message is in the system console")
+            self.report({"ERROR"}, scene.aetheria_package_report)
             return {"CANCELLED"}
+        scene.aetheria_package_report = f"Packaged {len(anchors)} anchors; the validator accepted the ship"
         self.report({"INFO"}, scene.aetheria_package_report)
         return {"FINISHED"}
 

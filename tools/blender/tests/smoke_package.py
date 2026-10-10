@@ -20,6 +20,8 @@ unsaved .blend stores the absolute path, which still resolves after Save As to t
 the .blend is saved there before the final bind, so the bind crosses drives and the package passes prove it resolves.
 """
 
+import contextlib
+import io
 import os
 import sys
 import tempfile
@@ -117,14 +119,20 @@ def bind_cases(ship, path, mods):
         raise SystemExit("Bind case cross-drive: the stored path is not the absolute .cc path")
 
 
+CONSOLE = []  # what the last package() sent to the system console
+
+
 def package(addon):
     # An operator that reports an error raises it out of bpy.ops; the panel's report is the verdict either way.
+    console = io.StringIO()
     try:
-        result = bpy.ops.aetheria.package_ship()
+        with contextlib.redirect_stdout(console):
+            result = bpy.ops.aetheria.package_ship()
     except RuntimeError:
         result = {"CANCELLED"}
+    CONSOLE[:] = [console.getvalue()]
     report = bpy.context.scene.aetheria_package_report
-    print(f"PACKAGE {sorted(result)}: {report}")
+    print(f"PACKAGE {sorted(result)}: {report}{CONSOLE[0]}")
     return result, report
 
 
@@ -180,8 +188,10 @@ def main():
     ship.objects.unlink(disc)
     hollow = tagged(ship, "Thruster Empty", None, "thruster-emitter", "thruster", (0, -1, 0))
     result, report = package(aetheria_ships)
-    if result != {"CANCELLED"} or "thruster-emitter anchor thruster needs a mesh" not in report:
-        raise SystemExit("Pass 2: an empty thruster node was not refused by name")
+    if result != {"CANCELLED"} or "the validator refused the ship" not in report or "thruster" in report or SHIP_ID in report:
+        raise SystemExit("Pass 2: an empty thruster node was not refused with the fixed text")
+    if "thruster-emitter anchor thruster needs a mesh" not in CONSOLE[0]:
+        raise SystemExit("Pass 2: the validator's message naming the anchor did not reach the system console")
 
     ship.objects.unlink(hollow)
     ship.objects.link(disc)
