@@ -25,9 +25,7 @@ public sealed class PiratesFactionCommandTests : IDisposable
         // AetherDb.Open composes the process-wide registry, which in this test host also sees this assembly's TestCatalogGlobal
         // (see FireControlCut7Tests). So the copy is stripped through a registry scoped to the shipped assembly and then given
         // the record that registry's shared sibling demands, as AetheriaStoresTests does.
-        var registry = CultDocumentRegistry.ForTypes(typeof(ItemData).Assembly.GetTypes()
-            .Where(t => t is { IsAbstract: false, IsInterface: false })
-            .Where(t => t.GetCustomAttribute<CultDocumentAttribute>() != null));
+        var registry = TestCatalog.Registry();
         using (var cache = new CultCache(registry))
         {
             cache.AddBackingStore(new SingleFileMessagePackBackingStore(CatalogPath), AetheriaStores.CatalogTypes);

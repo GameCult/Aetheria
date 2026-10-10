@@ -200,7 +200,7 @@ public sealed class FireControlCut7Tests : IDisposable
     [Fact]
     public void ShippedCatalogOpensAndGeneratesAnArmedHull()
     {
-        var gameData = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
+        var gameData = TestCatalog.Repo;
         using var cache = OpenReadOnlyRealCatalog(gameData);
 
         // Force every EquippableItemData -- WeaponItemData included, the type the broken merge could not
@@ -255,9 +255,7 @@ public sealed class FireControlCut7Tests : IDisposable
     // validation loop -- without the test assembly's own fixture type poisoning it.
     private static CultCache OpenReadOnlyRealCatalog(string catalogPath)
     {
-        var registry = CultDocumentRegistry.ForTypes(typeof(ItemData).Assembly.GetTypes()
-            .Where(t => t is { IsAbstract: false, IsInterface: false })
-            .Where(t => t.GetCustomAttribute<CultDocumentAttribute>() != null));
+        var registry = TestCatalog.Registry();
         var cache = new CultCache(registry);
         try
         {

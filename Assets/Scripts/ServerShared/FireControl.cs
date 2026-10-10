@@ -130,8 +130,8 @@ public static class FireControl
     // arc, so the gun can fire along it. Direction: where a round from this gun travels and where its barrel points --
     // the subject's intercept when it bears, else the arc-clamped aim. A chunk subject bears through its pose and
     // flies the aim, as an untargeted round (Subject is null for it). Derived on every read and never stored: turrets
-    // traverse instantly in the simulation. Traverse speed belongs to the link (ruling arc-and-traverse-on-the-link),
-    // which will make this stateful behind the same signature. It never prices; HitProbability is the one price.
+    // traverse instantly in the simulation. Traverse is the weapon's Tracking (ruling mount-arc-gun-traverse), priced in
+    // TrackingRate; this holds no slew state, and a rig's slew is presentation. It never prices; HitProbability is the one price.
     public static GunSolution Solution(Weapon weapon, Entity shooter, TargetRef subject)
     {
         var bears = false;

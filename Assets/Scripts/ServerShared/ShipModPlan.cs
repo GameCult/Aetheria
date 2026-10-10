@@ -15,6 +15,10 @@ public sealed class ShipModPlan
     public string[] Radiators;
     // Each weapon mount (role weapon-mount) and its muzzle anchors, by Order then id.
     public (string Mount, string[] Muzzles)[] Weapons;
+    // One entry per driven joint (one a weapon mount names), by its first weapon in hull order: the joint, its chain
+    // root-first (RigChains), and the lead mount (the joint's first weapon in hull order) with that mount's first muzzle.
+    // Presentation only: the assembler rigs these and nothing here reaches the simulation.
+    public (string Joint, string[] Chain, string LeadMount, string LeadMuzzle)[] Rigs;
 
     // Maps a pair Validate accepts; every rule about which anchor may play which part is Validate's, so this refuses nothing.
     public static ShipModPlan Build(HullData hull, ShipAuthoring visual)
@@ -26,6 +30,11 @@ public sealed class ShipModPlan
         var muzzles = visual.Anchors.Where(anchor => anchor.Role == "weapon-muzzle")
             .OrderBy(anchor => anchor.Order).ThenBy(anchor => anchor.Id, StringComparer.Ordinal).ToArray();
 
+        var jointOf = visual.Anchors.Where(anchor => anchor.Role == "weapon-mount" && !string.IsNullOrEmpty(anchor.Joint))
+            .ToDictionary(anchor => anchor.Id, anchor => anchor.Joint, StringComparer.Ordinal);
+        var leads = hardpoints.Where(hardpoint => jointOf.ContainsKey(hardpoint.Transform)).GroupBy(hardpoint => jointOf[hardpoint.Transform], StringComparer.Ordinal)
+            .Select(group => (Joint: group.Key, Lead: group.First().Transform));
+
         return new ShipModPlan
         {
             MapIcon = Only("map-icon"),
@@ -36,7 +45,9 @@ public sealed class ShipModPlan
             Radiators = Mounts(HardpointType.Radiator),
             Weapons = hardpoints.Where(hardpoint => ShipAuthoringStore.IsWeapon(hardpoint.Type)).Select(hardpoint => (
                 hardpoint.Transform,
-                muzzles.Where(muzzle => muzzle.ParentId == hardpoint.Transform).Select(muzzle => muzzle.Id).ToArray())).ToArray()
+                muzzles.Where(muzzle => muzzle.ParentId == hardpoint.Transform).Select(muzzle => muzzle.Id).ToArray())).ToArray(),
+            Rigs = leads.Select(rig => (rig.Joint, RigChains.Chain(visual, rig.Joint), rig.Lead,
+                muzzles.First(muzzle => muzzle.ParentId == rig.Lead).Id)).ToArray()
         };
     }
 }
