@@ -350,4 +350,20 @@ public sealed class ConsumableAiTests : IDisposable
         Assert.False(s.Agent.ThrottleLocked);
         Assert.Equal(carriesOnlyADecoy ? 1 : 0, s.Carried);
     }
+
+    [Fact]
+    public void DiagLockers()
+    {
+        var s = Build(100, (.3f, true), (.3f, true), (.3f, true));
+        string Dump(string tag) => tag + ": " + string.Join(" | ", s.Lockers.Select(l => { var w = l.Weapons.OfType<LockWeapon>().Single(); return $"lock {w.Lock} online {w.Item.Online.Value} pos {l.Position} aim {l.Aim} tgt {l.Target.Value.Entity == s.Agent}"; })) + " agentpos " + s.Agent.Position;
+        var before = Dump("before");
+        s.Zone.Update(1f);
+        var after1 = Dump("after1");
+        s.Zone.Update(1f);
+        var after2 = Dump("after2");
+        Assert.True(false, "
+" + before + "
+" + after1 + "
+" + after2);
+    }
 }
