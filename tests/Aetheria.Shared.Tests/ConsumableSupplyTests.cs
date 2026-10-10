@@ -230,8 +230,16 @@ public sealed class ConsumableSupplyTests : IDisposable
                 .Concat(Enumerable.Range(0, 4).Select(_ => rig.Items.Random.NextFloat())).ToArray();
         }
 
-        var baseline = AfterGeneration(plain);
-        Assert.Equal(baseline, AfterGeneration(gated));
-        Assert.NotEqual(baseline, AfterGeneration(control));
+        // What the plain catalog leaves in both generators' Random, measured on the tree before consumables existed
+        // (origin/master d4a27def, the same fixture and seeds). The gated and plain catalogs agreeing is not enough:
+        // a step that drew unconditionally would draw in both. This pins the value itself.
+        var beforeConsumables = new[]
+        {
+            0.85624266f, 0.037778974f, 0.7931649f, 0.3596493f, 0.17511952f, 0.6642336f, 0.31897342f, 0.5977364f
+        };
+        var plainAfter = AfterGeneration(plain);
+        Assert.Equal(beforeConsumables, plainAfter);
+        Assert.Equal(plainAfter, AfterGeneration(gated));
+        Assert.NotEqual(plainAfter, AfterGeneration(control));
     }
 }
