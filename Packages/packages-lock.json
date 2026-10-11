@@ -272,11 +272,11 @@
       "hash": "45c2f4006f5f7dab357426cabd3197e8d0a17f66"
     },
     "org.gamecult.cultmath": {
-      "version": "https://github.com/GameCult/CultLib.git?path=/packages/cultmath/unity/org.gamecult.cultmath#cultmath-unity-v0.4.0",
+      "version": "https://github.com/GameCult/CultLib.git?path=/packages/cultmath/unity/org.gamecult.cultmath#cultmath-unity-v0.4.1",
       "depth": 0,
       "source": "git",
       "dependencies": {},
-      "hash": "252e226c51826d626f4113673f31d96577b67ec9"
+      "hash": "9c1b06cd703bfa44352050e819b0d0659cf5978a"
     },
     "com.unity.modules.accessibility": {
       "version": "1.0.0",
