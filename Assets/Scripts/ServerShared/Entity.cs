@@ -5,6 +5,7 @@
 using GameCult.Caching;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using MessagePack;
 using UniRx;
@@ -87,7 +88,9 @@ public abstract class Entity
     public readonly Dictionary<string, float> Messages = new Dictionary<string, float>();
     private readonly Dictionary<object, Signature> _visibilitySources = new Dictionary<object, Signature>();
     // A read-only view: the only writes are SetSignature and the decay loop in Update, both below.
-    public IReadOnlyDictionary<object, Signature> VisibilitySources => _visibilitySources;
+    // A ReadOnlyDictionary over the private field, created once: a cast back to Dictionary fails.
+    private ReadOnlyDictionary<object, Signature> _visibilityView;
+    public IReadOnlyDictionary<object, Signature> VisibilitySources => _visibilityView ??= new ReadOnlyDictionary<object, Signature>(_visibilitySources);
 
     // The one writer of VisibilitySources (the decay loop in Update is the one decayer). Every light signature
     // names its channel and the item that produced it (null for the hull).
