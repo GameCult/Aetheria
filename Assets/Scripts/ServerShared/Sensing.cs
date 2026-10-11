@@ -93,9 +93,26 @@ public readonly struct Reveal
     }
 }
 
+// A subject's removal from a zone as the zone recorded it (death, dock, warp, any removal): where it was and how
+// bright its light was (its signature outside the Emission channel). Judged by each observer's Sense under the
+// light-act gate; notification only, one tick long, it decides nothing.
+public readonly struct Departure
+{
+    public readonly Entity Subject;
+    public readonly float2 Position;
+    public readonly float Signature;
+
+    public Departure(Entity subject, float2 position, float signature)
+    {
+        Subject = subject;
+        Position = position;
+        Signature = signature;
+    }
+}
+
 // How much an observer holds of one subject, derived on read by Entity.ContactOf from its track, its reveals and
 // the zone clock. Detected: tracked, or a reveal younger than GameplaySettings.BearingMemory. Tracked: exactly
-// membership of VisibleEntities. Classified: detected, with any live reveal. Identified: the track has reached
+// membership of VisibleEntities. Classified: detected, with any reveal in the book. Identified: the track has reached
 // TargetGearInfoThreshold. Bearing is the true bearing while tracked, else the freshest reveal's.
 public readonly struct Contact
 {

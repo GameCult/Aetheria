@@ -72,6 +72,9 @@ public class Zone
         return false;
     }
 
+    private readonly List<Departure> _departures = new List<Departure>();
+    internal IReadOnlyList<Departure> Departures => _departures;
+
     public float Time
     {
         get => (float) _time;
@@ -109,6 +112,9 @@ public class Zone
         // every join, whichever caller admits the entity (deserialization below, a jump, a spawned turret) --
         // ObserveAdd fires for all of them. Forbidden writer: no presentation may remove an entity from Zone.
         Entities.ObserveAdd().Subscribe(add => add.Value.Death.Subscribe(_ => { Entities.Remove(add.Value); add.Value.Deactivate(); }));
+        // The one record of a removal for observers (ruling reveal-ends-on-perception): read by the next Sense pass.
+        Entities.ObserveRemove().Subscribe(remove => _departures.Add(new Departure(remove.Value, remove.Value.Position.xz,
+            remove.Value.Visibility - remove.Value.SignatureOn(SignatureChannel.Emission))));
 
         Targets.Add(new EntityTargets());
 
@@ -230,6 +236,7 @@ public class Zone
         foreach (var entity in entities) entity.PublishInbox();
         foreach (var entity in entities) entity.Update(deltaTime);
         foreach (var entity in entities) entity.Sense();
+        _departures.Clear();
 
         StepMines(deltaTime);
         StepClouds(deltaTime);

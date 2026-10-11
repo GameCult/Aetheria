@@ -213,8 +213,11 @@ public abstract class Entity
     private readonly List<PingReturn> _pingReturns = new List<PingReturn>();
     internal IReadOnlyList<PingReturn> PingReturns => _pingReturns;
     // What this observer has seen each ship's items do (ruling visibility-per-capability-reveal), keyed (subject,
-    // item). Written only by Sense and PublishInbox through RecordReveal; memory of the sitting, never decayed.
+    // item). Written only by RecordReveal (an act enters) and EndReveals (an end the observer perceives, or a departed
+    // subject's entries aged past BearingMemory), cleared by Deactivate (ruling reveal-ends-on-perception).
     private readonly Dictionary<Entity, Dictionary<EquippedItem, Reveal>> _reveals = new Dictionary<Entity, Dictionary<EquippedItem, Reveal>>();
+    private readonly List<EquippedItem> _endedItems = new List<EquippedItem>();
+    private readonly List<Entity> _agedSubjects = new List<Entity>();
     public ReactiveProperty<SecurityLevel> CurrentSecurityLevel = new ReactiveProperty<SecurityLevel>(SecurityLevel.Open);
     public ReadOnlyReactiveProperty<bool> PresencePermitted;
     
@@ -265,7 +268,6 @@ public abstract class Entity
         {
             if (Target.Value.Entity == remove.Value) SetTarget(TargetRef.None);
             EntityInfoGathered.Remove(remove.Value);
-            _reveals.Remove(remove.Value);
             EntityHostility.Remove(remove.Value);
             VisibleEntities.Remove(remove.Value);
             VisibleEnemies.Remove(remove.Value);
@@ -865,9 +867,7 @@ public abstract class Entity
         foreach (var paint in _paintInbox)
         {
             _incomingPaints.Add(paint.Warning);
-            // An emitter that left the zone (died, warped, docked) since it painted is no longer a subject: its
-            // warning still lasts its tick, but it is not recorded as a contact.
-            if (Zone.Entities.Contains(paint.Emitter)) RecordReveal(paint.Emitter, paint.Item, SignatureChannel.Emission);
+            RecordReveal(paint.Emitter, paint.Item, SignatureChannel.Emission);
         }
         _paintInbox.Clear();
         _pingReturns.Clear();
@@ -890,21 +890,35 @@ public abstract class Entity
         _paintInbox.Add(new PendingPaint(new PaintWarning(normalize((emitter.Position - Position).xz), item?.Data, mode, strength), emitter, item));
     }
 
-    // The one writer of the reveal book (callers: Sense and PublishInbox, both in this file): this observer saw
-    // `item` of `subject` act on `channel`, now, from this bearing. An item-less act (hull radiation, a consumable)
-    // reveals nothing. A later act of the same item replaces the earlier one.
+    // The reveal book's one way in and its one membership gate (callers: Sense and PublishInbox, both in this file):
+    // this observer saw `item` of `subject` act on `channel`, now, from this bearing. An item-less act (hull
+    // radiation, a consumable) reveals nothing, and neither does a subject that is not in the zone: a departed
+    // subject's entries are never created or refreshed, from any caller. A later act of the same item replaces the
+    // earlier one.
     internal void RecordReveal(Entity subject, EquippedItem item, SignatureChannel channel)
     {
-        if (!_active || item == null) return;
+        if (!_active || item == null || !Zone.Entities.Contains(subject)) return;
         if (!_reveals.TryGetValue(subject, out var book))
             _reveals[subject] = book = new Dictionary<EquippedItem, Reveal>();
         book[item] = new Reveal(item, channel, normalize((subject.Position - Position).xz), Zone.Time);
     }
 
+    // The book's one way out (caller: Sense): `item` null ends every reveal of `subject`, otherwise that item's.
+    // The subject's key goes with its last entry.
+    private void EndReveals(Entity subject, EquippedItem item)
+    {
+        if (!_reveals.TryGetValue(subject, out var book)) return;
+        if (item != null) book.Remove(item);
+        else book.Clear();
+        if (book.Count == 0) _reveals.Remove(subject);
+    }
+
     // What this observer has seen `subject`'s items do: each item's latest act, and nothing the subject's present
-    // gear or Durability says (ruling contact-reads-book-aim-reads-live): an item destroyed out of this observer's
-    // sight stays revealed until the subject leaves the zone or this observer deactivates. Whether an item can be
-    // aimed at now is FireControl.IsRevealed's question, not this one.
+    // gear or Durability says (ruling contact-reads-book-aim-reads-live). A reveal ends only on what this observer
+    // perceives (ruling reveal-ends-on-perception): the destruction of an item of a ship it identifies, the death,
+    // dock or warp of a subject its instruments could see leave, or, for a subject that has left the zone, the
+    // freshest entry aging past BearingMemory; Deactivate clears it all. Whether an item can be aimed at now is
+    // FireControl.IsRevealed's question, not this one.
     public IEnumerable<Reveal> RevealsOf(Entity subject) =>
         _reveals.TryGetValue(subject, out var book) ? book.Values : Enumerable.Empty<Reveal>();
 
@@ -950,7 +964,38 @@ public abstract class Entity
                 if (perSignature < 0f) perSignature = PassiveInfo(other.Position.xz, 1f);
                 if (signature.Strength * perSignature > threshold) RecordReveal(other, signature.Item, signature.Channel);
             }
+            // The observer resolves this ship's gear (ContactOf's own Identified gate), so it perceives an item of it
+            // destroyed. Ending after recording: a destroyed item's lingering flash cannot re-enter the book.
+            if (EntityInfoGathered.TryGetValue(other, out var info) && info >= ItemManager.GameplaySettings.TargetGearInfoThreshold
+                && _reveals.TryGetValue(other, out var book))
+            {
+                _endedItems.Clear();
+                foreach (var item in book.Keys)
+                    if (item.EquippableItem.Durability < .01f) _endedItems.Add(item);
+                for (var j = 0; j < _endedItems.Count; j++) EndReveals(other, _endedItems[j]);
+            }
         }
+        // A subject that left the zone (death, dock, warp, any removal) is perceived gone under the light-act gate: as
+        // bright as its non-Emission signature was at removal, from where it was. A re-admitted subject did not leave.
+        var departures = Zone.Departures;
+        for (var i = 0; i < departures.Count; i++)
+        {
+            var departure = departures[i];
+            if (!_reveals.ContainsKey(departure.Subject) || entities.Contains(departure.Subject)) continue;
+            if (departure.Signature * PassiveInfo(departure.Position, 1f) > threshold) EndReveals(departure.Subject, null);
+        }
+        // What stays of a departed subject is memory: pruned once its freshest entry is as old as ContactOf stops
+        // remembering it.
+        var memory = ItemManager.GameplaySettings.BearingMemory;
+        _agedSubjects.Clear();
+        foreach (var pair in _reveals)
+        {
+            if (entities.Contains(pair.Key)) continue;
+            var freshest = float.MinValue;
+            foreach (var reveal in pair.Value.Values) freshest = Math.Max(freshest, reveal.Time);
+            if (Zone.Time - freshest >= memory) _agedSubjects.Add(pair.Key);
+        }
+        for (var i = 0; i < _agedSubjects.Count; i++) EndReveals(_agedSubjects[i], null);
     }
 
     public Entity(ItemManager itemManager, Zone zone, EquippableItem hull, EntitySettings settings)

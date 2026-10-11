@@ -502,23 +502,173 @@ public sealed class ContactRevealTests : IDisposable
         Assert.False(contact.Identified);
     }
 
-    // ---- RevealsLeaveWithTheSubjectAndTheObserver ----
+    // ---- A subject leaves ----
 
+    private Action SenseOf(Entity observer) =>
+        (Action) Delegate.CreateDelegate(typeof(Action), observer, typeof(Entity).GetMethod("Sense", BindingFlags.Instance | BindingFlags.NonPublic));
+
+    // The ways a ship leaves a zone: removed by anything, the warp path (Deactivate, then Remove) and death.
+    private static void Leave(Zone zone, Entity e, string how)
+    {
+        switch (how)
+        {
+            case "remove": zone.Entities.Remove(e); break;
+            case "warp": e.Deactivate(); zone.Entities.Remove(e); break;
+            case "death": e.Hull.Durability = 0f; e.HullDamage.OnNext(1f); break;
+            default: throw new Exception("fixture: " + how);
+        }
+        Assert.DoesNotContain(e, zone.Entities);
+    }
+
+    private static float Freshest(Entity observer, Entity subject) => observer.RevealsOf(subject).Max(r => r.Time);
+
+    // Ruling reveal-ends-on-perception: a ship leaving the zone does not by itself empty any book. Out of this
+    // observer's sight (the light it showed at removal is below the observer's gate) its reveals stay, unrefreshed,
+    // and the contact stays Detected on the freshest bearing, exactly until that bearing is BearingMemory old; then
+    // the book drops the ship. A live quiet ship's old reveal is another matter: it stays in the book.
     [Fact]
-    public void RevealsLeaveWithTheSubject()
+    public void AnUnseenDepartureKeepsTheContactUntilTheBearingLapses()
     {
         var e = Add(float3(0, 0, 100), new[] { "Gun", "Gun" });
         var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var q = Add(float3(40, 0, 100), new[] { "Gun" });
         var guns = Guns(e);
         Fire(e, guns[0]);
         Fire(e, guns[1]);
+        Fire(q, Guns(q)[0]);
+        var memory = _items.GameplaySettings.BearingMemory;
+        var times = o.RevealsOf(e).ToDictionary(r => r.Item, r => r.Time);
+        var freshest = times.Values.Max();
+        var bearing = o.ContactOf(e).Bearing;
+        e.SetSignature(new object(), SignatureChannel.Reflection, 1f, guns[0]);
+        Assert.True(e.Visibility * o.PassiveInfo(e.Position.xz, 1f) <= _items.GameplaySettings.TargetDetectionInfoThreshold, "fixture: its last light is below o's gate");
+        Assert.Equal(2, times.Count);
+
+        _zone.Entities.Remove(e);
         Assert.Equal(2, o.RevealsOf(e).Count());
+
+        var lapsed = false;
+        var ticks = 0;
+        while (!lapsed && ticks++ < 100)
+        {
+            Tick(.1f);
+            var within = _zone.Time - freshest < memory;
+            lapsed = !within;
+            Assert.Equal(within, o.RevealsOf(e).Count() == 2); // exactly while the bearing is remembered
+            Assert.Equal(within, o.ContactOf(e).Detected);
+            Assert.Equal(within ? 1 : 0, RevealBookSubjects(o) - 1); // the quiet live ship's key stays either way
+            if (!within) continue;
+            var contact = o.ContactOf(e);
+            Assert.True(contact.Classified && !contact.Tracked);
+            AssertBearing(bearing.x, bearing.y, contact.Bearing);
+            foreach (var reveal in o.RevealsOf(e)) Assert.Equal(times[reveal.Item], reveal.Time); // never refreshed
+        }
+
+        Assert.True(lapsed, "fixture: the bearing lapsed");
+        Assert.Empty(o.RevealsOf(e));
+        Assert.False(o.ContactOf(e).Detected);
+        Assert.Equal(1, RevealBookSubjects(o)); // only the live ship's key
+
+        for (var i = 0; i < 30; i++) Tick(.2f); // q, live and quiet, was revealed 6 s ago, far more than twice the memory
+        Assert.Single(o.RevealsOf(q));
+        Assert.False(o.ContactOf(q).Detected);
+    }
+
+    // The same departure seen: every way a ship leaves is one departure fact, judged when the observer next senses.
+    // A strong ear (sensitivity 4) and a weak eye (2) at the same place, listed on either side of the ship, both hold
+    // both reveals right after the removal; after the next tick only the observer whose gate the ship's light at
+    // removal passes (signature 2 x info 8/d = .16 against .08) has let them go.
+    [Theory]
+    [InlineData("remove", false)]
+    [InlineData("remove", true)]
+    [InlineData("warp", false)]
+    [InlineData("death", false)]
+    [InlineData("death", true)]
+    public void ASeenDepartureEndsEveryRevealOfTheSubject(string how, bool strongFirst)
+    {
+        Entity strong = null, weak = null;
+        if (strongFirst) strong = Add(float3(-1, 0, 0), new[] { "Ear" });
+        else weak = Add(float3(1, 0, 0), new[] { "Eye" });
+        var e = Add(float3(0, 0, 100), new[] { "Gun", "Gun" });
+        if (strongFirst) weak = Add(float3(1, 0, 0), new[] { "Eye" });
+        else strong = Add(float3(-1, 0, 0), new[] { "Ear" });
+        var guns = Guns(e);
+        Fire(e, guns[0]);
+        Fire(e, guns[1]);
+        foreach (var observer in new[] { strong, weak }) Assert.Equal(2, observer.RevealsOf(e).Count());
+        e.SetSignature(new object(), SignatureChannel.Reflection, 2f, guns[0]);
+        var threshold = _items.GameplaySettings.TargetDetectionInfoThreshold;
+        Assert.True(e.Visibility * strong.PassiveInfo(e.Position.xz, 1f) > threshold, "fixture: the ear passes the gate");
+        Assert.True(e.Visibility * weak.PassiveInfo(e.Position.xz, 1f) <= threshold, "fixture: the eye fails it");
+
+        Leave(_zone, e, how);
+
+        Assert.Equal(2, strong.RevealsOf(e).Count()); // nothing ends at the removal itself
+        Assert.Equal(2, weak.RevealsOf(e).Count());
+        Tick(.1f);
+
+        Assert.Empty(strong.RevealsOf(e));
+        Assert.Equal(0, RevealBookSubjects(strong));
+        Assert.False(strong.ContactOf(e).Detected);
+        Assert.Equal(2, weak.RevealsOf(e).Count());
+        Assert.True(weak.ContactOf(e).Detected);
+    }
+
+    // The gate at its edge, at one fixed distance: the light at removal a hair above the observer's threshold ends
+    // the reveals, a hair below does not. The factor is the production gate's own: threshold over the observer's
+    // passive info on the spot where the ship was.
+    [Theory]
+    [InlineData(1.01f, true)]
+    [InlineData(.99f, false)]
+    public void ADepartureEndsRevealsOnlyAboveTheLightActGate(float against, bool ended)
+    {
+        var e = Add(float3(0, 0, 100), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        Fire(e, Guns(e)[0]);
+        Assert.Single(o.RevealsOf(e));
+        var gate = _items.GameplaySettings.TargetDetectionInfoThreshold / o.PassiveInfo(e.Position.xz, 1f);
+        e.SetSignature(new object(), SignatureChannel.Reflection, gate * against, Guns(e)[0]);
+        Assert.Equal(gate * against, e.Visibility, 3);
+
+        _zone.Entities.Remove(e);
+        Tick(.1f);
+
+        Assert.Equal(ended ? 0 : 1, o.RevealsOf(e).Count());
+    }
+
+    // A signature on the Emission channel (paint strength, a ping) is not light: it does not make a departure seen.
+    [Fact]
+    public void AnEmissionSignatureDoesNotMakeADepartureSeen()
+    {
+        var e = Add(float3(0, 0, 100), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        Fire(e, Guns(e)[0]);
+        e.SetSignature(new object(), SignatureChannel.Emission, 1000f, Guns(e)[0]);
+
+        _zone.Entities.Remove(e);
+        Tick(.1f);
+
+        Assert.Single(o.RevealsOf(e));
+    }
+
+    // A ship removed and put back before anyone senses has not left: its reveals stand, and its next act refreshes them.
+    [Fact]
+    public void AReAdmittedSubjectHasNotDeparted()
+    {
+        var e = Add(float3(0, 0, 100), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var gun = Guns(e)[0];
+        var at = Fire(e, gun);
+        e.SetSignature(new object(), SignatureChannel.Reflection, 1000f, gun); // bright enough for any gate
 
         _zone.Entities.Remove(e);
         _zone.Entities.Add(e);
+        Tick(.1f);
 
-        Assert.Empty(o.RevealsOf(e)); // gone with the subject, and not back with it
-        Assert.Equal(0, RevealBookSubjects(o)); // and the book no longer holds the ship at all
+        Assert.Equal(at, Assert.Single(o.RevealsOf(e)).Time);
+        var later = Fire(e, gun);
+        Assert.True(later > at);
+        Assert.Equal(later, Assert.Single(o.RevealsOf(e)).Time);
     }
 
     private static int RevealBookSubjects(Entity observer) =>
@@ -526,7 +676,9 @@ public sealed class ContactRevealTests : IDisposable
 
     // Ruling contact-reads-book-aim-reads-live: what an observer knows of a ship comes from its own book. A gun
     // destroyed by a third party out of its sight changes none of its levels and stays in its reveal list, while
-    // the aiming read, which asks about the item now, refuses the dead gun and still serves the live one.
+    // the aiming read, which asks about the item now, refuses the dead gun and still serves the live one. No Sense
+    // runs after the destruction here (the aiming read needs info 1, at which a Sense would perceive it); the
+    // unseen case with a Sense is AnIdentifiedObserverSeesGearDestroyed's below-threshold case.
     [Fact]
     public void GearDestroyedOutOfSightLeavesWhatTheObserverKnowsAlone()
     {
@@ -558,8 +710,60 @@ public sealed class ContactRevealTests : IDisposable
         Assert.True(o.ContactOf(e).Classified);
     }
 
-    // A paint inboxed in the tick its emitter leaves the zone is published the next tick, and is no longer the
-    // act of a subject in the zone: it warns for its tick and records no reveal, so the observer holds no ghost.
+    // Ruling reveal-ends-on-perception: an observer that resolves a ship's gear (its track at TargetGearInfoThreshold)
+    // perceives an item of it destroyed, and the reveal of that item ends in the same Sense pass. One that does not
+    // resolve it perceives nothing.
+    [Theory]
+    [InlineData(.8f, 1, 1, 1)]
+    [InlineData(.8f, 2, 0, 0)]
+    [InlineData(.79f, 1, 2, 1)]
+    [InlineData(.79f, 2, 2, 1)]
+    public void AnIdentifiedObserverSeesGearDestroyed(float info, int destroyed, int remaining, int classifiedKeys)
+    {
+        var e = Add(float3(0, 0, 100), new[] { "Gun", "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var guns = Guns(e);
+        Fire(e, guns[0]);
+        Fire(e, guns[1]);
+        o.VisibleEntities.Add(e); // tracked, so what the track holds is not the question
+        o.EntityInfoGathered[e] = info;
+        var sense = SenseOf(o);
+        for (var i = 0; i < destroyed; i++) guns[i].EquippableItem.Durability = 0f;
+
+        sense();
+
+        Assert.Equal(remaining, o.RevealsOf(e).Count());
+        var contact = o.ContactOf(e);
+        Assert.True(contact.Detected);
+        Assert.Equal(remaining > 0, contact.Classified);
+        Assert.Equal(remaining > 0 ? classifiedKeys : 0, RevealBookSubjects(o));
+        if (remaining == 1 && info >= .8f) Assert.Same(guns[1], o.RevealsOf(e).Single().Item);
+    }
+
+    // The same through a real tick: a gun destroyed while its flash still shows, seen by an observer that identifies
+    // the ship, is not in the book after the tick.
+    [Fact]
+    public void ADestroyedGunStillFlashingIsNotRecordedByAnIdentifyingObserver()
+    {
+        var e = Add(float3(0, 0, 60), new[] { "Gun", "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var guns = Guns(e);
+        Fire(e, guns[0]);
+        Fire(e, guns[1]);
+        e.SetSignature(new object(), SignatureChannel.Reflection, 1000f, guns[0]); // the dying gun's glare outlasts the tick
+        guns[0].EquippableItem.Durability = 0f;
+        for (var i = 0; i < 20 && Track(o, e) < .8f; i++) Tick(.01f);
+        Assert.True(Track(o, e) >= .8f, "fixture: o identifies e");
+
+        Tick(.01f);
+
+        Assert.DoesNotContain(o.RevealsOf(e), r => r.Item == guns[0]);
+        Assert.Contains(o.RevealsOf(e), r => r.Item == guns[1]);
+    }
+
+    // A paint inboxed in the tick its emitter leaves the zone is published the next tick, and is no longer the act of
+    // a subject in the zone: it warns for its tick and neither creates nor refreshes a reveal. The reveal the
+    // locker's earlier paint made stays what it was, as a departure out of sight (below the observer's gate) leaves it.
     [Fact]
     public void APaintFromAShipThatHasLeftTheZoneRevealsNothing()
     {
@@ -570,16 +774,18 @@ public sealed class ContactRevealTests : IDisposable
         locker.SetTarget(o);
         locker.Aim = normalize(o.Position - locker.Position);
         for (var tick = 0; tick < 10 && !o.RevealsOf(locker).Any(); tick++) Tick(.5f);
-        Assert.Single(o.RevealsOf(locker)); // fixture: the lock paints every tick, and the first one is recorded
+        var first = Assert.Single(o.RevealsOf(locker)); // fixture: the lock paints every tick, and the first one is recorded
+        Assert.True(locker.Visibility * o.PassiveInfo(locker.Position.xz, 1f) <= _items.GameplaySettings.TargetDetectionInfoThreshold, "fixture: its departure is below o's gate");
 
         _zone.Entities.Remove(locker); // dies, warps or docks while its latest paint is still in o's inbox
-        Assert.Empty(o.RevealsOf(locker));
+        var inboxed = ((System.Collections.IList) typeof(Entity).GetField("_paintInbox", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(o)).Count;
+        Assert.True(inboxed > 0 || o.IncomingPaints.Count > 0, "fixture: a paint is in flight");
         Tick(.1f);
 
         Assert.Single(o.IncomingPaints); // fixture: the stale paint was published
-        Assert.Empty(o.RevealsOf(locker));
-        Assert.False(o.ContactOf(locker).Detected);
-        Assert.Equal(0, RevealBookSubjects(o));
+        var after = Assert.Single(o.RevealsOf(locker));
+        Assert.Equal(first.Time, after.Time);
+        Assert.Equal(1, RevealBookSubjects(o));
     }
 
     // Ruling sensor-stat-set 4: a painted target always learns the emitter's class, whichever the mode. A ping
@@ -607,6 +813,30 @@ public sealed class ContactRevealTests : IDisposable
         Assert.Same(item, reveal.Item);
         Assert.Equal(SignatureChannel.Emission, reveal.Channel);
         AssertBearing(0f, 1f, reveal.Bearing);
+    }
+
+    // A search paint (a ping crossing the observer) from a pinger that has left the zone before the paint is
+    // published warns once and creates no reveal and no key.
+    [Fact]
+    public void ASearchPaintFromAPingerThatHasLeftCreatesNoReveal()
+    {
+        var p = Add(float3(0, 0, 100), new[] { "Eye" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var sensor = (Sensor) p.Equipment.Single(i => i.Behaviors.Any(b => b is Sensor)).Behaviors.Single(b => b is Sensor);
+        Tick(.01f);
+        sensor.Ping();
+        var inbox = (System.Collections.IList) typeof(Entity).GetField("_paintInbox", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(o);
+        for (var tick = 0; tick < 100 && inbox.Count == 0; tick++) Tick(.1f);
+        Assert.NotEmpty(inbox); // fixture: the ping crossed o and its paint waits to be published
+
+        _zone.Entities.Remove(p);
+        Tick(.1f);
+
+        Assert.Single(o.IncomingPaints);
+        Assert.Equal(PaintMode.Search, o.IncomingPaints.Single().Mode);
+        Assert.Empty(o.RevealsOf(p));
+        Assert.Equal(0, RevealBookSubjects(o));
+        Assert.False(o.ContactOf(p).Detected);
     }
 
     // An observer's own gear is not another ship's act: a ship that fires its own gun, with its own sensor at the
@@ -716,9 +946,19 @@ public sealed class ContactRevealTests : IDisposable
             gunItems.Add(item);
         }
         var o = Add(float3(0, 0, 0), new[] { "Eye" });
-        var sense = (Action) Delegate.CreateDelegate(typeof(Action), o, typeof(Entity).GetMethod("Sense", BindingFlags.Instance | BindingFlags.NonPublic));
+        var sense = SenseOf(o);
         for (var i = 0; i < 10; i++) sense();
         Assert.Equal(19, _zone.Entities.Where(x => x != o).Count(x => o.RevealsOf(x).Any())); // fixture: every ship is revealed
+        // One of them is identified by o (its destroyed gun is ended in the pass), and one has left, quiet, so its
+        // entries await the prune and its departure sits in the zone's list.
+        var identified = gunItems.Select(g => _zone.Entities.Single(x => x.Equipment.Contains(g))).First();
+        o.EntityInfoGathered[identified] = 1f;
+        var departed = _zone.Entities.Single(x => x.Equipment.Contains(gunItems[18]));
+        foreach (var source in departed.VisibilitySources.Keys.ToArray()) departed.SetSignature(source, SignatureChannel.Reflection, 0f, gunItems[18]);
+        _zone.Entities.Remove(departed);
+        Assert.Single((System.Collections.IList) typeof(Zone).GetProperty("Departures", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(_zone));
+        sense();
+        Assert.Single(o.RevealsOf(departed)); // fixture: awaiting its prune
 
         var before = GC.GetAllocatedBytesForCurrentThread();
         for (var i = 0; i < 600; i++) sense();
