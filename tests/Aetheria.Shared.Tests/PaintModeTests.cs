@@ -270,6 +270,11 @@ public sealed class PaintModeTests : IDisposable
 
         Assert.Equal(2 * .3f, Track(c, t), 4); // 5 x 3 x .0002 x 100, its own ping and A's
         Assert.Equal(2 * .1f, Track(a, t), 4); // 5 x 2 x .0001 x 100, its own ping and C's
+        // A pinging ship is not a subject of its own ping, wherever its wavefront starts: A sees C once (A's own
+        // sweep), at C's light of 10 (5 reflected, 5 emitted by the ping) and 100 x sqrt 2 away; and C sees A once.
+        var apart = length(float2(100, 100));
+        Assert.Equal(10 * 2 * .0001f * apart, Track(a, c), 4);
+        Assert.Equal(10 * 3 * .0002f * apart, Track(c, a), 4);
     }
 
     // Allegiance needs a faction: two factionless ships are not allies, so one hears nothing of the other's ping.
