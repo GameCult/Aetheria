@@ -359,6 +359,25 @@ public sealed class ContactRevealTests : IDisposable
         Assert.Empty(o.RevealsOf(p));
     }
 
+    // Ruling consumable-signature-null-until-reveal: a consumable-hosted signature names no item (Item null, as
+    // hull radiation does), so however bright and near it reveals nothing; the reveal cut leaves what it names to
+    // follow-up reveal-names-consumable-signature.
+    [Fact]
+    public void ANullItemSignatureFromASourceThatIsNotTheHullRevealsNothing()
+    {
+        var e = Add(float3(0, 0, 20));
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var data = _openCache.GetByName<ConsumableItemData>("Pinger");
+        e.ActivateConsumable(Assert.IsType<ConsumableItem>(_items.CreateInstance(_items.CreateLot(data, _maker, .5f))));
+        var source = e.FindActiveConsumable(data).Behaviors.Single();
+        e.SetSignature(source, SignatureChannel.Reflection, 1000f, null);
+
+        Tick(.01f);
+
+        Assert.True(e.VisibilitySources.ContainsKey(source), "fixture: the consumable's light is on");
+        Assert.Empty(o.RevealsOf(e));
+    }
+
     // ---- ALaunchGivesABearingNotATrack ----
 
     [Fact]
