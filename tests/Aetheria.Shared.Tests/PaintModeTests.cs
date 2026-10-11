@@ -60,7 +60,8 @@ public sealed class PaintModeTests : IDisposable
             UnaidedTracking = 10f,
             UnaidedPrecision = 2f,
             AgentMinHitProbability = 0f,
-            BeamResolveInterval = .1f
+            BeamResolveInterval = .1f,
+            HeatRadiationMultiplier = 0f // the hull radiates nothing, so a ship's light is the one source the fixture adds
         }, _ => { });
         _zone = new Zone(_items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test Zone", Owner = null }, null);
     }
