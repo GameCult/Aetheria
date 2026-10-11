@@ -520,6 +520,14 @@ public sealed class ContactRevealTests : IDisposable
         Assert.DoesNotContain(e, zone.Entities);
     }
 
+    // Leaves the ship showing exactly `strength` of light: whatever its guns left glowing is put out first.
+    private static void ShowOnly(Entity e, float strength, EquippedItem item)
+    {
+        foreach (var source in e.VisibilitySources.Keys.ToArray()) e.SetSignature(source, SignatureChannel.Reflection, 0f, item);
+        e.SetSignature(new object(), SignatureChannel.Reflection, strength, item);
+        Assert.Equal(strength, e.Visibility, 4);
+    }
+
     private static float Freshest(Entity observer, Entity subject) => observer.RevealsOf(subject).Max(r => r.Time);
 
     // Ruling reveal-ends-on-perception: a ship leaving the zone does not by itself empty any book. Out of this
@@ -540,7 +548,7 @@ public sealed class ContactRevealTests : IDisposable
         var times = o.RevealsOf(e).ToDictionary(r => r.Item, r => r.Time);
         var freshest = times.Values.Max();
         var bearing = o.ContactOf(e).Bearing;
-        e.SetSignature(new object(), SignatureChannel.Reflection, 1f, guns[0]);
+        ShowOnly(e, 1f, guns[0]);
         Assert.True(e.Visibility * o.PassiveInfo(e.Position.xz, 1f) <= _items.GameplaySettings.TargetDetectionInfoThreshold, "fixture: its last light is below o's gate");
         Assert.Equal(2, times.Count);
 
@@ -595,9 +603,8 @@ public sealed class ContactRevealTests : IDisposable
         var guns = Guns(e);
         Fire(e, guns[0]);
         Fire(e, guns[1]);
-        Tick(.01f); // the last flash decays at once: only the signature set below is left at removal
         foreach (var observer in new[] { strong, weak }) Assert.Equal(2, observer.RevealsOf(e).Count());
-        e.SetSignature(new object(), SignatureChannel.Reflection, 2f, guns[0]);
+        ShowOnly(e, 2f, guns[0]);
         var threshold = _items.GameplaySettings.TargetDetectionInfoThreshold;
         Assert.True(e.Visibility * strong.PassiveInfo(e.Position.xz, 1f) > threshold, "fixture: the ear passes the gate");
         Assert.True(e.Visibility * weak.PassiveInfo(e.Position.xz, 1f) <= threshold, "fixture: the eye fails it");
@@ -629,8 +636,7 @@ public sealed class ContactRevealTests : IDisposable
         Tick(.01f);
         Assert.Single(o.RevealsOf(e));
         var gate = _items.GameplaySettings.TargetDetectionInfoThreshold / o.PassiveInfo(e.Position.xz, 1f);
-        e.SetSignature(new object(), SignatureChannel.Reflection, gate * against, Guns(e)[0]);
-        Assert.Equal(gate * against, e.Visibility, 3);
+        ShowOnly(e, gate * against, Guns(e)[0]);
 
         _zone.Entities.Remove(e);
         Tick(.1f);
@@ -646,6 +652,7 @@ public sealed class ContactRevealTests : IDisposable
         var o = Add(float3(0, 0, 0), new[] { "Eye" });
         Fire(e, Guns(e)[0]);
         Tick(.01f);
+        ShowOnly(e, 0f, Guns(e)[0]);
         e.SetSignature(new object(), SignatureChannel.Emission, 1000f, Guns(e)[0]);
 
         _zone.Entities.Remove(e);
@@ -663,7 +670,7 @@ public sealed class ContactRevealTests : IDisposable
         var gun = Guns(e)[0];
         var at = Fire(e, gun);
         Tick(1f); // the gun cools down
-        e.SetSignature(new object(), SignatureChannel.Reflection, 1000f, gun); // bright enough for any gate
+        ShowOnly(e, 1000f, gun); // bright enough for any gate
 
         _zone.Entities.Remove(e);
         _zone.Entities.Add(e);
