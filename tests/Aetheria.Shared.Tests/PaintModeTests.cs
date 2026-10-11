@@ -4,8 +4,15 @@ using System.IO;
 using System.Linq;
 using CultMath;
 using GameCult.Caching;
+using GameCult.Caching.MessagePack;
+using MessagePack;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Xunit;
 using static CultMath.math;
+using float2 = CultMath.float2;
+using float3 = CultMath.float3;
+using int2 = CultMath.int2;
 
 // A ping sweep warns every ship its wavefront crosses inside its beam, and allies hear the return silently (cut
 // paint-modes; rulings sensor-stat-set items 3 and 4, illuminator-beamforming, shared-track-bearing-only). Every
@@ -242,8 +249,9 @@ public sealed class PaintModeTests : IDisposable
 
         var (held, _) = SweepAndWatch(a, .1f);
 
-        // C: 5 x 3 x .0002 x 50 = .15, from C's own sensor and C's own distance; A's own credit is .1.
-        Assert.Equal(.15f, Track(c, t), 4);
+        // C hears the return bistatically, at the geometric mean of A's range to T (100) and its own (50), with its own
+        // sensor: 5 x 3 x .0002 x sqrt(100 x 50) = .21213. A's own credit is .1.
+        Assert.Equal(.21213f, Track(c, t), 4);
         Assert.Equal(.1f, Track(a, t), 4);
         // Nothing of C is emitted or painted: T's only paint is A's sweep.
         Assert.Equal(cEmission, c.SignatureOn(SignatureChannel.Emission));
@@ -324,5 +332,262 @@ public sealed class PaintModeTests : IDisposable
             Assert.True(track.Last() > 0f && track.Last() < .5f);
         }
         else Assert.Equal(1, rises); // the allied sweep crossing T is the one rise
+    }
+
+    private static void Near(float expected, float actual, float tolerance = 1e-3f) =>
+        Assert.True(abs(expected - actual) <= tolerance, $"expected {expected}, got {actual}");
+
+    // Ships moving relative to the wavefront are crossed exactly once, on the first tick it is past them, whatever
+    // their speed: 48 subjects 150-225 out, their positions set before each .1 tick, an omni ping of range 300 (its
+    // radius is 300 x sqrt(.05 x tick) while it runs, 21 ticks). Inward ships close the gap faster than a tick's step
+    // can bracket; outward ones flee near the front's own speed.
+    [Theory]
+    [InlineData(-85f)]
+    [InlineData(-60f)]
+    [InlineData(60f)]
+    public void AMovingSubjectIsCrossedOnce(float outwardSpeed)
+    {
+        var a = NewShip(float3(0, 0, 0), "Omni");
+        const int count = 48;
+        const float dt = .1f;
+        var subjects = new List<(Ship ship, float3 start, float3 outward)>();
+        for (var i = 0; i < count; i++)
+        {
+            var angle = i * 2 * PI / count;
+            var outward = float3(cos(angle), 0, sin(angle));
+            var start = outward * (150f + 100f * (i % 4) / 4f); // phases differ
+            subjects.Add((NewShip(start), start, outward));
+        }
+        Settle();
+
+        var paints = subjects.ToDictionary(s => s.ship, _ => 0);
+        var crossedAtDistance = new Dictionary<Ship, float>();
+        SensorOf(a).Ping();
+        for (var tick = 1; tick <= 24; tick++)
+        {
+            foreach (var (ship, start, outward) in subjects) ship.Position = start + outward * outwardSpeed * tick * dt;
+            Tick(dt);
+            foreach (var (ship, start, outward) in subjects)
+            {
+                var held = ship.IncomingPaints.Count;
+                paints[ship] += held;
+                // A paint is published on the tick after the crossing: the ship was then where the previous tick put it.
+                if (held > 0) crossedAtDistance[ship] = length((start + outward * outwardSpeed * (tick - 1) * dt).xz);
+            }
+        }
+
+        Assert.All(paints.Values, painted => Assert.True(painted <= 1, "a ping crosses a ship at most once"));
+        if (outwardSpeed < 0) Assert.All(paints.Values, painted => Assert.Equal(1, painted));
+        Assert.Contains(paints.Values, painted => painted == 1); // fixture: the sweep reaches ships
+        foreach (var (ship, _, _) in subjects)
+            Near(crossedAtDistance.TryGetValue(ship, out var distance) ? .001f * distance : 0f, Track(a, ship));
+    }
+
+    // C hears A's ping returned off T: A's wavefront crossed T at 100, C stands 50 from T, so the credit is at the
+    // geometric mean range, 5 x 3 x .0002 x sqrt(100 x 50) = .21213. It lands on the tick after the crossing (tick
+    // 3) and does not depend on the order the two ships tick in, or on A still being in the zone.
+    [Theory]
+    [InlineData(false, 0)]
+    [InlineData(true, 0)]
+    [InlineData(false, 3)]
+    [InlineData(true, 3)]
+    public void AnAllysCreditIsTheSameInEveryListOrder(bool allyFirst, int removePingerAfterTick)
+    {
+        Ship a, c;
+        if (allyFirst)
+        {
+            c = NewShip(float3(30, 0, 140), "Ear");
+            a = NewShip(float3(0, 0, 0), "Omni", c.Faction);
+        }
+        else
+        {
+            a = NewShip(float3(0, 0, 0), "Omni");
+            c = NewShip(float3(30, 0, 140), "Ear", a.Faction);
+        }
+        var t = NewShip(float3(0, 0, 100));
+        Settle();
+
+        SensorOf(a).Ping();
+        for (var tick = 1; tick <= 24; tick++)
+        {
+            Tick(.1f);
+            if (tick == removePingerAfterTick) _zone.Entities.Remove(a);
+            Near(tick <= 3 ? 0f : .21213f, Track(c, t));
+            Assert.Equal(tick == 4 ? 1 : 0, t.IncomingPaints.Count);
+        }
+    }
+
+    // A sensor that stops executing leaves no echo: killed (disabled) after the tick its wavefront crossed T, the
+    // one return it posted is heard once; before that tick, there is nothing to hear and T is never painted.
+    [Theory]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void AStoppedIlluminatorLeavesNoEcho(int disableAfterTick)
+    {
+        var a = NewShip(float3(0, 0, 0), "Omni");
+        var c = NewShip(float3(30, 0, 140), "Ear", a.Faction);
+        var t = NewShip(float3(0, 0, 100));
+        Settle();
+
+        SensorOf(a).Ping();
+        var track = new List<float>();
+        var painted = 0;
+        for (var tick = 1; tick <= 14; tick++)
+        {
+            Tick(.1f);
+            if (tick == disableAfterTick) GearOf(a).Enabled.Value = false;
+            track.Add(Track(c, t));
+            painted += t.IncomingPaints.Count;
+        }
+
+        if (disableAfterTick == 3)
+        {
+            Assert.Equal(1, painted);
+            Assert.Equal(1, Enumerable.Range(1, track.Count - 1).Count(i => track[i] > track[i - 1]));
+            Assert.All(track, value => Assert.True(value <= .21213f + 1e-3f));
+            Near(.21213f, track.Last());
+        }
+        else
+        {
+            Assert.Equal(0, painted);
+            Assert.All(track, value => Assert.Equal(0f, value));
+        }
+    }
+
+    // The oval of Cassini: an ally hears the return while the illuminated range (A to T, 100) times its own (ally to
+    // T) is under PingRange squared (300^2 = 90000). Inside it, the credit is at the geometric mean range.
+    [Theory]
+    [InlineData(30f, 140f)]    // Rr 50: 5000
+    [InlineData(0f, 990f)]     // Rr 890: 89000
+    [InlineData(0f, 1010f)]    // Rr 910: 91000, outside
+    public void AnAllyHearsOnlyInsideTheBistaticOval(float allyX, float allyZ)
+    {
+        var a = NewShip(float3(0, 0, 0), "Omni");
+        var t = NewShip(float3(0, 0, 100));
+        var c = NewShip(float3(allyX, 0, allyZ), "Ear", a.Faction);
+        Settle();
+        var illuminated = 100f;
+        var received = length(float2(allyX, allyZ - 100f));
+
+        var (held, _) = SweepAndWatch(a, .1f);
+
+        Assert.Equal(1, held[t].Sum(h => h.Length));
+        Near(.1f, Track(a, t));
+        Near(illuminated * received < 300f * 300f ? .003f * sqrt(illuminated * received) : 0f, Track(c, t));
+    }
+
+    // A vapour cloud thins both legs of the echo (ruling vapour-cloud-obscuration); the pinger's paint on the
+    // subject is published whatever the cloud (map R3). A at the origin, T 100 ahead, C at (60, 0, 100).
+    // Leg 0: an opaque cloud on A to T. Leg 1: an opaque cloud on C to T. Leg 2: a half-opaque cloud on A to T.
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void CloudsThinBothLegsOfTheEcho(int leg)
+    {
+        var a = NewShip(float3(0, 0, 0), "Omni");
+        var t = NewShip(float3(0, 0, 100));
+        var c = NewShip(float3(60, 0, 100), "Ear", a.Faction);
+        var at = leg == 1 ? float2(30, 100) : float2(0, 50);
+        _zone.Vent(new VapourCloud { Body = new KinematicBody { Position = at }, Radius = 10f, Opacity = leg == 2 ? .5f : 1f, Lifetime = 1000f });
+        Settle();
+
+        SensorOf(a).Ping();
+        var painted = 0;
+        float illuminatedLeg = 0f, receiveLeg = 0f;
+        for (var tick = 1; tick <= 24; tick++)
+        {
+            Tick(.1f);
+            painted += t.IncomingPaints.Count;
+            if (tick == 3) illuminatedLeg = _zone.Obscuration(a.Position.xz, t.Position.xz);
+            if (tick == 4) receiveLeg = _zone.Obscuration(c.Position.xz, t.Position.xz);
+        }
+
+        Assert.Equal(1, painted);
+        if (leg == 0)
+        {
+            Assert.Equal(0f, Track(a, t));
+            Assert.Equal(0f, Track(c, t));
+        }
+        else if (leg == 1)
+        {
+            Near(.1f, Track(a, t));
+            Assert.Equal(0f, Track(c, t));
+        }
+        else
+        {
+            Assert.InRange(illuminatedLeg, .01f, .99f); // fixture: the cloud really thins the leg
+            Assert.Equal(1f, receiveLeg, 3);
+            Near(.003f * sqrt(100f * 60f) * sqrt(illuminatedLeg * receiveLeg), Track(c, t));
+        }
+    }
+
+    // The front has passed S, and S was abeam of a narrow beam: it joined the swept set uncredited. S then drifts
+    // into the beam behind the front; that is not a crossing.
+    [Fact]
+    public void ADriftIntoTheBeamBehindTheFrontIsNotACrossing()
+    {
+        var a = NewShip(float3(0, 0, 0), "Beam90");
+        a.Direction = float2(1, 0);
+        var s = NewShip(float3(0, 0, 100));
+        Settle();
+
+        SensorOf(a).Ping();
+        var painted = 0;
+        for (var tick = 1; tick <= 24; tick++)
+        {
+            Tick(.1f);
+            painted += s.IncomingPaints.Count;
+            if (tick == 3)
+            {
+                Assert.True(SensorOf(a).PingRadius > 100f, "fixture: the front has passed S");
+                s.Position = float3(100, 0, 0);
+            }
+        }
+
+        Assert.Equal(0, painted);
+        Assert.Equal(0f, Track(a, s));
+    }
+
+    [Fact]
+    public void AShipArrivingAfterThePingIsNotSwept()
+    {
+        var a = NewShip(float3(0, 0, 0), "Omni");
+        Settle();
+        SensorOf(a).Ping();
+        for (var tick = 1; tick <= 24; tick++) Tick(.1f);
+        Assert.True(SensorOf(a).PingRadius > 300f, "fixture: the ping has run its course");
+
+        var arrival = NewShip(float3(0, 0, 100));
+        var painted = 0;
+        for (var tick = 1; tick <= 5; tick++)
+        {
+            Tick(.1f);
+            painted += arrival.IncomingPaints.Count;
+        }
+
+        Assert.Equal(0, painted);
+        Assert.Equal(0f, Track(a, arrival));
+    }
+
+    private static MessagePackSerializerOptions WireOptions => CultDocumentMessagePackSerialization.OptionsFor(typeof(ZonePack).Assembly);
+
+    // BeamWidth is slot 12 of the sensor record, the fifth union arm of BehaviorData, and the JSON property
+    // beamWidth. Read as bytes, so a renumbered key or a renamed property cannot pass because writer and reader move together.
+    [Fact]
+    public void TheBeamWidthIsKey12OfUnion5()
+    {
+        var data = new SensorData { BeamWidth = Const(90) };
+        var bytes = MessagePackSerializer.Serialize<BehaviorData>(data, WireOptions);
+
+        var reader = new MessagePackReader(bytes);
+        Assert.Equal(2, reader.ReadArrayHeader());
+        Assert.Equal(5, reader.ReadInt32());
+        Assert.Equal(13, reader.ReadArrayHeader());
+        for (var slot = 0; slot < 12; slot++) reader.Skip();
+        Assert.Equal(90f, MessagePackSerializer.Deserialize<PerformanceStat>(ref reader, WireOptions).Min);
+
+        var json = JObject.Parse(JsonConvert.SerializeObject(data));
+        Assert.Equal(90f, json["beamWidth"].ToObject<PerformanceStat>().Min);
     }
 }
