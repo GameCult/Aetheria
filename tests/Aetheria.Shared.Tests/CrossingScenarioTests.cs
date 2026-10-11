@@ -32,6 +32,8 @@ public sealed partial class RunStartTests
         var waiting = staged.Entities[1];
         Assert.IsType<Ship>(crosser);
         Assert.IsType<Ship>(waiting);
+        Assert.Equal(("Djinni", "Djinni"), (_items.GetData(crosser.Hull).Name, _items.GetData(waiting.Hull).Name));
+        Assert.Contains(crosser.Equipment, item => item.Behaviors.OfType<Weapon>().Any());
 
         Assert.True(player.IsHostileTo(crosser) && crosser.IsHostileTo(player), "the crosser is hostile both ways");
         Assert.Equal(1, AgentsOf(arena, crosser));
@@ -49,7 +51,29 @@ public sealed partial class RunStartTests
         Assert.True(FireControl.InArc(plight, toWaiting), "the waiting Djinni is inside plight's arc");
         Assert.True(length(toWaiting) <= range, "the waiting Djinni is inside plight's Range");
         Assert.True(length(toWaiting) > .75f * range, "the waiting Djinni is beyond three quarters of plight's Range");
+
+        // The crossing is what the sim does with that staging, read in the player's frame: the arena's gravity and the
+        // crosser's pilot act from the first tick, so the t=0 facing proves nothing. Within CrossingSeconds the crosser's
+        // bearing sweeps from port to starboard while it is ahead and inside CrossingMetres, and both guns bear on it.
+        var swept = false;
+        for (var tick = 0; tick < 60 * CrossingSeconds && !swept; tick++)
+        {
+            var before = crosser.Position - player.Position;
+            arena.Update(1f / 60f);
+            var after = crosser.Position - player.Position;
+            if (before.x < 0 && after.x >= 0)
+            {
+                swept = true;
+                Assert.True(after.z > 0, "the crosser passes the bow line ahead of the player, not astern");
+                Assert.True(length(after) < CrossingMetres, "the crosser passes inside the stated distance");
+                Assert.True(FireControl.InArc(small, after), "FastBlast+- bears on the crosser as it crosses");
+            }
+        }
+        Assert.True(swept, $"the crosser's bearing never swept across the bow within {CrossingSeconds} s");
     }
+
+    private const int CrossingSeconds = 6;
+    private const float CrossingMetres = 150f;
 
     // Djinni Shakedown: the generated Djinni carries a gun on a Ballistic hardpoint (not a launcher); that mount bears on
     // Ahead and not on Abeam, and both targets are neutral.
@@ -66,7 +90,13 @@ public sealed partial class RunStartTests
         Assert.Equal(2, staged.Entities.Count);
         var ahead = staged.Entities[0];
         var abeam = staged.Entities[1];
-        Assert.Equal((DjinniShakedown.Ahead, DjinniShakedown.Abeam), (ahead.Position.xz, abeam.Position.xz));
+        var facing = player.Direction;
+        var perpendicular = new float2(facing.y, -facing.x);
+        Assert.Equal(400f, length(ahead.Position.xz), .01f);
+        Assert.Equal(400f, length(abeam.Position.xz), .01f);
+        Assert.Equal(1f, dot(normalize(ahead.Position.xz), facing), .001f);
+        Assert.Equal(1f, abs(dot(normalize(abeam.Position.xz), perpendicular)), .001f);
+        Assert.Equal(("Longinus", "Longinus"), (_items.GetData(ahead.Hull).Name, _items.GetData(abeam.Hull).Name));
         foreach (var barrel in barrels)
         {
             Assert.True(FireControl.InArc(barrel, ahead.Position - player.Position), $"{barrel.Data.Name} cannot bear on Ahead");

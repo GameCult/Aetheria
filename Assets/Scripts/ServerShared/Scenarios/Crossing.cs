@@ -5,15 +5,17 @@ public sealed class Crossing : Scenario
 {
     public override string Name => "Crossing";
     public override string Brief => "plight at the starboard gun and a FastBlast+- at the port gun, a fast Djinni crossing close ahead and an " +
-                                    "unpiloted one waiting at range. Verify: as the Djinni crosses close, FastBlast lands some and plight " +
+                                    "unpiloted one waiting at range. The Djinni starts to port moving across the bow; the arena's gravity bends its run. Verify: as the Djinni crosses close, FastBlast lands some and plight " +
                                     "almost none; against the Djinni at range both land. Fly it again without the Fire Control Array: " +
                                     "with it the small gun lands more.";
     public override uint Seed => 112;
     public override bool Ambient => false;
 
-    // Where the Djinni sit: the player is at the origin facing +z. The crosser starts ahead and to starboard, facing
-    // across the bow, and flies in under 400 m. The waiting Djinni sits inside plight's arc at 80% of its Range.
-    public static readonly CultMath.float2 CrosserAt = float2(250, 280), CrosserFacing = float2(-1, 0);
+    // Where the Djinni sit: the player is at the origin facing +z. The crosser starts ahead and to port, facing across
+    // the bow and already moving at the Djinni's 50 m/s cap, so its run sweeps across the bow within seconds (the arena
+    // pulls the player to port, which brings the two together). The waiting Djinni sits inside plight's arc at 80% of
+    // its Range.
+    public static readonly CultMath.float2 CrosserAt = float2(-150, 200), CrosserFacing = float2(1, 0), CrosserVelocity = float2(50, 0);
     public const float PlightRange = 1216f; // plight's Range in metres, 1216.4 as the fit stands settled at rest
     public static readonly CultMath.float2 Waiting = float2(0, PlightRange * .8f);
 
@@ -38,7 +40,7 @@ public sealed class Crossing : Scenario
             ("Fire Control Array", int2(1, 6), Clockwise));
 
         stage.Player(fighter, float2(0, 0), facing: float2(0, 1));
-        stage.Place(stage.Generated("Djinni"), CrosserAt, facing: CrosserFacing, stance: ScenarioStance.Hostile, piloted: true);
+        stage.Place(stage.Generated("Djinni"), CrosserAt, facing: CrosserFacing, stance: ScenarioStance.Hostile, piloted: true, velocity: CrosserVelocity);
         stage.Place(stage.Bare("Djinni"), Waiting);
     }
 }
