@@ -9,6 +9,10 @@ using System.Linq;
 using System.Reflection;
 using CultMath;
 using GameCult.Caching;
+using GameCult.Caching.MessagePack;
+using MessagePack;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Xunit;
 using static CultMath.math;
 using float2 = CultMath.float2;
@@ -33,7 +37,12 @@ public sealed class SignatureTests : IDisposable
 
     private static PerformanceStat Constant(float v) => new PerformanceStat { Min = v, Max = v };
 
-    private static GameplaySettings Settings(float visibilityDecay) => new GameplaySettings
+    // Per-test authoring of the numbers a rule is a function of (all default to the values the other tests rely on).
+    private float _weaponVisibility = 100f;
+    private float _radiationMultiplier = 0f; // the hull radiates nothing unless a test says so
+    private float _radiationExponent = 1f;
+
+    private GameplaySettings Settings(float visibilityDecay) => new GameplaySettings
     {
         DefaultEntitySettings = new EntitySettings(),
         Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
@@ -50,8 +59,9 @@ public sealed class SignatureTests : IDisposable
         AgentMinHitProbability = .2f,
         BeamResolveInterval = .1f,
         VisibilityDecay = visibilityDecay,
-        // The hull radiates nothing, so every sum below is the sum of the authored constants.
-        HeatRadiationMultiplier = 0f
+        // The hull radiates nothing by default, so every sum below is the sum of the authored constants.
+        HeatRadiationMultiplier = _radiationMultiplier,
+        HeatRadiationExponent = _radiationExponent
     };
 
     private static GearData Gear(string name, BehaviorData behavior) => new GearData
@@ -107,7 +117,7 @@ public sealed class SignatureTests : IDisposable
             behavior.Penetration = Constant(0);
             behavior.Energy = Constant(50);
             behavior.Heat = Constant(0);
-            behavior.Visibility = Constant(100);
+            behavior.Visibility = Constant(_weaponVisibility);
             behavior.MagazineSize = armament == Armament.Gun ? 5 : 0;
             behavior.DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } };
             cache.Upsert(new WeaponItemData
@@ -174,26 +184,34 @@ public sealed class SignatureTests : IDisposable
 
     // ---- EveryWriterNamesItsChannel ----
 
-    [Fact]
-    public void AFiredGunShowsALaunchFlashWithItsItem()
+    // The channel is the writer's meaning, not the strength's: a strong flash and one below any plausible threshold
+    // travel on the same channel.
+    [Theory]
+    [InlineData(100f)]
+    [InlineData(.5f)]
+    public void AFiredGunShowsALaunchFlashWithItsItem(float visibility)
     {
+        _weaponVisibility = visibility;
         var r = Build(Armament.Gun, 0f, null);
         Fire(r);
         var s = Of(r.Ship, r.Weapon);
         Assert.Equal(SignatureChannel.LaunchFlash, s.Channel);
         Assert.Same(r.WeaponItem, s.Item);
-        Assert.True(s.Strength > 1f, "fixture: the gun fired");
+        Assert.Equal(visibility, s.Strength, 3);
     }
 
-    [Fact]
-    public void ABurningBeamShowsALaunchFlashWithItsItem()
+    [Theory]
+    [InlineData(100f)]
+    [InlineData(.5f)]
+    public void ABurningBeamShowsALaunchFlashWithItsItem(float visibility)
     {
+        _weaponVisibility = visibility;
         var r = Build(Armament.Beam, 0f, null);
         Fire(r);
         var s = Of(r.Ship, r.Weapon);
         Assert.Equal(SignatureChannel.LaunchFlash, s.Channel);
         Assert.Same(r.WeaponItem, s.Item);
-        Assert.True(s.Strength > 1f, "fixture: the beam burned");
+        Assert.Equal(visibility, s.Strength, 3);
     }
 
     private static ThrusterData Drive(float visibility) =>
@@ -205,30 +223,37 @@ public sealed class SignatureTests : IDisposable
         r.Zone.Update(.1f);
     }
 
-    [Fact]
-    public void ABurningThrusterShowsADrivePlumeWithItsItem()
+    [Theory]
+    [InlineData(10f)]
+    [InlineData(.5f)]
+    public void ABurningThrusterShowsADrivePlumeWithItsItem(float visibility)
     {
-        var r = Build(Armament.None, 0f, Drive(10));
+        var r = Build(Armament.None, 0f, Drive(visibility));
         var thruster = Single<Thruster>(r.Ship);
         thruster.Item.UpdatePerformance();
         Burn(r, 1f);
         var s = Of(r.Ship, thruster);
         Assert.Equal(SignatureChannel.DrivePlume, s.Channel);
         Assert.Same(thruster.Item, s.Item);
-        Assert.True(s.Strength > 1f, "fixture: the thruster burned");
+        Assert.Equal(visibility, s.Strength, 3);
     }
 
+    // The radiator's light is HeatRadiationMultiplier x Emissivity at a radiation exponent of 0 (the temperature
+    // drops out), so the strength is a function of two authored inputs: .25 x 3.
     [Fact]
     public void ARadiatorShowsAThermalSignatureWithItsItem()
     {
+        _radiationMultiplier = .25f;
+        _radiationExponent = 0f;
         var r = Build(Armament.None, 0f, null, new RadiatorData
         {
-            Emissivity = Constant(1), PumpedHeat = Constant(0), TemperatureFloor = 0, WasteHeat = Constant(0), EnergyUsage = Constant(0), ThermalMass = Constant(1000)
+            Emissivity = Constant(3), PumpedHeat = Constant(0), TemperatureFloor = 0, WasteHeat = Constant(0), EnergyUsage = Constant(0), ThermalMass = Constant(1000)
         });
         var radiator = Single<Radiator>(r.Ship);
         var s = Of(r.Ship, radiator);
         Assert.Equal(SignatureChannel.Thermal, s.Channel);
         Assert.Same(radiator.Item, s.Item);
+        Assert.Equal(.75f, s.Strength, 3);
     }
 
     [Fact]
@@ -250,12 +275,14 @@ public sealed class SignatureTests : IDisposable
         Assert.Null(s.Item);
     }
 
-    [Fact]
-    public void APingShowsAnEmissionWithItsItem()
+    [Theory]
+    [InlineData(5f)]
+    [InlineData(9f)]
+    public void APingShowsAnEmissionWithItsItem(float pingVisibility)
     {
         var r = Build(Armament.None, 0f, null, new SensorData
         {
-            Sensitivity = Constant(3f), PingBoost = Constant(.02f), PingEnergy = Constant(0f), PingVisibility = Constant(5f),
+            Sensitivity = Constant(3f), PingBoost = Constant(.02f), PingEnergy = Constant(0f), PingVisibility = Constant(pingVisibility),
             PingRange = Constant(300f), PingCooldown = Constant(4f)
         });
         var sensor = Single<Sensor>(r.Ship);
@@ -263,7 +290,7 @@ public sealed class SignatureTests : IDisposable
         var s = Of(r.Ship, sensor);
         Assert.Equal(SignatureChannel.Emission, s.Channel);
         Assert.Same(sensor.Item, s.Item);
-        Assert.True(s.Strength > 1f, "fixture: the ping lit the ship");
+        Assert.Equal(pingVisibility, s.Strength, 3);
     }
 
     // A catalog-authored Visibility behaviour travels on the channel its data names, thermal unless it says more.
@@ -336,6 +363,30 @@ public sealed class SignatureTests : IDisposable
         Assert.False(r.Ship.VisibilitySources.ContainsKey(r.Weapon), "a signature below 0.1 is gone");
     }
 
+    // Decay rebuilds every entry from its own: with a gun, a drive and two Visibility gears all decaying together,
+    // each entry still names the item of the source that wrote it (and the hull's names none).
+    [Fact]
+    public void DecayKeepsEachSourcesOwnItem()
+    {
+        var r = Build(Armament.Gun, .5f, Drive(10),
+            new VisibilityData { Visibility = Constant(40), VisibilityDecay = Constant(0), Channel = SignatureChannel.Emission },
+            new VisibilityData { Visibility = Constant(30), VisibilityDecay = Constant(0), Channel = SignatureChannel.Reflection });
+        var thruster = Single<Thruster>(r.Ship);
+        thruster.Item.UpdatePerformance();
+        Burn(r, 1f);
+        Fire(r);
+
+        var itemed = r.Ship.VisibilitySources.Where(kv => kv.Key is Behavior).ToArray();
+        Assert.Equal(4, itemed.Length);
+        Assert.Equal(4, itemed.Select(kv => kv.Value.Item).Distinct().Count());
+
+        r.Zone.Update(1f);
+        var after = r.Ship.VisibilitySources.Where(kv => kv.Key is Behavior).ToArray();
+        Assert.Equal(4, after.Length);
+        foreach (var kv in after) Assert.Same(((Behavior) kv.Key).Item, kv.Value.Item);
+        Assert.All(r.Ship.VisibilitySources.Where(kv => kv.Key is Entity), kv => Assert.Null(kv.Value.Item));
+    }
+
     // ---- APlumeKeepsTheLargerBurn ----
 
     [Fact]
@@ -364,5 +415,83 @@ public sealed class SignatureTests : IDisposable
         Burn(r, 1f);
         var full = Of(r.Ship, thruster).Strength;
         Assert.True(full > half && half > 0f, $"half {half}, full {full}");
+    }
+
+    // ---- The persisted field ----
+
+    private static MessagePackSerializerOptions Options => CultDocumentMessagePackSerialization.OptionsFor(typeof(ZonePack).Assembly);
+
+    // The channel is Key 3 of VisibilityData (union 22): the golden bytes, not a round trip against itself.
+    [Fact]
+    public void TheChannelIsKey3OfUnion22()
+    {
+        var data = new VisibilityData { Visibility = Constant(1f), VisibilityDecay = Constant(2f), Channel = SignatureChannel.Emission };
+        var bytes = MessagePackSerializer.Serialize<BehaviorData>(data, Options);
+
+        var reader = new MessagePackReader(bytes);
+        Assert.Equal(2, reader.ReadArrayHeader());
+        Assert.Equal(22, reader.ReadInt32());
+        Assert.Equal(4, reader.ReadArrayHeader());
+        reader.Skip(); // Group
+        Assert.Equal(1f, MessagePackSerializer.Deserialize<PerformanceStat>(ref reader, Options).Min);
+        Assert.Equal(2f, MessagePackSerializer.Deserialize<PerformanceStat>(ref reader, Options).Min);
+        Assert.Equal(4, reader.ReadInt32());
+    }
+
+    // Append-only: a record written before the field existed (three slots) reads as Thermal.
+    [Fact]
+    public void ARecordWithoutTheChannelReadsAsThermal()
+    {
+        var buffer = new System.Buffers.ArrayBufferWriter<byte>();
+        var writer = new MessagePackWriter(buffer);
+        writer.WriteArrayHeader(2);
+        writer.Write(22);
+        writer.WriteArrayHeader(3);
+        writer.Write(0);
+        writer.Flush();
+        MessagePackSerializer.Serialize(buffer, Constant(7f), Options);
+        MessagePackSerializer.Serialize(buffer, Constant(0f), Options);
+
+        var data = Assert.IsType<VisibilityData>(MessagePackSerializer.Deserialize<BehaviorData>(buffer.WrittenMemory, Options));
+        Assert.Equal(SignatureChannel.Thermal, data.Channel);
+        Assert.Equal(7f, data.Visibility.Min);
+    }
+
+    // Persisted ordinals: reordering the enum would silently re-label every authored record.
+    [Fact]
+    public void TheChannelOrdinalsAreFixed()
+    {
+        Assert.Equal(0, (int) SignatureChannel.Thermal);
+        Assert.Equal(1, (int) SignatureChannel.Reflection);
+        Assert.Equal(2, (int) SignatureChannel.DrivePlume);
+        Assert.Equal(3, (int) SignatureChannel.LaunchFlash);
+        Assert.Equal(4, (int) SignatureChannel.Emission);
+        Assert.Equal(5, Enum.GetValues(typeof(SignatureChannel)).Length);
+    }
+
+    [Fact]
+    public void TheChannelIsTheJsonPropertyChannel()
+    {
+        var json = JObject.Parse(JsonConvert.SerializeObject(new VisibilityData { Channel = SignatureChannel.Emission }));
+        Assert.Equal(4, (int) json["channel"]);
+    }
+
+    // Through the real catalog store: authored channels come back from a reopened file, the unauthored one Thermal.
+    [Fact]
+    public void AnAuthoredChannelSurvivesTheCatalogFile()
+    {
+        var path = Path.Combine(_root, Guid.NewGuid().ToString("N") + ".cc");
+        using (var cache = AetheriaStores.Open(path, catalogWritable: true))
+        {
+            cache.Upsert(new VerseGrammar { Revision = 1 });
+            cache.Upsert(Gear("Plume", new VisibilityData { Visibility = Constant(1), Channel = SignatureChannel.DrivePlume }));
+            cache.Upsert(Gear("Plain", new VisibilityData { Visibility = Constant(1) }));
+            cache.FlushAsync().Wait();
+        }
+
+        using var reopened = AetheriaStores.Open(path, catalogWritable: true);
+        VisibilityData Read(string name) => Assert.IsType<VisibilityData>(reopened.GetByName<GearData>(name).Behaviors.Single());
+        Assert.Equal(SignatureChannel.DrivePlume, Read("Plume").Channel);
+        Assert.Equal(SignatureChannel.Thermal, Read("Plain").Channel);
     }
 }
