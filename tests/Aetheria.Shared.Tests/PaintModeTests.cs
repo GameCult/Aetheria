@@ -94,11 +94,11 @@ public sealed class PaintModeTests : IDisposable
     private int _nextLot = 2;
 
     // A ship at `position`; a ship without a `sensor` is a bare hull. Every ship is lit at a constant visibility of 5.
-    private Ship NewShip(float3 position, string sensor = null, Faction faction = null)
+    private Ship NewShip(float3 position, string sensor = null, Faction faction = null, bool factionless = false)
     {
         var hullRef = _items.ItemData.RefOf<ItemData>(_items.ItemData.GetByName<HullData>("Skiff"));
         var ship = new Ship(_items, _zone, new EquippableItem { Data = hullRef, Durability = 1000, Lot = 1 }, new EntitySettings())
-            { Faction = faction ?? new Faction { Name = "F" + Guid.NewGuid().ToString("N") } };
+            { Faction = factionless ? null : faction ?? new Faction { Name = "F" + Guid.NewGuid().ToString("N") } };
         if (sensor != null)
         {
             var gearRef = _items.ItemData.RefOf<ItemData>(_items.ItemData.GetByName<GearData>(sensor));
@@ -252,6 +252,39 @@ public sealed class PaintModeTests : IDisposable
         // A hostile or foreign listener hears nothing of A's ping.
         Assert.Equal(0f, Track(d, t));
         Assert.Equal(0f, Track(e, t));
+    }
+
+    // Two sweeps crossing one subject on one tick are two observations: C's own ping and A's ping heard as an ally.
+    // A and C stand 100 from T, so both wavefronts pass it on the same tick.
+    [Fact]
+    public void ConcurrentSweepsCreditOncePerCrossing()
+    {
+        var a = NewShip(float3(0, 0, 0), "Omni");
+        var t = NewShip(float3(0, 0, 100));
+        var c = NewShip(float3(100, 0, 100), "Ear", a.Faction);
+        Settle();
+
+        SensorOf(a).Ping();
+        SensorOf(c).Ping();
+        for (var tick = 0; tick < 24; tick++) Tick(.1f);
+
+        Assert.Equal(2 * .3f, Track(c, t), 4); // 5 x 3 x .0002 x 100, its own ping and A's
+        Assert.Equal(2 * .1f, Track(a, t), 4); // 5 x 2 x .0001 x 100, its own ping and C's
+    }
+
+    // Allegiance needs a faction: two factionless ships are not allies, so one hears nothing of the other's ping.
+    [Fact]
+    public void FactionlessShipsAreNotAllies()
+    {
+        var a = NewShip(float3(0, 0, 0), "Omni", factionless: true);
+        var t = NewShip(float3(0, 0, 100));
+        var drifter = NewShip(float3(30, 0, 140), "Ear", factionless: true);
+        Settle();
+
+        SweepAndWatch(a, .1f);
+
+        Assert.Equal(.1f, Track(a, t), 4);
+        Assert.Equal(0f, Track(drifter, t));
     }
 
     [Theory]
