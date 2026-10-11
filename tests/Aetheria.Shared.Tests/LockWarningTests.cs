@@ -6,10 +6,10 @@ using GameCult.Caching;
 using Xunit;
 using static CultMath.math;
 
-// A painted ship owns a typed incoming-lock warning (cut lock-warning; rulings sensor-stat-set item 4 and
+// A painted ship owns a typed incoming-paint warning (cut lock-warning; rulings sensor-stat-set item 4 and
 // lock-warning-strength). Every fixture drives the production path: a real LockWeapon in a real ship's gear
 // executes inside Zone.Update, and the zone publishes every ship's paints before any ship updates. A paint made
-// during tick N is therefore what IncomingLocks holds after tick N+1, whatever order the ships sit in the zone.
+// during tick N is therefore what IncomingPaints holds after tick N+1, whatever order the ships sit in the zone.
 public sealed class LockWarningTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "aetheria-lockwarn-" + Guid.NewGuid().ToString("N"));
@@ -129,20 +129,21 @@ public sealed class LockWarningTests : IDisposable
 
         Aim(locker, b);
         Tick(.5f);
-        Assert.Empty(b.IncomingLocks); // published at the start of the next tick
+        Assert.Empty(b.IncomingPaints); // published at the start of the next tick
         Assert.Equal(.3f, launcher.Lock, 4); // fixture: 0.6 speed * 0.5 s on a dead-on, fully sensed target
         Tick(.5f);
 
-        var warning = Assert.Single(b.IncomingLocks);
+        var warning = Assert.Single(b.IncomingPaints);
         Assert.Equal(-.6f, warning.Bearing.x, 4);
         Assert.Equal(-.8f, warning.Bearing.y, 4);
         Assert.Same(GearOf(locker).Data, warning.EmitterClass);
+        Assert.Equal(PaintMode.Track, warning.Mode);
         Assert.Equal(.3f, warning.Strength, 4);
 
         // The strength follows the emitter's lock as it grows: a stale or scaled copy would not.
         Assert.Equal(.6f, launcher.Lock, 4);
         Tick(0f);
-        Assert.Equal(.6f, Assert.Single(b.IncomingLocks).Strength, 4);
+        Assert.Equal(.6f, Assert.Single(b.IncomingPaints).Strength, 4);
     }
 
     // The whole range of strength is pinned, not its middle: lock = 0.6 * dt on a dead-on, fully sensed target.
@@ -164,7 +165,7 @@ public sealed class LockWarningTests : IDisposable
         Assert.Equal(expectedLock, LauncherOf(locker).Lock, 4);
         Tick(0f);
 
-        Assert.Equal(expectedLock, Assert.Single(b.IncomingLocks).Strength, 4);
+        Assert.Equal(expectedLock, Assert.Single(b.IncomingPaints).Strength, 4);
     }
 
     // A saturated lock is a strength of exactly 1: the launcher's own Execute outside the zone tick, so that the
@@ -179,7 +180,7 @@ public sealed class LockWarningTests : IDisposable
         LauncherOf(locker).Execute(5f);
         Tick(0f);
 
-        Assert.Equal(1f, Assert.Single(b.IncomingLocks).Strength, 4);
+        Assert.Equal(1f, Assert.Single(b.IncomingPaints).Strength, 4);
     }
 
     // The lock's progress terms: direction (lerp ^ DirectionImpact) and sensor info (info ^ SensorImpact), each
@@ -197,7 +198,7 @@ public sealed class LockWarningTests : IDisposable
         Assert.Equal(.18204f, LauncherOf(locker).Lock, 4);
         Tick(0f);
 
-        Assert.Equal(.18204f, Assert.Single(b.IncomingLocks).Strength, 4);
+        Assert.Equal(.18204f, Assert.Single(b.IncomingPaints).Strength, 4);
     }
 
     // Dead on, the direction term is 1 and the sensor term alone scales the lock: 0.8 * 0.5^3 = 0.1.
@@ -225,7 +226,7 @@ public sealed class LockWarningTests : IDisposable
         Tick(.5f);
         Tick(0f);
 
-        Assert.Single(b.IncomingLocks);
+        Assert.Single(b.IncomingPaints);
         Assert.DoesNotContain(locker, b.VisibleEnemies);
     }
 
@@ -246,8 +247,8 @@ public sealed class LockWarningTests : IDisposable
         Tick(.5f);
         Tick(0f);
 
-        Assert.Empty(b.IncomingLocks);
-        Assert.Empty(c.IncomingLocks); // C is aimed at but not the target: nothing paints it either
+        Assert.Empty(b.IncomingPaints);
+        Assert.Empty(c.IncomingPaints); // C is aimed at but not the target: nothing paints it either
     }
 
     // A broken lock stops warning on the same tick whichever of the two ships the zone updates first.
@@ -271,16 +272,16 @@ public sealed class LockWarningTests : IDisposable
 
         Aim(locker, b);
         Tick(.5f);                    // tick 1: painted
-        Assert.Empty(b.IncomingLocks);
+        Assert.Empty(b.IncomingPaints);
         Tick(.5f);                    // tick 2: tick 1's paint published, painted again
-        Assert.Single(b.IncomingLocks);
+        Assert.Single(b.IncomingPaints);
 
         locker.Aim = float3(0, 0, -1); // the lock breaks: decays, paints nothing
         Tick(.5f);                    // tick 3: tick 2's paint published, nothing painted
-        Assert.Single(b.IncomingLocks);
+        Assert.Single(b.IncomingPaints);
         Assert.True(LauncherOf(locker).Lock > 0f, "fixture: the lock decays, it does not vanish");
         Tick(.5f);                    // tick 4: nothing to publish
-        Assert.Empty(b.IncomingLocks);
+        Assert.Empty(b.IncomingPaints);
     }
 
     [Fact]
@@ -294,14 +295,14 @@ public sealed class LockWarningTests : IDisposable
         Aim(locker, b);
         Tick(.5f);
         Tick(.5f);
-        Assert.Single(b.IncomingLocks);
+        Assert.Single(b.IncomingPaints);
 
         Aim(locker, c); // retarget: aim at C
         Tick(.5f);      // the lock restarts on C: 0.3
         Tick(0f);       // tick after the retarget: B has nothing newer to publish
 
-        Assert.Empty(b.IncomingLocks);
-        Assert.Equal(.3f, Assert.Single(c.IncomingLocks).Strength, 4);
+        Assert.Empty(b.IncomingPaints);
+        Assert.Equal(.3f, Assert.Single(c.IncomingPaints).Strength, 4);
         Assert.Equal(.3f, launcher.Lock, 4);
     }
 
@@ -318,11 +319,11 @@ public sealed class LockWarningTests : IDisposable
         Tick(.5f);
         Tick(0f);
 
-        Assert.Equal(2, b.IncomingLocks.Count);
-        var strengths = b.IncomingLocks.Select(w => w.Strength).OrderBy(s => s).ToArray();
+        Assert.Equal(2, b.IncomingPaints.Count);
+        var strengths = b.IncomingPaints.Select(w => w.Strength).OrderBy(s => s).ToArray();
         Assert.Equal(.23333f, strengths[0], 4);
         Assert.Equal(.3f, strengths[1], 4); // never summed
-        Assert.Equal(2, b.IncomingLocks.Select(w => (w.Bearing.x, w.Bearing.y)).Distinct().Count());
+        Assert.Equal(2, b.IncomingPaints.Select(w => (w.Bearing.x, w.Bearing.y)).Distinct().Count());
     }
 
     [Fact]
@@ -333,21 +334,21 @@ public sealed class LockWarningTests : IDisposable
         Aim(locker, b);
         Tick(.5f);
         Tick(0f);
-        Assert.Single(b.IncomingLocks);
+        Assert.Single(b.IncomingPaints);
 
         b.Deactivate();
-        Assert.Empty(b.IncomingLocks);
+        Assert.Empty(b.IncomingPaints);
 
         Tick(.5f); // painted while docked or dead
         b.Activate();
         Tick(0f);
-        Assert.Empty(b.IncomingLocks); // the paint received while inactive was never stored
+        Assert.Empty(b.IncomingPaints); // the paint received while inactive was never stored
 
         // A paint still waiting in the inbox when the ship deactivates does not survive to the next activation.
         Tick(.5f);
         b.Deactivate();
         b.Activate();
         Tick(0f);
-        Assert.Empty(b.IncomingLocks);
+        Assert.Empty(b.IncomingPaints);
     }
 }

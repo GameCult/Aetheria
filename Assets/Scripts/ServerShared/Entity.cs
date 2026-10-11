@@ -185,12 +185,13 @@ public abstract class Entity
     public Subject<Unit> HypothermiaDeath = new Subject<Unit>();
     public Subject<Entity> TargetedBy = new Subject<Entity>();
     public ReactiveProperty<int> TargetedByCount = new ReactiveProperty<int>(0);
-    // TargetedBy counts selection, which emits nothing; a lock warning comes only from a paint. LockWeapon.Execute
-    // reports each tick it paints this ship into the inbox; Update publishes the inbox once, so a warning lives
-    // exactly one tick after its last paint.
-    private readonly List<LockWarning> _paintInbox = new List<LockWarning>();
-    private readonly List<LockWarning> _incomingLocks = new List<LockWarning>();
-    public IReadOnlyList<LockWarning> IncomingLocks => _incomingLocks;
+    // TargetedBy counts selection, which emits nothing; a warning comes only from a paint. A search paint is a ping
+    // sweeping this ship (Sensor.Execute); a track paint is a lock (LockWeapon.Execute). Each reports into the
+    // inbox the tick it paints; PublishPaints publishes the inbox once, so a warning lives exactly one tick after
+    // its last paint.
+    private readonly List<PaintWarning> _paintInbox = new List<PaintWarning>();
+    private readonly List<PaintWarning> _incomingPaints = new List<PaintWarning>();
+    public IReadOnlyList<PaintWarning> IncomingPaints => _incomingPaints;
     public ReactiveProperty<SecurityLevel> CurrentSecurityLevel = new ReactiveProperty<SecurityLevel>(SecurityLevel.Open);
     public ReadOnlyReactiveProperty<bool> PresencePermitted;
     
@@ -802,7 +803,7 @@ public abstract class Entity
         VisibleEnemies.Clear();
         VisibleFriendlies.Clear();
         _paintInbox.Clear();
-        _incomingLocks.Clear();
+        _incomingPaints.Clear();
     }
 
     // Zone.Update runs this on every entity before any entity updates, so a paint made during tick N is published
@@ -810,16 +811,17 @@ public abstract class Entity
     // one tick later for every ordering.
     internal void PublishPaints()
     {
-        _incomingLocks.Clear();
-        _incomingLocks.AddRange(_paintInbox);
+        _incomingPaints.Clear();
+        _incomingPaints.AddRange(_paintInbox);
         _paintInbox.Clear();
     }
 
-    // The only caller is LockWeapon.Execute; strength is the emitter's own Lock at that paint.
-    internal void ReceivePaint(float3 emitterPosition, EquippableItemData emitterClass, float strength)
+    // The callers are Sensor.Execute (a Search paint, Strength 0) and LockWeapon.Execute (a Track paint, Strength
+    // the emitter's own Lock at that paint).
+    internal void ReceivePaint(float3 emitterPosition, EquippableItemData emitterClass, PaintMode mode, float strength)
     {
         if (!_active) return;
-        _paintInbox.Add(new LockWarning(normalize((emitterPosition - Position).xz), emitterClass, strength));
+        _paintInbox.Add(new PaintWarning(normalize((emitterPosition - Position).xz), emitterClass, mode, strength));
     }
 
     public Entity(ItemManager itemManager, Zone zone, EquippableItem hull, EntitySettings settings)

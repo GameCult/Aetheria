@@ -1457,12 +1457,13 @@ public class ActionGameManager : MonoBehaviour
             }
         }
 
-        // The strongest lock on the player's ship, read only from IncomingLocks (never another ship's LockWeapon).
+        // The strongest lock on the player's ship, read only from IncomingPaints (never another ship's LockWeapon).
+        // Only Track paints are locks; Search paints (ping sweeps) are presented by contact-hud, not here.
         // Same curves as the outgoing indicator, driven by the warning's Strength.
-        var warnings = CurrentEntity.IncomingLocks;
+        var warnings = CurrentEntity.IncomingPaints;
         var strongest = -1;
         for (var w = 0; w < warnings.Count; w++)
-            if (strongest < 0 || warnings[w].Strength > warnings[strongest].Strength) strongest = w;
+            if (warnings[w].Mode == PaintMode.Track && (strongest < 0 || warnings[w].Strength > warnings[strongest].Strength)) strongest = w;
         var (incomingIndicator, incomingSpin) = _incomingLockIndicator;
         incomingIndicator.gameObject.SetActive(strongest >= 0);
         if (strongest >= 0)

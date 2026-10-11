@@ -28,3 +28,28 @@ public readonly struct Signature
 
     public Signature WithStrength(float strength) => new Signature(Channel, strength, Item);
 }
+
+// What a painted ship learns of a beam on it (ruling sensor-stat-set item 4): a Search paint is a ping sweeping
+// it (Strength 0); a Track paint is a lock (Strength is the emitter's own lock progress, 0..1, ruling
+// lock-warning-strength). Never summed.
+public enum PaintMode
+{
+    Search,
+    Track
+}
+
+public readonly struct PaintWarning
+{
+    public readonly float2 Bearing;
+    public readonly EquippableItemData EmitterClass;
+    public readonly PaintMode Mode;
+    public readonly float Strength;
+
+    public PaintWarning(float2 bearing, EquippableItemData emitterClass, PaintMode mode, float strength)
+    {
+        Bearing = bearing;
+        EmitterClass = emitterClass;
+        Mode = mode;
+        Strength = strength;
+    }
+}
