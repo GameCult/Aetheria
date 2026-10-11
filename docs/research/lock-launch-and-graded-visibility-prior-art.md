@@ -168,3 +168,57 @@ don't have its specs."). Bounded pass, 8 searches and fetches.
 - EVE ship-scanner range, cycle time and whether the target is told: not obtained.
 - Nebulous track-quality levels and component visibility; CMO classification rules: not obtained.
 - Refit variants within a class in recognition references: not obtained.
+
+## 7. Bistatic credit: what bounds an ally's share of a ping (addendum, 2026-10-11)
+
+Question: an ally that hears another ship's ping return (cut paint-modes, ruling sensor-stat-set
+item 3) was credited with no range bound (Soul finding ally-credit-unbounded-by-range). What bounds
+it elsewhere?
+
+### 7a. Bistatic and multistatic radar
+- The bistatic radar equation replaces the monostatic R^4 with R_t^2 x R_r^2 (transmitter-target and
+  target-receiver ranges), so at a fixed detection threshold R_t x R_r is constant. The detection
+  contour is an oval of Cassini around the two sites instead of a circle; it pinches and splits
+  into two lobes around transmitter and receiver when the baseline exceeds 2 sqrt(R_t R_r)
+  (Willis, Bistatic Radar, via IET and MathWorks bistaticConstantSNR documentation;
+  arXiv 1206.1355, coverage theory of bistatic radar networks).
+- With R_t = R_r the product reduces to the monostatic R^2: a receiver standing at the transmitter
+  sees exactly what the transmitter sees. That fixes the bound's constant to the illuminator's own
+  reach, scaled by the receiver's own sensitivity if one wants it.
+- Passive coherent location is the same geometry with a non-cooperative illuminator; the receiver
+  still has to detect the echo itself above its own noise (MathWorks passive bistatic radar
+  performance assessment).
+
+### 7b. Cooperative engagement
+- US Navy CEC transmits each unit's own radar measurements to the others; every unit fuses them into
+  the same composite track with the same algorithms, weighted by each sensor's accuracy, at fire
+  control quality, so a ship can engage a target it never detected (JHU APL Technical Digest 16-4;
+  FAS CEC summary; Wikipedia, Cooperative Engagement Capability).
+- Each contribution is still a sensor's own detection: nothing in CEC credits a unit with a return
+  its radar did not receive. What CEC adds is remote engagement, which Aetheria's ruling
+  shared-track-bearing-only rejects (option b).
+
+### 7c. Games
+- NEBULOUS: Fleet Command's store text says illuminators and fire-control radars mark targets for
+  missiles and that terrain shadows deny them; whether tracks are shared across a fleet and whether
+  a launcher needs its own lock was not found in any primary source (gap). Cold Waters and CMO
+  sensor sharing: not read (gap).
+
+### 7d. Reading for Aetheria
+- An ally's credit for a ping return is its own detection of the echo: gate R_t x R_r < PingRange^2
+  (the illuminator's monostatic reach carried to the oval), credit at the equivalent range
+  sqrt(R_t x R_r) with the ally's own sensitivity and PingBoost, and obscuration the geometric mean
+  of the two legs. Each reduces exactly to the monostatic credit when the ally stands at the pinger.
+- This is a default implied by rulings illuminator-beamforming (Self's recorded reading: "silent
+  allies receive the return passively") and shared-track-bearing-only ("the recipient fires only on
+  its own sensors"), not a new ruling. Folding the ally's sensitivity into the gate as well
+  (sqrt(S_ally / S_pinger)) is the fuller physics; it is left out because Sensitivity already scales
+  the credit, and a second use would make one stat do two jobs.
+
+Sources: https://www.mathworks.com/help/radar/ref/bistaticconstantsnr.html ;
+https://www.mathworks.com/help/radar/ug/passive-bistatic-radar-performance-assessment.html ;
+https://arxiv.org/pdf/1206.1355 ; https://digital-library.theiet.org/content/books/ra/sbra003e ;
+https://www.jhuapl.edu/content/techdigest/pdf/V16-N04/16-04-APLteam.pdf ;
+https://man.fas.org/dod-101/sys/ship/weaps/cec.htm ;
+https://en.wikipedia.org/wiki/Cooperative_Engagement_Capability ;
+https://store.steampowered.com/app/887570/NEBULOUS_Fleet_Command/

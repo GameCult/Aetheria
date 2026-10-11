@@ -8132,7 +8132,9 @@ Aimed across 8 test files; FireControlCut12Tests pins ResolveAimPoint's cell ave
 | Light signature (`Signature {Channel, Strength, Item}` in `Entity.VisibilitySources`) | (emitting entity, source object). The source is the writing behaviour, or the entity for hull radiation; the key is a reference, so injective. `Item` is derived from the behaviour's `Item` (null for hull radiation and consumable effects). Channel Emission is never a light signature (after cut emissions-heard). | Written each tick its source acts (thermal, radiator, reflector, visibility gear continuously; weapon fire and plume when they act). Decayed by VisibilityDecay in the owner's Update and removed below 0.1. Runtime only, never saved. | One writer per entry: its source, through `Entity.SetSignature`. Entity.Update the only decayer. Forbidden: another entity, any presenter, a direct dictionary write. `Visibility` (the sum) stays the track input. |
 | Active emission (`ActiveEmission {Item, HearRange, Mode}` in `Entity.ActiveEmissions`) | (emitting entity, emitting item, tick). No persistent id. | Posted to the emitter's inbox each tick it emits (a ping wavefront in flight: Search; a lock paint inside LockAngle: Track); published in the zone's pre-phase with paints; lives exactly one tick. Never saved. | Sensor.Execute (search) and LockWeapon.Execute (track) through `Entity.Emit`; Entity publishes. HearRange = the emitter's range / its InterceptFactor, fixed at the emit. |
 | Paint warning (`PaintWarning {Bearing, EmitterClass, Mode, Strength}` in `Entity.IncomingPaints`; was LockWarning / IncomingLocks) | (painted entity, tick, painter beam). No id. | One tick after its last paint (unchanged from lock-warning). Search paints carry Strength 0. | LockWeapon.Execute (Track) and a ping wavefront crossing (Search, Sensor.Execute) call ReceivePaint; Entity publishes. Painted targets are always warned (sensor-stat-set 4). |
-| Track (`EntityInfoGathered[subject]`) | (observer, subject entity). | Seeded 0 on zone entry, revised each tick by each active sensor (passive gain, decay), plus one gain per ping crossing from the observer's own pings and its allies' (bistatic); removed when the subject leaves; cleared on Deactivate. Runtime only. | Sensor.Execute only, reading the observer's own receivers. Forbidden: shared-track writes (ruling shared-track-bearing-only), presenters, other ships. |
+| Track (`EntityInfoGathered[subject]`) | (observer, subject entity). | Seeded 0 on zone entry, revised each tick by each active sensor (passive gain, decay), plus one monostatic gain on the tick its own ping crosses the subject and one bistatic gain per published ping return (R2); removed when the subject leaves; cleared on Deactivate. Runtime only. | Sensor.Execute only, reading the observer's own receivers and its own published returns. Forbidden: shared-track writes (ruling shared-track-bearing-only), presenters, other ships, any read of another ship's Sensor state. |
+| Ping sweep (`Sensor._reached`, per pinging sensor) | (pinging sensor, ping). The set of subjects the wavefront has reached this ping, in the beam or not. | Cleared at Ping(); a subject joins on the first sweeping tick it lies inside the radius, and that is its one crossing (credited and painted only if inside the beam then); nothing joins after the ping's last step; emptied when the sensor is idle. Runtime only. | The pinging Sensor.Execute alone decides "this ping crossed this subject, once". Forbidden: another sensor or ship reading its radii; an interval sample standing in for it. |
+| Ping return (`PingReturn {Subject, IlluminatedRange, IlluminatedObscuration, MaxRange}` in the ally's `PingReturns`) | (receiving entity, pinging sensor, subject, tick). No id. | Posted by the pinger to each ally's inbox on the crossing tick; published in the zone pre-phase with paints (`PublishInbox`); lives exactly one tick. Never saved. | The pinger posts (it owns the illuminated leg and its own range); the receiving Sensor credits from its own Sensitivity, PingBoost, distance and sight line (it owns the receive leg). Forbidden: the pinger writing the ally's track; the ally reading the pinger. |
 | Reveal (`Reveal {Item, Channel, Bearing, Time}` in the observer's reveal book, keyed (subject, item)) | (observer, subject entity, revealed item), by reference. Channel is null for a reveal by inspection (cut inspection-scanner). | Created on the first act the observer's instruments receive, or for every live item when the observer's scanner completes a scan; Channel, Bearing and Time refreshed by each later act; filtered on read when the item is destroyed (Durability < .01) or off the subject; removed when the subject leaves the zone; cleared on Deactivate. Not decayed: memory of the sitting. Never saved. | `Entity.Sense` (once per Entity.Update) for light acts and heard emissions; `ReceivePaint` for paints; `Entity.RecordInspection` (called by the observer's own Scanner) for scans. Forbidden: Sensor's track loop, presenters, another ship, shared tracks. |
 | Hull layout knowledge (derived by `Entity.LayoutOf(subject)`) | (observer, subject hull class). The class is the subject's HullData; the layout is its Hardpoints (type, position, shape). | Derived on read: the subject's HullData.Hardpoints while ContactOf(subject).Identified, else empty. Stored nowhere; never says what is fitted. | `Entity.LayoutOf` is the one derivation (ruling quiet-gear-identifiable-hull-layout-known). Readers: IsLocated, the target schematic, the player's cycle. |
 | Contact (`Contact`, derived by `Entity.ContactOf(subject)`) | (observer, subject). | Derived on read from track, reveals, the zone clock and `BearingMemory`; stored nowhere. Flags: Detected (tracked, or a reveal younger than BearingMemory), Tracked (track > TargetDetectionInfoThreshold, which is VisibleEntities), Classified (detected and any reveal), Identified (track >= TargetGearInfoThreshold, name kept, now the identify threshold). Bearing: the true bearing while tracked, else the freshest reveal's. | `Entity.ContactOf` is the one derivation. HUD and AI read it; VisibleEntities stays the tracked set. |
@@ -8172,10 +8174,14 @@ gives it").
   presenter or Agents/ code reading another ship's `EntityInfoGathered`, weapons, lock or
   `IncomingPaints`; shared tracks writing track or reveals.
 - Shared paths: the player's HUD and the AI read the same `ContactOf`, `VisibleEnemies`,
-  `IsRevealed` and `IncomingPaints`. Own pings and allied pings credit track through the same
-  crossing rule. Light acts and heard emissions reach the reveal book through the one `Sense` step;
+  `IsRevealed` and `IncomingPaints`. One crossing decision per ping (the pinger's swept set) feeds
+  the subject's Search paint, the pinger's own credit and every ally's return, so list order, motion
+  and the pinger stopping cannot change the count; an ally's credit reaches it only through its
+  published PingReturns. Light acts and heard emissions reach the reveal book through the one `Sense` step;
   paints through ReceivePaint, which also records the emitter's reveal.
-- Deletion line: `_pingedEntities` (stateless crossing replaces it), `PingVisibility`, the IsRevealed
+- Deletion line: the stateless interval crossing (`_previousRadius`, `PreviousRadius`, `Crossing`,
+  `_alliedPingers` and the allied-pinger scan) before the swept set and ping returns are added
+  (revision cut-paint-modes.r3), `PingVisibility`, the IsRevealed
   tier ranking and `TargetArmorInfoThreshold`, `TargetedBy`/`TargetedByCount`, and the HUD's reads
   of other ships' track are deleted before the behaviour that replaces each is added.
 
@@ -8193,16 +8199,32 @@ Emission is active emission only (pings, paints) and never sums into Visibility 
 emissions-heard; cut signature-channels labels the ping's interim bump Emission to stay
 behaviour-preserving).
 
-R2. Track. Unchanged arithmetic over `Visibility`. A ping wavefront crosses subject T this tick when
-PreviousRadius <= distance(emitter, T) < Radius and T lies within BeamWidth/2 of the emitting
-sensor's facing (BeamWidth >= 360 is omnidirectional). A crossing adds the existing ping gain once to
-the emitter's track of T, and once to each ally's track of T computed with the ally's own
-sensitivity and its distance to T (bistatic, sensor-stat-set 3, illuminator-beamforming). Allies:
-same Faction, not hostile. The ally emits nothing and is not revealed.
+R2. Track. Unchanged arithmetic over `Visibility`. The pinging sensor alone decides crossings. On
+each tick it sweeps (the tick of the ping's first step through the step that ends it), a subject T
+not yet in the ping's swept set and at planar distance R_t < Radius joins the set; that is the
+ping's one crossing of T. It counts only if T then lies within BeamWidth/2 of the sensor's facing
+(BeamWidth >= 360 is omnidirectional); a subject outside the beam when the front reaches it is never
+crossed by that ping, even if it later drifts into the beam or the beam slews onto it. Motion cannot
+miss or repeat a crossing: a subject closing on the pinger is crossed once, one outrunning the front
+is not crossed. A ship that enters the zone inside the front mid-ping counts as reached on its first
+sweeping tick (as at base; a default). A crossing adds the existing ping gain once to the pinger's
+own track of T on the same tick (monostatic: Gain at R_t, obscuration of the pinger-T line). On the
+same tick the pinger posts a PingReturn {T, R_t, Obscuration(pinger, T), PingRange} to every ally
+(same non-null Faction, not hostile from the ally's side, not T itself); the zone pre-phase
+publishes it, and on the next tick each of the ally's executing sensors credits T once when
+R_t x R_r < PingRange^2, with Gain(T.Visibility, own Sensitivity, own PingBoost, sqrt(R_t x R_r),
+dt, ping, sqrt(o_t x o_r)); R_r and o_r are the ally's own distance and sight line to T. The
+equivalent range sqrt(R_t x R_r) and the geometric-mean obscuration reduce exactly to the
+monostatic credit when the ally stands at the pinger; the gate is the illuminator's monostatic
+reach carried to the bistatic oval of Cassini (prior-art note, section 7). The ally emits nothing
+and is not revealed. Nothing it reads belongs to the pinger, so its credit does not depend on list
+order, and a pinger that stops after the crossing leaves no echo behind.
 
 R3. Paints. A crossing paints T with Mode Search, Strength 0. A lock paint is Mode Track, Strength =
 the lock (lock-warning-strength). The painted ship always learns bearing, emitter class and mode
-(sensor-stat-set 4), whatever obscuration or hearing range.
+(sensor-stat-set 4), whatever obscuration or hearing range. An opaque cloud on the pinger-T line
+still lets the paint through while it zeroes the pinger's credit and every ally's return
+(vapour-cloud-obscuration: an echo crosses both legs).
 
 R4. Reveal by act (light). Observer O records a reveal of item i on subject E when the light
 signature of i alone would settle O's passive info above TargetDetectionInfoThreshold:
@@ -8266,8 +8288,24 @@ Cargo is not equipment and is not revealed (no cut owns cargo scanning).
 - Bistatic ally credit (R2): one emitter illuminates, silent allies receive passively; the target
   still knows it is painted (ruling illuminator-beamforming's reading). It is the ally's own receiver,
   so ruling shared-track-bearing-only (a shared track never writes the track) still holds.
-- Stateless crossing: the ping set `_pingedEntities` exists only to stop double credit; the
-  PreviousRadius <= d < Radius test does that with no state and serves allied pings too.
+- Swept set, not an interval sample. h1's stateless PreviousRadius <= d < Radius test missed a
+  closing ship and credited an outward one several times (verdict cut-paint-modes.s1, Soul's
+  MovingSubjectProbe: inward at 60 m/s, 12 of 48 unpainted; outward, up to 3 paints), and it made
+  allies read the pinger's mutable radii, which tied their credit to zone list order and froze an
+  interval when the sensor stopped executing. Any correct crossing rule must remember something per
+  subject per ping. The per-ping set the base already had is the smallest such memory; adding every
+  subject inside the radius, not only those in the beam, keeps a beam slew or a drifting ship from
+  being crossed behind the front. A swept-volume test on each subject's motion would need the same
+  per-subject memory plus velocity, and buys nothing the set lacks.
+- Ping returns as a published fact. The crossing is decided once, by the pinger, and travels to
+  allies the way paints travel to the painted ship (one-tick inbox, zone pre-phase), so every
+  reader sees it whatever the update order, and a removed or disabled pinger cannot un-cross or
+  re-cross anything. Each side owns its own leg of the echo.
+- Bistatic bound (R2). A bistatic receiver detects the echo when R_t x R_r is within a constant set
+  by the transmitter and the receiver: the oval of Cassini replaces the monostatic circle (PA
+  section 7). CEC shares fire-control-quality measurements and lets a ship engage a target it never
+  detected; ruling shared-track-bearing-only rejected exactly that (option b), so the ally's credit
+  has to be its own detection of the return, bounded as one.
 - Reveals do not decay because ELINT accumulates into an order of battle over many events (PA:89-95);
   the track still decays, so a remembered railgun on a ship you cannot see is a Classified bearing
   marker only while the memory is fresh.
@@ -8337,3 +8375,22 @@ every anchor SAME at 93b7ff8d. Unchanged and still in force: signature-channels.
 contact-reveals.r1 (layout is derived, not stored in the reveal record; the scanner cut widens
 Reveal.Channel to nullable), emissions-heard.r1, contact-hud.r1 (the scanner cut adds Scan paints to
 the incoming indicator), sensor-catalog.r1.
+
+### Revision for verdict cut-paint-modes.s1 (imagination-aeth-paint-crossing, 2026-10-11)
+
+Base c1d5487b (branch eureka/aetheria-release-paint-modes, h1's head). Findings
+moving-subject-crossing-sampled (High), ally-credit-depends-on-list-order,
+stale-interval-after-sensor-stops, ally-credit-unbounded-by-range, beamwidth-wire-unpinned (Medium)
+and cloud-legs-unpinned (Low) fold into cut-paint-modes.r3, which supersedes r2 and is written as a
+fix to the landed code. Body facts read at c1d5487b: Sensor.cs:93-100, Crossing samples distance
+once per tick against [PreviousRadius, PingRadius); Sensor.cs:183-189, every sensor reads every
+allied sensor's radii through GetBehaviors; Entity.cs:2033-2041 runs Execute only while the item is
+Active, so a stopped sensor's radii freeze; Zone.cs:230 publishes every inbox before any entity
+updates (the pre-phase the ping return reuses); base a47f967d Sensor.cs:64,122,166-168 held the
+per-ping set this revision restores as `_reached`. The bistatic arithmetic keeps
+ConcurrentSweepsCreditOncePerCrossing's numbers (A and C both 100 from T) and moves
+AnAllyHearsTheReturnSilently's ally credit from .15 to 5 x 3 x .0002 x sqrt(100 x 50) = .21213.
+Soul's scratch probes (SoulProbeTests.cs, never committed) become r3's moving-subject, order,
+stale-interval, far-ally and cloud tests. The bistatic bound is a default from rulings, not a new
+ruling: illuminator-beamforming's recorded reading ("silent allies receive the return passively")
+and shared-track-bearing-only ("the recipient fires only on its own sensors").
