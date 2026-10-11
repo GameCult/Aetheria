@@ -282,6 +282,29 @@ public sealed class SignatureTests : IDisposable
         Assert.True(Math.Abs(seen[0] - seen[1]) > 1e-3, "fixture: the two temperatures differ");
     }
 
+    // A tick that cools the radiator publishes the strength of the temperature it started the tick at, not the
+    // cooled one (follow-up radiator-sampling-instant-pin).
+    [Fact]
+    public void ARadiatorsSignatureIsSampledBeforeTheTicksCooling()
+    {
+        _radiationMultiplier = .001f;
+        _radiationExponent = 2f;
+        var r = Build(Armament.None, 0f, null, new RadiatorData
+        {
+            Emissivity = Constant(3), PumpedHeat = Constant(0), TemperatureFloor = 0, WasteHeat = Constant(0), EnergyUsage = Constant(0), ThermalMass = Constant(1000)
+        });
+        var radiator = Single<Radiator>(r.Ship);
+        var before = radiator.RadiatorTemperature;
+        Assert.True(before > 1f, "fixture: the radiator is warm");
+
+        radiator.Update(1f);
+
+        var cooled = radiator.RadiatorTemperature;
+        Assert.True(cooled < before - 1e-3, "fixture: this tick cooled the radiator");
+        var expected = Math.Pow(before, 2) * .001 * 3;
+        Assert.InRange(Of(r.Ship, radiator).Strength, expected * .999, expected * 1.001);
+    }
+
     [Fact]
     public void AReflectorShowsAReflectionWithItsItem()
     {
