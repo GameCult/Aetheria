@@ -105,12 +105,15 @@ public sealed class ScenarioStage
     }
 
     // Anything else in the arena. A stance holds both ways between it and the player. A piloted ship gets the zone's
-    // pilot; an unpiloted entity has none and goes nowhere on its own. A turret hull stays where it is put.
-    public Entity Place(ScenarioFit fit, float2 at, float2 facing = default, ScenarioStance stance = ScenarioStance.Neutral, bool piloted = false)
+    // pilot; an unpiloted entity has none and goes nowhere on its own unless it is placed moving: velocity is the planar
+    // velocity it starts with, and the sim carries it from there. A turret hull stays where it is put.
+    public Entity Place(ScenarioFit fit, float2 at, float2 facing = default, ScenarioStance stance = ScenarioStance.Neutral, bool piloted = false,
+        float2 velocity = default)
     {
         var where = $"entity {_placements++}";
         var entity = Build(fit, where, at, facing);
         if (entity == null) return null;
+        entity.Velocity = velocity;
         if (piloted && !(entity is Ship)) _failures.Add($"{where}: {entity.Name} is not a ship hull, so it cannot be piloted");
         _placed.Add(new Placement { Entity = entity, Stance = stance, Piloted = piloted });
         return entity;
