@@ -687,9 +687,7 @@ public sealed class ContactRevealTests : IDisposable
 
     // Ruling contact-reads-book-aim-reads-live: what an observer knows of a ship comes from its own book. A gun
     // destroyed by a third party out of its sight changes none of its levels and stays in its reveal list, while
-    // the aiming read, which asks about the item now, refuses the dead gun and still serves the live one. No Sense
-    // runs after the destruction here (the aiming read needs info 1, at which a Sense would perceive it); the
-    // unseen case with a Sense is AnIdentifiedObserverSeesGearDestroyed's below-threshold case.
+    // the aiming read, which asks about the item now, refuses the dead gun and still serves the live one.
     [Fact]
     public void GearDestroyedOutOfSightLeavesWhatTheObserverKnowsAlone()
     {
@@ -719,58 +717,6 @@ public sealed class ContactRevealTests : IDisposable
         Assert.Equal(2, o.RevealsOf(e).Count());
         Assert.True(o.ContactOf(e).Detected);
         Assert.True(o.ContactOf(e).Classified);
-    }
-
-    // Ruling reveal-ends-on-perception: an observer that resolves a ship's gear (its track at TargetGearInfoThreshold)
-    // perceives an item of it destroyed, and the reveal of that item ends in the same Sense pass. One that does not
-    // resolve it perceives nothing.
-    [Theory]
-    [InlineData(.8f, 1, 1, 1)]
-    [InlineData(.8f, 2, 0, 0)]
-    [InlineData(.79f, 1, 2, 1)]
-    [InlineData(.79f, 2, 2, 1)]
-    public void AnIdentifiedObserverSeesGearDestroyed(float info, int destroyed, int remaining, int classifiedKeys)
-    {
-        var e = Add(float3(0, 0, 100), new[] { "Gun", "Gun" });
-        var o = Add(float3(0, 0, 0), new[] { "Eye" });
-        var guns = Guns(e);
-        Fire(e, guns[0]);
-        Fire(e, guns[1]);
-        o.VisibleEntities.Add(e); // tracked, so what the track holds is not the question
-        o.EntityInfoGathered[e] = info;
-        var sense = SenseOf(o);
-        for (var i = 0; i < destroyed; i++) guns[i].EquippableItem.Durability = 0f;
-
-        sense();
-
-        Assert.Equal(remaining, o.RevealsOf(e).Count());
-        var contact = o.ContactOf(e);
-        Assert.True(contact.Detected);
-        Assert.Equal(remaining > 0, contact.Classified);
-        Assert.Equal(remaining > 0 ? classifiedKeys : 0, RevealBookSubjects(o));
-        if (remaining == 1 && info >= .8f) Assert.Same(guns[1], o.RevealsOf(e).Single().Item);
-    }
-
-    // The same through a real tick: a gun destroyed while its flash still shows, seen by an observer that identifies
-    // the ship, is not in the book after the tick.
-    [Fact]
-    public void ADestroyedGunStillFlashingIsNotRecordedByAnIdentifyingObserver()
-    {
-        var e = Add(float3(0, 0, 60), new[] { "Gun", "Gun" });
-        var o = Add(float3(0, 0, 0), new[] { "Eye" });
-        var guns = Guns(e);
-        Fire(e, guns[0]);
-        Fire(e, guns[1]);
-        e.SetSignature(new object(), SignatureChannel.Reflection, 1000f, guns[0]); // the dying gun's glare outlasts the tick
-        guns[0].EquippableItem.Durability = 0f;
-        o.EntityInfoGathered[e] = 1f; // o's sensor keeps it at about 1 across the tick (decay .5 x dt)
-
-        Tick(.01f);
-
-        Assert.True(Track(o, e) >= .8f, "fixture: o still identifies e");
-
-        Assert.DoesNotContain(o.RevealsOf(e), r => r.Item == guns[0]);
-        Assert.Contains(o.RevealsOf(e), r => r.Item == guns[1]);
     }
 
     // A paint inboxed in the tick its emitter leaves the zone is published the next tick, and is no longer the act of
@@ -961,10 +907,7 @@ public sealed class ContactRevealTests : IDisposable
         var sense = SenseOf(o);
         for (var i = 0; i < 10; i++) sense();
         Assert.Equal(19, _zone.Entities.Where(x => x != o).Count(x => o.RevealsOf(x).Any())); // fixture: every ship is revealed
-        // One of them is identified by o (its destroyed gun is ended in the pass), and one has left, quiet, so its
-        // entries await the prune and its departure sits in the zone's list.
-        var identified = gunItems.Select(g => _zone.Entities.Single(x => x.Equipment.Contains(g))).First();
-        o.EntityInfoGathered[identified] = 1f;
+        // One of them has left, quiet, so its entries await the prune and its departure sits in the zone's list.
         var departed = _zone.Entities.Single(x => x.Equipment.Contains(gunItems[18]));
         foreach (var source in departed.VisibilitySources.Keys.ToArray()) departed.SetSignature(source, SignatureChannel.Reflection, 0f, gunItems[18]);
         _zone.Entities.Remove(departed);

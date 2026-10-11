@@ -216,7 +216,6 @@ public abstract class Entity
     // item). Written only by RecordReveal (an act enters) and EndReveals (an end the observer perceives, or a departed
     // subject's entries aged past BearingMemory), cleared by Deactivate (ruling reveal-ends-on-perception).
     private readonly Dictionary<Entity, Dictionary<EquippedItem, Reveal>> _reveals = new Dictionary<Entity, Dictionary<EquippedItem, Reveal>>();
-    private readonly List<EquippedItem> _endedItems = new List<EquippedItem>();
     private readonly List<Entity> _agedSubjects = new List<Entity>();
     public ReactiveProperty<SecurityLevel> CurrentSecurityLevel = new ReactiveProperty<SecurityLevel>(SecurityLevel.Open);
     public ReadOnlyReactiveProperty<bool> PresencePermitted;
@@ -915,10 +914,9 @@ public abstract class Entity
 
     // What this observer has seen `subject`'s items do: each item's latest act, and nothing the subject's present
     // gear or Durability says (ruling contact-reads-book-aim-reads-live). A reveal ends only on what this observer
-    // perceives (ruling reveal-ends-on-perception): the destruction of an item of a ship it identifies, the death,
-    // dock or warp of a subject its instruments could see leave, or, for a subject that has left the zone, the
-    // freshest entry aging past BearingMemory; Deactivate clears it all. Whether an item can be aimed at now is
-    // FireControl.IsRevealed's question, not this one.
+    // perceives (ruling reveal-ends-on-perception): the death, dock or warp of a subject its instruments could see
+    // leave, or, for a subject that has left the zone, the freshest entry aging past BearingMemory; Deactivate
+    // clears it all. Whether an item can be aimed at now is FireControl.IsRevealed's question, not this one.
     public IEnumerable<Reveal> RevealsOf(Entity subject) =>
         _reveals.TryGetValue(subject, out var book) ? book.Values : Enumerable.Empty<Reveal>();
 
@@ -963,16 +961,6 @@ public abstract class Entity
                 if (signature.Item == null || signature.Channel == SignatureChannel.Emission) continue;
                 if (perSignature < 0f) perSignature = PassiveInfo(other.Position.xz, 1f);
                 if (signature.Strength * perSignature > threshold) RecordReveal(other, signature.Item, signature.Channel);
-            }
-            // The observer resolves this ship's gear (ContactOf's own Identified gate), so it perceives an item of it
-            // destroyed. Ending after recording: a destroyed item's lingering flash cannot re-enter the book.
-            if (EntityInfoGathered.TryGetValue(other, out var info) && info >= ItemManager.GameplaySettings.TargetGearInfoThreshold
-                && _reveals.TryGetValue(other, out var book))
-            {
-                _endedItems.Clear();
-                foreach (var item in book.Keys)
-                    if (item.EquippableItem.Durability < .01f) _endedItems.Add(item);
-                for (var j = 0; j < _endedItems.Count; j++) EndReveals(other, _endedItems[j]);
             }
         }
         // A subject that left the zone (death, dock, warp, any removal) is perceived gone under the light-act gate: as
