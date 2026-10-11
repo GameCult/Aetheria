@@ -378,6 +378,38 @@ public sealed class ContactRevealTests : IDisposable
         Assert.Empty(o.RevealsOf(e));
     }
 
+    // An Emission entry is never light (R1): a bright, near one reveals nothing through Sense. Emission reaches the
+    // book only through a published paint.
+    [Fact]
+    public void AnEmissionEntryIsNotLight()
+    {
+        var e = Add(float3(0, 0, 20), new[] { "Eye" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        e.SetSignature(new object(), SignatureChannel.Emission, 1000f, e.Equipment.Single(i => i.Behaviors.Any(b => b is Sensor)));
+
+        Tick(.01f);
+
+        Assert.Empty(o.RevealsOf(e));
+    }
+
+    // Two items revealed at different times: the contact's bearing, while untracked, is the freshest reveal's.
+    [Fact]
+    public void TheFreshestRevealGivesTheBearing()
+    {
+        var e = Add(float3(30, 0, 40), new[] { "Gun", "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var guns = Guns(e);
+        Fire(e, guns[0]);
+        e.Position = float3(-50, 0, 0);
+        Fire(e, guns[1]);
+
+        var contact = o.ContactOf(e);
+
+        Assert.Equal(2, o.RevealsOf(e).Count());
+        Assert.False(contact.Tracked);
+        AssertBearing(-1f, 0f, contact.Bearing);
+    }
+
     // ---- ALaunchGivesABearingNotATrack ----
 
     [Fact]
