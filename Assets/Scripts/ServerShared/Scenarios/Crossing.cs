@@ -5,7 +5,7 @@ public sealed class Crossing : Scenario
 {
     public override string Name => "Crossing";
     public override string Brief => "plight at the starboard gun and a FastBlast+- at the port gun, a fast Djinni crossing close ahead and an " +
-                                    "unpiloted one waiting at range. The Djinni starts to port moving across the bow; the arena's gravity bends its run. Verify: as the Djinni crosses close, FastBlast lands some and plight " +
+                                    "unpiloted one waiting at range. The Djinni starts to port moving across the bow; the arena's gravity bends its run. Make the pass coasting: give no throttle until the Djinni has crossed the bow, then fly freely (thrusting from the start carries you past it). Verify: as the Djinni crosses close, FastBlast lands some and plight " +
                                     "almost none; against the Djinni at range both land. Fly it again without the Fire Control Array: " +
                                     "with it the small gun lands more.";
     public override uint Seed => 112;

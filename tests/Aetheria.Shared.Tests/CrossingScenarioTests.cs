@@ -47,6 +47,7 @@ public sealed partial class RunStartTests
         // arena's pull on the player.
         var crosserVelocity = ((Ship) crosser).Velocity;
         Assert.True(crosserVelocity.x * toCrosser.x < 0, "the crosser starts moving toward the bow line");
+        Assert.True(abs(crosserVelocity.x) >= 40f, "the crosser's speed toward the bow line is most of the Djinni's speed cap");
         Assert.True(length(crosserVelocity) >= 40f, "the crosser starts at most of the Djinni's speed cap");
 
         Assert.False(player.IsHostileTo(waiting) || waiting.IsHostileTo(player), "the waiting Djinni is neutral");
@@ -61,7 +62,11 @@ public sealed partial class RunStartTests
         // The crossing is what the sim does with that staging, read in the player's frame: the arena's gravity and the
         // crosser's pilot act from the first tick, so the t=0 facing proves nothing. Within CrossingSeconds the crosser's
         // bearing sweeps from port to starboard while it is ahead and inside CrossingMetres, and both guns bear on it.
+        // The pass is made by a coasting player: the loop gives no input, and the Brief tells the operator to fly it that way.
+        Assert.Equal(float2.zero, player.MovementDirection);
         var swept = false;
+        var crossedAt = 0f;
+        var crossedMetres = 0f;
         for (var tick = 0; tick < 60 * CrossingSeconds && !swept; tick++)
         {
             var before = crosser.Position - player.Position;
@@ -70,6 +75,8 @@ public sealed partial class RunStartTests
             if (before.x < 0 && after.x >= 0)
             {
                 swept = true;
+                crossedAt = (tick + 1) / 60f;
+                crossedMetres = length(after);
                 Assert.True(after.z > 0, "the crosser passes the bow line ahead of the player, not astern");
                 Assert.True(length(after) < CrossingMetres, "the crosser passes inside the stated distance");
                 Assert.True(FireControl.InArc(small, after), "FastBlast+- bears on the crosser as it crosses");
@@ -77,6 +84,22 @@ public sealed partial class RunStartTests
             }
         }
         Assert.True(swept, $"the crosser's bearing never swept across the bow within {CrossingSeconds} s");
+        // At seed 112 with no input the pass is at 3.6 s and 45 m; a seed or staging change that loses it moves these.
+        Assert.InRange(crossedAt, 3.0f, 4.2f);
+        Assert.InRange(crossedMetres, 30f, 60f);
+    }
+
+    // Place with no velocity leaves the entity at rest: the unpiloted waiting Djinni and both Shakedown targets start with
+    // zero velocity, so their stated places are where they are.
+    [Fact]
+    public void PlacedWithoutVelocityStartsAtRest()
+    {
+        var (_, _, crossing, crossingFailures) = Launch(new Crossing(), Inputs(() => GalaxySeed));
+        Assert.True(crossingFailures.Count == 0, string.Join("; ", crossingFailures));
+        Assert.Equal(float2.zero, crossing.Entities[1].Velocity);
+        var (_, _, shakedown, shakedownFailures) = Launch(new DjinniShakedown(), Inputs(() => GalaxySeed));
+        Assert.True(shakedownFailures.Count == 0, string.Join("; ", shakedownFailures));
+        Assert.All(shakedown.Entities, entity => Assert.Equal(float2.zero, entity.Velocity));
     }
 
     private const int CrossingSeconds = 6;
