@@ -289,25 +289,29 @@ public sealed class SignatureTests : IDisposable
 
     // ---- VisibilityIsStillTheSum ----
 
-    // Every source kind at once: a fired gun (100 on LaunchFlash), a thermal Visibility gear (7), a reflector
-    // under no sun (0), and the non-radiating hull (0). Visibility is the sum of the strengths, 107, the value
-    // the single-number build gave on this fixture; SignatureOn splits the same total by channel.
+    // Every channel lit at once: a fired gun (100 on LaunchFlash), Visibility gear on Thermal (7), Reflection (4),
+    // DrivePlume (3) and Emission (2), a reflector under no sun (0) and the non-radiating hull (0). Visibility is the
+    // sum of the strengths, 116, the value the single-number build gave on this fixture; SignatureOn splits the
+    // same total by channel.
     [Fact]
     public void VisibilityIsStillTheSum()
     {
         var r = Build(Armament.Gun, 0f, null,
             new VisibilityData { Visibility = Constant(7), VisibilityDecay = Constant(0) },
+            new VisibilityData { Visibility = Constant(4), VisibilityDecay = Constant(0), Channel = SignatureChannel.Reflection },
+            new VisibilityData { Visibility = Constant(3), VisibilityDecay = Constant(0), Channel = SignatureChannel.DrivePlume },
+            new VisibilityData { Visibility = Constant(2), VisibilityDecay = Constant(0), Channel = SignatureChannel.Emission },
             new ReflectorData { CrossSection = Constant(3) });
         Fire(r);
         var ship = r.Ship;
 
-        Assert.Equal(107f, ship.Visibility, 2);
+        Assert.Equal(116f, ship.Visibility, 2);
         Assert.Equal(ship.VisibilitySources.Values.Sum(s => s.Strength), ship.Visibility, 3);
         Assert.Equal(100f, ship.SignatureOn(SignatureChannel.LaunchFlash), 2);
         Assert.Equal(7f, ship.SignatureOn(SignatureChannel.Thermal), 2);
-        Assert.Equal(0f, ship.SignatureOn(SignatureChannel.Reflection), 2);
-        Assert.Equal(0f, ship.SignatureOn(SignatureChannel.Emission), 2);
-        Assert.Equal(0f, ship.SignatureOn(SignatureChannel.DrivePlume), 2);
+        Assert.Equal(4f, ship.SignatureOn(SignatureChannel.Reflection), 2);
+        Assert.Equal(2f, ship.SignatureOn(SignatureChannel.Emission), 2);
+        Assert.Equal(3f, ship.SignatureOn(SignatureChannel.DrivePlume), 2);
     }
 
     // ---- DecayKeepsChannelAndItem ----
