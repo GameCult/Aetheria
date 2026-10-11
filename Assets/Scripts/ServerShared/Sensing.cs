@@ -2,6 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
+using CultMath;
+
 // Light signatures split by channel (ruling visibility-per-capability-reveal): an observer learns what a ship
 // is by which channel carries the light. Append-only: values are serialized in VisibilityData.
 public enum SignatureChannel
