@@ -29,7 +29,7 @@ public sealed partial class RunStartTests
 
         var products = PiratesProducts();
         Assert.Equal(8, products.Length);
-        var hulls = _cache.GetAll<HullData>().ToArray();
+        var hulls = LoadoutGenerator.SoldHulls(_cache);
         foreach (var product in products)
         {
             var design = _cache.Get(product.Design) as EquippableItemData;

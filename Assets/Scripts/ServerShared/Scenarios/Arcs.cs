@@ -16,7 +16,7 @@ public sealed class Arcs : Scenario
 
     // Where the targets sit: the player is at the origin facing +z. The forward mounts fire forward, the starboard mount
     // (Clockwise) along +x and the port mount (CounterClockwise) along -x.
-    public static readonly CultMath.float2 Bow = float2(0, 400), Stern = float2(0, -400), Turret = float2(600, 0),
+    public static readonly CultMath.float2 Bow = float2(0, 400), Stern = float2(0, -400), Turret = float2(600, 300),
         Port = float2(-400, 0), Starboard = float2(400, 0);
 
     public override Galaxy Generate(GalaxyStage stage) => stage.Prelude();

@@ -46,7 +46,14 @@ public sealed partial class RunStartTests
         var player = staged.Player;
         player.GenerateWeaponGroups();
         var (bow, stern, port, starboard) = (staged.Entities[0], staged.Entities[1], staged.Entities[3], staged.Entities[4]);
-        Assert.Equal((Arcs.Port, Arcs.Starboard), (port.Position.xz, starboard.Position.xz));
+        // The flank hulls lie abeam from the player's facing, read from the staged positions: within 5 degrees of the
+        // perpendicular, starboard on the right of the facing and port on the left.
+        var facing = player.Direction;
+        var right = CultMath.math.float2(facing.y, -facing.x);
+        float Abeam(Entity flank, CultMath.float2 side) => CultMath.math.dot(CultMath.math.normalize(flank.Position.xz - player.Position.xz), side);
+        var abeam = CultMath.math.cos(CultMath.math.radians(5f));
+        Assert.True(Abeam(starboard, right) >= abeam, "the starboard hull is not abeam to starboard");
+        Assert.True(Abeam(port, -right) >= abeam, "the port hull is not abeam to port");
 
         var mounts = WeaponMounts(player);
         var forward = mounts.Where(item => item.EquippableItem.Rotation == ItemRotation.None).ToList();

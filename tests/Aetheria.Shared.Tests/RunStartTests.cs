@@ -439,17 +439,17 @@ public sealed partial class RunStartTests : IDisposable
         Assert.True(disagreements.Count == 0, string.Join("; ", disagreements.Take(10)) + $" ({disagreements.Count} in all)");
     }
 
-    // The sold hardpoint gear that no sold hull fits even loosely today (a test hull no product sells gives no gear a
-    // home), stated so that authoring a hull that takes one shows up here as a changed list.
+    // The sold hardpoint gear the generator gives no home today: the production rule (LoadoutGenerator.HasHome over the hulls a
+    // product sells). The Smoke Test Hull, which no product sells, gives ChargeBlast SG and ChargeBlast+- no home; authoring a
+    // sold hull that takes one shows up here as a changed list.
     [Fact]
     public void TheSoldHardpointGearWithNoHomeToday()
     {
         var sold = _cache.GetAll<FactionProductData>().Select(product => product.Design.Key).ToHashSet();
-        var hulls = _cache.GetAll<HullData>().Where(hull => sold.Contains(_cache.RefOf(hull).Key)).ToArray();
+        var hulls = LoadoutGenerator.SoldHulls(_cache);
         var homeless = _cache.GetAll<EquippableItemData>()
             .Where(design => sold.Contains(_cache.RefOf(design).Key) && design.Price > 0)
-            .Where(design => design.HardpointType != HardpointType.Tool && design.HardpointType != HardpointType.Hull)
-            .Where(design => !hulls.Any(hull => hull.Hardpoints.Any(hardpoint => hardpoint.Takes(design))))
+            .Where(design => !LoadoutGenerator.HasHome(design, hulls))
             .Select(design => design.Name).OrderBy(name => name, StringComparer.Ordinal).ToArray();
         Assert.Equal(new[] { "CShot RainbowLite Lazer", "ChargeBlast SG", "ChargeBlast+-", "OK Disperser" }, homeless);
     }

@@ -72,6 +72,13 @@ public sealed class SmokeHullCommandTests : IDisposable
         Assert.Single(added, h => h.Type == HardpointType.Ballistic && h.Rotation == ItemRotation.None && h.Takes(autocannon));
         Assert.Single(added, h => h.Type == HardpointType.Ballistic && h.Rotation == ItemRotation.Clockwise && h.Takes(autocannon));
         Assert.Single(added, h => h.Type == HardpointType.Energy && h.Rotation == ItemRotation.CounterClockwise && h.Takes(chargeBlast));
+        // Each is a full 2x2 block with the default firing arc (0 uses the game setting; the side mounts bear by it, never wider)
+        // and the Longinus-class armour the command writes.
+        Assert.All(added, hardpoint =>
+        {
+            Assert.Equal((2, 2, 0f, 20f), (hardpoint.Shape.Width, hardpoint.Shape.Height, hardpoint.FiringArc, hardpoint.Armor));
+            Assert.Equal(4, hardpoint.Shape.Coordinates.Length);
+        });
         foreach (var hardpoint in added)
             foreach (var cell in hardpoint.Shape.Coordinates)
                 Assert.True(hull.Shape[hardpoint.Position + cell], "a new hardpoint lies outside the hull's cells");
