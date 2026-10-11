@@ -119,8 +119,8 @@ public class Thruster : Behavior, IPowerConsumer
             Entity.TurnRate += turnRate;
             AddHeat(_input * Evaluate(_data.Heat) * dt);
             var vis = _input * Evaluate(_data.Visibility);
-            if (!Entity.VisibilitySources.ContainsKey(this) || vis > Entity.VisibilitySources[this])
-                Entity.VisibilitySources[this] = vis;
+            if (!Entity.VisibilitySources.TryGetValue(this, out var burn) || vis > burn.Strength)
+                Entity.SetSignature(this, SignatureChannel.DrivePlume, vis, Item);
             return true;
         }
         return false;

@@ -118,7 +118,7 @@ public class Radiator : Behavior, IAlwaysUpdatedBehavior, IInitializableBehavior
         Emissivity = Evaluate(_data.Emissivity);
         var rad = pow(RadiatorTemperature, ItemManager.GameplaySettings.HeatRadiationExponent) * ItemManager.GameplaySettings.HeatRadiationMultiplier * Emissivity;
         RadiatorTemperature -= rad * delta;
-        Entity.VisibilitySources[this] = rad;
+        Entity.SetSignature(this, SignatureChannel.Thermal, rad, Item);
     }
 
     public void Initialize()

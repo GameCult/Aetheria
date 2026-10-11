@@ -114,7 +114,7 @@ public class Sensor : Behavior, IEventBehavior, IPowerConsumer
         // nothing would ever fill this capacitor; bypass it rather than starving such an instance forever.
         if(_pingCooldown < 0 && (Item == null || _capacitor.TrySpend(_capacitor.Capacity)))
         {
-            Entity.VisibilitySources[this] = Evaluate(_data.PingVisibility);
+            Entity.SetSignature(this, SignatureChannel.Emission, Evaluate(_data.PingVisibility), Item); // interim: emissions-heard replaces this with a range-gated emission
             _pinging = true;
             _pingCooldown = 1;
             _pingLerp = 0;

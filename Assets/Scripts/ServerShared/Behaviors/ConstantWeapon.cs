@@ -170,7 +170,7 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerC
 
             CauseWearDamage(dt);
             AddHeat(Evaluate(_data.Heat) * dt);
-            Entity.VisibilitySources[this] = Evaluate(_data.Visibility);
+            Entity.SetSignature(this, SignatureChannel.LaunchFlash, Evaluate(_data.Visibility), Item);
 
             // Cut 4 (docs/fire-control-cut.md): a beam is a sequence of rolls, not a continuous truth -- one
             // FireControl.Fire per BeamResolveInterval, for that interval's worth of Damage, through the same

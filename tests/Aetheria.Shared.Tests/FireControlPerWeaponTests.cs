@@ -449,7 +449,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
         costs.Ammo = ammoBefore - weapon.Ammo;
         costs.ChargeSpent = chargeBefore - capacitor.Charge;
         costs.Heat = r.Gun.Item.Temperature - heatBefore;
-        costs.Visible = r.Shooter.VisibilitySources.TryGetValue(weapon, out var v) && v > 1f;
+        costs.Visible = r.Shooter.VisibilitySources.TryGetValue(weapon, out var v) && v.Strength > 1f;
         costs.CanFire = weapon.CanFire;
         return costs;
     }
@@ -511,7 +511,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
         var request = weapon.PowerRequest(.1f);
         for (var i = 0; i < 5; i++) r.Zone.Update(.1f);
 
-        var visible = r.Shooter.VisibilitySources.TryGetValue(weapon, out var v) && v > 1f;
+        var visible = r.Shooter.VisibilitySources.TryGetValue(weapon, out var v) && v.Strength > 1f;
         return (shots, wears, request, visible, r.Gun.Item.Temperature - heatBefore, stops, weapon.Firing);
     }
 

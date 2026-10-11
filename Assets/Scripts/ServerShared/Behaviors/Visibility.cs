@@ -15,6 +15,9 @@ public class VisibilityData : BehaviorData
 
     [Inspectable, JsonProperty("visibilityDecay"), Key(2)]  
     public PerformanceStat VisibilityDecay = new PerformanceStat();
+
+    [Inspectable, JsonProperty("channel"), Key(3)]
+    public SignatureChannel Channel = SignatureChannel.Thermal;
     
     public override Behavior CreateInstance(EquippedItem item)
     {
@@ -41,7 +44,7 @@ public class Visibility : Behavior
 
     public override bool Execute(float dt)
     {
-        Entity.VisibilitySources[this] = Evaluate(_data.Visibility);
+        Entity.SetSignature(this, _data.Channel, Evaluate(_data.Visibility), Item);
         return true;
     }
 }
