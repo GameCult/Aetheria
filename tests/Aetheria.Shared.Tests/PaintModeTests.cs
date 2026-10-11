@@ -570,6 +570,27 @@ public sealed class PaintModeTests : IDisposable
         Assert.Equal(0f, Track(a, arrival));
     }
 
+    // The swept set is per ping: a second ping crosses the same ship again, paints it again and credits again.
+    [Fact]
+    public void ASecondPingCrossesTheSameShipAgain()
+    {
+        var a = NewShip(float3(0, 0, 0), "Omni");
+        var t = NewShip(float3(0, 0, 100));
+        Settle();
+        var painted = 0;
+        for (var ping = 1; ping <= 2; ping++)
+        {
+            SensorOf(a).Ping();
+            for (var tick = 1; tick <= 45; tick++) // the ping runs 21 ticks, the cooldown is 4 seconds
+            {
+                Tick(.1f);
+                painted += t.IncomingPaints.Count;
+            }
+            Near(.1f * ping, Track(a, t));
+        }
+        Assert.Equal(2, painted);
+    }
+
     private static MessagePackSerializerOptions WireOptions => CultDocumentMessagePackSerialization.OptionsFor(typeof(ZonePack).Assembly);
 
     // BeamWidth is slot 12 of the sensor record, the fifth union arm of BehaviorData, and the JSON property
