@@ -116,7 +116,9 @@ public sealed class ScenarioStage
         return entity;
     }
 
-    // Items in the entity's first cargo bay, one per design named.
+    // Items in the entity's first cargo bay, one per design named. A name is an equippable design (built as a fit
+    // builds it) or a consumable design (built from its first available product in key order, as a generated hold is
+    // stocked); a name that is neither is a failure.
     public void Cargo(Entity entity, params string[] designs)
     {
         if (entity == null) return;
@@ -124,10 +126,27 @@ public sealed class ScenarioStage
         var bay = entity.CargoBays.FirstOrDefault();
         foreach (var design in designs)
         {
-            var data = Named<EquippableItemData>(design, where);
+            var data = Named<CraftedItemData>(design, where, found => found is EquippableItemData || found is ConsumableItemData);
             if (data == null) continue;
-            var build = Loadouts.Resolve(_items, _items.ItemData.RefOf(data), _available, where, _failures);
-            if (build != null && (bay == null || !bay.TryStore(build())))
+            Func<CraftedItemInstance> build;
+            if (data is ConsumableItemData)
+            {
+                var key = _items.ItemData.RefOf(data).Key;
+                var product = Loadouts.ProductsInKeyOrder(_items.ItemData).Where(p => p.Design.Key.Equals(key)).FirstOrDefault(p => _available(p));
+                if (product == null)
+                {
+                    _failures.Add($"{where}: no product offers {design}");
+                    continue;
+                }
+                build = () => _items.CreateInstance(product);
+            }
+            else
+            {
+                var equippable = Loadouts.Resolve(_items, _items.ItemData.RefOf((EquippableItemData) data), _available, where, _failures);
+                if (equippable == null) continue;
+                build = equippable;
+            }
+            if (bay == null || !bay.TryStore(build()))
                 _failures.Add($"{where}: no room for {design}");
         }
     }
@@ -151,9 +170,9 @@ public sealed class ScenarioStage
         return entity;
     }
 
-    private T Named<T>(string name, string where) where T : EquippableItemData
+    private T Named<T>(string name, string where, Func<T, bool> among = null) where T : CraftedItemData
     {
-        var named = _items.ItemData.GetAll<T>().Where(data => data.Name == name).Take(2).ToArray();
+        var named = _items.ItemData.GetAll<T>().Where(data => data.Name == name && (among == null || among(data))).Take(2).ToArray();
         if (named.Length == 1) return named[0];
         _failures.Add(named.Length == 0 ? $"{where}: no design named {name}" : $"{where}: more than one design is named {name}");
         return null;
