@@ -8000,3 +8000,254 @@ painting.
   follow-ups music-reads-targeted-count and lock-warning-audio-cue.
 - context-pack: lock-warning 9/9 anchors SAME at 08d064c8; consumable-ai r2
   12/12 SAME at f2ecc96a (temporary detached worktrees, removed).
+
+# Visibility rework: signature channels, reveals and sensor stats
+
+Imagination imagination-aeth-visibility, session self-2026-10-11-ag, 2026-10-11.
+Pinned to Aetheria origin/master 93b7ff8da0f67d4958cbe4b6e96f1d824c62a629 (lock-warning and
+envelope-from-columns merged). Rulings: visibility-per-capability-reveal, sensor-stat-set,
+illuminator-beamforming, lock-and-visibility-rethink, launcher-lock-solution-quality,
+lock-warning-strength, shared-track-bearing-only, missiles-seeker-retarget, vapour-cloud-obscuration.
+Prior art: docs/research/lock-launch-and-graded-visibility-prior-art.md (cited below as PA:line).
+This section owns follow-up sensor-stat-set-cut.
+
+## Body facts (probes and source reads at 93b7ff8d)
+
+Paths under Assets/Scripts/ServerShared unless noted.
+
+V1. One signature scalar. `Entity.VisibilitySources` is `Dictionary<object, float>` keyed by the
+emitting object (Entity.cs:88); `Entity.Visibility` is the plain sum (161). Writers, each keyed by
+itself: hull thermal radiation, keyed by the entity (Entity.cs:1619, summed over border cells
+1598-1608); Radiator (Radiator.cs:121, every Update); Reflector cross-section x light
+(Reflector.cs:46); Visibility gear (Visibility.cs:44); ConstantWeapon each beam tick
+(ConstantWeapon.cs:173); InstantWeapon each round, launchers included because LauncherData creates a
+LockWeapon : InstantWeapon (InstantWeapon.cs:280; Launcher.cs:30-33); Thruster input x Visibility,
+max-in-place (Thruster.cs:121-123); Sensor ping (`PingVisibility`, Sensor.cs:117). Grep: 8 writer
+files, plus tests VapourCloudTests:153, FireControlPerWeaponTests (2), MineTests (1).
+
+V2. Decay. Entity.Update decays every source by `GameplaySettings.VisibilityDecay` and removes it
+below 0.1 (Entity.cs:1424-1429). Deactivate does not clear VisibilitySources (780-794).
+
+V3. Heat feeds visibility twice: hull border cells radiate T^HeatRadiationExponent x multiplier into
+the entity's own source (Entity.cs:1598-1619); radiators radiate their own temperature x Emissivity
+(Radiator.cs:118-121). Thrusters and weapons AddHeat, which reaches visibility only later, through
+radiation. Weapons and thrusters also write their own instant source (V1).
+
+V4. One track scalar per pair. `Entity.EntityInfoGathered[other]` (Entity.cs:89), seeded 0 on
+activate and zone add (218, 224), removed on zone remove (231), cleared on Deactivate (788). Its only
+writer is `Sensor.Execute` (Sensor.cs:156-179): a passive gain from `entity.Visibility` through
+Sensitivity x curve(angle) x dt / distance, or a ping gain once per ping when the expanding radius
+passes the entity (`_pingedEntities`, 64, 166-170), then decay (176). Both scale by
+`Zone.Obscuration` (163). `Sensor.Gain` is the one gain rule (190-193).
+
+V5. Readers of the track scalar: `VisibleEntities/Enemies/Friendlies` cross at
+`TargetDetectionInfoThreshold` (Entity.cs:269-285); `FireControl.Designated` needs VisibleEntities
+(FireControl.cs:291-298); hit odds `PSensor` (323) and Inspect (415); `IsRevealed` gear tiers
+(164-183); `LockWeapon` lock rate (LockWeapon.cs:104); `TargetingSystem` resolution doc
+(TargetingSystem.cs:23); ZoneRenderer perspective (ZoneRenderer.cs:552-553); the HUD (V9). About 80
+test sites read or write it (grep across 25 test files).
+
+V6. Reveal today is one tier ladder on the track scalar. `FireControl.IsRevealed(observer, item)`
+ranks the target's non-hull gear (hardpoint first, then size) and reveals item i of N at
+lerp(TargetArmorInfoThreshold, TargetGearInfoThreshold, i/(N-1)) (FireControl.cs:164-183). Readers:
+Entity.TrySelectTargetItem and ResolvedTargetItem (Entity.cs:353, 364), Combat target-item choice
+(Agents/States/Combat.cs:45), the HUD subsystem list (ActionGameManager.cs:435), SchematicDisplay's
+enemy weapon list (UI/HUD/SchematicDisplay.cs:102). The two thresholds are read only there and in
+test fixtures (15 test files set them).
+
+V7. Paints (lock-warning, merged e386e1c4). `LockWeapon.Execute` paints the target each tick it
+builds lock inside LockAngle: `target.ReceivePaint(Entity.Position, Item?.Data, Lock)`
+(LockWeapon.cs:98-106). `LockWarning {Bearing, EmitterClass, Strength}` (114-130). Entity owns
+`_paintInbox`, `_incomingLocks`, `IncomingLocks` (Entity.cs:176-181), `PublishPaints` (799-804) and
+`ReceivePaint` (807-811); Zone.Update publishes every entity's paints before any entity updates
+(Zone.cs:229-231). A ping paints nothing; no warning carries a mode.
+
+V8. A ping is an omnidirectional expanding radius (Sensor.cs:143-152), heard by nobody: its only
+outward effect is the `PingVisibility` bump to the pinger's summed Visibility (117), which every
+observer's passive gain then reads like heat. No beam width, no intercept stat, no ally share.
+`Sensor.Ping` callers: the player's input (AetheriaInput, ActionGameManager) and, after
+faction-play-2, Flight.
+
+V9. The HUD reads other ships' private knowledge. Hostile and friendly indicators fill from
+`indicator.Key.EntityInfoGathered[CurrentEntity]`, the other ship's track of the player
+(ActionGameManager.cs:1285-1302); the target panel's `VisibilityToTargetFill` reads
+`target.EntityInfoGathered[CurrentEntity]` (1330); music switches on `TargetedByCount` (1068-1071),
+which counts selection (Entity.cs:174-175, 261-266). The target panel also reads the target's exact
+hull and shield (1331-1332). Invariant instruments-bound forbids all four.
+
+V10. The AI reads own-ship facts plus `VisibleEnemies` (Agents/Minion.cs:14,
+Behaviors/TurretController.cs:98) and `IsRevealed` (Combat.cs:45). On master no Agents/ code reads
+another ship's weapons; the violation in finding cut-consumable-ai.s1.reads-enemy-weapon-state lives
+on the unmerged consumable-ai branch (f2ecc96a, Combat.cs:147-148).
+
+V11. `Entity.ChunkInfo` (Entity.cs:383-395) is the settled passive info for a signature at a point:
+saturate(sum of `Sensor.PassiveRate(v, p)` over `ActiveSensors()` / (n x TargetInfoDecay)). It is
+linear in the signature below saturation. `DetectionReachPerVisibility` (607-619) bounds it.
+missile-records r3 plans to move that arithmetic into a static `Sensor.SettledInfo` (its deletes,
+Entity.cs:368-369 at 7f51d46d).
+
+V12. Stats and keys. SensorData keys 3-11 (Sensitivity 3, curve 4, PingBoost 5, PingEnergy 6,
+PingVisibility 7, PingRange 8, PingCooldown 9, PingDuration 10, PingRadiusExponent 11; Sensor.cs:15-40).
+LockWeaponData keys 21-25 (LockWeapon.cs:12-25). VisibilityData keys 1-2 (Visibility.cs).
+GameplaySettings is keyAsPropertyName MessagePack (Settings.cs:158-159); VisibilityDecay,
+TargetInfoDecay and the three info thresholds sit at Settings.cs:215-219. Brand flavour reaches a
+stat through product role quality (FactionProduct.cs roles, Key 5; boost-gear-systems' "magnitude
+reads amplifier").
+
+V13. Zone clock: `Zone.Time` (Zone.cs:75). Entity.Update order: inactive return (1408), hostility,
+targets, source decay (1424-1429), temperature (1431), PowerBus.Step (1510), the equipment loop
+(1512-1515).
+
+V14. Still unmerged and touching these files: missile-stats/records/odds, munition-shots,
+autofire-threshold (FireControl, Entity 82/791/1050/1453), controls-hud (ActionGameManager
+1041-1057, 1390-1410), faction-play-1/2 (Flight, Sensor.Ping callers), consumable-ai (Combat.cs).
+The cuts below keep their hunks out of those regions.
+
+## Model page
+
+| Kind | Identity | Lifecycle | Authority |
+|---|---|---|---|
+| Signature channel (`SignatureChannel`: Thermal, Reflection, DrivePlume, LaunchFlash, Emission) | A closed enum, the five channels of ruling visibility-per-capability-reveal. Saved only as `VisibilityData.Channel` (catalog, by value; append-only, a value is never reused). | Fixed set; a new channel is a code change and a ruling. | The ruling. Code names each writer's channel; the catalog names a Visibility gear's. |
+| Light signature (`Signature {Channel, Strength, Item}` in `Entity.VisibilitySources`) | (emitting entity, source object). The source is the writing behaviour, or the entity for hull radiation; the key is a reference, so injective. `Item` is derived from the behaviour's `Item` (null for hull radiation and consumable effects). Channel Emission is never a light signature (after cut emissions-heard). | Written each tick its source acts (thermal, radiator, reflector, visibility gear continuously; weapon fire and plume when they act). Decayed by VisibilityDecay in the owner's Update and removed below 0.1. Runtime only, never saved. | One writer per entry: its source, through `Entity.SetSignature`. Entity.Update the only decayer. Forbidden: another entity, any presenter, a direct dictionary write. `Visibility` (the sum) stays the track input. |
+| Active emission (`ActiveEmission {Item, HearRange, Mode}` in `Entity.ActiveEmissions`) | (emitting entity, emitting item, tick). No persistent id. | Posted to the emitter's inbox each tick it emits (a ping wavefront in flight: Search; a lock paint inside LockAngle: Track); published in the zone's pre-phase with paints; lives exactly one tick. Never saved. | Sensor.Execute (search) and LockWeapon.Execute (track) through `Entity.Emit`; Entity publishes. HearRange = the emitter's range / its InterceptFactor, fixed at the emit. |
+| Paint warning (`PaintWarning {Bearing, EmitterClass, Mode, Strength}` in `Entity.IncomingPaints`; was LockWarning / IncomingLocks) | (painted entity, tick, painter beam). No id. | One tick after its last paint (unchanged from lock-warning). Search paints carry Strength 0. | LockWeapon.Execute (Track) and a ping wavefront crossing (Search, Sensor.Execute) call ReceivePaint; Entity publishes. Painted targets are always warned (sensor-stat-set 4). |
+| Track (`EntityInfoGathered[subject]`) | (observer, subject entity). | Seeded 0 on zone entry, revised each tick by each active sensor (passive gain, decay), plus one gain per ping crossing from the observer's own pings and its allies' (bistatic); removed when the subject leaves; cleared on Deactivate. Runtime only. | Sensor.Execute only, reading the observer's own receivers. Forbidden: shared-track writes (ruling shared-track-bearing-only), presenters, other ships. |
+| Reveal (`Reveal {Item, Channel, Bearing, Time}` in the observer's reveal book, keyed (subject, item)) | (observer, subject entity, revealed item), by reference. | Created on the first act the observer's instruments receive; Channel, Bearing and Time refreshed by each later act; filtered on read when the item is destroyed (Durability < .01) or off the subject; removed when the subject leaves the zone; cleared on Deactivate. Not decayed: memory of the sitting. Never saved. | `Entity.Sense` (once per Entity.Update) for light acts and heard emissions; `ReceivePaint` for paints. Forbidden: Sensor's track loop, presenters, another ship, shared tracks. |
+| Contact (`Contact`, derived by `Entity.ContactOf(subject)`) | (observer, subject). | Derived on read from track, reveals, the zone clock and `BearingMemory`; stored nowhere. Flags: Detected (tracked, or a reveal younger than BearingMemory), Tracked (track > TargetDetectionInfoThreshold, which is VisibleEntities), Classified (detected and any reveal), Identified (track >= TargetGearInfoThreshold, name kept, now the identify threshold). Bearing: the true bearing while tracked, else the freshest reveal's. | `Entity.ContactOf` is the one derivation. HUD and AI read it; VisibleEntities stays the tracked set. |
+| Sensor stats (SensorData Sensitivity key 3 = detection power, BeamWidth key 12, InterceptFactor key 13; LockWeaponData.InterceptFactor key 26; ListenerData.Multiple key 1) | Fields of a catalog design; brand flavour through product role quality. | Authored by AetherDb (cut sensor-catalog); resolved per item through StatResolver. PingVisibility (key 7) is retired, never reused. | The catalog. Readers: Sensor (BeamWidth, InterceptFactor), LockWeapon (InterceptFactor), Entity.HearingMultiple (ListenerData). |
+
+No empty cell. Two decisions are defaults, not rulings: reveals never decay within a sitting (a ship
+you saw fire a railgun still has one), and a reveal carries a bearing only; position comes only from
+the track, as passive imaging and pings give it today (ruling text: "range only where the channel
+gives it").
+
+## Authority map
+
+- Owner: the observer's Entity owns what it knows: its track (written by its own Sensors), its
+  reveals and paint warnings (written by `Entity.Sense` and `ReceivePaint`), and the derived Contact.
+  The emitter's Entity owns what it emits: light signatures (`SetSignature`) and active emissions
+  (`Emit`).
+- Inputs: other entities' published light signatures and active emissions (physical facts about
+  energy leaving them), positions, the zone's obscuration and clock; the observer's own sensors,
+  listeners and settings.
+- Outputs: EntityInfoGathered and the Visible sets (unchanged meaning), reveals, IncomingPaints,
+  `ContactOf`, `IsRevealed`.
+- Derived state: Visibility (sum of light signatures); Contact and its levels; IsRevealed (a reveal
+  of a live item, after cut reveals-replace-tiers); HearRange (range / alpha at the emit);
+  HearingMultiple (1 with an active sensor, else 0, raised by listener gear).
+- Demotions: "Visibility is no longer the whole signature; it is the light-channel sum, the track
+  input only." "IsRevealed is no longer derived from track tiers; it is derived from reveals."
+  "A ping is no longer a brightness bump; it is a search emission heard within PingRange / alpha."
+  "TargetedBy and TargetedByCount are not owners of anything; they are deleted (cut contact-hud)."
+- Forbidden writers: any code writing `VisibilitySources` except `Entity.SetSignature`; any reveal
+  write outside `Entity.Sense` and `ReceivePaint`; Sensor's track loop writing reveals; any
+  presenter or Agents/ code reading another ship's `EntityInfoGathered`, weapons, lock or
+  `IncomingPaints`; shared tracks writing track or reveals.
+- Shared paths: the player's HUD and the AI read the same `ContactOf`, `VisibleEnemies`,
+  `IsRevealed` and `IncomingPaints`. Own pings and allied pings credit track through the same
+  crossing rule. Light acts and heard emissions reach the reveal book through the one `Sense` step;
+  paints through ReceivePaint, which also records the emitter's reveal.
+- Deletion line: `_pingedEntities` (stateless crossing replaces it), `PingVisibility`, the IsRevealed
+  tier ranking and `TargetArmorInfoThreshold`, `TargetedBy`/`TargetedByCount`, and the HUD's reads
+  of other ships' track are deleted before the behaviour that replaces each is added.
+
+Structural limit, stated plainly: one C# assembly holding `Entity` references cannot make
+`other.EntityInfoGathered` unreachable from Agents/ or the HUD. These cuts remove every need to read
+it (every fact another ship causes on you arrives on your own Entity), delete the existing reads,
+and pin the boundary with negative checks. Making it unreachable by type (agents and the HUD hold
+contact handles, never another Entity) is follow-up opaque-contact-handles.
+
+## The rules
+
+R1. Channels. Hull radiation, radiators and Visibility gear (default) write Thermal; reflectors
+Reflection; thrusters DrivePlume; every weapon discharge (gun round, beam tick, launch) LaunchFlash.
+Emission is active emission only (pings, paints) and never sums into Visibility (from cut
+emissions-heard; cut signature-channels labels the ping's interim bump Emission to stay
+behaviour-preserving).
+
+R2. Track. Unchanged arithmetic over `Visibility`. A ping wavefront crosses subject T this tick when
+PreviousRadius <= distance(emitter, T) < Radius and T lies within BeamWidth/2 of the emitting
+sensor's facing (BeamWidth >= 360 is omnidirectional). A crossing adds the existing ping gain once to
+the emitter's track of T, and once to each ally's track of T computed with the ally's own
+sensitivity and its distance to T (bistatic, sensor-stat-set 3, illuminator-beamforming). Allies:
+same Faction, not hostile. The ally emits nothing and is not revealed.
+
+R3. Paints. A crossing paints T with Mode Search, Strength 0. A lock paint is Mode Track, Strength =
+the lock (lock-warning-strength). The painted ship always learns bearing, emitter class and mode
+(sensor-stat-set 4), whatever obscuration or hearing range.
+
+R4. Reveal by act (light). Observer O records a reveal of item i on subject E when the light
+signature of i alone would settle O's passive info above TargetDetectionInfoThreshold:
+Strength x `PassiveInfoPerSignature(E.position)` > threshold, where PassiveInfoPerSignature is
+ChunkInfo's arithmetic per unit signature over O's active sensors (obscuration included). Hull
+radiation (no item) reveals nothing; it only feeds the track.
+
+R5. Reveal by hearing (emission). O records a reveal of the emitting item when
+distance(O, E) <= HearRange x O.HearingMultiple x Obscuration(O, E). HearRange = PingRange /
+InterceptFactor for a ping, weapon Range / InterceptFactor for a lock paint. HearingMultiple is 1
+when O has an active sensor, else 0, and the largest ListenerData.Multiple of O's active listeners
+when that is larger (sensor-stat-set 2). Bearing only; nothing feeds the track.
+
+R6. Paint reveals. ReceivePaint also records the emitter's reveal (Channel Emission) on the painted
+ship.
+
+R7. Contact levels (visibility-per-capability-reveal). As in the model page row. BearingMemory is a
+GameplaySettings value (default 6 s). TargetGearInfoThreshold keeps its name and stored value and
+becomes the Identified threshold; TargetArmorInfoThreshold is deleted.
+
+R8. IsRevealed(O, item) is true exactly when O holds a reveal of item, item is on its subject and
+Durability >= .01 (cut reveals-replace-tiers, under question gear-reveal-by-dwell's recommended
+option).
+
+## Rationale
+
+- Channels and per-capability knowledge: warning receivers and missile-warning sensors are
+  channel-specific, each giving emitter class and bearing or launch angle (PA:70-76); option b of
+  question visibility-model was recommended because no game found models fire, burn and emission as
+  separate reveals (PA:89-95). Reusing the detection arithmetic for the reveal threshold (R4) means an
+  act is revealed exactly when that act alone would make its emitter detectable: no new tuning
+  constant, and DetectionReachPerVisibility still bounds it.
+- Range-gated hearing (R5) is the ruling's own definition of alpha ("how far it sees to how far
+  others hear it") and of passive gear ("a multiple of their own range"); emission detectable at
+  about twice its usable range is the USNI rule of thumb (PA:80-82). Counter-detection when emitting
+  is how Cold Waters and Command treat radar (PA:80-85).
+- Bistatic ally credit (R2): one emitter illuminates, silent allies receive passively; the target
+  still knows it is painted (ruling illuminator-beamforming's reading). It is the ally's own receiver,
+  so ruling shared-track-bearing-only (a shared track never writes the track) still holds.
+- Stateless crossing: the ping set `_pingedEntities` exists only to stop double credit; the
+  PreviousRadius <= d < Radius test does that with no state and serves allied pings too.
+- Reveals do not decay because ELINT accumulates into an order of battle over many events (PA:89-95);
+  the track still decays, so a remembered railgun on a ship you cannot see is a Classified bearing
+  marker only while the memory is fresh.
+- Hearing and reveals live in one per-entity `Sense` step rather than in Sensor.Execute so that a
+  ship with two sensors or with listener gear and no sensor senses once; Sensor.Execute keeps the
+  track arithmetic byte-for-byte, which the 80 test sites pin.
+- Emissions publish in the zone pre-phase beside paints because lock-warning's fix batch found order
+  dependence when a ship read state another ship wrote mid-tick (LW fix 1, 1c5c6020).
+
+Further prior art not gathered, flagged rather than guessed: how Nebulous and CMO display bearing-only
+contacts (PA:96-101 lists the wiki as unread); the HUD's bearing marker below follows the
+incoming-lock indicator already in tree.
+
+## Cut order
+
+signature-channels -> paint-modes -> contact-reveals -> emissions-heard -> sensor-catalog;
+contact-reveals -> reveals-replace-tiers (waits on question gear-reveal-by-dwell);
+emissions-heard + paint-modes -> contact-hud. consumable-ai's re-map follows paint-modes.
+
+## Admitted (receipts mind-commit-7a633910..., mind-commit-b158ffb9..., mind-commit-2892979b...)
+
+Specs, all based at 93b7ff8d: cut-signature-channels.r1, cut-paint-modes.r2 (r1 superseded: an
+anchor past the end of LockWeapon.cs), cut-contact-reveals.r1, cut-emissions-heard.r1,
+cut-reveals-replace-tiers.r1 (blocked on question gear-reveal-by-dwell), cut-contact-hud.r1,
+cut-sensor-catalog.r1. Question gear-reveal-by-dwell (recommended acts-only). Follow-ups
+consumable-ai-reads-paints, missile-records-settled-info, launcher-lock-gate-cut,
+opaque-contact-handles, target-panel-reads-enemy-hull, two-listener-fix. context-pack read every
+anchor SAME at 93b7ff8d. contact-hud folds follow-up music-reads-targeted-count.
+
+What the other specs in force take from this map: consumable-ai's re-map reads IncomingPaints with
+Mode Track (follow-up consumable-ai-reads-paints); missile-records re-anchors its settled-info
+extraction on PassiveInfoPerSignature (follow-up missile-records-settled-info); faction-play-2's
+ping cadence keeps calling Sensor.Ping, and Lucent's loud doctrine is the low InterceptFactor the
+sensor-catalog cut authors; autofire-threshold and controls-hud are unchanged (VisibleEnemies,
+Designated and the crosshair regions keep their meaning and lines).
