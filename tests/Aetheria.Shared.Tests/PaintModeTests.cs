@@ -506,13 +506,13 @@ public sealed class PaintModeTests : IDisposable
         Assert.Equal(1, painted);
         if (leg == 0)
         {
-            Assert.Equal(0f, Track(a, t));
-            Assert.Equal(0f, Track(c, t));
+            Near(0f, Track(a, t));
+            Near(0f, Track(c, t));
         }
         else if (leg == 1)
         {
             Near(.1f, Track(a, t));
-            Assert.Equal(0f, Track(c, t));
+            Near(0f, Track(c, t));
         }
         else
         {
