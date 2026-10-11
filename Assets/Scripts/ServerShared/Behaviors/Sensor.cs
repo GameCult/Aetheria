@@ -66,10 +66,9 @@ public class Sensor : Behavior, IEventBehavior, IPowerConsumer
     private float _pingLerp;
     private bool _pinging;
     private float _pingRadius;
-    private float _previousRadius;
 
-    // Allied sensors mid-sweep this tick, gathered once per Execute (scratch, rebuilt every call).
-    private readonly List<Sensor> _alliedPingers = new List<Sensor>();
+    // The subjects this ping's wavefront has reached, in the beam or not; each is crossed at most once per ping.
+    private readonly HashSet<Entity> _reached = new HashSet<Entity>();
 
     public float Cooldown
     {
@@ -81,22 +80,15 @@ public class Sensor : Behavior, IEventBehavior, IPowerConsumer
         get => _pingRadius;
     }
 
-    // The wavefront radius before this tick's step: the ping crossed everything in [PreviousRadius, PingRadius).
-    public float PreviousRadius => _previousRadius;
-
     public float BeamWidth => _data.BeamWidth == null ? 360f : Evaluate(_data.BeamWidth);
 
     public float2 Facing => Direction.xz;
 
-    // The one crossing rule: this tick's ping wavefront of `pinger` passed `subject`, inside the pinger's beam.
-    // It remembers nothing; the two radii are the whole state, so every observer of the same ping agrees.
-    private static bool Crossing(Sensor pinger, Entity subject)
+    // Whether the offset `diff` (length `dist`) from this sensor lies inside its beam.
+    private bool InBeam(float2 diff, float dist)
     {
-        var diff = subject.Position.xz - pinger.Entity.Position.xz;
-        var dist = length(diff);
-        if (dist < pinger._previousRadius || dist >= pinger._pingRadius) return false;
-        var beam = pinger.BeamWidth;
-        return beam >= 360f || dot(pinger.Facing, diff) >= dist * cos(beam * .5f * .0174533f);
+        var beam = BeamWidth;
+        return beam >= 360f || dot(Facing, diff) >= dist * cos(beam * .5f * .0174533f);
     }
 
     public float PingBrightness => pow(1 - _pingLerp, _data.PingRadiusExponent);
@@ -145,6 +137,7 @@ public class Sensor : Behavior, IEventBehavior, IPowerConsumer
             _pingCooldown = 1;
             _pingLerp = 0;
             _pingRadius = 0;
+            _reached.Clear();
             OnPingStart?.Invoke();
         }
     }
@@ -165,7 +158,7 @@ public class Sensor : Behavior, IEventBehavior, IPowerConsumer
         // instance never reaches PowerBus.Step (see Ping()) and so never accrues charge.
         if (Item != null)
             _capacitor.AddCharge(_capacitor.RequestedFill(dt) * Item.PowerSupply);
-        _previousRadius = _pingRadius;
+        var sweeping = _pinging;
         if (_pinging)
         {
             _pingLerp += dt / _data.PingDuration;
@@ -180,13 +173,6 @@ public class Sensor : Behavior, IEventBehavior, IPowerConsumer
         _pingCooldown -= dt / Evaluate(_data.PingCooldown);
         
         var forward = Direction.xz;
-        _alliedPingers.Clear();
-        foreach (var ally in Entity.Zone.Entities)
-        {
-            if (ally == Entity || ally.Faction == null || ally.Faction != Entity.Faction || Entity.IsHostileTo(ally)) continue;
-            foreach (var sensor in ally.GetBehaviors<Sensor>())
-                if (sensor._previousRadius < sensor._pingRadius) _alliedPingers.Add(sensor);
-        }
         foreach (var entity in Entity.Zone.Entities)
         {
             if (entity == Entity) continue;
@@ -197,31 +183,46 @@ public class Sensor : Behavior, IEventBehavior, IPowerConsumer
             float previous, next;
             Entity.EntityInfoGathered.TryGetValue(entity, out previous);
 
-            // A crossing of this entity's own ping paints the subject (it learns it is swept); a crossing of an
-            // allied ping is heard silently (ruling sensor-stat-set item 3): credit, no paint, no emission.
-            var crossings = 0;
-            if (Crossing(this, entity))
-            {
-                crossings++;
-                entity.ReceivePaint(Entity.Position, Item?.Data, PaintMode.Search, 0);
-            }
-            foreach (var pinger in _alliedPingers)
-                if (pinger.Entity != entity && Crossing(pinger, entity)) crossings++;
+            var sensitivity = Evaluate(_data.Sensitivity);
+            var response = _data.PingBoost == null ? 0f : Evaluate(_data.PingBoost);
+            var credit = 0f;
+            var heard = false;
 
-            if (crossings > 0)
+            // The first sweeping tick this ping's wavefront is past the entity is its one crossing. Inside the beam
+            // it paints the subject (it learns it is swept), credits this sensor, and is returned to every ally; an
+            // ally hears it silently (ruling sensor-stat-set item 3): credit, no paint, no emission.
+            if (sweeping && dist < _pingRadius && _reached.Add(entity) && InBeam(diff, dist))
             {
-                var response = _data.PingBoost == null ? 0f : Evaluate(_data.PingBoost);
-                next = saturate(previous + crossings * Gain(entity.Visibility, Evaluate(_data.Sensitivity), response, dist, dt, true, obscuration));
+                heard = true;
+                entity.ReceivePaint(Entity.Position, Item?.Data, PaintMode.Search, 0);
+                credit += Gain(entity.Visibility, sensitivity, response, dist, dt, true, obscuration);
+                var pingReturn = new PingReturn(entity, dist, obscuration, Evaluate(_data.PingRange));
+                foreach (var ally in Entity.Zone.Entities)
+                    if (ally != Entity && ally != entity && ally.Faction != null && ally.Faction == Entity.Faction && !ally.IsHostileTo(Entity))
+                        ally.ReceiveReturn(pingReturn);
             }
+
+            // An ally's ping returned off this subject (ruling ally-echo-bistatic-oval): heard while the
+            // illuminated and received ranges sit inside the oval Rt x Rr < PingRange^2, credited at their geometric mean.
+            foreach (var r in Entity.PingReturns)
+            {
+                if (r.Subject != entity || r.IlluminatedRange * dist >= r.MaxRange * r.MaxRange) continue;
+                heard = true;
+                credit += Gain(entity.Visibility, sensitivity, response, sqrt(r.IlluminatedRange * dist), dt, true, sqrt(r.IlluminatedObscuration * obscuration));
+            }
+
+            if (heard)
+                next = saturate(previous + credit);
             else
             {
                 var angle = acos(dot(forward, normalize(diff)));
-                next = saturate(previous + Gain(entity.Visibility, Evaluate(_data.Sensitivity), _data.SensitivityCurve.Evaluate(angle / PI), dist, dt, false, obscuration));
+                next = saturate(previous + Gain(entity.Visibility, sensitivity, _data.SensitivityCurve.Evaluate(angle / PI), dist, dt, false, obscuration));
             }
             next *= 1 - ItemManager.GameplaySettings.TargetInfoDecay * dt;
             //Context.Log($"{entity.Name} visibility {(int)(previous * 100)}% -> {(int)(next * 100)}%");
             Entity.EntityInfoGathered[entity] = next;
         }
+        if (!_pinging) _reached.Clear();
         return true;
     }
 

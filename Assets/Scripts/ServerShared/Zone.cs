@@ -227,7 +227,7 @@ public class Zone
             agent.Update(deltaTime);
 
         var entities = Entities.ToArray();
-        foreach (var entity in entities) entity.PublishPaints();
+        foreach (var entity in entities) entity.PublishInbox();
         foreach (var entity in entities) entity.Update(deltaTime);
 
         StepMines(deltaTime);

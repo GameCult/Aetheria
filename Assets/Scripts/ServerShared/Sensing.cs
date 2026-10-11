@@ -40,6 +40,24 @@ public enum PaintMode
     Track
 }
 
+// An ally's ping crossed `Subject` at `IlluminatedRange` through `IlluminatedObscuration`; `MaxRange` is that
+// sensor's PingRange. Posted on the crossing tick and read for one tick by the receiving ship's own sensors.
+public readonly struct PingReturn
+{
+    public readonly Entity Subject;
+    public readonly float IlluminatedRange;
+    public readonly float IlluminatedObscuration;
+    public readonly float MaxRange;
+
+    public PingReturn(Entity subject, float illuminatedRange, float illuminatedObscuration, float maxRange)
+    {
+        Subject = subject;
+        IlluminatedRange = illuminatedRange;
+        IlluminatedObscuration = illuminatedObscuration;
+        MaxRange = maxRange;
+    }
+}
+
 public readonly struct PaintWarning
 {
     public readonly float2 Bearing;

@@ -187,11 +187,16 @@ public abstract class Entity
     public ReactiveProperty<int> TargetedByCount = new ReactiveProperty<int>(0);
     // TargetedBy counts selection, which emits nothing; a warning comes only from a paint. A search paint is a ping
     // sweeping this ship (Sensor.Execute); a track paint is a lock (LockWeapon.Execute). Each reports into the
-    // inbox the tick it paints; PublishPaints publishes the inbox once, so a warning lives exactly one tick after
+    // inbox the tick it paints; PublishInbox publishes the inbox once, so a warning lives exactly one tick after
     // its last paint.
     private readonly List<PaintWarning> _paintInbox = new List<PaintWarning>();
     private readonly List<PaintWarning> _incomingPaints = new List<PaintWarning>();
     public IReadOnlyList<PaintWarning> IncomingPaints => _incomingPaints;
+    // An ally's sensor posts a return on the tick its ping crosses a subject; published with paints, read by this
+    // ship's own sensors for one tick.
+    private readonly List<PingReturn> _returnInbox = new List<PingReturn>();
+    private readonly List<PingReturn> _pingReturns = new List<PingReturn>();
+    internal IReadOnlyList<PingReturn> PingReturns => _pingReturns;
     public ReactiveProperty<SecurityLevel> CurrentSecurityLevel = new ReactiveProperty<SecurityLevel>(SecurityLevel.Open);
     public ReadOnlyReactiveProperty<bool> PresencePermitted;
     
@@ -804,16 +809,27 @@ public abstract class Entity
         VisibleFriendlies.Clear();
         _paintInbox.Clear();
         _incomingPaints.Clear();
+        _returnInbox.Clear();
+        _pingReturns.Clear();
     }
 
     // Zone.Update runs this on every entity before any entity updates, so a paint made during tick N is published
     // at the start of tick N+1 whatever order the emitter and this ship update in; a paint that stops is gone
     // one tick later for every ordering.
-    internal void PublishPaints()
+    internal void PublishInbox()
     {
         _incomingPaints.Clear();
         _incomingPaints.AddRange(_paintInbox);
         _paintInbox.Clear();
+        _pingReturns.Clear();
+        _pingReturns.AddRange(_returnInbox);
+        _returnInbox.Clear();
+    }
+
+    internal void ReceiveReturn(PingReturn pingReturn)
+    {
+        if (!_active) return;
+        _returnInbox.Add(pingReturn);
     }
 
     // The callers are Sensor.Execute (a Search paint, Strength 0) and LockWeapon.Execute (a Track paint, Strength
