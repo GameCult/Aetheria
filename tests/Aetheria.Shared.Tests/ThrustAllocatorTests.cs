@@ -265,6 +265,39 @@ public class ThrustAllocatorTests
         }
     }
 
+    // A cruiser-like hull, n thrusters each pushing along one body axis with a lever-arm yaw (the finding's fixture
+    // generator: Synthetic(8, 7005)).
+    static float3[] Synthetic(int n, int seed)
+    {
+        var rng = new Random(seed);
+        var cols = new float3[n];
+        for (var i = 0; i < n; i++)
+        {
+            var a = 20f + 40f * (float)rng.NextDouble();
+            var yaw = (float)(rng.NextDouble() * 2 - 1) * 120f;
+            var dir = rng.Next(10);
+            cols[i] = dir < 4 ? Col(0, a, yaw) : dir < 6 ? Col(0, -a, yaw) : dir < 8 ? Col(a, 0, yaw) : Col(-a, 0, yaw);
+        }
+        return cols;
+    }
+
+    // Finding solver-converged-early: on this hull a fresh allocator's eighth intent of a seeded random walk stopped at a
+    // non-optimal point (throttle 7 at 1.0 against .922 warm). The answer is the same from a cold and from a warm start.
+    [Fact]
+    public void ColdAndWarmStartsAgreeOnTheHullThatStoppedEarly()
+    {
+        var hull = Synthetic(8, 7005);
+        var rng = new Random(5);
+        var warm = new ThrustAllocator();
+        for (var step = 0; step < 8; step++)
+        {
+            float x = (float)rng.NextDouble() * 2 - 1, y = (float)rng.NextDouble() * 2 - 1, turn = (float)rng.NextDouble() * 2 - 1;
+            var fromWarm = Solve(warm, hull, x, y, turn);
+            var fromCold = Solve(hull, x, y, turn);
+            for (var i = 0; i < hull.Length; i++) Assert.True(MathF.Abs(fromWarm[i] - fromCold[i]) <= 1e-5f, $"step {step}: throttle {i} {fromCold[i]} cold vs {fromWarm[i]} warm");
+        }
+    }
+
     [Fact]
     public void EqualThrustersShareTheDemand()
     {
