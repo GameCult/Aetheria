@@ -8394,3 +8394,111 @@ Soul's scratch probes (SoulProbeTests.cs, never committed) become r3's moving-su
 stale-interval, far-ally and cloud tests. The bistatic bound is a default from rulings, not a new
 ruling: illuminator-beamforming's recorded reading ("silent allies receive the return passively")
 and shared-track-bearing-only ("the recipient fires only on its own sensors").
+
+## Scenarios for operator checks
+
+Mapped 2026-10-11 by Imagination (`imagination-aeth-scenarios`, session `self-2026-10-11-ag`) against
+`origin/master` `12dfcef5`, from the operator's question "Do we have scenarios for all of the things I need to
+test?" and Eyes' gap table (scratchpad `eyes-aeth-operator-checks/checks.md`). One strand of six scenario cuts
+reaches every built check that needs staging. Checks that a new run reaches (station play, faction play, the
+boss gate) stay ordinary play; checks in Blender, Studio, the Editor or a build are not scenario-shaped.
+
+### Body facts (source reads at 12dfcef5)
+
+- SC1. `Scenarios.cs:4-13` already has the three lists: Modes (release), Development and Tests (editor and
+  development builds). Every new arena goes in Tests. No menu question remains.
+- SC2. `ScenarioStage` verbs: Fit, Bare, Generated, Preset, Player, Place (stance, piloted), Cargo
+  (`ScenarioStage.cs:52-133`). Cargo resolves `Named<EquippableItemData>` only (`:127`, `:154-160`). No verb
+  sets velocity, places a cloud or picks a belt.
+- SC3. Consumables are `ConsumableItemData : CraftedItemData`, not equippable (`ItemData.cs:343`, `:362`).
+  `ItemManager.CreateInstance(product)` builds a `ConsumableItem` (`ItemManager.cs:186`);
+  `LoadoutGenerator.StockConsumables` (`:141-155`) is the precedent for stocking a hold. Catalog designs
+  "Thruster Overdrive" (first behaviour `ThrottleLockData`) and "Coolant Vent" (`VapourDumpData`)
+  (`tools/AetherDb/Program.cs:1959`; `ConsumablesFirstSetTests.cs:16,61,76`). No scenario can stage a
+  consumable today.
+- SC4. Nothing outside ServerShared reads `Zone.Clouds`: a vented cloud is undrawn until cut
+  vapour-cloud-presenter r2 lands. The hiding is simulation and reachable now; the fog bank is not.
+- SC5. The only `Sensor.Ping()` call is the player's (`ActionGameManager.cs:391`): no AI searches by ping. AI
+  locks through launchers (`LauncherData : LockWeaponData`); the HUD warning reads `IncomingPaints`, Track
+  paints only (`ActionGameManager.cs:1460-1466`). "A hostile that searches and locks" is staged as a hostile
+  that must first find the player passively, then locks.
+- SC6. No `SetAutofire` or `AutofireSubject` on master: PD guns cannot engage munitions until
+  autofire-threshold lands. The Point Defense scenario stays in cut autofire-controls r2, which depends on it.
+- SC7. Mine Launcher: Launcher hardpoint, has a product, proximity fuse, blast 25, arming 2 s, fuse 2 s,
+  lifetime 30 s (`MineLauncherCatalogTests.cs:13-27`).
+- SC8. plight is 1x2 and fits a Longinus Energy hardpoint (`EvasionTrackingTests.cs:459-467`); the PD Laser fits
+  a Longinus Energy hardpoint (`:431`).
+- SC9. Prefabs with `ArticulationPoint`: Djinni ("Ballistic Articulation", `Djinni.prefab:7317`), Longinus
+  ("Energy Left", "Energy Right", Yaw -1..1, Pitch -80..80, `Longinus.prefab:467-506,844-883`), Turret.
+  `ActionGameManager.cs:1050-1060` groups barrels by `ArticulationPoint.Group`. Which hardpoint each node
+  carries is Unity-only; the Djinni's ballistic node is the clearest legacy articulated barrel.
+- SC10. `EntityInstance.GetBarrel` falls back to the entity's transform for a hardpoint its prefab lacks
+  (`EntityInstance.cs:346-356`): a Smoke Test Hull hardpoint absent from Longinus.prefab fires from the hull
+  centre, with no error.
+- SC11. Belts: `Zone.Planets`, `Zone.AsteroidBelts` (`Zone.cs:27,31,120-132`); a belt's rock count is
+  `AsteroidCount(mass x distance)` (`ZoneGenerator.cs:144-147`). Ambient false keeps planets and orbits
+  (`Scenario.cs:17-19`). No scenario stages a belt.
+- SC12. The census `EveryUnsoldDesignIsAScenarioTestDesign` (`ScenarioTests.cs:522-546`) fails while any
+  product-less design is carried by no scenario, so a test design lands in the same commit as the scenario that
+  carries it. scenarios-smoke r3's `ProductlessAreTestDesigns` is this test, already on master.
+- SC13. Catalog commands stay in `Program.cs` and are replayed on master's catalog at merge (pd-gear
+  `a8f71d46`; mine-launcher and consumables-first-set kept). r3's run-once-then-delete plan is revised to that
+  practice: `GameData/Aetheria.cc` is a binary LFS blob, so a merge with another catalog change is a replay.
+- SC14. The six test arenas generate `stage.Prelude()` (the authored prelude cast); ruling dev-scenarios-cast
+  is realised by the unbuilt cut retire-prelude. New arenas generate `stage.Prelude(DemoTerminus.Cast)` now;
+  retire-prelude's negative check `Prelude\(` catches them, and its Hands moves them with the six
+  (follow-up retire-prelude-moves-new-arenas).
+- SC15. Broadside.cs was deleted in `538b11b4`; its return on the operator's Zhestokost gunboat is cut
+  broadside-gunboat r1, which waits on her package.
+- SC16. The contact-reveals Hands works in Entity, Sensor and FireControl (`C:\aeth-wt\contact-reveals`). No
+  scenario cut edits those files. Lock On's situation test reads `IncomingPaints`, whose timing contact-reveals
+  may change, so Lock On is ordered after it.
+
+### Check to scenario
+
+| Operator check (source) | Scenario | Cut |
+|---|---|---|
+| Weapon feel: ChargeBlast SG and Autocannon fire, burst cadence, charge release-press (scenarios-cut 5.1) | Weapon Feel (new) | scenarios-smoke r4 |
+| Side mounts fire abeam (5.1 side-mounts-fire-abeam) | Arcs (test hull, a hull on each beam) | scenarios-smoke r4 |
+| Broadside: starboard and port groups fire or hold on a designated hull; free aim to port (controls-mount-aim r2 line 2) | Arcs if question arcs-broadside-flanks is answered a; else Broadside on the gunboat | scenarios-smoke r4 or broadside-gunboat r1 |
+| Fused rounds A.1-A.5, airburst, penetrator, HUD forecast, unbranded (5.1) | Fused Rounds (new) | scenarios-smoke-rounds r1 |
+| Refused rounds; AI fused discipline (5.1) | Refused Rounds, AI Fused Discipline (new) | scenarios-smoke-rounds r1 |
+| Mine Launcher: lay with AI chasing, pulses, blast, 30 s expiry (sim-mines-presenter) | Pursuit (new) | scenarios-pursuit r1 |
+| Vented cloud hides a coasting ship from a distant pursuer; burn-out ends cover (vapour-cloud r1) | Pursuit | scenarios-pursuit r1 |
+| Overdrive plume while steering; throttle lock drives forward, turning works (consumables-first-set, throttle-lock) | Pursuit | scenarios-pursuit r1 |
+| Fast hull crossing close; Djinni at range hit by plight; FCA helps small guns (evasion-term r6) | Crossing (new) | scenarios-crossing r1 |
+| plight shape and tracking (follow-up plight-play-check) | Crossing | scenarios-crossing r1 |
+| Legacy prefab articulated barrels point at a bearing target, else the arc edge (controls-mount-aim r2 line 3) | Djinni Shakedown (gains two targets) | scenarios-crossing r1 |
+| Big belt next/previous and reticle sweep; indicator on the rock (mining-target-queries, ruling mining-merge-on-agent-proof) | Belt (new) | scenarios-belt r1 |
+| AI launcher lock warning; HUD incoming-paint indicator, Track only (lock-warning, paint-modes) | Lock On (new) | scenarios-lock-on r1 |
+| Missile salvo meets PD; autofire marks and thresholds (pd-gear, autofire-controls) | Point Defense | autofire-controls r2 (not taken: needs autofire-threshold, SC6) |
+
+Not staged: station, trade, faction-play, boss-gate and consumable-supply checks (ordinary play in Terminus);
+Blender, Studio, Editor, build and compile checks (not scenario-shaped). Unbuilt cuts' checks name their own
+arenas when they are mapped.
+
+### Cut order
+
+1. scenarios-smoke r4: Smoke Test Hull, Weapon Feel, Arcs on the test hull. Blocked on question
+   arcs-broadside-flanks.
+2. scenarios-smoke-rounds r1: five smoke weapons, Fused Rounds, Refused Rounds, AI Fused Discipline. After 1:
+   both write the binary catalog, and Refused Rounds needs the test hull's 2x2 energy mount.
+3. scenarios-pursuit r1: the Cargo verb takes consumables; Pursuit. Independent.
+4. scenarios-crossing r1: Crossing; Djinni Shakedown targets. Independent.
+5. scenarios-belt r1: Belt, on a scanned seed. Independent.
+6. scenarios-lock-on r1: Lock On. After contact-reveals (SC16).
+
+Cuts 3 to 5 touch only their own scenario file, their own test file and one line of `Scenarios.cs`, so they
+can run in parallel; the second to merge resolves the one-line list conflict. Each new test file is a partial
+of `RunStartTests`, so only cut 1 edits `ScenarioTests.cs` (ArcsGeometry). Seeds: 107 Weapon Feel, 108 Fused
+Rounds, 109 Refused Rounds, 110 AI Fused Discipline, 111 Pursuit, 112 Crossing, Belt's scanned seed, 113 Lock On.
+
+### Rationale
+
+- One scenario per situation, not per check: Pursuit carries the mines, the vent and the overdrive because all
+  three need the same thing, a hostile on your tail. Crossing carries plight and the evasion check because both
+  are guns against a fast hull.
+- The test hull is product-less test content, which ruling weapon-feel-to-smoke-cut-test-hull allows. It is
+  not a faction ship and does not compete with the operator's gunboat, which keeps its own Broadside.
+- The Cargo verb grows to take consumables because nothing else can stage one; a cloud verb would stage the
+  result of venting instead of the vent the operator checks.
