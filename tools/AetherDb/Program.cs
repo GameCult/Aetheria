@@ -1614,13 +1614,13 @@ public static class Program
     {
         const string name = "Smoke Test Hull";
         var db = AetherDb.Open(catalogWritable: apply, root: root);
-        if (db.Cache.GetAll<HullData>().Any(hull => hull.Name == name))
+        if (db.Cache.GetAll<HullData>().Any(h => h.Name == name))
         {
             Console.WriteLine($"\"{name}\" is already authored; nothing to do.");
             return 0;
         }
 
-        var longinus = db.Cache.GetAll<HullData>().Single(hull => hull.Name == "Longinus");
+        var longinus = db.Cache.GetAll<HullData>().Single(h => h.Name == "Longinus");
         var options = CultDocumentMessagePackSerialization.OptionsFor(typeof(HullData).Assembly);
         var hull = MessagePackSerializer.Deserialize<HullData>(MessagePackSerializer.Serialize(longinus, options), options);
         hull.Name = name;
@@ -1652,15 +1652,13 @@ public static class Program
             Console.WriteLine($"  {hardpoint.Type,-9} {hardpoint.Shape.Width}x{hardpoint.Shape.Height} at {hardpoint.Position.x},{hardpoint.Position.y} rotation {hardpoint.Rotation}");
         if (!apply)
         {
-            Console.WriteLine("
-Dry run. Pass \"apply\" to author it.");
+            Console.WriteLine("\nDry run. Pass \"apply\" to author it.");
             return 0;
         }
 
         CultRecordRefs.Validate(hull);
         db.Cache.Commit(batch => batch.Upsert(typeof(HullData), hull));
-        Console.WriteLine($"
-Authored \"{name}\" in Aetheria.cc");
+        Console.WriteLine($"\nAuthored \"{name}\" in Aetheria.cc");
         return 0;
     }
 
