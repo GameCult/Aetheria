@@ -414,27 +414,27 @@ public abstract class Entity
 
     // Mining Cut 3 (Q14 A): this entity's info on a chunk, computed when asked and stored nowhere. It is the value
     // the per-tick sensor rule (Sensor.Execute, through Sensor.Gain) would settle at for a target this bright,
-    // here, now (PassiveInfoPerSignature, scaled by the brightness), capped at 1.
+    // here, now (PassiveInfo at the chunk's brightness), capped at 1.
     public float ChunkInfo(ChunkId chunk)
     {
         var visibility = Zone.ChunkVisibility(chunk);
         if (visibility <= 0f) return 0f;
-        return saturate(visibility * PassiveInfoPerSignature(Zone.ChunkPose(chunk.Field, chunk.Index).xy));
+        return saturate(PassiveInfo(Zone.ChunkPose(chunk.Field, chunk.Index).xy, visibility));
     }
 
-    // The info a target of unit signature at `position` would settle at under this entity's passive sensing, before
+    // The info a target of `signature` at `position` would settle at under this entity's passive sensing, before
     // the cap at 1. Each active sensor applies x <- saturate(x + G_i dt)(1 - k dt) every tick, so with n sensors the
     // info settles where the gain balances the decay: sum(G_i) / (n k). A ping adds nothing that lasts, so only the
-    // passive gain enters. It is linear in the signature below saturation, which is what lets one value answer for
-    // every signature at a place: ChunkInfo scales it by a chunk's brightness, Sense by each act's strength. Zero
+    // passive gain enters. ChunkInfo asks it for a chunk's brightness; Sense asks it for a unit signature once per
+    // ship, because it is linear in the signature below saturation and so answers for every act at a place. Zero
     // with no active sensor.
-    public float PassiveInfoPerSignature(float2 position)
+    public float PassiveInfo(float2 position, float signature)
     {
         var rate = 0f;
         var sensors = 0;
         foreach (var sensor in ActiveSensors())
         {
-            rate += sensor.PassiveRate(1f, position);
+            rate += sensor.PassiveRate(signature, position);
             sensors++;
         }
         return sensors == 0 ? 0f : rate / (sensors * ItemManager.GameplaySettings.TargetInfoDecay);
@@ -865,7 +865,9 @@ public abstract class Entity
         foreach (var paint in _paintInbox)
         {
             _incomingPaints.Add(paint.Warning);
-            RecordReveal(paint.Emitter, paint.Item, SignatureChannel.Emission);
+            // An emitter that left the zone (died, warped, docked) since it painted is no longer a subject: its
+            // warning still lasts its tick, but it is not recorded as a contact.
+            if (Zone.Entities.Contains(paint.Emitter)) RecordReveal(paint.Emitter, paint.Item, SignatureChannel.Emission);
         }
         _paintInbox.Clear();
         _pingReturns.Clear();
@@ -899,15 +901,12 @@ public abstract class Entity
         book[item] = new Reveal(item, channel, normalize((subject.Position - Position).xz), Zone.Time);
     }
 
-    // What this observer has seen `subject`'s items do: each item's latest act, filtered on read to items still on
-    // the subject and not destroyed (Durability >= .01, as FireControl ranks gear).
-    public IEnumerable<Reveal> RevealsOf(Entity subject)
-    {
-        if (!_reveals.TryGetValue(subject, out var book)) yield break;
-        foreach (var reveal in book.Values)
-            if (reveal.Item.Entity == subject && subject.Equipment.Contains(reveal.Item) && reveal.Item.EquippableItem.Durability >= .01f)
-                yield return reveal;
-    }
+    // What this observer has seen `subject`'s items do: each item's latest act, and nothing the subject's present
+    // gear or Durability says (ruling contact-reads-book-aim-reads-live): an item destroyed out of this observer's
+    // sight stays revealed until the subject leaves the zone or this observer deactivates. Whether an item can be
+    // aimed at now is FireControl.IsRevealed's question, not this one.
+    public IEnumerable<Reveal> RevealsOf(Entity subject) =>
+        _reveals.TryGetValue(subject, out var book) ? book.Values : Enumerable.Empty<Reveal>();
 
     // The one derivation of how much this observer holds of `subject`: see Contact.
     public Contact ContactOf(Entity subject)
@@ -929,12 +928,15 @@ public abstract class Entity
         return new Contact(detected, tracked, detected && any, info >= settings.TargetGearInfoThreshold, bearing, info);
     }
 
-    // What this observer's instruments receive of other ships' acts this tick (Update calls it once, after the
-    // equipment loop): every light signature of an item that would alone settle this observer's passive info above
+    // What this observer's instruments receive of other ships' acts this tick (Zone.Update calls it once, after every
+    // entity has updated): every light signature of an item that would alone settle this observer's passive info above
     // TargetDetectionInfoThreshold is revealed (ruling visibility-per-capability-reveal). Hull radiation names no
-    // item and only feeds the track; an Emission entry is never light. One PassiveInfoPerSignature per ship.
+    // item and only feeds the track; an Emission entry is never light. One PassiveInfo per ship. Zone.Update calls it
+    // for every entity after all of them have updated, so what a ship shows is what every observer receives on that
+    // tick whatever order the zone lists them in.
     internal void Sense()
     {
+        if (!_active) return;
         var threshold = ItemManager.GameplaySettings.TargetDetectionInfoThreshold;
         var entities = Zone.Entities;
         for (var i = 0; i < entities.Count; i++)
@@ -945,7 +947,7 @@ public abstract class Entity
             foreach (var signature in other._visibilitySources.Values)
             {
                 if (signature.Item == null || signature.Channel == SignatureChannel.Emission) continue;
-                if (perSignature < 0f) perSignature = PassiveInfoPerSignature(other.Position.xz);
+                if (perSignature < 0f) perSignature = PassiveInfo(other.Position.xz, 1f);
                 if (signature.Strength * perSignature > threshold) RecordReveal(other, signature.Item, signature.Channel);
             }
         }
@@ -1654,8 +1656,6 @@ public abstract class Entity
             {
                 equippedItem.Update(delta);
             }
-
-            Sense();
 
             foreach (var message in Messages.Keys.ToArray())
             {

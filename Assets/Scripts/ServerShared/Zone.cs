@@ -229,6 +229,7 @@ public class Zone
         var entities = Entities.ToArray();
         foreach (var entity in entities) entity.PublishInbox();
         foreach (var entity in entities) entity.Update(deltaTime);
+        foreach (var entity in entities) entity.Sense();
 
         StepMines(deltaTime);
         StepClouds(deltaTime);
