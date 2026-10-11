@@ -363,28 +363,38 @@ public sealed class SignatureTests : IDisposable
         Assert.False(r.Ship.VisibilitySources.ContainsKey(r.Weapon), "a signature below 0.1 is gone");
     }
 
-    // Decay rebuilds every entry from its own: with a gun, a drive and two Visibility gears all decaying together,
-    // each entry still names the item of the source that wrote it (and the hull's names none).
+    // Decay rebuilds every entry from its own. A gun, a drive that has stopped burning and a sensor that has pinged
+    // each wrote once and are never rewritten, so after a long tick the only thing touching them is decay; each
+    // still names the item of the source that wrote it, and the three items differ.
     [Fact]
     public void DecayKeepsEachSourcesOwnItem()
     {
-        var r = Build(Armament.Gun, .5f, Drive(10),
-            new VisibilityData { Visibility = Constant(40), VisibilityDecay = Constant(0), Channel = SignatureChannel.Emission },
-            new VisibilityData { Visibility = Constant(30), VisibilityDecay = Constant(0), Channel = SignatureChannel.Reflection });
+        var r = Build(Armament.Gun, .5f, Drive(10), new SensorData
+        {
+            Sensitivity = Constant(3f), PingBoost = Constant(.02f), PingEnergy = Constant(0f), PingVisibility = Constant(5f),
+            PingRange = Constant(300f), PingCooldown = Constant(4f)
+        });
         var thruster = Single<Thruster>(r.Ship);
+        var sensor = Single<Sensor>(r.Ship);
         thruster.Item.UpdatePerformance();
         Burn(r, 1f);
+        Burn(r, 0f); // the drive stops: its entry is no longer rewritten
+        sensor.Ping();
         Fire(r);
 
-        var itemed = r.Ship.VisibilitySources.Where(kv => kv.Key is Behavior).ToArray();
-        Assert.Equal(4, itemed.Length);
-        Assert.Equal(4, itemed.Select(kv => kv.Value.Item).Distinct().Count());
+        var sources = new Behavior[] { thruster, sensor, r.Weapon };
+        var before = sources.Select(b => Of(r.Ship, b)).ToArray();
+        Assert.Equal(3, before.Select(e => e.Item).Distinct().Count());
+        Assert.All(before, e => Assert.True(e.Strength > 1f, "fixture: each source has a live entry"));
 
         r.Zone.Update(1f);
-        var after = r.Ship.VisibilitySources.Where(kv => kv.Key is Behavior).ToArray();
-        Assert.Equal(4, after.Length);
-        foreach (var kv in after) Assert.Same(((Behavior) kv.Key).Item, kv.Value.Item);
-        Assert.All(r.Ship.VisibilitySources.Where(kv => kv.Key is Entity), kv => Assert.Null(kv.Value.Item));
+        for (var i = 0; i < sources.Length; i++)
+        {
+            var after = Of(r.Ship, sources[i]);
+            Assert.True(after.Strength < before[i].Strength, "fixture: decay touched the entry");
+            Assert.Same(sources[i].Item, after.Item);
+            Assert.Equal(before[i].Channel, after.Channel);
+        }
     }
 
     // ---- APlumeKeepsTheLargerBurn ----
