@@ -2,6 +2,7 @@ using System.Linq;
 using Xunit;
 using static CultMath.math;
 using float2 = CultMath.float2;
+using float3 = CultMath.float3;
 
 // The arenas the operator flies to check the evasion term and the articulated barrel (map: Scenarios for operator
 // checks). Each test launches the scenario the way New Game does and reads what it staged, so a script that stops
@@ -42,6 +43,11 @@ public sealed partial class RunStartTests
         Assert.True(toCrosser.z > 0, "the crosser starts ahead");
         Assert.True(abs(dot(crosser.Direction, player.Direction)) <= sin(radians(30f)) + 1e-4f,
             "the crosser faces within 30 degrees of perpendicular to the player's bow");
+        // It is placed moving: toward the bow line at most of the Djinni's 50 m/s cap, so its run is its own and not only the
+        // arena's pull on the player.
+        var crosserVelocity = ((Ship) crosser).Velocity;
+        Assert.True(crosserVelocity.x * toCrosser.x < 0, "the crosser starts moving toward the bow line");
+        Assert.True(length(crosserVelocity) >= 40f, "the crosser starts at most of the Djinni's speed cap");
 
         Assert.False(player.IsHostileTo(waiting) || waiting.IsHostileTo(player), "the waiting Djinni is neutral");
         Assert.Equal(0, AgentsOf(arena, waiting));
@@ -67,6 +73,7 @@ public sealed partial class RunStartTests
                 Assert.True(after.z > 0, "the crosser passes the bow line ahead of the player, not astern");
                 Assert.True(length(after) < CrossingMetres, "the crosser passes inside the stated distance");
                 Assert.True(FireControl.InArc(small, after), "FastBlast+- bears on the crosser as it crosses");
+                Assert.True(dot(FireControl.MountDirection(small), float3(player.Direction.x, 0, player.Direction.y)) > 0, "FastBlast+- mounts forward");
             }
         }
         Assert.True(swept, $"the crosser's bearing never swept across the bow within {CrossingSeconds} s");
