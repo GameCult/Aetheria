@@ -150,7 +150,7 @@ public sealed class VapourCloudTests : IDisposable
     {
         foreach (var ship in new[] { lab.Observer, lab.Target })
         {
-            ship.VisibilitySources[Glow] = 100f;
+            ship.SetSignature(Glow, SignatureChannel.Thermal, 100f, null);
             if (ship != lab.Target || lab.HoldTarget) ship.Velocity = float2.zero;
         }
         lab.Observer.Direction = float2(0, 1);

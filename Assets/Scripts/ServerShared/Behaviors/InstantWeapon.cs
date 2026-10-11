@@ -277,7 +277,7 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
             }
             CauseWearDamage(1);
             AddHeat(Heat);
-            Entity.VisibilitySources[this] = Visibility;
+            Entity.SetSignature(this, SignatureChannel.LaunchFlash, Visibility, Item);
         }
         return true;
     }

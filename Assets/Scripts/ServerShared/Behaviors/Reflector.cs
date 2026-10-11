@@ -43,7 +43,7 @@ public class Reflector : Behavior
 
     public override bool Execute(float dt)
     {
-        Entity.VisibilitySources[this] = Evaluate(_data.CrossSection) * Entity.Zone.GetLight(Entity.Position.xz);
+        Entity.SetSignature(this, SignatureChannel.Reflection, Evaluate(_data.CrossSection) * Entity.Zone.GetLight(Entity.Position.xz), Item);
         
         return true;
     }

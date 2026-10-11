@@ -5,6 +5,7 @@
 using GameCult.Caching;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using MessagePack;
 using UniRx;
@@ -85,7 +86,16 @@ public abstract class Entity
     // public Dictionary<Guid, float> Personality = new Dictionary<Guid, float>();
     
     public readonly Dictionary<string, float> Messages = new Dictionary<string, float>();
-    public readonly Dictionary<object, float> VisibilitySources = new Dictionary<object, float>();
+    private readonly Dictionary<object, Signature> _visibilitySources = new Dictionary<object, Signature>();
+    // A read-only view: the only writes are SetSignature and the decay loop in Update, both below.
+    // A ReadOnlyDictionary over the private field, created once: a cast back to Dictionary fails.
+    private ReadOnlyDictionary<object, Signature> _visibilityView;
+    public IReadOnlyDictionary<object, Signature> VisibilitySources => _visibilityView ??= new ReadOnlyDictionary<object, Signature>(_visibilitySources);
+
+    // The one writer of VisibilitySources (the decay loop in Update is the one decayer). Every light signature
+    // names its channel and the item that produced it (null for the hull).
+    public void SetSignature(object source, SignatureChannel channel, float strength, EquippedItem item) =>
+        _visibilitySources[source] = new Signature(channel, strength, item);
     public readonly ReactiveDictionary<Entity, float> EntityInfoGathered = new ReactiveDictionary<Entity, float>();
 
     public (List<Weapon> weapons, List<EquippedItem> items)[] WeaponGroups;
@@ -158,7 +168,9 @@ public abstract class Entity
     public ItemManager ItemManager { get; }
     public int AssignedPopulation => PopulationAssignments.Sum(pa => pa.AssignedPopulation);
     public float Mass { get; private set; }
-    public float Visibility => VisibilitySources.Values.Sum();
+    public float Visibility => VisibilitySources.Values.Sum(s => s.Strength);
+    public float SignatureOn(SignatureChannel channel) =>
+        VisibilitySources.Values.Where(s => s.Channel == channel).Sum(s => s.Strength);
 
     public Subject<Entity> IncomingHit = new Subject<Entity>();
     public Subject<(int2 pos, float damage)> ArmorDamage = new Subject<(int2, float)>();
@@ -1421,11 +1433,11 @@ public abstract class Entity
         var localSecurityLevel = Zone.GetSecurityLevel(Position.xz);
         if (CurrentSecurityLevel.Value != localSecurityLevel) CurrentSecurityLevel.Value = localSecurityLevel;
 
-        foreach (var v in VisibilitySources.Keys.ToArray())
+        foreach (var v in _visibilitySources.Keys.ToArray())
         {
-            VisibilitySources[v] = decay(VisibilitySources[v], ItemManager.GameplaySettings.VisibilityDecay, delta);
+            _visibilitySources[v] = _visibilitySources[v].WithStrength(decay(_visibilitySources[v].Strength, ItemManager.GameplaySettings.VisibilityDecay, delta));
  
-            if (VisibilitySources[v] < 0.1f) VisibilitySources.Remove(v);
+            if (_visibilitySources[v].Strength < 0.1f) _visibilitySources.Remove(v);
         }
 
         UpdateTemperature(delta);
@@ -1616,7 +1628,7 @@ public abstract class Entity
                 MaxTemp = NewTemperature[v.x, v.y];
         }
 
-        VisibilitySources[this] = radiation;
+        SetSignature(this, SignatureChannel.Thermal, radiation, null);
         var swap = Temperature;
         Temperature = NewTemperature;
         NewTemperature = swap;
