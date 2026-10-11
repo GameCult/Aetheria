@@ -85,12 +85,14 @@ public abstract class Entity
     // public Dictionary<Guid, float> Personality = new Dictionary<Guid, float>();
     
     public readonly Dictionary<string, float> Messages = new Dictionary<string, float>();
-    public readonly Dictionary<object, Signature> VisibilitySources = new Dictionary<object, Signature>();
+    private readonly Dictionary<object, Signature> _visibilitySources = new Dictionary<object, Signature>();
+    // A read-only view: the only writes are SetSignature and the decay loop in Update, both below.
+    public IReadOnlyDictionary<object, Signature> VisibilitySources => _visibilitySources;
 
     // The one writer of VisibilitySources (the decay loop in Update is the one decayer). Every light signature
     // names its channel and the item that produced it (null for the hull).
     public void SetSignature(object source, SignatureChannel channel, float strength, EquippedItem item) =>
-        VisibilitySources[source] = new Signature(channel, strength, item);
+        _visibilitySources[source] = new Signature(channel, strength, item);
     public readonly ReactiveDictionary<Entity, float> EntityInfoGathered = new ReactiveDictionary<Entity, float>();
 
     public (List<Weapon> weapons, List<EquippedItem> items)[] WeaponGroups;
@@ -1428,11 +1430,11 @@ public abstract class Entity
         var localSecurityLevel = Zone.GetSecurityLevel(Position.xz);
         if (CurrentSecurityLevel.Value != localSecurityLevel) CurrentSecurityLevel.Value = localSecurityLevel;
 
-        foreach (var v in VisibilitySources.Keys.ToArray())
+        foreach (var v in _visibilitySources.Keys.ToArray())
         {
-            VisibilitySources[v] = VisibilitySources[v].WithStrength(decay(VisibilitySources[v].Strength, ItemManager.GameplaySettings.VisibilityDecay, delta));
+            _visibilitySources[v] = _visibilitySources[v].WithStrength(decay(_visibilitySources[v].Strength, ItemManager.GameplaySettings.VisibilityDecay, delta));
  
-            if (VisibilitySources[v].Strength < 0.1f) VisibilitySources.Remove(v);
+            if (_visibilitySources[v].Strength < 0.1f) _visibilitySources.Remove(v);
         }
 
         UpdateTemperature(delta);
