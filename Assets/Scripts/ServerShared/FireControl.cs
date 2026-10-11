@@ -2089,8 +2089,9 @@ public struct FireControlDiagnostic
 }
 
 // What a ship can do at this instant, in its own frame: acceleration along each body axis (m/s^2) and the kinematic
-// turn rate each way (rad/s; turning toward the ship's right is Clockwise). Each propulsor reports its share with
-// its own Execute arithmetic and Ship sums them; nothing stores it. Zero is the envelope of anything that is not a Ship.
+// turn rate each way (rad/s; turning toward the ship's right is Clockwise). Ship derives it each update as the box
+// extremes of its thrusters' columns (Ship.RecalculateEnvelope); nothing stores it. Zero is the envelope of anything
+// that is not a Ship.
 public readonly struct ManoeuvreEnvelope
 {
     public readonly float Forward, Reverse, Left, Right, Clockwise, CounterClockwise;
@@ -2104,10 +2105,6 @@ public readonly struct ManoeuvreEnvelope
         Clockwise = clockwise;
         CounterClockwise = counterClockwise;
     }
-
-    public static ManoeuvreEnvelope operator +(ManoeuvreEnvelope a, ManoeuvreEnvelope b) => new ManoeuvreEnvelope(
-        a.Forward + b.Forward, a.Reverse + b.Reverse, a.Left + b.Left, a.Right + b.Right,
-        a.Clockwise + b.Clockwise, a.CounterClockwise + b.CounterClockwise);
 }
 
 // How unpredictably an entity is changing its motion, observed from its measured acceleration. The trend is an

@@ -431,6 +431,37 @@ public sealed partial class RunStartTests
         Assert.True(djinni.Acceleration.x < -1f, "it still strafes left");
     }
 
+    // Each side of the envelope is the sum of what every thruster pushing that way contributes, never the largest one:
+    // the Djinni has several thrusters on a side, so its Left and Right are the sums of the positive and negative
+    // x of its live columns (Thruster.Column at live thrust, the owner of that geometry).
+    [Fact]
+    public void EachSideOfTheEnvelopeSumsTheThrustersPushingThatWay()
+    {
+        var (_, _, djinni) = EvFleet();
+        EvSettle(djinni);
+        foreach (var (move, look) in new[] { (float2(1, 0), float3(0, 0, 1)), (float2(-1, 0), float3(0, 0, 1)), (float2(0, 1), float3(0, 0, 1)),
+                     (float2(0, -1), float3(0, 0, 1)) })
+        {
+            djinni.MovementDirection = move;
+            for (var step = 0; step < 20; step++)
+            {
+                EvFace(djinni, look);
+                djinni.Update(EvDt);
+            }
+        }
+        EvSettle(djinni);
+        djinni.Update(EvDt);
+        var columns = djinni.GetBehaviors<Thruster>().Where(t => t.Item.Active.Value).Select(t => t.Column(t.Thrust)).ToList();
+        var rightPushers = columns.Where(c => c.x > 0f).ToList();
+        var leftPushers = columns.Where(c => c.x < 0f).ToList();
+        Assert.True(rightPushers.Count >= 2 && leftPushers.Count >= 2, "fixture: each side has more than one thruster");
+        var right = rightPushers.Sum(c => c.x);
+        var left = leftPushers.Sum(c => -c.x);
+        Assert.True(right > 1.2f * rightPushers.Max(c => c.x) && left > 1.2f * leftPushers.Max(c => -c.x), "fixture: the sum exceeds the largest column");
+        Assert.InRange(djinni.Envelope.Right, right * .99f, right * 1.01f);
+        Assert.InRange(djinni.Envelope.Left, left * .99f, left * 1.01f);
+    }
+
     // The reach and the evasion read each side of the envelope for themselves: a forward-only ship that turns clockwise
     // fast and counter-clockwise slowly reaches further to its right than its left in the window, and its evasion
     // across a line of sight is the average of what it reaches to either side, capped by the spread it is observed to

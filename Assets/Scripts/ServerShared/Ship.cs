@@ -85,8 +85,10 @@ public class Ship : Entity
     #region ThrustCalculation
 
     // What this ship can do at this instant (see ManoeuvreEnvelope): the box extremes of the thrusters' columns at their
-    // live, granted thrust (zero when unpowered or not Active), the same columns the allocator solves with. Derived each
-    // update, never saved.
+    // live thrust (zero when unpowered or not Active), because it reports what the ship can do now. The allocator solves
+    // with Column(NominalThrust), the full-grant column, because a column promises what a thruster does at a full grant
+    // and the allocator must not reshape its answer as the grant moves. Same geometry (Thruster.Column), different thrust.
+    // Derived each update, never saved.
     public ManoeuvreEnvelope Envelope { get; private set; }
 
     private void RecalculateEnvelope()
