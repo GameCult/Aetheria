@@ -269,7 +269,7 @@ public class ThrustAllocatorTests
     // generator: Synthetic(8, 7005)).
     static float3[] Synthetic(int n, int seed)
     {
-        var rng = new Random(seed);
+        var rng = new System.Random(seed);
         var cols = new float3[n];
         for (var i = 0; i < n; i++)
         {
@@ -287,7 +287,7 @@ public class ThrustAllocatorTests
     public void ColdAndWarmStartsAgreeOnTheHullThatStoppedEarly()
     {
         var hull = Synthetic(8, 7005);
-        var rng = new Random(5);
+        var rng = new System.Random(5);
         var warm = new ThrustAllocator();
         for (var step = 0; step < 8; step++)
         {
