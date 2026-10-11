@@ -256,6 +256,32 @@ public sealed class SignatureTests : IDisposable
         Assert.Equal(.75f, s.Strength, 3);
     }
 
+    // At a radiation exponent of 2 the strength is T^2 x multiplier x emissivity of the radiator's own temperature,
+    // at two different temperatures: a signature that ignores temperature cannot match both.
+    [Fact]
+    public void ARadiatorsStrengthFollowsItsTemperature()
+    {
+        _radiationMultiplier = .001f;
+        _radiationExponent = 2f;
+        var r = Build(Armament.None, 0f, null, new RadiatorData
+        {
+            Emissivity = Constant(3), PumpedHeat = Constant(0), TemperatureFloor = 0, WasteHeat = Constant(0), EnergyUsage = Constant(0), ThermalMass = Constant(1000)
+        });
+        var radiator = Single<Radiator>(r.Ship);
+        var seen = new System.Collections.Generic.List<double>();
+        for (var round = 0; round < 2; round++)
+        {
+            var t = radiator.RadiatorTemperature;
+            seen.Add(t);
+            Assert.True(t > 1f, "fixture: the radiator is warm");
+            radiator.Update(0f); // no cooling: the entry is the formula at exactly t
+            var expected = Math.Pow(t, 2) * .001 * 3;
+            Assert.InRange(Of(r.Ship, radiator).Strength, expected * .999, expected * 1.001);
+            r.Zone.Update(1f); // the radiator cools
+        }
+        Assert.True(Math.Abs(seen[0] - seen[1]) > 1e-3, "fixture: the two temperatures differ");
+    }
+
     [Fact]
     public void AReflectorShowsAReflectionWithItsItem()
     {
@@ -383,6 +409,8 @@ public sealed class SignatureTests : IDisposable
         Fire(r);
 
         var sources = new Behavior[] { thruster, sensor, r.Weapon };
+        // What each writer authors, named here and not read back from the fixture's own ticks.
+        var writes = new[] { SignatureChannel.DrivePlume, SignatureChannel.Emission, SignatureChannel.LaunchFlash };
         var before = sources.Select(b => Of(r.Ship, b)).ToArray();
         Assert.Equal(3, before.Select(e => e.Item).Distinct().Count());
         Assert.All(before, e => Assert.True(e.Strength > 1f, "fixture: each source has a live entry"));
@@ -393,8 +421,19 @@ public sealed class SignatureTests : IDisposable
             var after = Of(r.Ship, sources[i]);
             Assert.True(after.Strength < before[i].Strength, "fixture: decay touched the entry");
             Assert.Same(sources[i].Item, after.Item);
-            Assert.Equal(before[i].Channel, after.Channel);
+            Assert.Equal(writes[i], after.Channel);
         }
+    }
+
+    // The exposed view is not the private dictionary: a cast back to Dictionary cannot write around SetSignature.
+    [Fact]
+    public void TheVisibilityViewIsNotTheWritableDictionary()
+    {
+        var r = Build(Armament.None, 0f, null);
+        var view = r.Ship.VisibilitySources;
+        Assert.False(view is Dictionary<object, Signature>);
+        Assert.Same(view, r.Ship.VisibilitySources);
+        Assert.Throws<NotSupportedException>(() => ((IDictionary<object, Signature>) view)[r.Ship] = new Signature(SignatureChannel.Thermal, 1f, null));
     }
 
     // ---- APlumeKeepsTheLargerBurn ----
