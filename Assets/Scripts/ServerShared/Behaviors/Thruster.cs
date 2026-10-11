@@ -102,29 +102,6 @@ public class Thruster : Behavior, IPowerConsumer
     // under brownout is an inconvenience, not the cascading failure a starved radiator or shield causes.
     public int DefaultPowerTier => PowerTiers.Medium;
 
-    // What this thruster adds to the ship's manoeuvre envelope: Execute's own arithmetic at full input, read live.
-    // Its push is Thrust / Mass along its mount, into the matching body
-    // axis, even for a flank thruster that only turns (it pushes whenever it turns); its turn is |Torque| * Thrust *
-    // TorqueMultiplier / Mass into the side its Torque sign fires on, when |Torque| clears the floor. Zero when the
-    // item is offline or unpowered, the same gates Execute applies.
-    public ManoeuvreEnvelope Manoeuvre()
-    {
-        if (Item == null || !Item.Active.Value || Item.PowerSupply <= 1e-4f) return default;
-        var settings = ItemManager.GameplaySettings;
-        var thrust = Thrust;
-        var acceleration = thrust / Entity.Mass;
-        var forward = normalize(Entity.Direction);
-        var right = forward.Rotate(ItemRotation.Clockwise);
-        var push = -forward.Rotate(Item.EquippableItem.Rotation);
-        var along = dot(push, forward);
-        var across = dot(push, right);
-        var turn = abs(Torque) > settings.TorqueFloor ? abs(Torque) * thrust * settings.TorqueMultiplier / Entity.Mass : 0f;
-        return new ManoeuvreEnvelope(
-            max(along, 0f) * acceleration, max(-along, 0f) * acceleration,
-            max(-across, 0f) * acceleration, max(across, 0f) * acceleration,
-            Torque > 0f ? turn : 0f, Torque < 0f ? turn : 0f);
-    }
-
     public override bool Execute(float dt)
     {
         Item.SetAudioParameter(SpecialAudioParameter.Intensity, _input);

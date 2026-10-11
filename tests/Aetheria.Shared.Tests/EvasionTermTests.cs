@@ -295,7 +295,7 @@ public sealed partial class RunStartTests
         // The Longinus's allocator holds the heading and pays for the drive torque out of the flank thrusters (ruling
         // allocator-divergence-accepted), so the envelope's box support overstates what a controlled flight spends. Its
         // measured motion is bounded by the reach of the push the allocator itself gives it on each half-axis, from the
-        // columns it allocates with: not below 90% of it, and above it by no more than the 15% a turning policy gains.
+        // columns it allocates with: not below 90% of it (85% broadside: the allocated reach now carries the drives' yaw in its turn terms), and above it by no more than the 15% a turning policy gains.
         foreach (var (name, reach, allocated, measured) in results)
         {
             if (name == "djinni")
@@ -305,10 +305,14 @@ public sealed partial class RunStartTests
             }
             else
             {
-                Assert.InRange(reach.noseOn, measured.noseOn * .9f, float.MaxValue);
-                Assert.InRange(reach.broadside, measured.broadside * .9f, float.MaxValue);
+                // The envelope sums the live columns, the drives' yaw among them (turn-authority-full), so its reach sits above
+                // the allocated one by the turn the drives add: 1.24 nose-on and 1.12 broadside at the last measurement. The
+                // ceiling is that, from the columns the allocator solves with, not an open bound: an envelope inflated by a
+                // factor (doubled: 2.5 and 2.2) breaks it.
+                Assert.InRange(reach.noseOn, measured.noseOn * .9f, allocated.noseOn * 1.3f);
+                Assert.InRange(reach.broadside, measured.broadside * .9f, allocated.broadside * 1.2f);
                 Assert.InRange(measured.noseOn, allocated.noseOn * .9f, allocated.noseOn * 1.15f);
-                Assert.InRange(measured.broadside, allocated.broadside * .9f, allocated.broadside * 1.15f);
+                Assert.InRange(measured.broadside, allocated.broadside * .85f, allocated.broadside * 1.15f);
             }
         }
     }
@@ -362,8 +366,8 @@ public sealed partial class RunStartTests
         var sides = new[] { envelope.Left, envelope.Right }.OrderBy(a => a).ToArray();
         Assert.InRange(sides[0], flankAccelerations[0] * .99f, flankAccelerations[0] * 1.01f);
         Assert.InRange(sides[1], flankAccelerations[1] * .99f, flankAccelerations[1] * 1.01f);
-        var clockwise = thrusters.Where(t => t.Torque > settings.TorqueFloor).Sum(t => t.Torque * t.Thrust) * settings.TorqueMultiplier / mass;
-        var counterClockwise = thrusters.Where(t => t.Torque < -settings.TorqueFloor).Sum(t => -t.Torque * t.Thrust) * settings.TorqueMultiplier / mass;
+        var clockwise = thrusters.Where(t => t.Torque > 0f).Sum(t => t.Torque * t.Thrust) * settings.TorqueMultiplier / mass;
+        var counterClockwise = thrusters.Where(t => t.Torque < 0f).Sum(t => -t.Torque * t.Thrust) * settings.TorqueMultiplier / mass;
         Assert.InRange(envelope.Clockwise, clockwise * .99f, clockwise * 1.01f);
         Assert.InRange(envelope.CounterClockwise, counterClockwise * .99f, counterClockwise * 1.01f);
         Assert.True(clockwise > 1f && counterClockwise > 1f, "the flank thrusters turn the Longinus");
@@ -414,8 +418,8 @@ public sealed partial class RunStartTests
         Assert.Equal(0f, maimed.Right);
         Assert.InRange(maimed.Left, whole.Left * .99f, whole.Left * 1.01f);
         var live = djinni.GetBehaviors<Thruster>().Where(t => t.Item.Active.Value).ToList();
-        var clockwise = live.Where(t => t.Torque > settings.TorqueFloor).Sum(t => t.Torque * t.Thrust) * settings.TorqueMultiplier / djinni.Mass;
-        var counterClockwise = live.Where(t => t.Torque < -settings.TorqueFloor).Sum(t => -t.Torque * t.Thrust) * settings.TorqueMultiplier / djinni.Mass;
+        var clockwise = live.Where(t => t.Torque > 0f).Sum(t => t.Torque * t.Thrust) * settings.TorqueMultiplier / djinni.Mass;
+        var counterClockwise = live.Where(t => t.Torque < 0f).Sum(t => -t.Torque * t.Thrust) * settings.TorqueMultiplier / djinni.Mass;
         Assert.True(Math.Abs(clockwise - counterClockwise) > .05f * clockwise, "fixture: the surviving thrusters turn the two ways unequally");
         Assert.InRange(maimed.Clockwise, clockwise * .99f, clockwise * 1.01f);
         Assert.InRange(maimed.CounterClockwise, counterClockwise * .99f, counterClockwise * 1.01f);
@@ -425,6 +429,37 @@ public sealed partial class RunStartTests
         djinni.MovementDirection = float2(-1, 0);
         djinni.Update(EvDt);
         Assert.True(djinni.Acceleration.x < -1f, "it still strafes left");
+    }
+
+    // Each side of the envelope is the sum of what every thruster pushing that way contributes, never the largest one:
+    // the Djinni has several thrusters on a side, so its Left and Right are the sums of the positive and negative
+    // x of its live columns (Thruster.Column at live thrust, the owner of that geometry).
+    [Fact]
+    public void EachSideOfTheEnvelopeSumsTheThrustersPushingThatWay()
+    {
+        var (_, _, djinni) = EvFleet();
+        EvSettle(djinni);
+        foreach (var (move, look) in new[] { (float2(1, 0), float3(0, 0, 1)), (float2(-1, 0), float3(0, 0, 1)), (float2(0, 1), float3(0, 0, 1)),
+                     (float2(0, -1), float3(0, 0, 1)) })
+        {
+            djinni.MovementDirection = move;
+            for (var step = 0; step < 20; step++)
+            {
+                EvFace(djinni, look);
+                djinni.Update(EvDt);
+            }
+        }
+        EvSettle(djinni);
+        djinni.Update(EvDt);
+        var columns = djinni.GetBehaviors<Thruster>().Where(t => t.Item.Active.Value).Select(t => t.Column(t.Thrust)).ToList();
+        var rightPushers = columns.Where(c => c.x > 0f).ToList();
+        var leftPushers = columns.Where(c => c.x < 0f).ToList();
+        Assert.True(rightPushers.Count >= 2 && leftPushers.Count >= 2, "fixture: each side has more than one thruster");
+        var right = rightPushers.Sum(c => c.x);
+        var left = leftPushers.Sum(c => -c.x);
+        Assert.True(right > 1.2f * rightPushers.Max(c => c.x) && left > 1.2f * leftPushers.Max(c => -c.x), "fixture: the sum exceeds the largest column");
+        Assert.InRange(djinni.Envelope.Right, right * .99f, right * 1.01f);
+        Assert.InRange(djinni.Envelope.Left, left * .99f, left * 1.01f);
     }
 
     // The reach and the evasion read each side of the envelope for themselves: a forward-only ship that turns clockwise

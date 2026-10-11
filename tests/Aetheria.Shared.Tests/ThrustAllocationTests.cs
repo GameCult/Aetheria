@@ -279,4 +279,52 @@ public sealed partial class RunStartTests
             Assert.Equal(flying, thrusters.Select(t => t.Axis).ToArray());
         }
     }
+
+    // Capability is one model (ruling turn-authority-full): the envelope's turn is what a full command achieves. The
+    // Duel's Longinus turns in place under Turn +1 then -1, stepped with its own Update (heading only), and the mean turn
+    // rate over ticks 10-60 is the envelope's clockwise and counter-clockwise.
+    [Fact]
+    public void TheEnvelopeIsWhatAFullCommandAchieves()
+    {
+        var (_, player) = AllocDuel();
+        player.MovementDirection = float2(0, 0);
+        foreach (var (turn, side) in new[] { (1f, "clockwise"), (-1f, "counter-clockwise") })
+        {
+            player.Turn = turn;
+            var sum = 0f;
+            var envelopeSum = 0f;
+            for (var tick = 0; tick < 60; tick++)
+            {
+                player.Update(AllocDt);
+                if (tick < 10) continue;
+                sum += abs(player.TurnRate);
+                envelopeSum += turn > 0 ? player.Envelope.Clockwise : player.Envelope.CounterClockwise;
+            }
+            Assert.True(envelopeSum > 0f, $"fixture: the {side} envelope is not empty");
+            Assert.InRange(sum, envelopeSum * .99f, envelopeSum * 1.01f);
+        }
+    }
+
+    // Rulings evasion-is-unpredictability and turn-authority-full: the Longinus's Large Drives count toward its turn,
+    // because the envelope is summed over every live column. Its clockwise is the sum of the positive yaw of its columns
+    // at live thrust, and exceeds the Talaria's own by the drives'.
+    [Fact]
+    public void TheEnvelopeCountsTheMains()
+    {
+        var (_, player) = AllocDuel();
+        player.MovementDirection = float2(0, 0);
+        player.Turn = 0;
+        for (var tick = 0; tick < 10; tick++) player.Update(AllocDt);
+        var thrusters = player.GetBehaviors<Thruster>().Where(t => t.Item.Active.Value).ToArray();
+        var drives = thrusters.Where(t => t.Item.Data.Name == "Large Drive").ToArray();
+        var flanks = thrusters.Where(t => t.Item.Data.Name == "Talaria").ToArray();
+        Assert.Equal(2, drives.Length);
+        Assert.Equal(2, flanks.Length);
+        float Clockwise(IEnumerable<Thruster> of) => of.Sum(t => max(t.Column(t.Thrust).z, 0f));
+        var expected = Clockwise(thrusters);
+        Assert.InRange(player.Envelope.Clockwise, expected * (1 - 1e-4f), expected * (1 + 1e-4f));
+        Assert.True(Clockwise(drives) > .1f, "fixture: the Large Drives turn the Longinus");
+        Assert.True(player.Envelope.Clockwise > Clockwise(flanks) + .9f * Clockwise(drives),
+            "the mains' turn is in the envelope, over the flank thrusters' own");
+    }
 }

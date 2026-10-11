@@ -84,15 +84,27 @@ public class Ship : Entity
 
     #region ThrustCalculation
 
-    // What this ship can do at this instant (see ManoeuvreEnvelope): the sum of what each live propulsor reports with
-    // its own Execute arithmetic; thrusters are its only propulsors. Derived each update, never saved.
+    // What this ship can do at this instant (see ManoeuvreEnvelope): the box extremes of the thrusters' columns at their
+    // live thrust (zero when unpowered or not Active), because it reports what the ship can do now. The allocator solves
+    // with Column(NominalThrust), the full-grant column, because a column promises what a thruster does at a full grant
+    // and the allocator must not reshape its answer as the grant moves. Same geometry (Thruster.Column), different thrust.
+    // Derived each update, never saved.
     public ManoeuvreEnvelope Envelope { get; private set; }
 
     private void RecalculateEnvelope()
     {
-        var envelope = default(ManoeuvreEnvelope);
-        foreach (var thruster in _allThrusters) envelope += thruster.Manoeuvre();
-        Envelope = envelope;
+        float forward = 0, back = 0, left = 0, right = 0, clockwise = 0, counterClockwise = 0;
+        foreach (var thruster in _allThrusters)
+        {
+            var column = thruster.Column(thruster.Item != null && thruster.Item.PowerSupply > 1e-4f ? thruster.Thrust : 0f);
+            forward += max(column.y, 0f);
+            back += max(-column.y, 0f);
+            left += max(-column.x, 0f);
+            right += max(column.x, 0f);
+            clockwise += max(column.z, 0f);
+            counterClockwise += max(-column.z, 0f);
+        }
+        Envelope = new ManoeuvreEnvelope(forward, back, left, right, clockwise, counterClockwise);
     }
 
     #endregion
