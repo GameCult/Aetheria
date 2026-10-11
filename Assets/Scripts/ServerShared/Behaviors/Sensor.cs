@@ -68,7 +68,12 @@ public class Sensor : Behavior, IEventBehavior, IPowerConsumer
     private float _pingRadius;
 
     // The subjects this ping's wavefront has reached, in the beam or not; each is crossed at most once per ping.
+    // Ping() is the one reset. A sweeping tick drops every subject no longer in the zone, so a subject that
+    // leaves and comes back inside the front is reached again, as a ship arriving inside the front is.
     private readonly HashSet<Entity> _reached = new HashSet<Entity>();
+
+    // The zone the ping began in: a ping belongs to it, and ends when the pinger is anywhere else.
+    private Zone _pingZone;
 
     public float Cooldown
     {
@@ -134,6 +139,7 @@ public class Sensor : Behavior, IEventBehavior, IPowerConsumer
         {
             Entity.SetSignature(this, SignatureChannel.Emission, Evaluate(_data.PingVisibility), Item); // interim: emissions-heard replaces this with a range-gated emission
             _pinging = true;
+            _pingZone = Entity.Zone;
             _pingCooldown = 1;
             _pingLerp = 0;
             _pingRadius = 0;
@@ -158,16 +164,14 @@ public class Sensor : Behavior, IEventBehavior, IPowerConsumer
         // instance never reaches PowerBus.Step (see Ping()) and so never accrues charge.
         if (Item != null)
             _capacitor.AddCharge(_capacitor.RequestedFill(dt) * Item.PowerSupply);
+        if (_pinging && Entity.Zone != _pingZone) EndPing();
         var sweeping = _pinging;
         if (_pinging)
         {
             _pingLerp += dt / _data.PingDuration;
             _pingRadius = lerp(0, Evaluate(_data.PingRange), pow(_pingLerp, _data.PingRadiusExponent));
-            if (_pingLerp > 1)
-            {
-                _pinging = false;
-                OnPingEnd?.Invoke();
-            }
+            _reached.IntersectWith(Entity.Zone.Entities);
+            if (_pingLerp > 1) EndPing();
         }
 
         _pingCooldown -= dt / Evaluate(_data.PingCooldown);
@@ -222,8 +226,13 @@ public class Sensor : Behavior, IEventBehavior, IPowerConsumer
             //Context.Log($"{entity.Name} visibility {(int)(previous * 100)}% -> {(int)(next * 100)}%");
             Entity.EntityInfoGathered[entity] = next;
         }
-        if (!_pinging) _reached.Clear();
         return true;
+    }
+
+    private void EndPing()
+    {
+        _pinging = false;
+        OnPingEnd?.Invoke();
     }
 
     // Mining Cut 3 (docs/mining-cut-refresh.md): the one detection gain rule -- the info one observation of a

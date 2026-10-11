@@ -43,6 +43,14 @@ public sealed class PaintModeTests : IDisposable
                 Name = "Skiff", HullType = HullType.Ship, Shape = hullShape, Durability = 1000, Mass = 1000,
                 Hardpoints = { new HardpointData { Type = HardpointType.Sensors, Position = HardpointCell, Shape = new Shape() } }
             });
+            var twinShape = new Shape(3, 3);
+            foreach (var cell in twinShape.AllCoordinates) twinShape[cell] = true;
+            cache.Upsert(new HullData
+            {
+                Name = "Twin", HullType = HullType.Ship, Shape = twinShape, Durability = 1000, Mass = 1000,
+                Hardpoints = { new HardpointData { Type = HardpointType.Sensors, Position = HardpointCell, Shape = new Shape() },
+                               new HardpointData { Type = HardpointType.Sensors, Position = new int2(1, 0), Shape = new Shape() } }
+            });
             cache.Upsert(SensorGear("Omni", sensitivity: 2f, pingBoost: .0001f, beamWidth: null));
             cache.Upsert(SensorGear("Beam90", sensitivity: 2f, pingBoost: .0001f, beamWidth: 90f));
             cache.Upsert(SensorGear("Ear", sensitivity: 3f, pingBoost: .0002f, beamWidth: null));
@@ -101,21 +109,27 @@ public sealed class PaintModeTests : IDisposable
     private int _nextLot = 2;
 
     // A ship at `position`; a ship without a `sensor` is a bare hull. Every ship is lit at a constant visibility of 5.
-    private Ship NewShip(float3 position, string sensor = null, Faction faction = null, bool factionless = false)
+    private Ship NewShip(float3 position, string sensor = null, Faction faction = null, bool factionless = false, string hull = "Skiff", string sensor2 = null, Zone zone = null)
     {
-        var hullRef = _items.ItemData.RefOf<ItemData>(_items.ItemData.GetByName<HullData>("Skiff"));
-        var ship = new Ship(_items, _zone, new EquippableItem { Data = hullRef, Durability = 1000, Lot = 1 }, new EntitySettings())
+        zone ??= _zone;
+        var hullRef = _items.ItemData.RefOf<ItemData>(_items.ItemData.GetByName<HullData>(hull));
+        var ship = new Ship(_items, zone, new EquippableItem { Data = hullRef, Durability = 1000, Lot = 1 }, new EntitySettings())
             { Faction = factionless ? null : faction ?? new Faction { Name = "F" + Guid.NewGuid().ToString("N") } };
         if (sensor != null)
         {
             var gearRef = _items.ItemData.RefOf<ItemData>(_items.ItemData.GetByName<GearData>(sensor));
             Assert.True(ship.TryEquip(new EquippableItem { Data = gearRef, Durability = 1, Lot = _nextLot++ }, HardpointCell));
         }
-        _zone.Entities.Add(ship);
+        if (sensor2 != null)
+        {
+            var gearRef2 = _items.ItemData.RefOf<ItemData>(_items.ItemData.GetByName<GearData>(sensor2));
+            Assert.True(ship.TryEquip(new EquippableItem { Data = gearRef2, Durability = 1, Lot = _nextLot++ }, new int2(1, 0)));
+        }
+        zone.Entities.Add(ship);
         ship.Activate();
         ship.Position = position;
         ship.SetSignature(new object(), SignatureChannel.Reflection, 5f, null);
-        _zone.Update(0f); // brings the gear online
+        zone.Update(0f); // brings the gear online
         _ships.Add(ship);
         return ship;
     }
@@ -589,6 +603,116 @@ public sealed class PaintModeTests : IDisposable
             Near(.1f * ping, Track(a, t));
         }
         Assert.Equal(2, painted);
+    }
+
+    // The ping's last step reaches PingRange; a ship in that step's band (the front is at 292.4 before it and 300
+    // after) is still swept: the step that ends the ping sweeps.
+    [Fact]
+    public void AShipInTheEndingStepsBandIsStillSwept()
+    {
+        var a = NewShip(float3(0, 0, 0), "Omni");
+        var s = NewShip(float3(0, 0, 295));
+        Settle();
+        SensorOf(a).Ping();
+        var paints = 0;
+        for (var tick = 1; tick <= 26; tick++) { Tick(.1f); paints += s.IncomingPaints.Count; }
+        Assert.Equal(1, paints);
+        Near(5 * 2 * .0001f * 295, Track(a, s));
+    }
+
+    // An ally holding two returns off one subject (two pingers on one allied ship) credits each: 2 x 5 x 3 x .0002 x
+    // sqrt(100 x 50).
+    [Fact]
+    public void AnAllyCreditsEveryReturnItHolds()
+    {
+        var a = NewShip(float3(0, 0, 0), "Omni", hull: "Twin", sensor2: "Omni");
+        var c = NewShip(float3(30, 0, 140), "Ear", a.Faction);
+        var t = NewShip(float3(0, 0, 100));
+        Settle();
+        foreach (var s in a.GetBehaviors<Sensor>()) s.Ping();
+        for (var tick = 1; tick <= 12; tick++) Tick(.1f);
+        Near(2 * 5 * 3 * .0002f * sqrt(100f * 50f), Track(c, t));
+    }
+
+    // Ticks until the pinger has credited the subject (the crossing tick, on which the returns are posted to allies).
+    private void TickToTheCrossing(Ship pinger, Ship subject)
+    {
+        for (var tick = 1; tick <= 40 && Track(pinger, subject) == 0f; tick++) Tick(.1f);
+        Assert.True(Track(pinger, subject) > 0f);
+    }
+
+    // A return posted to an inactive ally is dropped: the ally, active again, hears nothing of that ping.
+    [Fact]
+    public void AnInactiveAllyIsPostedNoReturn()
+    {
+        var a = NewShip(float3(0, 0, 0), "Omni");
+        var t = NewShip(float3(0, 0, 100));
+        var c = NewShip(float3(30, 0, 140), "Ear", a.Faction);
+        Settle();
+        c.Deactivate();
+        SensorOf(a).Ping();
+        TickToTheCrossing(a, t);
+        c.Activate();
+        Tick(.1f);
+        Assert.Equal(0f, Track(c, t));
+    }
+
+    // Deactivating a ship clears the returns it holds: readmitted, it hears nothing of a ping it was docked through.
+    [Fact]
+    public void ADeactivatedAllyKeepsNoReturnsForItsNextAdmission()
+    {
+        var a = NewShip(float3(0, 0, 0), "Omni");
+        var t = NewShip(float3(0, 0, 100));
+        var c = NewShip(float3(30, 0, 140), "Ear", a.Faction);
+        Settle();
+        SensorOf(a).Ping();
+        TickToTheCrossing(a, t); // the crossing tick posted a return into c
+        c.Deactivate();
+        c.Activate();
+        Tick(.1f);
+        Assert.Equal(0f, Track(c, t));
+    }
+
+    // A ping belongs to the zone it began in: a pinger that moves to another zone mid-ping ends it, and the ships of
+    // the new zone inside the radius it had reached are not swept.
+    [Fact]
+    public void APingEndsWhenThePingerLeavesItsZone()
+    {
+        var a = NewShip(float3(0, 0, 0), "Omni");
+        var z2 = new Zone(_items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Zone 2", Owner = null }, null);
+        var near = NewShip(float3(0, 0, 50), zone: z2);
+        var far = NewShip(float3(0, 0, 250), zone: z2);
+        Settle();
+        SensorOf(a).Ping();
+        for (var tick = 1; tick <= 3; tick++) Tick(.1f);
+        Assert.True(SensorOf(a).PingRadius > 50f); // the front had passed 50 m by the move
+        a.Deactivate(); _zone.Entities.Remove(a); a.Zone = z2; z2.Admit(a, false);
+        var paints = 0;
+        for (var tick = 1; tick <= 24; tick++) { z2.Update(.1f); paints += near.IncomingPaints.Count + far.IncomingPaints.Count; }
+        Assert.Equal(0, paints);
+        Assert.Equal(0f, Track(a, near));
+        Assert.Equal(0f, Track(a, far));
+    }
+
+    // The swept set is the zone members the front has crossed: a subject that leaves after its crossing and returns
+    // while the front is still past it is crossed again, as a ship arriving inside the front is.
+    [Fact]
+    public void ASubjectThatLeavesAndReturnsIsCrossedAgain()
+    {
+        var a = NewShip(float3(0, 0, 0), "Omni");
+        var t = NewShip(float3(0, 0, 100));
+        Settle();
+        SensorOf(a).Ping();
+        var paints = 0;
+        for (var tick = 1; tick <= 30; tick++)
+        {
+            if (tick == 5) { _zone.Entities.Remove(t); t.Deactivate(); }
+            if (tick == 8) { _zone.Entities.Add(t); t.Activate(); }
+            Tick(.1f);
+            paints += t.IncomingPaints.Count;
+        }
+        Assert.Equal(2, paints);
+        Near(.1f, Track(a, t));
     }
 
     private static MessagePackSerializerOptions WireOptions => CultDocumentMessagePackSerialization.OptionsFor(typeof(ZonePack).Assembly);
