@@ -189,7 +189,22 @@ public abstract class Entity
     // sweeping this ship (Sensor.Execute); a track paint is a lock (LockWeapon.Execute). Each reports into the
     // inbox the tick it paints; PublishInbox publishes the inbox once, so a warning lives exactly one tick after
     // its last paint.
-    private readonly List<PaintWarning> _paintInbox = new List<PaintWarning>();
+    // The inbox keeps who painted and with what beside the warning: the warning is all a reader of IncomingPaints
+    // gets, the emitter and item are for PublishInbox, which records the emitter's reveal.
+    private readonly struct PendingPaint
+    {
+        public readonly PaintWarning Warning;
+        public readonly Entity Emitter;
+        public readonly EquippedItem Item;
+
+        public PendingPaint(PaintWarning warning, Entity emitter, EquippedItem item)
+        {
+            Warning = warning;
+            Emitter = emitter;
+            Item = item;
+        }
+    }
+    private readonly List<PendingPaint> _paintInbox = new List<PendingPaint>();
     private readonly List<PaintWarning> _incomingPaints = new List<PaintWarning>();
     public IReadOnlyList<PaintWarning> IncomingPaints => _incomingPaints;
     // An ally's sensor posts a return on the tick its ping crosses a subject; published with paints, read by this
@@ -197,6 +212,9 @@ public abstract class Entity
     private readonly List<PingReturn> _returnInbox = new List<PingReturn>();
     private readonly List<PingReturn> _pingReturns = new List<PingReturn>();
     internal IReadOnlyList<PingReturn> PingReturns => _pingReturns;
+    // What this observer has seen each ship's items do (ruling visibility-per-capability-reveal), keyed (subject,
+    // item). Written only by Sense and PublishInbox through RecordReveal; memory of the sitting, never decayed.
+    private readonly Dictionary<Entity, Dictionary<EquippedItem, Reveal>> _reveals = new Dictionary<Entity, Dictionary<EquippedItem, Reveal>>();
     public ReactiveProperty<SecurityLevel> CurrentSecurityLevel = new ReactiveProperty<SecurityLevel>(SecurityLevel.Open);
     public ReadOnlyReactiveProperty<bool> PresencePermitted;
     
@@ -247,6 +265,7 @@ public abstract class Entity
         {
             if (Target.Value.Entity == remove.Value) SetTarget(TargetRef.None);
             EntityInfoGathered.Remove(remove.Value);
+            _reveals.Remove(remove.Value);
             EntityHostility.Remove(remove.Value);
             VisibleEntities.Remove(remove.Value);
             VisibleEnemies.Remove(remove.Value);
@@ -395,22 +414,30 @@ public abstract class Entity
 
     // Mining Cut 3 (Q14 A): this entity's info on a chunk, computed when asked and stored nowhere. It is the value
     // the per-tick sensor rule (Sensor.Execute, through Sensor.Gain) would settle at for a target this bright,
-    // here, now. Each active sensor applies x <- saturate(x + G_i dt)(1 - k dt) every tick, so with n sensors the
-    // info settles where the gain balances the decay: sum(G_i) / (n k), capped at 1. A ping adds nothing that
-    // lasts, so only the passive gain enters.
+    // here, now (PassiveInfoPerSignature, scaled by the brightness), capped at 1.
     public float ChunkInfo(ChunkId chunk)
     {
         var visibility = Zone.ChunkVisibility(chunk);
         if (visibility <= 0f) return 0f;
-        var position = Zone.ChunkPose(chunk.Field, chunk.Index).xy;
+        return saturate(visibility * PassiveInfoPerSignature(Zone.ChunkPose(chunk.Field, chunk.Index).xy));
+    }
+
+    // The info a target of unit signature at `position` would settle at under this entity's passive sensing, before
+    // the cap at 1. Each active sensor applies x <- saturate(x + G_i dt)(1 - k dt) every tick, so with n sensors the
+    // info settles where the gain balances the decay: sum(G_i) / (n k). A ping adds nothing that lasts, so only the
+    // passive gain enters. It is linear in the signature below saturation, which is what lets one value answer for
+    // every signature at a place: ChunkInfo scales it by a chunk's brightness, Sense by each act's strength. Zero
+    // with no active sensor.
+    public float PassiveInfoPerSignature(float2 position)
+    {
         var rate = 0f;
         var sensors = 0;
         foreach (var sensor in ActiveSensors())
         {
-            rate += sensor.PassiveRate(visibility, position);
+            rate += sensor.PassiveRate(1f, position);
             sensors++;
         }
-        return sensors == 0 ? 0f : saturate(rate / (sensors * ItemManager.GameplaySettings.TargetInfoDecay));
+        return sensors == 0 ? 0f : rate / (sensors * ItemManager.GameplaySettings.TargetInfoDecay);
     }
 
     // Mining Cut 3: the detection threshold, read through the chunk path. A chunk is visible exactly as an entity
@@ -637,10 +664,25 @@ public abstract class Entity
         return max(gain, 0f) / (sensors * ItemManager.GameplaySettings.TargetInfoDecay * threshold) * 1.0001f;
     }
 
-    // Every sensor behaviour that runs this tick: those on active equipment, and those of active consumables.
-    private IEnumerable<Sensor> ActiveSensors() =>
-        Equipment.Where(item => item.Active.Value).SelectMany(item => item.Behaviors).OfType<Sensor>()
-            .Concat(_activeConsumables.SelectMany(effect => effect.Behaviors).OfType<Sensor>());
+    // Every sensor behaviour that runs this tick: those on active equipment, and those of active consumables. The
+    // list is this entity's one buffer, refilled per call (Sense asks once per other ship per tick, allocating
+    // nothing), so callers use it before asking again.
+    private readonly List<Sensor> _activeSensors = new List<Sensor>();
+    private List<Sensor> ActiveSensors()
+    {
+        _activeSensors.Clear();
+        for (var i = 0; i < Equipment.Count; i++)
+        {
+            var item = Equipment[i];
+            if (!item.Active.Value) continue;
+            foreach (var behavior in item.Behaviors)
+                if (behavior is Sensor sensor) _activeSensors.Add(sensor);
+        }
+        foreach (var effect in _activeConsumables)
+            foreach (var behavior in effect.Behaviors)
+                if (behavior is Sensor sensor) _activeSensors.Add(sensor);
+        return _activeSensors;
+    }
 
     // Cut 12.3 (docs/fire-control-cut.md): "armour absorbs first" -- the per-cell armour phase, split out of
     // what used to be Absorb's own first half (moved verbatim from DamageSchematic's per-cell body, Cut 3) so
@@ -811,6 +853,7 @@ public abstract class Entity
         _incomingPaints.Clear();
         _returnInbox.Clear();
         _pingReturns.Clear();
+        _reveals.Clear();
     }
 
     // Zone.Update runs this on every entity before any entity updates, so a paint made during tick N is published
@@ -819,7 +862,11 @@ public abstract class Entity
     internal void PublishInbox()
     {
         _incomingPaints.Clear();
-        _incomingPaints.AddRange(_paintInbox);
+        foreach (var paint in _paintInbox)
+        {
+            _incomingPaints.Add(paint.Warning);
+            RecordReveal(paint.Emitter, paint.Item, SignatureChannel.Emission);
+        }
         _paintInbox.Clear();
         _pingReturns.Clear();
         _pingReturns.AddRange(_returnInbox);
@@ -833,11 +880,75 @@ public abstract class Entity
     }
 
     // The callers are Sensor.Execute (a Search paint, Strength 0) and LockWeapon.Execute (a Track paint, Strength
-    // the emitter's own Lock at that paint).
-    internal void ReceivePaint(float3 emitterPosition, EquippableItemData emitterClass, PaintMode mode, float strength)
+    // the emitter's own Lock at that paint). The emitter's class is the item's data (null with no item: a
+    // consumable's effect, which has no item and so is never revealed).
+    internal void ReceivePaint(Entity emitter, EquippedItem item, PaintMode mode, float strength)
     {
         if (!_active) return;
-        _paintInbox.Add(new PaintWarning(normalize((emitterPosition - Position).xz), emitterClass, mode, strength));
+        _paintInbox.Add(new PendingPaint(new PaintWarning(normalize((emitter.Position - Position).xz), item?.Data, mode, strength), emitter, item));
+    }
+
+    // The one writer of the reveal book (callers: Sense and PublishInbox, both in this file): this observer saw
+    // `item` of `subject` act on `channel`, now, from this bearing. An item-less act (hull radiation, a consumable)
+    // reveals nothing. A later act of the same item replaces the earlier one.
+    internal void RecordReveal(Entity subject, EquippedItem item, SignatureChannel channel)
+    {
+        if (!_active || item == null) return;
+        if (!_reveals.TryGetValue(subject, out var book))
+            _reveals[subject] = book = new Dictionary<EquippedItem, Reveal>();
+        book[item] = new Reveal(item, channel, normalize((subject.Position - Position).xz), Zone.Time);
+    }
+
+    // What this observer has seen `subject`'s items do: each item's latest act, filtered on read to items still on
+    // the subject and not destroyed (Durability >= .01, as FireControl ranks gear).
+    public IEnumerable<Reveal> RevealsOf(Entity subject)
+    {
+        if (!_reveals.TryGetValue(subject, out var book)) yield break;
+        foreach (var reveal in book.Values)
+            if (reveal.Item.Entity == subject && subject.Equipment.Contains(reveal.Item) && reveal.Item.EquippableItem.Durability >= .01f)
+                yield return reveal;
+    }
+
+    // The one derivation of how much this observer holds of `subject`: see Contact.
+    public Contact ContactOf(Entity subject)
+    {
+        var settings = ItemManager.GameplaySettings;
+        var info = EntityInfoGathered.TryGetValue(subject, out var gathered) ? gathered : 0f;
+        var tracked = VisibleEntities.Contains(subject);
+        var any = false;
+        var freshest = default(Reveal);
+        foreach (var reveal in RevealsOf(subject))
+            if (!any || reveal.Time > freshest.Time)
+            {
+                any = true;
+                freshest = reveal;
+            }
+        var remembered = any && Zone.Time - freshest.Time < settings.BearingMemory;
+        var detected = tracked || remembered;
+        var bearing = tracked ? normalize((subject.Position - Position).xz) : remembered ? freshest.Bearing : default;
+        return new Contact(detected, tracked, detected && any, info >= settings.TargetGearInfoThreshold, bearing, info);
+    }
+
+    // What this observer's instruments receive of other ships' acts this tick (Update calls it once, after the
+    // equipment loop): every light signature of an item that would alone settle this observer's passive info above
+    // TargetDetectionInfoThreshold is revealed (ruling visibility-per-capability-reveal). Hull radiation names no
+    // item and only feeds the track; an Emission entry is never light. One PassiveInfoPerSignature per ship.
+    internal void Sense()
+    {
+        var threshold = ItemManager.GameplaySettings.TargetDetectionInfoThreshold;
+        var entities = Zone.Entities;
+        for (var i = 0; i < entities.Count; i++)
+        {
+            var other = entities[i];
+            if (other == this) continue;
+            var perSignature = -1f;
+            foreach (var signature in other._visibilitySources.Values)
+            {
+                if (signature.Item == null || signature.Channel == SignatureChannel.Emission) continue;
+                if (perSignature < 0f) perSignature = PassiveInfoPerSignature(other.Position.xz);
+                if (signature.Strength * perSignature > threshold) RecordReveal(other, signature.Item, signature.Channel);
+            }
+        }
     }
 
     public Entity(ItemManager itemManager, Zone zone, EquippableItem hull, EntitySettings settings)
@@ -1543,6 +1654,8 @@ public abstract class Entity
             {
                 equippedItem.Update(delta);
             }
+
+            Sense();
 
             foreach (var message in Messages.Keys.ToArray())
             {

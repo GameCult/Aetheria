@@ -198,7 +198,7 @@ public class Sensor : Behavior, IEventBehavior, IPowerConsumer
             if (sweeping && dist < _pingRadius && _reached.Add(entity) && InBeam(diff, dist))
             {
                 heard = true;
-                entity.ReceivePaint(Entity.Position, Item?.Data, PaintMode.Search, 0);
+                entity.ReceivePaint(Entity, Item, PaintMode.Search, 0);
                 credit += Gain(entity.Visibility, sensitivity, response, dist, dt, true, obscuration);
                 var pingReturn = new PingReturn(entity, dist, obscuration, Evaluate(_data.PingRange));
                 foreach (var ally in Entity.Zone.Entities)
