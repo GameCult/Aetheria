@@ -439,13 +439,13 @@ public sealed partial class RunStartTests : IDisposable
         Assert.True(disagreements.Count == 0, string.Join("; ", disagreements.Take(10)) + $" ({disagreements.Count} in all)");
     }
 
-    // The sold hardpoint gear that no hull fits even loosely today, stated so that authoring a hull that takes one
-    // shows up here as a changed list.
+    // The sold hardpoint gear that no sold hull fits even loosely today (a test hull no product sells gives no gear a
+    // home), stated so that authoring a hull that takes one shows up here as a changed list.
     [Fact]
     public void TheSoldHardpointGearWithNoHomeToday()
     {
-        var hulls = _cache.GetAll<HullData>().ToArray();
         var sold = _cache.GetAll<FactionProductData>().Select(product => product.Design.Key).ToHashSet();
+        var hulls = _cache.GetAll<HullData>().Where(hull => sold.Contains(_cache.RefOf(hull).Key)).ToArray();
         var homeless = _cache.GetAll<EquippableItemData>()
             .Where(design => sold.Contains(_cache.RefOf(design).Key) && design.Price > 0)
             .Where(design => design.HardpointType != HardpointType.Tool && design.HardpointType != HardpointType.Hull)

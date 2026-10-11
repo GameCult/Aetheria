@@ -49,9 +49,9 @@ public sealed partial class RunStartTests
         Assert.Equal((Arcs.Port, Arcs.Starboard), (port.Position.xz, starboard.Position.xz));
 
         var mounts = WeaponMounts(player);
-        var forward = mounts.Where(item => item.Hardpoint.Rotation == ItemRotation.None).ToList();
-        var starboardMounts = mounts.Where(item => item.Hardpoint.Rotation == ItemRotation.Clockwise).ToList();
-        var portMounts = mounts.Where(item => item.Hardpoint.Rotation == ItemRotation.CounterClockwise).ToList();
+        var forward = mounts.Where(item => item.EquippableItem.Rotation == ItemRotation.None).ToList();
+        var starboardMounts = mounts.Where(item => item.EquippableItem.Rotation == ItemRotation.Clockwise).ToList();
+        var portMounts = mounts.Where(item => item.EquippableItem.Rotation == ItemRotation.CounterClockwise).ToList();
         Assert.NotEmpty(forward);
         Assert.NotEmpty(starboardMounts);
         Assert.NotEmpty(portMounts);

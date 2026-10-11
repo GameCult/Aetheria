@@ -1606,8 +1606,9 @@ public static class Program
     // Smoke Test Hull, a copy of the Longinus hull that no product sells, so no generated ship, station or shop offers
     // it and only a scenario fits it. It adds what no shipped ship hull has, where the Longinus runs out of cells: two
     // rows of cells past the bow carrying a 2x2 Energy hardpoint (ChargeBlast SG) and a 2x2 Ballistic hardpoint
-    // (Autocannon), and a 1x1 side mount on each flank, a Clockwise Ballistic one on the starboard and a
-    // CounterClockwise Energy one on the port. The Longinus's own hardpoints are untouched. Its prefab is the
+    // (Autocannon), and a 2x2 side mount on each flank, a Clockwise Ballistic one on the starboard and a
+    // CounterClockwise Energy one on the port, which need two columns of margin on each side: every Longinus cell and
+    // hardpoint moves right by two. Their gear is unchanged. Its prefab is the
     // Longinus's, which has no barrel for the new hardpoints: they fire from the hull centre. Dry run unless passed
     // "apply".
     public static int SmokeHullCatalog(bool apply, string root = null)
@@ -1626,26 +1627,32 @@ public static class Program
         hull.Name = name;
         hull.Description = "The Longinus with two forward 2x2 hardpoints and a side mount on each flank, for scenarios. No faction builds it.";
 
-        // Two rows of cells past the bow, over the width of the tail's neighbours (x 1..4).
-        var grown = new Shape(longinus.Shape.Width, longinus.Shape.Height + 2);
+        // Two cells of margin on each side (every Longinus cell and hardpoint moves right by Margin), two rows of cells past
+        // the bow over the width of the tail's neighbours, and a 2x2 block of cells on each flank at the wide section.
+        const int Margin = 2;
+        var width = longinus.Shape.Width + 2 * Margin;
+        var bow = longinus.Shape.Height;
+        var grown = new Shape(width, bow + 2);
         for (var x = 0; x < longinus.Shape.Width; x++)
-            for (var y = 0; y < longinus.Shape.Height; y++) grown.Cells[x, y] = longinus.Shape.Cells[x, y];
-        for (var x = 1; x <= 4; x++)
-            for (var y = longinus.Shape.Height; y < grown.Height; y++) grown.Cells[x, y] = true;
+            for (var y = 0; y < bow; y++) grown.Cells[x + Margin, y] = longinus.Shape.Cells[x, y];
+        for (var x = Margin + 1; x <= Margin + 4; x++)
+            for (var y = bow; y < grown.Height; y++) grown.Cells[x, y] = true;
+        foreach (var x in new[] { 0, 1, width - 2, width - 1 })
+            for (var y = 4; y <= 5; y++) grown.Cells[x, y] = true;
         hull.Shape = grown;
+        foreach (var existing in hull.Hardpoints) existing.Position = CultMath.math.int2(existing.Position.x + Margin, existing.Position.y);
 
-        static Shape Cells(int width, int height)
+        static Shape Cells(int side)
         {
-            var shape = new Shape(width, height);
-            for (var x = 0; x < width; x++)
-                for (var y = 0; y < height; y++) shape.Cells[x, y] = true;
+            var shape = new Shape(side, side);
+            for (var x = 0; x < side; x++)
+                for (var y = 0; y < side; y++) shape.Cells[x, y] = true;
             return shape;
         }
-        var bow = longinus.Shape.Height;
-        hull.Hardpoints.Add(new HardpointData { Type = HardpointType.Energy, Position = CultMath.math.int2(1, bow), Shape = Cells(2, 2), Rotation = ItemRotation.None, Armor = 20f });
-        hull.Hardpoints.Add(new HardpointData { Type = HardpointType.Ballistic, Position = CultMath.math.int2(3, bow), Shape = Cells(2, 2), Rotation = ItemRotation.None, Armor = 20f });
-        hull.Hardpoints.Add(new HardpointData { Type = HardpointType.Ballistic, Position = CultMath.math.int2(longinus.Shape.Width - 1, 4), Shape = Cells(1, 1), Rotation = ItemRotation.Clockwise, Armor = 10f });
-        hull.Hardpoints.Add(new HardpointData { Type = HardpointType.Energy, Position = CultMath.math.int2(0, 4), Shape = Cells(1, 1), Rotation = ItemRotation.CounterClockwise, Armor = 10f });
+        hull.Hardpoints.Add(new HardpointData { Type = HardpointType.Energy, Position = CultMath.math.int2(Margin + 1, bow), Shape = Cells(2), Rotation = ItemRotation.None, Armor = 20f });
+        hull.Hardpoints.Add(new HardpointData { Type = HardpointType.Ballistic, Position = CultMath.math.int2(Margin + 3, bow), Shape = Cells(2), Rotation = ItemRotation.None, Armor = 20f });
+        hull.Hardpoints.Add(new HardpointData { Type = HardpointType.Ballistic, Position = CultMath.math.int2(width - 2, 4), Shape = Cells(2), Rotation = ItemRotation.Clockwise, Armor = 20f });
+        hull.Hardpoints.Add(new HardpointData { Type = HardpointType.Energy, Position = CultMath.math.int2(0, 4), Shape = Cells(2), Rotation = ItemRotation.CounterClockwise, Armor = 20f });
 
         Console.WriteLine($"Adds \"{name}\": a Longinus copy grown from {longinus.Shape.Width}x{longinus.Shape.Height} to {grown.Width}x{grown.Height}, no product.");
         foreach (var hardpoint in hull.Hardpoints.Skip(longinus.Hardpoints.Count))

@@ -37,7 +37,7 @@ public sealed class SmokeHullCommandTests : IDisposable
             var hulls = db.Cache.GetAll<HullData>().Where(h => h.Name == HullName).ToArray();
             var keys = hulls.Select(h => db.Cache.RefOf(h).Key).ToArray();
             var products = db.Cache.GetAll<FactionProductData>().Count(p => keys.Any(k => p.Design.Key.Equals(k)));
-            var fitted = new[] { "ChargeBlast SG", "Autocannon", "Point Defense Gun", "Point Defense Laser" }
+            var fitted = new[] { "ChargeBlast SG", "Autocannon" }
                 .Select(name => db.Cache.GetAll<EquippableItemData>().Single(d => d.Name == name)).ToArray();
             return (hulls, db.Cache.GetAll<HullData>().Single(h => h.Name == "Longinus"), fitted, products);
         }
@@ -61,14 +61,17 @@ public sealed class SmokeHullCommandTests : IDisposable
         var hull = Assert.Single(hulls);
         Assert.Equal(0, products);
 
-        // The Longinus's own hardpoints survive, and four are added: each takes the gear the scenarios fit to it.
+        // The Longinus's own hardpoints survive (moved over by the margin the flank blocks need), and four are added: each takes
+        // the gear the scenarios fit to it.
         Assert.Equal(longinus.Hardpoints.Count + 4, hull.Hardpoints.Count);
         var added = hull.Hardpoints.Skip(longinus.Hardpoints.Count).ToArray();
-        var (chargeBlast, autocannon, pdGun, pdLaser) = (fitted[0], fitted[1], fitted[2], fitted[3]);
+        var (chargeBlast, autocannon) = (fitted[0], fitted[1]);
+        Assert.Equal(longinus.Hardpoints.Select(h => (h.Type, h.Position.x + 2, h.Position.y, h.Rotation)),
+            hull.Hardpoints.Take(longinus.Hardpoints.Count).Select(h => (h.Type, h.Position.x, h.Position.y, h.Rotation)));
         Assert.Single(added, h => h.Type == HardpointType.Energy && h.Rotation == ItemRotation.None && h.Takes(chargeBlast));
         Assert.Single(added, h => h.Type == HardpointType.Ballistic && h.Rotation == ItemRotation.None && h.Takes(autocannon));
-        Assert.Single(added, h => h.Type == HardpointType.Ballistic && h.Rotation == ItemRotation.Clockwise && h.Takes(pdGun));
-        Assert.Single(added, h => h.Type == HardpointType.Energy && h.Rotation == ItemRotation.CounterClockwise && h.Takes(pdLaser));
+        Assert.Single(added, h => h.Type == HardpointType.Ballistic && h.Rotation == ItemRotation.Clockwise && h.Takes(autocannon));
+        Assert.Single(added, h => h.Type == HardpointType.Energy && h.Rotation == ItemRotation.CounterClockwise && h.Takes(chargeBlast));
         foreach (var hardpoint in added)
             foreach (var cell in hardpoint.Shape.Coordinates)
                 Assert.True(hull.Shape[hardpoint.Position + cell], "a new hardpoint lies outside the hull's cells");

@@ -489,7 +489,7 @@ public sealed partial class RunStartTests
         var turret = Assert.IsType<OrbitalEntity>(staged.Entities[2]);
         Assert.Equal((Arcs.Bow, Arcs.Stern, Arcs.Turret), (bow.Position.xz, stern.Position.xz, turret.Position.xz));
 
-        var mounts = player.Equipment.Where(item => item.Behaviors.OfType<Weapon>().Any() && item.Hardpoint.Rotation == ItemRotation.None).ToList();
+        var mounts = player.Equipment.Where(item => item.Behaviors.OfType<Weapon>().Any() && item.EquippableItem.Rotation == ItemRotation.None).ToList();
         Assert.NotEmpty(mounts);
         foreach (var mount in mounts)
         {
