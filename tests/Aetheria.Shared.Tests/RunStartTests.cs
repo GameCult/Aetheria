@@ -353,7 +353,7 @@ public sealed partial class RunStartTests : IDisposable
     [Fact]
     public void GenerationOffersExactlyTheSoldGearSomeHullCanFit()
     {
-        var hulls = _cache.GetAll<HullData>().ToArray();
+        var hulls = LoadoutGenerator.SoldHulls(_cache);
         var sold = _cache.GetAll<FactionProductData>().Where(p => p.Manufacturer.IsSet()).Select(p => p.Design.Key).ToHashSet();
         var generator = PreludeGenerator();
         var wrong = _cache.GetAll<EquippableItemData>()
@@ -366,7 +366,7 @@ public sealed partial class RunStartTests : IDisposable
             "the Autocannon fits the turret's 8-cell Ballistic hardpoint, so it is offered");
     }
 
-    // Gear no hull can fit is never offered; authoring a hull whose hardpoint takes it makes it offered.
+    // Gear no sold hull can fit is never offered; a product selling a hull whose hardpoint takes it makes it offered.
     [Fact]
     public void GearNoHullCanFitIsOfferedOnlyOnceAHullTakesIt()
     {
@@ -378,10 +378,15 @@ public sealed partial class RunStartTests : IDisposable
         foreach (var cell in shape.AllCoordinates) shape[cell] = true;
         var hardpointShape = new Shape(8, 8);
         foreach (var cell in hardpointShape.AllCoordinates) hardpointShape[cell] = true;
-        _cache.Upsert(new HullData
+        var bigMount = new HullData
         {
             Name = "Big Mount", HullType = HullType.Ship, Shape = shape, Durability = 100, Mass = 1000, Price = 1,
             Hardpoints = { new HardpointData { Type = HardpointType.Ballistic, Position = int2(0, 0), Shape = hardpointShape } }
+        };
+        _cache.Upsert(bigMount);
+        _cache.Upsert(new FactionProductData
+        {
+            Name = "Big Mount", Design = new CultRecordRef<CraftedItemData>(_cache.RefOf(bigMount).Key), Manufacturer = _cache.RefOf(_protagonist)
         });
         Assert.True(Offered(generator, huge), "a hull whose hardpoint takes it gives it a home");
     }
