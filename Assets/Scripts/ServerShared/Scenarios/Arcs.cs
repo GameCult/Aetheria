@@ -4,20 +4,26 @@ using static ItemRotation;
 public sealed class Arcs : Scenario
 {
     public override string Name => "Arcs";
-    public override string Brief => "Forward mounts, a bare hull off the bow, one off the stern, a hostile turret. Verify: the hull keeps its " +
+    public override string Brief => "The Smoke Test Hull with forward mounts and a side mount on each flank; a bare hull off the bow, one off " +
+                                    "the stern, one abeam to port, one abeam to starboard, and a hostile turret. Verify: the hull keeps its " +
                                     "heading while you aim at the stern hull, and the forward guns hold. Designate the bow hull and fire with the " +
-                                    "aim anywhere: the forward guns fire on it and hit. The turret tracks you all the way round.";
+                                    "aim anywhere: the forward guns fire on it and hit. The side guns fire at their beam hull and never through " +
+                                    "the hull. Designate the starboard hull, aim ahead and fire its group: it fires on the hull without the aim " +
+                                    "and the port group holds; undesignate and aim to port: the port group fires free. The turret tracks you " +
+                                    "all the way round.";
     public override uint Seed => 103;
     public override bool Ambient => false;
 
-    // Where the targets sit: the player is at the origin facing +z, and every mount fires forward.
-    public static readonly CultMath.float2 Bow = float2(0, 400), Stern = float2(0, -400), Turret = float2(600, 0);
+    // Where the targets sit: the player is at the origin facing +z. The forward mounts fire forward, the starboard mount
+    // (Clockwise) along +x and the port mount (CounterClockwise) along -x.
+    public static readonly CultMath.float2 Bow = float2(0, 400), Stern = float2(0, -400), Turret = float2(600, 0),
+        Port = float2(-400, 0), Starboard = float2(400, 0);
 
     public override Galaxy Generate(GalaxyStage stage) => stage.Prelude();
 
     public override void Stage(ScenarioStage stage)
     {
-        var fighter = stage.Fit("Longinus",
+        var fighter = stage.Fit("Smoke Test Hull",
             ("Cockpit 2x2", int2(2, 6), None),
             ("Large Drive", int2(1, 0), Reversed),
             ("Large Drive", int2(3, 0), Reversed),
@@ -31,7 +37,9 @@ public sealed class Arcs : Scenario
             ("Iapyx", int2(2, 2), CounterClockwise),
             ("Iapyx", int2(3, 2), Clockwise),
             ("not if i see you first", int2(3, 10), None),
-            ("Fire Control Array", int2(1, 6), Clockwise));
+            ("Fire Control Array", int2(1, 6), Clockwise),
+            ("Point Defense Gun", int2(5, 4), Clockwise),
+            ("Point Defense Laser", int2(0, 4), CounterClockwise));
         var turret = stage.Fit("Turret",
             ("ClearPath", int2(1, 2), None),
             ("ClearPath", int2(5, 2), None),
@@ -46,5 +54,7 @@ public sealed class Arcs : Scenario
         stage.Place(stage.Bare("Longinus"), Bow);
         stage.Place(stage.Bare("Longinus"), Stern);
         stage.Place(turret, Turret, stance: ScenarioStance.Hostile);
+        stage.Place(stage.Bare("Longinus"), Port);
+        stage.Place(stage.Bare("Longinus"), Starboard);
     }
 }

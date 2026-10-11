@@ -477,8 +477,8 @@ public sealed partial class RunStartTests
         }
     }
 
-    // Arcs' geometry: the bow hull sits inside every one of the player's mount arcs, the stern hull outside all of them,
-    // and the turret is hostile.
+    // Arcs' geometry: the bow hull sits inside every one of the player's forward mount arcs, the stern hull outside all of
+    // them (the side mounts are ArcsFlanks'), the turret is hostile and the bare hulls are neutral.
     [Fact]
     public void ArcsGeometry()
     {
@@ -489,7 +489,7 @@ public sealed partial class RunStartTests
         var turret = Assert.IsType<OrbitalEntity>(staged.Entities[2]);
         Assert.Equal((Arcs.Bow, Arcs.Stern, Arcs.Turret), (bow.Position.xz, stern.Position.xz, turret.Position.xz));
 
-        var mounts = player.Equipment.Where(item => item.Behaviors.OfType<Weapon>().Any()).ToList();
+        var mounts = player.Equipment.Where(item => item.Behaviors.OfType<Weapon>().Any() && item.Hardpoint.Rotation == ItemRotation.None).ToList();
         Assert.NotEmpty(mounts);
         foreach (var mount in mounts)
         {
@@ -497,7 +497,7 @@ public sealed partial class RunStartTests
             Assert.False(FireControl.InArc(mount, stern.Position - player.Position), $"{mount.Data.Name} bears on the stern hull");
         }
         Assert.True(player.IsHostileTo(turret) && turret.IsHostileTo(player), "the turret is hostile");
-        Assert.False(player.IsHostileTo(bow) || player.IsHostileTo(stern), "the bare hulls are neutral");
+        Assert.False(player.IsHostileTo(bow) || player.IsHostileTo(stern) || player.IsHostileTo(staged.Entities[3]) || player.IsHostileTo(staged.Entities[4]), "the bare hulls are neutral");
     }
 
     // Q3 (operator, 2026-09-30): a design no product sells is a scenario test design and nothing else. A test design
