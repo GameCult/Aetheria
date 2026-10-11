@@ -42,6 +42,7 @@ public static class Program
             case "field-kinds": return FieldKindsCatalog(args.Contains("apply"));
             case "pd-gear": return PdGearCatalog(args.Contains("apply"));
             case "mine-launcher": return MineLauncherCatalog(args.Contains("apply"));
+            case "smoke-hull": return SmokeHullCatalog(args.Contains("apply"));
             case "roles-backfill": return RolesBackfill(args.Contains("apply"));
             case "consumables-first-set": return ConsumablesFirstSetCatalog(args.Contains("apply"));
             case "pirates-faction":
@@ -49,7 +50,7 @@ public static class Program
                 return PiratesFaction(args.Contains("apply"));
             case "verse-grammar": return VerseGrammarCommand.Run(args.Contains("apply"));
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], pirates-faction [apply], verse-grammar [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], smoke-hull [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], pirates-faction [apply], verse-grammar [apply]");
                 return 1;
         }
     }
@@ -1598,6 +1599,73 @@ public static class Program
             }
         });
         Console.WriteLine($"\nAuthored 3 designs and {products.Length} products in Aetheria.cc");
+        return 0;
+    }
+
+    // aetheria-release cut scenarios-smoke (rulings weapon-feel-to-smoke-cut-test-hull, test-hull-both-flanks): the
+    // Smoke Test Hull, a copy of the Longinus hull that no product sells, so no generated ship, station or shop offers
+    // it and only a scenario fits it. It adds what no shipped ship hull has, where the Longinus runs out of cells: two
+    // rows of cells past the bow carrying a 2x2 Energy hardpoint (ChargeBlast SG) and a 2x2 Ballistic hardpoint
+    // (Autocannon), and a 2x2 side mount on each flank, a Clockwise Ballistic one on the starboard and a
+    // CounterClockwise Energy one on the port, which need two columns of margin on each side: every Longinus cell and
+    // hardpoint moves right by two. Their gear is unchanged. Its prefab is the
+    // Longinus's, which has no barrel for the new hardpoints: they fire from the hull centre. Dry run unless passed
+    // "apply".
+    public static int SmokeHullCatalog(bool apply, string root = null)
+    {
+        const string name = "Smoke Test Hull";
+        var db = AetherDb.Open(catalogWritable: apply, root: root);
+        if (db.Cache.GetAll<HullData>().Any(h => h.Name == name))
+        {
+            Console.WriteLine($"\"{name}\" is already authored; nothing to do.");
+            return 0;
+        }
+
+        var longinus = db.Cache.GetAll<HullData>().Single(h => h.Name == "Longinus");
+        var options = CultDocumentMessagePackSerialization.OptionsFor(typeof(HullData).Assembly);
+        var hull = MessagePackSerializer.Deserialize<HullData>(MessagePackSerializer.Serialize(longinus, options), options);
+        hull.Name = name;
+        hull.Description = "The Longinus with two forward 2x2 hardpoints and a side mount on each flank, for scenarios. No faction builds it.";
+
+        // Two cells of margin on each side (every Longinus cell and hardpoint moves right by Margin), two rows of cells past
+        // the bow over the width of the tail's neighbours, and a 2x2 block of cells on each flank at the wide section.
+        const int Margin = 2;
+        var width = longinus.Shape.Width + 2 * Margin;
+        var bow = longinus.Shape.Height;
+        var grown = new Shape(width, bow + 2);
+        for (var x = 0; x < longinus.Shape.Width; x++)
+            for (var y = 0; y < bow; y++) grown.Cells[x + Margin, y] = longinus.Shape.Cells[x, y];
+        for (var x = Margin + 1; x <= Margin + 4; x++)
+            for (var y = bow; y < grown.Height; y++) grown.Cells[x, y] = true;
+        foreach (var x in new[] { 0, 1, width - 2, width - 1 })
+            for (var y = 4; y <= 5; y++) grown.Cells[x, y] = true;
+        hull.Shape = grown;
+        foreach (var existing in hull.Hardpoints) existing.Position = CultMath.math.int2(existing.Position.x + Margin, existing.Position.y);
+
+        static Shape Cells(int side)
+        {
+            var shape = new Shape(side, side);
+            for (var x = 0; x < side; x++)
+                for (var y = 0; y < side; y++) shape.Cells[x, y] = true;
+            return shape;
+        }
+        hull.Hardpoints.Add(new HardpointData { Type = HardpointType.Energy, Position = CultMath.math.int2(Margin + 1, bow), Shape = Cells(2), Rotation = ItemRotation.None, Armor = 20f });
+        hull.Hardpoints.Add(new HardpointData { Type = HardpointType.Ballistic, Position = CultMath.math.int2(Margin + 3, bow), Shape = Cells(2), Rotation = ItemRotation.None, Armor = 20f });
+        hull.Hardpoints.Add(new HardpointData { Type = HardpointType.Ballistic, Position = CultMath.math.int2(width - 2, 4), Shape = Cells(2), Rotation = ItemRotation.Clockwise, Armor = 20f });
+        hull.Hardpoints.Add(new HardpointData { Type = HardpointType.Energy, Position = CultMath.math.int2(0, 4), Shape = Cells(2), Rotation = ItemRotation.CounterClockwise, Armor = 20f });
+
+        Console.WriteLine($"Adds \"{name}\": a Longinus copy grown from {longinus.Shape.Width}x{longinus.Shape.Height} to {grown.Width}x{grown.Height}, no product.");
+        foreach (var hardpoint in hull.Hardpoints.Skip(longinus.Hardpoints.Count))
+            Console.WriteLine($"  {hardpoint.Type,-9} {hardpoint.Shape.Width}x{hardpoint.Shape.Height} at {hardpoint.Position.x},{hardpoint.Position.y} rotation {hardpoint.Rotation}");
+        if (!apply)
+        {
+            Console.WriteLine("\nDry run. Pass \"apply\" to author it.");
+            return 0;
+        }
+
+        CultRecordRefs.Validate(hull);
+        db.Cache.Commit(batch => batch.Upsert(typeof(HullData), hull));
+        Console.WriteLine($"\nAuthored \"{name}\" in Aetheria.cc");
         return 0;
     }
 

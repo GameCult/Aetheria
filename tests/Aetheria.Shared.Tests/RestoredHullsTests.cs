@@ -248,13 +248,14 @@ public sealed class RestoredHullsTests
     }
 
     // The dock intro dereferences the ship's VelocityLimit unguarded (ActionGameManager), so every ship hull the catalog
-    // ships carries exactly one, with a top speed that is a finite positive number. After the retirement
+    // sells carries exactly one, with a top speed that is a finite positive number. After the retirement
     // (ruling retire-longinusx) the shipped ship hulls are the Longinus and the Djinni.
     [Fact]
     public void EveryShippedShipHullHasATopSpeed()
     {
         using var cache = OpenCatalog();
-        var ships = cache.GetAll<HullData>().Where(h => h.HullType == HullType.Ship).OrderBy(h => h.Name, StringComparer.Ordinal).ToArray();
+        var sold = cache.GetAll<FactionProductData>().Select(product => product.Design.Key).ToHashSet();
+        var ships = cache.GetAll<HullData>().Where(h => h.HullType == HullType.Ship && sold.Contains(cache.RefOf(h).Key)).OrderBy(h => h.Name, StringComparer.Ordinal).ToArray();
         Assert.Equal(new[] { "Djinni", "Longinus" }, ships.Select(h => h.Name));
         foreach (var hull in ships)
         {

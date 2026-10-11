@@ -186,7 +186,7 @@ public class LoadoutGenerator
     // not once a required item has fallen back to any manufacturer). The one availability rule for every selection.
     private ((FactionProductData product, T design)[] available, bool preferManufacturers) AvailableProducts<T>(Predicate<T> filter, bool required) where T : CraftedItemData
     {
-        var hulls = ItemManager.ItemData.GetAll<HullData>().ToArray();
+        var hulls = SoldHulls(ItemManager.ItemData);
         var candidates = ItemManager.ItemData.GetAll<FactionProductData>()
             .Select(product => (product, design: ItemManager.ItemData.Get(product.Design) as T))
             .Where(entry =>
@@ -231,6 +231,11 @@ public class LoadoutGenerator
     // Hardpoint gear that no hull in the catalog can mount has no home (operator, 2026-09-30: "we'll need to author a
     // bunch more hulls before all the gear variety in the game has a home"): generation never offers it, so no station
     // stocks it. It gains one the moment a hull with a hardpoint that takes it exists. Tool gear goes in any interior.
+    // Only a hull some product sells gives gear a home: a hull no faction builds (the Smoke Test Hull) is a test fixture, so its
+    // hardpoints never put gear on a shelf. The one definition of the hulls HasHome considers.
+    public static HullData[] SoldHulls(CultCache items) =>
+        items.GetAll<FactionProductData>().Select(product => items.Get(product.Design)).OfType<HullData>().Distinct().ToArray();
+
     public static bool HasHome(EquippableItemData design, HullData[] hulls) =>
         design.HardpointType == HardpointType.Tool || design.HardpointType == HardpointType.Hull ||
         hulls.Any(hull => hull.Hardpoints.Any(hardpoint => hardpoint.Takes(design)));
