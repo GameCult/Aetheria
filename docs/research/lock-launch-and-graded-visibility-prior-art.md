@@ -99,3 +99,72 @@ The exact passage about forcing a target to reveal capabilities one by one was n
 - Nebulous wiki 403; CMO manual, Children of a Dead Earth, Highfleet, Avorion detail, EVE d-scan/target warning not obtained.
 - Did not open Unity GuidedProjectile or AI code consuming IncomingLocks.
 - SEARCH items are secondary summaries.
+
+## 6. Identifying quiet equipment, and hull class to layout (addendum, 2026-10-11)
+
+Gathered by imagination-aeth-quiet-gear for ruling quiet-gear-identifiable-hull-layout-known
+("Identifying those quiet subsystems should still be possible, even if you need special gear to do
+it. Also, with enough data to infer the hull class I should know where the reactor is even if I
+don't have its specs."). Bounded pass, 8 searches and fetches.
+
+### 6a. Dedicated scanning gear in games
+- FETCHED EVE University wiki "Ship scanning": the ship scanner module reveals the target's fit and
+  capacitor level; a single scan shows a random subset of the fitted modules (one example: three of
+  nine), so full knowledge takes repeated scans; structures always show the full fit. Range, cycle
+  time and target notification are not on the page.
+- SEARCH (EVE University "Cargo scanning", same targeting-then-scanning process): the scanner needs
+  a lock first; the active module draws a faint scanning beam toward the target, visible but easy
+  to miss. Combined with section 3c (a normal lock alerts the target; the Passive Targeter exists to
+  lock without alerting), EVE's scan is covert only in that its own effect is subtle: the lock it
+  needs is noticed.
+- SEARCH (Elite Dangerous fan wiki, Prima guide, Steam threads): the Kill Warrant Scanner is a held
+  scan of about 10 s; the target must stay within the scanner's range the whole time or the scan is
+  interrupted; partial data degrades gradually rather than resetting at once; the target is alerted
+  as soon as the scan begins and may flee or deploy hardpoints. The manifest (cargo) scanner reads
+  cargo; timing not found.
+- SEARCH (Highfleet guides): composition intelligence is a strategic-map activity (radio tracking,
+  radar, an optional ELINT/IR ship in a strike group); no in-battle equipment scanner found.
+- SEARCH (Nebulous): store text only: capabilities are learned gradually, half a battle may go to
+  determining them; detail of what each track-quality level shows was NOT obtained (wiki 403 in
+  section 3c). Recollection, unverified: hull class shows at higher track quality and fitted
+  components are visible on the model.
+- SEARCH (Cold Waters, Steam threads): contact codes record how a contact was first found (S, E, V,
+  R, M); class identity comes from the player matching against the unit reference; players report
+  positive identification often only after the kill. No timed classification rule found.
+
+### 6b. Real-world identification of equipment that does not emit
+- SEARCH (Wikipedia "Acoustical intelligence", Center for Maritime Strategy, Marasco et al.,
+  Acoustics 2023): ACINT is a MASINT discipline; narrowband spectral lines from internal machinery,
+  propellers and sonars identify category, type and ideally the individual hull; a 2023 proof of
+  concept determined the running status of a subset of a known ship's systems from its radiated
+  noise. Collection assets are few, time on station short, analysis delayed. Reading: machinery that
+  never transmits still radiates, and specialised analysis over a dwell recovers it.
+- SEARCH (MIT Lincoln Laboratory ISAR ship classification, Navy SBIR topics, Adelaide ISAR slides):
+  inverse synthetic aperture radar, an active imaging radar, classifies ship class from
+  superstructure shape; viewing geometry limits it (along the length is best, broadside poor);
+  returns from rotating antennas reveal their position on the ship and their configuration. Imaging
+  is an active act the target can detect (as any radar, section 3b).
+- SEARCH (ONI recognition manuals on ibiblio, Jane's help centre and case study): class recognition
+  rests on the overall mass of hull and superstructure; Jane's narrows an unknown ship to one class
+  from dimensions, and a class profile then lists its weapons and systems and where they are.
+  Variants and refits within a class: not covered by the results (gap).
+- KNOWLEDGE: technical intelligence (TECHINT, exploitation) learns specifications from captured or
+  closely examined equipment; recognition handbooks give a class's layout (mount positions, sensor
+  masts) but a given ship's fit and condition are confirmed only by closer collection.
+
+### 6c. Reading for Aetheria
+- Hull class to layout is how recognition works: identify the class, then the class reference says
+  where the mounts are; it does not say what a given ship carries in them or their specifications
+  (6b). In Aetheria the class is HullData, and its Hardpoints (type, position, shape) are that
+  reference.
+- Every game found that identifies non-emitting fit does it with a dedicated scanner that needs a
+  lock or held range: EVE (partial, repeated scans), Elite (held 10 s, interrupted out of range,
+  target alerted at once). The real-world analogues are either long passive dwell by specialised
+  analysis (ACINT) or active imaging (ISAR), which reveals the imager.
+- No source found where the scanned party learns nothing at all: EVE's covertness is a weak beam on
+  top of a noticed lock; Elite alerts outright.
+
+### 6d. Gaps
+- EVE ship-scanner range, cycle time and whether the target is told: not obtained.
+- Nebulous track-quality levels and component visibility; CMO classification rules: not obtained.
+- Refit variants within a class in recognition references: not obtained.

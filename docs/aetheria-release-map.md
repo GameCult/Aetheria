@@ -8007,8 +8007,10 @@ Imagination imagination-aeth-visibility, session self-2026-10-11-ag, 2026-10-11.
 Pinned to Aetheria origin/master 93b7ff8da0f67d4958cbe4b6e96f1d824c62a629 (lock-warning and
 envelope-from-columns merged). Rulings: visibility-per-capability-reveal, sensor-stat-set,
 illuminator-beamforming, lock-and-visibility-rethink, launcher-lock-solution-quality,
-lock-warning-strength, shared-track-bearing-only, missiles-seeker-retarget, vapour-cloud-obscuration.
-Prior art: docs/research/lock-launch-and-graded-visibility-prior-art.md (cited below as PA:line).
+lock-warning-strength, shared-track-bearing-only, missiles-seeker-retarget, vapour-cloud-obscuration,
+quiet-gear-identifiable-hull-layout-known (revision pass by imagination-aeth-quiet-gear, same day).
+Prior art: docs/research/lock-launch-and-graded-visibility-prior-art.md (cited below as PA:line;
+section 6 for quiet gear and hull layout).
 This section owns follow-up sensor-stat-set-cut.
 
 ## Body facts (probes and source reads at 93b7ff8d)
@@ -8103,6 +8105,25 @@ autofire-threshold (FireControl, Entity 82/791/1050/1453), controls-hud (ActionG
 1041-1057, 1390-1410), faction-play-1/2 (Flight, Sensor.Ping callers), consumable-ai (Combat.cs).
 The cuts below keep their hunks out of those regions.
 
+V15. Hull layout (read at 93b7ff8d for ruling quiet-gear-identifiable-hull-layout-known). A hull's
+layout is catalog data: `HullData.Hardpoints`, a list of `HardpointData {Type, Position, Shape,
+Rotation, Armor, FiringArc}` (ItemData.cs:511-514, 559-569); `HardpointType` has Reactor, Shield,
+Sensors, Radiator, Thruster, weapon and other types (Enums.cs:38-53). Entity builds a per-cell map
+`Hardpoints[x,y]` at Position + each Shape coordinate, no rotation applied (Entity.cs:941-948).
+`EquippedItem.Hardpoint` is the one hardpoint an item occupies, null for Tool gear and the hull
+(Entity.cs:1716-1718). `Entity.HullData` is public (131, set 819). Tool gear sits anywhere in
+InteriorCells and is not part of the layout.
+
+V16. Aim point. `Entity.TargetItem` (Entity.cs:76) is written only by `TrySelectTargetItem`, gated
+on IsRevealed (344-357); `ResolvedTargetItem` re-checks IsRevealed (363-366). FireControl reads it
+in HitProbability (`Silhouette(..., source.ResolvedTargetItem, ...)`, FireControl.cs:362) and freezes
+it into `PendingShot.Aimed` at Fire (746, field 1969), read back at 905. `ResolveAimPoint` centres
+the kernel on the aimed item's occupied cells, `CellsOf` from GearOccupancy (1748-1753, 1948-1956),
+else the hull's centre of mass. Selection lists: the player's cycle (ActionGameManager.cs:431-443),
+SchematicDisplay's enemy weapon list (UI/HUD/SchematicDisplay.cs:98-104), AI Combat (Combat.cs:40-53),
+which also reads the revealed weapon's RangeDamagePerSecond. About 48 test sites read TargetItem or
+Aimed across 8 test files; FireControlCut12Tests pins ResolveAimPoint's cell average (520-590).
+
 ## Model page
 
 | Kind | Identity | Lifecycle | Authority |
@@ -8112,9 +8133,12 @@ The cuts below keep their hunks out of those regions.
 | Active emission (`ActiveEmission {Item, HearRange, Mode}` in `Entity.ActiveEmissions`) | (emitting entity, emitting item, tick). No persistent id. | Posted to the emitter's inbox each tick it emits (a ping wavefront in flight: Search; a lock paint inside LockAngle: Track); published in the zone's pre-phase with paints; lives exactly one tick. Never saved. | Sensor.Execute (search) and LockWeapon.Execute (track) through `Entity.Emit`; Entity publishes. HearRange = the emitter's range / its InterceptFactor, fixed at the emit. |
 | Paint warning (`PaintWarning {Bearing, EmitterClass, Mode, Strength}` in `Entity.IncomingPaints`; was LockWarning / IncomingLocks) | (painted entity, tick, painter beam). No id. | One tick after its last paint (unchanged from lock-warning). Search paints carry Strength 0. | LockWeapon.Execute (Track) and a ping wavefront crossing (Search, Sensor.Execute) call ReceivePaint; Entity publishes. Painted targets are always warned (sensor-stat-set 4). |
 | Track (`EntityInfoGathered[subject]`) | (observer, subject entity). | Seeded 0 on zone entry, revised each tick by each active sensor (passive gain, decay), plus one gain per ping crossing from the observer's own pings and its allies' (bistatic); removed when the subject leaves; cleared on Deactivate. Runtime only. | Sensor.Execute only, reading the observer's own receivers. Forbidden: shared-track writes (ruling shared-track-bearing-only), presenters, other ships. |
-| Reveal (`Reveal {Item, Channel, Bearing, Time}` in the observer's reveal book, keyed (subject, item)) | (observer, subject entity, revealed item), by reference. | Created on the first act the observer's instruments receive; Channel, Bearing and Time refreshed by each later act; filtered on read when the item is destroyed (Durability < .01) or off the subject; removed when the subject leaves the zone; cleared on Deactivate. Not decayed: memory of the sitting. Never saved. | `Entity.Sense` (once per Entity.Update) for light acts and heard emissions; `ReceivePaint` for paints. Forbidden: Sensor's track loop, presenters, another ship, shared tracks. |
+| Reveal (`Reveal {Item, Channel, Bearing, Time}` in the observer's reveal book, keyed (subject, item)) | (observer, subject entity, revealed item), by reference. Channel is null for a reveal by inspection (cut inspection-scanner). | Created on the first act the observer's instruments receive, or for every live item when the observer's scanner completes a scan; Channel, Bearing and Time refreshed by each later act; filtered on read when the item is destroyed (Durability < .01) or off the subject; removed when the subject leaves the zone; cleared on Deactivate. Not decayed: memory of the sitting. Never saved. | `Entity.Sense` (once per Entity.Update) for light acts and heard emissions; `ReceivePaint` for paints; `Entity.RecordInspection` (called by the observer's own Scanner) for scans. Forbidden: Sensor's track loop, presenters, another ship, shared tracks. |
+| Hull layout knowledge (derived by `Entity.LayoutOf(subject)`) | (observer, subject hull class). The class is the subject's HullData; the layout is its Hardpoints (type, position, shape). | Derived on read: the subject's HullData.Hardpoints while ContactOf(subject).Identified, else empty. Stored nowhere; never says what is fitted. | `Entity.LayoutOf` is the one derivation (ruling quiet-gear-identifiable-hull-layout-known). Readers: IsLocated, the target schematic, the player's cycle. |
 | Contact (`Contact`, derived by `Entity.ContactOf(subject)`) | (observer, subject). | Derived on read from track, reveals, the zone clock and `BearingMemory`; stored nowhere. Flags: Detected (tracked, or a reveal younger than BearingMemory), Tracked (track > TargetDetectionInfoThreshold, which is VisibleEntities), Classified (detected and any reveal), Identified (track >= TargetGearInfoThreshold, name kept, now the identify threshold). Bearing: the true bearing while tracked, else the freshest reveal's. | `Entity.ContactOf` is the one derivation. HUD and AI read it; VisibleEntities stays the tracked set. |
-| Sensor stats (SensorData Sensitivity key 3 = detection power, BeamWidth key 12, InterceptFactor key 13; LockWeaponData.InterceptFactor key 26; ListenerData.Multiple key 1) | Fields of a catalog design; brand flavour through product role quality. | Authored by AetherDb (cut sensor-catalog); resolved per item through StatResolver. PingVisibility (key 7) is retired, never reused. | The catalog. Readers: Sensor (BeamWidth, InterceptFactor), LockWeapon (InterceptFactor), Entity.HearingMultiple (ListenerData). |
+| Located item (`FireControl.IsLocated(observer, item)`) and aim point | (observer, subject item). | Derived on every read: revealed, or on a hardpoint of a layout the observer holds. The aim point is the item's own cells when revealed, else its hardpoint's cells; the choice is frozen into the shot with Aimed. | FireControl (R10). TrySelectTargetItem and ResolvedTargetItem gate on IsLocated; anything that reads an item's stats or class (AI weapon choice, schematic weapon rows) gates on IsRevealed. |
+| Scan (`Scanner` behaviour; progress per (scanner, target)) | (scanning item, the ship's Target). | Progress builds while the Target is tracked and within Range, at 1/ScanTime per second; falls at the same rate otherwise; reset on target change; at 1 the scan completes (RecordInspection) and progress restarts. Runtime only. | The Scanner behaviour; RecordInspection in Entity.cs writes the reveals. While scanning: a Scan paint (Strength = progress) on the target and an Emit(Item, Range / InterceptFactor, Scan) (question scanner-reveals-its-user, recommended). |
+| Sensor stats (SensorData Sensitivity key 3 = detection power, BeamWidth key 12, InterceptFactor key 13; LockWeaponData.InterceptFactor key 26; ListenerData.Multiple key 1; ScannerData Range 1, ScanTime 2, InterceptFactor 3) | Fields of a catalog design; brand flavour through product role quality. | Authored by AetherDb (cut sensor-catalog); resolved per item through StatResolver. PingVisibility (key 7) is retired, never reused. | The catalog. Readers: Sensor (BeamWidth, InterceptFactor), LockWeapon (InterceptFactor), Entity.HearingMultiple (ListenerData). |
 
 No empty cell. Two decisions are defaults, not rulings: reveals never decay within a sitting (a ship
 you saw fire a railgun still has one), and a reveal carries a bearing only; position comes only from
@@ -8132,15 +8156,19 @@ gives it").
   listeners and settings.
 - Outputs: EntityInfoGathered and the Visible sets (unchanged meaning), reveals, IncomingPaints,
   `ContactOf`, `IsRevealed`.
-- Derived state: Visibility (sum of light signatures); Contact and its levels; IsRevealed (a reveal
+- Derived state: Visibility (sum of light signatures); Contact and its levels; LayoutOf (the
+  identified subject's hardpoints); IsLocated and the aim point's cells; IsRevealed (a reveal
   of a live item, after cut reveals-replace-tiers); HearRange (range / alpha at the emit);
   HearingMultiple (1 with an active sensor, else 0, raised by listener gear).
 - Demotions: "Visibility is no longer the whole signature; it is the light-channel sum, the track
   input only." "IsRevealed is no longer derived from track tiers; it is derived from reveals."
   "A ping is no longer a brightness bump; it is a search emission heard within PingRange / alpha."
   "TargetedBy and TargetedByCount are not owners of anything; they are deleted (cut contact-hud)."
+  "Track quality no longer reveals gear; at the identify threshold it gives the hull's layout only,
+  and quiet gear is learned by inspection."
 - Forbidden writers: any code writing `VisibilitySources` except `Entity.SetSignature`; any reveal
-  write outside `Entity.Sense` and `ReceivePaint`; Sensor's track loop writing reveals; any
+  write outside `Entity.Sense`, `ReceivePaint` and `RecordInspection`; any stats or class read of a
+  located but unrevealed item (AI dps, schematic weapon rows); Sensor's track loop writing reveals; any
   presenter or Agents/ code reading another ship's `EntityInfoGathered`, weapons, lock or
   `IncomingPaints`; shared tracks writing track or reveals.
 - Shared paths: the player's HUD and the AI read the same `ContactOf`, `VisibleEnemies`,
@@ -8196,8 +8224,32 @@ GameplaySettings value (default 6 s). TargetGearInfoThreshold keeps its name and
 becomes the Identified threshold; TargetArmorInfoThreshold is deleted.
 
 R8. IsRevealed(O, item) is true exactly when O holds a reveal of item, item is on its subject and
-Durability >= .01 (cut reveals-replace-tiers, under question gear-reveal-by-dwell's recommended
-option).
+Durability >= .01 (cut reveals-replace-tiers). Question gear-reveal-by-dwell was answered with
+neither option: ruling quiet-gear-identifiable-hull-layout-known ("Identifying those quiet
+subsystems should still be possible, even if you need special gear to do it. Also, with enough data
+to infer the hull class I should know where the reactor is even if I don't have its specs."). Acts
+still reveal (R4-R6); watching alone reveals no gear; quiet gear is revealed by inspection (R11).
+
+R9. Layout. LayoutOf(O, E) is E.HullData.Hardpoints while ContactOf(E).Identified, else empty.
+Inferring the hull class is the Identified level (track >= TargetGearInfoThreshold). The layout
+says where each mount is and its type; never what is fitted, its class or its specs.
+
+R10. Located and aimed. IsLocated(O, item) = IsRevealed(O, item) or (item.Hardpoint != null and
+LayoutOf(O, item.Entity) holds item.Hardpoint). Subsystem selection (player and AI) gates on
+IsLocated. The aim point of a revealed item is its own occupied cells (as today); of a located,
+unrevealed item, its hardpoint's cells (Position + Shape). The choice is frozen at Fire with Aimed.
+A selection list shows a located, unrevealed item by its hardpoint type only ("Reactor mount").
+Anything that reads an item's stats or class (AI weapon choice by RangeDamagePerSecond, the
+schematic's weapon rows) still gates on IsRevealed.
+
+R11. Inspection. A Scanner (Tool gear, cut inspection-scanner) works on its ship's Target. While the
+target is Tracked and within Range, progress rises at 1/ScanTime per second, else falls at the same
+rate; a target change resets it. At 1, RecordInspection(target) records a reveal (Channel null,
+Bearing and Time as any reveal) of every live non-hull item on the target, and progress restarts.
+Under the recommended options of questions scanner-reveals-its-user and scanner-held-or-pulse: each
+scanning tick paints the target Mode Scan with Strength = progress, and emits (Item,
+Range / InterceptFactor, Scan), so the target is warned and third parties can hear the scanner.
+Cargo is not equipment and is not revealed (no cut owns cargo scanning).
 
 ## Rationale
 
@@ -8222,6 +8274,22 @@ option).
 - Hearing and reveals live in one per-entity `Sense` step rather than in Sensor.Execute so that a
   ship with two sensors or with listener gear and no sensor senses once; Sensor.Execute keeps the
   track arithmetic byte-for-byte, which the 80 test sites pin.
+- Layout from class (R9): recognition works by identifying the class and reading the class
+  reference for where its mounts are, without the ship's fit or condition (PA section 6b). Layout is
+  derived from the identify level rather than remembered, because aiming already needs a track.
+- Occupancy shows (a default): only filled mounts can be selected, so an observer learns which
+  mounts are filled. A fitted mount is a structural fact imaging resolves (PA section 6b, ISAR
+  antenna returns), and keeping selection item-based avoids retyping the aim slot across 48 test
+  sites. Hiding occupancy would need the aim slot to name a hardpoint instead of an item.
+- Mount-cell aim (R10): an observer that knows only the mount aims at the mount; centring on the
+  fitted item's own cells would leak its footprint through the hit forecast (invariant
+  instruments-bound).
+- Inspection (R11): every game found that identifies non-emitting fit does it with a dedicated
+  scanner gated on a lock or a held range (EVE partial scans, Elite's 10 s held scan that alerts the
+  target and degrades when broken); the real analogues are ISAR imaging (active) and ACINT (long
+  specialised dwell) (PA section 6a-6c). A full reveal at completion replaces EVE's random partial
+  result: ScanTime is the cost knob, and randomness would be a second one. Range is a catalog stat,
+  authored well inside weapon range, not a question.
 - Emissions publish in the zone pre-phase beside paints because lock-warning's fix batch found order
   dependence when a ship read state another ship wrote mid-tick (LW fix 1, 1c5c6020).
 
@@ -8232,8 +8300,11 @@ incoming-lock indicator already in tree.
 ## Cut order
 
 signature-channels -> paint-modes -> contact-reveals -> emissions-heard -> sensor-catalog;
-contact-reveals -> reveals-replace-tiers (waits on question gear-reveal-by-dwell);
-emissions-heard + paint-modes -> contact-hud. consumable-ai's re-map follows paint-modes.
+contact-reveals -> reveals-replace-tiers (r2, unblocked by ruling
+quiet-gear-identifiable-hull-layout-known) -> layout-aim;
+emissions-heard + paint-modes -> contact-hud;
+sensor-catalog + contact-hud + reveals-replace-tiers -> inspection-scanner (waits on questions
+scanner-reveals-its-user and scanner-held-or-pulse). consumable-ai's re-map follows paint-modes.
 
 ## Admitted (receipts mind-commit-7a633910..., mind-commit-b158ffb9..., mind-commit-2892979b...)
 
@@ -8251,3 +8322,18 @@ extraction on PassiveInfoPerSignature (follow-up missile-records-settled-info); 
 ping cadence keeps calling Sensor.Ping, and Lucent's loud doctrine is the low InterceptFactor the
 sensor-catalog cut authors; autofire-threshold and controls-hud are unchanged (VisibleEnemies,
 Designated and the crosshair regions keep their meaning and lines).
+
+### Revision for ruling quiet-gear-identifiable-hull-layout-known (receipt mind-commit-e0e8fe50...)
+
+imagination-aeth-quiet-gear, 2026-10-11, same base 93b7ff8d (master e0b123a9 moved docs only).
+Admitted: cut-reveals-replace-tiers.r2 (r1 superseded by resolution
+cut_spec.cut-reveals-replace-tiers.r1.n1: unblocked, dwell alternative dropped); cut-layout-aim.r1
+(new, after reveals-replace-tiers: LayoutOf, IsLocated, mount-cell aim, mount rows on the target
+schematic); cut-inspection-scanner.r1 (new, after sensor-catalog, contact-hud and
+reveals-replace-tiers: the special gear; its own cut because sensor-catalog is already sized near
+one Hands pass). Questions scanner-reveals-its-user (recommended scan-is-an-act) and
+scanner-held-or-pulse (recommended held-beam), both raised in inspection-scanner. context-pack read
+every anchor SAME at 93b7ff8d. Unchanged and still in force: signature-channels.r1, paint-modes.r2,
+contact-reveals.r1 (layout is derived, not stored in the reveal record; the scanner cut widens
+Reveal.Channel to nullable), emissions-heard.r1, contact-hud.r1 (the scanner cut adds Scan paints to
+the incoming indicator), sensor-catalog.r1.
