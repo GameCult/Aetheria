@@ -595,6 +595,7 @@ public sealed class ContactRevealTests : IDisposable
         var guns = Guns(e);
         Fire(e, guns[0]);
         Fire(e, guns[1]);
+        Tick(.01f); // the last flash decays at once: only the signature set below is left at removal
         foreach (var observer in new[] { strong, weak }) Assert.Equal(2, observer.RevealsOf(e).Count());
         e.SetSignature(new object(), SignatureChannel.Reflection, 2f, guns[0]);
         var threshold = _items.GameplaySettings.TargetDetectionInfoThreshold;
@@ -625,6 +626,7 @@ public sealed class ContactRevealTests : IDisposable
         var e = Add(float3(0, 0, 100), new[] { "Gun" });
         var o = Add(float3(0, 0, 0), new[] { "Eye" });
         Fire(e, Guns(e)[0]);
+        Tick(.01f);
         Assert.Single(o.RevealsOf(e));
         var gate = _items.GameplaySettings.TargetDetectionInfoThreshold / o.PassiveInfo(e.Position.xz, 1f);
         e.SetSignature(new object(), SignatureChannel.Reflection, gate * against, Guns(e)[0]);
@@ -643,6 +645,7 @@ public sealed class ContactRevealTests : IDisposable
         var e = Add(float3(0, 0, 100), new[] { "Gun" });
         var o = Add(float3(0, 0, 0), new[] { "Eye" });
         Fire(e, Guns(e)[0]);
+        Tick(.01f);
         e.SetSignature(new object(), SignatureChannel.Emission, 1000f, Guns(e)[0]);
 
         _zone.Entities.Remove(e);
@@ -659,6 +662,7 @@ public sealed class ContactRevealTests : IDisposable
         var o = Add(float3(0, 0, 0), new[] { "Eye" });
         var gun = Guns(e)[0];
         var at = Fire(e, gun);
+        Tick(1f); // the gun cools down
         e.SetSignature(new object(), SignatureChannel.Reflection, 1000f, gun); // bright enough for any gate
 
         _zone.Entities.Remove(e);
@@ -752,10 +756,11 @@ public sealed class ContactRevealTests : IDisposable
         Fire(e, guns[1]);
         e.SetSignature(new object(), SignatureChannel.Reflection, 1000f, guns[0]); // the dying gun's glare outlasts the tick
         guns[0].EquippableItem.Durability = 0f;
-        for (var i = 0; i < 20 && Track(o, e) < .8f; i++) Tick(.01f);
-        Assert.True(Track(o, e) >= .8f, "fixture: o identifies e");
+        o.EntityInfoGathered[e] = 1f; // o's sensor keeps it at about 1 across the tick (decay .5 x dt)
 
         Tick(.01f);
+
+        Assert.True(Track(o, e) >= .8f, "fixture: o still identifies e");
 
         Assert.DoesNotContain(o.RevealsOf(e), r => r.Item == guns[0]);
         Assert.Contains(o.RevealsOf(e), r => r.Item == guns[1]);
