@@ -157,6 +157,8 @@ public class ActionGameManager : MonoBehaviour
     public Prototype FriendlyTargetIndicator;
     public PlaceUIElementWorldspace ViewDot;
     public Prototype LockIndicator;
+    // Presentation tuning: how far from the ship, toward the locker, the incoming-lock indicator sits.
+    public float IncomingLockIndicatorDistance = 30;
     public PlaceUIElementWorldspace[] Crosshairs;
     public GameObject HitMarker;
     public float HitMarkerDuration;
@@ -195,6 +197,7 @@ public class ActionGameManager : MonoBehaviour
     private TextMeshProUGUI _faceAimMark;
     private (HardpointData[] hardpoints, Transform[] barrels, PlaceUIElementWorldspace crosshair)[] _articulationGroups;
     private (LockWeapon targetLock, PlaceUIElementWorldspace indicator, Rotate spin)[] _lockingIndicators;
+    private (PlaceUIElementWorldspace indicator, Rotate spin) _incomingLockIndicator;
     private Dictionary<Entity, VisibleTargetIndicator> _visibleHostileIndicators = new Dictionary<Entity, VisibleTargetIndicator>();
     private Dictionary<Entity, VisibleTargetIndicator> _visibleFriendlyIndicators = new Dictionary<Entity, VisibleTargetIndicator>();
     private List<IDisposable> _shipSubscriptions = new List<IDisposable>();
@@ -999,6 +1002,8 @@ public class ActionGameManager : MonoBehaviour
         
         if(_lockingIndicators!=null) foreach(var (_, indicator, _) in _lockingIndicators)
             indicator.GetComponent<Prototype>().ReturnToPool();
+        if(_incomingLockIndicator.indicator != null) _incomingLockIndicator.indicator.GetComponent<Prototype>().ReturnToPool();
+        _incomingLockIndicator = default;
         DisablePlayerInput();
         Cursor.lockState = CursorLockMode.None;
         GameplayUI.gameObject.SetActive(false);
@@ -1142,6 +1147,10 @@ public class ActionGameManager : MonoBehaviour
                 var i = LockIndicator.Instantiate<PlaceUIElementWorldspace>();
                 return (x, i, i.GetComponent<Rotate>());
             }).ToArray();
+
+        var incoming = LockIndicator.Instantiate<PlaceUIElementWorldspace>();
+        incoming.gameObject.SetActive(false);
+        _incomingLockIndicator = (incoming, incoming.GetComponent<Rotate>());
     }
 
     private void UpdatePlayerPanel()
@@ -1444,11 +1453,33 @@ public class ActionGameManager : MonoBehaviour
             if(showLockingIndicator)
             {
                 indicator.Target = CurrentEntity.Target.Value.Entity.Position.ToUnity();
-                indicator.NoiseAmplitude = Settings.GameplaySettings.LockIndicatorNoiseAmplitude * (1 - targetLock.Lock);
-                indicator.NoiseFrequency = Settings.GameplaySettings.LockIndicatorFrequency.Evaluate(targetLock.Lock);
-                spin.Speed = Settings.GameplaySettings.LockSpinSpeed.Evaluate(targetLock.Lock);
+                ApplyLockProgress(indicator, spin, targetLock.Lock);
             }
         }
+
+        // The strongest lock on the player's ship, read only from IncomingLocks (never another ship's LockWeapon).
+        // Same curves as the outgoing indicator, driven by the warning's Strength.
+        var warnings = CurrentEntity.IncomingLocks;
+        var strongest = -1;
+        for (var w = 0; w < warnings.Count; w++)
+            if (strongest < 0 || warnings[w].Strength > warnings[strongest].Strength) strongest = w;
+        var (incomingIndicator, incomingSpin) = _incomingLockIndicator;
+        incomingIndicator.gameObject.SetActive(strongest >= 0);
+        if (strongest >= 0)
+        {
+            var warning = warnings[strongest];
+            incomingIndicator.Target = CurrentEntity.Position.ToUnity() +
+                new Vector3(warning.Bearing.x, 0, warning.Bearing.y) * IncomingLockIndicatorDistance;
+            ApplyLockProgress(incomingIndicator, incomingSpin, warning.Strength);
+        }
+    }
+
+    // The one lock-indicator curve: outgoing (the player's own lock) and incoming (the warning's strength) both tighten through it.
+    private void ApplyLockProgress(PlaceUIElementWorldspace indicator, Rotate spin, float progress)
+    {
+        indicator.NoiseAmplitude = Settings.GameplaySettings.LockIndicatorNoiseAmplitude * (1 - progress);
+        indicator.NoiseFrequency = Settings.GameplaySettings.LockIndicatorFrequency.Evaluate(progress);
+        spin.Speed = Settings.GameplaySettings.LockSpinSpeed.Evaluate(progress);
     }
 }
 

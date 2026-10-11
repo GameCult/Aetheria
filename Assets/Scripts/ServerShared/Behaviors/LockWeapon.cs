@@ -102,6 +102,7 @@ public class LockWeapon : InstantWeapon
             {
                 var lerp = 1 - unlerp(0, 90, degrees);
                 _lock = saturate(_lock + pow(lerp, DirectionImpact) * dt * LockSpeed * pow(Entity.EntityInfoGathered[target], SensorImpact));
+                target.ReceivePaint(Entity.Position, Item?.Data, Lock);
             }
             else _lock = saturate(_lock - dt * Decay);
         }
@@ -110,3 +111,18 @@ public class LockWeapon : InstantWeapon
     }
 }
 
+// What a painted ship senses of one beam on it (ruling sensor-stat-set item 4; strength per ruling
+// lock-warning-strength). Strength is the emitter's own lock progress at the paint, 0..1, never summed.
+public readonly struct LockWarning
+{
+    public readonly float2 Bearing;
+    public readonly EquippableItemData EmitterClass;
+    public readonly float Strength;
+
+    public LockWarning(float2 bearing, EquippableItemData emitterClass, float strength)
+    {
+        Bearing = bearing;
+        EmitterClass = emitterClass;
+        Strength = strength;
+    }
+}

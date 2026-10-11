@@ -226,7 +226,9 @@ public class Zone
         foreach(var agent in Agents)
             agent.Update(deltaTime);
 
-        foreach (var entity in Entities.ToArray()) entity.Update(deltaTime);
+        var entities = Entities.ToArray();
+        foreach (var entity in entities) entity.PublishPaints();
+        foreach (var entity in entities) entity.Update(deltaTime);
 
         StepMines(deltaTime);
         StepClouds(deltaTime);

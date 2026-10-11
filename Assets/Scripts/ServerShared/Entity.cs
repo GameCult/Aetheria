@@ -173,6 +173,12 @@ public abstract class Entity
     public Subject<Unit> HypothermiaDeath = new Subject<Unit>();
     public Subject<Entity> TargetedBy = new Subject<Entity>();
     public ReactiveProperty<int> TargetedByCount = new ReactiveProperty<int>(0);
+    // TargetedBy counts selection, which emits nothing; a lock warning comes only from a paint. LockWeapon.Execute
+    // reports each tick it paints this ship into the inbox; Update publishes the inbox once, so a warning lives
+    // exactly one tick after its last paint.
+    private readonly List<LockWarning> _paintInbox = new List<LockWarning>();
+    private readonly List<LockWarning> _incomingLocks = new List<LockWarning>();
+    public IReadOnlyList<LockWarning> IncomingLocks => _incomingLocks;
     public ReactiveProperty<SecurityLevel> CurrentSecurityLevel = new ReactiveProperty<SecurityLevel>(SecurityLevel.Open);
     public ReadOnlyReactiveProperty<bool> PresencePermitted;
     
@@ -783,6 +789,25 @@ public abstract class Entity
         VisibleEntities.Clear();
         VisibleEnemies.Clear();
         VisibleFriendlies.Clear();
+        _paintInbox.Clear();
+        _incomingLocks.Clear();
+    }
+
+    // Zone.Update runs this on every entity before any entity updates, so a paint made during tick N is published
+    // at the start of tick N+1 whatever order the emitter and this ship update in; a paint that stops is gone
+    // one tick later for every ordering.
+    internal void PublishPaints()
+    {
+        _incomingLocks.Clear();
+        _incomingLocks.AddRange(_paintInbox);
+        _paintInbox.Clear();
+    }
+
+    // The only caller is LockWeapon.Execute; strength is the emitter's own Lock at that paint.
+    internal void ReceivePaint(float3 emitterPosition, EquippableItemData emitterClass, float strength)
+    {
+        if (!_active) return;
+        _paintInbox.Add(new LockWarning(normalize((emitterPosition - Position).xz), emitterClass, strength));
     }
 
     public Entity(ItemManager itemManager, Zone zone, EquippableItem hull, EntitySettings settings)
