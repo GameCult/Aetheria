@@ -290,7 +290,7 @@ public class EntityInstance : MonoBehaviour
 
         _subscriptions.Add(Entity.HullDamage.Subscribe(_ =>
         {
-            if (Entity.Hull.Durability < .01f)
+            if (Entity.Hull.IsDestroyed)
             {
                 if (!this) return;
                 _destroyed = true;

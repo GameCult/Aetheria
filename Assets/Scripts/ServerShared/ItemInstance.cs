@@ -53,6 +53,9 @@ public class EquippableItem : CraftedItemInstance
     [JsonProperty("durability"), Key(7)] public float Durability;
     [JsonProperty("override"), Key(8)] public bool OverrideShutdown;
 
+    // The one rule for a destroyed item: its wear is spent.
+    [IgnoreMember] public bool IsDestroyed => Durability < .01f;
+
     // Cut 5 (docs/stats-and-power-cut.md §1.3, §0b "A power tier"): a player choice, stored on the unit rather
     // than the design, so two units of the same design can be prioritized differently. PowerTiers.Unassigned
     // until the first equip seeds a behaviour-kind default (EquippedItem's constructor) or the player overrides

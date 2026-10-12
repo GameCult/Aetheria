@@ -893,15 +893,22 @@ public abstract class Entity
     // The reveal book's one way in and its one membership gate (callers: Sense and PublishInbox, both in this file):
     // this observer saw `item` of `subject` act on `channel`, now, from this bearing. An item-less act (hull
     // radiation, a consumable) reveals nothing, and neither does a subject that is not in the zone: a departed
-    // subject's entries are never created or refreshed, from any caller. A later act of the same item replaces the
+    // subject's entries are never created or refreshed, from any caller, and neither does an item this observer
+    // perceives destroyed (PerceivesDestroyed). A later act of the same item replaces the
     // earlier one.
     internal void RecordReveal(Entity subject, EquippedItem item, SignatureChannel channel)
     {
-        if (!_active || item == null || !Zone.Entities.Contains(subject)) return;
+        if (!_active || item == null || !Zone.Entities.Contains(subject) || PerceivesDestroyed(subject, item)) return;
         if (!_reveals.TryGetValue(subject, out var book))
             _reveals[subject] = book = new Dictionary<EquippedItem, Reveal>();
         book[item] = new Reveal(item, channel, normalize((subject.Position - Position).xz), Zone.Time);
     }
+
+    // This observer resolves `subject`'s gear (ContactOf's Identified gate) and `item` of it is destroyed: the one rule
+    // for a destroyed item an observer perceives, read by the book's entry (RecordReveal) and its end (Sense).
+    private bool PerceivesDestroyed(Entity subject, EquippedItem item) =>
+        item.EquippableItem.IsDestroyed
+        && EntityInfoGathered.TryGetValue(subject, out var info) && info >= ItemManager.GameplaySettings.TargetGearInfoThreshold;
 
     // The book's one way out (caller: Sense): `item` null ends every reveal of `subject`, otherwise that item's.
     // The subject's key goes with its last entry.
@@ -964,15 +971,14 @@ public abstract class Entity
                 if (perSignature < 0f) perSignature = PassiveInfo(other.Position.xz, 1f);
                 if (signature.Strength * perSignature > threshold) RecordReveal(other, signature.Item, signature.Channel);
             }
-            // The observer resolves this ship's gear (ContactOf's own Identified gate), so it perceives an item of it
-            // destroyed. Ending after recording: a destroyed item's lingering flash cannot re-enter the book.
-            if (EntityInfoGathered.TryGetValue(other, out var info) && info >= ItemManager.GameplaySettings.TargetGearInfoThreshold
-                && _reveals.TryGetValue(other, out var book))
+            // The observer resolves this ship's gear (PerceivesDestroyed), so it perceives an item of it destroyed and
+            // that reveal ends here; RecordReveal refuses the same item's lingering flash.
+            if (_reveals.TryGetValue(other, out var book))
             {
-                _endedItems.Clear();
                 foreach (var item in book.Keys)
-                    if (item.EquippableItem.Durability < .01f) _endedItems.Add(item);
+                    if (PerceivesDestroyed(other, item)) _endedItems.Add(item);
                 for (var j = 0; j < _endedItems.Count; j++) EndReveals(other, _endedItems[j]);
+                _endedItems.Clear();
             }
         }
         // A subject that left the zone (death, dock, warp, any removal) is perceived gone under the light-act gate: as
@@ -987,7 +993,6 @@ public abstract class Entity
         // What stays of a departed subject is memory: pruned once its freshest entry is as old as ContactOf stops
         // remembering it.
         var memory = ItemManager.GameplaySettings.BearingMemory;
-        _agedSubjects.Clear();
         foreach (var pair in _reveals)
         {
             if (entities.Contains(pair.Key)) continue;
@@ -996,6 +1001,7 @@ public abstract class Entity
             if (Zone.Time - freshest >= memory) _agedSubjects.Add(pair.Key);
         }
         for (var i = 0; i < _agedSubjects.Count; i++) EndReveals(_agedSubjects[i], null);
+        _agedSubjects.Clear();
     }
 
     public Entity(ItemManager itemManager, Zone zone, EquippableItem hull, EntitySettings settings)
@@ -1012,10 +1018,10 @@ public abstract class Entity
         for(int i=0; i<itemManager.GameplaySettings.WeaponGroupCount; i++)
             WeaponGroups[i] = (new List<Weapon>(), new List<EquippedItem>());
 
-        ItemDestroyed = ItemDamage.Where(x => x.item.EquippableItem.Durability < .01f).Select(x=>x.item);
+        ItemDestroyed = ItemDamage.Where(x => x.item.EquippableItem.IsDestroyed).Select(x=>x.item);
         WeaponDestroyed = ItemDestroyed.Select(x => x.Behaviors.FirstOrDefault(b => b is Weapon) as Weapon).Where(x => x != null);
         HullArmorDepleted = ArmorDamage.Where(x => Armor[x.pos.x, x.pos.y] < .01f).Select(x => x.pos);
-        Death = HullDamage.Where(_ => Hull.Durability < .01f).Select(_ => CauseOfDeath.HullDestroyed)
+        Death = HullDamage.Where(_ => Hull.IsDestroyed).Select(_ => CauseOfDeath.HullDestroyed)
             .Merge(HeatstrokeDeath.Select(_ => CauseOfDeath.Heatstroke))
             .Merge(HypothermiaDeath.Select(_ => CauseOfDeath.Hypothermia))
             .Merge(ItemDestroyed.Where(i=>i.GetBehavior<Cockpit>()!=null).Select(_ => CauseOfDeath.CockpitDestroyed))
@@ -2193,7 +2199,7 @@ public class EquippedItem : IStatContext
                 deltaTemp * ItemManager.GameplaySettings.DeltaTempWearExponent
             ) * Data.Durability / Data.ThermalResilience;
         ThermalOnline.Value = ThermalPerformance > performanceThreshold || Entity.OverrideShutdown && EquippableItem.OverrideShutdown;
-        DurabilityOnline.Value = EquippableItem.Durability > .01f;
+        DurabilityOnline.Value = !EquippableItem.IsDestroyed;
         oldTemperature = temp;
     }
 
