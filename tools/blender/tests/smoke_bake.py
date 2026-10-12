@@ -223,42 +223,50 @@ def glb_image_sizes(path):
     return sorted(sizes)
 
 
-class FailingBake:
-    """Stands in for bpy.ops.object.bake: the n-th call raises, the others run the real bake."""
+class FailingCall:
+    """Stands in for a function: the n-th call raises, the others run the real one."""
 
     def __init__(self, real, fail_on):
         self.real, self.fail_on, self.calls = real, fail_on, 0
 
-    def __call__(self, **arguments):
+    def __call__(self, *args, **arguments):
         self.calls += 1
         if self.calls == self.fail_on:
-            raise RuntimeError("probe: the bake failed")
-        return self.real(**arguments)
+            raise RuntimeError("probe: forced failure")
+        return self.real(*args, **arguments)
 
 
-def failing_bake_pass(aetheria_ships, label, targets, materials, sources, replace):
-    """A bake that raises on its second call (the normal map's first target) leaves the Source, the materials, the images,
-    the scene settings and the selection as they were."""
-    real_bpy = aetheria_ships.bpy
-    patched = FailingBake(bpy.ops.object.bake, 2)
-    proxy = {name: getattr(bpy, name) for name in dir(bpy) if not name.startswith("__")}
-    proxy["ops"] = types.SimpleNamespace(object=types.SimpleNamespace(bake=patched))
+def failing_pass(aetheria_ships, label, targets, materials, sources, replace, site, fail_on):
+    """A run whose fail_on-th call of site raises (the Cycles bake, or one of the add-on's own commit steps) leaves the
+    Source, the materials, the images, the scene settings and the selection as they were."""
+    real_bpy, real_site = aetheria_ships.bpy, getattr(aetheria_ships, site, None)
+    if site == "bake":
+        patched = FailingCall(bpy.ops.object.bake, fail_on)
+        proxy = {name: getattr(bpy, name) for name in dir(bpy) if not name.startswith("__")}
+        proxy["ops"] = types.SimpleNamespace(object=types.SimpleNamespace(bake=patched))
+        replacement = {"bpy": types.SimpleNamespace(**proxy)}
+    else:
+        patched = FailingCall(real_site, fail_on)
+        replacement = {site: patched}
 
     def state():
         return (wiring(materials), source_state(sources), scene_state(bpy.context.scene), sorted(i.session_uid for i in bpy.data.images),
-                [len(t.data.materials) for t in targets])
+                [len(t.data.materials) for t in targets], sorted(m.name for m in bpy.data.materials))
 
     before = state()
-    aetheria_ships.bpy = types.SimpleNamespace(**proxy)
+    for name, value in replacement.items():
+        setattr(aetheria_ships, name, value)
     try:
         result, message = run(bpy.ops.aetheria.bake_from_source, replace=replace)
     finally:
         aetheria_ships.bpy = real_bpy
-    require(patched.calls == 2, f"{label}: the forced failure did not land on the second bake call ({patched.calls})")
-    require(result == {"CANCELLED"}, f"{label}: a failing bake was not refused")
+        if site != "bake":
+            setattr(aetheria_ships, site, real_site)
+    require(patched.calls >= fail_on, f"{label}: the forced failure never landed ({patched.calls} calls)")
+    require(result == {"CANCELLED"}, f"{label}: a failing run was not refused")
     after = state()
-    for part, name in enumerate(("wiring", "Source materials", "scene settings and selection", "images", "material slots")):
-        require(before[part] == after[part], f"{label}: a failed bake left the {name} changed")
+    for part, name in enumerate(("wiring", "Source materials", "scene settings and selection", "images", "material slots", "materials")):
+        require(before[part] == after[part], f"{label}: a failed run left the {name} changed")
 
 
 def refusal(label, expected, snapshot, offenders=None):
@@ -300,6 +308,12 @@ def passes_one_to_three(aetheria_ships, scene):
     collection, source = import_fixture()
     bsdf = next(node for node in source.material_slots[0].material.node_tree.nodes if node.type == "BSDF_PRINCIPLED")
     require(bsdf.inputs["Metallic"].default_value == 1.0, "The importer no longer gives the fixture Metallic 1.0")
+    # A linked Metallic and a Transmission Weight darken the bake just as the value does; both are neutralised and restored.
+    source_tree = source.material_slots[0].material.node_tree
+    one = source_tree.nodes.new("ShaderNodeValue")
+    one.outputs[0].default_value = 1.0
+    source_tree.links.new(one.outputs[0], bsdf.inputs["Metallic"])
+    bsdf.inputs["Transmission Weight"].default_value = 1.0
     select([source])
     scene.aetheria_new_ship_id, scene.aetheria_new_ship_name = SHIP_ID, "Smoke Bake"
     scene.aetheria_new_ship_like, scene.aetheria_new_ship_length = "Djinni", 10
@@ -322,7 +336,8 @@ def passes_one_to_three(aetheria_ships, scene):
     sources = [source]
 
     # Pass 1: the albedo is not black, the normal is tangent space, and a failed bake changes nothing.
-    failing_bake_pass(aetheria_ships, "Pass 1 failing", [hull], [hull_material], sources, replace=False)
+    failing_pass(aetheria_ships, "Pass 1 failing bake", [hull], [hull_material], sources, False, "bake", 2)
+    failing_pass(aetheria_ships, "Pass 1 failing wiring", [hull], [hull_material], sources, False, "_link_into", 2)
     require(bake_images() == (None, None), "Pass 1: a failed bake left images behind")
     state_source, state_scene = source_state(sources), scene_state(scene)
     result, message = run(bpy.ops.aetheria.bake_from_source)
@@ -342,6 +357,24 @@ def passes_one_to_three(aetheria_ships, scene):
     albedo, normal = check_images("Pass 2 evaluated", [hull_material.name])
     check_maps("Pass 2 evaluated", albedo, normal)
     hull.modifiers.clear()
+    z_default = float(pixels(normal)[:, 2].mean())
+    preferences = bpy.context.preferences.addons["aetheria_ships"].preferences
+    preferences.bake_cage_extrusion = 0.02
+    result, message = run(bpy.ops.aetheria.bake_from_source, replace=True)
+    require(result == {"FINISHED"}, f"Pass 2: the 0.02 cage bake was refused: {message}")
+    z_tight = float(pixels(bake_images()[1])[:, 2].mean())
+    preferences.bake_cage_extrusion = 0.1
+    result, message = run(bpy.ops.aetheria.bake_from_source, replace=True)
+    require(result == {"FINISHED"}, f"Pass 2: the 0.1 cage bake was refused: {message}")
+    z_open = float(pixels(bake_images()[1])[:, 2].mean())
+    preferences.bake_max_ray_distance = 1.0
+    result, message = run(bpy.ops.aetheria.bake_from_source, replace=True)
+    require(result == {"FINISHED"}, f"Pass 2: the 1 m ray bake was refused: {message}")
+    z_short = float(pixels(bake_images()[1])[:, 2].mean())
+    preferences.bake_cage_extrusion, preferences.bake_max_ray_distance = 0.05, 0.0
+    print(f"PASS 2 preferences: normal z {z_tight:.4f} at cage 0.02, {z_default:.4f} at 0.05 (evaluated), {z_open:.4f} at 0.1, "
+          f"{z_short:.4f} at 0.1 with a 1 m ray")
+    require(z_tight > z_open + 0.03 and z_short < z_open - 0.02, "Pass 2: the cage extrusion and max ray distance do not decide the bake")
 
     wing, fin = make_render(collection, root, source, "Wing"), make_render(collection, root, source, "Fin")
     for obj in (wing, fin):
@@ -354,6 +387,9 @@ def passes_one_to_three(aetheria_ships, scene):
     select([hull])
     result, message = run(bpy.ops.aetheria.bake_from_source, replace=True)
     require(result == {"FINISHED"}, f"Pass 2: the left-half bake was refused: {message}")
+    select([hull, wing, fin], active=hull)
+    failing_pass(aetheria_ships, "Pass 2 failing with bare meshes", [hull, wing, fin], [hull_material], sources, True, "bake", 2)
+    select([hull])
     alone = written(bake_images()[0]).reshape(SIZE[0], SIZE[0])  # rows are v, columns are u
     select([hull, wing, fin], active=hull)
     result, message = run(bpy.ops.aetheria.bake_from_source, replace=True)
@@ -416,7 +452,8 @@ def passes_one_to_three(aetheria_ships, scene):
     require(result == {"CANCELLED"} and "confirm the replace" in message, f"Pass 3: a bake over wired images was not refused: {message}")
     require(wiring(materials) == before and (digest(old_albedo), digest(old_normal)) == old_digest and bake_images() == (old_albedo, old_normal),
             "Pass 3: a refused replace changed the images or the wiring")
-    failing_bake_pass(aetheria_ships, "Pass 3 failing replace", renders, materials, sources, replace=True)
+    failing_pass(aetheria_ships, "Pass 3 failing replace bake", renders, materials, sources, True, "bake", 2)
+    failing_pass(aetheria_ships, "Pass 3 failing replace wiring", renders, materials, sources, True, "_remove_node", 1)
     require(bake_images() == (old_albedo, old_normal) and (digest(old_albedo), digest(old_normal)) == old_digest,
             "Pass 3: a failed replace changed the old images")
     result, message = run(bpy.ops.aetheria.bake_from_source, replace=True)
