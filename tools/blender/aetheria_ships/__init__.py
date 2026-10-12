@@ -359,8 +359,14 @@ class AETHERIA_OT_mirror_mount(bpy.types.Operator):
             local = _root_local(root, mount)
             if abs(local.x) < CENTRELINE:
                 raise ValueError("The weapon mount is on the centreline; it has no mirror image")
+            # The twin's footprint is the reflection of this one's cells; its object stands in the cell that Position
+            # puts it in (never at -x, whose cell lookup breaks ties one way), so Package derives the Position back.
+            width, height = _parse_footprint(row.footprint)[0][:2]
+            position = hull_grid.mirror_position(_derived_position(state, origin, local, row.footprint), width,
+                                                 state.width)
+            twin_x = hull_grid.cell_centre(origin, *hull_grid.mounted_cell(position, width, height))[0]
             mirrored = _add_mount(collection, state, root, origin, row.kind,
-                                  hull_grid.mirror_rotation(int(row.rotation)), (-local.x, local.y, local.z),
+                                  hull_grid.mirror_rotation(int(row.rotation)), (twin_x, local.y, local.z),
                                   hull_grid.mirror_footprint(row.footprint))
             new_row = _mount_row(state, mirrored["aetheria.id"])
             for name in ("armor", "firing_arc"):  # the author's own numbers, copied; the helper invents none

@@ -115,10 +115,27 @@ _FACING_YAW = {
 }
 
 
+def _centre_offset(n):
+    """The footprint cell, counted from its origin, that stands for an n-cell extent's centre: the lower of the two
+    middle cells when n is even."""
+    return (n - 1) // 2
+
+
 def mounted_position(cell, footprint_w, footprint_h):
     """The hardpoint Position (its footprint's origin cell) whose w x h footprint is centred on cell: ShipAuthoringStore
     places footprint cell (cx, cy) at Position + (cx, cy), and the footprint's centre is ((w - 1) // 2, (h - 1) // 2)."""
-    return (cell[0] - (footprint_w - 1) // 2, cell[1] - (footprint_h - 1) // 2)
+    return (cell[0] - _centre_offset(footprint_w), cell[1] - _centre_offset(footprint_h))
+
+
+def mounted_cell(position, footprint_w, footprint_h):
+    """The cell a mount's object stands in for a hardpoint at position: the inverse of mounted_position."""
+    return (position[0] + _centre_offset(footprint_w), position[1] + _centre_offset(footprint_h))
+
+
+def mirror_position(position, footprint_w, grid_w):
+    """The Position of the mirror image of a footprint across the grid's centre line: a footprint on cells [a, a + w) of
+    a grid_w-wide grid mirrors to cells [grid_w - a - w, grid_w - a). It depends on the footprint's extent alone."""
+    return (grid_w - position[0] - footprint_w, position[1])
 
 
 def facing_yaw(rotation):
