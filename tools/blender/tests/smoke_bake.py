@@ -264,6 +264,8 @@ def failing_pass(aetheria_ships, label, targets, materials, sources, replace, si
             setattr(aetheria_ships, site, real_site)
     require(patched.calls >= fail_on, f"{label}: the forced failure never landed ({patched.calls} calls)")
     require(result == {"CANCELLED"}, f"{label}: a failing run was not refused")
+    if site == "bake":
+        require("The bake failed" in message and "probe" not in message, f"{label}: Blender's own text reached the report ({message!r})")
     after = state()
     for part, name in enumerate(("wiring", "Source materials", "scene settings and selection", "images", "material slots", "materials")):
         require(before[part] == after[part], f"{label}: a failed run left the {name} changed")
@@ -331,6 +333,8 @@ def passes_one_to_three(aetheria_ships, scene):
     bpy.ops.uv.smart_project()
     bpy.ops.object.mode_set(mode="OBJECT")
     hull_material = with_material(hull, "Hull Paint")
+    paint = hull_material.node_tree.nodes.new("ShaderNodeRGB")  # her own Base Color link, which a failed bake puts back
+    hull_material.node_tree.links.new(paint.outputs[0], hull_material.node_tree.nodes["Principled BSDF"].inputs["Base Color"])
     scene.render.engine, scene.cycles.samples, scene.cycles.device = "BLENDER_EEVEE", 77, "GPU"
     select([hull])
     sources = [source]
@@ -374,7 +378,9 @@ def passes_one_to_three(aetheria_ships, scene):
     preferences.bake_cage_extrusion, preferences.bake_max_ray_distance = 0.05, 0.0
     print(f"PASS 2 preferences: normal z {z_tight:.4f} at cage 0.02, {z_default:.4f} at 0.05 (evaluated), {z_open:.4f} at 0.1, "
           f"{z_short:.4f} at 0.1 with a 1 m ray")
-    require(z_tight > z_open + 0.03 and z_short < z_open - 0.02, "Pass 2: the cage extrusion and max ray distance do not decide the bake")
+    # Measured on Blender 5.2.2 at 256: 0.908 at 0.02 m, 0.833 at 0.1 m, 0.547 with the 1 m ray; windows of 0.02 either side.
+    require(abs(z_tight - 0.908) < 0.02 and abs(z_open - 0.833) < 0.02 and z_short < z_open - 0.1,
+            "Pass 2: the cage extrusion and max ray distance do not decide the bake")
 
     wing, fin = make_render(collection, root, source, "Wing"), make_render(collection, root, source, "Fin")
     for obj in (wing, fin):
@@ -412,7 +418,7 @@ def passes_one_to_three(aetheria_ships, scene):
     def snapshot():
         return (len(bpy.data.images), wiring(materials), scene.render.engine, scene.cycles.samples, source_state(sources))
 
-    select([hull])
+    select([hull, wing], active=hull)
     layer = hull.data.uv_layers[0]
     uv_name = layer.name
     hull.data.uv_layers.remove(layer)
@@ -429,7 +435,7 @@ def passes_one_to_three(aetheria_ships, scene):
     for obj in renders:
         obj.select_set(False)
     refusal("Nothing selected", "Select the render meshes", snapshot)
-    select([hull])
+    select([hull, wing], active=hull)
     tree = hull_material.node_tree
     principled = next(node for node in tree.nodes if node.type == "BSDF_PRINCIPLED")
     position = principled.location.copy()
