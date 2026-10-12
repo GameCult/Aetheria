@@ -397,6 +397,7 @@ public sealed class ContactRevealTests : IDisposable
         var p = t.Add(float3(0, 0, 1000), new[] { "Eye" });
         var o = t.Add(float3(0, 0, 0), new[] { "Eye" });
         var sensor = p.Equipment.SelectMany(i => i.Behaviors).OfType<Sensor>().Single();
+        t.Tick(.1f); // a sensor's first tick opens its ping cooldown; Ping() is refused before it
         if (ping) sensor.Ping();
         var light = new List<float> { p.Visibility };
         for (var tick = 0; tick < 10; tick++)
@@ -657,6 +658,30 @@ public sealed class ContactRevealTests : IDisposable
         Tick(.1f);
 
         Assert.Equal(ended ? 0 : 1, o.RevealsOf(e).Count());
+    }
+
+    // The departure records the subject's whole Visibility: no channel is excepted. The light at removal sits on each
+    // channel in turn, a hair above the observer's gate, and ends the reveals whichever channel carries it.
+    [Theory]
+    [InlineData(SignatureChannel.Thermal)]
+    [InlineData(SignatureChannel.DrivePlume)]
+    [InlineData(SignatureChannel.Reflection)]
+    [InlineData(SignatureChannel.LaunchFlash)]
+    public void ADepartureCountsLightOnEveryChannel(SignatureChannel channel)
+    {
+        var e = Add(float3(0, 0, 100), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        Fire(e, Guns(e)[0]);
+        Tick(.01f);
+        Assert.Single(o.RevealsOf(e));
+        var gate = _items.GameplaySettings.TargetDetectionInfoThreshold / o.PassiveInfo(e.Position.xz, 1f);
+        foreach (var source in e.VisibilitySources.Keys.ToArray()) e.SetSignature(source, SignatureChannel.Reflection, 0f, Guns(e)[0]);
+        e.SetSignature(new object(), channel, gate * 1.01f, Guns(e)[0]);
+
+        _zone.Entities.Remove(e);
+        Tick(.1f);
+
+        Assert.Empty(o.RevealsOf(e));
     }
 
     // The gate is strict, as the light-act gate is: a light at removal that lands exactly on the threshold ends nothing.
