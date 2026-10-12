@@ -12,6 +12,62 @@ Every anchor below is against `origin/master` `f1dee184` and was read in a spars
 scratch worktree on 2026-10-03, unless the line or its section says otherwise. The section "Demo scope" holds
 the 2026-10-06 re-scope: the release this campaign plans is the demo.
 
+## Cut sequence
+
+Cuts without a `cut_spec`, withdrawn 2026-10-12 under map-only-what-runs: a spec is admitted when Self is about to dispatch the cut. Each line is a cut label, its title, and what it waits on; re-map it by a fresh Imagination pass against the Body when the frontier reaches it.
+
+- audio-1: First sound: native Unity audio presents fire, charge, impact and destruction; the dead Wwise-keyed path is deleted. Waits on: feedback-1 (blocked on feedback-1).
+- loot-3: Loot 3: the grab is presented, not simulated, in Unity. TractorBeam becomes a grab presenter, the binder's resolvers. Waits on: loot-2 (blocked on loot-2).
+- ballistic-ammo: Ballistic weapons fire real rounds: a weapon that draws rounds takes no reactor power, every magazine comes from cargo. Waits on: mining-merge (refresh needed (ruling ballistics-cycle-power contradicts its DrawsPower rule)).
+- material-graph: Material graph record and judge: MaterialGraph in Aetheria.cc, the release whitelist, closed vocabularies, scopes, the. Waits on: nothing in the mind (held post-demo by ruling demo-material-scope).
+- material-library-export: Blender material export: a faithful node-group dumper, Export and Check Material Graph calling AetherDb, the library. Waits on: material-graph (held post-demo by ruling demo-material-scope; blocked on material-graph).
+- hull-bakes: MaterialBakes: content-addressed pair and wear bakes dispatched from generated kernels, refcounted, read back and. Waits on: material-lowering (held post-demo by ruling demo-material-scope; blocked on material-lowering).
+- material-lowering: Material lowering: MaterialGraph to CultMath expression IR, generated compute kernels per graph (surface, worn. Waits on: material-graph, material-library-export (held post-demo by ruling demo-material-scope; blocked on material-graph).
+- ships-studio-schematic: Studio draws a mod hull's shipped schematic strokes under its cell grid and paints hardpoint footprints, with the rules. Waits on: nothing in the mind (ready but not queued).
+- controls-ai-bearing: Controls 5: AI ships turn to bring their chosen weapon group to bear (broadsides for side mounts, the nose for forward. Waits on: controls-helm, controls-mount-aim (refresh needed (Broadside scenario gone)).
+- controls-hud: Controls 3: the HUD shows each weapon group's solution state on its crosshair (on solution, free, holding), arcs in the. Waits on: controls-mount-aim (refresh needed (HUD overlap, 48-commit drift)).
+- ai-autofire: Missiles 4: the AI fires through the same chooser. Combat and TurretController take each weapon's subject from. Waits on: autofire-threshold, controls-ai-bearing (blocked on autofire-threshold and controls-ai-bearing).
+- missile-records: Missiles 1: a guided shot is a stepped munition record: PN on its own seeker, reacquisition, a fuel budget spent by its. Waits on: missile-stats (blocked on the missile chain head; refresh needed).
+- missile-odds: Missiles 1c (r2): a guided round's hit is one roll at its terminal gate, priced by FireControl from its miss, seeker. Waits on: missile-records, evasion-term (blocked on missile-records).
+- missile-presenter: Missiles 1b (r3): GuidedProjectile presents the stepped munition drawn ahead by Lead; its binding ends on sim events. Waits on: missile-odds, controls-helm, sim-speed (blocked on missile-odds).
+- loot-2: Loot 2 (r2): pickup is a capability. The Tractor Beam becomes Tool gear whose Pickup behaviour spins the beam up in sim. Waits on: loot-1, feedback-1 (blocked on loot-1 and feedback-1; refresh needed).
+- munition-jink: Missiles 2b: inbound rounds make a munition jink above its reserve; the jink spends its fuel and reaches the PD price. Waits on: munition-shots (blocked on munition-shots).
+- munition-shots: Missiles 2 (r5): shots take a munition subject; PD at a munition is priced through the ships' evasion core (own. Waits on: missile-odds, controls-mount-aim (blocked on missile-odds; envelope refresh needed).
+- faction-play-2: Faction play 2 (r2, master 4d664b53): pack slots and Lucent's duel, hull break-off to a refuge, and ping cadence, all. Waits on: faction-play-1, feedback-1 (blocked on faction-play-1 merge and feedback-1).
+- faction-play-3: Faction play 3 (r2, master 4d664b53): support ships and anchors, and the cast played in Terminus (Demo): Pirates. Waits on: faction-play-2, demo-galaxy (blocked on faction-play-2).
+- faction-play-4: Faction play 4 (r3): the tender loop on real rounds, full-game scope. A member low on magazines rearms from its tender. Waits on: faction-play-3, ballistic-ammo (blocked on faction-play-3 and ballistic-ammo).
+- retire-prelude: Retire the prelude and the tutorial: Galaxy.IsPrelude, SavedGame.IsTutorial, TutorialGalaxy and. Waits on: demo-galaxy, boss-gate, retire-longinusx, gear-without-presence (refresh needed (96-commit drift)).
+- autofire-threshold: Missiles 3 (r5): autofire in the sim. Each autofire gun picks its subject through ChooseSubject (munitions first) and. Waits on: munition-shots (blocked on munition-shots).
+- boss-hull-derived: A faction's boss hull is derived (r2): HullData.Boss on a hull the faction makes a product of, set by its own. Waits on: boss-gate, pirates-record, package-product (blocked on package-product).
+- autofire-controls: Missiles 3b (r2): the player sets autofire; the HUD marks munitions and autofire groups; the Point Defense scenario. Waits on: autofire-threshold, controls-hud, pd-gear (blocked on autofire-threshold and controls-hud).
+- generic-design-names: Designs get generic names and branding moves to products: 43 gear and weapon designs renamed, brand text moved to their. Waits on: lot-product, product-titles, pd-gear (refresh needed; after the visibility chain by ruling catalog-breadth-after-visibility).
+- broadside-gunboat: Broadside returns on a real gunboat: the operator's Zhestokost line-gunboat package (side-rotated Ballistic hardpoints). Waits on: mods-in-tree, package-product (blocked on package-product and the operator package).
+- demo-cast-hulls: Demo cast hulls land (r3): the operator's five packages under GameData/Mods, each its maker's ship under its own name. Waits on: mods-in-tree, pirates-record, package-product, boss-hull-derived (blocked on package-product, boss-hull-derived and operator packages).
+- minor-power-makers: Aya Collective, Megiddo and Orbital Forge in the catalog: an AetherDb one-shot authors three manufacturer-only. Waits on: maker-only-faction, pd-gear, pirates-record, gear-without-presence, generic-design-names (blocked on maker-only-faction merge and generic-design-names; ruling catalog-breadth-after-visibility).
+- ships-addon-mesh-mounts: Blender thruster and radiator mounts (from mounts r3): meshes from selected faces or a tagged mesh, each with its row. Waits on: ships-addon-mounts (blocked on ships-addon-mounts).
+- ships-addon-mask-bakes: Blender mask helpers (from paint r2): Suggest Regions by weighted k-means in CIELAB, Bake Starting Mask, Bake Wear from. Waits on: ships-addon-paint (blocked on ships-addon-paint).
+- ships-addon-paint: Blender hull mask record (r3): mask slot, New Mask, factory livery, Package UV0 and mask checks, ship.mask.png, region. Waits on: ships-hull-material, ships-addon-frame, ships-addon-guards (blocked on ships-hull-material (premise obsolete under mask-channels-place-materials)).
+- matrix-coilguns: Weapon matrix, EMPS row: Light Coilgun, Coilgun, Railgun and Heavy Railgun at Small to ExtraLarge, with roles and two. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-after-visibility).
+- matrix-beams: Weapon matrix, Laser and PPC rows: Medium and Large Beam Lasers, Heavy Ion Cannon and Ion Lance, with roles and two. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-after-visibility).
+- matrix-cannons: Weapon matrix, XPS row: Heavy Autocannon (Large) and Siege Cannon (ExtraLarge), with roles and two makers each. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-after-visibility).
+- matrix-lightning: Weapon matrix, ESD row: Arc Thrower (Small), Storm Projector (Medium) and Tempest Projector (ExtraLarge) beside plight. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-after-visibility).
+- matrix-missiles: Weapon matrix, Missile and MicroMissile rows: Light and Heavy Missile Launchers, Torpedo Launcher and Micromissile. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-after-visibility).
+- caliber-bands: Caliber is the size: five records recalibered, every weapon footprint held in its caliber's band, and every matrix cell. Waits on: matrix-coilguns, matrix-cannons, matrix-beams, matrix-lightning, matrix-missiles, matrix-mines, matrix-flamers (blocked on the seven matrix cuts; ruling catalog-breadth-after-visibility).
+- matrix-flamers: Weapon matrix, Jet row: Light Flamethrower, Flamethrower, Heavy Flamethrower and Inferno Projector, thermal pellet guns. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-after-visibility).
+- matrix-mines: Weapon matrix, Mine row: Mine Rack, Heavy Mine Layer and Minefield Projector beside the Mine Launcher, with warhead and. Waits on: roles-backfill (refresh needed; ruling catalog-breadth-after-visibility).
+- product-lines-gear: Gear product lines: the twenty-two second-maker products of follow-up gear-product-lines, with role quality from maker. Waits on: generic-design-names, roles-backfill (blocked on generic-design-names; ruling catalog-breadth-after-visibility).
+- product-lines-weapons: Weapon product lines (r2): r1's nineteen products plus a second maker for the Mine Launcher, authored after. Waits on: generic-design-names, lot-product, roles-backfill (blocked on generic-design-names; ruling catalog-breadth-after-visibility).
+- boost-gear-combat: Stat boosters, combat, tiered by size: a modest 1x1 and a strong 2x2 each for Damage and Range on every gun through. Waits on: boost-gear-systems (blocked on boost-gear-systems; ruling catalog-breadth-after-visibility).
+- boost-gear-systems: Stat boosters, systems, tiered by size: a modest 1x1 and a strong 2x2 each for Thrust, Signal, Emissivity and Reactor. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-after-visibility).
+- ships-player: S3, agent side: a player built by AetheriaBuild composes and preloads mod ships with Aetheria materials only, radiators. Waits on: ships-mounts, ships-hull-material, player-build (blocked on ships-hull-material).
+- ships-addon-gizmos: Blender Ship Mounts tool (r6): gizmos select and drag mounts snapped to cells in Ship Root's frame; arc fans from the. Waits on: ships-addon-mesh-mounts (blocked on ships-addon-mesh-mounts).
+- link-rig-presenter: Unity drives each driven joint's chain (r2): a MountRig aims its lead muzzle along the sim's solution, slewed at the. Waits on: link-rig-record, ships-addon-link-package (blocked on ships-addon-link-package).
+- ships-addon-link-package: Blender Package for moving parts (r3): joints from bone IK settings, each weapon mount's joint from its bone ancestry. Waits on: link-rig-record, ships-addon-mounts, ships-addon-mesh-mounts (blocked on ships-addon-mounts and mesh-mounts).
+- vector-rows-allocator: Vectored rows flown: each row is one actuator in the allocator's one solve, picking throttle and angle step in its slew. Waits on: vector-rows-record, thrust-allocator-core, thrust-allocator, envelope-from-columns (blocked on vector-rows-record).
+- forge-seed: Seed GameCult/Aetheria on the Eureka forge: every branch, tag and LFS object, nothing repointed. Waits on: nothing in the mind (forge move not started this session).
+- forge-switch: Switch Aetheria's primary host to the forge: freeze, final re-sync, .lfsconfig, push mirror created. Waits on: forge-seed (blocked on forge-seed).
+- forge-verify: Verify the move: GitHub mirror receives pushes, fresh clones resolve LFS only via the forge. Waits on: forge-switch (blocked on forge-switch).
+
 ## Body facts
 
 **B1. No impact event carries a world point.**
