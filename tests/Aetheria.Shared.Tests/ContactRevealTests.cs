@@ -1082,7 +1082,7 @@ public sealed class ContactRevealTests : IDisposable
     // The first field path from `root` to `target`, not entering the zone or the item manager, or null.
     private static string PathFrom(object root, object target)
     {
-        var seen = new HashSet<object>(ReferenceEqualityComparer.Instance) { root };
+        var seen = new HashSet<object>(System.Collections.Generic.ReferenceEqualityComparer.Instance) { root };
         var queue = new Queue<(object node, string path)>();
         queue.Enqueue((root, "observer"));
         while (queue.Count > 0)
