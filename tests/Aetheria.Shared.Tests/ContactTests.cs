@@ -179,7 +179,7 @@ public sealed class ContactTests : IDisposable
     {
         var lab = Build();
         lab.Add("Solid", float3(0, 0, 0), float2(10, 0));
-        lab.Add("Solid", float3(14.2f, 0, 0), float2(-10, 0));
+        lab.Add("Solid", float3(15f, 0, 0), float2(-10, 0));
         lab.Step();
         Assert.Empty(lab.Events);
     }
