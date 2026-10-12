@@ -1016,7 +1016,7 @@ public abstract class Entity
             }
         }
         // A subject that left the zone (death, dock, warp, any removal) is perceived gone under the light-act gate: as
-        // bright as its non-Emission signature was at removal, from where it was. A re-admitted subject did not leave.
+        // bright as its whole Visibility was at removal, from where it was. A re-admitted subject did not leave.
         var departures = Zone.Departures;
         for (var i = 0; i < departures.Count; i++)
         {
