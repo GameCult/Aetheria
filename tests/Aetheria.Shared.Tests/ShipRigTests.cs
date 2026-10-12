@@ -115,20 +115,24 @@ public sealed class ShipRigTests : IDisposable
         OneGun(90, (new[] { 0f, -1f, 0f }, -45f, 45f)).Validate();
     }
 
+    // A joint has one actuator (ruling one-joint-one-actuator): a gun whose reach runs through a joint another gun drives is
+    // refused, so a child's reach never borrows a parent's sweep and its parent's pose is never two solvers' outcome.
     [Fact]
-    public void AChainStopsAtADrivenAncestorSoItsYawDoesNotCountForTheChild()
+    public void AGunWhoseReachRunsThroughAJointAnotherGunDrivesIsRefused()
     {
         var ship = Armed("outer", "inner");
-        ship.Visual.Joints.Add(Joint("outer", null, (Up, -180f, 180f)));
+        ship.Visual.Joints.Add(Joint("outer", null, (Up, -90f, 90f)));
         ship.Visual.Joints.Add(Joint("inner", "outer", (Up, -10f, 10f)));
         ship.Hull.Hardpoints.Single(hardpoint => hardpoint.Transform == "g1").FiringArc = 20;
-        ship.Validate();
-        ship.Hull.Hardpoints.Single(hardpoint => hardpoint.Transform == "g1").FiringArc = 100;
-        Assert.Contains("joint inner chain reaches 20 degrees", Refusal(ship));
+        var message = Refusal(ship);
+        Assert.Contains("joint inner reaches through joint outer, which another actuator drives", message);
+        Assert.Contains("a joint has one actuator", message);
 
         // With nothing riding the outer joint it is only a link in the inner chain, and counts.
         ship.Visual.Anchors.Single(anchor => anchor.Id == "g0").Joint = null;
         ship.Validate();
+        ship.Hull.Hardpoints.Single(hardpoint => hardpoint.Transform == "g1").FiringArc = 201;
+        Assert.Contains("joint inner chain reaches 200 degrees", Refusal(ship));
     }
 
     [Fact]
@@ -351,12 +355,12 @@ public sealed class ShipRigTests : IDisposable
     // ---- ShipModPlan.Rigs ----
 
     [Fact]
-    public void RigsAreOnePerDrivenJointInHullOrderOfTheirFirstWeaponWithChainsThatStopAtDrivenAncestors()
+    public void RigsAreOnePerDrivenJointInHullOrderOfTheirFirstWeapon()
     {
         // g0 on the inner joint, g1 and g2 on the outer one (g2 authored first among the anchors).
         var ship = Armed("barrel", "turret", "turret");
         ship.Visual.Joints.Add(Joint("turret", null, (Up, -180f, 180f)));
-        ship.Visual.Joints.Add(Joint("barrel", "turret", (Up, -180f, 180f)));
+        ship.Visual.Joints.Add(Joint("barrel", null, (Up, -180f, 180f)));
         ship.Visual.Anchors.RemoveAll(anchor => anchor.Id == "g1.muzzle");
         ship.Visual.Anchors.Add(new ShipAnchor { Id = "g1.b", Role = "weapon-muzzle", ModelNodeId = "g1-b", ParentId = "g1", Order = 1 });
         ship.Visual.Anchors.Add(new ShipAnchor { Id = "g1.z", Role = "weapon-muzzle", ModelNodeId = "g1-z", ParentId = "g1", Order = 0 });
@@ -413,6 +417,22 @@ public sealed class ShipRigTests : IDisposable
         var rig = Assert.Single(ShipModPlan.Build(ship.Hull, ship.Visual).Rigs);
 
         Assert.Equal(new[] { "arm", "elbow", "wrist" }, rig.Chain);
+    }
+
+    // A rig is a gun group's: a thruster row on a joint of its own is drawn by nobody here, and adds no entry.
+    [Fact]
+    public void AThrusterRowOnAJointAddsNoRigBesideTheGunRigs()
+    {
+        var ship = Armed("j");
+        ship.Visual.Joints.Add(Joint("j", null, (Up, -180f, 180f)));
+        ship.Visual.Joints.Add(Joint("k", null, (Up, -45f, 45f)));
+        var thruster = ship.Hull.Hardpoints.Single(hardpoint => hardpoint.Type == HardpointType.Thruster);
+        thruster.FiringArc = 90;
+        ship.Visual.Anchors.Single(anchor => anchor.Id == thruster.Transform).Joint = "k";
+
+        var rig = Assert.Single(ShipModPlan.Build(ship.Hull, ship.Visual).Rigs);
+
+        Assert.Equal(("j", "g0"), (rig.Joint, rig.LeadMount));
     }
 
     [Fact]
@@ -516,12 +536,12 @@ public sealed class ShipRigTests : IDisposable
         // A row with a member on no joint.
         Assert.Contains("must ride it too", Refusal(OnJoint(Thrusting(("r", 90f, "j"), ("r", 90f, null)), "j", (Up, -45f, 45f))));
         // A joint carrying two rows, and one carrying two rows of one.
-        Assert.Contains("carries thruster hardpoints t0 and t1 of different rows",
+        Assert.Contains("joint j carries more than one actuator (t0 and t1)",
             Refusal(OnJoint(Thrusting(("r", 90f, "j"), ("s", 90f, "j")), "j", (Up, -45f, 45f))));
-        Assert.Contains("carries thruster hardpoints t0 and t1 of different rows",
+        Assert.Contains("joint j carries more than one actuator (t0 and t1)",
             Refusal(OnJoint(Thrusting((null, 90f, "j"), (null, 90f, "j")), "j", (Up, -45f, 45f))));
         // A row and a thruster of no row on one joint.
-        Assert.Contains("different rows", Refusal(OnJoint(Thrusting(("r", 90f, "j"), (null, 90f, "j")), "j", (Up, -45f, 45f))));
+        Assert.Contains("carries more than one actuator", Refusal(OnJoint(Thrusting(("r", 90f, "j"), (null, 90f, "j")), "j", (Up, -45f, 45f))));
         // Each row on a joint of its own is fine.
         var apart = Thrusting(("r", 90f, "j"), ("s", 90f, "k"));
         OnJoint(apart, "j", (Up, -45f, 45f));
@@ -549,7 +569,7 @@ public sealed class ShipRigTests : IDisposable
         thruster.FiringArc = 90;
         ship.Visual.Anchors.Single(anchor => anchor.Id == thruster.Transform).Joint = "j";
         var message = Refusal(ship);
-        Assert.Contains("joint j carries both a weapon and thruster hardpoint", message);
+        Assert.Contains("joint j carries more than one actuator", message);
         Assert.Contains("a joint has one actuator", message);
 
         // The same ship with the thruster on a joint of its own is the acceptance control.
@@ -568,20 +588,20 @@ public sealed class ShipRigTests : IDisposable
         var lone = second.Hull.Hardpoints.Single(hardpoint => hardpoint.Type == HardpointType.Thruster);
         lone.FiringArc = 90;
         second.Visual.Anchors.Single(anchor => anchor.Id == lone.Transform).Joint = "k";
-        Assert.Contains("joint k carries both a weapon and thruster hardpoint", Refusal(second));
+        Assert.Contains("joint k carries more than one actuator", Refusal(second));
         second.Visual.Anchors.Single(anchor => anchor.Id == lone.Transform).Joint = "j";
-        Assert.Contains("joint j carries both a weapon and thruster hardpoint", Refusal(second));
+        Assert.Contains("joint j carries more than one actuator", Refusal(second));
     }
 
     [Fact]
     public void TwoRowsMayNotShareAJointWhateverTheirSizesOrOrder()
     {
         // A row of three and a row of one, the second row's member last; a row of two and one; and a row of four against one.
-        Assert.Contains("different rows", Refusal(OnJoint(Thrusting(("r", 90f, "j"), ("r", 90f, "j"), ("r", 90f, "j"), ("s", 90f, "j")), "j", (Up, -45f, 45f))));
-        Assert.Contains("different rows", Refusal(OnJoint(Thrusting(("r", 90f, "j"), ("r", 90f, "j"), ("s", 90f, "j")), "j", (Up, -45f, 45f))));
+        Assert.Contains("carries more than one actuator", Refusal(OnJoint(Thrusting(("r", 90f, "j"), ("r", 90f, "j"), ("r", 90f, "j"), ("s", 90f, "j")), "j", (Up, -45f, 45f))));
+        Assert.Contains("carries more than one actuator", Refusal(OnJoint(Thrusting(("r", 90f, "j"), ("r", 90f, "j"), ("s", 90f, "j")), "j", (Up, -45f, 45f))));
         // Rows are compared exactly: "r" and "R" are two rows, and so is a blank name against a letter.
-        Assert.Contains("different rows", Refusal(OnJoint(Thrusting(("r", 90f, "j"), ("R", 90f, "j")), "j", (Up, -45f, 45f))));
-        Assert.Contains("different rows", Refusal(OnJoint(Thrusting(("r", 90f, "j"), (" ", 90f, "j")), "j", (Up, -45f, 45f))));
+        Assert.Contains("carries more than one actuator", Refusal(OnJoint(Thrusting(("r", 90f, "j"), ("R", 90f, "j")), "j", (Up, -45f, 45f))));
+        Assert.Contains("carries more than one actuator", Refusal(OnJoint(Thrusting(("r", 90f, "j"), (" ", 90f, "j")), "j", (Up, -45f, 45f))));
         var apart = Thrusting(("r", 90f, "j"), ("R", 90f, "k"));
         OnJoint(apart, "j", (Up, -45f, 45f));
         OnJoint(apart, "k", (Up, -45f, 45f));
@@ -644,7 +664,7 @@ public sealed class ShipRigTests : IDisposable
     [Fact]
     public void NoThrusterSwingsFurtherThanATurnWhetherOrNotItIsInARow()
     {
-        foreach (var arc in new[] { 361f, 400f, 720f, 1000f })
+        foreach (var arc in new[] { 360.01f, 360.5f, 361f, 400f, 720f, 1000f })
         {
             Assert.Contains("firing arc may be at most 360 degrees", Refusal(Thrusting((null, arc, null))));
             Assert.Contains("firing arc may be at most 360 degrees", Refusal(Thrusting(("r", arc, null))));
@@ -667,19 +687,23 @@ public sealed class ShipRigTests : IDisposable
         }
     }
 
-    // The chain stops at any actuator's joint, a thruster row's included, so a child's reach never borrows a parent's sweep.
+    // Nesting is refused whichever actuators nest and whichever sits above: ruling one-joint-one-actuator says the judge refuses a
+    // row whose reach includes a joint another actuator drives.
     [Fact]
-    public void AChainStopsAtAJointAThrusterRowDrivesAsItDoesAtAGunJoint()
+    public void AnActuatorWhoseReachRunsThroughAJointAnotherActuatorDrivesIsRefusedWhicheverKindsNest()
     {
-        var ship = Thrusting(("r", 90f, "outer"), ("s", 40f, "inner"));
-        OnJoint(ship, "outer", (Up, -45f, 45f));
-        ship.Visual.Joints.Add(Joint("inner", "outer", (Up, -20f, 20f)));
-        ship.Validate();
-        ship.Hull.Hardpoints[1].FiringArc = 41;
-        // 41 is within the 130 a walk through "outer" would give, and is refused for the 40 the inner joint alone sweeps.
-        Assert.Contains("joint inner chain reaches 40 degrees", Refusal(ship));
+        // row under row
+        var rows = Thrusting(("r", 90f, "outer"), ("s", 40f, "inner"));
+        OnJoint(rows, "outer", (Up, -45f, 45f));
+        rows.Visual.Joints.Add(Joint("inner", "outer", (Up, -20f, 20f)));
+        Assert.Contains("joint inner reaches through joint outer, which another actuator drives", Refusal(rows));
+        // a row of one under a row, and the row's reach is no excuse
+        var single = Thrusting(("r", 90f, "outer"), (null, 40f, "inner"));
+        OnJoint(single, "outer", (Up, -180f, 180f));
+        single.Visual.Joints.Add(Joint("inner", "outer", (Up, -180f, 180f)));
+        Assert.Contains("reaches through joint outer", Refusal(single));
 
-        // A gun below a row's joint is reckoned from its own joint.
+        // a gun under a row's joint
         var gun = Armed("child");
         gun.Visual.Joints.Add(Joint("top", null, (Up, -45f, 45f)));
         gun.Visual.Joints.Add(Joint("child", "top", (Up, -20f, 20f)));
@@ -687,22 +711,88 @@ public sealed class ShipRigTests : IDisposable
         thruster.FiringArc = 90;
         gun.Visual.Anchors.Single(anchor => anchor.Id == thruster.Transform).Joint = "top";
         gun.Hull.Hardpoints.Single(hardpoint => hardpoint.Transform == "g0").FiringArc = 40;
-        gun.Validate();
-        gun.Hull.Hardpoints.Single(hardpoint => hardpoint.Transform == "g0").FiringArc = 41;
-        Assert.Contains("joint child chain reaches 40 degrees", Refusal(gun));
+        Assert.Contains("joint child reaches through joint top", Refusal(gun));
 
-        // A row below a gun's joint is reckoned from its own joint, and counts the parent once nothing drives it.
+        // a row under a gun's joint
         var below = Armed("top");
         below.Visual.Joints.Add(Joint("top", null, (Up, -180f, 180f)));
         below.Visual.Joints.Add(Joint("low", "top", (Up, -20f, 20f)));
         var lowThruster = below.Hull.Hardpoints.Single(hardpoint => hardpoint.Type == HardpointType.Thruster);
         lowThruster.FiringArc = 40;
         below.Visual.Anchors.Single(anchor => anchor.Id == lowThruster.Transform).Joint = "low";
-        below.Validate();
-        lowThruster.FiringArc = 41;
-        Assert.Contains("joint low chain reaches 40 degrees", Refusal(below));
-        below.Visual.Anchors.Single(anchor => anchor.Id == "g0").Joint = null;
-        below.Validate();
+        Assert.Contains("joint low reaches through joint top", Refusal(below));
+
+        // Nesting is refused wherever the driven ancestor stands in the chain, with undriven joints between.
+        var deep = Armed("top", "leaf");
+        deep.Visual.Joints.Add(Joint("top", null, (Up, -90f, 90f)));
+        deep.Visual.Joints.Add(Joint("mid", "top", (Up, -90f, 90f)));
+        deep.Visual.Joints.Add(Joint("leaf", "mid", (Up, -90f, 90f)));
+        Assert.Contains("joint leaf reaches through joint top", Refusal(deep));
+
+        // Control: the same actuators on joints whose reaches are disjoint are accepted, and an undriven parent counts.
+        var apart = Armed("top", "leaf");
+        apart.Visual.Joints.Add(Joint("top", null, (Up, -90f, 90f)));
+        apart.Visual.Joints.Add(Joint("base", null, (Up, -90f, 90f)));
+        apart.Visual.Joints.Add(Joint("leaf", "base", (Up, -90f, 90f)));
+        apart.Validate();
+        var lowApart = Thrusting(("r", 90f, "low"), ("s", 90f, "other"));
+        OnJoint(lowApart, "top", (Up, -45f, 45f));
+        lowApart.Visual.Joints.Add(Joint("low", "top", (Up, -20f, 20f)));
+        OnJoint(lowApart, "other", (Up, -45f, 45f));
+        lowApart.Validate();
+    }
+
+    // The refusal does not depend on how many thrusters a row has, or how wide the gun's arc is beside the row's.
+    [Fact]
+    public void AGunAndAThrusterRowOnOneJointAreRefusedWhateverTheirSizes()
+    {
+        foreach (var gunArc in new[] { 10f, 45f, 89f, 90f, 91f, 180f, 360f })
+        foreach (var size in new[] { 1, 2, 3, 4, 5 })
+        foreach (var named in new[] { false, true })
+        {
+            var ship = Armed("j");
+            ship.Visual.Joints.Add(Joint("j", null, (Up, -180f, 180f)));
+            ship.Hull.Hardpoints.Single(hardpoint => hardpoint.Transform == "g0").FiringArc = gunArc;
+            // The fixture thruster is the first member; the rest are appended, each its own cell and emitter.
+            var rowName = named || size > 1 ? "r" : null;
+            var first = ship.Hull.Hardpoints.Single(hardpoint => hardpoint.Type == HardpointType.Thruster);
+            first.FiringArc = 90; first.Row = rowName;
+            ship.Visual.Anchors.Single(anchor => anchor.Id == first.Transform).Joint = "j";
+            var shape = new Shape(2 + size - 1, 1);
+            for (var x = 0; x < 2 + size - 1; x++) shape.Cells[x, 0] = true;
+            ship.Hull.Shape = shape;
+            for (var extra = 1; extra < size; extra++)
+            {
+                ship.Hull.Hardpoints.Add(new HardpointData
+                    { Type = HardpointType.Thruster, Position = new int2(1 + extra, 0), Shape = new Shape(), Transform = $"x{extra}", FiringArc = 90, Row = "r" });
+                ship.Visual.Anchors.Add(new ShipAnchor { Id = $"x{extra}", Role = "thruster-emitter", ModelNodeId = $"x{extra}", Joint = "j" });
+            }
+            Assert.Contains("joint j carries more than one actuator", Refusal(ship));
+        }
+    }
+
+    // Every kind of conflict falls out of one definition of what drives a joint: a gun and a row, two rows, two rows of one, a
+    // row and a thruster of no row, and a gun that nests.
+    [Fact]
+    public void EveryKindOfSharedDrivingIsRefusedByTheOneRuleThatSaysWhatDrivesAJoint()
+    {
+        var gunRow = Armed("j");
+        gunRow.Visual.Joints.Add(Joint("j", null, (Up, -180f, 180f)));
+        var thruster = gunRow.Hull.Hardpoints.Single(hardpoint => hardpoint.Type == HardpointType.Thruster);
+        thruster.FiringArc = 90;
+        gunRow.Visual.Anchors.Single(anchor => anchor.Id == thruster.Transform).Joint = "j";
+        Assert.Contains("more than one actuator", Refusal(gunRow));
+        Assert.Contains("more than one actuator", Refusal(OnJoint(Thrusting(("r", 90f, "j"), ("s", 90f, "j")), "j", (Up, -180f, 180f))));
+        Assert.Contains("more than one actuator", Refusal(OnJoint(Thrusting((null, 90f, "j"), (null, 90f, "j")), "j", (Up, -180f, 180f))));
+        Assert.Contains("more than one actuator", Refusal(OnJoint(Thrusting(("r", 90f, "j"), (null, 90f, "j")), "j", (Up, -180f, 180f))));
+        var nested = Armed("a", "b");
+        nested.Visual.Joints.Add(Joint("a", null, (Up, -180f, 180f)));
+        nested.Visual.Joints.Add(Joint("b", "a", (Up, -180f, 180f)));
+        Assert.Contains("which another actuator drives", Refusal(nested));
+        // Control: two guns on one joint are one actuator.
+        var guns = Armed("j", "j");
+        guns.Visual.Joints.Add(Joint("j", null, (Up, -180f, 180f)));
+        guns.Validate();
     }
 
     // Row and Slew are persistent: a package or catalog written with them is read by key, so their positions are wire format.
