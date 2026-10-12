@@ -85,8 +85,8 @@ public sealed partial class RunStartTests
         Assert.NotEqual(ShotResult.Burst, landed.Value.Result);
     }
 
-    // AI Fused Discipline, run for two minutes, against its two controls. The hostile closes on the player and never fires its
-    // refused weapon; the neutral never fires its fused one. Each silence is discipline, not inability: the same hostile
+    // AI Fused Discipline, run for half a minute (the hostile closes from its 700 m in about 15 s, and either control fires within
+    // a second), against its two controls. The hostile closes on the player and never fires its refused weapon; the neutral never fires its fused one. Each silence is discipline, not inability: the same hostile
     // fires once its weapon's Range reaches its blast radius, and the same neutral fires once it is hostile to the player.
     [Fact]
     public void TheAiHoldsARefusedWeaponAndANeutralHoldsItsFusedOne()
@@ -103,7 +103,7 @@ public sealed partial class RunStartTests
                 else if (outcome.Source == neutral) neutralShots++;
             });
             var closest = float.MaxValue;
-            for (var i = 0; i < 1200; i++)
+            for (var i = 0; i < 300; i++)
             {
                 arena.Update(.1f);
                 closest = min(closest, length((hostile.Position - staged.Player.Position).xz));
