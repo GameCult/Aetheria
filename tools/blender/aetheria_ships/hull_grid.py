@@ -103,3 +103,56 @@ def convex_outline(points_xy):
     if len(outline) < 3:
         raise ValueError("The points have no outline: they are fewer than three or collinear")
     return outline
+
+
+# ItemRotation values, in ship_cc.ROTATION_NAMES order.
+ROTATION_NONE, ROTATION_COUNTER_CLOCKWISE, ROTATION_REVERSED, ROTATION_CLOCKWISE = 0, 1, 2, 3
+_FACING_YAW = {
+    ROTATION_NONE: 0.0,
+    ROTATION_COUNTER_CLOCKWISE: math.pi / 2,
+    ROTATION_REVERSED: math.pi,
+    ROTATION_CLOCKWISE: -math.pi / 2,
+}
+
+
+def _centre_offset(n):
+    """The footprint cell, counted from its origin, that stands for an n-cell extent's centre: the lower of the two
+    middle cells when n is even."""
+    return (n - 1) // 2
+
+
+def mounted_position(cell, footprint_w, footprint_h):
+    """The hardpoint Position (its footprint's origin cell) whose w x h footprint is centred on cell: ShipAuthoringStore
+    places footprint cell (cx, cy) at Position + (cx, cy), and the footprint's centre is ((w - 1) // 2, (h - 1) // 2)."""
+    return (cell[0] - _centre_offset(footprint_w), cell[1] - _centre_offset(footprint_h))
+
+
+def mounted_cell(position, footprint_w, footprint_h):
+    """The cell a mount's object stands in for a hardpoint at position: the inverse of mounted_position."""
+    return (position[0] + _centre_offset(footprint_w), position[1] + _centre_offset(footprint_h))
+
+
+def mirror_position(position, footprint_w, grid_w):
+    """The Position of the mirror image of a footprint across the grid's centre line: a footprint on cells [a, a + w) of
+    a grid_w-wide grid mirrors to cells [grid_w - a - w, grid_w - a). It depends on the footprint's extent alone."""
+    return (grid_w - position[0] - footprint_w, position[1])
+
+
+def facing_yaw(rotation):
+    """Radians about Z that turn a mount empty so its local -Y points along the hardpoint Rotation's facing: None the
+    nose (-Y), CounterClockwise port (+X), Reversed aft (+Y), Clockwise starboard (-X)."""
+    return _FACING_YAW[rotation]
+
+
+def mirror_rotation(rotation):
+    """The Rotation of a hardpoint mirrored across the centreline: Clockwise and CounterClockwise swap."""
+    if rotation == ROTATION_CLOCKWISE:
+        return ROTATION_COUNTER_CLOCKWISE
+    if rotation == ROTATION_COUNTER_CLOCKWISE:
+        return ROTATION_CLOCKWISE
+    return rotation
+
+
+def mirror_footprint(footprint):
+    """A footprint text ('#' and '.' rows separated by '/') mirrored across the centreline: each row reversed."""
+    return "/".join(row[::-1] for row in footprint.split("/"))
