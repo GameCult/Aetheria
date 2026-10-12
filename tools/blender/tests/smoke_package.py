@@ -105,7 +105,7 @@ def texture_cap_pass(addon, hull_object, albedo, detail, limit, expected, glb):
         raise SystemExit(f"Texture cap {limit}: Package was refused")
     if glb_image_sizes(glb) != sorted(expected):
         raise SystemExit(f"Texture cap {limit}: the GLB images are {glb_image_sizes(glb)}, not {sorted(expected)}")
-    if tuple(albedo.size) != (4096, 1024) or tuple(detail.size) != (256, 256):
+    if tuple(albedo.size) != (4096, 1000) or tuple(detail.size) != (256, 256):
         raise SystemExit(f"Texture cap {limit}: Package changed a .blend image to {tuple(albedo.size)}, {tuple(detail.size)}")
     nodes = [node.image for slot in hull_object.material_slots for node in slot.material.node_tree.nodes
              if node.type == "TEX_IMAGE"]
@@ -250,7 +250,7 @@ def main():
     ship = bpy.data.collections.new("Smoke Gale")
     scene.collection.children.link(ship)
     hull = tagged(ship, "Hull", tetrahedron("Hull"))
-    albedo = textured(hull, "Hull Albedo", 4096, 1024)
+    albedo = textured(hull, "Hull Albedo", 4096, 1000)
     detail = textured(hull, "Hull Detail", 256, 256)
     hull.data.polygons[0].material_index = 1  # the exporter writes only materials some face uses
     tagged(ship, "Map Icon", quad("Map Icon"), "map-icon", "map", (0, 0, -1))
@@ -281,11 +281,11 @@ def main():
     result, report = package(aetheria_ships)
     if result != {"FINISHED"}:
         raise SystemExit("Pass 1: the validator refused the primitive ship")
-    # The texture cap: the 4096 x 1024 map exports at 2048 x 512 (the longest side at the cap, the aspect kept), the
+    # The texture cap: the 4096 x 1000 map exports at 2048 x 500 (the longest side at the cap, the aspect kept), the
     # 256 x 256 one is under the cap and exports as it is, and the preference decides the cap.
     glb = Path(path).with_name("ship.glb")
-    texture_cap_pass(aetheria_ships, hull, albedo, detail, 2048, [(2048, 512), (256, 256)], glb)
-    texture_cap_pass(aetheria_ships, hull, albedo, detail, 512, [(512, 128), (256, 256)], glb)
+    texture_cap_pass(aetheria_ships, hull, albedo, detail, 2048, [(2048, 500), (256, 256)], glb)
+    texture_cap_pass(aetheria_ships, hull, albedo, detail, 512, [(512, 125), (256, 256)], glb)
     bpy.context.preferences.addons["aetheria_ships"].preferences.max_texture = 2048
     print("TEXTURE_CAP_OK")
     # A collection with no Ship Root is packaged exactly as before: the frame step makes and moves nothing.

@@ -581,13 +581,14 @@ class UntestedCultCacheTests(ShipFileCase):
         return str(root)
 
     def test_a_different_version_is_refused_naming_the_version_and_the_packages_path(self):
-        stub = self.packages("9.9.9")
         before = self.bytes()
-        for call in (lambda: ship_cc.read(self.path, stub), lambda: ship_cc.read_layout(self.path, stub)):
-            with self.assertRaises(ValueError) as caught:
-                call()
-            self.assertIn("9.9.9", str(caught.exception))
-            self.assertIn(stub, str(caught.exception))
+        for version in ("9.9.9", "0.4.0", "0.3.1", "0.3"):  # any drift, not only a different major
+            stub = self.packages(version)
+            for call in (lambda: ship_cc.read(self.path, stub), lambda: ship_cc.read_layout(self.path, stub)):
+                with self.subTest(version=version), self.assertRaises(ValueError) as caught:
+                    call()
+                self.assertIn(version, str(caught.exception))
+                self.assertIn(stub, str(caught.exception))
         self.assertEqual(before, self.bytes())
 
     def test_a_save_through_an_untested_cultcache_writes_nothing(self):
