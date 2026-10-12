@@ -35,7 +35,9 @@ REPO = Path(__file__).resolve().parents[3]
 PACKAGES = os.environ.get("CULTLIB_PACKAGES") or sys.exit("Set CULTLIB_PACKAGES to CultLib's packages directory")
 SHIP_ID = "smoke.mounts"
 ODD_ID = "smoke.mounts.odd"
-ODD_LENGTH = 7
+# (ship id, length in cells, the source sphere's Y scale, wide, grid width parity) of passes 6 to 8; the id's mod directory
+# is removed at the end.
+WIDTH_PASSES = ((ODD_ID, 7, 0.6, False, 1), (ODD_ID + ".wide-even", 14, 1.0, True, 0), (ODD_ID + ".wide-odd", 15, 1.0, True, 1))
 GAME = Path(os.environ.get("SMOKE_GAME_FOLDER") or sys.exit("Set SMOKE_GAME_FOLDER to a folder holding GameData/Aetheria.cc and ModTools/AetherDb"))
 MODS = GAME / "GameData" / "Mods"
 COLLECTION = "Smoke Mounts"
@@ -412,30 +414,40 @@ def main():
     twin.parent = root
     print("PASS 3 package derives ok")
 
-    # Pass 6: the same mirror matrix on a ship whose grid is an odd number of cells wide.
-    for obj in list(collection.all_objects):  # the first ship's objects hold the names the matrix looks mounts up by
+    # Passes 6 to 8: the same mirror matrix on ships whose grids are odd, wide and even, and wide and odd (10 or more
+    # cells across, where real hulls live). Each pass clears the previous ship's objects, which hold the names the matrix
+    # looks mounts up by.
+    previous = collection
+    for number, (ship_id, length, y_scale, wide, parity) in enumerate(WIDTH_PASSES, start=6):
+        previous = matrix_pass(scene, previous, ship_id, length, y_scale, wide, parity)
+        print(f"PASS {number} mirror matrix on a {scene.aetheria_layout.width}-wide grid ok")
+
+
+def matrix_pass(scene, previous, ship_id, length, y_scale, wide, parity):
+    for obj in list(previous.all_objects):
         bpy.data.objects.remove(obj)
-    odd = bpy.data.collections.new(COLLECTION + " Odd")
-    scene.collection.children.link(odd)
-    odd_mesh = bpy.data.meshes.new("Odd Sphere")
+    ship = bpy.data.collections.new(f"{COLLECTION} {ship_id}")
+    scene.collection.children.link(ship)
+    mesh = bpy.data.meshes.new(f"{ship_id} sphere")
     bm = bmesh.new()
     bmesh.ops.create_uvsphere(bm, u_segments=48, v_segments=24, radius=0.5)
-    bm.to_mesh(odd_mesh)
+    bm.to_mesh(mesh)
     bm.free()
-    odd_sphere = new_object(odd, "Odd Source Sphere", odd_mesh)
-    odd_sphere.scale = (1, 0.6, 0.4)
-    select(odd_sphere)
-    scene.aetheria_new_ship_id, scene.aetheria_new_ship_name = ODD_ID, "Smoke Mounts Odd"
-    scene.aetheria_new_ship_like, scene.aetheria_new_ship_length = "Djinni", ODD_LENGTH
+    sphere = new_object(ship, f"{ship_id} Source Sphere", mesh)
+    sphere.scale = (1, y_scale, 0.4)
+    select(sphere)
+    scene.aetheria_new_ship_id, scene.aetheria_new_ship_name = ship_id, ship_id
+    scene.aetheria_new_ship_like, scene.aetheria_new_ship_length = "Djinni", length
     result, message = run(bpy.ops.aetheria.new_ship)
-    require(result == {"FINISHED"}, f"New Ship (odd) was refused: {message}")
+    require(result == {"FINISHED"}, f"New Ship ({ship_id}) was refused: {message}")
     result, message = run(bpy.ops.aetheria.save_ship_layout)
-    require(result == {"FINISHED"}, f"Save (odd) was refused: {message}")
-    odd_root = aetheria_ships._ship_root(odd)
-    odd_origin = odd["aetheria.grid_origin"]
-    require(scene.aetheria_layout.width % 2 == 1, f"The odd ship's grid is {scene.aetheria_layout.width} wide")
-    mirror_matrix(scene, odd_root, (odd_origin[0], odd_origin[1]), odd_sphere)
-    print("PASS 6 mirror matrix on an odd grid ok")
+    require(result == {"FINISHED"}, f"Save ({ship_id}) was refused: {message}")
+    width = scene.aetheria_layout.width
+    require(width % 2 == parity and (width >= 10 or not wide), f"The {ship_id} grid is {width} wide")
+    origin = ship["aetheria.grid_origin"]
+    mirror_matrix(scene, sys.modules["aetheria_ships"]._ship_root(ship), (origin[0], origin[1]), sphere)
+    return ship
+
 
 
 created_mods = not MODS.exists()
@@ -456,7 +468,8 @@ finally:
     if not existed:
         shutil.rmtree(MODS / SHIP_ID, ignore_errors=True)
     if not existed:
-        shutil.rmtree(MODS / ODD_ID, ignore_errors=True)
+        for pass_id, *_ in WIDTH_PASSES:
+            shutil.rmtree(MODS / pass_id, ignore_errors=True)
     if created_mods and not existed:
         shutil.rmtree(MODS, ignore_errors=True)
 sys.stdout.flush()
