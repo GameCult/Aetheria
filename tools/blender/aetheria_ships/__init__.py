@@ -612,8 +612,14 @@ class AETHERIA_AP_preferences(bpy.types.AddonPreferences):
         description="The folder whose GameData holds Aetheria.cc and Mods (the install folder); its ModTools holds "
                     "AetherDb. Empty: the nearest folder above the bound .cc whose GameData holds Aetheria.cc")
 
+    max_texture: bpy.props.IntProperty(
+        name="Max texture", default=2048, min=64, soft_max=8192,
+        description="The longest side, in pixels, a material image keeps in ship.glb; larger images are exported "
+                    "scaled to it and the .blend's own images are left as they are")
+
     def draw(self, context):
         self.layout.prop(self, "game_folder")
+        self.layout.prop(self, "max_texture")
 
 
 GAME_FOLDER_REFUSAL = ("Set the add-on's Game folder preference to the folder whose GameData holds Aetheria.cc "
@@ -684,6 +690,59 @@ def _anchors(collection):
     return rows
 
 
+DEFAULT_MAX_TEXTURE = 2048
+
+
+def _max_texture(context):
+    addon = context.preferences.addons.get(__package__)
+    return addon.preferences.max_texture if addon and addon.preferences else DEFAULT_MAX_TEXTURE
+
+
+def _image_nodes(tree, seen=None):
+    """Every Image Texture node of a node tree, node groups included."""
+    seen = set() if seen is None else seen
+    if tree is None or tree.name_full in seen:
+        return
+    seen.add(tree.name_full)
+    for node in tree.nodes:
+        if node.type == "TEX_IMAGE" and node.image is not None:
+            yield node
+        elif node.type == "GROUP":
+            yield from _image_nodes(node.node_tree, seen)
+
+
+def _swap_in_scaled_images(objects, limit, swaps):
+    """Points each Image Texture node of the objects' materials that holds an image longer than limit at a scaled copy,
+    and appends each (node, original, copy) to swaps for _restore_images, so a failure part way still restores. The
+    originals are never modified."""
+    copies = {}
+    for obj in objects:
+        for slot in obj.material_slots:
+            for node in _image_nodes(slot.material.node_tree if slot.material else None):
+                original = node.image
+                longest = max(original.size)
+                if longest <= limit:
+                    continue
+                if original not in copies:
+                    copy = original.copy()
+                    try:
+                        copy.scale(max(1, round(original.size[0] * limit / longest)),
+                                   max(1, round(original.size[1] * limit / longest)))
+                    except BaseException:
+                        bpy.data.images.remove(copy)  # not yet in swaps, so _restore_images cannot find it
+                        raise
+                    copies[original] = copy
+                node.image = copies[original]
+                swaps.append((node, original, copies[original]))
+
+
+def _restore_images(swaps):
+    for node, original, _ in swaps:
+        node.image = original
+    for copy in {id(copy): copy for _, _, copy in swaps}.values():
+        bpy.data.images.remove(copy)
+
+
 def _export_glb(context, collection, filepath):
     """Exports the collection's objects with custom properties as node extras: Generated's anchors are exported; Grease
     Pencil, Source and the Grid are not."""
@@ -694,14 +753,17 @@ def _export_glb(context, collection, filepath):
     previous_layer = view_layer.active_layer_collection
     previous_selection = [obj for obj in view_layer.objects if obj.select_get()]
     previous_active = view_layer.objects.active
+    swaps = []
     try:
         view_layer.active_layer_collection = layer
         for obj in previous_selection:
             obj.select_set(False)
         derived = _derived_names(collection)
-        for obj in collection.all_objects:
-            if obj.type != "GREASEPENCIL" and obj.name not in derived and obj.name in view_layer.objects:
-                obj.select_set(True)
+        exported = [obj for obj in collection.all_objects
+                    if obj.type != "GREASEPENCIL" and obj.name not in derived and obj.name in view_layer.objects]
+        for obj in exported:
+            obj.select_set(True)
+        _swap_in_scaled_images(exported, _max_texture(context), swaps)
         bpy.ops.export_scene.gltf(
             filepath=filepath, export_format="GLB", use_active_collection=True, use_selection=True,
             export_extras=True, export_yup=True, export_apply=True)
@@ -709,6 +771,7 @@ def _export_glb(context, collection, filepath):
         traceback.print_exc()
         raise RuntimeError("The GLB export failed; its message is in the system console") from None
     finally:
+        _restore_images(swaps)
         for obj in view_layer.objects:
             obj.select_set(obj in previous_selection)
         view_layer.objects.active = previous_active

@@ -568,6 +568,84 @@ class RefusalsNameNoInputTests(ShipFileCase):
                     self.assertNotIn(forbidden, str(caught.exception))
 
 
+class UntestedCultCacheTests(ShipFileCase):
+    """_libraries refuses a cultcache-py that is not the version the raw envelope writes were tested against. The version
+    is read from the checkout of the module that actually imports, so each case imports a stub cultcache_py."""
+
+    def setUp(self):
+        super().setUp()
+        saved_modules = {name: module for name, module in sys.modules.items() if name.split(".")[0] == "cultcache_py"}
+        saved_path = list(sys.path)
+        for name in saved_modules:
+            del sys.modules[name]
+        self.addCleanup(self.restore, saved_modules, saved_path)
+
+    @staticmethod
+    def restore(saved_modules, saved_path):
+        for name in [name for name in sys.modules if name.split(".")[0] == "cultcache_py"]:
+            del sys.modules[name]
+        sys.modules.update(saved_modules)
+        sys.path[:] = saved_path
+
+    def packages(self, version=None, with_source=True):
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, root, True)
+        checkout = root / "cultcache-py"
+        checkout.mkdir()
+        if version is not None:
+            (checkout / "pyproject.toml").write_text(
+                f'[project]\nname = "cultcache-py"\nversion = "{version}"\n', encoding="utf-8")
+        if with_source:
+            (checkout / "src" / "cultcache_py").mkdir(parents=True)
+            (checkout / "src" / "cultcache_py" / "__init__.py").write_text("", encoding="utf-8")
+        return str(root)
+
+    def test_a_different_version_is_refused_naming_the_version_and_the_packages_path(self):
+        before = self.bytes()
+        # any drift, not only a different major; 0.3.0.1 and 0.3.0rc1 start with the tested version and are not it
+        for version in ("9.9.9", "0.4.0", "0.3.1", "0.3", "0.3.0.1", "0.3.0rc1", "0.3.00"):
+            for call in (lambda stub: ship_cc.read(self.path, stub), lambda stub: ship_cc.read_layout(self.path, stub)):
+                stub = self.packages(version)
+                with self.subTest(version=version), self.assertRaises(ValueError) as caught:
+                    call(stub)
+                    self.fail("accepted")
+                self.assertIn(version, str(caught.exception))
+                self.assertIn(stub, str(caught.exception))
+                self.restore({}, list(sys.path))  # the next import is fresh
+        self.assertEqual(before, self.bytes())
+
+    def test_a_save_through_an_untested_cultcache_writes_nothing(self):
+        _, _, revision = ship_cc.read_layout(self.path, PACKAGES)
+        before = self.bytes()
+        self.restore({}, list(sys.path))
+        with self.assertRaises(ValueError):
+            ship_cc.replace_layout(self.path, self.packages("9.9.9"), "mod.skiff", revision, [2, 2, [True] * 4], [])
+        self.assertEqual(before, self.bytes())
+
+    def test_a_missing_pyproject_is_refused(self):
+        stub = self.packages()
+        with self.assertRaises(ValueError) as caught:
+            ship_cc.read(self.path, stub)
+        self.assertIn(stub, str(caught.exception))
+
+    def test_the_guard_certifies_the_library_that_is_imported_not_the_path_it_was_given(self):
+        # A pyproject that says 0.3.0 beside a path whose source is not what imports does not vouch for the import.
+        real = self.packages("0.4.0")  # imports first, and is the library in use
+        with self.assertRaises(ValueError):
+            ship_cc.read(self.path, real)
+        liar = self.packages("0.3.0", with_source=False)  # claims the tested version, supplies no source
+        sys.path.insert(0, str(Path(real) / "cultcache-py" / "src"))
+        with self.assertRaises(ValueError) as caught:
+            ship_cc.read(self.path, liar)
+        self.assertIn("0.4.0", str(caught.exception))
+
+    def test_the_tested_version_is_the_one_the_real_packages_directory_carries(self):
+        self.restore({}, list(sys.path))
+        self.assertEqual("mod.skiff", ship_cc.read(self.path, PACKAGES).ship.body[0])
+        import cultcache_py
+        self.assertEqual(ship_cc.TESTED_CULTCACHE_PY, ship_cc._cultcache_py_version(cultcache_py))
+
+
 class ShipIdTests(unittest.TestCase):
     def test_admits_the_ids_the_c_sharp_rule_admits(self):
         for ship_id in ("probe.a", "a", "0x", "a_b-c", "com10", "com0", "lpt0", "console", "aux2", "a.nul", "x.com1"):
