@@ -139,11 +139,13 @@ public sealed class LootTests : IDisposable
         return ship;
     }
 
-    private static Entity Station(Lab lab, float3 at, bool stocked = true)
+    private static Entity Station(Lab lab, float3 at, bool stocked = true, bool secondBay = false)
     {
         var hull = lab.Items.ItemData.RefOf<ItemData>(lab.Items.ItemData.GetByName<HullData>("Hub"));
         var station = new OrbitalEntity(lab.Items, lab.Zone, new EquippableItem { Data = hull, Durability = 1000000, Lot = lab.Lot++ }, default, new EntitySettings());
         Assert.True(station.TryEquip(lab.Make("Crate"), new int2(1, 1)));
+        // Equipping is refused once a station is active, so a second bay goes in before Activate.
+        if (secondBay) Assert.True(station.TryEquip(lab.Make("Crate"), new int2(2, 2)));
         if (stocked)
         {
             var spare = lab.Make("Spare");
@@ -325,8 +327,7 @@ public sealed class LootTests : IDisposable
     public void TryPickUpStoresAndRemoves()
     {
         var lab = Build();
-        var taker = Station(lab, float3(0, 0, 0), stocked: false);
-        Assert.True(taker.TryEquip(lab.Make("Crate"), new int2(2, 2)));
+        var taker = Station(lab, float3(0, 0, 0), stocked: false, secondBay: true);
         Assert.Equal(2, taker.CargoBays.Count);
         // The first bay is full, so the first bay that accepts the item is the second.
         while (taker.CargoBays[0].TryStore(lab.Make("Spare"))) { }
