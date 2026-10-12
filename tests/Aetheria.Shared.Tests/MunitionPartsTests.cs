@@ -30,16 +30,18 @@ public sealed class MunitionPartsTests : IDisposable
 
     private static PerformanceStat Flat(float value) => new PerformanceStat { Min = value, Max = value };
 
-    private static PerformanceStat Ranged(float min, float max, string role) => new PerformanceStat
+    private static PerformanceStat Ranged(float min, float max, string role) => role == null ? Flat(max) : new PerformanceStat
     {
         Min = min, Max = max, Terms = new List<StatTerm> { new StatTerm { Source = StatSource.Quality, Exponent = 1.5f, Role = role } },
     };
 
-    // Every field set to a distinct value, so a field read from the wrong slot or dropped on the way is seen.
-    private static List<BehaviorData> Parts(int group) => new List<BehaviorData>
+    // The five parts a munition design carries, every field set to a distinct value so a field read from the wrong slot or
+    // dropped on the way is seen. The thruster's stats vary with the given role's quality when one is named; the design
+    // that carries them declares it. Fixtures that only need a valid munition pass none.
+    internal static List<BehaviorData> Parts(int group, string role = null) => new List<BehaviorData>
     {
         new MunitionHullData { Group = group, Durability = Flat(21), Radius = Flat(4.5f) },
-        new MunitionThrusterData { Group = group, Acceleration = Ranged(300, 400, "motor"), Lateral = Ranged(150, 200, "motor"), MaxSpeed = Ranged(250, 350, "motor"), Visibility = Flat(11) },
+        new MunitionThrusterData { Group = group, Acceleration = Ranged(300, 400, role), Lateral = Ranged(150, 200, role), MaxSpeed = Ranged(250, 350, role), Visibility = Flat(11) },
         new MunitionSeekerData { Group = group, Sensitivity = Flat(.8f), BeamWidth = Flat(55), Range = Flat(900) },
         new MunitionControlData { Group = group, Navigation = Flat(3.5f), Evasion = Flat(.4f), EvasionFrequency = Flat(.6f), Lifetime = Flat(12), Cognition = Flat(.35f) },
         new MunitionFuelData { Group = group, DeltaV = Flat(700) },
@@ -57,7 +59,7 @@ public sealed class MunitionPartsTests : IDisposable
         launcher.Group = group;
         var design = new WeaponItemData { Name = name, Roles = new List<ItemRole> { new ItemRole { Name = "motor" } } };
         design.Behaviors.Add(launcher);
-        design.Behaviors.AddRange(Parts(group));
+        design.Behaviors.AddRange(Parts(group, "motor"));
         return design;
     }
 
@@ -102,12 +104,10 @@ public sealed class MunitionPartsTests : IDisposable
             Assert.Equal((thrustMin, thrustMax), (thruster.Acceleration.Min, thruster.Acceleration.Max));
             Assert.Equal((thrustMin / 2f, thrustMax / 2f), (thruster.Lateral.Min, thruster.Lateral.Max));
             Assert.Equal((speedMin, speedMax), (thruster.MaxSpeed.Min, thruster.MaxSpeed.Max));
+            // The terms come across whole: the role's Quality term and whatever heat or durability terms the stat carried.
+            Assert.Equal(Describe(thruster.Acceleration).Split('[')[1], Describe(thruster.Lateral).Split('[')[1]);
             foreach (var stat in new[] { thruster.Acceleration, thruster.Lateral, thruster.MaxSpeed })
-            {
-                var term = Assert.Single(stat.Terms);
-                Assert.Equal((StatSource.Quality, "thruster"), (term.Source, term.Role));
-            }
-            Assert.Equal(thruster.Acceleration.Terms.Single().Exponent, thruster.Lateral.Terms.Single().Exponent);
+                Assert.Equal("thruster", Assert.Single(stat.Terms, t => t.Source == StatSource.Quality).Role);
 
             var evasion = Part<MunitionControlData>(design).EvasionFrequency;
             Assert.Equal((dodge, dodge), (evasion.Min, evasion.Max));
@@ -183,7 +183,15 @@ public sealed class MunitionPartsTests : IDisposable
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test", Owner = null }, null);
         ship = new Ship(items, zone, new EquippableItem { Data = cache.RefOf<ItemData>(hull), Durability = hull.Durability, Lot = 1 }, settings.DefaultEntitySettings);
         Assert.True(ship.TryEquip(new EquippableItem { Data = cache.RefOf<ItemData>(gt), Durability = gt.Durability, Lot = 2 }, hardpoint.Position));
-        return ship.Equipment.Single(e => e.Data.Name == "GT 3K");
+        zone.Entities.Add(ship);
+        ship.Activate();
+        // Settle at the item's optimal temperature, as ConditionRatioTests does, so heat and wear read their identity and only
+        // the role's quality moves a stat.
+        var item = ship.Equipment.Single(e => e.Data.Name == "GT 3K");
+        foreach (var cell in item.InsetShape.Coordinates) ship.Temperature[cell.x, cell.y] = gt.OptimalTemperature;
+        item.UpdatePerformance();
+        item.UpdatePerformance();
+        return item;
     }
 
     [Fact]
