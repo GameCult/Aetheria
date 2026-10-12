@@ -162,7 +162,7 @@ public sealed class ShipRigTests : IDisposable
     }
 
     [Fact]
-    public void AJointRidesOnlyAWeaponMountThatNamesARealJoint()
+    public void AJointRidesOnlyAWeaponMountOrAThrusterEmitterThatNamesARealJoint()
     {
         var ship = Armed("ghost");
         Assert.Contains("names an unknown joint", Refusal(ship));
@@ -170,7 +170,10 @@ public sealed class ShipRigTests : IDisposable
         ship = Armed("j");
         ship.Visual.Joints.Add(Joint("j", null, (Up, -180f, 180f)));
         ship.Visual.Anchors.Single(anchor => anchor.Id == "g0.muzzle").Joint = "j";
-        Assert.Contains("only a weapon mount rides one", Refusal(ship));
+        Assert.Contains("only a weapon mount or a thruster emitter rides one", Refusal(ship));
+
+        var thruster = Thrusting((null, 90f, "ghost"));
+        Assert.Contains("thruster-emitter anchor t0 names an unknown joint", Refusal(thruster));
     }
 
     [Fact]
