@@ -39,18 +39,21 @@ public sealed partial class FireControlCut124Tests
         return ship;
     }
 
-    // Fires until a shot lands off the hull's centre column; returns that outcome and the absorbs the target
+    // Fires (the target stepping aside once the aim is frozen) until a shot lands off the hull's centre column; returns that outcome and the absorbs the target
     // published for that shot alone.
     private static (ShotOutcome Outcome, List<AbsorbEvent> Absorbs) FireUntilOffCentreHit(Engagement e, List<IDisposable> subs)
     {
         var absorbs = Collect(e.Target, subs);
         ShotOutcome landed = null;
         subs.Add(e.Zone.ShotResolved.Subscribe(o => landed = o));
+        var home = e.Target.Position;
         for (var i = 0; i < 300; i++)
         {
             absorbs.Clear();
             landed = null;
+            e.Target.Position = home;
             FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+            e.Target.Position = home + float3(10f, 0, 0); // a forgivable jink after the aim is frozen: the shot lands left of centre
             e.Zone.Update(.01f);
             if (landed != null && landed.Hit && abs(e.Target.ToWorldPoint((float2) landed.Cell).x - e.Target.Position.x) > 2f)
                 return (landed, absorbs);
