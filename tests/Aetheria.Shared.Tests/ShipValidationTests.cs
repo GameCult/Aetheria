@@ -290,7 +290,7 @@ public sealed class ShipValidationTests
         Add("line-color-nan", s => s.Visual.SchematicLines[0].Color[2] = float.NaN, "must be finite RGBA");
         Add("line-color-infinite", s => s.Visual.SchematicLines[0].Color[3] = float.NegativeInfinity, "must be finite RGBA");
         // Thruster rows: the fixture's thruster joined by a second one at the hull's other cell, both in row "r".
-        void Row(ShipParts s, float arc, float otherArc, ItemRotation otherRotation = ItemRotation.Normal)
+        void Row(ShipParts s, float arc, float otherArc, ItemRotation otherRotation = ItemRotation.None)
         {
             Mount(s).Row = "r";
             Mount(s).FiringArc = arc;
