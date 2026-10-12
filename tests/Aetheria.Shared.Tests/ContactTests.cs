@@ -95,6 +95,7 @@ public sealed class ContactTests : IDisposable
         cache.Upsert(Hull("Solid", Solid(5, 5), 1000));
         cache.Upsert(Hull("Heavy", Solid(5, 5), 1000000));
         cache.Upsert(Hull("Big", Solid(7, 7), 1000));
+        cache.Upsert(Hull("Mid", Solid(5, 5), 3000));
         cache.Upsert(Hull("Ell", Ell(), 1000));
         cache.Upsert(Hull("Longinus", ShippedLonginus(), 1000));
         cache.FlushAsync().Wait();
