@@ -1,0 +1,107 @@
+<!-- Research kept for the hardpoint size-system fork (ruling aetheria-release:ruling:hardpoints-and-floating-greebles, 2026-10-13). Eyes pass eyes-hardpoints: Aetheria Body facts at origin/master and prior art on hardpoint/slot size systems; inferences marked. -->
+
+# Hardpoint size system: facts
+
+Basis: GameCult/Aetheria origin/master c000d5ca (detached worktree, since removed). Paths below are repo-relative to that tree. "(inferred)" marks inference; "(search summary)" marks web-search summaries not read at the primary page. Catalog numbers come from decoding GameData/Aetheria.cc with Python msgpack (script: scratchpad/dec.py), not from the C# loader.
+
+## A. Aetheria's Body
+
+### A1. Equipment placement today
+
+- Equipment is placed on a per-hull boolean cell grid. `Shape` holds `bool[,] Cells`, width/height, `Rotate`, `FitsWithin`, `FitsAt`: Assets/Scripts/ServerShared/ItemData.cs:19-260.
+- Cell size: `GameplaySettings.SchematicCellSize = 2f` (metres): Assets/Scripts/ServerShared/Settings.cs:269. The Blender add-on mirrors it as `CELL_SIZE = 2.0`: tools/blender/aetheria_ships/hull_grid.py:11. Hull grid max 32x32 per axis (hull_grid.py:12).
+- Every item declares its shape by `ItemData.Shape` (key 5): ItemData.cs:288-289. There is no separate "size" field on items.
+- `EquippableItemData.HardpointType` is abstract (ItemData.cs:410). `GearData` stores it (`Hardpoint`, key 23, ItemData.cs:452-458). `CargoBayData` is fixed to `Tool` (ItemData.cs:461-467); `HullData` is `Hull` (ItemData.cs:555).
+- `HardpointType` enum: Hull, Tool, Thermal, Thruster, WarpDrive, Reactor, Radiator, Shield, Sensors, Energy, Ballistic, Launcher, ControlModule: Assets/Scripts/ServerShared/Enums.cs:38-53.
+- `HardpointData` on a hull: Type, Position (int2 cell), Shape (cells), Transform (string mount id), Rotation, Armor, FiringArc: ItemData.cs:559-566.
+- The fit rule is loose and shape-driven: gear fits a hardpoint when type matches and `design.Shape.FitsWithin(hardpoint.Shape, Rotation)`; so a smaller item fits a larger hardpoint (ItemData.cs:576-588). The code cites the operator, 2026-09-30: "Hardpoint fit is loose: nobody's gonna stop you from putting a small reactor in a large reactor's hardpoint". `IsFilledBy` (exact-fill) is only a generation preference (ItemData.cs:586-588).
+- Placement: `Entity.HardpointAt` (Assets/Scripts/ServerShared/Entity.cs:~1340-1358) finds a hardpoint that `TakesAt` the item and holds no other non-Tool hardpoint item; leftover hardpoint cells may hold general gear (comment cites operator 2026-09-30, "saving slots in a hardpoint can be a valid tradeoff for crowded ships"). One hardpoint holds at most one hardpoint item.
+- Rotation: `ItemRotation` None / CounterClockwise / Reversed / Clockwise: Enums.cs:7-13. A hardpoint's `Rotation` is the orientation gear is laid in at. Items can also rotate in the free grid (`Shape.FitsWithin` tries all four rotations, ItemData.cs:178-195).
+- Which kinds go where (hull hardpoints): weapons use Energy, Ballistic, Launcher; thrusters Thruster; radiators Radiator; reactors Reactor; sensors Sensors; control modules ControlModule; shields Shield; Tool is general/cargo. Cargo bays and docking bays (`CargoBayData`, `DockingBayData`) are `Tool`-typed and have no hull hardpoint of that type in the 5 shipped hulls (below) (inferred: they sit in free grid cells; Entity.cs:1355 treats Tool occupants as not blocking a hardpoint).
+- Item footprints shipped (decoded from GameData/Aetheria.cc, cells = true-cell counts):
+  - Reactor: 2x2 (2), 3x3 (2, 9 cells), 4x4 12-cell (1), 4x4 16-cell (5).
+  - Thruster: 1x1 (1), 2x1 (3), 2x2 (3).
+  - Radiator: 2x1 (3), 2x2 (1), 4x1 (1).
+  - Sensors: 1x1 (2), 2x2 (1). ControlModule: 1x1 (1), 2x2 (1). Tool gear: 1x1 (2), 2x1 (1), 4x4 12-cell (1).
+  - Weapons (27 WeaponItemData), by hardpoint / caliber / footprint: Ballistic Small 1x1 (1), Small 1x2 (3), Medium 1x2 (1), Medium 2x2 (3); Energy Small 1x1 (1), Small 1x2 (7), Small 3x3 (1), Medium 2x2 (3), Large 1x2 (1); Launcher Medium 1x1 (2), Medium 1x3 (1), Medium 3x1 (1), Large 3x2 (1), XL 3x2 (1).
+  - Cargo: 1x1, 2x2, 3x3, 6x6 (36 cells), Docking Bay 4x4.
+  - No `Shield`-typed GearData exists in the catalog (31 GearData: Reactor 10, Thruster 7, Radiator 5, Tool 4, Sensors 3, ControlModule 2), although the Djinni hull authors a Shield hardpoint (2x2).
+- Hardpoint footprints shipped on the 5 hulls (decoded): Smoke Test Hull and Longinus (Ship): ControlModule 2x2, Thruster 2x2 / 1x2, Energy 1x2 and 2x2, Launcher 1x3, Radiator 1x2, Reactor 2x2, Sensors 1x1, Ballistic 2x2. Djinni (Ship, 14x17): Thruster 2x1 and 1x2, Launcher 1x3 and 3x2, Ballistic 1x2, Reactor 2x2, ControlModule 2x2, Radiator 2x1, Sensors 2x2, Shield 2x2. Zenith (Station, 12x12): Reactor 4x4, Radiator 1x4 x4. Turret (8x8): Ballistic 2x4 x2 (firingArc 360), Radiator 1x4 x2, Reactor 2x2, ControlModule 1x1, Sensors 1x1. So each hardpoint's size is the area/footprint of its cell shape and there is no named size set; 1x2 and 2x2 recur most.
+- Caliber exists only as a label on weapons: `WeaponCaliber { Small, Medium, Large, ExtraLarge }`, `WeaponItemData.WeaponCaliber` key 25: Enums.cs:77-83, ItemData.cs:482-483. Its one runtime use is an action-bar icon: Assets/Scripts/Gameplay/GameSettings.cs:46,54; Assets/Scripts/UI/HUD/SchematicListElement.cs:37. Nothing in sim or fit reads it (grep of WeaponCaliber across Assets and tests). Shipped data does not follow the planned bands (Energy "Large" is 1x2; Launcher Medium is 1 cell, "Small" energy 3x3 is 9 cells).
+- Hull-level notes: `HullData.Prefab` (Unity prefab guid, all 5 shipped hulls have one) or `HullData.Visual` (ShipAuthoring record; all shipped hulls leave it empty): ItemData.cs:511-540; `HullType` Ship/Station/Turret.
+
+### A2. Existing visual mounts, rig, Unity binding, size/class notions
+
+- Visual package record `ShipAuthoring` (`aetheria.ship_authoring`): ModelAsset (GLB), Anchors, SchematicLines, Joints: Assets/Scripts/ServerShared/ShipAuthoring.cs:8-66.
+- `ShipAnchor` fields: Id (the hardpoint's `Transform` string), Role, ModelNodeId, ParentId, Order, Joint: ShipAuthoring.cs:39-55. Roles vocabulary: map-icon, hull-collider, shield, tractor, thruster-emitter, weapon-mount, weapon-muzzle, radiator-mesh: ShipAuthoring.cs:71-76. No size, class, or envelope field exists on an anchor.
+- Which hardpoints get a visual anchor: `MountRole`: Thruster -> thruster-emitter, Radiator -> radiator-mesh, Energy/Ballistic/Launcher -> weapon-mount; every other type (Reactor, Shield, Sensors, ControlModule, Tool, Thermal, WarpDrive) is internal and "no anchor may take its id": ShipAuthoring.cs:78-83, 319-327. Each weapon hardpoint needs at least one weapon-muzzle anchor parented to it: ShipAuthoring.cs:341-343.
+- Hardpoint footprint on the grid and the mount are separate: hardpoint cells are validated inside the hull and non-overlapping (ShipAuthoring.cs:300-318); the anchor is a model node bound by id. The Blender add-on derives the hardpoint `Position` from the mount object's origin cell (`mounted_position(cell_at(origin...))`, tools/blender/aetheria_ships/__init__.py:249-256) and adds a default muzzle half a metre along the facing (`MUZZLE_OFFSET = (0,-0.5,0)`, __init__.py:203). Docs: docs/moddable-ship-authoring.md ("Gameplay cell occupancy remains the authored HullData.Shape ... strokes do not decide armor or mount footprints"; Forbidden writers: Blender object names, prefabs, generated rows may not decide hardpoint type or footprint).
+- Add-on mount entry: "Add a weapon mount and its first muzzle at the 3D cursor, with a layout row" (__init__.py:~310); the layout row carries kind, mount id, rotation, footprint string like `##/##` (docs/moddable-ship-authoring.md). The add-on only creates weapon mounts via that operator; thrusters/radiators are mesh objects tagged by role (docs).
+- Rig: `ShipJoint` {Id, Parent, Axes, Min, Max}: ShipAuthoring.cs:27-37; `ValidateRig` and `RigChains` (ShipAuthoring.cs:344, 370-471). `ShipModCatalog.BindRig` checks the record's joints and each mount's Joint equal the GLB's nearest-ancestor-joint; a thruster or radiator mesh may not sit under a joint (follow-up gimballed-thrusters): Assets/Scripts/ServerShared/ShipModCatalog.cs:209-250.
+- Unity binding: `ShipModVisual.LoadAsync` loads the GLB via glTFast and builds `Anchors` Id -> Transform: Assets/Scripts/Gameplay/ShipModVisual.cs:30-65. Legacy prefab path: `EntityInstance` has `RadiatorHardpoint[]`, `ThrusterHardpoint[]`, `WeaponHardpoint[]` arrays matched by transform name to `HardpointData.Transform` (EntityInstance.cs:23-25, 251-265); `WeaponHardpoint` is only `Transform[] FiringPoint`; `ThrusterHardpoint` is an invisible `MeshRenderer Emitter` that shapes exhaust particles (ThrusterHardpoint.cs); `RadiatorHardpoint` is a `MeshRenderer Mesh`.
+- Mount geometry vs sim: the sim reads only authored hull data (arc on the hardpoint `FiringArc`, 0 = default 120; ItemData.cs:565-566); rig and IK are presentation (rulings below).
+- Size/class notions that exist: (1) `WeaponCaliber` label; (2) hardpoint cell footprints; (3) planned caliber footprint bands (cut `cut-caliber-bands.r1`, WITHDRAWN 2026-10-12 under map-only-what-runs, blocked on seven matrix cuts; bands Small 1-2 cells, Medium 3-4, Large 5-6, ExtraLarge 7-9, plight exempt; adds test EveryWeaponFootprintLiesInItsCaliberBand). Viewed: aetheria-release:cut_spec:cut-caliber-bands.r1. Question `hardpoint-arc-caps` options cited per-caliber arc caps (Small 360, Medium 270, Large 180, ExtraLarge 90); answered no-cap by ruling hardpoint-arc-no-cap (question status, viewed).
+
+### A3. Rulings in force, aetheria-release (run: rulings-in-force recipe returned 3 rows with the semantic text; further related rulings found by a second query on the campaign)
+
+- aetheria-release:ruling:standard-hardpoint-sizes (2026-10-13, Operator): hulls authored with hardpoints from one standard set of sizes; gear models built to those sizes; everything equipped eventually shown; greebles are information about fitted gear, not free decoration; the size set, its relation to the grid and mounts, and which gear is shown first are open.
+- aetheria-release:ruling:mount-arc-gun-traverse (2026-10-10): arc authored on the hardpoint per ship; traverse is a weapon stat; "any gun can go on any mount"; the link carries no sim stat; heavy-guns-on-narrow-arcs enforced "if at all" by a calibre judge (since resolved to no-cap).
+- aetheria-release:ruling:vector-row-arc-row-slew (2026-10-10): thruster gimbal limit = hardpoint FiringArc; row membership = new HardpointData.Row; slew = new ThrusterData.Slew gear stat.
+- aetheria-release:ruling:rig-is-presentation (2026-10-09): joints, limits and IK are presentation; the sim reads only the authored arc and traverse; no bone length or IK result feeds a sim fact.
+- aetheria-release:ruling:weapon-matrix-type-by-caliber (2026-10-09): matrix rows WeaponType, columns authored WeaponCaliber; footprints held in caliber bands by a catalog test; plight stays Large and exempt (that cut is withdrawn; ruling still InForce).
+- aetheria-release:ruling:plight-not-one-cell (2026-10-07): plight's 1x1 footprint is a content error.
+- Also cited in Aetheria code: operator 2026-09-30 rulings on loose hardpoint fit and leftover hardpoint cells (ItemData.cs:576, Entity.cs:1338 comments).
+
+### A4. Gear models today
+
+- Item kinds with a visual mesh: none in data. `EquippableItemData` has `Schematic` (a Texture2D asset guid, ItemData.cs:366-367) and `ActionBarIcon` (guid, :381); no model/prefab/mesh field on any item class (ItemData.cs:362-440). `Schematic` is read only by the editor drawer (Assets/Scripts/Editor/CultCacheDrawers.cs:104).
+- What shows on a ship today is part of the hull model: thruster emitters (invisible), radiator meshes, weapon firing points; gear identity does not change what is drawn (inferred from EntityInstance.cs:251-265, ShipInstance.cs:45-47, ThrusterHardpoint.cs). Items equipped but with no anchor (reactor, sensors, shields, control, cargo) have no visual at all today (ShipAuthoring.cs:319-327).
+- Catalog counts (decoded): 27 weapons, 31 gear, 4 cargo bays, 1 docking bay, 2 consumables, 5 hulls (none uses `HullData.Visual`), 86 factionproductdata, 51 compound and 13 simple commodities.
+- Gear models authored for glTF under ships: none in repo (the Blender work is hull-and-anchor oriented; `Asset Sources/*.blend` includes Turret.blend and mine.blend among 12 files).
+
+## B. Prior art
+
+Size-system comparison. Confidence key: (P) read at primary page this session; (S) web-search summary only.
+
+| Game | Number of sizes | Ratio / scale | Geometry or class | Internals shown? | One item in other-size slots |
+|---|---|---|---|---|---|
+| Star Citizen | Item sizes S1..S10 stated, extendable; bigger ports and S0 exist (S0 not verified) | Size 1 ~1 m, 0.25 m3; Size 10 ~40 m, 1394.5 m3 (P, starcitizen.tools design notes) | Gameplay class on a typed port (type, size, pipes must all match) with real model dimensions; ports restricted to ONE size (ranges removed) (P) | Weapons/turrets visible; internal components not verified | Exact size match; a gimbal in a Size N port holds Size N-1 weapon; child ports one size smaller; turret capacity additive (S3 turret: two S1 or one S2); manned turret loses another size (P) |
+| Elite Dangerous | Hardpoints Small/Medium/Large/Huge (class 1-4); utility mounts; internals size 1-8 (S) | not stated in sources read | Slot class set by ship; cannot be changed by outfitting (S) | Hardpoints and utility visible; internals not | Hardpoint accepts equal or lower class (S, fandom Hardpoint via search) |
+| Starsector | 3 (small/medium/large) | not stated | Gameplay size and type on a slot defined in the ship file: id, location, angle, arc, mount (turret/hardpoint/hidden), size, type (P, starsector.wiki.gg Modding:Weapon Slots) | Weapons shown; vanilla uses a different sprite in turret vs hardpoint (P) | A medium/large mount accepts a weapon one size smaller only if same type (S, wiki.gg Weapon page via search) |
+| KSP | Stock diameters 0.625, 1.25, (1.875 DLC), 2.5, 3.75, 5 m (S, KSP wiki component guide via search) | Roughly x2 steps: 0.625 -> 1.25 -> 2.5; 3.75 and 1.875 are 1.5x steps | Geometry-driven: attach node on the model, same-diameter stacking (S) | Parts all visible | Adapter parts bridge diameters (FL-A5, C7, Rockomax adapters) (S) |
+| EVE Online | 4 turret sizes S/M/L/XL tied to ship class (frigate-destroyer, cruiser-BC, battleship, capital); separate turret and launcher hardpoint counts on top of high slots (S, EVE University wiki via search) | not stated | Gameplay class; hardpoint count is a limit, not geometry | Turrets visible; fitting-slot number maps to a hardpoint on the model (forum, S) | Class-gated by ship; mixed sizes not allowed (inferred from "tied to ship class") |
+| BattleTech / MWO / MW5 | Hardpoint types (energy, ballistic, missile, support/AMS/ECM per game); critical slots are a separate capacity (S) | n/a | Type-gated hardpoints plus slot capacity in components | Weapons visible on mech; MW5 omnipods swap hardpoint sets (S) | Same-type swaps only (MWO); weapon cost counted in critical slots (S) |
+| Space Engineers | Small grid 0.5 m blocks vs large grid 2.5 m: 5:1 (from general knowledge, search forum supports); conveyor ports small = 1/3 width of large (S) | 5:1 | Geometry-driven; grid block sizes | Everything is physical | Converter blocks join port sizes (S) |
+| Avorion | Turret size = slots used (1,2,3...); damage and range scale with slots (S) | Linear in slots | Slot count (gameplay), not geometry | Turrets visible | Point-defense always 1 slot (S) |
+| From the Depths | Turret/mount block sizes 1 m, 3 m, 5 m etc.; 3 m One Axis Turret 3x3x1 (S) | 1:3:5 m | Geometry-driven (build blocks) | Everything physical | Not applicable (blocks) |
+| Cosmoteer | Weapon/reactor footprints on a grid, e.g. reactors 2x2, 3x3, 4x4 (S, devlog) | cell-count areas | Grid-footprint driven, like Aetheria | Visible modules | Not verified |
+| Starfield | Ship modules snap to snap points; module class A/B/C/M must be <= reactor class (S) | n/a | Snap-point geometry plus class | Visible modules | Class A works with any reactor (S) |
+| Freelancer | Engine-fixed hardpoint types hp_gun_special_1..10, hp_turret_special_1..10, hp_torpedo_special_1..2; per-ship lists which weapon classes (1,2,3...) a hardpoint accepts (S, the-starport forum) | classes 1-10 | Gameplay class on a named hardpoint | Weapons visible | Hardpoint lists accepted classes (e.g. 1,2,3) (S) |
+| Homeworld | Not found; search returned nothing relevant | | | | |
+
+Sources:
+- Star Citizen design notes, Weapons Mount Updates: https://starcitizen.tools/Comm-Link:Design_Notes_-_Weapons_Mount_Updates (P): Size 1 ~1 m / 0.25 m3 to Size 10 ~40 m / 1394.5 m3; type+size+pipes match; gimbal reduces weapon port by one; secondary ports at least one size smaller; turret capacity additive; manned turret loses one more size; no adapter rules described.
+- Star Citizen, The Shipyard: Weapon Hardpoints: https://starcitizen.tools/Comm-Link:The_Shipyard_-_Weapon_Hardpoints (P): hardpoints restricted to a single size item, ranges dropped; twin/tri/quad-link mounts dropped because two weapons were much larger than one, causing visual or physical clipping and arc limits; fixed vs gimbal mounts; gimbal holds at most one size smaller (S3 gimbal takes S2) for balance.
+- Starsector Modding: Weapon Slots: https://starsector.wiki.gg/wiki/Modding:Weapon_Slots (P): slot fields (id, location, angle, arc, mount, size small/medium/large, type); mount types turret / hardpoint / hidden; "In vanilla, the same weapon uses a different sprite in a turret than in a hardpoint." The page does not state sprite-to-slot placement conventions or pixel sizes.
+- Starsector Weapon page (search summary): https://starsector.wiki.gg/wiki/Weapon : sizes small/medium/large; smaller-in-larger one size only and same type; turret vs hardpoint HP 250/500/800 vs 500/1000/1600.
+- KSP component size guidelines (search summary; page blocked by Anubis): https://wiki.kerbalspaceprogram.com/wiki/Tutorial:_Component_size_guidelines : 0.625, 1.25, 1.875 (DLC), 2.5, 3.75, 5 m; adapters bridge. Adapter pages: https://wiki.kerbalspaceprogram.com/wiki/FL-A5 .
+- Elite Dangerous (search summary; fandom pages return 402): https://elite-dangerous.fandom.com/wiki/Hardpoint : small/medium/large/huge = class 1-4, equal-or-lower accepted; utility mounts 2-8 per ship (search summary); internal sizes 1-8 per forum posts via search, not from a primary page.
+- EVE University turret sizes (search summary): https://wiki.eveuniversity.org/Turret ; hardpoints limit: https://wiki.eveuniversity.org/Fitting_Modules_and_Rigs_Guide
+- BattleTech/MWO/MW5 (search summary): https://www.sarna.net/wiki/MechWarrior_5:_Clans/Equipment ; MWO blog: https://www.gamebanshee.com/kp348
+- Space Engineers ports (search summary): https://spaceengineers.wiki.gg/wiki/Port
+- Cosmoteer devlogs (search summary): https://walternaterealities.itch.io/cosmoteer/devlog/103005/cosmoteer-0153-medium-large-reactors
+- Avorion turrets (search summary): https://avorion.fandom.com/wiki/Weapons
+- FtD One Axis Turret 3m (search summary): https://fromthedepths.gamepedia.com/File:One_Axis_Turret_(3m).png
+- Starfield builder (search summary): https://progameguides.com/starfield/how-to-build-ships-in-starfield-tips-and-tricks/
+- Freelancer hardpoint types (search summary): https://the-starport.com/forums/post/5308
+
+### B6. Design writing on modular visual fitting
+
+- No GDC talk or dev blog on socket conventions (pivot, forward axis, clearance envelope) or LOD of fitted gear was found in the searches run (three queries). That is a gap, not a negative finding.
+- Found: Star Citizen Shipyard article gives a stated design reason about visual clipping for dropping multi-gun mounts (primary, above).
+- Found (search summary, community, not developer): a commercial Blender modular space-station kit uses two socket size classes as empties on the module root (2 m docking ring vs a smaller appendage connector), snapped by Blender face snapping (https://www.cgtrader.com/3d-models/space/spaceship/modular-space-station-pack).
+- Found (search summary, forum): EVE players argue visible turret models let other players read what a ship carries (https://forums.eveonline.com/t/physical-ship-customisation/485349); Elite forum thread notes large ships take modular components while small ones lack room (https://forums.frontier.co.uk/threads/ship-models-that-change-based-on-components.223210); a Positech forum thread describes visual-only extra turret positions that do not change gameplay (https://forums.positech.co.uk/t/multiple-visual-hardpoints/3439).
+- Empyrion forum (search summary): odd-numbered footprints let a rotating model pivot on a cell center (https://empyriononline.com/posts/427850/); this concerns a different game.
+
+### Unverified / not reached
+- Elite internal class 1-8 scale ratios and rating rules; KSP attach node `size` field semantics; Starsector sprite-to-slot placement; Homeworld; Cosmoteer rotation and vanilla footprints; Avorion hardpoint vs gimbal; Space Engineers cube-edge stat from a primary source; Star Citizen S0 and sizes above S10 (the design note says S1-S10 and "can be extended").
