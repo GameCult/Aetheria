@@ -538,19 +538,171 @@ public sealed class ShipRigTests : IDisposable
         Assert.Contains("radiator-mesh anchor t0 may not ride a joint", Refusal(ship));
     }
 
+    // A joint has one actuator (ruling one-joint-one-actuator): a gun group or one thruster row, never both, never two rows.
     [Fact]
-    public void AGunAndAThrusterRowOnOneJointAreEachJudgedByTheirOwnArc()
+    public void AGunAndAThrusterRowMayNotShareAJoint()
     {
-        // The gun rule is untouched: a gun and a thruster row each judged by their own arc against the one chain.
         var ship = Armed("j");
         ship.Visual.Joints.Add(Joint("j", null, (Up, -45f, 45f)));
         ship.Hull.Hardpoints.Single(hardpoint => hardpoint.Transform == "g0").FiringArc = 90;
         var thruster = ship.Hull.Hardpoints.Single(hardpoint => hardpoint.Type == HardpointType.Thruster);
         thruster.FiringArc = 90;
         ship.Visual.Anchors.Single(anchor => anchor.Id == thruster.Transform).Joint = "j";
+        var message = Refusal(ship);
+        Assert.Contains("joint j carries both a weapon and thruster hardpoint", message);
+        Assert.Contains("a joint has one actuator", message);
+
+        // The same ship with the thruster on a joint of its own is the acceptance control.
+        ship.Visual.Joints.Add(Joint("k", null, (Up, -45f, 45f)));
+        ship.Visual.Anchors.Single(anchor => anchor.Id == thruster.Transform).Joint = "k";
         ship.Validate();
-        thruster.FiringArc = 91;
-        Assert.Contains("90 degrees of yaw, short of the 91 degree gimbal arc", Refusal(ship));
+        // A thruster of a named row is refused on a gun's joint alike.
+        thruster.Row = "r";
+        ship.Visual.Anchors.Single(anchor => anchor.Id == thruster.Transform).Joint = "j";
+        Assert.Contains("a joint has one actuator", Refusal(ship));
+
+        // The gun may be any of several: the second gun is the one sharing the thruster's joint.
+        var second = Armed("k", "j");
+        second.Visual.Joints.Add(Joint("k", null, (Up, -90f, 90f)));
+        second.Visual.Joints.Add(Joint("j", null, (Up, -90f, 90f)));
+        var lone = second.Hull.Hardpoints.Single(hardpoint => hardpoint.Type == HardpointType.Thruster);
+        lone.FiringArc = 90;
+        second.Visual.Anchors.Single(anchor => anchor.Id == lone.Transform).Joint = "k";
+        Assert.Contains("joint k carries both a weapon and thruster hardpoint", Refusal(second));
+        second.Visual.Anchors.Single(anchor => anchor.Id == lone.Transform).Joint = "j";
+        Assert.Contains("joint j carries both a weapon and thruster hardpoint", Refusal(second));
+    }
+
+    [Fact]
+    public void TwoRowsMayNotShareAJointWhateverTheirSizesOrOrder()
+    {
+        // A row of three and a row of one, the second row's member last; a row of two and one; and a row of four against one.
+        Assert.Contains("different rows", Refusal(OnJoint(Thrusting(("r", 90f, "j"), ("r", 90f, "j"), ("r", 90f, "j"), ("s", 90f, "j")), "j", (Up, -45f, 45f))));
+        Assert.Contains("different rows", Refusal(OnJoint(Thrusting(("r", 90f, "j"), ("r", 90f, "j"), ("s", 90f, "j")), "j", (Up, -45f, 45f))));
+        // Rows are compared exactly: "r" and "R" are two rows, and so is a blank name against a letter.
+        Assert.Contains("different rows", Refusal(OnJoint(Thrusting(("r", 90f, "j"), ("R", 90f, "j")), "j", (Up, -45f, 45f))));
+        Assert.Contains("different rows", Refusal(OnJoint(Thrusting(("r", 90f, "j"), (" ", 90f, "j")), "j", (Up, -45f, 45f))));
+        var apart = Thrusting(("r", 90f, "j"), ("R", 90f, "k"));
+        OnJoint(apart, "j", (Up, -45f, 45f));
+        OnJoint(apart, "k", (Up, -45f, 45f));
+        apart.Validate();
+    }
+
+    [Fact]
+    public void ARowOfAnySizeRidesItsJointWholeOrIsRefused()
+    {
+        foreach (var size in new[] { 3, 4, 5 })
+        for (var left = 0; left < size; left++)
+        {
+            // Every member on j except one, which is on no joint or on another; the one may stand anywhere in the row.
+            foreach (var elsewhere in new string[] { null, "k" })
+            {
+                var members = Enumerable.Range(0, size).Select(index => ("r", 90f, index == left ? elsewhere : "j")).ToArray();
+                var ship = OnJoint(Thrusting(members), "j", (Up, -45f, 45f));
+                OnJoint(ship, "k", (Up, -45f, 45f));
+                Assert.Contains("must ride it too", Refusal(ship));
+            }
+        }
+        // The same rows, every member on j, are valid.
+        foreach (var size in new[] { 3, 4, 5 })
+            OnJoint(Thrusting(Enumerable.Range(0, size).Select(_ => ("r", 90f, "j")).ToArray()), "j", (Up, -45f, 45f)).Validate();
+    }
+
+    [Fact]
+    public void ARowSharesRotationAndTheExactArcAcrossAnyNumberOfMembers()
+    {
+        // The offender may be the second, third or fourth member, and may differ by a hair.
+        foreach (var arc in new[] { 89.5f, 89.99f, 60f, 91f, 120f, 270f })
+        for (var offender = 1; offender < 4; offender++)
+        {
+            var members = Enumerable.Range(0, 4).Select(index => ("r", index == offender ? arc : 90f, (string)null)).ToArray();
+            Assert.Contains("must share Rotation and FiringArc", Refusal(Thrusting(members)));
+        }
+        var rotated = Thrusting(("r", 90f, null), ("r", 90f, null), ("r", 90f, null));
+        rotated.Hull.Hardpoints[2].Rotation = ItemRotation.Reversed;
+        Assert.Contains("must share Rotation and FiringArc", Refusal(rotated));
+        Thrusting(("r", 90f, null), ("r", 90f, null), ("r", 90f, null), ("r", 90f, null)).Validate();
+    }
+
+    [Fact]
+    public void AnArcIsJudgedAgainstTheReachAtEverySizeUpToATurn()
+    {
+        // The reach is the arc to the degree for a row of one, a row of three and a row of four, below, at and above 180.
+        foreach (var arc in new[] { 10f, 100f, 181f, 270f, 359f, 360f })
+        foreach (var size in new[] { 1, 3, 4 })
+        {
+            var members = Enumerable.Range(0, size).Select(_ => (size == 1 ? null : "r", arc, "j")).ToArray();
+            OnJoint(Thrusting(members), "j", (Up, -arc / 2, arc / 2)).Validate();
+            if (arc < 360f)
+            {
+                var short1 = Refusal(OnJoint(Thrusting(members), "j", (Up, -(arc - 1f) / 2, (arc - 1f) / 2)));
+                Assert.Contains($"chain reaches {arc - 1f} degrees", short1);
+            }
+        }
+    }
+
+    [Fact]
+    public void NoThrusterSwingsFurtherThanATurnWhetherOrNotItIsInARow()
+    {
+        foreach (var arc in new[] { 361f, 400f, 720f, 1000f })
+        {
+            Assert.Contains("firing arc may be at most 360 degrees", Refusal(Thrusting((null, arc, null))));
+            Assert.Contains("firing arc may be at most 360 degrees", Refusal(Thrusting(("r", arc, null))));
+            Assert.Contains("firing arc may be at most 360 degrees", Refusal(Thrusting(("r", arc, null), ("r", arc, null), ("r", arc, null))));
+            Assert.Contains("firing arc may be at most 360 degrees", Refusal(OnJoint(Thrusting((null, arc, "j")), "j", (Up, -180f, 180f))));
+        }
+        Thrusting((null, 360f, null)).Validate();
+        Thrusting((null, 359f, null), ("r", 360f, null), ("r", 360f, null)).Validate();
+    }
+
+    [Fact]
+    public void OnlyAThrusterHardpointMayStateARowWhateverItsType()
+    {
+        foreach (var type in Enum.GetValues(typeof(HardpointType)).Cast<HardpointType>().Where(type => type != HardpointType.Thruster))
+        {
+            var ship = Thrusting((null, 0f, null));
+            ship.Hull.Hardpoints.Single().Type = type;
+            ship.Hull.Hardpoints.Single().Row = "r";
+            Assert.Contains($"is a {type} hardpoint, and only a Thruster hardpoint may state a row", Refusal(ship));
+        }
+    }
+
+    // The chain stops at any actuator's joint, a thruster row's included, so a child's reach never borrows a parent's sweep.
+    [Fact]
+    public void AChainStopsAtAJointAThrusterRowDrivesAsItDoesAtAGunJoint()
+    {
+        var ship = Thrusting(("r", 90f, "outer"), ("s", 40f, "inner"));
+        OnJoint(ship, "outer", (Up, -45f, 45f));
+        ship.Visual.Joints.Add(Joint("inner", "outer", (Up, -20f, 20f)));
+        ship.Validate();
+        ship.Hull.Hardpoints[1].FiringArc = 41;
+        // 41 is within the 130 a walk through "outer" would give, and is refused for the 40 the inner joint alone sweeps.
+        Assert.Contains("joint inner chain reaches 40 degrees", Refusal(ship));
+
+        // A gun below a row's joint is reckoned from its own joint.
+        var gun = Armed("child");
+        gun.Visual.Joints.Add(Joint("top", null, (Up, -45f, 45f)));
+        gun.Visual.Joints.Add(Joint("child", "top", (Up, -20f, 20f)));
+        var thruster = gun.Hull.Hardpoints.Single(hardpoint => hardpoint.Type == HardpointType.Thruster);
+        thruster.FiringArc = 90;
+        gun.Visual.Anchors.Single(anchor => anchor.Id == thruster.Transform).Joint = "top";
+        gun.Hull.Hardpoints.Single(hardpoint => hardpoint.Transform == "g0").FiringArc = 40;
+        gun.Validate();
+        gun.Hull.Hardpoints.Single(hardpoint => hardpoint.Transform == "g0").FiringArc = 41;
+        Assert.Contains("joint child chain reaches 40 degrees", Refusal(gun));
+
+        // A row below a gun's joint is reckoned from its own joint, and counts the parent once nothing drives it.
+        var below = Armed("top");
+        below.Visual.Joints.Add(Joint("top", null, (Up, -180f, 180f)));
+        below.Visual.Joints.Add(Joint("low", "top", (Up, -20f, 20f)));
+        var lowThruster = below.Hull.Hardpoints.Single(hardpoint => hardpoint.Type == HardpointType.Thruster);
+        lowThruster.FiringArc = 40;
+        below.Visual.Anchors.Single(anchor => anchor.Id == lowThruster.Transform).Joint = "low";
+        below.Validate();
+        lowThruster.FiringArc = 41;
+        Assert.Contains("joint low chain reaches 40 degrees", Refusal(below));
+        below.Visual.Anchors.Single(anchor => anchor.Id == "g0").Joint = null;
+        below.Validate();
     }
 
     // Row and Slew are persistent: a package or catalog written with them is read by key, so their positions are wire format.

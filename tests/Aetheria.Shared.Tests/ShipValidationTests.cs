@@ -304,8 +304,10 @@ public sealed class ShipValidationTests
         Add("row-on-weapon", s => { Mount(s).Type = HardpointType.Energy; Mount(s).Row = "r"; }, "only a Thruster hardpoint may state a row");
         Add("row-rotation-mismatch", s => Row(s, 90, 90, ItemRotation.Reversed), "are in row r and must share Rotation and FiringArc");
         Add("row-arc-mismatch", s => Row(s, 90, 60), "are in row r and must share Rotation and FiringArc");
-        Add("row-arc-zero", s => Row(s, 0, 0), "thruster row r must state a gimbal FiringArc above 0 and at most 360");
-        Add("row-arc-above-a-turn", s => Row(s, 361, 361), "thruster row r must state a gimbal FiringArc above 0 and at most 360");
+        Add("row-arc-zero", s => Row(s, 0, 0), "thruster row r must state a gimbal FiringArc above 0.");
+        Add("row-arc-above-a-turn", s => Row(s, 361, 361), "thruster hardpoint thruster.port firing arc may be at most 360 degrees");
+        Add("row-of-one-arc-above-a-turn", s => Mount(s).FiringArc = 361, "thruster hardpoint thruster.port firing arc may be at most 360 degrees");
+        Add("row-of-one-arc-far-above-a-turn", s => Mount(s).FiringArc = 400, "firing arc may be at most 360 degrees");
         return cases;
     }
 }

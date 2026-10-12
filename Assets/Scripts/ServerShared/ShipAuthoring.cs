@@ -262,6 +262,9 @@ public static class ShipAuthoringStore
                 throw new InvalidOperationException($"{ship.Id}: hardpoint {hardpoint.Transform} has an unknown rotation {(int)hardpoint.Rotation}.");
             if (!float.IsFinite(hardpoint.Armor) || hardpoint.Armor < 0 || !float.IsFinite(hardpoint.FiringArc) || hardpoint.FiringArc < 0)
                 throw new InvalidOperationException($"{ship.Id}: hardpoint {hardpoint.Transform} armor and firing arc must be finite and not negative.");
+            // A thruster's gimbal range is the judge's alone, a row of one included: no thruster swings further than a turn.
+            if (hardpoint.Type == HardpointType.Thruster && hardpoint.FiringArc > 360f)
+                throw new InvalidOperationException($"{ship.Id}: thruster hardpoint {hardpoint.Transform} firing arc may be at most 360 degrees.");
             if (!string.IsNullOrEmpty(hardpoint.Row) && hardpoint.Type != HardpointType.Thruster)
                 throw new InvalidOperationException($"{ship.Id}: hardpoint {hardpoint.Transform} is a {hardpoint.Type} hardpoint, and only a Thruster hardpoint may state a row.");
             if (hardpoint.Shape?.Cells == null || !hardpoint.Shape.Cells.Cast<bool>().Any(occupied => occupied))
@@ -294,8 +297,8 @@ public static class ShipAuthoringStore
             foreach (var hardpoint in row)
                 if (hardpoint.Rotation != lead.Rotation || hardpoint.FiringArc != lead.FiringArc)
                     throw new InvalidOperationException($"{ship.Id}: thruster hardpoints {lead.Transform} and {hardpoint.Transform} are in row {row.Key} and must share Rotation and FiringArc.");
-            if (!(lead.FiringArc > 0f) || lead.FiringArc > 360f)
-                throw new InvalidOperationException($"{ship.Id}: thruster row {row.Key} must state a gimbal FiringArc above 0 and at most 360.");
+            if (!(lead.FiringArc > 0f))
+                throw new InvalidOperationException($"{ship.Id}: thruster row {row.Key} must state a gimbal FiringArc above 0.");
         }
         foreach (var anchor in anchors)
         {
@@ -418,6 +421,9 @@ public static class ShipAuthoringStore
                 throw new InvalidOperationException($"{ship.Id}: thruster hardpoint {hardpoint.Transform} rides a joint, so it must state its firing arc above 0; a fixed thruster may not ride a joint.");
         foreach (var onJoint in tilted.GroupBy(hardpoint => jointOf[hardpoint.Transform], StringComparer.Ordinal))
         {
+            // A joint has one actuator: a gun group or one thruster row, never both.
+            if (ridden.Any(mount => mount.Joint == onJoint.Key))
+                throw new InvalidOperationException($"{ship.Id}: joint {onJoint.Key} carries both a weapon and thruster hardpoint {onJoint.First().Transform}; a joint has one actuator.");
             var lead = onJoint.First();
             foreach (var hardpoint in onJoint)
                 if (RowOf(hardpoint) != RowOf(lead) || RowOf(hardpoint) == null && hardpoint != lead)
@@ -445,14 +451,15 @@ public static class ShipAuthoringStore
     }
 }
 
-// A rig's driven joints and the chains that move them. A driven joint is one a weapon-mount anchor names. Its chain runs
-// from the joint up through its ancestors and stops before the nearest ancestor that is itself driven (that joint has
-// its own gun, and its pose is that gun's business), listed root-first. The judge and the plan both read this one rule.
+// A rig's driven joints and the chains that move them. A driven joint is one a weapon-mount or thruster-emitter anchor
+// names (a joint has one actuator, a gun group or a thruster row). Its chain runs from the joint up through its ancestors
+// and stops before the nearest ancestor that is itself driven (that joint has its own actuator, and its pose is that
+// actuator's business), listed root-first. The judge and the plan both read this one rule.
 public static class RigChains
 {
     public static HashSet<string> Driven(ShipAuthoring ship) =>
-        new HashSet<string>(ship.Anchors.Where(anchor => anchor.Role == "weapon-mount" && !string.IsNullOrEmpty(anchor.Joint)).Select(anchor => anchor.Joint),
-            StringComparer.Ordinal);
+        new HashSet<string>(ship.Anchors.Where(anchor => (anchor.Role == "weapon-mount" || anchor.Role == "thruster-emitter") && !string.IsNullOrEmpty(anchor.Joint))
+            .Select(anchor => anchor.Joint), StringComparer.Ordinal);
 
     public static string[] Chain(ShipAuthoring ship, string jointId)
     {
