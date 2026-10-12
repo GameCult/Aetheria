@@ -408,8 +408,11 @@ public sealed partial class ContactRevealTests : IDisposable
         var p = t.Add(float3(0, 0, 1000), new[] { "Eye" });
         var o = t.Add(float3(0, 0, 0), new[] { "Eye" });
         var sensor = p.Equipment.SelectMany(i => i.Behaviors).OfType<Sensor>().Single();
+        var fired = false;
+        sensor.OnPingStart += () => fired = true;
         t.Tick(.1f); // a sensor's first tick opens its ping cooldown; Ping() is refused before it
         if (ping) sensor.Ping();
+        Assert.Equal(ping, fired); // fixture: the ping started exactly when asked, so the run is not a control in disguise
         var light = new List<float> { p.Visibility };
         for (var tick = 0; tick < 10; tick++)
         {
@@ -693,6 +696,30 @@ public sealed partial class ContactRevealTests : IDisposable
         Tick(.1f);
 
         Assert.Empty(o.RevealsOf(e));
+    }
+
+    // The hull's own radiation names no item, and the departure still counts it: the light at removal sits on an item-less
+    // entry alone, a hair above the observer's gate (ends the reveals) or a hair below (ends nothing).
+    [Theory]
+    [InlineData(1.01f, true)]
+    [InlineData(.99f, false)]
+    public void ADepartureCountsTheHullsOwnLight(float against, bool ended)
+    {
+        var e = Add(float3(0, 0, 100), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        Fire(e, Guns(e)[0]);
+        Tick(.01f);
+        Assert.Single(o.RevealsOf(e));
+        var gate = _items.GameplaySettings.TargetDetectionInfoThreshold / o.PassiveInfo(e.Position.xz, 1f);
+        foreach (var source in e.VisibilitySources.Keys.ToArray()) e.SetSignature(source, SignatureChannel.Reflection, 0f, Guns(e)[0]);
+        e.SetSignature(new object(), SignatureChannel.Thermal, gate * against, null);
+        Assert.Equal(gate * against, e.Visibility, 4);
+        Assert.All(e.VisibilitySources.Values.Where(v => v.Strength > 0f), v => Assert.Null(v.Item)); // fixture: the deciding light names no item
+
+        _zone.Entities.Remove(e);
+        Tick(.1f);
+
+        Assert.Equal(ended ? 0 : 1, o.RevealsOf(e).Count());
     }
 
     // The gate is strict, as the light-act gate is: a light at removal that lands exactly on the threshold ends nothing.
