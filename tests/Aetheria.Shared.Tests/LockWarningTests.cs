@@ -68,7 +68,7 @@ public sealed class LockWarningTests : IDisposable
 
     private static PerformanceStat Const(float v) => new PerformanceStat { Min = v, Max = v };
 
-    private static GearData Launcher(string name, float lockSpeed, float sensorImpact, float lockAngle, float directionImpact) => new GearData
+    private static GearData Launcher(string name, float lockSpeed, float sensorImpact, float lockAngle, float directionImpact) => WithMunitionParts(new GearData
     {
         Name = name, Hardpoint = HardpointType.Sensors, Shape = new Shape(), Durability = 1,
         MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000,
@@ -84,7 +84,14 @@ public sealed class LockWarningTests : IDisposable
                 DirectionImpact = Const(directionImpact), Decay = Const(.1f)
             }
         }
-    };
+    });
+
+    // A launcher design carries the five munition parts (StatValidation.ValidateMunitionParts); these fixtures are about the lock.
+    private static GearData WithMunitionParts(GearData launcher)
+    {
+        launcher.Behaviors.AddRange(MunitionPartsTests.Parts(0));
+        return launcher;
+    }
 
     private int _nextLot = 2;
 

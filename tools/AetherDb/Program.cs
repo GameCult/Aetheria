@@ -168,8 +168,17 @@ public static class Program
         ["MinRange"] = "guidance system",
         ["Cooldown"] = "guidance system", ["Spread"] = "guidance system", ["Visibility"] = "guidance system",
         ["Energy"] = "guidance system", ["Heat"] = "guidance system",
-        ["Thrust"] = "thruster", ["MissileVelocity"] = "thruster", ["Velocity"] = "thruster",
+        ["Velocity"] = "thruster",
+        // The munition thruster part's own stats. A part's fields are keyed by type and field (RoleKey), because Range
+        // and Visibility also name the seeker's and plume's flat stats, which this map must not range.
+        ["MunitionThrusterData.Acceleration"] = "thruster", ["MunitionThrusterData.Lateral"] = "thruster",
+        ["MunitionThrusterData.MaxSpeed"] = "thruster",
     };
+
+    // How a role map names a behaviour's stat: a munition part's fields by type and field (several parts share a field name
+    // with the launcher's own stats), every other behaviour's by field.
+    private static string RoleKey(BehaviorData behavior, string field) =>
+        behavior is MunitionPartData ? $"{behavior.GetType().Name}.{field}" : field;
 
     // Warhead and dispenser: a mine layer is a launcher without guidance or thrust, so its stats split between the
     // charge it lays and the mechanism that lays it. ArmingDelay, FuseDelay and Lifetime are timings, not stats.
@@ -308,7 +317,7 @@ public static class Program
                     if (stat.Min == stat.Max) continue; // flat: no observable role-vs-workmanship difference
                     var qualityTerm = stat.Terms.FirstOrDefault(t => t.Source == StatSource.Quality);
                     if (qualityTerm == null || !string.IsNullOrEmpty(qualityTerm.Role)) continue;
-                    if (!map.TryGetValue(field.Name, out var role)) continue;
+                    if (!map.TryGetValue(RoleKey(behavior, field.Name), out var role)) continue;
                     qualityTerm.Role = role;
                     rolesUsed.Add(role);
                     assigned.Add((behavior.GetType().Name, field.Name, role));
@@ -1844,7 +1853,7 @@ public static class Program
                 {
                     var stat = field.GetValue(behavior) as PerformanceStat;
                     if (stat == null) continue;
-                    if (!map.TryGetValue(field.Name, out var role)) continue;
+                    if (!map.TryGetValue(RoleKey(behavior, field.Name), out var role)) continue;
                     stat.Terms ??= new List<StatTerm>();
                     var quality = stat.Terms.FirstOrDefault(t => t.Source == StatSource.Quality);
                     var value = stat.Min;
@@ -2148,4 +2157,5 @@ public static class Program
         Console.WriteLine($"\nAuthored 2 designs and {products.Length} products in Aetheria.cc");
         return 0;
     }
+
 }

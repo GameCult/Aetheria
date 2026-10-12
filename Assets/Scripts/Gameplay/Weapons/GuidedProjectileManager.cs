@@ -44,7 +44,7 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
             p.SourceEntity = source.Entity;
             if (target != null) p.Target = target.transform;
             else p.TargetPosition = () => burst;
-            p.Frequency = launcher.DodgeFrequency;
+            p.Frequency = item.Evaluate(MunitionParts.Of<MunitionControlData>(item).EvasionFrequency);
             var hp = item.Hardpoint;
             var barrel = source.GetBarrel(hp);
             p.StartPosition = (p.transform.position = barrel.position).ToCultMath();
@@ -53,8 +53,8 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
             p.LiftCurve = launcher.LiftCurve.ToCurve();
             p.ThrustCurve = launcher.ThrustCurve.ToCurve();
             p.Velocity = barrel.forward * weapon.Velocity;
-            p.Thrust = item.Evaluate(launcher.Thrust);
-            p.TopSpeed = item.Evaluate(launcher.MissileVelocity);
+            p.Thrust = item.Evaluate(MunitionParts.Of<MunitionThrusterData>(item).Acceleration);
+            p.TopSpeed = item.Evaluate(MunitionParts.Of<MunitionThrusterData>(item).MaxSpeed);
             Bind(p, source.Entity.Zone, shotId);
             // A round with no target (a fused round fired at none) has no transform to hand a listener.
             OnFireGuided.OnNext((source.Entity, target != null ? target.transform : null, p));
@@ -65,7 +65,7 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
             p.ShotId = shotId;
             p.Source = source.transform;
             p.SourceEntity = source.Entity;
-            p.Frequency = guidance.DodgeFrequency;
+            p.Frequency = item.Evaluate(MunitionParts.Of<MunitionControlData>(item).EvasionFrequency);
             var hp = item.Hardpoint;
             var barrel = source.GetBarrel(hp);
             p.StartPosition = (p.transform.position = barrel.position).ToCultMath();
@@ -74,8 +74,8 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
             p.LiftCurve = guidance.LiftCurve.ToCurve();
             p.ThrustCurve = guidance.ThrustCurve.ToCurve();
             p.Velocity = barrel.forward * weapon.Velocity;
-            p.Thrust = item.Evaluate(guidance.Thrust);
-            p.TopSpeed = item.Evaluate(guidance.MissileVelocity);
+            p.Thrust = item.Evaluate(MunitionParts.Of<MunitionThrusterData>(item).Acceleration);
+            p.TopSpeed = item.Evaluate(MunitionParts.Of<MunitionThrusterData>(item).MaxSpeed);
             p.TargetPosition = () => (source.Entity.Position + length(source.LookAtPoint.position.ToCultMath() - source.Entity.Position) * source.Entity.Aim).ToUnity();
             Bind(p, source.Entity.Zone, shotId);
         }
