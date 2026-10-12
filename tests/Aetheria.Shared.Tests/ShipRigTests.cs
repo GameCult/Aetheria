@@ -860,7 +860,7 @@ public sealed class ShipRigTests : IDisposable
             ShipAuthoringStore.Write(cache, ship.Hull, ship.Visual);
             await cache.FlushAsync();
         }
-        var (hull, _) = ShipAuthoringStore.Read(path);
+        var (hull, _, _) = ShipAuthoringStore.Read(path);
         Assert.Equal(new[] { "r", "r", null }, hull.Hardpoints.Select(hardpoint => hardpoint.Row));
         Assert.Equal(new[] { 90f, 90f, 0f }, hull.Hardpoints.Select(hardpoint => hardpoint.FiringArc));
     }
