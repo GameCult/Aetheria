@@ -64,7 +64,7 @@ public sealed partial class RunStartTests
         Assert.True(length((fragile.Position - player.Position).xz) <= directWeapon.Range, "the fragile hull lies beyond the direct weapon's range");
         var magazine = direct.Data.Behaviors.OfType<WeaponData>().Single().MagazineSize;
         Assert.True(magazine > 0 && directWeapon.Damage * magazine > ((HullData) _items.GetData(fragile.Hull)).Durability,
-            "the direct weapon cannot kill the fragile hull from its magazine");
+            $"the direct weapon cannot kill the fragile hull from its magazine ({directWeapon.Damage} x {magazine})");
 
         // Only the Longinus at mid range is hostile.
         Assert.True(player.IsHostileTo(mid) && mid.IsHostileTo(player), "the mid-range hull is hostile");
