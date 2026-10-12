@@ -178,6 +178,11 @@ public class GameplaySettings
     public float FloatingBodyDrag = .05f;
     public float FloatingBodyLaunchDrag = .2f;
     public float FloatingBodyGravity = 1f;
+    // Loot: the chance each equipped item (the hull excepted) drops when its carrier dies, the launch speed of a
+    // dropped item, and how many seconds a floating item lasts.
+    public float LootDropProbability = .25f;
+    public float LootDropVelocity = 25f;
+    public float FloatingItemLifetime = 30f;
     public float SevereHeatstrokeRiskThreshold = .25f;
     public float WormholeDepth = 1000;
     public float WormholeExitVelocity = 20;

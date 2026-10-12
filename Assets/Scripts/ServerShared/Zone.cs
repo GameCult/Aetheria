@@ -24,6 +24,10 @@ public class Zone
     // Vented vapour clouds, in vent order. Zone owns their existence: Vent is the one adder, StepClouds the one
     // remover, and Obscuration the one reader that detection uses. Runtime state, never saved.
     public ReactiveCollection<VapourCloud> Clouds = new ReactiveCollection<VapourCloud>();
+
+    // Floating items (death drops, jettisoned cargo), in release order. Zone owns their existence: Release is the one
+    // adder; StepFloatingItems (expiry) and TryPickUp are the only removers. Runtime state, never saved.
+    public ReactiveCollection<FloatingItem> FloatingItems = new ReactiveCollection<FloatingItem>();
     public Dictionary<CultRecordKey, BodyData> Planets = new Dictionary<CultRecordKey, BodyData>();
     public Dictionary<CultRecordKey, Planet> PlanetInstances = new Dictionary<CultRecordKey, Planet>();
 
@@ -93,6 +97,9 @@ public class Zone
     private uint _lastBodyId;
     public FloatingBodyId NextBodyId() => new FloatingBodyId(++_lastBodyId);
 
+    // The death ordinal of the loot dice: the nth death in this zone rolls on SimulationDice.For(CombatSeed, LootStream, n).
+    private uint _deaths;
+
     public Zone(ItemManager itemManager, PlanetSettings settings, ZonePack pack, GalaxyZone galaxyZone, Galaxy galaxy)
     {
         _time = pack.Time;
@@ -108,7 +115,7 @@ public class Zone
         // in the simulation, not only in Unity's own loot-drop subscription. One subscription point covers
         // every join, whichever caller admits the entity (deserialization below, a jump, a spawned turret) --
         // ObserveAdd fires for all of them. Forbidden writer: no presentation may remove an entity from Zone.
-        Entities.ObserveAdd().Subscribe(add => add.Value.Death.Subscribe(_ => { Entities.Remove(add.Value); add.Value.Deactivate(); }));
+        Entities.ObserveAdd().Subscribe(add => add.Value.Death.Subscribe(_ => { DropLoot(add.Value); Entities.Remove(add.Value); add.Value.Deactivate(); }));
 
         Targets.Add(new EntityTargets());
 
@@ -232,6 +239,7 @@ public class Zone
 
         StepMines(deltaTime);
         StepClouds(deltaTime);
+        StepFloatingItems(deltaTime);
 
         // Cut 3: after every entity has had its chance to fire this tick, age and resolve the shots that
         // firing queued. A shot fired this tick with a flight time shorter than CommitHorizon commits and
@@ -250,6 +258,61 @@ public class Zone
         cloud.Id = NextBodyId();
         cloud.VentedAt = _time;
         Clouds.Add(cloud);
+    }
+
+    // The one adder of floating items: death drops and jettison both come here. The item drifts as a KinematicBody
+    // launched at `velocity` and expires after FloatingItemLifetime.
+    public FloatingItem Release(ItemInstance item, float2 position, float2 velocity)
+    {
+        var floating = new FloatingItem
+        {
+            Id = NextBodyId(), Item = item, Body = new KinematicBody { Position = position, Velocity = velocity },
+            ReleasedAt = _time, Lifetime = _itemManager.GameplaySettings.FloatingItemLifetime
+        };
+        FloatingItems.Add(floating);
+        return floating;
+    }
+
+    // The one commit of a pickup: the first of the taker's cargo bays that accepts the item stores it and the item
+    // stops floating. Otherwise nothing changes.
+    public bool TryPickUp(Entity taker, FloatingBodyId id)
+    {
+        var floating = FloatingItems.FirstOrDefault(f => f.Id.Equals(id));
+        if (floating == null || !taker.CargoBays.Any(bay => bay.TryStore(floating.Item))) return false;
+        FloatingItems.Remove(floating);
+        return true;
+    }
+
+    // Called from the death subscription, before the entity leaves the zone: one generator per death. Each equipped
+    // item but the hull drops on a LootDropProbability draw; every cargo stack drops whole. Each drop leaves from the
+    // dead entity's position at a random heading. Draw order: Equipment order (the probability draw, then the heading
+    // of a dropped item), then each cargo bay's stacks in CargoBays order (a heading each).
+    private void DropLoot(Entity dead)
+    {
+        var settings = _itemManager.GameplaySettings;
+        var random = SimulationDice.For(CombatSeed, SimulationDice.LootStream, ++_deaths);
+        var at = new float2(dead.Position.x, dead.Position.z);
+        float2 Heading() { var angle = random.NextFloat() * 2f * PI; return float2(cos(angle), sin(angle)); }
+        foreach (var equipped in dead.Equipment.ToArray())
+        {
+            if (equipped == dead.EquippedHull || !(random.NextFloat() < settings.LootDropProbability)) continue;
+            Release(equipped.EquippableItem, at, Heading() * settings.LootDropVelocity);
+        }
+        foreach (var bay in dead.CargoBays.ToArray())
+            foreach (var stack in bay.Cargo.Keys.ToArray())
+                Release(stack, at, Heading() * settings.LootDropVelocity);
+    }
+
+    // After StepClouds and before FireControl.Step: each floating item drifts as a KinematicBody on the zone's force
+    // and is removed once its lifetime has run out.
+    private void StepFloatingItems(float deltaTime)
+    {
+        var settings = _itemManager.GameplaySettings;
+        foreach (var floating in FloatingItems.ToArray())
+        {
+            floating.Body.Step(deltaTime, GetForce(floating.Body.Position), settings);
+            if (floating.ReleasedAt + floating.Lifetime <= _time) FloatingItems.Remove(floating);
+        }
     }
 
     // The fraction of a sight line's signal that survives the clouds between `a` and `b`: the product of

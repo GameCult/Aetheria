@@ -40,3 +40,14 @@ public struct KinematicBody
         Position += (Velocity + Drift) * dt;
     }
 }
+
+// An item adrift in a zone: a death drop or jettisoned cargo. Zone.Release is its only adder; Zone's floating-item
+// step (expiry) and TryPickUp are its only removers. Runtime state, never saved.
+public sealed class FloatingItem
+{
+    public FloatingBodyId Id;
+    public ItemInstance Item;
+    public KinematicBody Body;
+    public double ReleasedAt;
+    public float Lifetime;
+}
