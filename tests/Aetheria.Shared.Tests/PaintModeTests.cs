@@ -99,7 +99,7 @@ public sealed class PaintModeTests : IDisposable
             {
                 Sensitivity = Const(sensitivity),
                 SensitivityCurve = new BezierCurve { Keys = new[] { float4(0, 0, 0, 0), float4(1, 0, 0, 0) } }, // no passive gain
-                PingBoost = Const(pingBoost), PingEnergy = Const(0), PingVisibility = Const(5), PingRange = Const(300),
+                PingBoost = Const(pingBoost), PingEnergy = Const(0), PingRange = Const(300),
                 PingCooldown = Const(4),
                 BeamWidth = beamWidth.HasValue ? Const(beamWidth.Value) : null
             }
@@ -259,7 +259,6 @@ public sealed class PaintModeTests : IDisposable
         var e = NewShip(float3(-30, 0, 130), "Ear", a.Faction);  // same faction but hostile to A
         e.SetIff(a, true);
         Settle();
-        var cEmission = c.SignatureOn(SignatureChannel.Emission);
 
         var (held, _) = SweepAndWatch(a, .1f);
 
@@ -268,7 +267,6 @@ public sealed class PaintModeTests : IDisposable
         Assert.Equal(.21213f, Track(c, t), 4);
         Assert.Equal(.1f, Track(a, t), 4);
         // Nothing of C is emitted or painted: T's only paint is A's sweep.
-        Assert.Equal(cEmission, c.SignatureOn(SignatureChannel.Emission));
         var paint = Assert.Single(held[t].SelectMany(h => h));
         Assert.Same(GearOf(a).Data, paint.EmitterClass);
         // A hostile or foreign listener hears nothing of A's ping.

@@ -44,7 +44,6 @@ public sealed partial class MiningCut3Tests
             SensitivityCurve = curve,
             PingBoost = Constant(.02f),
             PingEnergy = Constant(0f),
-            PingVisibility = Constant(5f),
             PingRange = Constant(300f),
             PingCooldown = Constant(4f)
         });

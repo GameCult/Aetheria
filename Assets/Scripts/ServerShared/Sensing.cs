@@ -94,7 +94,7 @@ public readonly struct Reveal
 }
 
 // A subject's removal from a zone as the zone recorded it (death, dock, warp, any removal): where it was and how
-// bright its light was (its signature outside the Emission channel). Judged by each observer's Sense under the
+// bright its light was (its Visibility at removal). Judged by each observer's Sense under the
 // light-act gate; notification only, one tick long, it decides nothing.
 public readonly struct Departure
 {

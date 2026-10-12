@@ -114,7 +114,7 @@ public class Zone
         Entities.ObserveAdd().Subscribe(add => add.Value.Death.Subscribe(_ => { Entities.Remove(add.Value); add.Value.Deactivate(); }));
         // The one record of a removal for observers (ruling reveal-ends-on-perception): read by the next Sense pass.
         Entities.ObserveRemove().Subscribe(remove => _departures.Add(new Departure(remove.Value, remove.Value.Position.xz,
-            remove.Value.Visibility - remove.Value.SignatureOn(SignatureChannel.Emission))));
+            remove.Value.Visibility)));
 
         Targets.Add(new EntityTargets());
 
