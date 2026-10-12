@@ -58,6 +58,20 @@ public readonly struct PingReturn
     }
 }
 
+// An item's emission this tick, heard by another ship's Sense within `HearRange` x its HearingMultiple x obscuration;
+// it decides nothing by itself.
+public readonly struct ActiveEmission
+{
+    public readonly EquippedItem Item;
+    public readonly float HearRange;
+
+    public ActiveEmission(EquippedItem item, float hearRange)
+    {
+        Item = item;
+        HearRange = hearRange;
+    }
+}
+
 public readonly struct PaintWarning
 {
     public readonly float2 Bearing;
