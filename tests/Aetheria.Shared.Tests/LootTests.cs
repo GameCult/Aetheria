@@ -384,4 +384,128 @@ public sealed class LootTests : IDisposable
         var restored = new Zone(lab.Items, new PlanetSettings(), pack, new GalaxyZone { Name = "Loot", Owner = null }, null);
         Assert.Empty(restored.FloatingItems);
     }
+
+    // The death watch lives as long as the entity is a member of the zone (aetheria-release loot-1, Soul s1): an
+    // entity that docks and undocks, or jumps, never holds a second one and never drops in a zone it has left.
+    [Fact]
+    public void ADockedAndUndockedShipDropsEachItemOnce()
+    {
+        var lab = Build(probability: 1f);
+        var ship = Spawn(lab, float3(3, 0, 4));
+        // What Entity.TryDock then Entity.TryUndock do to the zone: Entities.Remove + Deactivate, then Zone.Admit.
+        lab.Zone.Entities.Remove(ship);
+        ship.Deactivate();
+        lab.Zone.Admit(ship, piloted: false);
+        lab.Zone.Entities.Remove(ship);
+        lab.Zone.Admit(ship, piloted: false);
+        Kill(ship);
+        var dropped = lab.Zone.FloatingItems.Select(f => f.Item).ToList();
+        Assert.NotEmpty(dropped);
+        Assert.Equal(dropped.Count, dropped.Distinct().Count());
+    }
+
+    [Fact]
+    public void AShipThatJumpedDropsNothingInTheZoneItLeft()
+    {
+        var lab = Build("JumpA", probability: 1f);
+        var other = new Zone(lab.Items, new PlanetSettings(), new ZonePack { Radius = 0 }, new GalaxyZone { Name = "JumpB", Owner = null }, null);
+        var ship = Spawn(lab, float3(3, 0, 4));
+        // What ActionGameManager does on a jump.
+        ship.Deactivate();
+        lab.Zone.Entities.Remove(ship);
+        ship.Zone = other;
+        other.Admit(ship, piloted: false);
+        Kill(ship);
+        Assert.NotEmpty(other.FloatingItems);
+        Assert.Empty(lab.Zone.FloatingItems);
+    }
+
+    [Fact]
+    public void ADeathDropsOnceAndTheRemovedShipDropsNoMore()
+    {
+        var lab = Build(probability: 1f);
+        var ship = Spawn(lab, float3(3, 0, 4));
+        Kill(ship);
+        var count = lab.Zone.FloatingItems.Count;
+        Assert.NotEmpty(lab.Zone.FloatingItems);
+        Assert.DoesNotContain(ship, lab.Zone.Entities);
+        // A second death signal from the removed entity reaches no subscription.
+        Kill(ship);
+        Assert.Equal(count, lab.Zone.FloatingItems.Count);
+    }
+
+    // TryPickUp commits whole or changes nothing: a stackable item the bays can only partly take stays whole.
+    [Fact]
+    public void ARefusedPickUpOfAStackableItemChangesNothing()
+    {
+        var lab = Build();
+        var taker = Station(lab, float3(0, 0, 0), stocked: false);
+        var bay = taker.CargoBays.Single();
+        Assert.True(bay.TryStore(lab.Ore(95)));
+        while (bay.TryStore(lab.Make("Spare"))) { }
+        var stack = bay.Cargo.Keys.OfType<SimpleCommodity>().Single();
+        var ore = lab.Ore(30);
+        var floating = lab.Zone.Release(ore, new float2(1, 2), float2.zero);
+        var mass = taker.Mass;
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            Assert.False(lab.Zone.TryPickUp(taker, floating.Id));
+            Assert.Equal(30, ore.Quantity);
+            Assert.Equal(95, stack.Quantity);
+            Assert.Equal(mass, taker.Mass);
+            Assert.Same(floating, lab.Zone.FloatingItems.Single());
+        }
+    }
+
+    [Fact]
+    public void AStackableItemSplitAcrossAStackAndAFreeCellIsStoredWhole()
+    {
+        var lab = Build();
+        var taker = Station(lab, float3(0, 0, 0), stocked: false);
+        var bay = taker.CargoBays.Single();
+        Assert.True(bay.TryStore(lab.Ore(95)));
+        var floating = lab.Zone.Release(lab.Ore(30), new float2(1, 2), float2.zero);
+        Assert.True(lab.Zone.TryPickUp(taker, floating.Id));
+        Assert.Empty(lab.Zone.FloatingItems);
+        Assert.Equal(125, bay.Cargo.Keys.OfType<SimpleCommodity>().Sum(c => c.Quantity));
+    }
+
+    [Fact]
+    public void PickUpFillsTheFirstAcceptingBay()
+    {
+        var lab = Build();
+        var taker = Station(lab, float3(0, 0, 0), stocked: false, secondBay: true);
+        var item = lab.Make("Spare");
+        var floating = lab.Zone.Release(item, new float2(1, 2), float2.zero);
+        Assert.True(lab.Zone.TryPickUp(taker, floating.Id));
+        Assert.Contains(item, taker.CargoBays[0].Cargo.Keys);
+        Assert.DoesNotContain(item, taker.CargoBays[1].Cargo.Keys);
+    }
+
+    [Fact]
+    public void DropHeadingsCoverTheWholeCircle()
+    {
+        var lab = Build(probability: 1f);
+        var velocities = new List<float2>();
+        for (var i = 0; i < 40; i++)
+        {
+            var before = lab.Zone.FloatingItems.Count;
+            Kill(Spawn(lab, float3(i, 0, 0), cargo: false));
+            velocities.AddRange(lab.Zone.FloatingItems.Skip(before).Select(f => f.Body.Velocity));
+        }
+        Assert.Contains(velocities, v => v.x > 10);
+        Assert.Contains(velocities, v => v.x < -10);
+        Assert.Contains(velocities, v => v.y > 10);
+        Assert.Contains(velocities, v => v.y < -10);
+        Assert.True(Math.Abs(velocities.Sum(v => v.x) / velocities.Count) < 8 && Math.Abs(velocities.Sum(v => v.y) / velocities.Count) < 8,
+            "headings are not centred on the origin");
+    }
+
+    [Fact]
+    public void OneDeathsDropsLeaveOnDistinctHeadings()
+    {
+        var lab = Build(probability: 1f);
+        Kill(Spawn(lab, float3(1, 0, 1)));
+        Assert.True(lab.Zone.FloatingItems.Select(f => Math.Round(Math.Atan2(f.Body.Velocity.y, f.Body.Velocity.x), 3)).Distinct().Count() > 1);
+    }
 }

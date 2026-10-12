@@ -2376,7 +2376,7 @@ public class EquippedCargoBay : EquippedItem
     // Returns true only when ALL of the items are successfully stored
     public bool TryStore(SimpleCommodity item)
     {
-        TryFindSpace(item, out var positions);
+        if (!TryFindSpace(item, out var positions)) return false;
         foreach (var position in positions)
         {
             if (TryStore(item, position)) return true;
