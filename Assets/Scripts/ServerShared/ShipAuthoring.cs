@@ -205,13 +205,19 @@ public static class ShipAuthoringStore
     public static (HullData Hull, ShipAuthoring Visual, FactionProductData[] Products) Read(string path)
     {
         var (hull, visual, products) = Load(path);
-        Validate(hull, visual);
-        ValidateProducts(hull, visual, products);
+        ValidateLoaded(hull, visual, products);
         return (hull, visual, products);
     }
 
+    // Every judgement a loaded package's records face, in one place: Read, and validate on a draft with no model yet, call it.
+    public static void ValidateLoaded(HullData hull, ShipAuthoring visual, FactionProductData[] products)
+    {
+        Validate(hull, visual);
+        ValidateProducts(hull, visual, products);
+    }
+
     // What a package may sell: every product named, no name twice, and a price above 0, because generation skips price 0.
-    public static void ValidateProducts(HullData hull, ShipAuthoring visual, FactionProductData[] products)
+    private static void ValidateProducts(HullData hull, ShipAuthoring visual, FactionProductData[] products)
     {
         if (products.Length == 0) return;
         if (products.Any(product => string.IsNullOrWhiteSpace(product.Name)))

@@ -123,15 +123,23 @@ public sealed class ShipProductTests : IDisposable
             shipped.UpsertAsync(typeof(FactionProductData), held, ShipModCatalog.ProductKey("mod.keyed", _acme)).GetAwaiter().GetResult();
             shipped.FlushAsync().Wait();
         }
-        Package("mod.keyed", "Keyedhull", 100, Product("Fresh Name", _acme, "mod.keyed"));
+        using (var shipped = AetheriaStores.Open(Shipped, catalogWritable: true))
+        {
+            var held = Product("Held Too", _rival, "mod.keyedr");
+            shipped.UpsertAsync(typeof(FactionProductData), held, ShipModCatalog.ProductKey("mod.keyedr", _rival)).GetAwaiter().GetResult();
+            shipped.FlushAsync().Wait();
+        }
+        // The colliding product is one of two, and each maker takes its turn at being the colliding one, so the check
+        // cannot pass by looking at whichever product is listed first.
+        Package("mod.keyed", "Keyedhull", 100, Product("Fresh Name", _acme, "mod.keyed"), Product("Fresh Rebrand", _rival, "mod.keyed"));
+        Package("mod.keyedr", "Keyedrhull", 100, Product("Fresh Other", _acme, "mod.keyedr"), Product("Fresh Rival", _rival, "mod.keyedr"));
         Package("mod.fine", "Finehull", 100, Product("Fine", _acme, "mod.fine"));
 
         var composition = ShipModCatalog.Compose(Shipped, Derived, Mods);
 
         Assert.Equal(new[] { "mod.fine" }, composition.Included);
-        var excluded = Assert.Single(composition.Excluded);
-        Assert.Equal("mod.keyed", excluded.Package);
-        Assert.Contains("product key", excluded.Reason);
+        Assert.Equal(new[] { "mod.keyed", "mod.keyedr" }, composition.Excluded.Select(e => e.Package).OrderBy(p => p, StringComparer.Ordinal));
+        Assert.All(composition.Excluded, e => Assert.Contains("product key", e.Reason));
     }
 
     [Fact]
@@ -194,6 +202,10 @@ public sealed class ShipProductTests : IDisposable
         Assert.Contains("price above 0", Assert.Throws<InvalidOperationException>(() => ShipAuthoringStore.Read(sold)).Message);
         Assert.Single(ShipAuthoringStore.Load(sold).Products);
 
+        // Below 0 is not sellable either.
+        var negative = Package("mod.negative", "Negative", -5, Product("Negative Skiff", _acme, "mod.negative"));
+        Assert.Contains("price above 0", Assert.Throws<InvalidOperationException>(() => ShipAuthoringStore.Read(negative)).Message);
+
         // The smallest sellable price: the rule is "above 0", so 1 passes.
         Assert.Single(ShipAuthoringStore.Read(Package("mod.cheap", "Cheap", 1, Product("Cheap Skiff", _acme, "mod.cheap"))).Products);
 
@@ -206,6 +218,12 @@ public sealed class ShipProductTests : IDisposable
     {
         var blank = Package("mod.blank", "Blank", 100, Product(" ", _acme, "mod.blank"));
         Assert.Contains("needs a name", Assert.Throws<InvalidOperationException>(() => ShipAuthoringStore.Read(blank)).Message);
+        // The unnamed product is one of two, once under each maker, so a check of the first product alone passes neither.
+        foreach (var (id, unnamed, named) in new[] { ("mod.blank-acme", _acme, _rival), ("mod.blank-rival", _rival, _acme) })
+        {
+            var second = Package(id, id, 100, Product("Named", named, id), Product(" ", unnamed, id));
+            Assert.Contains("needs a name", Assert.Throws<InvalidOperationException>(() => ShipAuthoringStore.Read(second)).Message);
+        }
         var twice = Package("mod.twice", "Twice", 100, Product("Same", _acme, "mod.twice"), Product("Same", _rival, "mod.twice"));
         Assert.Contains("unique", Assert.Throws<InvalidOperationException>(() => ShipAuthoringStore.Read(twice)).Message);
     }
@@ -301,6 +319,10 @@ public sealed class ShipProductTests : IDisposable
         Assert.Contains("price above 0", Refusal(Draft(Package("mod.free", "Free", 0, Product("Free Skiff", _acme, "mod.free")))));
         Assert.Contains("needs a name", Refusal(Draft(Package("mod.blank", "Blank", 100, Product(" ", _acme, "mod.blank")))));
         Assert.Contains("unique", Refusal(Draft(Package("mod.twice", "Twice", 100, Product("Same", _acme, "mod.twice"), Product("Same", _rival, "mod.twice")))));
+
+        // The hull's own rules judge a draft too: validate runs the one composition Read runs.
+        var unnamedHull = Draft(Path.Combine(ShipFixture.WritePackage(Mods, "mod.unnamed", hullName: ""), "ship.cc"));
+        Assert.Contains("hull name is required", Refusal(unnamedHull));
 
         var sound = Draft(Package("mod.sound", "Sound", 100, Product("Sound Skiff", _acme, "mod.sound"), Product("Sound Rebrand", _rival, "mod.sound")));
         var (validated, output, _) = Run("validate", sound);

@@ -49,11 +49,7 @@ public static class ShipAuthoringCommands
                     : Path.Combine(Path.GetDirectoryName(Path.GetFullPath(args[1])), ship.ModelAsset);
                 var judged = model != null && File.Exists(model) ? "records and model" : "records only, no model yet";
                 if (judged == "records and model") ShipModCatalog.ReadPackage(args[1]);
-                else
-                {
-                    ShipAuthoringStore.Validate(hull, ship);
-                    ShipAuthoringStore.ValidateProducts(hull, ship, products);
-                }
+                else ShipAuthoringStore.ValidateLoaded(hull, ship, products);
                 Console.WriteLine($"{ship.Id}: {hull.Name}, {hull.Hardpoints.Count} hardpoints, {ship.Anchors.Count} anchors, {ship.SchematicLines.Count} lines ({judged})");
                 return 0;
             }
