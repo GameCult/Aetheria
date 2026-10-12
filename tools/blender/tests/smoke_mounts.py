@@ -286,6 +286,16 @@ def main():
     by_mount = {fields["Transform"]: fields for fields in map(aetheria_ships.ship_cc.decode_hardpoint, saved)}
     require(tuple(by_mount["weapon.1"]["Position"]) == (4, 3) and by_mount["weapon.2"]["Rotation"] == REVERSED
             and tuple(by_mount["reactor.a"]["Position"]) == (2, 2), "The .cc does not hold what Package derived")
+    # A framed ship whose layout buffer is not loaded cannot be derived from: Package refuses and changes nothing.
+    state = scene.aetheria_layout
+    ship_id, glb_before = state.ship_id, glb.read_bytes()
+    state.ship_id = ""
+    result, message = run(bpy.ops.aetheria.package_ship)
+    require(result == {"CANCELLED"} and "Load Layout first" in scene.aetheria_package_report
+            and all(name not in scene.aetheria_package_report for name in NAMES_NOT_ECHOED),
+            f"Package took an unloaded layout: {scene.aetheria_package_report}")
+    require(glb.read_bytes() == glb_before, "A refused Package wrote the GLB")
+    state.ship_id = ship_id
     print("PASS 3 package derives ok")
 
 

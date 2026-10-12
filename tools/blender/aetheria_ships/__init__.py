@@ -399,7 +399,7 @@ def _plan_mounts(collection, state, root, path):
     """(row, weapon-mount object, Position, yaw) for every buffer row whose Transform names a weapon-mount object: the
     Position from the object's placement, the yaw from the row's Rotation. Refuses before anything changes."""
     mounts = _mount_objects(collection)
-    if not mounts:
+    if not mounts or root is None:  # a ship with no Ship Root has no grid to derive from: its rows are the author's
         return []
     if state.ship_id != collection["aetheria.id"] or state.ship_cc != path:
         raise ValueError("Load Layout first: the weapon mounts need this ship's layout")
@@ -407,8 +407,8 @@ def _plan_mounts(collection, state, root, path):
     if not paired:
         return []
     origin = collection.get("aetheria.grid_origin")
-    if root is None or origin is None:
-        raise ValueError("Rasterise first: a mount needs the ship's Ship Root and grid")
+    if origin is None:
+        raise ValueError("Rasterise first: a mount needs the ship's grid")
     plan = []
     for hp, obj in paired:
         if obj.parent != root:
