@@ -299,9 +299,14 @@ public class MainMenu : MonoBehaviour
         _nextMenu.panel.AddField("Show Asteroids in Minimap",
             () => ActionGameManager.PlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap,
             b => ActionGameManager.PlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap = b);
+        _nextMenu.panel.AddField("Screen Shake",
+            () => ActionGameManager.PlayerSettings.GraphicsSettings.ScreenShake,
+            f => ActionGameManager.PlayerSettings.GraphicsSettings.ScreenShake = f,
+            0, 1);
         _nextMenu.panel.AddButton("Back",
             () =>
             {
+                ActionGameManager.SavePlayerSettings();
                 ShowSettings();
                 Fade(false);
             });

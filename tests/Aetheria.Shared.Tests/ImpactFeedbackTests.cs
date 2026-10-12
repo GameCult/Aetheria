@@ -323,6 +323,53 @@ public sealed partial class FireControlCut124Tests
         Assert.Equal(DamageType.Kinetic, shield.DamageType);
     }
 
+    // The direct absorb's direction and damage type are the shot's: a non-Kinetic weapon fired along a heading with
+    // both components negative, so neither an abs of the direction nor a constant Kinetic type can agree with it.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ADirectAbsorbCarriesTheShotsHeadingAndDamageTypeWhateverTheyAre(bool shielded)
+    {
+        var e = Build(TestSettings(), SolidShape(21, 3), velocity: 0, damage: 100f, equipShield: shielded, shieldCapacity: 100000f, custom: new[] { ("Marker", new Shape(), new int2(2, 1), 1f) });
+        e.Weapon.WeaponData.DamageType = DamageType.Thermal;
+        // The mount fires inside an arc about the shooter's facing, so the shooter turns to the heading it fires along.
+        e.Shooter.Direction = float2(-.6f, -.8f);
+        e.Target.Position = e.Shooter.Position + float3(-30f, 0f, -40f);
+        for (var i = 0; i < 30; i++) e.Zone.Update(.1f);
+        var subs = new List<IDisposable>();
+        var (outcome, absorbs) = FireAtTheMarker(e, subs);
+        foreach (var s in subs) s.Dispose();
+
+        Assert.Equal(shielded, outcome.Shielded);
+        var absorb = Assert.Single(absorbs);
+        Assert.Equal(shielded ? AbsorbLayer.Shield : AbsorbLayer.Hull, absorb.Layer);
+        Assert.Equal(DamageType.Thermal, absorb.DamageType);
+        Assert.Equal(-.6f, absorb.Direction.x, 1e-3);
+        Assert.Equal(0f, absorb.Direction.y, 1e-6);
+        Assert.Equal(-.8f, absorb.Direction.z, 1e-3);
+    }
+
+    [Fact]
+    public void ABlastAbsorbCarriesTheBlastsDamageTypeAndTheTargetsHeightOnBothLayers()
+    {
+        foreach (var shield in new[] { false, true })
+        {
+            var e = Build(TestSettings(), SolidShape(5, 4), equipShield: shield, shieldCapacity: 100000f);
+            e.HullData.GridOffset = 5f;
+            for (var i = 0; i < 30; i++) e.Zone.Update(.1f);
+            Assert.Equal(5f, e.Target.Position.y, 1e-4);
+            var subs = new List<IDisposable>();
+            var takes = Collect(e.Target, subs);
+            FireControl.Detonate(e.Zone, e.Target.Position.xz + float2(1f, 0f), 2f, 50f, DamageType.Thermal);
+            foreach (var s in subs) s.Dispose();
+
+            var take = Assert.Single(takes);
+            Assert.Equal(shield ? AbsorbLayer.Shield : AbsorbLayer.Hull, take.Layer);
+            Assert.Equal(DamageType.Thermal, take.DamageType);
+            Assert.Equal(5f, take.Position.y, 1e-4);
+        }
+    }
+
     [Fact]
     public void ABlastShieldAbsorbCarriesTheShareTheBlastPointAndTheAwayDirection()
     {
@@ -404,6 +451,9 @@ public sealed partial class FireControlCut124Tests
         var point = float3(t.Position.x + 2f, 9f, t.Position.z + 1f);
         Assert.Equal(9f, DrawAhead.Carried(t, point, 0f).y, 1e-4);
         Assert.Equal(DrawAhead.Position(t, .5f).y + 4f, DrawAhead.Carried(t, point, .5f).y, 1e-4);
+
+        // The drawn impact cell sits at the hull's own height, not at world y 0.
+        Assert.Equal(DrawAhead.Position(t, .5f).y, DrawAhead.Impact(t, new int2(7, 1), .5f).y, 1e-4);
     }
 }
 
