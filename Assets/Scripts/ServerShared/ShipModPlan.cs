@@ -30,8 +30,9 @@ public sealed class ShipModPlan
         var muzzles = visual.Anchors.Where(anchor => anchor.Role == "weapon-muzzle")
             .OrderBy(anchor => anchor.Order).ThenBy(anchor => anchor.Id, StringComparer.Ordinal).ToArray();
 
-        var jointOf = visual.Anchors.Where(anchor => anchor.Role == "weapon-mount" && !string.IsNullOrEmpty(anchor.Joint))
-            .ToDictionary(anchor => anchor.Id, anchor => anchor.Joint, StringComparer.Ordinal);
+        var weapons = hardpoints.Where(hardpoint => ShipAuthoringStore.IsWeapon(hardpoint.Type)).Select(hardpoint => hardpoint.Transform).ToHashSet(StringComparer.Ordinal);
+        var jointOf = RigChains.Drives(visual).Where(drive => weapons.Contains(drive.Anchor.Id))
+            .ToDictionary(drive => drive.Anchor.Id, drive => drive.Joint, StringComparer.Ordinal);
         var leads = hardpoints.Where(hardpoint => jointOf.ContainsKey(hardpoint.Transform)).GroupBy(hardpoint => jointOf[hardpoint.Transform], StringComparer.Ordinal)
             .Select(group => (Joint: group.Key, Lead: group.First().Transform));
 

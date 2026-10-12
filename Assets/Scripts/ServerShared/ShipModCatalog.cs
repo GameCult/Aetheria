@@ -216,7 +216,7 @@ public static class ShipModCatalog
             if (!string.Equals(JointAbove(joint.Id) ?? "", joint.Parent ?? "", StringComparison.Ordinal))
                 throw new InvalidOperationException($"{ship.Id}: joint {joint.Id} must name the nearest joint above its model node as its Parent.");
         }
-        foreach (var anchor in ship.Anchors.Where(anchor => anchor.Role == "weapon-mount" || anchor.Role == "thruster-emitter" || anchor.Role == "radiator-mesh"))
+        foreach (var anchor in ship.Anchors.Where(anchor => RigChains.Actuates(anchor.Role) || anchor.Role == "radiator-mesh"))
         {
             var above = JointAbove(anchor.ModelNodeId);
             if (string.Equals(above ?? "", anchor.Joint ?? "", StringComparison.Ordinal)) continue;
