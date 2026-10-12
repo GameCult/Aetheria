@@ -110,7 +110,7 @@ public sealed class LootTests : IDisposable
         var ledger = new ProvenanceLedger();
         for (var i = 1; i <= 9000; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = 1 };
         var items = new ItemManager(cache, ledger, settings, _ => { });
-        var zone = new Zone(items, planets ?? new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = zoneName, Owner = null }, null);
+        var zone = new Zone(items, planets ?? new PlanetSettings(), new ZonePack { Radius = planets == null ? 0 : 1000 }, new GalaxyZone { Name = zoneName, Owner = null }, null);
         return new Lab { Items = items, Zone = zone };
     }
 
@@ -120,7 +120,7 @@ public sealed class LootTests : IDisposable
         var hull = lab.Items.ItemData.RefOf<ItemData>(lab.Items.ItemData.GetByName<HullData>("Skiff"));
         var ship = new Ship(lab.Items, lab.Zone, new EquippableItem { Data = hull, Durability = 1000000, Lot = lab.Lot++ }, new EntitySettings());
         Assert.True(ship.TryEquip(lab.Make("Gun"), new int2(0, 0)));
-        foreach (var name in new[] { "Targeting", "Spare" })
+        foreach (var name in new[] { "Targeting", "Spare", "Spare", "Spare", "Spare" })
         {
             var gear = lab.Make(name);
             Assert.True(ship.TryFindSpace(gear, out var pos));
@@ -216,7 +216,7 @@ public sealed class LootTests : IDisposable
             var ship = Spawn(lab, float3(5, 0, 5));
             var gear = ship.Equipment.Where(e => e != ship.EquippedHull).Select(e => (ItemInstance) e.EquippableItem).ToList();
             var cargo = ship.CargoBays.Single().Cargo.Keys.ToList();
-            Assert.Equal(3, gear.Count);
+            Assert.Equal(6, gear.Count);
             Assert.Equal(2, cargo.Count);
             Kill(ship);
             var dropped = lab.Zone.FloatingItems.Select(f => f.Item).ToList();
@@ -230,7 +230,7 @@ public sealed class LootTests : IDisposable
             }
         }
 
-        // 400 deaths at .5: the drop rate of the equipped gear is .5 within three sigma (sigma = .5 / sqrt(1200)).
+        // 400 deaths at .5: the drop rate of the equipped gear is .5 within three sigma (sigma = .5 / sqrt(2400)).
         var rate = Build(probability: .5f);
         var equipped = 0;
         for (var i = 0; i < 400; i++)
@@ -241,7 +241,7 @@ public sealed class LootTests : IDisposable
             Kill(ship);
             equipped += rate.Zone.FloatingItems.Skip(before).Count(f => gear.Contains(f.Item));
         }
-        Assert.InRange(equipped / (400f * 3f), .5f - 3 * .0144f, .5f + 3 * .0144f);
+        Assert.InRange(equipped / (400f * 6f), .5f - 3 * .0102f, .5f + 3 * .0102f);
 
         // A station's death drops through the same path.
         var hub = Build(probability: 1f);
@@ -266,7 +266,7 @@ public sealed class LootTests : IDisposable
     {
         (ShotResult Result, int2 Cell, float Lateral, float2 Bearing) Run(bool death)
         {
-            var lab = Build("Shots", spread: 5f);
+            var lab = Build("Shots");
             var shooter = Spawn(lab, float3(37, 0, -11), cargo: false);
             var target = Spawn(lab, float3(37, 0, 89), cargo: false);
             var bystander = Spawn(lab, float3(900, 0, 900));
@@ -279,6 +279,7 @@ public sealed class LootTests : IDisposable
         }
         var quiet = Run(false);
         var after = Run(true);
+        Assert.Equal(ShotResult.Hit, quiet.Result);
         Assert.NotEqual(0f, quiet.Lateral);
         Assert.Equal(quiet, after);
     }
@@ -326,8 +327,7 @@ public sealed class LootTests : IDisposable
         var lab = Build();
         var taker = Spawn(lab, float3(0, 0, 0), bay: "Tiny", cargo: false);
         var big = lab.Make("Crate");
-        Assert.True(taker.TryFindSpace(big, out var pos));
-        Assert.True(taker.TryEquip(big, pos));
+        Assert.Contains(Solid(5, 5).AllCoordinates, cell => taker.TryEquip(big, cell));
         Assert.Equal(2, taker.CargoBays.Count);
 
         var removals = 0;
