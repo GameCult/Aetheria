@@ -45,7 +45,7 @@ public sealed class LootTests : IDisposable
     {
         public ItemManager Items;
         public Zone Zone;
-        public int Lot = 4001;
+        public int Lot = 1;
 
         public EquippableItem Make(string name, float durability = 1) => new EquippableItem
         {
@@ -108,7 +108,7 @@ public sealed class LootTests : IDisposable
         cache.FlushAsync().Wait();
 
         var ledger = new ProvenanceLedger();
-        for (var i = 1; i <= 4000; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = 1 };
+        for (var i = 1; i <= 9000; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = 1 };
         var items = new ItemManager(cache, ledger, settings, _ => { });
         var zone = new Zone(items, planets ?? new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = zoneName, Owner = null }, null);
         return new Lab { Items = items, Zone = zone };
