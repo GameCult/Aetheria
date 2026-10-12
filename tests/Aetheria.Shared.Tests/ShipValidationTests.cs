@@ -24,6 +24,7 @@ public sealed class ShipValidationTests
         var ship = ShipAuthoringTests.Fixture();
         ship.Hull.HullType = type;
         ship.Hull.Behaviors.Clear();
+        ship.Hull.Behaviors.Add(new CapacitorData()); // a hull with other behaviors still has no top speed
         if (accepted) ship.Validate();
         else Assert.Contains("top speed", Assert.Throws<InvalidOperationException>(() => ship.Validate()).Message);
     }
