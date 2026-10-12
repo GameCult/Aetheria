@@ -99,7 +99,7 @@ public static class EmojiCheck
             var runtime = new GameObject("Runtime", typeof(RectTransform));
             runtime.transform.SetParent(canvas.transform, false);
             runtimeLiga = runtime.AddComponent<TextMeshProUGUI>().fontFeatures
-                .Contains(UnityEngine.TextCore.LowLevel.OTL_FeatureTag.liga) ? 1 : 0;
+                .Contains(UnityEngine.TextCore.OTL_FeatureTag.liga) ? 1 : 0;
             if (runtimeLiga == 0) failures.Add("a TextMeshProUGUI added at runtime does not have liga: TMP Settings' features are not inherited");
 
             // Sequences: space-separated groups, each of which must end as one visible character.
@@ -155,7 +155,7 @@ public static class EmojiCheck
         EmojiFont.VisitSerializedTexts(component =>
         {
             texts++;
-            if (!component.fontFeatures.Contains(UnityEngine.TextCore.LowLevel.OTL_FeatureTag.liga))
+            if (!component.fontFeatures.Contains(UnityEngine.TextCore.OTL_FeatureTag.liga))
             {
                 withoutLiga++;
                 failures.Add($"TMP text {component.name} has no liga: {GetPath(component)}");

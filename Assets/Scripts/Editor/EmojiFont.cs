@@ -5,6 +5,7 @@ using TMPro;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.TextCore;
 using UnityEngine.TextCore.LowLevel;
 
 // The one writer of the emoji font asset and of TMP Settings' emoji routing. The font file is the
@@ -94,7 +95,7 @@ public static class EmojiFont
             var (files, components) = VisitSerializedTexts(text =>
             {
                 var features = text.fontFeatures.ToList();
-                if (!Enable(features, text.enableKerning)) return false;
+                if (!Enable(features, new SerializedObject(text).FindProperty("m_enableKerning").boolValue)) return false;
                 text.fontFeatures = features;
                 EditorUtility.SetDirty(text);
                 return true;
