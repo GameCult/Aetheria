@@ -1738,8 +1738,7 @@ public static class Program
         }
         if (!apply)
         {
-            Console.WriteLine("
-Dry run. Pass \"apply\" to author them.");
+            Console.WriteLine("\nDry run. Pass \"apply\" to author them.");
             return 0;
         }
 
@@ -1748,8 +1747,7 @@ Dry run. Pass \"apply\" to author them.");
         {
             foreach (var design in designs) batch.Upsert(typeof(WeaponItemData), design);
         });
-        Console.WriteLine($"
-Authored {designs.Length} designs in Aetheria.cc");
+        Console.WriteLine($"\nAuthored {designs.Length} designs in Aetheria.cc");
         return 0;
     }
 
