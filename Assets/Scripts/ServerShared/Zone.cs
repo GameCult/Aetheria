@@ -111,8 +111,7 @@ public class Zone
 
     private void WatchDeath(Entity entity)
     {
-        UnwatchDeath(entity);
-        _deathWatches[entity] = entity.Death.Subscribe(_ => { DropLoot(entity); Entities.Remove(entity); entity.Deactivate(); });
+        _deathWatches.Add(entity, entity.Death.Subscribe(_ => { DropLoot(entity); Entities.Remove(entity); entity.Deactivate(); }));
     }
 
     private void UnwatchDeath(Entity entity)
