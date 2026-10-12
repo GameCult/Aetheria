@@ -87,6 +87,34 @@ def fully_qualified_sequences(emoji_test):
     return found
 
 
+def add_fe0f_less_twins(font):
+    """Add, for every GSUB ligature record that has FE0F immediately after its first glyph, a twin with every FE0F
+    component removed pointing at the same ligature glyph; returns how many twins were added. TMP replaces
+    FE0F with a consumed marker before it matches ligatures (TextMeshProUGUI.cs:2030-2047, 2049-2120), so a
+    record that keeps FE0F as its second component can never match; Twemoji keys 15 sequences that way (ZWJ
+    sequences on a text-presentation base, e.g. U+2764 FE0F U+200D U+1F525). The original records stay."""
+    from fontTools.ttLib.tables import otTables
+    fe0f = font.getBestCmap()[0xFE0F]
+    added = 0
+    for lookup in font["GSUB"].table.LookupList.Lookup:
+        for sub in lookup.SubTable:
+            sub = getattr(sub, "ExtSubTable", sub)
+            for ligatures in getattr(sub, "ligatures", {}).values():
+                known = {tuple(l.Component) for l in ligatures}
+                for lig in list(ligatures):
+                    twin_components = [c for c in lig.Component if c != fe0f]
+                    if not lig.Component or lig.Component[0] != fe0f or not twin_components or tuple(twin_components) in known:
+                        continue
+                    twin = otTables.Ligature()
+                    twin.LigGlyph = lig.LigGlyph
+                    twin.Component = twin_components
+                    twin.CompCount = len(twin_components) + 1
+                    ligatures.append(twin)
+                    known.add(tuple(twin_components))
+                    added += 1
+    return added
+
+
 def refuse_unless_pinned_environment():
     here = (sys.platform, f"{sys.version_info.major}.{sys.version_info.minor}", os.environ.get("EMOJI_FONT_IMAGE"))
     if here != (PINNED_PLATFORM, PINNED_PYTHON, PINNED_IMAGE):
@@ -143,11 +171,15 @@ def main():
     subprocess.run(["ninja", "-j", str(args.jobs), "-C", str(build)], check=True, env=env)
 
     built = build / f"{FAMILY}.ttf"
+    from fontTools.ttLib import TTFont
+    twinned = TTFont(built, recalcTimestamp=False)
+    twins = add_fe0f_less_twins(twinned)
+    twinned.save(built)
     font_sha = sha256(built)
     tools = {n: metadata.version(n) for n in ("nanoemoji", "fonttools", "picosvg", "ninja")}
     font_pins = {
         "source_sha256": TWEMOJI_SHA256, **{f"tool_{n}": v for n, v in tools.items()},
-        "source_date_epoch": SOURCE_DATE_EPOCH, "color_format": "glyf_colr_0",
+        "source_date_epoch": SOURCE_DATE_EPOCH, "color_format": "glyf_colr_0", "fe0f_less_twins": str(twins),
         "python_version": platform.python_version(), "platform": PINNED_PLATFORM, "container_image": PINNED_IMAGE,
     }
     lock_path = FONT_DIR / "emoji-font.lock"
@@ -183,6 +215,7 @@ def main():
         *(f"tool_{n}={v}" for n, v in tools.items()),
         f"source_date_epoch={SOURCE_DATE_EPOCH}", "color_format=glyf_colr_0",
         f"python_version={font_pins['python_version']}", f"platform={PINNED_PLATFORM}", f"container_image={PINNED_IMAGE}",
+        f"fe0f_less_twins={twins}",
         f"font_file={out.name}", f"font_sha256={font_sha}",
         f"singles_sha256={sha256(SINGLES)}", f"unsupported_sha256={sha256(UNSUPPORTED)}",
         f"sequences_sha256={sha256(SEQUENCES)}",
