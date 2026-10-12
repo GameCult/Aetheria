@@ -19,6 +19,10 @@ public static class DrawAhead
             ? entity.Position
             : entity.Position + float3(entity.Velocity.x, 0, entity.Velocity.y) * lead;
 
+    // A free body (a vapour cloud) drawn where the frame falls lead sim seconds after the last step, by the velocity
+    // that step moved it with: the launch velocity and the drift together.
+    public static float2 Position(KinematicBody body, float lead) => body.Position + body.TotalVelocity * lead;
+
     // The ship's rotation turned about its own up axis by the rate its last step turned, for lead seconds.
     public static quaternion Rotation(Ship ship, float lead) =>
         ship.WormholeAnimationInProgress ? ship.Rotation : Turned(ship.Rotation, ship.TurnRate * lead);
