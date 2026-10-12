@@ -126,14 +126,14 @@ def _load_layout(context, collection, path):
 _EXPECTED = (OSError, ValueError, RuntimeError, ImportError, KeyError)
 
 
-class BakeFailed(RuntimeError):
-    """The one error a bake raises past its rollback. Its message is fixed text; whatever Blender raised is on the console."""
+class Refusal(ValueError):
+    """A refusal Bake From Source raises itself: its message is fixed text that names no input. Blender's ValueError is not one."""
 
 
 def _failure_text(exc):
     """What an operator reports for exc. This module's own ValueError and RuntimeError messages are fixed text that
     names no input; any other error is reported by its type, and its text goes to the system console."""
-    if type(exc) in (ValueError, RuntimeError, BakeFailed):
+    if type(exc) in (ValueError, RuntimeError, Refusal):
         return str(exc)
     traceback.print_exception(exc)
     return f"Stopped by {type(exc).__name__}; see the system console"
@@ -521,13 +521,13 @@ def _ship_collection(context, unbound_ok=False):
     active object's only collection when no ship collection holds it."""
     obj = context.active_object
     if obj is None:
-        raise ValueError("Select an object in the ship collection")
+        raise Refusal("Select an object in the ship collection")
     ships = [collection for collection in bpy.data.collections if _is_ship(collection) and obj.name in collection.all_objects]
     if len(ships) == 1:
         return ships[0]
     if unbound_ok and not ships and len(obj.users_collection) == 1:
         return obj.users_collection[0]
-    raise ValueError("Select an object in exactly one ship collection" if unbound_ok
+    raise Refusal("Select an object in exactly one ship collection" if unbound_ok
                      else "Selected object must belong to exactly one bound ship collection")
 
 
@@ -1130,18 +1130,18 @@ def _select_only(context, objects):
 def _refuse_selecting(context, offenders, message):
     """Selects the offenders and refuses with message, which names a count and never an object."""
     _select_only(context, offenders)
-    raise ValueError(message)
+    raise Refusal(message)
 
 
 def _bake_inputs(context, collection):
     """The ship ID, the Source meshes and the selected render meshes Bake From Source works on, or the refusal that
     stops it before anything changes."""
     if context.mode != "OBJECT":
-        raise ValueError("Switch to Object mode before baking")
+        raise Refusal("Switch to Object mode before baking")
     source = _child(collection, SOURCE)
     sources = _meshes(source.all_objects) if source else []
     if _ship_root(collection) is None or not sources:
-        raise ValueError("Bake From Source needs a Ship Root and a mesh in Source; run New Ship first")
+        raise Refusal("Bake From Source needs a Ship Root and a mesh in Source; run New Ship first")
     layer = context.view_layer
     hidden = [obj for obj in sources if obj.name not in layer.objects or obj.hide_get()]
     if hidden:
@@ -1149,7 +1149,11 @@ def _bake_inputs(context, collection):
                           f"{len(hidden)} Source meshes are hidden or outside the view layer; show them to bake")
     targets = [obj for obj in _own_meshes(collection) if obj.name in layer.objects and obj.select_get()]
     if not targets:
-        raise ValueError("Select the render meshes to bake onto")
+        raise Refusal("Select the render meshes to bake onto")
+    shared = {obj.data for obj in sources}
+    linked = [obj for obj in targets if obj.data in shared]
+    if linked:  # a material slot belongs to the mesh data, so the bake would repoint Source's own slot
+        _refuse_selecting(context, linked, f"{len(linked)} selected meshes share their mesh data with a Source mesh; make them single user first")
     flat = [obj for obj in targets if not obj.data.uv_layers]
     if flat:
         _refuse_selecting(context, flat, f"{len(flat)} selected meshes have no UV layer; unwrap them first")
@@ -1251,15 +1255,21 @@ def _link_into(material, node, input_name, source, undo):
 
 
 def _refuse_taken_names(ship_id, targets):
-    """The ship's pair is {ship_id}.albedo and {ship_id}.normal and there is one pair: an image already holding a name must
-    be one this bake replaces and frees, or the new image would take a numbered name beside it."""
+    """The ship's pair is {ship_id}.albedo and {ship_id}.normal and there is one pair. An image holding a name must be one
+    this bake replaces (used only by the selected meshes' wiring) or one nothing uses; returns those images, which the bake
+    frees before it names its own. Any other holder refuses."""
     materials = _target_materials(targets)
+    holders = []
     for kind, _, _ in BAKE_MAPS:
         image = bpy.data.images.get(f"{ship_id}.{kind}")
+        if image is None:
+            continue
         wired = [node for node in (_wired_image(material, kind) for material in materials) if node is not None and node.image == image]
-        if image is not None and (image.use_fake_user or image.users != len(wired)):
-            raise ValueError("The ship's baked image names are held by images this bake does not replace; select every "
+        if image.use_fake_user or image.users != len(wired):
+            raise Refusal("The ship's baked image names are held by images this bake does not replace; select every "
                              "mesh that uses them, or rename the other images")
+        holders.append(image)
+    return holders
 
 
 def _bake_map(context, sources, targets, settings, extrusion, max_distance, nodes):
@@ -1272,13 +1282,19 @@ def _bake_map(context, sources, targets, settings, extrusion, max_distance, node
         layer.objects.active = target
         for slot in target.material_slots:
             slot.material.node_tree.nodes.active = nodes[slot.material.name]
-        try:
-            bpy.ops.object.bake(
-                use_selected_to_active=True, cage_extrusion=extrusion, max_ray_distance=max_distance, use_clear=index == 0,
-                **settings)
-        except RuntimeError:  # Blender's text names objects and images
-            traceback.print_exc()
-            raise BakeFailed("The bake failed; its message is in the system console") from None
+        bpy.ops.object.bake(
+            use_selected_to_active=True, cage_extrusion=extrusion, max_ray_distance=max_distance, use_clear=index == 0,
+            **settings)
+
+
+def _settle_images(ship_id, images, stale):
+    """The commit's last step: frees the images the bake replaced and the unused ones that held the pair's names, then
+    names the new images {ship_id}.albedo and {ship_id}.normal."""
+    for image in {image.name: image for image in stale}.values():  # named before any is removed
+        if image.users == 0:
+            bpy.data.images.remove(image)
+    for kind, image in images.items():
+        image.name = f"{ship_id}.{kind}"
 
 
 def _bake_from_source(context, collection, replace):
@@ -1288,8 +1304,8 @@ def _bake_from_source(context, collection, replace):
     were afterwards."""
     ship_id, sources, targets = _bake_inputs(context, collection)
     if not replace and any(_wired_image(material, kind) for material in _target_materials(targets) for kind, _, _ in BAKE_MAPS):
-        raise ValueError("Selected meshes already have baked images; confirm the replace")
-    _refuse_taken_names(ship_id, targets)
+        raise Refusal("Selected meshes already have baked images; confirm the replace")
+    holders = _refuse_taken_names(ship_id, targets)
     addon = context.preferences.addons[__package__].preferences
     scene, layer = context.scene, context.view_layer
     previous_selection = [obj for obj in layer.objects if obj.select_get()]
@@ -1350,21 +1366,14 @@ def _bake_from_source(context, collection, replace):
                     undo.append(partial(_remove_node, material.name, normal.name))
                     material.node_tree.links.new(node.outputs["Color"], normal.inputs["Color"])
                     _link_into(material, bsdf, "Normal", normal.outputs["Normal"], undo)
-    except BaseException as exc:
+    except BaseException:
         for step in reversed(undo):
             step()
-        if isinstance(exc, Exception) and not isinstance(exc, BakeFailed):  # Blender's text names objects and images
-            traceback.print_exception(exc)
-            raise BakeFailed("The bake failed; its message is in the system console") from None
         raise
     finally:
         for step in reversed(restore):
             step()
-    for image in replaced.values():
-        if image.users == 0:
-            bpy.data.images.remove(image)
-    for kind, image in images.items():
-        image.name = f"{ship_id}.{kind}"
+    _settle_images(ship_id, images, [*replaced.values(), *holders])
     return copied
 
 
@@ -1382,7 +1391,7 @@ class AETHERIA_OT_bake_from_source(bpy.types.Operator):
     def invoke(self, context, event):
         try:
             _, _, targets = _bake_inputs(context, _ship_collection(context))
-        except _EXPECTED:
+        except Exception:
             return self.execute(context)  # the same refusal, reported
         if any(_wired_image(material, kind) for material in _target_materials(targets) for kind, _, _ in BAKE_MAPS):
             self.replace = True
@@ -1394,10 +1403,14 @@ class AETHERIA_OT_bake_from_source(bpy.types.Operator):
         try:
             copied = _bake_from_source(context, _ship_collection(context), self.replace)
             self.report({"INFO"}, "Baked the albedo and normal maps from Source" + (
-                f"; {copied} materials shared with Source were copied for the render meshes" if copied else ""))
+                f"; materials shared with Source, copied for the render meshes: {copied}" if copied else ""))
             return {"FINISHED"}
-        except _EXPECTED as exc:
-            return _refuse(self, exc)
+        except Exception as exc:  # the one place a bake's error becomes report text
+            if type(exc) is Refusal:
+                return _refuse(self, exc)
+            traceback.print_exception(exc)  # whatever else Blender raised names objects and images
+            self.report({"ERROR"}, "The bake failed; its message is in the system console")
+            return {"CANCELLED"}
 
 
 def _new_ship(context, ship_id, name, reference, length):

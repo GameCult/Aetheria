@@ -241,27 +241,28 @@ def glb_image_sizes(path):
 class FailingCall:
     """Stands in for a function: the n-th call raises, the others run the real one."""
 
-    def __init__(self, real, fail_on):
-        self.real, self.fail_on, self.calls = real, fail_on, 0
+    def __init__(self, real, fail_on, error=RuntimeError):
+        self.real, self.fail_on, self.calls, self.error = real, fail_on, 0, error
 
     def __call__(self, *args, **arguments):
         self.calls += 1
         if self.calls == self.fail_on:
-            raise RuntimeError("probe: forced failure")
+            raise self.error("probe: forced failure")
         return self.real(*args, **arguments)
 
 
-def failing_pass(aetheria_ships, label, targets, materials, sources, replace, site, fail_on):
+def failing_pass(aetheria_ships, label, targets, materials, sources, replace, site, fail_on, error=RuntimeError, rolled_back=True):
     """A run whose fail_on-th call of site raises (the Cycles bake, or one of the add-on's own commit steps) leaves the
-    Source, the materials, the images, the scene settings and the selection as they were."""
+    Source, the materials, the images, the scene settings and the selection as they were, and reports fixed text whatever the
+    type of the error and wherever it was raised. rolled_back=False is for a failure after the commit: only the text is checked."""
     real_bpy, real_site = aetheria_ships.bpy, getattr(aetheria_ships, site, None)
     if site == "bake":
-        patched = FailingCall(bpy.ops.object.bake, fail_on)
+        patched = FailingCall(bpy.ops.object.bake, fail_on, error)
         proxy = {name: getattr(bpy, name) for name in dir(bpy) if not name.startswith("__")}
         proxy["ops"] = types.SimpleNamespace(object=types.SimpleNamespace(bake=patched))
         replacement = {"bpy": types.SimpleNamespace(**proxy)}
     else:
-        patched = FailingCall(real_site, fail_on)
+        patched = FailingCall(real_site, fail_on, error)
         replacement = {site: patched}
 
     def state():
@@ -280,9 +281,21 @@ def failing_pass(aetheria_ships, label, targets, materials, sources, replace, si
     require(patched.calls >= fail_on, f"{label}: the forced failure never landed ({patched.calls} calls)")
     require(result == {"CANCELLED"}, f"{label}: a failing run was not refused")
     require("The bake failed" in message and "probe" not in message, f"{label}: Blender's own text reached the report ({message!r})")
+    if not rolled_back:
+        return
     after = state()
     for part, name in enumerate(("wiring", "Source materials", "scene settings and selection", "images", "material slots", "materials")):
         require(before[part] == after[part], f"{label}: a failed run left the {name} changed")
+
+
+class Reports:
+    """Stands in for the operator instance: the real execute runs against it and its reports are kept."""
+
+    def __init__(self, replace):
+        self.replace, self.sent = replace, []
+
+    def report(self, kinds, text):
+        self.sent.append((kinds, text))
 
 
 def refusal(label, expected, snapshot, offenders=None):
@@ -596,8 +609,11 @@ def pass_five(aetheria_ships):
     require(wing.data.materials[0] == source_material and fin.data.materials[0] == source_material,
             "Shared material: a failed run left a copy on the mesh")
     source_kept("Shared material, failed run")
-    result, message = run(bpy.ops.aetheria.bake_from_source, replace=True)
-    require(result == {"FINISHED"}, f"Shared material: the bake was refused: {message}")
+    operator = Reports(replace=True)
+    result = aetheria_ships.AETHERIA_OT_bake_from_source.execute(operator, bpy.context)
+    require(result == {"FINISHED"}, f"Shared material: the bake was refused: {operator.sent}")
+    require(len(operator.sent) == 1 and operator.sent[0][0] == {"INFO"} and operator.sent[0][1].endswith("copied for the render meshes: 1"),
+            f"Shared material: the report does not name the one material copied ({operator.sent})")
     own = wing.data.materials[0]
     require(own != source_material and fin.data.materials[0] == own, "Shared material: the meshes did not take one material of their own")
     source_kept("Shared material")
@@ -652,6 +668,8 @@ def pass_five(aetheria_ships):
     select([first])
     refusal("Free image holds the name", "held by images this bake does not replace", image_state)
     bpy.data.images.remove(free)
+    for kind in ("albedo", "normal"):  # images nothing uses, no fake user: the bake takes the names
+        require(bpy.data.images.new(f"{SHIP_ID}.{kind}", 4, 4).users == 0, "Names: an orphan has users")
     result, message = run(bpy.ops.aetheria.bake_from_source)
     require(result == {"FINISHED"}, f"Names: the first bake was refused: {message}")
     one_pair("Names, first bake")
@@ -663,7 +681,45 @@ def pass_five(aetheria_ships):
         require(result == {"FINISHED"}, f"Names: the shared bake was refused: {message}")
         one_pair("Names, shared bake")
     check_images("Names", [first.data.materials[0].name, second.data.materials[0].name])
+    gone = {first.data.materials[0].name, second.data.materials[0].name}  # she deletes the meshes and their materials
+    for obj in (first, second):
+        bpy.data.objects.remove(obj, do_unlink=True)
+    for name in gone:
+        bpy.data.materials.remove(bpy.data.materials[name])
+    require(all(bpy.data.images[name].users == 0 for name in pair_names), "Names: the old pair is still used")
+    again = new_render("Wing")
+    select([again])
+    result, message = run(bpy.ops.aetheria.bake_from_source)
+    require(result == {"FINISHED"}, f"Names: the re-bake was refused: {message}")
+    one_pair("Names, re-bake")
+    check_images("Names, re-bake", [again.data.materials[0].name])
     print("PASS 5 pair names ok")
+
+    # A target that shares Source's mesh data is refused: the slot belongs to the data, so Source's own would be repointed.
+    purge()
+    linked = new_render("Wing")
+    linked.data = source.data
+    select([linked])
+    refusal("Linked mesh data", "share their mesh data with a Source mesh", lambda: (owned(), image_state()), [linked])
+    source_kept("Linked mesh data")
+    print("PASS 5 linked mesh data ok")
+
+    # Whatever Blender raises, wherever in the operator, the report is fixed text and the run is undone (a failure after the
+    # commit has nothing to undo).
+    purge()
+    target = new_render("Wing")
+    material = with_material(target, "Own")
+    select([target])
+    for site, error, rolled_back in (("_refuse_taken_names", RuntimeError, True), ("_bake_inputs", RuntimeError, True),
+                                     ("bake", ValueError, True), ("_settle_images", RuntimeError, False)):
+        failing_pass(aetheria_ships, f"Text at {site}", [target], [material], sources, False, site, 1, error, rolled_back)
+        purge_pair = [i for i in bpy.data.images if i.name.startswith(SHIP_ID)]
+        for image in purge_pair:
+            bpy.data.images.remove(image)
+        for wired in [n for n in material.node_tree.nodes if n.type in ("TEX_IMAGE", "NORMAL_MAP")]:
+            material.node_tree.nodes.remove(wired)
+        select([target])
+    print("PASS 5 error text ok")
 
     # The relief bound rejects a copy of Source as the target and accepts a real hull.
     purge()
