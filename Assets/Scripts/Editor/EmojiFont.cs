@@ -10,10 +10,11 @@ using UnityEngine.TextCore.LowLevel;
 
 // The one writer of the emoji font asset and of TMP Settings' emoji routing. The font file is the
 // output of tools/emoji/fetch_emoji_font.py; the asset is a dynamic COLOR font asset whose atlas pages
-// are cache, filled on first use at runtime and cleared here. Every TMP text reaches emoji through ONE
-// route, TMP Settings' global fallback list; the emoji fallback list stays empty, and no component names
-// an emoji font. (Measured: the global list alone resolves every single code point; the emoji list alone
-// leaves 200 text-presentation emoji unresolved. A second route could only disagree with the first.)
+// are cache, filled on first use at runtime and cleared here. Every TMP text reaches emoji through TMP
+// Settings alone (no component names an emoji font), by two routes that both name only Emoji.asset (operator ruling
+// emoji-fallback-route): the global fallback serves every code point, including the 200 text-presentation emoji the
+// emoji list alone leaves unresolved; the emoji fallback list is what TMP tries first when FE0F follows, so a keycap
+// or FE0F/ZWJ sequence whose first code point the body font also draws reaches Twemoji, whose ligatures collapse it.
 // Sequences (ZWJ, skin tone, flag, keycap) resolve only through the emoji font's GSUB ligatures, and TMP applies
 // them per component, gated by that component's font features: EnableLigatures writes `liga` into every
 // serialized TMP text and into TMP Settings (so a text created later inherits it); there is no global switch.
@@ -70,15 +71,16 @@ public static class EmojiFont
         // The atlas pages are cache: Build leaves them empty, the same state EmojiCheck restores.
         asset.ClearFontAssetData(true);
 
-        // One route: the global fallback. It also serves text-presentation emoji (U+263A without FE0F).
-        TMP_Settings.emojiFallbackTextAssets = new List<TMP_Asset>();
+        // Two routes: the global fallback serves every code point (text-presentation emoji too, U+263A without FE0F);
+        // the emoji list is tried first when FE0F follows.
+        TMP_Settings.emojiFallbackTextAssets = new List<TMP_Asset> { asset };
         TMP_Settings.fallbackFontAssets = new List<TMP_FontAsset> { asset };
         TMP_Settings.defaultSpriteAsset = null;
 
         EditorUtility.SetDirty(asset);
         EditorUtility.SetDirty(TMP_Settings.instance);
         AssetDatabase.SaveAssets();
-        message = "EmojiFont: built " + AssetPath + " and made it TMP Settings' only emoji route (the global fallback).";
+        message = "EmojiFont: built " + AssetPath + " and named it in both of TMP Settings' emoji routes (the global fallback and the emoji fallback list).";
         return true;
     }
 

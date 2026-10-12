@@ -9,8 +9,9 @@ using UnityEngine;
 // Every single-code-point emoji of the pinned Unicode Emoji version that Twemoji draws, and the Pirates product
 // names read from the shipped catalog, render through an ordinary TMP text on the game's body font with no
 // missing code point, no blank glyph, ink in the emoji atlas, and each glyph served by the emoji asset or by the
-// body font itself, never by a third font. TMP Settings must route emoji by exactly one entry: the global
-// fallback (the emoji fallback list stays empty), so dropping that entry or re-adding the second route fails.
+// body font itself, never by a third font. TMP Settings must route emoji by two named routes (operator ruling
+// emoji-fallback-route): the global fallback names Emoji.asset and the emoji fallback list is exactly Emoji.asset,
+// so dropping either fails.
 // Run as -executeMethod EmojiCheck.Run (exit 1 on failure in batchmode, as EngineAssetCheck). Corpus:
 // tools/emoji/emoji-singles.txt (from emoji-test.txt); the emoji Twemoji lacks are listed in
 // tools/emoji/emoji-unsupported.txt and reported, not rendered; -emojiLimit N spreads N entries evenly for a spike.
@@ -45,11 +46,11 @@ public static class EmojiCheck
             return "nothing checked";
         }
 
-        // One route: the global fallback names the emoji asset, and the emoji fallback list is empty.
-        if (TMP_Settings.emojiFallbackTextAssets != null && TMP_Settings.emojiFallbackTextAssets.Count > 0)
-            failures.Add("TMP Settings' emoji fallback list is not empty: a second emoji route exists (EmojiFont.Build leaves it empty).");
+        // Two routes (operator ruling emoji-fallback-route): the emoji fallback list is exactly Emoji.asset, and the global list below names it.
+        if (TMP_Settings.emojiFallbackTextAssets == null || TMP_Settings.emojiFallbackTextAssets.Count != 1 || TMP_Settings.emojiFallbackTextAssets[0] != emoji)
+            failures.Add("TMP Settings' emoji fallback list is not exactly Emoji.asset: FE0F-followed bases the body font draws will not reach Twemoji.");
         if (TMP_Settings.fallbackFontAssets == null || !TMP_Settings.fallbackFontAssets.Contains(emoji))
-            failures.Add("TMP Settings' global fallback list does not name Emoji.asset: the only emoji route is gone.");
+            failures.Add("TMP Settings' global fallback list does not name Emoji.asset: the route for every single code point is gone.");
 
         var unsupported = new HashSet<int>(LoadCodePoints("emoji-unsupported.txt"));
         var corpus = LoadSingles().Where(cp => !unsupported.Contains(cp)).ToList();
@@ -109,18 +110,23 @@ public static class EmojiCheck
                 text.text = string.Join(" ", slice.Select(ToText));
                 text.ForceMeshUpdate();
                 var visible = new List<int> { 0 };
+                var shown = new List<string> { "" };
                 for (var c = 0; c < text.textInfo.characterCount; c++)
                 {
                     var info = text.textInfo.characterInfo[c];
-                    if (info.character == ' ') visible.Add(0);
-                    else if (info.isVisible) visible[visible.Count - 1]++;
+                    if (info.character == ' ') { visible.Add(0); shown.Add(""); }
+                    else if (info.isVisible)
+                    {
+                        visible[visible.Count - 1]++;
+                        shown[shown.Count - 1] += $" U+{(int)info.character:X}:{info.fontAsset.name}";
+                    }
                 }
                 if (visible.Count != slice.Count) failures.Add($"sequence chunk {i}: {visible.Count} groups rendered for {slice.Count} sequences");
                 for (var g = 0; g < Math.Min(visible.Count, slice.Count); g++)
                     if (visible[g] != 1)
                     {
                         notOne++;
-                        failures.Add($"sequence {slice[g]} rendered {visible[g]} visible characters, not one");
+                        failures.Add($"sequence {slice[g]} rendered {visible[g]} visible characters, not one:{shown[g]}");
                     }
             }
 
