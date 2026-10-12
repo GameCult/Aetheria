@@ -103,7 +103,6 @@ public sealed class LootTests : IDisposable
             MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000
         });
         cache.Upsert(new CargoBayData { Name = "Crate", Shape = new Shape(), InteriorShape = Solid(4, 4), Durability = 4 });
-        cache.Upsert(new CargoBayData { Name = "Tiny", Shape = new Shape(), InteriorShape = Solid(1, 1), Durability = 4 });
         cache.Upsert(new SimpleCommodityData { Name = "Ore", Shape = Solid(1, 1), MaxStack = 100 });
         cache.FlushAsync().Wait();
 
@@ -115,7 +114,7 @@ public sealed class LootTests : IDisposable
     }
 
     // A ship carrying a gun, a targeting system and a spare, with ore and a spare gun in its crate.
-    private static Ship Spawn(Lab lab, float3 at, string bay = "Crate", bool cargo = true)
+    private static Ship Spawn(Lab lab, float3 at, bool cargo = true)
     {
         var hull = lab.Items.ItemData.RefOf<ItemData>(lab.Items.ItemData.GetByName<HullData>("Skiff"));
         var ship = new Ship(lab.Items, lab.Zone, new EquippableItem { Data = hull, Durability = 1000000, Lot = lab.Lot++ }, new EntitySettings());
@@ -126,7 +125,7 @@ public sealed class LootTests : IDisposable
             Assert.True(ship.TryFindSpace(gear, out var pos));
             Assert.True(ship.TryEquip(gear, pos));
         }
-        var crate = lab.Make(bay);
+        var crate = lab.Make("Crate");
         Assert.True(ship.TryFindSpace(crate, out var cratePos));
         Assert.True(ship.TryEquip(crate, cratePos));
         if (cargo)
@@ -325,23 +324,21 @@ public sealed class LootTests : IDisposable
     public void TryPickUpStoresAndRemoves()
     {
         var lab = Build();
-        var taker = Spawn(lab, float3(0, 0, 0), bay: "Tiny", cargo: false);
-        var big = lab.Make("Crate");
-        Assert.Contains(Solid(5, 5).AllCoordinates, cell => taker.TryEquip(big, cell));
+        var taker = Station(lab, float3(0, 0, 0));
+        Assert.True(taker.TryEquip(lab.Make("Crate"), new int2(2, 2)));
         Assert.Equal(2, taker.CargoBays.Count);
+        // The first bay is full, so the first bay that accepts the item is the second.
+        while (taker.CargoBays[0].TryStore(lab.Make("Spare"))) { }
 
         var removals = 0;
         using var sub = lab.Zone.FloatingItems.ObserveRemove().Subscribe(_ => removals++);
-        var ore = lab.Ore(5);
-        var floating = lab.Zone.Release(ore, new float2(1, 2), new float2(3, 4));
-
-        // The one-cell bay is full, so the first bay that accepts the ore is the second.
-        Assert.True(taker.CargoBays[0].TryStore(lab.Make("Spare")));
+        var item = lab.Make("Spare");
+        var floating = lab.Zone.Release(item, new float2(1, 2), new float2(3, 4));
         Assert.True(lab.Zone.TryPickUp(taker, floating.Id));
         Assert.Equal(1, removals);
         Assert.Empty(lab.Zone.FloatingItems);
-        Assert.Contains(ore, taker.CargoBays[1].Cargo.Keys);
-        Assert.DoesNotContain(ore, taker.CargoBays[0].Cargo.Keys);
+        Assert.Contains(item, taker.CargoBays[1].Cargo.Keys);
+        Assert.DoesNotContain(item, taker.CargoBays[0].Cargo.Keys);
 
         // The same id again is unknown now.
         Assert.False(lab.Zone.TryPickUp(taker, floating.Id));
