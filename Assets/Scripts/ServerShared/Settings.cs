@@ -268,6 +268,10 @@ public class GameplaySettings
     // (pSpread) to turn a hull's cell footprint into a real-world silhouette size at range.
     public float SchematicCellSize = 2f;
 
+    // Restitution of a hull striking a hull (Contacts.Step): the speed at which a pair separates along the contact
+    // normal is this times the speed at which it closed. 0 is perfectly inelastic, 1 perfectly elastic.
+    public float ContactRestitution = .5f;
+
     // The floor an AI's own predicted hit probability (FireControl.HitProbability) must clear before it counts
     // a firing solution worth taking (Combat.cs, TurretController.cs). Player fire is gated on arc alone
     // (Weapon.ArcAllowsFire, Q2) -- this threshold is an AI fire-discipline heuristic, not part of the roll.
