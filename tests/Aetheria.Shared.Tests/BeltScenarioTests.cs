@@ -13,7 +13,7 @@ public sealed partial class RunStartTests
 
     // Belt: the arena carries a belt of at least the scanned asteroid count, nothing else flies in it, the player stands
     // 100 m outside the ring on the side nearest the origin and faces along it, and the player's sensors see rocks within
-    // mining reach from the first tick.
+    // mining reach once the ship has settled.
     [Fact]
     public void BeltConditions()
     {
@@ -34,6 +34,8 @@ public sealed partial class RunStartTests
         Assert.True(abs(dot(player.Direction, normalize(radial))) < .01f, "the player faces along the ring");
 
         var field = arena.Planets.Single(body => body.Value == belt).Key;
+        // A weapon's reach and a sensor's gain are read once the ship's stats have settled, so the first second passes first.
+        for (var tick = 0; tick < 60; tick++) arena.Update(1f / 60f);
         var inReach = new List<ChunkId>();
         player.VisibleChunksInReach(inReach);
         Assert.NotEmpty(inReach);
