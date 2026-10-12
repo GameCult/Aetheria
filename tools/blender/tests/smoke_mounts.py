@@ -109,6 +109,10 @@ def row(scene, mount_id):
     return found[0]
 
 
+def set_footprint(scene, mount_id, footprint):
+    next(hp for hp in scene.aetheria_layout.hardpoints if hp.mount_id == mount_id).footprint = footprint
+
+
 def world(obj):
     bpy.context.view_layer.update()
     return tuple(obj.matrix_world.translation)
@@ -206,12 +210,15 @@ def main():
     require(approx(tuple(m - g for m, g in zip(muzzle_at, gun_at)), (-0.5, 0.0, 0.0)),
             "The Clockwise muzzle is not 0.5 m toward -X of its mount")
 
+    set_footprint(scene, "weapon.1", "#.")  # an asymmetric footprint shows the mirror turning it
     select(gun)
     result, message = run(bpy.ops.aetheria.mirror_ship_mount)
     require(result == {"FINISHED"}, f"Mirror Mount was refused: {message}")
     twin = bpy.data.objects["weapon.2"]
     twin_row = row(scene, "weapon.2")
-    require(twin_row == ("weapon.2", 10, (1, 5), COUNTER_CLOCKWISE, "#", 0.0, 0.0), f"The mirrored row is wrong: {twin_row}")
+    require(twin_row == ("weapon.2", 10, (1, 5), COUNTER_CLOCKWISE, ".#", 0.0, 0.0), f"The mirrored row is wrong: {twin_row}")
+    set_footprint(scene, "weapon.1", "#")
+    set_footprint(scene, "weapon.2", "#")
     twin_muzzle = bpy.data.objects["weapon.2.muzzle.1"]
     twin_at = world(twin)
     require(approx(twin_at, (3.0, -1.0, 0.0)), f"The mirrored mount is not across the centreline: {twin_at}")
