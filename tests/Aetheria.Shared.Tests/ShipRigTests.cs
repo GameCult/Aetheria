@@ -733,6 +733,18 @@ public sealed class ShipRigTests : IDisposable
         deep.Visual.Joints.Add(Joint("leaf", "mid", (Up, -90f, 90f)));
         Assert.Contains("joint leaf reaches through joint top", Refusal(deep));
 
+        // The driven ancestor may be the immediate parent, or any one of several, under an undriven root.
+        foreach (var drivenAt in new[] { "mid", "upper", "upper2" })
+        {
+            var tall = Armed(drivenAt, "leaf");
+            tall.Visual.Joints.Add(Joint("root", null, (Up, -90f, 90f)));
+            tall.Visual.Joints.Add(Joint("mid", "root", (Up, -90f, 90f)));
+            tall.Visual.Joints.Add(Joint("upper", "mid", (Up, -90f, 90f)));
+            tall.Visual.Joints.Add(Joint("upper2", "upper", (Up, -90f, 90f)));
+            tall.Visual.Joints.Add(Joint("leaf", "upper2", (Up, -90f, 90f)));
+            Assert.Contains($"joint leaf reaches through joint {drivenAt}", Refusal(tall));
+        }
+
         // Control: the same actuators on joints whose reaches are disjoint are accepted, and an undriven parent counts.
         var apart = Armed("top", "leaf");
         apart.Visual.Joints.Add(Joint("top", null, (Up, -90f, 90f)));
