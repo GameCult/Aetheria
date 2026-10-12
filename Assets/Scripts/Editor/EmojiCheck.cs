@@ -9,11 +9,16 @@ using UnityEngine;
 // Every single-code-point emoji of the pinned Unicode Emoji version that Twemoji draws, and the Pirates product
 // names read from the shipped catalog, render through an ordinary TMP text on the game's body font with no
 // missing code point, no blank glyph, ink in the emoji atlas, and each glyph served by the emoji asset or by the
-// body font itself, never by a third font. TMP Settings must route emoji by exactly one entry: the global
-// fallback (the emoji fallback list stays empty), so dropping that entry or re-adding the second route fails.
+// body font itself, never by a third font. TMP Settings must route emoji by two named routes (operator ruling
+// emoji-fallback-route): the global fallback names Emoji.asset and the emoji fallback list is exactly Emoji.asset,
+// so dropping either fails.
 // Run as -executeMethod EmojiCheck.Run (exit 1 on failure in batchmode, as EngineAssetCheck). Corpus:
 // tools/emoji/emoji-singles.txt (from emoji-test.txt); the emoji Twemoji lacks are listed in
 // tools/emoji/emoji-unsupported.txt and reported, not rendered; -emojiLimit N spreads N entries evenly for a spike.
+// Every fully-qualified multi-code-point sequence (tools/emoji/emoji-sequences.txt: ZWJ, skin tone, flag, keycap,
+// tag) must also render as exactly one visible character, which needs `liga` on the rendering component: every
+// TMP text in every prefab and scene must have it, and so must one added at runtime (as ActionGameManager's
+// FACE AIM mark is), or a family or flag would show as its pieces.
 public static class EmojiCheck
 {
     const string BodyFontPath = "Assets/Fonts/Ubuntu/Ubuntu-L Small SDF.asset";
@@ -41,14 +46,15 @@ public static class EmojiCheck
             return "nothing checked";
         }
 
-        // One route: the global fallback names the emoji asset, and the emoji fallback list is empty.
-        if (TMP_Settings.emojiFallbackTextAssets != null && TMP_Settings.emojiFallbackTextAssets.Count > 0)
-            failures.Add("TMP Settings' emoji fallback list is not empty: a second emoji route exists (EmojiFont.Build leaves it empty).");
+        // Two routes (operator ruling emoji-fallback-route): the emoji fallback list is exactly Emoji.asset, and the global list below names it.
+        if (TMP_Settings.emojiFallbackTextAssets == null || TMP_Settings.emojiFallbackTextAssets.Count != 1 || TMP_Settings.emojiFallbackTextAssets[0] != emoji)
+            failures.Add("TMP Settings' emoji fallback list is not exactly Emoji.asset: FE0F-followed bases the body font draws will not reach Twemoji.");
         if (TMP_Settings.fallbackFontAssets == null || !TMP_Settings.fallbackFontAssets.Contains(emoji))
-            failures.Add("TMP Settings' global fallback list does not name Emoji.asset: the only emoji route is gone.");
+            failures.Add("TMP Settings' global fallback list does not name Emoji.asset: the route for every single code point is gone.");
 
         var unsupported = new HashSet<int>(LoadCodePoints("emoji-unsupported.txt"));
         var corpus = LoadSingles().Where(cp => !unsupported.Contains(cp)).ToList();
+        var sequences = LoadSequences();
         var missing = new HashSet<int>();
         TMP_Text.MissingCharacterEventCallback onMissing = (unicode, index, source, asset, component) => missing.Add(unicode);
         TMP_Text.OnMissingCharacter += onMissing;
@@ -60,7 +66,7 @@ public static class EmojiCheck
         text.textWrappingMode = TextWrappingModes.NoWrap;
         text.rectTransform.sizeDelta = new Vector2(100000, 100000);
 
-        int viaEmoji = 0, viaBody = 0, blank = 0, pirateNames = 0;
+        int viaEmoji = 0, viaBody = 0, blank = 0, pirateNames = 0, notOne = 0, runtimeLiga = 0;
         var strays = new HashSet<string>();
         try
         {
@@ -90,6 +96,40 @@ public static class EmojiCheck
                 Render(string.Join(" ", slice.Select(char.ConvertFromUtf32)), $"chunk {i}");
             }
 
+            // A text created at runtime inherits liga from TMP Settings, with no wiring of its own.
+            var runtime = new GameObject("Runtime", typeof(RectTransform));
+            runtime.transform.SetParent(canvas.transform, false);
+            runtimeLiga = runtime.AddComponent<TextMeshProUGUI>().fontFeatures
+                .Contains(UnityEngine.TextCore.OTL_FeatureTag.liga) ? 1 : 0;
+            if (runtimeLiga == 0) failures.Add("a TextMeshProUGUI added at runtime does not have liga: TMP Settings' features are not inherited");
+
+            // Sequences: space-separated groups, each of which must end as one visible character.
+            for (var i = 0; i < sequences.Count; i += Chunk)
+            {
+                var slice = sequences.Skip(i).Take(Chunk).ToList();
+                text.text = string.Join(" ", slice.Select(ToText));
+                text.ForceMeshUpdate();
+                var visible = new List<int> { 0 };
+                var shown = new List<string> { "" };
+                for (var c = 0; c < text.textInfo.characterCount; c++)
+                {
+                    var info = text.textInfo.characterInfo[c];
+                    if (info.character == ' ') { visible.Add(0); shown.Add(""); }
+                    else if (info.isVisible)
+                    {
+                        visible[visible.Count - 1]++;
+                        shown[shown.Count - 1] += $" U+{(int)info.character:X}:{info.fontAsset.name}";
+                    }
+                }
+                if (visible.Count != slice.Count) failures.Add($"sequence chunk {i}: {visible.Count} groups rendered for {slice.Count} sequences");
+                for (var g = 0; g < Math.Min(visible.Count, slice.Count); g++)
+                    if (visible[g] != 1)
+                    {
+                        notOne++;
+                        failures.Add($"sequence {slice[g]} rendered {visible[g]} visible characters, not one:{shown[g]}");
+                    }
+            }
+
             // The Pirates names as the shipped catalog stores them, through the game's own catalog reader.
             var catalogPath = Path.Combine(Directory.GetParent(Application.dataPath).FullName, "GameData", "Aetheria.cc");
             using (var catalog = AetheriaStores.Open(catalogPath))
@@ -116,6 +156,19 @@ public static class EmojiCheck
 
         foreach (var cp in missing.OrderBy(c => c)) failures.Add($"missing code point U+{cp:X4}");
 
+        // Every serialized TMP text has liga (an instance inherits it from its prefab, so this reads the effective value).
+        int texts = 0, withoutLiga = 0;
+        EmojiFont.VisitSerializedTexts(component =>
+        {
+            texts++;
+            if (!component.fontFeatures.Contains(UnityEngine.TextCore.OTL_FeatureTag.liga))
+            {
+                withoutLiga++;
+                failures.Add($"TMP text {component.name} has no liga: {GetPath(component)}");
+            }
+            return false;
+        });
+
         // TMP over-allocates atlasTextures by doubling its capacity when a page is added, so entries past
         // atlasTextureCount are null by design (3 pages in a 4-slot array). Only the used pages count.
         long ink = 0, colour = 0;
@@ -136,10 +189,20 @@ public static class EmojiCheck
         if (unsupported.Count > 0)
             Debug.LogWarning($"EmojiCheck: Twemoji lacks {unsupported.Count} single-code-point emoji of the Emoji version: " +
                              string.Join(" ", unsupported.OrderBy(c => c).Select(c => $"U+{c:X4}")));
-        return $"checked {corpus.Count} single code points ({unsupported.Count} not drawn by Twemoji, listed in the warning) + {pirateNames} Pirates product names, " +
+        return $"{sequences.Count} sequences ({notOne} not one visible character), {texts} serialized TMP texts ({withoutLiga} without liga), runtime text liga {runtimeLiga}; " +
+               $"checked {corpus.Count} single code points ({unsupported.Count} not drawn by Twemoji, listed in the warning) + {pirateNames} Pirates product names, " +
                $"{missing.Count} missing, {viaEmoji} glyphs via the emoji asset, {viaBody} via the body font, {strays.Count} via other fonts, {blank} blank, " +
                $"{ink} atlas ink pixels of which {colour} coloured, {pages} atlas pages";
     }
+
+    static string GetPath(Component component) =>
+        component.gameObject.scene.IsValid() ? component.gameObject.scene.path : AssetDatabase.GetAssetPath(component);
+
+    static string ToText(string sequence) => string.Concat(sequence.Split(' ').Select(cp => char.ConvertFromUtf32(Convert.ToInt32(cp, 16))));
+
+    static List<string> LoadSequences() =>
+        File.ReadAllLines(Path.Combine(Directory.GetParent(Application.dataPath).FullName, "tools", "emoji", "emoji-sequences.txt"))
+            .Where(l => l.Length > 0).ToList();
 
     static List<int> LoadSingles()
     {

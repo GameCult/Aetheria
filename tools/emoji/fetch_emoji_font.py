@@ -8,7 +8,7 @@ Run it on Yggdrasil (or any docker host) from the repository root:
 
 Downloads the jdecked/twemoji release source archive and Unicode's emoji-test.txt (both sha256 pinned
 below), runs nanoemoji (glyf_colr_0) over the SVGs, and writes the font, the licence text, the smoke's
-corpus (emoji-singles.txt, from emoji-test.txt), the list of emoji Twemoji lacks (emoji-unsupported.txt)
+corpus (emoji-singles.txt and emoji-sequences.txt, from emoji-test.txt), the list of emoji Twemoji lacks (emoji-unsupported.txt)
 and emoji-font.lock. The font is the only artifact Unity consumes; nothing here is hand-made art.
 A run whose font-determining pins match the lock must reproduce the font's sha256, or the script exits 1
 and leaves the committed font and lock untouched; the lock never follows the machine.
@@ -36,6 +36,7 @@ PINNED_IMAGE = "python:3.13-slim"
 ROOT = Path(__file__).resolve().parents[2]
 FONT_DIR = ROOT / "Assets" / "Fonts" / "Emoji"
 SINGLES = ROOT / "tools" / "emoji" / "emoji-singles.txt"
+SEQUENCES = ROOT / "tools" / "emoji" / "emoji-sequences.txt"
 UNSUPPORTED = ROOT / "tools" / "emoji" / "emoji-unsupported.txt"
 
 
@@ -70,6 +71,48 @@ def single_code_points(emoji_test):
         if len(points) == 1:
             found.add(points[0])
     return sorted(found)
+
+
+def fully_qualified_sequences(emoji_test):
+    """Every fully-qualified emoji of more than one code point (ZWJ, skin tone, flag, keycap, tag, and a
+    base with its FE0F), each as its space-separated hex code points in file order. The smoke renders each
+    as one visible character."""
+    found = []
+    for line in emoji_test.read_text(encoding="utf-8").splitlines():
+        if not line or line.startswith("#"):
+            continue
+        points, status = (part.strip() for part in line.split("#", 1)[0].split(";", 1))
+        if status == "fully-qualified" and len(points.split()) > 1:
+            found.append(points)
+    return found
+
+
+def add_fe0f_less_twins(font):
+    """Add, for every GSUB ligature record that has FE0F immediately after its first glyph, a twin with every FE0F
+    component removed pointing at the same ligature glyph; returns how many twins were added. TMP replaces
+    FE0F with a consumed marker before it matches ligatures (TextMeshProUGUI.cs:2030-2047, 2049-2120), so a
+    record that keeps FE0F as its second component can never match; Twemoji keys 15 sequences that way (ZWJ
+    sequences on a text-presentation base, e.g. U+2764 FE0F U+200D U+1F525). The original records stay."""
+    from fontTools.ttLib.tables import otTables
+    fe0f = font.getBestCmap()[0xFE0F]
+    added = 0
+    for lookup in font["GSUB"].table.LookupList.Lookup:
+        for sub in lookup.SubTable:
+            sub = getattr(sub, "ExtSubTable", sub)
+            for ligatures in getattr(sub, "ligatures", {}).values():
+                known = {tuple(l.Component) for l in ligatures}
+                for lig in list(ligatures):
+                    twin_components = [c for c in lig.Component if c != fe0f]
+                    if not lig.Component or lig.Component[0] != fe0f or not twin_components or tuple(twin_components) in known:
+                        continue
+                    twin = otTables.Ligature()
+                    twin.LigGlyph = lig.LigGlyph
+                    twin.Component = twin_components
+                    twin.CompCount = len(twin_components) + 1
+                    ligatures.append(twin)
+                    known.add(tuple(twin_components))
+                    added += 1
+    return added
 
 
 def refuse_unless_pinned_environment():
@@ -128,11 +171,15 @@ def main():
     subprocess.run(["ninja", "-j", str(args.jobs), "-C", str(build)], check=True, env=env)
 
     built = build / f"{FAMILY}.ttf"
+    from fontTools.ttLib import TTFont
+    twinned = TTFont(built, recalcTimestamp=False)
+    twins = add_fe0f_less_twins(twinned)
+    twinned.save(built)
     font_sha = sha256(built)
     tools = {n: metadata.version(n) for n in ("nanoemoji", "fonttools", "picosvg", "ninja")}
     font_pins = {
         "source_sha256": TWEMOJI_SHA256, **{f"tool_{n}": v for n, v in tools.items()},
-        "source_date_epoch": SOURCE_DATE_EPOCH, "color_format": "glyf_colr_0",
+        "source_date_epoch": SOURCE_DATE_EPOCH, "color_format": "glyf_colr_0", "fe0f_less_twins": str(twins),
         "python_version": platform.python_version(), "platform": PINNED_PLATFORM, "container_image": PINNED_IMAGE,
     }
     lock_path = FONT_DIR / "emoji-font.lock"
@@ -148,12 +195,14 @@ def main():
     drawn = {int(p.stem, 16) for p in svgs if re.fullmatch(r"[0-9a-f]+", p.stem)}
     singles = single_code_points(emoji_test)
     unsupported = [cp for cp in singles if cp not in drawn]
+    sequences = fully_qualified_sequences(emoji_test)
 
     FONT_DIR.mkdir(parents=True, exist_ok=True)
     out = FONT_DIR / f"{FAMILY}.ttf"
     shutil.copyfile(built, out)
     (FONT_DIR / "LICENSE.txt").write_text(licence_text(src), encoding="utf-8", newline="\n")
     SINGLES.write_text("".join(f"{cp:X}\n" for cp in singles), encoding="utf-8", newline="\n")
+    SEQUENCES.write_text("".join(f"{points}\n" for points in sequences), encoding="utf-8", newline="\n")
     UNSUPPORTED.write_text("".join(f"{cp:X}\n" for cp in unsupported), encoding="utf-8", newline="\n")
     print(f"Twemoji lacks {len(unsupported)} of {len(singles)} single-code-point emoji: "
           + " ".join(f"U+{cp:04X}" for cp in unsupported))
@@ -162,11 +211,14 @@ def main():
         f"source_url={TWEMOJI_URL}", f"source_version={TWEMOJI_VERSION}", f"source_sha256={TWEMOJI_SHA256}",
         f"emoji_test_version={EMOJI_TEST_VERSION}", f"emoji_test_url={EMOJI_TEST_URL}", f"emoji_test_sha256={EMOJI_TEST_SHA256}",
         f"svg_count={len(svgs)}", f"single_codepoint_count={len(singles)}", f"unsupported_count={len(unsupported)}",
+        f"sequence_count={len(sequences)}",
         *(f"tool_{n}={v}" for n, v in tools.items()),
         f"source_date_epoch={SOURCE_DATE_EPOCH}", "color_format=glyf_colr_0",
         f"python_version={font_pins['python_version']}", f"platform={PINNED_PLATFORM}", f"container_image={PINNED_IMAGE}",
+        f"fe0f_less_twins={twins}",
         f"font_file={out.name}", f"font_sha256={font_sha}",
         f"singles_sha256={sha256(SINGLES)}", f"unsupported_sha256={sha256(UNSUPPORTED)}",
+        f"sequences_sha256={sha256(SEQUENCES)}",
     ]
     lock_path.write_text("\n".join(lock) + "\n", encoding="utf-8", newline="\n")
     print("\n".join(lock))
