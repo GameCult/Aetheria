@@ -332,6 +332,8 @@ public sealed partial class FireControlCut124Tests
     {
         var e = Build(TestSettings(), SolidShape(21, 3), velocity: 0, damage: 100f, equipShield: shielded, shieldCapacity: 100000f, custom: new[] { ("Marker", new Shape(), new int2(2, 1), 1f) });
         e.Weapon.WeaponData.DamageType = DamageType.Thermal;
+        // The mount fires inside an arc about the shooter's facing, so the shooter turns to the heading it fires along.
+        e.Shooter.Direction = float2(-.6f, -.8f);
         e.Target.Position = e.Shooter.Position + float3(-30f, 0f, -40f);
         for (var i = 0; i < 30; i++) e.Zone.Update(.1f);
         var subs = new List<IDisposable>();
