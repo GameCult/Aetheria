@@ -103,3 +103,39 @@ def convex_outline(points_xy):
     if len(outline) < 3:
         raise ValueError("The points have no outline: they are fewer than three or collinear")
     return outline
+
+
+# ItemRotation values, in ship_cc.ROTATION_NAMES order.
+ROTATION_NONE, ROTATION_COUNTER_CLOCKWISE, ROTATION_REVERSED, ROTATION_CLOCKWISE = 0, 1, 2, 3
+_FACING_YAW = {
+    ROTATION_NONE: 0.0,
+    ROTATION_COUNTER_CLOCKWISE: math.pi / 2,
+    ROTATION_REVERSED: math.pi,
+    ROTATION_CLOCKWISE: -math.pi / 2,
+}
+
+
+def mounted_position(cell, footprint_w, footprint_h):
+    """The hardpoint Position (its footprint's origin cell) whose w x h footprint is centred on cell: ShipAuthoringStore
+    places footprint cell (cx, cy) at Position + (cx, cy), and the footprint's centre is ((w - 1) // 2, (h - 1) // 2)."""
+    return (cell[0] - (footprint_w - 1) // 2, cell[1] - (footprint_h - 1) // 2)
+
+
+def facing_yaw(rotation):
+    """Radians about Z that turn a mount empty so its local -Y points along the hardpoint Rotation's facing: None the
+    nose (-Y), CounterClockwise port (+X), Reversed aft (+Y), Clockwise starboard (-X)."""
+    return _FACING_YAW[rotation]
+
+
+def mirror_rotation(rotation):
+    """The Rotation of a hardpoint mirrored across the centreline: Clockwise and CounterClockwise swap."""
+    if rotation == ROTATION_CLOCKWISE:
+        return ROTATION_COUNTER_CLOCKWISE
+    if rotation == ROTATION_COUNTER_CLOCKWISE:
+        return ROTATION_CLOCKWISE
+    return rotation
+
+
+def mirror_footprint(footprint):
+    """A footprint text ('#' and '.' rows separated by '/') mirrored across the centreline: each row reversed."""
+    return "/".join(row[::-1] for row in footprint.split("/"))

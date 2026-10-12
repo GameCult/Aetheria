@@ -7,6 +7,7 @@ hull_grid is loaded by path because the package __init__ imports bpy. Frame: nos
 """
 
 import importlib.util
+import math
 import unittest
 from pathlib import Path
 
@@ -179,6 +180,29 @@ class ConvexOutlineTests(unittest.TestCase):
         for points in ([], [(1, 1)], [(0, 0), (1, 1)], [(0, 0), (1, 1), (2, 2), (3, 3)], [(1, 1), (1, 1), (1, 1)]):
             with self.assertRaises(ValueError):
                 hull_grid.convex_outline(points)
+
+
+class MountArithmeticTests(unittest.TestCase):
+    def test_facing_yaw_turns_local_minus_y_to_the_facing(self):
+        expected = {hull_grid.ROTATION_NONE: (0, -1), hull_grid.ROTATION_COUNTER_CLOCKWISE: (1, 0),
+                    hull_grid.ROTATION_REVERSED: (0, 1), hull_grid.ROTATION_CLOCKWISE: (-1, 0)}
+        for rotation, (fx, fy) in expected.items():
+            yaw = hull_grid.facing_yaw(rotation)
+            x, y = math.sin(yaw), -math.cos(yaw)  # R(yaw) applied to (0, -1)
+            self.assertAlmostEqual(x, fx, places=9, msg=rotation)
+            self.assertAlmostEqual(y, fy, places=9, msg=rotation)
+
+    def test_mirror_rotation_swaps_only_clockwise_and_counter_clockwise(self):
+        self.assertEqual([hull_grid.mirror_rotation(r) for r in range(4)], [0, 3, 2, 1])
+
+    def test_mirror_footprint_reverses_each_row(self):
+        self.assertEqual(hull_grid.mirror_footprint("##./.#."), ".##/.#.")
+        self.assertEqual(hull_grid.mirror_footprint("#"), "#")
+
+    def test_mounted_position_offsets_the_cell_by_the_footprint_centre(self):
+        for (w, h), expected in {(1, 1): (5, 4), (3, 1): (4, 4), (3, 3): (4, 3), (2, 1): (5, 4), (2, 2): (5, 4),
+                                 (4, 2): (4, 4)}.items():
+            self.assertEqual(hull_grid.mounted_position((5, 4), w, h), expected, (w, h))
 
 
 if __name__ == "__main__":
