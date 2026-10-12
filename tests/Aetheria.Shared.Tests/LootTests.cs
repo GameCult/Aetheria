@@ -508,4 +508,58 @@ public sealed class LootTests : IDisposable
         Kill(Spawn(lab, float3(1, 0, 1)));
         Assert.True(lab.Zone.FloatingItems.Select(f => Math.Round(Math.Atan2(f.Body.Velocity.y, f.Body.Velocity.x), 3)).Distinct().Count() > 1);
     }
+
+    // A member added twice holds one death subscription, so it drops each item once, as a single death would.
+    [Fact]
+    public void AMemberAddedTwiceStillDropsEachItemOnce()
+    {
+        var once = Build("Once", probability: 1f);
+        Kill(Spawn(once, float3(3, 0, 4)));
+        var baseline = once.Zone.FloatingItems.Count;
+        Assert.NotEqual(0, baseline);
+
+        var lab = Build("Twice", probability: 1f);
+        var ship = Spawn(lab, float3(3, 0, 4));
+        lab.Zone.Entities.Add(ship);
+        Kill(ship);
+        Assert.Equal(baseline, lab.Zone.FloatingItems.Count);
+    }
+
+    // Clearing Entities removes every member, so a death afterwards drops nothing in this zone.
+    [Fact]
+    public void AClearedZoneDropsNothingWhenAFormerMemberDies()
+    {
+        var lab = Build("Cleared", probability: 1f);
+        var ship = Spawn(lab, float3(3, 0, 4));
+        lab.Zone.Entities.Clear();
+        Kill(ship);
+        Assert.Empty(lab.Zone.FloatingItems);
+    }
+
+    // The pickup is whole or nothing at the arithmetic boundary: two stacks of 90 hold 20 more in all and no free
+    // cell is left, so a stack of 20 is stored (quantity 200 across both) and a stack of 21 changes nothing.
+    [Fact]
+    public void APickUpOfExactlyTheRoomLeftFitsAndOneMoreChangesNothing()
+    {
+        var lab = Build();
+        var taker = Station(lab, float3(0, 0, 0), stocked: false);
+        var bay = taker.CargoBays[0];
+        Assert.True(bay.TryStore(lab.Ore(90), new int2(0, 0)));
+        Assert.True(bay.TryStore(lab.Ore(90), new int2(1, 0)));
+        while (bay.TryStore(lab.Make("Spare"))) { }
+        (int Quantity, int Cells) Held() => (bay.Cargo.Keys.OfType<SimpleCommodity>().Sum(c => c.Quantity), bay.Cargo.Count);
+        var before = Held();
+
+        var over = lab.Ore(21);
+        var overFloating = lab.Zone.Release(over, new float2(1, 1), float2.zero);
+        Assert.False(lab.Zone.TryPickUp(taker, overFloating.Id));
+        Assert.Equal(21, over.Quantity);
+        Assert.Equal(before, Held());
+        Assert.Contains(overFloating, lab.Zone.FloatingItems);
+
+        var exact = lab.Zone.Release(lab.Ore(20), new float2(1, 1), float2.zero);
+        Assert.True(lab.Zone.TryPickUp(taker, exact.Id));
+        Assert.Equal((200, before.Cells), Held());
+        Assert.DoesNotContain(exact, lab.Zone.FloatingItems);
+    }
 }

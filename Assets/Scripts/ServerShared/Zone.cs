@@ -105,18 +105,26 @@ public class Zone
     // The death ordinal of the loot dice: the nth death in this zone rolls on SimulationDice.For(CombatSeed, LootStream, n).
     private uint _deaths;
 
-    // One death subscription per member entity, owned here: WatchDeath installs it, UnwatchDeath (the entity leaving
-    // Entities) disposes it, and nothing else touches it.
+    // One death subscription per member entity, owned here: a membership record and its subscription are created
+    // together, and only when the entity is not already a member. Leaving Entities (Remove) or resetting it (Clear)
+    // disposes it; nothing else touches it.
     private readonly Dictionary<Entity, IDisposable> _deathWatches = new Dictionary<Entity, IDisposable>();
 
     private void WatchDeath(Entity entity)
     {
+        if (_deathWatches.ContainsKey(entity)) return;
         _deathWatches.Add(entity, entity.Death.Subscribe(_ => { DropLoot(entity); Entities.Remove(entity); entity.Deactivate(); }));
     }
 
     private void UnwatchDeath(Entity entity)
     {
         if (_deathWatches.Remove(entity, out var watch)) watch.Dispose();
+    }
+
+    private void UnwatchAll()
+    {
+        foreach (var watch in _deathWatches.Values) watch.Dispose();
+        _deathWatches.Clear();
     }
 
     public Zone(ItemManager itemManager, PlanetSettings settings, ZonePack pack, GalaxyZone galaxyZone, Galaxy galaxy)
@@ -138,6 +146,7 @@ public class Zone
         // disposed on removal (death, dock, jump), so an entity admitted again never holds a second one.
         Entities.ObserveAdd().Subscribe(add => WatchDeath(add.Value));
         Entities.ObserveRemove().Subscribe(remove => UnwatchDeath(remove.Value));
+        Entities.ObserveReset().Subscribe(_ => UnwatchAll());
         // The one record of a removal for observers (ruling reveal-ends-on-perception): read by the next Sense pass.
         Entities.ObserveRemove().Subscribe(remove => _departures.Add(new Departure(remove.Value, remove.Value.Position.xz,
             remove.Value.Visibility - remove.Value.SignatureOn(SignatureChannel.Emission))));
