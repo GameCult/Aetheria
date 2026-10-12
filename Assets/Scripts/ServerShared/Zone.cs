@@ -54,6 +54,8 @@ public class Zone
     public List<PendingShot> PendingShots = new List<PendingShot>();
     public Subject<ShotOutcome> ShotCommitted = new Subject<ShotOutcome>();
     public Subject<ShotOutcome> ShotResolved = new Subject<ShotOutcome>();
+    // Contacts.Step publishes each hull-on-hull contact it resolves; presentations are the only readers.
+    public Subject<ContactEvent> Contacted = new Subject<ContactEvent>();
     private int _nextShotId;
     public int NextShotId() => ++_nextShotId;
 
@@ -240,6 +242,10 @@ public class Zone
 
         StepMines(deltaTime);
         StepClouds(deltaTime);
+
+        // Hull contact (cut sim-contact): after every entity has moved and the mines and clouds have taken
+        // their toll, so only hulls still in the zone touch, and before shots resolve against the result.
+        Contacts.Step(this);
 
         // Cut 3: after every entity has had its chance to fire this tick, age and resolve the shots that
         // firing queued. A shot fired this tick with a flight time shorter than CommitHorizon commits and
