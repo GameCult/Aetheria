@@ -96,7 +96,7 @@ public static class ShipModPlaySmoke
         }
         Install(package.Visual.Id, Path.GetFullPath(packagePath));
 
-        var (hull, ship) = ShipAuthoringStore.Read(Path.Combine(modsRoot, package.Visual.Id, "ship.cc"));
+        var (hull, ship, _) = ShipAuthoringStore.Read(Path.Combine(modsRoot, package.Visual.Id, "ship.cc"));
         ship.Id += ".broken";
         hull.Name += " Broken";
         hull.Visual = new CultRecordRef<ShipAuthoring>(ShipModCatalog.AuthoringKey(ship.Id));

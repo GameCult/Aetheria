@@ -26,7 +26,7 @@ public sealed class ShipAuthoringTests
                 ShipAuthoringStore.Write(cache, ship.Hull, ship.Visual);
                 await cache.FlushAsync();
             }
-            var (hull, visual) = ShipAuthoringStore.Read(path);
+            var (hull, visual, _) = ShipAuthoringStore.Read(path);
             Assert.Equal("mod.skiff", visual.Id);
             Assert.Equal("Skiff", hull.Name);
             Assert.True(hull.Shape.Cells[1, 0]);
@@ -381,6 +381,7 @@ public sealed class ShipAuthoringTests
             {
                 Name = "Skiff",
                 Shape = shape,
+                Behaviors = { new VelocityLimitData() },
                 Visual = new CultRecordRef<ShipAuthoring>(ShipModCatalog.AuthoringKey("mod.skiff")),
                 Hardpoints = new List<HardpointData>
                 {

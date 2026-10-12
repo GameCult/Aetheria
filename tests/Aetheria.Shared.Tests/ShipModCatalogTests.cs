@@ -89,7 +89,7 @@ public sealed class ShipModCatalogTests : IDisposable
     public void ComposeCopiesTheModStoresRecordsUnchangedAndTheHullNamesItsVisualByRef()
     {
         WritePackage("mod.skiff");
-        var (modHull, modVisual) = ShipAuthoringStore.Read(Path.Combine(Mods, "mod.skiff", "ship.cc"));
+        var (modHull, modVisual, _) = ShipAuthoringStore.Read(Path.Combine(Mods, "mod.skiff", "ship.cc"));
         ShipModCatalog.Compose(Shipped, Derived, Mods);
 
         using var cache = AetheriaStores.Open(Derived);
@@ -460,7 +460,7 @@ public sealed class ShipModCatalogTests : IDisposable
         foreach (var (x, y) in new[] { (0, 0), (1, 0), (2, 0), (3, 0), (0, 1) }) shape.Cells[x, y] = true;
         var target = Path.Combine(_directory.Path, "GameData", "Mods", "probe.l", "ship.cc");
         Assert.Equal(0, Run("create", target, "probe.l", "Probe L").Code);
-        var (hull, ship) = ShipAuthoringStore.Load(target);
+        var (hull, ship, _) = ShipAuthoringStore.Load(target);
         hull.Shape = shape;
         using (var cache = ShipAuthoringStore.Open(target, writable: true))
         {

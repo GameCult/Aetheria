@@ -15,6 +15,19 @@ public sealed class ShipValidationTests
 
     public static IEnumerable<object[]> CaseNames => Cases.Keys.Select(name => new object[] { name });
 
+    [Theory]
+    [InlineData(HullType.Ship, false)]
+    [InlineData(HullType.Station, true)]
+    [InlineData(HullType.Turret, true)]
+    public void AShipHullWithoutATopSpeedIsRefused(HullType type, bool accepted)
+    {
+        var ship = ShipAuthoringTests.Fixture();
+        ship.Hull.HullType = type;
+        ship.Hull.Behaviors.Clear();
+        if (accepted) ship.Validate();
+        else Assert.Contains("top speed", Assert.Throws<InvalidOperationException>(() => ship.Validate()).Message);
+    }
+
     [Fact]
     public void TheFixtureIsValid() => ShipAuthoringTests.Fixture().Validate();
 

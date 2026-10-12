@@ -8,7 +8,7 @@ using System.Linq;
 // Uses the existing database executable; mod authoring does not earn another binary target.
 public static class ShipAuthoringCommands
 {
-    private const string Usage = "ship-authoring create <ship.cc> <stable-id> <name> [--like <shipped hull name>] | inspect <ship.cc> | centre <ship.cc> | validate <ship.cc> | compose <shipped.cc> <derived.cc> <mods-dir>";
+    private const string Usage = "ship-authoring create <ship.cc> <stable-id> <name> [--like <shipped hull name>] | inspect <ship.cc> | centre <ship.cc> | validate <ship.cc> | product <ship.cc> <maker> (--name <name> [--description <text>] | --remove) | price <ship.cc> <price> | compose <shipped.cc> <derived.cc> <mods-dir>";
 
     public static int Run(string[] args)
     {
@@ -28,8 +28,9 @@ public static class ShipAuthoringCommands
             }
             if (args[0] == "inspect" && args.Length == 2)
             {
-                var (hull, ship) = ShipAuthoringStore.Load(args[1]);
+                var (hull, ship, products) = ShipAuthoringStore.Load(args[1]);
                 Console.WriteLine($"{ship.Id}: {hull.Name}, {hull.Hardpoints?.Count ?? 0} hardpoints, {ship.SchematicLines?.Count ?? 0} lines, {ship.SchematicLines?.Sum(line => line.Points?.Length / 3 ?? 0) ?? 0} points");
+                foreach (var product in products) Console.WriteLine($"product {product.Manufacturer.Key.Value}: {product.Name}");
                 return 0;
             }
             if (args[0] == "centre" && args.Length == 2)
@@ -43,12 +44,16 @@ public static class ShipAuthoringCommands
             {
                 // The package's GLB is judged too once it exists (node ids, mesh roles); a draft without one is judged on
                 // its records alone, and the output says which.
-                var (hull, ship) = ShipAuthoringStore.Load(args[1]);
+                var (hull, ship, products) = ShipAuthoringStore.Load(args[1]);
                 var model = string.IsNullOrWhiteSpace(ship.ModelAsset) ? null
                     : Path.Combine(Path.GetDirectoryName(Path.GetFullPath(args[1])), ship.ModelAsset);
                 var judged = model != null && File.Exists(model) ? "records and model" : "records only, no model yet";
                 if (judged == "records and model") ShipModCatalog.ReadPackage(args[1]);
-                else ShipAuthoringStore.Validate(hull, ship);
+                else
+                {
+                    ShipAuthoringStore.Validate(hull, ship);
+                    ShipAuthoringStore.ValidateProducts(hull, ship, products);
+                }
                 Console.WriteLine($"{ship.Id}: {hull.Name}, {hull.Hardpoints.Count} hardpoints, {ship.Anchors.Count} anchors, {ship.SchematicLines.Count} lines ({judged})");
                 return 0;
             }
@@ -75,6 +80,52 @@ public static class ShipAuthoringCommands
                 Console.WriteLine($"Created draft {path}; fill its model bindings and schematic in Blender.");
                 return 0;
             }
+            if (args[0] == "price" && args.Length == 3)
+            {
+                // Judged before the file is touched: a refusal leaves it byte-identical.
+                if (!int.TryParse(args[2], NumberStyles.None, CultureInfo.InvariantCulture, out var price))
+                    throw new InvalidOperationException("price must be a non-negative whole number.");
+                var (hull, ship, _) = ShipAuthoringStore.Load(args[1]);
+                hull.Price = price;
+                using (var cache = ShipAuthoringStore.Open(args[1], writable: true))
+                {
+                    ShipAuthoringStore.Write(cache, hull, ship);
+                    cache.FlushAsync().Wait();
+                }
+                Console.WriteLine($"{ship.Id}: price {price}.");
+                return 0;
+            }
+            if (args[0] == "product" && args.Length >= 4)
+            {
+                var remove = args.Length == 4 && args[3] == "--remove";
+                var named = args.Length >= 5 && args[3] == "--name" && (args.Length == 5 || args.Length == 7 && args[5] == "--description");
+                if (!remove && !named) { Console.Error.WriteLine(Usage); return 1; }
+                var (hull, ship, products) = ShipAuthoringStore.Load(args[1]);
+                var (makerKey, makerName) = ShippedFaction(args[2]);
+                if (remove)
+                {
+                    if (!products.Any(product => product.Manufacturer.Key.Equals(makerKey)))
+                        throw new InvalidOperationException($"{ship.Id}: the package holds no product by that maker.");
+                }
+                else if (string.IsNullOrWhiteSpace(args[4]))
+                    throw new InvalidOperationException("--name: a product needs a name.");
+                using (var cache = ShipAuthoringStore.Open(args[1], writable: true))
+                {
+                    if (remove) ShipAuthoringStore.DeleteProduct(cache, ship.Id, makerKey);
+                    else
+                        ShipAuthoringStore.WriteProduct(cache, ship.Id, new FactionProductData
+                        {
+                            Name = args[4],
+                            Description = args.Length == 7 ? args[6] : null,
+                            Design = new CultRecordRef<CraftedItemData>(ShipModCatalog.HullKey(ship.Id)),
+                            Manufacturer = new CultRecordRef<Faction>(makerKey),
+                            Roles = hull.Roles.Select(role => new ProductRole { Role = role.Name }).ToList()
+                        });
+                    cache.FlushAsync().Wait();
+                }
+                Console.WriteLine($"{ship.Id}: {(remove ? "removed" : "wrote")} the product by {makerName}.");
+                return 0;
+            }
             Console.Error.WriteLine(Usage);
             return 1;
         }
@@ -83,6 +134,18 @@ public static class ShipAuthoringCommands
             Console.Error.WriteLine(ex.Message);
             return 1;
         }
+    }
+
+    // A shipped faction by name or short name, from GameData/Aetheria.cc opened read-only: exactly one, or refused.
+    private static (CultRecordKey Key, string Name) ShippedFaction(string nameOrShortName)
+    {
+        using var catalog = AetherDb.Open().Cache;
+        var matches = catalog.GetAll<Faction>()
+            .Where(faction => string.Equals(faction.Name, nameOrShortName, StringComparison.Ordinal) ||
+                              string.Equals(faction.ShortName, nameOrShortName, StringComparison.Ordinal)).ToArray();
+        if (matches.Length != 1)
+            throw new InvalidOperationException($"<maker>: the shipped catalog has {matches.Length} factions with that name or short name; exactly one is required.");
+        return (catalog.TryGetHandle(matches[0]).Value.Key, matches[0].Name);
     }
 
     // A shipped ship hull by name, from GameData/Aetheria.cc opened read-only.

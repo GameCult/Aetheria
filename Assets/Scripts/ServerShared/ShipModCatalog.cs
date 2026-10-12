@@ -16,14 +16,18 @@ public static class ShipModCatalog
         public ShipAuthoring Visual;
         public string ModelPath;
         public Dictionary<string, uint> NodeIndices;
+        // The package's own products, read from its ship.cc; empty for a package taken from the catalog, where gameplay reads products.
+        public FactionProductData[] Products = Array.Empty<FactionProductData>();
     }
 
     public static CultRecordKey HullKey(string id) => new CultRecordKey("mod-hull:" + id);
     public static CultRecordKey AuthoringKey(string id) => new CultRecordKey("mod-ship:" + id);
 
+    public static CultRecordKey ProductKey(string id, CultRecordKey maker) => new CultRecordKey("mod-product:" + id + ":" + maker.Value);
+
     // A key the mods own. The shipped catalog and its authored records never reference one: a mod may be uninstalled.
     public static bool IsModKey(CultRecordKey key) =>
-        key.IsSet() && (key.Value.StartsWith("mod-hull:", StringComparison.Ordinal) || key.Value.StartsWith("mod-ship:", StringComparison.Ordinal));
+        key.IsSet() && (key.Value.StartsWith("mod-hull:", StringComparison.Ordinal) || key.Value.StartsWith("mod-ship:", StringComparison.Ordinal) || key.Value.StartsWith("mod-product:", StringComparison.Ordinal));
 
     // A package left out of the composition, named by its directory, with every reason it was left out.
     public sealed class Exclusion
@@ -93,6 +97,8 @@ public static class ShipModCatalog
                 var keys = new HashSet<CultRecordKey>(cache.AllStoredDocuments.Select(record => record.Key));
                 var itemNames = new HashSet<string>(cache.GetAll<ItemData>().Select(item => item.Name), StringComparer.Ordinal);
                 var shipIds = new HashSet<string>(cache.GetAll<ShipAuthoring>().Select(existing => existing.Id), StringComparer.Ordinal);
+                var factionKeys = new HashSet<CultRecordKey>(cache.GetAll<Faction>().Select(faction => cache.TryGetHandle(faction).Value.Key));
+                var productNames = new HashSet<string>(cache.GetAll<FactionProductData>().Select(product => product.Name), StringComparer.Ordinal);
                 foreach (var (directory, package) in packages)
                 {
                     var (hull, ship) = (package.Hull, package.Visual);
@@ -102,16 +108,33 @@ public static class ShipModCatalog
                         Exclude(directory, $"hull name '{hull.Name}' collides with an existing catalog item.");
                     if (shipIds.Contains(ship.Id))
                         Exclude(directory, $"ship ID collides with an existing catalog ship authoring record.");
+                    foreach (var product in package.Products)
+                    {
+                        if (!factionKeys.Contains(product.Manufacturer.Key))
+                            Exclude(directory, $"product '{product.Name}' names a manufacturer the shipped catalog holds no faction for.");
+                        if (keys.Contains(ProductKey(ship.Id, product.Manufacturer.Key)))
+                            Exclude(directory, $"a mod product key collides with an existing catalog record.");
+                        if (productNames.Contains(product.Name))
+                            Exclude(directory, $"product name '{product.Name}' collides with an existing catalog product.");
+                    }
                 }
                 foreach (var claim in packages.GroupBy(package => package.Package.Hull.Name, StringComparer.Ordinal).Where(group => group.Count() > 1))
                     foreach (var (directory, package) in claim)
                         Exclude(directory, $"hull name '{claim.Key}' is also claimed by " +
                             string.Join(", ", claim.Where(other => other.Directory != directory).Select(other => other.Directory)) + ".");
+                foreach (var claim in packages.SelectMany(package => package.Package.Products.Select(product => (package.Directory, product.Name)))
+                             .GroupBy(entry => entry.Name, StringComparer.Ordinal).Where(group => group.Select(entry => entry.Directory).Distinct().Count() > 1))
+                    foreach (var directory in claim.Select(entry => entry.Directory).Distinct())
+                        Exclude(directory, $"product name '{claim.Key}' is also claimed by " +
+                            string.Join(", ", claim.Select(entry => entry.Directory).Where(other => other != directory).Distinct()) + ".");
 
                 var included = packages.Where(package => !reasons.ContainsKey(package.Directory)).Select(package => package.Package).ToArray();
                 foreach (var package in included)
-                    // Verbatim: the mod store's own two records, under the keys it already holds them at.
+                {
+                    // Verbatim: the mod store's own records, under the keys it already holds them at.
                     ShipAuthoringStore.Write(cache, package.Hull, package.Visual);
+                    foreach (var product in package.Products) ShipAuthoringStore.WriteProduct(cache, package.Visual.Id, product);
+                }
                 // Shipped hulls too: the derived catalog must not hold a hull that names two bodies.
                 foreach (var hull in cache.GetAll<HullData>())
                     ShipAuthoringStore.RequireOneBody(hull, hull.Name);
@@ -135,8 +158,8 @@ public static class ShipModCatalog
     public static Package ReadPackage(string shipPath)
     {
         var path = Path.GetFullPath(shipPath);
-        var (hull, ship) = ShipAuthoringStore.Read(path);
-        return Bind(hull, ship, Path.GetDirectoryName(path), path);
+        var (hull, ship, products) = ShipAuthoringStore.Read(path);
+        return Bind(hull, ship, products, Path.GetDirectoryName(path), path);
     }
 
     // The package a catalog hull names: its two records come from the catalog, and only the GLB comes from the mod
@@ -147,7 +170,7 @@ public static class ShipModCatalog
             throw new InvalidOperationException($"{hull.Name}: the catalog holds no visual record {hull.Visual.Key.Value}.");
         ShipAuthoringStore.Validate(hull, ship);
         var directory = Path.Combine(Path.GetFullPath(modsRoot), ship.Id);
-        return Bind(hull, ship, directory, Path.Combine(directory, "ship.cc"));
+        return Bind(hull, ship, Array.Empty<FactionProductData>(), directory, Path.Combine(directory, "ship.cc"));
     }
 
     // The one game-side choice of catalog: the shipped file when no package is installed or none survives composition,
@@ -166,7 +189,7 @@ public static class ShipModCatalog
         return (composition.Included.Length == 0 ? shippedCatalog : derivedCatalog, composition.Excluded);
     }
 
-    private static Package Bind(HullData hull, ShipAuthoring ship, string directory, string path)
+    private static Package Bind(HullData hull, ShipAuthoring ship, FactionProductData[] products, string directory, string path)
     {
         if (!string.Equals(Path.GetFileName(directory), ship.Id, StringComparison.Ordinal))
             throw new InvalidOperationException($"{path}: ship ID must match its package directory name.");
@@ -187,7 +210,7 @@ public static class ShipModCatalog
         CultRecordRefs.Validate(hull);
         return new Package
         {
-            Hull = hull, Visual = ship, ModelPath = modelPath,
+            Hull = hull, Visual = ship, Products = products, ModelPath = modelPath,
             NodeIndices = modelNodes.ToDictionary(node => node.Key, node => node.Value.Index, StringComparer.Ordinal)
         };
     }
