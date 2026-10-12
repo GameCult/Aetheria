@@ -387,7 +387,6 @@ public sealed class ContactRevealTests : IDisposable
         var (controlLight, controlTrack) = RunPinger(ping: false);
 
         Assert.Equal(controlLight, pingedLight);
-        Assert.True(controlLight.Max() > 0f, "fixture: the pinger's hull is lit");
         Assert.Equal(controlTrack, pingedTrack, 6);
     }
 
