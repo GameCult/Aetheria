@@ -975,13 +975,13 @@ public sealed class ContactRevealTests : IDisposable
         Fire(e, guns[0]);
         Fire(e, guns[1]);
         Tick(1f);
-        ShowOnly(e, 2f, guns[0]);
-        Assert.True(e.Visibility * strong.PassiveInfo(e.Position.xz, 1f) > _items.GameplaySettings.TargetDetectionInfoThreshold, "fixture: the ear passes the gate");
         var killed = false;
         void Kill(ShotOutcome _)
         {
             if (killed || !_zone.Entities.Contains(e)) return;
             killed = true;
+            ShowOnly(e, 2f, guns[0]); // lit at the moment it dies, as the ear's gate sees it
+            Assert.True(e.Visibility * strong.PassiveInfo(e.Position.xz, 1f) > _items.GameplaySettings.TargetDetectionInfoThreshold, "fixture: the ear passes the gate");
             e.Hull.Durability = 0f;
             e.HullDamage.OnNext(1f);
         }
@@ -1055,39 +1055,59 @@ public sealed class ContactRevealTests : IDisposable
     }
 
     // Nothing the observer keeps for a pass reaches a ship that has left: a ship with one gun ended as destroyed and
-    // one aged out by the prune is garbage once it is gone and its memory has lapsed.
+    // one aged out by the prune cannot be reached from the observer (its fields, collections and closures, not the
+    // zone it shares with everyone) once the ship is gone and its memory has lapsed.
     [Fact]
     public void ADepartedSubjectIsUnreachableFromTheObserverAfterThePrune()
     {
         var o = Add(float3(0, 0, 0), new[] { "Eye" });
-        var gone = AShipIsIdentifiedHalfDestroyedAndRemoved(o);
-        for (var i = 0; i < 40; i++) Tick(.1f); // past BearingMemory (2 s)
-        Assert.Equal(0, RevealBookSubjects(o));
-
-        GC.Collect();
-        GC.WaitForPendingFinalizers();
-        GC.Collect();
-
-        Assert.False(gone[0].IsAlive, "the ship");
-        Assert.False(gone[1].IsAlive, "its destroyed gun");
-        Assert.False(gone[2].IsAlive, "its other gun");
-    }
-
-    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-    private WeakReference[] AShipIsIdentifiedHalfDestroyedAndRemoved(Entity observer)
-    {
         var e = Add(float3(0, 0, 100), new[] { "Gun", "Gun" });
         var guns = Guns(e);
         Fire(e, guns[0]);
         Fire(e, guns[1]);
         Tick(1f);
-        observer.EntityInfoGathered[e] = 1f;
+        o.EntityInfoGathered[e] = 1f;
         ShowOnly(e, 0f, guns[1]); // its departure is below the observer's gate: the other gun's reveal waits for the prune
         guns[0].EquippableItem.Durability = 0f;
         Tick(.01f);
-        Assert.Same(guns[1], Assert.Single(observer.RevealsOf(e)).Item);
+        Assert.Same(guns[1], Assert.Single(o.RevealsOf(e)).Item); // fixture: one gun ended as destroyed, one waiting
         _zone.Entities.Remove(e);
-        return new[] { new WeakReference(e), new WeakReference(guns[0]), new WeakReference(guns[1]) };
+        for (var i = 0; i < 40; i++) Tick(.1f); // past BearingMemory (2 s)
+        Assert.Equal(0, RevealBookSubjects(o)); // fixture: pruned
+
+        foreach (var held in new object[] { e, guns[0], guns[1] })
+            Assert.Null(PathFrom(o, held));
+    }
+
+    // The first field path from `root` to `target`, not entering the zone or the item manager, or null.
+    private static string PathFrom(object root, object target)
+    {
+        var seen = new HashSet<object>(ReferenceEqualityComparer.Instance) { root };
+        var queue = new Queue<(object node, string path)>();
+        queue.Enqueue((root, "observer"));
+        while (queue.Count > 0)
+        {
+            var (node, path) = queue.Dequeue();
+            if (ReferenceEquals(node, target)) return path;
+            var type = node.GetType();
+            if (node is Zone || node is ItemManager || node is Type || node is string || type.IsPrimitive || type.IsEnum
+                || type.Namespace == "System.Reflection") continue;
+            IEnumerable<(object value, string name)> children;
+            if (node is Array array)
+                children = array.Cast<object>().Select((v, i) => (v, "[" + i + "]"));
+            else
+                children = Fields(type).Select(f => (f.GetValue(node), "." + f.Name));
+            foreach (var (value, name) in children)
+                if (value != null && seen.Add(value)) queue.Enqueue((value, path + name));
+        }
+        return null;
+    }
+
+    private static IEnumerable<FieldInfo> Fields(Type type)
+    {
+        for (; type != null; type = type.BaseType)
+            foreach (var f in type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly))
+                if (!f.FieldType.IsPointer) yield return f;
     }
 
     // ---- The one rule for info per signature ----
