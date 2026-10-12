@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using CultMath;
+using GameCult.Caching;
 using GameCult.Caching.MessagePack;
 using MessagePack;
 using Xunit;
@@ -312,6 +313,8 @@ public sealed class ShipRigTests : IDisposable
         {
             var thruster = ship.Hull.Hardpoints.Single(hardpoint => hardpoint.Transform == "thruster.port");
             thruster.FiringArc = 90;
+            // The gun leaves the wrist: the arm has one actuator, and the wrist is only a link in its chain.
+            ship.Visual.Anchors.Single(anchor => anchor.Id == "gun").Joint = null;
             ship.Visual.Anchors.Single(anchor => anchor.Id == "thruster.port").Joint = "arm";
         }, Reparent("thruster-port", "arm")));
         Assert.Equal("arm", package.Visual.Anchors.Single(anchor => anchor.Id == "thruster.port").Joint);
@@ -328,6 +331,7 @@ public sealed class ShipRigTests : IDisposable
             BindRefusal(Package(ship =>
             {
                 ship.Hull.Hardpoints.Single(hardpoint => hardpoint.Transform == "thruster.port").FiringArc = 90;
+                ship.Visual.Anchors.Single(anchor => anchor.Id == "gun").Joint = null;
                 ship.Visual.Anchors.Single(anchor => anchor.Id == "thruster.port").Joint = "arm";
             })));
     }
@@ -793,6 +797,21 @@ public sealed class ShipRigTests : IDisposable
         var guns = Armed("j", "j");
         guns.Visual.Joints.Add(Joint("j", null, (Up, -180f, 180f)));
         guns.Validate();
+    }
+
+    // Shipped hulls name a Unity prefab, not a rig, so the shipped catalog may hold none that rides a joint; every hull that does
+    // name a visual record must pass the judge, and the count of those is what this run actually judged.
+    [Fact]
+    public void EveryShippedHullThatNamesARigPassesTheJudge()
+    {
+        var path = Path.Combine(_directory.Path, "shipped.cc");
+        File.Copy(Path.Combine(RunStartTests.FindRepoRoot(), "GameData", "Aetheria.cc"), path);
+        using var catalog = new CultCache(TestCatalog.Registry());
+        catalog.AddBackingStore(new SingleFileMessagePackBackingStore(path), AetheriaStores.CatalogTypes);
+        var hulls = catalog.GetAll<ItemData>().OfType<HullData>().ToArray();
+        Assert.NotEmpty(hulls);
+        foreach (var hull in hulls.Where(hull => hull.Visual.IsSet()))
+            ShipAuthoringStore.Validate(hull, catalog.Get(hull.Visual));
     }
 
     // Row and Slew are persistent: a package or catalog written with them is read by key, so their positions are wire format.
