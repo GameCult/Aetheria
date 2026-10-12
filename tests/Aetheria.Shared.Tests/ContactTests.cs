@@ -201,6 +201,8 @@ public sealed class ContactTests : IDisposable
         Assert.Equal(10f * 1000f / 1001000f, dot(n, station.Velocity), 4);
     }
 
+    // A docked hull rides its carrier's pose and velocity, so it is never a second body at the carrier's place: a
+    // ship closing on the carrier makes one contact, with the carrier.
     [Fact]
     public void ADockedHullTakesNoPartInContact()
     {
@@ -208,8 +210,11 @@ public sealed class ContactTests : IDisposable
         var carrier = lab.Add("Solid", float3(0, 0, 0), float2(0, 0));
         var docked = lab.Add("Solid", float3(0, 0, 0), float2(0, 0));
         docked.SetParent(carrier);
+        var visitor = lab.Add("Solid", float3(10, 0, 0), float2(-10, 0));
         lab.Step();
-        Assert.Empty(lab.Events);
+
+        var contact = Assert.Single(lab.Events);
+        Assert.Equal(new[] { carrier, visitor }, new[] { contact.A, contact.B });
     }
 
     [Theory]
