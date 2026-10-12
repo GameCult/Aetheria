@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using GameCult.Caching;
+using GameCult.Caching.MessagePack;
+using CultMath;
 using Newtonsoft.Json;
 using Xunit;
 
@@ -150,11 +152,18 @@ public sealed class MunitionPartsTests : IDisposable
     {
         CultRecordRefs.Validate(Munition("Complete", new LauncherData()));
 
-        var missing = Munition("No Tank", new LauncherData());
-        missing.Behaviors.RemoveAll(b => b is MunitionFuelData);
-        var refusal = Assert.Throws<InvalidOperationException>(() => CultRecordRefs.Validate(missing));
-        Assert.Contains("No Tank", refusal.Message);
-        Assert.Contains(nameof(MunitionFuelData), refusal.Message);
+        // Each of the five parts is required, on either launcher behaviour: a design missing it is refused naming the design
+        // and the part.
+        InvalidOperationException refusal;
+        foreach (var part in AllParts)
+            foreach (var launcher in new Func<BehaviorData>[] { () => new LauncherData(), () => new GuidedWeaponData() })
+            {
+                var missing = Munition("No " + part.Name, launcher());
+                missing.Behaviors.RemoveAll(b => b.GetType() == part);
+                refusal = Assert.Throws<InvalidOperationException>(() => CultRecordRefs.Validate(missing));
+                Assert.Contains(missing.Name, refusal.Message);
+                Assert.Contains(part.Name, refusal.Message);
+            }
 
         var doubled = Munition("Two Seekers", new GuidedWeaponData());
         doubled.Behaviors.Add(new MunitionSeekerData());
@@ -167,9 +176,78 @@ public sealed class MunitionPartsTests : IDisposable
         refusal = Assert.Throws<InvalidOperationException>(() => CultRecordRefs.Validate(stray));
         Assert.Contains("Stray Part", refusal.Message);
         Assert.Contains(nameof(MunitionHullData), refusal.Message);
+
+        // A consumable is a design too, and carries no munition part.
+        var potion = new ConsumableItemData { Name = "Stray Potion" };
+        potion.Behaviors.Add(new MunitionFuelData());
+        refusal = Assert.Throws<InvalidOperationException>(() => CultRecordRefs.Validate(potion));
+        Assert.Contains("Stray Potion", refusal.Message);
+        Assert.Contains(nameof(MunitionFuelData), refusal.Message);
     }
 
-    // A GT 3K fitted to a Longinus launcher hardpoint, its lot's thruster role at the given quality.
+    private static readonly Type[] AllParts =
+        { typeof(MunitionHullData), typeof(MunitionThrusterData), typeof(MunitionSeekerData), typeof(MunitionControlData), typeof(MunitionFuelData) };
+
+    // A catalog file holding the shipped catalog with one design edited around validation (the way a hand-edited file or a
+    // bare-cache tool writes), for the production load path to meet.
+    private string Forged<T>(Func<T, bool> pick, Action<T> edit) where T : ItemData
+    {
+        var path = Path.Combine(_root, "forged-" + Guid.NewGuid().ToString("N") + ".cc");
+        File.Copy(TestCatalog.Repo, path);
+        var cache = new CultCache(TestCatalog.Registry());
+        cache.AddBackingStore(new SingleFileMessagePackBackingStore(path, false), AetheriaStores.CatalogTypes);
+        var design = cache.GetAll<T>().First(pick);
+        edit(design);
+        var key = cache.RefOf(design).Key;
+        cache.Commit(batch => batch.Upsert(design.GetType(), design, key));
+        cache.FlushAsync().Wait();
+        cache.Dispose();
+        return path;
+    }
+
+    [Fact]
+    public void CatalogLoadRefusesAnIncompleteOrStrayMunitionPart()
+    {
+        using (AetheriaStores.Open(Forged<WeaponItemData>(d => d.Name == "GT 3K", _ => { }), registry: TestCatalog.Registry())) { }
+
+        foreach (var part in AllParts)
+        {
+            var path = Forged<WeaponItemData>(d => d.Name == "GT 3K", d => d.Behaviors.RemoveAll(b => b.GetType() == part));
+            var refusal = Assert.ThrowsAny<Exception>(() => AetheriaStores.Open(path, registry: TestCatalog.Registry()));
+            Assert.Contains("GT 3K", refusal.ToString());
+            Assert.Contains(part.Name, refusal.ToString());
+        }
+
+        var gear = Forged<GearData>(d => d.Behaviors.Any(b => b is ThrusterData), d => d.Behaviors.Add(new MunitionHullData()));
+        Assert.Contains(nameof(MunitionHullData), Assert.ThrowsAny<Exception>(() => AetheriaStores.Open(gear, registry: TestCatalog.Registry())).ToString());
+
+        var consumable = Forged<ConsumableItemData>(_ => true, d => d.Behaviors.Add(new MunitionFuelData()));
+        Assert.Contains(nameof(MunitionFuelData), Assert.ThrowsAny<Exception>(() => AetheriaStores.Open(consumable, registry: TestCatalog.Registry())).ToString());
+    }
+
+    [Fact]
+    public void UpsertRefusesAnIncompleteOrStrayMunitionPart()
+    {
+        using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
+        cache.Upsert(new VerseGrammar { Revision = 1 });
+        cache.Upsert(Munition("Whole", new LauncherData()));
+
+        var incomplete = Munition("Incomplete", new GuidedWeaponData());
+        incomplete.Behaviors.RemoveAll(b => b is MunitionThrusterData);
+        Assert.Contains(nameof(MunitionThrusterData), Assert.Throws<InvalidOperationException>(() => cache.Upsert(incomplete)).Message);
+        Assert.DoesNotContain(cache.GetAll<WeaponItemData>(), d => d.Name == "Incomplete");
+
+        var potion = new ConsumableItemData { Name = "Stray Potion" };
+        potion.Behaviors.Add(new MunitionControlData());
+        Assert.Contains(nameof(MunitionControlData), Assert.Throws<InvalidOperationException>(() => cache.Upsert(potion)).Message);
+    }
+
+    // The Longinus's own gear: two drives, a core, a cockpit and a sensor, so the ship has thrusters, a sensor and a plume
+    // for any munition contribution to be seen against.
+    private static readonly (string Name, int X, int Y)[] ShipGear =
+        { ("Large Drive", 1, 0), ("Large Drive", 3, 0), ("Core Power", 2, 4), ("Cockpit 2x2", 2, 6), ("not if i see you first", 3, 10) };
+
+    // A GT 3K fitted to a Longinus launcher hardpoint beside that gear, its lot's thruster role at the given quality.
     private static EquippedItem Fit(CultCache cache, float thrusterQuality, out Ship ship)
     {
         var hull = cache.GetByName<HullData>("Longinus");
@@ -182,6 +260,11 @@ public sealed class MunitionPartsTests : IDisposable
         var items = new ItemManager(cache, ledger, settings, _ => { });
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test", Owner = null }, null);
         ship = new Ship(items, zone, new EquippableItem { Data = cache.RefOf<ItemData>(hull), Durability = hull.Durability, Lot = 1 }, settings.DefaultEntitySettings);
+        foreach (var (name, x, y) in ShipGear)
+        {
+            var gear = cache.GetByName<EquippableItemData>(name);
+            Assert.True(ship.TryEquip(new EquippableItem { Data = cache.RefOf<ItemData>(gear), Durability = gear.Durability, Lot = 1 }, new int2(x, y)), name);
+        }
         Assert.True(ship.TryEquip(new EquippableItem { Data = cache.RefOf<ItemData>(gt), Durability = gt.Durability, Lot = 2 }, hardpoint.Position));
         zone.Entities.Add(ship);
         ship.Activate();
@@ -211,7 +294,52 @@ public sealed class MunitionPartsTests : IDisposable
         Assert.InRange(low, part.Acceleration.Min, part.Acceleration.Max);
         Assert.InRange(high, part.Acceleration.Min, part.Acceleration.Max);
         Assert.True(poor.Evaluate(part.MaxSpeed) < good.Evaluate(part.MaxSpeed));
-        Assert.Empty(poorShip.GetBehaviors<Thruster>());
         Assert.DoesNotContain(poor.Behaviors, b => b is Thruster);
+        Assert.Equal(ShipGear.Count(g => cache.GetByName<EquippableItemData>(g.Name).Behaviors.Any(b => b is ThrusterData)), poorShip.GetBehaviors<Thruster>().Count());
+    }
+
+    private static string ShipSums(Ship s)
+    {
+        var e = s.Envelope;
+        var channels = string.Join(",", Enum.GetValues(typeof(SignatureChannel)).Cast<SignatureChannel>().Select(c => $"{c}={s.SignatureOn(c):0.####}"));
+        var sensors = string.Join(",", s.GetBehaviors<Sensor>().Select(b => b.Data.GetType().Name));
+        return $"env F{e.Forward:0.###} R{e.Reverse:0.###} L{e.Left:0.###} Ri{e.Right:0.###} CW{e.Clockwise:0.###} CCW{e.CounterClockwise:0.###} " +
+               $"vis={s.Visibility:0.####} sources={s.VisibilitySources.Count} {channels} thrusters={s.GetBehaviors<Thruster>().Count()} sensors=[{sensors}]";
+    }
+
+    private static void ScaleParts(EquippableItemData design, float factor)
+    {
+        foreach (var part in design.Behaviors.OfType<MunitionPartData>())
+            foreach (var field in part.GetType().GetFields().Where(f => f.FieldType == typeof(PerformanceStat)))
+            {
+                var stat = (PerformanceStat) field.GetValue(part);
+                stat.Min *= factor;
+                stat.Max *= factor;
+            }
+    }
+
+    // A munition's thruster and seeker are not the ship's: with real drives and a sensor aboard, the ship's envelope, plume,
+    // signatures, thrusters and sensors do not move when the fitted launcher's part stats are a thousand times larger, while
+    // the value the game reads from the part does.
+    [Fact]
+    public void ShipSumsIgnoreTheFittedMunitionParts()
+    {
+        using var cache = RestoredHullsTests.OpenCatalog();
+        var design = cache.GetByName<WeaponItemData>("GT 3K");
+        var part = Part<MunitionThrusterData>(design);
+        var item = Fit(cache, .5f, out var ship);
+        var shipBefore = ShipSums(ship);
+        var partBefore = item.Evaluate(part.Acceleration);
+        Assert.NotEmpty(ship.GetBehaviors<Thruster>());
+        Assert.NotEmpty(ship.GetBehaviors<Sensor>());
+
+        ScaleParts(design, 1000f);
+        try
+        {
+            var scaledItem = Fit(cache, .5f, out var scaledShip);
+            Assert.True(scaledItem.Evaluate(part.Acceleration) > partBefore * 100, "the scaled record must move the value the game reads");
+            Assert.Equal(shipBefore, ShipSums(scaledShip));
+        }
+        finally { ScaleParts(design, .001f); }
     }
 }
