@@ -20,6 +20,7 @@ unsaved .blend stores the absolute path, which still resolves after Save As to t
 the .blend is saved there before the final bind, so the bind crosses drives and the package passes prove it resolves.
 """
 
+import array
 import contextlib
 import io
 import json
@@ -113,6 +114,93 @@ def texture_cap_pass(addon, hull_object, albedo, detail, limit, expected, glb):
         raise SystemExit(f"Texture cap {limit}: a material node does not hold its original image")
     if sorted(image.name for image in bpy.data.images) != names:
         raise SystemExit(f"Texture cap {limit}: a scaled copy is left in bpy.data.images")
+
+
+def expected_cap_size(width, height, limit):
+    """The longest side at the cap, the other side scaled by the same ratio and rounded half up; untouched at or under the
+    cap. Integer arithmetic, so it shares nothing with the add-on's float rounding."""
+    longest = max(width, height)
+    if longest <= limit:
+        return (width, height)
+    return (max(1, (2 * width * limit + longest) // (2 * longest)), max(1, (2 * height * limit + longest) // (2 * longest)))
+
+
+def texture_boundary_cases(addon, hull_object, glb):
+    """Each case gives the hull one material whose image is width x height (generated, file-backed, packed, or inside a
+    node group) and packages at cap 256: the GLB holds exactly the expected size, the image is as it was (size, pixels,
+    node identity), and no copy is left. Cases sit exactly at the cap, one over, on the long side being the height, on
+    sizes where rounding and flooring differ, and on a tall image whose width rounds up."""
+    bpy.context.preferences.addons["aetheria_ships"].preferences.max_texture = limit = 256
+    original_materials = list(hull_object.data.materials)
+    folder = Path(tempfile.mkdtemp(prefix="aetheria-smoke-cap-"))
+    cases = [("generated", 256, 128), ("generated", 257, 125), ("generated", 257, 128), ("generated", 256, 256),
+             ("generated", 255, 255), ("generated", 375, 376), ("generated", 125, 513), ("generated", 1000, 4097),
+             ("file", 513, 400), ("file", 256, 257), ("packed", 513, 400), ("packed", 258, 70), ("group", 513, 400),
+             ("group", 125, 513)]
+    try:
+        for kind, width, height in cases:
+            label = f"{kind} {width}x{height}"
+            while hull_object.data.materials:
+                hull_object.data.materials.pop(index=0)
+            image = bpy.data.images.new("CapCase", width, height)
+            image.pixels.foreach_set([((k * 7) % 251) / 251.0 for k in range(width * height * 4)])
+            if kind in ("file", "packed"):
+                image.filepath_raw = str(folder / f"{kind}_{width}_{height}.png")
+                image.file_format = "PNG"
+                image.save()
+                bpy.data.images.remove(image)
+                image = bpy.data.images.load(str(folder / f"{kind}_{width}_{height}.png"))
+                image.name = "CapCase"
+                if kind == "packed":
+                    image.pack()
+            material = bpy.data.materials.new("CapCase")
+            material.use_nodes = True
+            tree = material.node_tree
+            if kind == "group":
+                group = bpy.data.node_groups.new("CapGroup", "ShaderNodeTree")
+                group.interface.new_socket("Color", in_out="OUTPUT", socket_type="NodeSocketColor")
+                texture = group.nodes.new("ShaderNodeTexImage")
+                texture.image = image
+                group.links.new(texture.outputs["Color"], group.nodes.new("NodeGroupOutput").inputs[0])
+                holder = tree.nodes.new("ShaderNodeGroup")
+                holder.node_tree = group
+                tree.links.new(holder.outputs[0], tree.nodes["Principled BSDF"].inputs["Base Color"])
+            else:
+                texture = tree.nodes.new("ShaderNodeTexImage")
+                texture.image = image
+                tree.links.new(texture.outputs["Color"], tree.nodes["Principled BSDF"].inputs["Base Color"])
+            hull_object.data.materials.append(material)
+            pixels = bytes(array.array("f", image.pixels[:]).tobytes())
+            names = sorted(i.name for i in bpy.data.images)
+            result, report = package(addon)
+            if result != {"FINISHED"}:
+                raise SystemExit(f"Texture case {label}: Package was refused")
+            if glb_image_sizes(glb) != [expected_cap_size(width, height, limit)]:
+                raise SystemExit(f"Texture case {label}: the GLB image is {glb_image_sizes(glb)}, "
+                                 f"not {expected_cap_size(width, height, limit)}")
+            if (tuple(image.size) != (width, height) or bytes(array.array("f", image.pixels[:]).tobytes()) != pixels
+                    or texture.image != image or sorted(i.name for i in bpy.data.images) != names):
+                raise SystemExit(f"Texture case {label}: the .blend's image changed or a copy is left behind")
+            if kind == "file" and Path(image.filepath_raw).exists() is False:
+                raise SystemExit(f"Texture case {label}: the source file is gone")
+        # An exporter that fails (the GLB's path is a directory) still restores the originals and deletes the copies.
+        names = sorted(i.name for i in bpy.data.images)
+        glb.unlink()
+        glb.mkdir()
+        try:
+            result, report = package(addon)
+        finally:
+            glb.rmdir()
+        if result != {"CANCELLED"}:
+            raise SystemExit("Texture failure case: the export into a directory did not fail")
+        if tuple(image.size) != (width, height) or texture.image != image or sorted(i.name for i in bpy.data.images) != names:
+            raise SystemExit("Texture failure case: a failed export left a scaled copy or a swapped node")
+    finally:
+        while hull_object.data.materials:
+            hull_object.data.materials.pop(index=0)
+        for material in original_materials:
+            hull_object.data.materials.append(material)
+        bpy.context.preferences.addons["aetheria_ships"].preferences.max_texture = 2048
 
 
 BIND_KEYS = ("aetheria.asset_kind", "aetheria.id", "aetheria.ship_cc")
@@ -287,6 +375,7 @@ def main():
     texture_cap_pass(aetheria_ships, hull, albedo, detail, 2048, [(2048, 500), (256, 256)], glb)
     texture_cap_pass(aetheria_ships, hull, albedo, detail, 512, [(512, 125), (256, 256)], glb)
     bpy.context.preferences.addons["aetheria_ships"].preferences.max_texture = 2048
+    texture_boundary_cases(aetheria_ships, hull, glb)
     print("TEXTURE_CAP_OK")
     # A collection with no Ship Root is packaged exactly as before: the frame step makes and moves nothing.
     if sorted(obj.name for obj in bpy.data.objects) != objects_before or any(

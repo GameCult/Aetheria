@@ -725,9 +725,13 @@ def _swap_in_scaled_images(objects, limit, swaps):
                     continue
                 if original not in copies:
                     copy = original.copy()
+                    try:
+                        copy.scale(max(1, round(original.size[0] * limit / longest)),
+                                   max(1, round(original.size[1] * limit / longest)))
+                    except BaseException:
+                        bpy.data.images.remove(copy)  # not yet in swaps, so _restore_images cannot find it
+                        raise
                     copies[original] = copy
-                    copy.scale(max(1, round(original.size[0] * limit / longest)),
-                               max(1, round(original.size[1] * limit / longest)))
                 node.image = copies[original]
                 swaps.append((node, original, copies[original]))
 
