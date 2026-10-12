@@ -102,7 +102,7 @@ public class LockWeapon : InstantWeapon
             {
                 var lerp = 1 - unlerp(0, 90, degrees);
                 _lock = saturate(_lock + pow(lerp, DirectionImpact) * dt * LockSpeed * pow(Entity.EntityInfoGathered[target], SensorImpact));
-                target.ReceivePaint(Entity.Position, Item?.Data, PaintMode.Track, Lock);
+                target.ReceivePaint(Entity, Item, PaintMode.Track, Lock);
             }
             else _lock = saturate(_lock - dt * Decay);
         }

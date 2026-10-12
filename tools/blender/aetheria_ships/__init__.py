@@ -180,7 +180,7 @@ class AETHERIA_OT_add_hardpoint(bpy.types.Operator):
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
-        context.scene.aetheria_layout.hardpoints.add()
+        _add_row(context.scene.aetheria_layout)
         return {"FINISHED"}
 
 
@@ -195,6 +195,245 @@ class AETHERIA_OT_remove_hardpoint(bpy.types.Operator):
         if 0 <= self.index < len(state.hardpoints):
             state.hardpoints.remove(self.index)
         return {"FINISHED"}
+
+
+
+MOUNT_ROLE = "weapon-mount"
+MUZZLE_ROLE = "weapon-muzzle"
+MUZZLE_OFFSET = (0.0, -0.5, 0.0)  # in the mount's frame: half a metre along its facing
+WEAPON_TYPES = tuple(item for item in HARDPOINT_TYPES if item[1] in ("Energy", "Ballistic", "Launcher"))
+CENTRELINE = hull_grid.CELL_SIZE / 2  # a mount closer than this to Ship Root's X = 0 has no mirror image
+
+
+def _add_row(state, **fields):
+    """The one row creation: a new layout row, with HardpointData's defaults for anything not named."""
+    hp = state.hardpoints.add()
+    for name, value in fields.items():
+        setattr(hp, name, value)
+    return hp
+
+
+def _mount_objects(collection):
+    """The weapon-mount objects by their aetheria.id."""
+    return {obj["aetheria.id"]: obj for obj in collection.all_objects
+            if obj.get("aetheria.role") == MOUNT_ROLE and isinstance(obj.get("aetheria.id"), str)}
+
+
+def _muzzles(mount):
+    return sorted((child for child in mount.children if child.get("aetheria.role") == MUZZLE_ROLE),
+                  key=lambda child: (int(child.get("aetheria.order", 0)), child.name))
+
+
+def _mount_frame(context):
+    """(collection, layout buffer, Ship Root, grid_origin) for a mount helper: the buffer must be this ship's and the grid
+    must match it."""
+    collection, path = _layout_path(context)
+    state = context.scene.aetheria_layout
+    if state.ship_id != collection["aetheria.id"] or state.ship_cc != path:
+        raise ValueError("Load this collection's layout first")
+    root = _ship_root(collection)
+    origin = collection.get("aetheria.grid_origin")
+    if root is None or origin is None:
+        raise ValueError("Rasterise first: a mount needs the ship's Ship Root and grid")
+    if not _grid_current(collection, state):
+        raise ValueError("Rasterise again: the grid no longer matches the layout")
+    return collection, state, root, (float(origin[0]), float(origin[1]))
+
+
+def _root_local(root, obj):
+    """obj's origin in Ship Root's frame."""
+    return root.matrix_world.inverted() @ obj.matrix_world.translation
+
+
+def _derived_position(state, origin, local, footprint):
+    """The one derivation of a mounted row's Position: the cell at the object's origin (Ship Root frame), offset by the
+    footprint's centre. Refuses a Position outside the grid."""
+    width, height = _parse_footprint(footprint)[0][:2]
+    position = hull_grid.mounted_position(hull_grid.cell_at(origin, (local[0], local[1])), width, height)
+    if not (0 <= position[0] < state.width and 0 <= position[1] < state.height):
+        raise ValueError("The mount lies outside the grid")
+    return position
+
+
+def _selected_mount(context, collection):
+    obj = context.active_object
+    if obj is None or obj.get("aetheria.role") != MOUNT_ROLE or obj.name not in collection.all_objects:
+        raise ValueError("Select a weapon mount")
+    return obj
+
+
+def _mount_row(state, mount_id):
+    row = next((hp for hp in state.hardpoints if hp.mount_id == mount_id), None)
+    if row is None:
+        raise ValueError("The weapon mount has no layout row")
+    return row
+
+
+def _new_mount_id(collection, state):
+    taken = {hp.mount_id for hp in state.hardpoints} | set(_mount_objects(collection))
+    n = 1
+    while f"weapon.{n}" in taken:
+        n += 1
+    return f"weapon.{n}"
+
+
+def _make_empty(collection, anchor_id, role, parent, local, yaw=0.0, order=None):
+    empty = bpy.data.objects.new(anchor_id, None)
+    empty["aetheria.role"] = role
+    empty["aetheria.id"] = anchor_id
+    if order is not None:
+        empty["aetheria.order"] = order
+    collection.objects.link(empty)
+    _attach_to_root(empty, parent)
+    empty.location = tuple(local)
+    empty.rotation_euler = (0.0, 0.0, yaw)
+    return empty
+
+
+def _make_muzzle(collection, mount, k, local, order):
+    return _make_empty(collection, f"{mount['aetheria.id']}.muzzle.{k}", MUZZLE_ROLE, mount, local, order=order)
+
+
+def _add_mount(collection, state, root, origin, kind, rotation, local, footprint="#"):
+    """A weapon-mount object under Ship Root and its row, as a matching pair; returns the mount."""
+    position = _derived_position(state, origin, local, footprint)
+    mount_id = _new_mount_id(collection, state)
+    mount = _make_empty(collection, mount_id, MOUNT_ROLE, root, local, hull_grid.facing_yaw(rotation))
+    _add_row(state, kind=kind, mount_id=mount_id, rotation=str(rotation), footprint=footprint,
+             x=position[0], y=position[1])
+    return mount
+
+
+class AETHERIA_OT_add_weapon(bpy.types.Operator):
+    bl_idname = "aetheria.add_ship_weapon"
+    bl_label = "Add Weapon"
+    bl_description = "Add a weapon mount and its first muzzle at the 3D cursor, with a layout row"
+    bl_options = {"REGISTER", "UNDO"}
+    kind: bpy.props.EnumProperty(name="Type", items=WEAPON_TYPES)
+    rotation: bpy.props.EnumProperty(name="Rotation", items=ROTATIONS)
+
+    def execute(self, context):
+        try:
+            collection, state, root, origin = _mount_frame(context)
+            local = root.matrix_world.inverted() @ context.scene.cursor.location
+            mount = _add_mount(collection, state, root, origin, self.kind, int(self.rotation), local)
+            _make_muzzle(collection, mount, 1, MUZZLE_OFFSET, 1)
+        except _EXPECTED as exc:
+            return _refuse(self, exc)
+        return {"FINISHED"}
+
+
+class AETHERIA_OT_add_muzzle(bpy.types.Operator):
+    bl_idname = "aetheria.add_ship_muzzle"
+    bl_label = "Add Muzzle"
+    bl_description = "Add a muzzle under the selected weapon mount"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        try:
+            collection, _, _, _ = _mount_frame(context)
+            mount = _selected_mount(context, collection)
+            existing = _muzzles(mount)
+            names = {child.name for child in existing}
+            k = len(existing) + 1
+            while f"{mount['aetheria.id']}.muzzle.{k}" in names:
+                k += 1
+            order = max((int(child.get("aetheria.order", 0)) for child in existing), default=0) + 1
+            _make_muzzle(collection, mount, k, MUZZLE_OFFSET, order)
+        except _EXPECTED as exc:
+            return _refuse(self, exc)
+        return {"FINISHED"}
+
+
+class AETHERIA_OT_mirror_mount(bpy.types.Operator):
+    bl_idname = "aetheria.mirror_ship_mount"
+    bl_label = "Mirror Mount"
+    bl_description = "Duplicate the selected weapon mount and its muzzles across the centreline, as a new row"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        try:
+            collection, state, root, origin = _mount_frame(context)
+            mount = _selected_mount(context, collection)
+            row = _mount_row(state, mount["aetheria.id"])
+            local = _root_local(root, mount)
+            if abs(local.x) < CENTRELINE:
+                raise ValueError("The weapon mount is on the centreline; it has no mirror image")
+            # The twin's footprint is the reflection of this one's cells; its object stands in the cell that Position
+            # puts it in (never at -x, whose cell lookup breaks ties one way), so Package derives the Position back.
+            width, height = _parse_footprint(row.footprint)[0][:2]
+            position = hull_grid.mirror_position(_derived_position(state, origin, local, row.footprint), width,
+                                                 state.width)
+            twin_x = hull_grid.cell_centre(origin, *hull_grid.mounted_cell(position, width, height))[0]
+            mirrored = _add_mount(collection, state, root, origin, row.kind,
+                                  hull_grid.mirror_rotation(int(row.rotation)), (twin_x, local.y, local.z),
+                                  hull_grid.mirror_footprint(row.footprint))
+            new_row = _mount_row(state, mirrored["aetheria.id"])
+            for name in ("armor", "firing_arc"):  # the author's own numbers, copied; the helper invents none
+                setattr(new_row, name, getattr(row, name))
+            for k, muzzle in enumerate(_muzzles(mount), start=1):
+                _make_muzzle(collection, mirrored, k, (-muzzle.location.x, muzzle.location.y, muzzle.location.z),
+                             int(muzzle.get("aetheria.order", 0)))
+        except _EXPECTED as exc:
+            return _refuse(self, exc)
+        return {"FINISHED"}
+
+
+class AETHERIA_OT_remove_mount(bpy.types.Operator):
+    bl_idname = "aetheria.remove_ship_mount"
+    bl_label = "Remove Mount"
+    bl_description = "Delete the selected weapon mount, its muzzles and its layout row"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        try:
+            collection, state, _, _ = _mount_frame(context)
+            mount = _selected_mount(context, collection)
+            mount_id = mount["aetheria.id"]
+            for index in reversed(range(len(state.hardpoints))):
+                if state.hardpoints[index].mount_id == mount_id:
+                    state.hardpoints.remove(index)
+            for muzzle in _muzzles(mount):
+                _discard_object(muzzle)
+            _discard_object(mount)
+        except _EXPECTED as exc:
+            return _refuse(self, exc)
+        return {"FINISHED"}
+
+
+def _plan_mounts(collection, state, root, path):
+    """(row, weapon-mount object, Position, yaw) for every buffer row whose Transform names a weapon-mount object: the
+    Position from the object's placement, the yaw from the row's Rotation. Refuses before anything changes."""
+    mounts = _mount_objects(collection)
+    if not mounts or root is None:  # a ship with no Ship Root has no grid to derive from: its rows are the author's
+        return []
+    if state.ship_id != collection["aetheria.id"] or state.ship_cc != path:
+        raise ValueError("Load Layout first: the weapon mounts need this ship's layout")
+    paired = [(hp, mounts[hp.mount_id]) for hp in state.hardpoints if hp.mount_id in mounts]
+    if not paired:
+        return []
+    origin = collection.get("aetheria.grid_origin")
+    if origin is None:
+        raise ValueError("Rasterise first: a mount needs the ship's grid")
+    plan = []
+    for hp, obj in paired:
+        if obj.parent != root:
+            raise ValueError("A weapon mount must be parented to Ship Root")
+        position = _derived_position(state, (float(origin[0]), float(origin[1])), _root_local(root, obj), hp.footprint)
+        plan.append((hp, obj, position, hull_grid.facing_yaw(int(hp.rotation))))
+    return plan
+
+
+def _apply_mounts(context, collection, state, plan):
+    """Writes the planned Positions into the buffer and yaws into the objects, then saves the buffer through
+    _save_layout, so the buffer and the .cc agree."""
+    if not plan:
+        return
+    for hp, obj, position, yaw in plan:
+        hp.x, hp.y = position
+        obj.rotation_mode = "XYZ"
+        obj.rotation_euler = (0.0, 0.0, yaw)
+    _save_layout(context, collection, state)
 
 
 def _encode_buffer(state):
@@ -373,8 +612,14 @@ class AETHERIA_AP_preferences(bpy.types.AddonPreferences):
         description="The folder whose GameData holds Aetheria.cc and Mods (the install folder); its ModTools holds "
                     "AetherDb. Empty: the nearest folder above the bound .cc whose GameData holds Aetheria.cc")
 
+    max_texture: bpy.props.IntProperty(
+        name="Max texture", default=2048, min=64, soft_max=8192,
+        description="The longest side, in pixels, a material image keeps in ship.glb; larger images are exported "
+                    "scaled to it and the .blend's own images are left as they are")
+
     def draw(self, context):
         self.layout.prop(self, "game_folder")
+        self.layout.prop(self, "max_texture")
 
 
 GAME_FOLDER_REFUSAL = ("Set the add-on's Game folder preference to the folder whose GameData holds Aetheria.cc "
@@ -445,6 +690,59 @@ def _anchors(collection):
     return rows
 
 
+DEFAULT_MAX_TEXTURE = 2048
+
+
+def _max_texture(context):
+    addon = context.preferences.addons.get(__package__)
+    return addon.preferences.max_texture if addon and addon.preferences else DEFAULT_MAX_TEXTURE
+
+
+def _image_nodes(tree, seen=None):
+    """Every Image Texture node of a node tree, node groups included."""
+    seen = set() if seen is None else seen
+    if tree is None or tree.name_full in seen:
+        return
+    seen.add(tree.name_full)
+    for node in tree.nodes:
+        if node.type == "TEX_IMAGE" and node.image is not None:
+            yield node
+        elif node.type == "GROUP":
+            yield from _image_nodes(node.node_tree, seen)
+
+
+def _swap_in_scaled_images(objects, limit, swaps):
+    """Points each Image Texture node of the objects' materials that holds an image longer than limit at a scaled copy,
+    and appends each (node, original, copy) to swaps for _restore_images, so a failure part way still restores. The
+    originals are never modified."""
+    copies = {}
+    for obj in objects:
+        for slot in obj.material_slots:
+            for node in _image_nodes(slot.material.node_tree if slot.material else None):
+                original = node.image
+                longest = max(original.size)
+                if longest <= limit:
+                    continue
+                if original not in copies:
+                    copy = original.copy()
+                    try:
+                        copy.scale(max(1, round(original.size[0] * limit / longest)),
+                                   max(1, round(original.size[1] * limit / longest)))
+                    except BaseException:
+                        bpy.data.images.remove(copy)  # not yet in swaps, so _restore_images cannot find it
+                        raise
+                    copies[original] = copy
+                node.image = copies[original]
+                swaps.append((node, original, copies[original]))
+
+
+def _restore_images(swaps):
+    for node, original, _ in swaps:
+        node.image = original
+    for copy in {id(copy): copy for _, _, copy in swaps}.values():
+        bpy.data.images.remove(copy)
+
+
 def _export_glb(context, collection, filepath):
     """Exports the collection's objects with custom properties as node extras: Generated's anchors are exported; Grease
     Pencil, Source and the Grid are not."""
@@ -455,14 +753,17 @@ def _export_glb(context, collection, filepath):
     previous_layer = view_layer.active_layer_collection
     previous_selection = [obj for obj in view_layer.objects if obj.select_get()]
     previous_active = view_layer.objects.active
+    swaps = []
     try:
         view_layer.active_layer_collection = layer
         for obj in previous_selection:
             obj.select_set(False)
         derived = _derived_names(collection)
-        for obj in collection.all_objects:
-            if obj.type != "GREASEPENCIL" and obj.name not in derived and obj.name in view_layer.objects:
-                obj.select_set(True)
+        exported = [obj for obj in collection.all_objects
+                    if obj.type != "GREASEPENCIL" and obj.name not in derived and obj.name in view_layer.objects]
+        for obj in exported:
+            obj.select_set(True)
+        _swap_in_scaled_images(exported, _max_texture(context), swaps)
         bpy.ops.export_scene.gltf(
             filepath=filepath, export_format="GLB", use_active_collection=True, use_selection=True,
             export_extras=True, export_yup=True, export_apply=True)
@@ -470,6 +771,7 @@ def _export_glb(context, collection, filepath):
         traceback.print_exc()
         raise RuntimeError("The GLB export failed; its message is in the system console") from None
     finally:
+        _restore_images(swaps)
         for obj in view_layer.objects:
             obj.select_set(obj in previous_selection)
         view_layer.objects.active = previous_active
@@ -911,8 +1213,10 @@ class AETHERIA_OT_package_ship(bpy.types.Operator):
             if read(path, cultlib).ship.body[0] != ship_id:
                 raise ValueError("The bound collection ID does not match its .cc ship ID")
             root = _ship_root(collection)
+            mounts = _plan_mounts(collection, state, root, path)
             if root is not None:
                 _frame_ship(context, collection, root, path, saved_shape)
+            _apply_mounts(context, collection, state, mounts)
             anchors = _anchors(collection)
             _export_glb(context, collection, str(Path(path).with_name(MODEL_ASSET)))
             replace_visual(path, cultlib, ship_id, MODEL_ASSET, anchors)
@@ -993,20 +1297,34 @@ class AETHERIA_PT_ship(bpy.types.Panel):
                 for x in range(state.width):
                     row.prop(state.cells[x * state.height + y], "occupied", text="")
         layout.label(text="Hardpoints")
+        try:
+            mounts = _mount_objects(_ship_collection(context))
+        except ValueError:
+            mounts = {}
         for index, hp in enumerate(state.hardpoints):
             box = layout.box()
             header = box.row(align=True)
             header.prop(hp, "mount_id")
-            header.operator("aetheria.remove_ship_hardpoint", text="", icon="X").index = index
+            if hp.mount_id not in mounts:  # a mounted row goes with its object: Remove Mount
+                header.operator("aetheria.remove_ship_hardpoint", text="", icon="X").index = index
             box.prop(hp, "kind")
             position = box.row(align=True)
+            position.enabled = hp.mount_id not in mounts
             position.prop(hp, "x")
             position.prop(hp, "y")
+            if hp.mount_id in mounts:
+                box.label(text="Mount object: Position follows it", icon="EMPTY_ARROWS")
             box.prop(hp, "footprint")
             box.prop(hp, "rotation")
             box.prop(hp, "armor")
             box.prop(hp, "firing_arc")
         layout.operator("aetheria.add_ship_hardpoint", icon="ADD")
+        mount_box = layout.box()
+        mount_box.label(text="Mounts")
+        mount_box.operator("aetheria.add_ship_weapon", icon="ADD")
+        mount_box.operator("aetheria.add_ship_muzzle", icon="ADD")
+        mount_box.operator("aetheria.mirror_ship_mount", icon="MOD_MIRROR")
+        mount_box.operator("aetheria.remove_ship_mount", icon="X")
         layout.operator("aetheria.save_ship_layout", icon="FILE_TICK")
         self._draw_package(context, layout)
 
@@ -1033,6 +1351,7 @@ class AETHERIA_PT_ship(bpy.types.Panel):
 classes = (AETHERIA_PG_cell, AETHERIA_PG_hardpoint, AETHERIA_PG_layout,
            AETHERIA_OT_load_layout, AETHERIA_OT_resize_layout,
            AETHERIA_OT_add_hardpoint, AETHERIA_OT_remove_hardpoint,
+           AETHERIA_OT_add_weapon, AETHERIA_OT_add_muzzle, AETHERIA_OT_mirror_mount, AETHERIA_OT_remove_mount,
            AETHERIA_OT_save_layout, AETHERIA_OT_bind_ship_collection,
            AETHERIA_OT_capture_ship_lines, AETHERIA_OT_new_ship, AETHERIA_OT_flip_nose,
            AETHERIA_OT_rasterise_hull, AETHERIA_OT_package_ship, AETHERIA_AP_preferences, AETHERIA_PT_ship)

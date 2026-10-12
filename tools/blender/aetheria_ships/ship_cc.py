@@ -9,10 +9,15 @@ from __future__ import annotations
 
 import sys
 import hashlib
+import tomllib
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, NamedTuple
+
+# The cultcache-py this module's raw envelope writes were tested against. cultcache_py has no __version__ and is loaded
+# from source, so the guard reads [project].version of the checkout the imported module itself came from.
+TESTED_CULTCACHE_PY = "0.3.0"
 
 SCHEMA = "aetheria.ship_authoring"
 HULL_SCHEMA = "aetheria.hulldata"
@@ -62,12 +67,27 @@ def encode_hardpoint(**fields: Any) -> list[Any]:
     return [fields[name] for name in HARDPOINT_MEMBERS]
 
 
+def _cultcache_py_version(module: Any) -> str:
+    """[project].version of the cultcache-py checkout the imported module lives in (src/cultcache_py/__init__.py sits
+    two levels under it). A module with no file or no readable pyproject has no version: ""."""
+    try:
+        with (Path(module.__file__).parents[2] / "pyproject.toml").open("rb") as handle:
+            return str(tomllib.load(handle)["project"]["version"])
+    except (AttributeError, TypeError, IndexError, OSError, tomllib.TOMLDecodeError, KeyError):
+        return ""
+
+
 def _libraries(cultlib_packages: str):
     source = Path(cultlib_packages) / "cultcache-py" / "src"
     if source.exists() and str(source) not in sys.path:
         sys.path.insert(0, str(source))
     import cultcache_py  # type: ignore
     import msgpack  # type: ignore
+    found = _cultcache_py_version(cultcache_py)
+    if found != TESTED_CULTCACHE_PY:
+        raise ValueError(f"the imported cultcache-py (version {found or 'unreadable'}; CultLib packages {cultlib_packages}) "
+                         f"is not the tested {TESTED_CULTCACHE_PY}; the add-on writes raw envelopes and refuses a "
+                         f"CultLib whose write path may have moved")
     return cultcache_py, msgpack
 
 

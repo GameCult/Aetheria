@@ -12,6 +12,65 @@ Every anchor below is against `origin/master` `f1dee184` and was read in a spars
 scratch worktree on 2026-10-03, unless the line or its section says otherwise. The section "Demo scope" holds
 the 2026-10-06 re-scope: the release this campaign plans is the demo.
 
+## Cut sequence
+
+Cuts without a `cut_spec`, withdrawn 2026-10-12 under map-only-what-runs: a spec is admitted when Self is about to dispatch the cut. Each line is a cut label, its title, and what it waits on; re-map it by a fresh Imagination pass against the Body when the frontier reaches it.
+
+- audio-1: First sound: native Unity audio presents fire, charge, impact and destruction; the dead Wwise-keyed path is deleted. Waits on: feedback-1 (blocked on feedback-1).
+- loot-3: Loot 3: the grab is presented, not simulated, in Unity. TractorBeam becomes a grab presenter, the binder's resolvers. Waits on: loot-2 (blocked on loot-2).
+- ballistic-ammo: Ballistic weapons fire real rounds: a weapon that draws rounds takes no reactor power, every magazine comes from cargo. Waits on: mining-merge (refresh needed (ruling ballistics-cycle-power contradicts its DrawsPower rule)).
+- material-graph: Material graph record and judge: MaterialGraph in Aetheria.cc, the release whitelist, closed vocabularies, scopes, the. Waits on: nothing in the mind (held post-demo by ruling demo-material-scope).
+- material-library-export: Blender material export: a faithful node-group dumper, Export and Check Material Graph calling AetherDb, the library. Waits on: material-graph (held post-demo by ruling demo-material-scope; blocked on material-graph).
+- hull-bakes: MaterialBakes: content-addressed pair and wear bakes dispatched from generated kernels, refcounted, read back and. Waits on: material-lowering (held post-demo by ruling demo-material-scope; blocked on material-lowering).
+- material-lowering: Material lowering: MaterialGraph to CultMath expression IR, generated compute kernels per graph (surface, worn. Waits on: material-graph, material-library-export (held post-demo by ruling demo-material-scope; blocked on material-graph).
+- ships-studio-schematic: Studio draws a mod hull's shipped schematic strokes under its cell grid and paints hardpoint footprints, with the rules. Waits on: nothing in the mind (ready but not queued).
+- controls-ai-bearing: Controls 5: AI ships turn to bring their chosen weapon group to bear (broadsides for side mounts, the nose for forward. Waits on: controls-helm, controls-mount-aim (refresh needed (Broadside scenario gone)).
+- controls-hud: Controls 3: the HUD shows each weapon group's solution state on its crosshair (on solution, free, holding), arcs in the. Waits on: controls-mount-aim (refresh needed (HUD overlap, 48-commit drift)).
+- ai-autofire: Missiles 4: the AI fires through the same chooser. Combat and TurretController take each weapon's subject from. Waits on: autofire-threshold, controls-ai-bearing (blocked on autofire-threshold and controls-ai-bearing).
+- missile-records: Missiles 1: a guided shot is a stepped munition record: PN on its own seeker, reacquisition, a fuel budget spent by its. Waits on: missile-stats (blocked on the missile chain head; refresh needed).
+- missile-odds: Missiles 1c (r2): a guided round's hit is one roll at its terminal gate, priced by FireControl from its miss, seeker. Waits on: missile-records, evasion-term (blocked on missile-records).
+- missile-presenter: Missiles 1b (r3): GuidedProjectile presents the stepped munition drawn ahead by Lead; its binding ends on sim events. Waits on: missile-odds, controls-helm, sim-speed (blocked on missile-odds).
+- loot-2: Loot 2 (r2): pickup is a capability. The Tractor Beam becomes Tool gear whose Pickup behaviour spins the beam up in sim. Waits on: loot-1, feedback-1 (blocked on loot-1 and feedback-1; refresh needed).
+- munition-jink: Missiles 2b: inbound rounds make a munition jink above its reserve; the jink spends its fuel and reaches the PD price. Waits on: munition-shots (blocked on munition-shots).
+- munition-shots: Missiles 2 (r5): shots take a munition subject; PD at a munition is priced through the ships' evasion core (own. Waits on: missile-odds, controls-mount-aim (blocked on missile-odds; envelope refresh needed).
+- faction-play-2: Faction play 2 (r2, master 4d664b53): pack slots and Lucent's duel, hull break-off to a refuge, and ping cadence, all. Waits on: faction-play-1, feedback-1 (blocked on faction-play-1 merge and feedback-1).
+- faction-play-3: Faction play 3 (r2, master 4d664b53): support ships and anchors, and the cast played in Terminus (Demo): Pirates. Waits on: faction-play-2, demo-galaxy (blocked on faction-play-2).
+- faction-play-4: Faction play 4 (r3): the tender loop on real rounds, full-game scope. A member low on magazines rearms from its tender. Waits on: faction-play-3, ballistic-ammo (blocked on faction-play-3 and ballistic-ammo).
+- retire-prelude: Retire the prelude and the tutorial: Galaxy.IsPrelude, SavedGame.IsTutorial, TutorialGalaxy and. Waits on: demo-galaxy, boss-gate, retire-longinusx, gear-without-presence (refresh needed (96-commit drift)).
+- autofire-threshold: Missiles 3 (r5): autofire in the sim. Each autofire gun picks its subject through ChooseSubject (munitions first) and. Waits on: munition-shots (blocked on munition-shots).
+- boss-hull-derived: A faction's boss hull is derived (r2): HullData.Boss on a hull the faction makes a product of, set by its own. Waits on: boss-gate, pirates-record, package-product (blocked on package-product).
+- autofire-controls: Missiles 3b (r2): the player sets autofire; the HUD marks munitions and autofire groups; the Point Defense scenario. Waits on: autofire-threshold, controls-hud, pd-gear (blocked on autofire-threshold and controls-hud).
+- generic-design-names: Designs get generic names and branding moves to products: 43 gear and weapon designs renamed, brand text moved to their. Waits on: lot-product, product-titles, pd-gear (refresh needed; after the visibility chain by ruling catalog-breadth-after-visibility).
+- broadside-gunboat: Broadside returns on a real gunboat: the operator's Zhestokost line-gunboat package (side-rotated Ballistic hardpoints). Waits on: mods-in-tree, package-product (blocked on package-product and the operator package).
+- demo-cast-hulls: Demo cast hulls land (r3): the operator's five packages under GameData/Mods, each its maker's ship under its own name. Waits on: mods-in-tree, pirates-record, package-product, boss-hull-derived (blocked on package-product, boss-hull-derived and operator packages).
+- minor-power-makers: Aya Collective, Megiddo and Orbital Forge in the catalog: an AetherDb one-shot authors three manufacturer-only. Waits on: maker-only-faction, pd-gear, pirates-record, gear-without-presence, generic-design-names (blocked on maker-only-faction merge and generic-design-names; ruling catalog-breadth-after-visibility).
+- ships-addon-mesh-mounts: Blender thruster and radiator mounts (from mounts r3): meshes from selected faces or a tagged mesh, each with its row. Waits on: ships-addon-mounts (blocked on ships-addon-mounts).
+- ships-addon-mask-bakes: Blender mask helpers (from paint r2): Suggest Regions by weighted k-means in CIELAB, Bake Starting Mask, Bake Wear from. Waits on: ships-addon-paint (blocked on ships-addon-paint).
+- ships-addon-paint: Blender hull mask record (r3): mask slot, New Mask, factory livery, Package UV0 and mask checks, ship.mask.png, region. Waits on: ships-hull-material, ships-addon-frame, ships-addon-guards (blocked on ships-hull-material (premise obsolete under mask-channels-place-materials)).
+- matrix-coilguns: Weapon matrix, EMPS row: Light Coilgun, Coilgun, Railgun and Heavy Railgun at Small to ExtraLarge, with roles and two. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-after-visibility).
+- matrix-beams: Weapon matrix, Laser and PPC rows: Medium and Large Beam Lasers, Heavy Ion Cannon and Ion Lance, with roles and two. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-after-visibility).
+- matrix-cannons: Weapon matrix, XPS row: Heavy Autocannon (Large) and Siege Cannon (ExtraLarge), with roles and two makers each. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-after-visibility).
+- matrix-lightning: Weapon matrix, ESD row: Arc Thrower (Small), Storm Projector (Medium) and Tempest Projector (ExtraLarge) beside plight. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-after-visibility).
+- matrix-missiles: Weapon matrix, Missile and MicroMissile rows: Light and Heavy Missile Launchers, Torpedo Launcher and Micromissile. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-after-visibility).
+- caliber-bands: Caliber is the size: five records recalibered, every weapon footprint held in its caliber's band, and every matrix cell. Waits on: matrix-coilguns, matrix-cannons, matrix-beams, matrix-lightning, matrix-missiles, matrix-mines, matrix-flamers (blocked on the seven matrix cuts; ruling catalog-breadth-after-visibility).
+- matrix-flamers: Weapon matrix, Jet row: Light Flamethrower, Flamethrower, Heavy Flamethrower and Inferno Projector, thermal pellet guns. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-after-visibility).
+- matrix-mines: Weapon matrix, Mine row: Mine Rack, Heavy Mine Layer and Minefield Projector beside the Mine Launcher, with warhead and. Waits on: roles-backfill (refresh needed; ruling catalog-breadth-after-visibility).
+- product-lines-gear: Gear product lines: the twenty-two second-maker products of follow-up gear-product-lines, with role quality from maker. Waits on: generic-design-names, roles-backfill (blocked on generic-design-names; ruling catalog-breadth-after-visibility).
+- product-lines-weapons: Weapon product lines (r2): r1's nineteen products plus a second maker for the Mine Launcher, authored after. Waits on: generic-design-names, lot-product, roles-backfill (blocked on generic-design-names; ruling catalog-breadth-after-visibility).
+- boost-gear-combat: Stat boosters, combat, tiered by size: a modest 1x1 and a strong 2x2 each for Damage and Range on every gun through. Waits on: boost-gear-systems (blocked on boost-gear-systems; ruling catalog-breadth-after-visibility).
+- boost-gear-systems: Stat boosters, systems, tiered by size: a modest 1x1 and a strong 2x2 each for Thrust, Signal, Emissivity and Reactor. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-after-visibility).
+- ships-player: S3, agent side: a player built by AetheriaBuild composes and preloads mod ships with Aetheria materials only, radiators. Waits on: ships-mounts, ships-hull-material, player-build (blocked on ships-hull-material).
+- ships-addon-gizmos: Blender Ship Mounts tool (r6): gizmos select and drag mounts snapped to cells in Ship Root's frame; arc fans from the. Waits on: ships-addon-mesh-mounts (blocked on ships-addon-mesh-mounts).
+- link-rig-presenter: Unity drives each driven joint's chain (r2): a MountRig aims its lead muzzle along the sim's solution, slewed at the. Waits on: link-rig-record, ships-addon-link-package (blocked on ships-addon-link-package).
+- ships-addon-link-package: Blender Package for moving parts (r3): joints from bone IK settings, each weapon mount's joint from its bone ancestry. Waits on: link-rig-record, ships-addon-mounts, ships-addon-mesh-mounts (blocked on ships-addon-mounts and mesh-mounts).
+- vector-rows-allocator: Vectored rows flown: each row is one actuator in the allocator's one solve, picking throttle and angle step in its slew. Waits on: vector-rows-record, thrust-allocator-core, thrust-allocator, envelope-from-columns (blocked on vector-rows-record).
+- forge-seed: Seed GameCult/Aetheria on the Eureka forge: every branch, tag and LFS object, nothing repointed. Waits on: nothing in the mind (forge move not started this session).
+- forge-switch: Switch Aetheria's primary host to the forge: freeze, final re-sync, .lfsconfig, push mirror created. Waits on: forge-seed (blocked on forge-seed).
+- forge-verify: Verify the move: GitHub mirror receives pushes, fresh clones resolve LFS only via the forge. Waits on: forge-switch (blocked on forge-switch).
+- mining-index-tree: last mapped as cut-mining-index-tree.r1 (withdrawn). Waits on: a refresh against the visibility chain (Entity.cs detection path churned); carries follow-up mining-index-tree-findings.
+- mining-belt-cells: last mapped as cut-mining-belt-cells.r1 (withdrawn). Waits on: mining-index-tree; carries follow-up mining-belt-cells-findings (seven test gaps).
+- sim-speed-scale: last mapped as cut-sim-speed-scale.r2 (withdrawn). Waits on: sim-contact, loot-3, missile-presenter; carries follow-up sim-speed-scale-findings.
+
 ## Body facts
 
 **B1. No impact event carries a world point.**
@@ -8855,3 +8914,229 @@ the weapon's look (content bar: every weapon distinct in look and sound); the re
 the hit's share of that hull's durability, is the "mechanics visible and visceral" half of
 operator-release-direction. They meet on one point; the reaction is tuned in ImpactFeedback, and an
 operator check asks whether the two read as one hit.
+
+# Visibility refresh at efee2a2a
+
+Imagination imagination-aeth-refresh-visibility, session self-2026-10-11-ag2, 2026-10-12.
+Pinned to Aetheria origin/master efee2a2adcdfd552535540ff49d8d5c07eae442b (contact-reveals r2 merged:
+Defaulted ruling reveal-ends-on-perception). Read-only detached worktree. This section supersedes the
+"Visibility rework" section's anchors (taken at 93b7ff8d) for every spec revised here, and amends three of
+its model page rows and its cut order. Folds follow-up knowledge-reads-outside-contactof (sites named in
+contact-hud r2 and reveals-replace-tiers r3; see VR10 and the rationale for where the schematic went).
+Paths under Assets/Scripts/ServerShared unless noted.
+
+## Body facts (source reads at efee2a2a)
+
+VR1. The reveal book. `_reveals` (Entity.cs:218) with scratch lists `_endedItems`, `_agedSubjects`
+(219-220). `RecordReveal` (893-905) is the one way in and the one gate: it returns when the observer is
+inactive, the item is null, the subject is not in `Zone.Entities`, or `PerceivesDestroyed(subject, item)`
+(907-911: `item.EquippableItem.IsDestroyed` and the observer's track of the subject at or above
+TargetGearInfoThreshold). `EndReveals` (913-921) is the one way out; its only caller is Sense.
+`RevealsOf` (929-930) returns the book's values with no live filter: a destroyed item the observer did not
+perceive, and every entry of a departed subject until the prune, stay in it. `ContactOf` (933-950).
+`Deactivate` clears the book (858).
+
+VR2. The destroyed predicate is `EquippableItem.IsDestroyed`, shared by PerceivesDestroyed
+(Entity.cs:910), ItemDestroyed (1021), DurabilityOnline (2202) and IsRevealed's ranking filter
+(FireControl.cs:171). No `Durability < .01` literal remains in Entity.cs or FireControl.cs.
+
+VR3. Tick order (Zone.cs:233-245): every entity's PublishInbox, then every Update, then every Sense, then
+`_departures.Clear()`, then mines, clouds and FireControl.Step. Sense (Entity.cs:958-1005), per live
+other: light-act loop (skips item-null entries and Channel Emission, 970), then the Identified end pass
+(975-982); then the Departures pass (986-992); then the prune of departed subjects (995-1004).
+`PassiveInfo` (433-443) refills the `ActiveSensors()` buffer (673-689) on every call. An emission written
+during Update N and read in Sense N is order-free for the same reason the light acts are.
+
+VR4. Departures. `Zone._departures` and `Departures` (Zone.cs:75-76); the one writer is the ObserveRemove
+subscription (116-117), recording `Visibility - SignatureOn(SignatureChannel.Emission)`. The struct and its
+comment ("its signature outside the Emission channel") are Sensing.cs:94-111.
+
+VR5. Emission as light, still live. The only writer of Channel Emission in production is
+`Sensor.Ping` (Sensor.cs:140, `SetSignature(this, Emission, PingVisibility, Item)`, commented interim).
+`Entity.Visibility` (Entity.cs:171) sums every channel, so a ping still brightens the pinger in every
+observer's track gain (Sensor.Gain reads `entity.Visibility`). The code that tells Emission apart from light
+is Sense's skip (Entity.cs:970) and the departure subtraction (Zone.cs:117); `SignatureOn` (Entity.cs:172-173)
+has no other production reader. `VisibilityData.Channel` (Behaviors/Visibility.cs:19-20, Key 3) can author
+any channel, Emission included; Visibility gear writes it through SetSignature (Visibility.cs:47).
+
+VR6. Sensor keys. SensorData keys 3-12 (Sensor.cs:15-44); 13 is free; PingVisibility is key 7 (27-28).
+`tools/AetherDb/Program.cs:196-201` (SensorRoles) maps PingVisibility to role `emitter`.
+
+VR7. Key collision in emissions-heard r1. LockWeaponData's MessagePack chain is WeaponData 1-16 and 33
+(Behaviors/Weapon.cs), InstantWeaponData 17-20 (InstantWeapon.cs:12-21), LockWeaponData 21-25
+(LockWeapon.cs:12-25), and LauncherData : LockWeaponData 26-31 (Launcher.cs:10-27). r1's
+`LockWeaponData Key(26) InterceptFactor` would collide with LauncherData's Key(26). The first key free in
+the chain and in every InstantWeaponData sibling (ChargedWeaponData uses 21-32, MineLayerData 21-23) is 34.
+
+VR8. Paint and ping writers. LockWeapon.Execute paints the Target each tick inside LockAngle
+(LockWeapon.cs:81-111, ReceivePaint at 105). Sensor.Execute: the sweep block (Sensor.cs:169-175, `_pinging`
+until EndPing at 232), crossing paints and ally returns (196-207, ReceivePaint at 201). The only `Sensor.Ping()` caller is the
+player's input (Gameplay/ActionGameManager.cs:391).
+
+VR9. Tests that treat Emission as light: ContactRevealTests AnEmissionEntryIsNotLight (383-393) and
+AnEmissionSignatureDoesNotMakeADepartureSeen (670-685); SignatureTests APingShowsAnEmissionWithItsItem
+(327-344), AVisibilityBehaviourTravelsOnItsAuthoredChannel's Emission row (349), VisibilityIsStillTheSum
+(372-393: an Emission VisibilityData at 379, SignatureOn asserts 386-390), DecayKeepsEachSourcesOwnItem
+(418-450: the ping is the Emission writer, 431-436); PaintModeTests AnAllyHearsTheReturnSilently's
+`cEmission` (262, 271). PingVisibility in fixtures: ContactRevealTests:150, MiningCut3Tests:122, 135, 1035,
+MiningIndexTests:47, PaintModeTests:102, SignatureTests:334, 423, VapourCloudTests:88.
+
+VR10. Knowledge read outside ContactOf/RevealsOf (follow-up knowledge-reads-outside-contactof, sites read
+at efee2a2a):
+- Gameplay/ActionGameManager.cs:1277-1303: hostile and friendly indicator fills read the OTHER ship's
+  `EntityInfoGathered[CurrentEntity]`, and the hostile "spotted" blink thresholds it
+  (TargetSpottedBlinkFrequency/Offset, 116-117, read only there).
+- ActionGameManager.cs:1326-1332: TargetVisibilityFill thresholds the player's own track by hand;
+  VisibilityToTargetFill reads the target's track of the player; hull and shield fills read the target's
+  exact state (follow-up target-panel-reads-enemy-hull).
+- Zone Display/ZoneRenderer.cs:551-554: the compass icon thresholds PerspectiveEntity's track by hand.
+- UI/HUD/SchematicDisplay.cs:98-104: enemy weapon rows iterate the subject's live Equipment through
+  FireControl.IsRevealed (the aiming read, which ranks live gear). The rows are built once per ShowShip
+  (called on target change, ActionGameManager.cs:1169-1170), so a reveal gained after selection never shows.
+  SchematicDisplay.cs:191-192 shows `_entity.Visibility` for an enemy too; 194-199 the enemy's exact hull
+  (same class as follow-up target-panel-reads-enemy-hull, which names only the target panel).
+- Music: the TargetedByCount subscription (ActionGameManager.cs:1068-1071); TargetedBy and TargetedByCount
+  (Entity.cs:186-187) and their subscriptions (300-305).
+- Aiming reads that stay on IsRevealed by the ruling: TrySelectTargetItem (Entity.cs:392), ResolvedTargetItem
+  (403), Combat.cs:45, the player's cycle (ActionGameManager.cs:435).
+
+VR11. A departed subject stays in the book (and ContactOf reports it Detected) until its freshest reveal is
+BearingMemory old. Nothing lists the book's subjects; a presenter that enumerates `Zone.Entities` for
+contacts therefore drops an unseen departure the instant it happens, which is what the ruling forbids.
+
+VR12. IsRevealed (FireControl.cs:155-183) ranks the subject's live non-hull, non-destroyed gear by tier on
+TargetArmorInfoThreshold..TargetGearInfoThreshold. TargetArmorInfoThreshold: Settings.cs:220,
+Assets/Resources/Settings.asset:313, FireControl.cs:162 and 180, a comment at tools/AetherDb/Program.cs:1140,
+and 19 test files (ContactRevealTests, FireControlCut11/123/124/12/5/6/6c/6d/7/8/9, FireControlPerWeapon,
+LockWarning, Mine, PaintMode, Signature, TargetingSystem, VapourCloud). AuthoredSettings puts an unknown
+asset key in `Unplaced` without failing (tools/AetherDb/AuthoredSettings.cs:18). Tests that select or read
+IsRevealed through tiers: TargetingSystemTests 173-246, ContactRevealTests 726-737, FireControlCut5Tests
+587-613, FireControlCut7Tests 69 and 151-184, FireControlCut12Tests 525, 551, 588, 978, 1160, 1193,
+FireControlCut6dTests 175, FireAuthorityTests 483.
+
+VR13. HUD prototypes. HostileTargetIndicator and FriendlyTargetIndicator (ActionGameManager.cs:156-157)
+instantiate `VisibleTargetIndicator {Transform, Fill, Place}` (UI/HUD/VisibleTargetIndicator.cs:6-11): no
+text element. The incoming lock indicator reuses the LockIndicator prototype (1151-1153); its update is
+1459-1476 (Track paints only).
+
+VR14. Scenarios. Arcs now stages the Smoke Test Hull (Scenarios/Arcs.cs:26), so "the player's Longinus is
+Arcs' fit" (scenarios-lock-on r1) no longer holds. Duel's fighter (Scenarios/Duel.cs:16-32: Longinus, two
+GT 3K) is the fit for both sides; Duel places its piloted rival at 900 m (35). Seeds taken: 101-107, 111,
+112; 113 is free. `Scenarios.Tests` ends with `new Crossing()` (Scenarios.cs:10-13). Crossing and Pursuit
+generate `stage.Prelude(DemoTerminus.Cast)`.
+
+VR15. Layout-aim anchors: TargetItem (Entity.cs:72-77), TrySelectTargetItem (379-397), ResolvedTargetItem
+(399-405); FireControl.cs: Forecast's Silhouette call (362), Fire's `Aimed =` (746), CommitProbability
+(894-905), ResolveAimPoint (1744-1755), Silhouette (1769-1791), CellsOf (1948), PendingShot (1963-1970);
+Silhouette test call sites FireControlCut12Tests 768, 1348, 1353, 1375. `GameSettings.GetIcon(HardpointType)`
+is Assets/Scripts/Gameplay/GameSettings.cs:51; `SchematicListElement.ShowWeapon` is UI/HUD/SchematicListElement.cs:30.
+After reveals-replace-tiers lands, FireControl.cs lines below 183 move up about 20: find by symbol.
+
+## Model page amendments
+
+- Light signature: Channel Emission is never a light signature from cut ping-signature-retired on:
+  `SetSignature` refuses it (ArgumentException), so `Visibility` is the light sum with no exception, the
+  departure records `Visibility`, and Sense needs no Emission skip.
+- Active emission: `ActiveEmission {Item, HearRange}` in the emitter's private `_emissions`. Written by
+  `Entity.Emit` during the emitter's Update (Sensor.Execute while its ping sweeps; LockWeapon.Execute each
+  tick it paints; later Scanner.Execute); read only by other entities' Sense in the same tick; cleared in
+  the emitter's PublishInbox (the next tick's pre-phase) and by Deactivate. No inbox and no published copy:
+  its one reader runs after every Update, so the read is order-free without one. No Mode field: nothing reads
+  it (warnings carry the mode; the reveal's channel is Emission for every emission).
+- Sensor stats: LockWeaponData.InterceptFactor is Key 34 (not 26: VR7). SensorData.InterceptFactor Key 13.
+  Both null-tolerant, absent reads as 1 (BeamWidth's precedent, Sensor.cs:41-44 and 89).
+- Reveal: unchanged from the ruling-amended row, plus: heard emissions enter through RecordReveal with
+  Channel Emission; the aiming read IsRevealed (after reveals-replace-tiers) is book AND live (on its subject,
+  not IsDestroyed); every knowledge reader (HUD rows, markers, music) reads the book and ContactOf only.
+
+## Rationale
+
+- Split of emissions-heard. r1 was budgeted at 100 Hands calls, over the 75 ceiling. Its deletion line
+  (retire the ping's light signature) is separable and behaviour-complete on its own: pings stop brightening
+  the pinger, and Emission stops being a light channel. That subtraction becomes cut ping-signature-retired;
+  emissions-heard r2 is only the addition (Emit, hearing, InterceptFactor). Retiring the light signature
+  also deletes two compensators that exist only because Emission could be light: Sense's Emission skip and
+  the departure's Emission subtraction, and with it `SignatureOn`, whose one production reader is that
+  subtraction.
+- Emissions without an inbox. Paints need an inbox because their readers run inside Update (AI,
+  IncomingPaints), where order matters. An emission's only reader is Sense, which runs after every Update
+  (VR3), so the emission is read the tick it is made, with that tick's bearing, exactly as a light act. The
+  r1 rationale ("emissions publish in the pre-phase beside paints", map Rationale last bullet) was written
+  when Sense ran inside Entity.Update; contact-reveals moved it out.
+- No catalog re-save for PingVisibility. MessagePack ignores an int key with no member on read; a re-save
+  only rewrites a 12 MB LFS file to drop one nil. The census proves the catalog loads; the next catalog cut
+  that saves GameData drops the key for free.
+- The schematic site moved to contact-hud. The follow-up assigned it to reveals-replace-tiers. The schematic's
+  weapon rows are a knowledge read (the book), not the aiming read IsRevealed that cut rewrites; grouping
+  every presenter knowledge read in contact-hud keeps reveals-replace-tiers headless (no Unity compile) and
+  near the 75-call ceiling, and puts each site where its negative check lives (no IsRevealed in UI/).
+- Split of contact-hud. r1 was budgeted at 90 calls. The reads it rewires (indicator fills, target panel
+  fills, compass, schematic rows, music, TargetedBy) are subtraction and rewiring with negative checks; the
+  bearing markers and search flash are a new presenter. The second half becomes cut bearing-markers.
+- Contacts are enumerated from the book, not the zone (VR11). `Entity.RevealedSubjects` (the book's keys) is
+  the one list of remembered contacts; a subject is Detected-not-Tracked only through a remembered reveal,
+  so markers and music need no `Zone.Entities` walk.
+- The indicator fill. The old fill showed how well the OTHER ship sees you (forbidden). The player's own
+  track of a tracked hostile is always above detection, so "own track over the detection threshold" would
+  be a constant. The fill shows progress from Tracked to Identified instead:
+  unlerp(TargetDetectionInfoThreshold, TargetGearInfoThreshold, ContactOf(k).Info). The spotted blink had
+  no honest source and goes with its two serialized fields.
+- Mount rows from the layout (layout-aim r2). The ruling keeps live gear for the aiming read only. The
+  schematic's mount rows are knowledge, so they list LayoutOf's hardpoints (the class reference, which says
+  where mounts are, filled or not) minus those a revealed weapon row occupies; selection (the cycle) still
+  walks live IsLocated items, so occupancy shows only through what can be aimed at (the map's Occupancy
+  default, unchanged).
+- A scan ends nothing (inspection-scanner r2). The ruling routes every end through Sense; RecordInspection
+  records live, non-destroyed gear and never calls EndReveals.
+- Overlap check, emissions-heard vs reveals-replace-tiers: after the split they share only Entity.cs
+  (Emit near ReceivePaint 885 and hearing in Sense 958-1005, against HasReveal placed right after RevealsOf
+  at 930) and no decision (hearing writes the book; IsRevealed reads it). Both follow ping-signature-retired,
+  which owns every shared test fixture (PingVisibility and the Emission tests sit beside the threshold lines),
+  and run in parallel.
+
+## Cut order
+
+contact-reveals (merged) -> ping-signature-retired -> {emissions-heard, reveals-replace-tiers};
+emissions-heard -> sensor-catalog (r1 unchanged);
+paint-modes (merged) -> contact-hud r2 (independent of the above; its Entity hunks at 186, 300 and ~922
+stay clear of ping-signature-retired's 97/172 and emissions-heard's);
+contact-hud + emissions-heard -> bearing-markers;
+reveals-replace-tiers + contact-hud -> layout-aim r2;
+emissions-heard + reveals-replace-tiers -> inspection-scanner r2 (headless sim, split);
+inspection-scanner + sensor-catalog + bearing-markers -> scanner-catalog r1 (catalog and HUD, split).
+contact-reveals (merged) -> scenarios-lock-on r2 (independent; Scenarios only).
+
+Sizes (Hands calls, budget / cap): ping-signature-retired 45/60, emissions-heard 65/80,
+reveals-replace-tiers 75/90, contact-hud 55/70, bearing-markers 50/65, layout-aim 75/90 (declared stop point
+before the schematic rows), inspection-scanner 65/80, scanner-catalog 45/60, scenarios-lock-on 60/80.
+
+- Split of inspection-scanner. r1 was 110 calls. The sim (Scanner, RecordInspection, Scan paint and
+  emission, fixture designs) is headless and needs neither the catalog nor the HUD; the catalog design and
+  the indicator's Scan case become cut scanner-catalog. inspection-scanner then waits only on Emit
+  (emissions-heard) and the aiming read (reveals-replace-tiers).
+
+## Specs checked and unchanged
+
+sensor-catalog r1: rests on HearingMultiple and InterceptFactor from emissions-heard (kept by name; the
+LockWeaponData key it does not name moves to 34) and on nothing contact-reveals r2 changed. Its anchors
+predate emissions-heard and are re-read at dispatch.
+
+## Not owned by any cut here
+
+SchematicDisplay.cs:194-199 fills an enemy's hull durability from its exact state: the same instruments-bound
+gap as follow-up target-panel-reads-enemy-hull (which names only ActionGameManager.cs:1331-1332). It is an
+operator design call already queued there; contact-hud r2 leaves both alone. Self may widen that follow-up's
+locations when it next revises it.
+
+## Admitted (imagination-aeth-refresh-visibility, 2026-10-12)
+
+- mind-commit-965050b2...: cut-ping-signature-retired.r1 (new), cut-emissions-heard.r2, resolution
+  cut_spec.cut-emissions-heard.r1.n1 (Superseded).
+- mind-commit-ae02c1a1...: cut-reveals-replace-tiers.r3, resolution cut_spec.cut-reveals-replace-tiers.r2.n1;
+  cut-contact-hud.r2, resolution cut_spec.cut-contact-hud.r1.n1; cut-bearing-markers.r1 (new).
+- mind-commit-46be7249...: cut-scenarios-lock-on.r2, resolution cut_spec.cut-scenarios-lock-on.r1.n1;
+  cut-layout-aim.r2, resolution cut_spec.cut-layout-aim.r1.n1.
+- mind-commit-5e80fc20...: cut-inspection-scanner.r2, resolution cut_spec.cut-inspection-scanner.r1.n1;
+  cut-scanner-catalog.r1 (new).
+Unchanged: cut-sensor-catalog.r1. No question raised: every choice here follows a ruling in force or a
+default stated in the rationale.

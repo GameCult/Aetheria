@@ -168,7 +168,7 @@ public static class FireControl
         // failing its own tier -- ranked.IndexOf(item) then returns -1 for it (the same "no longer on this
         // target" path below), and the survivors' tiers close up over the gap instead of leaving one.
         var ranked = target.Equipment
-            .Where(e => e.Data.HardpointType != HardpointType.Hull && e.EquippableItem.Durability >= .01f)
+            .Where(e => e.Data.HardpointType != HardpointType.Hull && !e.EquippableItem.IsDestroyed)
             .OrderByDescending(e => e.Data.HardpointType != HardpointType.Tool)
             .ThenByDescending(e => e.Data.Shape.Coordinates.Length)
             .ToList();
@@ -1163,6 +1163,8 @@ public static class FireControl
 
         if (shot.Outcome.Shielded)
         {
+            Publish(shot.Target, AbsorbLayer.Shield, ImpactPoint(shot.Target, shot.Outcome.Cell),
+                float3(shot.TravelDirection.x, 0, shot.TravelDirection.y), shot.Damage, shot.DamageType);
             shot.Target.Shield.TakeHit(shot.DamageType, shot.Damage);
             return;
         }
@@ -1206,7 +1208,29 @@ public static class FireControl
 
         for (var li = 0; li < laneCount; li++) ArrayPool<LaneCell>.Shared.Return(buffers[li]);
 
+        Publish(target, AbsorbLayer.Hull, ImpactPoint(target, shot.Outcome.Cell),
+            float3(shot.TravelDirection.x, 0, shot.TravelDirection.y), shot.Damage, shot.DamageType);
         target.DamageHull(hullDamage);
+    }
+
+    // Where a landed direct hit meets the receiver: the impact cell's world point on its sim pose, at its height.
+    private static float3 ImpactPoint(Entity target, int2 cell)
+    {
+        var world = target.ToWorldPoint((float2) cell);
+        return float3(world.x, target.Position.y, world.y);
+    }
+
+    // The one publisher of an absorbed impact: once per receiver, on its Capabilities, before the damage it reports.
+    private static void Publish(Entity receiver, AbsorbLayer layer, float3 position, float3 direction, float magnitude, DamageType damageType) =>
+        receiver.Capabilities.PublishAbsorb(new AbsorbEvent(position, direction, magnitude, damageType, layer));
+
+    // A blast's impact on one entity: at the blast point (on the entity's height), travelling from the blast out through
+    // the entity's centre, or zero when they coincide.
+    private static void PublishBlast(Entity entity, float2 blast, AbsorbLayer layer, float magnitude, DamageType damageType)
+    {
+        var away = entity.Position.xz - blast;
+        var direction = lengthsq(away) > 0f ? normalize(away) : float2.zero;
+        Publish(entity, layer, float3(blast.x, entity.Position.y, blast.y), float3(direction.x, 0, direction.y), magnitude, damageType);
     }
 
     // Cut 12.4(b) (docs/fire-control-cut.md, "Where P is"): a contact or delayed blast needs a committed hit --
@@ -1591,6 +1615,7 @@ public static class FireControl
             {
                 if (shield.CanTakeHit(damageType, totalShare))
                 {
+                    PublishBlast(entity, worldPlanar, AbsorbLayer.Shield, totalShare, damageType);
                     shield.TakeHit(damageType, totalShare);
                     continue;
                 }
@@ -1620,6 +1645,7 @@ public static class FireControl
                     for (var i = 0; i < amounts.Length; i++) hullTotal += amounts[i];
                 }
 
+            PublishBlast(entity, worldPlanar, AbsorbLayer.Hull, totalShare, damageType);
             entity.DamageHull(hullTotal);
         }
     }

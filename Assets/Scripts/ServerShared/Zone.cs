@@ -58,6 +58,8 @@ public class Zone
     public List<PendingShot> PendingShots = new List<PendingShot>();
     public Subject<ShotOutcome> ShotCommitted = new Subject<ShotOutcome>();
     public Subject<ShotOutcome> ShotResolved = new Subject<ShotOutcome>();
+    // Contacts.Step publishes each hull-on-hull contact it resolves; presentations are the only readers.
+    public Subject<ContactEvent> Contacted = new Subject<ContactEvent>();
     private int _nextShotId;
     public int NextShotId() => ++_nextShotId;
 
@@ -75,6 +77,9 @@ public class Zone
         shot = default;
         return false;
     }
+
+    private readonly List<Departure> _departures = new List<Departure>();
+    internal IReadOnlyList<Departure> Departures => _departures;
 
     public float Time
     {
@@ -100,6 +105,21 @@ public class Zone
     // The death ordinal of the loot dice: the nth death in this zone rolls on SimulationDice.For(CombatSeed, LootStream, n).
     private uint _deaths;
 
+    // One death subscription per member entity, owned here: WatchDeath installs it, UnwatchDeath (the entity leaving
+    // Entities) disposes it, and nothing else touches it.
+    private readonly Dictionary<Entity, IDisposable> _deathWatches = new Dictionary<Entity, IDisposable>();
+
+    private void WatchDeath(Entity entity)
+    {
+        UnwatchDeath(entity);
+        _deathWatches[entity] = entity.Death.Subscribe(_ => { DropLoot(entity); Entities.Remove(entity); entity.Deactivate(); });
+    }
+
+    private void UnwatchDeath(Entity entity)
+    {
+        if (_deathWatches.Remove(entity, out var watch)) watch.Dispose();
+    }
+
     public Zone(ItemManager itemManager, PlanetSettings settings, ZonePack pack, GalaxyZone galaxyZone, Galaxy galaxy)
     {
         _time = pack.Time;
@@ -115,7 +135,13 @@ public class Zone
         // in the simulation, not only in Unity's own loot-drop subscription. One subscription point covers
         // every join, whichever caller admits the entity (deserialization below, a jump, a spawned turret) --
         // ObserveAdd fires for all of them. Forbidden writer: no presentation may remove an entity from Zone.
-        Entities.ObserveAdd().Subscribe(add => add.Value.Death.Subscribe(_ => { DropLoot(add.Value); Entities.Remove(add.Value); add.Value.Deactivate(); }));
+        // The death watch lives exactly as long as the entity's membership in this zone: installed on admission,
+        // disposed on removal (death, dock, jump), so an entity admitted again never holds a second one.
+        Entities.ObserveAdd().Subscribe(add => WatchDeath(add.Value));
+        Entities.ObserveRemove().Subscribe(remove => UnwatchDeath(remove.Value));
+        // The one record of a removal for observers (ruling reveal-ends-on-perception): read by the next Sense pass.
+        Entities.ObserveRemove().Subscribe(remove => _departures.Add(new Departure(remove.Value, remove.Value.Position.xz,
+            remove.Value.Visibility - remove.Value.SignatureOn(SignatureChannel.Emission))));
 
         Targets.Add(new EntityTargets());
 
@@ -236,10 +262,16 @@ public class Zone
         var entities = Entities.ToArray();
         foreach (var entity in entities) entity.PublishInbox();
         foreach (var entity in entities) entity.Update(deltaTime);
+        foreach (var entity in entities) entity.Sense();
+        _departures.Clear();
 
         StepMines(deltaTime);
         StepClouds(deltaTime);
         StepFloatingItems(deltaTime);
+
+        // Hull contact (cut sim-contact): after every entity has moved and the mines and clouds have taken
+        // their toll, so only hulls still in the zone touch, and before shots resolve against the result.
+        Contacts.Step(this);
 
         // Cut 3: after every entity has had its chance to fire this tick, age and resolve the shots that
         // firing queued. A shot fired this tick with a flight time shorter than CommitHorizon commits and

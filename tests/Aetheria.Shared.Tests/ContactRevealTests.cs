@@ -1,0 +1,1198 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using CultMath;
+using GameCult.Caching;
+using GameCult.Caching.MessagePack;
+using MessagePack;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using Xunit;
+using static CultMath.math;
+using float2 = CultMath.float2;
+using float3 = CultMath.float3;
+using int2 = CultMath.int2;
+
+// Visibility cut 3 (rulings visibility-per-capability-reveal, quiet-gear-identifiable-hull-layout-known,
+// vapour-cloud-obscuration, ally-echo-bistatic-oval): an observer records what each ship's items have shown it, item
+// by item with a bearing, and derives the contact's level from its track and those reveals. Every fixture drives
+// the production path: real ships with real guns, thrusters, radiators and launchers, ticking inside Zone.Update.
+// The numbers a rule is a function of are authored here and the expectations are their arithmetic. The observer's
+// one passive sensor has sensitivity 2 and a flat curve, so a signature of strength S at planar distance d settles
+// its info at S x 2 / (d x TargetInfoDecay), and is revealed exactly when that exceeds TargetDetectionInfoThreshold
+// (.1). Signatures decay at once (VisibilityDecay 100), so an act is a single tick's light and builds no track.
+// The observer senses after every ship has updated, so the zone's list order never decides when an act is revealed.
+public sealed class ContactRevealTests : IDisposable
+{
+    private readonly string _root = Path.Combine(Path.GetTempPath(), "aetheria-contact-" + Guid.NewGuid().ToString("N"));
+    private string Catalog => Path.Combine(_root, "Aetheria.cc");
+    private CultCache _openCache;
+    private ItemManager _items;
+    private Zone _zone;
+    private CultRecordRef<Faction> _maker;
+    private int _nextLot = 1000;
+
+    public ContactRevealTests()
+    {
+        Directory.CreateDirectory(_root);
+        using (var cache = AetheriaStores.Open(Catalog, catalogWritable: true))
+        {
+            cache.Upsert(new VerseGrammar { Revision = 1 });
+            cache.Upsert(new Faction { Name = "Maker", ShortName = "MKR" });
+            var solid = new Shape(5, 5);
+            foreach (var cell in solid.AllCoordinates) solid[cell] = true;
+            cache.Upsert(new HullData
+            {
+                Name = "Rack", HullType = HullType.Ship, Shape = solid, Durability = 1000000, Mass = 1000,
+                Hardpoints =
+                {
+                    new HardpointData { Type = HardpointType.Sensors, Position = new int2(0, 0), Shape = new Shape() },
+                    new HardpointData { Type = HardpointType.Sensors, Position = new int2(1, 0), Shape = new Shape() },
+                    new HardpointData { Type = HardpointType.Sensors, Position = new int2(2, 0), Shape = new Shape() }
+                }
+            });
+            cache.Upsert(Eye("Eye", sensitivity: 2f));
+            cache.Upsert(Eye("Ear", sensitivity: 4f));
+            cache.Upsert(Tool("Reactor", new ReactorData { Charge = Const(1000), Efficiency = Const(1), OverloadEfficiency = Const(1), ThrottlingFactor = Const(2) }));
+            cache.Upsert(Tool("Targeting", new TargetingSystemData { Accuracy = Const(1), Resolution = Const(1000f), Precision = Const(1000f), Tracking = Const(1000000f) }));
+            cache.Upsert(Tool("Thruster", new ThrusterData { Thrust = Const(100), Visibility = Const(10), Heat = Const(0), EnergyUsage = Const(10) }));
+            cache.Upsert(Tool("Radiator", new RadiatorData
+            {
+                Emissivity = Const(3), PumpedHeat = Const(0), TemperatureFloor = 0, WasteHeat = Const(0), EnergyUsage = Const(0), ThermalMass = Const(1000)
+            }));
+            var gun = new InstantWeaponData { Count = Const(1), BurstTime = Const(0), Cooldown = Const(1) };
+            gun.Damage = Const(100);
+            gun.Range = Const(40);
+            gun.MinRange = Const(0);
+            gun.Velocity = Const(0);
+            gun.Spread = Const(0);
+            gun.DamageSpread = Const(0);
+            gun.Penetration = Const(0);
+            gun.Energy = Const(50);
+            gun.Heat = Const(0);
+            gun.Visibility = Const(5);
+            gun.MagazineSize = 5;
+            gun.DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } };
+            cache.Upsert(new WeaponItemData
+            {
+                Name = "Gun", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Durability = 1,
+                MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000,
+                Fuse = WeaponFuse.Proximity, BlastRadius = 30f,
+                Behaviors = { gun }
+            });
+            cache.Upsert(new GearData
+            {
+                Name = "Locker", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Durability = 1,
+                MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000,
+                Behaviors =
+                {
+                    new LauncherData
+                    {
+                        Damage = Const(0), Range = Const(1000), MinRange = Const(0), Velocity = Const(0),
+                        Spread = Const(0), DamageSpread = Const(0), Penetration = Const(0), Count = Const(1),
+                        BurstTime = Const(0), Cooldown = Const(1000),
+                        DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } },
+                        LockSpeed = Const(.6f), SensorImpact = Const(1), LockAngle = Const(30), DirectionImpact = Const(1), Decay = Const(.1f)
+                    }
+                }
+            });
+            cache.Upsert(new ConsumableItemData
+            {
+                Name = "Pinger", Duration = 30f, Shape = new Shape(),
+                Behaviors = { SensorBehavior(sensitivity: 2f) }
+            });
+            cache.FlushAsync().Wait();
+        }
+
+        _openCache = AetheriaStores.Open(Catalog, catalogWritable: true);
+        var ledger = new ProvenanceLedger();
+        for (var lot = 1000; lot < 2000; lot++) ledger.Lots[lot] = new Lot { Origin = new Attributed(), Quality = 1 };
+        _items = new ItemManager(_openCache, ledger, new GameplaySettings
+        {
+            DefaultEntitySettings = new EntitySettings(),
+            Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
+            QualityPriceModifier = new ExponentialLerp(),
+            TargetDetectionInfoThreshold = .1f,
+            TargetArmorInfoThreshold = .2f,
+            TargetGearInfoThreshold = .8f,
+            TargetInfoDecay = .5f,
+            VisibilityDecay = 100f,
+            BearingMemory = 2f,
+            FiringArc = 170,
+            CommitHorizon = .5f,
+            SchematicCellSize = 2f,
+            UnaidedAccuracy = .05f,
+            UnaidedTracking = 10f,
+            UnaidedPrecision = 1000f,
+            AgentMinHitProbability = 0f,
+            BeamResolveInterval = .1f,
+            HeatRadiationMultiplier = 0f, // a hull radiates nothing unless a test says so
+            HeatRadiationExponent = 1f
+        }, _ => { });
+        _maker = _openCache.RefOf(_openCache.GetByName<Faction>("Maker"));
+        _zone = new Zone(_items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test Zone", Owner = null }, null);
+    }
+
+    public void Dispose()
+    {
+        _openCache?.Dispose();
+        Directory.Delete(_root, true);
+    }
+
+    private static PerformanceStat Const(float v) => new PerformanceStat { Min = v, Max = v };
+
+    private static SensorData SensorBehavior(float sensitivity) => new SensorData
+    {
+        Sensitivity = Const(sensitivity),
+        SensitivityCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } }, // the same gain at every bearing
+        PingBoost = Const(.0001f), PingEnergy = Const(0), PingVisibility = Const(5), PingRange = Const(300), PingCooldown = Const(4)
+    };
+
+    private static GearData Eye(string name, float sensitivity) => new GearData
+    {
+        Name = name, Hardpoint = HardpointType.Sensors, Shape = new Shape(), Durability = 1,
+        MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000,
+        Behaviors = { SensorBehavior(sensitivity) }
+    };
+
+    private static GearData Tool(string name, BehaviorData behavior) => new GearData
+    {
+        Name = name, Hardpoint = HardpointType.Tool, Shape = new Shape(), Durability = 10,
+        MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000,
+        Behaviors = { behavior }
+    };
+
+    private EquippableItem Make(string name) => new EquippableItem
+    {
+        Data = _items.ItemData.RefOf<ItemData>(_items.ItemData.GetByName<ItemData>(name)), Durability = 10, Lot = _nextLot++
+    };
+
+    // A ship at `position` with `mounts` on its sensor hardpoints in order, the tools on free cells and a thruster
+    // on the centre column. A ship with a gun also gets the reactor and targeting a gun needs to fire.
+    private Ship Add(float3 position, string[] mounts = null, string[] tools = null, bool thruster = false)
+    {
+        var hullRef = _items.ItemData.RefOf<ItemData>(_items.ItemData.GetByName<HullData>("Rack"));
+        var ship = new Ship(_items, _zone, new EquippableItem { Data = hullRef, Durability = 1000000, Lot = _nextLot++ }, new EntitySettings())
+            { Faction = new Faction { Name = "F" + Guid.NewGuid().ToString("N") } };
+        var cell = 0;
+        foreach (var mount in mounts ?? new string[0]) Assert.True(ship.TryEquip(Make(mount), new int2(cell++, 0)));
+        if (thruster) Assert.True(ship.TryEquip(Make("Thruster"), new int2(2, 1)));
+        foreach (var name in (tools ?? new string[0]).Concat(mounts != null && mounts.Contains("Gun") ? new[] { "Targeting", "Reactor" } : new string[0]))
+        {
+            var item = Make(name);
+            Assert.True(ship.TryFindSpace(item, out var at));
+            Assert.True(ship.TryEquip(item, at));
+        }
+        _zone.Entities.Add(ship);
+        ship.Activate();
+        ship.Position = position;
+        ship.Aim = float3(0, 0, 1);
+        _zone.Update(0f); // brings the gear online
+        return ship;
+    }
+
+    private void Tick(float dt) => _zone.Update(dt);
+
+    private static EquippedItem[] Guns(Entity e) => e.Equipment.Where(i => i.Behaviors.Any(b => b is InstantWeapon && !(b is LockWeapon))).ToArray();
+
+    // Fires the given gun and ticks until its light shows; returns the zone clock of that tick.
+    private float Fire(Ship ship, EquippedItem item)
+    {
+        var gun = (InstantWeapon) item.Behaviors.Single(b => b is InstantWeapon);
+        var capacitor = (InputCapacitor) typeof(InstantWeapon).GetField("_capacitor", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(gun);
+        capacitor.AddCharge(1000f);
+        ship.SetTarget(TargetRef.None);
+        gun.Activate();
+        for (var i = 0; i < 10; i++)
+        {
+            Tick(.1f);
+            if (ship.VisibilitySources.ContainsKey(gun)) return _zone.Time;
+        }
+        throw new Exception("fixture: the gun fires");
+    }
+
+    private static float Track(Entity observer, Entity subject) =>
+        observer.EntityInfoGathered.TryGetValue(subject, out var info) ? info : 0f;
+
+    private static void AssertBearing(float x, float y, float2 bearing)
+    {
+        Assert.Equal(x, bearing.x, 4);
+        Assert.Equal(y, bearing.y, 4);
+    }
+
+    private static VapourCloud Hand(Zone zone, float2 at, float radius, float opacity)
+    {
+        var cloud = new VapourCloud { Body = new KinematicBody { Position = at }, Radius = radius, Opacity = opacity, Lifetime = 1000f };
+        zone.Vent(cloud);
+        return cloud;
+    }
+
+    // ---- AFiredGunIsRevealedWithItsBearing ----
+
+    [Fact]
+    public void AFiredGunIsRevealedWithItsBearing()
+    {
+        var e = Add(float3(30, 0, 40), new[] { "Gun", "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var guns = Guns(e);
+        Assert.Empty(o.RevealsOf(e)); // nothing shown yet
+
+        var at = Fire(e, guns[0]);
+
+        var reveal = Assert.Single(o.RevealsOf(e));
+        Assert.Same(guns[0], reveal.Item);
+        Assert.Equal(SignatureChannel.LaunchFlash, reveal.Channel);
+        AssertBearing(.6f, .8f, reveal.Bearing); // normalize((E - O).xz)
+        Assert.Equal(at, reveal.Time);
+        Assert.DoesNotContain(o.RevealsOf(e), r => r.Item == guns[1]); // the unfired second gun
+        Assert.Empty(e.RevealsOf(o)); // a ship is not told what it shows
+    }
+
+    // ---- AnActAboveTheReachRevealsNothing ----
+
+    // Info settles at S x 2 / (d k): with S = 5 the act is revealed inside d = 100 / k and not beyond it, whatever k is.
+    [Theory]
+    [InlineData(.5f, 190f, true)]
+    [InlineData(.5f, 210f, false)]
+    [InlineData(.25f, 390f, true)]
+    [InlineData(.25f, 410f, false)]
+    public void AnActAboveTheReachRevealsNothing(float infoDecay, float distance, bool revealed)
+    {
+        _items.GameplaySettings.TargetInfoDecay = infoDecay;
+        var e = Add(float3(0, 0, distance), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+
+        Fire(e, Guns(e)[0]);
+
+        Assert.Equal(revealed ? 1 : 0, o.RevealsOf(e).Count());
+    }
+
+    // ---- AFogBankHidesTheAct ----
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void AFogBankHidesTheAct(bool fog)
+    {
+        var e = Add(float3(0, 0, 150), new[] { "Gun" }); // 5 x 2 / (150 x .5) = .133 clear
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        if (fog) Hand(_zone, float2(0, 75), 5f, .6f); // a bank on the sight line passes .4 of the light: .053
+
+        Fire(e, Guns(e)[0]);
+
+        Assert.Equal(fog ? 0 : 1, o.RevealsOf(e).Count());
+    }
+
+    // ---- ABurnRevealsTheDriveAndOpenRadiatorsRevealThemselves ----
+
+    [Fact]
+    public void ABurnRevealsTheDriveAndOpenRadiatorsRevealThemselves()
+    {
+        // The hull radiates .25 a border cell at any temperature; the radiator adds .25 x 3.
+        _items.GameplaySettings.HeatRadiationMultiplier = .25f;
+        _items.GameplaySettings.HeatRadiationExponent = 0f;
+        var burner = Add(float3(0, 0, 100), tools: new[] { "Reactor", "Targeting" }, thruster: true); // 10 x 4 / 100 = .4
+        var glow = Add(float3(20, 0, 0), tools: new[] { "Reactor", "Radiator" });                               // .75 x 4 / 20 = .15
+        var bare = Add(float3(0, 0, -10));                                                              // the hull alone, brighter than any act
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var thrusterItem = burner.Equipment.Single(i => i.Behaviors.Any(b => b is Thruster));
+        thrusterItem.UpdatePerformance();
+
+        burner.MovementDirection = float2(0, -1);
+        Tick(.1f);
+
+        var plume = Assert.Single(o.RevealsOf(burner));
+        Assert.Same(thrusterItem, plume.Item);
+        Assert.Equal(SignatureChannel.DrivePlume, plume.Channel);
+        var radiator = Assert.Single(o.RevealsOf(glow));
+        Assert.Same(glow.Equipment.Single(i => i.Behaviors.Any(b => b is Radiator)), radiator.Item);
+        Assert.Equal(SignatureChannel.Thermal, radiator.Channel);
+        Assert.True(bare.Visibility > 1f, "fixture: the bare hull is lit");
+        Assert.Empty(o.RevealsOf(bare));
+    }
+
+    // ---- APaintRevealsTheEmitterEvenUnseen ----
+
+    [Fact]
+    public void APaintRevealsTheEmitterEvenUnseen()
+    {
+        var locker = Add(float3(0, 0, 200), new[] { "Locker" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        locker.SetIff(o, true);
+        locker.EntityInfoGathered[o] = 1f;
+        locker.SetTarget(o);
+        locker.Aim = normalize(o.Position - locker.Position);
+
+        Tick(.5f);
+        Tick(.5f);
+
+        Assert.Single(o.IncomingPaints); // fixture: the lock painted it
+        Assert.Equal(0f, Track(o, locker)); // unseen
+        var reveal = Assert.Single(o.RevealsOf(locker));
+        Assert.Same(locker.Equipment.Single(i => i.Behaviors.Any(b => b is LockWeapon)), reveal.Item);
+        Assert.Equal(SignatureChannel.Emission, reveal.Channel);
+        AssertBearing(0f, 1f, reveal.Bearing);
+        Assert.False(o.ContactOf(locker).Tracked);
+    }
+
+    [Fact]
+    public void AConsumableBorneEmitterRecordsNothing()
+    {
+        var p = Add(float3(0, 0, 100));
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var data = _openCache.GetByName<ConsumableItemData>("Pinger");
+        p.ActivateConsumable(Assert.IsType<ConsumableItem>(_items.CreateInstance(_items.CreateLot(data, _maker, .5f))));
+        var sensor = (Sensor) p.FindActiveConsumable(data).Behaviors.Single(b => b is Sensor);
+        Tick(.01f);
+        sensor.Ping();
+
+        var paints = 0;
+        for (var tick = 0; tick < 30; tick++)
+        {
+            Tick(.1f);
+            paints += o.IncomingPaints.Count;
+        }
+
+        Assert.Equal(1, paints); // fixture: the sweep painted the observer
+        Assert.Empty(o.RevealsOf(p));
+    }
+
+    // Ruling consumable-signature-null-until-reveal: a consumable-hosted signature names no item (Item null, as
+    // hull radiation does), so however bright and near it reveals nothing; the reveal cut leaves what it names to
+    // follow-up reveal-names-consumable-signature.
+    [Fact]
+    public void ANullItemSignatureFromASourceThatIsNotTheHullRevealsNothing()
+    {
+        var e = Add(float3(0, 0, 20));
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var data = _openCache.GetByName<ConsumableItemData>("Pinger");
+        e.ActivateConsumable(Assert.IsType<ConsumableItem>(_items.CreateInstance(_items.CreateLot(data, _maker, .5f))));
+        var source = e.FindActiveConsumable(data).Behaviors.Single();
+        e.SetSignature(source, SignatureChannel.Reflection, 1000f, null);
+
+        Tick(.01f);
+
+        Assert.True(e.VisibilitySources.ContainsKey(source), "fixture: the consumable's light is on");
+        Assert.Empty(o.RevealsOf(e));
+    }
+
+    // An Emission entry is never light (R1): a bright, near one reveals nothing through Sense. Emission reaches the
+    // book only through a published paint.
+    [Fact]
+    public void AnEmissionEntryIsNotLight()
+    {
+        var e = Add(float3(0, 0, 20), new[] { "Eye" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        e.SetSignature(new object(), SignatureChannel.Emission, 1000f, e.Equipment.Single(i => i.Behaviors.Any(b => b is Sensor)));
+
+        Tick(.01f);
+
+        Assert.Empty(o.RevealsOf(e));
+    }
+
+    // Two items revealed at different times: the contact's bearing, while untracked, is the freshest reveal's.
+    [Fact]
+    public void TheFreshestRevealGivesTheBearing()
+    {
+        var e = Add(float3(30, 0, 40), new[] { "Gun", "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var guns = Guns(e);
+        Fire(e, guns[0]);
+        e.Position = float3(-50, 0, 0);
+        Fire(e, guns[1]);
+
+        var contact = o.ContactOf(e);
+
+        Assert.Equal(2, o.RevealsOf(e).Count());
+        Assert.False(contact.Tracked);
+        AssertBearing(-1f, 0f, contact.Bearing);
+    }
+
+    // ---- ALaunchGivesABearingNotATrack ----
+
+    [Fact]
+    public void AnActGivesABearingNotATrack()
+    {
+        var e = Add(float3(0, 0, 150), new[] { "Gun" });  // 5 x 2 / (150 x .5) = .133: revealed, but one tick of light builds no track
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var gun = Guns(e)[0];
+        var at = Fire(e, gun);
+        e.Position = float3(150, 0, 0); // it slips away: the reveal keeps the bearing of the act
+
+        var seen = o.ContactOf(e);
+        Assert.True(Track(o, e) < .1f, "fixture: no track");
+        Assert.True(seen.Detected);
+        Assert.True(seen.Classified);
+        Assert.False(seen.Tracked);
+        Assert.False(seen.Identified);
+        AssertBearing(0f, 1f, seen.Bearing);
+
+        // Younger than BearingMemory (2 s): still Detected. Older: not, and the gun is still known.
+        while (_zone.Time - at < 1.5f) Tick(.1f);
+        Assert.True(o.ContactOf(e).Detected);
+        while (_zone.Time - at < 2.5f) Tick(.1f);
+        var later = o.ContactOf(e);
+        Assert.False(later.Detected);
+        Assert.False(later.Classified);
+        Assert.False(later.Tracked);
+        Assert.Same(gun, Assert.Single(o.RevealsOf(e)).Item);
+    }
+
+    [Theory]
+    [InlineData(1f)]
+    [InlineData(5f)]
+    public void TheBearingMemoryIsAGameplaySetting(float memory)
+    {
+        _items.GameplaySettings.BearingMemory = memory;
+        var e = Add(float3(0, 0, 150), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var at = Fire(e, Guns(e)[0]);
+
+        while (_zone.Time - at < memory - .3f) Tick(.1f);
+        Assert.True(o.ContactOf(e).Detected);
+        while (_zone.Time - at < memory + .3f) Tick(.1f);
+        Assert.False(o.ContactOf(e).Detected);
+    }
+
+    // ---- ContactLevels ----
+
+    // E fires from (30, 40) and moves to (-50, 0). Tracked is exactly membership of VisibleEntities, Identified
+    // exactly a track at or above TargetGearInfoThreshold; the bearing is the true one while tracked and the act's
+    // while the ship is only remembered.
+    [Theory]
+    [InlineData(.05f, false, false)]
+    [InlineData(.1f, false, false)]
+    [InlineData(.5f, true, false)]
+    [InlineData(.79f, true, false)]
+    [InlineData(.8f, true, true)]
+    [InlineData(1f, true, true)]
+    public void ContactLevels(float info, bool tracked, bool identified)
+    {
+        var e = Add(float3(30, 0, 40), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        Fire(e, Guns(e)[0]);
+        e.Position = float3(-50, 0, 0);
+
+        o.EntityInfoGathered[e] = info;
+
+        var contact = o.ContactOf(e);
+        Assert.Equal(o.VisibleEntities.Contains(e), contact.Tracked);
+        Assert.Equal(tracked, contact.Tracked);
+        Assert.Equal(identified, contact.Identified);
+        Assert.True(contact.Detected);
+        Assert.True(contact.Classified);
+        Assert.Equal(info, contact.Info);
+        if (tracked) AssertBearing(-1f, 0f, contact.Bearing);
+        else AssertBearing(.6f, .8f, contact.Bearing);
+    }
+
+    [Fact]
+    public void AShipNothingHasShownIsNotDetected()
+    {
+        var e = Add(float3(0, 0, 150));
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+
+        var contact = o.ContactOf(e);
+
+        Assert.False(contact.Detected);
+        Assert.False(contact.Tracked);
+        Assert.False(contact.Classified);
+        Assert.False(contact.Identified);
+    }
+
+    // ---- A subject leaves ----
+
+    private Action SenseOf(Entity observer) =>
+        (Action) Delegate.CreateDelegate(typeof(Action), observer, typeof(Entity).GetMethod("Sense", BindingFlags.Instance | BindingFlags.NonPublic));
+
+    // The ways a ship leaves a zone: removed by anything, the warp path (Deactivate, then Remove) and death.
+    private static void Leave(Zone zone, Entity e, string how)
+    {
+        switch (how)
+        {
+            case "remove": zone.Entities.Remove(e); break;
+            case "warp": e.Deactivate(); zone.Entities.Remove(e); break;
+            case "death": e.Hull.Durability = 0f; e.HullDamage.OnNext(1f); break;
+            default: throw new Exception("fixture: " + how);
+        }
+        Assert.DoesNotContain(e, zone.Entities);
+    }
+
+    // Leaves the ship showing exactly `strength` of light: whatever its guns left glowing is put out first.
+    private static void ShowOnly(Entity e, float strength, EquippedItem item)
+    {
+        foreach (var source in e.VisibilitySources.Keys.ToArray()) e.SetSignature(source, SignatureChannel.Reflection, 0f, item);
+        e.SetSignature(new object(), SignatureChannel.Reflection, strength, item);
+        Assert.Equal(strength, e.Visibility, 4);
+    }
+
+    private static float Freshest(Entity observer, Entity subject) => observer.RevealsOf(subject).Max(r => r.Time);
+
+    // Ruling reveal-ends-on-perception: a ship leaving the zone does not by itself empty any book. Out of this
+    // observer's sight (the light it showed at removal is below the observer's gate) its reveals stay, unrefreshed,
+    // and the contact stays Detected on the freshest bearing, exactly until that bearing is BearingMemory old; then
+    // the book drops the ship. A live quiet ship's old reveal is another matter: it stays in the book.
+    [Fact]
+    public void AnUnseenDepartureKeepsTheContactUntilTheBearingLapses()
+    {
+        var e = Add(float3(0, 0, 100), new[] { "Gun", "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var q = Add(float3(40, 0, 100), new[] { "Gun" });
+        var guns = Guns(e);
+        Fire(e, guns[0]);
+        Fire(e, guns[1]);
+        Fire(q, Guns(q)[0]);
+        var memory = _items.GameplaySettings.BearingMemory;
+        var times = o.RevealsOf(e).ToDictionary(r => r.Item, r => r.Time);
+        var freshest = times.Values.Max();
+        var bearing = o.ContactOf(e).Bearing;
+        ShowOnly(e, 1f, guns[0]);
+        Assert.True(e.Visibility * o.PassiveInfo(e.Position.xz, 1f) <= _items.GameplaySettings.TargetDetectionInfoThreshold, "fixture: its last light is below o's gate");
+        Assert.Equal(2, times.Count);
+
+        _zone.Entities.Remove(e);
+        Assert.Equal(2, o.RevealsOf(e).Count());
+
+        var lapsed = false;
+        var ticks = 0;
+        while (!lapsed && ticks++ < 100)
+        {
+            Tick(.1f);
+            var within = _zone.Time - freshest < memory;
+            lapsed = !within;
+            Assert.Equal(within, o.RevealsOf(e).Count() == 2); // exactly while the bearing is remembered
+            Assert.Equal(within, o.ContactOf(e).Detected);
+            Assert.Equal(within ? 1 : 0, RevealBookSubjects(o) - 1); // the quiet live ship's key stays either way
+            if (!within) continue;
+            var contact = o.ContactOf(e);
+            Assert.True(contact.Classified && !contact.Tracked);
+            AssertBearing(bearing.x, bearing.y, contact.Bearing);
+            foreach (var reveal in o.RevealsOf(e)) Assert.Equal(times[reveal.Item], reveal.Time); // never refreshed
+        }
+
+        Assert.True(lapsed, "fixture: the bearing lapsed");
+        Assert.Empty(o.RevealsOf(e));
+        Assert.False(o.ContactOf(e).Detected);
+        Assert.Equal(1, RevealBookSubjects(o)); // only the live ship's key
+
+        for (var i = 0; i < 30; i++) Tick(.2f); // q, live and quiet, was revealed 6 s ago, far more than twice the memory
+        Assert.Single(o.RevealsOf(q));
+        Assert.False(o.ContactOf(q).Detected);
+    }
+
+    // The same departure seen: every way a ship leaves is one departure fact, judged when the observer next senses.
+    // A strong ear (sensitivity 4) and a weak eye (2) at the same place, listed on either side of the ship, both hold
+    // both reveals right after the removal; after the next tick only the observer whose gate the ship's light at
+    // removal passes (signature 2 x info 8/d = .16 against .08) has let them go.
+    [Theory]
+    [InlineData("remove", false)]
+    [InlineData("remove", true)]
+    [InlineData("warp", false)]
+    [InlineData("death", false)]
+    [InlineData("death", true)]
+    public void ASeenDepartureEndsEveryRevealOfTheSubject(string how, bool strongFirst)
+    {
+        Entity strong = null, weak = null;
+        if (strongFirst) strong = Add(float3(-1, 0, 0), new[] { "Ear" });
+        else weak = Add(float3(1, 0, 0), new[] { "Eye" });
+        var e = Add(float3(0, 0, 100), new[] { "Gun", "Gun" });
+        if (strongFirst) weak = Add(float3(1, 0, 0), new[] { "Eye" });
+        else strong = Add(float3(-1, 0, 0), new[] { "Ear" });
+        var guns = Guns(e);
+        Fire(e, guns[0]);
+        Fire(e, guns[1]);
+        foreach (var observer in new[] { strong, weak }) Assert.Equal(2, observer.RevealsOf(e).Count());
+        ShowOnly(e, 2f, guns[0]);
+        var threshold = _items.GameplaySettings.TargetDetectionInfoThreshold;
+        Assert.True(e.Visibility * strong.PassiveInfo(e.Position.xz, 1f) > threshold, "fixture: the ear passes the gate");
+        Assert.True(e.Visibility * weak.PassiveInfo(e.Position.xz, 1f) <= threshold, "fixture: the eye fails it");
+
+        Leave(_zone, e, how);
+
+        Assert.Equal(2, strong.RevealsOf(e).Count()); // nothing ends at the removal itself
+        Assert.Equal(2, weak.RevealsOf(e).Count());
+        Tick(.1f);
+
+        Assert.Empty(strong.RevealsOf(e));
+        Assert.Equal(0, RevealBookSubjects(strong));
+        Assert.False(strong.ContactOf(e).Detected);
+        Assert.Equal(2, weak.RevealsOf(e).Count());
+        Assert.True(weak.ContactOf(e).Detected);
+    }
+
+    // The gate at its edge, at one fixed distance: the light at removal a hair above the observer's threshold ends
+    // the reveals, a hair below does not. The factor is the production gate's own: threshold over the observer's
+    // passive info on the spot where the ship was.
+    [Theory]
+    [InlineData(1.01f, true)]
+    [InlineData(.99f, false)]
+    public void ADepartureEndsRevealsOnlyAboveTheLightActGate(float against, bool ended)
+    {
+        var e = Add(float3(0, 0, 100), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        Fire(e, Guns(e)[0]);
+        Tick(.01f);
+        Assert.Single(o.RevealsOf(e));
+        var gate = _items.GameplaySettings.TargetDetectionInfoThreshold / o.PassiveInfo(e.Position.xz, 1f);
+        ShowOnly(e, gate * against, Guns(e)[0]);
+
+        _zone.Entities.Remove(e);
+        Tick(.1f);
+
+        Assert.Equal(ended ? 0 : 1, o.RevealsOf(e).Count());
+    }
+
+    // The gate is strict, as the light-act gate is: a light at removal that lands exactly on the threshold ends nothing.
+    // At 32 the observer's info per unit light is 4 / 32, a power of two, so threshold x 8 is the light whose product
+    // with it is exactly the threshold.
+    [Fact]
+    public void ADepartureExactlyAtTheLightActGateEndsNothing()
+    {
+        var e = Add(float3(0, 0, 32), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        Fire(e, Guns(e)[0]);
+        Tick(.01f);
+        Assert.Single(o.RevealsOf(e));
+        var threshold = _items.GameplaySettings.TargetDetectionInfoThreshold;
+        Assert.Equal(.125f, o.PassiveInfo(e.Position.xz, 1f));
+        ShowOnly(e, threshold * 8f, Guns(e)[0]);
+        Assert.True(e.Visibility * o.PassiveInfo(e.Position.xz, 1f) == threshold, "fixture: the ship's light at removal is exactly the gate");
+
+        _zone.Entities.Remove(e);
+        Tick(.1f);
+
+        Assert.Single(o.RevealsOf(e));
+    }
+
+    // A signature on the Emission channel (paint strength, a ping) is not light: it does not make a departure seen.
+    [Fact]
+    public void AnEmissionSignatureDoesNotMakeADepartureSeen()
+    {
+        var e = Add(float3(0, 0, 100), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        Fire(e, Guns(e)[0]);
+        Tick(.01f);
+        ShowOnly(e, 0f, Guns(e)[0]);
+        e.SetSignature(new object(), SignatureChannel.Emission, 1000f, Guns(e)[0]);
+
+        _zone.Entities.Remove(e);
+        Tick(.1f);
+
+        Assert.Single(o.RevealsOf(e));
+    }
+
+    // A ship removed and put back before anyone senses has not left: its reveals stand, and its next act refreshes them.
+    [Fact]
+    public void AReAdmittedSubjectHasNotDeparted()
+    {
+        var e = Add(float3(0, 0, 100), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var gun = Guns(e)[0];
+        var at = Fire(e, gun);
+        Tick(1f); // the gun cools down
+        ShowOnly(e, 1000f, gun); // bright enough for any gate
+
+        _zone.Entities.Remove(e);
+        _zone.Entities.Add(e);
+        Tick(.1f);
+
+        Assert.Equal(at, Assert.Single(o.RevealsOf(e)).Time);
+        var later = Fire(e, gun);
+        Assert.True(later > at);
+        Assert.Equal(later, Assert.Single(o.RevealsOf(e)).Time);
+    }
+
+    private static int RevealBookSubjects(Entity observer) =>
+        ((System.Collections.IDictionary) typeof(Entity).GetField("_reveals", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(observer)).Count;
+
+    // Ruling contact-reads-book-aim-reads-live: what an observer knows of a ship comes from its own book. A gun
+    // destroyed by a third party out of its sight changes none of its levels and stays in its reveal list, while
+    // the aiming read, which asks about the item now, refuses the dead gun and still serves the live one. No Sense
+    // runs after the destruction here (the aiming read needs info 1, at which a Sense would perceive it); the
+    // unseen case with a Sense is AnIdentifiedObserverSeesGearDestroyed's below-threshold case.
+    [Fact]
+    public void GearDestroyedOutOfSightLeavesWhatTheObserverKnowsAlone()
+    {
+        var e = Add(float3(0, 0, 150), new[] { "Gun", "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var guns = Guns(e);
+        Fire(e, guns[0]);
+        Fire(e, guns[1]);
+        var before = o.ContactOf(e);
+        Assert.True(before.Detected && before.Classified && !before.Tracked, "fixture: a bearing and a class, no track");
+        o.EntityInfoGathered[e] = 1f; // the aiming read needs info to resolve the target's gear
+        Assert.True(FireControl.IsRevealed(o, guns[0]) && FireControl.IsRevealed(o, guns[1]), "fixture: both guns are aimable");
+
+        guns[0].EquippableItem.Durability = 0f; // destroyed by someone else; o saw nothing
+
+        Assert.Equal(2, o.RevealsOf(e).Count());
+        var after = o.ContactOf(e);
+        Assert.True(after.Detected);
+        Assert.True(after.Classified);
+        Assert.Equal(before.Bearing.x, after.Bearing.x);
+        Assert.Equal(before.Bearing.y, after.Bearing.y);
+        Assert.False(FireControl.IsRevealed(o, guns[0]));
+        Assert.True(FireControl.IsRevealed(o, guns[1]));
+
+        guns[1].EquippableItem.Durability = 0f; // the last of its gear dies unseen too
+
+        Assert.Equal(2, o.RevealsOf(e).Count());
+        Assert.True(o.ContactOf(e).Detected);
+        Assert.True(o.ContactOf(e).Classified);
+    }
+
+    // Ruling reveal-ends-on-perception: an observer that resolves a ship's gear (its track at TargetGearInfoThreshold)
+    // perceives an item of it destroyed, and the reveal of that item ends in the same Sense pass. One that does not
+    // resolve it perceives nothing.
+    [Theory]
+    [InlineData(.8f, 1, 1, 1)]
+    [InlineData(.8f, 2, 0, 0)]
+    [InlineData(.79f, 1, 2, 1)]
+    [InlineData(.79f, 2, 2, 1)]
+    public void AnIdentifiedObserverSeesGearDestroyed(float info, int destroyed, int remaining, int classifiedKeys)
+    {
+        var e = Add(float3(0, 0, 100), new[] { "Gun", "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var guns = Guns(e);
+        Fire(e, guns[0]);
+        Fire(e, guns[1]);
+        o.VisibleEntities.Add(e); // tracked, so what the track holds is not the question
+        o.EntityInfoGathered[e] = info;
+        var sense = SenseOf(o);
+        for (var i = 0; i < destroyed; i++) guns[i].EquippableItem.Durability = 0f;
+
+        sense();
+
+        Assert.Equal(remaining, o.RevealsOf(e).Count());
+        var contact = o.ContactOf(e);
+        Assert.True(contact.Detected);
+        Assert.Equal(remaining > 0, contact.Classified);
+        Assert.Equal(remaining > 0 ? classifiedKeys : 0, RevealBookSubjects(o));
+        if (remaining == 1 && info >= .8f) Assert.Same(guns[1], o.RevealsOf(e).Single().Item);
+    }
+
+    // The same through a real tick: a gun destroyed while its flash still shows, seen by an observer that identifies
+    // the ship, is not in the book after the tick.
+    [Fact]
+    public void ADestroyedGunStillFlashingIsNotRecordedByAnIdentifyingObserver()
+    {
+        var e = Add(float3(0, 0, 60), new[] { "Gun", "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var guns = Guns(e);
+        Fire(e, guns[0]);
+        Fire(e, guns[1]);
+        e.SetSignature(new object(), SignatureChannel.Reflection, 1000f, guns[0]); // the dying gun's glare outlasts the tick
+        guns[0].EquippableItem.Durability = 0f;
+        o.EntityInfoGathered[e] = 1f; // o's sensor keeps it at about 1 across the tick (decay .5 x dt)
+
+        Tick(.01f);
+
+        Assert.True(Track(o, e) >= .8f, "fixture: o still identifies e");
+
+        Assert.DoesNotContain(o.RevealsOf(e), r => r.Item == guns[0]);
+        Assert.Contains(o.RevealsOf(e), r => r.Item == guns[1]);
+    }
+
+    // A paint inboxed in the tick its emitter leaves the zone is published the next tick, and is no longer the act of
+    // a subject in the zone: it warns for its tick and neither creates nor refreshes a reveal. The reveal the
+    // locker's earlier paint made stays what it was, as a departure out of sight (below the observer's gate) leaves it.
+    [Fact]
+    public void APaintFromAShipThatHasLeftTheZoneRevealsNothing()
+    {
+        var locker = Add(float3(0, 0, 200), new[] { "Locker" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        locker.SetIff(o, true);
+        locker.EntityInfoGathered[o] = 1f;
+        locker.SetTarget(o);
+        locker.Aim = normalize(o.Position - locker.Position);
+        for (var tick = 0; tick < 10 && !o.RevealsOf(locker).Any(); tick++) Tick(.5f);
+        var first = Assert.Single(o.RevealsOf(locker)); // fixture: the lock paints every tick, and the first one is recorded
+        Assert.True(locker.Visibility * o.PassiveInfo(locker.Position.xz, 1f) <= _items.GameplaySettings.TargetDetectionInfoThreshold, "fixture: its departure is below o's gate");
+
+        _zone.Entities.Remove(locker); // dies, warps or docks while its latest paint is still in o's inbox
+        var inboxed = ((System.Collections.IList) typeof(Entity).GetField("_paintInbox", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(o)).Count;
+        Assert.True(inboxed > 0 || o.IncomingPaints.Count > 0, "fixture: a paint is in flight");
+        Tick(.1f);
+
+        Assert.Single(o.IncomingPaints); // fixture: the stale paint was published
+        var after = Assert.Single(o.RevealsOf(locker));
+        Assert.Equal(first.Time, after.Time);
+        Assert.Equal(1, RevealBookSubjects(o));
+    }
+
+    // Ruling sensor-stat-set 4: a painted target always learns the emitter's class, whichever the mode. A ping
+    // crossing the observer (a Search paint) reveals the pinger's sensor item, with channel Emission and the
+    // bearing of the pinger.
+    [Fact]
+    public void ASearchPaintRevealsThePingersSensor()
+    {
+        var p = Add(float3(0, 0, 100), new[] { "Eye" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var item = p.Equipment.Single(i => i.Behaviors.Any(b => b is Sensor));
+        var sensor = (Sensor) item.Behaviors.Single(b => b is Sensor);
+        Tick(.01f);
+        sensor.Ping();
+
+        var modes = new List<PaintMode>();
+        for (var tick = 0; tick < 30; tick++)
+        {
+            Tick(.1f);
+            modes.AddRange(o.IncomingPaints.Select(paint => paint.Mode));
+        }
+
+        Assert.Equal(new[] { PaintMode.Search }, modes); // fixture: the sweep painted o once, as a search
+        var reveal = Assert.Single(o.RevealsOf(p));
+        Assert.Same(item, reveal.Item);
+        Assert.Equal(SignatureChannel.Emission, reveal.Channel);
+        AssertBearing(0f, 1f, reveal.Bearing);
+    }
+
+    // A search paint (a ping crossing the observer) from a pinger that has left the zone before the paint is
+    // published warns once and creates no reveal and no key.
+    [Fact]
+    public void ASearchPaintFromAPingerThatHasLeftCreatesNoReveal()
+    {
+        var p = Add(float3(0, 0, 100), new[] { "Eye" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var sensor = (Sensor) p.Equipment.Single(i => i.Behaviors.Any(b => b is Sensor)).Behaviors.Single(b => b is Sensor);
+        Tick(.01f);
+        sensor.Ping();
+        var inbox = (System.Collections.IList) typeof(Entity).GetField("_paintInbox", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(o);
+        for (var tick = 0; tick < 100 && inbox.Count == 0; tick++) Tick(.1f);
+        Assert.NotEmpty(inbox); // fixture: the ping crossed o and its paint waits to be published
+
+        _zone.Entities.Remove(p);
+        Tick(.1f);
+
+        Assert.Single(o.IncomingPaints);
+        Assert.Equal(PaintMode.Search, o.IncomingPaints.Single().Mode);
+        Assert.Empty(o.RevealsOf(p));
+        Assert.Equal(0, RevealBookSubjects(o));
+        Assert.False(o.ContactOf(p).Detected);
+    }
+
+    // An observer's own gear is not another ship's act: a ship that fires its own gun, with its own sensor at the
+    // very place of the light, records nothing of itself, while a neighbour does record the gun.
+    [Fact]
+    public void AnObserverNeverRecordsItsOwnGear()
+    {
+        var self = Add(float3(0, 0, 0), new[] { "Gun", "Eye" });
+        var neighbour = Add(float3(0, 0, 30), new[] { "Eye" });
+
+        Fire(self, Guns(self)[0]);
+
+        Assert.Single(neighbour.RevealsOf(self)); // fixture: the gun's light reaches a sensor
+        Assert.Empty(self.RevealsOf(self));
+        Assert.False(self.ContactOf(self).Detected);
+    }
+
+    // The zone's list order is not a rule of the game: two observers equidistant from a gun, one listed before the
+    // gun's ship and one after, record the same reveal with the same bearing and the same clock. The ship may be
+    // moving: the bearing is that of the ship where the tick left it, whatever the order the zone lists them in.
+    [Theory]
+    [InlineData(0f, 0f)]
+    [InlineData(30f, -20f)]
+    [InlineData(-45f, 10f)]
+    public void AnActIsRevealedOnItsOwnTickWhateverTheListOrder(float vx, float vz)
+    {
+        var before = Add(float3(-30, 0, 40), new[] { "Eye" });
+        var e = Add(float3(30, 0, 40), new[] { "Gun" });
+        var after = Add(float3(0, 0, 0), new[] { "Eye" });
+        var start = e.Position;
+        e.Velocity = float2(vx, vz);
+
+        var at = Fire(e, Guns(e)[0]);
+
+        if (vx != 0f || vz != 0f) Assert.True(length(e.Position - start) > 1f, "fixture: e moved during the firing tick");
+        foreach (var observer in new Entity[] { before, after })
+        {
+            var reveal = Assert.Single(observer.RevealsOf(e));
+            Assert.Equal(at, reveal.Time);
+            var toward = normalize((e.Position - observer.Position).xz);
+            AssertBearing(toward.x, toward.y, reveal.Bearing);
+        }
+    }
+
+    // ---- A quiet ship ----
+
+    // Ruling quiet-gear-identifiable-hull-layout-known: a ship that has shown nothing is Detected while it is
+    // tracked and Identified once the track reaches the gear threshold, with no act in any book; with no reveal
+    // it is not Classified.
+    [Theory]
+    [InlineData(.05f, false, false)]
+    [InlineData(.5f, true, false)]
+    [InlineData(.79f, true, false)]
+    [InlineData(.8f, true, true)]
+    [InlineData(1f, true, true)]
+    public void AQuietTrackedShipIsDetectedAndIdentifiedByTheTrackAlone(float info, bool tracked, bool identified)
+    {
+        var e = Add(float3(30, 0, 40), new[] { "Gun" }); // armed, but it never fires
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+
+        o.EntityInfoGathered[e] = info;
+
+        Assert.Empty(o.RevealsOf(e));
+        var contact = o.ContactOf(e);
+        Assert.Equal(tracked, o.VisibleEntities.Contains(e));
+        Assert.Equal(tracked, contact.Tracked);
+        Assert.Equal(tracked, contact.Detected);
+        Assert.False(contact.Classified);
+        Assert.Equal(identified, contact.Identified);
+        Assert.Equal(info, contact.Info);
+        if (tracked) AssertBearing(.6f, .8f, contact.Bearing);
+    }
+
+    [Fact]
+    public void RevealsLeaveWithTheObserver()
+    {
+        var e = Add(float3(0, 0, 100), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        Fire(e, Guns(e)[0]);
+        Assert.Single(o.RevealsOf(e));
+
+        o.Deactivate();
+
+        Assert.Empty(o.RevealsOf(e));
+    }
+
+    // A destroyed line, not a destroyed zero: Durability below .01 is destroyed and .01 or more is not, for the
+    // observer that identifies the ship.
+    [Theory]
+    [InlineData(.009f, true)]
+    [InlineData(.011f, false)]
+    public void AnItemIsDestroyedBelowTheDurabilityLine(float durability, bool destroyed)
+    {
+        var e = Add(float3(0, 0, 100), new[] { "Gun", "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var guns = Guns(e);
+        Fire(e, guns[0]);
+        Fire(e, guns[1]);
+        o.VisibleEntities.Add(e);
+        o.EntityInfoGathered[e] = 1f;
+        guns[0].EquippableItem.Durability = durability;
+
+        SenseOf(o)();
+
+        Assert.Equal(destroyed, !o.RevealsOf(e).Any(r => r.Item == guns[0]));
+        Assert.Contains(o.RevealsOf(e), r => r.Item == guns[1]);
+    }
+
+    // ---- Departure notes ----
+
+    // A kill inside FireControl.Step happens after this tick's Sense: the observers' next Sense reads it, whatever
+    // order the zone lists them in.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void AKillInsideFireControlStepIsReadByTheNextSense(bool observerFirst)
+    {
+        Entity strong = null;
+        if (observerFirst) strong = Add(float3(-1, 0, 0), new[] { "Ear" });
+        var e = Add(float3(0, 0, 100), new[] { "Gun", "Gun" });
+        var killer = Add(float3(60, 0, 100), new[] { "Gun" });
+        if (!observerFirst) strong = Add(float3(-1, 0, 0), new[] { "Ear" });
+        var guns = Guns(e);
+        Fire(e, guns[0]);
+        Fire(e, guns[1]);
+        Tick(1f);
+        var killed = false;
+        void Kill(ShotOutcome _)
+        {
+            if (killed || !_zone.Entities.Contains(e)) return;
+            killed = true;
+            ShowOnly(e, 2f, guns[0]); // lit at the moment it dies, as the ear's gate sees it
+            Assert.True(e.Visibility * strong.PassiveInfo(e.Position.xz, 1f) > _items.GameplaySettings.TargetDetectionInfoThreshold, "fixture: the ear passes the gate");
+            e.Hull.Durability = 0f;
+            e.HullDamage.OnNext(1f);
+        }
+        UniRx.ObservableExtensions.Subscribe(_zone.ShotCommitted, Kill);
+        UniRx.ObservableExtensions.Subscribe(_zone.ShotResolved, Kill);
+        var killerGun = (InstantWeapon) Guns(killer)[0].Behaviors.Single(b => b is InstantWeapon);
+        ((InputCapacitor) typeof(InstantWeapon).GetField("_capacitor", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(killerGun)).AddCharge(1000f);
+        killer.SetTarget(TargetRef.None);
+        killerGun.Activate();
+        for (var ticks = 0; !killed && ticks < 20; ticks++) Tick(.1f);
+        Assert.True(killed, "fixture: the kill lands inside a tick");
+        Assert.DoesNotContain(e, _zone.Entities);
+
+        Assert.Equal(2, strong.RevealsOf(e).Count()); // this tick's Sense came before the kill
+
+        Tick(.1f);
+
+        Assert.Empty(strong.RevealsOf(e));
+        Assert.False(strong.ContactOf(e).Detected);
+    }
+
+    // The note of a removal is read by exactly one Sense: an observer that could not see the departure on that tick
+    // does not judge it again later from where it then is.
+    [Fact]
+    public void ADepartureIsJudgedOnTheTickAfterItsRemovalAndNeverAgain()
+    {
+        var e = Add(float3(0, 0, 100), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var gun = Guns(e)[0];
+        Fire(e, gun);
+        ShowOnly(e, 1f, gun);
+        var threshold = _items.GameplaySettings.TargetDetectionInfoThreshold;
+        Assert.True(e.Visibility * o.PassiveInfo(e.Position.xz, 1f) <= threshold, "fixture: from where o is, the departure is below the gate");
+        _zone.Entities.Remove(e);
+        Tick(.1f);
+        Assert.Single(o.RevealsOf(e));
+
+        o.Position = float3(0, 0, 90); // now o is close enough to have seen it go
+        Assert.True(e.Visibility * o.PassiveInfo(float2(0, 100), 1f) > threshold, "fixture: from here the same departure would pass the gate");
+        Tick(.1f);
+
+        Assert.Single(o.RevealsOf(e));
+        Assert.True(o.ContactOf(e).Detected);
+    }
+
+    // Every departure of a tick is judged, whatever order they were removed in.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void EveryDepartureOfATickIsJudged(bool firstThenSecond)
+    {
+        var o = Add(float3(-1, 0, 0), new[] { "Ear" });
+        var a = Add(float3(0, 0, 100), new[] { "Gun" });
+        var b = Add(float3(0, 0, -100), new[] { "Gun" });
+        Fire(a, Guns(a)[0]);
+        Fire(b, Guns(b)[0]);
+        Assert.Single(o.RevealsOf(a));
+        Assert.Single(o.RevealsOf(b));
+        ShowOnly(a, 2f, Guns(a)[0]);
+        ShowOnly(b, 2f, Guns(b)[0]);
+        var threshold = _items.GameplaySettings.TargetDetectionInfoThreshold;
+        Assert.True(a.Visibility * o.PassiveInfo(a.Position.xz, 1f) > threshold && b.Visibility * o.PassiveInfo(b.Position.xz, 1f) > threshold, "fixture: both departures pass the gate");
+
+        _zone.Entities.Remove(firstThenSecond ? a : b);
+        _zone.Entities.Remove(firstThenSecond ? b : a);
+        Tick(.1f);
+
+        Assert.Empty(o.RevealsOf(a));
+        Assert.Empty(o.RevealsOf(b));
+        Assert.Equal(0, RevealBookSubjects(o));
+    }
+
+    // Nothing the observer keeps for a pass reaches a ship that has left: a ship with one gun ended as destroyed and
+    // one aged out by the prune cannot be reached from the observer (its fields, collections and closures, not the
+    // zone it shares with everyone) once the ship is gone and its memory has lapsed.
+    [Fact]
+    public void ADepartedSubjectIsUnreachableFromTheObserverAfterThePrune()
+    {
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var e = Add(float3(0, 0, 100), new[] { "Gun", "Gun" });
+        var guns = Guns(e);
+        Fire(e, guns[0]);
+        Fire(e, guns[1]);
+        Tick(1f);
+        o.EntityInfoGathered[e] = 1f;
+        ShowOnly(e, 0f, guns[1]); // its departure is below the observer's gate: the other gun's reveal waits for the prune
+        guns[0].EquippableItem.Durability = 0f;
+        Tick(.01f);
+        Assert.Same(guns[1], Assert.Single(o.RevealsOf(e)).Item); // fixture: one gun ended as destroyed, one waiting
+        e.Deactivate(); // the warp path: the ship's own subscriptions to the observer go with it
+        _zone.Entities.Remove(e);
+        for (var i = 0; i < 40; i++) Tick(.1f); // past BearingMemory (2 s)
+        Assert.Equal(0, RevealBookSubjects(o)); // fixture: pruned
+
+        foreach (var held in new object[] { e, guns[0], guns[1] })
+            Assert.Null(PathFrom(o, held));
+    }
+
+    // The first field path from `root` to `target`, not entering the zone or the item manager, or null.
+    private static string PathFrom(object root, object target)
+    {
+        var seen = new HashSet<object>(System.Collections.Generic.ReferenceEqualityComparer.Instance) { root };
+        var queue = new Queue<(object node, string path)>();
+        queue.Enqueue((root, "observer"));
+        while (queue.Count > 0)
+        {
+            var (node, path) = queue.Dequeue();
+            if (ReferenceEquals(node, target)) return path;
+            var type = node.GetType();
+            if (node is Zone || node is ItemManager || node is Type || node is string || type.IsPrimitive || type.IsEnum
+                || type.Namespace == "System.Reflection") continue;
+            IEnumerable<(object value, string name)> children;
+            if (node is Array array)
+                children = array.Cast<object>().Select((v, i) => (v, "[" + i + "]"));
+            else
+                children = Fields(type).Select(f => (f.GetValue(node), "." + f.Name));
+            foreach (var (value, name) in children)
+                if (value != null && seen.Add(value)) queue.Enqueue((value, path + name));
+        }
+        return null;
+    }
+
+    private static IEnumerable<FieldInfo> Fields(Type type)
+    {
+        for (; type != null; type = type.BaseType)
+            foreach (var f in type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly))
+                if (!f.FieldType.IsPointer) yield return f;
+    }
+
+    // ---- The one rule for info per signature ----
+
+    [Fact]
+    public void PassiveInfoAveragesTheActiveSensors()
+    {
+        var one = Add(float3(0, 0, 0), new[] { "Eye" });
+        var two = Add(float3(500, 0, 0), new[] { "Eye", "Ear" });
+        var none = Add(float3(1000, 0, 0));
+
+        // sum(s) / (d n k): 2 / (100 x .5) with one sensor, (2 + 4) / (100 x 2 x .5) with two; linear in the signature.
+        Assert.Equal(.04f, one.PassiveInfo(float2(0, 100), 1f), 5);
+        Assert.Equal(.12f, one.PassiveInfo(float2(0, 100), 3f), 5);
+        Assert.Equal(.06f, two.PassiveInfo(float2(500, 100), 1f), 5);
+        Assert.Equal(0f, none.PassiveInfo(float2(1000, 100), 1f));
+    }
+
+    // ---- SenseCostIsBounded ----
+
+    [Fact]
+    public void SenseAllocatesNothingOnceWarm()
+    {
+        var gunItems = new List<EquippedItem>();
+        for (var i = 0; i < 19; i++)
+        {
+            var ship = Add(float3(i * 3, 0, 10 + i), new[] { "Gun" });
+            var item = Guns(ship)[0];
+            for (var s = 0; s < 10; s++) ship.SetSignature(new object(), SignatureChannel.Reflection, 1000f, item);
+            gunItems.Add(item);
+        }
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var sense = SenseOf(o);
+        for (var i = 0; i < 10; i++) sense();
+        Assert.Equal(19, _zone.Entities.Where(x => x != o).Count(x => o.RevealsOf(x).Any())); // fixture: every ship is revealed
+        // One of them is identified by o and its gun is destroyed while it still glows, so the pass ends that reveal
+        // and the flash cannot re-enter; one has left, quiet, so its entries await the prune and its departure sits
+        // in the zone's list.
+        var identified = gunItems.Select(g => _zone.Entities.Single(x => x.Equipment.Contains(g))).First();
+        o.EntityInfoGathered[identified] = 1f;
+        gunItems[0].EquippableItem.Durability = 0f;
+        sense();
+        Assert.Empty(o.RevealsOf(identified)); // fixture: its gun is destroyed, ended, and still lit
+        Assert.Contains(identified.VisibilitySources.Values, v => v.Item == gunItems[0] && v.Strength > 0f);
+        var departed = _zone.Entities.Single(x => x.Equipment.Contains(gunItems[18]));
+        foreach (var source in departed.VisibilitySources.Keys.ToArray()) departed.SetSignature(source, SignatureChannel.Reflection, 0f, gunItems[18]);
+        _zone.Entities.Remove(departed);
+        Assert.Single((System.Collections.IList) typeof(Zone).GetProperty("Departures", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(_zone));
+        sense();
+        Assert.Single(o.RevealsOf(departed)); // fixture: awaiting its prune
+
+        // The smallest of several rounds is the steady-state allocation (FireControlCut12Tests, the Lane and
+        // Silhouette pin): a one-off JIT or tier-up allocation lands in one round of a busy full-suite run, a
+        // per-call allocation lands in every round.
+        var smallest = long.MaxValue;
+        for (var round = 0; round < 20 && smallest != 0; round++)
+        {
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            for (var i = 0; i < 600; i++) sense();
+            smallest = Math.Min(smallest, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+
+        Assert.Equal(0L, smallest);
+    }
+}

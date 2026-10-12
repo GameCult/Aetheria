@@ -5,6 +5,7 @@ using System.Linq;
 using CultMath;
 using CultMath.UnityBridge;
 using static CultMath.math;
+using UniRx;
 using UnityEngine;
 
 public class ShieldManager : MonoBehaviour
@@ -12,7 +13,29 @@ public class ShieldManager : MonoBehaviour
     public Prototype ShieldPrototype;
     public float CollisionHitDuration = 3;
 
-    public Entity Entity { get; set; }
+    private Entity _entity;
+    private IDisposable _contacts;
+
+    // Ship-on-ship contact is Zone's (Contacts.Step); this shield only presents it.
+    public Entity Entity
+    {
+        get => _entity;
+        set
+        {
+            _contacts?.Dispose();
+            _entity = value;
+            _contacts = value?.Zone.Contacted.Subscribe(Present);
+        }
+    }
+
+    private void OnDestroy() => _contacts?.Dispose();
+
+    private void Present(ContactEvent contact)
+    {
+        if (contact.A != Entity && contact.B != Entity) return;
+        if (Entity.Shield != null && Entity.Shield.Item.Active.Value)
+            ShowHit(new Vector3(contact.Point.x, Entity.Position.y, contact.Point.y), CollisionHitDuration);
+    }
 
     private ShieldEnvelope _envelope;
     private bool _loggedMissingEnvelope;
@@ -60,24 +83,7 @@ public class ShieldManager : MonoBehaviour
             }
             else
                 Debug.Log("Shield collision occurred, but other collider isn't a shield or a grid object!");
-            return;
         }
-        var contact = other.GetContact(0);
-        var normal = normalize(float2(contact.normal.x, contact.normal.z));
-        var tangent = normal.Rotate(ItemRotation.CounterClockwise);
-        var v1n = dot(normal, Entity.Velocity);
-        var v1t = dot(tangent, Entity.Velocity);
-        var v2n = dot(normal, otherShield.Entity.Velocity);
-        //var v2t = dot(tangent, otherShield.Entity.Velocity);
-
-        var v1np = PostCollisionVelocity(v1n, Entity.Mass, v2n, otherShield.Entity.Mass);
-        Entity.Velocity = tangent * v1t + normal * v1np;
-        if(Entity.Shield != null && Entity.Shield.Item.Active.Value) ShowHit(contact.point, CollisionHitDuration);
-    }
-
-    private float PostCollisionVelocity(float v1, float m1, float v2, float m2)
-    {
-        return (v1 * (m1 - m2) + m2 * v2) / (m1 + m2);
     }
 
     public void ShowHit(Vector3 point, float duration)

@@ -19,6 +19,10 @@ public static class DrawAhead
             ? entity.Position
             : entity.Position + float3(entity.Velocity.x, 0, entity.Velocity.y) * lead;
 
+    // A free body (a vapour cloud) drawn where the frame falls lead sim seconds after the last step, by the velocity
+    // that step moved it with: the launch velocity and the drift together.
+    public static float2 Position(KinematicBody body, float lead) => body.Position + body.TotalVelocity * lead;
+
     // The ship's rotation turned about its own up axis by the rate its last step turned, for lead seconds.
     public static quaternion Rotation(Ship ship, float lead) =>
         ship.WormholeAnimationInProgress ? ship.Rotation : Turned(ship.Rotation, ship.TurnRate * lead);
@@ -57,14 +61,22 @@ public static class DrawAhead
         return drawn + (end - drawn) * steer;
     }
 
-    // The impact cell's centre on the target's drawn pose: the cell at the sim pose, drawn ahead by the target's last
-    // step velocity and turned by its last step turn for lead seconds, as Position and Rotation draw the entity.
+    // The impact cell's centre on the target's drawn pose.
     public static float3 Impact(Entity target, int2 cell, float lead)
     {
+        var world = target.ToWorldPoint((float2) cell);
+        return Carried(target, float3(world.x, target.Position.y, world.y), lead);
+    }
+
+    // A world point on the target's sim pose, moved and turned with the target for lead seconds exactly as Position and
+    // Rotation draw the entity: the one owner of where a point on a hull is drawn, for the drawn round's end and for
+    // impact presenters.
+    public static float3 Carried(Entity target, float3 simPoint, float lead)
+    {
         var at = Position(target, lead);
-        var offset = target.ToWorldPoint((float2) cell) - target.Position.xz;
+        var offset = float2(simPoint.x - target.Position.x, simPoint.z - target.Position.z);
         var turned = mul(offset, CultMath.float2x2.Rotate(Turn(target, lead)));
-        return float3(at.x + turned.x, at.y, at.z + turned.y);
+        return float3(at.x + turned.x, at.y + (simPoint.y - target.Position.y), at.z + turned.y);
     }
 
     // Whether the drawn flight is over by time: only a published miss ends by the clock. A hit or burst ends on ShotResolved.

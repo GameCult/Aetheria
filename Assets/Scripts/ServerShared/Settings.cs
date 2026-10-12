@@ -218,9 +218,12 @@ public class GameplaySettings
     public ExponentialLerp LockSpinSpeed;
     public float TorqueMultiplier;
     public float VisibilityDecay;
+    // Seconds a reveal's bearing keeps a ship Detected after its last act with no track (Entity.ContactOf).
+    public float BearingMemory = 6;
     public float TargetInfoDecay;
     public float TargetDetectionInfoThreshold;
     public float TargetArmorInfoThreshold;
+    // Also the Identified threshold: the track level at which a ship's hull class, and with it its layout, is known.
     public float TargetGearInfoThreshold;
     public float ConvergenceMinimumDistance;
     public float FiringArc = 120;
@@ -269,6 +272,10 @@ public class GameplaySettings
     // World units per hull-schematic cell, used only by FireControl.HitProbability's angular-size term
     // (pSpread) to turn a hull's cell footprint into a real-world silhouette size at range.
     public float SchematicCellSize = 2f;
+
+    // Restitution of a hull striking a hull (Contacts.Step): the speed at which a pair separates along the contact
+    // normal is this times the speed at which it closed. 0 is perfectly inelastic, 1 perfectly elastic.
+    public float ContactRestitution = .5f;
 
     // The floor an AI's own predicted hit probability (FireControl.HitProbability) must clear before it counts
     // a firing solution worth taking (Combat.cs, TurretController.cs). Player fire is gated on arc alone
