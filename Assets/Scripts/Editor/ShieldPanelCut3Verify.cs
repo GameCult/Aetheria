@@ -130,7 +130,7 @@ namespace Aetheria.EditorTools
 
         static AbsorbEvent Absorb(Vector3 worldPos, Vector3 worldDir, float energy = 5f,
                                   DamageType type = DamageType.Kinetic)
-            => new AbsorbEvent(worldPos.ToCultMath(), worldDir.ToCultMath(), energy, type);
+            => new AbsorbEvent(worldPos.ToCultMath(), worldDir.ToCultMath(), energy, type, AbsorbLayer.Shield);
 
         // ==============================================================
         // D17/D20: a panel struck in its own spawn frame must absorb that hit, not swallow it.

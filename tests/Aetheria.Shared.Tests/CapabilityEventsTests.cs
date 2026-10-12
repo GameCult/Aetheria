@@ -25,7 +25,7 @@ public sealed class CapabilityEventsTests
         events.Melee.Subscribe(meleed.Add);
         events.Thrust.Subscribe(thrust.Add);
 
-        var absorbEvent = new AbsorbEvent(float3(1, 2, 3), float3(0, 0, 1), 5f, DamageType.Corrosive);
+        var absorbEvent = new AbsorbEvent(float3(1, 2, 3), float3(0, 0, 1), 5f, DamageType.Corrosive, AbsorbLayer.Hull);
         var grabEvent = new GrabEvent(7, GrabPhase.Started, float3(1, 0, 0), 1.5f);
         var meleeEvent = new MeleeEvent(float3(0, 0, 1), 10f, 90f, 0.5f);
         var thrustEvent = new ThrustEvent(float2(1, 0), 0.5f, float2(0.2f, -0.2f));
