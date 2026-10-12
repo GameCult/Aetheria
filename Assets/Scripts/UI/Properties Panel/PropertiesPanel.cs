@@ -386,7 +386,7 @@ public class PropertiesPanel : MonoBehaviour
 
 	private void AddEquippableItemProperties(EquippableItem item, Func<PerformanceStat, float> statValueFunction)
 	{
-		if (item.Durability < .01f)
+		if (item.IsDestroyed)
 		{
 			return;
 		}
@@ -473,7 +473,7 @@ public class PropertiesPanel : MonoBehaviour
 		
 		var gearData = GameManager.ItemManager.GetData(item.EquippableItem);
 		var statusSheet = AddStatSheet();
-		if (item.EquippableItem.Durability < .01f)
+		if (item.EquippableItem.IsDestroyed)
 			statusSheet.AddStat("Durability", () => "Item Destroyed!");
 		else statusSheet.AddStat("Durability", () => $"{(int)(item.EquippableItem.Durability / gearData.Durability * 100)}%");
 		statusSheet.AddStat("Temperature", () => ActionGameManager.PlayerSettings.FormatTemperature(item.Temperature));

@@ -213,9 +213,12 @@ public class GameplaySettings
     public ExponentialLerp LockSpinSpeed;
     public float TorqueMultiplier;
     public float VisibilityDecay;
+    // Seconds a reveal's bearing keeps a ship Detected after its last act with no track (Entity.ContactOf).
+    public float BearingMemory = 6;
     public float TargetInfoDecay;
     public float TargetDetectionInfoThreshold;
     public float TargetArmorInfoThreshold;
+    // Also the Identified threshold: the track level at which a ship's hull class, and with it its layout, is known.
     public float TargetGearInfoThreshold;
     public float ConvergenceMinimumDistance;
     public float FiringArc = 120;

@@ -168,7 +168,7 @@ public static class FireControl
         // failing its own tier -- ranked.IndexOf(item) then returns -1 for it (the same "no longer on this
         // target" path below), and the survivors' tiers close up over the gap instead of leaving one.
         var ranked = target.Equipment
-            .Where(e => e.Data.HardpointType != HardpointType.Hull && e.EquippableItem.Durability >= .01f)
+            .Where(e => e.Data.HardpointType != HardpointType.Hull && !e.EquippableItem.IsDestroyed)
             .OrderByDescending(e => e.Data.HardpointType != HardpointType.Tool)
             .ThenByDescending(e => e.Data.Shape.Coordinates.Length)
             .ToList();

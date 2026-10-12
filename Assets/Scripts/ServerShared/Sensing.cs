@@ -73,3 +73,63 @@ public readonly struct PaintWarning
         Strength = strength;
     }
 }
+
+// What an observer has seen `Item` do (ruling visibility-per-capability-reveal): the channel it showed on, the
+// bearing at that act and the zone clock then. Held per (subject, item) in the observer's Entity; the latest act
+// replaces the earlier one. Position is never carried: only the track gives it.
+public readonly struct Reveal
+{
+    public readonly EquippedItem Item;
+    public readonly SignatureChannel Channel;
+    public readonly float2 Bearing;
+    public readonly float Time;
+
+    public Reveal(EquippedItem item, SignatureChannel channel, float2 bearing, float time)
+    {
+        Item = item;
+        Channel = channel;
+        Bearing = bearing;
+        Time = time;
+    }
+}
+
+// A subject's removal from a zone as the zone recorded it (death, dock, warp, any removal): where it was and how
+// bright its light was (its signature outside the Emission channel). Judged by each observer's Sense under the
+// light-act gate; notification only, one tick long, it decides nothing.
+public readonly struct Departure
+{
+    public readonly Entity Subject;
+    public readonly float2 Position;
+    public readonly float Signature;
+
+    public Departure(Entity subject, float2 position, float signature)
+    {
+        Subject = subject;
+        Position = position;
+        Signature = signature;
+    }
+}
+
+// How much an observer holds of one subject, derived on read by Entity.ContactOf from its track, its reveals and
+// the zone clock. Detected: tracked, or a reveal younger than GameplaySettings.BearingMemory. Tracked: exactly
+// membership of VisibleEntities. Classified: detected, with any reveal in the book. Identified: the track has reached
+// TargetGearInfoThreshold. Bearing is the true bearing while tracked, else the freshest reveal's.
+public readonly struct Contact
+{
+    public readonly bool Detected;
+    public readonly bool Tracked;
+    public readonly bool Classified;
+    public readonly bool Identified;
+    public readonly float2 Bearing;
+    public readonly float Info;
+
+    public Contact(bool detected, bool tracked, bool classified, bool identified, float2 bearing, float info)
+    {
+        Detected = detected;
+        Tracked = tracked;
+        Classified = classified;
+        Identified = identified;
+        Bearing = bearing;
+        Info = info;
+    }
+}

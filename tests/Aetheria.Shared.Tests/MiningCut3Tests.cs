@@ -313,6 +313,32 @@ public sealed partial class MiningCut3Tests : IDisposable
             $"per-tick loop settled at {perTick}, the on-demand value implies {discrete} (settled {settled})");
     }
 
+    // ChunkInfo's value is not changed by moving its arithmetic under PassiveInfo: six observers at different
+    // places and bearings, one with a second sensor so the average is live, read the same chunk, and every value
+    // matches the bits recorded at base 12dfcef5, before the extraction (a different order of the multiplication
+    // by the chunk's brightness moves them in the last bits).
+    private static readonly uint[] ChunkInfoAtBase = new uint[] { 1045120030u, 1039274086u, 1030543422u, 1029120970u, 1036363351u, 1035122917u };
+
+    [Fact]
+    public void ChunkInfoIsBitIdenticalToItsValueBeforeTheExtraction()
+    {
+        var kind = Kind("Asteroid", 1f);
+        var s = BuildScene(new[] { kind }, Belt(kind, Rock(150f)));
+        var chunk = new ChunkId(s.Belts[0], 0);
+        var places = new[] { float2(50, -150), float2(-80, -60), float2(10, 200), float2(-300, 40), float2(120, 120), float2(0, -400) };
+        var values = new List<float>();
+        for (var i = 0; i < places.Length; i++)
+        {
+            var observer = SpawnShip(s, places[i], sensor: true, secondSensor: i == 2);
+            Tick((observer, places[i])); // brings the sensors online
+            values.Add(observer.ChunkInfo(chunk));
+        }
+
+        Assert.All(values, v => Assert.InRange(v, 1e-4f, .99f)); // a live, unsaturated reading at every place
+        var actual = values.Select(Bits).ToArray();
+        Assert.True(actual.SequenceEqual(ChunkInfoAtBase), "ChunkInfo bits: " + string.Join(",", actual));
+    }
+
     // A chunk outside every sun's light is dark: no visibility, no info, and it cannot be picked, while a lit
     // chunk of the same belt and kind can.
     [Fact]
