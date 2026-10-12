@@ -9,7 +9,10 @@ using float2 = CultMath.float2;
 
 // A hull touching a hull (aetheria-release cut sim-contact; ruling unity-presents-only-r3): the simulation owns
 // contact between entities. Each hull is a disc about its centre of mass that bounds every occupied cell, and
-// two discs that touch while closing along the line between their centres exchange their normal velocity.
+// two discs that touch while closing along the line between their centres take the normal impulse
+// j = -(1 + e)(v_rel . n) / (1/m1 + 1/m2) (ruling ship-bounce-restitution-setting): momentum is conserved, the
+// result is frame-independent, and a pair that has separated is not bounced again. e is
+// GameplaySettings.ContactRestitution.
 // Presentations read Zone.Contacted; no Unity collision callback writes an Entity.
 public readonly struct ContactEvent
 {
@@ -44,16 +47,12 @@ public static class Contacts
         return far * e.ItemManager.GameplaySettings.SchematicCellSize;
     }
 
-    // The elastic exchange of one body's normal velocity: v1 and m1 the body's own, v2 and m2 the other's.
-    private static float PostCollisionVelocity(float v1, float m1, float v2, float m2)
-    {
-        return (v1 * (m1 - m2) + m2 * v2) / (m1 + m2);
-    }
-
     // For each unordered pair of the zone's entities, in list order: if their discs touch and are closing along
-    // the normal, each one's normal velocity is replaced (both from the velocities the pair had on entering) and
-    // its tangent component kept, and the contact is published. A docked entity (it has a Parent and takes its
-    // parent's pose) and an inactive one are not hulls in the zone. No positional push-out.
+    // the normal, the impulse moves each one's velocity along the normal only (the tangent components are
+    // untouched), and the contact is published. Pairs resolve one after another in list order, each from the
+    // velocities the earlier pairs left, so a body touching two others in one tick depends on that order; the
+    // total momentum does not. A docked entity (it has a Parent and takes its parent's pose) and an inactive one
+    // are not hulls in the zone. No positional push-out.
     public static void Step(Zone zone)
     {
         var entities = zone.Entities.Where(e => e.Active && e.Parent == null).ToArray();
@@ -68,15 +67,12 @@ public static class Contacts
                 // Coincident centres have no normal.
                 if (distance <= 0f || distance >= radii[i] + radii[j]) continue;
                 var n = offset / distance;
-                var va = dot(n, a.Velocity);
-                var vb = dot(n, b.Velocity);
-                if (vb - va >= 0f) continue;
+                var closing = dot(n, b.Velocity - a.Velocity);
+                if (closing >= 0f) continue;
 
-                var tangent = float2(-n.y, n.x);
-                var vaNew = PostCollisionVelocity(va, a.Mass, vb, b.Mass);
-                var vbNew = PostCollisionVelocity(vb, b.Mass, va, a.Mass);
-                a.Velocity = n * vaNew + tangent * dot(tangent, a.Velocity);
-                b.Velocity = n * vbNew + tangent * dot(tangent, b.Velocity);
+                var impulse = -(1f + a.ItemManager.GameplaySettings.ContactRestitution) * closing / (1f / a.Mass + 1f / b.Mass);
+                a.Velocity -= n * (impulse / a.Mass);
+                b.Velocity += n * (impulse / b.Mass);
                 zone.Contacted.OnNext(new ContactEvent(a, b, a.Position.xz + n * radii[i], n));
             }
     }
