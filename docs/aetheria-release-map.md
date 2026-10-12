@@ -4867,10 +4867,29 @@ jink*: evasion against inbound PD draws only on fuel above the reserve, so a dum
 (reserve 0) jinks itself dry while a smart one stops jinking to keep its terminal. (4) *The
 price*: the correction scales with it.
 
-**The missile's stats** (ruling `missile-stats-now-gear-later`). One `MunitionData` object on
-`LauncherData` and on `GuidedWeaponData`, grouped by the gear each group will later come
-from, so the entity cut replaces a group with a derivation from that gear without
-reshaping anything that reads it:
+**The missile's stats** (ruling `missile-stats-now-gear-later`). A missile type's stats
+are five dedicated gear-part behaviours on the launcher's own design, beside its
+`LauncherData` or `GuidedWeaponData`, one per gear category the entity cut will derive them
+from (ruling `drones-and-munitions-are-entities`: dedicated types, so a missile thruster is
+not a ship thruster). Each is a `BehaviorData` with `PerformanceStat` fields evaluated through
+the item, so roles, validation, stat modifiers and the trade panel reach them by the paths
+they already walk (MS1). `MunitionParts.Of<T>(EquippedItem)` is the one read path.
+
+| Part (gear later) | Fields | Replaces |
+|---|---|---|
+| `MunitionHullData` (missile hull) | `Durability`, `Radius` | nothing (new) |
+| `MunitionThrusterData` (missile thruster) | `Acceleration` (main motor), `Lateral` (sideways cap), `MaxSpeed`, `Visibility` (its `DrivePlume` strength at full throttle, as `ThrusterData.Visibility`) | `Thrust`, `MissileVelocity` |
+| `MunitionSeekerData` (seeker) | `Sensitivity` (detection power, as `SensorData.Sensitivity`), `BeamWidth` (full cone, degrees, the sensor-stat-set name), `Range` | nothing (new) |
+| `MunitionControlData` (guidance) | `Navigation`, `Evasion`, `EvasionFrequency`, `Lifetime`, `Cognition` (0 to 1, ruling `missile-cognition`) | `DodgeFrequency` |
+| `MunitionFuelData` (tank) | `DeltaV` | nothing (new) |
+| payload | no part: `Munitions.Payload` (missile-records) reads the weapon's warhead fields | nothing |
+
+There is no single-number `Signature`: under ruling `visibility-per-capability-reveal` a
+missile is seen through channels, and the one it owns as gear is its plume
+(`Thrusters.Visibility`, `SignatureChannel.DrivePlume`). How an observer perceives it is the
+visibility chain's. The seeker is passive here (it reads a target, emits nothing); whether a
+seeker reads one channel or the sum, and whether an active seeker paints, is missile-records'
+decision against the visibility chain, not a stat.
 
 | Group (gear later) | Fields (`PerformanceStat`, evaluated through the item) | Replaces |
 |---|---|---|
@@ -8583,3 +8602,144 @@ boss-hull-derived r2, broadside-gunboat r1 and demo-cast-hulls r3 name the comma
 `ship-authoring product <ship.cc> <maker> --name <n> [--description <d>]`, `price`, and the
 key shape mod-product:<id>:<maker key>. r4 keeps all three exactly, so none needs a refresh
 for this cut's sake.
+
+# missile-stats r3: refresh map (Imagination, 2026-10-12)
+
+Spec: `aetheria-release:cut_spec:cut-missile-stats.r3`, superseding r2. Base: Aetheria
+origin/master `b6262467` (Merge cut-scenarios-smoke). Probed in a detached worktree at
+`C:\aeth-wt\imag-refresh-ms` (removed after the pass). Self: commit the "Body facts" and
+"Map section replacement" below into `docs/aetheria-release-map.md` ('Missiles and point
+defense') before dispatching Hands. The spec's `first` points Hands there.
+
+## Premise check
+
+- Nothing of r2 has landed: no `eureka/aetheria-release-missile-stats` branch on origin,
+  no `MunitionData`, `Munition*` or `class Munition` anywhere in `Assets/Scripts`, `tools`
+  or `tests`; `Launcher.cs:10-61` is byte-for-byte the shape r2 anchored. So r3 is a
+  refresh, not a withdrawal.
+
+## Body facts (probe at b6262467, 2026-10-12)
+
+- **MS1. Every stat walker is flat.** Each reader that enumerates a design's stats walks
+  `behavior.GetType().GetFields().Where(f => f.FieldType == typeof(PerformanceStat))`, one
+  level only: `StatValidation.ValidateRoleUsage` (`ItemData.cs:825-844`, run at catalog
+  load and Upsert from `AetheriaStores.Validate`, `AetheriaStores.cs:77-90`),
+  `StatValidation.ResolveStatField` for StatModifier targets (`ItemData.cs:788-800`), AetherDb
+  `RolesMigrate` and `RolesBackfill` (`Program.cs:305`, `:1807`, `:1824`, `:1843`), and the
+  CB-R1 test's `CatalogRoleTests.StatsOf` (`CatalogRoleTests.cs:11-15`), which
+  `RolesBackfillCommandTests.Reset` reuses (`:53`). The trade menu and properties panel show
+  `RuntimeInspectable` fields one level deep (`TradeMenu.cs:253`, `PropertiesPanel.cs:407`).
+- **MS2. r2's nested object would have broken CB-R1.** The launchers' `Thrust` and
+  `MissileVelocity` are the only stats reading role `thruster` on GT 3K, LRMM72, SRMM72, pswarm
+  and scorched void policy (census MS4). Moved into a nested `MunitionData.Thrusters`, they
+  vanish from every walker in MS1: `ShippedCatalogRolesAreLive` fails ("declares [..,
+  thruster, ..] but non-flat stats read [..]"), role validation stops checking them, and no
+  StatModifier can target a missile stat. This is why r3 makes each group its own
+  `BehaviorData` on the launcher design instead.
+- **MS3. A behaviour on a design is cheap and inert-safe.** `EquippedItem` instantiates
+  every `Data.Behaviors` entry (`Entity.cs:1873-1883`) and groups them by `Group`;
+  `Behavior.Execute` defaults to `return true` (`Behaviors.cs:84-87`). Entity registers only
+  `Weapon`, `Radiator`, `Shield` and the like by type (`Entity.cs:1305-1312`); the thrust
+  allocator, sensing and signatures read `Thruster`, `Sensor`, `Visibility` by type, so new
+  part types are read by nothing they do not name. The `BehaviorData` union's last key is
+  `Union(42, VapourDumpData)` (`Behaviors.cs:186`); 43 onward is free. `WeaponData`'s own
+  union (`Weapon.cs:16`) is untouched (parts are not weapons).
+- **MS4. Census of munition designs** (msgpack read of the LFS `GameData/Aetheria.cc` at
+  b6262467; `python -I census.py` in this folder):
+
+  | Design | Data | Thrust (role) | MissileVelocity (role) | DodgeFrequency | Range | Velocity |
+  |---|---|---|---|---|---|---|
+  | GT 3K | LauncherData | 135-325 (thruster) | 150-300 (thruster) | 0.25 | 1650-3500 | 100-175 |
+  | LRMM72 | LauncherData | 400-600 (thruster) | 200-300 (thruster) | 0.25 | 1600-2400 | 120-180 |
+  | SRMM72 | GuidedWeaponData | 1600-2400 (thruster) | 400-600 (thruster) | 1.0 | 600-900 | 40-60 |
+  | pswarm | GuidedWeaponData | 500-2000 (thruster) | 400-600 (thruster) | 1.0 | 500-1250 | 50-100 |
+  | scorched void policy | GuidedWeaponData | 500-2000 (thruster) | 400-600 (thruster) | 1.0 | 500-1250 | 50-100 |
+
+  Each has its launcher behaviour at Group 0 and no other behaviour. The two ship sensor
+  designs carry `SensorData.Sensitivity` 0.25-1.5 ("not if i see you first") and 1.0-2.0
+  ("The Bat"), role `receiver`. Ship thruster plumes (`ThrusterData.Visibility`, the
+  `DrivePlume` channel, `Thruster.cs:123`) run 40-800.
+- **MS5. M13 is stale.** roles-backfill (merged `e915f952`) gave LRMM72 and SRMM72 quality
+  ranges and roles; they are no longer flat. LRMM72 is a lock-on `LauncherData` and SRMM72 a
+  `GuidedWeaponData`. r2's "flat dumbfire pair, Sensors.Range 0 and Lateral 0" rested on the
+  flatness alone.
+- **MS6. RolesBackfill must keep reproducing the catalog.** `RolesBackfillCommandTests`
+  flattens LRMM72 and SRMM72 in a scratch catalog and reruns `RolesBackfill`, which ranges
+  only the fields its `LauncherRoles` map names (`Program.cs:163-172`). After migration the
+  thruster stats are named `Acceleration`, `Lateral`, `MaxSpeed`; unless the map names them
+  (`thruster`), the rerun leaves them flat and the test fails. Replacing the map's `Thrust` and
+  `MissileVelocity` keys with those three is required, not cosmetic.
+- **MS7. The LonginusX is gone** (retire-longinusx merged); r2 calibrated `Sensitivity`
+  against its cruising Visibility. Launcher Angles now fits the GT 3K and pswarm on a Longinus
+  and targets bare Longinuses (`ServerShared/Scenarios/LauncherAngles.cs:16-34`).
+- **MS8. The negative grep in r2 was wrong.** `\bThrust\b` over `Assets/Scripts` matches
+  `ThrusterData.Thrust` and `Thruster.Thrust` (`Thruster.cs:43-72`, `Ship.cs:99`). r3 uses
+  `(launcher|guidance)\.Thrust\b` and `MissileVelocity|DodgeFrequency`, both tested at base
+  (they match exactly `GuidedProjectileManager.cs:47,56,57,68,77,78`, `Launcher.cs` and
+  `Program.cs:171`).
+- **MS9. The launcher lock still gates fire** (`LockWeapon.cs:56`); ruling
+  `launcher-lock-solution-quality` is owned by follow-up `launcher-lock-gate-cut`, not here.
+  `origin` is still GitHub; the forge switch has not landed.
+
+## Map section replacement
+Applied in place to the "The missile's stats" paragraph of this map (commit of 2026-10-12).
+
+## Rationale
+
+- **Parts as behaviours, not a nested object.** MS1-MS2: a nested object is invisible to
+  every stat walker, so it breaks CB-R1 and role validation and forces seven walker edits (or a
+  new walker owner). Parts as behaviours need no walker change, keep roles and modifiers
+  working, and move to munition gear designs nearly unchanged when munitions become entities.
+  Cost: five small types, five union keys, one inert behaviour and one completeness check.
+- **Completeness check.** A launcher design without its parts would fault in missile-records
+  at the first launch. `StatValidation.ValidateMunitionParts` refuses it at catalog load and
+  Upsert, beside `ValidateStatModifiers`, so a mod launcher missing a part is named at load.
+- **All five designs guided.** MS5: both data types are guided by their own semantics (a
+  lock-on launcher and a guided weapon), and the only argument for dumbfire (flatness) is gone.
+  The micro pair get lower cognition (0.25) than the full missiles (0.5); the operator tunes
+  per design. If the operator wants a true rocket, it is a design with `Seeker.Range` 0,
+  `Lateral` 0 and `Cognition` 0, which missile-odds already prices (its dumbfire test).
+- **Seeker sensitivity is a placeholder, calibrated downstream.** r2 calibrated against the
+  LonginusX's summed Visibility (MS7), and the summed number is what the visibility chain is
+  replacing. r3 authors `Sensitivity` flat at 0.75, half the weakest ship receiver's top
+  (MS4); missile-records owns the reading rule and its headless harness, so it owns the
+  calibration test.
+- **Plume visibility is a placeholder.** `Visibility` flat 10, a sixth of the Small Drive's
+  plume top (MS4); munition-shots' detection tests calibrate it.
+
+## Downstream: what r3 changes for each missile spec (read-only; not revised here)
+
+- **missile-records.r3**: changes. `Munitions.Stats` reads the five parts through
+  `MunitionParts.Of<T>` instead of one `MunitionData` field; `ConeHalfAngle` becomes
+  `Seeker.BeamWidth / 2`; `MunitionTargets` region MaxVisibility reads `Thrusters.Visibility`
+  (no `Signature`); its operator and seeker calibration must replace the LonginusX reference
+  (MS7); its `Launch` still assumes the launcher lock gate (follow-up
+  `launcher-lock-gate-cut`); its seeker reads `seeker.Visibility` (the sum), which the
+  visibility chain is splitting by channel. Base must move past b6262467.
+- **missile-odds.r2**: small. Reads frozen `Lateral`, `Cognition` by name (unchanged names);
+  its dumbfire test case is still valid as a constructed design; its operator check names the
+  LonginusX and must name the Longinus.
+- **missile-presenter.r3**: small. Its throttle reads `Stats.Acceleration` (unchanged name);
+  `GuidanceCurve`/`ThrustCurve` deletion is unchanged. `DodgeFrequency` is already gone after
+  r3, so the presenter's `Frequency` reads `Control.EvasionFrequency` (r3 does that).
+- **munition-shots.r5**: changes. `Stats.Signature` no longer exists: `Designated` and the
+  `ASignatureRaisesDetection`-style pin read `Thrusters.Visibility` (or what the visibility
+  chain makes of a plume); `Stats.Radius` and the `Munitions.Envelope` faces
+  (`Acceleration`, `Lateral`) are unchanged. Already owes an envelope refresh (Eyes,
+  backlog-b1).
+- **munition-jink.r1**: unchanged by r3 (reads `Evasion`, `Lateral`, `EvasionFrequency`,
+  `Cognition` by name).
+- **autofire-threshold.r5**: unchanged by r3 (reads `Munitions.TimeToGo` and detection, not
+  stats).
+- **autofire-controls.r2**: unchanged by r3 (reads `DeltaV` from the flight, not the stat).
+- **ai-autofire.r1**: unchanged by r3.
+- **matrix-missiles.r1** (catalog breadth, not in the chain): changes. "Author its per-missile
+  stat groups the same way" now means appending the five part behaviours to each new design,
+  with `LauncherRoles`' new keys; `ValidateMunitionParts` refuses a new launcher without them.
+
+## Follow-up state
+
+- `launcher-flight-fields` (in force): r3 deletes `Thrust`, `DodgeFrequency` and
+  `MissileVelocity`; `GuidanceCurve`/`ThrustCurve` stay for missile-presenter. Self may
+  resolve it `Fixed` only when both have landed (not admitted here).
+
