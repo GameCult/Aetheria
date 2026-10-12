@@ -95,7 +95,9 @@ public sealed class ContactRevealTests : IDisposable
                         BurstTime = Const(0), Cooldown = Const(1000),
                         DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } },
                         LockSpeed = Const(.6f), SensorImpact = Const(1), LockAngle = Const(30), DirectionImpact = Const(1), Decay = Const(.1f)
-                    }
+                    },
+                    // A munition design carries one of each part (missile-stats); the reveal tests read none of them.
+                    new MunitionHullData(), new MunitionThrusterData(), new MunitionSeekerData(), new MunitionControlData(), new MunitionFuelData()
                 }
             });
             cache.Upsert(new ConsumableItemData
