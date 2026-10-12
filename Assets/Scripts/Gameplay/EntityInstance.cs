@@ -167,6 +167,13 @@ public class EntityInstance : MonoBehaviour
 
         if(Shield)
             Shield.Entity = entity;
+
+        // Landed impacts reach the screen through the entity's one binding: the shield ripple (ShieldManager) and the
+        // hull reaction and camera kick (ImpactPresenter) subscribe to the Absorb stream the simulation publishes.
+        var impacts = gameObject.GetComponent<ImpactPresenter>() ?? gameObject.AddComponent<ImpactPresenter>();
+        impacts.Entity = entity;
+        (gameObject.GetComponent<CapabilityPresentationBinder>() ?? gameObject.AddComponent<CapabilityPresentationBinder>())
+            .Bind(entity.Capabilities);
         foreach (var hullCollider in HullColliders) hullCollider.Entity = entity;
 
         foreach (var item in entity.Equipment)

@@ -8,7 +8,7 @@ using static CultMath.math;
 using UniRx;
 using UnityEngine;
 
-public class ShieldManager : MonoBehaviour
+public class ShieldManager : MonoBehaviour, IAbsorbPresenter
 {
     public Prototype ShieldPrototype;
     public float CollisionHitDuration = 3;
@@ -84,6 +84,14 @@ public class ShieldManager : MonoBehaviour
             else
                 Debug.Log("Shield collision occurred, but other collider isn't a shield or a grid object!");
         }
+    }
+
+    // A shot the shield took ripples it where the shot landed, drawn on the hull as it is drawn. The hull layer is
+    // ImpactPresenter's.
+    public void Absorb(AbsorbEvent e)
+    {
+        if (e.Layer != AbsorbLayer.Shield || Entity == null || Entity.Shield == null || !Entity.Shield.Item.Active.Value) return;
+        ShowHit(DrawAhead.Carried(Entity, e.Position, ActionGameManager.Clock.Lead).ToUnity(), CollisionHitDuration);
     }
 
     public void ShowHit(Vector3 point, float duration)
