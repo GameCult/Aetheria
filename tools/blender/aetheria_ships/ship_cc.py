@@ -1,7 +1,8 @@
 """Aetheria's Blender-side view of one ship file: a typed HullData record and the ShipAuthoring visual it names.
 
 The schemas and authority live in Aetheria's C# HullData and ShipAuthoring types. This module edits the hull's grid
-and hardpoints and the visual's lines, and preserves the C# schema catalog and every slot it does not edit. Brokkr
+and hardpoints and the visual's lines, and preserves the C# schema catalog and every slot it does not edit. The file
+also holds the hull's products (FactionProductData records), which C# owns: every push here leaves them untouched. Brokkr
 supplies the Blender host and CultLib Python dependency path.
 """
 
@@ -21,6 +22,7 @@ TESTED_CULTCACHE_PY = "0.3.0"
 
 SCHEMA = "aetheria.ship_authoring"
 HULL_SCHEMA = "aetheria.hulldata"
+PRODUCT_SCHEMA = "aetheria.factionproductdata"
 
 # MessagePack slots of the C# types, which own them (ShipAuthoring, ItemData.Shape, HullData.Hardpoints,
 # HardpointData). RETIRED_HULL_SLOT is the ShipAuthoring key that held the embedded hull before S1; no member owns it now. ShipSchemaPinTests in tests/Aetheria.Shared.Tests fails when any number or name below
@@ -117,8 +119,10 @@ def read(path: str, cultlib_packages: str) -> ShipFile:
             raise ValueError(
                 f"The ship file has a legacy embedded hull at retired key {RETIRED_HULL_SLOT} of the {SCHEMA} record; "
                 f"migrate it into its own {HULL_SCHEMA} record that names the visual, and drop key {RETIRED_HULL_SLOT}")
-    if len(envelopes) != 2 or len(ships) != 1 or len(hulls) != 1:
-        raise ValueError(f"The ship file must hold exactly one {SCHEMA} record and one {HULL_SCHEMA} record")
+    products = [envelope for envelope in envelopes if envelope.type == PRODUCT_SCHEMA]
+    if len(ships) != 1 or len(hulls) != 1 or len(ships) + len(hulls) + len(products) != len(envelopes):
+        raise ValueError(f"The ship file must hold exactly one {SCHEMA} record and one {HULL_SCHEMA} record, "
+                         f"and may hold {PRODUCT_SCHEMA} records beside them, nothing else")
     bodies = []
     for envelope in (ships[0], hulls[0]):
         body = msgpack.unpackb(envelope.payload, raw=False)

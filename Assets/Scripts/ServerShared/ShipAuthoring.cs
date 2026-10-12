@@ -88,7 +88,7 @@ public static class ShipAuthoringStore
         var cache = new CultCache();
         try
         {
-            cache.AddBackingStore(new SingleFileMessagePackBackingStore(path, !writable), new[] { typeof(HullData), typeof(ShipAuthoring) });
+            cache.AddBackingStore(new SingleFileMessagePackBackingStore(path, !writable), new[] { typeof(HullData), typeof(ShipAuthoring), typeof(FactionProductData) });
             return cache;
         }
         catch
@@ -104,6 +104,14 @@ public static class ShipAuthoringStore
         cache.UpsertAsync(typeof(HullData), hull, ShipModCatalog.HullKey(visual.Id)).GetAwaiter().GetResult();
         cache.UpsertAsync(typeof(ShipAuthoring), visual, ShipModCatalog.AuthoringKey(visual.Id)).GetAwaiter().GetResult();
     }
+
+    // A package's product by one maker. These two are the only product writers; the key is the ship and the maker, so a
+    // maker has at most one product of the hull and writing again replaces it.
+    public static void WriteProduct(CultCache cache, string shipId, FactionProductData product) =>
+        cache.UpsertAsync(typeof(FactionProductData), product, ShipModCatalog.ProductKey(shipId, product.Manufacturer.Key)).GetAwaiter().GetResult();
+
+    public static bool DeleteProduct(CultCache cache, string shipId, CultRecordKey maker) =>
+        cache.Remove(ShipModCatalog.ProductKey(shipId, maker));
 
     // A new mod hull that flies like a shipped one. Every member of the reference is copied through the type's own
     // MessagePack round trip, so a member added to HullData later is copied too; then the six that are the shipped ship's
@@ -123,8 +131,8 @@ public static class ShipAuthoringStore
     }
 
     // The structure of a ship file, without judging its content (drafts load): exactly one hull and one visual, each at
-    // its deterministic key, the hull naming that visual by its typed ref.
-    public static (HullData Hull, ShipAuthoring Visual) Load(string path)
+    // its deterministic key, the hull naming that visual by its typed ref, and the hull's products, each at its maker's key.
+    public static (HullData Hull, ShipAuthoring Visual, FactionProductData[] Products) Load(string path)
     {
         RefuseLegacyEmbeddedHull(path);
         try { return LoadRecords(path); }
@@ -167,7 +175,7 @@ public static class ShipAuthoringStore
 
     private const int RetiredHullKey = 1;
 
-    private static (HullData Hull, ShipAuthoring Visual) LoadRecords(string path)
+    private static (HullData Hull, ShipAuthoring Visual, FactionProductData[] Products) LoadRecords(string path)
     {
         using var cache = Open(path);
         var hulls = cache.GetAll<HullData>().ToArray();
@@ -180,14 +188,44 @@ public static class ShipAuthoringStore
         if (!cache.TryGetHandle(hull).Value.Key.Equals(ShipModCatalog.HullKey(visual.Id)) ||
             !cache.TryGetHandle(visual).Value.Key.Equals(ShipModCatalog.AuthoringKey(visual.Id)))
             throw new InvalidOperationException($"{path}: {visual.Id}: records must be stored under {ShipModCatalog.HullKey(visual.Id).Value} and {ShipModCatalog.AuthoringKey(visual.Id).Value}.");
-        return (hull, visual);
+        var products = cache.GetAll<FactionProductData>().ToArray();
+        foreach (var product in products)
+        {
+            if (!product.Manufacturer.IsSet() || ShipModCatalog.IsModKey(product.Manufacturer.Key))
+                throw new InvalidOperationException($"{path}: {visual.Id}: a product needs a manufacturer that is a shipped faction.");
+            var productKey = ShipModCatalog.ProductKey(visual.Id, product.Manufacturer.Key);
+            if (!cache.TryGetHandle(product).Value.Key.Equals(productKey))
+                throw new InvalidOperationException($"{path}: {visual.Id}: a product must be stored at {productKey.Value}.");
+            if (!product.Design.IsSet() || !product.Design.Key.Equals(ShipModCatalog.HullKey(visual.Id)))
+                throw new InvalidOperationException($"{path}: {visual.Id}: a product must name the package hull {ShipModCatalog.HullKey(visual.Id).Value} as its design.");
+        }
+        return (hull, visual, products);
     }
 
-    public static (HullData Hull, ShipAuthoring Visual) Read(string path)
+    public static (HullData Hull, ShipAuthoring Visual, FactionProductData[] Products) Read(string path)
     {
-        var (hull, visual) = Load(path);
+        var (hull, visual, products) = Load(path);
+        ValidateLoaded(hull, visual, products);
+        return (hull, visual, products);
+    }
+
+    // Every judgement a loaded package's records face, in one place: Read, and validate on a draft with no model yet, call it.
+    public static void ValidateLoaded(HullData hull, ShipAuthoring visual, FactionProductData[] products)
+    {
         Validate(hull, visual);
-        return (hull, visual);
+        ValidateProducts(hull, visual, products);
+    }
+
+    // What a package may sell: every product named, no name twice, and a price above 0, because generation skips price 0.
+    private static void ValidateProducts(HullData hull, ShipAuthoring visual, FactionProductData[] products)
+    {
+        if (products.Length == 0) return;
+        if (products.Any(product => string.IsNullOrWhiteSpace(product.Name)))
+            throw new InvalidOperationException($"{visual.Id}: every product needs a name.");
+        if (products.Select(product => product.Name).Distinct(StringComparer.Ordinal).Count() != products.Length)
+            throw new InvalidOperationException($"{visual.Id}: product names must be unique within the package.");
+        if (hull.Price <= 0)
+            throw new InvalidOperationException($"{visual.Id}: a hull with products needs a price above 0 (generation skips price 0).");
     }
 
     // A hull names one body: a Unity prefab (shipped hulls) or a ShipAuthoring record (mod ships), never both, so no
@@ -224,6 +262,8 @@ public static class ShipAuthoringStore
         if (hull.Shape?.Cells == null || !hull.Shape.Cells.Cast<bool>().Any(occupied => occupied))
             throw new InvalidOperationException($"{ship.Id}: schematic must contain at least one cell.");
         RequireOneBody(hull, ship.Id);
+        if (hull.HullType == HullType.Ship && !(hull.Behaviors ?? new List<BehaviorData>()).Any(behavior => behavior is VelocityLimitData))
+            throw new InvalidOperationException($"{ship.Id}: a ship hull needs a top speed (VelocityLimit).");
         if (!hull.Visual.Key.Equals(ShipModCatalog.AuthoringKey(ship.Id)))
             throw new InvalidOperationException($"{ship.Id}: the hull must name its visual record {ShipModCatalog.AuthoringKey(ship.Id).Value}.");
         if (string.IsNullOrWhiteSpace(ship.ModelAsset) || Path.IsPathRooted(ship.ModelAsset) ||

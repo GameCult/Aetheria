@@ -162,7 +162,17 @@ keys. Each mod's stable `ShipAuthoring.Id` yields separate deterministic keys
 for its copied `HullData` (`mod-hull:<id>`) and its runtime authoring record
 (`mod-ship:<id>`). A mod's `ship.cc` stores its two records under those same
 keys, and compose copies them verbatim, so the derived catalog holds one hull
-per mod ship and `HullData.Visual` names the `mod-ship` record. The generated
+per mod ship and `HullData.Visual` names the `mod-ship` record. A package may
+also hold the hull's products, `FactionProductData` records stored at
+`mod-product:<id>:<maker key>` (the third key beside `mod-hull` and
+`mod-ship`; a key the mods own, never named by the shipped catalog). The key
+makes a second product by one maker impossible. A ship is its maker's: the hull
+carries the maker's name for it and one product by that maker, and a further
+product is a rebrand by another faction (the Pirates' stolen-and-adapted
+hulls). Compose copies the products verbatim and excludes a package, with a
+named reason, whose product names a maker the shipped catalog holds no faction
+for, or whose product name equals a shipped product's or another package's.
+Blender never writes or edits a product; AetherDb does. The generated
 catalog is disposable; the shipped catalog and each mod's source `.cc` remain
 the owners. A player session opens one catalog snapshot and cannot hot-swap its
 designs beneath existing entities.
@@ -223,7 +233,15 @@ catalog. Continue refuses a run naming a design the catalog no longer holds
    `aetheria.id`, is the object's `aetheria.id`. It then runs
    `AetherDb ship-authoring validate`, which judges the GLB too: node ids,
    and a mesh under every thruster and radiator anchor. The model supplies
-   geometry, not a second copy of hull semantics.
+   geometry, not a second copy of hull semantics. A ship hull needs a top
+   speed (a `VelocityLimitData` behavior; a station or turret does not), and
+   validation refuses one without.
+   After Package, `ship-authoring price <ship.cc> <price>` sets the hull's
+   price and `ship-authoring product <ship.cc> <maker> --name <name>
+   [--description <text>]` writes the package's product by that maker
+   (`--remove` deletes it). A package with a product needs a price above 0,
+   because generation skips price 0; a package with none stays valid and is
+   console-only. Compose follows.
 3. A command-line validator rejects malformed cells, overlapping or dangling
    hardpoints, missing model nodes, and unresolved asset references with
    precise errors. It changes no live catalog or scene on failure. The
