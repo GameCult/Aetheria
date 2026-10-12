@@ -742,4 +742,38 @@ public sealed class MineTests : IDisposable
         Assert.False(string.IsNullOrWhiteSpace(log[0]));
         Assert.Empty(lab.Zone.PendingShots);
     }
+
+    // Loot is drawn on its own stream (aetheria-release loot-1): a mine laid with body id 1 and the zone's first
+    // death share ordinal 1, so only the stream tells their draws apart. The lay's first draw fixes the mine's
+    // turn; setting LootDropProbability just either side of that same number decides the first gate draw of the
+    // first death. With one stream the gate would follow the mine's turn.
+    private (Lab Lab, float U) LayThenReadTurn(float? probability)
+    {
+        var lab = Build(spread: 40f, velocity: 5f, layerFaction: A);
+        lab.Layer.Velocity = float2.zero;
+        lab.Layer.Direction = normalize(float2(1, 2));
+        var mine = LayOne(lab);
+        var mount = FireControl.MountDirection(lab.WeaponItem).xz;
+        var turned = mine.Body.Velocity / 5f;
+        var degrees = (MathF.Atan2(turned.y, turned.x) - MathF.Atan2(mount.y, mount.x)) * 180f / MathF.PI;
+        if (probability.HasValue) lab.Items.GameplaySettings.LootDropProbability = probability.Value;
+        return (lab, (degrees + 20f) / 40f);
+    }
+
+    private static bool FirstGearDropped(Lab lab)
+    {
+        var gear = lab.Layer.Equipment.First(e => e != lab.Layer.EquippedHull).EquippableItem;
+        lab.Layer.HeatstrokeDeath.OnNext(UniRx.Unit.Default);
+        return lab.Zone.FloatingItems.Any(f => f.Item == gear);
+    }
+
+    [Fact]
+    public void LootDiceAreNotTheMineDice()
+    {
+        var u = LayThenReadTurn(null).U;
+        Assert.InRange(u, .01f, .99f);
+        var above = FirstGearDropped(LayThenReadTurn(u + .003f).Lab);
+        var below = FirstGearDropped(LayThenReadTurn(u - .003f).Lab);
+        Assert.False(above && !below, "the first loot gate draw equals the first mine draw");
+    }
 }
