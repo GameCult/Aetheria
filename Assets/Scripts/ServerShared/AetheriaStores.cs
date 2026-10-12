@@ -86,6 +86,7 @@ public static class CultRecordRefs
         if (document is ConsumableItemData consumable)
         {
             StatValidation.ValidateStatModifiers(consumable.Name, consumable.Behaviors);
+            StatValidation.ValidateMunitionParts(consumable.Name, consumable.Behaviors);
             StatValidation.ValidateRoleUsage(consumable.Name, consumable.Roles, consumable.Behaviors);
         }
     }
