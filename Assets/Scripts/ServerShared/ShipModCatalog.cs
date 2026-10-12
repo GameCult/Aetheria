@@ -193,8 +193,8 @@ public static class ShipModCatalog
     }
 
     // The rig the record states must be the rig the model has: every joint is a node, each joint's Parent and each mount's
-    // Joint is the nearest joint above its node, ancestors without an id being walked through by ReadNodeIds, and a thruster or radiator
-    // mesh sits under no joint (follow-up gimballed-thrusters).
+    // Joint is the nearest joint above its node, ancestors without an id being walked through by ReadNodeIds, and a radiator
+    // mesh sits under no joint.
     private static void BindRig(ShipAuthoring ship, Dictionary<string, (uint Index, bool HasMesh, int Parent)> nodes)
     {
         var joints = new HashSet<string>((ship.Joints ?? new List<ShipJoint>()).Select(joint => joint.Id), StringComparer.Ordinal);
@@ -220,9 +220,9 @@ public static class ShipModCatalog
         {
             var above = JointAbove(anchor.ModelNodeId);
             if (string.Equals(above ?? "", anchor.Joint ?? "", StringComparison.Ordinal)) continue;
-            throw new InvalidOperationException(anchor.Role == "weapon-mount"
-                ? $"{ship.Id}: weapon mount {anchor.Id} must name the nearest joint above its model node as its Joint."
-                : $"{ship.Id}: {anchor.Role} anchor {anchor.Id} sits under a joint in the model (follow-up gimballed-thrusters).");
+            throw new InvalidOperationException(anchor.Role == "radiator-mesh"
+                ? $"{ship.Id}: {anchor.Role} anchor {anchor.Id} sits under a joint in the model."
+                : $"{ship.Id}: {(anchor.Role == "weapon-mount" ? "weapon mount" : "thruster emitter")} {anchor.Id} must name the nearest joint above its model node as its Joint.");
         }
     }
 

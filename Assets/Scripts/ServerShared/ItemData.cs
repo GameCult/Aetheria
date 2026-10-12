@@ -566,7 +566,12 @@ public class HardpointData
     [Inspectable, JsonProperty("armor"), Key(5)] public float Armor;
     // Full arc width in degrees a weapon on this hardpoint may bear across; 0 means "use
     // GameplaySettings.FiringArc" (docs/fire-control-cut.md R6). Turrets author 360 (Q1).
+    // On a Thruster hardpoint it is the full gimbal width: the row swings +-FiringArc/2 about Rotation, 0 is a
+    // fixed thruster, and there is no GameplaySettings fallback.
     [Inspectable, JsonProperty("firingArc"), Key(6)] public float FiringArc;
+    // Thruster hardpoints sharing a non-empty Row swing as one row; a Thruster hardpoint with FiringArc > 0 and no Row
+    // is a row of one. Only a Thruster hardpoint may state one.
+    [Inspectable, JsonProperty("row"), Key(7)] public string Row;
 
     public override string ToString()
     {

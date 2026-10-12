@@ -4,6 +4,8 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using CultMath;
+using GameCult.Caching.MessagePack;
+using MessagePack;
 using Xunit;
 
 // The rig in the visual record: what the judge (Validate) refuses about joints and the guns that ride them, what Bind
@@ -295,9 +297,41 @@ public sealed class ShipRigTests : IDisposable
             BindRefusal(Package(ship => ship.Visual.Joints.Single(joint => joint.Id == "elbow").Parent = null)));
     }
 
+    // The thruster's emission mesh follows the same rule as a gun mount: its record names the nearest joint above its node.
     [Fact]
-    public void BindRefusesAThrusterMeshUnderAJointNamingTheFollowUp() =>
-        Assert.Contains("gimballed-thrusters", BindRefusal(Package(null, Reparent("thruster-port", "wrist"))));
+    public void BindAcceptsAThrusterRowOnTheJointItsMeshHangsUnder()
+    {
+        var package = ShipModCatalog.ReadPackage(Package(ship =>
+        {
+            var thruster = ship.Hull.Hardpoints.Single(hardpoint => hardpoint.Transform == "thruster.port");
+            thruster.FiringArc = 90;
+            ship.Visual.Anchors.Single(anchor => anchor.Id == "thruster.port").Joint = "arm";
+        }, Reparent("thruster-port", "arm")));
+        Assert.Equal("arm", package.Visual.Anchors.Single(anchor => anchor.Id == "thruster.port").Joint);
+    }
+
+    [Fact]
+    public void BindRefusesAThrusterMeshThatTheRecordAndTheModelPlaceDifferently()
+    {
+        // The record says the thruster is fixed; the model hangs its mesh under the wrist.
+        Assert.Contains("thruster emitter thruster.port must name the nearest joint above its model node",
+            BindRefusal(Package(null, Reparent("thruster-port", "wrist"))));
+        // The record rides the arm; the model leaves the mesh at the root.
+        Assert.Contains("thruster emitter thruster.port must name the nearest joint above its model node",
+            BindRefusal(Package(ship =>
+            {
+                ship.Hull.Hardpoints.Single(hardpoint => hardpoint.Transform == "thruster.port").FiringArc = 90;
+                ship.Visual.Anchors.Single(anchor => anchor.Id == "thruster.port").Joint = "arm";
+            })));
+    }
+
+    [Fact]
+    public void BindRefusesARadiatorMeshUnderAJoint() =>
+        Assert.Contains("radiator-mesh anchor thruster.port sits under a joint in the model", BindRefusal(Package(ship =>
+        {
+            ship.Hull.Hardpoints.Single(hardpoint => hardpoint.Transform == "thruster.port").Type = HardpointType.Radiator;
+            ship.Visual.Anchors.Single(anchor => anchor.Id == "thruster.port").Role = "radiator-mesh";
+        }, Reparent("thruster-port", "wrist"))));
 
     [Fact]
     public void NodeParentsAreTheNearestTaggedAncestorAndRootsHaveNone()
@@ -381,4 +415,177 @@ public sealed class ShipRigTests : IDisposable
     [Fact]
     public void AShipWithNoGunOnAJointHasNoRigs() =>
         Assert.Empty(ShipModPlan.Build(Armed((string)null).Hull, Armed((string)null).Visual).Rigs);
+
+    // ---- Thruster rows: a row's gimbal is the hardpoints' FiringArc, its members share a Row, its joint only draws it ----
+
+    // The fixture's skiff with thrusters "t0".."tN" side by side (one cell each, the fixture's own thruster dropped). Each
+    // tuple is a thruster's Row (null for none), its FiringArc, and the joint its emitter rides (null for none).
+    private static ShipParts Thrusting(params (string Row, float Arc, string Joint)[] thrusters)
+    {
+        var ship = ShipAuthoringTests.Fixture();
+        var shape = new Shape(thrusters.Length, 1);
+        for (var x = 0; x < thrusters.Length; x++) shape.Cells[x, 0] = true;
+        ship.Hull.Shape = shape;
+        ship.Hull.Hardpoints.Clear();
+        ship.Visual.Anchors.RemoveAll(anchor => anchor.Id == "thruster.port");
+        for (var index = 0; index < thrusters.Length; index++)
+        {
+            ship.Hull.Hardpoints.Add(new HardpointData
+            {
+                Type = HardpointType.Thruster, Position = new int2(index, 0), Shape = new Shape(), Transform = $"t{index}",
+                Row = thrusters[index].Row, FiringArc = thrusters[index].Arc
+            });
+            ship.Visual.Anchors.Add(new ShipAnchor { Id = $"t{index}", Role = "thruster-emitter", ModelNodeId = $"t{index}", Joint = thrusters[index].Joint });
+        }
+        return ship;
+    }
+
+    private static ShipParts OnJoint(ShipParts ship, string id, params (float[] Axis, float Min, float Max)[] dofs)
+    {
+        ship.Visual.Joints.Add(Joint(id, null, dofs));
+        return ship;
+    }
+
+    [Fact]
+    public void ARowIsOnlyForThrusters()
+    {
+        // The same Row that a Thruster hardpoint carries is refused on a weapon hardpoint, naming the hardpoint and its type.
+        Thrusting(("r", 90f, null)).Validate();
+        var ship = Armed((string)null);
+        ship.Hull.Hardpoints.Single(hardpoint => hardpoint.Transform == "g0").Row = "r";
+        var message = Refusal(ship);
+        Assert.Contains("hardpoint g0 is a Energy hardpoint", message);
+        Assert.Contains("only a Thruster hardpoint may state a row", message);
+    }
+
+    [Fact]
+    public void ARowOfThrustersSharingRotationAndArcIsValidWhateverTheArc()
+    {
+        Thrusting(("r", 90f, null), ("r", 90f, null)).Validate();
+        Thrusting(("r", 360f, null), ("r", 360f, null)).Validate();
+        Thrusting(("r", .5f, null)).Validate();
+        // A thruster with no Row and no arc is simply a fixed thruster.
+        Thrusting((null, 0f, null), (null, 0f, null)).Validate();
+    }
+
+    [Fact]
+    public void AThrusterRowMayRideAJoint()
+    {
+        // gimballed-thrusters: two emitters of one row (arc 90) on a joint that sweeps 90 degrees of yaw.
+        OnJoint(Thrusting(("r", 90f, "j"), ("r", 90f, "j")), "j", (Up, -45f, 45f)).Validate();
+        // A thruster with an arc and no Row is a row of one, and rides a joint the same way.
+        OnJoint(Thrusting((null, 90f, "j")), "j", (Up, -45f, 45f)).Validate();
+        // Serial degrees of freedom add, exactly as they do for a gun.
+        OnJoint(Thrusting(("r", 120f, "j")), "j", (Up, -30f, 30f), (Up, -30f, 30f)).Validate();
+    }
+
+    [Fact]
+    public void AFixedThrusterMayNotRideAJoint()
+    {
+        var ship = OnJoint(Thrusting((null, 0f, "j")), "j", (Up, -180f, 180f));
+        Assert.Contains("thruster hardpoint t0 rides a joint, so it must state its firing arc above 0", Refusal(ship));
+        // Fixed and on no joint, it is fine.
+        ship.Visual.Anchors.Single(anchor => anchor.Id == "t0").Joint = null;
+        ship.Validate();
+    }
+
+    [Fact]
+    public void AJointShortOfTheRowsArcIsRefused()
+    {
+        var short1 = Refusal(OnJoint(Thrusting(("r", 90f, "j"), ("r", 90f, "j")), "j", (Up, -30f, 30f)));
+        Assert.Contains("joint j chain reaches 60 degrees of yaw", short1);
+        Assert.Contains("90 degree gimbal arc", short1);
+        // One degree over the reach is refused for a row of one as well, and the arc itself decides it.
+        Assert.Contains("reaches 90 degrees", Refusal(OnJoint(Thrusting((null, 91f, "j")), "j", (Up, -45f, 45f))));
+        OnJoint(Thrusting((null, 90f, "j")), "j", (Up, -45f, 45f)).Validate();
+        // Pitch adds nothing to the yaw a gimbal swings through.
+        Assert.Contains("reaches 0 degrees", Refusal(OnJoint(Thrusting(("r", 10f, "j")), "j", (Right, -180f, 180f))));
+    }
+
+    [Fact]
+    public void ARowOnAJointIsWholeAndAlone()
+    {
+        // A row whose members ride two joints.
+        var split = Thrusting(("r", 90f, "j"), ("r", 90f, "k"));
+        OnJoint(split, "j", (Up, -45f, 45f));
+        OnJoint(split, "k", (Up, -45f, 45f));
+        Assert.Contains("must ride it too", Refusal(split));
+        // A row with a member on no joint.
+        Assert.Contains("must ride it too", Refusal(OnJoint(Thrusting(("r", 90f, "j"), ("r", 90f, null)), "j", (Up, -45f, 45f))));
+        // A joint carrying two rows, and one carrying two rows of one.
+        Assert.Contains("carries thruster hardpoints t0 and t1 of different rows",
+            Refusal(OnJoint(Thrusting(("r", 90f, "j"), ("s", 90f, "j")), "j", (Up, -45f, 45f))));
+        Assert.Contains("carries thruster hardpoints t0 and t1 of different rows",
+            Refusal(OnJoint(Thrusting((null, 90f, "j"), (null, 90f, "j")), "j", (Up, -45f, 45f))));
+        // A row and a thruster of no row on one joint.
+        Assert.Contains("different rows", Refusal(OnJoint(Thrusting(("r", 90f, "j"), (null, 90f, "j")), "j", (Up, -45f, 45f))));
+        // Each row on a joint of its own is fine.
+        var apart = Thrusting(("r", 90f, "j"), ("s", 90f, "k"));
+        OnJoint(apart, "j", (Up, -45f, 45f));
+        OnJoint(apart, "k", (Up, -45f, 45f));
+        apart.Validate();
+    }
+
+    [Fact]
+    public void ARadiatorStillMayNotRideAJoint()
+    {
+        var ship = OnJoint(Thrusting((null, 90f, "j")), "j", (Up, -180f, 180f));
+        ship.Hull.Hardpoints.Single().Type = HardpointType.Radiator;
+        ship.Visual.Anchors.Single(anchor => anchor.Id == "t0").Role = "radiator-mesh";
+        Assert.Contains("radiator-mesh anchor t0 may not ride a joint", Refusal(ship));
+    }
+
+    [Fact]
+    public void AGunAndAThrusterRowOnOneJointAreEachJudgedByTheirOwnArc()
+    {
+        // The gun rule is untouched: a gun and a thruster row each judged by their own arc against the one chain.
+        var ship = Armed("j");
+        ship.Visual.Joints.Add(Joint("j", null, (Up, -45f, 45f)));
+        ship.Hull.Hardpoints.Single(hardpoint => hardpoint.Transform == "g0").FiringArc = 90;
+        var thruster = ship.Hull.Hardpoints.Single(hardpoint => hardpoint.Type == HardpointType.Thruster);
+        thruster.FiringArc = 90;
+        ship.Visual.Anchors.Single(anchor => anchor.Id == thruster.Transform).Joint = "j";
+        ship.Validate();
+        thruster.FiringArc = 91;
+        Assert.Contains("90 degrees of yaw, short of the 91 degree gimbal arc", Refusal(ship));
+    }
+
+    // Row and Slew are persistent: a package or catalog written with them is read by key, so their positions are wire format.
+    [Fact]
+    public void RowAndSlewKeepTheirWirePositions()
+    {
+        var options = CultDocumentMessagePackSerialization.OptionsFor(typeof(HardpointData).Assembly);
+        var hardpoint = new HardpointData { Type = HardpointType.Thruster, Shape = new Shape(), Transform = "t", FiringArc = 40f, Row = "left" };
+        var fields = MessagePackSerializer.Deserialize<object[]>(MessagePackSerializer.Serialize(hardpoint, options), options);
+        Assert.Equal(8, fields.Length);
+        Assert.Equal(40f, Convert.ToSingle(fields[6]));
+        Assert.Equal("left", fields[7]);
+        Assert.Null(MessagePackSerializer.Deserialize<object[]>(MessagePackSerializer.Serialize(new HardpointData { Shape = new Shape() }, options), options)[7]);
+
+        var thruster = new ThrusterData();
+        thruster.Thrust.Max = 5f;
+        thruster.Slew.Max = 90f;
+        var slew = MessagePackSerializer.Deserialize<object[]>(MessagePackSerializer.Serialize(thruster, options), options);
+        Assert.Equal(7, slew.Length);
+        Assert.Equal(MessagePackSerializer.ConvertToJson(MessagePackSerializer.Serialize(thruster.Slew, options), options),
+            MessagePackSerializer.ConvertToJson(MessagePackSerializer.Serialize(slew[6], options), options));
+        Assert.NotEqual(MessagePackSerializer.ConvertToJson(MessagePackSerializer.Serialize(thruster.Thrust, options), options),
+            MessagePackSerializer.ConvertToJson(MessagePackSerializer.Serialize(slew[6], options), options));
+    }
+
+    // A package written with a row reads back with it, and a fixed thruster with none reads back with none.
+    [Fact]
+    public async System.Threading.Tasks.Task ARowRoundTripsThroughAShipPackageAndNoRowStaysNone()
+    {
+        var path = Path.Combine(_directory.Path, "rows.cc");
+        var ship = Thrusting(("r", 90f, null), ("r", 90f, null), (null, 0f, null));
+        using (var cache = ShipAuthoringStore.Open(path, writable: true))
+        {
+            ShipAuthoringStore.Write(cache, ship.Hull, ship.Visual);
+            await cache.FlushAsync();
+        }
+        var (hull, _) = ShipAuthoringStore.Read(path);
+        Assert.Equal(new[] { "r", "r", null }, hull.Hardpoints.Select(hardpoint => hardpoint.Row));
+        Assert.Equal(new[] { 90f, 90f, 0f }, hull.Hardpoints.Select(hardpoint => hardpoint.FiringArc));
+    }
 }

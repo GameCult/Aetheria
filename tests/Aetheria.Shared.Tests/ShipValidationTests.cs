@@ -226,8 +226,8 @@ public sealed class ShipValidationTests
         Add("joint-min-minus-181", s => Joint(s, "j", null, yaw, new[] { -181f }, new[] { 0f }), "must satisfy -180 <= Min <= Max <= 180");
         Add("joint-parent-dangling", s => Joint(s, "j", "ghost", yaw, new[] { -1f }, new[] { 1f }), "has an unknown parent joint");
         Add("joint-cycle", s => { Joint(s, "a", "b", yaw, new[] { -1f }, new[] { 1f }); Joint(s, "b", "a", yaw, new[] { -1f }, new[] { 1f }); }, "is on a parent cycle");
-        Add("joint-on-a-thruster-mount", s => { Joint(s, "j", null, yaw, new[] { -1f }, new[] { 1f }); s.Visual.Anchors[4].Joint = "j"; }, "gimballed-thrusters");
-        Add("joint-on-a-radiator-mount", s => { Joint(s, "j", null, yaw, new[] { -1f }, new[] { 1f }); s.Visual.Anchors[4].Role = "radiator-mesh"; s.Visual.Anchors[4].Joint = "j"; s.Hull.Hardpoints[0].Type = HardpointType.Radiator; }, "gimballed-thrusters");
+        Add("joint-on-a-thruster-mount", s => { Joint(s, "j", null, yaw, new[] { -1f }, new[] { 1f }); s.Visual.Anchors[4].Joint = "j"; }, "a fixed thruster may not ride a joint");
+        Add("joint-on-a-radiator-mount", s => { Joint(s, "j", null, yaw, new[] { -1f }, new[] { 1f }); s.Visual.Anchors[4].Role = "radiator-mesh"; s.Visual.Anchors[4].Joint = "j"; s.Hull.Hardpoints[0].Type = HardpointType.Radiator; }, "radiator-mesh anchor thruster.port may not ride a joint");
         Add("joint-on-a-map-icon", s => { Joint(s, "j", null, yaw, new[] { -1f }, new[] { 1f }); s.Visual.Anchors[0].Joint = "j"; }, "may not name a joint");
         Add("anchor-role-unknown", s => s.Visual.Anchors.Add(new ShipAnchor { Id = "x", Role = "engine", ModelNodeId = "x" }), "has unknown role 'engine'");
         Add("anchor-role-null", s => s.Visual.Anchors.Add(new ShipAnchor { Id = "x", Role = null, ModelNodeId = "x" }), "has unknown role ''");
@@ -289,6 +289,23 @@ public sealed class ShipValidationTests
         Add("line-color-long", s => s.Visual.SchematicLines[0].Color = new[] { 1f, 1f, 1f, 1f, 1f }, "must be finite RGBA");
         Add("line-color-nan", s => s.Visual.SchematicLines[0].Color[2] = float.NaN, "must be finite RGBA");
         Add("line-color-infinite", s => s.Visual.SchematicLines[0].Color[3] = float.NegativeInfinity, "must be finite RGBA");
+        // Thruster rows: the fixture's thruster joined by a second one at the hull's other cell, both in row "r".
+        void Row(ShipParts s, float arc, float otherArc, ItemRotation otherRotation = ItemRotation.Normal)
+        {
+            Mount(s).Row = "r";
+            Mount(s).FiringArc = arc;
+            s.Hull.Hardpoints.Add(new HardpointData
+            {
+                Type = HardpointType.Thruster, Position = new int2(0, 0), Shape = new Shape(), Transform = "thruster.starboard",
+                Row = "r", FiringArc = otherArc, Rotation = otherRotation
+            });
+            s.Visual.Anchors.Add(new ShipAnchor { Id = "thruster.starboard", Role = "thruster-emitter", ModelNodeId = "thruster-starboard" });
+        }
+        Add("row-on-weapon", s => { Mount(s).Type = HardpointType.Energy; Mount(s).Row = "r"; }, "only a Thruster hardpoint may state a row");
+        Add("row-rotation-mismatch", s => Row(s, 90, 90, ItemRotation.Reversed), "are in row r and must share Rotation and FiringArc");
+        Add("row-arc-mismatch", s => Row(s, 90, 60), "are in row r and must share Rotation and FiringArc");
+        Add("row-arc-zero", s => Row(s, 0, 0), "thruster row r must state a gimbal FiringArc above 0 and at most 360");
+        Add("row-arc-above-a-turn", s => Row(s, 361, 361), "thruster row r must state a gimbal FiringArc above 0 and at most 360");
         return cases;
     }
 }

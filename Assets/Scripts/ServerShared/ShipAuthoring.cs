@@ -262,6 +262,8 @@ public static class ShipAuthoringStore
                 throw new InvalidOperationException($"{ship.Id}: hardpoint {hardpoint.Transform} has an unknown rotation {(int)hardpoint.Rotation}.");
             if (!float.IsFinite(hardpoint.Armor) || hardpoint.Armor < 0 || !float.IsFinite(hardpoint.FiringArc) || hardpoint.FiringArc < 0)
                 throw new InvalidOperationException($"{ship.Id}: hardpoint {hardpoint.Transform} armor and firing arc must be finite and not negative.");
+            if (!string.IsNullOrEmpty(hardpoint.Row) && hardpoint.Type != HardpointType.Thruster)
+                throw new InvalidOperationException($"{ship.Id}: hardpoint {hardpoint.Transform} is a {hardpoint.Type} hardpoint, and only a Thruster hardpoint may state a row.");
             if (hardpoint.Shape?.Cells == null || !hardpoint.Shape.Cells.Cast<bool>().Any(occupied => occupied))
                 throw new InvalidOperationException($"{ship.Id}: hardpoint {hardpoint.Transform} has no cells.");
             for (var cellX = 0; cellX < hardpoint.Shape.Width; cellX++)
@@ -284,6 +286,16 @@ public static class ShipAuthoringStore
                 throw new InvalidOperationException($"{ship.Id}: {hardpoint.Type} hardpoint {hardpoint.Transform} has no model anchor.");
             if (mountRole != null && mountAnchor.Role != mountRole)
                 throw new InvalidOperationException($"{ship.Id}: {hardpoint.Type} hardpoint {hardpoint.Transform} needs a {mountRole} anchor of that id.");
+        }
+        foreach (var row in mounts.Values.Where(hardpoint => hardpoint.Type == HardpointType.Thruster && !string.IsNullOrEmpty(hardpoint.Row))
+                     .GroupBy(hardpoint => hardpoint.Row, StringComparer.Ordinal))
+        {
+            var lead = row.First();
+            foreach (var hardpoint in row)
+                if (hardpoint.Rotation != lead.Rotation || hardpoint.FiringArc != lead.FiringArc)
+                    throw new InvalidOperationException($"{ship.Id}: thruster hardpoints {lead.Transform} and {hardpoint.Transform} are in row {row.Key} and must share Rotation and FiringArc.");
+            if (!(lead.FiringArc > 0f) || lead.FiringArc > 360f)
+                throw new InvalidOperationException($"{ship.Id}: thruster row {row.Key} must state a gimbal FiringArc above 0 and at most 360.");
         }
         foreach (var anchor in anchors)
         {
@@ -371,12 +383,12 @@ public static class ShipAuthoringStore
 
         foreach (var anchor in anchors.Where(anchor => !string.IsNullOrEmpty(anchor.Joint)))
         {
-            if (anchor.Role == "thruster-emitter" || anchor.Role == "radiator-mesh")
-                throw new InvalidOperationException($"{ship.Id}: {anchor.Role} anchor {anchor.Id} may not ride a joint (follow-up gimballed-thrusters).");
-            if (anchor.Role != "weapon-mount")
-                throw new InvalidOperationException($"{ship.Id}: {anchor.Role} anchor {anchor.Id} may not name a joint; only a weapon mount rides one.");
+            if (anchor.Role == "radiator-mesh")
+                throw new InvalidOperationException($"{ship.Id}: {anchor.Role} anchor {anchor.Id} may not ride a joint.");
+            if (anchor.Role != "weapon-mount" && anchor.Role != "thruster-emitter")
+                throw new InvalidOperationException($"{ship.Id}: {anchor.Role} anchor {anchor.Id} may not name a joint; only a weapon mount or a thruster emitter rides one.");
             if (!byId.ContainsKey(anchor.Joint))
-                throw new InvalidOperationException($"{ship.Id}: weapon mount {anchor.Id} names an unknown joint.");
+                throw new InvalidOperationException($"{ship.Id}: {anchor.Role} anchor {anchor.Id} names an unknown joint.");
         }
 
         var ridden = anchors.Where(anchor => anchor.Role == "weapon-mount" && !string.IsNullOrEmpty(anchor.Joint))
@@ -393,6 +405,30 @@ public static class ShipAuthoringStore
             var reach = YawReach(ship, group.Key);
             if (reach < lead.FiringArc)
                 throw new InvalidOperationException($"{ship.Id}: joint {group.Key} chain reaches {reach} degrees of yaw, short of the {lead.FiringArc} degree firing arc of {lead.Transform}.");
+        }
+
+        // A thruster row is a gimbal: its hardpoints' stated FiringArc is how far the row swings, so a row on a joint rides it
+        // whole and alone, and the joint's chain must be able to sweep that arc. A hardpoint with no Row is a row of one.
+        var thrusters = mounts.Values.Where(hardpoint => hardpoint.Type == HardpointType.Thruster).ToArray();
+        string RowOf(HardpointData hardpoint) => string.IsNullOrEmpty(hardpoint.Row) ? null : hardpoint.Row;
+        var jointOf = anchors.Where(anchor => anchor.Role == "thruster-emitter").ToDictionary(anchor => anchor.Id, anchor => anchor.Joint ?? "", StringComparer.Ordinal);
+        var tilted = thrusters.Where(hardpoint => jointOf.TryGetValue(hardpoint.Transform, out var joint) && joint.Length > 0).ToArray();
+        foreach (var hardpoint in tilted)
+            if (!(hardpoint.FiringArc > 0f))
+                throw new InvalidOperationException($"{ship.Id}: thruster hardpoint {hardpoint.Transform} rides a joint, so it must state its firing arc above 0; a fixed thruster may not ride a joint.");
+        foreach (var onJoint in tilted.GroupBy(hardpoint => jointOf[hardpoint.Transform], StringComparer.Ordinal))
+        {
+            var lead = onJoint.First();
+            foreach (var hardpoint in onJoint)
+                if (RowOf(hardpoint) != RowOf(lead) || RowOf(hardpoint) == null && hardpoint != lead)
+                    throw new InvalidOperationException($"{ship.Id}: joint {onJoint.Key} carries thruster hardpoints {lead.Transform} and {hardpoint.Transform} of different rows; a joint carries one row.");
+            var members = RowOf(lead) == null ? new[] { lead } : thrusters.Where(hardpoint => RowOf(hardpoint) == RowOf(lead)).ToArray();
+            foreach (var member in members)
+                if (!jointOf.TryGetValue(member.Transform, out var memberJoint) || memberJoint != onJoint.Key)
+                    throw new InvalidOperationException($"{ship.Id}: thruster hardpoint {member.Transform} is in the row of {lead.Transform} on joint {onJoint.Key} and must ride it too; a row rides one joint whole.");
+            var reach = YawReach(ship, onJoint.Key);
+            if (reach < lead.FiringArc)
+                throw new InvalidOperationException($"{ship.Id}: joint {onJoint.Key} chain reaches {reach} degrees of yaw, short of the {lead.FiringArc} degree gimbal arc of {lead.Transform}.");
         }
     }
 

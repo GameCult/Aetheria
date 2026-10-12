@@ -25,6 +25,11 @@ public class ThrusterData : BehaviorData
 
     [Inspectable, CultInspectorAssetGuid, JsonProperty("Particles"), Key(5)]
     public string ParticlesPrefab;
+
+    // The gimbal's slew rate in degrees per second: the part's own stat, as a weapon's traverse is
+    // (ruling mount-arc-gun-traverse). The swing limit is the hardpoint's FiringArc, the row its Row.
+    [Inspectable, JsonProperty("slew"), Key(6), RuntimeInspectable]
+    public PerformanceStat Slew = new PerformanceStat();
     
     public override Behavior CreateInstance(EquippedItem item)
     {
