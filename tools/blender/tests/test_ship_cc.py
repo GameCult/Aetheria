@@ -157,8 +157,14 @@ class ReadTests(ShipFileCase):
         # An empty file is not a store (CultLib pins this): the owner's refusal passes through, the add-on adds none.
         empty = str(Path(self.path).with_name("empty.cc"))
         Path(empty).write_bytes(b"")
-        with self.assertRaises(ValueError):
+        with self.assertRaises(ValueError) as owner:
+            cultcache_py.SingleFileMessagePackBackingStore(empty).pull_all()
+        with self.assertRaises(ValueError) as raised:
             ship_cc.read(empty, PACKAGES)
+        # The very refusal cultcache-py makes, not one the add-on spells beside it (its shape refusal is a ValueError too).
+        self.assertIs(type(raised.exception), type(owner.exception))
+        self.assertEqual(str(raised.exception), str(owner.exception))
+        self.assertNotIn("must hold exactly one", str(raised.exception))
 
     def test_refuses_a_ship_record_that_still_carries_the_retired_embedded_hull(self):
         for name, ship in (("nested hull", ["mod.skiff", hull_body()]),
