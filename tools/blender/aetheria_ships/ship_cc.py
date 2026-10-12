@@ -9,10 +9,15 @@ from __future__ import annotations
 
 import sys
 import hashlib
+import tomllib
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, NamedTuple
+
+# The cultcache-py this module's raw envelope writes were tested against. cultcache_py has no __version__ and is loaded
+# from source, so its version is [project].version in the pyproject.toml beside that source.
+TESTED_CULTCACHE_PY = "0.3.0"
 
 SCHEMA = "aetheria.ship_authoring"
 HULL_SCHEMA = "aetheria.hulldata"
@@ -62,7 +67,21 @@ def encode_hardpoint(**fields: Any) -> list[Any]:
     return [fields[name] for name in HARDPOINT_MEMBERS]
 
 
+def _cultcache_py_version(cultlib_packages: str) -> str:
+    pyproject = Path(cultlib_packages) / "cultcache-py" / "pyproject.toml"
+    try:
+        with pyproject.open("rb") as handle:
+            return str(tomllib.load(handle)["project"]["version"])
+    except (OSError, tomllib.TOMLDecodeError, KeyError):
+        raise ValueError(f"cultcache-py's pyproject.toml is missing or unreadable under {cultlib_packages}; this add-on "
+                         f"is tested against cultcache-py {TESTED_CULTCACHE_PY}") from None
+
+
 def _libraries(cultlib_packages: str):
+    found = _cultcache_py_version(cultlib_packages)
+    if found != TESTED_CULTCACHE_PY:
+        raise ValueError(f"cultcache-py {found} under {cultlib_packages} is not the tested {TESTED_CULTCACHE_PY}; the "
+                         f"add-on writes raw envelopes and refuses a CultLib whose write path may have moved")
     source = Path(cultlib_packages) / "cultcache-py" / "src"
     if source.exists() and str(source) not in sys.path:
         sys.path.insert(0, str(source))

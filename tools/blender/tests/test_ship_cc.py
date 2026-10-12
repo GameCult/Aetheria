@@ -568,6 +568,46 @@ class RefusalsNameNoInputTests(ShipFileCase):
                     self.assertNotIn(forbidden, str(caught.exception))
 
 
+class UntestedCultCacheTests(ShipFileCase):
+    """_libraries refuses a CultLib whose cultcache-py is not the version the raw envelope writes were tested against."""
+
+    def packages(self, version=None):
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, root, True)
+        (root / "cultcache-py").mkdir()
+        if version is not None:
+            (root / "cultcache-py" / "pyproject.toml").write_text(
+                f'[project]\nname = "cultcache-py"\nversion = "{version}"\n', encoding="utf-8")
+        return str(root)
+
+    def test_a_different_version_is_refused_naming_the_version_and_the_packages_path(self):
+        stub = self.packages("9.9.9")
+        before = self.bytes()
+        for call in (lambda: ship_cc.read(self.path, stub), lambda: ship_cc.read_layout(self.path, stub)):
+            with self.assertRaises(ValueError) as caught:
+                call()
+            self.assertIn("9.9.9", str(caught.exception))
+            self.assertIn(stub, str(caught.exception))
+        self.assertEqual(before, self.bytes())
+
+    def test_a_save_through_an_untested_cultcache_writes_nothing(self):
+        _, _, revision = ship_cc.read_layout(self.path, PACKAGES)
+        before = self.bytes()
+        with self.assertRaises(ValueError):
+            ship_cc.replace_layout(self.path, self.packages("9.9.9"), "mod.skiff", revision, [2, 2, [True] * 4], [])
+        self.assertEqual(before, self.bytes())
+
+    def test_a_missing_pyproject_is_refused(self):
+        stub = self.packages()
+        with self.assertRaises(ValueError) as caught:
+            ship_cc.read(self.path, stub)
+        self.assertIn(stub, str(caught.exception))
+
+    def test_the_tested_version_is_the_one_the_real_packages_directory_carries(self):
+        self.assertEqual(ship_cc.TESTED_CULTCACHE_PY, ship_cc._cultcache_py_version(PACKAGES))
+        self.assertEqual("mod.skiff", ship_cc.read(self.path, PACKAGES).ship.body[0])
+
+
 class ShipIdTests(unittest.TestCase):
     def test_admits_the_ids_the_c_sharp_rule_admits(self):
         for ship_id in ("probe.a", "a", "0x", "a_b-c", "com10", "com0", "lpt0", "console", "aux2", "a.nul", "x.com1"):
