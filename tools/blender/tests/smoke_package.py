@@ -22,7 +22,9 @@ the .blend is saved there before the final bind, so the bind crosses drives and 
 
 import contextlib
 import io
+import json
 import os
+import struct
 import sys
 import tempfile
 import traceback
@@ -59,6 +61,58 @@ def tagged(collection, name, data, role=None, anchor_id=None, location=(0, 0, 0)
     obj.parent = parent
     collection.objects.link(obj)
     return obj
+
+
+def textured(obj, name, width, height):
+    """Gives the object a material whose base colour is a generated width x height image; returns the image."""
+    image = bpy.data.images.new(name, width, height)
+    image.pixels[0] = 0.5  # a dirty generated image is what the exporter encodes
+    obj.data.uv_layers.new(name="UVMap")
+    material = bpy.data.materials.new(name)
+    material.use_nodes = True
+    tree = material.node_tree
+    texture = tree.nodes.new("ShaderNodeTexImage")
+    texture.image = image
+    tree.links.new(texture.outputs["Color"], tree.nodes["Principled BSDF"].inputs["Base Color"])
+    obj.data.materials.append(material)
+    return image
+
+
+def glb_image_sizes(glb):
+    """The (width, height) of each PNG the GLB embeds, read from the PNG headers in its binary chunk."""
+    data = Path(glb).read_bytes()
+    json_length, _ = struct.unpack_from("<II", data, 12)
+    document = json.loads(data[20:20 + json_length])
+    bin_start = 20 + json_length + 8
+    sizes = []
+    for image in document.get("images", []):
+        view = document["bufferViews"][image["bufferView"]]
+        start = bin_start + view.get("byteOffset", 0)
+        png = data[start:start + view["byteLength"]]
+        if image.get("mimeType") != "image/png" or png[:8] != b"\x89PNG\r\n\x1a\n":
+            raise SystemExit("A GLB image is not a PNG")
+        sizes.append(struct.unpack_from(">II", png, 16))
+    return sorted(sizes)
+
+
+def texture_cap_pass(addon, hull_object, albedo, detail, limit, expected, glb):
+    """Package at the Max texture preference limit; the GLB holds exactly the expected image sizes, and the .blend's own
+    images are untouched and no scaled copy is left in bpy.data.images."""
+    bpy.context.preferences.addons["aetheria_ships"].preferences.max_texture = limit
+    names = sorted(image.name for image in bpy.data.images)
+    result, report = package(addon)
+    if result != {"FINISHED"}:
+        raise SystemExit(f"Texture cap {limit}: Package was refused")
+    if glb_image_sizes(glb) != sorted(expected):
+        raise SystemExit(f"Texture cap {limit}: the GLB images are {glb_image_sizes(glb)}, not {sorted(expected)}")
+    if tuple(albedo.size) != (4096, 1024) or tuple(detail.size) != (256, 256):
+        raise SystemExit(f"Texture cap {limit}: Package changed a .blend image to {tuple(albedo.size)}, {tuple(detail.size)}")
+    nodes = [node.image for slot in hull_object.material_slots for node in slot.material.node_tree.nodes
+             if node.type == "TEX_IMAGE"]
+    if nodes != [albedo, detail]:
+        raise SystemExit(f"Texture cap {limit}: a material node does not hold its original image")
+    if sorted(image.name for image in bpy.data.images) != names:
+        raise SystemExit(f"Texture cap {limit}: a scaled copy is left in bpy.data.images")
 
 
 BIND_KEYS = ("aetheria.asset_kind", "aetheria.id", "aetheria.ship_cc")
@@ -196,6 +250,9 @@ def main():
     ship = bpy.data.collections.new("Smoke Gale")
     scene.collection.children.link(ship)
     hull = tagged(ship, "Hull", tetrahedron("Hull"))
+    albedo = textured(hull, "Hull Albedo", 4096, 1024)
+    detail = textured(hull, "Hull Detail", 256, 256)
+    hull.data.polygons[0].material_index = 1  # the exporter writes only materials some face uses
     tagged(ship, "Map Icon", quad("Map Icon"), "map-icon", "map", (0, 0, -1))
     tagged(ship, "Hull Collider", tetrahedron("Hull Collider"), "hull-collider", "collider")
     tagged(ship, "Shield", None, "shield", "shield")
@@ -224,6 +281,13 @@ def main():
     result, report = package(aetheria_ships)
     if result != {"FINISHED"}:
         raise SystemExit("Pass 1: the validator refused the primitive ship")
+    # The texture cap: the 4096 x 1024 map exports at 2048 x 512 (the longest side at the cap, the aspect kept), the
+    # 256 x 256 one is under the cap and exports as it is, and the preference decides the cap.
+    glb = Path(path).with_name("ship.glb")
+    texture_cap_pass(aetheria_ships, hull, albedo, detail, 2048, [(2048, 512), (256, 256)], glb)
+    texture_cap_pass(aetheria_ships, hull, albedo, detail, 512, [(512, 128), (256, 256)], glb)
+    bpy.context.preferences.addons["aetheria_ships"].preferences.max_texture = 2048
+    print("TEXTURE_CAP_OK")
     # A collection with no Ship Root is packaged exactly as before: the frame step makes and moves nothing.
     if sorted(obj.name for obj in bpy.data.objects) != objects_before or any(
             child.get("aetheria.frame") for child in ship.children):
