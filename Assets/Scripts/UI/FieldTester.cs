@@ -73,7 +73,7 @@ public class FieldTester : MonoBehaviour
             {
                 var damageType = DamageTypeCycle[_nextDamageTypeIndex];
                 _nextDamageTypeIndex = (_nextDamageTypeIndex + 1) % DamageTypeCycle.Length;
-                _capabilityEvents.PublishAbsorb(new AbsorbEvent(hit.point.ToCultMath(), ray.direction.ToCultMath(), TestField.TestMagnitude, damageType));
+                _capabilityEvents.PublishAbsorb(new AbsorbEvent(hit.point.ToCultMath(), ray.direction.ToCultMath(), TestField.TestMagnitude, damageType, AbsorbLayer.Shield));
             };
         }
 

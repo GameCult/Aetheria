@@ -173,6 +173,8 @@ public abstract class Entity
         VisibilitySources.Values.Where(s => s.Channel == channel).Sum(s => s.Strength);
 
     public Subject<Entity> IncomingHit = new Subject<Entity>();
+    // One per entity, created with it, never replaced: FireControl publishes each landed impact on it (Absorb).
+    public readonly CapabilityEvents Capabilities = new CapabilityEvents();
     public Subject<(int2 pos, float damage)> ArmorDamage = new Subject<(int2, float)>();
     public Subject<(EquippedItem item, float damage)> ItemDamage = new Subject<(EquippedItem, float)>();
     // public Subject<EquippedItem> ItemOffline = new Subject<EquippedItem>();
