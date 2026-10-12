@@ -126,10 +126,14 @@ def _load_layout(context, collection, path):
 _EXPECTED = (OSError, ValueError, RuntimeError, ImportError, KeyError)
 
 
+class BakeFailed(RuntimeError):
+    """The one error a bake raises past its rollback. Its message is fixed text; whatever Blender raised is on the console."""
+
+
 def _failure_text(exc):
     """What an operator reports for exc. This module's own ValueError and RuntimeError messages are fixed text that
     names no input; any other error is reported by its type, and its text goes to the system console."""
-    if type(exc) in (ValueError, RuntimeError):
+    if type(exc) in (ValueError, RuntimeError, BakeFailed):
         return str(exc)
     traceback.print_exception(exc)
     return f"Stopped by {type(exc).__name__}; see the system console"
@@ -1159,6 +1163,28 @@ def _target_materials(targets):
     return list({slot.material.name: slot.material for obj in targets for slot in obj.material_slots}.values())
 
 
+def _give_own_materials(sources, targets, undo):
+    """Gives each target slot that holds a material a Source mesh also uses a copy of its own, so the bake rewires nothing
+    Source owns; returns how many materials were copied. undo gets the steps that put the slots back."""
+    owned = {slot.material.name for obj in sources for slot in obj.material_slots if slot.material}
+    copies = {}
+    for obj in targets:
+        for index, slot in enumerate(obj.material_slots):
+            original = slot.material
+            if original is None or original.name not in owned:
+                continue
+            if original.name not in copies:
+                copies[original.name] = original.copy()
+                undo.append(partial(_remove_material, copies[original.name].name))
+            undo.append(partial(_set_slot_material, obj.name, index, original.name))
+            slot.material = copies[original.name]
+    return len(copies)
+
+
+def _set_slot_material(object_name, index, material_name):
+    bpy.data.objects[object_name].material_slots[index].material = bpy.data.materials[material_name]
+
+
 def _hold(owner, name, value, restore):
     """Sets owner.name to value for the bake; restore gets the step that puts the old value back."""
     restore.append(partial(setattr, owner, name, getattr(owner, name)))
@@ -1224,6 +1250,18 @@ def _link_into(material, node, input_name, source, undo):
     undo.append(partial(_restore_link, material.name, node.name, input_name, previous))
 
 
+def _refuse_taken_names(ship_id, targets):
+    """The ship's pair is {ship_id}.albedo and {ship_id}.normal and there is one pair: an image already holding a name must
+    be one this bake replaces and frees, or the new image would take a numbered name beside it."""
+    materials = _target_materials(targets)
+    for kind, _, _ in BAKE_MAPS:
+        image = bpy.data.images.get(f"{ship_id}.{kind}")
+        wired = [node for node in (_wired_image(material, kind) for material in materials) if node is not None and node.image == image]
+        if image is not None and (image.use_fake_user or image.users != len(wired)):
+            raise ValueError("The ship's baked image names are held by images this bake does not replace; select every "
+                             "mesh that uses them, or rename the other images")
+
+
 def _bake_map(context, sources, targets, settings, extrusion, max_distance, nodes):
     """Bakes one map from the Source meshes onto every target, the first target clearing the image and the later ones
     adding to it. nodes maps a material's name to the Image Texture node that holds this map's image. This is the add-on's
@@ -1240,7 +1278,7 @@ def _bake_map(context, sources, targets, settings, extrusion, max_distance, node
                 **settings)
         except RuntimeError:  # Blender's text names objects and images
             traceback.print_exc()
-            raise RuntimeError("The bake failed; its message is in the system console") from None
+            raise BakeFailed("The bake failed; its message is in the system console") from None
 
 
 def _bake_from_source(context, collection, replace):
@@ -1251,6 +1289,7 @@ def _bake_from_source(context, collection, replace):
     ship_id, sources, targets = _bake_inputs(context, collection)
     if not replace and any(_wired_image(material, kind) for material in _target_materials(targets) for kind, _, _ in BAKE_MAPS):
         raise ValueError("Selected meshes already have baked images; confirm the replace")
+    _refuse_taken_names(ship_id, targets)
     addon = context.preferences.addons[__package__].preferences
     scene, layer = context.scene, context.view_layer
     previous_selection = [obj for obj in layer.objects if obj.select_get()]
@@ -1262,6 +1301,9 @@ def _bake_from_source(context, collection, replace):
         _hold(scene.render, "engine", "CYCLES", restore)
         _hold(scene.cycles, "samples", BAKE_SAMPLES, restore)
         _hold(scene.cycles, "device", "CPU", restore)
+        copied = _give_own_materials(sources, targets, undo)
+        for obj in targets:  # her unwrap is UV0, whichever layer is active
+            _hold(obj.data.uv_layers, "active_index", 0, restore)
         _isolate_sources(sources, restore)
         images = {}
         for kind, space, _ in BAKE_MAPS:
@@ -1308,9 +1350,12 @@ def _bake_from_source(context, collection, replace):
                     undo.append(partial(_remove_node, material.name, normal.name))
                     material.node_tree.links.new(node.outputs["Color"], normal.inputs["Color"])
                     _link_into(material, bsdf, "Normal", normal.outputs["Normal"], undo)
-    except BaseException:
+    except BaseException as exc:
         for step in reversed(undo):
             step()
+        if isinstance(exc, Exception) and not isinstance(exc, BakeFailed):  # Blender's text names objects and images
+            traceback.print_exception(exc)
+            raise BakeFailed("The bake failed; its message is in the system console") from None
         raise
     finally:
         for step in reversed(restore):
@@ -1320,6 +1365,7 @@ def _bake_from_source(context, collection, replace):
             bpy.data.images.remove(image)
     for kind, image in images.items():
         image.name = f"{ship_id}.{kind}"
+    return copied
 
 
 class AETHERIA_OT_bake_from_source(bpy.types.Operator):
@@ -1346,8 +1392,9 @@ class AETHERIA_OT_bake_from_source(bpy.types.Operator):
 
     def execute(self, context):
         try:
-            _bake_from_source(context, _ship_collection(context), self.replace)
-            self.report({"INFO"}, "Baked the albedo and normal maps from Source")
+            copied = _bake_from_source(context, _ship_collection(context), self.replace)
+            self.report({"INFO"}, "Baked the albedo and normal maps from Source" + (
+                f"; {copied} materials shared with Source were copied for the render meshes" if copied else ""))
             return {"FINISHED"}
         except _EXPECTED as exc:
             return _refuse(self, exc)
