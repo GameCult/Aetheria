@@ -134,7 +134,7 @@ def texture_boundary_cases(addon, hull_object, glb):
     original_materials = list(hull_object.data.materials)
     folder = Path(tempfile.mkdtemp(prefix="aetheria-smoke-cap-"))
     cases = [("generated", 256, 128), ("generated", 257, 125), ("generated", 257, 128), ("generated", 256, 256),
-             ("generated", 255, 255), ("generated", 375, 376), ("generated", 125, 513), ("generated", 1000, 4097),
+             ("generated", 255, 255), ("generated", 375, 376), ("generated", 125, 513), ("generated", 200, 513), ("generated", 1000, 4097),
              ("file", 513, 400), ("file", 256, 257), ("packed", 513, 400), ("packed", 258, 70), ("group", 513, 400),
              ("group", 125, 513)]
     try:
