@@ -8743,3 +8743,115 @@ Applied in place to the "The missile's stats" paragraph of this map (commit of 2
   `MissileVelocity`; `GuidanceCurve`/`ThrustCurve` stay for missile-presenter. Self may
   resolve it `Fixed` only when both have landed (not admitted here).
 
+
+# Refresh 2026-10-12: feedback and loot (for docs/aetheria-release-map.md)
+
+Probed by Imagination (agent imagination-aeth-refresh-feedback-loot, session self-2026-10-11-ag2) on a detached
+worktree of Aetheria origin/master b6262467, 2026-10-12. Every anchor below is file:line at b6262467.
+
+## Body facts
+
+RF1. The sim already publishes where a direct round lands. `ShotOutcome` (FireControl.cs:2210-2237) carries
+`Target`, `Result`, `Cell` (the impact cell, set in Commit at FireControl.cs:954-971 for every hit, shielded
+or not), `Shielded`, `ShieldBroken`, `BurstPoint`/`HasBurstPoint`, and `DamageType`. It carries no damage
+magnitude. `Zone.ShotResolved` republishes it at arrival (FireControl.cs:874), after `Apply`.
+
+RF2. `DrawAhead` (ServerShared/DrawAhead.cs:13-100) is the pure presentation static set, never called by
+ServerShared. `DrawAhead.Impact(target, cell, lead)` (:62-68) is "the impact cell's centre on the target's drawn
+pose" (ruling projectile-flight-is-presentation, direct-arrival-keep-timing). `Projectile.Resolve`
+(Gameplay/Weapons/Projectile.cs:63-71) draws the round there and spawns the weapon's own `HitEffect` at that
+point; `GuidedProjectile`, `HitscanEffect` and `MineInstance.Blast` (MineInstance.cs:62-67) each spawn their own
+weapon-side hit effect. So the round's end is already drawn. What no presenter shows today: a shield reaction to
+a weapon hit (ShieldManager.ShowHit has one caller, the Unity collision at ShieldManager.cs:75), anything on an
+entity a blast touches other than the blast flash at its centre, intensity relative to the receiver, and any
+camera response.
+
+RF3. No absorb publisher exists in the game. `PublishAbsorb(` has two sites: the definition
+(CapabilityEvents.cs:120) and the FieldShieldTest scene (UI/FieldTester.cs:76). `Entity` has no
+`CapabilityEvents`. Ships bind no `CapabilityPresentationBinder` (EntityInstance.SetEntity :159-170).
+`ShieldInterceptor` (the panel presenter) is used only in Scenes/FieldShieldTest.unity (GUID
+fdca6a832d764b6e89fc83fdcf7b42d7 appears in no ship prefab). Ships' shield visual is ShieldManager.ShowHit.
+
+RF4. Damage sites. Direct: `Apply` (FireControl.cs:1123-1146) routes to `ApplyDirectHit` (:1156-1210: shield
+break at :1162, shielded TakeHit and return at :1164-1168, IncomingHit :1174, `DamageHull` :1209) or
+`ApplyBlastHit` (:1216-1258, which only locates the point and calls `Detonate` at :1257). Every blast, including
+proximity and no-target bursts (:1128-1132) and mines (Zone.cs:299, StepMines), goes through
+`FireControl.Detonate` (:1552-1625): per touched entity, `totalShare`, shield `CanTakeHit`/`TakeHit`/`continue`
+at :1588-1598 (Break otherwise), `DamageHull(hullTotal)` at :1623. Five publish points therefore cover every
+landed impact: shielded direct, hull direct, shielded blast share, hull blast share. A missile is a shot with a
+fuse, so it is covered.
+
+RF5. Unity/Cinemachine body: com.unity.cinemachine 2.10.7 (Packages/manifest.json:8);
+`ActionGameManager.FollowCamera` is a `CinemachineVirtualCamera` (ActionGameManager.cs:136). No `Impulse` in
+Assets/Scripts. The player's ship is `ActionGameManager.Instance.CurrentEntity` (:36, :227).
+`PlayerGraphicsSettings` holds keys 0-1 (PlayerSettings.cs:63-67). `MainMenu.ShowGraphicsSettings`
+(MainMenu.cs:287-308) has no `SavePlayerSettings()` on Back, unlike gameplay settings (:278-283).
+`PropertiesPanel.AddField(string, Func<float>, Action<float>, float min, float max)` exists
+(UI/Properties Panel/PropertiesPanel.cs:290).
+
+RF6. Floating bodies landed (38c47d80): `FloatingBodyId`, `KinematicBody.Step` (FloatingBodies.cs:12-42),
+`Zone.NextBodyId()` (Zone.cs:93-94), and `GameplaySettings.FloatingBodyDrag/LaunchDrag/Gravity`
+(Settings.cs:176-180) as C# defaults only: that commit edited no Settings.asset. `SimulationDice.For` and
+`LootStream = 1` exist (SimulationDice.cs:11, :30). `FloatingBodyTests.DriftMatchesLegacyFloatingItemsAtSixtyFps`
+already pins the drift against GridObject.
+
+RF7. Zone's two free-body collections set the precedent loot follows: `ReactiveCollection<Mine> Mines` and
+`ReactiveCollection<VapourCloud> Clouds` (Zone.cs:22, :26), each a record class with an `Id`/`Body`
+(Mines.cs), one adder (`Lay` :242-246, `Vent` :248-253), one stepper in `Update` after the entity loop and
+before `FireControl.Step` (`StepMines` :233/:285-300, `StepClouds` :234/:271-279). ZoneRenderer lowers mines by
+`ObserveAdd`/`ObserveRemove` into a `Dictionary<Mine, MineInstance>` (ZoneRenderer.cs:97, :227-235, :259-264,
+cleared at :289-291); `MineInstance` places itself at the latest sim body each frame and spins for show
+(MineInstance.cs:31-60). Zone's death subscription is one line (Zone.cs:111).
+
+RF8. Unity loot today: EntityInstance's HullDamage handler rolls `Random.value` and `Random.onUnitSphere` and
+calls `ZoneRenderer.DropItem` (EntityInstance.cs:296-316; destroy effect :317-321 stays). `ZoneRenderer`:
+pickup fields typed `GridObject` (:43-46), `_loot` (:96), ClearZone loop (:293-295), view-origin loop in Update
+(:466-472), `DestroyLoot` and `DropItem` (:585-618, with the item-kind switch :592-599 and label tint
+:605-615). `ShieldManager.OnCollisionEnter` stores a pickup on contact (:35-63). `TractorBeam` pulls
+GridObjects by SphereCastAll (:20-27). `GridObject` (51 lines) integrates drift on Time.deltaTime. Its GUID
+737f47c158214f0995ba2835f040ed96 is on the five pickup prefabs (Assets/Prefabs/RPG/Pickups, text YAML, not
+LFS), each with RotationSpeed 1, GridOffset 0, a kinematic Rigidbody, a sphere collider, layer 21.
+ARPG.unity:16220-16224 references the GridObject components by fileID, so retyping the fields needs the editor
+re-assignment. `GameSettings.PickupLifetime/LootDropProbability/LootDropVelocity` (GameSettings.cs:14-16) are
+read only there. `FireControlCut8Tests.LootStillDropsOnDeath_EquipmentSurvivesDeactivate` (:302-341) mirrors
+the Unity handler.
+
+RF9. In-flight overlap with the visibility chain (origin/eureka/aetheria-release-contact-reveals against
+b6262467): Entity.cs hunks from :189 on (none at the subjects :175-186); FireControl.cs one line at :171 (fire
+control's subsystem ranking, not the damage path); Zone.cs inserts after :111 (an ObserveRemove departure
+record) and after the entity loop at :231 (`Sense`); EntityInstance.cs:293 (`IsDestroyed`). feedback-1 stays at
+Entity.cs:175 and FireControl.cs :1156-1210 and :1588-1623; loot-1 edits Zone.cs:111 (adjacent to the
+contact-reveals insert: whichever lands second resolves a two-line textual conflict) and inserts after :234.
+
+## Rationale
+
+Why feedback-1 still publishes an absorb from FireControl, now that ShotResolved carries the cell (RF1, RF2):
+ShotResolved is per shot, carries no magnitude, and says nothing about blasts, whose per-entity share and shield
+decision exist only inside Detonate. One per-entity absorb at the damage sites covers direct hits, blasts,
+missiles and mines with one stream, which faction-play-2 also reads (its first line requires the publish sites
+to stay in ApplyDirectHit and Detonate). The commit record stays unchanged.
+
+Why the hull absorb's Position is the impact cell, not r1's centre-lane entry point: ruling
+direct-arrival-keep-timing draws a hit at its impact cell on the target's drawn pose, and the weapon's own hit
+effect is already drawn there (RF2). Using the same cell keeps the receiver's reaction and the weapon's flash on
+one point, and removes r1's EntryPoint helper and its deletion. A shielded direct hit also has a Cell (RF1), the
+first cell on the shooter's side, so both layers use one point formula.
+
+Why `DrawAhead.Carried`: a presenter receives a world point at the sim pose and must draw it on the drawn pose.
+`Impact` already does exactly that for a cell; generalising its body to a point and making `Impact` call it is
+one owner, not two.
+
+Why the split (feedback-1 and feedback-present; loot-1 and loot-1-present): each r1/r2 scope estimated at 85-95
+Hands calls once the Starfire compile and editor wiring are counted, above the 75-call ceiling. The split is
+along the sim/presentation seam: feedback-1 and loot-1 are headless-provable on Yggdrasil and need only a Unity
+compile; the presentation halves carry the editor wiring and the operator checks. The loot halves stay on the
+one loot branch, because loot-1-present deletes the Unity pickup path that loot-2 and loot-3 replace.
+
+Why no Settings.asset edit for loot: floating-bodies added its three settings as C# defaults with no asset
+change (RF6); loot's three follow that precedent.
+
+Why the receiver-side hull effect stays although the weapon draws its own hit effect: the weapon's effect is
+the weapon's look (content bar: every weapon distinct in look and sound); the receiver's reaction, scaled by
+the hit's share of that hull's durability, is the "mechanics visible and visceral" half of
+operator-release-direction. They meet on one point; the reaction is tuned in ImpactFeedback, and an
+operator check asks whether the two read as one hit.
