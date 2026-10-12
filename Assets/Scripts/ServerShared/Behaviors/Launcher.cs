@@ -18,14 +18,7 @@ public class LauncherData : LockWeaponData
     [InspectableAnimationCurve, JsonProperty("liftCurve"), Key(28)]  
     public float4[] LiftCurve;
 
-    [Inspectable, JsonProperty("thrust"), Key(29)]  
-    public PerformanceStat Thrust = new PerformanceStat();
-
-    [Inspectable, JsonProperty("frequency"), Key(30)]
-    public float DodgeFrequency;
-
-    [Inspectable, JsonProperty("missileSpeed"), Key(31), RuntimeInspectable]
-    public PerformanceStat MissileVelocity = new PerformanceStat();
+    // Keys 29-31 were Thrust, DodgeFrequency and MissileVelocity, retired for the munition parts (MunitionParts.cs); do not reuse.
 
     public override Behavior CreateInstance(EquippedItem item)
     {
@@ -45,14 +38,7 @@ public class GuidedWeaponData : InstantWeaponData
     [InspectableAnimationCurve, JsonProperty("liftCurve"), Key(23)]  
     public float4[] LiftCurve;
 
-    [Inspectable, JsonProperty("thrust"), Key(24)]  
-    public PerformanceStat Thrust = new PerformanceStat();
-
-    [Inspectable, JsonProperty("frequency"), Key(25)]
-    public float DodgeFrequency;
-
-    [Inspectable, JsonProperty("missileSpeed"), Key(26), RuntimeInspectable]
-    public PerformanceStat MissileVelocity = new PerformanceStat();
+    // Keys 24-26 were Thrust, DodgeFrequency and MissileVelocity, retired for the munition parts (MunitionParts.cs); do not reuse.
 
     public override Behavior CreateInstance(EquippedItem item)
     {
