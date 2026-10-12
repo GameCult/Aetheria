@@ -67,6 +67,9 @@ Cuts without a `cut_spec`, withdrawn 2026-10-12 under map-only-what-runs: a spec
 - forge-seed: Seed GameCult/Aetheria on the Eureka forge: every branch, tag and LFS object, nothing repointed. Waits on: nothing in the mind (forge move not started this session).
 - forge-switch: Switch Aetheria's primary host to the forge: freeze, final re-sync, .lfsconfig, push mirror created. Waits on: forge-seed (blocked on forge-seed).
 - forge-verify: Verify the move: GitHub mirror receives pushes, fresh clones resolve LFS only via the forge. Waits on: forge-switch (blocked on forge-switch).
+- mining-index-tree: last mapped as cut-mining-index-tree.r1 (withdrawn). Waits on: a refresh against the visibility chain (Entity.cs detection path churned); carries follow-up mining-index-tree-findings.
+- mining-belt-cells: last mapped as cut-mining-belt-cells.r1 (withdrawn). Waits on: mining-index-tree; carries follow-up mining-belt-cells-findings (seven test gaps).
+- sim-speed-scale: last mapped as cut-sim-speed-scale.r2 (withdrawn). Waits on: sim-contact, loot-3, missile-presenter; carries follow-up sim-speed-scale-findings.
 
 ## Body facts
 
