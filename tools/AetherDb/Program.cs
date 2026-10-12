@@ -43,6 +43,7 @@ public static class Program
             case "pd-gear": return PdGearCatalog(args.Contains("apply"));
             case "mine-launcher": return MineLauncherCatalog(args.Contains("apply"));
             case "smoke-hull": return SmokeHullCatalog(args.Contains("apply"));
+            case "smoke-rounds": return SmokeRoundsCatalog(args.Contains("apply"));
             case "roles-backfill": return RolesBackfill(args.Contains("apply"));
             case "consumables-first-set": return ConsumablesFirstSetCatalog(args.Contains("apply"));
             case "pirates-faction":
@@ -50,7 +51,7 @@ public static class Program
                 return PiratesFaction(args.Contains("apply"));
             case "verse-grammar": return VerseGrammarCommand.Run(args.Contains("apply"));
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], smoke-hull [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], pirates-faction [apply], verse-grammar [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], smoke-hull [apply], smoke-rounds [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], pirates-faction [apply], verse-grammar [apply]");
                 return 1;
         }
     }
@@ -1675,6 +1676,94 @@ public static class Program
         CultRecordRefs.Validate(hull);
         db.Cache.Commit(batch => batch.Upsert(typeof(HullData), hull));
         Console.WriteLine($"\nAuthored \"{name}\" in Aetheria.cc");
+        return 0;
+    }
+
+    // aetheria-release cut scenarios-smoke-rounds (docs/scenarios-cut.md 5.3): the five smoke weapons the Fused Rounds, Refused
+    // Rounds and AI Fused Discipline arenas fit. None has a product, so no generated ship, station or shop offers one and only a
+    // scenario fits them. Smoke Proximity, Smoke Delayed and Smoke Refused are Spectra clones (energy, 1x2) with the operator's
+    // fuse values; Smoke Refused Beam is a constant weapon and Smoke Refused Charge a charged one cloned from ChargeBlast SG,
+    // each fused with a Range below its BlastRadius, so every refused weapon kind has a design. The rounds that fly are slow
+    // (Velocity 150) so a scenario can kill the target while one is in the air. Dry run unless passed "apply".
+    public static int SmokeRoundsCatalog(bool apply, string root = null)
+    {
+        var db = AetherDb.Open(catalogWritable: apply, root: root);
+        var weapons = db.Cache.GetAll<WeaponItemData>().ToArray();
+        var names = new[] { "Smoke Proximity", "Smoke Delayed", "Smoke Refused", "Smoke Refused Beam", "Smoke Refused Charge" };
+        var already = names.Count(name => weapons.Any(w => w.Name == name));
+        if (already == names.Length)
+        {
+            Console.WriteLine("The smoke rounds are already authored; nothing to do.");
+            return 0;
+        }
+        if (already != 0) throw new InvalidOperationException("The smoke rounds are partly authored; the catalog needs a human.");
+
+        WeaponItemData Template(string name) =>
+            weapons.FirstOrDefault(w => w.Name == name) ?? throw new InvalidOperationException($"No weapon design named \"{name}\".");
+        var options = CultDocumentMessagePackSerialization.OptionsFor(typeof(WeaponItemData).Assembly);
+        WeaponItemData Copy(string template, string name, string description, WeaponFuse fuse, float blast)
+        {
+            var source = Template(template);
+            var design = MessagePackSerializer.Deserialize<WeaponItemData>(MessagePackSerializer.Serialize(source, options), options);
+            design.Name = name;
+            design.Description = description;
+            design.Fuse = fuse;
+            design.BlastRadius = blast;
+            return design;
+        }
+        static PerformanceStat Fixed(float value) => new PerformanceStat { Min = value, Max = value, Terms = new List<StatTerm>() };
+
+        var proximity = Copy("Spectra", names[0], "A Spectra that bursts by proximity, blast 8. For scenarios; no one builds it.", WeaponFuse.Proximity, 8f);
+        var delayed = Copy("Spectra", names[1], "A Spectra that bursts after two cells of metal, blast 4. For scenarios; no one builds it.", WeaponFuse.Delayed, 4f);
+        var refused = Copy("Spectra", names[2], "A Spectra whose blast is wider than its reach, so it never fires. For scenarios; no one builds it.", WeaponFuse.Proximity, 30f);
+        var charge = Copy("ChargeBlast SG", names[4], "A ChargeBlast SG whose blast is wider than its reach, so it never charges. For scenarios; no one builds it.", WeaponFuse.Proximity, 30f);
+        var beam = Copy("Spectra", names[3], "A constant beam whose blast is wider than its reach, so it never starts. For scenarios; no one builds it.", WeaponFuse.Proximity, 30f);
+
+        // The Smoke Test Hull carries one 2x2 reactor. A Spectra's 20-40 energy a shot at its cadence is more than that reactor makes,
+        // so two of them overload it, it overheats and shuts down within a second, and nothing aboard fires again (Fused Rounds,
+        // stepped, before this). The two rounds a scenario must fly draw like an Autocannon instead.
+        foreach (var design in new[] { proximity, delayed })
+        {
+            var data = design.Behaviors.OfType<InstantWeaponData>().Single();
+            data.Velocity = Fixed(150f);
+            data.Energy = Fixed(4f);
+        }
+        delayed.Behaviors.OfType<InstantWeaponData>().Single().Penetration = Fixed(2f);
+        refused.Behaviors.OfType<InstantWeaponData>().Single().Range = Fixed(20f);
+        charge.Behaviors.OfType<ChargedWeaponData>().Single().Range = Fixed(20f);
+
+        // The beam keeps the Spectra's gear (shape, hardpoint, thermal envelope, roles) and swaps its behaviour for a constant one.
+        var instant = beam.Behaviors.OfType<InstantWeaponData>().Single();
+        var constant = new ConstantWeaponData
+        {
+            DamageType = instant.DamageType, Damage = instant.Damage, Penetration = instant.Penetration, DamageSpread = instant.DamageSpread,
+            MinRange = instant.MinRange, Range = Fixed(20f), DamageCurve = instant.DamageCurve, EffectPrefab = instant.EffectPrefab,
+            Energy = instant.Energy, Heat = instant.Heat, Visibility = instant.Visibility, AmmoType = instant.AmmoType,
+            MagazineSize = instant.MagazineSize, ReloadTime = instant.ReloadTime, Spread = instant.Spread, Velocity = instant.Velocity,
+            Tracking = instant.Tracking
+        };
+        beam.Behaviors.Remove(instant);
+        beam.Behaviors.Add(constant);
+
+        var designs = new[] { proximity, delayed, refused, beam, charge };
+        Console.WriteLine("Adds 5 weapon designs, no products:");
+        foreach (var design in designs)
+        {
+            var data = design.Behaviors.OfType<WeaponData>().Single();
+            Console.WriteLine($"  {design.Name,-20} {design.Hardpoint,-8} {design.Shape.Width}x{design.Shape.Height} {data.GetType().Name,-18} fuse {design.Fuse} blast {design.BlastRadius} range {data.Range.Min}-{data.Range.Max} velocity {data.Velocity.Min}");
+        }
+        if (!apply)
+        {
+            Console.WriteLine("\nDry run. Pass \"apply\" to author them.");
+            return 0;
+        }
+
+        foreach (var design in designs) CultRecordRefs.Validate(design);
+        db.Cache.Commit(batch =>
+        {
+            foreach (var design in designs) batch.Upsert(typeof(WeaponItemData), design);
+        });
+        Console.WriteLine($"\nAuthored {designs.Length} designs in Aetheria.cc");
         return 0;
     }
 

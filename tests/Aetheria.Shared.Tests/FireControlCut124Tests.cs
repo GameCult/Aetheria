@@ -2580,7 +2580,7 @@ public sealed partial class FireControlCut124Tests : IDisposable
         return cache;
     }
 
-    // Every WeaponItemData in the shipped catalog has a null BlastRadius and a null Fuse, and the weapon
+    // Every WeaponItemData a product sells in the shipped catalog has a null BlastRadius and a null Fuse, and the weapon
     // schema's own migration report is Exact. (Until the scenarios product-gap pass rewrote the catalog on
     // 2026-09-30 it was CompatibleDrift with only slot 32 defaulted: the file predated BlastRadius and Fuse.)
     [Fact]
@@ -2593,7 +2593,9 @@ public sealed partial class FireControlCut124Tests : IDisposable
             var weapons = cache.GetAll<WeaponItemData>().ToList();
             Assert.NotEmpty(weapons);
             // A mine layer is the one shipped weapon that carries a blast: its radius is the mine's (MineLauncherCatalogTests).
-            foreach (var w in weapons.Where(w => !w.Behaviors.OfType<MineLayerData>().Any()))
+            // The product-less smoke weapons are the fused designs scenarios fit; only what a product sells is neutral.
+            var sold = cache.GetAll<FactionProductData>().Select(product => product.Design.Key).ToHashSet();
+            foreach (var w in weapons.Where(w => !w.Behaviors.OfType<MineLayerData>().Any() && sold.Contains(cache.RefOf(w).Key)))
             {
                 Assert.Null(w.BlastRadius);
                 Assert.Null(w.Fuse);
