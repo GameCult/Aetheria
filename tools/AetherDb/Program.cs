@@ -49,8 +49,9 @@ public static class Program
                 Console.OutputEncoding = new System.Text.UTF8Encoding(false);
                 return PiratesFaction(args.Contains("apply"));
             case "verse-grammar": return VerseGrammarCommand.Run(args.Contains("apply"));
+            case "munition-parts-migrate": return MunitionPartsMigrate(args.Contains("apply"));
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], smoke-hull [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], pirates-faction [apply], verse-grammar [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], smoke-hull [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], pirates-faction [apply], verse-grammar [apply], munition-parts-migrate [apply]");
                 return 1;
         }
     }
@@ -168,8 +169,17 @@ public static class Program
         ["MinRange"] = "guidance system",
         ["Cooldown"] = "guidance system", ["Spread"] = "guidance system", ["Visibility"] = "guidance system",
         ["Energy"] = "guidance system", ["Heat"] = "guidance system",
-        ["Thrust"] = "thruster", ["MissileVelocity"] = "thruster", ["Velocity"] = "thruster",
+        ["Velocity"] = "thruster",
+        // The munition thruster part's own stats. A part's fields are keyed by type and field (RoleKey), because Range
+        // and Visibility also name the seeker's and plume's flat stats, which this map must not range.
+        ["MunitionThrusterData.Acceleration"] = "thruster", ["MunitionThrusterData.Lateral"] = "thruster",
+        ["MunitionThrusterData.MaxSpeed"] = "thruster",
     };
+
+    // How a role map names a behaviour's stat: a munition part's fields by type and field (several parts share a field name
+    // with the launcher's own stats), every other behaviour's by field.
+    private static string RoleKey(BehaviorData behavior, string field) =>
+        behavior is MunitionPartData ? $"{behavior.GetType().Name}.{field}" : field;
 
     // Warhead and dispenser: a mine layer is a launcher without guidance or thrust, so its stats split between the
     // charge it lays and the mechanism that lays it. ArmingDelay, FuseDelay and Lifetime are timings, not stats.
@@ -308,7 +318,7 @@ public static class Program
                     if (stat.Min == stat.Max) continue; // flat: no observable role-vs-workmanship difference
                     var qualityTerm = stat.Terms.FirstOrDefault(t => t.Source == StatSource.Quality);
                     if (qualityTerm == null || !string.IsNullOrEmpty(qualityTerm.Role)) continue;
-                    if (!map.TryGetValue(field.Name, out var role)) continue;
+                    if (!map.TryGetValue(RoleKey(behavior, field.Name), out var role)) continue;
                     qualityTerm.Role = role;
                     rolesUsed.Add(role);
                     assigned.Add((behavior.GetType().Name, field.Name, role));
@@ -1844,7 +1854,7 @@ public static class Program
                 {
                     var stat = field.GetValue(behavior) as PerformanceStat;
                     if (stat == null) continue;
-                    if (!map.TryGetValue(field.Name, out var role)) continue;
+                    if (!map.TryGetValue(RoleKey(behavior, field.Name), out var role)) continue;
                     stat.Terms ??= new List<StatTerm>();
                     var quality = stat.Terms.FirstOrDefault(t => t.Source == StatSource.Quality);
                     var value = stat.Min;
@@ -2146,6 +2156,67 @@ public static class Program
             }
         });
         Console.WriteLine($"\nAuthored 2 designs and {products.Length} products in Aetheria.cc");
+        return 0;
+    }
+
+    // Aetheria release, cut missile-stats (ruling missile-stats-now-gear-later): a launcher design's flight stats move off
+    // LauncherData and GuidedWeaponData onto five munition part behaviours at the launcher's Group. One-shot: it reads the three
+    // fields the same commit's second half deletes, and goes with them. Copied with their terms and role: Acceleration from
+    // Thrust, MaxSpeed from MissileVelocity, Lateral from Thrust at half Min and Max; EvasionFrequency is DodgeFrequency, flat.
+    // Everything else is authored flat from the design (Sensitivity and Visibility are placeholders the records cut calibrates).
+    // Dry run unless passed "apply"; a design that already carries its parts is left alone.
+    private static int MunitionPartsMigrate(bool apply)
+    {
+        // Opened without AetherDb.Open's validation: the catalog this command repairs fails ValidateMunitionParts until it runs.
+        var cache = new CultCache();
+        cache.AddBackingStore(new SingleFileMessagePackBackingStore(Path.Combine(AetherDb.FindRoot(), "GameData", "Aetheria.cc"), !apply), AetheriaStores.CatalogTypes);
+        PerformanceStat Copy(PerformanceStat stat, float scale = 1f) => new PerformanceStat
+        {
+            Min = stat.Min * scale, Max = stat.Max * scale,
+            Terms = (stat.Terms ?? new List<StatTerm>()).Select(t => new StatTerm { Source = t.Source, Exponent = t.Exponent, Role = t.Role }).ToList(),
+        };
+        PerformanceStat Flat(float value) => new PerformanceStat { Min = value, Max = value, Terms = new List<StatTerm>() };
+
+        var changed = new List<(EquippableItemData Document, CultRecordKey Key)>();
+        Console.WriteLine($"{"design",-22} {"data",-17} {"Thrust",-12} {"MissileVelocity",-12} {"Dodge",6} {"Range",-12}  parts");
+        foreach (var design in cache.GetAll<EquippableItemData>().OrderBy(d => d.Name, StringComparer.Ordinal))
+        {
+            var launcher = (design.Behaviors ?? new List<BehaviorData>()).FirstOrDefault(b => b is LauncherData || b is GuidedWeaponData);
+            if (launcher == null) continue;
+            var (thrust, speed, dodge) = launcher is LauncherData l
+                ? (l.Thrust, l.MissileVelocity, l.DodgeFrequency)
+                : (((GuidedWeaponData) launcher).Thrust, ((GuidedWeaponData) launcher).MissileVelocity, ((GuidedWeaponData) launcher).DodgeFrequency);
+            var range = ((WeaponData) launcher).Range;
+            Console.WriteLine($"{design.Name,-22} {launcher.GetType().Name,-17} {thrust.Min,5:0.##}-{thrust.Max,-6:0.##} {speed.Min,5:0.##}-{speed.Max,-6:0.##} {dodge,6:0.##} {range.Min,5:0.##}-{range.Max,-6:0.##} " +
+                string.Join(",", design.Behaviors.Where(b => b is MunitionPartData).Select(b => b.GetType().Name)));
+            if (design.Behaviors.Any(b => b is MunitionPartData)) continue;
+
+            var maxSpeed = Copy(speed);
+            var cognition = design.Name == "LRMM72" || design.Name == "SRMM72" ? 0.25f : 0.5f;
+            var group = launcher.Group;
+            design.Behaviors.Add(new MunitionHullData { Group = group, Durability = Flat(20f), Radius = Flat(4f) });
+            design.Behaviors.Add(new MunitionThrusterData { Group = group, Acceleration = Copy(thrust), Lateral = Copy(thrust, 0.5f), MaxSpeed = maxSpeed, Visibility = Flat(10f) });
+            design.Behaviors.Add(new MunitionSeekerData { Group = group, Sensitivity = Flat(0.75f), BeamWidth = Flat(60f), Range = Flat(0.3f * range.Max) });
+            design.Behaviors.Add(new MunitionControlData
+            {
+                Group = group, Navigation = Flat(3f), Evasion = Flat(0.5f), EvasionFrequency = Flat(dodge),
+                Lifetime = Flat(1.5f * range.Max / maxSpeed.Max), Cognition = Flat(cognition),
+            });
+            design.Behaviors.Add(new MunitionFuelData { Group = group, DeltaV = Flat(2f * maxSpeed.Max) });
+            changed.Add((design, cache.RefOf(design).Key));
+        }
+        Console.WriteLine($"\n{changed.Count} design(s) to migrate.");
+        if (!apply)
+        {
+            Console.WriteLine("Dry run. Pass \"apply\" to land them.");
+            return 0;
+        }
+        foreach (var (document, _) in changed) CultRecordRefs.Validate(document);
+        cache.Commit(batch =>
+        {
+            foreach (var (document, key) in changed) batch.Upsert(document is WeaponItemData ? typeof(WeaponItemData) : typeof(GearData), document, key);
+        });
+        Console.WriteLine($"Landed {changed.Count} design(s) in Aetheria.cc");
         return 0;
     }
 }

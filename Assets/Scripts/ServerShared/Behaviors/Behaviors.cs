@@ -184,6 +184,11 @@ public interface IPowerConsumer
  Union(40, typeof(MineLayerData)),
  Union(41, typeof(ThrottleLockData)),
  Union(42, typeof(VapourDumpData)),
+ Union(43, typeof(MunitionHullData)),
+ Union(44, typeof(MunitionThrusterData)),
+ Union(45, typeof(MunitionSeekerData)),
+ Union(46, typeof(MunitionControlData)),
+ Union(47, typeof(MunitionFuelData)),
  JsonObject(MemberSerialization.OptIn)]
 public abstract class BehaviorData
 {

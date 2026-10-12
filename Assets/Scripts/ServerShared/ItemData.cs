@@ -815,6 +815,23 @@ public static class StatValidation
                 }
     }
 
+    // Ruling missile-stats-now-gear-later: a munition design (a LauncherData or GuidedWeaponData behaviour) carries exactly
+    // one of each of the five munition parts, and any other design carries none. Runs wherever ValidateStatModifiers runs,
+    // so a launcher missing a part is named at catalog load and Upsert rather than at its first launch.
+    public static void ValidateMunitionParts(string ownerName, IEnumerable<BehaviorData> behaviors)
+    {
+        var all = (behaviors ?? Enumerable.Empty<BehaviorData>()).Where(b => b != null).ToArray();
+        var isMunition = all.Any(b => b is LauncherData || b is GuidedWeaponData);
+        foreach (var part in new[] { typeof(MunitionHullData), typeof(MunitionThrusterData), typeof(MunitionSeekerData), typeof(MunitionControlData), typeof(MunitionFuelData) })
+        {
+            var count = all.Count(b => b.GetType() == part);
+            var expected = isMunition ? 1 : 0;
+            if (count != expected)
+                throw new InvalidOperationException(
+                    $"{ownerName}: carries {count} {part.Name}, but a {(isMunition ? "munition" : "non-munition")} design carries {expected}");
+        }
+    }
+
     // Cut 7 (docs/stats-and-power-cut.md): "a stat naming a role its design lacks" must be refused, not silently
     // fall back to the lot's own workmanship (Lot.QualityForRole already falls back for a role a lot never rolled
     // -- that is the intended forward-compat path for an old lot meeting a newly-authored role. This is the other
