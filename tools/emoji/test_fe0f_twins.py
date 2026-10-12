@@ -38,19 +38,20 @@ class Fe0fTwins(unittest.TestCase):
             self.assertIn((first, twin, glyph), have, f"no twin for {first} {comps}")
         self.assertEqual(len(self.records), UPSTREAM_RECORDS + FE0F_RECORDS)
 
-    def test_adding_twins_is_exactly_the_twins_and_idempotent(self):
-        have = set(self.records)
-        twins = {r for r in self.records if r[1][:1] != (self.fe0f,) and any(
-            o[0] == r[0] and o[2] == r[2] and tuple(c for c in o[1] if c != self.fe0f) == r[1]
-            for o in self.records if o[1][:1] == (self.fe0f,))}
-        self.assertEqual(len(twins), FE0F_RECORDS)
-        for lookup in self.font["GSUB"].table.LookupList.Lookup:  # strip the twins, then rebuild them
+    def test_adding_twins_adds_exactly_the_twins_and_is_idempotent(self):
+        def strip(comps):
+            return tuple(c for c in comps if c != self.fe0f)
+
+        originals = {r for r in self.records if r[1][:1] == (self.fe0f,)}
+        twins = {(f, strip(c), g) for f, c, g in originals}
+        upstream = set(self.records) - twins  # the font as nanoemoji wrote it, with or without twins present
+        for lookup in self.font["GSUB"].table.LookupList.Lookup:
             for sub in lookup.SubTable:
                 sub = getattr(sub, "ExtSubTable", sub)
                 for first, ligatures in getattr(sub, "ligatures", {}).items():
                     ligatures[:] = [l for l in ligatures if (first, tuple(l.Component), l.LigGlyph) not in twins]
         self.assertEqual(build.add_fe0f_less_twins(self.font), FE0F_RECORDS)
-        self.assertEqual(set(records(self.font)), have)
+        self.assertEqual(set(records(self.font)), upstream | twins)
         self.assertEqual(build.add_fe0f_less_twins(self.font), 0)
 
 
