@@ -285,6 +285,12 @@ public sealed class ShipProductTests : IDisposable
     public void ValidateJudgesProductsOnADraftAndInspectListsThem()
     {
         Environment.CurrentDirectory = _root.Path;
+        // A draft is a package with no model yet: validate then judges its records alone.
+        string Draft(string path)
+        {
+            File.Delete(Path.Combine(Path.GetDirectoryName(path), "skiff.glb"));
+            return path;
+        }
         string Refusal(string path)
         {
             var (code, _, error) = Run("validate", path);
@@ -292,11 +298,11 @@ public sealed class ShipProductTests : IDisposable
             return error;
         }
 
-        Assert.Contains("price above 0", Refusal(Package("mod.free", "Free", 0, Product("Free Skiff", _acme, "mod.free"))));
-        Assert.Contains("needs a name", Refusal(Package("mod.blank", "Blank", 100, Product(" ", _acme, "mod.blank"))));
-        Assert.Contains("unique", Refusal(Package("mod.twice", "Twice", 100, Product("Same", _acme, "mod.twice"), Product("Same", _rival, "mod.twice"))));
+        Assert.Contains("price above 0", Refusal(Draft(Package("mod.free", "Free", 0, Product("Free Skiff", _acme, "mod.free")))));
+        Assert.Contains("needs a name", Refusal(Draft(Package("mod.blank", "Blank", 100, Product(" ", _acme, "mod.blank")))));
+        Assert.Contains("unique", Refusal(Draft(Package("mod.twice", "Twice", 100, Product("Same", _acme, "mod.twice"), Product("Same", _rival, "mod.twice")))));
 
-        var sound = Package("mod.sound", "Sound", 100, Product("Sound Skiff", _acme, "mod.sound"), Product("Sound Rebrand", _rival, "mod.sound"));
+        var sound = Draft(Package("mod.sound", "Sound", 100, Product("Sound Skiff", _acme, "mod.sound"), Product("Sound Rebrand", _rival, "mod.sound")));
         var (validated, output, _) = Run("validate", sound);
         Assert.Equal(0, validated);
         Assert.Contains("records only", output);
