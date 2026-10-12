@@ -159,4 +159,15 @@ public sealed partial class RunStartTests
         }
         Assert.True(carried > 100, "the generated ships carried no gear to check");
     }
+
+    // New Game lists the three arenas. The census (EveryScenario) is built from the same listing, so only a read of the listing
+    // itself notices an arena dropped from it.
+    [Fact]
+    public void NewGameListsTheThreeSmokeRoundsArenas()
+    {
+        var listed = Scenarios.Tests.Select(scenario => scenario.Name).ToArray();
+        Assert.Contains(new FusedRounds().Name, listed);
+        Assert.Contains(new RefusedRounds().Name, listed);
+        Assert.Contains(new AiFusedDiscipline().Name, listed);
+    }
 }

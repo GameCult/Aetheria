@@ -1,8 +1,10 @@
 using System;
 using System.IO;
+using System.Collections.Generic;
 using System.Linq;
 using GameCult.Caching;
 using GameCult.Caching.MessagePack;
+using MessagePack;
 using Xunit;
 
 // AetherDb's smoke-rounds command (aetheria-release, cut scenarios-smoke-rounds), run on a scratch copy of the shipped catalog
@@ -14,6 +16,13 @@ public sealed class SmokeRoundsCommandTests : IDisposable
     private readonly string _root = Path.Combine(Path.GetTempPath(), "smoke-rounds-command-" + Guid.NewGuid().ToString("N"));
     private string CatalogPath => Path.Combine(_root, "GameData", "Aetheria.cc");
 
+    // The five designs as the shipped catalog holds them, taken before they are removed from the scratch copy: apply must write
+    // exactly these, so the command stays the replay of what ships.
+    private readonly Dictionary<string, byte[]> _shipped = new Dictionary<string, byte[]>();
+
+    private static byte[] Pack(WeaponItemData design) =>
+        MessagePackSerializer.Serialize(design, CultDocumentMessagePackSerialization.OptionsFor(typeof(WeaponItemData).Assembly));
+
     public SmokeRoundsCommandTests()
     {
         Directory.CreateDirectory(Path.Combine(_root, "GameData"));
@@ -23,7 +32,12 @@ public sealed class SmokeRoundsCommandTests : IDisposable
         File.Copy(Path.Combine(shipped, "Assets", "Resources", "Settings.asset"), Path.Combine(_root, "Assets", "Resources", "Settings.asset"));
         using var cache = new CultCache(TestCatalog.Registry());
         cache.AddBackingStore(new SingleFileMessagePackBackingStore(CatalogPath), AetheriaStores.CatalogTypes);
-        foreach (var weapon in cache.GetAll<WeaponItemData>().Where(w => Names.Contains(w.Name)).ToArray()) Assert.True(cache.Remove(cache.RefOf(weapon).Key));
+        foreach (var weapon in cache.GetAll<WeaponItemData>().Where(w => Names.Contains(w.Name)).ToArray())
+        {
+            _shipped[weapon.Name] = Pack(weapon);
+            Assert.True(cache.Remove(cache.RefOf(weapon).Key));
+        }
+        Assert.Equal(Names.OrderBy(n => n), _shipped.Keys.OrderBy(n => n));
         cache.FlushAsync().Wait();
     }
 
@@ -58,6 +72,10 @@ public sealed class SmokeRoundsCommandTests : IDisposable
         var (smoke, spectra, chargeBlast, products) = Read();
         Assert.Equal(Names.OrderBy(n => n), smoke.Select(w => w.Name).OrderBy(n => n));
         Assert.Equal(0, products);
+
+        // Replaying the command on the catalog without them writes the records the shipped catalog holds (the record keys are
+        // CultCache's to mint and differ run to run; the designs do not).
+        foreach (var design in smoke) Assert.True(_shipped[design.Name].AsSpan().SequenceEqual(Pack(design)), $"{design.Name} differs from the shipped catalog's record");
 
         WeaponItemData Design(string name) => smoke.Single(w => w.Name == name);
         WeaponData Data(string name) => Design(name).Behaviors.OfType<WeaponData>().Single();
