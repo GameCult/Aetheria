@@ -8502,3 +8502,84 @@ Rounds, 109 Refused Rounds, 110 AI Fused Discipline, 111 Pursuit, 112 Crossing, 
   not a faction ship and does not compete with the operator's gunboat, which keeps its own Broadside.
 - The Cargo verb grows to take consumables because nothing else can stage one; a cloud verb would stage the
   result of venting instead of the vent the operator checks.
+
+# package-product r4: refresh against Aetheria b6262467 (2026-10-12)
+
+Imagination, agent imagination-aeth-refresh-package-product, session self-2026-10-11-ag2.
+Supersedes cut-package-product.r3 (base 4d664b53). Body facts below were probed at b6262467
+in a detached worktree; anchors are file:line at b6262467.
+
+## What changed since r3
+
+- 13 commits touched the ship-authoring files (frame r4 54ac0fcf, package-frame 8d9acf26, the
+  mods-in-tree merge 2be1f8ef, authoring-tool pins 0b5cad89/2be6ed9d, rig 9e516d06). Every r3
+  anchor moved; r4 re-anchors all of them.
+- r3's C# deletion (LoadRecords "exactly-two count" at :157-161) no longer exists. LoadRecords
+  (ShipAuthoring.cs:170-184) counts hulls and visuals by type. The real gate on a third record
+  kind is CultCache routing (probe 1). The "exactly one hull record, found" messages are right
+  and stay; r3's negative check on that text is dropped.
+- lot-product landed: ItemManager.Brand (ItemManager.cs:211-224) reads the product the lot
+  records, not maker+design. r3's "so Brand stays unambiguous" justification is stale. The
+  per-maker key is kept for a different reason: it makes `ship-authoring product <maker>`
+  idempotent (replace, not add) and states the ship rule (one product per maker per hull:
+  the maker's own, plus rebrands by other factions). Follow-up
+  stale-maker-design-uniqueness-test is unaffected.
+- mods-in-tree landed: tests/Aetheria.Shared.Tests/TestCatalog.cs and RunStartTests boot the
+  catalog the game boots. GameData/Mods does not exist on master yet (no packages).
+- Rulings since 2026-10-08 folded in: ship-data-all-in-cc (products are records in ship.cc,
+  which is where all ship data goes; nothing here adds a sidecar), demo-ship-cc-timing (this
+  cut is on today's package path, which the demo hulls use), package-frame-defer-collider
+  (unrelated: no collider work), mods-are-compiled-plugins (no conflict: products are data,
+  not a scripting surface), ship-roles-are-tags (unrelated: add-on object roles). Withdrawn
+  ships-hull-material r2 and ships-hull-livery r1 are not depended on; r3 did not either.
+- Shape change from r3: Write(cache, hull, visual) is NOT widened (11 callers). A separate
+  WriteProduct/DeleteProduct pair is the one product writer. Load/Read become a 3-tuple
+  (18 deconstruction sites in 6 files, one of them the Unity-only Editor file).
+
+## Probes
+
+1. CultCache routing (CultLib src/GameCult.Caching/CultCache.cs at tag cultlib-unity-v1.0.60,
+   :1315-1362 AddBackingStore, :1722-1729 Validate; same text on CultLib main :2569, :2600).
+   ShipAuthoringStore.Open (ShipAuthoring.cs:91) routes only HullData and ShipAuthoring. A
+   loaded record whose type has no home throws "<schema> record <key> was loaded from <path>
+   but its home is no store." during Open. So TODAY a ship.cc holding a FactionProductData
+   cannot even be opened, and r3 never said to add the type to Open's homes. r4 adds
+   typeof(FactionProductData) to Open's homes; any other kind stays refused by the cache.
+2. cultcache-py push (CultLib packages/cultcache-py/src/cultcache_py/stores.py:103-107,
+   :120-125, :138-155): push re-reads every envelope and rewrites them all with their catalog
+   entries. replace_lines/replace_visual/replace_layout (ship_cc.py:122-211) push one envelope,
+   so product envelopes survive every Blender save once read() admits them.
+3. Shipped catalog decode (GameData/Aetheria.cc via cultcache-py, probe.py/probe2.py beside
+   this file): 86 FactionProductData, 13 Faction, 5 HullData. Faction keys are GUID strings,
+   some dashed, some not (Zhestokost 16bad4f9-7fb5-41c5-8da0-dc76709eb7d3, Pirates
+   1d8a168def994a76a1ce7cb18f59c038). No duplicate product names. Shipped hull products: one
+   each, product name equal to hull name (Longinus by Alakrita, Djinni by Rossum & Douglas,
+   Zenith by Aeronautics Unlimited, Turret by Zhestokost); roles [] or [plating]. Smoke Test
+   Hull has no product. Aya Collective, Megiddo and Orbital Forge (ruling minor-power-brands)
+   are not in the catalog yet; the product command resolves whatever factions the catalog holds.
+4. Price: LoadoutGenerator.AvailableProducts filters `entry.design.Price > 0`
+   (LoadoutGenerator.cs:194). A sold package hull at Price 0 would be silently unsold.
+5. Top speed: HullType defaults to Ship (Enums.cs:139-144). ShipAuthoringTests.Fixture()
+   (ShipAuthoringTests.cs:373-400, about 80 uses) has no VelocityLimitData, so the Validate
+   rule needs one line added to the fixture. The add-on's New Ship always runs create --like
+   (__init__.py:229) and smoke_package.py:190 uses --like Djinni, so Blender paths already
+   carry a VelocityLimit and no add-on file changes.
+
+## Lanes (for Self's sequencing)
+
+- Blender add-on: this cut touches tools/blender/aetheria_ships/ship_cc.py (:1-6, :17-18,
+  :86-111) and tools/blender/tests/test_ship_cc.py only. It does not touch __init__.py or
+  hull_grid.py, which ships-addon-mounts r5 edits, so it runs beside mounts.
+- ships-addon-guards r1 edits ship_cc.py's _libraries (now :65-71); disjoint hunks.
+- ships-addon-paint r3 adds 'paint' to ShipAuthoringCommands.cs (usage :11 and the command
+  chain); boss-hull-derived r2 adds 'boss' there. Same file, adjacent hunks: merge order
+  matters only for the usage line.
+- Unity-only file: Assets/Scripts/Editor/ShipModPlaySmoke.cs:99 (one deconstruction). It is
+  not compiled by the headless suite; the negative grep in the spec catches a missed site.
+
+## Dependants
+
+boss-hull-derived r2, broadside-gunboat r1 and demo-cast-hulls r3 name the commands
+`ship-authoring product <ship.cc> <maker> --name <n> [--description <d>]`, `price`, and the
+key shape mod-product:<id>:<maker key>. r4 keeps all three exactly, so none needs a refresh
+for this cut's sake.
