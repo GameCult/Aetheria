@@ -1071,6 +1071,7 @@ public sealed class ContactRevealTests : IDisposable
         guns[0].EquippableItem.Durability = 0f;
         Tick(.01f);
         Assert.Same(guns[1], Assert.Single(o.RevealsOf(e)).Item); // fixture: one gun ended as destroyed, one waiting
+        e.Deactivate(); // the warp path: the ship's own subscriptions to the observer go with it
         _zone.Entities.Remove(e);
         for (var i = 0; i < 40; i++) Tick(.1f); // past BearingMemory (2 s)
         Assert.Equal(0, RevealBookSubjects(o)); // fixture: pruned
