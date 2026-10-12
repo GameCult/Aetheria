@@ -88,8 +88,7 @@ class ShipFile(NamedTuple):
 def read(path: str, cultlib_packages: str) -> ShipFile:
     cultcache, msgpack = _libraries(cultlib_packages)
     store = cultcache.SingleFileMessagePackBackingStore(path)
-    # cultcache-py raises an Unpack error on a zero-byte file; an empty file holds no records, so the shape refusal below names it.
-    envelopes = [] if Path(path).is_file() and Path(path).stat().st_size == 0 else store.pull_all()
+    envelopes = store.pull_all()
     ships = [envelope for envelope in envelopes if envelope.type == SCHEMA]
     hulls = [envelope for envelope in envelopes if envelope.type == HULL_SCHEMA]
     # Before S1 the hull lived inside the ship record. Saving such a file would preserve the stale hull under a ship that

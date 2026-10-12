@@ -114,6 +114,27 @@ public sealed class ShipProductTests : IDisposable
     }
 
     [Fact]
+    public void AProductKeyAlreadyInTheCatalogExcludesThePackage()
+    {
+        // A catalog record already at this ship's product key for this maker, under another name.
+        using (var shipped = AetheriaStores.Open(Shipped, catalogWritable: true))
+        {
+            var held = Product("Held", _acme, "mod.keyed");
+            shipped.UpsertAsync(typeof(FactionProductData), held, ShipModCatalog.ProductKey("mod.keyed", _acme)).GetAwaiter().GetResult();
+            shipped.FlushAsync().Wait();
+        }
+        Package("mod.keyed", "Keyedhull", 100, Product("Fresh Name", _acme, "mod.keyed"));
+        Package("mod.fine", "Finehull", 100, Product("Fine", _acme, "mod.fine"));
+
+        var composition = ShipModCatalog.Compose(Shipped, Derived, Mods);
+
+        Assert.Equal(new[] { "mod.fine" }, composition.Included);
+        var excluded = Assert.Single(composition.Excluded);
+        Assert.Equal("mod.keyed", excluded.Package);
+        Assert.Contains("product key", excluded.Reason);
+    }
+
+    [Fact]
     public void AProductNameCollisionExcludesThePackage()
     {
         Package("mod.shipped", "Shippedhull", 100, Product("Taken", _rival, "mod.shipped"));
@@ -172,6 +193,9 @@ public sealed class ShipProductTests : IDisposable
         var sold = Package("mod.sold", "Sold", 0, Product("Sold Skiff", _acme, "mod.sold"));
         Assert.Contains("price above 0", Assert.Throws<InvalidOperationException>(() => ShipAuthoringStore.Read(sold)).Message);
         Assert.Single(ShipAuthoringStore.Load(sold).Products);
+
+        // The smallest sellable price: the rule is "above 0", so 1 passes.
+        Assert.Single(ShipAuthoringStore.Read(Package("mod.cheap", "Cheap", 1, Product("Cheap Skiff", _acme, "mod.cheap"))).Products);
 
         Assert.Empty(ShipAuthoringStore.Read(Package("mod.console", "Console", 0)).Products);
         Assert.Single(ShipAuthoringStore.Read(Package("mod.priced", "Priced", 5, Product("Priced Skiff", _acme, "mod.priced"))).Products);
@@ -255,5 +279,31 @@ public sealed class ShipProductTests : IDisposable
         Assert.Equal(0, Run("product", path, "ACM", "--remove").Code);
         Assert.Empty(ShipAuthoringStore.Load(path).Products);
         RefusedAndUntouched("product", path, "ACM", "--remove");
+    }
+
+    [Fact]
+    public void ValidateJudgesProductsOnADraftAndInspectListsThem()
+    {
+        Environment.CurrentDirectory = _root.Path;
+        string Refusal(string path)
+        {
+            var (code, _, error) = Run("validate", path);
+            Assert.Equal(1, code);
+            return error;
+        }
+
+        Assert.Contains("price above 0", Refusal(Package("mod.free", "Free", 0, Product("Free Skiff", _acme, "mod.free"))));
+        Assert.Contains("needs a name", Refusal(Package("mod.blank", "Blank", 100, Product(" ", _acme, "mod.blank"))));
+        Assert.Contains("unique", Refusal(Package("mod.twice", "Twice", 100, Product("Same", _acme, "mod.twice"), Product("Same", _rival, "mod.twice"))));
+
+        var sound = Package("mod.sound", "Sound", 100, Product("Sound Skiff", _acme, "mod.sound"), Product("Sound Rebrand", _rival, "mod.sound"));
+        var (validated, output, _) = Run("validate", sound);
+        Assert.Equal(0, validated);
+        Assert.Contains("records only", output);
+
+        var (inspected, listing, _) = Run("inspect", sound);
+        Assert.Equal(0, inspected);
+        Assert.Contains($"product {_acme.Value}: Sound Skiff", listing);
+        Assert.Contains($"product {_rival.Value}: Sound Rebrand", listing);
     }
 }

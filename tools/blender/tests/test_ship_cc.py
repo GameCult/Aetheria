@@ -153,10 +153,11 @@ class ReadTests(ShipFileCase):
         with self.assertRaisesRegex(ValueError, "must hold exactly one"):
             ship_cc.read(self.path, PACKAGES)
 
-    def test_refuses_a_file_with_no_record(self):
+    def test_refuses_a_zero_byte_file_as_cultcache_does(self):
+        # An empty file is not a store (CultLib pins this): the owner's refusal passes through, the add-on adds none.
         empty = str(Path(self.path).with_name("empty.cc"))
         Path(empty).write_bytes(b"")
-        with self.assertRaisesRegex(ValueError, "must hold exactly one"):
+        with self.assertRaises(ValueError):
             ship_cc.read(empty, PACKAGES)
 
     def test_refuses_a_ship_record_that_still_carries_the_retired_embedded_hull(self):
