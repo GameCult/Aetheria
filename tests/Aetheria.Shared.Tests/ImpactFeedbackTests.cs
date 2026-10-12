@@ -39,34 +39,32 @@ public sealed partial class FireControlCut124Tests
         return ship;
     }
 
-    // Fires (the target stepping aside once the aim is frozen) until a shot lands off the hull's centre column; returns that outcome and the absorbs the target
-    // published for that shot alone.
-    private static (ShotOutcome Outcome, List<AbsorbEvent> Absorbs) FireUntilOffCentreHit(Engagement e, List<IDisposable> subs)
+    // The shooter aims at a marker item off the hull's centre column, so the lateral draw (Gaussian about the aimed
+    // item's centroid) lands the impact cell there: the cell comes from Fire, Commit and Apply, not from a helper.
+    // Fires until a shot lands; returns that outcome and the absorbs the target published for that shot alone.
+    private static (ShotOutcome Outcome, List<AbsorbEvent> Absorbs) FireAtTheMarker(Engagement e, List<IDisposable> subs)
     {
+        Assert.True(e.Shooter.TrySelectTargetItem(e.Custom["Marker"]), "fixture: the marker is aimable");
         var absorbs = Collect(e.Target, subs);
         ShotOutcome landed = null;
         subs.Add(e.Zone.ShotResolved.Subscribe(o => landed = o));
-        var home = e.Target.Position;
         for (var i = 0; i < 300; i++)
         {
             absorbs.Clear();
             landed = null;
-            e.Target.Position = home;
             FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
-            e.Target.Position = home + float3(10f, 0, 0); // a forgivable jink after the aim is frozen: the shot lands left of centre
             e.Zone.Update(.01f);
-            if (landed != null && landed.Hit && abs(e.Target.ToWorldPoint((float2) landed.Cell).x - e.Target.Position.x) > 2f)
-                return (landed, absorbs);
+            if (landed != null && landed.Hit) return (landed, absorbs);
         }
-        throw new Xunit.Sdk.XunitException("fixture: no off-centre hit within the attempt budget");
+        throw new Xunit.Sdk.XunitException("fixture: no hit within the attempt budget");
     }
 
     [Fact]
     public void ADirectHullHitPublishesOneHullAbsorbAtTheImpactCell()
     {
-        var e = Build(TestSettings(), SolidShape(21, 3), velocity: 0, damage: 100f);
+        var e = Build(TestSettings(), SolidShape(21, 3), velocity: 0, damage: 100f, custom: new[] { ("Marker", new Shape(), new int2(2, 1), 1f) });
         var subs = new List<IDisposable>();
-        var (outcome, absorbs) = FireUntilOffCentreHit(e, subs);
+        var (outcome, absorbs) = FireAtTheMarker(e, subs);
         foreach (var s in subs) s.Dispose();
 
         var absorb = Assert.Single(absorbs);
@@ -83,10 +81,10 @@ public sealed partial class FireControlCut124Tests
     [Fact]
     public void AShieldedHitPublishesOneShieldAbsorbAndNoHull()
     {
-        var e = Build(TestSettings(), SolidShape(21, 3), velocity: 0, damage: 100f, equipShield: true, shieldCapacity: 100000f);
+        var e = Build(TestSettings(), SolidShape(21, 3), velocity: 0, damage: 100f, equipShield: true, shieldCapacity: 100000f, custom: new[] { ("Marker", new Shape(), new int2(2, 1), 1f) });
         for (var i = 0; i < 30; i++) e.Zone.Update(.1f);
         var subs = new List<IDisposable>();
-        var (outcome, absorbs) = FireUntilOffCentreHit(e, subs);
+        var (outcome, absorbs) = FireAtTheMarker(e, subs);
         foreach (var s in subs) s.Dispose();
 
         Assert.True(outcome.Shielded);
