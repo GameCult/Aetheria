@@ -33,6 +33,7 @@ public sealed class ShipSchemaPinTests
     {
         Assert.Equal(typeof(ShipAuthoring).GetCustomAttribute<CultDocumentAttribute>().SchemaName, Text("SCHEMA"));
         Assert.Equal(typeof(HullData).GetCustomAttribute<CultDocumentAttribute>().SchemaName, Text("HULL_SCHEMA"));
+        Assert.Equal(typeof(FactionProductData).GetCustomAttribute<CultDocumentAttribute>().SchemaName, Text("PRODUCT_SCHEMA"));
         Assert.Equal(1, Integer("RETIRED_HULL_SLOT"));
         // Key 1 held the embedded hull until S1. A later member must not take it, or an old file would decode as it.
         Assert.DoesNotContain(typeof(ShipAuthoring).GetMembers(BindingFlags.Public | BindingFlags.Instance),

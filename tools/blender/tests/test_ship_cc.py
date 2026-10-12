@@ -97,6 +97,17 @@ class ShipFileCase(unittest.TestCase):
     def ship(self):
         return ship_cc.read(self.path, PACKAGES).ship.body
 
+    def add_products(self):
+        """Two products as C# stores them, one per maker; Python reads them as envelopes and never encodes one."""
+        entry = catalog("product-schema-1", ship_cc.PRODUCT_SCHEMA)
+        store = cultcache_py.SingleFileMessagePackBackingStore(self.path)
+        store.push(envelope("mod-product:mod.skiff:faction:acme", ship_cc.PRODUCT_SCHEMA, entry, [None, "Acme Skiff", "Reliable."]))
+        store.push(envelope("mod-product:mod.skiff:faction:rival", ship_cc.PRODUCT_SCHEMA, entry, [None, "Rival Skiff", None, "tail"]))
+
+    def products(self):
+        return {(e.type, e.key): e for e in cultcache_py.SingleFileMessagePackBackingStore(self.path).pull_all()
+                if e.type == ship_cc.PRODUCT_SCHEMA}
+
     def hull(self):
         return ship_cc.read(self.path, PACKAGES).hull.body
 
@@ -114,6 +125,12 @@ class ReadTests(ShipFileCase):
         self.assertEqual(ship_cc.SCHEMA, file.ship.envelope.type)
         self.assertEqual("Skiff", file.hull.body[1])
         self.assertEqual(ship_cc.HULL_SCHEMA, file.hull.envelope.type)
+
+    def test_reads_a_file_whose_hull_also_carries_products(self):
+        self.add_products()
+        file = ship_cc.read(self.path, PACKAGES)
+        self.assertEqual("mod.skiff", file.ship.body[0])
+        self.assertEqual("Skiff", file.hull.body[1])
 
     def test_refuses_a_file_with_another_record_beside_the_pair(self):
         cultcache_py.SingleFileMessagePackBackingStore(self.path).push(cultcache_py.CultCacheEnvelope.create(
@@ -188,6 +205,33 @@ class ReadTests(ShipFileCase):
                 self.write(ship_body(), payload)
                 with self.assertRaisesRegex(ValueError, "incompatible"):
                     ship_cc.read(self.path, PACKAGES)
+
+
+class ProductCarryThroughTests(ShipFileCase):
+    """Products lie beside the pair, owned by C#: every push rewrites the file and leaves them byte-identical."""
+
+    def test_each_edit_leaves_both_product_envelopes_byte_identical(self):
+        self.add_products()
+        before = self.products()
+        self.assertEqual(2, len(before))
+        hull = hull_body()
+        revision = ship_cc.layout_revision(hull[ship_cc.HULL_SHAPE_SLOT][0], hull[ship_cc.HULL_HARDPOINTS_SLOT])
+        edits = (
+            lambda: ship_cc.replace_lines(self.path, PACKAGES, LINES),
+            lambda: ship_cc.replace_visual(self.path, PACKAGES, "mod.skiff", "ship.glb", [["map", "map-icon", "map", None, 0]]),
+            lambda: ship_cc.replace_layout(self.path, PACKAGES, "mod.skiff", revision, [2, 2, [True, True, True, False]],
+                                           [row[:len(ship_cc.HARDPOINT_MEMBERS)] for row in hull[ship_cc.HULL_HARDPOINTS_SLOT]]),
+        )
+        for index, edit in enumerate(edits):
+            with self.subTest(edit=index):
+                edit()
+                after = self.products()
+                self.assertEqual(before.keys(), after.keys())
+                for key in before:
+                    self.assertEqual(before[key].payload, after[key].payload)
+                    self.assertEqual(before[key].key, after[key].key)
+        # The edits really ran: the shape the layout edit wrote is in the file beside the carried products.
+        self.assertEqual([2, 2, [True, True, True, False]], ship_cc.read(self.path, PACKAGES).hull.body[ship_cc.HULL_SHAPE_SLOT][0])
 
 
 class RigCarryThroughTests(ShipFileCase):
