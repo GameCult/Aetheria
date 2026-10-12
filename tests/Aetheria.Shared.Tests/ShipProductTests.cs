@@ -236,7 +236,7 @@ public sealed class ShipProductTests : IDisposable
         var (hull, _, products) = ShipAuthoringStore.Load(path);
         var product = Assert.Single(products);
         using (var reopened = ShipAuthoringStore.Open(path))
-            Assert.Equal(ShipModCatalog.ProductKey("mod.skiff", _acme), reopened.TryGetHandle(product).Value.Key);
+            Assert.Equal(ShipModCatalog.ProductKey("mod.skiff", _acme), reopened.TryGetHandle(Assert.Single(reopened.GetAll<FactionProductData>())).Value.Key);
         Assert.Equal(_acme, product.Manufacturer.Key);
         Assert.Equal(ShipModCatalog.HullKey("mod.skiff"), product.Design.Key);
         Assert.Equal(hull.Roles.Select(role => role.Name), product.Roles.Select(role => role.Role));
