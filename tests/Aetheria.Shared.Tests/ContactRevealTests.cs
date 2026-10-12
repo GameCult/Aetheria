@@ -645,27 +645,20 @@ public sealed class ContactRevealTests : IDisposable
     }
 
     // The gate is strict, as the light-act gate is: a light at removal that lands exactly on the threshold ends nothing.
-    // The signature is searched, a few floats either side of threshold over info, for the one whose product with the
-    // observer's info on the spot is exactly the threshold.
+    // At 32 the observer's info per unit light is 4 / 32, a power of two, so threshold x 8 is the light whose product
+    // with it is exactly the threshold.
     [Fact]
     public void ADepartureExactlyAtTheLightActGateEndsNothing()
     {
-        var e = Add(float3(0, 0, 100), new[] { "Gun" });
+        var e = Add(float3(0, 0, 32), new[] { "Gun" });
         var o = Add(float3(0, 0, 0), new[] { "Eye" });
         Fire(e, Guns(e)[0]);
         Tick(.01f);
         Assert.Single(o.RevealsOf(e));
         var threshold = _items.GameplaySettings.TargetDetectionInfoThreshold;
-        var info = o.PassiveInfo(e.Position.xz, 1f);
-        var signature = threshold / info;
-        for (var step = 0; step < 8 && signature * info != threshold; step++)
-            signature = BitConverter.Int32BitsToSingle(BitConverter.SingleToInt32Bits(signature) + 1);
-        if (signature * info != threshold) signature = threshold / info;
-        for (var step = 0; step < 16 && signature * info != threshold; step++)
-            signature = BitConverter.Int32BitsToSingle(BitConverter.SingleToInt32Bits(signature) - 1);
-        Assert.True(signature * info == threshold, "fixture: a light exactly at the gate exists");
-        ShowOnly(e, signature, Guns(e)[0]);
-        Assert.True(e.Visibility * info == threshold, "fixture: the ship's light at removal is exactly the gate");
+        Assert.Equal(.125f, o.PassiveInfo(e.Position.xz, 1f));
+        ShowOnly(e, threshold * 8f, Guns(e)[0]);
+        Assert.True(e.Visibility * o.PassiveInfo(e.Position.xz, 1f) == threshold, "fixture: the ship's light at removal is exactly the gate");
 
         _zone.Entities.Remove(e);
         Tick(.1f);
