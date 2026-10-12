@@ -306,6 +306,105 @@ public sealed partial class FireControlCut124Tests
         Assert.Equal(turned.y + 3f, raised.y, 1e-4);
         Assert.Equal(DrawAhead.Impact(t, cell, lead), turned);
     }
+
+    [Fact]
+    public void AShieldLayerAbsorbCarriesTheShotsMagnitudeDirectionAndDamageType()
+    {
+        var e = Build(TestSettings(), SolidShape(21, 3), velocity: 0, damage: 100f, equipShield: true, shieldCapacity: 100000f, custom: new[] { ("Marker", new Shape(), new int2(2, 1), 1f) });
+        for (var i = 0; i < 30; i++) e.Zone.Update(.1f);
+        var subs = new List<IDisposable>();
+        var (_, absorbs) = FireAtTheMarker(e, subs);
+        foreach (var s in subs) s.Dispose();
+
+        var shield = Assert.Single(absorbs);
+        Assert.Equal(AbsorbLayer.Shield, shield.Layer);
+        Assert.Equal(100f, shield.Magnitude, 1e-3);
+        Assert.Equal(float3(0, 0, 1), shield.Direction);
+        Assert.Equal(DamageType.Kinetic, shield.DamageType);
+    }
+
+    [Fact]
+    public void ABlastShieldAbsorbCarriesTheShareTheBlastPointAndTheAwayDirection()
+    {
+        // The share is read against the same geometry on an unshielded twin, where the hull absorb's Magnitude is
+        // the same totalShare: the shield's Magnitude is derived from the blast, not constant or scaled.
+        var plain = Build(TestSettings(), SolidShape(5, 4));
+        var subs = new List<IDisposable>();
+        var plainTakes = Collect(plain.Target, subs);
+        FireControl.Detonate(plain.Zone, plain.Target.Position.xz + float2(1f, 0f), 2f, 50f, DamageType.Kinetic);
+        var share = Assert.Single(plainTakes).Magnitude;
+        Assert.True(share > 0f && share <= 50f, "fixture: the blast touched the hull");
+
+        var f = Build(TestSettings(), SolidShape(5, 4), equipShield: true, shieldCapacity: 1000f);
+        for (var i = 0; i < 30; i++) f.Zone.Update(.1f);
+        var takes = Collect(f.Target, subs);
+        var at = f.Target.Position.xz + float2(1f, 0f);
+        FireControl.Detonate(f.Zone, at, 2f, 50f, DamageType.Kinetic);
+        foreach (var s in subs) s.Dispose();
+
+        var take = Assert.Single(takes);
+        Assert.Equal(AbsorbLayer.Shield, take.Layer);
+        Assert.Equal(share, take.Magnitude, 1e-3);
+        Assert.Equal(float3(at.x, f.Target.Position.y, at.y), take.Position);
+        Assert.Equal(float3(-1, 0, 0), take.Direction);
+    }
+
+    [Fact]
+    public void ASecondBlastOnABrokenShieldPublishesHullNotShield()
+    {
+        var f = Build(TestSettings(), SolidShape(5, 4), equipShield: true, shieldCapacity: 20f);
+        for (var i = 0; i < 30; i++) f.Zone.Update(.1f);
+        var subs = new List<IDisposable>();
+        var takes = Collect(f.Target, subs);
+        FireControl.Detonate(f.Zone, f.Target.Position.xz, 8f, 5000f, DamageType.Kinetic);
+        FireControl.Detonate(f.Zone, f.Target.Position.xz, 8f, 5000f, DamageType.Kinetic);
+        foreach (var s in subs) s.Dispose();
+        Assert.Equal(new[] { AbsorbLayer.Hull, AbsorbLayer.Hull }, takes.Select(x => x.Layer).ToArray());
+    }
+
+    [Fact]
+    public void ABlastIsPublishedBeforeItIsApplied()
+    {
+        // Hull: the handler sees the hull the blast has not yet hurt.
+        var (e, a, _, _) = BlastFixture();
+        float? hullInHandler = null;
+        var before = a.Hull.Durability;
+        using var sub = a.Capabilities.Absorb.Subscribe(_ => hullInHandler = a.Hull.Durability);
+        FireControl.Detonate(e.Zone, BlastAt, 5f, 1000f, DamageType.Kinetic);
+        Assert.Equal(before, hullInHandler);
+        Assert.True(a.Hull.Durability < before, "fixture: the blast then hurt the hull");
+
+        // Shield: the handler sees the reserve TakeHit has not yet used.
+        var f = Build(TestSettings(), SolidShape(5, 4), equipShield: true, shieldCapacity: 100f);
+        for (var i = 0; i < 30; i++) f.Zone.Update(.1f);
+        bool? couldTake = null;
+        using var sub2 = f.Target.Capabilities.Absorb.Subscribe(_ => couldTake = f.Target.Shield.CanTakeHit(DamageType.Kinetic, 99f));
+        FireControl.Detonate(f.Zone, f.Target.Position.xz, 2f, 90f, DamageType.Kinetic);
+        Assert.True(couldTake);
+        Assert.False(f.Target.Shield.CanTakeHit(DamageType.Kinetic, 99f), "fixture: the blast then used the reserve");
+    }
+
+    [Fact]
+    public void TheImpactHeightIsTheTargetsHeightAndCarriedKeepsRelativeHeight()
+    {
+        // Production y is the zone height plus the hull's GridOffset, so a raised hull is reachable headless.
+        var e = Build(TestSettings(), SolidShape(21, 3), velocity: 0, damage: 100f, custom: new[] { ("Marker", new Shape(), new int2(2, 1), 1f) });
+        e.HullData.GridOffset = 5f;
+        e.Zone.Update(.01f);
+        Assert.Equal(5f, e.Target.Position.y, 1e-4);
+        var subs = new List<IDisposable>();
+        var (_, absorbs) = FireAtTheMarker(e, subs);
+        foreach (var s in subs) s.Dispose();
+        Assert.Equal(5f, Assert.Single(absorbs).Position.y, 1e-4);
+
+        // A point 4 above the raised hull stays 4 above it as the hull is carried; a point at world y 9 is 4 above.
+        var t = e.Target;
+        t.Velocity = float2(3f, -2f);
+        t.TurnRate = .8f;
+        var point = float3(t.Position.x + 2f, 9f, t.Position.z + 1f);
+        Assert.Equal(9f, DrawAhead.Carried(t, point, 0f).y, 1e-4);
+        Assert.Equal(DrawAhead.Position(t, .5f).y + 4f, DrawAhead.Carried(t, point, .5f).y, 1e-4);
+    }
 }
 
 public sealed class ImpactCueTests
@@ -343,6 +442,24 @@ public sealed class ImpactCueTests
         var full = Feedback.Cue(Hit(50f), 100f, true, 1f, 1f).Shake;
         Assert.Equal(.5f, full, 1e-5);
         Assert.Equal(full * .5f, Feedback.Cue(Hit(50f), 100f, true, .5f, 1f).Shake, 1e-5);
+    }
+
+    [Fact]
+    public void IntensityIsLinearInMagnitudeAndSaturatesAtAnyScale()
+    {
+        // 150 of 100 at scale .5 reads .75 (a clamp of the magnitude at max durability would read .5).
+        Assert.Equal(.75f, Feedback.Cue(Hit(150f), 100f, false, 1f, .5f).Intensity, 1e-5);
+        Assert.Equal(1f, Feedback.Cue(Hit(500f), 100f, false, 1f, .5f).Intensity, 1e-5);
+        Assert.Equal(.3f, Feedback.Cue(Hit(60f), 100f, false, 1f, .5f).Intensity, 1e-5);
+        Assert.Equal(0f, Feedback.Cue(Hit(60f), 100f, false, 1f, 0f).Intensity, 1e-5);
+    }
+
+    [Fact]
+    public void TheShakePreferenceIsSaturatedBothWays()
+    {
+        var one = Feedback.Cue(Hit(50f), 100f, true, 1f, 1f).Shake;
+        Assert.Equal(one, Feedback.Cue(Hit(50f), 100f, true, 1.5f, 1f).Shake, 1e-5);
+        Assert.Equal(0f, Feedback.Cue(Hit(50f), 100f, true, -1f, 1f).Shake, 1e-5);
     }
 
     [Fact]
