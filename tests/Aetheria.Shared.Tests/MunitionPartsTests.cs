@@ -304,7 +304,7 @@ public sealed class MunitionPartsTests : IDisposable
         var channels = string.Join(",", Enum.GetValues(typeof(SignatureChannel)).Cast<SignatureChannel>().Select(c => $"{c}={s.SignatureOn(c):0.####}"));
         var sensors = string.Join(",", s.GetBehaviors<Sensor>().Select(b => b.Data.GetType().Name));
         return $"env F{e.Forward:0.###} R{e.Reverse:0.###} L{e.Left:0.###} Ri{e.Right:0.###} CW{e.Clockwise:0.###} CCW{e.CounterClockwise:0.###} " +
-               $"vis={s.Visibility:0.####} sources={s.VisibilitySources.Count} {channels} thrusters={s.GetBehaviors<Thruster>().Count()} sensors=[{sensors}]";
+               $"vis={s.Visibility:0.####} sources={s.VisibilitySources.Count} {channels} thrusters={s.GetBehaviors<Thruster>().Count()} thrust={s.GetBehaviors<Thruster>().Sum(t => t.Thrust):0.###} sensors=[{sensors}]";
     }
 
     private static void ScaleParts(EquippableItemData design, float factor)
@@ -328,6 +328,7 @@ public sealed class MunitionPartsTests : IDisposable
         var design = cache.GetByName<WeaponItemData>("GT 3K");
         var part = Part<MunitionThrusterData>(design);
         var item = Fit(cache, .5f, out var ship);
+        for (var i = 0; i < 5; i++) ship.Update(.1f);
         var shipBefore = ShipSums(ship);
         var partBefore = item.Evaluate(part.Acceleration);
         Assert.NotEmpty(ship.GetBehaviors<Thruster>());
@@ -337,6 +338,7 @@ public sealed class MunitionPartsTests : IDisposable
         try
         {
             var scaledItem = Fit(cache, .5f, out var scaledShip);
+            for (var i = 0; i < 5; i++) scaledShip.Update(.1f);
             Assert.True(scaledItem.Evaluate(part.Acceleration) > partBefore * 100, "the scaled record must move the value the game reads");
             Assert.Equal(shipBefore, ShipSums(scaledShip));
         }
