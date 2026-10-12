@@ -1710,8 +1710,15 @@ public static class Program
         var charge = Copy("ChargeBlast SG", names[4], "A ChargeBlast SG whose blast is wider than its reach, so it never charges. For scenarios; no one builds it.", WeaponFuse.Proximity, 30f);
         var beam = Copy("Spectra", names[3], "A constant beam whose blast is wider than its reach, so it never starts. For scenarios; no one builds it.", WeaponFuse.Proximity, 30f);
 
+        // The Smoke Test Hull carries one 2x2 reactor. A Spectra's 20-40 energy a shot at its cadence is more than that reactor makes,
+        // so two of them overload it, it overheats and shuts down within a second, and nothing aboard fires again (Fused Rounds,
+        // stepped, before this). The two rounds a scenario must fly draw like an Autocannon instead.
         foreach (var design in new[] { proximity, delayed })
-            design.Behaviors.OfType<InstantWeaponData>().Single().Velocity = Fixed(150f);
+        {
+            var data = design.Behaviors.OfType<InstantWeaponData>().Single();
+            data.Velocity = Fixed(150f);
+            data.Energy = Fixed(4f);
+        }
         delayed.Behaviors.OfType<InstantWeaponData>().Single().Penetration = Fixed(2f);
         refused.Behaviors.OfType<InstantWeaponData>().Single().Range = Fixed(20f);
         charge.Behaviors.OfType<ChargedWeaponData>().Single().Range = Fixed(20f);
