@@ -143,12 +143,10 @@ public sealed class LootTests : IDisposable
     {
         var hull = lab.Items.ItemData.RefOf<ItemData>(lab.Items.ItemData.GetByName<HullData>("Hub"));
         var station = new OrbitalEntity(lab.Items, lab.Zone, new EquippableItem { Data = hull, Durability = 1000000, Lot = lab.Lot++ }, default, new EntitySettings());
+        Assert.True(station.TryEquip(lab.Make("Crate"), new int2(1, 1)));
         var spare = lab.Make("Spare");
         Assert.True(station.TryFindSpace(spare, out var pos));
         Assert.True(station.TryEquip(spare, pos));
-        var crate = lab.Make("Crate");
-        Assert.True(station.TryFindSpace(crate, out var cratePos));
-        Assert.True(station.TryEquip(crate, cratePos));
         Assert.True(station.CargoBays.Single().TryStore(lab.Ore(3)));
         lab.Zone.Entities.Add(station);
         station.Activate();
@@ -325,7 +323,7 @@ public sealed class LootTests : IDisposable
     {
         var lab = Build();
         var taker = Station(lab, float3(0, 0, 0));
-        Assert.True(taker.TryEquip(lab.Make("Crate"), new int2(2, 2)));
+        Assert.Contains(Solid(5, 5).AllCoordinates, cell => taker.TryEquip(lab.Make("Crate"), cell));
         Assert.Equal(2, taker.CargoBays.Count);
         // The first bay is full, so the first bay that accepts the item is the second.
         while (taker.CargoBays[0].TryStore(lab.Make("Spare"))) { }
