@@ -45,6 +45,7 @@ public class ZoneRenderer : MonoBehaviour
     public GridObject GearPickup;
     public GridObject WeaponPickup;
     public MineInstance MinePrefab;
+    public VapourCloudInstance CloudPrefab;
     public Material[] MapGravityMaterials;
 
     [Header("Tour")] public bool Tour;
@@ -95,6 +96,7 @@ public class ZoneRenderer : MonoBehaviour
     public Dictionary<Wormhole, (GameObject gravity, CompassIcon icon)> WormholeInstances = new Dictionary<Wormhole, (GameObject, CompassIcon)>();
     private List<ItemPickup> _loot = new List<ItemPickup>();
     private Dictionary<Mine, MineInstance> _mines = new Dictionary<Mine, MineInstance>();
+    private Dictionary<VapourCloud, VapourCloudInstance> _clouds = new Dictionary<VapourCloud, VapourCloudInstance>();
 
     public Zone Zone { get; private set; }
     public ItemManager ItemManager { get; set; }
@@ -234,6 +236,15 @@ public class ZoneRenderer : MonoBehaviour
             instance.Blast();
         }));
 
+        // Every vapour cloud, whoever vented it, is drawn through this one subscription. A cloud leaves Zone.Clouds
+        // when its opacity has reached nothing, so a removal destroys its fog bank with nothing left to show.
+        foreach (var cloud in zone.Clouds) LoadCloud(zone, cloud);
+        _zoneSubscriptions.Add(zone.Clouds.ObserveAdd().Subscribe(e => LoadCloud(zone, e.Value)));
+        _zoneSubscriptions.Add(zone.Clouds.ObserveRemove().Subscribe(e =>
+        {
+            if (_clouds.Remove(e.Value, out var instance)) Destroy(instance.gameObject);
+        }));
+
         if (zone.GalaxyZone != null)
         {
             foreach (var adjacentZone in zone.GalaxyZone.AdjacentZones)
@@ -263,6 +274,13 @@ public class ZoneRenderer : MonoBehaviour
         _mines.Add(mine, instance);
     }
 
+    private void LoadCloud(Zone zone, VapourCloud cloud)
+    {
+        var instance = Instantiate(CloudPrefab);
+        instance.Bind(zone, cloud);
+        _clouds.Add(cloud, instance);
+    }
+
     public void AddWormhole(Wormhole wormhole)
     {
         var instance = Instantiate(WormholePrefab);
@@ -289,6 +307,10 @@ public class ZoneRenderer : MonoBehaviour
         foreach (var instance in _mines.Values)
             if (instance) Destroy(instance.gameObject);
         _mines.Clear();
+
+        foreach (var instance in _clouds.Values)
+            if (instance) Destroy(instance.gameObject);
+        _clouds.Clear();
 
         foreach(var gridObject in _loot) 
             if(gridObject) Destroy(gridObject.gameObject);
