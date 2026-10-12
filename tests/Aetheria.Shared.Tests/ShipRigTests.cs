@@ -203,7 +203,7 @@ public sealed class ShipRigTests : IDisposable
     {
         new Node("map", "map", null), new Node("collider", "collider", null), new Node("shield", "shield", null),
         new Node("tractor", "tractor", null), new Node("thruster-port", "thruster-port", null, true),
-        new Node("arm", "arm", null), new Node("elbow", "elbow", "arm"), new Node("wrist", "wrist", "elbow"),
+        new Node("pod", "pod", null), new Node("arm", "arm", null), new Node("elbow", "elbow", "arm"), new Node("wrist", "wrist", "elbow"),
         new Node("bracket", null, "wrist"), new Node("gun", "gun", "bracket"), new Node("gun-muzzle", "gun-muzzle", "gun")
     };
 
@@ -313,11 +313,11 @@ public sealed class ShipRigTests : IDisposable
         {
             var thruster = ship.Hull.Hardpoints.Single(hardpoint => hardpoint.Transform == "thruster.port");
             thruster.FiringArc = 90;
-            // The gun leaves the wrist: the arm has one actuator, and the wrist is only a link in its chain.
-            ship.Visual.Anchors.Single(anchor => anchor.Id == "gun").Joint = null;
-            ship.Visual.Anchors.Single(anchor => anchor.Id == "thruster.port").Joint = "arm";
-        }, Reparent("thruster-port", "arm")));
-        Assert.Equal("arm", package.Visual.Anchors.Single(anchor => anchor.Id == "thruster.port").Joint);
+            // The pod is a joint of its own, apart from the arm the gun rides: a joint has one actuator.
+            ship.Visual.Joints.Add(Joint("pod", null, (Up, -45f, 45f)));
+            ship.Visual.Anchors.Single(anchor => anchor.Id == "thruster.port").Joint = "pod";
+        }, Reparent("thruster-port", "pod")));
+        Assert.Equal("pod", package.Visual.Anchors.Single(anchor => anchor.Id == "thruster.port").Joint);
     }
 
     [Fact]
@@ -331,8 +331,8 @@ public sealed class ShipRigTests : IDisposable
             BindRefusal(Package(ship =>
             {
                 ship.Hull.Hardpoints.Single(hardpoint => hardpoint.Transform == "thruster.port").FiringArc = 90;
-                ship.Visual.Anchors.Single(anchor => anchor.Id == "gun").Joint = null;
-                ship.Visual.Anchors.Single(anchor => anchor.Id == "thruster.port").Joint = "arm";
+                ship.Visual.Joints.Add(Joint("pod", null, (Up, -45f, 45f)));
+                ship.Visual.Anchors.Single(anchor => anchor.Id == "thruster.port").Joint = "pod";
             })));
     }
 
