@@ -52,20 +52,7 @@ public sealed partial class RunStartTests
         return (arena, longinus, djinni);
     }
 
-    // The Djinni fitted by name: a Talaria on each of its thruster hardpoints (the hull's own positions and rotations), the
-    // reactor and the cockpit. What the thrusters push with is then the gear the test names, not what the generator drew.
-    private ScenarioFit EvDjinni(ScenarioStage stage)
-    {
-        var hull = _cache.GetByName<HullData>("Djinni");
-        var slots = hull.Hardpoints.Where(h => h.Type == HardpointType.Thruster).Select(h => ("Talaria", h.Position, h.Rotation)).ToList();
-        var reactor = hull.Hardpoints.First(h => h.Type == HardpointType.Reactor);
-        var cockpit = hull.Hardpoints.First(h => h.Type == HardpointType.ControlModule);
-        slots.Add(("Core Power", reactor.Position, reactor.Rotation));
-        slots.Add(("Cockpit 2x2", cockpit.Position, cockpit.Rotation));
-        return stage.Fit("Djinni", slots.ToArray());
-    }
-
-    // The two ships the flight tests measure, fitted by name and far apart in the fixture arena: the Djinni's eight Talaria
+    // The two ships the flight tests measure, fitted by name and far apart in the fixture arena: EvDjinni's eight Talaria
     // and the Longinus's two Large Drives and two Talaria (EvLonginus). Neither follows the catalog's census: the generator
     // draws from the run's item stream, so a catalog cut would change which gear a generated hull carried (sensor-catalog h1).
     private (Zone arena, Ship longinus, Ship djinni) EvFitted()
