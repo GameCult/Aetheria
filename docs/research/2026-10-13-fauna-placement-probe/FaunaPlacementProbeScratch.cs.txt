@@ -1,0 +1,210 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Globalization;
+using System.IO;
+using System.Text;
+using CultMath;
+using GameCult.Caching;
+using Xunit;
+using static CultMath.math;
+using float2 = CultMath.float2;
+using float3 = CultMath.float3;
+
+// SCRATCH placement probe (Imagination, agent imagination-aeth-fauna-r2). Never merged.
+// Q1: what does a CPU Physarum pass (the operator's Slime.compute rules, her prefab's parameters) fed by Zone.GetNormal
+//     produce on a real heightfield, at what cost, and is it bit-deterministic run to run?
+// Q2: how different is its trail map from a closed-form slope-suitability map (corr)?
+// Q3: how fast is the live global flow (Settings.asset: scale 512, amplitude 15) against the rail speed 2*pi?
+public sealed class FaunaPlacementProbeScratch : IDisposable
+{
+    private readonly string _root = Path.Combine(Path.GetTempPath(), "faunaprobe-" + Guid.NewGuid().ToString("N"));
+    private readonly List<CultCache> _caches = new List<CultCache>();
+    private readonly StringBuilder _o = new StringBuilder();
+    public FaunaPlacementProbeScratch() { Directory.CreateDirectory(_root); Directory.CreateDirectory("/tmp/probe"); }
+    public void Dispose() { foreach (var c in _caches) c.Dispose(); Directory.Delete(_root, true); }
+
+    private static PlanetSettings Real() => new PlanetSettings
+    {
+        ZoneDepthExponent = 2, ZoneDepth = 64, ZoneBoundaryFog = 0,
+        GravityDepth = new ExponentialCurve { Exponent = .175f, Multiplier = 30, Constant = 0 },
+        GravityRadius = new ExponentialCurve { Exponent = .25f, Multiplier = 500, Constant = 0 },
+        WaveDepth = new ExponentialCurve { Exponent = .3f, Multiplier = .5f, Constant = 0 },
+        WaveRadius = new ExponentialCurve { Exponent = .25f, Multiplier = 500, Constant = 0 },
+        WaveFrequency = new ExponentialCurve { Exponent = .45f, Multiplier = .2f, Constant = 0 },
+        WaveSpeed = new ExponentialCurve { Exponent = 0, Multiplier = 0, Constant = .025f },
+        LightRadius = new ExponentialCurve { Exponent = .25f, Multiplier = 300, Constant = 0 },
+        BodyRadius = new ExponentialCurve { Exponent = .25f, Multiplier = 3, Constant = 0 },
+        GravityStrength = 2,
+        OrbitPeriod = new ExponentialCurve { Exponent = 1, Multiplier = 1, Constant = 0 },
+    };
+
+    private Zone NewZone(float packRadius, (string type, float mass, float dist, float phase)[] bodies)
+    {
+        var cache = AetheriaStores.Open(Path.Combine(_root, Guid.NewGuid().ToString("N") + ".cc"), runPath: Path.Combine(_root, Guid.NewGuid().ToString("N") + ".run.cc"), catalogWritable: true);
+        _caches.Add(cache);
+        var gs = new GameplaySettings
+        {
+            DefaultEntitySettings = new EntitySettings(),
+            Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
+            QualityPriceModifier = new ExponentialLerp()
+        };
+        var items = new ItemManager(cache, new ProvenanceLedger(), gs, _ => { });
+        var pack = new ZonePack { Radius = packRadius };
+        foreach (var (type, mass, dist, phase) in bodies)
+        {
+            BodyData b = type == "Sun" ? new SunData() : type == "GasGiant" ? new GasGiantData() : (BodyData) new PlanetData();
+            b.Mass = mass;
+            var orbit = new OrbitData { Distance = 0, FixedPosition = new float2(cos(phase), sin(phase)) * dist };
+            cache.Upsert(orbit);
+            b.Orbit = cache.RefOf(orbit);
+            cache.Upsert(b);
+            pack.Orbits.Add(cache.RefOf(orbit));
+            pack.Planets.Add(cache.RefOf(b));
+        }
+        var zone = new Zone(items, Real(), pack, new GalaxyZone { Name = "Probe", Owner = null }, null);
+        zone.Update(1f / 60f);
+        return zone;
+    }
+
+    // Volumetric.cginc globalFlow, transliterated for the probe only.
+    private static float tri(float x) => abs(frac(x) - .5f);
+    private static float3 tri3(float3 p) => new float3(tri(p.z + tri(p.y)), tri(p.z + tri(p.x)), tri(p.y + tri(p.x)));
+    private static float3 Tri3D(float3 p) => cross(normalize(tri3(p)), normalize(tri3(p * 1.61803398875f)));
+    private static float3 GlobalFlow(float3 pos, float scroll, float scale = 512, float amp = 15)
+    {
+        var f = Tri3D(pos / scale - new float3(0, scroll, 0)) * amp;
+        f.y *= .5f;
+        return f;
+    }
+
+    private struct P { public float Thr, Blend, Hi, Lo, Exp; public P(float t, float b, float h, float l, float e) { Thr = t; Blend = b; Hi = h; Lo = l; Exp = e; } }
+    private static float Eval(P p, float s) => lerp(p.Lo, p.Hi, pow(smoothstep(p.Thr - p.Blend, p.Thr + p.Blend, s), p.Exp));
+    // Slime Renderer.prefab values.
+    private static readonly P Deposition = new P(.3f, .3f, 2, 0, .8f), Diffusion = new P(.3f, .3f, 1, .5f, 1), Decay = new P(.5f, .5f, 20, .5f, 1),
+        Turn = new P(.5f, .5f, 128, 4, 2), Speed = new P(.5f, .5f, 0, 20, 1), Drive = new P(.5f, .4f, 64, 4, 1),
+        SensorDistance = new P(.5f, .5f, 8, 64, .125f), SensorSpread = new P(.4f, .4f, .1f, 2, .5f);
+
+    private static uint Hash(uint s) { s ^= 2747636419u; s *= 2654435769u; s ^= s >> 16; s *= 2654435769u; s ^= s >> 16; s *= 2654435769u; return s; }
+    private static float Rnd(uint s) => Hash(s) / 4294967295f;
+
+    private float[] Physarum(Zone zone, float R, int G, int agents, int steps, float dt, bool flow, float[] slope, out long ms)
+    {
+        var sw = Stopwatch.StartNew();
+        var trail = new float[G * G];
+        var next = new float[G * G];
+        var pos = new float2[agents];
+        var ang = new float[agents];
+        for (var i = 0; i < agents; i++)
+        {
+            var r = R * sqrt(Rnd((uint) i * 3u)); var a = 2 * PI * Rnd((uint) i * 3u + 1);
+            pos[i] = new float2(cos(a), sin(a)) * r; ang[i] = 2 * PI * Rnd((uint) i * 3u + 2);
+        }
+        int Cell(float2 p) { var u = (p / (2 * R) + .5f) * G; var x = clamp((int) u.x, 0, G - 1); var y = clamp((int) u.y, 0, G - 1); return y * G + x; }
+        float Sense(float2 p, float a, float d) { var c = (p / (2 * R) + .5f) * G + new float2(cos(a), sin(a)) * d; var s = 0f;
+            for (var dx = -1; dx <= 1; dx++) for (var dy = -1; dy <= 1; dy++) { var x = (int) c.x + dx; var y = (int) c.y + dy; if (x >= 0 && x < G && y >= 0 && y < G) s += trail[y * G + x]; } return s; }
+        for (var t = 0; t < steps; t++)
+        {
+            for (var i = 0; i < agents; i++)
+            {
+                var c = Cell(pos[i]); var s = slope[c];
+                pos[i] += new float2(cos(ang[i]), sin(ang[i])) * Eval(Speed, s) * dt;
+                if (flow) { var f = GlobalFlow(new float3(pos[i].x, 0, pos[i].y), .025f * t * dt); pos[i] += new float2(f.x, f.z) * dt; }
+                var rr = Rnd((uint) (t * agents + i) * 7u);
+                if (lengthsq(pos[i]) > R * R || float.IsNaN(pos[i].x) || s > .8f)
+                {
+                    var r = R * sqrt(Rnd((uint) (t * agents + i) * 7u + 3)); var a = 2 * PI * Rnd((uint) (t * agents + i) * 7u + 4);
+                    pos[i] = new float2(cos(a), sin(a)) * r; ang[i] = rr * 2 * PI;
+                }
+                c = Cell(pos[i]); s = slope[c];
+                var sp = Eval(SensorSpread, s); var d = Eval(SensorDistance, s);
+                var fwd = Sense(pos[i], ang[i], d); var l = Sense(pos[i], ang[i] - sp, d); var rt = Sense(pos[i], ang[i] + sp, d);
+                var mn = min(min(l, rt), fwd); var mx = max(max(max(l, rt), fwd), .01f); var range = min(mx - mn, .01f);
+                var ln = (l - mn) / (mx - mn); var rn = (rt - mn) / (mx - mn);
+                if (float.IsNaN(ln)) ln = 0; if (float.IsNaN(rn)) rn = 0;
+                var motivation = pow(range / mx, 1 / max(Eval(Drive, s), .001f));
+                ang[i] += Eval(Turn, s) * lerp(rr * 2 - 1, ln - rn, motivation) * dt;
+                trail[c] += Eval(Deposition, s) * dt;
+            }
+            for (var y = 0; y < G; y++) for (var x = 0; x < G; x++)
+            {
+                var sum = 0f; for (var dx = -1; dx <= 1; dx++) for (var dy = -1; dy <= 1; dy++) { var xx = x + dx; var yy = y + dy; if (xx >= 0 && xx < G && yy >= 0 && yy < G) sum += trail[yy * G + xx]; }
+                var s = slope[y * G + x];
+                next[y * G + x] = lerp(trail[y * G + x], sum / 9, saturate(Eval(Diffusion, s) * dt)) * saturate(1 - Eval(Decay, s) * dt);
+            }
+            (trail, next) = (next, trail);
+        }
+        ms = sw.ElapsedMilliseconds;
+        return trail;
+    }
+
+    private static ulong Fnv(float[] a) { ulong h = 1469598103934665603UL; foreach (var v in a) { var b = BitConverter.SingleToInt32Bits(v); for (var k = 0; k < 4; k++) { h ^= (byte) (b >> (8 * k)); h *= 1099511628211UL; } } return h; }
+    private static double Corr(float[] a, float[] b) { double ma = 0, mb = 0; for (var i = 0; i < a.Length; i++) { ma += a[i]; mb += b[i]; } ma /= a.Length; mb /= a.Length;
+        double sab = 0, saa = 0, sbb = 0; for (var i = 0; i < a.Length; i++) { var x = a[i] - ma; var y = b[i] - mb; sab += x * y; saa += x * x; sbb += y * y; } return sab / Math.Sqrt(saa * sbb); }
+    private void Ascii(string name, float[] m, int G, bool log)
+    {
+        const string ramp = " .:-=+*#%@"; var W = 64; var H = 32; var cell = new float[W * H]; var max = 1e-9f;
+        for (var y = 0; y < G; y++) for (var x = 0; x < G; x++) { var i = (y * H / G) * W + x * W / G; cell[i] += m[y * G + x]; }
+        for (var i = 0; i < cell.Length; i++) { if (log) cell[i] = (float) Math.Log(1 + cell[i]); max = Math.Max(max, cell[i]); }
+        _o.AppendLine("@@MAP " + name);
+        for (var y = H - 1; y >= 0; y--) { var sb = new StringBuilder("|"); for (var x = 0; x < W; x++) sb.Append(ramp[Math.Min(9, (int) (cell[y * W + x] / max * 9.99f))]); _o.AppendLine(sb.Append('|').ToString()); }
+    }
+
+    [Fact]
+    public void Probe()
+    {
+        var inv = CultureInfo.InvariantCulture;
+        // A sun at the centre, two planets, a gas giant with a moon, a planetoid: p50 masses from the orbit probe.
+        const float R = 2000;
+        var zone = NewZone(R, new[] { ("Sun", 14152f, 0f, 0f), ("Planet", 274f, 610f, .4f), ("Planet", 274f, 1050f, 2.6f),
+            ("GasGiant", 2260f, 1400f, 4.4f), ("Planet", 120f, 1400f + 300f, 4.6f), ("Planet", 29f, 450f, 3.9f) });
+        const int G = 256;
+        var slope = new float[G * G]; var suit = new float[G * G]; var flowMag = new double[3];
+        var sw = Stopwatch.StartNew();
+        for (var y = 0; y < G; y++) for (var x = 0; x < G; x++)
+        {
+            var p = (new float2(x + .5f, y + .5f) / G - .5f) * 2 * R;
+            var n = zone.GetNormal(p);
+            var s = lengthsq(p) > R * R ? 0f : acos(clamp(n.y, -1, 1)) / (PI / 2);
+            slope[y * G + x] = s;
+            suit[y * G + x] = lengthsq(p) > R * R ? 0 : Eval(Deposition, s) * (s > .8f ? 0 : 1);
+        }
+        _o.AppendLine($"slope-grid-ms {sw.ElapsedMilliseconds}");
+        // Q3: live global flow magnitude over the zone at three scroll values.
+        double sumH = 0, maxH = 0, sumY = 0; var n3 = 0;
+        foreach (var scroll in new[] { 0f, 1f, 7.3f })
+            for (var y = 0; y < 64; y++) for (var x = 0; x < 64; x++)
+            {
+                var p = (new float2(x + .5f, y + .5f) / 64 - .5f) * 2 * R;
+                var f = GlobalFlow(new float3(p.x, 0, p.y), scroll);
+                var h = length(new float2(f.x, f.z)); sumH += h; maxH = Math.Max(maxH, h); sumY += abs(f.y); n3++;
+            }
+        _o.AppendLine(string.Format(inv, "globalflow horizontal mean {0:F3} max {1:F3} |y| mean {2:F3} u/s; rail speed {3:F3}", sumH / n3, maxH, sumY / n3, 2 * PI));
+
+        var a1 = Physarum(zone, R, G, 40000, 600, .1f, false, slope, out var msA1);
+        var a2 = Physarum(zone, R, G, 40000, 600, .1f, false, slope, out var msA2);
+        var b1 = Physarum(zone, R, G, 40000, 600, .1f, true, slope, out var msB1);
+        _o.AppendLine($"physarum G=256 agents=40000 steps=600 ms A1 {msA1} A2 {msA2} B(flow) {msB1}");
+        _o.AppendLine($"hash A1 {Fnv(a1):x16} A2 {Fnv(a2):x16} equal {Fnv(a1) == Fnv(a2)}");
+        _o.AppendLine(string.Format(inv, "corr(A, closed-form suitability) {0:F3}; corr(B, suitability) {1:F3}; corr(A, B) {2:F3}", Corr(a1, suit), Corr(b1, suit), Corr(a1, b1)));
+        // Blurred-suitability correlation: does Physarum add structure beyond a smoothed slope map?
+        var blur = (float[]) suit.Clone(); var tmp = new float[G * G];
+        for (var k = 0; k < 6; k++) { for (var y = 0; y < G; y++) for (var x = 0; x < G; x++) { var s = 0f; var c = 0; for (var dx = -2; dx <= 2; dx++) for (var dy = -2; dy <= 2; dy++) { var xx = x + dx; var yy = y + dy; if (xx >= 0 && xx < G && yy >= 0 && yy < G) { s += blur[yy * G + xx]; c++; } } tmp[y * G + x] = s / c; } (blur, tmp) = (tmp, blur); }
+        _o.AppendLine(string.Format(inv, "corr(A, blurred suitability) {0:F3}", Corr(a1, blur)));
+        // Where the trail sits relative to the wells: fraction of trail mass by band of the nearest body's support radius.
+        var bands = new double[5]; double tot = 0;
+        for (var y = 0; y < G; y++) for (var x = 0; x < G; x++)
+        {
+            var p = (new float2(x + .5f, y + .5f) / G - .5f) * 2 * R; var best = 9f;
+            foreach (var b in zone.PlanetInstances.Values) { var u = length(p - b.Orbit.Position) / (b.GravityWellRadius / 2); best = Math.Min(best, u); }
+            var band = best < .1f ? 0 : best < .3f ? 1 : best < .6f ? 2 : best < 1f ? 3 : 4;
+            bands[band] += a1[y * G + x]; tot += a1[y * G + x];
+        }
+        _o.AppendLine(string.Format(inv, "trail mass by u=r/rs of nearest well: core<.1 {0:P1} | .1-.3 {1:P1} | .3-.6 {2:P1} | .6-1 {3:P1} | outside {4:P1}", bands[0] / tot, bands[1] / tot, bands[2] / tot, bands[3] / tot, bands[4] / tot));
+        Ascii("slope", slope, G, false);
+        Ascii("suitability (closed form, Deposition(slope))", suit, G, false);
+        Ascii("physarum A (her rules, log)", a1, G, true);
+        Ascii("physarum B (her rules + global flow, log)", b1, G, true);
+        File.WriteAllText("/tmp/probe/fauna-placement.txt", _o.ToString());
+    }
+}
