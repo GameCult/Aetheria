@@ -1269,7 +1269,7 @@ public sealed partial class ContactRevealTests : IDisposable
         var freshest = Freshest(o, e);
         ShowOnly(e, 1f, gun);
         Assert.True(e.Visibility * o.PassiveInfo(e.Position.xz, 1f) <= _items.GameplaySettings.TargetDetectionInfoThreshold, "fixture: its last light is below o's gate");
-        _zone.Entities.Remove(e);
+        _zone.Remove(e);
         var memory = _items.GameplaySettings.BearingMemory;
         var lapsed = false;
         for (var i = 0; i < 200 && !lapsed; i++)
