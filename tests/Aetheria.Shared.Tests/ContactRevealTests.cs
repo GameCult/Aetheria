@@ -1231,7 +1231,7 @@ public sealed partial class ContactRevealTests : IDisposable
         var selector = Add(float3(0, 0, 200), new[] { "Gun" });
         var selected = Add(float3(0, 0, 0)); // deaf and unseen: no sensor, nothing it could hear
         selector.SetTarget(selected);
-        Assert.Same(selected, selector.Target.Value.Entity); // fixture: it is selected
+        Assert.True(ReferenceEquals(selected, selector.Target.Value.Entity)); // fixture: it is selected
 
         var paints = 0;
         for (var i = 0; i < 20; i++)
@@ -1242,7 +1242,7 @@ public sealed partial class ContactRevealTests : IDisposable
 
         Assert.Equal(0, paints);
         Assert.False(selected.ContactOf(selector).Detected);
-        Assert.Empty(selected.RevealedSubjects);
+        Assert.Equal(0, selected.RevealedSubjects.Count);
     }
 
     // The one list of remembered contacts: the subjects whose reveals the observer holds. A tracked subject with no
@@ -1257,10 +1257,10 @@ public sealed partial class ContactRevealTests : IDisposable
         var gun = Guns(e)[0];
         o.EntityInfoGathered[tracked] = 1f;
         Assert.True(o.ContactOf(tracked).Tracked); // fixture: tracked, no reveal
-        Assert.Empty(o.RevealedSubjects);
+        Assert.Equal(0, o.RevealedSubjects.Count); // counts, not the collection: a failure message would print whole entities
 
         Fire(e, gun);
-        Assert.Same(e, Assert.Single(o.RevealedSubjects));
+        Assert.True(o.RevealedSubjects.Count == 1 && o.RevealedSubjects.Contains(e));
 
         var freshest = Freshest(o, e);
         ShowOnly(e, 1f, gun);
@@ -1275,13 +1275,13 @@ public sealed partial class ContactRevealTests : IDisposable
             Assert.Equal(!lapsed, o.RevealedSubjects.Contains(e)); // exactly while the bearing is remembered
         }
         Assert.True(lapsed, "fixture: the bearing lapsed");
-        Assert.Empty(o.RevealedSubjects);
+        Assert.Equal(0, o.RevealedSubjects.Count); // counts, not the collection: a failure message would print whole entities
 
         var q = Add(float3(40, 0, 100), new[] { "Gun" });
         Fire(q, Guns(q)[0]);
-        Assert.Same(q, Assert.Single(o.RevealedSubjects));
+        Assert.True(o.RevealedSubjects.Count == 1 && o.RevealedSubjects.Contains(q));
         o.Deactivate();
-        Assert.Empty(o.RevealedSubjects);
+        Assert.Equal(0, o.RevealedSubjects.Count); // counts, not the collection: a failure message would print whole entities
     }
 
     // The first field path from `root` to `target`, not entering the zone or the item manager, or null.
