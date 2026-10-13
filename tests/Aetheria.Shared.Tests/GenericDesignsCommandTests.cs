@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using GameCult.Caching;
+using GameCult.Caching.MessagePack;
 using Xunit;
 
 // AetherDb's generic-designs command (aetheria-release, cut generic-design-names), run on a scratch copy of the shipped
