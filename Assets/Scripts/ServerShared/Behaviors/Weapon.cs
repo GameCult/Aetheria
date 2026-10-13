@@ -71,6 +71,12 @@ public abstract class WeaponData : BehaviorData
     // weapon-tracking-authored). Unauthored is a mount that follows anything: FireControl.PMount reads +infinity as 1.
     [Inspectable, JsonProperty("tracking"), Key(33), RuntimeInspectable]
     public PerformanceStat Tracking = new PerformanceStat { Min = float.PositiveInfinity, Max = float.PositiveInfinity };
+
+    // What an observer who believes this is the design measures it by (aetheria-ew, ew-claim-weapon-measure-ruled): the
+    // design's rated figures, each stat's Max (what a stat with no terms resolves to), through the same formula the
+    // live weapon's RangeDamagePerSecond runs over its evaluated stats. Never the carrier's quality, heat, wear or power.
+    public abstract float RatedRangeDamagePerSecond(float range);
+    public float RatedRange => Range.Max;
 }
 
 public abstract class Weapon : Behavior, IActivatedBehavior

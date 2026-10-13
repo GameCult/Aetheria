@@ -68,6 +68,13 @@ public sealed class FireControlTests : IDisposable
                 MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000,
                 Behaviors = { new InstantWeaponData() }
             });
+            // A second design, so a target can carry two guns whose true figures differ (claim tests).
+            buildCache.Upsert(new GearData
+            {
+                Name = "WeakGun", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Durability = 1,
+                MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000,
+                Behaviors = { new InstantWeaponData() }
+            });
             buildCache.FlushAsync().Wait();
         }
 
@@ -175,9 +182,10 @@ public sealed class FireControlTests : IDisposable
     }
 
     // A shooter with one in-range, in-arc gun, a detected target at `targetPosition`, and a Minion driving the shooter.
-    private (Ship shooter, Ship target, Zone zone) BuildCombatEncounter(float3 targetPosition, float projectileSpeed = 0f)
+    private (Ship shooter, Ship target, Zone zone) BuildCombatEncounter(float3 targetPosition, float projectileSpeed = 0f, bool twoTargetGuns = false)
     {
-        var (items, shooter, weapons) = BuildShipWithHardpoints((ItemRotation.None, 0f));
+        var mounts = twoTargetGuns ? new[] { (ItemRotation.None, 0f), (ItemRotation.None, 0f) } : new[] { (ItemRotation.None, 0f) };
+        var (items, shooter, weapons) = BuildShipWithHardpoints(mounts);
         var weaponData = (InstantWeaponData) weapons[0].Data.Behaviors.Single(b => b is InstantWeaponData);
         weaponData.Damage = new PerformanceStat { Min = 10, Max = 10 };
         weaponData.Cooldown = new PerformanceStat { Min = 1, Max = 1 };
@@ -194,6 +202,20 @@ public sealed class FireControlTests : IDisposable
         // gun so the target is a real, ordinarily-constructed ship rather than a workaround-shaped one.
         var targetGunRef = items.ItemData.RefOf<ItemData>(items.ItemData.GetByName<GearData>("Gun"));
         Assert.True(target.TryEquip(new EquippableItem { Data = targetGunRef, Durability = 1, Lot = 1 }, new int2(0, 0)));
+        if (twoTargetGuns)
+        {
+            // Both true guns are finite, authored figures: the strong one rates 10, the weak one 1.
+            weaponData.Count = new PerformanceStat { Min = 1, Max = 1 };
+            var weakRef = items.ItemData.RefOf<ItemData>(items.ItemData.GetByName<GearData>("WeakGun"));
+            var weakData = (InstantWeaponData) items.ItemData.GetByName<GearData>("WeakGun").Behaviors.Single();
+            weakData.Damage = new PerformanceStat { Min = 1, Max = 1 };
+            weakData.Count = new PerformanceStat { Min = 1, Max = 1 };
+            weakData.Cooldown = new PerformanceStat { Min = 1, Max = 1 };
+            weakData.Range = new PerformanceStat { Min = 1000, Max = 1000 };
+            weakData.MinRange = new PerformanceStat { Min = 0, Max = 0 };
+            weakData.DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } };
+            Assert.True(target.TryEquip(new EquippableItem { Data = weakRef, Durability = 1, Lot = 2 }, new int2(1, 0)));
+        }
         zone.Admit(target, piloted: false);
 
         shooter.Position = float3.zero;
@@ -249,7 +271,7 @@ public sealed class FireControlTests : IDisposable
         zone.Update(1f);
         Assert.Null(shooter.TargetItem.Value);
 
-        shooter.RecordReveal(target, targetGun, SignatureChannel.LaunchFlash);
+        shooter.RecordReveal(target, targetGun, SignatureChannel.LaunchFlash, targetGun.Data);
         zone.Update(1f);
 
         Assert.Same(targetGun, shooter.TargetItem.Value);
@@ -260,6 +282,72 @@ public sealed class FireControlTests : IDisposable
         zone.Update(1f);
 
         Assert.Null(shooter.TargetItem.Value);
+    }
+
+    // A design as an observer might be told it is: an instant weapon with rated figures, held in memory (a claim is data,
+    // not a catalog item). Rated damage per second at any range is damage / cooldown (one round, flat curve).
+    private static GearData ClaimedDesign(string name, float damage) => new GearData
+    {
+        Name = name,
+        Behaviors =
+        {
+            new InstantWeaponData
+            {
+                Damage = new PerformanceStat { Min = 0, Max = damage }, Count = new PerformanceStat { Min = 1, Max = 1 },
+                Cooldown = new PerformanceStat { Min = 1, Max = 1 }, Range = new PerformanceStat { Min = 0, Max = 1000 },
+                MinRange = new PerformanceStat { Min = 0, Max = 0 },
+                DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } }
+            }
+        }
+    };
+
+    // Ruling ew-aim: the AI classifies from its book, not the target's gear (aetheria-ew, classify-from-belief). A gun
+    // the target claims is not a weapon is not something Combat picks as a weapon, though the gun is truly one and
+    // the shooter has seen it act; clearing the claim and seeing it act again restores the choice. Mutation: Combat
+    // walks target.Equipment (or reveal.Item's true behaviours) instead of RevealedWeapons.
+    [Fact]
+    public void TheAIChoosesFromWhatItBelieves()
+    {
+        var (shooter, target, zone) = BuildCombatEncounter(float3(0, 0, 10));
+        var targetGun = target.Equipment.Single(x => x.Behaviors.Any(b => b is Weapon));
+
+        target.Claim(targetGun, new GearData { Name = "NotAGun" });
+        shooter.RecordReveal(target, targetGun, SignatureChannel.LaunchFlash, target.ClaimOf(targetGun));
+        zone.Update(1f);
+        zone.Update(1f);
+        Assert.Null(shooter.TargetItem.Value);
+
+        target.Claim(targetGun, null);
+        shooter.RecordReveal(target, targetGun, SignatureChannel.LaunchFlash, target.ClaimOf(targetGun));
+        zone.Update(1f);
+        Assert.Same(targetGun, shooter.TargetItem.Value);
+    }
+
+    // Ruling ew-claim-weapon-measure-ruled (rated-design): the AI ranks revealed weapons by their claimed design's
+    // rated figures, so the truly weaker gun claimed as the stronger design is the one chosen, and the unclaimed pair
+    // picks the truly stronger. Mutation: rank by the true weapon's live figure, or by the carrier's stats.
+    [Fact]
+    public void AWeakerGunClaimedAsAStrongerDesignIsChosen()
+    {
+        var (shooter, target, zone) = BuildCombatEncounter(float3(0, 0, 10), twoTargetGuns: true);
+        var strong = target.Equipment.Single(x => x.Data.Name == "Gun");
+        var weak = target.Equipment.Single(x => x.Data.Name == "WeakGun");
+
+        void See()
+        {
+            shooter.RecordReveal(target, strong, SignatureChannel.LaunchFlash, target.ClaimOf(strong));
+            shooter.RecordReveal(target, weak, SignatureChannel.LaunchFlash, target.ClaimOf(weak));
+            zone.Update(1f);
+            zone.Update(1f);
+        }
+
+        See();
+        Assert.Same(strong, shooter.TargetItem.Value); // unclaimed: the truly stronger gun (rated 10 against 1)
+
+        target.Claim(strong, ClaimedDesign("Pea", 2f));
+        target.Claim(weak, ClaimedDesign("Cannon", 90f));
+        See();
+        Assert.Same(weak, shooter.TargetItem.Value);
     }
 
     // Controls cut (helm split): Combat aims the shooter at the intercept (Aim) and commands the hull toward it

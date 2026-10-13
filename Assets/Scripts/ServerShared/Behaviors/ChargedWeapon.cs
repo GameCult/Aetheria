@@ -54,6 +54,15 @@ public class ChargedWeaponData : InstantWeaponData
     {
         return new ChargedWeapon(this, item);
     }
+
+    // The one formula of a charged weapon's damage per second at a range (see InstantWeaponData.RangeDamagePerSecond).
+    internal static float RangeDamagePerSecond(BezierCurve damageCurve, float damage, float chargeFiringDamageMultiplier,
+        float minRange, float range, float cooldown, float chargeTime, float atRange) =>
+        damage * chargeFiringDamageMultiplier * damageCurve.Evaluate(saturate(unlerp(minRange, range, atRange))) / (cooldown + chargeTime);
+
+    public override float RatedRangeDamagePerSecond(float range) =>
+        RangeDamagePerSecond(DamageCurve, Damage.Max / (int) Count.Max, ChargeFiringDamageMultiplier, MinRange.Max, Range.Max,
+            Cooldown.Max, ChargeTime.Max, range);
 }
 
 public class ChargedWeapon : InstantWeapon
@@ -78,10 +87,8 @@ public class ChargedWeapon : InstantWeapon
     public override float DamagePerSecond => Damage * _data.ChargeFiringDamageMultiplier / (Cooldown + ChargeTime);
     public override float RangeDamagePerSecond(float range)
     {
-        return Damage *
-               _data.ChargeFiringDamageMultiplier *
-               _data.DamageCurve.Evaluate(saturate(unlerp(MinRange, Range, range))) /
-               (Cooldown + ChargeTime);
+        return ChargedWeaponData.RangeDamagePerSecond(_data.DamageCurve, Damage, _data.ChargeFiringDamageMultiplier,
+            MinRange, Range, Cooldown, ChargeTime, range);
     }
 
     public event Action OnStartCharging;

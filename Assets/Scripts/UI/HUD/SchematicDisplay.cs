@@ -58,7 +58,10 @@ public class SchematicDisplay : MonoBehaviour
 
     public class SchematicDisplayItem
     {
+        // The true item: the selection mark's key and, on the player's own ship, the live gear. Never classifies an enemy row.
         public EquippedItem Item;
+        // The class the row shows: the claim the player's book holds for an enemy row, the item's own data on the player's ship.
+        public EquippableItemData Claimed;
         public SchematicListElement ListElement;
         public IProgressBehavior Cooldown;
         // public ItemUsage ItemUsage;
@@ -93,15 +96,19 @@ public class SchematicDisplay : MonoBehaviour
                 CargoTemperatureLabel.text = "N/A";
         }
         
-        BuildRows(_enemy ? RevealedWeapons() : entity.Equipment.Where(IsWeapon));
+        BuildRows(WeaponRows());
     }
 
     private static bool IsWeapon(EquippedItem item) => item.Behaviors.Any(b => b.Data is WeaponData);
 
-    // An enemy schematic lists what `_player` has seen the ship's weapons do: the weapon items of the player's book on it,
-    // in book order (ruling reveal-ends-on-perception), never the ship's live gear. The player's own schematic is its
-    // equipment; there is nothing to reveal about your own ship.
-    private IEnumerable<EquippedItem> RevealedWeapons() => _player.RevealsOf(_entity).Select(r => r.Item).Where(IsWeapon);
+    // An enemy schematic lists what `_player` believes the ship's weapons are: the weapon reveals of the player's book on
+    // it (Entity.RevealedWeapons), in book order (ruling reveal-ends-on-perception), each shown as the class it claimed
+    // (aetheria-ew, classify-from-belief), never the ship's live gear. The player's own schematic is its equipment, each
+    // row its own data; there is nothing to doubt about your own ship.
+    private IEnumerable<(EquippedItem Item, EquippableItemData Claimed)> WeaponRows() =>
+        _enemy
+            ? _player.RevealedWeapons(_entity).Select(r => (r.Item, r.Claimed))
+            : _entity.Equipment.Where(IsWeapon).Select(item => (item, item.Data));
 
     private void ReturnRows()
     {
@@ -111,21 +118,22 @@ public class SchematicDisplay : MonoBehaviour
         _schematicItems = null;
     }
 
-    private void BuildRows(IEnumerable<EquippedItem> items)
+    private void BuildRows(IEnumerable<(EquippedItem Item, EquippableItemData Claimed)> rows)
     {
-        _schematicItems = items
+        _schematicItems = rows
             .Select(x => new SchematicDisplayItem
             {
-                Item = x, 
+                Item = x.Item,
+                Claimed = x.Claimed,
                 ListElement = ListElementPrototype.Instantiate<SchematicListElement>(),
-                Cooldown = _enemy ? null : (IProgressBehavior) x.Behaviors.FirstOrDefault(b=> b is IProgressBehavior),
+                Cooldown = _enemy ? null : (IProgressBehavior) x.Item.Behaviors.FirstOrDefault(b=> b is IProgressBehavior),
                 // ItemUsage = _enemy ? null : (ItemUsage) x.Behaviors.FirstOrDefault(b=> b is ItemUsage),
-                Weapon = (Weapon) x.Behaviors.FirstOrDefault(b=>b is Weapon)
+                Weapon = _enemy ? null : (Weapon) x.Item.Behaviors.FirstOrDefault(b=>b is Weapon)
             })
             .ToArray();
         foreach (var x in _schematicItems)
         {
-            if(x.Item.Data is WeaponItemData weaponItemData)
+            if(x.Claimed is WeaponItemData weaponItemData)
                 x.ListElement.ShowWeapon(weaponItemData);
             //x.ListElement.Label.text = x.Item.EquippableItem.Name;
             if (!_enemy)
@@ -197,10 +205,10 @@ public class SchematicDisplay : MonoBehaviour
 
             // A reveal gained or ended after selection changes the rows with no event to hook: rebuild when the
             // revealed weapon set differs from the rows' items.
-            if (_enemy && !RevealedWeapons().SequenceEqual(_schematicItems.Select(x => x.Item)))
+            if (_enemy && !WeaponRows().SequenceEqual(_schematicItems.Select(x => (x.Item, x.Claimed))))
             {
                 ReturnRows();
-                BuildRows(RevealedWeapons());
+                BuildRows(WeaponRows());
             }
 
             // Cut 2 (docs/fire-control-cut.md): marks whichever row is the player's current aim point.
@@ -240,10 +248,12 @@ public class SchematicDisplay : MonoBehaviour
                     }
                 }
 
-                if (x.Weapon.WeaponData != null)
+                // The range label: the live range on the player's own ship, the claimed design's rated range on an enemy row
+                // (ew-claim-weapon-measure-ruled; the observer never sees a target weapon's quality, wear or power).
+                if (x.ListElement.RangeLabel)
                 {
-                    if(x.ListElement.RangeLabel)
-                        x.ListElement.RangeLabel.text = ((int) x.Weapon.Range).ToString();
+                    var range = _enemy ? x.Claimed.Behaviors.OfType<WeaponData>().First().RatedRange : x.Weapon.Range;
+                    x.ListElement.RangeLabel.text = ((int) range).ToString();
                 }
             }
         }

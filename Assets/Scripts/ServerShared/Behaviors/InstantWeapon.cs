@@ -30,6 +30,14 @@ public class InstantWeaponData : WeaponData
     {
         return new InstantWeapon(this, item);
     }
+
+    // The one formula of an instant weapon's damage per second at a range; the live weapon calls it with its evaluated
+    // stats, the design with its rated ones (burst divides damage, as UpdateStats does).
+    internal static float RangeDamagePerSecond(BezierCurve damageCurve, float damage, float minRange, float range, float cooldown, float atRange) =>
+        damage * damageCurve.Evaluate(saturate(unlerp(minRange, range, atRange))) / cooldown;
+
+    public override float RatedRangeDamagePerSecond(float range) =>
+        RangeDamagePerSecond(DamageCurve, Damage.Max / (int) Count.Max, MinRange.Max, Range.Max, Cooldown.Max, range);
 }
 
 public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerConsumer
@@ -61,7 +69,7 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
     public override float DamagePerSecond => Damage / Cooldown;
     public override float RangeDamagePerSecond(float range)
     {
-        return Damage * _data.DamageCurve.Evaluate(saturate(unlerp(MinRange, Range, range))) / Cooldown;
+        return InstantWeaponData.RangeDamagePerSecond(_data.DamageCurve, Damage, MinRange, Range, Cooldown, range);
     }
 
     public override int Ammo
