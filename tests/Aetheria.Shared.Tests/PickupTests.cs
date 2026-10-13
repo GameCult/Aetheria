@@ -243,9 +243,17 @@ public sealed class PickupTests : IDisposable
         var item = Drift(lab, 40, 0);
         var events = Watch(ship, bag);
         ship.TractorCommand = 1;
-        Tick(lab, 150, 1 / 60f);
+        var tickOf = new List<int>();
+        for (var tick = 1; tick <= 150; tick++)
+        {
+            lab.Zone.Update(1 / 60f);
+            while (tickOf.Count < events.Count) tickOf.Add(tick);
+        }
         Assert.Equal(new[] { GrabPhase.Started, GrabPhase.Extend, GrabPhase.Envelop, GrabPhase.Pull, GrabPhase.Completed },
             events.Take(5).Select(e => e.Phase).ToArray());
+
+        // Each phase is published once, on the tick its boundary is crossed: the claim, then .3 s, .5 s and 1 s after it.
+        Assert.Equal(new[] { 0, 0, 18, 30, 60 }, tickOf.Take(5).Select(tick => tick - tickOf[0]).ToArray());
         Assert.All(events.Take(5), e => Assert.Equal(item.Id, e.Target));
         Assert.NotEqual(other.Id, item.Id);
         Assert.Equal(.3f, events[1].PhaseDuration, 4);
