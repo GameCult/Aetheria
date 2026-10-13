@@ -43,6 +43,8 @@ uniform half _NebulaFillDensity,
             _DynamicIntensity,
             _DynamicSkyBoost;
 float2 _FlowScroll;
+// The flow clock (zone time, VolumeSampling.FlowClock): the nebula noise evolves on it, never on _Time.
+float _NebulaNoiseTime;
 
 inline float tri(in float x){return abs(frac(x)-.5);}
 inline float3 tri3(in float3 p){return float3( tri(p.z+tri(p.y*1.)), tri(p.z+tri(p.x*1.)), tri(p.y+tri(p.x*1.)));}
@@ -55,7 +57,7 @@ float triNoise3d(in float3 p)
     for (float i=0.; i<=1.; i++ )
     {
         float3 dg = tri3(bp * 2.);
-        p += dg + _Time.y * _NebulaNoiseSpeed;
+        p += dg + _NebulaNoiseTime * _NebulaNoiseSpeed;
 
         bp *= 1.8;
         z *= 1.5;

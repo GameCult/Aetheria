@@ -47,6 +47,7 @@ public class VolumeSampling : MonoBehaviour
             Shader.SetGlobalVector("_GridTransform", new Vector4(_gridTransform.position.x,_gridTransform.position.z,GridCamera.orthographicSize*2));
 
         var environment = ActionGameManager.Instance?.CurrentEnvironment ?? Settings.DefaultEnvironment;
+        var clock = FlowClock;
 
         if (GridMesh != null)
         {
@@ -86,16 +87,23 @@ public class VolumeSampling : MonoBehaviour
         Shader.SetGlobalFloat("_NebulaNoiseExponent", environment.Noise.Exponent);
         Shader.SetGlobalFloat("_NebulaNoiseAmplitude", environment.Noise.Amplitude);
         Shader.SetGlobalFloat("_NebulaNoiseSpeed", environment.Noise.Speed);
+        // The noise the flow advects evolves on the flow's clock too: it pauses with the sim.
+        Shader.SetGlobalFloat("_NebulaNoiseTime", (float) clock);
         Shader.SetGlobalFloat("_NebulaNoiseSlopeExponent", environment.Noise.SlopeExponent);
         
         // The flow is the zone's: its settings and its time. Without a zone (menus) the same law runs on the presentation clock.
-        LowerFlow(ActionGameManager.Instance?.Zone?.Settings.Flow ?? Settings.PlanetSettings.Flow, FlowClock);
+        LowerFlow(ActionGameManager.Instance?.Zone?.Settings.Flow ?? Settings.PlanetSettings.Flow, clock);
         Shader.SetKeyword(_keywordNoiseSlope, environment.Noise.SlopeExponent != 0);
     }
 
-    // GlobalKeyword's constructor only looks a keyword up; Create registers it. The shaders' pragmas and this owner agree on the names.
-    static readonly GlobalKeyword KeywordFlowGlobal = GlobalKeyword.Create("FLOW_GLOBAL");
-    static readonly GlobalKeyword KeywordFlowSlope = GlobalKeyword.Create("FLOW_SLOPE");
+    // GlobalKeyword's constructor only looks a keyword up; Create registers it. The shaders' pragmas and this owner
+    // agree on the names. Unity refuses Create inside a MonoBehaviour's construction, and a scene constructing the
+    // first VolumeSampling runs this type's static initializer there, so the keywords are created on first use, from
+    // LowerFlow, never in a field initializer.
+    static GlobalKeyword? _keywordFlowGlobal;
+    static GlobalKeyword? _keywordFlowSlope;
+    static GlobalKeyword KeywordFlowGlobal => _keywordFlowGlobal ??= GlobalKeyword.Create("FLOW_GLOBAL");
+    static GlobalKeyword KeywordFlowSlope => _keywordFlowSlope ??= GlobalKeyword.Create("FLOW_SLOPE");
 
     /// <summary>
     /// The time the flow runs on: the zone's own (so drift stops with the sim and follows sim speed), or on menus,

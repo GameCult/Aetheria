@@ -21,12 +21,19 @@ public static class FlowField
     public static float2 Scroll(FlowSettings settings, double zoneTime)
     {
         var scroll = (double) settings.GlobalScrollSpeed * zoneTime;
-        return float2((float) frac(scroll), (float) frac(scroll * Golden));
+        return float2(Phase(scroll), Phase(scroll * Golden));
+    }
+
+    // A phase in [0, 1) strictly: a double just below an integer rounds up to 1f in the cast, and 1 is 0 modulo 1.
+    static float Phase(double value)
+    {
+        var phase = (float) frac(value);
+        return phase < 1f ? phase : 0f;
     }
 
     // The phase of a cycle of `period` seconds at zone time, in [0, 1). The nebula's flow-advected noise cycles and
     // Stardust's particle lifetimes take their phase from here, so drift follows sim time and stops with the sim.
-    public static float Cycle(double zoneTime, float period) => period == 0f ? 0f : (float) frac(zoneTime / period);
+    public static float Cycle(double zoneTime, float period) => period == 0f ? 0f : Phase(zoneTime / period);
 
     // The procedural term (Volumetric.cginc globalFlow): a Tri3D field of position / scale, scrolled along y.
     // Skipped when its amplitude is zero, as the shader's FLOW_GLOBAL keyword skips it.

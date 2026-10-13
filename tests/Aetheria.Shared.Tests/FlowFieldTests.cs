@@ -208,4 +208,109 @@ public sealed class FlowFieldTests : IDisposable
             previous = now;
         }
     }
+
+    // The law as Volumetric.cginc spelled it before the per-octave fold: Tri3D(p) with p * Golden for the second
+    // octave and p = pos / scale - (0, speed * t, 0), in double with the unfolded scroll. The oracle the fold must
+    // agree with; it shares no code with FlowField.
+    private static double OTri(double x) => Math.Abs(x - Math.Floor(x) - .5);
+    private static double[] OTri3(double x, double y, double z) => new[] { OTri(z + OTri(y)), OTri(z + OTri(x)), OTri(y + OTri(x)) };
+
+    private static double[] ONormalize(double[] v)
+    {
+        var l = Math.Sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+        return new[] { v[0] / l, v[1] / l, v[2] / l };
+    }
+
+    private static double[] UnfoldedLaw(FlowSettings f, float3 p, double t)
+    {
+        double g = 1.61803398875f;
+        var s = (double) f.GlobalScrollSpeed * t;
+        double x = p.x / (double) f.GlobalScale, y = p.y / (double) f.GlobalScale - s, z = p.z / (double) f.GlobalScale;
+        var t1 = ONormalize(OTri3(x, y, z));
+        var t2 = ONormalize(OTri3(x * g, y * g, z * g));
+        var c = new[] { t1[1] * t2[2] - t1[2] * t2[1], t1[2] * t2[0] - t1[0] * t2[2], t1[0] * t2[1] - t1[1] * t2[0] };
+        return new[] { c[0] * f.GlobalAmplitude, c[1] * f.GlobalAmplitude * .5, c[2] * f.GlobalAmplitude };
+    }
+
+    private static double Distance(float3 a, double[] b) =>
+        Math.Sqrt((a.x - b[0]) * (a.x - b[0]) + (a.y - b[1]) * (a.y - b[1]) + (a.z - b[2]) * (a.z - b[2]));
+
+    [Fact]
+    public void FoldedScrollIsTheUnfoldedLawAtAnyAge()
+    {
+        // fold-law: the phase each octave gets is the unfolded speed x time (second octave: x Golden), folded once in
+        // double. Computing the second from the folded first (frac(frac(s) x Golden)) agrees below 40 s and nowhere after.
+        var f = Flow();
+        foreach (var t in new[] { 0.0, 3.1, 39.99, 40.0, 40.01, 86400.0, 864000.0 + .3, 8640000.0 + .7 })
+        foreach (var p in Probes)
+            Assert.True(Distance(FlowField.Global(f, p, FlowField.Scroll(f, t)), UnfoldedLaw(f, p, t)) / f.GlobalAmplitude < 5e-5,
+                $"t={t} p={p}");
+    }
+
+    [Fact]
+    public void NoJumpWhereAPhaseWraps()
+    {
+        // Each octave's phase wraps at its own times (the first every 40 s of zone time at speed .025): across a wrap
+        // the flow moves by what the unfolded law moves, so nothing jumps.
+        var f = Flow();
+        double speed = f.GlobalScrollSpeed, golden = 1.61803398875f;
+        const double h = 1.0 / 120.0;
+        foreach (var (octave, cycles) in new[] { (0, 1.0), (0, 21600.0), (1, 1.0), (1, 34950.0) })
+        {
+            var t = octave == 0 ? cycles / speed : cycles / (speed * golden);
+            var before = FlowField.Scroll(f, t - h);
+            var after = FlowField.Scroll(f, t + h);
+            Assert.True(octave == 0 ? before.x > .9f && after.x < .1f : before.y > .9f && after.y < .1f,
+                $"octave {octave} cycles {cycles}: the probe times do not straddle a wrap");
+            foreach (var p in Probes)
+            {
+                var folded = FlowField.Global(f, p, after) - FlowField.Global(f, p, before);
+                var a = UnfoldedLaw(f, p, t + h);
+                var b = UnfoldedLaw(f, p, t - h);
+                Assert.True(Distance(folded, new[] { a[0] - b[0], a[1] - b[1], a[2] - b[2] }) / f.GlobalAmplitude < 1e-4,
+                    $"octave {octave} cycles {cycles} p={p}");
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(10)]
+    [InlineData(100)]
+    public void CycleKeepsAdvancingAtDays(int days)
+    {
+        // The cycle phase takes zone time in double: a float zone time at 10 days (8.6e5 s) resolves 0.06 s and at
+        // 100 days 1 s, so a 1/60 s step would not move the phase.
+        foreach (var period in new[] { 8f, .25f })
+        {
+            const double dt = 1.0 / 60.0;
+            var time = days * 86400.0 + .1;
+            var previous = FlowField.Cycle(time, period);
+            for (var step = 0; step < 30; step++)
+            {
+                time += dt;
+                var now = FlowField.Cycle(time, period);
+                var advance = now - previous;
+                if (advance < -.5f) advance += 1f;
+                Assert.InRange((double) advance, dt / period - 1e-5, dt / period + 1e-5);
+                previous = now;
+            }
+        }
+    }
+
+    [Fact]
+    public void PhasesAreStrictlyBelowOne()
+    {
+        // A phase just below an integer rounds to 1f in a float cast; the contract is [0, 1), so it reads 0 instead
+        // (1 is 0 modulo 1: the flow there is the flow at 0).
+        var f = Flow();
+        double speed = f.GlobalScrollSpeed, golden = 1.61803398875f;
+        foreach (var gap in new[] { 1e-9, 1e-12 })
+        {
+            var first = FlowField.Scroll(f, (1.0 - gap) / speed);
+            var second = FlowField.Scroll(f, (2.0 - gap) / (speed * golden));
+            Assert.InRange(first.x, 0f, .9999999f);
+            Assert.InRange(second.y, 0f, .9999999f);
+            Assert.InRange(FlowField.Cycle(8.0 * (1.0 - gap), 8f), 0f, .9999999f);
+        }
+    }
 }
