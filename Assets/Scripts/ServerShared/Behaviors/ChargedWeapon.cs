@@ -61,7 +61,7 @@ public class ChargedWeaponData : InstantWeaponData
         damage * chargeFiringDamageMultiplier * damageCurve.Evaluate(saturate(unlerp(minRange, range, atRange))) / (cooldown + chargeTime);
 
     public override float RatedRangeDamagePerSecond(float range) =>
-        RangeDamagePerSecond(DamageCurve, Damage.Max / (int) Count.Max, ChargeFiringDamageMultiplier, MinRange.Max, Range.Max,
+        RangeDamagePerSecond(DamageCurve, PerRound(Damage.Max, Count.Max), ChargeFiringDamageMultiplier, MinRange.Max, Range.Max,
             Cooldown.Max, ChargeTime.Max, range);
 }
 

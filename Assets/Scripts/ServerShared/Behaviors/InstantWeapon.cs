@@ -32,12 +32,15 @@ public class InstantWeaponData : WeaponData
     }
 
     // The one formula of an instant weapon's damage per second at a range; the live weapon calls it with its evaluated
-    // stats, the design with its rated ones (burst divides damage, as UpdateStats does).
+    // stats, the design with its rated ones. A burst's round carries its share of the totals: PerRound, the one divisor
+    // UpdateStats and the rated read both use.
+    internal static float PerRound(float total, float burstCount) => total / (int) burstCount;
+
     internal static float RangeDamagePerSecond(BezierCurve damageCurve, float damage, float minRange, float range, float cooldown, float atRange) =>
         damage * damageCurve.Evaluate(saturate(unlerp(minRange, range, atRange))) / cooldown;
 
     public override float RatedRangeDamagePerSecond(float range) =>
-        RangeDamagePerSecond(DamageCurve, Damage.Max / (int) Count.Max, MinRange.Max, Range.Max, Cooldown.Max, range);
+        RangeDamagePerSecond(DamageCurve, PerRound(Damage.Max, Count.Max), MinRange.Max, Range.Max, Cooldown.Max, range);
 }
 
 public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerConsumer
@@ -137,9 +140,9 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
         BurstTime = Evaluate(_data.BurstTime);
         Cooldown = Evaluate(_data.Cooldown);
 
-        Damage /= (int) BurstCount;
-        Heat /= (int) BurstCount;
-        Energy /= (int) BurstCount;
+        Damage = InstantWeaponData.PerRound(Damage, BurstCount);
+        Heat = InstantWeaponData.PerRound(Heat, BurstCount);
+        Energy = InstantWeaponData.PerRound(Energy, BurstCount);
     }
 
     // Cut 4 (docs/stats-and-power-cut.md §7 Q4): capacity and rate, resolved fresh rather than off the cached

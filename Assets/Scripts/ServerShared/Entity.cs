@@ -106,18 +106,21 @@ public abstract class Entity
         _visibilitySources[source] = new Signature(channel, strength, item, ClaimOf(item));
     }
 
-    // What this ship's acts claim (aetheria-ew, lie-is-own-emission, classify-from-belief): the hull class and, per item,
-    // the equippable class every act of that item is stamped with (SetSignature, Emit, ReceivePaint). The truth unless
-    // claimed otherwise. Claim is the one write port; its production writer is the EW behaviour of cut ew-masquerade,
-    // tests only until then. Deactivate clears both. Aim, damage and physics keep the truth.
-    private HullData _hullClaim;
+    // What this ship's acts claim (aetheria-ew, lie-is-own-emission, classify-from-belief): per equipped item, the
+    // equippable class every act of that item is stamped with (SetSignature, Emit, ReceivePaint). The hull is the
+    // item EquippedHull, so its claim lives in the same slot as every other: the hull class its own acts carry and
+    // the profile an observer derives (ClaimedHull) are one value. The truth unless claimed otherwise. Claim is the
+    // one write port; its production writer is the EW behaviour of cut ew-masquerade, tests only until then.
+    // Deactivate clears the slots. Aim, damage and physics keep the truth.
     private readonly Dictionary<EquippedItem, EquippableItemData> _itemClaims = new Dictionary<EquippedItem, EquippableItemData>();
-    public HullData ClaimedHull => _hullClaim ?? HullData;
+    public HullData ClaimedHull => (ClaimOf(EquippedHull) as HullData) ?? HullData;
     public EquippableItemData ClaimOf(EquippedItem item) =>
         item == null ? null : _itemClaims.TryGetValue(item, out var claimed) ? claimed : item.Data;
-    internal void Claim(HullData hull) => _hullClaim = hull;
+    internal void Claim(HullData hull) => Claim(EquippedHull, hull);
     internal void Claim(EquippedItem item, EquippableItemData claimed)
     {
+        if (item == EquippedHull && claimed != null && !(claimed is HullData))
+            throw new ArgumentException("The hull can only claim to be a hull.", nameof(claimed));
         if (claimed == null) _itemClaims.Remove(item);
         else _itemClaims[item] = claimed;
     }
@@ -884,7 +887,6 @@ public abstract class Entity
         _pingReturns.Clear();
         _emissions.Clear();
         _reveals.Clear();
-        _hullClaim = null;
         _itemClaims.Clear();
     }
 
@@ -975,11 +977,13 @@ public abstract class Entity
     public IEnumerable<Reveal> RevealsOf(Entity subject) =>
         _reveals.TryGetValue(subject, out var book) ? book.Values : Enumerable.Empty<Reveal>();
 
-    // The weapons this observer believes `subject` has: each reveal whose claimed class carries a weapon behaviour, in book
-    // order. The one classifying read of the book for weapons, shared by the enemy schematic and Combat (aetheria-ew,
-    // classify-from-belief); a gun claimed as a non-weapon is not listed, though RevealsOf holds it for aim.
+    // The weapons this observer believes `subject` has: each reveal whose claimed class carries a weapon behaviour, in the
+    // subject's equipment order (never the book's slot order, which follows when reveals were made and ended). The one
+    // classifying read of the book for weapons, shared by the enemy schematic and Combat (aetheria-ew, classify-from-belief);
+    // a gun claimed as a non-weapon is not listed, though RevealsOf holds it for aim.
     public IEnumerable<Reveal> RevealedWeapons(Entity subject) =>
-        RevealsOf(subject).Where(r => r.Claimed != null && r.Claimed.Behaviors.Any(b => b is WeaponData));
+        RevealsOf(subject).Where(r => r.Claimed != null && r.Claimed.Behaviors.Any(b => b is WeaponData))
+            .OrderBy(r => subject.Equipment.IndexOf(r.Item));
 
     // Whether this observer's book for `subject` holds `item`: the book's membership, no live gear read.
     internal bool HasReveal(Entity subject, EquippedItem item) =>

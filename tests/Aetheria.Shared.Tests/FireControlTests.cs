@@ -286,7 +286,7 @@ public sealed class FireControlTests : IDisposable
 
     // A design as an observer might be told it is: an instant weapon with rated figures, held in memory (a claim is data,
     // not a catalog item). Rated damage per second at any range is damage / cooldown (one round, flat curve).
-    private static GearData ClaimedDesign(string name, float damage) => new GearData
+    private static GearData ClaimedDesign(string name, float damage, float range = 1000f, BezierCurve curve = null) => new GearData
     {
         Name = name,
         Behaviors =
@@ -294,9 +294,9 @@ public sealed class FireControlTests : IDisposable
             new InstantWeaponData
             {
                 Damage = new PerformanceStat { Min = 0, Max = damage }, Count = new PerformanceStat { Min = 1, Max = 1 },
-                Cooldown = new PerformanceStat { Min = 1, Max = 1 }, Range = new PerformanceStat { Min = 0, Max = 1000 },
+                Cooldown = new PerformanceStat { Min = 1, Max = 1 }, Range = new PerformanceStat { Min = 0, Max = range },
                 MinRange = new PerformanceStat { Min = 0, Max = 0 },
-                DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } }
+                DamageCurve = curve ?? new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } }
             }
         }
     };
@@ -348,6 +348,73 @@ public sealed class FireControlTests : IDisposable
         target.Claim(weak, ClaimedDesign("Cannon", 90f));
         See();
         Assert.Same(weak, shooter.TargetItem.Value);
+    }
+
+    // The ranking reads the claimed design at the distance to the target: a short-range design that out-damages a flat one
+    // up close is worthless at 10 when its Range is 12, and the weaker flat design is chosen. Mutation: Combat halves
+    // targetDistance (the short design then rates 6.2 at 5 and wins), or the rated read ignores the range.
+    [Fact]
+    public void TheAIRanksClaimsAtTheTargetsDistance()
+    {
+        var (shooter, target, zone) = BuildCombatEncounter(float3(0, 0, 10), twoTargetGuns: true);
+        var strong = target.Equipment.Single(x => x.Data.Name == "Gun");
+        var weak = target.Equipment.Single(x => x.Data.Name == "WeakGun");
+        var falling = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 0, 0, 0) } };
+
+        target.Claim(strong, ClaimedDesign("Dart", 10f, range: 12f, curve: falling)); // ~.7 at 10, ~6.2 at 5
+        target.Claim(weak, ClaimedDesign("Slug", 5f));                                // 5 at any range
+        shooter.RecordReveal(target, strong, SignatureChannel.LaunchFlash, target.ClaimOf(strong));
+        shooter.RecordReveal(target, weak, SignatureChannel.LaunchFlash, target.ClaimOf(weak));
+        zone.Update(1f);
+        zone.Update(1f);
+
+        Assert.Same(weak, shooter.TargetItem.Value);
+    }
+
+    // Ruling ew-claim-weapon-measure-ruled: no observer reads a target weapon's live state. Two unclaimed guns whose
+    // rated order (10 against 1) is the reverse of their live order (the strong one worn down to a hundredth) are
+    // ranked by the design, so the aim stays on the rated stronger gun. Mutation: rank an unclaimed reveal by the
+    // true weapon's live RangeDamagePerSecond.
+    [Fact]
+    public void TheAIRanksByTheDesignNotTheTargetsLiveGun()
+    {
+        var (shooter, target, zone) = BuildCombatEncounter(float3(0, 0, 10), twoTargetGuns: true);
+        var strong = target.Equipment.Single(x => x.Data.Name == "Gun");
+        var weak = target.Equipment.Single(x => x.Data.Name == "WeakGun");
+        var strongData = (InstantWeaponData) strong.Data.Behaviors.Single(b => b is InstantWeaponData);
+        target.Resolver.AttachModifier(strong, strongData.Damage, "worn", StatModifierType.Multiplier, .01f);
+
+        shooter.RecordReveal(target, strong, SignatureChannel.LaunchFlash, target.ClaimOf(strong));
+        shooter.RecordReveal(target, weak, SignatureChannel.LaunchFlash, target.ClaimOf(weak));
+        zone.Update(1f);
+        zone.Update(1f);
+
+        var liveStrong = strong.Behaviors.OfType<Weapon>().Single().RangeDamagePerSecond(10f);
+        var liveWeak = weak.Behaviors.OfType<Weapon>().Single().RangeDamagePerSecond(10f);
+        Assert.True(liveStrong < liveWeak); // the fixture: live and rated disagree
+        Assert.Same(strong, shooter.TargetItem.Value);
+    }
+
+    // Ties are explicit: two revealed weapons of equal rated figure are taken in the subject's equipment order, whatever
+    // order the shooter saw them in. Mutation: ties go to the last (>=), or the walk follows the book's slot order.
+    [Fact]
+    public void EqualClaimsAreTakenInTheTargetsEquipmentOrder()
+    {
+        var (shooter, target, zone) = BuildCombatEncounter(float3(0, 0, 10), twoTargetGuns: true);
+        var first = target.Equipment.Single(x => x.Data.Name == "Gun");
+        var second = target.Equipment.Single(x => x.Data.Name == "WeakGun");
+        Assert.True(target.Equipment.IndexOf(first) < target.Equipment.IndexOf(second));
+        var design = ClaimedDesign("Twin", 5f);
+        target.Claim(first, design);
+        target.Claim(second, design);
+
+        shooter.RecordReveal(target, second, SignatureChannel.LaunchFlash, target.ClaimOf(second)); // seen first
+        shooter.RecordReveal(target, first, SignatureChannel.LaunchFlash, target.ClaimOf(first));
+        zone.Update(1f);
+        zone.Update(1f);
+
+        Assert.Equal(new[] { first, second }, shooter.RevealedWeapons(target).Select(r => r.Item).ToArray());
+        Assert.Same(first, shooter.TargetItem.Value);
     }
 
     // Controls cut (helm split): Combat aims the shooter at the intercept (Aim) and commands the hull toward it
