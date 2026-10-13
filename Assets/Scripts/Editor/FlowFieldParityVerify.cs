@@ -32,8 +32,7 @@ namespace Aetheria.EditorTools
         static void OnLog(string message, string stack, LogType type)
         {
             if ((type == LogType.Error || type == LogType.Exception || type == LogType.Assert) && !message.StartsWith(Tag))
-                Fail("logged-error", message.Split('
-')[0]);
+                Fail("logged-error", message.Split('\n')[0]);
         }
 
         static void Fail(string check, string detail)
