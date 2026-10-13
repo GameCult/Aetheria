@@ -73,6 +73,9 @@ Cuts without a `cut_spec`, withdrawn 2026-10-12 under map-only-what-runs: a spec
 - radiator-geonodes: a Geometry Nodes setup molds radiator panels over a region marked on the model under the radiator hardpoint's name, in the live hull stack. Waits on: Ruling: radiator-panels-molded-by-geonodes. HELD for the operator walkthrough on Starfire (ruling hardpoint-work-held-for-walkthrough). Schematic and model are separate spaces linked only by mount name (ruling schematic-and-model-are-separate-spaces).
 - floating-greeble-library: operator seed pieces, model-written parametric families, placements as hull-local data (never a GN scatter on the live mesh), merged into the ship mesh at export, kept out of socket clearance. Waits on: operator seed set. Research: GameCult.Geometry.Csg docs/research/greebles-prior-art.md (4877300).
 
+- damage-curve-delete: delete WeaponData.DamageCurve (MessagePack key 7 tombstoned, never reused), the three Weapon RangeDamagePerSecond curve reads and the claims cut's rated copies, which become DamagePerSecond inside [MinRange, Range] and 0 outside; PropertiesPanel's "Damage Range" chart becomes the range numbers; catalog re-saved by AetherDb so the stored schema matches; fixtures that build a DamageCurve lose it. Waits on: the operator's answer on range falloff (section "Weapon damage over range"), and ew-claims-in-the-book merged (it rewrites the same formulas). Rulings: range-ramps-not-curve.
+- sensor-bearing-shape: SensorData.SensitivityCurve (gain over bearing angle / PI, read in the sim by Sensor.cs:229,262 and bounded by HullRange at :271) becomes authored scalars or is replaced by the beam width ruling sensor-stat-set already names. Waits on: the sensor-catalog chain; decide with it, not before.
+- consumable-effectiveness: ConsumableItemData.Effectiveness (a BezierCurve over progress through duration, read by Entity.cs:1921 ConsumableProgressFactor) is null on both shipped consumables, so any stat that declares a ConsumableProgress term throws; delete it or give it a validated shape. Waits on: nothing in the mind.
 ## Body facts
 
 **B1. No impact event carries a world point.**
@@ -9444,3 +9447,37 @@ Sizes (Hands calls, budget / cap): scenarios-lock-on 55/75, sensor-catalog 75/90
 - mind-commit-7be0c784...: cut-scenarios-lock-on.r3, resolution cut_spec.cut-scenarios-lock-on.r2.n1
   (Superseded); cut-sensor-catalog.r2, resolution cut_spec.cut-sensor-catalog.r1.n1 (Superseded).
 No question raised.
+
+## Weapon damage over range (imagination-aeth-range-ramps, 2026-10-13)
+
+Asked by operator ruling range-ramps-not-curve ("Is range still a curve?"), then by her follow-up: if the generic form is the same data structure with linear segments, is it still worth changing? This section answers that from the Body. Probes ran at master 1746e8bd.
+
+### Body facts
+
+**R1. No hit applies range falloff.** `FireControl.Fire` (`FireControl.cs:679`) freezes the payload with `Damage = damageOverride ?? weapon.Damage` (`:725`; the mine path `:787` the same). InstantWeapon fires `FireControl.Fire(this, Item, Entity)` (`InstantWeapon.cs:271`); ConstantWeapon passes `Damage * interval` (`ConstantWeapon.cs:188`); ChargedWeapon scales `Damage` by charge only (`ChargedWeapon.cs:124`). Every resolution path reads `shot.Damage` unscaled (`FireControl.cs:960, 1108, 1145-1146, 1183, 1259`). Range only gates: a shot outside `[MinRange, Range]` is not taken (`FireControl.cs:274`; `LockWeapon.cs:62`).
+
+**R2. Who reads `DamageCurve`.** Only estimates and UI: `RangeDamagePerSecond` in `InstantWeapon.cs:64`, `ConstantWeapon.cs:52`, `ChargedWeapon.cs:83`, read by the AI's threat and fit sums (`Agents/States/Combat.cs:46, 71, 155`), and the properties panel's "Damage Range" chart (`UI/Properties Panel/PropertiesPanel.cs:426`). On `eureka/aetheria-ew-ew-claims-in-the-book` (adb632fe) the same curve also feeds the static rated formulas (`InstantWeapon.cs:43`, `ConstantWeapon.cs:32`, `ChargedWeapon.cs:64`) behind `RatedRangeDamagePerSecond`, read by `Combat.cs:48` for a claimed hull. So the AI and the panel price a falloff that the sim never applies.
+
+**R3. Census of every shipped authored curve** (scratch AetherDb command over `GameData/Aetheria.cc` at 1746e8bd, run on Yggdrasil; keys are Unity keyframes `time,value,inTangent,outTangent`; the scratch clone is deleted):
+
+| Field | Records | Distinct shapes | Shape |
+|---|---|---|---|
+| `WeaponData.DamageCurve` | 27 (13 Auto, 5 Charged, 3 Guided, 2 Instant, 2 Launcher, 1 Constant, 1 MineLayer) | 2 | 26 share one default: `0,1,0,0; 1,0,-1.7656,-1.7656`, 1 at MinRange easing down to 0 at Range (0.72 at the midpoint, 0.33 at 0.8, 0.09 at 0.95; close to `1 - t^2`). Mine Launcher is flat 1. |
+| `SensorData.SensitivityCurve` | 2 (not if i see you first, The Bat) | 1 | The same default template, over bearing. |
+| `ConsumableItemData.Effectiveness` | 2 (Coolant Vent, Thruster Overdrive) | 1 | null on both. |
+| Launcher / GuidedWeapon `guidance`, `thrustCurve`, `liftCurve` (`float4[]`) | 2 launchers, 3 guided | 4 | Hand-authored multi-key shapes (GT 3K's guidance has 11 keys); read only by presentation flight (`GuidedProjectileManager.cs:54-76`), which ruling projectile-flight-is-presentation leaves to Unity. |
+
+MinRange is 0 on 25 of 27 weapons; LRMM72 has 500..500 and GT 3K has 500..50 (Min above Max).
+
+No weapon's falloff was ever authored: 26 weapons carry one copied template, and the shape is not applied to damage.
+
+### Options, with cost
+
+- **Delete the curve (recommended).** Damage is flat inside `[MinRange, Range]`, which is what the sim already does; the AI and the panel then read the truth. Cost: one small cut (line damage-curve-delete), estimated under 60 Hands calls. It deletes a field, three formula reads (plus the claims cut's rated copies) and a UI chart, and re-saves the catalog. Behaviour change: none in combat. The AI rates far targets higher than today; at 0.95 of Range it now discounts real damage about 11x, and to zero at Range itself.
+- **Make falloff real.** Apply a range factor in `FireControl.Fire`'s payload, so the AI, the panel and the hit read one function. Cost: a hit-path change with fire-control tests, a balance shift on all 26 weapons at once (today's template would take about 67% off a shot at 0.8 of Range), and an authoring pass, because the census holds no shape anyone chose. Only worth it if falloff is wanted as a weapon-identity lever (for example shotgun against rail), and then the shape is decided per family at that time. Linear keyframes or two ramps both fit it.
+- **Leave it.** Zero cost now. The AI's threat estimates and the panel keep describing a falloff that does not exist.
+
+### Is the linear-keyframe type still worth building
+
+Not for range: the deletion removes the only weapon use. Of the other BezierCurve uses, one is live in the sim (sensor bearing gain, on 2 records with the default template), one is null on every record (consumable effectiveness), and the launcher curves are `float4[]` Unity keyframes used only in presentation. A piecewise-linear keyframe type would be the same data with straight segments. Its real gains over BezierCurve are small: `HullRange` becomes exact (the extremes sit at the keys), and the mutable `_cachedIndices` search cache goes from shared sim data. That does not earn a new type or a CultMath change now: CultMath's `lerp` and `unlerp` already are the segment math, and CultMath holds no keyed or serialized curve. Decide it when the sensor line is mapped. R-heat's four scalars stay: they are the controls the operator asked for ("Same shape, more intuitive controls").
+
