@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import sys
 import traceback
+from functools import partial
 from pathlib import Path
 
 import bpy
@@ -125,10 +126,14 @@ def _load_layout(context, collection, path):
 _EXPECTED = (OSError, ValueError, RuntimeError, ImportError, KeyError)
 
 
+class Refusal(ValueError):
+    """A refusal Bake From Source raises itself: its message is fixed text that names no input. Blender's ValueError is not one."""
+
+
 def _failure_text(exc):
     """What an operator reports for exc. This module's own ValueError and RuntimeError messages are fixed text that
     names no input; any other error is reported by its type, and its text goes to the system console."""
-    if type(exc) in (ValueError, RuntimeError):
+    if type(exc) in (ValueError, RuntimeError, Refusal):
         return str(exc)
     traceback.print_exception(exc)
     return f"Stopped by {type(exc).__name__}; see the system console"
@@ -516,13 +521,13 @@ def _ship_collection(context, unbound_ok=False):
     active object's only collection when no ship collection holds it."""
     obj = context.active_object
     if obj is None:
-        raise ValueError("Select an object in the ship collection")
+        raise Refusal("Select an object in the ship collection")
     ships = [collection for collection in bpy.data.collections if _is_ship(collection) and obj.name in collection.all_objects]
     if len(ships) == 1:
         return ships[0]
     if unbound_ok and not ships and len(obj.users_collection) == 1:
         return obj.users_collection[0]
-    raise ValueError("Select an object in exactly one ship collection" if unbound_ok
+    raise Refusal("Select an object in exactly one ship collection" if unbound_ok
                      else "Selected object must belong to exactly one bound ship collection")
 
 
@@ -617,9 +622,26 @@ class AETHERIA_AP_preferences(bpy.types.AddonPreferences):
         description="The longest side, in pixels, a material image keeps in ship.glb; larger images are exported "
                     "scaled to it and the .blend's own images are left as they are")
 
+    bake_size: bpy.props.IntProperty(
+        name="Bake size", default=2048, min=64, soft_max=8192,
+        description="The side, in pixels, of the square albedo and normal images Bake From Source makes")
+
+    bake_cage_extrusion: bpy.props.FloatProperty(
+        name="Bake cage extrusion", default=0.05, min=0.0, unit="LENGTH",
+        description="How far, in metres, Bake From Source pushes each render mesh surface out along its normals before "
+                    "casting rays at Source. Too small misses Source where it rises above the render mesh; too large "
+                    "catches parts across a gap")
+
+    bake_max_ray_distance: bpy.props.FloatProperty(
+        name="Bake max ray distance", default=0.0, min=0.0, unit="LENGTH",
+        description="The longest ray, in metres, Bake From Source casts from the extruded surface. 0 means no limit")
+
     def draw(self, context):
         self.layout.prop(self, "game_folder")
         self.layout.prop(self, "max_texture")
+        self.layout.prop(self, "bake_size")
+        self.layout.prop(self, "bake_cage_extrusion")
+        self.layout.prop(self, "bake_max_ray_distance")
 
 
 GAME_FOLDER_REFUSAL = ("Set the add-on's Game folder preference to the folder whose GameData holds Aetheria.cc "
@@ -835,14 +857,8 @@ def _loose_meshes(collection):
 def _refuse_loose_meshes(context, collection):
     """Refuses while meshes sit outside Ship Root, selecting them so the author can parent them."""
     loose = _loose_meshes(collection)
-    if not loose:
-        return
-    for obj in context.view_layer.objects:
-        obj.select_set(False)
-    for obj in loose:
-        if obj.name in context.view_layer.objects:
-            obj.select_set(True)
-    raise ValueError(f"{len(loose)} meshes in the ship collection are not under Ship Root; parent them to it")
+    if loose:
+        _refuse_selecting(context, loose, f"{len(loose)} meshes in the ship collection are not under Ship Root; parent them to it")
 
 
 def _frame_inputs(context, collection, state):
@@ -1084,6 +1100,319 @@ class AETHERIA_OT_flip_nose(bpy.types.Operator):
             return _refuse(self, exc)
 
 
+BAKE_SAMPLES = 1  # one sample per texel: the maps are a starting point and the smoke runs on the CPU
+BAKE_MAPS = (("albedo", "sRGB", {"type": "DIFFUSE", "pass_filter": {"COLOR"}}),
+             ("normal", "Non-Color", {"type": "NORMAL", "normal_space": "TANGENT"}))
+
+
+def _principled(material):
+    tree = material.node_tree if material else None
+    return next((node for node in tree.nodes if node.type == "BSDF_PRINCIPLED"), None) if tree else None
+
+
+def _wired_image(material, kind):
+    """The Image Texture node already feeding the material's Principled Base Color (albedo) or, through a Normal Map
+    node, its Normal."""
+    socket = _principled(material).inputs["Base Color" if kind == "albedo" else "Normal"]
+    node = socket.links[0].from_node if socket.is_linked else None
+    if kind == "normal" and node is not None and node.type == "NORMAL_MAP":
+        colour = node.inputs["Color"]
+        node = colour.links[0].from_node if colour.is_linked else None
+    return node if node is not None and node.type == "TEX_IMAGE" else None
+
+
+def _select_only(context, objects):
+    keep = {obj.name for obj in objects}
+    for obj in context.view_layer.objects:
+        obj.select_set(obj.name in keep)
+
+
+def _refuse_selecting(context, offenders, message):
+    """Selects the offenders and refuses with message, which names a count and never an object."""
+    _select_only(context, offenders)
+    raise Refusal(message)
+
+
+def _bake_inputs(context, collection):
+    """The ship ID, the Source meshes and the selected render meshes Bake From Source works on, or the refusal that
+    stops it before anything changes."""
+    if context.mode != "OBJECT":
+        raise Refusal("Switch to Object mode before baking")
+    source = _child(collection, SOURCE)
+    sources = _meshes(source.all_objects) if source else []
+    if _ship_root(collection) is None or not sources:
+        raise Refusal("Bake From Source needs a Ship Root and a mesh in Source; run New Ship first")
+    layer = context.view_layer
+    hidden = [obj for obj in sources if obj.name not in layer.objects or obj.hide_get()]
+    if hidden:
+        _refuse_selecting(context, [obj for obj in hidden if obj.name in layer.objects],
+                          f"{len(hidden)} Source meshes are hidden or outside the view layer; show them to bake")
+    targets = [obj for obj in _own_meshes(collection) if obj.name in layer.objects and obj.select_get()]
+    if not targets:
+        raise Refusal("Select the render meshes to bake onto")
+    shared = {obj.data for obj in sources}
+    linked = [obj for obj in targets if obj.data in shared]
+    if linked:  # a material slot belongs to the mesh data, so the bake would repoint Source's own slot
+        _refuse_selecting(context, linked, f"{len(linked)} selected meshes share their mesh data with a Source mesh; make them single user first")
+    flat = [obj for obj in targets if not obj.data.uv_layers]
+    if flat:
+        _refuse_selecting(context, flat, f"{len(flat)} selected meshes have no UV layer; unwrap them first")
+    bare = [obj for obj in targets if any(_principled(slot.material) is None for slot in obj.material_slots)]
+    if bare:
+        _refuse_selecting(context, bare, f"{len(bare)} selected meshes have a material without a Principled BSDF")
+    return collection["aetheria.id"], sources, targets
+
+
+def _target_materials(targets):
+    return list({slot.material.name: slot.material for obj in targets for slot in obj.material_slots}.values())
+
+
+def _give_own_materials(sources, targets, undo):
+    """Gives each target slot that holds a material a Source mesh also uses a copy of its own, so the bake rewires nothing
+    Source owns; returns how many materials were copied. undo gets the steps that put the slots back."""
+    owned = {slot.material.name for obj in sources for slot in obj.material_slots if slot.material}
+    copies = {}
+    for obj in targets:
+        for index, slot in enumerate(obj.material_slots):
+            original = slot.material
+            if original is None or original.name not in owned:
+                continue
+            if original.name not in copies:
+                copies[original.name] = original.copy()
+                undo.append(partial(_remove_material, copies[original.name].name))
+            undo.append(partial(_set_slot_material, obj.name, index, original.name))
+            slot.material = copies[original.name]
+    return len(copies)
+
+
+def _set_slot_material(object_name, index, material_name):
+    bpy.data.objects[object_name].material_slots[index].material = bpy.data.materials[material_name]
+
+
+def _hold(owner, name, value, restore):
+    """Sets owner.name to value for the bake; restore gets the step that puts the old value back."""
+    restore.append(partial(setattr, owner, name, getattr(owner, name)))
+    setattr(owner, name, value)
+
+
+def _isolate_sources(sources, restore):
+    """The Source materials as the bake should see them: Metallic and Transmission Weight at 0, links into them muted."""
+    seen = set()
+    for obj in sources:
+        for slot in obj.material_slots:
+            for node in (slot.material.node_tree.nodes if slot.material and slot.material.node_tree else ()):
+                if node.type != "BSDF_PRINCIPLED" or (slot.material.name, node.name) in seen:
+                    continue
+                seen.add((slot.material.name, node.name))
+                for name in ("Metallic", "Transmission Weight"):
+                    socket = node.inputs[name]
+                    for link in socket.links:
+                        _hold(link, "is_muted", True, restore)
+                    _hold(socket, "default_value", 0.0, restore)
+
+
+def _remove_image(name):
+    image = bpy.data.images.get(name)
+    if image:
+        bpy.data.images.remove(image)
+
+
+def _remove_node(material_name, node_name):
+    material = bpy.data.materials.get(material_name)
+    node = material.node_tree.nodes.get(node_name) if material and material.node_tree else None
+    if node:
+        material.node_tree.nodes.remove(node)
+
+
+def _remove_material(name):
+    material = bpy.data.materials.get(name)
+    if material:
+        bpy.data.materials.remove(material)
+
+
+def _clear_materials(mesh_name):
+    bpy.data.meshes[mesh_name].materials.clear()
+
+
+def _restore_link(material_name, node_name, input_name, previous):
+    tree = bpy.data.materials[material_name].node_tree
+    socket = tree.nodes[node_name].inputs[input_name]
+    for link in list(socket.links):
+        tree.links.remove(link)
+    if previous:
+        tree.links.new(next(out for out in tree.nodes[previous[0]].outputs if out.identifier == previous[1]), socket)
+
+
+def _set_node_image(material_name, node_name, image_name):
+    bpy.data.materials[material_name].node_tree.nodes[node_name].image = bpy.data.images.get(image_name)
+
+
+def _link_into(material, node, input_name, source, undo):
+    socket = node.inputs[input_name]
+    previous = (socket.links[0].from_node.name, socket.links[0].from_socket.identifier) if socket.is_linked else None
+    material.node_tree.links.new(source, socket)
+    undo.append(partial(_restore_link, material.name, node.name, input_name, previous))
+
+
+def _refuse_taken_names(ship_id, targets):
+    """The ship's pair is {ship_id}.albedo and {ship_id}.normal and there is one pair. An image holding a name must be one
+    this bake replaces (used only by the selected meshes' wiring) or one nothing uses; returns those images, which the bake
+    frees before it names its own. Any other holder refuses."""
+    materials = _target_materials(targets)
+    holders = []
+    for kind, _, _ in BAKE_MAPS:
+        image = bpy.data.images.get(f"{ship_id}.{kind}")
+        if image is None:
+            continue
+        wired = [node for node in (_wired_image(material, kind) for material in materials) if node is not None and node.image == image]
+        if image.use_fake_user or image.users != len(wired):
+            raise Refusal("The ship's baked image names are held by images this bake does not replace; select every "
+                             "mesh that uses them, or rename the other images")
+        holders.append(image)
+    return holders
+
+
+def _bake_map(context, sources, targets, settings, extrusion, max_distance, nodes):
+    """Bakes one map from the Source meshes onto every target, the first target clearing the image and the later ones
+    adding to it. nodes maps a material's name to the Image Texture node that holds this map's image. This is the add-on's
+    only bake."""
+    layer = context.view_layer
+    for index, target in enumerate(targets):
+        _select_only(context, sources + [target])
+        layer.objects.active = target
+        for slot in target.material_slots:
+            slot.material.node_tree.nodes.active = nodes[slot.material.name]
+        bpy.ops.object.bake(
+            use_selected_to_active=True, cage_extrusion=extrusion, max_ray_distance=max_distance, use_clear=index == 0,
+            **settings)
+
+
+def _settle_images(ship_id, images, stale):
+    """The commit's last step: frees the images the bake replaced and the unused ones that held the pair's names, then
+    names the new images {ship_id}.albedo and {ship_id}.normal."""
+    for image in {image.name: image for image in stale}.values():  # named before any is removed
+        if image.users == 0:
+            bpy.data.images.remove(image)
+    for kind, image in images.items():
+        image.name = f"{ship_id}.{kind}"
+
+
+def _bake_from_source(context, collection, replace):
+    """Bakes the Source meshes onto the selected render meshes' UV0 as one albedo and one normal image per ship, and wires
+    them into every material of those meshes. The images are new and are wired only after both bakes finish; any failure
+    puts every changed value back and removes what was made. The Source materials, scene settings and selection are as they
+    were afterwards."""
+    ship_id, sources, targets = _bake_inputs(context, collection)
+    if not replace and any(_wired_image(material, kind) for material in _target_materials(targets) for kind, _, _ in BAKE_MAPS):
+        raise Refusal("Selected meshes already have baked images; confirm the replace")
+    holders = _refuse_taken_names(ship_id, targets)
+    addon = context.preferences.addons[__package__].preferences
+    scene, layer = context.scene, context.view_layer
+    previous_selection = [obj for obj in layer.objects if obj.select_get()]
+    previous_active = layer.objects.active
+    restore, undo, replaced = [], [], {}
+    restore.append(lambda: ([obj.select_set(obj in previous_selection) for obj in layer.objects],
+                            setattr(layer.objects, "active", previous_active)))
+    try:
+        _hold(scene.render, "engine", "CYCLES", restore)
+        _hold(scene.cycles, "samples", BAKE_SAMPLES, restore)
+        _hold(scene.cycles, "device", "CPU", restore)
+        copied = _give_own_materials(sources, targets, undo)
+        for obj in targets:  # her unwrap is UV0, whichever layer is active
+            _hold(obj.data.uv_layers, "active_index", 0, restore)
+        _isolate_sources(sources, restore)
+        images = {}
+        for kind, space, _ in BAKE_MAPS:
+            image = bpy.data.images.new(f"{ship_id}.{kind}", addon.bake_size, addon.bake_size, alpha=False)
+            undo.append(partial(_remove_image, image.name))
+            image.colorspace_settings.name = space
+            images[kind] = image
+        hull = None
+        for obj in targets:
+            if not obj.data.materials:
+                if hull is None:
+                    hull = bpy.data.materials.new(f"{ship_id}.hull")
+                    hull.use_nodes = True
+                    undo.append(partial(_remove_material, hull.name))
+                obj.data.materials.append(hull)
+                undo.append(partial(_clear_materials, obj.data.name))
+        materials = _target_materials(targets)
+        held = {kind: {} for kind, _, _ in BAKE_MAPS}
+        for material in materials:
+            for kind, _, _ in BAKE_MAPS:
+                node = material.node_tree.nodes.new("ShaderNodeTexImage")
+                node.image, node.label = images[kind], f"Baked {kind}"
+                undo.append(partial(_remove_node, material.name, node.name))
+                held[kind][material.name] = node
+        for kind, _, settings in BAKE_MAPS:
+            _bake_map(context, sources, targets, settings, addon.bake_cage_extrusion, addon.bake_max_ray_distance, held[kind])
+        for image in images.values():
+            image.pack()
+        for material in materials:  # the commit: every step is in undo
+            bsdf = _principled(material)
+            for kind, _, _ in BAKE_MAPS:
+                node = held[kind][material.name]
+                old = _wired_image(material, kind)
+                if old is not None:
+                    if old.image:
+                        replaced[old.image.name] = old.image
+                    undo.append(partial(_set_node_image, material.name, old.name, old.image.name if old.image else None))
+                    old.image = images[kind]
+                    _remove_node(material.name, node.name)
+                elif kind == "albedo":
+                    _link_into(material, bsdf, "Base Color", node.outputs["Color"], undo)
+                else:
+                    normal = material.node_tree.nodes.new("ShaderNodeNormalMap")
+                    undo.append(partial(_remove_node, material.name, normal.name))
+                    material.node_tree.links.new(node.outputs["Color"], normal.inputs["Color"])
+                    _link_into(material, bsdf, "Normal", normal.outputs["Normal"], undo)
+    except BaseException:
+        for step in reversed(undo):
+            step()
+        raise
+    finally:
+        for step in reversed(restore):
+            step()
+    _settle_images(ship_id, images, [*replaced.values(), *holders])
+    return copied
+
+
+class AETHERIA_OT_bake_from_source(bpy.types.Operator):
+    bl_idname = "aetheria.bake_from_source"
+    bl_label = "Bake From Source"
+    bl_description = ("Bake the Source meshes' colour and normal onto the selected render meshes' UV0 as the ship's albedo "
+                      "and normal maps, and wire them into their materials. Nothing rebakes unless you press this")
+    bl_options = {"REGISTER", "UNDO"}
+
+    replace: bpy.props.BoolProperty(
+        name="Replace", default=False, options={"SKIP_SAVE"},
+        description="Replace the images the selected meshes' materials already wire into Base Color and Normal")
+
+    def invoke(self, context, event):
+        try:
+            _, _, targets = _bake_inputs(context, _ship_collection(context))
+        except Exception:
+            return self.execute(context)  # the same refusal, reported
+        if any(_wired_image(material, kind) for material in _target_materials(targets) for kind, _, _ in BAKE_MAPS):
+            self.replace = True
+            return context.window_manager.invoke_confirm(
+                self, event, message="The selected meshes already have baked images. Replace them?")
+        return self.execute(context)
+
+    def execute(self, context):
+        try:
+            copied = _bake_from_source(context, _ship_collection(context), self.replace)
+            self.report({"INFO"}, "Baked the albedo and normal maps from Source" + (
+                f"; materials shared with Source, copied for the render meshes: {copied}" if copied else ""))
+            return {"FINISHED"}
+        except Exception as exc:  # the one place a bake's error becomes report text
+            if type(exc) is Refusal:
+                return _refuse(self, exc)
+            traceback.print_exception(exc)  # whatever else Blender raised names objects and images
+            self.report({"ERROR"}, "The bake failed; its message is in the system console")
+            return {"CANCELLED"}
+
+
 def _new_ship(context, ship_id, name, reference, length):
     """Sets the active collection up as a pending ship: binds it, moves its meshes into Source under a Ship Root, turns
     them nose to -Y, sizes them to length cells, fills the layout buffer and draws the Grid. The meshes keep their data:
@@ -1280,6 +1609,7 @@ class AETHERIA_PT_ship(bpy.types.Panel):
         row.operator("aetheria.load_ship_layout", icon="IMPORT")
         row.operator("aetheria.flip_nose", icon="LOOP_BACK")
         row.operator("aetheria.rasterise_hull", icon="MESH_GRID")
+        layout.operator("aetheria.bake_from_source", icon="RENDER_RESULT")
         if not state.ship_id:
             self._draw_package(context, layout)
             return
@@ -1354,6 +1684,7 @@ classes = (AETHERIA_PG_cell, AETHERIA_PG_hardpoint, AETHERIA_PG_layout,
            AETHERIA_OT_add_weapon, AETHERIA_OT_add_muzzle, AETHERIA_OT_mirror_mount, AETHERIA_OT_remove_mount,
            AETHERIA_OT_save_layout, AETHERIA_OT_bind_ship_collection,
            AETHERIA_OT_capture_ship_lines, AETHERIA_OT_new_ship, AETHERIA_OT_flip_nose,
+             AETHERIA_OT_bake_from_source,
            AETHERIA_OT_rasterise_hull, AETHERIA_OT_package_ship, AETHERIA_AP_preferences, AETHERIA_PT_ship)
 
 
