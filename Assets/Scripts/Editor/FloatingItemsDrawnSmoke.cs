@@ -180,6 +180,32 @@ public static class FloatingItemsDrawnSmoke
         At(drawn, released, "step");
         Require(drawn.transform.position != before, "the pickup did not move with the body.");
 
+        // A held item keeps its label lit, so a pull is read as it happens. The label is let go dark first (nothing views
+        // it), then the zone holds the item through its own TryHold and the label must come up.
+        var earlyPickup = Pickups().Single(p => p.Item == early.Item);
+        earlyPickup.LabelPersistDuration = 1;
+        earlyPickup.LabelFadeDuration = .2f;
+        for (var i = 0; i < 1200 && earlyPickup.ScanLabel.color.a > .05f; i++) yield return null;
+        Require(earlyPickup.ScanLabel.color.a <= .05f, "label: an unviewed, unheld label did not go dark.");
+        Require(zone.TryHold(taker, early.Id), "label: the zone refused to hold the item.");
+        for (var i = 0; i < 1200 && earlyPickup.ScanLabel.color.a < .95f; i++) yield return null;
+        Require(earlyPickup.ScanLabel.color.a >= .95f, "label: a held item's label is not lit.");
+
+        // The test scene's stand-in sim and tendril ride the zone's own held-pose curve: its pose at each point of a grab
+        // is where the zone puts a held item at the same progress.
+        var (extend, envelop, pull) = (1.5f, .75f, 1.5f);
+        var holderAt = new CultMath.float3(taker.Position.x, 0f, taker.Position.z);
+        var claimedAt = new CultMath.float3(early.HeldFrom.x, 0f, early.HeldFrom.y);
+        foreach (var elapsed in new[] { 0f, extend + envelop - .01f, extend + envelop + .3f, extend + envelop + .75f, extend + envelop + pull })
+        {
+            zone.SetHeldProgress(early.Id, FieldTester.PullProgress(elapsed, extend, envelop, pull));
+            zone.Update(.01f);
+            var want = FieldTester.PulledPosition(claimedAt, holderAt, elapsed, extend, envelop, pull);
+            Require(Mathf.Abs(early.Body.Position.x - want.x) < 1e-3f && Mathf.Abs(early.Body.Position.y - want.z) < 1e-3f,
+                $"stand-in pose at {elapsed}s is {want}, the zone holds the item at {early.Body.Position}.");
+        }
+        zone.Free(early.Id);
+
         // Pickup destroys exactly the picked-up item's pickup.
         Require(zone.TryPickUp(taker, released.Id), "the station refused a one-cell stack.");
         yield return null;

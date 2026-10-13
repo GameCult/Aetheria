@@ -294,8 +294,8 @@ public class FieldDriver : MonoBehaviour, IAbsorbPresenter, IGrabPresenter, IMel
                     _field.SetFloat("_TendrilRadius", TendrilTipScale * TendrilTipRadius);
                     break;
                 case GrabPhase.Pull:
-                    // The same curve as Zone's held pose (Zone.cs): the tip rides the item the simulation pulls in.
-                    _tendrilTargetPos = lerp(_grabStart.ToCultMath(), transform.position.ToCultMath(), smoothstep(0, 1, _grabTime)).ToUnity();
+                    // The curve of Zone's held pose (Zone.HeldPull): the tip rides the item the simulation pulls in.
+                    _tendrilTargetPos = lerp(_grabStart.ToCultMath(), transform.position.ToCultMath(), Zone.HeldPull(_grabTime)).ToUnity();
                     _tendrilBendTarget = _grabStart;
                     if (_fadePoint > .99 && transform.InverseTransformPoint(_tendrilTargetPos).sqrMagnitude < 1)
                         _fadePoint = _grabTime;

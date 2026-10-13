@@ -81,21 +81,28 @@ public static class CapabilityPresentationSmoke
         typeof(ActionGameManager).GetProperty("Instance", Any).SetValue(null, manager);
         manager.CurrentEntity = ship;
 
-        var instanceObject = new GameObject("Smoke Entity Instance");
-        var instance = instanceObject.AddComponent<EntityInstance>();
-        Awaken(instance);
-        instance.HullColliders = new HullCollider[0];
-        instance.RadiatorHardpoints = new RadiatorHardpoint[0];
-        instance.ThrusterHardpoints = new ThrusterHardpoint[0];
-        instance.WeaponHardpoints = new WeaponHardpoint[0];
-        instance.ArticulationPoints = new ArticulationPoint[0];
-        // The beam is a child before SetEntity on both ship paths, so the binder finds it as the game does.
         var beamPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Content/Prefabs/Tractor Beam.prefab")
             ?? throw new InvalidOperationException("No Tractor Beam prefab.");
-        var beam = ((GameObject)PrefabUtility.InstantiatePrefab(beamPrefab, instanceObject.transform)).GetComponent<TractorBeam>();
-        beam.Power = .8f;
-        beam.Direction = Vector3.forward;
-        instance.SetEntity(null, ship);
+        // An entity's instance as the game builds it: the beam is a child before SetEntity on both ship paths, so the
+        // binder finds it as the game does.
+        (GameObject Object, EntityInstance Instance, TractorBeam Beam) Bound(string name, Entity entity)
+        {
+            var go = new GameObject(name);
+            var bound = go.AddComponent<EntityInstance>();
+            Awaken(bound);
+            bound.HullColliders = new HullCollider[0];
+            bound.RadiatorHardpoints = new RadiatorHardpoint[0];
+            bound.ThrusterHardpoints = new ThrusterHardpoint[0];
+            bound.WeaponHardpoints = new WeaponHardpoint[0];
+            bound.ArticulationPoints = new ArticulationPoint[0];
+            var tractor = ((GameObject)PrefabUtility.InstantiatePrefab(beamPrefab, go.transform)).GetComponent<TractorBeam>();
+            tractor.Power = .8f;
+            tractor.Direction = Vector3.forward;
+            bound.SetEntity(null, entity);
+            return (go, bound, tractor);
+        }
+        var (instanceObject, instance, beam) = Bound("Smoke Entity Instance", ship);
+        var (otherObject, _, otherBeam) = Bound("Smoke Other Instance", other);
 
         int Effects() => instance.GetComponentsInChildren<Prototype>(true).Count(p => p != null && !p.isOriginalPrototype);
         void Expect(string what, int effects, int kicks)
@@ -123,9 +130,15 @@ public static class CapabilityPresentationSmoke
         // An untracked ship is not drawn at (ActionGameManager.DrawsAt, since contact-hud): no hull effect, no impulse.
         Expect("hull hit on an untracked ship", 2, 1);
 
+        // Once the player's instruments track it, the same hit is drawn.
+        other.VisibleEntities.Add(ship);
+        ship.Capabilities.PublishAbsorb(Hit(AbsorbLayer.Hull));
+        Expect("hull hit on a tracked ship", 3, 1);
+        other.VisibleEntities.Remove(ship);
+
         manager.CurrentEntity = ship;
         ship.Capabilities.PublishAbsorb(Hit(AbsorbLayer.Shield));
-        Expect("player's shield hit", 2, 2);
+        Expect("player's shield hit", 3, 2);
 
         // Grabs: the beam presents the simulation's events and nothing else.
         float Emission() => beam.ParticleSystem.emission.rateOverTimeMultiplier;
@@ -156,12 +169,32 @@ public static class CapabilityPresentationSmoke
         ship.Capabilities.PublishGrab(Grab(GrabPhase.Cancelled, float3(0f, 0f, 0f)));
         ExpectBeam("grab cancelled", 0f, false);
 
-        // The beam belongs to the ship's entity: another entity's grab is no business of its own.
+        // Aim is on the ground plane: a beam above the held point does not pitch toward it.
+        var beamHome = beam.transform.position;
+        beam.transform.position = beamHome + new Vector3(0f, 10f, 0f);
+        ship.Capabilities.PublishGrab(Grab(GrabPhase.Started, float3(20f, 7f, 0f)));
+        ExpectBeam("grab from above", .8f, true);
+        ship.Capabilities.PublishGrab(Grab(GrabPhase.Completed, float3(20f, 7f, 0f)));
+        beam.transform.position = beamHome;
+
+        // A grab held at the beam's own position has no direction to take: the beam keeps the aim it had.
+        beam.Direction = Vector3.right;
+        var atBeam = float3(beam.transform.position.x, 0f, beam.transform.position.z);
+        ship.Capabilities.PublishGrab(Grab(GrabPhase.Started, atBeam));
+        ExpectBeam("grab at the beam", .8f, true);
+        ship.Capabilities.PublishGrab(Grab(GrabPhase.Completed, atBeam));
+        beam.Direction = Vector3.forward;
+        ExpectBeam("after the grab at the beam", 0f, false);
+
+        // The beam belongs to the ship's entity: another entity's grab, with its own beam bound, moves only that beam.
         other.Capabilities.PublishGrab(Grab(GrabPhase.Started, float3(20f, 0f, 0f)));
         ExpectBeam("another entity's grab", 0f, false);
+        otherBeam.Update();
+        if (abs(otherBeam.ParticleSystem.emission.rateOverTimeMultiplier - .8f) > 1e-4f)
+            throw new InvalidOperationException("The other entity's own beam did not present its grab.");
 
-        Debug.Log("CAPABILITY_PRESENTATION_SMOKE ok effects=2 impulses=2 grabs=ok");
-        return new[] { feedbackObject, effectObject, managerObject, instanceObject };
+        Debug.Log("CAPABILITY_PRESENTATION_SMOKE ok effects=3 impulses=2 grabs=ok");
+        return new[] { feedbackObject, effectObject, managerObject, instanceObject, otherObject };
     }
 
     private static void Clean(GameObject[] objects, string work)

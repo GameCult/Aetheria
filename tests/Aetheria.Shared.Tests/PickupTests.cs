@@ -403,15 +403,18 @@ public sealed class PickupTests : IDisposable
         Assert.True(block.Holder == null, "block is held");
     }
 
-    [Fact]
-    public void TheBeamTakesFromWhicheverBayCanStore()
+    // Either bay may be the full one: a selection that read only the first bay, or only the last, fails one orientation.
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void TheBeamTakesFromWhicheverBayCanStore(int fullBay)
     {
         using var bag = new CompositeDisposable();
         var lab = Build(Beam());
         var ship = Spawn(lab, float3(0, 0, 0), bays: 2);
         Assert.Equal(2, ship.CargoBays.Count);
-        // The first bay is full; only the second can take the ore.
-        for (var i = 0; i < 16; i++) Assert.True(ship.CargoBays[0].TryStore(lab.Make("Spare")));
+        var freeBay = 1 - fullBay;
+        for (var i = 0; i < 16; i++) Assert.True(ship.CargoBays[fullBay].TryStore(lab.Make("Spare")));
         var ore = Drift(lab, 40, 0);
         var events = Watch(ship, bag);
         ship.TractorCommand = 1;
@@ -419,8 +422,8 @@ public sealed class PickupTests : IDisposable
         Assert.Contains(events, e => e.Phase == GrabPhase.Started && e.Target.Equals(ore.Id));
         Assert.Contains(events, e => e.Phase == GrabPhase.Completed);
         Assert.False(lab.Zone.FloatingItems.Contains(ore), "ore is still in the zone");
-        Assert.Equal(16, ship.CargoBays[0].Cargo.Count);
-        Assert.Single(ship.CargoBays[1].Cargo);
+        Assert.Equal(16, ship.CargoBays[fullBay].Cargo.Count);
+        Assert.Single(ship.CargoBays[freeBay].Cargo);
     }
 
     [Fact]

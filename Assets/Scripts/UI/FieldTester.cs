@@ -148,21 +148,26 @@ public class FieldTester : MonoBehaviour
             _capabilityEvents.PublishGrab(new GrabEvent(id, GrabPhase.Pull, _grabStart, GrabPullTime));
         }
         var pickup = _pickups[_grabIndex].transform;
-        if (_pullPublished)
+        pickup.position = PulledPosition(_grabStart, TestField.transform.position.ToCultMath(), _grabElapsed,
+            GrabExtendTime, GrabEnvelopTime, GrabPullTime).ToUnity();
+        if (_pullPublished && PullProgress(_grabElapsed, GrabExtendTime, GrabEnvelopTime, GrabPullTime) >= 1)
         {
-            var progress = saturate((_grabElapsed - pullStart) / max(GrabPullTime, 1e-4f));
-            pickup.position = lerp(_grabStart, TestField.transform.position.ToCultMath(), smoothstep(0, 1, progress)).ToUnity();
-            if (progress >= 1)
-            {
-                _capabilityEvents.PublishGrab(new GrabEvent(id, GrabPhase.Completed, pickup.position.ToCultMath(), 0));
-                Destroy(pickup.gameObject);
-                var p = _pickups[_grabIndex];
-                p.transform = null;
-                _pickups[_grabIndex] = p;
-                _grabbing = false;
-            }
+            _capabilityEvents.PublishGrab(new GrabEvent(id, GrabPhase.Completed, pickup.position.ToCultMath(), 0));
+            Destroy(pickup.gameObject);
+            var p = _pickups[_grabIndex];
+            p.transform = null;
+            _pickups[_grabIndex] = p;
+            _grabbing = false;
         }
     }
+
+    // How far along the pull a grab is `elapsed` seconds in: 0 through Extend and Envelop, then 0..1 over the pull.
+    public static float PullProgress(float elapsed, float extend, float envelop, float pull) =>
+        saturate((elapsed - extend - envelop) / max(pull, 1e-4f));
+
+    // Where the stand-in sim holds its pickup: still through Extend and Envelop, then along Zone's held-pose curve.
+    public static float3 PulledPosition(float3 start, float3 holder, float elapsed, float extend, float envelop, float pull) =>
+        lerp(start, holder, Zone.HeldPull(PullProgress(elapsed, extend, envelop, pull)));
 
     private void Update()
     {
