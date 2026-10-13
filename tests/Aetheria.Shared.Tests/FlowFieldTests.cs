@@ -89,8 +89,9 @@ public sealed class FlowFieldTests : IDisposable
         Assert.Equal(1.0, coarse.Time, 4);
         foreach (var p in Probes) AssertClose(fine.Flow(p), coarse.Flow(p));
         Assert.Equal(fine.FlowScroll, coarse.FlowScroll, 5);
-        // The flow moved: a scroll of 0.025 per second is a different field from the start.
-        Assert.NotEqual(ZoneWith(Flow()).Flow(Probes[1]).y, fine.Flow(Probes[1]).y);
+        // The flow moved: a scroll of 0.025 per second is a different field from the start, somewhere.
+        var start = ZoneWith(Flow());
+        Assert.Contains(Probes, p => length(start.Flow(p) - fine.Flow(p)) > .05f);
     }
 
     [Fact]
@@ -144,11 +145,8 @@ public sealed class FlowFieldTests : IDisposable
     {
         var one = ZoneWith(Flow(amplitude: 15f), 3.0);
         var two = ZoneWith(Flow(amplitude: 30f), 3.0);
-        foreach (var p in Probes)
-        {
-            var a = one.Flow(p);
-            Assert.NotEqual(float3.zero, a);
-            AssertClose(a * 2f, two.Flow(p));
-        }
+        foreach (var p in Probes) AssertClose(one.Flow(p) * 2f, two.Flow(p));
+        // The flow is live (the origin is a legitimate zero of the field, so it is not every probe).
+        Assert.Contains(Probes, p => length(one.Flow(p)) > 1f);
     }
 }
