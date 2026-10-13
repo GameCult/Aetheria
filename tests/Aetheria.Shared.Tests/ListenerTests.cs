@@ -77,6 +77,30 @@ public sealed partial class ContactRevealTests
         Assert.Empty(ear.RevealsOf(p));
     }
 
+    // ---- AConsumableListenerHearsAtItsMultiple ----
+
+    // The Earpiece is a consumable hosting a Listener (Multiple 3): an observer with it active hears the "Eye" at 900, the
+    // same as with the gear; with it not yet activated it has no instrument at all.
+    [Theory]
+    [InlineData(true, 899f, true)]
+    [InlineData(true, 901f, false)]
+    [InlineData(false, 100f, false)]
+    public void AConsumableListenerHearsAtItsMultiple(bool activated, float distance, bool heard)
+    {
+        var p = Add(float3(0, 0, 0), new[] { "Eye" });
+        var ear = Add(float3(distance, 0, 0));
+        if (activated)
+        {
+            var data = _openCache.GetByName<ConsumableItemData>("Earpiece");
+            ear.ActivateConsumable(Assert.IsType<ConsumableItem>(_items.CreateInstance(_items.CreateLot(data, _maker, .5f))));
+            Assert.Single(ear.FindActiveConsumable(data).Behaviors.OfType<Listener>()); // fixture: the consumable hosts it
+        }
+
+        PingAt(p);
+
+        Assert.Equal(heard ? 1 : 0, ear.RevealsOf(p).Count());
+    }
+
     // ---- ListenerDataRoundTripsAsUnionKey50 ----
 
     [Fact]

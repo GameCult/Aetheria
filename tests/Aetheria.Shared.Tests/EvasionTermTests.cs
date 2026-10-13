@@ -52,6 +52,38 @@ public sealed partial class RunStartTests
         return (arena, longinus, djinni);
     }
 
+    // The Djinni fitted by name: a Talaria on each of its thruster hardpoints (the hull's own positions and rotations), the
+    // reactor and the cockpit. What the thrusters push with is then the gear the test names, not what the generator drew.
+    private ScenarioFit EvDjinni(ScenarioStage stage)
+    {
+        var hull = _cache.GetByName<HullData>("Djinni");
+        var slots = hull.Hardpoints.Where(h => h.Type == HardpointType.Thruster).Select(h => ("Talaria", h.Position, h.Rotation)).ToList();
+        var reactor = hull.Hardpoints.First(h => h.Type == HardpointType.Reactor);
+        var cockpit = hull.Hardpoints.First(h => h.Type == HardpointType.ControlModule);
+        slots.Add(("Core Power", reactor.Position, reactor.Rotation));
+        slots.Add(("Cockpit 2x2", cockpit.Position, cockpit.Rotation));
+        return stage.Fit("Djinni", slots.ToArray());
+    }
+
+    // The two ships the flight tests measure, fitted by name and far apart in the fixture arena: the Djinni's eight Talaria
+    // and the Longinus's two Large Drives and two Talaria (EvLonginus). Neither follows the catalog's census: the generator
+    // draws from the run's item stream, so a catalog cut would change which gear a generated hull carried (sensor-catalog h1).
+    private (Zone arena, Ship longinus, Ship djinni) EvFitted()
+    {
+        Ship longinus = null, djinni = null;
+        var scenario = new Scripted(false, stage =>
+        {
+            stage.Player(stage.Bare("Djinni"), float2(-50000, -50000));
+            djinni = stage.Place(EvDjinni(stage), float2(-10000, -30000), facing: float2(0, 1)) as Ship;
+            longinus = stage.Place(EvLonginus(stage), float2(-30000, -30000), facing: float2(0, 1)) as Ship;
+        });
+        var (_, arena, _, failures) = Launch(scenario, Inputs(() => GalaxySeed));
+        Assert.True(failures.Count == 0, string.Join("; ", failures));
+        Assert.NotNull(longinus);
+        Assert.NotNull(djinni);
+        return (arena, longinus, djinni);
+    }
+
     // Idle long enough for stats and power to reach their idle state, then at rest, facing +y,
     // and, after three seconds of coasting, with nothing observed: the track forgets on its own.
     private static void EvSettle(Ship ship)
@@ -272,7 +304,7 @@ public sealed partial class RunStartTests
     [Fact]
     public void ReachIsWhatTheShipCanDo()
     {
-        var (_, longinus, djinni) = EvFleet();
+        var (_, longinus, djinni) = EvFitted();
         const float window = .5f;
         var results = new List<(string name, (float noseOn, float broadside) reach, (float noseOn, float broadside) allocated, (float noseOn, float broadside) measured)>();
         foreach (var (name, ship) in new[] { ("longinus", longinus), ("djinni", djinni) })
@@ -787,7 +819,7 @@ public sealed partial class RunStartTests
     [Fact]
     public void TheThrustersReadLiveThrust()
     {
-        var (_, _, djinni) = EvFleet();
+        var (_, _, djinni) = EvFitted();
         EvSettle(djinni);
         djinni.Update(EvDt);
         var thrusters = djinni.GetBehaviors<Thruster>().ToList();
