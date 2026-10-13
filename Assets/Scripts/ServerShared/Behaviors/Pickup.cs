@@ -42,6 +42,10 @@ public class PickupData : BehaviorData
     {
         return new Pickup(this, item);
     }
+
+    // A beam is a piece of gear the pilot holds on; no consumable carries one.
+    public override Behavior CreateInstance(ConsumableItemEffect item) =>
+        throw new NotSupportedException("pickup: gear only");
 }
 
 // Owns this ship's beam power and its one grab. Power is written only here; Zone owns the held item's pose.
