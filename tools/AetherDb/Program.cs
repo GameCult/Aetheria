@@ -1790,8 +1790,7 @@ public static class Program
         Console.WriteLine($"\"{name}\" hardpoint {beam.Hardpoint} -> Tool, {beam.Behaviors.Count} behaviours -> one Pickup (range 75, beam radius 25, grab power .5, extend .3, envelop .2, pull .5, spin rate 2), price {beam.Price} -> {price}.");
         if (!apply)
         {
-            Console.WriteLine("
-Dry run. Pass \"apply\" to write it.");
+            Console.WriteLine("\nDry run. Pass \"apply\" to write it.");
             return 0;
         }
         PerformanceStat Constant(float v) => new PerformanceStat { Min = v, Max = v };
@@ -1805,8 +1804,7 @@ Dry run. Pass \"apply\" to write it.");
             });
         CultRecordRefs.Validate(beam);
         db.Cache.Commit(batch => batch.Upsert(typeof(GearData), beam, db.Cache.RefOf(beam).Key));
-        Console.WriteLine($"
-Wrote \"{name}\" to Aetheria.cc");
+        Console.WriteLine($"\nWrote \"{name}\" to Aetheria.cc");
         return 0;
     }
 
