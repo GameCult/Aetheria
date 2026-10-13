@@ -60,7 +60,8 @@ public sealed class GenericDesignsCommandTests : IDisposable
     [Fact]
     public void A_dry_run_writes_nothing_and_apply_restores_both_records()
     {
-        var (designText, productText) = Read(db => (DesignNamed(db, "Light Machine Gun").Description, ProductNamed(db, "Hammerfall").Description));
+        var (designText, productText, brandedDesignText, rowText) = Read(db => (DesignNamed(db, "Light Machine Gun").Description,
+            ProductNamed(db, "Hammerfall").Description, DesignNamed(db, "Autocannon").Description, ProductNamed(db, "Skiron").Description));
         Edit(db =>
         {
             var design = DesignNamed(db, "Light Machine Gun");
@@ -71,6 +72,12 @@ public sealed class GenericDesignsCommandTests : IDisposable
             product.Name = "Autocannon";
             product.Description = "";
             Save(db, product);
+            var branded = DesignNamed(db, "Autocannon");
+            branded.Description = "";
+            Save(db, branded);
+            var row = ProductNamed(db, "Skiron");
+            row.Description = "";
+            Save(db, row);
         });
         var reverted = File.ReadAllBytes(CatalogPath);
 
@@ -83,6 +90,8 @@ public sealed class GenericDesignsCommandTests : IDisposable
             Assert.Equal(designText, DesignNamed(db, "Light Machine Gun").Description);
             Assert.DoesNotContain(db.Cache.GetAll<EquippableItemData>(), d => d.Name == "ClearPath");
             Assert.Equal(productText, ProductNamed(db, "Hammerfall").Description);
+            Assert.Equal(brandedDesignText, DesignNamed(db, "Autocannon").Description);
+            Assert.Equal(rowText, ProductNamed(db, "Skiron").Description);
             Assert.DoesNotContain(db.Cache.GetAll<FactionProductData>(), p => p.Name == "Autocannon" && db.Cache.Get(p.Manufacturer)?.ShortName == "Zhestokost");
             return 0;
         });
@@ -99,6 +108,23 @@ public sealed class GenericDesignsCommandTests : IDisposable
             var flak = DesignNamed(db, "Flak Gun");
             flak.Name = "Cargo Bay";
             Save(db, flak);
+        });
+        var before = File.ReadAllBytes(CatalogPath);
+        Assert.Throws<InvalidOperationException>(() => Program.GenericDesigns(apply: true, root: _root));
+        Assert.Equal(before, File.ReadAllBytes(CatalogPath));
+    }
+
+    [Fact]
+    public void A_brand_already_held_by_another_product_is_refused()
+    {
+        Edit(db =>
+        {
+            var product = ProductNamed(db, "Hammerfall");
+            product.Name = "Autocannon";
+            Save(db, product);
+            var other = ProductNamed(db, "Wren");
+            other.Name = "Hammerfall";
+            Save(db, other);
         });
         var before = File.ReadAllBytes(CatalogPath);
         Assert.Throws<InvalidOperationException>(() => Program.GenericDesigns(apply: true, root: _root));
