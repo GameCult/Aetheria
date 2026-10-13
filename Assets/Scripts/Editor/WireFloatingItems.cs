@@ -3,7 +3,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 
-// Detaches the deleted GridObject from the pickup prefabs and points ZoneRenderer's four pickup fields in ARPG.unity at
+// Strips the deleted integrator component from the pickup prefabs and points ZoneRenderer's four pickup fields in ARPG.unity at
 // each prefab's ItemPickup, then saves the prefabs and the scene. Idempotent: a prefab with no missing script is left as
 // it is, and the fields are set to the same values again.
 //

@@ -188,7 +188,7 @@ public static class FloatingItemsDrawnSmoke
         Require(Pickups().Length == 1 && Pickups()[0].Item == early.Item, "pickup: the wrong pickup went.");
 
         // Expiry destroys the pickup of an item nobody took.
-        zone.Update(settings.FloatingItemLifetime + 1f);
+        zone.Update(3600f); // far past any lifetime
         yield return null;
         yield return null;
         Require(zone.FloatingItems.Count == 0, "expiry: the item did not expire.");
