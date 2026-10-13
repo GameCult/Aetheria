@@ -2373,12 +2373,12 @@ public static class Program
         var designs = db.Cache.GetAll<EquippableItemData>().ToArray();
         var products = db.Cache.GetAll<FactionProductData>().ToArray();
         string MakerOf(FactionProductData product) => db.Cache.Get(product.Manufacturer)?.ShortName;
-        var changed = new Dictionary<object, CultRecordKey>(ReferenceEqualityComparer.Instance);
+        var changed = new List<(object Document, CultRecordKey Key)>();
         var report = new List<string>();
 
         void Write(object document, string what, string before, string after)
         {
-            changed[document] = db.Cache.RefOf(document).Key;
+            if (!changed.Any(c => ReferenceEquals(c.Document, document))) changed.Add((document, db.Cache.RefOf(document).Key));
             report.Add($"{what}: \"{before}\" -> \"{after}\"");
         }
 
@@ -2443,7 +2443,7 @@ public static class Program
             Console.WriteLine($"\nDry run. Pass \"apply\" to write {changed.Count} records.");
             return 0;
         }
-        foreach (var document in changed.Keys) CultRecordRefs.Validate(document);
+        foreach (var (document, _) in changed) CultRecordRefs.Validate(document);
         db.Cache.Commit(batch =>
         {
             foreach (var (document, key) in changed) batch.Upsert(document.GetType(), document, key);
