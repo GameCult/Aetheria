@@ -74,8 +74,8 @@ public sealed class FlowFieldTests : IDisposable
         var shift = flow.GlobalScale * flow.GlobalScrollSpeed * (float) t;
         foreach (var p in Probes)
             AssertClose(start.Flow(new float3(p.x, p.y - shift, p.z)), later.Flow(p));
-        Assert.Equal(flow.GlobalScrollSpeed * t, later.FlowScroll, 6);
-        Assert.Equal(0f, start.FlowScroll);
+        Assert.Equal(flow.GlobalScrollSpeed * t, later.FlowScroll.x, 6);
+        Assert.Equal(float2(0f, 0f), start.FlowScroll);
     }
 
     [Fact]
@@ -88,7 +88,8 @@ public sealed class FlowFieldTests : IDisposable
         Assert.Equal(1.0, fine.Time, 4);
         Assert.Equal(1.0, coarse.Time, 4);
         foreach (var p in Probes) AssertClose(fine.Flow(p), coarse.Flow(p));
-        Assert.Equal(fine.FlowScroll, coarse.FlowScroll, 5);
+        Assert.Equal(fine.FlowScroll.x, coarse.FlowScroll.x, 5);
+        Assert.Equal(fine.FlowScroll.y, coarse.FlowScroll.y, 5);
         // The flow moved: a scroll of 0.025 per second is a different field from the start, somewhere.
         var start = ZoneWith(Flow());
         Assert.Contains(Probes, p => length(start.Flow(p) - fine.Flow(p)) > .05f);
@@ -148,5 +149,63 @@ public sealed class FlowFieldTests : IDisposable
         foreach (var p in Probes) AssertClose(one.Flow(p) * 2f, two.Flow(p));
         // The flow is live (the origin is a legitimate zero of the field, so it is not every probe).
         Assert.Contains(Probes, p => length(one.Flow(p)) > 1f);
+    }
+
+    [Fact]
+    public void ZoneFlowIsTheLawAtTheScrollTheShaderGets()
+    {
+        // Zone.Flow and the lowered scroll are one zone-time value: the flow at p is the law evaluated at the zone's
+        // own FlowScroll, after any run of steps (a flow that ran ahead of or behind the shader's scroll differs here).
+        var zone = ZoneWith(Flow(), 3.25);
+        for (var step = 0; step < 90; step++)
+        {
+            zone.Update(1f / 60f);
+            foreach (var p in Probes) AssertClose(FlowField.Global(Flow(), p, zone.FlowScroll), zone.Flow(p), 1e-4f);
+        }
+    }
+
+    [Fact]
+    public void PausedSimFreezesTheFlowPhases()
+    {
+        // Presenters take their cycle phase from zone time: a zone that does not advance does not move them, and a
+        // zone that does moves them by dt / period (mod 1).
+        const float period = 8f;
+        var zone = ZoneWith(Flow(), 5.0);
+        var before = zone.CyclePhase(period);
+        var scroll = zone.FlowScroll;
+        zone.Update(0f);
+        Assert.Equal(before, zone.CyclePhase(period));
+        Assert.Equal(scroll, zone.FlowScroll);
+        zone.Update(2f);
+        Assert.Equal(frac(before + 2f / period), zone.CyclePhase(period), 5);
+        Assert.InRange(zone.CyclePhase(period), 0f, .9999999f);
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(10)]
+    public void ScrollKeepsAdvancingAtDaysOfZoneTime(int days)
+    {
+        // Zone time persists and only grows. A float of speed x time stops resolving a 1/60 s step after days; the
+        // phases the shader gets stay in [0, 1) and advance by speed x dt on every step.
+        const double dt = 1.0 / 60.0;
+        var flow = Flow();
+        var zone = ZoneWith(flow, days * 86400.0 + .1);
+        var previous = zone.FlowScroll;
+        for (var step = 0; step < 30; step++)
+        {
+            zone.Update((float) dt);
+            var now = zone.FlowScroll;
+            Assert.InRange(now.x, 0f, .9999999f);
+            Assert.InRange(now.y, 0f, .9999999f);
+            var dx = now.x - previous.x;
+            var dy = now.y - previous.y;
+            if (dx < -.5f) dx += 1f;
+            if (dy < -.5f) dy += 1f;
+            var expected = flow.GlobalScrollSpeed * dt;
+            Assert.InRange((double) dx, expected - 5e-7, expected + 5e-7);
+            Assert.InRange((double) dy, expected * 1.61803398875 - 5e-7, expected * 1.61803398875 + 5e-7);
+            previous = now;
+        }
     }
 }

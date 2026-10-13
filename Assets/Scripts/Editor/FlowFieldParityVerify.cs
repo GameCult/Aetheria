@@ -21,9 +21,20 @@ namespace Aetheria.EditorTools
     public static class FlowFieldParityVerify
     {
         const string Tag = "[FlowFieldParityVerify]";
-        const float RelativeTolerance = 1e-3f;
+        // Measured disagreement between the HLSL and the C# on this tree (float32 on both sides, positions to 10000,
+        // scrolls to 100): see the "max error" line the run prints; the last measurement is recorded in the report that
+        // landed this value. The tolerance is a small multiple of that noise so a 0.05% constant error (y factor .501,
+        // swirl or amplitude x1.0005) fails.
+        const float RelativeTolerance = 3e-4f;
         static float _maxError;
         static bool _ok = true;
+
+        static void OnLog(string message, string stack, LogType type)
+        {
+            if ((type == LogType.Error || type == LogType.Exception || type == LogType.Assert) && !message.StartsWith(Tag))
+                Fail("logged-error", message.Split('
+')[0]);
+        }
 
         static void Fail(string check, string detail)
         {
@@ -40,6 +51,8 @@ namespace Aetheria.EditorTools
                 return;
             }
 
+            // The flow's error lines (a shader keyword that does not exist, a missing property) fail the check.
+            Application.logMessageReceived += OnLog;
             var work = Path.Combine(Path.GetTempPath(), "flow-parity-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(work);
             try
@@ -72,6 +85,7 @@ namespace Aetheria.EditorTools
             }
             finally
             {
+                Application.logMessageReceived -= OnLog;
                 try { Directory.Delete(work, true); } catch { }
             }
             EditorApplication.Exit(_ok ? 0 : 1);
@@ -123,6 +137,7 @@ namespace Aetheria.EditorTools
             var gradientBuffer = new ComputeBuffer(count, 8);
             var globalBuffer = new ComputeBuffer(count, 12);
             var slopeBuffer = new ComputeBuffer(count, 12);
+            var gatedBuffer = new ComputeBuffer(count, 12);
             try
             {
                 positionBuffer.SetData(positions);
@@ -131,6 +146,7 @@ namespace Aetheria.EditorTools
                 compute.SetBuffer(kernel, "gradients", gradientBuffer);
                 compute.SetBuffer(kernel, "globalOut", globalBuffer);
                 compute.SetBuffer(kernel, "slopeOut", slopeBuffer);
+                compute.SetBuffer(kernel, "gatedOut", gatedBuffer);
                 compute.SetInt("count", count);
 
                 var elapsed = 0.0;
@@ -143,16 +159,15 @@ namespace Aetheria.EditorTools
                         zone.Update(dt);
                         elapsed += dt;
                     }
-                    var expectedScroll = flow.GlobalScrollSpeed * elapsed;
-                    var scrollTolerance = 1e-4 * Math.Max(1.0, expectedScroll);
-                    if (Math.Abs(zone.FlowScroll - expectedScroll) > scrollTolerance)
-                        Fail($"{label}-zone-scroll", $"at zone time {elapsed:F3} FlowScroll {zone.FlowScroll} but speed x time is {expectedScroll}");
+                    VolumeSampling.LowerFlow(zone.Settings.Flow, zone.ExactTime);
 
-                    VolumeSampling.LowerFlow(zone.Settings.Flow, zone.FlowScroll);
-
-                    var lowered = Shader.GetGlobalFloat("_FlowScroll");
-                    if (Math.Abs(lowered - expectedScroll) > scrollTolerance)
-                        Fail($"{label}-lowered-scroll", $"at zone time {elapsed:F3} the shader got _FlowScroll {lowered}, speed x time is {expectedScroll}");
+                    // The shader got the zone's scroll and cycle: the same zone time Zone.Flow evaluates at.
+                    var zoneScroll = zone.FlowScroll;
+                    var lowered = Shader.GetGlobalVector("_FlowScroll");
+                    if (Math.Abs(lowered.x - zoneScroll.x) > 1e-6 || Math.Abs(lowered.y - zoneScroll.y) > 1e-6)
+                        Fail($"{label}-lowered-scroll", $"at zone time {elapsed:F3} the shader got _FlowScroll ({lowered.x}, {lowered.y}), the zone's is ({zoneScroll.x}, {zoneScroll.y})");
+                    if (Math.Abs(Shader.GetGlobalFloat("_FlowCycle") - zone.CyclePhase(flow.Period)) > 1e-6)
+                        Fail($"{label}-lowered-cycle", $"at zone time {elapsed:F3} the shader got _FlowCycle {Shader.GetGlobalFloat("_FlowCycle")}, the zone's phase is {zone.CyclePhase(flow.Period)}");
                     if (Shader.GetGlobalFloat("_FlowScale") != flow.GlobalScale || Shader.GetGlobalFloat("_FlowAmplitude") != flow.GlobalAmplitude ||
                         Shader.GetGlobalFloat("_FlowSlopeAmplitude") != flow.SlopeAmplitude ||
                         Shader.GetGlobalFloat("_FlowSwirlAmplitude") != flow.SwirlAmplitude || Shader.GetGlobalFloat("_FlowPeriod") != flow.Period)
@@ -161,17 +176,31 @@ namespace Aetheria.EditorTools
                     compute.Dispatch(kernel, (count + 63) / 64, 1, 1);
                     var globalOut = new Vector3[count];
                     var slopeOut = new Vector3[count];
+                    var gatedOut = new Vector3[count];
                     globalBuffer.GetData(globalOut);
                     slopeBuffer.GetData(slopeOut);
+                    gatedBuffer.GetData(gatedOut);
 
-                    var zoneScroll = zone.FlowScroll;
-                    var at = $"{label} zone time {elapsed:F2} scroll {zoneScroll:F4}";
+                    var at = $"{label} zone time {elapsed:F2} scroll {zoneScroll.x:F4}";
                     for (var i = 0; i < positionCount; i++)
                     {
                         var p = positions[i];
                         var expected = FlowField.Global(flow, new CultMath.float3(p.x, p.y, p.z), zoneScroll);
                         Compare($"{label}-global", at, i, new Vector3(expected.x, expected.y, expected.z), globalOut[i], flow.GlobalAmplitude);
                     }
+                    // flow() is the keyword-gated function the nebula and stardust call; the zone's flat well has a zero
+                    // gradient, so Zone.Flow is the global term here. A flow that is live must not read zero.
+                    var live = 0;
+                    for (var i = 0; i < positionCount; i++)
+                    {
+                        var p = positions[i];
+                        var expected = zone.Flow(new CultMath.float3(p.x, p.y, p.z));
+                        var e = new Vector3(expected.x, expected.y, expected.z);
+                        if (e.magnitude > .1f * flow.GlobalAmplitude) live++;
+                        Compare($"{label}-flow-keywords", at, i, e, gatedOut[i], flow.GlobalAmplitude);
+                    }
+                    if (flow.GlobalAmplitude != 0f && live < positionCount / 4)
+                        Fail($"{label}-flow-keywords", $"{at}: only {live} of {positionCount} zone flows are live; the check is vacuous");
                     var slopeScale = Math.Max(Math.Abs(flow.SlopeAmplitude), Math.Abs(flow.SwirlAmplitude));
                     for (var i = 0; i < gradientCount; i++)
                     {
@@ -183,7 +212,7 @@ namespace Aetheria.EditorTools
             }
             finally
             {
-                positionBuffer.Release(); gradientBuffer.Release(); globalBuffer.Release(); slopeBuffer.Release();
+                positionBuffer.Release(); gradientBuffer.Release(); globalBuffer.Release(); slopeBuffer.Release(); gatedBuffer.Release();
             }
         }
 

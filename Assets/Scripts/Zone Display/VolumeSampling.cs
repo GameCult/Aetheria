@@ -89,27 +89,34 @@ public class VolumeSampling : MonoBehaviour
         Shader.SetGlobalFloat("_NebulaNoiseSlopeExponent", environment.Noise.SlopeExponent);
         
         // The flow is the zone's: its settings and its time. Without a zone (menus) the same law runs on the presentation clock.
-        var zone = ActionGameManager.Instance?.Zone;
-        if (zone != null) LowerFlow(zone.Settings.Flow, zone.FlowScroll);
-        else LowerFlow(Settings.PlanetSettings.Flow, FlowField.Scroll(Settings.PlanetSettings.Flow, Time.timeSinceLevelLoad));
+        LowerFlow(ActionGameManager.Instance?.Zone?.Settings.Flow ?? Settings.PlanetSettings.Flow, FlowClock);
         Shader.SetKeyword(_keywordNoiseSlope, environment.Noise.SlopeExponent != 0);
     }
 
-    static readonly GlobalKeyword KeywordFlowGlobal = new GlobalKeyword("FLOW_GLOBAL");
-    static readonly GlobalKeyword KeywordFlowSlope = new GlobalKeyword("FLOW_SLOPE");
+    // GlobalKeyword's constructor only looks a keyword up; Create registers it. The shaders' pragmas and this owner agree on the names.
+    static readonly GlobalKeyword KeywordFlowGlobal = GlobalKeyword.Create("FLOW_GLOBAL");
+    static readonly GlobalKeyword KeywordFlowSlope = GlobalKeyword.Create("FLOW_SLOPE");
 
     /// <summary>
-    /// The one place that sets the flow uniforms and keywords: every shader flow term derives from FlowSettings and a
-    /// scroll (FlowField.Scroll), so no presenter keeps its own flow clock.
+    /// The time the flow runs on: the zone's own (so drift stops with the sim and follows sim speed), or on menus,
+    /// where no zone exists, the presentation clock.
     /// </summary>
-    public static void LowerFlow(FlowSettings flow, float scroll)
+    public static double FlowClock => ActionGameManager.Instance?.Zone?.ExactTime ?? Time.timeSinceLevelLoad;
+
+    /// <summary>
+    /// The one place that sets the flow uniforms and keywords: every shader flow term derives from FlowSettings and
+    /// the flow clock through FlowField, so no presenter keeps its own flow clock.
+    /// </summary>
+    public static void LowerFlow(FlowSettings flow, double flowClock)
     {
         Shader.SetGlobalFloat("_FlowScale", flow.GlobalScale);
         Shader.SetGlobalFloat("_FlowAmplitude", flow.GlobalAmplitude);
         Shader.SetGlobalFloat("_FlowSlopeAmplitude", flow.SlopeAmplitude);
         Shader.SetGlobalFloat("_FlowSwirlAmplitude", flow.SwirlAmplitude);
-        Shader.SetGlobalFloat("_FlowScroll", scroll);
+        var scroll = FlowField.Scroll(flow, flowClock);
+        Shader.SetGlobalVector("_FlowScroll", new Vector4(scroll.x, scroll.y));
         Shader.SetGlobalFloat("_FlowPeriod", flow.Period);
+        Shader.SetGlobalFloat("_FlowCycle", FlowField.Cycle(flowClock, flow.Period));
 
         Shader.SetKeyword(KeywordFlowGlobal, flow.GlobalAmplitude != 0);
         Shader.SetKeyword(KeywordFlowSlope, flow.SlopeAmplitude != 0 || flow.SwirlAmplitude != 0);

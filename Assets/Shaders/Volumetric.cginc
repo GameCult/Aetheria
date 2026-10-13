@@ -33,7 +33,7 @@ uniform half _NebulaFillDensity,
             _NebulaNoiseSlopeExponent,
             _FlowScale,
             _FlowAmplitude,
-            _FlowScroll,
+            _FlowCycle,
             _FlowPeriod,
             _FlowSlopeAmplitude,
             _FlowSwirlAmplitude,
@@ -42,6 +42,7 @@ uniform half _NebulaFillDensity,
             _DynamicLodHigh,
             _DynamicIntensity,
             _DynamicSkyBoost;
+float2 _FlowScroll;
 
 inline float tri(in float x){return abs(frac(x)-.5);}
 inline float3 tri3(in float3 p){return float3( tri(p.z+tri(p.y*1.)), tri(p.z+tri(p.x*1.)), tri(p.y+tri(p.x*1.)));}
@@ -66,10 +67,11 @@ float triNoise3d(in float3 p)
     return rz;
 }
 
-float3 Tri3D( float3 P )
+// The two octaves' positions arrive already scrolled (FlowField.Scroll folds each octave's phase in double).
+float3 Tri3D( float3 P, float3 PGolden )
 {
     float3 t1 = normalize(tri3(P));
-    float3 t2 = normalize(tri3(P * 1.61803398875));
+    float3 t2 = normalize(tri3(PGolden));
     return cross(t1,t2);
 }
 
@@ -129,7 +131,8 @@ float3 gravNormal (float2 grad)
 
 float3 globalFlow(float3 pos)
 {
-    float3 flowSample = Tri3D( pos / _FlowScale - float3(0,_FlowScroll,0) ) * _FlowAmplitude;
+    const float3 field = pos / _FlowScale;
+    float3 flowSample = Tri3D( field - float3(0,_FlowScroll.x,0), field * 1.61803398875 - float3(0,_FlowScroll.y,0) ) * _FlowAmplitude;
     flowSample.y *= .5;
     return flowSample;
 }
@@ -198,13 +201,13 @@ float density(float3 pos)
         #endif
         #endif
         
-        const float lerp1 = frac(_Time.y / _FlowPeriod);
-        const float lerp2 = frac(_Time.y / _FlowPeriod + .5);
+        const float lerp1 = frac(_FlowCycle);
+        const float lerp2 = frac(_FlowCycle + .5);
         const float noise1 = pow(triNoise3d((pos+fl.xyz * (lerp1 - .5) * _FlowPeriod) / _NebulaNoiseScale),exponent) * tri2(lerp1);
         const float noise2 = pow(triNoise3d((pos+fl.xyz * (lerp2 - .5) * _FlowPeriod) / _NebulaNoiseScale),exponent) * tri2(lerp2);
         pos.y += (noise1 + noise2) * heightFade * _NebulaNoiseAmplitude;
-        const float lerp3 = frac(_Time.y / _FlowPeriod * 2 + .25);
-        const float lerp4 = frac(_Time.y / _FlowPeriod * 2 + .75);
+        const float lerp3 = frac(_FlowCycle * 2 + .25);
+        const float lerp4 = frac(_FlowCycle * 2 + .75);
         const float noise3 = pow(triNoise3d((pos+fl.xyz * (lerp3 - .5) * _FlowPeriod / 2) / _NebulaNoiseScale * 8), exponent) * tri2(lerp3);
         const float noise4 = pow(triNoise3d((pos+fl.xyz * (lerp4 - .5) * _FlowPeriod / 2) / _NebulaNoiseScale * 8), exponent) * tri2(lerp4);
         pos.y -= (noise3 + noise4) * heightFade * _NebulaNoiseAmplitude / 2;

@@ -110,7 +110,7 @@ public class Zone
     }
 
     // Zone time at full precision, for the index's orbital keys, which must agree with ChunkPose's own.
-    internal double ExactTime => _time;
+    public double ExactTime => _time;
     public ZonePack Pack { get; }
     public GalaxyZone GalaxyZone { get; }
     public Galaxy Galaxy { get; }
@@ -696,11 +696,14 @@ public class Zone
     public float3 Flow(float3 position)
     {
         var normal = GetNormal(position.xz);
-        return FlowField.At(Settings.Flow, position, _time, new float2(normal.x, normal.z));
+        return FlowField.At(Settings.Flow, position, FlowScroll, new float2(normal.x, normal.z));
     }
 
-    // The flow's noise scroll at zone time; lowered to the shaders' _FlowScroll.
-    public float FlowScroll => FlowField.Scroll(Settings.Flow, _time);
+    // The flow's noise scroll at zone time (Zone.Flow evaluates at exactly this); lowered to the shaders' _FlowScroll.
+    public float2 FlowScroll => FlowField.Scroll(Settings.Flow, _time);
+
+    // The phase of a cycle of `period` seconds at zone time, for presenters that animate on the flow.
+    public float CyclePhase(float period) => FlowField.Cycle(_time, period);
 
     public static float PowerPulse(float x, float exponent)
     {

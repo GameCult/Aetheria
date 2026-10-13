@@ -11,15 +11,30 @@ using float3 = CultMath.float3;
 /// </summary>
 public static class FlowField
 {
-    // The scroll offset of the noise field, in field units: speed times zone time and nothing else.
-    public static float Scroll(FlowSettings settings, double zoneTime) => (float) (settings.GlobalScrollSpeed * zoneTime);
+    // The second octave of the noise samples at position * Golden (Volumetric.cginc Tri3D).
+    const float Golden = 1.61803398875f;
+
+    // The scroll of the noise field, in field units: speed times zone time, for each of the two octaves, as a phase.
+    // Every term of Tri3D reaches the scrolled axis through frac, so a phase is only meaningful modulo 1: the fold
+    // happens here in double, where zone time is exact, and the float that reaches the shaders is in [0, 1) however
+    // old the zone is. x is the first octave's phase, y the second's (the second octave's axis is scaled by Golden).
+    public static float2 Scroll(FlowSettings settings, double zoneTime)
+    {
+        var scroll = (double) settings.GlobalScrollSpeed * zoneTime;
+        return float2((float) frac(scroll), (float) frac(scroll * Golden));
+    }
+
+    // The phase of a cycle of `period` seconds at zone time, in [0, 1). The nebula's flow-advected noise cycles and
+    // Stardust's particle lifetimes take their phase from here, so drift follows sim time and stops with the sim.
+    public static float Cycle(double zoneTime, float period) => period == 0f ? 0f : (float) frac(zoneTime / period);
 
     // The procedural term (Volumetric.cginc globalFlow): a Tri3D field of position / scale, scrolled along y.
     // Skipped when its amplitude is zero, as the shader's FLOW_GLOBAL keyword skips it.
-    public static float3 Global(FlowSettings settings, float3 position, float scroll)
+    public static float3 Global(FlowSettings settings, float3 position, float2 scroll)
     {
         if (settings.GlobalAmplitude == 0f) return float3.zero;
-        var sample = Tri3D(position / settings.GlobalScale - float3(0f, scroll, 0f)) * settings.GlobalAmplitude;
+        var field = position / settings.GlobalScale;
+        var sample = Tri3D(field - float3(0f, scroll.x, 0f), field * Golden - float3(0f, scroll.y, 0f)) * settings.GlobalAmplitude;
         sample.y *= .5f;
         return sample;
     }
@@ -37,8 +52,8 @@ public static class FlowField
              + float3(direction.x, 0f, direction.y) * settings.SlopeAmplitude;
     }
 
-    public static float3 At(FlowSettings settings, float3 position, double zoneTime, float2 downhill) =>
-        Global(settings, position, Scroll(settings, zoneTime)) + Slope(settings, downhill);
+    public static float3 At(FlowSettings settings, float3 position, float2 scroll, float2 downhill) =>
+        Global(settings, position, scroll) + Slope(settings, downhill);
 
     // Volumetric.cginc tri / tri3 / Tri3D, term for term.
     static float Tri(float x) => abs(frac(x) - .5f);
@@ -46,10 +61,11 @@ public static class FlowField
     static float3 Tri3(float3 p) =>
         float3(Tri(p.z + Tri(p.y)), Tri(p.z + Tri(p.x)), Tri(p.y + Tri(p.x)));
 
-    static float3 Tri3D(float3 p)
+    // The two octaves' positions are given already scrolled (see Scroll).
+    static float3 Tri3D(float3 p, float3 pGolden)
     {
         var t1 = normalize(Tri3(p));
-        var t2 = normalize(Tri3(p * 1.61803398875f));
+        var t2 = normalize(Tri3(pGolden));
         return cross(t1, t2);
     }
 }

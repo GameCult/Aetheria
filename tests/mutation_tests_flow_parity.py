@@ -28,21 +28,24 @@ UNITY_EXE = r"C:\Program Files\Unity\Hub\Editor\6000.3.24f1\Editor\Unity.exe"
 CGINC = "Assets/Shaders/Volumetric.cginc"
 VOLUME_SAMPLING = "Assets/Scripts/Zone Display/VolumeSampling.cs"
 FLOW_FIELD = "Assets/Scripts/ServerShared/FlowField.cs"
-ZONE = "Assets/Scripts/ServerShared/Zone.cs"
 SETTINGS_ASSET = "Assets/Resources/Settings.asset"
 
 # (label, file, before, after, the failing check the probe must name)
 MUTANTS = [
     ("hlsl-y-halving", CGINC, "flowSample.y *= .5;", "flowSample.y *= .6;", "global"),
-    ("hlsl-scroll-sign", CGINC, "pos / _FlowScale - float3(0,_FlowScroll,0)", "pos / _FlowScale + float3(0,_FlowScroll,0)", "global"),
+    ("hlsl-y-factor-501", CGINC, "flowSample.y *= .5;", "flowSample.y *= .501;", "global"),
+    ("hlsl-amplitude-1.0005", CGINC, "- float3(0,_FlowScroll.y,0) ) * _FlowAmplitude;", "- float3(0,_FlowScroll.y,0) ) * _FlowAmplitude * 1.0005;", "global"),
+    ("hlsl-scroll-sign", CGINC, "field - float3(0,_FlowScroll.x,0)", "field + float3(0,_FlowScroll.x,0)", "global"),
+    ("hlsl-scroll2-dropped", CGINC, "field * 1.61803398875 - float3(0,_FlowScroll.y,0)", "field * 1.61803398875", "global"),
     ("hlsl-swirl-flipped", CGINC, "float3(ngrad.y, 0, -ngrad.x)", "float3(-ngrad.y, 0, ngrad.x)", "slope"),
+    ("hlsl-swirl-1.0005", CGINC, "float3(ngrad.y, 0, -ngrad.x) * _FlowSwirlAmplitude", "float3(ngrad.y, 0, -ngrad.x) * _FlowSwirlAmplitude * 1.0005", "slope"),
     ("hlsl-zero-gradient-guard", CGINC, "    if (dot(grad, grad) == 0) return 0;\n", "", "slope"),
-    ("lower-scroll-doubled", VOLUME_SAMPLING, 'Shader.SetGlobalFloat("_FlowScroll", scroll);', 'Shader.SetGlobalFloat("_FlowScroll", scroll * 2f);', "lowered-scroll"),
+    ("lower-scroll-doubled", VOLUME_SAMPLING, "new Vector4(scroll.x, scroll.y)", "new Vector4(scroll.x * 2f, scroll.y)", "lowered-scroll"),
     ("lower-scale-halved", VOLUME_SAMPLING, 'Shader.SetGlobalFloat("_FlowScale", flow.GlobalScale);', 'Shader.SetGlobalFloat("_FlowScale", flow.GlobalScale * .5f);', "lowered-settings"),
-    ("lower-frame-clock", VOLUME_SAMPLING, 'Shader.SetGlobalFloat("_FlowScroll", scroll);', 'Shader.SetGlobalFloat("_FlowScroll", scroll + Time.realtimeSinceStartup);', "lowered-scroll"),
-    ("csharp-scale-doubled", FLOW_FIELD, "position / settings.GlobalScale", "position / (settings.GlobalScale * 2f)", "global"),
-    ("csharp-scroll-offset", FLOW_FIELD, "(float) (settings.GlobalScrollSpeed * zoneTime)", "(float) (settings.GlobalScrollSpeed * (zoneTime + 1.0))", "zone-scroll"),
-    ("zone-scroll-scaled", ZONE, "public float FlowScroll => FlowField.Scroll(Settings.Flow, _time);", "public float FlowScroll => FlowField.Scroll(Settings.Flow, _time * 2);", "zone-scroll"),
+    ("lower-frame-clock", VOLUME_SAMPLING, "FlowField.Scroll(flow, flowClock)", "FlowField.Scroll(flow, flowClock + Time.realtimeSinceStartup)", "lowered-scroll"),
+    ("lower-cycle-frame-clock", VOLUME_SAMPLING, "FlowField.Cycle(flowClock, flow.Period)", "FlowField.Cycle(Time.realtimeSinceStartup, flow.Period)", "lowered-cycle"),
+    ("lower-keywords-lookup-only", VOLUME_SAMPLING, 'GlobalKeyword.Create("FLOW_GLOBAL")', 'new GlobalKeyword("FLOW_GLOBAL")', "flow-keywords"),
+    ("csharp-scale-doubled", FLOW_FIELD, "var field = position / settings.GlobalScale;", "var field = position / (settings.GlobalScale * 2f);", "global"),
     ("asset-amplitude", SETTINGS_ASSET, "      GlobalAmplitude: 15\n", "      GlobalAmplitude: 14\n", "authored-flow"),
 ]
 

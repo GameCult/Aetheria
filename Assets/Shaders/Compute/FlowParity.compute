@@ -9,6 +9,7 @@ StructuredBuffer<float3> positions;
 StructuredBuffer<float2> gradients;
 RWStructuredBuffer<float3> globalOut;
 RWStructuredBuffer<float3> slopeOut;
+RWStructuredBuffer<float3> gatedOut; // flow(): the keyword-gated function the nebula and stardust call
 uint count;
 
 [numthreads(64, 1, 1)]
@@ -17,4 +18,5 @@ void Evaluate(uint3 id : SV_DispatchThreadID)
     if (id.x >= count) return;
     globalOut[id.x] = globalFlow(positions[id.x]);
     slopeOut[id.x] = slopeFlow(gradients[id.x]);
+    gatedOut[id.x] = flow(positions[id.x]);
 }
