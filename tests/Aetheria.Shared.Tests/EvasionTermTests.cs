@@ -318,7 +318,8 @@ public sealed partial class RunStartTests
         // The Djinni's measured motion sits further below its reach (+38% nose-on, +26% broadside at the last measurement):
         // its strafers are off-axis and the envelope, summed from what each thruster can push, does not model that. Its
         // allocator holds the whole box (its allocated reach is the envelope's), so the allocated reach says nothing more
-        // about it. The bound still pins that the reach covers what the ship does.
+        // about it. The bound still pins that the reach covers what the ship does, and the ceiling is the allocated reach
+        // (1.08 nose-on, 1.03 broadside for the fitted Djinni) with 20% to spare: a doubled envelope breaks it.
         // The Longinus's allocator holds the heading and pays for the drive torque out of the flank thrusters (ruling
         // allocator-divergence-accepted), so the envelope's box support overstates what a controlled flight spends. Its
         // measured motion is bounded by the reach of the push the allocator itself gives it on each half-axis, from the
@@ -327,8 +328,8 @@ public sealed partial class RunStartTests
         {
             if (name == "djinni")
             {
-                Assert.InRange(reach.noseOn, measured.noseOn * .9f, measured.noseOn * 1.6f);
-                Assert.InRange(reach.broadside, measured.broadside * .9f, measured.broadside * 1.6f);
+                Assert.InRange(reach.noseOn, measured.noseOn * .9f, allocated.noseOn * 1.2f);
+                Assert.InRange(reach.broadside, measured.broadside * .9f, allocated.broadside * 1.2f);
             }
             else
             {
