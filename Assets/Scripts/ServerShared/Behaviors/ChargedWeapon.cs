@@ -84,10 +84,13 @@ public class ChargedWeapon : InstantWeapon
     // authored charge-up speed IS its sustained rate of fire, not a second, disconnected number.
     protected override float RateOverride => Evaluate(_data.ChargeEnergy);
     
-    public override float DamagePerSecond => Damage * _data.ChargeFiringDamageMultiplier / (Cooldown + ChargeTime);
+    // The charge multiplier lives in the formula alone: Damage is lerped by charge for the shot itself (UpdateStats), so the
+    // live reads take the uncharged damage, and a nominal weapon reads its design's rated figure at every charge.
+    private float _unchargedDamage;
+    public override float DamagePerSecond => _unchargedDamage * _data.ChargeFiringDamageMultiplier / (Cooldown + ChargeTime);
     public override float RangeDamagePerSecond(float range)
     {
-        return ChargedWeaponData.RangeDamagePerSecond(_data.DamageCurve, Damage, _data.ChargeFiringDamageMultiplier,
+        return ChargedWeaponData.RangeDamagePerSecond(_data.DamageCurve, _unchargedDamage, _data.ChargeFiringDamageMultiplier,
             MinRange, Range, Cooldown, ChargeTime, range);
     }
 
@@ -128,6 +131,7 @@ public class ChargedWeapon : InstantWeapon
         ChargeTime = Evaluate(_data.ChargeTime);
         ChargeEnergy = Evaluate(_data.ChargeEnergy);
         ChargeHeat = Evaluate(_data.ChargeHeat);
+        _unchargedDamage = Damage;
         Damage *= lerp(1, _data.ChargeFiringDamageMultiplier, saturate(_charge));
         Heat *= lerp(1, _data.ChargeFiringHeatMultiplier, saturate(_charge));
         Spread *= lerp(1, _data.ChargeFiringSpreadMultiplier, saturate(_charge));

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using CultMath;
 using GameCult.Caching;
 using Xunit;
@@ -269,22 +270,53 @@ public sealed partial class ContactRevealTests
             }
         }
     }
+    // A charged weapon at full charge reads the same rated figure: the charge multiplier is applied once, in the formula
+    // (UpdateStats lerps the shot's damage by charge, so the live reads start from the uncharged damage). At range 10 the
+    // curve factor is 1: 100 / 2 rounds x 2 / (2 + 3) = 20. Mutation: the live reads pass the charge-lerped Damage.
+    [Fact]
+    public void AFullyChargedWeaponReadsItsRatedFigure()
+    {
+        var e = Add(float3(0, 0, 0), new[] { "SpanCharged" });
+        Tick(.1f);
+        var item = e.Equipment.Single(i => i.Data.Name == "SpanCharged");
+        var live = (ChargedWeapon) item.Behaviors.Single(b => b is ChargedWeapon);
+        var rated = item.Data.Behaviors.OfType<WeaponData>().Single();
+        typeof(ChargedWeapon).GetField("_charge", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(live, 1f);
+        typeof(Weapon).GetMethod("UpdateStats", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(live, null);
+
+        foreach (var at in new[] { 10f, 70f, 110f })
+            Assert.Equal(rated.RatedRangeDamagePerSecond(at), live.RangeDamagePerSecond(at), 3);
+        Assert.Equal(20f, live.DamagePerSecond, 3);
+        Assert.Equal(20f, live.RangeDamagePerSecond(10f), 3);
+    }
+
     // ---- The schematic's rows (ruling ew-claim-weapon-measure-ruled; finding schematic-unreached) ----
 
-    // The unclaimed enemy row is the true gun, with the gun's own rated range (Gun: 40). Mutation: the row's Item.Data or
-    // the true live range stands in for the claim.
+    // Wears a gun's Range to half so its live range (20) is not its design's rated range (40); the fixture's own guard.
+    private void WearRange(Entity ship, EquippedItem gun)
+    {
+        var data = (InstantWeaponData) gun.Data.Behaviors.Single(b => b is InstantWeaponData);
+        ship.Resolver.AttachModifier(gun, data.Range, "worn", StatModifierType.Multiplier, .5f);
+        Tick(.1f);
+        Assert.Equal(20f, gun.Behaviors.OfType<Weapon>().Single().Range, 3);
+    }
+
+    // The unclaimed enemy row is the true gun, with the gun's own rated range (Gun: 40) though the gun is worn to a live
+    // 20. Mutation: the row's Item.Data or the true live range stands in for the claim (also when Claimed == Data).
     [Fact]
     public void AnEnemySchematicRowDefaultsToTheTruth()
     {
         var e = Add(float3(30, 0, 40), new[] { "Gun" });
         var o = Add(float3(0, 0, 0), new[] { "Eye" });
         var gun = Guns(e)[0];
+        WearRange(e, gun);
         Fire(e, gun);
 
         var row = Assert.Single(o.SchematicRows(e));
         Assert.Same(gun, row.Item);
         Assert.Same(gun.Data, row.Claimed);
         Assert.Equal(40f, row.Range);
+        Assert.NotEqual(gun.Behaviors.OfType<Weapon>().Single().Range, row.Range);
     }
 
     // A weapon claimed as another weapon shows the claimed design's rated range (SpanGun: Range.Max 120), not the true
@@ -330,19 +362,21 @@ public sealed partial class ContactRevealTests
     }
 
     // Your own schematic is your own gear whatever you claim: the true data, the live range, weapons only.
-    // Mutation: own rows read ClaimOf or the rated range of the claim (SpanGun 120), or list non-weapons.
+    // Mutation: own rows read ClaimOf, the rated range of the claim (SpanGun 120) or of the own design (40), or list non-weapons.
     [Fact]
     public void OwnSchematicRowsShowOwnTruth()
     {
         var e = Add(float3(30, 0, 40), new[] { "Gun" });
         var gun = Guns(e)[0];
+        WearRange(e, gun);
         e.Claim(gun, DataOf("SpanGun"));
 
         var row = Assert.Single(e.SchematicRows(e));
         Assert.Same(gun, row.Item);
         Assert.Same(gun.Data, row.Claimed);
-        Assert.Equal(40f, row.Range);
+        Assert.Equal(20f, row.Range, 3); // the live range of the worn gun, below its rated 40
         Assert.Equal(gun.Behaviors.OfType<Weapon>().Single().Range, row.Range);
+        Assert.NotEqual(((WeaponData) gun.Data.Behaviors.Single(b => b is WeaponData)).RatedRange, row.Range);
     }
 
     // The renderer rebuilds when the key differs: a claim that changes between two acts changes the key, and an
@@ -365,5 +399,61 @@ public sealed partial class ContactRevealTests
         Assert.Single(after);
         Assert.NotEqual(before, after);
         Assert.Same(DataOf("SpanGun"), after[0].Item2);
+    }
+
+    // Two guns of one claimed design are told apart by the key: a row set that swaps one gun for the other keeps the count and
+    // the claims and changes only the item, and the renderer must still rebuild (the selection mark follows the item).
+    // Mutation: Key drops Item.
+    [Fact]
+    public void TheRebuildKeyChangesWhenOnlyTheItemChanges()
+    {
+        var e = Add(float3(30, 0, 40), new[] { "Gun", "Gun" });
+        var a = Add(float3(0, 0, 0), new[] { "Eye" });
+        var b = Add(float3(0, 0, 5), new[] { "Eye" });
+        var guns = Guns(e);
+        var design = DataOf("SpanGun");
+        e.Claim(guns[0], design);
+        e.Claim(guns[1], design);
+        a.RecordReveal(e, guns[0], SignatureChannel.LaunchFlash, e.ClaimOf(guns[0]));
+        b.RecordReveal(e, guns[1], SignatureChannel.LaunchFlash, e.ClaimOf(guns[1]));
+
+        var first = Assert.Single(a.SchematicRows(e));
+        var second = Assert.Single(b.SchematicRows(e));
+        Assert.Same(first.Claimed, second.Claimed);
+        Assert.NotEqual(first.Key, second.Key);
+    }
+
+    // ---- One hull class in the book ----
+
+    // The guard runs both ways: a hull class can be claimed only by the hull, so no item's reveal carries a hull class that
+    // disagrees with Contact.Profile. Mutation: the guard checks the hull side only.
+    [Fact]
+    public void OnlyTheHullClaimsAHullClass()
+    {
+        var e = Add(float3(30, 0, 40), new[] { "Gun" });
+        var gun = Guns(e)[0];
+        Assert.Throws<System.ArgumentException>(() => e.Claim(gun, e.HullData));
+        Assert.Same(gun.Data, e.ClaimOf(gun));
+    }
+
+    // ---- Gear the subject no longer carries ----
+
+    // A reveal of gear the subject does not carry follows every fitted weapon, and stale gear is ordered by lot whatever
+    // order the observer saw it in. Mutation: the missing index sorts first (-1), or stale ties follow the book's slot order.
+    [Fact]
+    public void RevealsOfGearNoLongerCarriedFollowFittedGear()
+    {
+        var e = Add(float3(30, 0, 40), new[] { "Gun" });
+        var gone = Add(float3(60, 0, 40), new[] { "Gun", "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var fitted = Guns(e)[0];
+        var stale = Guns(gone);
+        Assert.True(stale[0].EquippableItem.Lot < stale[1].EquippableItem.Lot);
+
+        o.RecordReveal(e, stale[1], SignatureChannel.LaunchFlash, stale[1].Data);
+        o.RecordReveal(e, stale[0], SignatureChannel.LaunchFlash, stale[0].Data);
+        o.RecordReveal(e, fitted, SignatureChannel.LaunchFlash, fitted.Data);
+
+        Assert.Equal(new[] { fitted, stale[0], stale[1] }, o.RevealedWeapons(e).Select(r => r.Item).ToArray());
     }
 }

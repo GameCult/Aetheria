@@ -119,8 +119,9 @@ public abstract class Entity
     internal void Claim(HullData hull) => Claim(EquippedHull, hull);
     internal void Claim(EquippedItem item, EquippableItemData claimed)
     {
-        if (item == EquippedHull && claimed != null && !(claimed is HullData))
-            throw new ArgumentException("The hull can only claim to be a hull.", nameof(claimed));
+        // One hull class in the book: a hull class is claimed by the hull and only by the hull, whichever side asks.
+        if (claimed != null && (item == EquippedHull) != (claimed is HullData))
+            throw new ArgumentException("Only the hull claims a hull class, and the hull claims nothing else.", nameof(claimed));
         if (claimed == null) _itemClaims.Remove(item);
         else _itemClaims[item] = claimed;
     }
@@ -983,7 +984,15 @@ public abstract class Entity
     // a gun claimed as a non-weapon is not listed, though RevealsOf holds it for aim.
     public IEnumerable<Reveal> RevealedWeapons(Entity subject) =>
         RevealsOf(subject).Where(r => r.Claimed != null && r.Claimed.Behaviors.Any(b => b is WeaponData))
-            .OrderBy(r => subject.Equipment.IndexOf(r.Item));
+            .OrderBy(r => FittedIndex(subject, r.Item)).ThenBy(r => r.Item.EquippableItem.Lot);
+
+    // A revealed item's place in the subject's equipment; gear the subject no longer carries follows all fitted gear
+    // (ties among it fall to the lot, a stable id), never ahead of it.
+    private static int FittedIndex(Entity subject, EquippedItem item)
+    {
+        var index = subject.Equipment.IndexOf(item);
+        return index < 0 ? int.MaxValue : index;
+    }
 
     // The weapon rows of `subject`'s schematic as this ship reads it: its own equipment when `subject` is this ship (each
     // row its own data and live range, nothing to doubt about your own ship), otherwise RevealedWeapons (each row the
