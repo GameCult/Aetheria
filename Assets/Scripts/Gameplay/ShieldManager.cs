@@ -90,7 +90,7 @@ public class ShieldManager : MonoBehaviour, IAbsorbPresenter
     // ImpactPresenter's.
     public void Absorb(AbsorbEvent e)
     {
-        if (e.Layer != AbsorbLayer.Shield || Entity == null || Entity.Shield == null || !Entity.Shield.Item.Active.Value) return;
+        if (e.Layer != AbsorbLayer.Shield || Entity == null || Entity.Shield == null || !Entity.Shield.Item.Active.Value || !ActionGameManager.DrawsAt(Entity)) return;
         ShowHit(DrawAhead.Carried(Entity, e.Position, ActionGameManager.Clock.Lead).ToUnity(), CollisionHitDuration);
     }
 
