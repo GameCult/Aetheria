@@ -607,14 +607,10 @@ public static class Program
         // Validate comment) -- so it calls the same validation directly, right before the identity-preserving
         // write, instead of writing raw and unvalidated the way this line used to.
         foreach (var (document, _) in changed) CultRecordRefs.Validate(document);
-        // ExpectUnchanged lands the batch onto the file as it is: every record the command did not author keeps the bytes it has,
-        // where a plain commit would re-encode the whole catalog through today's types.
-        if (!db.Cache.Commit(batch =>
+        db.Cache.Commit(batch =>
         {
-            batch.ExpectUnchanged();
             foreach (var (document, key) in changed) batch.Upsert(document.GetType(), document, key);
-        }))
-            throw new InvalidOperationException("The catalog changed while the generic designs were being authored; nothing was written. Run it again.");
+        });
         Console.WriteLine($"Landed {changed.Count} changed records in Aetheria.cc");
         return 0;
     }
@@ -2472,10 +2468,14 @@ public static class Program
             return 0;
         }
         foreach (var (document, _) in changed) CultRecordRefs.Validate(document);
-        db.Cache.Commit(batch =>
+        // ExpectUnchanged lands the batch onto the file as it is: every record the command did not author keeps the bytes it has,
+        // where a plain commit would re-encode the whole catalog through today's types.
+        if (!db.Cache.Commit(batch =>
         {
+            batch.ExpectUnchanged();
             foreach (var (document, key) in changed) batch.Upsert(document.GetType(), document, key);
-        });
+        }))
+            throw new InvalidOperationException("The catalog changed while the generic designs were being authored; nothing was written. Run it again.");
         Console.WriteLine($"\nWrote {changed.Count} records to Aetheria.cc");
         return 0;
     }
