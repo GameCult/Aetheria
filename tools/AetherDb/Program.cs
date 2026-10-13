@@ -1619,12 +1619,14 @@ public static class Program
     // The intercept factor alpha is how far others hear a sensor against how far it sees: a quality-ranged stat from
     // .5 (loud) to 2 (quiet) whose midpoint quality .5 reads 1, so lerp(Min, Max, q^e) with e = log2(3). Brand flavour
     // lives in the product's emission-discipline quality (ruling sensor-stat-set): Lucent is low, Finch and Sol high,
-    // every other maker middling. A maker with no profile of its own (the Pirates) takes the Pirate deviation.
+    // every other maker middling. A maker with no profile of its own (Miss Terri's, the Pirates) keeps the deviation its
+    // product already authored for the emitter role.
     private static float DisciplineMean(Faction maker) =>
         maker.ShortName == "Lucent" ? .2f : maker.ShortName == "Finch" || maker.ShortName == "Sol" || maker.Name == "Sol" ? .8f : .5f;
 
-    private static float MakerDeviation(Faction maker) =>
-        MakerProfiles.TryGetValue(maker.ShortName ?? "", out var profile) ? profile.Dev : PirateProfile.Dev;
+    private static float MakerDeviation(Faction maker, FactionProductData product) =>
+        MakerProfiles.TryGetValue(maker.ShortName ?? "", out var profile) ? profile.Dev
+        : product.Roles.FirstOrDefault(r => r.Role == "emitter")?.StandardDeviation ?? throw new InvalidOperationException($"Product \"{product.Name}\" has no emitter spread to take a deviation from.");
 
     // aetheria-release cut sensor-catalog (rulings sensor-stat-set, catalog-grows-generic-designs-branded-products): every
     // SensorData design's InterceptFactor becomes a quality-ranged stat reading the emission-discipline role, every
@@ -1677,13 +1679,32 @@ public static class Program
                 var maker = MakerOf(product) ?? throw new InvalidOperationException($"Product \"{product.Name}\" has no maker.");
                 product.Roles ??= new List<ProductRole>();
                 var mean = DisciplineMean(maker);
-                var dev = MakerDeviation(maker);
+                var dev = MakerDeviation(maker, product);
                 var existing = product.Roles.FirstOrDefault(r => r.Role == EmissionDiscipline);
                 if (existing != null && existing.Mean == mean && existing.StandardDeviation == dev) continue;
                 if (existing != null) { existing.Mean = mean; existing.StandardDeviation = dev; }
                 else product.Roles.Add(new ProductRole { Role = EmissionDiscipline, Mean = mean, StandardDeviation = dev });
                 changedProducts.Add((product, db.Cache.RefOf(product).Key));
             }
+        }
+
+        // The catalog sells two sensor designs, one branded by DME and one by Miss Terri's, and no Lucent or Finch sensor at all,
+        // so the brand flavour has nothing to vary across: each design gains a loud Lucent and a quiet Finch product
+        // (ruling catalog-grows-generic-designs-branded-products). Every role of the design is authored at the maker's profile,
+        // emission-discipline at the maker's flavour.
+        var sensorProducts = new (string Design, string Name, string Maker, string Description)[]
+        {
+            ("The Bat", "Floodlight", "Lucent", "Sees everything and tells everything. Lucent never saw the point of subtle."),
+            ("The Bat", "Pinion", "Finch", "A listening ear with a whisper of a voice. Finch sensors are heard last and heard least."),
+            ("not if i see you first", "Beacon", "Lucent", "If it can see you, you can see it. That is called fairness."),
+            ("not if i see you first", "Kestrel", "Finch", "Hangs in the dark and looks down. The prey rarely notices."),
+        };
+        var newProducts = new List<(EquippableItemData Design, string Name, Faction Maker, string Description)>();
+        foreach (var (designName, name, makerName, description) in sensorProducts)
+        {
+            if (products.Any(p => p.Name == name)) continue;
+            var design = sensors.Single(s => s.Name == designName);
+            newProducts.Add((design, name, Maker(makerName), description));
         }
 
         // The Passive Array takes its thermal envelope and sound from a sensor gear, then becomes a Tool listener.
@@ -1712,8 +1733,8 @@ public static class Program
             Console.WriteLine($"\nNew design: Passive Array [Tool] 1x1, EnergyDraw 10/s, Multiple 2-3 reading receiver; products {string.Join(", ", arrayProducts.Select(p => $"{p.Name} by {p.Maker}"))}");
         }
 
-        Console.WriteLine($"\nIntercept factor: {changedDesigns.Count} designs and {changedProducts.Count} products to change; Passive Array {(array == null ? "already authored" : "to author")}.");
-        if (changedDesigns.Count == 0 && changedProducts.Count == 0 && array == null)
+        Console.WriteLine($"\nIntercept factor: {changedDesigns.Count} designs and {changedProducts.Count} products to change, {newProducts.Count} sensor products to add; Passive Array {(array == null ? "already authored" : "to author")}.");
+        if (changedDesigns.Count == 0 && changedProducts.Count == 0 && newProducts.Count == 0 && array == null)
         {
             Console.WriteLine("Sensor stats are already authored; nothing to do.");
             return 0;
@@ -1728,6 +1749,19 @@ public static class Program
         {
             foreach (var (document, key) in changedDesigns) batch.Upsert(document.GetType(), document, key);
             foreach (var (document, key) in changedProducts) batch.Upsert(document.GetType(), document, key);
+            foreach (var (design, name, maker, description) in newProducts)
+            {
+                var (profileMean, profileDev) = MakerProfiles[maker.ShortName];
+                batch.Upsert(typeof(FactionProductData), new FactionProductData
+                {
+                    Name = name, Description = description,
+                    Design = new CultRecordRef<CraftedItemData>(db.Cache.RefOf(design).Key),
+                    Manufacturer = db.Cache.RefOf(maker),
+                    Roles = design.Roles.Select(r => r.Name == EmissionDiscipline
+                        ? new ProductRole { Role = r.Name, Mean = DisciplineMean(maker), StandardDeviation = profileDev }
+                        : new ProductRole { Role = r.Name, Mean = profileMean, StandardDeviation = profileDev }).ToList(),
+                });
+            }
             if (array == null) return;
             var arrayKey = batch.Upsert(typeof(GearData), array);
             foreach (var (name, maker, description) in arrayProducts)
@@ -1742,7 +1776,7 @@ public static class Program
                 });
             }
         });
-        Console.WriteLine($"Landed {changedDesigns.Count} designs and {changedProducts.Count} products{(array == null ? "" : ", the Passive Array and its products")} in Aetheria.cc");
+        Console.WriteLine($"Landed {changedDesigns.Count} designs, {changedProducts.Count} products changed and {newProducts.Count} added{(array == null ? "" : ", the Passive Array and its products")} in Aetheria.cc");
         return 0;
     }
 

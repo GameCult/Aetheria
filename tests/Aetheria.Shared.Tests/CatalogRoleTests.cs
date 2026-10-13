@@ -182,4 +182,40 @@ public sealed class CatalogRoleTests
         }
         Assert.Contains(cache.GetAll<FactionProductData>(), p => p.Design.Key.Equals(cache.RefOf(autocannon).Key) && cache.Get(p.Manufacturer).ShortName == "Pirates");
     }
+
+    // aetheria-release cut sensor-catalog (ruling sensor-stat-set): every sensor design's intercept factor varies with its
+    // maker's emission-discipline quality, brand flavour is a product's quality (Lucent loud, Finch quiet), and the
+    // Passive Array is a Tool listener with two products from makers other than Miss Terri's and the Pirates.
+    [Fact]
+    public void TheCatalogCarriesSensorStats()
+    {
+        using var cache = RestoredHullsTests.OpenCatalog();
+        var products = cache.GetAll<FactionProductData>().ToArray();
+        string MakerOf(FactionProductData p) => cache.Get(p.Manufacturer).ShortName;
+        var sensors = cache.GetAll<EquippableItemData>().Where(d => d.Behaviors.OfType<SensorData>().Any()).ToArray();
+        Assert.NotEmpty(sensors);
+        foreach (var design in sensors)
+        {
+            var alpha = design.Behaviors.OfType<SensorData>().Single().InterceptFactor;
+            Assert.NotNull(alpha);
+            Assert.NotEqual(alpha.Min, alpha.Max);
+            Assert.Equal(new[] { "emission-discipline" }, NamedQualityRoles(alpha));
+        }
+
+        double[] Discipline(string maker) => products
+            .Where(p => sensors.Any(s => cache.RefOf(s).Key.Equals(p.Design.Key)) && MakerOf(p) == maker)
+            .Select(p => (double)p.Roles.Single(r => r.Role == "emission-discipline").Mean).ToArray();
+        var lucent = Discipline("Lucent");
+        var finch = Discipline("Finch");
+        Assert.NotEmpty(lucent);
+        Assert.NotEmpty(finch);
+        Assert.True(lucent.Max() < finch.Min(), "a Lucent sensor must be louder than every Finch one");
+
+        var array = Assert.Single(cache.GetAll<EquippableItemData>(), d => d.Name == "Passive Array");
+        Assert.Equal(HardpointType.Tool, array.HardpointType);
+        Assert.True(array.Behaviors.OfType<ListenerData>().Single().Multiple.Min >= 2f);
+        var makers = products.Where(p => p.Design.Key.Equals(cache.RefOf(array).Key)).Select(MakerOf).ToArray();
+        Assert.Equal(2, makers.Distinct().Count());
+        Assert.DoesNotContain(makers, m => m == "Pirates" || m == "Miss Terri's");
+    }
 }
