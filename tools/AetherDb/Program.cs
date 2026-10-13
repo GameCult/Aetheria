@@ -2250,6 +2250,8 @@ public static class Program
 
     // generic-designs: the rename, brand and product-text tables (map: "Generic design names", "Content: brands, flavour and
     // functional text"). Public so the command test reads the same rows the command writes.
+    public const string AuthoringNote = " (new text)";
+
     public static readonly (string Old, string Generic, string Functional)[] Renames =
     {
         ("ClearPath", "Light Machine Gun", "Light ballistic hose: many small rounds at short range."),
@@ -2368,7 +2370,6 @@ public static class Program
     // shipped product text ending in the authoring note loses it. Dry run unless passed "apply".
     public static int GenericDesigns(bool apply, string root = null)
     {
-        const string AuthoringNote = " (new text)";
         var db = AetherDb.Open(catalogWritable: apply, root: root);
         var designs = db.Cache.GetAll<EquippableItemData>().ToArray();
         var products = db.Cache.GetAll<FactionProductData>().ToArray();
