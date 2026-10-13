@@ -40,10 +40,10 @@ public class ZoneRenderer : MonoBehaviour
     public LODHandler LODHandler;
     public Slime SlimeRenderer;
     public Camera SlimeGravityCamera;
-    public GridObject SimpleCommodityPickup;
-    public GridObject CompoundCommodityPickup;
-    public GridObject GearPickup;
-    public GridObject WeaponPickup;
+    public ItemPickup SimpleCommodityPickup;
+    public ItemPickup CompoundCommodityPickup;
+    public ItemPickup GearPickup;
+    public ItemPickup WeaponPickup;
     public MineInstance MinePrefab;
     public VapourCloudInstance CloudPrefab;
     public Material[] MapGravityMaterials;
@@ -94,7 +94,7 @@ public class ZoneRenderer : MonoBehaviour
     private bool _showAsteroidUI;
 
     public Dictionary<Wormhole, (GameObject gravity, CompassIcon icon)> WormholeInstances = new Dictionary<Wormhole, (GameObject, CompassIcon)>();
-    private List<ItemPickup> _loot = new List<ItemPickup>();
+    private Dictionary<FloatingItem, ItemPickup> _floatingItems = new Dictionary<FloatingItem, ItemPickup>();
     private Dictionary<Mine, MineInstance> _mines = new Dictionary<Mine, MineInstance>();
     private Dictionary<VapourCloud, VapourCloudInstance> _clouds = new Dictionary<VapourCloud, VapourCloudInstance>();
 
@@ -236,6 +236,15 @@ public class ZoneRenderer : MonoBehaviour
             instance.Blast();
         }));
 
+        // Every floating item, whoever released it (a death drop, jettisoned cargo), is drawn through this one
+        // subscription. An item leaves Zone.FloatingItems by expiry or by pickup, and either way its pickup is gone.
+        foreach (var floating in zone.FloatingItems) LoadFloatingItem(zone, floating);
+        _zoneSubscriptions.Add(zone.FloatingItems.ObserveAdd().Subscribe(e => LoadFloatingItem(zone, e.Value)));
+        _zoneSubscriptions.Add(zone.FloatingItems.ObserveRemove().Subscribe(e =>
+        {
+            if (_floatingItems.Remove(e.Value, out var pickup) && pickup) Destroy(pickup.gameObject);
+        }));
+
         // Every vapour cloud, whoever vented it, is drawn through this one subscription. A cloud leaves Zone.Clouds
         // when its opacity has reached nothing, so a removal destroys its fog bank with nothing left to show.
         foreach (var cloud in zone.Clouds) LoadCloud(zone, cloud);
@@ -272,6 +281,29 @@ public class ZoneRenderer : MonoBehaviour
         var instance = Instantiate(MinePrefab);
         instance.Bind(zone, mine);
         _mines.Add(mine, instance);
+    }
+
+    private void LoadFloatingItem(Zone zone, FloatingItem floating)
+    {
+        var prefab = floating.Item switch
+        {
+            SimpleCommodity _ => SimpleCommodityPickup,
+            CompoundCommodity _ => CompoundCommodityPickup,
+            EquippableItem equippableItem when ItemManager.GetData(equippableItem) is WeaponItemData => WeaponPickup,
+            EquippableItem _ => GearPickup,
+            _ => throw new NotImplementedException()
+        };
+        var pickup = Instantiate(prefab, ZoneRoot);
+        pickup.Bind(zone, floating);
+        pickup.ScanLabel.text = ItemManager.Title(floating.Item);
+        if (floating.Item is CraftedItemInstance craftedItemInstance)
+        {
+            var c = ItemManager.GetTier(craftedItemInstance).tier.Color.ToColor();
+            c.a = 0;
+            pickup.ScanLabel.color = c;
+        }
+        else pickup.ScanLabel.color = new Color(.75f, .75f, .75f, 0);
+        _floatingItems.Add(floating, pickup);
     }
 
     private void LoadCloud(Zone zone, VapourCloud cloud)
@@ -312,9 +344,9 @@ public class ZoneRenderer : MonoBehaviour
             if (instance) Destroy(instance.gameObject);
         _clouds.Clear();
 
-        foreach(var gridObject in _loot) 
-            if(gridObject) Destroy(gridObject.gameObject);
-        _loot.Clear();
+        foreach (var pickup in _floatingItems.Values)
+            if (pickup) Destroy(pickup.gameObject);
+        _floatingItems.Clear();
 
         foreach (var entity in Zone.Entities)
         {
@@ -487,7 +519,7 @@ public class ZoneRenderer : MonoBehaviour
     void Update()
     {
         var maxDepth = 0f;
-        foreach (var loot in _loot)
+        foreach (var loot in _floatingItems.Values)
         {
             loot.ViewOrigin = PerspectiveEntity.Position;
             loot.ViewDirection = PerspectiveEntity.Aim;
@@ -602,41 +634,6 @@ public class ZoneRenderer : MonoBehaviour
         // gravPos.y = -Settings.PlanetSettings.ZoneDepth - _maxDepth;
         // MinimapGravityQuad.transform.position = gravPos;
         // MinimapTintQuad.transform.position = gravPos - Vector3.up*10;
-    }
-
-    public void DestroyLoot(ItemPickup loot)
-    {
-        _loot.Remove(loot);
-    }
-
-    public void DropItem(Vector3 position, Vector3 velocity, ItemInstance item)
-    {
-        var gridObject = item switch
-        {
-            SimpleCommodity _ => Instantiate(SimpleCommodityPickup),
-            CompoundCommodity _ => Instantiate(CompoundCommodityPickup),
-            EquippableItem equippableItem when ItemManager.GetData(equippableItem) is WeaponItemData => Instantiate(WeaponPickup),
-            EquippableItem _ => Instantiate(GearPickup),
-            _ => throw new NotImplementedException()
-        };
-        var t = gridObject.transform;
-        t.parent = ZoneRoot;
-        gridObject.Zone = Zone;
-        t.position = position;
-        gridObject.Velocity = velocity;
-        var itemPickup = gridObject.gameObject.GetComponent<ItemPickup>();
-        itemPickup.Item = item;
-        itemPickup.ZoneRenderer = this;
-        itemPickup.ScanLabel.text = ItemManager.Title(item);
-        if (item is CraftedItemInstance craftedItemInstance)
-        {
-            var c = ItemManager.GetTier(craftedItemInstance).tier.Color.ToColor();
-            c.a = 0;
-            itemPickup.ScanLabel.color = c;
-        }
-        else itemPickup.ScanLabel.color = new Color(.75f, .75f, .75f, 0);
-        gridObject.gameObject.AddComponent<TimedDestroy>().Duration = Settings.PickupLifetime;
-        _loot.Add(itemPickup);
     }
 }
 
