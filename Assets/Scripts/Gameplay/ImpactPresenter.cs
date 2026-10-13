@@ -5,6 +5,7 @@ using UnityEngine;
 // How one entity's landed impacts look and feel: the hull reaction at the drawn impact point, and the player's camera
 // kick. The simulation publishes each impact once on the entity's Capabilities (FireControl); Feedback.Cue decides how
 // hard it reads and whether the camera feels it, DrawAhead.Carried decides where it is drawn; this decides nothing.
+// The hull effect is drawn only where the player's instruments place the ship (ActionGameManager.DrawsAt).
 // The shield ripple is ShieldManager's. Everything here is display-only and runs in real time.
 public class ImpactPresenter : MonoBehaviour, IAbsorbPresenter
 {
@@ -23,7 +24,7 @@ public class ImpactPresenter : MonoBehaviour, IAbsorbPresenter
             ActionGameManager.PlayerSettings.GraphicsSettings.ScreenShake, feedback.IntensityScale);
         var point = DrawAhead.Carried(Entity, cue.Position, ActionGameManager.Clock.Lead).ToUnity();
 
-        if (e.Layer == AbsorbLayer.Hull && feedback.HullEffect != null)
+        if (e.Layer == AbsorbLayer.Hull && feedback.HullEffect != null && ActionGameManager.DrawsAt(Entity))
         {
             _live.RemoveAll(live => live == null || !live.gameObject.activeSelf);
             var effect = feedback.HullEffect.Instantiate<Prototype>();

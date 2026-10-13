@@ -192,9 +192,7 @@ public abstract class Entity
     public Subject<Unit> HeatstrokeDeath = new Subject<Unit>();
     public Subject<Unit> HypothermiaRisk = new Subject<Unit>();
     public Subject<Unit> HypothermiaDeath = new Subject<Unit>();
-    public Subject<Entity> TargetedBy = new Subject<Entity>();
-    public ReactiveProperty<int> TargetedByCount = new ReactiveProperty<int>(0);
-    // TargetedBy counts selection, which emits nothing; a warning comes only from a paint. A search paint is a ping
+    // Selection tells the selected ship nothing: a warning comes only from a paint. A search paint is a ping
     // sweeping this ship (Sensor.Execute); a track paint is a lock (LockWeapon.Execute). Each reports into the
     // inbox the tick it paints; PublishInbox publishes the inbox once, so a warning lives exactly one tick after
     // its last paint.
@@ -307,13 +305,6 @@ public abstract class Entity
         _subscriptions.Add(VisibleEnemies.ObserveRemove().Subscribe(remove =>
         {
             if (Target.Value.Entity == remove.Value) SetTarget(TargetRef.None);
-        }));
-        // Only an entity is ever targeted by: a chunk has no one to tell.
-        _subscriptions.Add(Target.Subscribe(target => target.Entity?.TargetedBy.OnNext(this)));
-        _subscriptions.Add(TargetedBy.Subscribe(enemy =>
-        {
-            TargetedByCount.Value++;
-            enemy.Target.Where(t => t.Entity != this).Take(1).Subscribe(_ => TargetedByCount.Value--);
         }));
         
         // 
@@ -946,6 +937,10 @@ public abstract class Entity
         else book.Clear();
         if (book.Count == 0) _reveals.Remove(subject);
     }
+
+    // The subjects this observer holds any reveal of, departed ones included until the prune: with VisibleEntities, every
+    // contact it has (ContactOf is Detected for a tracked subject or one with a young reveal).
+    public IReadOnlyCollection<Entity> RevealedSubjects => _reveals.Keys;
 
     // What this observer has seen `subject`'s items do: each item's latest act, and nothing the subject's present
     // gear or Durability says (ruling contact-reads-book-aim-reads-live). A reveal ends only on what this observer

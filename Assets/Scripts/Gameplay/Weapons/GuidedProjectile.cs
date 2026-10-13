@@ -87,7 +87,7 @@ public class GuidedProjectile : MonoBehaviour
     // The resolution. A round that detonated (a hit, or a burst) bursts now, at the simulation's burst point when
     // it has one; a round the simulation resolved without a detonation (a contact or delayed round that missed,
     // one whose target is gone) just falls away, with no explosion to show.
-    public void Resolve(bool detonated, Vector3? point)
+    public void Resolve(bool detonated, Vector3? point, bool showHitEffect)
     {
         // A round that already faded out (overshot, out of flight) still shows the simulation's detonation: only a
         // round that has been killed is done. The fade is stopped so it cannot Kill the round a second time.
@@ -102,7 +102,7 @@ public class GuidedProjectile : MonoBehaviour
         // short of it), and is skipped when the round never knew where its target was.
         Vector3? effectAt = point ?? (TargetPosition != null ? TargetPosition() : Target ? Target.position : (Vector3?) null);
         if (point.HasValue) transform.position = point.Value;
-        if (HitEffect != null && effectAt.HasValue)
+        if (HitEffect != null && showHitEffect && effectAt.HasValue)
         {
             var ht = HitEffect.Instantiate<Transform>();
             ht.position = effectAt.Value;
