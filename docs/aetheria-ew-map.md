@@ -56,9 +56,11 @@ reveals-replace-tiers).
 
 ## Cut 1b probes at 0898725f
 
-`ew-hide-launch-catalog` is mapped as `cut-ew-hide-launch-catalog.r1` (agent imagination-aeth-ew-catalog), blocked on
-question `ew-suppressor-strength`. Probed by a scratch AetherDb command and a scratch test run on Yggdrasil at
-`0898725f` (never pushed to origin; job log kept in the session scratchpad only).
+`ew-hide-launch-catalog` is mapped as `cut-ew-hide-launch-catalog.r2` (agent imagination-aeth-ew-catalog-r2; r1 is
+superseded). Question `ew-suppressor-strength` is ruled both-as-two-designs (kitchen-sink direction): a strong
+Launch Suppressor (NiteLife, Finch, DME, R&D) and a mild sustained one (Lightsail, Alakrita, defaulted). K1-K8 were probed by
+a scratch AetherDb command and a scratch test run on Yggdrasil at `0898725f`; K9-K11 by a scratch test on Yggdrasil at
+`1746e8bd` (code identical at `1e219e96`). Nothing was pushed to origin; job logs stay in session scratchpads.
 
 | # | Question | Result |
 |---|---|---|
@@ -70,10 +72,13 @@ question `ew-suppressor-strength`. Probed by a scratch AetherDb command and a sc
 | K6 | Does a 1x1 Tool suppressor fit and work on shipped hulls? | Yes. Built like `BuildThrustedShip` with only the reactor, then the suppressor at `UnoccupiedSpace` via `Shape.FitsWithin` and `TryEquip` before `Admit`: Djinni 104 free cells, Longinus 20. Active at once; at lot quality .5 a draft with Factor .4-.2 evaluated .3 and each `SetSignature(LaunchFlash, 400)` stored 120. |
 | K7 | Do new Tool products reach generation? | `HasHome` is true for any Tool design (LoadoutGenerator.cs:240-242), so stations stock it and `FillInterior` may fit it on generated ships by the existing availability rule. Nothing else to wire. |
 | K8 | Does adding a Tool design and four products disturb existing tests? | No. The full `Aetheria.Shared.Tests` suite (1665 tests, about 16 minutes) ran green before and after a draft design and four products (NiteLife, Finch, DME, R&D) were applied to the catalog in the same job. CB-R1 (`ShippedCatalogRolesAreLive`) held with two roles, each read by a Quality term of exponent 1. |
+| K9 | How far does a flash reach on a shipped observer? (corrects K3's reach) | A Longinus with its first shipped Sensors-hardpoint sensor at lot quality .5 has `PassiveInfo(position, 1)` of 1.89e-3 at 500, 6.31e-4 at 1500, 3.16e-4 at 3000, 1.58e-4 at 6000, 9.5e-5 at 10000: about 0.95 / distance. A flash is revealed while strength x that exceeds .1, so reach is about 9.5 x strength, not K3's 20 x (K3's gain range of .7-1.35 is high for this sensor). Unsuppressed 1000: seen to 9,500, hidden at 10,000. Mild mid (300): seen at 1500 (.19), hidden at 3000 (.095) and 6000. Strong mid (55): hidden at 1500 (.035). |
+| K10 | How long does a suppressor last under fire, with the hull ticking? | Probed as a draft design on a shipped Longinus and Djinni with reactor and radiator, one launch per second for 120 s, four .25 s zone updates between launches, from rest at 280 K. Cell thermal mass 97.9 / 105.2. Strong (Factor .08-.03, HeatPerUnit 1.4-.8, rated 310-330) at mid quality, 1000 flash: Longinus 4 suppressed launches (stored 55) then bright, Djinni 5; 300 flash: 14 / 14. After that the cell cools through the rated line and flickers: 10 of 120 launches suppressed (Longinus), 6 (Djinni) at 1000. Mild (Factor .4-.2, HeatPerUnit .8-.5, rated 310-330) at mid, 1000 flash (stored 300): first 10 suppressed on both hulls, 22 / 13 of 120 in all; 300 flash (stored 90): first 36 (Longinus) and 33 (Djinni), 68 / 41 of 120. Quality moves it: mild at quality 1 and 300 flash lasts 60 / 48 launches, strong at quality 0 and 1000 flash only 3. So the mild design is sustained for light weapons (about half a minute at one launch a second) and a dozen autocannon-class launches, not for ever: a hot cell holds the rated line and lets a flash through about every fifth to tenth launch. |
+| K11 | Does an opening volley stop for good without cooling? | Direct `SetSignature` calls with no zone update between them (r1's test shape): the cell never cools, so once past the rated temperature every later call is unsuppressed. Strong mid, 1000 flash: removed 945 x 1.1 = 1039 heat per call = 10.6 K (Longinus) / 9.9 K (Djinni); the fifth call on a Longinus (321.7 K > 320) and the sixth on a Djinni are the first bright ones. Margin on the Djinni is under 1 K (319.4 after four calls against a rated 320), so a test must derive its expected count from `ThermalMass` and the authored figures rather than assert a literal. |
 
 ## Cut sequence (not yet mapped; cuts 1, 1b and 2 are mapped as specs)
 
 Cut 1 is split in two by size: `ew-hide-launch` is the behaviour, the one hook in `SetSignature` and their tests;
-the catalog authoring follows it as 1b, mapped above.
+the catalog authoring follows it as 1b (two designs, six products), mapped above.
 
 Cut 2 `ew-claims-in-the-book` is mapped (above). It differs from the target line in one place: `SeenThrough` and the stored belief move to cut 4 with the judge (C5). Cut 4 also takes the drawn hull model (C7) and needs the target panel settled (C3). The remaining cuts are the target doc's cut sequence (3, 4, 4a `ew-jammer`, 5-10).

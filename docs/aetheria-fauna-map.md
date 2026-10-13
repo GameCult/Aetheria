@@ -1,6 +1,6 @@
 # Aetheria spaceborne fauna: map
 
-Proposed campaign `aetheria-fauna`. Target: `docs/aetheria-fauna-target.md` (draft r0). Written by Imagination
+Campaign `aetheria-fauna`. Target: `docs/aetheria-fauna-target.md` (content r2). Written by Imagination
 (agent imagination-aeth-fauna, session self-2026-10-13-ag2) against `origin/master` `0898725f`. This map holds the
 body facts, the questions Self admits together with the campaign, the first cut as a draft spec, and the rest of
 the cut sequence. Prior art: `docs/research/2026-10-13-fauna-prior-art.md` (`PA:<line>`). Items tagged `[M]` there
@@ -199,7 +199,7 @@ within a bounded radius.
 rocks unchanged, no per-tick member loop (grep `Zone.Update` and the step functions for any loop over
 `Asteroids`), and generation that is deterministic per zone.
 
-## Cut sequence (one line each; each is mapped when it is about to run)
+## Cut sequence r1 (superseded by the r2 sequence below)
 
 1. `fauna-krill-swarms`: krill fields through the chunk path, with the sway law and generation (drafted above).
 1b. `fauna-krill-catalog`: an AetherDb command that authors the Krill field kind (cross-section, sway, swarm weight).
@@ -221,3 +221,85 @@ rocks unchanged, no per-tick member loop (grep `Zone.Update` and the step functi
    term, no second one). Waits on 1, an operator yes.
 10. `orbit-sync-helper`: the generic flying aid that holds a ship on the local orbital flow. It is not fauna-specific
     and may belong to the flight campaign. Waits on an operator yes.
+
+## r2: the flow, placement and the content the rulings opened
+
+Written by Imagination (agent imagination-aeth-fauna-r2, session self-2026-10-13-ag2) against `origin/master`
+`1746e8bd`, after the operator ruled on the nine questions above. The questions above are answered; their rulings
+are in the mind. This section adds the body facts the flow ruling needs, the forks it opened, and the r2 cut
+sequence, which replaces the r1 sequence above. The krill draft above stays as the shape of the krill cut; it is
+re-mapped against the flow owner and the placement ruling when it is about to run.
+
+### Body facts (r2)
+
+Probed at `1746e8bd`.
+
+| # | Question | Result |
+|---|---|---|
+| B15 | What is the flow? | `Volumetric.cginc`: `globalFlow(pos)` = `Tri3D(pos/_FlowScale - (0,_FlowScroll,0)) * _FlowAmplitude` with y halved (:130-135); `Tri3D` is the cross product of two normalised `tri3` folds, the second at the golden ratio (:46-47, :69-74); `slopeFlow(grad)` = `normalize(grad)` turned 90 degrees times `_FlowSwirlAmplitude` plus `normalize(grad)` times `_FlowSlopeAmplitude` (:137-141); `flow(pos)` sums the two under the keywords `FLOW_GLOBAL` and `FLOW_SLOPE` (:148-161). Consumers: `Stardust.compute:139-142` (each particle is placed at `-flow * lifetime * period`, a closed-form advection over a cycle) and the nebula's noise advection (`Volumetric.cginc:185-208`). |
+| B16 | Who owns it today? | The renderer. `VolumeSampling.Update` pushes the parameters from `environment.Flow` and accumulates `_flowScroll += GlobalScrollSpeed * Time.deltaTime` on the frame clock (`VolumeSampling.cs:96-106`). `environment` is `ActionGameManager.CurrentEnvironment`, which always returns `Settings.DefaultEnvironment` (`ActionGameManager.cs:222-228`), a field of the presentation `GameSettings` ScriptableObject (`GameSettings.cs:40`). `ZoneEnvironment` and `FlowSettings` are already `ServerShared` MessagePack types (`Environment.cs:8-61`), but no zone holds one. The sim cannot see the flow. |
+| B17 | What flow is live? | `Assets/Resources/Settings.asset:396-402` (LFS): `GlobalScale` 512, `GlobalAmplitude` 15, `GlobalScrollSpeed` 0.025, `Period` 8, `SlopeAmplitude` 0, `SwirlAmplitude` 0. Only the global term runs; `FLOW_SLOPE` is off in the shipped game. Probe: the horizontal global flow averages 6.06 u/s (max 12.2) across a zone, the same as the rail speed 2π = 6.28 u/s. |
+| B18 | Does the slope term have a sim twin? | It reads `_NebulaSurfaceHeight`, a GPU render of brush meshes (`Assets/Shaders/Brushes/*`), which is a second lowering of the heightfield `Zone.GetHeight` owns (`Zone.cs:627-660`). Its `getUV` negates world position (`Volumetric.cginc:81-84`), so its texel gradient points downhill in world terms. `normalize` of a zero gradient is NaN (:139); today the keyword keeps that from running. |
+| B19 | What clock do presenters use? | Zone time: `Zone._time` (double, `Zone.cs:70`). Belts are drawn at it (`ZoneRenderer.cs:543-547`), gas giant wave phase too (:587-588). `Zone.Settings` is the public `PlanetSettings` (`Zone.cs:59`), the world-law block every zone already receives. |
+| B20 | Placement prior art and probe | `docs/research/2026-10-13-fauna-placement-prior-art.md`. A CPU transliteration of the operator's `Slime.compute` with her prefab's parameters, fed by `Zone.GetNormal`: bit-identical run to run, 9 s for 40k agents × 600 steps on 256², trail on the shoulders of the wells and in filaments between them (0 % in flat space, 5.7 % in cores), correlation 0.28 with a closed-form slope-suitability map. Adding the flow reshapes the network (correlation 0.34 with the no-flow map). |
+| B21 | Is a generated zone recomputed? | No. A zone pack is generated once, on first entry (`ActionGameManager.cs:727`, `??=`; the entrance in `RunStart.cs:29`), and saved with the galaxy (`Galaxy.cs:70`). Placement computed at generation is saved; it never has to reproduce on another machine. |
+| B22 | Can Unity check a shader against C#? | Yes. `ShieldPanelCut3Verify.cs:18, 47-55` dispatches compute kernels and reads them back in batchmode run without `-nographics` (verified 2026-09-18), driven by `tests/mutation_tests_shield_panel_cut3.py`. That is the precedent for the flow parity check. Hands worktrees on Starfire have imported Libraries (`C:\aeth-wt\lock-on\Library` and others). |
+| B23 | Overlap with in-flight passes | ew-claims (Weapon.cs, Entity.cs, Sensing.cs, SchematicDisplay.cs, tests), scenarios-lock-on-r3 (Scenarios/LockOn.cs, Scenarios.cs, a test) and sensor-catalog-r2 (Behaviors, Listener.cs, Entity.cs, `GameData/Aetheria.cc`, AetherDb, tests) touch none of the flow cut's files. The flow cut edits `Settings.asset` (LFS); none of the three does. |
+
+### Decisions made here, not forks
+
+- **The scroll becomes zone time.** `sim-knows-the-flow` makes the flow a sim fact, and `fauna-pose-pure` needs it to
+  be a function of zone time. `_FlowScroll` is therefore `GlobalScrollSpeed × Zone.Time`, derived, and the frame-clock
+  accumulator is deleted. Where no zone exists (menus), the same function runs on the presentation clock; that is a
+  different input to the one function, not a second law. `_FlowPeriod` and the noise phases on `_Time` stay
+  presentation: they animate how the nebula shows the flow, not the flow.
+- **The flow settings live with the zone's world laws.** `FlowSettings` moves from `ZoneEnvironment` (read by no
+  zone) to `PlanetSettings.Flow`, which every `Zone` already receives (B19). One zone flow for every zone, as today.
+  Per-zone environments (Sol's cloudless bubble) are a later cut that adds a zone-pack override; the owner stays
+  `Zone`.
+- **The slope term is ported and guarded.** It is part of the law the ruling names, so the owner carries it; its
+  term is skipped when its amplitudes are zero (as the shader's keyword does), and a zero gradient gives zero, not
+  NaN, on both sides. Its parity is pinned as a function of the gradient; making the heightfield's two lowerings
+  agree is follow-up work (`flow-slope-gradient-parity`).
+
+### Questions (admitted in the mind)
+
+`aetheria-fauna:question:fauna-placement`, `:fauna-flow-coupling`, `:flow-moves-what`, `:flow-slope-terms`. The
+options and recommendations are in the mind; the research for the first is the placement prior-art file.
+
+### Cut sequence (r2, one line each; each is mapped when it is about to run)
+
+1. `fauna-flow-field` (cut spec admitted): the flow's owner moves into `ServerShared` (`FlowField`, `Zone.Flow`), the
+   shader lowers it from zone time, and a Unity parity check pins HLSL to C#.
+2. `fauna-habitat-placement`: the generation pass per `fauna-placement`; its settings record in `ServerShared`;
+   food at well shoulders and wormhole mouths; Sol excluded; budget measured. Waits on 1 and that ruling.
+3. `fauna-krill-swarms`: the krill draft above, re-mapped: krill fields placed by 2, swaying and drifting by
+   `fauna-flow-coupling`. Waits on 1, 2. It cannot run beside 1: it needs `Zone.Flow`, and both edit `Zone.cs` and
+   `Settings.cs`.
+4. `fauna-krill-catalog`: AetherDb authors the Krill field kind.
+5. `fauna-field-presentation`: fauna kinds pick their own look; `SectorRenderer` counts belts only.
+6. `fauna-minnow-schools`: minnows, fast milling, grazing the krill filaments.
+7. `fauna-anchors`: field frames that move across the flow under class laws (`fauna-motion-model-ruled`).
+8. `fauna-sharks-and-whales`: the two classes, generated by 2's map (sharks on steep flanks, whales round gas giants).
+9. `fauna-disturbance`: sparse reaction records; schools scatter, sharks veer; reactions are tells.
+10. `fauna-attacks-strike`: sharks strike and minnow schools scour, through the ordinary damage path.
+11. `fauna-attacks-signal`: whale song as noise in the shared signal space (with aetheria-ew), drifter discharge.
+12. `fauna-harvest-goods`: catalog goods per kind (krill paste, photophores, heat-organs, whale bone with strange
+    matter, spider silk) and yields through the economy's yield table; fields refill by respawn.
+13. `fauna-harvest-gear`: resonance fishing, nets and trawls as gear with makers (the lore names Orbital Forge's
+    retooled resonators); trawls leave straight-edged channels.
+14. `fauna-void-spiders`: nets strung across trojan points, snaring and tethering what drifts in; silk.
+15. `fauna-gas-giant-drifters`: a cloud-deck class bound to gas giants.
+16. `fauna-edge-giants`: larger classes found only far from Sol; the class mix scales with distance from Sol.
+17. `fauna-springs`: wormhole mouths feed placement and the refill tide.
+18. `fauna-genre-uses`: cultivators' harvesting techniques, necrotech-bound fauna, mecha that ride fauna; each lands
+    with its owner's campaign, none trimmed for genre consistency.
+19. `sol-flatspace-zone`: a per-zone environment override; Sol is cloudless, flowless and fauna-free, with krill
+    haze outside its Oort edge.
+20. `fauna-returns`: what an observer is shown (`fauna-distance-ruled`, `fauna-disguise-path-ruled`).
+21. `fauna-in-ew-blend`: fauna background kinds with motion-law envelopes in aetheria-ew's judge.
+22. `fauna-krill-obscure`: dense krill thin sight lines through `Zone.Obscuration`. Waits on an operator yes.
+23. `flow-moves-matter`: loose matter drifts with the flow, per `flow-moves-what`.
+24. `flow-slope-gradient-parity`: the brush-rendered heightfield and `Zone.GetHeight` agree, so the slope term can
+    be switched on (`flow-slope-terms`).
+25. `orbit-sync-helper`: the generic flying aid that holds a ship on the local orbital flow. Waits on an operator yes.
