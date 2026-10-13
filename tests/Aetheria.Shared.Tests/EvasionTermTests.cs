@@ -22,16 +22,24 @@ public sealed partial class RunStartTests
 {
     private const float EvDt = 1f / 60f;
 
-    // The Duel's guns on a Longinus: the generated Longinus's thrusters (two Large Drive forward, two Talaria on the
-    // flanks) and power, its Targeting Computer, and the Duel's cockpit, guns, launchers and sensor.
-    private static ScenarioFit EvLonginus(ScenarioStage stage, string gun = "FastBlast+-", string second = null) => stage.Fit("Longinus",
+    // The Longinus's drive train, fitted by name: its cockpit and power and the generated Longinus's thrusters (two Large Drive
+    // forward, two Talaria on the flanks).
+    private static readonly (string design, int2 cell, ItemRotation rotation)[] EvLonginusDrive =
+    {
         ("Cockpit 2x2", int2(2, 6), ItemRotation.None), ("Core Power", int2(2, 4), ItemRotation.None),
         ("Large Drive", int2(1, 0), ItemRotation.Reversed), ("Large Drive", int2(3, 0), ItemRotation.Reversed),
         ("Talaria", int2(2, 14), ItemRotation.CounterClockwise), ("Talaria", int2(3, 14), ItemRotation.Clockwise),
-        ("GT 3K", int2(0, 5), ItemRotation.None), ("GT 3K", int2(5, 5), ItemRotation.None), (gun, int2(1, 8), ItemRotation.None),
-        (second ?? gun, int2(4, 8), ItemRotation.None), ("Iapyx", int2(2, 2), ItemRotation.CounterClockwise), ("Iapyx", int2(3, 2), ItemRotation.Clockwise),
-        ("not if i see you first", int2(3, 10), ItemRotation.None), ("PotaT+-", int2(1, 6), ItemRotation.None),
-        ("Targeting Computer", int2(1, 7), ItemRotation.None), ("Store-All Plus", int2(2, 8), ItemRotation.None));
+    };
+
+    // The Duel's guns on a Longinus: the drive train above, its Targeting Computer, and the Duel's guns, launchers and sensor.
+    private static ScenarioFit EvLonginus(ScenarioStage stage, string gun = "FastBlast+-", string second = null) => stage.Fit("Longinus",
+        EvLonginusDrive.Concat(new (string design, int2 cell, ItemRotation rotation)[]
+        {
+            ("GT 3K", int2(0, 5), ItemRotation.None), ("GT 3K", int2(5, 5), ItemRotation.None), (gun, int2(1, 8), ItemRotation.None),
+            (second ?? gun, int2(4, 8), ItemRotation.None), ("Iapyx", int2(2, 2), ItemRotation.CounterClockwise), ("Iapyx", int2(3, 2), ItemRotation.Clockwise),
+            ("not if i see you first", int2(3, 10), ItemRotation.None), ("PotaT+-", int2(1, 6), ItemRotation.None),
+            ("Targeting Computer", int2(1, 7), ItemRotation.None), ("Store-All Plus", int2(2, 8), ItemRotation.None)
+        }).ToArray());
 
     // The catalog's two generated ships, far apart in the fixture arena, at the fixture seed.
     private (Zone arena, Ship longinus, Ship djinni) EvFleet()
@@ -53,7 +61,7 @@ public sealed partial class RunStartTests
     }
 
     // The two ships the flight tests measure, fitted by name and far apart in the fixture arena: EvDjinni's eight Talaria
-    // and the Longinus's two Large Drives and two Talaria (EvLonginus). Neither follows the catalog's census: the generator
+    // and the Longinus's drive train (EvLonginusDrive: two Large Drives and two Talaria). Neither follows the catalog's census: the generator
     // draws from the run's item stream, so a catalog cut would change which gear a generated hull carried (sensor-catalog h1).
     private (Zone arena, Ship longinus, Ship djinni) EvFitted()
     {
@@ -62,7 +70,7 @@ public sealed partial class RunStartTests
         {
             stage.Player(stage.Bare("Djinni"), float2(-50000, -50000));
             djinni = stage.Place(EvDjinni(stage), float2(-10000, -30000), facing: float2(0, 1)) as Ship;
-            longinus = stage.Place(EvLonginus(stage), float2(-30000, -30000), facing: float2(0, 1)) as Ship;
+            longinus = stage.Place(stage.Fit("Longinus", EvLonginusDrive), float2(-30000, -30000), facing: float2(0, 1)) as Ship;
         });
         var (_, arena, _, failures) = Launch(scenario, Inputs(() => GalaxySeed));
         Assert.True(failures.Count == 0, string.Join("; ", failures));
