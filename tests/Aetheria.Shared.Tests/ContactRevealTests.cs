@@ -59,6 +59,7 @@ public sealed partial class ContactRevealTests : IDisposable
             // PingRange (300) over the intercept factor.
             cache.Upsert(Eye("Shout", sensitivity: 2f, interceptFactor: 2f, beamWidth: 10f));
             cache.Upsert(Eye("Roar", sensitivity: 2f, interceptFactor: .5f, beamWidth: 10f));
+            cache.Upsert(Listener("Listener", 3f));
             cache.Upsert(Tool("Reactor", new ReactorData { Charge = Const(1000), Efficiency = Const(1), OverloadEfficiency = Const(1), ThrottlingFactor = Const(2) }));
             cache.Upsert(Tool("Targeting", new TargetingSystemData { Accuracy = Const(1), Resolution = Const(1000f), Precision = Const(1000f), Tracking = Const(1000000f) }));
             cache.Upsert(Tool("Thruster", new ThrusterData { Thrust = Const(100), Visibility = Const(10), Heat = Const(0), EnergyUsage = Const(10) }));

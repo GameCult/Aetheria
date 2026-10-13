@@ -50,8 +50,9 @@ public static class Program
                 Console.OutputEncoding = new System.Text.UTF8Encoding(false);
                 return PiratesFaction(args.Contains("apply"));
             case "verse-grammar": return VerseGrammarCommand.Run(args.Contains("apply"));
+            case "sensor-stat-set": return SensorStatSet(args.Contains("apply"));
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], smoke-hull [apply], smoke-rounds [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], pirates-faction [apply], verse-grammar [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], smoke-hull [apply], smoke-rounds [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], pirates-faction [apply], verse-grammar [apply], sensor-stat-set [apply]");
                 return 1;
         }
     }
@@ -207,7 +208,7 @@ public static class Program
     {
         ["Sensitivity"] = "receiver",
         ["PingBoost"] = "emitter", ["PingEnergy"] = "emitter", ["PingRange"] = "emitter",
-        ["PingCooldown"] = "emitter",
+        ["PingCooldown"] = "emitter", ["InterceptFactor"] = "emission-discipline",
     };
 
     private static readonly Dictionary<string, string> ThrusterRoles = new Dictionary<string, string>
@@ -237,6 +238,7 @@ public static class Program
             {
                 ["Capacity"] = "storage cell", ["Efficiency"] = "converter",
             },
+            ["Passive Array"] = new Dictionary<string, string> { ["Multiple"] = "receiver" },
         };
 
     // One Mean / StandardDeviation per maker, applied to every role of a design the maker sells (catalog-growth
@@ -1609,6 +1611,138 @@ public static class Program
             }
         });
         Console.WriteLine($"\nAuthored 3 designs and {products.Length} products in Aetheria.cc");
+        return 0;
+    }
+
+    private const string EmissionDiscipline = "emission-discipline";
+
+    // The intercept factor alpha is how far others hear a sensor against how far it sees: a quality-ranged stat from
+    // .5 (loud) to 2 (quiet) whose midpoint quality .5 reads 1, so lerp(Min, Max, q^e) with e = log2(3). Brand flavour
+    // lives in the product's emission-discipline quality (ruling sensor-stat-set): Lucent is low, Finch and Sol high,
+    // every other maker middling. A maker with no profile of its own (the Pirates) takes the Pirate deviation.
+    private static float DisciplineMean(Faction maker) =>
+        maker.ShortName == "Lucent" ? .2f : maker.ShortName == "Finch" || maker.ShortName == "Sol" || maker.Name == "Sol" ? .8f : .5f;
+
+    private static float MakerDeviation(Faction maker) =>
+        MakerProfiles.TryGetValue(maker.ShortName ?? "", out var profile) ? profile.Dev : PirateProfile.Dev;
+
+    // aetheria-release cut sensor-catalog (rulings sensor-stat-set, catalog-grows-generic-designs-branded-products): every
+    // SensorData design's InterceptFactor becomes a quality-ranged stat reading the emission-discipline role, every
+    // product of such a design authors that role, and the Passive Array (a generic listener gear, ListenerData) is
+    // authored with two products from the stealth makers. Prints the sensor census first. Dry run unless passed
+    // "apply"; idempotent, so a second apply writes nothing and a catalog another cut changed is rerun, never merged.
+    private static int SensorStatSet(bool apply)
+    {
+        var db = AetherDb.Open(catalogWritable: apply);
+        var designs = db.Cache.GetAll<EquippableItemData>().ToArray();
+        var products = db.Cache.GetAll<FactionProductData>().ToArray();
+        Faction MakerOf(FactionProductData p) => db.Cache.Get(p.Manufacturer);
+        Faction Maker(string shortName) =>
+            db.Cache.GetAll<Faction>().FirstOrDefault(f => f.ShortName == shortName) ?? throw new InvalidOperationException($"No faction with short name \"{shortName}\".");
+
+        var sensors = designs.Where(d => d.Behaviors != null && d.Behaviors.OfType<SensorData>().Any()).OrderBy(d => d.Name, StringComparer.Ordinal).ToArray();
+        var listeners = designs.Where(d => d.Behaviors != null && d.Behaviors.OfType<ListenerData>().Any()).OrderBy(d => d.Name, StringComparer.Ordinal).ToArray();
+        Console.WriteLine($"Census: {sensors.Length} sensor designs, {listeners.Length} listener designs.");
+        foreach (var design in sensors.Concat(listeners))
+        {
+            var key = db.Cache.RefOf(design).Key;
+            Console.WriteLine($"  {design.Name} [{design.HardpointType}] roles [{string.Join(", ", (design.Roles ?? new List<ItemRole>()).Select(r => r.Name))}]");
+            foreach (var product in products.Where(p => p.Design.Key.Equals(key)).OrderBy(p => p.Name, StringComparer.Ordinal))
+                Console.WriteLine($"      {product.Name} by {MakerOf(product)?.ShortName ?? "(none)"}: " + string.Join(", ", (product.Roles ?? new List<ProductRole>()).Select(r => $"{r.Role} {r.Mean:0.00}±{r.StandardDeviation:0.00}")));
+        }
+        foreach (var consumable in db.Cache.GetAll<ConsumableItemData>().Where(c => c.Behaviors != null && c.Behaviors.OfType<SensorData>().Any()).OrderBy(c => c.Name, StringComparer.Ordinal))
+            Console.WriteLine($"  consumable {consumable.Name} carries SensorData; consumables are not catalog sensor designs and keep their alpha");
+
+        var changedDesigns = new List<(object Document, CultRecordKey Key)>();
+        var changedProducts = new List<(object Document, CultRecordKey Key)>();
+        var exponent = MathF.Log2(3f);
+        foreach (var design in sensors)
+        {
+            var key = db.Cache.RefOf(design).Key;
+            var designChanged = false;
+            foreach (var sensor in design.Behaviors.OfType<SensorData>())
+            {
+                var stat = sensor.InterceptFactor;
+                var current = stat != null && stat.Min == .5f && stat.Max == 2f && stat.Terms != null && stat.Terms.Count == 1
+                    && stat.Terms[0].Source == StatSource.Quality && stat.Terms[0].Role == EmissionDiscipline && stat.Terms[0].Exponent == exponent;
+                if (current) continue;
+                sensor.InterceptFactor = new PerformanceStat { Min = .5f, Max = 2f, Terms = new List<StatTerm> { new StatTerm { Source = StatSource.Quality, Exponent = exponent, Role = EmissionDiscipline } } };
+                designChanged = true;
+            }
+            design.Roles ??= new List<ItemRole>();
+            if (!design.Roles.Any(r => r.Name == EmissionDiscipline)) { design.Roles.Add(new ItemRole { Name = EmissionDiscipline }); designChanged = true; }
+            if (designChanged) changedDesigns.Add((design, key));
+            foreach (var product in products.Where(p => p.Design.Key.Equals(key)))
+            {
+                var maker = MakerOf(product) ?? throw new InvalidOperationException($"Product \"{product.Name}\" has no maker.");
+                product.Roles ??= new List<ProductRole>();
+                var mean = DisciplineMean(maker);
+                var dev = MakerDeviation(maker);
+                var existing = product.Roles.FirstOrDefault(r => r.Role == EmissionDiscipline);
+                if (existing != null && existing.Mean == mean && existing.StandardDeviation == dev) continue;
+                if (existing != null) { existing.Mean = mean; existing.StandardDeviation = dev; }
+                else product.Roles.Add(new ProductRole { Role = EmissionDiscipline, Mean = mean, StandardDeviation = dev });
+                changedProducts.Add((product, db.Cache.RefOf(product).Key));
+            }
+        }
+
+        // The Passive Array takes its thermal envelope and sound from a sensor gear, then becomes a Tool listener.
+        GearData array = null;
+        var arrayProducts = new List<(string Name, string Maker, string Description)>();
+        if (listeners.Length == 0)
+        {
+            var template = sensors.OfType<GearData>().FirstOrDefault() ?? throw new InvalidOperationException("No sensor gear to take the Passive Array's thermal envelope from.");
+            var options = CultDocumentMessagePackSerialization.OptionsFor(typeof(GearData).Assembly);
+            array = MessagePackSerializer.Deserialize<GearData>(MessagePackSerializer.Serialize(template, options), options);
+            array.Name = "Passive Array";
+            array.Description = "Listens for what others shout. Hears every emitter at a multiple of its own reach, on a bearing only, and never says a word itself.";
+            array.Hardpoint = HardpointType.Tool;
+            array.Mass = 20f; array.Price = 60000; array.Durability = 30f;
+            array.Shape = new Shape(1, 1);
+            array.Shape.Cells[0, 0] = true;
+            array.Behaviors = new List<BehaviorData>
+            {
+                new EnergyDrawData { EnergyDraw = new PerformanceStat { Min = 10f, Max = 10f, Terms = new List<StatTerm>() }, PerSecond = true },
+                new ListenerData { Multiple = new PerformanceStat { Min = 2f, Max = 3f, Terms = new List<StatTerm> { new StatTerm { Source = StatSource.Quality, Exponent = 1f, Role = "receiver" } } } },
+            };
+            array.Roles = new List<ItemRole> { new ItemRole { Name = "receiver" } };
+            arrayProducts.Add(("Feather", "Finch", "Light as the thing it is named for, and about as easy to notice. Hears a shout from the next sector over."));
+            arrayProducts.Add(("Wallflower", "NiteLife", "Stands in the corner of your hull and takes notes on everyone's business."));
+            foreach (var (name, maker, description) in arrayProducts) Maker(maker);
+            Console.WriteLine($"\nNew design: Passive Array [Tool] 1x1, EnergyDraw 10/s, Multiple 2-3 reading receiver; products {string.Join(", ", arrayProducts.Select(p => $"{p.Name} by {p.Maker}"))}");
+        }
+
+        Console.WriteLine($"\nIntercept factor: {changedDesigns.Count} designs and {changedProducts.Count} products to change; Passive Array {(array == null ? "already authored" : "to author")}.");
+        if (changedDesigns.Count == 0 && changedProducts.Count == 0 && array == null)
+        {
+            Console.WriteLine("Sensor stats are already authored; nothing to do.");
+            return 0;
+        }
+        if (!apply)
+        {
+            Console.WriteLine("Dry run. Pass \"apply\" to write them.");
+            return 0;
+        }
+        if (array != null) CultRecordRefs.Validate(array);
+        db.Cache.Commit(batch =>
+        {
+            foreach (var (document, key) in changedDesigns) batch.Upsert(document.GetType(), document, key);
+            foreach (var (document, key) in changedProducts) batch.Upsert(document.GetType(), document, key);
+            if (array == null) return;
+            var arrayKey = batch.Upsert(typeof(GearData), array);
+            foreach (var (name, maker, description) in arrayProducts)
+            {
+                var (mean, dev) = MakerProfiles[maker];
+                batch.Upsert(typeof(FactionProductData), new FactionProductData
+                {
+                    Name = name, Description = description,
+                    Design = new CultRecordRef<CraftedItemData>(arrayKey),
+                    Manufacturer = db.Cache.RefOf(Maker(maker)),
+                    Roles = array.Roles.Select(r => new ProductRole { Role = r.Name, Mean = mean, StandardDeviation = dev }).ToList(),
+                });
+            }
+        });
+        Console.WriteLine($"Landed {changedDesigns.Count} designs and {changedProducts.Count} products{(array == null ? "" : ", the Passive Array and its products")} in Aetheria.cc");
         return 0;
     }
 

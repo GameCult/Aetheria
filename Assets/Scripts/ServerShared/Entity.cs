@@ -694,8 +694,23 @@ public abstract class Entity
     }
 
     // How much of an emission's reach this observer's instruments hear it at (ruling sensor-stat-set: listeners hear at
-    // a multiple of an emitter's own range): 1 with an active sensor, 0 without. Listener gear extends it.
-    private int HearingMultiple() => ActiveSensors().Count > 0 ? 1 : 0;
+    // a multiple of an emitter's own range): the largest of 1 (any active sensor) and each active listener's Multiple,
+    // 0 with neither. Catalog values come from AetherDb sensor-stat-set.
+    private float HearingMultiple()
+    {
+        var multiple = ActiveSensors().Count > 0 ? 1f : 0f;
+        for (var i = 0; i < Equipment.Count; i++)
+        {
+            var item = Equipment[i];
+            if (!item.Active.Value) continue;
+            foreach (var behavior in item.Behaviors)
+                if (behavior is Listener listener) multiple = max(multiple, listener.Multiple);
+        }
+        foreach (var effect in _activeConsumables)
+            foreach (var behavior in effect.Behaviors)
+                if (behavior is Listener listener) multiple = max(multiple, listener.Multiple);
+        return multiple;
+    }
 
     // Cut 12.3 (docs/fire-control-cut.md): "armour absorbs first" -- the per-cell armour phase, split out of
     // what used to be Absorb's own first half (moved verbatim from DamageSchematic's per-cell body, Cut 3) so
