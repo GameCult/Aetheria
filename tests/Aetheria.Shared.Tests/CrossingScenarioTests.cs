@@ -9,8 +9,8 @@ using float3 = CultMath.float3;
 // staging what its brief claims fails here.
 public sealed partial class RunStartTests
 {
-    // Crossing: the demo's cast; plight and FastBlast+- fitted in separate weapon groups with the Fire Control Array
-    // aboard; a piloted hostile Djinni that crosses the bow inside 400 m; and an unpiloted neutral one inside plight's
+    // Crossing: the demo's cast; projector and Cell Blaster fitted in separate weapon groups with the Fire Control Array
+    // aboard; a piloted hostile Djinni that crosses the bow inside 400 m; and an unpiloted neutral one inside the Lightning Projector's
     // arc, short of its Range and beyond three quarters of it.
     [Fact]
     public void CrossingConditions()
@@ -21,12 +21,12 @@ public sealed partial class RunStartTests
         Assert.Equal(4, galaxy.HomeZones.Count);
 
         var player = staged.Player;
-        var plight = player.Equipment.Single(item => item.Data.Name == "Lightning Projector");
+        var projector = player.Equipment.Single(item => item.Data.Name == "Lightning Projector");
         var small = player.Equipment.Single(item => item.Data.Name == "Cell Blaster");
         Assert.Contains(player.Equipment, item => item.Data.Name == "Fire Control Array");
         var groupOf = new System.Func<EquippedItem, int>(item => System.Array.FindIndex(player.WeaponGroups, group => group.items.Contains(item)));
-        Assert.True(groupOf(plight) >= 0 && groupOf(small) >= 0, "both guns are in a weapon group");
-        Assert.NotEqual(groupOf(plight), groupOf(small));
+        Assert.True(groupOf(projector) >= 0 && groupOf(small) >= 0, "both guns are in a weapon group");
+        Assert.NotEqual(groupOf(projector), groupOf(small));
 
         Assert.Equal(2, staged.Entities.Count);
         var crosser = staged.Entities[0];
@@ -54,10 +54,10 @@ public sealed partial class RunStartTests
         Assert.Equal(0, AgentsOf(arena, waiting));
         var toWaiting = waiting.Position - player.Position;
         EvSettle(player); // a weapon's Range is read once the ship's stats have settled; the geometry above is as staged
-        var range = plight.Behaviors.OfType<Weapon>().Single().Range;
-        Assert.True(FireControl.InArc(plight, toWaiting), "the waiting Djinni is inside plight's arc");
-        Assert.True(length(toWaiting) <= range, "the waiting Djinni is inside plight's Range");
-        Assert.True(length(toWaiting) > .75f * range, "the waiting Djinni is beyond three quarters of plight's Range");
+        var range = projector.Behaviors.OfType<Weapon>().Single().Range;
+        Assert.True(FireControl.InArc(projector, toWaiting), "the waiting Djinni is inside the Lightning Projector's arc");
+        Assert.True(length(toWaiting) <= range, "the waiting Djinni is inside the Lightning Projector's Range");
+        Assert.True(length(toWaiting) > .75f * range, "the waiting Djinni is beyond three quarters of the Lightning Projector's Range");
 
         // The crossing is what the sim does with that staging, read in the player's frame: the arena's gravity and the
         // crosser's pilot act from the first tick, so the t=0 facing proves nothing. Within CrossingSeconds the crosser's
@@ -79,8 +79,8 @@ public sealed partial class RunStartTests
                 crossedMetres = length(after);
                 Assert.True(after.z > 0, "the crosser passes the bow line ahead of the player, not astern");
                 Assert.True(length(after) < CrossingMetres, "the crosser passes inside the stated distance");
-                Assert.True(FireControl.InArc(small, after), "FastBlast+- bears on the crosser as it crosses");
-                Assert.True(dot(FireControl.MountDirection(small), float3(player.Direction.x, 0, player.Direction.y)) > 0, "FastBlast+- mounts forward");
+                Assert.True(FireControl.InArc(small, after), "Cell Blaster bears on the crosser as it crosses");
+                Assert.True(dot(FireControl.MountDirection(small), float3(player.Direction.x, 0, player.Direction.y)) > 0, "Cell Blaster mounts forward");
             }
         }
         Assert.True(swept, $"the crosser's bearing never swept across the bow within {CrossingSeconds} s");

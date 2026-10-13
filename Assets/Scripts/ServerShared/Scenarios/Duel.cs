@@ -4,7 +4,7 @@ using static ItemRotation;
 public sealed class Duel : Scenario
 {
     public override string Name => "Duel";
-    public override string Brief => "One piloted, hostile Longinus with slow GT 3K missiles and a Spectra in its hold. Verify: rolled " +
+    public override string Brief => "One piloted, hostile Longinus with slow guided missiles and a Light Laser in its hold. Verify: rolled " +
                                     "hits and near-misses, subsystem aim, beam reads above bow, armour takes the missile, loot keeps its brand.";
     public override uint Seed => 104;
     public override bool Ambient => false;

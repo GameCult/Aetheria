@@ -607,10 +607,14 @@ public static class Program
         // Validate comment) -- so it calls the same validation directly, right before the identity-preserving
         // write, instead of writing raw and unvalidated the way this line used to.
         foreach (var (document, _) in changed) CultRecordRefs.Validate(document);
-        db.Cache.Commit(batch =>
+        // ExpectUnchanged lands the batch onto the file as it is: every record the command did not author keeps the bytes it has,
+        // where a plain commit would re-encode the whole catalog through today's types.
+        if (!db.Cache.Commit(batch =>
         {
+            batch.ExpectUnchanged();
             foreach (var (document, key) in changed) batch.Upsert(document.GetType(), document, key);
-        });
+        }))
+            throw new InvalidOperationException("The catalog changed while the generic designs were being authored; nothing was written. Run it again.");
         Console.WriteLine($"Landed {changed.Count} changed records in Aetheria.cc");
         return 0;
     }
@@ -1714,10 +1718,10 @@ public static class Program
         }
         static PerformanceStat Fixed(float value) => new PerformanceStat { Min = value, Max = value, Terms = new List<StatTerm>() };
 
-        var proximity = Copy("Light Laser", names[0], "A Spectra that bursts by proximity, blast 8. For scenarios; no one builds it.", WeaponFuse.Proximity, 8f);
-        var delayed = Copy("Light Laser", names[1], "A Spectra that bursts after two cells of metal, blast 4. For scenarios; no one builds it.", WeaponFuse.Delayed, 4f);
-        var refused = Copy("Light Laser", names[2], "A Spectra whose blast is wider than its reach, so it never fires. For scenarios; no one builds it.", WeaponFuse.Proximity, 30f);
-        var charge = Copy("Charged Scatter Blaster", names[4], "A ChargeBlast SG whose blast is wider than its reach, so it never charges. For scenarios; no one builds it.", WeaponFuse.Proximity, 30f);
+        var proximity = Copy("Light Laser", names[0], "A Light Laser that bursts by proximity, blast 8. For scenarios; no one builds it.", WeaponFuse.Proximity, 8f);
+        var delayed = Copy("Light Laser", names[1], "A Light Laser that bursts after two cells of metal, blast 4. For scenarios; no one builds it.", WeaponFuse.Delayed, 4f);
+        var refused = Copy("Light Laser", names[2], "A Light Laser whose blast is wider than its reach, so it never fires. For scenarios; no one builds it.", WeaponFuse.Proximity, 30f);
+        var charge = Copy("Charged Scatter Blaster", names[4], "A Charged Scatter Blaster whose blast is wider than its reach, so it never charges. For scenarios; no one builds it.", WeaponFuse.Proximity, 30f);
         var beam = Copy("Light Laser", names[3], "A constant beam whose blast is wider than its reach, so it never starts. For scenarios; no one builds it.", WeaponFuse.Proximity, 30f);
 
         // The Smoke Test Hull carries one 2x2 reactor. A Spectra's 20-40 energy a shot at its cadence is more than that reactor makes,
@@ -2361,6 +2365,20 @@ public static class Program
             "Holds the charge until the drop, then lets it all go at once."),
         ("not if i see you first", "DME",
             "eyes in the dark/ you were seen before you looked/ say goodnight"),
+        ("Space Tractor", "Ewan Hart",
+            "It's a tractor. In space. Trap your enemies in gravity wells. Haul thousands of tons of hay through space!"),
+    };
+
+    // Designs whose text was flavour or named a brand, rewritten as tech-node text without a rename (ruling designs-are-tech-nodes).
+    // The Large Drive's old line ships as Steady Haul's text; the Tractor Beam's moves to its product, Space Tractor (ProductTexts).
+    public static readonly (string Design, string Text)[] DesignTexts =
+    {
+        ("Large Drive", "Large working drive."),
+        ("Tractor Beam", "Holds a target in a gravity well and hauls it in."),
+        ("Smoke Proximity", "A Light Laser that bursts by proximity, blast 8. For scenarios; no one builds it."),
+        ("Smoke Delayed", "A Light Laser that bursts after two cells of metal, blast 4. For scenarios; no one builds it."),
+        ("Smoke Refused", "A Light Laser whose blast is wider than its reach, so it never fires. For scenarios; no one builds it."),
+        ("Smoke Refused Charge", "A Charged Scatter Blaster whose blast is wider than its reach, so it never charges. For scenarios; no one builds it."),
     };
 
     // generic-designs: a design is named and described like a node on a tech tree, and the brand lives in the product it
@@ -2415,6 +2433,15 @@ public static class Program
             product.Description = text;
             if (design.Description != designText) Write(design, $"design \"{designName}\" text", design.Description, designText);
             design.Description = designText;
+        }
+
+        foreach (var (designName, text) in DesignTexts)
+        {
+            var found = designs.Where(d => d.Name == designName).ToArray();
+            if (found.Length != 1) throw new InvalidOperationException($"Design text row \"{designName}\": {found.Length} designs carry the name.");
+            if (found[0].Description == text) continue;
+            Write(found[0], $"design \"{designName}\" text", found[0].Description, text);
+            found[0].Description = text;
         }
 
         foreach (var (name, maker, text) in ProductTexts)

@@ -4,9 +4,9 @@ using static ItemRotation;
 public sealed class WeaponFeel : Scenario
 {
     public override string Name => "Weapon Feel";
-    public override string Brief => "The Smoke Test Hull with a ChargeBlast SG, an Autocannon and a FastBlast+- burst weapon; a bare Longinus dead ahead. " +
-                                    "Verify: ChargeBlast SG and Autocannon fire with effects, particles and action-bar icons; the burst weapon's " +
-                                    "cadence is as before; a fast release-and-press on the ChargeBlast SG starts no second charge.";
+    public override string Brief => "The Smoke Test Hull with a Charged Scatter Blaster, an Autocannon and a Cell Blaster burst weapon; a bare Longinus dead ahead. " +
+                                    "Verify: Charged Scatter Blaster and Autocannon fire with effects, particles and action-bar icons; the burst weapon's " +
+                                    "cadence is as before; a fast release-and-press on the Charged Scatter Blaster starts no second charge.";
     public override uint Seed => 107;
     public override bool Ambient => false;
 

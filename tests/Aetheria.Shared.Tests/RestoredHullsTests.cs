@@ -298,7 +298,7 @@ public sealed class RestoredHullsTests
             Assert.True(ship.TryEquip(gearItem, hardpoint.Position));
         }
 
-        // A reactor: Victoire (one of Cut 1's own restored thrusters, docs/locomotion-cut.md's own note on it)
+        // A reactor: Racing Drive (one of Cut 1's own restored thrusters, docs/locomotion-cut.md's own note on it)
         // carries a real EnergyUsage draw unlike its four siblings, so an unpowered ship reads as though only
         // some fitting thrusters produce thrust -- an artifact of which design TryEquip's own hardpoint search
         // happens to land on, not of the restored content. Every hull here also has a Reactor hardpoint; a real

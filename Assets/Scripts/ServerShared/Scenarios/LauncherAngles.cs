@@ -4,8 +4,8 @@ using static ItemRotation;
 public sealed class LauncherAngles : Scenario
 {
     public override string Name => "Launcher Angles";
-    public override string Brief => "A GT 3K, a pswarm and two FastBlasts; a hostile bare Longinus broadside on, another beside it. " +
-                                    "Verify: hits pulse only the facing edge; a pswarm round whose target dies fades unexploded.";
+    public override string Brief => "A Guided Missile Launcher, a Swarm Rocket Pod and two Cell Blasters; a hostile bare Longinus broadside on, another beside it. " +
+                                    "Verify: hits pulse only the facing edge; a Swarm Rocket Pod round whose target dies fades unexploded.";
     public override uint Seed => 105;
     public override bool Ambient => false;
 

@@ -22,7 +22,7 @@ public sealed partial class RunStartTests
 {
     private const float EvDt = 1f / 60f;
 
-    // The Duel's guns on a Longinus: the generated Longinus's thrusters (two Large Drive forward, two Talaria on the
+    // The Duel's guns on a Longinus: the generated Longinus's thrusters (two Large Drive forward, two Rugged Drive on the
     // flanks) and power, its Targeting Computer, and the Duel's cockpit, guns, launchers and sensor.
     private static ScenarioFit EvLonginus(ScenarioStage stage, string gun = "Cell Blaster", string second = null) => stage.Fit("Longinus",
         ("Cockpit 2x2", int2(2, 6), ItemRotation.None), ("Compact Reactor", int2(2, 4), ItemRotation.None),
@@ -362,7 +362,7 @@ public sealed partial class RunStartTests
         var forward = largeDrives.Sum(t => t.Thrust) / mass;
         Assert.InRange(envelope.Forward, forward * .99f, forward * 1.01f);
         Assert.Equal(0f, envelope.Reverse);
-        // One Talaria pushes each way, and each has its own lot's thrust: the sides are the two flanks' accelerations.
+        // One Rugged Drive pushes each way, and each has its own lot's thrust: the sides are the two flanks' accelerations.
         var flankAccelerations = flanks.Select(t => t.Thrust / mass).OrderBy(a => a).ToArray();
         var sides = new[] { envelope.Left, envelope.Right }.OrderBy(a => a).ToArray();
         Assert.InRange(sides[0], flankAccelerations[0] * .99f, flankAccelerations[0] * 1.01f);
@@ -580,7 +580,7 @@ public sealed partial class RunStartTests
         public Weapon Gun, Laser, GunnerLaser;
     }
 
-    // The target's fit, written out: the Djinni's own hardpoints filled with the Talaria it is generated with, its
+    // The target's fit, written out: the Djinni's own hardpoints filled with the Rugged Drive it is generated with, its
     // reactor, cockpit and radiators. What the evasion tests price is this ship's strafing, not whatever the generator
     // rolls for it from the galaxy.
     private static ScenarioFit EvDjinni(ScenarioStage stage) => stage.Fit("Djinni",

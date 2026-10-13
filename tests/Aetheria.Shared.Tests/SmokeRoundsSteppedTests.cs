@@ -20,7 +20,7 @@ public sealed partial class RunStartTests
         return (arena, staged);
     }
 
-    // Fused Rounds, nothing selected, the player aiming down the bare hull ahead. The DeathCluster is the control: it fires
+    // Fused Rounds, nothing selected, the player aiming down the bare hull ahead. The Cluster Cannon is the control: it fires
     // in this arena, so a fused weapon that does not is not a harness that cannot fire. A fused round flies slowly enough
     // to be in the air when the direct weapon kills the fragile hull (check A.3) and bursts on the first hull on the aim line.
     [Theory]
@@ -51,7 +51,7 @@ public sealed partial class RunStartTests
         Assert.InRange(at + burst.ArrivalIn - fired[0], 1f, 5f); // in the air for seconds: not resolved in its firing tick, not minutes of flight
     }
 
-    // Check A.3 flown: the fragile hull is selected, a Smoke Proximity round is fired at it and the DeathCluster kills it
+    // Check A.3 flown: the fragile hull is selected, a Smoke Proximity round is fired at it and the Cluster Cannon kills it
     // before the round lands, so the round never bursts.
     [Fact]
     public void TheDirectWeaponKillsTheFragileHullWhileASmokeRoundIsStillInTheAir()

@@ -12,7 +12,7 @@ public sealed partial class RunStartTests
     private static List<EquippedItem> WeaponMounts(Entity ship) =>
         ship.Equipment.Where(item => item.Behaviors.OfType<Weapon>().Any()).ToList();
 
-    // Weapon Feel: the player flies the Smoke Test Hull with ChargeBlast SG on the 2x2 Energy hardpoint, Autocannon
+    // Weapon Feel: the player flies the Smoke Test Hull with Charged Scatter Blaster on the 2x2 Energy hardpoint, Autocannon
     // on the 2x2 Ballistic hardpoint and a burst weapon; the bare hull ahead lies in every mount's arc.
     [Fact]
     public void WeaponFeelConditions()

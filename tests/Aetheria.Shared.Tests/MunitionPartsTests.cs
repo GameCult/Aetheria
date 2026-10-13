@@ -247,7 +247,7 @@ public sealed class MunitionPartsTests : IDisposable
     private static readonly (string Name, int X, int Y)[] ShipGear =
         { ("Large Drive", 1, 0), ("Large Drive", 3, 0), ("Compact Reactor", 2, 4), ("Cockpit 2x2", 2, 6), ("Compact Sensor", 3, 10) };
 
-    // A GT 3K fitted to a Longinus launcher hardpoint beside that gear, its lot's thruster role at the given quality.
+    // A Guided Missile Launcher fitted to a Longinus launcher hardpoint beside that gear, its lot's thruster role at the given quality.
     private static EquippedItem Fit(CultCache cache, float thrusterQuality, out Ship ship)
     {
         var hull = cache.GetByName<HullData>("Longinus");

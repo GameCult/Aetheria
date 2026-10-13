@@ -4,8 +4,8 @@ using static ItemRotation;
 public sealed class Crossing : Scenario
 {
     public override string Name => "Crossing";
-    public override string Brief => "plight at the starboard gun and a FastBlast+- at the port gun, a fast Djinni crossing close ahead and an " +
-                                    "unpiloted one waiting at range. The Djinni starts to port moving across the bow; the arena's gravity bends its run. Make the pass coasting: give no throttle until the Djinni has crossed the bow, then fly freely (thrusting from the start carries you past it). Verify: as the Djinni crosses close, FastBlast lands some and plight " +
+    public override string Brief => "A Lightning Projector at the starboard gun and a Cell Blaster at the port gun, a fast Djinni crossing close ahead and an " +
+                                    "unpiloted one waiting at range. The Djinni starts to port moving across the bow; the arena's gravity bends its run. Make the pass coasting: give no throttle until the Djinni has crossed the bow, then fly freely (thrusting from the start carries you past it). Verify: as the Djinni crosses close, FastBlast lands some and projector " +
                                     "almost none; against the Djinni at range both land. Fly it again without the Fire Control Array: " +
                                     "with it the small gun lands more.";
     public override uint Seed => 112;
@@ -13,11 +13,11 @@ public sealed class Crossing : Scenario
 
     // Where the Djinni sit: the player is at the origin facing +z. The crosser starts ahead and to port, facing across
     // the bow and already moving at the Djinni's 50 m/s cap, so its run sweeps across the bow within seconds (the arena
-    // pulls the player to port, which brings the two together). The waiting Djinni sits inside plight's arc at 80% of
+    // pulls the player to port, which brings the two together). The waiting Djinni sits inside the Lightning Projector's arc at 80% of
     // its Range.
     public static readonly CultMath.float2 CrosserAt = float2(-150, 200), CrosserFacing = float2(1, 0), CrosserVelocity = float2(50, 0);
-    public const float PlightRange = 1216f; // plight's Range in metres, 1216.4 as the fit stands settled at rest
-    public static readonly CultMath.float2 Waiting = float2(0, PlightRange * .8f);
+    public const float ProjectorRange = 1216f; // the Lightning Projector's Range in metres, 1216.4 as the fit stands settled at rest
+    public static readonly CultMath.float2 Waiting = float2(0, ProjectorRange * .8f);
 
     public override Galaxy Generate(GalaxyStage stage) => stage.Prelude(DemoTerminus.Cast);
 

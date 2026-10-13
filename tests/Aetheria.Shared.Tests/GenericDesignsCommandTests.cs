@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using GameCult.Caching;
 using Xunit;
 
 // AetherDb's generic-designs command (aetheria-release, cut generic-design-names), run on a scratch copy of the shipped
@@ -93,6 +95,65 @@ public sealed class GenericDesignsCommandTests : IDisposable
             Assert.Equal(brandedDesignText, DesignNamed(db, "Autocannon").Description);
             Assert.Equal(rowText, ProductNamed(db, "Skiron").Description);
             Assert.DoesNotContain(db.Cache.GetAll<FactionProductData>(), p => p.Name == "Autocannon" && db.Cache.Get(p.Manufacturer)?.ShortName == "Zhestokost");
+            return 0;
+        });
+    }
+
+    // Re-spell every record's payload in a longer, equally valid MessagePack form (an array16 header for the fixarray one). The
+    // catalog then holds bytes no re-encode through the current types would reproduce, so a write that re-encodes records it did
+    // not author shows as changed bytes; a write that lands onto the file as it is leaves them alone.
+    private int WidenEveryPayload()
+    {
+        var snapshot = CultDocumentMessagePackSerialization.DeserializeSnapshot(File.ReadAllBytes(CatalogPath));
+        var widened = 0;
+        foreach (var record in snapshot.Records)
+        {
+            var payload = record.Payload;
+            if (payload.Length == 0 || (payload[0] & 0xF0) != 0x90) continue;
+            record.Payload = new byte[] { 0xDC, 0x00, (byte)(payload[0] & 0x0F) }.Concat(payload.Skip(1)).ToArray();
+            widened++;
+        }
+        File.WriteAllBytes(CatalogPath, CultDocumentMessagePackSerialization.SerializeSnapshot(snapshot));
+        return widened;
+    }
+
+    private Dictionary<string, CultPersistedRecord> Records() =>
+        CultDocumentMessagePackSerialization.DeserializeSnapshot(File.ReadAllBytes(CatalogPath)).Records.ToDictionary(r => r.Key, StringComparer.Ordinal);
+
+    [Fact]
+    public void Apply_writes_only_the_records_it_authors_and_restores_the_rewritten_design_texts()
+    {
+        var (largeDriveText, tractorText, smokeText, tractorProductText) = Read(db => (DesignNamed(db, "Large Drive").Description, DesignNamed(db, "Tractor Beam").Description,
+            DesignNamed(db, "Smoke Proximity").Description, ProductNamed(db, "Space Tractor").Description));
+        Edit(db =>
+        {
+            var drive = DesignNamed(db, "Large Drive");
+            drive.Description = "Keeps you going and going and going...";
+            Save(db, drive);
+            var smoke = DesignNamed(db, "Smoke Proximity");
+            smoke.Description = "A Spectra that bursts by proximity, blast 8. For scenarios; no one builds it.";
+            Save(db, smoke);
+            var tractor = ProductNamed(db, "Space Tractor");
+            tractor.Description = "It's a tractor. In space.";
+            Save(db, tractor);
+        });
+        Assert.True(WidenEveryPayload() > 100, "the scratch catalog should hold many records in the widened spelling");
+        var before = Records();
+
+        Assert.Equal(0, Program.GenericDesigns(apply: true, root: _root));
+
+        var after = Records();
+        Assert.Equal(before.Count, after.Count);
+        var changed = before.Keys.Where(key => !before[key].Payload.AsSpan().SequenceEqual(after[key].Payload)).ToArray();
+        Assert.Equal(3, changed.Length);
+        foreach (var (key, record) in before.Where(pair => !changed.Contains(pair.Key)))
+            Assert.True(record.Payload.AsSpan().SequenceEqual(after[key].Payload), "a record the command did not author has changed bytes");
+        Read(db =>
+        {
+            Assert.Equal(largeDriveText, DesignNamed(db, "Large Drive").Description);
+            Assert.Equal(tractorText, DesignNamed(db, "Tractor Beam").Description);
+            Assert.Equal(smokeText, DesignNamed(db, "Smoke Proximity").Description);
+            Assert.Equal(tractorProductText, ProductNamed(db, "Space Tractor").Description);
             return 0;
         });
     }

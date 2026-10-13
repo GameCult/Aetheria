@@ -454,15 +454,15 @@ public sealed partial class RunStartTests
         Assert.True(clearPath <= .25f, $"the machine gun does not: {clearPath}");
     }
 
-    // Data check, not a behaviour test: ruling plight-shape, plight is one wide, two high and fits a Longinus Energy hardpoint.
+    // Data check, not a behaviour test: ruling plight-shape, the Lightning Projector is one wide, two high and fits a Longinus Energy hardpoint.
     [Fact]
     public void PlightHasItsRuledShape()
     {
-        var plight = _cache.GetAll<WeaponItemData>().Single(w => w.Name == "Lightning Projector");
-        Assert.Equal(1, plight.Shape.Width);
-        Assert.Equal(2, plight.Shape.Height);
-        Assert.True(plight.Shape.Cells[0, 0] && plight.Shape.Cells[0, 1], "both cells are occupied");
+        var projector = _cache.GetAll<WeaponItemData>().Single(w => w.Name == "Lightning Projector");
+        Assert.Equal(1, projector.Shape.Width);
+        Assert.Equal(2, projector.Shape.Height);
+        Assert.True(projector.Shape.Cells[0, 0] && projector.Shape.Cells[0, 1], "both cells are occupied");
         var longinus = _cache.GetAll<HullData>().Single(h => h.Name == "Longinus");
-        Assert.Contains(longinus.Hardpoints, hardpoint => hardpoint.Type == HardpointType.Energy && hardpoint.Takes(plight));
+        Assert.Contains(longinus.Hardpoints, hardpoint => hardpoint.Type == HardpointType.Energy && hardpoint.Takes(projector));
     }
 }

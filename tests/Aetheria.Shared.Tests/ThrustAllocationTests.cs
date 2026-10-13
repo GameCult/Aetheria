@@ -14,7 +14,7 @@ using float3 = CultMath.float3;
 
 // Flight control allocates thrust (ruling flight-control-allocates-thrust): Ship.Update hands the intent and every
 // thruster's live column to one ThrustAllocator, and a ship flies on what that answers. These tests fly the Duel's
-// Longinus (two mismatched Large Drives forward, a Talaria on each flank) through the real Ship.Update; a test that reads
+// Longinus (two mismatched Large Drives forward, a Rugged Drive on each flank) through the real Ship.Update; a test that reads
 // velocity steps the arena, because the zone places the orbits that Ship.Update alone leaves stacked at the spawn.
 public sealed partial class RunStartTests
 {
@@ -307,7 +307,7 @@ public sealed partial class RunStartTests
 
     // Rulings evasion-is-unpredictability and turn-authority-full: the Longinus's Large Drives count toward its turn,
     // because the envelope is summed over every live column. Its clockwise is the sum of the positive yaw of its columns
-    // at live thrust, and exceeds the Talaria's own by the drives'.
+    // at live thrust, and exceeds the Rugged Drive's own by the drives'.
     [Fact]
     public void TheEnvelopeCountsTheMains()
     {

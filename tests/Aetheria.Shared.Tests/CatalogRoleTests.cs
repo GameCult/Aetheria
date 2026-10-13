@@ -108,6 +108,28 @@ public sealed class CatalogRoleTests
         Assert.True(unbranded.Length == 0, "designs sold under their own name: " + string.Join(", ", unbranded));
     }
 
+    // The Capacitor is the one Tool design with a role map by name; a key that falls out of step with the design's name leaves
+    // roles-backfill finding no map for it.
+    [Fact]
+    public void TheCapacitorDesignCarriesItsRoleMap()
+    {
+        using var cache = RestoredHullsTests.OpenCatalog();
+        var capacitor = cache.GetAll<EquippableItemData>().Single(design => design.Name == "Capacitor");
+        Assert.True(Program.HasRoleMap(capacitor), "roles-backfill finds no role map for the Capacitor design");
+    }
+
+    // A design is a tech node: its text may not name a product the catalog sells (the brand lives on the product).
+    [Fact]
+    public void NoDesignTextNamesAProduct()
+    {
+        using var cache = RestoredHullsTests.OpenCatalog();
+        var productNames = cache.GetAll<FactionProductData>().Select(p => p.Name).Where(n => n.Length > 3).ToHashSet();
+        var branded = cache.GetAll<EquippableItemData>().Where(design => design is not HullData && design.Description != null)
+            .Where(design => productNames.Any(n => design.Description.Contains(n)))
+            .Select(design => design.Name).OrderBy(n => n, StringComparer.Ordinal).ToArray();
+        Assert.True(branded.Length == 0, "designs whose text names a product: " + string.Join(", ", branded));
+    }
+
     // Authoring notes are not player text, and every product of a design this cut renamed or branded speaks in its own
     // voice (Miss Terri's and the Pirates' records are other passes').
     [Fact]
