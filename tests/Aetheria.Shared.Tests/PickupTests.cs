@@ -91,6 +91,11 @@ public sealed class PickupTests : IDisposable
             Name = "Spare", Hardpoint = HardpointType.Tool, Shape = Solid(1, 1), Durability = 1,
             MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000
         });
+        cache.Upsert(new GearData
+        {
+            Name = "Block", Hardpoint = HardpointType.Tool, Shape = Solid(2, 2), Durability = 1,
+            MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000
+        });
         cache.Upsert(new CargoBayData { Name = "Crate", Shape = new Shape(), InteriorShape = Solid(4, 4), Durability = 4 });
         cache.Upsert(new SimpleCommodityData { Name = "Ore", Shape = Solid(1, 1), MaxStack = 100 });
         cache.FlushAsync().Wait();
@@ -250,22 +255,55 @@ public sealed class PickupTests : IDisposable
         var item = Drift(lab, 40, 0);
         var events = Watch(ship, bag);
         ship.TractorCommand = 1;
-        var tickOf = new List<int>();
-        for (var tick = 1; tick <= 150; tick++)
-        {
-            lab.Zone.Update(1 / 60f);
-            while (tickOf.Count < events.Count) tickOf.Add(tick);
-        }
+        for (var tick = 1; tick <= 150; tick++) lab.Zone.Update(1 / 60f);
         Assert.Equal(new[] { GrabPhase.Started, GrabPhase.Extend, GrabPhase.Envelop, GrabPhase.Pull, GrabPhase.Completed },
             events.Take(5).Select(e => e.Phase).ToArray());
-
-        // Each phase is published once, on the tick its boundary is crossed: the claim, then .3 s, .5 s and 1 s after it.
-        Assert.Equal(new[] { 0, 0, 18, 30, 60 }, tickOf.Take(5).Select(tick => tick - tickOf[0]).ToArray());
         Assert.All(events.Take(5), e => Assert.Equal(item.Id, e.Target));
         Assert.NotEqual(other.Id, item.Id);
         Assert.Equal(.3f, events[1].PhaseDuration, 4);
         Assert.Equal(.2f, events[2].PhaseDuration, 4);
         Assert.Equal(.5f, events[3].PhaseDuration, 4);
+    }
+
+    // Each phase is published on the first tick at or after its boundary (.3, .5 and 1 s after the claim), at any
+    // tick rate or an uneven one. The clock is a float sum, so a boundary an exact number of ticks away can land one
+    // tick late (Envelop and Pull do at 1/600): the rule is "not before, at most one tick after", not a tick count.
+    [Theory]
+    [InlineData(1, 60, 60, 60, 60)]
+    [InlineData(1, 600, 600, 600, 600)]
+    [InlineData(4, 60, 24, 90, 33)]
+    public void EachPhaseFiresOnTheFirstTickAtOrAfterItsBoundary(int cycle, int a, int b, int c, int d)
+    {
+        using var bag = new CompositeDisposable();
+        var rates = cycle == 1 ? new[] { a } : new[] { a, b, c, d };
+        var lab = Build(Beam());
+        var ship = Spawn(lab, float3(0, 0, 0));
+        Drift(lab, 40, 0);
+        var events = Watch(ship, bag);
+        ship.TractorCommand = 1;
+        var since = -1.0;
+        var times = new List<double>();
+        var steps = new List<double>();
+        for (var tick = 0; tick < rates.Length * 3000 && events.Count(e => e.Phase == GrabPhase.Completed) == 0; tick++)
+        {
+            var dt = 1f / rates[tick % rates.Length];
+            lab.Zone.Update(dt);
+            if (since >= 0) since += dt;
+            else if (events.Count > 0) since = 0;
+            while (times.Count < events.Count) { times.Add(since); steps.Add(dt); }
+        }
+        var phases = events.Select(e => e.Phase).ToList();
+        Assert.Equal(GrabPhase.Completed, phases.Last());
+        foreach (var (phase, boundary) in new[] { (GrabPhase.Envelop, .3), (GrabPhase.Pull, .5), (GrabPhase.Completed, 1.0) })
+        {
+            var i = phases.IndexOf(phase);
+            Assert.True(i >= 0, "the phase never came");
+            Assert.True(times[i] >= boundary - 1e-5, "the phase fired before its boundary");
+            // Where no tick lands exactly on a boundary (the uneven cycle) the tick before must be strictly short of it;
+            // on a regular grid the float sum may leave that tick a hair short, so it may be equal.
+            var slack = cycle == 1 ? 1e-5 : -1e-5;
+            Assert.True(times[i] - steps[i] < boundary + slack, "the phase fired after the first tick at or past its boundary");
+        }
     }
 
     [Fact]
@@ -305,17 +343,19 @@ public sealed class PickupTests : IDisposable
     }
 
     [Fact]
-    public void AFullHoldCancelsAtTheEnd()
+    public void AHoldThatFillsMidGrabCancelsAtTheEnd()
     {
         using var bag = new CompositeDisposable();
         var lab = Build(Beam());
         var ship = Spawn(lab, float3(0, 0, 0));
         var bay = ship.CargoBays.Single();
-        for (var i = 0; i < 16; i++) Assert.True(bay.TryStore(lab.Make("Spare")));
-        Assert.False(bay.TryStore(lab.Make("Spare")));
         var item = Drift(lab, 40, 0);
         var events = Watch(ship, bag);
         ship.TractorCommand = 1;
+        Until(lab, 1 / 60f, () => item.Holder != null);
+
+        // The hold fills while the grab runs: the item slides in and then floats free.
+        for (var i = 0; i < 16; i++) Assert.True(bay.TryStore(lab.Make("Spare")));
         var tick = 0;
         while (!events.Any(e => e.Phase == GrabPhase.Cancelled) && tick++ < 300) lab.Zone.Update(1 / 60f);
         Assert.Equal(new[] { GrabPhase.Started, GrabPhase.Extend, GrabPhase.Envelop, GrabPhase.Pull, GrabPhase.Cancelled },
@@ -323,6 +363,79 @@ public sealed class PickupTests : IDisposable
         Assert.True(item.Holder == null, "item is held");
         Assert.True(lab.Zone.FloatingItems.Contains(item), "item left the zone");
         Assert.Equal(16, bay.Cargo.Count);
+    }
+
+    [Fact]
+    public void AFullHoldNeverClaimsWhatItCannotStore()
+    {
+        using var bag = new CompositeDisposable();
+        var lab = Build(Beam());
+        var ship = Spawn(lab, float3(0, 0, 0));
+        var bay = ship.CargoBays.Single();
+        for (var i = 0; i < 16; i++) Assert.True(bay.TryStore(lab.Make("Spare")));
+        var item = Drift(lab, 40, 0, float2(3, 1));
+        var events = Watch(ship, bag);
+        ship.TractorCommand = 1;
+        Tick(lab, 300, 1 / 60f);
+        Assert.Equal(1f, ship.TractorPower);
+        Assert.Empty(events);
+        Assert.True(item.Holder == null, "item is held");
+        Assert.True(item.Body.Position.x > 40f, "item was pinned instead of drifting");
+    }
+
+    [Fact]
+    public void AnItemTheHoldCannotStoreDoesNotBlockOneItCan()
+    {
+        using var bag = new CompositeDisposable();
+        var lab = Build(Beam());
+        var ship = Spawn(lab, float3(0, 0, 0));
+        var bay = ship.CargoBays.Single();
+        for (var i = 0; i < 15; i++) Assert.True(bay.TryStore(lab.Make("Spare")));
+        // One free cell: the 2x2 block is nearest the axis and cannot be stored; the ore beside it can.
+        var block = lab.Zone.Release(lab.Make("Block"), float2(30, 0), default);
+        var ore = Drift(lab, 50, 10);
+        var events = Watch(ship, bag);
+        ship.TractorCommand = 1;
+        Tick(lab, 150, 1 / 60f);
+        Assert.Contains(events, e => e.Phase == GrabPhase.Completed);
+        Assert.All(events, e => Assert.Equal(ore.Id, e.Target));
+        Assert.False(lab.Zone.FloatingItems.Contains(ore), "ore is still in the zone");
+        Assert.True(lab.Zone.FloatingItems.Contains(block), "block left the zone");
+        Assert.True(block.Holder == null, "block is held");
+    }
+
+    [Fact]
+    public void AnItemInTheBeamsFarCornerIsCollected()
+    {
+        using var bag = new CompositeDisposable();
+        var lab = Build(Beam());
+        var ship = Spawn(lab, float3(0, 0, 0));
+        // 74 along and 20 off the axis: inside the beam, though 76.7 from the ship, past Range as a straight distance.
+        var corner = Drift(lab, 74, 20);
+        var events = Watch(ship, bag);
+        ship.TractorCommand = 1;
+        Tick(lab, 150, 1 / 60f);
+        Assert.DoesNotContain(events, e => e.Phase == GrabPhase.Cancelled);
+        Assert.Contains(events, e => e.Phase == GrabPhase.Completed);
+        Assert.False(lab.Zone.FloatingItems.Contains(corner), "corner is still in the zone");
+    }
+
+    [Fact]
+    public void AnItemLeavingTheBeamBeforeThePullIsCancelled()
+    {
+        using var bag = new CompositeDisposable();
+        var lab = Build(Beam());
+        var ship = Spawn(lab, float3(0, 0, 0));
+        var item = Drift(lab, 40, 0);
+        var events = Watch(ship, bag);
+        ship.TractorCommand = 1;
+        Until(lab, 1 / 60f, () => item.Holder != null);
+
+        // The pilot swings the beam away while the grab extends: the item is off the axis and the grab is dropped.
+        ship.Aim = float3(0, 0, 1);
+        Tick(lab, 3, 1 / 60f);
+        Assert.Equal(GrabPhase.Cancelled, events.Last().Phase);
+        Assert.True(item.Holder == null, "item is held");
     }
 
     [Fact]
@@ -495,6 +608,12 @@ public sealed class PickupTests : IDisposable
         Assert.True(held.Zone.FloatingItems.Contains(stuck), "stuck left the zone");
         Assert.Equal(float2(40, 0), stuck.Body.Position);
 
+        // The pose eases (smoothstep): a quarter of the progress is 15.625 per cent of the way, not 25.
+        held.Zone.SetHeldProgress(stuck.Id, .25f);
+        held.Zone.Update(dt);
+        Assert.Equal(40f - 35f * .15625f, stuck.Body.Position.x, 3);
+        Assert.Equal(7f * .15625f, stuck.Body.Position.y, 3);
+
         // Placed, not drifted: the same progress held for two steps puts it at the same halfway point.
         held.Zone.SetHeldProgress(stuck.Id, .5f);
         held.Zone.Update(dt);
@@ -510,6 +629,55 @@ public sealed class PickupTests : IDisposable
         held.Zone.Free(stuck.Id);
         held.Zone.Update(dt);
         Assert.False(held.Zone.FloatingItems.Contains(stuck), "stuck is still in the zone");
+    }
+
+    [Fact]
+    public void AnInactiveBeamSpinsDownAndMustSpinUpAgain()
+    {
+        using var bag = new CompositeDisposable();
+        const float dt = 1 / 60f;
+        var lab = Build(Beam());
+        var ship = Spawn(lab, float3(0, 0, 0));
+        var gear = ship.Equipment.Single(e => e.Behaviors.OfType<Pickup>().Any());
+        ship.TractorCommand = 1;
+        Tick(lab, 60, dt);
+        Assert.Equal(1f, ship.TractorPower);
+
+        // Switched off with the key still down, the beam spins down at the spin rate...
+        gear.Enabled.Value = false;
+        Tick(lab, 15, dt);
+        Assert.InRange(ship.TractorPower, .45f, .55f);
+        Tick(lab, 30, dt);
+        Assert.Equal(0f, ship.TractorPower);
+
+        // ...and switched back on it spins up from nothing: an item in the beam is not claimed at once.
+        var item = Drift(lab, 40, 0);
+        var events = Watch(ship, bag);
+        gear.Enabled.Value = true;
+        Tick(lab, 10, dt);
+        Assert.Empty(events);
+        Assert.True(item.Holder == null, "item is held");
+        Tick(lab, 20, dt);
+        Assert.True(ReferenceEquals(ship, item.Holder), "item is not held by ship");
+    }
+
+    [Fact]
+    public void RemovingOneHolderFreesOnlyItsOwnItems()
+    {
+        var lab = Build(Beam());
+        var a = Spawn(lab, float3(0, 0, 0));
+        var b = Spawn(lab, float3(0, 0, 50));
+        var mine = Drift(lab, 40, 0);
+        var theirs = Drift(lab, 40, 50);
+        a.TractorCommand = 1;
+        b.TractorCommand = 1;
+        Tick(lab, 30, 1 / 60f);
+        Assert.True(ReferenceEquals(a, mine.Holder), "mine is not held by a");
+        Assert.True(ReferenceEquals(b, theirs.Holder), "theirs is not held by b");
+
+        Kill(a);
+        Assert.True(mine.Holder == null, "mine is held");
+        Assert.True(ReferenceEquals(b, theirs.Holder), "theirs was freed with a");
     }
 
     [Fact]

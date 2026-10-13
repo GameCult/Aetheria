@@ -82,12 +82,13 @@ public class Pickup : Behavior, IAlwaysUpdatedBehavior
         var envelop = (double) Evaluate(_data.EnvelopTime);
         var pull = (double) Evaluate(_data.PullTime);
         var range = Evaluate(_data.Range);
+        var radius = Evaluate(_data.BeamRadius);
         var origin = Entity.Position.xz;
 
         if (!_grabbing)
         {
             if (!active || _power < grabPower) return;
-            var item = Select(zone, origin, range, Evaluate(_data.BeamRadius));
+            var item = Select(zone, origin, range, radius);
             if (item == null || !zone.TryHold(Entity, item.Id)) return;
             _grabbing = true;
             _target = item.Id;
@@ -107,7 +108,7 @@ public class Pickup : Behavior, IAlwaysUpdatedBehavior
         }
 
         var pulling = _elapsed >= extend + envelop;
-        if (!active || _power < grabPower || (!pulling && length(held.Body.Position - origin) > range))
+        if (!active || _power < grabPower || (!pulling && !InBeam(held.Body.Position, origin, range, radius, out _)))
         {
             _grabbing = false;
             zone.Free(_target);
@@ -131,22 +132,31 @@ public class Pickup : Behavior, IAlwaysUpdatedBehavior
         }
     }
 
-    // The free item nearest the beam axis within Range along it and BeamRadius of it; ties go to the lowest id. A
-    // zero aim selects nothing.
+    // The one beam region: within Range along the aim axis (never behind) and BeamRadius off it. Selection claims
+    // from it and the grab holds on to its item only while the item stays in it. A zero aim has no region.
+    private bool InBeam(float2 position, float2 origin, float range, float radius, out float off)
+    {
+        off = 0;
+        var aim = Entity.Aim.xz;
+        if (lengthsq(aim) <= 0) return false;
+        var axis = normalize(aim);
+        var to = position - origin;
+        var along = dot(to, axis);
+        off = length(to - axis * along);
+        return along >= 0 && along <= range && off <= radius;
+    }
+
+    // The free item nearest the beam axis within the beam region that some cargo bay can store whole (the bay's own
+    // TryFindSpace, the test TryStore opens with); ties go to the lowest id. A zero aim selects nothing.
     private FloatingItem Select(Zone zone, float2 origin, float range, float radius)
     {
-        var aim = Entity.Aim.xz;
-        if (lengthsq(aim) <= 0) return null;
-        var axis = normalize(aim);
         FloatingItem best = null;
         var bestOff = float.MaxValue;
         foreach (var floating in zone.FloatingItems)
         {
             if (floating.Holder != null) continue;
-            var to = floating.Body.Position - origin;
-            var along = dot(to, axis);
-            var off = length(to - axis * along);
-            if (along < 0 || along > range || off > radius) continue;
+            if (!InBeam(floating.Body.Position, origin, range, radius, out var off)) continue;
+            if (!Entity.CargoBays.Any(bay => bay.TryFindSpace(floating.Item))) continue;
             if (off < bestOff || (off == bestOff && floating.Id.Value < best.Id.Value))
             {
                 best = floating;
