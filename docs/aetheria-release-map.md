@@ -30,7 +30,6 @@ Cuts without a `cut_spec`, withdrawn 2026-10-12 under map-only-what-runs: a spec
 - missile-records: Missiles 1: a guided shot is a stepped munition record: PN on its own seeker, reacquisition, a fuel budget spent by its. Waits on: missile-stats (blocked on the missile chain head; refresh needed).
 - missile-odds: Missiles 1c (r2): a guided round's hit is one roll at its terminal gate, priced by FireControl from its miss, seeker. Waits on: missile-records, evasion-term (blocked on missile-records).
 - missile-presenter: Missiles 1b (r3): GuidedProjectile presents the stepped munition drawn ahead by Lead; its binding ends on sim events. Waits on: missile-odds, controls-helm, sim-speed (blocked on missile-odds).
-- loot-2: Loot 2 (r2): pickup is a capability. The Tractor Beam becomes Tool gear whose Pickup behaviour spins the beam up in sim. Waits on: loot-1, feedback-1 (blocked on loot-1 and feedback-1; refresh needed).
 - munition-jink: Missiles 2b: inbound rounds make a munition jink above its reserve; the jink spends its fuel and reaches the PD price. Waits on: munition-shots (blocked on munition-shots).
 - munition-shots: Missiles 2 (r5): shots take a munition subject; PD at a munition is priced through the ships' evasion core (own. Waits on: missile-odds, controls-mount-aim (blocked on missile-odds; envelope refresh needed).
 - faction-play-2: Faction play 2 (r2, master 4d664b53): pack slots and Lucent's duel, hull break-off to a refuge, and ping cadence, all. Waits on: faction-play-1, feedback-1 (blocked on faction-play-1 merge and feedback-1).
@@ -367,8 +366,8 @@ record.
 | spec | `faction-play-3` | demo | Support and anchors; the played proof moves here for the cast; needs r2. |
 | spec | `faction-play-4` | full game | The tender loop on real rounds is depth past the demo's proof. |
 | spec | `loot-1` | demo | Floating items in the simulation; loot is what the player sells. |
-| spec | `loot-2` | demo | Pickup as a capability. |
-| spec | `loot-3` | demo | The grab presented in Unity; merges the loot branch. |
+| spec | `loot-2` | demo | Pickup as a capability; r3 mapped 2026-10-13 on `loot-1-present`. Alone it restores pickup in play (no beam or tendril visual). |
+| spec | `loot-3` | demo | The grab is presented, not simulated, in Unity: `TractorBeam` becomes a grab presenter, the binder's resolvers and `FieldDriver`'s transform moving go. Pure presentation after `loot-2`; sized separately, not folded (see `L10`). |
 | spec | `ballistic-ammo` | demo | Ruled for everyone and unblocked; ammunition is a cargo good in the Pirates' game. Needs a balance pass. |
 | spec | `ships-player` | demo | A built player loads package hulls: every demo hull needs it. |
 | spec | `ships-addon-frame` | demo | The Blender step from a Tripo mesh to a hull, no Unity. Stale against `ship-data-all-in-cc` if `demo-ship-cc-timing` rules before-hulls. |
@@ -3336,6 +3335,41 @@ belt-freeze rulings (lines 830-876).
   - `CapabilityPresentationBinder` resolves it to a live `Transform` through delegates
     (`:16-45`), and only `FieldTester` supplies them.
 
+**L10. Loot 2 r3: what the branch `eureka/aetheria-release-loot-1-present` (`e24d942b`) holds, by probe.**
+Pass: Imagination `imagination-aeth-loot-2`, session `self-2026-10-13-ag`. Detached worktree
+`C:\aeth-wt\imag-loot2` at `e24d942b`, removed at the end. Nothing was built; every claim is a source read or a
+decode of the catalog record.
+- **Pickup is dead in play on this branch, by design.** `TryPickUp(` has no caller outside tests and the editor
+  smoke (`FloatingItemsDrawnSmoke.cs:184`); `TractorBeam.Update` (21 lines) only turns the beam to
+  `Direction` and sets its emission to 0; `ShieldManager.OnCollisionEnter` and the Unity loot roll are deleted.
+- **The Tractor Beam record, decoded from `GameData/Aetheria.cc`** (`GearData` keys: 11 behaviours, 23
+  hardpoint type): hardpoint 8 (`Sensors`), behaviours empty, 1x1 shape, mass 86, temperature 200..400
+  optimum 251 plateau 24 (a real span). So L8 stands; it is `Tool` gear after the migration.
+- **`BehaviorData` union keys 40-47 are taken** (`Behaviors.cs:182-191`: MineLayer 40 to MunitionFuel 47). `PickupData` is
+  key 48. r2's key 40 was stale.
+- **The event's target type is `FloatingBodyId`** (a `uint` struct, `FloatingBodies.cs:11-18`), not `FloatingItemId`.
+- **`GrabEvent` is still read by the binder** (`CapabilityPresentationBinder.cs:45-46` passes `e.TargetHandle` to two
+  resolver delegates), so deleting `TargetHandle` in `loot-2` breaks the Unity compile unless the binder's delegate
+  parameter type and `FieldTester`'s two lambdas change with it. That is a type swap in `loot-2`; the delegates
+  themselves go in `loot-3`. r2 listed none of it.
+- **The ramp moved:** `ActionGameManager.cs:1335-1337` at `e24d942b` (was 1307-1309). `Entity.Aim` is the pilot's
+  direction (`Entity.cs:78-81`; r2 said `LookDirection`, which does not exist).
+- **Behaviour timing:** `EquippedItem.Update` runs `Execute` only while `Active.Value` and
+  `IAlwaysUpdatedBehavior.Update` regardless (`Entity.cs:2208-2229`); `TryUnequip` refuses an active entity
+  (`Entity.cs:1253-1257`), so gear cannot leave a ship mid-grab; destruction clears `Active`, and `Zone.Remove`
+  covers death, dock and jump.
+- **Generation:** `GenerateShipLoadout` is the one path for generated ships and for the player's start
+  (`ScenarioStage.cs:76`, `LoadoutGenerator.cs:43-58`); `FillInterior` also serves stations and turrets
+  (`:117`, `:287`), so the ship-only pickup goes in `GenerateShipLoadout`, not in `FillInterior`. Tool gear takes any
+  interior (`Entity.cs:1318`) and `HasHome` is always true for it (`LoadoutGenerator.cs:240`).
+- **Who still sees a grab on this branch:** `FieldDriver` is a child of every ship's shield and an `IGrabPresenter`; with no
+  resolvers it receives a null `Transform` and does nothing (`FieldDriver.cs:206-210`). A `loot-2` grab therefore
+  moves the item (the `ItemPickup` follows `Zone` poses) with no beam and no tendril until `loot-3`.
+- **Sizing:** `loot-2` alone is about 480 lines and 9 sim tests, roughly 100 Hands calls (two commit groups,
+  A the sim and B the catalog, generation and input). `loot-3` is Unity-only, about 120 lines added and 60 removed
+  plus a Starfire compile and smoke. Folding them passes the 150-call budget, so they stay two specs and `loot-2` is the
+  one that restores pickup.
+
 **L9. The ammunition substrate, by catalog probe** (same job, catalog `70a7b0a9`):
 
 | Hardpoint | Weapon | Behaviour | Magazine | Ammo | Energy |
@@ -3378,10 +3412,10 @@ belt-freeze rulings (lines 830-876).
 | Belt band (provider region) | Belt key plus band index; arc segments by key order. | Derived from `AsteroidBeltData`, `PlanetSettings` and time. Re-keyed lazily, a bounded number per query. Cache only. `mining-belt-cells` replaces it with rings and cells. | `BeltTargets`. |
 | Belt ring and cell (after `mining-belt-cells`) | Belt key, ring index, cell index. A ring is a run of rocks by orbit distance; its cells are equal sectors of a frame turning at the ring's mean rate. | Derived when the belt is built, never saved. A ring is refreshed (its rocks re-bucketed) when its drift passes one cell, within a rock budget per query. | `BeltTargets`. |
 | Target choice | The `TargetRef` a key press writes. | Made per press; no list is kept between presses. | `Entity` (reticle, next, previous, nearest), through `SetTarget`. |
-| Floating item | `FloatingItemId`: a zone counter, never reused in a zone. | Released at death (and later by jettison); drifts; held during a grab; removed into cargo by `TryPickUp`, or at `FloatingItemLifetime`. Not saved: gone when the zone unloads, as Unity loot is today. | `Zone`: release, step, expiry and commit. |
+| Floating item | `FloatingBodyId`: a zone counter, never reused in a zone. | Released at death (and later by jettison); drifts; held during a grab; removed into cargo by `TryPickUp`, or at `FloatingItemLifetime`. Not saved: gone when the zone unloads, as Unity loot is today. | `Zone`: release, step, expiry and commit. |
 | Loot dice | Zone `CombatSeed`, loot stream, death ordinal. | One generator per death, discarded after the roll. | `Zone.DropLoot`, on `SimulationDice`. Never `UnityEngine.Random`, never a shared stream. |
-| Grab | Holder entity plus `FloatingItemId`. | Started, Extend, Envelop, Pull, then Completed or Cancelled. One holder per item, one grab per Pickup. | The `Pickup` behaviour owns the timeline; `Zone` owns the held pose and the commit. |
-| Pickup capability | `PickupData` (BehaviorData union key 40) on the Tractor Beam design. | Authored by an AetherDb one-shot, then edited in the catalog. Every generated ship carries one. | The catalog author. |
+| Grab | Holder entity plus `FloatingBodyId` (`FloatingBodies.cs:11`; r2 and earlier misnamed it `FloatingItemId`). | Started, Extend, Envelop, Pull, then Completed or Cancelled. One holder per item, one grab per Pickup. | The `Pickup` behaviour owns the timeline; `Zone` owns the held pose and the commit. |
+| Pickup capability | `PickupData` (BehaviorData union key 48; 40-47 are taken at `e24d942b`) on the Tractor Beam design, which moves from a Sensors hardpoint to Tool gear. | Authored by an AetherDb one-shot, then edited in the catalog. Every generated ship carries one. | The catalog author. |
 | Ammunition | An `AmmoType` commodity; one unit is one magazine. | Stocked at generation and in station inventories; consumed one unit per reload; moved by `TryTransferItems` when rearming. | Cargo. `WeaponData.DrawsRounds`, derived from `AmmoType`, decides reactor or magazine. |
 
 ### Merge order
