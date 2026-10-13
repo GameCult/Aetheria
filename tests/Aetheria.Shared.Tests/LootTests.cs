@@ -68,7 +68,7 @@ public sealed class LootTests : IDisposable
             DefaultEntitySettings = new EntitySettings(),
             Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
             QualityPriceModifier = new ExponentialLerp(),
-            TargetDetectionInfoThreshold = .1f, TargetArmorInfoThreshold = .2f, TargetGearInfoThreshold = .8f,
+            TargetDetectionInfoThreshold = .1f, TargetGearInfoThreshold = .8f,
             FiringArc = 170, CommitHorizon = .5f, SchematicCellSize = 1f,
             UnaidedAccuracy = .05f, UnaidedTracking = 10f, UnaidedPrecision = 2f, AgentMinHitProbability = 0f,
             LootDropProbability = probability, LootDropVelocity = velocity, FloatingItemLifetime = lifetime
