@@ -46,12 +46,13 @@ public static class Program
             case "smoke-rounds": return SmokeRoundsCatalog(args.Contains("apply"));
             case "roles-backfill": return RolesBackfill(args.Contains("apply"));
             case "consumables-first-set": return ConsumablesFirstSetCatalog(args.Contains("apply"));
+            case "launch-suppressor": return LaunchSuppressorCatalog(args.Contains("apply"));
             case "pirates-faction":
                 Console.OutputEncoding = new System.Text.UTF8Encoding(false);
                 return PiratesFaction(args.Contains("apply"));
             case "verse-grammar": return VerseGrammarCommand.Run(args.Contains("apply"));
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], smoke-hull [apply], smoke-rounds [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], pirates-faction [apply], verse-grammar [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], smoke-hull [apply], smoke-rounds [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], launch-suppressor [apply], pirates-faction [apply], verse-grammar [apply]");
                 return 1;
         }
     }
@@ -2246,5 +2247,136 @@ public static class Program
         Console.WriteLine($"\nAuthored 2 designs and {products.Length} products in Aetheria.cc");
         return 0;
     }
+
+    // aetheria-ew cut ew-hide-launch-catalog (rulings ew-suppressor-strength-ruled, ew-suppressor-makers-ruled,
+    // ew-mild-suppressor-makers-defaulted): two launch suppressors on the Tool hardpoint, one helper for both. The strong
+    // Launch Suppressor hides a launch from its own target and gives out after an opening volley; the mild Launch Baffle
+    // only dims the flash for distant observers and runs through a long fight. Every figure is one Quality term, linear in
+    // its role (baffles for the Factor, heat sink for the heat), so quality moves the part and nothing else does. Thermal
+    // constants and temperatures come from the Targeting Computer, the catalog's 1x1 tool, as the consumables do. Dry run
+    // unless passed "apply".
+    public static int LaunchSuppressorCatalog(bool apply, string root = null)
+    {
+        var db = AetherDb.Open(catalogWritable: apply, root: root);
+        var designNames = new[] { "Launch Suppressor", "Launch Baffle" };
+        var template = db.Cache.GetAll<GearData>().Single(g => g.Name == "Targeting Computer");
+
+        Faction Maker(string shortName) =>
+            db.Cache.GetAll<Faction>().FirstOrDefault(f => f.ShortName == shortName) ?? throw new InvalidOperationException($"No faction with short name \"{shortName}\".");
+        PerformanceStat Rolled(float min, float max, string role) => new PerformanceStat
+        {
+            Min = min,
+            Max = max,
+            Terms = new List<StatTerm> { new StatTerm { Source = StatSource.Quality, Exponent = 1f, Role = role } },
+        };
+        // Min applies at quality 0 of the role and Max at quality 1: a falling Factor and falling heat per unit are Min > Max.
+        GearData Design(string name, string description, int price, (float Min, float Max) factor, (float Min, float Max) heatPerUnit, (float Min, float Max) rated)
+        {
+            var design = new GearData
+            {
+                Name = name,
+                Description = description,
+                Hardpoint = HardpointType.Tool,
+                Mass = 60f,
+                Price = price,
+                Durability = 50f,
+                Shape = new Shape(1, 1),
+                SpecificHeat = template.SpecificHeat,
+                Conductivity = template.Conductivity,
+                MinimumTemperature = template.MinimumTemperature,
+                MaximumTemperature = template.MaximumTemperature,
+                OptimalTemperature = template.OptimalTemperature,
+                PlateauWidth = template.PlateauWidth,
+                ThermalResilience = template.ThermalResilience,
+                Roles = new[] { "baffles", "heat sink" }.Select(r => new ItemRole { Name = r }).ToList(),
+                Behaviors = new List<BehaviorData>
+                {
+                    new LaunchSuppressorData
+                    {
+                        Factor = Rolled(factor.Min, factor.Max, "baffles"),
+                        HeatPerUnit = Rolled(heatPerUnit.Min, heatPerUnit.Max, "heat sink"),
+                        RatedTemperature = Rolled(rated.Min, rated.Max, "heat sink"),
+                    },
+                },
+            };
+            design.Shape.Cells[0, 0] = true;
+            return design;
+        }
+
+        var strong = Design(designNames[0], "Baffles and a heat sink remove nearly all of a weapon's launch flash, hiding the shot from its target. The removed light is dissipated as heat in the device's own cell; above its rated temperature it passes the full flash.",
+            40000, (.08f, .03f), (1.4f, .8f), (310f, 330f));
+        var mild = Design(designNames[1], "Baffles dim a weapon's launch flash to a fraction and a heat sink absorbs the difference. The target still sees the shot; distant observers do not. The sink sustains the effect through a long fight.",
+            25000, (.4f, .2f), (.8f, .5f), (310f, 330f));
+        var designs = new[] { strong, mild };
+
+        var products = new (GearData Design, string Name, string Maker, string Description)[]
+        {
+            (strong, "Velvet Rope", "NiteLife", "Keeps the flash on the inside. Nobody sees who you let out."),
+            (strong, "Hush", "Finch", "Small, quiet, and the first shot is a secret. The second, probably."),
+            (strong, "lights out", "DME", "no flash/ no name/ nobody saw a thing"),
+            (strong, "Plausible Deniability", "R&D", "Hides 100% of launches!* *Launches defined as the ones nobody saw."),
+            (mild, "Low Profile", "Lightsail", "Quiet on the manifest, quiet on the scope. A hauler nobody notices is a hauler that gets paid."),
+            (mild, "Fast Pass Dim", "Alakrita", "Takes the glare off every launch and keeps the schedule. Anyone close enough to mind was already your problem."),
+        };
+        foreach (var product in products) Maker(product.Maker);
+
+        // Authored when both designs exist and every product is present on its own design; untouched when nothing is
+        // present; anything between needs a human, a product name that belongs to an unrelated item included.
+        var existing = designNames.Select(name => db.Cache.GetAll<GearData>().SingleOrDefault(g => g.Name == name)).ToArray();
+        var productNames = products.Select(p => p.Name).ToHashSet();
+        var presentProducts = db.Cache.GetAll<FactionProductData>().Where(p => productNames.Contains(p.Name)).ToArray();
+        if (existing.All(d => d != null) && presentProducts.Length == products.Length
+            && products.All(p => presentProducts.Any(x => x.Name == p.Name && x.Design.Key.Equals(db.Cache.RefOf(existing[p.Design == strong ? 0 : 1]).Key))))
+        {
+            Console.WriteLine("The launch suppressors are already authored; nothing to do.");
+            return 0;
+        }
+        if (existing.Any(d => d != null) || presentProducts.Length != 0)
+            throw new InvalidOperationException("The launch suppressors are partly authored; the catalog needs a human.");
+
+        Console.WriteLine("New designs:");
+        foreach (var design in designs)
+        {
+            var data = design.Behaviors.OfType<LaunchSuppressorData>().Single();
+            Console.WriteLine($"  {design.Name,-18} {design.Shape.Width}x{design.Shape.Height} {design.Hardpoint}  mass {design.Mass:0.##}  price {design.Price}  durability {design.Durability:0.##}  roles [{string.Join(", ", design.Roles.Select(r => r.Name))}]");
+            foreach (var (label, stat) in new[] { ("Factor", data.Factor), ("HeatPerUnit", data.HeatPerUnit), ("RatedTemperature", data.RatedTemperature) })
+                Console.WriteLine($"      {label} {stat.Min:0.##}-{stat.Max:0.##} ({stat.Terms.Single().Role})");
+            Console.WriteLine($"      \"{design.Description}\"");
+        }
+        Console.WriteLine("\nNew products:");
+        foreach (var (design, name, maker, description) in products)
+        {
+            var (mean, dev) = MakerProfiles[maker];
+            Console.WriteLine($"  {design.Name} -> \"{name}\" by {maker}, every role mean {mean:0.##} dev {dev:0.##}: {description}");
+        }
+
+        if (!apply)
+        {
+            Console.WriteLine($"\nDry run. Pass \"apply\" to author 2 designs and {products.Length} products.");
+            return 0;
+        }
+
+        foreach (var design in designs) CultRecordRefs.Validate(design);
+        db.Cache.Commit(batch =>
+        {
+            var keys = new Dictionary<GearData, CultRecordKey>();
+            foreach (var design in designs) keys[design] = batch.Upsert(typeof(GearData), design);
+            foreach (var (design, name, maker, description) in products)
+            {
+                var (mean, dev) = MakerProfiles[maker];
+                batch.Upsert(typeof(FactionProductData), new FactionProductData
+                {
+                    Name = name,
+                    Description = description,
+                    Design = new CultRecordRef<CraftedItemData>(keys[design]),
+                    Manufacturer = db.Cache.RefOf(Maker(maker)),
+                    Roles = design.Roles.Select(r => new ProductRole { Role = r.Name, Mean = mean, StandardDeviation = dev }).ToList(),
+                });
+            }
+        });
+        Console.WriteLine($"\nAuthored 2 designs and {products.Length} products in Aetheria.cc");
+        return 0;
+    }
+
 
 }
