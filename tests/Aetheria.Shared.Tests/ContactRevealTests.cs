@@ -72,6 +72,8 @@ public sealed partial class ContactRevealTests : IDisposable
             cache.Upsert(Suppressor("SuppressorOpen", factor: 1f, heatPerUnit: 2f));
             cache.Upsert(Suppressor("SuppressorHalf", factor: .5f, heatPerUnit: 1f));
             cache.Upsert(Suppressor("SuppressorFifth", factor: .2f, heatPerUnit: 10f));
+            cache.Upsert(Suppressor("SuppressorBright", factor: 3f, heatPerUnit: 2f));
+            cache.Upsert(Suppressor("SuppressorNegative", factor: -1f, heatPerUnit: 2f));
             var gun = Armed(new InstantWeaponData { Count = Const(1), BurstTime = Const(0), Cooldown = Const(1) }, 5);
             cache.Upsert(new WeaponItemData
             {

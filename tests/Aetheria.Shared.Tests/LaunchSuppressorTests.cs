@@ -136,6 +136,62 @@ public sealed partial class ContactRevealTests
         Assert.True(ship.Temperature[cell.x, cell.y] > 300f);
     }
 
+    // The rated temperature (400) belongs to the suppressor, and a suppressor running exactly at it still works: only
+    // "exceeds" stops it. One step either side pins which side of the line the boundary itself falls on.
+    [Fact]
+    public void ASuppressorAtExactlyItsRatedTemperatureStillSuppressesAndOneStepAboveDoesNot()
+    {
+        var ship = Add(float3(0, 0, 0), null, new[] { "Suppressor" });
+        var cell = CellOf(SuppressorItem(ship, "Suppressor"));
+        var source = new object();
+
+        ship.Temperature[cell.x, cell.y] = 399.99f; // one step below
+        ship.SetSignature(source, SignatureChannel.LaunchFlash, 5f, null);
+        Assert.Equal(.5f, ship.VisibilitySources[source].Strength, 3);
+
+        ship.Temperature[cell.x, cell.y] = 400f; // exactly rated
+        var atRated = Snapshot(ship);
+        ship.SetSignature(source, SignatureChannel.LaunchFlash, 5f, null);
+        Assert.Equal(.5f, ship.VisibilitySources[source].Strength, 3);
+        Assert.True(ship.Temperature[cell.x, cell.y] > atRated[cell.x, cell.y]); // and it paid
+
+        ship.Temperature[cell.x, cell.y] = 400.01f; // one step above
+        var above = Snapshot(ship);
+        ship.SetSignature(source, SignatureChannel.LaunchFlash, 5f, null);
+        Assert.Equal(5f, ship.VisibilitySources[source].Strength, 3);
+        AssertOnlyCellsMoved(above, ship);
+    }
+
+    // ---- The factor is clamped to 0..1 ----
+
+    [Fact]
+    public void AFactorAboveOneNeverBrightensTheFlashOrCoolsTheShip()
+    {
+        var ship = Add(float3(0, 0, 0), null, new[] { "SuppressorBright" }); // authored Factor 3
+        var before = Snapshot(ship);
+        var source = new object();
+
+        ship.SetSignature(source, SignatureChannel.LaunchFlash, 5f, null);
+
+        Assert.Equal(5f, ship.VisibilitySources[source].Strength, 3); // clamped to 1: the flash is as written
+        AssertOnlyCellsMoved(before, ship);                           // and nothing was "removed", so no heat, hot or cold
+    }
+
+    [Fact]
+    public void AFactorBelowZeroRemovesTheWholeFlashAndNoMore()
+    {
+        var ship = Add(float3(0, 0, 0), null, new[] { "SuppressorNegative" }); // authored Factor -1
+        var cell = CellOf(SuppressorItem(ship, "SuppressorNegative"));
+        var before = Snapshot(ship);
+        var source = new object();
+
+        ship.SetSignature(source, SignatureChannel.LaunchFlash, 5f, null);
+
+        Assert.Equal(0f, ship.VisibilitySources[source].Strength, 3);       // clamped to 0: no negative light
+        AssertHeat(5f * 2f, ship, cell, before[cell.x, cell.y]);            // paid for exactly the 5 it removed
+        AssertOnlyCellsMoved(before, ship, cell);
+    }
+
     // ---- OnlyTheLaunchFlashChannelIsScaled ----
 
     [Fact]
