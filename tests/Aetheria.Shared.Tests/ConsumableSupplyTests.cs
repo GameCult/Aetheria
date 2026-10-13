@@ -335,11 +335,13 @@ public sealed class ConsumableSupplyTests : IDisposable
         }
 
         // What the plain catalog leaves in both generators' Random, measured on the tree before consumables existed
-        // (origin/master d4a27def, the same fixture and seeds). The gated and plain catalogs agreeing is not enough:
-        // a step that drew unconditionally would draw in both. This pins the value itself.
+        // (origin/master d4a27def, the same fixture and seeds), plus the one product draw each of the three generated
+        // ships makes for its tractor beam (loot-2): with that draw taken out the tree leaves the d4a27def values
+        // 0.85624266, 0.037778974, 0.7931649, 0.3596493, 0.17511952, 0.6642336, 0.31897342, 0.5977364. The gated and
+        // plain catalogs agreeing is not enough: a step that drew unconditionally would draw in both. This pins the value itself.
         var beforeConsumables = new[]
         {
-            0.85624266f, 0.037778974f, 0.7931649f, 0.3596493f, 0.17511952f, 0.6642336f, 0.31897342f, 0.5977364f
+            0.3596493f, 0.03616327f, 0.8790466f, 0.16682059f, 0.5977364f, 0.08633745f, 0.2869571f, 0.6890472f
         };
         var plainAfter = AfterGeneration(plain);
         Assert.Equal(beforeConsumables, plainAfter);
