@@ -2,6 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
+using System.Linq;
 using CultMath;
 
 // Light signatures split by channel (ruling visibility-per-capability-reveal): an observer learns what a ship
@@ -116,6 +117,32 @@ public readonly struct Reveal
         Bearing = bearing;
         Time = time;
     }
+}
+
+// One weapon row of a ship's schematic as its viewer is entitled to read it (aetheria-ew, classify-from-belief; ruling
+// ew-claim-weapon-measure-ruled). Made only by Entity.SchematicRows. `Item` is the true item: the selection mark's key and,
+// on the viewer's own ship, the live gear. `Claimed` is the class the row shows. The range label is the live range on
+// the viewer's own ship and the claimed design's rated range on any other; the viewer never sees a target weapon's
+// quality, wear or power. A renderer shows these and decides nothing.
+public readonly struct SchematicRow
+{
+    public readonly EquippedItem Item;
+    public readonly EquippableItemData Claimed;
+    private readonly bool _own;
+
+    internal SchematicRow(EquippedItem item, EquippableItemData claimed, bool own)
+    {
+        Item = item;
+        Claimed = claimed;
+        _own = own;
+    }
+
+    // What a renderer compares to know the rows changed. Range is a reading, not part of the key.
+    public (EquippedItem, EquippableItemData) Key => (Item, Claimed);
+
+    public float Range => _own
+        ? Item.Behaviors.OfType<Weapon>().First().Range
+        : Claimed.Behaviors.OfType<WeaponData>().First().RatedRange;
 }
 
 // A subject's removal from a zone as the zone recorded it (death, dock, warp, any removal): where it was and how

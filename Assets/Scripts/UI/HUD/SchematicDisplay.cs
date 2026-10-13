@@ -58,10 +58,8 @@ public class SchematicDisplay : MonoBehaviour
 
     public class SchematicDisplayItem
     {
-        // The true item: the selection mark's key and, on the player's own ship, the live gear. Never classifies an enemy row.
-        public EquippedItem Item;
-        // The class the row shows: the claim the player's book holds for an enemy row, the item's own data on the player's ship.
-        public EquippableItemData Claimed;
+        // The row Entity.SchematicRows derived: which item, which class and which range it shows.
+        public SchematicRow Row;
         public SchematicListElement ListElement;
         public IProgressBehavior Cooldown;
         // public ItemUsage ItemUsage;
@@ -99,16 +97,9 @@ public class SchematicDisplay : MonoBehaviour
         BuildRows(WeaponRows());
     }
 
-    private static bool IsWeapon(EquippedItem item) => item.Behaviors.Any(b => b.Data is WeaponData);
-
-    // An enemy schematic lists what `_player` believes the ship's weapons are: the weapon reveals of the player's book on
-    // it (Entity.RevealedWeapons), in book order (ruling reveal-ends-on-perception), each shown as the class it claimed
-    // (aetheria-ew, classify-from-belief), never the ship's live gear. The player's own schematic is its equipment, each
-    // row its own data; there is nothing to doubt about your own ship.
-    private IEnumerable<(EquippedItem Item, EquippableItemData Claimed)> WeaponRows() =>
-        _enemy
-            ? _player.RevealedWeapons(_entity).Select(r => (r.Item, r.Claimed))
-            : _entity.Equipment.Where(IsWeapon).Select(item => (item, item.Data));
+    // Which rows, which class and which range label are Entity.SchematicRows' decision (aetheria-ew, classify-from-belief);
+    // this display only renders them.
+    private IEnumerable<SchematicRow> WeaponRows() => (_player ?? _entity).SchematicRows(_entity);
 
     private void ReturnRows()
     {
@@ -118,13 +109,12 @@ public class SchematicDisplay : MonoBehaviour
         _schematicItems = null;
     }
 
-    private void BuildRows(IEnumerable<(EquippedItem Item, EquippableItemData Claimed)> rows)
+    private void BuildRows(IEnumerable<SchematicRow> rows)
     {
         _schematicItems = rows
             .Select(x => new SchematicDisplayItem
             {
-                Item = x.Item,
-                Claimed = x.Claimed,
+                Row = x,
                 ListElement = ListElementPrototype.Instantiate<SchematicListElement>(),
                 Cooldown = _enemy ? null : (IProgressBehavior) x.Item.Behaviors.FirstOrDefault(b=> b is IProgressBehavior),
                 // ItemUsage = _enemy ? null : (ItemUsage) x.Behaviors.FirstOrDefault(b=> b is ItemUsage),
@@ -133,7 +123,7 @@ public class SchematicDisplay : MonoBehaviour
             .ToArray();
         foreach (var x in _schematicItems)
         {
-            if(x.Claimed is WeaponItemData weaponItemData)
+            if(x.Row.Claimed is WeaponItemData weaponItemData)
                 x.ListElement.ShowWeapon(weaponItemData);
             //x.ListElement.Label.text = x.Item.EquippableItem.Name;
             if (!_enemy)
@@ -205,7 +195,7 @@ public class SchematicDisplay : MonoBehaviour
 
             // A reveal gained or ended after selection changes the rows with no event to hook: rebuild when the
             // revealed weapon set differs from the rows' items.
-            if (_enemy && !WeaponRows().SequenceEqual(_schematicItems.Select(x => (x.Item, x.Claimed))))
+            if (_enemy && !WeaponRows().Select(r => r.Key).SequenceEqual(_schematicItems.Select(x => x.Row.Key)))
             {
                 ReturnRows();
                 BuildRows(WeaponRows());
@@ -216,7 +206,7 @@ public class SchematicDisplay : MonoBehaviour
             // as info decays, with no event to hook.
             if (_enemy && _schematicItems != null)
                 foreach (var x in _schematicItems)
-                    x.ListElement.SetSelected(x.Item == _player.ResolvedTargetItem);
+                    x.ListElement.SetSelected(x.Row.Item == _player.ResolvedTargetItem);
 
             if(VisibilityLabel && !_enemy)
                 VisibilityLabel.text = ((int)_entity.Visibility).ToString();
@@ -234,11 +224,11 @@ public class SchematicDisplay : MonoBehaviour
             {
                 if (!_enemy)
                 {
-                    var itemData = _entity.ItemManager.GetData(x.Item.EquippableItem);
-                    x.ListElement.HeatFill.anchorMax = new Vector2(unlerp(itemData.MinimumTemperature, itemData.MaximumTemperature, x.Item.Temperature), 0);
+                    var itemData = _entity.ItemManager.GetData(x.Row.Item.EquippableItem);
+                    x.ListElement.HeatFill.anchorMax = new Vector2(unlerp(itemData.MinimumTemperature, itemData.MaximumTemperature, x.Row.Item.Temperature), 0);
                     if (x.Cooldown != null)
                         x.ListElement.CooldownFill.anchorMax = new Vector2(x.Cooldown.Progress, 1);
-                    x.ListElement.DurabilityLabel.text = $"{(int)(x.Item.EquippableItem.Durability / itemData.Durability * 100)}%";
+                    x.ListElement.DurabilityLabel.text = $"{(int)(x.Row.Item.EquippableItem.Durability / itemData.Durability * 100)}%";
                     if (x.Weapon.WeaponData.AmmoType.IsSet())
                     {
                         if(x.Weapon.WeaponData.MagazineSize > 1)
@@ -248,13 +238,8 @@ public class SchematicDisplay : MonoBehaviour
                     }
                 }
 
-                // The range label: the live range on the player's own ship, the claimed design's rated range on an enemy row
-                // (ew-claim-weapon-measure-ruled; the observer never sees a target weapon's quality, wear or power).
                 if (x.ListElement.RangeLabel)
-                {
-                    var range = _enemy ? x.Claimed.Behaviors.OfType<WeaponData>().First().RatedRange : x.Weapon.Range;
-                    x.ListElement.RangeLabel.text = ((int) range).ToString();
-                }
+                    x.ListElement.RangeLabel.text = ((int) x.Row.Range).ToString();
             }
         }
     }

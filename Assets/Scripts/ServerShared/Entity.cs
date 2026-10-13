@@ -985,6 +985,15 @@ public abstract class Entity
         RevealsOf(subject).Where(r => r.Claimed != null && r.Claimed.Behaviors.Any(b => b is WeaponData))
             .OrderBy(r => subject.Equipment.IndexOf(r.Item));
 
+    // The weapon rows of `subject`'s schematic as this ship reads it: its own equipment when `subject` is this ship (each
+    // row its own data and live range, nothing to doubt about your own ship), otherwise RevealedWeapons (each row the
+    // claimed class and that design's rated range). The one owner of which rows, which class and which range an
+    // enemy schematic shows; the Unity SchematicDisplay renders it.
+    public IEnumerable<SchematicRow> SchematicRows(Entity subject) =>
+        subject == this
+            ? subject.Equipment.Where(i => i.Behaviors.Any(b => b.Data is WeaponData)).Select(i => new SchematicRow(i, i.Data, true))
+            : RevealedWeapons(subject).Select(r => new SchematicRow(r.Item, r.Claimed, false));
+
     // Whether this observer's book for `subject` holds `item`: the book's membership, no live gear read.
     internal bool HasReveal(Entity subject, EquippedItem item) =>
         _reveals.TryGetValue(subject, out var book) && book.ContainsKey(item);

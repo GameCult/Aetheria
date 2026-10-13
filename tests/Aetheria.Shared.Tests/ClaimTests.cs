@@ -269,4 +269,101 @@ public sealed partial class ContactRevealTests
             }
         }
     }
+    // ---- The schematic's rows (ruling ew-claim-weapon-measure-ruled; finding schematic-unreached) ----
+
+    // The unclaimed enemy row is the true gun, with the gun's own rated range (Gun: 40). Mutation: the row's Item.Data or
+    // the true live range stands in for the claim.
+    [Fact]
+    public void AnEnemySchematicRowDefaultsToTheTruth()
+    {
+        var e = Add(float3(30, 0, 40), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var gun = Guns(e)[0];
+        Fire(e, gun);
+
+        var row = Assert.Single(o.SchematicRows(e));
+        Assert.Same(gun, row.Item);
+        Assert.Same(gun.Data, row.Claimed);
+        Assert.Equal(40f, row.Range);
+    }
+
+    // A weapon claimed as another weapon shows the claimed design's rated range (SpanGun: Range.Max 120), not the true
+    // gun's 40. Mutation: Range reads the true item, or the claimed stat's Min (50), or scales the figure.
+    [Fact]
+    public void AWeaponClaimedAsAnotherWeaponShowsTheClaimedRatedRange()
+    {
+        var e = Add(float3(30, 0, 40), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var gun = Guns(e)[0];
+        var other = DataOf("SpanGun");
+        e.Claim(gun, other);
+        Fire(e, gun);
+
+        var row = Assert.Single(o.SchematicRows(e));
+        Assert.Same(gun, row.Item);
+        Assert.Same(other, row.Claimed);
+        Assert.Equal(120f, row.Range);
+    }
+
+    // Mutation: the rows are the book's reveals (RevealsOf) or the subject's equipment.
+    [Fact]
+    public void AWeaponClaimedAsANonWeaponHasNoSchematicRow()
+    {
+        var e = Add(float3(30, 0, 40), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var gun = Guns(e)[0];
+        e.Claim(gun, DataOf("Eye"));
+        Fire(e, gun);
+
+        Assert.Empty(o.SchematicRows(e));
+        Assert.Single(o.RevealsOf(e));
+    }
+
+    // Unrevealed gear never appears on an enemy schematic: a ship that has not fired shows no row.
+    [Fact]
+    public void AnArmedShipThatNeverFiredHasNoEnemySchematicRow()
+    {
+        var e = Add(float3(30, 0, 40), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        Tick(.1f);
+        Assert.Empty(o.SchematicRows(e));
+    }
+
+    // Your own schematic is your own gear whatever you claim: the true data, the live range, weapons only.
+    // Mutation: own rows read ClaimOf or the rated range of the claim (SpanGun 120), or list non-weapons.
+    [Fact]
+    public void OwnSchematicRowsShowOwnTruth()
+    {
+        var e = Add(float3(30, 0, 40), new[] { "Gun" });
+        var gun = Guns(e)[0];
+        e.Claim(gun, DataOf("SpanGun"));
+
+        var row = Assert.Single(e.SchematicRows(e));
+        Assert.Same(gun, row.Item);
+        Assert.Same(gun.Data, row.Claimed);
+        Assert.Equal(40f, row.Range);
+        Assert.Equal(gun.Behaviors.OfType<Weapon>().Single().Range, row.Range);
+    }
+
+    // The renderer rebuilds when the key differs: a claim that changes between two acts changes the key, and an
+    // unchanged claim does not. Mutation: Key drops Claimed.
+    [Fact]
+    public void TheRebuildKeyChangesWhenAClaimChanges()
+    {
+        var e = Add(float3(30, 0, 40), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var gun = Guns(e)[0];
+        Fire(e, gun);
+        var before = o.SchematicRows(e).Select(r => r.Key).ToArray();
+        Assert.Equal(before, o.SchematicRows(e).Select(r => r.Key).ToArray());
+
+        e.Claim(gun, DataOf("SpanGun"));
+        e.SetSignature(new object(), SignatureChannel.LaunchFlash, 1000000f, gun);
+        Tick(.1f);
+
+        var after = o.SchematicRows(e).Select(r => r.Key).ToArray();
+        Assert.Single(after);
+        Assert.NotEqual(before, after);
+        Assert.Same(DataOf("SpanGun"), after[0].Item2);
+    }
 }
