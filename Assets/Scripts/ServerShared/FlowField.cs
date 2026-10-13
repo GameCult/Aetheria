@@ -1,5 +1,7 @@
 using CultMath;
 using static CultMath.math;
+using float2 = CultMath.float2;
+using float3 = CultMath.float3;
 
 /// <summary>
 /// The global flow law: the one definition of the drift that stardust and nebula follow and that the sim knows.
