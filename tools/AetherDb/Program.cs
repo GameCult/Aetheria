@@ -50,8 +50,9 @@ public static class Program
                 Console.OutputEncoding = new System.Text.UTF8Encoding(false);
                 return PiratesFaction(args.Contains("apply"));
             case "verse-grammar": return VerseGrammarCommand.Run(args.Contains("apply"));
+            case "generic-designs": return GenericDesigns(args.Contains("apply"));
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], smoke-hull [apply], smoke-rounds [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], pirates-faction [apply], verse-grammar [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], smoke-hull [apply], smoke-rounds [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], pirates-faction [apply], verse-grammar [apply], generic-designs [apply]");
                 return 1;
         }
     }
@@ -233,7 +234,7 @@ public static class Program
             {
                 ["EnergyDraw"] = "heating element", ["Heat"] = "heating element",
             },
-            ["PotaT+-"] = new Dictionary<string, string>
+            ["Capacitor"] = new Dictionary<string, string>
             {
                 ["Capacity"] = "storage cell", ["Efficiency"] = "converter",
             },
@@ -2244,6 +2245,210 @@ public static class Program
             }
         });
         Console.WriteLine($"\nAuthored 2 designs and {products.Length} products in Aetheria.cc");
+        return 0;
+    }
+
+    // generic-designs: the rename, brand and product-text tables (map: "Generic design names", "Content: brands, flavour and
+    // functional text"). Public so the command test reads the same rows the command writes.
+    public static readonly (string Old, string Generic, string Functional)[] Renames =
+    {
+        ("ClearPath", "Light Machine Gun", "Light ballistic hose: many small rounds at short range."),
+        ("6k Shooter", "Slug Rifle", "Single heavy slugs, fired as fast as the trigger."),
+        ("Earp", "Long Slug Rifle", "A lighter slug rifle with the longest ballistic reach."),
+        ("DeathCluster", "Cluster Cannon", "Medium shotgun: a heavy volley of pellets."),
+        ("pretty pretty bang bang", "Charged Scattergun", "Ballistic shotgun that charges for a heavier volley."),
+        ("Spectra", "Light Laser", "The lightest beam: low damage, quick cycle, long reach."),
+        ("FastBlast+-", "Cell Blaster", "Rapid energy bursts fed by cells that cut its reactor draw."),
+        ("ColdFire", "Long Laser", "Heavy small beam: slow, hard-hitting, long reach."),
+        ("CShot RainbowLite Lazer", "Heavy Beam Laser", "The heaviest beam: nine cells, enormous damage and reach."),
+        ("ChargeBlast+-", "Charged Blaster", "One charged knockout shot."),
+        ("ChargeBlast SG", "Charged Scatter Blaster", "Charged energy shotgun."),
+        ("plight", "Lightning Projector", "Charged chain lightning."),
+        ("GT 3K", "Guided Missile Launcher", "Fires guided missiles."),
+        ("LRMM72", "Long-Range Missile Rack", "Large missile rack for long engagements."),
+        ("SRMM72", "Short-Range Missile Rack", "Extra-large rack of short-range missiles."),
+        ("pswarm", "Swarm Rocket Pod", "Dumbfire rockets in a swarm."),
+        ("scorched void policy", "Incendiary Rocket Pod", "Incendiary dumbfire rockets."),
+        ("Arctica", "Adaptive Radiator", "Radiator whose output scales widely with conditions."),
+        ("Iapyx", "Radiator", "Standard two-cell radiator."),
+        ("Skiron", "Long Radiator", "Four-cell radiator with a large surface."),
+        ("OK Disperser", "Heat Pump", "Moves heat to where it can be shed."),
+        ("cold like my heart", "Cryogenic Heat Pump", "Heavy heat pump that drives temperatures far down."),
+        ("Core Power", "Compact Reactor", "Small reactor."),
+        ("Manhattan", "Heavy Reactor", "Large three-by-three reactor."),
+        ("Notorious", "High-Yield Reactor", "Large reactor with a wide output range."),
+        ("Vulcan", "Ring Reactor", "Ring-shaped reactor, four by four."),
+        ("MoveOnPro", "Muon Fusion Reactor", "Compact fusion reactor that draws a reservoir."),
+        ("Core Power Station Reactor", "Station Reactor", "A reactor sized for a station's core."),
+        ("Manhattan Station Reactor", "Heavy Station Reactor", "A heavy reactor sized for a station's core."),
+        ("Notorious Station Reactor", "High-Yield Station Reactor", "A high-yield reactor sized for a station's core."),
+        ("Vulcan Station Reactor", "Ring Station Reactor", "A ring reactor sized for a station's core."),
+        ("MoveOnPro Station Reactor", "Muon Fusion Station Reactor", "A muon fusion reactor sized for a station's core."),
+        ("RevvITup 2.0", "High-Thrust Drive", "Large drive: huge thrust, little torque."),
+        ("deep space burnout", "Burn Drive", "Large drive that runs very hot."),
+        ("Talaria", "Rugged Drive", "Two-cell working drive."),
+        ("Victoire", "Racing Drive", "Feather-light two-cell drive with extreme response."),
+        ("The Bat", "Sensor Array", "Two-by-two long-range sensor array."),
+        ("not if i see you first", "Compact Sensor", "One-cell sensor."),
+        ("PotaT+-", "Capacitor", "Stores charge for burst draw."),
+        ("SafeStuff II", "Secure Cargo Bay", "Three-by-three secured hold."),
+        ("Store-All Enterprise Edition", "Large Cargo Bay", "Six-by-six hold."),
+        ("Store-All Plus", "Cargo Bay", "Two-by-two hold."),
+        ("Store-All Plus Mini", "Small Cargo Bay", "One-cell hold."),
+    };
+
+    public static readonly (string Design, string Maker, string OldProduct, string Brand, string Text, string DesignText)[] Brands =
+    {
+        ("Autocannon", "Zhestokost", "Autocannon", "Hammerfall",
+            "The rounds fall steadily, and they do not stop until the work is done.",
+            "Belt-fed cannon: a steady stream of rounds at long reach."),
+        ("Cockpit 2x2", "Lightsail", "Cockpit 2x2", "Wheelhouse",
+            "Every Lightsail captain's favourite chair. The view comes standard.",
+            "Two-by-two crew cockpit."),
+        ("Industrial Thermostatic Heater", "Lightsail", "Industrial Thermostatic Heater", "Hearth",
+            "A warm hold, a warm crew, and a warm welcome at the cold end of the run.",
+            "Turns reactor power into heat to keep the hull warm."),
+        ("Medium Drive", "Lightsail", "Medium Drive", "Steady Haul",
+            "Keeps you going and going and going...",
+            "Mid-sized working drive."),
+        ("Small Drive", "Lightsail", "Small Drive", "Short Hop",
+            "Dock to dock, and not a metre further than the manifest says.",
+            "Small working drive."),
+        ("Turret Control Module", "AU", "Turret Control Module", "Watchtower",
+            "Point it at the dark and get back to work. It keeps watch.",
+            "Control module for a station turret."),
+        ("Medium Docking Bay", "AU", "Medium Docking Bay", "Open Berth",
+            "Room for a friend, a customer or a tug. We don't ask which.",
+            "Docking bay for mid-sized ships."),
+        ("Mine Launcher", "DME", "Mine Launcher", "parting gift",
+            "we were never here/ but we left you something/ it's waiting where we were",
+            "Lays a drifting proximity mine that arms after two seconds."),
+    };
+
+    public static readonly (string Product, string Maker, string Text)[] ProductTexts =
+    {
+        ("Victoire", "Alakrita",
+            "The most responsive thruster on the market, for the most irresponsible of racing pilots."),
+        ("DragOnBreath", "Lucent",
+            "Chain lightning has your enemies chain smoking while you enjoy a relaxing DragOnBreath vapepop, now available in 17! flavours (manufactured by DragOnBreath, a subsidary of Lucent Media)"),
+        ("Steadfast", "R&D",
+            "It gets the job done, but that's all. Rated for continuous operation. \"Continuous\" does not imply \"uninterrupted.\""),
+        ("Steadfast Station", "R&D",
+            "Rated for continuous operation at station scale. The fine print scales too."),
+        ("Manhattan Station", "Zhestokost",
+            "A fortress needs a furnace. This is the furnace."),
+        ("Notorious Station", "Lucent",
+            "The biggest reaction in the system, and everyone docked here will hear about it."),
+        ("Vulcan Station", "AU",
+            "Keeps the lights on and the forges hot."),
+        ("MoveOnPro Station", "NiteLife",
+            "The club never closes. Neither does the reactor."),
+        ("LRMM72", "R&D",
+            "Engages targets at up to seventy-two kilometres!* *In a vacuum, against a cooperative target."),
+        ("SRMM72", "DME",
+            "seventy-two reasons/ to keep your distance/ all of them leaving at once"),
+        ("Iapyx", "AU",
+            "Two cells of honest fin. Bolt it on and forget it's there."),
+        ("Skiron", "AU",
+            "When the job runs hot, run a bigger fin."),
+        ("Talaria", "AU",
+            "Takes a knock, keeps pushing. Built for crews who work for a living."),
+        ("RevvITup 2.0", "NiteLife",
+            "Floor it. The bass drops when you do."),
+        ("PotaT+-", "NiteLife",
+            "Holds the charge until the drop, then lets it all go at once."),
+        ("not if i see you first", "DME",
+            "eyes in the dark/ you were seen before you looked/ say goodnight"),
+    };
+
+    // generic-designs: a design is named and described like a node on a tech tree, and the brand lives in the product it
+    // sells (rulings catalog-grows-generic-designs-branded-products, kitchen-sink-content, designs-are-tech-nodes). A
+    // Renames row renames the design found under its old name and gives it the functional text; a Brands row renames the
+    // maker's same-named product and sets its text and the design's functional text; ProductTexts sets the rest; every
+    // shipped product text ending in the authoring note " (new text)" loses it. Dry run unless passed "apply".
+    public static int GenericDesigns(bool apply, string root = null)
+    {
+        const string AuthoringNote = " (new text)";
+        var db = AetherDb.Open(catalogWritable: apply, root: root);
+        var designs = db.Cache.GetAll<EquippableItemData>().ToArray();
+        var products = db.Cache.GetAll<FactionProductData>().ToArray();
+        string MakerOf(FactionProductData product) => db.Cache.Get(product.Manufacturer)?.ShortName;
+        var changed = new Dictionary<object, CultRecordKey>(ReferenceEqualityComparer.Instance);
+        var report = new List<string>();
+
+        void Write(object document, string what, string before, string after)
+        {
+            changed[document] = db.Cache.RefOf(document).Key;
+            report.Add($"{what}: \"{before}\" -> \"{after}\"");
+        }
+
+        foreach (var (old, generic, functional) in Renames)
+        {
+            var found = designs.Where(d => d.Name == old).ToArray();
+            var held = designs.Where(d => d.Name == generic).ToArray();
+            if (found.Length == 0 && held.Length == 0) throw new InvalidOperationException($"Rename row \"{old}\" -> \"{generic}\": no design carries either name.");
+            if (found.Length == 0) continue;
+            if (held.Length != 0) throw new InvalidOperationException($"Rename row \"{old}\" -> \"{generic}\": the generic name is already held by another design.");
+            if (found.Length != 1) throw new InvalidOperationException($"Rename row \"{old}\" -> \"{generic}\": {found.Length} designs carry the old name.");
+            var design = found[0];
+            Write(design, "design name", design.Name, generic);
+            design.Name = generic;
+            if (design.Description != functional) Write(design, $"design \"{generic}\" text", design.Description, functional);
+            design.Description = functional;
+        }
+
+        foreach (var (designName, maker, oldProduct, brand, text, designText) in Brands)
+        {
+            var found = designs.Where(d => d.Name == designName).ToArray();
+            if (found.Length != 1) throw new InvalidOperationException($"Brand row \"{brand}\": {found.Length} designs are named \"{designName}\".");
+            var design = found[0];
+            var key = db.Cache.RefOf(design).Key;
+            var sold = products.Where(p => p.Design.Key.Equals(key) && MakerOf(p) == maker).ToArray();
+            var product = sold.FirstOrDefault(p => p.Name == brand) ?? sold.FirstOrDefault(p => p.Name == oldProduct);
+            if (product == null) throw new InvalidOperationException($"Brand row \"{brand}\": {maker} sells no product of \"{designName}\" under either name.");
+            if (product.Name == brand) continue;
+            if (products.Any(p => !ReferenceEquals(p, product) && p.Name == brand)) throw new InvalidOperationException($"Brand row \"{brand}\": the brand is already held by another product.");
+            Write(product, $"product of \"{designName}\" by {maker}", product.Name, brand);
+            product.Name = brand;
+            Write(product, $"product \"{brand}\" text", product.Description, text);
+            product.Description = text;
+            if (design.Description != designText) Write(design, $"design \"{designName}\" text", design.Description, designText);
+            design.Description = designText;
+        }
+
+        foreach (var (name, maker, text) in ProductTexts)
+        {
+            var found = products.Where(p => p.Name == name && MakerOf(p) == maker).ToArray();
+            if (found.Length != 1) throw new InvalidOperationException($"Product text row \"{name}\" by {maker}: {found.Length} products match.");
+            if (found[0].Description == text) continue;
+            Write(found[0], $"product \"{name}\" text", found[0].Description, text);
+            found[0].Description = text;
+        }
+
+        foreach (var product in products.Where(p => p.Description != null && p.Description.EndsWith(AuthoringNote, StringComparison.Ordinal)))
+        {
+            var stripped = product.Description.Substring(0, product.Description.Length - AuthoringNote.Length);
+            Write(product, $"product \"{product.Name}\" authoring note stripped", product.Description, stripped);
+            product.Description = stripped;
+        }
+
+        if (changed.Count == 0)
+        {
+            Console.WriteLine("Already applied; nothing to do.");
+            return 0;
+        }
+        foreach (var line in report) Console.WriteLine(line);
+        if (!apply)
+        {
+            Console.WriteLine($"\nDry run. Pass \"apply\" to write {changed.Count} records.");
+            return 0;
+        }
+        foreach (var document in changed.Keys) CultRecordRefs.Validate(document);
+        db.Cache.Commit(batch =>
+        {
+            foreach (var (document, key) in changed) batch.Upsert(document.GetType(), document, key);
+        });
+        Console.WriteLine($"\nWrote {changed.Count} records to Aetheria.cc");
         return 0;
     }
 
