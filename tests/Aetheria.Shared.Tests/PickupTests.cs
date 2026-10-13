@@ -107,14 +107,13 @@ public sealed class PickupTests : IDisposable
         return new Lab { Items = items, Zone = zone };
     }
 
-    // A ship with a cargo bay, aimed along +x and (unless told otherwise) carrying the tractor beam.
-    private static Ship Spawn(Lab lab, float3 at, bool beam = true)
+    // A ship with `bays` cargo bays (bays are equipped before the zone admits the ship), aimed along +x and
+    // (unless told otherwise) carrying the tractor beam.
+    private static Ship Spawn(Lab lab, float3 at, bool beam = true, int bays = 1)
     {
         var hull = lab.Items.ItemData.RefOf<ItemData>(lab.Items.ItemData.GetByName<HullData>("Skiff"));
         var ship = new Ship(lab.Items, lab.Zone, new EquippableItem { Data = hull, Durability = 1000000, Lot = lab.Lot++ }, new EntitySettings());
-        var crate = lab.Make("Crate");
-        Assert.True(ship.TryFindSpace(crate, out var cratePos));
-        Assert.True(ship.TryEquip(crate, cratePos));
+        for (var i = 0; i < bays; i++) Equip(ship, lab.Make("Crate"));
         if (beam) Equip(ship, lab.Make("Tractor"));
         lab.Zone.Admit(ship, piloted: false);
         ship.Position = at;
@@ -402,6 +401,26 @@ public sealed class PickupTests : IDisposable
         Assert.False(lab.Zone.FloatingItems.Contains(ore), "ore is still in the zone");
         Assert.True(lab.Zone.FloatingItems.Contains(block), "block left the zone");
         Assert.True(block.Holder == null, "block is held");
+    }
+
+    [Fact]
+    public void TheBeamTakesFromWhicheverBayCanStore()
+    {
+        using var bag = new CompositeDisposable();
+        var lab = Build(Beam());
+        var ship = Spawn(lab, float3(0, 0, 0), bays: 2);
+        Assert.Equal(2, ship.CargoBays.Count);
+        // The first bay is full; only the second can take the ore.
+        for (var i = 0; i < 16; i++) Assert.True(ship.CargoBays[0].TryStore(lab.Make("Spare")));
+        var ore = Drift(lab, 40, 0);
+        var events = Watch(ship, bag);
+        ship.TractorCommand = 1;
+        Tick(lab, 300, 1 / 60f);
+        Assert.Contains(events, e => e.Phase == GrabPhase.Started && e.Target == ore.Id);
+        Assert.Contains(events, e => e.Phase == GrabPhase.Completed);
+        Assert.False(lab.Zone.FloatingItems.Contains(ore), "ore is still in the zone");
+        Assert.Equal(16, ship.CargoBays[0].Cargo.Count);
+        Assert.Single(ship.CargoBays[1].Cargo);
     }
 
     [Fact]
