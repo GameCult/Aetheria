@@ -138,8 +138,7 @@ public sealed class TargetingSystemTests : IDisposable
             targetingItem = target.Equipment.Single(e => e.EquippableItem == targeting);
         }
 
-        zone.Entities.Add(target);
-        target.Activate();
+        zone.Admit(target, piloted: false);
 
         return (items, target, weapon, wideItem, narrowItem, targetingItem);
     }
@@ -151,8 +150,7 @@ public sealed class TargetingSystemTests : IDisposable
         var hullRef = items.ItemData.RefOf<ItemData>(items.ItemData.GetByName<HullData>("TestHull"));
         var hull = new EquippableItem { Data = hullRef, Durability = 1, Lot = 1 };
         var observer = new Ship(items, zone, hull, new EntitySettings());
-        zone.Entities.Add(observer);
-        observer.Activate();
+        zone.Admit(observer, piloted: false);
         return observer;
     }
 
@@ -388,9 +386,8 @@ public sealed class TargetingSystemTests : IDisposable
             targeting.Lot = items.Lots.Add(new Lot { Design = cache.RefOf<ItemData>(targetingData), Origin = new Attributed(), Quality = .5f, Roles = new System.Collections.Generic.List<RoleFill>() });
             Assert.True(ship.TryEquip(targeting));
 
-            zone.Entities.Add(ship);
+            zone.Admit(ship, piloted: false);
             ship.Aim = float3(0, 0, 1);
-            ship.Activate();
             return ship;
         }
 
@@ -429,11 +426,12 @@ public sealed class TargetingSystemTests : IDisposable
         var cargo = cache.Upsert(new CargoBayData { Name = "Crate", Shape = new Shape(), InteriorShape = new Shape(), Price = 5 });
         var capacitor = cache.Upsert(new GearData { Name = "Cap", Hardpoint = HardpointType.Tool, Shape = new Shape(), Price = 1, Behaviors = { new CapacitorData() } });
         var targeting = cache.Upsert(new GearData { Name = "Targeting", Hardpoint = HardpointType.Tool, Shape = new Shape(), Price = 1, Behaviors = { new TargetingSystemData() } });
+        var tractor = cache.Upsert(new GearData { Name = "Tractor", Hardpoint = HardpointType.Tool, Shape = new Shape(), Price = 1, Behaviors = { new PickupData() } });
 
         foreach (var (name, design) in new[]
                  {
                      ("Armed by Maker", hull.Key), ("Gun by Maker", gun.Key), ("Crate by Maker", cargo.Key),
-                     ("Cap by Maker", capacitor.Key), ("Targeting by Maker", targeting.Key)
+                     ("Cap by Maker", capacitor.Key), ("Targeting by Maker", targeting.Key), ("Tractor by Maker", tractor.Key)
                  })
             cache.Upsert(new FactionProductData { Name = name, Design = new CultRecordRef<CraftedItemData>(design), Manufacturer = maker });
         cache.FlushAsync().Wait();

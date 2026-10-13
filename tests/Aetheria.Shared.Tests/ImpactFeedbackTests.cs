@@ -33,8 +33,7 @@ public sealed partial class FireControlCut124Tests
     {
         var hullRef = e.Items.ItemData.RefOf<ItemData>(e.Items.ItemData.GetByName<HullData>("Hull"));
         var ship = new Ship(e.Items, e.Zone, new EquippableItem { Data = hullRef, Durability = 100000, Lot = lot }, new EntitySettings());
-        e.Zone.Entities.Add(ship);
-        ship.Activate();
+        e.Zone.Admit(ship, piloted: false);
         ship.Position = position;
         return ship;
     }
@@ -136,7 +135,7 @@ public sealed partial class FireControlCut124Tests
         var gone = Build(TestSettings(), SolidShape(5, 4), velocity: 50f, damage: 100f);
         var goneAbsorbs = new[] { gone.Target, gone.Shooter }.SelectMany(x => Collect(x, subs)).ToList();
         FireControl.Fire(gone.Weapon, gone.WeaponItem, gone.Shooter);
-        gone.Zone.Entities.Remove(gone.Target);
+        gone.Zone.Remove(gone.Target);
         for (var i = 0; i < 40; i++) gone.Zone.Update(.1f);
         foreach (var s in subs) s.Dispose();
 

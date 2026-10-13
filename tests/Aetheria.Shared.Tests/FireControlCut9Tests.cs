@@ -128,10 +128,8 @@ public sealed class FireControlCut9Tests : IDisposable
         Assert.True(target.TryFindSpace(targetMarker, out var targetMarkerPos));
         Assert.True(target.TryEquip(targetMarker, targetMarkerPos));
 
-        zone.Entities.Add(shooter);
-        zone.Entities.Add(target);
-        shooter.Activate();
-        target.Activate();
+        zone.Admit(shooter, piloted: false);
+        zone.Admit(target, piloted: false);
 
         shooter.Position = float3.zero;
         target.Position = float3(0, 0, 100);
@@ -339,10 +337,8 @@ public sealed class FireControlCut9Tests : IDisposable
         var targetGun = new EquippableItem { Data = targetGunRef, Durability = 1, Lot = 5 };
         Assert.True(target.TryEquip(targetGun, new int2(0, 0)));
 
-        zone.Entities.Add(shooter);
-        zone.Entities.Add(target);
-        shooter.Activate();
-        target.Activate();
+        zone.Admit(shooter, piloted: false);
+        zone.Admit(target, piloted: false);
 
         shooter.Position = float3.zero;
         target.Position = float3(0, 0, 100);
@@ -566,10 +562,8 @@ public sealed class FireControlCut9Tests : IDisposable
         var bystanderGun = new EquippableItem { Data = bystanderGunRef, Durability = 1, Lot = 4 };
         Assert.True(bystander.TryEquip(bystanderGun, new int2(0, 0))); // _orderedEquipment must not be empty/null for Update to run
 
-        zone.Entities.Add(locker);
-        zone.Entities.Add(bystander);
-        locker.Activate();
-        bystander.Activate();
+        zone.Admit(locker, piloted: false);
+        zone.Admit(bystander, piloted: false);
 
         locker.Position = float3.zero;
         bystander.Position = float3(0, 0, 100);
@@ -602,7 +596,7 @@ public sealed class FireControlCut9Tests : IDisposable
         // the target dies or leaves while the locker is inactive -- its own Zone.Entities.ObserveRemove
         // subscription (the only thing that would have nulled Target) was disposed by Deactivate above, so
         // nothing reacts to this removal yet.
-        s.Zone.Entities.Remove(s.Bystander);
+        s.Zone.Remove(s.Bystander);
 
         s.Locker.Activate(); // undock
         Assert.True(s.Locker.Active);

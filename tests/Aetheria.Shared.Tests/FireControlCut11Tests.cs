@@ -176,10 +176,8 @@ public sealed class FireControlCut11Tests : IDisposable
             Assert.True(target.TryEquip(shield, spos));
         }
 
-        zone.Entities.Add(shooter);
-        zone.Entities.Add(target);
-        shooter.Activate();
-        target.Activate();
+        zone.Admit(shooter, piloted: false);
+        zone.Admit(target, piloted: false);
 
         shooter.Position = float3(37, 0, -11);
         target.Position = float3(37, 0, 89); // 100 units straight ahead of the shooter
@@ -279,7 +277,7 @@ public sealed class FireControlCut11Tests : IDisposable
         // What the HUD's arrival countdown reads: time left in flight at commit, 5 s - 4.7 s.
         Assert.Equal(.3f, committed.ArrivalIn, 3);
 
-        e.Zone.Entities.Remove(e.Target); // the target is gone before the shot arrives
+        e.Zone.Remove(e.Target); // the target is gone before the shot arrives
         e.Zone.Update(1f);
 
         Assert.NotNull(resolved);
@@ -306,7 +304,7 @@ public sealed class FireControlCut11Tests : IDisposable
         e.Zone.Update(1f);
         SafeAssert.Empty(committed);
 
-        e.Zone.Entities.Remove(e.Target);
+        e.Zone.Remove(e.Target);
         e.Zone.Update(1f);
 
         foreach (var outcome in new[] { SafeAssert.Only(committed), SafeAssert.Only(resolved) })

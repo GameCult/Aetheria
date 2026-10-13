@@ -82,8 +82,7 @@ public sealed class IffAndCombatTests : IDisposable
             Assert.True(ship.TryEquip(gun, HardpointCell));
         }
 
-        zone.Entities.Add(ship);
-        ship.Activate();
+        zone.Admit(ship, piloted: false);
         return ship;
     }
 
@@ -132,8 +131,9 @@ public sealed class IffAndCombatTests : IDisposable
         a.SetIff(b, true);
         Assert.True(a.EntityHostility[b]);
 
-        zone.Entities.Remove(b); // b leaves the zone: a's override on b must be cleared
-        zone.Entities.Add(b); // b returns as a "new" contact from a's perspective
+        zone.Remove(b); // b leaves the zone: a's override on b must be cleared
+        b.Deactivate();
+        zone.Admit(b, piloted: false); // b returns as a "new" contact from a's perspective
 
         Assert.False(a.EntityHostility[b]); // recomputed fresh from the derived (non-hostile) rule
         Assert.False(a.IsHostileTo(b));

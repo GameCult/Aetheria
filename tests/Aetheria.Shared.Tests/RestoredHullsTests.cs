@@ -314,9 +314,8 @@ public sealed class RestoredHullsTests
             Assert.True(ship.TryEquip(fillerItem, filled.Position));
         }
 
-        zone.Entities.Add(ship);
+        zone.Admit(ship, piloted: false);
         ship.Position = float3.zero;
-        ship.Activate();
         zone.Update(0f); // warm-up: resolves equipment stats before the driven ticks read them
         return ship;
     }
@@ -618,9 +617,8 @@ public sealed class RestoredHullsTests
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test", Owner = null }, null);
         var ship = (Ship) EntitySerializer.Unpack(items, zone, pack);
 
-        zone.Entities.Add(ship);
+        zone.Admit(ship, piloted: false);
         ship.Position = float3.zero;
-        ship.Activate();
         zone.Update(0f);
 
         ship.MovementDirection = float2(0, 1); // full forward

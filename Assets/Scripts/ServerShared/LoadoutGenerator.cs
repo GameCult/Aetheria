@@ -54,6 +54,7 @@ public class LoadoutGenerator
         var entity = new Ship(ItemManager, null, hull, ItemManager.GameplaySettings.DefaultEntitySettings);
         entity.Faction = Faction;
         OutfitEntity(entity);
+        EquipPickup(entity);
         StockConsumables(entity, ShipConsumableChance, ShipConsumableUnits);
         return EntitySerializer.Pack(entity);
     }
@@ -285,6 +286,24 @@ public class LoadoutGenerator
     {
         EquipHardpoints(entity);
         FillInterior(entity);
+    }
+
+    // Every ship carries a tractor beam: picking up needs a pickup behaviour (scenarios ruling, "everyone gets tractor
+    // beams"). It goes in after the shared outfitting, which stations and turrets also run and which adds none, into
+    // whatever interior the hull has left; a hull with no cell for one cannot be generated.
+    private void EquipPickup(Entity entity)
+    {
+        var emptyShape = entity.UnoccupiedSpace;
+        var (product, design) = RandomProduct<GearData>(2, item =>
+            item.Behaviors.Any(b => b is PickupData) &&
+            item.Shape.FitsWithin(emptyShape, out _, out _), required: true);
+        if (design == null) throw new InvalidLoadoutException("No compatible tractor beam found for ship!");
+
+        design.Shape.FitsWithin(emptyShape, out var rotation, out var position);
+        var beam = ItemManager.CreateInstance(product) as EquippableItem;
+        beam.Rotation = rotation;
+        if (!entity.TryEquip(beam, position))
+            throw new InvalidLoadoutException("Failed to equip selected tractor beam!");
     }
 
     private void EquipHardpoints(Entity entity)

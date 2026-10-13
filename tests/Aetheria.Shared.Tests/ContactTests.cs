@@ -64,8 +64,7 @@ public sealed class ContactTests : IDisposable
         {
             var hullRef = Items.ItemData.RefOf<ItemData>(Items.ItemData.GetByName<HullData>(hull));
             var ship = new Ship(Items, Zone, new EquippableItem { Data = hullRef, Durability = 1000000, Lot = Lot++ }, new EntitySettings());
-            Zone.Entities.Add(ship);
-            ship.Activate();
+            Zone.Admit(ship, piloted: false);
             ship.Position = at;
             ship.Velocity = velocity;
             return ship;

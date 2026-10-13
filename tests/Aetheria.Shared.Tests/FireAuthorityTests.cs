@@ -176,10 +176,8 @@ public sealed class FireAuthorityTests : IDisposable
         // extra gear a test needs (a second aimable item, a shield, a reactor) must go on before Activate().
         beforeActivate?.Invoke(items, shooter, target);
 
-        zone.Entities.Add(shooter);
-        zone.Entities.Add(target);
-        shooter.Activate();
-        target.Activate();
+        zone.Admit(shooter, piloted: false);
+        zone.Admit(target, piloted: false);
 
         shooter.Position = float3.zero;
         target.Position = float3(0, 0, targetRange);
@@ -327,7 +325,7 @@ public sealed class FireAuthorityTests : IDisposable
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
         var before = e.Target.Hull.Durability;
 
-        e.Zone.Entities.Remove(e.Target);
+        e.Zone.Remove(e.Target);
         e.Zone.Update(10f); // well past arrival
 
         Assert.Equal(before, e.Target.Hull.Durability);

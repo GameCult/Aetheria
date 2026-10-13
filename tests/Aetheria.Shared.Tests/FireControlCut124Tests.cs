@@ -241,10 +241,8 @@ public sealed partial class FireControlCut124Tests : IDisposable
             Assert.True(target.TryEquip(shield, spos));
         }
 
-        zone.Entities.Add(shooter);
-        zone.Entities.Add(target);
-        shooter.Activate();
-        target.Activate();
+        zone.Admit(shooter, piloted: false);
+        zone.Admit(target, piloted: false);
 
         // Off-origin (the fixture rule): the shooter sits away from the world origin, and the target sits
         // `targetRange` ahead of it along the shooter's own +z, so a stationary target's TravelDirection is
@@ -514,8 +512,7 @@ public sealed partial class FireControlCut124Tests : IDisposable
             Data = e.Items.ItemData.RefOf<ItemData>(e.Items.ItemData.GetByName<GearData>("Marker")), Durability = 1000000, Lot = lot + 1
         };
         Assert.True(ship.TryEquip(marker, new int2(1, 1)));
-        e.Zone.Entities.Add(ship);
-        ship.Activate();
+        e.Zone.Admit(ship, piloted: false);
         ship.Position = position;
         return ship;
     }
@@ -1464,7 +1461,7 @@ public sealed partial class FireControlCut124Tests : IDisposable
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
         Assert.True(SafeAssert.OnlyShot(e.Zone).Target == e.Target, "fixture: the pushed-out round keeps its target");
         e.Zone.Update(.01f);
-        e.Zone.Entities.Remove(e.Target);
+        e.Zone.Remove(e.Target);
         e.Zone.Update(3f);
 
         SafeAssert.NoShots(e.Zone);
@@ -1509,7 +1506,7 @@ public sealed partial class FireControlCut124Tests : IDisposable
         var e = Build(TestSettings(), SolidShape(5, 4), velocity: 20f, fuse: WeaponFuse.Proximity, blastRadius: 4f, damage: 100f);
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
         using var c = e.Zone.ShotCommitted.Subscribe(_ => throw new InvalidOperationException("observer"));
-        e.Zone.Entities.Remove(e.Target);
+        e.Zone.Remove(e.Target);
 
         Assert.ThrowsAny<Exception>(() => e.Zone.Update(.01f));
         var second = Record.Exception(() => e.Zone.Update(.01f));
@@ -2003,7 +2000,7 @@ public sealed partial class FireControlCut124Tests : IDisposable
 
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
         for (var i = 0; i < updatesBeforeLeaving; i++) e.Zone.Update(.01f);
-        e.Zone.Entities.Remove(e.Shooter);
+        e.Zone.Remove(e.Shooter);
         e.Zone.Update(4f);
 
         SafeAssert.NoShots(e.Zone);
@@ -2021,7 +2018,7 @@ public sealed partial class FireControlCut124Tests : IDisposable
 
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
         e.Zone.Update(.01f);
-        e.Zone.Entities.Remove(e.Shooter);
+        e.Zone.Remove(e.Shooter);
         e.Zone.Update(6f);
 
         SafeAssert.NoShots(e.Zone);
@@ -2043,7 +2040,7 @@ public sealed partial class FireControlCut124Tests : IDisposable
 
         for (var i = 0; i < 12; i++) FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
         e.Zone.Update(.01f);
-        e.Zone.Entities.Remove(e.Shooter);
+        e.Zone.Remove(e.Shooter);
         e.Zone.Update(6f);
 
         SafeAssert.NoShots(e.Zone);
@@ -2273,7 +2270,7 @@ public sealed partial class FireControlCut124Tests : IDisposable
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
         e.Zone.Update(committedFirst ? 4.6f : .01f);
         Assert.Equal(committedFirst, e.Zone.PendingShots[0].Committed);
-        e.Zone.Entities.Remove(e.Target);
+        e.Zone.Remove(e.Target);
         e.Zone.Update(6f);
 
         foreach (var s in subscriptions) s.Dispose();

@@ -72,8 +72,7 @@ public sealed class PowerTierTests : IDisposable
         ((ReactorData) reactorData.Behaviors[0]).Charge = Constant(reactorCharge);
         Assert.True(ship.TryEquip(Mint(cache, items, reactorData)));
 
-        zone.Entities.Add(ship);
-        ship.Activate();
+        zone.Admit(ship, piloted: false);
 
         var reactor = ship.GetBehavior<Reactor>();
         ship.Update(0f);

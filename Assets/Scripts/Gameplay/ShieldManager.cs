@@ -52,40 +52,6 @@ public class ShieldManager : MonoBehaviour, IAbsorbPresenter
         Debug.LogWarning("ShieldManager has no ShieldEnvelope; falling back to its own transform for the hit direction.", this);
     }
 
-    private void OnCollisionEnter(Collision other)
-    {
-        var otherShield = other.collider.GetComponent<ShieldManager>();
-        if (!otherShield)
-        {
-            var gridObject = other.collider.GetComponent<GridObject>();
-            if (gridObject)
-            {
-                var itemPickup = other.collider.GetComponent<ItemPickup>();
-                if (itemPickup)
-                {
-                    if (Entity.CargoBays.Any(c => c.TryStore(itemPickup.Item)))
-                    {
-                        // TODO: Pickup notification!
-                        Destroy(itemPickup.gameObject);
-                    }
-                    else
-                    {
-                        // TODO: Pickup failed notification!
-                        var cp = other.GetContact(0);
-                        gridObject.Velocity += cp.normal * 25;
-                        Debug.Log("Attempted item pickup, but no space in cargo bay!");
-                    }
-                }
-                else
-                {
-                    Debug.Log("Shield collision occurred with grid object, but other collider isn't an item pickup!");
-                }
-            }
-            else
-                Debug.Log("Shield collision occurred, but other collider isn't a shield or a grid object!");
-        }
-    }
-
     // A shot the shield took ripples it where the shot landed, drawn on the hull as it is drawn. The hull layer is
     // ImpactPresenter's.
     public void Absorb(AbsorbEvent e)

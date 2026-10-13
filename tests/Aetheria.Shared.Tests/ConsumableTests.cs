@@ -83,8 +83,7 @@ public sealed class ConsumableTests : IDisposable
         var ship = new Ship(items, zone, Gear(cache.Get(hullRef)), new EntitySettings());
         Assert.True(ship.TryEquip(Gear(cache.Get(engineRef)), EngineCell));
         Assert.True(ship.TryEquip(Gear(cache.Get(holdRef)), HoldCell));
-        zone.Entities.Add(ship);
-        ship.Activate();
+        zone.Admit(ship, piloted: false);
         var data = cache.Get(consumableRef);
         return new Rig
         {

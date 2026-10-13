@@ -53,10 +53,9 @@ public sealed partial class MiningCut3Tests
         var ship = new Ship(s.Items, s.Zone, Mint(s, s.Hull), new EntitySettings());
         Assert.True(ship.TryEquip(Mint(s, eye)));
         Assert.True(ship.TryEquip(Mint(s, gun)));
-        s.Zone.Entities.Add(ship);
+        s.Zone.Admit(ship, piloted: false);
         Hold(ship, at);
         ship.Aim = float3(0, 0, 1);
-        ship.Activate();
         Tick((ship, at)); // equipment comes online and weapons read their ranges on the first tick
         return ship;
     }
@@ -176,7 +175,7 @@ public sealed partial class MiningCut3Tests
             Assert.True(expected.ToHashSet().SetEquals(offered), $"sensitivity {sensitivity}: {expected.Count} visible, {offered.Count} offered");
             visibleSeen += expected.Count;
             if (examined < inReach.Count) pruned++;
-            s.Zone.Entities.Remove(observer);
+            s.Zone.Remove(observer);
         }
         Assert.True(visibleSeen > 50 && pruned > 4, $"degenerate: {visibleSeen} visible, {pruned} queries pruned");
     }
@@ -421,7 +420,7 @@ public sealed partial class MiningCut3Tests
         var brightest = all.Max(c => s.Zone.ChunkVisibility(c));
         var unit = Observer(s, float2(5000, 0), 350f, 1f, Falloff());
         var sensitivity = 120f / (brightest * unit.DetectionReachPerVisibility());
-        s.Zone.Entities.Remove(unit);
+        s.Zone.Remove(unit);
 
         var offered = new List<ChunkId>();
         long examined = 0, inReach = 0;
@@ -436,7 +435,7 @@ public sealed partial class MiningCut3Tests
             observer.VisibleChunksInReach(offered);
             examined += s.Zone.Targets.Examined - before;
             inReach += all.Count(c => length(At(s, c) - at) <= 350f);
-            s.Zone.Entities.Remove(observer);
+            s.Zone.Remove(observer);
         }
         Assert.True(examined < .265 * inReach, $"examined {examined} of {inReach} rocks in reach: the visibility bound has loosened");
     }

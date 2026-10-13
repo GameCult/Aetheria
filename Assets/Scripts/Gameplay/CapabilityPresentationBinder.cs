@@ -13,15 +13,15 @@ using UnityEngine;
 public class CapabilityPresentationBinder : MonoBehaviour
 {
     private readonly List<IDisposable> _subscriptions = new List<IDisposable>();
-    private Func<int, Transform> _grabTargetResolver;
-    private Func<int, Vector3> _grabInitialVelocityResolver;
+    private Func<FloatingBodyId, Transform> _grabTargetResolver;
+    private Func<FloatingBodyId, Vector3> _grabInitialVelocityResolver;
 
     // Subscribes every presenter interface implemented by components on this object or its children to
     // the matching stream of `events`. `grabTargetResolver`/`grabInitialVelocityResolver` resolve a
-    // GrabEvent's plain target handle to the live Transform/velocity a grab presenter needs; the owner
+    // GrabEvent's target id to the live Transform/velocity a grab presenter needs; the owner
     // of `events` supplies them (the test scene today; the real pickup capability's caller later).
-    public void Bind(CapabilityEvents events, Func<int, Transform> grabTargetResolver = null,
-        Func<int, Vector3> grabInitialVelocityResolver = null)
+    public void Bind(CapabilityEvents events, Func<FloatingBodyId, Transform> grabTargetResolver = null,
+        Func<FloatingBodyId, Vector3> grabInitialVelocityResolver = null)
     {
         Unbind();
         if (events == null) return;
@@ -40,8 +40,8 @@ public class CapabilityPresentationBinder : MonoBehaviour
             var p = presenter;
             _subscriptions.Add(events.Grab.Subscribe(e =>
             {
-                var target = _grabTargetResolver?.Invoke(e.TargetHandle);
-                var velocity = _grabInitialVelocityResolver?.Invoke(e.TargetHandle) ?? Vector3.zero;
+                var target = _grabTargetResolver?.Invoke(e.Target);
+                var velocity = _grabInitialVelocityResolver?.Invoke(e.Target) ?? Vector3.zero;
                 p.Grab(e, target, velocity);
             }));
         }

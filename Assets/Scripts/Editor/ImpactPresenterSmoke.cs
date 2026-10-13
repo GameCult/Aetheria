@@ -64,10 +64,8 @@ public static class ImpactPresenterSmoke
         var hullRef = items.ItemData.RefOf<ItemData>(items.ItemData.GetByName<HullData>("Smoke Hull"));
         var ship = new Ship(items, zone, new EquippableItem { Data = hullRef, Durability = 1000, Lot = 1 }, new EntitySettings());
         var other = new Ship(items, zone, new EquippableItem { Data = hullRef, Durability = 1000, Lot = 2 }, new EntitySettings());
-        zone.Entities.Add(ship);
-        zone.Entities.Add(other);
-        ship.Activate();
-        other.Activate();
+        zone.Admit(ship, piloted: false);
+        zone.Admit(other, piloted: false);
 
         // The scene's side: the tuning object with a pooled effect, and the game manager that names the player's ship.
         var feedbackObject = new GameObject("Smoke Impact Feedback");

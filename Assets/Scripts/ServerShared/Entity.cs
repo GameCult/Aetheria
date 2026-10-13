@@ -153,7 +153,11 @@ public abstract class Entity
     
     public bool OverrideShutdown { get; set; }
     
-    public float TractorPower { get; set; }
+    // The pilot's tractor command (0..1); the Pickup behaviour spins its beam toward it.
+    public float TractorCommand;
+
+    // The beam's spun-up state: Pickup's, or 0 without one.
+    public float TractorPower => GetBehavior<Pickup>()?.Power ?? 0f;
     
     public bool Active
     {
@@ -1549,7 +1553,7 @@ public abstract class Entity
         {
             bay.DockedShip = ship;
             ship.SetParent(this);
-            Zone.Entities.Remove(ship);
+            Zone.Remove(ship);
             ship.Deactivate();
             ship.Docked.OnNext(this);
         }

@@ -230,8 +230,7 @@ public sealed partial class ContactRevealTests : IDisposable
             Assert.True(ship.TryFindSpace(item, out var at));
             Assert.True(ship.TryEquip(item, at));
         }
-        _zone.Entities.Add(ship);
-        ship.Activate();
+        _zone.Admit(ship, piloted: false);
         ship.Position = position;
         ship.Aim = float3(0, 0, 1);
         _zone.Update(0f); // brings the gear online
@@ -603,8 +602,8 @@ public sealed partial class ContactRevealTests : IDisposable
     {
         switch (how)
         {
-            case "remove": zone.Entities.Remove(e); break;
-            case "warp": e.Deactivate(); zone.Entities.Remove(e); break;
+            case "remove": zone.Remove(e); break;
+            case "warp": e.Deactivate(); zone.Remove(e); break;
             case "death": e.Hull.Durability = 0f; e.HullDamage.OnNext(1f); break;
             default: throw new Exception("fixture: " + how);
         }
@@ -643,7 +642,7 @@ public sealed partial class ContactRevealTests : IDisposable
         Assert.True(e.Visibility * o.PassiveInfo(e.Position.xz, 1f) <= _items.GameplaySettings.TargetDetectionInfoThreshold, "fixture: its last light is below o's gate");
         Assert.Equal(2, times.Count);
 
-        _zone.Entities.Remove(e);
+        _zone.Remove(e);
         Assert.Equal(2, o.RevealsOf(e).Count());
 
         var lapsed = false;
@@ -729,7 +728,7 @@ public sealed partial class ContactRevealTests : IDisposable
         var gate = _items.GameplaySettings.TargetDetectionInfoThreshold / o.PassiveInfo(e.Position.xz, 1f);
         ShowOnly(e, gate * against, Guns(e)[0]);
 
-        _zone.Entities.Remove(e);
+        _zone.Remove(e);
         Tick(.1f);
 
         Assert.Equal(ended ? 0 : 1, o.RevealsOf(e).Count());
@@ -799,7 +798,7 @@ public sealed partial class ContactRevealTests : IDisposable
         ShowOnly(e, threshold * 8f, Guns(e)[0]);
         Assert.True(e.Visibility * o.PassiveInfo(e.Position.xz, 1f) == threshold, "fixture: the ship's light at removal is exactly the gate");
 
-        _zone.Entities.Remove(e);
+        _zone.Remove(e);
         Tick(.1f);
 
         Assert.Single(o.RevealsOf(e));
@@ -816,8 +815,9 @@ public sealed partial class ContactRevealTests : IDisposable
         Tick(1f); // the gun cools down
         ShowOnly(e, 1000f, gun); // bright enough for any gate
 
-        _zone.Entities.Remove(e);
-        _zone.Entities.Add(e);
+        _zone.Remove(e);
+        e.Deactivate();
+        _zone.Admit(e, piloted: false);
         Tick(.1f);
 
         Assert.Equal(at, Assert.Single(o.RevealsOf(e)).Time);
@@ -932,7 +932,7 @@ public sealed partial class ContactRevealTests : IDisposable
         var first = Assert.Single(o.RevealsOf(locker)); // fixture: the lock paints every tick, and the first one is recorded
         Assert.True(locker.Visibility * o.PassiveInfo(locker.Position.xz, 1f) <= _items.GameplaySettings.TargetDetectionInfoThreshold, "fixture: its departure is below o's gate");
 
-        _zone.Entities.Remove(locker); // dies, warps or docks while its latest paint is still in o's inbox
+        _zone.Remove(locker); // dies, warps or docks while its latest paint is still in o's inbox
         var inboxed = ((System.Collections.IList) typeof(Entity).GetField("_paintInbox", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(o)).Count;
         Assert.True(inboxed > 0 || o.IncomingPaints.Count > 0, "fixture: a paint is in flight");
         Tick(.1f);
@@ -984,7 +984,7 @@ public sealed partial class ContactRevealTests : IDisposable
         for (var tick = 0; tick < 100 && inbox.Count == 0; tick++) Tick(.1f);
         Assert.NotEmpty(inbox); // fixture: the ping crossed o and its paint waits to be published
 
-        _zone.Entities.Remove(p);
+        _zone.Remove(p);
         Tick(.1f);
 
         Assert.Single(o.IncomingPaints);
@@ -1158,7 +1158,7 @@ public sealed partial class ContactRevealTests : IDisposable
         ShowOnly(e, 1f, gun);
         var threshold = _items.GameplaySettings.TargetDetectionInfoThreshold;
         Assert.True(e.Visibility * o.PassiveInfo(e.Position.xz, 1f) <= threshold, "fixture: from where o is, the departure is below the gate");
-        _zone.Entities.Remove(e);
+        _zone.Remove(e);
         Tick(.1f);
         Assert.Single(o.RevealsOf(e));
 
@@ -1188,8 +1188,8 @@ public sealed partial class ContactRevealTests : IDisposable
         var threshold = _items.GameplaySettings.TargetDetectionInfoThreshold;
         Assert.True(a.Visibility * o.PassiveInfo(a.Position.xz, 1f) > threshold && b.Visibility * o.PassiveInfo(b.Position.xz, 1f) > threshold, "fixture: both departures pass the gate");
 
-        _zone.Entities.Remove(firstThenSecond ? a : b);
-        _zone.Entities.Remove(firstThenSecond ? b : a);
+        _zone.Remove(firstThenSecond ? a : b);
+        _zone.Remove(firstThenSecond ? b : a);
         Tick(.1f);
 
         Assert.Empty(o.RevealsOf(a));
@@ -1215,7 +1215,7 @@ public sealed partial class ContactRevealTests : IDisposable
         Tick(.01f);
         Assert.Same(guns[1], Assert.Single(o.RevealsOf(e)).Item); // fixture: one gun ended as destroyed, one waiting
         e.Deactivate(); // the warp path: the ship's own subscriptions to the observer go with it
-        _zone.Entities.Remove(e);
+        _zone.Remove(e);
         for (var i = 0; i < 40; i++) Tick(.1f); // past BearingMemory (2 s)
         Assert.Equal(0, RevealBookSubjects(o)); // fixture: pruned
 
@@ -1307,7 +1307,7 @@ public sealed partial class ContactRevealTests : IDisposable
         Assert.Contains(identified.VisibilitySources.Values, v => v.Item == gunItems[0] && v.Strength > 0f);
         var departed = _zone.Entities.Single(x => x.Equipment.Contains(gunItems[18]));
         foreach (var source in departed.VisibilitySources.Keys.ToArray()) departed.SetSignature(source, SignatureChannel.Reflection, 0f, gunItems[18]);
-        _zone.Entities.Remove(departed);
+        _zone.Remove(departed);
         Assert.Single((System.Collections.IList) typeof(Zone).GetProperty("Departures", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(_zone));
         sense();
         Assert.Single(o.RevealsOf(departed)); // fixture: awaiting its prune

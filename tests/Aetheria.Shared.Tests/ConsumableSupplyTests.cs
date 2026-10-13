@@ -83,7 +83,8 @@ public sealed class ConsumableSupplyTests : IDisposable
             var stranger = seed.Upsert(new Faction { Name = "Stranger", ShortName = "STR" });
             maker = seed.Upsert(new Faction { Name = "Maker", ShortName = "MKR", Allegiance = { { ally, 1f } } });
 
-            var skiff = seed.Upsert(new HullData { Name = "Skiff", HullType = HullType.Ship, Shape = Solid(4, 3), Price = 100 });
+            // Interior for the crate, the capacitor and the tractor beam every generated ship carries.
+            var skiff = seed.Upsert(new HullData { Name = "Skiff", HullType = HullType.Ship, Shape = Solid(5, 3), Price = 100 });
             var platform = seed.Upsert(new HullData { Name = "Platform", HullType = HullType.Station, Shape = Solid(5, 5), Price = 100 });
             // A hold with no cell cannot take a consumable.
             var crate = seed.Upsert(new CargoBayData
@@ -93,6 +94,7 @@ public sealed class ConsumableSupplyTests : IDisposable
             });
             var dock = seed.Upsert(new DockingBayData { Name = "Dock", Shape = new Shape(), Price = 5, InteriorShape = holds == Holds.DockRefuses ? new Shape(1, 1) : Solid(1, 1) });
             var capacitor = seed.Upsert(new GearData { Name = "Cap", Hardpoint = HardpointType.Tool, Shape = new Shape(), Price = 1, Behaviors = { new CapacitorData() } });
+            var tractor = seed.Upsert(new GearData { Name = "Tractor", Hardpoint = HardpointType.Tool, Shape = new Shape(), Price = 1, Behaviors = { new PickupData() } });
             var heater = seed.Upsert(new GearData
             {
                 Name = "Heater", Hardpoint = HardpointType.Tool, Shape = new Shape(), Price = 1,
@@ -114,7 +116,7 @@ public sealed class ConsumableSupplyTests : IDisposable
             foreach (var (name, design) in new[]
                      {
                          ("Skiff", skiff.Key), ("Platform", platform.Key), ("Crate", crate.Key), ("Dock", dock.Key),
-                         ("Cap", capacitor.Key), ("Heater", heater.Key), ("Orphan", orphan.Key)
+                         ("Cap", capacitor.Key), ("Tractor", tractor.Key), ("Heater", heater.Key), ("Orphan", orphan.Key)
                      }.Concat(sold))
                 Sell(name + " by Maker", design, maker);
 
@@ -333,11 +335,13 @@ public sealed class ConsumableSupplyTests : IDisposable
         }
 
         // What the plain catalog leaves in both generators' Random, measured on the tree before consumables existed
-        // (origin/master d4a27def, the same fixture and seeds). The gated and plain catalogs agreeing is not enough:
-        // a step that drew unconditionally would draw in both. This pins the value itself.
+        // (origin/master d4a27def, the same fixture and seeds), plus the one product draw each of the three generated
+        // ships makes for its tractor beam (loot-2): with that draw taken out the tree leaves the d4a27def values
+        // 0.85624266, 0.037778974, 0.7931649, 0.3596493, 0.17511952, 0.6642336, 0.31897342, 0.5977364. The gated and
+        // plain catalogs agreeing is not enough: a step that drew unconditionally would draw in both. This pins the value itself.
         var beforeConsumables = new[]
         {
-            0.85624266f, 0.037778974f, 0.7931649f, 0.3596493f, 0.17511952f, 0.6642336f, 0.31897342f, 0.5977364f
+            0.3596493f, 0.03616327f, 0.8790466f, 0.16682059f, 0.5977364f, 0.08633745f, 0.2869571f, 0.6890472f
         };
         var plainAfter = AfterGeneration(plain);
         Assert.Equal(beforeConsumables, plainAfter);

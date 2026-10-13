@@ -95,8 +95,7 @@ public sealed class FireControlTests : IDisposable
             weapons[i] = ship.Equipment.Single(e => e.EquippableItem == gun);
         }
 
-        zone.Entities.Add(ship);
-        ship.Activate();
+        zone.Admit(ship, piloted: false);
 
         return (items, ship, weapons);
     }
@@ -195,8 +194,7 @@ public sealed class FireControlTests : IDisposable
         // gun so the target is a real, ordinarily-constructed ship rather than a workaround-shaped one.
         var targetGunRef = items.ItemData.RefOf<ItemData>(items.ItemData.GetByName<GearData>("Gun"));
         Assert.True(target.TryEquip(new EquippableItem { Data = targetGunRef, Durability = 1, Lot = 1 }, new int2(0, 0)));
-        zone.Entities.Add(target);
-        target.Activate();
+        zone.Admit(target, piloted: false);
 
         shooter.Position = float3.zero;
         target.Position = targetPosition;

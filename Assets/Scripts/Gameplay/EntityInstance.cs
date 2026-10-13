@@ -301,27 +301,6 @@ public class EntityInstance : MonoBehaviour
             {
                 if (!this) return;
                 _destroyed = true;
-                foreach (var gear in Entity.Equipment)
-                {
-                    if (gear != Entity.EquippedHull && Random.value < ZoneRenderer.Settings.LootDropProbability)
-                    {
-                        ZoneRenderer.DropItem(
-                            Entity.Position.ToUnity(), 
-                            Random.onUnitSphere * ZoneRenderer.Settings.LootDropVelocity, 
-                            gear.EquippableItem);
-                    }
-                }
-
-                foreach (var cargo in Entity.CargoBays)
-                {
-                    foreach (var item in cargo.Cargo.Keys)
-                    {
-                        ZoneRenderer.DropItem(
-                            Entity.Position.ToUnity(), 
-                            Random.onUnitSphere * ZoneRenderer.Settings.LootDropVelocity, 
-                            item);
-                    }
-                }
                 if (DestroyEffect != null)
                 {
                     var t = Instantiate(DestroyEffect).transform;

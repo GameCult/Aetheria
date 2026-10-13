@@ -501,7 +501,8 @@ public sealed class LoadoutTests : IDisposable
             }
         });
         var capacitor = cache.Upsert(new GearData { Name = "Cap", Hardpoint = HardpointType.Tool, Shape = new Shape(), Price = 1, Behaviors = { new CapacitorData() } });
-        foreach (var (name, design) in new[] { ("Twin by Maker", hull.Key), ("Cap by Maker", capacitor.Key) })
+        var tractor = cache.Upsert(new GearData { Name = "Tractor", Hardpoint = HardpointType.Tool, Shape = new Shape(), Price = 1, Behaviors = { new PickupData() } });
+        foreach (var (name, design) in new[] { ("Twin by Maker", hull.Key), ("Cap by Maker", capacitor.Key), ("Tractor by Maker", tractor.Key) })
             cache.Upsert(new FactionProductData { Name = name, Design = new CultRecordRef<CraftedItemData>(design), Manufacturer = maker });
         cache.FlushAsync().Wait();
 

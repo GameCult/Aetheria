@@ -101,8 +101,7 @@ public sealed class PowerBusTests : IDisposable
 
         if (reactorFirst) { EquipReactor(); EquipCapacitor(); } else { EquipCapacitor(); EquipReactor(); }
 
-        zone.Entities.Add(ship);
-        ship.Activate();
+        zone.Admit(ship, piloted: false);
 
         var reactor = ship.GetBehavior<Reactor>();
         var capacitor = ship.GetBehavior<Capacitor>();

@@ -137,10 +137,8 @@ public sealed class FireControlCut6cTests : IDisposable
         var targetGun = new EquippableItem { Data = targetGunRef, Durability = 1, Lot = 9 };
         Assert.True(target.TryEquip(targetGun, new int2(0, 0)));
 
-        zone.Entities.Add(shooter);
-        zone.Entities.Add(target);
-        shooter.Activate();
-        target.Activate();
+        zone.Admit(shooter, piloted: false);
+        zone.Admit(target, piloted: false);
 
         shooter.Position = float3.zero;
         target.Position = float3(0, 0, targetRange);
@@ -211,6 +209,7 @@ public sealed class FireControlCut6cTests : IDisposable
             var cargo = seedCache.Upsert(new CargoBayData { Name = "Crate", Shape = new Shape(), InteriorShape = new Shape(), Price = 5 });
             var capacitor = seedCache.Upsert(new GearData { Name = "Cap", Hardpoint = HardpointType.Tool, Shape = new Shape(), Price = 1, Behaviors = { new CapacitorData() } });
             var targeting = seedCache.Upsert(new GearData { Name = "Targeting", Hardpoint = HardpointType.Tool, Shape = new Shape(), Price = 1, Behaviors = { new TargetingSystemData() } });
+            var tractor = seedCache.Upsert(new GearData { Name = "Tractor", Hardpoint = HardpointType.Tool, Shape = new Shape(), Price = 1, Behaviors = { new PickupData() } });
 
             // Everything but the targeting system is sold by Maker, who IS in the galaxy. Targeting is sold
             // only by Targeting Maker, who is NOT -- the single point of failure 6c.2 fixes.
@@ -218,6 +217,7 @@ public sealed class FireControlCut6cTests : IDisposable
                      {
                          ("Armed by Maker", hull.Key, maker), ("Gun by Maker", gun.Key, maker),
                          ("Crate by Maker", cargo.Key, maker), ("Cap by Maker", capacitor.Key, maker),
+                         ("Tractor by Maker", tractor.Key, maker),
                          ("Targeting by Targeting Maker", targeting.Key, targetingMaker)
                      })
                 seedCache.Upsert(new FactionProductData { Name = name, Design = new CultRecordRef<CraftedItemData>(design), Manufacturer = factionMaker });
@@ -266,8 +266,7 @@ public sealed class FireControlCut6cTests : IDisposable
 
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test", Owner = null }, null);
         var entity = EntitySerializer.Unpack(items, zone, pack);
-        zone.Entities.Add(entity);
-        entity.Activate();
+        zone.Admit(entity, piloted: false);
         zone.Update(0f);
 
         Assert.Null(entity.GetBehavior<TargetingSystem>());

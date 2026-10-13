@@ -739,7 +739,7 @@ public class ActionGameManager : MonoBehaviour
         if (CurrentEntity != null)
         {
             CurrentEntity.Deactivate();
-            CurrentEntity.Zone.Entities.Remove(CurrentEntity);
+            CurrentEntity.Zone.Remove(CurrentEntity);
             CurrentEntity.Zone = Zone;
             Zone.Admit(CurrentEntity, piloted: false);
         }
@@ -1332,9 +1332,7 @@ public class ActionGameManager : MonoBehaviour
                     TargetShieldsFill.fillAmount = target.Shield == null ? 0 : lerp(.25f, .75f, target.Shield.Progress);
                 }
 
-                var tractorPower = Input.Player.TractorBeam.ReadValue<float>();
-                CurrentEntity.TractorPower =
-                    saturate(CurrentEntity.TractorPower + sign(tractorPower - CurrentEntity.TractorPower) * Time.deltaTime * 2);
+                CurrentEntity.TractorCommand = Input.Player.TractorBeam.ReadValue<float>();
             }
         }
         // One clock steps the zone, paused or not: a paused frame feeds it no real time.

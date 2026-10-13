@@ -16404,13 +16404,13 @@ MonoBehaviour:
   LODHandler: {fileID: 1009503736}
   SlimeRenderer: {fileID: 1254851254}
   SlimeGravityCamera: {fileID: 1066823975}
-  SimpleCommodityPickup: {fileID: 4008709970769624704, guid: 521bfeece7dd5fd4e8f166d38493f18c,
+  SimpleCommodityPickup: {fileID: 7436534270673427838, guid: 521bfeece7dd5fd4e8f166d38493f18c,
     type: 3}
-  CompoundCommodityPickup: {fileID: 7449398549621940518, guid: 366909b6a01d7254d8eef01c333f8e00,
+  CompoundCommodityPickup: {fileID: 4507103896627202189, guid: 366909b6a01d7254d8eef01c333f8e00,
     type: 3}
-  GearPickup: {fileID: 946329779588188460, guid: d2b7e9a9cd7733041b0553682e4b61af,
+  GearPickup: {fileID: 7390748043139687254, guid: d2b7e9a9cd7733041b0553682e4b61af,
     type: 3}
-  WeaponPickup: {fileID: 8842807112802394818, guid: d2cec1d8c3d94074e9d2e6088e1c02d7,
+  WeaponPickup: {fileID: 5705448000916375656, guid: d2cec1d8c3d94074e9d2e6088e1c02d7,
     type: 3}
   MinePrefab: {fileID: 7283754118921506074, guid: b04728b2b65e057429eb6e8529299c8a,
     type: 3}

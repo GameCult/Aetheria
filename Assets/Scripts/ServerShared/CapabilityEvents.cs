@@ -52,19 +52,18 @@ public enum GrabPhase
     Cancelled
 }
 
-// The target is identified by a plain handle, not a Unity type: the simulation will own the real
-// target identity (a loot drop or item instance id) once the pickup capability exists. Today's only
-// publisher (the FieldShieldTest scene) hands out its own handles; nothing here interprets them.
+// One phase of a grab. The target is the floating item the Pickup behaviour holds (the FieldShieldTest scene
+// publishes its own handles as ids); nothing here interprets it.
 public readonly struct GrabEvent
 {
-    public readonly int TargetHandle;
+    public readonly FloatingBodyId Target;
     public readonly GrabPhase Phase;
     public readonly float3 TargetPosition;
     public readonly float PhaseDuration;
 
-    public GrabEvent(int targetHandle, GrabPhase phase, float3 targetPosition, float phaseDuration)
+    public GrabEvent(FloatingBodyId target, GrabPhase phase, float3 targetPosition, float phaseDuration)
     {
-        TargetHandle = targetHandle;
+        Target = target;
         Phase = phase;
         TargetPosition = targetPosition;
         PhaseDuration = phaseDuration;

@@ -124,8 +124,7 @@ public sealed class PaintModeTests : IDisposable
             var gearRef2 = _items.ItemData.RefOf<ItemData>(_items.ItemData.GetByName<GearData>(sensor2));
             Assert.True(ship.TryEquip(new EquippableItem { Data = gearRef2, Durability = 1, Lot = _nextLot++ }, new int2(1, 0)));
         }
-        zone.Entities.Add(ship);
-        ship.Activate();
+        zone.Admit(ship, piloted: false);
         ship.Position = position;
         ship.SetSignature(new object(), SignatureChannel.Reflection, 5f, null);
         zone.Update(0f); // brings the gear online
@@ -331,7 +330,7 @@ public sealed class PaintModeTests : IDisposable
             if (tick == 2 && illuminatorDies)
             {
                 Assert.True(SensorOf(a).PingRadius < 100f, "fixture: A dies before its wavefront reaches T");
-                _zone.Entities.Remove(a);
+                _zone.Remove(a);
             }
             track.Add(Track(c, t));
         }
@@ -422,7 +421,7 @@ public sealed class PaintModeTests : IDisposable
         for (var tick = 1; tick <= 24; tick++)
         {
             Tick(.1f);
-            if (tick == removePingerAfterTick) _zone.Entities.Remove(a);
+            if (tick == removePingerAfterTick) _zone.Remove(a);
             Near(tick <= 3 ? 0f : .21213f, Track(c, t));
             Assert.Equal(tick == 4 ? 1 : 0, t.IncomingPaints.Count);
         }
@@ -683,7 +682,7 @@ public sealed class PaintModeTests : IDisposable
         SensorOf(a).Ping();
         for (var tick = 1; tick <= 3; tick++) Tick(.1f);
         Assert.True(SensorOf(a).PingRadius > 50f); // the front had passed 50 m by the move
-        a.Deactivate(); _zone.Entities.Remove(a); a.Zone = z2; z2.Admit(a, false);
+        a.Deactivate(); _zone.Remove(a); a.Zone = z2; z2.Admit(a, false);
         var paints = 0;
         for (var tick = 1; tick <= 24; tick++) { z2.Update(.1f); paints += near.IncomingPaints.Count + far.IncomingPaints.Count; }
         Assert.Equal(0, paints);
@@ -703,8 +702,8 @@ public sealed class PaintModeTests : IDisposable
         var paints = 0;
         for (var tick = 1; tick <= 30; tick++)
         {
-            if (tick == 5) { _zone.Entities.Remove(t); t.Deactivate(); }
-            if (tick == 8) { _zone.Entities.Add(t); t.Activate(); }
+            if (tick == 5) { _zone.Remove(t); t.Deactivate(); }
+            if (tick == 8) { _zone.Admit(t, piloted: false); }
             Tick(.1f);
             paints += t.IncomingPaints.Count;
         }

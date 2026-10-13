@@ -71,8 +71,7 @@ public sealed class StatResolverTests : IDisposable
         Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("Battery")), HardpointCell));
         if (withBooster)
             Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("Booster")), SecondHardpointCell));
-        zone.Entities.Add(ship);
-        ship.Activate();
+        zone.Admit(ship, piloted: false);
         return ship;
     }
 
@@ -287,9 +286,8 @@ public sealed class StatResolverTests : IDisposable
         var hullItem = Mint(cache, items, cache.GetByName<HullData>("Skiff"));
         var ship = new Ship(items, zone, hullItem, new EntitySettings());
         Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("Loop")), HardpointCell));
-        zone.Entities.Add(ship);
 
-        var error = Assert.Throws<InvalidOperationException>(() => ship.Activate());
+        var error = Assert.Throws<InvalidOperationException>(() => zone.Admit(ship, piloted: false));
         Assert.Contains(ship.Name, error.Message);        // the entity, by name ("Skiff", HullData.Name)
         Assert.Contains(nameof(CapacitorData), error.Message);
         Assert.Contains(nameof(CapacitorData.Capacity), error.Message);
@@ -513,8 +511,7 @@ public sealed class StatResolverTests : IDisposable
             Assert.True(ship.TryEquip(boost, cells[i + 1]));
         }
         ship.OverrideShutdown = true;
-        zone.Entities.Add(ship);
-        ship.Activate();
+        zone.Admit(ship, piloted: false);
 
         Func<ConsumableItem> mint = null;
         if (consumable != null)
