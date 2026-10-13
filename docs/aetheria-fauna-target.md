@@ -1,11 +1,20 @@
 # Aetheria spaceborne fauna: target
 
-Proposed campaign `aetheria-fauna`, target draft r0 (Self admits the campaign and the target). Repo
-`GameCult/Aetheria`, working branch `master`, cut branches `eureka/aetheria-fauna-<cut>`. Written by Imagination
-(agent imagination-aeth-fauna, session self-2026-10-13-ag2) against `origin/master` `0898725f`. Body facts and
-probes are in `docs/aetheria-fauna-map.md` (cited below as `B<n>`); prior art is
-`docs/research/2026-10-13-fauna-prior-art.md` (cited as `PA:<line>`; items tagged `[M]` there are from memory and
-unverified). This is the target and the model page. The open forks are drafted as questions in the map.
+Campaign `aetheria-fauna`, target content r2 (r1 was admitted from the r0 draft at `f9705d32`; Self admits r2).
+Repo `GameCult/Aetheria`, working branch `master`, cut branches `eureka/aetheria-fauna-<cut>`. Written by
+Imagination (agents imagination-aeth-fauna and imagination-aeth-fauna-r2, session self-2026-10-13-ag2); r2 is
+against `origin/master` `1746e8bd`. Body facts and probes are in `docs/aetheria-fauna-map.md` (cited below as
+`B<n>`); prior art is `docs/research/2026-10-13-fauna-prior-art.md` (`PA:<line>`; `[M]` items are from memory and
+unverified) and `docs/research/2026-10-13-fauna-placement-prior-art.md` (placement). This is the target and the
+model page. Open forks are questions in the mind under `aetheria-fauna`.
+
+r2 applies the operator's rulings of 2026-10-13: fauna attack ships in various ways (`fauna-interaction-ruled`),
+are harvestable and prominent in Elysium (`fauna-harvest-ruled`), are placed to tell an ecological story shaped by
+gravity (`fauna-habitat-ruled`), are native pseudospace life absent from Sol (`fauna-origin-pseudospace`,
+`sol-flatspace-bubble`), and drift with the global flow, whose authority moves into the sim (`sim-knows-the-flow`).
+The standing directions `aetheria-release:ruling:kitchen-sink-content`, `catalog-breadth-now` and
+`setting-permits-necrotech` make the ecology broad: more classes, more modes of harm, more goods, more uses, and no
+trimming for genre consistency.
 
 ## Purpose, in the operator's words
 
@@ -26,12 +35,19 @@ data. Think the spacebound microfauna from the slime mold experiment". The index
 
 ## What fauna are for
 
-Fauna are props: things in the sensor picture that are not ships, that a ship can be mistaken for, and that a
+Fauna are an ecology a pilot reads, hunts in, hides in, harvests and is hunted by. The first use is the oldest:
+they are props, things in the sensor picture that are not ships, that a ship can be mistaken for, and that a
 pilot must imitate by flying. They give the EW campaign (`docs/aetheria-ew-target.md`) a populated background. A
 hunter reading a crowded picture has to ask of each return whether it moves like what it seems to be. That is the
 prior art's oldest lesson: radar "angels" were birds and insects (PA:7). Insects drift with the wind and birds fly
 relative to it, so the motion tells them apart (PA:9). Sonar's false floor was a layer of animals that rose and fell
 with daylight (PA:14). Clutter that is alive is told apart by how it moves, not by how bright it is.
+
+The other uses follow from the rulings. Fauna are a renewable harvest, big in Elysium, with goods for many trades
+(the lore draft names krill paste for Bloom concrete, photophores, shark heat-organs and whale bone carrying strange
+matter). Fauna are a hazard: classes attack ships, each in its own way. Fauna are material for every genre the
+factions carry: cultivators harvest them, necrotech binds them, mecha pilots ride them. Fauna are a map: where they
+gather shows the shape of the wells and the currents, and where they are missing says something happened.
 
 ## Design truths (ends, not means)
 
@@ -61,6 +77,17 @@ with daylight (PA:14). Clutter that is alive is told apart by how it moves, not 
 7. **The zone owns fauna; presenters read them.** No Unity callback writes fauna state. The renderer draws them as it
    draws belts, from a pose evaluated at zone time (`ZoneRenderer.cs:543-569`, B7).
 8. **The targeting index carries fauna as providers.** No consumer scans a swarm (`TargetingIndex.cs`, B4).
+9. **The flow is a world fact with one owner in the sim.** The global flow that stardust and nebula follow
+   (`Volumetric.cginc` `flow()`, B15) is evaluated by one `ServerShared` function of position and zone time from the
+   zone's flow settings. Fauna drift with it. The shader lowers the same function from the same settings and time,
+   and a parity check pins the two. No presenter accumulates its own flow time (B16).
+10. **Placement tells an ecological story and is decided once.** The generator places fauna from the zone's gravity
+    and flow, deterministically from the zone seed, and saves what it placed with the zone pack. Fauna gather on
+    the shoulders of wells and along links between them, not in the cores and not in flat space (placement probe,
+    `docs/research/2026-10-13-fauna-placement-prior-art.md`). The method is the question `fauna-placement`.
+11. **No fauna in Sol.** Sol is a single flatspace zone with no fauna inside it; the strangeness begins at its edge.
+12. **Harm and harvest go through existing owners.** A fauna attack is damage through the path a weapon's hit
+    takes; a harvest yields items through the economy's yield path; neither gets a fauna-only damage or loot rule.
 
 ## Scale classes
 
@@ -71,13 +98,19 @@ with daylight (PA:14). Clutter that is alive is told apart by how it moves, not 
 | Shark | One to three members, each about the size of a ship | Reflection and moderate thermal | Crosses the flow; patrols with sprints | A ship-sized return a hunter must think about; the best disguise target for a fighter |
 | Whale | One member, many times a ship's size | Strong thermal; heard song (later) | Slow long arcs | A bright anchor; a ship near it is hard to separate (later: shadowing) |
 
-The krill and minnow rows need nothing the Body lacks except a bounded per-kind motion term on field members (B3,
-B4). Sharks and whales need an anchor that does not ride the flow, which is the second cut onward.
+More classes are wanted, not fewer (`kitchen-sink-content`). The lore draft's room for more becomes classes in the
+cut sequence: *void spiders* that string nets across trojan points and snare what drifts in, *gas giant drifters*
+that live in the upper cloud deck, and *edge giants*, the larger things past the charts, found only far from Sol.
+Each class gets its own motion law, its own mode of harm and its own goods. Attack modes are designed per class in
+later cuts; the ones the lore implies are sharks that strike, minnow schools that scour sensors and hulls, whale
+song that is noise in the shared signal space, spider nets that snare and tether, and drifters that discharge.
+
+The krill and minnow rows need nothing the Body lacks except a bounded per-kind motion term on field members and the
+flow (B3, B4, B15). Sharks and whales need an anchor that does not ride the flow, which comes later.
 
 ## Model page: identity, lifecycle, authority
 
-This assumes the recommended options of the questions in the map (`fauna-in-sim`, `fauna-identity`,
-`fauna-motion-model`). A different ruling rewrites these rows.
+The rows follow the rulings `fauna-in-sim-ruled`, `fauna-identity-ruled` and `fauna-motion-model-ruled`.
 
 | Kind | Identity (what names it) | Lifecycle | Authority (who decides; forbidden writers) |
 |---|---|---|---|
@@ -88,6 +121,10 @@ This assumes the recommended options of the questions in the map (`fauna-in-sim`
 | **Fauna detection** (derived) | `(observer, member)`, never stored. | Derived per query: `ChunkInfo` → `PassiveInfo` → `Sensor.Gain`. | `Entity`. Forbidden: any fauna-specific threshold or gain. |
 | **Swarm anchor** (later, sharks and whales) | Per field: a law that moves the field's frame across the flow. | Pure function of zone time plus sparse event records (fork `fauna-motion-model`). | `Zone`. Forbidden: per-member stepping. |
 | **Disturbance** (later) | `(member, time, push)`, sparse, as `ChunkWear` is. | Written when a hull passes through or a shot lands, then decays lazily against zone time. | `Zone`. It is read only by `Pose`. |
+| **Flow field** (new owner) | One law: `FlowField`, evaluated per zone by `Zone.Flow(position)` from the zone's world-law settings (`PlanetSettings.Flow`). | Settings authored in `Settings.asset`; time is zone time. Never stored per position. | `Zone`. Derived: every shader flow uniform (`_FlowScroll` and the rest). Forbidden: `VolumeSampling._flowScroll`, `ZoneEnvironment.Flow`, any frame-time accumulator. |
+| **Habitat placement** (generation intermediate) | None: it exists only inside `ZoneGenerator.GenerateZone`. | Computed once per zone from the seed, gravity and flow; consumed to place fields; discarded. | `ZoneGenerator`. Its products, fauna fields, are saved as belts are. Forbidden: recomputing on load, saving the intermediate map. |
+| **Attack** (later, per class) | `(member or swarm, ship, time)`, an event. | Raised by a class law when its trigger holds; applied through the ordinary damage path. | `Zone`. Forbidden: a fauna-only damage rule. |
+| **Harvest yield** (later) | Item kinds in the catalog, per fauna kind. | A member broken or netted by harvesting gear yields items through the economy's yield table; the field refills by respawn. | The catalog and the yield table. Forbidden: fauna-only loot code. |
 | **Fauna background kind** (aetheria-ew) | Entries of aetheria-ew's `BackgroundKind` for fauna classes (that target's row says "more by ruling"). | Static data. | `GameplaySettings`, per aetheria-ew. Its envelope gains a motion term per class (fork `fauna-disguise-path`). |
 
 ## Invariants
@@ -99,19 +136,31 @@ This assumes the recommended options of the questions in the map (`fauna-in-sim`
 - `fauna-cost-per-swarm`: zone update cost does not grow with member count. This is pinned with the index's
   `Examined` counter and by `Zone.Update` touching no member, not by timing.
 - `fauna-one-gain`: a fauna member is visible exactly when `ChunkVisible` says so.
-- `fauna-bounds-hold`: every member of a swaying field lies inside the regions its provider offers.
-- `fauna-tell-holds`: a krill cloud's centroid velocity equals the orbital flow at its distance, within the sway
-  bound. Each later class gets its own tell test.
+- `fauna-bounds-hold`: every member of a swaying or drifting field lies inside the regions its provider offers.
+- `fauna-tell-holds`: each class's members move by that class's law; a krill cloud moves with the orbital flow and
+  the global flow, within its sway bound. Each class gets its own tell test.
 - `fauna-never-lie`: no claim, suppression or belief is written for a fauna.
+- `flow-one-owner`: the global flow has one owner, `FlowField` in `ServerShared`, evaluated at zone time from the
+  zone's flow settings. Every shader flow uniform is derived from it; no presenter keeps its own flow clock.
+- `flow-shader-parity`: the HLSL `globalFlow` and `slopeFlow` in `Volumetric.cginc` give the C# owner's values for
+  the same position, time, settings and gradient, within a stated tolerance; a parity check that evaluates both
+  pins it and fails when either side changes alone.
+- `flow-step-free`: the flow at a position and zone time does not depend on step size or frame rate.
+- `fauna-none-in-sol`: Sol's zone holds no fauna field; generation never places one there.
+- `fauna-placement-seeded`: a zone's fauna placement is a function of its seed and its generated bodies on the
+  generating runtime; the saved zone pack is the authority after that, and loading never recomputes placement.
 
 ## Not in scope
 
-- Ambient presentation-only life (the slime trails) beyond leaving it untouched.
-- Fauna AI that attacks ships, unless `fauna-interaction` rules otherwise.
-- Harvest economies and yield tables for fauna (the mining yield table is aetheria-release's).
+- Ambient presentation-only life (the slime trails) beyond leaving it untouched; its rules may be reused at
+  generation, but the presenter stays presentation.
 - Phantom positions (aetheria-ew `ew-where-lies-ruled`).
-- Any lore claim about what the fauna are. No fauna lore was found in `Vault` or AetheriaLore (B11), so the
-  operator writes it, or rules that Imagination drafts it.
+- Ships, floating items, mines and clouds drifting with the flow, until `flow-moves-what` is ruled.
+- Per-zone flow and nebula environments; Sol's cloudless bubble is a later cut, and until it lands every zone
+  shares one flow.
+
+Attacks and harvest are in scope as later cuts, designed per class (`fauna-interaction-ruled`,
+`fauna-harvest-ruled`); the first cuts build the ground they stand on: the flow, placement and the krill field.
 
 ## Cut sequence
 
