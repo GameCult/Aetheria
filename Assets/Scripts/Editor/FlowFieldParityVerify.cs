@@ -137,6 +137,8 @@ namespace Aetheria.EditorTools
             var globalBuffer = new ComputeBuffer(count, 12);
             var slopeBuffer = new ComputeBuffer(count, 12);
             var gatedBuffer = new ComputeBuffer(count, 12);
+            // flow() reads the nebula's gravity height under FLOW_SLOPE; a flat (all zero) height is the flat zone's.
+            var height = new Texture2D(1, 1, TextureFormat.RFloat, false);
             try
             {
                 positionBuffer.SetData(positions);
@@ -146,6 +148,7 @@ namespace Aetheria.EditorTools
                 compute.SetBuffer(kernel, "globalOut", globalBuffer);
                 compute.SetBuffer(kernel, "slopeOut", slopeBuffer);
                 compute.SetBuffer(kernel, "gatedOut", gatedBuffer);
+                compute.SetTexture(kernel, "_NebulaSurfaceHeight", height);
                 compute.SetInt("count", count);
 
                 var elapsed = 0.0;
@@ -211,7 +214,7 @@ namespace Aetheria.EditorTools
             }
             finally
             {
-                positionBuffer.Release(); gradientBuffer.Release(); globalBuffer.Release(); slopeBuffer.Release(); gatedBuffer.Release();
+                positionBuffer.Release(); gradientBuffer.Release(); globalBuffer.Release(); slopeBuffer.Release(); gatedBuffer.Release(); UnityEngine.Object.DestroyImmediate(height);
             }
         }
 
