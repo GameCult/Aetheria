@@ -292,19 +292,19 @@ public sealed partial class ContactRevealTests
 
     // ---- The schematic's rows (ruling ew-claim-weapon-measure-ruled; finding schematic-unreached) ----
 
-    // Wears a gun's Range to half so that, once it ticks, its live range (20) is not its design's rated range (40).
+    // Wears a gun's Range to 95% (a shorter one is under the fuse arming distance and the gun is refused) so that, once it ticks, its live range (38) is not its design's rated range (40).
     private void WearRange(Entity ship, EquippedItem gun)
     {
         var data = (InstantWeaponData) gun.Data.Behaviors.Single(b => b is InstantWeaponData);
-        ship.Resolver.AttachModifier(gun, data.Range, "worn", StatModifierType.Multiplier, .5f);
+        ship.Resolver.AttachModifier(gun, data.Range, "worn", StatModifierType.Multiplier, .95f);
     }
 
     // The fixture's guard, read once the gun has ticked: its live range is not its design's rated range.
     private static void AssertWorn(EquippedItem gun) =>
-        Assert.Equal(20f, gun.Behaviors.OfType<Weapon>().Single().Range, 3);
+        Assert.Equal(38f, gun.Behaviors.OfType<Weapon>().Single().Range, 2);
 
     // The unclaimed enemy row is the true gun, with the gun's own rated range (Gun: 40) though the gun is worn to a live
-    // 20. Mutation: the row's Item.Data or the true live range stands in for the claim (also when Claimed == Data).
+    // 38. Mutation: the row's Item.Data or the true live range stands in for the claim (also when Claimed == Data).
     [Fact]
     public void AnEnemySchematicRowDefaultsToTheTruth()
     {
@@ -379,7 +379,7 @@ public sealed partial class ContactRevealTests
         var row = Assert.Single(e.SchematicRows(e));
         Assert.Same(gun, row.Item);
         Assert.Same(gun.Data, row.Claimed);
-        Assert.Equal(20f, row.Range, 3); // the live range of the worn gun, below its rated 40
+        Assert.Equal(38f, row.Range, 2); // the live range of the worn gun, below its rated 40
         Assert.Equal(gun.Behaviors.OfType<Weapon>().Single().Range, row.Range);
         Assert.NotEqual(((WeaponData) gun.Data.Behaviors.Single(b => b is WeaponData)).RatedRange, row.Range);
     }
