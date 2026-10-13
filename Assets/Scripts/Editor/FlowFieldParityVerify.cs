@@ -22,10 +22,10 @@ namespace Aetheria.EditorTools
     {
         const string Tag = "[FlowFieldParityVerify]";
         // Measured disagreement between the HLSL and the C# on this tree (float32 on both sides, positions to 10000,
-        // scrolls to 100): see the "max error" line the run prints; the last measurement is recorded in the report that
-        // landed this value. The tolerance is a small multiple of that noise so a 0.05% constant error (y factor .501,
-        // swirl or amplitude x1.0005) fails.
-        const float RelativeTolerance = 3e-4f;
+        // scrolls to 100, through the keyword-gated flow()): max 2.9e-5 of amplitude (the "max error" line this run
+        // prints). The tolerance is 5x that noise, so constant errors of 0.05% (y factor .501, swirl or amplitude
+        // x1.0005: 4e-4 to 8e-4) fail; a 0.01% error is at the noise floor and unresolvable.
+        const float RelativeTolerance = 1.5e-4f;
         static float _maxError;
         static bool _ok = true;
 
