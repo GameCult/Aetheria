@@ -149,7 +149,7 @@ public sealed class ContactRevealTests : IDisposable
     {
         Sensitivity = Const(sensitivity),
         SensitivityCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } }, // the same gain at every bearing
-        PingBoost = Const(.0001f), PingEnergy = Const(0), PingVisibility = Const(5), PingRange = Const(300), PingCooldown = Const(4)
+        PingBoost = Const(.0001f), PingEnergy = Const(0), PingRange = Const(300), PingCooldown = Const(4)
     };
 
     private static GearData Eye(string name, float sensitivity) => new GearData
@@ -380,18 +380,34 @@ public sealed class ContactRevealTests : IDisposable
         Assert.Empty(o.RevealsOf(e));
     }
 
-    // An Emission entry is never light (R1): a bright, near one reveals nothing through Sense. Emission reaches the
-    // book only through a published paint.
+    // A ping is the pinger's act on its beam, not light (R1): it adds nothing to the pinger's Visibility, so it raises
+    // no observer's track of the pinger. The control run is the same scene without the Ping() call.
     [Fact]
-    public void AnEmissionEntryIsNotLight()
+    public void APingNoLongerBrightensThePinger()
     {
-        var e = Add(float3(0, 0, 20), new[] { "Eye" });
-        var o = Add(float3(0, 0, 0), new[] { "Eye" });
-        e.SetSignature(new object(), SignatureChannel.Emission, 1000f, e.Equipment.Single(i => i.Behaviors.Any(b => b is Sensor)));
+        var (pingedLight, pingedTrack) = RunPinger(ping: true);
+        var (controlLight, controlTrack) = RunPinger(ping: false);
 
-        Tick(.01f);
+        Assert.Equal(controlLight, pingedLight);
+        Assert.Equal(controlTrack, pingedTrack, 6);
+    }
 
-        Assert.Empty(o.RevealsOf(e));
+    // P is past the ping's radius from O; its Visibility is read on the call's own tick and on each tick after.
+    private static (float[] visibility, float track) RunPinger(bool ping)
+    {
+        using var t = new ContactRevealTests();
+        var p = t.Add(float3(0, 0, 1000), new[] { "Eye" });
+        var o = t.Add(float3(0, 0, 0), new[] { "Eye" });
+        var sensor = p.Equipment.SelectMany(i => i.Behaviors).OfType<Sensor>().Single();
+        t.Tick(.1f); // a sensor's first tick opens its ping cooldown; Ping() is refused before it
+        if (ping) sensor.Ping();
+        var light = new List<float> { p.Visibility };
+        for (var tick = 0; tick < 10; tick++)
+        {
+            t.Tick(.1f);
+            light.Add(p.Visibility);
+        }
+        return (light.ToArray(), Track(o, p));
     }
 
     // Two items revealed at different times: the contact's bearing, while untracked, is the freshest reveal's.
@@ -646,6 +662,30 @@ public sealed class ContactRevealTests : IDisposable
         Assert.Equal(ended ? 0 : 1, o.RevealsOf(e).Count());
     }
 
+    // The departure records the subject's whole Visibility: no channel is excepted. The light at removal sits on each
+    // channel in turn, a hair above the observer's gate, and ends the reveals whichever channel carries it.
+    [Theory]
+    [InlineData(SignatureChannel.Thermal)]
+    [InlineData(SignatureChannel.DrivePlume)]
+    [InlineData(SignatureChannel.Reflection)]
+    [InlineData(SignatureChannel.LaunchFlash)]
+    public void ADepartureCountsLightOnEveryChannel(SignatureChannel channel)
+    {
+        var e = Add(float3(0, 0, 100), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        Fire(e, Guns(e)[0]);
+        Tick(.01f);
+        Assert.Single(o.RevealsOf(e));
+        var gate = _items.GameplaySettings.TargetDetectionInfoThreshold / o.PassiveInfo(e.Position.xz, 1f);
+        foreach (var source in e.VisibilitySources.Keys.ToArray()) e.SetSignature(source, SignatureChannel.Reflection, 0f, Guns(e)[0]);
+        e.SetSignature(new object(), channel, gate * 1.01f, Guns(e)[0]);
+
+        _zone.Entities.Remove(e);
+        Tick(.1f);
+
+        Assert.Empty(o.RevealsOf(e));
+    }
+
     // The gate is strict, as the light-act gate is: a light at removal that lands exactly on the threshold ends nothing.
     // At 32 the observer's info per unit light is 4 / 32, a power of two, so threshold x 8 is the light whose product
     // with it is exactly the threshold.
@@ -661,23 +701,6 @@ public sealed class ContactRevealTests : IDisposable
         Assert.Equal(.125f, o.PassiveInfo(e.Position.xz, 1f));
         ShowOnly(e, threshold * 8f, Guns(e)[0]);
         Assert.True(e.Visibility * o.PassiveInfo(e.Position.xz, 1f) == threshold, "fixture: the ship's light at removal is exactly the gate");
-
-        _zone.Entities.Remove(e);
-        Tick(.1f);
-
-        Assert.Single(o.RevealsOf(e));
-    }
-
-    // A signature on the Emission channel (paint strength, a ping) is not light: it does not make a departure seen.
-    [Fact]
-    public void AnEmissionSignatureDoesNotMakeADepartureSeen()
-    {
-        var e = Add(float3(0, 0, 100), new[] { "Gun" });
-        var o = Add(float3(0, 0, 0), new[] { "Eye" });
-        Fire(e, Guns(e)[0]);
-        Tick(.01f);
-        ShowOnly(e, 0f, Guns(e)[0]);
-        e.SetSignature(new object(), SignatureChannel.Emission, 1000f, Guns(e)[0]);
 
         _zone.Entities.Remove(e);
         Tick(.1f);

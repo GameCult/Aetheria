@@ -324,29 +324,28 @@ public sealed class SignatureTests : IDisposable
         Assert.Null(s.Item);
     }
 
-    [Theory]
-    [InlineData(5f)]
-    [InlineData(9f)]
-    public void APingShowsAnEmissionWithItsItem(float pingVisibility)
+    // Emission is active emission, never light: SetSignature refuses it before writing, and a Visibility gear
+    // authored on it throws on the Zone.Update that first executes it.
+    [Fact]
+    public void SetSignatureRefusesEmission()
     {
-        var r = Build(Armament.None, 0f, null, new SensorData
-        {
-            Sensitivity = Constant(3f), PingBoost = Constant(.02f), PingEnergy = Constant(0f), PingVisibility = Constant(pingVisibility),
-            PingRange = Constant(300f), PingCooldown = Constant(4f)
-        });
-        var sensor = Single<Sensor>(r.Ship);
-        sensor.Ping();
-        var s = Of(r.Ship, sensor);
-        Assert.Equal(SignatureChannel.Emission, s.Channel);
-        Assert.Same(sensor.Item, s.Item);
-        Assert.Equal(pingVisibility, s.Strength, 3);
+        var r = Build(Armament.Gun, 0f, null);
+        Fire(r);
+        var before = r.Ship.VisibilitySources.ToDictionary(kv => kv.Key, kv => kv.Value);
+        Assert.NotEmpty(before);
+
+        Assert.Throws<ArgumentException>(() => r.Ship.SetSignature(new object(), SignatureChannel.Emission, 5f, r.WeaponItem));
+
+        Assert.Equal(before.Count, r.Ship.VisibilitySources.Count);
+        foreach (var kv in before) Assert.Equal(kv.Value, r.Ship.VisibilitySources[kv.Key]);
+        Assert.Throws<ArgumentException>(() => Build(Armament.None, 0f, null,
+            new VisibilityData { Visibility = Constant(2), VisibilityDecay = Constant(0), Channel = SignatureChannel.Emission }));
     }
 
     // A catalog-authored Visibility behaviour travels on the channel its data names, thermal unless it says more.
     [Theory]
     [InlineData(SignatureChannel.Thermal)]
     [InlineData(SignatureChannel.DrivePlume)]
-    [InlineData(SignatureChannel.Emission)]
     public void AVisibilityBehaviourTravelsOnItsAuthoredChannel(SignatureChannel channel)
     {
         var r = Build(Armament.None, 0f, null, new VisibilityData { Visibility = Constant(7), VisibilityDecay = Constant(0), Channel = channel });
@@ -366,9 +365,9 @@ public sealed class SignatureTests : IDisposable
     // ---- VisibilityIsStillTheSum ----
 
     // Every channel lit at once: a fired gun (100 on LaunchFlash), Visibility gear on Thermal (7), Reflection (4),
-    // DrivePlume (3) and Emission (2), a reflector under no sun (0) and the non-radiating hull (0). Visibility is the
-    // sum of the strengths, 116, the value the single-number build gave on this fixture; SignatureOn splits the
-    // same total by channel.
+    // DrivePlume (3) and a second Reflection (2), a reflector under no sun (0) and the non-radiating hull (0).
+    // Visibility is the sum of the strengths, 116, the value the single-number build gave on this fixture; the same
+    // total splits by channel over VisibilitySources, and none of it is Emission.
     [Fact]
     public void VisibilityIsStillTheSum()
     {
@@ -376,18 +375,19 @@ public sealed class SignatureTests : IDisposable
             new VisibilityData { Visibility = Constant(7), VisibilityDecay = Constant(0) },
             new VisibilityData { Visibility = Constant(4), VisibilityDecay = Constant(0), Channel = SignatureChannel.Reflection },
             new VisibilityData { Visibility = Constant(3), VisibilityDecay = Constant(0), Channel = SignatureChannel.DrivePlume },
-            new VisibilityData { Visibility = Constant(2), VisibilityDecay = Constant(0), Channel = SignatureChannel.Emission },
+            new VisibilityData { Visibility = Constant(2), VisibilityDecay = Constant(0), Channel = SignatureChannel.Reflection },
             new ReflectorData { CrossSection = Constant(3) });
         Fire(r);
         var ship = r.Ship;
 
         Assert.Equal(116f, ship.Visibility, 2);
         Assert.Equal(ship.VisibilitySources.Values.Sum(s => s.Strength), ship.Visibility, 3);
-        Assert.Equal(100f, ship.SignatureOn(SignatureChannel.LaunchFlash), 2);
-        Assert.Equal(7f, ship.SignatureOn(SignatureChannel.Thermal), 2);
-        Assert.Equal(4f, ship.SignatureOn(SignatureChannel.Reflection), 2);
-        Assert.Equal(2f, ship.SignatureOn(SignatureChannel.Emission), 2);
-        Assert.Equal(3f, ship.SignatureOn(SignatureChannel.DrivePlume), 2);
+        float On(SignatureChannel channel) => ship.VisibilitySources.Values.Where(s => s.Channel == channel).Sum(s => s.Strength);
+        Assert.Equal(100f, On(SignatureChannel.LaunchFlash), 2);
+        Assert.Equal(7f, On(SignatureChannel.Thermal), 2);
+        Assert.Equal(6f, On(SignatureChannel.Reflection), 2);
+        Assert.Equal(0f, On(SignatureChannel.Emission), 2);
+        Assert.Equal(3f, On(SignatureChannel.DrivePlume), 2);
     }
 
     // ---- DecayKeepsChannelAndItem ----
@@ -412,28 +412,24 @@ public sealed class SignatureTests : IDisposable
         Assert.False(r.Ship.VisibilitySources.ContainsKey(r.Weapon), "a signature below 0.1 is gone");
     }
 
-    // Decay rebuilds every entry from its own. A gun, a drive that has stopped burning and a sensor that has pinged
-    // each wrote once and are never rewritten, so after a long tick the only thing touching them is decay; each
-    // still names the item of the source that wrote it, and the three items differ.
+    // Decay rebuilds every entry from its own. A gun and a drive that has stopped burning wrote once and are never
+    // rewritten, so after a long tick the only thing touching them is decay; with a Visibility gear (which rewrites
+    // its light each tick) each still names the item of the source that wrote it, and the three items differ.
     [Fact]
     public void DecayKeepsEachSourcesOwnItem()
     {
-        var r = Build(Armament.Gun, .5f, Drive(10), new SensorData
-        {
-            Sensitivity = Constant(3f), PingBoost = Constant(.02f), PingEnergy = Constant(0f), PingVisibility = Constant(5f),
-            PingRange = Constant(300f), PingCooldown = Constant(4f)
-        });
+        var r = Build(Armament.Gun, .5f, Drive(10),
+            new VisibilityData { Visibility = Constant(5f), VisibilityDecay = Constant(0), Channel = SignatureChannel.Reflection });
         var thruster = Single<Thruster>(r.Ship);
-        var sensor = Single<Sensor>(r.Ship);
+        var sensor = Single<Visibility>(r.Ship);
         thruster.Item.UpdatePerformance();
         Burn(r, 1f);
         Burn(r, 0f); // the drive stops: its entry is no longer rewritten
-        sensor.Ping();
         Fire(r);
 
         var sources = new Behavior[] { thruster, sensor, r.Weapon };
         // What each writer authors, named here and not read back from the fixture's own ticks.
-        var writes = new[] { SignatureChannel.DrivePlume, SignatureChannel.Emission, SignatureChannel.LaunchFlash };
+        var writes = new[] { SignatureChannel.DrivePlume, SignatureChannel.Reflection, SignatureChannel.LaunchFlash };
         var before = sources.Select(b => Of(r.Ship, b)).ToArray();
         Assert.Equal(3, before.Select(e => e.Item).Distinct().Count());
         Assert.All(before, e => Assert.True(e.Strength > 1f, "fixture: each source has a live entry"));
@@ -442,7 +438,7 @@ public sealed class SignatureTests : IDisposable
         for (var i = 0; i < sources.Length; i++)
         {
             var after = Of(r.Ship, sources[i]);
-            Assert.True(after.Strength < before[i].Strength, "fixture: decay touched the entry");
+            if (sources[i] != sensor) Assert.True(after.Strength < before[i].Strength, "fixture: decay touched the entry");
             Assert.Same(sources[i].Item, after.Item);
             Assert.Equal(writes[i], after.Channel);
         }

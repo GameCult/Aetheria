@@ -93,9 +93,14 @@ public abstract class Entity
     public IReadOnlyDictionary<object, Signature> VisibilitySources => _visibilityView ??= new ReadOnlyDictionary<object, Signature>(_visibilitySources);
 
     // The one writer of VisibilitySources (the decay loop in Update is the one decayer). Every light signature
-    // names its channel and the item that produced it (null for the hull).
-    public void SetSignature(object source, SignatureChannel channel, float strength, EquippedItem item) =>
+    // names its channel and the item that produced it (null for the hull). Emission is active emission (paints now,
+    // Entity.Emit after emissions-heard), never light: ruling visibility-per-capability-reveal, map R1.
+    public void SetSignature(object source, SignatureChannel channel, float strength, EquippedItem item)
+    {
+        if (channel == SignatureChannel.Emission)
+            throw new ArgumentException("Emission is active emission, never a light signature.", nameof(channel));
         _visibilitySources[source] = new Signature(channel, strength, item);
+    }
     public readonly ReactiveDictionary<Entity, float> EntityInfoGathered = new ReactiveDictionary<Entity, float>();
 
     public (List<Weapon> weapons, List<EquippedItem> items)[] WeaponGroups;
@@ -169,8 +174,6 @@ public abstract class Entity
     public int AssignedPopulation => PopulationAssignments.Sum(pa => pa.AssignedPopulation);
     public float Mass { get; private set; }
     public float Visibility => VisibilitySources.Values.Sum(s => s.Strength);
-    public float SignatureOn(SignatureChannel channel) =>
-        VisibilitySources.Values.Where(s => s.Channel == channel).Sum(s => s.Strength);
 
     public Subject<Entity> IncomingHit = new Subject<Entity>();
     // One per entity, created with it, never replaced: FireControl publishes each landed impact on it (Absorb).
@@ -954,7 +957,7 @@ public abstract class Entity
     // What this observer's instruments receive of other ships' acts this tick (Zone.Update calls it once, after every
     // entity has updated): every light signature of an item that would alone settle this observer's passive info above
     // TargetDetectionInfoThreshold is revealed (ruling visibility-per-capability-reveal). Hull radiation names no
-    // item and only feeds the track; an Emission entry is never light. One PassiveInfo per ship. Zone.Update calls it
+    // item and only feeds the track. One PassiveInfo per ship. Zone.Update calls it
     // for every entity after all of them have updated, so what a ship shows is what every observer receives on that
     // tick whatever order the zone lists them in.
     internal void Sense()
@@ -969,7 +972,7 @@ public abstract class Entity
             var perSignature = -1f;
             foreach (var signature in other._visibilitySources.Values)
             {
-                if (signature.Item == null || signature.Channel == SignatureChannel.Emission) continue;
+                if (signature.Item == null) continue;
                 if (perSignature < 0f) perSignature = PassiveInfo(other.Position.xz, 1f);
                 if (signature.Strength * perSignature > threshold) RecordReveal(other, signature.Item, signature.Channel);
             }

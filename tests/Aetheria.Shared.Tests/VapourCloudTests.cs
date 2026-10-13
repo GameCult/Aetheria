@@ -85,7 +85,7 @@ public sealed class VapourCloudTests : IDisposable
         {
             Sensitivity = Constant(1f),
             SensitivityCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } },
-            PingBoost = Constant(.000004f), PingEnergy = Constant(0f), PingVisibility = Constant(5f),
+            PingBoost = Constant(.000004f), PingEnergy = Constant(0f),
             PingRange = Constant(300f), PingCooldown = Constant(4f)
         }));
         cache.Upsert(Gear("Vent", HardpointType.Tool, new VapourDumpData

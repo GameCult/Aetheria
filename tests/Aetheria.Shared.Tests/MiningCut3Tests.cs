@@ -119,7 +119,6 @@ public sealed partial class MiningCut3Tests : IDisposable
             SensitivityCurve = Falloff(),
             PingBoost = Constant(.02f),
             PingEnergy = Constant(0f),
-            PingVisibility = Constant(5f),
             PingRange = Constant(300f),
             PingCooldown = Constant(4f)
         });
@@ -132,7 +131,6 @@ public sealed partial class MiningCut3Tests : IDisposable
             SensitivityCurve = Falloff(),
             PingBoost = Constant(.02f),
             PingEnergy = Constant(0f),
-            PingVisibility = Constant(5f),
             PingRange = Constant(300f),
             PingCooldown = Constant(4f)
         });
@@ -1032,7 +1030,7 @@ public sealed partial class MiningCut3Tests : IDisposable
         var eye = Gear("Eye", new SensorData
         {
             Sensitivity = Constant(sensitivity), SensitivityCurve = Falloff(), PingBoost = Constant(boost),
-            PingEnergy = Constant(0f), PingVisibility = Constant(5f), PingRange = Constant(300f), PingCooldown = Constant(4f)
+            PingEnergy = Constant(0f), PingRange = Constant(300f), PingCooldown = Constant(4f)
         });
         cache.Upsert(eye);
         var items = new ItemManager(cache, new ProvenanceLedger(), GameSettings(), _ => { });

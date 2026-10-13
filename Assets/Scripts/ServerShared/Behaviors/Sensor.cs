@@ -24,8 +24,7 @@ public class SensorData : BehaviorData
     [Inspectable, JsonProperty("pingEnergy"), Key(6), RuntimeInspectable]
     public PerformanceStat PingEnergy;
 
-    [Inspectable, JsonProperty("pingVisibility"), Key(7), RuntimeInspectable]
-    public PerformanceStat PingVisibility;
+    // Key 7 (pingVisibility) is retired: never reuse it.
 
     [Inspectable, JsonProperty("pingRange"), Key(8), RuntimeInspectable]
     public PerformanceStat PingRange;
@@ -137,7 +136,6 @@ public class Sensor : Behavior, IEventBehavior, IPowerConsumer
         // nothing would ever fill this capacitor; bypass it rather than starving such an instance forever.
         if(_pingCooldown < 0 && (Item == null || _capacitor.TrySpend(_capacitor.Capacity)))
         {
-            Entity.SetSignature(this, SignatureChannel.Emission, Evaluate(_data.PingVisibility), Item); // interim: emissions-heard replaces this with a range-gated emission
             _pinging = true;
             _pingZone = Entity.Zone;
             _pingCooldown = 1;

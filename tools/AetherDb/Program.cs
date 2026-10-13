@@ -207,7 +207,7 @@ public static class Program
     {
         ["Sensitivity"] = "receiver",
         ["PingBoost"] = "emitter", ["PingEnergy"] = "emitter", ["PingRange"] = "emitter",
-        ["PingVisibility"] = "emitter", ["PingCooldown"] = "emitter",
+        ["PingCooldown"] = "emitter",
     };
 
     private static readonly Dictionary<string, string> ThrusterRoles = new Dictionary<string, string>

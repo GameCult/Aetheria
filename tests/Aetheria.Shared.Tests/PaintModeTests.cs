@@ -99,7 +99,7 @@ public sealed class PaintModeTests : IDisposable
             {
                 Sensitivity = Const(sensitivity),
                 SensitivityCurve = new BezierCurve { Keys = new[] { float4(0, 0, 0, 0), float4(1, 0, 0, 0) } }, // no passive gain
-                PingBoost = Const(pingBoost), PingEnergy = Const(0), PingVisibility = Const(5), PingRange = Const(300),
+                PingBoost = Const(pingBoost), PingEnergy = Const(0), PingRange = Const(300),
                 PingCooldown = Const(4),
                 BeamWidth = beamWidth.HasValue ? Const(beamWidth.Value) : null
             }
@@ -259,7 +259,6 @@ public sealed class PaintModeTests : IDisposable
         var e = NewShip(float3(-30, 0, 130), "Ear", a.Faction);  // same faction but hostile to A
         e.SetIff(a, true);
         Settle();
-        var cEmission = c.SignatureOn(SignatureChannel.Emission);
 
         var (held, _) = SweepAndWatch(a, .1f);
 
@@ -268,7 +267,6 @@ public sealed class PaintModeTests : IDisposable
         Assert.Equal(.21213f, Track(c, t), 4);
         Assert.Equal(.1f, Track(a, t), 4);
         // Nothing of C is emitted or painted: T's only paint is A's sweep.
-        Assert.Equal(cEmission, c.SignatureOn(SignatureChannel.Emission));
         var paint = Assert.Single(held[t].SelectMany(h => h));
         Assert.Same(GearOf(a).Data, paint.EmitterClass);
         // A hostile or foreign listener hears nothing of A's ping.
@@ -293,10 +291,10 @@ public sealed class PaintModeTests : IDisposable
         Assert.Equal(2 * .3f, Track(c, t), 4); // 5 x 3 x .0002 x 100, its own ping and A's
         Assert.Equal(2 * .1f, Track(a, t), 4); // 5 x 2 x .0001 x 100, its own ping and C's
         // A pinging ship is not a subject of its own ping, wherever its wavefront starts: A sees C once (A's own
-        // sweep), at C's light of 10 (5 reflected, 5 emitted by the ping) and 100 x sqrt 2 away; and C sees A once.
+        // sweep), at C's light of 5 (reflected; a ping adds none) and 100 x sqrt 2 away; and C sees A once.
         var apart = length(float2(100, 100));
-        Assert.Equal(10 * 2 * .0001f * apart, Track(a, c), 4);
-        Assert.Equal(10 * 3 * .0002f * apart, Track(c, a), 4);
+        Assert.Equal(5 * 2 * .0001f * apart, Track(a, c), 4);
+        Assert.Equal(5 * 3 * .0002f * apart, Track(c, a), 4);
     }
 
     // Allegiance needs a faction: two factionless ships are not allies, so one hears nothing of the other's ping.
