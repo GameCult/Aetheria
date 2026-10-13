@@ -1,9 +1,11 @@
 # Aetheria electronic warfare: target
 
-Proposed campaign slug `aetheria-ew`. Repo `GameCult/Aetheria`, working branch `master`, cut branches
+Campaign `aetheria-ew`, target revision r2. Repo `GameCult/Aetheria`, working branch `master`, cut branches
 `eureka/aetheria-ew-<cut>`. Written by Imagination (agent imagination-aeth-ew-target, session
 self-2026-10-13-ag) against `origin/master` `e89d38e9`, with `origin/eureka/aetheria-release-reveals-replace-tiers`
-read where master lacks it. Prior art and lore: `docs/research/ew-prior-art.md` (cited below as `R:<line>`).
+read where master lacks it. Revision r2 (agent imagination-aeth-ew-r2, same session) folds the eight operator rulings
+of 2026-10-13 (`aetheria-ew:ruling:<name>-ruled`, cited below by `<name>-ruled`); master now holds
+reveals-replace-tiers, so probe P1's gap is closed. Prior art and lore: `docs/research/ew-prior-art.md` (cited below as `R:<line>`).
 This is the target and the model page. No cut is specified here; the first cut is mapped when it is about to run.
 
 ## Purpose, in the operator's words
@@ -28,7 +30,7 @@ signature consumed real heat and closed a later option" (R:90).
 ## Self's reading, tested against the Body and the lore
 
 The operator asked "What do you think?". Each point of Self's reading is adopted, amended or rejected here, with
-the reason. The forks that only the operator can settle are questions (listed at the end).
+the reason. The forks that needed the operator are now rulings (listed at the end).
 
 1. **The lie lives in emissions; each observer's own Sense derives belief; EW never writes an observer's book.**
    *Adopted, and sharpened.* The Body already has exactly this shape: a ship's light is written only by its own
@@ -51,7 +53,8 @@ the reason. The forks that only the operator can settle are questions (listed at
      `HasReveal`) is unchanged for a gear lie: the observer aims at the real item that acted, believing it is the
      claimed class. The shot lands on what emitted; the lie misleads the choice, not the aim.
    - Under a believed *hull* lie, the observer's layout is the claimed hull's, so it cannot place the true item:
-     recommended rule, aim at gear only once the hull lie is seen through (question `ew-aim-under-hull-lie`).
+     ruling `ew-aim-under-hull-lie-ruled`: the observer can target the ship but no gear on it until the hull lie is
+     seen through.
    - `Reveal.Item` stops being a classification source: consumers that label or rank (HUD, schematic, AI threat,
      point defence choice) read `Claimed` and `Profile`. `Item` stays for `IsRevealed` and the book's own gates.
 
@@ -61,7 +64,9 @@ the reason. The forks that only the operator can settle are questions (listed at
      chunks are near and only while the ship's light stays inside that kind's envelope (no drive plume, thermal and
      reflection no brighter than chunks there, `Zone.ChunkVisibility`). A contact believed to be background is
      detected and tracked, but it is clutter: not an enemy, not a target (operator: "you can be detected and it
-     doesn't matter"). This needs allegiance to come from belief, not truth (question `ew-hostility-from-belief`).
+     doesn't matter"). This needs allegiance to come from belief, not truth (ruling `ew-hostility-from-belief-ruled`). A believed
+     background contact is shown as a faint background marker labelled as the kind, not hostile (ruling
+     `ew-blend-presentation-ruled`).
    - *Masquerade* is two claims: a hull profile (the whole ship claims another hull class, and optionally shows
      another faction's telemetry) and item claims (one fitted item's acts claim another item class). The envelope is
      checked by each observer against what it perceives: drive plume and acceleration no greater than the claimed
@@ -74,7 +79,8 @@ the reason. The forks that only the operator can settle are questions (listed at
      profile, while the ship itself goes cold. A decoy is the same kind with a different load (bright, short-lived,
      a claim of whatever it imitates). One kind serves both, and the follow-up `missile-decoys-signature` asks for
      exactly this ("a decoy record or entity with Visibility, offered to the seeker scan"). The exotic Cold Wake
-     imitation ("space magic") stays a later tier, behind question `ew-where-lies`.
+     imitation ("space magic") stays a later tier: EW lies about what, never where, and phantom positions with no
+     emitter are their own later campaign (ruling `ew-where-lies-ruled`).
 
 4. **The envelope bounds every lie and costs heat; lies break on envelope violation, multi-aspect observation,
    illumination, or heat exhaustion.** *Adopted; the quantities are mostly ones the Body already owns.*
@@ -92,25 +98,32 @@ the reason. The forks that only the operator can settle are questions (listed at
      play shows the instantaneous check is too easy to game.
    - *Illumination* (burn-through, R:102, R:127): an observer whose own ping or lock paint crosses the subject with
      power over range above the lie's masking strength sees through. The illuminator pays as today: it is heard and
-     the target is warned (rulings `scan-is-an-act`, `sensor-stat-set`). Who else learns is question
-     `ew-seen-through-sharing`.
+     the target is warned (rulings `scan-is-an-act`, `sensor-stat-set`). An illuminator's burn-through is
+     shared with the allies receiving its ping return; a passive see-through (arc, envelope break) stays with the
+     observer (ruling `ew-seen-through-sharing-ruled`).
 
-5. **Noise jamming at most a crude early tier; phantom items deferred.** *Adopted.* Noise jamming would add a term
-   to every observer's `Sensor.Gain`, the one place track gain is computed; the operator's purpose puts lying ahead
-   of masking, and every game in the research that leads with noise jamming ends up as lock denial (EVE R:111,
-   Starsector R:109), which is not the story the operator described. Recommended: not in this campaign's first
-   sequence (question `ew-noise-jamming`). Phantom items (claims of gear the ship does not carry) are deferred: an
-   item claim is always attached to a real fitted item that acts.
+5. **Noise jamming is in, as a crude loud tier; phantom items deferred.** *Amended by the operator* (ruling
+   `ew-noise-jamming-ruled`: "sounds like an obvious thing to have"). A jammer adds exactly one term to
+   `Sensor.Gain`, the one place track gain is computed: inside the jammer's cone, other ships' active-sensor gain is
+   thinned, as the vapour cloud's obscuration thins it. The term is owned by the jammer's heard emission and cone, so
+   it is not a second sensor model. The jamming is itself an emission heard far (`Emit`), which reveals its user and
+   invites home-on-jam (R:130), as an illuminator is revealed. The research warns that games leading with noise
+   jamming end as lock denial (EVE R:111, Starsector R:109); the loud, heard, cone-bound tier keeps the jammer a
+   gamble with a signature rather than a switch. Full jamming (spot and barrage, J/S ratios, burn-through ranges)
+   is not in this campaign unless the operator widens it. Phantom items (claims of gear the ship does not carry) are
+   deferred: an item claim is always attached to a real fitted item that acts.
 
 6. **Era tiers from lore.** *Amended: tiers are gear, not an era flag.* The lore's line (R:86: "Before the Cold Wake
    metamaterial threshold, actors hide, delay, dump, and throw crude decoys. After it, ships ... imitate") becomes a
    gear line. Probe P7 shows most of the early tier already exists: radiators off (`Thermotoggle`), heat held
    (`HeatStorage`), vapour dump (`VapourDump`). The early tier EW adds is the launch suppressor and the crude decoy
-   (an emitter body with no claim). The late tier is masquerade and blend gear. Which tiers the release catalog
-   carries, and for whom, is question `ew-imitation-availability`.
+   (an emitter body with no claim). The late tier is masquerade and blend gear. Ruling
+   `ew-imitation-availability-ruled`: both tiers ship; imitation gear is rare and made by a few makers whose identity
+   fits, so most fights see hiding, crude decoys and jamming, and a masquerading ship is an event. The early tier
+   (suppressor, crude decoy, jammer) is not scarce.
 
 7. **Crew refusals and the political cost of jamming.** The sim has no crew model (Entity.cs:85-86, `Population`
-   and `Personality` are commented out). Recommended lore-only for this campaign (question `ew-crew-refusals`).
+   and `Personality` are commented out). Lore only in this campaign, no mechanic (ruling `ew-crew-refusals-ruled`).
 
 ## Design truths (ends, not means)
 
@@ -134,8 +147,8 @@ the reason. The forks that only the operator can settle are questions (listed at
 - `one-judge`: Whether a claim is believed is decided by one function of (claim, what the observer perceives of the
   subject, geometry, the observer's own illumination), shared by ships and seekers.
 - `what-not-where`: Every position the sim exposes is the true position of a real entity; EW lies about what a
-  contact is, not where an entity is. Displacement is a real emitter body elsewhere. (Rests on question
-  `ew-where-lies`.)
+  contact is, not where an entity is. Displacement is a real emitter body elsewhere. (Ruling
+  `ew-where-lies-ruled`.)
 - `classify-from-belief`: Every consumer that labels, ranks or chooses (HUD, schematic, AI target choice, point
   defence choice, seeker) reads `Contact.Profile` and `Reveal.Claimed`; none reads `subject.Hull`, the true item's
   data or the subject's true faction to classify. Physics, damage and aiming keep the truth.
@@ -144,14 +157,17 @@ the reason. The forks that only the operator can settle are questions (listed at
 - `lies-cost-real-heat`: Every lie adds heat to its EW item's cell through `AddHeat`; there is no separate EW
   budget; an EW behaviour writes no claim above its rated temperature.
 - `illumination-burns-through`: An observer whose own ping or lock paint crosses a subject with power above the
-  lie's masking strength sees through it; the act reveals the illuminator as it does today.
+  lie's masking strength sees through it; the act reveals the illuminator as it does today. An illuminator's
+  burn-through is shared with the allies receiving its ping return (ruling `ew-seen-through-sharing-ruled`); a
+  passive see-through stays with the observer.
 - `seen-through-holds-while-tracked`: A seen-through verdict holds while the observer keeps the subject tracked or
   remembered (`BearingMemory`), and ends with the contact. A new lie fools a fresh contact, not a held one.
 - `decoy-is-emitter-body`: Decoys and heat tenders are one kind, a real `Entity` with its own signatures and a claim;
   seekers, point defence and the HUD treat it by belief, with no decoy-specific rule.
 - `present-model-stays`: The exact track, bearing-only reveals remembered for `BearingMemory`, and range only where a
-  channel gives it, are unchanged (ruling `ew-owns-ambiguity-and-decoys`). EW adds no noise term to `Sensor.Gain`
-  unless question `ew-noise-jamming` rules one in.
+  channel gives it, are unchanged (ruling `ew-owns-ambiguity-and-decoys`). `Sensor.Gain` gains exactly one jamming
+  term, owned by the jammer's heard emission and cone like the cloud's obscuration (ruling
+  `ew-noise-jamming-ruled`); EW adds no other term to it.
 
 ## Not in scope
 
@@ -163,8 +179,9 @@ the reason. The forks that only the operator can settle are questions (listed at
   `cloud-vs-missiles-in-flight` is satisfied by missile-records' seeker reading through `PassiveRate`, which already
   multiplies `Zone.Obscuration` (Sensor.cs PassiveRate); EW owns only the pinning test, in the seeker cut.
 - Not a consumer: AetheriaEve/AetheriaThing (archived).
-- Not in this campaign: false positions or bearings with no emitter, error ellipses, phantom gear, crew refusals as
-  mechanics, comms jamming, persistent EW state in saves.
+- Not in this campaign: false positions or bearings with no emitter (`ew-where-lies-ruled`), error ellipses, phantom
+  gear, crew refusals as mechanics (`ew-crew-refusals-ruled`), comms jamming, full jamming (spot and barrage, J/S,
+  burn-through ranges: only if the operator widens `ew-noise-jamming-ruled`), persistent EW state in saves.
 
 ## Model page: identity, lifecycle, authority
 
@@ -177,12 +194,13 @@ cleared by `Deactivate`, except the catalog stats.
 | **Item claim** (new) | `(subject, item)`, carried inside the act: a `Claimed` class on `Signature` and on `ActiveEmission` and `PaintWarning`'s source. Defaults to `item.Data`. | Exists as long as the signature or emission it rides (one tick for emissions; until the source's next write for light). | The subject's EW behaviour sets the item's claim; `SetSignature` and `Emit` stamp it, so the one writer of light and emission stays the one writer of what they claim. Forbidden: the emitting behaviours choosing their own claim (a gun does not lie by itself). |
 | **Channel suppression** (new) | `(ship, channel)` factor, 0..1, on the subject. | Set each tick a suppressor runs; 1 otherwise. Applied inside `SetSignature` to that channel's strength. | The ship's suppressor behaviour. Forbidden: weapons scaling their own flash; observers. |
 | **Reveal** (changed) | Unchanged key `(observer, subject, true item)`; gains `Claimed`. | As today: entered by an act, replaced by the item's later act, ended on perceived destruction, departure or memory age, cleared by `Deactivate`. The claimed class is the latest act's. | `RecordReveal` only (callers `Sense`, `PublishInbox`). Readers that classify read `Claimed`; `Item` is read only by `IsRevealed` and the book's gates. |
-| **Belief** (new) | `(observer, subject)` in the observer's book beside its reveals: believed `Profile`, believed `Faction` (if question `ew-hostility-from-belief` says so), `SeenThrough`, time. | Created when the observer first identifies the subject or receives its claim; revised each `Sense` from the subject's current claim and the judge; `SeenThrough` set by an envelope break, an out-of-arc view or own illumination; ends with the contact (track lost and `BearingMemory` past), on departure, or on `Deactivate`. A new claim from a seen-through subject is ignored until the contact ends. | `Entity.Sense` through the one judge. Forbidden: EW gear, presenters, AI, allies (unless question `ew-seen-through-sharing` rules sharing in, and then only through the path that question names). |
-| **Contact** (changed) | Derived `(observer, subject)`, never stored. Gains `Profile`, `SeenThrough` (and allegiance per `ew-hostility-from-belief`). | Derived on every read. | `Entity.ContactOf` only. |
+| **Belief** (new) | `(observer, subject)` in the observer's book beside its reveals: believed `Profile`, believed `Faction` (ruling `ew-hostility-from-belief-ruled`: allies by datalink are truth; any other contact's allegiance is the claim's, unknown when none, background when blending), `SeenThrough`, time. | Created when the observer first identifies the subject or receives its claim; revised each `Sense` from the subject's current claim and the judge; `SeenThrough` set by an envelope break, an out-of-arc view or own illumination; ends with the contact (track lost and `BearingMemory` past), on departure, or on `Deactivate`. A new claim from a seen-through subject is ignored until the contact ends. | `Entity.Sense` through the one judge. Forbidden: EW gear, presenters, AI, allies, except that an illuminator's burn-through reaches its ping-return allies through `PublishInbox` (ruling `ew-seen-through-sharing-ruled`). |
+| **Contact** (changed) | Derived `(observer, subject)`, never stored. Gains `Profile`, `SeenThrough` (and allegiance per `ew-hostility-from-belief-ruled`). | Derived on every read. | `Entity.ContactOf` only. |
 | **Own illumination** (new, transient) | `(observer, subject)`, this tick: the power over range of the observer's own ping crossing or lock paint on the subject. | One tick: written in `Update`, read by `Sense`, cleared by `PublishInbox`, as `_emissions` is now. | The observer's own `Sensor` and `LockWeapon` write it on their own entity. Forbidden: the subject; other entities. |
 | **EW gear stats** (new) | Fields on new `BehaviorData` types with append-only MessagePack keys: masquerade (bandwidth window, background kinds, arc, masking strength, heat per second, rated temperature), suppressor (channels, factor, heat per unit suppressed), deployer (body design, heat drawn, launch speed). | Catalog edits through AetherDb; resolved per item by the entity's stat owner (Cut 2). | The catalog. Forbidden: runtime writes. |
 | **Background kind** (new) | Append-only enum (`Rock`, `Debris`, more by ruling) with an envelope per kind in `GameplaySettings`: plume ceiling, light relative to nearby chunks, the belt-proximity radius. | Static data. | `GameplaySettings`. Forbidden: per-zone overrides (default; revisit if a zone needs one). |
 | **Emitter body** (new) | An `Entity` instanced from a catalog design, admitted through Zone's one admission (Zone.cs:208); it names its `Parent` (the deploying ship). Its claim defaults to its parent's profile. | Created by a deployer behaviour, carrying heat drawn from the parent's cells; lives on its own heat and fuel; removed through the zone's removal path (a `Departure`, so observers judge its end) when spent or destroyed. Not saved. | Its own behaviours write its signatures (its real heat is its signature); the deployer decides creation; the zone owns admission and removal. Forbidden: observers, the parent after release. |
+| **Jammer** (new) | Gear `BehaviorData` (cone half-angle and facing, power, gain factor, heat per second, rated temperature) on a ship; its output is `(ship, cone, power)`, this tick. | Runs each tick under its rated temperature: adds heat to its own cell through `AddHeat`, emits a heard jamming emission through `Emit` (heard far: it reveals the user and invites home-on-jam), and its cone-and-power thins `Sensor.Gain` for other ships' active sensors inside the cone, the one gain term. Silent above rated temperature. Not saved. | The jammer's own behaviour owns the emission and the cone; `Sensor.Gain` only reads them, as it reads `Zone.Obscuration`. Forbidden: any other writer of the jamming term; observers; the jammer writing a sensor's state directly. |
 | **Heat** (existing) | Per-cell `Temperature` on the hull grid. | Unchanged. | The thermal sim; EW behaviours are ordinary `AddHeat` writers. No new owner. |
 
 Recommended defaults, not questions: the emitter body is a `Ship` from a catalog design rather than a new `Entity`
@@ -224,25 +242,27 @@ vocabulary: deception jamming and DRFM change apparent range, velocity or angle 
 family this target defers; burn-through range (R:127); a self-protecting jammer reveals itself to home-on-jam
 (R:130), as an illuminator does here.
 
-## Questions admitted (campaign aetheria-release, for Self to re-home)
+## Rulings folded (campaign aetheria-ew, 2026-10-13)
 
-`ew-where-lies`, `ew-hostility-from-belief`, `ew-blend-presentation`, `ew-seen-through-sharing`,
-`ew-aim-under-hull-lie`, `ew-noise-jamming`, `ew-imitation-availability`, `ew-crew-refusals`.
+`ew-where-lies-ruled`, `ew-hostility-from-belief-ruled`, `ew-blend-presentation-ruled`,
+`ew-seen-through-sharing-ruled`, `ew-aim-under-hull-lie-ruled`, `ew-noise-jamming-ruled`,
+`ew-imitation-availability-ruled`, `ew-crew-refusals-ruled`.
 
 ## Cut sequence (titles only; each is mapped when it is about to run)
 
 1. `ew-hide-launch`: a suppressor scales its ship's launch flash inside `SetSignature`, paying heat to its cell.
-   Waits on: none (master); catalog content waits on `ew-imitation-availability`.
+   Waits on: none (master and reveals-replace-tiers are in); early tier, so not scarce
+   (`ew-imitation-availability-ruled`).
 2. `ew-claims-in-the-book`: `Reveal.Claimed`, `Contact.Profile` and `SeenThrough`; classifying consumers read them;
    claims default to the truth, so behaviour is unchanged. Waits on: reveals-replace-tiers, contact-hud.
-3. `ew-belief-allegiance`: enemies and friendlies derive from belief for non-allies. Waits on: cut 2,
-   `ew-hostility-from-belief`.
+3. `ew-belief-allegiance`: enemies and friendlies derive from belief for non-allies. Waits on: cut 2.
 4. `ew-masquerade`: masquerade gear writes ship and item claims; the one judge with envelope and arc checks; heat
-   and rated temperature; aim under a hull lie. Waits on: cut 3, `ew-aim-under-hull-lie`.
+   and rated temperature; aim under a hull lie. Waits on: cut 3.
+4a. `ew-jammer`: the jammer gear: a heard jamming emission, a cone, and the one jamming term in `Sensor.Gain`, heat
+    to its own cell. Waits on: cut 4 (ruling `ew-noise-jamming-ruled`).
 5. `ew-burn-through`: own illumination record; paints and pings above masking strength see through. Waits on:
-   cut 4, `ew-seen-through-sharing`.
-6. `ew-blend`: background kinds and their envelopes; believed background is clutter. Waits on: cut 4,
-   `ew-blend-presentation`.
+   cut 4.
+6. `ew-blend`: background kinds and their envelopes; believed background is clutter. Waits on: cut 4.
 7. `ew-emitter-bodies`: the deployer and the emitter body (heat tender, crude decoy). Waits on: cut 2 (claim
    defaults); cut 4 for a body that carries its parent's profile.
 8. `ew-seekers-read-belief`: missile seekers use the one judge; decoys pull seekers; the cloud pin. Waits on:
