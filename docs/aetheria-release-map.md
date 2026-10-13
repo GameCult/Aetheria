@@ -9218,3 +9218,101 @@ locations when it next revises it.
   cut-scanner-catalog.r1 (new).
 Unchanged: cut-sensor-catalog.r1. No question raised: every choice here follows a ruling in force or a
 default stated in the rationale.
+
+# Visibility refresh at 0898725f
+
+Imagination imagination-aeth-vis-refresh, session self-2026-10-13-ag2, 2026-10-13. Pinned to Aetheria
+origin/master 0898725f (contact-hud, emissions-heard, reveals-replace-tiers, ping-signature-retired, loot-2 and
+aetheria-ew ew-hide-launch merged). Read-only detached worktree. Refreshes cut_specs scenarios-lock-on (r2 -> r3)
+and sensor-catalog (r1 -> r2). Paths under Assets/Scripts/ServerShared unless noted.
+
+## Body facts (source reads at 0898725f)
+
+VF1. `Scenarios.Tests` (Scenarios/Scenarios.cs:10-13) is one line (12) ending `new Crossing(), new Belt()`.
+Seeds taken: 24 (Belt), 101-112. 113 is still free.
+
+VF2. Duel's fighter fit is Scenarios/Duel.cs:16-31 (Longinus, two GT 3K, sensor "not if i see you first");
+the player at 33, the piloted hostile rival at 900 m at 34. Duel generates `stage.Prelude()`; Crossing.cs:22 and
+Pursuit.cs:18 generate `stage.Prelude(DemoTerminus.Cast)`. Every scenario commits its `.cs.meta`.
+
+VF3. The only `Sensor.Ping()` caller is the player's input (Gameplay/ActionGameManager.cs:394): SC5 stands.
+
+VF4. A lock paints only when the locker has a hostile Target inside LockAngle (Behaviors/LockWeapon.cs:85-117);
+it paints Track (`ReceivePaint` 111) and emits `Range / InterceptFactor` (112). The AI's target comes from
+`VisibleEnemies` (Agents/Minion.cs:14), which fills when the track crosses TargetDetectionInfoThreshold
+(Entity.cs:315-331).
+
+VF5. The incoming-lock indicator reads only `IncomingPaints`, Track mode, strongest first
+(ActionGameManager.cs:1478-1491); IncomingLockIndicatorDistance is 164. `PaintWarning` is Sensing.cs:75-90.
+
+VF6. Scenario tests are partials of RunStartTests (CrossingScenarioTests.cs, PursuitScenarioTests.cs,
+BeltScenarioTests.cs); EveryScenarioStages is ScenarioTests.cs:97.
+
+VF7. Hearing: `HearingMultiple()` is `private int`, 1 with any active sensor, else 0 (Entity.cs:696-698; its
+comment promises "Listener gear extends it"). Sense reads it once into `var hearing` (992) and hears an
+emission when `planar <= emission.HearRange * hearing * obscuration` (1007-1015). A float return compiles in
+Sense unchanged.
+
+VF8. `ActiveSensors()` (Entity.cs:680-693) counts active equipment and active consumables.
+`GetBehaviors<T>()` (1621-1628) walks equipment only and ignores Active.
+
+VF9. Alpha keys landed: SensorData.InterceptFactor Key 13 (Behaviors/Sensor.cs:47-49), read as 1 when absent
+(94); LockWeaponData.InterceptFactor Key 34 (Behaviors/LockWeapon.cs:28-30), read as 1 when absent (58).
+BeamWidth reads 360 when absent (Sensor.cs:92). EmissionTests (tests/Aetheria.Shared.Tests/EmissionTests.cs, a
+partial of ContactRevealTests) pins hearing, alpha keys and the absent-reads-as-one rule; fixtures Eye, Shout and
+Roar are upserted in ContactRevealTests' constructor (56-61).
+
+VF10. BehaviorData union: LaunchSuppressorData is 49 (Behaviors/Behaviors.cs:193); 50 is free.
+LaunchSuppressor.cs is the newest stat-holding behaviour with both CreateInstance overloads.
+
+VF11. AetherDb: the command switch ends at verse-grammar (tools/AetherDb/Program.cs:52) and the usage line is 54.
+Field-to-role maps: SensorRoles 206-211 (Sensitivity -> receiver, Ping* -> emitter), ToolRolesByDesign by design
+name 229-241, MakerProfiles (Mean, Dev) 244-249 (no Sol). PdGearCatalog (1488) is the authoring precedent.
+
+VF12. Stat evaluation is `lerp(Min, Max, product of q^e)` (ItemData.cs:721-728), so an alpha of Min .5, Max 2
+reads 1 at quality .5 only with exponent log2(3) (about 1.585).
+
+VF13. CB-R1 (tests/Aetheria.Shared.Tests/CatalogRoleTests.cs:41-70): every non-flat stat reads exactly one
+declared role, every declared role is read, and every product authors each declared role once. A new role on a
+sensor design therefore needs a ProductRole on every one of its products.
+
+VF14. aetheria-ew: its target keeps the two-listener fix out of EW (docs/aetheria-ew-target.md:174). Its cut 1b
+`ew-hide-launch-catalog` (unmapped) will write GameData/Aetheria.cc and append an AetherDb command.
+
+## Concurrency against aetheria-ew ew-claims-in-the-book
+
+That cut edits Sensing.cs (Signature, ActiveEmission, Reveal, Contact), Entity.cs (SetSignature, Emit,
+ReceivePaint, RecordReveal, ContactOf, Sense and new lines after SetSignature and RevealsOf), Combat.cs,
+SchematicDisplay.cs and the Weapon behaviours.
+
+- scenarios-lock-on r3: no shared file. Its test reads PaintWarning's Mode, Bearing and Strength, not
+  EmitterClass. Runs now.
+- sensor-catalog r2: in Entity.cs only HearingMultiple (696-698), outside every claims hunk; Sense is not edited.
+  One shared test file (ContactRevealTests.cs constructor, one Upsert line): a line-level merge, keep both.
+  Runs now. Its binary catalog write conflicts with any other catalog cut, not with claims: the second to merge
+  reruns its idempotent apply on master's .cc.
+
+## Rationale
+
+- No redundant catalog data. r1 authored BeamWidth 360 on every sensor and alpha 1 on every lock weapon. Both
+  equal what an absent value reads (VF9), and EmissionTests pins that rule, so the writes would change nothing
+  but the bytes of a 12 MB LFS file. Lock weapons keep alpha 1 until a content cut gives launchers brand
+  flavour.
+- A listener's role is `receiver`, not `emission-discipline`. A listener emits nothing; `receiver` already
+  names the sensor's listening stat (Sensitivity). Brand flavour for listeners is not ruled, so their quality
+  follows MakerProfiles.
+- HearingMultiple becomes float because Multiple is a quality-ranged stat (2-3); Sense needs no edit (VF7).
+- Size. r1 was 110 calls. Dropping the redundant authoring and keeping Unity out of it brings it to 75/90, with a
+  declared stop point after the headless half.
+
+## Cut order (amends 'Visibility refresh at efee2a2a')
+
+emissions-heard (merged) -> sensor-catalog r2 (runs now); contact-reveals (merged) -> scenarios-lock-on r3
+(runs now). Both may run beside each other and beside aetheria-ew ew-claims-in-the-book.
+Sizes (Hands calls, budget / cap): scenarios-lock-on 55/75, sensor-catalog 75/90.
+
+## Admitted (imagination-aeth-vis-refresh, 2026-10-13)
+
+- mind-commit-7be0c784...: cut-scenarios-lock-on.r3, resolution cut_spec.cut-scenarios-lock-on.r2.n1
+  (Superseded); cut-sensor-catalog.r2, resolution cut_spec.cut-sensor-catalog.r1.n1 (Superseded).
+No question raised.
