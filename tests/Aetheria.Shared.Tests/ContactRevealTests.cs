@@ -1262,6 +1262,10 @@ public sealed partial class ContactRevealTests : IDisposable
         Fire(e, gun);
         Assert.True(o.RevealedSubjects.Count == 1 && o.RevealedSubjects.Contains(e));
 
+        var q = Add(float3(40, 0, 100), new[] { "Gun" });
+        Fire(q, Guns(q)[0]);
+        Assert.True(o.RevealedSubjects.Count == 2 && o.RevealedSubjects.Contains(e) && o.RevealedSubjects.Contains(q)); // two subjects at once: both listed
+
         var freshest = Freshest(o, e);
         ShowOnly(e, 1f, gun);
         Assert.True(e.Visibility * o.PassiveInfo(e.Position.xz, 1f) <= _items.GameplaySettings.TargetDetectionInfoThreshold, "fixture: its last light is below o's gate");
@@ -1273,13 +1277,10 @@ public sealed partial class ContactRevealTests : IDisposable
             Tick(.1f);
             lapsed = _zone.Time - freshest >= memory;
             Assert.Equal(!lapsed, o.RevealedSubjects.Contains(e)); // exactly while the bearing is remembered
+            Assert.True(o.RevealedSubjects.Contains(q), "the other subject stays listed while e departs");
         }
         Assert.True(lapsed, "fixture: the bearing lapsed");
-        Assert.Equal(0, o.RevealedSubjects.Count); // counts, not the collection: a failure message would print whole entities
-
-        var q = Add(float3(40, 0, 100), new[] { "Gun" });
-        Fire(q, Guns(q)[0]);
-        Assert.True(o.RevealedSubjects.Count == 1 && o.RevealedSubjects.Contains(q));
+        Assert.True(o.RevealedSubjects.Count == 1 && o.RevealedSubjects.Contains(q)); // only the departed one dropped
         o.Deactivate();
         Assert.Equal(0, o.RevealedSubjects.Count); // counts, not the collection: a failure message would print whole entities
     }
