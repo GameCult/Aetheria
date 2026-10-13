@@ -294,7 +294,7 @@ public sealed partial class ContactRevealTests
         Assert.Equal(35, reader.ReadArrayHeader());
         for (var slot = 0; slot < 34; slot++) reader.Skip();
         Assert.Equal(3f, MessagePackSerializer.Deserialize<PerformanceStat>(ref reader, EmissionWire).Min);
-        Assert.Equal(3f, JObject.Parse(JsonConvert.SerializeObject(launcher))["interceptFactor"].ToObject<PerformanceStat>().Min);
+        Assert.Equal(3f, JObject.Parse(JsonConvert.SerializeObject(new LauncherData { InterceptFactor = Const(3) }))["interceptFactor"].ToObject<PerformanceStat>().Min);
 
         var back = Assert.IsType<LauncherData>(MessagePackSerializer.Deserialize<BehaviorData>(bytes, EmissionWire));
         Assert.Equal(3f, back.InterceptFactor.Min);

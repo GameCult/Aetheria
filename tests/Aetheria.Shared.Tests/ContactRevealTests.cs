@@ -330,7 +330,7 @@ public sealed partial class ContactRevealTests : IDisposable
     public void APaintRevealsTheEmitterEvenUnseen()
     {
         var locker = Add(float3(0, 0, 200), new[] { "Locker" });
-        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var o = Add(float3(0, 0, 0)); // deaf: no active sensor, so the reveal is the paint's alone, never the lock's emission heard
         locker.SetIff(o, true);
         locker.EntityInfoGathered[o] = 1f;
         locker.SetTarget(o);
@@ -863,7 +863,7 @@ public sealed partial class ContactRevealTests : IDisposable
     public void APaintFromAShipThatHasLeftTheZoneRevealsNothing()
     {
         var locker = Add(float3(0, 0, 200), new[] { "Locker" });
-        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var o = Add(float3(0, 0, 0)); // deaf: no active sensor, so the reveal is the paint's alone, never the lock's emission heard
         locker.SetIff(o, true);
         locker.EntityInfoGathered[o] = 1f;
         locker.SetTarget(o);
@@ -890,7 +890,7 @@ public sealed partial class ContactRevealTests : IDisposable
     public void ASearchPaintRevealsThePingersSensor()
     {
         var p = Add(float3(0, 0, 100), new[] { "Eye" });
-        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var o = Add(float3(0, 0, 0)); // deaf: the reveal is the paint's alone, never the ping's emission heard
         var item = p.Equipment.Single(i => i.Behaviors.Any(b => b is Sensor));
         var sensor = (Sensor) item.Behaviors.Single(b => b is Sensor);
         Tick(.01f);
@@ -916,7 +916,7 @@ public sealed partial class ContactRevealTests : IDisposable
     public void ASearchPaintFromAPingerThatHasLeftCreatesNoReveal()
     {
         var p = Add(float3(0, 0, 100), new[] { "Eye" });
-        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var o = Add(float3(0, 0, 0)); // deaf: it heard nothing of the sweep while the pinger stood in the zone
         var sensor = (Sensor) p.Equipment.Single(i => i.Behaviors.Any(b => b is Sensor)).Behaviors.Single(b => b is Sensor);
         Tick(.01f);
         sensor.Ping();
