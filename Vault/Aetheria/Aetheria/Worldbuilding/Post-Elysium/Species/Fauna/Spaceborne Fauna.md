@@ -14,13 +14,13 @@ They are honest things. A krill cloud is what it looks like, moves the way krill
 
 #### Where They Came From
 
-The Rupture threw Sol into Elysium. For a while humanity lived only in the flat space it had brought with it. The fauna arrived with the wormholes [new].
+The Rupture threw Sol into Elysium as a single zone: a cloudless bubble of flat space, with the [[Aether]] pressing in at its Oort cloud. Sol is the island of sanity. For a while humanity lived only inside it. The fauna arrived with the wormholes [new].
 
 When the factions began opening wormholes to reach new systems, every mouth they opened let a little of the outside in. [[Pseudospace]] is the natural state of Elysium; flat space is the island humanity stands on. The wormholes are where the island touches the sea, and the fauna are what lives in the sea. They come through the mouths in slow tides and spread out along the gravity slopes of every system the network reaches [new].
 
 What this means in practice:
 
-- **No fauna in Sol's own space, ever.** The old core, the flat space humanity carried through, is barren. Fauna thicken with every jump outward.
+- **No fauna inside Sol, ever.** Sol's bubble is cloudless and barren. The strangeness begins at its Oort edge, where the Aether presses in: the first fauna a Sol-born pilot ever sees are the thin krill hazes that cling to the outside of the bubble, glinting against nothing [new]. Past that, fauna thicken with every jump outward.
 - **Toward the edge of stable space they get bigger and stranger.** Core systems have krill and minnows. Frontier systems, where the Chaos factions live, have sharks and whales. Past the edge of what anyone has charted, spacers say there are larger things, and they are probably right [new].
 - **They never run out.** A harvested ground refills because the wormholes keep feeding it. The tide from the far side is slow but it does not stop [new].
 - **Nobody controls them.** No faction made them, owns their genome or can switch them off. In a setting where almost every living thing has a manufacturer, the fauna are the one resource that arrived without an owner, and everyone is racing to become one.
