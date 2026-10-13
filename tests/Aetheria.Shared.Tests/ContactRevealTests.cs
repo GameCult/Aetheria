@@ -249,6 +249,33 @@ public sealed class ContactRevealTests : IDisposable
         Assert.Empty(e.RevealsOf(o)); // a ship is not told what it shows
     }
 
+    // ---- AFiredGunIsAimableAndItsTwinIsNot ----
+
+    // Two guns of one design: firing one makes that gun, and only that gun, something the observer can select and
+    // keep aimed at. The book is per item, not per design or per hardpoint type.
+    [Fact]
+    public void AFiredGunIsAimableAndItsTwinIsNot()
+    {
+        var e = Add(float3(30, 0, 40), new[] { "Gun", "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var guns = Guns(e);
+        Assert.Same(guns[0].Data, guns[1].Data); // the same design
+        o.SetTarget(e);
+        Assert.False(FireControl.IsRevealed(o, guns[0]));
+        Assert.False(o.TrySelectTargetItem(guns[0]));
+
+        Fire(e, guns[0]);
+        o.SetTarget(e);
+
+        Assert.True(FireControl.IsRevealed(o, guns[0]));
+        Assert.False(FireControl.IsRevealed(o, guns[1]));
+        Assert.False(o.TrySelectTargetItem(guns[1]));
+        Assert.True(o.TrySelectTargetItem(guns[0]));
+        for (var i = 0; i < 300; i++) Tick(.1f);
+        Assert.Same(guns[0], o.ResolvedTargetItem);
+        Assert.False(FireControl.IsRevealed(o, guns[1]));
+    }
+
     // ---- AnActAboveTheReachRevealsNothing ----
 
     // Info settles at S x 2 / (d k): with S = 5 the act is revealed inside d = 100 / k and not beyond it, whatever k is.

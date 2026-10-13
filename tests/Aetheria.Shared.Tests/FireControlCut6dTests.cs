@@ -108,8 +108,8 @@ public sealed class FireControlCut6dTests : IDisposable
             } }
         });
         // Durability far above anything a single shot deals: an aim point this cut's tests fire hundreds or
-        // thousands of rounds at must survive being hit directly for the whole run, or Cut 5.5's "a destroyed
-        // item drops out of the reveal ranking" rule pulls the aim out from under later shots mid-sample and
+        // thousands of rounds at must survive being hit directly for the whole run, or a destroyed aim point is
+        // dropped from aiming (FireControl.IsRevealed) and pulls the aim out from under later shots mid-sample and
         // silently corrupts the landing distribution for everything fired after that point.
         cache.Upsert(new GearData
         {
