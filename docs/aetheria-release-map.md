@@ -17,7 +17,6 @@ the 2026-10-06 re-scope: the release this campaign plans is the demo.
 Cuts without a `cut_spec`, withdrawn 2026-10-12 under map-only-what-runs: a spec is admitted when Self is about to dispatch the cut. Each line is a cut label, its title, and what it waits on; re-map it by a fresh Imagination pass against the Body when the frontier reaches it.
 
 - audio-1: First sound: native Unity audio presents fire, charge, impact and destruction; the dead Wwise-keyed path is deleted. Waits on: feedback-1 (blocked on feedback-1).
-- loot-3: Loot 3: the grab is presented, not simulated, in Unity. TractorBeam becomes a grab presenter, the binder's resolvers. Waits on: loot-2 (blocked on loot-2).
 - ballistic-ammo: Ballistic weapons fire real rounds: a weapon that draws rounds takes no reactor power, every magazine comes from cargo. Waits on: mining-merge (refresh needed (ruling ballistics-cycle-power contradicts its DrawsPower rule)).
 - material-graph: Material graph record and judge: MaterialGraph in Aetheria.cc, the release whitelist, closed vocabularies, scopes, the. Waits on: nothing in the mind (held post-demo by ruling demo-material-scope).
 - material-library-export: Blender material export: a faithful node-group dumper, Export and Check Material Graph calling AetherDb, the library. Waits on: material-graph (held post-demo by ruling demo-material-scope; blocked on material-graph).
@@ -3362,13 +3361,53 @@ decode of the catalog record.
   (`ScenarioStage.cs:76`, `LoadoutGenerator.cs:43-58`); `FillInterior` also serves stations and turrets
   (`:117`, `:287`), so the ship-only pickup goes in `GenerateShipLoadout`, not in `FillInterior`. Tool gear takes any
   interior (`Entity.cs:1318`) and `HasHome` is always true for it (`LoadoutGenerator.cs:240`).
-- **Who still sees a grab on this branch:** `FieldDriver` is a child of every ship's shield and an `IGrabPresenter`; with no
+- **Who still sees a grab on this branch** (corrected by L11: `FieldDriver` is on no ship; the clause below was read from names):
+  `FieldDriver` is a child of every ship's shield and an `IGrabPresenter`; with no
   resolvers it receives a null `Transform` and does nothing (`FieldDriver.cs:206-210`). A `loot-2` grab therefore
   moves the item (the `ItemPickup` follows `Zone` poses) with no beam and no tendril until `loot-3`.
 - **Sizing:** `loot-2` alone is about 480 lines and 9 sim tests, roughly 100 Hands calls (two commit groups,
   A the sim and B the catalog, generation and input). `loot-3` is Unity-only, about 120 lines added and 60 removed
   plus a Starfire compile and smoke. Folding them passes the 150-call budget, so they stay two specs and `loot-2` is the
   one that restores pickup.
+
+**L11. Loot 3 r2: the grab's presentation on master `cb14a816`, by probe (2026-10-13).**
+Pass: Imagination `imagination-aeth-loot-3`, session `self-2026-10-13-ag2`. Detached worktree `C:\aeth-wt\imag-loot-3`
+at `cb14a816` (loot-1-present and loot-2 merged by `fbe05c79`, feedback-present earlier). Nothing was built; every claim
+is a source read or a `git grep` of serialized assets by script GUID.
+- **`FieldDriver` is on no ship.** Its script GUID (`a9ee74b0...`) occurs in exactly one asset, `Assets/Scenes/FieldShieldTest.unity`;
+  `Shield.prefab`, `Longinus.prefab` and `Djinni.prefab` carry `ShieldManager` (an `IAbsorbPresenter` only,
+  `ShieldManager.cs:11`), and no code adds a `FieldDriver`. L10's "child of every ship's shield" was a name-level read.
+  So in play the only grab presenter after this cut is `TractorBeam`; the tendril stays a FieldShieldTest look.
+- **`TractorBeam` is a child of every ship before its binding runs.** Prefab ships carry it (`Longinus.prefab`,
+  `Djinni.prefab`, GUID `3f02211f...`); mod ships get it in `ShipModShips.cs:125` while the prototype is built, before
+  `ZoneRenderer.LoadEntity` calls `SetEntity` (`ZoneRenderer.cs:409`). `EntityInstance.SetEntity` binds the entity's
+  one `CapabilityEvents` with `GetComponentsInChildren<IGrabPresenter>(true)` (`EntityInstance.cs:175-176`,
+  `CapabilityPresentationBinder.cs:38`), so a `TractorBeam : IGrabPresenter` is subscribed with no new wiring.
+- **The binder's resolvers have no game caller.** `EntityInstance.cs:176` binds with none; only `FieldTester.cs:62-65`
+  passes them. `FieldDriver.Grab` acts only on `Started` with a non-null `Transform` (`FieldDriver.cs:206-210`), then
+  times its own phases on real time, moves the test pickup and `Destroy`s it (`:280-345`): the forbidden writers fork
+  L's deletion line names (`docs/headless-playground-cut.md:959-961`).
+- **The beam's aim needs no pose lookup.** `Zone.TryHold` sets `HeldFrom = Body.Position` (`Zone.cs:348-353`), a held
+  item is not integrated, and its pose is `lerp(HeldFrom, Holder.Position.xz, smoothstep(HeldProgress))`
+  (`Zone.cs:404`). So for the whole grab the item lies on the segment from the holder to `HeldFrom`, and the
+  direction from the ship to the item is the direction to `HeldFrom`, which `Started` carries as `TargetPosition`
+  (`Pickup.cs:97`, `:170`, y set to the ship's height). One caution: the `Cancelled` published when the held item has
+  vanished carries `float3(0)` (`Pickup.cs:106`), so a presenter never reads `TargetPosition` on `Cancelled`.
+- **Who drives the beam:** only the player writes `TractorCommand` (`ActionGameManager.cs:1355`); `ShipInstance.cs:92-93`
+  writes `TractorBeam.Power` (derived `Pickup.Power`) and `Direction` (`Entity.Aim`) every frame. NPCs never grab, so
+  the visibility gate (follow-up `presentation-gated-on-tracked`) has no beam case today.
+- **The operator's original beam look** (`TractorBeam.cs` at `f1dee184`) emitted at `Power` only while something was in
+  the beam and emitted nothing otherwise. The sim's equivalent of "something in the beam" is a grab in progress.
+  `Radius 25`, `Traction 25`, `Distance 75` on `Tractor Beam.prefab:4821-4823` are dead since `c7c7e585`: the sim owns
+  range and radius (`PickupData`).
+- **The multi-bay gap is a fixture order, not a hull size.** `Entity.TryFindSpace` and `TryEquip` refuse once the
+  entity is active (`Entity.cs:1415-1419`, `:1476-1477`), and `Zone.Admit` activates it (`Zone.cs:216-221`); PickupTests'
+  `Spawn` admits at `:119`, so a second crate equipped after `Spawn` is refused whatever the room. The Skiff is 5x5 and a
+  `CargoBayData` with `new Shape()` is 1x1 (`ItemData.cs:25-29`), so two crates and the beam fit when equipped before
+  `Admit`. Selection's `Any` over bays is `Pickup.cs:159`.
+- **Concurrency:** the EW-claims Hands worktree (`C:\aeth-wt\ew-claims`) modifies `Combat.cs`, the four Weapon
+  behaviours, `Entity.cs`, `Sensing.cs`, `SchematicDisplay.cs` and nine test files; none is a file this cut touches
+  (`PickupTests.cs` included).
 
 **L9. The ammunition substrate, by catalog probe** (same job, catalog `70a7b0a9`):
 
