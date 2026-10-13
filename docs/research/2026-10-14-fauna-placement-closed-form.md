@@ -1,8 +1,8 @@
 # Closed-form, runtime-evaluated fauna placement: prior-art facts
+nServes ruling `aetheria-fauna:ruling:fauna-placement-ruled` (placement is a deterministic closed form of gravity slope and flow), ahead of fauna target r3. Complements `2026-10-13-fauna-placement-prior-art.md`.
 Agent eyes-fauna-placement-closed-form, session self-2026-10-14-ag, campaign aetheria-fauna, 2026-10-14. No recommendations.
 
 Tags: [V] verified by reading the source text this pass (full text or fetched page). [S] a search-result summary or snippet, page not read in full. [M] from memory or derived by me, unverified. "PW" = pointwise (needs only the field and its spatial derivatives at the point, at one instant). "PI" = path-integrated (needs trajectories, history, or a spatial integral).
-Scratch copies of fetched PDFs: C:\Users\Meta\.claude\projects\F--Projects-CultLib\5ea0b87f-66d0-4b24-8d36-45015e4cedc1\tool-results\ (les.txt, drift.txt, g2\*.txt).
 Already covered by the earlier docs (not repeated): Physarum/MCPM, EcoBrush, D8, Maxent basics, float determinism, boids/LOD, radar/DSL clutter.
 
 ## 1. Patchiness from flow: what local quantity predicts aggregation
