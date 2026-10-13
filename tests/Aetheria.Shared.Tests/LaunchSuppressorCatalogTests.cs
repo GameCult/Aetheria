@@ -15,6 +15,9 @@ public sealed class LaunchSuppressorCatalogTests
 {
     internal const string StrongName = "Launch Suppressor";
     internal const string MildName = "Launch Baffle";
+    // The observer's sensor, named: the reveal readings below are this design's PassiveInfo, so a catalog that gains an earlier
+    // sensor must not change which one the observer fits.
+    private const string SensorName = "not if i see you first";
     private const float Flash = 1000f;
     private const float Tick = .25f; // exact in floats: four ticks are one second
 
@@ -104,7 +107,7 @@ public sealed class LaunchSuppressorCatalogTests
         public readonly LaunchSuppressorData Data;
         public readonly int2 Cell;
 
-        public Rig(string hullName, string designName, float baffles = .5f, float sink = .5f)
+        public Rig(string hullName, string designName, float baffles = .5f, float sink = .5f, string sensorName = null)
         {
             var hull = Cache.GetByName<HullData>(hullName);
             var design = Design(Cache, designName);
@@ -134,6 +137,12 @@ public sealed class LaunchSuppressorCatalogTests
                 var hardpoint = hull.Hardpoints.First(h => h.Type == type);
                 var filler = Cache.GetAll<GearData>().First(hardpoint.IsFilledBy);
                 Assert.True(Ship.TryEquip(new EquippableItem { Data = Cache.RefOf<ItemData>(filler), Durability = filler.Durability, Lot = lot++ }, hardpoint.Position));
+            }
+            if (sensorName != null)
+            {
+                var sensor = Design(Cache, sensorName);
+                var hardpoint = hull.Hardpoints.First(h => h.Type == HardpointType.Sensors && h.IsFilledBy(sensor));
+                Assert.True(Ship.TryEquip(new EquippableItem { Data = Cache.RefOf<ItemData>(sensor), Durability = sensor.Durability, Lot = lot++ }, hardpoint.Position));
             }
             Assert.True(Ship.TryEquip(new EquippableItem { Data = Cache.RefOf<ItemData>(design), Durability = design.Durability, Lot = suppressorLot }));
 
@@ -171,31 +180,43 @@ public sealed class LaunchSuppressorCatalogTests
         }
     }
 
-    // The number of launches, one a second with the hull ticking between them, that are suppressed before the first that is not.
-    internal static int LeadingSuppressed(string hull, string design, float strength, int launches = 60)
+    // One launch of a fight: what was stored, how far the suppressor's cell rose, and the rise the authored figures predict for the
+    // light removed (removed x HeatPerUnit / the cell's thermal mass).
+    internal readonly record struct Launched(float Stored, float Rise, float Predicted);
+
+    // A fight of one launch a second with the hull ticking between them (four quarter-second updates).
+    internal static Launched[] Fight(string hull, string design, float strength, int launches = 60)
     {
         using var rig = new Rig(hull, design);
+        var perUnit = rig.Reading(rig.Data.HeatPerUnit);
+        var mass = rig.Ship.ThermalMass[rig.Cell.x, rig.Cell.y];
+        var fight = new Launched[launches];
         for (var i = 0; i < launches; i++)
         {
-            if (rig.Launch(strength) >= strength) return i;
+            var before = rig.Temperature;
+            var stored = rig.Launch(strength);
+            fight[i] = new Launched(stored, rig.Temperature - before, (strength - stored) * perUnit / mass);
             for (var t = 0; t < 4; t++) rig.Ship.Zone.Update(Tick);
         }
-        return launches;
+        return fight;
     }
+
+    // The number of launches that are suppressed before the first that is not.
+    internal static int LeadingSuppressed(string hull, string design, float strength, int launches = 60) =>
+        Fight(hull, design, strength, launches).TakeWhile(l => l.Stored < strength).Count();
 
     // A sensor ship at the origin: the observer. What it reveals is Entity.Sense's own test, a stored strength times its
     // passive information at the emitter's position over the settings' threshold.
     private sealed class Observer : IDisposable
     {
-        private readonly CultCache _cache = RestoredHullsTests.OpenCatalog();
-        private readonly Ship _ship;
+        private readonly Rig _rig;
         private readonly float _threshold = RestoredHullsTests.Settings().TargetDetectionInfoThreshold;
 
-        public Observer() => _ship = RestoredHullsTests.BuildThrustedShip(_cache, "Longinus", HardpointType.Sensors);
+        public Observer() => _rig = new Rig("Longinus", MildName, sensorName: SensorName);
 
-        public void Dispose() => _cache.Dispose();
+        public void Dispose() => _rig.Dispose();
 
-        public bool Sees(float stored, float distance) => stored * _ship.PassiveInfo(new float2(distance, 0f), 1f) > _threshold;
+        public bool Sees(float stored, float distance) => stored * _rig.Ship.PassiveInfo(new float2(distance, 0f), 1f) > _threshold;
     }
 
     public static IEnumerable<object[]> QualityGrid() =>
@@ -273,16 +294,82 @@ public sealed class LaunchSuppressorCatalogTests
         Assert.False(observer.Sees(strong.Launch(Flash), 1500f)); // the strong design hides it from the target too
     }
 
+    // What the ruled figures make of a flash at mid quality: Factor lerp(.08, .03, .5) and lerp(.4, .2, .5).
+    private static float MidFactor(string design) => design == StrongName ? .055f : .3f;
+
+    // The suppressor's one cell starts at rest (280 K) and a direct launch is made at each of these temperatures around the
+    // rating, a fraction of a kelvin either side: the rating alone decides whether the flash is hidden. No launch step is
+    // involved, so the line is pinned to the kelvin, not to however far a launch happens to move the cell.
+    [Theory]
+    [InlineData(StrongName, 0f, -.5f, true)]
+    [InlineData(StrongName, 0f, 0f, true)]
+    [InlineData(StrongName, 0f, .5f, false)]
+    [InlineData(StrongName, 1f, -.5f, true)]
+    [InlineData(StrongName, 1f, .5f, false)]
+    [InlineData(MildName, 0f, -.5f, true)]
+    [InlineData(MildName, 0f, .5f, false)]
+    [InlineData(MildName, .5f, 0f, true)]
+    [InlineData(MildName, 1f, -.5f, true)]
+    [InlineData(MildName, 1f, .5f, false)]
+    public void TheRatedTemperatureIsTheLineBetweenHidingAndNot(string design, float sink, float offset, bool hidden)
+    {
+        using var rig = new Rig("Longinus", design, sink: sink);
+        var rated = rig.Reading(rig.Data.RatedTemperature);
+        Assert.Equal(310f + 20f * sink, rated, 3); // the authored 310..330 on the heat sink
+        rig.Ship.Temperature[rig.Cell.x, rig.Cell.y] = rated + offset;
+        Assert.Equal(hidden ? Flash * MidFactor(design) : Flash, rig.Launch(Flash), 2);
+    }
+
+    // Hiding is linear in the flash at every strength, and so is the heat it costs: a rule that treats weak flashes differently
+    // (or scales heat with strength) moves a row. Both designs at mid quality, a first launch from rest.
+    public static IEnumerable<object[]> FlashGrid() =>
+        from design in new[] { StrongName, MildName }
+        from strength in new[] { 40f, 200f, 499f, 501f, 1000f, 2400f }
+        select new object[] { design, strength };
+
+    [Theory]
+    [MemberData(nameof(FlashGrid))]
+    public void SuppressionAndItsHeatAreLinearInTheFlash(string design, float strength)
+    {
+        using var rig = new Rig("Longinus", design);
+        var before = rig.Temperature;
+        var stored = rig.Launch(strength);
+        Assert.Equal(strength * MidFactor(design), stored, 2);
+        var expected = (strength - stored) * rig.Reading(rig.Data.HeatPerUnit) / rig.Ship.ThermalMass[rig.Cell.x, rig.Cell.y];
+        Assert.InRange(rig.Temperature - before, expected * .999f, expected * 1.001f);
+    }
+
+    // "A long fight" for the mild design is launches at one launch a second: 30 of a 300 flash (a light weapon) or 8 of a 1000
+    // flash (a heavy launch), on either hull (probed 36 and 33, and 10 and 10). Every one of those must store exactly the flash
+    // times the authored Factor and cost exactly the heat its removed light predicts, so a design that stops hiding late, or
+    // whose Factor or heat drifts as the cell warms, fails here. Past that the sink sits on its rating and the design flickers:
+    // each launch is either fully hidden or fully bright, never in between. That flicker is the ruled design at its rating.
+    [Theory]
+    [InlineData("Longinus", 300f, 30)]
+    [InlineData("Djinni", 300f, 30)]
+    [InlineData("Longinus", Flash, 8)]
+    [InlineData("Djinni", Flash, 8)]
+    public void MildSuppressorKeepsHidingThroughALongFight(string hull, float flash, int hold)
+    {
+        var fight = Fight(hull, MildName, flash);
+        var hidden = flash * MidFactor(MildName);
+        for (var i = 0; i < hold; i++)
+        {
+            Assert.True(Math.Abs(fight[i].Stored - hidden) < .01f, $"{hull}: launch {i} of {flash} stored {fight[i].Stored}, not the authored {hidden}");
+            Assert.InRange(fight[i].Rise, fight[i].Predicted * .999f, fight[i].Predicted * 1.001f);
+        }
+        Assert.All(fight.Skip(hold), l => Assert.True(Math.Abs(l.Stored - hidden) < .01f || l.Stored == flash, $"{hull}: a launch stored {l.Stored}, neither hidden nor bright"));
+    }
+
     [Theory]
     [InlineData("Longinus")]
     [InlineData("Djinni")]
     public void MildSuppressorSurvivesALongerFightThanStrong(string hull)
     {
-        foreach (var (flash, atLeast) in new[] { (300f, 30), (Flash, 8) })
+        foreach (var flash in new[] { 300f, Flash })
         {
             var mild = LeadingSuppressed(hull, MildName, flash);
             var strong = LeadingSuppressed(hull, StrongName, flash);
-            Assert.True(mild >= atLeast, $"{hull}: the mild design hid only {mild} launches of {flash}");
             Assert.True(mild > strong, $"{hull}: mild {mild} did not outlast strong {strong} at {flash}");
         }
     }

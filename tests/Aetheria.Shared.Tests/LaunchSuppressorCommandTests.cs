@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using GameCult.Caching;
@@ -97,6 +98,46 @@ public sealed class LaunchSuppressorCommandTests : IDisposable
         Assert.Equal(landed, File.ReadAllBytes(CatalogPath));
         Assert.Equal(0, Program.LaunchSuppressorCatalog(apply: false, root: _root));
         Assert.Equal(landed, File.ReadAllBytes(CatalogPath));
+    }
+
+    // Re-spell every record's payload in a longer, equally valid MessagePack form (an array16 header for the fixarray one). The
+    // catalog then holds bytes no re-encode through the current types would reproduce, so a write that re-encodes records it did
+    // not author shows as changed bytes; a write that lands onto the file as it is leaves them alone.
+    private int WidenEveryPayload()
+    {
+        var snapshot = CultDocumentMessagePackSerialization.DeserializeSnapshot(File.ReadAllBytes(CatalogPath));
+        var widened = 0;
+        foreach (var record in snapshot.Records)
+        {
+            var payload = record.Payload;
+            if (payload.Length == 0 || (payload[0] & 0xF0) != 0x90) continue;
+            record.Payload = new byte[] { 0xDC, 0x00, (byte)(payload[0] & 0x0F) }.Concat(payload.Skip(1)).ToArray();
+            widened++;
+        }
+        File.WriteAllBytes(CatalogPath, CultDocumentMessagePackSerialization.SerializeSnapshot(snapshot));
+        return widened;
+    }
+
+    private Dictionary<string, CultPersistedRecord> Records() =>
+        CultDocumentMessagePackSerialization.DeserializeSnapshot(File.ReadAllBytes(CatalogPath)).Records.ToDictionary(r => r.Key, StringComparer.Ordinal);
+
+    [Fact]
+    public void Apply_writes_only_the_records_it_authors()
+    {
+        Assert.True(WidenEveryPayload() > 100, "the scratch catalog should hold many records in the widened spelling");
+        var before = Records();
+
+        Assert.Equal(0, Program.LaunchSuppressorCatalog(apply: true, root: _root));
+
+        var after = Records();
+        Assert.Equal(before.Count + DesignNames.Length + _shippedProducts.Length, after.Count);
+        foreach (var (key, record) in before)
+        {
+            Assert.True(after.TryGetValue(key, out var kept), "a record the command did not author is gone");
+            Assert.Equal(record.SchemaId, kept.SchemaId);
+            Assert.Equal(record.StoredAt, kept.StoredAt);
+            Assert.True(record.Payload.AsSpan().SequenceEqual(kept.Payload), "a record the command did not author has changed bytes");
+        }
     }
 
     public enum PartialState { OneDesignOnly, DesignWithSomeProducts, ProductsWithoutTheirDesign }

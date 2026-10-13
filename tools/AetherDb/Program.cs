@@ -2357,8 +2357,11 @@ public static class Program
         }
 
         foreach (var design in designs) CultRecordRefs.Validate(design);
-        db.Cache.Commit(batch =>
+        // ExpectUnchanged lands the batch onto the file as it is: every other record keeps the bytes it has, where a plain
+        // commit would re-encode the whole catalog through today's types.
+        if (!db.Cache.Commit(batch =>
         {
+            batch.ExpectUnchanged();
             var keys = new Dictionary<GearData, CultRecordKey>();
             foreach (var design in designs) keys[design] = batch.Upsert(typeof(GearData), design);
             foreach (var (design, name, maker, description) in products)
@@ -2373,7 +2376,8 @@ public static class Program
                     Roles = design.Roles.Select(r => new ProductRole { Role = r.Name, Mean = mean, StandardDeviation = dev }).ToList(),
                 });
             }
-        });
+        }))
+            throw new InvalidOperationException("The catalog changed while the launch suppressors were being authored; nothing was written. Run it again.");
         Console.WriteLine($"\nAuthored 2 designs and {products.Length} products in Aetheria.cc");
         return 0;
     }
