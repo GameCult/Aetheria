@@ -1716,7 +1716,7 @@ public static class Program
             var options = CultDocumentMessagePackSerialization.OptionsFor(typeof(GearData).Assembly);
             array = MessagePackSerializer.Deserialize<GearData>(MessagePackSerializer.Serialize(template, options), options);
             array.Name = "Passive Array";
-            array.Description = "Listens for what others shout. Hears every emitter at a multiple of its own reach, on a bearing only, and never says a word itself.";
+            array.Description = "Passive listening gear. Hears every emitter at a multiple of its own reach, giving a bearing only and no track. Emits nothing.";
             array.Hardpoint = HardpointType.Tool;
             array.Mass = 20f; array.Price = 60000; array.Durability = 30f;
             array.Shape = new Shape(1, 1);
