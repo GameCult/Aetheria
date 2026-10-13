@@ -416,7 +416,7 @@ public sealed class PickupTests : IDisposable
         var events = Watch(ship, bag);
         ship.TractorCommand = 1;
         Tick(lab, 300, 1 / 60f);
-        Assert.Contains(events, e => e.Phase == GrabPhase.Started && e.Target == ore.Id);
+        Assert.Contains(events, e => e.Phase == GrabPhase.Started && e.Target.Equals(ore.Id));
         Assert.Contains(events, e => e.Phase == GrabPhase.Completed);
         Assert.False(lab.Zone.FloatingItems.Contains(ore), "ore is still in the zone");
         Assert.Equal(16, ship.CargoBays[0].Cargo.Count);
