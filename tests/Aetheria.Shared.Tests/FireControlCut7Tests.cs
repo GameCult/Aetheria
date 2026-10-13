@@ -35,16 +35,14 @@ public sealed class FireControlCut7Tests : IDisposable
         Directory.Delete(_root, true);
     }
 
-    // Detection well below the armor tier, which is well below the gear tier, so an aimed interior item can
-    // decay out of its own reveal while the weapon itself (index 0, the armor tier) and general detection
-    // both stay satisfied -- the shot still fires, only the aim point should be lost.
+    // General detection stays satisfied when the aimed interior item is destroyed -- the shot still fires, only
+    // the aim point is lost.
     private static GameplaySettings TestSettings() => new GameplaySettings
     {
         DefaultEntitySettings = new EntitySettings(),
         Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
         QualityPriceModifier = new ExponentialLerp(),
         TargetDetectionInfoThreshold = .1f,
-        TargetArmorInfoThreshold = .3f,
         TargetGearInfoThreshold = .9f,
         FiringArc = 170,
         CommitHorizon = .5f,
@@ -66,8 +64,8 @@ public sealed class FireControlCut7Tests : IDisposable
     }
 
     // A trimmed copy of FireAuthorityTests.Build: one Sensors-hardpoint weapon plus a Tool-slot targeting
-    // system on the shooter, a target ship with a matching weapon (index 0 in IsRevealed's ranking) and,
-    // through beforeActivate, a second Tool item to aim at (index 1 -- the gear tier).
+    // system on the shooter, a target ship with a matching weapon and,
+    // through beforeActivate, a second Tool item to aim at.
     private Engagement Build(GameplaySettings settings, Action<ItemManager, Ship, Ship> beforeActivate)
     {
         var hullShape = new Shape(5, 5);
@@ -152,13 +150,11 @@ public sealed class FireControlCut7Tests : IDisposable
     // source.TargetItem.Value -- the aim point is re-checked against reveal at the instant the trigger is
     // pulled, same as every other read of it. Mutation: read TargetItem.Value directly. Must die.
     //
-    // The target's non-hull equipment ranks the hardpoint weapon first (armor tier, index 0 of 2) and the
-    // interior "Targeting" item last (gear tier, index 1 of 2, i.e. exactly TargetGearInfoThreshold). Info is
-    // dropped to a level between the two tiers: the weapon stays revealed (so the shot still fires, PBase >
-    // 0) but the aimed item's own tier is no longer met -- the reveal re-check, not a global blackout, is
-    // what must drop the aim point.
+    // The observer saw the target's interior item act and aims at it; the item is then destroyed. The shot is
+    // still worth taking -- this is no blackout -- but the aim point is re-checked at the instant the trigger is
+    // pulled and is lost.
     [Fact]
-    public void AimedItemDropsOutWhenRevealDecaysBeforeFire()
+    public void AimedItemDropsOutWhenItIsDestroyedBeforeFire()
     {
         EquippableItem aimedGear = null;
         var settings = TestSettings();
@@ -171,17 +167,16 @@ public sealed class FireControlCut7Tests : IDisposable
         });
         var aimedItem = e.Target.Equipment.Single(x => x.EquippableItem == aimedGear);
 
-        // Fully reveal and select the interior item as the aim point.
+        // The shooter tracks the target fully and has seen the interior item act; it selects it as the aim point.
         e.Shooter.EntityInfoGathered[e.Target] = 1f;
+        e.Shooter.RecordReveal(e.Target, aimedItem, SignatureChannel.LaunchFlash);
         Assert.True(e.Shooter.TrySelectTargetItem(aimedItem));
         Assert.Same(aimedItem, e.Shooter.ResolvedTargetItem);
 
-        // Decay to halfway between the armor and gear tiers: the weapon (armor tier) stays revealed, the
-        // aimed item (gear tier) does not. The raw field still holds the item -- nothing clears it -- but the
-        // read accessor must now return null.
-        e.Shooter.EntityInfoGathered[e.Target] = (settings.TargetArmorInfoThreshold + settings.TargetGearInfoThreshold) / 2f;
-        Assert.Same(aimedItem, e.Shooter.TargetItem.Value); // raw field: untouched by decay
-        Assert.Null(e.Shooter.ResolvedTargetItem); // read path: re-checked, and drops it
+        // Destroyed: the raw field still holds the item -- nothing clears it -- but the read accessor returns null.
+        aimedGear.Durability = 0f;
+        Assert.Same(aimedItem, e.Shooter.TargetItem.Value);
+        Assert.Null(e.Shooter.ResolvedTargetItem);
 
         var shotId = FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
         var shot = e.Zone.PendingShots.Single(s => s.ShotId == shotId);

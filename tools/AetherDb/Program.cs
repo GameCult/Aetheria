@@ -1137,7 +1137,7 @@ public static class Program
         // Durability 50, Mass 75, Price 75000, heat response 200-500/276.5/36. GameplaySettings.UnaidedAccuracy
         // is .05 (AetherDb settings) and GameplaySettings.UnaidedTracking will be 10 once Cut 5 lands (not yet on
         // this branch) -- both designs clear it by 50% or more. Resolution is placed against the live thresholds
-        // this branch reads from AetherDb settings: TargetDetectionInfoThreshold .1, TargetArmorInfoThreshold .5,
+        // this branch reads from AetherDb settings: TargetDetectionInfoThreshold .1,
         // TargetGearInfoThreshold .8. FireControl.HitProbability reads
         // pSensor = saturate(unlerp(TargetDetectionInfoThreshold, Resolution, info)), so a HIGHER Resolution
         // needs MORE gathered info before sensor state stops limiting hits -- it is a cost, not a bonus. The

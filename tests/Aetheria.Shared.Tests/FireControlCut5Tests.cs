@@ -40,7 +40,6 @@ public sealed class FireControlCut5Tests : IDisposable
         Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
         QualityPriceModifier = new ExponentialLerp(),
         TargetDetectionInfoThreshold = .1f,
-        TargetArmorInfoThreshold = .2f,
         TargetGearInfoThreshold = .8f,
         FiringArc = 170,
         CommitHorizon = .5f,
@@ -582,13 +581,13 @@ public sealed class FireControlCut5Tests : IDisposable
         return (items, target, bigItem, mediumItem);
     }
 
-    // A destroyed item drops out of the ranking entirely: it is never revealed regardless of info, and the
-    // survivor's own tier closes up over the gap rather than leaving one. Mutation: drop the Durability filter
-    // from IsRevealed's ranking (a destroyed item keeps its old tier and TargetItem keeps aiming at a corpse).
+    // A destroyed item stops being an aim point: IsRevealed is false for it though the observer's book still
+    // holds it, and the survivor the observer saw act stays aimable. Mutation: drop the IsDestroyed filter from
+    // IsRevealed (TargetItem keeps aiming at a corpse).
     [Fact]
     public void DestroyedItemStopsBeingAimPoint()
     {
-        var settings = TestSettings(); // Armor .2, Gear .8
+        var settings = TestSettings();
         var (items, target, big, medium) = BuildRevealTarget(settings);
         var observerHullRef = items.ItemData.RefOf<ItemData>(items.ItemData.GetByName<HullData>("Hull"));
         var observer = new Ship(items, target.Zone, new EquippableItem { Data = observerHullRef, Durability = 1000, Lot = 1 }, new EntitySettings());
@@ -596,20 +595,17 @@ public sealed class FireControlCut5Tests : IDisposable
         observer.Activate();
         observer.SetTarget(target);
 
-        // With both items alive: Big (index 0) reveals at .2, Medium (index 1) at .8.
-        observer.EntityInfoGathered[target] = .3f;
+        observer.RecordReveal(target, big, SignatureChannel.LaunchFlash);
+        observer.RecordReveal(target, medium, SignatureChannel.LaunchFlash);
         Assert.True(FireControl.IsRevealed(observer, big));
-        Assert.False(FireControl.IsRevealed(observer, medium));
+        Assert.True(FireControl.IsRevealed(observer, medium));
         Assert.True(observer.TrySelectTargetItem(big));
 
-        // Destroy Big: it drops out of the ranking outright, so it can never be revealed again regardless of
-        // info, and it stops being a valid aim point on the very next read -- no clearing loop needed.
         big.EquippableItem.Durability = 0f;
         Assert.False(FireControl.IsRevealed(observer, big));
         Assert.Null(observer.ResolvedTargetItem);
 
-        // Medium is now the only survivor, so it inherits index 0's own tier (.2), not its old index-1 tier
-        // (.8) -- the gap closes rather than leaving Medium stranded behind a tier meant for a corpse.
+        // Medium was seen too, so it stays aimable; the destroyed neighbour changes nothing about it.
         Assert.True(FireControl.IsRevealed(observer, medium));
     }
 

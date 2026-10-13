@@ -115,7 +115,6 @@ public sealed class ContactRevealTests : IDisposable
             Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
             QualityPriceModifier = new ExponentialLerp(),
             TargetDetectionInfoThreshold = .1f,
-            TargetArmorInfoThreshold = .2f,
             TargetGearInfoThreshold = .8f,
             TargetInfoDecay = .5f,
             VisibilityDecay = 100f,
@@ -733,8 +732,8 @@ public sealed class ContactRevealTests : IDisposable
     // Ruling contact-reads-book-aim-reads-live: what an observer knows of a ship comes from its own book. A gun
     // destroyed by a third party out of its sight changes none of its levels and stays in its reveal list, while
     // the aiming read, which asks about the item now, refuses the dead gun and still serves the live one. No Sense
-    // runs after the destruction here (the aiming read needs info 1, at which a Sense would perceive it); the
-    // unseen case with a Sense is AnIdentifiedObserverSeesGearDestroyed's below-threshold case.
+    // runs after the destruction here; the unseen case with a Sense is AnIdentifiedObserverSeesGearDestroyed's
+    // below-threshold case.
     [Fact]
     public void GearDestroyedOutOfSightLeavesWhatTheObserverKnowsAlone()
     {
@@ -745,7 +744,6 @@ public sealed class ContactRevealTests : IDisposable
         Fire(e, guns[1]);
         var before = o.ContactOf(e);
         Assert.True(before.Detected && before.Classified && !before.Tracked, "fixture: a bearing and a class, no track");
-        o.EntityInfoGathered[e] = 1f; // the aiming read needs info to resolve the target's gear
         Assert.True(FireControl.IsRevealed(o, guns[0]) && FireControl.IsRevealed(o, guns[1]), "fixture: both guns are aimable");
 
         guns[0].EquippableItem.Durability = 0f; // destroyed by someone else; o saw nothing

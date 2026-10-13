@@ -217,7 +217,6 @@ public class GameplaySettings
     public float BearingMemory = 6;
     public float TargetInfoDecay;
     public float TargetDetectionInfoThreshold;
-    public float TargetArmorInfoThreshold;
     // Also the Identified threshold: the track level at which a ship's hull class, and with it its layout, is known.
     public float TargetGearInfoThreshold;
     public float ConvergenceMinimumDistance;

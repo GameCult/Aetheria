@@ -932,6 +932,10 @@ public abstract class Entity
     public IEnumerable<Reveal> RevealsOf(Entity subject) =>
         _reveals.TryGetValue(subject, out var book) ? book.Values : Enumerable.Empty<Reveal>();
 
+    // Whether this observer's book for `subject` holds `item`: the book's membership, no live gear read.
+    internal bool HasReveal(Entity subject, EquippedItem item) =>
+        _reveals.TryGetValue(subject, out var book) && book.ContainsKey(item);
+
     // The one derivation of how much this observer holds of `subject`: see Contact.
     public Contact ContactOf(Entity subject)
     {
