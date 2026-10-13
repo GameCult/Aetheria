@@ -51,15 +51,16 @@ public sealed partial class ContactRevealTests
         var hidden = Add(float3(-30, 0, 40), new[] { "Gun" }, new[] { "Suppressor" });
         var o = Add(float3(0, 0, 0), new[] { "Eye" });
 
+        // Read each flash on the tick it is written: signatures decay at once, so a later tick erases the earlier ship's.
         Fire(control, Guns(control).Single());
+        var controlFlash = control.VisibilitySources[Guns(control).Single().Behaviors.Single(b => b is InstantWeapon)].Strength;
         Fire(hidden, Guns(hidden).Single());
+        var hiddenFlash = hidden.VisibilitySources[Guns(hidden).Single().Behaviors.Single(b => b is InstantWeapon)].Strength;
 
         var reveal = Assert.Single(o.RevealsOf(control));
         Assert.Equal(SignatureChannel.LaunchFlash, reveal.Channel);
         AssertBearing(.6f, .8f, reveal.Bearing);
         Assert.Empty(o.RevealsOf(hidden));
-        var controlFlash = control.VisibilitySources[Guns(control).Single().Behaviors.Single(b => b is InstantWeapon)].Strength;
-        var hiddenFlash = hidden.VisibilitySources[Guns(hidden).Single().Behaviors.Single(b => b is InstantWeapon)].Strength;
         Assert.Equal(5f, controlFlash, 3);
         Assert.Equal(.1f * controlFlash, hiddenFlash, 3); // Factor times the gun Visibility, whatever it is authored as
     }
