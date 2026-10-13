@@ -726,7 +726,7 @@ public sealed class PaintModeTests : IDisposable
         var reader = new MessagePackReader(bytes);
         Assert.Equal(2, reader.ReadArrayHeader());
         Assert.Equal(5, reader.ReadInt32());
-        Assert.Equal(13, reader.ReadArrayHeader());
+        Assert.Equal(14, reader.ReadArrayHeader());
         for (var slot = 0; slot < 12; slot++) reader.Skip();
         Assert.Equal(90f, MessagePackSerializer.Deserialize<PerformanceStat>(ref reader, WireOptions).Min);
 

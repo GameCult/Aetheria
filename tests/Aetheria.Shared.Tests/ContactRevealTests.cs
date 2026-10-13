@@ -24,7 +24,7 @@ using int2 = CultMath.int2;
 // its info at S x 2 / (d x TargetInfoDecay), and is revealed exactly when that exceeds TargetDetectionInfoThreshold
 // (.1). Signatures decay at once (VisibilityDecay 100), so an act is a single tick's light and builds no track.
 // The observer senses after every ship has updated, so the zone's list order never decides when an act is revealed.
-public sealed class ContactRevealTests : IDisposable
+public sealed partial class ContactRevealTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "aetheria-contact-" + Guid.NewGuid().ToString("N"));
     private string Catalog => Path.Combine(_root, "Aetheria.cc");
@@ -55,6 +55,10 @@ public sealed class ContactRevealTests : IDisposable
             });
             cache.Upsert(Eye("Eye", sensitivity: 2f));
             cache.Upsert(Eye("Ear", sensitivity: 4f));
+            // Narrow beams (10 degrees, facing +z) so a hearer off the beam is never painted: the ping is heard at its
+            // PingRange (300) over the intercept factor.
+            cache.Upsert(Eye("Shout", sensitivity: 2f, interceptFactor: 2f, beamWidth: 10f));
+            cache.Upsert(Eye("Roar", sensitivity: 2f, interceptFactor: .5f, beamWidth: 10f));
             cache.Upsert(Tool("Reactor", new ReactorData { Charge = Const(1000), Efficiency = Const(1), OverloadEfficiency = Const(1), ThrottlingFactor = Const(2) }));
             cache.Upsert(Tool("Targeting", new TargetingSystemData { Accuracy = Const(1), Resolution = Const(1000f), Precision = Const(1000f), Tracking = Const(1000000f) }));
             cache.Upsert(Tool("Thruster", new ThrusterData { Thrust = Const(100), Visibility = Const(10), Heat = Const(0), EnergyUsage = Const(10) }));
@@ -82,24 +86,8 @@ public sealed class ContactRevealTests : IDisposable
                 Fuse = WeaponFuse.Proximity, BlastRadius = 30f,
                 Behaviors = { gun }
             });
-            cache.Upsert(new GearData
-            {
-                Name = "Locker", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Durability = 1,
-                MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000,
-                Behaviors =
-                {
-                    new LauncherData
-                    {
-                        Damage = Const(0), Range = Const(1000), MinRange = Const(0), Velocity = Const(0),
-                        Spread = Const(0), DamageSpread = Const(0), Penetration = Const(0), Count = Const(1),
-                        BurstTime = Const(0), Cooldown = Const(1000),
-                        DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } },
-                        LockSpeed = Const(.6f), SensorImpact = Const(1), LockAngle = Const(30), DirectionImpact = Const(1), Decay = Const(.1f)
-                    },
-                    // A munition design carries one of each part (missile-stats); the reveal tests read none of them.
-                    new MunitionHullData(), new MunitionThrusterData(), new MunitionSeekerData(), new MunitionControlData(), new MunitionFuelData()
-                }
-            });
+            cache.Upsert(Locker("Locker", interceptFactor: null));
+            cache.Upsert(Locker("Hushed", interceptFactor: 4f));
             cache.Upsert(new ConsumableItemData
             {
                 Name = "Pinger", Duration = 30f, Shape = new Shape(),
@@ -145,18 +133,41 @@ public sealed class ContactRevealTests : IDisposable
 
     private static PerformanceStat Const(float v) => new PerformanceStat { Min = v, Max = v };
 
-    private static SensorData SensorBehavior(float sensitivity) => new SensorData
-    {
-        Sensitivity = Const(sensitivity),
-        SensitivityCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } }, // the same gain at every bearing
-        PingBoost = Const(.0001f), PingEnergy = Const(0), PingRange = Const(300), PingCooldown = Const(4)
-    };
-
-    private static GearData Eye(string name, float sensitivity) => new GearData
+    // A launcher with Range 1000, heard at that Range over its intercept factor while it paints.
+    private static GearData Locker(string name, float? interceptFactor) => new GearData
     {
         Name = name, Hardpoint = HardpointType.Sensors, Shape = new Shape(), Durability = 1,
         MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000,
-        Behaviors = { SensorBehavior(sensitivity) }
+        Behaviors =
+        {
+            new LauncherData
+            {
+                Damage = Const(0), Range = Const(1000), MinRange = Const(0), Velocity = Const(0),
+                Spread = Const(0), DamageSpread = Const(0), Penetration = Const(0), Count = Const(1),
+                BurstTime = Const(0), Cooldown = Const(1000),
+                DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } },
+                LockSpeed = Const(.6f), SensorImpact = Const(1), LockAngle = Const(30), DirectionImpact = Const(1), Decay = Const(.1f),
+                InterceptFactor = interceptFactor.HasValue ? Const(interceptFactor.Value) : null
+            },
+            // A munition design carries one of each part (missile-stats); the reveal tests read none of them.
+            new MunitionHullData(), new MunitionThrusterData(), new MunitionSeekerData(), new MunitionControlData(), new MunitionFuelData()
+        }
+    };
+
+    private static SensorData SensorBehavior(float sensitivity, float? interceptFactor = null, float? beamWidth = null) => new SensorData
+    {
+        Sensitivity = Const(sensitivity),
+        SensitivityCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } }, // the same gain at every bearing
+        PingBoost = Const(.0001f), PingEnergy = Const(0), PingRange = Const(300), PingCooldown = Const(4),
+        InterceptFactor = interceptFactor.HasValue ? Const(interceptFactor.Value) : null,
+        BeamWidth = beamWidth.HasValue ? Const(beamWidth.Value) : null
+    };
+
+    private static GearData Eye(string name, float sensitivity, float? interceptFactor = null, float? beamWidth = null) => new GearData
+    {
+        Name = name, Hardpoint = HardpointType.Sensors, Shape = new Shape(), Durability = 1,
+        MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000,
+        Behaviors = { SensorBehavior(sensitivity, interceptFactor, beamWidth) }
     };
 
     private static GearData Tool(string name, BehaviorData behavior) => new GearData
@@ -321,7 +332,7 @@ public sealed class ContactRevealTests : IDisposable
     public void APaintRevealsTheEmitterEvenUnseen()
     {
         var locker = Add(float3(0, 0, 200), new[] { "Locker" });
-        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var o = Add(float3(0, 0, 0)); // deaf: no active sensor, so the reveal is the paint's alone, never the lock's emission heard
         locker.SetIff(o, true);
         locker.EntityInfoGathered[o] = 1f;
         locker.SetTarget(o);
@@ -399,8 +410,11 @@ public sealed class ContactRevealTests : IDisposable
         var p = t.Add(float3(0, 0, 1000), new[] { "Eye" });
         var o = t.Add(float3(0, 0, 0), new[] { "Eye" });
         var sensor = p.Equipment.SelectMany(i => i.Behaviors).OfType<Sensor>().Single();
+        var fired = false;
+        sensor.OnPingStart += () => fired = true;
         t.Tick(.1f); // a sensor's first tick opens its ping cooldown; Ping() is refused before it
         if (ping) sensor.Ping();
+        Assert.Equal(ping, fired); // fixture: the ping started exactly when asked, so the run is not a control in disguise
         var light = new List<float> { p.Visibility };
         for (var tick = 0; tick < 10; tick++)
         {
@@ -686,6 +700,30 @@ public sealed class ContactRevealTests : IDisposable
         Assert.Empty(o.RevealsOf(e));
     }
 
+    // The hull's own radiation names no item, and the departure still counts it: the light at removal sits on an item-less
+    // entry alone, a hair above the observer's gate (ends the reveals) or a hair below (ends nothing).
+    [Theory]
+    [InlineData(1.01f, true)]
+    [InlineData(.99f, false)]
+    public void ADepartureCountsTheHullsOwnLight(float against, bool ended)
+    {
+        var e = Add(float3(0, 0, 100), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        Fire(e, Guns(e)[0]);
+        Tick(.01f);
+        Assert.Single(o.RevealsOf(e));
+        var gate = _items.GameplaySettings.TargetDetectionInfoThreshold / o.PassiveInfo(e.Position.xz, 1f);
+        foreach (var source in e.VisibilitySources.Keys.ToArray()) e.SetSignature(source, SignatureChannel.Reflection, 0f, Guns(e)[0]);
+        e.SetSignature(new object(), SignatureChannel.Thermal, gate * against, null);
+        Assert.Equal(gate * against, e.Visibility, 4);
+        Assert.All(e.VisibilitySources.Values.Where(v => v.Strength > 0f), v => Assert.Null(v.Item)); // fixture: the deciding light names no item
+
+        _zone.Entities.Remove(e);
+        Tick(.1f);
+
+        Assert.Equal(ended ? 0 : 1, o.RevealsOf(e).Count());
+    }
+
     // The gate is strict, as the light-act gate is: a light at removal that lands exactly on the threshold ends nothing.
     // At 32 the observer's info per unit light is 4 / 32, a power of two, so threshold x 8 is the light whose product
     // with it is exactly the threshold.
@@ -827,7 +865,7 @@ public sealed class ContactRevealTests : IDisposable
     public void APaintFromAShipThatHasLeftTheZoneRevealsNothing()
     {
         var locker = Add(float3(0, 0, 200), new[] { "Locker" });
-        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var o = Add(float3(0, 0, 0)); // deaf: no active sensor, so the reveal is the paint's alone, never the lock's emission heard
         locker.SetIff(o, true);
         locker.EntityInfoGathered[o] = 1f;
         locker.SetTarget(o);
@@ -854,7 +892,7 @@ public sealed class ContactRevealTests : IDisposable
     public void ASearchPaintRevealsThePingersSensor()
     {
         var p = Add(float3(0, 0, 100), new[] { "Eye" });
-        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var o = Add(float3(0, 0, 0)); // deaf: the reveal is the paint's alone, never the ping's emission heard
         var item = p.Equipment.Single(i => i.Behaviors.Any(b => b is Sensor));
         var sensor = (Sensor) item.Behaviors.Single(b => b is Sensor);
         Tick(.01f);
@@ -880,7 +918,7 @@ public sealed class ContactRevealTests : IDisposable
     public void ASearchPaintFromAPingerThatHasLeftCreatesNoReveal()
     {
         var p = Add(float3(0, 0, 100), new[] { "Eye" });
-        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var o = Add(float3(0, 0, 0)); // deaf: it heard nothing of the sweep while the pinger stood in the zone
         var sensor = (Sensor) p.Equipment.Single(i => i.Behaviors.Any(b => b is Sensor)).Behaviors.Single(b => b is Sensor);
         Tick(.01f);
         sensor.Ping();
@@ -1187,10 +1225,19 @@ public sealed class ContactRevealTests : IDisposable
             for (var s = 0; s < 10; s++) ship.SetSignature(new object(), SignatureChannel.Reflection, 1000f, item);
             gunItems.Add(item);
         }
+        // One ship holds a lock paint on another, so the observer's sense hears an emission on every pass (the observer's
+        // own Add runs the zone's last update, which is where the emission is made; no update follows).
+        var painted = Add(float3(40, 0, 300));
+        var painter = Add(float3(0, 0, 300), new[] { "Locker" });
+        painter.SetIff(painted, true);
+        painter.EntityInfoGathered[painted] = 1f;
+        painter.SetTarget(painted);
+        painter.Aim = float3(1, 0, 0);
         var o = Add(float3(0, 0, 0), new[] { "Eye" });
         var sense = SenseOf(o);
         for (var i = 0; i < 10; i++) sense();
-        Assert.Equal(19, _zone.Entities.Where(x => x != o).Count(x => o.RevealsOf(x).Any())); // fixture: every ship is revealed
+        Assert.Equal(19, _zone.Entities.Where(x => x != o && x != painter && x != painted).Count(x => o.RevealsOf(x).Any())); // fixture: every ship is revealed
+        Assert.Single(o.RevealsOf(painter)); // fixture: the lock's emission is heard
         // One of them is identified by o and its gun is destroyed while it still glows, so the pass ends that reveal
         // and the flash cannot re-enter; one has left, quiet, so its entries await the prune and its departure sits
         // in the zone's list.

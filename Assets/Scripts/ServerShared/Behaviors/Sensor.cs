@@ -42,6 +42,11 @@ public class SensorData : BehaviorData
     // how much a ping reveals is a stat). 360 or more is omnidirectional; a design without it reads as 360.
     [Inspectable, JsonProperty("beamWidth"), Key(12)]
     public PerformanceStat BeamWidth;
+
+    // The ratio of how far this sensor sees to how far others hear it (ruling sensor-stat-set); a design without it
+    // reads as 1.
+    [Inspectable, JsonProperty("interceptFactor"), Key(13)]
+    public PerformanceStat InterceptFactor;
     
     public override Behavior CreateInstance(EquippedItem item)
     {
@@ -85,6 +90,8 @@ public class Sensor : Behavior, IEventBehavior, IPowerConsumer
     }
 
     public float BeamWidth => _data.BeamWidth == null ? 360f : Evaluate(_data.BeamWidth);
+
+    public float InterceptFactor => _data.InterceptFactor == null ? 1f : Evaluate(_data.InterceptFactor);
 
     public float2 Facing => Direction.xz;
 
@@ -169,6 +176,7 @@ public class Sensor : Behavior, IEventBehavior, IPowerConsumer
             _pingLerp += dt / _data.PingDuration;
             _pingRadius = lerp(0, Evaluate(_data.PingRange), pow(_pingLerp, _data.PingRadiusExponent));
             _reached.IntersectWith(Entity.Zone.Entities);
+            Entity.Emit(Item, Evaluate(_data.PingRange) / InterceptFactor);
             if (_pingLerp > 1) EndPing();
         }
 

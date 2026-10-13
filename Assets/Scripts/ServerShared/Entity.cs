@@ -217,6 +217,9 @@ public abstract class Entity
     private readonly List<PingReturn> _returnInbox = new List<PingReturn>();
     private readonly List<PingReturn> _pingReturns = new List<PingReturn>();
     internal IReadOnlyList<PingReturn> PingReturns => _pingReturns;
+    // What this ship's active sensors and lock paints emit this tick (Emit), heard by other ships' Sense (ruling
+    // sensor-stat-set): written in Update, read by Sense in the same tick, cleared by the next PublishInbox.
+    private readonly List<ActiveEmission> _emissions = new List<ActiveEmission>();
     // What this observer has seen each ship's items do (ruling visibility-per-capability-reveal), keyed (subject,
     // item). Written only by RecordReveal (an act enters) and EndReveals (an end the observer perceives, or a departed
     // subject's entries aged past BearingMemory), cleared by Deactivate (ruling reveal-ends-on-perception).
@@ -691,6 +694,10 @@ public abstract class Entity
         return _activeSensors;
     }
 
+    // How much of an emission's reach this observer's instruments hear it at (ruling sensor-stat-set: listeners hear at
+    // a multiple of an emitter's own range): 1 with an active sensor, 0 without. Listener gear extends it.
+    private int HearingMultiple() => ActiveSensors().Count > 0 ? 1 : 0;
+
     // Cut 12.3 (docs/fire-control-cut.md): "armour absorbs first" -- the per-cell armour phase, split out of
     // what used to be Absorb's own first half (moved verbatim from DamageSchematic's per-cell body, Cut 3) so
     // Cut 12.3's fix batch (proportional multi-lane item absorption, below) can call the armour phase once per
@@ -860,6 +867,7 @@ public abstract class Entity
         _incomingPaints.Clear();
         _returnInbox.Clear();
         _pingReturns.Clear();
+        _emissions.Clear();
         _reveals.Clear();
     }
 
@@ -868,6 +876,7 @@ public abstract class Entity
     // one tick later for every ordering.
     internal void PublishInbox()
     {
+        _emissions.Clear(); // written in Update, read by Sense in the same tick
         _incomingPaints.Clear();
         foreach (var paint in _paintInbox)
         {
@@ -884,6 +893,15 @@ public abstract class Entity
     {
         if (!_active) return;
         _returnInbox.Add(pingReturn);
+    }
+
+    // The callers are Sensor.Execute (a sweeping ping) and LockWeapon.Execute (a lock paint): this ship's `item` emits this
+    // tick and is heard by another ship's Sense within `hearRange` (the emitter's range over its intercept factor,
+    // fixed here), bearing only.
+    internal void Emit(EquippedItem item, float hearRange)
+    {
+        if (!_active) return;
+        _emissions.Add(new ActiveEmission(item, hearRange));
     }
 
     // The callers are Sensor.Execute (a Search paint, Strength 0) and LockWeapon.Execute (a Track paint, Strength
@@ -964,6 +982,7 @@ public abstract class Entity
     {
         if (!_active) return;
         var threshold = ItemManager.GameplaySettings.TargetDetectionInfoThreshold;
+        var hearing = HearingMultiple();
         var entities = Zone.Entities;
         for (var i = 0; i < entities.Count; i++)
         {
@@ -976,6 +995,18 @@ public abstract class Entity
                 if (perSignature < 0f) perSignature = PassiveInfo(other.Position.xz, 1f);
                 if (signature.Strength * perSignature > threshold) RecordReveal(other, signature.Item, signature.Channel);
             }
+            // Every emission this ship made this tick that reaches this observer is revealed, bearing only (ruling
+            // sensor-stat-set), through RecordReveal's one gate. It feeds no track.
+            if (hearing > 0 && other._emissions.Count > 0)
+            {
+                var planar = length(other.Position.xz - Position.xz);
+                var obscuration = Zone.Obscuration(Position.xz, other.Position.xz);
+                for (var j = 0; j < other._emissions.Count; j++)
+                {
+                    var emission = other._emissions[j];
+                    if (planar <= emission.HearRange * hearing * obscuration) RecordReveal(other, emission.Item, SignatureChannel.Emission);
+                }
+            }
             // The observer resolves this ship's gear (PerceivesDestroyed), so it perceives an item of it destroyed and
             // that reveal ends here; RecordReveal refuses the same item's lingering flash.
             if (_reveals.TryGetValue(other, out var book))
@@ -987,7 +1018,7 @@ public abstract class Entity
             }
         }
         // A subject that left the zone (death, dock, warp, any removal) is perceived gone under the light-act gate: as
-        // bright as its non-Emission signature was at removal, from where it was. A re-admitted subject did not leave.
+        // bright as its whole Visibility was at removal, from where it was. A re-admitted subject did not leave.
         var departures = Zone.Departures;
         for (var i = 0; i < departures.Count; i++)
         {

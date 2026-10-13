@@ -326,15 +326,19 @@ public sealed class SignatureTests : IDisposable
 
     // Emission is active emission, never light: SetSignature refuses it before writing, and a Visibility gear
     // authored on it throws on the Zone.Update that first executes it.
-    [Fact]
-    public void SetSignatureRefusesEmission()
+    [Theory]
+    [InlineData(true, 5f)]
+    [InlineData(false, 5f)]
+    [InlineData(true, 0f)]
+    [InlineData(false, 0f)]
+    public void SetSignatureRefusesEmission(bool withItem, float strength)
     {
         var r = Build(Armament.Gun, 0f, null);
         Fire(r);
         var before = r.Ship.VisibilitySources.ToDictionary(kv => kv.Key, kv => kv.Value);
         Assert.NotEmpty(before);
 
-        Assert.Throws<ArgumentException>(() => r.Ship.SetSignature(new object(), SignatureChannel.Emission, 5f, r.WeaponItem));
+        Assert.Throws<ArgumentException>(() => r.Ship.SetSignature(new object(), SignatureChannel.Emission, strength, withItem ? r.WeaponItem : null));
 
         Assert.Equal(before.Count, r.Ship.VisibilitySources.Count);
         foreach (var kv in before) Assert.Equal(kv.Value, r.Ship.VisibilitySources[kv.Key]);
