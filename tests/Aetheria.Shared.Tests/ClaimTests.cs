@@ -292,14 +292,16 @@ public sealed partial class ContactRevealTests
 
     // ---- The schematic's rows (ruling ew-claim-weapon-measure-ruled; finding schematic-unreached) ----
 
-    // Wears a gun's Range to half so its live range (20) is not its design's rated range (40); the fixture's own guard.
+    // Wears a gun's Range to half so that, once it ticks, its live range (20) is not its design's rated range (40).
     private void WearRange(Entity ship, EquippedItem gun)
     {
         var data = (InstantWeaponData) gun.Data.Behaviors.Single(b => b is InstantWeaponData);
         ship.Resolver.AttachModifier(gun, data.Range, "worn", StatModifierType.Multiplier, .5f);
-        Tick(.1f);
-        Assert.Equal(20f, gun.Behaviors.OfType<Weapon>().Single().Range, 3);
     }
+
+    // The fixture's guard, read once the gun has ticked: its live range is not its design's rated range.
+    private static void AssertWorn(EquippedItem gun) =>
+        Assert.Equal(20f, gun.Behaviors.OfType<Weapon>().Single().Range, 3);
 
     // The unclaimed enemy row is the true gun, with the gun's own rated range (Gun: 40) though the gun is worn to a live
     // 20. Mutation: the row's Item.Data or the true live range stands in for the claim (also when Claimed == Data).
@@ -311,6 +313,7 @@ public sealed partial class ContactRevealTests
         var gun = Guns(e)[0];
         WearRange(e, gun);
         Fire(e, gun);
+        AssertWorn(gun);
 
         var row = Assert.Single(o.SchematicRows(e));
         Assert.Same(gun, row.Item);
@@ -370,6 +373,8 @@ public sealed partial class ContactRevealTests
         var gun = Guns(e)[0];
         WearRange(e, gun);
         e.Claim(gun, DataOf("SpanGun"));
+        Tick(.1f);
+        AssertWorn(gun);
 
         var row = Assert.Single(e.SchematicRows(e));
         Assert.Same(gun, row.Item);
