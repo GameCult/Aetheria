@@ -42,7 +42,6 @@ public static class Program
             case "field-kinds": return FieldKindsCatalog(args.Contains("apply"));
             case "pd-gear": return PdGearCatalog(args.Contains("apply"));
             case "mine-launcher": return MineLauncherCatalog(args.Contains("apply"));
-            case "pickup-catalog": return PickupCatalog(args.Contains("apply"));
             case "smoke-hull": return SmokeHullCatalog(args.Contains("apply"));
             case "smoke-rounds": return SmokeRoundsCatalog(args.Contains("apply"));
             case "roles-backfill": return RolesBackfill(args.Contains("apply"));
@@ -52,7 +51,7 @@ public static class Program
                 return PiratesFaction(args.Contains("apply"));
             case "verse-grammar": return VerseGrammarCommand.Run(args.Contains("apply"));
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], pickup-catalog [apply], smoke-hull [apply], smoke-rounds [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], pirates-faction [apply], verse-grammar [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], smoke-hull [apply], smoke-rounds [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], pirates-faction [apply], verse-grammar [apply]");
                 return 1;
         }
     }
@@ -1765,46 +1764,6 @@ public static class Program
             foreach (var design in designs) batch.Upsert(typeof(WeaponItemData), design);
         });
         Console.WriteLine($"\nAuthored {designs.Length} designs in Aetheria.cc");
-        return 0;
-    }
-
-    // loot-2: pickup is a capability. The existing Tractor Beam (a Sensors-hardpoint item with no behaviours and no price)
-    // becomes Tool gear whose one behaviour is Pickup, so a ship carries it in any free interior cell and Zone's pickup
-    // needs it, and gets the price of the cheapest gear sold today (25000), because generation offers only priced
-    // designs and every ship must be able to be given one. The numbers are the retired prefab's beam: range 75, beam
-    // radius 25; the grab's phase times, the spin-up rate and the power needed to grab are the cut's. Dry run unless
-    // passed "apply".
-    private static int PickupCatalog(bool apply)
-    {
-        const string name = "Tractor Beam";
-        const int price = 25000;
-        var db = AetherDb.Open(catalogWritable: apply);
-        var beam = db.Cache.GetAll<GearData>().Single(gear => gear.Name == name);
-        if (beam.Behaviors.Count > 1 || beam.Behaviors.Count == 1 && beam.Behaviors[0] is not PickupData)
-            throw new InvalidOperationException($"\"{name}\" has behaviours this command does not know.");
-        if (beam.Hardpoint == HardpointType.Tool && beam.Behaviors.Count == 1 && beam.Price == price)
-        {
-            Console.WriteLine($"\"{name}\" is already authored; nothing to do.");
-            return 0;
-        }
-        Console.WriteLine($"\"{name}\" hardpoint {beam.Hardpoint} -> Tool, {beam.Behaviors.Count} behaviours -> one Pickup (range 75, beam radius 25, grab power .5, extend .3, envelop .2, pull .5, spin rate 2), price {beam.Price} -> {price}.");
-        if (!apply)
-        {
-            Console.WriteLine("\nDry run. Pass \"apply\" to write it.");
-            return 0;
-        }
-        PerformanceStat Constant(float v) => new PerformanceStat { Min = v, Max = v };
-        beam.Hardpoint = HardpointType.Tool;
-        beam.Price = price;
-        if (beam.Behaviors.Count == 0)
-            beam.Behaviors.Add(new PickupData
-            {
-                Range = Constant(75), BeamRadius = Constant(25), GrabPower = Constant(.5f), SpinRate = Constant(2),
-                ExtendTime = Constant(.3f), EnvelopTime = Constant(.2f), PullTime = Constant(.5f)
-            });
-        CultRecordRefs.Validate(beam);
-        db.Cache.Commit(batch => batch.Upsert(typeof(GearData), beam, db.Cache.RefOf(beam).Key));
-        Console.WriteLine($"\nWrote \"{name}\" to Aetheria.cc");
         return 0;
     }
 
