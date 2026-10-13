@@ -752,7 +752,7 @@ public sealed partial class ContactRevealTests : IDisposable
         foreach (var source in e.VisibilitySources.Keys.ToArray()) e.SetSignature(source, SignatureChannel.Reflection, 0f, Guns(e)[0]);
         e.SetSignature(new object(), channel, gate * 1.01f, Guns(e)[0]);
 
-        _zone.Entities.Remove(e);
+        _zone.Remove(e);
         Tick(.1f);
 
         Assert.Empty(o.RevealsOf(e));
@@ -776,7 +776,7 @@ public sealed partial class ContactRevealTests : IDisposable
         Assert.Equal(gate * against, e.Visibility, 4);
         Assert.All(e.VisibilitySources.Values.Where(v => v.Strength > 0f), v => Assert.Null(v.Item)); // fixture: the deciding light names no item
 
-        _zone.Entities.Remove(e);
+        _zone.Remove(e);
         Tick(.1f);
 
         Assert.Equal(ended ? 0 : 1, o.RevealsOf(e).Count());
