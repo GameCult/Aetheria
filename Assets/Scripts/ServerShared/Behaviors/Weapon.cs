@@ -76,6 +76,7 @@ public abstract class WeaponData : BehaviorData
     // design's rated figures, each stat's Max (what a stat with no terms resolves to), through the same formula the
     // live weapon's RangeDamagePerSecond runs over its evaluated stats. Never the carrier's quality, heat, wear or power.
     public abstract float RatedRangeDamagePerSecond(float range);
+    [IgnoreMember]
     public float RatedRange => Range.Max;
 }
 
