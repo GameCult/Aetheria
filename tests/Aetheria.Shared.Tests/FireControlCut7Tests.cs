@@ -167,7 +167,7 @@ public sealed class FireControlCut7Tests : IDisposable
 
         // The shooter tracks the target fully and has seen the interior item act; it selects it as the aim point.
         e.Shooter.EntityInfoGathered[e.Target] = 1f;
-        e.Shooter.RecordReveal(e.Target, aimedItem, SignatureChannel.LaunchFlash);
+        e.Shooter.RecordReveal(e.Target, aimedItem, SignatureChannel.LaunchFlash, aimedItem.Data);
         Assert.True(e.Shooter.TrySelectTargetItem(aimedItem));
         Assert.Same(aimedItem, e.Shooter.ResolvedTargetItem);
 

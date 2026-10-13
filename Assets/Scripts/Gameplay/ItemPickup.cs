@@ -58,6 +58,7 @@ public class ItemPickup : MonoBehaviour
         var viewAngle = acos(dot(toThis, ViewDirection)) * Mathf.Rad2Deg;
         if (length(diff) < LabelDisplayMaxDistance && viewAngle < LabelDisplayAngle)
             _displayTime = Time.time;
+        if (_floating?.Holder != null) _displayTime = Time.time;
         var targetAlpha = Time.time - _displayTime < LabelPersistDuration ? 1 : 0;
         var c = ScanLabel.color;
         c.a = c.a + sign(targetAlpha - c.a) * (Time.deltaTime / LabelFadeDuration);
