@@ -329,6 +329,7 @@ public sealed class PickupTests : IDisposable
         var holder = only.Holder;
         var loser = ReferenceEquals(holder, a) ? b : a;
         Assert.False(lab.Zone.TryPickUp(loser, only.Id));
+        Assert.False(lab.Zone.TryHold(loser, only.Id));
         Assert.Contains(only, lab.Zone.FloatingItems);
         Assert.Empty(loser.CargoBays.Single().Cargo);
         Tick(lab, 120, 1 / 60f);
@@ -343,6 +344,63 @@ public sealed class PickupTests : IDisposable
         Assert.NotNull(first.Holder);
         Assert.NotNull(second.Holder);
         Assert.NotSame(first.Holder, second.Holder);
+
+        // Both ships' nearest item is the same one: the one that loses it takes the other.
+        var shared = Build(Beam());
+        var p = Spawn(shared, float3(0, 0, 0));
+        var q = Spawn(shared, float3(0, 0, 10));
+        var near = Drift(shared, 40, 5);
+        var far = Drift(shared, 40, -14);
+        p.TractorCommand = 1;
+        q.TractorCommand = 1;
+        Tick(shared, 20, 1 / 60f);
+        Assert.NotNull(near.Holder);
+        Assert.NotNull(far.Holder);
+        Assert.NotSame(near.Holder, far.Holder);
+    }
+
+    [Fact]
+    public void AGrabIsDroppedWhenItsGearGoesInactiveOrTheItemFallsOutOfRangeBeforeThePull()
+    {
+        using var bag = new CompositeDisposable();
+        const float dt = 1 / 60f;
+
+        // Gear switched off mid-grab: cancelled, the item free.
+        var lab = Build(Beam());
+        var ship = Spawn(lab, float3(0, 0, 0));
+        var item = Drift(lab, 40, 0);
+        var events = Watch(ship, bag);
+        ship.TractorCommand = 1;
+        Tick(lab, 30, dt);
+        Assert.Same(ship, item.Holder);
+        ship.Equipment.Single(e => e.Behaviors.OfType<Pickup>().Any()).Enabled.Value = false;
+        Tick(lab, 2, dt);
+        Assert.Equal(GrabPhase.Cancelled, events.Last().Phase);
+        Assert.Null(item.Holder);
+
+        // The ship leaves while the beam is still extending: cancelled. The same departure during the pull is not.
+        foreach (var departAtPull in new[] { false, true })
+        {
+            var other = Build(Beam());
+            var pilot = Spawn(other, float3(0, 0, 0));
+            var target = Drift(other, 40, 0);
+            var seen = Watch(pilot, bag);
+            pilot.TractorCommand = 1;
+            while (!seen.Any(e => departAtPull ? e.Phase == GrabPhase.Pull : e.Phase == GrabPhase.Extend)) other.Zone.Update(dt);
+            pilot.Position = float3(-200, 0, 0);
+            Tick(other, 120, dt);
+            if (departAtPull)
+            {
+                Assert.Equal(GrabPhase.Completed, seen.First(e => e.Phase == GrabPhase.Completed || e.Phase == GrabPhase.Cancelled).Phase);
+                Assert.DoesNotContain(target, other.Zone.FloatingItems);
+            }
+            else
+            {
+                Assert.Equal(GrabPhase.Cancelled, seen.First(e => e.Phase == GrabPhase.Completed || e.Phase == GrabPhase.Cancelled).Phase);
+                Assert.Null(target.Holder);
+                Assert.Contains(target, other.Zone.FloatingItems);
+            }
+        }
     }
 
     [Fact]
@@ -418,6 +476,13 @@ public sealed class PickupTests : IDisposable
         Tick(held, 180, dt);
         Assert.Contains(stuck, held.Zone.FloatingItems);
         Assert.Equal(float2(40, 0), stuck.Body.Position);
+
+        // Placed, not drifted: the same progress held for two steps puts it at the same halfway point.
+        held.Zone.SetHeldProgress(stuck.Id, .5f);
+        held.Zone.Update(dt);
+        held.Zone.Update(dt);
+        Assert.Equal(22.5f, stuck.Body.Position.x, 3);
+        Assert.Equal(3.5f, stuck.Body.Position.y, 3);
 
         // At progress 1 it is at the holder; freed, an item past its lifetime goes on the next step.
         held.Zone.SetHeldProgress(stuck.Id, 1);
