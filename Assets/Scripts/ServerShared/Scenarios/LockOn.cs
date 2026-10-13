@@ -10,10 +10,11 @@ public sealed class LockOn : Scenario
     public override uint Seed => 113;
     public override bool Ambient => false;
 
-    // The hostile starts far beyond the player's sight and the hostile's own, 4000 m ahead facing the player. Stepping the
-    // arena headlessly, it closes to about 3000 m, sees the player after some eight seconds, and locks two ticks later;
-    // at Duel's 900 m (and at 600 m) it sees and locks within a second.
-    public static readonly CultMath.float2 HostileAt = float2(0, 4000);
+    // The hostile starts about 4000 m off, to the side of the player's axis, facing the player. At that range its passive
+    // sensors hold no track of the player (the test asks the sim's own PassiveInfo against the detection threshold); the
+    // player sees the hostile a little sooner, at about tick 20. The hostile closes, sees the player some eight seconds in,
+    // and locks two ticks later. At Duel's 900 m (and at 600 m) it sees and locks within a second.
+    public static readonly CultMath.float2 HostileAt = float2(1500, 3700);
 
     public override Galaxy Generate(GalaxyStage stage) => stage.Prelude(DemoTerminus.Cast);
 
@@ -38,6 +39,6 @@ public sealed class LockOn : Scenario
             ("Store-All Plus", int2(2, 8), None));
 
         stage.Player(fighter, float2(0, 0), facing: float2(0, 1));
-        stage.Place(fighter, HostileAt, facing: float2(0, -1), stance: ScenarioStance.Hostile, piloted: true);
+        stage.Place(fighter, HostileAt, facing: normalize(-HostileAt), stance: ScenarioStance.Hostile, piloted: true);
     }
 }
