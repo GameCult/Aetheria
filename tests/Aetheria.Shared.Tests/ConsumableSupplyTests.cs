@@ -83,7 +83,8 @@ public sealed class ConsumableSupplyTests : IDisposable
             var stranger = seed.Upsert(new Faction { Name = "Stranger", ShortName = "STR" });
             maker = seed.Upsert(new Faction { Name = "Maker", ShortName = "MKR", Allegiance = { { ally, 1f } } });
 
-            var skiff = seed.Upsert(new HullData { Name = "Skiff", HullType = HullType.Ship, Shape = Solid(4, 3), Price = 100 });
+            // Interior for the crate, the capacitor and the tractor beam every generated ship carries.
+            var skiff = seed.Upsert(new HullData { Name = "Skiff", HullType = HullType.Ship, Shape = Solid(5, 3), Price = 100 });
             var platform = seed.Upsert(new HullData { Name = "Platform", HullType = HullType.Station, Shape = Solid(5, 5), Price = 100 });
             // A hold with no cell cannot take a consumable.
             var crate = seed.Upsert(new CargoBayData

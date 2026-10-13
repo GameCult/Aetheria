@@ -306,10 +306,11 @@ public sealed partial class RunStartTests
             else
             {
                 // The envelope sums the live columns, the drives' yaw among them (turn-authority-full), so its reach sits above
-                // the allocated one by the turn the drives add: 1.24 nose-on and 1.12 broadside at the last measurement. The
-                // ceiling is that, from the columns the allocator solves with, not an open bound: an envelope inflated by a
-                // factor (doubled: 2.5 and 2.2) breaks it.
-                Assert.InRange(reach.noseOn, measured.noseOn * .9f, allocated.noseOn * 1.3f);
+                // the allocated one by the turn the drives add: 1.37 nose-on and 1.17 broadside at the last measurement
+                // (1.24 and 1.12 before every generated ship drew a tractor beam: the extra draw per ship fits the Longinus
+                // with other rolls). The ceiling is that, from the columns
+                // the allocator solves with, not an open bound: an envelope inflated by a factor (doubled: 2.7 and 2.3) breaks it.
+                Assert.InRange(reach.noseOn, measured.noseOn * .9f, allocated.noseOn * 1.5f);
                 Assert.InRange(reach.broadside, measured.broadside * .9f, allocated.broadside * 1.2f);
                 Assert.InRange(measured.noseOn, allocated.noseOn * .9f, allocated.noseOn * 1.15f);
                 Assert.InRange(measured.broadside, allocated.broadside * .85f, allocated.broadside * 1.15f);
