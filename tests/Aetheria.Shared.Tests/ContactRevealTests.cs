@@ -229,8 +229,12 @@ public sealed partial class ContactRevealTests : IDisposable
 
     private EquippableItem Make(string name) => new EquippableItem
     {
-        Data = _items.ItemData.RefOf<ItemData>(_items.ItemData.GetByName<ItemData>(name)), Durability = 10, Lot = _nextLot++
+        Data = _items.ItemData.RefOf<ItemData>(_items.ItemData.GetByName<ItemData>(name)), Durability = 10,
+        Lot = _preparedLots.Remove(name, out var prepared) ? prepared : _nextLot++
     };
+
+    // Lots a test built through the ItemManager for the next mount of that name, ahead of Add (a ship takes no gear once deployed).
+    private readonly Dictionary<string, int> _preparedLots = new Dictionary<string, int>();
 
     // A ship at `position` with `mounts` on its sensor hardpoints in order, the tools on free cells and a thruster
     // on the centre column. A ship with a gun also gets the reactor and targeting a gun needs to fire.

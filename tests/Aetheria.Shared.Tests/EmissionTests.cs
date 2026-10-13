@@ -327,9 +327,8 @@ public sealed partial class ContactRevealTests
     {
         var lot = _items.CreateLot(_openCache.GetByName<EquippableItemData>("Disciplined"), _maker, .123f);
         _items.Lots[lot].Roles = new List<RoleFill> { new RoleFill { Role = "emission-discipline", Quality = discipline } };
-        var ship = Add(float3(0, 0, 0), Array.Empty<string>());
-        Assert.True(ship.TryEquip(new EquippableItem { Data = _items.ItemData.RefOf<ItemData>(_items.ItemData.GetByName<ItemData>("Disciplined")), Durability = 10, Lot = lot }, new int2(0, 0)));
-        _zone.Update(0f);
+        _preparedLots["Disciplined"] = lot;
+        var ship = Add(float3(0, 0, 0), new[] { "Disciplined" });
 
         Assert.Equal(expected, SensorOf(ship).InterceptFactor, 3);
     }
