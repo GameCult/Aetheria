@@ -59,6 +59,16 @@ public sealed partial class ContactRevealTests : IDisposable
             // PingRange (300) over the intercept factor.
             cache.Upsert(Eye("Shout", sensitivity: 2f, interceptFactor: 2f, beamWidth: 10f));
             cache.Upsert(Eye("Roar", sensitivity: 2f, interceptFactor: .5f, beamWidth: 10f));
+            // The catalog's sensor alpha (AetherDb sensor-stat-set): .5 to 2 over one Quality term on the equipped lot's
+            // emission-discipline role, exponent log2(3) so a middling part (.5) reads 1.
+            var disciplined = Eye("Disciplined", sensitivity: 2f);
+            disciplined.Roles.Add(new ItemRole { Name = "emission-discipline" });
+            disciplined.Behaviors.OfType<SensorData>().Single().InterceptFactor = new PerformanceStat
+            {
+                Min = .5f, Max = 2f,
+                Terms = { new StatTerm { Source = StatSource.Quality, Exponent = MathF.Log(3f) / MathF.Log(2f), Role = "emission-discipline" } }
+            };
+            cache.Upsert(disciplined);
             cache.Upsert(Listener("Listener", 3f));
             cache.Upsert(new ConsumableItemData { Name = "Earpiece", Duration = 30f, Shape = new Shape(), Behaviors = { new ListenerData { Multiple = Const(3f) } } });
             cache.Upsert(Listener("Wide", 5f));

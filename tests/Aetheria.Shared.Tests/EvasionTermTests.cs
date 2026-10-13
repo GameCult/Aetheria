@@ -296,7 +296,10 @@ public sealed partial class RunStartTests
         return (Half(float2(1, 0)), Half(float2(0, 1)));
     }
 
-    private const float DjinniNoseOnFactor = 1.75f, DjinniBroadsideFactor = 1.36f;
+    // Each factor is fitted to its own ship's fleet fit: reach over measured motion. Djinni: 1.69 nose-on and 1.31 broadside at
+    // the last measurement, each with about 4% to spare. Longinus broadside: 1.23 (reach 12.74 over measured 10.40) with
+    // about 3.5% to spare, so an inflation of its envelope of 4% or more breaks its half.
+    private const float DjinniNoseOnFactor = 1.75f, DjinniBroadsideFactor = 1.36f, LonginusBroadsideFactor = 1.27f;
 
     [Fact]
     public void ReachIsWhatTheShipCanDo()
@@ -342,7 +345,7 @@ public sealed partial class RunStartTests
                 // with other rolls). The ceiling is that, from the columns
                 // the allocator solves with, not an open bound: an envelope inflated by a factor (doubled: 2.7 and 2.3) breaks it.
                 Assert.InRange(reach.noseOn, measured.noseOn * .9f, allocated.noseOn * 1.5f);
-                Assert.InRange(reach.broadside, measured.broadside * .9f, measured.broadside * DjinniBroadsideFactor);
+                Assert.InRange(reach.broadside, measured.broadside * .9f, measured.broadside * LonginusBroadsideFactor);
                 Assert.InRange(measured.noseOn, allocated.noseOn * .9f, allocated.noseOn * 1.15f);
                 Assert.InRange(measured.broadside, allocated.broadside * .85f, allocated.broadside * 1.15f);
             }
