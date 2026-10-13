@@ -301,7 +301,7 @@ public sealed class MunitionPartsTests : IDisposable
     private static string ShipSums(Ship s)
     {
         var e = s.Envelope;
-        var channels = string.Join(",", Enum.GetValues(typeof(SignatureChannel)).Cast<SignatureChannel>().Select(c => $"{c}={s.SignatureOn(c):0.####}"));
+        var channels = string.Join(",", Enum.GetValues(typeof(SignatureChannel)).Cast<SignatureChannel>().Select(c => $"{c}={s.VisibilitySources.Values.Where(v => v.Channel == c).Sum(v => v.Strength):0.####}"));
         var sensors = string.Join(",", s.GetBehaviors<Sensor>().Select(b => b.Data.GetType().Name));
         return $"env F{e.Forward:0.###} R{e.Reverse:0.###} L{e.Left:0.###} Ri{e.Right:0.###} CW{e.Clockwise:0.###} CCW{e.CounterClockwise:0.###} " +
                $"vis={s.Visibility:0.####} sources={s.VisibilitySources.Count} {channels} thrusters={s.GetBehaviors<Thruster>().Count()} thrust={s.GetBehaviors<Thruster>().Sum(t => t.Thrust):0.###} sensors=[{sensors}]";
