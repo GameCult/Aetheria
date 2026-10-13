@@ -237,6 +237,25 @@ public sealed class FireControlTests : IDisposable
         Assert.True(weapon.Firing); // arc + range satisfied: the fight actually decided to fire, not just avoided a crash
     }
 
+    // Combat picks a target item only among the items its ship holds a reveal of: the target's gun is in range and
+    // the target is fully tracked, yet nothing is aimed at until the shooter has seen the gun act. Mutation:
+    // Combat tests weapons without IsRevealed, or IsRevealed falls back to the track.
+    [Fact]
+    public void TheAIAimsOnlyAtWhatItSaw()
+    {
+        var (shooter, target, zone) = BuildCombatEncounter(float3(0, 0, 10));
+        var targetGun = target.Equipment.Single(x => x.Behaviors.Any(b => b is Weapon));
+
+        zone.Update(1f);
+        zone.Update(1f);
+        Assert.Null(shooter.TargetItem.Value);
+
+        shooter.RecordReveal(target, targetGun, SignatureChannel.LaunchFlash);
+        zone.Update(1f);
+
+        Assert.Same(targetGun, shooter.TargetItem.Value);
+    }
+
     // Controls cut (helm split): Combat aims the shooter at the intercept (Aim) and commands the hull toward it
     // through the one steering law (Turn); it never turns the hull by writing Aim.
     [Fact]

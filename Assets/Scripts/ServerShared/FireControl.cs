@@ -152,35 +152,13 @@ public static class FireControl
         };
     }
 
-    // Cut 2, R5: whether `observer` has resolved `item` (which must belong to some entity in the zone) well
-    // enough to aim at it. Derived fresh from EntityInfoGathered on every call -- nothing caches a reveal
-    // result, so decay drops it the moment info falls back below tier, with no clearing loop anywhere.
-    //
-    // Ranking: the target's own non-hull equipment, hardpoint-mounted gear first (the big obvious things),
-    // then by size descending, ties broken by equipment order (OrderByDescending is a stable sort, so this
-    // needs no explicit tie-break key). Item i of N reveals once info crosses
-    // lerp(TargetArmorInfoThreshold, TargetGearInfoThreshold, i / max(1, N - 1)) -- the first item to reveal
-    // does so at the armor tier, the last at the gear tier.
-    public static bool IsRevealed(Entity observer, EquippedItem item)
-    {
-        var target = item.Entity;
-        // Cut 5, 5.5 (Soul finding 10): a destroyed item drops out of the ranking entirely rather than merely
-        // failing its own tier -- ranked.IndexOf(item) then returns -1 for it (the same "no longer on this
-        // target" path below), and the survivors' tiers close up over the gap instead of leaving one.
-        var ranked = target.Equipment
-            .Where(e => e.Data.HardpointType != HardpointType.Hull && !e.EquippableItem.IsDestroyed)
-            .OrderByDescending(e => e.Data.HardpointType != HardpointType.Tool)
-            .ThenByDescending(e => e.Data.Shape.Coordinates.Length)
-            .ToList();
-        var index = ranked.IndexOf(item);
-        if (index < 0) return false; // the hull itself, or an item that is no longer on this target
-
-        var settings = observer.ItemManager.GameplaySettings;
-        var info = observer.EntityInfoGathered.TryGetValue(target, out var gathered) ? gathered : 0f;
-        var tier = lerp(settings.TargetArmorInfoThreshold, settings.TargetGearInfoThreshold,
-            (float) index / max(1, ranked.Count - 1));
-        return info >= tier;
-    }
+    // The aiming read, and the only reader of live gear beside the book (rulings visibility-per-capability-reveal,
+    // quiet-gear-identifiable-hull-layout-known, reveal-ends-on-perception): `observer` can aim at `item` when its own
+    // book holds a reveal of it (Entity.HasReveal: it saw the item act) and the item is still fitted to its ship and
+    // not destroyed. The book says what was seen; the live item says whether it can still be aimed at. Derived on
+    // every read, never cached; watching a ship reveals no gear.
+    public static bool IsRevealed(Entity observer, EquippedItem item) =>
+        !item.EquippableItem.IsDestroyed && item.Entity.Equipment.Contains(item) && observer.HasReveal(item.Entity, item);
 
     // Cut 2, Q4: the stats an entity actually fires with. A working targeting system (equipped, online --
     // not destroyed, not shut down) supplies its own resolved stats; anything else falls back to the

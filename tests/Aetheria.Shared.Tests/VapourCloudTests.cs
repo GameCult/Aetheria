@@ -63,7 +63,7 @@ public sealed class VapourCloudTests : IDisposable
             DefaultEntitySettings = new EntitySettings(),
             Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
             QualityPriceModifier = new ExponentialLerp(),
-            TargetDetectionInfoThreshold = Threshold, TargetArmorInfoThreshold = .2f, TargetGearInfoThreshold = .8f,
+            TargetDetectionInfoThreshold = Threshold, TargetGearInfoThreshold = .8f,
             TargetInfoDecay = .5f, VisibilityDecay = 0f,
             FiringArc = 170, CommitHorizon = .5f, SchematicCellSize = 1f
         };

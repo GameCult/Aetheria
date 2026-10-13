@@ -41,7 +41,6 @@ public sealed class FireControlCut6dTests : IDisposable
         Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
         QualityPriceModifier = new ExponentialLerp(),
         TargetDetectionInfoThreshold = .1f,
-        TargetArmorInfoThreshold = .2f,
         TargetGearInfoThreshold = .8f,
         FiringArc = 170,
         CommitHorizon = .5f,
@@ -172,6 +171,7 @@ public sealed class FireControlCut6dTests : IDisposable
         if (marker != null)
         {
             var markerItem = target.Equipment.Single(x => x.EquippableItem == marker);
+            shooter.RecordReveal(target, markerItem, SignatureChannel.LaunchFlash);
             Assert.True(shooter.TrySelectTargetItem(markerItem));
             Assert.Same(markerItem, shooter.ResolvedTargetItem);
         }
