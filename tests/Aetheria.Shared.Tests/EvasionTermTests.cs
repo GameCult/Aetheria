@@ -296,7 +296,7 @@ public sealed partial class RunStartTests
         return (Half(float2(1, 0)), Half(float2(0, 1)));
     }
 
-    private const float DjinniNoseOnFactor = 1.75f, DjinniBroadsideFactor = 1.4f;
+    private const float DjinniNoseOnFactor = 1.75f, DjinniBroadsideFactor = 1.36f;
 
     [Fact]
     public void ReachIsWhatTheShipCanDo()
@@ -317,12 +317,12 @@ public sealed partial class RunStartTests
         }
         // The envelope's reach is the capability and the measured motion is the best of fifteen fixed control policies, so
         // the reach covers it: no more than 10% below it.
-        // The Djinni's measured motion sits further below its reach (CEILING_NOTE): its strafers are off-axis and the
+        // The Djinni's measured motion sits further below its reach (reach 1.69 times the measured nose-on and 1.31 times the broadside at the last measurement): its strafers are off-axis and the
         // envelope, summed from what each thruster can push, does not model that. Its allocator holds the whole box (its
-        // allocated reach is the envelope's), so the allocated reach is the envelope's own number again and bounds nothing.
+        // allocated reach is within 8% of the envelope's), so the allocated reach moves with the reach and bounds nothing.
         // The ceiling is therefore the measured motion, which no function of Reach produces, times the factor the fitted
-        // Djinni shows with a few percent to spare (DJINNI_NOSE_ON_FACTOR and DJINNI_BROADSIDE_FACTOR, set below): a reach
-        // scaled by 1.1 or more, with the allocated reach scaling alongside it, breaks it.
+        // Djinni shows with about 4% to spare (DjinniNoseOnFactor, DjinniBroadsideFactor): a reach scaled by 1.1 or more
+        // breaks it, however the allocated reach moves.
         // The Longinus's allocator holds the heading and pays for the drive torque out of the flank thrusters (ruling
         // allocator-divergence-accepted), so the envelope's box support overstates what a controlled flight spends. Its
         // measured motion is bounded by the reach of the push the allocator itself gives it on each half-axis, from the
