@@ -44,6 +44,7 @@ public sealed partial class FireControlCut124Tests
     // Fires until a shot lands; returns that outcome and the absorbs the target published for that shot alone.
     private static (ShotOutcome Outcome, List<AbsorbEvent> Absorbs) FireAtTheMarker(Engagement e, List<IDisposable> subs)
     {
+        e.Shooter.RecordReveal(e.Target, e.Custom["Marker"], SignatureChannel.LaunchFlash); // the book must hold the item: aiming is earned by seeing it act
         Assert.True(e.Shooter.TrySelectTargetItem(e.Custom["Marker"]), "fixture: the marker is aimable");
         var absorbs = Collect(e.Target, subs);
         ShotOutcome landed = null;
