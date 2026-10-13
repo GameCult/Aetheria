@@ -38,25 +38,24 @@ Cuts without a `cut_spec`, withdrawn 2026-10-12 under map-only-what-runs: a spec
 - autofire-threshold: Missiles 3 (r5): autofire in the sim. Each autofire gun picks its subject through ChooseSubject (munitions first) and. Waits on: munition-shots (blocked on munition-shots).
 - boss-hull-derived: A faction's boss hull is derived (r2): HullData.Boss on a hull the faction makes a product of, set by its own. Waits on: boss-gate, pirates-record, package-product (blocked on package-product).
 - autofire-controls: Missiles 3b (r2): the player sets autofire; the HUD marks munitions and autofire groups; the Point Defense scenario. Waits on: autofire-threshold, controls-hud, pd-gear (blocked on autofire-threshold and controls-hud).
-- generic-design-names: Designs get generic names and branding moves to products: 43 gear and weapon designs renamed, brand text moved to their. Waits on: lot-product, product-titles, pd-gear (refresh needed; after the visibility chain by ruling catalog-breadth-after-visibility).
 - broadside-gunboat: Broadside returns on a real gunboat: the operator's Zhestokost line-gunboat package (side-rotated Ballistic hardpoints). Waits on: mods-in-tree, package-product (blocked on package-product and the operator package).
 - demo-cast-hulls: Demo cast hulls land (r3): the operator's five packages under GameData/Mods, each its maker's ship under its own name. Waits on: mods-in-tree, pirates-record, package-product, boss-hull-derived (blocked on package-product, boss-hull-derived and operator packages).
-- minor-power-makers: Aya Collective, Megiddo and Orbital Forge in the catalog: an AetherDb one-shot authors three manufacturer-only. Waits on: maker-only-faction, pd-gear, pirates-record, gear-without-presence, generic-design-names (blocked on maker-only-faction merge and generic-design-names; ruling catalog-breadth-after-visibility).
+- minor-power-makers: Aya Collective, Megiddo and Orbital Forge in the catalog: an AetherDb one-shot authors three manufacturer-only. Waits on: maker-only-faction, pd-gear, pirates-record, gear-without-presence, generic-design-names (blocked on maker-only-faction merge and generic-design-names; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
 - ships-addon-mesh-mounts: Blender thruster and radiator mounts (from mounts r3): meshes from selected faces or a tagged mesh, each with its row. Waits on: ships-addon-mounts (blocked on ships-addon-mounts).
 - ships-addon-mask-bakes: Blender mask helpers (from paint r2): Suggest Regions by weighted k-means in CIELAB, Bake Starting Mask, Bake Wear from. Waits on: ships-addon-paint (blocked on ships-addon-paint).
 - ships-addon-paint: Blender hull mask record (r3): mask slot, New Mask, factory livery, Package UV0 and mask checks, ship.mask.png, region. Waits on: ships-hull-material, ships-addon-frame, ships-addon-guards (blocked on ships-hull-material (premise obsolete under mask-channels-place-materials)).
-- matrix-coilguns: Weapon matrix, EMPS row: Light Coilgun, Coilgun, Railgun and Heavy Railgun at Small to ExtraLarge, with roles and two. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-after-visibility).
-- matrix-beams: Weapon matrix, Laser and PPC rows: Medium and Large Beam Lasers, Heavy Ion Cannon and Ion Lance, with roles and two. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-after-visibility).
-- matrix-cannons: Weapon matrix, XPS row: Heavy Autocannon (Large) and Siege Cannon (ExtraLarge), with roles and two makers each. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-after-visibility).
-- matrix-lightning: Weapon matrix, ESD row: Arc Thrower (Small), Storm Projector (Medium) and Tempest Projector (ExtraLarge) beside plight. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-after-visibility).
-- matrix-missiles: Weapon matrix, Missile and MicroMissile rows: Light and Heavy Missile Launchers, Torpedo Launcher and Micromissile. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-after-visibility).
-- caliber-bands: Caliber is the size: five records recalibered, every weapon footprint held in its caliber's band, and every matrix cell. Waits on: matrix-coilguns, matrix-cannons, matrix-beams, matrix-lightning, matrix-missiles, matrix-mines, matrix-flamers (blocked on the seven matrix cuts; ruling catalog-breadth-after-visibility).
-- matrix-flamers: Weapon matrix, Jet row: Light Flamethrower, Flamethrower, Heavy Flamethrower and Inferno Projector, thermal pellet guns. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-after-visibility).
-- matrix-mines: Weapon matrix, Mine row: Mine Rack, Heavy Mine Layer and Minefield Projector beside the Mine Launcher, with warhead and. Waits on: roles-backfill (refresh needed; ruling catalog-breadth-after-visibility).
-- product-lines-gear: Gear product lines: the twenty-two second-maker products of follow-up gear-product-lines, with role quality from maker. Waits on: generic-design-names, roles-backfill (blocked on generic-design-names; ruling catalog-breadth-after-visibility).
-- product-lines-weapons: Weapon product lines (r2): r1's nineteen products plus a second maker for the Mine Launcher, authored after. Waits on: generic-design-names, lot-product, roles-backfill (blocked on generic-design-names; ruling catalog-breadth-after-visibility).
-- boost-gear-combat: Stat boosters, combat, tiered by size: a modest 1x1 and a strong 2x2 each for Damage and Range on every gun through. Waits on: boost-gear-systems (blocked on boost-gear-systems; ruling catalog-breadth-after-visibility).
-- boost-gear-systems: Stat boosters, systems, tiered by size: a modest 1x1 and a strong 2x2 each for Thrust, Signal, Emissivity and Reactor. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-after-visibility).
+- matrix-coilguns: Weapon matrix, EMPS row: Light Coilgun, Coilgun, Railgun and Heavy Railgun at Small to ExtraLarge, with roles and two. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
+- matrix-beams: Weapon matrix, Laser and PPC rows: Medium and Large Beam Lasers, Heavy Ion Cannon and Ion Lance, with roles and two. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
+- matrix-cannons: Weapon matrix, XPS row: Heavy Autocannon (Large) and Siege Cannon (ExtraLarge), with roles and two makers each. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
+- matrix-lightning: Weapon matrix, ESD row: Arc Thrower (Small), Storm Projector (Medium) and Tempest Projector (ExtraLarge) beside plight. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
+- matrix-missiles: Weapon matrix, Missile and MicroMissile rows: Light and Heavy Missile Launchers, Torpedo Launcher and Micromissile. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
+- caliber-bands: Caliber is the size: five records recalibered, every weapon footprint held in its caliber's band, and every matrix cell. Waits on: matrix-coilguns, matrix-cannons, matrix-beams, matrix-lightning, matrix-missiles, matrix-mines, matrix-flamers (blocked on the seven matrix cuts; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
+- matrix-flamers: Weapon matrix, Jet row: Light Flamethrower, Flamethrower, Heavy Flamethrower and Inferno Projector, thermal pellet guns. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
+- matrix-mines: Weapon matrix, Mine row: Mine Rack, Heavy Mine Layer and Minefield Projector beside the Mine Launcher, with warhead and. Waits on: roles-backfill (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
+- product-lines-gear: Gear product lines: the twenty-two second-maker products of follow-up gear-product-lines, with role quality from maker. Waits on: generic-design-names, roles-backfill (blocked on generic-design-names; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
+- product-lines-weapons: Weapon product lines (r2): r1's nineteen products plus a second maker for the Mine Launcher, authored after. Waits on: generic-design-names, lot-product, roles-backfill (blocked on generic-design-names; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
+- boost-gear-combat: Stat boosters, combat, tiered by size: a modest 1x1 and a strong 2x2 each for Damage and Range on every gun through. Waits on: boost-gear-systems (blocked on boost-gear-systems; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
+- boost-gear-systems: Stat boosters, systems, tiered by size: a modest 1x1 and a strong 2x2 each for Thrust, Signal, Emissivity and Reactor. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
 - ships-player: S3, agent side: a player built by AetheriaBuild composes and preloads mod ships with Aetheria materials only, radiators. Waits on: ships-mounts, ships-hull-material, player-build (blocked on ships-hull-material).
 - ships-addon-gizmos: Blender Ship Mounts tool (r6): gizmos select and drag mounts snapped to cells in Ship Root's frame; arc fans from the. Waits on: ships-addon-mesh-mounts (blocked on ships-addon-mesh-mounts).
 - link-rig-presenter: Unity drives each driven joint's chain (r2): a MountRig aims its lead muzzle along the sim's solution, slewed at the. Waits on: link-rig-record, ships-addon-link-package (blocked on ships-addon-link-package).
@@ -5723,6 +5722,135 @@ It draws ammunition (`ballistics-real-ammo`) and a small cycling energy, 0.4-0.2
 to 400-750 m, energy-limited at 6-10 a shot, 2 to 4 hits a missile. Flak Gun is DeathCluster's
 shotgun at small calibre, 1x2: 6-8 pellets sharing 30-70 damage a volley, 350-800 m, Tracking 20
 (between PD and ClearPath, because pellets cover what tracking misses).
+
+### Refresh at 1746e8bd (generic-design-names r3, 2026-10-13)
+
+Re-probe of this section against `origin/master` `1746e8bdc8c86f142ab0ea8952dbccdc851c3dc2` by
+`imagination-aeth-generic-names` (session self-2026-10-13-ag2), after ruling `catalog-breadth-now`
+lifted the hold. Catalog decode: `cultcache_py` `SingleFileMessagePackBackingStore.pull_all()` over
+`GameData/Aetheria.cc` at that head, payloads by MessagePack key (the CG1 method); literal census: a
+script counting each quoted old name (`"<name>"`, fixed string) over `git ls-files '*.cs'`. Scratch
+scripts were not committed. The rename table above ("Generic design names", 43 rows) stands unchanged:
+every old name is present exactly once and no generic name is taken by any record or product.
+
+- **GN1. Census at 1746e8bd.** 86 FactionProductData, 51 CompoundCommodityData, 31 GearData,
+  27 WeaponItemData, 13 SimpleCommodityData, 13 Faction (Pirates added), 12 NameFile, 5 HullData
+  (Djinni, Longinus, Turret, Zenith, Smoke Test Hull), 4 CargoBayData, 3 PersonalityAttribute, 2 ConsumableItemData,
+  1 DockingBayData, 1 FieldKindData, 1 InputLayout, 1 verse_grammar, 7 verse_verb. Traction is gone
+  (retire-longinusx). Landed since CG1: product-titles (`ItemManager.Title`, ItemManager.cs:228-229,
+  the one title owner; no `DisplayName`), lot-product (`Lot.Product`, Provenance.cs:73), pd-gear,
+  pirates-record (8 emoji rebrands), mine-launcher, roles-backfill, consumables-first-set.
+- **GN2. Designs whose product shares their name: 43 non-hull designs** (CG2 counted 49 at
+  4d664b53). 35 are rows of the rename table; the other 8 keep a generic design name and need a
+  brand: Autocannon (Zhestokost), Cockpit 2x2, Industrial Thermostatic Heater, Medium Drive,
+  Small Drive (Lightsail), Turret Control Module, Medium Docking Bay (AU), and the new one,
+  **Mine Launcher (DME)**, whose product `Mine Launcher` was authored by `mine-launcher`
+  (Program.cs:1779) with the design's functional line as its text and an empty design description.
+  Pirates products sit on Store-All Plus, Small Drive, Targeting Computer, 6k Shooter, Autocannon,
+  Earp, FastBlast+- and scorched void policy; none is touched (ruling `pirates-record-content`).
+- **GN3. Description classes for the 43 rows.** 40 products carry exactly the design's text or
+  both are empty or `[TODO]`; 3 differ: plight/DragOnBreath (the product's text is an authoring
+  note, "The subsidiary plight's own description already namechecks..."), pswarm/Leonid (the design's
+  text is DME's "let's set the stars on fire" lyric, a duplicate of scorched void policy's) and
+  Core Power/Steadfast. Empty or `[TODO]` on both sides: LRMM72, SRMM72, Iapyx, Skiron,
+  RevvITup 2.0, Talaria, The Bat, not if i see you first, PotaT+-. The five station reactor
+  designs share the functional line "A reactor sized for a station's core." and their products
+  (Steadfast Station, Manhattan Station, Notorious Station, Vulcan Station, MoveOnPro Station) are
+  empty. Victoire's product is empty under a flavour design text.
+- **GN4. Authoring notes shipped as player text.** Eight product descriptions end in " (new text)":
+  Panopticon, Panopticon Prime, ClapBack, ClapBack Ultra, LockOn, LockOn Pro, Steadfast, True North.
+  Their source literals are in TargetingCatalog (Program.cs:1177, 1180, 1200, 1203) and
+  TargetingCatalog6c (:1315, 1318, 1321, 1324); DragOnBreath's note is Program.cs:1194.
+- **GN5. Old-name literals in C#: 232 on 202 lines in 30 files** (CG10 counted 61 in 12). Every
+  hit resolves a design by `Name` (scenario fits, `GetByName`, `Data.Name ==`, AetherDb templates and
+  name-keyed maps) or is a comment; none names a product. By file: EvasionTermTests 28,
+  tools/AetherDb/Program.cs 26 (lines 236, 408, 1193, 1196, 1199, 1530, 1538, 1545, 1716-1720,
+  1890-1891, 2055-2058, 2061), Pursuit 22, Arcs 17, MunitionPartsTests 14, Duel 13, Belt 10,
+  Crossing 10, LauncherAngles 10, StarvedReactor 8, WeaponFeel 8, RolesBackfillCommandTests 8,
+  FusedRounds 7, CatalogRoleTests 7, AiFusedDiscipline 6, RefusedRounds 6, EvasionTrackingTests 5,
+  PiratesFactionCommandTests 5, RestoredHullsTests 4, RunStartTests 4, SmokeRoundsSteppedTests 3,
+  CrossingScenarioTests 2, SmokeRoundsCommandTests 2, and one each in BrownoutTests (comment),
+  PowerCurveTests (comment), ScenarioTests, SmokeHullCommandTests, SmokeHullScenarioTests,
+  SmokeRoundsScenarioTests, ThrustAllocationTests. No non-C# file in the tree names them except docs.
+- **GN6. Name-keyed authority in AetherDb.** `ToolRolesByDesign` (Program.cs:229-241) is keyed by
+  design name and feeds `HasRoleMap`, which CatalogRoleTests reads: its `"PotaT+-"` key (:236) must
+  become `"Capacitor"` or the capacitor silently loses its role map. `BackfillDesigns`
+  (:1890-1891), the roles-migrate Arctica special case (:408), and the templates of pd-gear
+  (:1530-1545), smoke-rounds (:1716-1720) and pirates-faction (:2055-2061) resolve by name; the
+  command tests for roles-backfill, smoke-rounds, smoke-hull and pirates-faction run those commands
+  on a scratch copy of the shipped catalog, so after the rename they find designs only by the
+  generic names.
+- **GN7. Order-sensitive pin.** `RunStartTests.TheSoldHardpointGearWithNoHomeToday`
+  (RunStartTests.cs:450-460) orders names ordinally; after the rename the list is
+  Charged Blaster, Charged Scatter Blaster, Heat Pump, Heavy Beam Laser (not a positional swap).
+- **GN8. In-flight branches that add old-name literals** (diff against master, 2026-10-13):
+  `eureka/aetheria-release-scenarios-lock-on-r3` (LockOn.cs, 9 literals: the scenario hull fit) and
+  `eureka/aetheria-release-sensor-catalog-r2` (its sensor-stat-set table names "The Bat" and
+  "not if i see you first" for four new products: Floodlight and Beacon by Lucent, Pinion and
+  Kestrel by Finch). It also adds `["Passive Array"]` to `ToolRolesByDesign`, the dictionary GN6
+  edits. `aetheria-ew` ew-hide-launch-catalog names only "Targeting Computer" and its own new design.
+
+### Content: brands, flavour and functional text (generic-design-names r3)
+
+Ruling `kitchen-sink-content` applied where r2 chose narrowly: r2 left nine products with no text,
+moved the station reactors' functional line into their products as if it were flavour, dropped
+three design texts, and branded seven same-named products. r3 brands all eight (GN2), gives every
+product of the touched designs its own text (except Miss Terri's, ruling
+`miss-terris-belongs-to-emily-r3`), strips the eight authoring notes (GN4), and keeps every old
+brand verbatim as a product name (ruling `setting-permits-necrotech`: names are not trimmed for
+tone). Names and lines are drafts the operator may rename.
+
+**Brands for same-named products** (product renamed; its text set as below):
+
+| Design (unchanged name) | Maker | Old product name | Brand | Product text |
+|---|---|---|---|---|
+| Autocannon | Zhestokost | Autocannon | Hammerfall | The rounds fall steadily, and they do not stop until the work is done. |
+| Cockpit 2x2 | Lightsail | Cockpit 2x2 | Wheelhouse | Every Lightsail captain's favourite chair. The view comes standard. |
+| Industrial Thermostatic Heater | Lightsail | Industrial Thermostatic Heater | Hearth | A warm hold, a warm crew, and a warm welcome at the cold end of the run. |
+| Medium Drive | Lightsail | Medium Drive | Steady Haul | Keeps you going and going and going... (the design's old text, moved) |
+| Small Drive | Lightsail | Small Drive | Short Hop | Dock to dock, and not a metre further than the manifest says. |
+| Turret Control Module | AU | Turret Control Module | Watchtower | Point it at the dark and get back to work. It keeps watch. |
+| Medium Docking Bay | AU | Medium Docking Bay | Open Berth | Room for a friend, a customer or a tug. We don't ask which. |
+| Mine Launcher | DME | Mine Launcher | parting gift | we were never here/ but we left you something/ it's waiting where we were |
+
+**Functional design text for those eight** (the design's Description; flavour lives in the product):
+Autocannon "Belt-fed cannon: a steady stream of rounds at long reach."; Cockpit 2x2 "Two-by-two crew
+cockpit."; Industrial Thermostatic Heater "Turns reactor power into heat to keep the hull warm.";
+Medium Drive "Mid-sized working drive."; Small Drive "Small working drive."; Turret Control Module
+"Control module for a station turret."; Medium Docking Bay "Docking bay for mid-sized ships.";
+Mine Launcher "Lays a drifting proximity mine that arms after two seconds." (moved from its product).
+
+**Product text set explicitly** (by product name and maker; every other product of a renamed
+design keeps its text, which GN3 shows equals the design's old text):
+
+| Product (maker) | Design after rename | Text |
+|---|---|---|
+| Victoire (Alakrita) | Racing Drive | The most responsive thruster on the market, for the most irresponsible of racing pilots. (moved from the design) |
+| DragOnBreath (Lucent) | Lightning Projector | plight's old design text, verbatim (moved; replaces the authoring note) |
+| Steadfast (R&D) | Compact Reactor | It gets the job done, but that's all. Rated for continuous operation. "Continuous" does not imply "uninterrupted." |
+| Steadfast Station (R&D) | Station Reactor | Rated for continuous operation at station scale. The fine print scales too. |
+| Manhattan Station (Zhestokost) | Heavy Station Reactor | A fortress needs a furnace. This is the furnace. |
+| Notorious Station (Lucent) | High-Yield Station Reactor | The biggest reaction in the system, and everyone docked here will hear about it. |
+| Vulcan Station (AU) | Ring Station Reactor | Keeps the lights on and the forges hot. |
+| MoveOnPro Station (NiteLife) | Muon Fusion Station Reactor | The club never closes. Neither does the reactor. |
+| LRMM72 (R&D) | Long-Range Missile Rack | Engages targets at up to seventy-two kilometres!* *In a vacuum, against a cooperative target. |
+| SRMM72 (DME) | Short-Range Missile Rack | seventy-two reasons/ to keep your distance/ all of them leaving at once |
+| Iapyx (AU) | Radiator | Two cells of honest fin. Bolt it on and forget it's there. |
+| Skiron (AU) | Long Radiator | When the job runs hot, run a bigger fin. |
+| Talaria (AU) | Rugged Drive | Takes a knock, keeps pushing. Built for crews who work for a living. |
+| RevvITup 2.0 (NiteLife) | High-Thrust Drive | Floor it. The bass drops when you do. |
+| PotaT+- (NiteLife) | Capacitor | Holds the charge until the drop, then lets it all go at once. |
+| not if i see you first (DME) | Compact Sensor | eyes in the dark/ you were seen before you looked/ say goodnight |
+
+Leonid keeps its own text; pswarm's dropped lyric survives on scorched void policy (GN3). The Bat's
+product (Miss Terri's) is not touched. The eight " (new text)" suffixes (GN4) are removed from the
+shipped products and from their source literals; Steadfast's full text is the row above.
+
+**Concurrency.** Every catalog cut writes `GameData/Aetheria.cc` through an idempotent AetherDb
+command; whoever merges second takes master's `.cc` and reruns its own apply (ruling
+`catalog-breadth-now`), never a hand merge. Because this cut renames the names other commands look
+up, a cut that merges after it must spell the generic names; one that merges before it is swept by
+this cut's final pass (GN8).
 
 ## Retiring the LonginusX and parking the aether drive
 
