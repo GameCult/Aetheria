@@ -519,7 +519,7 @@ public sealed class FireControlCut12Tests : IDisposable
         var aim = new int2(2, 2);
         var e = Build(TestSettings(), SolidShape(6, 6), precision: 1000f, markerCells: new[] { aim });
         var aimed = e.Markers[0];
-        e.Shooter.RecordReveal(e.Target, aimed, SignatureChannel.LaunchFlash);
+        e.Shooter.RecordReveal(e.Target, aimed, SignatureChannel.LaunchFlash, aimed.Data);
         Assert.True(e.Shooter.TrySelectTargetItem(aimed));
 
         // The aimed item is still equipped (Entity.TryUnequip refuses on an active entity, and reveal/aim
@@ -546,7 +546,7 @@ public sealed class FireControlCut12Tests : IDisposable
     public void AimingAtAnItemBiggerThanOneCellCentresOnItsCentroid()
     {
         var e = Build(TestSettings(), SolidShape(9, 9), precision: 1f, targetFacing: float2(1, 0), equipBigMarker: true);
-        e.Shooter.RecordReveal(e.Target, e.BigMarker, SignatureChannel.LaunchFlash);
+        e.Shooter.RecordReveal(e.Target, e.BigMarker, SignatureChannel.LaunchFlash, e.BigMarker.Data);
         Assert.True(e.Shooter.TrySelectTargetItem(e.BigMarker));
 
         var travelDirection = FireControl.TravelDirection(e.Weapon, e.Shooter, e.Target);
@@ -584,7 +584,7 @@ public sealed class FireControlCut12Tests : IDisposable
         // the bounding-box centre along the diagonal, not along either grid axis -- fully onto the lateral
         // axis, instead of losing most of it to the axis a purely axis-aligned facing would leave unmeasured.
         var e = Build(TestSettings(), SolidShape(9, 9), precision: 1f, targetFacing: normalize(float2(1, 1)), equipLMarker: true);
-        e.Shooter.RecordReveal(e.Target, e.LMarker, SignatureChannel.LaunchFlash);
+        e.Shooter.RecordReveal(e.Target, e.LMarker, SignatureChannel.LaunchFlash, e.LMarker.Data);
         Assert.True(e.Shooter.TrySelectTargetItem(e.LMarker));
 
         var travelDirection = FireControl.TravelDirection(e.Weapon, e.Shooter, e.Target);
@@ -975,7 +975,7 @@ public sealed class FireControlCut12Tests : IDisposable
         var aim = new int2(1, 1);
         var e = Build(settings, hullShape, precision, spread: 0, targetFacing: normalize(float2(1f, 1f)),
             markerCells: new[] { aim });
-        e.Shooter.RecordReveal(e.Target, e.Markers[0], SignatureChannel.LaunchFlash);
+        e.Shooter.RecordReveal(e.Target, e.Markers[0], SignatureChannel.LaunchFlash, e.Markers[0].Data);
         Assert.True(e.Shooter.TrySelectTargetItem(e.Markers[0]));
 
         var shotId = FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
@@ -1158,7 +1158,7 @@ public sealed class FireControlCut12Tests : IDisposable
 
         var aim = new int2(1, 1);
         var e = Build(TestSettings(), shape, precision: .3f, targetFacing: normalize(float2(.8f, .6f)), markerCells: new[] { aim });
-        e.Shooter.RecordReveal(e.Target, e.Markers[0], SignatureChannel.LaunchFlash);
+        e.Shooter.RecordReveal(e.Target, e.Markers[0], SignatureChannel.LaunchFlash, e.Markers[0].Data);
         Assert.True(e.Shooter.TrySelectTargetItem(e.Markers[0]));
 
         var outcomes = FireMany(e, 1500);
@@ -1192,7 +1192,7 @@ public sealed class FireControlCut12Tests : IDisposable
         {
             var e = Build(settings, hullShape, precision: .6f, targetFacing: facing, markerCells: new[] { aimCell });
             var aimed = e.Markers[0];
-            e.Shooter.RecordReveal(e.Target, aimed, SignatureChannel.LaunchFlash);
+            e.Shooter.RecordReveal(e.Target, aimed, SignatureChannel.LaunchFlash, aimed.Data);
             Assert.True(e.Shooter.TrySelectTargetItem(aimed));
             Assert.Same(aimed, e.Shooter.ResolvedTargetItem);
 

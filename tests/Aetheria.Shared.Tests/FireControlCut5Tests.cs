@@ -587,8 +587,8 @@ public sealed class FireControlCut5Tests : IDisposable
         target.Zone.Admit(observer, piloted: false);
         observer.SetTarget(target);
 
-        observer.RecordReveal(target, big, SignatureChannel.LaunchFlash);
-        observer.RecordReveal(target, medium, SignatureChannel.LaunchFlash);
+        observer.RecordReveal(target, big, SignatureChannel.LaunchFlash, big.Data);
+        observer.RecordReveal(target, medium, SignatureChannel.LaunchFlash, medium.Data);
         Assert.True(FireControl.IsRevealed(observer, big));
         Assert.True(FireControl.IsRevealed(observer, medium));
         Assert.True(observer.TrySelectTargetItem(big));

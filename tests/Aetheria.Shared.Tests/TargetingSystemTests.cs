@@ -168,7 +168,7 @@ public sealed class TargetingSystemTests : IDisposable
         Assert.False(observer.TrySelectTargetItem(weapon)); // nothing seen yet
         Assert.Null(observer.TargetItem.Value);
 
-        observer.RecordReveal(target, weapon, SignatureChannel.LaunchFlash);
+        observer.RecordReveal(target, weapon, SignatureChannel.LaunchFlash, weapon.Data);
         Assert.True(observer.TrySelectTargetItem(weapon));
         Assert.Same(weapon, observer.TargetItem.Value);
         Assert.Same(weapon, observer.ResolvedTargetItem);
@@ -196,7 +196,7 @@ public sealed class TargetingSystemTests : IDisposable
         var observer = BuildObserver(items, target.Zone);
         observer.SetTarget(target);
 
-        observer.RecordReveal(target, weapon, SignatureChannel.LaunchFlash);
+        observer.RecordReveal(target, weapon, SignatureChannel.LaunchFlash, weapon.Data);
 
         Assert.True(FireControl.IsRevealed(observer, weapon));
         Assert.False(FireControl.IsRevealed(observer, wideItem));
@@ -230,8 +230,8 @@ public sealed class TargetingSystemTests : IDisposable
         var (items, target, weapon, wideItem, _, _) = BuildTarget(TestSettings());
         var observer = BuildObserver(items, target.Zone);
         observer.SetTarget(target);
-        observer.RecordReveal(target, weapon, SignatureChannel.LaunchFlash);
-        observer.RecordReveal(target, wideItem, SignatureChannel.LaunchFlash);
+        observer.RecordReveal(target, weapon, SignatureChannel.LaunchFlash, weapon.Data);
+        observer.RecordReveal(target, wideItem, SignatureChannel.LaunchFlash, wideItem.Data);
         Assert.True(observer.TrySelectTargetItem(weapon));
 
         weapon.EquippableItem.Durability = 0f;
@@ -250,7 +250,7 @@ public sealed class TargetingSystemTests : IDisposable
         var (items, target, weapon, _, _, _) = BuildTarget(TestSettings());
         var observer = BuildObserver(items, target.Zone);
         observer.SetTarget(target);
-        observer.RecordReveal(target, weapon, SignatureChannel.LaunchFlash);
+        observer.RecordReveal(target, weapon, SignatureChannel.LaunchFlash, weapon.Data);
         Assert.True(FireControl.IsRevealed(observer, weapon));
 
         target.Deactivate(); // an active ship refuses to unequip
@@ -269,7 +269,7 @@ public sealed class TargetingSystemTests : IDisposable
         var (items, target, weapon, _, _, _) = BuildTarget(TestSettings());
         var observer = BuildObserver(items, target.Zone);
         observer.EntityInfoGathered[target] = .5f; // below TargetGearInfoThreshold (.9)
-        observer.RecordReveal(target, weapon, SignatureChannel.LaunchFlash);
+        observer.RecordReveal(target, weapon, SignatureChannel.LaunchFlash, weapon.Data);
         Assert.True(FireControl.IsRevealed(observer, weapon));
 
         weapon.EquippableItem.Durability = 0f;

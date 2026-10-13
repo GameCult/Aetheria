@@ -478,7 +478,7 @@ public sealed class FireAuthorityTests : IDisposable
         var aimedItem = e.Target.Equipment.Single(x => x.EquippableItem == aimedGear);
 
         e.Shooter.EntityInfoGathered[e.Target] = 1f; // fully tracked
-        e.Shooter.RecordReveal(e.Target, aimedItem, SignatureChannel.LaunchFlash);
+        e.Shooter.RecordReveal(e.Target, aimedItem, SignatureChannel.LaunchFlash, aimedItem.Data);
         Assert.True(e.Shooter.TrySelectTargetItem(aimedItem));
 
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
