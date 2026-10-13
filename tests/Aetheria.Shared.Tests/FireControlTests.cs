@@ -238,7 +238,8 @@ public sealed class FireControlTests : IDisposable
     }
 
     // Combat picks a target item only among the items its ship holds a reveal of: the target's gun is in range and
-    // the target is fully tracked, yet nothing is aimed at until the shooter has seen the gun act. Mutation:
+    // the target is fully tracked, yet nothing is aimed at until the shooter has seen the gun act, and a destroyed
+    // gun is cleared by Combat's own choice. Mutation:
     // Combat tests weapons without IsRevealed, or IsRevealed falls back to the track.
     [Fact]
     public void TheAIAimsOnlyAtWhatItSaw()
@@ -254,6 +255,13 @@ public sealed class FireControlTests : IDisposable
         zone.Update(1f);
 
         Assert.Same(targetGun, shooter.TargetItem.Value);
+
+        // The gun is destroyed: nothing qualifies any more, so Combat clears the aim point itself rather than
+        // leaving the dead gun in the raw field.
+        targetGun.EquippableItem.Durability = 0f;
+        zone.Update(1f);
+
+        Assert.Null(shooter.TargetItem.Value);
     }
 
     // Controls cut (helm split): Combat aims the shooter at the intercept (Aim) and commands the hull toward it
