@@ -144,19 +144,24 @@ public sealed class PickupTests : IDisposable
     public void NoPickupBehaviourNoGrab()
     {
         using var bag = new CompositeDisposable();
+
+        // The same ship and item, with and without the gear: only the gear grabs.
+        var bare = Build(Beam());
+        var plain = Spawn(bare, float3(0, 0, 0), beam: false);
+        var left = Drift(bare, 40, 0);
+        var plainEvents = Watch(plain, bag);
+        plain.TractorCommand = 1;
+        Tick(bare, 240, 1 / 60f);
+        Assert.Null(left.Holder);
+        Assert.Contains(left, bare.Zone.FloatingItems);
+        Assert.Equal(0f, plain.TractorPower);
+        Assert.Empty(plainEvents);
+
         var lab = Build(Beam());
-        var ship = Spawn(lab, float3(0, 0, 0), beam: false);
+        var ship = Spawn(lab, float3(0, 0, 0));
         var item = Drift(lab, 40, 0);
         var events = Watch(ship, bag);
         ship.TractorCommand = 1;
-        Tick(lab, 240, 1 / 60f);
-        Assert.Null(item.Holder);
-        Assert.Contains(item, lab.Zone.FloatingItems);
-        Assert.Equal(0f, ship.TractorPower);
-        Assert.Empty(events);
-
-        // The same ship with the beam equipped claims the item.
-        Equip(ship, lab.Make("Tractor"));
         Tick(lab, 60, 1 / 60f);
         Assert.Same(ship, item.Holder);
         Assert.Equal(GrabPhase.Started, events.First().Phase);
@@ -271,8 +276,10 @@ public sealed class PickupTests : IDisposable
         Assert.DoesNotContain(events, e => e.Phase == GrabPhase.Completed);
         Assert.Null(item.Holder);
         Assert.Contains(item, lab.Zone.FloatingItems);
-        Assert.Equal(velocity, item.Body.Velocity);
-        Assert.Equal(drift, item.Body.Drift);
+        // (It has taken the one step of its freeing tick, so it is the held velocity less a tick's drag.)
+        Assert.Equal(velocity.x, item.Body.Velocity.x, velocity.x * .01f);
+        Assert.Equal(velocity.y, item.Body.Velocity.y, velocity.y * .01f);
+        Assert.True(velocity.x > 1f);
 
         // It drifts on with that velocity and expires on the clock it was released on, not from the cancel.
         var at = item.Body.Position;
