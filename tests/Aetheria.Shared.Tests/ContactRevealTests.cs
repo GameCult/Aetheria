@@ -64,6 +64,7 @@ public sealed partial class ContactRevealTests : IDisposable
             cache.Upsert(Listener("Wide", 5f));
             cache.Upsert(Listener("Narrow", 1.5f));
             cache.Upsert(Listener("Hush", .5f));
+            cache.Upsert(new ConsumableItemData { Name = "HushEarpiece", Duration = 30f, Shape = new Shape(), Behaviors = { new ListenerData { Multiple = Const(.5f) } } });
             cache.Upsert(new ConsumableItemData { Name = "WideEarpiece", Duration = 30f, Shape = new Shape(), Behaviors = { new ListenerData { Multiple = Const(5f) } } });
             cache.Upsert(new ConsumableItemData { Name = "NarrowEarpiece", Duration = 30f, Shape = new Shape(), Behaviors = { new ListenerData { Multiple = Const(1.5f) } } });
             cache.Upsert(Tool("Reactor", new ReactorData { Charge = Const(1000), Efficiency = Const(1), OverloadEfficiency = Const(1), ThrottlingFactor = Const(2) }));

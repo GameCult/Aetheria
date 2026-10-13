@@ -177,6 +177,20 @@ public sealed partial class ContactRevealTests
         Assert.Equal(heard ? 1 : 0, ear.RevealsOf(p).Count());
     }
 
+    [Theory]
+    [InlineData(149f, true)]
+    [InlineData(151f, false)]
+    public void AConsumableMultipleBelowOneIsNotClampedUp(float distance, bool heard)
+    {
+        var p = Add(float3(0, 0, 0), new[] { "Eye" });
+        var ear = Add(float3(distance, 0, 0));
+        Activate(ear, "HushEarpiece");
+
+        PingAt(p);
+
+        Assert.Equal(heard ? 1 : 0, ear.RevealsOf(p).Count());
+    }
+
     // ---- ListenerDataRoundTripsAsUnionKey50 ----
 
     [Fact]
