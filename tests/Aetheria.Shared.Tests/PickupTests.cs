@@ -159,8 +159,8 @@ public sealed class PickupTests : IDisposable
         var plainEvents = Watch(plain, bag);
         plain.TractorCommand = 1;
         Tick(bare, 240, 1 / 60f);
-        Assert.Null(left.Holder);
-        Assert.Contains(left, bare.Zone.FloatingItems);
+        Assert.True(left.Holder == null, "left is held");
+        Assert.True(bare.Zone.FloatingItems.Contains(left), "left left the zone");
         Assert.Equal(0f, plain.TractorPower);
         Assert.Empty(plainEvents);
 
@@ -170,7 +170,7 @@ public sealed class PickupTests : IDisposable
         var events = Watch(ship, bag);
         ship.TractorCommand = 1;
         Tick(lab, 60, 1 / 60f);
-        Assert.Same(ship, item.Holder);
+        Assert.True(ReferenceEquals(ship, item.Holder), "item is not held by ship");
         Assert.Equal(GrabPhase.Started, events.First().Phase);
         Assert.True(ship.TractorPower > 0f);
     }
@@ -280,7 +280,7 @@ public sealed class PickupTests : IDisposable
         ship.TractorCommand = 1;
         var tick = 0;
         while (!events.Any(e => e.Phase == GrabPhase.Pull) && tick++ < 600) lab.Zone.Update(dt);
-        Assert.Same(ship, item.Holder);
+        Assert.True(ReferenceEquals(ship, item.Holder), "item is not held by ship");
         var velocity = item.Body.Velocity;
         var drift = item.Body.Drift;
 
@@ -289,8 +289,8 @@ public sealed class PickupTests : IDisposable
         while (!events.Any(e => e.Phase == GrabPhase.Cancelled) && tick++ < 600) lab.Zone.Update(dt);
         Assert.True(tick < 110);
         Assert.DoesNotContain(events, e => e.Phase == GrabPhase.Completed);
-        Assert.Null(item.Holder);
-        Assert.Contains(item, lab.Zone.FloatingItems);
+        Assert.True(item.Holder == null, "item is held");
+        Assert.True(lab.Zone.FloatingItems.Contains(item), "item left the zone");
         // (It has taken the one step of its freeing tick, so it is the held velocity less a tick's drag.)
         Assert.Equal(velocity.x, item.Body.Velocity.x, velocity.x * .01f);
         Assert.Equal(velocity.y, item.Body.Velocity.y, velocity.y * .01f);
@@ -320,8 +320,8 @@ public sealed class PickupTests : IDisposable
         while (!events.Any(e => e.Phase == GrabPhase.Cancelled) && tick++ < 300) lab.Zone.Update(1 / 60f);
         Assert.Equal(new[] { GrabPhase.Started, GrabPhase.Extend, GrabPhase.Envelop, GrabPhase.Pull, GrabPhase.Cancelled },
             events.Select(e => e.Phase).ToArray());
-        Assert.Null(item.Holder);
-        Assert.Contains(item, lab.Zone.FloatingItems);
+        Assert.True(item.Holder == null, "item is held");
+        Assert.True(lab.Zone.FloatingItems.Contains(item), "item left the zone");
         Assert.Equal(16, bay.Cargo.Count);
     }
 
@@ -345,10 +345,10 @@ public sealed class PickupTests : IDisposable
         var loser = ReferenceEquals(holder, a) ? b : a;
         Assert.False(lab.Zone.TryPickUp(loser, only.Id));
         Assert.False(lab.Zone.TryHold(loser, only.Id));
-        Assert.Contains(only, lab.Zone.FloatingItems);
+        Assert.True(lab.Zone.FloatingItems.Contains(only), "only left the zone");
         Assert.Empty(loser.CargoBays.Single().Cargo);
         Tick(lab, 120, 1 / 60f);
-        Assert.DoesNotContain(only, lab.Zone.FloatingItems);
+        Assert.False(lab.Zone.FloatingItems.Contains(only), "only is still in the zone");
         Assert.Single(holder.CargoBays.Single().Cargo);
         Assert.Empty(loser.CargoBays.Single().Cargo);
 
@@ -356,9 +356,9 @@ public sealed class PickupTests : IDisposable
         var first = Drift(lab, 60, 0);
         var second = Drift(lab, 60, 10);
         Tick(lab, 20, 1 / 60f);
-        Assert.NotNull(first.Holder);
-        Assert.NotNull(second.Holder);
-        Assert.NotSame(first.Holder, second.Holder);
+        Assert.True(first.Holder != null, "first is free");
+        Assert.True(second.Holder != null, "second is free");
+        Assert.False(ReferenceEquals(first.Holder, second.Holder), "one holder for two items");
 
         // Both ships' nearest item is the same one: the one that loses it takes the other.
         var shared = Build(Beam());
@@ -369,9 +369,9 @@ public sealed class PickupTests : IDisposable
         p.TractorCommand = 1;
         q.TractorCommand = 1;
         Tick(shared, 20, 1 / 60f);
-        Assert.NotNull(near.Holder);
-        Assert.NotNull(far.Holder);
-        Assert.NotSame(near.Holder, far.Holder);
+        Assert.True(near.Holder != null, "near is free");
+        Assert.True(far.Holder != null, "far is free");
+        Assert.False(ReferenceEquals(near.Holder, far.Holder), "one holder for two items");
     }
 
     [Fact]
@@ -387,11 +387,11 @@ public sealed class PickupTests : IDisposable
         var events = Watch(ship, bag);
         ship.TractorCommand = 1;
         Tick(lab, 30, dt);
-        Assert.Same(ship, item.Holder);
+        Assert.True(ReferenceEquals(ship, item.Holder), "item is not held by ship");
         ship.Equipment.Single(e => e.Behaviors.OfType<Pickup>().Any()).Enabled.Value = false;
         Tick(lab, 2, dt);
         Assert.Equal(GrabPhase.Cancelled, events.Last().Phase);
-        Assert.Null(item.Holder);
+        Assert.True(item.Holder == null, "item is held");
 
         // The ship leaves while the beam is still extending: cancelled. The same departure during the pull is not.
         foreach (var departAtPull in new[] { false, true })
@@ -407,13 +407,13 @@ public sealed class PickupTests : IDisposable
             if (departAtPull)
             {
                 Assert.Equal(GrabPhase.Completed, seen.First(e => e.Phase == GrabPhase.Completed || e.Phase == GrabPhase.Cancelled).Phase);
-                Assert.DoesNotContain(target, other.Zone.FloatingItems);
+                Assert.False(other.Zone.FloatingItems.Contains(target), "target is still in the zone");
             }
             else
             {
                 Assert.Equal(GrabPhase.Cancelled, seen.First(e => e.Phase == GrabPhase.Completed || e.Phase == GrabPhase.Cancelled).Phase);
-                Assert.Null(target.Holder);
-                Assert.Contains(target, other.Zone.FloatingItems);
+                Assert.True(target.Holder == null, "target is held");
+                Assert.True(other.Zone.FloatingItems.Contains(target), "target left the zone");
             }
         }
     }
@@ -431,8 +431,8 @@ public sealed class PickupTests : IDisposable
         var near = Drift(lab, 20, 12);
         var onAxis = Drift(lab, 60, 3);
         Tick(lab, 30, 1 / 60f);
-        Assert.Same(ship, onAxis.Holder);
-        Assert.Null(near.Holder);
+        Assert.True(ReferenceEquals(ship, onAxis.Holder), "onAxis is not held by ship");
+        Assert.True(near.Holder == null, "near is held");
         Assert.Equal(onAxis.Id, events.First().Target);
 
         // Out of the beam, past its range or behind the ship, an item is never taken.
@@ -445,8 +445,8 @@ public sealed class PickupTests : IDisposable
             lone.TractorCommand = 1;
             Tick(other, 240, 1 / 60f);
             Assert.Empty(attempts);
-            Assert.Null(stray.Holder);
-            Assert.Contains(stray, other.Zone.FloatingItems);
+            Assert.True(stray.Holder == null, "stray is held");
+            Assert.True(other.Zone.FloatingItems.Contains(stray), "stray left the zone");
         }
 
         // Equally far from the axis, the lower id.
@@ -456,8 +456,8 @@ public sealed class PickupTests : IDisposable
         var higher = Drift(tie, 40, -5);
         pilot.TractorCommand = 1;
         Tick(tie, 30, 1 / 60f);
-        Assert.Same(pilot, lower.Holder);
-        Assert.Null(higher.Holder);
+        Assert.True(ReferenceEquals(pilot, lower.Holder), "lower is not held by pilot");
+        Assert.True(higher.Holder == null, "higher is held");
     }
 
     [Fact]
@@ -492,7 +492,7 @@ public sealed class PickupTests : IDisposable
         var stuck = Drift(held, 40, 0);
         Assert.True(held.Zone.TryHold(carrier, stuck.Id));
         Tick(held, 180, dt);
-        Assert.Contains(stuck, held.Zone.FloatingItems);
+        Assert.True(held.Zone.FloatingItems.Contains(stuck), "stuck left the zone");
         Assert.Equal(float2(40, 0), stuck.Body.Position);
 
         // Placed, not drifted: the same progress held for two steps puts it at the same halfway point.
@@ -509,7 +509,7 @@ public sealed class PickupTests : IDisposable
         Assert.Equal(7f, stuck.Body.Position.y, 3);
         held.Zone.Free(stuck.Id);
         held.Zone.Update(dt);
-        Assert.DoesNotContain(stuck, held.Zone.FloatingItems);
+        Assert.False(held.Zone.FloatingItems.Contains(stuck), "stuck is still in the zone");
     }
 
     [Fact]
@@ -522,17 +522,17 @@ public sealed class PickupTests : IDisposable
         var item = Drift(lab, 40, 0, ore: 3);
         ship.TractorCommand = 1;
         Tick(lab, 30, 1 / 60f);
-        Assert.Same(ship, item.Holder);
+        Assert.True(ReferenceEquals(ship, item.Holder), "item is not held by ship");
         var before = lab.Zone.FloatingItems.Count;
 
         // Death goes through the zone's one removal: the held item is free, and the ship's own cargo drops as always.
         Kill(ship);
-        Assert.Null(item.Holder);
-        Assert.Contains(item, lab.Zone.FloatingItems);
+        Assert.True(item.Holder == null, "item is held");
+        Assert.True(lab.Zone.FloatingItems.Contains(item), "item left the zone");
         Assert.Equal(before + 1, lab.Zone.FloatingItems.Count);
         Assert.Equal(7, ((SimpleCommodity) lab.Zone.FloatingItems.Last().Item).Quantity);
         Tick(lab, 60, 1 / 60f);
-        Assert.Contains(item, lab.Zone.FloatingItems);
-        Assert.Null(item.Holder);
+        Assert.True(lab.Zone.FloatingItems.Contains(item), "item left the zone");
+        Assert.True(item.Holder == null, "item is held");
     }
 }
