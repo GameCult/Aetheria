@@ -17,7 +17,6 @@ the 2026-10-06 re-scope: the release this campaign plans is the demo.
 Cuts without a `cut_spec`, withdrawn 2026-10-12 under map-only-what-runs: a spec is admitted when Self is about to dispatch the cut. Each line is a cut label, its title, and what it waits on; re-map it by a fresh Imagination pass against the Body when the frontier reaches it.
 
 - audio-1: First sound: native Unity audio presents fire, charge, impact and destruction; the dead Wwise-keyed path is deleted. Waits on: feedback-1 (blocked on feedback-1).
-- loot-3: Loot 3: the grab is presented, not simulated, in Unity. TractorBeam becomes a grab presenter, the binder's resolvers. Waits on: loot-2 (blocked on loot-2).
 - ballistic-ammo: Ballistic weapons fire real rounds: a weapon that draws rounds takes no reactor power, every magazine comes from cargo. Waits on: mining-merge (refresh needed (ruling ballistics-cycle-power contradicts its DrawsPower rule)).
 - material-graph: Material graph record and judge: MaterialGraph in Aetheria.cc, the release whitelist, closed vocabularies, scopes, the. Waits on: nothing in the mind (held post-demo by ruling demo-material-scope).
 - material-library-export: Blender material export: a faithful node-group dumper, Export and Check Material Graph calling AetherDb, the library. Waits on: material-graph (held post-demo by ruling demo-material-scope; blocked on material-graph).
@@ -39,25 +38,24 @@ Cuts without a `cut_spec`, withdrawn 2026-10-12 under map-only-what-runs: a spec
 - autofire-threshold: Missiles 3 (r5): autofire in the sim. Each autofire gun picks its subject through ChooseSubject (munitions first) and. Waits on: munition-shots (blocked on munition-shots).
 - boss-hull-derived: A faction's boss hull is derived (r2): HullData.Boss on a hull the faction makes a product of, set by its own. Waits on: boss-gate, pirates-record, package-product (blocked on package-product).
 - autofire-controls: Missiles 3b (r2): the player sets autofire; the HUD marks munitions and autofire groups; the Point Defense scenario. Waits on: autofire-threshold, controls-hud, pd-gear (blocked on autofire-threshold and controls-hud).
-- generic-design-names: Designs get generic names and branding moves to products: 43 gear and weapon designs renamed, brand text moved to their. Waits on: lot-product, product-titles, pd-gear (refresh needed; after the visibility chain by ruling catalog-breadth-after-visibility).
 - broadside-gunboat: Broadside returns on a real gunboat: the operator's Zhestokost line-gunboat package (side-rotated Ballistic hardpoints). Waits on: mods-in-tree, package-product (blocked on package-product and the operator package).
 - demo-cast-hulls: Demo cast hulls land (r3): the operator's five packages under GameData/Mods, each its maker's ship under its own name. Waits on: mods-in-tree, pirates-record, package-product, boss-hull-derived (blocked on package-product, boss-hull-derived and operator packages).
-- minor-power-makers: Aya Collective, Megiddo and Orbital Forge in the catalog: an AetherDb one-shot authors three manufacturer-only. Waits on: maker-only-faction, pd-gear, pirates-record, gear-without-presence, generic-design-names (blocked on maker-only-faction merge and generic-design-names; ruling catalog-breadth-after-visibility).
+- minor-power-makers: Aya Collective, Megiddo and Orbital Forge in the catalog: an AetherDb one-shot authors three manufacturer-only. Waits on: maker-only-faction, pd-gear, pirates-record, gear-without-presence, generic-design-names (blocked on maker-only-faction merge and generic-design-names; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
 - ships-addon-mesh-mounts: Blender thruster and radiator mounts (from mounts r3): meshes from selected faces or a tagged mesh, each with its row. Waits on: ships-addon-mounts (blocked on ships-addon-mounts).
 - ships-addon-mask-bakes: Blender mask helpers (from paint r2): Suggest Regions by weighted k-means in CIELAB, Bake Starting Mask, Bake Wear from. Waits on: ships-addon-paint (blocked on ships-addon-paint).
 - ships-addon-paint: Blender hull mask record (r3): mask slot, New Mask, factory livery, Package UV0 and mask checks, ship.mask.png, region. Waits on: ships-hull-material, ships-addon-frame, ships-addon-guards (blocked on ships-hull-material (premise obsolete under mask-channels-place-materials)).
-- matrix-coilguns: Weapon matrix, EMPS row: Light Coilgun, Coilgun, Railgun and Heavy Railgun at Small to ExtraLarge, with roles and two. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-after-visibility).
-- matrix-beams: Weapon matrix, Laser and PPC rows: Medium and Large Beam Lasers, Heavy Ion Cannon and Ion Lance, with roles and two. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-after-visibility).
-- matrix-cannons: Weapon matrix, XPS row: Heavy Autocannon (Large) and Siege Cannon (ExtraLarge), with roles and two makers each. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-after-visibility).
-- matrix-lightning: Weapon matrix, ESD row: Arc Thrower (Small), Storm Projector (Medium) and Tempest Projector (ExtraLarge) beside plight. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-after-visibility).
-- matrix-missiles: Weapon matrix, Missile and MicroMissile rows: Light and Heavy Missile Launchers, Torpedo Launcher and Micromissile. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-after-visibility).
-- caliber-bands: Caliber is the size: five records recalibered, every weapon footprint held in its caliber's band, and every matrix cell. Waits on: matrix-coilguns, matrix-cannons, matrix-beams, matrix-lightning, matrix-missiles, matrix-mines, matrix-flamers (blocked on the seven matrix cuts; ruling catalog-breadth-after-visibility).
-- matrix-flamers: Weapon matrix, Jet row: Light Flamethrower, Flamethrower, Heavy Flamethrower and Inferno Projector, thermal pellet guns. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-after-visibility).
-- matrix-mines: Weapon matrix, Mine row: Mine Rack, Heavy Mine Layer and Minefield Projector beside the Mine Launcher, with warhead and. Waits on: roles-backfill (refresh needed; ruling catalog-breadth-after-visibility).
-- product-lines-gear: Gear product lines: the twenty-two second-maker products of follow-up gear-product-lines, with role quality from maker. Waits on: generic-design-names, roles-backfill (blocked on generic-design-names; ruling catalog-breadth-after-visibility).
-- product-lines-weapons: Weapon product lines (r2): r1's nineteen products plus a second maker for the Mine Launcher, authored after. Waits on: generic-design-names, lot-product, roles-backfill (blocked on generic-design-names; ruling catalog-breadth-after-visibility).
-- boost-gear-combat: Stat boosters, combat, tiered by size: a modest 1x1 and a strong 2x2 each for Damage and Range on every gun through. Waits on: boost-gear-systems (blocked on boost-gear-systems; ruling catalog-breadth-after-visibility).
-- boost-gear-systems: Stat boosters, systems, tiered by size: a modest 1x1 and a strong 2x2 each for Thrust, Signal, Emissivity and Reactor. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-after-visibility).
+- matrix-coilguns: Weapon matrix, EMPS row: Light Coilgun, Coilgun, Railgun and Heavy Railgun at Small to ExtraLarge, with roles and two. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
+- matrix-beams: Weapon matrix, Laser and PPC rows: Medium and Large Beam Lasers, Heavy Ion Cannon and Ion Lance, with roles and two. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
+- matrix-cannons: Weapon matrix, XPS row: Heavy Autocannon (Large) and Siege Cannon (ExtraLarge), with roles and two makers each. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
+- matrix-lightning: Weapon matrix, ESD row: Arc Thrower (Small), Storm Projector (Medium) and Tempest Projector (ExtraLarge) beside plight. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
+- matrix-missiles: Weapon matrix, Missile and MicroMissile rows: Light and Heavy Missile Launchers, Torpedo Launcher and Micromissile. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
+- caliber-bands: Caliber is the size: five records recalibered, every weapon footprint held in its caliber's band, and every matrix cell. Waits on: matrix-coilguns, matrix-cannons, matrix-beams, matrix-lightning, matrix-missiles, matrix-mines, matrix-flamers (blocked on the seven matrix cuts; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
+- matrix-flamers: Weapon matrix, Jet row: Light Flamethrower, Flamethrower, Heavy Flamethrower and Inferno Projector, thermal pellet guns. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
+- matrix-mines: Weapon matrix, Mine row: Mine Rack, Heavy Mine Layer and Minefield Projector beside the Mine Launcher, with warhead and. Waits on: roles-backfill (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
+- product-lines-gear: Gear product lines: the twenty-two second-maker products of follow-up gear-product-lines, with role quality from maker. Waits on: generic-design-names, roles-backfill (blocked on generic-design-names; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
+- product-lines-weapons: Weapon product lines (r2): r1's nineteen products plus a second maker for the Mine Launcher, authored after. Waits on: generic-design-names, lot-product, roles-backfill (blocked on generic-design-names; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
+- boost-gear-combat: Stat boosters, combat, tiered by size: a modest 1x1 and a strong 2x2 each for Damage and Range on every gun through. Waits on: boost-gear-systems (blocked on boost-gear-systems; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
+- boost-gear-systems: Stat boosters, systems, tiered by size: a modest 1x1 and a strong 2x2 each for Thrust, Signal, Emissivity and Reactor. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
 - ships-player: S3, agent side: a player built by AetheriaBuild composes and preloads mod ships with Aetheria materials only, radiators. Waits on: ships-mounts, ships-hull-material, player-build (blocked on ships-hull-material).
 - ships-addon-gizmos: Blender Ship Mounts tool (r6): gizmos select and drag mounts snapped to cells in Ship Root's frame; arc fans from the. Waits on: ships-addon-mesh-mounts (blocked on ships-addon-mesh-mounts).
 - link-rig-presenter: Unity drives each driven joint's chain (r2): a MountRig aims its lead muzzle along the sim's solution, slewed at the. Waits on: link-rig-record, ships-addon-link-package (blocked on ships-addon-link-package).
@@ -75,6 +73,9 @@ Cuts without a `cut_spec`, withdrawn 2026-10-12 under map-only-what-runs: a spec
 - radiator-geonodes: a Geometry Nodes setup molds radiator panels over a region marked on the model under the radiator hardpoint's name, in the live hull stack. Waits on: Ruling: radiator-panels-molded-by-geonodes. HELD for the operator walkthrough on Starfire (ruling hardpoint-work-held-for-walkthrough). Schematic and model are separate spaces linked only by mount name (ruling schematic-and-model-are-separate-spaces).
 - floating-greeble-library: operator seed pieces, model-written parametric families, placements as hull-local data (never a GN scatter on the live mesh), merged into the ship mesh at export, kept out of socket clearance. Waits on: operator seed set. Research: GameCult.Geometry.Csg docs/research/greebles-prior-art.md (4877300).
 
+- damage-curve-delete: delete WeaponData.DamageCurve (MessagePack key 7 tombstoned, never reused), the three Weapon RangeDamagePerSecond curve reads and the claims cut's rated copies, which become DamagePerSecond inside [MinRange, Range] and 0 outside; PropertiesPanel's "Damage Range" chart becomes the range numbers; catalog re-saved by AetherDb so the stored schema matches; fixtures that build a DamageCurve lose it. Waits on: the operator's answer on range falloff (section "Weapon damage over range"), and ew-claims-in-the-book merged (it rewrites the same formulas). Rulings: range-ramps-not-curve.
+- sensor-bearing-shape: SensorData.SensitivityCurve (gain over bearing angle / PI, read in the sim by Sensor.cs:229,262 and bounded by HullRange at :271) becomes authored scalars or is replaced by the beam width ruling sensor-stat-set already names. Waits on: the sensor-catalog chain; decide with it, not before.
+- consumable-effectiveness: ConsumableItemData.Effectiveness (a BezierCurve over progress through duration, read by Entity.cs:1921 ConsumableProgressFactor) is null on both shipped consumables, so any stat that declares a ConsumableProgress term throws; delete it or give it a validated shape. Waits on: nothing in the mind.
 ## Body facts
 
 **B1. No impact event carries a world point.**
@@ -3362,13 +3363,53 @@ decode of the catalog record.
   (`ScenarioStage.cs:76`, `LoadoutGenerator.cs:43-58`); `FillInterior` also serves stations and turrets
   (`:117`, `:287`), so the ship-only pickup goes in `GenerateShipLoadout`, not in `FillInterior`. Tool gear takes any
   interior (`Entity.cs:1318`) and `HasHome` is always true for it (`LoadoutGenerator.cs:240`).
-- **Who still sees a grab on this branch:** `FieldDriver` is a child of every ship's shield and an `IGrabPresenter`; with no
+- **Who still sees a grab on this branch** (corrected by L11: `FieldDriver` is on no ship; the clause below was read from names):
+  `FieldDriver` is a child of every ship's shield and an `IGrabPresenter`; with no
   resolvers it receives a null `Transform` and does nothing (`FieldDriver.cs:206-210`). A `loot-2` grab therefore
   moves the item (the `ItemPickup` follows `Zone` poses) with no beam and no tendril until `loot-3`.
 - **Sizing:** `loot-2` alone is about 480 lines and 9 sim tests, roughly 100 Hands calls (two commit groups,
   A the sim and B the catalog, generation and input). `loot-3` is Unity-only, about 120 lines added and 60 removed
   plus a Starfire compile and smoke. Folding them passes the 150-call budget, so they stay two specs and `loot-2` is the
   one that restores pickup.
+
+**L11. Loot 3 r2: the grab's presentation on master `cb14a816`, by probe (2026-10-13).**
+Pass: Imagination `imagination-aeth-loot-3`, session `self-2026-10-13-ag2`. Detached worktree `C:\aeth-wt\imag-loot-3`
+at `cb14a816` (loot-1-present and loot-2 merged by `fbe05c79`, feedback-present earlier). Nothing was built; every claim
+is a source read or a `git grep` of serialized assets by script GUID.
+- **`FieldDriver` is on no ship.** Its script GUID (`a9ee74b0...`) occurs in exactly one asset, `Assets/Scenes/FieldShieldTest.unity`;
+  `Shield.prefab`, `Longinus.prefab` and `Djinni.prefab` carry `ShieldManager` (an `IAbsorbPresenter` only,
+  `ShieldManager.cs:11`), and no code adds a `FieldDriver`. L10's "child of every ship's shield" was a name-level read.
+  So in play the only grab presenter after this cut is `TractorBeam`; the tendril stays a FieldShieldTest look.
+- **`TractorBeam` is a child of every ship before its binding runs.** Prefab ships carry it (`Longinus.prefab`,
+  `Djinni.prefab`, GUID `3f02211f...`); mod ships get it in `ShipModShips.cs:125` while the prototype is built, before
+  `ZoneRenderer.LoadEntity` calls `SetEntity` (`ZoneRenderer.cs:409`). `EntityInstance.SetEntity` binds the entity's
+  one `CapabilityEvents` with `GetComponentsInChildren<IGrabPresenter>(true)` (`EntityInstance.cs:175-176`,
+  `CapabilityPresentationBinder.cs:38`), so a `TractorBeam : IGrabPresenter` is subscribed with no new wiring.
+- **The binder's resolvers have no game caller.** `EntityInstance.cs:176` binds with none; only `FieldTester.cs:62-65`
+  passes them. `FieldDriver.Grab` acts only on `Started` with a non-null `Transform` (`FieldDriver.cs:206-210`), then
+  times its own phases on real time, moves the test pickup and `Destroy`s it (`:280-345`): the forbidden writers fork
+  L's deletion line names (`docs/headless-playground-cut.md:959-961`).
+- **The beam's aim needs no pose lookup.** `Zone.TryHold` sets `HeldFrom = Body.Position` (`Zone.cs:348-353`), a held
+  item is not integrated, and its pose is `lerp(HeldFrom, Holder.Position.xz, smoothstep(HeldProgress))`
+  (`Zone.cs:404`). So for the whole grab the item lies on the segment from the holder to `HeldFrom`, and the
+  direction from the ship to the item is the direction to `HeldFrom`, which `Started` carries as `TargetPosition`
+  (`Pickup.cs:97`, `:170`, y set to the ship's height). One caution: the `Cancelled` published when the held item has
+  vanished carries `float3(0)` (`Pickup.cs:106`), so a presenter never reads `TargetPosition` on `Cancelled`.
+- **Who drives the beam:** only the player writes `TractorCommand` (`ActionGameManager.cs:1355`); `ShipInstance.cs:92-93`
+  writes `TractorBeam.Power` (derived `Pickup.Power`) and `Direction` (`Entity.Aim`) every frame. NPCs never grab, so
+  the visibility gate (follow-up `presentation-gated-on-tracked`) has no beam case today.
+- **The operator's original beam look** (`TractorBeam.cs` at `f1dee184`) emitted at `Power` only while something was in
+  the beam and emitted nothing otherwise. The sim's equivalent of "something in the beam" is a grab in progress.
+  `Radius 25`, `Traction 25`, `Distance 75` on `Tractor Beam.prefab:4821-4823` are dead since `c7c7e585`: the sim owns
+  range and radius (`PickupData`).
+- **The multi-bay gap is a fixture order, not a hull size.** `Entity.TryFindSpace` and `TryEquip` refuse once the
+  entity is active (`Entity.cs:1415-1419`, `:1476-1477`), and `Zone.Admit` activates it (`Zone.cs:216-221`); PickupTests'
+  `Spawn` admits at `:119`, so a second crate equipped after `Spawn` is refused whatever the room. The Skiff is 5x5 and a
+  `CargoBayData` with `new Shape()` is 1x1 (`ItemData.cs:25-29`), so two crates and the beam fit when equipped before
+  `Admit`. Selection's `Any` over bays is `Pickup.cs:159`.
+- **Concurrency:** the EW-claims Hands worktree (`C:\aeth-wt\ew-claims`) modifies `Combat.cs`, the four Weapon
+  behaviours, `Entity.cs`, `Sensing.cs`, `SchematicDisplay.cs` and nine test files; none is a file this cut touches
+  (`PickupTests.cs` included).
 
 **L9. The ammunition substrate, by catalog probe** (same job, catalog `70a7b0a9`):
 
@@ -5684,6 +5725,135 @@ It draws ammunition (`ballistics-real-ammo`) and a small cycling energy, 0.4-0.2
 to 400-750 m, energy-limited at 6-10 a shot, 2 to 4 hits a missile. Flak Gun is DeathCluster's
 shotgun at small calibre, 1x2: 6-8 pellets sharing 30-70 damage a volley, 350-800 m, Tracking 20
 (between PD and ClearPath, because pellets cover what tracking misses).
+
+### Refresh at 1746e8bd (generic-design-names r3, 2026-10-13)
+
+Re-probe of this section against `origin/master` `1746e8bdc8c86f142ab0ea8952dbccdc851c3dc2` by
+`imagination-aeth-generic-names` (session self-2026-10-13-ag2), after ruling `catalog-breadth-now`
+lifted the hold. Catalog decode: `cultcache_py` `SingleFileMessagePackBackingStore.pull_all()` over
+`GameData/Aetheria.cc` at that head, payloads by MessagePack key (the CG1 method); literal census: a
+script counting each quoted old name (`"<name>"`, fixed string) over `git ls-files '*.cs'`. Scratch
+scripts were not committed. The rename table above ("Generic design names", 43 rows) stands unchanged:
+every old name is present exactly once and no generic name is taken by any record or product.
+
+- **GN1. Census at 1746e8bd.** 86 FactionProductData, 51 CompoundCommodityData, 31 GearData,
+  27 WeaponItemData, 13 SimpleCommodityData, 13 Faction (Pirates added), 12 NameFile, 5 HullData
+  (Djinni, Longinus, Turret, Zenith, Smoke Test Hull), 4 CargoBayData, 3 PersonalityAttribute, 2 ConsumableItemData,
+  1 DockingBayData, 1 FieldKindData, 1 InputLayout, 1 verse_grammar, 7 verse_verb. Traction is gone
+  (retire-longinusx). Landed since CG1: product-titles (`ItemManager.Title`, ItemManager.cs:228-229,
+  the one title owner; no `DisplayName`), lot-product (`Lot.Product`, Provenance.cs:73), pd-gear,
+  pirates-record (8 emoji rebrands), mine-launcher, roles-backfill, consumables-first-set.
+- **GN2. Designs whose product shares their name: 43 non-hull designs** (CG2 counted 49 at
+  4d664b53). 35 are rows of the rename table; the other 8 keep a generic design name and need a
+  brand: Autocannon (Zhestokost), Cockpit 2x2, Industrial Thermostatic Heater, Medium Drive,
+  Small Drive (Lightsail), Turret Control Module, Medium Docking Bay (AU), and the new one,
+  **Mine Launcher (DME)**, whose product `Mine Launcher` was authored by `mine-launcher`
+  (Program.cs:1779) with the design's functional line as its text and an empty design description.
+  Pirates products sit on Store-All Plus, Small Drive, Targeting Computer, 6k Shooter, Autocannon,
+  Earp, FastBlast+- and scorched void policy; none is touched (ruling `pirates-record-content`).
+- **GN3. Description classes for the 43 rows.** 40 products carry exactly the design's text or
+  both are empty or `[TODO]`; 3 differ: plight/DragOnBreath (the product's text is an authoring
+  note, "The subsidiary plight's own description already namechecks..."), pswarm/Leonid (the design's
+  text is DME's "let's set the stars on fire" lyric, a duplicate of scorched void policy's) and
+  Core Power/Steadfast. Empty or `[TODO]` on both sides: LRMM72, SRMM72, Iapyx, Skiron,
+  RevvITup 2.0, Talaria, The Bat, not if i see you first, PotaT+-. The five station reactor
+  designs share the functional line "A reactor sized for a station's core." and their products
+  (Steadfast Station, Manhattan Station, Notorious Station, Vulcan Station, MoveOnPro Station) are
+  empty. Victoire's product is empty under a flavour design text.
+- **GN4. Authoring notes shipped as player text.** Eight product descriptions end in " (new text)":
+  Panopticon, Panopticon Prime, ClapBack, ClapBack Ultra, LockOn, LockOn Pro, Steadfast, True North.
+  Their source literals are in TargetingCatalog (Program.cs:1177, 1180, 1200, 1203) and
+  TargetingCatalog6c (:1315, 1318, 1321, 1324); DragOnBreath's note is Program.cs:1194.
+- **GN5. Old-name literals in C#: 232 on 202 lines in 30 files** (CG10 counted 61 in 12). Every
+  hit resolves a design by `Name` (scenario fits, `GetByName`, `Data.Name ==`, AetherDb templates and
+  name-keyed maps) or is a comment; none names a product. By file: EvasionTermTests 28,
+  tools/AetherDb/Program.cs 26 (lines 236, 408, 1193, 1196, 1199, 1530, 1538, 1545, 1716-1720,
+  1890-1891, 2055-2058, 2061), Pursuit 22, Arcs 17, MunitionPartsTests 14, Duel 13, Belt 10,
+  Crossing 10, LauncherAngles 10, StarvedReactor 8, WeaponFeel 8, RolesBackfillCommandTests 8,
+  FusedRounds 7, CatalogRoleTests 7, AiFusedDiscipline 6, RefusedRounds 6, EvasionTrackingTests 5,
+  PiratesFactionCommandTests 5, RestoredHullsTests 4, RunStartTests 4, SmokeRoundsSteppedTests 3,
+  CrossingScenarioTests 2, SmokeRoundsCommandTests 2, and one each in BrownoutTests (comment),
+  PowerCurveTests (comment), ScenarioTests, SmokeHullCommandTests, SmokeHullScenarioTests,
+  SmokeRoundsScenarioTests, ThrustAllocationTests. No non-C# file in the tree names them except docs.
+- **GN6. Name-keyed authority in AetherDb.** `ToolRolesByDesign` (Program.cs:229-241) is keyed by
+  design name and feeds `HasRoleMap`, which CatalogRoleTests reads: its `"PotaT+-"` key (:236) must
+  become `"Capacitor"` or the capacitor silently loses its role map. `BackfillDesigns`
+  (:1890-1891), the roles-migrate Arctica special case (:408), and the templates of pd-gear
+  (:1530-1545), smoke-rounds (:1716-1720) and pirates-faction (:2055-2061) resolve by name; the
+  command tests for roles-backfill, smoke-rounds, smoke-hull and pirates-faction run those commands
+  on a scratch copy of the shipped catalog, so after the rename they find designs only by the
+  generic names.
+- **GN7. Order-sensitive pin.** `RunStartTests.TheSoldHardpointGearWithNoHomeToday`
+  (RunStartTests.cs:450-460) orders names ordinally; after the rename the list is
+  Charged Blaster, Charged Scatter Blaster, Heat Pump, Heavy Beam Laser (not a positional swap).
+- **GN8. In-flight branches that add old-name literals** (diff against master, 2026-10-13):
+  `eureka/aetheria-release-scenarios-lock-on-r3` (LockOn.cs, 9 literals: the scenario hull fit) and
+  `eureka/aetheria-release-sensor-catalog-r2` (its sensor-stat-set table names "The Bat" and
+  "not if i see you first" for four new products: Floodlight and Beacon by Lucent, Pinion and
+  Kestrel by Finch). It also adds `["Passive Array"]` to `ToolRolesByDesign`, the dictionary GN6
+  edits. `aetheria-ew` ew-hide-launch-catalog names only "Targeting Computer" and its own new design.
+
+### Content: brands, flavour and functional text (generic-design-names r3)
+
+Ruling `kitchen-sink-content` applied where r2 chose narrowly: r2 left nine products with no text,
+moved the station reactors' functional line into their products as if it were flavour, dropped
+three design texts, and branded seven same-named products. r3 brands all eight (GN2), gives every
+product of the touched designs its own text (except Miss Terri's, ruling
+`miss-terris-belongs-to-emily-r3`), strips the eight authoring notes (GN4), and keeps every old
+brand verbatim as a product name (ruling `setting-permits-necrotech`: names are not trimmed for
+tone). Names and lines are drafts the operator may rename.
+
+**Brands for same-named products** (product renamed; its text set as below):
+
+| Design (unchanged name) | Maker | Old product name | Brand | Product text |
+|---|---|---|---|---|
+| Autocannon | Zhestokost | Autocannon | Hammerfall | The rounds fall steadily, and they do not stop until the work is done. |
+| Cockpit 2x2 | Lightsail | Cockpit 2x2 | Wheelhouse | Every Lightsail captain's favourite chair. The view comes standard. |
+| Industrial Thermostatic Heater | Lightsail | Industrial Thermostatic Heater | Hearth | A warm hold, a warm crew, and a warm welcome at the cold end of the run. |
+| Medium Drive | Lightsail | Medium Drive | Steady Haul | Keeps you going and going and going... (the design's old text, moved) |
+| Small Drive | Lightsail | Small Drive | Short Hop | Dock to dock, and not a metre further than the manifest says. |
+| Turret Control Module | AU | Turret Control Module | Watchtower | Point it at the dark and get back to work. It keeps watch. |
+| Medium Docking Bay | AU | Medium Docking Bay | Open Berth | Room for a friend, a customer or a tug. We don't ask which. |
+| Mine Launcher | DME | Mine Launcher | parting gift | we were never here/ but we left you something/ it's waiting where we were |
+
+**Functional design text for those eight** (the design's Description; flavour lives in the product):
+Autocannon "Belt-fed cannon: a steady stream of rounds at long reach."; Cockpit 2x2 "Two-by-two crew
+cockpit."; Industrial Thermostatic Heater "Turns reactor power into heat to keep the hull warm.";
+Medium Drive "Mid-sized working drive."; Small Drive "Small working drive."; Turret Control Module
+"Control module for a station turret."; Medium Docking Bay "Docking bay for mid-sized ships.";
+Mine Launcher "Lays a drifting proximity mine that arms after two seconds." (moved from its product).
+
+**Product text set explicitly** (by product name and maker; every other product of a renamed
+design keeps its text, which GN3 shows equals the design's old text):
+
+| Product (maker) | Design after rename | Text |
+|---|---|---|
+| Victoire (Alakrita) | Racing Drive | The most responsive thruster on the market, for the most irresponsible of racing pilots. (moved from the design) |
+| DragOnBreath (Lucent) | Lightning Projector | plight's old design text, verbatim (moved; replaces the authoring note) |
+| Steadfast (R&D) | Compact Reactor | It gets the job done, but that's all. Rated for continuous operation. "Continuous" does not imply "uninterrupted." |
+| Steadfast Station (R&D) | Station Reactor | Rated for continuous operation at station scale. The fine print scales too. |
+| Manhattan Station (Zhestokost) | Heavy Station Reactor | A fortress needs a furnace. This is the furnace. |
+| Notorious Station (Lucent) | High-Yield Station Reactor | The biggest reaction in the system, and everyone docked here will hear about it. |
+| Vulcan Station (AU) | Ring Station Reactor | Keeps the lights on and the forges hot. |
+| MoveOnPro Station (NiteLife) | Muon Fusion Station Reactor | The club never closes. Neither does the reactor. |
+| LRMM72 (R&D) | Long-Range Missile Rack | Engages targets at up to seventy-two kilometres!* *In a vacuum, against a cooperative target. |
+| SRMM72 (DME) | Short-Range Missile Rack | seventy-two reasons/ to keep your distance/ all of them leaving at once |
+| Iapyx (AU) | Radiator | Two cells of honest fin. Bolt it on and forget it's there. |
+| Skiron (AU) | Long Radiator | When the job runs hot, run a bigger fin. |
+| Talaria (AU) | Rugged Drive | Takes a knock, keeps pushing. Built for crews who work for a living. |
+| RevvITup 2.0 (NiteLife) | High-Thrust Drive | Floor it. The bass drops when you do. |
+| PotaT+- (NiteLife) | Capacitor | Holds the charge until the drop, then lets it all go at once. |
+| not if i see you first (DME) | Compact Sensor | eyes in the dark/ you were seen before you looked/ say goodnight |
+
+Leonid keeps its own text; pswarm's dropped lyric survives on scorched void policy (GN3). The Bat's
+product (Miss Terri's) is not touched. The eight " (new text)" suffixes (GN4) are removed from the
+shipped products and from their source literals; Steadfast's full text is the row above.
+
+**Concurrency.** Every catalog cut writes `GameData/Aetheria.cc` through an idempotent AetherDb
+command; whoever merges second takes master's `.cc` and reruns its own apply (ruling
+`catalog-breadth-now`), never a hand merge. Because this cut renames the names other commands look
+up, a cut that merges after it must spell the generic names; one that merges before it is swept by
+this cut's final pass (GN8).
 
 ## Retiring the LonginusX and parking the aether drive
 
@@ -9179,3 +9349,135 @@ locations when it next revises it.
   cut-scanner-catalog.r1 (new).
 Unchanged: cut-sensor-catalog.r1. No question raised: every choice here follows a ruling in force or a
 default stated in the rationale.
+
+# Visibility refresh at 0898725f
+
+Imagination imagination-aeth-vis-refresh, session self-2026-10-13-ag2, 2026-10-13. Pinned to Aetheria
+origin/master 0898725f (contact-hud, emissions-heard, reveals-replace-tiers, ping-signature-retired, loot-2 and
+aetheria-ew ew-hide-launch merged). Read-only detached worktree. Refreshes cut_specs scenarios-lock-on (r2 -> r3)
+and sensor-catalog (r1 -> r2). Paths under Assets/Scripts/ServerShared unless noted.
+
+## Body facts (source reads at 0898725f)
+
+VF1. `Scenarios.Tests` (Scenarios/Scenarios.cs:10-13) is one line (12) ending `new Crossing(), new Belt()`.
+Seeds taken: 24 (Belt), 101-112. 113 is still free.
+
+VF2. Duel's fighter fit is Scenarios/Duel.cs:16-31 (Longinus, two GT 3K, sensor "not if i see you first");
+the player at 33, the piloted hostile rival at 900 m at 34. Duel generates `stage.Prelude()`; Crossing.cs:22 and
+Pursuit.cs:18 generate `stage.Prelude(DemoTerminus.Cast)`. Every scenario commits its `.cs.meta`.
+
+VF3. The only `Sensor.Ping()` caller is the player's input (Gameplay/ActionGameManager.cs:394): SC5 stands.
+
+VF4. A lock paints only when the locker has a hostile Target inside LockAngle (Behaviors/LockWeapon.cs:85-117);
+it paints Track (`ReceivePaint` 111) and emits `Range / InterceptFactor` (112). The AI's target comes from
+`VisibleEnemies` (Agents/Minion.cs:14), which fills when the track crosses TargetDetectionInfoThreshold
+(Entity.cs:315-331).
+
+VF5. The incoming-lock indicator reads only `IncomingPaints`, Track mode, strongest first
+(ActionGameManager.cs:1478-1491); IncomingLockIndicatorDistance is 164. `PaintWarning` is Sensing.cs:75-90.
+
+VF6. Scenario tests are partials of RunStartTests (CrossingScenarioTests.cs, PursuitScenarioTests.cs,
+BeltScenarioTests.cs); EveryScenarioStages is ScenarioTests.cs:97.
+
+VF7. Hearing: `HearingMultiple()` is `private int`, 1 with any active sensor, else 0 (Entity.cs:696-698; its
+comment promises "Listener gear extends it"). Sense reads it once into `var hearing` (992) and hears an
+emission when `planar <= emission.HearRange * hearing * obscuration` (1007-1015). A float return compiles in
+Sense unchanged.
+
+VF8. `ActiveSensors()` (Entity.cs:680-693) counts active equipment and active consumables.
+`GetBehaviors<T>()` (1621-1628) walks equipment only and ignores Active.
+
+VF9. Alpha keys landed: SensorData.InterceptFactor Key 13 (Behaviors/Sensor.cs:47-49), read as 1 when absent
+(94); LockWeaponData.InterceptFactor Key 34 (Behaviors/LockWeapon.cs:28-30), read as 1 when absent (58).
+BeamWidth reads 360 when absent (Sensor.cs:92). EmissionTests (tests/Aetheria.Shared.Tests/EmissionTests.cs, a
+partial of ContactRevealTests) pins hearing, alpha keys and the absent-reads-as-one rule; fixtures Eye, Shout and
+Roar are upserted in ContactRevealTests' constructor (56-61).
+
+VF10. BehaviorData union: LaunchSuppressorData is 49 (Behaviors/Behaviors.cs:193); 50 is free.
+LaunchSuppressor.cs is the newest stat-holding behaviour with both CreateInstance overloads.
+
+VF11. AetherDb: the command switch ends at verse-grammar (tools/AetherDb/Program.cs:52) and the usage line is 54.
+Field-to-role maps: SensorRoles 206-211 (Sensitivity -> receiver, Ping* -> emitter), ToolRolesByDesign by design
+name 229-241, MakerProfiles (Mean, Dev) 244-249 (no Sol). PdGearCatalog (1488) is the authoring precedent.
+
+VF12. Stat evaluation is `lerp(Min, Max, product of q^e)` (ItemData.cs:721-728), so an alpha of Min .5, Max 2
+reads 1 at quality .5 only with exponent log2(3) (about 1.585).
+
+VF13. CB-R1 (tests/Aetheria.Shared.Tests/CatalogRoleTests.cs:41-70): every non-flat stat reads exactly one
+declared role, every declared role is read, and every product authors each declared role once. A new role on a
+sensor design therefore needs a ProductRole on every one of its products.
+
+VF14. aetheria-ew: its target keeps the two-listener fix out of EW (docs/aetheria-ew-target.md:174). Its cut 1b
+`ew-hide-launch-catalog` (unmapped) will write GameData/Aetheria.cc and append an AetherDb command.
+
+## Concurrency against aetheria-ew ew-claims-in-the-book
+
+That cut edits Sensing.cs (Signature, ActiveEmission, Reveal, Contact), Entity.cs (SetSignature, Emit,
+ReceivePaint, RecordReveal, ContactOf, Sense and new lines after SetSignature and RevealsOf), Combat.cs,
+SchematicDisplay.cs and the Weapon behaviours.
+
+- scenarios-lock-on r3: no shared file. Its test reads PaintWarning's Mode, Bearing and Strength, not
+  EmitterClass. Runs now.
+- sensor-catalog r2: in Entity.cs only HearingMultiple (696-698), outside every claims hunk; Sense is not edited.
+  One shared test file (ContactRevealTests.cs constructor, one Upsert line): a line-level merge, keep both.
+  Runs now. Its binary catalog write conflicts with any other catalog cut, not with claims: the second to merge
+  reruns its idempotent apply on master's .cc.
+
+## Rationale
+
+- No redundant catalog data. r1 authored BeamWidth 360 on every sensor and alpha 1 on every lock weapon. Both
+  equal what an absent value reads (VF9), and EmissionTests pins that rule, so the writes would change nothing
+  but the bytes of a 12 MB LFS file. Lock weapons keep alpha 1 until a content cut gives launchers brand
+  flavour.
+- A listener's role is `receiver`, not `emission-discipline`. A listener emits nothing; `receiver` already
+  names the sensor's listening stat (Sensitivity). Brand flavour for listeners is not ruled, so their quality
+  follows MakerProfiles.
+- HearingMultiple becomes float because Multiple is a quality-ranged stat (2-3); Sense needs no edit (VF7).
+- Size. r1 was 110 calls. Dropping the redundant authoring and keeping Unity out of it brings it to 75/90, with a
+  declared stop point after the headless half.
+
+## Cut order (amends 'Visibility refresh at efee2a2a')
+
+emissions-heard (merged) -> sensor-catalog r2 (runs now); contact-reveals (merged) -> scenarios-lock-on r3
+(runs now). Both may run beside each other and beside aetheria-ew ew-claims-in-the-book.
+Sizes (Hands calls, budget / cap): scenarios-lock-on 55/75, sensor-catalog 75/90.
+
+## Admitted (imagination-aeth-vis-refresh, 2026-10-13)
+
+- mind-commit-7be0c784...: cut-scenarios-lock-on.r3, resolution cut_spec.cut-scenarios-lock-on.r2.n1
+  (Superseded); cut-sensor-catalog.r2, resolution cut_spec.cut-sensor-catalog.r1.n1 (Superseded).
+No question raised.
+
+## Weapon damage over range (imagination-aeth-range-ramps, 2026-10-13)
+
+Asked by operator ruling range-ramps-not-curve ("Is range still a curve?"), then by her follow-up: if the generic form is the same data structure with linear segments, is it still worth changing? This section answers that from the Body. Probes ran at master 1746e8bd.
+
+### Body facts
+
+**R1. No hit applies range falloff.** `FireControl.Fire` (`FireControl.cs:679`) freezes the payload with `Damage = damageOverride ?? weapon.Damage` (`:725`; the mine path `:787` the same). InstantWeapon fires `FireControl.Fire(this, Item, Entity)` (`InstantWeapon.cs:271`); ConstantWeapon passes `Damage * interval` (`ConstantWeapon.cs:188`); ChargedWeapon scales `Damage` by charge only (`ChargedWeapon.cs:124`). Every resolution path reads `shot.Damage` unscaled (`FireControl.cs:960, 1108, 1145-1146, 1183, 1259`). Range only gates: a shot outside `[MinRange, Range]` is not taken (`FireControl.cs:274`; `LockWeapon.cs:62`).
+
+**R2. Who reads `DamageCurve`.** Only estimates and UI: `RangeDamagePerSecond` in `InstantWeapon.cs:64`, `ConstantWeapon.cs:52`, `ChargedWeapon.cs:83`, read by the AI's threat and fit sums (`Agents/States/Combat.cs:46, 71, 155`), and the properties panel's "Damage Range" chart (`UI/Properties Panel/PropertiesPanel.cs:426`). On `eureka/aetheria-ew-ew-claims-in-the-book` (adb632fe) the same curve also feeds the static rated formulas (`InstantWeapon.cs:43`, `ConstantWeapon.cs:32`, `ChargedWeapon.cs:64`) behind `RatedRangeDamagePerSecond`, read by `Combat.cs:48` for a claimed hull. So the AI and the panel price a falloff that the sim never applies.
+
+**R3. Census of every shipped authored curve** (scratch AetherDb command over `GameData/Aetheria.cc` at 1746e8bd, run on Yggdrasil; keys are Unity keyframes `time,value,inTangent,outTangent`; the scratch clone is deleted):
+
+| Field | Records | Distinct shapes | Shape |
+|---|---|---|---|
+| `WeaponData.DamageCurve` | 27 (13 Auto, 5 Charged, 3 Guided, 2 Instant, 2 Launcher, 1 Constant, 1 MineLayer) | 2 | 26 share one default: `0,1,0,0; 1,0,-1.7656,-1.7656`, 1 at MinRange easing down to 0 at Range (0.72 at the midpoint, 0.33 at 0.8, 0.09 at 0.95; close to `1 - t^2`). Mine Launcher is flat 1. |
+| `SensorData.SensitivityCurve` | 2 (not if i see you first, The Bat) | 1 | The same default template, over bearing. |
+| `ConsumableItemData.Effectiveness` | 2 (Coolant Vent, Thruster Overdrive) | 1 | null on both. |
+| Launcher / GuidedWeapon `guidance`, `thrustCurve`, `liftCurve` (`float4[]`) | 2 launchers, 3 guided | 4 | Hand-authored multi-key shapes (GT 3K's guidance has 11 keys); read only by presentation flight (`GuidedProjectileManager.cs:54-76`), which ruling projectile-flight-is-presentation leaves to Unity. |
+
+MinRange is 0 on 25 of 27 weapons; LRMM72 has 500..500 and GT 3K has 500..50 (Min above Max).
+
+No weapon's falloff was ever authored: 26 weapons carry one copied template, and the shape is not applied to damage.
+
+### Options, with cost
+
+- **Delete the curve (recommended).** Damage is flat inside `[MinRange, Range]`, which is what the sim already does; the AI and the panel then read the truth. Cost: one small cut (line damage-curve-delete), estimated under 60 Hands calls. It deletes a field, three formula reads (plus the claims cut's rated copies) and a UI chart, and re-saves the catalog. Behaviour change: none in combat. The AI rates far targets higher than today; at 0.95 of Range it now discounts real damage about 11x, and to zero at Range itself.
+- **Make falloff real.** Apply a range factor in `FireControl.Fire`'s payload, so the AI, the panel and the hit read one function. Cost: a hit-path change with fire-control tests, a balance shift on all 26 weapons at once (today's template would take about 67% off a shot at 0.8 of Range), and an authoring pass, because the census holds no shape anyone chose. Only worth it if falloff is wanted as a weapon-identity lever (for example shotgun against rail), and then the shape is decided per family at that time. Linear keyframes or two ramps both fit it.
+- **Leave it.** Zero cost now. The AI's threat estimates and the panel keep describing a falloff that does not exist.
+
+### Is the linear-keyframe type still worth building
+
+Not for range: the deletion removes the only weapon use. Of the other BezierCurve uses, one is live in the sim (sensor bearing gain, on 2 records with the default template), one is null on every record (consumable effectiveness), and the launcher curves are `float4[]` Unity keyframes used only in presentation. A piecewise-linear keyframe type would be the same data with straight segments. Its real gains over BezierCurve are small: `HullRange` becomes exact (the extremes sit at the keys), and the mutable `_cachedIndices` search cache goes from shared sim data. That does not earn a new type or a CultMath change now: CultMath's `lerp` and `unlerp` already are the segment math, and CultMath holds no keyed or serialized curve. Decide it when the sensor line is mapped. R-heat's four scalars stay: they are the controls the operator asked for ("Same shape, more intuitive controls").
+

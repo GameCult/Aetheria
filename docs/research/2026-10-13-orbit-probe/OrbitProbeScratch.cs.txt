@@ -1,0 +1,165 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Text;
+using CultMath;
+using GameCult.Caching;
+using Xunit;
+using static CultMath.math;
+using float2 = CultMath.float2;
+using Random = CultMath.Random;
+
+// SCRATCH orbit probe (Imagination, agent imagination-aeth-orbit-probe). Never merged.
+public sealed class OrbitProbeScratch : IDisposable
+{
+    private readonly string _root = Path.Combine(Path.GetTempPath(), "orbitprobe-" + Guid.NewGuid().ToString("N"));
+    private readonly string _out = "/tmp/probe";
+    private readonly List<CultCache> _caches = new List<CultCache>();
+
+    public OrbitProbeScratch() { Directory.CreateDirectory(_root); Directory.CreateDirectory(_out); }
+    public void Dispose() { foreach (var c in _caches) c.Dispose(); Directory.Delete(_root, true); }
+
+    private static string F(float v) => v.ToString("R", CultureInfo.InvariantCulture);
+
+    // Settings/Assets/Resources/Settings.asset PlanetSettings block, transcribed.
+    private static PlanetSettings Real(bool waves = true, bool bowl = true) => new PlanetSettings
+    {
+        ZoneDepthExponent = 2, ZoneDepth = bowl ? 64 : 0, ZoneBoundaryFog = 0,
+        GravityDepth = new ExponentialCurve { Exponent = .175f, Multiplier = 30, Constant = 0 },
+        GravityRadius = new ExponentialCurve { Exponent = .25f, Multiplier = 500, Constant = 0 },
+        WaveDepth = new ExponentialCurve { Exponent = .3f, Multiplier = waves ? .5f : 0f, Constant = 0 },
+        WaveRadius = new ExponentialCurve { Exponent = .25f, Multiplier = 500, Constant = 0 },
+        WaveFrequency = new ExponentialCurve { Exponent = .45f, Multiplier = .2f, Constant = 0 },
+        WaveSpeed = new ExponentialCurve { Exponent = 0, Multiplier = 0, Constant = .025f },
+        LightRadius = new ExponentialCurve { Exponent = .25f, Multiplier = 300, Constant = 0 },
+        BodyRadius = new ExponentialCurve { Exponent = .25f, Multiplier = 3, Constant = 0 },
+        GravityStrength = 2,
+        OrbitPeriod = new ExponentialCurve { Exponent = 1, Multiplier = 1, Constant = 0 },
+    };
+
+    private Zone NewZone(PlanetSettings ps, float packRadius, BodyData body, out CultCache cache)
+    {
+        cache = AetheriaStores.Open(Path.Combine(_root, Guid.NewGuid().ToString("N") + ".cc"), runPath: Path.Combine(_root, Guid.NewGuid().ToString("N") + ".run.cc"), catalogWritable: true);
+        _caches.Add(cache);
+        var gs = new GameplaySettings
+        {
+            DefaultEntitySettings = new EntitySettings(),
+            Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
+            QualityPriceModifier = new ExponentialLerp()
+        };
+        var items = new ItemManager(cache, new ProvenanceLedger(), gs, _ => { });
+        var pack = new ZonePack { Radius = packRadius };
+        if (body != null)
+        {
+            var orbit = new OrbitData { Distance = 0 };
+            cache.Upsert(orbit);
+            body.Orbit = cache.RefOf(orbit);
+            cache.Upsert(body);
+            pack.Orbits.Add(cache.RefOf(orbit));
+            pack.Planets.Add(cache.RefOf(body));
+        }
+        return new Zone(items, ps, pack, new GalaxyZone { Name = "Probe", Owner = null }, null);
+    }
+
+    private static BodyData MakeBody(string type, float mass)
+    {
+        BodyData b = type == "Sun" ? new SunData() : type == "GasGiant" ? new GasGiantData() : (BodyData) new PlanetData();
+        b.Mass = mass;
+        return b;
+    }
+
+    private void Profile(StringBuilder sb, string name, Zone zone, float rMax, int n)
+    {
+        sb.AppendLine("@@CASE " + name);
+        for (var i = 0; i <= n; i++)
+        {
+            var r = rMax * i / n;
+            var p = new float2(r, 0);
+            var h = zone.GetHeight(p);
+            var f = zone.GetForce(p);
+            sb.AppendLine(F(r) + "," + F(h) + "," + F(f.x) + "," + F(f.y));
+        }
+    }
+
+    [Fact]
+    public void Probe()
+    {
+        var zs = RestoredHullsTests.TutorialZoneSettings();
+
+        // 1. Where bodies sit: the real generator's trees over the density range.
+        var bodies = new StringBuilder();
+        bodies.AppendLine("density,seed,idx,type,mass,distance,parentIdx,parentType,parentMass,belt,empty,zoneRadius");
+        var massesByType = new Dictionary<string, List<float>>();
+        foreach (var density in new[] { 0f, .25f, .5f, .75f, 1f })
+        {
+            var radius = zs.ZoneRadius.Evaluate(density);
+            var mass = zs.ZoneMass.Evaluate(density);
+            for (uint seed = 1; seed <= 300; seed++)
+            {
+                var random = new Random(seed * 2654435761u ^ (uint) (density * 1000));
+                var planets = ZoneGenerator.GenerateEntities(zs, ref random, mass, radius, float2.zero);
+                string TypeOf(GeneratorPlanet p) => p.Belt ? "Belt" : p.Mass > zs.SunMass ? "Sun" : p.Mass > zs.GasGiantMass ? "GasGiant" : p.Mass > zs.PlanetMass ? "Planet" : "Planetoid";
+                for (var i = 0; i < planets.Length; i++)
+                {
+                    var p = planets[i];
+                    var pi = p.Parent == null ? -1 : Array.IndexOf(planets, p.Parent);
+                    var t = TypeOf(p);
+                    bodies.AppendLine(string.Join(",", F(density), seed, i, t, F(p.Mass), F(p.Distance), pi,
+                        pi < 0 ? "-" : TypeOf(planets[pi]), pi < 0 ? "0" : F(planets[pi].Mass), p.Belt ? 1 : 0, p.Empty ? 1 : 0, F(radius)));
+                    if (!p.Empty && !p.Belt)
+                    {
+                        if (!massesByType.TryGetValue(t, out var l)) massesByType[t] = l = new List<float>();
+                        l.Add(p.Mass);
+                    }
+                }
+            }
+        }
+        File.WriteAllText(Path.Combine(_out, "bodies.csv"), bodies.ToString());
+
+        // 2. Field profiles through the real Zone: representative masses at p10/p50/p90 of each type.
+        var prof = new StringBuilder();
+        float Q(List<float> l, float q) { l.Sort(); return l[(int) ((l.Count - 1) * q)]; }
+        var meta = new StringBuilder();
+        foreach (var type in new[] { "Planetoid", "Planet", "GasGiant", "Sun" })
+        {
+            if (!massesByType.TryGetValue(type, out var l) || l.Count == 0) continue;
+            foreach (var (tag, q) in new[] { ("p10", .1f), ("p50", .5f), ("p90", .9f) })
+            {
+                var m = Q(l, q);
+                foreach (var waves in type == "GasGiant" || type == "Sun" ? new[] { true, false } : new[] { false })
+                {
+                    var body = MakeBody(type, m);
+                    var zone = NewZone(Real(waves, bowl: false), 100000f, body, out _);
+                    var inst = zone.PlanetInstances.Values.First();
+                    var support = inst.GravityWellRadius / 2f;
+                    meta.AppendLine(string.Join(",", type, tag, F(m), F(inst.GravityWellRadius), F(inst.GravityWellDepth), F(inst.BodyRadius), waves ? 1 : 0, l.Count));
+                    Profile(prof, $"{type}_{tag}_waves{(waves ? 1 : 0)}", zone, support * 1.15f, 460);
+                }
+            }
+        }
+        File.WriteAllText(Path.Combine(_out, "meta.csv"), "type,tag,mass,wellRadius,wellDepth,bodyRadius,waves,n\n" + meta);
+
+        // 3. The zone bowl alone, at the real pack radii.
+        foreach (var R in new[] { 1000f, 2500f, 5000f, 10000f })
+        {
+            var zone = NewZone(Real(false, true), R, null, out _);
+            Profile(prof, $"Bowl_R{(int) R}", zone, R * 1.05f, 460);
+        }
+        File.WriteAllText(Path.Combine(_out, "profiles.csv"), prof.ToString());
+
+        // 4. Ship scale: thrusters, hull masses, speed limits straight from the shipped catalog.
+        var ships = new StringBuilder();
+        var cat = AetheriaStores.Open(TestCatalog.Repo, catalogWritable: false);
+        _caches.Add(cat);
+        foreach (var item in cat.GetAll<EquippableItemData>())
+        {
+            if (item is HullData hull)
+                ships.AppendLine($"hull,{hull.Name},{hull.HullType},{F(hull.Mass)},{string.Join(";", hull.Behaviors.OfType<VelocityLimitData>().Select(v => F(v.TopSpeed.Min) + ":" + F(v.TopSpeed.Max)))},");
+            foreach (var th in item.Behaviors.OfType<ThrusterData>())
+                ships.AppendLine($"thruster,{item.Name},,,{F(th.Thrust.Min)}:{F(th.Thrust.Max)},");
+        }
+        File.WriteAllText(Path.Combine(_out, "ships.csv"), ships.ToString());
+    }
+}
