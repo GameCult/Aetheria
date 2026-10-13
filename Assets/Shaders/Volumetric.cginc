@@ -136,6 +136,7 @@ float3 globalFlow(float3 pos)
 
 float3 slopeFlow(float2 grad)
 {
+    if (dot(grad, grad) == 0) return 0;
     float2 ngrad = normalize(grad);
     return float3(ngrad.y, 0, -ngrad.x) * _FlowSwirlAmplitude +  float3(ngrad.x, 0, ngrad.y) * _FlowSlopeAmplitude;
 }

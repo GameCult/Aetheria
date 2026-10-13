@@ -36,7 +36,6 @@ public class Stardust : MonoBehaviour
     //public Transform TargetTransform;
     public Camera GravityCamera;
 
-    private float _flowScroll;
     private const int GROUP_SIZE = 128;
     private int _updateParticlesKernel;
     #endregion

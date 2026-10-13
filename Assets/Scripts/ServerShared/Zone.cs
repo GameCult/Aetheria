@@ -691,6 +691,17 @@ public class Zone
         return GravityAcceleration(new float2(normal.x, normal.z), Settings.GravityStrength);
     }
 
+    // The global flow velocity at `position` in zone time, in u/s (FlowField is the law). The slope term reads the
+    // downhill gradient, which GetNormal's xz is proportional to.
+    public float3 Flow(float3 position)
+    {
+        var normal = GetNormal(position.xz);
+        return FlowField.At(Settings.Flow, position, _time, new float2(normal.x, normal.z));
+    }
+
+    // The flow's noise scroll at zone time; lowered to the shaders' _FlowScroll.
+    public float FlowScroll => FlowField.Scroll(Settings.Flow, _time);
+
     public static float PowerPulse(float x, float exponent)
     {
         x *= 2;

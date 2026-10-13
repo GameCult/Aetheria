@@ -27,16 +27,11 @@ public class VolumeSampling : MonoBehaviour
     public RenderTexture NebulaTint;
 
     private MeshRenderer _gridMeshRenderer;
-    private float _flowScroll;
     private Transform _gridTransform;
-    private GlobalKeyword _keywordFlowGlobal;
-    private GlobalKeyword _keywordFlowSlope;
     private GlobalKeyword _keywordNoiseSlope;
 
     private void Start()
     {
-        _keywordFlowGlobal = GlobalKeyword.Create("FLOW_GLOBAL");
-        _keywordFlowSlope = GlobalKeyword.Create("FLOW_SLOPE");
         _keywordNoiseSlope = GlobalKeyword.Create("NOISE_SLOPE");
 
         if (GridMesh != null)
@@ -93,16 +88,30 @@ public class VolumeSampling : MonoBehaviour
         Shader.SetGlobalFloat("_NebulaNoiseSpeed", environment.Noise.Speed);
         Shader.SetGlobalFloat("_NebulaNoiseSlopeExponent", environment.Noise.SlopeExponent);
         
-        Shader.SetGlobalFloat("_FlowScale", environment.Flow.GlobalScale);
-        Shader.SetGlobalFloat("_FlowAmplitude", environment.Flow.GlobalAmplitude);
-        Shader.SetGlobalFloat("_FlowSlopeAmplitude", environment.Flow.SlopeAmplitude);
-        Shader.SetGlobalFloat("_FlowSwirlAmplitude", environment.Flow.SwirlAmplitude);
-        _flowScroll += environment.Flow.GlobalScrollSpeed * Time.deltaTime;
-        Shader.SetGlobalFloat("_FlowScroll", _flowScroll);
-        Shader.SetGlobalFloat("_FlowPeriod", environment.Flow.Period);
-        
-        Shader.SetKeyword(_keywordFlowGlobal, environment.Flow.GlobalAmplitude != 0);
-        Shader.SetKeyword(_keywordFlowSlope, environment.Flow.SlopeAmplitude != 0 || environment.Flow.SwirlAmplitude != 0);
+        // The flow is the zone's: its settings and its time. Without a zone (menus) the same law runs on the presentation clock.
+        var zone = ActionGameManager.Instance?.Zone;
+        if (zone != null) LowerFlow(zone.Settings.Flow, zone.FlowScroll);
+        else LowerFlow(Settings.PlanetSettings.Flow, FlowField.Scroll(Settings.PlanetSettings.Flow, Time.timeSinceLevelLoad));
         Shader.SetKeyword(_keywordNoiseSlope, environment.Noise.SlopeExponent != 0);
+    }
+
+    static readonly GlobalKeyword KeywordFlowGlobal = new GlobalKeyword("FLOW_GLOBAL");
+    static readonly GlobalKeyword KeywordFlowSlope = new GlobalKeyword("FLOW_SLOPE");
+
+    /// <summary>
+    /// The one place that sets the flow uniforms and keywords: every shader flow term derives from FlowSettings and a
+    /// scroll (FlowField.Scroll), so no presenter keeps its own flow clock.
+    /// </summary>
+    public static void LowerFlow(FlowSettings flow, float scroll)
+    {
+        Shader.SetGlobalFloat("_FlowScale", flow.GlobalScale);
+        Shader.SetGlobalFloat("_FlowAmplitude", flow.GlobalAmplitude);
+        Shader.SetGlobalFloat("_FlowSlopeAmplitude", flow.SlopeAmplitude);
+        Shader.SetGlobalFloat("_FlowSwirlAmplitude", flow.SwirlAmplitude);
+        Shader.SetGlobalFloat("_FlowScroll", scroll);
+        Shader.SetGlobalFloat("_FlowPeriod", flow.Period);
+
+        Shader.SetKeyword(KeywordFlowGlobal, flow.GlobalAmplitude != 0);
+        Shader.SetKeyword(KeywordFlowSlope, flow.SlopeAmplitude != 0 || flow.SwirlAmplitude != 0);
     }
 }
