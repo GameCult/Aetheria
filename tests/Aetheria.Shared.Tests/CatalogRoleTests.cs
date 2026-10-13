@@ -218,4 +218,56 @@ public sealed class CatalogRoleTests
         Assert.Equal(2, makers.Distinct().Count());
         Assert.DoesNotContain(makers, m => m == "Pirates" || m == "Miss Terri's");
     }
+
+    // The intercept factor alpha is quality-derived (ruling sensor-stat-set): evaluated by the stat's own Evaluate over a
+    // lot that fills only emission-discipline, so a design that read the lot's workmanship instead would read the decoy.
+    private sealed class DisciplineContext : IStatContext
+    {
+        public DisciplineContext(float discipline) =>
+            Lot = new Lot { Quality = .123f, Roles = new List<RoleFill> { new RoleFill { Role = "emission-discipline", Quality = discipline } } };
+        public Lot Lot { get; }
+        public float HeatFactor(float exponent) => 1f;
+        public float DurabilityFactor(float exponent) => 1f;
+        public float ConsumableProgressFactor(float exponent) => 1f;
+        public float PowerSupplyFactor(float exponent) => 1f;
+        public float ScaleModifier(PerformanceStat stat) => 1f;
+        public float ConstantModifier(PerformanceStat stat) => 0f;
+    }
+
+    // A sensor of middling discipline reads exactly 1 (it is heard where it sees), the worst discipline reads the loud end
+    // .5 and the best the quiet end 2, and the exponent is the one that puts the midpoint on 1: lerp(.5, 2, .5^e) = 1.
+    // Each product then reads alpha at its own authored discipline: Lucent below 1 (loud), Finch and Sol above (quiet),
+    // every other maker at 1. The expectations come from that formula, not from numbers copied out of the catalog.
+    [Fact]
+    public void ASensorsInterceptFactorIsDerivedFromItsEmissionDiscipline()
+    {
+        using var cache = RestoredHullsTests.OpenCatalog();
+        var sensors = cache.GetAll<EquippableItemData>().Where(d => d.Behaviors.OfType<SensorData>().Any()).ToArray();
+        Assert.NotEmpty(sensors);
+        float Alpha(EquippableItemData design, float discipline) =>
+            design.Behaviors.OfType<SensorData>().Single().InterceptFactor.Evaluate(new DisciplineContext(discipline));
+        foreach (var design in sensors)
+        {
+            Assert.Equal(1f, Alpha(design, .5f), 4);
+            Assert.Equal(.5f, Alpha(design, 0f), 4);
+            Assert.Equal(2f, Alpha(design, 1f), 4);
+            var term = Assert.Single(design.Behaviors.OfType<SensorData>().Single().InterceptFactor.Terms);
+            Assert.Equal(MathF.Log(3f) / MathF.Log(2f), term.Exponent, 4); // (2 - .5) / (1 - .5) = 3 = 2^e
+        }
+
+        var products = cache.GetAll<FactionProductData>()
+            .Where(p => sensors.Any(s => cache.RefOf(s).Key.Equals(p.Design.Key))).ToArray();
+        Assert.NotEmpty(products);
+        foreach (var product in products)
+        {
+            var design = sensors.Single(s => cache.RefOf(s).Key.Equals(product.Design.Key));
+            var maker = cache.Get(product.Manufacturer).ShortName;
+            var alpha = Alpha(design, product.Roles.Single(r => r.Role == "emission-discipline").Mean);
+            if (maker == "Lucent") Assert.True(alpha < .8f, $"{product.Name}: a Lucent sensor must be loud, reads {alpha}");
+            else if (maker == "Finch" || maker == "Sol") Assert.True(alpha > 1.25f, $"{product.Name}: a {maker} sensor must be quiet, reads {alpha}");
+            else Assert.Equal(1f, alpha, 3);
+        }
+        Assert.Contains(products, p => cache.Get(p.Manufacturer).ShortName == "Lucent");
+        Assert.Contains(products, p => cache.Get(p.Manufacturer).ShortName == "Finch");
+    }
 }

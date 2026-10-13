@@ -101,6 +101,82 @@ public sealed partial class ContactRevealTests
         Assert.Equal(heard ? 1 : 0, ear.RevealsOf(p).Count());
     }
 
+    // ---- Stacking: HearingMultiple is the largest of 1 (an active sensor) and each ACTIVE listener's Multiple ----
+    // The pinger's range is 300, so a hearer at 300 x M - 1 hears and one at 300 x M + 1 does not. The largest listener
+    // is never first or last, so a sum, a first-wins and a last-wins each hear at the wrong distance.
+
+    private void Activate(Ship ship, string consumable)
+    {
+        var data = _openCache.GetByName<ConsumableItemData>(consumable);
+        ship.ActivateConsumable(Assert.IsType<ConsumableItem>(_items.CreateInstance(_items.CreateLot(data, _maker, .5f))));
+    }
+
+    [Theory]
+    [InlineData(1499f, true)]
+    [InlineData(1501f, false)]
+    public void GearListenersTakeTheLargestMultipleNotTheSumOrTheLast(float distance, bool heard)
+    {
+        var p = Add(float3(0, 0, 0), new[] { "Eye" });
+        var ear = Add(float3(distance, 0, 0), tools: new[] { "Listener", "Wide", "Narrow" }); // 3, 5, 1.5: the largest is the middle one
+
+        PingAt(p);
+
+        Assert.Equal(heard ? 1 : 0, ear.RevealsOf(p).Count());
+    }
+
+    [Theory]
+    [InlineData(1499f, true)]
+    [InlineData(1501f, false)]
+    public void ConsumableListenersTakeTheLargestMultipleNotTheSumOrTheLast(float distance, bool heard)
+    {
+        var p = Add(float3(0, 0, 0), new[] { "Eye" });
+        var ear = Add(float3(distance, 0, 0));
+        Activate(ear, "Earpiece");       // 3
+        Activate(ear, "WideEarpiece");   // 5
+        Activate(ear, "NarrowEarpiece"); // 1.5
+
+        PingAt(p);
+
+        Assert.Equal(heard ? 1 : 0, ear.RevealsOf(p).Count());
+    }
+
+    // A listener that is switched on but not online (destroyed) hears nothing: Active, not Enabled, gates it, so the
+    // 5x array that is down does not lift the 3x one that is up.
+    [Theory]
+    [InlineData(899f, true)]
+    [InlineData(901f, false)]
+    public void ADestroyedListenerDoesNotLiftTheOnesThatAreUp(float distance, bool heard)
+    {
+        var p = Add(float3(0, 0, 0), new[] { "Eye" });
+        var ear = Add(float3(distance, 0, 0), tools: new[] { "Listener", "Wide" });
+        var wide = ear.Equipment.Single(i => i.Behaviors.Any(b => b is Listener l && l.Multiple == 5f));
+        wide.EquippableItem.Durability = 0;
+        Tick(.1f);
+        Assert.True(wide.Enabled.Value);   // fixture: switched on
+        Assert.False(wide.Active.Value);   // and not online
+
+        PingAt(p);
+
+        Assert.Equal(heard ? 1 : 0, ear.RevealsOf(p).Count());
+    }
+
+    // The floor of 1 belongs to an active sensor, not to each listener: a listener-only ship with a Multiple of .5
+    // hears at half the pinger's range, and the same listener beside a sensor hears at the sensor's full range.
+    [Theory]
+    [InlineData(false, 149f, true)]
+    [InlineData(false, 151f, false)]
+    [InlineData(true, 299f, true)]
+    [InlineData(true, 301f, false)]
+    public void AMultipleBelowOneIsFlooredBySensorsNotByTheListener(bool withSensor, float distance, bool heard)
+    {
+        var p = Add(float3(0, 0, 0), new[] { "Eye" });
+        var ear = Add(float3(distance, 0, 0), withSensor ? new[] { "Eye" } : null, new[] { "Hush" });
+
+        PingAt(p);
+
+        Assert.Equal(heard ? 1 : 0, ear.RevealsOf(p).Count());
+    }
+
     // ---- ListenerDataRoundTripsAsUnionKey50 ----
 
     [Fact]

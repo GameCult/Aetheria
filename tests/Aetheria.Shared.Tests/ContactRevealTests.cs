@@ -61,6 +61,11 @@ public sealed partial class ContactRevealTests : IDisposable
             cache.Upsert(Eye("Roar", sensitivity: 2f, interceptFactor: .5f, beamWidth: 10f));
             cache.Upsert(Listener("Listener", 3f));
             cache.Upsert(new ConsumableItemData { Name = "Earpiece", Duration = 30f, Shape = new Shape(), Behaviors = { new ListenerData { Multiple = Const(3f) } } });
+            cache.Upsert(Listener("Wide", 5f));
+            cache.Upsert(Listener("Narrow", 1.5f));
+            cache.Upsert(Listener("Hush", .5f));
+            cache.Upsert(new ConsumableItemData { Name = "WideEarpiece", Duration = 30f, Shape = new Shape(), Behaviors = { new ListenerData { Multiple = Const(5f) } } });
+            cache.Upsert(new ConsumableItemData { Name = "NarrowEarpiece", Duration = 30f, Shape = new Shape(), Behaviors = { new ListenerData { Multiple = Const(1.5f) } } });
             cache.Upsert(Tool("Reactor", new ReactorData { Charge = Const(1000), Efficiency = Const(1), OverloadEfficiency = Const(1), ThrottlingFactor = Const(2) }));
             cache.Upsert(Tool("Targeting", new TargetingSystemData { Accuracy = Const(1), Resolution = Const(1000f), Precision = Const(1000f), Tracking = Const(1000000f) }));
             cache.Upsert(Tool("Thruster", new ThrusterData { Thrust = Const(100), Visibility = Const(10), Heat = Const(0), EnergyUsage = Const(10) }));
