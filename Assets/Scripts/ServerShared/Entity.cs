@@ -99,6 +99,10 @@ public abstract class Entity
     {
         if (channel == SignatureChannel.Emission)
             throw new ArgumentException("Emission is active emission, never a light signature.", nameof(channel));
+        // A light signature is thinned by the ship's own gear at the moment it is written (aetheria-ew, lie-is-own-emission):
+        // each equipped suppressor folds the strength in equipment order and pays for what it alone removed.
+        foreach (var suppressor in GetBehaviors<LaunchSuppressor>())
+            strength = suppressor.Suppress(channel, strength);
         _visibilitySources[source] = new Signature(channel, strength, item);
     }
     public readonly ReactiveDictionary<Entity, float> EntityInfoGathered = new ReactiveDictionary<Entity, float>();

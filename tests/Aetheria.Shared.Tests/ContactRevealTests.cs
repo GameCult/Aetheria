@@ -66,25 +66,28 @@ public sealed partial class ContactRevealTests : IDisposable
             {
                 Emissivity = Const(3), PumpedHeat = Const(0), TemperatureFloor = 0, WasteHeat = Const(0), EnergyUsage = Const(0), ThermalMass = Const(1000)
             }));
-            var gun = new InstantWeaponData { Count = Const(1), BurstTime = Const(0), Cooldown = Const(1) };
-            gun.Damage = Const(100);
-            gun.Range = Const(40);
-            gun.MinRange = Const(0);
-            gun.Velocity = Const(0);
-            gun.Spread = Const(0);
-            gun.DamageSpread = Const(0);
-            gun.Penetration = Const(0);
-            gun.Energy = Const(50);
-            gun.Heat = Const(0);
-            gun.Visibility = Const(5);
-            gun.MagazineSize = 5;
-            gun.DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } };
+            // Launch suppressors (aetheria-ew): one solid cell each, so the heat they pay has a cell to land in. Rated 400.
+            cache.Upsert(Suppressor("Suppressor", factor: .1f, heatPerUnit: 2f));
+            cache.Upsert(Suppressor("SuppressorCold", factor: .1f, heatPerUnit: 0f));
+            cache.Upsert(Suppressor("SuppressorOpen", factor: 1f, heatPerUnit: 2f));
+            cache.Upsert(Suppressor("SuppressorHalf", factor: .5f, heatPerUnit: 1f));
+            cache.Upsert(Suppressor("SuppressorFifth", factor: .2f, heatPerUnit: 10f));
+            cache.Upsert(Suppressor("SuppressorBright", factor: 3f, heatPerUnit: 2f));
+            cache.Upsert(Suppressor("SuppressorNegative", factor: -1f, heatPerUnit: 2f));
+            var gun = Armed(new InstantWeaponData { Count = Const(1), BurstTime = Const(0), Cooldown = Const(1) }, 5);
             cache.Upsert(new WeaponItemData
             {
                 Name = "Gun", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Durability = 1,
                 MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000,
                 Fuse = WeaponFuse.Proximity, BlastRadius = 30f,
                 Behaviors = { gun }
+            });
+            cache.Upsert(new WeaponItemData
+            {
+                Name = "Beam", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Durability = 1,
+                MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000,
+                Fuse = WeaponFuse.Proximity, BlastRadius = 30f,
+                Behaviors = { Armed(new ConstantWeaponData(), 0) }
             });
             cache.Upsert(Locker("Locker", interceptFactor: null));
             cache.Upsert(Locker("Hushed", interceptFactor: 4f));
@@ -131,6 +134,36 @@ public sealed partial class ContactRevealTests : IDisposable
     }
 
     private static PerformanceStat Const(float v) => new PerformanceStat { Min = v, Max = v };
+
+    // The weapon fields every fixture weapon shares; a gun and a beam differ only in their behaviour type and magazine.
+    private static WeaponData Armed(WeaponData weapon, int magazine)
+    {
+        weapon.Damage = Const(100);
+        weapon.Range = Const(40);
+        weapon.MinRange = Const(0);
+        weapon.Velocity = Const(0);
+        weapon.Spread = Const(0);
+        weapon.DamageSpread = Const(0);
+        weapon.Penetration = Const(0);
+        weapon.Energy = Const(50);
+        weapon.Heat = Const(0);
+        weapon.Visibility = Const(5);
+        weapon.MagazineSize = magazine;
+        weapon.DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } };
+        return weapon;
+    }
+
+    private static GearData Suppressor(string name, float factor, float heatPerUnit)
+    {
+        var cell = new Shape(1, 1);
+        cell[new int2(0, 0)] = true;
+        return new GearData
+        {
+            Name = name, Hardpoint = HardpointType.Tool, Shape = cell, Durability = 10,
+            MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000,
+            Behaviors = { new LaunchSuppressorData { Factor = Const(factor), HeatPerUnit = Const(heatPerUnit), RatedTemperature = Const(400f) } }
+        };
+    }
 
     // A launcher with Range 1000, heard at that Range over its intercept factor while it paints.
     private static GearData Locker(string name, float? interceptFactor) => new GearData
