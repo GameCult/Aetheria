@@ -2,6 +2,9 @@
 // Aetheria.EditorTools.FlowFieldParityVerify can compare them with FlowField (ServerShared). Reads the same global
 // _Flow* uniforms the nebula and stardust read, set by VolumeSampling.LowerFlow.
 #pragma kernel Evaluate
+// A compute shader declares the global keywords itself (as Stardust.compute does); the flow() it calls is keyword-gated.
+#pragma multi_compile __ FLOW_GLOBAL
+#pragma multi_compile __ FLOW_SLOPE
 
 #include "Assets/Shaders/Volumetric.cginc"
 
