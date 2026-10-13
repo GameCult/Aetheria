@@ -213,7 +213,7 @@ public sealed partial class ContactRevealTests
         foreach (var ship in new[] { paying, twin, control })
         {
             ship.SetTarget(TargetRef.None);
-            BeamItem(ship).Behaviors.Single(b => b is ConstantWeapon).Activate();
+            BeamItem(ship).Behaviors.OfType<ConstantWeapon>().Single().Activate();
         }
         var p = CellOf(SuppressorItem(paying, "Suppressor"));
         var t = CellOf(SuppressorItem(twin, "SuppressorCold"));
