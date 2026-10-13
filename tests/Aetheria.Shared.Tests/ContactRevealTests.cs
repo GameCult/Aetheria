@@ -1233,9 +1233,14 @@ public sealed partial class ContactRevealTests : IDisposable
         selector.SetTarget(selected);
         Assert.Same(selected, selector.Target.Value.Entity); // fixture: it is selected
 
-        for (var i = 0; i < 20; i++) Tick(.1f);
+        var paints = 0;
+        for (var i = 0; i < 20; i++)
+        {
+            Tick(.1f);
+            paints += selected.IncomingPaints.Count; // a warning lives one tick, so it is read on every tick
+        }
 
-        Assert.Empty(selected.IncomingPaints);
+        Assert.Equal(0, paints);
         Assert.False(selected.ContactOf(selector).Detected);
         Assert.Empty(selected.RevealedSubjects);
     }
