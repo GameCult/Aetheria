@@ -1,0 +1,20 @@
+// Evaluates the shader flow functions for a buffer of positions and gradients, so that
+// Aetheria.EditorTools.FlowFieldParityVerify can compare them with FlowField (ServerShared). Reads the same global
+// _Flow* uniforms the nebula and stardust read, set by VolumeSampling.LowerFlow.
+#pragma kernel Evaluate
+
+#include "Assets/Shaders/Volumetric.cginc"
+
+StructuredBuffer<float3> positions;
+StructuredBuffer<float2> gradients;
+RWStructuredBuffer<float3> globalOut;
+RWStructuredBuffer<float3> slopeOut;
+uint count;
+
+[numthreads(64, 1, 1)]
+void Evaluate(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= count) return;
+    globalOut[id.x] = globalFlow(positions[id.x]);
+    slopeOut[id.x] = slopeFlow(gradients[id.x]);
+}
