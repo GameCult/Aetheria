@@ -603,8 +603,7 @@ public class ZoneRenderer : MonoBehaviour
                 var distance = length(difference);
                 
                 entityInstance.CompassIcon.gameObject.SetActive(
-                    PerspectiveEntity.EntityInfoGathered.ContainsKey(entityInstance.Entity) && 
-                    PerspectiveEntity.EntityInfoGathered[entityInstance.Entity] > Settings.GameplaySettings.TargetDetectionInfoThreshold &&
+                    PerspectiveEntity.ContactOf(entityInstance.Entity).Tracked &&
                     distance > _minimapDistance);
                 entityInstance.CompassIcon.transform.rotation = Quaternion.Euler(0, 0, Mathf.Atan2(difference.y, difference.x) * Mathf.Rad2Deg - 90);
             }

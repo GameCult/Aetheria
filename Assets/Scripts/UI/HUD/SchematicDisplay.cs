@@ -69,13 +69,11 @@ public class SchematicDisplay : MonoBehaviour
     {
         _enemy = player != null;
         _player = player;
-        if (_schematicItems != null)
-            foreach (var item in _schematicItems)
-            {
-                item.ListElement.GetComponent<Prototype>().ReturnToPool();
-            }
+        ReturnRows();
 
         _entity = entity;
+        if (VisibilityLabel)
+            VisibilityLabel.gameObject.SetActive(!_enemy);
         if (!_enemy)
         {
             _cockpit = entity.GetBehavior<Cockpit>();
@@ -95,11 +93,27 @@ public class SchematicDisplay : MonoBehaviour
                 CargoTemperatureLabel.text = "N/A";
         }
         
-        // Cut 2 (docs/fire-control-cut.md): an enemy schematic shows only what `player` has actually
-        // resolved (FireControl.IsRevealed) -- the same predicate the selection writer and the AI use. The
-        // player's own schematic is unfiltered; there is nothing to reveal about your own ship.
-        _schematicItems = entity.Equipment
-            .Where(x => x.Behaviors.Any(b => b.Data is WeaponData) && (!_enemy || FireControl.IsRevealed(player, x)))
+        BuildRows(_enemy ? RevealedWeapons() : entity.Equipment.Where(IsWeapon));
+    }
+
+    private static bool IsWeapon(EquippedItem item) => item.Behaviors.Any(b => b.Data is WeaponData);
+
+    // An enemy schematic lists what `_player` has seen the ship's weapons do: the weapon items of the player's book on it,
+    // in book order (ruling reveal-ends-on-perception), never the ship's live gear. The player's own schematic is its
+    // equipment; there is nothing to reveal about your own ship.
+    private IEnumerable<EquippedItem> RevealedWeapons() => _player.RevealsOf(_entity).Select(r => r.Item).Where(IsWeapon);
+
+    private void ReturnRows()
+    {
+        if (_schematicItems == null) return;
+        foreach (var item in _schematicItems)
+            item.ListElement.GetComponent<Prototype>().ReturnToPool();
+        _schematicItems = null;
+    }
+
+    private void BuildRows(IEnumerable<EquippedItem> items)
+    {
+        _schematicItems = items
             .Select(x => new SchematicDisplayItem
             {
                 Item = x, 
@@ -181,6 +195,14 @@ public class SchematicDisplay : MonoBehaviour
             //     DistanceLabel.text = $"{(int)length(_entity.Position - _player.Position)}";
             // }
 
+            // A reveal gained or ended after selection changes the rows with no event to hook: rebuild when the
+            // revealed weapon set differs from the rows' items.
+            if (_enemy && !RevealedWeapons().SequenceEqual(_schematicItems.Select(x => x.Item)))
+            {
+                ReturnRows();
+                BuildRows(RevealedWeapons());
+            }
+
             // Cut 2 (docs/fire-control-cut.md): marks whichever row is the player's current aim point.
             // Re-checked every frame (not just on ShowShip) because ResolvedTargetItem can drop on its own
             // as info decays, with no event to hook.
@@ -188,7 +210,7 @@ public class SchematicDisplay : MonoBehaviour
                 foreach (var x in _schematicItems)
                     x.ListElement.SetSelected(x.Item == _player.ResolvedTargetItem);
 
-            if(VisibilityLabel)
+            if(VisibilityLabel && !_enemy)
                 VisibilityLabel.text = ((int)_entity.Visibility).ToString();
 
             if(HullDurabilityFill)

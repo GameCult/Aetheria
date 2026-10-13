@@ -17,7 +17,8 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
         var bindings = new CompositeDisposable();
         zone.ShotCommitted.Where(o => o.ShotId == shotId && o.HasBurstPoint).Subscribe(o => p.BurstAt(At(o))).AddTo(bindings);
         zone.ShotResolved.Where(o => o.ShotId == shotId)
-            .Subscribe(o => p.Resolve(o.Result == ShotResult.Hit || o.Result == ShotResult.Burst, o.HasBurstPoint ? At(o) : (Vector3?) null))
+            .Subscribe(o => p.Resolve(o.Result == ShotResult.Hit || o.Result == ShotResult.Burst, o.HasBurstPoint ? At(o) : (Vector3?) null,
+                ActionGameManager.DrawsAt(o.Target)))
             .AddTo(bindings);
         // The binding outlives a fade-out until the shot's own arrival (the moment the simulation resolves it), plus a
         // second of margin; a shot no longer pending has nothing left to resolve.

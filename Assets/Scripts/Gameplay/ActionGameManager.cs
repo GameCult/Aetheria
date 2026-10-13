@@ -113,8 +113,11 @@ public class ActionGameManager : MonoBehaviour
     //public string StarterShipTemplate = "Longinus";
     // The run's credits: seeded from the scenario stage on a new game and from SavedGame on Continue, written by SaveRun.
     [NonSerialized] public int Credits;
-    public float TargetSpottedBlinkFrequency = 20;
-    public float TargetSpottedBlinkOffset = -.25f;
+    // Presentation scale: the player's own Visibility at which the target panel's VisibilityToTargetFill reads full.
+    public float OwnSignatureFullScale = 10;
+    // The music last asked for: Update decides it each frame from what the player's own instruments hold and calls
+    // PlayMusic only when it changes.
+    private MusicType? _music;
     
     [Header("Postprocessing")]
     public float DeathPostTransitionTime;
@@ -733,6 +736,7 @@ public class ActionGameManager : MonoBehaviour
         Zone = galaxyZone.Contents;
         _zoneEntered = true; // the clock forgets its lead between frames, never inside a step
         PlayMusic(MusicType.Overworld);
+        _music = MusicType.Overworld;
         
         Zone.Log = s => Debug.Log($"Zone: {s}");
 
@@ -1065,11 +1069,6 @@ public class ActionGameManager : MonoBehaviour
         foreach (var group in _articulationGroups)
             group.crosshair.gameObject.SetActive(true);
         
-        _shipSubscriptions.Add(CurrentEntity.TargetedByCount.Subscribe(count =>
-        {
-            PlayMusic(count > 0 ? MusicType.Combat : MusicType.Overworld);
-        }));
-        
         _shipSubscriptions.Add(CurrentEntity.Target.Subscribe(target =>
         {
             // Clear previous subscriptions related to currently targeted enemy
@@ -1264,6 +1263,42 @@ public class ActionGameManager : MonoBehaviour
         // TODO: SFX: Music
     }
 
+    // What the player's own instruments say about combat, nothing a hostile knows: a hostile tracked, a paint on the
+    // player, or a remembered hostile the player still has a bearing on (a reveal younger than BearingMemory).
+    private void UpdateMusic()
+    {
+        var combat = CurrentEntity.VisibleEnemies.Count > 0 || CurrentEntity.IncomingPaints.Count > 0;
+        if (!combat)
+            foreach (var subject in CurrentEntity.RevealedSubjects)
+                if (CurrentEntity.IsHostileTo(subject) && CurrentEntity.ContactOf(subject).Detected)
+                {
+                    combat = true;
+                    break;
+                }
+        var type = combat ? MusicType.Combat : MusicType.Overworld;
+        if (_music == type) return;
+        _music = type;
+        PlayMusic(type);
+    }
+
+    // An indicator's fill is how far the player's own sensors have resolved the ship from a track toward identifying
+    // it (ContactOf.Info over the detection-to-gear span): nothing of what the ship sees of the player.
+    private void PlaceFill(VisibleTargetIndicator indicator, Entity subject)
+    {
+        indicator.Fill.enabled = subject.Active;
+        if (!subject.Active) return;
+        var settings = Settings.GameplaySettings;
+        indicator.Fill.fillAmount = saturate(unlerp(settings.TargetDetectionInfoThreshold, settings.TargetGearInfoThreshold,
+            CurrentEntity.ContactOf(subject).Info));
+    }
+
+    // Whether an effect drawn at `subject`'s true position may be drawn: the player's own ship, or a ship its
+    // instruments track. The one seam for impact and hit effects (follow-up presentation-gated-on-tracked); a bearing
+    // alone (Detected without Tracked) places nothing there. No player ship, nothing to gate on.
+    public static bool DrawsAt(Entity subject) =>
+        Instance == null || Instance.CurrentEntity == null || subject == null || subject == Instance.CurrentEntity ||
+        Instance.CurrentEntity.ContactOf(subject).Tracked;
+
     void Update()
     {
         if(!_paused)
@@ -1278,29 +1313,13 @@ public class ActionGameManager : MonoBehaviour
                 {
                     indicator.Value.gameObject.SetActive(indicator.Key!=CurrentEntity.Target.Value.Entity);
                     indicator.Value.Place.Target = indicator.Key.Position.ToUnity();
-                    if (!indicator.Key.Active)
-                        indicator.Value.Fill.enabled = false;
-                    else
-                    {
-                        indicator.Value.Fill.fillAmount =
-                            saturate(indicator.Key.EntityInfoGathered[CurrentEntity] / Settings.GameplaySettings.TargetDetectionInfoThreshold);
-                        indicator.Value.Fill.enabled =
-                            !(indicator.Key.EntityInfoGathered[CurrentEntity] > Settings.GameplaySettings.TargetDetectionInfoThreshold) ||
-                            sin(TargetSpottedBlinkFrequency * Time.time) + TargetSpottedBlinkOffset > 0;
-                    }
+                    PlaceFill(indicator.Value, indicator.Key);
                 }
                 foreach (var indicator in _visibleFriendlyIndicators)
                 {
                     indicator.Value.gameObject.SetActive(indicator.Key!=CurrentEntity.Target.Value.Entity);
                     indicator.Value.Place.Target = indicator.Key.Position.ToUnity();
-                    if (!indicator.Key.Active)
-                        indicator.Value.Fill.enabled = false;
-                    else
-                    {
-                        indicator.Value.Fill.enabled = true;
-                        indicator.Value.Fill.fillAmount =
-                            saturate(indicator.Key.EntityInfoGathered[CurrentEntity] / Settings.GameplaySettings.TargetDetectionInfoThreshold);
-                    }
+                    PlaceFill(indicator.Value, indicator.Key);
                 }
                 var look = Input.Player.Look.ReadValue<Vector2>();
                 var sensitivity = PlayerSettings.InputSettings.Sensitivity;
@@ -1321,13 +1340,14 @@ public class ActionGameManager : MonoBehaviour
                     ship.Turn = _helm.Demand(ship, _viewDirection.xz, Input.Player.Turn.ReadValue<float>());
                 }
 
+                UpdateMusic();
                 UpdateFireControlDebug(CurrentEntity.Target.Value);
                 var target = CurrentEntity.Target.Value.Entity;
                 if (target != null)
                 {
                     var threshold = Settings.GameplaySettings.TargetDetectionInfoThreshold;
-                    TargetVisibilityFill.fillAmount = lerp(.25f, .75f, (CurrentEntity.EntityInfoGathered[target] - threshold)/(1-threshold));
-                    VisibilityToTargetFill.fillAmount = lerp(.25f, .75f, target.EntityInfoGathered[CurrentEntity] / threshold);
+                    TargetVisibilityFill.fillAmount = lerp(.25f, .75f, (CurrentEntity.ContactOf(target).Info - threshold)/(1-threshold));
+                    VisibilityToTargetFill.fillAmount = lerp(.25f, .75f, saturate(CurrentEntity.Visibility / OwnSignatureFullScale));
                     TargetHitpointsFill.fillAmount = lerp(.25f, .75f, target.Hull.Durability / target.EquippedHull.Data.Durability);
                     TargetShieldsFill.fillAmount = target.Shield == null ? 0 : lerp(.25f, .75f, target.Shield.Progress);
                 }

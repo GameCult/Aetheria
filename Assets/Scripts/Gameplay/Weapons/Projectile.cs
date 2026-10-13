@@ -68,7 +68,7 @@ public class Projectile : MonoBehaviour
         _known = outcome;
         if (outcome.Result == ShotResult.Miss) return;
         Draw();
-        if (HitEffect != null) HitEffect.Instantiate<Transform>().position = transform.position;
+        if (HitEffect != null && ActionGameManager.DrawsAt(outcome.Target)) HitEffect.Instantiate<Transform>().position = transform.position;
         Finish();
     }
 

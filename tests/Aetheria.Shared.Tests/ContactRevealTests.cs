@@ -1223,6 +1223,68 @@ public sealed partial class ContactRevealTests : IDisposable
             Assert.Null(PathFrom(o, held));
     }
 
+    // Cut contact-hud: selection tells the selected ship nothing. A ship that selects another, which is neither painted
+    // by it nor sees it, leaves no fact on the selected one: no paint in its inbox, no contact, no reveal.
+    [Fact]
+    public void NothingReadsSelection()
+    {
+        var selector = Add(float3(0, 0, 200), new[] { "Gun" });
+        var selected = Add(float3(0, 0, 0)); // deaf and unseen: no sensor, nothing it could hear
+        selector.SetTarget(selected);
+        Assert.True(ReferenceEquals(selected, selector.Target.Value.Entity)); // fixture: it is selected
+
+        var paints = 0;
+        for (var i = 0; i < 20; i++)
+        {
+            Tick(.1f);
+            paints += selected.IncomingPaints.Count; // a warning lives one tick, so it is read on every tick
+        }
+
+        Assert.Equal(0, paints);
+        Assert.False(selected.ContactOf(selector).Detected);
+        Assert.Equal(0, selected.RevealedSubjects.Count);
+    }
+
+    // The one list of remembered contacts: the subjects whose reveals the observer holds. A tracked subject with no
+    // reveal is not in it; a revealed subject that leaves unseen stays until its bearing is BearingMemory old, then
+    // goes; Deactivate empties it.
+    [Fact]
+    public void RevealedSubjectsListsTheBook()
+    {
+        var e = Add(float3(0, 0, 100), new[] { "Gun" });
+        var tracked = Add(float3(50, 0, 0));
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var gun = Guns(e)[0];
+        o.EntityInfoGathered[tracked] = 1f;
+        Assert.True(o.ContactOf(tracked).Tracked); // fixture: tracked, no reveal
+        Assert.Equal(0, o.RevealedSubjects.Count); // counts, not the collection: a failure message would print whole entities
+
+        Fire(e, gun);
+        Assert.True(o.RevealedSubjects.Count == 1 && o.RevealedSubjects.Contains(e));
+
+        var q = Add(float3(40, 0, 100), new[] { "Gun" });
+        Fire(q, Guns(q)[0]);
+        Assert.True(o.RevealedSubjects.Count == 2 && o.RevealedSubjects.Contains(e) && o.RevealedSubjects.Contains(q)); // two subjects at once: both listed
+
+        var freshest = Freshest(o, e);
+        ShowOnly(e, 1f, gun);
+        Assert.True(e.Visibility * o.PassiveInfo(e.Position.xz, 1f) <= _items.GameplaySettings.TargetDetectionInfoThreshold, "fixture: its last light is below o's gate");
+        _zone.Entities.Remove(e);
+        var memory = _items.GameplaySettings.BearingMemory;
+        var lapsed = false;
+        for (var i = 0; i < 200 && !lapsed; i++)
+        {
+            Tick(.1f);
+            lapsed = _zone.Time - freshest >= memory;
+            Assert.Equal(!lapsed, o.RevealedSubjects.Contains(e)); // exactly while the bearing is remembered
+            Assert.True(o.RevealedSubjects.Contains(q), "the other subject stays listed while e departs");
+        }
+        Assert.True(lapsed, "fixture: the bearing lapsed");
+        Assert.True(o.RevealedSubjects.Count == 1 && o.RevealedSubjects.Contains(q)); // only the departed one dropped
+        o.Deactivate();
+        Assert.Equal(0, o.RevealedSubjects.Count); // counts, not the collection: a failure message would print whole entities
+    }
+
     // The first field path from `root` to `target`, not entering the zone or the item manager, or null.
     private static string PathFrom(object root, object target)
     {
