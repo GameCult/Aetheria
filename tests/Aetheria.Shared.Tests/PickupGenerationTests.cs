@@ -9,7 +9,8 @@ using Xunit;
 // it. Generation is the one place a ship's gear is chosen, so this runs the real catalog through it.
 public sealed partial class RunStartTests
 {
-    private int PickupGear(EntityPack pack) => EntitySerializer.Items(pack).OfType<EquippableItem>()
+    // The beams a pack carries fitted. A station may stock one in its hold to sell, which is the point of selling it.
+    private int PickupGear(EntityPack pack) => pack.Equipment.Select(fitted => fitted.item)
         .Count(item => _items.GetData(item) is GearData gear && gear.Behaviors.Any(b => b is PickupData));
 
     [Fact]
