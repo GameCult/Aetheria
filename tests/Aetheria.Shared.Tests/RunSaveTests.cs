@@ -353,7 +353,8 @@ public sealed class RunSaveTests : IDisposable
             var gear = cache.Upsert(new GearData { Name = "Scanner", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 5 });
             var cargo = cache.Upsert(new CargoBayData { Name = "Hold", Shape = new Shape(), InteriorShape = new Shape(), Price = 3 });
             var capacitor = cache.Upsert(new GearData { Name = "Cap", Hardpoint = HardpointType.Tool, Shape = new Shape(), Price = 1, Behaviors = { new CapacitorData() } });
-            foreach (var (name, design) in new[] { ("Runabout by Generator Maker", hull.Key), ("Scanner by Generator Maker", gear.Key), ("Hold by Generator Maker", cargo.Key), ("Cap by Generator Maker", capacitor.Key) })
+            var tractor = cache.Upsert(new GearData { Name = "Tractor", Hardpoint = HardpointType.Tool, Shape = new Shape(), Price = 1, Behaviors = { new PickupData() } });
+            foreach (var (name, design) in new[] { ("Runabout by Generator Maker", hull.Key), ("Scanner by Generator Maker", gear.Key), ("Hold by Generator Maker", cargo.Key), ("Cap by Generator Maker", capacitor.Key), ("Tractor by Generator Maker", tractor.Key) })
                 cache.Upsert(new FactionProductData { Name = name, Design = new CultRecordRef<CraftedItemData>(design), Manufacturer = maker });
             cache.FlushAsync().Wait();
         }

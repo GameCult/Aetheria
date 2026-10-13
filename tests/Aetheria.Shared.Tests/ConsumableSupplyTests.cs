@@ -93,6 +93,7 @@ public sealed class ConsumableSupplyTests : IDisposable
             });
             var dock = seed.Upsert(new DockingBayData { Name = "Dock", Shape = new Shape(), Price = 5, InteriorShape = holds == Holds.DockRefuses ? new Shape(1, 1) : Solid(1, 1) });
             var capacitor = seed.Upsert(new GearData { Name = "Cap", Hardpoint = HardpointType.Tool, Shape = new Shape(), Price = 1, Behaviors = { new CapacitorData() } });
+            var tractor = seed.Upsert(new GearData { Name = "Tractor", Hardpoint = HardpointType.Tool, Shape = new Shape(), Price = 1, Behaviors = { new PickupData() } });
             var heater = seed.Upsert(new GearData
             {
                 Name = "Heater", Hardpoint = HardpointType.Tool, Shape = new Shape(), Price = 1,
@@ -114,7 +115,7 @@ public sealed class ConsumableSupplyTests : IDisposable
             foreach (var (name, design) in new[]
                      {
                          ("Skiff", skiff.Key), ("Platform", platform.Key), ("Crate", crate.Key), ("Dock", dock.Key),
-                         ("Cap", capacitor.Key), ("Heater", heater.Key), ("Orphan", orphan.Key)
+                         ("Cap", capacitor.Key), ("Tractor", tractor.Key), ("Heater", heater.Key), ("Orphan", orphan.Key)
                      }.Concat(sold))
                 Sell(name + " by Maker", design, maker);
 

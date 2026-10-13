@@ -389,11 +389,12 @@ public sealed class TargetingSystemTests : IDisposable
         var cargo = cache.Upsert(new CargoBayData { Name = "Crate", Shape = new Shape(), InteriorShape = new Shape(), Price = 5 });
         var capacitor = cache.Upsert(new GearData { Name = "Cap", Hardpoint = HardpointType.Tool, Shape = new Shape(), Price = 1, Behaviors = { new CapacitorData() } });
         var targeting = cache.Upsert(new GearData { Name = "Targeting", Hardpoint = HardpointType.Tool, Shape = new Shape(), Price = 1, Behaviors = { new TargetingSystemData() } });
+        var tractor = cache.Upsert(new GearData { Name = "Tractor", Hardpoint = HardpointType.Tool, Shape = new Shape(), Price = 1, Behaviors = { new PickupData() } });
 
         foreach (var (name, design) in new[]
                  {
                      ("Armed by Maker", hull.Key), ("Gun by Maker", gun.Key), ("Crate by Maker", cargo.Key),
-                     ("Cap by Maker", capacitor.Key), ("Targeting by Maker", targeting.Key)
+                     ("Cap by Maker", capacitor.Key), ("Targeting by Maker", targeting.Key), ("Tractor by Maker", tractor.Key)
                  })
             cache.Upsert(new FactionProductData { Name = name, Design = new CultRecordRef<CraftedItemData>(design), Manufacturer = maker });
         cache.FlushAsync().Wait();
