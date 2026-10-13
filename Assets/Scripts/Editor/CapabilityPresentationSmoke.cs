@@ -5,24 +5,27 @@ using System.Reflection;
 using GameCult.Caching;
 using UnityEditor;
 using UnityEngine;
+using CultMath;
 using static CultMath.math;
 
-// Batch proof of ImpactPresenter's wiring, without a scene: a zone ship is bound to an EntityInstance through the game's
-// own SetEntity, and impacts are published on the ship's Capabilities exactly as FireControl does. A hull absorb spawns
+// Batch proof of the capability presenters' wiring, without a scene: a zone ship is bound to an EntityInstance through the
+// game's own SetEntity, and impacts and grabs are published on the ship's Capabilities exactly as the simulation does. A hull absorb spawns
 // one hull effect under the instance and, for the player's ship at ScreenShake 1, raises one camera impulse; ScreenShake 0
 // or another ship raises none; a shield absorb spawns no hull effect. The shield ripple itself (ShieldManager.ShowHit
-// needs a shield material and a rig) is looked at in the editor, not here.
+// needs a shield material and a rig) is looked at in the editor, not here. Grabs: a Tractor Beam prefab under the instance
+// is bound by the same SetEntity and presents a grab from events alone (emission at Power and the aim at the held point
+// from Started to Completed or Cancelled, nothing otherwise, nothing for another entity's grab).
 //
-//   Unity -batchmode -nographics -projectPath <project> -executeMethod ImpactPresenterSmoke.Run -logFile <log>
+//   Unity -batchmode -nographics -projectPath <project> -executeMethod CapabilityPresentationSmoke.Run -logFile <log>
 //
 // Do not pass -quit: Run exits the Editor itself, 0 on success and 1 on any failure.
-public static class ImpactPresenterSmoke
+public static class CapabilityPresentationSmoke
 {
     private const BindingFlags Any = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
 
     public static void Run()
     {
-        var work = Path.Combine(Path.GetTempPath(), $"impact-presenter-smoke-{Guid.NewGuid():N}");
+        var work = Path.Combine(Path.GetTempPath(), $"capability-presentation-smoke-{Guid.NewGuid():N}");
         GameObject[] objects = null;
         try
         {
@@ -86,6 +89,12 @@ public static class ImpactPresenterSmoke
         instance.ThrusterHardpoints = new ThrusterHardpoint[0];
         instance.WeaponHardpoints = new WeaponHardpoint[0];
         instance.ArticulationPoints = new ArticulationPoint[0];
+        // The beam is a child before SetEntity on both ship paths, so the binder finds it as the game does.
+        var beamPrefab = AssetDatabase.LoadAssetAtPath<GameObject>("Assets/Content/Prefabs/Tractor Beam.prefab")
+            ?? throw new InvalidOperationException("No Tractor Beam prefab.");
+        var beam = ((GameObject)PrefabUtility.InstantiatePrefab(beamPrefab, instanceObject.transform)).GetComponent<TractorBeam>();
+        beam.Power = .8f;
+        beam.Direction = Vector3.forward;
         instance.SetEntity(null, ship);
 
         int Effects() => instance.GetComponentsInChildren<Prototype>(true).Count(p => p != null && !p.isOriginalPrototype);
@@ -111,13 +120,47 @@ public static class ImpactPresenterSmoke
         ActionGameManager.PlayerSettings.GraphicsSettings.ScreenShake = 1f;
         manager.CurrentEntity = other;
         ship.Capabilities.PublishAbsorb(Hit(AbsorbLayer.Hull));
-        Expect("hull hit on another ship", 3, 1);
+        // An untracked ship is not drawn at (ActionGameManager.DrawsAt, since contact-hud): no hull effect, no impulse.
+        Expect("hull hit on an untracked ship", 2, 1);
 
         manager.CurrentEntity = ship;
         ship.Capabilities.PublishAbsorb(Hit(AbsorbLayer.Shield));
-        Expect("player's shield hit", 3, 2);
+        Expect("player's shield hit", 2, 2);
 
-        Debug.Log("IMPACT_PRESENTER_SMOKE ok effects=3 impulses=2");
+        // Grabs: the beam presents the simulation's events and nothing else.
+        float Emission() => beam.ParticleSystem.emission.rateOverTimeMultiplier;
+        void ExpectBeam(string what, float emission, bool towardHeld)
+        {
+            beam.Update();
+            var forward = beam.transform.forward;
+            var aimed = towardHeld ? forward.x > .999f : forward.z > .999f;
+            if (abs(Emission() - emission) > 1e-4f || !aimed)
+                throw new InvalidOperationException($"{what}: emission {Emission()} (want {emission}), forward {forward} (want {(towardHeld ? "+x" : "+z")}).");
+        }
+        GrabEvent Grab(GrabPhase phase, float3 at) => new GrabEvent(new FloatingBodyId(7), phase, at, 1f);
+
+        ExpectBeam("idle beam", 0f, false);
+        ship.Capabilities.PublishGrab(Grab(GrabPhase.Started, float3(20f, 0f, 0f)));
+        ExpectBeam("grab started", .8f, true);
+        foreach (var phase in new[] { GrabPhase.Extend, GrabPhase.Envelop, GrabPhase.Pull })
+        {
+            ship.Capabilities.PublishGrab(Grab(phase, float3(20f, 0f, 0f)));
+            ExpectBeam($"grab {phase}", .8f, true);
+        }
+        ship.Capabilities.PublishGrab(Grab(GrabPhase.Completed, float3(20f, 0f, 0f)));
+        ExpectBeam("grab completed", 0f, false);
+
+        // A grab cancelled after its item vanished carries no position: the beam goes dark and never turns toward it.
+        ship.Capabilities.PublishGrab(Grab(GrabPhase.Started, float3(20f, 0f, 0f)));
+        ExpectBeam("second grab started", .8f, true);
+        ship.Capabilities.PublishGrab(Grab(GrabPhase.Cancelled, float3(0f, 0f, 0f)));
+        ExpectBeam("grab cancelled", 0f, false);
+
+        // The beam belongs to the ship's entity: another entity's grab is no business of its own.
+        other.Capabilities.PublishGrab(Grab(GrabPhase.Started, float3(20f, 0f, 0f)));
+        ExpectBeam("another entity's grab", 0f, false);
+
+        Debug.Log("CAPABILITY_PRESENTATION_SMOKE ok effects=2 impulses=2 grabs=ok");
         return new[] { feedbackObject, effectObject, managerObject, instanceObject };
     }
 

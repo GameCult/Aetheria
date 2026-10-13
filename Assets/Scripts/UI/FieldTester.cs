@@ -26,6 +26,10 @@ public class FieldTester : MonoBehaviour
     public Camera Camera;
     public FieldDriver TestField;
     public PropertiesPanel Properties;
+    // The scene's slow viewing timings for a grab, published as the events' phase durations.
+    public float GrabExtendTime;
+    public float GrabEnvelopTime;
+    public float GrabPullTime;
 
     private AetheriaInput _input;
     private bool _forceThrust;
@@ -49,6 +53,14 @@ public class FieldTester : MonoBehaviour
 
     private List<(float lerp, float time, Transform transform)> _pickups = new List<(float lerp, float time, Transform transform)>();
 
+    // This scene stands in for the simulation, so it owns its pickup's grab timeline and pose: one grab at a time.
+    private bool _grabbing;
+    private int _grabIndex;
+    private float _grabElapsed;
+    private float3 _grabStart;
+    private bool _envelopPublished;
+    private bool _pullPublished;
+
     private void Start()
     {
         _input = new AetheriaInput();
@@ -59,10 +71,7 @@ public class FieldTester : MonoBehaviour
         if (binder == null)
             Debug.LogError("FieldTester expects a CapabilityPresentationBinder on TestField's GameObject; no capability events will reach the field.");
         else
-            binder.Bind(_capabilityEvents,
-                grabTargetResolver: id => (int) id.Value >= 0 && (int) id.Value < _pickups.Count ? _pickups[(int) id.Value].transform : null,
-                grabInitialVelocityResolver: id => Vector3.forward *
-                    (PickupTravelDistance / lerp(PickupTravelTimeMin, PickupTravelTimeMax, _pickups[(int) id.Value].lerp)));
+            binder.Bind(_capabilityEvents);
 
         // Impact absorption (fork L): what used to be FieldDriver's own click handler is now this
         // scene's stand-in for whatever will eventually detect a hit and publish AbsorbEvent.
@@ -99,12 +108,16 @@ public class FieldTester : MonoBehaviour
             var click = pickup.GetComponent<ClickableCollider>();
             click.OnClick += (collider, data, ray, hit) =>
             {
-                if (!TestField.CanGrab) return;
+                if (_grabbing) return;
                 click.Clear();
-                var p = _pickups[i1];
-                _capabilityEvents.PublishGrab(new GrabEvent(new FloatingBodyId((uint) i1), GrabPhase.Started, p.transform.position.ToCultMath(), 0));
-                p.transform = null;
-                _pickups[i1] = p;
+                _grabbing = true;
+                _grabIndex = i1;
+                _grabElapsed = 0;
+                _envelopPublished = _pullPublished = false;
+                _grabStart = _pickups[i1].transform.position.ToCultMath();
+                var id = new FloatingBodyId((uint) i1);
+                _capabilityEvents.PublishGrab(new GrabEvent(id, GrabPhase.Started, _grabStart, 0));
+                _capabilityEvents.PublishGrab(new GrabEvent(id, GrabPhase.Extend, _grabStart, GrabExtendTime));
             };
 
             pickup.ScanLabelContainer.gameObject.SetActive(false);
@@ -114,6 +127,40 @@ public class FieldTester : MonoBehaviour
             var circle = Random.insideUnitCircle.normalized * Random.Range(PickupSpawnDistanceMin,PickupSpawnDistanceMax);
             pickupTransform.position = new Vector3(circle.x,circle.y, (time-.5f)*PickupTravelDistance);
             _pickups.Add((l, time, pickupTransform));
+        }
+    }
+
+    // Publishes Envelop and Pull once each at their cumulative boundaries, holds the pickup still until the pull and
+    // then moves it along the same smoothstep as Zone's held pose, and ends with Completed and the pickup's removal.
+    private void AdvanceGrab()
+    {
+        _grabElapsed += Time.deltaTime;
+        var id = new FloatingBodyId((uint) _grabIndex);
+        var pullStart = GrabExtendTime + GrabEnvelopTime;
+        if (!_envelopPublished && _grabElapsed >= GrabExtendTime)
+        {
+            _envelopPublished = true;
+            _capabilityEvents.PublishGrab(new GrabEvent(id, GrabPhase.Envelop, _grabStart, GrabEnvelopTime));
+        }
+        if (!_pullPublished && _grabElapsed >= pullStart)
+        {
+            _pullPublished = true;
+            _capabilityEvents.PublishGrab(new GrabEvent(id, GrabPhase.Pull, _grabStart, GrabPullTime));
+        }
+        var pickup = _pickups[_grabIndex].transform;
+        if (_pullPublished)
+        {
+            var progress = saturate((_grabElapsed - pullStart) / max(GrabPullTime, 1e-4f));
+            pickup.position = lerp(_grabStart, TestField.transform.position.ToCultMath(), smoothstep(0, 1, progress)).ToUnity();
+            if (progress >= 1)
+            {
+                _capabilityEvents.PublishGrab(new GrabEvent(id, GrabPhase.Completed, pickup.position.ToCultMath(), 0));
+                Destroy(pickup.gameObject);
+                var p = _pickups[_grabIndex];
+                p.transform = null;
+                _pickups[_grabIndex] = p;
+                _grabbing = false;
+            }
         }
     }
 
@@ -144,10 +191,12 @@ public class FieldTester : MonoBehaviour
 
         _capabilityEvents.PublishThrust(new ThrustEvent(_push, min(length(_push), 1), float2(_frontTwist, _rearTwist)));
 
+        if (_grabbing) AdvanceGrab();
+
         for (var i = 0; i < _pickups.Count; i++)
         {
             var (l, time, t) = _pickups[i];
-            if (t == null) continue;
+            if (t == null || (_grabbing && i == _grabIndex)) continue;
             time = frac(time + Time.deltaTime / lerp(PickupTravelTimeMin, PickupTravelTimeMax, l));
             t.localScale = Vector3.one * lerp(PickupSizeMin, PickupSizeMax, l) * Zone.PowerPulse(time - .5f, ScaleExponent);
             t.position = new Vector3(t.position.x, t.position.y, (time - .5f) * PickupTravelDistance);
