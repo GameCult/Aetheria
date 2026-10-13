@@ -739,7 +739,7 @@ public class ActionGameManager : MonoBehaviour
         if (CurrentEntity != null)
         {
             CurrentEntity.Deactivate();
-            CurrentEntity.Zone.Entities.Remove(CurrentEntity);
+            CurrentEntity.Zone.Remove(CurrentEntity);
             CurrentEntity.Zone = Zone;
             Zone.Admit(CurrentEntity, piloted: false);
         }

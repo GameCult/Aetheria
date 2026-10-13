@@ -222,10 +222,9 @@ public sealed partial class MiningCut3Tests : IDisposable
             s.Cache.Upsert(gun);
             Assert.True(ship.TryEquip(Mint(s, gun)));
         }
-        s.Zone.Entities.Add(ship);
+        s.Zone.Admit(ship, piloted: false);
         Hold(ship, at);
         ship.Aim = float3(0, 0, 1);
-        ship.Activate();
         return ship;
     }
 
@@ -867,10 +866,9 @@ public sealed partial class MiningCut3Tests : IDisposable
             var ship = new Ship(s.Items, s.Zone, Mint(s, s.Hull), new EntitySettings());
             Assert.True(ship.TryEquip(Mint(s, s.Eye)));
             foreach (var weapon in weapons) Assert.True(ship.TryEquip(Mint(s, weapon)));
-            s.Zone.Entities.Add(ship);
+            s.Zone.Admit(ship, piloted: false);
             Hold(ship, eyeAt);
             ship.Aim = float3(0, 0, 1);
-            ship.Activate();
             Tick((ship, eyeAt)); // weapons read their ranges when they run
             return ship;
         }

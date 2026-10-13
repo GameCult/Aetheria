@@ -130,10 +130,8 @@ public sealed class VapourCloudTests : IDisposable
         // Held off until a test pulls the trigger: the dump vents on its first run.
         lab.Dump.Enabled.Value = false;
 
-        zone.Entities.Add(lab.Observer);
-        zone.Entities.Add(lab.Target);
-        lab.Observer.Activate();
-        lab.Target.Activate();
+        zone.Admit(lab.Observer, piloted: false);
+        zone.Admit(lab.Target, piloted: false);
         lab.Observer.Position = float3(0, 0, 0);
         lab.Observer.Aim = float3(0, 0, 1);
         lab.Target.Position = float3(0, 0, distance);

@@ -184,10 +184,8 @@ public sealed class FireControlCut5Tests : IDisposable
 
         beforeActivate?.Invoke(items, shooter, target);
 
-        zone.Entities.Add(shooter);
-        zone.Entities.Add(target);
-        shooter.Activate();
-        target.Activate();
+        zone.Admit(shooter, piloted: false);
+        zone.Admit(target, piloted: false);
 
         shooter.Position = float3.zero;
         target.Position = float3(0, 0, targetRange);
@@ -339,10 +337,8 @@ public sealed class FireControlCut5Tests : IDisposable
         var targetGun = new EquippableItem { Data = targetGunRef, Durability = 1, Lot = 5 };
         Assert.True(target.TryEquip(targetGun, new int2(0, 0)));
 
-        zone.Entities.Add(shooter);
-        zone.Entities.Add(target);
-        shooter.Activate();
-        target.Activate();
+        zone.Admit(shooter, piloted: false);
+        zone.Admit(target, piloted: false);
 
         shooter.Position = float3.zero;
         target.Position = targetPosition;
@@ -427,10 +423,8 @@ public sealed class FireControlCut5Tests : IDisposable
         var targetGun = new EquippableItem { Data = gunRef, Durability = 1, Lot = 4 };
         Assert.True(target.TryEquip(targetGun, new int2(0, 0)));
 
-        zone.Entities.Add(shooter);
-        zone.Entities.Add(target);
-        shooter.Activate();
-        target.Activate();
+        zone.Admit(shooter, piloted: false);
+        zone.Admit(target, piloted: false);
 
         return (items, shooter, target, weaponItem);
     }
@@ -576,8 +570,7 @@ public sealed class FireControlCut5Tests : IDisposable
         Assert.True(target.TryEquip(medium, mediumPos));
         var mediumItem = target.Equipment.Single(e => e.EquippableItem == medium);
 
-        zone.Entities.Add(target);
-        target.Activate();
+        zone.Admit(target, piloted: false);
 
         return (items, target, bigItem, mediumItem);
     }
@@ -592,8 +585,7 @@ public sealed class FireControlCut5Tests : IDisposable
         var (items, target, big, medium) = BuildRevealTarget(settings);
         var observerHullRef = items.ItemData.RefOf<ItemData>(items.ItemData.GetByName<HullData>("Hull"));
         var observer = new Ship(items, target.Zone, new EquippableItem { Data = observerHullRef, Durability = 1000, Lot = 1 }, new EntitySettings());
-        target.Zone.Entities.Add(observer);
-        observer.Activate();
+        target.Zone.Admit(observer, piloted: false);
         observer.SetTarget(target);
 
         // With both items alive: Big (index 0) reveals at .2, Medium (index 1) at .8.

@@ -130,8 +130,7 @@ public sealed class MineTests : IDisposable
         var targeting = lab.Make("Targeting", 1);
         Assert.True(layer.TryFindSpace(targeting, out var tpos));
         Assert.True(layer.TryEquip(targeting, tpos));
-        zone.Entities.Add(layer);
-        layer.Activate();
+        zone.Admit(layer, piloted: false);
         layer.Position = layerAt ?? float3(-53, 0, -101);
         lab.Layer = layer;
         zone.Update(1f);
@@ -152,8 +151,7 @@ public sealed class MineTests : IDisposable
             Assert.True(ship.TryFindSpace(gear, out var spos));
             Assert.True(ship.TryEquip(gear, spos));
         }
-        lab.Zone.Entities.Add(ship);
-        ship.Activate();
+        lab.Zone.Admit(ship, piloted: false);
         ship.Position = at;
         if (shield != null) ship.Shield.Item.Enabled.Value = true;
         return ship;

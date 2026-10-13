@@ -159,8 +159,7 @@ public sealed class SignatureTests : IDisposable
             Assert.True(ship.TryEquip(item, at));
         }
 
-        zone.Entities.Add(ship);
-        ship.Activate();
+        zone.Admit(ship, piloted: false);
         ship.Aim = float3(0, 0, 1);
         zone.Update(1f);
         return rig;

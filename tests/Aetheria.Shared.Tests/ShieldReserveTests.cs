@@ -95,8 +95,7 @@ public sealed class ShieldReserveTests : IDisposable
         var shieldData = cache.GetByName<GearData>("Shield");
         Assert.True(ship.TryEquip(Mint(cache, items, shieldData)));
 
-        zone.Entities.Add(ship);
-        ship.Activate();
+        zone.Admit(ship, piloted: false);
 
         return (ship, ship.GetBehavior<Shield>());
     }

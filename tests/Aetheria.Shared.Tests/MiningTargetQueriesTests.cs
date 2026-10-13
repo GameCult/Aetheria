@@ -33,7 +33,7 @@ public sealed partial class MiningCut3Tests
         {
             var observer = Observer(s, at, reach, sensitivity, Falloff());
             if (inReach.Count(observer.ChunkVisible) >= share * inReach.Count) return (s, observer);
-            s.Zone.Entities.Remove(observer);
+            s.Zone.Remove(observer);
         }
         throw new InvalidOperationException("no sensitivity sees the rocks");
     }
@@ -42,7 +42,7 @@ public sealed partial class MiningCut3Tests
     private static Ship Sight(Scene s, Ship observer, float2 at, bool enemy = false)
     {
         var ship = new Ship(s.Items, s.Zone, Mint(s, s.Hull), new EntitySettings());
-        s.Zone.Entities.Add(ship);
+        s.Zone.Admit(ship, piloted: false);
         Hold(ship, at);
         observer.VisibleEntities.Add(ship);
         if (enemy) observer.VisibleEnemies.Add(ship);
@@ -265,7 +265,7 @@ public sealed partial class MiningCut3Tests
                     observer.Aim = float3(cos(heading), 0, sin(heading));
                     Check($"the reticle at {heading}", Cost(observer.TargetUnderReticle, TargetRef.None), reticle);
                 }
-                s.Zone.Entities.Remove(observer);
+                s.Zone.Remove(observer);
             }
         }
         Assert.True(failures.Count == 0, string.Join("; ", failures));
@@ -336,10 +336,9 @@ public sealed partial class MiningCut3Tests
         var ship = new Ship(s.Items, s.Zone, Mint(s, s.Hull), new EntitySettings());
         Assert.True(ship.TryEquip(Mint(s, s.Eye)));
         Assert.True(ship.TryEquip(Mint(s, launcher)));
-        s.Zone.Entities.Add(ship);
+        s.Zone.Admit(ship, piloted: false);
         Hold(ship, at);
         ship.Aim = float3(0, 0, 1);
-        ship.Activate();
         Tick((ship, at));
         Assert.Contains(ship.Weapons, w => w.Range == 400f);
         Assert.True(AllChunks(s).Any(c => length(At(s, c) - at) <= 400f && ship.ChunkVisible(c)), "there are rocks within the launcher's range");
@@ -375,7 +374,7 @@ public sealed partial class MiningCut3Tests
     private static Ship Unseen(Scene s, float2 at)
     {
         var ship = new Ship(s.Items, s.Zone, Mint(s, s.Hull), new EntitySettings());
-        s.Zone.Entities.Add(ship);
+        s.Zone.Admit(ship, piloted: false);
         Hold(ship, at);
         return ship;
     }

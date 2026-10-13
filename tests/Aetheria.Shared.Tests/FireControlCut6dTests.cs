@@ -156,10 +156,8 @@ public sealed class FireControlCut6dTests : IDisposable
             Assert.True(target.TryEquip(marker, markerCell.Value));
         }
 
-        zone.Entities.Add(shooter);
-        zone.Entities.Add(target);
-        shooter.Activate();
-        target.Activate();
+        zone.Admit(shooter, piloted: false);
+        zone.Admit(target, piloted: false);
 
         shooter.Position = float3.zero;
         target.Position = float3(0, 0, targetRange);

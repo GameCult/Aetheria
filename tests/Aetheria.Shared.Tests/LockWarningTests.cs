@@ -105,8 +105,7 @@ public sealed class LockWarningTests : IDisposable
             var gearRef = _items.ItemData.RefOf<ItemData>(_items.ItemData.GetByName<GearData>(launcher));
             Assert.True(ship.TryEquip(new EquippableItem { Data = gearRef, Durability = 1, Lot = _nextLot++ }, HardpointCell));
         }
-        _zone.Entities.Add(ship);
-        ship.Activate();
+        _zone.Admit(ship, piloted: false);
         ship.Position = position;
         _zone.Update(0f); // brings the gear online
         return ship;

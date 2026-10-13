@@ -15,7 +15,29 @@ using float2 = CultMath.float2;
 public class Zone
 {
     public Action<string> Log;
-    public ReactiveCollection<Entity> Entities = new ReactiveCollection<Entity>();
+
+    // Membership, in admission order. Admit and Remove are the only writers; everyone else reads this view, which has
+    // no mutating member, so the death watch below follows membership by construction.
+    private readonly ReactiveCollection<Entity> _entities = new ReactiveCollection<Entity>();
+    public MemberView Entities { get; }
+
+    public sealed class MemberView : IReadOnlyReactiveCollection<Entity>
+    {
+        private readonly ReactiveCollection<Entity> _members;
+        internal MemberView(ReactiveCollection<Entity> members) => _members = members;
+        public int Count => _members.Count;
+        public Entity this[int index] => _members[index];
+        public int IndexOf(Entity entity) => _members.IndexOf(entity);
+        public bool Contains(Entity entity) => _members.Contains(entity);
+        public IEnumerator<Entity> GetEnumerator() => _members.GetEnumerator();
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+        public UniRx.IObservable<CollectionAddEvent<Entity>> ObserveAdd() => _members.ObserveAdd();
+        public UniRx.IObservable<int> ObserveCountChanged(bool notifyCurrentCount = false) => _members.ObserveCountChanged(notifyCurrentCount);
+        public UniRx.IObservable<CollectionMoveEvent<Entity>> ObserveMove() => _members.ObserveMove();
+        public UniRx.IObservable<CollectionRemoveEvent<Entity>> ObserveRemove() => _members.ObserveRemove();
+        public UniRx.IObservable<CollectionReplaceEvent<Entity>> ObserveReplace() => _members.ObserveReplace();
+        public UniRx.IObservable<Unit> ObserveReset() => _members.ObserveReset();
+    }
 
     // Laid mines, in lay order. Zone owns their existence: Lay is the one adder, the mine step the one remover,
     // and every removal is a blast. Runtime state, never saved.
@@ -105,30 +127,13 @@ public class Zone
     // The death ordinal of the loot dice: the nth death in this zone rolls on SimulationDice.For(CombatSeed, LootStream, n).
     private uint _deaths;
 
-    // One death subscription per member entity, owned here: a membership record and its subscription are created
-    // together, and only when the entity is not already a member. Leaving Entities (Remove) or resetting it (Clear)
-    // disposes it; nothing else touches it.
+    // One death subscription per member entity: Admit creates it together with the membership, Remove disposes it
+    // together with the membership, and nothing else touches either.
     private readonly Dictionary<Entity, IDisposable> _deathWatches = new Dictionary<Entity, IDisposable>();
-
-    private void WatchDeath(Entity entity)
-    {
-        if (_deathWatches.ContainsKey(entity)) return;
-        _deathWatches.Add(entity, entity.Death.Subscribe(_ => { DropLoot(entity); Entities.Remove(entity); entity.Deactivate(); }));
-    }
-
-    private void UnwatchDeath(Entity entity)
-    {
-        if (_deathWatches.Remove(entity, out var watch)) watch.Dispose();
-    }
-
-    private void UnwatchAll()
-    {
-        foreach (var watch in _deathWatches.Values) watch.Dispose();
-        _deathWatches.Clear();
-    }
 
     public Zone(ItemManager itemManager, PlanetSettings settings, ZonePack pack, GalaxyZone galaxyZone, Galaxy galaxy)
     {
+        Entities = new MemberView(_entities);
         _time = pack.Time;
         GalaxyZone = galaxyZone;
         Galaxy = galaxy;
@@ -144,11 +149,8 @@ public class Zone
         // ObserveAdd fires for all of them. Forbidden writer: no presentation may remove an entity from Zone.
         // The death watch lives exactly as long as the entity's membership in this zone: installed on admission,
         // disposed on removal (death, dock, jump), so an entity admitted again never holds a second one.
-        Entities.ObserveAdd().Subscribe(add => WatchDeath(add.Value));
-        Entities.ObserveRemove().Subscribe(remove => UnwatchDeath(remove.Value));
-        Entities.ObserveReset().Subscribe(_ => UnwatchAll());
         // The one record of a removal for observers (ruling reveal-ends-on-perception): read by the next Sense pass.
-        Entities.ObserveRemove().Subscribe(remove => _departures.Add(new Departure(remove.Value, remove.Value.Position.xz,
+        _entities.ObserveRemove().Subscribe(remove => _departures.Add(new Departure(remove.Value, remove.Value.Position.xz,
             remove.Value.Visibility - remove.Value.SignatureOn(SignatureChannel.Emission))));
 
         Targets.Add(new EntityTargets());
@@ -205,15 +207,28 @@ public class Zone
         // TODO: Associate planets with stored entities for planetary colonies
     }
 
-    // The one admission into this zone (docs/scenarios-cut.md, 2.2): the only writer of Entities.Add and the only
+    // The one admission into this zone (docs/scenarios-cut.md, 2.2): the only writer of membership and the only
     // creator of agents. Construction, new-run staging (RunStart), warp arrival, undock and the console's spawned
     // turret all join through here. A piloted entity gets the zone's Minion; an unpiloted one gets no agent at all.
-    // Only a ship can be piloted. The Death subscription above covers every join, whichever caller admits it.
+    // Only a ship can be piloted. The death watch is installed here, for every join, whichever caller admits it.
+    // An entity that is already a member is refused: it would hold a second watch and a second agent.
     public void Admit(Entity entity, bool piloted)
     {
-        Entities.Add(entity);
+        if (_entities.Contains(entity)) throw new InvalidOperationException("entity: already a member of this zone");
+        _entities.Add(entity);
+        _deathWatches.Add(entity, entity.Death.Subscribe(_ => { DropLoot(entity); Remove(entity); entity.Deactivate(); }));
         entity.Activate();
         if (piloted) Agents.Add(CreateAgent((Ship) entity));
+    }
+
+    // The one removal from this zone (death, dock, jump): membership and its death watch leave together. False, and
+    // nothing changes, when the entity is not a member. The caller deactivates; Remove does not.
+    public bool Remove(Entity entity)
+    {
+        if (!_entities.Remove(entity)) return false;
+        _deathWatches.Remove(entity, out var watch);
+        watch.Dispose();
+        return true;
     }
 
     private Agent CreateAgent(Ship ship)
@@ -231,7 +246,7 @@ public class Zone
         {
             Radius = Pack.Radius,
             Mass = Pack.Mass,
-            Entities = Entities.Select(EntitySerializer.Pack).ToList(),
+            Entities = _entities.Select(EntitySerializer.Pack).ToList(),
             Orbits = Orbits.Keys.Select(key => new CultRecordRef<OrbitData>(key)).ToList(),
             Planets = Planets.Keys.Select(key => new CultRecordRef<BodyData>(key)).ToList(),
             Time = _time,

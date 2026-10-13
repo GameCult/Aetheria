@@ -133,8 +133,7 @@ public sealed class LootTests : IDisposable
             Assert.True(ship.CargoBays.Single().TryStore(lab.Ore(7)));
             Assert.True(ship.CargoBays.Single().TryStore(lab.Make("Spare")));
         }
-        lab.Zone.Entities.Add(ship);
-        ship.Activate();
+        lab.Zone.Admit(ship, piloted: false);
         ship.Position = at;
         return ship;
     }
@@ -153,8 +152,7 @@ public sealed class LootTests : IDisposable
             Assert.True(station.TryEquip(spare, pos));
             Assert.True(station.CargoBays.Single().TryStore(lab.Ore(3)));
         }
-        lab.Zone.Entities.Add(station);
-        station.Activate();
+        lab.Zone.Admit(station, piloted: false);
         station.Position = at;
         return station;
     }
@@ -393,10 +391,10 @@ public sealed class LootTests : IDisposable
         var lab = Build(probability: 1f);
         var ship = Spawn(lab, float3(3, 0, 4));
         // What Entity.TryDock then Entity.TryUndock do to the zone: Entities.Remove + Deactivate, then Zone.Admit.
-        lab.Zone.Entities.Remove(ship);
+        lab.Zone.Remove(ship);
         ship.Deactivate();
         lab.Zone.Admit(ship, piloted: false);
-        lab.Zone.Entities.Remove(ship);
+        lab.Zone.Remove(ship);
         lab.Zone.Admit(ship, piloted: false);
         Kill(ship);
         var dropped = lab.Zone.FloatingItems.Select(f => f.Item).ToList();
@@ -412,7 +410,7 @@ public sealed class LootTests : IDisposable
         var ship = Spawn(lab, float3(3, 0, 4));
         // What ActionGameManager does on a jump.
         ship.Deactivate();
-        lab.Zone.Entities.Remove(ship);
+        lab.Zone.Remove(ship);
         ship.Zone = other;
         other.Admit(ship, piloted: false);
         Kill(ship);
@@ -509,9 +507,10 @@ public sealed class LootTests : IDisposable
         Assert.True(lab.Zone.FloatingItems.Select(f => Math.Round(Math.Atan2(f.Body.Velocity.y, f.Body.Velocity.x), 3)).Distinct().Count() > 1);
     }
 
-    // A member added twice holds one death subscription, so it drops each item once, as a single death would.
+    // Membership has one owner (aetheria-release zone-entities-encapsulation): a second admission of a member is
+    // refused, so it never holds a second death watch and the zone never lists it twice.
     [Fact]
-    public void AMemberAddedTwiceStillDropsEachItemOnce()
+    public void AMemberAdmittedTwiceIsRefusedAndStillDropsEachItemOnce()
     {
         var once = Build("Once", probability: 1f);
         Kill(Spawn(once, float3(3, 0, 4)));
@@ -520,20 +519,45 @@ public sealed class LootTests : IDisposable
 
         var lab = Build("Twice", probability: 1f);
         var ship = Spawn(lab, float3(3, 0, 4));
-        lab.Zone.Entities.Add(ship);
+        Assert.Throws<InvalidOperationException>(() => lab.Zone.Admit(ship, piloted: false));
+        Assert.Equal(1, lab.Zone.Entities.Count(e => e == ship));
         Kill(ship);
         Assert.Equal(baseline, lab.Zone.FloatingItems.Count);
     }
 
-    // Clearing Entities removes every member, so a death afterwards drops nothing in this zone.
+    // Remove is the one removal: a non-member is refused with nothing changed, and a member's removal takes its death
+    // watch with it, so a death signal afterwards drops nothing and a re-admission watches exactly once.
     [Fact]
-    public void AClearedZoneDropsNothingWhenAFormerMemberDies()
+    public void RemovingANonMemberChangesNothingAndARemovedMembersWatchGoesWithIt()
     {
-        var lab = Build("Cleared", probability: 1f);
+        var lab = Build(probability: 1f);
         var ship = Spawn(lab, float3(3, 0, 4));
-        lab.Zone.Entities.Clear();
+        var stranger = Spawn(Build("Elsewhere", probability: 1f), float3(1, 0, 1));
+        var members = lab.Zone.Entities.Count;
+        Assert.False(lab.Zone.Remove(stranger));
+        Assert.Equal(members, lab.Zone.Entities.Count);
+
+        Assert.True(lab.Zone.Remove(ship));
+        Assert.False(lab.Zone.Remove(ship));
         Kill(ship);
         Assert.Empty(lab.Zone.FloatingItems);
+
+        ship.Deactivate();
+        lab.Zone.Admit(ship, piloted: false);
+        Kill(ship);
+        var dropped = lab.Zone.FloatingItems.Select(f => f.Item).ToList();
+        Assert.NotEmpty(dropped);
+        Assert.Equal(dropped.Count, dropped.Distinct().Count());
+    }
+
+    // The membership view has no mutating member: a caller can read it and subscribe to it, and nothing else.
+    [Fact]
+    public void TheMembershipViewOffersNoWayToMutateMembership()
+    {
+        var lab = Build();
+        Spawn(lab, float3(3, 0, 4));
+        Assert.IsNotAssignableFrom<System.Collections.Generic.ICollection<Entity>>(lab.Zone.Entities);
+        Assert.IsNotAssignableFrom<System.Collections.IList>(lab.Zone.Entities);
     }
 
     // The pickup is whole or nothing at the arithmetic boundary: two stacks of 90 hold 20 more in all and no free

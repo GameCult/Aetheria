@@ -224,10 +224,8 @@ public sealed class FireControlCut123Tests : IDisposable
             cockpit = target.Equipment.Single(x => x.EquippableItem == ci);
         }
 
-        zone.Entities.Add(shooter);
-        zone.Entities.Add(target);
-        shooter.Activate();
-        target.Activate();
+        zone.Admit(shooter, piloted: false);
+        zone.Admit(target, piloted: false);
 
         // Cut 11.3: the shooter sits off the origin.
         shooter.Position = float3(37, 0, -11);

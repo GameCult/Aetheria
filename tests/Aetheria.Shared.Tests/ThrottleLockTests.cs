@@ -105,9 +105,8 @@ public sealed class ThrottleLockTests : IDisposable
         }
         Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.CounterClockwise), new int2(1, 3)));
         Assert.True(ship.TryEquip(Mint(cache, items, gear, ItemRotation.Clockwise), new int2(3, 3)));
-        zone.Entities.Add(ship);
+        zone.Admit(ship, piloted: false);
         ship.Aim = float3(0, 0, 1);
-        ship.Activate();
         // A thruster is live from its first performance update; the allocator reads that every tick.
         foreach (var item in ship.Equipment) item.UpdatePerformance();
 

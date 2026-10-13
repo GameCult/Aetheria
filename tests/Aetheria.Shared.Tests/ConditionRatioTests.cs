@@ -96,9 +96,8 @@ public sealed class ConditionRatioTests : IDisposable
         // not flight, and a lone off-centre thruster could not fire without turning.
         Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("Consumer")), new int2(2, 1)));
 
-        zone.Entities.Add(ship);
+        zone.Admit(ship, piloted: false);
         ship.Aim = float3(0, 0, 1); // Turn stays 0, as in BrownoutTests
-        ship.Activate();
         consumer = ship.Equipment.Single(e => e.Data.Name == "Consumer");
         Assert.True(ship.GetBehavior<Thruster>().Torque == 0f, "the lone thruster turns nothing");
 

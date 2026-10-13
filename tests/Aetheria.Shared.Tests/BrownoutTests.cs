@@ -113,11 +113,10 @@ public sealed class BrownoutTests : IDisposable
         // not flight, and a lone off-centre thruster could not fire without turning.
         Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("Consumer")), new int2(2, 1)));
 
-        zone.Entities.Add(ship);
+        zone.Admit(ship, piloted: false);
         // Ship.Turn stays 0, so Ship.Update commands no rotation: no incidental torque thrust from the
         // ship trying to turn. Aim steers nothing, so this one is only a plausible aim.
         ship.Aim = float3(0, 0, 1);
-        ship.Activate();
         return ship;
     }
 

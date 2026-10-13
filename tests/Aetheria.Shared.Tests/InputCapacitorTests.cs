@@ -97,8 +97,7 @@ public sealed class InputCapacitorTests : IDisposable
 
         Assert.True(ship.TryEquip(Mint(cache, items, reactorData)));
 
-        zone.Entities.Add(ship);
-        ship.Activate();
+        zone.Admit(ship, piloted: false);
 
         return (ship, items, ship.GetBehavior<Reactor>());
     }

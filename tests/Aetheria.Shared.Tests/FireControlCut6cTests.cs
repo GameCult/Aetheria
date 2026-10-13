@@ -138,10 +138,8 @@ public sealed class FireControlCut6cTests : IDisposable
         var targetGun = new EquippableItem { Data = targetGunRef, Durability = 1, Lot = 9 };
         Assert.True(target.TryEquip(targetGun, new int2(0, 0)));
 
-        zone.Entities.Add(shooter);
-        zone.Entities.Add(target);
-        shooter.Activate();
-        target.Activate();
+        zone.Admit(shooter, piloted: false);
+        zone.Admit(target, piloted: false);
 
         shooter.Position = float3.zero;
         target.Position = float3(0, 0, targetRange);
@@ -267,8 +265,7 @@ public sealed class FireControlCut6cTests : IDisposable
 
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test", Owner = null }, null);
         var entity = EntitySerializer.Unpack(items, zone, pack);
-        zone.Entities.Add(entity);
-        entity.Activate();
+        zone.Admit(entity, piloted: false);
         zone.Update(0f);
 
         Assert.Null(entity.GetBehavior<TargetingSystem>());

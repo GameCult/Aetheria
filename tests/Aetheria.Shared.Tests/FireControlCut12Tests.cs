@@ -269,10 +269,8 @@ public sealed class FireControlCut12Tests : IDisposable
             Assert.True(target.TryEquip(shield, spos));
         }
 
-        zone.Entities.Add(shooter);
-        zone.Entities.Add(target);
-        shooter.Activate();
-        target.Activate();
+        zone.Admit(shooter, piloted: false);
+        zone.Admit(target, piloted: false);
 
         // Cut 11.3: the shooter sits off the origin -- a shooter at float3.zero makes `target - source` and
         // `target + source` the same vector, hiding a whole class of sign mutants.

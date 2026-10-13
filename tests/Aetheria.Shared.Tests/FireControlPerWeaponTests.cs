@@ -238,10 +238,8 @@ public sealed class FireControlPerWeaponTests : IDisposable
         var target = new Ship(items, zone, new EquippableItem { Data = hullRef, Durability = 1000000, Lot = lot++ }, new EntitySettings());
         Assert.True(target.TryEquip(Make("Gun", lot++, 1), new int2(0, 0)));
 
-        zone.Entities.Add(shooter);
-        zone.Entities.Add(target);
-        shooter.Activate();
-        target.Activate();
+        zone.Admit(shooter, piloted: false);
+        zone.Admit(target, piloted: false);
 
         shooter.Position = float3(-53, 0, -101);
         target.Position = shooter.Position + float3(0, 0, targetRange);

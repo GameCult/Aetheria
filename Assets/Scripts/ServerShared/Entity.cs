@@ -1507,7 +1507,7 @@ public abstract class Entity
         {
             bay.DockedShip = ship;
             ship.SetParent(this);
-            Zone.Entities.Remove(ship);
+            Zone.Remove(ship);
             ship.Deactivate();
             ship.Docked.OnNext(this);
         }

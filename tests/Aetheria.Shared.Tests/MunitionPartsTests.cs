@@ -266,8 +266,7 @@ public sealed class MunitionPartsTests : IDisposable
             Assert.True(ship.TryEquip(new EquippableItem { Data = cache.RefOf<ItemData>(gear), Durability = gear.Durability, Lot = 1 }, new int2(x, y)), name);
         }
         Assert.True(ship.TryEquip(new EquippableItem { Data = cache.RefOf<ItemData>(gt), Durability = gt.Durability, Lot = 2 }, hardpoint.Position));
-        zone.Entities.Add(ship);
-        ship.Activate();
+        zone.Admit(ship, piloted: false);
         // Settle at the item's optimal temperature, as ConditionRatioTests does, so heat and wear read their identity and only
         // the role's quality moves a stat.
         var item = ship.Equipment.Single(e => e.Data.Name == "GT 3K");

@@ -103,8 +103,7 @@ public sealed class PowerCurveTests : IDisposable
         Assert.True(ship.TryEquip(Mint(cache, items, reactorData)));
         Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("Engine"))));
 
-        zone.Entities.Add(ship);
-        ship.Activate();
+        zone.Admit(ship, piloted: false);
         return ship;
     }
 
@@ -408,9 +407,8 @@ public sealed class PowerCurveTests : IDisposable
         var ship = new Ship(items, zone, hullItem, new EntitySettings());
         Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("Drain")), HardpointCell));
         Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("Booster")), SecondHardpointCell));
-        zone.Entities.Add(ship);
 
-        var error = Assert.Throws<InvalidOperationException>(() => ship.Activate());
+        var error = Assert.Throws<InvalidOperationException>(() => zone.Admit(ship, piloted: false));
         Assert.Contains("Drain", error.Message);   // the item whose request would be corrupted
         Assert.Contains("Booster", error.Message); // the item whose modifier would corrupt it
     }

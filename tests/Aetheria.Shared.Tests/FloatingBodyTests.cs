@@ -239,9 +239,8 @@ public sealed class FloatingBodyTests : IDisposable
             Lot = items.Lots.Add(new Lot { Design = cache.RefOf<ItemData>(design), Origin = new Attributed(), Quality = .5f, Roles = new List<RoleFill>() })
         };
         var ship = new Ship(items, zone, hull, new EntitySettings());
-        zone.Entities.Add(ship);
+        zone.Admit(ship, piloted: false);
         ship.Aim = float3(0, 0, 1);
-        ship.Activate();
         ship.Position = float3(x, 0, 0);
         return ship;
     }
