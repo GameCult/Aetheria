@@ -198,7 +198,7 @@ public static class FloatingItemsDrawnSmoke
         var claimedAt = new CultMath.float3(early.HeldFrom.x, 0f, early.HeldFrom.y);
         foreach (var elapsed in new[] { 0f, extend + envelop - .01f, extend + envelop + .3f, extend + envelop + .75f, extend + envelop + pull })
         {
-            zone.SetHeldProgress(early.Id, FieldTester.PullProgress(elapsed, extend, envelop, pull));
+            zone.SetHeldProgress(early.Id, Mathf.Clamp01((elapsed - extend - envelop) / pull)); // the pull starts after Extend and Envelop
             zone.Update(.01f);
             var want = FieldTester.PulledPosition(claimedAt, holderAt, elapsed, extend, envelop, pull);
             Require(Mathf.Abs(early.Body.Position.x - want.x) < 1e-3f && Mathf.Abs(early.Body.Position.y - want.z) < 1e-3f,
