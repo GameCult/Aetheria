@@ -190,7 +190,7 @@ public sealed partial class ContactRevealTests
         Assert.Same(decoy, e.ClaimOf(e.EquippedHull));
         Assert.Same(decoy, e.ClaimedHull);
 
-        e.SetSignature(new object(), SignatureChannel.LaunchFlash, 1000f, e.EquippedHull);
+        e.SetSignature(new object(), SignatureChannel.LaunchFlash, 1000000f, e.EquippedHull);
         Tick(.1f);
 
         var reveal = Assert.Single(o.RevealsOf(e), r => r.Item == e.EquippedHull);
