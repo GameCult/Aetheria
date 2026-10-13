@@ -189,6 +189,7 @@ public interface IPowerConsumer
  Union(45, typeof(MunitionSeekerData)),
  Union(46, typeof(MunitionControlData)),
  Union(47, typeof(MunitionFuelData)),
+ Union(48, typeof(PickupData)),
  JsonObject(MemberSerialization.OptIn)]
 public abstract class BehaviorData
 {

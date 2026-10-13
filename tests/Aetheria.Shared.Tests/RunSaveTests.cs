@@ -80,6 +80,52 @@ public sealed class RunSaveTests : IDisposable
         Assert.Equal(8, RecordsIn(Run));
     }
 
+    // Continue finds the player's entity by its place in the saved zone: the index Capture writes must be the entity's
+    // place in the live zone, and survive the round trip to the same entity's pack.
+    [Fact]
+    public void ThePlayersZoneIndexSurvivesSaveAndContinue()
+    {
+        using (var cache = AetheriaStores.Open(Catalog, catalogWritable: true))
+        {
+            var shape = new Shape(4, 4);
+            foreach (var cell in shape.AllCoordinates) shape[cell] = true;
+            foreach (var name in new[] { "Skiff", "Barge" })
+                cache.Upsert(new HullData { Name = name, HullType = HullType.Ship, Shape = shape, Durability = 100, Mass = 100 });
+            cache.FlushAsync().Wait();
+        }
+
+        using (var cache = Open())
+            RunSave.Commit(cache, Game(cache), Zones(2, StageZoneContents(cache), 0), new ProvenanceLedger());
+
+        using (var cache = Open())
+        {
+            var galaxy = new Galaxy(cache, cache.GetGlobal<SavedGame>(), _ => { });
+            var ledger = new ProvenanceLedger();
+            for (var i = 1; i <= 2; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = 1 };
+            var items = new ItemManager(cache, ledger, TestSettings(), _ => { });
+            var zone = new Zone(items, new PlanetSettings(), new ZonePack(), galaxy.Zones[0], galaxy);
+            galaxy.Zones[0].Contents = zone;
+            Ship Make(string hull, int lot) => new Ship(items, zone, new EquippableItem
+            {
+                Data = items.ItemData.RefOf<ItemData>(items.ItemData.GetByName<HullData>(hull)), Durability = 100, Lot = lot
+            }, new EntitySettings());
+            var other = Make("Skiff", 1);
+            var player = Make("Barge", 2);
+            zone.Admit(other, piloted: false);
+            zone.Admit(player, piloted: false);
+            var (game, zones) = RunSave.Capture(cache, galaxy, zone, player, new SavedActionBarBinding[0], 0);
+            RunSave.Commit(cache, game, zones, items.Lots);
+        }
+
+        using (var cache = Open())
+        {
+            var saved = cache.GetGlobal<SavedGame>();
+            Assert.Equal(1, saved.CurrentZoneEntity);
+            var packs = cache.Get(saved.Zones[saved.CurrentZone]).Contents.Entities;
+            Assert.Equal("Barge", cache.Get(packs[saved.CurrentZoneEntity].Hull.Data).Name);
+        }
+    }
+
     [Fact]
     public void ResumeThenSaveKeepsUnloadedZoneContents()
     {

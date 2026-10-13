@@ -60,9 +60,9 @@ public class FieldTester : MonoBehaviour
             Debug.LogError("FieldTester expects a CapabilityPresentationBinder on TestField's GameObject; no capability events will reach the field.");
         else
             binder.Bind(_capabilityEvents,
-                grabTargetResolver: handle => handle >= 0 && handle < _pickups.Count ? _pickups[handle].transform : null,
-                grabInitialVelocityResolver: handle => Vector3.forward *
-                    (PickupTravelDistance / lerp(PickupTravelTimeMin, PickupTravelTimeMax, _pickups[handle].lerp)));
+                grabTargetResolver: id => (int) id.Value >= 0 && (int) id.Value < _pickups.Count ? _pickups[(int) id.Value].transform : null,
+                grabInitialVelocityResolver: id => Vector3.forward *
+                    (PickupTravelDistance / lerp(PickupTravelTimeMin, PickupTravelTimeMax, _pickups[(int) id.Value].lerp)));
 
         // Impact absorption (fork L): what used to be FieldDriver's own click handler is now this
         // scene's stand-in for whatever will eventually detect a hit and publish AbsorbEvent.
@@ -102,7 +102,7 @@ public class FieldTester : MonoBehaviour
                 if (!TestField.CanGrab) return;
                 click.Clear();
                 var p = _pickups[i1];
-                _capabilityEvents.PublishGrab(new GrabEvent(i1, GrabPhase.Started, p.transform.position.ToCultMath(), 0));
+                _capabilityEvents.PublishGrab(new GrabEvent(new FloatingBodyId((uint) i1), GrabPhase.Started, p.transform.position.ToCultMath(), 0));
                 p.transform = null;
                 _pickups[i1] = p;
             };

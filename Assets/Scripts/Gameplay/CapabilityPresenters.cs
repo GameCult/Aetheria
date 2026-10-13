@@ -11,7 +11,7 @@ public interface IAbsorbPresenter
 }
 
 // Grab needs a live Transform to animate, which the engine-free GrabEvent cannot carry (its
-// TargetHandle is a plain identity, not a Unity reference). The binder resolves the handle through a
+// Target is a plain identity, not a Unity reference). The binder resolves the id through a
 // delegate supplied by the event source's owner and hands the presenter the result, along with the
 // initial velocity the target was already moving with (also owner-supplied, for the same reason).
 public interface IGrabPresenter

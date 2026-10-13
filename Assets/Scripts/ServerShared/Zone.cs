@@ -48,7 +48,8 @@ public class Zone
     public ReactiveCollection<VapourCloud> Clouds = new ReactiveCollection<VapourCloud>();
 
     // Floating items (death drops, jettisoned cargo), in release order. Zone owns their existence: Release is the one
-    // adder; StepFloatingItems (expiry) and TryPickUp are the only removers. Runtime state, never saved.
+    // adder; StepFloatingItems (expiry) and TryPickUp are the only removers. TryHold, Free and Remove-of-the-holder
+    // are the only writers of FloatingItem.Holder. Runtime state, never saved.
     public ReactiveCollection<FloatingItem> FloatingItems = new ReactiveCollection<FloatingItem>();
     public Dictionary<CultRecordKey, BodyData> Planets = new Dictionary<CultRecordKey, BodyData>();
     public Dictionary<CultRecordKey, Planet> PlanetInstances = new Dictionary<CultRecordKey, Planet>();
@@ -228,6 +229,8 @@ public class Zone
         if (!_entities.Remove(entity)) return false;
         _deathWatches.Remove(entity, out var watch);
         watch.Dispose();
+        foreach (var floating in FloatingItems)
+            if (ReferenceEquals(floating.Holder, entity)) Free(floating.Id);
         return true;
     }
 
@@ -330,12 +333,42 @@ public class Zone
 
     // The one commit of a pickup: the first of the taker's cargo bays that accepts the item stores it and the item
     // stops floating. Otherwise nothing changes.
+    // An item held by another entity is refused: one holder per item holds at the commit as well.
     public bool TryPickUp(Entity taker, FloatingBodyId id)
     {
         var floating = FloatingItems.FirstOrDefault(f => f.Id.Equals(id));
-        if (floating == null || !taker.CargoBays.Any(bay => bay.TryStore(floating.Item))) return false;
+        if (floating == null || (floating.Holder != null && !ReferenceEquals(floating.Holder, taker))) return false;
+        if (!taker.CargoBays.Any(bay => bay.TryStore(floating.Item))) return false;
         FloatingItems.Remove(floating);
         return true;
+    }
+
+    // The tractor beam's claim on a floating item: false if it is absent or already held. The item stays where it is
+    // until its pull begins; StepFloatingItems places it from then on.
+    public bool TryHold(Entity holder, FloatingBodyId id)
+    {
+        var floating = FloatingItems.FirstOrDefault(f => f.Id.Equals(id));
+        if (floating == null || floating.Holder != null) return false;
+        floating.Holder = holder;
+        floating.HeldFrom = floating.Body.Position;
+        floating.HeldProgress = 0;
+        return true;
+    }
+
+    // How far along its pull to the holder a held item is, 0..1.
+    public void SetHeldProgress(FloatingBodyId id, float progress)
+    {
+        var floating = FloatingItems.FirstOrDefault(f => f.Id.Equals(id));
+        if (floating?.Holder != null) floating.HeldProgress = saturate(progress);
+    }
+
+    // Lets a held item go: it floats on from where it is with the Velocity and Drift it had.
+    public void Free(FloatingBodyId id)
+    {
+        var floating = FloatingItems.FirstOrDefault(f => f.Id.Equals(id));
+        if (floating == null) return;
+        floating.Holder = null;
+        floating.HeldProgress = 0;
     }
 
     // Called from the death subscription, before the entity leaves the zone: one generator per death. Each equipped
@@ -359,12 +392,18 @@ public class Zone
     }
 
     // After StepClouds and before FireControl.Step: each floating item drifts as a KinematicBody on the zone's force
-    // and is removed once its lifetime has run out.
+    // and is removed once its lifetime has run out. A held item is neither integrated nor expired: it is placed
+    // between where it was claimed and its holder, now that the entities have moved.
     private void StepFloatingItems(float deltaTime)
     {
         var settings = _itemManager.GameplaySettings;
         foreach (var floating in FloatingItems.ToArray())
         {
+            if (floating.Holder != null)
+            {
+                floating.Body.Position = lerp(floating.HeldFrom, floating.Holder.Position.xz, smoothstep(0f, 1f, floating.HeldProgress));
+                continue;
+            }
             floating.Body.Step(deltaTime, GetForce(floating.Body.Position), settings);
             if (floating.ReleasedAt + floating.Lifetime <= _time) FloatingItems.Remove(floating);
         }
