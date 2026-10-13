@@ -138,6 +138,13 @@ public sealed class PickupTests : IDisposable
         for (var i = 0; i < ticks; i++) lab.Zone.Update(dt);
     }
 
+    // Ticks until the condition holds, for at most twenty sim seconds; a grab that never comes fails here instead of hanging.
+    private static void Until(Lab lab, float dt, Func<bool> done)
+    {
+        for (var tick = 0; tick < 1200 && !done(); tick++) lab.Zone.Update(dt);
+        Assert.True(done(), "the expected moment never came");
+    }
+
     private static void Kill(Entity e) => e.HeatstrokeDeath.OnNext(Unit.Default);
 
     [Fact]
@@ -394,7 +401,7 @@ public sealed class PickupTests : IDisposable
             var target = Drift(other, 40, 0);
             var seen = Watch(pilot, bag);
             pilot.TractorCommand = 1;
-            while (!seen.Any(e => departAtPull ? e.Phase == GrabPhase.Pull : e.Phase == GrabPhase.Extend)) other.Zone.Update(dt);
+            Until(other, dt, () => seen.Any(e => departAtPull ? e.Phase == GrabPhase.Pull : e.Phase == GrabPhase.Extend));
             pilot.Position = float3(-200, 0, 0);
             Tick(other, 120, dt);
             if (departAtPull)
@@ -434,8 +441,10 @@ public sealed class PickupTests : IDisposable
             var other = Build(Beam());
             var lone = Spawn(other, float3(0, 0, 0));
             var stray = Drift(other, x, y);
+            var attempts = Watch(lone, bag);
             lone.TractorCommand = 1;
             Tick(other, 240, 1 / 60f);
+            Assert.Empty(attempts);
             Assert.Null(stray.Holder);
             Assert.Contains(stray, other.Zone.FloatingItems);
         }
@@ -461,17 +470,18 @@ public sealed class PickupTests : IDisposable
         var item = Drift(lab, 40, 0, float2(3, 0));
         var events = Watch(ship, bag);
         ship.TractorCommand = 1;
-        while (item.Holder == null) lab.Zone.Update(dt);
+        Until(lab, dt, () => item.Holder != null);
         var claimed = item.Body.Position;
         Assert.Equal(claimed, item.HeldFrom);
 
         // Through Extend and Envelop the item stays where it was claimed, whatever velocity it had.
-        while (!events.Any(e => e.Phase == GrabPhase.Pull))
+        for (var guard = 0; guard < 1200 && !events.Any(e => e.Phase == GrabPhase.Pull); guard++)
         {
             lab.Zone.Update(dt);
             if (events.Any(e => e.Phase == GrabPhase.Pull)) break;
             Assert.Equal(claimed, item.Body.Position);
         }
+        Assert.Contains(events, e => e.Phase == GrabPhase.Pull);
 
         // During the pull it moves toward the holder, and a held item outlives its lifetime.
         lab.Zone.Update(dt * 10);
