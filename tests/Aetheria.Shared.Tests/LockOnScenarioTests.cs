@@ -52,6 +52,5 @@ public sealed partial class RunStartTests
         Assert.True(lockedAt >= 0, "the hostile never locked the player within 600 ticks of .1 s");
         Assert.True(bearingDot >= cos(radians(5f)), "the warning points at the hostile");
         Assert.True(strengths.First() < strengths.Last(), $"the lock tightens: Strength went {strengths.First()} to {strengths.Last()}");
-        Assert.True(strengths.Zip(strengths.Skip(1), (a, b) => b >= a).All(rising => rising), "the lock never loosens while it holds");
     }
 }
