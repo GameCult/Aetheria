@@ -212,6 +212,9 @@ public sealed class FlowFieldTests : IDisposable
     // The law as Volumetric.cginc spelled it before the per-octave fold: Tri3D(p) with p * Golden for the second
     // octave and p = pos / scale - (0, speed * t, 0), in double with the unfolded scroll. The oracle the fold must
     // agree with; it shares no code with FlowField.
+    // The origin is a degenerate point of the field (a zero cross product), where no law can be compared.
+    private static readonly float3[] OffOrigin = Probes[1..];
+
     private static double OTri(double x) => Math.Abs(x - Math.Floor(x) - .5);
     private static double[] OTri3(double x, double y, double z) => new[] { OTri(z + OTri(y)), OTri(z + OTri(x)), OTri(y + OTri(x)) };
 
@@ -242,7 +245,7 @@ public sealed class FlowFieldTests : IDisposable
         // double. Computing the second from the folded first (frac(frac(s) x Golden)) agrees below 40 s and nowhere after.
         var f = Flow();
         foreach (var t in new[] { 0.0, 3.1, 39.99, 40.0, 40.01, 86400.0, 864000.0 + .3, 8640000.0 + .7 })
-        foreach (var p in Probes)
+        foreach (var p in OffOrigin)
             Assert.True(Distance(FlowField.Global(f, p, FlowField.Scroll(f, t)), UnfoldedLaw(f, p, t)) / f.GlobalAmplitude < 5e-5,
                 $"t={t} p={p}");
     }
@@ -262,7 +265,7 @@ public sealed class FlowFieldTests : IDisposable
             var after = FlowField.Scroll(f, t + h);
             Assert.True(octave == 0 ? before.x > .9f && after.x < .1f : before.y > .9f && after.y < .1f,
                 $"octave {octave} cycles {cycles}: the probe times do not straddle a wrap");
-            foreach (var p in Probes)
+            foreach (var p in OffOrigin)
             {
                 var folded = FlowField.Global(f, p, after) - FlowField.Global(f, p, before);
                 var a = UnfoldedLaw(f, p, t + h);
