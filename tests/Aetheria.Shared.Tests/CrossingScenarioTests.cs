@@ -21,8 +21,8 @@ public sealed partial class RunStartTests
         Assert.Equal(4, galaxy.HomeZones.Count);
 
         var player = staged.Player;
-        var plight = player.Equipment.Single(item => item.Data.Name == "plight");
-        var small = player.Equipment.Single(item => item.Data.Name == "FastBlast+-");
+        var plight = player.Equipment.Single(item => item.Data.Name == "Lightning Projector");
+        var small = player.Equipment.Single(item => item.Data.Name == "Cell Blaster");
         Assert.Contains(player.Equipment, item => item.Data.Name == "Fire Control Array");
         var groupOf = new System.Func<EquippedItem, int>(item => System.Array.FindIndex(player.WeaponGroups, group => group.items.Contains(item)));
         Assert.True(groupOf(plight) >= 0 && groupOf(small) >= 0, "both guns are in a weapon group");

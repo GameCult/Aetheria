@@ -406,7 +406,7 @@ public static class Program
     private static (float Mean, float Dev, string Basis) AuthorProductRole(AetherDb db, FactionProductData product, string designName, string role)
     {
         var maker = db.Cache.Get(product.Manufacturer)?.Name;
-        if (designName == "Arctica" && maker == "Alakrita" && role == "fins")
+        if (designName == "Adaptive Radiator" && maker == "Alakrita" && role == "fins")
             return (.78f, .07f, "lore: Alakrita brands on heat efficiency (item-provenance-target.md)");
 
         var hash = StableHash($"{product.Name}|{role}");
@@ -1175,10 +1175,10 @@ public static class Program
         var newDesigns = new (GearData Design, string ProductName, Faction Maker, string ProductDescription, (string Role, float Mean, float Dev)[] Roles)[]
         {
             (targetingComputer, "LockOn", FactionByShortName("NiteLife"),
-                "Keeps the lights on your target. (new text)",
+                "Keeps the lights on your target.",
                 new[] { ("processor", .55f, .15f), ("array", .5f, .16f) }),
             (fireControlArray, "LockOn Pro", FactionByShortName("NiteLife"),
-                "Same promise, sharper lock. (new text)",
+                "Same promise, sharper lock.",
                 new[] { ("processor", .72f, .12f), ("array", .68f, .13f) }),
         };
 
@@ -1191,17 +1191,17 @@ public static class Program
         // outside this cut's brief).
         var existingDesigns = new (string DesignName, string ProductName, Faction Maker, string ProductDescription, (string Role, float Mean, float Dev)[] Roles)[]
         {
-            ("plight", "DragOnBreath", FactionByShortName("Lucent"),
-                "The subsidiary plight's own description already namechecks: DragOnBreath, a Lucent Media property.",
+            ("Lightning Projector", "DragOnBreath", FactionByShortName("Lucent"),
+                "Chain lightning has your enemies chain smoking while you enjoy a relaxing DragOnBreath vapepop, now available in 17! flavours (manufactured by DragOnBreath, a subsidary of Lucent Media)",
                 new[] { ("focusing array", .7f, .13f), ("power coupling", .55f, .15f) }),
-            ("pswarm", "Leonid", FactionByShortName("AU"),
+            ("Swarm Rocket Pod", "Leonid", FactionByShortName("AU"),
                 "A rain of pain that falls mainly on space planes.",
                 new[] { ("guidance system", .65f, .14f), ("thruster", .63f, .15f), ("warhead", .7f, .13f) }),
-            ("Core Power", "Steadfast", FactionByShortName("R&D"),
-                "Rated for continuous operation. \"Continuous\" does not imply \"uninterrupted.\" (new text)",
+            ("Compact Reactor", "Steadfast", FactionByShortName("R&D"),
+                "It gets the job done, but that's all. Rated for continuous operation. \"Continuous\" does not imply \"uninterrupted.\"",
                 new[] { ("core", .5f, .12f), ("regulator", .5f, .12f) }),
             ("Large Drive", "True North", FactionByShortName("Lightsail"),
-                "Gets your cargo there. Getting you there is your problem. (new text)",
+                "Gets your cargo there. Getting you there is your problem.",
                 Array.Empty<(string, float, float)>()),
         };
 
@@ -1313,16 +1313,16 @@ public static class Program
         var newProducts = new (GearData Design, string ProductName, Faction Maker, string ProductDescription, (string Role, float Mean, float Dev)[] Roles)[]
         {
             (targetingComputer, "Panopticon", FactionByShortName("Finch"),
-                "Sees everything, judges nothing. Well, mostly nothing. (new text)",
+                "Sees everything, judges nothing. Well, mostly nothing.",
                 new[] { ("processor", .5f, .13f), ("array", .58f, .12f) }),
             (fireControlArray, "Panopticon Prime", FactionByShortName("Finch"),
-                "The upgrade nobody at Finch will admit they needed until they had it. (new text)",
+                "The upgrade nobody at Finch will admit they needed until they had it.",
                 new[] { ("processor", .68f, .11f), ("array", .75f, .10f) }),
             (targetingComputer, "ClapBack", FactionByShortName("Lucent"),
-                "Your target won't clock it until the killcam. (new text)",
+                "Your target won't clock it until the killcam.",
                 new[] { ("processor", .6f, .16f), ("array", .48f, .15f) }),
             (fireControlArray, "ClapBack Ultra", FactionByShortName("Lucent"),
-                "Now with main-character energy built in. (new text)",
+                "Now with main-character energy built in.",
                 new[] { ("processor", .78f, .14f), ("array", .65f, .13f) }),
         };
 
@@ -1528,7 +1528,7 @@ public static class Program
         static void Set(PerformanceStat stat, float min, float max) { stat.Min = min; stat.Max = max; }
         static void Track(WeaponData data, float rate) => data.Tracking = new PerformanceStat { Min = rate, Max = rate, Terms = new List<StatTerm>() };
 
-        var gun = Copy(Template("ClearPath"), designNames[0], "Close-in defence gun: a hose of light rounds.", 40f, 80000, 60f, 1, 1, WeaponModifiers.RapidFire);
+        var gun = Copy(Template("Light Machine Gun"), designNames[0], "Close-in defence gun: a hose of light rounds.", 40f, 80000, 60f, 1, 1, WeaponModifiers.RapidFire);
         var gunData = gun.Behaviors.OfType<InstantWeaponData>().Single();
         Set(gunData.Damage, 1.5f, 4f); Set(gunData.Range, 300f, 550f); Set(gunData.MinRange, 0f, 0f);
         Set(gunData.Cooldown, .06f, .025f); Set(gunData.Count, 1f, 1f); Set(gunData.Spread, 1f, .3f);
@@ -1536,14 +1536,14 @@ public static class Program
         gunData.AmmoType = db.Cache.RefOf(ammunition); gunData.MagazineSize = 250; gunData.ReloadTime = 3f;
         Track(gunData, 40f);
 
-        var laser = Copy(Template("Spectra"), designNames[1], "Close-in defence beam: quick, light, instant.", 30f, 110000, 30f, 1, 1, Template("Spectra").WeaponModifiers);
+        var laser = Copy(Template("Light Laser"), designNames[1], "Close-in defence beam: quick, light, instant.", 30f, 110000, 30f, 1, 1, Template("Light Laser").WeaponModifiers);
         var laserData = laser.Behaviors.OfType<InstantWeaponData>().Single();
         Set(laserData.Damage, 5f, 12f); Set(laserData.Range, 400f, 750f); Set(laserData.MinRange, 0f, 0f);
         Set(laserData.Cooldown, .2f, .1f); Set(laserData.Count, 1f, 1f); Set(laserData.Spread, .05f, 0f);
         Set(laserData.Velocity, 0f, 0f); Set(laserData.Energy, 6f, 10f); Set(laserData.Heat, 300f, 150f); Set(laserData.Visibility, 300f, 100f);
         Track(laserData, 40f);
 
-        var flak = Copy(Template("DeathCluster"), designNames[2], "Small flak gun: a short-range pellet volley.", 120f, 180000, 80f, 1, 2, WeaponModifiers.Cluster);
+        var flak = Copy(Template("Cluster Cannon"), designNames[2], "Small flak gun: a short-range pellet volley.", 120f, 180000, 80f, 1, 2, WeaponModifiers.Cluster);
         var flakData = flak.Behaviors.OfType<InstantWeaponData>().Single();
         Set(flakData.Damage, 30f, 70f); Set(flakData.Count, 6f, 8f); Set(flakData.Range, 350f, 800f); Set(flakData.MinRange, 0f, 0f);
         Set(flakData.Cooldown, .6f, .35f); Set(flakData.Spread, 4f, 2f); Set(flakData.Velocity, 900f, 1300f);
@@ -1714,11 +1714,11 @@ public static class Program
         }
         static PerformanceStat Fixed(float value) => new PerformanceStat { Min = value, Max = value, Terms = new List<StatTerm>() };
 
-        var proximity = Copy("Spectra", names[0], "A Spectra that bursts by proximity, blast 8. For scenarios; no one builds it.", WeaponFuse.Proximity, 8f);
-        var delayed = Copy("Spectra", names[1], "A Spectra that bursts after two cells of metal, blast 4. For scenarios; no one builds it.", WeaponFuse.Delayed, 4f);
-        var refused = Copy("Spectra", names[2], "A Spectra whose blast is wider than its reach, so it never fires. For scenarios; no one builds it.", WeaponFuse.Proximity, 30f);
-        var charge = Copy("ChargeBlast SG", names[4], "A ChargeBlast SG whose blast is wider than its reach, so it never charges. For scenarios; no one builds it.", WeaponFuse.Proximity, 30f);
-        var beam = Copy("Spectra", names[3], "A constant beam whose blast is wider than its reach, so it never starts. For scenarios; no one builds it.", WeaponFuse.Proximity, 30f);
+        var proximity = Copy("Light Laser", names[0], "A Spectra that bursts by proximity, blast 8. For scenarios; no one builds it.", WeaponFuse.Proximity, 8f);
+        var delayed = Copy("Light Laser", names[1], "A Spectra that bursts after two cells of metal, blast 4. For scenarios; no one builds it.", WeaponFuse.Delayed, 4f);
+        var refused = Copy("Light Laser", names[2], "A Spectra whose blast is wider than its reach, so it never fires. For scenarios; no one builds it.", WeaponFuse.Proximity, 30f);
+        var charge = Copy("Charged Scatter Blaster", names[4], "A ChargeBlast SG whose blast is wider than its reach, so it never charges. For scenarios; no one builds it.", WeaponFuse.Proximity, 30f);
+        var beam = Copy("Light Laser", names[3], "A constant beam whose blast is wider than its reach, so it never starts. For scenarios; no one builds it.", WeaponFuse.Proximity, 30f);
 
         // The Smoke Test Hull carries one 2x2 reactor. A Spectra's 20-40 energy a shot at its cadence is more than that reactor makes,
         // so two of them overload it, it overheats and shuts down within a second, and nothing aboard fires again (Fused Rounds,
@@ -1888,8 +1888,8 @@ public static class Program
     // no non-flat stat reads; DeathCluster, Flak Gun, GT 3K, plight and the two MoveOnPros because each had a non-flat stat
     // whose Quality term named no role (CB-R1: each non-flat stat reads exactly one declared role). Idempotent: a design with
     // no flat mapped stat and no unnamed one is left alone, a product with a role is left alone. Dry run unless passed "apply".
-    private static readonly string[] BackfillDesigns = { "Autocannon", "LRMM72", "SRMM72", "Mine Launcher", "Large Drive", "Small Drive",
-        "DeathCluster", "Flak Gun", "GT 3K", "plight", "MoveOnPro", "MoveOnPro Station Reactor" };
+    private static readonly string[] BackfillDesigns = { "Autocannon", "Long-Range Missile Rack", "Short-Range Missile Rack", "Mine Launcher", "Large Drive", "Small Drive",
+        "Cluster Cannon", "Flak Gun", "Guided Missile Launcher", "Lightning Projector", "Muon Fusion Reactor", "Muon Fusion Station Reactor" };
 
     // Stats the backfill names but never ranges: a shot count is whole, and which way a launcher's MinRange should fall is
     // each design's own call (GT 3K authors it as a cost already).
@@ -2053,13 +2053,13 @@ public static class Program
         var rebrands = new (string Design, string Name, string Description)[]
         {
             ("Autocannon", "\U0001FAF3\U0001F52B", "Serial number filed off. Still shoots."),
-            ("Earp", "\U0001FAA6\U0001F920", "The previous owner had no further use for it."),
-            ("FastBlast+-", "\U0001F9FE\U0001F6AB", "Warranty void where prohibited, which is everywhere."),
-            ("6k Shooter", "\U0001F3A8\U0001F648", "The logo underneath is somebody else's problem."),
-            ("scorched void policy", "\U0001F525", "Turns out we did start the fire after all."),
+            ("Long Slug Rifle", "\U0001FAA6\U0001F920", "The previous owner had no further use for it."),
+            ("Cell Blaster", "\U0001F9FE\U0001F6AB", "Warranty void where prohibited, which is everywhere."),
+            ("Slug Rifle", "\U0001F3A8\U0001F648", "The logo underneath is somebody else's problem."),
+            ("Incendiary Rocket Pod", "\U0001F525", "Turns out we did start the fire after all."),
             ("Targeting Computer", "\U0001F440\U0001F3AF", "Somebody else's eyes. They still work."),
             ("Small Drive", "\U0001F511\U0001F3C3\U0001F4A8", "Hotwired. Do not ask about the ignition."),
-            ("Store-All Plus", "\U0001F4E6\U0001F92B", "Contents not as declared."),
+            ("Cargo Bay", "\U0001F4E6\U0001F92B", "Contents not as declared."),
         };
 
         var products = rebrands.Select(r =>
@@ -2365,7 +2365,7 @@ public static class Program
     // sells (rulings catalog-grows-generic-designs-branded-products, kitchen-sink-content, designs-are-tech-nodes). A
     // Renames row renames the design found under its old name and gives it the functional text; a Brands row renames the
     // maker's same-named product and sets its text and the design's functional text; ProductTexts sets the rest; every
-    // shipped product text ending in the authoring note " (new text)" loses it. Dry run unless passed "apply".
+    // shipped product text ending in the authoring note loses it. Dry run unless passed "apply".
     public static int GenericDesigns(bool apply, string root = null)
     {
         const string AuthoringNote = " (new text)";

@@ -24,14 +24,14 @@ public sealed partial class RunStartTests
 
     // The Duel's guns on a Longinus: the generated Longinus's thrusters (two Large Drive forward, two Talaria on the
     // flanks) and power, its Targeting Computer, and the Duel's cockpit, guns, launchers and sensor.
-    private static ScenarioFit EvLonginus(ScenarioStage stage, string gun = "FastBlast+-", string second = null) => stage.Fit("Longinus",
-        ("Cockpit 2x2", int2(2, 6), ItemRotation.None), ("Core Power", int2(2, 4), ItemRotation.None),
+    private static ScenarioFit EvLonginus(ScenarioStage stage, string gun = "Cell Blaster", string second = null) => stage.Fit("Longinus",
+        ("Cockpit 2x2", int2(2, 6), ItemRotation.None), ("Compact Reactor", int2(2, 4), ItemRotation.None),
         ("Large Drive", int2(1, 0), ItemRotation.Reversed), ("Large Drive", int2(3, 0), ItemRotation.Reversed),
-        ("Talaria", int2(2, 14), ItemRotation.CounterClockwise), ("Talaria", int2(3, 14), ItemRotation.Clockwise),
-        ("GT 3K", int2(0, 5), ItemRotation.None), ("GT 3K", int2(5, 5), ItemRotation.None), (gun, int2(1, 8), ItemRotation.None),
-        (second ?? gun, int2(4, 8), ItemRotation.None), ("Iapyx", int2(2, 2), ItemRotation.CounterClockwise), ("Iapyx", int2(3, 2), ItemRotation.Clockwise),
-        ("not if i see you first", int2(3, 10), ItemRotation.None), ("PotaT+-", int2(1, 6), ItemRotation.None),
-        ("Targeting Computer", int2(1, 7), ItemRotation.None), ("Store-All Plus", int2(2, 8), ItemRotation.None));
+        ("Rugged Drive", int2(2, 14), ItemRotation.CounterClockwise), ("Rugged Drive", int2(3, 14), ItemRotation.Clockwise),
+        ("Guided Missile Launcher", int2(0, 5), ItemRotation.None), ("Guided Missile Launcher", int2(5, 5), ItemRotation.None), (gun, int2(1, 8), ItemRotation.None),
+        (second ?? gun, int2(4, 8), ItemRotation.None), ("Radiator", int2(2, 2), ItemRotation.CounterClockwise), ("Radiator", int2(3, 2), ItemRotation.Clockwise),
+        ("Compact Sensor", int2(3, 10), ItemRotation.None), ("Capacitor", int2(1, 6), ItemRotation.None),
+        ("Targeting Computer", int2(1, 7), ItemRotation.None), ("Cargo Bay", int2(2, 8), ItemRotation.None));
 
     // The catalog's two generated ships, far apart in the fixture arena, at the fixture seed.
     private (Zone arena, Ship longinus, Ship djinni) EvFleet()
@@ -349,7 +349,7 @@ public sealed partial class RunStartTests
         var settings = _items.GameplaySettings;
         var thrusters = longinus.GetBehaviors<Thruster>().Where(t => t.Item.Active.Value).ToList();
         var largeDrives = thrusters.Where(t => t.Item.Data.Name == "Large Drive").ToList();
-        var flanks = thrusters.Where(t => t.Item.Data.Name == "Talaria").ToList();
+        var flanks = thrusters.Where(t => t.Item.Data.Name == "Rugged Drive").ToList();
         Assert.Equal(2, largeDrives.Count);
         Assert.Equal(2, flanks.Count);
 
@@ -584,13 +584,13 @@ public sealed partial class RunStartTests
     // reactor, cockpit and radiators. What the evasion tests price is this ship's strafing, not whatever the generator
     // rolls for it from the galaxy.
     private static ScenarioFit EvDjinni(ScenarioStage stage) => stage.Fit("Djinni",
-        ("Cockpit 2x2", int2(6, 3), ItemRotation.None), ("Core Power", int2(6, 11), ItemRotation.None),
-        ("Talaria", int2(6, 0), ItemRotation.Reversed), ("Talaria", int2(5, 1), ItemRotation.Reversed), ("Talaria", int2(7, 1), ItemRotation.Reversed),
-        ("Talaria", int2(4, 4), ItemRotation.CounterClockwise), ("Talaria", int2(4, 11), ItemRotation.CounterClockwise),
-        ("Talaria", int2(9, 4), ItemRotation.Clockwise), ("Talaria", int2(9, 11), ItemRotation.Clockwise),
-        ("Talaria", int2(6, 14), ItemRotation.None),
-        ("Iapyx", int2(1, 4), ItemRotation.Reversed), ("Iapyx", int2(3, 1), ItemRotation.Reversed),
-        ("Iapyx", int2(9, 1), ItemRotation.Reversed), ("Iapyx", int2(11, 4), ItemRotation.Reversed));
+        ("Cockpit 2x2", int2(6, 3), ItemRotation.None), ("Compact Reactor", int2(6, 11), ItemRotation.None),
+        ("Rugged Drive", int2(6, 0), ItemRotation.Reversed), ("Rugged Drive", int2(5, 1), ItemRotation.Reversed), ("Rugged Drive", int2(7, 1), ItemRotation.Reversed),
+        ("Rugged Drive", int2(4, 4), ItemRotation.CounterClockwise), ("Rugged Drive", int2(4, 11), ItemRotation.CounterClockwise),
+        ("Rugged Drive", int2(9, 4), ItemRotation.Clockwise), ("Rugged Drive", int2(9, 11), ItemRotation.Clockwise),
+        ("Rugged Drive", int2(6, 14), ItemRotation.None),
+        ("Radiator", int2(1, 4), ItemRotation.Reversed), ("Radiator", int2(3, 1), ItemRotation.Reversed),
+        ("Radiator", int2(9, 1), ItemRotation.Reversed), ("Radiator", int2(11, 4), ItemRotation.Reversed));
 
     private EvRange EvRangeLaunch()
     {
@@ -598,9 +598,9 @@ public sealed partial class RunStartTests
         var scenario = new Scripted(false, stage =>
         {
             stage.Player(stage.Bare("Djinni"), float2(-50000, -50000));
-            gunner = stage.Place(EvLonginus(stage, "FastBlast+-", "ColdFire"), float2(0, 0), facing: float2(0, 1)) as Ship;
+            gunner = stage.Place(EvLonginus(stage, "Cell Blaster", "Long Laser"), float2(0, 0), facing: float2(0, 1)) as Ship;
             target = stage.Place(EvDjinni(stage), float2(0, 200), facing: float2(0, 1)) as Ship;
-            lasing = stage.Place(EvLonginus(stage, "ColdFire"), float2(0, 400), facing: float2(0, -1)) as Ship;
+            lasing = stage.Place(EvLonginus(stage, "Long Laser"), float2(0, 400), facing: float2(0, -1)) as Ship;
         });
         var (_, arena, _, failures) = Launch(scenario, Inputs(() => GalaxySeed));
         Assert.True(failures.Count == 0, string.Join("; ", failures));

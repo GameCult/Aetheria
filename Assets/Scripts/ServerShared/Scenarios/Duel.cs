@@ -17,22 +17,22 @@ public sealed class Duel : Scenario
             ("Cockpit 2x2", int2(2, 6), None),
             ("Large Drive", int2(1, 0), Reversed),
             ("Large Drive", int2(3, 0), Reversed),
-            ("Talaria", int2(2, 14), CounterClockwise),
-            ("Talaria", int2(3, 14), Clockwise),
-            ("Core Power", int2(2, 4), None),
-            ("GT 3K", int2(0, 5), None),
-            ("GT 3K", int2(5, 5), None),
-            ("FastBlast+-", int2(1, 8), None),
-            ("FastBlast+-", int2(4, 8), None),
-            ("Iapyx", int2(2, 2), CounterClockwise),
-            ("Iapyx", int2(3, 2), Clockwise),
-            ("not if i see you first", int2(3, 10), None),
-            ("PotaT+-", int2(1, 5), None),
+            ("Rugged Drive", int2(2, 14), CounterClockwise),
+            ("Rugged Drive", int2(3, 14), Clockwise),
+            ("Compact Reactor", int2(2, 4), None),
+            ("Guided Missile Launcher", int2(0, 5), None),
+            ("Guided Missile Launcher", int2(5, 5), None),
+            ("Cell Blaster", int2(1, 8), None),
+            ("Cell Blaster", int2(4, 8), None),
+            ("Radiator", int2(2, 2), CounterClockwise),
+            ("Radiator", int2(3, 2), Clockwise),
+            ("Compact Sensor", int2(3, 10), None),
+            ("Capacitor", int2(1, 5), None),
             ("Fire Control Array", int2(1, 6), Clockwise),
-            ("Store-All Plus", int2(2, 8), None));
+            ("Cargo Bay", int2(2, 8), None));
 
         stage.Player(fighter, float2(0, 0));
         var rival = stage.Place(fighter, float2(0, 900), facing: float2(0, -1), stance: ScenarioStance.Hostile, piloted: true);
-        stage.Cargo(rival, "Spectra");
+        stage.Cargo(rival, "Light Laser");
     }
 }

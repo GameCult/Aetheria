@@ -121,13 +121,13 @@ public sealed class CatalogRoleTests
         AssertRange(autocannon, "Range", false, "barrel");
         AssertRange(autocannon, "Penetration", false, "barrel");
 
-        var lrm = Design("LRMM72");
+        var lrm = Design("Long-Range Missile Rack");
         Assert.Equal(new[] { "guidance system", "thruster", "warhead" }, Roles(lrm));
         AssertRange(lrm, "Damage", false, "warhead");
         AssertRange(lrm, "Cooldown", true, "guidance system");
         AssertRange(lrm, "LockAngle", false, "guidance system");
 
-        var srm = Design("SRMM72");
+        var srm = Design("Short-Range Missile Rack");
         Assert.Equal(new[] { "guidance system", "thruster", "warhead" }, Roles(srm));
         AssertRange(srm, "Damage", false, "warhead");
         AssertRange(srm, "Cooldown", true, "guidance system");
@@ -152,12 +152,12 @@ public sealed class CatalogRoleTests
         AssertRange(Design("Small Drive"), "Thrust", false, "nozzle");
 
         // Designs whose non-flat stats named no role are pointed at the role their kind's map gives them.
-        AssertNamed(Design("DeathCluster"), "Count", "feed mechanism");
+        AssertNamed(Design("Cluster Cannon"), "Count", "feed mechanism");
         AssertNamed(Design("Flak Gun"), "Count", "feed mechanism");
-        AssertNamed(Design("GT 3K"), "MinRange", "guidance system");
-        AssertNamed(Design("plight"), "DamageSpread", "focusing array");
-        AssertNamed(Design("MoveOnPro"), "Modifier", "core");
-        AssertNamed(Design("MoveOnPro Station Reactor"), "Modifier", "core");
+        AssertNamed(Design("Guided Missile Launcher"), "MinRange", "guidance system");
+        AssertNamed(Design("Lightning Projector"), "DamageSpread", "focusing array");
+        AssertNamed(Design("Muon Fusion Reactor"), "Modifier", "core");
+        AssertNamed(Design("Muon Fusion Station Reactor"), "Modifier", "core");
 
         // Each seller's means come from its maker's profile; the Pirates are middling and inconsistent.
         var profiles = new Dictionary<string, (float Mean, float Dev)>

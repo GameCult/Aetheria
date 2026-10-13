@@ -51,7 +51,7 @@ public sealed class SmokeRoundsCommandTests : IDisposable
             var smoke = db.Cache.GetAll<WeaponItemData>().Where(w => Names.Contains(w.Name)).ToArray();
             var keys = smoke.Select(w => db.Cache.RefOf(w).Key).ToArray();
             var products = db.Cache.GetAll<FactionProductData>().Count(p => keys.Any(k => p.Design.Key.Equals(k)));
-            return (smoke, db.Cache.GetAll<WeaponItemData>().Single(w => w.Name == "Spectra"), db.Cache.GetAll<WeaponItemData>().Single(w => w.Name == "ChargeBlast SG"), products);
+            return (smoke, db.Cache.GetAll<WeaponItemData>().Single(w => w.Name == "Light Laser"), db.Cache.GetAll<WeaponItemData>().Single(w => w.Name == "Charged Scatter Blaster"), products);
         }
         finally { db.Cache.Dispose(); }
     }

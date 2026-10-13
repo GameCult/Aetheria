@@ -23,7 +23,7 @@ public sealed partial class RunStartTests
         Assert.Equal("Smoke Test Hull", _items.GetData(player.EquippedHull.EquippableItem).Name);
 
         EquippedItem Mount(string design) => Assert.Single(WeaponMounts(player), item => _items.GetData(item.EquippableItem).Name == design);
-        var charge = Mount("ChargeBlast SG");
+        var charge = Mount("Charged Scatter Blaster");
         var autocannon = Mount("Autocannon");
         Assert.Equal((HardpointType.Energy, 2, 2), (charge.Hardpoint.Type, charge.Hardpoint.Shape.Width, charge.Hardpoint.Shape.Height));
         Assert.Equal((HardpointType.Ballistic, 2, 2), (autocannon.Hardpoint.Type, autocannon.Hardpoint.Shape.Width, autocannon.Hardpoint.Shape.Height));

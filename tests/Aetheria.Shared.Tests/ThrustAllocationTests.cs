@@ -317,7 +317,7 @@ public sealed partial class RunStartTests
         for (var tick = 0; tick < 10; tick++) player.Update(AllocDt);
         var thrusters = player.GetBehaviors<Thruster>().Where(t => t.Item.Active.Value).ToArray();
         var drives = thrusters.Where(t => t.Item.Data.Name == "Large Drive").ToArray();
-        var flanks = thrusters.Where(t => t.Item.Data.Name == "Talaria").ToArray();
+        var flanks = thrusters.Where(t => t.Item.Data.Name == "Rugged Drive").ToArray();
         Assert.Equal(2, drives.Length);
         Assert.Equal(2, flanks.Length);
         float Clockwise(IEnumerable<Thruster> of) => of.Sum(t => max(t.Column(t.Thrust).z, 0f));

@@ -445,7 +445,7 @@ public sealed partial class RunStartTests : IDisposable
     }
 
     // The sold hardpoint gear the generator gives no home today: the production rule (LoadoutGenerator.HasHome over the hulls a
-    // product sells). The Smoke Test Hull, which no product sells, gives ChargeBlast SG and ChargeBlast+- no home; authoring a
+    // product sells). The Smoke Test Hull, which no product sells, gives Charged Scatter Blaster and Charged Blaster no home; authoring a
     // sold hull that takes one shows up here as a changed list.
     [Fact]
     public void TheSoldHardpointGearWithNoHomeToday()
@@ -456,7 +456,7 @@ public sealed partial class RunStartTests : IDisposable
             .Where(design => sold.Contains(_cache.RefOf(design).Key) && design.Price > 0)
             .Where(design => !LoadoutGenerator.HasHome(design, hulls))
             .Select(design => design.Name).OrderBy(name => name, StringComparer.Ordinal).ToArray();
-        Assert.Equal(new[] { "CShot RainbowLite Lazer", "ChargeBlast SG", "ChargeBlast+-", "OK Disperser" }, homeless);
+        Assert.Equal(new[] { "Charged Blaster", "Charged Scatter Blaster", "Heat Pump", "Heavy Beam Laser" }, homeless);
     }
 
     // A sold weapon can be generated onto an NPC, whose combat state samples its damage at range, so every weapon a

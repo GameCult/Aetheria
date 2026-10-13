@@ -24,7 +24,7 @@ public sealed partial class RunStartTests
     // in this arena, so a fused weapon that does not is not a harness that cannot fire. A fused round flies slowly enough
     // to be in the air when the direct weapon kills the fragile hull (check A.3) and bursts on the first hull on the aim line.
     [Theory]
-    [InlineData("DeathCluster")]
+    [InlineData("Cluster Cannon")]
     [InlineData("Smoke Proximity")]
     [InlineData("Smoke Delayed")]
     public void EveryWeaponAboardFiresInTheSteppedFusedRoundsArena(string design)
@@ -42,7 +42,7 @@ public sealed partial class RunStartTests
         for (var i = 0; i < 60; i++) arena.Update(SteppedDt);
 
         Assert.True(fired.Count > 0, $"{design} fired nothing in 3 s; the ship's reactor is {(player.PowerBus.TotalGeneration > 0f ? "running" : "down")}");
-        if (design == "DeathCluster") return;
+        if (design == "Cluster Cannon") return;
         var (at, burst) = committed.First();
         Assert.Equal(ShotResult.Burst, burst.Result);
         Assert.True(burst.HasBurstPoint);
@@ -71,7 +71,7 @@ public sealed partial class RunStartTests
         });
 
         WeaponOf(proximity).Activate();
-        WeaponOf(Carried(player, "DeathCluster")).Activate();
+        WeaponOf(Carried(player, "Cluster Cannon")).Activate();
         float? deadAt = null;
         for (var i = 0; i < 120 && landed == null; i++)
         {

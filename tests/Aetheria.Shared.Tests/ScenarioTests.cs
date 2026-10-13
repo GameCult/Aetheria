@@ -537,7 +537,7 @@ public sealed partial class RunStartTests
 
         runs.Add(Stage(Arena(false), new Scripted(false, stage =>
         {
-            var ship = stage.Player(stage.Fit("Djinni", ("Census Fitted", int2(1, 6), ItemRotation.None), ("Store-All Plus", int2(3, 6), ItemRotation.None)), float2(0, 0));
+            var ship = stage.Player(stage.Fit("Djinni", ("Census Fitted", int2(1, 6), ItemRotation.None), ("Cargo Bay", int2(3, 6), ItemRotation.None)), float2(0, 0));
             stage.Cargo(ship, "Census Carried");
         })));
         Assert.Empty(UnsoldAndUnplaced(runs));
