@@ -149,14 +149,14 @@ public static class Program
     // be authoring fiction. Fields the maps below do not mention keep generic quality; the report says why.
     private static readonly Dictionary<string, string> BallisticWeaponRoles = new Dictionary<string, string>
     {
-        ["Damage"] = "barrel", ["Range"] = "barrel", ["Velocity"] = "barrel", ["Penetration"] = "barrel",
+        ["Damage"] = "barrel", ["Range"] = "barrel", ["EffectiveRange"] = "barrel", ["Velocity"] = "barrel", ["Penetration"] = "barrel",
         ["Cooldown"] = "feed mechanism", ["Spread"] = "feed mechanism", ["Heat"] = "feed mechanism",
         ["Visibility"] = "feed mechanism", ["Energy"] = "feed mechanism", ["Count"] = "feed mechanism",
     };
 
     private static readonly Dictionary<string, string> EnergyWeaponRoles = new Dictionary<string, string>
     {
-        ["Damage"] = "focusing array", ["Range"] = "focusing array", ["Velocity"] = "focusing array",
+        ["Damage"] = "focusing array", ["Range"] = "focusing array", ["EffectiveRange"] = "focusing array", ["Velocity"] = "focusing array",
         ["Penetration"] = "focusing array", ["DamageSpread"] = "focusing array",
         ["Energy"] = "power coupling", ["Heat"] = "power coupling", ["ChargeTime"] = "power coupling",
         ["ChargeEnergy"] = "power coupling", ["ChargeHeat"] = "power coupling", ["Cooldown"] = "power coupling",
@@ -1077,6 +1077,10 @@ public static class Program
         var fraction = Option("--effective", .5f);
         var end = Option("--end", 0f);
         var db = AetherDb.Open(catalogWritable: apply);
+        // A record is rewritten only when what it would store differs from what is stored: that is what drops the retired
+        // key 7 from a record the command leaves otherwise unchanged, and what makes a second apply change no byte.
+        var persisted = CultDocumentMessagePackSerialization.DeserializeSnapshot(File.ReadAllBytes(Path.Combine(db.Root, "GameData", "Aetheria.cc")))
+            .Records.ToDictionary(r => r.Key, r => r.Payload);
 
         Console.WriteLine($"{"weapon",-28} {"behaviour",-20} {"range",9} {"effective",9} {"end",5}");
         var changed = new List<(object Document, CultRecordKey Key)>();
@@ -1097,10 +1101,12 @@ public static class Program
                 }
                 Console.WriteLine($"{item.Name,-28} {weapon.GetType().Name,-20} {weapon.Range.Max,9:0.##} {(falls ? weapon.EffectiveRange.Max : float.PositiveInfinity),9:0.##} {weapon.DamageAtMaxRange,5:0.##}");
             }
-            changed.Add((item, key));
+            if (!persisted[key.Value].SequenceEqual(CultDocumentMessagePackSerialization.SerializeUntyped(item, item.GetType(), db.Cache.Registry)))
+                changed.Add((item, key));
         }
 
-        Console.WriteLine($"\n{changed.Count} weapon records");
+        Console.WriteLine($"\n{changed.Count} weapon records to rewrite");
+        if (changed.Count == 0) return 0;
         if (!apply)
         {
             Console.WriteLine($"Dry run. Pass \"apply\" to land {changed.Count} records.");

@@ -182,7 +182,7 @@ public sealed class FireControlTests : IDisposable
     }
 
     // A shooter with one in-range, in-arc gun, a detected target at `targetPosition`, and a Minion driving the shooter.
-    private (Ship shooter, Ship target, Zone zone) BuildCombatEncounter(float3 targetPosition, float projectileSpeed = 0f, bool twoTargetGuns = false)
+    private (Ship shooter, Ship target, Zone zone) BuildCombatEncounter(float3 targetPosition, float projectileSpeed = 0f, bool twoTargetGuns = false, float? effectiveRange = null)
     {
         var mounts = twoTargetGuns ? new[] { (ItemRotation.None, 0f), (ItemRotation.None, 0f) } : new[] { (ItemRotation.None, 0f) };
         var (items, shooter, weapons) = BuildShipWithHardpoints(mounts);
@@ -191,6 +191,7 @@ public sealed class FireControlTests : IDisposable
         weaponData.Cooldown = new PerformanceStat { Min = 1, Max = 1 };
         weaponData.Range = new PerformanceStat { Min = 1000, Max = 1000 };
         weaponData.MinRange = new PerformanceStat { Min = 0, Max = 0 };
+        if (effectiveRange.HasValue) weaponData.EffectiveRange = new PerformanceStat { Min = effectiveRange.Value, Max = effectiveRange.Value };
         weaponData.Velocity = new PerformanceStat { Min = projectileSpeed, Max = projectileSpeed };
 
         var zone = shooter.Zone;
@@ -375,17 +376,15 @@ public sealed class FireControlTests : IDisposable
     [Fact]
     public void TheAIHoldsAtItsEffectiveRange()
     {
-        var (shooter, _, zone) = BuildCombatEncounter(float3(0, 0, 10));
-        var data = (InstantWeaponData) shooter.Weapons.Single().WeaponData;
-        data.EffectiveRange = new PerformanceStat { Min = 500, Max = 500 };
-        data.DamageAtMaxRange = 0f;
+        var (shooter, _, zone) = BuildCombatEncounter(float3(0, 0, 10), effectiveRange: 500f);
         zone.Update(1f); // enters CombatState, which samples DPS over the evaluated stats
+        zone.Update(1f);
 
         var agent = zone.Agents.Single();
         var state = typeof(Agent).GetField("_currentState", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(agent);
-        Assert.IsType<CombatState>(state);
+        Assert.True(state is CombatState, $"the agent is in {state?.GetType().Name}");
         var optimum = (float) typeof(CombatState).GetField("_optimumRange", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(state);
-        Assert.InRange(optimum, 500f - 1000f / 32f, 500f + 1000f / 32f);
+        Assert.True(optimum >= 500f - 1000f / 32f && optimum <= 500f + 1000f / 32f, $"optimum range {optimum}");
     }
 
     // Ruling ew-claim-weapon-measure-ruled: no observer reads a target weapon's live state. Two unclaimed guns whose

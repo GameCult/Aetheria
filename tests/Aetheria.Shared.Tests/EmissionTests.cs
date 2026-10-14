@@ -291,7 +291,7 @@ public sealed partial class ContactRevealTests
         reader = new MessagePackReader(bytes);
         Assert.Equal(2, reader.ReadArrayHeader());
         reader.Skip(); // the arm's union index
-        Assert.Equal(35, reader.ReadArrayHeader());
+        Assert.Equal(37, reader.ReadArrayHeader()); // 35 and 36 are the weapon base's EffectiveRange and DamageAtMaxRange
         for (var slot = 0; slot < 34; slot++) reader.Skip();
         Assert.Equal(3f, MessagePackSerializer.Deserialize<PerformanceStat>(ref reader, EmissionWire).Min);
         Assert.Equal(3f, JObject.Parse(JsonConvert.SerializeObject(new LauncherData { InterceptFactor = Const(3) }))["interceptFactor"].ToObject<PerformanceStat>().Min);
