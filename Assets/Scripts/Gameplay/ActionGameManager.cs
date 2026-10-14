@@ -1375,10 +1375,8 @@ public class ActionGameManager : MonoBehaviour
         {
             if (Zone != steppedZone) return;
             steppedZone.Update(delta);
-            // A warning lives one tick, so sweeps are collected per tick, never read per frame. A docked ship is out of the
-            // zone's updates, so its published warnings go stale and are not collected (UpdateTargetIndicators drains only
-            // while it is free).
-            if (CurrentEntity != null && CurrentEntity.Zone == steppedZone && CurrentEntity.Parent == null)
+            // A warning lives one tick, so sweeps are collected per tick, never read per frame.
+            if (CurrentEntity != null && CurrentEntity.Zone == steppedZone)
                 foreach (var warning in CurrentEntity.IncomingPaints)
                     if (warning.Mode == PaintMode.Search) _pendingSweeps.Add((warning.Bearing, steppedZone.Time));
         });

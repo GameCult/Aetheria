@@ -306,9 +306,13 @@ public abstract class Entity
             VisibleEntities.Remove(remove.Value);
             VisibleEnemies.Remove(remove.Value);
             VisibleFriendlies.Remove(remove.Value);
-            // A stance lasts the sitting: it goes with an entity gone for good (destroyed, warped away, unloaded), not
-            // with a ship docking, which leaves the zone parented to its dock (TryDock) and rejoins it on undock.
-            if (remove.Value.Parent == null) _iffOverrides.Remove(remove.Value);
+            if (remove.Value == this)
+            {
+                // A ship out of the zone is no longer published to: it holds no warnings (nothing would ever clear them).
+                _paintInbox.Clear();
+                _incomingPaints.Clear();
+            }
+            ReleaseStance(remove.Value);
             if (_grudgeSubscriptions.TryGetValue(remove.Value, out var grudgeSubs))
             {
                 foreach (var s in grudgeSubs) s.Dispose();
@@ -961,7 +965,7 @@ public abstract class Entity
         if (!_active || item == null || !Zone.Entities.Contains(subject) || PerceivesDestroyed(subject, item)) return;
         if (!_reveals.TryGetValue(subject, out var book))
             _reveals[subject] = book = new Dictionary<EquippedItem, Reveal>();
-        book[item] = new Reveal(item, channel, normalize((subject.Position - Position).xz), Zone.Time, claimed, IsHostileTo(subject));
+        book[item] = new Reveal(item, channel, normalize((subject.Position - Position).xz), Zone.Time, claimed);
     }
 
     // A finished scan (Scanner.Execute; rulings scan-is-an-act, quiet-gear-identifiable-hull-layout-known: quiet gear
@@ -985,6 +989,14 @@ public abstract class Entity
         item.EquippableItem.IsDestroyed
         && EntityInfoGathered.TryGetValue(subject, out var info) && info >= ItemManager.GameplaySettings.TargetGearInfoThreshold;
 
+    // A stance lasts the sitting: it goes with a subject gone for good (destroyed, warped away, unloaded) once the book no
+    // longer remembers it, not with a ship docking, which leaves the zone parented to its dock (TryDock) and rejoins it on
+    // undock. Called when the subject leaves the zone and when the book drops it, so the override and the book end together.
+    private void ReleaseStance(Entity subject)
+    {
+        if (subject.Parent == null && !Zone.Entities.Contains(subject) && !_reveals.ContainsKey(subject)) _iffOverrides.Remove(subject);
+    }
+
     // The book's one way out (caller: Sense): `item` null ends every reveal of `subject`, otherwise that item's.
     // The subject's key goes with its last entry.
     private void EndReveals(Entity subject, EquippedItem item)
@@ -992,7 +1004,9 @@ public abstract class Entity
         if (!_reveals.TryGetValue(subject, out var book)) return;
         if (item != null) book.Remove(item);
         else book.Clear();
-        if (book.Count == 0) _reveals.Remove(subject);
+        if (book.Count != 0) return;
+        _reveals.Remove(subject);
+        ReleaseStance(subject);
     }
 
     // The subjects this observer holds any reveal of, departed ones included until the prune: with VisibleEntities, every
@@ -1000,10 +1014,10 @@ public abstract class Entity
     public IReadOnlyCollection<Entity> RevealedSubjects => _reveals.Keys;
 
     // The hostile subjects this observer holds only by a bearing: revealed, Detected, not Tracked (what bearing markers and
-    // the music show). Hostile is the stance the freshest reveal was made under (Contact.Hostile), not IsHostileTo now: the
-    // stance an override gave goes with the subject when it departs, and the marker lasts until the bearing lapses. Reads the
-    // book and ContactOf, never the subject's Position or gear.
-    public IEnumerable<Entity> RememberedHostiles => RevealedSubjects.Where(s => ContactOf(s) is { Detected: true, Tracked: false, Hostile: true });
+    // the music show). Hostile is the observer's own live stance (IsHostileTo): the observer always knows its own decision,
+    // and an override outlives a departed subject exactly as long as the book remembers it (ReleaseStance). Reads the book
+    // and ContactOf, never the subject's Position or gear.
+    public IEnumerable<Entity> RememberedHostiles => RevealedSubjects.Where(s => IsHostileTo(s) && ContactOf(s) is { Detected: true, Tracked: false });
 
     // What this observer has seen `subject`'s items do: each item's latest act, and nothing the subject's present
     // gear or Durability says (ruling contact-reads-book-aim-reads-live). A reveal ends only on what this observer
@@ -1067,7 +1081,7 @@ public abstract class Entity
         var bearing = tracked ? normalize((subject.Position - Position).xz) : remembered ? freshest.Bearing : default;
         var identified = info >= settings.TargetGearInfoThreshold;
         // Profile is the one derivation of the hull this observer believes (no stored belief until the judge, ew-masquerade).
-        return new Contact(detected, tracked, detected && any, identified, bearing, info, identified ? subject.ClaimedHull : null, any && freshest.Hostile);
+        return new Contact(detected, tracked, detected && any, identified, bearing, info, identified ? subject.ClaimedHull : null);
     }
 
     // What this observer's instruments receive of other ships' acts this tick (Zone.Update calls it once, after every

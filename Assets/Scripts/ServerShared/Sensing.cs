@@ -103,9 +103,7 @@ public readonly struct PaintWarning
 // replaces the earlier one. Position is never carried: only the track gives it. `Item` stays the true item: it is the
 // book's key and what aim reads. `Claimed` is the class the act claimed, and is what every classifying reader reads
 // (aetheria-ew, classify-from-belief). A null `Channel` is a reveal by the observer's own scan (Entity.RecordInspection),
-// whose `Claimed` is the subject's claim for the item. `Hostile` is the observer's stance toward the subject at that act
-// (IsHostileTo then): remembered with the sighting, so a subject that departs and takes the observer's stance for it along
-// is still the hostile it was seen to be.
+// whose `Claimed` is the subject's claim for the item.
 public readonly struct Reveal
 {
     public readonly EquippedItem Item;
@@ -113,11 +111,9 @@ public readonly struct Reveal
     public readonly SignatureChannel? Channel;
     public readonly float2 Bearing;
     public readonly float Time;
-    public readonly bool Hostile;
 
-    public Reveal(EquippedItem item, SignatureChannel? channel, float2 bearing, float time, EquippableItemData claimed, bool hostile)
+    public Reveal(EquippedItem item, SignatureChannel? channel, float2 bearing, float time, EquippableItemData claimed)
     {
-        Hostile = hostile;
         Item = item;
         Claimed = claimed;
         Channel = channel;
@@ -174,8 +170,7 @@ public readonly struct Departure
 // membership of VisibleEntities. Classified: detected, with any reveal in the book. Identified: the track has reached
 // TargetGearInfoThreshold, and holds a hull belief: Profile, the hull class this observer believes the subject is (null
 // below Identified; aetheria-ew, classify-from-belief; seen-through arrives with the judge). Bearing is the true
-// bearing while tracked, else the freshest reveal's. Hostile: the stance that freshest reveal was made under (false with
-// none), the one hostility a remembered contact has once its subject is gone.
+// bearing while tracked, else the freshest reveal's.
 public readonly struct Contact
 {
     public readonly bool Detected;
@@ -185,11 +180,9 @@ public readonly struct Contact
     public readonly float2 Bearing;
     public readonly float Info;
     public readonly HullData Profile;
-    public readonly bool Hostile;
 
-    public Contact(bool detected, bool tracked, bool classified, bool identified, float2 bearing, float info, HullData profile, bool hostile)
+    public Contact(bool detected, bool tracked, bool classified, bool identified, float2 bearing, float info, HullData profile)
     {
-        Hostile = hostile;
         Profile = profile;
         Detected = detected;
         Tracked = tracked;
