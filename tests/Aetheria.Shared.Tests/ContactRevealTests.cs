@@ -99,6 +99,9 @@ public sealed partial class ContactRevealTests : IDisposable
             cache.Upsert(SpannedWeapon("SpanBeam", Spanned(new ConstantWeaponData())));
             cache.Upsert(Locker("Locker", interceptFactor: null));
             cache.Upsert(Locker("Hushed", interceptFactor: 4f));
+            // Scanners (cut inspection-scanner): range 200 and a two second scan; "QuietScanner" is heard at a quarter of it.
+            cache.Upsert(Tool("Scanner", ScannerBehavior(range: 200f, scanTime: 2f)));
+            cache.Upsert(Tool("QuietScanner", ScannerBehavior(range: 200f, scanTime: 2f, interceptFactor: 4f)));
             cache.Upsert(new ConsumableItemData
             {
                 Name = "Pinger", Duration = 30f, Shape = new Shape(),
