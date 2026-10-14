@@ -148,7 +148,8 @@ public sealed partial class ContactRevealTests
 
         Assert.Equal(builds, ScannerOf(s).Progress > 0f);
         Assert.Equal(builds, target.IncomingPaints.Count > 0);
-        Assert.Equal(builds, target.RevealsOf(s).Any());
+        var told = target.RevealsOf(s).ToList();
+        Assert.True(builds == told.Any(), string.Join(",", told.Select(r => r.Item.Data.Name + ":" + r.Channel + "@" + r.Time)) + " clock " + _zone.Time + " third " + third.Equipment.Count + " vis " + s.VisibleEntities.Count);
         var heard = third.RevealsOf(s).ToList();
         Assert.True(builds == heard.Any(), string.Join(",", heard.Select(r => r.Item.Data.Name + ":" + r.Channel + "@" + r.Time)) + " clock " + _zone.Time);
     }
