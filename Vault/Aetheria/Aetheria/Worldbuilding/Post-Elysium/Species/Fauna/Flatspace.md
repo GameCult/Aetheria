@@ -1,6 +1,6 @@
 **"Out here a kilometre is a kilometre. Be grateful. Further on, it isn't."**
 
-> Draft lore pass r4, 2026-10-14, for the operator's review. Part of [[Spaceborne Fauna]]. Flatspace is the vanilla galaxy: Sol, and the map of nebulae and stars the game draws today. Its other half is [[Wonderland]]. `[new]` marks invention that touches existing canon. Reasoning in [[Fauna Lore Review r4]].
+> Draft lore pass r4, 2026-10-14, revised r5, for the operator's review. Part of [[Spaceborne Fauna]]. Flatspace is the vanilla galaxy: Sol, and the map of nebulae and stars the game draws today. Its other half is [[Wonderland]]. `[new]` marks invention that touches existing canon. Reasoning in [[Fauna Lore Review r4]] and [[Fauna Lore Review r5]].
 
 Flatspace is everywhere you can live without being changed. Its physics is strange by Sol's standards (the [[Aether]] has a current, heat turns into light, things live in the nebulae), but it is physics: it holds still long enough to be learned, charted, insured and taught. You can colonise it without accepting that reality has been altered. Most people in Elysium never leave it.
 
@@ -16,7 +16,13 @@ Flatspace has a shape that people feel without naming:
 
 - **The core** is settled, busy and thin in fauna. Ships keep the krill scattered and the sharks away.
 - **The edges** are richer. The current is stronger, the glim thicker, the animals bigger, and that is where the **Chaos factions** live: canon puts them at the edges of stable Euclidean space. They are the ones who keep a foot on each side.
-- **The links** open mostly at the edges; the few that open in the core are the best-kept secrets in Elysium. A link is a way into a layer of [[Wonderland]], and finding one is how a faction stops being an edge faction and starts holding a foothold [new].
+- **The gates into [[Wonderland]]** stand mostly at the edges, because that is where the people who build them live; the few rare tears in the core are the best-kept secrets in Elysium. Holding an anchor in a layer is how a faction stops being an edge faction and starts holding a foothold [new].
+
+#### Lanes
+
+Every wormhole on the map is a gate, and every gate is a pair of anchors somebody paid for [new]. The shape of flatspace, which zone opens onto which, is not geography. It is history: where a crew once crossed the dark the slow way, carrying an anchor, and where a company could afford a ring at the near end. The oldest lanes run out of Sol's bubble, and the names of the crews who walked them are the names of the oldest companies ([[Anchors and Gates]]).
+
+Between the lanes stand the **dead gates**: rings opened blind that came up on nothing and were never anchored, left in the dark when the money ran out. Some are shut; some still hold a sliver of mouth onto somewhere useless, too expensive to close properly. Each is a monument to a company that bet everything and lost it. Salvagers strip them, pirates hide in them, and pilots passing one dip their lights [new].
 
 #### Pirates
 
@@ -30,6 +36,6 @@ Nobody knows, and everyone has an account [new].
 - **The edge account.** Canon's line, and the Chaos factions' creed: *we brought flat space with us; we are the incursion.* The Aether answers to minds, and wherever enough minds expect Euclid, the Aether gives it to them. Sol is the flattest place there is because it is the oldest and most crowded expectation in Elysium.
 - **The Timeless account.** Elysium is a shard of bespoke spacetime the Timeless built for their prisoners ([[Temporal Nonlinearity]]). Flatspace is the cell, made comfortable. Wonderland is what the cell was carved from.
 
-The three accounts make different politics: an orderly universe to defend, a habit to keep up, or a prison to be kept in. Which, if any, is true is put to the operator in [[Fauna Lore Review r4]].
+The three accounts make different politics: an orderly universe to defend, a habit to keep up, or a prison to be kept in. Each also says what an anchor is ([[Anchors and Gates#Why an Anchor Works|Why an Anchor Works]]). Which, if any, is true is put to the operator in [[Fauna Lore Review r4]].
 
 Spacers say: *flat is a promise, not a fact*; and, of a crewmate back from a link with a far look, *she's been off the map*.

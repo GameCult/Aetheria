@@ -23,8 +23,8 @@ The **Wavecrafters**. Canon makes them the people who know how disturbances trav
 
 - **The Glass is their school.** A place where every disturbance stays is the only place you can watch one travel from start to finish. Apprentices learn *listening* by sitting beside a wake and reading it for days. The breath forms began as ways to manage heat in a place that keeps it.
 - **The Glass is their secret's reason.** In the Glass nothing can be hidden, and the Wavecrafters learned there what being seen costs. Their concealment of espers in flatspace is the discipline of people who grew up where concealment was impossible: once you leave the Glass, you never again let yourself be read that easily.
-- **The protected channels are Glass links.** Guild houses keep the links, and the far ends are guild land. A Wavecrafter master travelling the Glass can see a pursuer coming for days, and a pursuer can see where she went, which is why the guild keeps the links rather than the roads.
-- **Sacred Instruments are made here** more than anywhere: an instrument cultivated for years in a place where every disturbance stays can learn its relation exactly.
+- **The protected channels are Glass gates.** Guild houses keep the anchors, and the far ends are guild land. An anchor in the Glass holds anywhere and can be seen from anywhere, so nobody plants one in secret: the guild holds the layer by watching, not by hiding, the opposite of Adrasteia in the Ink. A Wavecrafter master travelling the Glass can see a pursuer coming for days, and a pursuer can see where she went, which is why the guild keeps the gates rather than the roads [new].
+- **Sacred Instruments are made here** more than anywhere: an instrument cultivated for years in a place where every disturbance stays can learn its relation exactly. The commonest are anchors and beacons, cultivated in twins; nearly every gate in Elysium hangs on something grown in the Glass ([[Anchors and Gates]]) [new].
 
 #### What It Does to People
 

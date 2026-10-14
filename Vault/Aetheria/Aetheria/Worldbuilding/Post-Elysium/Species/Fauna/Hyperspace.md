@@ -1,10 +1,10 @@
 **"Every road in hyperspace is short. That's the trap."**
 
-> Draft lore pass r4, 2026-10-14, for the operator's review. A layer of [[Wonderland]]: the hyperbolic one. Developed from the operator's sketch (ruling `hyperspace-is-the-warp`): a very abstract place where navigating is the main challenge; it can connect you to your destination, but like entering the Warp, unless you are extremely prepared and have beacons to navigate by, you are not getting out, much less at your destination and intact. `[new]` marks invention that touches existing canon. Reasoning in [[Fauna Lore Review r4]].
+> Draft lore pass r4, 2026-10-14, revised r5, for the operator's review. A layer of [[Wonderland]]: the hyperbolic one. Developed from the operator's sketch (ruling `hyperspace-is-the-warp`): a very abstract place where navigating is the main challenge; it can connect you to your destination, but like entering the Warp, unless you are extremely prepared and have beacons to navigate by, you are not getting out, much less at your destination and intact. `[new]` marks invention that touches existing canon. Reasoning in [[Fauna Lore Review r4]] and [[Fauna Lore Review r5]].
 
 #### What It Looks Like
 
-Almost nothing. The link closes behind you and there is no nebula, no slope worth the name, no stars: a grey-violet nothing that seems to go on further than nothing should. Sensors report contacts that are close and then, very quickly, contacts that are impossibly far. What you can hear is a handful of beacons, chiming their codes, and between them silence.
+Almost nothing. The gate closes behind you and there is no nebula, no slope worth the name, no stars: a grey-violet nothing that seems to go on further than nothing should. Sensors report contacts that are close and then, very quickly, contacts that are impossibly far. What you can hear is a handful of beacons, chiming their codes, and between them silence.
 
 **The map.** Hyperspace's galaxy map is a disc. You are always at its centre. Near you, things are drawn at a sensible size; toward the rim, more and more of the layer crowds into less and less of the picture, and the rim itself is infinitely far away. Beacons are the only labels. Known roads are arcs from beacon to beacon. Everything else is rim [new]. (This is how hyperbolic space is usually drawn: the Poincaré disc, which HyperRogue uses too.)
 
@@ -12,7 +12,7 @@ Almost nothing. The link closes behind you and there is no nebula, no slope wort
 
 Hyperspace is hyperbolic: there is exponentially more room in it the further you go [new].
 
-- **Every road is short.** Room grows so fast that a few hundred kilometres from any point lie more places than in all of flatspace. Links from zones that are far apart in flatspace open close together here. That is why anyone goes: from the right link, on the right heading, a crossing that takes weeks in flatspace takes hours.
+- **Every road is short.** Room grows so fast that a few hundred kilometres from any point lie more places than in all of flatspace. Gates from zones that are far apart in flatspace open close together here. That is why anyone goes: from the right gate, on the right heading, a crossing that takes weeks in flatspace takes hours.
 - **Every error is fatal.** Two courses that leave together a hair apart drift apart exponentially, not steadily. A heading error of a thousandth of a degree, harmless in flatspace, puts you somewhere you have never heard of after a short crossing, with more room around you than anyone could ever search. Dead reckoning does not degrade here. It fails.
 - **Nothing carries.** A signal spreads into exponentially more room as it travels, so it fades exponentially too. A beacon a short way off is loud; a little further it is gone. You cannot hear your destination. You can only hear the next beacon.
 - **The drive is held open.** Coupling a drive to this Aether is a transition that never finishes. The whole crossing, the drive is held in it, and holding it makes heat and wears the coupling. The longer you are lost, the hotter and more fragile the ship.
@@ -21,11 +21,14 @@ Hyperspace is hyperbolic: there is exponentially more room in it the further you
 
 Beacons are survival, and so they are an economy [new].
 
+- **A beacon is an anchor that sings.** The same twinned instrument the Wavecrafters grow for every anchor ([[Anchors and Gates]]), tuned to chime as well as hold. A gate from flatspace into hyperspace opens on a beacon, and that is the only kind of gate into hyperspace that is any use. The keepers are not just lighthouse crews; they are the landlords of every gate in the layer.
+- **Where blind gates go.** Hyperspace has more room in it than every other space together, so a gate opened with no anchor is likelier to land here than anywhere: somewhere on the rim, out of earshot of any beacon. That is the commonest way a blind gate fails, and some of the Lost are the crews who went through to see [new].
+
 - **What one is.** A hull anchored at a surveyed point, chiming a code that says where it is relative to the beacons around it. Hear two and you have a fix; steer toward the one whose code is nearest your destination, then the next, and you arrive. (Real networks route this way: give every node a hyperbolic coordinate and the greedy hop is almost always right.)
-- **Laying one.** A layer flies out from the last beacon, toward the rim of its earshot, and anchors a new one before the old one fades. Because signals die so fast, chains are dense and every beacon is a crew's work. A road is years of laying.
+- **Laying one.** This is the slow way, a step at a time. A layer flies out from the last beacon, toward the rim of its earshot, and anchors a new one before the old one fades. Because signals die so fast, chains are dense and every beacon is a crew's work. A road is years of laying.
 - **Keeping one.** Beacons drift, wear and go quiet. Someone has to live aboard. The **keepers** are the people of hyperspace: beacon crews, often for life, who maintain the chain and are bound to answer any distress call within earshot. The bond comes from the [[Cetacean Navigators]]' rescue obligation, carried into a place where it is the only law [new].
 - **Paying for it.** Crossings are tolled per beacon. The chain's codes are sold as a subscription, and a ship without the current codes hears chimes it cannot read. Insurers price a crossing by its chain, and will not cover a ship that left a road.
-- **The transition in and out.** A link into hyperspace needs the drive carried through a hard coupling transition, which is exactly what canon's [[Wavecrafters]] sell: calibration profiles, one per link. An Undertow profile that passes the berth check and fails mid-transition is how most ships that are never seen again are lost.
+- **The transition in and out.** A gate into hyperspace needs the drive carried through a hard coupling transition, which is exactly what canon's [[Wavecrafters]] sell: calibration profiles, one per link. An Undertow profile that passes the berth check and fails mid-transition is how most ships that are never seen again are lost.
 - **False beacons.** A beacon is a claim about where you are, and a ship believes it because it must. A forged chime, one wrong code in a chain, sends a ship along a road to nowhere, and nobody will ever find the wreck because there is too much room to search. Wreckers do this to take cargo at a fake road's end. It is the most feared trick in the layer, and the one an electronic-warfare crew is best placed to play.
 
 #### Arriving Intact

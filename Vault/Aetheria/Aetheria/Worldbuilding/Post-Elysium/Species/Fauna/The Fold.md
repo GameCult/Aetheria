@@ -18,7 +18,7 @@ Through the link the stars double. Some smear into arcs, some sit in the wrong p
 
 #### Who Holds It
 
-Nobody. A foothold is held by knowing where the links are and keeping their far ends secret, and in the Fold the far end of every seam can also be seen from it. What the Fold has instead is traffic [new]:
+Nobody. A foothold is held by holding the anchors at the far ends of its links ([[Anchors and Gates]]). An anchor in the Fold is in two places, as anything there can be, and a gate opened on it may open at either; every gate into the Fold is half blind, and nobody's has stayed theirs for long. And the far end of every seam can be seen from it, so nothing inside the Fold is secret either. What the Fold has instead is traffic [new]:
 
 - **The Undertow** (canon's off-ledger retuners and smugglers) runs routes through Fold seams that no registry can follow, because the route on the record and the route flown are not the same length.
 - **The [[Parallax Auditors]]** make a living here. A ship that crossed the Fold may have been seen in two places at once, by two honest sensors. That is continuity residue in canon's exact sense, and the Fold makes more of it than anywhere.

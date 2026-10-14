@@ -1,6 +1,6 @@
 **"Everyone who goes in comes back with a story. Not everyone comes back."**
 
-> Draft lore pass r4, 2026-10-14, for the operator's review. Replaces r3's "Pseudospace Flavours". Part of [[Spaceborne Fauna]]. Wonderland is canon's name for pseudospace territory; this note gives it a shape: separate **layers**, each its own space with its own map, joined to each other and to [[Flatspace]] by **links**. `[new]` marks invention that touches existing canon. Reasoning in [[Fauna Lore Review r4]].
+> Draft lore pass r4, 2026-10-14, revised r5, for the operator's review. Replaces r3's "Pseudospace Flavours". Part of [[Spaceborne Fauna]]. Wonderland is canon's name for pseudospace territory; this note gives it a shape: separate **layers**, each its own space with its own map, joined to each other and to [[Flatspace]] by **links**: gates someone paid for, and a few natural tears ([[Anchors and Gates]]). `[new]` marks invention that touches existing canon. Reasoning in [[Fauna Lore Review r4]] and [[Fauna Lore Review r5]].
 
 Canon defines [[Pseudospace]] as space whose geometry does not follow Euclid, and says that past the islands of flat space "absolutely anything is possible". Both are true. Wonderland is what a pilot meets in between: places where anything is possible but something in particular is true, reliably enough to learn, and strange enough that learning it changes you.
 
@@ -22,16 +22,16 @@ Every layer gives a different answer to at least one of them, and each layer's a
 
 #### Links
 
-A link is a place where two spaces share an edge. Fly through and you are in the other one. Links join layers to flatspace and to each other with no regard for anyone's sense of order: a rare link in a busy port's outer belt might open into hyperspace, and a link from the Ink might open into the Fold [new].
+A link is a place where two spaces share an edge. Fly through and you are in the other one. Nearly every link is a **gate**: a ring someone built and paid for, opened onto an **anchor** someone carried to the far end the slow way. A few are **tears** nobody built. [[Anchors and Gates]] has the economics; what matters here is what a link means to a layer [new].
 
-- **Links are found, not built.** Some are wormholes everyone knows. Most are rumours: a gap in a whale road, a pilot's tale, a [[Gleaners|gleaner]] swarm that goes in somewhere and comes out somewhere else. Animals use links; following animals is the oldest way to find one.
-- **Links have tells.** A link leaks its far side. Near a link to the Ink the stars dim and radiators run too cool; near a link to the Glass the current slackens and dies; near one to the Fold the stars double. A pilot learns to taste the far side before committing. (These are r3's border tells, moved to where the layers now meet.)
-- **Some links keep hours.** A link may open on a beat, a season, a tide in the current. The fairy ring opens on the right night; the Ink's links breathe with its pillars [new].
-- **Links are owned by being known.** A faction holds a foothold in a layer by knowing where its links are and keeping the far ends secret. Charts of links are the most valuable documents in Elysium and the least often written down.
+- **A layer is only as reachable as its anchors.** Humans opened gates long before they understood what the gates open into. A layer is known because somebody got in (through a tear, or a blind gate that came up lucky), crossed it, and planted an anchor. Every anchored gate into a layer is a record of that walk.
+- **Links have tells.** A link leaks its far side. Near a link to the Ink the stars dim and radiators run too cool; near a link to the Glass the current slackens and dies; near one to the Fold the stars double. A pilot learns to taste the far side before committing. Gates and tears leak alike; only a tear leaks somewhere nobody has charted.
+- **Some links keep hours.** A gate keeps its anchor's hours: the Ink's gates breathe with the pillars their anchors sit in. A tear keeps its own: a beat, a season, a tide in the current. The fairy ring opens on the right night [new].
+- **Links are owned by holding the anchor.** A faction holds a foothold in a layer by holding the anchors at the far ends of its links and keeping their tunings secret, and how well that works depends on the layer: an anchor in the Ink cannot be found, one in the Glass cannot be hidden, one in the Fold is in two places at once. Anchor registries are the most valuable documents in Elysium, and the best of them are never written down.
 
 #### Depth
 
-Depth in Wonderland is counted in links and in time, not kilometres. One link from flatspace is shallow. Every link further, and every day spent, takes you deeper. Going too deep is how people stop coming back: not because the way is barred, but because by then they no longer want the place they came from, or it no longer recognises them [new].
+Depth in Wonderland is counted in links and in time, not kilometres. One gate from flatspace is shallow. Every link further, every step past the last anchor anyone keeps, and every day spent, takes you deeper. Going too deep is how people stop coming back: not because the way is barred, but because by then they no longer want the place they came from, or it no longer recognises them [new].
 
 #### What Wonderland Does to People
 
@@ -61,6 +61,6 @@ In play, a tale is route knowledge in canon's sense: rumour, attributed, maybe m
 | [[The Fold]] | Places drawn twice; edges glued | Nobody holds it | Knots where distance grows, seams that glue far places |
 | [[Hyperspace]] | A disc, crowded at the rim, recentred on you | The beacon keepers | Hyperbolic room: every road is short and you will never find it |
 
-More exist. Canon's "anything is possible" belongs to the layers nobody has a tale from yet.
+More exist. Canon's "anything is possible" belongs to the layers nobody has a tale from yet, the ones only blind gates and tears have touched.
 
 Spacers say: *taste the far side first*; *don't eat the food*; and, of anyone who came back too pleased, *ask her what it cost*.
