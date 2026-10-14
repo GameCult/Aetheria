@@ -177,6 +177,26 @@ public sealed partial class ContactRevealTests
         Assert.Equal(0f, ScannerOf(s).Progress, 4); // never below 0
     }
 
+    // ---- ABrokenScanResumesFromWhatDecayed ----
+
+    // A scan at .5 loses a sixteenth for each tick it is broken, and a held tick after the gap builds on what is left (the
+    // held tick itself is not a decay tick): .5, two broken ticks .375, two held ticks .5.
+    [Fact]
+    public void ABrokenScanResumesFromWhatDecayed()
+    {
+        var (s, target) = ScanOn();
+        Hold(s, 8, target);
+        Assert.Equal(.5f, ScannerOf(s).Progress, 4);
+        target.Position = float3(0, 0, 400);
+
+        Hold(s, 2, target);
+        Assert.Equal(.375f, ScannerOf(s).Progress, 4);
+
+        target.Position = float3(0, 0, 100);
+        Hold(s, 2, target);
+        Assert.Equal(.5f, ScannerOf(s).Progress, 4);
+    }
+
     // ---- ATargetChangeResetsTheScan ----
 
     [Fact]
