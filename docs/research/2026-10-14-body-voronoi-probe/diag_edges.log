@@ -1,0 +1,8 @@
+edges-only pot-well: presence step max 1.0000 (2 steps > .1 of 1500)
+edges-only pot-newton: presence step max 0.1869 (6 steps > .1 of 1500)
+edges-only mult: presence step max 0.1522 (6 steps > .1 of 1500)
+edges-only add: presence step max 0.1903 (8 steps > .1 of 1500)
+edges-only power: presence step max 0.1260 (9 steps > .1 of 1500)
+edges-only flow-aniso: presence step max 0.1645 (30 steps > .1 of 1500)
+edges-only lp05: presence step max 1.0000 (100 steps > .1 of 1500)
+edges-only lpinf: presence step max 0.5637 (34 steps > .1 of 1500)

@@ -1,0 +1,2 @@
+warp at cycle start True; grid 256; sigma [482, 180, 180, 305, 146, 103]; edge width 40.0 u; web at cycle start True
+power-strands: corr physarumA 0.371; members 4965; changed in 1 s 0.269; presence step max 0.0287 (0 steps > .1 of 1500); sites visited per evaluation 193; 0.60 ms/eval (Python); 88s
