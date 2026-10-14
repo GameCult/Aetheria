@@ -141,3 +141,16 @@ Ruling `pillar-is-a-wall` corrects the pillar's scale, in your words: "this spik
 
 1. **Do Ink anchors creep round the pillar?** *My recommendation: yes.* Creep is what a ring-shaped valley does, and it gives keepers a job and gates a phase. The alternative is to hold anchors only where the field cancels in every direction. In a single reach no such place exists, so every gate into the Ink would have to open in the narrows of a pair, and pairs are rare.
 2. **What does the wall give back?** *My recommendation: exactly what a ship brings between beats, a clean mirror at the matching slant; and on the beat the face's heave is added on top.* That makes bouncing free and predictable most of the time and makes the count the whole skill of the kiss. It is for the Ink gravity law (`aetheria-release:follow_up:ink-gravity-law`).
+
+#### The Wall Is a Steepening Ramp
+
+Ruling `pillar-wall-steepening-ramp`, in your words: "How hard the bounce feels depends on how fast you're going", and "You got it, it is indeed a steepening ramp". This adopts the foot argued for above and answers question 2 of The Pillar Is a Wall. [[Adrasteia Space]] now says the following:
+
+- **The foot is a ramp** that steepens without end. The Up Close scene and the bands table say so; no ship climbs high enough to touch the face.
+- **The bounce's outcome works like a mirror.** A ship leaves as fast as it came, at roughly its slant in, bent a little by the pillar's curve.
+- **The bounce's feel follows speed.** A slow ship turns in a soft arc low on the foot. A fast ship climbs high and is turned sharply. A fast ship at a shallow angle only glances off.
+- **The kiss needs speed.** The froth hangs high on the ramp, so a kiss is a bounce taken fast and nearly straight in, the hardest turn the wall gives. The beat's extra shove stays.
+- **Wall-kissers come in fast and straight.** A new spacer saying covers the soft touch: *she arcs, she doesn't bounce*.
+- **Who Goes In fix:** the Hunters line had lost its last sentence to the Wall-kissers line in the previous sweep. It is restored.
+
+Question 1 (whether anchors creep) stays open and has been routed to the Ink gravity work. How fast the ramp steepens is a tuning value for that cut, not lore.
