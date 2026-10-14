@@ -399,19 +399,19 @@ public sealed partial class ContactRevealTests
     [Fact]
     public void AFinishedScanListsTheGearOnTheSchematic()
     {
-        var target = Add(float3(0, 0, 100), new[] { "Gun" }, new[] { "Reactor", "Radiator", "SuppressorCold" });
+        var target = Add(float3(30, 0, 40), new[] { "Gun" }, new[] { "Reactor", "Radiator", "SuppressorCold" });
         var s = Add(float3(0, 0, 0), new[] { "Eye" }, new[] { "Scanner" });
-        s.EntityInfoGathered[target] = .5f;
-        s.SetTarget(target);
         var fitted = FittedBesidesTheHull(target);
         var gun = Guns(target)[0];
         var reactor = target.Equipment.Where(i => i.Behaviors.Any(b => b is Reactor)).Last();
         target.Claim(reactor, DataOf("Radiator"));
         target.SetSignature(new object(), SignatureChannel.LaunchFlash, 1000000f, target.EquippedHull);
-        Hold(s, 1, target);
+        Tick(.1f);
         Assert.Equal(target.EquippedHull, Assert.Single(s.RevealsOf(target)).Item); // fixture: the hull is in the book, as a hull class
         Assert.IsAssignableFrom<HullData>(s.RevealsOf(target).Single().Claimed);
-        Hold(s, 14, target);
+        s.EntityInfoGathered[target] = .5f;
+        s.SetTarget(target);
+        Hold(s, 15, target);
         Assert.Empty(s.SchematicRows(target)); // fixture: no row before the scan is done
 
         Hold(s, 1, target);

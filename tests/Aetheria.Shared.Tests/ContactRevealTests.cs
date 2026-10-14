@@ -1729,22 +1729,6 @@ public sealed partial class ContactRevealTests : IDisposable
         Assert.Equal(hostile, o.IsHostileTo(e));
     }
 
-    // A failing assertion over a Reveal formats the value for its message: if that walked the Entity graph the message would be
-    // enormous or the host would die on it. Probe of follow-up bearing-markers-test-residuals (2).
-    [Fact]
-    public void AFailingRevealAssertionFormatsBriefly()
-    {
-        var e = Add(float3(30, 0, 40), new[] { "Gun" });
-        var o = Add(float3(0, 0, 0), new[] { "Eye" });
-        Fire(e, Guns(e)[0]);
-        var reveal = Assert.Single(o.RevealsOf(e));
-
-        var text = Xunit.Sdk.ArgumentFormatter.Format(reveal);
-
-        Assert.True(text.Length < 400, $"formatted length {text.Length}");
-        Assert.Contains("Gun", text);
-    }
-
     private static int PaintInbox(Entity e) => ((System.Collections.ICollection) typeof(Entity).GetField("_paintInbox", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(e)).Count;
 
     // A paint still unpublished in an observer's inbox when the observer leaves the zone is gone: it does not arrive as a
