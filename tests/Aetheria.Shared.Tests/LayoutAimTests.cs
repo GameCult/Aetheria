@@ -58,8 +58,8 @@ public sealed partial class ContactRevealTests
         Assert.True(ship.TryEquip(Make("Gun"), new int2(0, 0)));
         Assert.True(ship.TryEquip(Make("Gun"), new int2(2, 3)));
         Place(ship, position);
-        var gunA = ship.Equipment.Single(i => i.Position.x == 0);
-        var gunB = ship.Equipment.Single(i => i.Position.x == 2);
+        var gunA = ship.Equipment.Single(i => i.Data.Name == "Gun" && i.Position.x == 0);
+        var gunB = ship.Equipment.Single(i => i.Data.Name == "Gun" && i.Position.x == 2);
         Assert.True(gunA.Hardpoint != null && gunB.Hardpoint != null && !ReferenceEquals(gunA.Hardpoint, gunB.Hardpoint), "fixture: each gun sits on its own mount");
         return (ship, gunA, gunB);
     }
