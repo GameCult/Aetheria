@@ -1,10 +1,10 @@
 **"Read the slope, then the current, then the glow. Then look for what's eating it."**
 
-> Draft r2, 2026-10-14. Part of [[Spaceborne Fauna]]. The design reasoning behind the bestiary: what pseudospace life lives on, who eats whom, and how the shape of a zone tells the story. Revised r3: this is the ecology of **Open Water**, the common family of flavours, from the Shallows to the Deeps ([[Pseudospace Flavours]]). Other flavours run on other budgets; the Ink's is in [[Adrasteia Space]]. `[new]` marks invention that touches existing canon.
+> Draft r2, 2026-10-14, revised r4. Part of [[Spaceborne Fauna]]. The design reasoning behind the bestiary of **Open Water**, the ecology of [[Flatspace]]: what its life lives on, who eats whom, and how the shape of a zone tells the story. It is strange and it is natural: everything here runs on physics a crew can learn and trust. The layers of [[Wonderland]] run on other budgets; the Ink's is in [[Adrasteia Space]]. `[new]` marks invention that touches existing canon.
 
 #### Energy: What Feeds the Sea
 
-An ecology is an energy budget first. Earth's oceans run on sunlight at the surface and, in the dark, on chemistry at hydrothermal vents, where whole food webs live on what the vent gives off. Pseudospace has four budgets, and each has a geography.
+An ecology is an energy budget first. Earth's oceans run on sunlight at the surface and, in the dark, on chemistry at hydrothermal vents, where whole food webs live on what the vent gives off. Open Water has four budgets, and each has a geography.
 
 | Source | Where it is strong | Who taps it first |
 |---|---|---|
@@ -13,19 +13,19 @@ An ecology is an energy budget first. Earth's oceans run on sunlight at the surf
 | Gravity waves | Around gas giants and suns, which ripple the slope | [[Whales]] |
 | Mind-light (Aether distortion from cognition) | Crews, ship minds, transmitters, stations, [[Spirits]] | [[Moths]] |
 
-Heat-light is the vent of pseudospace: the Aether turns heat into photons, so anything warm is a lamp that life can eat [new]. That makes ships vents too. It is the root of the line spacers learn first: the fauna come to the guns.
+Heat-light is the vent of Open Water: the Aether turns heat into photons, so anything warm is a lamp that life can eat [new]. That makes ships vents too. It is the root of the line spacers learn first: the fauna come to the guns.
 
 #### Transport: The Current
 
-Pseudospace moves. The [[Aether]] current is a slow braided stream through each zone, plus a swirl around every gravity well and a gentle drain downslope [new]. Everything that does not swim drifts in it: dust, nebula, glim, krill, loose cargo, wreckage. Ships hold their own course; nothing alive that is small can.
+Open Water moves. The [[Aether]] current is a slow braided stream through each zone, plus a swirl around every gravity well and a gentle drain downslope [new]. Everything that does not swim drifts in it: dust, nebula, glim, krill, loose cargo, wreckage. Ships hold their own course; nothing alive that is small can.
 
-Three features of a current make an ocean's patchiness, and they make pseudospace's:
+Three features of a current make an ocean's patchiness, and they make Open Water's:
 
 - **Fronts.** Where the stream converges, drifting things pile up into long bright lines, as plankton and sargassum gather at ocean fronts. Fronts are the richest grazing in a zone.
 - **Shear.** Where a well's swirl meets the open stream, the current changes speed over a short distance. Albatrosses fly for free on wind shear; [[Sharks]] patrol it the same way.
 - **Slack.** In the saddles between wells, pulls cancel and the current goes nearly still. Drift stalls there. Ambushers wait there: [[Lanterns]], [[Void Spiders]].
 
-The downslope drain does what marine snow does in the deep sea: dead matter sinks. In pseudospace it spirals into wells, so every well has a debris disc on its inner slope where [[Gleaners]] work, and a warm floor where the glim is thick.
+The downslope drain does what marine snow does in the deep sea: dead matter sinks. In Open Water it spirals into wells, so every well has a debris disc on its inner slope where [[Gleaners]] work, and a warm floor where the glim is thick.
 
 #### The Web
 
@@ -59,7 +59,7 @@ The [[Skein]] sits outside the chain. It is the network the chain lives on: a sl
 
 #### Succession: What Happens to a Body
 
-Whale falls on the deep-sea floor feed a sequence of communities for decades: mobile scavengers strip the flesh, opportunists work the enriched sediment, specialists live off the bones, and finally the skeleton is a reef. A whale fall in pseudospace runs the same course, and so does a dead ship [new]:
+Whale falls on the deep-sea floor feed a sequence of communities for decades: mobile scavengers strip the flesh, opportunists work the enriched sediment, specialists live off the bones, and finally the skeleton is a reef. A whale fall in Open Water runs the same course, and so does a dead ship [new]:
 
 1. **Heat.** The body is still warm: sharks, limpets and glim gather.
 2. **Strip.** [[Gleaners]] take soft tissue, loose cargo and anything not welded down.
@@ -68,7 +68,7 @@ Whale falls on the deep-sea floor feed a sequence of communities for decades: mo
 
 #### Recruitment: Why It Refills
 
-Reef fish repopulate a reef from larvae carried by the current, not from the adults that live there. The fauna refill the same way: the current brings spores and larvae from deeper pseudospace into every zone. Recovery is fast at the bottom of the web and slow at the top, so overharvesting the big animals has consequences that krill raking does not [new].
+Reef fish repopulate a reef from larvae carried by the current, not from the adults that live there. The fauna refill the same way: the current brings spores and larvae from the edges of flatspace, out where the links to [[Wonderland]] open, into every zone. Recovery is fast at the bottom of the web and slow at the top, so overharvesting the big animals has consequences that krill raking does not [new].
 
 #### Sources
 

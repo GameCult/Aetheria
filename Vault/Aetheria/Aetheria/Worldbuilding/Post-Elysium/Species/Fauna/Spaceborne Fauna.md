@@ -1,23 +1,23 @@
 **"Sol is a desert. Everywhere else is a sea."**
 
-> Draft lore pass r2, 2026-10-14, for the operator's review. It replaces the r1 pass of 2026-10-13, which took four example animals as the whole ecosystem. The ecology here is designed first, from what pseudospace life can live on; the animals fill its niches. `[new]` marks invention that touches existing canon. The reasoning, sources and the changes this pass argues for are in [[Pseudospace Ecology]] and [[Fauna Lore Review r2]]. Revised in r3: pseudospace comes in flavours ([[Pseudospace Flavours]]). Everything below describes the common flavour, **Open Water**; the Ink ([[Adrasteia Space]]) has its own bestiary.
+> Draft lore pass r2, 2026-10-14, revised r3 and r4. The ecology is designed first, from what life can live on; the animals fill its niches. `[new]` marks invention that touches existing canon. Reasoning and the changes argued for are in [[Open Water]] and the review notes ([[Fauna Lore Review r4]] is current). The frame since r4: the animals below live in **Open Water**, the ecology of [[Flatspace]], the vanilla galaxy. The layers of [[Wonderland]] have bestiaries of their own: [[Adrasteia Space|the Ink]], [[The Glass]], [[The Fold]], [[Hyperspace]].
 
-Leave Sol through any wormhole into Open Water and the dark is no longer empty. The nebula glows because something in it is alive. Threads of faint light run from one gravity well to the next. Clouds of krill turn in the current, schools of minnows flicker along their edges, and sharks ride the shear where a well's whirlpool meets the open stream. Rocks in the belts are crusted with rime. Something at the slack point between two moons is holding perfectly still and glowing like a wreck that wants rescuing. Do not rescue it.
+Leave Sol's bubble through any wormhole and the dark is no longer empty. The nebula glows because something in it is alive. Threads of faint light run from one gravity well to the next. Clouds of krill turn in the current, schools of minnows flicker along their edges, and sharks ride the shear where a well's whirlpool meets the open stream. Rocks in the belts are crusted with rime. Something at the slack point between two moons is holding perfectly still and glowing like a wreck that wants rescuing. Do not rescue it.
 
 Spacers named what they found after Earth animals, because that was the vocabulary they had. None of it is related to anything from Sol.
 
 #### What They Are
 
-Native life of [[Pseudospace]]. Canon already says it: flat space is the incursion, and Elysium's natural state is the chaos outside the islands. The fauna were never invaders and never arrived. They were here; humanity arrived. Opening wormholes did not let them in. It let humanity out, into the sea they live in [new].
+Native life of Elysium's flat space: strange, but natural. A biologist can study it, a crew can learn it, and nobody has to be changed to live beside it. It is the wildlife of a frontier, not the folk of a fairy tale; that is what [[Wonderland]] is for [new].
 
-Pseudospace life lives on four things Sol does not have:
+Open Water life lives on four things Sol does not have:
 
-- **The [[Aether]] current.** Pseudospace moves. A slow, braided stream runs through every zone, swirls around every well and drains gently downslope. It carries everything that does not swim: dust, nebula, spores, larvae, wreckage. Ships are the exception; they hold their own course [new].
-- **[[Negative Entropy]] in the wild.** The Aether turns heat into light. Every warm thing in pseudospace glows a little in a band no human eye sees, and life eats that glow. Heat is food [new].
+- **The [[Aether]] current.** Outside Sol, space moves. A slow, braided stream runs through every zone, swirls around every well and drains gently downslope. It carries everything that does not swim: dust, nebula, spores, larvae, wreckage. Ships are the exception; they hold their own course [new].
+- **[[Negative Entropy]] in the wild.** The Aether turns heat into light. Every warm thing glows a little in a band no human eye sees, and life eats that glow. Heat is food [new].
 - **Gravity waves.** Gas giants and suns ripple the slope around them. Things that flex can drink the ripple.
 - **Minds.** Cognition distorts the Aether ([[Cognitive Interfacing]]). Some life grazes that distortion, and is drawn to crews, ship minds, transmitters and [[Spirits]] [new].
 
-Sol has none of the first three in any strength and a great deal of the fourth. That is why Sol is a desert, and why it is the one place the [[Moths]] dream about.
+Sol has none of the first three in any strength and a great deal of the fourth. That is why Sol is a desert with no nebula in its sky, and why it is the one place the [[Moths]] dream about.
 
 #### The Bestiary
 
@@ -42,14 +42,14 @@ And past the charts, the thing that eats whales. Nobody has a picture of it. The
 
 #### Where Things Live
 
-The level is the ecology. See [[Pseudospace Ecology]] for the whole story; in one breath: glim thickens where the current converges and where warm wells glow; the skein grows along the gravity slope between wells; krill and minnows ride the fronts and the skein; sharks hunt the shear at well shoulders; spiders and lanterns sit in the slack saddles between wells; rime crusts the belts; whales surf the giants' waves; gleaners follow the debris spiralling into every well; and wherever ships run hot or fight, the whole web comes to feed.
+The level is the ecology. See [[Open Water]] for the whole story; in one breath: glim thickens where the current converges and where warm wells glow; the skein grows along the gravity slope between wells; krill and minnows ride the fronts and the skein; sharks hunt the shear at well shoulders; spiders and lanterns sit in the slack saddles between wells; rime crusts the belts; whales surf the giants' waves; gleaners follow the debris spiralling into every well; and wherever ships run hot or fight, the whole web comes to feed.
 
 #### Elysium's Harvest
 
 Sol spent a thousand years fighting over dwindling rocks. Elysium's wormholes opened onto a sea that refills, and the survivors organized it the only way they knew: claims, permits, contracts and debt [new].
 
-- **It refills from upstream.** The Aether current carries larvae and spores from deeper pseudospace into every zone, all the time. A ground stripped bare is recolonized from the current, fast at the bottom of the web and slowly at the top. Krill come back in days. A whale road emptied by flensers stays empty for a long time [new].
-- **Deeper is richer.** The further a zone lies from Sol, out toward the Chaos factions' periphery, the stronger the current, the thicker the glim, and the bigger the animals [new]. Harvesters go outward, and outward is where the [[Pseudospace]] stops pretending to be space.
+- **It refills from upstream.** The Aether current carries larvae and spores in from the edges of flatspace into every zone, all the time. A ground stripped bare is recolonized from the current, fast at the bottom of the web and slowly at the top. Krill come back in days. A whale road emptied by flensers stays empty for a long time [new].
+- **Deeper is richer.** The further a zone lies from Sol, out toward the edges where the Chaos factions live, the stronger the current, the thicker the glim, and the bigger the animals [new]. Harvesters go outward, and outward is where the links to [[Wonderland]] open.
 - **Who takes it.** Independents do the dangerous middle work. The [[Pan-Solar Consortium]] issues harvest claims on the model of the [[Conflict Permit]] [new]; everyone breaks them. Leading sharks into a rival's grounds is a recognized form of [[Resource Denial]] [new].
 - **What is taken.** Krill and minnow meal for Bloom farms and vat feed; photophores for flares; shark heat-organs for radiators; rime for building; gleaner gut-metal; spider silk; whale oil, veil and bone. The one thing Open Water does not yield is strange matter: that comes only from the Ink ([[Adrasteia Space]]), and only Adrasteia buys it [new].
 

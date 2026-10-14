@@ -1,16 +1,18 @@
 **"You can know you've been to the Ink. You can't know where you were."**
 
-> Draft lore pass r3, 2026-10-14, for the operator's review. A flavour of pseudospace (see [[Pseudospace Flavours]]), developed from the operator's sketch: "a liquid grid, with light eating fog overhead and all around and stars that connect to a pillar of glowing nebula, expelling waves of stardust and creating empty pockets with their pressure. The things that live in those inky clouds accumulate that negent dust, very dangerous beasties." Spacers call it **the Ink**. `[new]` marks invention that touches existing canon. Canon this note keeps: negent needs a configuration of strange matter encountered only in Adrasteia-controlled pseudospace; only Adrasteia makes the charged form; its supplier's location is unknown. Ruled: strange matter is not made by life (`strange-matter-not-biogenic`).
+> Draft lore pass r3, 2026-10-14, revised r4, for the operator's review. A layer of [[Wonderland]], with its own map, reached by links; Adrasteia's foothold. Developed from the operator's sketch: "a liquid grid, with light eating fog overhead and all around and stars that connect to a pillar of glowing nebula, expelling waves of stardust and creating empty pockets with their pressure. The things that live in those inky clouds accumulate that negent dust, very dangerous beasties." Spacers call it **the Ink**. `[new]` marks invention that touches existing canon. Canon this note keeps: negent needs a configuration of strange matter encountered only in Adrasteia-controlled pseudospace; only Adrasteia makes the charged form; its supplier's location is unknown. Ruled: strange matter is not made by life (`strange-matter-not-biogenic`).
 
 #### What It Looks Like
 
-Fly into the Ink and the stars go out first. A fog closes overhead, then on every side, black and faintly oily, and the light of your own running lamps dies a few hull-lengths out. Below you the grid of the slope is no longer fixed: it moves like the surface of a shallow sea, lifting and settling. Far off, through the fog, is the only thing you can see: a pillar of glowing nebula standing up out of the moving surface, so tall its top is lost, with its stars strung on it like beads. The lowest star sits where the pillar meets the water.
+Come through a link into the Ink and the stars go out first. A fog closes overhead, then on every side, black and faintly oily, and the light of your own running lamps dies a few hull-lengths out. Below you the grid of the slope is no longer fixed: it moves like the surface of a shallow sea, lifting and settling. Far off, through the fog, is the only thing you can see: a pillar of glowing nebula standing up out of the moving surface, so tall its top is lost, with its stars strung on it like beads. The lowest star sits where the pillar meets the water.
+
+**The map.** The Ink's galaxy map is black. The pillars are drawn as columns of light, each with its pulse shown as rings spreading from its foot; zones are named by pillar and beat, never by position, and the fog of the map never clears. You always know which pillar you are near and never where the Ink is [new].
 
 Every so often the pillar brightens. A while later a swell reaches you across the surface, a ring of stardust riding on it, and ahead of the ring the fog parts. For a minute or two you are in clear water: lamps reach, sensors reach, the surface glitters with dust. Then the pocket moves on outward with the wave and the fog closes behind it.
 
 #### How It Works
 
-- **The fog eats light, so it drinks heat.** Everywhere in pseudospace the Aether turns a little heat into light (wild [[Negative Entropy]]). In Open Water that light escapes and anything warm can be seen by it. In the Ink the fog eats it. Heat that becomes light becomes nothing. The whole flavour is a cold sink: a hull loses heat faster here than anywhere else, and radiators work too well. That is the first tell, before the stars go [new].
+- **The fog eats light, so it drinks heat.** Everywhere in flatspace the Aether turns a little heat into light (wild [[Negative Entropy]]). In Open Water that light escapes and anything warm can be seen by it. In the Ink the fog eats it. Heat that becomes light becomes nothing. The whole flavour is a cold sink: a hull loses heat faster here than anywhere else, and radiators work too well. That is the first tell, before the stars go [new].
 - **The pillars are where the stars' light goes.** A star in the Ink cannot shine outward; the fog takes its light within a short distance. What leaves it leaves upward, along the pillar, where the stars' own pressure keeps a column clear. The pillar is the visible star: a lamp of nebula lit from inside. It is the one landmark in the Ink, and pilots fix their position by pillars or not at all [new].
 - **The stars breathe dust.** Whatever the stars of the Ink are, they are not suns. They pulse, slowly, and each pulse sends a wave of stardust out from the pillar's foot across the liquid surface. The dust carries strange matter: rare grains in a sea of ordinary dust, made by the stars, not by anything alive. Nobody outside Adrasteia has seen one of these stars up close and come back to describe it [new].
 - **The waves open pockets.** A dust wave's pressure pushes the fog back ahead of it, opening a pocket of clear water that travels with the wave. Inside a pocket light carries and heat stays. Pockets are the only clear water in the Ink and the only warm water, so everything alive rides them. Behind each pocket the fog closes, and the dust the wave carried settles into the **inky clouds**: thick, dark banks where old dust gathers in the fog, densest near the pillars [new].
@@ -40,7 +42,7 @@ ships' heat ──► everything
 | Pack predator | [[Squid]] | Hunters of the pocket edges and the inky clouds; they eat heat at range and ink their escape. |
 | Apex | [[Cachalots]] | Giants that dive into the inky clouds after squid and hold more dust than anything alive. |
 
-Almost nothing from Open Water survives the Ink: no light for [[Glim]], so nothing that eats glim. [[Gleaners]] work the margins on wrecks. Nothing else crosses.
+Almost nothing from Open Water survives the Ink: no light for [[Glim]], so nothing that eats glim. [[Gleaners]] come through the links after wrecks. Nothing else crosses.
 
 #### Why the Beasts Are Dangerous
 
@@ -54,11 +56,15 @@ The tell from Faction Play, *a contact colder than its surroundings is dead or A
 
 The Ink keeps Adrasteia's monopoly three ways at once, and explains none of what canon wants kept dark [new].
 
-1. **It cannot be found.** No light leaves the Ink, so no telescope sees it and no chart shows it. Its mouths are kept. A crew that enters on someone's vouch (as the Adrasteia brainstorm proposes) is brought in through fog and brought out through fog, and knows it has been, not where.
+1. **It cannot be found.** No light leaves the Ink, so no telescope sees it and no chart shows it. Its links are kept: Adrasteia knows where they open and keeps their far ends secret, which is what a foothold is ([[Wonderland]]). A crew that enters on someone's vouch (as the Adrasteia brainstorm proposes) is brought in through fog and brought out through fog, and knows it has been, not where.
 2. **It cannot be worked warm.** Every animal in the Ink hunts heat. The only ships that can work there for long are ships that run cold, and the only way to run cold is negent, which needs charges, which need the dust. You must already have what you came for. Adrasteia had the first charges. Everyone else has to buy theirs from Adrasteia to go anywhere near the source, and charges run out.
 3. **The best dust is where nobody can go.** Dust is dilute in the waves, concentrated in the animals, and richest of all at the foot of the pillars, where every wave starts and the inky clouds are thickest. Skimmers take traces. Hunters take more and die more. Nobody who has tried to reach a pillar's foot has come back to say what is there, except, presumably, whoever supplies Adrasteia.
 
 What is not explained: what the stars of the Ink are; what the "particular configuration" of strange matter is and whether it exists in the dust or is made from it; how Adrasteia charges it; where any Ink is; and how Adrasteia came to be in every one anyone has found. Raw dust is worthless to anyone but Adrasteia. It is bought, at a good price, through blind drops.
+
+#### What It Does to People
+
+The Ink takes warmth. Crews who stay long come back calm, quiet and slow to anger, uneasy in bright rooms, and cold to the touch for a while; some never warm up. It gives them heat as a sense: a returner feels a warm body through a bulkhead the way others see a lamp, and can tell a running reactor from a banked one with her eyes shut. Adrasteia's culture of arriving unannounced, of introductions instead of addresses, and of the cheek check, is what a people becomes after generations of that gift [new].
 
 #### Who Goes In
 

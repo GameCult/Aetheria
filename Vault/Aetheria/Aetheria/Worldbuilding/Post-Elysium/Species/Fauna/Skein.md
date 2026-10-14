@@ -12,7 +12,7 @@ The skein is one organism the size of a system: a web of faint threads joining w
 
 **On sensors.** A faint lattice on passive; nothing on active. It is never a contact.
 
-**How it hurts.** It doesn't. It is the one thing in pseudospace that never attacks. Flying through it breaks strands, which regrow; the [[Krill]] scatter.
+**How it hurts.** It doesn't. It is the one thing in Open Water that never attacks. Flying through it breaks strands, which regrow; the [[Krill]] scatter.
 
 **Yield.** Thread, by the gram: it carries Aether disturbance along its length, and makes fine antenna for [[Aethernet]] gear. Cetacean Navigators consider harvesting it vandalism of the chart [new].
 

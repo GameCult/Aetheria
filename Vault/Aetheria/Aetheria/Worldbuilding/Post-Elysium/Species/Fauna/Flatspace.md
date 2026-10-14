@@ -1,0 +1,35 @@
+**"Out here a kilometre is a kilometre. Be grateful. Further on, it isn't."**
+
+> Draft lore pass r4, 2026-10-14, for the operator's review. Part of [[Spaceborne Fauna]]. Flatspace is the vanilla galaxy: Sol, and the map of nebulae and stars the game draws today. Its other half is [[Wonderland]]. `[new]` marks invention that touches existing canon. Reasoning in [[Fauna Lore Review r4]].
+
+Flatspace is everywhere you can live without being changed. Its physics is strange by Sol's standards (the [[Aether]] has a current, heat turns into light, things live in the nebulae), but it is physics: it holds still long enough to be learned, charted, insured and taught. You can colonise it without accepting that reality has been altered. Most people in Elysium never leave it.
+
+#### Sol
+
+Sol sits in a bubble with no nebula in it: a black, clear sky, the old planets where they always were, no current to speak of and nothing alive in the dark. Spacers call it the desert, and Solar people call everywhere else the weather. The bubble is the one place in Elysium where space behaves exactly as the textbooks from before the Rupture say it should.
+
+#### Vanilla Elysium
+
+Beyond the bubble, through the wormholes, lies the rest of flatspace: nebulae lit from inside by [[Glim]], braided currents, gravity wells with whirlpools, and the [[Open Water]] ecology. This is where the ordinary factions live: the core worlds, the corporations, the ports and insurers, the registries and the courts. Canon calls its settlements the Flatlanders' camps, built on islands of stability. From inside, the islands look like a continent.
+
+Flatspace has a shape that people feel without naming:
+
+- **The core** is settled, busy and thin in fauna. Ships keep the krill scattered and the sharks away.
+- **The edges** are richer. The current is stronger, the glim thicker, the animals bigger, and that is where the **Chaos factions** live: canon puts them at the edges of stable Euclidean space. They are the ones who keep a foot on each side.
+- **The links** open mostly at the edges; the few that open in the core are the best-kept secrets in Elysium. A link is a way into a layer of [[Wonderland]], and finding one is how a faction stops being an edge faction and starts holding a foothold [new].
+
+#### Pirates
+
+Pirates are flatspace's scourge, and only flatspace's. Piracy needs what flatspace has: lanes with traffic on them, charts that stay true, ports that will buy without asking, and a place to hide that is still a place. Wonderland gives none of that. A raider that runs for a link to shake pursuit may come out the other side, but rarely comes back a raider, and the stories it tells after are not pirate stories [new].
+
+#### Why Flatspace Is Flat
+
+Nobody knows, and everyone has an account [new].
+
+- **The core worlds' account.** Flat is how space is. Pseudospace is a rift, an incursion into an orderly universe.
+- **The edge account.** Canon's line, and the Chaos factions' creed: *we brought flat space with us; we are the incursion.* The Aether answers to minds, and wherever enough minds expect Euclid, the Aether gives it to them. Sol is the flattest place there is because it is the oldest and most crowded expectation in Elysium.
+- **The Timeless account.** Elysium is a shard of bespoke spacetime the Timeless built for their prisoners ([[Temporal Nonlinearity]]). Flatspace is the cell, made comfortable. Wonderland is what the cell was carved from.
+
+The three accounts make different politics: an orderly universe to defend, a habit to keep up, or a prison to be kept in. Which, if any, is true is put to the operator in [[Fauna Lore Review r4]].
+
+Spacers say: *flat is a promise, not a fact*; and, of a crewmate back from a link with a far look, *she's been off the map*.

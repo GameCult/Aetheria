@@ -2,9 +2,9 @@
 
 #### What r3 Did
 
-- Made pseudospace flavours a framework ([[Pseudospace Flavours]]): five dials (light, heat, surface, flow, distance), set by the stars, each flavour with its own bestiary and its own crossing tells. Four flavours: **Open Water** (r2's ecology, now a family from Shallows to Deeps), **the Ink** (Adrasteia space), **the Glass** (stiff Aether: no current, nothing fades, nowhere to hide) and **the Fold** (non-Euclidean: knots where distance grows, seams that glue far places).
+- Made pseudospace flavours a framework ([[Wonderland]]): five dials (light, heat, surface, flow, distance), set by the stars, each flavour with its own bestiary and its own crossing tells. Four flavours: **Open Water** (r2's ecology, now a family from Shallows to Deeps), **the Ink** (Adrasteia space), **the Glass** (stiff Aether: no current, nothing fades, nowhere to hide) and **the Fold** (non-Euclidean: knots where distance grows, seams that glue far places).
 - Developed the Ink from your sketch ([[Adrasteia Space]]) with a four-level web: [[Soot]], [[Rays]], [[Squid]], [[Cachalots]].
-- Cut the strange-matter rumour from [[Whales]], [[Spaceborne Fauna]] and [[Pseudospace Ecology]] (ruling `strange-matter-not-biogenic`). Strange matter is now stellar dust of the Ink, concentrated by its animals, made by none of them.
+- Cut the strange-matter rumour from [[Whales]], [[Spaceborne Fauna]] and [[Open Water]] (ruling `strange-matter-not-biogenic`). Strange matter is now stellar dust of the Ink, concentrated by its animals, made by none of them.
 
 #### Where I'd Change Your Sketch
 

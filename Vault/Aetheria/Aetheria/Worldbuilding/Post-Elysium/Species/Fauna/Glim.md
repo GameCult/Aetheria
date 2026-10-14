@@ -2,7 +2,7 @@
 
 > Draft r2, 2026-10-14. Part of [[Spaceborne Fauna]]; niche: producer. `[new]` marks invention that touches existing canon.
 
-Glim is the living part of the nebula. Most of a pseudospace cloud is dust and gas; the part that glows is glim, motes smaller than a grain of sand, each a shell of membrane that catches light and keeps it. A thick glim front looks like a nebula lit from inside [new].
+Glim is the living part of the nebula. Most of a nebula is dust and gas; the part that glows is glim, motes smaller than a grain of sand, each a shell of membrane that catches light and keeps it. A thick glim front looks like a nebula lit from inside [new].
 
 **Eats.** Starlight inside a sun's light radius, and heat-light everywhere else: the photons the [[Aether]] makes out of heat ([[Negative Entropy]]). Glim is thickest on the fronts where the current piles it, on the warm floors of wells, and around wormhole mouths.
 
@@ -16,6 +16,6 @@ Glim is the living part of the nebula. Most of a pseudospace cloud is dust and g
 
 **Yield.** *Skimming*: scooping concentrate from a front. Cheap feedstock for vats and Bloom farms, and a mild coolant that gets warm and glows.
 
-**Lives.** Everywhere outside Sol, thickest on fronts, well floors, near mouths and on battlefields. Thicker the deeper into pseudospace a zone lies. Absent in Sol, which is why Sol is cloudless.
+**Lives.** Everywhere outside Sol, thickest on fronts, well floors, near mouths and on battlefields. Thicker the further a zone lies from Sol, out toward the edges of flatspace. Absent in Sol, which is why Sol is cloudless.
 
 *Designers:* this is the existing nebula and stardust, read as partly alive. Its one hook is the halo: heat in glim raises visibility.
