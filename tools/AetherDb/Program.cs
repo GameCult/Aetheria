@@ -1729,7 +1729,7 @@ public static class Program
                 new ListenerData { Multiple = new PerformanceStat { Min = 2f, Max = 3f, Terms = new List<StatTerm> { new StatTerm { Source = StatSource.Quality, Exponent = 1f, Role = "receiver" } } } },
             };
             array.Roles = new List<ItemRole> { new ItemRole { Name = "receiver" } };
-            arrayProducts.Add(("Feather", "Finch", "Light as the thing it is named for, and about as easy to notice. Hears a shout from the next sector over."));
+            arrayProducts.Add(("Murmur", "Finch", "Quiet as its name, and about as easy to notice. Hears a shout from the next sector over."));
             arrayProducts.Add(("Wallflower", "NiteLife", "Stands in the corner of your hull and takes notes on everyone's business."));
             foreach (var (name, maker, description) in arrayProducts) Maker(maker);
             Console.WriteLine($"\nNew design: Passive Array [Tool] 1x1, EnergyDraw 10/s, Multiple 2-3 reading receiver; products {string.Join(", ", arrayProducts.Select(p => $"{p.Name} by {p.Maker}"))}");
