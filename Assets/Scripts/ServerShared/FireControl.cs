@@ -797,9 +797,9 @@ public static class FireControl
             FuseDelay = data.FuseDelay,
             Lifetime = data.Lifetime,
             BlastRadius = blastRadius,
-            // A mine is laid at the layer, distance 0: it goes through the same falloff as every other payload, so a layer's
-            // authored ranges decide its mines, the AI's reading of it and its panel alike.
-            Damage = weapon.Damage * weapon.RangeFactor(0f),
+            // Mines are flat (ruling effective-range-authoring-ruled): a mine layer carries no falloff authoring
+            // (StatValidation.ValidateMineLayerFlat), so its figure is the AI's and the panel's at every distance it can engage.
+            Damage = weapon.Damage,
             DamageType = weapon.WeaponData.DamageType,
             Layer = source,
             LayerFaction = source.Faction

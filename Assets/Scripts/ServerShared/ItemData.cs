@@ -840,6 +840,21 @@ public static class StatValidation
         }
     }
 
+    // Ruling effective-range-authoring-ruled: mines are flat. A mine layer's Range and MinRange gate where it may lay; its
+    // damage meets no range, so it carries no falloff authoring, and WeaponData.RangeFactor reads 1 inside the gate for the
+    // mine, the AI and the panel alike. Refused here, with the other catalog rules, wherever those run.
+    public static void ValidateMineLayerFlat(string ownerName, IEnumerable<BehaviorData> behaviors)
+    {
+        foreach (var layer in (behaviors ?? Enumerable.Empty<BehaviorData>()).OfType<MineLayerData>())
+        {
+            var effective = layer.EffectiveRange;
+            if (effective == null || !float.IsPositiveInfinity(effective.Min) || !float.IsPositiveInfinity(effective.Max) || (effective.Terms != null && effective.Terms.Count > 0))
+                throw new InvalidOperationException($"{ownerName}: {nameof(MineLayerData)}.{nameof(WeaponData.EffectiveRange)} is authored, but a mine layer carries no damage falloff");
+            if (layer.DamageAtMaxRange != 0f)
+                throw new InvalidOperationException($"{ownerName}: {nameof(MineLayerData)}.{nameof(WeaponData.DamageAtMaxRange)} is authored, but a mine layer carries no damage falloff");
+        }
+    }
+
     // Cut 7 (docs/stats-and-power-cut.md): "a stat naming a role its design lacks" must be refused, not silently
     // fall back to the lot's own workmanship (Lot.QualityForRole already falls back for a role a lot never rolled
     // -- that is the intended forward-compat path for an old lot meeting a newly-authored role. This is the other

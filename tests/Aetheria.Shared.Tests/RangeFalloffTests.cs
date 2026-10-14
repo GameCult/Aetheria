@@ -116,13 +116,14 @@ public sealed partial class FireControlCut124Tests
     // A no-lock fused round reads the falloff where its burst point is decided, at its commit: the shot right after the tick
     // that committed it, still in the air (velocity 20). With a clear line it travels to Range ("bomb fishing") and lands at
     // the end multiplier.
-    private float NoLockDamageAfterCommit(float effective, float blockerAt, out float travelled)
+    private float NoLockDamageAfterCommit(float effective, float blockerAt, out float travelled, float2? aim = null)
     {
         var e = Build(TestSettings(), SolidShape(5, 4), velocity: 20f, fuse: WeaponFuse.Proximity, blastRadius: 4f, penetration: 1f,
             damage: 100f, weaponRange: NoLockRange, effectiveRange: effective, damageAtMaxRange: .25f);
         e.Shooter.SetTarget(TargetRef.None);
-        Aim(e, float2(0, 1));
-        if (blockerAt > 0f) AddShip(e, PointAlong(e, float2(0, 1), blockerAt), 100000f, 300);
+        var direction = aim ?? float2(0, 1);
+        Aim(e, direction);
+        if (blockerAt > 0f) AddShip(e, PointAlong(e, direction, blockerAt), 100000f, 300);
         ShotOutcome outcome = null;
         using var c = e.Zone.ShotCommitted.Subscribe(o => outcome = o);
         var shotId = FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
@@ -138,6 +139,15 @@ public sealed partial class FireControlCut124Tests
     {
         Assert.Equal(25f, NoLockDamageAfterCommit(effective: 20f, blockerAt: 0f, out var travelled), 3);
         Assert.Equal(NoLockRange, travelled, 3);
+    }
+
+    // A clear line's burst point is planned at Range, but its planar distance can come out a rounding step past it (3.8e-6 at
+    // aim (1, 0) and Range 60); Deliver clamps that to Range, so the round still lands at the end multiplier (a non-zero end
+    // here: unclamped, the read past Range is 0).
+    [Fact]
+    public void ARoundFishedToRangeIsNeverReadPastRangeByRounding()
+    {
+        Assert.Equal(25f, NoLockDamageAfterCommit(effective: 20f, blockerAt: 0f, out _, aim: float2(1, 0)), 3);
     }
 
     // The round stops on the first hull ahead, 21 out (well inside a 30 effective range of a 60 range weapon): it delivers

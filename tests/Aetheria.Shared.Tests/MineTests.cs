@@ -67,7 +67,7 @@ public sealed class MineTests : IDisposable
     private Lab Build(float blast = 4f, float arming = 2f, float fuse = 2f, float life = 30f, float spread = 0f, float velocity = 0f,
         float damage = 100f, float range = 1000f, float cooldown = 1000f, Faction layerFaction = null,
         WeaponFuse? fuseKind = WeaponFuse.Proximity, bool well = false, float3? layerAt = null, int magazine = 100,
-        float minRange = 0f, float effectiveRange = float.PositiveInfinity, float damageAtMaxRange = 0f)
+        float minRange = 0f)
     {
         var settings = new GameplaySettings
         {
@@ -93,7 +93,7 @@ public sealed class MineTests : IDisposable
         {
             ArmingDelay = arming, FuseDelay = fuse, Lifetime = life,
             Damage = Constant(damage), Range = Constant(range), MinRange = Constant(minRange),
-            EffectiveRange = Constant(effectiveRange), DamageAtMaxRange = damageAtMaxRange, Velocity = Constant(velocity),
+            Velocity = Constant(velocity),
             Spread = Constant(spread), DamageSpread = Constant(0), Penetration = Constant(0), Count = Constant(1),
             BurstTime = Constant(0), Cooldown = Constant(cooldown), MagazineSize = magazine,
         };
@@ -547,22 +547,39 @@ public sealed class MineTests : IDisposable
         Assert.True(angles.Max() > 10f && angles.Min() < -10f, "the angle spans +-Spread/2, not a narrower cone");
     }
 
-    // A mine goes through the same falloff as every payload, read at its lay distance (0, at the layer): the layer's authored
-    // ranges decide the mine's damage, the AI's reading of the layer and the panel's chart alike. Authored flat to 10 with
-    // a .3 end, a mine layer with no minimum range lays a full-damage mine; with a minimum of 5 the layer has no reach at the
-    // lay point and the mine is worth nothing, in the AI's figure too. Kills: Lay without the factor, Lay reading it at any
-    // other distance (20 reads under 1 for both fixtures).
+    // Mines are flat (ruling effective-range-authoring-ruled): a layer's MinRange and Range gate where it may lay, and the one
+    // RangeFactor reads 1 inside them, so the mine's damage, the AI's figure and the panel's function agree at every distance.
     [Theory]
-    [InlineData(0f, 100f)]
-    [InlineData(5f, 0f)]
-    public void ALayersAuthoredRangesDecideItsMinesAndTheAILikewise(float minRange, float damage)
+    [InlineData(0f)]
+    [InlineData(5f)]
+    public void AMineLayerIsFlatForTheMineTheAIAndThePanel(float minRange)
     {
-        var lab = Build(damage: 100f, range: 1000f, minRange: minRange, effectiveRange: 10f, damageAtMaxRange: .3f, layerFaction: A);
-        Assert.NotEqual(damage, 100f * lab.Weapon.RangeFactor(20f));
+        var lab = Build(damage: 100f, range: 1000f, minRange: minRange, layerFaction: A);
         var mine = LayOne(lab);
+        Assert.Equal(100f, mine.Damage, 3);
 
-        Assert.Equal(damage, mine.Damage, 3);
-        Assert.Equal(damage, lab.Weapon.RangeDamagePerSecond(0f) * lab.Weapon.Cooldown, 3);
+        var data = lab.Weapon.WeaponData;
+        foreach (var at in new[] { 5f, 10f, 100f, 500f, 999f })
+        {
+            Assert.Equal(mine.Damage, lab.Weapon.RangeDamagePerSecond(at) * lab.Weapon.Cooldown, 3);
+            Assert.Equal(mine.Damage, 100f * WeaponData.RangeFactor(data.MinRange.Max, data.EffectiveRange.Max, data.Range.Max, data.DamageAtMaxRange, at), 3);
+        }
+    }
+
+    // A falloff on a mine layer would act on nothing the mine does, so the catalog refuses it where it is authored.
+    [Theory]
+    [InlineData(10f, 0f)]
+    [InlineData(float.PositiveInfinity, .3f)]
+    public void AMineLayerAuthoringFalloffIsRefused(float effective, float end)
+    {
+        var item = new WeaponItemData
+        {
+            Name = "Mine Layer", Hardpoint = HardpointType.Sensors, Shape = new Shape(), BlastRadius = 4f,
+            Behaviors = { new MineLayerData { Range = Constant(1000f), EffectiveRange = Constant(effective), DamageAtMaxRange = end } }
+        };
+        var refusal = Assert.Throws<InvalidOperationException>(() => StatValidation.ValidateMineLayerFlat(item.Name, item.Behaviors));
+        Assert.Contains("falloff", refusal.Message);
+        Assert.Throws<InvalidOperationException>(() => CultRecordRefs.Validate(item));
     }
 
     [Fact]

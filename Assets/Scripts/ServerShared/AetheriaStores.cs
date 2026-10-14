@@ -81,12 +81,14 @@ public static class CultRecordRefs
             StatValidation.ValidateHeatResponse(data);
             StatValidation.ValidateStatModifiers(data.Name, data.Behaviors);
             StatValidation.ValidateMunitionParts(data.Name, data.Behaviors);
+            StatValidation.ValidateMineLayerFlat(data.Name, data.Behaviors);
             StatValidation.ValidateRoleUsage(data.Name, data.Roles, data.Behaviors);
         }
         if (document is ConsumableItemData consumable)
         {
             StatValidation.ValidateStatModifiers(consumable.Name, consumable.Behaviors);
             StatValidation.ValidateMunitionParts(consumable.Name, consumable.Behaviors);
+            StatValidation.ValidateMineLayerFlat(consumable.Name, consumable.Behaviors);
             StatValidation.ValidateRoleUsage(consumable.Name, consumable.Roles, consumable.Behaviors);
         }
     }
