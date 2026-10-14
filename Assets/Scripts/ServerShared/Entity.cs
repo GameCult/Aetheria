@@ -961,7 +961,7 @@ public abstract class Entity
         if (!_active || item == null || !Zone.Entities.Contains(subject) || PerceivesDestroyed(subject, item)) return;
         if (!_reveals.TryGetValue(subject, out var book))
             _reveals[subject] = book = new Dictionary<EquippedItem, Reveal>();
-        book[item] = new Reveal(item, channel, normalize((subject.Position - Position).xz), Zone.Time, claimed);
+        book[item] = new Reveal(item, channel, normalize((subject.Position - Position).xz), Zone.Time, claimed, IsHostileTo(subject));
     }
 
     // A finished scan (Scanner.Execute; rulings scan-is-an-act, quiet-gear-identifiable-hull-layout-known: quiet gear
@@ -1000,8 +1000,10 @@ public abstract class Entity
     public IReadOnlyCollection<Entity> RevealedSubjects => _reveals.Keys;
 
     // The hostile subjects this observer holds only by a bearing: revealed, Detected, not Tracked (what bearing markers and
-    // the music show). Reads the book and ContactOf, never the subject's Position or gear.
-    public IEnumerable<Entity> RememberedHostiles => RevealedSubjects.Where(s => IsHostileTo(s) && ContactOf(s) is { Detected: true, Tracked: false });
+    // the music show). Hostile is the stance the freshest reveal was made under (Contact.Hostile), not IsHostileTo now: the
+    // stance an override gave goes with the subject when it departs, and the marker lasts until the bearing lapses. Reads the
+    // book and ContactOf, never the subject's Position or gear.
+    public IEnumerable<Entity> RememberedHostiles => RevealedSubjects.Where(s => ContactOf(s) is { Detected: true, Tracked: false, Hostile: true });
 
     // What this observer has seen `subject`'s items do: each item's latest act, and nothing the subject's present
     // gear or Durability says (ruling contact-reads-book-aim-reads-live). A reveal ends only on what this observer
@@ -1065,7 +1067,7 @@ public abstract class Entity
         var bearing = tracked ? normalize((subject.Position - Position).xz) : remembered ? freshest.Bearing : default;
         var identified = info >= settings.TargetGearInfoThreshold;
         // Profile is the one derivation of the hull this observer believes (no stored belief until the judge, ew-masquerade).
-        return new Contact(detected, tracked, detected && any, identified, bearing, info, identified ? subject.ClaimedHull : null);
+        return new Contact(detected, tracked, detected && any, identified, bearing, info, identified ? subject.ClaimedHull : null, any && freshest.Hostile);
     }
 
     // What this observer's instruments receive of other ships' acts this tick (Zone.Update calls it once, after every

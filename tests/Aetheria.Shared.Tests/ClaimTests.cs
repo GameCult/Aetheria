@@ -166,6 +166,22 @@ public sealed partial class ContactRevealTests
         Assert.NotSame(lockItem.Data, claimed); // fixture: the claim is not the truth
     }
 
+    // A lie within a category is the ordinary lie: a gun that claims another weapon class is labelled with the claim.
+    [Fact]
+    public void ClaimedClassesNameTheClaimWithinACategory()
+    {
+        var e = Add(float3(0, 0, 0), new[] { "Gun" });
+        var o = Add(float3(30, 0, 40), new[] { "Eye" });
+        var gun = Guns(e)[0];
+        var claimed = DataOf("Beam");
+        Assert.True(gun.Data.Behaviors.Any(b => b is WeaponData) && claimed.Behaviors.Any(b => b is WeaponData), "fixture: truth and claim are both weapons");
+        e.Claim(gun, claimed);
+        Fire(e, gun);
+
+        Assert.Same(claimed, Assert.Single(o.ClaimedClasses(e)));
+        Assert.NotSame(gun.Data, claimed); // fixture: the claim is not the truth
+    }
+
     // The label's order is the claimed names', never the order the reveals were made in.
     [Fact]
     public void ClaimedClassesAreOrderedByName()

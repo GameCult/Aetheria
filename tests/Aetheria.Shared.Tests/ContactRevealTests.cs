@@ -1054,6 +1054,27 @@ public sealed partial class ContactRevealTests : IDisposable
         Assert.False(o.ContactOf(p).Detected);
     }
 
+    // A ship out of the zone (docked) is no longer published to: the Search warning it held when it left stays in
+    // IncomingPaints tick after tick, which is why the HUD's per-tick sweep collection must not read a docked ship.
+    [Fact]
+    public void ADockedShipKeepsItsLastWarningStale()
+    {
+        var p = Add(float3(0, 0, 100), new[] { "Eye" });
+        var o = Add(float3(0, 0, 0));
+        var sensor = (Sensor) p.Equipment.Single(i => i.Behaviors.Any(b => b is Sensor)).Behaviors.Single(b => b is Sensor);
+        Tick(.01f);
+        sensor.Ping();
+        for (var tick = 0; tick < 100 && o.IncomingPaints.Count == 0; tick++) Tick(.1f);
+        Assert.Single(o.IncomingPaints); // fixture: the ping crossed o
+
+        _zone.Remove(o);
+        for (var tick = 0; tick < 5; tick++)
+        {
+            Tick(.1f);
+            Assert.Equal(PaintMode.Search, Assert.Single(o.IncomingPaints).Mode);
+        }
+    }
+
     // An observer's own gear is not another ship's act: a ship that fires its own gun, with its own sensor at the
     // very place of the light, records nothing of itself, while a neighbour does record the gun.
     [Fact]
@@ -1376,7 +1397,7 @@ public sealed partial class ContactRevealTests : IDisposable
         ShowOnly(e, 1f, gun);
         Assert.True(e.Visibility * o.PassiveInfo(e.Position.xz, 1f) <= _items.GameplaySettings.TargetDetectionInfoThreshold, "fixture: its last light is below o's gate");
         _zone.Remove(e);
-        o.SetIff(e, true); // a departure drops the stance (it lasts the sitting); this stands for hostility the faction rule keeps
+        Assert.False(o.IsHostileTo(e), "fixture: the departure dropped the stance the override gave; nothing restates it");
         var memory = _items.GameplaySettings.BearingMemory;
         var lapsed = false;
         for (var i = 0; i < 200 && !lapsed; i++)
@@ -1388,6 +1409,56 @@ public sealed partial class ContactRevealTests : IDisposable
         Assert.True(lapsed, "fixture: the bearing lapsed");
         o.Deactivate();
         Assert.Equal(0, o.RememberedHostiles.Count());
+    }
+
+    // A hostile that fired and stayed in the zone, dark: the book keeps it (an in-zone subject is never pruned), so only
+    // ContactOf's Detected ends its listing, exactly when its bearing is BearingMemory old.
+    [Fact]
+    public void ALapsedHostileInTheZoneIsNotRemembered()
+    {
+        var e = Add(float3(0, 0, 100), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        o.SetIff(e, true);
+        var gun = Guns(e)[0];
+        Fire(e, gun);
+        var freshest = Freshest(o, e);
+        ShowOnly(e, 1f, gun);
+        Assert.True(e.Visibility * o.PassiveInfo(e.Position.xz, 1f) <= _items.GameplaySettings.TargetDetectionInfoThreshold, "fixture: its last light is below o's gate");
+        Assert.True(o.RememberedHostiles.Contains(e), "fixture: listed while young");
+        var memory = _items.GameplaySettings.BearingMemory;
+        var lapsed = false;
+        for (var i = 0; i < 200 && !lapsed; i++)
+        {
+            Tick(.1f);
+            lapsed = _zone.Time - freshest >= memory;
+            Assert.Equal(!lapsed, o.RememberedHostiles.Contains(e)); // exactly while the bearing is remembered
+        }
+        Assert.True(lapsed, "fixture: the bearing lapsed");
+        Assert.Contains(e, o.RevealedSubjects); // fixture: the in-zone subject is still in the book
+        Assert.False(o.ContactOf(e).Detected, "fixture: the contact is no longer Detected");
+        Assert.False(o.RememberedHostiles.Contains(e));
+    }
+
+    // A remembered hostile is decided by the book, never by where the subject stands: loud pingers 500 to 600 away on three
+    // sides are heard (Roar: 300 over .5) and listed, each at the bearing it was heard on.
+    [Fact]
+    public void RememberedHostilesDoNotDependOnDistance()
+    {
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var spots = new[] { float3(550, 0, 0), float3(-520, 0, 100), float3(0, 0, 590) };
+        var pingers = spots.Select(spot => Add(spot, new[] { "Roar" })).ToArray();
+        foreach (var p in pingers) o.SetIff(p, true);
+        foreach (var p in pingers) PingAt(p);
+
+        foreach (var p in pingers)
+        {
+            Assert.False(o.ContactOf(p).Tracked, "fixture: held by a bearing only");
+            Assert.True(length(p.Position - o.Position) > 500f, "fixture: far from the observer");
+            Assert.True(o.RememberedHostiles.Contains(p));
+            var toward = normalize((p.Position - o.Position).xz);
+            AssertBearing(toward.x, toward.y, o.ContactOf(p).Bearing);
+        }
+        Assert.Equal(3, o.RememberedHostiles.Count());
     }
 
     // The first field path from `root` to `target`, not entering the zone or the item manager, or null.
