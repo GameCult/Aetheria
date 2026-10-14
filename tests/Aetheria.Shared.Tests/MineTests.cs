@@ -66,7 +66,8 @@ public sealed class MineTests : IDisposable
 
     private Lab Build(float blast = 4f, float arming = 2f, float fuse = 2f, float life = 30f, float spread = 0f, float velocity = 0f,
         float damage = 100f, float range = 1000f, float cooldown = 1000f, Faction layerFaction = null,
-        WeaponFuse? fuseKind = WeaponFuse.Proximity, bool well = false, float3? layerAt = null, int magazine = 100)
+        WeaponFuse? fuseKind = WeaponFuse.Proximity, bool well = false, float3? layerAt = null, int magazine = 100,
+        float minRange = 0f, float effectiveRange = float.PositiveInfinity, float damageAtMaxRange = 0f)
     {
         var settings = new GameplaySettings
         {
@@ -91,7 +92,8 @@ public sealed class MineTests : IDisposable
         var data = new MineLayerData
         {
             ArmingDelay = arming, FuseDelay = fuse, Lifetime = life,
-            Damage = Constant(damage), Range = Constant(range), MinRange = Constant(0), Velocity = Constant(velocity),
+            Damage = Constant(damage), Range = Constant(range), MinRange = Constant(minRange),
+            EffectiveRange = Constant(effectiveRange), DamageAtMaxRange = damageAtMaxRange, Velocity = Constant(velocity),
             Spread = Constant(spread), DamageSpread = Constant(0), Penetration = Constant(0), Count = Constant(1),
             BurstTime = Constant(0), Cooldown = Constant(cooldown), MagazineSize = magazine,
         };
@@ -543,6 +545,24 @@ public sealed class MineTests : IDisposable
         Assert.True(angles.Distinct().Count() > 12, "every mine rolls its own angle");
         Assert.All(angles, x => Assert.InRange(x, -20f - 1e-2f, 20f + 1e-2f));
         Assert.True(angles.Max() > 10f && angles.Min() < -10f, "the angle spans +-Spread/2, not a narrower cone");
+    }
+
+    // A mine goes through the same falloff as every payload, read at its lay distance (0, at the layer): the layer's authored
+    // ranges decide the mine's damage, the AI's reading of the layer and the panel's chart alike. Authored flat to 10 with
+    // a .3 end, a mine layer with no minimum range lays a full-damage mine; with a minimum of 5 the layer has no reach at the
+    // lay point and the mine is worth nothing, in the AI's figure too. Kills: Lay without the factor, Lay reading it at any
+    // other distance (20 reads under 1 for both fixtures).
+    [Theory]
+    [InlineData(0f, 100f)]
+    [InlineData(5f, 0f)]
+    public void ALayersAuthoredRangesDecideItsMinesAndTheAILikewise(float minRange, float damage)
+    {
+        var lab = Build(damage: 100f, range: 1000f, minRange: minRange, effectiveRange: 10f, damageAtMaxRange: .3f, layerFaction: A);
+        Assert.NotEqual(damage, 100f * lab.Weapon.RangeFactor(20f));
+        var mine = LayOne(lab);
+
+        Assert.Equal(damage, mine.Damage, 3);
+        Assert.Equal(damage, lab.Weapon.RangeDamagePerSecond(0f) * lab.Weapon.Cooldown, 3);
     }
 
     [Fact]

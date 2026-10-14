@@ -725,7 +725,10 @@ public class PerformanceStat
                 _ => throw new ArgumentOutOfRangeException(nameof(term.Source), term.Source, $"Unknown StatSource on {Min}-{Max} stat")
             };
         }
-        return (lerp(Min, Max, factor) * context.ScaleModifier(this) + context.ConstantModifier(this)) * powerMultiplier;
+        // A stat whose span is a single value has nothing to interpolate: an unauthored stat is +infinity at both ends
+        // (Tracking, EffectiveRange), and lerp(+inf, +inf, f) is NaN.
+        var interpolated = Min == Max ? Min : lerp(Min, Max, factor);
+        return (interpolated * context.ScaleModifier(this) + context.ConstantModifier(this)) * powerMultiplier;
     }
 }
 

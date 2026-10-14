@@ -20,6 +20,41 @@ public sealed partial class RunStartTests
         return (arena, staged);
     }
 
+    // The scenario's own check (operator checks "aim at the hull ahead and it stops and bursts on it"): the Smoke Proximity round
+    // stops on the bare hull 300 m ahead (its planned point is at the weapon's Range, out past the effective range) and that hull takes damage.
+    // Selected, a targeted round reaches it too (the control).
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FusedRoundsBurstDamagesTheHullAhead(bool selected)
+    {
+        var (arena, staged) = LaunchStepped(new FusedRounds());
+        var player = staged.Player;
+        var ahead = arena.Entities.Single(x => length(x.Position.xz - FusedRounds.Ahead) < 1f);
+        if (selected)
+        {
+            player.SetTarget(ahead);
+            player.SetIff(ahead, true);
+            player.EntityInfoGathered[ahead] = 1f;
+        }
+        player.Aim = float3(0, 0, 1);
+        var weapon = (InstantWeapon) WeaponOf(Carried(player, "Smoke Proximity"));
+        var taken = 0f;
+        using var armor = ahead.ArmorDamage.Subscribe(x => taken += x.damage);
+        using var hull = ahead.HullDamage.Subscribe(x => taken += x);
+        using var item = ahead.ItemDamage.Subscribe(x => taken += x.damage);
+        var fired = 0;
+        weapon.OnFire += _ => fired++;
+
+        weapon.Activate();
+        for (var t = 0; t < 120 && fired == 0; t++) arena.Update(SteppedDt);
+        weapon.Deactivate();
+        for (var t = 0; t < 120; t++) arena.Update(SteppedDt);
+
+        Assert.True(fired > 0, "the round was fired");
+        Assert.True(taken > 0f, $"the hull ahead took no damage (selected {selected})");
+    }
+
     // Fused Rounds, nothing selected, the player aiming down the bare hull ahead. The DeathCluster is the control: it fires
     // in this arena, so a fused weapon that does not is not a harness that cannot fire. A fused round flies slowly enough
     // to be in the air when the direct weapon kills the fragile hull (check A.3) and bursts on the first hull on the aim line.

@@ -83,7 +83,8 @@ public sealed class FireControlPerWeaponTests : IDisposable
     private Rig Build(
         (ItemRotation Rotation, float Arc)[] mounts = null, bool beam = false, WeaponFuse? fuse = null, float blast = 0f,
         float range = 100f, float targetRange = 60f, float accuracy = 1f, float minHit = .2f, bool lockWeapon = false,
-        bool turret = false, float energy = 0f, float heat = 0f, float visibility = 0f, int magazine = 0, bool singleAmmoBurst = false, bool decoy = false, bool charged = false, bool auto = false)
+        bool turret = false, float energy = 0f, float heat = 0f, float visibility = 0f, int magazine = 0, bool singleAmmoBurst = false, bool decoy = false, bool charged = false, bool auto = false,
+        float effective = float.PositiveInfinity, float damageAtMax = 0f)
     {
         mounts ??= new[] { (ItemRotation.None, 0f) };
         var hullData = new HullData
@@ -132,6 +133,8 @@ public sealed class FireControlPerWeaponTests : IDisposable
         behavior.Damage = Constant(100);
         behavior.Range = Constant(range);
         behavior.MinRange = Constant(0);
+        behavior.EffectiveRange = Constant(effective);
+        behavior.DamageAtMaxRange = damageAtMax;
         behavior.Velocity = Constant(0);
         behavior.Spread = Constant(0);
         behavior.DamageSpread = Constant(0);
@@ -597,6 +600,28 @@ public sealed class FireControlPerWeaponTests : IDisposable
 
         Assert.False(r.Gun.Weapon.Firing, "a weapon that cannot reach the target is never activated");
         Assert.True(r.Decoy.Weapon.Firing, "the group that reaches is the one picked");
+    }
+
+    // Combat's group pick reads the falloff at the target's real distance. The gun falls off from 10 to 0 at 100, the decoy
+    // is flat at 50: at 60 the gun makes 44 (the decoy is picked) while at half that distance it makes 78 and at double it
+    // makes 0; with the gun flat to 40 it makes 67 at 60 (picked) and 0 at double. The fixture states both neighbours so a
+    // pick made at a scaled distance reads the other way. Kills: the group's DPS read at a distance other than the target's.
+    [Theory]
+    [InlineData(10f, false)]
+    [InlineData(40f, true)]
+    public void CombatPicksTheGroupStrongestAtTheTargetsDistance(float effective, bool gunPicked)
+    {
+        var r = Build(range: 100f, targetRange: 60f, effective: effective, decoy: true);
+        var decoy = r.Decoy.Weapon.RangeDamagePerSecond(60f);
+        Assert.Equal(gunPicked, r.Gun.Weapon.RangeDamagePerSecond(60f) > decoy);
+        Assert.True(r.Gun.Weapon.RangeDamagePerSecond(effective == 10f ? 30f : 120f) > decoy == !gunPicked, "fixture: the scaled distance reads the other way");
+        r.Zone.Agents.Add(new Minion(r.Shooter));
+
+        r.Zone.Update(1f);
+        r.Zone.Update(1f);
+
+        Assert.Equal(gunPicked, r.Gun.Weapon.Firing);
+        Assert.Equal(!gunPicked, r.Decoy.Weapon.Firing);
     }
 
     // Combat's range test is Designated's, not a second one: a target exactly at max range is in reach (the old

@@ -723,9 +723,10 @@ public static class FireControl
             Target = engaged,
             Weapon = item,
             Aimed = source.ResolvedTargetItem,
-            // The one place a shot's damage meets range, frozen here: BurstReach is where the payload is delivered. A burst is
-            // never farther than Range (it is pulled back to it), so rounding in its distance must not read as beyond it.
-            Damage = (damageOverride ?? weapon.Damage) * weapon.RangeFactor(min(solution.BurstReach, weapon.Range)),
+            Damage = damageOverride ?? weapon.Damage,
+            FireMinRange = weapon.MinRange,
+            FireEffectiveRange = weapon.EffectiveRange,
+            FireDamageAtMaxRange = weapon.WeaponData.DamageAtMaxRange,
             Penetration = weapon.Penetration,
             DamageSpread = weapon.DamageSpread,
             DamageType = weapon.WeaponData.DamageType,
@@ -751,10 +752,19 @@ public static class FireControl
             BlastRadius = blastRadius,
             Committed = false
         };
+        // A round whose delivery point Solve plans reads the falloff here, at that point (BurstReach); a no-lock fused round's
+        // point is decided at its commit (CommitBurst), which reads it there. Each shot reads it once.
+        if (!shot.DeliveredAtCommit) Deliver(ref shot, solution.BurstReach);
 
         zone.PendingShots.Add(shot);
         return shot.ShotId;
     }
+
+    // The one place a shot's damage meets range: the weapon's falloff at the planar distance its payload is delivered at,
+    // over the stats frozen at Fire. A delivery is never farther than the Range it was fired with (a burst is pulled back to
+    // it), so rounding in its distance must not read as beyond it.
+    private static void Deliver(ref PendingShot shot, float reach) =>
+        shot.Damage *= WeaponData.RangeFactor(shot.FireMinRange, shot.FireEffectiveRange, shot.MaxRange, shot.FireDamageAtMaxRange, min(reach, shot.MaxRange));
 
     // Lays a mine for a mine layer: freezes the payload as evaluated now (stats, the item's blast radius, the
     // layer and its faction) and hands the body to Zone.Lay, the one adder. It launches at the shooter's velocity
@@ -787,7 +797,9 @@ public static class FireControl
             FuseDelay = data.FuseDelay,
             Lifetime = data.Lifetime,
             BlastRadius = blastRadius,
-            Damage = weapon.Damage,
+            // A mine is laid at the layer, distance 0: it goes through the same falloff as every other payload, so a layer's
+            // authored ranges decide its mines, the AI's reading of it and its panel alike.
+            Damage = weapon.Damage * weapon.RangeFactor(0f),
             DamageType = weapon.WeaponData.DamageType,
             Layer = source,
             LayerFaction = source.Faction
@@ -831,7 +843,7 @@ public static class FireControl
 
             if (!shot.Committed && now >= shot.CommitTime)
             {
-                shot.Outcome = Commit(zone, shot, now);
+                shot.Outcome = Commit(zone, ref shot, now);
                 shot.Committed = true;
                 // A contact burst short of max range arrives when the round has flown that far, not at the frozen
                 // max-range time (CommitBurst). Never later than the frozen time.
@@ -888,11 +900,11 @@ public static class FireControl
         return p * PSpread(shot.Spread, sil.Span, shot.FireRange, settings.SchematicCellSize) * sil.POnHull;
     }
 
-    private static ShotOutcome Commit(Zone zone, PendingShot shot, float now)
+    private static ShotOutcome Commit(Zone zone, ref PendingShot shot, float now)
     {
         // A fused round with no target rolls nothing: it bursts. Where is decided here, at the commit, from the
         // poses of this tick (R4); Apply performs it.
-        if (shot.Fuse != null && shot.Target == null) return CommitBurst(zone, shot, now);
+        if (shot.DeliveredAtCommit) return CommitBurst(zone, ref shot, now);
 
         // Cut 6b, 6.1 (Soul finding 6): a shot's dice belong to the shot, not to whatever else happened to
         // draw from the engine-wide shared generator first. A pure function of (zone identity, shot id) --
@@ -984,12 +996,14 @@ public static class FireControl
     // nothing locked stops on what is in its way), and at the max-range point when the line is clear. The point is
     // read from this tick's poses and frozen into the outcome (R4, the same timing Commit reads facing at).
     // Nothing is rolled or drawn, so determinism needs nothing beyond the frozen inputs.
-    private static ShotOutcome CommitBurst(Zone zone, PendingShot shot, float now)
+    private static ShotOutcome CommitBurst(Zone zone, ref PendingShot shot, float now)
     {
         var outcome = MakeOutcome(shot, ShotResult.Burst, false, false, int2.zero, float2.zero, 0f, now);
         outcome.HasBurstPoint = true;
         var reach = length(shot.BurstPosition.xz - shot.FireOrigin.xz);
         var travelled = min(reach, max(HullDistance(zone, shot, reach), shot.BlastRadius));
+        // The delivery point is decided here, so the falloff is read here, at the distance the round travelled to it.
+        Deliver(ref shot, travelled);
         if (travelled < reach)
         {
             outcome.BurstPoint = shot.FireOrigin.xz + shot.TravelDirection * travelled;
@@ -1978,6 +1992,11 @@ public struct PendingShot
     // The frozen payload (R10, Q6): the gun's own stats at the instant the trigger was pulled. Nothing
     // downstream re-evaluates any of these.
     public float Damage;
+    // The weapon's falloff stats at Fire (with MaxRange below), frozen like the rest: what the range factor reads, at Fire or
+    // at commit.
+    public float FireMinRange;
+    public float FireEffectiveRange;
+    public float FireDamageAtMaxRange;
     public float Penetration;
     public float DamageSpread;
     public DamageType DamageType;
@@ -2020,6 +2039,10 @@ public struct PendingShot
 
     public bool Committed;
     public ShotOutcome Outcome;
+
+    // A fused round with no target: where it bursts is decided at its commit (the first hull its aim line meets), so its
+    // damage reads the falloff there rather than at Fire.
+    public bool DeliveredAtCommit => Fuse != null && Target == null;
 }
 
 // What a round does when fired (FireControl.Solve): Direct resolves against its target, Burst detonates at a

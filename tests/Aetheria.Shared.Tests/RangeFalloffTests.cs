@@ -5,6 +5,7 @@
 using System;
 using System.Linq;
 using CultMath;
+using UniRx;
 using Xunit;
 using static CultMath.math;
 using float2 = CultMath.float2;
@@ -45,6 +46,27 @@ public sealed class RangeFalloffTests
         foreach (var at in new[] { 20f, 70f, 120f })
             Assert.Equal(1f, WeaponData.RangeFactor(20f, 120f, 120f, 0f, at));
         Assert.Equal(1f, WeaponData.RangeFactor(20f, 500f, 120f, 0f, 70f));
+    }
+
+    // The properties panel evaluates an unequipped item's stats through ItemManager.Evaluate. An unauthored stat is +infinity at
+    // both ends (EffectiveRange, Tracking) and must evaluate to that, not throw: a span of one value has nothing to interpolate.
+    [Theory]
+    [InlineData("SRMM72", true)]
+    [InlineData("Mine Launcher", true)]
+    [InlineData("Autocannon", false)]
+    public void AnUnequippedWeaponsUnauthoredStatsEvaluate(string design, bool unauthored)
+    {
+        using var cache = RestoredHullsTests.OpenCatalog();
+        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
+        var data = cache.GetAll<WeaponItemData>().Single(x => x.Name == design);
+        var lot = items.Lots.Add(new Lot { Design = cache.RefOf<ItemData>(data), Origin = new Attributed(), Quality = .5f, Roles = new System.Collections.Generic.List<RoleFill>() });
+        var item = (EquippableItem) items.CreateInstance(lot);
+        var weapon = data.Behaviors.OfType<WeaponData>().Single();
+
+        var effective = items.Evaluate(weapon.EffectiveRange, item);
+        Assert.Equal(unauthored, float.IsPositiveInfinity(effective));
+        Assert.False(float.IsNaN(effective));
+        Assert.True(float.IsPositiveInfinity(items.Evaluate(weapon.Tracking, item)) || !unauthored);
     }
 
     [Fact]
@@ -91,17 +113,44 @@ public sealed partial class FireControlCut124Tests
         Assert.Equal(0f, FreezeAt(150f).Damage, 3);    // at the maximum range
     }
 
-    // A fused round with no target bursts at Range ("bomb fishing"), so it lands at the end multiplier.
+    // A no-lock fused round reads the falloff where its burst point is decided, at its commit: the shot right after the tick
+    // that committed it, still in the air (velocity 20). With a clear line it travels to Range ("bomb fishing") and lands at
+    // the end multiplier.
+    private float NoLockDamageAfterCommit(float effective, float blockerAt, out float travelled)
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 20f, fuse: WeaponFuse.Proximity, blastRadius: 4f, penetration: 1f,
+            damage: 100f, weaponRange: NoLockRange, effectiveRange: effective, damageAtMaxRange: .25f);
+        e.Shooter.SetTarget(TargetRef.None);
+        Aim(e, float2(0, 1));
+        if (blockerAt > 0f) AddShip(e, PointAlong(e, float2(0, 1), blockerAt), 100000f, 300);
+        ShotOutcome outcome = null;
+        using var c = e.Zone.ShotCommitted.Subscribe(o => outcome = o);
+        var shotId = FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        Assert.NotEqual(0, shotId);
+        e.Zone.Update(.01f);
+        Assert.True(outcome != null && outcome.HasBurstPoint, "the round committed a burst");
+        travelled = length(outcome.BurstPoint - e.Shooter.Position.xz);
+        return e.Zone.PendingShots.Single(s => s.ShotId == shotId).Damage;
+    }
+
     [Fact]
     public void AFusedRoundFishedToRangeLandsAtTheEndMultiplier()
     {
-        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: WeaponFuse.Proximity, blastRadius: 4f, damage: 100f,
-            weaponRange: 150f, effectiveRange: 50f, damageAtMaxRange: .25f);
-        e.Shooter.SetTarget(TargetRef.None);
-        Aim(e, float2(0, 1));
-        var shotId = FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
-        Assert.NotEqual(0, shotId);
-        Assert.Equal(25f, e.Zone.PendingShots.Single(s => s.ShotId == shotId).Damage, 3);
+        Assert.Equal(25f, NoLockDamageAfterCommit(effective: 20f, blockerAt: 0f, out var travelled), 3);
+        Assert.Equal(NoLockRange, travelled, 3);
+    }
+
+    // The round stops on the first hull ahead, 21 out (well inside a 30 effective range of a 60 range weapon): it delivers
+    // full damage there, not the end multiplier of the point it was planned to. With a shorter effective range (10) the
+    // factor is the lerp at the distance it actually travelled.
+    [Fact]
+    public void ANoLockRoundStoppingShortReadsTheFactorWhereItStops()
+    {
+        Assert.Equal(100f, NoLockDamageAfterCommit(effective: 30f, blockerAt: 25f, out var travelled), 3);
+        Assert.True(travelled < NoLockRange - 20f, "the round stopped short of Range");
+        var damage = NoLockDamageAfterCommit(effective: 10f, blockerAt: 25f, out var stopped);
+        Assert.Equal(travelled, stopped, 3);
+        Assert.Equal(100f * lerp(1f, .25f, (stopped - 10f) / (NoLockRange - 10f)), damage, 3);
     }
 
     // A beam roll fires through damageOverride: the override is what the factor multiplies.
