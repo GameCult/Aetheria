@@ -431,7 +431,7 @@ public sealed class LootTests : IDisposable
         Kill(ship);
         var count = lab.Zone.FloatingItems.Count;
         Assert.NotEmpty(lab.Zone.FloatingItems);
-        Assert.DoesNotContain(ship, lab.Zone.Entities);
+        Assert.False(lab.Zone.Entities.Any(x => ReferenceEquals(x, ship)), "the ship is removed from the zone");
         // A second death signal from the removed entity reaches no subscription.
         Kill(ship);
         Assert.Equal(count, lab.Zone.FloatingItems.Count);

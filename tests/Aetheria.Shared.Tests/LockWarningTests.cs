@@ -224,14 +224,14 @@ public sealed class LockWarningTests : IDisposable
         var locker = NewShip(float3(0, 0, 0), "Launcher");
         var b = NewShip(float3(0, 0, 9));
         b.EntityInfoGathered[locker] = 0;
-        Assert.DoesNotContain(locker, b.VisibleEnemies);
+        Assert.False(b.VisibleEnemies.Any(x => ReferenceEquals(x, locker)), "the locker is not a visible enemy");
 
         Aim(locker, b);
         Tick(.5f);
         Tick(0f);
 
         Assert.Single(b.IncomingPaints);
-        Assert.DoesNotContain(locker, b.VisibleEnemies);
+        Assert.False(b.VisibleEnemies.Any(x => ReferenceEquals(x, locker)), "the locker is not a visible enemy");
     }
 
     [Fact]

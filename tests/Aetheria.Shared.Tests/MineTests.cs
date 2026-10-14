@@ -651,7 +651,7 @@ public sealed class MineTests : IDisposable
         lab.Layer.Position = float3(5000, 0, 5000);
         foreach (var step in Steps(1f, .1f)) lab.Zone.Update(step);
         lab.Layer.DamageHull(5000000f);
-        Assert.DoesNotContain(lab.Layer, lab.Zone.Entities);
+        Assert.False(lab.Zone.Entities.Any(x => ReferenceEquals(x, lab.Layer)), "the layer is removed from the zone");
         foreach (var step in Steps(1.5f, .1f)) lab.Zone.Update(step);
 
         Assert.Equal(0, removed);

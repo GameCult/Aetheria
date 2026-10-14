@@ -70,6 +70,22 @@ public sealed partial class ContactRevealTests : IDisposable
                     new HardpointData { Type = HardpointType.Sensors, Position = new int2(0, 3), Shape = new Shape() }
                 }
             });
+            // Layout-aim: a hull off the diagonal with two mounts of one type. The first Sensors mount covers (0,0) and (1,0), the
+            // second (2,3) and (3,3): a transposed position gives another cell, and a rule that matches mounts by type cannot
+            // tell the two apart.
+            var wingMount = new Shape(2, 1);
+            foreach (var cell in wingMount.AllCoordinates) wingMount[cell] = true;
+            var wingHull = new Shape(5, 5);
+            foreach (var cell in wingHull.AllCoordinates) wingHull[cell] = true;
+            cache.Upsert(new HullData
+            {
+                Name = "Wing", HullType = HullType.Ship, Shape = wingHull, Durability = 1000000, Mass = 1000,
+                Hardpoints =
+                {
+                    new HardpointData { Type = HardpointType.Sensors, Position = new int2(0, 0), Shape = wingMount },
+                    new HardpointData { Type = HardpointType.Sensors, Position = new int2(2, 3), Shape = wingMount }
+                }
+            });
             var bayReactor = Tool("BayReactor", new ReactorData { Charge = Const(1000), Efficiency = Const(1), OverloadEfficiency = Const(1), ThrottlingFactor = Const(2) });
             bayReactor.Hardpoint = HardpointType.Reactor;
             cache.Upsert(bayReactor);
@@ -1713,14 +1729,6 @@ public sealed partial class ContactRevealTests : IDisposable
         Assert.Equal(0L, smallest);
     }
 
-    // The observer's stored decision about a subject (SetIff), read as the entity holds it: a neutral decision (false) is also
-    // what an unset stance derives to here, so IsHostileTo alone cannot tell it kept from dropped.
-    private static bool? StoredStance(Entity observer, Entity subject)
-    {
-        var overrides = (System.Collections.IDictionary) typeof(Entity).GetField("_iffOverrides", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(observer);
-        return overrides.Contains(subject) ? (bool) overrides[subject] : (bool?) null;
-    }
-
     // A docked subject leaves the zone parented to its dock and rejoins on undock: the observer's decision about it, hostile or
     // neutral, outlives the lapse of the bearing, and is still there when it rejoins.
     [Theory]
@@ -1731,8 +1739,13 @@ public sealed partial class ContactRevealTests : IDisposable
         var e = Add(float3(0, 0, 100), new[] { "Gun" });
         var dock = Add(float3(200, 0, 0));
         var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        // The observer's faction owns the zone and the subject's presence is not permitted, so the stance derived for an
+        // undecided subject is hostile: a neutral decision (false) that is dropped would read hostile, and is seen to be kept.
+        _zone.GalaxyZone.Owner = o.Faction;
+        e.CurrentSecurityLevel.Value = SecurityLevel.Critical;
+        Assert.True(o.IsHostileTo(e), "fixture: an undecided subject derives hostile");
         o.SetIff(e, hostile);
-        Assert.Equal(hostile, StoredStance(o, e)); // fixture: the decision is stored
+        Assert.Equal(hostile, o.IsHostileTo(e)); // fixture: the decision is stored
         var gun = Guns(e)[0];
         Fire(e, gun);
         ShowOnly(e, 1f, gun);
@@ -1741,11 +1754,9 @@ public sealed partial class ContactRevealTests : IDisposable
         _zone.Remove(e);
         for (var i = 0; i < 100 && o.RevealedSubjects.Contains(e); i++) Tick(.1f);
         Assert.False(o.RevealedSubjects.Contains(e), "fixture: the book dropped the docked subject");
-        Assert.Equal(hostile, StoredStance(o, e)); // a docked subject keeps the observer's decision
         Assert.Equal(hostile, o.IsHostileTo(e));
         e.Parent = null;
         _zone.Admit(e, piloted: false);
-        Assert.Equal(hostile, StoredStance(o, e)); // and it is still there when the subject rejoins
         Assert.Equal(hostile, o.IsHostileTo(e));
     }
 

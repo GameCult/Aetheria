@@ -26,7 +26,7 @@ public sealed partial class RunStartTests
         // The first real sensing tick: the hostile holds no track of the player, and the sim's own passive sensing, asked for
         // the player's signature at the staged place, settles below the detection threshold: the staging is out of its sight.
         arena.Update(.1f);
-        Assert.DoesNotContain(player, hostile.VisibleEnemies);
+        Assert.False(hostile.VisibleEnemies.Any(x => ReferenceEquals(x, player)), "the player is out of sight");
         Assert.DoesNotContain(player.IncomingPaints, paint => paint.Mode == PaintMode.Track);
         Assert.True(player.Visibility > 0f, "the player shows a signature to be seen by");
         var threshold = player.ItemManager.GameplaySettings.TargetDetectionInfoThreshold;
