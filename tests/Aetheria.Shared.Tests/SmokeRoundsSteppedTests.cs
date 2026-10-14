@@ -51,8 +51,9 @@ public sealed partial class RunStartTests
         Assert.InRange(at + burst.ArrivalIn - fired[0], 1f, 5f); // in the air for seconds: not resolved in its firing tick, not minutes of flight
     }
 
-    // Check A.3 flown: the fragile hull is selected, a Smoke Proximity round is fired at it and the DeathCluster kills it
-    // before the round lands, so the round never bursts.
+    // Check A.3 flown: the fragile hull is selected and the DeathCluster, at full damage inside its effective range, starts
+    // killing it; once half its hull is gone a Smoke Proximity round is fired at it, and the hull dies before the round
+    // lands, so the round never bursts.
     [Fact]
     public void TheDirectWeaponKillsTheFragileHullWhileASmokeRoundIsStillInTheAir()
     {
@@ -70,15 +71,18 @@ public sealed partial class RunStartTests
             if (landed == null && outcome.Weapon == proximity) landed = (arena.Time, outcome.Result);
         });
 
-        WeaponOf(proximity).Activate();
+        var hullDurability = ((HullData) _items.GetData(fragile.Hull)).Durability;
         WeaponOf(Carried(player, "DeathCluster")).Activate();
         float? deadAt = null;
+        var fired = false;
         for (var i = 0; i < 120 && landed == null; i++)
         {
+            if (!fired && fragile.Hull.Durability < hullDurability / 2f) { WeaponOf(proximity).Activate(); fired = true; }
             arena.Update(SteppedDt);
             if (deadAt == null && !arena.Entities.Contains(fragile)) deadAt = arena.Time;
         }
 
+        Assert.True(fired, "the DeathCluster never hurt the fragile hull");
         Assert.NotNull(deadAt);
         Assert.NotNull(landed);
         Assert.True(deadAt <= landed.Value.At, $"the round landed at {landed.Value.At:F2} s, before the fragile hull died at {deadAt:F2} s");

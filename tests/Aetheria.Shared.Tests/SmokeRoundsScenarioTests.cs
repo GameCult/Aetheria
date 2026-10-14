@@ -61,7 +61,7 @@ public sealed partial class RunStartTests
         }
         var directWeapon = WeaponOf(direct);
         Assert.True(Bears(direct, player, fragile), "the direct weapon cannot bear on the fragile hull");
-        Assert.True(length((fragile.Position - player.Position).xz) <= directWeapon.Range, "the fragile hull lies beyond the direct weapon's range");
+        Assert.True(length((fragile.Position - player.Position).xz) <= directWeapon.EffectiveRange, "the fragile hull lies beyond the direct weapon's effective range, where its damage falls off");
         var magazine = direct.Data.Behaviors.OfType<WeaponData>().Single().MagazineSize;
         var burst = ((InstantWeapon) directWeapon).BurstCount;
         Assert.True(magazine > 0 && directWeapon.Damage * burst * magazine > ((HullData) _items.GetData(fragile.Hull)).Durability,
