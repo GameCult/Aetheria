@@ -395,9 +395,10 @@ public sealed partial class ContactRevealTests
         Assert.Equal(120f, row.Range);
     }
 
-    // Mutation: the rows are the book's reveals (RevealsOf) or the subject's equipment.
+    // A gun claimed as a sensor is no weapon row: the observer believes it is a sensor, and lists it as gear of that class,
+    // with no range. Mutation: the rows are the book's reveals (RevealsOf) or the subject's equipment (the true class shows).
     [Fact]
-    public void AWeaponClaimedAsANonWeaponHasNoSchematicRow()
+    public void AWeaponClaimedAsANonWeaponIsAGearRowOfTheClaimedClass()
     {
         var e = Add(float3(30, 0, 40), new[] { "Gun" });
         var o = Add(float3(0, 0, 0), new[] { "Eye" });
@@ -405,8 +406,11 @@ public sealed partial class ContactRevealTests
         e.Claim(gun, DataOf("Eye"));
         Fire(e, gun);
 
-        Assert.Empty(o.SchematicRows(e));
-        Assert.Single(o.RevealsOf(e));
+        Assert.Empty(o.RevealedWeapons(e));
+        var row = Assert.Single(o.SchematicRows(e));
+        Assert.Same(gun, row.Item);
+        Assert.Same(DataOf("Eye"), row.Claimed);
+        Assert.Null(row.Range);
     }
 
     // Unrevealed gear never appears on an enemy schematic: a ship that has not fired shows no row.
