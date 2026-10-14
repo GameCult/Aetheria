@@ -108,23 +108,32 @@ public sealed class GravitySubtractTests : IDisposable
         return new Zone(_items, Planets(), pack, new GalaxyZone { Name = "Giant " + data.GetType().Name, Owner = null }, null);
     }
 
+    // The wells are the whole of a giant's height at every point, not just at a few radii: a ripple confined to
+    // any annulus, or to a band derived from the body's radius, shows against the plain body somewhere in a sweep
+    // that runs from the centre to well past the well's support.
     [Fact]
     public void AGiantsWellIsAPlainWellAtEveryTime()
     {
         var plain = WithBody(new PlanetData());
         var giants = new[] { WithBody(new GasGiantData()), WithBody(new SunData()) };
-        foreach (var time in new[] { 0f, 37.5f })
+        var radii = new System.Collections.Generic.List<float> { 0.5f };
+        for (var r = 1f; r <= 100f; r += 1f) radii.Add(r);
+        for (var r = 105f; r <= 2000f; r += 5f) radii.Add(r);
+        var angles = new[] { 0f, 0.7f, 2.1f, 4.0f };
+        foreach (var time in new[] { 0f, 37.5f, 91.25f })
         {
-            // Zone time 0 is the zones as built; 37.5 is one Update of that length.
-            if (time > 0f)
+            // Zone time 0 is the zones as built; each later time is one Update to that time.
+            var step = time - _clock;
+            if (step > 0f)
             {
-                plain.Update(time);
-                foreach (var giant in giants) giant.Update(time);
+                plain.Update(step);
+                foreach (var giant in giants) giant.Update(step);
+                _clock = time;
             }
-            foreach (var r in new[] { 50f, 200f, 400f })
+            foreach (var r in radii)
+            foreach (var a in angles)
             {
-                var at = new float2(r, 0);
-                Assert.True(plain.GetHeight(at) < 0f, "the plain body digs a well here, so there is something to compare");
+                var at = new float2(r * (float)Math.Cos(a), r * (float)Math.Sin(a));
                 foreach (var giant in giants)
                 {
                     Assert.Equal(plain.GetHeight(at), giant.GetHeight(at));
@@ -132,6 +141,24 @@ public sealed class GravitySubtractTests : IDisposable
                     Assert.Equal(plain.GetForce(at).y, giant.GetForce(at).y);
                 }
             }
+            Assert.True(plain.GetHeight(new float2(50f, 0)) < 0f, "the plain body digs a well here, so there is something to compare");
         }
+    }
+
+    private float _clock;
+
+    // CultCache has no primitive for reserving a removed MessagePack key; the wave keys of the gas giant (14-17)
+    // must not come back with a different meaning, because stored records may still carry them.
+    [Fact]
+    public void AGasGiantRecordNeverReusesTheRetiredWaveKeys()
+    {
+        var keys = new System.Collections.Generic.List<int>();
+        for (var t = typeof(GasGiantData); t != null; t = t.BaseType)
+            foreach (var m in t.GetMembers(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic |
+                                           System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.DeclaredOnly))
+                if (m.GetCustomAttributes(typeof(MessagePack.KeyAttribute), false) is MessagePack.KeyAttribute[] ks)
+                    foreach (var k in ks) if (k.IntKey.HasValue) keys.Add(k.IntKey.Value);
+        Assert.NotEmpty(keys);
+        foreach (var retired in new[] { 14, 15, 16, 17 }) Assert.DoesNotContain(retired, keys);
     }
 }
