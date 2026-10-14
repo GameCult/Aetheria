@@ -9,8 +9,8 @@ using int2 = CultMath.int2;
 
 // Visibility 5b (rulings quiet-gear-identifiable-hull-layout-known, ew-aim-under-hull-lie-ruled, reveal-ends-on-perception,
 // schematic-and-model-are-separate-spaces): an observer that identifies a hull knows where its mounts are, and can aim at a
-// mount it has located without knowing what is fitted there. The fixture hull "Bay" has a reactor mount (the 2x2 block at the
-// origin, the reactor one cell inside it at (1,1)), a shield mount and a weapon mount, and nothing ever acts unless a test
+// mount it has located without knowing what is fitted there. The fixture hull "Bay" has a reactor mount (the 2x2 block at
+// (3,3), the reactor the one cell at (3,3) inside it), a shield mount and a weapon mount, and nothing ever acts unless a test
 // makes it. Identified is TargetGearInfoThreshold (.8) of the observer's info on the ship. Every fixture drives the
 // production path (Fire, CommitProbability, SchematicRows, TrySelectTargetItem, the AI's Combat state inside Zone.Update).
 // Entities and items are compared with ReferenceEquals: a failing xunit assertion formats its arguments, and an Entity's
@@ -26,7 +26,7 @@ public sealed partial class ContactRevealTests
         var hullRef = _items.ItemData.RefOf<ItemData>(_items.ItemData.GetByName<HullData>("Bay"));
         var ship = new Ship(_items, _zone, new EquippableItem { Data = hullRef, Durability = 1000000, Lot = _nextLot++ }, new EntitySettings())
             { Faction = new Faction { Name = "F" + Guid.NewGuid().ToString("N") } };
-        Assert.True(ship.TryEquip(Make("BayReactor"), new int2(1, 1)));
+        Assert.True(ship.TryEquip(Make("BayReactor"), new int2(3, 3)));
         if (gun) Assert.True(ship.TryEquip(Make("Gun"), new int2(0, 3)));
         foreach (var name in (tools ?? new string[0]).Concat(gun ? new[] { "Targeting", "Reactor" } : new string[0]))
         {
@@ -178,8 +178,8 @@ public sealed partial class ContactRevealTests
         return _zone.PendingShots[before];
     }
 
-    // The reactor is one cell inside its two by two mount. Aimed at while located, a shot centres on the mount's cells (.5, .5);
-    // once the reactor is revealed the next shot centres on the reactor's own cell (1, 1). The HUD's forecast reads the same
+    // The reactor is one cell inside its two by two mount. Aimed at while located, a shot centres on the mount's cells (3.5, 3.5);
+    // once the reactor is revealed the next shot centres on the reactor's own cell (3, 3). The HUD's forecast reads the same
     // aim point as the shot it forecasts.
     [Fact]
     public void AMountAimIsTheMountsCells()
@@ -190,8 +190,8 @@ public sealed partial class ContactRevealTests
         var shot = FireAt(weapon, gun, shooter);
         Assert.True(shot.AimAtMount && ReferenceEquals(reactor, shot.Aimed), "the shot is aimed at the located reactor's mount");
         Assert.True(FireControl.CommitProbability(shot, _zone.Time, out var mountSil) > 0f, "fixture: the shot has a price");
-        Assert.Equal(.5f, mountSil.AimPoint.x, 4);
-        Assert.Equal(.5f, mountSil.AimPoint.y, 4);
+        Assert.Equal(3.5f, mountSil.AimPoint.x, 4);
+        Assert.Equal(3.5f, mountSil.AimPoint.y, 4);
         Assert.Equal(mountSil.POnHull, located.POnHull, 4);
 
         shooter.RecordReveal(bay, reactor, SignatureChannel.LaunchFlash, reactor.Data);
@@ -200,8 +200,8 @@ public sealed partial class ContactRevealTests
         var next = FireAt(weapon, gun, shooter);
         Assert.False(next.AimAtMount);
         Assert.True(FireControl.CommitProbability(next, _zone.Time, out var itemSil) > 0f, "fixture: the shot has a price");
-        Assert.Equal(1f, itemSil.AimPoint.x, 4);
-        Assert.Equal(1f, itemSil.AimPoint.y, 4);
+        Assert.Equal(3f, itemSil.AimPoint.x, 4);
+        Assert.Equal(3f, itemSil.AimPoint.y, 4);
         Assert.Equal(itemSil.POnHull, revealed.POnHull, 4);
         Assert.True(Math.Abs(mountSil.POnHull - itemSil.POnHull) > 1e-3f, "fixture: the two aim points are priced apart");
     }
@@ -219,8 +219,8 @@ public sealed partial class ContactRevealTests
         Assert.True(FireControl.IsRevealed(shooter, reactor), "fixture: revealed before Commit");
 
         Assert.True(FireControl.CommitProbability(shot, _zone.Time, out var sil) > 0f, "fixture: the shot has a price");
-        Assert.Equal(.5f, sil.AimPoint.x, 4);
-        Assert.Equal(.5f, sil.AimPoint.y, 4);
+        Assert.Equal(3.5f, sil.AimPoint.x, 4);
+        Assert.Equal(3.5f, sil.AimPoint.y, 4);
     }
 
     // ---- TheSchematicListsUnfilledMounts ----
@@ -231,11 +231,14 @@ public sealed partial class ContactRevealTests
     [Fact]
     public void TheSchematicListsUnfilledMounts()
     {
-        var (bay, observer, reactor) = Identified();
+        var (bay, observer, reactor) = Identified(Identify - .01f);
         var hardpoints = bay.HullData.Hardpoints;
+        Assert.Empty(observer.SchematicRows(bay));
 
+        observer.EntityInfoGathered[bay] = Identify;
         var rows = observer.SchematicRows(bay).ToArray();
         Assert.Equal(3, rows.Length);
+        Assert.Equal(3, rows.Select(r => r.Key).Distinct().Count());
         Assert.True(hardpoints.SequenceEqual(rows.Select(r => r.Mount)), "one mount row per hardpoint, in order");
         Assert.All(rows, r =>
         {
@@ -250,6 +253,7 @@ public sealed partial class ContactRevealTests
         observer.RecordInspection(bay);
         rows = observer.SchematicRows(bay).ToArray();
         Assert.Equal(3, rows.Length);
+        Assert.Equal(3, rows.Select(r => r.Key).Distinct().Count());
         Assert.True(rows[0].Mount == null && ReferenceEquals(rows[0].Item, reactor), "the reactor's gear row leads");
         Assert.True(hardpoints.Skip(1).SequenceEqual(rows.Skip(1).Select(r => r.Mount)), "the other two mounts stay mount rows");
         Assert.Equal(new[] { true, false, false }, rows.Select(r => r.Marks(observer.ResolvedTargetItem)).ToArray());

@@ -53,8 +53,9 @@ public sealed partial class ContactRevealTests : IDisposable
                     new HardpointData { Type = HardpointType.Sensors, Position = new int2(2, 0), Shape = new Shape() }
                 }
             });
-            // Layout-aim: a hull whose mounts are bigger than what is fitted to them. The reactor mount covers the 2x2 block
-            // at the origin while the reactor is one cell at (1,1), so the mount's centre (.5, .5) is not the reactor's (1, 1).
+            // Layout-aim: a hull whose mounts are bigger than what is fitted to them. The reactor mount covers the 2x2 block at
+            // (3,3), off the origin and against the hull's far edge, while the reactor is the one cell at (3,3), so the mount's
+            // centre (3.5, 3.5) is not the reactor's (3, 3) and the two price a shot apart.
             var bayBlock = new Shape(2, 2);
             foreach (var cell in bayBlock.AllCoordinates) bayBlock[cell] = true;
             var bayHull = new Shape(5, 5);
@@ -64,7 +65,7 @@ public sealed partial class ContactRevealTests : IDisposable
                 Name = "Bay", HullType = HullType.Ship, Shape = bayHull, Durability = 1000000, Mass = 1000,
                 Hardpoints =
                 {
-                    new HardpointData { Type = HardpointType.Reactor, Position = new int2(0, 0), Shape = bayBlock },
+                    new HardpointData { Type = HardpointType.Reactor, Position = new int2(3, 3), Shape = bayBlock },
                     new HardpointData { Type = HardpointType.Shield, Position = new int2(3, 0), Shape = new Shape() },
                     new HardpointData { Type = HardpointType.Sensors, Position = new int2(0, 3), Shape = new Shape() }
                 }
