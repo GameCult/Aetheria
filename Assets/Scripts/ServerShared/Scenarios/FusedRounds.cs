@@ -17,9 +17,9 @@ public sealed class FusedRounds : Scenario
     public override bool Ambient => false;
 
     // Where everything sits: the player is at the origin facing +z. Ahead lies on the initial aim line, inside every forward
-    // mount's arc. Fragile is a bare Longinus inside the DeathCluster's effective range (full damage); Close is inside Smoke Proximity's blast radius
+    // mount's arc. Fragile is a bare Longinus inside the DeathCluster's range; Close is inside Smoke Proximity's blast radius
     // (8 m from the ship's centre) and beside the aim line, not across it; Stern is outside every mount's arc.
-    public static readonly CultMath.float2 Mid = float2(-200, 600), Ahead = float2(0, 300), Fragile = float2(90, 270),
+    public static readonly CultMath.float2 Mid = float2(-200, 600), Ahead = float2(0, 300), Fragile = float2(140, 420),
         Close = float2(6.4f, 4f), Stern = float2(0, -400);
 
     public override Galaxy Generate(GalaxyStage stage) => stage.Prelude(DemoTerminus.Cast);
