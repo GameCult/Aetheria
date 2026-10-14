@@ -26,7 +26,7 @@ A link is a place where two spaces share an edge. Fly through and you are in the
 
 - **A layer is only as reachable as its anchors.** Humans opened gates long before they understood what the gates open into. A layer is known because somebody got in (through a tear, or a blind gate that came up lucky), crossed it, and planted an anchor. Every anchored gate into a layer is a record of that walk.
 - **Links have tells.** A link leaks its far side. Near a link to the Ink the stars dim and radiators run too cool; near a link to the Glass the current slackens and dies; near one to the Fold the stars double. A pilot learns to taste the far side before committing. Gates and tears leak alike; only a tear leaks somewhere nobody has charted.
-- **Some links keep hours.** A gate keeps its anchor's hours: the Ink's gates breathe with the pillars in whose eyes their anchors sit. A tear keeps its own: a beat, a season, a tide in the current. The fairy ring opens on the right night [new].
+- **Some links keep hours.** A gate keeps its anchor's hours: the Ink's gates breathe with the pillars whose bowls their anchors sit in. A tear keeps its own: a beat, a season, a tide in the current. The fairy ring opens on the right night [new].
 - **Links are owned by holding the anchor.** A faction holds a foothold in a layer by holding the anchors at the far ends of its links and keeping their tunings secret, and how well that works depends on the layer: an anchor in the Ink cannot be found, one in the Glass cannot be hidden, one in the Fold is in two places at once. Anchor registries are the most valuable documents in Elysium, and the best of them are never written down.
 
 #### Depth

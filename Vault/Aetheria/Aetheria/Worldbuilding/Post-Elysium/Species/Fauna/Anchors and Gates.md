@@ -44,7 +44,7 @@ Spacers say the first blind gate was the one that brought us here: the [[FTL Tri
 
 #### Tears
 
-A few links nobody built. **Tears** are places where two spaces have come apart and touch, with no ring at either end and no anchor anyone planted. They are rare, they move or keep hours, they leak their far side (the stars dim, the current dies, the stars double), and animals know them long before people do. Following animals is still the oldest way to find one. No pillar stands in flatspace, but through a very rare tear one has been glimpsed: a column of light where no star should be, gone when you look again, and the surest sign anyone has that the Ink is near [new].
+A few links nobody built. **Tears** are places where two spaces have come apart and touch, with no ring at either end and no anchor anyone planted. They are rare, they move or keep hours, they leak their far side (the stars dim, the current dies, the stars double), and animals know them long before people do. Following animals is still the oldest way to find one. No pillar stands in flatspace, but through a very rare tear one has been glimpsed: a wall of frothing light filling the far side, where no star should be, gone when you look again, and the surest sign anyone has that the Ink is near [new].
 
 A tear is a wonder and a danger in the same breath. It goes somewhere no blind gate has been, it costs nothing to open, and nothing on the far side was expecting company either. Some tears are older than humanity's arrival, and some spacers swear a few of them are not tears at all, but gates the other prisoners of Elysium built and stopped keeping. Powers beyond comprehension wait past them, and treasures we should have left alone [new].
 
@@ -55,14 +55,14 @@ Every space treats an anchor differently, and that, more than anything, decides 
 | Space | Where an anchor holds | Can a rival find it? | Who holds it |
 |---|---|---|---|
 | [[Flatspace]] | Anywhere still: a well's slack point, a moon, a station | Yes, with work | Everyone; companies own lanes |
-| [[Adrasteia Space\|The Ink]] | Only in a pillar's eye, the still summit where its push cancels | No; no light leaves | Adrasteia, every known link |
+| [[Adrasteia Space\|The Ink]] | Only on the floor of a pillar's bowl, where its push and the outer slope cancel | No; no light leaves | Adrasteia, every known link |
 | [[The Glass]] | Anywhere; the stiff Aether holds everything | At once; nothing hides | The Wavecrafters, by watching, not hiding |
 | [[The Fold]] | Anywhere, but it is in two places, and a gate may open at either | Yes, from both sides | Nobody |
 | [[Hyperspace]] | Anywhere, and you will never find it again without beacons | Only by the chain | The beacon keepers |
 
 #### Why an Anchor Works
 
-An anchor works the way flatspace does: it is held ([[Flatspace#Why Flatspace Is Flat|Why Flatspace Is Flat]]). A twinned pair is a relation someone insists on, two places a mind has decided are next to each other, made solid in instruments that remember the insisting; that is why they are grown in the Glass, where nothing fades. The Aether gives minds what they expect hard enough, and a gate's far mouth falls toward its anchor because somebody expects it there. It is also why an unkept anchor goes quiet, and why anchors hold badly wherever something else's expectation is stronger than ours. The core worlds still call it engineering, and the engineering works; the Chaos factions were right all along. In the Ink an anchor holds only in a pillar's eye, and spacers who have thought about it say the eye is the one place the Ink lets go [new].
+An anchor works the way flatspace does: it is held ([[Flatspace#Why Flatspace Is Flat|Why Flatspace Is Flat]]). A twinned pair is a relation someone insists on, two places a mind has decided are next to each other, made solid in instruments that remember the insisting; that is why they are grown in the Glass, where nothing fades. The Aether gives minds what they expect hard enough, and a gate's far mouth falls toward its anchor because somebody expects it there. It is also why an unkept anchor goes quiet, and why anchors hold badly wherever something else's expectation is stronger than ours. The core worlds still call it engineering, and the engineering works; the Chaos factions were right all along. In the Ink an anchor holds only on the floor of a pillar's bowl, and creeps round the pillar even there; spacers who have thought about it say the floor is the one place the Ink lets go, and only just [new].
 
 Spacers say: *no anchor, no door*; *a ring is a promise, an anchor is a deed*; and, of anyone who talks up a blind gate, *show me who walked there*.
 

@@ -112,3 +112,32 @@ You answered all four questions the recommended way (`pillars-not-in-flatspace`,
 
 1. **Is the centre a still summit or a true singularity?** *My recommendation: a still summit.* It keeps a place for anchors, gates and keepers in the eye, and keeps one rule for anchors in both spaces (they hold where forces cancel). A true singularity would push the anchors out to the bowl floor, among the animals.
 2. **What lies past a bowl's outer wall?** *My recommendation: level ground, the dark, with no beat.* The alternative is ground that keeps rising into ridges between reaches. Ridges would make the slow way a climb over a watershed and give pairs a ridge instead of a shared trough; that is dramatic, but it adds a second slope the Ink's gravity law would have to carry.
+
+#### The Pillar Is a Wall
+
+Ruling `pillar-is-a-wall` corrects the pillar's scale, in your words: "this spike should be as big around as a large sun currently is, an impassable wall of nebulae glowing and frothing with dark energy, maybe it does summit but it does so so high up that you'll never see it, much less get anywhere close even with the strongest thrusters in the game. It presents up close as a vertical wall of gravity you have no hope of climbing". You also said: "You can indeed do sick bounce maneuvers off of a big negative mass like this". This overturns the still summit above and settles the first of the two questions just above. The lore was swept again in place.
+
+**What changed.**
+
+- **[[Adrasteia Space]]**: nothing stands on or in a pillar.
+  - **The wall.** The pillar fills the zone's centre like a large sun's disc. From the bowl it is a glow behind the fog that fills half the sky. Up close it is a face of frothing nebula with moving dark lanes, and the push rises from slope to vertical in the last stretch, the **foot**, where thrusters at full only hold a ship a while before it is thrown back.
+  - **The waves come from the face.** On each beat the whole face heaves at once and throws a swell off all the way round, carrying dust frothed off it. The richest dust is now the froth on the face, not a foot under the water. The swell runs down the foot, sweeps the floor, and climbs and dies on the outer slope, as before.
+  - **Anchors, gates and keepers live on the floor of the bowl, in the bank.** The arrival scene now opens in the bank's dark under the glow. Keepers live in cold stations among the squid; it is Adrasteia's most dangerous posting and its most honoured.
+  - **A new section, Meeting the Wall:** the **bounce** (the foot hands a ship's speed back at the matching slant, for free; pursuit ends at the wall), the **kiss** (opening the scoops at the top of a bounce for the froth; on the beat the face's heave is added and the ship is thrown), and timing every bounce to the count. Spacers say *kiss the wall, don't lean on it*. **Wall-kissers** join Who Goes In.
+  - Bands are now face, foot, bank, cradle, dark. The old charts' picture of stars strung up a column survives only as what Adrasteia draws inside the wall.
+- **[[Cachalots]]**: they skim the froth at the foot, bounce off the wall without seeming to try, and dive into the bank. **[[Soot]]** and **[[Rays]]** are reworded from "outer wall" to "outer slope" so that "wall" means the pillar.
+- **[[Anchors and Gates]]**: the Ink's anchors hold on the floor of a pillar's bowl and creep round it. A pillar glimpsed through a tear is now a wall of frothing light. **[[Wonderland]]**: the Ink's gates sit in bowls.
+
+**The anchor's new home, and what it does.** The floor of the bowl is the right home, and the rule improves on it: anchors hold where forces cancel *and push back*. The floor is a valley, so an anchor nudged off it slides home. The old summit was a hilltop, which needed lore to explain why anything stayed there. Moving the anchors there does four things to the lore:
+
+1. **Gates open among the animals, in the darkest place in the reach.** Arrival is now a held breath in the bank, not a lamp. Keepers have to run cold to live, which ties Adrasteia's second lock (the Ink cannot be worked warm) to its first (only they hold anchors).
+2. **Anchors creep.** A valley that runs round the pillar holds an anchor in one direction only, so it creeps along the floor. I kept this: an Ink anchor is "never where it was planted, only how far round", keepers follow their anchors, and an anchor's tuning carries its creep. That is question 1.
+3. **The monopoly loosens in principle.** Any floor of any pillar can now hold an anchor, so a rival's lucky blind gate that came up on a floor could be anchored by a crew that survived the bank. None is known to have done it. I kept that: a rumoured rival anchor in some bank is a better story than a law of nature saying it cannot be done.
+4. **The richest dust moves from an unreachable foot to a reachable but deadly face.** The froth is taken by kissing the wall, which is a craft and not a secret. This gives you the bounce play you described and an economic reason to master it.
+
+**Where I'd change your framing.** One place only. "A vertical wall of gravity you have no hope of climbing" should still have a **foot**: a short stretch where the slope steepens from gentle to vertical, instead of a cliff with no lead-in. A bounce needs that stretch to read as a craft, because that is where the pilot feels the push building and chooses the slant. A true cliff would make every contact the same collision.
+
+**New questions.**
+
+1. **Do Ink anchors creep round the pillar?** *My recommendation: yes.* Creep is what a ring-shaped valley does, and it gives keepers a job and gates a phase. The alternative is to hold anchors only where the field cancels in every direction. In a single reach no such place exists, so every gate into the Ink would have to open in the narrows of a pair, and pairs are rare.
+2. **What does the wall give back?** *My recommendation: exactly what a ship brings between beats, a clean mirror at the matching slant; and on the beat the face's heave is added on top.* That makes bouncing free and predictable most of the time and makes the count the whole skill of the kiss. It is for the Ink gravity law (`aetheria-release:follow_up:ink-gravity-law`).
