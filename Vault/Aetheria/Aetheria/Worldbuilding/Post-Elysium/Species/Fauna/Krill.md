@@ -1,39 +1,21 @@
 **"Calm water."**
 
-> Draft, 2026-10-13. Part of [[Spaceborne Fauna]]. `[new]` marks invention that touches existing canon.
+> Draft r2, 2026-10-14. Part of [[Spaceborne Fauna]]; niche: swarming grazer. Kept from the operator's sketch and from r1, changed: krill graze [[Glim]] rather than make their own food, and they drift with the [[Aether]] current, not with the orbit. `[new]` marks invention that touches existing canon.
 
-Krill are the floor of Elysium's food chain: clouds of thousands of finger-length creatures, each a flat membrane around a speck of dark tissue, turning slowly to keep its face to the nearest sun. One krill is nearly invisible. A cloud glints like a dust lane in sunlight.
+Clouds of thousands of finger-length creatures, each a flat membrane around a speck of dark tissue. One krill is nearly invisible. A cloud glints like a dust lane.
 
-#### What They Eat
+**Eats.** Glim, filtered from the current. Krill gather where glim does: in long lines on the fronts, along the strands of the [[Skein]], on the shoulders of wells.
 
-Light, and the warmth of their own sun. A krill's membrane does what a solar panel does and then some: it pulls heat out of its surroundings and turns it into energy, a slow biological cousin of [[Negative Entropy]] [new]. They grow fastest where light is strong and the gravity slope is gentle.
+**Moves: the tell.** A cloud drifts with the current, exactly, and each krill sways in a small, never-repeating loop around its place in the cloud. Krill drift; they never travel.
 
-#### How They Move: the Tell
+**What a pilot learns.** Ships do not drift; a ship in a cloud has to fly the current by hand. A member that holds still against the stream, or sways too regularly, or is warm, is a hull. *Going krill* is the cheapest disguise there is, and every hunter checks it first.
 
-Krill go where the orbit takes them. A cloud's velocity is the orbital flow at its distance: the same speed and direction a rock at that height would have. Each member also sways in a slow, bounded loop around its slot, never a circle, never the same loop twice, never far.
+**On sensors.** Aggregate at range, individual returns close in. Below identification, a krill return and a small hull return look alike.
 
-**What a pilot learns:** krill drift, they never travel. A cloud member that holds the flow but doesn't sway is dead krill, a hull. One that sways too wide, or too regularly, is a hull flown by hand. An orbit-sync makes going krill easy, which is why hunters check krill first.
+**How it hurts.** It doesn't attack; it fouls. Flying through a dense cloud clogs radiators and smears sensor glass, and dense krill block sight lines like vapour [new]. A cloud hit hard flashes its stored light all at once: harmless, and very visible.
 
-#### How They Fight
+**Yield.** *Raking*: sweeping a cloud with a net or field. Krill meal for vat feed and Bloom farms. Cheap per tonne, wanted forever. A raked cloud is back in days.
 
-Krill don't attack. They foul.
+**Lives.** Fronts, skein strands, well shoulders, the big grounds around gas giants. Never in Sol.
 
-- **Fouling.** A dense cloud clogs radiators and scours sensor glass. Flying through thick krill costs heat dissipation and smears the picture [new].
-- **Smothering.** Dense krill block sight lines like a vapour cloud [new].
-- **The flash.** A cloud hit hard, by a shot or a hull at speed, sheds its stored heat as light all at once. The flash is harmless and very visible, which makes shooting into krill the loudest way to test a return [new].
-
-#### Harvest
-
-*Raking:* sweeping a cloud with a field or a net. Yields krill paste, the bulk feedstock for regenerating the living concrete of [[Bloom]] habitats [new]. Cheap per tonne, needed in enormous quantities, forever. [[VitaForge]] buys most of it [new]; independents rake for contract. A raked cloud leaves a channel with straight edges, and the ground refills on the slow tide.
-
-#### Where They Live
-
-On the shoulder of every planet's and gas giant's well, not deep in and not far out. They pool in the saddles and trojan points between bodies and stretch along the gravity ridgelines into filaments that link one well's clouds to the next: *the net*. Sunward clouds are thin, fast and bright. The biggest clouds are around gas giants, where whales graze them.
-
-#### For Designers
-
-- Motion law: orbital flow plus bounded sway, nothing else.
-- Hiding: cheapest disguise; the orbit-sync helper makes it reachable for anyone.
-- Hazard: radiator fouling (heat), sensor smear, sight-line obscuration in dense clouds.
-- Harvest: bulk, low value, high volume; respawn on a timer.
-- Placement: well shoulders, saddles, filaments between bodies.
+*Designers:* field; motion is current plus bounded sway; hazards are radiator fouling, sensor smear, obscuration; fast respawn.
