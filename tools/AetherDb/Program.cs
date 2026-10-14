@@ -54,8 +54,9 @@ public static class Program
             case "verse-grammar": return VerseGrammarCommand.Run(args.Contains("apply"));
             case "sensor-stat-set": return SensorStatSet(args.Contains("apply"));
             case "generic-designs": return GenericDesigns(args.Contains("apply"));
+            case "inspection-scanner": return InspectionScannerCatalog(args.Contains("apply"));
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], range-falloff [apply] [--effective <fraction>] [--end <multiplier>], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], smoke-hull [apply], smoke-rounds [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], launch-suppressor [apply], pirates-faction [apply], verse-grammar [apply], generic-designs [apply], sensor-stat-set [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], range-falloff [apply] [--effective <fraction>] [--end <multiplier>], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], smoke-hull [apply], smoke-rounds [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], launch-suppressor [apply], pirates-faction [apply], verse-grammar [apply], generic-designs [apply], sensor-stat-set [apply], inspection-scanner [apply]");
                 return 1;
         }
     }
@@ -242,6 +243,10 @@ public static class Program
                 ["Capacity"] = "storage cell", ["Efficiency"] = "converter",
             },
             ["Passive Array"] = new Dictionary<string, string> { ["Multiple"] = "receiver" },
+            ["Inspection Scanner"] = new Dictionary<string, string>
+            {
+                ["Range"] = "scan array", ["ScanTime"] = "scan array", ["InterceptFactor"] = EmissionDiscipline,
+            },
         };
 
     // One Mean / StandardDeviation per maker, applied to every role of a design the maker sells (catalog-growth
@@ -2849,5 +2854,128 @@ public static class Program
         return 0;
     }
 
+    // aetheria-release cut scanner-catalog (rulings catalog-grows-generic-designs-branded-products, designs-are-tech-nodes,
+    // catalog-breadth-roles-and-components, sensor-stat-set, scan-held-beam, miss-terris-belongs-to-emily-r3): the catalog sells
+    // an Inspection Scanner, one generic Tool design carrying one ScannerData, and three products from makers whose
+    // emission discipline is quiet (Finch), middling (AU) and loud (Lucent). Range and ScanTime are one linear Quality term
+    // each on the scan array; the intercept factor is the sensor curve on emission-discipline, so the brand's voice lives in
+    // that role's mean (DisciplineMean) as it does for sensors. Thermal fields come from the Targeting Computer, the catalog's
+    // 1x1 tool. Dry run unless passed "apply"; a catalog that is neither untouched nor fully authored is refused.
+    public static int InspectionScannerCatalog(bool apply, string root = null)
+    {
+        var db = AetherDb.Open(catalogWritable: apply, root: root);
+        const string designName = "Inspection Scanner";
+        const string scanArray = "scan array";
+        var template = db.Cache.GetAll<GearData>().Single(g => g.Name == "Targeting Computer");
+
+        Faction Maker(string shortName) =>
+            db.Cache.GetAll<Faction>().FirstOrDefault(f => f.ShortName == shortName) ?? throw new InvalidOperationException($"No faction with short name \"{shortName}\".");
+        PerformanceStat Rolled(float min, float max, string role, float exponent = 1f) => new PerformanceStat
+        {
+            Min = min,
+            Max = max,
+            Terms = new List<StatTerm> { new StatTerm { Source = StatSource.Quality, Exponent = exponent, Role = role } },
+        };
+
+        var design = new GearData
+        {
+            Name = designName,
+            Description = "Held on a tracked ship within its range for the scan time, it reveals every item fitted to that ship, the quiet ones included. The scanned ship is warned and the scan is heard at the scanner's range over its intercept factor.",
+            Hardpoint = HardpointType.Tool,
+            Mass = 40f,
+            Price = 90000,
+            Durability = 40f,
+            Shape = new Shape(1, 1),
+            SpecificHeat = template.SpecificHeat,
+            Conductivity = template.Conductivity,
+            MinimumTemperature = template.MinimumTemperature,
+            MaximumTemperature = template.MaximumTemperature,
+            OptimalTemperature = template.OptimalTemperature,
+            PlateauWidth = template.PlateauWidth,
+            ThermalResilience = template.ThermalResilience,
+            Roles = new[] { scanArray, EmissionDiscipline }.Select(r => new ItemRole { Name = r }).ToList(),
+            Behaviors = new List<BehaviorData>
+            {
+                new ScannerData
+                {
+                    // Min applies at quality 0 of the role and Max at quality 1: a falling scan time is Min > Max.
+                    Range = Rolled(350f, 550f, scanArray),
+                    ScanTime = Rolled(10f, 6f, scanArray),
+                    InterceptFactor = Rolled(.5f, 2f, EmissionDiscipline, MathF.Log2(3f)),
+                },
+            },
+        };
+        design.Shape.Cells[0, 0] = true;
+
+        var products = new (string Name, string Maker, string Description)[]
+        {
+            ("Inkling", "Finch", "Reads every item on a hull and barely clears its throat doing it. The other pilot gets a feeling, not a warning."),
+            ("Assay", "AU", "Surveys a ship the way a crew surveys a seam: steadily, thoroughly, at a volume the neighbours learn to ignore."),
+            ("Full Disclosure", "Lucent", "Everything fitted to the other ship, on the record, and every ear in range hears you ask."),
+        };
+        foreach (var product in products) Maker(product.Maker);
+
+        // Authored when the design exists and all three products are present on it; untouched when nothing is present;
+        // anything between needs a human, a product name that belongs to an unrelated item included.
+        var existing = db.Cache.GetAll<GearData>().SingleOrDefault(g => g.Name == designName);
+        var productNames = products.Select(p => p.Name).ToHashSet();
+        var presentProducts = db.Cache.GetAll<FactionProductData>().Where(p => productNames.Contains(p.Name)).ToArray();
+        if (existing != null && presentProducts.Length == products.Length
+            && products.All(p => presentProducts.Any(x => x.Name == p.Name && x.Design.Key.Equals(db.Cache.RefOf(existing).Key))))
+        {
+            Console.WriteLine("The inspection scanner is already authored; nothing to do.");
+            return 0;
+        }
+        if (existing != null || presentProducts.Length != 0)
+            throw new InvalidOperationException("The inspection scanner is partly authored; the catalog needs a human.");
+
+        var data = design.Behaviors.OfType<ScannerData>().Single();
+        Console.WriteLine("New design:");
+        Console.WriteLine($"  {design.Name} {design.Shape.Width}x{design.Shape.Height} {design.Hardpoint}  mass {design.Mass:0.##}  price {design.Price}  durability {design.Durability:0.##}  roles [{string.Join(", ", design.Roles.Select(r => r.Name))}]");
+        foreach (var (label, stat) in new[] { ("Range", data.Range), ("ScanTime", data.ScanTime), ("InterceptFactor", data.InterceptFactor) })
+            Console.WriteLine($"      {label} {stat.Min:0.##}-{stat.Max:0.##} ({stat.Terms.Single().Role}, exponent {stat.Terms.Single().Exponent:0.####})");
+        Console.WriteLine($"      \"{design.Description}\"");
+        Console.WriteLine("\nNew products:");
+        foreach (var (name, maker, description) in products)
+        {
+            var (mean, dev) = MakerProfiles[maker];
+            Console.WriteLine($"  {design.Name} -> \"{name}\" by {maker}, {scanArray} mean {mean:0.##} dev {dev:0.##}, {EmissionDiscipline} mean {DisciplineMean(Maker(maker)):0.##} dev {dev:0.##}: {description}");
+        }
+
+        if (!apply)
+        {
+            Console.WriteLine($"\nDry run. Pass \"apply\" to author 1 design and {products.Length} products.");
+            return 0;
+        }
+
+        CultRecordRefs.Validate(design);
+        // ExpectUnchanged lands the batch onto the file as it is: every other record keeps the bytes it has, where a plain
+        // commit would re-encode the whole catalog through today's types.
+        if (!db.Cache.Commit(batch =>
+        {
+            batch.ExpectUnchanged();
+            var key = batch.Upsert(typeof(GearData), design);
+            foreach (var (name, maker, description) in products)
+            {
+                var (mean, dev) = MakerProfiles[maker];
+                batch.Upsert(typeof(FactionProductData), new FactionProductData
+                {
+                    Name = name,
+                    Description = description,
+                    Design = new CultRecordRef<CraftedItemData>(key),
+                    Manufacturer = db.Cache.RefOf(Maker(maker)),
+                    Roles = design.Roles.Select(r => new ProductRole
+                    {
+                        Role = r.Name,
+                        Mean = r.Name == EmissionDiscipline ? DisciplineMean(Maker(maker)) : mean,
+                        StandardDeviation = dev,
+                    }).ToList(),
+                });
+            }
+        }))
+            throw new InvalidOperationException("The catalog changed while the inspection scanner was being authored; nothing was written. Run it again.");
+        Console.WriteLine($"\nAuthored 1 design and {products.Length} products in Aetheria.cc");
+        return 0;
+    }
 
 }

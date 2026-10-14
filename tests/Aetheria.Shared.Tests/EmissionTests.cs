@@ -332,4 +332,46 @@ public sealed partial class ContactRevealTests
 
         Assert.Equal(expected, SensorOf(ship).InterceptFactor, 3);
     }
+
+    // A ping and a scan through a lot whose emission-discipline is .2 (alpha .6168) are heard by a third party within
+    // Range over that alpha and not beyond it: a ping (reach 300) at 486, a scan (Range 200) at 324. The hearers stand
+    // between the true bound and the neighbours a stat reading Min (.5: 600 and 400) or Max (2: 150 and 100) would give, so
+    // either wrong end flips a hearer.
+    [Theory]
+    [InlineData(true, 400f, true)]
+    [InlineData(true, 550f, false)]
+    [InlineData(false, 250f, true)]
+    [InlineData(false, 360f, false)]
+    public void AnEmissionIsHeardWithinRangeOverTheLotsAlpha(bool ping, float distance, bool heard)
+    {
+        var design = ping ? "Disciplined" : "DisciplinedScanner";
+        var lot = _items.CreateLot(_openCache.GetByName<EquippableItemData>(design), _maker, .123f);
+        _items.Lots[lot].Roles = new List<RoleFill> { new RoleFill { Role = "emission-discipline", Quality = .2f } };
+        _preparedLots[design] = lot;
+        var third = Add(float3(-distance, 0, 0), new[] { "Eye" });
+        Ship emitter;
+        if (ping)
+        {
+            emitter = Add(float3(0, 0, 0), new[] { design });
+            PingAt(emitter);
+            Assert.Empty(third.IncomingPaints); // fixture: beyond the ping's radius, so never painted
+        }
+        else
+        {
+            var target = Add(float3(0, 0, 100));
+            emitter = Add(float3(0, 0, 0), tools: new[] { design });
+            emitter.EntityInfoGathered[target] = .5f;
+            emitter.SetTarget(target);
+            Hold(emitter, 3, target);
+            Assert.NotEmpty(target.IncomingPaints); // fixture: the scan is on
+            Assert.Empty(third.IncomingPaints);
+        }
+
+        if (!heard)
+        {
+            Assert.Empty(third.RevealsOf(emitter));
+            return;
+        }
+        Assert.Equal(SignatureChannel.Emission, Assert.Single(third.RevealsOf(emitter)).Channel);
+    }
 }

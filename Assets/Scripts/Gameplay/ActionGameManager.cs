@@ -203,7 +203,9 @@ public class ActionGameManager : MonoBehaviour
     private readonly HelmInput _helm = new HelmInput();
     private TextMeshProUGUI _faceAimMark;
     private (HardpointData[] hardpoints, Transform[] barrels, PlaceUIElementWorldspace crosshair)[] _articulationGroups;
-    private (LockWeapon targetLock, PlaceUIElementWorldspace indicator, Rotate spin)[] _lockingIndicators;
+    // The outgoing progress indicators on the player's target: one per lock weapon (its Lock, shown only on a hostile target)
+    // and one per scanner (its scan Progress, shown on any target: a scan reads no stance).
+    private (Func<float> progress, bool hostileOnly, PlaceUIElementWorldspace indicator, Rotate spin)[] _progressIndicators;
     private (PlaceUIElementWorldspace indicator, Rotate spin) _incomingLockIndicator;
     private Dictionary<Entity, VisibleTargetIndicator> _visibleHostileIndicators = new Dictionary<Entity, VisibleTargetIndicator>();
     private Dictionary<Entity, VisibleTargetIndicator> _visibleFriendlyIndicators = new Dictionary<Entity, VisibleTargetIndicator>();
@@ -1021,7 +1023,7 @@ public class ActionGameManager : MonoBehaviour
         _sweepFlashes.Clear();
         _pendingSweeps.Clear();
         
-        if(_lockingIndicators!=null) foreach(var (_, indicator, _) in _lockingIndicators)
+        if(_progressIndicators!=null) foreach(var (_, _, indicator, _) in _progressIndicators)
             indicator.GetComponent<Prototype>().ReturnToPool();
         if(_incomingLockIndicator.indicator != null) _incomingLockIndicator.indicator.GetComponent<Prototype>().ReturnToPool();
         _incomingLockIndicator = default;
@@ -1157,11 +1159,13 @@ public class ActionGameManager : MonoBehaviour
         
         _shipSubscriptions.Add(CurrentEntity.Death.Subscribe(Die));
         
-        _lockingIndicators = CurrentEntity.GetBehaviors<LockWeapon>()
+        var progressSources = CurrentEntity.GetBehaviors<LockWeapon>().Select(x => ((Func<float>) (() => x.Lock), true))
+            .Concat(CurrentEntity.GetBehaviors<Scanner>().Select(x => ((Func<float>) (() => x.Progress), false)));
+        _progressIndicators = progressSources
             .Select(x =>
             {
                 var i = LockIndicator.Instantiate<PlaceUIElementWorldspace>();
-                return (x, i, i.GetComponent<Rotate>());
+                return (x.Item1, x.Item2, i, i.GetComponent<Rotate>());
             }).ToArray();
 
         var incoming = LockIndicator.Instantiate<PlaceUIElementWorldspace>();
@@ -1483,24 +1487,26 @@ public class ActionGameManager : MonoBehaviour
             crosshair.Target = averagePosition;
         }
         
-        foreach (var (targetLock, indicator, spin) in _lockingIndicators)
+        foreach (var (progress, hostileOnly, indicator, spin) in _progressIndicators)
         {
-            var showLockingIndicator = targetLock.Lock > .01f && CurrentEntity.Target.Value.Entity != null && CurrentEntity.IsHostileTo(CurrentEntity.Target.Value.Entity);
-            indicator.gameObject.SetActive(showLockingIndicator);
-            if(showLockingIndicator)
+            var value = progress();
+            var targetEntity = CurrentEntity.Target.Value.Entity;
+            var showIndicator = value > .01f && targetEntity != null && (!hostileOnly || CurrentEntity.IsHostileTo(targetEntity));
+            indicator.gameObject.SetActive(showIndicator);
+            if(showIndicator)
             {
-                indicator.Target = CurrentEntity.Target.Value.Entity.Position.ToUnity();
-                ApplyLockProgress(indicator, spin, targetLock.Lock);
+                indicator.Target = targetEntity.Position.ToUnity();
+                ApplyLockProgress(indicator, spin, value);
             }
         }
 
-        // The strongest lock on the player's ship, read only from IncomingPaints (never another ship's LockWeapon).
-        // Only Track paints are locks; Search paints (ping sweeps) are this class's sweep flashes (UpdateSweepFlashes).
-        // Same curves as the outgoing indicator, driven by the warning's Strength.
+        // The strongest lock or scan on the player's ship, read only from IncomingPaints (never another ship's LockWeapon or
+        // Scanner). A Scan paint's Strength is the scan's progress (ruling scan-is-an-act). Search paints (ping sweeps) are
+        // this class's sweep flashes (UpdateSweepFlashes). Same curves as the outgoing indicator, driven by the warning's Strength.
         var warnings = CurrentEntity.IncomingPaints;
         var strongest = -1;
         for (var w = 0; w < warnings.Count; w++)
-            if (warnings[w].Mode == PaintMode.Track && (strongest < 0 || warnings[w].Strength > warnings[strongest].Strength)) strongest = w;
+            if ((warnings[w].Mode is PaintMode.Track or PaintMode.Scan) && (strongest < 0 || warnings[w].Strength > warnings[strongest].Strength)) strongest = w;
         var (incomingIndicator, incomingSpin) = _incomingLockIndicator;
         incomingIndicator.gameObject.SetActive(strongest >= 0);
         if (strongest >= 0)

@@ -63,12 +63,12 @@ public sealed partial class ContactRevealTests : IDisposable
             // emission-discipline role, exponent log2(3) so a middling part (.5) reads 1.
             var disciplined = Eye("Disciplined", sensitivity: 2f);
             disciplined.Roles.Add(new ItemRole { Name = "emission-discipline" });
-            disciplined.Behaviors.OfType<SensorData>().Single().InterceptFactor = new PerformanceStat
-            {
-                Min = .5f, Max = 2f,
-                Terms = { new StatTerm { Source = StatSource.Quality, Exponent = MathF.Log(3f) / MathF.Log(2f), Role = "emission-discipline" } }
-            };
+            disciplined.Behaviors.OfType<SensorData>().Single().InterceptFactor = DisciplineStat();
             cache.Upsert(disciplined);
+            var disciplinedScanner = Tool("DisciplinedScanner", ScannerBehavior(range: 200f, scanTime: 2f));
+            disciplinedScanner.Roles.Add(new ItemRole { Name = "emission-discipline" });
+            disciplinedScanner.Behaviors.OfType<ScannerData>().Single().InterceptFactor = DisciplineStat();
+            cache.Upsert(disciplinedScanner);
             cache.Upsert(Listener("Listener", 3f));
             cache.Upsert(new ConsumableItemData { Name = "Earpiece", Duration = 30f, Shape = new Shape(), Behaviors = { new ListenerData { Multiple = Const(3f) } } });
             cache.Upsert(Listener("Wide", 5f));
@@ -256,6 +256,14 @@ public sealed partial class ContactRevealTests : IDisposable
         Name = name, Hardpoint = HardpointType.Sensors, Shape = new Shape(), Durability = 1,
         MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000,
         Behaviors = { SensorBehavior(sensitivity, interceptFactor, beamWidth) }
+    };
+
+    // The catalog's intercept factor (AetherDb sensor-stat-set and inspection-scanner): .5 to 2 over one Quality term on the
+    // lot's emission-discipline, exponent log2(3).
+    private static PerformanceStat DisciplineStat() => new PerformanceStat
+    {
+        Min = .5f, Max = 2f,
+        Terms = { new StatTerm { Source = StatSource.Quality, Exponent = MathF.Log(3f) / MathF.Log(2f), Role = "emission-discipline" } }
     };
 
     private static GearData Tool(string name, BehaviorData behavior) => new GearData
@@ -1685,15 +1693,26 @@ public sealed partial class ContactRevealTests : IDisposable
         Assert.Equal(0L, smallest);
     }
 
-    // A docked subject leaves the zone parented to its dock and rejoins on undock: the observer's decision about it outlives
-    // the lapse of the bearing, and is still there when it rejoins.
-    [Fact]
-    public void ADockedSubjectKeepsTheObserversStanceAfterTheBearingLapses()
+    // The observer's stored decision about a subject (SetIff), read as the entity holds it: a neutral decision (false) is also
+    // what an unset stance derives to here, so IsHostileTo alone cannot tell it kept from dropped.
+    private static bool? StoredStance(Entity observer, Entity subject)
+    {
+        var overrides = (System.Collections.IDictionary) typeof(Entity).GetField("_iffOverrides", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(observer);
+        return overrides.Contains(subject) ? (bool) overrides[subject] : (bool?) null;
+    }
+
+    // A docked subject leaves the zone parented to its dock and rejoins on undock: the observer's decision about it, hostile or
+    // neutral, outlives the lapse of the bearing, and is still there when it rejoins.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ADockedSubjectKeepsTheObserversStanceAfterTheBearingLapses(bool hostile)
     {
         var e = Add(float3(0, 0, 100), new[] { "Gun" });
         var dock = Add(float3(200, 0, 0));
         var o = Add(float3(0, 0, 0), new[] { "Eye" });
-        o.SetIff(e, true);
+        o.SetIff(e, hostile);
+        Assert.Equal(hostile, StoredStance(o, e)); // fixture: the decision is stored
         var gun = Guns(e)[0];
         Fire(e, gun);
         ShowOnly(e, 1f, gun);
@@ -1702,10 +1721,12 @@ public sealed partial class ContactRevealTests : IDisposable
         _zone.Remove(e);
         for (var i = 0; i < 100 && o.RevealedSubjects.Contains(e); i++) Tick(.1f);
         Assert.False(o.RevealedSubjects.Contains(e), "fixture: the book dropped the docked subject");
-        Assert.True(o.IsHostileTo(e), "a docked subject keeps the observer's decision");
+        Assert.Equal(hostile, StoredStance(o, e)); // a docked subject keeps the observer's decision
+        Assert.Equal(hostile, o.IsHostileTo(e));
         e.Parent = null;
         _zone.Admit(e, piloted: false);
-        Assert.True(o.IsHostileTo(e), "and it is still there when the subject rejoins");
+        Assert.Equal(hostile, StoredStance(o, e)); // and it is still there when the subject rejoins
+        Assert.Equal(hostile, o.IsHostileTo(e));
     }
 
     private static int PaintInbox(Entity e) => ((System.Collections.ICollection) typeof(Entity).GetField("_paintInbox", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(e)).Count;

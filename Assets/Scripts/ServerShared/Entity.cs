@@ -1033,8 +1033,15 @@ public abstract class Entity
     // classifying read of the book for weapons, shared by the enemy schematic and Combat (aetheria-ew, classify-from-belief);
     // a gun claimed as a non-weapon is not listed, though RevealsOf holds it for aim.
     public IEnumerable<Reveal> RevealedWeapons(Entity subject) =>
-        RevealsOf(subject).Where(r => r.Claimed != null && r.Claimed.Behaviors.Any(b => b is WeaponData))
-            .OrderBy(r => FittedIndex(subject, r.Item)).ThenBy(r => r.Item.EquippableItem.Lot);
+        InFittedOrder(subject, RevealsOf(subject).Where(r => r.Claimed != null && r.Claimed.Behaviors.Any(b => b is WeaponData)));
+
+    // The gear this observer believes `subject` has: each reveal whose claimed class carries no weapon behaviour and is not a
+    // hull, in the order of RevealedWeapons. A hull's layout is known, not revealed, so it is never a gear row.
+    public IEnumerable<Reveal> RevealedGear(Entity subject) =>
+        InFittedOrder(subject, RevealsOf(subject).Where(r => r.Claimed != null && !(r.Claimed is HullData) && !r.Claimed.Behaviors.Any(b => b is WeaponData)));
+
+    private static IEnumerable<Reveal> InFittedOrder(Entity subject, IEnumerable<Reveal> reveals) =>
+        reveals.OrderBy(r => FittedIndex(subject, r.Item)).ThenBy(r => r.Item.EquippableItem.Lot);
 
     // The classes `subject` has claimed to this observer, distinct and by name: what a bearing marker is labelled with. Reads
     // each reveal's Claimed only, never the item's true data (aetheria-ew, classify-from-belief).
@@ -1049,14 +1056,14 @@ public abstract class Entity
         return index < 0 ? int.MaxValue : index;
     }
 
-    // The weapon rows of `subject`'s schematic as this ship reads it: its own equipment when `subject` is this ship (each
-    // row its own data and live range, nothing to doubt about your own ship), otherwise RevealedWeapons (each row the
-    // claimed class and that design's rated range). The one owner of which rows, which class and which range an
-    // enemy schematic shows; the Unity SchematicDisplay renders it.
+    // The rows of `subject`'s schematic as this ship reads it: its own weapons when `subject` is this ship (each row its
+    // own data and live range, nothing to doubt about your own ship), otherwise the revealed weapons (each row the claimed
+    // class and that design's rated range) then the revealed gear (each row the claimed class, no range). The one owner of
+    // which rows, which class and which range an enemy schematic shows; the Unity SchematicDisplay renders it.
     public IEnumerable<SchematicRow> SchematicRows(Entity subject) =>
         subject == this
             ? subject.Equipment.Where(i => i.Behaviors.Any(b => b.Data is WeaponData)).Select(i => new SchematicRow(i, i.Data, true))
-            : RevealedWeapons(subject).Select(r => new SchematicRow(r.Item, r.Claimed, false));
+            : RevealedWeapons(subject).Concat(RevealedGear(subject)).Select(r => new SchematicRow(r.Item, r.Claimed, false));
 
     // Whether this observer's book for `subject` holds `item`: the book's membership, no live gear read.
     internal bool HasReveal(Entity subject, EquippedItem item) =>
