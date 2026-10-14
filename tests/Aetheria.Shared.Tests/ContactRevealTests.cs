@@ -667,7 +667,7 @@ public sealed partial class ContactRevealTests : IDisposable
             case "death": e.Hull.Durability = 0f; e.HullDamage.OnNext(1f); break;
             default: throw new Exception("fixture: " + how);
         }
-        Assert.DoesNotContain(e, zone.Entities);
+        Assert.False(zone.Entities.Contains(e), "fixture: the subject left the zone");
     }
 
     // Leaves the ship showing exactly `strength` of light: whatever its guns left glowing is put out first.
@@ -1054,6 +1054,27 @@ public sealed partial class ContactRevealTests : IDisposable
         Assert.False(o.ContactOf(p).Detected);
     }
 
+    // A ship out of the zone (docked, destroyed, warped) is no longer published to, so it holds no warnings: the one it
+    // held when it left is gone, and every reader sees an empty inbox.
+    [Fact]
+    public void AShipOutOfTheZoneHoldsNoWarnings()
+    {
+        var p = Add(float3(0, 0, 100), new[] { "Eye" });
+        var o = Add(float3(0, 0, 0));
+        var sensor = (Sensor) p.Equipment.Single(i => i.Behaviors.Any(b => b is Sensor)).Behaviors.Single(b => b is Sensor);
+        Tick(.01f);
+        sensor.Ping();
+        for (var tick = 0; tick < 100 && o.IncomingPaints.Count == 0; tick++) Tick(.1f);
+        Assert.Single(o.IncomingPaints); // fixture: the ping crossed o
+
+        _zone.Remove(o);
+        for (var tick = 0; tick < 5; tick++)
+        {
+            Tick(.1f);
+            Assert.Empty(o.IncomingPaints);
+        }
+    }
+
     // An observer's own gear is not another ship's act: a ship that fires its own gun, with its own sensor at the
     // very place of the light, records nothing of itself, while a neighbour does record the gun.
     [Fact]
@@ -1196,7 +1217,7 @@ public sealed partial class ContactRevealTests : IDisposable
         killerGun.Activate();
         for (var ticks = 0; !killed && ticks < 20; ticks++) Tick(.1f);
         Assert.True(killed, "fixture: the kill lands inside a tick");
-        Assert.DoesNotContain(e, _zone.Entities);
+        Assert.False(_zone.Entities.Contains(e), "fixture: the kill took the subject out of the zone");
 
         Assert.Equal(2, strong.RevealsOf(e).Count()); // this tick's Sense came before the kill
 
@@ -1345,6 +1366,222 @@ public sealed partial class ContactRevealTests : IDisposable
         Assert.Equal(0, o.RevealedSubjects.Count); // counts, not the collection: a failure message would print whole entities
     }
 
+    // The hostile subjects held only by a bearing (what bearing markers and the music show): a hostile that fired and is
+    // untracked is listed; the same kind of subject tracked is not; a non-hostile that fired is not; one that departs
+    // unseen is listed exactly until its bearing is BearingMemory old; Deactivate empties it.
+    [Fact]
+    public void RememberedHostilesAreBearingOnlyHostiles()
+    {
+        var e = Add(float3(0, 0, 100), new[] { "Gun" });
+        var t = Add(float3(50, 0, 0), new[] { "Gun" });
+        var n = Add(float3(40, 0, 100), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        o.SetIff(e, true);
+        o.SetIff(t, true);
+        o.SetIff(n, false);
+        var gun = Guns(e)[0];
+        Fire(e, gun);
+        Fire(n, Guns(n)[0]);
+        Fire(t, Guns(t)[0]);
+        Assert.False(o.ContactOf(e).Tracked, "fixture: held by a bearing only");
+        Assert.True(o.RevealedSubjects.Contains(n) && o.IsHostileTo(n) == false, "fixture: n is revealed and not hostile");
+
+        Assert.True(o.RememberedHostiles.Contains(e), "a hostile that fired, untracked");
+        Assert.False(o.RememberedHostiles.Contains(n), "a non-hostile that fired");
+        Assert.True(o.RememberedHostiles.Contains(t), "fixture: t is untracked so far");
+        o.EntityInfoGathered[t] = 1f;
+        Assert.True(o.ContactOf(t).Tracked, "fixture: t is tracked now");
+        Assert.False(o.RememberedHostiles.Contains(t), "the same hostile tracked is a hostile indicator's");
+
+        var freshest = Freshest(o, e);
+        ShowOnly(e, 1f, gun);
+        Assert.True(e.Visibility * o.PassiveInfo(e.Position.xz, 1f) <= _items.GameplaySettings.TargetDetectionInfoThreshold, "fixture: its last light is below o's gate");
+        _zone.Remove(e);
+        Assert.True(o.IsHostileTo(e), "the override outlives the departure while the book remembers the subject; nothing restates it");
+        var memory = _items.GameplaySettings.BearingMemory;
+        var lapsed = false;
+        for (var i = 0; i < 200 && !lapsed; i++)
+        {
+            Tick(.1f);
+            lapsed = _zone.Time - freshest >= memory;
+            Assert.Equal(!lapsed, o.RememberedHostiles.Contains(e)); // exactly while the bearing is remembered
+        }
+        Assert.True(lapsed, "fixture: the bearing lapsed");
+        Assert.False(o.IsHostileTo(e), "the book dropped the subject, and the override went with it");
+        o.Deactivate();
+        Assert.Equal(0, o.RememberedHostiles.Count());
+    }
+
+    // A hostile that fired and stayed in the zone, dark: the book keeps it (an in-zone subject is never pruned), so only
+    // ContactOf's Detected ends its listing, exactly when its bearing is BearingMemory old.
+    [Fact]
+    public void ALapsedHostileInTheZoneIsNotRemembered()
+    {
+        var e = Add(float3(0, 0, 100), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        o.SetIff(e, true);
+        var gun = Guns(e)[0];
+        Fire(e, gun);
+        var freshest = Freshest(o, e);
+        ShowOnly(e, 1f, gun);
+        Assert.True(e.Visibility * o.PassiveInfo(e.Position.xz, 1f) <= _items.GameplaySettings.TargetDetectionInfoThreshold, "fixture: its last light is below o's gate");
+        Assert.True(o.RememberedHostiles.Contains(e), "fixture: listed while young");
+        var memory = _items.GameplaySettings.BearingMemory;
+        var lapsed = false;
+        for (var i = 0; i < 200 && !lapsed; i++)
+        {
+            Tick(.1f);
+            lapsed = _zone.Time - freshest >= memory;
+            Assert.Equal(!lapsed, o.RememberedHostiles.Contains(e)); // exactly while the bearing is remembered
+        }
+        Assert.True(lapsed, "fixture: the bearing lapsed");
+        Assert.True(o.RevealedSubjects.Contains(e), "fixture: the in-zone subject is still in the book");
+        Assert.False(o.ContactOf(e).Detected, "fixture: the contact is no longer Detected");
+        Assert.False(o.RememberedHostiles.Contains(e));
+    }
+
+    // A remembered hostile is decided by the book, never by where the subject stands: loud pingers 500 to 600 away on three
+    // sides are heard (Roar: 300 over .5) and listed, each at the bearing it was heard on.
+    [Fact]
+    public void RememberedHostilesDoNotDependOnDistance()
+    {
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        var spots = new[] { float3(550, 0, 0), float3(-520, 0, 100), float3(0, 0, 590) };
+        var pingers = spots.Select(spot => Add(spot, new[] { "Roar" })).ToArray();
+        foreach (var p in pingers) o.SetIff(p, true);
+        foreach (var p in pingers) PingAt(p);
+
+        foreach (var p in pingers)
+        {
+            Assert.False(o.ContactOf(p).Tracked, "fixture: held by a bearing only");
+            Assert.True(length(p.Position - o.Position) > 500f, "fixture: far from the observer");
+            Assert.True(o.RememberedHostiles.Contains(p));
+            var toward = normalize((p.Position - o.Position).xz);
+            AssertBearing(toward.x, toward.y, o.ContactOf(p).Bearing);
+        }
+        Assert.Equal(3, o.RememberedHostiles.Count());
+    }
+
+    // The observer's stance is its own live decision, not something it saw: toggled after the last act, while the subject is
+    // remembered and untracked, the listing follows at once, in both directions.
+    [Fact]
+    public void AStanceToggledAfterTheLastActShowsAtOnce()
+    {
+        var e = Add(float3(0, 0, 100), new[] { "Gun" });
+        var q = Add(float3(40, 0, 100), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        o.SetIff(e, true);
+        o.SetIff(q, false);
+        Fire(e, Guns(e)[0]);
+        Fire(q, Guns(q)[0]);
+        ShowOnly(e, 1f, Guns(e)[0]);
+        ShowOnly(q, 1f, Guns(q)[0]);
+        Assert.True(e.Visibility * o.PassiveInfo(e.Position.xz, 1f) <= _items.GameplaySettings.TargetDetectionInfoThreshold, "fixture: e unseen");
+        Assert.True(q.Visibility * o.PassiveInfo(q.Position.xz, 1f) <= _items.GameplaySettings.TargetDetectionInfoThreshold, "fixture: q unseen");
+        Assert.True(o.RememberedHostiles.Contains(e) && !o.RememberedHostiles.Contains(q), "fixture: stances as made");
+
+        o.SetIff(e, false);
+        o.SetIff(q, true);
+        Tick(.1f);
+        Assert.True(o.ContactOf(e).Detected && !o.ContactOf(e).Tracked && o.ContactOf(q).Detected && !o.ContactOf(q).Tracked, "fixture: both still remembered by bearing");
+        Assert.False(o.RememberedHostiles.Contains(e), "hostile to neutral after the act");
+        Assert.True(o.RememberedHostiles.Contains(q), "neutral to hostile after the act");
+    }
+
+    // A hostile held only by the observer's override that departs keeps its marker until the bearing lapses and not a tick
+    // longer, and its override is gone with the book entry; a stance for a subject the book never held goes at once.
+    [Fact]
+    public void ADepartedOverrideHostileKeepsItsMarkerThenLosesItsStance()
+    {
+        var e = Add(float3(0, 0, 100), new[] { "Gun" });
+        var never = Add(float3(40, 0, 100), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        o.SetIff(e, true);
+        o.SetIff(never, true);
+        Fire(e, Guns(e)[0]);
+        var freshest = Freshest(o, e);
+        ShowOnly(e, 1f, Guns(e)[0]);
+        _zone.Remove(never);
+        Assert.False(o.IsHostileTo(never), "a subject the book never held loses its stance on leaving");
+        _zone.Remove(e);
+        Assert.True(o.RememberedHostiles.Contains(e), "marker kept on departure");
+        var memory = _items.GameplaySettings.BearingMemory;
+        var lapsed = false;
+        for (var i = 0; i < 200 && !lapsed; i++)
+        {
+            Tick(.1f);
+            lapsed = _zone.Time - freshest >= memory;
+            Assert.Equal(!lapsed, o.RememberedHostiles.Contains(e));
+            Assert.Equal(!lapsed, o.IsHostileTo(e));
+        }
+        Assert.True(lapsed, "fixture: the bearing lapsed");
+    }
+
+    // The memory window is exclusive: at Zone.Time - freshest == BearingMemory the bearing has lapsed (Detected, whether the
+    // subject stays or departs), and a departed subject's book entry (and the stance with it) goes on that tick. The sighting is on a coarse float time (.5) so
+    // that freshest + memory is representable and a step can land on it exactly.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TheMemoryWindowIsExclusiveAtTheEquality(bool departs)
+    {
+        var e = Add(float3(0, 0, 100), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        o.SetIff(e, true);
+        var gun = Guns(e)[0];
+        Tick((float) (.5 - (double) .1f));
+        Fire(e, gun);
+        var freshest = Freshest(o, e);
+        Assert.Equal(.5f, freshest);
+        ShowOnly(e, 1f, gun);
+        Assert.True(e.Visibility * o.PassiveInfo(e.Position.xz, 1f) <= _items.GameplaySettings.TargetDetectionInfoThreshold, "fixture: unseen");
+        if (departs) _zone.Remove(e);
+        var memory = _items.GameplaySettings.BearingMemory;
+        for (var i = 0; i < 1000 && _zone.Time - freshest + .3f < memory; i++) Tick(.1f);
+        Assert.True(o.RememberedHostiles.Contains(e), "fixture: still listed");
+        var exact = _zone.ExactTime;
+        var d = (float) (memory - (exact - freshest));
+        var found = false;
+        for (var k = 0; k < 400 && !found; k++)
+            foreach (var sign in new[] { 1, -1 })
+            {
+                var c = d;
+                for (var j = 0; j < k; j++) c = sign > 0 ? MathF.BitIncrement(c) : MathF.BitDecrement(c);
+                if ((float) (exact + c) - freshest == memory) { d = c; found = true; break; }
+            }
+        Assert.True(found, "fixture: a step landing exactly on the window edge exists");
+        Tick(d);
+        Assert.Equal(memory, _zone.Time - freshest);
+        Assert.False(o.RememberedHostiles.Contains(e));
+        Assert.False(o.ContactOf(e).Detected);
+        if (departs)
+        {
+            Assert.False(o.RevealedSubjects.Contains(e), "the departed subject leaves the book at the edge");
+            Assert.False(o.IsHostileTo(e), "the book dropped the departed subject at the edge, and the stance with it");
+        }
+    }
+
+    // A stance lasts the sitting: a hostile still in the zone whose every revealed item the observer perceives destroyed
+    // leaves the book, and the observer's decision about it stays.
+    [Fact]
+    public void AStanceOutlastsTheBookEntryOfASubjectStillInTheZone()
+    {
+        var e = Add(float3(0, 0, 60), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        o.SetIff(e, true);
+        var gun = Guns(e)[0];
+        Fire(e, gun);
+        Assert.Single(o.RevealsOf(e));
+        o.EntityInfoGathered[e] = 1f;
+        gun.EquippableItem.Durability = 0f;
+
+        Tick(.01f);
+
+        Assert.Empty(o.RevealsOf(e)); // fixture: o perceived the destruction and the book dropped the subject
+        Assert.True(_zone.Entities.Contains(e), "fixture: the subject is still in the zone");
+        Assert.True(o.IsHostileTo(e));
+    }
+
     // The first field path from `root` to `target`, not entering the zone or the item manager, or null.
     private static string PathFrom(object root, object target)
     {
@@ -1446,5 +1683,51 @@ public sealed partial class ContactRevealTests : IDisposable
         }
 
         Assert.Equal(0L, smallest);
+    }
+
+    // A docked subject leaves the zone parented to its dock and rejoins on undock: the observer's decision about it outlives
+    // the lapse of the bearing, and is still there when it rejoins.
+    [Fact]
+    public void ADockedSubjectKeepsTheObserversStanceAfterTheBearingLapses()
+    {
+        var e = Add(float3(0, 0, 100), new[] { "Gun" });
+        var dock = Add(float3(200, 0, 0));
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        o.SetIff(e, true);
+        var gun = Guns(e)[0];
+        Fire(e, gun);
+        ShowOnly(e, 1f, gun);
+        Assert.True(e.Visibility * o.PassiveInfo(e.Position.xz, 1f) <= _items.GameplaySettings.TargetDetectionInfoThreshold, "fixture: unseen");
+        e.Parent = dock;
+        _zone.Remove(e);
+        for (var i = 0; i < 100 && o.RevealedSubjects.Contains(e); i++) Tick(.1f);
+        Assert.False(o.RevealedSubjects.Contains(e), "fixture: the book dropped the docked subject");
+        Assert.True(o.IsHostileTo(e), "a docked subject keeps the observer's decision");
+        e.Parent = null;
+        _zone.Admit(e, piloted: false);
+        Assert.True(o.IsHostileTo(e), "and it is still there when the subject rejoins");
+    }
+
+    private static int PaintInbox(Entity e) => ((System.Collections.ICollection) typeof(Entity).GetField("_paintInbox", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(e)).Count;
+
+    // A paint still unpublished in an observer's inbox when the observer leaves the zone is gone: it does not arrive as a
+    // stale burst when the observer is admitted again.
+    [Fact]
+    public void AnObserverLeavingTheZoneLosesItsPendingPaints()
+    {
+        var p = Add(float3(0, 0, 100), new[] { "Eye" });
+        var o = Add(float3(0, 0, 0));
+        var sensor = (Sensor) p.Equipment.Single(i => i.Behaviors.Any(b => b is Sensor)).Behaviors.Single(b => b is Sensor);
+        Tick(.01f);
+        sensor.Ping();
+        var pending = false;
+        for (var tick = 0; tick < 400 && !pending; tick++) { Tick(.02f); pending = PaintInbox(o) > 0; }
+        Assert.True(pending, "fixture: a paint is pending in o's inbox, not yet published");
+        _zone.Remove(o);
+        Assert.Equal(0, PaintInbox(o));
+        Tick(.1f);
+        _zone.Admit(o, piloted: false);
+        Tick(.02f);
+        Assert.Equal(0, o.IncomingPaints.Count);
     }
 }

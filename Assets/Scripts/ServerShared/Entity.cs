@@ -306,9 +306,13 @@ public abstract class Entity
             VisibleEntities.Remove(remove.Value);
             VisibleEnemies.Remove(remove.Value);
             VisibleFriendlies.Remove(remove.Value);
-            // A stance lasts the sitting: it goes with an entity gone for good (destroyed, warped away, unloaded), not
-            // with a ship docking, which leaves the zone parented to its dock (TryDock) and rejoins it on undock.
-            if (remove.Value.Parent == null) _iffOverrides.Remove(remove.Value);
+            if (remove.Value == this)
+            {
+                // A ship out of the zone is no longer published to: it holds no warnings (nothing would ever clear them).
+                _paintInbox.Clear();
+                _incomingPaints.Clear();
+            }
+            ReleaseStance(remove.Value);
             if (_grudgeSubscriptions.TryGetValue(remove.Value, out var grudgeSubs))
             {
                 foreach (var s in grudgeSubs) s.Dispose();
@@ -985,6 +989,14 @@ public abstract class Entity
         item.EquippableItem.IsDestroyed
         && EntityInfoGathered.TryGetValue(subject, out var info) && info >= ItemManager.GameplaySettings.TargetGearInfoThreshold;
 
+    // A stance lasts the sitting: it goes with a subject gone for good (destroyed, warped away, unloaded) once the book no
+    // longer remembers it, not with a ship docking, which leaves the zone parented to its dock (TryDock) and rejoins it on
+    // undock. Called when the subject leaves the zone and when the book drops it, so the override and the book end together.
+    private void ReleaseStance(Entity subject)
+    {
+        if (subject.Parent == null && !Zone.Entities.Contains(subject) && !_reveals.ContainsKey(subject)) _iffOverrides.Remove(subject);
+    }
+
     // The book's one way out (caller: Sense): `item` null ends every reveal of `subject`, otherwise that item's.
     // The subject's key goes with its last entry.
     private void EndReveals(Entity subject, EquippedItem item)
@@ -992,12 +1004,20 @@ public abstract class Entity
         if (!_reveals.TryGetValue(subject, out var book)) return;
         if (item != null) book.Remove(item);
         else book.Clear();
-        if (book.Count == 0) _reveals.Remove(subject);
+        if (book.Count != 0) return;
+        _reveals.Remove(subject);
+        ReleaseStance(subject);
     }
 
     // The subjects this observer holds any reveal of, departed ones included until the prune: with VisibleEntities, every
     // contact it has (ContactOf is Detected for a tracked subject or one with a young reveal).
     public IReadOnlyCollection<Entity> RevealedSubjects => _reveals.Keys;
+
+    // The hostile subjects this observer holds only by a bearing: revealed, Detected, not Tracked (what bearing markers and
+    // the music show). Hostile is the observer's own live stance (IsHostileTo): the observer always knows its own decision,
+    // and an override outlives a departed subject exactly as long as the book remembers it (ReleaseStance). Reads the book
+    // and ContactOf, never the subject's Position or gear.
+    public IEnumerable<Entity> RememberedHostiles => RevealedSubjects.Where(s => IsHostileTo(s) && ContactOf(s) is { Detected: true, Tracked: false });
 
     // What this observer has seen `subject`'s items do: each item's latest act, and nothing the subject's present
     // gear or Durability says (ruling contact-reads-book-aim-reads-live). A reveal ends only on what this observer
@@ -1015,6 +1035,11 @@ public abstract class Entity
     public IEnumerable<Reveal> RevealedWeapons(Entity subject) =>
         RevealsOf(subject).Where(r => r.Claimed != null && r.Claimed.Behaviors.Any(b => b is WeaponData))
             .OrderBy(r => FittedIndex(subject, r.Item)).ThenBy(r => r.Item.EquippableItem.Lot);
+
+    // The classes `subject` has claimed to this observer, distinct and by name: what a bearing marker is labelled with. Reads
+    // each reveal's Claimed only, never the item's true data (aetheria-ew, classify-from-belief).
+    public IEnumerable<EquippableItemData> ClaimedClasses(Entity subject) =>
+        RevealsOf(subject).Select(r => r.Claimed).Where(c => c != null).Distinct().OrderBy(c => c.Name, StringComparer.Ordinal);
 
     // A revealed item's place in the subject's equipment; gear the subject no longer carries follows all fitted gear
     // (ties among it fall to the lot, a stable id), never ahead of it.

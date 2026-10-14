@@ -141,6 +141,69 @@ public sealed partial class ContactRevealTests
         Assert.Same(claimed, reveal.Claimed);
     }
 
+    // What a bearing marker is labelled with: the classes the subject claimed, never the item's true data; one class once.
+    [Fact]
+    public void ClaimedClassesNameTheClaim()
+    {
+        var locker = Add(float3(0, 0, 0), new[] { "Locker", "Gun" });
+        var target = Add(float3(30, 0, 40), new[] { "Eye" });
+        var lockItem = locker.Equipment.Single(i => i.Behaviors.Any(b => b is LockWeapon));
+        var gunItem = Guns(locker)[0];
+        var claimed = DataOf("Eye");
+        locker.Claim(lockItem, claimed);
+        locker.Claim(gunItem, claimed);
+        locker.SetIff(target, true);
+        Fire(locker, gunItem);
+        locker.EntityInfoGathered[target] = 1f;
+        locker.SetTarget(target);
+        locker.Aim = normalize(target.Position - locker.Position);
+        Tick(.5f);
+        Tick(.5f);
+
+        var items = target.RevealsOf(locker).Select(r => r.Item).ToArray();
+        Assert.True(items.Contains(lockItem) && items.Contains(gunItem), "fixture: two items revealed, both claiming Eye");
+        Assert.Same(claimed, Assert.Single(target.ClaimedClasses(locker))); // two reveals of one class list it once
+        Assert.NotSame(lockItem.Data, claimed); // fixture: the claim is not the truth
+    }
+
+    // A lie within a category is the ordinary lie: a gun that claims another weapon class is labelled with the claim.
+    [Fact]
+    public void ClaimedClassesNameTheClaimWithinACategory()
+    {
+        var e = Add(float3(0, 0, 0), new[] { "Gun" });
+        var o = Add(float3(30, 0, 40), new[] { "Eye" });
+        var gun = Guns(e)[0];
+        var claimed = DataOf("Beam");
+        Assert.True(gun.Data.Behaviors.Any(b => b is WeaponData) && claimed.Behaviors.Any(b => b is WeaponData), "fixture: truth and claim are both weapons");
+        e.Claim(gun, claimed);
+        Fire(e, gun);
+
+        Assert.Same(claimed, Assert.Single(o.ClaimedClasses(e)));
+        Assert.NotSame(gun.Data, claimed); // fixture: the claim is not the truth
+    }
+
+    // The label's order is the claimed names', never the order the reveals were made in.
+    [Fact]
+    public void ClaimedClassesAreOrderedByName()
+    {
+        var locker = Add(float3(0, 0, 0), new[] { "Locker", "Gun" });
+        var target = Add(float3(30, 0, 40), new[] { "Eye" });
+        var lockItem = locker.Equipment.Single(i => i.Behaviors.Any(b => b is LockWeapon));
+        var gunItem = Guns(locker)[0];
+        locker.Claim(lockItem, DataOf("Eye"));
+        locker.Claim(gunItem, DataOf("Shout"));
+        locker.SetIff(target, true);
+        Fire(locker, gunItem); // the later name is revealed first
+        locker.EntityInfoGathered[target] = 1f;
+        locker.SetTarget(target);
+        locker.Aim = normalize(target.Position - locker.Position);
+        Tick(.5f);
+        Tick(.5f);
+
+        Assert.True(target.RevealsOf(locker).Count() >= 2, "fixture: both items revealed");
+        Assert.Equal(new[] { "Eye", "Shout" }, target.ClaimedClasses(locker).Select(c => c.Name));
+    }
+
     // The emission a ping makes is stamped by the ship that makes it. Mutation: Emit stamps item.Data.
     [Fact]
     public void AHeardPingCarriesTheClaim()
