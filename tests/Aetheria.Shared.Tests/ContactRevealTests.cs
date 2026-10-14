@@ -1517,8 +1517,9 @@ public sealed partial class ContactRevealTests : IDisposable
         Assert.True(lapsed, "fixture: the bearing lapsed");
     }
 
-    // The memory window is exclusive: at Zone.Time - freshest == BearingMemory the bearing has lapsed. The sighting is on a
-    // coarse float time (.5) so that freshest + memory is representable and a step can land on it exactly.
+    // The memory window is exclusive: at Zone.Time - freshest == BearingMemory the bearing has lapsed, and for a subject that
+    // has departed the book drops it (and the stance with it) on that tick. The sighting is on a coarse float time (.5) so
+    // that freshest + memory is representable and a step can land on it exactly.
     [Fact]
     public void TheMemoryWindowIsExclusiveAtTheEquality()
     {
@@ -1532,6 +1533,7 @@ public sealed partial class ContactRevealTests : IDisposable
         Assert.Equal(.5f, freshest);
         ShowOnly(e, 1f, gun);
         Assert.True(e.Visibility * o.PassiveInfo(e.Position.xz, 1f) <= _items.GameplaySettings.TargetDetectionInfoThreshold, "fixture: unseen");
+        _zone.Remove(e);
         var memory = _items.GameplaySettings.BearingMemory;
         for (var i = 0; i < 1000 && _zone.Time - freshest + .3f < memory; i++) Tick(.1f);
         Assert.True(o.RememberedHostiles.Contains(e), "fixture: still listed");
@@ -1550,6 +1552,29 @@ public sealed partial class ContactRevealTests : IDisposable
         Assert.Equal(memory, _zone.Time - freshest);
         Assert.False(o.RememberedHostiles.Contains(e));
         Assert.False(o.ContactOf(e).Detected);
+        Assert.DoesNotContain(e, o.RevealedSubjects);
+        Assert.False(o.IsHostileTo(e), "the book dropped the departed subject at the edge, and the stance with it");
+    }
+
+    // A stance lasts the sitting: a hostile still in the zone whose every revealed item the observer perceives destroyed
+    // leaves the book, and the observer's decision about it stays.
+    [Fact]
+    public void AStanceOutlastsTheBookEntryOfASubjectStillInTheZone()
+    {
+        var e = Add(float3(0, 0, 60), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        o.SetIff(e, true);
+        var gun = Guns(e)[0];
+        Fire(e, gun);
+        Assert.Single(o.RevealsOf(e));
+        o.EntityInfoGathered[e] = 1f;
+        gun.EquippableItem.Durability = 0f;
+
+        Tick(.01f);
+
+        Assert.Empty(o.RevealsOf(e)); // fixture: o perceived the destruction and the book dropped the subject
+        Assert.Contains(e, _zone.Entities);
+        Assert.True(o.IsHostileTo(e));
     }
 
     // The first field path from `root` to `target`, not entering the zone or the item manager, or null.
