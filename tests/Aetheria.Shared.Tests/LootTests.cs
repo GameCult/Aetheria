@@ -73,7 +73,7 @@ public sealed class LootTests : IDisposable
             UnaidedAccuracy = .05f, UnaidedTracking = 10f, UnaidedPrecision = 2f, AgentMinHitProbability = 0f,
             LootDropProbability = probability, LootDropVelocity = velocity, FloatingItemLifetime = lifetime
         };
-        var cache = AetheriaStores.Open(Path.Combine(_root, Guid.NewGuid().ToString("N") + ".cc"), catalogWritable: true);
+        var cache = AetheriaStores.Open(Path.Combine(_root, Guid.NewGuid().ToString("N") + ".cc"), Path.Combine(_root, Guid.NewGuid().ToString("N") + ".run.cc"), catalogWritable: true);
         _caches.Add(cache);
         cache.Upsert(new VerseGrammar { Revision = 1 });
         var hardpoint = new HardpointData { Type = HardpointType.Sensors, Position = new int2(0, 0), Shape = new Shape() };

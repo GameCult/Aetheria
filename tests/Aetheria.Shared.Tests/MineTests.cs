@@ -78,7 +78,7 @@ public sealed class MineTests : IDisposable
             FiringArc = 170, CommitHorizon = .5f, SchematicCellSize = 2f,
             UnaidedAccuracy = .05f, UnaidedTracking = 10f, UnaidedPrecision = 1000f, AgentMinHitProbability = 0f
         };
-        var cache = AetheriaStores.Open(Path.Combine(_root, Guid.NewGuid().ToString("N") + ".cc"), catalogWritable: true);
+        var cache = AetheriaStores.Open(Path.Combine(_root, Guid.NewGuid().ToString("N") + ".cc"), Path.Combine(_root, Guid.NewGuid().ToString("N") + ".run.cc"), catalogWritable: true);
         _caches.Add(cache);
         cache.Upsert(new VerseGrammar { Revision = 1 });
         HullData Hull(string name, Shape shape) => new HullData

@@ -82,7 +82,7 @@ public sealed class FireControlTests : IDisposable
             buildCache.FlushAsync().Wait();
         }
 
-        _openCache = AetheriaStores.Open(Catalog, catalogWritable: true);
+        _openCache = AetheriaStores.Open(Catalog, Path.Combine(_root, "Run.cc"), catalogWritable: true);
         var ledger = new ProvenanceLedger();
         ledger.Lots[1] = new Lot { Origin = new Attributed(), Quality = 1 }; // hull
         for (var i = 0; i < hardpoints.Length; i++)

@@ -17,7 +17,7 @@ public sealed class GravitySubtractTests : IDisposable
     public GravitySubtractTests()
     {
         Directory.CreateDirectory(_root);
-        _cache = AetheriaStores.Open(Path.Combine(_root, "grav.cc"), catalogWritable: true);
+        _cache = AetheriaStores.Open(Path.Combine(_root, "grav.cc"), Path.Combine(_root, "grav-run.cc"), catalogWritable: true);
         _cache.Upsert(new VerseGrammar { Revision = 1 });
         _cache.FlushAsync().Wait();
         var settings = new GameplaySettings

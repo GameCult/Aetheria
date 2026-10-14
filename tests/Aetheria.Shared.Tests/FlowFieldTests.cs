@@ -19,7 +19,7 @@ public sealed class FlowFieldTests : IDisposable
     public FlowFieldTests()
     {
         Directory.CreateDirectory(_root);
-        _cache = AetheriaStores.Open(Path.Combine(_root, "flow.cc"), catalogWritable: true);
+        _cache = AetheriaStores.Open(Path.Combine(_root, "flow.cc"), Path.Combine(_root, "flow-run.cc"), catalogWritable: true);
         _cache.Upsert(new VerseGrammar { Revision = 1 });
         _cache.FlushAsync().Wait();
         var settings = new GameplaySettings
