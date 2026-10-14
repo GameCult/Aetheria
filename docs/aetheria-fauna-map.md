@@ -267,7 +267,7 @@ Probed at `1746e8bd`.
 `aetheria-fauna:question:fauna-placement`, `:fauna-flow-coupling`, `:flow-moves-what`, `:flow-slope-terms`. The
 options and recommendations are in the mind; the research for the first is the placement prior-art file.
 
-### Cut sequence (r2, one line each; each is mapped when it is about to run)
+### Cut sequence r2 (superseded by the r3 sequence below)
 
 1. `fauna-flow-field` (cut spec admitted): the flow's owner moves into `ServerShared` (`FlowField`, `Zone.Flow`), the
    shader lowers it from zone time, and a Unity parity check pins HLSL to C#.
@@ -302,4 +302,76 @@ options and recommendations are in the mind; the research for the first is the p
 23. `flow-moves-matter`: loose matter drifts with the flow, per `flow-moves-what`.
 24. `flow-slope-gradient-parity`: the brush-rendered heightfield and `Zone.GetHeight` agree, so the slope term can
     be switched on (`flow-slope-terms`).
+25. `orbit-sync-helper`: the generic flying aid that holds a ship on the local orbital flow. Waits on an operator yes.
+
+## r3: placement is a closed form evaluated at run time
+
+Written by Imagination (agent imagination-aeth-fauna-r3, session self-2026-10-14-ag) against `origin/master`
+`b836af48`, with the flow owner read at `eureka/aetheria-fauna-flow-field` `5f5a1e4d`. The operator ruled
+`fauna-placement-ruled` against `physarum-at-generation`: placement is "deterministic based on the gravity slope and
+flow that makes nice patterns", because "the level is constantly changing". The target is revised to r3 (Placement
+law, invariants `fauna-placement-closed-form`, `-story`, `-nested`, `-no-pop`). The B20 probe and the r2 rationale for
+a generation pass stand as evidence of what the slime look is; the generation pass itself is dropped. Prior art for
+the closed form: `docs/research/2026-10-14-fauna-placement-closed-form.md` (`CF:<line>`).
+
+### Body facts (r3)
+
+| # | Question | Result |
+|---|---|---|
+| B24 | Does the gravity field move? | Yes, in closed form of zone time. Orbit positions are `OrbitData.Evaluate(frac(_time / Period + Phase)) * Distance` plus the parent's position, cached per tick (`Zone.cs:476-497`). `GetHeight` subtracts each gas giant's `RadialWaves(..., _time * speed)` (`Zone.cs:645-655`), and `Sun` derives from `GasGiant` (`Zone.cs:771`), so the sun's well ripples too; `GasGiantData` defaults give wave speed x8 (`ZoneData.cs:199`). The slope at a point is a function of `_time`, and nothing in `GetHeight` can be evaluated at another time without a time parameter. |
+| B25 | Which pointwise closed form makes the slime look? (scratch probe, not committed) | A pure-Python transliteration of `FlowField.Global`/`Slope`/`Scroll` at `5f5a1e4d` and `Zone.GetHeight`/`GetNormal`/`PowerPulse`/`RadialWaves` at `b836af48`, on the B20 zone (sun, four planets, a gas giant; radius 2000; live flow scale 512, amplitude 15, scroll speed .025), 256² grid at t = 100 s, float64 (C# is float32). Density images were written per candidate, member-dot images under fixed per-candidate thresholds (jittered 16 u lattice, about 49k candidates), and correlated with the B20 Physarum maps (64x32 blocks). Results follow in the next rows. Script and images: Self's scratch for session self-2026-10-14-ag, `imagination-aeth-fauna-r3/` (`habitat_probe.py`, `density_*.png`, `members_*.png`). |
+| B25a | Slope band alone (`c0`: the operator's `Deposition(slope)`, zero past slope .8) | Rings on every planet's shoulder, a bright bridge where two shoulders meet; correlation with Physarum A .517 (B .483), the highest of all candidates. 1,435 members. Changes 3.3 % of members in 1 s and 20 % in 8 s from the wells' ripples alone (B24). |
+| B25b | Band times flow convergence (`c1`, gain 3; `c6`, gain 1.5, slope terms on: swirl 6, slide 1.5) | Langmuir-windrow analogue (CF:17-18). The band keeps its rings, cut by the flow's convergence into a crisp triangular texture: `Tri3D` is piecewise linear (`tri`), so its derivatives are piecewise constant and the convergence field is a tiling of hard-edged triangles and diagonal streaks. `c6` correlation .464 (B .449); `c1` .428. Members gather in clumps on the shoulders with thin lines between wells. Under continuous evaluation 20-22 % of members change in 1 s and 89-94 % in 8 s: the flow scrolls a full first-octave phase in 40 s (1 / .025). Convergence std over the zone is .147 /s live and .151 /s with the slope terms on. |
+| B25c | Band times flow-along-contour (`c5`, narrow; `c7`, wide) | Members where the flow runs along the well's contour (neither climbing nor falling). Fine scalloped arcs, more organic than `c6`, but sparse (94 members narrow, 395 wide) and unstable: 42-134 % of members change in 1 s. `c7` correlation .480. |
+| B25d | Okubo-Weiss strain (`c2`) and gravity saddles (`c3`, `c4`) | `c2` (band times sigmoid of W, CF:11) correlation .507, texture like `c1`. `c3` (negative Hessian determinant of the height: outer shoulders and saddles between wells) makes clean rings with dark gaps and no links, .377. `c4` (`c3` times convergence) .316. |
+| B26 | Is Sol a zone the code can tell apart? | No. No `ServerShared` code names Sol (grep of `Sol\b` outside `Solar`/`Solid`/`Solve`); a zone's seed is `GalaxyZone.Name.StableHash()` (`Zone.cs:144`, `CombatSeed`). `fauna-none-in-sol` needs the per-zone environment of `sol-flatspace-zone`. |
+| B27 | Is there placement code to cut? | No. Nothing under `Assets/Scripts/ServerShared` or `tests/Aetheria.Shared.Tests` names habitat or fauna at `b836af48`. The generation pass of r2 was never built. |
+
+### Decisions made here, not forks
+
+- **Candidates are a hashed jittered lattice with fixed per-candidate thresholds**, not a blue-noise set. It is the
+  simplest deterministic, position-stable construction (CF:42 [M]); it is HZD's shape (CF:33 [V]), and nesting
+  follows from the fixed thresholds (CF:40). Blue noise (Wei 2008, recursive Wang tiles, CF:42-43 [S]) buys evenness
+  the jitter already roughly gives; it can replace the lattice later behind the same `Candidate` function.
+- **The hash comes from `SimulationDice.Mix`** on the zone seed, a new `HabitatStream` and the cell, so placement
+  uses the one dice owner (B9) and no `UnityEngine.Random`.
+- **The convergence is normalised by a fixed scale in the settings** (.15 /s, B25b), never by a zone-wide statistic,
+  which would make the law path-integrated (CF:56).
+- **Settings are a record, bound per class later.** `HabitatSettings` lands with `Habitat`; the krill cut binds a
+  record to the krill field kind. Per-class tuning by eye follows the `flow-slope-terms` pattern.
+- **Sol** waits for `sol-flatspace-zone` (B26), which makes Sol host no fauna kind.
+
+### Questions (admitted in the mind, raised in `cut-fauna-habitat-placement.r1`)
+
+`aetheria-fauna:question:habitat-density-driver` (which flow quantity shapes the band; the images above are its
+evidence) and `aetheria-fauna:question:habitat-no-pop` (how a member is carried through a change of hosting).
+
+### Cut sequence (r3, one line each; each is mapped when it is about to run)
+
+1. `fauna-flow-field` (spec admitted; third Soul pass): the flow's owner in `ServerShared` (`FlowField`, `Zone.Flow`).
+2. `fauna-habitat-placement` (spec admitted, waits on 1 and the two questions): `Habitat`, `HabitatSettings`,
+   `Zone.HabitatDensity`/`HabitatPresence`, fixed-threshold candidates, tests and the cost measured.
+3. `fauna-krill-swarms`: fauna fields derived per zone (not generated), krill members at hosted candidates, advected
+   cycles (`fauna-flow-coupling-ruled`), the index provider and `ChunkVisible` through presence. Waits on 1, 2.
+4. `fauna-krill-catalog`: AetherDb authors the Krill field kind and its `HabitatSettings`.
+5. `fauna-field-presentation`: fauna kinds pick their own look and fade by presence; `SectorRenderer` counts belts only.
+6. `fauna-minnow-schools`: minnows, fast milling, a habitat on the krill density.
+7. `fauna-anchors`: field frames that move across the flow under class laws (`fauna-motion-model-ruled`).
+8. `fauna-sharks-and-whales`: sharks by krill density (ideal free distribution, CF:49-50), whales round gas giants.
+9. `fauna-disturbance`: sparse reaction records; schools scatter, sharks veer; reactions are tells.
+10. `fauna-attacks-strike`: sharks strike and minnow schools scour, through the ordinary damage path.
+11. `fauna-attacks-signal`: whale song as noise in the shared signal space (with aetheria-ew), drifter discharge.
+12. `fauna-harvest-goods`: catalog goods per kind and yields through the economy's yield table; fields refill.
+13. `fauna-harvest-gear`: resonance fishing, nets and trawls as gear with makers.
+14. `fauna-void-spiders`: nets across trojan points, snaring and tethering; silk.
+15. `fauna-gas-giant-drifters`: a cloud-deck class bound to gas giants.
+16. `fauna-edge-giants`: larger classes far from Sol; the hosted class mix scales with distance from Sol.
+17. `fauna-springs`: wormhole mouths raise habitat density (a pointwise term of distance to a mouth).
+18. `fauna-genre-uses`: cultivators, necrotech and mecha uses, each with its owner's campaign.
+19. `sol-flatspace-zone`: a per-zone environment override; Sol is cloudless, flowless and hosts no fauna kind.
+20. `fauna-returns`: what an observer is shown (`fauna-distance-ruled`, `fauna-disguise-path-ruled`).
+21. `fauna-in-ew-blend`: fauna background kinds with motion-law envelopes in aetheria-ew's judge.
+22. `fauna-krill-obscure`: dense krill thin sight lines through `Zone.Obscuration`. Waits on an operator yes.
+23. `flow-moves-matter`: floating items, mines and vented clouds drift with the flow (`flow-moves-what-ruled`).
+24. `flow-slope-gradient-parity`: the brush-rendered heightfield and `Zone.GetHeight` agree (`flow-slope-terms`).
 25. `orbit-sync-helper`: the generic flying aid that holds a ship on the local orbital flow. Waits on an operator yes.
