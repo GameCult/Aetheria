@@ -9645,3 +9645,85 @@ Missiles and mines get no EffectiveRange (flat): DF7's games exempt missiles, an
 - +infinity as the unauthored value: it is Tracking's precedent, it keeps every fixture's damage, and "no falloff" becomes a value the function already handles rather than a flag.
 - Size: one Hands pass (about 110 calls, cap 150), with a declared stop point before the catalog apply.
 - The two numbers the operator has not ruled (the end multiplier and how effective ranges are authored) are authored data with defaults from DF7, so they do not block Hands; a different answer is a rerun of `range-falloff` with other arguments.
+
+# Bearing-markers refresh at 3300e16e
+
+Imagination imagination-ag2-bearing-markers, session self-2026-10-14-ag2, 2026-10-14. Pinned to Aetheria
+origin/master 3300e16e (contact-hud h3 head 0681d6f2, emissions-heard h2 3c628f54, inspection-scanner h3 66d06989 and
+sensor-catalog h5 7633408f are all ancestors; `git merge-base --is-ancestor`). Read-only detached worktree
+`C:\aeth-wt\ag2-imag`. Refreshes cut_spec bearing-markers (r1, base efee2a2a -> r2). No `eureka/aetheria-release-bearing-markers`
+branch exists on origin, so r2 starts from 3300e16e. Paths under Assets/Scripts unless noted.
+
+## Body facts (source reads at 3300e16e)
+
+BM1. context-pack of r1 `--since efee2a2a`: four ActionGameManager anchors moved (+3, +4, +18) and the r1 Update window
+(1275-1305) was rewritten by contact-hud (PlaceFill, UpdateMusic, DrawsAt); VisibleTargetIndicator.cs unchanged.
+
+BM2. The reads r1 named exist: `Entity.RevealedSubjects` (ServerShared/Entity.cs:1000), `RevealsOf` (1008),
+`RevealedWeapons` (1015-1017, the one classifying read of the book for weapons), `ContactOf` (1041-1060), `IsHostileTo`
+(1166), `IncomingPaints` (240); `Contact.Bearing` is the true bearing while tracked, else the freshest reveal's
+(ServerShared/Sensing.cs:168-196).
+
+BM3. The book changed shape under r1 (aetheria-ew ew-claims-in-the-book): `Reveal` carries `Claimed` beside the true
+`Item` (Sensing.cs:101-120), and "`Claimed` ... is what every classifying reader reads". r1's label ("the distinct item
+names of RevealsOf(s)") would read `Item`, the truth. A label names `Reveal.Claimed`.
+
+BM4. `PaintMode` is `Search, Track, Scan` (Sensing.cs:43-48; Scan added by inspection-scanner). The incoming indicator
+still follows Track only (ActionGameManager.cs:1478-1494); its comment says Search paints "are presented by
+contact-hud", which is stale: contact-hud r2 split them to this cut. scanner-catalog r1 adds Scan to that selection.
+
+BM5. A Search paint is one tick: Sensor.Execute paints a subject on "the first sweeping tick this ping's wavefront is
+past the entity" (ServerShared/Behaviors/Sensor.cs:203-207), and a warning lives one tick after its paint
+(Entity.cs:218-222). The zone steps on a fixed 1/60 s `SimClock` (ActionGameManager.cs:238), several or no ticks per
+frame (`Clock.Advance` callback, 1363). A presenter reading IncomingPaints once per frame drops crossings below 60 fps
+and repeats them above it; the Track indicator is continuous and does not care. The sweep flash collects Search
+warnings per tick inside the Advance callback.
+
+BM6. Music (contact-hud, ActionGameManager.cs:1266-1282) walks RevealedSubjects for "hostile and Detected"; markers
+need "hostile, Detected, not Tracked" over the same book. One derivation on Entity serves both
+(`RememberedHostiles`), so music and markers cannot disagree on what is remembered.
+
+BM7. HUD prototypes live in the scene, not in prefabs: the only file referencing VisibleTargetIndicator's guid
+(e39172b0...) is Scenes/ARPG.unity (38,498 lines). "Visible Hostile" (line 27655) and "Visible Friendly" have
+children Fill and Stroke only, no text. The LockIndicator prototype is "Missile Lock": RectTransform, CanvasRenderer,
+a red Image, Rotate, PlaceUIElementWorldspace. Probe: scratchpad `imagination-ag2-bearing-markers/scene.py` and
+`lockind.py` over the scene YAML. Wiring a label in the scene is a multi-document YAML insert (GameObject,
+RectTransform, CanvasRenderer, TMP component with a font reference), not a clean text edit; TMP Settings names a
+default font (`Assets/TextMesh Pro/Resources/TMP Settings.asset:27`), so a label created at runtime needs no asset wiring.
+
+BM8. `Prototype` pools per original prototype (Prototype.cs:41-75): a marker returned to HostileTargetIndicator's pool
+is reused by the tracked-hostile indicators, and a flash returned to LockIndicator's pool by the lock indicators. A
+pooled marker must hide its label and a flash restore its alpha before ReturnToPool. UnbindEntity destroys the
+hostile and friendly indicators and returns the lock indicators (ActionGameManager.cs:999-1010).
+
+BM9. Negative greps at base: `EntityInfoGathered|VisibilitySources` under Gameplay/ and UI/ is zero; `Zone\.Entities`
+in ActionGameManager is two (821 save load, 881 zone cleanup); `PaintMode\.Search` in ActionGameManager is zero.
+
+BM10. Open Soul findings (aetheria-release and aetheria-ew, in force): none sits on the cut's sites (the nearest,
+boss-gate win-unguarded, is ActionGameManager.cs:1193 and 329, Win). No aetheria-ew or aetheria-fauna spec in force
+lacks a report. layout-aim r2 edits ActionGameManager only at 431-446 (the cycle).
+
+## Rationale
+
+- The label reads the claim (BM3), and the classifying read is one Entity method beside RevealedWeapons
+  (`ClaimedClasses`), tested headless (invariant rules-tested-headless), not a LINQ chain in the presenter.
+- Runtime label instead of scene wiring (BM7): r1 left the scene edit to the operator if YAML was unclean, and it is.
+  VisibleTargetIndicator owns its label, creating a TMP child on first use, so the cut ships without an undone step.
+- Per-tick sweep collection (BM5): the only read of a one-tick warning that neither drops nor repeats it. It is a
+  read inside the step callback after `Update`, not a sim change.
+- Size: about 60 Hands calls, cap 80, one pass (Entity and two tests on Yggdrasil, Unity compile on Starfire).
+
+## Cut order (amends 'Visibility refresh at efee2a2a')
+
+contact-hud, emissions-heard, inspection-scanner and sensor-catalog (all merged) -> bearing-markers r2 (runs now).
+inspection-scanner + sensor-catalog + bearing-markers -> scanner-catalog (line unchanged): its r1 is based on
+efee2a2a and must be refreshed after bearing-markers merges; its incoming-indicator window moves, and the stale
+comment it would have rewritten is rewritten here. layout-aim (line unchanged) is also on efee2a2a and its anchors
+have moved (FireControl.cs and SchematicDisplay.cs TOUCHED at 3300e16e); refresh it when it is about to run.
+
+## Admitted (imagination-ag2-bearing-markers, 2026-10-14)
+
+- mind-commit-1282bd27...: cut-bearing-markers.r2 (base 3300e16e), resolution cut_spec.cut-bearing-markers.r1.n1 (Superseded).
+- mind-commit-6d2f78d4...: cut-bearing-markers.r3 (base 3300e16e; Entity.cs window widened to 996-1018 so it shows
+  RevealedWeapons whole), resolution cut_spec.cut-bearing-markers.r2.n1 (Superseded). context-pack on r3: all ten
+  anchors SAME. No question raised.
