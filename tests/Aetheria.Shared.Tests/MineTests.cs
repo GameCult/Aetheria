@@ -78,7 +78,7 @@ public sealed class MineTests : IDisposable
             FiringArc = 170, CommitHorizon = .5f, SchematicCellSize = 2f,
             UnaidedAccuracy = .05f, UnaidedTracking = 10f, UnaidedPrecision = 1000f, AgentMinHitProbability = 0f
         };
-        var cache = AetheriaStores.Open(Path.Combine(_root, Guid.NewGuid().ToString("N") + ".cc"), catalogWritable: true);
+        var cache = AetheriaStores.Open(Path.Combine(_root, Guid.NewGuid().ToString("N") + ".cc"), Path.Combine(_root, Guid.NewGuid().ToString("N") + ".run.cc"), catalogWritable: true);
         _caches.Add(cache);
         cache.Upsert(new VerseGrammar { Revision = 1 });
         HullData Hull(string name, Shape shape) => new HullData
@@ -118,8 +118,10 @@ public sealed class MineTests : IDisposable
         var ledger = new ProvenanceLedger();
         for (var i = 1; i <= 500; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = 1 };
         var items = new ItemManager(cache, ledger, settings, _ => { });
-        var planets = well ? new PlanetSettings { ZoneDepth = 1000, ZoneDepthExponent = 1, GravityStrength = 1 } : new PlanetSettings();
-        var zone = new Zone(items, planets, new ZonePack { Radius = well ? 1000 : 0 }, new GalaxyZone { Name = "Mines", Owner = null }, null);
+        var planets = well ? new PlanetSettings { GravityStrength = 1 } : new PlanetSettings();
+        var pack = new ZonePack { Radius = well ? 1000 : 0 };
+        if (well) WellFixture.Dig(cache, pack, planets, 1000, 1000, 1);
+        var zone = new Zone(items, planets, pack, new GalaxyZone { Name = "Mines", Owner = null }, null);
         var lab = new Lab { Items = items, Zone = zone, Data = data, ItemData = cache.GetByName<WeaponItemData>("Mine Layer") };
 
         var layerRef = items.ItemData.RefOf<ItemData>(items.ItemData.GetByName<HullData>("Layer"));

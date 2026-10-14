@@ -161,6 +161,12 @@ public class Zone
             Orbits.Add(orbit.Key, new Orbit(Settings, cache.Get(orbit)));
         }
 
+        // Aetheria gravity (target invariant zone-valid-before-tick): every orbit is placed at the pack's time
+        // when the zone is built, so each well, light and body pose read before the first Update is where the
+        // body is. Velocity stays zero until the first Update differences two placed positions.
+        foreach (var orbit in Orbits)
+            GetOrbitPosition(orbit.Key);
+
         foreach (var body in pack.Planets)
         {
             var planet = cache.Get(body);
@@ -266,18 +272,16 @@ public class Zone
 
     private bool IsExpired(ChunkWear wear) => wear.Damage <= 0f && (!wear.BrokenUntil.HasValue || wear.BrokenUntil.Value <= _time);
 
-    public void AddOrbit(OrbitData orbit)
-    {
-        Orbits.Add(_itemManager.ItemData.RefOf(orbit).Key, new Orbit(Settings, orbit));
-    }
-
     public void Update(float deltaTime)
     {
         _time += deltaTime;
         _updatedOrbits.Clear();
+        // Every previous position is taken before any orbit is placed: GetOrbitPosition places a parent as a
+        // side effect of placing its child, so differencing inside one loop would depend on dictionary order.
+        foreach (var orbit in Orbits)
+            orbit.Value.PreviousPosition = orbit.Value.Position;
         foreach (var orbit in Orbits)
         {
-            orbit.Value.PreviousPosition = orbit.Value.Position;
             orbit.Value.Position = GetOrbitPosition(orbit.Key);
             orbit.Value.Velocity = (orbit.Value.Position - orbit.Value.PreviousPosition) / deltaTime;
         }
@@ -591,26 +595,6 @@ public class Zone
             into[i] = beltInstance.Pose(i, _time, parentPosition, Settings, ChunkRadius(new ChunkId(belt, i)));
     }
 
-    public OrbitData CreateOrbit(CultRecordKey parent, float2 position)
-    {
-        var parentPosition = GetOrbitPosition(parent);
-        var delta = position - parentPosition;
-        var distance = length(delta);
-        var period = Settings.OrbitPeriod.Evaluate(distance);
-        var phase = atan2(delta.y, delta.x) / (PI * 2);
-        var currentPhase = frac(_time / period);
-        var storedPhase = (float) frac(phase - currentPhase);
-
-        var orbit = new OrbitData
-        {
-            Distance = distance,
-            Parent = new CultRecordRef<OrbitData>(parent),
-            Phase = storedPhase
-        };
-        Orbits.Add(_itemManager.ItemData.Upsert(orbit).Key, new Orbit(Settings, orbit));
-        return orbit;
-    }
-
     public SecurityLevel GetSecurityLevel(float2 pos)
     {
         if (GalaxyZone.Owner==null) return SecurityLevel.Open;
@@ -630,7 +614,7 @@ public class Zone
 
     public float GetHeight(float2 position)
     {
-        var result = -PowerPulse(length(position)/(Pack.Radius*2), Settings.ZoneDepthExponent) * Settings.ZoneDepth;
+        var result = 0f;
         foreach (var body in PlanetInstances.Values)
         {
             var p = position - body.Orbit.Position; //GetOrbitPosition(body.BodyData.Orbit)
@@ -640,18 +624,6 @@ public class Zone
             {
                 var depth = body.GravityWellDepth;
                 result -= PowerPulse(sqrt(distSqr) / gravityRadius, body.BodyData.GravityDepthExponent) * depth;
-            }
-
-            if (body is GasGiant gas)
-            {
-                var waveRadius = gas.GravityWavesRadius;
-                if(distSqr < waveRadius*waveRadius)
-                {
-                    var depth = gas.GravityWavesDepth;
-                    var frequency = Settings.WaveFrequency.Evaluate(body.BodyData.Mass);
-                    var speed = gas.GravityWavesSpeed;
-                    result -= RadialWaves(sqrt(distSqr) / waveRadius, 8, 1.25f, frequency, (float) (_time * speed)) * depth;
-                }
             }
         }
 
@@ -716,12 +688,6 @@ public class Zone
         return pow((x + 1) * (1 - x), exponent);
     }
 
-    public static float RadialWaves(float x, float maskExponent, float sineExponent, float frequency, float phase)
-    {
-        //x *= 2;
-        return PowerPulse(x, maskExponent) * cos(pow(x*2, sineExponent) * frequency + phase);
-    }
-
     public float3 GetNormal(float2 pos, float step = .1f, float mul = 1)
     {
         float hL = GetHeight(new float2(pos.x - step, pos.y)) * mul;
@@ -763,22 +729,10 @@ public class Planet
 public class GasGiant : Planet
 {
     public GasGiantData GasGiantData;
-    public float GravityWavesDepth;
-    public float GravityWavesRadius;
-    public float GravityWavesSpeed;
 
     public GasGiant(PlanetSettings settings, GasGiantData data, Orbit orbit) : base(settings, data, orbit)
     {
         GasGiantData = data;
-        CalculateProperties();
-    }
-
-    public new void CalculateProperties()
-    {
-        base.CalculateProperties();
-        GravityWavesDepth = Settings.WaveDepth.Evaluate(BodyData.Mass) * GasGiantData.WaveDepthMultiplier;
-        GravityWavesRadius = Settings.WaveRadius.Evaluate(BodyData.Mass) * GasGiantData.WaveRadiusMultiplier;
-        GravityWavesSpeed = Settings.WaveSpeed.Evaluate(BodyData.Mass) * GasGiantData.WaveSpeedMultiplier;
     }
 }
 

@@ -186,18 +186,6 @@ public class GasGiantData : BodyData
     [JsonProperty("albedoRotationSpeed"), Key(13)]
     public float AlbedoRotationSpeed = 1;
 
-    [JsonProperty("gravRadiusMul")] [Key(14)]
-    public float WaveRadiusMultiplier = 1;
-
-    [JsonProperty("depthMul")] [Key(15)]
-    public float WaveDepthMultiplier = 1;
-
-    [JsonProperty("depthExp")] [Key(16)]
-    public float WaveDepthExponent = 8;
-
-    [JsonProperty("depthExp")] [Key(17)]
-    public float WaveSpeedMultiplier = 8;
-
     [JsonProperty("materialOverrides"), Key(18)]
     public List<string> MaterialOverrides = new List<string>();
 
