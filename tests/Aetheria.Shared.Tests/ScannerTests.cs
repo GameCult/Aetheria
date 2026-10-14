@@ -149,7 +149,8 @@ public sealed partial class ContactRevealTests
         Assert.Equal(builds, ScannerOf(s).Progress > 0f);
         Assert.Equal(builds, target.IncomingPaints.Count > 0);
         Assert.Equal(builds, target.RevealsOf(s).Any());
-        Assert.Equal(builds, third.RevealsOf(s).Any());
+        var heard = third.RevealsOf(s).ToList();
+        Assert.True(builds == heard.Any(), string.Join(",", heard.Select(r => r.Item.Data.Name + ":" + r.Channel + "@" + r.Time)) + " clock " + _zone.Time);
     }
 
     // ---- ABrokenScanDecays ----
