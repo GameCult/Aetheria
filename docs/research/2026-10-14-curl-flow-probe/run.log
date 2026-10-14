@@ -1,8 +1,8 @@
 snoise_grad analytic vs FD max err 2.1925998794358748e-08
 period / precision {'axis0': 1.0206946399193839e-11, 'axis1': 1.2218337452907235e-11, 'axis2': 1.0844658504538529e-11, 'fbm3_z': 2.8636648607971438e-11, 'ulp32_unfolded_1d': 0.000244140625, 'ulp32_folded_1d': 3.0517578125e-05, 'ulp32_unfolded_10d': 0.001953125, 'ulp32_folded_10d': 6.103515625e-05, 'ulp32_unfolded_100d': 0.015625, 'ulp32_folded_100d': 7.62939453125e-06}
 tri3d numpy vs habitat_probe max err 0.0
-tri3d RMS speed 6.603448949711046 gains k {'curl1': 1.8716047508573805, 'curlfbm': 1.126907845785225, 'warp': 0.7637324999861898}
 slope grid ...
+tri3d RMS speed 6.603448949711046 gains k {'curl1': 1.8716047508573805, 'curlfbm': 1.126907845785225, 'warp': 0.7637324999861898, 'lab': 1.0915955246130895, 'labslope': 0.3915687026127663}
 == 0-tri3d: cost 0 snoise_grad (2 normalize(tri3) + cross)
    {'rms_div': 0.20651205778187315, 'rms_vort': 0.15264839371242175, 'div_over_vort': 1.3528609948619998, 'speed': [1.7371031863703295, 5.901654179436111, 9.62248760054106, 11.586184082696114, 12.223586819574475], 'rms': 6.503824936533222, 'still_frac': 0.0319}
    C:\aeth-wt\fauna-curl-probe\docs\research\2026-10-14-curl-flow-probe\lic_0-tri3d.png
@@ -27,6 +27,18 @@ slope grid ...
    {'rms_div': 0.15167226920301866, 'rms_vort': 0.6337080265131629, 'div_over_vort': 0.23934093124488495, 'speed': [4.152942742162839, 6.721649628568566, 11.157884115284288, 26.547283825576866, 107.69405595071426], 'rms': 8.93130732391741, 'still_frac': 0.0035}
    C:\aeth-wt\fauna-curl-probe\docs\research\2026-10-14-curl-flow-probe\lic_4b-curl-warped-slope.png
    C:\aeth-wt\fauna-curl-probe\docs\research\2026-10-14-curl-flow-probe\drift_4b-curl-warped-slope.png
+== 5-lab-stretch-fixed: cost 3 snoise_grad (fbm_grad of a stretched argument)
+   {'rms_div': 5.558963705645817e-05, 'rms_vort': 0.2730793919618278, 'div_over_vort': 0.0002035658445593314, 'speed': [0.8667381407585574, 3.172091295533267, 10.728892348644765, 22.920368457618324, 36.08635765573939], 'rms': 6.658199538461918, 'still_frac': 0.06445}
+   C:\aeth-wt\fauna-curl-probe\docs\research\2026-10-14-curl-flow-probe\lic_5-lab-stretch-fixed.png
+   C:\aeth-wt\fauna-curl-probe\docs\research\2026-10-14-curl-flow-probe\drift_5-lab-stretch-fixed.png
+== 5b-lab-stretch-contour: cost 12 snoise_grad as probed (psi differenced); 3 + a height Hessian analytically
+   {'rms_div': 1.9801024466641561, 'rms_vort': 3.3310309410856718, 'div_over_vort': 0.5944413251288467, 'speed': [0.6113167724180104, 1.9093933242420025, 6.116526381276066, 22.779618958983708, 174.75200171199305], 'rms': 6.253181637281358, 'still_frac': 0.1038}
+   C:\aeth-wt\fauna-curl-probe\docs\research\2026-10-14-curl-flow-probe\lic_5b-lab-stretch-contour.png
+   C:\aeth-wt\fauna-curl-probe\docs\research\2026-10-14-curl-flow-probe\drift_5b-lab-stretch-contour.png
+== 5c-lab-stretch-contour-slope: cost as 5b + the slope term (axis and slope term share the gravity gradient)
+   {'rms_div': 2.021078137274867, 'rms_vort': 3.3530115055974576, 'div_over_vort': 0.6027650468544219, 'speed': [4.309379229574169, 6.448502702031059, 9.634888532119085, 23.996604067476206, 211.9540577466552], 'rms': 8.764542223350555, 'still_frac': 0.0019}
+   C:\aeth-wt\fauna-curl-probe\docs\research\2026-10-14-curl-flow-probe\lic_5c-lab-stretch-contour-slope.png
+   C:\aeth-wt\fauna-curl-probe\docs\research\2026-10-14-curl-flow-probe\drift_5c-lab-stretch-contour-slope.png
    scroll 0-tri3d corr(t=0, t=10s) = 0.316
    scroll 0-tri3d corr(t=0, t=40s) = 0.452
    scroll 0-tri3d corr(t=0, t=120s) = 0.799
@@ -39,4 +51,10 @@ slope grid ...
    scroll 3-curl-warped corr(t=0, t=10s) = 0.100
    scroll 3-curl-warped corr(t=0, t=40s) = -0.007
    scroll 3-curl-warped corr(t=0, t=120s) = 0.010
-done 45.1 s
+   scroll 5-lab-stretch-fixed corr(t=0, t=10s) = 0.221
+   scroll 5-lab-stretch-fixed corr(t=0, t=40s) = -0.033
+   scroll 5-lab-stretch-fixed corr(t=0, t=120s) = 0.145
+   scroll 5b-lab-stretch-contour corr(t=0, t=10s) = 0.312
+   scroll 5b-lab-stretch-contour corr(t=0, t=40s) = -0.010
+   scroll 5b-lab-stretch-contour corr(t=0, t=120s) = -0.026
+done 90.9 s

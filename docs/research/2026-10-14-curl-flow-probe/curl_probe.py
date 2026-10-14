@@ -118,6 +118,24 @@ def stream_grad(kind, x, z, t):
         J11 = 1 + W * fw * n1[..., 0]; J12 = W * fw * n1[..., 1]
         J21 = W * fw * n2[..., 0]; J22 = 1 + W * fw * n2[..., 1]
         return g[..., 0] * J11 + g[..., 1] * J21, g[..., 0] * J12 + g[..., 1] * J22
+    if kind in ("lab", "labslope"):
+        # Nebula Span Lab construction as a stream function (labs-noise-facts.md 1a): fbm of the stretched argument
+        # Mop(v) = v + (1/st - 1) dot(v, d) d (SPAN 396), st 5, 3 octaves, gain .5 (lab defaults; lacunarity 2, not
+        # the preset's 2.1, so the 867 fold holds).
+        st = 5.0; a = 1.0 / st - 1.0
+        def psi(xx, zz, dx_, dz_):
+            px, pz = xx / S, zz / S; dp = px * dx_ + pz * dz_
+            return fbm_grad(np.stack([px + a * dp * dx_, pz + a * dp * dz_, np.full_like(xx, tau)], -1), 3, 2.0, 0.5)
+        if kind == "lab":   # d fixed at azimuth 25 (the preset's fAz); analytic: Mop is symmetric, grad_p = Mop grad_q
+            dx_ = np.full_like(x, LAB_DIR[0]); dz_ = np.full_like(x, LAB_DIR[1]); g = psi(x, z, dx_, dz_)
+            gd = g[..., 0] * dx_ + g[..., 1] * dz_
+            return g[..., 0] + a * gd * dx_, g[..., 1] + a * gd * dz_
+        # "labslope": d = the local contour tangent (bilinear on the gravity grid). The analytic chain rule would need
+        # dd/dp, i.e. the height Hessian; instead psi is differenced (4 evaluations, 12 snoise_grad), which keeps the
+        # flow an exact discrete curl.
+        e = 2.0
+        def ps(xx, zz): d = DIRFN(xx, zz); return psi(xx, zz, d[0], d[1])[..., 3]
+        return ((ps(x + e, z) - ps(x - e, z)) / (2 * e) * S, (ps(x, z + e) - ps(x, z - e)) / (2 * e) * S)
     raise KeyError(kind)
 
 GAIN = {}   # per-candidate k, set so RMS speed matches tri3d's RMS over the zone at t = 0
@@ -132,6 +150,9 @@ def slope_terms(x, z, t):
             ox[k] = dz * SWIRL + dx * SLIDE; oz[k] = -dx * SWIRL + dz * SLIDE
     return ox.reshape(x.shape), oz.reshape(x.shape)
 
+DIRFN = None   # set in main: (x, z) -> unit contour tangent (the swirl direction), nearest cell of the grid
+LAB_DIR = (math.cos(math.radians(25)), math.sin(math.radians(25)))   # Span Lab "Streaming filaments" fAz 25
+
 def velocity(kind, x, z, t, slope=None):
     if kind == "tri3d": return tri3d(x, z, t)
     base = kind.replace("+slope", "")
@@ -143,13 +164,16 @@ def velocity(kind, x, z, t, slope=None):
         ux, uz = ux + sx, uz + sz
     return ux, uz
 
-CANDS = ["tri3d", "curl1", "curlfbm", "warp", "curlfbm+slope", "warp+slope"]
+CANDS = ["tri3d", "curl1", "curlfbm", "warp", "curlfbm+slope", "warp+slope", "lab", "labslope", "labslope+slope"]
 NAMES = {"tri3d": "0-tri3d", "curl1": "1-curl-simplex", "curlfbm": "2-curl-fbm3",
-         "warp": "3-curl-warped", "curlfbm+slope": "4-curl-fbm3-slope", "warp+slope": "4b-curl-warped-slope"}
+         "warp": "3-curl-warped", "curlfbm+slope": "4-curl-fbm3-slope", "warp+slope": "4b-curl-warped-slope",
+         "lab": "5-lab-stretch-fixed", "labslope": "5b-lab-stretch-contour", "labslope+slope": "5c-lab-stretch-contour-slope"}
 COST = {"tri3d": "0 snoise_grad (2 normalize(tri3) + cross)", "curl1": "1 snoise_grad",
         "curlfbm": "3 snoise_grad (fbm_grad, 3 octaves)", "warp": "4 snoise_grad (2 warp + fbm_grad 2 octaves)",
         "curlfbm+slope": "3 snoise_grad + the slope term (gravity gradient: 1 texel gradient in the shader)",
-        "warp+slope": "4 snoise_grad + the slope term"}
+        "warp+slope": "4 snoise_grad + the slope term", "lab": "3 snoise_grad (fbm_grad of a stretched argument)",
+        "labslope": "12 snoise_grad as probed (psi differenced); 3 + a height Hessian analytically",
+        "labslope+slope": "as 5b + the slope term (axis and slope term share the gravity gradient)"}
 
 # ---------------- images ----------------
 STOPS = np.array([[0, 10, 14, 30], [.45, 20, 120, 130], [.8, 200, 210, 120], [1, 255, 245, 210]], float)
@@ -272,11 +296,21 @@ def main():
     print("tri3d numpy vs habitat_probe max err", float(np.abs(np.stack(a, -1) - b).max()))
     c = (np.arange(N) + .5) / N * 2 * R - R; X, Z = np.meshgrid(c, c)
     tx, tz = tri3d(X, Z, t0); vref = float(np.sqrt((tx ** 2 + tz ** 2).mean()))
-    for kind in ("curl1", "curlfbm", "warp"):
-        gx, gz = stream_grad(kind, X, Z, t0); GAIN[kind] = vref / float(np.sqrt((gx ** 2 + gz ** 2).mean()))
-    print("tri3d RMS speed", vref, "gains k", GAIN)
+    def dir_fn(x, z):   # bilinear, renormalised: a continuous axis field
+        fi = np.clip((x + R) / (2 * R) * N - .5, 0, N - 1.001); fj = np.clip((z + R) / (2 * R) * N - .5, 0, N - 1.001)
+        i = fi.astype(int); j = fj.astype(int); u = fi - i; v = fj - j
+        bl = lambda A: (A[j, i] * (1 - u) + A[j, i + 1] * u) * (1 - v) + (A[j + 1, i] * (1 - u) + A[j + 1, i + 1] * u) * v
+        tx, tz = bl(TX), bl(TZ); l = np.hypot(tx, tz) + 1e-12
+        return tx / l, tz / l
+    global DIRFN; DIRFN = dir_fn
     print("slope grid ...", flush=True)
     SX, SZ = slope_terms(X, Z, t0)
+    # contour tangent from the slope terms: S = SWIRL t + SLIDE d with t = (d.z, -d.x), so t = (SWIRL S + SLIDE rot) / |..|
+    TX = (SWIRL * SX - SLIDE * (-SZ)) ; TZ = (SWIRL * SZ - SLIDE * SX)
+    TL = np.hypot(TX, TZ) + 1e-12; TX, TZ = TX / TL, TZ / TL
+    for kind in ("curl1", "curlfbm", "warp", "lab", "labslope"):
+        gx, gz = stream_grad(kind, X, Z, t0); GAIN[kind] = vref / float(np.sqrt((gx ** 2 + gz ** 2).mean()))
+    print("tri3d RMS speed", vref, "gains k", GAIN)
     # slope sampler for scattered points: nearest cell of the grid (the shader samples a gravity texture too)
     def slope_fn(x, z):
         i = np.clip(((x + R) / (2 * R) * N).astype(int), 0, N - 1); j = np.clip(((z + R) / (2 * R) * N).astype(int), 0, N - 1)
@@ -288,7 +322,7 @@ def main():
         nums = numbers(kind, t0, slope_fn)
         print(f"== {name}: cost {COST[kind]}\n   {nums}\n   {p1}\n   {p2}", flush=True)
     # scroll: how far the field decorrelates over one minute of zone time, per candidate
-    for kind in CANDS[:4]:
+    for kind in CANDS[:4] + ["lab", "labslope"]:
         u0 = np.stack(velocity(kind, X[::8, ::8], Z[::8, ::8], 0.0), -1).reshape(-1, 2)
         for dt in (10.0, 40.0, 120.0):
             u1 = np.stack(velocity(kind, X[::8, ::8], Z[::8, ::8], dt), -1).reshape(-1, 2)

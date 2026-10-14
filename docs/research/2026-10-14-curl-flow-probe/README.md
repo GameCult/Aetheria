@@ -28,6 +28,9 @@ the speeds below compare shape at equal energy.
 | 3 | `3-curl-warped` | `fbm_grad` with 2 octaves at a warped position `q = p + .55 * (n1, n2)`. n1 and n2 are two offset `snoise_grad` at frequency .6. The chain rule through the warp's Jacobian is exact, so the flow stays divergence-free. k = .76. |
 | 4 | `4-curl-fbm3-slope` | #2 plus `FlowField.Slope` with swirl 6 and slide 1.5 (B25g), as the flow-slope-terms ruling turns it on. |
 | 4b | `4b-curl-warped-slope` | #3 plus the same slope terms. |
+| 5 | `5-lab-stretch-fixed` | The Nebula Span Lab's construction as a stream function (see below and `labs-noise-facts.md`): `fbm_grad` (3 octaves, lacunarity 2, gain .5) of the stretched argument `Mop(v) = v + (1/5 - 1) dot(v, d) d`, with d fixed at azimuth 25 (the lab's "Streaming filaments" preset). The flow is exact analytically, since Mop is symmetric. k = 1.09. |
+| 5b | `5b-lab-stretch-contour` | #5 with d set to the local contour tangent (the swirl direction around wells, bilinear on the gravity grid). The analytic chain rule would need dd/dp, which is the height Hessian, so psi is differenced instead (4 evaluations). k = 1.25. |
+| 5c | `5c-lab-stretch-contour-slope` | #5b plus the slope terms. |
 
 Time is the noise's third axis: `tau = fmod(.025 * zoneTime, 867)`, folded in double as `FlowField.Scroll`
 folds `frac`. This works because `snoise(float3)` has a period of exactly 867 along each axis: a shift of 867
@@ -48,6 +51,9 @@ central differences with a 1 u step. "Still" is the fraction of points with spee
 | 3 | 9.1e-4 | .585 | 1.5e-3 | 0.8 / 2.7 / 8.9 / 25.3 / **125.7** | 8.2 % | 4 |
 | 4 | .175 | .334 | .52 | 3.7 / 7.3 / 12.9 / 21.4 / 34.7 | 0.4 % | 3 + slope term |
 | 4b | .152 | .634 | .24 | 4.2 / 6.7 / 11.2 / 26.5 / 107.7 | 0.4 % | 4 + slope term |
+| 5 | 5.6e-5 | .273 | 2.0e-4 | 0.9 / 3.2 / 10.7 / 22.9 / 36.1 | 6.4 % | 3 |
+| 5b | 1.98 | 3.33 | .59 | 0.6 / 1.9 / 6.1 / 22.8 / **174.8** | 10.4 % | 12 as probed; 3 plus a height Hessian analytically |
+| 5c | 2.02 | 3.35 | .60 | 4.3 / 6.4 / 9.6 / 24.0 / 212.0 | 0.2 % | as 5b plus the slope term |
 
 The curl candidates' divergence is finite-difference error. Tri3D's is real: today's flow is more compressive
 than rotational (1.35). That compression is why its long-exposure drift collapses into kinked convergence lines.
@@ -65,6 +71,8 @@ The table gives the correlation between the velocity field at t = 0 and at t, on
 | 1 | .57 | -.09 | .09 |
 | 2 | .29 | -.04 | .12 |
 | 3 | .10 | -.01 | .01 |
+| 5 | .22 | -.03 | .15 |
+| 5b | .31 | -.01 | -.03 |
 
 Tri3D is quasi-periodic: octave periods of 40 s and 24.7 s make the field recur, with a correlation of .8 at
 120 s. The curl fields evolve without recurring for `867 / .025 = 34,680 s` (9.6 h). The warped field turns over
@@ -76,7 +84,7 @@ steps). The fold is required, as it is today.
 
 ## Images (option order)
 
-- `lic_contact_sheet.png`: every LIC side by side, in the order 0, 1, 2, 3, 4, 4b.
+- `lic_contact_sheet.png`: every LIC side by side, in the order 0, 1, 2, 3, 4, 4b, 5, 5b, 5c.
 - `lic_<name>.png`: a line-integral convolution of the flow over the whole zone (512 px, t = 0). Brightness and
   colour rise with speed relative to Tri3D's RMS. Red rings mark the wells.
 - `drift_<name>.png`, left panel: the Stardust law for one cycle (Period 2 s from `ARPG.unity`;
@@ -96,6 +104,31 @@ In the one-cycle Stardust panels, every candidate looks like short straight dash
 back-projects linearly at the spawn point over 2 s (up to 30 u). The noise's prettiness shows on screen through
 the dashes' direction coherence and through the nebula's flow-advected noise, not through particle paths.
 
+## The Nebula Span Lab candidate (5, 5b, 5c)
+
+Self's input: the operator said "The last nebula playground I saw had some pretty sophisticated noise".
+`labs-noise-facts.md` holds the Eyes extraction of that page, copied here unchanged. Its noise is a density warp,
+not a flow. The page builds a two-level warp chain of fbm, ridged `1 - 2|n|` or curl fields over CultMath
+simplex, with up to 4 octaves and a stretch along one fixed direction. It moves only by adding a constant offset
+to the noise argument. Candidates 5 to 5c turn the lab's stretched fbm into a stream function and take its curl,
+so the result is a velocity field. It scrolls on the same folded tau as the other curl candidates.
+
+- **5, fixed axis**: long parallel jets, all leaning along azimuth 25. It reads as a prevailing wind across the
+  whole zone. It is exactly divergence-free and costs the same as #2 (3 `snoise_grad`). A fixed axis is a global
+  heading the zone has no physical reason to own.
+- **5b and 5c, axis following the slope: the probe found this does not work as built.** The lab's stretch is a
+  global linear map of the position (`dot(v, d) d`). With a varying d, the argument changes by about
+  `|p| * delta(d)`, so it shears fastest far from the origin and where d turns quickly. At the well floors and
+  saddles the contour tangent is undefined or flips sign, and the bilinear axis passes through zero there. The
+  LIC shows dipole fans on every well and seam lines through the saddles. The numbers show it: a max speed 28x
+  RMS, and a measured div/vort of .59. The flow is a discrete curl, but its structure is finer than the
+  measurement step. Following the slope coherently needs the stretch in a local frame rather than in world
+  position. One route is to sample the noise in coordinates of the gravity potential, such as height and arc
+  along the contour. The other is to build the anisotropy from the height Hessian. Neither is probed here.
+- **Following the Skein instead**: this is the same construction with d set to the nearest strand's tangent. It
+  hits the same fault (the stretch is global in position, and the axis is undefined at strand junctions and
+  between strands), so it needs the same local-frame fix. It is not rendered.
+
 ## CultMath gaps, by name
 
 - **No curl node.** A 2D curl is a swizzle of `snoise_grad`/`fbm_grad` (`(g.y, -g.x)` of the xz-plane
@@ -109,6 +142,15 @@ the dashes' direction coherence and through the nebula's flow-advected noise, no
 - **No 4D simplex** (`snoise(float4)`/`snoise_grad(float4)`). A true 3D curl (Bridson's vector potential: three
   potentials, so 3 `snoise_grad` per octave) that also evolves in time needs a fourth axis. Without one, a 3D
   flow must scroll by translating instead of evolving. This matters only if the flow keeps a y component.
+- **No Hessian of simplex.** The lab generates `cultmath_snoise_gh` locally by splicing CultMath's gradient
+  kernel (`makeGH`). CultMath has only the bound constant `CULTMATH_SNOISE_HESSIAN`. A slope-following stretch
+  done analytically also needs the height field's Hessian, which is a separate gap on the Aetheria side.
+- **Lab-local pieces that CultMath lacks** (from `labs-noise-facts.md` section 2): the curl mode (`dispVec`
+  mode 2, `curlK`, a 3-component vector-potential curl); the ridged form `1 - 2|n|` with per-octave offset
+  (CultMath's `ridged_grad` is `1 - |n|`); the stretch operator `Mop` with per-component offsets
+  (`fieldComp`); and the warp chain (`fieldS`, `dispVec`, `dispY`, `brushPoint`, `ampG`). The facts also record
+  a constant mismatch: the lab pins `SN_L = 10.099261` and calls it CultMath's, but CultMath's
+  `SNOISE_LIPSCHITZ` is now 7.9640074.
 - **No period constant.** The 867 period is a fact of `snoise(float3)` that nothing in CultMath states or pins.
   A named `snoise_period` and a test pinning it would let FlowField fold tau in double without relying on this
   probe.
