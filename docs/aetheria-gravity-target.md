@@ -36,24 +36,26 @@ potential's gradient, with no gate. The drawn height is the potential times one
 exaggeration factor, so what the player sees and what the ship feels are the
 same function. With a 1/r tail every circular orbit is stable.
 
-In Ink zones the Adrasteia pillars stand where suns would
-(`aetheria-fauna:ruling:ink-pillars-are-suns`): a pillar is the zone's central
-body, and by this campaign its well follows the same law.
+Ink zones are not under this law. Their pillars stand where suns would
+(`aetheria-fauna:ruling:ink-pillars-are-suns`), but the Ink need not obey
+flatspace gravity: the operator sketched a pillar as a negative-gravity
+singularity with a bowl around it, a Bundt tin, plus a swell ships feel
+(`aetheria-fauna:ruling:ships-feel-swell`). That law is
+`aetheria-release:follow_up:ink-gravity-law`, and it plugs into the potential
+owner this campaign builds.
 
-## What the first Imagination pass settles (step 0b)
+## Rulings of 2026-10-14
 
-- Whether the rails (OrbitPeriod) are derived from the field, or the field is
-  calibrated to the rails. Today they disagree by 20-70x in force; one must own
-  the other.
-- What becomes of the zone bowl and of the gas-giant and sun waves: parts of
-  the potential, a separate push, or gone.
-- Hull drag and real ship acceleration (unmeasured by the probe), which decide
-  whether a free orbit is possible and how much lighter near-body flight feels.
-- Every reader of `Zone.GetHeight`, `GetForce` and `GravityAcceleration`
-  (sim, AI, renderer, shaders), so the potential has one owner and the height
-  is derived from it everywhere.
-- Follow-up `aetheria-release:follow_up:zone-orbits-unplaced-before-first-tick`:
-  a zone must be valid before its first tick, or every well sits at the origin.
+The forks the first Imagination pass raised were ruled the same day
+(`aetheria-gravity:ruling:*-ruled`): the field owns the orbits; gravity starts
+at about 0.5 u/s^2 at a median planet's orbit; pull comes from mass through an
+authored compressed curve; children are placed within their parent's reach;
+each well's soft core has its own authored radius and never levels the field
+out where bodies orbit; one global exaggeration; the grid's height carries
+gravity only, and the wormholes' presentation is provisional; ships feel only
+the potential. The flatspace bowl and ripples are deleted, not disabled: the
+map found them live in `Settings.asset` and `Zone.GetHeight`. The model page and
+body facts are in `docs/aetheria-gravity-map.md`.
 
 ## Not here
 
