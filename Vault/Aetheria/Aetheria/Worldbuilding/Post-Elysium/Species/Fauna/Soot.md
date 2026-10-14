@@ -16,6 +16,6 @@ Black lace on the moving surface of the Ink: a colonial film, finer than net, th
 
 **Yield.** *Soot-ash*: skimmed, dried and sold through blind drops. A trace of dust in a great deal of ash. It is the Ink's safe harvest, and the one most vouched independents ever take.
 
-**Lives.** The cradle of every pillar: everywhere a pocket passes, from the break out to the bank, in rings that move with the beat.
+**Lives.** The cradle of every pillar: the outer wall of its bowl, where the pockets slow and linger, in rings that move with the beat. Little on the fall, where the pockets pass too fast to bloom behind.
 
 *Designers:* a ring field that blooms behind each pulse and fades by the next; a heat-sink patch; a readable indicator of the pulse phase.

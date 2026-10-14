@@ -79,3 +79,36 @@ Carried from r5 and still open, not asked again: whether the slow way is ever pl
 #### Sources
 
 Operator rulings `ink-pillars-are-suns`, `flatspace-held-by-minds-in-timeless-elysium`, `blind-gate-targeting`, and the fauna campaign's rulings in force, and `aetheria-gravity:target:r1`, read from the mind, 2026-10-14. The real-world sources added to [[Adrasteia Space]] (the frost line, circatidal clocks, coral mass spawning, flash-to-bang ranging) are cited from memory and were not checked.
+
+#### Rulings After r6
+
+You answered all four questions the recommended way (`pillars-not-in-flatspace`, `pillar-pairs-rare`, `ships-feel-swell`, `ink-held-reality-theory`). On the swell you added a note that changes the physics, which you gave as a sketch, not a decision: "The ink does not need to obey normal gravity, the pillar can be a negative gravity singularity with a bowl around it, kind of like a Bundt tin." A pillar's well therefore no longer follows the flatspace law (the gravity target dropped that in r3; the Ink's law is `aetheria-release:follow_up:ink-gravity-law`). The lore was swept in place, with no r7.
+
+**What changed.**
+
+- **[[Adrasteia Space]]**: the pillar now **pushes**. All around it the ground sinks into a ring-shaped **bowl**, and far out it levels into the dark. The Pillar Is the Sun now says the pillar is a sun turned inside out twice: no daylight, and a push instead of a pull. The bands are now eye, fall, bank, cradle, dark:
+  - The **eye** is the still summit, where the push cancels. It is a balance point, and anchors still hold there.
+  - The **fall** is the steep cone down from the eye. It replaces r6's "break".
+  - The **bank** has moved to the floor of the bowl, where dust settles. It is no longer a ring at the outer edge, and the frost-line comparison is gone.
+  - The **cradle** is the outer wall of the bowl.
+  - Ships feel each beat as a shove outward.
+  - A swell races down the fall, crosses the bowl, slows as it climbs the outer wall and dies near the top.
+  - Going home to the eye means climbing the fall against both the push and the waves.
+  - A ship coming in from the dark drops into the bowl easily, and leaving it either way is a climb.
+  - In a pair, the two bowls run together into one trough.
+  - The held-reality theory is now explicitly argued and never settled.
+- **[[Soot]]**, **[[Rays]]**, **[[Squid]]**, **[[Cachalots]]**: re-placed on the tin. Soot and rays live on the outer wall, and rays ride the swell up it and slide back. Squid lie in the bank on the bowl's floor. Cachalots rise on the fall and dive into the bank. The foot lies under the eye.
+- **[[Anchors and Gates]]**: the Ink's anchors hold "in a pillar's eye, the still summit where its push cancels". Tears gain the rare glimpse of a pillar from flatspace, as the surest sign that the Ink is near.
+
+**Superseded in this note.** Under Where I'd Change Your Framing, 2 and 3 described the well-and-band shape and the bank as a frost line. Under Where I'd Change r5, 2 ("the eye at the bottom of the well", from the softened core) and 3 ("the break") are superseded too. So are the first bullet of For the Game ("the eye is the softened core") and the eye, break and frost-line items of the added list. In the second For the Game bullet, the pair's seam is now where two bowls overlap. Whether the Skein's power-diagram edge still marks it depends on the Ink's gravity law.
+
+**Where I'd change your sketch.**
+
+1. **A still summit, not a singularity.** A true singularity pushes without limit at its centre, so nothing could sit in the column. Every gate into the Ink opens there, and the keepers live there. I kept the push finite and let it cancel at the very centre, which gives a balance point like a ball on a hilltop: anything set down stays, and anything nudged off is thrown down the fall. Arrival then reads well: the pilot lets go of the anchor and the pillar's push takes the ship. In both spaces anchors still hold where forces cancel.
+2. **Life is on the outer wall, not at the bottom of the bowl.** Read literally, "cradle" puts life on the floor of the bowl. But the floor is where the dust and the dead settle, and the swell moves life up the wall: a pocket is fastest on the fall and slowest as it climbs the outer wall, so warm water lingers there longest. The floor belongs to the bank and the squid.
+3. **Past the outer wall the ground levels off.** A tin has a rim and nothing beyond it. I let the push give out so the ground settles level, which makes the dark a beatless flat between reaches. It also means pairs merge their bowls instead of meeting at a ridge.
+
+**New questions.**
+
+1. **Is the centre a still summit or a true singularity?** *My recommendation: a still summit.* It keeps a place for anchors, gates and keepers in the eye, and keeps one rule for anchors in both spaces (they hold where forces cancel). A true singularity would push the anchors out to the bowl floor, among the animals.
+2. **What lies past a bowl's outer wall?** *My recommendation: level ground, the dark, with no beat.* The alternative is ground that keeps rising into ridges between reaches. Ridges would make the slow way a climb over a watershed and give pairs a ridge instead of a shared trough; that is dramatic, but it adds a second slope the Ink's gravity law would have to carry.

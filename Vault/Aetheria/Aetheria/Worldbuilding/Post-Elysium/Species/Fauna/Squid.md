@@ -6,7 +6,7 @@ Long, pale, many-armed, the size of a light ship, and almost never seen: they li
 
 **Eats.** [[Rays]], other squid, and heat. A squid holds enough dust in its body to eat heat at a distance: it can drain a ray, or a ship, from inside the fog without touching it [new].
 
-**Moves: the tell.** Squid hunt the pocket edge. They pace a pocket from inside its fog wall, just out of the light, and strike inward as a pack when something comes close to the wall. They do not ride the swell; they hold their place against it. Between hunts they go back out to the bank, the ring of settled dust at the cradle's edge, and lie in it.
+**Moves: the tell.** Squid hunt the pocket edge. They pace a pocket from inside its fog wall, just out of the light, and strike inward as a pack when something comes close to the wall. They do not ride the swell; they hold their place against it. Between hunts they go back down to the bank, the ring of settled dust on the floor of the bowl, and lie in it.
 
 **What a pilot learns.** Stay in the middle of the pocket. Never ride the wall. When the pocket closes, the squid are already where you are. A pack hunts heat, so the warmest ship in a pocket is the one they take.
 

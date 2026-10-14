@@ -44,7 +44,7 @@ Spacers say the first blind gate was the one that brought us here: the [[FTL Tri
 
 #### Tears
 
-A few links nobody built. **Tears** are places where two spaces have come apart and touch, with no ring at either end and no anchor anyone planted. They are rare, they move or keep hours, they leak their far side (the stars dim, the current dies, the stars double), and animals know them long before people do. Following animals is still the oldest way to find one [new].
+A few links nobody built. **Tears** are places where two spaces have come apart and touch, with no ring at either end and no anchor anyone planted. They are rare, they move or keep hours, they leak their far side (the stars dim, the current dies, the stars double), and animals know them long before people do. Following animals is still the oldest way to find one. No pillar stands in flatspace, but through a very rare tear one has been glimpsed: a column of light where no star should be, gone when you look again, and the surest sign anyone has that the Ink is near [new].
 
 A tear is a wonder and a danger in the same breath. It goes somewhere no blind gate has been, it costs nothing to open, and nothing on the far side was expecting company either. Some tears are older than humanity's arrival, and some spacers swear a few of them are not tears at all, but gates the other prisoners of Elysium built and stopped keeping. Powers beyond comprehension wait past them, and treasures we should have left alone [new].
 
@@ -55,7 +55,7 @@ Every space treats an anchor differently, and that, more than anything, decides 
 | Space | Where an anchor holds | Can a rival find it? | Who holds it |
 |---|---|---|---|
 | [[Flatspace]] | Anywhere still: a well's slack point, a moon, a station | Yes, with work | Everyone; companies own lanes |
-| [[Adrasteia Space\|The Ink]] | Only in a pillar's eye, the still water at the bottom of its well | No; no light leaves | Adrasteia, every known link |
+| [[Adrasteia Space\|The Ink]] | Only in a pillar's eye, the still summit where its push cancels | No; no light leaves | Adrasteia, every known link |
 | [[The Glass]] | Anywhere; the stiff Aether holds everything | At once; nothing hides | The Wavecrafters, by watching, not hiding |
 | [[The Fold]] | Anywhere, but it is in two places, and a gate may open at either | Yes, from both sides | Nobody |
 | [[Hyperspace]] | Anywhere, and you will never find it again without beacons | Only by the chain | The beacon keepers |
