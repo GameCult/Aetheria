@@ -367,8 +367,8 @@ public sealed partial class RunStartTests
         {
             ("Point Defense Gun", 40f, 80000, 60f, WeaponModifiers.RapidFire, (1.5f, 4f), (1f, 1f), (300f, 550f), (.06f, .025f), (1f, .3f),
                 (1100f, 1600f), (.4f, .2f), (40f, 15f), (400f, 150f), true, 250, 3f),
-            ("Point Defense Laser", 30f, 110000, 30f, PdDesign("Spectra").WeaponModifiers, (5f, 12f), (1f, 1f), (400f, 750f), (.2f, .1f), (.05f, 0f),
-                (0f, 0f), (6f, 10f), (300f, 150f), (300f, 100f), false, PdDesign("Spectra").Behaviors.OfType<InstantWeaponData>().Single().MagazineSize, PdDesign("Spectra").Behaviors.OfType<InstantWeaponData>().Single().ReloadTime),
+            ("Point Defense Laser", 30f, 110000, 30f, PdDesign("Light Laser").WeaponModifiers, (5f, 12f), (1f, 1f), (400f, 750f), (.2f, .1f), (.05f, 0f),
+                (0f, 0f), (6f, 10f), (300f, 150f), (300f, 100f), false, PdDesign("Light Laser").Behaviors.OfType<InstantWeaponData>().Single().MagazineSize, PdDesign("Light Laser").Behaviors.OfType<InstantWeaponData>().Single().ReloadTime),
             ("Flak Gun", 120f, 180000, 80f, WeaponModifiers.Cluster, (30f, 70f), (6f, 8f), (350f, 800f), (.6f, .35f), (4f, 2f),
                 (900f, 1300f), (1f, .5f), (300f, 150f), (800f, 300f), true, 40, 4f),
         };
@@ -449,20 +449,20 @@ public sealed partial class RunStartTests
             return FireControl.TrackingRate(range.Gun, range.Gunner);
         }
         var pd = FireControl.PMount(omega, RateOf("Point Defense Gun"));
-        var clearPath = FireControl.PMount(omega, RateOf("ClearPath"));
+        var clearPath = FireControl.PMount(omega, RateOf("Light Machine Gun"));
         Assert.True(pd >= .75f, $"the PD gun follows a speed demon: {pd}");
         Assert.True(clearPath <= .25f, $"the machine gun does not: {clearPath}");
     }
 
-    // Data check, not a behaviour test: ruling plight-shape, plight is one wide, two high and fits a Longinus Energy hardpoint.
+    // Data check, not a behaviour test: ruling plight-shape, the Lightning Projector is one wide, two high and fits a Longinus Energy hardpoint.
     [Fact]
     public void PlightHasItsRuledShape()
     {
-        var plight = _cache.GetAll<WeaponItemData>().Single(w => w.Name == "plight");
-        Assert.Equal(1, plight.Shape.Width);
-        Assert.Equal(2, plight.Shape.Height);
-        Assert.True(plight.Shape.Cells[0, 0] && plight.Shape.Cells[0, 1], "both cells are occupied");
+        var projector = _cache.GetAll<WeaponItemData>().Single(w => w.Name == "Lightning Projector");
+        Assert.Equal(1, projector.Shape.Width);
+        Assert.Equal(2, projector.Shape.Height);
+        Assert.True(projector.Shape.Cells[0, 0] && projector.Shape.Cells[0, 1], "both cells are occupied");
         var longinus = _cache.GetAll<HullData>().Single(h => h.Name == "Longinus");
-        Assert.Contains(longinus.Hardpoints, hardpoint => hardpoint.Type == HardpointType.Energy && hardpoint.Takes(plight));
+        Assert.Contains(longinus.Hardpoints, hardpoint => hardpoint.Type == HardpointType.Energy && hardpoint.Takes(projector));
     }
 }

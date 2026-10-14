@@ -454,7 +454,7 @@ public sealed class SignatureTests : IDisposable
         var view = r.Ship.VisibilitySources;
         Assert.False(view is Dictionary<object, Signature>);
         Assert.True(ReferenceEquals(view, r.Ship.VisibilitySources), "one view object per entity"); // not Assert.Same: its failure message formats the entity graph and aborts the test host
-        Assert.Throws<NotSupportedException>(() => ((IDictionary<object, Signature>) view)[r.Ship] = new Signature(SignatureChannel.Thermal, 1f, null));
+        Assert.Throws<NotSupportedException>(() => ((IDictionary<object, Signature>) view)[r.Ship] = new Signature(SignatureChannel.Thermal, 1f, null, null));
     }
 
     // ---- APlumeKeepsTheLargerBurn ----

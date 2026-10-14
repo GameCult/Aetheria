@@ -34,7 +34,7 @@ public sealed partial class RunStartTests
 
         var proximity = Carried(player, "Smoke Proximity");
         var delayed = Carried(player, "Smoke Delayed");
-        var direct = Carried(player, "DeathCluster");
+        var direct = Carried(player, "Cluster Cannon");
         Assert.Null(player.Target.Value.Entity);
 
         // The bare hull is on the initial aim line, ahead, and inside every weapon mount's arc.

@@ -107,6 +107,14 @@ public sealed partial class ContactRevealTests : IDisposable
                 Fuse = WeaponFuse.Proximity, BlastRadius = 30f,
                 Behaviors = { Armed(new ConstantWeaponData(), 0) }
             });
+            // Weapons authored so the rated figure is a function of every stat: a falling damage curve, a Range span, a
+            // MinRange above 0, burst and charge spans (a stat with no terms resolves to its Max live).
+            cache.Upsert(SpannedWeapon("SpanGun", Spanned(new InstantWeaponData { BurstTime = Const(0) })));
+            cache.Upsert(SpannedWeapon("SpanCharged", Spanned(new ChargedWeaponData
+            {
+                BurstTime = Const(0), ChargeTime = Span(1, 3), ChargeEnergy = Const(1), ChargeHeat = Const(0), ChargeFiringDamageMultiplier = 2f
+            })));
+            cache.Upsert(SpannedWeapon("SpanBeam", Spanned(new ConstantWeaponData())));
             cache.Upsert(Locker("Locker", interceptFactor: null));
             cache.Upsert(Locker("Hushed", interceptFactor: 4f));
             cache.Upsert(new ConsumableItemData
@@ -170,6 +178,29 @@ public sealed partial class ContactRevealTests : IDisposable
         weapon.DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } };
         return weapon;
     }
+
+    private static WeaponData Spanned(WeaponData weapon)
+    {
+        Armed(weapon, 5);
+        weapon.Damage = Span(10, 100);
+        weapon.MinRange = Span(0, 20);
+        weapon.Range = Span(50, 120);
+        weapon.DamageCurve = Falloff();
+        if (weapon is InstantWeaponData instant)
+        {
+            instant.Count = Span(1, 2);
+            instant.Cooldown = Span(8, 2);
+        }
+        return weapon;
+    }
+
+    private static WeaponItemData SpannedWeapon(string name, WeaponData weapon) => new WeaponItemData
+    {
+        Name = name, Hardpoint = HardpointType.Sensors, Shape = new Shape(), Durability = 1,
+        MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000,
+        Fuse = WeaponFuse.Proximity, BlastRadius = 30f,
+        Behaviors = { weapon }
+    };
 
     private static GearData Suppressor(string name, float factor, float heatPerUnit)
     {

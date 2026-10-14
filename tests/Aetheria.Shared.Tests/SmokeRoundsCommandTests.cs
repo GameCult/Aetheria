@@ -43,7 +43,7 @@ public sealed class SmokeRoundsCommandTests : IDisposable
 
     public void Dispose() => Directory.Delete(_root, true);
 
-    private (WeaponItemData[] Smoke, WeaponItemData Spectra, WeaponItemData ChargeBlast, int Products) Read()
+    private (WeaponItemData[] Smoke, WeaponItemData LightLaser, WeaponItemData ChargedScatterBlaster, int Products) Read()
     {
         var db = AetherDb.Open(root: _root);
         try
@@ -51,7 +51,7 @@ public sealed class SmokeRoundsCommandTests : IDisposable
             var smoke = db.Cache.GetAll<WeaponItemData>().Where(w => Names.Contains(w.Name)).ToArray();
             var keys = smoke.Select(w => db.Cache.RefOf(w).Key).ToArray();
             var products = db.Cache.GetAll<FactionProductData>().Count(p => keys.Any(k => p.Design.Key.Equals(k)));
-            return (smoke, db.Cache.GetAll<WeaponItemData>().Single(w => w.Name == "Spectra"), db.Cache.GetAll<WeaponItemData>().Single(w => w.Name == "ChargeBlast SG"), products);
+            return (smoke, db.Cache.GetAll<WeaponItemData>().Single(w => w.Name == "Light Laser"), db.Cache.GetAll<WeaponItemData>().Single(w => w.Name == "Charged Scatter Blaster"), products);
         }
         finally { db.Cache.Dispose(); }
     }
@@ -85,7 +85,7 @@ public sealed class SmokeRoundsCommandTests : IDisposable
         Assert.Equal((WeaponFuse.Delayed, 4f, 2f, 2f), (Design("Smoke Delayed").Fuse.Value, Design("Smoke Delayed").BlastRadius.Value, Data("Smoke Delayed").Penetration.Min, Data("Smoke Delayed").Penetration.Max));
         Assert.Equal((WeaponFuse.Proximity, 30f, 20f, 20f), (Design("Smoke Refused").Fuse.Value, Design("Smoke Refused").BlastRadius.Value, Data("Smoke Refused").Range.Min, Data("Smoke Refused").Range.Max));
 
-        // Spectra clones are energy, 1x2, with the Spectra's own gear; the charged one is a ChargeBlast SG clone on its 2x2 energy mount.
+        // Light Laser clones are energy, 1x2, with the Light Laser's own gear; the charged one is a Charged Scatter Blaster clone on its 2x2 energy mount.
         foreach (var name in new[] { "Smoke Proximity", "Smoke Delayed", "Smoke Refused", "Smoke Refused Beam" })
             Assert.Equal((spectra.Hardpoint, spectra.Shape.Width, spectra.Shape.Height, spectra.Mass), (Design(name).Hardpoint, Design(name).Shape.Width, Design(name).Shape.Height, Design(name).Mass));
         Assert.Equal((chargeBlast.Hardpoint, chargeBlast.Shape.Width, chargeBlast.Shape.Height), (Design("Smoke Refused Charge").Hardpoint, 2, 2));

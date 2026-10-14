@@ -103,7 +103,27 @@ public abstract class Entity
         // each equipped suppressor folds the strength in equipment order and pays for what it alone removed.
         foreach (var suppressor in GetBehaviors<LaunchSuppressor>())
             strength = suppressor.Suppress(channel, strength);
-        _visibilitySources[source] = new Signature(channel, strength, item);
+        _visibilitySources[source] = new Signature(channel, strength, item, ClaimOf(item));
+    }
+
+    // What this ship's acts claim (aetheria-ew, lie-is-own-emission, classify-from-belief): per equipped item, the
+    // equippable class every act of that item is stamped with (SetSignature, Emit, ReceivePaint). The hull is the
+    // item EquippedHull, so its claim lives in the same slot as every other: the hull class its own acts carry and
+    // the profile an observer derives (ClaimedHull) are one value. The truth unless claimed otherwise. Claim is the
+    // one write port; its production writer is the EW behaviour of cut ew-masquerade, tests only until then.
+    // Deactivate clears the slots. Aim, damage and physics keep the truth.
+    private readonly Dictionary<EquippedItem, EquippableItemData> _itemClaims = new Dictionary<EquippedItem, EquippableItemData>();
+    public HullData ClaimedHull => (ClaimOf(EquippedHull) as HullData) ?? HullData;
+    public EquippableItemData ClaimOf(EquippedItem item) =>
+        item == null ? null : _itemClaims.TryGetValue(item, out var claimed) ? claimed : item.Data;
+    internal void Claim(HullData hull) => Claim(EquippedHull, hull);
+    internal void Claim(EquippedItem item, EquippableItemData claimed)
+    {
+        // One hull class in the book: a hull class is claimed by the hull and only by the hull, whichever side asks.
+        if (claimed != null && (item == EquippedHull) != (claimed is HullData))
+            throw new ArgumentException("Only the hull claims a hull class, and the hull claims nothing else.", nameof(claimed));
+        if (claimed == null) _itemClaims.Remove(item);
+        else _itemClaims[item] = claimed;
     }
     public readonly ReactiveDictionary<Entity, float> EntityInfoGathered = new ReactiveDictionary<Entity, float>();
 
@@ -883,6 +903,7 @@ public abstract class Entity
         _pingReturns.Clear();
         _emissions.Clear();
         _reveals.Clear();
+        _itemClaims.Clear();
     }
 
     // Zone.Update runs this on every entity before any entity updates, so a paint made during tick N is published
@@ -895,7 +916,7 @@ public abstract class Entity
         foreach (var paint in _paintInbox)
         {
             _incomingPaints.Add(paint.Warning);
-            RecordReveal(paint.Emitter, paint.Item, SignatureChannel.Emission);
+            RecordReveal(paint.Emitter, paint.Item, SignatureChannel.Emission, paint.Warning.EmitterClass);
         }
         _paintInbox.Clear();
         _pingReturns.Clear();
@@ -915,16 +936,17 @@ public abstract class Entity
     internal void Emit(EquippedItem item, float hearRange)
     {
         if (!_active) return;
-        _emissions.Add(new ActiveEmission(item, hearRange));
+        _emissions.Add(new ActiveEmission(item, hearRange, ClaimOf(item)));
     }
 
     // The callers are Sensor.Execute (a Search paint, Strength 0) and LockWeapon.Execute (a Track paint, Strength
-    // the emitter's own Lock at that paint). The emitter's class is the item's data (null with no item: a
-    // consumable's effect, which has no item and so is never revealed).
+    // the emitter's own Lock at that paint). The emitter's class is the class its ship claims for the item (ClaimOf: the
+    // item's data unless claimed otherwise; null with no item: a consumable's effect, which has no item and so is never
+    // revealed).
     internal void ReceivePaint(Entity emitter, EquippedItem item, PaintMode mode, float strength)
     {
         if (!_active) return;
-        _paintInbox.Add(new PendingPaint(new PaintWarning(normalize((emitter.Position - Position).xz), item?.Data, mode, strength), emitter, item));
+        _paintInbox.Add(new PendingPaint(new PaintWarning(normalize((emitter.Position - Position).xz), emitter.ClaimOf(item), mode, strength), emitter, item));
     }
 
     // The reveal book's one way in and its one membership gate (callers: Sense and PublishInbox, both in this file):
@@ -932,13 +954,14 @@ public abstract class Entity
     // radiation, a consumable) reveals nothing, and neither does a subject that is not in the zone: a departed
     // subject's entries are never created or refreshed, from any caller, and neither does an item this observer
     // perceives destroyed (PerceivesDestroyed). A later act of the same item replaces the
-    // earlier one.
-    internal void RecordReveal(Entity subject, EquippedItem item, SignatureChannel channel)
+    // earlier one. `claimed` is the class the carrier (signature, emission or paint) stamped: what this observer's
+    // classifying readers will believe of the act; `item` stays the aim and book key.
+    internal void RecordReveal(Entity subject, EquippedItem item, SignatureChannel channel, EquippableItemData claimed)
     {
         if (!_active || item == null || !Zone.Entities.Contains(subject) || PerceivesDestroyed(subject, item)) return;
         if (!_reveals.TryGetValue(subject, out var book))
             _reveals[subject] = book = new Dictionary<EquippedItem, Reveal>();
-        book[item] = new Reveal(item, channel, normalize((subject.Position - Position).xz), Zone.Time);
+        book[item] = new Reveal(item, channel, normalize((subject.Position - Position).xz), Zone.Time, claimed);
     }
 
     // This observer resolves `subject`'s gear (ContactOf's Identified gate) and `item` of it is destroyed: the one rule
@@ -970,6 +993,31 @@ public abstract class Entity
     public IEnumerable<Reveal> RevealsOf(Entity subject) =>
         _reveals.TryGetValue(subject, out var book) ? book.Values : Enumerable.Empty<Reveal>();
 
+    // The weapons this observer believes `subject` has: each reveal whose claimed class carries a weapon behaviour, in the
+    // subject's equipment order (never the book's slot order, which follows when reveals were made and ended). The one
+    // classifying read of the book for weapons, shared by the enemy schematic and Combat (aetheria-ew, classify-from-belief);
+    // a gun claimed as a non-weapon is not listed, though RevealsOf holds it for aim.
+    public IEnumerable<Reveal> RevealedWeapons(Entity subject) =>
+        RevealsOf(subject).Where(r => r.Claimed != null && r.Claimed.Behaviors.Any(b => b is WeaponData))
+            .OrderBy(r => FittedIndex(subject, r.Item)).ThenBy(r => r.Item.EquippableItem.Lot);
+
+    // A revealed item's place in the subject's equipment; gear the subject no longer carries follows all fitted gear
+    // (ties among it fall to the lot, a stable id), never ahead of it.
+    private static int FittedIndex(Entity subject, EquippedItem item)
+    {
+        var index = subject.Equipment.IndexOf(item);
+        return index < 0 ? int.MaxValue : index;
+    }
+
+    // The weapon rows of `subject`'s schematic as this ship reads it: its own equipment when `subject` is this ship (each
+    // row its own data and live range, nothing to doubt about your own ship), otherwise RevealedWeapons (each row the
+    // claimed class and that design's rated range). The one owner of which rows, which class and which range an
+    // enemy schematic shows; the Unity SchematicDisplay renders it.
+    public IEnumerable<SchematicRow> SchematicRows(Entity subject) =>
+        subject == this
+            ? subject.Equipment.Where(i => i.Behaviors.Any(b => b.Data is WeaponData)).Select(i => new SchematicRow(i, i.Data, true))
+            : RevealedWeapons(subject).Select(r => new SchematicRow(r.Item, r.Claimed, false));
+
     // Whether this observer's book for `subject` holds `item`: the book's membership, no live gear read.
     internal bool HasReveal(Entity subject, EquippedItem item) =>
         _reveals.TryGetValue(subject, out var book) && book.ContainsKey(item);
@@ -991,7 +1039,9 @@ public abstract class Entity
         var remembered = any && Zone.Time - freshest.Time < settings.BearingMemory;
         var detected = tracked || remembered;
         var bearing = tracked ? normalize((subject.Position - Position).xz) : remembered ? freshest.Bearing : default;
-        return new Contact(detected, tracked, detected && any, info >= settings.TargetGearInfoThreshold, bearing, info);
+        var identified = info >= settings.TargetGearInfoThreshold;
+        // Profile is the one derivation of the hull this observer believes (no stored belief until the judge, ew-masquerade).
+        return new Contact(detected, tracked, detected && any, identified, bearing, info, identified ? subject.ClaimedHull : null);
     }
 
     // What this observer's instruments receive of other ships' acts this tick (Zone.Update calls it once, after every
@@ -1015,7 +1065,7 @@ public abstract class Entity
             {
                 if (signature.Item == null) continue;
                 if (perSignature < 0f) perSignature = PassiveInfo(other.Position.xz, 1f);
-                if (signature.Strength * perSignature > threshold) RecordReveal(other, signature.Item, signature.Channel);
+                if (signature.Strength * perSignature > threshold) RecordReveal(other, signature.Item, signature.Channel, signature.Claimed);
             }
             // Every emission this ship made this tick that reaches this observer is revealed, bearing only (ruling
             // sensor-stat-set), through RecordReveal's one gate. It feeds no track.
@@ -1026,7 +1076,7 @@ public abstract class Entity
                 for (var j = 0; j < other._emissions.Count; j++)
                 {
                     var emission = other._emissions[j];
-                    if (planar <= emission.HearRange * hearing * obscuration) RecordReveal(other, emission.Item, SignatureChannel.Emission);
+                    if (planar <= emission.HearRange * hearing * obscuration) RecordReveal(other, emission.Item, SignatureChannel.Emission, emission.Claimed);
                 }
             }
             // The observer resolves this ship's gear (PerceivesDestroyed), so it perceives an item of it destroyed and
