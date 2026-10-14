@@ -32,11 +32,11 @@ public sealed partial class ContactRevealTests
     // A scanner ship at the origin, with the named scanner and no sensor (an AI ship with a sensor pings once it loses its
     // track, which would paint the target beside the scan), tracking and targeting a ship `distance`
     // ahead that carries a reactor, a radiator and a suppressor, none of which ever acts.
-    private (Ship scanner, Ship target) ScanOn(string scanner = "Scanner", float distance = 100f)
+    private (Ship scanner, Ship target) ScanOn(string scanner = "Scanner", float distance = 100f, float info = .5f)
     {
         var target = Add(float3(0, 0, distance), tools: new[] { "Reactor", "Radiator", "SuppressorCold" });
         var s = Add(float3(0, 0, 0), tools: new[] { scanner });
-        s.EntityInfoGathered[target] = .5f;
+        s.EntityInfoGathered[target] = info;
         s.SetTarget(target);
         Assert.Same(target, s.Target.Value.Entity); // fixture
         return (s, target);
@@ -138,20 +138,17 @@ public sealed partial class ContactRevealTests
     [InlineData(100f, false, false)]
     public void AScanNeedsATrackAndRange(float distance, bool tracked, bool builds)
     {
-        var (s, target) = ScanOn(distance: distance);
         var third = Add(float3(40, 0, 0), new[] { "Eye" }); // within 200 of the scanner: it hears an emission
         var info = tracked ? .5f : 0f;
-        s.EntityInfoGathered[target] = info;
+        var (s, target) = ScanOn(distance: distance, info: info);
         Assert.Equal(tracked, s.VisibleEntities.Contains(target)); // fixture
 
         Hold(s, 4, info, target);
 
         Assert.Equal(builds, ScannerOf(s).Progress > 0f);
         Assert.Equal(builds, target.IncomingPaints.Count > 0);
-        var told = target.RevealsOf(s).ToList();
-        Assert.True(builds == told.Any(), string.Join(",", told.Select(r => r.Item.Data.Name + ":" + r.Channel + "@" + r.Time)) + " clock " + _zone.Time + " third " + third.Equipment.Count + " vis " + s.VisibleEntities.Count);
-        var heard = third.RevealsOf(s).ToList();
-        Assert.True(builds == heard.Any(), string.Join(",", heard.Select(r => r.Item.Data.Name + ":" + r.Channel + "@" + r.Time)) + " clock " + _zone.Time);
+        Assert.Equal(builds, target.RevealsOf(s).Any());
+        Assert.Equal(builds, third.RevealsOf(s).Any());
     }
 
     // ---- ABrokenScanDecays ----
