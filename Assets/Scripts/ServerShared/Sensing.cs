@@ -140,10 +140,11 @@ public readonly struct SchematicRow
     {
         Item = item;
         Claimed = claimed;
+        Mount = null;
         _own = own;
     }
 
-    internal SchematicRow(HardpointData mount)
+    internal SchematicRow(HardpointData mount) : this()
     {
         Mount = mount;
     }
