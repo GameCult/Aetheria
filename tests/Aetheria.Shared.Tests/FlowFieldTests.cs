@@ -46,9 +46,13 @@ public sealed class FlowFieldTests : IDisposable
     };
 
     // A zone at `time` (the pack's clock, as a saved zone restores it), flat unless `depth` digs the zone's own well.
-    private Zone ZoneWith(FlowSettings flow, double time = 0, float depth = 0f) => new Zone(_items,
-        new PlanetSettings { Flow = flow, ZoneDepth = depth, ZoneDepthExponent = 2f },
-        new ZonePack { Time = time }, new GalaxyZone { Name = "Flow Zone", Owner = null }, null);
+    private Zone ZoneWith(FlowSettings flow, double time = 0, float depth = 0f)
+    {
+        var planets = new PlanetSettings { Flow = flow };
+        var pack = new ZonePack { Time = time };
+        if (depth > 0f) WellFixture.Dig(_items.ItemData, pack, planets, pack.Radius, depth, 2f);
+        return new Zone(_items, planets, pack, new GalaxyZone { Name = "Flow Zone", Owner = null }, null);
+    }
 
     private static readonly float3[] Probes =
     {

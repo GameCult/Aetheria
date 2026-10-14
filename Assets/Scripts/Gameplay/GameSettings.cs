@@ -15,7 +15,6 @@ public class GameSettings : ScriptableObject
     public float HeatstrokePhasingFrequency = 5;
     public float WormholeDistanceRatio;
     public float DefaultViewDistance;
-    public float MinimapZoneGravityRange;
     public float[] MinimapZoomLevels;
     public int DefaultMinimapZoom;
     public ExponentialCurve IconSize;

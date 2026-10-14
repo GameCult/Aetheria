@@ -27,7 +27,6 @@ public class ZoneRenderer : MonoBehaviour
     public GameSettings Settings;
     public Transform ZoneRoot;
     public Transform SectorBrushes;
-    public MeshRenderer SectorBoundaryBrush;
     public CinemachineVirtualCamera SceneCamera;
     public Camera[] FogCameras;
     public Camera[] MinimapCameras;
@@ -472,17 +471,12 @@ public class ZoneRenderer : MonoBehaviour
                 else planet = Instantiate(GasGiant, ZoneRoot);
 
                 var gas = (GasGiantObject) planet;
-                var gasGiant = Zone.PlanetInstances[key] as GasGiant;
                 gas.Body.material.SetTexture("_ColorRamp", gasGiantData.Colors.ToGradient(!(planetData is SunData)).ToTexture());
                 // gasGiantData.AlbedoRotationSpeed.Subscribe(f => gas.SunMaterial.AlbedoRotationSpeed = f);
                 // gasGiantData.FirstOffsetRotationSpeed.Subscribe(f => gas.SunMaterial.FirstOffsetRotationSpeed = f);
                 // gasGiantData.SecondOffsetRotationSpeed.Subscribe(f => gas.SunMaterial.SecondOffsetRotationSpeed = f);
                 // gasGiantData.FirstOffsetDomainRotationSpeed.Subscribe(f => gas.SunMaterial.FirstOffsetDomainRotationSpeed = f);
                 // gasGiantData.SecondOffsetDomainRotationSpeed.Subscribe(f => gas.SunMaterial.SecondOffsetDomainRotationSpeed = f);
-                gas.GravityWaves.transform.localScale = gasGiant.GravityWavesRadius * Vector3.one;
-                gas.GravityWaves.material.SetFloat("_Depth", gasGiant.GravityWavesDepth);
-                gas.GravityWaves.material.SetFloat("_Frequency", Settings.PlanetSettings.WaveFrequency.Evaluate(planetData.Mass));
-                //gas.WaveScroll.Speed = Properties.GravitySettings.WaveSpeed.Evaluate(f);
             }
             else
             {
@@ -584,8 +578,6 @@ public class ZoneRenderer : MonoBehaviour
             planet.Value.Body.transform.localPosition = new Vector3(0, height + planetInstance.BodyRadius * 2, 0);
             if (planet.Value is GasGiantObject gasGiantObject)
             {
-                gasGiantObject.GravityWaves.material.SetFloat("_Phase",
-                    Zone.Time * ((GasGiant) Zone.PlanetInstances[planet.Key]).GravityWavesSpeed);
                 if (!(planet.Value is SunObject))
                 {
                     var toParent = normalize(Zone.GetOrbitPosition(Zone.Orbits[planetInstance.BodyData.Orbit.Key].Data.Parent.Key) - p);
@@ -618,19 +610,13 @@ public class ZoneRenderer : MonoBehaviour
         }
 
         //var fogPos = FogCameraParent.position;
-        SectorBoundaryBrush.material.SetFloat("_Power", Settings.PlanetSettings.ZoneDepthExponent);
-        SectorBoundaryBrush.material.SetFloat("_Depth", Settings.PlanetSettings.ZoneDepth + Settings.PlanetSettings.ZoneBoundaryFog);
-        var startDepth = Zone.PowerPulse(Settings.MinimapZoneGravityRange, Settings.PlanetSettings.ZoneDepthExponent) *
-                          Settings.PlanetSettings.ZoneDepth;
-        var depthRange = Settings.PlanetSettings.ZoneDepth - startDepth + maxDepth;
+        var depthRange = Mathf.Max(maxDepth, 1f);
         foreach (var mat in MapGravityMaterials)
         {
-            mat.SetFloat("_StartDepth", startDepth);
+            mat.SetFloat("_StartDepth", 0f);
             mat.SetFloat("_DepthRange", depthRange);
         }
-        //Shader.SetGlobalFloat("_GridOffset", Settings.PlanetSettings.ZoneBoundaryFog);
         // var gravPos = MinimapGravityQuad.transform.position;
-        // gravPos.y = -Settings.PlanetSettings.ZoneDepth - _maxDepth;
         // MinimapGravityQuad.transform.position = gravPos;
         // MinimapTintQuad.transform.position = gravPos - Vector3.up*10;
     }

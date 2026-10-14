@@ -630,7 +630,7 @@ public class Zone
 
     public float GetHeight(float2 position)
     {
-        var result = -PowerPulse(length(position)/(Pack.Radius*2), Settings.ZoneDepthExponent) * Settings.ZoneDepth;
+        var result = 0f;
         foreach (var body in PlanetInstances.Values)
         {
             var p = position - body.Orbit.Position; //GetOrbitPosition(body.BodyData.Orbit)
@@ -640,18 +640,6 @@ public class Zone
             {
                 var depth = body.GravityWellDepth;
                 result -= PowerPulse(sqrt(distSqr) / gravityRadius, body.BodyData.GravityDepthExponent) * depth;
-            }
-
-            if (body is GasGiant gas)
-            {
-                var waveRadius = gas.GravityWavesRadius;
-                if(distSqr < waveRadius*waveRadius)
-                {
-                    var depth = gas.GravityWavesDepth;
-                    var frequency = Settings.WaveFrequency.Evaluate(body.BodyData.Mass);
-                    var speed = gas.GravityWavesSpeed;
-                    result -= RadialWaves(sqrt(distSqr) / waveRadius, 8, 1.25f, frequency, (float) (_time * speed)) * depth;
-                }
             }
         }
 
@@ -716,12 +704,6 @@ public class Zone
         return pow((x + 1) * (1 - x), exponent);
     }
 
-    public static float RadialWaves(float x, float maskExponent, float sineExponent, float frequency, float phase)
-    {
-        //x *= 2;
-        return PowerPulse(x, maskExponent) * cos(pow(x*2, sineExponent) * frequency + phase);
-    }
-
     public float3 GetNormal(float2 pos, float step = .1f, float mul = 1)
     {
         float hL = GetHeight(new float2(pos.x - step, pos.y)) * mul;
@@ -763,22 +745,10 @@ public class Planet
 public class GasGiant : Planet
 {
     public GasGiantData GasGiantData;
-    public float GravityWavesDepth;
-    public float GravityWavesRadius;
-    public float GravityWavesSpeed;
 
     public GasGiant(PlanetSettings settings, GasGiantData data, Orbit orbit) : base(settings, data, orbit)
     {
         GasGiantData = data;
-        CalculateProperties();
-    }
-
-    public new void CalculateProperties()
-    {
-        base.CalculateProperties();
-        GravityWavesDepth = Settings.WaveDepth.Evaluate(BodyData.Mass) * GasGiantData.WaveDepthMultiplier;
-        GravityWavesRadius = Settings.WaveRadius.Evaluate(BodyData.Mass) * GasGiantData.WaveRadiusMultiplier;
-        GravityWavesSpeed = Settings.WaveSpeed.Evaluate(BodyData.Mass) * GasGiantData.WaveSpeedMultiplier;
     }
 }
 

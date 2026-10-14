@@ -13,15 +13,8 @@ using static CultMath.math;
 [Serializable, MessagePackObject(keyAsPropertyName:true), JsonObject]
 public class PlanetSettings
 {
-    public float ZoneDepthExponent;
-    public float ZoneDepth;
-    public float ZoneBoundaryFog;
     public ExponentialCurve GravityDepth;
     public ExponentialCurve GravityRadius;
-    public ExponentialCurve WaveDepth;
-    public ExponentialCurve WaveRadius;
-    public ExponentialCurve WaveFrequency;
-    public ExponentialCurve WaveSpeed;
     public ExponentialCurve LightRadius;
     public ExponentialCurve BodyRadius;
     public float AsteroidVerticalOffset = -5f;

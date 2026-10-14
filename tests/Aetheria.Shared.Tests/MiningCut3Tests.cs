@@ -58,10 +58,6 @@ public sealed partial class MiningCut3Tests : IDisposable
         BodyRadius = new ExponentialCurve(),
         GravityRadius = new ExponentialCurve(),
         GravityDepth = new ExponentialCurve(),
-        WaveDepth = new ExponentialCurve(),
-        WaveRadius = new ExponentialCurve(),
-        WaveSpeed = new ExponentialCurve(),
-        WaveFrequency = new ExponentialCurve(),
         LightRadius = new ExponentialCurve { Constant = lightRadius }
     };
 

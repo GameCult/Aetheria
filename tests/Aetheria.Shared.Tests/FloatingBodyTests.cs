@@ -230,8 +230,10 @@ public sealed class FloatingBodyTests : IDisposable
             QualityPriceModifier = new ExponentialLerp()
         };
         var items = new ItemManager(cache, new ProvenanceLedger(), settings, _ => { });
-        var planets = new PlanetSettings { ZoneDepth = 1000, ZoneDepthExponent = 1, GravityStrength = 1 };
-        zone = new Zone(items, planets, new ZonePack { Radius = 1000 }, new GalaxyZone { Name = "Test Zone", Owner = null }, null);
+        var planets = new PlanetSettings { GravityStrength = 1 };
+        var pack = new ZonePack { Radius = 1000 };
+        WellFixture.Dig(cache, pack, planets, 1000, 1000, 1);
+        zone = new Zone(items, planets, pack, new GalaxyZone { Name = "Test Zone", Owner = null }, null);
         var design = cache.GetByName<HullData>("Skiff");
         var hull = new EquippableItem
         {

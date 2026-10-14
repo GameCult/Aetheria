@@ -61,7 +61,7 @@ public sealed class LootTests : IDisposable
     }
 
     private Lab Build(string zoneName = "Loot", float probability = .5f, float lifetime = 30f, float velocity = 25f,
-        PlanetSettings planets = null, float spread = 0f)
+        bool well = false, float spread = 0f)
     {
         var settings = new GameplaySettings
         {
@@ -108,7 +108,14 @@ public sealed class LootTests : IDisposable
         var ledger = new ProvenanceLedger();
         for (var i = 1; i <= 9000; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = 1 };
         var items = new ItemManager(cache, ledger, settings, _ => { });
-        var zone = new Zone(items, planets ?? new PlanetSettings(), new ZonePack { Radius = planets == null ? 0 : 1000 }, new GalaxyZone { Name = zoneName, Owner = null }, null);
+        var planets = new PlanetSettings();
+        var pack = new ZonePack { Radius = well ? 1000 : 0 };
+        if (well)
+        {
+            planets.GravityStrength = 1;
+            WellFixture.Dig(cache, pack, planets, 1000, 1000, 1);
+        }
+        var zone = new Zone(items, planets, pack, new GalaxyZone { Name = zoneName, Owner = null }, null);
         return new Lab { Items = items, Zone = zone };
     }
 
@@ -286,8 +293,7 @@ public sealed class LootTests : IDisposable
     [Fact]
     public void AFloatingItemDriftsAsABodyAndExpires()
     {
-        var planets = new PlanetSettings { ZoneDepth = 1000, ZoneDepthExponent = 1, GravityStrength = 1 };
-        var lab = Build(lifetime: 3f, planets: planets);
+        var lab = Build(lifetime: 3f, well: true);
         var settings = lab.Items.GameplaySettings;
         var start = new float2(40, -25);
         var launch = new float2(6, 2);

@@ -41,7 +41,11 @@ public sealed class FireControlTests : IDisposable
     // A hull with one weapon hardpoint per (rotation, firingArc) pair, laid out along the X axis of a 1xN
     // shape so each gets its own cell. FiringArc 0 on a hardpoint means "use GameplaySettings.FiringArc".
     private (ItemManager items, Ship ship, EquippedItem[] weapons) BuildShipWithHardpoints(
-        params (ItemRotation rotation, float firingArc)[] hardpoints)
+        params (ItemRotation rotation, float firingArc)[] hardpoints) => BuildShipWithHardpoints(false, hardpoints);
+
+    // `well` digs the zone one well at the origin (WellFixture), so heights differ across the zone.
+    private (ItemManager items, Ship ship, EquippedItem[] weapons) BuildShipWithHardpoints(
+        bool well, (ItemRotation rotation, float firingArc)[] hardpoints)
     {
         var hullShape = new Shape(Math.Max(hardpoints.Length, 3), 3);
         foreach (var cell in hullShape.AllCoordinates) hullShape[cell] = true;
@@ -84,7 +88,10 @@ public sealed class FireControlTests : IDisposable
         for (var i = 0; i < hardpoints.Length; i++)
             ledger.Lots[2 + i] = new Lot { Origin = new Attributed(), Quality = 1 }; // guns
         var items = new ItemManager(_openCache, ledger, TestSettings(), _ => { });
-        var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test Zone", Owner = null }, null);
+        var planets = new PlanetSettings();
+        var pack = new ZonePack();
+        if (well) WellFixture.Dig(_openCache, pack, planets, pack.Radius, 1000f, 1f);
+        var zone = new Zone(items, planets, pack, new GalaxyZone { Name = "Test Zone", Owner = null }, null);
 
         var hullRef = items.ItemData.RefOf<ItemData>(items.ItemData.GetByName<HullData>("TestHull"));
         var hull = new EquippableItem { Data = hullRef, Durability = 1, Lot = 1 };
@@ -182,10 +189,10 @@ public sealed class FireControlTests : IDisposable
     }
 
     // A shooter with one in-range, in-arc gun, a detected target at `targetPosition`, and a Minion driving the shooter.
-    private (Ship shooter, Ship target, Zone zone) BuildCombatEncounter(float3 targetPosition, float projectileSpeed = 0f, bool twoTargetGuns = false)
+    private (Ship shooter, Ship target, Zone zone) BuildCombatEncounter(float3 targetPosition, float projectileSpeed = 0f, bool twoTargetGuns = false, bool well = false)
     {
         var mounts = twoTargetGuns ? new[] { (ItemRotation.None, 0f), (ItemRotation.None, 0f) } : new[] { (ItemRotation.None, 0f) };
-        var (items, shooter, weapons) = BuildShipWithHardpoints(mounts);
+        var (items, shooter, weapons) = BuildShipWithHardpoints(well, mounts);
         var weaponData = (InstantWeaponData) weapons[0].Data.Behaviors.Single(b => b is InstantWeaponData);
         weaponData.Damage = new PerformanceStat { Min = 10, Max = 10 };
         weaponData.Cooldown = new PerformanceStat { Min = 1, Max = 1 };
@@ -376,9 +383,7 @@ public sealed class FireControlTests : IDisposable
     [Fact]
     public void TheAIMeasuresTheTargetOnTheGroundPlane()
     {
-        var (shooter, target, zone) = BuildCombatEncounter(float3(0, 0, 600), twoTargetGuns: true);
-        zone.Settings.ZoneDepth = 1000f;
-        zone.Settings.ZoneDepthExponent = 1f;
+        var (shooter, target, zone) = BuildCombatEncounter(float3(0, 0, 600), twoTargetGuns: true, well: true);
         var strong = target.Equipment.Single(x => x.Data.Name == "Gun");
         var weak = target.Equipment.Single(x => x.Data.Name == "WeakGun");
         zone.Update(1f); // heights follow the zone's depth from the first update
