@@ -999,6 +999,10 @@ public abstract class Entity
     // contact it has (ContactOf is Detected for a tracked subject or one with a young reveal).
     public IReadOnlyCollection<Entity> RevealedSubjects => _reveals.Keys;
 
+    // The hostile subjects this observer holds only by a bearing: revealed, Detected, not Tracked (what bearing markers and
+    // the music show). Reads the book and ContactOf, never the subject's Position or gear.
+    public IEnumerable<Entity> RememberedHostiles => RevealedSubjects.Where(s => IsHostileTo(s) && ContactOf(s) is { Detected: true, Tracked: false });
+
     // What this observer has seen `subject`'s items do: each item's latest act, and nothing the subject's present
     // gear or Durability says (ruling contact-reads-book-aim-reads-live). A reveal ends only on what this observer
     // perceives (ruling reveal-ends-on-perception): the destruction of an item of a ship it identifies, the death,
@@ -1015,6 +1019,11 @@ public abstract class Entity
     public IEnumerable<Reveal> RevealedWeapons(Entity subject) =>
         RevealsOf(subject).Where(r => r.Claimed != null && r.Claimed.Behaviors.Any(b => b is WeaponData))
             .OrderBy(r => FittedIndex(subject, r.Item)).ThenBy(r => r.Item.EquippableItem.Lot);
+
+    // The classes `subject` has claimed to this observer, distinct and by name: what a bearing marker is labelled with. Reads
+    // each reveal's Claimed only, never the item's true data (aetheria-ew, classify-from-belief).
+    public IEnumerable<EquippableItemData> ClaimedClasses(Entity subject) =>
+        RevealsOf(subject).Select(r => r.Claimed).Where(c => c != null).Distinct().OrderBy(c => c.Name, StringComparer.Ordinal);
 
     // A revealed item's place in the subject's equipment; gear the subject no longer carries follows all fitted gear
     // (ties among it fall to the lot, a stable id), never ahead of it.

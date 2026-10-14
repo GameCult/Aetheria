@@ -162,6 +162,10 @@ public class ActionGameManager : MonoBehaviour
     public Prototype LockIndicator;
     // Presentation tuning: how far from the ship, toward the locker, the incoming-lock indicator sits.
     public float IncomingLockIndicatorDistance = 30;
+    // Presentation tuning: how far from the ship, toward a remembered hostile's bearing, its marker sits; how long a
+    // sweep flash takes to fade.
+    public float BearingMarkerDistance = 40;
+    public float SearchFlashSeconds = .6f;
     public PlaceUIElementWorldspace[] Crosshairs;
     public GameObject HitMarker;
     public float HitMarkerDuration;
@@ -203,6 +207,13 @@ public class ActionGameManager : MonoBehaviour
     private (PlaceUIElementWorldspace indicator, Rotate spin) _incomingLockIndicator;
     private Dictionary<Entity, VisibleTargetIndicator> _visibleHostileIndicators = new Dictionary<Entity, VisibleTargetIndicator>();
     private Dictionary<Entity, VisibleTargetIndicator> _visibleFriendlyIndicators = new Dictionary<Entity, VisibleTargetIndicator>();
+    // Display-only: a marker per remembered hostile (shares HostileTargetIndicator's pool), the Search warnings the last
+    // ticks delivered (bearing, zone time; a per-tick buffer), and the sweep flashes drawn from them.
+    private readonly Dictionary<Entity, VisibleTargetIndicator> _bearingMarkers = new Dictionary<Entity, VisibleTargetIndicator>();
+    private readonly List<(float2 bearing, float time)> _pendingSweeps = new List<(float2, float)>();
+    private readonly List<(PlaceUIElementWorldspace indicator, Image image, float2 bearing, float time)> _sweepFlashes =
+        new List<(PlaceUIElementWorldspace, Image, float2, float)>();
+    private readonly List<Entity> _markerScratch = new List<Entity>();
     private List<IDisposable> _shipSubscriptions = new List<IDisposable>();
     private List<IDisposable> _targetSubscriptions = new List<IDisposable>();
     private readonly Dictionary<EquippedItem, ShotOutcome> _debugLastShots = new Dictionary<EquippedItem, ShotOutcome>();
@@ -1003,6 +1014,12 @@ public class ActionGameManager : MonoBehaviour
         
         foreach (var indicator in _visibleFriendlyIndicators) Destroy(indicator.Value.gameObject);
         _visibleFriendlyIndicators.Clear();
+
+        foreach (var marker in _bearingMarkers.Values) RetireMarker(marker);
+        _bearingMarkers.Clear();
+        foreach (var flash in _sweepFlashes) RetireFlash(flash.indicator, flash.image);
+        _sweepFlashes.Clear();
+        _pendingSweeps.Clear();
         
         if(_lockingIndicators!=null) foreach(var (_, indicator, _) in _lockingIndicators)
             indicator.GetComponent<Prototype>().ReturnToPool();
@@ -1268,13 +1285,7 @@ public class ActionGameManager : MonoBehaviour
     private void UpdateMusic()
     {
         var combat = CurrentEntity.VisibleEnemies.Count > 0 || CurrentEntity.IncomingPaints.Count > 0;
-        if (!combat)
-            foreach (var subject in CurrentEntity.RevealedSubjects)
-                if (CurrentEntity.IsHostileTo(subject) && CurrentEntity.ContactOf(subject).Detected)
-                {
-                    combat = true;
-                    break;
-                }
+        combat |= CurrentEntity.RememberedHostiles.Any();
         var type = combat ? MusicType.Combat : MusicType.Overworld;
         if (_music == type) return;
         _music = type;
@@ -1360,7 +1371,15 @@ public class ActionGameManager : MonoBehaviour
         void EnterNewZone() { if (_zoneEntered) { Clock.Reset(); _zoneEntered = false; } }
         EnterNewZone();
         var steppedZone = Zone;
-        Clock.Advance(_paused ? 0f : Time.deltaTime, delta => { if (Zone == steppedZone) steppedZone.Update(delta); });
+        Clock.Advance(_paused ? 0f : Time.deltaTime, delta =>
+        {
+            if (Zone != steppedZone) return;
+            steppedZone.Update(delta);
+            // A warning lives one tick, so sweeps are collected per tick, never read per frame.
+            if (CurrentEntity != null && CurrentEntity.Zone == steppedZone)
+                foreach (var warning in CurrentEntity.IncomingPaints)
+                    if (warning.Mode == PaintMode.Search) _pendingSweeps.Add((warning.Bearing, steppedZone.Time));
+        });
         EnterNewZone();
     }
 
@@ -1476,7 +1495,7 @@ public class ActionGameManager : MonoBehaviour
         }
 
         // The strongest lock on the player's ship, read only from IncomingPaints (never another ship's LockWeapon).
-        // Only Track paints are locks; Search paints (ping sweeps) are presented by contact-hud, not here.
+        // Only Track paints are locks; Search paints (ping sweeps) are this class's sweep flashes (UpdateSweepFlashes).
         // Same curves as the outgoing indicator, driven by the warning's Strength.
         var warnings = CurrentEntity.IncomingPaints;
         var strongest = -1;
@@ -1490,6 +1509,75 @@ public class ActionGameManager : MonoBehaviour
             incomingIndicator.Target = CurrentEntity.Position.ToUnity() +
                 new Vector3(warning.Bearing.x, 0, warning.Bearing.y) * IncomingLockIndicatorDistance;
             ApplyLockProgress(incomingIndicator, incomingSpin, warning.Strength);
+        }
+
+        UpdateBearingMarkers();
+        UpdateSweepFlashes();
+    }
+
+    // One marker per remembered hostile (a contact held by a bearing only): at the bearing the book keeps, labelled with the
+    // classes it claimed. Never at the subject's position, never read from its gear.
+    private void UpdateBearingMarkers()
+    {
+        var remembered = CurrentEntity.RememberedHostiles.ToList();
+        _markerScratch.Clear();
+        foreach (var subject in _bearingMarkers.Keys)
+            if (!remembered.Contains(subject)) _markerScratch.Add(subject);
+        foreach (var subject in _markerScratch)
+        {
+            RetireMarker(_bearingMarkers[subject]);
+            _bearingMarkers.Remove(subject);
+        }
+        foreach (var subject in remembered)
+        {
+            if (!_bearingMarkers.TryGetValue(subject, out var marker))
+            {
+                marker = HostileTargetIndicator.Instantiate<VisibleTargetIndicator>();
+                marker.Fill.enabled = false;
+                _bearingMarkers.Add(subject, marker);
+            }
+            marker.gameObject.SetActive(true);
+            var bearing = CurrentEntity.ContactOf(subject).Bearing;
+            marker.Place.Target = CurrentEntity.Position.ToUnity() + new Vector3(bearing.x, 0, bearing.y) * BearingMarkerDistance;
+            marker.ShowLabel(string.Join(", ", CurrentEntity.ClaimedClasses(subject).Select(c => c.Name)));
+        }
+    }
+
+    // A pooled indicator goes back as the next hostile indicator will want it: label hidden, fill restored.
+    private static void RetireMarker(VisibleTargetIndicator marker)
+    {
+        marker.ShowLabel(null);
+        marker.Fill.enabled = true;
+        marker.GetComponent<Prototype>().ReturnToPool();
+    }
+
+    private static void RetireFlash(PlaceUIElementWorldspace indicator, Image image)
+    {
+        if (image != null) image.color = new Color(image.color.r, image.color.g, image.color.b, 1);
+        indicator.GetComponent<Prototype>().ReturnToPool();
+    }
+
+    // A ping crossing the player draws one flash toward the pinger, fading over SearchFlashSeconds of zone time.
+    private void UpdateSweepFlashes()
+    {
+        foreach (var (bearing, time) in _pendingSweeps)
+        {
+            var indicator = LockIndicator.Instantiate<PlaceUIElementWorldspace>();
+            _sweepFlashes.Add((indicator, indicator.GetComponentInChildren<Image>(), bearing, time));
+        }
+        _pendingSweeps.Clear();
+        for (var i = _sweepFlashes.Count - 1; i >= 0; i--)
+        {
+            var (indicator, image, bearing, time) = _sweepFlashes[i];
+            var age = Zone.Time - time;
+            if (age < 0 || age >= SearchFlashSeconds)
+            {
+                RetireFlash(indicator, image);
+                _sweepFlashes.RemoveAt(i);
+                continue;
+            }
+            indicator.Target = CurrentEntity.Position.ToUnity() + new Vector3(bearing.x, 0, bearing.y) * IncomingLockIndicatorDistance;
+            if (image != null) image.color = new Color(image.color.r, image.color.g, image.color.b, 1 - age / SearchFlashSeconds);
         }
     }
 

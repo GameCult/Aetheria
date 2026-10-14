@@ -1345,6 +1345,50 @@ public sealed partial class ContactRevealTests : IDisposable
         Assert.Equal(0, o.RevealedSubjects.Count); // counts, not the collection: a failure message would print whole entities
     }
 
+    // The hostile subjects held only by a bearing (what bearing markers and the music show): a hostile that fired and is
+    // untracked is listed; the same kind of subject tracked is not; a non-hostile that fired is not; one that departs
+    // unseen is listed exactly until its bearing is BearingMemory old; Deactivate empties it.
+    [Fact]
+    public void RememberedHostilesAreBearingOnlyHostiles()
+    {
+        var e = Add(float3(0, 0, 100), new[] { "Gun" });
+        var t = Add(float3(50, 0, 0), new[] { "Gun" });
+        var n = Add(float3(40, 0, 100), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        o.SetIff(e, true);
+        o.SetIff(t, true);
+        o.SetIff(n, false);
+        var gun = Guns(e)[0];
+        Fire(e, gun);
+        Fire(n, Guns(n)[0]);
+        Fire(t, Guns(t)[0]);
+        Assert.False(o.ContactOf(e).Tracked, "fixture: held by a bearing only");
+        Assert.True(o.RevealedSubjects.Contains(n) && o.IsHostileTo(n) == false, "fixture: n is revealed and not hostile");
+
+        Assert.True(o.RememberedHostiles.Contains(e), "a hostile that fired, untracked");
+        Assert.False(o.RememberedHostiles.Contains(n), "a non-hostile that fired");
+        Assert.True(o.RememberedHostiles.Contains(t), "fixture: t is untracked so far");
+        o.EntityInfoGathered[t] = 1f;
+        Assert.True(o.ContactOf(t).Tracked, "fixture: t is tracked now");
+        Assert.False(o.RememberedHostiles.Contains(t), "the same hostile tracked is a hostile indicator's");
+
+        var freshest = Freshest(o, e);
+        ShowOnly(e, 1f, gun);
+        Assert.True(e.Visibility * o.PassiveInfo(e.Position.xz, 1f) <= _items.GameplaySettings.TargetDetectionInfoThreshold, "fixture: its last light is below o's gate");
+        _zone.Remove(e);
+        var memory = _items.GameplaySettings.BearingMemory;
+        var lapsed = false;
+        for (var i = 0; i < 200 && !lapsed; i++)
+        {
+            Tick(.1f);
+            lapsed = _zone.Time - freshest >= memory;
+            Assert.Equal(!lapsed, o.RememberedHostiles.Contains(e)); // exactly while the bearing is remembered
+        }
+        Assert.True(lapsed, "fixture: the bearing lapsed");
+        o.Deactivate();
+        Assert.Equal(0, o.RememberedHostiles.Count());
+    }
+
     // The first field path from `root` to `target`, not entering the zone or the item manager, or null.
     private static string PathFrom(object root, object target)
     {

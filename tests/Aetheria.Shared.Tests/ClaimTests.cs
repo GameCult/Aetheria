@@ -141,6 +141,31 @@ public sealed partial class ContactRevealTests
         Assert.Same(claimed, reveal.Claimed);
     }
 
+    // What a bearing marker is labelled with: the classes the subject claimed, never the item's true data; one class once.
+    [Fact]
+    public void ClaimedClassesNameTheClaim()
+    {
+        var locker = Add(float3(0, 0, 0), new[] { "Locker", "Gun" });
+        var target = Add(float3(0, 0, 200), new[] { "Eye" });
+        var lockItem = locker.Equipment.Single(i => i.Behaviors.Any(b => b is LockWeapon));
+        var gunItem = Guns(locker)[0];
+        var claimed = DataOf("Eye");
+        locker.Claim(lockItem, claimed);
+        locker.Claim(gunItem, claimed);
+        locker.SetIff(target, true);
+        Fire(locker, gunItem);
+        locker.EntityInfoGathered[target] = 1f;
+        locker.SetTarget(target);
+        locker.Aim = normalize(target.Position - locker.Position);
+        Tick(.5f);
+        Tick(.5f);
+
+        var items = target.RevealsOf(locker).Select(r => r.Item).ToArray();
+        Assert.True(items.Contains(lockItem) && items.Contains(gunItem), "fixture: two items revealed, both claiming Eye");
+        Assert.Same(claimed, Assert.Single(target.ClaimedClasses(locker))); // two reveals of one class list it once
+        Assert.NotSame(lockItem.Data, claimed); // fixture: the claim is not the truth
+    }
+
     // The emission a ping makes is stamped by the ship that makes it. Mutation: Emit stamps item.Data.
     [Fact]
     public void AHeardPingCarriesTheClaim()
