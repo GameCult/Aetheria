@@ -81,11 +81,15 @@ public sealed partial class RunStartTests
 
     // Idle long enough for stats and power to reach their idle state, then at rest, facing +y,
     // and, after three seconds of coasting, with nothing observed: the track forgets on its own.
+    // The ship is stepped alone, so the zone's wells pull it while it idles; settling is about stats and power, so
+    // it comes back to where it stood.
     private static void EvSettle(Ship ship)
     {
+        var stood = ship.Position.xz;
         ship.MovementDirection = float2(0, 0);
         EvFace(ship, float3(0, 0, 1));
         for (var step = 0; step < 180; step++) ship.Update(EvDt);
+        ship.Position.xz = stood;
         ship.Velocity = float2(0, 0);
         ship.Direction = float2(0, 1);
     }
