@@ -434,7 +434,7 @@ public sealed partial class ContactRevealTests
         var row = Assert.Single(e.SchematicRows(e));
         Assert.Same(gun, row.Item);
         Assert.Same(gun.Data, row.Claimed);
-        Assert.Equal(38f, row.Range, 2); // the live range of the worn gun, below its rated 40
+        Assert.Equal(38f, row.Range.Value, 2); // the live range of the worn gun, below its rated 40
         Assert.Equal(gun.Behaviors.OfType<Weapon>().Single().Range, row.Range);
         Assert.NotEqual(((WeaponData) gun.Data.Behaviors.Single(b => b is WeaponData)).RatedRange, row.Range);
     }
