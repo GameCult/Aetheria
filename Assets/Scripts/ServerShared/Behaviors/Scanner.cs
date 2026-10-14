@@ -36,13 +36,18 @@ public class ScannerData : BehaviorData
     }
 }
 
-public class Scanner : Behavior, IAlwaysUpdatedBehavior, IProgressBehavior
+public class Scanner : Behavior, IProgressBehavior
 {
     private readonly ScannerData _data;
     private Entity _target;
-    private bool _held;
+    private float _built;
+    private double _heldAt;
 
-    public float Progress { get; private set; }
+    // The scan's progress now: what Execute last built, less ScanTime-relative decay over the time since a tick last held
+    // it (ruling scan-held-beam: a broken scan decays over ScanTime, the item inactive or destroyed included). Derived from
+    // the zone clock, never from tick order, so a scanner decays on the tick it breaks whether its host runs Execute
+    // before the always-updated pass (EquippedItem) or after it (ConsumableItemEffect). The one decay site.
+    public float Progress => Remaining(_heldAt);
 
     public Scanner(ScannerData data, EquippedItem item) : base(data, item)
     {
@@ -53,40 +58,41 @@ public class Scanner : Behavior, IAlwaysUpdatedBehavior, IProgressBehavior
         _data = data;
     }
 
+    private float Remaining(double since)
+    {
+        if (_built <= 0f) return 0f;
+        var now = Entity.Zone?.ExactTime ?? since;
+        return saturate(_built - (float) (now - since) / Evaluate(_data.ScanTime));
+    }
+
     // Runs only while the item is Active. The scan builds while the ship's own Target is a tracked ship within Range, and
     // is painted and emitted on every tick it builds; at 1 the target's fitted items enter the book and the scan starts over.
+    // A tick that does not hold the scan builds nothing, and the zone clock carries its decay (Progress).
     public override bool Execute(float dt)
     {
         var target = Entity.Target.Value.Entity;
         if (_target != target)
         {
-            Progress = 0;
+            _built = 0f;
             _target = target;
         }
 
         var range = Evaluate(_data.Range);
         if (target != null && Entity.VisibleEntities.Contains(target) && Entity.TargetRange <= range)
         {
-            Progress = saturate(Progress + dt / Evaluate(_data.ScanTime));
-            target.ReceivePaint(Entity, Item, PaintMode.Scan, Progress);
+            // Decay over the ticks since the last held one, not counting this tick, which holds.
+            var progress = saturate(Remaining(_heldAt + dt) + dt / Evaluate(_data.ScanTime));
+            _built = progress;
+            _heldAt = Entity.Zone?.ExactTime ?? _heldAt;
+            target.ReceivePaint(Entity, Item, PaintMode.Scan, progress);
             Entity.Emit(Item, range / (_data.InterceptFactor == null ? 1f : Evaluate(_data.InterceptFactor)));
-            _held = true;
-            if (Progress >= 1f)
+            if (progress >= 1f)
             {
                 Entity.RecordInspection(target);
-                Progress = 0;
+                _built = 0f;
             }
         }
 
         return true;
-    }
-
-    // Every tick, after Execute on either host (EquippedItem.Update and ConsumableItemEffect.Update both run Execute first):
-    // a scan not held this tick (out of range, untracked, or the item inactive so Execute did
-    // not run) decays over ScanTime (ruling scan-held-beam). The one decay site.
-    public void Update(float delta)
-    {
-        if (!_held) Progress = saturate(Progress - delta / Evaluate(_data.ScanTime));
-        _held = false;
     }
 }

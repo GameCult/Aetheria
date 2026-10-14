@@ -255,7 +255,7 @@ public sealed partial class ContactRevealTests : IDisposable
 
     // A ship at `position` with `mounts` on its sensor hardpoints in order, the tools on free cells and a thruster
     // on the centre column. A ship with a gun also gets the reactor and targeting a gun needs to fire.
-    private Ship Add(float3 position, string[] mounts = null, string[] tools = null, bool thruster = false, bool agent = false)
+    private Ship Add(float3 position, string[] mounts = null, string[] tools = null, bool thruster = false)
     {
         var hullRef = _items.ItemData.RefOf<ItemData>(_items.ItemData.GetByName<HullData>("Rack"));
         var ship = new Ship(_items, _zone, new EquippableItem { Data = hullRef, Durability = 1000000, Lot = _nextLot++ }, new EntitySettings())
@@ -269,7 +269,7 @@ public sealed partial class ContactRevealTests : IDisposable
             Assert.True(ship.TryFindSpace(item, out var at));
             Assert.True(ship.TryEquip(item, at));
         }
-        _zone.Admit(ship, piloted: agent); // piloted: true gives the ship an AI agent
+        _zone.Admit(ship, piloted: false);
         ship.Position = position;
         ship.Aim = float3(0, 0, 1);
         _zone.Update(0f); // brings the gear online

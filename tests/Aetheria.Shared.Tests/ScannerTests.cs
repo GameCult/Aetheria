@@ -321,12 +321,12 @@ public sealed partial class ContactRevealTests
     [Fact]
     public void AScanTakesTheSamePathForAnyPilot()
     {
-        _zone.AddOrbit(new OrbitData { Distance = 1000f }); // the agent patrols one; an orbit-less zone gives its circuit no first stop
         var target = Add(float3(0, 0, 100), tools: new[] { "Reactor", "Radiator", "SuppressorCold" });
         var reactor = target.Equipment.Single(i => i.Behaviors.Any(b => b is Reactor));
         target.Claim(reactor, DataOf("Radiator"));
         var player = Add(float3(-20, 0, 0), tools: new[] { "Scanner" });
-        var ai = Add(float3(20, 0, 0), tools: new[] { "Scanner" }, agent: true);
+        var ai = Add(float3(20, 0, 0), tools: new[] { "Scanner" });
+        _zone.Agents.Add(new Agent(ai)); // the AI pilot, ticked in Zone.Update beside the scan; a task-less agent needs no orbit to patrol
         Assert.Single(_zone.Agents); // fixture: only the second ship has an agent
         foreach (var scanner in new[] { player, ai })
         {
@@ -356,8 +356,9 @@ public sealed partial class ContactRevealTests
 
     // ---- AConsumableScannerDecaysOnTheSameTick ----
 
-    // Equipment and consumable hosts run Execute before the always-updated pass, so a scan broken by range loses the same
-    // dt/ScanTime on the tick it breaks: .5 falls to .25 in four ticks, as ABrokenScanDecays has it for gear.
+    // The two hosts order Execute and the always-updated pass differently (ConsumableItemEffect.Update runs the pass first),
+    // so the scan's decay must not depend on that order: a scan broken by range loses dt/ScanTime on the tick it breaks, and
+    // .5 falls to .25 in four ticks, as ABrokenScanDecays has it for gear.
     [Fact]
     public void AConsumableScannerDecaysOnTheSameTick()
     {
