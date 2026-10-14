@@ -667,7 +667,7 @@ public sealed partial class ContactRevealTests : IDisposable
             case "death": e.Hull.Durability = 0f; e.HullDamage.OnNext(1f); break;
             default: throw new Exception("fixture: " + how);
         }
-        Assert.DoesNotContain(e, zone.Entities);
+        Assert.False(zone.Entities.Contains(e), "fixture: the subject left the zone");
     }
 
     // Leaves the ship showing exactly `strength` of light: whatever its guns left glowing is put out first.
@@ -1217,7 +1217,7 @@ public sealed partial class ContactRevealTests : IDisposable
         killerGun.Activate();
         for (var ticks = 0; !killed && ticks < 20; ticks++) Tick(.1f);
         Assert.True(killed, "fixture: the kill lands inside a tick");
-        Assert.DoesNotContain(e, _zone.Entities);
+        Assert.False(_zone.Entities.Contains(e), "fixture: the kill took the subject out of the zone");
 
         Assert.Equal(2, strong.RevealsOf(e).Count()); // this tick's Sense came before the kill
 
@@ -1435,7 +1435,7 @@ public sealed partial class ContactRevealTests : IDisposable
             Assert.Equal(!lapsed, o.RememberedHostiles.Contains(e)); // exactly while the bearing is remembered
         }
         Assert.True(lapsed, "fixture: the bearing lapsed");
-        Assert.Contains(e, o.RevealedSubjects); // fixture: the in-zone subject is still in the book
+        Assert.True(o.RevealedSubjects.Contains(e), "fixture: the in-zone subject is still in the book");
         Assert.False(o.ContactOf(e).Detected, "fixture: the contact is no longer Detected");
         Assert.False(o.RememberedHostiles.Contains(e));
     }
@@ -1556,7 +1556,7 @@ public sealed partial class ContactRevealTests : IDisposable
         Assert.False(o.ContactOf(e).Detected);
         if (departs)
         {
-            Assert.DoesNotContain(e, o.RevealedSubjects);
+            Assert.False(o.RevealedSubjects.Contains(e), "the departed subject leaves the book at the edge");
             Assert.False(o.IsHostileTo(e), "the book dropped the departed subject at the edge, and the stance with it");
         }
     }
@@ -1578,7 +1578,7 @@ public sealed partial class ContactRevealTests : IDisposable
         Tick(.01f);
 
         Assert.Empty(o.RevealsOf(e)); // fixture: o perceived the destruction and the book dropped the subject
-        Assert.Contains(e, _zone.Entities);
+        Assert.True(_zone.Entities.Contains(e), "fixture: the subject is still in the zone");
         Assert.True(o.IsHostileTo(e));
     }
 
@@ -1683,5 +1683,51 @@ public sealed partial class ContactRevealTests : IDisposable
         }
 
         Assert.Equal(0L, smallest);
+    }
+
+    // A docked subject leaves the zone parented to its dock and rejoins on undock: the observer's decision about it outlives
+    // the lapse of the bearing, and is still there when it rejoins.
+    [Fact]
+    public void ADockedSubjectKeepsTheObserversStanceAfterTheBearingLapses()
+    {
+        var e = Add(float3(0, 0, 100), new[] { "Gun" });
+        var dock = Add(float3(200, 0, 0));
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        o.SetIff(e, true);
+        var gun = Guns(e)[0];
+        Fire(e, gun);
+        ShowOnly(e, 1f, gun);
+        Assert.True(e.Visibility * o.PassiveInfo(e.Position.xz, 1f) <= _items.GameplaySettings.TargetDetectionInfoThreshold, "fixture: unseen");
+        e.Parent = dock;
+        _zone.Remove(e);
+        for (var i = 0; i < 100 && o.RevealedSubjects.Contains(e); i++) Tick(.1f);
+        Assert.False(o.RevealedSubjects.Contains(e), "fixture: the book dropped the docked subject");
+        Assert.True(o.IsHostileTo(e), "a docked subject keeps the observer's decision");
+        e.Parent = null;
+        _zone.Admit(e, piloted: false);
+        Assert.True(o.IsHostileTo(e), "and it is still there when the subject rejoins");
+    }
+
+    private static int PaintInbox(Entity e) => ((System.Collections.ICollection) typeof(Entity).GetField("_paintInbox", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(e)).Count;
+
+    // A paint still unpublished in an observer's inbox when the observer leaves the zone is gone: it does not arrive as a
+    // stale burst when the observer is admitted again.
+    [Fact]
+    public void AnObserverLeavingTheZoneLosesItsPendingPaints()
+    {
+        var p = Add(float3(0, 0, 100), new[] { "Eye" });
+        var o = Add(float3(0, 0, 0));
+        var sensor = (Sensor) p.Equipment.Single(i => i.Behaviors.Any(b => b is Sensor)).Behaviors.Single(b => b is Sensor);
+        Tick(.01f);
+        sensor.Ping();
+        var pending = false;
+        for (var tick = 0; tick < 400 && !pending; tick++) { Tick(.02f); pending = PaintInbox(o) > 0; }
+        Assert.True(pending, "fixture: a paint is pending in o's inbox, not yet published");
+        _zone.Remove(o);
+        Assert.Equal(0, PaintInbox(o));
+        Tick(.1f);
+        _zone.Admit(o, piloted: false);
+        Tick(.02f);
+        Assert.Equal(0, o.IncomingPaints.Count);
     }
 }
