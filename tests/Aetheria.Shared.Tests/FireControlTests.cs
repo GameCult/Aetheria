@@ -390,7 +390,7 @@ public sealed class FireControlTests : IDisposable
         typeof(Weapon).GetMethod("UpdateStats", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).Invoke(live, null);
         typeof(CombatState).GetMethod("SampleDps", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).Invoke(state, null);
         var optimum = (float) typeof(CombatState).GetField("_optimumRange", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(state);
-        Assert.True(optimum >= 500f - 1000f / 32f && optimum <= 500f + 1000f / 32f, $"optimum range {optimum}");
+        Assert.True(optimum >= 500f - 1000f / 32f && optimum <= 500f + 1000f / 32f, $"optimum range {optimum}; live min {live.MinRange} eff {live.EffectiveRange} max {live.Range} online {live.Item.Online.Value} dps@100 {live.RangeDamagePerSecond(100f)} @500 {live.RangeDamagePerSecond(500f)} @900 {live.RangeDamagePerSecond(900f)}");
     }
 
     // Ruling ew-claim-weapon-measure-ruled: no observer reads a target weapon's live state. Two unclaimed guns whose
