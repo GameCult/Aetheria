@@ -314,4 +314,22 @@ public sealed partial class ContactRevealTests
         Assert.Equal(1f, locker.Equipment.SelectMany(i => i.Behaviors).OfType<LockWeapon>().Single().InterceptFactor);
         Assert.Equal(4f, hushed.Equipment.SelectMany(i => i.Behaviors).OfType<LockWeapon>().Single().InterceptFactor);
     }
+
+    // A catalog-style sensor reads its intercept factor through the lot the ship equips it from: the lot's
+    // emission-discipline fill is the input (the workmanship is a decoy at .123), so a Sensor that read only the quiet or only
+    // the loud end, or the workmanship, reads the wrong number. The expectations are lerp(.5, 2, q^log2(3)): a middling part
+    // reads 1, the Lucent mean (.2) reads about .62 and the Finch mean (.8) about 1.55.
+    [Theory]
+    [InlineData(.5f, 1f)]
+    [InlineData(.2f, .6168f)]
+    [InlineData(.8f, 1.5534f)]
+    public void ASensorReadsItsInterceptFactorFromItsLotsEmissionDiscipline(float discipline, float expected)
+    {
+        var lot = _items.CreateLot(_openCache.GetByName<EquippableItemData>("Disciplined"), _maker, .123f);
+        _items.Lots[lot].Roles = new List<RoleFill> { new RoleFill { Role = "emission-discipline", Quality = discipline } };
+        _preparedLots["Disciplined"] = lot;
+        var ship = Add(float3(0, 0, 0), new[] { "Disciplined" });
+
+        Assert.Equal(expected, SensorOf(ship).InterceptFactor, 3);
+    }
 }

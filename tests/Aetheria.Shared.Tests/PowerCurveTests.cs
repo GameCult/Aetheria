@@ -306,7 +306,7 @@ public sealed class PowerCurveTests : IDisposable
 
     // --- F6 (docs/stats-and-power-cut.md, Soul pass 2026-09-19) named PumpedHeat as a Radiator request field
     // --- (PowerRequest's own early-out gate reads it, the exact shape Soul reproduced against the shipped
-    // --- catalog's "OK Disperser": SOUL_RadiatorRequestDependsOnItsOwnGrantAndOscillates) and, at the time,
+    // --- catalog's "Heat Pump": SOUL_RadiatorRequestDependsOnItsOwnGrantAndOscillates) and, at the time,
     // --- refused a PowerSupply term there for exactly that reason. The nominal-request ruling above is what
     // --- actually fixes the oscillation (the request no longer reads the live grant at all), so this shape is
     // --- accepted now -- the six shipped records this ruling exists to make legal again include exactly this

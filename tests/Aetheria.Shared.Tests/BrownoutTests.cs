@@ -24,7 +24,7 @@ using static CultMath.math;
 // (to decide whether the pump can keep up this tick). Cut 7 asks for the brownout curve to live on exactly
 // the stats the behaviour actually curves (PumpedHeat), but F6 forbade a PowerSupply term on any
 // stat a request reads at all, on pain of the exact oscillation Soul measured against the shipped catalog's own
-// "OK Disperser" radiator (SOUL_RadiatorRequestDependsOnItsOwnGrantAndOscillates, docs/stats-and-power-cut.md).
+// "Heat Pump" radiator (SOUL_RadiatorRequestDependsOnItsOwnGrantAndOscillates, docs/stats-and-power-cut.md).
 // The six tests below that authored one were marked Skip rather than deleted or silently reworked to hide the
 // gap, naming the conflict as real, scoped work for a future pass rather than a fix a registry correction should
 // smuggle in.

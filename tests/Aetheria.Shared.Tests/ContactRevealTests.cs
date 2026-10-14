@@ -59,6 +59,24 @@ public sealed partial class ContactRevealTests : IDisposable
             // PingRange (300) over the intercept factor.
             cache.Upsert(Eye("Shout", sensitivity: 2f, interceptFactor: 2f, beamWidth: 10f));
             cache.Upsert(Eye("Roar", sensitivity: 2f, interceptFactor: .5f, beamWidth: 10f));
+            // The catalog's sensor alpha (AetherDb sensor-stat-set): .5 to 2 over one Quality term on the equipped lot's
+            // emission-discipline role, exponent log2(3) so a middling part (.5) reads 1.
+            var disciplined = Eye("Disciplined", sensitivity: 2f);
+            disciplined.Roles.Add(new ItemRole { Name = "emission-discipline" });
+            disciplined.Behaviors.OfType<SensorData>().Single().InterceptFactor = new PerformanceStat
+            {
+                Min = .5f, Max = 2f,
+                Terms = { new StatTerm { Source = StatSource.Quality, Exponent = MathF.Log(3f) / MathF.Log(2f), Role = "emission-discipline" } }
+            };
+            cache.Upsert(disciplined);
+            cache.Upsert(Listener("Listener", 3f));
+            cache.Upsert(new ConsumableItemData { Name = "Earpiece", Duration = 30f, Shape = new Shape(), Behaviors = { new ListenerData { Multiple = Const(3f) } } });
+            cache.Upsert(Listener("Wide", 5f));
+            cache.Upsert(Listener("Narrow", 1.5f));
+            cache.Upsert(Listener("Hush", .5f));
+            cache.Upsert(new ConsumableItemData { Name = "HushEarpiece", Duration = 30f, Shape = new Shape(), Behaviors = { new ListenerData { Multiple = Const(.5f) } } });
+            cache.Upsert(new ConsumableItemData { Name = "WideEarpiece", Duration = 30f, Shape = new Shape(), Behaviors = { new ListenerData { Multiple = Const(5f) } } });
+            cache.Upsert(new ConsumableItemData { Name = "NarrowEarpiece", Duration = 30f, Shape = new Shape(), Behaviors = { new ListenerData { Multiple = Const(1.5f) } } });
             cache.Upsert(Tool("Reactor", new ReactorData { Charge = Const(1000), Efficiency = Const(1), OverloadEfficiency = Const(1), ThrottlingFactor = Const(2) }));
             cache.Upsert(Tool("Targeting", new TargetingSystemData { Accuracy = Const(1), Resolution = Const(1000f), Precision = Const(1000f), Tracking = Const(1000000f) }));
             cache.Upsert(Tool("Thruster", new ThrusterData { Thrust = Const(100), Visibility = Const(10), Heat = Const(0), EnergyUsage = Const(10) }));
@@ -250,8 +268,12 @@ public sealed partial class ContactRevealTests : IDisposable
 
     private EquippableItem Make(string name) => new EquippableItem
     {
-        Data = _items.ItemData.RefOf<ItemData>(_items.ItemData.GetByName<ItemData>(name)), Durability = 10, Lot = _nextLot++
+        Data = _items.ItemData.RefOf<ItemData>(_items.ItemData.GetByName<ItemData>(name)), Durability = 10,
+        Lot = _preparedLots.Remove(name, out var prepared) ? prepared : _nextLot++
     };
+
+    // Lots a test built through the ItemManager for the next mount of that name, ahead of Add (a ship takes no gear once deployed).
+    private readonly Dictionary<string, int> _preparedLots = new Dictionary<string, int>();
 
     // A ship at `position` with `mounts` on its sensor hardpoints in order, the tools on free cells and a thruster
     // on the centre column. A ship with a gun also gets the reactor and targeting a gun needs to fire.

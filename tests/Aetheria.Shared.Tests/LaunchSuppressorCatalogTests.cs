@@ -17,7 +17,7 @@ public sealed class LaunchSuppressorCatalogTests
     internal const string MildName = "Launch Baffle";
     // The observer's sensor, named: the reveal readings below are this design's PassiveInfo, so a catalog that gains an earlier
     // sensor must not change which one the observer fits.
-    private const string SensorName = "not if i see you first";
+    private const string SensorName = "Compact Sensor";
     private const float Flash = 1000f;
     private const float Tick = .25f; // exact in floats: four ticks are one second
 

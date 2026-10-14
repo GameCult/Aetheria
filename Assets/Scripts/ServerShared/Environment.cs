@@ -9,7 +9,7 @@ using float2 = CultMath.float2;
 public class ZoneEnvironment
 {
     [JsonProperty("nebula"), Key(0)] public NebulaSettings Nebula;
-    [JsonProperty("flow"), Key(1)] public FlowSettings Flow;
+    // Key 1 is retired (it held the flow, now PlanetSettings.Flow); never reuse it.
     [JsonProperty("noise"), Key(2)] public NoiseSettings Noise;
     [JsonProperty("lighting"), Key(3)] public AmbientLightingSettings Lighting;
     [JsonProperty("grid"), Key(4)] public GridSettings Grid;

@@ -51,8 +51,10 @@ public static class Program
                 Console.OutputEncoding = new System.Text.UTF8Encoding(false);
                 return PiratesFaction(args.Contains("apply"));
             case "verse-grammar": return VerseGrammarCommand.Run(args.Contains("apply"));
+            case "sensor-stat-set": return SensorStatSet(args.Contains("apply"));
+            case "generic-designs": return GenericDesigns(args.Contains("apply"));
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], smoke-hull [apply], smoke-rounds [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], launch-suppressor [apply], pirates-faction [apply], verse-grammar [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], smoke-hull [apply], smoke-rounds [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], launch-suppressor [apply], pirates-faction [apply], verse-grammar [apply], generic-designs [apply], sensor-stat-set [apply]");
                 return 1;
         }
     }
@@ -208,7 +210,7 @@ public static class Program
     {
         ["Sensitivity"] = "receiver",
         ["PingBoost"] = "emitter", ["PingEnergy"] = "emitter", ["PingRange"] = "emitter",
-        ["PingCooldown"] = "emitter",
+        ["PingCooldown"] = "emitter", ["InterceptFactor"] = "emission-discipline",
     };
 
     private static readonly Dictionary<string, string> ThrusterRoles = new Dictionary<string, string>
@@ -234,10 +236,11 @@ public static class Program
             {
                 ["EnergyDraw"] = "heating element", ["Heat"] = "heating element",
             },
-            ["PotaT+-"] = new Dictionary<string, string>
+            ["Capacitor"] = new Dictionary<string, string>
             {
                 ["Capacity"] = "storage cell", ["Efficiency"] = "converter",
             },
+            ["Passive Array"] = new Dictionary<string, string> { ["Multiple"] = "receiver" },
         };
 
     // One Mean / StandardDeviation per maker, applied to every role of a design the maker sells (catalog-growth
@@ -406,7 +409,7 @@ public static class Program
     private static (float Mean, float Dev, string Basis) AuthorProductRole(AetherDb db, FactionProductData product, string designName, string role)
     {
         var maker = db.Cache.Get(product.Manufacturer)?.Name;
-        if (designName == "Arctica" && maker == "Alakrita" && role == "fins")
+        if (designName == "Adaptive Radiator" && maker == "Alakrita" && role == "fins")
             return (.78f, .07f, "lore: Alakrita brands on heat efficiency (item-provenance-target.md)");
 
         var hash = StableHash($"{product.Name}|{role}");
@@ -1175,10 +1178,10 @@ public static class Program
         var newDesigns = new (GearData Design, string ProductName, Faction Maker, string ProductDescription, (string Role, float Mean, float Dev)[] Roles)[]
         {
             (targetingComputer, "LockOn", FactionByShortName("NiteLife"),
-                "Keeps the lights on your target. (new text)",
+                "Keeps the lights on your target.",
                 new[] { ("processor", .55f, .15f), ("array", .5f, .16f) }),
             (fireControlArray, "LockOn Pro", FactionByShortName("NiteLife"),
-                "Same promise, sharper lock. (new text)",
+                "Same promise, sharper lock.",
                 new[] { ("processor", .72f, .12f), ("array", .68f, .13f) }),
         };
 
@@ -1191,17 +1194,17 @@ public static class Program
         // outside this cut's brief).
         var existingDesigns = new (string DesignName, string ProductName, Faction Maker, string ProductDescription, (string Role, float Mean, float Dev)[] Roles)[]
         {
-            ("plight", "DragOnBreath", FactionByShortName("Lucent"),
-                "The subsidiary plight's own description already namechecks: DragOnBreath, a Lucent Media property.",
+            ("Lightning Projector", "DragOnBreath", FactionByShortName("Lucent"),
+                "Chain lightning has your enemies chain smoking while you enjoy a relaxing DragOnBreath vapepop, now available in 17! flavours (manufactured by DragOnBreath, a subsidary of Lucent Media)",
                 new[] { ("focusing array", .7f, .13f), ("power coupling", .55f, .15f) }),
-            ("pswarm", "Leonid", FactionByShortName("AU"),
+            ("Swarm Rocket Pod", "Leonid", FactionByShortName("AU"),
                 "A rain of pain that falls mainly on space planes.",
                 new[] { ("guidance system", .65f, .14f), ("thruster", .63f, .15f), ("warhead", .7f, .13f) }),
-            ("Core Power", "Steadfast", FactionByShortName("R&D"),
-                "Rated for continuous operation. \"Continuous\" does not imply \"uninterrupted.\" (new text)",
+            ("Compact Reactor", "Steadfast", FactionByShortName("R&D"),
+                "It gets the job done, but that's all. Rated for continuous operation. \"Continuous\" does not imply \"uninterrupted.\"",
                 new[] { ("core", .5f, .12f), ("regulator", .5f, .12f) }),
             ("Large Drive", "True North", FactionByShortName("Lightsail"),
-                "Gets your cargo there. Getting you there is your problem. (new text)",
+                "Gets your cargo there. Getting you there is your problem.",
                 Array.Empty<(string, float, float)>()),
         };
 
@@ -1313,16 +1316,16 @@ public static class Program
         var newProducts = new (GearData Design, string ProductName, Faction Maker, string ProductDescription, (string Role, float Mean, float Dev)[] Roles)[]
         {
             (targetingComputer, "Panopticon", FactionByShortName("Finch"),
-                "Sees everything, judges nothing. Well, mostly nothing. (new text)",
+                "Sees everything, judges nothing. Well, mostly nothing.",
                 new[] { ("processor", .5f, .13f), ("array", .58f, .12f) }),
             (fireControlArray, "Panopticon Prime", FactionByShortName("Finch"),
-                "The upgrade nobody at Finch will admit they needed until they had it. (new text)",
+                "The upgrade nobody at Finch will admit they needed until they had it.",
                 new[] { ("processor", .68f, .11f), ("array", .75f, .10f) }),
             (targetingComputer, "ClapBack", FactionByShortName("Lucent"),
-                "Your target won't clock it until the killcam. (new text)",
+                "Your target won't clock it until the killcam.",
                 new[] { ("processor", .6f, .16f), ("array", .48f, .15f) }),
             (fireControlArray, "ClapBack Ultra", FactionByShortName("Lucent"),
-                "Now with main-character energy built in. (new text)",
+                "Now with main-character energy built in.",
                 new[] { ("processor", .78f, .14f), ("array", .65f, .13f) }),
         };
 
@@ -1528,7 +1531,7 @@ public static class Program
         static void Set(PerformanceStat stat, float min, float max) { stat.Min = min; stat.Max = max; }
         static void Track(WeaponData data, float rate) => data.Tracking = new PerformanceStat { Min = rate, Max = rate, Terms = new List<StatTerm>() };
 
-        var gun = Copy(Template("ClearPath"), designNames[0], "Close-in defence gun: a hose of light rounds.", 40f, 80000, 60f, 1, 1, WeaponModifiers.RapidFire);
+        var gun = Copy(Template("Light Machine Gun"), designNames[0], "Close-in defence gun: a hose of light rounds.", 40f, 80000, 60f, 1, 1, WeaponModifiers.RapidFire);
         var gunData = gun.Behaviors.OfType<InstantWeaponData>().Single();
         Set(gunData.Damage, 1.5f, 4f); Set(gunData.Range, 300f, 550f); Set(gunData.MinRange, 0f, 0f);
         Set(gunData.Cooldown, .06f, .025f); Set(gunData.Count, 1f, 1f); Set(gunData.Spread, 1f, .3f);
@@ -1536,14 +1539,14 @@ public static class Program
         gunData.AmmoType = db.Cache.RefOf(ammunition); gunData.MagazineSize = 250; gunData.ReloadTime = 3f;
         Track(gunData, 40f);
 
-        var laser = Copy(Template("Spectra"), designNames[1], "Close-in defence beam: quick, light, instant.", 30f, 110000, 30f, 1, 1, Template("Spectra").WeaponModifiers);
+        var laser = Copy(Template("Light Laser"), designNames[1], "Close-in defence beam: quick, light, instant.", 30f, 110000, 30f, 1, 1, Template("Light Laser").WeaponModifiers);
         var laserData = laser.Behaviors.OfType<InstantWeaponData>().Single();
         Set(laserData.Damage, 5f, 12f); Set(laserData.Range, 400f, 750f); Set(laserData.MinRange, 0f, 0f);
         Set(laserData.Cooldown, .2f, .1f); Set(laserData.Count, 1f, 1f); Set(laserData.Spread, .05f, 0f);
         Set(laserData.Velocity, 0f, 0f); Set(laserData.Energy, 6f, 10f); Set(laserData.Heat, 300f, 150f); Set(laserData.Visibility, 300f, 100f);
         Track(laserData, 40f);
 
-        var flak = Copy(Template("DeathCluster"), designNames[2], "Small flak gun: a short-range pellet volley.", 120f, 180000, 80f, 1, 2, WeaponModifiers.Cluster);
+        var flak = Copy(Template("Cluster Cannon"), designNames[2], "Small flak gun: a short-range pellet volley.", 120f, 180000, 80f, 1, 2, WeaponModifiers.Cluster);
         var flakData = flak.Behaviors.OfType<InstantWeaponData>().Single();
         Set(flakData.Damage, 30f, 70f); Set(flakData.Count, 6f, 8f); Set(flakData.Range, 350f, 800f); Set(flakData.MinRange, 0f, 0f);
         Set(flakData.Cooldown, .6f, .35f); Set(flakData.Spread, 4f, 2f); Set(flakData.Velocity, 900f, 1300f);
@@ -1610,6 +1613,172 @@ public static class Program
             }
         });
         Console.WriteLine($"\nAuthored 3 designs and {products.Length} products in Aetheria.cc");
+        return 0;
+    }
+
+    private const string EmissionDiscipline = "emission-discipline";
+
+    // The intercept factor alpha is how far others hear a sensor against how far it sees: a quality-ranged stat from
+    // .5 (loud) to 2 (quiet) whose midpoint quality .5 reads 1, so lerp(Min, Max, q^e) with e = log2(3). Brand flavour
+    // lives in the product's emission-discipline quality (ruling sensor-stat-set): Lucent is low, Finch and Sol high,
+    // every other maker middling. A maker with no profile of its own (Miss Terri's, the Pirates) keeps the deviation its
+    // product already authored for the emitter role.
+    private static float DisciplineMean(Faction maker) =>
+        maker.ShortName == "Lucent" ? .2f : maker.ShortName == "Finch" || maker.ShortName == "Sol" || maker.Name == "Sol" ? .8f : .5f;
+
+    private static float MakerDeviation(Faction maker, FactionProductData product) =>
+        MakerProfiles.TryGetValue(maker.ShortName ?? "", out var profile) ? profile.Dev
+        : product.Roles.FirstOrDefault(r => r.Role == "emitter")?.StandardDeviation ?? throw new InvalidOperationException($"Product \"{product.Name}\" has no emitter spread to take a deviation from.");
+
+    // aetheria-release cut sensor-catalog (rulings sensor-stat-set, catalog-grows-generic-designs-branded-products): every
+    // SensorData design's InterceptFactor becomes a quality-ranged stat reading the emission-discipline role, every
+    // product of such a design authors that role, and the Passive Array (a generic listener gear, ListenerData) is
+    // authored with two products from the stealth makers. Prints the sensor census first. Dry run unless passed
+    // "apply"; idempotent, so a second apply writes nothing and a catalog another cut changed is rerun, never merged.
+    private static int SensorStatSet(bool apply)
+    {
+        var db = AetherDb.Open(catalogWritable: apply);
+        var designs = db.Cache.GetAll<EquippableItemData>().ToArray();
+        var products = db.Cache.GetAll<FactionProductData>().ToArray();
+        Faction MakerOf(FactionProductData p) => db.Cache.Get(p.Manufacturer);
+        Faction Maker(string shortName) =>
+            db.Cache.GetAll<Faction>().FirstOrDefault(f => f.ShortName == shortName) ?? throw new InvalidOperationException($"No faction with short name \"{shortName}\".");
+
+        var sensors = designs.Where(d => d.Behaviors != null && d.Behaviors.OfType<SensorData>().Any()).OrderBy(d => d.Name, StringComparer.Ordinal).ToArray();
+        var listeners = designs.Where(d => d.Behaviors != null && d.Behaviors.OfType<ListenerData>().Any()).OrderBy(d => d.Name, StringComparer.Ordinal).ToArray();
+        Console.WriteLine($"Census: {sensors.Length} sensor designs, {listeners.Length} listener designs.");
+        foreach (var design in sensors.Concat(listeners))
+        {
+            var key = db.Cache.RefOf(design).Key;
+            Console.WriteLine($"  {design.Name} [{design.HardpointType}] roles [{string.Join(", ", (design.Roles ?? new List<ItemRole>()).Select(r => r.Name))}]");
+            foreach (var product in products.Where(p => p.Design.Key.Equals(key)).OrderBy(p => p.Name, StringComparer.Ordinal))
+                Console.WriteLine($"      {product.Name} by {MakerOf(product)?.ShortName ?? "(none)"}: " + string.Join(", ", (product.Roles ?? new List<ProductRole>()).Select(r => $"{r.Role} {r.Mean:0.00}±{r.StandardDeviation:0.00}")));
+        }
+        foreach (var consumable in db.Cache.GetAll<ConsumableItemData>().Where(c => c.Behaviors != null && c.Behaviors.OfType<SensorData>().Any()).OrderBy(c => c.Name, StringComparer.Ordinal))
+            Console.WriteLine($"  consumable {consumable.Name} carries SensorData; consumables are not catalog sensor designs and keep their alpha");
+
+        var changedDesigns = new List<(object Document, CultRecordKey Key)>();
+        var changedProducts = new List<(object Document, CultRecordKey Key)>();
+        var exponent = MathF.Log2(3f);
+        foreach (var design in sensors)
+        {
+            var key = db.Cache.RefOf(design).Key;
+            var designChanged = false;
+            foreach (var sensor in design.Behaviors.OfType<SensorData>())
+            {
+                var stat = sensor.InterceptFactor;
+                var current = stat != null && stat.Min == .5f && stat.Max == 2f && stat.Terms != null && stat.Terms.Count == 1
+                    && stat.Terms[0].Source == StatSource.Quality && stat.Terms[0].Role == EmissionDiscipline && stat.Terms[0].Exponent == exponent;
+                if (current) continue;
+                sensor.InterceptFactor = new PerformanceStat { Min = .5f, Max = 2f, Terms = new List<StatTerm> { new StatTerm { Source = StatSource.Quality, Exponent = exponent, Role = EmissionDiscipline } } };
+                designChanged = true;
+            }
+            design.Roles ??= new List<ItemRole>();
+            if (!design.Roles.Any(r => r.Name == EmissionDiscipline)) { design.Roles.Add(new ItemRole { Name = EmissionDiscipline }); designChanged = true; }
+            if (designChanged) changedDesigns.Add((design, key));
+            foreach (var product in products.Where(p => p.Design.Key.Equals(key)))
+            {
+                var maker = MakerOf(product) ?? throw new InvalidOperationException($"Product \"{product.Name}\" has no maker.");
+                product.Roles ??= new List<ProductRole>();
+                var mean = DisciplineMean(maker);
+                var dev = MakerDeviation(maker, product);
+                var existing = product.Roles.FirstOrDefault(r => r.Role == EmissionDiscipline);
+                if (existing != null && existing.Mean == mean && existing.StandardDeviation == dev) continue;
+                if (existing != null) { existing.Mean = mean; existing.StandardDeviation = dev; }
+                else product.Roles.Add(new ProductRole { Role = EmissionDiscipline, Mean = mean, StandardDeviation = dev });
+                changedProducts.Add((product, db.Cache.RefOf(product).Key));
+            }
+        }
+
+        // The catalog sells two sensor designs, one branded by DME and one by Miss Terri's, and no Lucent or Finch sensor at all,
+        // so the brand flavour has nothing to vary across: each design gains a loud Lucent and a quiet Finch product
+        // (ruling catalog-grows-generic-designs-branded-products). Every role of the design is authored at the maker's profile,
+        // emission-discipline at the maker's flavour.
+        var sensorProducts = new (string Design, string Name, string Maker, string Description)[]
+        {
+            ("Sensor Array", "Floodlight", "Lucent", "Sees everything and tells everything. Lucent never saw the point of subtle."),
+            ("Sensor Array", "Pinion", "Finch", "A listening ear with a whisper of a voice. Finch sensors are heard last and heard least."),
+            ("Compact Sensor", "Beacon", "Lucent", "If it can see you, you can see it. That is called fairness."),
+            ("Compact Sensor", "Kestrel", "Finch", "Hangs in the dark and looks down. The prey rarely notices."),
+        };
+        var newProducts = new List<(EquippableItemData Design, string Name, Faction Maker, string Description)>();
+        foreach (var (designName, name, makerName, description) in sensorProducts)
+        {
+            if (products.Any(p => p.Name == name)) continue;
+            var design = sensors.Single(s => s.Name == designName);
+            newProducts.Add((design, name, Maker(makerName), description));
+        }
+
+        // The Passive Array takes its thermal envelope and sound from a sensor gear, then becomes a Tool listener.
+        GearData array = null;
+        var arrayProducts = new List<(string Name, string Maker, string Description)>();
+        if (listeners.Length == 0)
+        {
+            var template = sensors.OfType<GearData>().FirstOrDefault() ?? throw new InvalidOperationException("No sensor gear to take the Passive Array's thermal envelope from.");
+            var options = CultDocumentMessagePackSerialization.OptionsFor(typeof(GearData).Assembly);
+            array = MessagePackSerializer.Deserialize<GearData>(MessagePackSerializer.Serialize(template, options), options);
+            array.Name = "Passive Array";
+            array.Description = "Passive listening gear. Hears every emitter at a multiple of its own reach, giving a bearing only and no track. Emits nothing.";
+            array.Hardpoint = HardpointType.Tool;
+            array.Mass = 20f; array.Price = 60000; array.Durability = 30f;
+            array.Shape = new Shape(1, 1);
+            array.Shape.Cells[0, 0] = true;
+            array.Behaviors = new List<BehaviorData>
+            {
+                new EnergyDrawData { EnergyDraw = new PerformanceStat { Min = 10f, Max = 10f, Terms = new List<StatTerm>() }, PerSecond = true },
+                new ListenerData { Multiple = new PerformanceStat { Min = 2f, Max = 3f, Terms = new List<StatTerm> { new StatTerm { Source = StatSource.Quality, Exponent = 1f, Role = "receiver" } } } },
+            };
+            array.Roles = new List<ItemRole> { new ItemRole { Name = "receiver" } };
+            arrayProducts.Add(("Murmur", "Finch", "Quiet as its name, and about as easy to notice. Hears a shout from the next sector over."));
+            arrayProducts.Add(("Wallflower", "NiteLife", "Stands in the corner of your hull and takes notes on everyone's business."));
+            foreach (var (name, maker, description) in arrayProducts) Maker(maker);
+            Console.WriteLine($"\nNew design: Passive Array [Tool] 1x1, EnergyDraw 10/s, Multiple 2-3 reading receiver; products {string.Join(", ", arrayProducts.Select(p => $"{p.Name} by {p.Maker}"))}");
+        }
+
+        Console.WriteLine($"\nIntercept factor: {changedDesigns.Count} designs and {changedProducts.Count} products to change, {newProducts.Count} sensor products to add; Passive Array {(array == null ? "already authored" : "to author")}.");
+        if (changedDesigns.Count == 0 && changedProducts.Count == 0 && newProducts.Count == 0 && array == null)
+        {
+            Console.WriteLine("Sensor stats are already authored; nothing to do.");
+            return 0;
+        }
+        if (!apply)
+        {
+            Console.WriteLine("Dry run. Pass \"apply\" to write them.");
+            return 0;
+        }
+        if (array != null) CultRecordRefs.Validate(array);
+        db.Cache.Commit(batch =>
+        {
+            foreach (var (document, key) in changedDesigns) batch.Upsert(document.GetType(), document, key);
+            foreach (var (document, key) in changedProducts) batch.Upsert(document.GetType(), document, key);
+            foreach (var (design, name, maker, description) in newProducts)
+            {
+                var (profileMean, profileDev) = MakerProfiles[maker.ShortName];
+                batch.Upsert(typeof(FactionProductData), new FactionProductData
+                {
+                    Name = name, Description = description,
+                    Design = new CultRecordRef<CraftedItemData>(db.Cache.RefOf(design).Key),
+                    Manufacturer = db.Cache.RefOf(maker),
+                    Roles = design.Roles.Select(r => r.Name == EmissionDiscipline
+                        ? new ProductRole { Role = r.Name, Mean = DisciplineMean(maker), StandardDeviation = profileDev }
+                        : new ProductRole { Role = r.Name, Mean = profileMean, StandardDeviation = profileDev }).ToList(),
+                });
+            }
+            if (array == null) return;
+            var arrayKey = batch.Upsert(typeof(GearData), array);
+            foreach (var (name, maker, description) in arrayProducts)
+            {
+                var (mean, dev) = MakerProfiles[maker];
+                batch.Upsert(typeof(FactionProductData), new FactionProductData
+                {
+                    Name = name, Description = description,
+                    Design = new CultRecordRef<CraftedItemData>(arrayKey),
+                    Manufacturer = db.Cache.RefOf(Maker(maker)),
+                    Roles = array.Roles.Select(r => new ProductRole { Role = r.Name, Mean = mean, StandardDeviation = dev }).ToList(),
+                });
+            }
+        });
+        Console.WriteLine($"Landed {changedDesigns.Count} designs, {changedProducts.Count} products changed and {newProducts.Count} added{(array == null ? "" : ", the Passive Array and its products")} in Aetheria.cc");
         return 0;
     }
 
@@ -1714,11 +1883,11 @@ public static class Program
         }
         static PerformanceStat Fixed(float value) => new PerformanceStat { Min = value, Max = value, Terms = new List<StatTerm>() };
 
-        var proximity = Copy("Spectra", names[0], "A Spectra that bursts by proximity, blast 8. For scenarios; no one builds it.", WeaponFuse.Proximity, 8f);
-        var delayed = Copy("Spectra", names[1], "A Spectra that bursts after two cells of metal, blast 4. For scenarios; no one builds it.", WeaponFuse.Delayed, 4f);
-        var refused = Copy("Spectra", names[2], "A Spectra whose blast is wider than its reach, so it never fires. For scenarios; no one builds it.", WeaponFuse.Proximity, 30f);
-        var charge = Copy("ChargeBlast SG", names[4], "A ChargeBlast SG whose blast is wider than its reach, so it never charges. For scenarios; no one builds it.", WeaponFuse.Proximity, 30f);
-        var beam = Copy("Spectra", names[3], "A constant beam whose blast is wider than its reach, so it never starts. For scenarios; no one builds it.", WeaponFuse.Proximity, 30f);
+        var proximity = Copy("Light Laser", names[0], "A Light Laser that bursts by proximity, blast 8. For scenarios; no one builds it.", WeaponFuse.Proximity, 8f);
+        var delayed = Copy("Light Laser", names[1], "A Light Laser that bursts after two cells of metal, blast 4. For scenarios; no one builds it.", WeaponFuse.Delayed, 4f);
+        var refused = Copy("Light Laser", names[2], "A Light Laser whose blast is wider than its reach, so it never fires. For scenarios; no one builds it.", WeaponFuse.Proximity, 30f);
+        var charge = Copy("Charged Scatter Blaster", names[4], "A Charged Scatter Blaster whose blast is wider than its reach, so it never charges. For scenarios; no one builds it.", WeaponFuse.Proximity, 30f);
+        var beam = Copy("Light Laser", names[3], "A constant beam whose blast is wider than its reach, so it never starts. For scenarios; no one builds it.", WeaponFuse.Proximity, 30f);
 
         // The Smoke Test Hull carries one 2x2 reactor. A Spectra's 20-40 energy a shot at its cadence is more than that reactor makes,
         // so two of them overload it, it overheats and shuts down within a second, and nothing aboard fires again (Fused Rounds,
@@ -1888,8 +2057,8 @@ public static class Program
     // no non-flat stat reads; DeathCluster, Flak Gun, GT 3K, plight and the two MoveOnPros because each had a non-flat stat
     // whose Quality term named no role (CB-R1: each non-flat stat reads exactly one declared role). Idempotent: a design with
     // no flat mapped stat and no unnamed one is left alone, a product with a role is left alone. Dry run unless passed "apply".
-    private static readonly string[] BackfillDesigns = { "Autocannon", "LRMM72", "SRMM72", "Mine Launcher", "Large Drive", "Small Drive",
-        "DeathCluster", "Flak Gun", "GT 3K", "plight", "MoveOnPro", "MoveOnPro Station Reactor" };
+    private static readonly string[] BackfillDesigns = { "Autocannon", "Long-Range Missile Rack", "Short-Range Missile Rack", "Mine Launcher", "Large Drive", "Small Drive",
+        "Cluster Cannon", "Flak Gun", "Guided Missile Launcher", "Lightning Projector", "Muon Fusion Reactor", "Muon Fusion Station Reactor" };
 
     // Stats the backfill names but never ranges: a shot count is whole, and which way a launcher's MinRange should fall is
     // each design's own call (GT 3K authors it as a cost already).
@@ -2053,13 +2222,13 @@ public static class Program
         var rebrands = new (string Design, string Name, string Description)[]
         {
             ("Autocannon", "\U0001FAF3\U0001F52B", "Serial number filed off. Still shoots."),
-            ("Earp", "\U0001FAA6\U0001F920", "The previous owner had no further use for it."),
-            ("FastBlast+-", "\U0001F9FE\U0001F6AB", "Warranty void where prohibited, which is everywhere."),
-            ("6k Shooter", "\U0001F3A8\U0001F648", "The logo underneath is somebody else's problem."),
-            ("scorched void policy", "\U0001F525", "Turns out we did start the fire after all."),
+            ("Long Slug Rifle", "\U0001FAA6\U0001F920", "The previous owner had no further use for it."),
+            ("Cell Blaster", "\U0001F9FE\U0001F6AB", "Warranty void where prohibited, which is everywhere."),
+            ("Slug Rifle", "\U0001F3A8\U0001F648", "The logo underneath is somebody else's problem."),
+            ("Incendiary Rocket Pod", "\U0001F525", "Turns out we did start the fire after all."),
             ("Targeting Computer", "\U0001F440\U0001F3AF", "Somebody else's eyes. They still work."),
             ("Small Drive", "\U0001F511\U0001F3C3\U0001F4A8", "Hotwired. Do not ask about the ignition."),
-            ("Store-All Plus", "\U0001F4E6\U0001F92B", "Contents not as declared."),
+            ("Cargo Bay", "\U0001F4E6\U0001F92B", "Contents not as declared."),
         };
 
         var products = rebrands.Select(r =>
@@ -2245,6 +2414,238 @@ public static class Program
             }
         });
         Console.WriteLine($"\nAuthored 2 designs and {products.Length} products in Aetheria.cc");
+        return 0;
+    }
+
+    // generic-designs: the rename, brand and product-text tables (map: "Generic design names", "Content: brands, flavour and
+    // functional text"). Public so the command test reads the same rows the command writes.
+    public const string AuthoringNote = " (new text)";
+
+    public static readonly (string Old, string Generic, string Functional)[] Renames =
+    {
+        ("ClearPath", "Light Machine Gun", "Light ballistic hose: many small rounds at short range."),
+        ("6k Shooter", "Slug Rifle", "Single heavy slugs, fired as fast as the trigger."),
+        ("Earp", "Long Slug Rifle", "A lighter slug rifle with the longest ballistic reach."),
+        ("DeathCluster", "Cluster Cannon", "Medium shotgun: a heavy volley of pellets."),
+        ("pretty pretty bang bang", "Charged Scattergun", "Ballistic shotgun that charges for a heavier volley."),
+        ("Spectra", "Light Laser", "The lightest beam: low damage, quick cycle, long reach."),
+        ("FastBlast+-", "Cell Blaster", "Rapid energy bursts fed by cells that cut its reactor draw."),
+        ("ColdFire", "Long Laser", "Heavy small beam: slow, hard-hitting, long reach."),
+        ("CShot RainbowLite Lazer", "Heavy Beam Laser", "The heaviest beam: nine cells, enormous damage and reach."),
+        ("ChargeBlast+-", "Charged Blaster", "One charged knockout shot."),
+        ("ChargeBlast SG", "Charged Scatter Blaster", "Charged energy shotgun."),
+        ("plight", "Lightning Projector", "Charged chain lightning."),
+        ("GT 3K", "Guided Missile Launcher", "Fires guided missiles."),
+        ("LRMM72", "Long-Range Missile Rack", "Large missile rack for long engagements."),
+        ("SRMM72", "Short-Range Missile Rack", "Extra-large rack of short-range missiles."),
+        ("pswarm", "Swarm Rocket Pod", "Dumbfire rockets in a swarm."),
+        ("scorched void policy", "Incendiary Rocket Pod", "Incendiary dumbfire rockets."),
+        ("Arctica", "Adaptive Radiator", "Radiator whose output scales widely with conditions."),
+        ("Iapyx", "Radiator", "Standard two-cell radiator."),
+        ("Skiron", "Long Radiator", "Four-cell radiator with a large surface."),
+        ("OK Disperser", "Heat Pump", "Moves heat to where it can be shed."),
+        ("cold like my heart", "Cryogenic Heat Pump", "Heavy heat pump that drives temperatures far down."),
+        ("Core Power", "Compact Reactor", "Small reactor."),
+        ("Manhattan", "Heavy Reactor", "Large three-by-three reactor."),
+        ("Notorious", "High-Yield Reactor", "Large reactor with a wide output range."),
+        ("Vulcan", "Ring Reactor", "Ring-shaped reactor, four by four."),
+        ("MoveOnPro", "Muon Fusion Reactor", "Compact fusion reactor that draws a reservoir."),
+        ("Core Power Station Reactor", "Station Reactor", "A reactor sized for a station's core."),
+        ("Manhattan Station Reactor", "Heavy Station Reactor", "A heavy reactor sized for a station's core."),
+        ("Notorious Station Reactor", "High-Yield Station Reactor", "A high-yield reactor sized for a station's core."),
+        ("Vulcan Station Reactor", "Ring Station Reactor", "A ring reactor sized for a station's core."),
+        ("MoveOnPro Station Reactor", "Muon Fusion Station Reactor", "A muon fusion reactor sized for a station's core."),
+        ("RevvITup 2.0", "High-Thrust Drive", "Large drive: huge thrust, little torque."),
+        ("deep space burnout", "Burn Drive", "Large drive that runs very hot."),
+        ("Talaria", "Rugged Drive", "Two-cell working drive."),
+        ("Victoire", "Racing Drive", "Feather-light two-cell drive with extreme response."),
+        ("The Bat", "Sensor Array", "Two-by-two long-range sensor array."),
+        ("not if i see you first", "Compact Sensor", "One-cell sensor."),
+        ("PotaT+-", "Capacitor", "Stores charge for burst draw."),
+        ("SafeStuff II", "Secure Cargo Bay", "Three-by-three secured hold."),
+        ("Store-All Enterprise Edition", "Large Cargo Bay", "Six-by-six hold."),
+        ("Store-All Plus", "Cargo Bay", "Two-by-two hold."),
+        ("Store-All Plus Mini", "Small Cargo Bay", "One-cell hold."),
+    };
+
+    public static readonly (string Design, string Maker, string OldProduct, string Brand, string Text, string DesignText)[] Brands =
+    {
+        ("Autocannon", "Zhestokost", "Autocannon", "Hammerfall",
+            "The rounds fall steadily, and they do not stop until the work is done.",
+            "Belt-fed cannon: a steady stream of rounds at long reach."),
+        ("Cockpit 2x2", "Lightsail", "Cockpit 2x2", "Wheelhouse",
+            "Every Lightsail captain's favourite chair. The view comes standard.",
+            "Two-by-two crew cockpit."),
+        ("Industrial Thermostatic Heater", "Lightsail", "Industrial Thermostatic Heater", "Hearth",
+            "A warm hold, a warm crew, and a warm welcome at the cold end of the run.",
+            "Turns reactor power into heat to keep the hull warm."),
+        ("Medium Drive", "Lightsail", "Medium Drive", "Steady Haul",
+            "Keeps you going and going and going...",
+            "Mid-sized working drive."),
+        ("Small Drive", "Lightsail", "Small Drive", "Short Hop",
+            "Dock to dock, and not a metre further than the manifest says.",
+            "Small working drive."),
+        ("Turret Control Module", "AU", "Turret Control Module", "Watchtower",
+            "Point it at the dark and get back to work. It keeps watch.",
+            "Control module for a station turret."),
+        ("Medium Docking Bay", "AU", "Medium Docking Bay", "Open Berth",
+            "Room for a friend, a customer or a tug. We don't ask which.",
+            "Docking bay for mid-sized ships."),
+        ("Mine Launcher", "DME", "Mine Launcher", "parting gift",
+            "we were never here/ but we left you something/ it's waiting where we were",
+            "Lays a drifting proximity mine that arms after two seconds."),
+    };
+
+    public static readonly (string Product, string Maker, string Text)[] ProductTexts =
+    {
+        ("Victoire", "Alakrita",
+            "The most responsive thruster on the market, for the most irresponsible of racing pilots."),
+        ("DragOnBreath", "Lucent",
+            "Chain lightning has your enemies chain smoking while you enjoy a relaxing DragOnBreath vapepop, now available in 17! flavours (manufactured by DragOnBreath, a subsidary of Lucent Media)"),
+        ("Steadfast", "R&D",
+            "It gets the job done, but that's all. Rated for continuous operation. \"Continuous\" does not imply \"uninterrupted.\""),
+        ("Steadfast Station", "R&D",
+            "Rated for continuous operation at station scale. The fine print scales too."),
+        ("Manhattan Station", "Zhestokost",
+            "A fortress needs a furnace. This is the furnace."),
+        ("Notorious Station", "Lucent",
+            "The biggest reaction in the system, and everyone docked here will hear about it."),
+        ("Vulcan Station", "AU",
+            "Keeps the lights on and the forges hot."),
+        ("MoveOnPro Station", "NiteLife",
+            "The club never closes. Neither does the reactor."),
+        ("LRMM72", "R&D",
+            "Engages targets at up to seventy-two kilometres!* *In a vacuum, against a cooperative target."),
+        ("SRMM72", "DME",
+            "seventy-two reasons/ to keep your distance/ all of them leaving at once"),
+        ("Iapyx", "AU",
+            "Two cells of honest fin. Bolt it on and forget it's there."),
+        ("Skiron", "AU",
+            "When the job runs hot, run a bigger fin."),
+        ("Talaria", "AU",
+            "Takes a knock, keeps pushing. Built for crews who work for a living."),
+        ("RevvITup 2.0", "NiteLife",
+            "Floor it. The bass drops when you do."),
+        ("PotaT+-", "NiteLife",
+            "Holds the charge until the drop, then lets it all go at once."),
+        ("not if i see you first", "DME",
+            "eyes in the dark/ you were seen before you looked/ say goodnight"),
+        ("Space Tractor", "Ewan Hart",
+            "It's a tractor. In space. Trap your enemies in gravity wells. Haul thousands of tons of hay through space!"),
+    };
+
+    // Designs whose text was flavour or named a brand, rewritten as tech-node text without a rename (ruling designs-are-tech-nodes).
+    // The Large Drive's old line ships as Steady Haul's text; the Tractor Beam's moves to its product, Space Tractor (ProductTexts).
+    public static readonly (string Design, string Text)[] DesignTexts =
+    {
+        ("Large Drive", "Large working drive."),
+        ("Tractor Beam", "Holds a target in a gravity well and hauls it in."),
+        ("Smoke Proximity", "A Light Laser that bursts by proximity, blast 8. For scenarios; no one builds it."),
+        ("Smoke Delayed", "A Light Laser that bursts after two cells of metal, blast 4. For scenarios; no one builds it."),
+        ("Smoke Refused", "A Light Laser whose blast is wider than its reach, so it never fires. For scenarios; no one builds it."),
+        ("Smoke Refused Charge", "A Charged Scatter Blaster whose blast is wider than its reach, so it never charges. For scenarios; no one builds it."),
+    };
+
+    // generic-designs: a design is named and described like a node on a tech tree, and the brand lives in the product it
+    // sells (rulings catalog-grows-generic-designs-branded-products, kitchen-sink-content, designs-are-tech-nodes). A
+    // Renames row renames the design found under its old name and gives it the functional text; a Brands row renames the
+    // maker's same-named product and sets its text and the design's functional text; ProductTexts sets the rest; every
+    // shipped product text ending in the authoring note loses it. Dry run unless passed "apply".
+    public static int GenericDesigns(bool apply, string root = null)
+    {
+        var db = AetherDb.Open(catalogWritable: apply, root: root);
+        var designs = db.Cache.GetAll<EquippableItemData>().ToArray();
+        var products = db.Cache.GetAll<FactionProductData>().ToArray();
+        string MakerOf(FactionProductData product) => db.Cache.Get(product.Manufacturer)?.ShortName;
+        var changed = new List<(object Document, CultRecordKey Key)>();
+        var report = new List<string>();
+
+        void Write(object document, string what, string before, string after)
+        {
+            if (!changed.Any(c => ReferenceEquals(c.Document, document))) changed.Add((document, db.Cache.RefOf(document).Key));
+            report.Add($"{what}: \"{before}\" -> \"{after}\"");
+        }
+
+        foreach (var (old, generic, functional) in Renames)
+        {
+            var found = designs.Where(d => d.Name == old).ToArray();
+            var held = designs.Where(d => d.Name == generic).ToArray();
+            if (found.Length == 0 && held.Length == 0) throw new InvalidOperationException($"Rename row \"{old}\" -> \"{generic}\": no design carries either name.");
+            if (found.Length == 0) continue;
+            if (held.Length != 0) throw new InvalidOperationException($"Rename row \"{old}\" -> \"{generic}\": the generic name is already held by another design.");
+            if (found.Length != 1) throw new InvalidOperationException($"Rename row \"{old}\" -> \"{generic}\": {found.Length} designs carry the old name.");
+            var design = found[0];
+            Write(design, "design name", design.Name, generic);
+            design.Name = generic;
+            if (design.Description != functional) Write(design, $"design \"{generic}\" text", design.Description, functional);
+            design.Description = functional;
+        }
+
+        foreach (var (designName, maker, oldProduct, brand, text, designText) in Brands)
+        {
+            var found = designs.Where(d => d.Name == designName).ToArray();
+            if (found.Length != 1) throw new InvalidOperationException($"Brand row \"{brand}\": {found.Length} designs are named \"{designName}\".");
+            var design = found[0];
+            var key = db.Cache.RefOf(design).Key;
+            var sold = products.Where(p => p.Design.Key.Equals(key) && MakerOf(p) == maker).ToArray();
+            var product = sold.FirstOrDefault(p => p.Name == brand) ?? sold.FirstOrDefault(p => p.Name == oldProduct);
+            if (product == null) throw new InvalidOperationException($"Brand row \"{brand}\": {maker} sells no product of \"{designName}\" under either name.");
+            if (product.Name == brand) continue;
+            if (products.Any(p => !ReferenceEquals(p, product) && p.Name == brand)) throw new InvalidOperationException($"Brand row \"{brand}\": the brand is already held by another product.");
+            Write(product, $"product of \"{designName}\" by {maker}", product.Name, brand);
+            product.Name = brand;
+            Write(product, $"product \"{brand}\" text", product.Description, text);
+            product.Description = text;
+            if (design.Description != designText) Write(design, $"design \"{designName}\" text", design.Description, designText);
+            design.Description = designText;
+        }
+
+        foreach (var (designName, text) in DesignTexts)
+        {
+            var found = designs.Where(d => d.Name == designName).ToArray();
+            if (found.Length != 1) throw new InvalidOperationException($"Design text row \"{designName}\": {found.Length} designs carry the name.");
+            if (found[0].Description == text) continue;
+            Write(found[0], $"design \"{designName}\" text", found[0].Description, text);
+            found[0].Description = text;
+        }
+
+        foreach (var (name, maker, text) in ProductTexts)
+        {
+            var found = products.Where(p => p.Name == name && MakerOf(p) == maker).ToArray();
+            if (found.Length != 1) throw new InvalidOperationException($"Product text row \"{name}\" by {maker}: {found.Length} products match.");
+            if (found[0].Description == text) continue;
+            Write(found[0], $"product \"{name}\" text", found[0].Description, text);
+            found[0].Description = text;
+        }
+
+        foreach (var product in products.Where(p => p.Description != null && p.Description.EndsWith(AuthoringNote, StringComparison.Ordinal)))
+        {
+            var stripped = product.Description.Substring(0, product.Description.Length - AuthoringNote.Length);
+            Write(product, $"product \"{product.Name}\" authoring note stripped", product.Description, stripped);
+            product.Description = stripped;
+        }
+
+        if (changed.Count == 0)
+        {
+            Console.WriteLine("Already applied; nothing to do.");
+            return 0;
+        }
+        foreach (var line in report) Console.WriteLine(line);
+        if (!apply)
+        {
+            Console.WriteLine($"\nDry run. Pass \"apply\" to write {changed.Count} records.");
+            return 0;
+        }
+        foreach (var (document, _) in changed) CultRecordRefs.Validate(document);
+        // ExpectUnchanged lands the batch onto the file as it is: every record the command did not author keeps the bytes it has,
+        // where a plain commit would re-encode the whole catalog through today's types.
+        if (!db.Cache.Commit(batch =>
+        {
+            batch.ExpectUnchanged();
+            foreach (var (document, key) in changed) batch.Upsert(document.GetType(), document, key);
+        }))
+            throw new InvalidOperationException("The catalog changed while the generic designs were being authored; nothing was written. Run it again.");
+        Console.WriteLine($"\nWrote {changed.Count} records to Aetheria.cc");
         return 0;
     }
 

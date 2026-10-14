@@ -298,7 +298,7 @@ public sealed class RestoredHullsTests
             Assert.True(ship.TryEquip(gearItem, hardpoint.Position));
         }
 
-        // A reactor: Victoire (one of Cut 1's own restored thrusters, docs/locomotion-cut.md's own note on it)
+        // A reactor: Racing Drive (one of Cut 1's own restored thrusters, docs/locomotion-cut.md's own note on it)
         // carries a real EnergyUsage draw unlike its four siblings, so an unpowered ship reads as though only
         // some fitting thrusters produce thrust -- an artifact of which design TryEquip's own hardpoint search
         // happens to land on, not of the restored content. Every hull here also has a Reactor hardpoint; a real
@@ -952,7 +952,7 @@ public sealed class RestoredHullsTests
 
         // Every restored thruster's particle effect is Thruster 1.prefab, by the legacy record (soul-dump.txt).
         var thruster1Guid = GuidOf("Assets/Content/Prefabs/Thrusters/Thruster 1.prefab");
-        var restoredThrusterNames = new[] { "deep space burnout", "Large Drive", "Victoire", "Small Drive", "Talaria", "RevvITup 2.0", "Medium Drive" };
+        var restoredThrusterNames = new[] { "Burn Drive", "Large Drive", "Racing Drive", "Small Drive", "Rugged Drive", "High-Thrust Drive", "Medium Drive" };
         foreach (var name in restoredThrusterNames)
         {
             var design = cache.GetAll<GearData>().First(g => g.Name == name);

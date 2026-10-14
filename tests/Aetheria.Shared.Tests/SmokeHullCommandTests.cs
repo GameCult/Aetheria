@@ -37,7 +37,7 @@ public sealed class SmokeHullCommandTests : IDisposable
             var hulls = db.Cache.GetAll<HullData>().Where(h => h.Name == HullName).ToArray();
             var keys = hulls.Select(h => db.Cache.RefOf(h).Key).ToArray();
             var products = db.Cache.GetAll<FactionProductData>().Count(p => keys.Any(k => p.Design.Key.Equals(k)));
-            var fitted = new[] { "ChargeBlast SG", "Autocannon" }
+            var fitted = new[] { "Charged Scatter Blaster", "Autocannon" }
                 .Select(name => db.Cache.GetAll<EquippableItemData>().Single(d => d.Name == name)).ToArray();
             return (hulls, db.Cache.GetAll<HullData>().Single(h => h.Name == "Longinus"), fitted, products);
         }
