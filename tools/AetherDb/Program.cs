@@ -1100,8 +1100,7 @@ public static class Program
             changed.Add((item, key));
         }
 
-        Console.WriteLine($"
-{changed.Count} weapon records");
+        Console.WriteLine($"\n{changed.Count} weapon records");
         if (!apply)
         {
             Console.WriteLine($"Dry run. Pass \"apply\" to land {changed.Count} records.");
