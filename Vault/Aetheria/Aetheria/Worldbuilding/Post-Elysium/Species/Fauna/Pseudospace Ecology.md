@@ -1,6 +1,6 @@
 **"Read the slope, then the current, then the glow. Then look for what's eating it."**
 
-> Draft r2, 2026-10-14. Part of [[Spaceborne Fauna]]. The design reasoning behind the bestiary: what pseudospace life lives on, who eats whom, and how the shape of a zone tells the story. `[new]` marks invention that touches existing canon.
+> Draft r2, 2026-10-14. Part of [[Spaceborne Fauna]]. The design reasoning behind the bestiary: what pseudospace life lives on, who eats whom, and how the shape of a zone tells the story. Revised r3: this is the ecology of **Open Water**, the common family of flavours, from the Shallows to the Deeps ([[Pseudospace Flavours]]). Other flavours run on other budgets; the Ink's is in [[Adrasteia Space]]. `[new]` marks invention that touches existing canon.
 
 #### Energy: What Feeds the Sea
 
@@ -63,7 +63,7 @@ Whale falls on the deep-sea floor feed a sequence of communities for decades: mo
 
 1. **Heat.** The body is still warm: sharks, limpets and glim gather.
 2. **Strip.** [[Gleaners]] take soft tissue, loose cargo and anything not welded down.
-3. **Bones.** Gleaners work the frame and bones for metal and strange matter.
+3. **Bones.** Gleaners work the frame and bones for metal.
 4. **Reef.** [[Rime]] settles on what is left. Old battlefields are reefs.
 
 #### Recruitment: Why It Refills

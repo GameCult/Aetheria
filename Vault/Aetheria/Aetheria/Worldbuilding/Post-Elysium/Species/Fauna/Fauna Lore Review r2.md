@@ -2,7 +2,7 @@
 
 #### Where I'd Change Things
 
-**1. Strange matter is grown, in whale bone. (Existing canon: [[Negative Entropy]], Running Cold, Adrasteia.)**
+**1. Strange matter is grown, in whale bone. (Existing canon: [[Negative Entropy]], Running Cold, Adrasteia.)** *Ruled 2026-10-14: not biogenic (`strange-matter-not-biogenic`). Cut from the notes in r3; strange matter is stellar dust of the Ink, concentrated by its animals ([[Adrasteia Space]], [[Fauna Lore Review r3]]). The argument below is kept as the record of what was proposed.*
 Canon says negent needs strange matter found only in Adrasteia-controlled pseudospace, that only Adrasteia makes the charged form, and that its supplier's location is unknown. I'd give that a cause: strange matter is laid down slowly in the bones of [[Whales]], and Adrasteia's "controlled pseudospace" is a field of ancient falls, a bone bed it mines the way Earth mined fossil plankton as oil. Every canon sentence stays true. What it buys: a reason harvest is big in Elysium, a three-way conflict over every whale road (Adrasteia buying bone in secret, the [[Cetacean Navigators]] forbidding whaling, independents in the middle), and a threat to the monopoly every time a whale dies outside Adrasteia space. What it costs: some of Adrasteia's mystery, which their brief says should be about who makes the machinery and how it works. The notes as written keep it a rumour among flensers, which is my recommendation: the value is real, the explanation unproven. This is a question in the mind (`aetheria-fauna:question:strange-matter-source`).
 
 **2. The fauna ride the Aether current, not the orbit; and the nebula is partly alive. (First pass; the Sol sketch.)**

@@ -1,8 +1,8 @@
 **"Sol is a desert. Everywhere else is a sea."**
 
-> Draft lore pass r2, 2026-10-14, for the operator's review. It replaces the r1 pass of 2026-10-13, which took four example animals as the whole ecosystem. The ecology here is designed first, from what pseudospace life can live on; the animals fill its niches. `[new]` marks invention that touches existing canon. The reasoning, sources and the changes this pass argues for are in [[Pseudospace Ecology]] and [[Fauna Lore Review r2]].
+> Draft lore pass r2, 2026-10-14, for the operator's review. It replaces the r1 pass of 2026-10-13, which took four example animals as the whole ecosystem. The ecology here is designed first, from what pseudospace life can live on; the animals fill its niches. `[new]` marks invention that touches existing canon. The reasoning, sources and the changes this pass argues for are in [[Pseudospace Ecology]] and [[Fauna Lore Review r2]]. Revised in r3: pseudospace comes in flavours ([[Pseudospace Flavours]]). Everything below describes the common flavour, **Open Water**; the Ink ([[Adrasteia Space]]) has its own bestiary.
 
-Leave Sol through any wormhole and the dark is no longer empty. The nebula glows because something in it is alive. Threads of faint light run from one gravity well to the next. Clouds of krill turn in the current, schools of minnows flicker along their edges, and sharks ride the shear where a well's whirlpool meets the open stream. Rocks in the belts are crusted with rime. Something at the slack point between two moons is holding perfectly still and glowing like a wreck that wants rescuing. Do not rescue it.
+Leave Sol through any wormhole into Open Water and the dark is no longer empty. The nebula glows because something in it is alive. Threads of faint light run from one gravity well to the next. Clouds of krill turn in the current, schools of minnows flicker along their edges, and sharks ride the shear where a well's whirlpool meets the open stream. Rocks in the belts are crusted with rime. Something at the slack point between two moons is holding perfectly still and glowing like a wreck that wants rescuing. Do not rescue it.
 
 Spacers named what they found after Earth animals, because that was the vocabulary they had. None of it is related to anything from Sol.
 
@@ -30,7 +30,7 @@ By niche, bottom to top. Each note says what a pilot sees, what sensors show, ho
 | Sessile colonial filter-feeder | [[Rime]] | Crusts on belt rocks and wrecks, combing the current. |
 | Swarming grazer | [[Krill]] | Clouds that graze glim on the fronts. |
 | Schooling forage | [[Minnows]] | Flickering schools that eat krill and feed everything above them. |
-| Bulk filter-feeder, giant | [[Whales]] | Wave-riders of the giants; Adrasteia buys their bone. |
+| Bulk filter-feeder, giant | [[Whales]] | Wave-riders of the giants; the richest and slowest harvest. |
 | Pursuit predator | [[Sharks]] | Heat hunters that soar the shear lines. |
 | Ambush predator, mimic | [[Lanterns]] | Sit in slack water glowing like a disabled ship. |
 | Trap predator | [[Void Spiders]] | String nets across saddles and fronts. |
@@ -51,7 +51,7 @@ Sol spent a thousand years fighting over dwindling rocks. Elysium's wormholes op
 - **It refills from upstream.** The Aether current carries larvae and spores from deeper pseudospace into every zone, all the time. A ground stripped bare is recolonized from the current, fast at the bottom of the web and slowly at the top. Krill come back in days. A whale road emptied by flensers stays empty for a long time [new].
 - **Deeper is richer.** The further a zone lies from Sol, out toward the Chaos factions' periphery, the stronger the current, the thicker the glim, and the bigger the animals [new]. Harvesters go outward, and outward is where the [[Pseudospace]] stops pretending to be space.
 - **Who takes it.** Independents do the dangerous middle work. The [[Pan-Solar Consortium]] issues harvest claims on the model of the [[Conflict Permit]] [new]; everyone breaks them. Leading sharks into a rival's grounds is a recognized form of [[Resource Denial]] [new].
-- **What is taken.** Krill and minnow meal for Bloom farms and vat feed; photophores for flares; shark heat-organs for radiators; rime for building; gleaner gut-metal; spider silk; and whale bone, which Adrasteia buys quietly, at prices nobody can explain ([[Whales]], [new]).
+- **What is taken.** Krill and minnow meal for Bloom farms and vat feed; photophores for flares; shark heat-organs for radiators; rime for building; gleaner gut-metal; spider silk; whale oil, veil and bone. The one thing Open Water does not yield is strange matter: that comes only from the Ink ([[Adrasteia Space]]), and only Adrasteia buys it [new].
 
 #### The Fauna Come to the Guns
 

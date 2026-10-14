@@ -1,6 +1,6 @@
 **"Never kill the first whale you see on a run."**
 
-> Draft r2, 2026-10-14. Part of [[Spaceborne Fauna]]; niche: bulk filter-feeder, giant. Kept from the operator's sketch and r1. Changed: whales ride the gravity waves of gas giants and suns, which is why they swing in arcs; and flensers say their bones grow the strange matter that [[Negative Entropy]] needs. `[new]` marks invention that touches existing canon.
+> Draft r2, 2026-10-14. Part of [[Spaceborne Fauna]]; niche: bulk filter-feeder, giant. Kept from the operator's sketch and r1. Changed: whales ride the gravity waves of gas giants and suns, which is why they swing in arcs. Revised r3: the r2 rumour that whale bone grows strange matter is cut (ruling `strange-matter-not-biogenic`); strange matter comes from the stars of [[Adrasteia Space]]. `[new]` marks invention that touches existing canon.
 
 Many times the size of any ship: slow, warm, ribbed with pale bone, trailing a feeding veil wide enough to sweep a krill cloud whole. A whale glows in thermal like a small station. It sings, and the song carries through the [[Aether]].
 
@@ -14,7 +14,7 @@ Many times the size of any ship: slow, warm, ribbed with pale bone, trailing a f
 
 **How it hurts.** It defends; it doesn't hunt. A crowded or wounded whale rolls, and its veil and mass batter anything close. A threatened whale dumps its heat in a thermal flare that washes out sensors for a long way. A distressed whale sings loud enough to flood the [[Aethernet]] nearby with noise: everyone in range knows a whale is in trouble, and roughly where [new].
 
-**Yield.** *Flensing*: oil that runs reactors cool and long, veil for fine nets, and bone. Adrasteia buys whale bone, quietly, at prices nothing else in a whale explains. Flensers say the bone grows strange matter, a trace laid down over a long life, and that Adrasteia's secret mines are a bed of falls older than anyone's charts. Nobody has proved it (see [[Fauna Lore Review r2]]) [new]. A whale kill is the richest single harvest in Elysium and the slowest to recover: a road emptied by flensers stays empty for years.
+**Yield.** *Flensing*: oil that runs reactors cool and long, veil for fine nets, and bone light and strong enough for spars. A whale kill is the richest single harvest in Elysium and the slowest to recover: a road emptied by flensers stays empty for years.
 
 **A fall.** A dead whale drifts for weeks. Everything comes to it in order: sharks and [[Limpets]] while it is warm, [[Gleaners]] for the flesh and bone, [[Rime]] at the end.
 
