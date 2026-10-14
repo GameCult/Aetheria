@@ -34,9 +34,9 @@ public sealed partial class ContactRevealTests
     // A scanner ship at the origin, with the named scanner and no sensor (an AI ship with a sensor pings once it loses its
     // track, which would paint the target beside the scan), tracking and targeting a ship `distance`
     // ahead that carries a reactor, a radiator and a suppressor, none of which ever acts.
-    private (Ship scanner, Ship target) ScanOn(string scanner = "Scanner", float distance = 100f, float info = .5f)
+    private (Ship scanner, Ship target) ScanOn(string scanner = "Scanner", float distance = 100f, float info = .5f, string[] targetMounts = null)
     {
-        var target = Add(float3(0, 0, distance), tools: new[] { "Reactor", "Radiator", "SuppressorCold" });
+        var target = Add(float3(0, 0, distance), targetMounts, tools: new[] { "Reactor", "Radiator", "SuppressorCold" });
         var s = Add(float3(0, 0, 0), tools: new[] { scanner });
         s.EntityInfoGathered[target] = info;
         s.SetTarget(target);
@@ -306,7 +306,9 @@ public sealed partial class ContactRevealTests
 
     // Ruling ew-hostility-from-belief-ruled: a scan is an act of perception and judges nothing, so it proceeds and records the
     // claim whatever the stance between the two ships, hostile or friendly, honest or lying. The stance is set both ways
-    // through SetIff, which decides IsHostileTo, EntityHostility and VisibleEnemies alike.
+    // through SetIff, which decides IsHostileTo, EntityHostility and VisibleEnemies alike. The target carries a sensor that
+    // tracks the scanner, so a gate on the target's belief about its scanner would stop the scan; the scan builds at the pace
+    // of one tick's step, shows nothing a tick before it is done, and a third party hears it, in every stance.
     [Theory]
     [InlineData(true, false)]
     [InlineData(true, true)]
@@ -314,19 +316,31 @@ public sealed partial class ContactRevealTests
     [InlineData(false, true)]
     public void AScanReadsNoHostility(bool hostile, bool lies)
     {
-        var (s, target) = ScanOn();
+        var (s, target) = ScanOn(targetMounts: new[] { "Eye" });
+        var third = Add(float3(-40, 0, 0), new[] { "Eye" }); // inside Range 200 of the scanner: it hears the emission
         var reactor = target.Equipment.Single(i => i.Behaviors.Any(b => b is Reactor));
         var radiator = DataOf("Radiator");
         if (lies) target.Claim(reactor, radiator);
         s.SetIff(target, hostile);
         target.SetIff(s, hostile);
+        target.EntityInfoGathered[s] = .5f;
         Tick(ScanStep);
         Assert.Equal(hostile, s.IsHostileTo(target)); // fixture
         Assert.Equal(hostile, s.VisibleEnemies.Contains(target)); // fixture: the stance reached the readers a gate would use
+        Assert.Equal(hostile, target.IsHostileTo(s)); // fixture: the target's sensor tracks the scanner as an enemy or a friend
+        var built = (int) MathF.Round(ScannerOf(s).Progress * 16f);
 
-        Hold(s, 16, target);
+        for (var i = 0; i < 15 - built; i++)
+        {
+            target.EntityInfoGathered[s] = .5f;
+            Hold(s, 1, target);
+        }
+        Assert.Equal(15f / 16f, ScannerOf(s).Progress, 4); // the pace, a tick short of ScanTime
+        Assert.Empty(s.RevealsOf(target));
+        Hold(s, 1, target);
 
-        Assert.Equal(3, s.RevealsOf(target).Count());
+        Assert.Equal(4, s.RevealsOf(target).Count()); // the reactor, radiator, suppressor and the target's own sensor
+        Assert.Equal(SignatureChannel.Emission, Assert.Single(third.RevealsOf(s)).Channel);
         var reveal = Assert.Single(s.RevealsOf(target), r => r.Item == reactor);
         Assert.Same(lies ? radiator : reactor.Data, reveal.Claimed);
         Assert.NotEmpty(target.IncomingPaints.Where(p => p.Mode == PaintMode.Scan));
@@ -346,7 +360,8 @@ public sealed partial class ContactRevealTests
         target.Claim(reactor, DataOf("Radiator"));
         var player = Add(float3(-20, 0, 0), tools: new[] { "Scanner" });
         var ai = Add(float3(20, 0, 0), tools: new[] { "Scanner" });
-        _zone.Agents.Add(new Agent(ai)); // the AI pilot, ticked in Zone.Update beside the scan; a task-less agent needs no orbit to patrol
+        var agent = new Minion(ai); // the AI pilot, ticked in Zone.Update beside the scan: it takes the combat state once it has a target
+        _zone.Agents.Add(agent);
         Assert.Single(_zone.Agents); // fixture: only the second ship has an agent
         foreach (var scanner in new[] { player, ai })
         {
@@ -364,6 +379,7 @@ public sealed partial class ContactRevealTests
             }
         }
         Step(15);
+        Assert.IsType<CombatState>(typeof(Agent).GetField("_currentState", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(agent)); // fixture: the AI is fighting while it scans
         Assert.Empty(player.RevealsOf(target)); // neither pilot has a scan before ScanTime
         Assert.Empty(ai.RevealsOf(target));
         Step(1);
@@ -372,6 +388,43 @@ public sealed partial class ContactRevealTests
         Func<Entity, string[]> book = o => o.RevealsOf(target)
             .Select(r => r.Item.Data.Name + "|" + r.Claimed.Name + "|" + (r.Channel?.ToString() ?? "scan")).OrderBy(x => x).ToArray();
         Assert.Equal(book(player), book(ai));
+    }
+
+    // ---- AFinishedScanListsTheGearOnTheSchematic ----
+
+    // Ruling visibility-per-capability-reveal: what a scan reveals shows on the enemy schematic, as claimed. The target carries
+    // a gun, two reactors (the gun's own and a fitted one), a radiator, a suppressor and a targeting system; the fitted reactor
+    // claims to be a radiator, and the hull's own flash is in the book too. A row is made for each scanned item and none for
+    // the hull: weapons first with their rated range, then the gear in fitted order, each as claimed and with no range.
+    [Fact]
+    public void AFinishedScanListsTheGearOnTheSchematic()
+    {
+        var target = Add(float3(0, 0, 100), new[] { "Gun" }, new[] { "Reactor", "Radiator", "SuppressorCold" });
+        var s = Add(float3(0, 0, 0), new[] { "Eye" }, new[] { "Scanner" });
+        s.EntityInfoGathered[target] = .5f;
+        s.SetTarget(target);
+        var fitted = FittedBesidesTheHull(target);
+        var gun = Guns(target)[0];
+        var reactor = target.Equipment.Where(i => i.Behaviors.Any(b => b is Reactor)).Last();
+        target.Claim(reactor, DataOf("Radiator"));
+        target.SetSignature(new object(), SignatureChannel.LaunchFlash, 1000000f, target.EquippedHull);
+        Hold(s, 1, target);
+        Assert.Equal(target.EquippedHull, Assert.Single(s.RevealsOf(target)).Item); // fixture: the hull is in the book, as a hull class
+        Assert.IsAssignableFrom<HullData>(s.RevealsOf(target).Single().Claimed);
+        Hold(s, 14, target);
+        Assert.Empty(s.SchematicRows(target)); // fixture: no row before the scan is done
+
+        Hold(s, 1, target);
+
+        var rows = s.SchematicRows(target).ToArray();
+        Assert.Equal(fitted.Length, rows.Length); // every scanned item
+        Assert.DoesNotContain(rows, r => r.Item == target.EquippedHull || r.Claimed is HullData);
+        Assert.Same(gun, rows[0].Item); // weapons first
+        Assert.Equal(((WeaponData) DataOf("Gun").Behaviors.Single(b => b is WeaponData)).RatedRange, rows[0].Range);
+        var gear = rows.Skip(1).ToArray();
+        Assert.Equal(fitted.Where(i => i != gun).ToArray(), gear.Select(r => r.Item).ToArray()); // fitted order
+        Assert.All(gear, r => Assert.Null(r.Range));
+        Assert.All(gear, r => Assert.Same(r.Item == reactor ? DataOf("Radiator") : r.Item.Data, r.Claimed));
     }
 
     // ---- AConsumableScannerDecaysOnTheSameTick ----
