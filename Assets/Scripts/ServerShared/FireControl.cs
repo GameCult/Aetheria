@@ -723,8 +723,9 @@ public static class FireControl
             Target = engaged,
             Weapon = item,
             Aimed = source.ResolvedTargetItem,
-            // The one place a shot's damage meets range, frozen here: BurstReach is where the payload is delivered.
-            Damage = (damageOverride ?? weapon.Damage) * weapon.RangeFactor(solution.BurstReach),
+            // The one place a shot's damage meets range, frozen here: BurstReach is where the payload is delivered. A burst is
+            // never farther than Range (it is pulled back to it), so rounding in its distance must not read as beyond it.
+            Damage = (damageOverride ?? weapon.Damage) * weapon.RangeFactor(min(solution.BurstReach, weapon.Range)),
             Penetration = weapon.Penetration,
             DamageSpread = weapon.DamageSpread,
             DamageType = weapon.WeaponData.DamageType,

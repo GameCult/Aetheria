@@ -588,7 +588,8 @@ public sealed class FireControlPerWeaponTests : IDisposable
     public void CombatDoesNotPickAGroupWhoseWeaponCannotReachTheTarget()
     {
         var r = Build(range: 10f, targetRange: 20f, decoy: true);
-        Assert.True(r.Gun.Weapon.RangeDamagePerSecond(20f) > r.Decoy.Weapon.RangeDamagePerSecond(20f), "fixture: the short gun is the stronger group");
+        Assert.True(r.Gun.Weapon.RangeDamagePerSecond(5f) > r.Decoy.Weapon.RangeDamagePerSecond(5f), "fixture: the short gun is the stronger group");
+        Assert.Equal(0f, r.Gun.Weapon.RangeDamagePerSecond(20f)); // the damage function already reads 0 beyond Range
         r.Zone.Agents.Add(new Minion(r.Shooter));
 
         r.Zone.Update(1f);

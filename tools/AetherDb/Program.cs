@@ -1774,6 +1774,12 @@ public static class Program
             return design;
         }
         static PerformanceStat Fixed(float value) => new PerformanceStat { Min = value, Max = value, Terms = new List<StatTerm>() };
+        // A refused weapon keeps its template's ratio of effective range to range, so range-falloff leaves it as authored.
+        static void Shorten(WeaponData weapon)
+        {
+            weapon.EffectiveRange = Fixed(20f * weapon.EffectiveRange.Max / weapon.Range.Max);
+            weapon.Range = Fixed(20f);
+        }
 
         var proximity = Copy("Spectra", names[0], "A Spectra that bursts by proximity, blast 8. For scenarios; no one builds it.", WeaponFuse.Proximity, 8f);
         var delayed = Copy("Spectra", names[1], "A Spectra that bursts after two cells of metal, blast 4. For scenarios; no one builds it.", WeaponFuse.Delayed, 4f);
@@ -1791,15 +1797,15 @@ public static class Program
             data.Energy = Fixed(4f);
         }
         delayed.Behaviors.OfType<InstantWeaponData>().Single().Penetration = Fixed(2f);
-        refused.Behaviors.OfType<InstantWeaponData>().Single().Range = Fixed(20f);
-        charge.Behaviors.OfType<ChargedWeaponData>().Single().Range = Fixed(20f);
+        Shorten(refused.Behaviors.OfType<InstantWeaponData>().Single());
+        Shorten(charge.Behaviors.OfType<ChargedWeaponData>().Single());
 
         // The beam keeps the Spectra's gear (shape, hardpoint, thermal envelope, roles) and swaps its behaviour for a constant one.
         var instant = beam.Behaviors.OfType<InstantWeaponData>().Single();
         var constant = new ConstantWeaponData
         {
             DamageType = instant.DamageType, Damage = instant.Damage, Penetration = instant.Penetration, DamageSpread = instant.DamageSpread,
-            MinRange = instant.MinRange, Range = Fixed(20f), EffectiveRange = instant.EffectiveRange, DamageAtMaxRange = instant.DamageAtMaxRange, EffectPrefab = instant.EffectPrefab,
+            MinRange = instant.MinRange, Range = Fixed(20f), EffectiveRange = Fixed(20f * instant.EffectiveRange.Max / instant.Range.Max), DamageAtMaxRange = instant.DamageAtMaxRange, EffectPrefab = instant.EffectPrefab,
             Energy = instant.Energy, Heat = instant.Heat, Visibility = instant.Visibility, AmmoType = instant.AmmoType,
             MagazineSize = instant.MagazineSize, ReloadTime = instant.ReloadTime, Spread = instant.Spread, Velocity = instant.Velocity,
             Tracking = instant.Tracking

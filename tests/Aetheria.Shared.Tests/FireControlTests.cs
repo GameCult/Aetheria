@@ -377,8 +377,11 @@ public sealed class FireControlTests : IDisposable
     public void TheAIHoldsAtItsEffectiveRange()
     {
         var (shooter, _, zone) = BuildCombatEncounter(float3(0, 0, 10), effectiveRange: 500f);
-        zone.Update(1f); // enters CombatState, which samples DPS over the evaluated stats
+        zone.Update(1f); // enters CombatState, which samples before the weapons' first stat evaluation
         zone.Update(1f);
+        var item = shooter.Weapons.Single().Item;
+        item.Online.Value = false; // an Online change is what makes Combat sample again, over the evaluated stats
+        item.Online.Value = true;
 
         var agent = zone.Agents.Single();
         var state = typeof(Agent).GetField("_currentState", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(agent);
