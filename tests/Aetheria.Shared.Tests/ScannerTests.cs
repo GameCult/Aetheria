@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using CultMath;
+using GameCult.Caching.MessagePack;
+using MessagePack;
 using Xunit;
 using static CultMath.math;
 using float2 = CultMath.float2;
@@ -278,5 +280,122 @@ public sealed partial class ContactRevealTests
         Assert.Equal(firedAt, after.Time);
         Assert.Equal(SignatureChannel.LaunchFlash, after.Channel);
         Assert.Contains(s.RevealsOf(target), r => r.Item != gun && r.Channel == null); // fixture: the scan finished
+    }
+
+    // ---- AScanReadsNoHostility ----
+
+    // Ruling ew-hostility-from-belief-ruled: a scan is an act of perception and judges nothing, so it proceeds and records the
+    // claim whatever the stance between the two ships, hostile or friendly, honest or lying. The stance is set both ways
+    // through SetIff, which decides IsHostileTo, EntityHostility and VisibleEnemies alike.
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    public void AScanReadsNoHostility(bool hostile, bool lies)
+    {
+        var (s, target) = ScanOn();
+        var reactor = target.Equipment.Single(i => i.Behaviors.Any(b => b is Reactor));
+        var radiator = DataOf("Radiator");
+        if (lies) target.Claim(reactor, radiator);
+        s.SetIff(target, hostile);
+        target.SetIff(s, hostile);
+        Tick(ScanStep);
+        Assert.Equal(hostile, s.IsHostileTo(target)); // fixture
+        Assert.Equal(hostile, s.VisibleEnemies.Contains(target)); // fixture: the stance reached the readers a gate would use
+
+        Hold(s, 16, target);
+
+        Assert.Equal(3, s.RevealsOf(target).Count());
+        var reveal = Assert.Single(s.RevealsOf(target), r => r.Item == reactor);
+        Assert.Same(lies ? radiator : reactor.Data, reveal.Claimed);
+        Assert.NotEmpty(target.IncomingPaints.Where(p => p.Mode == PaintMode.Scan));
+    }
+
+    // ---- AScanTakesTheSamePathForAnyPilot ----
+
+    // Ruling same-ship-same-inputs: a ship with an AI agent and one with none (the player's) scan the same target through
+    // the one Scanner and enter the same reveals in their books, claimed alike. Every reveal in a book comes from
+    // RecordReveal, whose callers are Sense, PublishInbox and RecordInspection: a second scan path for either pilot would
+    // leave the two books different (or one empty).
+    [Fact]
+    public void AScanTakesTheSamePathForAnyPilot()
+    {
+        _zone.AddOrbit(new OrbitData { Distance = 1000f }); // the agent patrols one; an orbit-less zone gives its circuit no first stop
+        var target = Add(float3(0, 0, 100), tools: new[] { "Reactor", "Radiator", "SuppressorCold" });
+        var reactor = target.Equipment.Single(i => i.Behaviors.Any(b => b is Reactor));
+        target.Claim(reactor, DataOf("Radiator"));
+        var player = Add(float3(-20, 0, 0), tools: new[] { "Scanner" });
+        var ai = Add(float3(20, 0, 0), tools: new[] { "Scanner" }, agent: true);
+        Assert.Single(_zone.Agents); // fixture: only the second ship has an agent
+        foreach (var scanner in new[] { player, ai })
+        {
+            scanner.EntityInfoGathered[target] = .5f;
+            scanner.SetTarget(target);
+        }
+
+        for (var i = 0; i < 16; i++) Hold(player, 1, target);
+        for (var i = 0; i < 16; i++) Hold(ai, 1, target);
+
+        Assert.Equal(3, player.RevealsOf(target).Count());
+        Func<Entity, string[]> book = o => o.RevealsOf(target)
+            .Select(r => r.Item.Data.Name + "|" + r.Claimed.Name + "|" + (r.Channel?.ToString() ?? "scan")).OrderBy(x => x).ToArray();
+        Assert.Equal(book(player), book(ai));
+    }
+
+    // ---- AConsumableScannerDecaysOnTheSameTick ----
+
+    // Equipment and consumable hosts run Execute before the always-updated pass, so a scan broken by range loses the same
+    // dt/ScanTime on the tick it breaks: .5 falls to .25 in four ticks, as ABrokenScanDecays has it for gear.
+    [Fact]
+    public void AConsumableScannerDecaysOnTheSameTick()
+    {
+        var data = _openCache.GetByName<ConsumableItemData>("ScannerCharge");
+        var target = Add(float3(0, 0, 100), tools: new[] { "Reactor" });
+        var s = Add(float3(0, 0, 0));
+        s.ActivateConsumable(Assert.IsType<ConsumableItem>(_items.CreateInstance(_items.CreateLot(data, _maker, .5f))));
+        var scanner = s.FindActiveConsumable(data).Behaviors.OfType<Scanner>().Single();
+        s.EntityInfoGathered[target] = .5f;
+        s.SetTarget(target);
+        Hold(s, 8, target);
+        Assert.Equal(.5f, scanner.Progress, 4); // fixture: the consumable scans like gear
+
+        target.Position = float3(0, 0, 400);
+        Hold(s, 4, target);
+
+        Assert.Equal(.25f, scanner.Progress, 4);
+        Hold(s, 4, target);
+        Assert.Equal(0f, scanner.Progress, 4);
+    }
+
+    // ---- ScannerDataRoundTripsAsUnionKey51 ----
+
+    [Fact]
+    public void ScannerDataRoundTripsAsUnionKey51()
+    {
+        var options = CultDocumentMessagePackSerialization.OptionsFor(typeof(ZonePack).Assembly);
+        var data = new ScannerData { Range = Const(200f), ScanTime = Const(2f), InterceptFactor = Const(4f) };
+
+        var bytes = MessagePackSerializer.Serialize<BehaviorData>(data, options);
+        var reader = new MessagePackReader(bytes);
+        Assert.Equal(2, reader.ReadArrayHeader());
+        Assert.Equal(51, reader.ReadInt32()); // sensor-catalog holds 50; a key reused across branches would collide on the wire
+        Assert.Equal(4, reader.ReadArrayHeader()); // Group is key 0, then the three stats
+        reader.Skip();
+        Assert.Equal(200f, MessagePackSerializer.Deserialize<PerformanceStat>(ref reader, options).Min); // key 1 Range
+        Assert.Equal(2f, MessagePackSerializer.Deserialize<PerformanceStat>(ref reader, options).Min); // key 2 ScanTime
+        Assert.Equal(4f, MessagePackSerializer.Deserialize<PerformanceStat>(ref reader, options).Min); // key 3 InterceptFactor
+
+        var back = Assert.IsType<ScannerData>(MessagePackSerializer.Deserialize<BehaviorData>(bytes, options));
+        Assert.Equal(200f, back.Range.Min);
+        Assert.Equal(2f, back.ScanTime.Min);
+        Assert.Equal(4f, back.InterceptFactor.Min);
+        var absent = Assert.IsType<ScannerData>(MessagePackSerializer.Deserialize<BehaviorData>(
+            MessagePackSerializer.Serialize<BehaviorData>(new ScannerData { Range = Const(1f), ScanTime = Const(1f) }, options), options));
+        Assert.Null(absent.InterceptFactor);
+
+        var unions = typeof(BehaviorData).GetCustomAttributes(typeof(UnionAttribute), false).Cast<UnionAttribute>().ToArray();
+        Assert.Single(unions, u => u.Key == 51);
+        Assert.Equal(unions.Length, unions.Select(u => u.Key).Distinct().Count());
     }
 }

@@ -104,6 +104,11 @@ public sealed partial class ContactRevealTests : IDisposable
             cache.Upsert(Tool("QuietScanner", ScannerBehavior(range: 200f, scanTime: 2f, interceptFactor: 4f)));
             cache.Upsert(new ConsumableItemData
             {
+                Name = "ScannerCharge", Duration = 30f, Shape = new Shape(),
+                Behaviors = { ScannerBehavior(range: 200f, scanTime: 2f) }
+            });
+            cache.Upsert(new ConsumableItemData
+            {
                 Name = "Pinger", Duration = 30f, Shape = new Shape(),
                 Behaviors = { SensorBehavior(sensitivity: 2f) }
             });
@@ -250,7 +255,7 @@ public sealed partial class ContactRevealTests : IDisposable
 
     // A ship at `position` with `mounts` on its sensor hardpoints in order, the tools on free cells and a thruster
     // on the centre column. A ship with a gun also gets the reactor and targeting a gun needs to fire.
-    private Ship Add(float3 position, string[] mounts = null, string[] tools = null, bool thruster = false)
+    private Ship Add(float3 position, string[] mounts = null, string[] tools = null, bool thruster = false, bool agent = false)
     {
         var hullRef = _items.ItemData.RefOf<ItemData>(_items.ItemData.GetByName<HullData>("Rack"));
         var ship = new Ship(_items, _zone, new EquippableItem { Data = hullRef, Durability = 1000000, Lot = _nextLot++ }, new EntitySettings())
@@ -264,7 +269,7 @@ public sealed partial class ContactRevealTests : IDisposable
             Assert.True(ship.TryFindSpace(item, out var at));
             Assert.True(ship.TryEquip(item, at));
         }
-        _zone.Admit(ship, piloted: false);
+        _zone.Admit(ship, piloted: agent); // piloted: true gives the ship an AI agent
         ship.Position = position;
         ship.Aim = float3(0, 0, 1);
         _zone.Update(0f); // brings the gear online

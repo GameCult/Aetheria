@@ -1955,16 +1955,18 @@ public class ConsumableItemEffect : IStatContext
             .ToArray();
     }
 
+    // Execute, then the always-updated pass, as EquippedItem.Update orders them: an always-updated behaviour that reads
+    // what Execute marked this tick (Scanner's held mark) sees the same tick on either host.
     public void Update(float delta)
     {
-        foreach (var behavior in Behaviors)
-            if(behavior is IAlwaysUpdatedBehavior alwaysUpdatedBehavior) alwaysUpdatedBehavior.Update(delta);
-
         foreach (var behavior in Behaviors)
         {
             if (!behavior.Execute(delta))
                 break;
         }
+
+        foreach (var behavior in Behaviors)
+            if(behavior is IAlwaysUpdatedBehavior alwaysUpdatedBehavior) alwaysUpdatedBehavior.Update(delta);
 
         RemainingDuration -= delta;
         // Progress moves every tick; a stat with a ConsumableProgress term must recompute against it, the same

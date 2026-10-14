@@ -81,7 +81,8 @@ public class Scanner : Behavior, IAlwaysUpdatedBehavior, IProgressBehavior
         return true;
     }
 
-    // Every tick, after Execute: a scan not held this tick (out of range, untracked, or the item inactive so Execute did
+    // Every tick, after Execute on either host (EquippedItem.Update and ConsumableItemEffect.Update both run Execute first):
+    // a scan not held this tick (out of range, untracked, or the item inactive so Execute did
     // not run) decays over ScanTime (ruling scan-held-beam). The one decay site.
     public void Update(float delta)
     {
