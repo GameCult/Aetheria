@@ -72,6 +72,26 @@ public sealed class GravitySubtractTests : IDisposable
         }
     }
 
+    // The fixture the five bowl tests share reproduces the zone bowl it replaced (map B14): the bowl was
+    // -PowerPulse(r / (2 R), exponent) x depth, written out here from its definition, deepest at the centre and
+    // zero from r = R on, so a fixture whose radius or depth drifted from the bowl would change every pull it feeds.
+    [Fact]
+    public void TheWellFixtureReproducesTheFormerBowl()
+    {
+        foreach (var (radius, depth, exponent, at, expected) in new[]
+                 {
+                     (1000f, 1000f, 1f, 0f, -1000f), (1000f, 1000f, 1f, 400f, -840f), (1000f, 1000f, 1f, 1000f, 0f),
+                     (2000f, 64f, 2f, 1000f, -36f), (2000f, 64f, 2f, 300f, -61.1524f)
+                 })
+        {
+            var planets = Planets();
+            var pack = new ZonePack { Radius = radius };
+            WellFixture.Dig(_cache, pack, planets, radius, depth, exponent);
+            var zone = new Zone(_items, planets, pack, new GalaxyZone { Name = "Bowl Zone", Owner = null }, null);
+            Assert.InRange(zone.GetHeight(new float2(at, 0)), expected - 1e-2f, expected + 1e-2f);
+        }
+    }
+
     // One body of `data` at the origin of a zone whose only body it is.
     private Zone WithBody(BodyData data)
     {
