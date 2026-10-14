@@ -46,8 +46,10 @@ public class Scanner : Behavior, IProgressBehavior
     // The scan's progress now: what Execute last built, less ScanTime-relative decay over the time since a tick last held
     // it (ruling scan-held-beam: a broken scan decays over ScanTime, the item inactive or destroyed included). Derived from
     // the zone clock, never from tick order, so a scanner decays on the tick it breaks whether its host runs Execute
-    // before the always-updated pass (EquippedItem) or after it (ConsumableItemEffect). The one decay site.
-    public float Progress => Remaining(_heldAt);
+    // before the always-updated pass (EquippedItem) or after it (ConsumableItemEffect). The one decay site. It is the
+    // progress against the ship's target now: a scan built on another ship reads 0 the moment the target changes, whether
+    // or not the item is running to reset it.
+    public float Progress => _target == Entity.Target.Value.Entity ? Remaining(_heldAt) : 0f;
 
     public Scanner(ScannerData data, EquippedItem item) : base(data, item)
     {

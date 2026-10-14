@@ -285,8 +285,12 @@ public static class Program
         _ => null,
     };
 
-    // Whether CB-R1 maps this design's stats to roles; the catalog test asks the tool, so it keeps no copy of the kinds.
-    public static bool HasRoleMap(EquippableItemData item) => RoleMapFor(item, KindOf(item)) != null;
+    // The field->role map roles-backfill would apply to this design, or null; the catalog tests ask the tool, so they keep no
+    // copy of the kinds or the maps.
+    public static IReadOnlyDictionary<string, string> RoleMapOf(EquippableItemData item) => RoleMapFor(item, KindOf(item));
+
+    // Whether CB-R1 maps this design's stats to roles.
+    public static bool HasRoleMap(EquippableItemData item) => RoleMapOf(item) != null;
 
     private sealed record RoleAuthoring(
         EquippableItemData Item, string Kind, List<(string Behavior, string Field, string Role)> StatsAssigned,
