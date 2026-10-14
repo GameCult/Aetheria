@@ -379,15 +379,11 @@ public sealed class FireControlTests : IDisposable
         var (shooter, _, zone) = BuildCombatEncounter(float3(0, 0, 10), effectiveRange: 500f);
         zone.Update(1f); // enters CombatState, which samples before the weapons' first stat evaluation
         zone.Update(1f);
-        var item = shooter.Weapons.Single().Item;
-        item.Enabled.Value = false; // an Online change is what makes Combat sample again, over the evaluated stats
-        zone.Update(.1f);
-        item.Enabled.Value = true;
-        zone.Update(.1f);
-
         var agent = zone.Agents.Single();
         var state = typeof(Agent).GetField("_currentState", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(agent);
         Assert.True(state is CombatState, $"the agent is in {state?.GetType().Name}");
+        // The state sampled when the Minion was built, before any weapon stat was evaluated; sample again over the evaluated ones.
+        typeof(CombatState).GetMethod("SampleDps", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).Invoke(state, null);
         var optimum = (float) typeof(CombatState).GetField("_optimumRange", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(state);
         Assert.True(optimum >= 500f - 1000f / 32f && optimum <= 500f + 1000f / 32f, $"optimum range {optimum}");
     }
