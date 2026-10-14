@@ -161,6 +161,12 @@ public class Zone
             Orbits.Add(orbit.Key, new Orbit(Settings, cache.Get(orbit)));
         }
 
+        // Aetheria gravity (target invariant zone-valid-before-tick): every orbit is placed at the pack's time
+        // when the zone is built, so each well, light and body pose read before the first Update is where the
+        // body is. Velocity stays zero until the first Update differences two placed positions.
+        foreach (var orbit in Orbits)
+            orbit.Value.PreviousPosition = GetOrbitPosition(orbit.Key);
+
         foreach (var body in pack.Planets)
         {
             var planet = cache.Get(body);
@@ -265,11 +271,6 @@ public class Zone
     }
 
     private bool IsExpired(ChunkWear wear) => wear.Damage <= 0f && (!wear.BrokenUntil.HasValue || wear.BrokenUntil.Value <= _time);
-
-    public void AddOrbit(OrbitData orbit)
-    {
-        Orbits.Add(_itemManager.ItemData.RefOf(orbit).Key, new Orbit(Settings, orbit));
-    }
 
     public void Update(float deltaTime)
     {
@@ -589,26 +590,6 @@ public class Zone
         var beltInstance = AsteroidBelts[belt];
         for (var i = 0; i < beltData.Asteroids.Length; i++)
             into[i] = beltInstance.Pose(i, _time, parentPosition, Settings, ChunkRadius(new ChunkId(belt, i)));
-    }
-
-    public OrbitData CreateOrbit(CultRecordKey parent, float2 position)
-    {
-        var parentPosition = GetOrbitPosition(parent);
-        var delta = position - parentPosition;
-        var distance = length(delta);
-        var period = Settings.OrbitPeriod.Evaluate(distance);
-        var phase = atan2(delta.y, delta.x) / (PI * 2);
-        var currentPhase = frac(_time / period);
-        var storedPhase = (float) frac(phase - currentPhase);
-
-        var orbit = new OrbitData
-        {
-            Distance = distance,
-            Parent = new CultRecordRef<OrbitData>(parent),
-            Phase = storedPhase
-        };
-        Orbits.Add(_itemManager.ItemData.Upsert(orbit).Key, new Orbit(Settings, orbit));
-        return orbit;
     }
 
     public SecurityLevel GetSecurityLevel(float2 pos)
