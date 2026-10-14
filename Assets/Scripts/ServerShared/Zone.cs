@@ -165,7 +165,7 @@ public class Zone
         // when the zone is built, so each well, light and body pose read before the first Update is where the
         // body is. Velocity stays zero until the first Update differences two placed positions.
         foreach (var orbit in Orbits)
-            orbit.Value.PreviousPosition = GetOrbitPosition(orbit.Key);
+            GetOrbitPosition(orbit.Key);
 
         foreach (var body in pack.Planets)
         {
@@ -276,9 +276,12 @@ public class Zone
     {
         _time += deltaTime;
         _updatedOrbits.Clear();
+        // Every previous position is taken before any orbit is placed: GetOrbitPosition places a parent as a
+        // side effect of placing its child, so differencing inside one loop would depend on dictionary order.
+        foreach (var orbit in Orbits)
+            orbit.Value.PreviousPosition = orbit.Value.Position;
         foreach (var orbit in Orbits)
         {
-            orbit.Value.PreviousPosition = orbit.Value.Position;
             orbit.Value.Position = GetOrbitPosition(orbit.Key);
             orbit.Value.Velocity = (orbit.Value.Position - orbit.Value.PreviousPosition) / deltaTime;
         }

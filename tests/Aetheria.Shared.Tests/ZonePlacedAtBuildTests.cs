@@ -60,7 +60,7 @@ public sealed class ZonePlacedAtBuildTests : IDisposable
         public CultRecordKey PlanetOrbit;
     }
 
-    private Scene Build(float phase, double time)
+    private Scene Build(float phase, double time, bool moonFirst = false)
     {
         var dir = Path.Combine(_root, $"zone{_caches.Count}");
         Directory.CreateDirectory(dir);
@@ -78,15 +78,21 @@ public sealed class ZonePlacedAtBuildTests : IDisposable
         {
             Parent = new CultRecordRef<OrbitData>(rootOrbit), Distance = Distance, Phase = phase
         }).Key;
+        var moonOrbit = cache.Upsert(new OrbitData
+        {
+            Parent = new CultRecordRef<OrbitData>(planetOrbit), Distance = 100f
+        }).Key;
         var planet = cache.Upsert(new PlanetData { Orbit = new CultRecordRef<OrbitData>(planetOrbit), Mass = 1f }).Key;
         var pack = new ZonePack
         {
-            Orbits = { new CultRecordRef<OrbitData>(rootOrbit), new CultRecordRef<OrbitData>(planetOrbit) },
             Planets = { new CultRecordRef<BodyData>(planet) },
             Radius = 5000f,
             Mass = 10000f,
             Time = time
         };
+        // The same three orbits either way; only the order the pack lists them in differs.
+        var listed = moonFirst ? new[] { moonOrbit, planetOrbit, rootOrbit } : new[] { rootOrbit, planetOrbit, moonOrbit };
+        foreach (var key in listed) pack.Orbits.Add(new CultRecordRef<OrbitData>(key));
         var zone = new Zone(items, Settings(), pack, new GalaxyZone { Name = "Placed", Owner = null }, null);
         return new Scene { Cache = cache, Items = items, Hull = hull, Zone = zone, PlanetOrbit = planetOrbit };
     }
@@ -104,7 +110,6 @@ public sealed class ZonePlacedAtBuildTests : IDisposable
         var expected = RootAt + OrbitData.Evaluate(frac(turns + phase)) * Distance;
 
         Assert.InRange(length(orbit.Position - expected), 0f, .01f);
-        Assert.InRange(length(orbit.PreviousPosition - expected), 0f, .01f);
 
         // The well pulls toward the body's place: a point 30 u east of it is pushed west.
         var force = s.Zone.GetForce(expected + new float2(30f, 0f));
@@ -112,16 +117,21 @@ public sealed class ZonePlacedAtBuildTests : IDisposable
         Assert.InRange(normalize(force).x, -1f, -.99f);
     }
 
-    [Fact]
-    public void TheFirstTickVelocityIsTheOrbitsSpeed()
+    // A parent's velocity is its own orbital velocity on the first tick and every tick after, whichever order
+    // the pack lists a moon and its planet in. dt differs per tick so a velocity taken from a fixed step fails.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TheFirstTickVelocityIsTheOrbitsSpeed(bool moonFirst)
     {
-        var s = Build(.35f, 0.0);
-        const float dt = 1f / 60f;
-        s.Zone.Update(dt);
-
-        var speed = length(s.Zone.Orbits[s.PlanetOrbit].Velocity);
+        var s = Build(.35f, 0.0, moonFirst);
         var expected = 2f * PI * Distance / Period;
-        Assert.InRange(speed, expected * .99f, expected * 1.01f);
+        foreach (var dt in new[] { 1f / 60f, 1f / 30f, 1f / 60f })
+        {
+            s.Zone.Update(dt);
+            var speed = length(s.Zone.Orbits[s.PlanetOrbit].Velocity);
+            Assert.InRange(speed, expected * .99f, expected * 1.01f);
+        }
     }
 
     [Fact]
