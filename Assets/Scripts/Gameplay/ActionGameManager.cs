@@ -441,21 +441,21 @@ public class ActionGameManager : MonoBehaviour
         Input.Player.TargetNext.performed += context => CurrentEntity.TargetNext();
         Input.Player.TargetPrevious.performed += context => CurrentEntity.TargetPrevious();
 
-        // Cut 2 (docs/fire-control-cut.md): cycles the aim point among the current target's revealed
-        // subsystems -- decides nothing itself, only calls the one writer (TrySelectTargetItem), same
-        // predicate (FireControl.IsRevealed) the AI path uses. Entity-only: a chunk has no subsystems.
+        // Cut 2 (docs/fire-control-cut.md): cycles the aim point among the current target's located
+        // subsystems -- decides nothing itself, only calls the one writer (TrySelectTargetItem), gated on the
+        // same predicate (FireControl.IsLocated) the writer reads. Entity-only: a chunk has no subsystems.
         Input.Player.CycleTargetItem.performed += context =>
         {
             var target = CurrentEntity.Target.Value.Entity;
             if (target == null) return;
-            var revealed = target.Equipment.Where(x => FireControl.IsRevealed(CurrentEntity, x)).ToArray();
-            if (revealed.Length == 0)
+            var located = target.Equipment.Where(x => FireControl.IsLocated(CurrentEntity, x)).ToArray();
+            if (located.Length == 0)
             {
                 CurrentEntity.TrySelectTargetItem(null);
                 return;
             }
-            var currentItemIndex = Array.IndexOf(revealed, CurrentEntity.ResolvedTargetItem);
-            CurrentEntity.TrySelectTargetItem(revealed[(currentItemIndex + 1) % revealed.Length]);
+            var currentItemIndex = Array.IndexOf(located, CurrentEntity.ResolvedTargetItem);
+            CurrentEntity.TrySelectTargetItem(located[(currentItemIndex + 1) % located.Length]);
         };
 
         #endregion

@@ -71,9 +71,9 @@ public abstract class Entity
 
     // Cut 2 (docs/fire-control-cut.md): the stored aim-point slot. Written only by TrySelectTargetItem
     // below, and nulled whenever Target changes (subscribed in Activate). Do not read this field directly
-    // outside Entity -- read ResolvedTargetItem, which re-validates on every call, so decay (or the item
-    // leaving the target) drops the aim point the moment it is no longer earned, with no loop that has to
-    // notice and clear it.
+    // outside Entity -- read ResolvedTargetItem, which re-validates on every call (FireControl.IsLocated), so decay
+    // (or the item leaving the target, or being destroyed) drops the aim point the moment it is no longer earned,
+    // with no loop that has to notice and clear it.
     public ReactiveProperty<EquippedItem> TargetItem = new ReactiveProperty<EquippedItem>((EquippedItem)null);
 
     // Where the pilot points: reticle, lock cone, tractor, guided rounds, fire direction. Steers nothing; the
@@ -408,8 +408,9 @@ public abstract class Entity
     }
 
     // Cut 2 (docs/fire-control-cut.md): the only writer of TargetItem. Accepts null (clearing the aim
-    // point) or an item belonging to the current Target that FireControl.IsRevealed resolves true for this
-    // entity as observer. Returns whether the write took effect; a rejected non-null selection leaves
+    // point) or an item belonging to the current Target that FireControl.IsLocated resolves true for this
+    // entity as observer (an item it saw act, or one on a mount of the hull it believes the target to be).
+    // Returns whether the write took effect; a rejected non-null selection leaves
     // TargetItem unchanged.
     public bool TrySelectTargetItem(EquippedItem item)
     {
@@ -420,7 +421,7 @@ public abstract class Entity
         }
 
         // Mining Cut 3: entity-only. A chunk has no items, so an item never belongs to a chunk target.
-        if (Target.Value.Entity == null || item.Entity != Target.Value.Entity || !FireControl.IsRevealed(this, item))
+        if (Target.Value.Entity == null || item.Entity != Target.Value.Entity || !FireControl.IsLocated(this, item))
             return false;
 
         TargetItem.Value = item;
@@ -428,10 +429,10 @@ public abstract class Entity
     }
 
     // The read path for TargetItem (see the field's own comment): null once the aimed item is no longer
-    // revealed to this entity, or no longer belongs to the current Target, even though nothing wrote
+    // located by this entity, or no longer belongs to the current Target, even though nothing wrote
     // TargetItem.Value at the moment that became true. Re-checked on every call; never cached.
     public EquippedItem ResolvedTargetItem =>
-        TargetItem.Value != null && Target.Value.Entity == TargetItem.Value.Entity && FireControl.IsRevealed(this, TargetItem.Value)
+        TargetItem.Value != null && Target.Value.Entity == TargetItem.Value.Entity && FireControl.IsLocated(this, TargetItem.Value)
             ? TargetItem.Value
             : null;
 
@@ -1058,12 +1059,23 @@ public abstract class Entity
 
     // The rows of `subject`'s schematic as this ship reads it: its own weapons when `subject` is this ship (each row its
     // own data and live range, nothing to doubt about your own ship), otherwise the revealed weapons (each row the claimed
-    // class and that design's rated range) then the revealed gear (each row the claimed class, no range). The one owner of
-    // which rows, which class and which range an enemy schematic shows; the Unity SchematicDisplay renders it.
-    public IEnumerable<SchematicRow> SchematicRows(Entity subject) =>
-        subject == this
-            ? subject.Equipment.Where(i => i.Behaviors.Any(b => b.Data is WeaponData)).Select(i => new SchematicRow(i, i.Data, true))
-            : RevealedWeapons(subject).Concat(RevealedGear(subject)).Select(r => new SchematicRow(r.Item, r.Claimed, false));
+    // class and that design's rated range) then the revealed gear (each row the claimed class, no range), then one mount
+    // row for each mount of the hull this ship believes `subject` to be (LayoutOf) that no claimed-item row sits on
+    // (ruling quiet-gear-identifiable-hull-layout-known). The one owner of which rows, which class and which range an
+    // enemy schematic shows; the Unity SchematicDisplay renders it.
+    public IEnumerable<SchematicRow> SchematicRows(Entity subject)
+    {
+        if (subject == this)
+            return subject.Equipment.Where(i => i.Behaviors.Any(b => b.Data is WeaponData)).Select(i => new SchematicRow(i, i.Data, true));
+        var claimed = RevealedWeapons(subject).Concat(RevealedGear(subject)).Select(r => new SchematicRow(r.Item, r.Claimed, false)).ToList();
+        return claimed.Concat(LayoutOf(subject)
+            .Where(h => !claimed.Any(r => r.Item.Hardpoint == h))
+            .Select(h => new SchematicRow(h)));
+    }
+
+    // Where `subject`'s mounts are as this ship believes them: the hull it is identified as (Contact.Profile, the claimed
+    // hull), never the subject's own HullData; empty below identification. Derived on every read, nothing stored.
+    public IReadOnlyList<HardpointData> LayoutOf(Entity subject) => ContactOf(subject).Profile?.Hardpoints ?? (IReadOnlyList<HardpointData>) Array.Empty<HardpointData>();
 
     // Whether this observer's book for `subject` holds `item`: the book's membership, no live gear read.
     internal bool HasReveal(Entity subject, EquippedItem item) =>

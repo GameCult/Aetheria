@@ -123,7 +123,9 @@ public class SchematicDisplay : MonoBehaviour
             .ToArray();
         foreach (var x in _schematicItems)
         {
-            if(x.Row.Claimed is WeaponItemData weaponItemData)
+            if (x.Row.Mount != null)
+                x.ListElement.ShowGear(x.Row.Mount.Type, null);
+            else if(x.Row.Claimed is WeaponItemData weaponItemData)
                 x.ListElement.ShowWeapon(weaponItemData);
             else
                 x.ListElement.ShowGear(x.Row.Claimed.HardpointType, x.Row.Claimed.Name);
@@ -208,7 +210,7 @@ public class SchematicDisplay : MonoBehaviour
             // as info decays, with no event to hook.
             if (_enemy && _schematicItems != null)
                 foreach (var x in _schematicItems)
-                    x.ListElement.SetSelected(x.Row.Item == _player.ResolvedTargetItem);
+                    x.ListElement.SetSelected(x.Row.Marks(_player.ResolvedTargetItem));
 
             if(VisibilityLabel && !_enemy)
                 VisibilityLabel.text = ((int)_entity.Visibility).ToString();
