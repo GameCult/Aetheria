@@ -384,6 +384,7 @@ public sealed class FireControlTests : IDisposable
         // The state sampled when the Minion was built, over the fixture's first stats. Author the live gun's falloff, refresh
         // its stats, then sample again.
         var live = shooter.Weapons.Single();
+        live.WeaponData.Range = new PerformanceStat { Min = 1000, Max = 1000 };
         live.WeaponData.EffectiveRange = new PerformanceStat { Min = 500, Max = 500 };
         live.WeaponData.DamageAtMaxRange = 0f;
         typeof(Weapon).GetMethod("UpdateStats", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).Invoke(live, null);
