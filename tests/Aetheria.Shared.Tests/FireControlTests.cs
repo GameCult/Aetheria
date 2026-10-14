@@ -369,6 +369,26 @@ public sealed class FireControlTests : IDisposable
         Assert.Same(weak, shooter.TargetItem.Value);
     }
 
+    // The distance Combat measures is the gate's: planar (FireControl R7). A target 8 above the plane at planar 10 is 12.8
+    // away in space, past the Dart's Range of 12, yet the gate and the claim both read 10: the Dart (about 16.7 there against
+    // Slug's 5) is the chosen claim. Mutation: Combat measures the three-dimensional distance (the Dart then reads 0).
+    [Fact]
+    public void TheAIMeasuresTheTargetOnTheGroundPlane()
+    {
+        var (shooter, target, zone) = BuildCombatEncounter(float3(0, 8, 10), twoTargetGuns: true);
+        var strong = target.Equipment.Single(x => x.Data.Name == "Gun");
+        var weak = target.Equipment.Single(x => x.Data.Name == "WeakGun");
+
+        target.Claim(strong, ClaimedDesign("Dart", 100f, range: 12f, effective: 0f));
+        target.Claim(weak, ClaimedDesign("Slug", 5f));
+        shooter.RecordReveal(target, strong, SignatureChannel.LaunchFlash, target.ClaimOf(strong));
+        shooter.RecordReveal(target, weak, SignatureChannel.LaunchFlash, target.ClaimOf(weak));
+        zone.Update(1f);
+        zone.Update(1f);
+
+        Assert.Same(strong, shooter.TargetItem.Value);
+    }
+
     // The AI settles where its guns do the most damage per second, weighted towards range: with full damage to 500 and none
     // at 1000 that is the effective range (DF6). Mutation: SampleDps spans from the shortest Range (every sample then reads
     // 1000, factor 0, and the optimum stays 0), or the factor reads an offset range.
