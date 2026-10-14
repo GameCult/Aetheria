@@ -122,11 +122,11 @@ public readonly struct Reveal
     }
 }
 
-// One weapon row of a ship's schematic as its viewer is entitled to read it (aetheria-ew, classify-from-belief; ruling
+// One weapon or gear row of a ship's schematic as its viewer is entitled to read it (aetheria-ew, classify-from-belief; ruling
 // ew-claim-weapon-measure-ruled). Made only by Entity.SchematicRows. `Item` is the true item: the selection mark's key and,
 // on the viewer's own ship, the live gear. `Claimed` is the class the row shows. The range label is the live range on
-// the viewer's own ship and the claimed design's rated range on any other; the viewer never sees a target weapon's
-// quality, wear or power. A renderer shows these and decides nothing.
+// the viewer's own ship and the claimed design's rated range on any other; a row whose claimed class is not a weapon has
+// no range. The viewer never sees a target item's quality, wear or power. A renderer shows these and decides nothing.
 public readonly struct SchematicRow
 {
     public readonly EquippedItem Item;
@@ -143,9 +143,9 @@ public readonly struct SchematicRow
     // What a renderer compares to know the rows changed. Range is a reading, not part of the key.
     public (EquippedItem, EquippableItemData) Key => (Item, Claimed);
 
-    public float Range => _own
+    public float? Range => _own
         ? Item.Behaviors.OfType<Weapon>().First().Range
-        : Claimed.Behaviors.OfType<WeaponData>().First().RatedRange;
+        : Claimed.Behaviors.OfType<WeaponData>().FirstOrDefault()?.RatedRange;
 }
 
 // A subject's removal from a zone as the zone recorded it (death, dock, warp, any removal): where it was and how

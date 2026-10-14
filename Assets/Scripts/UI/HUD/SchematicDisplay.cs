@@ -94,12 +94,12 @@ public class SchematicDisplay : MonoBehaviour
                 CargoTemperatureLabel.text = "N/A";
         }
         
-        BuildRows(WeaponRows());
+        BuildRows(Rows());
     }
 
     // Which rows, which class and which range label are Entity.SchematicRows' decision (aetheria-ew, classify-from-belief);
     // this display only renders them.
-    private IEnumerable<SchematicRow> WeaponRows() => (_player ?? _entity).SchematicRows(_entity);
+    private IEnumerable<SchematicRow> Rows() => (_player ?? _entity).SchematicRows(_entity);
 
     private void ReturnRows()
     {
@@ -125,6 +125,8 @@ public class SchematicDisplay : MonoBehaviour
         {
             if(x.Row.Claimed is WeaponItemData weaponItemData)
                 x.ListElement.ShowWeapon(weaponItemData);
+            else
+                x.ListElement.ShowGear(x.Row.Claimed.HardpointType, x.Row.Claimed.Name);
             //x.ListElement.Label.text = x.Item.EquippableItem.Name;
             if (!_enemy)
             {
@@ -194,11 +196,11 @@ public class SchematicDisplay : MonoBehaviour
             // }
 
             // A reveal gained or ended after selection changes the rows with no event to hook: rebuild when the
-            // revealed weapon set differs from the rows' items.
-            if (_enemy && !WeaponRows().Select(r => r.Key).SequenceEqual(_schematicItems.Select(x => x.Row.Key)))
+            // revealed set differs from the rows' items.
+            if (_enemy && !Rows().Select(r => r.Key).SequenceEqual(_schematicItems.Select(x => x.Row.Key)))
             {
                 ReturnRows();
-                BuildRows(WeaponRows());
+                BuildRows(Rows());
             }
 
             // Cut 2 (docs/fire-control-cut.md): marks whichever row is the player's current aim point.
@@ -239,7 +241,11 @@ public class SchematicDisplay : MonoBehaviour
                 }
 
                 if (x.ListElement.RangeLabel)
-                    x.ListElement.RangeLabel.text = ((int) x.Row.Range).ToString();
+                {
+                    var range = x.Row.Range;
+                    x.ListElement.RangeLabel.gameObject.SetActive(range.HasValue);
+                    if (range.HasValue) x.ListElement.RangeLabel.text = ((int) range.Value).ToString();
+                }
             }
         }
     }

@@ -22,6 +22,49 @@ public class SchematicListElement : MonoBehaviour
 
     private List<Prototype> _iconInstances = new List<Prototype>();
 
+    // A gear row names its class; created on first use as VisibleTargetIndicator.ShowLabel creates its own (no scene or
+    // prefab edit) and hidden by every other row kind, because pools are shared.
+    private TextMeshProUGUI _nameLabel;
+
+    private void ClearIcons()
+    {
+        foreach(var prototype in _iconInstances) prototype.ReturnToPool();
+        _iconInstances.Clear();
+    }
+
+    private void SetName(string name)
+    {
+        var show = !string.IsNullOrEmpty(name);
+        if (_nameLabel == null)
+        {
+            if (!show) return;
+            var child = new GameObject("Name", typeof(RectTransform));
+            child.transform.SetParent(transform, false);
+            _nameLabel = child.AddComponent<TextMeshProUGUI>();
+            _nameLabel.fontSize = 14;
+            _nameLabel.alignment = TextAlignmentOptions.Left;
+            _nameLabel.raycastTarget = false;
+            var rect = _nameLabel.rectTransform;
+            rect.anchorMin = new Vector2(0, 0);
+            rect.anchorMax = new Vector2(1, 1);
+            rect.offsetMin = new Vector2(40, 0);
+            rect.offsetMax = Vector2.zero;
+        }
+        _nameLabel.gameObject.SetActive(show);
+        if (show && _nameLabel.text != name) _nameLabel.text = name;
+    }
+
+    // A revealed item that is not a weapon: its hardpoint's icon and, when given, its class name. Layout-aim reuses this with
+    // a null name for mount rows.
+    public void ShowGear(HardpointType type, string name)
+    {
+        ClearIcons();
+        var icon = IconPrototype.Instantiate<Image>();
+        _iconInstances.Add(icon.GetComponent<Prototype>());
+        icon.sprite = Settings.GetIcon(type);
+        SetName(name);
+    }
+
     public void SetSelected(bool selected)
     {
         if (SelectedIndicator != null) SelectedIndicator.SetActive(selected);
@@ -29,8 +72,8 @@ public class SchematicListElement : MonoBehaviour
 
     public void ShowWeapon(WeaponItemData weapon)
     {
-        foreach(var prototype in _iconInstances) prototype.ReturnToPool();
-        _iconInstances.Clear();
+        ClearIcons();
+        SetName(null);
 
         var caliberIcon = IconPrototype.Instantiate<Image>();
         _iconInstances.Add(caliberIcon.GetComponent<Prototype>());
