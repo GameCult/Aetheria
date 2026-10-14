@@ -51,7 +51,7 @@ public sealed class RangeFalloffTests
     // The properties panel evaluates an unequipped item's stats through ItemManager.Evaluate. An unauthored stat is +infinity at
     // both ends (EffectiveRange, Tracking) and must evaluate to that, not throw: a span of one value has nothing to interpolate.
     [Theory]
-    [InlineData("SRMM72", true)]
+    [InlineData("Short-Range Missile Rack", true)]
     [InlineData("Mine Launcher", true)]
     [InlineData("Autocannon", false)]
     public void AnUnequippedWeaponsUnauthoredStatsEvaluate(string design, bool unauthored)
