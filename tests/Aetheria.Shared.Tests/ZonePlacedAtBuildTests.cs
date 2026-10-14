@@ -47,7 +47,6 @@ public sealed class ZonePlacedAtBuildTests : IDisposable
         GravityRadius = Flat(500f),
         GravityDepth = Flat(100f),
         GravityStrength = 1f,
-        WaveDepth = Flat(0f), WaveRadius = Flat(0f), WaveSpeed = Flat(0f), WaveFrequency = Flat(0f),
         LightRadius = Flat(0f)
     };
 
