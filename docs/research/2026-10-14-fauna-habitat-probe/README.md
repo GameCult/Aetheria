@@ -1,0 +1,6 @@
+# Fauna habitat probe (2026-10-14)
+
+Serves ruling `aetheria-fauna:ruling:fauna-placement-ruled` and the questions `aetheria-fauna:question:habitat-density-driver` and `:habitat-no-pop`, raised in `cut-fauna-habitat-placement.r1`. Facts are map rows B25-B25h in `docs/aetheria-fauna-map.md`.
+`habitat_probe.py` is a pure-Python, float64 transliteration of `FlowField` (branch `eureka/aetheria-fauna-flow-field` at `5f5a1e4d`) and `Zone.GetHeight`/`GetNormal` (`b836af48`) on the B20 zone. It is not the C# law, which is float32; the images are qualitative evidence, and the numbers are the transliteration's.
+Images: `option_density_*` and `option_members_*` (one per density-driver option, spec r1 constants, slope terms on), `option_nopop_*` (one per no-pop option; red = a member that popped), and the earlier `density_c*` and `members_c0` renders (normalised per image).
+To rerun, copy this folder to a scratch directory (the scripts write PNGs next to themselves), then `py -3 habitat_options.py`, `py -3 pop_maps.py`, `py -3 lattice_probe.py`, `py -3 pop_probe.py` (env FADE), `py -3 pop_cycle.py`, or `py -3 habitat_probe.py 256 live|swirl <candidates> <member candidates>`. Python 3 only, no packages; each takes 1-5 minutes.
