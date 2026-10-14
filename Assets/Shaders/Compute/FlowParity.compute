@@ -1,0 +1,27 @@
+// Evaluates the shader flow functions for a buffer of positions and gradients, so that
+// Aetheria.EditorTools.FlowFieldParityVerify can compare them with FlowField (ServerShared). Reads the same global
+// _Flow* uniforms the nebula and stardust read, set by VolumeSampling.LowerFlow.
+#pragma kernel Evaluate
+// A compute shader declares the global keywords itself (as Stardust.compute does); the flow() it calls is keyword-gated.
+#pragma multi_compile __ FLOW_GLOBAL
+#pragma multi_compile __ FLOW_SLOPE
+
+#include "Assets/Shaders/Volumetric.cginc"
+
+StructuredBuffer<float3> positions;
+StructuredBuffer<float2> gradients;
+RWStructuredBuffer<float3> globalOut;
+RWStructuredBuffer<float3> slopeOut;
+RWStructuredBuffer<float3> gatedOut; // flow(): the keyword-gated function the nebula and stardust call
+RWStructuredBuffer<float> noiseOut; // triNoise3d: the nebula noise the flow advects
+uint count;
+
+[numthreads(64, 1, 1)]
+void Evaluate(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= count) return;
+    globalOut[id.x] = globalFlow(positions[id.x]);
+    slopeOut[id.x] = slopeFlow(gradients[id.x]);
+    gatedOut[id.x] = flow(positions[id.x]);
+    noiseOut[id.x] = triNoise3d(positions[id.x] / 512);
+}

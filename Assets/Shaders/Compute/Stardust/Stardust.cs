@@ -36,7 +36,6 @@ public class Stardust : MonoBehaviour
     //public Transform TargetTransform;
     public Camera GravityCamera;
 
-    private float _flowScroll;
     private const int GROUP_SIZE = 128;
     private int _updateParticlesKernel;
     #endregion
@@ -102,7 +101,8 @@ public class Stardust : MonoBehaviour
         //Bind resources to compute shader
         ParticleCalculation.SetBuffer(_updateParticlesKernel, "particles", _particlesBuffer);
 
-        ParticleCalculation.SetFloat("time", Time.time);
+        // Particle lifetimes cycle on the flow clock (zone time), so the dust stops with the sim like everything the flow moves.
+        ParticleCalculation.SetFloat("phase", FlowField.Cycle(VolumeSampling.FlowClock, Period));
 
         var pos = GravityCamera.transform.position;
         ParticleCalculation.SetFloat("period", Period);

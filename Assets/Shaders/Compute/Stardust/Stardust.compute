@@ -25,7 +25,7 @@ Texture2D HueTexture;
 SamplerState samplerHueTexture;
 
 float period;
-float time;
+float phase; // the cycle phase from zone time (FlowField.Cycle), in [0, 1)
 float spacing;
 float ceilingHeight;
 float floorHeight;
@@ -125,7 +125,7 @@ void UpdateParticles(uint3 id : SV_DispatchThreadID, int3 groupID : SV_GroupThre
 	uint xp = x + xt + offset;
 	uint yp = y + yt + offset;
 	
-	const float lifetime = frac(time / period + RandomFirst(xp, yp));
+	const float lifetime = frac(phase + RandomFirst(xp, yp));
 	
 	particles[id.x].position = float3(
 		x * spacing + xt * spacing + perlinNoise1D(RandomValue()*1024)*spacing, 0,

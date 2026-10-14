@@ -27,16 +27,11 @@ public class VolumeSampling : MonoBehaviour
     public RenderTexture NebulaTint;
 
     private MeshRenderer _gridMeshRenderer;
-    private float _flowScroll;
     private Transform _gridTransform;
-    private GlobalKeyword _keywordFlowGlobal;
-    private GlobalKeyword _keywordFlowSlope;
     private GlobalKeyword _keywordNoiseSlope;
 
     private void Start()
     {
-        _keywordFlowGlobal = GlobalKeyword.Create("FLOW_GLOBAL");
-        _keywordFlowSlope = GlobalKeyword.Create("FLOW_SLOPE");
         _keywordNoiseSlope = GlobalKeyword.Create("NOISE_SLOPE");
 
         if (GridMesh != null)
@@ -52,6 +47,7 @@ public class VolumeSampling : MonoBehaviour
             Shader.SetGlobalVector("_GridTransform", new Vector4(_gridTransform.position.x,_gridTransform.position.z,GridCamera.orthographicSize*2));
 
         var environment = ActionGameManager.Instance?.CurrentEnvironment ?? Settings.DefaultEnvironment;
+        var clock = FlowClock;
 
         if (GridMesh != null)
         {
@@ -91,18 +87,46 @@ public class VolumeSampling : MonoBehaviour
         Shader.SetGlobalFloat("_NebulaNoiseExponent", environment.Noise.Exponent);
         Shader.SetGlobalFloat("_NebulaNoiseAmplitude", environment.Noise.Amplitude);
         Shader.SetGlobalFloat("_NebulaNoiseSpeed", environment.Noise.Speed);
+        // The noise the flow advects evolves on the flow's clock too: it pauses with the sim.
+        Shader.SetGlobalFloat("_NebulaNoiseTime", (float) clock);
         Shader.SetGlobalFloat("_NebulaNoiseSlopeExponent", environment.Noise.SlopeExponent);
         
-        Shader.SetGlobalFloat("_FlowScale", environment.Flow.GlobalScale);
-        Shader.SetGlobalFloat("_FlowAmplitude", environment.Flow.GlobalAmplitude);
-        Shader.SetGlobalFloat("_FlowSlopeAmplitude", environment.Flow.SlopeAmplitude);
-        Shader.SetGlobalFloat("_FlowSwirlAmplitude", environment.Flow.SwirlAmplitude);
-        _flowScroll += environment.Flow.GlobalScrollSpeed * Time.deltaTime;
-        Shader.SetGlobalFloat("_FlowScroll", _flowScroll);
-        Shader.SetGlobalFloat("_FlowPeriod", environment.Flow.Period);
-        
-        Shader.SetKeyword(_keywordFlowGlobal, environment.Flow.GlobalAmplitude != 0);
-        Shader.SetKeyword(_keywordFlowSlope, environment.Flow.SlopeAmplitude != 0 || environment.Flow.SwirlAmplitude != 0);
+        // The flow is the zone's: its settings and its time. Without a zone (menus) the same law runs on the presentation clock.
+        LowerFlow(ActionGameManager.Instance?.Zone?.Settings.Flow ?? Settings.PlanetSettings.Flow, clock);
         Shader.SetKeyword(_keywordNoiseSlope, environment.Noise.SlopeExponent != 0);
+    }
+
+    // GlobalKeyword's constructor only looks a keyword up; Create registers it. The shaders' pragmas and this owner
+    // agree on the names. Unity refuses Create inside a MonoBehaviour's construction, and a scene constructing the
+    // first VolumeSampling runs this type's static initializer there, so the keywords are created on first use, from
+    // LowerFlow, never in a field initializer.
+    static GlobalKeyword? _keywordFlowGlobal;
+    static GlobalKeyword? _keywordFlowSlope;
+    static GlobalKeyword KeywordFlowGlobal => _keywordFlowGlobal ??= GlobalKeyword.Create("FLOW_GLOBAL");
+    static GlobalKeyword KeywordFlowSlope => _keywordFlowSlope ??= GlobalKeyword.Create("FLOW_SLOPE");
+
+    /// <summary>
+    /// The time the flow runs on: the zone's own (so drift stops with the sim and follows sim speed), or on menus,
+    /// where no zone exists, the presentation clock.
+    /// </summary>
+    public static double FlowClock => ActionGameManager.Instance?.Zone?.ExactTime ?? Time.timeSinceLevelLoad;
+
+    /// <summary>
+    /// The one place that sets the flow uniforms and keywords: every shader flow term derives from FlowSettings and
+    /// the flow clock through FlowField, so no presenter keeps its own flow clock.
+    /// </summary>
+    public static void LowerFlow(FlowSettings flow, double flowClock)
+    {
+        Shader.SetGlobalFloat("_FlowScale", flow.GlobalScale);
+        Shader.SetGlobalFloat("_FlowAmplitude", flow.GlobalAmplitude);
+        Shader.SetGlobalFloat("_FlowSlopeAmplitude", flow.SlopeAmplitude);
+        Shader.SetGlobalFloat("_FlowSwirlAmplitude", flow.SwirlAmplitude);
+        var scroll = FlowField.Scroll(flow, flowClock);
+        Shader.SetGlobalVector("_FlowScroll", new Vector4(scroll.x, scroll.y));
+        Shader.SetGlobalFloat("_FlowPeriod", flow.Period);
+        Shader.SetGlobalFloat("_FlowCycle", FlowField.Cycle(flowClock, flow.Period));
+
+        Shader.SetKeyword(KeywordFlowGlobal, flow.GlobalAmplitude != 0);
+        Shader.SetKeyword(KeywordFlowSlope, flow.SlopeAmplitude != 0 || flow.SwirlAmplitude != 0);
     }
 }
