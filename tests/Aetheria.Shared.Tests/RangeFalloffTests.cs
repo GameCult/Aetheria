@@ -153,6 +153,24 @@ public sealed partial class FireControlCut124Tests
         Assert.Equal(100f * lerp(1f, .25f, (stopped - 10f) / (NoLockRange - 10f)), damage, 3);
     }
 
+    // A targeted fused round is delivered at its planned burst point, the intercept of a receding target, not at the target's
+    // distance now: the target at 40 recedes at 10 under a round of speed 20, so the burst is planned at 80, past the 50
+    // effective range of a 150 range weapon.
+    [Fact]
+    public void ATargetedFusedRoundReadsTheFactorAtItsPlannedBurstPoint()
+    {
+        var e = Build(TestSettings(), SolidShape(5, 4), velocity: 20f, fuse: WeaponFuse.Proximity, blastRadius: 4f, damage: 100f,
+            weaponRange: 150f, targetRange: 40f, effectiveRange: 50f, damageAtMaxRange: 0f);
+        e.Target.Velocity = normalize((e.Target.Position - e.Shooter.Position).xz) * 10f;
+
+        var shotId = FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+
+        var shot = e.Zone.PendingShots.Single(s => s.ShotId == shotId);
+        var reach = length((shot.BurstPosition - e.Shooter.Position).xz);
+        Assert.True(reach > 70f, "fixture: the burst is planned well past the target's distance now");
+        Assert.Equal(100f * (1f - (reach - 50f) / 100f), shot.Damage, 2);
+    }
+
     // A beam roll fires through damageOverride: the override is what the factor multiplies.
     [Fact]
     public void ABeamRollCarriesTheFactor() => Assert.Equal(5f, FreezeAt(100f, damageOverride: 10f).Damage, 3);
