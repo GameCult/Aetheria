@@ -382,7 +382,9 @@ public sealed class FireControlTests : IDisposable
         var agent = zone.Agents.Single();
         var state = typeof(Agent).GetField("_currentState", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(agent);
         Assert.True(state is CombatState, $"the agent is in {state?.GetType().Name}");
-        // The state sampled when the Minion was built, before any weapon stat was evaluated; sample again over the evaluated ones.
+        // The state sampled when the Minion was built, over the fixture's first stats; refresh the gun's stats from the data this
+        // test authored, then sample again.
+        typeof(Weapon).GetMethod("UpdateStats", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).Invoke(shooter.Weapons.Single(), null);
         typeof(CombatState).GetMethod("SampleDps", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).Invoke(state, null);
         var optimum = (float) typeof(CombatState).GetField("_optimumRange", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(state);
         Assert.True(optimum >= 500f - 1000f / 32f && optimum <= 500f + 1000f / 32f, $"optimum range {optimum}");
