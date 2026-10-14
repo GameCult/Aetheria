@@ -29,12 +29,13 @@ public sealed partial class ContactRevealTests
 
     private static EquippedItem ScannerItemOf(Entity e) => e.Equipment.Single(i => i.Behaviors.Any(b => b is Scanner));
 
-    // A scanner ship at the origin, with a passive eye and the named scanner, tracking and targeting a ship `distance`
+    // A scanner ship at the origin, with the named scanner and no sensor (an AI ship with a sensor pings once it loses its
+    // track, which would paint the target beside the scan), tracking and targeting a ship `distance`
     // ahead that carries a reactor, a radiator and a suppressor, none of which ever acts.
     private (Ship scanner, Ship target) ScanOn(string scanner = "Scanner", float distance = 100f)
     {
         var target = Add(float3(0, 0, distance), tools: new[] { "Reactor", "Radiator", "SuppressorCold" });
-        var s = Add(float3(0, 0, 0), new[] { "Eye" }, new[] { scanner });
+        var s = Add(float3(0, 0, 0), tools: new[] { scanner });
         s.EntityInfoGathered[target] = .5f;
         s.SetTarget(target);
         Assert.Same(target, s.Target.Value.Entity); // fixture
