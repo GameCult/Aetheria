@@ -9727,3 +9727,128 @@ have moved (FireControl.cs and SchematicDisplay.cs TOUCHED at 3300e16e); refresh
 - mind-commit-6d2f78d4...: cut-bearing-markers.r3 (base 3300e16e; Entity.cs window widened to 996-1018 so it shows
   RevealedWeapons whole), resolution cut_spec.cut-bearing-markers.r2.n1 (Superseded). context-pack on r3: all ten
   anchors SAME. No question raised.
+
+# Visibility refresh at a17dab36
+
+Imagination imagination-ag2-visibility, session self-2026-10-14-ag2, 2026-10-14. Pinned to Aetheria origin/master
+a17dab36 (bearing-markers merged; inspection-scanner, sensor-catalog, contact-hud, reveals-replace-tiers and
+aetheria-ew ew-claims-in-the-book are ancestors). Read-only detached worktree `C:\aeth-wt\ag2-imag-vis`. Refreshes
+cut_specs scanner-catalog (r1 -> r2) and layout-aim (r2 -> r3), both based on efee2a2a. No
+`eureka/aetheria-release-scanner-catalog` or `eureka/aetheria-release-layout-aim` branch exists on origin
+(`git ls-remote`), so both start fresh. Paths under Assets/Scripts unless noted.
+
+## Body facts (source reads at a17dab36)
+
+VA1. context-pack `--since efee2a2a`: scanner-catalog r1's two anchors TOUCHED (AetherDb Program.cs 48-55 -> 51-60;
+the incoming-indicator window 1459-1476 -> 1496-1583, rewritten by bearing-markers). layout-aim r2: Entity.cs 72-77 and
+SchematicListElement 24-31 SAME; Entity 379-405 MOVED +31; FireControl 155-183 TOUCHED (IsRevealed is now 155-161),
+the rest MOVED (-22 to +21, damage-falloff); the ActionGameManager cycle MOVED +14; SchematicDisplay 66-120 TOUCHED.
+
+VA2. The enemy schematic lists weapons only. `Entity.SchematicRows` (ServerShared/Entity.cs:1052-1059) is the one owner
+of rows: own ship, its weapons with live range; any other ship, `RevealedWeapons` (1035-1037, claimed class carries
+WeaponData). `SchematicRow.Range` (ServerShared/Sensing.cs:124-152) takes `First()` of the class's WeaponData, so a gear
+row would throw. SchematicDisplay renders rows only (`WeaponRows` 98, `BuildRows` 114-132, `ShowWeapon` per weapon
+claim, RangeLabel written for every row 236-242).
+
+VA3. Consequence: a finished scan (inspection-scanner, merged) records the reactor, shields and other gear in the book
+(`RecordInspection`, Entity.cs:977-983) and nothing displays them; their only effect is that the cycle can select them
+(IsRevealed). scanner-catalog r1's operator check ("its reactor, shields and armour appear on its schematic") could not
+pass. ClaimedClasses (1041-1042) labels bearing markers only, for untracked remembered hostiles.
+
+VA4. No HUD shows the player's own scan building. `IProgressBehavior` is read only by own-ship weapon rows
+(SchematicDisplay.cs:120); outgoing progress indicators exist only for LockWeapons (`_lockingIndicators`,
+ActionGameManager.cs:206; built 1160-1165; updated 1486-1495 behind an `IsHostileTo` gate; returned 1024-1025). The
+Scanner (ServerShared/Behaviors/Scanner.cs:39-100) runs while its item is Active and paints `PaintMode.Scan` with its
+progress (87), emitting at `Range / InterceptFactor` (88).
+
+VA5. The incoming indicator still takes the strongest Track paint only (ActionGameManager.cs:1497-1503).
+`PaintMode.Search` appears once in ActionGameManager (1381, the per-tick sweep collection).
+
+VA6. Catalog pattern. `LaunchSuppressorCatalog(bool apply, string root = null)` (tools/AetherDb/Program.cs:2718-2850)
+is the current shape of a new-gear command: Targeting Computer thermal template, one linear Quality term per stat,
+all-or-nothing idempotence with a partial refusal, an `ExpectUnchanged` batch, tests on a temp root
+(LaunchSuppressorCommandTests) and on the shipped catalog (LaunchSuppressorCatalogTests). The emission-discipline curve
+(.5..2, exponent log2(3)) and `DisciplineMean` (Lucent .2, Finch and Sol .8, others .5) are Program.cs:1680-1690;
+`MakerProfiles` 249-254 (no Sol entry); `ToolRolesByDesign` 233-245 feeds CB-R1 through `HasRoleMap` (283-284).
+Commands are listed at 25-56, usage at 58.
+
+VA7. Residual-test sites. ScannerTests (a ContactRevealTests partial): `AScanReadsNoHostility` (310-340, the target has
+no sensor and only the end book is asserted) and `AScanTakesTheSamePathForAnyPilot` (341-380, a task-less `Agent` that
+stays in BaseState). A `Minion` is constructible in a test zone (FireControlPerWeaponTests.cs:274). EmissionTests
+318-335 pins the Sensor's `InterceptFactor` property through a lot, not the heard range (Sensor.cs:179 emits
+`PingRange / InterceptFactor`), so emit-alpha-read-pinned still applies, and Scanner.cs:88 has the same read unpinned.
+The docked test is ContactRevealTests.cs:1691-1709 (SetIff true only). ContactRevealTests' partials are ClaimTests,
+EmissionTests, LaunchSuppressorTests, ListenerTests and ScannerTests; about 169 assertion lines pass items or reveals
+to xunit 2.9.3, so residual (2) of bearing-markers-test-residuals, if real, is one formatter fix (a short ToString on
+EquippedItem and Entity), never a per-site sweep. Whether `ArgumentFormatter.Format` walks the graph is unprobed;
+Hands probes first.
+
+VA8. layout-aim anchors at a17dab36: TargetItem Entity.cs:72-77; TrySelectTargetItem and ResolvedTargetItem 410-436;
+IsRevealed FireControl.cs:155-161; Forecast's Silhouette call 340 (window 330-343); Fire's PendingShot 719-735 (Aimed
+725); CommitProbability's Silhouette 898; ResolveAimPoint 1765-1774; Silhouette 1790 (aim point 1812); CellsOf
+1967-1977; PendingShot 1984-1994; the cycle ActionGameManager.cs:442-457; the selection mark SchematicDisplay.cs:203-209.
+Test Silhouette call sites: FireControlCut12Tests 767, 1350, 1355, 1377.
+
+VA9. Claimed and true hull. `ContactOf` (Entity.cs:1066-1085) derives `Profile = subject.ClaimedHull` at Identified;
+`ClaimedHull` (116) is `ClaimOf(EquippedHull) as HullData ?? HullData`, and `ClaimOf` (117-118) is the item's data unless
+claimed. `HullData` (1161) and `EquippedHull` (1272) both come from `GetData(hull)`; each item's `Hardpoint` comes from
+`HardpointAt` over that hull data (1479, 1491; EquippedItem.Hardpoint 2057-2060, null for Tool gear and the hull). So
+with no claim, `Profile.Hardpoints` are the very objects the items carry (r3's tests pin the identity); under a hull lie
+they are another record's and match no fitted item. `Hardpoints[,]` is built at 1283-1291 (Position + Shape cells).
+
+VA10. Aim-gate callers: the cycle (ActionGameManager.cs:449, walks live Equipment), Combat (Agents/States/Combat.cs:47
+IsRevealed over RevealedWeapons, 55 the writer), and the gate itself (Entity.cs:423, 434).
+
+VA11. Negative baselines: `subject\.HullData` in Entity.cs 0; `\.Equipment` in SchematicDisplay.cs and
+SchematicListElement.cs 0; `IsLocated(` anywhere 0; `CellsOf(` in FireControl.cs 2; `Durability < ` in FireControl.cs
+and Entity.cs 0; `r\.Item\.Data` in Entity.cs 0.
+
+VA12. Open Soul findings (aetheria-release, aetheria-ew) on these sites: none. Nearest: boss-gate win-unguarded (Win)
+and faction-play-1 trespass-reads-zone-owner (Entity.cs:190). The enemy schematic's hull bar reads the target's true
+`Hull.Durability` (SchematicDisplay.cs:212-219): follow-up target-panel-reads-enemy-hull, an operator design call that
+neither cut touches. The outgoing lock indicator's `IsHostileTo` gate reads true allegiance
+(aetheria-ew:follow_up:bearing-only-allegiance, owned by ew-belief-allegiance); scanner-catalog keeps it on locks and
+puts no hostility gate on scans.
+
+## Rationale
+
+- Scanned gear rows belong to scanner-catalog (VA3). The scanner is merged and invisible in play; the cut that sells it
+  is the one that makes what it reveals readable. The rows read `Reveal.Claimed` only, as bearing-markers' labels do,
+  so a scan under a claim shows the claim (instruments-bound, classify-from-belief).
+- What a gear row shows: the hardpoint-type icon and the claimed design's name, in a runtime label created as
+  VisibleTargetIndicator creates its own (no prefab edit). Imagination's default, not an operator ruling: the cheapest
+  read that tells a scanned row from layout-aim's unnamed mount row. A richer line (one rated figure per kind) is a
+  later UX-ledger item if the operator wants it.
+- The own-scan indicator reuses the lock indicator's list and curve (VA4) rather than adding a second indicator path:
+  one list of progress sources, one update loop, one return path.
+- Three scanner products (Finch, AU, Lucent): rulings catalog-grows-generic-designs-branded-products and
+  kitchen-sink-content lean to several products per design, and quiet, middling and loud emission-discipline means make
+  the maker a real choice. Design name `Inspection Scanner` per designs-are-tech-nodes.
+- Layout from the believed hull (VA9). r2 read `subject.HullData`, the truth, beside a book that now carries claims.
+  Reading `Profile` keeps the layout instruments-bound and makes ew-aim-under-hull-lie-ruled hold by construction: under
+  a lie no fitted item's Hardpoint is in the claimed layout, so nothing is located while the ship stays targetable.
+- Mount rows move into Entity.SchematicRows. Since aetheria-ew it is the one owner of enemy rows; r2 put them in
+  SchematicDisplay, which would have made the renderer decide rows again. `SchematicRow.Marks` keeps the selection rule
+  out of the renderer too.
+- Order: scanner-catalog first, layout-aim second, sequential. Both edit SchematicRow (Sensing.cs 124-152),
+  SchematicRows (Entity.cs 1052-1059) and BuildRows (SchematicDisplay.cs 114-132), and layout-aim reuses
+  scanner-catalog's `ShowGear` and nullable `Range` (invariant lanes-respected). Their ActionGameManager hunks are
+  disjoint (cycle 442-457; indicators 204-208, 1022-1028, 1158-1170, 1484-1513). scanner-catalog goes first because its
+  dependencies are all merged, it completes a merged mechanic, and layout-aim then extends a row type that already holds
+  weapon and gear rows.
+- Sizes: scanner-catalog about 110 Hands calls (cap 150; declared stop before the residual tests); layout-aim about 85
+  (cap 110; declared stop before the schematic rows).
+
+## Cut order (amends 'Visibility refresh at efee2a2a')
+
+inspection-scanner, sensor-catalog and bearing-markers (all merged) -> scanner-catalog r2 (runs now) -> layout-aim r3
+(after scanner-catalog merges; its anchors are exact at a17dab36, and Self refreshes it if context-pack then reports its
+windows TOUCHED beyond scanner-catalog's own hunks).
+
+## Admitted (imagination-ag2-visibility, 2026-10-14)
+
+- mind-commit-220669ba...: cut-scanner-catalog.r2 (base a17dab36), resolution cut_spec.cut-scanner-catalog.r1.n1
+  (Superseded). Folds follow-ups scanner-test-residuals, emit-alpha-read-pinned and bearing-markers-test-residuals.
+  context-pack on r2: all sixteen anchors SAME.
+- mind-commit-2df0d64a...: cut-layout-aim.r3 (base a17dab36, depends on scanner-catalog), resolution
+  cut_spec.cut-layout-aim.r2.n1 (Superseded). context-pack on r3: all fifteen anchors SAME. No question raised.
