@@ -54,7 +54,7 @@ Cuts without a `cut_spec`, withdrawn 2026-10-12 under map-only-what-runs: a spec
 - matrix-mines: Weapon matrix, Mine row: Mine Rack, Heavy Mine Layer and Minefield Projector beside the Mine Launcher, with warhead and. Waits on: roles-backfill (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
 - product-lines-gear: Gear product lines: the twenty-two second-maker products of follow-up gear-product-lines, with role quality from maker. Waits on: generic-design-names, roles-backfill (blocked on generic-design-names; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
 - product-lines-weapons: Weapon product lines (r2): r1's nineteen products plus a second maker for the Mine Launcher, authored after. Waits on: generic-design-names, lot-product, roles-backfill (blocked on generic-design-names; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
-- boost-gear-combat: Stat boosters, combat, tiered by size: a modest 1x1 and a strong 2x2 each for Damage and Range on every gun through. Waits on: boost-gear-systems (blocked on boost-gear-systems; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
+- boost-gear-combat: Stat boosters, combat, tiered by size: a modest 1x1 and a strong 2x2 each for Damage and Range on every gun through. Waits on: boost-gear-systems (blocked on boost-gear-systems; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first). After damage-falloff: a Range Extender multiplies Range only, so it lengthens the falloff ramp and leaves EffectiveRange where it was; the cut decides whether it also targets EffectiveRange (section "Damage falloff at fire time", DF8).
 - boost-gear-systems: Stat boosters, systems, tiered by size: a modest 1x1 and a strong 2x2 each for Thrust, Signal, Emissivity and Reactor. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
 - ships-player: S3, agent side: a player built by AetheriaBuild composes and preloads mod ships with Aetheria materials only, radiators. Waits on: ships-mounts, ships-hull-material, player-build (blocked on ships-hull-material).
 - ships-addon-gizmos: Blender Ship Mounts tool (r6): gizmos select and drag mounts snapped to cells in Ship Root's frame; arc fans from the. Waits on: ships-addon-mesh-mounts (blocked on ships-addon-mesh-mounts).
@@ -73,7 +73,6 @@ Cuts without a `cut_spec`, withdrawn 2026-10-12 under map-only-what-runs: a spec
 - radiator-geonodes: a Geometry Nodes setup molds radiator panels over a region marked on the model under the radiator hardpoint's name, in the live hull stack. Waits on: Ruling: radiator-panels-molded-by-geonodes. HELD for the operator walkthrough on Starfire (ruling hardpoint-work-held-for-walkthrough). Schematic and model are separate spaces linked only by mount name (ruling schematic-and-model-are-separate-spaces).
 - floating-greeble-library: operator seed pieces, model-written parametric families, placements as hull-local data (never a GN scatter on the live mesh), merged into the ship mesh at export, kept out of socket clearance. Waits on: operator seed set. Research: GameCult.Geometry.Csg docs/research/greebles-prior-art.md (4877300).
 
-- damage-curve-delete: delete WeaponData.DamageCurve (MessagePack key 7 tombstoned, never reused), the three Weapon RangeDamagePerSecond curve reads and the claims cut's rated copies, which become DamagePerSecond inside [MinRange, Range] and 0 outside; PropertiesPanel's "Damage Range" chart becomes the range numbers; catalog re-saved by AetherDb so the stored schema matches; fixtures that build a DamageCurve lose it. Waits on: the operator's answer on range falloff (section "Weapon damage over range"), and ew-claims-in-the-book merged (it rewrites the same formulas). Rulings: range-ramps-not-curve.
 - sensor-bearing-shape: SensorData.SensitivityCurve (gain over bearing angle / PI, read in the sim by Sensor.cs:229,262 and bounded by HullRange at :271) becomes authored scalars or is replaced by the beam width ruling sensor-stat-set already names. Waits on: the sensor-catalog chain; decide with it, not before.
 - consumable-effectiveness: ConsumableItemData.Effectiveness (a BezierCurve over progress through duration, read by Entity.cs:1921 ConsumableProgressFactor) is null on both shipped consumables, so any stat that declares a ConsumableProgress term throws; delete it or give it a validated shape. Waits on: nothing in the mind.
 ## Body facts
@@ -9594,3 +9593,55 @@ emissions-heard, reveals-replace-tiers, contact-hud and ew-claims-in-the-book (a
 
 - mind-commit-6e261b55...: cut-inspection-scanner.r3 (base b836af48), resolution cut_spec.cut-inspection-scanner.r2.n1
   (Superseded). context-pack on r3: all six anchors SAME. No question raised.
+
+## Damage falloff at fire time (imagination-aeth-damage-falloff, 2026-10-14)
+
+Operator ruling damage-curve-fate-ruled (make-falloff-real): "Simplify weapon range to minimum, effective and maximum, one lerp." The BezierCurve DamageCurve goes; hits, the AI and the panel read one function. Probes ran at origin/master b836af48 (worktree `C:\aeth-wt\map-damage-falloff`).
+
+### Body facts
+
+**DF1. The census at 1746e8bd still holds at b836af48.** `git log 1746e8bd..b836af48 -- GameData/Aetheria.cc` lists only launch-suppressor's two applies, which add gear, not weapons. Re-probed on Yggdrasil (scratch console over `AetheriaStores.Open`, job `imagination-aeth-damage-falloff/probe1.log`, 2026-10-14): 27 weapon designs carry a DamageCurve, 26 the copied default `(0,1,0,0) (1,0,-1.77,-1.77)`, Mine Launcher flat `(0,1) (1,1)`. By behaviour: Instant 2, Auto 13, Charged 5, Constant 1 (21 guns and beams, three of them the Smoke Refused rounds at Range 20); Guided 3 and Launcher 2 (5 missiles); MineLayer 1. No gear in the catalog carries a StatModifier on any Range stat.
+
+**DF2. Range stats as authored.** MinRange is 0..0 on 25 weapons (terms `Heat:1`, inert at 0); LRMM72 500..500 and GT 3K 500..50 (follow-up gt3k-minrange-inverted). Range is quality-ranged on every weapon but the three Smoke Refused (20..20): for example Autocannon 800..1200 `[Heat:1, Quality:barrel:2]`, CShot RainbowLite 1000..3000 `[Heat:.5, Durability:.25, Quality:focusing array:2]`, Mine Launcher 1600..2400 `[Quality:dispenser:2]`. Each Range reads one declared role, so a stat with Range's terms copied reads the same role, and CB-R1 (`CatalogRoleTests.ShippedCatalogRolesAreLive`) holds.
+
+**DF3. Where the curve is read at b836af48** (aetheria-ew ew-claims-in-the-book has merged, so the rated copies are live):
+- `WeaponData.DamageCurve` key 7 (`Weapon.cs:40-41`). The highest key in the WeaponData hierarchy is 34 (`LockWeapon.cs`); 35 and 36 are free.
+- Three shared formulas: `InstantWeaponData.RangeDamagePerSecond` (`InstantWeapon.cs:39-40`), `ConstantWeaponData` (`ConstantWeapon.cs:28-29`), `ChargedWeaponData` (`ChargedWeapon.cs:59-61`), each `curve.Evaluate(saturate(unlerp(minRange, range, at)))`. Each has a rated caller (`:42-43`, `:31-32`, `:63-65`) and a live caller (`:73-76`, `:57-60`, `:91-95`).
+- AI: `Combat.cs:48` (claimed design, rated), `:73` (own groups, live), `:157` (SampleDps, live).
+- Panel: `PropertiesPanel.cs:423-427` draws the curve through `CurveField.Show(string, BezierCurve, ...)` (`CurveField.cs:39-73`); that is CurveField's only caller, and its `showMax` path is unused.
+- Tools: AetherDb `smoke-rounds` copies it (`Program.cs:1741`), `mine-launcher` authors a flat one (`:1831`).
+- Tests: 30 fixture lines in 21 files set a curve, all flat but `ContactRevealTests.cs:170`, which sets `ClaimTests`' falling `Falloff()` (`ClaimTests.cs:22`) through `ContactRevealTests.Spanned` (`:165-175`); `FireControlTests.ClaimedDesign` takes a curve (`:289-299`) and `TheAIRanksClaimsAtTheTargetsDistance` passes a falling one (`:361-364`); `RunStartTests.EverySoldWeaponHasADamageCurve` (`:463-473`) requires one on every sold weapon.
+- Not readers: `BezierCurve` itself stays (SensorData.SensitivityCurve, `Sensor.cs`); the Unity weapon presenters read `Range` only.
+
+**DF4. Who decides range today.** One gate, `FireControl.Designated` (`FireControl.cs:270-276`): planar range, inclusive `[MinRange, Range]`, read by PFire, Solve, the agents' trigger and Combat's group test (`Combat.cs:65`). `LockWeapon.CanFire` (`LockWeapon.cs:62`) keeps its own strict `(MinRange, Range)` test. The AI's distance is 3D (`Combat.cs:35`, `length(toTarget)`) while the gate is planar (FireControl R7). SampleDps (`Combat.cs:136-168`) samples only between the shortest and longest weapon **Range**, so a ship whose guns share one Range samples one point, its maximum: with falloff to zero there, that ship's optimum stays at its initial 0 and it closes to point blank.
+
+**DF5. Where damage is decided at fire time.** `FireControl.Fire` freezes `Damage = damageOverride ?? weapon.Damage` into the PendingShot (`FireControl.cs:725`); a beam passes `Damage * interval` as the override (`ConstantWeapon.cs:188`), and a charged gun's Damage is already lerped by charge. Every resolution path reads the frozen `shot.Damage`. `Solve` already computes the distance the payload is delivered at: `BurstReach = length((burstPosition - origin).xz)` (`:654`), where `burstPosition` is the engaged target for a direct round, the armed burst point for a fused one (bomb fishing at Range included), and the origin (0) for an untargeted direct round. Its comments (`:587`, `:2040-2041`) say it is read for Burst only. Mines are laid by `Lay` (`:787`) with no range from the shooter.
+
+**DF6. The AI's range bias.** `Settings.AgentRangeExponent` defaults to .25 (`Settings.cs:255`); SampleDps multiplies dps by `range^.25`. For a gun flat to E and ramping linearly to 0 at M, `d/dr ln(dps) = .25/r - 1/(M - r)` just past E is negative whenever E > M/5, so the optimum is E itself: the AI holds at its effective range.
+
+**DF7. Prior art for the unruled numbers** (short search, 2026-10-14; community sources, not publisher documentation). MechWarrior Online: damage falls linearly from a weapon's optimal range to zero at its maximum, about 2x optimal for energy weapons and 3x for autocannons; LRMs instead ramp up below their minimum range ([MWO forum](https://mwomercs.com/forums/topic/155906-ac2-range-change-was-great-now-do-it-for-all-the-autocannons/), [MWO wiki, C-LRM 10](https://mwo.fandom.com/wiki/C-LRM_10)). Elite Dangerous: lasers fall off linearly from about 500 m to zero at their 3 km maximum; cannons and missiles do not fall off ([Steam discussion](https://steamcommunity.com/app/359320/discussions/0/2653115771069188807)). Shooters with a damage floor (Battlefield, Destiny) have no hard range gate to meet. Both games with a min/effective/max triple end at zero, and both exempt missiles.
+
+**DF8. Range boosters.** A StatModifier targets one stat by reference (`StatModifier.cs:229`). The boost-gear-combat line's Range Extender (section "Catalog breadth", design tables) targets `WeaponData.Range`; after this cut it lengthens the ramp and leaves EffectiveRange. No shipped gear modifies a range today (DF1), so nothing changes now.
+
+### The design
+
+One function, `WeaponData.RangeFactor(min, effective, max, damageAtMax, at)`: 0 outside the gate's inclusive `[min, max]`; with `e = clamp(effective, min, max)`, 1 on `[min, e]`, then `lerp(1, damageAtMax, unlerp(e, max, at))` up to `max`; 1 everywhere inside the gate when `e >= max`. EffectiveRange is a PerformanceStat (key 35) defaulting to +infinity, as Tracking does (key 33), so an unauthored weapon is flat and every fixture keeps its damage. `DamageAtMaxRange` is a plain float (key 36, default 0): quality does not vary it, so it needs no role. Callers:
+- the hit: `Fire` multiplies the frozen Damage by the factor at `solution.BurstReach`;
+- the AI: the three DPS formulas take the factor in place of the curve (live through `Weapon.RangeFactor`, rated through `WeaponData.RatedRangeFactor` over each stat's Max); Combat reads planar range and samples from the shortest MinRange;
+- the panel: CurveField plots any `Func<float, float>`, and the panel passes the factor over `[min, max]`.
+
+Missiles and mines get no EffectiveRange (flat): DF7's games exempt missiles, and a mine's damage happens where the mine is, not at a range from its layer.
+
+### Model page rows
+
+| Kind | Identity | Lifecycle | Authority |
+|---|---|---|---|
+| Weapon range shape (`WeaponData` MinRange key 5, Range key 6, EffectiveRange key 35, DamageAtMaxRange key 36; DamageCurve key 7 retired, never reused) | Fields of a catalog weapon design; ranges resolved per item through StatResolver. | Authored by AetherDb `range-falloff` (cut damage-falloff); an unauthored EffectiveRange means no falloff. | The catalog. One reader, `WeaponData.RangeFactor`: FireControl.Fire (the hit), the DPS formulas (Combat's choices) and PropertiesPanel (the chart). |
+
+### Rationale
+
+- BurstReach, not FireRange: FireRange is the target's distance or 0, so a fused round fished to Range would land at full damage. BurstReach is where the payload is delivered for every outcome, and Solve already computes it.
+- EffectiveRange is a stat, not a fraction of Range: the ruling names three authored ranges. A copied stat moves with quality, heat and wear as Range does (DF2); only a booster on Range alone moves one without the other (DF8).
+- +infinity as the unauthored value: it is Tracking's precedent, it keeps every fixture's damage, and "no falloff" becomes a value the function already handles rather than a flag.
+- Size: one Hands pass (about 110 calls, cap 150), with a declared stop point before the catalog apply.
+- The two numbers the operator has not ruled (the end multiplier and how effective ranges are authored) are authored data with defaults from DF7, so they do not block Hands; a different answer is a rerun of `range-falloff` with other arguments.
