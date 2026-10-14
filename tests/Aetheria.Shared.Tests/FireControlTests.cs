@@ -380,8 +380,8 @@ public sealed class FireControlTests : IDisposable
         zone.Update(1f); // enters CombatState, which samples before the weapons' first stat evaluation
         zone.Update(1f);
         var item = shooter.Weapons.Single().Item;
-        item.Online.Value = false; // an Online change is what makes Combat sample again, over the evaluated stats
-        item.Online.Value = true;
+        item.Enabled.Value = false; // an Online change is what makes Combat sample again, over the evaluated stats
+        item.Enabled.Value = true;
 
         var agent = zone.Agents.Single();
         var state = typeof(Agent).GetField("_currentState", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(agent);
