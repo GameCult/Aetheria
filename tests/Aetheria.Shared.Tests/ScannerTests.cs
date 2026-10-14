@@ -334,8 +334,19 @@ public sealed partial class ContactRevealTests
             scanner.SetTarget(target);
         }
 
-        for (var i = 0; i < 16; i++) Hold(player, 1, target);
-        for (var i = 0; i < 16; i++) Hold(ai, 1, target);
+        void Step(int ticks)
+        {
+            for (var i = 0; i < ticks; i++)
+            {
+                player.EntityInfoGathered[target] = .5f;
+                ai.EntityInfoGathered[target] = .5f;
+                Tick(ScanStep);
+            }
+        }
+        Step(15);
+        Assert.Empty(player.RevealsOf(target)); // neither pilot has a scan before ScanTime
+        Assert.Empty(ai.RevealsOf(target));
+        Step(1);
 
         Assert.Equal(3, player.RevealsOf(target).Count());
         Func<Entity, string[]> book = o => o.RevealsOf(target)
