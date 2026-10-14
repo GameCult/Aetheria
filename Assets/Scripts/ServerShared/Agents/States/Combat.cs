@@ -36,18 +36,20 @@ public class CombatState : BaseState
 
         // Cut 2 (docs/fire-control-cut.md): aim at whichever revealed weapon on the target hits hardest at
         // this range, or clear the aim point when nothing qualifies -- the same predicate
-        // (FireControl.IsRevealed) and the same writer (TrySelectTargetItem) the player path uses.
+        // (FireControl.IsRevealed) and the same writer (TrySelectTargetItem) the player path uses. Which weapons it
+        // believes the target has, and how hard each hits, come from its book's claims, not the target's live gear
+        // (aetheria-ew, classify-from-belief; ew-claim-weapon-measure-ruled: the claimed design's rated figures); the
+        // reveal's Item is the aim and stays the truth.
         EquippedItem bestTargetItem = null;
         var bestTargetDps = float.MinValue;
-        foreach (var targetItem in target.Equipment)
+        foreach (var reveal in _agent.Ship.RevealedWeapons(target))
         {
-            if (!(targetItem.Behaviors.FirstOrDefault(b => b is Weapon) is Weapon targetWeapon)) continue;
-            if (!FireControl.IsRevealed(_agent.Ship, targetItem)) continue;
-            var dps = targetWeapon.RangeDamagePerSecond(targetDistance);
+            if (!FireControl.IsRevealed(_agent.Ship, reveal.Item)) continue;
+            var dps = reveal.Claimed.Behaviors.OfType<WeaponData>().First().RatedRangeDamagePerSecond(targetDistance);
             if (dps > bestTargetDps)
             {
                 bestTargetDps = dps;
-                bestTargetItem = targetItem;
+                bestTargetItem = reveal.Item;
             }
         }
         _agent.Ship.TrySelectTargetItem(bestTargetItem);

@@ -13,13 +13,13 @@ using Xunit;
 // oracle, since the command produced it.
 public sealed class RolesBackfillCommandTests : IDisposable
 {
-    private static readonly string[] Flattened = { "Autocannon", "LRMM72", "SRMM72", "Mine Launcher", "Large Drive", "Small Drive" };
+    private static readonly string[] Flattened = { "Autocannon", "Long-Range Missile Rack", "Short-Range Missile Rack", "Mine Launcher", "Large Drive", "Small Drive" };
 
     // Designs that shipped with non-flat stats whose Quality term named no role; the field is the stat to unname.
     private static readonly (string Design, string Field)[] Unnamed =
     {
-        ("DeathCluster", "Count"), ("Flak Gun", "Count"), ("GT 3K", "MinRange"), ("plight", "DamageSpread"),
-        ("MoveOnPro", "Modifier"), ("MoveOnPro Station Reactor", "Modifier"),
+        ("Cluster Cannon", "Count"), ("Flak Gun", "Count"), ("Guided Missile Launcher", "MinRange"), ("Lightning Projector", "DamageSpread"),
+        ("Muon Fusion Reactor", "Modifier"), ("Muon Fusion Station Reactor", "Modifier"),
     };
 
     private readonly string _root = Path.Combine(Path.GetTempPath(), "roles-backfill-" + Guid.NewGuid().ToString("N"));
@@ -165,7 +165,7 @@ public sealed class RolesBackfillCommandTests : IDisposable
         static Dictionary<string, float> Exponents(EquippableItemData d) => CatalogRoleTests.StatsOf(d)
             .SelectMany(s => s.Stat.Terms.Where(t => t.Source == StatSource.Quality && !string.IsNullOrEmpty(t.Role)).Select(t => (s.Name, t.Exponent)))
             .ToDictionary(x => x.Name, x => x.Exponent);
-        var designs = new[] { "Autocannon", "LRMM72" };
+        var designs = new[] { "Autocannon", "Long-Range Missile Rack" };
         Dictionary<string, Dictionary<string, float>> shipped;
         Dictionary<string, Dictionary<string, float>> Read(EquippableItemData[] all) => all.Where(d => designs.Contains(d.Name)).ToDictionary(d => d.Name, Exponents);
         using (var catalog = RestoredHullsTests.OpenCatalog()) shipped = Read(catalog.GetAll<EquippableItemData>().ToArray());

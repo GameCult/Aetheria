@@ -537,7 +537,7 @@ public sealed partial class RunStartTests
 
         runs.Add(Stage(Arena(false), new Scripted(false, stage =>
         {
-            var ship = stage.Player(stage.Fit("Djinni", ("Census Fitted", int2(1, 6), ItemRotation.None), ("Store-All Plus", int2(3, 6), ItemRotation.None)), float2(0, 0));
+            var ship = stage.Player(stage.Fit("Djinni", ("Census Fitted", int2(1, 6), ItemRotation.None), ("Cargo Bay", int2(3, 6), ItemRotation.None)), float2(0, 0));
             stage.Cargo(ship, "Census Carried");
         })));
         Assert.Empty(UnsoldAndUnplaced(runs));
@@ -579,5 +579,20 @@ public sealed partial class RunStartTests
         Assert.Equal((TemperatureUnit.Kelvin, 5), (settings.GameplaySettings.TemperatureUnit, settings.GameplaySettings.SignificantDigits));
         Assert.Equal("<Keyboard>/1", Assert.Single(settings.InputSettings.ActionBarInputs));
         Assert.Equal((Quality.High, true), (settings.GraphicsSettings.NebulaQuality, settings.GraphicsSettings.ShowAsteroidsInMinimap));
+    }
+
+    // A scenario's Brief is player text (the menu shows it): it names gear by what the catalog sells today. A name a rename retired,
+    // that no design or product carries any more, would send the player looking for gear that is gone.
+    [Fact]
+    public void NoScenarioBriefNamesRetiredGear()
+    {
+        var current = _cache.GetAll<EquippableItemData>().Select(design => design.Name)
+            .Concat(_cache.GetAll<FactionProductData>().Select(product => product.Name)).ToHashSet(StringComparer.Ordinal);
+        var stale = new List<string>();
+        foreach (var scenario in EveryScenario)
+            foreach (var retired in Program.Renames.Select(row => row.Old).Where(name => !current.Contains(name)))
+                if (System.Text.RegularExpressions.Regex.IsMatch(scenario.Brief, @"(?<!\w)" + System.Text.RegularExpressions.Regex.Escape(retired) + @"s?(?!\w)"))
+                    stale.Add(scenario.Name + " names " + retired);
+        Assert.True(stale.Count == 0, "scenario briefs naming gear the catalog no longer has: " + string.Join("; ", stale));
     }
 }

@@ -169,7 +169,7 @@ public sealed class FireControlCut6dTests : IDisposable
         if (marker != null)
         {
             var markerItem = target.Equipment.Single(x => x.EquippableItem == marker);
-            shooter.RecordReveal(target, markerItem, SignatureChannel.LaunchFlash);
+            shooter.RecordReveal(target, markerItem, SignatureChannel.LaunchFlash, markerItem.Data);
             Assert.True(shooter.TrySelectTargetItem(markerItem));
             Assert.Same(markerItem, shooter.ResolvedTargetItem);
         }

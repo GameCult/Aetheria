@@ -23,11 +23,11 @@ public sealed class MunitionPartsTests : IDisposable
     // both ranged stats. The column names are the retired fields'.
     private static readonly (string Design, float ThrustMin, float ThrustMax, float MissileVelocityMin, float MissileVelocityMax, float DodgeFrequency)[] Golden =
     {
-        ("GT 3K", 135, 325, 150, 300, 0.25f),
-        ("LRMM72", 400, 600, 200, 300, 0.25f),
-        ("SRMM72", 1600, 2400, 400, 600, 1f),
-        ("pswarm", 500, 2000, 400, 600, 1f),
-        ("scorched void policy", 500, 2000, 400, 600, 1f),
+        ("Guided Missile Launcher", 135, 325, 150, 300, 0.25f),
+        ("Long-Range Missile Rack", 400, 600, 200, 300, 0.25f),
+        ("Short-Range Missile Rack", 1600, 2400, 400, 600, 1f),
+        ("Swarm Rocket Pod", 500, 2000, 400, 600, 1f),
+        ("Incendiary Rocket Pod", 500, 2000, 400, 600, 1f),
     };
 
     private static PerformanceStat Flat(float value) => new PerformanceStat { Min = value, Max = value };
@@ -208,13 +208,13 @@ public sealed class MunitionPartsTests : IDisposable
     [Fact]
     public void CatalogLoadRefusesAnIncompleteOrStrayMunitionPart()
     {
-        using (AetheriaStores.Open(Forged<WeaponItemData>(d => d.Name == "GT 3K", _ => { }), registry: TestCatalog.Registry())) { }
+        using (AetheriaStores.Open(Forged<WeaponItemData>(d => d.Name == "Guided Missile Launcher", _ => { }), registry: TestCatalog.Registry())) { }
 
         foreach (var part in AllParts)
         {
-            var path = Forged<WeaponItemData>(d => d.Name == "GT 3K", d => d.Behaviors.RemoveAll(b => b.GetType() == part));
+            var path = Forged<WeaponItemData>(d => d.Name == "Guided Missile Launcher", d => d.Behaviors.RemoveAll(b => b.GetType() == part));
             var refusal = Assert.ThrowsAny<Exception>(() => AetheriaStores.Open(path, registry: TestCatalog.Registry()));
-            Assert.Contains("GT 3K", refusal.ToString());
+            Assert.Contains("Guided Missile Launcher", refusal.ToString());
             Assert.Contains(part.Name, refusal.ToString());
         }
 
@@ -245,13 +245,13 @@ public sealed class MunitionPartsTests : IDisposable
     // The Longinus's own gear: two drives, a core, a cockpit and a sensor, so the ship has thrusters, a sensor and a plume
     // for any munition contribution to be seen against.
     private static readonly (string Name, int X, int Y)[] ShipGear =
-        { ("Large Drive", 1, 0), ("Large Drive", 3, 0), ("Core Power", 2, 4), ("Cockpit 2x2", 2, 6), ("not if i see you first", 3, 10) };
+        { ("Large Drive", 1, 0), ("Large Drive", 3, 0), ("Compact Reactor", 2, 4), ("Cockpit 2x2", 2, 6), ("Compact Sensor", 3, 10) };
 
-    // A GT 3K fitted to a Longinus launcher hardpoint beside that gear, its lot's thruster role at the given quality.
+    // A Guided Missile Launcher fitted to a Longinus launcher hardpoint beside that gear, its lot's thruster role at the given quality.
     private static EquippedItem Fit(CultCache cache, float thrusterQuality, out Ship ship)
     {
         var hull = cache.GetByName<HullData>("Longinus");
-        var gt = cache.GetByName<WeaponItemData>("GT 3K");
+        var gt = cache.GetByName<WeaponItemData>("Guided Missile Launcher");
         var hardpoint = hull.Hardpoints.First(h => h.Type == HardpointType.Launcher && h.IsFilledBy(gt));
         var settings = RestoredHullsTests.Settings();
         var ledger = new ProvenanceLedger();
@@ -269,7 +269,7 @@ public sealed class MunitionPartsTests : IDisposable
         zone.Admit(ship, piloted: false);
         // Settle at the item's optimal temperature, as ConditionRatioTests does, so heat and wear read their identity and only
         // the role's quality moves a stat.
-        var item = ship.Equipment.Single(e => e.Data.Name == "GT 3K");
+        var item = ship.Equipment.Single(e => e.Data.Name == "Guided Missile Launcher");
         foreach (var cell in item.InsetShape.Coordinates) ship.Temperature[cell.x, cell.y] = gt.OptimalTemperature;
         item.UpdatePerformance();
         item.UpdatePerformance();
@@ -280,7 +280,7 @@ public sealed class MunitionPartsTests : IDisposable
     public void PartsReadThroughTheItem()
     {
         using var cache = RestoredHullsTests.OpenCatalog();
-        var design = cache.GetByName<WeaponItemData>("GT 3K");
+        var design = cache.GetByName<WeaponItemData>("Guided Missile Launcher");
         var poor = Fit(cache, .2f, out var poorShip);
         var good = Fit(cache, .9f, out _);
 
@@ -324,7 +324,7 @@ public sealed class MunitionPartsTests : IDisposable
     public void ShipSumsIgnoreTheFittedMunitionParts()
     {
         using var cache = RestoredHullsTests.OpenCatalog();
-        var design = cache.GetByName<WeaponItemData>("GT 3K");
+        var design = cache.GetByName<WeaponItemData>("Guided Missile Launcher");
         var part = Part<MunitionThrusterData>(design);
         var item = Fit(cache, .5f, out var ship);
         for (var i = 0; i < 5; i++) ship.Update(.1f);

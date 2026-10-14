@@ -394,6 +394,10 @@ public class Zone
     // After StepClouds and before FireControl.Step: each floating item drifts as a KinematicBody on the zone's force
     // and is removed once its lifetime has run out. A held item is neither integrated nor expired: it is placed
     // between where it was claimed and its holder, now that the entities have moved.
+    // The curve a held item rides from where it was claimed to its holder: the one owner, which the test scene's
+    // stand-in sim and tendril call rather than spell again.
+    public static float HeldPull(float progress) => smoothstep(0f, 1f, progress);
+
     private void StepFloatingItems(float deltaTime)
     {
         var settings = _itemManager.GameplaySettings;
@@ -401,7 +405,7 @@ public class Zone
         {
             if (floating.Holder != null)
             {
-                floating.Body.Position = lerp(floating.HeldFrom, floating.Holder.Position.xz, smoothstep(0f, 1f, floating.HeldProgress));
+                floating.Body.Position = lerp(floating.HeldFrom, floating.Holder.Position.xz, HeldPull(floating.HeldProgress));
                 continue;
             }
             floating.Body.Step(deltaTime, GetForce(floating.Body.Position), settings);

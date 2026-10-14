@@ -12,7 +12,7 @@ public sealed partial class RunStartTests
     private static List<EquippedItem> WeaponMounts(Entity ship) =>
         ship.Equipment.Where(item => item.Behaviors.OfType<Weapon>().Any()).ToList();
 
-    // Weapon Feel: the player flies the Smoke Test Hull with ChargeBlast SG on the 2x2 Energy hardpoint, Autocannon
+    // Weapon Feel: the player flies the Smoke Test Hull with Charged Scatter Blaster on the 2x2 Energy hardpoint, Autocannon
     // on the 2x2 Ballistic hardpoint and a burst weapon; the bare hull ahead lies in every mount's arc.
     [Fact]
     public void WeaponFeelConditions()
@@ -23,7 +23,7 @@ public sealed partial class RunStartTests
         Assert.Equal("Smoke Test Hull", _items.GetData(player.EquippedHull.EquippableItem).Name);
 
         EquippedItem Mount(string design) => Assert.Single(WeaponMounts(player), item => _items.GetData(item.EquippableItem).Name == design);
-        var charge = Mount("ChargeBlast SG");
+        var charge = Mount("Charged Scatter Blaster");
         var autocannon = Mount("Autocannon");
         Assert.Equal((HardpointType.Energy, 2, 2), (charge.Hardpoint.Type, charge.Hardpoint.Shape.Width, charge.Hardpoint.Shape.Height));
         Assert.Equal((HardpointType.Ballistic, 2, 2), (autocannon.Hardpoint.Type, autocannon.Hardpoint.Shape.Width, autocannon.Hardpoint.Shape.Height));

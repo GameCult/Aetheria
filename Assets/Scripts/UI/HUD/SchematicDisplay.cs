@@ -58,7 +58,8 @@ public class SchematicDisplay : MonoBehaviour
 
     public class SchematicDisplayItem
     {
-        public EquippedItem Item;
+        // The row Entity.SchematicRows derived: which item, which class and which range it shows.
+        public SchematicRow Row;
         public SchematicListElement ListElement;
         public IProgressBehavior Cooldown;
         // public ItemUsage ItemUsage;
@@ -93,15 +94,12 @@ public class SchematicDisplay : MonoBehaviour
                 CargoTemperatureLabel.text = "N/A";
         }
         
-        BuildRows(_enemy ? RevealedWeapons() : entity.Equipment.Where(IsWeapon));
+        BuildRows(WeaponRows());
     }
 
-    private static bool IsWeapon(EquippedItem item) => item.Behaviors.Any(b => b.Data is WeaponData);
-
-    // An enemy schematic lists what `_player` has seen the ship's weapons do: the weapon items of the player's book on it,
-    // in book order (ruling reveal-ends-on-perception), never the ship's live gear. The player's own schematic is its
-    // equipment; there is nothing to reveal about your own ship.
-    private IEnumerable<EquippedItem> RevealedWeapons() => _player.RevealsOf(_entity).Select(r => r.Item).Where(IsWeapon);
+    // Which rows, which class and which range label are Entity.SchematicRows' decision (aetheria-ew, classify-from-belief);
+    // this display only renders them.
+    private IEnumerable<SchematicRow> WeaponRows() => (_player ?? _entity).SchematicRows(_entity);
 
     private void ReturnRows()
     {
@@ -111,21 +109,21 @@ public class SchematicDisplay : MonoBehaviour
         _schematicItems = null;
     }
 
-    private void BuildRows(IEnumerable<EquippedItem> items)
+    private void BuildRows(IEnumerable<SchematicRow> rows)
     {
-        _schematicItems = items
+        _schematicItems = rows
             .Select(x => new SchematicDisplayItem
             {
-                Item = x, 
+                Row = x,
                 ListElement = ListElementPrototype.Instantiate<SchematicListElement>(),
-                Cooldown = _enemy ? null : (IProgressBehavior) x.Behaviors.FirstOrDefault(b=> b is IProgressBehavior),
+                Cooldown = _enemy ? null : (IProgressBehavior) x.Item.Behaviors.FirstOrDefault(b=> b is IProgressBehavior),
                 // ItemUsage = _enemy ? null : (ItemUsage) x.Behaviors.FirstOrDefault(b=> b is ItemUsage),
-                Weapon = (Weapon) x.Behaviors.FirstOrDefault(b=>b is Weapon)
+                Weapon = _enemy ? null : (Weapon) x.Item.Behaviors.FirstOrDefault(b=>b is Weapon)
             })
             .ToArray();
         foreach (var x in _schematicItems)
         {
-            if(x.Item.Data is WeaponItemData weaponItemData)
+            if(x.Row.Claimed is WeaponItemData weaponItemData)
                 x.ListElement.ShowWeapon(weaponItemData);
             //x.ListElement.Label.text = x.Item.EquippableItem.Name;
             if (!_enemy)
@@ -197,10 +195,10 @@ public class SchematicDisplay : MonoBehaviour
 
             // A reveal gained or ended after selection changes the rows with no event to hook: rebuild when the
             // revealed weapon set differs from the rows' items.
-            if (_enemy && !RevealedWeapons().SequenceEqual(_schematicItems.Select(x => x.Item)))
+            if (_enemy && !WeaponRows().Select(r => r.Key).SequenceEqual(_schematicItems.Select(x => x.Row.Key)))
             {
                 ReturnRows();
-                BuildRows(RevealedWeapons());
+                BuildRows(WeaponRows());
             }
 
             // Cut 2 (docs/fire-control-cut.md): marks whichever row is the player's current aim point.
@@ -208,7 +206,7 @@ public class SchematicDisplay : MonoBehaviour
             // as info decays, with no event to hook.
             if (_enemy && _schematicItems != null)
                 foreach (var x in _schematicItems)
-                    x.ListElement.SetSelected(x.Item == _player.ResolvedTargetItem);
+                    x.ListElement.SetSelected(x.Row.Item == _player.ResolvedTargetItem);
 
             if(VisibilityLabel && !_enemy)
                 VisibilityLabel.text = ((int)_entity.Visibility).ToString();
@@ -226,11 +224,11 @@ public class SchematicDisplay : MonoBehaviour
             {
                 if (!_enemy)
                 {
-                    var itemData = _entity.ItemManager.GetData(x.Item.EquippableItem);
-                    x.ListElement.HeatFill.anchorMax = new Vector2(unlerp(itemData.MinimumTemperature, itemData.MaximumTemperature, x.Item.Temperature), 0);
+                    var itemData = _entity.ItemManager.GetData(x.Row.Item.EquippableItem);
+                    x.ListElement.HeatFill.anchorMax = new Vector2(unlerp(itemData.MinimumTemperature, itemData.MaximumTemperature, x.Row.Item.Temperature), 0);
                     if (x.Cooldown != null)
                         x.ListElement.CooldownFill.anchorMax = new Vector2(x.Cooldown.Progress, 1);
-                    x.ListElement.DurabilityLabel.text = $"{(int)(x.Item.EquippableItem.Durability / itemData.Durability * 100)}%";
+                    x.ListElement.DurabilityLabel.text = $"{(int)(x.Row.Item.EquippableItem.Durability / itemData.Durability * 100)}%";
                     if (x.Weapon.WeaponData.AmmoType.IsSet())
                     {
                         if(x.Weapon.WeaponData.MagazineSize > 1)
@@ -240,11 +238,8 @@ public class SchematicDisplay : MonoBehaviour
                     }
                 }
 
-                if (x.Weapon.WeaponData != null)
-                {
-                    if(x.ListElement.RangeLabel)
-                        x.ListElement.RangeLabel.text = ((int) x.Weapon.Range).ToString();
-                }
+                if (x.ListElement.RangeLabel)
+                    x.ListElement.RangeLabel.text = ((int) x.Row.Range).ToString();
             }
         }
     }

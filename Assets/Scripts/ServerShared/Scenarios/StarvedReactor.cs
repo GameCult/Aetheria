@@ -4,7 +4,7 @@ using static ItemRotation;
 public sealed class StarvedReactor : Scenario
 {
     public override string Name => "Starved Reactor";
-    public override string Brief => "Two Spectras on a MoveOnPro, which can fall to a quarter of Core Power's charge, and a bare hull " +
+    public override string Brief => "Two Light Lasers on a Muon Fusion Reactor, which can fall to a quarter of the Compact Reactor's charge, and a bare hull " +
                                     "to shoot. Verify: starvation reads as starvation, brownout degrades, refills stutter.";
     public override uint Seed => 102;
     public override bool Ambient => false;
@@ -17,14 +17,14 @@ public sealed class StarvedReactor : Scenario
             ("Cockpit 2x2", int2(2, 6), None),
             ("Large Drive", int2(1, 0), Reversed),
             ("Large Drive", int2(3, 0), Reversed),
-            ("Talaria", int2(2, 14), CounterClockwise),
-            ("Talaria", int2(3, 14), Clockwise),
-            ("MoveOnPro", int2(2, 4), None),
-            ("Spectra", int2(1, 8), None),
-            ("Spectra", int2(4, 8), None),
-            ("Iapyx", int2(2, 2), CounterClockwise),
-            ("Iapyx", int2(3, 2), Clockwise),
-            ("not if i see you first", int2(3, 10), None),
+            ("Rugged Drive", int2(2, 14), CounterClockwise),
+            ("Rugged Drive", int2(3, 14), Clockwise),
+            ("Muon Fusion Reactor", int2(2, 4), None),
+            ("Light Laser", int2(1, 8), None),
+            ("Light Laser", int2(4, 8), None),
+            ("Radiator", int2(2, 2), CounterClockwise),
+            ("Radiator", int2(3, 2), Clockwise),
+            ("Compact Sensor", int2(3, 10), None),
             ("Fire Control Array", int2(1, 6), Clockwise));
         stage.Player(starved, float2(0, 0));
         stage.Place(stage.Bare("Longinus"), float2(0, 400));

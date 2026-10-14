@@ -79,13 +79,13 @@ public sealed class PiratesFactionCommandTests : IDisposable
             var expected = new (string Design, string Name, string Description)[]
             {
                 ("Autocannon", "🫳🔫", "Serial number filed off. Still shoots."),
-                ("Earp", "🪦🤠", "The previous owner had no further use for it."),
-                ("FastBlast+-", "🧾🚫", "Warranty void where prohibited, which is everywhere."),
-                ("6k Shooter", "🎨🙈", "The logo underneath is somebody else's problem."),
-                ("scorched void policy", "🔥", "Turns out we did start the fire after all."),
+                ("Long Slug Rifle", "🪦🤠", "The previous owner had no further use for it."),
+                ("Cell Blaster", "🧾🚫", "Warranty void where prohibited, which is everywhere."),
+                ("Slug Rifle", "🎨🙈", "The logo underneath is somebody else's problem."),
+                ("Incendiary Rocket Pod", "🔥", "Turns out we did start the fire after all."),
                 ("Targeting Computer", "👀🎯", "Somebody else's eyes. They still work."),
                 ("Small Drive", "🔑🏃💨", "Hotwired. Do not ask about the ignition."),
-                ("Store-All Plus", "📦🤫", "Contents not as declared."),
+                ("Cargo Bay", "📦🤫", "Contents not as declared."),
             };
             Assert.Equal(expected.Select(e => e.Name).OrderBy(n => n, StringComparer.Ordinal), products.Select(p => p.Name).OrderBy(n => n, StringComparer.Ordinal));
             foreach (var (designName, name, description) in expected)
