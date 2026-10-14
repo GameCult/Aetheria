@@ -369,17 +369,24 @@ public sealed class FireControlTests : IDisposable
         Assert.Same(weak, shooter.TargetItem.Value);
     }
 
-    // The distance Combat measures is the gate's: planar (FireControl R7). A target 8 above the plane at planar 10 is 12.8
-    // away in space, past the Dart's Range of 12, yet the gate and the claim both read 10: the Dart (about 16.7 there against
-    // Slug's 5) is the chosen claim. Mutation: Combat measures the three-dimensional distance (the Dart then reads 0).
+    // The distance Combat measures is the gate's: planar (FireControl R7). Zone depth puts the target above the shooter's
+    // height, so its distance in space is longer than its planar distance. A claim whose Range lies between the two, full
+    // damage out to the planar distance, is in range on the plane and out of range in space: it (against Slug's 5) is the
+    // chosen claim. Mutation: Combat measures the three-dimensional distance (the claim then reads 0).
     [Fact]
     public void TheAIMeasuresTheTargetOnTheGroundPlane()
     {
-        var (shooter, target, zone) = BuildCombatEncounter(float3(0, 8, 10), twoTargetGuns: true);
+        var (shooter, target, zone) = BuildCombatEncounter(float3(0, 0, 600), twoTargetGuns: true);
+        zone.Settings.ZoneDepth = 1000f;
+        zone.Settings.ZoneDepthExponent = 1f;
         var strong = target.Equipment.Single(x => x.Data.Name == "Gun");
         var weak = target.Equipment.Single(x => x.Data.Name == "WeakGun");
+        zone.Update(1f); // heights follow the zone's depth from the first update
+        var planar = length((target.Position - shooter.Position).xz);
+        var space = length(target.Position - shooter.Position);
+        Assert.True(space - planar > 4f, $"the fixture puts the target {space - planar:F1} above the plane's distance");
 
-        target.Claim(strong, ClaimedDesign("Dart", 100f, range: 12f, effective: 0f));
+        target.Claim(strong, ClaimedDesign("Dart", 100f, range: (planar + space) / 2f, effective: planar));
         target.Claim(weak, ClaimedDesign("Slug", 5f));
         shooter.RecordReveal(target, strong, SignatureChannel.LaunchFlash, target.ClaimOf(strong));
         shooter.RecordReveal(target, weak, SignatureChannel.LaunchFlash, target.ClaimOf(weak));
