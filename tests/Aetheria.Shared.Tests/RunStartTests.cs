@@ -459,18 +459,6 @@ public sealed partial class RunStartTests : IDisposable
         Assert.Equal(new[] { "CShot RainbowLite Lazer", "ChargeBlast SG", "ChargeBlast+-", "OK Disperser" }, homeless);
     }
 
-    // A sold weapon can be generated onto an NPC, whose combat state samples its damage at range, so every weapon a
-    // product sells carries a damage curve.
-    [Fact]
-    public void EverySoldWeaponHasADamageCurve()
-    {
-        var sold = _cache.GetAll<FactionProductData>().Select(product => product.Design.Key).ToHashSet();
-        var missing = _cache.GetAll<EquippableItemData>()
-            .Where(design => sold.Contains(_cache.RefOf(design).Key))
-            .Where(design => design.Behaviors.OfType<WeaponData>().Any(weapon => weapon.DamageCurve?.Keys == null || weapon.DamageCurve.Keys.Length == 0))
-            .Select(design => design.Name).OrderBy(name => name, StringComparer.Ordinal).ToList();
-        Assert.True(missing.Count == 0, $"sold weapons with no damage curve: {string.Join(", ", missing)}");
-    }
 
     // An empty hull of this kind to equip into by hand.
     private Entity BareHull(HullData hull) =>

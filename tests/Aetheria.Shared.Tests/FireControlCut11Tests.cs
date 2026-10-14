@@ -102,7 +102,6 @@ public sealed class FireControlCut11Tests : IDisposable
                 Damage = Constant(damage), Range = Constant(1000), MinRange = Constant(0),
                 Velocity = Constant(velocity), Spread = Constant(spread), DamageSpread = Constant(0),
                 Penetration = Constant(0), Count = Constant(1), BurstTime = Constant(0), Cooldown = Constant(1000),
-                DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } }
             } }
         });
         cache.Upsert(new GearData

@@ -36,11 +36,10 @@ public class InstantWeaponData : WeaponData
     // UpdateStats and the rated read both use.
     internal static float PerRound(float total, float burstCount) => total / (int) burstCount;
 
-    internal static float RangeDamagePerSecond(BezierCurve damageCurve, float damage, float minRange, float range, float cooldown, float atRange) =>
-        damage * damageCurve.Evaluate(saturate(unlerp(minRange, range, atRange))) / cooldown;
+    internal static float RangeDamagePerSecond(float damage, float cooldown, float rangeFactor) => damage * rangeFactor / cooldown;
 
     public override float RatedRangeDamagePerSecond(float range) =>
-        RangeDamagePerSecond(DamageCurve, PerRound(Damage.Max, Count.Max), MinRange.Max, Range.Max, Cooldown.Max, range);
+        RangeDamagePerSecond(PerRound(Damage.Max, Count.Max), Cooldown.Max, RatedRangeFactor(range));
 }
 
 public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerConsumer
@@ -72,7 +71,7 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
     public override float DamagePerSecond => Damage / Cooldown;
     public override float RangeDamagePerSecond(float range)
     {
-        return InstantWeaponData.RangeDamagePerSecond(_data.DamageCurve, Damage, MinRange, Range, Cooldown, range);
+        return InstantWeaponData.RangeDamagePerSecond(Damage, Cooldown, RangeFactor(range));
     }
 
     public override int Ammo

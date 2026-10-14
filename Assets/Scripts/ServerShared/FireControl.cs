@@ -584,7 +584,8 @@ public static class FireControl
     // it whether a round is refused before they spend anything -- so a refusal is decided once, by the same
     // code that would have flown the round, and the HUD cannot forecast a burst the trigger will not fire.
     // Direct: a round that resolves against its target (a weapon without a fuse). Burst: a fused round, with
-    // BurstReach the planar distance from the shooter at which it bursts. Refused: a fused round whose blast
+    // BurstReach the planar distance from the shooter at which the payload is delivered (a direct round's target, a fused
+    // round's burst point, 0 for an untargeted direct round), which Fire's range factor reads for every outcome. Refused: a fused round whose blast
     // radius (its arming distance) exceeds the weapon's Range; it cannot be fired.
     public static FireSolution Solve(Weapon weapon, EquippedItem item, Entity source, Entity target)
     {
@@ -722,7 +723,8 @@ public static class FireControl
             Target = engaged,
             Weapon = item,
             Aimed = source.ResolvedTargetItem,
-            Damage = damageOverride ?? weapon.Damage,
+            // The one place a shot's damage meets range, frozen here: BurstReach is where the payload is delivered.
+            Damage = (damageOverride ?? weapon.Damage) * weapon.RangeFactor(solution.BurstReach),
             Penetration = weapon.Penetration,
             DamageSpread = weapon.DamageSpread,
             DamageType = weapon.WeaponData.DamageType,
@@ -2038,8 +2040,8 @@ public struct GunSolution
     public float2 Direction;
 }
 
-// Solve's answer. Outcome and BurstReach (planar distance from the shooter to the burst point, read for Burst
-// only) are what the HUD shows; the rest is what Fire freezes into the PendingShot.
+// Solve's answer. Outcome and BurstReach (planar distance from the shooter to the burst point; the HUD reads it for
+// Burst, Fire's range factor for both outcomes) are what the HUD shows; the rest is what Fire freezes into the PendingShot.
 public struct FireSolution
 {
     public FireOutcome Outcome;

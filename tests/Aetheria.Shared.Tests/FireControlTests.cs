@@ -192,7 +192,6 @@ public sealed class FireControlTests : IDisposable
         weaponData.Range = new PerformanceStat { Min = 1000, Max = 1000 };
         weaponData.MinRange = new PerformanceStat { Min = 0, Max = 0 };
         weaponData.Velocity = new PerformanceStat { Min = projectileSpeed, Max = projectileSpeed };
-        weaponData.DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } };
 
         var zone = shooter.Zone;
         var targetHullRef = items.ItemData.RefOf<ItemData>(items.ItemData.GetByName<HullData>("TestHull"));
@@ -213,7 +212,6 @@ public sealed class FireControlTests : IDisposable
             weakData.Cooldown = new PerformanceStat { Min = 1, Max = 1 };
             weakData.Range = new PerformanceStat { Min = 1000, Max = 1000 };
             weakData.MinRange = new PerformanceStat { Min = 0, Max = 0 };
-            weakData.DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } };
             Assert.True(target.TryEquip(new EquippableItem { Data = weakRef, Durability = 1, Lot = 2 }, new int2(1, 0)));
         }
         zone.Admit(target, piloted: false);
@@ -286,7 +284,7 @@ public sealed class FireControlTests : IDisposable
 
     // A design as an observer might be told it is: an instant weapon with rated figures, held in memory (a claim is data,
     // not a catalog item). Rated damage per second at any range is damage / cooldown (one round, flat curve).
-    private static GearData ClaimedDesign(string name, float damage, float range = 1000f, BezierCurve curve = null) => new GearData
+    private static GearData ClaimedDesign(string name, float damage, float range = 1000f, float? effective = null, float end = 0f) => new GearData
     {
         Name = name,
         Behaviors =
@@ -296,7 +294,8 @@ public sealed class FireControlTests : IDisposable
                 Damage = new PerformanceStat { Min = 0, Max = damage }, Count = new PerformanceStat { Min = 1, Max = 1 },
                 Cooldown = new PerformanceStat { Min = 1, Max = 1 }, Range = new PerformanceStat { Min = 0, Max = range },
                 MinRange = new PerformanceStat { Min = 0, Max = 0 },
-                DamageCurve = curve ?? new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } }
+                EffectiveRange = effective.HasValue ? new PerformanceStat { Min = effective.Value, Max = effective.Value } : new PerformanceStat { Min = float.PositiveInfinity, Max = float.PositiveInfinity },
+                DamageAtMaxRange = end
             }
         }
     };
@@ -352,16 +351,15 @@ public sealed class FireControlTests : IDisposable
 
     // The ranking reads the claimed design at the distance to the target: a short-range design that out-damages a flat one
     // up close is worthless at 10 when its Range is 12, and the weaker flat design is chosen. Mutation: Combat halves
-    // targetDistance (the short design then rates 6.2 at 5 and wins), or the rated read ignores the range.
+    // targetDistance (the short design then rates 5.8 at 5 and wins), or the rated read ignores the range.
     [Fact]
     public void TheAIRanksClaimsAtTheTargetsDistance()
     {
         var (shooter, target, zone) = BuildCombatEncounter(float3(0, 0, 10), twoTargetGuns: true);
         var strong = target.Equipment.Single(x => x.Data.Name == "Gun");
         var weak = target.Equipment.Single(x => x.Data.Name == "WeakGun");
-        var falling = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 0, 0, 0) } };
 
-        target.Claim(strong, ClaimedDesign("Dart", 10f, range: 12f, curve: falling)); // ~.7 at 10, ~6.2 at 5
+        target.Claim(strong, ClaimedDesign("Dart", 10f, range: 12f, effective: 0f)); // ~1.7 at 10, ~5.8 at 5
         target.Claim(weak, ClaimedDesign("Slug", 5f));                                // 5 at any range
         shooter.RecordReveal(target, strong, SignatureChannel.LaunchFlash, target.ClaimOf(strong));
         shooter.RecordReveal(target, weak, SignatureChannel.LaunchFlash, target.ClaimOf(weak));
@@ -369,6 +367,25 @@ public sealed class FireControlTests : IDisposable
         zone.Update(1f);
 
         Assert.Same(weak, shooter.TargetItem.Value);
+    }
+
+    // The AI settles where its guns do the most damage per second, weighted towards range: with full damage to 500 and none
+    // at 1000 that is the effective range (DF6). Mutation: SampleDps spans from the shortest Range (every sample then reads
+    // 1000, factor 0, and the optimum stays 0), or the factor reads an offset range.
+    [Fact]
+    public void TheAIHoldsAtItsEffectiveRange()
+    {
+        var (shooter, _, zone) = BuildCombatEncounter(float3(0, 0, 10));
+        var data = (InstantWeaponData) shooter.Weapons.Single().WeaponData;
+        data.EffectiveRange = new PerformanceStat { Min = 500, Max = 500 };
+        data.DamageAtMaxRange = 0f;
+        zone.Update(1f); // enters CombatState, which samples DPS over the evaluated stats
+
+        var agent = zone.Agents.Single();
+        var state = typeof(Agent).GetField("_currentState", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(agent);
+        Assert.IsType<CombatState>(state);
+        var optimum = (float) typeof(CombatState).GetField("_optimumRange", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(state);
+        Assert.InRange(optimum, 500f - 1000f / 32f, 500f + 1000f / 32f);
     }
 
     // Ruling ew-claim-weapon-measure-ruled: no observer reads a target weapon's live state. Two unclaimed guns whose

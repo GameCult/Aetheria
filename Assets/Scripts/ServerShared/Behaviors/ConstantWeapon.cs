@@ -25,11 +25,10 @@ public class ConstantWeaponData : WeaponData
     }
 
     // The one formula of a beam's damage per second at a range (see InstantWeaponData.RangeDamagePerSecond).
-    internal static float RangeDamagePerSecond(BezierCurve damageCurve, float damage, float minRange, float range, float atRange) =>
-        damage * damageCurve.Evaluate(saturate(unlerp(minRange, range, atRange)));
+    internal static float RangeDamagePerSecond(float damage, float rangeFactor) => damage * rangeFactor;
 
     public override float RatedRangeDamagePerSecond(float range) =>
-        RangeDamagePerSecond(DamageCurve, Damage.Max, MinRange.Max, Range.Max, range);
+        RangeDamagePerSecond(Damage.Max, RatedRangeFactor(range));
 }
 
 public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerConsumer
@@ -56,7 +55,7 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerC
     public override float DamagePerSecond => Damage;
     public override float RangeDamagePerSecond(float range)
     {
-        return ConstantWeaponData.RangeDamagePerSecond(_data.DamageCurve, Damage, MinRange, Range, range);
+        return ConstantWeaponData.RangeDamagePerSecond(Damage, RangeFactor(range));
     }
 
     public event Action OnReloadBegin;

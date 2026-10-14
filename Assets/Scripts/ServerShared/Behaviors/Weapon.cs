@@ -37,8 +37,16 @@ public abstract class WeaponData : BehaviorData
     [Inspectable, JsonProperty("range"), Key(6)]
     public PerformanceStat Range = new PerformanceStat();
 
-    [InspectableAnimationCurve, JsonProperty("damageCurve"), Key(7)]
-    public BezierCurve DamageCurve;
+    // Key 7 was the damage curve, retired and never reused.
+
+    // The range up to which a round does its full damage; from here to Range damage lerps to DamageAtMaxRange. Unauthored
+    // is no falloff (Tracking's precedent): +infinity clamps to Range in RangeFactor.
+    [Inspectable, JsonProperty("effectiveRange"), Key(35)]
+    public PerformanceStat EffectiveRange = new PerformanceStat { Min = float.PositiveInfinity, Max = float.PositiveInfinity };
+
+    // The multiplier on damage at Range, the end of the lerp (0 is nothing arriving at maximum range).
+    [Inspectable, JsonProperty("damageAtMaxRange"), Key(36)]
+    public float DamageAtMaxRange;
     
     [Inspectable, CultInspectorAssetGuid, JsonProperty("effect"), Key(8)]  
     public string EffectPrefab;
@@ -76,6 +84,18 @@ public abstract class WeaponData : BehaviorData
     // design's rated figures, each stat's Max (what a stat with no terms resolves to), through the same formula the
     // live weapon's RangeDamagePerSecond runs over its evaluated stats. Never the carrier's quality, heat, wear or power.
     public abstract float RatedRangeDamagePerSecond(float range);
+    public float RatedRangeFactor(float at) => RangeFactor(MinRange.Max, EffectiveRange.Max, Range.Max, DamageAtMaxRange, at);
+
+    // The one function of how much of a weapon's damage arrives at a planar range: 0 outside [min, max] (inclusive, as
+    // FireControl.Designated), 1 up to the effective range, then one lerp to damageAtMax at max. An effective range outside
+    // [min, max] clamps into it.
+    public static float RangeFactor(float min, float effective, float max, float damageAtMax, float at)
+    {
+        if (at < min || at > max) return 0f;
+        var e = clamp(effective, min, max);
+        return e >= max ? 1f : lerp(1f, damageAtMax, saturate(unlerp(e, max, at)));
+    }
+
     [IgnoreMember]
     public float RatedRange => Range.Max;
 }
@@ -88,11 +108,13 @@ public abstract class Weapon : Behavior, IActivatedBehavior
     public abstract float RangeDamagePerSecond(float range);
     public abstract int Ammo { get; }
     public WeaponData WeaponData => _data;
+    public float RangeFactor(float at) => WeaponData.RangeFactor(MinRange, EffectiveRange, Range, _data.DamageAtMaxRange, at);
     
     public float Damage { get; protected set; }
     public float Penetration { get; protected set; }
     public float DamageSpread { get; protected set; }
     public float MinRange { get; protected set; }
+    public float EffectiveRange { get; protected set; }
     public float Range { get; protected set; }
     public float Energy { get; protected set; }
     public float Heat { get; protected set; }
@@ -141,6 +163,7 @@ public abstract class Weapon : Behavior, IActivatedBehavior
         Penetration = Evaluate(_data.Penetration);
         DamageSpread = Evaluate(_data.DamageSpread);
         MinRange = Evaluate(_data.MinRange);
+        EffectiveRange = Evaluate(_data.EffectiveRange);
         Range = Evaluate(_data.Range);
         Energy = Evaluate(_data.Energy);
         Heat = Evaluate(_data.Heat);

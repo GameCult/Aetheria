@@ -32,7 +32,7 @@ public class CombatState : BaseState
         _availableLockingWeapons.Clear();
         
         var toTarget = target.Position - _agent.Ship.Position;
-        var targetDistance = length(toTarget);
+        var targetDistance = length(toTarget.xz);
 
         // Cut 2 (docs/fire-control-cut.md): aim at whichever revealed weapon on the target hits hardest at
         // this range, or clear the aim point when nothing qualifies -- the same predicate
@@ -139,8 +139,8 @@ public class CombatState : BaseState
         var maxRange = Single.MinValue;
         foreach (var weapon in _agent.Ship.Weapons)
         {
-            if (weapon.Range < minRange)
-                minRange = weapon.Range;
+            if (weapon.MinRange < minRange)
+                minRange = weapon.MinRange;
             if (weapon.Range > maxRange)
                 maxRange = weapon.Range;
         }
@@ -153,7 +153,7 @@ public class CombatState : BaseState
             float dps = 0;
             foreach (var weapon in _agent.Ship.Weapons)
             {
-                if (weapon.Item.Online.Value && weapon.MinRange < range && range < weapon.Range)
+                if (weapon.Item.Online.Value)
                     dps += weapon.RangeDamagePerSecond(range);
             }
 

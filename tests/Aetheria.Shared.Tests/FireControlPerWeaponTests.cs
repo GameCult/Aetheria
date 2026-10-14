@@ -140,7 +140,6 @@ public sealed class FireControlPerWeaponTests : IDisposable
         behavior.Heat = Constant(heat);
         behavior.Visibility = Constant(visibility);
         behavior.MagazineSize = magazine;
-        behavior.DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } };
 
         var cache = AetheriaStores.Open(Catalog + Guid.NewGuid().ToString("N"), catalogWritable: true);
         _openCaches.Add(cache);
@@ -165,7 +164,6 @@ public sealed class FireControlPerWeaponTests : IDisposable
                     Count = Constant(1), BurstTime = Constant(0), Cooldown = Constant(1), Damage = Constant(50), Range = Constant(100),
                     MinRange = Constant(0), Velocity = Constant(0), Spread = Constant(0), DamageSpread = Constant(0), Penetration = Constant(0),
                     Energy = Constant(0), Heat = Constant(0), Visibility = Constant(0),
-                    DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } }
                 }
             }
         });

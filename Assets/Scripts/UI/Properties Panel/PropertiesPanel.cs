@@ -423,7 +423,13 @@ public class PropertiesPanel : MonoBehaviour
 		if (gearData.Behaviors.FirstOrDefault(b => b is WeaponData) is WeaponData weapon)
 		{
 			var range = AddCurveField();
-			range.Show("Damage Range", weapon.DamageCurve, t => ActionGameManager.PlayerSettings.Format(lerp(statValueFunction(weapon.MinRange), statValueFunction(weapon.Range), t)));
+			var min = statValueFunction(weapon.MinRange);
+			var effective = statValueFunction(weapon.EffectiveRange);
+			var max = statValueFunction(weapon.Range);
+			range.Show("Damage Range",
+				t => WeaponData.RangeFactor(min, effective, max, weapon.DamageAtMaxRange, lerp(min, max, t)),
+				t => ActionGameManager.PlayerSettings.Format(lerp(min, max, t)),
+				effective < max ? saturate(unlerp(min, max, effective)) : .5f);
 		}
 	}
 

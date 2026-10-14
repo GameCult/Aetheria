@@ -35,6 +35,7 @@ public static class Program
             case "brownout-migrate": return BrownoutMigrate(args.Contains("apply"));
             case "roles-migrate": return RolesMigrate(args.Contains("apply"));
             case "firing-arc-migrate": return FiringArcMigrate(args.Contains("apply"));
+            case "range-falloff": return RangeFalloff(args.Skip(1).ToArray());
             case "targeting-catalog": return TargetingCatalog(args.Contains("apply"));
             case "targeting-catalog-6c": return TargetingCatalog6c(args.Contains("apply"));
             case "targeting-catalog-6d": return TargetingCatalog6d(args.Contains("apply"));
@@ -52,7 +53,7 @@ public static class Program
                 return PiratesFaction(args.Contains("apply"));
             case "verse-grammar": return VerseGrammarCommand.Run(args.Contains("apply"));
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], smoke-hull [apply], smoke-rounds [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], launch-suppressor [apply], pirates-faction [apply], verse-grammar [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], range-falloff [apply] [--effective <fraction>] [--end <multiplier>], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], smoke-hull [apply], smoke-rounds [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], launch-suppressor [apply], pirates-faction [apply], verse-grammar [apply]");
                 return 1;
         }
     }
@@ -1060,6 +1061,61 @@ public static class Program
         return 0;
     }
 
+    // Damage falloff (aetheria-release, damage-curve-fate-ruled): every gun and beam authors an effective range at a
+    // fraction of its Range (Min and Max scaled, Terms copied so the effective range wears and heats as the range does)
+    // and a damage multiplier at maximum range. Guided weapons, lock weapons and mine layers keep the unauthored
+    // defaults (no falloff). The command upserts every weapon design, which is also what drops the retired damage curve
+    // (key 7) from the stored records. Idempotent: the values are functions of Range alone. Dry run unless "apply".
+    private static int RangeFalloff(string[] args)
+    {
+        var apply = args.Contains("apply");
+        float Option(string name, float fallback)
+        {
+            var at = Array.IndexOf(args, name);
+            return at >= 0 && at + 1 < args.Length ? float.Parse(args[at + 1], System.Globalization.CultureInfo.InvariantCulture) : fallback;
+        }
+        var fraction = Option("--effective", .5f);
+        var end = Option("--end", 0f);
+        var db = AetherDb.Open(catalogWritable: apply);
+
+        Console.WriteLine($"{"weapon",-28} {"behaviour",-20} {"range",9} {"effective",9} {"end",5}");
+        var changed = new List<(object Document, CultRecordKey Key)>();
+        foreach (var item in db.Cache.GetAll<WeaponItemData>().OrderBy(i => i.Name, StringComparer.Ordinal))
+        {
+            var key = db.Cache.RefOf(item).Key;
+            foreach (var weapon in item.Behaviors.OfType<WeaponData>())
+            {
+                var falls = !(weapon is LockWeaponData || weapon is GuidedWeaponData || weapon is MineLayerData);
+                if (falls)
+                {
+                    weapon.EffectiveRange = new PerformanceStat
+                    {
+                        Min = weapon.Range.Min * fraction, Max = weapon.Range.Max * fraction,
+                        Terms = weapon.Range.Terms.Select(t => new StatTerm { Source = t.Source, Exponent = t.Exponent, Role = t.Role }).ToList()
+                    };
+                    weapon.DamageAtMaxRange = end;
+                }
+                Console.WriteLine($"{item.Name,-28} {weapon.GetType().Name,-20} {weapon.Range.Max,9:0.##} {(falls ? weapon.EffectiveRange.Max : float.PositiveInfinity),9:0.##} {weapon.DamageAtMaxRange,5:0.##}");
+            }
+            changed.Add((item, key));
+        }
+
+        Console.WriteLine($"
+{changed.Count} weapon records");
+        if (!apply)
+        {
+            Console.WriteLine($"Dry run. Pass \"apply\" to land {changed.Count} records.");
+            return 0;
+        }
+        foreach (var (document, _) in changed) CultRecordRefs.Validate(document);
+        db.Cache.Commit(batch =>
+        {
+            foreach (var (document, key) in changed) batch.Upsert(document.GetType(), document, key);
+        });
+        Console.WriteLine($"Landed {changed.Count} records in Aetheria.cc");
+        return 0;
+    }
+
     // Fire control Cut 6a (docs/fire-control-cut.md, Cut 2's "Catalog:" bullet). Cut 2 shipped the behaviour and
     // never shipped the data: no targeting-system design exists, so tools/AetherDb loadout throws
     // InvalidLoadoutException ("No compatible targeting system found for entity!") for every armed hull. This
@@ -1738,7 +1794,7 @@ public static class Program
         var constant = new ConstantWeaponData
         {
             DamageType = instant.DamageType, Damage = instant.Damage, Penetration = instant.Penetration, DamageSpread = instant.DamageSpread,
-            MinRange = instant.MinRange, Range = Fixed(20f), DamageCurve = instant.DamageCurve, EffectPrefab = instant.EffectPrefab,
+            MinRange = instant.MinRange, Range = Fixed(20f), EffectiveRange = instant.EffectiveRange, DamageAtMaxRange = instant.DamageAtMaxRange, EffectPrefab = instant.EffectPrefab,
             Energy = instant.Energy, Heat = instant.Heat, Visibility = instant.Visibility, AmmoType = instant.AmmoType,
             MagazineSize = instant.MagazineSize, ReloadTime = instant.ReloadTime, Spread = instant.Spread, Velocity = instant.Velocity,
             Tracking = instant.Tracking
@@ -1828,7 +1884,6 @@ public static class Program
                 new MineLayerData
                 {
                     DamageType = DamageType.Kinetic,
-                    DamageCurve = new BezierCurve { Keys = new[] { new float4(0f, 1f, 0f, 0f), new float4(1f, 1f, 0f, 0f) } },
                     Damage = Constant(50f),
                     Range = Constant(2000f),
                     MinRange = Constant(0f),

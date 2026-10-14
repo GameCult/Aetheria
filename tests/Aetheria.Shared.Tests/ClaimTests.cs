@@ -18,11 +18,6 @@ public sealed partial class ContactRevealTests
 
     private static PerformanceStat Span(float min, float max) => new PerformanceStat { Min = min, Max = max };
 
-    // A damage curve that falls from 1 to .2 over the range span, so every range argument lands on a different factor.
-    private static BezierCurve Falloff() => new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, .2f, 0, 0) } };
-
-    private static BezierCurve Flat() => new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } };
-
     // ---- ClaimsDefaultToTheTruth ----
 
     [Fact]
@@ -216,30 +211,26 @@ public sealed partial class ContactRevealTests
 
     // A design's rated figure is each stat's Max through the live weapon's own formula. Every stat is authored with
     // Min below Max, a falling curve and a MinRange above 0, so reading a Min, scaling the range argument, the wrong
-    // stat or the wrong operator changes the answer. At 70 the range factor is (70 - 20) / (120 - 20) = .5.
+    // stat or the wrong operator changes the answer. The spanned fixture falls from full damage at its effective range
+    // (60) to .2 at its range (120): at 90 the range factor is lerp(1, .2, (90 - 60) / (120 - 60)) = .6.
     // Mutation: any rated override reads Range.Min or MinRange.Min or a Min, drops the burst divisor, the charge
     // multiplier or the charge time; the shared formula scales its range argument.
     [Fact]
     public void ARatedFigureIsTheDesignsMaxThroughTheSharedFormula()
     {
-        var curve = Falloff();
-        var half = curve.Evaluate(.5f);
-        Assert.NotEqual(half, curve.Evaluate(1f)); // the Range.Min and halved-range mutants land elsewhere on the curve
-        Assert.NotEqual(half, curve.Evaluate(.15f));
-        Assert.NotEqual(half, curve.Evaluate(70f / 120f));
-
+        const float factor = .6f;
         var instant = Spanned(new InstantWeaponData());
-        Assert.Equal(100f / 2 * half / 2, instant.RatedRangeDamagePerSecond(70f), 4); // 100 / 2 rounds, curve, / 2 s
+        Assert.Equal(100f / 2 * factor / 2, instant.RatedRangeDamagePerSecond(90f), 4); // 100 / 2 rounds, factor, / 2 s
         Assert.Equal(120f, instant.RatedRange);
 
         var charged = (ChargedWeaponData) Spanned(new ChargedWeaponData
         {
             ChargeTime = Span(1, 3), ChargeFiringDamageMultiplier = 2f
         });
-        Assert.Equal(100f / 2 * 2 * half / (2 + 3), charged.RatedRangeDamagePerSecond(70f), 4);
+        Assert.Equal(100f / 2 * 2 * factor / (2 + 3), charged.RatedRangeDamagePerSecond(90f), 4);
 
         var beam = Spanned(new ConstantWeaponData());
-        Assert.Equal(100f * half, beam.RatedRangeDamagePerSecond(70f), 4);
+        Assert.Equal(100f * factor, beam.RatedRangeDamagePerSecond(90f), 4);
         Assert.Equal(120f, beam.RatedRange);
     }
 
@@ -252,18 +243,19 @@ public sealed partial class ContactRevealTests
     {
         var e = Add(float3(0, 0, 0), new[] { "SpanGun", "SpanCharged", "SpanBeam" });
         Tick(.1f);
-        var curve = Falloff();
+        // The hand arithmetic of the fixture: 0 outside [20, 120], 1 up to 60, then a straight fall to .2 at 120.
+        Func<float, float> factor = at => at < 20f || at > 120f ? 0f : at <= 60f ? 1f : 1f - .8f * (at - 60f) / 60f;
         var expected = new Dictionary<string, Func<float, float>>
         {
-            ["SpanGun"] = at => 100f / 2 * curve.Evaluate(Math.Clamp((at - 20f) / 100f, 0f, 1f)) / 2,
-            ["SpanCharged"] = at => 100f / 2 * 2 * curve.Evaluate(Math.Clamp((at - 20f) / 100f, 0f, 1f)) / (2 + 3),
-            ["SpanBeam"] = at => 100f * curve.Evaluate(Math.Clamp((at - 20f) / 100f, 0f, 1f))
+            ["SpanGun"] = at => 100f / 2 * factor(at) / 2,
+            ["SpanCharged"] = at => 100f / 2 * 2 * factor(at) / (2 + 3),
+            ["SpanBeam"] = at => 100f * factor(at)
         };
         foreach (var item in e.Equipment.Where(i => i.Behaviors.Any(b => b is Weapon)))
         {
             var live = item.Behaviors.OfType<Weapon>().Single();
             var rated = item.Data.Behaviors.OfType<WeaponData>().Single();
-            foreach (var at in new[] { 10f, 70f, 110f, 500f })
+            foreach (var at in new[] { 10f, 40f, 90f, 500f })
             {
                 Assert.Equal(expected[item.Data.Name](at), live.RangeDamagePerSecond(at), 3);
                 Assert.Equal(live.RangeDamagePerSecond(at), rated.RatedRangeDamagePerSecond(at), 3);
@@ -272,7 +264,7 @@ public sealed partial class ContactRevealTests
     }
     // A charged weapon at full charge reads the same rated figure: the charge multiplier is applied once, in the formula
     // (UpdateStats lerps the shot's damage by charge, so the live reads start from the uncharged damage). At range 10 the
-    // curve factor is 1: 100 / 2 rounds x 2 / (2 + 3) = 20. Mutation: the live reads pass the charge-lerped Damage.
+    // range factor is 1: 100 / 2 rounds x 2 / (2 + 3) = 20. Mutation: the live reads pass the charge-lerped Damage.
     [Fact]
     public void AFullyChargedWeaponReadsItsRatedFigure()
     {
@@ -284,10 +276,10 @@ public sealed partial class ContactRevealTests
         typeof(ChargedWeapon).GetField("_charge", BindingFlags.Instance | BindingFlags.NonPublic).SetValue(live, 1f);
         typeof(Weapon).GetMethod("UpdateStats", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(live, null);
 
-        foreach (var at in new[] { 10f, 70f, 110f })
+        foreach (var at in new[] { 25f, 70f, 110f })
             Assert.Equal(rated.RatedRangeDamagePerSecond(at), live.RangeDamagePerSecond(at), 3);
         Assert.Equal(20f, live.DamagePerSecond, 3);
-        Assert.Equal(20f, live.RangeDamagePerSecond(10f), 3);
+        Assert.Equal(20f, live.RangeDamagePerSecond(25f), 3);
     }
 
     // ---- The schematic's rows (ruling ew-claim-weapon-measure-ruled; finding schematic-unreached) ----

@@ -86,7 +86,7 @@ public sealed partial class FireControlCut124Tests : IDisposable
     // (LockAngle 180 admits any bearing) or never grows (LockAngle 0 admits none, so it only decays). A stat
     // term on Range lets a test scale it below its authored value through the power supply.
     private static InstantWeaponData WeaponBehavior(float damage, float range, StatSource? rangeTerm, float velocity, float penetration,
-        bool lockWeapon, bool lockAcquires)
+        bool lockWeapon, bool lockAcquires, float effectiveRange = float.PositiveInfinity, float damageAtMaxRange = 0f)
     {
         var data = lockWeapon ? new LockWeaponData
         {
@@ -97,6 +97,8 @@ public sealed partial class FireControlCut124Tests : IDisposable
         data.Range = rangeTerm == null ? Constant(range)
             : new PerformanceStat { Min = range, Max = range, Terms = { new StatTerm { Source = rangeTerm.Value, Exponent = 1f } } };
         data.MinRange = Constant(0);
+        data.EffectiveRange = Constant(effectiveRange);
+        data.DamageAtMaxRange = damageAtMaxRange;
         data.Velocity = Constant(velocity);
         data.Spread = Constant(0);
         data.DamageSpread = Constant(0);
@@ -104,7 +106,6 @@ public sealed partial class FireControlCut124Tests : IDisposable
         data.Count = Constant(1);
         data.BurstTime = Constant(0);
         data.Cooldown = Constant(1000);
-        data.DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } };
         return data;
     }
 
@@ -117,7 +118,8 @@ public sealed partial class FireControlCut124Tests : IDisposable
         int2? cockpitCell = null, float cockpitDurability = 1000f,
         (string Name, Shape Shape, int2 Cell, float Durability)[] custom = null,
         float accuracy = 1f, int2? gunCell = null, float weaponRange = 100000f,
-        float hardpointArc = 0f, StatSource? rangeTerm = null, bool lockWeapon = false, bool lockAcquires = true)
+        float hardpointArc = 0f, StatSource? rangeTerm = null, bool lockWeapon = false, bool lockAcquires = true,
+        float effectiveRange = float.PositiveInfinity, float damageAtMaxRange = 0f)
     {
         var hullData = new HullData
         {
@@ -140,7 +142,7 @@ public sealed partial class FireControlCut124Tests : IDisposable
             Name = "Gun", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Durability = 1,
             MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000,
             Fuse = fuse, BlastRadius = blastRadius, WeaponModifiers = modifiers,
-            Behaviors = { WeaponBehavior(damage, weaponRange, rangeTerm, velocity, penetration, lockWeapon, lockAcquires) }
+            Behaviors = { WeaponBehavior(damage, weaponRange, rangeTerm, velocity, penetration, lockWeapon, lockAcquires, effectiveRange, damageAtMaxRange) }
         });
         cache.Upsert(new GearData
         {

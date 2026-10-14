@@ -157,7 +157,6 @@ public sealed partial class ContactRevealTests : IDisposable
         weapon.Heat = Const(0);
         weapon.Visibility = Const(5);
         weapon.MagazineSize = magazine;
-        weapon.DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } };
         return weapon;
     }
 
@@ -167,7 +166,8 @@ public sealed partial class ContactRevealTests : IDisposable
         weapon.Damage = Span(10, 100);
         weapon.MinRange = Span(0, 20);
         weapon.Range = Span(50, 120);
-        weapon.DamageCurve = Falloff();
+        weapon.EffectiveRange = Span(30, 60);
+        weapon.DamageAtMaxRange = .2f;
         if (weapon is InstantWeaponData instant)
         {
             instant.Count = Span(1, 2);
@@ -208,7 +208,6 @@ public sealed partial class ContactRevealTests : IDisposable
                 Damage = Const(0), Range = Const(1000), MinRange = Const(0), Velocity = Const(0),
                 Spread = Const(0), DamageSpread = Const(0), Penetration = Const(0), Count = Const(1),
                 BurstTime = Const(0), Cooldown = Const(1000),
-                DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } },
                 LockSpeed = Const(.6f), SensorImpact = Const(1), LockAngle = Const(30), DirectionImpact = Const(1), Decay = Const(.1f),
                 InterceptFactor = interceptFactor.HasValue ? Const(interceptFactor.Value) : null
             },

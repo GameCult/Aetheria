@@ -78,7 +78,6 @@ public sealed class LockWarningTests : IDisposable
                 Damage = Const(0), Range = Const(1000), MinRange = Const(0), Velocity = Const(0),
                 Spread = Const(0), DamageSpread = Const(0), Penetration = Const(0), Count = Const(1),
                 BurstTime = Const(0), Cooldown = Const(1000),
-                DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } },
                 LockSpeed = Const(lockSpeed), SensorImpact = Const(sensorImpact), LockAngle = Const(lockAngle),
                 DirectionImpact = Const(directionImpact), Decay = Const(.1f)
             }

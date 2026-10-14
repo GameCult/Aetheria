@@ -105,7 +105,6 @@ public sealed class FireAuthorityTests : IDisposable
                 Damage = Constant(damage), Range = Constant(range), MinRange = Constant(minRange),
                 Velocity = Constant(velocity), Spread = Constant(spread), DamageSpread = Constant(damageSpread),
                 Penetration = Constant(penetration), Count = Constant(1), BurstTime = Constant(0), Cooldown = Constant(1000),
-                DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } }
             } }
         });
         cache.Upsert(new GearData

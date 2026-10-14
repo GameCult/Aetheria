@@ -92,7 +92,6 @@ public sealed class FireControlCut4Tests : IDisposable
             {
                 Damage = Constant(damage), Range = Constant(1000), MinRange = Constant(0),
                 Velocity = Constant(0), Spread = Constant(0), DamageSpread = Constant(0), Penetration = Constant(0),
-                DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } }
             } }
         });
         cache.Upsert(new GearData
@@ -214,7 +213,6 @@ public sealed class FireControlCut4Tests : IDisposable
                 Damage = Constant(10), Range = Constant(1000), MinRange = Constant(0), Velocity = Constant(0),
                 Spread = Constant(0), DamageSpread = Constant(0), Penetration = Constant(0),
                 Count = Constant(1), BurstTime = Constant(0), Cooldown = Constant(1000),
-                DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } }
             } }
         });
         cache.FlushAsync().Wait();

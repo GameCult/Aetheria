@@ -118,7 +118,6 @@ public sealed class SignatureTests : IDisposable
             behavior.Heat = Constant(0);
             behavior.Visibility = Constant(_weaponVisibility);
             behavior.MagazineSize = armament == Armament.Gun ? 5 : 0;
-            behavior.DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } };
             cache.Upsert(new WeaponItemData
             {
                 Name = "Gun", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Durability = 1,
