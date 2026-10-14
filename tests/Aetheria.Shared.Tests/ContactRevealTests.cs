@@ -1376,6 +1376,7 @@ public sealed partial class ContactRevealTests : IDisposable
         ShowOnly(e, 1f, gun);
         Assert.True(e.Visibility * o.PassiveInfo(e.Position.xz, 1f) <= _items.GameplaySettings.TargetDetectionInfoThreshold, "fixture: its last light is below o's gate");
         _zone.Remove(e);
+        o.SetIff(e, true); // a departure drops the stance (it lasts the sitting); this stands for hostility the faction rule keeps
         var memory = _items.GameplaySettings.BearingMemory;
         var lapsed = false;
         for (var i = 0; i < 200 && !lapsed; i++)

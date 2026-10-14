@@ -146,7 +146,7 @@ public sealed partial class ContactRevealTests
     public void ClaimedClassesNameTheClaim()
     {
         var locker = Add(float3(0, 0, 0), new[] { "Locker", "Gun" });
-        var target = Add(float3(0, 0, 200), new[] { "Eye" });
+        var target = Add(float3(30, 0, 40), new[] { "Eye" });
         var lockItem = locker.Equipment.Single(i => i.Behaviors.Any(b => b is LockWeapon));
         var gunItem = Guns(locker)[0];
         var claimed = DataOf("Eye");
