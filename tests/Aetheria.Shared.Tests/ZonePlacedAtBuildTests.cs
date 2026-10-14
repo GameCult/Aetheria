@@ -62,7 +62,9 @@ public sealed class ZonePlacedAtBuildTests : IDisposable
 
     private Scene Build(float phase, double time)
     {
-        var cache = AetheriaStores.Open(Path.Combine(_root, $"{_caches.Count}.cc"), catalogWritable: true);
+        var dir = Path.Combine(_root, $"zone{_caches.Count}");
+        Directory.CreateDirectory(dir);
+        var cache = AetheriaStores.Open(Path.Combine(dir, "Aetheria.cc"), Path.Combine(dir, "run.cc"), catalogWritable: true);
         _caches.Add(cache);
         cache.Upsert(new VerseGrammar { Revision = 1 });
         var shape = new Shape(5, 5);
