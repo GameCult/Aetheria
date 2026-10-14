@@ -38,11 +38,13 @@ public readonly struct Signature
 
 // What a painted ship learns of a beam on it (ruling sensor-stat-set item 4): a Search paint is a ping sweeping
 // it (Strength 0); a Track paint is a lock (Strength is the emitter's own lock progress, 0..1, ruling
-// lock-warning-strength). Never summed.
+// lock-warning-strength). A Scan paint is a held scanner: Strength is its scan progress 0..1 (ruling scan-is-an-act).
+// Never summed.
 public enum PaintMode
 {
     Search,
-    Track
+    Track,
+    Scan
 }
 
 // An ally's ping crossed `Subject` at `IlluminatedRange` through `IlluminatedObscuration`; `MaxRange` is that
@@ -100,16 +102,17 @@ public readonly struct PaintWarning
 // bearing at that act and the zone clock then. Held per (subject, item) in the observer's Entity; the latest act
 // replaces the earlier one. Position is never carried: only the track gives it. `Item` stays the true item: it is the
 // book's key and what aim reads. `Claimed` is the class the act claimed, and is what every classifying reader reads
-// (aetheria-ew, classify-from-belief).
+// (aetheria-ew, classify-from-belief). A null `Channel` is a reveal by the observer's own scan (Entity.RecordInspection),
+// whose `Claimed` is the subject's claim for the item.
 public readonly struct Reveal
 {
     public readonly EquippedItem Item;
     public readonly EquippableItemData Claimed;
-    public readonly SignatureChannel Channel;
+    public readonly SignatureChannel? Channel;
     public readonly float2 Bearing;
     public readonly float Time;
 
-    public Reveal(EquippedItem item, SignatureChannel channel, float2 bearing, float time, EquippableItemData claimed)
+    public Reveal(EquippedItem item, SignatureChannel? channel, float2 bearing, float time, EquippableItemData claimed)
     {
         Item = item;
         Claimed = claimed;

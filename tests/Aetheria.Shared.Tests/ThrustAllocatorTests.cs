@@ -18,13 +18,13 @@ public class ThrustAllocatorTests
 
     static float3 Col(float starboard, float forward, float yawDeg) => new(starboard, forward, yawDeg * Deg);
 
-    // TA3, the Duel Longinus: two mismatched drives (0, 1) and two Talarias (2 clockwise, 3 counter-clockwise).
+    // TA3, the Duel Longinus: two mismatched drives (0, 1) and two Rugged Drives (2 clockwise, 3 counter-clockwise).
     static float3[] Duel() => new[]
     {
         Col(0, 53.94f, 49.24f), Col(0, 61.19f, -55.86f), Col(29.08f, 0, 166.26f), Col(-21.80f, 0, -124.63f),
     };
 
-    // The clockwise Talaria lost.
+    // The clockwise Rugged Drive lost.
     static float3[] DamagedDuel() => new[]
     {
         Col(0, 53.94f, 49.24f), Col(0, 61.19f, -55.86f), default, Col(-21.80f, 0, -124.63f),
@@ -137,7 +137,7 @@ public class ThrustAllocatorTests
     [Fact]
     public void TheOnsetMovesWithTheColumns()
     {
-        // Clockwise Talaria lost: the drive serves a clockwise turn from the first touch.
+        // Clockwise Rugged Drive lost: the drive serves a clockwise turn from the first touch.
         var damaged = DamagedDuel();
         var small = Solve(damaged, 0, 0, .01f);
         Assert.True(small[0] > 0, $"drive {small[0]}");
@@ -145,7 +145,7 @@ public class ThrustAllocatorTests
         var full = Solve(damaged, 0, 0, 1f);
         Assert.True(MathF.Abs(YawDeg(damaged, full) - 49.24f) <= 49.24f * 1e-3f, $"yaw {YawDeg(damaged, full)}");
 
-        // Clockwise Talaria halved: the onset is its new share of the clockwise extreme.
+        // Clockwise Rugged Drive halved: the onset is its new share of the clockwise extreme.
         var halved = Duel();
         halved[2] = halved[2] * .5f;
         var onset = halved[2].z / Extremes(halved, 2).plus;

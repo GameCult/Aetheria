@@ -247,7 +247,7 @@ public abstract class Entity
     // sensor-stat-set): written in Update, read by Sense in the same tick, cleared by the next PublishInbox.
     private readonly List<ActiveEmission> _emissions = new List<ActiveEmission>();
     // What this observer has seen each ship's items do (ruling visibility-per-capability-reveal), keyed (subject,
-    // item). Written only by RecordReveal (an act enters) and EndReveals (an end the observer perceives, or a departed
+    // item). Written only by RecordReveal (an act, or a scan through RecordInspection, enters) and EndReveals (an end the observer perceives, or a departed
     // subject's entries aged past BearingMemory), cleared by Deactivate (ruling reveal-ends-on-perception).
     private readonly Dictionary<Entity, Dictionary<EquippedItem, Reveal>> _reveals = new Dictionary<Entity, Dictionary<EquippedItem, Reveal>>();
     private readonly List<EquippedItem> _endedItems = new List<EquippedItem>();
@@ -714,8 +714,23 @@ public abstract class Entity
     }
 
     // How much of an emission's reach this observer's instruments hear it at (ruling sensor-stat-set: listeners hear at
-    // a multiple of an emitter's own range): 1 with an active sensor, 0 without. Listener gear extends it.
-    private int HearingMultiple() => ActiveSensors().Count > 0 ? 1 : 0;
+    // a multiple of an emitter's own range): the largest of 1 (any active sensor) and each active listener's Multiple,
+    // 0 with neither. Catalog values come from AetherDb sensor-stat-set.
+    private float HearingMultiple()
+    {
+        var multiple = ActiveSensors().Count > 0 ? 1f : 0f;
+        for (var i = 0; i < Equipment.Count; i++)
+        {
+            var item = Equipment[i];
+            if (!item.Active.Value) continue;
+            foreach (var behavior in item.Behaviors)
+                if (behavior is Listener listener) multiple = max(multiple, listener.Multiple);
+        }
+        foreach (var effect in _activeConsumables)
+            foreach (var behavior in effect.Behaviors)
+                if (behavior is Listener listener) multiple = max(multiple, listener.Multiple);
+        return multiple;
+    }
 
     // Cut 12.3 (docs/fire-control-cut.md): "armour absorbs first" -- the per-cell armour phase, split out of
     // what used to be Absorb's own first half (moved verbatim from DamageSchematic's per-cell body, Cut 3) so
@@ -934,19 +949,34 @@ public abstract class Entity
         _paintInbox.Add(new PendingPaint(new PaintWarning(normalize((emitter.Position - Position).xz), emitter.ClaimOf(item), mode, strength), emitter, item));
     }
 
-    // The reveal book's one way in and its one membership gate (callers: Sense and PublishInbox, both in this file):
-    // this observer saw `item` of `subject` act on `channel`, now, from this bearing. An item-less act (hull
+    // The reveal book's one way in and its one membership gate (callers: Sense, PublishInbox and RecordInspection, all in
+    // this file): this observer saw `item` of `subject` act on `channel`, now, from this bearing. An item-less act (hull
     // radiation, a consumable) reveals nothing, and neither does a subject that is not in the zone: a departed
     // subject's entries are never created or refreshed, from any caller, and neither does an item this observer
     // perceives destroyed (PerceivesDestroyed). A later act of the same item replaces the
     // earlier one. `claimed` is the class the carrier (signature, emission or paint) stamped: what this observer's
     // classifying readers will believe of the act; `item` stays the aim and book key.
-    internal void RecordReveal(Entity subject, EquippedItem item, SignatureChannel channel, EquippableItemData claimed)
+    internal void RecordReveal(Entity subject, EquippedItem item, SignatureChannel? channel, EquippableItemData claimed)
     {
         if (!_active || item == null || !Zone.Entities.Contains(subject) || PerceivesDestroyed(subject, item)) return;
         if (!_reveals.TryGetValue(subject, out var book))
             _reveals[subject] = book = new Dictionary<EquippedItem, Reveal>();
         book[item] = new Reveal(item, channel, normalize((subject.Position - Position).xz), Zone.Time, claimed);
+    }
+
+    // A finished scan (Scanner.Execute; rulings scan-is-an-act, quiet-gear-identifiable-hull-layout-known: quiet gear
+    // that never acts stays identifiable through special gear): this observer learns every fitted item of `subject`,
+    // channel null. It records what the item claims, not what it is (ClaimOf, as every act's carrier stamps it: the
+    // aetheria-ew one judge, classify-from-belief), skips the hull (its class is the track's to give) and a destroyed
+    // item, and goes through RecordReveal's gate like any act. It calls no EndReveals: a scan ends nothing
+    // (reveal-ends-on-perception).
+    internal void RecordInspection(Entity subject)
+    {
+        foreach (var item in subject.Equipment)
+        {
+            if (item == subject.EquippedHull || item.EquippableItem.IsDestroyed) continue;
+            RecordReveal(subject, item, null, subject.ClaimOf(item));
+        }
     }
 
     // This observer resolves `subject`'s gear (ContactOf's Identified gate) and `item` of it is destroyed: the one rule

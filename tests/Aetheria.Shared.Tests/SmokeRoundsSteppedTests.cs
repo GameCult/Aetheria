@@ -55,11 +55,11 @@ public sealed partial class RunStartTests
         Assert.True(taken > 0f, $"the hull ahead took no damage (selected {selected})");
     }
 
-    // Fused Rounds, nothing selected, the player aiming down the bare hull ahead. The DeathCluster is the control: it fires
+    // Fused Rounds, nothing selected, the player aiming down the bare hull ahead. The Cluster Cannon is the control: it fires
     // in this arena, so a fused weapon that does not is not a harness that cannot fire. A fused round flies slowly enough
     // to be in the air when the direct weapon kills the fragile hull (check A.3) and bursts on the first hull on the aim line.
     [Theory]
-    [InlineData("DeathCluster")]
+    [InlineData("Cluster Cannon")]
     [InlineData("Smoke Proximity")]
     [InlineData("Smoke Delayed")]
     public void EveryWeaponAboardFiresInTheSteppedFusedRoundsArena(string design)
@@ -77,7 +77,7 @@ public sealed partial class RunStartTests
         for (var i = 0; i < 60; i++) arena.Update(SteppedDt);
 
         Assert.True(fired.Count > 0, $"{design} fired nothing in 3 s; the ship's reactor is {(player.PowerBus.TotalGeneration > 0f ? "running" : "down")}");
-        if (design == "DeathCluster") return;
+        if (design == "Cluster Cannon") return;
         var (at, burst) = committed.First();
         Assert.Equal(ShotResult.Burst, burst.Result);
         Assert.True(burst.HasBurstPoint);
@@ -86,7 +86,7 @@ public sealed partial class RunStartTests
         Assert.InRange(at + burst.ArrivalIn - fired[0], 1f, 5f); // in the air for seconds: not resolved in its firing tick, not minutes of flight
     }
 
-    // Check A.3 flown: the fragile hull is selected and the DeathCluster, at full damage inside its effective range, starts
+    // Check A.3 flown: the fragile hull is selected and the Cluster Cannon, at full damage inside its effective range, starts
     // killing it; once half its hull is gone a Smoke Proximity round is fired at it, and the hull dies before the round
     // lands, so the round never bursts.
     [Fact]
@@ -107,7 +107,7 @@ public sealed partial class RunStartTests
         });
 
         var hullDurability = ((HullData) _items.GetData(fragile.Hull)).Durability;
-        WeaponOf(Carried(player, "DeathCluster")).Activate();
+        WeaponOf(Carried(player, "Cluster Cannon")).Activate();
         float? deadAt = null;
         var fired = false;
         for (var i = 0; i < 120 && landed == null; i++)
@@ -117,7 +117,7 @@ public sealed partial class RunStartTests
             if (deadAt == null && !arena.Entities.Contains(fragile)) deadAt = arena.Time;
         }
 
-        Assert.True(fired, "the DeathCluster never hurt the fragile hull");
+        Assert.True(fired, "the Cluster Cannon never hurt the fragile hull");
         Assert.NotNull(deadAt);
         Assert.NotNull(landed);
         Assert.True(deadAt <= landed.Value.At, $"the round landed at {landed.Value.At:F2} s, before the fragile hull died at {deadAt:F2} s");
