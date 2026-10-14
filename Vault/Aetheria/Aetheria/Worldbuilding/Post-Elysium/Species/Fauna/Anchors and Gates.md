@@ -1,6 +1,6 @@
 **"Anyone can open a gate. Getting it to open somewhere is the expensive part."**
 
-> Draft lore pass r5, 2026-10-14, for the operator's review. Part of [[Spaceborne Fauna]], beside [[Flatspace]] and [[Wonderland]]. Built on two operator rulings: a gate needs an anchor at its far end, or it lands with very little control and usually somewhere useless (`gates-need-anchors`); most links are gates someone paid for, and a few natural tears exist as rare, dangerous wonders (`mostly-gates-few-tears`). `[new]` marks invention that touches existing canon. Reasoning in [[Fauna Lore Review r5]].
+> Draft lore pass r5, 2026-10-14, revised r6, for the operator's review. Part of [[Spaceborne Fauna]], beside [[Flatspace]] and [[Wonderland]]. Built on two operator rulings: a gate needs an anchor at its far end, or it lands with very little control and usually somewhere useless (`gates-need-anchors`); most links are gates someone paid for, and a few natural tears exist as rare, dangerous wonders (`mostly-gates-few-tears`); aim improves with understanding, nearby flatspace first, and stays a niche field (`blind-gate-targeting`); flatspace is held by minds, an effect the Timeless built into Elysium (`flatspace-held-by-minds-in-timeless-elysium`). `[new]` marks invention that touches existing canon. Reasoning in [[Fauna Lore Review r5]] and [[Fauna Lore Review r6]].
 
 Humans learned to open gates long before they understood anything about what the gates open into. Every wormhole on the map is a gate someone paid for, and the far end of every one of them was nailed down, at a price, by someone who went there first. That is how Elysium is colonised, flatspace included. A **link** is any way from one space to another; nearly all of them are gates, and the rest are tears.
 
@@ -36,6 +36,8 @@ This is the fae-legend journey: the walk under the hill, the long road through a
 | Somewhere that looks back | Rarely | The ring is shut fast, if it can be. Not everything that comes through is reported |
 | Somewhere worth having: a rich ground, a new layer | Very rarely | A race. An unanchored mouth drifts, so a crew must go through and plant an anchor before the gate closes or a rival's crew does it first |
 
+Aim improves as understanding does, and the first thing gate-makers learned was to throw a blind gate a short way into flatspace. Space that minds already hold flat is space a mouth falls through predictably: aimed at a nearby stretch of flatspace, it lands roughly where it was thrown, and a crew need only find it and plant the anchor before it drifts. Most lanes past the oldest were opened that way. Into [[Wonderland]], aim barely exists, and the table above is the whole of the odds. Targeting is a niche field all the same: a faction that can afford a ring can afford a crew, and crews are cheaper than scholars [new].
+
 A jackpot blind gate turns into the slow way at once: the crew who go through it to plant the anchor are on the long road, with the ring's meter running behind them. Blind-gate syndicates sell shares in a stake, insurers will not touch one, and the tales of gates that came up rich are told everywhere and are mostly about other people.
 
 Spacers say the first blind gate was the one that brought us here: the [[FTL Trigger]] was humanity's first stab into the seething void, and it landed on Elysium [new].
@@ -53,14 +55,14 @@ Every space treats an anchor differently, and that, more than anything, decides 
 | Space | Where an anchor holds | Can a rival find it? | Who holds it |
 |---|---|---|---|
 | [[Flatspace]] | Anywhere still: a well's slack point, a moon, a station | Yes, with work | Everyone; companies own lanes |
-| [[Adrasteia Space\|The Ink]] | Only in a pillar's clear column, the one still water | No; no light leaves | Adrasteia, every known link |
+| [[Adrasteia Space\|The Ink]] | Only in a pillar's eye, the still water at the bottom of its well | No; no light leaves | Adrasteia, every known link |
 | [[The Glass]] | Anywhere; the stiff Aether holds everything | At once; nothing hides | The Wavecrafters, by watching, not hiding |
 | [[The Fold]] | Anywhere, but it is in two places, and a gate may open at either | Yes, from both sides | Nobody |
 | [[Hyperspace]] | Anywhere, and you will never find it again without beacons | Only by the chain | The beacon keepers |
 
 #### Why an Anchor Works
 
-Nobody knows why a twin pulls a gate's far mouth toward it. Each account of [[Flatspace#Why Flatspace Is Flat|why flatspace is flat]] has its own answer: the core worlds call it engineering; the Chaos factions say an anchor is an expectation made solid, a piece of somewhere that someone insists on; the Timeless account says anchors are scratches on the inside of the cell wall, and the Aether lets them stand because it lets everything stand that keeps the prisoners busy [new].
+An anchor works the way flatspace does: it is held ([[Flatspace#Why Flatspace Is Flat|Why Flatspace Is Flat]]). A twinned pair is a relation someone insists on, two places a mind has decided are next to each other, made solid in instruments that remember the insisting; that is why they are grown in the Glass, where nothing fades. The Aether gives minds what they expect hard enough, and a gate's far mouth falls toward its anchor because somebody expects it there. It is also why an unkept anchor goes quiet, and why anchors hold badly wherever something else's expectation is stronger than ours. The core worlds still call it engineering, and the engineering works; the Chaos factions were right all along. In the Ink an anchor holds only in a pillar's eye, and spacers who have thought about it say the eye is the one place the Ink lets go [new].
 
 Spacers say: *no anchor, no door*; *a ring is a promise, an anchor is a deed*; and, of anyone who talks up a blind gate, *show me who walked there*.
 

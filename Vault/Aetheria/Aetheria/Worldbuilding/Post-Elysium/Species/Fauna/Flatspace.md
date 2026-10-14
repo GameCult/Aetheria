@@ -1,6 +1,6 @@
 **"Out here a kilometre is a kilometre. Be grateful. Further on, it isn't."**
 
-> Draft lore pass r4, 2026-10-14, revised r5, for the operator's review. Part of [[Spaceborne Fauna]]. Flatspace is the vanilla galaxy: Sol, and the map of nebulae and stars the game draws today. Its other half is [[Wonderland]]. `[new]` marks invention that touches existing canon. Reasoning in [[Fauna Lore Review r4]] and [[Fauna Lore Review r5]].
+> Draft lore pass r4, 2026-10-14, revised r5 and r6, for the operator's review. Part of [[Spaceborne Fauna]]. Flatspace is the vanilla galaxy: Sol, and the map of nebulae and stars the game draws today. Its other half is [[Wonderland]]. `[new]` marks invention that touches existing canon. Reasoning in [[Fauna Lore Review r4]], [[Fauna Lore Review r5]] and [[Fauna Lore Review r6]]. Ruled: flatspace is held by minds, an effect the Timeless built into Elysium (`flatspace-held-by-minds-in-timeless-elysium`).
 
 Flatspace is everywhere you can live without being changed. Its physics is strange by Sol's standards (the [[Aether]] has a current, heat turns into light, things live in the nebulae), but it is physics: it holds still long enough to be learned, charted, insured and taught. You can colonise it without accepting that reality has been altered. Most people in Elysium never leave it.
 
@@ -20,7 +20,7 @@ Flatspace has a shape that people feel without naming:
 
 #### Lanes
 
-Every wormhole on the map is a gate, and every gate is a pair of anchors somebody paid for [new]. The shape of flatspace, which zone opens onto which, is not geography. It is history: where a crew once crossed the dark the slow way, carrying an anchor, and where a company could afford a ring at the near end. The oldest lanes run out of Sol's bubble, and the names of the crews who walked them are the names of the oldest companies ([[Anchors and Gates]]).
+Every wormhole on the map is a gate, and every gate is a pair of anchors somebody paid for [new]. The shape of flatspace, which zone opens onto which, is not geography. It is history: where a crew once got to the far end carrying an anchor, the slow way across the dark or through an aimed blind gate thrown a short way ahead, and where a company could afford a ring at the near end. The oldest lanes run out of Sol's bubble, and the names of the crews who walked them are the names of the oldest companies ([[Anchors and Gates]]).
 
 Between the lanes stand the **dead gates**: rings opened blind that came up on nothing and were never anchored, left in the dark when the money ran out. Some are shut; some still hold a sliver of mouth onto somewhere useless, too expensive to close properly. Each is a monument to a company that bet everything and lost it. Salvagers strip them, pirates hide in them, and pilots passing one dip their lights [new].
 
@@ -30,12 +30,18 @@ Pirates are flatspace's scourge, and only flatspace's. Piracy needs what flatspa
 
 #### Why Flatspace Is Flat
 
-Nobody knows, and everyone has an account [new].
+Because minds hold it flat, and Elysium was built so that they could [new].
 
-- **The core worlds' account.** Flat is how space is. Pseudospace is a rift, an incursion into an orderly universe.
-- **The edge account.** Canon's line, and the Chaos factions' creed: *we brought flat space with us; we are the incursion.* The Aether answers to minds, and wherever enough minds expect Euclid, the Aether gives it to them. Sol is the flattest place there is because it is the oldest and most crowded expectation in Elysium.
-- **The Timeless account.** Elysium is a shard of bespoke spacetime the Timeless built for their prisoners ([[Temporal Nonlinearity]]). Flatspace is the cell, made comfortable. Wonderland is what the cell was carved from.
+The [[Aether]] answers to minds ([[Cognitive Interfacing]]), and wherever enough minds expect Euclid, it gives them Euclid. That is not an accident of the Aether. Elysium is a shard of bespoke spacetime the Timeless built for their prisoners ([[Temporal Nonlinearity]]), and they built that answer into it: they gave humanity the space it had always lived in, and the power to impose its reality on their creation. Sol is the flattest place there is because it is the oldest and most crowded expectation in Elysium.
 
-The three accounts make different politics: an orderly universe to defend, a habit to keep up, or a prison to be kept in. Each also says what an anchor is ([[Anchors and Gates#Why an Anchor Works|Why an Anchor Works]]). Which, if any, is true is put to the operator in [[Fauna Lore Review r4]].
+The cost was hidden. The gift was not given to humanity alone. Everything ever confined in Elysium imposes its reality the same way, and some of those things come from very strange places. Where human expectation runs thin, theirs shows through, and some spacers think that is all [[Wonderland]] is: other prisoners' ideas of how space should be, held as hard as we hold ours [new].
+
+The old accounts survive as politics, and each is partly right:
+
+- **The core worlds' account.** Flat is how space is, and pseudospace is an incursion into an orderly universe. Wrong on both counts, and the most comfortable thing to believe.
+- **The edge account.** Canon's line, and the Chaos factions' creed: *we brought flat space with us; we are the incursion.* Right about the mechanism. The edges are where human expectation is thinnest, which is why the Chaos factions live with a foot on each side.
+- **The Timeless account.** Flatspace is the cell, made comfortable. Right about who built it; wrong if it thinks the cell was built for us alone.
+
+The same mechanism is what an anchor is ([[Anchors and Gates#Why an Anchor Works|Why an Anchor Works]]).
 
 Spacers say: *flat is a promise, not a fact*; and, of a crewmate back from a link with a far look, *she's been off the map*.

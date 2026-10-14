@@ -16,6 +16,6 @@ The skein is one organism the size of a system: a web of faint threads joining w
 
 **Yield.** Thread, by the gram: it carries Aether disturbance along its length, and makes fine antenna for [[Aethernet]] gear. Cetacean Navigators consider harvesting it vandalism of the chart [new].
 
-**Lives.** Every zone outside Sol, anchored to the slope. Deep zones have skeins as thick as cables.
+**Lives.** Every flatspace zone outside Sol, anchored to the slope. Not in the Ink, where there is no glim to carry; there the seams between two pillars' reaches, where their waves cross and their dust piles up, are the nearest thing to strands [new]. Deep zones have skeins as thick as cables.
 
 *Designers:* the skein is the slime-mould pattern the placement ruling asks for, given a body in the lore. It is drawn from the gravity slope at run time, as the placement law already is. The ambient slime trails could be it.

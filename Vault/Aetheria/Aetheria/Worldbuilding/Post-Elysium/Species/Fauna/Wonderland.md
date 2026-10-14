@@ -1,6 +1,6 @@
 **"Everyone who goes in comes back with a story. Not everyone comes back."**
 
-> Draft lore pass r4, 2026-10-14, revised r5, for the operator's review. Replaces r3's "Pseudospace Flavours". Part of [[Spaceborne Fauna]]. Wonderland is canon's name for pseudospace territory; this note gives it a shape: separate **layers**, each its own space with its own map, joined to each other and to [[Flatspace]] by **links**: gates someone paid for, and a few natural tears ([[Anchors and Gates]]). `[new]` marks invention that touches existing canon. Reasoning in [[Fauna Lore Review r4]] and [[Fauna Lore Review r5]].
+> Draft lore pass r4, 2026-10-14, revised r5 and r6, for the operator's review. Replaces r3's "Pseudospace Flavours". Part of [[Spaceborne Fauna]]. Wonderland is canon's name for pseudospace territory; this note gives it a shape: separate **layers**, each its own space with its own map, joined to each other and to [[Flatspace]] by **links**: gates someone paid for, and a few natural tears ([[Anchors and Gates]]). `[new]` marks invention that touches existing canon. Reasoning in [[Fauna Lore Review r4]], [[Fauna Lore Review r5]] and [[Fauna Lore Review r6]].
 
 Canon defines [[Pseudospace]] as space whose geometry does not follow Euclid, and says that past the islands of flat space "absolutely anything is possible". Both are true. Wonderland is what a pilot meets in between: places where anything is possible but something in particular is true, reliably enough to learn, and strange enough that learning it changes you.
 
@@ -26,7 +26,7 @@ A link is a place where two spaces share an edge. Fly through and you are in the
 
 - **A layer is only as reachable as its anchors.** Humans opened gates long before they understood what the gates open into. A layer is known because somebody got in (through a tear, or a blind gate that came up lucky), crossed it, and planted an anchor. Every anchored gate into a layer is a record of that walk.
 - **Links have tells.** A link leaks its far side. Near a link to the Ink the stars dim and radiators run too cool; near a link to the Glass the current slackens and dies; near one to the Fold the stars double. A pilot learns to taste the far side before committing. Gates and tears leak alike; only a tear leaks somewhere nobody has charted.
-- **Some links keep hours.** A gate keeps its anchor's hours: the Ink's gates breathe with the pillars their anchors sit in. A tear keeps its own: a beat, a season, a tide in the current. The fairy ring opens on the right night [new].
+- **Some links keep hours.** A gate keeps its anchor's hours: the Ink's gates breathe with the pillars in whose eyes their anchors sit. A tear keeps its own: a beat, a season, a tide in the current. The fairy ring opens on the right night [new].
 - **Links are owned by holding the anchor.** A faction holds a foothold in a layer by holding the anchors at the far ends of its links and keeping their tunings secret, and how well that works depends on the layer: an anchor in the Ink cannot be found, one in the Glass cannot be hidden, one in the Fold is in two places at once. Anchor registries are the most valuable documents in Elysium, and the best of them are never written down.
 
 #### Depth
@@ -56,7 +56,7 @@ In play, a tale is route knowledge in canon's sense: rumour, attributed, maybe m
 
 | Layer | Its map | Foothold | One line |
 |---|---|---|---|
-| [[Adrasteia Space\|The Ink]] | Black; only the pillars shine | Adrasteia | A sea of fog that drinks light and heat, lit by star-pillars that breathe dust |
+| [[Adrasteia Space\|The Ink]] | Black; only the pillars shine | Adrasteia | A sea of fog that drinks light and heat; each zone is ruled by a pillar that does a sun's work in beats of dust |
 | [[The Glass]] | Sharp and silver; old wakes drawn as lines | The Wavecrafters | Stiff Aether: no current, nothing fades, nowhere to hide |
 | [[The Fold]] | Places drawn twice; edges glued | Nobody holds it | Knots where distance grows, seams that glue far places |
 | [[Hyperspace]] | A disc, crowded at the rim, recentred on you | The beacon keepers | Hyperbolic room: every road is short and you will never find it |

@@ -1,6 +1,6 @@
 **"Soot on the swell means the pocket just passed. You're late."**
 
-> Draft r3, 2026-10-14. Part of [[Adrasteia Space]] (the Ink); niche: producer. `[new]` marks invention that touches existing canon.
+> Draft r3, 2026-10-14, revised r6. Part of [[Adrasteia Space]] (the Ink); niche: producer. `[new]` marks invention that touches existing canon.
 
 Black lace on the moving surface of the Ink: a colonial film, finer than net, that spreads across the swell in the wake of each dust wave and sinks again before the next. In a pocket's light it glints where dust grains are caught in it.
 
@@ -16,6 +16,6 @@ Black lace on the moving surface of the Ink: a colonial film, finer than net, th
 
 **Yield.** *Soot-ash*: skimmed, dried and sold through blind drops. A trace of dust in a great deal of ash. It is the Ink's safe harvest, and the one most vouched independents ever take.
 
-**Lives.** Everywhere a dust wave has been, in rings around every pillar.
+**Lives.** The cradle of every pillar: everywhere a pocket passes, from the break out to the bank, in rings that move with the beat.
 
 *Designers:* a ring field that blooms behind each pulse and fades by the next; a heat-sink patch; a readable indicator of the pulse phase.
