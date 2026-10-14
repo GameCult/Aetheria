@@ -381,7 +381,9 @@ public sealed class FireControlTests : IDisposable
         zone.Update(1f);
         var item = shooter.Weapons.Single().Item;
         item.Enabled.Value = false; // an Online change is what makes Combat sample again, over the evaluated stats
+        zone.Update(.1f);
         item.Enabled.Value = true;
+        zone.Update(.1f);
 
         var agent = zone.Agents.Single();
         var state = typeof(Agent).GetField("_currentState", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(agent);
