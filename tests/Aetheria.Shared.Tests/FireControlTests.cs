@@ -182,7 +182,7 @@ public sealed class FireControlTests : IDisposable
     }
 
     // A shooter with one in-range, in-arc gun, a detected target at `targetPosition`, and a Minion driving the shooter.
-    private (Ship shooter, Ship target, Zone zone) BuildCombatEncounter(float3 targetPosition, float projectileSpeed = 0f, bool twoTargetGuns = false, float? effectiveRange = null)
+    private (Ship shooter, Ship target, Zone zone) BuildCombatEncounter(float3 targetPosition, float projectileSpeed = 0f, bool twoTargetGuns = false)
     {
         var mounts = twoTargetGuns ? new[] { (ItemRotation.None, 0f), (ItemRotation.None, 0f) } : new[] { (ItemRotation.None, 0f) };
         var (items, shooter, weapons) = BuildShipWithHardpoints(mounts);
@@ -191,7 +191,6 @@ public sealed class FireControlTests : IDisposable
         weaponData.Cooldown = new PerformanceStat { Min = 1, Max = 1 };
         weaponData.Range = new PerformanceStat { Min = 1000, Max = 1000 };
         weaponData.MinRange = new PerformanceStat { Min = 0, Max = 0 };
-        if (effectiveRange.HasValue) weaponData.EffectiveRange = new PerformanceStat { Min = effectiveRange.Value, Max = effectiveRange.Value };
         weaponData.Velocity = new PerformanceStat { Min = projectileSpeed, Max = projectileSpeed };
 
         var zone = shooter.Zone;
@@ -376,15 +375,18 @@ public sealed class FireControlTests : IDisposable
     [Fact]
     public void TheAIHoldsAtItsEffectiveRange()
     {
-        var (shooter, _, zone) = BuildCombatEncounter(float3(0, 0, 10), effectiveRange: 500f);
+        var (shooter, _, zone) = BuildCombatEncounter(float3(0, 0, 10));
         zone.Update(1f); // enters CombatState, which samples before the weapons' first stat evaluation
         zone.Update(1f);
         var agent = zone.Agents.Single();
         var state = typeof(Agent).GetField("_currentState", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(agent);
         Assert.True(state is CombatState, $"the agent is in {state?.GetType().Name}");
-        // The state sampled when the Minion was built, over the fixture's first stats; refresh the gun's stats from the data this
-        // test authored, then sample again.
-        typeof(Weapon).GetMethod("UpdateStats", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).Invoke(shooter.Weapons.Single(), null);
+        // The state sampled when the Minion was built, over the fixture's first stats. Author the live gun's falloff, refresh
+        // its stats, then sample again.
+        var live = shooter.Weapons.Single();
+        live.WeaponData.EffectiveRange = new PerformanceStat { Min = 500, Max = 500 };
+        live.WeaponData.DamageAtMaxRange = 0f;
+        typeof(Weapon).GetMethod("UpdateStats", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).Invoke(live, null);
         typeof(CombatState).GetMethod("SampleDps", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).Invoke(state, null);
         var optimum = (float) typeof(CombatState).GetField("_optimumRange", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(state);
         Assert.True(optimum >= 500f - 1000f / 32f && optimum <= 500f + 1000f / 32f, $"optimum range {optimum}");
