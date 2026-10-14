@@ -1,0 +1,11 @@
+BOOST 0.0 ALIGN 1.0 mult: presence step max 0.0234 (0 steps > .1 of 1500)
+BOOST 0.0 ALIGN 1.0 power: presence step max 0.3012 (2 steps > .1 of 1500)
+BOOST 1.6 ALIGN 0.0 mult: presence step max 0.0545 (0 steps > .1 of 1500)
+BOOST 1.6 ALIGN 0.0 power: presence step max 0.0287 (0 steps > .1 of 1500)
+BOOST 0.0 ALIGN 0.0 mult: presence step max 0.0234 (0 steps > .1 of 1500)
+BOOST 0.0 ALIGN 0.0 power: presence step max 0.1970 (1 steps > .1 of 1500)
+window mult: WIN 2 vs 3 max |diff| 0.2794, points differing > .01: 1 of 3385
+window power: WIN 2 vs 3 max |diff| 0.0000, points differing > .01: 0 of 3385
+window add: WIN 2 vs 3 max |diff| 0.0000, points differing > .01: 0 of 3385
+site boost profile range 0.000..1.000: weight range .5*(1+1.6*min) .. 1.0*(1+1.6*max) = 0.50..2.60, ratio 5.2:1; with ALIGN the across-edge distance is stretched up to 2.0x more
+diag2 done

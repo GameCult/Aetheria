@@ -267,7 +267,7 @@ Probed at `1746e8bd`.
 `aetheria-fauna:question:fauna-placement`, `:fauna-flow-coupling`, `:flow-moves-what`, `:flow-slope-terms`. The
 options and recommendations are in the mind; the research for the first is the placement prior-art file.
 
-### Cut sequence (r2, one line each; each is mapped when it is about to run)
+### Cut sequence r2 (superseded by the r3 sequence below)
 
 1. `fauna-flow-field` (cut spec admitted): the flow's owner moves into `ServerShared` (`FlowField`, `Zone.Flow`), the
    shader lowers it from zone time, and a Unity parity check pins HLSL to C#.
@@ -303,3 +303,173 @@ options and recommendations are in the mind; the research for the first is the p
 24. `flow-slope-gradient-parity`: the brush-rendered heightfield and `Zone.GetHeight` agree, so the slope term can
     be switched on (`flow-slope-terms`).
 25. `orbit-sync-helper`: the generic flying aid that holds a ship on the local orbital flow. Waits on an operator yes.
+
+## r3: placement is a closed form evaluated at run time
+
+Written by Imagination (agent imagination-aeth-fauna-r3, session self-2026-10-14-ag) against `origin/master`
+`b836af48`, with the flow owner read at `eureka/aetheria-fauna-flow-field` `5f5a1e4d`. The operator ruled
+`fauna-placement-ruled` against `physarum-at-generation`: placement is "deterministic based on the gravity slope and
+flow that makes nice patterns", because "the level is constantly changing". The target is revised to r3 (Placement
+law, invariants `fauna-placement-closed-form`, `-story`, `-nested`, `-no-pop`). The B20 probe and the r2 rationale for
+a generation pass stand as evidence of what the slime look is; the generation pass itself is dropped. Prior art for
+the closed form: `docs/research/2026-10-14-fauna-placement-closed-form.md` (`CF:<line>`).
+
+### Body facts (r3)
+
+| # | Question | Result |
+|---|---|---|
+| B24 | Does the gravity field move? | Yes, in closed form of zone time. Orbit positions are `OrbitData.Evaluate(frac(_time / Period + Phase)) * Distance` plus the parent's position, cached per tick (`Zone.cs:476-497`). `GetHeight` subtracts each gas giant's `RadialWaves(..., _time * speed)` (`Zone.cs:645-655`), and `Sun` derives from `GasGiant` (`Zone.cs:771`), so the sun's well ripples too; `GasGiantData` defaults give wave speed x8 (`ZoneData.cs:199`). The slope at a point is a function of `_time`, and nothing in `GetHeight` can be evaluated at another time without a time parameter. |
+| B25 | Which pointwise closed form makes the slime look? (scratch probe, not committed) | A pure-Python transliteration of `FlowField.Global`/`Slope`/`Scroll` at `5f5a1e4d` and `Zone.GetHeight`/`GetNormal`/`PowerPulse`/`RadialWaves` at `b836af48`, on the B20 zone (sun, four planets, a gas giant; radius 2000; live flow scale 512, amplitude 15, scroll speed .025), 256² grid at t = 100 s, float64 (C# is float32). Density images were written per candidate, member-dot images under fixed per-candidate thresholds (jittered 16 u lattice, about 49k candidates), and correlated with the B20 Physarum maps (64x32 blocks). Results follow in the next rows. Scripts, images and how to rerun: `docs/research/2026-10-14-fauna-habitat-probe/` (README there). These rows' member counts normalise density by its zone maximum, which the law may not do (CF:56); B25g gives the counts under the spec's law. The first `members_c6_band_soft_windrows_swirl.png` was a mislabelled render and is not kept. |
+| B25a | Slope band alone (`c0`: the operator's `Deposition(slope)`, zero past slope .8) | Rings on every planet's shoulder, a bright bridge where two shoulders meet; correlation with Physarum A .517 (B .483), the highest of all candidates. 1,435 members. Changes 3.3 % of members in 1 s and 20 % in 8 s from the wells' ripples alone (B24). |
+| B25b | Band times flow convergence (`c1`, gain 3; `c6`, gain 1.5, slope terms on: swirl 6, slide 1.5) | Langmuir-windrow analogue (CF:17-18). The band keeps its rings, cut by the flow's convergence into a crisp triangular texture: `Tri3D` is piecewise linear (`tri`), so its derivatives are piecewise constant and the convergence field is a tiling of hard-edged triangles and diagonal streaks. `c6` correlation .464 (B .449); `c1` .428. Members gather in clumps on the shoulders with thin lines between wells. Under continuous evaluation 20-22 % of members change in 1 s and 89-94 % in 8 s: the flow scrolls a full first-octave phase in 40 s (1 / .025). Convergence std over the zone is .147 /s live and .151 /s with the slope terms on. |
+| B25c | Band times flow-along-contour (`c5`, narrow; `c7`, wide) | Members where the flow runs along the well's contour (neither climbing nor falling). Fine scalloped arcs, more organic than `c6`, but sparse (94 members narrow, 395 wide) and unstable: 42-134 % of members change in 1 s. `c7` correlation .480. |
+| B25d | Okubo-Weiss strain (`c2`) and gravity saddles (`c3`, `c4`) | `c2` (band times sigmoid of W, CF:11) correlation .507, texture like `c1`. `c3` (negative Hessian determinant of the height: outer shoulders and saddles between wells) makes clean rings with dark gaps and no links, .377. `c4` (`c3` times convergence) .316. |
+| B25e | Does a presence fade on the density stop pops? (`docs/research/2026-10-14-fauna-habitat-probe/pop_probe.py`) | No. `c6` with a fade band of .1 around each threshold, 600 shoulder candidates, 180 steps of 1/60 s from t = 100: the density moves by up to .267 in one step, so presence moves by up to .35 in one step (4 steps over .25; .56 with a band of .05). The same with the slope terms off, so the jumps are the global `Tri3D` term's: its convergence changes almost discontinuously in time at some points. |
+| B25f | Does reading the flow term at the member's own cycle start stop them? (`docs/research/2026-10-14-fauna-habitat-probe/pop_cycle.py`) | Yes. Band at now, convergence at the member's cycle start (period 8 s, hashed phase), same fade and candidates: presence moves by at most .0003 per step within a cycle, 0 steps over .25; the flow term changes only at the 221 cycle turns, where `fauna-flow-coupling-ruled` already fades the member. The slope band moves smoothly (B24's ripples are continuous). `FlowField.At` takes a scroll, and `FlowField.Scroll(settings, t)` is pure in t, so the flow at a past zone time needs no new owner. |
+| B25g | The options under the spec's law (`habitat_options.py`, `pop_maps.py`) | Absolute density, fixed constants of `cut-fauna-habitat-placement.r1`, candidate thresholds .1 + .9h, fade .1, slope terms on, 49,083 candidates at 16 u. Hosted at t = 100 and changed under continuous evaluation in 1 s / 8 s: band-only 4,388, 2.0 % / 12.2 %; band-times-convergence 2,235, 10.3 % / 47.1 %; band-times-strain 2,721, 7.9 % / 31.3 %; band-times-contour-flow 2,307, 15.8 % / 49.2 %. No-pop, convergence law, 5,607 shoulder candidates, 60 steps of 1/60 s, largest presence step with cycle turns excluded and members moving > .1 in a step: presence-fade .33, 2 members; cycle-sampled-flow .0010, 0; cycle-sampled-all .0000, 0. Images: `option_density_<option>.png`, `option_members_<option>.png`, `option_nopop_<option>.png`. |
+| B25h | Is the triangular lattice in the convergence the law's or the probe's? (`lattice_probe.py`) | The law's. Along a 2,048 u transect at 0.5 u spacing, all 40 of the 40 largest convergence jumps lie within 1 u of a kink line predicted from `tri`'s arguments in `FlowField.Tri3D` (both octaves; 53 lines cross the transect). The derivative step does not make it: convergence with step 6 and step .5 correlates .964. Rounding the inputs to float32 moves the flow by at most 5.6e-9 u/s (arithmetic stays float64, so this bounds input rounding only). The shader never renders the flow's derivative; it advects nebula noise and stardust by the flow's value, which is continuous, so the lattice is not visible in game today. A density driven by convergence would carry it into member placement: crisp in a density render, a soft patchiness at the member density of `option_members_band-times-convergence.png`. |
+| B26 | Is Sol a zone the code can tell apart? | No. No `ServerShared` code names Sol (grep of `Sol\b` outside `Solar`/`Solid`/`Solve`); a zone's seed is `GalaxyZone.Name.StableHash()` (`Zone.cs:144`, `CombatSeed`). `fauna-none-in-sol` needs the per-zone environment of `sol-flatspace-zone`. |
+| B27 | Is there placement code to cut? | No. Nothing under `Assets/Scripts/ServerShared` or `tests/Aetheria.Shared.Tests` names habitat or fauna at `b836af48`. The generation pass of r2 was never built. |
+
+### Decisions made here, not forks
+
+- **Candidates are a hashed jittered lattice with fixed per-candidate thresholds**, not a blue-noise set. It is the
+  simplest deterministic, position-stable construction (CF:42 [M]); it is HZD's shape (CF:33 [V]), and nesting
+  follows from the fixed thresholds (CF:40). Blue noise (Wei 2008, recursive Wang tiles, CF:42-43 [S]) buys evenness
+  the jitter already roughly gives; it can replace the lattice later behind the same `Candidate` function.
+- **The hash comes from `SimulationDice.Mix`** on the zone seed, a new `HabitatStream` and the cell, so placement
+  uses the one dice owner (B9) and no `UnityEngine.Random`.
+- **The convergence is normalised by a fixed scale in the settings** (.15 /s, B25b), never by a zone-wide statistic,
+  which would make the law path-integrated (CF:56).
+- **Settings are a record, bound per class later.** `HabitatSettings` lands with `Habitat`; the krill cut binds a
+  record to the krill field kind. Per-class tuning by eye follows the `flow-slope-terms` pattern.
+- **Sol** waits for `sol-flatspace-zone` (B26), which makes Sol host no fauna kind.
+
+### Questions (admitted in the mind, raised in `cut-fauna-habitat-placement.r1`)
+
+`aetheria-fauna:question:habitat-density-driver` (which flow quantity shapes the band; the images above are its
+evidence) and `aetheria-fauna:question:habitat-no-pop` (how a member is carried through a change of hosting).
+
+### Cut sequence (r3, one line each; each is mapped when it is about to run)
+
+1. `fauna-flow-field` (spec admitted; third Soul pass): the flow's owner in `ServerShared` (`FlowField`, `Zone.Flow`).
+2. `fauna-habitat-placement` (spec admitted, waits on 1 and the two questions): `Habitat`, `HabitatSettings`,
+   `Zone.HabitatDensity`/`HabitatPresence`, fixed-threshold candidates, tests and the cost measured.
+3. `fauna-krill-swarms`: fauna fields derived per zone (not generated), krill members at hosted candidates, advected
+   cycles (`fauna-flow-coupling-ruled`), the index provider and `ChunkVisible` through presence. Waits on 1, 2.
+4. `fauna-krill-catalog`: AetherDb authors the Krill field kind and its `HabitatSettings`.
+5. `fauna-field-presentation`: fauna kinds pick their own look and fade by presence; `SectorRenderer` counts belts only.
+6. `fauna-minnow-schools`: minnows, fast milling, a habitat on the krill density.
+7. `fauna-anchors`: field frames that move across the flow under class laws (`fauna-motion-model-ruled`).
+8. `fauna-sharks-and-whales`: sharks by krill density (ideal free distribution, CF:49-50), whales round gas giants.
+9. `fauna-disturbance`: sparse reaction records; schools scatter, sharks veer; reactions are tells.
+10. `fauna-attacks-strike`: sharks strike and minnow schools scour, through the ordinary damage path.
+11. `fauna-attacks-signal`: whale song as noise in the shared signal space (with aetheria-ew), drifter discharge.
+12. `fauna-harvest-goods`: catalog goods per kind and yields through the economy's yield table; fields refill.
+13. `fauna-harvest-gear`: resonance fishing, nets and trawls as gear with makers.
+14. `fauna-void-spiders`: nets across trojan points, snaring and tethering; silk.
+15. `fauna-gas-giant-drifters`: a cloud-deck class bound to gas giants.
+16. `fauna-edge-giants`: larger classes far from Sol; the hosted class mix scales with distance from Sol.
+17. `fauna-springs`: wormhole mouths raise habitat density (a pointwise term of distance to a mouth).
+18. `fauna-genre-uses`: cultivators, necrotech and mecha uses, each with its owner's campaign.
+19. `sol-flatspace-zone`: a per-zone environment override; Sol is cloudless, flowless and hosts no fauna kind.
+20. `fauna-returns`: what an observer is shown (`fauna-distance-ruled`, `fauna-disguise-path-ruled`).
+21. `fauna-in-ew-blend`: fauna background kinds with motion-law envelopes in aetheria-ew's judge.
+22. `fauna-krill-obscure`: dense krill thin sight lines through `Zone.Obscuration`. Waits on an operator yes.
+23. `flow-moves-matter`: floating items, mines and vented clouds drift with the flow (`flow-moves-what-ruled`).
+24. `flow-slope-gradient-parity`: the brush-rendered heightfield and `Zone.GetHeight` agree (`flow-slope-terms`).
+25. `orbit-sync-helper`: the generic flying aid that holds a ship on the local orbital flow. Waits on an operator yes.
+
+## r4: placement is a trophic DAG
+
+Written by Imagination (agent imagination-aeth-trophic-dag, session self-2026-10-14-ag) against `origin/master`
+`7633408f` (the flow owner `FlowField`/`Zone.Flow` is on master) and CultLib `main` `6c902fd4`. The operator ruled
+`habitat-trophic-dag`: none of the r3 density drivers gives "the filament feeling"; placement is "a few layers of
+ecological abstraction, all deterministic, to author the various species with", whose trophic levels "form a DAG
+which we can evaluate in either shader passes or in C#". `voronoi-primitive` adds the weighted Voronoi she likes.
+Self relayed a correction on 2026-10-14, her words: "Parity between shader and C# is CultMath's whole raison
+d'etre". The target is revised to r4 ("Placement law"). The r3 rows B24-B27 and the habitat probe stand; B25's
+candidates are superseded as designs. Prior art: `docs/research/2026-10-14-trophic-dag-filaments-prior-art.md`
+(`TD:<line>`, tags [V] read, [S] search summary, [M] memory or derivation). The species the graph authors come from
+the lore branch `eureka/aetheria-fauna-lore` `74c7e212`, note `Open Water` (`OW`).
+
+### Body facts (r4)
+
+| # | Question | Result |
+|---|---|---|
+| B28 | What does CultMath already give a node library? | Integer PCG hashes `pcg`, `pcg3d`, `pcg4d` (Jarzynski and Olano), "integer-only, so dxc and C# agree bit for bit" (`packages/cultmath/src/CultMath/math.cs:393-426`, `shaders/CultMath.hlsl:396-426`). `cellular(float3)`: Worley F1 and F2 - F1 with analytic gradients, jitter from `pcg3d` of the integer cell, 3D, unweighted (`math.cs:849-975`, `CultMath.hlsl:440-503`). `smin_grad` (`math.cs:831-847`, `CultMath.hlsl:428-437`). `distance_to_segment` in C# only (`math.cs:319`; no HLSL twin). No weighted cellular, no diagram over explicit weighted sites, no site-graph gate. |
+| B29 | How does CultMath own parity? | Two legs, one owner each (`packages/cultmath/docs/design.md:202-206`): HLSL against C# by the mirror test, which compiles the text of `CultMath.hlsl` as C# and compares float32 bit patterns (`design.md:118-124`), plus a clean `dxc -T lib_6_3` compile (`design.md:114-116`); GLSL against C# by golden fixtures run on a device. The mirror proves the composition in the text, not that a GPU agrees (`design.md:119-121`); device HLSL runs are consumers' today (Asura `gpu-snoise-parity`; Aetheria `FlowFieldParityVerify`). CultMath ships a Unity compute smoke (`packages/cultmath/scripts/unity-smoke/`). Aetheria pins `cultmath-unity-v0.4.1` (`Packages/manifest.json`). |
+| B30 | Does Aetheria already keep a math twin outside CultMath? | Yes. `FlowField` uses CultMath's `math`, but its `Tri`, `Tri3` and `Tri3D` are Aetheria functions (`FlowField.cs:66-72`) whose HLSL twin is `Volumetric.cginc`, pinned by Aetheria's own `FlowFieldParityVerify` (`RelativeTolerance` 1.5e-4). That is a second parity owner beside CultMath. |
+| B31 | What is parked in CultMath that a DAG would use? | The tape: steps 2-5 (expression graph lowered to bytecode with C# evaluators, pruning, an HLSL interpreter, meshing) are parked until Asura is stable (`docs/cultmath-tape-target.md:3-8`, ruling `tape-target-unparks-when-asura-stable`). "Truth and lowerings" (`:84-92`): the field is a typed CultCache document, and the CPU evaluator and the HLSL interpreter are lowerings of it. Step 1 (intervals) and affine forms are on main. |
+| B32 | Do the candidates make filaments? (`docs/research/2026-10-14-trophic-dag-probe/`, README there; wells orbit, slope terms on, t = 0) | `skein` draws strands between neighbouring wells, bent by the flow (`density_skein.png`); `lattice` draws a fine cellular web, dense on the shoulders, dim elsewhere, with no long links (`density_lattice.png`); `skein-web` draws both: strands from well to well with a web hanging off them (`density_skein-web.png`, `layer_L2-krill.png`). Correlation with the B20 Physarum map at 64x32 blocks (this measures the envelope, not filaments: a block is 62 u, wider than a strand): band .512, lattice .359, skein-web .296, krill .277, skein .225, slack .171. Hosted krill at 16 u: band 2,075, skein-web 1,475, skein 639, lattice 419. |
+| B33 | Does the site graph pop as wells orbit? | The hard Gabriel graph over the six bodies changes its edge set 29 times in 1,400 s (one gas-giant orbit), each change a strand appearing or vanishing whole (TD:33 [M], now measured). The soft gate (empty-disc margin through smoothstep(-.15, .15)) moves by at most .00075 per 1/60 s. |
+| B34 | Do the candidates pop under the krill carriage? (`run1.log`, `win.log`, `cyc.log`; fade .1, 60 steps of 1/60 s from t = 100, flow read at the member's cycle start, cycle turns excluded) | Largest presence step: band .0035, slack .013, skein .054, lattice .124 (8 steps over .1), skein-web .493 (8 steps). The lattice steps are not discontinuities: a traced member's web value rises .03 per step for 5 steps, a thin weighted border sweeping a fixed candidate. Widening the search window to 7x7 changes nothing; lowering the weight boost to .6 removes the lattice steps (.047); reading the lattice drift at the member's cycle start, as the flow is read, removes them at full boost: lattice .011, skein-web .066, 0 steps over .1 (`cyc.log`). |
+| B35 | How fast do hosted sets turn over? | Members changed in 1 s, all terms / flow frozen at t's cycle (wells only): band .032 / .032; skein .244 / .106; lattice .594 / .449 (.262 with the drift at cycle start); skein-web .305 / .186 (.216 with the drift at cycle start); slack .089 / .089. The strands ride their wells at about 6 u/s across 16 u candidates, so a tenth of strand members change each second through the fade: motion, not popping (B34). |
+| B36 | What does a stencil predator cost? (Python, one evaluation) | krill .26 ms, minnows 3.19 ms (9 krill), sharks 29.3 ms (81 krill): each ring-stencil level multiplies the cost by 9. Hosted: minnows 274 of 5,432 candidates at 48 u; sharks 19 of 755 at 128 u; lanterns 36 of 3,063 at 64 u. |
+| B37 | What does a diagram over the bodies draw, per metric? (`docs/research/2026-10-14-body-voronoi-probe/`, README there; sites = the six bodies, weight = each well's Gaussian width `sigma = r / sqrt(128)`, edge = first-order border distance through a 40 u Gaussian, warped as the strands) | `power` (`d^2 - sigma^2`): long, nearly straight edges spanning the zone between the bodies, a triangle of filaments (`edges_power.png`). `add` (`d - sigma`): long hyperbolic arcs, two near-parallel bars north of the sun (`edges_add.png`). `mult` (`d / sigma`): rings round the small bodies only; the sun's cell covers most of the zone (sigma ratio up to 4.7:1; the ring round a 274-mass planet is about 264 u) (`edges_mult.png`). `pot-newton` (equal `m/d`, i.e. multiplicative with weight = mass, CultLib `tape-register-model.md` 5a): rings of about 12 u, the sun swallows the zone. `pot-well` (equal depth on the zone's real well profile): rings like `mult`, plus dotted arcs where each well's compact support ends (r/2). `flow-aniso` (`mult`, across-flow distance 2.5x): edges shattered into short fragments, because the metric turns with the flow on the flow's 512 u scale. `lp05`: axis-aligned bars across the zone; `lpinf`: square cells round the small bodies. Correlation with the B20 Physarum map: mult-strands .388, power-strands .371, mult .335, flow-aniso .322, power .313, skein-web .296, add .263. |
+| B38 | Do they pop as the bodies orbit? (16 u krill, fade .1, 60 steps of 1/60 s from t = 100, flow warp and web drift at the member's cycle start, bodies now; `run2.log`, `run3.log`) | Worst presence step / members changed in 1 s / hosted: skein-web .014 / .205 / 1,501; power .029 / .312 / 3,817; power-strands .029 / .269 / 4,965; flow-aniso .037 / .300 / 4,090; pot-newton .048 / .299 / 689; add .090 / .338 / 4,077; mult .091 / .279 / 3,270; mult-strands .091 / .238 / 4,462; pot-well, lp05, lpinf 1.0 (1, 72 and 237 steps over .1). `mult`'s .091 is the web, not the edge: without the cell boost .023, without the alignment .055 (`diag2.log`); the cell weights are read from the moving edges now. |
+| B39 | Why did B34's reading pop more? (`run1.log`, `diag_edges.log`, `trace.py`) | `trophic_probe.py` reads only the flow's scroll at the member's cycle start; the slope terms (swirl 6, slide 1.5) read the wells now. The slope terms use the normalised slope direction, which turns quickly on flat ground as the wells move, and the 20 s warp is a lever on it: at a candidate on slope .019 the warped point moved 1.4 u per 1/60 s. With the whole warp at cycle start, the edges alone drop from .152 to .023 (mult) and .126 to .029 (power), and the ruled skein-web from .066 to .014. B34's skein-web number was this reading's. |
+| B40 | Where does the first-order border distance break? | Where the metric's gradient is singular or jumps: `lp05` (singular on the axes through each site), `lpinf` (jumps on the diagonals), `pot-well` (unbounded at the support rim): presence steps of 1.0. Also where the second-nearest site changes, the normaliser `|grad(F2 - F1)|` jumps: invisible inside the 40 u edge, visible in a 4x halo (power's web with no cell boost: .197-.301, `diag2.log`). A raw `F2 - F1` profile has no such jump but its width varies with the weights. |
+| B41 | Does the 5x5 lattice window hold the body-pulled weights? (`diag2.log`, 3,385 points) | Cell weights span .5-2.6 (5.2:1), and the alignment stretches across-edge distance up to 2x more. 5x5 against 7x7: mult differs at 1 point by .28; power and add at none. CultLib `lattice-site-weight.md` (`21281a39`) finds the window must grow with the weight ratio (5x5 off by .017 at about 12:1); the alignment is a query-point anisotropy, which does change winners, unlike a query-point scalar weight. |
+| B42 | What does one evaluation visit? | Every variant is pointwise over explicit sites; none needs a grid. Large layer: the 6 bodies (the two winners' gradient is analytic). Web: 25 cells, each reading the large layer at its centre (25 x 6), so 181 sites per evaluation; with strands 193 (6 soft-Gabriel edges, strand and halo); skein-web 187. Python: .36-.74 ms per evaluation. CultMath: `mult` and `power` are gap (2) as mapped; `add`, Minkowski and `flow-aniso` extend gap (2) with a metric parameter, `flow-aniso` also with a direction operand; `pot-well` is the zone's well profile as a per-site score, an Aetheria function, not a CultMath metric. The web's per-cell read of the large layer is the cell-centre weight placement of `cultmath-tapes:question:lattice-site-weight-source`. |
+
+### Decisions made here, not forks
+
+- **The layers are the lore's web.** `OW` gives energy budgets (starlight, heat-light, gravity waves, mind-light),
+  a current with fronts, shear and slack, and the Skein: "a slime-mould web that grows toward food along the gravity
+  slope, linking well to well". The filament layer is therefore the Skein, a species of its own, and the layers
+  above read it. The DAG is donor-controlled: each level is a function of the levels below and never regulates
+  them (TD:56 [M]); a predator that thins its prey closes a cycle, which needs iteration (TD:56), so it is out.
+- **Strands link wells; the wells' Voronoi borders are slack.** In the adhesion model, filaments are borders between
+  void cells and the mass sits at the vertices (TD:38 [V]). Here the mass is the wells, so filaments between wells
+  are the dual: edges of a site graph, the graphs the Physarum agents approximate (TD:9, prior doc). The wells'
+  weighted Voronoi borders are where pulls cancel, which `OW` gives to the ambushers (lanterns, void spiders).
+  With multiplicative weights the border round a small well is an Apollonius circle (TD:20 [M];
+  `density_slack.png` shows the circles).
+- **The site graph's gate is soft.** B33: a hard Gabriel graph pops a whole strand 29 times per gas-giant orbit;
+  the soft gate is continuous. The graph is computed per tick from the orbit positions `Zone` already caches per
+  tick (B24), over the zone's bodies only; wormhole mouths and belts join as sites in their own cuts.
+- **Hunting radius is a stencil, or a widened kernel.** A predator reads its prey's density as the mean over a
+  fixed ring of taps: pointwise, exact by definition, the same in C# and HLSL. It costs 9x per level (B36), so a
+  stencil reads at most two levels down. Where the prey is a sum of Gaussian kernels (the Skein's strands) a
+  predator reads the same kernels widened instead, the exact blur of a Gaussian profile (TD:78 [M]). Grid-only
+  operators (blur of arbitrary fields, distance transforms, eikonal paths, jump flooding: TD:19, TD:78) are
+  presentation-only, never sim-visible.
+- **Fast drift is read at the member's cycle start.** `habitat-no-pop-ruled` reads the krill's flow at its cycle
+  start. B34 extends it, measured: the flow warp and the lattice web's drift are read at the member's cycle start;
+  the slope band and the site graph, which move slowly and continuously, are read now and carried by the fade.
+- **Nodes are CultMath functions; Aetheria composes.** Per Self's relay of the operator. Each primitive the DAG
+  needs is a CultMath function with an HLSL twin in `CultMath.hlsl`, pinned by CultMath's mirror test and dxc
+  compile (B29). Aetheria's `Habitat` is a composition of those calls and owns no math twin. Gaps to fill in
+  CultLib, not helpers in Aetheria: (1) a 2D weighted lattice cellular with the smooth-min blend (her node) on
+  `pcg3d` cells and zone time; (2) a weighted diagram over an explicit span of sites (F1, F2 and first-order border
+  distance, multiplicative and power weights); (3) the HLSL twin of `distance_to_segment`; (4) the soft Gabriel
+  gate over a site span. Gap (5): CultMath has no parity path for a consumer's composition, only for its own text
+  (B29), so a presenter that draws a composed layer (Skein glow, glim haze) waits on a CultMath-owned composition
+  check rather than a second `FlowFieldParityVerify`. B30's `Tri3D` twin is the existing instance of the same split.
+- **The search window follows the weight range.** A multiplicatively weighted lattice node needs its window to
+  cover the weight ratio (TD:20 [M]); the probe's 1.6x boost needed no more than 5x5 (B34). The CultMath node states
+  the weight range it supports instead of trusting the caller.
+
+### Questions (admitted in the mind)
+
+`aetheria-fauna:question:skein-filament-construction` (which construction is the Skein; images per option in
+`docs/research/2026-10-14-trophic-dag-probe/`) and `aetheria-fauna:question:trophic-graph-tape` (hand-written CultMath
+compositions now and the tape later, or unpark the tape for this).
+`aetheria-fauna:question:body-diagram-metric` (which metric draws the large-scale Skein from the bodies, after the
+operator's sketch; images per option in `docs/research/2026-10-14-body-voronoi-probe/`, facts B37-B42).
+
+### Cut sequence (r4, one line each; each is mapped when it is about to run; r3 lines 4-25 stand after line 7)
+
+1. `fauna-flow-field`: on master (`FlowField`, `Zone.Flow`, `FlowFieldParityVerify`).
+2. `cultmath-trophic-nodes` (CultLib): gaps (1)-(4) above with HLSL twins, mirror tests and stated weight ranges;
+   a CultMath Unity tag. Waits on both questions.
+3. `fauna-trophic-habitat` (Aetheria): the CultMath pin bump; `Habitat` composes environment, Skein, glim and krill
+   in C# at candidates; per-species settings records; the r3 candidates and fade; tests for the r4 invariants; the
+   per-candidate cost measured. Replaces r3 line 2. Waits on 2.
+4. `fauna-krill-swarms`: as r3 line 3, on 3's krill hosting.
+5. `cultmath-composition-parity` (CultLib): gap (5), a CultMath-owned check that a consumer's C# composition and its
+   HLSL twin agree on a device; `FlowField`'s `Tri3D` moves under it. Waits on Self's scoping.
+6. `fauna-trophic-presenter`: the Skein and glim drawn in the nebula from the same composition. Waits on 3 and 5.
+7. `fauna-minnow-schools`, then predators by stencil and ambushers on slack (r3 lines 6-8), re-mapped as species of
+   the DAG per `fauna-bestiary-open` and `OW`.

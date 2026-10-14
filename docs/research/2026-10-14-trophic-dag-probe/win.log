@@ -1,0 +1,6 @@
+WIN 2 BOOST 1.6 lattice: presence step max 0.1236, 8 steps > .1 of 1500 candidates
+WIN 2 BOOST 1.6 skein-web: presence step max 0.4933, 8 steps > .1 of 1500 candidates
+WIN 3 BOOST 1.6 lattice: presence step max 0.1236, 8 steps > .1 of 1500 candidates
+WIN 3 BOOST 1.6 skein-web: presence step max 0.4933, 8 steps > .1 of 1500 candidates
+WIN 2 BOOST 0.6 lattice: presence step max 0.0471, 0 steps > .1 of 1500 candidates
+WIN 2 BOOST 0.6 skein-web: presence step max 0.2361, 11 steps > .1 of 1500 candidates

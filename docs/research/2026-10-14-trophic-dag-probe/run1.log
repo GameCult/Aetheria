@@ -1,0 +1,27 @@
+grid 256, wells orbit (period = distance s), slope terms on, TAU 20.0 s, lattice 260.0 u
+gabriel over 1400 s: hard edge-set changes 29; soft gate largest step per 1/60 s 0.00075
+49109 krill candidates at 16 u
+  band wells-only (flow frozen at t's cycle): changed in 1 s 0.0323, 60 s 0.891
+band: corr physarumA 0.512; members 2075; changed in 1 s 0.032, 8 s 0.283, 60 s 0.891; presence step max 0.0035 (0 steps > .1, 2500 near-threshold candidates); 23s
+  skein wells-only (flow frozen at t's cycle): changed in 1 s 0.1064, 60 s 1.498
+skein: corr physarumA 0.225; members 639; changed in 1 s 0.244, 8 s 1.102, 60 s 1.549; presence step max 0.0536 (0 steps > .1, 2500 near-threshold candidates); 58s
+  skein-hard wells-only (flow frozen at t's cycle): changed in 1 s 0.1089, 60 s 1.495
+skein-hard: corr physarumA 0.225; members 643; changed in 1 s 0.244, 8 s 1.098, 60 s 1.546; presence step max 0.0536 (0 steps > .1, 2500 near-threshold candidates); 55s
+  lattice wells-only (flow frozen at t's cycle): changed in 1 s 0.4487, 60 s 1.871
+lattice: corr physarumA 0.359; members 419; changed in 1 s 0.594, 8 s 1.680, 60 s 1.874; presence step max 0.1236 (8 steps > .1, 2500 near-threshold candidates); 179s
+  skein-web wells-only (flow frozen at t's cycle): changed in 1 s 0.1864, 60 s 1.504
+skein-web: corr physarumA 0.296; members 1475; changed in 1 s 0.305, 8 s 1.144, 60 s 1.534; presence step max 0.4933 (8 steps > .1, 2500 near-threshold candidates); 217s
+  slack wells-only (flow frozen at t's cycle): changed in 1 s 0.0893, 60 s 1.756
+slack: corr physarumA 0.171; members 3942; changed in 1 s 0.089, 8 s 0.672, 60 s 1.756; presence step max 0.0132 (0 steps > .1, 2500 near-threshold candidates); 26s
+L1-glim: grid 256, corr physarumA 0.485; 18s
+L2-krill: grid 256, corr physarumA 0.277; 19s
+L2-minnows: grid 128, corr physarumA 0.360; 42s
+L3-sharks: grid 128, corr physarumA 0.403; 376s
+L3-lanterns: grid 128, corr physarumA 0.148; 42s
+members L2-minnows: 274 of 5432 at 48 u; changed in 1 s 0.124, 8 s 0.478; 52s
+members L3-sharks: 19 of 755 at 128 u; changed in 1 s 0.105, 8 s 0.526; 65s
+members L3-lanterns: 36 of 3063 at 64 u; changed in 1 s 0.139, 8 s 0.861; 31s
+cost krill: 0.26 ms per evaluation (Python)
+cost minnows: 3.19 ms per evaluation (Python)
+cost sharks: 29.26 ms per evaluation (Python)
+total 1211s
