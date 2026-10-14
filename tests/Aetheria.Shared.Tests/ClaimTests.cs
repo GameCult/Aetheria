@@ -166,6 +166,28 @@ public sealed partial class ContactRevealTests
         Assert.NotSame(lockItem.Data, claimed); // fixture: the claim is not the truth
     }
 
+    // The label's order is the claimed names', never the order the reveals were made in.
+    [Fact]
+    public void ClaimedClassesAreOrderedByName()
+    {
+        var locker = Add(float3(0, 0, 0), new[] { "Locker", "Gun" });
+        var target = Add(float3(30, 0, 40), new[] { "Eye" });
+        var lockItem = locker.Equipment.Single(i => i.Behaviors.Any(b => b is LockWeapon));
+        var gunItem = Guns(locker)[0];
+        locker.Claim(lockItem, DataOf("Eye"));
+        locker.Claim(gunItem, DataOf("Shout"));
+        locker.SetIff(target, true);
+        Fire(locker, gunItem); // the later name is revealed first
+        locker.EntityInfoGathered[target] = 1f;
+        locker.SetTarget(target);
+        locker.Aim = normalize(target.Position - locker.Position);
+        Tick(.5f);
+        Tick(.5f);
+
+        Assert.True(target.RevealsOf(locker).Count() >= 2, "fixture: both items revealed");
+        Assert.Equal(new[] { "Eye", "Shout" }, target.ClaimedClasses(locker).Select(c => c.Name));
+    }
+
     // The emission a ping makes is stamped by the ship that makes it. Mutation: Emit stamps item.Data.
     [Fact]
     public void AHeardPingCarriesTheClaim()
