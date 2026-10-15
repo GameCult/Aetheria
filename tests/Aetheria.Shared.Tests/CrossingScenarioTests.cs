@@ -106,10 +106,10 @@ public sealed partial class RunStartTests
 
         // The shifts took effect: starting 20 m further out along the crosser's track delays the pass, and starting 20 m further
         // ahead moves it 20 m further ahead (a sweep that stages the same pass eighteen times proves nothing).
-        var along = passes.Take(9).Select(entry => entry.pass).ToList();
-        var across = passes.Skip(9).Select(entry => entry.pass).ToList();
-        Assert.True(along[0].Seconds - along[8].Seconds > .5f, "a start 20 m further out delays the pass by more than half a second");
-        Assert.InRange(across[8].Ahead.y - across[0].Ahead.y, 3f, 30f);
+        var outward = passes.Take(9).Select(entry => entry.pass).ToList();
+        var lateral = passes.Skip(9).Select(entry => entry.pass).ToList();
+        Assert.True(outward[0].Seconds - outward[8].Seconds > .5f, "a start 20 m further out delays the pass by more than half a second");
+        Assert.InRange(lateral[8].Ahead.y - lateral[0].Ahead.y, 3f, 30f);
     }
 
     // Where the crosser's bearing from the player sweeps from port to starboard: when, where it is then (x port-to-starboard,
