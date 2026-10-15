@@ -38,15 +38,15 @@ public sealed class ZonePlacedAtBuildTests : IDisposable
 
     private static ExponentialCurve Flat(float v) => new ExponentialCurve { Constant = v };
 
-    // Flat space (no zone depth) with one planet whose well reaches 500 u, a fixed root orbit at RootAt and the
+    // One planet with a well (c 100, core 20 u, Roche limit 30 u), a fixed root orbit at RootAt and the
     // planet orbiting it at Distance from `phase`. Every orbit period is Period seconds.
     private static PlanetSettings Settings() => new PlanetSettings
     {
         OrbitPeriod = Flat(Period),
         BodyRadius = Flat(20f),
-        GravityRadius = Flat(500f),
-        GravityDepth = Flat(100f),
-        GravityStrength = 1f,
+        WellStrength = Flat(100f),
+        CoreRadius = Flat(20f),
+        RocheLimit = Flat(30f),
         LightRadius = Flat(0f)
     };
 
@@ -57,6 +57,8 @@ public sealed class ZonePlacedAtBuildTests : IDisposable
         public HullData Hull;
         public Zone Zone;
         public CultRecordKey PlanetOrbit;
+        public CultRecordKey MoonOrbit;
+        public CultRecordKey MoonsMoonOrbit;
     }
 
     private Scene Build(float phase, double time, bool moonFirst = false)
@@ -81,6 +83,10 @@ public sealed class ZonePlacedAtBuildTests : IDisposable
         {
             Parent = new CultRecordRef<OrbitData>(planetOrbit), Distance = 100f
         }).Key;
+        var moonsMoonOrbit = cache.Upsert(new OrbitData
+        {
+            Parent = new CultRecordRef<OrbitData>(moonOrbit), Distance = 40f
+        }).Key;
         var planet = cache.Upsert(new PlanetData { Orbit = new CultRecordRef<OrbitData>(planetOrbit), Mass = 1f }).Key;
         var pack = new ZonePack
         {
@@ -90,10 +96,10 @@ public sealed class ZonePlacedAtBuildTests : IDisposable
             Time = time
         };
         // The same three orbits either way; only the order the pack lists them in differs.
-        var listed = moonFirst ? new[] { moonOrbit, planetOrbit, rootOrbit } : new[] { rootOrbit, planetOrbit, moonOrbit };
+        var listed = moonFirst ? new[] { moonsMoonOrbit, moonOrbit, planetOrbit, rootOrbit } : new[] { rootOrbit, planetOrbit, moonOrbit, moonsMoonOrbit };
         foreach (var key in listed) pack.Orbits.Add(new CultRecordRef<OrbitData>(key));
         var zone = new Zone(items, Settings(), pack, new GalaxyZone { Name = "Placed", Owner = null }, null);
-        return new Scene { Cache = cache, Items = items, Hull = hull, Zone = zone, PlanetOrbit = planetOrbit };
+        return new Scene { Cache = cache, Items = items, Hull = hull, Zone = zone, PlanetOrbit = planetOrbit, MoonOrbit = moonOrbit, MoonsMoonOrbit = moonsMoonOrbit };
     }
 
     [Theory]
@@ -114,6 +120,31 @@ public sealed class ZonePlacedAtBuildTests : IDisposable
         var force = s.Zone.GetForce(expected + new float2(30f, 0f));
         Assert.True(length(force) > 0f, "the well exerts a force");
         Assert.InRange(normalize(force).x, -1f, -.99f);
+    }
+
+    // A moon's moon (the fourth orbit, a child of a child of the planet) is placed by the constructor too, whichever
+    // order the pack lists the chain in: each orbit sits its distance from its parent at its own phase of its own period.
+    [Theory]
+    [InlineData(false, 0.0)]
+    [InlineData(true, 0.0)]
+    [InlineData(false, 123.0)]
+    [InlineData(true, 123.0)]
+    public void AMoonsMoonSitsOnItsOrbitBeforeTheFirstTick(bool moonFirst, double time)
+    {
+        var s = Build(.1f, time, moonFirst);
+        var planet = s.Zone.Orbits[s.PlanetOrbit];
+        var moon = s.Zone.Orbits[s.MoonOrbit];
+        var moonsMoon = s.Zone.Orbits[s.MoonsMoonOrbit];
+        float2 Offset(Orbit orbit) => OrbitData.Evaluate(frac((float) frac(time / orbit.Period) + orbit.Data.Phase)) * orbit.Data.Distance;
+
+        var planetAt = RootAt + Offset(planet);
+        var moonAt = planetAt + Offset(moon);
+        var moonsMoonAt = moonAt + Offset(moonsMoon);
+
+        Assert.True(moon.Period > .01f && moonsMoon.Period > .01f, "the chain's orbits move");
+        Assert.InRange(length(moon.Position - moonAt), 0f, .01f);
+        Assert.InRange(length(moonsMoon.Position - moonsMoonAt), 0f, .01f);
+        Assert.True(length(moonsMoonAt - moonAt) > 1f, "the moon's moon is not on its parent");
     }
 
     // A parent's velocity is its own orbital velocity on the first tick and every tick after, whichever order

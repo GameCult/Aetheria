@@ -17,11 +17,21 @@ public class PlanetSettings
     public ExponentialCurve GravityRadius;
     public ExponentialCurve LightRadius;
     public ExponentialCurve BodyRadius;
+
+    // The closest a child may orbit its parent, in u, by the parent's mass. Authored like BodyRadius, never per body.
+    public ExponentialCurve RocheLimit = new ExponentialCurve();
+
+    // A body's well, by its mass (GravityField): its strength c in u^2/s^2 (the pull is c / r beyond the core) and its
+    // softened core radius in u, which must stay inside the RocheLimit curve.
+    public ExponentialCurve WellStrength = new ExponentialCurve();
+    public ExponentialCurve CoreRadius = new ExponentialCurve();
+
+    // The one global exaggeration of gravity height: height = potential / K, in u/s^2 per unit of height.
+    public float HeightExaggeration = 1f;
     public float AsteroidVerticalOffset = -5f;
     public ExponentialLerp AsteroidSize;
     public ExponentialLerp AsteroidHitpoints;
     public ExponentialLerp AsteroidRespawnTime;
-    public float GravityStrength;
     public float SecureAreaRadiusMultiplier = .45f;
 
     public ExponentialCurve OrbitPeriod;

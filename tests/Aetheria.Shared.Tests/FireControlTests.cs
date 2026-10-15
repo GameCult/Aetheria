@@ -90,7 +90,7 @@ public sealed class FireControlTests : IDisposable
         var items = new ItemManager(_openCache, ledger, TestSettings(), _ => { });
         var planets = new PlanetSettings();
         var pack = new ZonePack();
-        if (well) WellFixture.Dig(_openCache, pack, planets, pack.Radius, 1000f, 1f);
+        if (well) WellFixture.Dig(_openCache, pack, planets, 300f, 100f);
         var zone = new Zone(items, planets, pack, new GalaxyZone { Name = "Test Zone", Owner = null }, null);
 
         var hullRef = items.ItemData.RefOf<ItemData>(items.ItemData.GetByName<HullData>("TestHull"));

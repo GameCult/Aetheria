@@ -45,12 +45,12 @@ public sealed class FlowFieldTests : IDisposable
         SlopeAmplitude = slide, SwirlAmplitude = swirl
     };
 
-    // A zone at `time` (the pack's clock, as a saved zone restores it), flat unless `depth` digs the zone's own well.
-    private Zone ZoneWith(FlowSettings flow, double time = 0, float depth = 0f)
+    // A zone at `time` (the pack's clock, as a saved zone restores it), flat unless `strength` digs the zone's own well.
+    private Zone ZoneWith(FlowSettings flow, double time = 0, float strength = 0f)
     {
         var planets = new PlanetSettings { Flow = flow };
         var pack = new ZonePack { Time = time };
-        if (depth > 0f) WellFixture.Dig(_items.ItemData, pack, planets, pack.Radius, depth, 2f);
+        if (strength > 0f) WellFixture.Dig(_items.ItemData, pack, planets, strength, 100f);
         return new Zone(_items, planets, pack, new GalaxyZone { Name = "Flow Zone", Owner = null }, null);
     }
 
@@ -124,6 +124,28 @@ public sealed class FlowFieldTests : IDisposable
         }
     }
 
+    // Zone.Flow's slope term reads the owner's superposed force, not any one body's: two equal wells, probes off the
+    // axis between them where the nearest body's direction and the sum's differ.
+    [Fact]
+    public void TheSlopeTermFollowsTheSuperposedForce()
+    {
+        var planets = new PlanetSettings { Flow = Flow(amplitude: 0f, slide: 1.5f) };
+        var pack = new ZonePack();
+        WellFixture.Dig(_items.ItemData, pack, planets, 300f, 100f, new float2(-300f, 0f));
+        WellFixture.Dig(_items.ItemData, pack, planets, 300f, 100f, new float2(300f, 0f));
+        var zone = new Zone(_items, planets, pack, new GalaxyZone { Name = "Two Wells", Owner = null }, null);
+        var checkedPoints = 0;
+        foreach (var at in new[] { float2(100f, 400f), float2(-50f, -300f), float2(250f, 220f), float2(-420f, 90f) })
+        {
+            var flow = zone.Flow(float3(at.x, 3f, at.y));
+            var expected = 1.5f * normalize(zone.GetForce(at));
+            Assert.Equal(expected.x, flow.x, 3);
+            Assert.Equal(expected.y, flow.z, 3);
+            checkedPoints++;
+        }
+        Assert.Equal(4, checkedPoints);
+    }
+
     [Fact]
     public void SlopeTermSwirlsAndSlidesOnTheGradient()
     {
@@ -131,13 +153,13 @@ public sealed class FlowFieldTests : IDisposable
         var at = new float3(500f, 3f, 300f);
         var downhill = normalize(float2(-at.x, -at.z));
 
-        var slide = ZoneWith(Flow(amplitude: 0f, slide: 1.5f), depth: 64f).Flow(at);
+        var slide = ZoneWith(Flow(amplitude: 0f, slide: 1.5f), strength: 300f).Flow(at);
         Assert.Equal(0f, slide.y, 4);
         Assert.Equal(1.5f * downhill.x, slide.x, 2);
         Assert.Equal(1.5f * downhill.y, slide.z, 2);
 
         // Swirl is perpendicular to downhill, and has a handedness: (down.y, -down.x).
-        var swirl = ZoneWith(Flow(amplitude: 0f, swirl: 2f), depth: 64f).Flow(at);
+        var swirl = ZoneWith(Flow(amplitude: 0f, swirl: 2f), strength: 300f).Flow(at);
         Assert.Equal(0f, swirl.y, 4);
         Assert.Equal(2f * downhill.y, swirl.x, 2);
         Assert.Equal(-2f * downhill.x, swirl.z, 2);
