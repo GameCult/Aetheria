@@ -263,7 +263,7 @@ public sealed partial class RunStartTests
         const float lead = .007f;
         var ahead = DrawAhead.Position(player, lead);
         Assert.Equal(player.Position.x + player.Velocity.x * lead, ahead.x, 6);
-        Assert.Equal(player.Position.y, ahead.y);
+        Assert.Equal(player.RideHeight(float2(ahead.x, ahead.z)), ahead.y, 4);
         Assert.Equal(player.Position.z + player.Velocity.y * lead, ahead.z, 6);
         Assert.Equal(before, Snapshot(arena, new List<string>()));
     }

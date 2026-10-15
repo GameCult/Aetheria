@@ -380,6 +380,30 @@ public sealed class FireControlTests : IDisposable
     // height, so its distance in space is longer than its planar distance. A claim whose Range lies between the two, full
     // damage out to the planar distance, is in range on the plane and out of range in space: it (against Slug's 5) is the
     // chosen claim. Mutation: Combat measures the three-dimensional distance (the claim then reads 0).
+    // B32: a ship drawn ahead rides the field at its drawn xz, not at the height of its last step (the per-step height
+    // staircase that read as jitter on a steep slope). Mutation: DrawAhead's y back to entity.Position.y fails the first
+    // assertion; reading the height at the last step's xz fails it too.
+    [Fact]
+    public void ADrawnShipRidesTheFieldAtItsDrawnPosition()
+    {
+        var (_, ship, _) = BuildShipWithHardpoints(true, new[] { (ItemRotation.None, 0f) });
+        var zone = ship.Zone;
+        ship.Position = float3(200, 0, 0);
+        zone.Update(1f);
+        ship.Velocity = float2(100, 0); // up the slope, away from the well
+        const float lead = .1f;
+
+        var drawn = DrawAhead.Position(ship, lead);
+
+        Assert.Equal(ship.Position.x + 100 * lead, drawn.x, 4);
+        Assert.Equal(zone.GetHeight(float2(drawn.x, drawn.z)) + ((HullData) ship.ItemManager.GetData(ship.Hull)).GridOffset, drawn.y, 4);
+        Assert.True(abs(drawn.y - ship.Position.y) > .1f, "the slope is real: the drawn height differs from the last step's");
+        var still = DrawAhead.Position(ship, 0f);
+        Assert.Equal(ship.Position.x, still.x);
+        Assert.Equal(ship.Position.y, still.y);
+        Assert.Equal(ship.Position.z, still.z);
+    }
+
     [Fact]
     public void TheAIMeasuresTheTargetOnTheGroundPlane()
     {
