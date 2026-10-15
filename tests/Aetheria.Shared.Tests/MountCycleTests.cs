@@ -153,6 +153,28 @@ public sealed partial class ContactRevealTests
         Assert.False(observer.TrySelectMount(reactor.Hardpoint));
     }
 
+    // ---- ADestroyedItemKnownOnlyByItsActLeavesItsMountUntilPerceived ----
+
+    // The reactor acted in the observer's sight (it is in the book) and is then destroyed while the observer does not resolve the
+    // ship: the book is no perception of the destruction. Its mount is still in the cycle when the identification is later
+    // reached, until a Sense at identification perceives it.
+    [Fact]
+    public void ADestroyedItemKnownOnlyByItsActLeavesItsMountUntilPerceived()
+    {
+        var (bay, observer, reactor) = Identified(Identify - .01f);
+        observer.RecordReveal(bay, reactor, SignatureChannel.LaunchFlash, reactor.Data);
+        Assert.True(FireControl.IsRevealed(observer, reactor), "fixture: the reactor is in the book");
+        var sense = SenseOf(observer);
+
+        reactor.EquippableItem.Durability = 0f;
+        sense();
+        observer.EntityInfoGathered[bay] = Identify;
+        Assert.True(MountsOf(observer.AimCycle(bay)).Any(m => ReferenceEquals(m, reactor.Hardpoint)), "not perceived: the mount stays");
+
+        sense();
+        Assert.False(MountsOf(observer.AimCycle(bay)).Any(m => ReferenceEquals(m, reactor.Hardpoint)), "perceived at identification: the mount leaves");
+    }
+
     // ---- TheSeenDestroyedRecordGoesWithTheSubject ----
 
     // The record is the observer's memory of one subject: when that subject has left the zone and the observer holds no book
