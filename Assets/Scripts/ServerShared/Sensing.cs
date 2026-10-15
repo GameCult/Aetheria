@@ -122,6 +122,24 @@ public readonly struct Reveal
     }
 }
 
+// What an observer aims at on its target (Entity.AimedAt): exactly one of a revealed item or a mount of the hull the observer
+// believes the target to be (Entity.LayoutOf), or nothing. A mount is a believed position, never the true item on it.
+public readonly struct AimTarget
+{
+    public readonly EquippedItem Item;
+    public readonly HardpointData Mount;
+
+    private AimTarget(EquippedItem item, HardpointData mount)
+    {
+        Item = item;
+        Mount = mount;
+    }
+
+    public static AimTarget None => default;
+    public static AimTarget OfItem(EquippedItem item) => new AimTarget(item, null);
+    public static AimTarget OfMount(HardpointData mount) => new AimTarget(null, mount);
+}
+
 // One weapon or gear row of a ship's schematic as its viewer is entitled to read it (aetheria-ew, classify-from-belief; ruling
 // ew-claim-weapon-measure-ruled). Made only by Entity.SchematicRows. `Item` is the true item: the selection mark's key and,
 // on the viewer's own ship, the live gear. `Claimed` is the class the row shows. The range label is the live range on
@@ -152,9 +170,8 @@ public readonly struct SchematicRow
     // What a renderer compares to know the rows changed. Range is a reading, not part of the key.
     public (EquippedItem, EquippableItemData, HardpointData) Key => (Item, Claimed, Mount);
 
-    // Whether this row is the one `aimed` points at: a claimed-item row by its item, a mount row by the mount the aimed
-    // item sits on (an aimed item with a claimed-item row has no mount row).
-    public bool Marks(EquippedItem aimed) => Item != null ? Item == aimed : aimed != null && aimed.Hardpoint == Mount;
+    // Whether this row is the one `aim` points at: a claimed-item row by its item, a mount row by its mount.
+    public bool Marks(AimTarget aim) => Item != null ? aim.Item == Item : aim.Mount != null && aim.Mount == Mount;
 
     public float? Range => _own
         ? Item.Behaviors.OfType<Weapon>().First().Range

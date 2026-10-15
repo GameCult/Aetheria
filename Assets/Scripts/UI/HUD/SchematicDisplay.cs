@@ -206,11 +206,11 @@ public class SchematicDisplay : MonoBehaviour
             }
 
             // Cut 2 (docs/fire-control-cut.md): marks whichever row is the player's current aim point.
-            // Re-checked every frame (not just on ShowShip) because ResolvedTargetItem can drop on its own
+            // Re-checked every frame (not just on ShowShip) because ResolvedAim can drop on its own
             // as info decays, with no event to hook.
             if (_enemy && _schematicItems != null)
                 foreach (var x in _schematicItems)
-                    x.ListElement.SetSelected(x.Row.Marks(_player.ResolvedTargetItem));
+                    x.ListElement.SetSelected(x.Row.Marks(_player.ResolvedAim));
 
             if(VisibilityLabel && !_enemy)
                 VisibilityLabel.text = ((int)_entity.Visibility).ToString();

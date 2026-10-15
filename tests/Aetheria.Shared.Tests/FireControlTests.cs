@@ -274,19 +274,19 @@ public sealed class FireControlTests : IDisposable
 
         zone.Update(1f);
         zone.Update(1f);
-        Assert.Null(shooter.TargetItem.Value);
+        Assert.Null(shooter.AimedAt.Item);
 
         shooter.RecordReveal(target, targetGun, SignatureChannel.LaunchFlash, targetGun.Data);
         zone.Update(1f);
 
-        Assert.Same(targetGun, shooter.TargetItem.Value);
+        Assert.Same(targetGun, shooter.AimedAt.Item);
 
         // The gun is destroyed: nothing qualifies any more, so Combat clears the aim point itself rather than
         // leaving the dead gun in the raw field.
         targetGun.EquippableItem.Durability = 0f;
         zone.Update(1f);
 
-        Assert.Null(shooter.TargetItem.Value);
+        Assert.Null(shooter.AimedAt.Item);
     }
 
     // A design as an observer might be told it is: an instant weapon with rated figures, held in memory (a claim is data,
@@ -321,12 +321,12 @@ public sealed class FireControlTests : IDisposable
         shooter.RecordReveal(target, targetGun, SignatureChannel.LaunchFlash, target.ClaimOf(targetGun));
         zone.Update(1f);
         zone.Update(1f);
-        Assert.Null(shooter.TargetItem.Value);
+        Assert.Null(shooter.AimedAt.Item);
 
         target.Claim(targetGun, null);
         shooter.RecordReveal(target, targetGun, SignatureChannel.LaunchFlash, target.ClaimOf(targetGun));
         zone.Update(1f);
-        Assert.Same(targetGun, shooter.TargetItem.Value);
+        Assert.Same(targetGun, shooter.AimedAt.Item);
     }
 
     // Ruling ew-claim-weapon-measure-ruled (rated-design): the AI ranks revealed weapons by their claimed design's
@@ -348,12 +348,12 @@ public sealed class FireControlTests : IDisposable
         }
 
         See();
-        Assert.Same(strong, shooter.TargetItem.Value); // unclaimed: the truly stronger gun (rated 10 against 1)
+        Assert.Same(strong, shooter.AimedAt.Item); // unclaimed: the truly stronger gun (rated 10 against 1)
 
         target.Claim(strong, ClaimedDesign("Pea", 2f));
         target.Claim(weak, ClaimedDesign("Cannon", 90f));
         See();
-        Assert.Same(weak, shooter.TargetItem.Value);
+        Assert.Same(weak, shooter.AimedAt.Item);
     }
 
     // The ranking reads the claimed design at the distance to the target: a short-range design that out-damages a flat one
@@ -373,7 +373,7 @@ public sealed class FireControlTests : IDisposable
         zone.Update(1f);
         zone.Update(1f);
 
-        Assert.Same(weak, shooter.TargetItem.Value);
+        Assert.Same(weak, shooter.AimedAt.Item);
     }
 
     // The distance Combat measures is the gate's: planar (FireControl R7). Zone depth puts the target above the shooter's
@@ -398,7 +398,7 @@ public sealed class FireControlTests : IDisposable
         zone.Update(1f);
         zone.Update(1f);
 
-        Assert.Same(strong, shooter.TargetItem.Value);
+        Assert.Same(strong, shooter.AimedAt.Item);
     }
 
     // The AI settles where its guns do the most damage per second, weighted towards range: with full damage to 500 and none
@@ -451,7 +451,7 @@ public sealed class FireControlTests : IDisposable
         var liveStrong = strong.Behaviors.OfType<Weapon>().Single().RangeDamagePerSecond(10f);
         var liveWeak = weak.Behaviors.OfType<Weapon>().Single().RangeDamagePerSecond(10f);
         Assert.True(liveStrong < liveWeak); // the fixture: live and rated disagree
-        Assert.Same(strong, shooter.TargetItem.Value);
+        Assert.Same(strong, shooter.AimedAt.Item);
     }
 
     // Ties are explicit: two revealed weapons of equal rated figure are taken in the subject's equipment order, whatever
@@ -473,7 +473,7 @@ public sealed class FireControlTests : IDisposable
         zone.Update(1f);
 
         Assert.Equal(new[] { first, second }, shooter.RevealedWeapons(target).Select(r => r.Item).ToArray());
-        Assert.Same(first, shooter.TargetItem.Value);
+        Assert.Same(first, shooter.AimedAt.Item);
     }
 
     // Controls cut (helm split): Combat aims the shooter at the intercept (Aim) and commands the hull toward it

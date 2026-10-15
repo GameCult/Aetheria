@@ -157,7 +157,7 @@ public sealed class TargetingSystemTests : IDisposable
     // The selection predicate: TrySelectTargetItem accepts only an item of the current target that the observer's
     // book holds and that is still whole; a Target change nulls the aim point, and destruction drops it on read
     // with no loop clearing it. Mutation: IsRevealed returns true unconditionally, or ignores the book; the
-    // Target-change subscription is removed; or ResolvedTargetItem returns TargetItem.Value without re-checking.
+    // Target-change subscription is removed; or ResolvedTargetItem returns AimedAt.Item without re-checking.
     [Fact]
     public void SelectionNeedsReveal()
     {
@@ -166,23 +166,23 @@ public sealed class TargetingSystemTests : IDisposable
         observer.SetTarget(target);
 
         Assert.False(observer.TrySelectTargetItem(weapon)); // nothing seen yet
-        Assert.Null(observer.TargetItem.Value);
+        Assert.Null(observer.AimedAt.Item);
 
         observer.RecordReveal(target, weapon, SignatureChannel.LaunchFlash, weapon.Data);
         Assert.True(observer.TrySelectTargetItem(weapon));
-        Assert.Same(weapon, observer.TargetItem.Value);
+        Assert.Same(weapon, observer.AimedAt.Item);
         Assert.Same(weapon, observer.ResolvedTargetItem);
 
         // A Target change nulls the aim point.
         observer.SetTarget(TargetRef.None);
-        Assert.Null(observer.TargetItem.Value);
+        Assert.Null(observer.AimedAt.Item);
 
-        // Destruction: re-select, then destroy the item without touching TargetItem.Value at all -- the raw field
+        // Destruction: re-select, then destroy the item without touching AimedAt.Item at all -- the raw field
         // still holds the item (no loop cleared it), but the read accessor drops it.
         observer.SetTarget(target);
         Assert.True(observer.TrySelectTargetItem(weapon));
         weapon.EquippableItem.Durability = 0f;
-        Assert.Same(weapon, observer.TargetItem.Value);
+        Assert.Same(weapon, observer.AimedAt.Item);
         Assert.Null(observer.ResolvedTargetItem);
     }
 
