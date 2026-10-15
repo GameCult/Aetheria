@@ -26,9 +26,9 @@ namespace Aetheria.EditorTools
     {
         const string Tag = "[GravityFieldParityVerify]";
         const int Size = 256;
-        // Measured on this tree (the "max error" line this run prints): the largest |texel + GetHeight| over the three
-        // windows is 0.0059 u, in the planetoid's window (float32 on both sides, the GPU's log against the CPU's, the
-        // quad's interpolated world position). The tolerance is 5x that. A 0.1% error in the tail constant (.5 -> .501)
+        // Measured on this tree (the "max error" line this run prints): the largest |texel + GetHeight| over the windows of the three
+        // frames and windows is 0.0065 u, in the last frame's planetoid window (float32 on both sides, the GPU's log against the CPU's, the
+        // quad's interpolated world position). The tolerance is 4.6x that. A 0.1% error in the tail constant (.5 -> .501)
         // moves the drawn height by 0.053 u where all three tails reach (the planetoid and zone windows), 1.8x the
         // tolerance; a reference of zero moves it by about 150 u.
         const float Tolerance = 0.03f;
@@ -70,16 +70,22 @@ namespace Aetheria.EditorTools
                 var material = AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/Brushes/Gravity Field.mat")
                     ?? throw new InvalidOperationException("No Gravity Field.mat.");
 
-                var zone = BuildZone(settings, work, out var bodies);
+                var zone = BuildZone(settings, work, out var orbits);
                 GravityLowering.Lower(zone, ref wells);
                 field = GravityLowering.CreateField(material);
 
-                var sun = Core(zone, 14152f);
-                var planetoid = Core(zone, 29.2f);
-                CheckTexels("planetoid", zone, bodies[2], 4f * planetoid);
-                CheckTexels("sun", zone, bodies[0], 4f * sun);
-                CheckTexels("zone", zone, new Vector2(0f, 0f), 1.05f * zone.Pack.Radius);
-                CheckGradient(zone, bodies);
+                // Three frames through the one buffer, as ZoneRenderer.Update runs it: the bodies as built, then two moves
+                // (an orbit's Position is what Zone.GetHeight reads). A lowering that mirrors an axis or stops refreshing
+                // the upload agrees with the sim in the first frame only where it is symmetric, and not after a move.
+                CheckFrame("built", zone, orbits);
+                orbits[1].Position = new float2(-420f, 560f);
+                orbits[2].Position = new float2(900f, -700f);
+                GravityLowering.Lower(zone, ref wells);
+                CheckFrame("moved", zone, orbits);
+                orbits[0].Position = new float2(210f, -95f);
+                orbits[2].Position = new float2(-1800f, 1300f);
+                GravityLowering.Lower(zone, ref wells);
+                CheckFrame("moved-again", zone, orbits);
                 Debug.Log($"{Tag} max error {_maxError:G4} u (tolerance {Tolerance:G4}); max gradient angle {_maxAngle:F2} degrees (limit {GradientDegrees:F0})");
 
                 CheckWiring(settings);
@@ -102,26 +108,43 @@ namespace Aetheria.EditorTools
 
         static float Core(Zone zone, float mass) => zone.Settings.CoreRadius.Evaluate(mass);
 
-        // A sun (14152 at the origin), a planet (273.9 at 610) and a planetoid (29.2 at 670): parentless, fixed, so the
-        // zone's wells sit where the verify says before any Update.
-        static Zone BuildZone(GameSettings settings, string work, out Vector2[] positions)
+        static Vector2 At(Orbit orbit) => new Vector2(orbit.Position.x, orbit.Position.y);
+
+        // Orbits 0-2 are the sun, the planet and the planetoid, each window centred where the body is now; orbit 3 is the
+        // body of no strength. The zone window holds all four.
+        static void CheckFrame(string frame, Zone zone, Orbit[] orbits)
+        {
+            CheckTexels(frame + "-planetoid", zone, At(orbits[2]), 4f * Core(zone, 29.2f));
+            CheckTexels(frame + "-sun", zone, At(orbits[0]), 4f * Core(zone, 14152f));
+            CheckTexels(frame + "-zone", zone, Vector2.zero, 1.05f * zone.Pack.Radius);
+            CheckGradient(zone, orbits.Select(At).ToArray());
+        }
+
+        // A sun (14152 at (-130, 85)), a planet (273.9 at (610, -240)), a planetoid (29.2 at (670, -270)) and a body of
+        // mass 0, whose well has no strength (a legal body; its curves give c = 0 and R = 0), at (1700, 300): parentless,
+        // fixed, off both axes and asymmetric, so the zone's wells sit where the verify says before any Update and a
+        // mirrored or swapped axis cannot agree with the sim.
+        static Zone BuildZone(GameSettings settings, string work, out Orbit[] orbits)
         {
             var cache = AetheriaStores.Open(Path.Combine(work, "catalog.cc"), Path.Combine(work, "run.cc"), catalogWritable: true);
             cache.Upsert(new VerseGrammar { Revision = 1 });
             cache.FlushAsync().Wait();
             var items = new ItemManager(cache, new ProvenanceLedger(), settings.GameplaySettings, _ => { });
-            positions = new[] { new Vector2(0f, 0f), new Vector2(610f, 0f), new Vector2(670f, 0f) };
-            var masses = new[] { 14152f, 273.9f, 29.2f };
+            var positions = new[] { new Vector2(-130f, 85f), new Vector2(610f, -240f), new Vector2(670f, -270f), new Vector2(1700f, 300f) };
+            var masses = new[] { 14152f, 273.9f, 29.2f, 0f };
+            var keys = new CultRecordKey[positions.Length];
             var pack = new ZonePack { Radius = 4182f };
             for (var i = 0; i < positions.Length; i++)
             {
-                var orbit = cache.Upsert(new OrbitData { FixedPosition = new float2(positions[i].x, positions[i].y) }).Key;
+                var orbit = keys[i] = cache.Upsert(new OrbitData { FixedPosition = new float2(positions[i].x, positions[i].y) }).Key;
                 var body = cache.Upsert(new PlanetData
                     { Name = "Body " + i, Orbit = new CultRecordRef<OrbitData>(orbit), Mass = masses[i] }).Key;
                 pack.Orbits.Add(new CultRecordRef<OrbitData>(orbit));
                 pack.Planets.Add(new CultRecordRef<BodyData>(body));
             }
-            return new Zone(items, settings.PlanetSettings, pack, new GalaxyZone { Name = "Gravity Parity", Owner = null }, null);
+            var zone = new Zone(items, settings.PlanetSettings, pack, new GalaxyZone { Name = "Gravity Parity", Owner = null }, null);
+            orbits = keys.Select(k => zone.Orbits[k]).ToArray();
+            return zone;
         }
 
         // Renders the field through a downward orthographic camera that culls layer 9 only, centred on `centre` with
@@ -243,6 +266,12 @@ namespace Aetheria.EditorTools
                         Fail("wiring", $"camera {camera.name} (target {camera.targetTexture.name}) culls mask {camera.cullingMask}, not layer {GravityLowering.FieldLayer} alone");
                 }
                 if (seen < gravityTargets.Length) Fail("wiring", $"only {seen} gravity cameras found in ARPG.unity");
+
+                // The map screen's gravity camera has no target until MapRenderer gives it one at run time.
+                var map = UnityEngine.Object.FindFirstObjectByType<MapRenderer>(FindObjectsInactive.Include);
+                if (map == null || map.GravityCamera == null) Fail("wiring", "no MapRenderer.GravityCamera in ARPG.unity");
+                else if (map.GravityCamera.cullingMask != 1 << GravityLowering.FieldLayer)
+                    Fail("wiring", $"MapRenderer.GravityCamera culls mask {map.GravityCamera.cullingMask}, not layer {GravityLowering.FieldLayer} alone");
 
                 var renderer = UnityEngine.Object.FindFirstObjectByType<ZoneRenderer>(FindObjectsInactive.Include);
                 if (renderer == null) Fail("wiring", "no ZoneRenderer in ARPG.unity");
