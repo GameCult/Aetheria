@@ -106,7 +106,7 @@ namespace Aetheria.EditorTools
             EditorApplication.Exit(_ok ? 0 : 1);
         }
 
-        static float Core(Zone zone, float mass) => zone.Settings.CoreRadius.Evaluate(mass);
+        static float Core(Zone zone, float mass) => zone.Settings.RocheLimit.Evaluate(mass);
 
         static Vector2 At(Orbit orbit) => new Vector2(orbit.Position.x, orbit.Position.y);
 

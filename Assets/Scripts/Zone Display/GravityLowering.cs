@@ -52,7 +52,7 @@ public static class GravityLowering
                 {
                     Position = new Vector2(body.Orbit.Position.x, body.Orbit.Position.y),
                     Strength = body.WellStrength,
-                    CoreRadius = body.CoreRadius,
+                    CoreRadius = body.RocheLimit,
                     Reference = zone.WellReference(body)
                 };
         wells.SetData(_records);

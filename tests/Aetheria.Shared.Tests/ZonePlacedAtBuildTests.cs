@@ -38,15 +38,14 @@ public sealed class ZonePlacedAtBuildTests : IDisposable
 
     private static ExponentialCurve Flat(float v) => new ExponentialCurve { Constant = v };
 
-    // One planet with a well (c 100, core 20 u, Roche limit 30 u), a fixed root orbit at RootAt and the
+    // One planet with a well (c 100, Roche limit and core 20 u), a fixed root orbit at RootAt and the
     // planet orbiting it at Distance from `phase`. Every orbit period is Period seconds.
     private static PlanetSettings Settings() => new PlanetSettings
     {
         OrbitPeriod = Flat(Period),
         BodyRadius = Flat(20f),
         WellStrength = Flat(100f),
-        CoreRadius = Flat(20f),
-        RocheLimit = Flat(30f),
+        RocheLimit = Flat(20f),
         LightRadius = Flat(0f)
     };
 

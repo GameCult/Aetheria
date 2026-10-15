@@ -40,11 +40,10 @@ public sealed class PotentialOwnerTests : IDisposable
         Directory.Delete(_root, true);
     }
 
-    // The authored curves of the shipped Settings.asset: strength c = 45.08 m^.2, core R = 3 m^.25, Roche 7.32 m^.25.
+    // The authored curves of the shipped Settings.asset: strength c = 45.08 m^.2, Roche limit and core R = 7.32 m^.25.
     private static PlanetSettings Curves(float exaggeration = 1f) => new PlanetSettings
     {
         WellStrength = new ExponentialCurve { Exponent = .2f, Multiplier = 45.08f },
-        CoreRadius = new ExponentialCurve { Exponent = .25f, Multiplier = 3f },
         RocheLimit = new ExponentialCurve { Exponent = .25f, Multiplier = 7.32f },
         BodyRadius = new ExponentialCurve { Exponent = .25f, Multiplier = 2f },
         LightRadius = new ExponentialCurve(), OrbitPeriod = new ExponentialCurve(),
@@ -102,20 +101,20 @@ public sealed class PotentialOwnerTests : IDisposable
         foreach (var mass in new[] { 29.2f, 273.9f, 14152.4f })
         {
             var zone = ZoneOf(planets, (mass, float2.zero));
-            var core = planets.CoreRadius.Evaluate(mass);
+            var core = planets.RocheLimit.Evaluate(mass);
             foreach (var r in new[] { 3f * core, 10f * core, PackRadius / 2f })
                 Near(planets.WellStrength.Evaluate(mass), length(zone.GetForce(new float2(r, 0))) * r, 1e-3f);
         }
     }
 
     [Fact]
-    public void TheCoreRadiusFollowsItsOwnCurve()
+    public void TheCoreRadiusIsTheRocheCurve()
     {
         var planets = Curves();
         foreach (var mass in new[] { 29.2f, 14152.4f })
         {
             var zone = ZoneOf(planets, (mass, float2.zero));
-            var core = planets.CoreRadius.Evaluate(mass);
+            var core = planets.RocheLimit.Evaluate(mass);
             float Pull(float r) => length(zone.GetForce(new float2(0, r)));
             var slope = Pull(.25f * core) / (.25f * core);
             Near(slope, Pull(.5f * core) / (.5f * core), 1e-3f);
@@ -125,70 +124,61 @@ public sealed class PotentialOwnerTests : IDisposable
         }
     }
 
+    // core-at-roche-and-exaggeration-up: the one curve is both the Roche limit and the core. A body with a well and no
+    // Roche limit has no core and is an authoring error; any positive, finite limit builds.
     [Fact]
-    public void TheCoreSitsInsideTheRocheLimit()
+    public void TheRocheLimitIsTheCore()
     {
         var planets = Curves();
         foreach (var mass in new[] { 29.2f, 14152.4f })
             Near(planets.RocheLimit.Evaluate(mass), ZoneOf(planets, (mass, float2.zero)).PlanetInstances.Values.Single().RocheLimit, 1e-6f);
 
-        PlanetSettings Constants(float core, float roche) => new PlanetSettings
+        PlanetSettings Constants(float roche) => new PlanetSettings
         {
             WellStrength = new ExponentialCurve { Constant = 100f },
-            CoreRadius = new ExponentialCurve { Constant = core },
             RocheLimit = new ExponentialCurve { Constant = roche },
             BodyRadius = new ExponentialCurve { Constant = 10f },
             LightRadius = new ExponentialCurve(), OrbitPeriod = new ExponentialCurve()
         };
-        Assert.Throws<InvalidOperationException>(() => ZoneOf(Constants(60f, 50f), (100f, float2.zero)));
-        Assert.Throws<InvalidOperationException>(() => ZoneOf(Constants(50f, 50f), (100f, float2.zero)));
-        Assert.Throws<InvalidOperationException>(() => ZoneOf(Constants(0f, 50f), (100f, float2.zero)));
-        ZoneOf(Constants(20f, 50f), (100f, float2.zero)); // inside the limit, and past the body's radius
+        Assert.Throws<InvalidOperationException>(() => ZoneOf(Constants(0f), (100f, float2.zero)));
+        Assert.Throws<InvalidOperationException>(() => ZoneOf(Constants(-5f), (100f, float2.zero)));
+        Assert.Throws<InvalidOperationException>(() => ZoneOf(Constants(float.PositiveInfinity), (100f, float2.zero)));
+        ZoneOf(Constants(50f), (100f, float2.zero));
     }
 
-    // core-inside-roche-curve at every mass: the guard compares the two authored curves for each body, light or heavy.
-    // Each pair of curves crosses somewhere in the generated mass range (1e-3 to 1e8), so the sweep holds both outcomes.
-    [Theory]
-    [InlineData(30f, .25f, 7.32f, .5f)]  // the core curve starts above the Roche curve and is overtaken: light bodies throw
-    [InlineData(3f, .5f, 7.32f, .25f)]   // the core curve overtakes the Roche curve: heavy bodies throw
-    public void TheGuardJudgesEveryMassByItsOwnCurves(float coreMultiplier, float coreExponent, float rocheMultiplier, float rocheExponent)
+    // core-at-roche-and-exaggeration-up: growing the core to the Roche limit (3 m^.25 to 7.32 m^.25, 2.44x) and dividing the
+    // global K by that factor leaves the steepest drawn slope (|grad phi| / K, at the core) where it was, and draws every
+    // slope outside the old core 2.44x steeper. The "before" side is the previous authoring, stated here from the ruling:
+    // core 3 m^.25 and K 10. The "after" side is the shipped Settings.asset read through the production zone.
+    [Fact]
+    public void ThePeakDrawnSlopeStaysAndTheFunnelDrawsSteeper()
     {
-        var planets = new PlanetSettings
+        const float oldCoreMultiplier = 3f, oldExaggeration = 10f;
+        var planets = AuthoredSettings.Load(RunStartTests.FindRepoRoot()).Read<PlanetSettings>("PlanetSettings");
+        foreach (var mass in new[] { 29.2f, 273.9f, 14152.4f })
         {
-            WellStrength = new ExponentialCurve { Constant = 100f },
-            CoreRadius = new ExponentialCurve { Multiplier = coreMultiplier, Exponent = coreExponent },
-            RocheLimit = new ExponentialCurve { Multiplier = rocheMultiplier, Exponent = rocheExponent },
-            BodyRadius = new ExponentialCurve { Constant = 1f },
-            LightRadius = new ExponentialCurve(), OrbitPeriod = new ExponentialCurve()
-        };
-        var threw = 0;
-        var built = 0;
-        for (var exponent10 = -3f; exponent10 <= 8f; exponent10 += .25f)
-        {
-            var mass = pow(10f, exponent10);
-            var core = planets.CoreRadius.Evaluate(mass);
-            var roche = planets.RocheLimit.Evaluate(mass);
-            if (0 < core && core < roche)
-            {
-                ZoneOf(planets, (mass, float2.zero));
-                built++;
-            }
-            else
-            {
-                Assert.Throws<InvalidOperationException>(() => ZoneOf(planets, (mass, float2.zero)));
-                threw++;
-            }
+            var zone = ZoneOf(planets, (mass, float2.zero));
+            var c = planets.WellStrength.Evaluate(mass);
+            var oldCore = oldCoreMultiplier * pow(mass, .25f);
+            float Drawn(float r) => length(zone.GetForce(new float2(r, 0))) / zone.Settings.HeightExaggeration;
+
+            var peakBefore = c / oldCore / oldExaggeration;
+            Assert.InRange(Drawn(planets.RocheLimit.Evaluate(mass)), peakBefore * .98f, peakBefore * 1.02f);
+
+            var rocheOverOldCore = planets.RocheLimit.Evaluate(mass) / oldCore;
+            var farBefore = c / (3f * oldCore) / oldExaggeration;
+            Near(rocheOverOldCore, Drawn(3f * oldCore) / farBefore, 1e-2f);
+            Assert.InRange(Drawn(3f * oldCore) / farBefore, 2.44f * .99f, 2.44f * 1.01f);
         }
-        Assert.True(threw > 0 && built > 0, "the sweep holds masses on both sides of the crossing");
     }
 
-    // The shipped curves keep the core inside the Roche limit over the whole generated mass range. The curves are the ones
+    // The shipped curves build a well at every mass of the generated range. The curves are the ones
     // Settings.asset carries, read the way RunStartTests reads them, so a retune of the asset is judged here.
     [Fact]
     public void TheAuthoredCurvesBuildAtEveryMass()
     {
         var planets = AuthoredSettings.Load(RunStartTests.FindRepoRoot()).Read<PlanetSettings>("PlanetSettings");
-        Assert.True(planets.WellStrength.Evaluate(100f) > 0f && planets.CoreRadius.Evaluate(100f) > 0f, "the authored asset carries a well");
+        Assert.True(planets.WellStrength.Evaluate(100f) > 0f && planets.RocheLimit.Evaluate(100f) > 0f, "the authored asset carries a well");
         for (var exponent10 = -3f; exponent10 <= 8f; exponent10 += .25f)
             ZoneOf(planets, (pow(10f, exponent10), float2.zero));
     }
@@ -207,12 +197,11 @@ public sealed class PotentialOwnerTests : IDisposable
         var planets = Curves();
         planets.WellStrength = new ExponentialCurve { Constant = strength };
         Assert.Throws<InvalidOperationException>(() => ZoneOf(planets, (100f, float2.zero)));
-        planets.CoreRadius = new ExponentialCurve();
         planets.RocheLimit = new ExponentialCurve();
         Assert.Throws<InvalidOperationException>(() => ZoneOf(planets, (100f, float2.zero)));
     }
 
-    // Zero is the boundary: a well of no strength builds beside the authored core and Roche curves (it digs nothing), where
+    // Zero is the boundary: a well of no strength builds beside the authored Roche curve (it digs nothing), where
     // the smallest negative strength does not.
     [Theory]
     [InlineData(0f)]
@@ -249,9 +238,8 @@ public sealed class PotentialOwnerTests : IDisposable
             var a = plain.PlanetInstances.Values.Single();
             var b = scaled.PlanetInstances.Values.Single();
             Assert.Equal(a.WellStrength, b.WellStrength);
-            Assert.Equal(a.CoreRadius, b.CoreRadius);
             Assert.Equal(a.RocheLimit, b.RocheLimit);
-            foreach (var p in new[] { float2(.4f * a.CoreRadius, 0), float2(0, 3f * a.CoreRadius), float2(400f, 300f) })
+            foreach (var p in new[] { float2(.4f * a.RocheLimit, 0), float2(0, 3f * a.RocheLimit), float2(400f, 300f) })
             {
                 Assert.Equal(plain.GetForce(p), scaled.GetForce(p));
                 Assert.Equal(plain.GetHeight(p), scaled.GetHeight(p));
@@ -265,7 +253,7 @@ public sealed class PotentialOwnerTests : IDisposable
         var planets = Curves();
         var zone = ZoneOf(planets, (273.9f, float2.zero));
         var c = planets.WellStrength.Evaluate(273.9f);
-        var core = planets.CoreRadius.Evaluate(273.9f);
+        var core = planets.RocheLimit.Evaluate(273.9f);
         foreach (var r in new[] { core, 2f * core, PackRadius, 10f * PackRadius, 100f * PackRadius, 1000f * PackRadius })
         foreach (var angle in new[] { 0f, 1.1f, 3.5f })
         {
@@ -307,15 +295,15 @@ public sealed class PotentialOwnerTests : IDisposable
             var planets = Curves(k);
             var lone = ZoneOf(planets, (273.9f, float2.zero));
             var c = planets.WellStrength.Evaluate(273.9f);
-            var core = planets.CoreRadius.Evaluate(273.9f);
+            var core = planets.RocheLimit.Evaluate(273.9f);
             Assert.Equal(0f, lone.GetHeight(new float2(PackRadius, 0)), 4);
             Near(-c * (log(PackRadius / core) + .5f) / k, lone.GetHeight(float2.zero), 1e-4f);
 
             var two = ZoneOf(planets, (29.2f, new float2(-300f, 0f)), (14152.4f, new float2(300f, 0f)));
             var c0 = planets.WellStrength.Evaluate(29.2f);
-            var core0 = planets.CoreRadius.Evaluate(29.2f);
+            var core0 = planets.RocheLimit.Evaluate(29.2f);
             var c1 = planets.WellStrength.Evaluate(14152.4f);
-            var core1 = planets.CoreRadius.Evaluate(14152.4f);
+            var core1 = planets.RocheLimit.Evaluate(14152.4f);
             const float step = .5f;
             // Inside the two cores as well, out to their outer bands (0.5 R to R), where the potential is the quadratic bowl.
             var inCore = new[]
@@ -352,7 +340,7 @@ public sealed class PotentialOwnerTests : IDisposable
             {
                 var zone = ZoneOf(planets, (mass, float2.zero));
                 var c = planets.WellStrength.Evaluate(mass);
-                var core = planets.CoreRadius.Evaluate(mass);
+                var core = planets.RocheLimit.Evaluate(mass);
                 foreach (var fraction in new[] { .5f, .75f, .9f, .95f, .98f, .99f, .996f })
                 foreach (var angle in new[] { 0f, 2.3f })
                 {
@@ -371,7 +359,7 @@ public sealed class PotentialOwnerTests : IDisposable
         foreach (var mass in new[] { 29.2f, 14152.4f })
         {
             var zone = ZoneOf(planets, (mass, float2.zero));
-            var core = planets.CoreRadius.Evaluate(mass);
+            var core = planets.RocheLimit.Evaluate(mass);
             var inside = new float2(core * (1f - 1e-3f), 0);
             var outside = new float2(core * (1f + 1e-3f), 0);
             Assert.InRange(abs(zone.GetHeight(inside) - zone.GetHeight(outside)), 0f, abs(zone.GetHeight(outside)) * 1e-3f);

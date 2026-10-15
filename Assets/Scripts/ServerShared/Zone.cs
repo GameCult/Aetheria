@@ -614,7 +614,7 @@ public class Zone
 
     // The potential of a body's well at the zone's edge, subtracted so every well is zero there: the one owner of the
     // reference. GetHeight sums with it and the renderer's lowering (GravityLowering) hands it to the shader unchanged.
-    public float WellReference(Planet body) => GravityField.Potential(body.WellStrength, body.CoreRadius, Pack.Radius);
+    public float WellReference(Planet body) => GravityField.Potential(body.WellStrength, body.RocheLimit, Pack.Radius);
 
     public float GetHeight(float2 position)
     {
@@ -622,7 +622,7 @@ public class Zone
         foreach (var body in PlanetInstances.Values)
         {
             var offset = position - body.Orbit.Position;
-            result += GravityField.Potential(body.WellStrength, body.CoreRadius, length(offset)) - WellReference(body);
+            result += GravityField.Potential(body.WellStrength, body.RocheLimit, length(offset)) - WellReference(body);
         }
 
         return result / Settings.HeightExaggeration;
@@ -652,7 +652,7 @@ public class Zone
     {
         var force = float2.zero;
         foreach (var body in PlanetInstances.Values)
-            force += GravityField.Acceleration(body.WellStrength, body.CoreRadius, position - body.Orbit.Position);
+            force += GravityField.Acceleration(body.WellStrength, body.RocheLimit, position - body.Orbit.Position);
         return force;
     }
 
@@ -690,10 +690,9 @@ public class Planet
     public BodyData BodyData;
     public float BodyRadius;
 
-    // The well (GravityField): strength c and softened core radius R by mass, and the Roche limit, the closest a child
-    // may orbit. All three are authored PlanetSettings curves of mass; the core must sit inside the Roche limit.
+    // The well (GravityField): strength c by mass, and the Roche limit, which is both the closest a child may orbit and
+    // the well's softened core radius R (one curve of mass, never per body). Both are authored PlanetSettings curves.
     public float WellStrength;
-    public float CoreRadius;
     public float RocheLimit;
 
     public Planet(PlanetSettings settings, BodyData data, Orbit orbit)
@@ -708,12 +707,11 @@ public class Planet
     {
         BodyRadius = Settings.BodyRadius.Evaluate(BodyData.Mass) * BodyData.BodyRadiusMultiplier;
         WellStrength = Settings.WellStrength.Evaluate(BodyData.Mass);
-        CoreRadius = Settings.CoreRadius.Evaluate(BodyData.Mass);
         RocheLimit = Settings.RocheLimit.Evaluate(BodyData.Mass);
         if (!(WellStrength >= 0f) || float.IsInfinity(WellStrength))
             throw new InvalidOperationException("A body's well strength must be finite and not negative (PlanetSettings.WellStrength).");
-        if (WellStrength > 0 && !(0 < CoreRadius && CoreRadius < RocheLimit))
-            throw new InvalidOperationException("A body's core radius must be positive and inside its Roche limit (PlanetSettings.CoreRadius, RocheLimit).");
+        if (WellStrength > 0 && !(RocheLimit > 0f && !float.IsInfinity(RocheLimit)))
+            throw new InvalidOperationException("A body's Roche limit, which is its core radius, must be positive and finite (PlanetSettings.RocheLimit).");
     }
 }
 

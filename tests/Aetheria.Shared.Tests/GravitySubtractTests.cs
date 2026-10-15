@@ -43,7 +43,6 @@ public sealed class GravitySubtractTests : IDisposable
     private static PlanetSettings Planets() => new PlanetSettings
     {
         WellStrength = new ExponentialCurve { Exponent = .2f, Multiplier = 45.08f },
-        CoreRadius = new ExponentialCurve { Exponent = .25f, Multiplier = 3f },
         RocheLimit = new ExponentialCurve { Exponent = .25f, Multiplier = 7.32f },
         BodyRadius = new ExponentialCurve { Exponent = .25f, Multiplier = 3f },
         LightRadius = new ExponentialCurve { Exponent = .25f, Multiplier = 300f },
@@ -95,7 +94,7 @@ public sealed class GravitySubtractTests : IDisposable
     {
         var plain = WithBody(new PlanetData());
         var giants = new[] { WithBody(new GasGiantData()), WithBody(new SunData()) };
-        var core = plain.PlanetInstances.Values.Single().CoreRadius;
+        var core = plain.PlanetInstances.Values.Single().RocheLimit;
         Assert.True(core > 1f, "the fixture body has a core to sweep around");
         var radii = new System.Collections.Generic.List<float> { 0.5f, core };
         for (var r = core / 4f; r <= 4f * core; r += core / 16f) radii.Add(r);
