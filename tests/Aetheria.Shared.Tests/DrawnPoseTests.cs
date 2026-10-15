@@ -354,8 +354,8 @@ public sealed class DrawnPoseTests : IDisposable
             foreach (var body in w.Zone.PlanetInstances.Values)
             {
                 var key = body.BodyData.Orbit.Key;
-                var (at, strength) = key == w.PlanetOrbit ? (PlanetAt(time), PlanetMass)
-                    : key == w.MoonOrbit ? (MoonAt(time), MoonMass)
+                var (at, strength) = key.Equals(w.PlanetOrbit) ? (PlanetAt(time), PlanetMass)
+                    : key.Equals(w.MoonOrbit) ? (MoonAt(time), MoonMass)
                     : (SunCentre, SunMass);
                 var well = DrawAhead.Well(w.Zone, body, lead);
                 AssertNear(at, well.Position, 1e-3f, $"well of the {strength} body at lead {lead}");
@@ -365,7 +365,7 @@ public sealed class DrawnPoseTests : IDisposable
             }
         }
 
-        var planet = w.Zone.PlanetInstances.Values.Single(b => b.BodyData.Orbit.Key == w.PlanetOrbit);
+        var planet = w.Zone.PlanetInstances.Values.Single(b => b.BodyData.Orbit.Key.Equals(w.PlanetOrbit));
         Assert.True(length(DrawAhead.Well(w.Zone, planet, .0166f).Position - DrawAhead.Well(w.Zone, planet, 0f).Position) > .1f, "the well moves over a lead");
         AssertNear(w.Zone.Orbits[w.PlanetOrbit].Position, DrawAhead.Well(w.Zone, planet, 0f).Position, 0f, "at lead 0 the well is the step's memo");
     }
