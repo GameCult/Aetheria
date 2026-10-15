@@ -150,8 +150,8 @@ public sealed class DrawnPoseTests : IDisposable
 
     // The operator's report, from the production clock: a ship coasting at its planet's step velocity, 60 u beside it, seen
     // across display frames. Frames are 1/144 s (the report), and 75, 165 and 240 Hz, where a clamp or a fraction of the
-    // lead would also show; at 60 Hz Lead is always 0 and could not tell. The planet minus the ship must not swing along the
-    // motion (0.306 u when the planet is drawn at the step's orbit).
+    // lead would also show; at 60 Hz Lead is always 0 and could not tell. The planet minus the ship must not swing in either
+    // world axis (0.306 u along the motion when the planet is drawn at the step's orbit).
     [Theory]
     [InlineData(144)]
     [InlineData(75)]
@@ -162,8 +162,8 @@ public sealed class DrawnPoseTests : IDisposable
         var w = Build();
         var ship = new Ship(w.Items, w.Zone, w.Hull, new EntitySettings());
         var clock = new SimClock(1f / 60f);
-        var along = new List<float>();
-        var across = new List<float>();
+        var xs = new List<float>();
+        var ys = new List<float>();
         var leads = new List<float>();
 
         for (var frame = 0; frame < displayHz * 2; frame++)
@@ -177,17 +177,16 @@ public sealed class DrawnPoseTests : IDisposable
             });
             if (clock.Steps == 0) continue;
             var lead = clock.Lead;
-            var direction = normalize(w.Zone.Orbits[w.PlanetOrbit].Velocity);
             var relative = DrawAhead.Orbit(w.Zone, w.PlanetOrbit, lead) - DrawAhead.Position(ship, lead).xz;
-            along.Add(dot(relative, direction));
-            across.Add(dot(relative, float2(-direction.y, direction.x)));
+            xs.Add(relative.x);
+            ys.Add(relative.y);
             leads.Add(lead);
         }
 
-        Assert.True(along.Count > displayHz, "the run covered its frames");
+        Assert.True(xs.Count > displayHz, "the run covered its frames");
         Assert.True(leads.Max() > .005f, $"{displayHz} Hz: the frames fall far enough past a step to tell a lead from none");
-        Assert.True(along.Max() - along.Min() < .005f, $"{displayHz} Hz: the planet swings {along.Max() - along.Min():F4} u along the ship's motion");
-        Assert.True(across.Max() - across.Min() < .005f, $"{displayHz} Hz: the planet swings {across.Max() - across.Min():F4} u across it");
+        Assert.True(xs.Max() - xs.Min() < .005f, $"{displayHz} Hz: the planet swings {xs.Max() - xs.Min():F4} u in x against the ship");
+        Assert.True(ys.Max() - ys.Min() < .005f, $"{displayHz} Hz: the planet swings {ys.Max() - ys.Min():F4} u in z against the ship");
     }
 
     [Fact]
