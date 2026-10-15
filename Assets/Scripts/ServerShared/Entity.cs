@@ -1849,7 +1849,6 @@ public abstract class Entity
 
         var velocityBefore = Velocity;
         LimitClamp = float2(0, 0);
-        var hullData = ItemManager.GetData(Hull) as HullData;
 
         // Mining Cut 3: a chunk target is lost the moment this entity can no longer see it -- the lost-track rule
         // through the chunk path. One check of the one slot per tick, not a detection loop over chunks.
@@ -1969,11 +1968,15 @@ public abstract class Entity
             Position = Parent.Position;
             Velocity = Parent.Velocity;
         }
-        else Position.y = Zone.GetHeight(Position.xz) + hullData.GridOffset;
+        else Position.y = RideHeight(Position.xz);
 
         Acceleration = delta > 0f ? (Velocity + LimitClamp - velocityBefore) / delta : float2(0, 0);
         Manoeuvre.Observe(Acceleration, delta, ItemManager.GameplaySettings.SolutionWindow);
     }
+
+    // Where an unparented entity sits on the field at a planar point: the zone's height there plus the hull's grid offset.
+    // The step puts the entity here at its own xz, and the presenter at its drawn xz (DrawAhead).
+    public float RideHeight(float2 planar) => Zone.GetHeight(planar) + (ItemManager.GetData(Hull) as HullData).GridOffset;
 
     private void UpdateTemperature(float delta)
     {

@@ -7,17 +7,22 @@ using static CultMath.math;
 
 // Pure presentation statics over sim state, never called by ServerShared, with no state of their own: the sim owns every
 // pose and no presenter stores one, a previous state or a velocity of its own. Ships are drawn where the frame falls Lead
-// sim seconds after the last step, by their last step's velocity and turn. A ballistic round's flight is presentation
+// sim seconds after the last step, by their last step's velocity and turn, and ride the field at that drawn xz (a ship's height is the field's there, not
+// the last step's). A ballistic round's flight is presentation
 // (ruling projectile-flight-is-presentation), drawn from the sim's facts: its frozen line, the published outcome, the
 // commit tick, the impact cell on the target's drawn pose, the burst point.
 public static class DrawAhead
 {
     // A ship in a wormhole animation has its pose scripted by the step, not integrated from Velocity and TurnRate,
     // so it is drawn where the step put it: extrapolating a scripted pose draws a streak that resets every step.
-    public static float3 Position(Entity entity, float lead) =>
-        entity is Ship { WormholeAnimationInProgress: true }
-            ? entity.Position
-            : entity.Position + float3(entity.Velocity.x, 0, entity.Velocity.y) * lead;
+    // A child is drawn where its parent is drawn, as the step copies the parent's pose onto it.
+    public static float3 Position(Entity entity, float lead)
+    {
+        if (entity is Ship { WormholeAnimationInProgress: true }) return entity.Position;
+        if (entity.Parent != null) return Position(entity.Parent, lead);
+        var planar = entity.Position.xz + entity.Velocity * lead;
+        return float3(planar.x, entity.RideHeight(planar), planar.y);
+    }
 
     // A free body (a vapour cloud) drawn where the frame falls lead sim seconds after the last step, by the velocity
     // that step moved it with: the launch velocity and the drift together.
