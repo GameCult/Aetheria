@@ -1,5 +1,5 @@
 // Draws the zone's gravity: depth = -Zone.GetHeight at the world xz of every texel, into whichever gravity camera culls
-// layer 9 (Surface Displacement, Patch Displacement, Slime Gravity, both Map Gravity). One quad covers the zone; the
+// layer 9 (Surface Displacement, Slime Gravity, both Map Gravity). One quad covers the zone; the
 // law lives in Gravity.cginc, which mirrors ServerShared's GravityField.
 Shader "Brushes/Gravity Field" {
 Category {

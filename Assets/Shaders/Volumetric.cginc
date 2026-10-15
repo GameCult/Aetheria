@@ -97,7 +97,9 @@ float cloudDensity(float3 pos, float surfaceDisp)
     float2 uv = getUV(pos.xz);
     const float dist = pos.y + surfaceDisp - _NebulaFloorOffset;
     const float patch = tex2Dlod(_NebulaPatch, half4(uv, 0, 0)).r;
-    const float patchDisp = tex2Dlod(_NebulaPatchHeight, half4(uv, 0, 0)).r;
+    // Gravity comes from the R32 surface height the caller sampled at this uv; the patch texture carries only the patch
+    // layers (sector waves, patch brushes), small enough for half floats.
+    const float patchDisp = surfaceDisp + tex2Dlod(_NebulaPatchHeight, half4(uv, 0, 0)).r;
 
     const float patchDensity = saturate((-abs(pos.y+patchDisp - _NebulaFloorOffset)+patch)/_NebulaPatchBlend)*_NebulaPatchDensity;
     const float floorDist = -dist;

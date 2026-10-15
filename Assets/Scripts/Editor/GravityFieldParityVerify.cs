@@ -295,6 +295,17 @@ namespace Aetheria.EditorTools
                 }
                 if (seen < gravityTargets.Length) Fail("wiring", $"only {seen} gravity cameras found in ARPG.unity");
 
+                // The patch texture is half-float: it holds the patch layers only, the nebula reads gravity from the R32 surface.
+                var patchCameras = 0;
+                foreach (var camera in UnityEngine.Object.FindObjectsByType<Camera>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+                {
+                    if (camera.targetTexture == null || camera.targetTexture.name != "Fog Patch Displacement") continue;
+                    patchCameras++;
+                    if ((camera.cullingMask & 1 << GravityLowering.FieldLayer) != 0)
+                        Fail("wiring", $"camera {camera.name} (target Fog Patch Displacement) culls layer {GravityLowering.FieldLayer}, the gravity layer");
+                }
+                if (patchCameras != 1) Fail("wiring", $"{patchCameras} Fog Patch Displacement cameras in ARPG.unity, expected 1");
+
                 // The map screen's gravity camera has no target until MapRenderer gives it one at run time.
                 var map = UnityEngine.Object.FindFirstObjectByType<MapRenderer>(FindObjectsInactive.Include);
                 if (map == null || map.GravityCamera == null) Fail("wiring", "no MapRenderer.GravityCamera in ARPG.unity");
