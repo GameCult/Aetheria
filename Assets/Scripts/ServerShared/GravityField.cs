@@ -11,7 +11,9 @@ using float2 = CultMath.float2;
 public static class GravityField
 {
     // The potential at distance r from the body, defined up to a constant (callers subtract their reference).
+    // A well of no strength (a body whose curves are unauthored, so c = 0 and R = 0) digs nothing.
     public static float Potential(float c, float coreRadius, float r) =>
+        c == 0f ? 0f :
         r < coreRadius
             ? c * r * r / (2 * coreRadius * coreRadius)
             : c * (log(r / coreRadius) + .5f);

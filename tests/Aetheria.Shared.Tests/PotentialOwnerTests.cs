@@ -73,6 +73,24 @@ public sealed class PotentialOwnerTests : IDisposable
     // The law written out: potential c r^2 / 2R^2 inside the core, c (ln(r / R) + 1/2) beyond.
     private static float Phi(float c, float core, float r) => r < core ? c * r * r / (2 * core * core) : c * (log(r / core) + .5f);
 
+    // A zone whose bodies have no authored gravity curves (most test zones) has no pull and no dip, and no NaN either.
+    [Fact]
+    public void BodiesWithNoAuthoredWellPullAndDigNothing()
+    {
+        var planets = new PlanetSettings
+        {
+            BodyRadius = new ExponentialCurve(), GravityRadius = new ExponentialCurve(), GravityDepth = new ExponentialCurve(),
+            LightRadius = new ExponentialCurve(), OrbitPeriod = new ExponentialCurve()
+        };
+        var zone = ZoneOf(planets, (100f, float2.zero), (5000f, new float2(200f, 0f)));
+        foreach (var p in new[] { float2.zero, float2(200f, 0f), float2(37f, -911f), float2(5000f, 5000f) })
+        {
+            Assert.Equal(0f, zone.GetHeight(p));
+            Assert.Equal(0f, zone.GetForce(p).x);
+            Assert.Equal(0f, zone.GetForce(p).y);
+        }
+    }
+
     [Fact]
     public void StrengthFollowsTheAuthoredMassCurve()
     {

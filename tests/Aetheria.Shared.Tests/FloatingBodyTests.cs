@@ -184,7 +184,7 @@ public sealed class FloatingBodyTests : IDisposable
             QualityPriceModifier = new ExponentialLerp()
         };
         var items = new ItemManager(cache, new ProvenanceLedger(), settings, _ => { });
-        var planets = new PlanetSettings();
+        var planets = new PlanetSettings { HeightExaggeration = 10f }; // the tilt reads force / K, which K = 1 would hide
         var pack = new ZonePack { Radius = 1000 };
         WellFixture.Dig(cache, pack, planets, 300, 100);
         zone = new Zone(items, planets, pack, new GalaxyZone { Name = "Test Zone", Owner = null }, null);
