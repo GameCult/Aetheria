@@ -217,7 +217,9 @@ public sealed class FloatingBodyTests : IDisposable
             Assert.InRange(ship.Velocity.x, expected.x - tolerance, expected.x + tolerance);
             Assert.InRange(ship.Velocity.y, expected.y - tolerance, expected.y + tolerance);
 
-            var normal = zone.GetNormal(at);
+            // The tilt is the surface of the drawn height (potential / K): its slope is the force over K.
+            var slope = zone.GetForce(at) / zone.Settings.HeightExaggeration;
+            var normal = normalize(float3(slope.x, 1f, slope.y));
             var q = ship.Rotation;
             var u = float3(q.x, q.y, q.z);
             var v = float3(0, 1, 0);
