@@ -336,7 +336,7 @@ public class ActionGameManager : MonoBehaviour
         Input.Global.ZoneMap.performed += context =>
         {
             ToggleMenuTab(MenuTab.Map);
-                MenuMap.Position = CurrentEntity.Position.xz;
+                MenuMap.Position = DrawAhead.Position(CurrentEntity, Clock.Lead).xz;
         };
 
         Input.Global.Inventory.performed += context => ToggleMenuTab(MenuTab.Inventory);
@@ -1316,13 +1316,13 @@ public class ActionGameManager : MonoBehaviour
                 foreach (var indicator in _visibleHostileIndicators)
                 {
                     indicator.Value.gameObject.SetActive(indicator.Key!=CurrentEntity.Target.Value.Entity);
-                    indicator.Value.Place.Target = indicator.Key.Position.ToUnity();
+                    indicator.Value.Place.Target = DrawAhead.Position(indicator.Key, Clock.Lead).ToUnity();
                     PlaceFill(indicator.Value, indicator.Key);
                 }
                 foreach (var indicator in _visibleFriendlyIndicators)
                 {
                     indicator.Value.gameObject.SetActive(indicator.Key!=CurrentEntity.Target.Value.Entity);
-                    indicator.Value.Place.Target = indicator.Key.Position.ToUnity();
+                    indicator.Value.Place.Target = DrawAhead.Position(indicator.Key, Clock.Lead).ToUnity();
                     PlaceFill(indicator.Value, indicator.Key);
                 }
                 var look = Input.Player.Look.ReadValue<Vector2>();

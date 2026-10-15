@@ -394,6 +394,23 @@ public sealed class DrawnPoseTests : IDisposable
         }
     }
 
+    // An orbit whose parent the zone does not hold is reported when a rail is evaluated at a drawn time.
+    [Fact]
+    public void AMissingParentOrbitIsLoggedAtADrawnTime()
+    {
+        var w = Build();
+        Step(w, 1f / 60f, 30);
+        var log = new List<string>();
+        w.Zone.Log = log.Add;
+        w.Zone.Orbits.Remove(w.PlanetOrbit);
+        foreach (var lead in new[] { .004f, .5f })
+        {
+            log.Clear();
+            w.Zone.OrbitPositionAt(w.MoonOrbit, w.Zone.ExactTime + lead);
+            Assert.Contains("Requested orbit is not part of this zone!", log);
+        }
+    }
+
     private static void AssertNear(float2 expected, float2 actual, float eps, string what) =>
         Assert.True(length(expected - actual) <= eps, $"{what}: expected {expected}, got {actual} (eps {eps})");
 }

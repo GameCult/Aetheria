@@ -533,8 +533,13 @@ public class Zone
     // The same rail law at any time, with no memo read or written: a parent is its own rail at that time.
     private float2 RailAt(CultRecordKey orbitID, double time)
     {
-        if (!orbitID.IsSet() || !Orbits.TryGetValue(orbitID, out var orbit))
+        if (!orbitID.IsSet())
             return float2.zero;
+        if (!Orbits.TryGetValue(orbitID, out var orbit))
+        {
+            Log?.Invoke("Requested orbit is not part of this zone!");
+            return float2.zero;
+        }
         var parentPosition = !orbit.Data.Parent.IsSet() ? orbit.Data.FixedPosition : RailAt(orbit.Data.Parent.Key, time);
         return parentPosition + Offset(orbit, time);
     }

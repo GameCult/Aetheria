@@ -91,18 +91,18 @@ public static class DrawAhead
             t.w * q.w - t.x * q.x - t.y * q.y - t.z * q.z));
     }
 
-    // A ballistic round at the drawn time (DrawAhead.Time, passed in by the caller, as lead is): on its frozen line while the outcome is unknown or a
+    // A ballistic round at the drawn time (DrawAhead.Time, passed in by the caller; the target's lead is that time less its zone's step time, derived here, never a second input): on its frozen line while the outcome is unknown or a
     // miss, with the barrel's offset from that line decaying to nothing over blendTime sim seconds from the moment of firing.
     // A round the sim published as a hit or burst steers from its line, from the commit tick, onto where it ends by the
     // time damage lands: a burst's frozen point, else the impact cell on the target's drawn pose; and is held there after.
-    public static float3 Round(in PendingShot shot, ShotOutcome known, float3 barrel, float blendTime, double drawnTime, float lead)
+    public static float3 Round(in PendingShot shot, ShotOutcome known, float3 barrel, float blendTime, double drawnTime)
     {
         var time = (float) drawnTime;
         var drawn = Lifted(shot, Line(shot, known?.Result, time), barrel, blendTime, time);
         if (known == null || known.Result == ShotResult.Miss) return drawn;
         var end = known.HasBurstPoint
             ? float3(known.BurstPoint.x, shot.FireOrigin.y, known.BurstPoint.y)
-            : Impact(known.Target, known.Cell, lead);
+            : Impact(known.Target, known.Cell, (float) (drawnTime - known.Target.Zone.ExactTime));
         var commit = shot.ArrivalTime - known.ArrivalIn;
         var steer = shot.ArrivalTime > commit ? saturate((time - commit) / (shot.ArrivalTime - commit)) : 1f;
         return drawn + (end - drawn) * steer;

@@ -51,7 +51,7 @@ public class Projectile : MonoBehaviour
     {
         var lead = ActionGameManager.Clock.Lead;
         var drawn = DrawAhead.Time(_zone, lead);
-        transform.position = V(DrawAhead.Round(_shot, _known, _barrel, BlendTime, drawn, lead));
+        transform.position = V(DrawAhead.Round(_shot, _known, _barrel, BlendTime, drawn));
         if (DrawAhead.RoundOver(_shot, _known, drawn)) Finish();
     }
 
