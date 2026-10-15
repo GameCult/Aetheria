@@ -49,13 +49,16 @@ public static class GravityLowering
         var i = 0;
         if (zone != null)
             foreach (var body in zone.PlanetInstances.Values)
+            {
+                var at = DrawAhead.Orbit(zone, body.BodyData.Orbit.Key, lead);
                 _records[i++] = new WellRecord
                 {
-                    Position = DrawAhead.Orbit(zone, body.BodyData.Orbit.Key, lead).ToUnity(),
+                    Position = new Vector2(at.x, at.y),
                     Strength = body.WellStrength,
                     CoreRadius = body.RocheLimit,
                     Reference = zone.WellReference(body)
                 };
+            }
         wells.SetData(_records);
 
         Shader.SetGlobalBuffer(WellsId, wells);
