@@ -84,7 +84,7 @@ public sealed partial class RunStartTests
             }
         }
         Assert.True(swept, $"the crosser's bearing never swept across the bow within {CrossingSeconds} s");
-        // At seed 112 with no input the pass is at 3.6 s and 45 m; a seed or staging change that loses it moves these.
+        // At seed 112 with no input the pass is at 3.2 s and 40 m (the pilot brakes the crosser as it closes, so the pass is sensitive to where it starts: Crossing.CrosserAt); a seed, field or staging change that loses it moves these.
         Assert.InRange(crossedAt, 3.0f, 4.2f);
         Assert.InRange(crossedMetres, 30f, 60f);
     }
