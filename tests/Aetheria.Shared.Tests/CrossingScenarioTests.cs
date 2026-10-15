@@ -100,8 +100,8 @@ public sealed partial class RunStartTests
             Assert.True(pass.Ahead.y > 0 && length(pass.Ahead) < CrossingMetres, $"{at}: crosses astern or beyond {CrossingMetres} m");
             Assert.InRange(pass.Seconds, CrossingEarliest, CrossingLatest);
             Assert.InRange(length(pass.Ahead), 30f, 60f);
-            Assert.InRange(pass.RelativeSpeed, 0f, 1000f);
-            Assert.InRange(pass.AngularRate, 0f, 100f);
+            Assert.InRange(pass.RelativeSpeed, 20f, 30f);
+            Assert.InRange(pass.AngularRate, 0.3f, 0.7f);
         }
     }
 
