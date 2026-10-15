@@ -195,6 +195,101 @@ public sealed class OrbitsFromFieldTests : IDisposable
         Assert.Equal(zone.Orbits[planet2].Period, zone.Orbits[companion2].Period);
     }
 
+    // A station on a binary's ring, with nothing inside, feels what the pair's members feel (the mean of what each does),
+    // and so does one a hair off the ring's distance but within its window.
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(.05f)]
+    [InlineData(-.05f)]
+    public void ACompanionOnABinarysRingTakesTheMembersPeriod(float offset)
+    {
+        var w = NewWorld();
+        var node = w.Orbit(default, 0f);
+        var light = w.Orbit(node, 400f, 0f);
+        var heavy = w.Orbit(node, 400f, .5f);
+        var lightBody = w.Body(light, 100f);
+        var heavyBody = w.Body(heavy, 2000f);
+        var companion = w.Orbit(node, 400f + offset, .25f);
+        var zone = w.Build();
+
+        Assert.True(C(zone, heavyBody) > 1.5f * C(zone, lightBody), "fixture: unequal members");
+        AssertPeriod(Outside(400f + offset, (C(zone, lightBody) + C(zone, heavyBody)) / 4), zone.Orbits[companion].Period,
+            "the companion, between its two members");
+
+        // An equal pair: the companion has exactly the members' period.
+        w = NewWorld();
+        node = w.Orbit(default, 0f);
+        var a = w.Orbit(node, 400f, 0f);
+        var b = w.Orbit(node, 400f, .5f);
+        w.Body(a, 300f);
+        w.Body(b, 300f);
+        companion = w.Orbit(node, 400f, .25f);
+        zone = w.Build();
+        Assert.True(float.IsFinite(zone.Orbits[a].Period));
+        Assert.Equal(zone.Orbits[a].Period, zone.Orbits[companion].Period);
+        Assert.Equal(zone.Orbits[b].Period, zone.Orbits[companion].Period);
+    }
+
+    // The ring is the 0.1 u window about a rail's distance: a member just inside it is a ring partner (pulls half), one just
+    // outside is inside or beyond the rail (pulls whole, or not at all).
+    [Theory]
+    [InlineData(-.09f, true)]
+    [InlineData(.09f, true)]
+    [InlineData(-.11f, false)]
+    public void TheRingWindowIsATenthOfAUnit(float partnerOffset, bool onRing)
+    {
+        var w = NewWorld();
+        var node = w.Orbit(default, 0f);
+        var rail = w.Orbit(node, 400f, 0f);
+        var partner = w.Orbit(node, 400f + partnerOffset, .5f);
+        w.Body(rail, 100f);
+        var partnerBody = w.Body(partner, 2000f);
+        var zone = w.Build();
+
+        var c = C(zone, partnerBody);
+        AssertPeriod(Outside(400f, onRing ? c / 2 : c), zone.Orbits[rail].Period, "the rail, with a partner at " + partnerOffset);
+    }
+
+    [Fact]
+    public void AMemberJustBeyondTheWindowIsOutsideTheRail()
+    {
+        var w = NewWorld();
+        var node = w.Orbit(default, 0f);
+        var rail = w.Orbit(node, 400f, 0f);
+        var beyond = w.Orbit(node, 400.11f, .5f);
+        w.Body(rail, 100f);
+        w.Body(beyond, 2000f);
+        var zone = w.Build();
+
+        Assert.True(float.IsPositiveInfinity(zone.Orbits[rail].Period), "a body beyond the rail does not pull it");
+    }
+
+    // A bodyless node's children read only that node's ring: the well of the body the node itself orbits does not enter.
+    [Fact]
+    public void ABodylessNodesChildrenNeverReadItsParentsWell()
+    {
+        var w = NewWorld();
+        var sunOrbit = w.Orbit(default, 0f);
+        w.Body(sunOrbit, 5000f);
+        var node = w.Orbit(sunOrbit, 3000f);
+        var alone = w.Orbit(node, 200f, 0f);
+        w.Body(alone, 100f);
+        var zone = w.Build();
+        Assert.True(float.IsPositiveInfinity(zone.Orbits[alone].Period), "a lone body on a bodyless node has no ring partner and no field");
+
+        w = NewWorld();
+        sunOrbit = w.Orbit(default, 0f);
+        w.Body(sunOrbit, 5000f);
+        node = w.Orbit(sunOrbit, 3000f);
+        var a = w.Orbit(node, 200f, 0f);
+        var b = w.Orbit(node, 200f, .5f);
+        var bodyA = w.Body(a, 100f);
+        var bodyB = w.Body(b, 300f);
+        zone = w.Build();
+        AssertPeriod(Outside(200f, C(zone, bodyB) / 2), zone.Orbits[a].Period, "the first member, under its partner alone");
+        AssertPeriod(Outside(200f, C(zone, bodyA) / 2), zone.Orbits[b].Period, "the second member, under its partner alone");
+    }
+
     [Fact]
     public void AnOrbitWithNoFieldStandsStill()
     {

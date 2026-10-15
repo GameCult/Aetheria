@@ -540,10 +540,13 @@ public class Zone
 
     // The one owner of a rail's period (Orbit.Period, AsteroidBelt.Periods): 2 pi sqrt(d / a), a being the pull the
     // field gives at distance d from the node being orbited. Round a body, that is the body's own well through
-    // GravityField. Round a bodyless node it is the ring law: the strength of the node's orbits inside d, plus half
-    // that of the ones on d itself (a companion on the ring pulls half, as a binary does), taken as a point at the
-    // node. `self` is the orbit being placed (excluded from its own pull); a strengthless self takes no ring share.
-    // No pull gives an infinite period.
+    // GravityField. Round a bodyless node it is the ring law: the strength of the node's orbits inside d, plus the
+    // ring term for the orbits on d itself (within RingWindow of it), taken as a point at the node. A bodied self
+    // feels half the strength of its ring partners (as a binary does); a strengthless self (a station, a turret)
+    // takes the period its bodied ring partners have, the mean of what each of them feels. No pull gives an
+    // infinite period.
+    private const float RingWindow = 0.1f;
+
     private float PeriodAround(CultRecordKey parentOrbit, float distance, CultRecordKey self)
     {
         float a;
@@ -552,16 +555,28 @@ public class Zone
         else
         {
             var inside = 0f;
-            var onRing = 0f;
+            var ring = new List<(CultRecordKey Orbit, float Strength)>();
             if (_childOrbits.TryGetValue(parentOrbit, out var children))
                 foreach (var child in children)
                 {
-                    if (child.Equals(self)) continue;
                     var childDistance = Orbits[child].Data.Distance;
-                    if (childDistance < distance - 0.1f) inside += Strength(child);
-                    else if (childDistance <= distance + 0.1f) onRing += Strength(child);
+                    var childStrength = Strength(child);
+                    if (childDistance < distance - RingWindow) inside += childStrength;
+                    else if (childDistance <= distance + RingWindow && childStrength > 0) ring.Add((child, childStrength));
                 }
-            var strength = inside + (Strength(self) > 0 ? onRing / 2 : 0f);
+            // Whose pull self feels: its own if it has strength, else each bodied member of the ring.
+            var ringSum = 0f;
+            foreach (var member in ring) ringSum += member.Strength;
+            var selfBodied = Strength(self) > 0;
+            var feelings = 0f;
+            var feelers = 0;
+            foreach (var member in ring)
+                if (!selfBodied || member.Orbit.Equals(self))
+                {
+                    feelings += (ringSum - member.Strength) / 2;
+                    feelers++;
+                }
+            var strength = inside + (feelers > 0 ? feelings / feelers : 0f);
             a = length(GravityField.Acceleration(strength, 0f, float2(distance, 0)));
         }
         return a > 0 && distance > 0 ? 2 * PI * sqrt(distance / a) : float.PositiveInfinity;
