@@ -1178,10 +1178,12 @@ public class ActionGameManager : MonoBehaviour
         }
     }
 
-    // A chunk's simulated position is planar (Zone.ChunkPose); the renderer draws it at the asteroid layer's height.
+    // A chunk's pose is planar (Zone.ChunkPose), read at the drawn time so the reticle sits on the drawn rock; the renderer
+    // draws it at the asteroid layer's height.
     private float3 ChunkWorldPosition(ChunkId chunk)
     {
-        var pose = CurrentEntity.Zone.ChunkPose(chunk.Field, chunk.Index);
+        var zone = CurrentEntity.Zone;
+        var pose = zone.ChunkPose(chunk.Field, chunk.Index, DrawAhead.Time(zone, Clock.Lead));
         return float3(pose.x, Settings.PlanetSettings.AsteroidVerticalOffset, pose.y);
     }
 

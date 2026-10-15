@@ -520,7 +520,8 @@ public class ZoneRenderer : MonoBehaviour
     void Update()
     {
         var maxDepth = 0f;
-        GravityLowering.Lower(Zone, ref _gravityWells);
+        var lead = ActionGameManager.Clock.Lead;
+        GravityLowering.Lower(Zone, lead, ref _gravityWells);
         foreach (var loot in _floatingItems.Values)
         {
             loot.ViewOrigin = PerspectiveEntity.Position;
@@ -542,11 +543,11 @@ public class ZoneRenderer : MonoBehaviour
         foreach (var (key, belt) in Zone.AsteroidBelts)
         {
             // Cut 1 (docs/mining-cut.md): belts have no stored pose any more. The renderer fills its own buffer
-            // from Zone.EvaluateBelt, at the current zone time, every frame.
-            var orbitPosition = Zone.GetOrbitPosition(Zone.Orbits[belt.Data.Orbit.Key].Data.Parent.Key);
-            var height = Zone.GetHeight(orbitPosition);
+            // from Zone.EvaluateBelt, at the drawn time (DrawAhead.Time), every frame.
+            var orbitPosition = DrawAhead.Orbit(Zone, Zone.Orbits[belt.Data.Orbit.Key].Data.Parent.Key, lead);
+            var height = DrawAhead.Height(Zone, orbitPosition, lead);
             var transforms = _beltTransforms[key];
-            Zone.EvaluateBelt(key, transforms);
+            Zone.EvaluateBelt(key, transforms, DrawAhead.Time(Zone, lead));
             if(isVisible(new Bounds(
                 new Vector3(orbitPosition.x,height,orbitPosition.y),
                 new Vector3(belt.Radius * 2,100,belt.Radius * 2))))
@@ -579,8 +580,8 @@ public class ZoneRenderer : MonoBehaviour
         foreach (var planet in Planets)
         {
             var planetInstance = Zone.PlanetInstances[planet.Key];
-            var p = Zone.GetOrbitPosition(planetInstance.BodyData.Orbit.Key);
-            var height = Zone.GetHeight(p);
+            var p = DrawAhead.Orbit(Zone, planetInstance.BodyData.Orbit.Key, lead);
+            var height = DrawAhead.Height(Zone, p, lead);
             if (-height > maxDepth) maxDepth = -height;
             planet.Value.transform.position = new Vector3(p.x, 0, p.y);
             planet.Value.Body.transform.localPosition = new Vector3(0, height + planetInstance.BodyRadius * 2, 0);
@@ -589,7 +590,7 @@ public class ZoneRenderer : MonoBehaviour
             {
                 if (!(planet.Value is SunObject))
                 {
-                    var toParent = normalize(Zone.GetOrbitPosition(Zone.Orbits[planetInstance.BodyData.Orbit.Key].Data.Parent.Key) - p);
+                    var toParent = normalize(DrawAhead.Orbit(Zone, Zone.Orbits[planetInstance.BodyData.Orbit.Key].Data.Parent.Key, lead) - p);
                     gasGiantObject.SunMaterial.LightingDirection = new Vector3(toParent.x, 0, toParent.y);
                 }
             }
@@ -716,7 +717,7 @@ public class AsteroidBeltUI
 
     public void Update(float4[] transforms, float height)
     {
-        var parentPosition = _zone.GetOrbitPosition(_orbitParent);
+        var parentPosition = DrawAhead.Orbit(_zone, _orbitParent, ActionGameManager.Clock.Lead);
         for (var i = 0; i < transforms.Length; i++)
         {
             var transform = transforms[i];

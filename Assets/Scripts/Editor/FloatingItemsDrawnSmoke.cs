@@ -157,8 +157,9 @@ public static class FloatingItemsDrawnSmoke
         ItemPickup[] Pickups() => rootObject.GetComponentsInChildren<ItemPickup>(true).Where(p => p != null).ToArray();
         void At(ItemPickup pickup, FloatingItem floating, string what)
         {
-            var at = floating.Body.Position;
-            var want = new Vector3(at.x, zone.GetHeight(at), at.y);
+            var lead = ActionGameManager.Clock.Lead;
+            var at = DrawAhead.Position(floating.Body, lead);
+            var want = new Vector3(at.x, DrawAhead.Height(zone, at, lead), at.y);
             Require(Vector3.Distance(pickup.transform.position, want) < 1e-3f,
                 $"{what}: the pickup is at {pickup.transform.position}, the body at {want}.");
         }

@@ -390,6 +390,9 @@ public class EntityInstance : MonoBehaviour
             x.Value.material.SetFloat("_Emission", Entity.ItemManager.GameplaySettings.TemperatureEmissionCurve.Evaluate(x.Key.RadiatorTemperature));
         }
 
+        // The drawn pose first: the camera's LookAt and the barrels read this frame's pose, not the last frame's.
+        var drawn = DrawAhead.Position(Entity, ActionGameManager.Clock.Lead);
+        LocalSpace.localPosition = transform.position = drawn.ToUnity();
         var aimDistance = !Entity.Target.Value.IsNone
             ? max(Entity.TargetRange, Entity.ItemManager.GameplaySettings.ConvergenceMinimumDistance)
             : 10000;
@@ -402,8 +405,6 @@ public class EntityInstance : MonoBehaviour
             var direction = FireControl.Solution(weapon, Entity, Entity.Target.Value).Direction;
             group.Value.position = barrel + new Vector3(direction.x, 0, direction.y) * aimDistance;
         }
-        var drawn = DrawAhead.Position(Entity, ActionGameManager.Clock.Lead);
-        LocalSpace.localPosition = transform.position = drawn.ToUnity();
         if (_influenceInstance)
             _influenceInstance.position = new Vector3(drawn.x, 0, drawn.z);
     }

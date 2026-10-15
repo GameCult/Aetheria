@@ -3,16 +3,29 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
 using CultMath;
+using GameCult.Caching;
 using static CultMath.math;
 
 // Pure presentation statics over sim state, never called by ServerShared, with no state of their own: the sim owns every
-// pose and no presenter stores one, a previous state or a velocity of its own. Ships are drawn where the frame falls Lead
-// sim seconds after the last step, by their last step's velocity and turn, and ride the field at that drawn xz (a ship's height is the field's there, not
-// the last step's). A ballistic round's flight is presentation
+// pose and no presenter stores one, a previous state or a velocity of its own.
+// The rule: a presenter draws every moving thing at the drawn time T = Zone.ExactTime + Clock.Lead. A pose the sim defines
+// in closed form of time (an orbit, a belt chunk, a well, the field's height, the flow scroll) is that function evaluated
+// at T; a pose the sim integrates (a ship, a kinematic body) is its last step plus its step velocity times Lead; a child
+// is drawn where its parent is. DrawAhead.Time is the one definition of T. Ships ride the field at that drawn xz and T (a
+// ship's height is the field's there, not the last step's). A ballistic round's flight is presentation
 // (ruling projectile-flight-is-presentation), drawn from the sim's facts: its frozen line, the published outcome, the
 // commit tick, the impact cell on the target's drawn pose, the burst point.
 public static class DrawAhead
 {
+    // The drawn time: the one definition of T.
+    public static double Time(Zone zone, float lead) => zone.ExactTime + lead;
+
+    // An orbit's node at the drawn time: the rail law at T, not the step's memo.
+    public static float2 Orbit(Zone zone, CultRecordKey orbit, float lead) => zone.OrbitPositionAt(orbit, Time(zone, lead));
+
+    // The field's height at a point at the drawn time, its wells where their rails put them at T.
+    public static float Height(Zone zone, float2 planar, float lead) => zone.GetHeight(planar, Time(zone, lead));
+
     // A ship in a wormhole animation has its pose scripted by the step, not integrated from Velocity and TurnRate,
     // so it is drawn where the step put it: extrapolating a scripted pose draws a streak that resets every step.
     // A child is drawn where its parent is drawn, as the step copies the parent's pose onto it.
@@ -20,8 +33,11 @@ public static class DrawAhead
     {
         if (entity is Ship { WormholeAnimationInProgress: true }) return entity.Position;
         if (entity.Parent != null) return Position(entity.Parent, lead);
-        var planar = entity.Position.xz + entity.Velocity * lead;
-        return float3(planar.x, entity.RideHeight(planar), planar.y);
+        // A body on a rail (a station) is on its orbit at T: the rail is closed form, not integrated.
+        var planar = entity is OrbitalEntity { OrbitData: var orbit } && orbit.IsSet()
+            ? Orbit(entity.Zone, orbit, lead)
+            : entity.Position.xz + entity.Velocity * lead;
+        return float3(planar.x, entity.RideHeight(planar, Time(entity.Zone, lead)), planar.y);
     }
 
     // A free body (a vapour cloud) drawn where the frame falls lead sim seconds after the last step, by the velocity

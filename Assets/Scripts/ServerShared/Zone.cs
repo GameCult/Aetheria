@@ -507,29 +507,55 @@ public class Zone
         if (!_updatedOrbits.Contains(orbitID))
         {
             var orbit = Orbits[orbitID];
-            float2 pos = float2.zero;
-            // An infinite period (a parentless orbit, or one with no field to circle in) leaves the orbit at its phase:
-            // frac(t / inf) is 0.
-            if (orbit.Period > .01f)
-            {
-                var phase = (float) frac(_time / orbit.Period);
-                pos = OrbitData.Evaluate(frac(phase + orbit.Data.Phase)) * orbit.Data.Distance;
-
-                if (float.IsNaN(pos.x))
-                {
-                    //_context.Log("Orbit position is NaN, something went very wrong!");
-                    pos = float2.zero;
-                }
-            }
-
-            var parentPosition = !Orbits[orbitID].Data.Parent.IsSet()
-                ? Orbits[orbitID].Data.FixedPosition :
+            var parentPosition = !orbit.Data.Parent.IsSet()
+                ? orbit.Data.FixedPosition :
                 GetOrbitPosition(orbit.Data.Parent.Key);
-            Orbits[orbitID].Position = parentPosition + pos;
+            orbit.Position = parentPosition + Offset(orbit, _time);
             _updatedOrbits.Add(orbitID);
         }
 
         return Orbits[orbitID].Position;
+    }
+
+    // The rail law, once: where an orbit sits from its parent's node at a time. An infinite period (a parentless orbit,
+    // or one with no field to circle in) leaves the orbit at its phase: frac(t / inf) is 0.
+    private static float2 Offset(Orbit orbit, double time)
+    {
+        var pos = float2.zero;
+        if (orbit.Period > .01f)
+        {
+            var phase = (float) frac(time / orbit.Period);
+            pos = OrbitData.Evaluate(frac(phase + orbit.Data.Phase)) * orbit.Data.Distance;
+
+            if (float.IsNaN(pos.x))
+                pos = float2.zero;
+        }
+
+        return pos;
+    }
+
+    // The same rail law at any time, with no memo read or written: a parent is its own rail at that time.
+    private float2 RailAt(CultRecordKey orbitID, double time)
+    {
+        if (!orbitID.IsSet() || !Orbits.TryGetValue(orbitID, out var orbit))
+            return float2.zero;
+        var parentPosition = !orbit.Data.Parent.IsSet() ? orbit.Data.FixedPosition : RailAt(orbit.Data.Parent.Key, time);
+        return parentPosition + Offset(orbit, time);
+    }
+
+    // Where an orbit is at a time: pure, writes nothing. At the step's own time it is the step's memo (GetOrbitPosition);
+    // at any other time (a presenter's drawn time) it is the rail law evaluated there.
+    public float2 OrbitPositionAt(CultRecordKey orbitID, double time)
+    {
+        if (!orbitID.IsSet())
+            return float2.zero;
+        if (!Orbits.ContainsKey(orbitID))
+        {
+            Log?.Invoke("Requested orbit is not part of this zone!");
+            return float2.zero;
+        }
+
+        return time == _time ? GetOrbitPosition(orbitID) : RailAt(orbitID, time);
     }
 
     // orbit -> the well-bearing body on it, and orbit -> the orbits whose parent it is. Derived from the pack in the
@@ -656,12 +682,15 @@ public class Zone
 
     // Cut 1 (docs/mining-cut.md): a chunk's pose is a pure function of zone time, computed when asked. No stored
     // pose survives a tick; the sim and the renderer both read it fresh through here.
-    public float4 ChunkPose(CultRecordKey belt, int index)
+    public float4 ChunkPose(CultRecordKey belt, int index) => ChunkPose(belt, index, _time);
+
+    // The same pose at any time: the sim reads it at _time, a presenter at the drawn time (DrawAhead.Time).
+    public float4 ChunkPose(CultRecordKey belt, int index, double time)
     {
         var beltData = Planets[belt] as AsteroidBeltData;
-        var parentPosition = GetOrbitPosition(Orbits[beltData.Orbit.Key].Data.Parent.Key);
+        var parentPosition = OrbitPositionAt(Orbits[beltData.Orbit.Key].Data.Parent.Key, time);
         var size = ChunkRadius(new ChunkId(belt, index));
-        return AsteroidBelts[belt].Pose(index, _time, parentPosition, size);
+        return AsteroidBelts[belt].Pose(index, time, parentPosition, size);
     }
 
     // Mining Cut 3 (docs/mining-cut-refresh.md): how bright a chunk is -- Reflector's rule (cross-section × the light
@@ -676,13 +705,13 @@ public class Zone
         return kind.CrossSection * PI * cells * cells * GetLight(ChunkPose(chunk.Field, chunk.Index).xy);
     }
 
-    public void EvaluateBelt(CultRecordKey belt, Span<float4> into)
+    public void EvaluateBelt(CultRecordKey belt, Span<float4> into, double time)
     {
         var beltData = Planets[belt] as AsteroidBeltData;
-        var parentPosition = GetOrbitPosition(Orbits[beltData.Orbit.Key].Data.Parent.Key);
+        var parentPosition = OrbitPositionAt(Orbits[beltData.Orbit.Key].Data.Parent.Key, time);
         var beltInstance = AsteroidBelts[belt];
         for (var i = 0; i < beltData.Asteroids.Length; i++)
-            into[i] = beltInstance.Pose(i, _time, parentPosition, ChunkRadius(new ChunkId(belt, i)));
+            into[i] = beltInstance.Pose(i, time, parentPosition, ChunkRadius(new ChunkId(belt, i)));
     }
 
     public SecurityLevel GetSecurityLevel(float2 pos)
@@ -706,12 +735,16 @@ public class Zone
     // reference. GetHeight sums with it and the renderer's lowering (GravityLowering) hands it to the shader unchanged.
     public float WellReference(Planet body) => GravityField.Potential(body.WellStrength, body.RocheLimit, Pack.Radius);
 
-    public float GetHeight(float2 position)
+    public float GetHeight(float2 position) => GetHeight(position, _time);
+
+    // The field at a time: each well sits where its body's rail puts it then. The sim reads it at _time, a presenter at
+    // the drawn time, so a ship rides the same slope the drawn planet's well makes.
+    public float GetHeight(float2 position, double time)
     {
         var result = 0f;
         foreach (var body in PlanetInstances.Values)
         {
-            var offset = position - body.Orbit.Position;
+            var offset = position - OrbitPositionAt(body.BodyData.Orbit.Key, time);
             result += GravityField.Potential(body.WellStrength, body.RocheLimit, length(offset)) - WellReference(body);
         }
 

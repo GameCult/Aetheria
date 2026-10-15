@@ -40,8 +40,9 @@ public class ItemPickup : MonoBehaviour
 
     private void Place()
     {
-        var p = _floating.Body.Position;
-        transform.position = new Vector3(p.x, _zone.GetHeight(p) + GridOffset, p.y);
+        var lead = ActionGameManager.Clock.Lead;
+        var p = DrawAhead.Position(_floating.Body, lead);
+        transform.position = new Vector3(p.x, DrawAhead.Height(_zone, p, lead) + GridOffset, p.y);
     }
 
     private void Update()
