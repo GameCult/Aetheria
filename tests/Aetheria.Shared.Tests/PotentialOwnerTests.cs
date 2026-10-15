@@ -358,7 +358,7 @@ public sealed class PotentialOwnerTests : IDisposable
                 var zone = ZoneOf(planets, (mass, float2.zero));
                 var c = planets.WellStrength.Evaluate(mass);
                 var core = planets.CoreRadius.Evaluate(mass);
-                foreach (var fraction in new[] { .5f, .75f, .9f, .95f, .98f, .99f })
+                foreach (var fraction in new[] { .5f, .75f, .9f, .95f, .98f, .99f, .996f })
                 foreach (var angle in new[] { 0f, 2.3f })
                 {
                     var r = fraction * core;
