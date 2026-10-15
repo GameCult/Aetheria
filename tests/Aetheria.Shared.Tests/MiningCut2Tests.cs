@@ -44,10 +44,8 @@ public sealed class MiningCut2Tests : IDisposable
         AsteroidSize = new ExponentialLerp { Minimum = 2f, Maximum = 9f, Exponent = 1.7f },
         AsteroidHitpoints = new ExponentialLerp { Minimum = 20f, Maximum = 220f, Exponent = 1.6f },
         AsteroidRespawnTime = new ExponentialLerp { Minimum = 8f, Maximum = 96f, Exponent = 1.2f },
-        // The zone builds a Planet for the fixture's non-belt body; its constructor reads these three.
-        BodyRadius = new ExponentialCurve(),
-        GravityRadius = new ExponentialCurve(),
-        GravityDepth = new ExponentialCurve()
+        // The zone builds a Planet for the fixture's non-belt body; its constructor reads this.
+        BodyRadius = new ExponentialCurve()
     };
 
     private sealed class Fixture

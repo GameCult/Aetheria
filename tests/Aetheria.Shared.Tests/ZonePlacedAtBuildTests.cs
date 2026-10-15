@@ -44,8 +44,6 @@ public sealed class ZonePlacedAtBuildTests : IDisposable
     {
         OrbitPeriod = Flat(Period),
         BodyRadius = Flat(20f),
-        GravityRadius = Flat(0f), // brush inputs, read by Planet until grid-lowering deletes them
-        GravityDepth = Flat(0f),
         WellStrength = Flat(100f),
         CoreRadius = Flat(20f),
         RocheLimit = Flat(30f),

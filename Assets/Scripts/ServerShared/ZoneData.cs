@@ -86,12 +86,6 @@ public abstract class BodyData
 
     [JsonProperty("bodyRadiusMul")] [Key(5)]
     public float BodyRadiusMultiplier = 1;
-
-    [JsonProperty("gravRadiusMul")] [Key(6)]
-    public float GravityRadiusMultiplier = 1;
-
-    [JsonProperty("depthMul")] [Key(7)]
-    public float GravityDepthMultiplier = 1;
 }
 
 [CultDocument("aetheria.planetdata", "1"), MessagePackObject, JsonObject(MemberSerialization.OptIn)]

@@ -47,7 +47,6 @@ public sealed class PotentialOwnerTests : IDisposable
         CoreRadius = new ExponentialCurve { Exponent = .25f, Multiplier = 3f },
         RocheLimit = new ExponentialCurve { Exponent = .25f, Multiplier = 7.32f },
         BodyRadius = new ExponentialCurve { Exponent = .25f, Multiplier = 2f },
-        GravityRadius = new ExponentialCurve(), GravityDepth = new ExponentialCurve(),
         LightRadius = new ExponentialCurve(), OrbitPeriod = new ExponentialCurve(),
         HeightExaggeration = exaggeration
     };
@@ -84,7 +83,7 @@ public sealed class PotentialOwnerTests : IDisposable
     {
         var planets = new PlanetSettings
         {
-            BodyRadius = new ExponentialCurve(), GravityRadius = new ExponentialCurve(), GravityDepth = new ExponentialCurve(),
+            BodyRadius = new ExponentialCurve(),
             LightRadius = new ExponentialCurve(), OrbitPeriod = new ExponentialCurve()
         };
         var zone = ZoneOf(planets, (100f, float2.zero), (5000f, new float2(200f, 0f)));
@@ -139,7 +138,6 @@ public sealed class PotentialOwnerTests : IDisposable
             CoreRadius = new ExponentialCurve { Constant = core },
             RocheLimit = new ExponentialCurve { Constant = roche },
             BodyRadius = new ExponentialCurve { Constant = 10f },
-            GravityRadius = new ExponentialCurve(), GravityDepth = new ExponentialCurve(),
             LightRadius = new ExponentialCurve(), OrbitPeriod = new ExponentialCurve()
         };
         Assert.Throws<InvalidOperationException>(() => ZoneOf(Constants(60f, 50f), (100f, float2.zero)));
@@ -161,7 +159,6 @@ public sealed class PotentialOwnerTests : IDisposable
             CoreRadius = new ExponentialCurve { Multiplier = coreMultiplier, Exponent = coreExponent },
             RocheLimit = new ExponentialCurve { Multiplier = rocheMultiplier, Exponent = rocheExponent },
             BodyRadius = new ExponentialCurve { Constant = 1f },
-            GravityRadius = new ExponentialCurve(), GravityDepth = new ExponentialCurve(),
             LightRadius = new ExponentialCurve(), OrbitPeriod = new ExponentialCurve()
         };
         var threw = 0;
@@ -212,12 +209,12 @@ public sealed class PotentialOwnerTests : IDisposable
     }
 
     // The well is authored once, by curves of mass (target: no per-body authoring of a core or Roche limit): a body whose
-    // record carries other radius, gravity-radius or gravity-depth multipliers has the same strength, core and Roche limit,
-    // and pulls and digs exactly as its plain twin. The multipliers are brush inputs for the renderer, nothing else.
+    // record carries another radius multiplier has the same strength, core and Roche limit, and pulls and digs exactly as
+    // its plain twin.
     [Theory]
-    [InlineData(2.5f, 3f, .4f)]
-    [InlineData(.5f, .5f, 3f)]
-    public void PerBodyMultipliersDoNotMoveTheWell(float bodyRadius, float gravityRadius, float gravityDepth)
+    [InlineData(2.5f)]
+    [InlineData(.5f)]
+    public void PerBodyMultipliersDoNotMoveTheWell(float bodyRadius)
     {
         var planets = Curves();
         foreach (var mass in new[] { 29.2f, 14152.4f })
@@ -226,8 +223,6 @@ public sealed class PotentialOwnerTests : IDisposable
             var scaled = ZoneOf(planets, data =>
             {
                 data.BodyRadiusMultiplier = bodyRadius;
-                data.GravityRadiusMultiplier = gravityRadius;
-                data.GravityDepthMultiplier = gravityDepth;
             }, (mass, float2.zero));
             var a = plain.PlanetInstances.Values.Single();
             var b = scaled.PlanetInstances.Values.Single();

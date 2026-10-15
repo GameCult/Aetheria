@@ -612,14 +612,17 @@ public class Zone
         return security;
     }
 
+    // The potential of a body's well at the zone's edge, subtracted so every well is zero there: the one owner of the
+    // reference. GetHeight sums with it and the renderer's lowering (GravityLowering) hands it to the shader unchanged.
+    public float WellReference(Planet body) => GravityField.Potential(body.WellStrength, body.CoreRadius, Pack.Radius);
+
     public float GetHeight(float2 position)
     {
         var result = 0f;
         foreach (var body in PlanetInstances.Values)
         {
             var offset = position - body.Orbit.Position;
-            result += GravityField.Potential(body.WellStrength, body.CoreRadius, length(offset))
-                    - GravityField.Potential(body.WellStrength, body.CoreRadius, Pack.Radius);
+            result += GravityField.Potential(body.WellStrength, body.CoreRadius, length(offset)) - WellReference(body);
         }
 
         return result / Settings.HeightExaggeration;
@@ -685,9 +688,6 @@ public class Planet
     public Orbit Orbit;
     protected readonly PlanetSettings Settings;
     public BodyData BodyData;
-    // Brush inputs only (ZoneRenderer's Gravity Well brushes and planet icon); no sim reader. grid-lowering deletes them.
-    public float GravityWellDepth;
-    public float GravityWellRadius;
     public float BodyRadius;
 
     // The well (GravityField): strength c and softened core radius R by mass, and the Roche limit, the closest a child
@@ -707,8 +707,6 @@ public class Planet
     public void CalculateProperties()
     {
         BodyRadius = Settings.BodyRadius.Evaluate(BodyData.Mass) * BodyData.BodyRadiusMultiplier;
-        GravityWellRadius = Settings.GravityRadius.Evaluate(BodyData.Mass) * BodyData.GravityRadiusMultiplier;
-        GravityWellDepth = Settings.GravityDepth.Evaluate(BodyData.Mass) * BodyData.GravityDepthMultiplier;
         WellStrength = Settings.WellStrength.Evaluate(BodyData.Mass);
         CoreRadius = Settings.CoreRadius.Evaluate(BodyData.Mass);
         RocheLimit = Settings.RocheLimit.Evaluate(BodyData.Mass);

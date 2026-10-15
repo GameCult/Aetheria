@@ -1,0 +1,42 @@
+#ifndef AETHERIA_GRAVITY_INCLUDED
+#define AETHERIA_GRAVITY_INCLUDED
+
+// The lowering of the zone's potential (aetheria-gravity, cut grid-lowering). The law is ServerShared's GravityField
+// and the height is Zone.GetHeight; this file mirrors them and decides nothing. GravityLowering.Lower fills the
+// buffer and the globals from the zone (positions from Orbit.Position, reference from Zone.WellReference) each frame.
+// GravityFieldParityVerify renders it and compares every texel with -Zone.GetHeight.
+
+struct GravityWell
+{
+    float2 position;
+    float strength;
+    float coreRadius;
+    float reference;
+};
+
+StructuredBuffer<GravityWell> _GravityWells;
+int _GravityWellCount;
+float _HeightExaggeration;
+
+// GravityField.Potential, line for line: c is the well's strength, R its core radius, r the distance.
+float gravityPotential(float c, float R, float r)
+{
+    return c == 0 ? 0 :
+        r < R
+            ? c * r * r / (2 * R * R)
+            : c * (log(r / R) + .5);
+}
+
+// Zone.GetHeight at world xz: each well's potential minus its own reference, summed, divided by the exaggeration.
+float gravityHeight(float2 p)
+{
+    float result = 0;
+    for (int i = 0; i < _GravityWellCount; i++)
+    {
+        GravityWell well = _GravityWells[i];
+        result += gravityPotential(well.strength, well.coreRadius, length(p - well.position)) - well.reference;
+    }
+    return result / _HeightExaggeration;
+}
+
+#endif

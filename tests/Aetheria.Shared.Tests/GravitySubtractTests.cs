@@ -46,8 +46,6 @@ public sealed class GravitySubtractTests : IDisposable
         CoreRadius = new ExponentialCurve { Exponent = .25f, Multiplier = 3f },
         RocheLimit = new ExponentialCurve { Exponent = .25f, Multiplier = 7.32f },
         BodyRadius = new ExponentialCurve { Exponent = .25f, Multiplier = 3f },
-        GravityRadius = new ExponentialCurve { Exponent = .25f, Multiplier = 500f },
-        GravityDepth = new ExponentialCurve { Exponent = .175f, Multiplier = 30f },
         LightRadius = new ExponentialCurve { Exponent = .25f, Multiplier = 300f },
         OrbitPeriod = new ExponentialCurve()
     };
@@ -81,8 +79,6 @@ public sealed class GravitySubtractTests : IDisposable
         var orbit = _cache.Upsert(new OrbitData { FixedPosition = float2.zero }).Key;
         data.Orbit = new CultRecordRef<OrbitData>(orbit);
         data.Mass = 100f;
-        data.GravityRadiusMultiplier = 1.5f;
-        data.GravityDepthMultiplier = .7f;
         var body = _cache.Upsert(data).Key;
         var pack = new ZonePack { Radius = PackRadius };
         pack.Orbits.Add(new CultRecordRef<OrbitData>(orbit));
@@ -133,9 +129,9 @@ public sealed class GravitySubtractTests : IDisposable
     private float _clock;
     private const float PackRadius = 1000f;
 
-    // CultCache has no primitive for reserving a removed MessagePack key. Key 8 of a body record (its former well
-    // exponent) and the wave keys of the gas giants (14-17) must not come back with a different meaning, because
-    // stored records may still carry them. Every record type that is a BodyData is checked, bases walked, so a giant
+    // CultCache has no primitive for reserving a removed MessagePack key. Keys 6 and 7 of a body record (its former
+    // brush multipliers), key 8 (its former well exponent) and the wave keys of the gas giants (14-17) must not come back
+    // with a different meaning, because stored records may still carry them. Every record type that is a BodyData is checked, bases walked, so a giant
     // kind added later (the sun is one) cannot take them.
     [Fact]
     public void ABodyRecordNeverReusesRetiredKeys()
@@ -157,7 +153,7 @@ public sealed class GravitySubtractTests : IDisposable
         {
             var keys = KeysOf(type);
             Assert.NotEmpty(keys);
-            Assert.DoesNotContain(8, keys);
+            foreach (var retired in new[] { 6, 7, 8 }) Assert.DoesNotContain(retired, keys);
             if (typeof(GasGiantData).IsAssignableFrom(type))
                 foreach (var retired in new[] { 14, 15, 16, 17 }) Assert.DoesNotContain(retired, keys);
         }

@@ -10,8 +10,6 @@ internal static class WellFixture
     public static void Dig(CultCache cache, ZonePack pack, PlanetSettings settings, float strength, float coreRadius, float2 at = default)
     {
         settings.BodyRadius = new ExponentialCurve();
-        settings.GravityRadius = new ExponentialCurve(); // brush inputs, read by Planet until grid-lowering deletes them
-        settings.GravityDepth = new ExponentialCurve();
         settings.OrbitPeriod = new ExponentialCurve();
         settings.WellStrength = new ExponentialCurve { Constant = strength };
         settings.CoreRadius = new ExponentialCurve { Constant = coreRadius };

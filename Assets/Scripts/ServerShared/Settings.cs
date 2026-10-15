@@ -13,8 +13,6 @@ using static CultMath.math;
 [Serializable, MessagePackObject(keyAsPropertyName:true), JsonObject]
 public class PlanetSettings
 {
-    public ExponentialCurve GravityDepth;
-    public ExponentialCurve GravityRadius;
     public ExponentialCurve LightRadius;
     public ExponentialCurve BodyRadius;
 

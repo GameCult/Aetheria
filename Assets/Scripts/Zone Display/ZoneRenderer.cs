@@ -46,6 +46,8 @@ public class ZoneRenderer : MonoBehaviour
     public MineInstance MinePrefab;
     public VapourCloudInstance CloudPrefab;
     public Material[] MapGravityMaterials;
+    // The gravity field's material (Brushes/Gravity Field): GravityLowering makes the one quad that draws it.
+    public Material GravityField;
 
     [Header("Tour")] public bool Tour;
     public float TourSwitchTime = 5f;
@@ -77,7 +79,8 @@ public class ZoneRenderer : MonoBehaviour
     // is stored on AsteroidBelt any more.
     private Dictionary<CultRecordKey, float4[]> _beltTransforms = new Dictionary<CultRecordKey, float4[]>();
     private float _viewDistance;
-    //private float _maxDepth;
+    private GameObject _gravityField;
+    private ComputeBuffer _gravityWells;
     private float _minimapDistance;
 
     private int _tourIndex = -1;
@@ -195,6 +198,7 @@ public class ZoneRenderer : MonoBehaviour
         SectorBrushes.localScale = zone.Pack.Radius * 2 * Vector3.one;
         SlimeGravityCamera.orthographicSize = zone.Pack.Radius;
         SlimeRenderer.ZoneRadius = zone.Pack.Radius;
+        if (_gravityField == null) _gravityField = GravityLowering.CreateField(GravityField);
         foreach (var p in zone.Planets)
             LoadPlanet(p.Key, p.Value);
 
@@ -321,9 +325,17 @@ public class ZoneRenderer : MonoBehaviour
         WormholeInstances.Add(wormhole, (instance.gameObject, icon));
     }
 
+    void OnDestroy()
+    {
+        _gravityWells?.Release();
+        _gravityWells = null;
+    }
+
     public void ClearZone()
     {
         if (Zone == null) return;
+        _gravityWells?.Release();
+        _gravityWells = null;
         foreach (var wormhole in WormholeInstances.Values)
         {
             Destroy(wormhole.gravity);
@@ -491,11 +503,6 @@ public class ZoneRenderer : MonoBehaviour
 
             var planetInstance = Zone.PlanetInstances[key];
             planet.Body.transform.localScale = planetInstance.BodyRadius * Vector3.one;
-            planet.GravityWell.transform.localScale = planetInstance.GravityWellRadius * Vector3.one;
-            // var depth = planetInstance.GravityWellDepth;
-            // if (depth > _maxDepth) _maxDepth = depth;
-            planet.GravityWell.material.SetFloat("_Depth", planetInstance.GravityWellDepth);
-            planet.Icon.transform.position = new Vector3(0, -planetInstance.GravityWellDepth, 0);
             planet.Icon.transform.localScale = Settings.IconSize.Evaluate(planetInstance.BodyData.Mass) * Vector3.one;
 
 
@@ -513,6 +520,7 @@ public class ZoneRenderer : MonoBehaviour
     void Update()
     {
         var maxDepth = 0f;
+        GravityLowering.Lower(Zone, ref _gravityWells);
         foreach (var loot in _floatingItems.Values)
         {
             loot.ViewOrigin = PerspectiveEntity.Position;
@@ -576,6 +584,7 @@ public class ZoneRenderer : MonoBehaviour
             if (-height > maxDepth) maxDepth = -height;
             planet.Value.transform.position = new Vector3(p.x, 0, p.y);
             planet.Value.Body.transform.localPosition = new Vector3(0, height + planetInstance.BodyRadius * 2, 0);
+            planet.Value.Icon.transform.localPosition = new Vector3(0, height, 0);
             if (planet.Value is GasGiantObject gasGiantObject)
             {
                 if (!(planet.Value is SunObject))
