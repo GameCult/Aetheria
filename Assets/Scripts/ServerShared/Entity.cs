@@ -1060,12 +1060,12 @@ public abstract class Entity
     // record. The same PerceivesDestroyed Sense ends reveals by, applied to located mounts.
     private void RecordSeenDestroyed(Entity subject)
     {
-        _reveals.TryGetValue(subject, out var book);
-        var layout = LayoutOf(subject);
-        foreach (var item in subject.Equipment)
+        // Indexed, and the layout read only for an item actually perceived destroyed: Sense runs for every pair of ships every tick.
+        for (var i = 0; i < subject.Equipment.Count; i++)
         {
+            var item = subject.Equipment[i];
             if (item.Hardpoint == null || !PerceivesDestroyed(subject, item)) continue;
-            if (!layout.Contains(item.Hardpoint) && (book == null || !book.ContainsKey(item))) continue;
+            if (!LayoutOf(subject).Contains(item.Hardpoint) && !(_reveals.TryGetValue(subject, out var book) && book.ContainsKey(item))) continue;
             if (!_seenDestroyed.TryGetValue(subject, out var seen)) _seenDestroyed[subject] = seen = new HashSet<HardpointData>();
             seen.Add(item.Hardpoint);
         }
