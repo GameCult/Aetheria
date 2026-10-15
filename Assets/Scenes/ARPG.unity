@@ -16416,6 +16416,7 @@ MonoBehaviour:
   MapGravityMaterials:
   - {fileID: 2100000, guid: 841e4091d19548347bd59115047b4e49, type: 2}
   - {fileID: 2100000, guid: a92fc6d958edb9f46b6e58134f609cc0, type: 2}
+  GravityField: {fileID: 2100000, guid: 44a8bbb89acb4e34c9f41a9da5842bb4, type: 2}
   Tour: 0
   TourSwitchTime: 10
   TourFollowDistance: 100
@@ -23473,7 +23474,7 @@ Camera:
   m_Depth: 0
   m_CullingMask:
     serializedVersion: 2
-    m_Bits: 1536
+    m_Bits: 512
   m_RenderingPath: 1
   m_TargetTexture: {fileID: 8400000, guid: 2fc21a9d3e9647948b56e384cd9378b3, type: 2}
   m_TargetDisplay: 0

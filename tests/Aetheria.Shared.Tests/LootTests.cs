@@ -110,11 +110,7 @@ public sealed class LootTests : IDisposable
         var items = new ItemManager(cache, ledger, settings, _ => { });
         var planets = new PlanetSettings();
         var pack = new ZonePack { Radius = well ? 1000 : 0 };
-        if (well)
-        {
-            planets.GravityStrength = 1;
-            WellFixture.Dig(cache, pack, planets, 1000, 1000, 1);
-        }
+        if (well) WellFixture.Dig(cache, pack, planets, 300, 100);
         var zone = new Zone(items, planets, pack, new GalaxyZone { Name = zoneName, Owner = null }, null);
         return new Lab { Items = items, Zone = zone };
     }

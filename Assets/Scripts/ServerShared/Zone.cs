@@ -612,22 +612,20 @@ public class Zone
         return security;
     }
 
+    // The potential of a body's well at the zone's edge, subtracted so every well is zero there: the one owner of the
+    // reference. GetHeight sums with it and the renderer's lowering (GravityLowering) hands it to the shader unchanged.
+    public float WellReference(Planet body) => GravityField.Potential(body.WellStrength, body.RocheLimit, Pack.Radius);
+
     public float GetHeight(float2 position)
     {
         var result = 0f;
         foreach (var body in PlanetInstances.Values)
         {
-            var p = position - body.Orbit.Position; //GetOrbitPosition(body.BodyData.Orbit)
-            var distSqr = lengthsq(p);
-            var gravityRadius = body.GravityWellRadius;
-            if (distSqr < gravityRadius*gravityRadius)
-            {
-                var depth = body.GravityWellDepth;
-                result -= PowerPulse(sqrt(distSqr) / gravityRadius, body.BodyData.GravityDepthExponent) * depth;
-            }
+            var offset = position - body.Orbit.Position;
+            result += GravityField.Potential(body.WellStrength, body.RocheLimit, length(offset)) - WellReference(body);
         }
 
-        return result;
+        return result / Settings.HeightExaggeration;
     }
 
     public float GetLight(float2 position)
@@ -647,33 +645,21 @@ public class Zone
     internal float SchematicCellSize => _itemManager.GameplaySettings.SchematicCellSize;
     internal float FieldCrossSection(AsteroidBeltData belt) => _itemManager.ItemData.Get(belt.Kind)?.CrossSection ?? 0f;
 
-    // The one law of how a gravity well pushes anything: ships, floating items and mines all read it. The shape is
-    // the one ships have always felt, normalize(f) * strength * (1 / (1 - |f|^2) - 1), gated off below |f|^2 = .001.
-    // It is an acceleration, per second: the legacy law added that amount once per 60 fps frame with no dt, so
-    // GravityReferenceRate (60) restates it and `acceleration * dt` gives the legacy push at 60 fps.
-    public const float GravityReferenceRate = 60f;
-
-    public static float2 GravityAcceleration(float2 normalXz, float strength)
-    {
-        var magnitude = lengthsq(normalXz);
-        if (magnitude <= .001f) return float2.zero;
-        return normalize(normalXz) * strength * (1 / (1 - magnitude) - 1) * GravityReferenceRate;
-    }
-
-    // The acceleration the well exerts at `position`.
+    // The one source of gravitational acceleration (u/s^2): the sum of every body's well (GravityField). Ships,
+    // floating items, clouds and mines all read it, and so does Flow. It is the gradient of the potential GetHeight
+    // draws, so the two cannot disagree.
     public float2 GetForce(float2 position)
     {
-        var normal = GetNormal(position);
-        return GravityAcceleration(new float2(normal.x, normal.z), Settings.GravityStrength);
+        var force = float2.zero;
+        foreach (var body in PlanetInstances.Values)
+            force += GravityField.Acceleration(body.WellStrength, body.RocheLimit, position - body.Orbit.Position);
+        return force;
     }
 
     // The global flow velocity at `position` in zone time, in u/s (FlowField is the law). The slope term reads the
-    // downhill gradient, which GetNormal's xz is proportional to.
-    public float3 Flow(float3 position)
-    {
-        var normal = GetNormal(position.xz);
-        return FlowField.At(Settings.Flow, position, FlowScroll, new float2(normal.x, normal.z));
-    }
+    // downhill direction, which is the force.
+    public float3 Flow(float3 position) =>
+        FlowField.At(Settings.Flow, position, FlowScroll, GetForce(position.xz));
 
     // The flow's noise scroll at zone time (Zone.Flow evaluates at exactly this); lowered to the shaders' _FlowScroll.
     public float2 FlowScroll => FlowField.Scroll(Settings.Flow, _time);
@@ -688,16 +674,12 @@ public class Zone
         return pow((x + 1) * (1 - x), exponent);
     }
 
-    public float3 GetNormal(float2 pos, float step = .1f, float mul = 1)
+    // The surface normal of the drawn height (potential / K), derived from the force. Display only (ship tilt): the
+    // sim never reads it as a force.
+    public float3 GetNormal(float2 pos)
     {
-        float hL = GetHeight(new float2(pos.x - step, pos.y)) * mul;
-        float hR = GetHeight(new float2(pos.x + step, pos.y)) * mul;
-        float hD = GetHeight(new float2(pos.x, pos.y - step)) * mul;
-        float hU = GetHeight(new float2(pos.x, pos.y + step)) * mul;
-
-        // Deduce terrain normal
-        float3 normal = new float3((hL - hR), (hD - hU), step*2);
-        return normalize(normal).xzy;
+        var slope = GetForce(pos) / Settings.HeightExaggeration;
+        return normalize(new float3(slope.x, 1f, slope.y));
     }
 }
 
@@ -706,9 +688,12 @@ public class Planet
     public Orbit Orbit;
     protected readonly PlanetSettings Settings;
     public BodyData BodyData;
-    public float GravityWellDepth;
-    public float GravityWellRadius;
     public float BodyRadius;
+
+    // The well (GravityField): strength c by mass, and the Roche limit, which is both the closest a child may orbit and
+    // the well's softened core radius R (one curve of mass, never per body). Both are authored PlanetSettings curves.
+    public float WellStrength;
+    public float RocheLimit;
 
     public Planet(PlanetSettings settings, BodyData data, Orbit orbit)
     {
@@ -721,8 +706,12 @@ public class Planet
     public void CalculateProperties()
     {
         BodyRadius = Settings.BodyRadius.Evaluate(BodyData.Mass) * BodyData.BodyRadiusMultiplier;
-        GravityWellRadius = Settings.GravityRadius.Evaluate(BodyData.Mass) * BodyData.GravityRadiusMultiplier;
-        GravityWellDepth = Settings.GravityDepth.Evaluate(BodyData.Mass) * BodyData.GravityDepthMultiplier;
+        WellStrength = Settings.WellStrength.Evaluate(BodyData.Mass);
+        RocheLimit = Settings.RocheLimit.Evaluate(BodyData.Mass);
+        if (!(WellStrength >= 0f) || float.IsInfinity(WellStrength))
+            throw new InvalidOperationException("A body's well strength must be finite and not negative (PlanetSettings.WellStrength).");
+        if (WellStrength > 0 && !(RocheLimit > 0f && !float.IsInfinity(RocheLimit)))
+            throw new InvalidOperationException("A body's Roche limit, which is its core radius, must be positive and finite (PlanetSettings.RocheLimit).");
     }
 }
 

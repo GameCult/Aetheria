@@ -56,8 +56,6 @@ public sealed partial class MiningCut3Tests : IDisposable
         AsteroidHitpoints = new ExponentialLerp { Minimum = 20f, Maximum = 220f, Exponent = 1.6f },
         AsteroidRespawnTime = new ExponentialLerp { Minimum = 8f, Maximum = 96f, Exponent = 1.2f },
         BodyRadius = new ExponentialCurve(),
-        GravityRadius = new ExponentialCurve(),
-        GravityDepth = new ExponentialCurve(),
         LightRadius = new ExponentialCurve { Constant = lightRadius }
     };
 

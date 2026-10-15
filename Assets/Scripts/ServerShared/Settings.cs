@@ -13,15 +13,22 @@ using static CultMath.math;
 [Serializable, MessagePackObject(keyAsPropertyName:true), JsonObject]
 public class PlanetSettings
 {
-    public ExponentialCurve GravityDepth;
-    public ExponentialCurve GravityRadius;
     public ExponentialCurve LightRadius;
     public ExponentialCurve BodyRadius;
+
+    // The closest a child may orbit its parent, in u, by the parent's mass, and the softened core radius of the parent's
+    // well (the steepest drawn slope sits at the Roche limit). Authored like BodyRadius, never per body.
+    public ExponentialCurve RocheLimit = new ExponentialCurve();
+
+    // A body's well strength by its mass (GravityField): c in u^2/s^2 (the pull is c / r beyond the core, which is the Roche limit).
+    public ExponentialCurve WellStrength = new ExponentialCurve();
+
+    // The one global exaggeration of gravity height: height = potential / K, in u/s^2 per unit of height.
+    public float HeightExaggeration = 1f;
     public float AsteroidVerticalOffset = -5f;
     public ExponentialLerp AsteroidSize;
     public ExponentialLerp AsteroidHitpoints;
     public ExponentialLerp AsteroidRespawnTime;
-    public float GravityStrength;
     public float SecureAreaRadiusMultiplier = .45f;
 
     public ExponentialCurve OrbitPeriod;

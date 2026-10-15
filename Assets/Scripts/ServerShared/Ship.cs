@@ -130,9 +130,8 @@ public class Ship : Entity
         
         Position.xz += Velocity * delta;
         
+        Velocity += Zone.GetForce(Position.xz) * delta;
         var normal = Zone.GetNormal(Position.xz);
-        var force = new float2(normal.x, normal.z);
-        Velocity += Zone.GravityAcceleration(force, Zone.Settings.GravityStrength) * delta;
         var shipRight = Direction.Rotate(ItemRotation.Clockwise);
         var forward = cross(float3(shipRight.x, 0, shipRight.y), normal);
         Rotation = quaternion.LookRotation(forward, normal);
