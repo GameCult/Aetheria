@@ -9852,3 +9852,82 @@ windows TOUCHED beyond scanner-catalog's own hunks).
   context-pack on r2: all sixteen anchors SAME.
 - mind-commit-2df0d64a...: cut-layout-aim.r3 (base a17dab36, depends on scanner-catalog), resolution
   cut_spec.cut-layout-aim.r2.n1 (Superseded). context-pack on r3: all fifteen anchors SAME. No question raised.
+
+# Mount cycle at 3f5cef68
+
+Imagination imagination-ag2-visibility, session self-2026-10-14-ag2, 2026-10-15. Pinned to Aetheria origin/master
+3f5cef68 (layout-aim and scanner-catalog merged). Read-only detached worktree `C:\aeth-wt\ag2-imag-cycle`. Maps cut
+mount-cycle-and-test-hygiene (ruling cycle-skips-only-perceived-destroyed; follow-ups entity-formats-safely and
+floating-items-smoke-label-fade-flake). Paths under Assets/Scripts unless noted.
+
+## Body facts (source reads at 3f5cef68)
+
+MC1. The cycle (Gameplay/ActionGameManager.cs:447-459) walks `target.Equipment`, the true fitted items, filtered by
+`FireControl.IsLocated`, and writes through `TrySelectTargetItem`. An empty mount has no item, so it can never be aimed.
+
+MC2. Identification is observer state: `ContactOf` (ServerShared/Entity.cs:1085-1103) sets `identified = info >=
+TargetGearInfoThreshold` (1101), `info` being the observer's EntityInfoGathered; `Profile` is `subject.ClaimedHull`
+(116), the subject's claim. `LayoutOf` (1078) is `Profile.Hardpoints`. Nothing in this chain compares claim and truth.
+
+MC3. The comparison of claim and truth is in two places. `IsLocated` (ServerShared/FireControl.cs:169-171) tests the
+true item's `Hardpoint` against `LayoutOf` by reference: under a hull lie no item is located, so the cycle is empty while
+an honest ship of the claimed hull fills it. That emptiness is the leak the operator asked about. And SchematicRows'
+covering filter (Entity.cs:1072, `!claimed.Any(r => r.Item.Hardpoint == h)`): under a lie a revealed item hides no
+claimed mount row, so row counts differ between a liar and an honest ship of the claimed hull.
+
+MC4. No observer record of a perceived destruction exists. `PerceivesDestroyed` (987-991) is identification plus the
+item's live `IsDestroyed`, the ruled perception rule (reveal-ends-on-perception); its readers are RecordReveal's gate
+(966) and Sense (1141-1149), which ends the item's reveal, after which the book forgets it. Departure and ageing end a
+subject's reveals through `EndReveals(subject, null)` (1158, 1170); `Deactivate` clears the book (910).
+
+MC5. Aim consumers: `TargetItem` (Entity.cs:77, ReactiveProperty, no subscriber outside Entity), its writer (415-429),
+`ResolvedTargetItem` (434-437); Combat writes revealed weapons only (Agents/States/Combat.cs:43-55); FireControl
+Forecast (355), Fire (740-741, `AimsAtMount`), CommitProbability (914); `SchematicRow.Marks` (Sensing.cs:157) and the
+display (SchematicDisplay.cs:213); `ResolveAimPoint` (FireControl.cs:1785-1791), `MountCells` (1985-1986),
+`PendingShot.Aimed`/`AimAtMount` (2011-2014).
+
+MC6. Tests: `TrySelectTargetItem` 39 uses, `ResolvedTargetItem` 24, `TargetItem.Value` 21 (FireControlTests 277-476,
+TargetingSystemTests 169-185, FireControlCut7Tests 175), `IsLocated` and `AimAtMount` only in LayoutAimTests,
+`.Aimed` in FireControlCut12Tests 982 and FireControlCut7Tests 182. Silhouette test call sites pass no aim flag.
+
+MC7. Entity has no ToString override and no id; `Name` (83) is public. Soul finding cut-boss-gate.s1.failed-assert-aborts-host
+(Assert.Single over zone Entities crashes the host) is the same defect as follow-up entity-formats-safely.
+
+MC8. Negative baselines: `Equipment.Where` in ActionGameManager.cs 1 (the cycle); `Item.Hardpoint == h` in Entity.cs 1;
+`subject.HullData` in Entity.cs 0.
+
+MC9. The smoke (Editor/FloatingItemsDrawnSmoke.cs) is a coroutine stepped once per `EditorApplication.update` with a
+3000-frame guard (63). The label check sets LabelPersistDuration 1 and LabelFadeDuration .2 (186-187) and waits at most
+1200 frames for the alpha (188, 191). ItemPickup fades on `Time.time` and `Time.deltaTime` (Gameplay/ItemPickup.cs:60-65),
+so the label needs about 1.2 game seconds; in batch mode 1200 frames can pass in less, which is the flake.
+
+MC10. Open Soul findings on these sites: none besides MC7's.
+
+## Rationale
+
+- One aim slot holding an item or a mount. Empty mounts must be aimable (the ruling), and a mount is not an item, so the
+  slot widens; two slots side by side would be two owners of one aim. A located but unrevealed item is aimed as its
+  mount, which is what layout-aim already did through AimsAtMount, now said by the slot's kind instead of a flag.
+- The cycle is the schematic's rows. SchematicRows already owns what the observer believes the target has; the cycle
+  is those rows minus mounts seen destroyed, so the cycle and the display cannot disagree.
+- Covering goes (MC3). Any rule that hides a mount row under a revealed item compares the true item's mount with the
+  believed layout. Without it, every layout mount is a row and a revealed item has its own row as well: some redundancy
+  on an honest ship, and identical rows and cycle for a liar and an honest ship of the claimed hull, which is what the
+  ruling asks.
+- The record of mounts seen destroyed is new observer state, written at the one perception site with the ruled rule.
+  What it cannot do under a lie (no claimed mount is ever recorded) is follow-up perceived-destruction-under-hull-lie,
+  owned by aetheria-ew; no ship lies until ew-masquerade.
+- Entity.ToString fixes the formatter at its owner (the follow-up's own reasoning), closing the recurring host crash.
+- The smoke waits on game time because the fade runs on game time; its hang guard becomes real time for the same
+  reason.
+- Size: about 110 Hands calls, cap 140, above the 60-80 Self asked for: widening the aim slot touches FireControl's three
+  aim reads and about 60 test lines. Declared stop: deliverables 2 and 3, then the sim half of 1.
+
+## Cut sequence
+
+layout-aim and scanner-catalog (merged) -> mount-cycle-and-test-hygiene r1 (runs now).
+
+## Admitted (imagination-ag2-visibility, 2026-10-15)
+
+- mind-commit-67c50e4b...: cut-mount-cycle-and-test-hygiene.r1 (base 3f5cef68) and follow-up
+  perceived-destruction-under-hull-lie. context-pack on r1: all thirty anchors SAME. No question raised.
