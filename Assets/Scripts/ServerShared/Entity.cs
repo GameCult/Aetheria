@@ -1244,6 +1244,9 @@ public abstract class Entity
             foreach (var reveal in pair.Value.Values) freshest = Math.Max(freshest, reveal.Time);
             if (Zone.Time - freshest >= memory) _agedSubjects.Add(pair.Key);
         }
+        // A record of a subject that left and holds no book (a quiet ship, never seen to act) has no entry to age: it goes now.
+        foreach (var subject in _seenDestroyed.Keys)
+            if (!entities.Contains(subject) && !_reveals.ContainsKey(subject)) _agedSubjects.Add(subject);
         for (var i = 0; i < _agedSubjects.Count; i++) EndReveals(_agedSubjects[i], null);
         _agedSubjects.Clear();
     }

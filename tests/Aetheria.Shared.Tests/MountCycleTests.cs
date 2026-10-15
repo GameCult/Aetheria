@@ -153,6 +153,28 @@ public sealed partial class ContactRevealTests
         Assert.False(observer.TrySelectMount(reactor.Hardpoint));
     }
 
+    // ---- TheSeenDestroyedRecordGoesWithTheSubject ----
+
+    // The record is the observer's memory of one subject: when that subject has left the zone and the observer holds no book
+    // of it (a quiet ship, never seen to act), the record is dropped at the observer's next Sense, not held for the sitting.
+    [Theory]
+    [InlineData("remove")]
+    [InlineData("warp")]
+    public void TheSeenDestroyedRecordGoesWithTheSubject(string how)
+    {
+        var (bay, observer, reactor) = Identified();
+        var sense = SenseOf(observer);
+        reactor.EquippableItem.Durability = 0f;
+        sense();
+        Assert.False(MountsOf(observer.AimCycle(bay)).Any(m => ReferenceEquals(m, reactor.Hardpoint)), "fixture: recorded while the ship is here");
+        Assert.Empty(observer.RevealsOf(bay));
+
+        Leave(_zone, bay, how);
+        sense();
+        observer.EntityInfoGathered[bay] = 1f;
+        Assert.True(MountsOf(observer.AimCycle(bay)).Any(m => ReferenceEquals(m, reactor.Hardpoint)), "the record went with the ship");
+    }
+
     // ---- ADestroyedClaimedMountIsNotSkippedUnderALie ----
 
     // The known gap (follow-up perceived-destruction-under-hull-lie): perceiving a destruction reads the true item, and the

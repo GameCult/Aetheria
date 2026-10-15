@@ -157,7 +157,8 @@ public static class FireControl
     // book holds a reveal of it (Entity.HasReveal: it saw the item act) and the item is still fitted to its ship and
     // not destroyed. The book says what was seen; the live item says whether it can still be aimed at. Derived on
     // every read, never cached; watching a ship reveals no gear. Any aiming choice that reads an item's class or
-XX
+    // stats (Combat's target-item choice, its dps) asks this; it is the item gate of Entity's aim slot (TrySelectTargetItem,
+    // ResolvedAim). A mount is aimed by TrySelectMount, which reads no item at all.
     public static bool IsRevealed(Entity observer, EquippedItem item) =>
         !item.EquippableItem.IsDestroyed && item.Entity.Equipment.Contains(item) && observer.HasReveal(item.Entity, item);
 
