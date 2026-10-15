@@ -1,0 +1,195 @@
+== [0] today: harmonic core + log  (10s, 6 draws)
+  Sun       ratio p10/50/90/99 [1.44, 2.01, 2.46, 2.81]  parent-only v p10/50/90 [22.06, 23.62, 24.64]  n 2211
+  GasGiant  ratio p10/50/90/99 [1.1, 1.62, 2.21, 2.67]  parent-only v p10/50/90 [18.27, 22.2, 24.57]  n 3566
+  Planet    ratio p10/50/90/99 [0.97, 1.24, 1.71, 2.16]  parent-only v p10/50/90 [15.56, 17.38, 23.61]  n 7445
+  Planetoid ratio p10/50/90/99 [0.95, 1.11, 1.43, 1.76]  parent-only v p10/50/90 [11.51, 14.48, 20.27]  n 10200
+  Belt      ratio p10/50/90/99 [0.95, 1.18, 1.55, 2.01]  parent-only v p10/50/90 [11.41, 14.74, 20.29]  n 3134
+  planets round suns: parent-only v p10/50/90 [16.3, 17.88, 23.65]; share in 12-18 u/s 0.51
+  planets round a median sun (mass p40-p60, 10607-20254): v p10/50/90 [17.06, 17.48, 17.98]; share in 12-18 0.92; n 1116
+  children with no parent pull at their distance: {}
+  bodies with scale s <= eps (law today: harmonic core + log): 27165 of 27165
+  children whose parent pull < 0.5 c/D (v < 0.71 of the log rail): {'Planetoid': 42, 'Belt': 3, 'Planet': 1}
+  zone far-field c over merged-body c(M_zone), p10/50/90: at 2Z [3.69, 5.54, 7.98], at 10Z [3.69, 5.54, 7.98]
+  mid-zone inward pull by Z: 1000: 1.59, 2125: 1.27, 4182: 0.91, 6846: 0.67, 10000: 0.51
+== [1] (d) Plummer log, no taming  (10s, 6 draws)
+  Sun       ratio p10/50/90/99 [1.44, 2.01, 2.46, 2.81]  parent-only v p10/50/90 [21.99, 23.6, 24.62]  n 2211
+  GasGiant  ratio p10/50/90/99 [1.11, 1.63, 2.22, 2.67]  parent-only v p10/50/90 [17.58, 22.08, 24.48]  n 3566
+  Planet    ratio p10/50/90/99 [0.97, 1.25, 1.72, 2.15]  parent-only v p10/50/90 [14.9, 16.9, 23.2]  n 7445
+  Planetoid ratio p10/50/90/99 [0.95, 1.13, 1.44, 1.77]  parent-only v p10/50/90 [11.01, 13.75, 18.14]  n 10200
+  Belt      ratio p10/50/90/99 [0.97, 1.19, 1.55, 2.01]  parent-only v p10/50/90 [11.05, 14.24, 19.45]  n 3134
+  planets round suns: parent-only v p10/50/90 [15.76, 17.36, 23.33]; share in 12-18 u/s 0.58
+  planets round a median sun (mass p40-p60, 10607-20254): v p10/50/90 [16.07, 17.17, 17.78]; share in 12-18 0.99; n 1116
+  children with no parent pull at their distance: {}
+  bodies with scale s <= eps (law (d) Plummer log, no taming): 27165 of 27165
+  children whose parent pull < 0.5 c/D (v < 0.71 of the log rail): {'Planetoid': 214, 'Belt': 11, 'Planet': 9}
+  zone far-field c over merged-body c(M_zone), p10/50/90: at 2Z [3.69, 5.54, 7.98], at 10Z [3.69, 5.54, 7.98]
+  mid-zone inward pull by Z: 1000: 1.57, 2125: 1.26, 4182: 0.91, 6846: 0.67, 10000: 0.51
+== [2] (a) log-ratio L=0.5*D  (9s, 6 draws)
+  Sun       ratio p10/50/90/99 [0.89, 1.17, 1.57, 2.01]  parent-only v p10/50/90 [12.26, 15.37, 19.45]  n 2211
+  GasGiant  ratio p10/50/90/99 [0.86, 1.04, 1.37, 1.87]  parent-only v p10/50/90 [12.55, 17.03, 21.52]  n 3566
+  Planet    ratio p10/50/90/99 [0.89, 0.99, 1.19, 1.58]  parent-only v p10/50/90 [11.11, 15.78, 21.98]  n 7443
+  Planetoid ratio p10/50/90/99 [0.87, 0.99, 1.16, 1.98]  parent-only v p10/50/90 [7.68, 12.64, 17.63]  n 10188
+  Belt      ratio p10/50/90/99 [0.87, 0.99, 1.24, 2.04]  parent-only v p10/50/90 [7.29, 12.73, 17.86]  n 3130
+  planets round suns: parent-only v p10/50/90 [11.39, 16.23, 22.23]; share in 12-18 u/s 0.60
+  planets round a median sun (mass p40-p60, 10607-20254): v p10/50/90 [14.35, 16.25, 17.08]; share in 12-18 0.96; n 1116
+  children with no parent pull at their distance: {'Planetoid': 12, 'Belt': 4, 'Planet': 2}
+  bodies with scale s <= eps (law (a) log-ratio L=0.5*D): 285 of 27165
+  children whose parent pull < 0.5 c/D (v < 0.71 of the log rail): {'Planetoid': 1902, 'Planet': 955, 'Belt': 643, 'GasGiant': 905, 'Sun': 1433}
+  zone far-field c over merged-body c(M_zone), p10/50/90: at 2Z [0.07, 0.1, 0.11], at 10Z [0.0, 0.0, 0.0]
+  mid-zone inward pull by Z: 1000: 0.34, 2125: 0.24, 4182: 0.15, 6846: 0.11, 10000: 0.08
+== [3] (a) log-ratio L=1*D  (9s, 6 draws)
+  Sun       ratio p10/50/90/99 [0.98, 1.26, 1.55, 1.82]  parent-only v p10/50/90 [17.73, 19.93, 22.72]  n 2211
+  GasGiant  ratio p10/50/90/99 [0.92, 1.12, 1.43, 1.79]  parent-only v p10/50/90 [16.19, 19.44, 23.25]  n 3566
+  Planet    ratio p10/50/90/99 [0.91, 1.02, 1.26, 1.58]  parent-only v p10/50/90 [13.89, 16.58, 22.83]  n 7445
+  Planetoid ratio p10/50/90/99 [0.9, 1.01, 1.2, 1.61]  parent-only v p10/50/90 [9.99, 13.32, 18.04]  n 10200
+  Belt      ratio p10/50/90/99 [0.9, 1.02, 1.26, 1.75]  parent-only v p10/50/90 [9.83, 13.7, 18.99]  n 3134
+  planets round suns: parent-only v p10/50/90 [14.31, 17.05, 22.93]; share in 12-18 u/s 0.61
+  planets round a median sun (mass p40-p60, 10607-20254): v p10/50/90 [15.52, 16.86, 17.49]; share in 12-18 1.00; n 1116
+  children with no parent pull at their distance: {}
+  bodies with scale s <= eps (law (a) log-ratio L=1*D): 34 of 27165
+  children whose parent pull < 0.5 c/D (v < 0.71 of the log rail): {'Planetoid': 329, 'Belt': 47, 'Planet': 31}
+  zone far-field c over merged-body c(M_zone), p10/50/90: at 2Z [0.25, 0.36, 0.4], at 10Z [0.01, 0.02, 0.02]
+  mid-zone inward pull by Z: 1000: 0.64, 2125: 0.45, 4182: 0.29, 6846: 0.20, 10000: 0.15
+== [4] (a) log-ratio L=1.5*outer  (9s, 6 draws)
+  Sun       ratio p10/50/90/99 [0.98, 1.17, 1.41, 1.7]  parent-only v p10/50/90 [18.39, 20.55, 23.07]  n 2211
+  GasGiant  ratio p10/50/90/99 [0.93, 1.12, 1.39, 1.83]  parent-only v p10/50/90 [15.02, 19.76, 23.51]  n 3566
+  Planet    ratio p10/50/90/99 [0.92, 1.05, 1.31, 1.62]  parent-only v p10/50/90 [12.84, 15.44, 22.92]  n 7445
+  Planetoid ratio p10/50/90/99 [0.89, 1.03, 1.27, 1.58]  parent-only v p10/50/90 [9.19, 12.35, 18.07]  n 10200
+  Belt      ratio p10/50/90/99 [0.89, 1.05, 1.32, 1.72]  parent-only v p10/50/90 [9.1, 12.48, 19.08]  n 3134
+  planets round suns: parent-only v p10/50/90 [13.69, 15.9, 23.0]; share in 12-18 u/s 0.64
+  planets round a median sun (mass p40-p60, 10607-20254): v p10/50/90 [14.13, 15.16, 16.65]; share in 12-18 1.00; n 1116
+  children with no parent pull at their distance: {}
+  bodies with scale s <= eps (law (a) log-ratio L=1.5*outer): 7 of 27165
+  children whose parent pull < 0.5 c/D (v < 0.71 of the log rail): {'Planetoid': 485, 'Belt': 98, 'GasGiant': 9, 'Planet': 45}
+  zone far-field c over merged-body c(M_zone), p10/50/90: at 2Z [0.26, 0.34, 0.48], at 10Z [0.01, 0.02, 0.02]
+  mid-zone inward pull by Z: 1000: 0.74, 2125: 0.46, 4182: 0.27, 6846: 0.18, 10000: 0.14
+== [5] (a) log-ratio L=2*outer  (9s, 6 draws)
+  Sun       ratio p10/50/90/99 [1.01, 1.22, 1.46, 1.74]  parent-only v p10/50/90 [19.75, 21.97, 23.67]  n 2211
+  GasGiant  ratio p10/50/90/99 [0.94, 1.16, 1.44, 1.85]  parent-only v p10/50/90 [16.0, 20.82, 23.9]  n 3566
+  Planet    ratio p10/50/90/99 [0.93, 1.07, 1.35, 1.64]  parent-only v p10/50/90 [13.71, 15.89, 23.05]  n 7445
+  Planetoid ratio p10/50/90/99 [0.9, 1.04, 1.28, 1.57]  parent-only v p10/50/90 [9.91, 12.89, 18.11]  n 10200
+  Belt      ratio p10/50/90/99 [0.91, 1.08, 1.35, 1.71]  parent-only v p10/50/90 [9.84, 13.14, 19.26]  n 3134
+  planets round suns: parent-only v p10/50/90 [14.61, 16.38, 23.13]; share in 12-18 u/s 0.63
+  planets round a median sun (mass p40-p60, 10607-20254): v p10/50/90 [15.13, 15.94, 16.98]; share in 12-18 1.00; n 1116
+  children with no parent pull at their distance: {}
+  bodies with scale s <= eps (law (a) log-ratio L=2*outer): 7 of 27165
+  children whose parent pull < 0.5 c/D (v < 0.71 of the log rail): {'Planetoid': 277, 'Belt': 36, 'Planet': 13}
+  zone far-field c over merged-body c(M_zone), p10/50/90: at 2Z [0.4, 0.52, 0.72], at 10Z [0.02, 0.03, 0.04]
+  mid-zone inward pull by Z: 1000: 0.85, 2125: 0.54, 4182: 0.32, 6846: 0.22, 10000: 0.16
+== [6] (b) screened Plummer lam=0.5*D  (16s, 6 draws)
+  Sun       ratio p10/50/90/99 [0.9, 1.16, 1.49, 1.85]  parent-only v p10/50/90 [14.3, 17.2, 20.5]  n 2211
+  GasGiant  ratio p10/50/90/99 [0.86, 1.04, 1.34, 1.78]  parent-only v p10/50/90 [14.3, 17.74, 21.89]  n 3566
+  Planet    ratio p10/50/90/99 [0.88, 0.99, 1.19, 1.54]  parent-only v p10/50/90 [12.24, 15.92, 22.05]  n 7445
+  Planetoid ratio p10/50/90/99 [0.88, 0.99, 1.16, 1.75]  parent-only v p10/50/90 [8.7, 12.75, 17.65]  n 10200
+  Belt      ratio p10/50/90/99 [0.87, 1.0, 1.22, 1.85]  parent-only v p10/50/90 [8.43, 12.9, 18.01]  n 3134
+  planets round suns: parent-only v p10/50/90 [12.61, 16.37, 22.22]; share in 12-18 u/s 0.63
+  planets round a median sun (mass p40-p60, 10607-20254): v p10/50/90 [14.71, 16.3, 17.03]; share in 12-18 0.98; n 1116
+  children with no parent pull at their distance: {}
+  bodies with scale s <= eps (law (b) screened Plummer lam=0.5*D): 285 of 27165
+  children whose parent pull < 0.5 c/D (v < 0.71 of the log rail): {'Planetoid': 1326, 'Planet': 530, 'Belt': 420, 'GasGiant': 442, 'Sun': 892}
+  zone far-field c over merged-body c(M_zone), p10/50/90: at 2Z [0.02, 0.07, 0.08], at 10Z [0.0, 0.0, 0.0]
+  mid-zone inward pull by Z: 1000: 0.41, 2125: 0.29, 4182: 0.18, 6846: 0.13, 10000: 0.09
+== [7] (b) screened Plummer lam=1*D  (15s, 6 draws)
+  Sun       ratio p10/50/90/99 [1.0, 1.28, 1.56, 1.81]  parent-only v p10/50/90 [18.68, 20.76, 22.88]  n 2211
+  GasGiant  ratio p10/50/90/99 [0.93, 1.15, 1.46, 1.8]  parent-only v p10/50/90 [16.95, 19.89, 23.31]  n 3566
+  Planet    ratio p10/50/90/99 [0.92, 1.04, 1.29, 1.6]  parent-only v p10/50/90 [14.02, 16.57, 22.77]  n 7445
+  Planetoid ratio p10/50/90/99 [0.91, 1.02, 1.22, 1.57]  parent-only v p10/50/90 [10.15, 13.32, 18.0]  n 10200
+  Belt      ratio p10/50/90/99 [0.91, 1.04, 1.28, 1.7]  parent-only v p10/50/90 [10.08, 13.75, 18.94]  n 3134
+  planets round suns: parent-only v p10/50/90 [14.58, 17.04, 22.86]; share in 12-18 u/s 0.61
+  planets round a median sun (mass p40-p60, 10607-20254): v p10/50/90 [15.57, 16.81, 17.45]; share in 12-18 1.00; n 1116
+  children with no parent pull at their distance: {}
+  bodies with scale s <= eps (law (b) screened Plummer lam=1*D): 34 of 27165
+  children whose parent pull < 0.5 c/D (v < 0.71 of the log rail): {'Planetoid': 265, 'Belt': 21, 'Planet': 11}
+  zone far-field c over merged-body c(M_zone), p10/50/90: at 2Z [0.22, 0.45, 0.5], at 10Z [0.0, 0.0, 0.0]
+  mid-zone inward pull by Z: 1000: 0.70, 2125: 0.50, 4182: 0.32, 6846: 0.23, 10000: 0.16
+== [8] (c) Lamb-Oseen core, log tail  (10s, 6 draws)
+  Sun       ratio p10/50/90/99 [1.44, 2.01, 2.46, 2.81]  parent-only v p10/50/90 [22.06, 23.62, 24.64]  n 2211
+  GasGiant  ratio p10/50/90/99 [1.1, 1.62, 2.21, 2.66]  parent-only v p10/50/90 [18.2, 22.2, 24.57]  n 3566
+  Planet    ratio p10/50/90/99 [0.97, 1.24, 1.71, 2.15]  parent-only v p10/50/90 [15.5, 17.34, 23.59]  n 7445
+  Planetoid ratio p10/50/90/99 [0.95, 1.11, 1.43, 1.76]  parent-only v p10/50/90 [11.42, 14.34, 20.11]  n 10200
+  Belt      ratio p10/50/90/99 [0.96, 1.18, 1.54, 2.0]  parent-only v p10/50/90 [11.39, 14.69, 20.25]  n 3134
+  planets round suns: parent-only v p10/50/90 [16.26, 17.82, 23.64]; share in 12-18 u/s 0.53
+  planets round a median sun (mass p40-p60, 10607-20254): v p10/50/90 [17.03, 17.44, 17.96]; share in 12-18 0.93; n 1116
+  children with no parent pull at their distance: {}
+  bodies with scale s <= eps (law (c) Lamb-Oseen core, log tail): 27165 of 27165
+  children whose parent pull < 0.5 c/D (v < 0.71 of the log rail): {'Planetoid': 116, 'Belt': 3, 'Planet': 2}
+  zone far-field c over merged-body c(M_zone), p10/50/90: at 2Z [3.69, 5.54, 7.98], at 10Z [3.69, 5.54, 7.98]
+  mid-zone inward pull by Z: 1000: 1.59, 2125: 1.27, 4182: 0.91, 6846: 0.67, 10000: 0.51
+== [9] (c) Lamb-Oseen + halo L=0.5*D  (10s, 6 draws)
+  Sun       ratio p10/50/90/99 [0.89, 1.17, 1.57, 2.02]  parent-only v p10/50/90 [12.31, 15.4, 19.64]  n 2211
+  GasGiant  ratio p10/50/90/99 [0.85, 1.04, 1.37, 1.89]  parent-only v p10/50/90 [12.69, 17.53, 21.7]  n 3566
+  Planet    ratio p10/50/90/99 [0.89, 0.99, 1.19, 1.6]  parent-only v p10/50/90 [11.57, 16.25, 22.57]  n 7445
+  Planetoid ratio p10/50/90/99 [0.86, 0.99, 1.15, 1.97]  parent-only v p10/50/90 [8.38, 13.27, 19.14]  n 10199
+  Belt      ratio p10/50/90/99 [0.86, 0.99, 1.22, 2.06]  parent-only v p10/50/90 [7.85, 13.19, 19.18]  n 3134
+  planets round suns: parent-only v p10/50/90 [11.79, 16.67, 22.86]; share in 12-18 u/s 0.55
+  planets round a median sun (mass p40-p60, 10607-20254): v p10/50/90 [14.76, 16.63, 17.49]; share in 12-18 0.97; n 1116
+  children with no parent pull at their distance: {'Planetoid': 1}
+  bodies with scale s <= eps (law (c) Lamb-Oseen + halo L=0.5*D): 285 of 27165
+  children whose parent pull < 0.5 c/D (v < 0.71 of the log rail): {'Planetoid': 1321, 'Planet': 807, 'Belt': 512, 'GasGiant': 881, 'Sun': 1423}
+  zone far-field c over merged-body c(M_zone), p10/50/90: at 2Z [0.07, 0.1, 0.12], at 10Z [0.0, 0.0, 0.0]
+  mid-zone inward pull by Z: 1000: 0.35, 2125: 0.24, 4182: 0.16, 6846: 0.11, 10000: 0.08
+== [10] (c) Lamb-Oseen + halo L=1*D  (11s, 6 draws)
+  Sun       ratio p10/50/90/99 [0.98, 1.26, 1.55, 1.83]  parent-only v p10/50/90 [17.77, 20.04, 22.76]  n 2211
+  GasGiant  ratio p10/50/90/99 [0.91, 1.12, 1.44, 1.8]  parent-only v p10/50/90 [16.88, 19.7, 23.44]  n 3566
+  Planet    ratio p10/50/90/99 [0.91, 1.02, 1.26, 1.59]  parent-only v p10/50/90 [14.35, 17.0, 23.35]  n 7445
+  Planetoid ratio p10/50/90/99 [0.89, 1.0, 1.19, 1.63]  parent-only v p10/50/90 [10.37, 13.93, 19.83]  n 10200
+  Belt      ratio p10/50/90/99 [0.9, 1.02, 1.26, 1.77]  parent-only v p10/50/90 [10.18, 14.16, 19.85]  n 3134
+  planets round suns: parent-only v p10/50/90 [14.83, 17.51, 23.44]; share in 12-18 u/s 0.56
+  planets round a median sun (mass p40-p60, 10607-20254): v p10/50/90 [16.49, 17.16, 17.75]; share in 12-18 0.99; n 1116
+  children with no parent pull at their distance: {}
+  bodies with scale s <= eps (law (c) Lamb-Oseen + halo L=1*D): 34 of 27165
+  children whose parent pull < 0.5 c/D (v < 0.71 of the log rail): {'Planetoid': 131, 'Belt': 8, 'Planet': 7}
+  zone far-field c over merged-body c(M_zone), p10/50/90: at 2Z [0.25, 0.36, 0.4], at 10Z [0.01, 0.02, 0.02]
+  mid-zone inward pull by Z: 1000: 0.66, 2125: 0.46, 4182: 0.29, 6846: 0.21, 10000: 0.15
+== [11] (c) Lamb-Oseen + halo L=1.5*outer  (10s, 6 draws)
+  Sun       ratio p10/50/90/99 [0.98, 1.17, 1.41, 1.71]  parent-only v p10/50/90 [18.44, 20.57, 23.1]  n 2211
+  GasGiant  ratio p10/50/90/99 [0.93, 1.11, 1.39, 1.86]  parent-only v p10/50/90 [15.63, 19.92, 23.6]  n 3566
+  Planet    ratio p10/50/90/99 [0.92, 1.04, 1.31, 1.63]  parent-only v p10/50/90 [13.32, 15.95, 23.4]  n 7445
+  Planetoid ratio p10/50/90/99 [0.88, 1.02, 1.26, 1.6]  parent-only v p10/50/90 [9.56, 13.01, 19.9]  n 10200
+  Belt      ratio p10/50/90/99 [0.88, 1.05, 1.32, 1.72]  parent-only v p10/50/90 [9.47, 12.88, 19.93]  n 3134
+  planets round suns: parent-only v p10/50/90 [13.86, 16.58, 23.48]; share in 12-18 u/s 0.60
+  planets round a median sun (mass p40-p60, 10607-20254): v p10/50/90 [14.29, 15.83, 17.22]; share in 12-18 1.00; n 1116
+  children with no parent pull at their distance: {}
+  bodies with scale s <= eps (law (c) Lamb-Oseen + halo L=1.5*outer): 7 of 27165
+  children whose parent pull < 0.5 c/D (v < 0.71 of the log rail): {'Planetoid': 129, 'Belt': 5, 'Planet': 2}
+  zone far-field c over merged-body c(M_zone), p10/50/90: at 2Z [0.26, 0.34, 0.48], at 10Z [0.01, 0.02, 0.02]
+  mid-zone inward pull by Z: 1000: 0.75, 2125: 0.46, 4182: 0.28, 6846: 0.18, 10000: 0.14
+== [12] (c) Lamb-Oseen + halo L=2*outer  (10s, 6 draws)
+  Sun       ratio p10/50/90/99 [1.01, 1.22, 1.46, 1.74]  parent-only v p10/50/90 [19.8, 21.98, 23.7]  n 2211
+  GasGiant  ratio p10/50/90/99 [0.94, 1.15, 1.44, 1.9]  parent-only v p10/50/90 [16.76, 20.91, 23.99]  n 3566
+  Planet    ratio p10/50/90/99 [0.92, 1.06, 1.34, 1.65]  parent-only v p10/50/90 [14.25, 16.36, 23.46]  n 7445
+  Planetoid ratio p10/50/90/99 [0.9, 1.04, 1.27, 1.58]  parent-only v p10/50/90 [10.27, 13.51, 19.99]  n 10200
+  Belt      ratio p10/50/90/99 [0.9, 1.07, 1.34, 1.73]  parent-only v p10/50/90 [10.18, 13.59, 20.05]  n 3134
+  planets round suns: parent-only v p10/50/90 [14.88, 16.96, 23.53]; share in 12-18 u/s 0.59
+  planets round a median sun (mass p40-p60, 10607-20254): v p10/50/90 [15.36, 16.4, 17.45]; share in 12-18 1.00; n 1116
+  children with no parent pull at their distance: {}
+  bodies with scale s <= eps (law (c) Lamb-Oseen + halo L=2*outer): 7 of 27165
+  children whose parent pull < 0.5 c/D (v < 0.71 of the log rail): {'Planetoid': 117, 'Belt': 3, 'Planet': 2}
+  zone far-field c over merged-body c(M_zone), p10/50/90: at 2Z [0.4, 0.52, 0.73], at 10Z [0.02, 0.03, 0.04]
+  mid-zone inward pull by Z: 1000: 0.87, 2125: 0.54, 4182: 0.32, 6846: 0.22, 10000: 0.16
+== [13] (e) conserving halo L=1.5*ext  (9s, 6 draws)
+  Sun       ratio p10/50/90/99 [1.03, 1.25, 1.5, 1.73]  parent-only v p10/50/90 [21.66, 23.43, 24.48]  n 2211
+  GasGiant  ratio p10/50/90/99 [0.96, 1.17, 1.44, 1.88]  parent-only v p10/50/90 [16.23, 21.96, 24.4]  n 3566
+  Planet    ratio p10/50/90/99 [0.93, 1.06, 1.33, 1.63]  parent-only v p10/50/90 [13.42, 16.32, 23.18]  n 7445
+  Planetoid ratio p10/50/90/99 [0.9, 1.04, 1.28, 1.6]  parent-only v p10/50/90 [9.36, 12.54, 18.14]  n 10200
+  Belt      ratio p10/50/90/99 [0.91, 1.07, 1.34, 1.75]  parent-only v p10/50/90 [9.3, 12.64, 19.43]  n 3134
+  planets round suns: parent-only v p10/50/90 [14.29, 16.45, 23.32]; share in 12-18 u/s 0.63
+  planets round a median sun (mass p40-p60, 10607-20254): v p10/50/90 [14.52, 15.86, 16.92]; share in 12-18 1.00; n 1116
+  children with no parent pull at their distance: {}
+  bodies with scale s <= eps (law (e) conserving halo L=1.5*ext): 7 of 27165
+  children whose parent pull < 0.5 c/D (v < 0.71 of the log rail): {'Planetoid': 356, 'Belt': 54, 'Planet': 20, 'GasGiant': 1}
+  zone far-field c over merged-body c(M_zone), p10/50/90: at 2Z [1.18, 1.42, 1.99], at 10Z [1.03, 1.28, 1.84]
+  mid-zone inward pull by Z: 1000: 0.86, 2125: 0.58, 4182: 0.37, 6846: 0.25, 10000: 0.19
+== [14] (e) conserving halo L=2*ext  (9s, 6 draws)
+  Sun       ratio p10/50/90/99 [1.06, 1.3, 1.55, 1.79]  parent-only v p10/50/90 [21.82, 23.49, 24.53]  n 2211
+  GasGiant  ratio p10/50/90/99 [0.97, 1.2, 1.49, 1.92]  parent-only v p10/50/90 [16.79, 22.01, 24.44]  n 3566
+  Planet    ratio p10/50/90/99 [0.94, 1.09, 1.37, 1.66]  parent-only v p10/50/90 [14.07, 16.43, 23.2]  n 7445
+  Planetoid ratio p10/50/90/99 [0.91, 1.05, 1.3, 1.58]  parent-only v p10/50/90 [10.01, 13.0, 18.14]  n 10200
+  Belt      ratio p10/50/90/99 [0.92, 1.09, 1.36, 1.75]  parent-only v p10/50/90 [9.97, 13.26, 19.44]  n 3134
+  planets round suns: parent-only v p10/50/90 [14.91, 16.67, 23.32]; share in 12-18 u/s 0.62
+  planets round a median sun (mass p40-p60, 10607-20254): v p10/50/90 [15.32, 16.31, 17.14]; share in 12-18 1.00; n 1116
+  children with no parent pull at their distance: {}
+  bodies with scale s <= eps (law (e) conserving halo L=2*ext): 7 of 27165
+  children whose parent pull < 0.5 c/D (v < 0.71 of the log rail): {'Planetoid': 239, 'Belt': 22, 'Planet': 9}
+  zone far-field c over merged-body c(M_zone), p10/50/90: at 2Z [1.24, 1.52, 2.07], at 10Z [1.03, 1.28, 1.85]
+  mid-zone inward pull by Z: 1000: 0.95, 2125: 0.64, 4182: 0.40, 6846: 0.27, 10000: 0.21

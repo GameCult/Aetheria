@@ -1,0 +1,20 @@
+A&S K0 at x = 2 (phi = -c K0(r/lam); jumps in K0^(n), multiply by -c/lam^n):
+  d^0: jump   -7.58e-9 1/lam^0   true value   0.113894   |jump|/|true| 6.65e-8
+  d^1: jump   -2.48e-7 1/lam^1   true value  -0.139866   |jump|/|true| 1.77e-6
+  d^2: jump    8.43e-7 1/lam^2   true value   0.183827   |jump|/|true| 4.59e-6
+  d^3: jump   -7.68e-5 1/lam^3   true value  -0.266746   |jump|/|true| 0.000288
+A&S K1 at x = 2 (force = (c/lam) K1(r/lam)):
+  d^0: jump    1.48e-9 1/lam^0   true value   0.139866   |jump|/|true| 1.06e-8
+  d^1: jump    1.92e-7 1/lam^1   true value  -0.183827   |jump|/|true| 1.04e-6
+  d^2: jump   -5.14e-6 1/lam^2   true value   0.266746   |jump|/|true| 1.93e-5
+  d^3: jump    4.64e-5 1/lam^3   true value   -0.44408   |jump|/|true| 0.000105
+A&S E1 at u = 1 (phi = (c/2) Ein(r^2/eps^2), seam at r = eps; jumps in units c/eps^n):
+  d^0: jump     2.2e-9 1/eps^0   true value     0.3983   |jump|/|true| 5.52e-9
+  d^1: jump   -2.19e-6 1/eps^1   true value   0.632121   |jump|/|true| 3.46e-6
+  d^2: jump  -0.000128 1/eps^2   true value   0.103638   |jump|/|true| 0.00124
+  d^3: jump   -0.00512 1/eps^3   true value  -0.943036   |jump|/|true| 0.00543
+Today's core at r = R (phi: r^2/2R^2 inside, ln(r/R)+1/2 beyond; units c/R^n):
+  d^0: jump        0.0 1/R^0   true value        0.5   |jump|/|true| 0.0
+  d^1: jump        0.0 1/R^1   true value        1.0   |jump|/|true| 0.0
+  d^2: jump       -2.0 1/R^2   true value       -1.0   |jump|/|true| 2.0
+  d^3: jump        2.0 1/R^3   true value        2.0   |jump|/|true| 1.0
