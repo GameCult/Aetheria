@@ -24,7 +24,8 @@ public static class FloatingItemsDrawnSmoke
     private const string Flag = "FloatingItemsDrawnSmoke.running";
     private const string Wiring = "FloatingItemsDrawnSmoke.wiring";
     private static IEnumerator _check;
-    private static int _frames;
+    private const double Budget = 300; // real seconds: batch frames can be far shorter than a game second
+    private static double _started;
     private static string _work;
 
     static FloatingItemsDrawnSmoke()
@@ -52,6 +53,7 @@ public static class FloatingItemsDrawnSmoke
         if (change != PlayModeStateChange.EnteredPlayMode) return;
         _work = Path.Combine(Path.GetTempPath(), $"floating-items-smoke-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_work);
+        _started = Time.realtimeSinceStartupAsDouble;
         _check = Check();
         EditorApplication.update += Step;
     }
@@ -60,7 +62,7 @@ public static class FloatingItemsDrawnSmoke
     {
         try
         {
-            if (++_frames > 3000) throw new InvalidOperationException("The check did not finish in 3000 frames.");
+            if (Time.realtimeSinceStartupAsDouble - _started > Budget) throw new InvalidOperationException($"The check did not finish in {Budget} seconds.");
             if (_check.MoveNext()) return;
             Finish(0);
         }
@@ -185,10 +187,13 @@ public static class FloatingItemsDrawnSmoke
         var earlyPickup = Pickups().Single(p => p.Item == early.Item);
         earlyPickup.LabelPersistDuration = 1;
         earlyPickup.LabelFadeDuration = .2f;
-        for (var i = 0; i < 1200 && earlyPickup.ScanLabel.color.a > .05f; i++) yield return null;
+        // Game time, not frames: batch frames can be far shorter than a game second, so a frame count can run out before the fade.
+        var labelUntil = Time.time + earlyPickup.LabelPersistDuration + earlyPickup.LabelFadeDuration + 1f;
+        while (Time.time < labelUntil && earlyPickup.ScanLabel.color.a > .05f) yield return null;
         Require(earlyPickup.ScanLabel.color.a <= .05f, "label: an unviewed, unheld label did not go dark.");
         Require(zone.TryHold(taker, early.Id), "label: the zone refused to hold the item.");
-        for (var i = 0; i < 1200 && earlyPickup.ScanLabel.color.a < .95f; i++) yield return null;
+        labelUntil = Time.time + earlyPickup.LabelPersistDuration + earlyPickup.LabelFadeDuration + 1f;
+        while (Time.time < labelUntil && earlyPickup.ScanLabel.color.a < .95f) yield return null;
         Require(earlyPickup.ScanLabel.color.a >= .95f, "label: a held item's label is not lit.");
 
         // The test scene's stand-in sim and tendril ride the zone's own held-pose curve: its pose at each point of a grab
