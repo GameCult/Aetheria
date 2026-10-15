@@ -289,6 +289,40 @@ public sealed partial class ContactRevealTests
         Assert.Equal(3f, sil.AimPoint.y, 4);
     }
 
+    // ---- AMountAimThatLostItsGateDropsOutOfForecastAndFire ----
+
+    // The aim slot holds the mount, but what prices and freezes a shot is the aim as it resolves now: a mount the observer has
+    // since seen destroyed, or whose hull it no longer identifies, is no aim. The forecast prices the unaimed hull and the
+    // shot is fired aimed at nothing, though nothing wrote the slot at the moment the gate closed.
+    [Theory]
+    [InlineData("destroyed")]
+    [InlineData("unidentified")]
+    public void AMountAimThatLostItsGateDropsOutOfForecastAndFire(string how)
+    {
+        var (shooter, bay, reactor, weapon, gun) = Gunner();
+        var aimedPrice = FireControl.Inspect(weapon, shooter, bay).POnHull;
+        shooter.TrySelectTargetItem(null);
+        var unaimedPrice = FireControl.Inspect(weapon, shooter, bay).POnHull;
+        Assert.True(Math.Abs(aimedPrice - unaimedPrice) > 1e-3f, "fixture: the mount aim and no aim are priced apart");
+        Assert.True(shooter.TrySelectMount(reactor.Hardpoint), "fixture: the mount is aimed at again");
+
+        if (how == "destroyed")
+        {
+            reactor.EquippableItem.Durability = 0f;
+            SenseOf(shooter)();
+        }
+        else
+        {
+            shooter.EntityInfoGathered[bay] = Identify - .01f;
+        }
+        Assert.True(shooter.ResolvedAim.Mount == null, "fixture: the aim no longer resolves");
+
+        if (how == "destroyed")
+            Assert.Equal(unaimedPrice, FireControl.Inspect(weapon, shooter, bay).POnHull, 4);
+        var shot = FireAt(weapon, gun, shooter);
+        Assert.True(shot.AimedMount == null && shot.Aimed == null, "the shot is aimed at nothing");
+    }
+
     // ---- TheShotKeepsTheAimItWasFiredWith ----
 
     [Fact]

@@ -122,7 +122,7 @@ public readonly struct Reveal
     }
 }
 
-// What an observer aims at on its target (Entity.Aim): exactly one of a revealed item or a mount of the hull the observer
+// What an observer aims at on its target (Entity.AimedAt): exactly one of a revealed item or a mount of the hull the observer
 // believes the target to be (Entity.LayoutOf), or nothing. A mount is a believed position, never the true item on it.
 public readonly struct AimTarget
 {

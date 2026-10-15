@@ -321,8 +321,8 @@ public static class FireControl
     // GetBehavior<TargetingSystem> calls (Accuracy, Resolution via PSensor, Precision), at ~40 B each -- each
     // one walks Entity.Equipment, a ReactiveCollection<T> whose enumerator is heap-allocated per foreach. It is
     // NOT `Behaviors` (the earlier wording here was wrong): EquippedItem.Behaviors is a plain array, allocates
-    // nothing to enumerate. With an item aimed at, ResolveAimPoint -> CellsOf also allocates (a List, then
-    // ToArray) -- about 944 B per HitProbability, on top of the three GetBehavior calls. None of this is
+    // nothing to enumerate. With an item or a mount aimed at, ResolveAimPoint also allocates: CellsOf (a List, then
+    // ToArray) about 944 B per HitProbability, measured; MountCells (a LINQ Select, then ToArray) not measured. Both are on top of the three GetBehavior calls. None of this is
     // Silhouette's or this pooling's cost; it predates Cut 12.2 and belongs to Entity's own collection choice
     // and to CellsOf, out of this cut's scope. Cut 10's own guard is what actually matters
     // operationally: HitProbability and CommitProbability both bail before Forecast is ever called for the

@@ -217,4 +217,43 @@ public sealed partial class ContactRevealTests
 
         Assert.True(SameMounts(honest.HullData.Hardpoints.ToArray(), MountsOf(observer.AimCycle(liar))), "no claimed mount is recorded destroyed");
     }
+
+    // ---- TheRecordIsPerSubject ----
+
+    // Two ships of one hull share their HardpointData. The reactor seen destroyed on one Bay leaves that Bay's cycle and no
+    // other: the observer's memory is of the ship it saw, not of the mount.
+    [Fact]
+    public void TheRecordIsPerSubject()
+    {
+        var (bayA, observer, reactorA) = Identified();
+        var bayB = AddBay(float3(100, 0, 100));
+        observer.EntityInfoGathered[bayB] = 1f;
+        var reactorB = Fitted(bayB, "BayReactor");
+        Assert.True(ReferenceEquals(reactorA.Hardpoint, reactorB.Hardpoint), "fixture: the two Bays share their mount objects");
+
+        reactorA.EquippableItem.Durability = 0f;
+        SenseOf(observer)();
+
+        Assert.False(MountsOf(observer.AimCycle(bayA)).Any(m => ReferenceEquals(m, reactorA.Hardpoint)), "fixture: seen destroyed on A");
+        Assert.True(MountsOf(observer.AimCycle(bayB)).Any(m => ReferenceEquals(m, reactorB.Hardpoint)), "B's reactor mount stays in B's cycle");
+        Target(observer, bayB);
+        Assert.True(observer.TrySelectMount(reactorB.Hardpoint), "and can be aimed at on B");
+    }
+
+    // ---- DeactivateClearsTheRecord ----
+
+    // A ship that warps out forgets what it saw: its fresh book no longer supports the record, so the mount seen destroyed
+    // is back in the cycle.
+    [Fact]
+    public void DeactivateClearsTheRecord()
+    {
+        var (bay, observer, reactor) = Identified();
+        reactor.EquippableItem.Durability = 0f;
+        SenseOf(observer)();
+        Assert.False(MountsOf(observer.AimCycle(bay)).Any(m => ReferenceEquals(m, reactor.Hardpoint)), "fixture: recorded");
+
+        observer.Deactivate();
+        observer.EntityInfoGathered[bay] = 1f;
+        Assert.True(MountsOf(observer.AimCycle(bay)).Any(m => ReferenceEquals(m, reactor.Hardpoint)), "the record went with the observer's memory");
+    }
 }

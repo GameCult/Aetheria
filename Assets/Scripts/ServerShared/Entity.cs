@@ -459,7 +459,7 @@ public abstract class Entity
             var subject = Target.Value.Entity;
             var aim = AimedAt;
             if (subject == null) return AimTarget.None;
-            if (aim.Item != null) return aim.Item.Entity == subject && FireControl.IsRevealed(this, aim.Item) ? aim : AimTarget.None;
+            if (aim.Item != null) return FireControl.IsRevealed(this, aim.Item) ? aim : AimTarget.None;
             return MountAimable(subject, aim.Mount) ? aim : AimTarget.None;
         }
     }
@@ -1055,17 +1055,16 @@ public abstract class Entity
         if (subject.Parent == null && !Zone.Entities.Contains(subject) && !_reveals.ContainsKey(subject)) _iffOverrides.Remove(subject);
     }
 
-    // This observer perceives `subject`'s gear (ContactOf's Identified gate): each of its destroyed items on a mount of the
-    // hull this ship believes it to be (LayoutOf, by reference) or in the book leaves its mount in the seen-destroyed
-    // record. The same PerceivesDestroyed Sense ends reveals by, applied to located mounts.
+    // This observer perceives `subject`'s gear (ContactOf's Identified gate): each of its destroyed items leaves its mount
+    // in the seen-destroyed record. The same PerceivesDestroyed Sense ends reveals by, applied to mounts. The record is read
+    // only for mounts of LayoutOf (MountAimable, AimCycle), so a true mount outside the believed layout is never asked for.
     private void RecordSeenDestroyed(Entity subject)
     {
-        // Indexed, and the layout read only for an item actually perceived destroyed: Sense runs for every pair of ships every tick.
+        // Indexed: Sense runs for every pair of ships every tick.
         for (var i = 0; i < subject.Equipment.Count; i++)
         {
             var item = subject.Equipment[i];
             if (item.Hardpoint == null || !PerceivesDestroyed(subject, item)) continue;
-            if (!LayoutOf(subject).Contains(item.Hardpoint) && !(_reveals.TryGetValue(subject, out var book) && book.ContainsKey(item))) continue;
             if (!_seenDestroyed.TryGetValue(subject, out var seen)) _seenDestroyed[subject] = seen = new HashSet<HardpointData>();
             seen.Add(item.Hardpoint);
         }
