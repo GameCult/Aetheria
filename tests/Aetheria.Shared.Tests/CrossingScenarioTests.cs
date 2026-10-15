@@ -68,7 +68,7 @@ public sealed partial class RunStartTests
         Assert.True(pass.Swept, $"the crosser's bearing never swept across the bow within {CrossingSeconds} s");
         Assert.True(pass.Ahead.y > 0, "the crosser passes the bow line ahead of the player, not astern");
         Assert.True(length(pass.Ahead) < CrossingMetres, "the crosser passes inside the stated distance");
-        Assert.True(FireControl.InArc(small, pass.Ahead), "Cell Blaster bears on the crosser as it crosses");
+        Assert.True(FireControl.InArc(small, float3(pass.Ahead.x, 0, pass.Ahead.y)), "Cell Blaster bears on the crosser as it crosses");
         Assert.True(dot(FireControl.MountDirection(small), float3(player.Direction.x, 0, player.Direction.y)) > 0, "Cell Blaster mounts forward");
         // At seed 112 with no input the pass is at about 3.6 s and 45 m; a seed, field or staging change that loses it moves these.
         Assert.InRange(pass.Seconds, CrossingEarliest, CrossingLatest);
