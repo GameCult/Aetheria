@@ -386,7 +386,7 @@ public sealed class FireControlTests : IDisposable
     [Fact]
     public void ADrawnShipRidesTheFieldAtItsDrawnPosition()
     {
-        var (_, ship, _) = BuildShipWithHardpoints(true, new[] { (ItemRotation.None, 0f) });
+        var (items, ship, _) = BuildShipWithHardpoints(true, new[] { (ItemRotation.None, 0f) });
         var zone = ship.Zone;
         ship.Position = float3(200, 0, 0);
         zone.Update(1f);
@@ -402,6 +402,13 @@ public sealed class FireControlTests : IDisposable
         Assert.Equal(ship.Position.x, still.x);
         Assert.Equal(ship.Position.y, still.y);
         Assert.Equal(ship.Position.z, still.z);
+
+        // A child (a docked ship) is drawn where its parent is drawn, whatever its own pose and velocity.
+        var child = new Ship(items, zone, ship.Hull, new EntitySettings()) { Position = float3(-500, 7, 300), Velocity = float2(-30, 40), Parent = ship };
+        var carried = DrawAhead.Position(child, lead);
+        Assert.Equal(drawn.x, carried.x, 4);
+        Assert.Equal(drawn.y, carried.y, 4);
+        Assert.Equal(drawn.z, carried.z, 4);
     }
 
     [Fact]
