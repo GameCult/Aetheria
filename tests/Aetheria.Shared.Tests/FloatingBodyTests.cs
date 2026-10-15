@@ -227,4 +227,25 @@ public sealed class FloatingBodyTests : IDisposable
             Assert.True(length(up - normal) < 1e-4f, "the ship tilts to the zone's surface normal");
         }
     }
+
+    // Ship.Update's order: position first, then gravity sampled where the ship now is (leapfrog's kick after the drift). A
+    // ship already moving falls toward the centre through the field at its new place, not the one it left.
+    [Fact]
+    public void AMovingShipFeelsTheFieldWhereItHasMoved()
+    {
+        var ship = ShipAt(400f, out var zone);
+        ship.Velocity = float2(-200f, 0f);
+        const float delta = .25f;
+
+        ship.Update(delta);
+
+        var moved = float2(400f, 0f) + float2(-200f, 0f) * delta;
+        Assert.Equal(moved.x, ship.Position.x, 1e-3f);
+        var pulled = (ship.Velocity - float2(-200f, 0f)) / delta;
+        var expected = zone.GetForce(moved);
+        Assert.True(expected.x < 0f, "the well pulls inward at the ship's new place");
+        Assert.InRange(pulled.x, expected.x * (1f + 1e-3f), expected.x * (1f - 1e-3f));
+        Assert.InRange(pulled.y, -1e-3f, 1e-3f);
+        Assert.NotEqual(zone.GetForce(float2(400f, 0f)).x, expected.x); // the premise: the field differs between the two places
+    }
 }

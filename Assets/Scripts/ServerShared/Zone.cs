@@ -712,6 +712,8 @@ public class Planet
         WellStrength = Settings.WellStrength.Evaluate(BodyData.Mass);
         CoreRadius = Settings.CoreRadius.Evaluate(BodyData.Mass);
         RocheLimit = Settings.RocheLimit.Evaluate(BodyData.Mass);
+        if (!(WellStrength >= 0f) || float.IsInfinity(WellStrength))
+            throw new InvalidOperationException("A body's well strength must be finite and not negative (PlanetSettings.WellStrength).");
         if (WellStrength > 0 && !(0 < CoreRadius && CoreRadius < RocheLimit))
             throw new InvalidOperationException("A body's core radius must be positive and inside its Roche limit (PlanetSettings.CoreRadius, RocheLimit).");
     }
