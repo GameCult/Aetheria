@@ -255,6 +255,19 @@ namespace Aetheria.EditorTools
         // menu's own brush objects (Boundary on layer 9, the Waves on layer 10) and are presentation by spec (follow-up
         // menu-grid-brushes), not a reader of the potential. This pins that: a ZoneRenderer in the menu would make its
         // cameras readers of the field, and they would have to cull layer 9 alone like ARPG's.
+        static void CheckTestSceneWiring()
+        {
+            EditorSceneManager.OpenScene("Assets/Scenes/TestScene.unity", OpenSceneMode.Single);
+            try
+            {
+                if (CheckPatchCameras("TestScene.unity") < 1) Fail("wiring", "no Fog Patch Displacement camera in TestScene.unity");
+            }
+            finally
+            {
+                EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            }
+        }
+
         static void CheckMenuWiring()
         {
             var scene = EditorSceneManager.OpenScene("Assets/Scenes/Main Menu.unity", OpenSceneMode.Single);
@@ -272,11 +285,27 @@ namespace Aetheria.EditorTools
                         Fail("wiring", $"Main Menu camera {camera.name} culls mask {camera.cullingMask}, not the menu brush layers 9 and 10");
                 }
                 if (seen != 1) Fail("wiring", $"{seen} Fog Surface Displacement cameras in Main Menu.unity, expected 1");
+                if (CheckPatchCameras("Main Menu.unity") < 1) Fail("wiring", "no Fog Patch Displacement camera in Main Menu.unity");
             }
             finally
             {
                 EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             }
+        }
+
+        // Every scene's Fog Patch Displacement camera: cloudDensity adds the R32 gravity height to the patch texture, so
+        // a patch camera that culls the gravity layer counts the field twice. Returns how many it found in the open scene.
+        static int CheckPatchCameras(string sceneName)
+        {
+            var found = 0;
+            foreach (var camera in UnityEngine.Object.FindObjectsByType<Camera>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                if (camera.targetTexture == null || camera.targetTexture.name != "Fog Patch Displacement") continue;
+                found++;
+                if ((camera.cullingMask & 1 << GravityLowering.FieldLayer) != 0)
+                    Fail("wiring", $"camera {camera.name} (target Fog Patch Displacement) in {sceneName} culls layer {GravityLowering.FieldLayer}, the gravity layer");
+            }
+            return found;
         }
 
         static void CheckWiring(GameSettings settings)
@@ -296,15 +325,7 @@ namespace Aetheria.EditorTools
                 if (seen < gravityTargets.Length) Fail("wiring", $"only {seen} gravity cameras found in ARPG.unity");
 
                 // The patch texture is half-float: it holds the patch layers only, the nebula reads gravity from the R32 surface.
-                var patchCameras = 0;
-                foreach (var camera in UnityEngine.Object.FindObjectsByType<Camera>(FindObjectsInactive.Include, FindObjectsSortMode.None))
-                {
-                    if (camera.targetTexture == null || camera.targetTexture.name != "Fog Patch Displacement") continue;
-                    patchCameras++;
-                    if ((camera.cullingMask & 1 << GravityLowering.FieldLayer) != 0)
-                        Fail("wiring", $"camera {camera.name} (target Fog Patch Displacement) culls layer {GravityLowering.FieldLayer}, the gravity layer");
-                }
-                if (patchCameras != 1) Fail("wiring", $"{patchCameras} Fog Patch Displacement cameras in ARPG.unity, expected 1");
+                if (CheckPatchCameras("ARPG.unity") != 1) Fail("wiring", "ARPG.unity does not have exactly 1 Fog Patch Displacement camera");
 
                 // The map screen's gravity camera has no target until MapRenderer gives it one at run time.
                 var map = UnityEngine.Object.FindFirstObjectByType<MapRenderer>(FindObjectsInactive.Include);
@@ -327,6 +348,7 @@ namespace Aetheria.EditorTools
             }
 
             CheckMenuWiring();
+            CheckTestSceneWiring();
 
             foreach (var path in new[]
             {
