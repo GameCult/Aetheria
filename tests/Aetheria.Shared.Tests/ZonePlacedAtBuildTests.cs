@@ -16,7 +16,7 @@ public sealed class ZonePlacedAtBuildTests : IDisposable
 {
     private static readonly float2 RootAt = new float2(300f, -200f);
     private const float Distance = 400f;
-    private const float Period = 40f;
+    private const float SunStrength = 100f; // the root's body: the planet circles in its field
 
     private readonly string _root = Path.Combine(Path.GetTempPath(), "aetheria-zoneplaced-" + Guid.NewGuid().ToString("N"));
     private readonly List<CultCache> _caches = new List<CultCache>();
@@ -38,13 +38,13 @@ public sealed class ZonePlacedAtBuildTests : IDisposable
 
     private static ExponentialCurve Flat(float v) => new ExponentialCurve { Constant = v };
 
-    // One planet with a well (c 100, Roche limit and core 20 u), a fixed root orbit at RootAt and the
-    // planet orbiting it at Distance from `phase`. Every orbit period is Period seconds.
+    // A sun on the fixed root orbit at RootAt, a planet orbiting it at Distance from `phase`, and a light moon body on
+    // the moon orbit so the moon's moon has a field to circle in. A body's well is 100 per unit of mass; every core
+    // (Roche limit) is 20 u.
     private static PlanetSettings Settings() => new PlanetSettings
     {
-        OrbitPeriod = Flat(Period),
         BodyRadius = Flat(20f),
-        WellStrength = Flat(100f),
+        WellStrength = new ExponentialCurve { Multiplier = 100f, Exponent = 1f },
         RocheLimit = Flat(20f),
         LightRadius = Flat(0f)
     };
@@ -86,10 +86,12 @@ public sealed class ZonePlacedAtBuildTests : IDisposable
         {
             Parent = new CultRecordRef<OrbitData>(moonOrbit), Distance = 40f
         }).Key;
+        var sun = cache.Upsert(new PlanetData { Orbit = new CultRecordRef<OrbitData>(rootOrbit), Mass = 1f }).Key;
         var planet = cache.Upsert(new PlanetData { Orbit = new CultRecordRef<OrbitData>(planetOrbit), Mass = 1f }).Key;
+        var moon = cache.Upsert(new PlanetData { Orbit = new CultRecordRef<OrbitData>(moonOrbit), Mass = .01f }).Key;
         var pack = new ZonePack
         {
-            Planets = { new CultRecordRef<BodyData>(planet) },
+            Planets = { new CultRecordRef<BodyData>(sun), new CultRecordRef<BodyData>(planet), new CultRecordRef<BodyData>(moon) },
             Radius = 5000f,
             Mass = 10000f,
             Time = time
@@ -154,7 +156,7 @@ public sealed class ZonePlacedAtBuildTests : IDisposable
     public void TheFirstTickVelocityIsTheOrbitsSpeed(bool moonFirst)
     {
         var s = Build(.35f, 0.0, moonFirst);
-        var expected = 2f * PI * Distance / Period;
+        var expected = sqrt(SunStrength); // outside the core T = 2 pi d / sqrt(c): the speed is sqrt(c), whatever d
         foreach (var dt in new[] { 1f / 60f, 1f / 30f, 1f / 60f })
         {
             s.Zone.Update(dt);

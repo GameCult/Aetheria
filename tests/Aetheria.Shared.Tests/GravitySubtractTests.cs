@@ -45,8 +45,7 @@ public sealed class GravitySubtractTests : IDisposable
         WellStrength = new ExponentialCurve { Exponent = .2f, Multiplier = 45.08f },
         RocheLimit = new ExponentialCurve { Exponent = .25f, Multiplier = 7.32f },
         BodyRadius = new ExponentialCurve { Exponent = .25f, Multiplier = 3f },
-        LightRadius = new ExponentialCurve { Exponent = .25f, Multiplier = 300f },
-        OrbitPeriod = new ExponentialCurve()
+        LightRadius = new ExponentialCurve { Exponent = .25f, Multiplier = 300f }
     };
 
     private Zone Bare(float packRadius) => new Zone(_items, Planets(), new ZonePack { Radius = packRadius },

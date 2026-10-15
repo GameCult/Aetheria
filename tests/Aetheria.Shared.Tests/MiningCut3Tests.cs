@@ -47,11 +47,12 @@ public sealed partial class MiningCut3Tests : IDisposable
         FiringArc = 90f
     };
 
-    // Flat terrain (no zone depth, no gravity wells), one sun whose light reaches 1000 units, and the chunk
+    // Every sun carries a well (the belts circle in it, c = 9), one sun whose light reaches 1000 units, and the chunk
     // curves MiningCut2Tests uses, so sizes and wear vary over the fixture's range.
     private static PlanetSettings PlanetSettings(float lightRadius = 1000f) => new PlanetSettings
     {
-        OrbitPeriod = new ExponentialCurve { Multiplier = 0.6f, Exponent = 1.3f, Constant = 40f },
+        WellStrength = new ExponentialCurve { Constant = 9f },
+        RocheLimit = new ExponentialCurve { Constant = 1f },
         AsteroidSize = new ExponentialLerp { Minimum = 2f, Maximum = 9f, Exponent = 1.7f },
         AsteroidHitpoints = new ExponentialLerp { Minimum = 20f, Maximum = 220f, Exponent = 1.6f },
         AsteroidRespawnTime = new ExponentialLerp { Minimum = 8f, Maximum = 96f, Exponent = 1.2f },

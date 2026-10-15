@@ -458,7 +458,8 @@ public sealed partial class MiningCut3Tests
         var spread = Enumerable.Range(0, 700).Select(_ => Rock(50f + (float) rng.NextDouble() * 5950f, (float) rng.NextDouble(), (float) rng.NextDouble())).ToArray();
         var s = BuildSceneAt(centre, 20000f, 777.25, null, new[] { kind }, Belt(kind, spread), Belt(kind, Annulus(rng, 3000, 999f, 1001f)));
         var game = PlanetSettings(20000f);
-        game.OrbitPeriod = new ExponentialCurve { Multiplier = 1f, Exponent = 1f, Constant = 0f };
+        // The game's periods: T = 2 pi d / sqrt(c) with c = 4 pi^2 is T = d.
+        game.WellStrength = new ExponentialCurve { Constant = 4f * PI * PI };
         var searches = 0;
         foreach (var zone in new[] { s.Zone, new Zone(s.Items, game, s.Pack, new GalaxyZone { Name = "Game periods", Owner = null }, null) })
         foreach (var step in new[] { 0f, 13f, 1e4f, 3.3e7f })

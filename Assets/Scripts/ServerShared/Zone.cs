@@ -158,14 +158,8 @@ public class Zone
 
         foreach (var orbit in pack.Orbits)
         {
-            Orbits.Add(orbit.Key, new Orbit(Settings, cache.Get(orbit)));
+            Orbits.Add(orbit.Key, new Orbit(cache.Get(orbit)));
         }
-
-        // Aetheria gravity (target invariant zone-valid-before-tick): every orbit is placed at the pack's time
-        // when the zone is built, so each well, light and body pose read before the first Update is where the
-        // body is. Velocity stays zero until the first Update differences two placed positions.
-        foreach (var orbit in Orbits)
-            GetOrbitPosition(orbit.Key);
 
         foreach (var body in pack.Planets)
         {
@@ -178,7 +172,6 @@ public class Zone
                     // the rule generation uses, and keeps it.
                     FieldKinds.Ensure(body.Key, belt, cache);
                     AsteroidBelts[body.Key] = new AsteroidBelt(belt);
-                    Targets.Add(new BeltTargets(this, body.Key, belt, settings, _time));
                     break;
                 case SunData sun:
                     var sunInstance = new Sun(settings, sun, Orbits[planet.Orbit.Key]);
@@ -193,6 +186,40 @@ public class Zone
                     break;
             }
         }
+
+        // Orbits, bodies and belts exist: every rail's period is derived once, from the field it orbits in.
+        foreach (var orbit in Orbits)
+        {
+            var parent = orbit.Value.Data.Parent;
+            if (!parent.IsSet()) continue;
+            if (!_childOrbits.TryGetValue(parent.Key, out var siblings))
+                _childOrbits[parent.Key] = siblings = new List<CultRecordKey>();
+            siblings.Add(orbit.Key);
+        }
+        foreach (var body in PlanetInstances)
+            if (body.Value.WellStrength > 0)
+                _wellOn.TryAdd(Planets[body.Key].Orbit.Key, body.Value);
+        foreach (var orbit in Orbits)
+            orbit.Value.Period = orbit.Value.Data.Parent.IsSet()
+                ? PeriodAround(orbit.Value.Data.Parent.Key, orbit.Value.Data.Distance, orbit.Key)
+                : float.PositiveInfinity;
+        foreach (var belt in AsteroidBelts)
+        {
+            var beltOrbit = Planets[belt.Key].Orbit.Key;
+            var beltParent = Orbits[beltOrbit].Data.Parent.Key;
+            for (var i = 0; i < belt.Value.Periods.Length; i++)
+                belt.Value.Periods[i] = PeriodAround(beltParent, belt.Value.Data.Asteroids[i].Distance, beltOrbit);
+        }
+
+        // Aetheria gravity (target invariant zone-valid-before-tick): every orbit is placed at the pack's time
+        // when the zone is built, so each well, light and body pose read before the first Update is where the
+        // body is. Velocity stays zero until the first Update differences two placed positions.
+        foreach (var orbit in Orbits)
+            GetOrbitPosition(orbit.Key);
+
+        // BeltTargets copies the belts' periods, so it is built after them.
+        foreach (var belt in AsteroidBelts)
+            Targets.Add(new BeltTargets(this, belt.Key, belt.Value.Data, settings, _time));
 
         // Cut 2 (docs/mining-cut.md): read after belts are built so a later ChunkExists/ChunkRadius call has
         // Planets/AsteroidBelts populated. A pack from before key 6 existed has ChunkWear == null (nullable
@@ -481,6 +508,8 @@ public class Zone
         {
             var orbit = Orbits[orbitID];
             float2 pos = float2.zero;
+            // An infinite period (a parentless orbit, or one with no field to circle in) leaves the orbit at its phase:
+            // frac(t / inf) is 0.
             if (orbit.Period > .01f)
             {
                 var phase = (float) frac(_time / orbit.Period);
@@ -501,6 +530,67 @@ public class Zone
         }
 
         return Orbits[orbitID].Position;
+    }
+
+    // orbit -> the well-bearing body on it, and orbit -> the orbits whose parent it is. Derived from the pack in the
+    // constructor, read only by PeriodAround and Strength.
+    private readonly Dictionary<CultRecordKey, Planet> _wellOn = new Dictionary<CultRecordKey, Planet>();
+    private readonly Dictionary<CultRecordKey, List<CultRecordKey>> _childOrbits = new Dictionary<CultRecordKey, List<CultRecordKey>>();
+    private readonly Dictionary<CultRecordKey, float> _strengths = new Dictionary<CultRecordKey, float>();
+
+    // The one owner of a rail's period (Orbit.Period, AsteroidBelt.Periods): 2 pi sqrt(d / a), a being the pull the
+    // field gives at distance d from the node being orbited. Round a body, that is the body's own well through
+    // GravityField. Round a bodyless node it is the ring law: the strength of the node's orbits inside d, plus the
+    // ring term for the orbits on d itself (within RingWindow of it), taken as a point at the node. A bodied self
+    // feels half the strength of its ring partners (as a binary does); a strengthless self (a station, a turret)
+    // takes the period its bodied ring partners have, the mean of what each of them feels. No pull gives an
+    // infinite period.
+    private const float RingWindow = 0.1f;
+
+    private float PeriodAround(CultRecordKey parentOrbit, float distance, CultRecordKey self)
+    {
+        float a;
+        if (_wellOn.TryGetValue(parentOrbit, out var body))
+            a = length(GravityField.Acceleration(body.WellStrength, body.RocheLimit, float2(distance, 0)));
+        else
+        {
+            var inside = 0f;
+            var ring = new List<(CultRecordKey Orbit, float Strength)>();
+            if (_childOrbits.TryGetValue(parentOrbit, out var children))
+                foreach (var child in children)
+                {
+                    var childDistance = Orbits[child].Data.Distance;
+                    var childStrength = Strength(child);
+                    if (childDistance < distance - RingWindow) inside += childStrength;
+                    else if (childDistance <= distance + RingWindow && childStrength > 0) ring.Add((child, childStrength));
+                }
+            // Whose pull self feels: its own if it has strength, else each bodied member of the ring.
+            var ringSum = 0f;
+            foreach (var member in ring) ringSum += member.Strength;
+            var selfBodied = Strength(self) > 0;
+            var feelings = 0f;
+            var feelers = 0;
+            foreach (var member in ring)
+                if (!selfBodied || member.Orbit.Equals(self))
+                {
+                    feelings += (ringSum - member.Strength) / 2;
+                    feelers++;
+                }
+            var strength = inside + (feelers > 0 ? feelings / feelers : 0f);
+            a = length(GravityField.Acceleration(strength, 0f, float2(distance, 0)));
+        }
+        return a > 0 && distance > 0 ? 2 * PI * sqrt(distance / a) : float.PositiveInfinity;
+    }
+
+    // The well strength an orbit carries as a node: its own body's plus every orbit round it, recursively.
+    private float Strength(CultRecordKey orbit)
+    {
+        if (_strengths.TryGetValue(orbit, out var known)) return known;
+        var strength = _wellOn.TryGetValue(orbit, out var body) ? body.WellStrength : 0f;
+        if (_childOrbits.TryGetValue(orbit, out var children))
+            foreach (var child in children)
+                strength += Strength(child);
+        return _strengths[orbit] = strength;
     }
 
     public float2 GetOrbitVelocity(CultRecordKey orbit)
@@ -571,7 +661,7 @@ public class Zone
         var beltData = Planets[belt] as AsteroidBeltData;
         var parentPosition = GetOrbitPosition(Orbits[beltData.Orbit.Key].Data.Parent.Key);
         var size = ChunkRadius(new ChunkId(belt, index));
-        return AsteroidBelts[belt].Pose(index, _time, parentPosition, Settings, size);
+        return AsteroidBelts[belt].Pose(index, _time, parentPosition, size);
     }
 
     // Mining Cut 3 (docs/mining-cut-refresh.md): how bright a chunk is -- Reflector's rule (cross-section × the light
@@ -592,7 +682,7 @@ public class Zone
         var parentPosition = GetOrbitPosition(Orbits[beltData.Orbit.Key].Data.Parent.Key);
         var beltInstance = AsteroidBelts[belt];
         for (var i = 0; i < beltData.Asteroids.Length; i++)
-            into[i] = beltInstance.Pose(i, _time, parentPosition, Settings, ChunkRadius(new ChunkId(belt, i)));
+            into[i] = beltInstance.Pose(i, _time, parentPosition, ChunkRadius(new ChunkId(belt, i)));
     }
 
     public SecurityLevel GetSecurityLevel(float2 pos)
@@ -748,9 +838,14 @@ public class AsteroidBelt
     public AsteroidBeltData Data;
     public float Radius { get; }
 
+    // Each asteroid's orbital period, in seconds: derived once at zone build by Zone.PeriodAround (the field at the
+    // asteroid's own distance from the belt's parent), the only period Pose and BeltTargets divide by.
+    public float[] Periods { get; }
+
     public AsteroidBelt(AsteroidBeltData data)
     {
         Data = data;
+        Periods = new float[data.Asteroids.Length];
         Radius = data.Asteroids.Max(a => a.Distance);
     }
 
@@ -758,12 +853,11 @@ public class AsteroidBelt
     // The only place a chunk pose is computed; no per-tick copy survives it. Cut 2: size is no longer read from
     // per-belt storage -- Zone owns wear now, so the caller (Zone.ChunkPose/EvaluateBelt) computes it through
     // Zone.ChunkRadius and passes it in.
-    public float4 Pose(int index, double time, float2 parentPosition, PlanetSettings settings, float size)
+    public float4 Pose(int index, double time, float2 parentPosition, float size)
     {
         var asteroid = Data.Asteroids[index];
         var rot = (float) (time * asteroid.RotationSpeed % (PI * 2));
-        var pos = OrbitData.Evaluate((float) frac(time / settings.OrbitPeriod.Evaluate(asteroid.Distance) +
-                                                  asteroid.Phase)) * asteroid.Distance + parentPosition;
+        var pos = OrbitData.Evaluate((float) frac(time / Periods[index] + asteroid.Phase)) * asteroid.Distance + parentPosition;
         return float4(pos.x, pos.y, rot, size);
     }
 
@@ -845,11 +939,13 @@ public class Orbit
     public float2 Velocity = float2.zero;
     public float2 Position = float2.zero;
     public float2 PreviousPosition = float2.zero;
-    public float Period;
 
-    public Orbit(PlanetSettings settings, OrbitData data)
+    // Seconds per turn, written only by the Zone constructor (Zone.PeriodAround); infinite when the orbit has no
+    // field to circle in.
+    public float Period { get; internal set; }
+
+    public Orbit(OrbitData data)
     {
         Data = data;
-        Period = settings.OrbitPeriod.Evaluate(data.Distance);
     }
 }

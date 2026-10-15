@@ -40,7 +40,8 @@ public sealed class MiningCut2Tests : IDisposable
     // curve" is exercising real curvature, not a constant that any wrong formula would also satisfy.
     private static PlanetSettings Settings() => new PlanetSettings
     {
-        OrbitPeriod = new ExponentialCurve { Multiplier = 0.6f, Exponent = 1.3f, Constant = 40f },
+        WellStrength = new ExponentialCurve { Constant = 25f },
+        RocheLimit = new ExponentialCurve { Constant = 1f },
         AsteroidSize = new ExponentialLerp { Minimum = 2f, Maximum = 9f, Exponent = 1.7f },
         AsteroidHitpoints = new ExponentialLerp { Minimum = 20f, Maximum = 220f, Exponent = 1.6f },
         AsteroidRespawnTime = new ExponentialLerp { Minimum = 8f, Maximum = 96f, Exponent = 1.2f },

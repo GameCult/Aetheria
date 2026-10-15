@@ -46,7 +46,7 @@ public sealed class PotentialOwnerTests : IDisposable
         WellStrength = new ExponentialCurve { Exponent = .2f, Multiplier = 45.08f },
         RocheLimit = new ExponentialCurve { Exponent = .25f, Multiplier = 7.32f },
         BodyRadius = new ExponentialCurve { Exponent = .25f, Multiplier = 2f },
-        LightRadius = new ExponentialCurve(), OrbitPeriod = new ExponentialCurve(),
+        LightRadius = new ExponentialCurve(),
         HeightExaggeration = exaggeration
     };
 
@@ -83,7 +83,7 @@ public sealed class PotentialOwnerTests : IDisposable
         var planets = new PlanetSettings
         {
             BodyRadius = new ExponentialCurve(),
-            LightRadius = new ExponentialCurve(), OrbitPeriod = new ExponentialCurve()
+            LightRadius = new ExponentialCurve()
         };
         var zone = ZoneOf(planets, (100f, float2.zero), (5000f, new float2(200f, 0f)));
         foreach (var p in new[] { float2.zero, float2(200f, 0f), float2(37f, -911f), float2(5000f, 5000f) })
@@ -138,7 +138,7 @@ public sealed class PotentialOwnerTests : IDisposable
             WellStrength = new ExponentialCurve { Constant = 100f },
             RocheLimit = new ExponentialCurve { Constant = roche },
             BodyRadius = new ExponentialCurve { Constant = 10f },
-            LightRadius = new ExponentialCurve(), OrbitPeriod = new ExponentialCurve()
+            LightRadius = new ExponentialCurve()
         };
         Assert.Throws<InvalidOperationException>(() => ZoneOf(Constants(0f), (100f, float2.zero)));
         Assert.Throws<InvalidOperationException>(() => ZoneOf(Constants(-5f), (100f, float2.zero)));
