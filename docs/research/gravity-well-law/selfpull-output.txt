@@ -1,0 +1,2 @@
+tapered draft: the node pulls the lone body at 0.380 of its own pull
+band: the node pulls the lone body at 0.000 of its own pull
