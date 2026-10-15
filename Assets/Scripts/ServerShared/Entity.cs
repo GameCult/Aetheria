@@ -69,18 +69,23 @@ public abstract class Entity
     private readonly ReactiveProperty<TargetRef> _target = new ReactiveProperty<TargetRef>(TargetRef.None);
     public IReadOnlyReactiveProperty<TargetRef> Target => _target;
 
-    // Cut 2 (docs/fire-control-cut.md): the stored aim-point slot. Written only by TrySelectTargetItem
-    // below, and nulled whenever Target changes (subscribed in Activate). Do not read this field directly
-    // outside Entity -- read ResolvedTargetItem, which re-validates on every call (FireControl.IsLocated), so decay
-    // (or the item leaving the target, or being destroyed) drops the aim point the moment it is no longer earned,
-    // with no loop that has to notice and clear it.
-    public ReactiveProperty<EquippedItem> TargetItem = new ReactiveProperty<EquippedItem>((EquippedItem)null);
+    // The one aim slot on the Target (docs/fire-control-cut.md, Cut 2): a revealed item or a mount of the hull this
+    // observer believes the target to be, never both. Written only by TrySelectTargetItem (a revealed item: Combat's path
+    // and the player's) and TrySelectMount (a believed mount), and nulled whenever Target changes (subscribed in
+    // Activate). Do not read it outside Entity -- read ResolvedAim, which re-validates both gates on every call, so decay,
+    // a perceived destruction, or the item leaving the target drops the aim the moment it is no longer earned, with no
+    // loop that has to notice and clear it. (Not `Aim`: that is the pilot's pointing direction below.)
+    public AimTarget AimedAt { get; private set; }
 
     // Where the pilot points: reticle, lock cone, tractor, guided rounds, fire direction. Steers nothing; the
     // hull turns only by Ship.Turn.
     public float3 Aim;
-    
+
     public string Name;
+
+    // Names the entity for assertion messages and logs: xunit and the debugger format an object by walking its graph
+    // unless it has a ToString, and an Entity's graph is the whole zone. Entity has no id; Name is the hull's or the scenario's.
+    public override string ToString() => $"{GetType().Name} '{Name}'";
     
     // public int Population;
     // public Dictionary<Guid, float> Personality = new Dictionary<Guid, float>();
@@ -250,6 +255,10 @@ public abstract class Entity
     // item). Written only by RecordReveal (an act, or a scan through RecordInspection, enters) and EndReveals (an end the observer perceives, or a departed
     // subject's entries aged past BearingMemory), cleared by Deactivate (ruling reveal-ends-on-perception).
     private readonly Dictionary<Entity, Dictionary<EquippedItem, Reveal>> _reveals = new Dictionary<Entity, Dictionary<EquippedItem, Reveal>>();
+    // The mounts of each subject whose item this observer perceived destroyed (PerceivesDestroyed), so the target cycle
+    // skips them and no aim rests on them: observer state, written only by RecordSeenDestroyed in Sense, dropped with the
+    // subject's reveals (EndReveals) and cleared by Deactivate. Truth enters only through the one perception rule.
+    private readonly Dictionary<Entity, HashSet<HardpointData>> _seenDestroyed = new Dictionary<Entity, HashSet<HardpointData>>();
     private readonly List<EquippedItem> _endedItems = new List<EquippedItem>();
     private readonly List<Entity> _agedSubjects = new List<Entity>();
     public ReactiveProperty<SecurityLevel> CurrentSecurityLevel = new ReactiveProperty<SecurityLevel>(SecurityLevel.Open);
@@ -383,16 +392,16 @@ public abstract class Entity
             _watchedEntitySubscriptions.Remove(disappearingEntity.Value);
         }));
 
-        // Cut 2 (docs/fire-control-cut.md): a Target change nulls the aim point. Fires immediately on
-        // subscribe with whatever Target already holds, which is harmless -- TargetItem starts null anyway.
-        _subscriptions.Add(Target.Subscribe(_ => TargetItem.Value = null));
+        // Cut 2 (docs/fire-control-cut.md): a Target change nulls the aim. Fires immediately on
+        // subscribe with whatever Target already holds, which is harmless -- AimedAt starts empty anyway.
+        _subscriptions.Add(Target.Subscribe(_ => AimedAt = AimTarget.None));
 
         // 9.3 (docs/fire-control-cut.md, Soul C3): a Target surviving Deactivate can point at an entity
         // this zone removed while inactive -- Deactivate disposes the Zone.Entities.ObserveRemove
         // subscription that is the only thing that nulls a stale Target, and EntityInfoGathered was just
         // rebuilt above from the zone's *current* membership, not from whatever Target still remembers.
         // Reconcile here, now that both the fresh EntityInfoGathered and the Target-change subscription
-        // above are live (so this write also clears TargetItem through it): an active entity's Target
+        // above are live (so this write also clears the aim through it): an active entity's Target
         // must always be an entity it has info on. Activate owns this reconciliation rather than
         // Deactivate nulling Target outright, because nulling on every dock would throw away a target
         // that is still alive and simply never changed while docked -- the common case, and not the one
@@ -407,34 +416,80 @@ public abstract class Entity
             GenerateWeaponGroups();
     }
 
-    // Cut 2 (docs/fire-control-cut.md): the only writer of TargetItem. Accepts null (clearing the aim
-    // point) or an item belonging to the current Target that FireControl.IsLocated resolves true for this
-    // entity as observer (an item it saw act, or one on a mount of the hull it believes the target to be).
-    // Returns whether the write took effect; a rejected non-null selection leaves
-    // TargetItem unchanged.
+    // Cut 2 (docs/fire-control-cut.md): one of the aim slot's two writers (the other is TrySelectMount). Accepts null
+    // (clearing the aim) or a revealed item (FireControl.IsRevealed: this entity saw it act) belonging to the current
+    // Target. A fitted item the observer has only located is aimed as its mount, never as an item. Returns whether the
+    // write took effect; a rejected non-null selection leaves the aim unchanged.
     public bool TrySelectTargetItem(EquippedItem item)
     {
         if (item == null)
         {
-            TargetItem.Value = null;
+            AimedAt = AimTarget.None;
             return true;
         }
 
         // Mining Cut 3: entity-only. A chunk has no items, so an item never belongs to a chunk target.
-        if (Target.Value.Entity == null || item.Entity != Target.Value.Entity || !FireControl.IsLocated(this, item))
+        if (Target.Value.Entity == null || item.Entity != Target.Value.Entity || !FireControl.IsRevealed(this, item))
             return false;
 
-        TargetItem.Value = item;
+        AimedAt = AimTarget.OfItem(item);
         return true;
     }
 
-    // The read path for TargetItem (see the field's own comment): null once the aimed item is no longer
-    // located by this entity, or no longer belongs to the current Target, even though nothing wrote
-    // TargetItem.Value at the moment that became true. Re-checked on every call; never cached.
-    public EquippedItem ResolvedTargetItem =>
-        TargetItem.Value != null && Target.Value.Entity == TargetItem.Value.Entity && FireControl.IsLocated(this, TargetItem.Value)
-            ? TargetItem.Value
-            : null;
+    // The aim slot's other writer: a mount of the hull this entity believes the Target to be (LayoutOf, by reference),
+    // unless this entity perceived that mount's item destroyed (SeenDestroyed). Reads only observer state, so whether a
+    // mount can be aimed at says nothing of the Target's truth (ruling cycle-skips-only-perceived-destroyed).
+    public bool TrySelectMount(HardpointData mount)
+    {
+        if (!MountAimable(Target.Value.Entity, mount)) return false;
+        AimedAt = AimTarget.OfMount(mount);
+        return true;
+    }
+
+    private bool MountAimable(Entity subject, HardpointData mount) =>
+        subject != null && mount != null && LayoutOf(subject).Contains(mount) && !SeenDestroyed(subject, mount);
+
+    // The read path for the aim slot (see its comment): the aim only while its gate still holds -- an item still revealed
+    // and still the Target's, a mount still in the believed layout and not seen destroyed -- else none, even though
+    // nothing wrote the slot at the moment that stopped being true. Re-checked on every call; never cached.
+    public AimTarget ResolvedAim
+    {
+        get
+        {
+            var subject = Target.Value.Entity;
+            var aim = AimedAt;
+            if (subject == null) return AimTarget.None;
+            if (aim.Item != null) return aim.Item.Entity == subject && FireControl.IsRevealed(this, aim.Item) ? aim : AimTarget.None;
+            return MountAimable(subject, aim.Mount) ? aim : AimTarget.None;
+        }
+    }
+
+    public EquippedItem ResolvedTargetItem => ResolvedAim.Item;
+
+    // What the cycle visits on `subject`, in schematic order: its rows (revealed items, then every mount of the hull this
+    // ship believes it to be, empty or not) minus the mounts this ship saw destroyed. Reads the same rows the schematic
+    // shows and the record, never `subject`'s equipment or live Durability.
+    public IEnumerable<AimTarget> AimCycle(Entity subject) =>
+        SchematicRows(subject)
+            .Where(r => r.Item != null || !SeenDestroyed(subject, r.Mount))
+            .Select(r => r.Item != null ? AimTarget.OfItem(r.Item) : AimTarget.OfMount(r.Mount));
+
+    // The player's cycle key: steps the aim to the next AimCycle entry after the resolved one and wraps; an entry its
+    // writer refuses (a revealed item since destroyed) is passed over; nothing to visit clears the aim.
+    public void CycleAim()
+    {
+        var subject = Target.Value.Entity;
+        if (subject == null) return;
+        var cycle = AimCycle(subject).ToList();
+        var now = ResolvedAim;
+        var index = cycle.FindIndex(a => a.Item == now.Item && a.Mount == now.Mount && (now.Item != null || now.Mount != null));
+        for (var step = 1; step <= cycle.Count; step++)
+        {
+            var next = cycle[(index + step + cycle.Count) % cycle.Count];
+            if (next.Item != null ? TrySelectTargetItem(next.Item) : TrySelectMount(next.Mount)) return;
+        }
+        AimedAt = AimTarget.None;
+    }
 
     // Mining Cut 3 (docs/mining-cut-refresh.md): the one writer of Target, called by the player's handlers and the
     // agents alike. A chunk is taken only while this entity can see it, so a rock in darkness cannot be picked; an
@@ -908,6 +963,7 @@ public abstract class Entity
         _pingReturns.Clear();
         _emissions.Clear();
         _reveals.Clear();
+        _seenDestroyed.Clear();
         _itemClaims.Clear();
     }
 
@@ -985,7 +1041,8 @@ public abstract class Entity
     }
 
     // This observer resolves `subject`'s gear (ContactOf's Identified gate) and `item` of it is destroyed: the one rule
-    // for a destroyed item an observer perceives, read by the book's entry (RecordReveal) and its end (Sense).
+    // for a destroyed item an observer perceives, read by the book's entry (RecordReveal), its end (Sense) and the
+    // seen-destroyed record (RecordSeenDestroyed).
     private bool PerceivesDestroyed(Entity subject, EquippedItem item) =>
         item.EquippableItem.IsDestroyed
         && EntityInfoGathered.TryGetValue(subject, out var info) && info >= ItemManager.GameplaySettings.TargetGearInfoThreshold;
@@ -998,10 +1055,30 @@ public abstract class Entity
         if (subject.Parent == null && !Zone.Entities.Contains(subject) && !_reveals.ContainsKey(subject)) _iffOverrides.Remove(subject);
     }
 
+    // This observer perceives `subject`'s gear (ContactOf's Identified gate): each of its destroyed items on a mount of the
+    // hull this ship believes it to be (LayoutOf, by reference) or in the book leaves its mount in the seen-destroyed
+    // record. The same PerceivesDestroyed Sense ends reveals by, applied to located mounts.
+    private void RecordSeenDestroyed(Entity subject)
+    {
+        _reveals.TryGetValue(subject, out var book);
+        var layout = LayoutOf(subject);
+        foreach (var item in subject.Equipment)
+        {
+            if (item.Hardpoint == null || !PerceivesDestroyed(subject, item)) continue;
+            if (!layout.Contains(item.Hardpoint) && (book == null || !book.ContainsKey(item))) continue;
+            if (!_seenDestroyed.TryGetValue(subject, out var seen)) _seenDestroyed[subject] = seen = new HashSet<HardpointData>();
+            seen.Add(item.Hardpoint);
+        }
+    }
+
+    private bool SeenDestroyed(Entity subject, HardpointData mount) =>
+        _seenDestroyed.TryGetValue(subject, out var seen) && seen.Contains(mount);
+
     // The book's one way out (caller: Sense): `item` null ends every reveal of `subject`, otherwise that item's.
-    // The subject's key goes with its last entry.
+    // The subject's key goes with its last entry; ending all of them also drops the subject's seen-destroyed record.
     private void EndReveals(Entity subject, EquippedItem item)
     {
+        if (item == null) _seenDestroyed.Remove(subject);
         if (!_reveals.TryGetValue(subject, out var book)) return;
         if (item != null) book.Remove(item);
         else book.Clear();
@@ -1060,17 +1137,16 @@ public abstract class Entity
     // The rows of `subject`'s schematic as this ship reads it: its own weapons when `subject` is this ship (each row its
     // own data and live range, nothing to doubt about your own ship), otherwise the revealed weapons (each row the claimed
     // class and that design's rated range) then the revealed gear (each row the claimed class, no range), then one mount
-    // row for each mount of the hull this ship believes `subject` to be (LayoutOf) that no claimed-item row sits on
-    // (ruling quiet-gear-identifiable-hull-layout-known). The one owner of which rows, which class and which range an
-    // enemy schematic shows; the Unity SchematicDisplay renders it.
+    // row for every mount of the hull this ship believes `subject` to be (LayoutOf), empty or not and whether or not a
+    // revealed item has a row of its own (ruling quiet-gear-identifiable-hull-layout-known): the rows never compare the
+    // subject's items to the believed layout, so a liar and an honest ship of the claimed hull show the same count. The
+    // one owner of which rows, which class and which range an enemy schematic shows; the Unity SchematicDisplay renders it.
     public IEnumerable<SchematicRow> SchematicRows(Entity subject)
     {
         if (subject == this)
             return subject.Equipment.Where(i => i.Behaviors.Any(b => b.Data is WeaponData)).Select(i => new SchematicRow(i, i.Data, true));
         var claimed = RevealedWeapons(subject).Concat(RevealedGear(subject)).Select(r => new SchematicRow(r.Item, r.Claimed, false)).ToList();
-        return claimed.Concat(LayoutOf(subject)
-            .Where(h => !claimed.Any(r => r.Item.Hardpoint == h))
-            .Select(h => new SchematicRow(h)));
+        return claimed.Concat(LayoutOf(subject).Select(h => new SchematicRow(h)));
     }
 
     // Where `subject`'s mounts are as this ship believes them: the hull it is identified as (Contact.Profile, the claimed
@@ -1138,8 +1214,9 @@ public abstract class Entity
                     if (planar <= emission.HearRange * hearing * obscuration) RecordReveal(other, emission.Item, SignatureChannel.Emission, emission.Claimed);
                 }
             }
-            // The observer resolves this ship's gear (PerceivesDestroyed), so it perceives an item of it destroyed and
-            // that reveal ends here; RecordReveal refuses the same item's lingering flash.
+            // The observer resolves this ship's gear (PerceivesDestroyed), so it perceives an item of it destroyed: the
+            // item's mount is recorded and its reveal ends here; RecordReveal refuses the same item's lingering flash.
+            RecordSeenDestroyed(other);
             if (_reveals.TryGetValue(other, out var book))
             {
                 foreach (var item in book.Keys)

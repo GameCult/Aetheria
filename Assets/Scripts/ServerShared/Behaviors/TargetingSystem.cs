@@ -31,7 +31,7 @@ public class TargetingSystemData : BehaviorData
 
     // Cut 6d (docs/fire-control-cut.md): grouping tightness, not a probability. FireControl.Sigma derives a
     // Gaussian kernel's sigma as 1/Precision, in hull-schematic cell units -- a higher number groups tighter
-    // around whatever is aimed at (Entity.TargetItem's cells, or the hull's own centre of mass unaimed).
+    // around whatever is aimed at (Entity.AimedAt: an item's cells or a mount's; the hull's own centre of mass unaimed).
     // Consumed by Cut 3's roll (folded into HitProbability as pOnHull) and by Commit's cell draw, both through
     // the one kernel function -- never re-derived separately.
     [Inspectable, JsonProperty("precision"), Key(3), RuntimeInspectable]

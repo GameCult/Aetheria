@@ -17,7 +17,7 @@ using int2 = CultMath.int2;
 using Random = CultMath.Random;
 
 // Cut 7 (docs/fire-control-cut.md): 7.1, the fifth mutation Soul found survived 197 green tests --
-// FireControl.Fire freezing the raw TargetItem.Value instead of the reveal-re-checked ResolvedTargetItem.
+// FireControl.Fire freezing the raw AimedAt.Item instead of the reveal-re-checked ResolvedTargetItem.
 // Builds its own shooter/target fixture, the same shape FireAuthorityTests uses for Cut 3, rather than
 // reusing that file's private Build helper (the established convention in this campaign's test files).
 public sealed class FireControlCut7Tests : IDisposable
@@ -144,8 +144,8 @@ public sealed class FireControlCut7Tests : IDisposable
     }
 
     // 7.1 (Soul's fifth survivor): FireControl.Fire must freeze source.ResolvedTargetItem, not the raw
-    // source.TargetItem.Value -- the aim point is re-checked against reveal at the instant the trigger is
-    // pulled, same as every other read of it. Mutation: read TargetItem.Value directly. Must die.
+    // source.AimedAt.Item -- the aim point is re-checked against reveal at the instant the trigger is
+    // pulled, same as every other read of it. Mutation: read AimedAt.Item directly. Must die.
     //
     // The observer saw the target's interior item act and aims at it; the item is then destroyed. The shot is
     // still worth taking -- this is no blackout -- but the aim point is re-checked at the instant the trigger is
@@ -172,7 +172,7 @@ public sealed class FireControlCut7Tests : IDisposable
 
         // Destroyed: the raw field still holds the item -- nothing clears it -- but the read accessor returns null.
         aimedGear.Durability = 0f;
-        Assert.Same(aimedItem, e.Shooter.TargetItem.Value);
+        Assert.Same(aimedItem, e.Shooter.AimedAt.Item);
         Assert.Null(e.Shooter.ResolvedTargetItem);
 
         var shotId = FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);

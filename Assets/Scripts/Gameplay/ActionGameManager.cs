@@ -441,22 +441,9 @@ public class ActionGameManager : MonoBehaviour
         Input.Player.TargetNext.performed += context => CurrentEntity.TargetNext();
         Input.Player.TargetPrevious.performed += context => CurrentEntity.TargetPrevious();
 
-        // Cut 2 (docs/fire-control-cut.md): cycles the aim point among the current target's located
-        // subsystems -- decides nothing itself, only calls the one writer (TrySelectTargetItem), gated on the
-        // same predicate (FireControl.IsLocated) the writer reads. Entity-only: a chunk has no subsystems.
-        Input.Player.CycleTargetItem.performed += context =>
-        {
-            var target = CurrentEntity.Target.Value.Entity;
-            if (target == null) return;
-            var located = target.Equipment.Where(x => FireControl.IsLocated(CurrentEntity, x)).ToArray();
-            if (located.Length == 0)
-            {
-                CurrentEntity.TrySelectTargetItem(null);
-                return;
-            }
-            var currentItemIndex = Array.IndexOf(located, CurrentEntity.ResolvedTargetItem);
-            CurrentEntity.TrySelectTargetItem(located[(currentItemIndex + 1) % located.Length]);
-        };
+        // Cut 2 (docs/fire-control-cut.md): steps the aim through the target's schematic rows -- every mount this ship
+        // has located, empty or not, minus the ones it saw destroyed. Decides nothing: the entity owns the cycle.
+        Input.Player.CycleTargetItem.performed += context => CurrentEntity.CycleAim();
 
         #endregion
 

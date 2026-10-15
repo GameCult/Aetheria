@@ -95,51 +95,57 @@ public sealed partial class ContactRevealTests
         Assert.Empty(observer.LayoutOf(bay));
     }
 
-    // ---- TheReactorIsLocatedNotRevealed ----
+    // ---- TheReactorMountIsAimedNotRevealed ----
 
-    // Identified, the reactor never acted: the observer has located it (can aim at it) and learned nothing of it. Below the
-    // identify threshold it can aim at nothing, and a mount aim already taken is dropped when the identification is lost.
+    // Identified, the reactor never acted: the observer has located its mount (can aim at it) and learned nothing of the
+    // item. Below the identify threshold it can aim at no mount, and a mount aim already taken is dropped when the
+    // identification is lost. An unrevealed item is never an item aim.
     [Fact]
-    public void TheReactorIsLocatedNotRevealed()
+    public void TheReactorMountIsAimedNotRevealed()
     {
         var (bay, observer, reactor) = Identified(Identify - .01f);
         Target(observer, bay);
-        Assert.False(FireControl.IsLocated(observer, reactor));
-        Assert.False(observer.TrySelectTargetItem(reactor));
+        Assert.False(observer.TrySelectMount(reactor.Hardpoint));
 
         observer.EntityInfoGathered[bay] = Identify;
-        Assert.True(FireControl.IsLocated(observer, reactor));
         Assert.False(FireControl.IsRevealed(observer, reactor));
-        Assert.True(observer.TrySelectTargetItem(reactor));
-        Assert.True(ReferenceEquals(reactor, observer.ResolvedTargetItem), "the located reactor is the aim point");
+        Assert.False(observer.TrySelectTargetItem(reactor), "an unrevealed item is not an item aim");
+        Assert.True(observer.TrySelectMount(reactor.Hardpoint));
+        Assert.True(ReferenceEquals(reactor.Hardpoint, observer.ResolvedAim.Mount), "the located reactor mount is the aim");
+        Assert.True(observer.ResolvedAim.Item == null && observer.ResolvedTargetItem == null, "a mount aim names no item");
 
         observer.EntityInfoGathered[bay] = Identify - .01f;
-        Assert.True(observer.ResolvedTargetItem == null, "the aim is dropped with the identification");
+        Assert.True(observer.ResolvedAim.Mount == null, "the aim is dropped with the identification");
     }
 
-    // ---- ADestroyedMountItemIsNotLocated ----
+    // ---- AnUnperceivedDestructionLeavesTheMountAimed ----
 
+    // The observer perceives a destruction only through its own Sense: the reactor destroyed unseen leaves its mount aimed
+    // (a live read of the item's Durability would tell the observer what it has not sensed); once Sensed it is gone.
     [Fact]
-    public void ADestroyedMountItemIsNotLocated()
+    public void AnUnperceivedDestructionLeavesTheMountAimed()
     {
         var (bay, observer, reactor) = Identified();
         Target(observer, bay);
-        Assert.True(observer.TrySelectTargetItem(reactor), "fixture: the live reactor is located and aimed at");
+        Assert.True(observer.TrySelectMount(reactor.Hardpoint), "fixture: the reactor mount is aimed at");
 
         reactor.EquippableItem.Durability = 0f;
         Assert.True(reactor.EquippableItem.IsDestroyed, "fixture");
-        Assert.False(FireControl.IsLocated(observer, reactor));
-        Assert.True(observer.ResolvedTargetItem == null);
-        Assert.False(observer.TrySelectTargetItem(reactor));
+        Assert.True(ReferenceEquals(reactor.Hardpoint, observer.ResolvedAim.Mount), "nothing sensed yet: the aim stands");
+        Assert.True(observer.TrySelectMount(reactor.Hardpoint));
+
+        SenseOf(observer)();
+        Assert.True(observer.ResolvedAim.Mount == null, "perceived destroyed: the aim goes");
+        Assert.False(observer.TrySelectMount(reactor.Hardpoint));
     }
 
-    // ---- UnderAHullLieNoGearIsLocated ----
+    // ---- UnderAHullLieNoGearIsAimed ----
 
     // Ruling ew-aim-under-hull-lie-ruled: while the lie is believed the observer's layout is the claimed hull's and the true
-    // reactor sits on none of its mounts, so no gear can be aimed at and the ship stays targetable; gear aim opens when the
-    // lie is seen through.
+    // reactor sits on none of its mounts, so the true item is never an aim: the claimed mount is, and the true reactor's own
+    // mount is not; the ship stays targetable. The true mount is aimable again when the lie is seen through.
     [Fact]
-    public void UnderAHullLieNoGearIsLocated()
+    public void UnderAHullLieNoGearIsAimed()
     {
         var (bay, observer, reactor) = Identified();
         var decoy = new HullData { Name = "Decoy", Hardpoints = { new HardpointData { Type = HardpointType.Reactor, Position = new int2(0, 0), Shape = new Shape() } } };
@@ -147,21 +153,23 @@ public sealed partial class ContactRevealTests
 
         Assert.True(decoy.Hardpoints.SequenceEqual(observer.LayoutOf(bay)) && observer.LayoutOf(bay).Count == 1, "the layout is the claimed hull's");
         Target(observer, bay);
-        Assert.False(FireControl.IsLocated(observer, reactor));
-        Assert.False(observer.TrySelectTargetItem(reactor));
+        Assert.False(observer.TrySelectTargetItem(reactor), "the true reactor is not an item aim");
+        Assert.False(observer.TrySelectMount(reactor.Hardpoint), "nor is its true mount, which the observer does not believe in");
+        Assert.True(observer.TrySelectMount(decoy.Hardpoints[0]), "the claimed mount is");
+        Assert.True(ReferenceEquals(decoy.Hardpoints[0], observer.ResolvedAim.Mount));
         Assert.True(observer.ResolvedTargetItem == null);
         Assert.True(ReferenceEquals(bay, observer.Target.Value.Entity), "the ship stays targetable");
 
         bay.Claim(null);
-        Assert.True(FireControl.IsLocated(observer, reactor));
-        Assert.True(observer.TrySelectTargetItem(reactor));
+        Assert.True(observer.ResolvedAim.Mount == null, "the claimed mount is not the believed hull's once the lie is seen through");
+        Assert.True(observer.TrySelectMount(reactor.Hardpoint));
     }
 
     // The lie is a lookalike: the claimed hull is of the true hull's type and size, with a reactor mount of the same type,
     // position and shape as the true one, and a shield mount elsewhere. What the observer knows is the claimed layout, mount
     // object by mount object; nothing of the true hull's layout leaks in because the two are alike.
     [Fact]
-    public void UnderALookalikeLieNoGearIsLocated()
+    public void UnderALookalikeLieNoGearIsAimed()
     {
         var (bay, observer, reactor) = Identified();
         var truth = bay.HullData;
@@ -181,17 +189,18 @@ public sealed partial class ContactRevealTests
 
         Assert.True(lookalike.Hardpoints.SequenceEqual(observer.LayoutOf(bay)), "the layout is the claimed hull's, not the true hull's");
         Target(observer, bay);
-        Assert.False(FireControl.IsLocated(observer, reactor));
         Assert.False(observer.TrySelectTargetItem(reactor));
+        Assert.False(observer.TrySelectMount(reactor.Hardpoint), "the true reactor mount is not the claimed one, though they look alike");
+        Assert.True(observer.TrySelectMount(lookalike.Hardpoints[0]));
         Assert.True(ReferenceEquals(bay, observer.Target.Value.Entity), "the ship stays targetable");
         Assert.Equal(2, observer.SchematicRows(bay).Count(r => r.Mount != null));
     }
 
-    // ---- ToolGearIsNotLocatedByLayout ----
+    // ---- ToolGearIsNotAimedByLayout ----
 
-    // Tool gear sits on no mount, so the layout locates nothing of it; an act does.
+    // Tool gear sits on no mount, so the layout offers nothing of it to aim at; an act reveals it, and then it is an item aim.
     [Fact]
-    public void ToolGearIsNotLocatedByLayout()
+    public void ToolGearIsNotAimedByLayout()
     {
         var bay = AddBay(float3(0, 0, 100), tools: new[] { "Radiator" });
         var observer = Add(float3(0, 0, 0));
@@ -200,23 +209,24 @@ public sealed partial class ContactRevealTests
         Assert.True(radiator.Hardpoint == null, "fixture: a tool item sits on no mount");
         Target(observer, bay);
 
-        Assert.False(FireControl.IsLocated(observer, radiator));
         Assert.False(observer.TrySelectTargetItem(radiator));
+        Assert.DoesNotContain(observer.AimCycle(bay), a => a.Item != null);
 
         observer.RecordReveal(bay, radiator, SignatureChannel.LaunchFlash, radiator.Data);
-        Assert.True(FireControl.IsLocated(observer, radiator));
+        Assert.True(observer.TrySelectTargetItem(radiator));
+        Assert.Contains(observer.AimCycle(bay), a => ReferenceEquals(a.Item, radiator));
     }
 
     // ---- AMountAimIsTheMountsCells ----
 
-    // A shooter that holds a valid solution on a Bay 30 ahead, with the reactor selected as the aim point.
+    // A shooter that holds a valid solution on a Bay 30 ahead, with the reactor's mount selected as the aim.
     private (Ship shooter, Ship bay, EquippedItem reactor, Weapon weapon, EquippedItem gun) Gunner()
     {
         var bay = AddBay(float3(0, 0, 30));
         return GunnerOn(bay, Fitted(bay, "BayReactor"));
     }
 
-    // A shooter that holds a valid solution on `bay`, with `aimed` (fitted to it) selected as the aim point.
+    // A shooter that holds a valid solution on `bay`, with the mount of `aimed` (fitted to it) selected as the aim.
     private (Ship shooter, Ship bay, EquippedItem reactor, Weapon weapon, EquippedItem gun) GunnerOn(Ship bay, EquippedItem aimed)
     {
         var shooter = Add(float3(0, 0, 0), new[] { "Eye", "Gun" });
@@ -224,7 +234,7 @@ public sealed partial class ContactRevealTests
         for (var i = 0; i < 3; i++) Hold(shooter, 1, 1f, bay);
         Assert.True(shooter.VisibleEntities.Contains(bay), "fixture: the shooter tracks the ship");
         var gun = Guns(shooter).Single();
-        Assert.True(shooter.TrySelectTargetItem(aimed), "fixture: the located item is aimed at");
+        Assert.True(shooter.TrySelectMount(aimed.Hardpoint), "fixture: the mount is aimed at");
         return (shooter, bay, aimed, (Weapon) gun.Behaviors.Single(b => b is Weapon), gun);
     }
 
@@ -246,7 +256,7 @@ public sealed partial class ContactRevealTests
 
         var located = FireControl.Inspect(weapon, shooter, bay);
         var shot = FireAt(weapon, gun, shooter);
-        Assert.True(shot.AimAtMount && ReferenceEquals(reactor, shot.Aimed), "the shot is aimed at the located reactor's mount");
+        Assert.True(ReferenceEquals(reactor.Hardpoint, shot.AimedMount) && shot.Aimed == null, "the shot is aimed at the located reactor's mount, not the item");
         Assert.True(FireControl.CommitProbability(shot, _zone.Time, out var mountSil) > 0f, "fixture: the shot has a price");
         Assert.Equal(3.5f, mountSil.AimPoint.x, 4);
         Assert.Equal(3.5f, mountSil.AimPoint.y, 4);
@@ -254,9 +264,10 @@ public sealed partial class ContactRevealTests
 
         shooter.RecordReveal(bay, reactor, SignatureChannel.LaunchFlash, reactor.Data);
         Assert.True(FireControl.IsRevealed(shooter, reactor), "fixture: the reactor is revealed");
+        Assert.True(shooter.TrySelectTargetItem(reactor), "fixture: the revealed reactor is aimed at as an item");
         var revealed = FireControl.Inspect(weapon, shooter, bay);
         var next = FireAt(weapon, gun, shooter);
-        Assert.False(next.AimAtMount);
+        Assert.True(next.AimedMount == null && ReferenceEquals(reactor, next.Aimed), "the next shot is aimed at the item");
         Assert.True(FireControl.CommitProbability(next, _zone.Time, out var itemSil) > 0f, "fixture: the shot has a price");
         Assert.Equal(3f, itemSil.AimPoint.x, 4);
         Assert.Equal(3f, itemSil.AimPoint.y, 4);
@@ -272,7 +283,7 @@ public sealed partial class ContactRevealTests
         var (wing, _, gunB) = AddWing(float3(0, 0, 30));
         var (shooter, _, _, weapon, gun) = GunnerOn(wing, gunB);
         var shot = FireAt(weapon, gun, shooter);
-        Assert.True(shot.AimAtMount && ReferenceEquals(gunB, shot.Aimed), "fixture: the shot is aimed at the located gun's mount");
+        Assert.True(ReferenceEquals(gunB.Hardpoint, shot.AimedMount), "fixture: the shot is aimed at the located gun's mount");
         Assert.True(FireControl.CommitProbability(shot, _zone.Time, out var sil) > 0f, "fixture: the shot has a price");
         Assert.Equal(2.5f, sil.AimPoint.x, 4);
         Assert.Equal(3f, sil.AimPoint.y, 4);
@@ -285,10 +296,11 @@ public sealed partial class ContactRevealTests
     {
         var (shooter, bay, reactor, weapon, gun) = Gunner();
         var shot = FireAt(weapon, gun, shooter);
-        Assert.True(shot.AimAtMount, "fixture: fired at the mount");
+        Assert.True(ReferenceEquals(reactor.Hardpoint, shot.AimedMount), "fixture: fired at the mount");
 
         shooter.RecordReveal(bay, reactor, SignatureChannel.LaunchFlash, reactor.Data);
         Assert.True(FireControl.IsRevealed(shooter, reactor), "fixture: revealed before Commit");
+        Assert.True(shooter.TrySelectTargetItem(reactor), "fixture: and aimed at as an item, which does not move a shot already fired");
 
         Assert.True(FireControl.CommitProbability(shot, _zone.Time, out var sil) > 0f, "fixture: the shot has a price");
         Assert.Equal(3.5f, sil.AimPoint.x, 4);
@@ -298,8 +310,8 @@ public sealed partial class ContactRevealTests
     // ---- TheSchematicListsUnfilledMounts ----
 
     // Identified, nothing revealed: a mount row for each hardpoint, naming no item and no class and giving no range. After a
-    // scan the reactor's mount row gives way to its gear row. The aimed reactor is marked on whichever row stands for it, and
-    // no other row is.
+    // scan the reactor's gear row leads and every mount keeps its row, the reactor's included (rows never compare the true
+    // items to the believed layout). The aimed mount is marked on its row alone.
     [Fact]
     public void TheSchematicListsUnfilledMounts()
     {
@@ -319,16 +331,19 @@ public sealed partial class ContactRevealTests
         });
 
         Target(observer, bay);
-        Assert.True(observer.TrySelectTargetItem(reactor));
-        Assert.Equal(new[] { true, false, false }, rows.Select(r => r.Marks(observer.ResolvedTargetItem)).ToArray());
+        Assert.True(observer.TrySelectMount(reactor.Hardpoint));
+        Assert.Equal(new[] { true, false, false }, rows.Select(r => r.Marks(observer.ResolvedAim)).ToArray());
 
         observer.RecordInspection(bay);
         rows = observer.SchematicRows(bay).ToArray();
-        Assert.Equal(3, rows.Length);
-        Assert.Equal(3, rows.Select(r => r.Key).Distinct().Count());
+        Assert.Equal(4, rows.Length);
+        Assert.Equal(4, rows.Select(r => r.Key).Distinct().Count());
         Assert.True(rows[0].Mount == null && ReferenceEquals(rows[0].Item, reactor), "the reactor's gear row leads");
-        Assert.True(hardpoints.Skip(1).SequenceEqual(rows.Skip(1).Select(r => r.Mount)), "the other two mounts stay mount rows");
-        Assert.Equal(new[] { true, false, false }, rows.Select(r => r.Marks(observer.ResolvedTargetItem)).ToArray());
+        Assert.True(hardpoints.SequenceEqual(rows.Skip(1).Select(r => r.Mount)), "every mount keeps its mount row, the reactor's too");
+        Assert.Equal(new[] { false, true, false, false }, rows.Select(r => r.Marks(observer.ResolvedAim)).ToArray());
+
+        Assert.True(observer.TrySelectTargetItem(reactor));
+        Assert.Equal(new[] { true, false, false, false }, rows.Select(r => r.Marks(observer.ResolvedAim)).ToArray());
     }
 
     // Two mounts of one type: the rows tell them apart by mount, not by type. Aiming at one marks its row alone, and revealing
@@ -342,19 +357,19 @@ public sealed partial class ContactRevealTests
         var mountA = gunA.Hardpoint;
         var mountB = gunB.Hardpoint;
         Target(observer, wing);
-        Assert.True(observer.TrySelectTargetItem(gunB));
+        Assert.True(observer.TrySelectMount(mountB));
 
         var rows = observer.SchematicRows(wing).ToArray();
         Assert.Equal(2, rows.Length);
         Assert.True(ReferenceEquals(mountA, rows[0].Mount) && ReferenceEquals(mountB, rows[1].Mount), "one mount row per mount, in order");
-        Assert.Equal(new[] { false, true }, rows.Select(r => r.Marks(observer.ResolvedTargetItem)).ToArray());
+        Assert.Equal(new[] { false, true }, rows.Select(r => r.Marks(observer.ResolvedAim)).ToArray());
 
         observer.RecordReveal(wing, gunA, SignatureChannel.LaunchFlash, gunA.Data);
         rows = observer.SchematicRows(wing).ToArray();
-        Assert.Equal(2, rows.Length);
+        Assert.Equal(3, rows.Length);
         Assert.True(ReferenceEquals(rows[0].Item, gunA) && rows[0].Mount == null, "the revealed gun's row leads");
-        Assert.True(ReferenceEquals(rows[1].Mount, mountB) && rows[1].Item == null, "the other mount of the same type stays a mount row");
-        Assert.Equal(new[] { false, true }, rows.Select(r => r.Marks(observer.ResolvedTargetItem)).ToArray());
+        Assert.True(ReferenceEquals(rows[1].Mount, mountA) && ReferenceEquals(rows[2].Mount, mountB), "both mounts keep their mount rows");
+        Assert.Equal(new[] { false, false, true }, rows.Select(r => r.Marks(observer.ResolvedAim)).ToArray());
     }
 
     // ---- TheAIStillChoosesOnlyRevealedWeapons ----
@@ -371,7 +386,7 @@ public sealed partial class ContactRevealTests
         ai.SetTarget(bay);
         Hold(ai, 12, 1f, bay);
         Assert.True(ReferenceEquals(bay, ai.Target.Value.Entity), "fixture: the AI keeps the ship as its target");
-        Assert.True(FireControl.IsLocated(ai, gun) && !FireControl.IsRevealed(ai, gun), "fixture: the gun is located and not revealed");
+        Assert.False(FireControl.IsRevealed(ai, gun), "fixture: the gun is not revealed");
         Assert.True(ai.ResolvedTargetItem == null, "Combat aims at nothing it has not seen act");
 
         Fire(bay, gun);
