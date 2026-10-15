@@ -506,11 +506,7 @@ public class Zone
 
         if (!_updatedOrbits.Contains(orbitID))
         {
-            var orbit = Orbits[orbitID];
-            var parentPosition = !orbit.Data.Parent.IsSet()
-                ? orbit.Data.FixedPosition :
-                GetOrbitPosition(orbit.Data.Parent.Key);
-            orbit.Position = parentPosition + Offset(orbit, _time);
+            Orbits[orbitID].Position = RailAt(orbitID, _time);
             _updatedOrbits.Add(orbitID);
         }
 

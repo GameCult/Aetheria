@@ -27,6 +27,8 @@ public sealed class DrawnPoseTests : IDisposable
     private const float MoonDistance = 60f, MoonPhase = .1f;
     private const float StationDistance = 3f, StationPhase = .4f;
     private const float GridOffset = 2.5f;
+    // The sun's rail is parentless and off-centre, the shape ZoneGenerator gives a cluster root (FixedPosition = cluster centre).
+    private static readonly float2 SunCentre = new float2(700f, -300f);
 
     private readonly string _root = Path.Combine(Path.GetTempPath(), "aetheria-drawnpose-" + Guid.NewGuid().ToString("N"));
     private readonly List<CultCache> _caches = new List<CultCache>();
@@ -86,9 +88,9 @@ public sealed class DrawnPoseTests : IDisposable
             QualityPriceModifier = new ExponentialLerp()
         }, _ => { });
 
-        CultRecordKey Orbit(CultRecordKey parent, float distance, float phase)
+        CultRecordKey Orbit(CultRecordKey parent, float distance, float phase, float2 fixedPosition = default)
         {
-            var data = new OrbitData { Distance = distance, Phase = phase };
+            var data = new OrbitData { Distance = distance, Phase = phase, FixedPosition = fixedPosition };
             if (parent.IsSet()) data.Parent = new CultRecordRef<OrbitData>(parent);
             return cache.Upsert(data).Key;
         }
@@ -96,7 +98,7 @@ public sealed class DrawnPoseTests : IDisposable
         CultRecordKey Body(CultRecordKey orbit, string name, float mass) =>
             cache.Upsert(new PlanetData { Name = name, Orbit = new CultRecordRef<OrbitData>(orbit), Mass = mass }).Key;
 
-        var sunOrbit = Orbit(default, 0f, 0f);
+        var sunOrbit = Orbit(default, 0f, 0f, SunCentre);
         var planetOrbit = Orbit(sunOrbit, PlanetDistance, PlanetPhase);
         var moonOrbit = Orbit(planetOrbit, MoonDistance, MoonPhase);
         var stationOrbit = Orbit(planetOrbit, StationDistance, StationPhase);
@@ -127,14 +129,14 @@ public sealed class DrawnPoseTests : IDisposable
         return center + OrbitData.Evaluate(frac(wrapped + phase)) * distance;
     }
 
-    private static float2 PlanetAt(double time) => Around(float2.zero, time, PlanetDistance, PlanetPhase, SunMass);
+    private static float2 PlanetAt(double time) => Around(SunCentre, time, PlanetDistance, PlanetPhase, SunMass);
     private static float2 MoonAt(double time) => Around(PlanetAt(time), time, MoonDistance, MoonPhase, PlanetMass);
     private static float2 StationAt(double time) => Around(PlanetAt(time), time, StationDistance, StationPhase, PlanetMass);
 
     // The field at a point at a time, with each well where its rail puts it then.
     private static float FieldAt(World w, float2 point, double time)
     {
-        var wells = new (float2 At, float Strength)[] { (float2.zero, SunMass), (PlanetAt(time), PlanetMass), (MoonAt(time), MoonMass) };
+        var wells = new (float2 At, float Strength)[] { (SunCentre, SunMass), (PlanetAt(time), PlanetMass), (MoonAt(time), MoonMass) };
         var sum = 0f;
         foreach (var (at, strength) in wells)
             sum += GravityField.Potential(strength, 2f, length(point - at)) - GravityField.Potential(strength, 2f, w.Zone.Pack.Radius);
@@ -206,6 +208,24 @@ public sealed class DrawnPoseTests : IDisposable
         Assert.True(length(DrawAhead.Orbit(w.Zone, w.PlanetOrbit, .0166f) - w.Zone.Orbits[w.PlanetOrbit].Position) > .1f, "the planet really moves over a lead");
     }
 
+    // The chain rule (a root at its FixedPosition, a child at its parent's node plus its offset) holds at the step's time
+    // (the memo) and at a drawn time (the rail) alike: an off-centre root is the same place either way, and the planet
+    // round it follows it.
+    [Fact]
+    public void ARootSitsAtItsFixedPositionAtEveryTime()
+    {
+        var w = Build();
+        var sunOrbit = w.Zone.Orbits.Single(o => !o.Value.Data.Parent.IsSet()).Key;
+        Step(w, 1f / 60f, 200);
+        foreach (var lead in new[] { 0f, .004f, .0166f })
+        {
+            AssertNear(SunCentre, DrawAhead.Orbit(w.Zone, sunOrbit, lead), 1e-3f, $"root at lead {lead}");
+            AssertNear(PlanetAt(w.Zone.ExactTime + lead), DrawAhead.Orbit(w.Zone, w.PlanetOrbit, lead), 1e-3f, $"planet round the root at lead {lead}");
+        }
+
+        Assert.True(length(w.Zone.Orbits[w.PlanetOrbit].Position - SunCentre) > PlanetDistance - 1f, "the planet circles the off-centre root, not the origin");
+    }
+
     [Fact]
     public void OrbitPositionAtWritesNothing()
     {
@@ -214,7 +234,7 @@ public sealed class DrawnPoseTests : IDisposable
         var keys = w.Zone.Orbits.Keys.ToArray();
         var positions = keys.Select(k => w.Zone.Orbits[k].Position).ToArray();
         var velocities = keys.Select(k => w.Zone.Orbits[k].Velocity).ToArray();
-        var probes = new[] { float2(1100f, 20f), float2(980f, -40f), float2.zero };
+        var probes = new[] { float2(1100f, 20f), float2(980f, -40f), SunCentre };
         var heights = probes.Select(p => w.Zone.GetHeight(p)).ToArray();
 
         var later = w.Zone.ExactTime + .5;
@@ -273,6 +293,26 @@ public sealed class DrawnPoseTests : IDisposable
         AssertNear(DrawAhead.Orbit(w.Zone, w.StationOrbit, lead), drawn.xz, 1e-6f, "the same point DrawAhead.Orbit gives");
         Assert.True(length(station.Position.xz + station.Velocity * lead - drawn.xz) > .01f, "a tight rail curves away from its straight extrapolation");
         Assert.Equal(w.Zone.GetHeight(drawn.xz, w.Zone.ExactTime + lead) + GridOffset, drawn.y, 4);
+    }
+
+    // The generators make orbital entities with no orbit set (Loadout, LoadoutGenerator): a rail-less one is an ordinary
+    // integrated body, drawn at its step plus velocity times lead, never at the origin an unset rail would give.
+    [Fact]
+    public void AnOrbitalEntityWithoutAnOrbitIsDrawnWhereItIs()
+    {
+        var w = Build();
+        Step(w, 1f / 60f, 30);
+        var station = new OrbitalEntity(w.Items, w.Zone, w.Hull, default, new EntitySettings())
+        {
+            Position = float3(520f, 0, -140f),
+            Velocity = float2(3f, 4f)
+        };
+        const float lead = .01f;
+
+        var drawn = DrawAhead.Position(station, lead);
+
+        AssertNear(float2(520f, -140f) + float2(3f, 4f) * lead, drawn.xz, 1e-4f, "an unrailed station");
+        Assert.Equal(station.RideHeight(drawn.xz, w.Zone.ExactTime + lead), drawn.y, 4);
     }
 
     [Fact]
