@@ -1,0 +1,8 @@
+today              max |F - dphi/dr| / max F = 1.1e-04
+plummer            max |F - dphi/dr| / max F = 1.9e-07
+logratio L=800     max |F - dphi/dr| / max F = 1.9e-07
+splummer lam=800   max |F - dphi/dr| / max F = 1.2e-05
+lamb               max |F - dphi/dr| / max F = 5.0e-06
+lamb+halo L=800    max |F - dphi/dr| / max F = 5.1e-06
+conserve L=800     max |F - dphi/dr| / max F = 1.9e-07
+Ein shader form vs mpmath: max abs err 2.3e-07
