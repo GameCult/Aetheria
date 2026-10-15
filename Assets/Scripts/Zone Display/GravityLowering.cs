@@ -14,7 +14,7 @@ public static class GravityLowering
     /// <summary>The quad's side in u: larger than any zone (10000) plus any view (4096); texels outside a camera cost nothing.</summary>
     public const float FieldExtent = 100000f;
 
-    // Mirrors Gravity.cginc's GravityWell: float2 position, strength, coreRadius, reference.
+    // Mirrors the well record of Gravity.cginc: float2 position, strength, coreRadius, reference.
     [StructLayout(LayoutKind.Sequential)]
     struct WellRecord
     {
