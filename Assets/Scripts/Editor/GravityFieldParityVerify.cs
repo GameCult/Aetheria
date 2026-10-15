@@ -251,6 +251,34 @@ namespace Aetheria.EditorTools
             if (compared < Size * Size / 2) Fail("gradient", $"only {compared} texels were compared");
         }
 
+        // Main Menu.unity has no ZoneRenderer, so no Gravity Field and no lowered potential: its gravity cameras draw the
+        // menu's own brush objects (Boundary on layer 9, the Waves on layer 10) and are presentation by spec (follow-up
+        // menu-grid-brushes), not a reader of the potential. This pins that: a ZoneRenderer in the menu would make its
+        // cameras readers of the field, and they would have to cull layer 9 alone like ARPG's.
+        static void CheckMenuWiring()
+        {
+            var scene = EditorSceneManager.OpenScene("Assets/Scenes/Main Menu.unity", OpenSceneMode.Single);
+            try
+            {
+                if (UnityEngine.Object.FindFirstObjectByType<ZoneRenderer>(FindObjectsInactive.Include) != null)
+                    Fail("wiring", "Main Menu.unity has a ZoneRenderer: its gravity cameras now read the Gravity Field and must cull layer 9 alone");
+                var seen = 0;
+                foreach (var camera in UnityEngine.Object.FindObjectsByType<Camera>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+                {
+                    if (camera.targetTexture == null || camera.targetTexture.name != "Fog Surface Displacement") continue;
+                    seen++;
+                    const int menuBrushLayers = (1 << 9) | (1 << 10);
+                    if (camera.cullingMask != menuBrushLayers)
+                        Fail("wiring", $"Main Menu camera {camera.name} culls mask {camera.cullingMask}, not the menu brush layers 9 and 10");
+                }
+                if (seen != 1) Fail("wiring", $"{seen} Fog Surface Displacement cameras in Main Menu.unity, expected 1");
+            }
+            finally
+            {
+                EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
+            }
+        }
+
         static void CheckWiring(GameSettings settings)
         {
             var scene = EditorSceneManager.OpenScene("Assets/Scenes/ARPG.unity", OpenSceneMode.Single);
@@ -286,6 +314,8 @@ namespace Aetheria.EditorTools
             {
                 EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             }
+
+            CheckMenuWiring();
 
             foreach (var path in new[]
             {

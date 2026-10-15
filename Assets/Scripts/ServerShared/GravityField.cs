@@ -10,13 +10,16 @@ using float2 = CultMath.float2;
 /// </summary>
 public static class GravityField
 {
+    // The tail's additive constant: it makes the tail meet the core in value at the core radius. Gravity.cginc is generated from it.
+    public const float TailOffset = .5f;
+
     // The potential at distance r from the body, defined up to a constant (callers subtract their reference).
     // A well of no strength (a body whose curves are unauthored, so c = 0 and R = 0) digs nothing.
     public static float Potential(float c, float coreRadius, float r) =>
         c == 0f ? 0f :
         r < coreRadius
             ? c * r * r / (2 * coreRadius * coreRadius)
-            : c * (log(r / coreRadius) + .5f);
+            : c * (log(r / coreRadius) + TailOffset);
 
     // The acceleration at `offsetFromBody`, toward the body: zero at the body itself.
     public static float2 Acceleration(float c, float coreRadius, float2 offsetFromBody)
