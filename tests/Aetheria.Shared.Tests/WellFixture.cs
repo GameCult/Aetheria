@@ -10,7 +10,6 @@ internal static class WellFixture
     public static void Dig(CultCache cache, ZonePack pack, PlanetSettings settings, float strength, float coreRadius, float2 at = default)
     {
         settings.BodyRadius = new ExponentialCurve();
-        settings.OrbitPeriod = new ExponentialCurve();
         settings.WellStrength = new ExponentialCurve { Constant = strength };
         settings.RocheLimit = new ExponentialCurve { Constant = coreRadius };
         var orbit = cache.Upsert(new OrbitData { FixedPosition = at }).Key;

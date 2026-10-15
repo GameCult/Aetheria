@@ -59,8 +59,8 @@ public sealed class BeltTargets : ITargetProvider
         {
             order[i] = i;
             distances[i] = data.Asteroids[i].Distance;
-            // Pose divides by the float period the curve returns; the keys must use the same one.
-            _periods[i] = settings.OrbitPeriod.Evaluate(distances[i]);
+            // The belt's own periods (Zone.PeriodAround), the very floats Pose divides by.
+            _periods[i] = zone.AsteroidBelts[field].Periods[i];
         }
         Array.Sort(distances, order);
         _bands = new Band[(count + RocksPerBand - 1) / RocksPerBand];

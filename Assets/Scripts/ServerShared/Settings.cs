@@ -31,7 +31,6 @@ public class PlanetSettings
     public ExponentialLerp AsteroidRespawnTime;
     public float SecureAreaRadiusMultiplier = .45f;
 
-    public ExponentialCurve OrbitPeriod;
 
     // The global flow stardust and nebula follow and the sim knows (FlowField). Zero flow by default.
     public FlowSettings Flow = new FlowSettings();

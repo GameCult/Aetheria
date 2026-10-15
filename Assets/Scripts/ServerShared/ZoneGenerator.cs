@@ -531,7 +531,6 @@ public class GeneratorPlanet
 	public float Distance;
 	public float Phase;
 	public float Mass;
-	//public float Period;
 	public float ChildDistanceMinimum;
 	public float ChildDistanceMaximum;
 	public bool Empty = false;
@@ -586,7 +585,6 @@ public class GeneratorPlanet
 				ChildDistanceMaximum = (i % 2 == 0 ? p0ChildDist : p1ChildDist)
 			};
 			child.ChildDistanceMinimum = Settings.PlanetSafetyRadius.Evaluate(child.Mass) * 2;
-			//child.Period = Settings..Evaluate(child.Distance);
 			Children.Add(child);
 		}
 
@@ -647,7 +645,6 @@ public class GeneratorPlanet
 					Distance = distances[i],
 					Phase = random.NextFloat()
 				};
-				//child.Period = Context.GlobalData.OrbitalPeriod(child.Distance);
 				child.ChildDistanceMinimum = Settings.PlanetSafetyRadius.Evaluate(child.Mass) * 2;
 				// Maximum child distance of child is the smallest distance to either of its neighbors
 				child.ChildDistanceMaximum = min(i == 0 ? child.Distance - ChildDistanceMinimum : child.Distance - distances[i - 1],
