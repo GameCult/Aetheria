@@ -45,13 +45,13 @@ public sealed class FireControlTests : IDisposable
 
     // `well` digs the zone one well at the origin (WellFixture), so heights differ across the zone.
     private (ItemManager items, Ship ship, EquippedItem[] weapons) BuildShipWithHardpoints(
-        bool well, (ItemRotation rotation, float firingArc)[] hardpoints)
+        bool well, (ItemRotation rotation, float firingArc)[] hardpoints, float gridOffset = 0f)
     {
         var hullShape = new Shape(Math.Max(hardpoints.Length, 3), 3);
         foreach (var cell in hullShape.AllCoordinates) hullShape[cell] = true;
         // Mass defaults to 0 (ItemData.cs:285), which zeroes ThermalMass (Entity.cs MapEntity) and NaNs
         // UpdateTemperature -- author a real mass so the entity's own temperature stays a real number.
-        var hullData = new HullData { Name = "TestHull", HullType = HullType.Ship, Shape = hullShape, Durability = 1, Mass = 1000 };
+        var hullData = new HullData { Name = "TestHull", HullType = HullType.Ship, Shape = hullShape, Durability = 1, Mass = 1000, GridOffset = gridOffset };
         for (var i = 0; i < hardpoints.Length; i++)
             hullData.Hardpoints.Add(new HardpointData
             {
@@ -386,7 +386,7 @@ public sealed class FireControlTests : IDisposable
     [Fact]
     public void ADrawnShipRidesTheFieldAtItsDrawnPosition()
     {
-        var (items, ship, _) = BuildShipWithHardpoints(true, new[] { (ItemRotation.None, 0f) });
+        var (items, ship, _) = BuildShipWithHardpoints(true, new[] { (ItemRotation.None, 0f) }, gridOffset: 2.5f);
         var zone = ship.Zone;
         ship.Position = float3(200, 0, 0);
         zone.Update(1f);
@@ -396,7 +396,9 @@ public sealed class FireControlTests : IDisposable
         var drawn = DrawAhead.Position(ship, lead);
 
         Assert.Equal(ship.Position.x + 100 * lead, drawn.x, 4);
-        Assert.Equal(zone.GetHeight(float2(drawn.x, drawn.z)) + ((HullData) ship.ItemManager.GetData(ship.Hull)).GridOffset, drawn.y, 4);
+        // The hull rides 2.5 u above the field (authored above): dropping or doubling the offset moves the ship by 2.5.
+        Assert.Equal(zone.GetHeight(float2(drawn.x, drawn.z)) + 2.5f, drawn.y, 4);
+        Assert.Equal(zone.GetHeight(float2(ship.Position.x, ship.Position.z)) + 2.5f, ship.Position.y, 4);
         Assert.True(abs(drawn.y - ship.Position.y) > .1f, "the slope is real: the drawn height differs from the last step's");
         var still = DrawAhead.Position(ship, 0f);
         Assert.Equal(ship.Position.x, still.x);

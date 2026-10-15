@@ -84,12 +84,12 @@ public sealed class FireControlPerWeaponTests : IDisposable
         (ItemRotation Rotation, float Arc)[] mounts = null, bool beam = false, WeaponFuse? fuse = null, float blast = 0f,
         float range = 100f, float targetRange = 60f, float accuracy = 1f, float minHit = .2f, bool lockWeapon = false,
         bool turret = false, float energy = 0f, float heat = 0f, float visibility = 0f, int magazine = 0, bool singleAmmoBurst = false, bool decoy = false, bool charged = false, bool auto = false,
-        float effective = float.PositiveInfinity, float damageAtMax = 0f)
+        float effective = float.PositiveInfinity, float damageAtMax = 0f, float velocity = 0f, float targetGridOffset = 0f)
     {
         mounts ??= new[] { (ItemRotation.None, 0f) };
         var hullData = new HullData
         {
-            Name = "Hull", HullType = HullType.Ship, Shape = SolidShape(5, 4), Durability = 1000000, Mass = 1000, Armor = 0,
+            Name = "Hull", HullType = HullType.Ship, Shape = SolidShape(5, 4), Durability = 1000000, Mass = 1000, Armor = 0, GridOffset = targetGridOffset,
             Hardpoints = { new HardpointData { Type = HardpointType.Sensors, Position = new int2(0, 0), Shape = new Shape() } }
         };
         var shooterHullData = new HullData
@@ -135,7 +135,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
         behavior.MinRange = Constant(0);
         behavior.EffectiveRange = Constant(effective);
         behavior.DamageAtMaxRange = damageAtMax;
-        behavior.Velocity = Constant(0);
+        behavior.Velocity = Constant(velocity);
         behavior.Spread = Constant(0);
         behavior.DamageSpread = Constant(0);
         behavior.Penetration = Constant(0);
@@ -306,6 +306,39 @@ public sealed class FireControlPerWeaponTests : IDisposable
         r.Zone.Update(1f);
 
         Assert.True(r.Gun.Weapon.Firing, "the turret must fire a fused weapon at a designated target out of arc");
+    }
+
+    // The AI aims at the height a target rides at (Entity.RideHeight: field plus the hull's GridOffset), not at the
+    // plane. A target hull raised 40 u, a shot fast enough to be predicted: the turret's and Combat's aim point at the
+    // target's stepped pose. Kills: either aim site spelling its own offset (dropped, added to, or scaled).
+    [Fact]
+    public void ATurretAimsAtTheHeightATargetRidesAt()
+    {
+        var r = Build(turret: true, velocity: 500f, targetGridOffset: 40f);
+        r.Zone.Update(1f);
+
+        AssertAimsAtTarget(r);
+    }
+
+    [Fact]
+    public void CombatAimsAtTheHeightATargetRidesAt()
+    {
+        var r = Build(velocity: 500f, targetGridOffset: 40f);
+        r.Zone.Agents.Add(new Minion(r.Shooter));
+        r.Zone.Update(1f);
+        r.Zone.Update(1f);
+
+        AssertAimsAtTarget(r);
+    }
+
+    private static void AssertAimsAtTarget(Rig r)
+    {
+        var toTarget = r.Target.Position - r.Shooter.Position;
+        Assert.True(abs(toTarget.y) > 30f, "fixture: the raised hull is well above the shooter");
+        var expected = normalize(toTarget);
+        Assert.Equal(expected.x, r.Shooter.Aim.x, 3);
+        Assert.Equal(expected.y, r.Shooter.Aim.y, 3);
+        Assert.Equal(expected.z, r.Shooter.Aim.z, 3);
     }
 
     public enum Withheld { NoTarget, OutOfRange, NotVisible, Unlocked }

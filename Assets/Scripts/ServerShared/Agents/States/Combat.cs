@@ -109,9 +109,8 @@ public class CombatState : BaseState
                 // Cut 3 (docs/fire-control-cut.md): the one prediction function, shared with FireControl.Fire's
                 // own snapshot and the roll's deviation measurement -- two separate predictions here and in the
                 // roll would let an AI aim at one point and get judged for missing a different one.
-                var targetHullData = _agent.ItemManager.GetData(target.Hull) as HullData;
                 var predictedPosition = FireControl.PredictedIntercept(testWeapon, _agent.Ship, target);
-                predictedPosition.y = _agent.Ship.Zone.GetHeight(predictedPosition.xz) + targetHullData.GridOffset;
+                predictedPosition.y = target.RideHeight(predictedPosition.xz);
                 toTarget = normalize(predictedPosition - _agent.Ship.Position);
             }
 
