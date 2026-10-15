@@ -4,8 +4,10 @@ using static ItemRotation;
 public sealed class Crossing : Scenario
 {
     public override string Name => "Crossing";
-    public override string Brief => "A Lightning Projector at the starboard gun and a Cell Blaster at the port gun, a fast Djinni crossing close ahead and an " +
-                                    "unpiloted one waiting at range. The Djinni starts to port moving across the bow, and its pilot brakes it as it closes. Make the pass coasting: give no throttle until the Djinni has crossed the bow, then fly freely (thrusting from the start carries you past it). Verify: as the Djinni crosses close, FastBlast lands some and projector " +
+    public override string Brief => "A Lightning Projector at the starboard gun and a Cell Blaster at the port gun, an unpiloted Djinni coasting across the bow " +
+                                    "at 50 m/s close ahead and an unpiloted one waiting at range. The crosser starts to port and only coasts: nothing steers it " +
+                                    "and it does not shoot back. Make the pass coasting: give no throttle until the Djinni has crossed the bow, then fly freely " +
+                                    "(thrusting from the start carries you past it). Verify: as the Djinni crosses close, FastBlast lands some and projector " +
                                     "almost none; against the Djinni at range both land. Fly it again without the Fire Control Array: " +
                                     "with it the small gun lands more.";
     public override uint Seed => 112;
@@ -13,12 +15,11 @@ public sealed class Crossing : Scenario
 
     // Where the Djinni sit: the player is at Origin facing +z. Origin is 250 m or more from every body, where the zone's
     // pull is weakest (about 1.4 u/s^2; the sum of the wells never drops to nothing, and at the old origin the player sat on the star).
-    // The crosser starts ahead and to port, facing across the bow and already moving at the Djinni's 50 m/s cap; its pilot
-    // brakes it as it closes, so it only just reaches the bow line, which fixes how far to port it starts (sweeping the starting
-    // x from -95 to -97.5 moves the pass from 3.0 s to 3.5 s; at -98 it never crosses). The waiting Djinni sits inside the Lightning
-    // Projector's arc at 80% of its Range.
+    // The crosser is unpiloted and placed moving at the Djinni's 50 m/s cap, so its pass is ballistic, bent only by the field:
+    // CrosserAt is the centre of the start window in which the pass holds (the sweep test shifts it by 10 m on each axis).
+    // The waiting Djinni sits inside the Lightning Projector's arc at 80% of its Range.
     public static readonly CultMath.float2 Origin = float2(724, 124);
-    public static readonly CultMath.float2 CrosserAt = Origin + float2(-96.5f, 70), CrosserFacing = float2(1, 0), CrosserVelocity = float2(50, 0);
+    public static readonly CultMath.float2 CrosserAt = Origin + float2(-180, 45), CrosserFacing = float2(1, 0), CrosserVelocity = float2(50, 0);
     public const float ProjectorRange = 1216f; // the Lightning Projector's Range in metres, 1216.4 as the fit stands settled at rest
     public static readonly CultMath.float2 Waiting = Origin + float2(0, ProjectorRange * .8f);
 
@@ -43,7 +44,7 @@ public sealed class Crossing : Scenario
             ("Fire Control Array", int2(1, 6), Clockwise));
 
         stage.Player(fighter, Origin, facing: float2(0, 1));
-        stage.Place(stage.Generated("Djinni"), CrosserAt, facing: CrosserFacing, stance: ScenarioStance.Hostile, piloted: true, velocity: CrosserVelocity);
+        stage.Place(stage.Generated("Djinni"), CrosserAt, facing: CrosserFacing, stance: ScenarioStance.Hostile, velocity: CrosserVelocity);
         stage.Place(stage.Bare("Djinni"), Waiting);
     }
 }
