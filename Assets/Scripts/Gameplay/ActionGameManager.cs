@@ -1460,13 +1460,15 @@ public class ActionGameManager : MonoBehaviour
     {
         if (CurrentEntity == null || CurrentEntity.Parent != null) return;
 
+        var lead = Clock.Lead;
+        var ownDrawn = DrawAhead.Position(CurrentEntity, lead);
         ViewDot.Target = ZoneRenderer.EntityInstances[CurrentEntity].LookAtPoint.position;
         var target = CurrentEntity.Target.Value;
         if (target.Chunk is ChunkId chunk)
             TargetIndicator.Target = ChunkWorldPosition(chunk).ToUnity();
         else if (target.Entity != null)
-            TargetIndicator.Target = target.Entity.Position.ToUnity();
-        var distance = length(ViewDot.Target.ToCultMath() - CurrentEntity.Position);
+            TargetIndicator.Target = DrawAhead.Position(target.Entity, lead).ToUnity();
+        var distance = length(ViewDot.Target.ToCultMath() - ownDrawn);
         foreach (var (_, barrels, crosshair) in _articulationGroups)
         {
             var averagePosition = Vector3.zero;
@@ -1484,7 +1486,7 @@ public class ActionGameManager : MonoBehaviour
             indicator.gameObject.SetActive(showIndicator);
             if(showIndicator)
             {
-                indicator.Target = targetEntity.Position.ToUnity();
+                indicator.Target = DrawAhead.Position(targetEntity, lead).ToUnity();
                 ApplyLockProgress(indicator, spin, value);
             }
         }
@@ -1501,8 +1503,7 @@ public class ActionGameManager : MonoBehaviour
         if (strongest >= 0)
         {
             var warning = warnings[strongest];
-            incomingIndicator.Target = CurrentEntity.Position.ToUnity() +
-                new Vector3(warning.Bearing.x, 0, warning.Bearing.y) * IncomingLockIndicatorDistance;
+            incomingIndicator.Target = DrawAhead.AtBearing(CurrentEntity, warning.Bearing, IncomingLockIndicatorDistance, lead).ToUnity();
             ApplyLockProgress(incomingIndicator, incomingSpin, warning.Strength);
         }
 
@@ -1533,7 +1534,7 @@ public class ActionGameManager : MonoBehaviour
             }
             marker.gameObject.SetActive(true);
             var bearing = CurrentEntity.ContactOf(subject).Bearing;
-            marker.Place.Target = CurrentEntity.Position.ToUnity() + new Vector3(bearing.x, 0, bearing.y) * BearingMarkerDistance;
+            marker.Place.Target = DrawAhead.AtBearing(CurrentEntity, bearing, BearingMarkerDistance, Clock.Lead).ToUnity();
             marker.ShowLabel(string.Join(", ", CurrentEntity.ClaimedClasses(subject).Select(c => c.Name)));
         }
     }
@@ -1572,7 +1573,7 @@ public class ActionGameManager : MonoBehaviour
                 _sweepFlashes.RemoveAt(i);
                 continue;
             }
-            indicator.Target = CurrentEntity.Position.ToUnity() + new Vector3(bearing.x, 0, bearing.y) * IncomingLockIndicatorDistance;
+            indicator.Target = DrawAhead.AtBearing(CurrentEntity, bearing, IncomingLockIndicatorDistance, Clock.Lead).ToUnity();
             if (image != null) image.color = new Color(image.color.r, image.color.g, image.color.b, 1 - age / SearchFlashSeconds);
         }
     }

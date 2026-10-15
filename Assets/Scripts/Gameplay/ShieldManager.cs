@@ -34,7 +34,7 @@ public class ShieldManager : MonoBehaviour, IAbsorbPresenter
     {
         if (contact.A != Entity && contact.B != Entity) return;
         if (Entity.Shield != null && Entity.Shield.Item.Active.Value)
-            ShowHit(new Vector3(contact.Point.x, Entity.Position.y, contact.Point.y), CollisionHitDuration);
+            ShowHit(DrawAhead.Carried(Entity, float3(contact.Point.x, Entity.Position.y, contact.Point.y), ActionGameManager.Clock.Lead).ToUnity(), CollisionHitDuration);
     }
 
     private ShieldEnvelope _envelope;

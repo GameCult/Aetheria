@@ -340,6 +340,60 @@ public sealed class DrawnPoseTests : IDisposable
         }
     }
 
+    // The well the shader takes is its body's rail at the drawn time: the lowering copies DrawAhead.Well and decides
+    // nothing, so the drawn well and the drawn planet share one pose at a non-zero lead, and the strength, core and
+    // reference are the field law's (spelled here from the masses, the core 2 and the zone's edge), not the step's.
+    [Fact]
+    public void AWellIsLoweredAtTheDrawnTime()
+    {
+        var w = Build();
+        Step(w, 1f / 60f, 803);
+        foreach (var lead in new[] { 0f, .004f, .0166f })
+        {
+            var time = w.Zone.ExactTime + lead;
+            foreach (var body in w.Zone.PlanetInstances.Values)
+            {
+                var key = body.BodyData.Orbit.Key;
+                var (at, strength) = key == w.PlanetOrbit ? (PlanetAt(time), PlanetMass)
+                    : key == w.MoonOrbit ? (MoonAt(time), MoonMass)
+                    : (SunCentre, SunMass);
+                var well = DrawAhead.Well(w.Zone, body, lead);
+                AssertNear(at, well.Position, 1e-3f, $"well of the {strength} body at lead {lead}");
+                Assert.Equal(strength, well.Strength, 3);
+                Assert.Equal(2f, well.CoreRadius, 3);
+                Assert.Equal(GravityField.Potential(strength, 2f, w.Zone.Pack.Radius), well.Reference, 3);
+            }
+        }
+
+        var planet = w.Zone.PlanetInstances.Values.Single(b => b.BodyData.Orbit.Key == w.PlanetOrbit);
+        Assert.True(length(DrawAhead.Well(w.Zone, planet, .0166f).Position - DrawAhead.Well(w.Zone, planet, 0f).Position) > .1f, "the well moves over a lead");
+        AssertNear(w.Zone.Orbits[w.PlanetOrbit].Position, DrawAhead.Well(w.Zone, planet, 0f).Position, 0f, "at lead 0 the well is the step's memo");
+    }
+
+    // A HUD marker round the ship the camera follows (an incoming lock, a contact's bearing, a ping's flash) is anchored on
+    // that ship's drawn position, so it holds still against the drawn hull at every lead. A marker anchored on the step's
+    // position slides v * lead off it and snaps back each step.
+    [Fact]
+    public void AMarkerAtABearingIsAnchoredOnTheDrawnShip()
+    {
+        var w = Build();
+        Step(w, 1f / 60f, 30);
+        var ship = new OrbitalEntity(w.Items, w.Zone, w.Hull, default, new EntitySettings())
+        {
+            Position = float3(520f, 0, -140f),
+            Velocity = float2(12f, -5f)
+        };
+        var bearing = normalize(float2(.6f, .8f));
+        foreach (var lead in new[] { 0f, .004f, .0166f })
+        {
+            var drawn = DrawAhead.Position(ship, lead);
+            var marker = DrawAhead.AtBearing(ship, bearing, 7f, lead);
+            AssertNear(float2(520f, -140f) + float2(12f, -5f) * lead + bearing * 7f, marker.xz, 1e-4f, $"marker at lead {lead}");
+            Assert.Equal(drawn.y, marker.y, 4);
+            AssertNear(drawn.xz, marker.xz - bearing * 7f, 1e-4f, $"the marker's anchor is the drawn ship at lead {lead}");
+        }
+    }
+
     private static void AssertNear(float2 expected, float2 actual, float eps, string what) =>
         Assert.True(length(expected - actual) <= eps, $"{what}: expected {expected}, got {actual} (eps {eps})");
 }

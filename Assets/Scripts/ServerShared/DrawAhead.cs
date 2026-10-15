@@ -40,6 +40,32 @@ public static class DrawAhead
         return float3(planar.x, entity.RideHeight(planar, Time(entity.Zone, lead)), planar.y);
     }
 
+    // The point `distance` out along a planar bearing from the ship's drawn position: where the HUD anchors a marker to the
+    // ship the camera follows (an incoming lock, a remembered contact, a ping's flash).
+    public static float3 AtBearing(Entity origin, float2 bearing, float distance, float lead)
+    {
+        var at = Position(origin, lead);
+        return float3(at.x + bearing.x * distance, at.y, at.z + bearing.y * distance);
+    }
+
+    // One well as the shader takes it: its body's rail at the drawn time, with the strength, core and reference the sim's
+    // GetHeight sums with. GravityLowering copies it into the shader's record and decides nothing.
+    public readonly struct DrawnWell
+    {
+        public readonly float2 Position;
+        public readonly float Strength, CoreRadius, Reference;
+        public DrawnWell(float2 position, float strength, float coreRadius, float reference)
+        {
+            Position = position;
+            Strength = strength;
+            CoreRadius = coreRadius;
+            Reference = reference;
+        }
+    }
+
+    public static DrawnWell Well(Zone zone, Planet body, float lead) =>
+        new DrawnWell(Orbit(zone, body.BodyData.Orbit.Key, lead), body.WellStrength, body.RocheLimit, zone.WellReference(body));
+
     // A free body (a vapour cloud) drawn where the frame falls lead sim seconds after the last step, by the velocity
     // that step moved it with: the launch velocity and the drift together.
     public static float2 Position(KinematicBody body, float lead) => body.Position + body.TotalVelocity * lead;
@@ -65,13 +91,13 @@ public static class DrawAhead
             t.w * q.w - t.x * q.x - t.y * q.y - t.z * q.z));
     }
 
-    // A ballistic round at a sim time (the clock's Zone.Time + Lead): on its frozen line while the outcome is unknown or a
+    // A ballistic round at the drawn time (DrawAhead.Time, passed in by the caller, as lead is): on its frozen line while the outcome is unknown or a
     // miss, with the barrel's offset from that line decaying to nothing over blendTime sim seconds from the moment of firing.
     // A round the sim published as a hit or burst steers from its line, from the commit tick, onto where it ends by the
     // time damage lands: a burst's frozen point, else the impact cell on the target's drawn pose; and is held there after.
-    public static float3 Round(in PendingShot shot, ShotOutcome known, float3 barrel, float blendTime, float simTime, float lead)
+    public static float3 Round(in PendingShot shot, ShotOutcome known, float3 barrel, float blendTime, double drawnTime, float lead)
     {
-        var time = simTime + lead;
+        var time = (float) drawnTime;
         var drawn = Lifted(shot, Line(shot, known?.Result, time), barrel, blendTime, time);
         if (known == null || known.Result == ShotResult.Miss) return drawn;
         var end = known.HasBurstPoint
@@ -101,8 +127,8 @@ public static class DrawAhead
     }
 
     // Whether the drawn flight is over by time: only a published miss ends by the clock. A hit or burst ends on ShotResolved.
-    public static bool RoundOver(in PendingShot shot, ShotOutcome known, float simTime, float lead) =>
-        known != null && known.Result == ShotResult.Miss && simTime + lead >= RoundEnd(shot, ShotResult.Miss);
+    public static bool RoundOver(in PendingShot shot, ShotOutcome known, double drawnTime) =>
+        known != null && known.Result == ShotResult.Miss && (float) drawnTime >= RoundEnd(shot, ShotResult.Miss);
 
     // The sim time a round's drawn line ends, for what is known of its outcome. A round that hit or burst (or whose outcome
     // is not yet published) ends at its ArrivalTime; a round the sim has published as a Miss flies on to the weapon's frozen

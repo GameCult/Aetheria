@@ -187,7 +187,7 @@ public class EntityInstance : MonoBehaviour
                     {
                         var pingInstance = Instantiate(PingPrefab);
                         var pingMesh = pingInstance.GetComponent<MeshRenderer>();
-                        pingInstance.position = entity.Position.ToUnity();
+                        pingInstance.position = DrawAhead.Position(entity, ActionGameManager.Clock.Lead).ToUnity();
                         _pingBrightness = pingMesh.material.GetFloat("_Depth");
                         _currentPing = (pingInstance, pingMesh);
                     };

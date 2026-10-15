@@ -524,7 +524,7 @@ public class ZoneRenderer : MonoBehaviour
         GravityLowering.Lower(Zone, lead, ref _gravityWells);
         foreach (var loot in _floatingItems.Values)
         {
-            loot.ViewOrigin = PerspectiveEntity.Position;
+            loot.ViewOrigin = DrawAhead.Position(PerspectiveEntity, lead);
             loot.ViewDirection = PerspectiveEntity.Aim;
         }
         
@@ -601,7 +601,7 @@ public class ZoneRenderer : MonoBehaviour
         {
             if(entityInstance.CompassIcon)
             {
-                var difference = entityInstance.Entity.Position.xz - PerspectiveEntity.Position.xz;
+                var difference = DrawAhead.Position(entityInstance.Entity, lead).xz - DrawAhead.Position(PerspectiveEntity, lead).xz;
                 var distance = length(difference);
                 
                 entityInstance.CompassIcon.gameObject.SetActive(
@@ -613,7 +613,7 @@ public class ZoneRenderer : MonoBehaviour
 
         foreach (var wormhole in WormholeInstances.Values)
         {
-            var difference = wormhole.gravity.transform.position.Flatland() - PerspectiveEntity.Position.xz.ToUnity();
+            var difference = wormhole.gravity.transform.position.Flatland() - DrawAhead.Position(PerspectiveEntity, lead).xz.ToUnity();
             var distance = difference.magnitude;
             wormhole.icon.gameObject.SetActive(distance > _minimapDistance);
             wormhole.icon.transform.rotation = Quaternion.Euler(0, 0, Mathf.Atan2(difference.y, difference.x) * Mathf.Rad2Deg - 90);

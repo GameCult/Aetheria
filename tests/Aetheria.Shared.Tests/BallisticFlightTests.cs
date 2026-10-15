@@ -165,7 +165,7 @@ public sealed partial class FireControlCut124Tests
             {
                 var at = shot.FireTime + i * .37f;
                 DrawAhead.Round(shot, known, barrel, .1f, at, .01f);
-                DrawAhead.RoundOver(shot, known, at, .01f);
+                DrawAhead.RoundOver(shot, known, at);
                 DrawAhead.RoundEnd(shot, known?.Result);
                 DrawAhead.Impact(e.Target, cell, .01f * i);
             }
@@ -232,12 +232,12 @@ public sealed partial class FireControlCut124Tests
             Assert.Equal(direct.FireTime + 100f / speed, DrawAhead.RoundEnd(direct, ShotResult.Burst), 4);
             Assert.Equal(direct.FireTime + 1000f / speed, DrawAhead.RoundEnd(direct, ShotResult.Miss), 4);
 
-            Assert.False(DrawAhead.RoundOver(direct, null, direct.FireTime + 10000f, 0f));
+            Assert.False(DrawAhead.RoundOver(direct, null, direct.FireTime + 10000f));
             foreach (var result in new[] { ShotResult.Hit, ShotResult.Burst })
-                Assert.False(DrawAhead.RoundOver(direct, Known(direct, result), direct.FireTime + 10000f, 0f));
+                Assert.False(DrawAhead.RoundOver(direct, Known(direct, result), direct.FireTime + 10000f));
             var missEnd = direct.FireTime + 1000f / speed;
-            Assert.False(DrawAhead.RoundOver(direct, Known(direct, ShotResult.Miss), missEnd - .01f, 0f));
-            Assert.True(DrawAhead.RoundOver(direct, Known(direct, ShotResult.Miss), missEnd, 0f));
+            Assert.False(DrawAhead.RoundOver(direct, Known(direct, ShotResult.Miss), missEnd - .01f));
+            Assert.True(DrawAhead.RoundOver(direct, Known(direct, ShotResult.Miss), missEnd));
 
             // A target beyond the weapon's range: a miss never ends short of its own arrival.
             var far = FireDirectRound(speed, 100f, targetRange: 150f);
@@ -269,10 +269,10 @@ public sealed partial class FireControlCut124Tests
 
         foreach (var lead in new[] { 0f, step / 2f, .999f * step })
         {
-            var waiting = DrawAhead.Round(shot, null, shot.FireOrigin, 0f, shot.ArrivalTime, lead);
+            var waiting = DrawAhead.Round(shot, null, shot.FireOrigin, 0f, shot.ArrivalTime + lead, lead);
             Assert.Equal(origin.x, waiting.x, 3);
             Assert.Equal(origin.z + 100f, waiting.z, 3);
-            var missed = DrawAhead.Round(shot, Known(shot, ShotResult.Miss), shot.FireOrigin, 0f, shot.ArrivalTime, lead);
+            var missed = DrawAhead.Round(shot, Known(shot, ShotResult.Miss), shot.FireOrigin, 0f, shot.ArrivalTime + lead, lead);
             Assert.Equal(origin.x, missed.x, 3);
             Assert.Equal(origin.z + 100f + lead * speed, missed.z, 3);
         }
@@ -386,7 +386,7 @@ public sealed partial class FireControlCut124Tests
                 // A frame that falls `lead` after the step draws what the sim time lead later would.
                 foreach (var lead in new[] { 1f / 60f, 1f / 90f })
                 {
-                    var ahead = DrawAhead.Round(shot, miss, shot.FireOrigin, .1f, shot.FireTime + checkpoint - lead, lead);
+                    var ahead = DrawAhead.Round(shot, miss, shot.FireOrigin, .1f, shot.FireTime + checkpoint, lead);
                     Assert.Equal(fresh.x, ahead.x, 3);
                     Assert.Equal(fresh.y, ahead.y, 3);
                     Assert.Equal(fresh.z, ahead.z, 3);
@@ -441,7 +441,7 @@ public sealed partial class FireControlCut124Tests
             Assert.Equal(expected.z, impact.z, 3);
             foreach (var simTime in new[] { shot.ArrivalTime, shot.ArrivalTime + .5f })
             {
-                var drawn = DrawAhead.Round(shot, hit, shot.FireOrigin, .1f, simTime, lead);
+                var drawn = DrawAhead.Round(shot, hit, shot.FireOrigin, .1f, simTime + lead, lead);
                 Assert.Equal(expected.x, drawn.x, 3);
                 Assert.Equal(expected.y, drawn.y, 3);
                 Assert.Equal(expected.z, drawn.z, 3);
@@ -480,7 +480,7 @@ public sealed partial class FireControlCut124Tests
         Assert.Equal(onTheLine.y + (end.y - onTheLine.y) * .5f, halfway.y, 3);
         Assert.Equal(onTheLine.z + (end.z - onTheLine.z) * .5f, halfway.z, 3);
 
-        var ahead = DrawAhead.Round(shot, hit, shot.FireOrigin, 0f, m - .02f, .02f);
+        var ahead = DrawAhead.Round(shot, hit, shot.FireOrigin, 0f, m, .02f);
         Assert.Equal(halfway.x, ahead.x, 3);
         Assert.Equal(halfway.y, ahead.y, 3);
         Assert.Equal(halfway.z, ahead.z, 3);

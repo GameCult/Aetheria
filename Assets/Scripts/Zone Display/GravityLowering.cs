@@ -50,13 +50,13 @@ public static class GravityLowering
         if (zone != null)
             foreach (var body in zone.PlanetInstances.Values)
             {
-                var at = DrawAhead.Orbit(zone, body.BodyData.Orbit.Key, lead);
+                var well = DrawAhead.Well(zone, body, lead);
                 _records[i++] = new WellRecord
                 {
-                    Position = new Vector2(at.x, at.y),
-                    Strength = body.WellStrength,
-                    CoreRadius = body.RocheLimit,
-                    Reference = zone.WellReference(body)
+                    Position = new Vector2(well.Position.x, well.Position.y),
+                    Strength = well.Strength,
+                    CoreRadius = well.CoreRadius,
+                    Reference = well.Reference
                 };
             }
         wells.SetData(_records);
