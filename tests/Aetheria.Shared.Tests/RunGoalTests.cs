@@ -125,7 +125,7 @@ public sealed partial class RunStartTests
 
         // Death removes the boss from the zone (the one death path), and that alone opens the gate.
         boss.HeatstrokeDeath.OnNext(Unit.Default);
-        Assert.DoesNotContain(boss, exit.Entities);
+        Assert.False(exit.Entities.Any(x => ReferenceEquals(x, boss)), "the boss is removed from the exit");
         Assert.False(RunGoal.BossAlive(exit));
         Assert.True(RunGoal.ExitOpen(exit));
 

@@ -290,7 +290,7 @@ public sealed partial class MiningCut3Tests
         Assert.Empty(candidates);
         s.Zone.Targets.Within(new TargetSearch(here, 500f), candidates);
         Assert.Empty(candidates);
-        Assert.DoesNotContain(unseen, observer.VisibleEntities);
+        Assert.False(observer.VisibleEntities.Any(x => ReferenceEquals(x, unseen)), "the unseen entity is not visible");
     }
 
     private readonly struct NearestChunk : ITargetKey

@@ -156,9 +156,24 @@ public static class FireControl
     // quiet-gear-identifiable-hull-layout-known, reveal-ends-on-perception): `observer` can aim at `item` when its own
     // book holds a reveal of it (Entity.HasReveal: it saw the item act) and the item is still fitted to its ship and
     // not destroyed. The book says what was seen; the live item says whether it can still be aimed at. Derived on
-    // every read, never cached; watching a ship reveals no gear.
+    // every read, never cached; watching a ship reveals no gear. Any aiming choice that reads an item's class or
+    // stats (Combat's target-item choice, its dps) asks this; the selection gate is IsLocated.
     public static bool IsRevealed(Entity observer, EquippedItem item) =>
         !item.EquippableItem.IsDestroyed && item.Entity.Equipment.Contains(item) && observer.HasReveal(item.Entity, item);
+
+    // The selection gate (ruling quiet-gear-identifiable-hull-layout-known): `observer` can aim at `item` when it has seen
+    // the item act (IsRevealed's question) or the item sits on a mount of the hull the observer believes its ship to be
+    // (Entity.LayoutOf, by reference: the believed hull's HardpointData are the true item's only while the belief is the
+    // truth, so under a hull lie no gear is located and the ship stays targetable, ruling ew-aim-under-hull-lie-ruled).
+    // Locating reads no class or stats. A Tool item sits on no mount, so only an act locates it.
+    public static bool IsLocated(Entity observer, EquippedItem item) =>
+        !item.EquippableItem.IsDestroyed && item.Entity.Equipment.Contains(item) &&
+        (observer.HasReveal(item.Entity, item) || item.Hardpoint != null && observer.LayoutOf(item.Entity).Contains(item.Hardpoint));
+
+    // Whether the aim at `aimed` is at its mount (located, not revealed): the aim point is then the mount's cells, not
+    // the cells of an item the observer has not learned the size of.
+    public static bool AimsAtMount(Entity observer, EquippedItem aimed) =>
+        aimed != null && aimed.Hardpoint != null && !IsRevealed(observer, aimed);
 
     // Cut 2, Q4: the stats an entity actually fires with. A working targeting system (equipped, online --
     // not destroyed, not shut down) supplies its own resolved stats; anything else falls back to the
@@ -337,7 +352,7 @@ public static class FireControl
         Silhouette sil;
         try
         {
-            sil = Silhouette(target, targetHull, source.ResolvedTargetItem, bearing, precision, buffer);
+            sil = Silhouette(target, targetHull, source.ResolvedTargetItem, bearing, precision, buffer, AimsAtMount(source, source.ResolvedTargetItem));
             var settings = source.ItemManager.GameplaySettings;
             pSpread = PSpread(weapon.Spread, sil.Span, range, settings.SchematicCellSize);
         }
@@ -723,6 +738,7 @@ public static class FireControl
             Target = engaged,
             Weapon = item,
             Aimed = source.ResolvedTargetItem,
+            AimAtMount = AimsAtMount(source, source.ResolvedTargetItem),
             Damage = damageOverride ?? weapon.Damage,
             FireMinRange = weapon.MinRange,
             FireEffectiveRange = weapon.EffectiveRange,
@@ -895,7 +911,7 @@ public static class FireControl
 
         var bearing = Bearing(shot.Target, shot.TravelDirection);
         var hullData = shot.Target.ItemManager.GetData(shot.Target.Hull) as HullData;
-        sil = Silhouette(shot.Target, hullData, shot.Aimed, bearing, shot.Precision);
+        sil = Silhouette(shot.Target, hullData, shot.Aimed, bearing, shot.Precision, null, shot.AimAtMount);
         var settings = shot.Target.ItemManager.GameplaySettings;
         return p * PSpread(shot.Spread, sil.Span, shot.FireRange, settings.SchematicCellSize) * sil.POnHull;
     }
@@ -1763,11 +1779,12 @@ public static class FireControl
     private static float Sigma(float precision) => max(1f / max(precision, 1e-3f), SigmaFloor);
 
     // The aim point a silhouette is centred on (R10/Q6: the same frozen Aimed both HitProbability and Fire
-    // read) -- the aimed item's own cell centroid when it currently occupies cells on the target, else the
+    // read) -- the aimed item's own cell centroid when it currently occupies cells on the target (its mount's cells
+    // when the aim was frozen at the mount, atMount: the shooter has not learned what is fitted there), else the
     // hull's own centre of mass. One path; the uniform-random branch Cut 6d replaced stays deleted.
-    private static float2 ResolveAimPoint(Entity target, HullData hullData, EquippedItem aimed)
+    private static float2 ResolveAimPoint(Entity target, HullData hullData, EquippedItem aimed, bool atMount)
     {
-        var aimedCells = aimed != null ? CellsOf(target, aimed) : null;
+        var aimedCells = aimed == null ? null : atMount && aimed.Hardpoint != null ? MountCells(aimed.Hardpoint) : CellsOf(target, aimed);
         if (aimedCells != null && aimedCells.Length > 0)
             return aimedCells.Aggregate(float2.zero, (total, c) => total + (float2) c) / aimedCells.Length;
         return hullData.Shape.CenterOfMass;
@@ -1787,7 +1804,7 @@ public static class FireControl
     // call that follows, so it still passes null and gets an owned allocation. A caller-supplied buffer may be
     // larger than coords.Length (ArrayPool rents "at least"), so every loop below is bounded by coords.Length,
     // never buffer.Length.
-    public static Silhouette Silhouette(Entity target, HullData hull, EquippedItem aimed, float2 bearing, float precision, Interval[] buffer = null)
+    public static Silhouette Silhouette(Entity target, HullData hull, EquippedItem aimed, float2 bearing, float precision, Interval[] buffer = null, bool atMount = false)
     {
         var ell = Lateral(bearing);
         var coords = hull.Shape.Coordinates;
@@ -1809,7 +1826,7 @@ public static class FireControl
         }
 
         var sigma = Sigma(precision);
-        var aimPoint = ResolveAimPoint(target, hull, aimed);
+        var aimPoint = ResolveAimPoint(target, hull, aimed, atMount);
         var a = dot(aimPoint, ell);
 
         var pOnHull = 0f;
@@ -1964,6 +1981,10 @@ public static class FireControl
         exit = min(exit, max(t1, t2));
     }
 
+    // The hull-schematic cells a hardpoint covers, laid as Entity builds its Hardpoints[,] grid.
+    private static int2[] MountCells(HardpointData hardpoint) =>
+        hardpoint.Shape.Coordinates.Select(c => hardpoint.Position + c).ToArray();
+
     // The cells of the target's hull schematic actually occupied by `item` -- GearOccupancy is the one source
     // of truth for where an equipped item's footprint lands, the same table Detonate and ApplyPooled read.
     private static int2[] CellsOf(Entity target, EquippedItem item)
@@ -1988,6 +2009,9 @@ public struct PendingShot
     public Entity Target;
     public EquippedItem Weapon;
     public EquippedItem Aimed;
+    // Whether the aim was at Aimed's mount rather than the item (FireControl.AimsAtMount at Fire), frozen with it: a
+    // reveal between Fire and Commit does not move where this shot was aimed.
+    public bool AimAtMount;
 
     // The frozen payload (R10, Q6): the gun's own stats at the instant the trigger was pulled. Nothing
     // downstream re-evaluates any of these.

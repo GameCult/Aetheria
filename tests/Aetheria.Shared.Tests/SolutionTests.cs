@@ -201,7 +201,7 @@ public sealed partial class FireControlCut124Tests
         var other = FireControl.Solution(e.Weapon, e.Shooter, decoy).Direction;
         Assert.True(FireControl.Bears(e.Weapon, e.Shooter, decoy, out _));
         Assert.True(length(designated - other) > .3f, "fixture: the two intercepts must differ");
-        Assert.Same(e.Target, e.Shooter.Target.Value.Entity);
+        Assert.True(ReferenceEquals(e.Target, e.Shooter.Target.Value.Entity), "the designated target is kept");
 
         Near(other, FireControl.Solve(e.Weapon, e.WeaponItem, e.Shooter, decoy).TravelDirection);
         Near(designated, FireControl.Solve(e.Weapon, e.WeaponItem, e.Shooter, e.Target).TravelDirection);

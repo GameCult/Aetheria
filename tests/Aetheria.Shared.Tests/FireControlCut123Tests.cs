@@ -562,7 +562,7 @@ public sealed class FireControlCut123Tests : IDisposable
         var outcome = FireUntilHit(e, damageOverride: 5f);
         Assert.NotNull(outcome);
         Assert.True(outcome.Hit);
-        Assert.Same(e.Shooter, source);
+        Assert.True(ReferenceEquals(e.Shooter, source), "the hit names the shooter");
     }
 
     // Stryker survivors: FireControl.Apply's two `walked[li] > 0` checks (metalLanes counting, and the

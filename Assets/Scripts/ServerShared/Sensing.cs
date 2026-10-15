@@ -127,25 +127,38 @@ public readonly struct Reveal
 // on the viewer's own ship, the live gear. `Claimed` is the class the row shows. The range label is the live range on
 // the viewer's own ship and the claimed design's rated range on any other; a row whose claimed class is not a weapon has
 // no range. The viewer never sees a target item's quality, wear or power. A renderer shows these and decides nothing.
+// A mount row (`Mount` set, `Item` and `Claimed` null) is a hardpoint of the hull the viewer believes the ship to be, with
+// nothing of the ship's claimed on it: where something is, not what.
 public readonly struct SchematicRow
 {
     public readonly EquippedItem Item;
     public readonly EquippableItemData Claimed;
+    public readonly HardpointData Mount;
     private readonly bool _own;
 
     internal SchematicRow(EquippedItem item, EquippableItemData claimed, bool own)
     {
         Item = item;
         Claimed = claimed;
+        Mount = null;
         _own = own;
     }
 
+    internal SchematicRow(HardpointData mount) : this()
+    {
+        Mount = mount;
+    }
+
     // What a renderer compares to know the rows changed. Range is a reading, not part of the key.
-    public (EquippedItem, EquippableItemData) Key => (Item, Claimed);
+    public (EquippedItem, EquippableItemData, HardpointData) Key => (Item, Claimed, Mount);
+
+    // Whether this row is the one `aimed` points at: a claimed-item row by its item, a mount row by the mount the aimed
+    // item sits on (an aimed item with a claimed-item row has no mount row).
+    public bool Marks(EquippedItem aimed) => Item != null ? Item == aimed : aimed != null && aimed.Hardpoint == Mount;
 
     public float? Range => _own
         ? Item.Behaviors.OfType<Weapon>().First().Range
-        : Claimed.Behaviors.OfType<WeaponData>().FirstOrDefault()?.RatedRange;
+        : Claimed?.Behaviors.OfType<WeaponData>().FirstOrDefault()?.RatedRange;
 }
 
 // A subject's removal from a zone as the zone recorded it (death, dock, warp, any removal): where it was and how

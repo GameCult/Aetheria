@@ -266,8 +266,8 @@ public sealed class FireControlCut8Tests : IDisposable
 
         s.Locker.Deactivate();
         Assert.False(s.Locker.Active);
-        Assert.DoesNotContain(s.Bystander, s.Locker.EntityInfoGathered.Keys);
-        Assert.Same(s.Bystander, s.Locker.Target.Value.Entity); // Deactivate does not null the entity's own Target
+        Assert.False(s.Locker.EntityInfoGathered.Keys.Any(k => ReferenceEquals(k, s.Bystander)), "the bystander is dropped from the locker's info");
+        Assert.True(ReferenceEquals(s.Bystander, s.Locker.Target.Value.Entity), "the target is kept"); // Deactivate does not null the entity's own Target
 
         var ex = Record.Exception(() => s.Locker.Update(.1f));
         Assert.Null(ex);

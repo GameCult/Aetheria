@@ -40,7 +40,7 @@ public sealed partial class ContactRevealTests
         var s = Add(float3(0, 0, 0), tools: new[] { scanner });
         s.EntityInfoGathered[target] = info;
         s.SetTarget(target);
-        Assert.Same(target, s.Target.Value.Entity); // fixture
+        Assert.True(ReferenceEquals(target, s.Target.Value.Entity), "fixture: the scanner's ship targets the ship it scans"); // not Assert.Same: a failing Entity argument is formatted as a graph and overflows the test host
         return (s, target);
     }
 
@@ -212,6 +212,25 @@ public sealed partial class ContactRevealTests
 
         Assert.Equal(1f / 16f, ScannerOf(s).Progress, 4); // reset, then one tick on the new target
         Assert.Empty(s.RevealsOf(first));
+    }
+
+    // ---- AScanReadsNothingOnAnotherTarget ----
+
+    // A scan built on one ship is that ship's: with the scanner switched off at 11/16 the player retargets, and the progress
+    // against the new target is 0 at once, not the old scan decaying (the HUD's outgoing indicator reads it).
+    [Fact]
+    public void AScanReadsNothingOnAnotherTarget()
+    {
+        var (s, first) = ScanOn();
+        var second = Add(float3(100, 0, 0));
+        Hold(s, 11, first, second);
+        Assert.Equal(11f / 16f, ScannerOf(s).Progress, 4);
+        ScannerItemOf(s).Enabled.Value = false;
+
+        s.SetTarget(second);
+        Hold(s, 1, first, second);
+
+        Assert.Equal(0f, ScannerOf(s).Progress, 4);
     }
 
     // ---- TheScannedShipIsWarned ----

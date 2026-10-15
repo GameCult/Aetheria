@@ -26,6 +26,19 @@ public sealed class InspectionScannerCatalogTests
         Assert.Equal(exponent, term.Exponent, 4);
     }
 
+    // roles-backfill's map for the design (CB-R1): each figure reads the role it is authored on, so a lot's roles move the
+    // figures the catalog test below reads. Dropping the entry or mapping a figure to the wrong role fails here.
+    [Fact]
+    public void RolesBackfillMapsTheInspectionScannersFiguresToTheirRoles()
+    {
+        using var cache = RestoredHullsTests.OpenCatalog();
+        var map = Program.RoleMapOf(Design(cache));
+        Assert.True(map != null, "roles-backfill finds no role map for the Inspection Scanner design");
+        Assert.Equal(
+            new[] { ("InterceptFactor", Discipline), ("Range", ScanArray), ("ScanTime", ScanArray) },
+            map.Select(p => (p.Key, p.Value)).OrderBy(p => p.Key, StringComparer.Ordinal).ToArray());
+    }
+
     [Fact]
     public void TheCatalogSellsAnInspectionScanner()
     {
