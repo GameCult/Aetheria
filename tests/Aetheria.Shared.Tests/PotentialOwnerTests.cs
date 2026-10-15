@@ -182,11 +182,13 @@ public sealed class PotentialOwnerTests : IDisposable
         Assert.True(threw > 0 && built > 0, "the sweep holds masses on both sides of the crossing");
     }
 
-    // The shipped curves keep the core inside the Roche limit over the whole generated mass range.
+    // The shipped curves keep the core inside the Roche limit over the whole generated mass range. The curves are the ones
+    // Settings.asset carries, read the way RunStartTests reads them, so a retune of the asset is judged here.
     [Fact]
     public void TheAuthoredCurvesBuildAtEveryMass()
     {
-        var planets = Curves();
+        var planets = AuthoredSettings.Load(RunStartTests.FindRepoRoot()).Read<PlanetSettings>("PlanetSettings");
+        Assert.True(planets.WellStrength.Evaluate(100f) > 0f && planets.CoreRadius.Evaluate(100f) > 0f, "the authored asset carries a well");
         for (var exponent10 = -3f; exponent10 <= 8f; exponent10 += .25f)
             ZoneOf(planets, (pow(10f, exponent10), float2.zero));
     }
@@ -198,6 +200,8 @@ public sealed class PotentialOwnerTests : IDisposable
     [InlineData(float.NaN)]
     [InlineData(float.PositiveInfinity)]
     [InlineData(float.NegativeInfinity)]
+    [InlineData(-1e-6f)]
+    [InlineData(-float.Epsilon)]
     public void AnUnphysicalWellStrengthThrowsAtConstruction(float strength)
     {
         var planets = Curves();
@@ -206,6 +210,24 @@ public sealed class PotentialOwnerTests : IDisposable
         planets.CoreRadius = new ExponentialCurve();
         planets.RocheLimit = new ExponentialCurve();
         Assert.Throws<InvalidOperationException>(() => ZoneOf(planets, (100f, float2.zero)));
+    }
+
+    // Zero is the boundary: a well of no strength builds beside the authored core and Roche curves (it digs nothing), where
+    // the smallest negative strength does not.
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(-0f)]
+    public void AWellOfNoStrengthBuildsAndDigsNothing(float strength)
+    {
+        var planets = Curves();
+        planets.WellStrength = new ExponentialCurve { Constant = strength };
+        var zone = ZoneOf(planets, (100f, float2.zero));
+        foreach (var p in new[] { float2.zero, float2(3f, 1f), float2(40f, -9f), float2(900f, 0f) })
+        {
+            Assert.Equal(0f, zone.GetHeight(p));
+            Assert.Equal(0f, zone.GetForce(p).x);
+            Assert.Equal(0f, zone.GetForce(p).y);
+        }
     }
 
     // The well is authored once, by curves of mass (target: no per-body authoring of a core or Roche limit): a body whose
@@ -313,6 +335,31 @@ public sealed class PotentialOwnerTests : IDisposable
                     (two.GetHeight(p + float2(0, step)) - two.GetHeight(p - float2(0, step))) * k / (2 * step));
                 var force = two.GetForce(p);
                 Assert.InRange(length(gradient + force), 0f, length(force) * 1e-2f + 1e-4f);
+            }
+        }
+    }
+
+    // Inside the core the potential is the bowl c r^2 / 2R^2 all the way out to R: the drop from a lone body's centre to a point
+    // at r is exactly that, from the middle of the core to a hair inside its edge (the log form agrees with the bowl to second
+    // order at R, so only a tight tolerance sees a join that sits just inside it).
+    [Fact]
+    public void TheCoreIsTheBowlUpToItsEdge()
+    {
+        foreach (var k in new[] { 1f, 10f })
+        {
+            var planets = Curves(k);
+            foreach (var mass in new[] { 29.2f, 14152.4f })
+            {
+                var zone = ZoneOf(planets, (mass, float2.zero));
+                var c = planets.WellStrength.Evaluate(mass);
+                var core = planets.CoreRadius.Evaluate(mass);
+                foreach (var fraction in new[] { .5f, .75f, .9f, .95f, .98f, .99f })
+                foreach (var angle in new[] { 0f, 2.3f })
+                {
+                    var r = fraction * core;
+                    var drop = (zone.GetHeight(new float2(r * cos(angle), r * sin(angle))) - zone.GetHeight(float2.zero)) * k;
+                    Near(c * fraction * fraction / 2f, drop, 2e-5f);
+                }
             }
         }
     }
