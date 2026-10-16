@@ -140,10 +140,83 @@ namespace Aetheria.EditorTools
                 Call(volume, "Update");
                 if (Differing(flowing, Frame()) == 0) Fail("scene-stardust-run", "the particle buffer did not move while the zone ran");
                 if (Shader.GetGlobalFloat("_NebulaNoiseTime") == noiseTime) Fail("scene-noise-clock", "_NebulaNoiseTime did not move while the zone ran");
+
+                CheckStardustUncullable(dust, bufferField);
             }
             finally
             {
                 try { Directory.Delete(work, true); } catch { }
+            }
+        }
+
+        // The dust is a command buffer on the target camera, which no culling sees: with every particle 10000 below the
+        // camera (far past any box a hand could inflate round it) a render still shows dust, and shows none when the
+        // same particles have no size.
+        static void CheckStardustUncullable(Stardust dust, FieldInfo bufferField)
+        {
+            var camera = dust.TargetCamera;
+            if (camera == null) { Fail("scene-stardust-uncullable", "Stardust has no TargetCamera"); return; }
+            var attached = camera.GetCommandBuffers(CameraEvent.AfterForwardOpaque).Count(buffer => buffer.name == "Stardust");
+            if (attached != 1) Fail("scene-stardust-uncullable", $"{attached} Stardust command buffers on the target camera, expected 1");
+
+            var particles = (ComputeBuffer) bufferField.GetValue(dust);
+            var side = Mathf.RoundToInt(Mathf.Sqrt(particles.count));
+            float[] Layout(float size)
+            {
+                var data = new float[particles.count * 7];
+                for (var i = 0; i < particles.count; i++)
+                {
+                    data[i * 7 + 0] = ((i % side) - side / 2f) * 4f;
+                    data[i * 7 + 1] = -50000f;
+                    data[i * 7 + 2] = ((i / side) - side / 2f) * 4f;
+                    data[i * 7 + 3] = data[i * 7 + 4] = data[i * 7 + 5] = 1f;
+                    data[i * 7 + 6] = size;
+                }
+                return data;
+            }
+
+            var transform = camera.transform;
+            var (position, rotation) = (transform.position, transform.rotation);
+            var (far, flags, background, mask, target) = (camera.farClipPlane, camera.clearFlags, camera.backgroundColor, camera.cullingMask, camera.targetTexture);
+            var texture = RenderTexture.GetTemporary(64, 64, 24, RenderTextureFormat.ARGB32);
+            var readback = new Texture2D(64, 64, TextureFormat.RGBA32, false);
+            var previous = RenderTexture.active;
+            Color32[] Render(float size)
+            {
+                Call(dust, "Update"); // on a bounded draw this queues the draw for the camera; here it dispatches the compute
+                particles.SetData(Layout(size));
+                camera.Render();
+                RenderTexture.active = texture;
+                readback.ReadPixels(new Rect(0, 0, 64, 64), 0, 0);
+                readback.Apply();
+                return readback.GetPixels32();
+            }
+            try
+            {
+                transform.SetPositionAndRotation(new Vector3(0f, -40000f, 0f), Quaternion.Euler(90f, 0f, 0f));
+                camera.farClipPlane = 30000f;
+                camera.clearFlags = CameraClearFlags.SolidColor;
+                camera.backgroundColor = Color.black;
+                camera.cullingMask = 0;
+                camera.targetTexture = texture;
+                var withDust = Render(5f);
+                var without = Render(0f);
+                var differing = 0;
+                for (var i = 0; i < withDust.Length; i++)
+                    if (!withDust[i].Equals(without[i])) differing++;
+                if (differing == 0) Fail("scene-stardust-uncullable", "the dust 10000 below the camera drew no pixels");
+            }
+            finally
+            {
+                RenderTexture.active = previous;
+                camera.targetTexture = target;
+                camera.cullingMask = mask;
+                camera.backgroundColor = background;
+                camera.clearFlags = flags;
+                camera.farClipPlane = far;
+                transform.SetPositionAndRotation(position, rotation);
+                RenderTexture.ReleaseTemporary(texture);
+                UnityEngine.Object.DestroyImmediate(readback);
             }
         }
 
