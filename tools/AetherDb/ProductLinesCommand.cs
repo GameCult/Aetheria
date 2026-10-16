@@ -5,6 +5,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using GameCult.Caching;
 
 // product-lines <line> [apply] (aetheria-release, cut product-lines-weapons; rulings catalog-grows-generic-designs-branded-products,
@@ -47,6 +49,11 @@ public static class ProductLinesCommand
 
     // A line's rows, for the catalog tests that check the shipped records against the table the command authors from.
     internal static IReadOnlyList<Row> Table(string line) => Lines[line];
+
+    // A product's record key is derived from its name, so the same table lands the same records every time it is applied: the
+    // replay at a merge reproduces the branch's blob, and nothing that orders products by key reads a different order after it.
+    private static CultRecordKey KeyOf(Row row) =>
+        new(new Guid(SHA256.HashData(Encoding.UTF8.GetBytes("product-line:" + row.Name)).AsSpan(0, 16)).ToString("N"));
 
     public static int Run(string[] args, string root = null)
     {
@@ -120,7 +127,7 @@ public static class ProductLinesCommand
                     Design = db.Cache.RefOf(design),
                     Manufacturer = db.Cache.RefOf(maker),
                     Roles = design.Roles.Select(r => new ProductRole { Role = r.Name, Mean = mean, StandardDeviation = dev }).ToList(),
-                });
+                }, KeyOf(row));
             }
         }))
             throw new InvalidOperationException("The catalog changed while the product line was being authored; nothing was written. Run it again.");

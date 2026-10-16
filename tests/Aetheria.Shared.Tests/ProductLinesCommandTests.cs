@@ -20,6 +20,7 @@ public sealed class ProductLinesCommandTests : IDisposable
 
     // The rows as the shipped catalog holds them, taken before they are removed from the scratch copy.
     private readonly string[] _shipped;
+    private readonly string[] _shippedKeys;
 
     private static string Describe(CultCache cache, FactionProductData product) =>
         $"{cache.Get(product.Design).Name} | {product.Name} | {cache.Get(product.Manufacturer).ShortName} | {product.Description} | " +
@@ -36,6 +37,7 @@ public sealed class ProductLinesCommandTests : IDisposable
         var products = cache.GetAll<FactionProductData>().Where(p => Names.Contains(p.Name)).ToArray();
         Assert.Equal(Names.Length, products.Length);
         _shipped = products.Select(p => Describe(cache, p)).OrderBy(x => x, StringComparer.Ordinal).ToArray();
+        _shippedKeys = products.Select(p => cache.RefOf(p).Key.Value).OrderBy(x => x, StringComparer.Ordinal).ToArray();
         foreach (var product in products) Assert.True(cache.Remove(cache.RefOf(product).Key));
         cache.FlushAsync().Wait();
     }
@@ -55,6 +57,12 @@ public sealed class ProductLinesCommandTests : IDisposable
         return cache.GetAll<FactionProductData>().Where(p => Names.Contains(p.Name)).Select(p => Describe(cache, p)).OrderBy(x => x, StringComparer.Ordinal).ToArray();
     }
 
+    private string[] Line20Keys()
+    {
+        using var cache = Open();
+        return cache.GetAll<FactionProductData>().Where(p => Names.Contains(p.Name)).Select(p => cache.RefOf(p).Key.Value).OrderBy(x => x, StringComparer.Ordinal).ToArray();
+    }
+
     [Fact]
     public void A_dry_run_writes_nothing_and_apply_lands_the_shipped_rows_once()
     {
@@ -68,8 +76,10 @@ public sealed class ProductLinesCommandTests : IDisposable
         Assert.Equal(0, ProductLinesCommand.Run(LineApply, _root));
         var landed = File.ReadAllBytes(CatalogPath);
         Assert.NotEqual(before, landed);
-        // Record keys are CultCache's to mint and differ run to run; the rows do not.
+        // The command derives each record's key from the product's name, so applying the table again lands the keys the
+        // shipped catalog holds.
         Assert.Equal(_shipped, Line20());
+        Assert.Equal(_shippedKeys, Line20Keys());
 
         // A second apply finds everything authored and writes nothing; so does a dry run.
         Assert.Equal(0, ProductLinesCommand.Run(LineApply, _root));

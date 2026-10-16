@@ -172,7 +172,8 @@ public sealed class CatalogRoleTests
             Assert.Equal(generic, design.Name);
             Assert.Equal(Program.Renames.Single(r => r.Generic == generic).Functional, design.Description);
             var products = cache.GetAll<FactionProductData>().Where(p => p.Design.Key.Equals(cache.RefOf(design).Key)).ToArray();
-            Assert.Equal(sold.Select(p => p.Key).OrderBy(k => k, StringComparer.Ordinal), products.Select(p => cache.RefOf(p).Key.Value).OrderBy(k => k, StringComparer.Ordinal));
+            // Later product lines add sellers to these designs; the renamed designs keep the products they were renamed with.
+            Assert.All(sold, product => Assert.Contains(products, p => cache.RefOf(p).Key.Value == product.Key));
             foreach (var (key, name, maker) in sold)
             {
                 var product = products.Single(p => cache.RefOf(p).Key.Value == key);
@@ -260,10 +261,7 @@ public sealed class CatalogRoleTests
         AssertNamed(Design("Muon Fusion Station Reactor"), "Modifier", "core");
 
         // Each seller's means come from its maker's profile; the Pirates are middling and inconsistent.
-        var profiles = new Dictionary<string, (float Mean, float Dev)>
-        {
-            ["Zhestokost"] = (.50f, .08f), ["R&D"] = (.60f, .15f), ["DME"] = (.55f, .20f), ["Lightsail"] = (.55f, .10f), ["Pirates"] = (.45f, .22f),
-        };
+        var profiles = new Dictionary<string, (float Mean, float Dev)>(Program.MakerProfiles) { ["Pirates"] = (.45f, .22f) };
         foreach (var design in new[] { autocannon, lrm, srm, mine, drive })
         {
             var sellers = cache.GetAll<FactionProductData>().Where(p => p.Design.Key.Equals(cache.RefOf(design).Key)).ToArray();
