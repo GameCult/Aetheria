@@ -16,65 +16,12 @@ using float3 = CultMath.float3;
 // spelled here as T = 2 pi sqrt(d / a), a composed from GravityField.Pull and c and eps read from the zone's own bodies.
 public sealed class OrbitsFromFieldTests : IDisposable
 {
-    private readonly string _root = Path.Combine(Path.GetTempPath(), "aetheria-orbitsfield-" + Guid.NewGuid().ToString("N"));
-    private readonly List<CultCache> _caches = new List<CultCache>();
+    private readonly ZoneWorlds _worlds = new ZoneWorlds();
 
-    public OrbitsFromFieldTests() => Directory.CreateDirectory(_root);
+    public void Dispose() => _worlds.Dispose();
 
-    public void Dispose()
-    {
-        foreach (var cache in _caches) cache.Dispose();
-        Directory.Delete(_root, true);
-    }
-
-    private static GameplaySettings GameSettings() => new GameplaySettings
-    {
-        DefaultEntitySettings = new EntitySettings(),
-        Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
-        QualityPriceModifier = new ExponentialLerp()
-    };
-
-    private static PlanetSettings Curves() => new PlanetSettings
-    {
-        WellStrength = new ExponentialCurve { Exponent = .2f, Multiplier = 45.08f },
-        RocheLimit = new ExponentialCurve { Exponent = .25f, Multiplier = 7.32f },
-        BodyRadius = new ExponentialCurve { Exponent = .25f, Multiplier = 3f },
-        LightRadius = new ExponentialCurve()
-    };
-
-    private sealed class World
-    {
-        public CultCache Cache;
-        public ItemManager Items;
-        public ZonePack Pack = new ZonePack { Radius = 20000f, Mass = 10000f };
-
-        public CultRecordKey Orbit(CultRecordKey parent, float distance, float phase = 0f)
-        {
-            var data = new OrbitData { Distance = distance, Phase = phase };
-            if (parent.IsSet()) data.Parent = new CultRecordRef<OrbitData>(parent);
-            var key = Cache.Upsert(data).Key;
-            Pack.Orbits.Add(new CultRecordRef<OrbitData>(key));
-            return key;
-        }
-
-        public CultRecordKey Body(CultRecordKey orbit, float mass)
-        {
-            var key = Cache.Upsert(new PlanetData { Name = "Body", Orbit = new CultRecordRef<OrbitData>(orbit), Mass = mass }).Key;
-            Pack.Planets.Add(new CultRecordRef<BodyData>(key));
-            return key;
-        }
-
-        public Zone Build() => new Zone(Items, Curves(), Pack, new GalaxyZone { Name = "OrbitsFromField", Owner = null }, null);
-    }
-
-    private World NewWorld()
-    {
-        var dir = Path.Combine(_root, $"world{_caches.Count}");
-        Directory.CreateDirectory(dir);
-        var cache = AetheriaStores.Open(Path.Combine(dir, "Aetheria.cc"), Path.Combine(dir, "run.cc"), catalogWritable: true);
-        _caches.Add(cache);
-        return new World { Cache = cache, Items = new ItemManager(cache, new ProvenanceLedger(), GameSettings(), _ => { }) };
-    }
+    private ZoneWorlds.World NewWorld() => _worlds.New();
+    private static PlanetSettings Curves() => ZoneWorlds.Curves();
 
     private static float C(Zone zone, CultRecordKey body) => zone.PlanetInstances[body].WellStrength;
     private static float Core(Zone zone, CultRecordKey body) => zone.PlanetInstances[body].RocheLimit;
@@ -330,12 +277,12 @@ public sealed class OrbitsFromFieldTests : IDisposable
         var binaries = 0;
         for (uint seed = 1; seed <= 12; seed++)
         {
-            var dir = Path.Combine(_root, $"galaxy{seed}");
+            var dir = Path.Combine(_worlds.Root, $"galaxy{seed}");
             Directory.CreateDirectory(dir);
             var catalog = Path.Combine(dir, "Aetheria.cc");
             File.Copy(TestCatalog.Repo, catalog);
             var cache = new CultCache(TestCatalog.Registry());
-            _caches.Add(cache);
+            _worlds.Caches.Add(cache);
             cache.AddBackingStore(new GameCult.Caching.MessagePack.SingleFileMessagePackBackingStore(catalog), AetheriaStores.CatalogTypes);
             cache.AddBackingStore(new GameCult.Caching.MessagePack.SingleFileMessagePackBackingStore(Path.Combine(dir, "run.cc")), AetheriaStores.RunTypes);
             var authored = AuthoredSettings.Load(RunStartTests.FindRepoRoot());
