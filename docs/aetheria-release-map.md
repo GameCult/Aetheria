@@ -52,7 +52,10 @@ Cuts without a `cut_spec`, withdrawn 2026-10-12 under map-only-what-runs: a spec
 - caliber-bands: Caliber is the size: five records recalibered, every weapon footprint held in its caliber's band, and every matrix cell. Waits on: matrix-coilguns, matrix-cannons, matrix-beams, matrix-lightning, matrix-missiles, matrix-mines, matrix-flamers (blocked on the seven matrix cuts; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
 - matrix-flamers: Weapon matrix, Jet row: Light Flamethrower, Flamethrower, Heavy Flamethrower and Inferno Projector, thermal pellet guns. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
 - matrix-mines: Weapon matrix, Mine row: Mine Rack, Heavy Mine Layer and Minefield Projector beside the Mine Launcher, with warhead and. Waits on: roles-backfill (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
-- product-lines-gear: Gear product lines: the twenty-two second-maker products of follow-up gear-product-lines, with role quality from maker. Waits on: product-lines-weapons (same catalog writer: it adds 'product-lines gear' to that cut's ProductLinesCommand.cs); generic-design-names and roles-backfill are merged. Twenty products, not twenty-two: Compact Sensor already has Finch and Lucent products. Question maker-design-tiers does not block it. Body facts: Products PL3.
+- product-lines-gear: Gear product lines: the twenty-two second-maker products of follow-up gear-product-lines, with role quality from maker. Waits on: product-lines-weapons (same catalog writer: it adds 'product-lines gear' to that cut's ProductLinesCommand.cs); generic-design-names and roles-backfill are merged. Twenty products, not twenty-two: Compact Sensor already has Finch and Lucent products. Ruling maker-design-tiers-allowed (2026-10-16) changes nothing in its table, which keeps one product per maker per design. product-lines-weapons r4 deletes NoMakerSellsTwoProductsOfOneDesign and drops the command's matching refusal, so this cut's rows face no such refusal. Body facts: Products PL3.
+- product-tiers: A maker sells several products of one design at different performance (ruling maker-design-tiers-allowed, 2026-10-16). In the operator's words, "segmentation via binning and sub-assembly selection": no new innovation or component roles. Maps per-tier ProductRole quality and a Price that follows quality, which today comes from the design (question maker-design-tiers, depends). The tier rows go through product-lines' ProductLinesCommand. Product names stay unique (NoTwoProductsShareAName). ProductRole's mean and deviation come from the maker's one MakerProfiles row, so two tiers at one maker need a per-tier offset. That offset is this cut's design, not a second profile table. Ship products are keyed one per maker per hull (ShipModCatalog.ProductKey(id, maker)); whether hull tiers widen that key is this cut's to map, not assumed. Waits on: product-lines-weapons (its command and the deleted test); product-lines-gear (same catalog writer).
+- run-seed: Drops mix a per-game seed stored in the save (ruling loot-seed-in-save, 2026-10-16). A new game rolls different drops from other games, reloading one save repeats its drops, and tests pass a fixed seed. Today Zone.CombatSeed is the zone name's StableHash (Zone.cs:144). It feeds three dice: the loot dice (Zone.cs:414, LootStream, by death ordinal), the mine lay scatter (FireControl.cs:791, MineStream) and the shot dice (FireControl.cs:930). The ruling covers drops, and the question named loot and mine fragments, so the seed mixes into the loot and mine streams. Whether hit rolls also take it is not ruled: the cut raises it. Do not change CombatSeed itself and carry that along silently. The seed lives on SavedGame, minted by the new-run branch. The run lifecycle is record-level (ActionGameManager.cs:58-60), so the seed must reach Zone at construction from the run, not from the catalog. Owns follow-up loot-dice-run-seed (its old owners, loot-1 r2 and sim-mines, are merged). Waits on: nothing in the mind.
+- mining-yield: Mining Cut 5 (docs/mining-cut-refresh.md 'Cut 5. Composition, the loot roll, the mined lot, and the same-path test agent'). Ruling mining-overflow-floats (2026-10-16) replaces that plan's deposit rule: units a shot extracts go into the shooter's cargo through TryStore, and what the hold cannot take is released through Zone.Release (Zone.cs:356) as floating items, which the player and NPCs collect through the one pickup path. The plan's AFullHoldLosesTheOverflow test becomes AFullHoldReleasesTheOverflow. Mining Cuts 4 and 7 stay with follow-up mining-cuts-4-5-7, which this cut's spec resolves with them. Waits on: mining Cut 4 (FireControl shots at chunks), full game (demo scope table: no buyer for ore in the demo).
 - boost-gear-combat: Stat boosters, combat, tiered by size: a modest 1x1 and a strong 2x2 each for Damage and Range on every gun through. Waits on: boost-gear-systems (blocked on boost-gear-systems; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first). After damage-falloff: a Range Extender multiplies Range only, so it lengthens the falloff ramp and leaves EffectiveRange where it was; the cut decides whether it also targets EffectiveRange (section "Damage falloff at fire time", DF8).
 - boost-gear-systems: Stat boosters, systems, tiered by size: a modest 1x1 and a strong 2x2 each for Thrust, Signal, Emissivity and Reactor. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
 - ships-player: S3, agent side: a player built by AetheriaBuild composes and preloads mod ships with Aetheria materials only, radiators. Waits on: ships-mounts, ships-hull-material, player-build (blocked on ships-hull-material).
@@ -3197,6 +3200,56 @@ Admitted on 2026-10-03, along with question `ship-authoring-host`:
     holds before C4 maps it.
   - This is follow-up `c4-ship-element-ids`.
 
+### Removing a broken mod (ship-render-fixes r3)
+
+Ruling `mod-import-fault-refuse-entry` (2026-10-16) adds, in the operator's words, "an
+affordance for them to immediately remove said mod" wherever the broken mod is surfaced.
+Probes, source read at master `a8586d08` (these files are unchanged since `6b6e7c7c`):
+
+- **MR1. Install is a directory; presence is enablement.** A package is a directory
+  `GameData/Mods/<id>/` holding `ship.cc` and its GLB (`ActionGameManager.cs:49`).
+  `Compose` reads every top-level directory that has a `ship.cc`
+  (`ShipModCatalog.cs:71-79`); one without is skipped. No enable list, disable flag
+  or mod record exists in `player.cc`, `run.cc` or the catalog. Uninstalling is
+  taking the directory out of `Mods`.
+- **MR2. A catalog hull finds its package by id.** `PackageOf` reads
+  `<modsRoot>/<ship.Id>` (`ShipModCatalog.cs:167-176`), so an import fault in
+  `Preload` can name its package directory without parsing text.
+- **MR3. The catalog is open until exit.** `ActionGameManager.CultCache` attaches the
+  derived catalog once (`:53-75`), and `ResolveCatalog` recomposes at every boot
+  (`ShipModCatalog.cs:179-190`). A removal takes effect at the next boot. Dropping a
+  hull from this boot's open catalog would be a second writer of catalog membership,
+  which the question already left out.
+- **MR4. GameData is the player's writable store, and staging ships only three
+  entries.** `run.cc` and `player.cc` are written under `GameData`, so a build
+  already needs it writable. `PlayerStaging.Stage` copies `Aetheria.cc`, `Narrative`
+  and `Mods` only (`Assets/Editor/PlayerStaging.cs:1-30`), so a sibling
+  `GameData/RemovedMods` is never staged into a build. In the editor, `GameData` is
+  the repo's own, so `.gitignore` must keep `GameData/RemovedMods/` out of commits.
+- **MR5. Both surfaces use one dialog, and it can hold buttons.** `MainMenu.Refuse`
+  (`MainMenu.cs:219-226`) shows Compose's exclusions at the title (`:99-103`) and a
+  faulted `Loading` at entry (`:207-216`). `ConfirmationDialog` is a
+  `PropertiesPanel`, whose `AddButton(name, onClick)` (`PropertiesPanel.cs:182`) is
+  wired in `Main Menu Canvas.prefab` (`PropertyButton` and `ButtonField` are set at
+  `:783-785`).
+
+**The choice: move aside.** The existing lifecycle has one enablement fact, the
+directory's presence under `Mods` (MR1). Moving the directory to
+`GameData/RemovedMods/<id>` is the uninstall that lifecycle already has. It is
+reversible: moving the directory back reinstalls the mod. It adds no state and no
+second input to `Compose`.
+
+- Deleting the files is rejected. It is irreversible, and the package may be the
+  player's own unsaved authoring work or a shipped package.
+- A disable list in `player.cc` is rejected. It is the persistent record that
+  `quarantine-next-boot` would have cost and the operator did not choose. It would
+  also give `Compose` a second enablement owner, and it would need a re-enable
+  screen.
+
+Factorio offers to disable a mod at its load error; here the directory is the
+enablement, so moving it is that same disable. No operator question is raised:
+nothing the player made is destroyed, and no new state is chosen.
+
 ### Model page rows
 
 | Kind | Identity | Lifecycle | Authority |
@@ -3876,7 +3929,7 @@ weapons compete for reactor power, and ballistic weapons compete for cargo.
 
 This is a default, not a ruling. The operator can ask for calibres at any time.
 
-**Why mining's Q6a should be asked again.** Mining ruled that ore is lost when a hold
+**Why mining's Q6a was asked again (answered 2026-10-16: floats, ruling mining-overflow-floats; owner mining-yield).** Mining ruled that ore is lost when a hold
 is full (Q6a A), because pickups were Unity-only (mining-cut.md:286-287). After
 `loot-1`, overflow could float through `Zone.Release` like any other loot. Follow-up
 `mining-cuts-4-5-7` carries the question to that map.
@@ -5558,7 +5611,7 @@ with 13 schemas and 217 records. Scratch scripts were not committed.
   `FactionProductData` with that maker and design. Two products of one design by one maker (the
   market segment `ProductRole`'s comment designs for) are therefore indistinguishable after
   creation: the player sees the lower-key product's name and text whatever was bought. Today no
-  maker sells two products of one design (CG2), so nothing shows it yet.
+  maker sells two products of one design (CG2), so nothing shows it yet. lot-product has since landed: a lot records its product, and ruling maker-design-tiers-allowed (2026-10-16) permits tiers (cut line product-tiers).
 - **CG5. Weapon fields and the reference small guns** (source read `Behaviors/Weapon.cs:20-72`,
   `Behaviors/InstantWeapon.cs:10-20`, `ItemData.cs:477-509`; catalog decode). WeaponData keys:
   DamageType 1, Damage 2, Penetration 3, DamageSpread 4, MinRange 5, Range 6, DamageCurve 7,
@@ -8894,7 +8947,7 @@ in a detached worktree; anchors are file:line at b6262467.
 - lot-product landed: ItemManager.Brand (ItemManager.cs:211-224) reads the product the lot
   records, not maker+design. r3's "so Brand stays unambiguous" justification is stale. The
   per-maker key is kept for a different reason: it makes `ship-authoring product <maker>`
-  idempotent (replace, not add) and states the ship rule (one product per maker per hull:
+  idempotent (replace, not add) and states the ship rule (since ruling maker-design-tiers-allowed, 2026-10-16, a hull rule only, which product-tiers revisits; one product per maker per hull:
   the maker's own, plus rebrands by other factions). Follow-up
   stale-maker-design-uniqueness-test is unaffected.
 - mods-in-tree landed: tests/Aetheria.Shared.Tests/TestCatalog.cs and RunStartTests boot the
