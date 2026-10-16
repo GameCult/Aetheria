@@ -80,6 +80,8 @@ public class EntityInstance : MonoBehaviour
         var materials = new List<(Material material, List<(MeshRenderer renderer, int index)> submeshes)>();
         foreach (var mesh in meshes)
         {
+            // The map icon is drawn by MapPresenter, not as part of the hull (SetEntity hands it over).
+            if (mesh == MapIcon) continue;
             _meshes.Add(mesh, mesh.sharedMaterials);
             for (var i = 0; i < mesh.sharedMaterials.Length; i++)
             {
@@ -165,6 +167,9 @@ public class EntityInstance : MonoBehaviour
         ZoneRenderer = zoneRenderer;
         var hullData = entity.ItemManager.GetData(entity.Hull) as HullData;
 
+        zoneRenderer.Map.RegisterEntity(entity, MapIcon, transform);
+        MapIcon = null;
+
         if(Shield)
             Shield.Entity = entity;
 
@@ -187,7 +192,8 @@ public class EntityInstance : MonoBehaviour
                     {
                         var pingInstance = Instantiate(PingPrefab);
                         var pingMesh = pingInstance.GetComponent<MeshRenderer>();
-                        pingInstance.position = DrawAhead.Position(entity, ActionGameManager.Clock.Lead).ToUnity();
+                        var drawn = DrawAhead.Position(entity, ActionGameManager.Clock.Lead);
+                        pingInstance.position = new Vector3(drawn.x, MapPresenter.PlaneY, drawn.z);
                         _pingBrightness = pingMesh.material.GetFloat("_Depth");
                         _currentPing = (pingInstance, pingMesh);
                     };
@@ -366,7 +372,10 @@ public class EntityInstance : MonoBehaviour
                     OnFadedIn = null;
                     ShowUnfadedElements();
                 }
-                foreach(var material in _fadeMaterials) material.SetFloat("_Fade", _fade);
+                {
+                    foreach(var material in _fadeMaterials) material.SetFloat("_Fade", _fade);
+                    ZoneRenderer.Map.SetFade(Entity, _fade);
+                }
             }
             else
             {
@@ -381,7 +390,10 @@ public class EntityInstance : MonoBehaviour
                     OnFadedOut?.Invoke();
                     OnFadedOut = null;
                 }
-                foreach(var material in _fadeMaterials) material.SetFloat("_Fade", _fade);
+                {
+                    foreach(var material in _fadeMaterials) material.SetFloat("_Fade", _fade);
+                    ZoneRenderer.Map.SetFade(Entity, _fade);
+                }
             }
         }
         

@@ -59,7 +59,8 @@ public class ZoneRenderer : MonoBehaviour
     // public Material AsteroidMaterial;
 
     [Header("Prefabs")]
-    public MeshFilter AsteroidBeltUI;
+    // The map's belt sprites (Aetheria/MapBelt): MapPresenter draws every belt with it.
+    public Material MapAsteroidMaterial;
     public PlanetObject Planet;
     public GasGiantObject GasGiant;
     public SunObject Sun;
@@ -72,7 +73,6 @@ public class ZoneRenderer : MonoBehaviour
     [HideInInspector] public Dictionary<Entity, EntityInstance> EntityInstances = new Dictionary<Entity, EntityInstance>();
     [HideInInspector] public Dictionary<CultRecordKey, PlanetObject> Planets = new Dictionary<CultRecordKey, PlanetObject>();
 
-    private Dictionary<CultRecordKey, AsteroidBeltUI> _beltObjects = new Dictionary<CultRecordKey, AsteroidBeltUI>();
     private Dictionary<CultRecordKey, InstancedMesh[]> _beltMeshes = new Dictionary<CultRecordKey, InstancedMesh[]>();
     private Dictionary<CultRecordKey, Matrix4x4[][]> _beltMatrices = new Dictionary<CultRecordKey, Matrix4x4[][]>();
     // Cut 1 (docs/mining-cut.md): the renderer's own buffer, filled from Zone.EvaluateBelt each frame. No pose
@@ -93,13 +93,14 @@ public class ZoneRenderer : MonoBehaviour
     private IDisposable[] _perspectiveSubscriptions = new IDisposable[2];
     private List<IDisposable> _zoneSubscriptions = new List<IDisposable>();
     private PlanetObject[] _suns;
-    private bool _showAsteroidUI;
 
     public Dictionary<Wormhole, (GameObject gravity, CompassIcon icon)> WormholeInstances = new Dictionary<Wormhole, (GameObject, CompassIcon)>();
     private Dictionary<FloatingItem, ItemPickup> _floatingItems = new Dictionary<FloatingItem, ItemPickup>();
     private Dictionary<Mine, MineInstance> _mines = new Dictionary<Mine, MineInstance>();
     private Dictionary<VapourCloud, VapourCloudInstance> _clouds = new Dictionary<VapourCloud, VapourCloudInstance>();
 
+    // The one owner of map-space projection: every map icon and belt sprite is drawn by it.
+    public MapPresenter Map { get; private set; }
     public Zone Zone { get; private set; }
     public ItemManager ItemManager { get; set; }
 
@@ -151,31 +152,15 @@ public class ZoneRenderer : MonoBehaviour
             _minimapDistance = value;
             foreach (var camera in MinimapCameras)
                 camera.orthographicSize = value;
-            SetIconSize(value * Settings.MinimapIconSize);
+            Map.SetMinimapScale(value * Settings.MinimapIconSize);
             // MinimapGravityQuad.transform.localScale = value * 2 * Vector3.one;
         }
     }
 
-    public bool ShowAsteroidUI
+    void Awake()
     {
-        get { return _showAsteroidUI; }
-        set
-        {
-            if (value != _showAsteroidUI)
-            {
-                _showAsteroidUI = value;
-                foreach (var beltUI in _beltObjects.Values)
-                {
-                    beltUI.Filter.gameObject.SetActive(_showAsteroidUI);
-                }
-            }
-        }
-    }
-
-    public void SetIconSize(float size)
-    {
-        foreach(var entityInstance in EntityInstances.Values) entityInstance.MapIcon.transform.localScale = Vector3.one * size;
-        foreach(var planet in Planets.Values) planet.Icon.transform.localScale = Vector3.one * size;
+        Map = new MapPresenter(MapGravityMaterials, MapAsteroidMaterial, AsteroidSpritesheetWidth,
+            AsteroidSpritesheetHeight, Settings.MinimapAsteroidSize);
     }
 
     void Start()
@@ -395,12 +380,7 @@ public class ZoneRenderer : MonoBehaviour
             }
 
             Planets.Clear();
-            foreach (var beltObject in _beltObjects.Values)
-            {
-                Destroy(beltObject.Filter);
-            }
-
-            _beltObjects.Clear();
+            Map.Clear();
             _beltMeshes.Clear();
             _beltMatrices.Clear();
             _beltTransforms.Clear();
@@ -455,6 +435,7 @@ public class ZoneRenderer : MonoBehaviour
             }
         }
 
+        Map.Unregister(entity);
         Destroy(EntityInstances[entity].gameObject);
         EntityInstances.Remove(entity);
     }
@@ -476,16 +457,7 @@ public class ZoneRenderer : MonoBehaviour
                 _beltMatrices[key][i] = new Matrix4x4[i < meshes.Count - 1 ? count : count + remainder];
             }
 
-            var beltObject = Instantiate(AsteroidBeltUI, ZoneRoot);
-            var collider = beltObject.GetComponent<MeshCollider>();
-            var belt = new AsteroidBeltUI(Zone,
-                Zone.AsteroidBelts[key],
-                beltObject,
-                collider,
-                AsteroidSpritesheetWidth,
-                AsteroidSpritesheetHeight,
-                Settings.MinimapAsteroidSize);
-            _beltObjects[key] = belt;
+            Map.RegisterBelt(key, _beltTransforms[key]);
         }
         else
         {
@@ -525,7 +497,7 @@ public class ZoneRenderer : MonoBehaviour
 
             var planetInstance = Zone.PlanetInstances[key];
             planet.Body.transform.localScale = planetInstance.BodyRadius * Vector3.one;
-            planet.Icon.transform.localScale = Settings.IconSize.Evaluate(planetInstance.BodyData.Mass) * Vector3.one;
+            Map.RegisterPlanet(key, planet.Icon, planet.transform);
 
 
             Planets[key] = planet;
@@ -539,9 +511,13 @@ public class ZoneRenderer : MonoBehaviour
         LODHandler.FindPlanets();
     }
 
+    void LateUpdate()
+    {
+        Map.Draw(Zone, ActionGameManager.Clock.Lead);
+    }
+
     void Update()
     {
-        var maxDepth = 0f;
         var lead = ActionGameManager.Clock.Lead;
         GravityLowering.Lower(Zone, lead, ref _gravityWells);
         foreach (var loot in _floatingItems.Values)
@@ -594,9 +570,6 @@ public class ZoneRenderer : MonoBehaviour
                     Graphics.DrawMeshInstanced(meshes[i].Mesh, 0, meshes[i].Material, matrices[i]);
                 }
             }
-
-            if(_showAsteroidUI)
-                _beltObjects[key].Update(transforms, height);
         }
 
         foreach (var planet in Planets)
@@ -604,10 +577,8 @@ public class ZoneRenderer : MonoBehaviour
             var planetInstance = Zone.PlanetInstances[planet.Key];
             var p = DrawAhead.Orbit(Zone, planetInstance.BodyData.Orbit.Key, lead);
             var height = DrawAhead.Height(Zone, p, lead);
-            if (-height > maxDepth) maxDepth = -height;
             planet.Value.transform.position = new Vector3(p.x, 0, p.y);
             planet.Value.Body.transform.localPosition = new Vector3(0, height + planetInstance.BodyRadius * 2, 0);
-            planet.Value.Icon.transform.localPosition = new Vector3(0, height, 0);
             if (planet.Value is GasGiantObject gasGiantObject)
             {
                 if (!(planet.Value is SunObject))
@@ -641,13 +612,6 @@ public class ZoneRenderer : MonoBehaviour
             wormhole.icon.transform.rotation = Quaternion.Euler(0, 0, Mathf.Atan2(difference.y, difference.x) * Mathf.Rad2Deg - 90);
         }
 
-        //var fogPos = FogCameraParent.position;
-        var depthRange = Mathf.Max(maxDepth, 1f);
-        foreach (var mat in MapGravityMaterials)
-        {
-            mat.SetFloat("_StartDepth", 0f);
-            mat.SetFloat("_DepthRange", depthRange);
-        }
         // var gravPos = MinimapGravityQuad.transform.position;
         // MinimapGravityQuad.transform.position = gravPos;
         // MinimapTintQuad.transform.position = gravPos - Vector3.up*10;
@@ -660,99 +624,4 @@ public class InstancedMesh
 {
     public Mesh Mesh;
     public Material Material;
-}
-
-public class AsteroidBeltUI
-{
-    public MeshFilter Filter;
-    private MeshCollider _collider;
-    private Vector3[] _vertices;
-    private Vector3[] _normals;
-    private Vector2[] _uvs;
-    private int[] _indices;
-    private CultRecordKey _orbitParent;
-    private Mesh _mesh;
-    private float _size;
-    private Zone _zone;
-    private AsteroidBelt _belt;
-    private float _scale;
-
-    public AsteroidBeltUI(Zone zone,
-        AsteroidBelt belt,
-        MeshFilter meshFilter,
-        MeshCollider collider,
-        int spritesheetWidth,
-        int spritesheetHeight,
-        float scale)
-    {
-        _belt = belt;
-        _zone = zone;
-        Filter = meshFilter;
-        _collider = collider;
-        var orbit = zone.Orbits[belt.Data.Orbit.Key];
-        _orbitParent = orbit.Data.Parent.Key;
-        _vertices = new Vector3[_belt.Data.Asteroids.Length * 4];
-        _normals = new Vector3[_belt.Data.Asteroids.Length * 4];
-        _uvs = new Vector2[_belt.Data.Asteroids.Length * 4];
-        _indices = new int[_belt.Data.Asteroids.Length * 6];
-        _scale = scale;
-
-        var maxDist = 0f;
-        var spriteSize = float2(1f / spritesheetWidth, 1f / spritesheetHeight);
-        // vertex order: bottom left, top left, top right, bottom right
-        for (var i = 0; i < belt.Data.Asteroids.Length; i++)
-        {
-            if (belt.Data.Asteroids[i].Distance > maxDist)
-                maxDist = belt.Data.Asteroids[i].Distance;
-            var spriteX = Random.Range(0, spritesheetWidth);
-            var spriteY = Random.Range(0, spritesheetHeight);
-
-            _uvs[i * 4] = new Vector2(spriteX * spriteSize.x, spriteY * spriteSize.y);
-            _uvs[i * 4 + 1] = new Vector2(spriteX * spriteSize.x, spriteY * spriteSize.y + spriteSize.y);
-            _uvs[i * 4 + 2] = new Vector2(spriteX * spriteSize.x + spriteSize.x, spriteY * spriteSize.y + spriteSize.y);
-            _uvs[i * 4 + 3] = new Vector2(spriteX * spriteSize.x + spriteSize.x, spriteY * spriteSize.y);
-
-            _indices[i * 6] = i * 4;
-            _indices[i * 6 + 1] = i * 4 + 1;
-            _indices[i * 6 + 2] = i * 4 + 3;
-            _indices[i * 6 + 3] = i * 4 + 3;
-            _indices[i * 6 + 4] = i * 4 + 1;
-            _indices[i * 6 + 5] = i * 4 + 2;
-        }
-
-        for (var i = 0; i < _normals.Length; i++)
-        {
-            _normals[i] = -Vector3.forward;
-        }
-
-        _mesh = new Mesh();
-        _mesh.vertices = _vertices;
-        _mesh.uv = _uvs;
-        _mesh.triangles = _indices;
-        _mesh.normals = _normals;
-        _mesh.bounds = new Bounds(Vector3.zero, Vector3.one * maxDist);
-        _size = maxDist;
-
-        Filter.mesh = _mesh;
-        //_collider.sharedMesh = _mesh;
-    }
-
-    public void Update(float4[] transforms, float height)
-    {
-        var parentPosition = DrawAhead.Orbit(_zone, _orbitParent, ActionGameManager.Clock.Lead);
-        for (var i = 0; i < transforms.Length; i++)
-        {
-            var transform = transforms[i];
-            var rotation = Quaternion.Euler(90, transform.z, 0);
-            var position = new Vector3(transform.x, height, transform.y);
-            _vertices[i * 4] = rotation * new Vector3(-transform.w * _scale, -transform.w * _scale, 0) + position;
-            _vertices[i * 4 + 1] = rotation * new Vector3(-transform.w * _scale, transform.w * _scale, 0) + position;
-            _vertices[i * 4 + 2] = rotation * new Vector3(transform.w * _scale, transform.w * _scale, 0) + position;
-            _vertices[i * 4 + 3] = rotation * new Vector3(transform.w * _scale, -transform.w * _scale, 0) + position;
-        }
-
-        _mesh.bounds = new Bounds(new Vector3(parentPosition.x, 0, parentPosition.y), Vector3.one * (_size * 2));
-        _mesh.vertices = _vertices;
-        //_collider.sharedMesh = _mesh;
-    }
 }

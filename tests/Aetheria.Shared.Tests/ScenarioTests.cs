@@ -555,7 +555,7 @@ public sealed partial class RunStartTests
         Assert.False(main.IsTutorial);
     }
 
-    // PlayerSettings Key 2, the never-written tutorial flag, is retired: a player.cc written with it still loads, every other field intact.
+    // PlayerSettings Key 2, the never-written tutorial flag, and PlayerGraphicsSettings Key 1, ShowAsteroidsInMinimap, are retired: a player.cc written with it still loads, every other field intact.
     [Fact]
     public void OldPlayerSettingsLoad()
     {
@@ -569,7 +569,10 @@ public sealed partial class RunStartTests
         MessagePackSerializer.Serialize(ref writer, new Dictionary<string, string> { ["story"] = "hash" }, options);
         MessagePackSerializer.Serialize(ref writer, new PlayerGameplaySettings { TemperatureUnit = TemperatureUnit.Kelvin, SignificantDigits = 5 }, options);
         MessagePackSerializer.Serialize(ref writer, new PlayerInputSettings { ActionBarInputs = { "<Keyboard>/1" } }, options);
-        MessagePackSerializer.Serialize(ref writer, new PlayerGraphicsSettings { NebulaQuality = Quality.High, ShowAsteroidsInMinimap = true }, options);
+        writer.WriteArrayHeader(3);                // PlayerGraphicsSettings with its retired Key 1 (ShowAsteroidsInMinimap)
+        MessagePackSerializer.Serialize(ref writer, Quality.High, options);
+        writer.Write(true);
+        writer.Write(.4f);
         writer.Flush();
 
         var settings = MessagePackSerializer.Deserialize<PlayerSettings>(buffer.WrittenMemory, options);
@@ -578,7 +581,7 @@ public sealed partial class RunStartTests
         Assert.Equal("hash", settings.HashedStoryFiles["story"]);
         Assert.Equal((TemperatureUnit.Kelvin, 5), (settings.GameplaySettings.TemperatureUnit, settings.GameplaySettings.SignificantDigits));
         Assert.Equal("<Keyboard>/1", Assert.Single(settings.InputSettings.ActionBarInputs));
-        Assert.Equal((Quality.High, true), (settings.GraphicsSettings.NebulaQuality, settings.GraphicsSettings.ShowAsteroidsInMinimap));
+        Assert.Equal((Quality.High, .4f), (settings.GraphicsSettings.NebulaQuality, settings.GraphicsSettings.ScreenShake));
     }
 
     // A scenario's Brief is player text (the menu shows it): it names gear by what the catalog sells today. A name a rename retired,
