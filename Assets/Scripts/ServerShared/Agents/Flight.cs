@@ -156,9 +156,13 @@ public class Flight
         var held = picture.Where(e => _tracks[e].Phase != Phase.None).ToList();
         if (held.Count > 0)
         {
+            // An engaged track outranks a hailed one; the held anchor is kept only while nothing outranks it.
+            var anyEngaged = held.Any(e => _tracks[e].Phase == Phase.Engaged);
             var anchor = member.Agent.Task is FollowTask follow && held.Contains(follow.Anchor)
+                         && (!anyEngaged || _tracks[follow.Anchor].Phase == Phase.Engaged)
                 ? follow.Anchor
-                : held.OrderBy(e => lengthsq(ship.Position.xz - e.Position.xz)).First();
+                : held.OrderBy(e => _tracks[e].Phase == Phase.Engaged ? 0 : 1)
+                    .ThenBy(e => lengthsq(ship.Position.xz - e.Position.xz)).First();
             if (!(member.Agent.Task is FollowTask current) || current.Anchor != anchor)
                 member.Agent.Task = new FollowTask { Anchor = anchor, Standoff = Standoff(ship) };
         }

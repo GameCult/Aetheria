@@ -4,8 +4,8 @@ using System.Linq;
 using GameCult.Caching;
 
 // Authors the starting FactionDoctrine of the four factions the demo cast uses (aetheria-release, faction-play-1).
-// Tuning is a starting point; the operator adjusts it after play. A faction with no Faction record is named, not
-// created: the Pirates' record is owed by follow-up pirates-catalog-record, and re-running apply writes them once it lands.
+// Tuning is a starting point; the operator adjusts it after play. The Pirates record is on master (cut pirates-record);
+// a faction with no Faction record is named and skipped, and apply is re-run after a cast faction's record lands.
 public static class DoctrineCatalog
 {
     private static readonly (string faction, FactionDoctrine doctrine)[] Table =
@@ -39,7 +39,7 @@ public static class DoctrineCatalog
         var changed = new System.Collections.Generic.List<Faction>();
         foreach (var (name, doctrine) in Table)
         {
-            var faction = factions.FirstOrDefault(f => string.Equals(f.Name, name, StringComparison.OrdinalIgnoreCase));
+            var faction = factions.FirstOrDefault(f => f.Name == name);
             if (faction == null)
             {
                 output.WriteLine($"{name}: no Faction record, doctrine not written");

@@ -37,6 +37,8 @@ public static class VerseGrammarCommand
             Roles = new[] { Role("target", VerseReferentKind.Faction) } },
         new VerseVerb { Name = "explore", RenderPath = VerseRenderPath.ShipAction, Description = "The actor surveys a region and charts what is there.",
             Roles = new[] { Role("region", VerseReferentKind.Place) } },
+        new VerseVerb { Name = "follow", RenderPath = VerseRenderPath.ShipAction, Description = "The actor shadows a ship of the target faction at a standoff, as a flight does while it hails.",
+            Roles = new[] { Role("target", VerseReferentKind.Faction) } },
         new VerseVerb { Name = "speak", RenderPath = VerseRenderPath.Conversation, Description = "The actor says something to whoever is in earshot. Shown as Aetheria dialogue: face to face when docked, by radio with the speaker's portrait over their ship when undocked.",
             Roles = new VerseRole[0] },
     };

@@ -33,17 +33,17 @@ public sealed class FlightTests : IDisposable
         }
     };
 
-    private Ship Pilot(Faction faction, float x = 0)
+    private Ship Pilot(Faction faction, float x = 0, float z = 0)
     {
         var ship = _world.NewShip(_items, _zone, faction, piloted: true);
-        ship.Position = new float3(x, 0, 0);
+        ship.Position = new float3(x, 0, z);
         return ship;
     }
 
-    private Ship Track(float x = 100)
+    private Ship Track(float x = 100, float z = 0)
     {
         var track = _world.NewShip(_items, _zone, Hostile);
-        track.Position = new float3(x, 0, 0);
+        track.Position = new float3(x, 0, z);
         return track;
     }
 
@@ -102,7 +102,7 @@ public sealed class FlightTests : IDisposable
         Assert.True(a.Target.Value.IsNone);
         Assert.True(b.Target.Value.IsNone);
 
-        b.EntityInfoGathered[track] = .9f;
+        b.EntityInfoGathered[track] = .8f; // exactly the threshold
         Tick(.1f);
         Assert.Same(track, a.Target.Value.Entity);
         Assert.Same(track, b.Target.Value.Entity);
@@ -140,8 +140,8 @@ public sealed class FlightTests : IDisposable
     public void GraceHailsOnceFromTheNearestThenEngages()
     {
         var faction = WithDoctrine(EngageOn.Detection, grace: 5, hail: "Hold.");
-        var near = Pilot(faction, 90);
         var far = Pilot(faction, 0);
+        var near = Pilot(faction, 90); // built second: the nearest, not the first built, speaks
         var track = Track(100);
         See(near, track);
         See(far, track);
@@ -181,6 +181,27 @@ public sealed class FlightTests : IDisposable
         Assert.Empty(member.Messages);
     }
 
+    // Grace 3 against ComplySpeed 10: a track at 5 is slower than ComplySpeed (complied) though faster than the Grace
+    // number, and one at 12 is faster than both. Kills: either comparison reading Grace for ComplySpeed.
+    [Theory]
+    [InlineData(5f, false)]
+    [InlineData(12f, true)]
+    public void ComplianceIsJudgedOnComplySpeedAndNotOnGrace(float speed, bool engaged)
+    {
+        var member = Pilot(WithDoctrine(EngageOn.Detection, grace: 3, hail: "Hold.", comply: 10));
+        var track = Track();
+        track.Velocity = new float2(speed, 0);
+        See(member, track);
+
+        Tick(.5f);
+        Tick(3.5f);
+        Assert.Equal(engaged, !member.Target.Value.IsNone);
+
+        // Once complied the same speed stays complied; once engaged it stays engaged.
+        Tick(.1f);
+        Assert.Equal(engaged, !member.Target.Value.IsNone);
+    }
+
     [Fact]
     public void AGrudgeSkipsTheGrace()
     {
@@ -199,13 +220,13 @@ public sealed class FlightTests : IDisposable
     [Fact]
     public void FollowClosesWhenFarAndOpensWhenNear()
     {
-        var far = Pilot(null);
-        var near = Pilot(null);
+        var far = Pilot(null, -200, 50);
+        var near = Pilot(null, -200, 50);
         var anchor = Track();
 
         float TurnAfterFollowing(Ship ship, float3 anchorAt)
         {
-            anchor.Position = anchorAt;
+            anchor.Position = ship.Position + anchorAt;
             var minion = new Minion(ship, FactionDoctrine.Default(_items.GameplaySettings).Combatant)
                 { Task = new FollowTask { Anchor = anchor, Standoff = 100 } };
             minion.Update(.1f);
@@ -213,7 +234,8 @@ public sealed class FlightTests : IDisposable
             return ship.Turn;
         }
 
-        // The hull faces +z. Anchor 300 ahead: the desired velocity is dead ahead, no turn. Anchor 20 ahead: inside the
+        // The hull faces +z, and the pilots are off the origin so the anchor's offset from the ship counts, not its
+        // coordinates. Anchor 300 ahead: the desired velocity is dead ahead, no turn. Anchor 20 ahead: inside the
         // standoff, the desired velocity is astern, and the pilot turns to it.
         Assert.Equal(0, TurnAfterFollowing(far, new float3(0, 0, 300)), 3);
         Assert.NotEqual(0, TurnAfterFollowing(near, new float3(0, 0, 20)), 3);
@@ -413,20 +435,22 @@ public sealed class FlightTests : IDisposable
         Assert.Same(track, member.Target.Value.Entity);
     }
 
+    // The member is off the origin and its nearer track is the one farther from the origin: a pick by coordinates alone
+    // takes the other. Kills: Flight's nearest pick reading the track's position without the member's.
     [Fact]
     public void AMemberKeepsItsTargetWhileThatTrackStaysEngaged()
     {
-        var member = Pilot(new Faction { Name = "Plain" });
-        var first = Track(50);
-        var second = Track(200);
+        var member = Pilot(new Faction { Name = "Plain" }, 1000);
+        var first = Track(950);
+        var second = Track(100);
         See(member, first);
         See(member, second);
 
         Tick(.1f);
         Assert.Same(first, member.Target.Value.Entity); // the nearer
 
-        first.Position = new float3(500, 0, 0);
-        second.Position = new float3(10, 0, 0);
+        first.Position = new float3(-500, 0, 0);
+        second.Position = new float3(990, 0, 0);
         Tick(.1f);
         Assert.Same(first, member.Target.Value.Entity); // kept, though the other is nearer now
     }
@@ -434,19 +458,38 @@ public sealed class FlightTests : IDisposable
     [Fact]
     public void HoldersCloseOnTheNearestHeldTrackAndKeepItWhileItIsHeld()
     {
-        var member = Pilot(WithDoctrine(EngageOn.Detection, grace: 5, hail: "Hold."));
-        var near = Track(50);
-        var far = Track(300);
+        var member = Pilot(WithDoctrine(EngageOn.Detection, grace: 5, hail: "Hold."), 1000);
+        var near = Track(950);
+        var far = Track(100);
         See(member, near);
         See(member, far);
 
         Tick(.1f);
         Assert.Same(near, ((FollowTask) _zone.Agents.Single().Task).Anchor);
 
-        near.Position = new float3(900, 0, 0);
-        far.Position = new float3(10, 0, 0);
+        near.Position = new float3(-900, 0, 0);
+        far.Position = new float3(990, 0, 0);
         Tick(.1f);
         Assert.Same(near, ((FollowTask) _zone.Agents.Single().Task).Anchor);
+    }
+
+    // The held anchor leaves the picture: the member re-anchors on what is still held. Kills: the anchor rewritten only
+    // when it is unchanged (`==` for `!=`), which leaves the member following a track that is gone.
+    [Fact]
+    public void AHeldAnchorThatLeavesThePictureIsReplacedByTheRemainingTrack()
+    {
+        var member = Pilot(WithDoctrine(EngageOn.Detection, grace: 5, hail: "Hold."), 1000);
+        var near = Track(950);
+        var far = Track(100);
+        See(member, near);
+        See(member, far);
+        Tick(.1f);
+        Assert.Same(near, ((FollowTask) _zone.Agents.Single().Task).Anchor);
+
+        member.VisibleEnemies.Remove(near);
+        Tick(.1f);
+
+        Assert.Same(far, ((FollowTask) _zone.Agents.Single().Task).Anchor);
     }
 
     [Fact]
@@ -492,8 +535,8 @@ public sealed class FlightTests : IDisposable
 
         float Turn(float anchorX)
         {
-            var ship = Pilot(null);
-            anchor.Position = new float3(anchorX, 0, 0);
+            var ship = Pilot(null, -200, 50);
+            anchor.Position = ship.Position + new float3(anchorX, 0, 0);
             var minion = new Minion(ship, FactionDoctrine.Default(_items.GameplaySettings).Combatant)
                 { Task = new FollowTask { Anchor = anchor, Standoff = 100 } };
             minion.Update(.1f);
@@ -533,20 +576,89 @@ public sealed class FlightTests : IDisposable
         Assert.IsNotType<FollowState>(CurrentState(minion));
     }
 
-    [Fact]
-    public void AMemberThatCannotSeeTheEngagedTrackClosesOnItsBearing()
+    public static System.Collections.Generic.IEnumerable<object[]> UnseenGeometries() =>
+        from distance in new[] { 90f, 900f }
+        from blindFirst in new[] { true, false }
+        from graced in new[] { false, true }
+        from right in new[] { true, false }
+        select new object[] { distance, blindFirst, graced, right };
+
+    // A member that cannot see the engaged track steers on it as a bearing, wherever it is, whoever was built first, with
+    // or without a hail first (the grace ends in a grudge), left or right of the member. Kills: the unseen rule holding
+    // the track only near, only for a non-first member, only with no grace, or only on one side.
+    [Theory]
+    [MemberData(nameof(UnseenGeometries))]
+    public void AMemberThatCannotSeeTheEngagedTrackClosesOnItsBearing(float distance, bool blindFirst, bool graced, bool right)
     {
-        var faction = WithDoctrine(EngageOn.Detection);
-        var sighted = Pilot(faction);
-        var blind = Pilot(faction, 10);
-        var track = Track();
+        var faction = WithDoctrine(EngageOn.Detection, grace: graced ? 5 : 0, hail: "Hold.");
+        Ship blind, sighted;
+        if (blindFirst) { blind = Pilot(faction, 0, 0); sighted = Pilot(faction, 0, 400); }
+        else { sighted = Pilot(faction, 0, 400); blind = Pilot(faction, 0, 0); }
+        var track = Track(right ? distance : -distance);
         See(sighted, track);
+        if (graced)
+        {
+            Tick(.1f); // hailed, not yet engaged
+            sighted.SetIff(track, true);
+        }
+
         Tick(.1f);
 
         Assert.Same(track, sighted.Target.Value.Entity);
         Assert.True(blind.Target.Value.IsNone);
         var task = Assert.IsType<FollowTask>(_zone.Agents.Single(a => a.Ship == blind).Task);
         Assert.Same(track, task.Anchor);
+    }
+
+    // The flight's engaged track outranks a hailed one a blind member does see, though that one is nearer. Kills: the
+    // anchor picked by distance alone, or kept once something outranks it.
+    [Fact]
+    public void ABlindMemberAnchorsOnTheEngagedTrackOverANearerHailingOne()
+    {
+        var faction = WithDoctrine(EngageOn.Detection, grace: 5, hail: "Hold.");
+        var blind = Pilot(faction, 0, 0);
+        var sighted = Pilot(faction, 0, 400);
+        var engaged = Track(900);
+        var hailing = Track(50);
+        See(sighted, engaged);
+        See(blind, hailing);
+        Tick(.1f);
+        var task = Assert.IsType<FollowTask>(_zone.Agents.Single(a => a.Ship == blind).Task);
+        Assert.Same(hailing, task.Anchor); // nothing outranks it yet: the nearest held
+
+        sighted.SetIff(engaged, true);
+        Tick(.1f);
+
+        Assert.Same(engaged, sighted.Target.Value.Entity);
+        task = Assert.IsType<FollowTask>(_zone.Agents.Single(a => a.Ship == blind).Task);
+        Assert.Same(engaged, task.Anchor);
+    }
+
+    // Hail then engage is the production path of every graced doctrine: the member goes from FollowState into combat,
+    // and out of it again while the Task is a FollowTask on another held track. Kills: the combat interrupt covering
+    // the patrol sub-states only, or the exit reading a patrol Task only.
+    [Fact]
+    public void CombatIsEnteredFromFollowAndLeftWhileAnotherTrackIsHeld()
+    {
+        var member = Pilot(WithDoctrine(EngageOn.Detection, grace: 5, hail: "Hold."));
+        var minion = (Minion) _zone.Agents.Single();
+        var hot = Track(300);
+        var held = Track(-300);
+        See(member, hot);
+        See(member, held);
+        Tick(.1f);
+        UpdateUntil(minion, () => CurrentState(minion) is FollowState);
+
+        member.SetIff(hot, true);
+        Tick(.1f);
+        Assert.Same(hot, member.Target.Value.Entity);
+        UpdateUntil(minion, () => CurrentState(minion) is CombatState);
+
+        member.VisibleEnemies.Remove(hot);
+        Tick(.1f);
+        Assert.IsType<FollowTask>(minion.Task);
+        UpdateUntil(minion, () => !(CurrentState(minion) is CombatState));
+        UpdateUntil(minion, () => CurrentState(minion) is FollowState);
     }
 
     private Minion PatrollingMinion(Ship ship)
@@ -649,6 +761,35 @@ public sealed class FlightTests : IDisposable
                 Assert.Equal(40f, armed.Combatant.HoldStandoff);
                 Assert.Null(cache.GetAll<Faction>().Single(f => f.Name == "Bare").Doctrine);
             }
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
+    public void ADryRunOfTheCatalogCommandWritesNothing()
+    {
+        var path = TempCatalog();
+        try
+        {
+            using (var cache = AetheriaStores.Open(path, catalogWritable: true))
+            {
+                cache.Upsert(new VerseGrammar { Revision = 1 });
+                cache.Upsert(new Faction { Name = "Zhestokost" });
+                cache.FlushAsync().Wait();
+            }
+
+            var before = File.ReadAllBytes(path);
+            var output = new StringWriter();
+            using (var cache = AetheriaStores.Open(path, catalogWritable: true))
+            {
+                DoctrineCatalog.Run(cache, apply: false, output);
+                cache.FlushAsync().Wait();
+            }
+
+            Assert.Contains("Zhestokost: engage on", output.ToString());
+            Assert.Equal(before, File.ReadAllBytes(path));
+            using (var cache = AetheriaStores.Open(path))
+                Assert.Null(cache.GetAll<Faction>().Single().Doctrine);
         }
         finally { File.Delete(path); }
     }

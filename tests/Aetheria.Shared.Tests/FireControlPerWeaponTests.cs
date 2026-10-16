@@ -314,6 +314,47 @@ public sealed class FireControlPerWeaponTests : IDisposable
         Assert.True(r.Gun.Weapon.Firing, "the turret must fire a fused weapon at a designated target out of arc");
     }
 
+    // The turret keeps the AgentMinHitProbability threshold for a direct-hit weapon: a shot priced near .5 is held at a
+    // threshold of .6 and taken at .4. Kills: the turret's fire threshold dropped to zero or fixed to a constant.
+    [Theory]
+    [InlineData(.6f, false)]
+    [InlineData(.4f, true)]
+    public void ATurretKeepsTheGlobalHitProbabilityThresholdForADirectHitWeapon(float minHit, bool fires)
+    {
+        var r = Build(accuracy: .5f, minHit: minHit, turret: true);
+        var p = FireControl.HitProbability(r.Gun.Weapon, r.Shooter, r.Target);
+        Assert.True(p > .4f && p < .6f, $"fixture: the shot must price near .5, priced {p}");
+
+        r.Zone.Update(1f);
+        r.Zone.Update(1f);
+
+        Assert.Equal(fires, r.Gun.Weapon.Firing);
+    }
+
+    // A flight's members hold off at 1.1 x their longest gun when the doctrine authors no standoff (every authored
+    // doctrine leaves it 0), and at the authored distance otherwise. Guns of Range 50 and 100 on one ship. Kills: the
+    // default zeroed, inverted, taken from the shortest gun, or the authored value ignored.
+    [Theory]
+    [InlineData(0f, 110f)]
+    [InlineData(40f, 40f)]
+    public void AFlightHoldsOffAtTheDefaultOrAuthoredStandoff(float holdStandoff, float expected)
+    {
+        var r = Build(range: 50f, decoy: true);
+        r.Shooter.SetIff(r.Target, null);
+        if (!r.Shooter.VisibleEnemies.Contains(r.Target)) r.Shooter.VisibleEnemies.Add(r.Target);
+        var settings = r.Shooter.ItemManager.GameplaySettings;
+        var flight = new Flight(new FactionDoctrine
+        {
+            EngageOn = EngageOn.Detection, Grace = 5, Combatant = new RoleDoctrine { MinHitProbability = .2f, HoldStandoff = holdStandoff }
+        }, settings);
+        var agent = new Minion(r.Shooter, flight.Combatant);
+        flight.Join(agent, new PatrolOrbitsTask());
+
+        flight.Update(.1f);
+
+        Assert.Equal(expected, ((FollowTask) agent.Task).Standoff, 2);
+    }
+
     // The AI aims at the height a target rides at (Entity.RideHeight: field plus the layer the target's kind rides on),
     // not at the plane and not at the shooter's own layer. A target on a layer 40 u up against a shooter on the ship
     // layer, a shot fast enough to be predicted: the turret's and Combat's aim point at the target's stepped pose.
