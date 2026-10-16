@@ -24,7 +24,6 @@ uniform half _NebulaFillDensity,
             _NebulaFloorBlend,
             _NebulaPatchBlend,
             _NebulaLuminance,
-            _TintExponent,
             _TintLodExponent,
             _NebulaNoiseScale,
             _NebulaNoiseExponent,
@@ -105,16 +104,6 @@ float cloudDensity(float3 pos, float surfaceDisp)
     const float floorDist = -dist;
     const float floorDensity = floorDist/_NebulaFloorBlend;
     return patchDensity + max(0,floorDensity);
-}
-
-// TODO: Get this working?
-float2 texFlow(float3 pos)
-{
-    const float2 fluidUv = getUVFluid(pos.xz);
-    if(any(fluidUv<0)||any(fluidUv>1)) return 0;
-    const float2 fluidSample = tex2Dlod(_FluidVelocity, half4(fluidUv, 0, 0)).xy;
-    // TODO: remove magic number for fluid texture dimensions
-    return float3(fluidSample.x,0,fluidSample.y) * (512 / _FluidTransform.z);
 }
 
 float2 gravGradient (float2 uv)
@@ -236,20 +225,11 @@ float4 VolumeSampleColor(float3 pos)
     return float4(tint, d);
 }
 
-float2 tintGradient (float2 uv)
-{
-    return float2(
-        length(tex2Dlod(_NebulaTint, float4(uv.x + _NebulaTint_TexelSize.x, uv.y, 0, 0))) - length(tex2Dlod(_NebulaTint, float4(uv.x - _NebulaTint_TexelSize.x, uv.y, 0, 0))),
-        length(tex2Dlod(_NebulaTint, float4(uv.x, uv.y + _NebulaTint_TexelSize.y, 0, 0))) - length(tex2Dlod(_NebulaTint, float4(uv.x, uv.y - _NebulaTint_TexelSize.y, 0, 0)))
-    );
-}
-        
 float3 VolumeSampleColorSimple(float3 pos, float3 normal)
 {
     float2 uv = getUV(pos.xz);
     float3 low = tex2Dlod(_NebulaTint, float4(uv.x, uv.y, 0, _DynamicLodLow)).rgb;
     float3 high = tex2Dlod(_NebulaTint, float4(uv.x, uv.y, 0, _DynamicLodHigh)).rgb * _DynamicSkyBoost;
     float upness = dot(normal, float3(0,1,0));
-    //float lambert = 2 - dot(normalize(normal.xz), normalize(tintGradient(uv)));
     return lerp(low,high,sqrt((upness+1)/2)) * _DynamicIntensity / (density(pos)+1);
 }

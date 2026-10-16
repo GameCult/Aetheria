@@ -30,8 +30,6 @@ public class ZoneRenderer : MonoBehaviour
     public CinemachineVirtualCamera SceneCamera;
     public Camera[] FogCameras;
     public Camera[] MinimapCameras;
-    public Material FogMaterial;
-    public float FogFarFadeFraction = .125f;
     public float FarPlaneDistanceMultiplier = 2;
     public InstancedMesh[] AsteroidMeshes;
     public int AsteroidSpritesheetWidth = 4;
@@ -141,8 +139,6 @@ public class ZoneRenderer : MonoBehaviour
             foreach (var camera in FogCameras)
                 camera.orthographicSize = value;
             SceneCamera.m_Lens.FarClipPlane = value * FarPlaneDistanceMultiplier;
-            FogMaterial.SetFloat("_DepthCeiling", value);
-            FogMaterial.SetFloat("_DepthBlend", FogFarFadeFraction * value);
         }
     }
 

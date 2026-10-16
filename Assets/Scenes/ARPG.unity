@@ -16332,8 +16332,6 @@ MonoBehaviour:
   - {fileID: 488792362}
   - {fileID: 970624071}
   - {fileID: 2095741464}
-  FogMaterial: {fileID: 2100000, guid: 2ff39f5d101241043ba1dcde19d92f77, type: 2}
-  FogFarFadeFraction: 0.125
   FarPlaneDistanceMultiplier: 1
   AsteroidMeshes:
   - Mesh: {fileID: 4300004, guid: bdb4c719a85f3f2419f6c573dd1daf15, type: 3}
