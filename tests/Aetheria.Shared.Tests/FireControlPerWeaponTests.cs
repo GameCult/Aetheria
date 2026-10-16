@@ -35,8 +35,9 @@ public sealed class FireControlPerWeaponTests : IDisposable
         Directory.Delete(_root, true);
     }
 
-    private static GameplaySettings TestSettings(float minHit) => new GameplaySettings
+    private static GameplaySettings TestSettings(float minHit, float orbitalLayerHeight) => new GameplaySettings
     {
+        OrbitalLayerHeight = orbitalLayerHeight,
         DefaultEntitySettings = new EntitySettings(),
         Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
         QualityPriceModifier = new ExponentialLerp(),
@@ -71,7 +72,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
     {
         public Zone Zone;
         public Ship Shooter;
-        public Ship Target;
+        public Entity Target;
         public List<Gun> Guns = new List<Gun>();
         public Gun Gun => Guns[0];
         public Gun Decoy;
@@ -84,12 +85,12 @@ public sealed class FireControlPerWeaponTests : IDisposable
         (ItemRotation Rotation, float Arc)[] mounts = null, bool beam = false, WeaponFuse? fuse = null, float blast = 0f,
         float range = 100f, float targetRange = 60f, float accuracy = 1f, float minHit = .2f, bool lockWeapon = false,
         bool turret = false, float energy = 0f, float heat = 0f, float visibility = 0f, int magazine = 0, bool singleAmmoBurst = false, bool decoy = false, bool charged = false, bool auto = false,
-        float effective = float.PositiveInfinity, float damageAtMax = 0f, float velocity = 0f, float targetGridOffset = 0f)
+        float effective = float.PositiveInfinity, float damageAtMax = 0f, float velocity = 0f, float targetLayerHeight = 0f)
     {
         mounts ??= new[] { (ItemRotation.None, 0f) };
         var hullData = new HullData
         {
-            Name = "Hull", HullType = HullType.Ship, Shape = SolidShape(5, 4), Durability = 1000000, Mass = 1000, Armor = 0, GridOffset = targetGridOffset,
+            Name = "Hull", HullType = HullType.Ship, Shape = SolidShape(5, 4), Durability = 1000000, Mass = 1000, Armor = 0,
             Hardpoints = { new HardpointData { Type = HardpointType.Sensors, Position = new int2(0, 0), Shape = new Shape() } }
         };
         var shooterHullData = new HullData
@@ -192,7 +193,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
 
         var ledger = new ProvenanceLedger();
         for (var i = 1; i <= 100; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = 1 };
-        var items = new ItemManager(cache, ledger, TestSettings(minHit), _ => { });
+        var items = new ItemManager(cache, ledger, TestSettings(minHit, targetLayerHeight), _ => { });
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "PerWeapon", Owner = null }, null);
 
         EquippableItem Make(string name, int lot, float durability) => new EquippableItem
@@ -235,7 +236,12 @@ public sealed class FireControlPerWeaponTests : IDisposable
             Assert.True(shooter.TryEquip(t, upos));
         }
 
-        var target = new Ship(items, zone, new EquippableItem { Data = hullRef, Durability = 1000000, Lot = lot++ }, new EntitySettings());
+        // A target layer height rides the target on the orbital layer at that height (the shooter is a ship, on the ship layer),
+        // so the two sit at different heights.
+        var targetItem = new EquippableItem { Data = hullRef, Durability = 1000000, Lot = lot++ };
+        Entity target = targetLayerHeight != 0f
+            ? new OrbitalEntity(items, zone, targetItem, default, new EntitySettings())
+            : new Ship(items, zone, targetItem, new EntitySettings());
         Assert.True(target.TryEquip(Make("Gun", lot++, 1), new int2(0, 0)));
 
         zone.Admit(shooter, piloted: false);
@@ -308,13 +314,14 @@ public sealed class FireControlPerWeaponTests : IDisposable
         Assert.True(r.Gun.Weapon.Firing, "the turret must fire a fused weapon at a designated target out of arc");
     }
 
-    // The AI aims at the height a target rides at (Entity.RideHeight: field plus the hull's GridOffset), not at the
-    // plane. A target hull raised 40 u, a shot fast enough to be predicted: the turret's and Combat's aim point at the
-    // target's stepped pose. Kills: either aim site spelling its own offset (dropped, added to, or scaled).
+    // The AI aims at the height a target rides at (Entity.RideHeight: field plus the layer the target's kind rides on),
+    // not at the plane and not at the shooter's own layer. A target on a layer 40 u up against a shooter on the ship
+    // layer, a shot fast enough to be predicted: the turret's and Combat's aim point at the target's stepped pose.
+    // Kills: either aim site spelling its own offset (dropped, added to, scaled, or the shooter's layer).
     [Fact]
     public void ATurretAimsAtTheHeightATargetRidesAt()
     {
-        var r = Build(turret: true, velocity: 500f, targetGridOffset: 40f);
+        var r = Build(turret: true, velocity: 500f, targetLayerHeight: 40f);
         r.Zone.Update(1f);
 
         AssertAimsAtTarget(r);
@@ -323,7 +330,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
     [Fact]
     public void CombatAimsAtTheHeightATargetRidesAt()
     {
-        var r = Build(velocity: 500f, targetGridOffset: 40f);
+        var r = Build(velocity: 500f, targetLayerHeight: 40f);
         r.Zone.Agents.Add(new Minion(r.Shooter));
         r.Zone.Update(1f);
         r.Zone.Update(1f);

@@ -278,6 +278,13 @@ public class GameplaySettings
     // normal is this times the speed at which it closed. 0 is perfectly inelastic, 1 perfectly elastic.
     public float ContactRestitution = .5f;
 
+    // Heights above the field of the ship plane, the orbital layer (stations, turrets: every OrbitalEntity) and the floater
+    // layer (loot, mines): orbitals above ships and floaters below them, so no ship ever touches either (ruling
+    // aetheria-gravity:orbitals-above-floaters-below).
+    public float ShipLayerHeight = 3f;
+    public float OrbitalLayerHeight = 15f;
+    public float FloaterLayerHeight = 0f;
+
     // The floor an AI's own predicted hit probability (FireControl.HitProbability) must clear before it counts
     // a firing solution worth taking (Combat.cs, TurretController.cs). Player fire is gated on arc alone
     // (Weapon.ArcAllowsFire, Q2) -- this threshold is an AI fire-discipline heuristic, not part of the roll.

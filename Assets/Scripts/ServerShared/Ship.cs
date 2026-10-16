@@ -16,6 +16,8 @@ using quaternion = CultMath.quaternion;
 [MessagePackObject]
 public class Ship : Entity
 {
+    public override float LayerHeight => ItemManager.GameplaySettings.ShipLayerHeight;
+
     
     // [Key("bindings")]   public Dictionary<KeyCode,Guid>    Bindings = new Dictionary<KeyCode,Guid>();
     //[IgnoreMember] public int HullHardpointCount;

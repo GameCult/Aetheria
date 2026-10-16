@@ -354,8 +354,9 @@ public sealed partial class FireControlCut124Tests
     {
         foreach (var shield in new[] { false, true })
         {
-            var e = Build(TestSettings(), SolidShape(5, 4), equipShield: shield, shieldCapacity: 100000f);
-            e.HullData.GridOffset = 5f;
+            var raised = TestSettings();
+            raised.ShipLayerHeight = 5f;
+            var e = Build(raised, SolidShape(5, 4), equipShield: shield, shieldCapacity: 100000f);
             for (var i = 0; i < 30; i++) e.Zone.Update(.1f);
             Assert.Equal(5f, e.Target.Position.y, 1e-4);
             var subs = new List<IDisposable>();
@@ -434,9 +435,10 @@ public sealed partial class FireControlCut124Tests
     [Fact]
     public void TheImpactHeightIsTheTargetsHeightAndCarriedKeepsRelativeHeight()
     {
-        // Production y is the zone height plus the hull's GridOffset, so a raised hull is reachable headless.
-        var e = Build(TestSettings(), SolidShape(21, 3), velocity: 0, damage: 100f, custom: new[] { ("Marker", new Shape(), new int2(2, 1), 1f) });
-        e.HullData.GridOffset = 5f;
+        // Production y is the zone height plus the ship layer, so a raised ship plane is reachable headless.
+        var raised = TestSettings();
+        raised.ShipLayerHeight = 5f;
+        var e = Build(raised, SolidShape(21, 3), velocity: 0, damage: 100f, custom: new[] { ("Marker", new Shape(), new int2(2, 1), 1f) });
         e.Zone.Update(.01f);
         Assert.Equal(5f, e.Target.Position.y, 1e-4);
         var subs = new List<IDisposable>();

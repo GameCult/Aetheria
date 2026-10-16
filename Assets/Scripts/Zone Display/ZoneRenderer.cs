@@ -282,7 +282,7 @@ public class ZoneRenderer : MonoBehaviour
     private void LoadMine(Zone zone, Mine mine)
     {
         var instance = Instantiate(MinePrefab);
-        instance.Bind(zone, mine);
+        instance.Bind(zone, mine, ItemManager.GameplaySettings);
         _mines.Add(mine, instance);
     }
 
@@ -297,7 +297,7 @@ public class ZoneRenderer : MonoBehaviour
             _ => throw new NotImplementedException()
         };
         var pickup = Instantiate(prefab, ZoneRoot);
-        pickup.Bind(zone, floating);
+        pickup.Bind(zone, floating, ItemManager.GameplaySettings);
         pickup.ScanLabel.text = ItemManager.Title(floating.Item);
         if (floating.Item is CraftedItemInstance craftedItemInstance)
         {

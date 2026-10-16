@@ -12,7 +12,6 @@ using Random = UnityEngine.Random;
 public class ItemPickup : MonoBehaviour
 {
     public float RotationSpeed = 1f;
-    public float GridOffset;
     public float LabelFadeDuration = .5f;
     public float LabelPersistDuration = 3;
     public float LabelDisplayAngle = 15;
@@ -27,11 +26,13 @@ public class ItemPickup : MonoBehaviour
     private float _displayTime;
     private float _timeOffset;
     private Zone _zone;
+    private GameplaySettings _settings;
     private FloatingItem _floating;
 
-    public void Bind(Zone zone, FloatingItem floating)
+    public void Bind(Zone zone, FloatingItem floating, GameplaySettings settings)
     {
         _zone = zone;
+        _settings = settings;
         _floating = floating;
         Item = floating.Item;
         _timeOffset = Random.value * 100;
@@ -42,7 +43,7 @@ public class ItemPickup : MonoBehaviour
     {
         var lead = ActionGameManager.Clock.Lead;
         var p = DrawAhead.Position(_floating.Body, lead);
-        transform.position = new Vector3(p.x, DrawAhead.Height(_zone, p, lead) + GridOffset, p.y);
+        transform.position = new Vector3(p.x, DrawAhead.FloaterHeight(_zone, _settings, p, lead), p.y);
     }
 
     private void Update()

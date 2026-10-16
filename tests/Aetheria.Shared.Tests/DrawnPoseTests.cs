@@ -26,7 +26,8 @@ public sealed class DrawnPoseTests : IDisposable
     private const float PlanetDistance = 1000f, PlanetPhase = .3f;
     private const float MoonDistance = 60f, MoonPhase = .1f;
     private const float StationDistance = 3f, StationPhase = .4f;
-    private const float GridOffset = 2.5f;
+    private const float ShipLayerHeight = 2.5f;
+    private const float OrbitalLayerHeight = 7.5f;
     // The sun's rail is parentless and off-centre, the shape ZoneGenerator gives a cluster root (FixedPosition = cluster centre).
     private static readonly float2 SunCentre = new float2(700f, -300f);
 
@@ -73,7 +74,7 @@ public sealed class DrawnPoseTests : IDisposable
         using (var build = AetheriaStores.Open(catalog, catalogWritable: true))
         {
             build.Upsert(new VerseGrammar { Revision = 1 });
-            build.Upsert(new HullData { Name = "TestHull", HullType = HullType.Ship, Shape = shape, Durability = 1, Mass = 1000, GridOffset = GridOffset });
+            build.Upsert(new HullData { Name = "TestHull", HullType = HullType.Ship, Shape = shape, Durability = 1, Mass = 1000 });
             build.FlushAsync().Wait();
         }
 
@@ -85,7 +86,8 @@ public sealed class DrawnPoseTests : IDisposable
         {
             DefaultEntitySettings = new EntitySettings(),
             Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
-            QualityPriceModifier = new ExponentialLerp()
+            QualityPriceModifier = new ExponentialLerp(),
+            ShipLayerHeight = ShipLayerHeight, OrbitalLayerHeight = OrbitalLayerHeight
         }, _ => { });
 
         CultRecordKey Orbit(CultRecordKey parent, float distance, float phase, float2 fixedPosition = default)
@@ -270,9 +272,9 @@ public sealed class DrawnPoseTests : IDisposable
         // A ship that stands still 40 u from the planet rides the field of the drawn well, plus its hull's offset.
         var ship = new Ship(w.Items, w.Zone, w.Hull, new EntitySettings()) { Position = float3(PlanetAt(w.Zone.ExactTime).x + 40f, 0, PlanetAt(w.Zone.ExactTime).y) };
         var drawnShip = DrawAhead.Position(ship, lead);
-        Assert.Equal(FieldAt(w, drawnShip.xz, time) + GridOffset, drawnShip.y, 3);
+        Assert.Equal(FieldAt(w, drawnShip.xz, time) + ShipLayerHeight, drawnShip.y, 3);
         Assert.Equal(ship.RideHeight(drawnShip.xz, time), drawnShip.y, 4);
-        Assert.Equal(w.Zone.GetHeight(ship.Position.xz) + GridOffset, ship.RideHeight(ship.Position.xz), 4);
+        Assert.Equal(w.Zone.GetHeight(ship.Position.xz) + ShipLayerHeight, ship.RideHeight(ship.Position.xz), 4);
     }
 
     [Fact]
@@ -292,7 +294,7 @@ public sealed class DrawnPoseTests : IDisposable
         AssertNear(StationAt(w.Zone.ExactTime + lead), drawn.xz, 2e-3f, "the station on its rail at the drawn time");
         AssertNear(DrawAhead.Orbit(w.Zone, w.StationOrbit, lead), drawn.xz, 1e-6f, "the same point DrawAhead.Orbit gives");
         Assert.True(length(station.Position.xz + station.Velocity * lead - drawn.xz) > .01f, "a tight rail curves away from its straight extrapolation");
-        Assert.Equal(w.Zone.GetHeight(drawn.xz, w.Zone.ExactTime + lead) + GridOffset, drawn.y, 4);
+        Assert.Equal(w.Zone.GetHeight(drawn.xz, w.Zone.ExactTime + lead) + OrbitalLayerHeight, drawn.y, 4);
     }
 
     // The generators make orbital entities with no orbit set (Loadout, LoadoutGenerator): a rail-less one is an ordinary

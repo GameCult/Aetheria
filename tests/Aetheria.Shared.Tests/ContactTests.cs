@@ -391,12 +391,13 @@ public sealed class ContactTests : IDisposable
         var lab = Build();
         var ship = lab.Add("Solid", float3(0, 0, 0), float2(10, 0));
         var station = lab.AddOrbital("Heavy", float3(10, 0, 0), float2(0, 0));
-        var turret = lab.AddOrbital("Solid", float3(-10, 0, 0), float2(10, 0));
+        // Behind the ship and faster than it, so it closes on the ship as the station does.
+        var turret = lab.AddOrbital("Solid", float3(-10, 0, 0), float2(30, 0));
         lab.Step();
         Assert.Empty(lab.Events);
         Assert.Equal(float2(10, 0), ship.Velocity);
         Assert.Equal(float2(0, 0), station.Velocity);
-        Assert.Equal(float2(10, 0), turret.Velocity);
+        Assert.Equal(float2(30, 0), turret.Velocity);
     }
 
     // An orbital overlapping a colliding pair changes nothing about the pair (ruling ship-bounce-restitution-setting):

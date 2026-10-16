@@ -162,7 +162,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   RotationSpeed: 1
-  GridOffset: 0
   LabelFadeDuration: 0.5
   LabelPersistDuration: 3
   LabelDisplayAngle: 15
