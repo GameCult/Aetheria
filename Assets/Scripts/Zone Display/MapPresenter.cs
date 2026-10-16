@@ -69,16 +69,37 @@ public class MapPresenter
     public void OpenMapScreen(bool open) => _mapScreenOpen = open;
     public void SetMapScreenScale(float scale) => _mapScreenScale = scale;
 
+    // Destroy in play mode, DestroyImmediate where the editor smokes run without one.
+    private static void Discard(Object doomed)
+    {
+        if (Application.isPlaying) Object.Destroy(doomed);
+        else Object.DestroyImmediate(doomed);
+    }
+
     public int IconCount => _icons.Count;
     // What the last Draw issued, for the smoke.
     public int IconDraws { get; private set; }
     public int BeltDraws { get; private set; }
     public int LastBeltInstances { get; private set; }
-    public bool TryDrawn(Entity entity, out Matrix4x4 drawn)
+    public bool TryDrawn(CultRecordKey planet, out Matrix4x4 drawn)
     {
         drawn = default;
+        var icon = _icons.Find(candidate => candidate.Entity == null && candidate.Planet.Equals(planet));
+        if (icon == null) return false;
+        drawn = icon.Drawn;
+        return true;
+    }
+
+    // What a belt's buffer holds on the GPU side, read back.
+    public void ReadBelt(CultRecordKey key, float4[] into) => _belts[key].Buffer.GetData(into);
+
+    public bool TryDrawn(Entity entity, out Matrix4x4 drawn, out float alpha)
+    {
+        drawn = default;
+        alpha = 0;
         if (!_entityIcons.TryGetValue(entity, out var icon)) return false;
         drawn = icon.Drawn;
+        alpha = icon.Material.GetColor("_Color").a;
         return true;
     }
 
@@ -95,7 +116,7 @@ public class MapPresenter
             Fade = 1,
         };
         icon.Base = icon.Material.HasProperty("_Color") ? icon.Material.GetColor("_Color") : Color.white;
-        Object.Destroy(renderer.gameObject);
+        Discard(renderer.gameObject);
         _icons.Add(icon);
         return icon;
     }
@@ -121,7 +142,7 @@ public class MapPresenter
     {
         if (!_entityIcons.Remove(entity, out var icon)) return;
         _icons.Remove(icon);
-        Object.Destroy(icon.Material);
+        Discard(icon.Material);
     }
 
     private sealed class Belt
@@ -206,7 +227,7 @@ public class MapPresenter
 
     public void Clear()
     {
-        foreach (var icon in _icons) Object.Destroy(icon.Material);
+        foreach (var icon in _icons) Discard(icon.Material);
         _icons.Clear();
         _entityIcons.Clear();
         foreach (var belt in _belts.Values) belt.Buffer.Release();

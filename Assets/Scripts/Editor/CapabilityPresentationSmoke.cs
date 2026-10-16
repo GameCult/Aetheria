@@ -85,6 +85,11 @@ public static class CapabilityPresentationSmoke
             ?? throw new InvalidOperationException("No Tractor Beam prefab.");
         // An entity's instance as the game builds it: the beam is a child before SetEntity on both ship paths, so the
         // binder finds it as the game does.
+        // The scene's map: an entity registers its icon with the ZoneRenderer's presenter, so each instance carries a quad.
+        var mapRenderer = new GameObject("Smoke Zone Renderer").AddComponent<ZoneRenderer>();
+        mapRenderer.Settings = AssetDatabase.LoadAssetAtPath<GameSettings>("Assets/Resources/Settings.asset");
+        mapRenderer.MapGravityMaterials = new Material[0];
+        Awaken(mapRenderer);
         (GameObject Object, EntityInstance Instance, TractorBeam Beam) Bound(string name, Entity entity)
         {
             var go = new GameObject(name);
@@ -98,7 +103,11 @@ public static class CapabilityPresentationSmoke
             var tractor = ((GameObject)PrefabUtility.InstantiatePrefab(beamPrefab, go.transform)).GetComponent<TractorBeam>();
             tractor.Power = .8f;
             tractor.Direction = Vector3.forward;
-            bound.SetEntity(null, entity);
+            var icon = GameObject.CreatePrimitive(PrimitiveType.Quad);
+            icon.transform.SetParent(go.transform);
+            bound.MapIcon = icon.GetComponent<MeshRenderer>();
+            bound.MapIcon.sharedMaterial = new Material(Shader.Find("Unlit/Color"));
+            bound.SetEntity(mapRenderer, entity);
             return (go, bound, tractor);
         }
         var (instanceObject, instance, beam) = Bound("Smoke Entity Instance", ship);
