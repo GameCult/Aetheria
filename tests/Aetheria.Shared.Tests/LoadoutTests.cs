@@ -252,7 +252,8 @@ public sealed class LoadoutTests : IDisposable
             Assert.DoesNotContain(forbidden, bad => bad.IsAssignableFrom(type));
             if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(CultRecordRef<>))
             {
-                Assert.True(typeof(EquippableItemData).IsAssignableFrom(type.GetGenericArguments()[0]), $"{type} names a non-design record");
+                var named = type.GetGenericArguments()[0];
+                Assert.True(typeof(EquippableItemData).IsAssignableFrom(named) || named == typeof(FactionProductData), $"{type} names a record that is neither a design nor a product");
                 continue;
             }
             if (type.IsArray) pending.Enqueue(type.GetElementType());
@@ -336,7 +337,8 @@ public sealed class LoadoutTests : IDisposable
         using var cache = Open();
         var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
         var failures = new List<string>();
-        Assert.Null(Loadouts.Materialize(items, null, HandBuilt(cache), _ => null, failures));
+        var soleProduct = SoleProduct(cache);
+        Assert.Null(Loadouts.Materialize(items, null, HandBuilt(cache), design => design.Name == "Lamp" ? null : soleProduct(design), failures));
         Assert.Equal("slot 0,0: no available product of Lamp", Assert.Single(failures));
     }
 

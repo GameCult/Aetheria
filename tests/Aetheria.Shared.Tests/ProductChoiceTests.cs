@@ -122,6 +122,9 @@ public sealed class ProductChoiceTests : IDisposable
         };
     }
 
+    // Small seeds give correlated first draws, so the seeds a distribution test runs over are spread across the range.
+    private static uint Seed(int i) => unchecked((uint) (i * 2654435761L));
+
     private static Entity Materialize(Rig rig, Loadout loadout, Func<CraftedItemData, FactionProductData> choose, List<string> failures) =>
         Loadouts.Materialize(rig.Items, null, loadout, choose, failures);
 
@@ -142,7 +145,7 @@ public sealed class ProductChoiceTests : IDisposable
     {
         var rig = Build("lamp-z", "lamp-a");
         var lamp = rig.Cache.GetByName<GearData>("Lamp");
-        var drawn = Enumerable.Range(1, 200).Select(seed => rig.Outfitter(rig.OutBoth, (uint) seed).ChooseProduct(lamp).Name).ToArray();
+        var drawn = Enumerable.Range(1, 200).Select(i => rig.Outfitter(rig.OutBoth, Seed(i)).ChooseProduct(lamp).Name).ToArray();
         var alpha = drawn.Count(name => name == "lamp-a");
         Assert.InRange(alpha, 160, 199);
         Assert.Contains("lamp-z", drawn);
@@ -154,7 +157,7 @@ public sealed class ProductChoiceTests : IDisposable
         var rig = Build("lamp-z", "lamp-a");
         var lamp = rig.Cache.GetByName<GearData>("Lamp");
         Assert.Equal(rig.Outfitter(null, 7).ChooseProduct(lamp).Name, rig.Outfitter(null, 7).ChooseProduct(lamp).Name);
-        var seen = Enumerable.Range(1, 64).Select(seed => rig.Outfitter(null, (uint) seed).ChooseProduct(lamp).Name).Distinct().OrderBy(name => name).ToArray();
+        var seen = Enumerable.Range(1, 64).Select(i => rig.Outfitter(null, Seed(i)).ChooseProduct(lamp).Name).Distinct().OrderBy(name => name).ToArray();
         Assert.Equal(new[] { "lamp-a", "lamp-z" }, seen);
     }
 
