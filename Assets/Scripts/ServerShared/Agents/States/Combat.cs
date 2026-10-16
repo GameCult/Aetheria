@@ -24,13 +24,14 @@ public class CombatState : BaseState
     public CombatState(Agent agent) : base(agent)
     {
         foreach (var item in _agent.Ship.Equipment) Watch(item);
-        _agent.Ship.Equipment.ObserveAdd().Subscribe(add => { Watch(add.Value); _optimumStale = true; });
+        _agent.Ship.Equipment.ObserveAdd().Subscribe(add => Watch(add.Value));
         _agent.Ship.Equipment.ObserveRemove().Subscribe(_ => _optimumStale = true);
     }
 
-    // The optimum is a function of the loadout's evaluated stats, so it is re-derived whenever a weapon comes or goes
-    // or changes online state, and only once every weapon that can run has evaluated its stats (a weapon evaluates on
-    // its first active tick, after it comes online): a ship the zone just spawned samples over live stats, not zeros.
+    // The optimum is a function of the loadout's evaluated stats, so it is re-derived at the next Update (agents update
+    // before the entities, so by then the weapons that came online this tick have evaluated) whenever a weapon is
+    // added, removed or changes online state. Sampling on the event itself would read the stats before they exist: a
+    // ship the zone just spawned would keep an optimum of 0.
     private void Watch(EquippedItem item)
     {
         if (item.Behaviors.OfType<Weapon>().Any()) item.Online.Subscribe(_ => _optimumStale = true);
@@ -38,7 +39,7 @@ public class CombatState : BaseState
 
     public override void Update(float delta)
     {
-        if (_optimumStale && _agent.Ship.Weapons.All(w => w.StatsKnown || !w.Item.Active.Value))
+        if (_optimumStale)
         {
             SampleDps();
             _optimumStale = false;

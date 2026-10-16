@@ -26,6 +26,7 @@ public sealed class ConsumableAiTests : IDisposable
     private readonly string _root = Path.Combine(Path.GetTempPath(), "aetheria-consumable-ai-" + Guid.NewGuid().ToString("N"));
     private readonly List<CultCache> _caches = new List<CultCache>();
     private static readonly int2 HardpointCell = new int2(0, 0);
+    private static readonly int2 SecondHardpointCell = new int2(2, 2);
     private static readonly int2 HoldCell = new int2(1, 1);
     private const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
 
@@ -46,7 +47,7 @@ public sealed class ConsumableAiTests : IDisposable
         public Ship Agent, Prey, Locker;
         public EquippedCargoBay Hold;
         public ConsumableItemData Vent, Overdrive, Decoy, StackableVent;
-        public GearData LongGun;
+        public GearData HeavyGun;
         public CultRecordRef<Faction> Maker;
         public float Optimum;
 
@@ -80,7 +81,7 @@ public sealed class ConsumableAiTests : IDisposable
         }
     }
 
-    private static GearData GunData(float effective, string name = "Gun") => new GearData
+    private static GearData GunData(float effective, string name = "Gun", float damage = 10f) => new GearData
     {
         Name = name, Hardpoint = HardpointType.Sensors, Shape = new Shape(), Durability = 1,
         MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000,
@@ -88,7 +89,7 @@ public sealed class ConsumableAiTests : IDisposable
         {
             new InstantWeaponData
             {
-                Damage = Const(10), Range = Const(1000), MinRange = Const(0), Velocity = Const(0),
+                Damage = Const(damage), Range = Const(1000), MinRange = Const(0), Velocity = Const(0),
                 Spread = Const(0), DamageSpread = Const(0), Penetration = Const(0), Count = Const(1),
                 BurstTime = Const(0), Cooldown = Const(1),
                 EffectiveRange = Const(effective), DamageAtMaxRange = 0f
@@ -107,10 +108,14 @@ public sealed class ConsumableAiTests : IDisposable
         cache.Upsert(new HullData
         {
             Name = "Skiff", HullType = HullType.Ship, Shape = hullShape, Durability = 1000000, Mass = 1000,
-            Hardpoints = { new HardpointData { Type = HardpointType.Sensors, Position = HardpointCell, Shape = new Shape() } }
+            Hardpoints =
+            {
+                new HardpointData { Type = HardpointType.Sensors, Position = HardpointCell, Shape = new Shape() },
+                new HardpointData { Type = HardpointType.Sensors, Position = SecondHardpointCell, Shape = new Shape() }
+            }
         });
         cache.Upsert(GunData(effective));
-        cache.Upsert(GunData(800f, "LongGun"));
+        cache.Upsert(GunData(800f, "HeavyGun", damage: 1000f));
         cache.Upsert(LockWarningTests.Launcher("Launcher", lockSpeed: .6f, sensorImpact: 1, lockAngle: 30, directionImpact: 1));
         var interior = new Shape(4, 1);
         foreach (var cell in interior.AllCoordinates) interior[cell] = true;
@@ -161,7 +166,7 @@ public sealed class ConsumableAiTests : IDisposable
             Overdrive = cache.GetByName<ConsumableItemData>("Coolant"),
             Decoy = cache.GetByName<ConsumableItemData>("Flare"),
             StackableVent = cache.GetByName<ConsumableItemData>("StackVent"),
-            LongGun = cache.GetByName<GearData>("LongGun"),
+            HeavyGun = cache.GetByName<GearData>("HeavyGun"),
             Agent = NewShip("Gun"), Prey = NewShip(null), Locker = NewShip("Launcher")
         };
         Assert.True(scene.Agent.TryEquip(Make<CargoBayData>("Hold"), HoldCell));
@@ -316,7 +321,7 @@ public sealed class ConsumableAiTests : IDisposable
 
     // The production path for the optimum: a ship the zone admits as piloted derives it from its gun's live stats
     // before it needs it, and re-derives it when its loadout changes. The gun's effective range is 500 and the
-    // refitted gun's is 800, so the optimum moves with the weapons it has now.
+    // heavy gun's is 800, so the optimum moves with the weapons it has now.
     [Fact]
     public void ASpawnedShipsOptimumFollowsItsWeaponsAndNeverReadsZero()
     {
@@ -331,18 +336,31 @@ public sealed class ConsumableAiTests : IDisposable
         Assert.False(s.Active(s.Overdrive)); // 30 m is not "distant" against a derived optimum
         Assert.Equal(1, s.Carried);
 
-        var longGun = (EquippableItem) s.Items.CreateInstance(s.Items.CreateLot(s.LongGun, s.Maker, .5f));
-        Assert.True(s.Zone.Remove(s.Agent)); // refitting is a docked ship's act: out of the zone and inactive
-        s.Agent.Deactivate();
-        Assert.NotNull(s.Agent.TryUnequip(s.Agent.Equipment.Single(e => e.Behaviors.OfType<Weapon>().Any())));
-        Assert.True(s.Agent.TryEquip(longGun, HardpointCell));
-        s.Zone.Admit(s.Agent, piloted: false); // back in, the agent's Minion keeps its CombatState
-        s.Place(30f, 0f);
-        s.Zone.Update(.05f);
-        s.Zone.Update(.05f);
-        var refit = (float) typeof(CombatState).GetField("_optimumRange", Private).GetValue(s.State);
-        Assert.NotEqual(s.Optimum, refit);
-        Assert.InRange(refit, 800f - 1000f / 32f, 800f + 1000f / 32f);
+        // A refit is a docked ship's act: out of the zone and inactive, then back in. The heavy gun dominates the
+        // damage, so with it fitted the optimum sits at its effective range, and without it at the first gun's.
+        void Refit(Action<Ship> fit)
+        {
+            Assert.True(s.Zone.Remove(s.Agent));
+            s.Agent.Deactivate();
+            fit(s.Agent);
+            s.Zone.Admit(s.Agent, piloted: false); // back in, the agent's Minion keeps its CombatState
+            s.Place(30f, 0f);
+            s.Zone.Update(.05f);
+            s.Zone.Update(.05f);
+        }
+        float Optimum() => (float) typeof(CombatState).GetField("_optimumRange", Private).GetValue(s.State);
+
+        EquippedItem heavy = null;
+        Refit(ship =>
+        {
+            var before = ship.Equipment.ToList();
+            Assert.True(ship.TryEquip((EquippableItem) s.Items.CreateInstance(s.Items.CreateLot(s.HeavyGun, s.Maker, .5f)), SecondHardpointCell));
+            heavy = ship.Equipment.Single(e => !before.Contains(e));
+        });
+        Assert.InRange(Optimum(), 800f - 1000f / 32f, 800f + 1000f / 32f);
+
+        Refit(ship => Assert.NotNull(ship.TryUnequip(heavy)));
+        Assert.InRange(Optimum(), 500f - 1000f / 32f, 500f + 1000f / 32f);
     }
 
     // A Search or Scan paint and a Track paint in one tick, in either order: the strongest Track paint decides.
