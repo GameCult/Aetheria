@@ -347,6 +347,10 @@ public sealed class ConsumableAiTests : IDisposable
             fit(s.Agent);
             s.Zone.Admit(s.Agent, piloted: true); // back in as a pilot: the zone gives it a new Minion and CombatState
             s.Zone.Agents.Single().Task = null; // no orbits to patrol in the test zone
+            // Deactivation cleared its senses: it senses the prey again, as the sensors would after the jump in.
+            s.Agent.SetIff(s.Prey, true);
+            s.Agent.EntityInfoGathered[s.Prey] = 1f;
+            if (!s.Agent.VisibleEnemies.Contains(s.Prey)) s.Agent.VisibleEnemies.Add(s.Prey);
             s.Place(30f, 0f);
             s.Zone.Update(.05f);
             s.Zone.Update(.05f);
