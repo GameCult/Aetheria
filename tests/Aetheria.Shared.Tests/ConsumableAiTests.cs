@@ -162,13 +162,6 @@ public sealed class ConsumableAiTests : IDisposable
         };
         Assert.True(scene.Agent.TryEquip(Make<CargoBayData>("Hold"), HoldCell));
         scene.Hold = scene.Agent.CargoBays.Single();
-        if (carryVent) scene.Store(scene.Vent);
-        if (carryOverdrive) scene.Store(scene.Overdrive);
-        if (carryDecoy) scene.Store(scene.Decoy);
-        for (var i = 0; i < stackableVents; i++) scene.Store(scene.StackableVent);
-        Assert.True(scene.Carried == (carryVent ? 1 : 0) + (carryOverdrive ? 1 : 0) + (carryDecoy ? 1 : 0) + stackableVents,
-            $"carried {scene.Carried}, cargo entries {scene.Hold.Cargo.Count}: {string.Join(",", scene.Hold.Cargo.Keys.Select(k => k.GetType().Name))}");
-
         // The agent is driven by a Minion added by hand; the locker is a gun ship nobody pilots.
         zone.Admit(scene.Agent, piloted: false);
         zone.Admit(scene.Prey, piloted: false);
@@ -188,6 +181,14 @@ public sealed class ConsumableAiTests : IDisposable
         typeof(CombatState).GetMethod("SampleDps", Private).Invoke(scene.State, null);
         scene.Optimum = (float) typeof(CombatState).GetField("_optimumRange", Private).GetValue(scene.State);
         Assert.InRange(scene.Optimum, 500f - 1000f / 32f, 500f + 1000f / 32f);
+
+        // Stocked only now: before the first stat evaluation the optimum reads 0 and any target looks distant.
+        if (carryVent) scene.Store(scene.Vent);
+        if (carryOverdrive) scene.Store(scene.Overdrive);
+        if (carryDecoy) scene.Store(scene.Decoy);
+        for (var i = 0; i < stackableVents; i++) scene.Store(scene.StackableVent);
+        Assert.True(scene.Carried == (carryVent ? 1 : 0) + (carryOverdrive ? 1 : 0) + (carryDecoy ? 1 : 0) + stackableVents,
+            $"carried {scene.Carried}, cargo entries {scene.Hold.Cargo.Count}: {string.Join(",", scene.Hold.Cargo.Keys.Select(k => k.GetType().Name))}");
         return scene;
     }
 
