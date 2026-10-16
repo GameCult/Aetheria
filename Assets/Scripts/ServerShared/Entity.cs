@@ -1353,8 +1353,20 @@ public abstract class Entity
         return data.Stackable || FindActiveConsumable(data) == null;
     }
 
+    // The first consumable design in cargo with a behaviour of the asked kind, or null. Callers ask by kind, never
+    // by name: a design's name is a label and its behaviours are what it does.
+    public ConsumableItemData FirstCarriedConsumable(Predicate<BehaviorData> kind) =>
+        CargoBays.SelectMany(bay => bay.Cargo.Keys).OfType<ConsumableItem>()
+            .Select(item => ItemManager.GetData(item) as ConsumableItemData)
+            .FirstOrDefault(data => data != null && data.Behaviors.Any(b => kind(b)));
+
+    public bool HasActiveConsumable(Predicate<BehaviorData> kind) =>
+        _activeConsumables.Any(e => e.Data.Behaviors.Any(b => kind(b)));
+
     public bool TryActivateConsumable(ConsumableItemData data)
     {
+        // Death and docking Remove and Deactivate the ship while its agent keeps ticking.
+        if (!_active) return false;
         if (!CanActivateConsumable(data)) return false;
         
         var key = ItemManager.ItemData.RefOf<ItemData>(data).Key;

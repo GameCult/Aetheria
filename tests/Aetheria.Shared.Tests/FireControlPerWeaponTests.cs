@@ -750,8 +750,12 @@ public sealed class FireControlPerWeaponTests : IDisposable
     public void TheDoctrinesExponentMovesTheOptimumRange()
     {
         var r = Build(range: 400f, decoy: true);
-        float Optimum(float exponent) =>
-            new CombatState(new Minion(r.Shooter, new RoleDoctrine { RangeExponent = exponent, MinHitProbability = .2f })).OptimumRange;
+        float Optimum(float exponent)
+        {
+            var combat = new CombatState(new Minion(r.Shooter, new RoleDoctrine { RangeExponent = exponent, MinHitProbability = .2f }));
+            combat.Update(0f); // the optimum is derived at the first Update
+            return combat.OptimumRange;
+        }
 
         Assert.True(Optimum(1f) - Optimum(0f) > 100f);
     }
