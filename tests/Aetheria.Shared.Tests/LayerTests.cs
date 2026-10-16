@@ -6,6 +6,7 @@ using CultMath;
 using GameCult.Caching;
 using GameCult.Caching.MessagePack;
 using Xunit;
+using static CultMath.math;
 using float2 = CultMath.float2;
 using float3 = CultMath.float3;
 using int2 = CultMath.int2;
