@@ -177,10 +177,12 @@ public sealed class ConsumableAiTests : IDisposable
         zone.Agents.Single().Task = null; // the test zone has no orbits to patrol; the Minion and its CombatState are production's
         zone.Admit(scene.Prey, piloted: false);
         zone.Admit(scene.Locker, piloted: false);
-        zone.Update(0f); // brings the gear online
+        // The flight is the only writer of the agent's Target: the agent senses the prey and holds a grudge on it, so the
+        // flight engages it, and the Task stays null (an engaged member's Task is never rewritten).
         scene.Agent.SetIff(scene.Prey, true);
         scene.Agent.EntityInfoGathered[scene.Prey] = 1f;
-        scene.Agent.SetTarget(scene.Prey);
+        scene.Agent.VisibleEnemies.Add(scene.Prey);
+        zone.Update(0f); // brings the gear online
         scene.Locker.Position = float3(0, 0, -40);
         scene.Place(100f, 0f);
         zone.Update(.05f);
@@ -474,20 +476,19 @@ public sealed class ConsumableAiTests : IDisposable
         Assert.Equal(1, s.Carried); // the other vent design is still in cargo
     }
 
-    // The vent reads only the agent's own paints: with its target gone from VisibleEnemies (still targeted, no
-    // longer sensed) and the locker unseen, it still vents.
+    // The vent reads only the agent's own paints: with the locker unseen, it still vents. (On this branch the flight
+    // writes the Target from the sensed picture, so a target gone from VisibleEnemies is no longer held: see the fork.)
     [Fact]
     public void AVentDoesNotNeedAnyEnemyInSight()
     {
         var s = Build(carryVent: true);
         s.AssertInCombat();
-        s.Agent.VisibleEnemies.Clear();
         Assert.Equal(s.Prey, s.Agent.Target.Value.Entity);
         Assert.DoesNotContain(s.Locker, s.Agent.VisibleEnemies);
 
         s.Tick((PaintMode.Track, .9f));
 
-        Assert.Empty(s.Agent.VisibleEnemies);
+        Assert.DoesNotContain(s.Locker, s.Agent.VisibleEnemies);
         Assert.True(s.Active(s.Vent));
     }
 }

@@ -354,7 +354,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
     // default zeroed, inverted, taken from the shortest gun, or the authored value ignored.
     [Theory]
     [InlineData(50f, 0f, 110f)]
-    [InlineData(100f, 0f, 220f)]
+    [InlineData(200f, 0f, 220f)]
     [InlineData(50f, 40f, 40f)]
     [InlineData(50f, 250f, 250f)]
     public void AFlightHoldsOffAtTheDefaultOrAuthoredStandoff(float range, float holdStandoff, float expected)

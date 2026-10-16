@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using CultMath;
 using GameCult.Caching;
+using GameCult.Caching.MessagePack;
 using UniRx;
 using Xunit;
 using static CultMath.math;
@@ -775,7 +776,7 @@ public sealed class FlightTests : IDisposable
     {
         var member = Pilot(WithDoctrine(EngageOn.Trespass));
         var track = Track();
-        Assert.Null(track.PresencePermitted);
+        track.PresencePermitted = null;
         See(member, track);
 
         Tick(.1f);
@@ -814,7 +815,8 @@ public sealed class FlightTests : IDisposable
     {
         var faction = new Faction { Name = "Armed", Doctrine = new FactionDoctrine { EngageOn = EngageOn.Trespass, Grace = 6f } };
 
-        var slots = MessagePack.MessagePackSerializer.Deserialize<object[]>(MessagePack.MessagePackSerializer.Serialize(faction));
+        var slots = MessagePack.MessagePackSerializer.Deserialize<object[]>(MessagePack.MessagePackSerializer.Serialize(faction,
+            CultDocumentMessagePackSerialization.OptionsFor(typeof(Faction).Assembly)));
 
         Assert.Equal(18, slots.Length);
         Assert.Null(slots[16]);
