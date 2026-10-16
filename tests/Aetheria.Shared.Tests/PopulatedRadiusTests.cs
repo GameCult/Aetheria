@@ -10,13 +10,16 @@ using float3 = CultMath.float3;
 
 // Zone.PopulatedRadius is the extent of the populated area, owned by the zone and read by the ambient tint's presenter
 // (ruling aetheria-gravity:ruling:dark-beyond-populated-area). The zone here is the production constructor reading a pack
-// of a root off the origin, a planet, a moon and a moon's moon, each with a well of its own mass.
+// of a root off the origin, a planet, a moon and a moon's moon, each with a well of its own mass, and a last body
+// inserted after the outermost whose reach is the smallest, so the largest decides whatever the order.
 public sealed class PopulatedRadiusTests : IDisposable
 {
     private static readonly float2 RootAt = new float2(300f, -200f);
     private const float PlanetDistance = 400f;
     private const float MoonDistance = 100f;
     private const float MoonsMoonDistance = 40f;
+    private const float BeltOrbitDistance = 77f;
+    private const float FarthestAsteroid = 1000f;
 
     private readonly string _root = Path.Combine(Path.GetTempPath(), "aetheria-populated-" + Guid.NewGuid().ToString("N"));
     private readonly List<CultCache> _caches = new List<CultCache>();
@@ -46,7 +49,9 @@ public sealed class PopulatedRadiusTests : IDisposable
         public CultRecordKey[] Orbits;
     }
 
-    private Scene Build(float radius, bool moonsMoon = true)
+    // With belt, a belt circles the planet's orbit (asteroids at FarthestAsteroid and 700, the farther first) and its own orbit
+    // is BeltOrbitDistance out: the asteroids' positions do not depend on that distance, only on the planet's orbit.
+    private Scene Build(float radius, bool moonsMoon = true, bool belt = false)
     {
         var dir = Path.Combine(_root, $"zone{_caches.Count}");
         Directory.CreateDirectory(dir);
@@ -67,12 +72,24 @@ public sealed class PopulatedRadiusTests : IDisposable
         var pack = new ZonePack { Radius = radius, Mass = 10000f, Time = 0 };
         foreach (var orbit in new[] { rootOrbit, planetOrbit, moonOrbit, moonsMoonOrbit })
             pack.Orbits.Add(new CultRecordRef<OrbitData>(orbit));
+        if (belt)
+        {
+            var beltOrbit = cache.Upsert(new OrbitData { Parent = new CultRecordRef<OrbitData>(planetOrbit), Distance = BeltOrbitDistance, Phase = .8f }).Key;
+            pack.Orbits.Add(new CultRecordRef<OrbitData>(beltOrbit));
+            var asteroids = new[]
+            {
+                new Asteroid { Distance = FarthestAsteroid, Phase = .2f, Size = .5f },
+                new Asteroid { Distance = 700f, Phase = .6f, Size = .5f }
+            };
+            pack.Planets.Add(new CultRecordRef<BodyData>(cache.Upsert(new AsteroidBeltData { Orbit = new CultRecordRef<OrbitData>(beltOrbit), Asteroids = asteroids }).Key));
+        }
         void Body(CultRecordKey orbit, float mass) =>
             pack.Planets.Add(new CultRecordRef<BodyData>(cache.Upsert(new PlanetData { Orbit = new CultRecordRef<OrbitData>(orbit), Mass = mass }).Key));
         Body(rootOrbit, 5f);
         Body(planetOrbit, 1f);
         Body(moonOrbit, .5f);
         if (moonsMoon) Body(moonsMoonOrbit, .01f);
+        Body(rootOrbit, .001f);
         var zone = new Zone(items, Settings(), pack, new GalaxyZone { Name = "Populated", Owner = null }, null);
         return new Scene { Zone = zone, Orbits = new[] { rootOrbit, planetOrbit, moonOrbit, moonsMoonOrbit } };
     }
@@ -98,6 +115,16 @@ public sealed class PopulatedRadiusTests : IDisposable
             }
         }
         Assert.True(worst > 0f);
+    }
+
+    [Fact]
+    public void ItReachesTheFarthestAsteroidOfABeltBeyondTheOutermostBody()
+    {
+        // The belt's asteroids circle the planet's orbit, so the chain is the root's offset and the planet's distance; the belt
+        // orbit's own distance does not enter, and neither do the nearer asteroid or any body (all inside this).
+        var s = Build(5000f, belt: true);
+
+        Assert.Equal(length(RootAt) + PlanetDistance + FarthestAsteroid, s.Zone.PopulatedRadius, 2);
     }
 
     [Fact]
