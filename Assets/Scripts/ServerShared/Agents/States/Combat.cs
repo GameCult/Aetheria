@@ -10,6 +10,12 @@ using float2x2 = CultMath.float2x2;
 public class CombatState : BaseState
 {
     private const int DPS_SAMPLE_COUNT = 32;
+    // The Strength of one Track paint in this ship's own IncomingPaints: a fire-control emitter tracking this ship
+    // that hard (rulings lock-warning-strength, sensor-stat-set item 4, launcher-lock-solution-quality).
+    private const float LockAlarm = .5f;
+    // Overdrive only to close a target farther than this many optimum ranges, while heading within this many degrees of it.
+    private const float OverdriveRangeFactor = 2f;
+    private const float OverdriveArcDegrees = 15f;
     private float _optimumRange;
     private readonly List<(int index, float dps)> _availableGroups = new List<(int index, float dps)>();
     private readonly List<LockWeapon> _availableLockingWeapons = new List<LockWeapon>();
@@ -78,6 +84,8 @@ public class CombatState : BaseState
         
         foreach(var w in _availableLockingWeapons) w.Activate();
 
+        UseConsumables(toTarget, targetDistance);
+
         var selectedGroup = -1;
         var maxDps = Single.MinValue;
         foreach (var group in _availableGroups)
@@ -130,6 +138,27 @@ public class CombatState : BaseState
         _agent.Accelerate(movementDirection * _agent.TopSpeed, true);//selectedGroup >= 0);
 
         // Fire charged guns!
+    }
+
+    // The AI plays the player's rule on the player's information: vent when one Track paint on this ship passes half,
+    // otherwise overdrive to close a distant target ahead. It reads only this ship's own IncomingPaints. Both go
+    // through TryActivateConsumable, and a ship carrying neither does nothing.
+    private void UseConsumables(float3 toTarget, float targetDistance)
+    {
+        var ship = _agent.Ship;
+        if (ship.IncomingPaints.Any(p => p.Mode == PaintMode.Track && p.Strength > LockAlarm))
+            Use(b => b is VapourDumpData);
+        else if (targetDistance > OverdriveRangeFactor * _optimumRange &&
+                 dot(normalize(ship.Direction), normalize(toTarget.xz)) > cos(radians(OverdriveArcDegrees)))
+            Use(b => b is ThrottleLockData);
+    }
+
+    // One of a kind at a time: a Stackable design would otherwise be drained once per tick.
+    private void Use(Predicate<BehaviorData> kind)
+    {
+        if (_agent.Ship.HasActiveConsumable(kind)) return;
+        var consumable = _agent.Ship.FirstCarriedConsumable(kind);
+        if (consumable != null) _agent.Ship.TryActivateConsumable(consumable);
     }
 
     private void SampleDps()
