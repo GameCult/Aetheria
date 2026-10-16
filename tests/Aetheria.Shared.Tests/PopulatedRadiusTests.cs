@@ -40,7 +40,10 @@ public sealed class PopulatedRadiusTests : IDisposable
         BodyRadius = Flat(20f),
         WellStrength = new ExponentialCurve { Multiplier = 100f, Exponent = 1f },
         RocheLimit = new ExponentialCurve { Multiplier = 10f, Exponent = 1f },
-        LightRadius = Flat(0f)
+        LightRadius = Flat(0f),
+        AsteroidSize = new ExponentialLerp { Minimum = 2f, Maximum = 9f, Exponent = 1.7f },
+        AsteroidHitpoints = new ExponentialLerp { Minimum = 10f, Maximum = 300f, Exponent = 2f },
+        AsteroidRespawnTime = new ExponentialLerp { Minimum = 5f, Maximum = 60f, Exponent = 1f }
     };
 
     private sealed class Scene
