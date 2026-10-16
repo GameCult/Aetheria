@@ -16,7 +16,7 @@ the 2026-10-06 re-scope: the release this campaign plans is the demo.
 
 Cuts without a `cut_spec`, withdrawn 2026-10-12 under map-only-what-runs: a spec is admitted when Self is about to dispatch the cut. Each line is a cut label, its title, and what it waits on; re-map it by a fresh Imagination pass against the Body when the frontier reaches it.
 
-- audio-1: First sound: native Unity audio presents fire, charge, impact and destruction; the dead Wwise-keyed path is deleted. Waits on: feedback-1 (blocked on feedback-1).
+- audio-present: First sound: native Unity audio presents fire, charge, charge failure, impact (shield and hull) and destruction through one pooled player, gated on ActionGameManager.DrawsAt; an AudioMixer with Master, Music, Effects and Interface groups applies PlayerAudioSettings (new PlayerSettings key 7) from the empty ShowAudioSettings page; ImpactCue gains DamageType; the wavs are copied from the Wwise Originals with provenance lines; WireAudio adds the listener and enables audio. Body facts: section "audio-1" (AU4-AU6) and B6-B7. Waits on: audio-1.
 - ballistic-ammo: Ballistic weapons fire real rounds: a weapon that draws rounds takes no reactor power, every magazine comes from cargo. Waits on: mining-merge (refresh needed (ruling ballistics-cycle-power contradicts its DrawsPower rule)).
 - material-graph: Material graph record and judge: MaterialGraph in Aetheria.cc, the release whitelist, closed vocabularies, scopes, the. Waits on: nothing in the mind (held post-demo by ruling demo-material-scope).
 - material-library-export: Blender material export: a faithful node-group dumper, Export and Check Material Graph calling AetherDb, the library. Waits on: material-graph (held post-demo by ruling demo-material-scope; blocked on material-graph).
@@ -36,7 +36,7 @@ Cuts without a `cut_spec`, withdrawn 2026-10-12 under map-only-what-runs: a spec
 - faction-play-4: Faction play 4 (r3): the tender loop on real rounds, full-game scope. A member low on magazines rearms from its tender. Waits on: faction-play-3, ballistic-ammo (blocked on faction-play-3 and ballistic-ammo).
 - retire-prelude: Retire the prelude and the tutorial: Galaxy.IsPrelude, SavedGame.IsTutorial, TutorialGalaxy and. Waits on: demo-galaxy, boss-gate, retire-longinusx, gear-without-presence (refresh needed (96-commit drift)).
 - autofire-threshold: Missiles 3 (r5): autofire in the sim. Each autofire gun picks its subject through ChooseSubject (munitions first) and. Waits on: munition-shots (blocked on munition-shots).
-- boss-hull-derived: A faction's boss hull is derived (r2): HullData.Boss on a hull the faction makes a product of, set by its own. Waits on: boss-gate, pirates-record, package-product (blocked on package-product).
+- boss-hull-derived: A faction's boss hull is derived (r2): HullData.Boss on a hull the faction makes a product of, set by its own. Waits on: boss-gate, pirates-record, package-product (all merged; not blocked). Runs after faction-pair's faction-play-1 and maker-only-faction, which edit Faction in Corporations.cs and the main galaxy's faction draw in Galaxy.cs; like every catalog command it also edits tools/AetherDb/Program.cs. No Boss hull exists until the operator's Zhestokost boss package (follow-up zhestokost-boss-hull). Body facts: Products PL5-PL6.
 - autofire-controls: Missiles 3b (r2): the player sets autofire; the HUD marks munitions and autofire groups; the Point Defense scenario. Waits on: autofire-threshold, controls-hud, pd-gear (blocked on autofire-threshold and controls-hud).
 - broadside-gunboat: Broadside returns on a real gunboat: the operator's Zhestokost line-gunboat package (side-rotated Ballistic hardpoints). Waits on: mods-in-tree, package-product (blocked on package-product and the operator package).
 - demo-cast-hulls: Demo cast hulls land (r3): the operator's five packages under GameData/Mods, each its maker's ship under its own name. Waits on: mods-in-tree, pirates-record, package-product, boss-hull-derived (blocked on package-product, boss-hull-derived and operator packages).
@@ -52,8 +52,7 @@ Cuts without a `cut_spec`, withdrawn 2026-10-12 under map-only-what-runs: a spec
 - caliber-bands: Caliber is the size: five records recalibered, every weapon footprint held in its caliber's band, and every matrix cell. Waits on: matrix-coilguns, matrix-cannons, matrix-beams, matrix-lightning, matrix-missiles, matrix-mines, matrix-flamers (blocked on the seven matrix cuts; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
 - matrix-flamers: Weapon matrix, Jet row: Light Flamethrower, Flamethrower, Heavy Flamethrower and Inferno Projector, thermal pellet guns. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
 - matrix-mines: Weapon matrix, Mine row: Mine Rack, Heavy Mine Layer and Minefield Projector beside the Mine Launcher, with warhead and. Waits on: roles-backfill (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
-- product-lines-gear: Gear product lines: the twenty-two second-maker products of follow-up gear-product-lines, with role quality from maker. Waits on: generic-design-names, roles-backfill (blocked on generic-design-names; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
-- product-lines-weapons: Weapon product lines (r2): r1's nineteen products plus a second maker for the Mine Launcher, authored after. Waits on: generic-design-names, lot-product, roles-backfill (blocked on generic-design-names; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
+- product-lines-gear: Gear product lines: the twenty-two second-maker products of follow-up gear-product-lines, with role quality from maker. Waits on: product-lines-weapons (same catalog writer: it adds 'product-lines gear' to that cut's ProductLinesCommand.cs); generic-design-names and roles-backfill are merged. Twenty products, not twenty-two: Compact Sensor already has Finch and Lucent products. Question maker-design-tiers does not block it. Body facts: Products PL3.
 - boost-gear-combat: Stat boosters, combat, tiered by size: a modest 1x1 and a strong 2x2 each for Damage and Range on every gun through. Waits on: boost-gear-systems (blocked on boost-gear-systems; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first). After damage-falloff: a Range Extender multiplies Range only, so it lengthens the falloff ramp and leaves EffectiveRange where it was; the cut decides whether it also targets EffectiveRange (section "Damage falloff at fire time", DF8).
 - boost-gear-systems: Stat boosters, systems, tiered by size: a modest 1x1 and a strong 2x2 each for Thrust, Signal, Emissivity and Reactor. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
 - ships-player: S3, agent side: a player built by AetheriaBuild composes and preloads mod ships with Aetheria materials only, radiators. Waits on: ships-mounts, ships-hull-material, player-build (blocked on ships-hull-material).
@@ -196,6 +195,94 @@ origin/master...origin/<lane>` hunk headers):
 **B11. The headless tests compile only `ServerShared`.** That covers
 `Aetheria.Shared/Aetheria.Shared.csproj:20` and `tests/Aetheria.Shared.Tests`. A rule
 that must be pinned headless must live in `ServerShared`.
+
+### audio-1
+
+Refresh of B4-B7 for cut `audio-1`, read by `git show` and `git grep` against
+`origin/master` `6b6e7c7c` on 2026-10-16 (imagination-ag4-audio-1). The LFS-held
+`ProjectSettings/AudioManager.asset` was read in the smudged worktree `C:\aeth-wt\ag4-map`
+at the same commit.
+
+**AU1. The Wwise-keyed path on `EquippedItem` is still dead at its source** (revises B5).
+- Nothing in production assigns `EquippedItem.SoundBank` (`Entity.cs:2152`); only the two
+  test fixtures do (`FireControlPerWeaponTests.cs:462`, `:733`). So every `FireAudioEvent`
+  and `SetAudioParameter` overload (`Entity.cs:2193-2262`) returns at its null check, and
+  nothing in production subscribes `AudioEvents` or `AudioParameters` (`:2178-2180`).
+- Call sites: `InstantWeapon.cs:243` and `:283-287` (`firedThisFrame`), `ChargedWeapon.cs:148`,
+  `:165`, `:180`, `:196`, `Reactor.cs:97`, `Thruster.cs:112`.
+- New since B5: `EquippedItem.Update` loops `Data.AudioStats` every tick for every item and
+  calls `SetAudioParameter` with each (`Entity.cs:2463-2466`). `AudioStats` is catalog key 22
+  (`ItemData.cs:406-407`, element type `AudioStat` at `:441-449`, a Wwise parameter id and a
+  stat); `SoundBank` is catalog key 21 (`:403-404`).
+- Gone since B5: the `AetherDrive` audio calls and its `RpmAudioParameter` and
+  `TorqueRatioAudioParameter` fields (grep 0), and the `EntityInstance` block that read
+  `item.Data.SoundBank` (grep 0). Follow-up `wwise-catalog-fields` still names both; its live
+  set is `SoundBank` (key 21), `AudioStats` (key 22) and `Faction.OverworldMusic`,
+  `CombatMusic`, `BossMusic` (`Corporations.cs:52-59`, keys 13 to 15).
+- `WwiseMetadata.cs` (91 lines) and `WwiseSoundBinding.cs` (21 lines) are used only by that
+  surface; both have `.meta` files. A repo-wide grep outside `docs` finds the Wwise symbols in
+  exactly these files: `ChargedWeapon.cs`, `InstantWeapon.cs`, `Reactor.cs`, `Thruster.cs`,
+  `Entity.cs`, `Enums.cs`, `ItemData.cs`, the two Wwise files and `FireControlPerWeaponTests.cs`.
+- `Enums.cs:206-233` hold `WeaponAudioEvent`, `ChargedWeaponAudioEvent`,
+  `SpecialAudioParameter` and `LoopingAudioEvent`. `MusicType` (`:234`) is live:
+  `ActionGameManager.cs:120`, `:738`, `:1271-1285` (`PlayMusic` is an empty TODO).
+- Commented-out `AkSoundEngine` calls remain at `ActionGameManager.cs:892` (dock),
+  `ShipInstance.cs:48-51` (thruster) and `InventoryPanel.cs:355`, `:402`, `:411`. They are
+  dead text that marks where the audio sequel's sounds go.
+
+**AU2. What the tests pin about sound.** `FireControlPerWeaponTests` counts Wwise events as
+a cost: `Costs.Sounds` (`:444`) fed by the fixture at `:462-464`, asserted at `:512` and
+`:522`, and `Charge`'s `sounds` (`:727-743`) asserted at `:751` and `:756`. The same tests
+count `Announced` (`OnFire`, `:467`, asserted `:516`, `:526`) and `Starts` (`OnStartCharging`,
+`:736`, asserted `:750`, `:755`). Those are the events a presenter will hear, so the rule
+"a refused round costs no sound" (operator 2026-09-30) stays pinned without the Wwise counter.
+
+**AU3. `GameData/SoundbanksInfo.json` is shipped by nothing.** It is 2,648 lines and read by
+no code. `PlayerStaging.Stage` copies only `Aetheria.cc`, `Narrative/**` and `Mods/**`
+(`Assets/Editor/PlayerStaging.cs:16-32`), and its header names the file as not shipped
+(`:3-6`). `PlayerStagingTests.cs:20` writes a file of that name as a stray GameData entry that
+must not be staged (asserted at `:58`, in `StagesNothingElseFromGameData`). `docs/build-delivery-cut.md:231` still says to copy it.
+
+**AU4. Unity audio is unchanged since B6.** `AudioManager.asset:17` has `m_DisableAudio: 1`.
+`ARPG.unity` and `Main Menu.unity` have 0 `AudioListener:`. `Assets/Audio` holds only
+`Music.meta`. `MainMenu` has an Audio button (`UI/MainMenu.cs:250-255`) leading to an empty
+`ShowAudioSettings` (`:327-337`).
+
+**AU5. What feedback-1 and feedback-present landed for audio to render.**
+- `ImpactCue` (`ServerShared/Feedback.cs:11-27`) carries layer, position, direction,
+  intensity and shake, not the damage type. `AbsorbEvent` carries `DamageType`
+  (`CapabilityEvents.cs:24-40`).
+- `ImpactPresenter` draws the hull reaction only where `ActionGameManager.DrawsAt` allows
+  (`ImpactPresenter.cs:27`; `ActionGameManager.cs:1302-1304`: the player's ship or a tracked
+  contact).
+- Weapon events are subscribed in `EntityInstance.SetEntity` (`:217-249`), and
+  `Entity.Death` is an `IObservable<CauseOfDeath>` (`Entity.cs:271`).
+- `PlayerSettings` holds keys 0 and 3 to 6, and `ScenarioTests.OldPlayerSettingsLoad`
+  (`:560-582`) pins a 7-entry store loading.
+
+**AU6. The 2021 library against the demo's weapon types.** `WeaponType` has ten values
+(`Enums.cs:55`). `Originals/SFX` (409 tracked entries, `.akd` included) has fire sounds for
+cannon, ion cannon, machine gun, railgun, lightning gun (boom and discharge) and flamethrower;
+hits for cannon, ion cannon, lightning gun, machine gun and railgun; charge and charge-fail
+for railgun, ion cannon and lightning gun; two ship-destroyed sounds; and shield up, down and
+active. Nothing there is a laser, missile, micromissile or mine sound, and nothing is a hit on
+a shield. Bar 7 of the target asks that every weapon type sounds distinct, so `audio-present`
+fills those types from operator or AquaSynth material, or reuses a near family until it has them.
+
+**AU7. Lanes.** The one open spec, `consumable-ai` r3, edits `Entity.cs` only around `:885`.
+None of the six most recent `origin/eureka/*` branches touches an `audio-1` file.
+
+**Why audio-1 is subtraction only.** r1 was one cut: delete the Wwise path, add the cue
+vocabulary and settings, copy the wavs, wire the scenes in batchmode and add the settings
+page. That is the same scale as feedback-1 r1, which was split so that each half fits one Hands
+pass. `audio-1` now does only the deletion, which makes the invariant `sim-names-no-sound` true
+on master. It is headless-verifiable and adds nothing that lacks a consumer. Everything
+audible moves to `audio-present`, and so do `ImpactCue.DamageType` and
+`PlayerAudioSettings`, because their only consumers are the audio presenter and the
+mixer. r1's `Feedback.Gain(intensity, channel, master)` is not carried forward: a Unity
+`AudioMixer` with exposed group volumes is the established owner of channel volume, so the
+presenter passes `cue.Intensity` as the one-shot's volume and the mixer applies the player's
+settings.
 
 ## Model page
 
@@ -9988,3 +10075,158 @@ could not (finding optimum-range-not-pinned).
 - context-pack: six anchors SAME at 533b301e, one new file.
 - Finding cut-lock-warning.s2.strength-pinned-only-to-point-nine-nine is deferred to r2, now
   superseded; r3 carries its pin, so its deferral wants re-pointing at r3.
+
+## Products
+
+Probes by imagination-ag4-products (session self-2026-10-16-ag4), 2026-10-16, on origin/master
+`6b6e7c7c`, shipped catalog LFS oid `ed0500b462`. The catalog was read by decoding its
+`cultcache.store.v1` MessagePack snapshot with the store's own schema catalog (slot to member
+name), in a scratch Python script; no game code ran.
+
+- **PL1, the catalog:** 277 records. 13 factions; 101 FactionProductData; 27 WeaponItemData
+  (six of them Smoke test designs with no product), 35 GearData, 5 HullData, 4 cargo bays,
+  2 consumables, 1 docking bay.
+- **PL2, weapon makers:** 14 sold weapon designs have one maker (Charged Blaster, Charged Scatter
+  Blaster, Charged Scattergun, Cluster Cannon, Guided Missile Launcher, Heavy Beam Laser, Light
+  Laser, Light Machine Gun, Lightning Projector, Long Laser, Long-Range Missile Rack, Mine
+  Launcher, Short-Range Missile Rack, Swarm Rocket Pod). Five have two makers (Autocannon, Cell
+  Blaster, Incendiary Rocket Pod, Long Slug Rifle, Slug Rifle), Flak Gun has three, and both
+  point-defense designs have four. None of the twenty product-lines rows names a maker that
+  already sells its design, and with them every sold weapon design has at least two makers.
+  (Spec `cut-product-lines-weapons.r3` says "Charged Blaster, Light Laser and fourteen others" in
+  one test pin; the count is fourteen in all.)
+- **PL3, gear:** follow-up gear-product-lines' two Compact Sensor rows (+Finch, +Lucent) are
+  already filled: Compact Sensor is sold by DME, Lucent (Beacon) and Finch (Kestrel). The gear
+  lines are twenty products. Sensor Array is sold by Miss Terri's, Finch and Lucent, so AU's
+  Ranger would be a fourth maker. Every other assignment's maker sells nothing of its design.
+- **PL4, names:** of the draft product names, only Kestrel is already a record name (Finch's
+  Compact Sensor product), so Finch's Long Laser product is Merlin. No design text contains any
+  draft name. NoDesignTextNamesAProduct checks with a case-sensitive Contains on product names
+  longer than three characters. No product name is duplicated in the catalog today.
+- **PL5, catalog writers:** every AetherDb catalog command is a case in `Program.Main`'s switch
+  (`tools/AetherDb/Program.cs:23-58`), and most of them are Program methods. `MakerProfiles`
+  (`:254`) is private. So boss-hull-derived (BossHull reads at `:581` and `:705-707`), the
+  product lines and faction-pair's catalog commands all edit Program.cs, and no candidate
+  sibling of product-lines-weapons is file-disjoint from it.
+- **PL6, boss hull:** the BossHull readers are `Corporations.cs:44`, `Galaxy.cs:297`,
+  `LoadoutGenerator.cs:212-224`, `Program.cs:581` and `:705-707`, and `RunGoalTests.cs:74-114`.
+  HullData's slot 33 is free, since its slots end at 32 (Visual). Zhestokost's only hull product
+  is the Turret, so until the operator's boss package exists a derived boss always falls back.
+  faction-play-1 (Faction key 17) and maker-only-faction (Faction key 19 and the main galaxy's
+  faction draw) edit the same Faction class and Galaxy.
+
+Order, from these facts: product-lines-weapons goes first. It is the follow-up's stated first
+line, it carries the demo's combat feel (ruling release-bar), and it is the only one of the three
+whose files avoid faction-pair's Faction and Galaxy edits. product-lines-gear follows it on the
+same command file. boss-hull-derived waits for faction-pair to merge. Until the boss package
+exists it changes nothing a player sees.
+
+## Faction pair at 6b6e7c7c (imagination-ag4-faction-pair, 2026-10-16)
+
+Imagination imagination-ag4-faction-pair, session self-2026-10-16-ag4. Master pinned at Aetheria
+origin/master 6b6e7c7c26f39836c7ae29f382434d2932752250 (c5c9086e, a fauna-map docs commit, landed
+during the pass and changes no code). Probes ran in scratch clones under the session scratchpad
+(`imagination-ag4-faction-pair/`); no commit left them.
+
+### Body facts
+
+FP-R1. `eureka/aetheria-release-faction-play-1` (tip b3d1e929, merge base 4d664b53) merges onto
+6b6e7c7c with four textual conflicts: GameData/Aetheria.cc (binary), IffAndCombatTests.NewShip
+(master now admits every ship through `Zone.Admit(ship, piloted: false)`), one FireControlPerWeaponTests
+hunk (master reworded the fixture asserts) and the AetherDb command switch. Master has not changed
+Agent.cs, Minion.cs, AgentTask.cs or PatrolOrbits.cs since 4d664b53; Combat.cs moved 13 lines,
+TurretController.cs 2.
+
+FP-R2. With the conflicts resolved mechanically (probe merge 0296a3dc), Aetheria.Shared and AetherDb
+compile on Yggdrasil. The test project has 8 errors, all on sites master added or changed after
+4d664b53: four `new Minion(ship)` calls (FireControlPerWeaponTests, LayoutAimTests:419,
+ScannerTests:382), one three-argument `AgentFires` (SolutionTests:178), `Zone.Entities.Remove`
+(Entities is now a read-only MemberView; `Zone.Remove` is the path) and two `TestCatalogGlobal`
+fixtures (retired by 0b721d69 for the VerseGrammar global).
+
+FP-R3. With those 8 fixed (probe fbc2e952), the whole suite ran 2027 of 2028 green (Yggdrasil,
+13 min). The one red is VerseGrammarTests' one-ShipAction-verb-per-TaskType rule: r2's
+`TaskType.Follow` has no verb. VerseGrammarCommand's apply adds a missing verb and leaves the
+rest, so a `follow` verb plus a re-run of `verse-grammar apply` closes it. Ghostlight lists no
+verb names of its own.
+
+FP-R4. r2's negative greps hold on the merge tree, except that `\.Task\s*=` also matches
+`patrolState.Task` in Minion.cs:12, a sub-state field r2 wrote itself; r3 narrows the pattern.
+
+FP-R5. All seven in-force s1/s2 findings are still live at b3d1e929 in the lines the triage named
+(Flight.cs:136-167, :175-179; FlightTests fixtures at the origin, Pilot only takes x). DoctrineCatalog
+finds factions by `OrdinalIgnoreCase` (DoctrineCatalog.cs:42), the third Pirates matcher that
+follow-up pirates-allegiance-and-identity counts; its comment at :6-8 still says the Pirates record
+is owed, and it is on master.
+
+FP-R6. Decision: merge-forward. Unlike consumable-ai (CA1), the production code compiles unchanged on
+master and the design still fits it (CA4's unpruned Zone.Agents is exactly what r2's removal
+subscription fixes). The cost is four conflict hunks and eight one-line test fixes, against
+re-landing 1,179 lines that two Soul passes measured.
+
+MO-R1. `eureka/aetheria-release-maker-only-faction` (tip 5dce222b, base 594d3477) merges onto
+6b6e7c7c with no conflict, and on the probe merge (bfb699b8) MakerOnly, Pirates, DemoTerminus and
+Galaxy tests ran 27 of 27 green.
+
+MO-R2. The branch is one commit of 89 lines: a 4-line field, a 1-line filter and the test file the
+fix batch must rewrite (maker-tests-too-thin). The fix's other sites, `PiratesFaction`
+(Program.cs:2261-2357), PiratesFactionCommandTests and ResolveCast's current shape (Galaxy.cs:145-147),
+do not exist at 5dce222b, so no anchor at the branch tip reaches them.
+
+MO-R3. Decision: re-land on a fresh branch off master after faction-play-1 merges, with 5dce222b as
+reference. The merge-forward works (MO-R1); re-land is chosen because almost nothing in this pass is
+on the branch, and because both cuts add fields after `BossMusic` in one Corporations.cs hunk.
+
+MO-R4. Pirates allegiance: `PiratesFaction` writes 1.0 to every faction in the catalog at first
+apply (Program.cs:2294-2295) and returns 'nothing to do' if the record exists (:2265-2270);
+LoadoutGenerator reads Allegiance as authored data (:253-263). The three minor-power makers
+(cut minor-power-makers) would be missing from it, and PiratesAreInTheShippedCatalog would go red.
+
+### Rationale
+
+- **Allegiance stays authored and the apply becomes re-runnable**, rather than an allegiance derived
+  at read time. Deriving it needs a new Faction key or a Pirates case in LoadoutGenerator, which is a
+  second owner of who the Pirates can field. A re-runnable apply keeps the record as the one owner,
+  and PiratesAreInTheShippedCatalog fails when someone forgets to re-run it. Merge checklist: the
+  minor-power-makers merge, and any later new faction, re-run `pirates-faction apply`.
+- **Pirates identity is the exact ordinal Name** in every AetherDb writer (PiratesFaction, the role
+  backfill at Program.cs:2220, DoctrineCatalog). The record key is minted at apply, so no constant key
+  exists to match. `Galaxy.ResolveFaction` keeps its prefix match: it resolves every cast name
+  (DemoTerminusTests casts "Zhe", "Luc"); it is not the Pirates' identity.
+- **One territory rule.** `Galaxy.HoldsTerritory` is read by the main draw and by ResolveCast, so the
+  prelude cannot place a faction the record says holds none (prelude-cast-ignores-flag).
+- **The follow verb** is the verse-grammar rule (one ShipAction verb per TaskType) applied to r2's
+  new task kind, not a new design. It binds `target: Faction` like attack and tow.
+- **follow-up faction-play-reanchor-demo:** r2 met the anchor (TargetRef, Zone.Admit), the Pirates
+  doctrine and the Miss Terri's exclusion. Now that the Pirates record is on master, r3's doctrine
+  apply writes all four. The played proof in the demo cast stays with faction-play-3 (line 35);
+  r3's operator checks run in DemoTerminus. Nothing else it asks is unmet, and Self can close it
+  when faction-play-1 merges.
+- **Later faction-play cuts, not specced here:** faction-play-2 (pack slots, Lucent's duel, hull
+  break-off, ping cadence) re-anchors after faction-play-1 merges and must use Flight's
+  Engaged-first ordering from r3. faction-play-3 (support ships, anchors, the cast played in
+  DemoTerminus) owns the demo-cast played proof.
+
+### Cut order
+
+faction-play-1 r3 runs first. maker-only-faction r2 has `depends_on` faction-play-1: Faction keys
+are taken in order 17 then 19, and both add fields in the Corporations.cs hunk after BossMusic, so
+the two cannot run in parallel worktrees. faction-play-1 shares Combat.cs and Entity.cs with
+consumable-ai r3, in disjoint regions; whichever merges second rebases.
+
+Merge checklist for faction-play-1: take master's Aetheria.cc, re-run `doctrine-catalog apply`
+(finding pirates-doctrine-no-landing-step) and `verse-grammar apply`, commit the blob and push LFS
+(follow-up catalog-blob-merge-order). The Doctrine.cs trespass comment is corrected in r3
+(trespass-reads-zone-owner). For maker-only-faction there is no catalog change.
+
+### Admitted (receipt mind-commit-c29ac23f...)
+
+- cut_spec cut-faction-play-1.r3 (base b3d1e929, merge-forward onto 6b6e7c7c, branch unchanged) and
+  the resolution superseding r2. context-pack: 17 anchors SAME at b3d1e929; carried onto the probe
+  merge, 13 SAME and 4 TOUCHED: three are the conflict hunks r3 resolves; the fourth is the turret
+  window (FireControlPerWeaponTests:300-320), where master added 34 lines. Hands writes the new
+  turret test after master's turret tests.
+- cut_spec cut-maker-only-faction.r2 (base 6b6e7c7c, re-land, branch
+  eureka/aetheria-release-maker-only-faction-r2, depends_on faction-play-1) and the resolution
+  superseding r1. context-pack: 6 anchors SAME at 6b6e7c7c.
+- No question raised.
