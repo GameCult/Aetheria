@@ -53,6 +53,18 @@ public sealed class SunsNeverGreenTests : IDisposable
         Assert.False(ColorMath.HueInBand(degrees * Degree, settings.SunHueExcludedStart, settings.SunHueExcludedEnd));
     }
 
+    // The hues below are read back from RGB the generator wrote, so the reader must invert the writer.
+    [Fact]
+    public void ReadingHueBackFromRgbInvertsWritingIt()
+    {
+        for (var degrees = 5; degrees < 360; degrees += 5)
+            foreach (var value in new[] { .5f, 1f })
+            {
+                var rgb = ColorMath.HsvToRgb(new float3(degrees * Degree, .75f, value));
+                Assert.Equal(degrees * Degree, ColorMath.RgbToHsv(rgb).x, 4);
+            }
+    }
+
     [Fact]
     public void TheDrawMapsOntoTheWholeAllowedArcAndNothingElse()
     {

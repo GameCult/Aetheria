@@ -41,7 +41,7 @@ public static class ColorMath
     public static float3 RgbToHcv(in float3 rgb)
     {
         // Based on work by Sam Hocevar and Emil Persson
-        float4 p = (rgb.y < rgb.z) ? float4(rgb.zy, -1.0f, 2.0f/3.0f) : float4(rgb.zy, 0.0f, -1.0f/3.0f);
+        float4 p = (rgb.y < rgb.z) ? float4(rgb.zy, -1.0f, 2.0f/3.0f) : float4(rgb.yz, 0.0f, -1.0f/3.0f);
         float4 q = (rgb.x < p.x) ? float4(p.xyw, rgb.x) : float4(rgb.x, p.yzx);
         float c = q.x - min(q.w, q.y);
         float h = abs((q.w - q.y) / (6 * c + Epsilon) + q.z);
