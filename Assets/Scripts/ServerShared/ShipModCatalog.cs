@@ -217,10 +217,10 @@ public static class ShipModCatalog
         { "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
           "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9" };
 
-    // A name Windows keeps as written: not a dot name, no separator, stream colon or wildcard, no trailing dot or space, and
+    // A name Windows keeps as written: no separator, stream colon or wildcard, no trailing dot or space, and
     // not a device name (with or without an extension). Held on every platform so a mod moves the same way everywhere.
     private static bool IsPackageName(string name) =>
-        !string.IsNullOrEmpty(name) && name != "(all mods)" && name.Trim('.') != "" &&
+        !string.IsNullOrEmpty(name) && name != "(all mods)" &&
         name.IndexOfAny(Path.GetInvalidFileNameChars()) < 0 && name.IndexOfAny(new[] { ':', '*', '?', '"', '<', '>', '|', '/', '\\' }) < 0 &&
         name.All(character => character >= ' ') && !name.EndsWith('.') && !name.EndsWith(' ') &&
         !ReservedDeviceNames.Contains(name.Split('.')[0].TrimEnd(' '), StringComparer.OrdinalIgnoreCase);
