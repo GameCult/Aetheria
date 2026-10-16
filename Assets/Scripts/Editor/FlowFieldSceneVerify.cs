@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -181,6 +181,8 @@ namespace Aetheria.EditorTools
             var texture = RenderTexture.GetTemporary(64, 64, 24, RenderTextureFormat.ARGB32);
             var readback = new Texture2D(64, 64, TextureFormat.RGBA32, false);
             var previous = RenderTexture.active;
+            // Image effects on the camera would write their own frame over the dust; only the dust draw is under test.
+            var effects = camera.GetComponents<MonoBehaviour>().Where(behaviour => behaviour.enabled).ToArray();
             Color32[] Render(float size)
             {
                 Call(dust, "Update"); // on a bounded draw this queues the draw for the camera; here it dispatches the compute
@@ -193,6 +195,7 @@ namespace Aetheria.EditorTools
             }
             try
             {
+                foreach (var effect in effects) effect.enabled = false;
                 transform.SetPositionAndRotation(new Vector3(0f, -40000f, 0f), Quaternion.Euler(90f, 0f, 0f));
                 camera.farClipPlane = 30000f;
                 camera.clearFlags = CameraClearFlags.SolidColor;
@@ -209,6 +212,7 @@ namespace Aetheria.EditorTools
             finally
             {
                 RenderTexture.active = previous;
+                foreach (var effect in effects) effect.enabled = true;
                 camera.targetTexture = target;
                 camera.cullingMask = mask;
                 camera.backgroundColor = background;
