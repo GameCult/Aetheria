@@ -388,13 +388,16 @@ public sealed class FlightTests : IDisposable
     // friendly (a truce) is out of the flight's picture though a flightmate senses it as hostile. Kills: the friendly
     // override ignored when the picture is built.
     [Theory]
-    [InlineData(EngageOn.Detection)]
-    [InlineData(EngageOn.Provoked)]
-    public void ATrackAMemberHasMadeFriendlyIsNotEngagedByTheFlight(EngageOn on)
+    [InlineData(EngageOn.Detection, true)]
+    [InlineData(EngageOn.Detection, false)]
+    [InlineData(EngageOn.Provoked, true)]
+    [InlineData(EngageOn.Provoked, false)]
+    public void ATrackAMemberHasMadeFriendlyIsNotEngagedByTheFlight(EngageOn on, bool friendlyBuiltFirst)
     {
         var faction = WithDoctrine(on);
-        var friendly = Pilot(faction);
-        var sees = Pilot(faction, 10);
+        Ship friendly, sees;
+        if (friendlyBuiltFirst) { friendly = Pilot(faction); sees = Pilot(faction, 10); }
+        else { sees = Pilot(faction, 10); friendly = Pilot(faction); }
         var track = Track();
         friendly.SetIff(track, false);
         See(sees, track);
@@ -403,7 +406,7 @@ public sealed class FlightTests : IDisposable
 
         Assert.True(sees.Target.Value.IsNone);
         Assert.True(friendly.Target.Value.IsNone);
-        Assert.Equal(Flight.Phase.None, _zone.Flights.Single(f => f.Contains(sees)).PhaseOf(track));
+        Assert.Equal(Flight.Phase.None, _zone.Flights.Single(f => f.Contains(_zone.Agents.Single(a => a.Ship == sees))).PhaseOf(track));
     }
 
     [Fact]
@@ -861,7 +864,7 @@ public sealed class FlightTests : IDisposable
         var (turn, thrust, _) = Follow(new float2(vx, vy), 100, new float2(fx, fy));
 
         Assert.Equal(turns, turn != 0f);
-        Assert.NotEqual(float2.zero, thrust);
+        Assert.NotEqual(new float2(0, 0), thrust);
     }
 
     // The pull toward a stationary anchor is the error over the standoff, as a fraction of the pilot's top speed: a
@@ -871,9 +874,9 @@ public sealed class FlightTests : IDisposable
     [InlineData(15f, false)]
     public void AFollowersPullIsTheErrorOverTheStandoffAtTopSpeed(float wantedPull, bool turns)
     {
-        var top = Follow(float2.zero, 100, new float2(1, 0)).topSpeed;
+        var top = Follow(new float2(0, 0), 100, new float2(1, 0)).topSpeed;
         Assert.True(top >= 60f, "the fixture needs a top speed above the pull it asks for");
-        var (turn, _, _) = Follow(float2.zero, 100 + 100 * wantedPull / top, new float2(1, 0));
+        var (turn, _, _) = Follow(new float2(0, 0), 100 + 100 * wantedPull / top, new float2(1, 0));
 
         Assert.Equal(turns, turn != 0f);
     }
