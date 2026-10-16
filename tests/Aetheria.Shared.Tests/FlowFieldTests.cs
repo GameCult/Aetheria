@@ -124,8 +124,8 @@ public sealed class FlowFieldTests : IDisposable
         }
     }
 
-    // Zone.Flow's slope term reads the owner's superposed force, not any one body's: two equal wells, probes off the
-    // axis between them where the nearest body's direction and the sum's differ.
+    // Zone.Flow's slope term reads the owner's force at the point: two equal wells 600 apart (two subzones, each felt within
+    // its reach of 300), probes inside each off the axis, where the direction is not along the axis.
     [Fact]
     public void TheSlopeTermFollowsTheSuperposedForce()
     {
@@ -135,7 +135,7 @@ public sealed class FlowFieldTests : IDisposable
         WellFixture.Dig(_items.ItemData, pack, planets, 300f, 100f, new float2(300f, 0f));
         var zone = new Zone(_items, planets, pack, new GalaxyZone { Name = "Two Wells", Owner = null }, null);
         var checkedPoints = 0;
-        foreach (var at in new[] { float2(100f, 400f), float2(-50f, -300f), float2(250f, 220f), float2(-420f, 90f) })
+        foreach (var at in new[] { float2(-200f, 150f), float2(-350f, -120f), float2(250f, 220f), float2(420f, -90f) })
         {
             var flow = zone.Flow(float3(at.x, 3f, at.y));
             var expected = 1.5f * normalize(zone.GetForce(at));

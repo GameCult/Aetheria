@@ -263,29 +263,6 @@ public sealed class PotentialOwnerTests : IDisposable
     }
 
     [Fact]
-    public void WellsSuperpose()
-    {
-        var planets = Curves();
-        var a = (mass: 29.2f, at: new float2(-300f, 0f));
-        var b = (mass: 14152.4f, at: new float2(300f, 0f));
-        var both = ZoneOf(planets, a, b);
-        var onlyA = ZoneOf(planets, a);
-        var onlyB = ZoneOf(planets, b);
-        var probes = new[]
-        {
-            float2(-300f, 0f), float2(300f, 0f), float2(-310f, 4f), float2(305f, -9f), float2(0f, 0f), float2(0f, 250f),
-            float2(-150f, 100f), float2(150f, -100f), float2(900f, 700f), float2(-1200f, -300f), float2(40f, 3000f), float2(-300f, -40f)
-        };
-        foreach (var p in probes)
-        {
-            var sum = onlyA.GetForce(p) + onlyB.GetForce(p);
-            Near(sum.x, both.GetForce(p).x, 1e-4f);
-            Near(sum.y, both.GetForce(p).y, 1e-4f);
-            Near(onlyA.GetHeight(p) + onlyB.GetHeight(p), both.GetHeight(p), 1e-4f);
-        }
-    }
-
-    [Fact]
     public void HeightIsThePotentialOverOneK()
     {
         foreach (var k in new[] { 1f, 10f })
@@ -309,11 +286,20 @@ public sealed class PotentialOwnerTests : IDisposable
                 float2(-300f + .5f * core0, 0f), float2(-300f, .65f * core0), float2(-300f - .86f * core0, 0f), float2(-300f + .6f * core0, .6f * core0),
                 float2(300f + .55f * core1, 0f), float2(300f, -.7f * core1), float2(300f - .86f * core1, 0f), float2(300f + .9f * core1, 0f)
             };
-            foreach (var p in inCore.Concat(new[] { float2(-200f, 120f), float2(0f, 0f), float2(100f, -300f), float2(500f, 40f), float2(-290f, 12f), float2(310f, 20f), float2(700f, 700f), float2(-80f, -500f) }))
+            // Two suns 600 apart are two subzones: each is felt only inside its own reach (half the distance, 300), so the height
+            // there is that well's alone (plus the zone node's constant, which differences cancel) and the force is its alone.
+            var w0 = float2(-300f, 0f);
+            var w1 = float2(300f, 0f);
+            foreach (var p in inCore.Concat(new[] { float2(-200f, 120f), float2(100f, -300f), float2(500f, 40f), float2(-290f, 12f), float2(310f, 20f), float2(700f, 700f), float2(-80f, -500f) }))
             {
-                var expected = Phi(c0, core0, length(p - float2(-300f, 0f))) - Phi(c0, core0, PackRadius)
-                             + Phi(c1, core1, length(p - float2(300f, 0f))) - Phi(c1, core1, PackRadius);
-                Near(expected, two.GetHeight(p) * k, 1e-3f);
+                var near0 = length(p - w0) < 250f;
+                var near1 = length(p - w1) < 250f;
+                if (near0 || near1)
+                {
+                    var (at, wc, wcore) = near0 ? (w0, c0, core0) : (w1, c1, core1);
+                    var expected = Phi(wc, wcore, length(p - at)) - Phi(wc, wcore, 0f);
+                    Near(expected, (two.GetHeight(p) - two.GetHeight(at)) * k, 1e-3f);
+                }
 
                 // The downhill slope of the potential is the force: the central difference of height * K is -GetForce.
                 var gradient = float2(

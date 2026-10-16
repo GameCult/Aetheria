@@ -336,7 +336,8 @@ public sealed class WellLawTests : IDisposable
         {
             var t = (r * r - 225.0 * 225) / (337.5 * 337.5 - 225.0 * 225);
             var expected = Plummer(curves, 101f, r) * (1 - S(t));
-            Assert.InRange(zone.Wells.PullAround(planet, r, moon), expected * (1 - 1e-5) - 1e-9, expected * (1 + 1e-5) + 1e-9);
+            var scale = Plummer(curves, 101f, r); // float rounding of the four cancelling terms is relative to the Plummer pull
+            Assert.InRange(zone.Wells.PullAround(planet, r, moon), expected - 1e-5 * scale, expected + 1e-5 * scale);
         }
     }
 
@@ -358,7 +359,8 @@ public sealed class WellLawTests : IDisposable
         {
             var t = (r * r - 300.0 * 300) / (1500.0 * 1500 - 300.0 * 300);
             var expected = Plummer(curves, 140f, r) * S(t);
-            Assert.InRange(zone.Wells.PullAround(node, r, default), expected * (1 - 1e-5) - 1e-9, expected * (1 + 1e-5) + 1e-9);
+            var scale = Plummer(curves, 140f, r); // float rounding of the four cancelling terms is relative to the Plummer pull
+            Assert.InRange(zone.Wells.PullAround(node, r, default), expected - 1e-5 * scale, expected + 1e-5 * scale);
         }
     }
 

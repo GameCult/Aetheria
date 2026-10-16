@@ -36,7 +36,8 @@ internal sealed class ZoneWorlds : IDisposable
         WellStrength = new ExponentialCurve { Exponent = .2f, Multiplier = 45.08f },
         RocheLimit = new ExponentialCurve { Exponent = .25f, Multiplier = 7.32f },
         BodyRadius = new ExponentialCurve { Exponent = .25f, Multiplier = 3f },
-        LightRadius = new ExponentialCurve()
+        LightRadius = new ExponentialCurve(),
+        AsteroidSize = new ExponentialLerp { Minimum = 2f, Maximum = 9f, Exponent = 1.7f }
     };
 
     public sealed class World
