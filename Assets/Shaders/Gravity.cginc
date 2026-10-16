@@ -25,7 +25,7 @@ float _HeightExaggeration;
 static const float GravityOneMinusS[8] = { 1, -0, -0, -0, -35, 84, -70, 20 };
 static const float GravityS[8] = { 0, 0, 0, 0, 35, -84, 70, -20 };
 
-// GravityField.BandClosed: the band's potential at t for tau <= 1, per unit strength.
+// GravityField.BandClosed: the band's potential at t for tau <= 0.4, per unit strength.
 float gravityBandClosed(float tau, float t)
 {
     float q[7];
@@ -42,7 +42,7 @@ float gravityBandClosed(float tau, float t)
     return 0.5 * (remainder * log((t + tau) / (1 + tau)) - (whole - part));
 }
 
-// GravityField.BandSeries: the band's potential at t for tau > 1, a series in (1 - t) / (1 + tau).
+// GravityField.BandSeries: the band's potential at t for tau > 0.4, a series in (1 - t) / (1 + tau).
 float gravityBandSeries(float tau, float t)
 {
     float y = 1 - t;
@@ -74,9 +74,9 @@ float gravityTermPotential(float softening, float a, float b, float r)
     float b2 = b * b;
     if (s >= b2) return 0;
     float tau = (a2 + e2) / (b2 - a2);
-    if (s <= a2) return 0.5 * log((s + e2) / (a2 + e2)) + (tau <= 1 ? gravityBandClosed(tau, 0) : gravityBandSeries(tau, 0));
+    if (s <= a2) return 0.5 * log((s + e2) / (a2 + e2)) + (tau <= 0.4 ? gravityBandClosed(tau, 0) : gravityBandSeries(tau, 0));
     float t = (s - a2) / (b2 - a2);
-    return tau <= 1 ? gravityBandClosed(tau, t) : gravityBandSeries(tau, t);
+    return tau <= 0.4 ? gravityBandClosed(tau, t) : gravityBandSeries(tau, t);
 }
 
 // Zone.GetHeight at world xz: each term's potential minus its own reference, summed, divided by the exaggeration.

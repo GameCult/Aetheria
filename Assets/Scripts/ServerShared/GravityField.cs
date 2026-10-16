@@ -28,7 +28,10 @@ public static class GravityField
     /// <summary>A ring member of a bodyless node reaches RingReach x its distance: whole out to the ring's diameter.</summary>
     public const float RingReach = 4f;
 
-    /// <summary>The series branch's length: its ratio is below 1/2, so 40 terms reach float32's floor.</summary>
+    /// <summary>The band is summed as a series for tau above this. Measured (map B54): float32 within 1.0e-6 per unit strength everywhere with SeriesTerms terms; the closed form is float32-clean only to about 0.45.</summary>
+    public const float SeriesFrom = .4f;
+
+    /// <summary>The series branch's length: its ratio is below 1/1.4, so 40 terms reach float32's floor.</summary>
     public const int SeriesTerms = 40;
 
     /// <summary>S(t) as polynomial coefficients in t, lowest first: t^Order sum_j C(Order-1+j, j) (1-t)^j.</summary>
@@ -102,7 +105,7 @@ public static class GravityField
     }
 
     // The band's potential at t in [0, 1], 0 at t = 1.
-    private static float Band(float tau, float t) => tau <= 1f ? BandClosed(tau, t) : BandSeries(tau, t);
+    private static float Band(float tau, float t) => tau <= SeriesFrom ? BandClosed(tau, t) : BandSeries(tau, t);
 
     private static float BandClosed(float tau, float t)
     {

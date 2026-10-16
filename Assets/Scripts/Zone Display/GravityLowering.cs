@@ -51,7 +51,7 @@ public static class GravityLowering
         for (var t = 0; t < count; t++)
         {
             var term = zone.Wells.Terms[t];
-            var at = DrawAhead.Orbit(zone, term.Node, lead);
+            var at = term.Node.IsSet() ? DrawAhead.Orbit(zone, term.Node, lead) : zone.Wells.Centre; // an unset node is the zone node, stationary at Centre
             _records[t] = new TermRecord
             {
                 Position = new Vector2(at.x, at.y),

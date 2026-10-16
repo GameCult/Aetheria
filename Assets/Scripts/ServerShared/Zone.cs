@@ -193,10 +193,23 @@ public class Zone
         foreach (var body in PlanetInstances)
             if (body.Value.WellStrength > 0)
                 wellMass.TryAdd(Planets[body.Key].Orbit.Key, body.Value.BodyData.Mass);
+        // A belt's rail carries its asteroids, which spread beyond the rail's own distance: its extent is the outermost.
+        var beltExtent = new Dictionary<CultRecordKey, float>();
+        foreach (var belt in AsteroidBelts)
+        {
+            var extent = 0f;
+            foreach (var asteroid in belt.Value.Data.Asteroids) extent = Math.Max(extent, asteroid.Distance);
+            beltExtent[Planets[belt.Key].Orbit.Key] = extent;
+        }
         var wellNodes = new List<WellNode>();
         foreach (var orbit in Orbits)
-            wellNodes.Add(new WellNode(orbit.Key, orbit.Value.Data.Parent.Key, orbit.Value.Data.Distance, orbit.Value.Data.Phase,
-                wellMass.TryGetValue(orbit.Key, out var mass) ? mass : 0f));
+        {
+            var data = orbit.Value.Data;
+            wellNodes.Add(new WellNode(orbit.Key, data.Parent.Key, data.Distance, data.Phase,
+                wellMass.TryGetValue(orbit.Key, out var mass) ? mass : 0f,
+                beltExtent.TryGetValue(orbit.Key, out var reach) ? Math.Max(reach, data.Distance) : data.Distance,
+                    data.FixedPosition + OrbitData.Evaluate(frac(data.Phase)) * data.Distance)); // a root's stationary place: Offset at an infinite period
+        }
         Wells = WellTree.Build(wellNodes, settings, pack.Radius);
         foreach (var orbit in Orbits)
             orbit.Value.Period = orbit.Value.Data.Parent.IsSet()

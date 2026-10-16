@@ -61,6 +61,15 @@ internal sealed class ZoneWorlds : IDisposable
             return key;
         }
 
+        // A belt of asteroids at the given distances riding `orbit`; returns the belt's body key.
+        public CultRecordKey Belt(CultRecordKey orbit, params float[] distances)
+        {
+            var asteroids = distances.Select((d, i) => new Asteroid { Distance = d, Phase = frac(i * .6180339887f), Size = .5f, RotationSpeed = .1f }).ToArray();
+            var key = Cache.Upsert(new AsteroidBeltData { Orbit = new CultRecordRef<OrbitData>(orbit), Asteroids = asteroids }).Key;
+            Pack.Planets.Add(new CultRecordRef<BodyData>(key));
+            return key;
+        }
+
         public Zone Build() => new Zone(Items, Curves(), Pack, new GalaxyZone { Name = "OrbitsFromField", Owner = null }, null);
     }
 

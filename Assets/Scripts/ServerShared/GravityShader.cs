@@ -19,6 +19,7 @@ public static class GravityShader
         .Replace("@N@", GravityField.S.Length.ToString(CultureInfo.InvariantCulture))
         .Replace("@Q@", (GravityField.S.Length - 1).ToString(CultureInfo.InvariantCulture))
         .Replace("@QLAST@", (GravityField.S.Length - 2).ToString(CultureInfo.InvariantCulture))
+        .Replace("@SERIESFROM@", GravityField.SeriesFrom.ToString("R", CultureInfo.InvariantCulture))
         .Replace("@SERIES@", GravityField.SeriesTerms.ToString(CultureInfo.InvariantCulture))
         .Replace("@ONEMINUSS@", Coefficients(GravityField.OneMinusS))
         .Replace("@S@", Coefficients(GravityField.S))
@@ -54,7 +55,7 @@ float _HeightExaggeration;
 static const float GravityOneMinusS[@N@] = { @ONEMINUSS@ };
 static const float GravityS[@N@] = { @S@ };
 
-// GravityField.BandClosed: the band's potential at t for tau <= 1, per unit strength.
+// GravityField.BandClosed: the band's potential at t for tau <= @SERIESFROM@, per unit strength.
 float gravityBandClosed(float tau, float t)
 {
     float q[@Q@];
@@ -71,7 +72,7 @@ float gravityBandClosed(float tau, float t)
     return 0.5 * (remainder * log((t + tau) / (1 + tau)) - (whole - part));
 }
 
-// GravityField.BandSeries: the band's potential at t for tau > 1, a series in (1 - t) / (1 + tau).
+// GravityField.BandSeries: the band's potential at t for tau > @SERIESFROM@, a series in (1 - t) / (1 + tau).
 float gravityBandSeries(float tau, float t)
 {
     float y = 1 - t;
@@ -103,9 +104,9 @@ float gravityTermPotential(float softening, float a, float b, float r)
     float b2 = b * b;
     if (s >= b2) return 0;
     float tau = (a2 + e2) / (b2 - a2);
-    if (s <= a2) return 0.5 * log((s + e2) / (a2 + e2)) + (tau <= 1 ? gravityBandClosed(tau, 0) : gravityBandSeries(tau, 0));
+    if (s <= a2) return 0.5 * log((s + e2) / (a2 + e2)) + (tau <= @SERIESFROM@ ? gravityBandClosed(tau, 0) : gravityBandSeries(tau, 0));
     float t = (s - a2) / (b2 - a2);
-    return tau <= 1 ? gravityBandClosed(tau, t) : gravityBandSeries(tau, t);
+    return tau <= @SERIESFROM@ ? gravityBandClosed(tau, t) : gravityBandSeries(tau, t);
 }
 
 // Zone.GetHeight at world xz: each term's potential minus its own reference, summed, divided by the exaggeration.

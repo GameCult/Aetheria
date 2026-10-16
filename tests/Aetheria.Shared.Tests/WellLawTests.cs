@@ -80,25 +80,35 @@ public sealed class WellLawTests : IDisposable
         Assert.InRange(deficit(.1f) / deficit(.05f), 13.0, 15.0); // doubling t multiplies the deficit by about 14 (t^4), not by 4
     }
 
-    // tau = (a^2 + eps^2) / (b^2 - a^2): the closed form holds to tau 1 and the series beyond it, and the two meet to the closed
-    // form's single-precision floor (the research's bound of 1.5e-5 per unit strength; the double-precision gap is 7e-7); in single
-    // precision the tau 10 potential stays within 1e-5 of the double-precision integral of the pull.
+    // The band's potential is the integral of its pull, in single precision, on both sides of the series threshold: tau =
+    // (a^2 + eps^2) / (b^2 - a^2) is swept from 0.05 to 10 (every (a, b) where that tau has a real softening), and the
+    // potential stays within 1.2e-6 per unit strength of the double-precision Simpson integral of the pull. A closed form kept
+    // past tau 0.45 or a series cut short misses this by 1e-5 to 1e-3.
     [Fact]
-    public void TheSeriesBranchMeetsTheClosedForm()
+    public void TheBandPotentialIsExactInSinglePrecision()
     {
-        // tau 1 +- 1e-6: eps^2 = b^2 - 2 a^2 gives tau 1 exactly.
-        const float a = 0.8f, b = 1.28062487f;
-        var below = (float) Math.Sqrt(b * b - 2 * a * a) * (1 - 1e-6f);
-        var above = (float) Math.Sqrt(b * b - 2 * a * a) * (1 + 1e-6f);
-        foreach (var r in new[] { 0.5f, 0.85f, 1.0f, 1.2f })
-            Assert.InRange(GravityField.Potential(above, a, b, r) - GravityField.Potential(below, a, b, r), -2e-5f, 2e-5f);
-
-        const float eps = 59f, inner = 11f, outer = 22f;
-        foreach (var r in new[] { 12f, 15f, 18f, 21f })
-        {
-            var oracle = -Simpson(x => GravityField.Pull(eps, inner, outer, (float) x), r, outer);
-            Assert.InRange(GravityField.Potential(eps, inner, outer, r), oracle - 1e-5, oracle + 1e-5);
-        }
+        var checkedCases = 0;
+        foreach (var tau in new[] { .05, .3, .39, .41, .6, .7, 1, 1.5, 2.5, 10 })
+            foreach (var (a, b) in new[] { (1000.0, 1500.0), (40.0, 60.0), (11.0, 22.0), (0.0, 1525.0), (150.0, 4000.0) })
+            {
+                var e2 = tau * (b * b - a * a) - a * a;
+                if (e2 < 0) continue;
+                var eps = (float) Math.Sqrt(e2);
+                e2 = (double) eps * eps; // the oracle integrates the softening the code is given
+                for (var k = 0; k < 15; k++)
+                {
+                    var r = b * (.02 + .979 * k / 14);
+                    var oracle = -Simpson(x =>
+                    {
+                        var t = x <= a ? 0.0 : (x * x - a * a) / (b * b - a * a);
+                        return x / (x * x + e2) * (1 - S(t));
+                    }, r, b, 8000);
+                    var actual = GravityField.Potential(eps, (float) a, (float) b, (float) r);
+                    Assert.InRange(actual, oracle - 1.2e-6, oracle + 1.2e-6);
+                    checkedCases++;
+                }
+            }
+        Assert.True(checkedCases > 400, "the sweep ran its cases");
     }
 
     private static float Plummer(PlanetSettings curves, float mass, float d) =>
@@ -156,7 +166,7 @@ public sealed class WellLawTests : IDisposable
         Assert.True(length(family.GetForce(inside) - merged.GetForce(inside)) > 1e-3f * length(merged.GetForce(inside)), "inside the support the moon is a body of its own");
     }
 
-    // The root has no reach: far from everything the zone is one body of its total mass, however the generator split it.
+    // A sole root has no reach: far from everything the zone is one body of its total mass, however the generator split it.
     [Fact]
     public void TheZonesFarFieldIsItsTotalMass()
     {
@@ -173,6 +183,203 @@ public sealed class WellLawTests : IDisposable
             foreach (var angle in new[] { 0f, 1.7f, 4.1f })
                 Near(curves.WellStrength.Evaluate(5101f), length(zone.GetForce(float2(far * cos(angle), far * sin(angle)))) * far, 1e-3f);
         }
+    }
+
+    // Three subzones: a sun of 5000 with a planet, a sun of 900 alone, and a bodyless pair; each is a root (a parentless orbit
+    // stands where its distance and phase put it). Masses are the test's own, the zone's total 6100.
+    private Zone ThreeSubzones(out CultRecordKey[] roots)
+    {
+        var w = _worlds.New();
+        var big = w.Orbit(default, 0f);
+        w.Body(big, 5000f);
+        w.Body(w.Orbit(big, 800f), 100f);
+        var small = w.Orbit(default, 9000f, .3f);
+        w.Body(small, 900f);
+        var pair = w.Orbit(default, 12000f, .7f);
+        w.Body(w.Orbit(pair, 300f, 0f), 60f);
+        w.Body(w.Orbit(pair, 300f, .5f), 40f);
+        roots = new[] { big, small, pair };
+        return w.Build();
+    }
+
+    private static readonly float[] ThreeSubzoneMass = { 5100f, 900f, 100f };
+
+    // The zone node sits at the family-mass-weighted mean of its roots' places and pulls the zone's total mass from there.
+    [Fact]
+    public void AZoneOfSeveralSunsPullsAsItsTotalMassFromTheirBarycentre()
+    {
+        var zone = ThreeSubzones(out var roots);
+        var centre = float2.zero;
+        for (var i = 0; i < roots.Length; i++) centre += zone.Orbits[roots[i]].Position * ThreeSubzoneMass[i] / 6100f;
+        Assert.InRange(length(zone.Wells.Centre - centre), 0f, 1e-3f);
+
+        var far = 10f * zone.Pack.Radius;
+        foreach (var angle in new[] { 0f, 2.1f, 4.4f })
+            Near(ZoneWorlds.Curves().WellStrength.Evaluate(6100f),
+                length(zone.GetForce(zone.Wells.Centre + float2(far * cos(angle), far * sin(angle)))) * far, 1e-3f);
+    }
+
+    // One sun with a planet, alone in its zone at the place a root of `distance` and `phase` stands.
+    private Zone OneSubzone(float sun, float distance, float phase, out CultRecordKey root)
+    {
+        var w = _worlds.New();
+        root = w.Orbit(default, distance, phase);
+        w.Body(root, sun);
+        w.Body(w.Orbit(root, 700f, .2f), 120f);
+        return w.Build();
+    }
+
+    // Isolated subzones: inside its own support a sun is felt exactly as if it were alone in the zone, the other suns and the
+    // zone node adding nothing; a root's reach is half the distance to the nearest other sun, or 1.5 of its support if more.
+    [Fact]
+    public void ASubzoneFeelsOnlyItsOwnSun()
+    {
+        var w = _worlds.New();
+        var a = w.Orbit(default, 0f);
+        w.Body(a, 4000f);
+        w.Body(w.Orbit(a, 700f, .2f), 120f);
+        var b = w.Orbit(default, 9000f, 0f);
+        w.Body(b, 2500f);
+        w.Body(w.Orbit(b, 700f, .2f), 120f);
+        var zone = w.Build();
+
+        var rng = new System.Random(3);
+        foreach (var (root, sun, distance) in new[] { (a, 4000f, 0f), (b, 2500f, 9000f) })
+        {
+            var alone = OneSubzone(sun, distance, 0f, out var aloneRoot);
+            Assert.True(float.IsPositiveInfinity(alone.Wells.Reach(aloneRoot)), "a sole massive root is the whole zone");
+            var support = zone.Wells.Support(root);
+            Assert.Equal(Math.Max(.5f * 9000f, 1.5f * support), zone.Wells.Reach(root), 2);
+            var at = zone.Orbits[root].Position;
+            for (var i = 0; i < 50; i++)
+            {
+                var angle = (float) (rng.NextDouble() * 2 * Math.PI);
+                var radius = support * (.2f + .8f * (float) rng.NextDouble());
+                var p = at + float2(radius * cos(angle), radius * sin(angle));
+                var expected = alone.GetForce(p);
+                Assert.InRange(length(zone.GetForce(p) - expected), 0f, 1e-5f * length(expected) + 1e-9f);
+            }
+        }
+    }
+
+    // Between the subzones the ground is flat; beyond the populated area the zone is one body of its total mass at its centre.
+    [Fact]
+    public void BeyondEverySubzoneTheZoneIsOneBody()
+    {
+        var zone = ThreeSubzones(out var roots);
+        var curves = ZoneWorlds.Curves();
+        var centre = zone.Wells.Centre;
+        var span = roots.Max(r => length(zone.Orbits[r].Position - centre) + zone.Wells.Reach(r)); // A, as the law defines it
+
+        var flat = 0;
+        for (var x = -14000f; x <= 14000f; x += 700f)
+            for (var y = -14000f; y <= 14000f; y += 700f)
+            {
+                var p = float2(x, y);
+                if (length(p - centre) >= span || roots.Any(r => length(p - zone.Orbits[r].Position) <= zone.Wells.Reach(r))) continue;
+                flat++;
+                Assert.InRange(length(zone.GetForce(p)), 0f, 1e-7f);
+            }
+        Assert.True(flat > 100, "fixture: there is open ground between the subzones");
+
+        foreach (var (radius, angle) in new[] { (1.6f, .4f), (3f, 2.5f), (8f, 5.1f) })
+        {
+            var p = centre + float2(span * radius * cos(angle), span * radius * sin(angle));
+            var expected = (centre - p) / length(centre - p) * Plummer(curves, 6100f, length(centre - p));
+            Assert.InRange(length(zone.GetForce(p) - expected), 0f, 1e-5f * length(expected));
+        }
+    }
+
+    // A belt is a child of its parent's family: the family's support covers the belt's outermost asteroid, so every asteroid
+    // circles the planet's body alone at its own distance (not at the belt orbit's, 43, where the fade used to start).
+    [Fact]
+    public void ABeltRidesInsideItsParentsBody()
+    {
+        var w = _worlds.New();
+        var sun = w.Orbit(default, 0f);
+        w.Body(sun, 5000f);
+        var planet = w.Orbit(sun, 3000f);
+        w.Body(planet, 172f);
+        var belt = w.Belt(w.Orbit(planet, 43f, .4f), 10f, 43f, 87f);
+        var zone = w.Build();
+
+        Assert.Equal(1.5f * 87f, zone.Wells.Support(planet), 3);
+        var curves = ZoneWorlds.Curves();
+        var periods = zone.AsteroidBelts[belt].Periods;
+        Assert.Equal(3, periods.Length);
+        for (var i = 0; i < 3; i++)
+        {
+            var d = zone.AsteroidBelts[belt].Data.Asteroids[i].Distance;
+            var expected = 2 * PI * sqrt(d / Plummer(curves, 172f, d));
+            Assert.InRange(periods[i], expected * (1 - 1e-5f), expected * (1 + 1e-5f));
+        }
+    }
+
+    // The fade of a tight family begins at its support: the planet (moon at 150, support 225, reach at its floor 337.5) pulls
+    // as the whole family out to 225 and then gives way as the order-4 smoothstep of (r^2 - 225^2) / (337.5^2 - 225^2).
+    [Fact]
+    public void ATightFamilysPullFadesFromItsSupport()
+    {
+        var w = _worlds.New();
+        var sun = w.Orbit(default, 0f);
+        w.Body(sun, 5000f);
+        var planet = w.Orbit(sun, 400f);
+        w.Body(planet, 100f);
+        var moon = w.Orbit(planet, 150f);
+        w.Body(moon, 1f);
+        var zone = w.Build();
+        var curves = ZoneWorlds.Curves();
+
+        Assert.Equal(225f, zone.Wells.Support(planet), 3);
+        Assert.Equal(337.5f, zone.Wells.Reach(planet), 3);
+        foreach (var r in new[] { 232f, 250f, 270f, 290f, 310f, 325f, 333f, 336f })
+        {
+            var t = (r * r - 225.0 * 225) / (337.5 * 337.5 - 225.0 * 225);
+            var expected = Plummer(curves, 101f, r) * (1 - S(t));
+            Assert.InRange(zone.Wells.PullAround(planet, r, moon), expected * (1 - 1e-5) - 1e-9, expected * (1 + 1e-5) + 1e-9);
+        }
+    }
+
+    // A ring group's pull rises from its ring: a pair at 300 round a bodyless node pulls from the node as the order-4 smoothstep
+    // of (r^2 - 300^2) / (1500^2 - 300^2) of the pair's Plummer, 1500 being the ring's distance and the members' RingReach.
+    [Fact]
+    public void ARingGroupsPullRisesFromItsRing()
+    {
+        var w = _worlds.New();
+        var sun = w.Orbit(default, 0f);
+        w.Body(sun, 5000f);
+        var node = w.Orbit(sun, 3000f);
+        w.Body(w.Orbit(node, 300f, 0f), 80f);
+        w.Body(w.Orbit(node, 300f, .5f), 60f);
+        var zone = w.Build();
+        var curves = ZoneWorlds.Curves();
+
+        foreach (var r in new[] { 310f, 400f, 600f, 900f, 1200f, 1400f, 1490f })
+        {
+            var t = (r * r - 300.0 * 300) / (1500.0 * 1500 - 300.0 * 300);
+            var expected = Plummer(curves, 140f, r) * S(t);
+            Assert.InRange(zone.Wells.PullAround(node, r, default), expected * (1 - 1e-5) - 1e-9, expected * (1 + 1e-5) + 1e-9);
+        }
+    }
+
+    // The drawn height is the force's potential everywhere, however far: its slope along the radius is the pull, for a zone of
+    // one sun and for one of three subzones, out to ten pack radii (a potential flattened at some radius reads zero here).
+    [Fact]
+    public void FarOutTheHeightIsTheForcesPotential()
+    {
+        var single = SunPlanetMoon(1f, out _, out _);
+        var several = ThreeSubzones(out _);
+        foreach (var (zone, centre) in new[] { (single, float2.zero), (several, several.Wells.Centre) })
+            foreach (var radius in new[] { 2f, 4f, 7f, 10f })
+                foreach (var angle in new[] { .3f, 2.4f, 4.6f })
+                {
+                    var outward = float2(cos(angle), sin(angle));
+                    var p = centre + outward * (radius * zone.Pack.Radius);
+                    const float h = 10f;
+                    var slope = (zone.GetHeight(p + outward * h) - zone.GetHeight(p - outward * h)) * zone.Settings.HeightExaggeration / (2 * h);
+                    var pull = -dot(zone.GetForce(p), outward);
+                    Assert.InRange(slope, pull * .98f, pull * 1.02f);
+                }
     }
 
     private static void Near(float expected, float actual, float relative) =>
@@ -233,18 +440,19 @@ public sealed class WellLawTests : IDisposable
         var node = w.Orbit(sunOrbit, 5200f, .13f);
         w.Body(w.Orbit(node, 300f, 0f), 80f);
         w.Body(w.Orbit(node, 300f, .5f), 60f);
+        w.Body(w.Orbit(default, 9000f, .3f), 900f); // a second massive root: the zone node joins the walk
         var zone = w.Build();
 
         var rng = new System.Random(7);
         for (var n = 0; n < 200; n++)
         {
-            var p = float2((float) (rng.NextDouble() * 12000 - 6000), (float) (rng.NextDouble() * 12000 - 6000));
+            var p = float2((float) (rng.NextDouble() * 24000 - 6000), (float) (rng.NextDouble() * 24000 - 12000));
             var force = float2.zero;
             var potential = 0f;
             var scale = 0f;
             foreach (var term in zone.Wells.Terms)
             {
-                var offset = zone.Orbits[term.Node].Position - p;
+                var offset = (term.Node.IsSet() ? zone.Orbits[term.Node].Position : zone.Wells.Centre) - p; // an unset node is the zone node
                 var r = length(offset);
                 var pull = term.Strength * GravityField.Pull(term.Softening, term.Inner, term.Outer, r);
                 if (r > 0f) force += offset / r * pull;
