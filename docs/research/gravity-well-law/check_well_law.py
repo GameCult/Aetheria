@@ -67,3 +67,24 @@ for eps, a, b in [(79.8, 1000.0, 1500.0), (17.0, 40.0, 60.0), (79.8, 12000.0, 25
     r64 = np.linspace(0, b, 100001)
     ref = band_potential(eps, a, b, r64)
     print(f'float32 eps {eps} band [{a}, {b}]: max abs err {np.max(np.abs(band32(eps, a, b, r64) - ref)):.2e} (unit strength; depth {np.abs(ref).max():.2f})')
+
+# 5. large tau (softening comparable to the band): the closed form cancels in float32; the series branch does not
+def series32(eps, a, b, r):
+    f32 = np.float32
+    eps, a, b, r = f32(eps), f32(a), f32(b), r.astype(f32)
+    s = r * r; span = b * b - a * a; tau = (a * a + eps * eps) / span; w = f32(1) / (f32(1) + tau)
+    def bandv(t):
+        Y = (f32(1) - t).astype(f32); acc = np.zeros_like(t)
+        for k in range(40):
+            inner = np.zeros_like(t)
+            for j in range(4, len(SC)): inner = (inner + f32(SC[j]) * Y ** (j + k + 1) / f32(j + k + 1)).astype(f32)
+            acc = (acc + w ** (k + 1) * inner).astype(f32)
+        return f32(-.5) * acc
+    t = np.clip((s - a * a) / span, 0, 1).astype(f32)
+    inside = f32(.5) * np.log((s + eps * eps) / (a * a + eps * eps)).astype(f32) + bandv(np.zeros(1, f32))[0]
+    return np.where(s <= a * a, inside, np.where(s >= b * b, f32(0), bandv(t)))
+for eps, a, b in [(1658.0, 1000.0, 1500.0), (3391.0, 1000.0, 1500.0), (59.0, 11.0, 22.0)]:
+    r64 = np.linspace(0, b, 20001); ref = band_potential(eps, a, b, r64)
+    tau = (a * a + eps * eps) / (b * b - a * a)
+    print(f'tau {tau:6.2f}: closed form float32 err {np.max(np.abs(band32(eps, a, b, r64) - ref)):.1e}; series float32 err '
+          f'{np.max(np.abs(series32(eps, a, b, r64) - ref)):.1e}; F = dphi/dr {np.max(np.abs(np.gradient(ref, r64) - band_pull(eps, a, b, r64))[3:-3]) / band_pull(eps, a, b, r64).max():.1e}')
