@@ -22,7 +22,7 @@ public sealed class Crossing : Scenario
     // The waiting Djinni sits inside the Lightning Projector's arc at 80% of its Range.
     public static readonly CultMath.float2 Origin = float2(724, 124);
     public static readonly CultMath.float2 CrosserAt = Origin + float2(-128, 45), CrosserFacing = float2(1, 0), CrosserVelocity = float2(50, 0);
-    public const float ProjectorRange = 1216f; // the Lightning Projector's Range in metres, 1216.4 as the fit stands settled at rest
+    public const float ProjectorRange = 948f; // the Lightning Projector's Range in metres, 948.8 as the fit stands settled at rest (the first product of the design by key, NiteLife's Static Shock)
     public static readonly CultMath.float2 Waiting = Origin + float2(0, ProjectorRange * .8f);
 
     public override Galaxy Generate(GalaxyStage stage) => stage.Prelude(DemoTerminus.Cast);
