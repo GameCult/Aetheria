@@ -420,7 +420,6 @@ public sealed class ShipModCatalogTests : IDisposable
             Assert.Contains("shield anchor shield needs three positive scale radii", Assert.Throws<InvalidOperationException>(() =>
                 ShipModCatalog.ReadPackage(Path.Combine(Mods, "mod.skiff", "ship.cc"))).Message);
         }
-        Directory.Delete(Path.Combine(Mods, "mod.skiff"), true);
 
         // The same radiator on a mesh node, and the weapon mount, shield and tractor on empty nodes, are accepted.
         Directory.Delete(Path.Combine(Mods, "mod.skiff"), true);
@@ -518,7 +517,7 @@ public sealed class ShipModCatalogTests : IDisposable
             {""extras"":{""aetheria.id"":""none""}},{""scale"":[2,3,4],""extras"":{""aetheria.id"":""pos""}},{""scale"":[1,-1,1],""extras"":{""aetheria.id"":""neg""}},
             {""scale"":[1,1,0],""extras"":{""aetheria.id"":""zero""}},{""matrix"":[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],""extras"":{""aetheria.id"":""matrix""}}]}"));
         var nodes = ShipModCatalog.ReadNodeIds(path);
-        Assert.Equal(new[] { "none", "pos" }, nodes.Where(node => node.Value.PositiveScale).Select(node => node.Key).OrderByDescending(key => key));
+        Assert.Equal(new[] { "none", "pos" }, nodes.Where(node => node.Value.PositiveScale).Select(node => node.Key).OrderBy(key => key));
         Assert.Equal(new[] { "matrix", "neg", "zero" }, nodes.Where(node => !node.Value.PositiveScale).Select(node => node.Key).OrderBy(key => key));
     }
 

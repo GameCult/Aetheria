@@ -201,7 +201,7 @@ public sealed class ShipRigTests : IDisposable
     // arm > elbow > wrist > (an untagged bracket) > gun > gun-muzzle, with the fixture's other nodes at the root.
     private static readonly Node[] RigNodes =
     {
-        new Node("map", "map", null), new Node("collider", "collider", null), new Node("shield", "shield", null),
+        new Node("map", "map", null, true), new Node("collider", "collider", null, true), new Node("shield", "shield", null),
         new Node("tractor", "tractor", null), new Node("thruster-port", "thruster-port", null, true),
         new Node("pod", "pod", null), new Node("arm", "arm", null), new Node("elbow", "elbow", "arm"), new Node("wrist", "wrist", "elbow"),
         new Node("bracket", null, "wrist"), new Node("gun", "gun", "bracket"), new Node("gun-muzzle", "gun-muzzle", "gun")
