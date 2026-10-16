@@ -33,19 +33,7 @@ public readonly struct ContactEvent
 
 public static class Contacts
 {
-    // The farthest corner of any occupied hull cell from the centre of mass the schematic frame uses, in world
-    // units: a true bound on how far the hull reaches from Position (the half-diagonal of the bounding box is not,
-    // as FireControl.Detonate's comment records). A cell at (x, y) spans x +/- .5 and y +/- .5.
-    public static float Radius(Entity e)
-    {
-        var shape = e.HullData.Shape;
-        var com = shape.CenterOfMass;
-        var far = 0f;
-        foreach (var c in shape.Coordinates)
-            foreach (var (dx, dy) in new[] { (-.5f, -.5f), (.5f, -.5f), (-.5f, .5f), (.5f, .5f) })
-                far = max(far, length(float2(c.x + dx, c.y + dy) - com));
-        return far * e.ItemManager.GameplaySettings.SchematicCellSize;
-    }
+    public static float Radius(Entity e) => e.HullData.Reach(e.ItemManager.GameplaySettings.SchematicCellSize);
 
     // For each unordered pair of the zone's entities, in list order: if their discs touch and are closing along
     // the normal, the impulse moves each one's velocity along the normal only (the tangent components are
