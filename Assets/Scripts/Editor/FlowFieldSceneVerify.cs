@@ -202,7 +202,7 @@ namespace Aetheria.EditorTools
                 camera.backgroundColor = Color.black;
                 camera.cullingMask = 0;
                 camera.targetTexture = texture;
-                var withDust = Render(5f);
+                var withDust = Render(400f); // the material scales a quad by distance^.33, so at this range it needs this size to cover pixels
                 var without = Render(0f);
                 var differing = 0;
                 for (var i = 0; i < withDust.Length; i++)
