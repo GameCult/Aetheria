@@ -142,12 +142,17 @@ namespace Aetheria.EditorTools
                 if (Shader.GetGlobalFloat("_NebulaNoiseTime") == noiseTime) Fail("scene-noise-clock", "_NebulaNoiseTime did not move while the zone ran");
 
                 CheckStardustUncullable(dust, bufferField);
+                CheckStardustUnderFog(dust, bufferField);
             }
             finally
             {
                 try { Directory.Delete(work, true); } catch { }
             }
         }
+
+        // The event Stardust itself attaches its draw at, read from the class so the verifier cannot agree with a copy of it.
+        static CameraEvent DrawEvent() =>
+            (CameraEvent) typeof(Stardust).GetField("DrawEvent", BindingFlags.NonPublic | BindingFlags.Static).GetRawConstantValue();
 
         // The dust is a command buffer on the target camera, which no culling sees: with every particle 10000 below the
         // camera (far past any box a hand could inflate round it) a render still shows dust, and shows none when the
@@ -156,24 +161,17 @@ namespace Aetheria.EditorTools
         {
             var camera = dust.TargetCamera;
             if (camera == null) { Fail("scene-stardust-uncullable", "Stardust has no TargetCamera"); return; }
-            var attached = camera.GetCommandBuffers(CameraEvent.BeforeForwardAlpha).Count(buffer => buffer.name == "Stardust");
-            if (attached != 1) Fail("scene-stardust-uncullable", $"{attached} Stardust command buffers on the target camera, expected 1");
+            var drawEvent = DrawEvent();
+            var attached = camera.GetCommandBuffers(drawEvent).Count(buffer => buffer.name == "Stardust");
+            if (attached != 1) Fail("scene-stardust-uncullable", $"{attached} Stardust command buffers at {drawEvent} on the target camera, expected 1");
+            foreach (var other in Enum.GetValues(typeof(CameraEvent)).Cast<CameraEvent>().Where(other => other != drawEvent))
+            {
+                var stray = camera.GetCommandBuffers(other).Count(buffer => buffer.name == "Stardust");
+                if (stray != 0) Fail("scene-stardust-uncullable", $"{stray} Stardust command buffers at {other}, expected 0");
+            }
 
             var particles = (ComputeBuffer) bufferField.GetValue(dust);
-            var side = Mathf.RoundToInt(Mathf.Sqrt(particles.count));
-            float[] Layout(float size, Vector3 centre, float below)
-            {
-                var data = new float[particles.count * 7];
-                for (var i = 0; i < particles.count; i++)
-                {
-                    data[i * 7 + 0] = centre.x + ((i % side) - side / 2f) * 4f;
-                    data[i * 7 + 1] = centre.y - below;
-                    data[i * 7 + 2] = centre.z + ((i / side) - side / 2f) * 4f;
-                    data[i * 7 + 3] = data[i * 7 + 4] = data[i * 7 + 5] = 1f;
-                    data[i * 7 + 6] = size;
-                }
-                return data;
-            }
+            float[] Layout(float size, Vector3 centre, float below) => DustLayout(particles.count, size, centre, below);
 
             var transform = camera.transform;
             var (position, rotation) = (transform.position, transform.rotation);
@@ -229,6 +227,135 @@ namespace Aetheria.EditorTools
                 RenderTexture.ReleaseTemporary(texture);
                 UnityEngine.Object.DestroyImmediate(readback);
             }
+        }
+
+        // The nebula is an [ImageEffectOpaque] that fogs the whole ray to a depth the dust never writes (B49): dust drawn
+        // before it is attenuated by the fog, dust drawn after it sits on top at full strength. The dust's contribution to a
+        // pixel (render with dust minus render without) is read with the cloud renderer off and on, in an HDR target.
+        static void CheckStardustUnderFog(Stardust dust, FieldInfo bufferField)
+        {
+            const int Size = 128;
+            var camera = dust.TargetCamera;
+            var cloud = camera == null ? null : camera.GetComponent<VolumeCloudRenderer>();
+            if (cloud == null) { Fail("scene-stardust-under-fog", "the target camera has no VolumeCloudRenderer"); return; }
+            var particles = (ComputeBuffer) bufferField.GetValue(dust);
+
+            var transform = camera.transform;
+            var (position, rotation) = (transform.position, transform.rotation);
+            var (far, flags, background, mask, target, hdr) = (camera.farClipPlane, camera.clearFlags, camera.backgroundColor, camera.cullingMask, camera.targetTexture, camera.allowHDR);
+            var texture = RenderTexture.GetTemporary(Size, Size, 24, RenderTextureFormat.ARGBHalf);
+            var readback = new Texture2D(Size, Size, TextureFormat.RGBAHalf, false);
+            var previous = RenderTexture.active;
+            var effects = camera.GetComponents<MonoBehaviour>().Where(behaviour => behaviour.enabled).ToArray();
+            var fields = new System.Collections.Generic.List<Texture2D>();
+            GameObject floor = null;
+            float[] Render(bool fog, float size)
+            {
+                cloud.enabled = fog;
+                for (var frame = 0; frame < 2; frame++) // the cloud's first frame forces ULTRA and fills its history; the second is the settled one
+                {
+                    Call(dust, "Update");
+                    particles.SetData(DustLayout(particles.count, size, position, 100f));
+                    camera.Render();
+                }
+                RenderTexture.active = texture;
+                readback.ReadPixels(new Rect(0, 0, Size, Size), 0, 0);
+                readback.Apply();
+                return readback.GetPixels().Select(pixel => pixel.r * .2126f + pixel.g * .7152f + pixel.b * .0722f).ToArray();
+            }
+            try
+            {
+                foreach (var effect in effects) effect.enabled = false;
+                camera.allowHDR = true;
+                camera.clearFlags = CameraClearFlags.SolidColor;
+                camera.backgroundColor = Color.black;
+                camera.cullingMask = 1;
+                camera.targetTexture = texture;
+                camera.farClipPlane = 1000f;
+                transform.SetPositionAndRotation(position, Quaternion.Euler(90f, 0f, 0f));
+                // The fog only measures a partial density where depth is written: a pixel with no depth is fogged whole (CloudShader sets
+                // density 1 past the far plane). A floor under the dust gives the march a finite ray.
+                floor = GameObject.CreatePrimitive(PrimitiveType.Plane);
+                floor.transform.position = position + Vector3.down * 200f;
+                floor.transform.localScale = Vector3.one * 100f;
+                UnityEngine.Object.DestroyImmediate(floor.GetComponent<Collider>());
+
+                // The scene's own nebula fields are textures the game renders; here a uniform fill of white fog stands in for them.
+                foreach (var (name, format) in new[] { ("_NebulaSurfaceHeight", TextureFormat.RFloat), ("_NebulaPatchHeight", TextureFormat.RHalf), ("_NebulaPatch", TextureFormat.RHalf) })
+                    Shader.SetGlobalTexture(name, Uniform(format, Color.black, fields));
+                Shader.SetGlobalTexture("_NebulaTint", Uniform(TextureFormat.RGBA32, Color.white, fields));
+                Shader.DisableKeyword("NOISE_SLOPE");
+                Shader.SetGlobalFloat("_NebulaFillDensity", .01f);
+                Shader.SetGlobalFloat("_NebulaFillDistance", 120f);
+                Shader.SetGlobalFloat("_NebulaFillExponent", 0f);
+                Shader.SetGlobalFloat("_NebulaFillOffset", 0f);
+                Shader.SetGlobalFloat("_NebulaPatchDensity", 0f);
+                Shader.SetGlobalFloat("_NebulaLuminance", .01f); // a fog dimmer than the dust: dust drawn over it would otherwise read as a negative contribution
+                Shader.SetGlobalFloat("_ExtinctionCoefficient", .25f); // with the fill density, about 40% of the light to the floor is fogged away
+                Shader.SetGlobalFloat("_SafetyDistance", -1e6f); // below every sample: only the uniform fill, none of the zone's noise
+                Shader.SetGlobalFloat("_TintLodExponent", 0f);
+
+                var clearBare = Render(false, 0f);
+                var clearDust = Render(false, 5f);
+                var fogBare = Render(true, 0f);
+                var fogDust = Render(true, 5f);
+
+                var fogShown = 0f;
+                var (clearSum, fogSum, drawn) = (0f, 0f, 0);
+                for (var i = 0; i < clearBare.Length; i++)
+                {
+                    fogShown += Mathf.Abs(fogBare[i] - clearBare[i]) / clearBare.Length;
+                    if (clearDust[i] == clearBare[i]) continue;
+                    drawn++; clearSum += clearDust[i] - clearBare[i]; fogSum += fogDust[i] - fogBare[i];
+                }
+                var (clearMean, fogMean) = (drawn == 0 ? 0f : clearSum / drawn, drawn == 0 ? 0f : fogSum / drawn);
+                Debug.Log($"{Tag} stardust under fog: fog control mean |difference|={fogShown}, dust pixels={drawn}, dust contribution cloud off={clearMean}, cloud on={fogMean}, ratio={(clearMean == 0f ? 0f : fogMean / clearMean)}");
+                if (drawn == 0 || clearMean <= 0f) Fail("scene-stardust-under-fog", "control: the dust drew no pixels with the cloud renderer off");
+                else if (fogShown < 1e-3f) Fail("scene-stardust-under-fog", "control: the cloud renderer changed no pixels, so no fog is in view");
+                else if (fogMean > .9f * clearMean) Fail("scene-stardust-under-fog", "the dust is not attenuated by the fog in front of it: it was drawn after the nebula composites");
+                else if (fogMean < .1f * clearMean) Fail("scene-stardust-under-fog", "the dust is erased, not dimmed, by a partial fog");
+            }
+            finally
+            {
+                RenderTexture.active = previous;
+                foreach (var effect in effects) effect.enabled = true;
+                camera.allowHDR = hdr;
+                camera.targetTexture = target;
+                camera.cullingMask = mask;
+                camera.backgroundColor = background;
+                camera.clearFlags = flags;
+                camera.farClipPlane = far;
+                transform.SetPositionAndRotation(position, rotation);
+                RenderTexture.ReleaseTemporary(texture);
+                UnityEngine.Object.DestroyImmediate(readback);
+                foreach (var field in fields) UnityEngine.Object.DestroyImmediate(field);
+                if (floor != null) UnityEngine.Object.DestroyImmediate(floor);
+            }
+        }
+
+        static Texture2D Uniform(TextureFormat format, Color colour, System.Collections.Generic.List<Texture2D> owner)
+        {
+            var texture = new Texture2D(1, 1, format, false) { wrapMode = TextureWrapMode.Clamp };
+            texture.SetPixel(0, 0, colour);
+            texture.Apply();
+            owner.Add(texture);
+            return texture;
+        }
+
+        // A square patch of particles 4 apart, `below` under `centre`.
+        static float[] DustLayout(int count, float size, Vector3 centre, float below)
+        {
+            var side = Mathf.RoundToInt(Mathf.Sqrt(count));
+            var data = new float[count * 7];
+            for (var i = 0; i < count; i++)
+            {
+                data[i * 7 + 0] = centre.x + ((i % side) - side / 2f) * 4f;
+                data[i * 7 + 1] = centre.y - below;
+                data[i * 7 + 2] = centre.z + ((i / side) - side / 2f) * 4f;
+                data[i * 7 + 3] = data[i * 7 + 4] = data[i * 7 + 5] = 1f;
+                data[i * 7 + 6] = size;
+            }
+            return data;
         }
 
         // CloudShader's pass 0 compiles with the flow keywords (it must #include_with_pragmas the shared include).
