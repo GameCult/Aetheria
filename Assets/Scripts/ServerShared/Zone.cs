@@ -211,6 +211,8 @@ public class Zone
                 belt.Value.Periods[i] = PeriodAround(beltParent, belt.Value.Data.Asteroids[i].Distance, beltOrbit);
         }
 
+        PopulatedRadius = ComputePopulatedRadius();
+
         // Aetheria gravity (target invariant zone-valid-before-tick): every orbit is placed at the pack's time
         // when the zone is built, so each well, light and body pose read before the first Update is where the
         // body is. Velocity stays zero until the first Update differences two placed positions.
@@ -735,6 +737,29 @@ public class Zone
     // The potential of a body's well at the zone's edge, subtracted so every well is zero there: the one owner of the
     // reference. GetHeight sums with it and the renderer's lowering (GravityLowering) hands it to the shader unchanged.
     public float WellReference(Planet body) => GravityField.Potential(body.WellStrength, body.RocheLimit, Pack.Radius);
+
+    // The extent of the populated area, from the zone's origin: owned here; presenters read it, nothing authors it. A static
+    // bound on where any body can be, so it holds at every time and reads nothing the pack's Radius decides: for each body,
+    // the root orbit's offset from the origin, plus every orbit Distance along its chain to the root, plus its Roche limit.
+    public float PopulatedRadius { get; }
+
+    private float ComputePopulatedRadius()
+    {
+        var radius = 0f;
+        foreach (var body in PlanetInstances.Values)
+        {
+            var reach = body.RocheLimit;
+            var key = body.BodyData.Orbit.Key;
+            while (key.IsSet() && Orbits.TryGetValue(key, out var orbit))
+            {
+                if (orbit.Data.Parent.IsSet()) reach += orbit.Data.Distance;
+                else reach += length(orbit.Data.FixedPosition);
+                key = orbit.Data.Parent.Key;
+            }
+            radius = max(radius, reach);
+        }
+        return radius;
+    }
 
     public float GetHeight(float2 position) => GetHeight(position, _time);
 
