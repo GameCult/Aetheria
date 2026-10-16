@@ -17,7 +17,7 @@ public sealed class PlayerStagingTests : IDisposable
         Write(Source("Aetheria.cc"), "catalog-bytes");
         Write(Source("Narrative/Main.ink"), "main");
         Write(Source("Narrative/Quests/Deep/First.ink"), "first");
-        Write(Source("SoundbanksInfo.json"), "{}");
+        Write(Source("Stray.json"), "{}");
         Write(Source("run.cc"), "a developer's run");
         Write(Source("player.cc"), "a developer's settings");
         Directory.CreateDirectory(Player);

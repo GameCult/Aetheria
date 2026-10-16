@@ -240,7 +240,6 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
             }
         }
 
-        var firedThisFrame = false;
         _burstTimer += dt;
         while (_burstRemaining > 0 && _burstTimer > 0)
         {
@@ -280,11 +279,6 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
             // Evaluate it into a local first.
             var shotId = FireControl.Fire(this, Item, Entity);
             OnFire?.Invoke(shotId);
-            if(!firedThisFrame)
-            {
-                Item.FireAudioEvent(WeaponAudioEvent.Fire);
-                firedThisFrame = true;
-            }
             CauseWearDamage(1);
             AddHeat(Heat);
             Entity.SetSignature(this, SignatureChannel.LaunchFlash, Visibility, Item);

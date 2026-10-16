@@ -227,8 +227,7 @@ fixes. Neither produces a download link that 404s.
     `target = BuildTarget.StandaloneWindows64`. Sets
     `PlayerSettings.bundleVersion` from the passed version, superseding the
     stale `0.1` at `ProjectSettings/ProjectSettings.asset:152`. After the build:
-    copy `GameData/Aetheria.cc`, `GameData/Narrative/**` and
-    `GameData/SoundbanksInfo.json` next to the exe; delete
+    copy `GameData/Aetheria.cc`, `GameData/Narrative/**` next to the exe; delete
     `Aetheria_BurstDebugInformation_DoNotShip/`; fail the run on a non-empty
     `BuildReport` error list.
 - **Authority map:**
