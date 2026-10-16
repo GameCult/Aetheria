@@ -319,7 +319,7 @@ public sealed class WellLawTests : IDisposable
         w.Body(sun, 5000f);
         var planet = w.Orbit(sun, 3000f);
         w.Body(planet, 172f);
-        var belt = w.Belt(w.Orbit(planet, 43f, .4f), 87f, 10f, 43f); // the outermost asteroid is not the last listed
+        var belt = w.Belt(w.Orbit(planet, 43f, .4f), 10f, 87f, 43f); // the outermost asteroid is in the middle: neither the first nor the last listed
         var zone = w.Build();
 
         Assert.Equal(1.5f * 87f, zone.Wells.Support(planet), 3);
