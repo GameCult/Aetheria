@@ -46,7 +46,7 @@ public class ActionGameManager : MonoBehaviour
     public static ShipModCatalog.Exclusion[] ModExclusions { get; private set; } = Array.Empty<ShipModCatalog.Exclusion>();
 
     private static string CatalogPath => Path.Combine(GameDataDirectory.FullName, "Aetheria.cc");
-    private static string ModsPath => Path.Combine(GameDataDirectory.FullName, "Mods");
+    public static string ModsPath => Path.Combine(GameDataDirectory.FullName, "Mods");
     // Disposable: composed at every boot from the shipped catalog and the mod packages, never authored.
     private static string DerivedCatalogPath => Path.Combine(Application.persistentDataPath, "Aetheria.modded.cc");
 

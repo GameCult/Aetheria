@@ -10,9 +10,10 @@ using UnityEngine;
 // Body() calls for a hull with a Visual. A plain parent transform stands in for ZoneRoot; nothing else in LoadEntity
 // touches the body before it takes its ShipInstance.
 //
-// The package is installed beside a broken sibling: the same ship under another id, with its map-icon anchor moved onto
-// its first muzzle's meshless node. The sibling composes, because no compose-time check reads meshes, and then fails
-// assembly. The smoke proves the preload skips it and the good package still spawns.
+// The package is installed beside two siblings. The .broken one has its map-icon anchor moved onto a meshless node:
+// Compose excludes it, naming the anchor. The .unimportable one has its GLB's BIN chunk dropped: the headless reader
+// accepts it, so it composes, and the importer cannot build it, so Preload faults Loading with ImportFault naming it.
+// RemovePackage then moves it aside and the next Compose leaves it out.
 //
 //   Unity -batchmode -nographics -projectPath <project> -executeMethod ShipModPlaySmoke.Run
 //         -shipModPath <mods>/<id>/ship.cc [-shippedCatalog GameData/Aetheria.cc] -logFile <log>
@@ -37,24 +38,26 @@ public static class ShipModPlaySmoke
         {
             if (packagePath == null) throw new InvalidOperationException("-shipModPath <package/ship.cc> is required");
             var package = ShipModCatalog.ReadPackage(packagePath);
-            var broken = InstallWithBrokenSibling(packagePath, package, modsRoot);
-            var composition = ShipModCatalog.Compose(Path.GetFullPath(Option("-shippedCatalog", "GameData/Aetheria.cc")), derived, modsRoot);
-            foreach (var id in new[] { package.Visual.Id, broken.Visual.Id })
-                if (!composition.Included.Contains(id))
-                    throw new InvalidOperationException($"{id} was not composed into the catalog: " +
-                        string.Join("; ", composition.Excluded.Select(excluded => $"{excluded.Package}: {excluded.Reason}")));
+            Install(package.Visual.Id, package, modsRoot, Path.GetFullPath(packagePath));
+            var broken = InstallSibling(package, modsRoot, ".broken", ship =>
+            {
+                var mapIcon = ship.Anchors.Single(anchor => anchor.Role == "map-icon");
+                var muzzle = ship.Anchors.First(anchor => anchor.Role == "weapon-muzzle");
+                (mapIcon.ModelNodeId, muzzle.ModelNodeId) = (muzzle.ModelNodeId, mapIcon.ModelNodeId);
+            }, null);
+            var shipped = Path.GetFullPath(Option("-shippedCatalog", "GameData/Aetheria.cc"));
+            var composition = ShipModCatalog.Compose(shipped, derived, modsRoot);
+            if (!composition.Included.Contains(package.Visual.Id))
+                throw new InvalidOperationException($"{package.Visual.Id} was not composed into the catalog: " + Reasons(composition));
+            var excluded = composition.Excluded.SingleOrDefault(entry => entry.Package == broken.Visual.Id);
+            if (composition.Included.Contains(broken.Visual.Id) || excluded == null || !excluded.Reason.Contains("map-icon anchor"))
+                throw new InvalidOperationException($"{broken.Visual.Id} was not excluded for its map-icon anchor: " + Reasons(composition));
 
             using (var catalog = AetheriaStores.Open(derived))
             {
                 await ShipModShips.Preload(catalog, modsRoot);
                 HullData Hull(string name) => catalog.GetAll<HullData>().Single(candidate => candidate.Visual.IsSet() && candidate.Name == name);
                 var hull = Hull(package.Hull.Name);
-
-                // The broken sibling has no prototype, and Loading did not fault for it (await would have thrown).
-                var refused = false;
-                try { ShipModShips.Instantiate(Hull(broken.Hull.Name), null); }
-                catch (InvalidOperationException error) { refused = error.Message.Contains("no mod ship prototype"); }
-                if (!refused) throw new InvalidOperationException($"{broken.Visual.Id} assembled, or was refused for the wrong reason.");
 
                 zone = new GameObject("Play Smoke Zone");
                 var ship = ShipModShips.Instantiate(hull, zone.transform).GetComponent<ShipInstance>();
@@ -71,7 +74,33 @@ public static class ShipModPlaySmoke
                     throw new InvalidOperationException("The hull collider is not a MeshCollider over a readable mesh.");
                 if (ship.MapIcon == null || ship.MapIcon.sharedMaterial == null || ship.MapIcon.gameObject.layer != LayerMask.NameToLayer("Minimap"))
                     throw new InvalidOperationException("The map icon is missing its renderer, material or Minimap layer.");
-                Debug.Log($"SHIP_MOD_PLAY_SMOKE thrusters={thrusters} weapons={weapons} collider=ok mapicon=ok skipped={broken.Visual.Id}");
+
+                // Phase 2: an unimportable sibling composes, then faults the preload with ImportFault naming exactly it.
+                var unimportable = InstallSibling(package, modsRoot, ".unimportable", null, DropBinChunk);
+                var derivedTwo = Path.Combine(work, "Derived2", "Aetheria.modded.cc");
+                var second = ShipModCatalog.Compose(shipped, derivedTwo, modsRoot);
+                if (!second.Included.Contains(unimportable.Visual.Id))
+                    throw new InvalidOperationException($"{unimportable.Visual.Id} was not composed: " + Reasons(second));
+                ShipModShips.ImportFault fault = null;
+                using (var catalogTwo = AetheriaStores.Open(derivedTwo))
+                {
+                    try { await ShipModShips.Preload(catalogTwo, modsRoot); }
+                    catch (ShipModShips.ImportFault caught) { fault = caught; }
+                }
+                if (fault == null || fault.Faults.Length != 1 || fault.Faults[0].Package != unimportable.Visual.Id ||
+                    !fault.Faults[0].Reason.StartsWith(unimportable.Hull.Name))
+                    throw new InvalidOperationException("Loading did not fault with ImportFault naming exactly " + unimportable.Visual.Id + ".");
+
+                // Phase 3: removal moves it aside, and the next compose leaves it out.
+                var destination = ShipModCatalog.RemovePackage(modsRoot, unimportable.Visual.Id);
+                if (Directory.Exists(Path.Combine(modsRoot, unimportable.Visual.Id)) ||
+                    destination != Path.Combine(work, "RemovedMods", unimportable.Visual.Id) || !File.Exists(Path.Combine(destination, "ship.cc")))
+                    throw new InvalidOperationException("RemovePackage did not move the package to RemovedMods.");
+                var third = ShipModCatalog.Compose(shipped, Path.Combine(work, "Derived3", "Aetheria.modded.cc"), modsRoot);
+                if (third.Included.Contains(unimportable.Visual.Id) || !third.Included.Contains(package.Visual.Id))
+                    throw new InvalidOperationException("The compose after removal still includes the removed package, or lost the good one.");
+                Debug.Log($"SHIP_MOD_PLAY_SMOKE thrusters={thrusters} weapons={weapons} collider=ok mapicon=ok excluded={broken.Visual.Id} " +
+                    $"faulted={unimportable.Visual.Id} removed={Path.GetFileName(destination)}");
             }
             Clean(zone, work);
             EditorApplication.Exit(0);
@@ -84,32 +113,46 @@ public static class ShipModPlaySmoke
         }
     }
 
-    // Copies the package into modsRoot and writes its broken sibling beside it. Returns the sibling's records.
-    private static (HullData Hull, ShipAuthoring Visual) InstallWithBrokenSibling(string packagePath, ShipModCatalog.Package package, string modsRoot)
-    {
-        void Install(string id, string shipFile)
-        {
-            var model = Path.Combine(modsRoot, id, package.Visual.ModelAsset);
-            Directory.CreateDirectory(Path.GetDirectoryName(model));
-            File.Copy(package.ModelPath, model);
-            if (shipFile != null) File.Copy(shipFile, Path.Combine(modsRoot, id, "ship.cc"));
-        }
-        Install(package.Visual.Id, Path.GetFullPath(packagePath));
+    private static string Reasons(ShipModCatalog.Composition composition) =>
+        string.Join("; ", composition.Excluded.Select(excluded => $"{excluded.Package}: {excluded.Reason}"));
 
+    private static void Install(string id, ShipModCatalog.Package package, string modsRoot, string shipFile)
+    {
+        var model = Path.Combine(modsRoot, id, package.Visual.ModelAsset);
+        Directory.CreateDirectory(Path.GetDirectoryName(model));
+        File.Copy(package.ModelPath, model);
+        if (shipFile != null) File.Copy(shipFile, Path.Combine(modsRoot, id, "ship.cc"));
+    }
+
+    // The package's ship under the id plus suffix, its records changed by tweak and its GLB rewritten in place by glb.
+    // Returns the sibling's records.
+    private static (HullData Hull, ShipAuthoring Visual) InstallSibling(ShipModCatalog.Package package, string modsRoot, string suffix,
+        Action<ShipAuthoring> tweak, Action<string> glb)
+    {
         var (hull, ship, _) = ShipAuthoringStore.Read(Path.Combine(modsRoot, package.Visual.Id, "ship.cc"));
-        ship.Id += ".broken";
-        hull.Name += " Broken";
+        ship.Id += suffix;
+        hull.Name += suffix;
         hull.Visual = new CultRecordRef<ShipAuthoring>(ShipModCatalog.AuthoringKey(ship.Id));
-        var mapIcon = ship.Anchors.Single(anchor => anchor.Role == "map-icon");
-        var muzzle = ship.Anchors.First(anchor => anchor.Role == "weapon-muzzle");
-        (mapIcon.ModelNodeId, muzzle.ModelNodeId) = (muzzle.ModelNodeId, mapIcon.ModelNodeId);
-        Install(ship.Id, null);
+        tweak?.Invoke(ship);
+        Install(ship.Id, package, modsRoot, null);
+        glb?.Invoke(Path.Combine(modsRoot, ship.Id, package.Visual.ModelAsset));
         using (var cache = ShipAuthoringStore.Open(Path.Combine(modsRoot, ship.Id, "ship.cc"), writable: true))
         {
             ShipAuthoringStore.Write(cache, hull, ship);
             cache.FlushAsync().GetAwaiter().GetResult();
         }
         return (hull, ship);
+    }
+
+    // Keeps the 12-byte GLB header and the JSON chunk, drops the BIN chunk and rewrites the header's total length: the
+    // headless reader needs only the JSON, the importer needs the buffer.
+    private static void DropBinChunk(string path)
+    {
+        var bytes = File.ReadAllBytes(path);
+        var end = 20 + (int)BitConverter.ToUInt32(bytes, 12);
+        var kept = bytes.Take(end).ToArray();
+        BitConverter.GetBytes((uint)kept.Length).CopyTo(kept, 8);
+        File.WriteAllBytes(path, kept);
     }
 
     private static void Clean(GameObject zone, string work)

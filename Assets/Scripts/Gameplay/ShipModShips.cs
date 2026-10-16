@@ -6,17 +6,29 @@ using GameCult.Caching;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
-// Mod ships in the running game. Preload imports each catalog hull's GLB once, at boot, into an inactive assembled
-// prototype keyed by the hull's record key; Instantiate then clones it synchronously, so LoadEntity never loads async.
+// Mod ships in the running game. Compose decides which mod hulls exist; Preload builds a prototype for each, keyed by the
+// hull's record key, into an inactive assembled copy that Instantiate clones synchronously, so LoadEntity never loads async.
+// A composed hull Preload cannot build is an import fault: Loading faults with ImportFault, naming every such hull's package.
 // The prototypes are cache-only: rebuilt every boot from the catalog, the mod GLBs and the template.
 public static class ShipModShips
 {
+    // Thrown by Loading when composed hulls could not be imported. It names the packages and changes no catalog.
+    public sealed class ImportFault : Exception
+    {
+        public ShipModCatalog.Exclusion[] Faults { get; }
+
+        public ImportFault(ShipModCatalog.Exclusion[] faults) :
+            base("Mod ships the game could not import: " + string.Join("; ", faults.Select(fault => fault.ToString())))
+        {
+            Faults = faults;
+        }
+    }
+
     private static readonly Dictionary<CultRecordKey, GameObject> Prototypes = new Dictionary<CultRecordKey, GameObject>();
     private static CultCache _catalog;
 
-    // Set by Preload; complete when every hull that could be built has its prototype. A mod ship that fails to import or
-    // assemble is skipped and logged, as Compose skips a bad package, so it never stops the rest; Loading faults only
-    // when the preload itself cannot run.
+    // Set by Preload; complete when every hull has its prototype, and faulted when any could not be built (ImportFault)
+    // or the preload itself cannot run.
     public static Task Loading { get; private set; } = Task.CompletedTask;
 
     public static Task Preload(CultCache catalog, string modsRoot)
@@ -39,6 +51,7 @@ public static class ShipModShips
         // DontDestroyOnLoad is play-mode only; the edit-mode play smoke builds the same prototypes
         // without it, and nothing there loads scenes.
         if (Application.isPlaying) Object.DontDestroyOnLoad(root);
+        var faults = new List<ShipModCatalog.Exclusion>();
         foreach (var hull in hulls)
         {
             ShipModVisual.Instance visual = null;
@@ -53,9 +66,10 @@ public static class ShipModShips
             catch (Exception error)
             {
                 visual?.Destroy();
-                Debug.LogError($"Mod ship {hull.Name} skipped: {error.Message}");
+                faults.Add(new ShipModCatalog.Exclusion { Package = catalog.Get(hull.Visual)?.Id ?? "(all mods)", Reason = $"{hull.Name}: {error.Message}" });
             }
         }
+        if (faults.Count > 0) throw new ImportFault(faults.ToArray());
     }
 
     // A live ship body for a mod hull. Refuses loudly when the prototype is missing: nothing is loaded here.

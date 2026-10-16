@@ -383,7 +383,8 @@ public sealed class ShipModCatalogTests : IDisposable
     }
 
     // Ruling thrusters-radiators-are-meshes: a thruster's mesh is its emission surface and a radiator's is what glows, so
-    // either on an empty node is refused before compose; a weapon mount (and shield, tractor) may be an empty.
+    // either on an empty node is refused before compose, as are the map icon and hull collider Assemble reads a mesh from,
+    // and a shield whose node does not carry three positive radii; a weapon mount (and shield, tractor) may be an empty.
     [Fact]
     public void AMeshRoleAnchorOnAnEmptyNodeIsRefused()
     {
@@ -401,6 +402,24 @@ public sealed class ShipModCatalogTests : IDisposable
         WritePackage("mod.skiff", tweak: AsRadiator, meshNodes: withoutThrusterMesh);
         Assert.Contains("radiator-mesh anchor thruster.port needs a mesh", Assert.Throws<InvalidOperationException>(() =>
             ShipModCatalog.ReadPackage(Path.Combine(Mods, "mod.skiff", "ship.cc"))).Message);
+
+        foreach (var (dropped, message) in new[] { ("map", "map-icon anchor map needs a mesh"), ("collider", "hull-collider anchor collider needs a mesh") })
+        {
+            Directory.Delete(Path.Combine(Mods, "mod.skiff"), true);
+            WritePackage("mod.skiff", meshNodes: ShipFixture.MeshNodes.Where(node => node != dropped).ToArray());
+            Assert.Contains(message, Assert.Throws<InvalidOperationException>(() =>
+                ShipModCatalog.ReadPackage(Path.Combine(Mods, "mod.skiff", "ship.cc"))).Message);
+        }
+        foreach (var shieldNode in new[] { @"{""name"":""shield"",""scale"":[1,0,1]", @"{""name"":""shield"",""scale"":[1,1,-1]", @"{""name"":""shield"",""matrix"":[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]" })
+        {
+            Directory.Delete(Path.Combine(Mods, "mod.skiff"), true);
+            WritePackage("mod.skiff");
+            var glb = Path.Combine(Mods, "mod.skiff", "skiff.glb");
+            var json = ShipFixture.GlbJson(FixtureNodes).Replace(@"{""name"":""shield""", shieldNode);
+            File.WriteAllBytes(glb, ShipFixture.Glb(json, ShipFixture.MeshBytes()));
+            Assert.Contains("shield anchor shield needs three positive scale radii", Assert.Throws<InvalidOperationException>(() =>
+                ShipModCatalog.ReadPackage(Path.Combine(Mods, "mod.skiff", "ship.cc"))).Message);
+        }
 
         // The same radiator on a mesh node, and the weapon mount, shield and tractor on empty nodes, are accepted.
         Directory.Delete(Path.Combine(Mods, "mod.skiff"), true);
@@ -488,7 +507,18 @@ public sealed class ShipModCatalogTests : IDisposable
     {
         var path = Write("nodes.glb", ShipFixture.Glb(@"{""asset"":{""version"":""2.0""},""nodes"":[
             {""name"":""plain""},{""extras"":{""aetheria.id"":""a""}},{""extras"":{}},{""extras"":{""aetheria.id"":""""}},{""mesh"":0,""extras"":{""aetheria.id"":""b""}}]}"));
-        Assert.Equal(new Dictionary<string, (uint, bool, int)> { ["a"] = (1, false, -1), ["b"] = (4, true, -1) }, ShipModCatalog.ReadNodeIds(path));
+        Assert.Equal(new Dictionary<string, (uint, bool, int, bool)> { ["a"] = (1, false, -1, true), ["b"] = (4, true, -1, true) }, ShipModCatalog.ReadNodeIds(path));
+    }
+
+    [Fact]
+    public void PositiveScaleReadsAnAbsentScaleAsPositiveAndANegativeComponentOrAMatrixAsNot()
+    {
+        var path = Write("scales.glb", ShipFixture.Glb(@"{""asset"":{""version"":""2.0""},""nodes"":[
+            {""extras"":{""aetheria.id"":""none""}},{""scale"":[2,3,4],""extras"":{""aetheria.id"":""pos""}},{""scale"":[1,-1,1],""extras"":{""aetheria.id"":""neg""}},
+            {""scale"":[1,1,0],""extras"":{""aetheria.id"":""zero""}},{""matrix"":[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],""extras"":{""aetheria.id"":""matrix""}}]}"));
+        var nodes = ShipModCatalog.ReadNodeIds(path);
+        Assert.Equal(new[] { "none", "pos" }, nodes.Where(node => node.Value.PositiveScale).Select(node => node.Key).OrderBy(key => key));
+        Assert.Equal(new[] { "matrix", "neg", "zero" }, nodes.Where(node => !node.Value.PositiveScale).Select(node => node.Key).OrderBy(key => key));
     }
 
     [Fact]
@@ -549,6 +579,97 @@ public sealed class ShipModCatalogTests : IDisposable
         Assert.Equal(Records(Derived), Records(second));
         Assert.Equal(Records(Derived), Records(Path.Combine(_directory.Path, "Derived3", "Aetheria.modded.cc")));
         Assert.Contains(ShipModCatalog.HullKey("mod.c").Value, Records(Derived).Keys);
+    }
+
+    private string RemovedMods => Path.Combine(_directory.Path, "RemovedMods");
+
+    [Fact]
+    public void RemovePackageMovesItAsideAndTheNextBootDoesNotLoadIt()
+    {
+        WritePackage("mod.skiff");
+        var before = (Ship: Hash(Path.Combine(Mods, "mod.skiff", "ship.cc")), Glb: Hash(Path.Combine(Mods, "mod.skiff", "skiff.glb")));
+        Assert.Equal(Derived, ShipModCatalog.ResolveCatalog(Shipped, Derived, Mods).Catalog);
+
+        var destination = ShipModCatalog.RemovePackage(Mods, "mod.skiff");
+
+        Assert.Equal(Path.Combine(RemovedMods, "mod.skiff"), destination);
+        Assert.False(Directory.Exists(Path.Combine(Mods, "mod.skiff")));
+        Assert.Equal(before, (Hash(Path.Combine(destination, "ship.cc")), Hash(Path.Combine(destination, "skiff.glb"))));
+        Assert.Equal(Shipped, ShipModCatalog.ResolveCatalog(Shipped, Derived, Mods).Catalog);
+    }
+
+    [Fact]
+    public void RemovingAPackageTwiceKeepsBothCopies()
+    {
+        WritePackage("mod.skiff");
+        ShipModCatalog.RemovePackage(Mods, "mod.skiff");
+        File.WriteAllText(Path.Combine(RemovedMods, "mod.skiff", "marker.txt"), "first");
+        WritePackage("mod.skiff");
+        var second = ShipModCatalog.RemovePackage(Mods, "mod.skiff");
+
+        Assert.Equal(Path.Combine(RemovedMods, "mod.skiff (2)"), second);
+        Assert.Equal("first", File.ReadAllText(Path.Combine(RemovedMods, "mod.skiff", "marker.txt")));
+        Assert.False(File.Exists(Path.Combine(second, "marker.txt")));
+    }
+
+    // Hostile ids: the ones a filesystem rewrites or resolves elsewhere. A directory is created for each where the platform
+    // allows it, so a refusal that merely finds nothing is not enough. Nothing outside the intended package may move.
+    [Theory]
+    [InlineData("")]
+    [InlineData(".")]
+    [InlineData("..")]
+    [InlineData("...")]
+    [InlineData(".. ")]
+    [InlineData("a.")]
+    [InlineData("a ")]
+    [InlineData("CON")]
+    [InlineData("con.txt")]
+    [InlineData("NUL")]
+    [InlineData("a:b")]
+    [InlineData("(all mods)")]
+    [InlineData("a/b")]
+    [InlineData("a\\b")]
+    [InlineData("../Mods")]
+    [InlineData("../Mods2")]
+    [InlineData("missing")]
+    public void RemovePackageRefusesWhatIsNotAPackageDirectory(string name)
+    {
+        WritePackage("mod.skiff");
+        File.WriteAllText(Path.Combine(_directory.Path, "outside.txt"), "x");
+        Directory.CreateDirectory(Path.Combine(_directory.Path, "Mods2"));
+        if (name != "missing") try { Directory.CreateDirectory(Path.Combine(Mods, name)); } catch (Exception) { }
+        var before = Directory.GetDirectories(Mods).Select(Path.GetFileName).OrderBy(n => n, StringComparer.Ordinal).ToArray();
+
+        Assert.ThrowsAny<Exception>(() => ShipModCatalog.RemovePackage(Mods, name));
+
+        Assert.True(Directory.Exists(Mods));
+        Assert.True(Directory.Exists(Path.Combine(Mods, "mod.skiff")));
+        Assert.True(Directory.Exists(Path.Combine(_directory.Path, "Mods2")));
+        Assert.True(File.Exists(Path.Combine(_directory.Path, "outside.txt")));
+        Assert.False(Directory.Exists(RemovedMods));
+        Assert.Equal(before, Directory.GetDirectories(Mods).Select(Path.GetFileName).OrderBy(n => n, StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void RemovePackageRefusesAnAbsolutePathAndAnInPackageLinkOutsideMods()
+    {
+        WritePackage("mod.skiff");
+        var outside = Path.Combine(_directory.Path, "Outside");
+        Directory.CreateDirectory(outside);
+        File.WriteAllText(Path.Combine(outside, "keep.txt"), "x");
+        Assert.ThrowsAny<Exception>(() => ShipModCatalog.RemovePackage(Mods, outside));
+        Assert.True(File.Exists(Path.Combine(outside, "keep.txt")));
+
+        var linked = true;
+        try { Directory.CreateSymbolicLink(Path.Combine(Mods, "link"), outside); } catch (Exception) { linked = false; }
+        if (linked)
+        {
+            Assert.ThrowsAny<Exception>(() => ShipModCatalog.RemovePackage(Mods, "link"));
+            Assert.True(File.Exists(Path.Combine(outside, "keep.txt")));
+            Assert.True(Directory.Exists(Path.Combine(Mods, "link")));
+        }
+        Assert.False(Directory.Exists(RemovedMods));
+        Assert.True(Directory.Exists(Path.Combine(Mods, "mod.skiff")));
     }
 
     [Fact]
@@ -652,7 +773,7 @@ public sealed class ShipModCatalogTests : IDisposable
     private void WritePackage(string id, string hullName = "Skiff", string[] nodes = null, string modelAsset = "skiff.glb",
         Action<ShipParts> tweak = null, string[] meshNodes = null) => ShipFixture.WritePackage(Mods, id, hullName, nodes, modelAsset, tweak, meshNodes);
 
-    private static Dictionary<string, uint> Indices(Dictionary<string, (uint Index, bool HasMesh, int Parent)> nodes) =>
+    private static Dictionary<string, uint> Indices(Dictionary<string, (uint Index, bool HasMesh, int Parent, bool PositiveScale)> nodes) =>
         nodes.ToDictionary(node => node.Key, node => node.Value.Index);
 
     private static int Occurrences(byte[] haystack, byte[] needle)

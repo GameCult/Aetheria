@@ -99,7 +99,7 @@ public class MainMenu : MonoBehaviour
             if (ActionGameManager.ModExclusions.Length > 0 && !_exclusionsShown)
             {
                 _exclusionsShown = true;
-                Refuse("Some mods were not loaded", string.Join("\n", ActionGameManager.ModExclusions.Select(exclusion => exclusion.ToString())));
+                RefuseMods("Some mods were not loaded", ActionGameManager.ModExclusions);
             }
             var saved = cache.GetGlobal<SavedGame>();
             if (saved == null && cache.AllStoredDocuments.Any(stored => RunSave.IsRunRecord(stored.Descriptor.DocumentType)))
@@ -210,7 +210,8 @@ public class MainMenu : MonoBehaviour
         while (!loading.IsCompleted) yield return null;
         if (loading.IsFaulted)
         {
-            Refuse("Mod ships failed to load", loading.Exception.GetBaseException().Message);
+            if (loading.Exception.GetBaseException() is ShipModShips.ImportFault fault) RefuseMods("Mod ships failed to load", fault.Faults);
+            else Refuse("Mod ships failed to load", loading.Exception.GetBaseException().Message);
             yield break;
         }
         SceneManager.LoadScene("ARPG");
@@ -223,6 +224,42 @@ public class MainMenu : MonoBehaviour
         Dialog.Title.text = title;
         Dialog.AddProperty(() => reason);
         Dialog.Show(onCancel: () => { }, cancelText: "OK");
+    }
+
+    // Refuse for faults that name mod packages: each distinct package gets a Remove button, the one RemovePackage. The catalog
+    // stays as this boot opened it, so the dialog says that removal takes effect at the next launch.
+    private readonly HashSet<string> _removedPackages = new();
+
+    public void RefuseMods(string title, ShipModCatalog.Exclusion[] faults)
+    {
+        // A package moved aside this session stays named but loses its button: this boot's catalog still holds it.
+        var open = faults.Where(fault => !_removedPackages.Contains(fault.Package)).ToArray();
+        var reason = string.Join("\n", faults.Select(fault => fault.ToString()));
+        Debug.LogError($"{title}: {reason}");
+        Dialog.Clear();
+        Dialog.Title.text = title;
+        Dialog.AddProperty(() => reason);
+        foreach (var package in open.Select(fault => fault.Package).Where(package => package != "(all mods)").Distinct())
+            Dialog.AddButton($"Remove {package}", () => Remove(title, faults, package));
+        Dialog.Show(onCancel: () => { }, cancelText: "OK");
+    }
+
+    private void Remove(string title, ShipModCatalog.Exclusion[] faults, string package)
+    {
+        string destination;
+        try { destination = ShipModCatalog.RemovePackage(ActionGameManager.ModsPath, package); }
+        catch (Exception error)
+        {
+            Refuse($"Could not remove {package}", $"{error.Message} Remove it by hand from {ActionGameManager.ModsPath}.");
+            return;
+        }
+        _removedPackages.Add(package);
+        var done = $"{package} moved to {destination}. Mods load at launch: restart Aetheria to play without it, or move it back into Mods to reinstall.";
+        Debug.Log(done);
+        Dialog.Clear();
+        Dialog.Title.text = $"Removed {package}";
+        Dialog.AddProperty(() => done);
+        Dialog.Show(onConfirm: Application.Quit, onCancel: () => { if (faults.Any(fault => fault.Package != "(all mods)" && !_removedPackages.Contains(fault.Package))) RefuseMods(title, faults); }, confirmText: "Quit", cancelText: "OK");
     }
 
     private void ShowSettings()

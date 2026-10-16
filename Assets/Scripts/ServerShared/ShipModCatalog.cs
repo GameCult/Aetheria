@@ -189,6 +189,54 @@ public static class ShipModCatalog
         return (composition.Included.Length == 0 ? shippedCatalog : derivedCatalog, composition.Excluded);
     }
 
+    // The one uninstall: presence under Mods is the only enablement (MR1), so a package leaves by moving, never by deletion,
+    // to <parent of modsRoot>/RemovedMods/<package> ('<package> (2)' and on when taken). Moving it back reinstalls it.
+    // Returns the destination. Compose and ResolveCatalog never read RemovedMods.
+    public static string RemovePackage(string modsRoot, string package)
+    {
+        var root = Path.GetFullPath(modsRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        // Containment, not a blacklist: the package must resolve to a strict child of the mods folder whose final name is
+        // the name given. A name the filesystem rewrites ('...', 'a.', 'a ', 'CON', 'a:b') resolves to something else.
+        if (!IsPackageName(package)) throw new ArgumentException("Not a mod package name.", nameof(package));
+        var source = ChildOf(root, package) ?? throw new ArgumentException("Not a mod package name.", nameof(package));
+        var info = new DirectoryInfo(source);
+        if (!info.Exists) throw new DirectoryNotFoundException("The package is not a directory under the mods folder.");
+        if (info.Attributes.HasFlag(FileAttributes.ReparsePoint))
+            throw new ArgumentException("A package that is a link is not removed.", nameof(package));
+        var removed = RemovedRoot(modsRoot);
+        Directory.CreateDirectory(removed);
+        var destination = ChildOf(removed, package);
+        for (var copy = 2; destination != null && (Directory.Exists(destination) || File.Exists(destination)); copy++)
+            destination = ChildOf(removed, $"{package} ({copy})");
+        if (destination == null) throw new ArgumentException("Not a mod package name.", nameof(package));
+        Directory.Move(source, destination);
+        return destination;
+    }
+
+    private static readonly string[] ReservedDeviceNames =
+        { "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+          "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9" };
+
+    // A name Windows keeps as written: no separator, stream colon or wildcard, no trailing dot or space, and
+    // not a device name (with or without an extension). Held on every platform so a mod moves the same way everywhere.
+    private static bool IsPackageName(string name) =>
+        !string.IsNullOrEmpty(name) && name != "(all mods)" &&
+        name.IndexOfAny(Path.GetInvalidFileNameChars()) < 0 && name.IndexOfAny(new[] { ':', '*', '?', '"', '<', '>', '|', '/', '\\' }) < 0 &&
+        name.All(character => character >= ' ') && !name.EndsWith('.') && !name.EndsWith(' ') &&
+        !ReservedDeviceNames.Contains(name.Split('.')[0].TrimEnd(' '), StringComparer.OrdinalIgnoreCase);
+
+    // The full path of `name` directly under `root`, or null when the filesystem would resolve it anywhere else or under
+    // another name. The comparison is of resolved path segments, never of a string prefix ('Mods2' is not inside 'Mods').
+    private static string ChildOf(string root, string name)
+    {
+        var full = Path.GetFullPath(Path.Combine(root, name));
+        return string.Equals(Path.GetDirectoryName(full), root, StringComparison.Ordinal) &&
+               string.Equals(Path.GetFileName(full), name, StringComparison.Ordinal) ? full : null;
+    }
+
+    private static string RemovedRoot(string modsRoot) =>
+        Path.Combine(Path.GetDirectoryName(Path.GetFullPath(modsRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)), "RemovedMods");
+
     private static Package Bind(HullData hull, ShipAuthoring ship, FactionProductData[] products, string directory, string path)
     {
         if (!string.Equals(Path.GetFileName(directory), ship.Id, StringComparison.Ordinal))
@@ -201,11 +249,17 @@ public static class ShipModCatalog
         foreach (var anchor in ship.Anchors)
             if (!modelNodes.ContainsKey(anchor.ModelNodeId))
                 throw new InvalidOperationException($"{ship.Id}: model has no node with aetheria.id={anchor.ModelNodeId} for anchor {anchor.Id}.");
-        // A thruster's mesh is its exhaust emission surface and a radiator's mesh is what glows (ruling
-        // thrusters-radiators-are-meshes), so either on an empty node is refused here, before any catalog sees the ship.
+        // Assemble reads a renderer or collider mesh from these anchors' nodes and refuses without one, and reads the shield
+        // node's scale as three positive radii (ruling thrusters-radiators-are-meshes). These refusals stand in for Assemble's
+        // throws, so a package Compose includes is one the importer's assembler can build; the exhaust emission surface and
+        // the glowing radiator are meshes by that same ruling. A weapon mount and a tractor may be empties.
         foreach (var anchor in ship.Anchors)
-            if ((anchor.Role == "thruster-emitter" || anchor.Role == "radiator-mesh") && !modelNodes[anchor.ModelNodeId].HasMesh)
+            if ((anchor.Role == "thruster-emitter" || anchor.Role == "radiator-mesh" || anchor.Role == "map-icon" || anchor.Role == "hull-collider") &&
+                !modelNodes[anchor.ModelNodeId].HasMesh)
                 throw new InvalidOperationException($"{ship.Id}: {anchor.Role} anchor {anchor.Id} needs a mesh, but model node {anchor.ModelNodeId} has none.");
+        foreach (var anchor in ship.Anchors)
+            if (anchor.Role == "shield" && !modelNodes[anchor.ModelNodeId].PositiveScale)
+                throw new InvalidOperationException($"{ship.Id}: shield anchor {anchor.Id} needs three positive scale radii on model node {anchor.ModelNodeId}, with no matrix.");
         BindRig(ship, modelNodes);
         CultRecordRefs.Validate(hull);
         return new Package
@@ -218,7 +272,7 @@ public static class ShipModCatalog
     // The rig the record states must be the rig the model has: every joint is a node, each joint's Parent and each mount's
     // Joint is the nearest joint above its node, ancestors without an id being walked through by ReadNodeIds, and a radiator
     // mesh sits under no joint.
-    private static void BindRig(ShipAuthoring ship, Dictionary<string, (uint Index, bool HasMesh, int Parent)> nodes)
+    private static void BindRig(ShipAuthoring ship, Dictionary<string, (uint Index, bool HasMesh, int Parent, bool PositiveScale)> nodes)
     {
         var joints = new HashSet<string>((ship.Joints ?? new List<ShipJoint>()).Select(joint => joint.Id), StringComparer.Ordinal);
         var idAt = nodes.ToDictionary(node => (int)node.Value.Index, node => node.Key);
@@ -249,9 +303,13 @@ public static class ShipModCatalog
         }
     }
 
+    // No matrix, and every scale component (default 1) above zero: what Assemble's shield radii need.
+    private static bool PositiveScale(JObject node) =>
+        node["matrix"] == null && (node["scale"] == null || node["scale"].Select(component => (double)component).All(component => component > 0));
+
     // GLB is the xenos asset boundary. Only its node extras, whether each node names a mesh, and its nearest identified ancestor's node index
-    // (-1 for none) are read here; geometry belongs to the runtime importer.
-    public static Dictionary<string, (uint Index, bool HasMesh, int Parent)> ReadNodeIds(string path)
+    // (-1 for none) are read here, plus whether the node's scale is three positive radii with no matrix; geometry belongs to the runtime importer.
+    public static Dictionary<string, (uint Index, bool HasMesh, int Parent, bool PositiveScale)> ReadNodeIds(string path)
     {
         using var stream = File.OpenRead(path);
         using var reader = new BinaryReader(stream);
@@ -262,7 +320,7 @@ public static class ShipModCatalog
         if (reader.ReadUInt32() != 0x4E4F534A || chunkLength > stream.Length - stream.Position)
             throw new InvalidOperationException($"{path}: missing GLB JSON chunk.");
         var json = JObject.Parse(Encoding.UTF8.GetString(reader.ReadBytes((int)chunkLength)));
-        var ids = new Dictionary<string, (uint Index, bool HasMesh, int Parent)>(StringComparer.Ordinal);
+        var ids = new Dictionary<string, (uint Index, bool HasMesh, int Parent, bool PositiveScale)>(StringComparer.Ordinal);
         var nodes = (json["nodes"]?.OfType<JObject>() ?? Enumerable.Empty<JObject>()).ToArray();
         var parents = Enumerable.Repeat(-1, nodes.Length).ToArray();
         for (var parent = 0; parent < nodes.Length; parent++)
@@ -273,7 +331,7 @@ public static class ShipModCatalog
         {
             var id = (string)node["extras"]?["aetheria.id"];
             if (string.IsNullOrEmpty(id)) { index++; continue; }
-            if (!ids.TryAdd(id, (index, node["mesh"] != null && node["mesh"].Type != JTokenType.Null, IdentifiedAncestor(parents, nodes, (int)index))))
+            if (!ids.TryAdd(id, (index, node["mesh"] != null && node["mesh"].Type != JTokenType.Null, IdentifiedAncestor(parents, nodes, (int)index), PositiveScale(node))))
                 throw new InvalidOperationException($"{path}: duplicate GLB node aetheria.id={id}.");
             index++;
         }
