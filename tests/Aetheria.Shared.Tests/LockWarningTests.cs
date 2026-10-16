@@ -67,7 +67,7 @@ public sealed class LockWarningTests : IDisposable
 
     private static PerformanceStat Const(float v) => new PerformanceStat { Min = v, Max = v };
 
-    private static GearData Launcher(string name, float lockSpeed, float sensorImpact, float lockAngle, float directionImpact) => WithMunitionParts(new GearData
+    internal static GearData Launcher(string name, float lockSpeed, float sensorImpact, float lockAngle, float directionImpact) => WithMunitionParts(new GearData
     {
         Name = name, Hardpoint = HardpointType.Sensors, Shape = new Shape(), Durability = 1,
         MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000,
@@ -159,6 +159,7 @@ public sealed class LockWarningTests : IDisposable
     [InlineData(1.55f, .93f)]
     [InlineData(1.6f, .96f)]
     [InlineData(1.65f, .99f)]
+    [InlineData(1.66f, .996f)]
     public void StrengthIsTheLockAcrossItsWholeRange(float dt, float expectedLock)
     {
         var locker = NewShip(float3(0, 0, 0), "Launcher");
