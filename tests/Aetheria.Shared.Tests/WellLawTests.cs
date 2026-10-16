@@ -80,7 +80,8 @@ public sealed class WellLawTests : IDisposable
         Assert.InRange(deficit(.1f) / deficit(.05f), 13.0, 15.0); // doubling t multiplies the deficit by about 14 (t^4), not by 4
     }
 
-    // tau = (a^2 + eps^2) / (b^2 - a^2): the closed form holds to tau 1 and the series beyond it, and the two meet; in single
+    // tau = (a^2 + eps^2) / (b^2 - a^2): the closed form holds to tau 1 and the series beyond it, and the two meet to the closed
+    // form's single-precision floor (the research's bound of 1.5e-5 per unit strength; the double-precision gap is 7e-7); in single
     // precision the tau 10 potential stays within 1e-5 of the double-precision integral of the pull.
     [Fact]
     public void TheSeriesBranchMeetsTheClosedForm()
@@ -90,7 +91,7 @@ public sealed class WellLawTests : IDisposable
         var below = (float) Math.Sqrt(b * b - 2 * a * a) * (1 - 1e-6f);
         var above = (float) Math.Sqrt(b * b - 2 * a * a) * (1 + 1e-6f);
         foreach (var r in new[] { 0.5f, 0.85f, 1.0f, 1.2f })
-            Assert.InRange(GravityField.Potential(above, a, b, r) - GravityField.Potential(below, a, b, r), -3e-6f, 3e-6f);
+            Assert.InRange(GravityField.Potential(above, a, b, r) - GravityField.Potential(below, a, b, r), -2e-5f, 2e-5f);
 
         const float eps = 59f, inner = 11f, outer = 22f;
         foreach (var r in new[] { 12f, 15f, 18f, 21f })
@@ -254,5 +255,23 @@ public sealed class WellLawTests : IDisposable
             Assert.InRange(length(zone.GetForce(p) - force), 0f, 2e-6f * scale + 1e-9f);
             Assert.InRange(abs(zone.GetHeight(p) * zone.Settings.HeightExaggeration - potential), 0f, 2e-6f * scale + 1e-9f);
         }
+    }
+
+    // A ring of three on a bodyless node: each member feels both partners' own pulls at their chord (the side of the inscribed
+    // triangle), each projected toward the node (cos 30 degrees), so the projection and the chord both decide the period.
+    [Fact]
+    public void ARosetteMemberFeelsItsPartnersProjectedTowardTheNode()
+    {
+        var w = _worlds.New();
+        var node = w.Orbit(default, 0f);
+        var members = new[] { w.Orbit(node, 400f, 0f), w.Orbit(node, 400f, 1f / 3f), w.Orbit(node, 400f, 2f / 3f) };
+        var bodies = members.Select(m => w.Body(m, 120f)).ToArray();
+        var zone = w.Build();
+
+        var chord = 400f * sqrt(3f);
+        var pull = 2f * zone.PlanetInstances[bodies[0]].WellStrength * GravityField.Pull(zone.PlanetInstances[bodies[0]].RocheLimit,
+            float.PositiveInfinity, float.PositiveInfinity, chord) * cos(PI / 6f);
+        foreach (var member in members)
+            Assert.InRange(zone.Orbits[member].Period, 2 * PI * sqrt(400f / pull) * (1 - 1e-4f), 2 * PI * sqrt(400f / pull) * (1 + 1e-4f));
     }
 }
