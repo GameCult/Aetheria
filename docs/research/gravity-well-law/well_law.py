@@ -7,7 +7,8 @@
 #   S(t) = t^k sum_{j<k} C(k-1+j, j) (1-t)^j   (the order-k smoothstep: S - 0 and 1 - S vanish to order k at the ends)
 #   potential: 0 for s >= b^2; on the band 1/2 [R ln((t+tau)/(1+tau)) - (I(1) - I(t))], tau = (a^2+eps^2)/(b^2-a^2),
 #   where (1 - S(t)) = (t + tau) Q(t) + R and I is the antiderivative of Q; inside, 1/2 ln((s+eps^2)/(a^2+eps^2)) plus
-#   the band's value at t = 0.  a = b = inf is the global term 1/2 ln(r^2 + eps^2).
+#   the band's value at t = 0.  a = b = inf is the global term 1/2 ln(r^2 + eps^2). For tau > 1 (softening comparable to
+#   the band) the band is summed as a series in (1 - t)/(1 + tau) instead (band_potential), which stays exact in float32.
 # The potential is a function of r^2 (C-infinity at the centre and wherever B is constant) and C^k on the circles
 # r = a and r = b (the k-th derivative of the pull jumps there).
 #
@@ -86,9 +87,22 @@ def band_potential(eps, a, b, r):
     q, R = _band_coeffs(tau)
     def band(t):
         return 0.5 * (R * np.log((t + tau) / (1 + tau)) - (_qint(q, np.ones_like(t)) - _qint(q, t)))
+    def band_series(t):
+        # tau > 1: the closed form cancels catastrophically (float32 error 6e-3 at tau 3, 13 at tau 10). With y = 1 - t,
+        # 1 - S(1 - y) = S(y) (the smoothstep is symmetric) and 1/(t + tau) = sum_k y^k / (1 + tau)^(k+1), ratio <= 1/2:
+        # band = -1/2 sum_k (1+tau)^-(k+1) sum_j S_j Y^(j+k+1) / (j+k+1), Y = 1 - t; 40 terms reach 1e-12 at tau = 1.
+        Y = 1 - t; acc = np.zeros_like(t); w = 1 / (1 + tau)
+        for k in range(40):
+            inner = np.zeros_like(t)
+            for j in range(4, len(SC)):
+                inner = inner + SC[j] * Y ** (j + k + 1) / (j + k + 1)
+            acc = acc + w ** (k + 1) * inner
+        return -0.5 * acc
+    def band_any(t):
+        return np.where(tau <= 1, band(t), band_series(t))
     t = np.clip((s - A2) / span, 0.0, 1.0)
-    inside = 0.5 * np.log((s + eps * eps) / (A2 + eps * eps)) + band(np.zeros_like(t))
-    val = np.where(s <= A2, inside, np.where(s >= B2, 0.0, band(t)))
+    inside = 0.5 * np.log((s + eps * eps) / (A2 + eps * eps)) + band_any(np.zeros_like(t))
+    val = np.where(s <= A2, inside, np.where(s >= B2, 0.0, band_any(t)))
     return np.where(inf, 0.5 * np.log(s + eps * eps), val)
 
 # ---- the first draft: tapered window from the centre (see the header) ----

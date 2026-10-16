@@ -15,3 +15,6 @@ median sun: c = 304.9, sqrt(c) = 17.46 u/s, eps = Roche = 79.8
 float32 eps 79.8 band [1000.0, 1500.0]: max abs err 7.28e-06 (unit strength; depth 2.77)
 float32 eps 17.0 band [40.0, 60.0]: max abs err 1.45e-05 (unit strength; depth 1.15)
 float32 eps 79.8 band [12000.0, 25000.0]: max abs err 9.06e-07 (unit strength; depth 5.49)
+tau   3.00: closed form float32 err 6.9e-03; series float32 err 3.1e-07; F = dphi/dr 3.5e-08
+tau  10.00: closed form float32 err 1.2e+01; series float32 err 1.1e-07; F = dphi/dr 3.8e-08
+tau   9.92: closed form float32 err 1.2e+01; series float32 err 1.1e-07; F = dphi/dr 2.1e-08

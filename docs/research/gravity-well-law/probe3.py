@@ -3,7 +3,8 @@
 # paths), plus: split invariance (one family merged into one body of its mass), whole-zone merge depth, and
 # evaluation cost (terms per sample for the sim, per texel for a 2048^2 / 4 u Surface Displacement window).
 # Rows t1-t3 are the first draft (windows tapered from the centre), kept because they show what the band form buys.
-# Usage: python probe3.py bodies.csv [draws] [law-index,...]
+# Usage: python probe3.py bodies.csv [draws] [law-index,...] [place=LAM] [cusp=K] [spacing=S]
+# place=LAM re-places every zone by replace.py's generator rules (same tree and masses) before measuring.
 import csv, sys, os, collections, time
 import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -176,12 +177,30 @@ LAWS = [
     ('(w1) conserving compact, Lam = 0.5*D', 'band', HALF),
     ('(w2) conserving compact, Lam = 1*D', 'band', lambda i, D, CF, cp: 1.0 * D),
     ('(w3) conserving compact, Lam = 2*d_Hill', 'band', TIDAL),
+    ('(w4) conserving compact, Lam = D/3', 'band', lambda i, D, CF, cp: D / 3),
 ]
 pick = [int(x) for x in sys.argv[3].split(',')] if len(sys.argv) > 3 else range(len(LAWS))
 
 sunm = np.sort([float(r['mass']) for r in rows if r['type'] == 'Sun' and r['empty'] == '0'])
 SUN_LO, SUN_HI = sunm[int(.4 * len(sunm))], sunm[int(.6 * len(sunm))]
 pre = {k: zone_struct(z) for k, z in zones.items()}
+PLACE = next((float(a.split('=')[1]) for a in sys.argv[4:] if a.startswith('place=')), None)
+CUSPK = next((float(a.split('=')[1]) for a in sys.argv[4:] if a.startswith('cusp=')), 0.0)
+SPACING = next((float(a.split('=')[1]) for a in sys.argv[4:] if a.startswith('spacing=')), 1.0)
+if PLACE is not None:
+    import replace as RP
+    agg = collections.Counter(); inwin = [0, 0]; before = sum(len(v[0]) for v in pre.values())
+    for k, z in zones.items():
+        par, D, m, body, cls = pre[k]
+        par2, D2, m2, b2, c2, st = RP.replace_zone(par, D, m, body, cls, float(z[0]['zoneRadius']), PLACE, CUSPK, SPACING)
+        pre[k] = (par2, D2, m2, b2, c2); st.pop('idx'); agg.update(st)
+        cb = np.where(b2, strength(np.maximum(m2, 1e-12)), 0.0)
+        for j in range(len(par2)):
+            p = par2[j]
+            if p >= 0 and b2[p] and par2[p] >= 0 and b2[par2[p]]:
+                inwin[1] += 1; inwin[0] += int(D2[j] <= 0.5 * D2[p] * np.sqrt(cb[p] / (2 * cb[par2[p]])))
+    print(f'## placement lam={PLACE} cusp={CUSPK} spacing={SPACING}: nodes {before} -> {agg["kept"]}; folded {agg["folded"]} ({agg["folded_massive"]} massive) into their parents; '
+          f'grandchildren inside the half-tidal window {inwin[0]}/{inwin[1]}')
 TH8 = np.arange(8) * np.pi / 4; RING8 = np.stack([np.cos(TH8), np.sin(TH8)], 1)
 
 class ZoneLaw:
@@ -278,7 +297,9 @@ for li in pick:
                 a1 = zn.field(pos, X); a2 = z2.field(pos2, X)
                 split_err[tag].append(np.max(np.linalg.norm(a1 - a2, axis=1) / np.maximum(np.linalg.norm(a2, axis=1), 1e-12)))
             if kind in ('band', 'tapered'):
-                same = int(zn.Lam[f] == z2.Lam[remap[f]])
+                # same terms: same reach and same fade start (max(B_f, GAMMA Lam_f) against the merged body's GAMMA Lam_f)
+                fs = [t[3] for t in zn.T if t[0] == f and t[1] > 0 and t[4] == zn.Lam[f]]
+                same = int(zn.Lam[f] == z2.Lam[remap[f]] and (kind != 'band' or (fs and fs[0] == WL.GAMMA * zn.Lam[f])))
                 split_exact[1] += 1; split_exact[0] += same
                 # families the ruled generator window would hold: every descendant within half its parent's tidal
                 # radius (B25: d_H = D sqrt(c / 2 c_parent); a parent with no body parent has no window and is skipped)

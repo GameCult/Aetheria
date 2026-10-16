@@ -1,0 +1,61 @@
+# python probe4.py bodies.csv minimap <i> 25, one process per candidate, Starfire 2026-10-16
+render zones: {'small': (('0', '1'), {'Z': 1000.0, 'moons': 3, 'rosette': False, 'binary': False, 'n': 15}), 'binary': (('0.25', '10'), {'Z': 2125.0, 'moons': 8, 'rosette': False, 'binary': True, 'n': 24}), 'rosette': (('0.5', '104'), {'Z': 4181.9805, 'moons': 27, 'rosette': True, 'binary': False, 'n': 41}), 'moons': (('0.75', '253'), {'Z': 6845.6714, 'moons': 25, 'rosette': False, 'binary': True, 'n': 40})}
+== C0 today law, today generator
+  cusp Sun      : vanished 17/2050; prominence/c p10/50 [0.715, 1.55]
+  cusp GasGiant : vanished 163/3305; prominence/c p10/50 [0.254, 1.209]
+  cusp Planet   : vanished 358/6879; prominence/c p10/50 [0.274, 0.943]
+  cusp Planetoid: vanished 805/10127; prominence/c p10/50 [0.13, 0.733]
+  dead ground (|F| < 0.05) share of disc p50/p90 [0.0, 0.001]; steep share p50/p90 [0.026, 0.146]; lanes open in 0.97 of zones
+  blob share 0.876; nested share 0.459; saddle min |eigenvalue| p50 [0.022] 1/s^2 (n 854)
+  render small ('0', '1'): steep 0.141, dead 0.000, lanes True, blob 10/11, nested 5/11, bodies 12, depth range 441.7
+  render binary ('0.25', '10'): steep 0.071, dead 0.000, lanes True, blob 18/18, nested 6/14, bodies 19, depth range 786.2
+  render rosette ('0.5', '104'): steep 0.216, dead 0.000, lanes True, blob 35/35, nested 5/27, bodies 35, depth range 2080.2
+  render moons ('0.75', '253'): steep 0.036, dead 0.000, lanes True, blob 34/34, nested 15/29, bodies 35, depth range 2381.6
+render zones: {'small': (('0', '1'), {'Z': 1000.0, 'moons': 3, 'rosette': False, 'binary': False, 'n': 15}), 'binary': (('0.25', '10'), {'Z': 2125.0, 'moons': 8, 'rosette': False, 'binary': True, 'n': 24}), 'rosette': (('0.5', '104'), {'Z': 4181.9805, 'moons': 27, 'rosette': True, 'binary': False, 'n': 41}), 'moons': (('0.75', '253'), {'Z': 6845.6714, 'moons': 25, 'rosette': False, 'binary': True, 'n': 40})}
+== C1 band law (reach D/2), today generator
+  cusp Sun      : vanished 5/2050; prominence/c p10/50 [0.853, 1.969]
+  cusp GasGiant : vanished 99/3305; prominence/c p10/50 [0.245, 1.344]
+  cusp Planet   : vanished 261/6879; prominence/c p10/50 [0.214, 0.913]
+  cusp Planetoid: vanished 499/10127; prominence/c p10/50 [0.139, 0.571]
+  dead ground (|F| < 0.05) share of disc p50/p90 [0.001, 0.005]; steep share p50/p90 [0.029, 0.125]; lanes open in 1.00 of zones
+  blob share 0.585; nested share 0.542; saddle min |eigenvalue| p50 [0.013] 1/s^2 (n 895)
+  render small ('0', '1'): steep 0.122, dead 0.000, lanes True, blob 7/11, nested 8/11, bodies 12, depth range 356.9
+  render binary ('0.25', '10'): steep 0.091, dead 0.001, lanes True, blob 14/18, nested 6/14, bodies 19, depth range 591.6
+  render rosette ('0.5', '104'): steep 0.152, dead 0.000, lanes True, blob 35/35, nested 10/27, bodies 35, depth range 1935.9
+  render moons ('0.75', '253'): steep 0.019, dead 0.002, lanes True, blob 27/34, nested 19/29, bodies 35, depth range 1170.6
+render zones: {'small': (('0', '1'), {'Z': 1000.0, 'moons': 3, 'rosette': False, 'binary': False, 'n': 15}), 'binary': (('0.25', '10'), {'Z': 2125.0, 'moons': 8, 'rosette': False, 'binary': True, 'n': 24}), 'rosette': (('0.5', '104'), {'Z': 4181.9805, 'moons': 27, 'rosette': True, 'binary': False, 'n': 41}), 'moons': (('0.75', '253'), {'Z': 6845.6714, 'moons': 25, 'rosette': False, 'binary': True, 'n': 40})}
+== C2 band law + strict generator
+  cusp Sun      : vanished 25/2168; prominence/c p10/50 [0.32, 1.28]
+  cusp GasGiant : vanished 170/2887; prominence/c p10/50 [0.056, 0.406]
+  cusp Planet   : vanished 203/3724; prominence/c p10/50 [0.034, 0.269]
+  cusp Planetoid: vanished 164/1633; prominence/c p10/50 [0.027, 0.16]
+  dead ground (|F| < 0.05) share of disc p50/p90 [0.001, 0.003]; steep share p50/p90 [0.016, 0.078]; lanes open in 1.00 of zones
+  blob share 0.729; nested share 0.528; saddle min |eigenvalue| p50 [0.017] 1/s^2 (n 386)
+  render small ('0', '1'): steep 0.083, dead 0.000, lanes True, blob 6/6, nested 3/6, bodies 7, depth range 357.6
+  render binary ('0.25', '10'): steep 0.044, dead 0.000, lanes True, blob 4/6, nested 2/6, bodies 7, depth range 581.5
+  render rosette ('0.5', '104'): steep 0.101, dead 0.000, lanes True, blob 12/12, nested 2/4, bodies 12, depth range 1715.4
+  render moons ('0.75', '253'): steep 0.008, dead 0.001, lanes True, blob 6/9, nested 5/9, bodies 10, depth range 1004.0
+render zones: {'small': (('0', '1'), {'Z': 1000.0, 'moons': 3, 'rosette': False, 'binary': False, 'n': 15}), 'binary': (('0.25', '10'), {'Z': 2125.0, 'moons': 8, 'rosette': False, 'binary': True, 'n': 24}), 'rosette': (('0.5', '104'), {'Z': 4181.9805, 'moons': 27, 'rosette': True, 'binary': False, 'n': 41}), 'moons': (('0.75', '253'), {'Z': 6845.6714, 'moons': 25, 'rosette': False, 'binary': True, 'n': 40})}
+== C3 band law + strict generator + cusp bound
+  cusp Sun      : vanished 16/2141; prominence/c p10/50 [0.299, 1.422]
+  cusp GasGiant : vanished 79/2481; prominence/c p10/50 [0.158, 0.578]
+  cusp Planet   : vanished 30/2766; prominence/c p10/50 [0.134, 0.341]
+  cusp Planetoid: vanished 3/890; prominence/c p10/50 [0.109, 0.272]
+  dead ground (|F| < 0.05) share of disc p50/p90 [0.001, 0.003]; steep share p50/p90 [0.017, 0.084]; lanes open in 1.00 of zones
+  blob share 0.488; nested share 0.588; saddle min |eigenvalue| p50 [0.019] 1/s^2 (n 375)
+  render small ('0', '1'): steep 0.087, dead 0.000, lanes True, blob 2/4, nested 3/4, bodies 5, depth range 357.6
+  render binary ('0.25', '10'): steep 0.042, dead 0.000, lanes True, blob 4/5, nested 1/5, bodies 6, depth range 582.3
+  render rosette ('0.5', '104'): steep 0.101, dead 0.000, lanes True, blob 11/11, nested 1/3, bodies 11, depth range 1723.0
+  render moons ('0.75', '253'): steep 0.008, dead 0.001, lanes True, blob 5/8, nested 5/8, bodies 9, depth range 1004.0
+render zones: {'small': (('0', '1'), {'Z': 1000.0, 'moons': 3, 'rosette': False, 'binary': False, 'n': 15}), 'binary': (('0.25', '10'), {'Z': 2125.0, 'moons': 8, 'rosette': False, 'binary': True, 'n': 24}), 'rosette': (('0.5', '104'), {'Z': 4181.9805, 'moons': 27, 'rosette': True, 'binary': False, 'n': 41}), 'moons': (('0.75', '253'), {'Z': 6845.6714, 'moons': 25, 'rosette': False, 'binary': True, 'n': 40})}
+== C4 band law + loose spacing + cusp bound
+  cusp Sun      : vanished 12/2155; prominence/c p10/50 [0.623, 1.751]
+  cusp GasGiant : vanished 75/3387; prominence/c p10/50 [0.229, 1.003]
+  cusp Planet   : vanished 47/6177; prominence/c p10/50 [0.18, 0.54]
+  cusp Planetoid: vanished 4/4894; prominence/c p10/50 [0.125, 0.356]
+  dead ground (|F| < 0.05) share of disc p50/p90 [0.001, 0.003]; steep share p50/p90 [0.023, 0.109]; lanes open in 1.00 of zones
+  blob share 0.561; nested share 0.542; saddle min |eigenvalue| p50 [0.02] 1/s^2 (n 708)
+  render small ('0', '1'): steep 0.109, dead 0.000, lanes True, blob 4/8, nested 6/8, bodies 9, depth range 357.0
+  render binary ('0.25', '10'): steep 0.061, dead 0.000, lanes True, blob 6/11, nested 5/11, bodies 12, depth range 580.5
+  render rosette ('0.5', '104'): steep 0.101, dead 0.000, lanes True, blob 11/11, nested 1/3, bodies 11, depth range 1723.0
+  render moons ('0.75', '253'): steep 0.011, dead 0.002, lanes True, blob 11/17, nested 9/17, bodies 18, depth range 1000.4
