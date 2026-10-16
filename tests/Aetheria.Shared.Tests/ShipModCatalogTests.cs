@@ -637,7 +637,7 @@ public sealed class ShipModCatalogTests : IDisposable
         WritePackage("mod.skiff");
         File.WriteAllText(Path.Combine(_directory.Path, "outside.txt"), "x");
         Directory.CreateDirectory(Path.Combine(_directory.Path, "Mods2"));
-        try { Directory.CreateDirectory(Path.Combine(Mods, name)); } catch (Exception) { }
+        if (name != "missing") try { Directory.CreateDirectory(Path.Combine(Mods, name)); } catch (Exception) { }
         var before = Directory.GetDirectories(Mods).Select(Path.GetFileName).OrderBy(n => n, StringComparer.Ordinal).ToArray();
 
         Assert.ThrowsAny<Exception>(() => ShipModCatalog.RemovePackage(Mods, name));
