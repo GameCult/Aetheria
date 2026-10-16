@@ -56,7 +56,9 @@ public sealed class LayerTests : IDisposable
         _cache.Upsert(new HullData { Name = "Station", HullType = HullType.Station, Shape = Solid(3), Durability = 1, Mass = 1000000 });
         _cache.Upsert(new HullData { Name = "Turret", HullType = HullType.Turret, Shape = Solid(7), Durability = 1, Mass = 50 });
         _cache.FlushAsync().Wait();
-        var items = new ItemManager(_cache, new ProvenanceLedger(), Settings(), _ => { });
+        var ledger = new ProvenanceLedger();
+        for (var i = 1; i <= 3; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = 1 };
+        var items = new ItemManager(_cache, ledger, Settings(), _ => { });
         var zone = new Zone(items, new PlanetSettings(), new ZonePack { Radius = 0 }, new GalaxyZone { Name = "Layers", Owner = null }, null);
         return (items, zone);
     }
