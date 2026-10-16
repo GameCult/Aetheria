@@ -69,8 +69,7 @@ public static class DoctrineCatalog
 
         if (changed.Count == 0)
         {
-            output.WriteLine("
-Nothing to author.");
+            output.WriteLine("Nothing to author.");
             return 0;
         }
 
