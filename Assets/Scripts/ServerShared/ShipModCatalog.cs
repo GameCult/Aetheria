@@ -189,6 +189,28 @@ public static class ShipModCatalog
         return (composition.Included.Length == 0 ? shippedCatalog : derivedCatalog, composition.Excluded);
     }
 
+    // The one uninstall: presence under Mods is the only enablement (MR1), so a package leaves by moving, never by deletion,
+    // to <parent of modsRoot>/RemovedMods/<package> ('<package> (2)' and on when taken). Moving it back reinstalls it.
+    // Returns the destination. Compose and ResolveCatalog never read RemovedMods.
+    public static string RemovePackage(string modsRoot, string package)
+    {
+        if (string.IsNullOrEmpty(package) || package == "." || package == ".." || package == "(all mods)" ||
+            package != Path.GetFileName(package) || package.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+            throw new ArgumentException("Not a mod package name.", nameof(package));
+        var source = Path.Combine(Path.GetFullPath(modsRoot), package);
+        if (!Directory.Exists(source)) throw new DirectoryNotFoundException("The package is not a directory under the mods folder.");
+        var removed = RemovedRoot(modsRoot);
+        Directory.CreateDirectory(removed);
+        var destination = Path.Combine(removed, package);
+        for (var copy = 2; Directory.Exists(destination) || File.Exists(destination); copy++)
+            destination = Path.Combine(removed, $"{package} ({copy})");
+        Directory.Move(source, destination);
+        return destination;
+    }
+
+    private static string RemovedRoot(string modsRoot) =>
+        Path.Combine(Path.GetDirectoryName(Path.GetFullPath(modsRoot)), "RemovedMods");
+
     private static Package Bind(HullData hull, ShipAuthoring ship, FactionProductData[] products, string directory, string path)
     {
         if (!string.Equals(Path.GetFileName(directory), ship.Id, StringComparison.Ordinal))

@@ -582,6 +582,53 @@ public sealed class ShipModCatalogTests : IDisposable
         Assert.Contains(ShipModCatalog.HullKey("mod.c").Value, Records(Derived).Keys);
     }
 
+    private string RemovedMods => Path.Combine(_directory.Path, "RemovedMods");
+
+    [Fact]
+    public void RemovePackageMovesItAsideAndTheNextBootDoesNotLoadIt()
+    {
+        WritePackage("mod.skiff");
+        var before = (Ship: Hash(Path.Combine(Mods, "mod.skiff", "ship.cc")), Glb: Hash(Path.Combine(Mods, "mod.skiff", "skiff.glb")));
+        Assert.Equal(Derived, ShipModCatalog.ResolveCatalog(Shipped, Derived, Mods).Catalog);
+
+        var destination = ShipModCatalog.RemovePackage(Mods, "mod.skiff");
+
+        Assert.Equal(Path.Combine(RemovedMods, "mod.skiff"), destination);
+        Assert.False(Directory.Exists(Path.Combine(Mods, "mod.skiff")));
+        Assert.Equal(before, (Hash(Path.Combine(destination, "ship.cc")), Hash(Path.Combine(destination, "skiff.glb"))));
+        Assert.Equal(Shipped, ShipModCatalog.ResolveCatalog(Shipped, Derived, Mods).Catalog);
+    }
+
+    [Fact]
+    public void RemovingAPackageTwiceKeepsBothCopies()
+    {
+        WritePackage("mod.skiff");
+        ShipModCatalog.RemovePackage(Mods, "mod.skiff");
+        File.WriteAllText(Path.Combine(RemovedMods, "mod.skiff", "marker.txt"), "first");
+        WritePackage("mod.skiff");
+        var second = ShipModCatalog.RemovePackage(Mods, "mod.skiff");
+
+        Assert.Equal(Path.Combine(RemovedMods, "mod.skiff (2)"), second);
+        Assert.Equal("first", File.ReadAllText(Path.Combine(RemovedMods, "mod.skiff", "marker.txt")));
+        Assert.False(File.Exists(Path.Combine(second, "marker.txt")));
+    }
+
+    [Fact]
+    public void RemovePackageRefusesWhatIsNotAPackageDirectory()
+    {
+        WritePackage("mod.skiff");
+        File.WriteAllText(Path.Combine(_directory.Path, "outside.txt"), "x");
+        Directory.CreateDirectory(Path.Combine(_directory.Path, "Mods2"));
+        foreach (var name in new[] { "", ".", "..", "(all mods)", "a/b", "a\b", "../Mods", "missing" })
+            Assert.ThrowsAny<Exception>(() => ShipModCatalog.RemovePackage(Mods, name));
+        Assert.True(Directory.Exists(Mods));
+        Assert.True(Directory.Exists(Path.Combine(Mods, "mod.skiff")));
+        Assert.True(Directory.Exists(Path.Combine(_directory.Path, "Mods2")));
+        Assert.True(File.Exists(Path.Combine(_directory.Path, "outside.txt")));
+        Assert.False(Directory.Exists(RemovedMods));
+        Assert.Equal(new[] { "mod.skiff" }, Directory.GetDirectories(Mods).Select(Path.GetFileName));
+    }
+
     [Fact]
     public void TheBootCatalogIsTheShippedOneUntilAModIsInstalled()
     {
