@@ -292,8 +292,8 @@ public sealed class PotentialOwnerTests : IDisposable
             var w1 = float2(300f, 0f);
             foreach (var p in inCore.Concat(new[] { float2(-200f, 120f), float2(100f, -300f), float2(500f, 40f), float2(-290f, 12f), float2(310f, 20f), float2(700f, 700f), float2(-80f, -500f) }))
             {
-                var near0 = length(p - w0) < 250f;
-                var near1 = length(p - w1) < 250f;
+                var near0 = length(p - w0) < 140f; // inside Gamma x reach (150) the well is its Plummer pull whole
+                var near1 = length(p - w1) < 140f;
                 if (near0 || near1)
                 {
                     var (at, wc, wcore) = near0 ? (w0, c0, core0) : (w1, c1, core1);
