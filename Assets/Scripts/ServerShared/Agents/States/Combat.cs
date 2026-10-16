@@ -155,25 +155,13 @@ public class CombatState : BaseState
         // Fire charged guns!
     }
 
-    // The AI plays the player's rule on the player's information: vent when one Track paint on this ship passes half,
-    // otherwise overdrive to close a distant target ahead. It reads only this ship's own IncomingPaints. Both go
-    // through TryActivateConsumable, and a ship carrying neither does nothing.
+    // Overdrive to close a distant target ahead, through the same consumable gate as the vent (Agent.VentOnTrack).
     private void UseConsumables(float3 toTarget, float targetDistance)
     {
         var ship = _agent.Ship;
-        if (ship.IncomingPaints.Any(p => p.Mode == PaintMode.Track && p.Strength > LockAlarm))
-            Use(b => b is VapourDumpData);
-        else if (targetDistance > OverdriveRangeFactor * _optimumRange &&
-                 dot(normalize(ship.Direction), normalize(toTarget.xz)) > cos(radians(OverdriveArcDegrees)))
-            Use(b => b is ThrottleLockData);
-    }
-
-    // One of a kind at a time: a Stackable design would otherwise be drained once per tick.
-    private void Use(Predicate<BehaviorData> kind)
-    {
-        if (_agent.Ship.HasActiveConsumable(kind)) return;
-        var consumable = _agent.Ship.FirstCarriedConsumable(kind);
-        if (consumable != null) _agent.Ship.TryActivateConsumable(consumable);
+        if (!_agent.TrackAlarm && targetDistance > OverdriveRangeFactor * _optimumRange &&
+            dot(normalize(ship.Direction), normalize(toTarget.xz)) > cos(radians(OverdriveArcDegrees)))
+            _agent.Use(b => b is ThrottleLockData);
     }
 
     private void SampleDps()

@@ -12,8 +12,8 @@ using float3 = CultMath.float3;
 using int2 = CultMath.int2;
 
 // AI pilots use consumables (aetheria-release cut consumable-ai r3; rulings sensor-stat-set item 4,
-// lock-warning-strength, launcher-lock-solution-quality): CombatState vents when ONE Track paint in the ship's own
-// IncomingPaints passes .5 and otherwise overdrives to close a target farther than twice its optimum range while
+// lock-warning-strength, launcher-lock-solution-quality, vent-in-any-state): the agent vents, in every state, when ONE
+// Track paint in the ship's own IncomingPaints passes .5; CombatState otherwise overdrives to close a target farther than twice its optimum range while
 // heading within 15 degrees of it. It reads only its own ship's senses. A consumable is chosen by what its behaviours
 // are, never by name, so the vent design is named "Overdrive" and the overdrive design "Coolant".
 //
@@ -150,7 +150,10 @@ public sealed class ConsumableAiTests : IDisposable
         var maker = cache.RefOf(cache.GetByName<Faction>("Maker"));
         EquippableItem Make<T>(string name) where T : CraftedItemData =>
             (EquippableItem) items.CreateInstance(items.CreateLot(cache.GetByName<T>(name), maker, .5f));
-        var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test Zone", Owner = null }, null);
+        // One fixed orbit far from the fight: a pilot that is not engaged patrols it, as production's would.
+        var pack = new ZonePack();
+        pack.Orbits.Add(cache.Upsert(new OrbitData { FixedPosition = float2(0, 5000) }));
+        var zone = new Zone(items, new PlanetSettings(), pack, new GalaxyZone { Name = "Test Zone", Owner = null }, null);
         Ship NewShip(string gear)
         {
             var ship = new Ship(items, zone, Make<HullData>("Skiff"), new EntitySettings())
@@ -174,11 +177,10 @@ public sealed class ConsumableAiTests : IDisposable
         // The agent joins as the zone admits a piloted ship (its Minion and CombatState come from production); the
         // locker is a gun ship nobody pilots.
         zone.Admit(scene.Agent, piloted: true);
-        zone.Agents.Single().Task = null; // the test zone has no orbits to patrol; the Minion and its CombatState are production's
         zone.Admit(scene.Prey, piloted: false);
         zone.Admit(scene.Locker, piloted: false);
         // The flight is the only writer of the agent's Target: the agent senses the prey and holds a grudge on it, so the
-        // flight engages it, and the Task stays null (an engaged member's Task is never rewritten).
+        // flight engages it.
         scene.Agent.SetIff(scene.Prey, true);
         scene.Agent.EntityInfoGathered[scene.Prey] = 1f;
         scene.Agent.VisibleEnemies.Add(scene.Prey);
@@ -346,7 +348,6 @@ public sealed class ConsumableAiTests : IDisposable
             s.Agent.Deactivate();
             fit(s.Agent);
             s.Zone.Admit(s.Agent, piloted: true); // back in as a pilot: the zone gives it a new Minion and CombatState
-            s.Zone.Agents.Single().Task = null; // no orbits to patrol in the test zone
             // Deactivation cleared its senses: it senses the prey again, as the sensors would after the jump in.
             s.Agent.SetIff(s.Prey, true);
             s.Agent.EntityInfoGathered[s.Prey] = 1f;
@@ -481,19 +482,40 @@ public sealed class ConsumableAiTests : IDisposable
         Assert.Equal(1, s.Carried); // the other vent design is still in cargo
     }
 
-    // The vent reads only the agent's own paints: with the locker unseen, it still vents. (On this branch the flight
-    // writes the Target from the sensed picture, so a target gone from VisibleEnemies is no longer held: see the fork.)
+    // The vent reads only the agent's own paints: with its target gone from VisibleEnemies (still targeted, no
+    // longer sensed) and the locker unseen, it still vents.
     [Fact]
     public void AVentDoesNotNeedAnyEnemyInSight()
     {
         var s = Build(carryVent: true);
         s.AssertInCombat();
+        s.Agent.VisibleEnemies.Clear();
         Assert.Equal(s.Prey, s.Agent.Target.Value.Entity);
         Assert.DoesNotContain(s.Locker, s.Agent.VisibleEnemies);
 
         s.Tick((PaintMode.Track, .9f));
 
-        Assert.DoesNotContain(s.Locker, s.Agent.VisibleEnemies);
+        Assert.Empty(s.Agent.VisibleEnemies);
         Assert.True(s.Active(s.Vent));
+    }
+
+    // A patrolling agent has no target and senses no enemy, and it vents all the same (ruling vent-in-any-state).
+    [Fact]
+    public void APatrollingAgentVentsToo()
+    {
+        var s = Build(carryVent: true);
+        s.Agent.VisibleEnemies.Clear();
+        s.Zone.Update(.05f);
+        s.Zone.Update(.05f);
+        Assert.False(s.State is CombatState, $"the agent is in {s.State?.GetType().Name}");
+        Assert.True(s.Agent.Target.Value.IsNone);
+        Assert.IsType<PatrolOrbitsTask>(s.Zone.Agents.Single().Task);
+
+        s.Tick((PaintMode.Track, .3f));
+        Assert.False(s.Active(s.Vent));
+        s.Tick((PaintMode.Track, .9f));
+
+        Assert.True(s.Active(s.Vent));
+        Assert.Equal(0, s.Carried);
     }
 }

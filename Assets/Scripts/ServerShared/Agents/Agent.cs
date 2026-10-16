@@ -15,6 +15,9 @@ public class Agent
 {
     private const float FORWARD_DELTA_THRESHOLD = 20;
     private const float THRUST_DELTA_THRESHOLD = 1;
+    // The Strength of one Track paint in this ship's own IncomingPaints: a fire-control emitter tracking this
+    // that hard (rulings lock-warning-strength, sensor-stat-set item 4, launcher-lock-solution-quality).
+    private const float LockAlarm = .5f;
     protected BaseState _rootState;
     private BaseState _currentState;
     private VelocityLimit _velocityLimit;
@@ -52,6 +55,7 @@ public class Agent
         // The pilot tick writes Turn every tick, in every state: a state that pilots overwrites this zero with its
         // demand, and one that does not leaves the hull holding course instead of inheriting the last state's rate.
         Ship.Turn = 0;
+        VentOnTrack();
         _currentState.Update(delta);
         foreach (var transition in _currentState.Transitions)
             if (transition.Condition())
@@ -59,6 +63,25 @@ public class Agent
                 Transition(transition.TargetState, transition.OnTransition);
                 break;
             }
+    }
+
+    // The AI plays the player's rule on the player's information: vent when one Track paint on this ship passes half. It
+    // reads only this ship's own IncomingPaints, so it runs in every state (ruling vent-in-any-state), and a ship
+    // carrying no vent does nothing.
+    private void VentOnTrack()
+    {
+        if (TrackAlarm) Use(b => b is VapourDumpData);
+    }
+
+    // One Track paint on this ship passes the alarm: the ship vents, and does not overdrive on the same tick.
+    public bool TrackAlarm => Ship.IncomingPaints.Any(p => p.Mode == PaintMode.Track && p.Strength > LockAlarm);
+
+    // Through TryActivateConsumable, one of a kind at a time: a Stackable design would otherwise be drained once per tick.
+    public void Use(Predicate<BehaviorData> kind)
+    {
+        if (Ship.HasActiveConsumable(kind)) return;
+        var consumable = Ship.FirstCarriedConsumable(kind);
+        if (consumable != null) Ship.TryActivateConsumable(consumable);
     }
 
     public void Accelerate(float2 targetVelocity, bool noTurn = false)
