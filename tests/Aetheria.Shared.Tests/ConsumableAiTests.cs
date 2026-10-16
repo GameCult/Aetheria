@@ -188,6 +188,7 @@ public sealed class ConsumableAiTests : IDisposable
         scene.Place(100f, 0f);
         zone.Update(.05f);
         zone.Update(.05f);
+        zone.Update(.05f); // patrol to combat takes a tick the unengaged-root start did not
         scene.AssertInCombat();
 
         // Read, never re-sampled: the optimum is whatever production derived for the spawned ship.
