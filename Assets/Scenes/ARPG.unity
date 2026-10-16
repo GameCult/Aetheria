@@ -16461,7 +16461,6 @@ MonoBehaviour:
   NebulaTint: {fileID: 8400000, guid: d196505464047f04a97f28689041209b, type: 2}
   Heightmap: {fileID: 8400000, guid: 2fc21a9d3e9647948b56e384cd9378b3, type: 2}
   ParticleColors: {fileID: 2800000, guid: 56db63da398b2d04394ddbccedce943c, type: 3}
-  GravityCamera: {fileID: 1537342003}
 --- !u!114 &1009503736
 MonoBehaviour:
   m_ObjectHideFlags: 0
