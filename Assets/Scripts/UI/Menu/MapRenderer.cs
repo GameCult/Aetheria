@@ -51,10 +51,7 @@ public class MapRenderer : MonoBehaviour
         TintCamera.gameObject.SetActive(true);
         InfluenceCamera.gameObject.SetActive(true);
         Title.text = $"Zone: {GameManager.Zone.GalaxyZone.Name}";
-        
-        // If hiding minimap asteroids, turn them back on for the map screen
-        if (!ActionGameManager.PlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap)
-            ZoneRenderer.ShowAsteroidUI = true;
+        GameManager.ZoneRenderer.Map.OpenMapScreen(true);
     }
 
     private void OnDisable()
@@ -67,10 +64,7 @@ public class MapRenderer : MonoBehaviour
         GravityCamera.gameObject.SetActive(false);
         TintCamera.gameObject.SetActive(false);
         InfluenceCamera.gameObject.SetActive(false);
-        
-        // If hiding minimap asteroids, turn them back off when leaving the map screen
-        if (!ActionGameManager.PlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap)
-            ZoneRenderer.ShowAsteroidUI = false;
+        GameManager.ZoneRenderer.Map.OpenMapScreen(false);
     }
 
     void ReleaseTextures()
@@ -129,6 +123,6 @@ public class MapRenderer : MonoBehaviour
         InfluenceCamera.transform.position = pos;
         InfluenceCamera.orthographicSize = _size.y * Scale * .5f;
         
-        GameManager.ZoneRenderer.SetIconSize(IconSize * Scale);
+        GameManager.ZoneRenderer.Map.SetMapScreenScale(IconSize * Scale);
     }
 }

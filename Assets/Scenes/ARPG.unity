@@ -16421,8 +16421,7 @@ MonoBehaviour:
   TourFollowDistance: 100
   TourHeightOffset: 50
   TourFollowOffsetDegrees: 55
-  AsteroidBeltUI: {fileID: 349597964696402918, guid: 1f1bfa2175a13b647888e2949e0cb138,
-    type: 3}
+  MapAsteroidMaterial: {fileID: 2100000, guid: c1012d5466454651b7279be93ef9af88, type: 2}
   Planet: {fileID: 8287217960984982033, guid: 88ace6073e3db1a46bd3aaf4f971acb9, type: 3}
   GasGiant: {fileID: 3250623180916197132, guid: 85753b4a7c762274385af384abed7a04,
     type: 3}
