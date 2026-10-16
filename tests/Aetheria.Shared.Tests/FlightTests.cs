@@ -654,9 +654,10 @@ public sealed class FlightTests : IDisposable
         Assert.Same(hot, member.Target.Value.Entity);
         UpdateUntil(minion, () => CurrentState(minion) is CombatState);
 
-        member.VisibleEnemies.Remove(hot);
+        // The grudge listed it a second time (the hostility refresh adds it again), so every listing goes.
+        while (member.VisibleEnemies.Remove(hot)) { }
         Tick(.1f);
-        Assert.True(member.Target.Value.IsNone, "Target is hot " + ReferenceEquals(member.Target.Value.Entity, hot) + ", held " + _zone.Flights.Single().PhaseOf(held) + ", hot " + _zone.Flights.Single().PhaseOf(hot) + ", visible " + member.VisibleEnemies.Count);
+        Assert.True(member.Target.Value.IsNone);
         Assert.IsType<FollowTask>(minion.Task);
         UpdateUntil(minion, () => !(CurrentState(minion) is CombatState));
         UpdateUntil(minion, () => CurrentState(minion) is FollowState);
