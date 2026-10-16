@@ -125,9 +125,12 @@ public sealed class DrawnPoseTests : IDisposable
 
     // ---- The rails, spelled from the field law ----
 
+    // T = 2 pi sqrt(d / a), a the Plummer pull of a body alone (softening 2) at d.
+    private static float PeriodAt(float distance, float strength) => 2 * PI * sqrt(distance / (strength * distance / (distance * distance + 4f)));
+
     private static float2 Around(float2 center, double time, float distance, float phase, float strength)
     {
-        var period = 2 * PI * sqrt(distance / (strength * distance / (distance * distance + 4f)));
+        var period = PeriodAt(distance, strength);
         var wrapped = (float) frac(time / period);
         return center + OrbitData.Evaluate(frac(wrapped + phase)) * distance;
     }
@@ -334,7 +337,7 @@ public sealed class DrawnPoseTests : IDisposable
         for (var i = 0; i < w.Asteroids.Length; i++)
         {
             var asteroid = w.Asteroids[i];
-            var period = 2 * PI * asteroid.Distance / sqrt(PlanetMass);
+            var period = PeriodAt(asteroid.Distance, PlanetMass);
             var expected = OrbitData.Evaluate((float) frac(time / period + asteroid.Phase)) * asteroid.Distance + parent;
             AssertNear(expected, drawn[i].xy, 1e-3f, $"chunk {i} drawn");
             Assert.Equal(w.Zone.ChunkPose(w.Belt, i, time), drawn[i]);

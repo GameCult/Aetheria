@@ -9,11 +9,11 @@ using static CultMath.math;
 using float2 = CultMath.float2;
 using float3 = CultMath.float3;
 
-// Aetheria gravity, orbits-from-field: every rail's period is derived from the field it orbits in. Round a body it is
-// that body's own well; round a bodyless node it is the ring law (the strength inside the rail, plus half of what shares
-// it). The zones here are hand-built packs read by the production constructor, with the shipped well curves
-// (c = 45.08 m^.2, R = 7.32 m^.25). Each expected period is spelled here from the field law outside the core, T = 2 pi d / sqrt(c),
-// with c and R read from the zone's own bodies and every distance outside the core.
+// Aetheria gravity, orbits-from-field: every rail's period is derived from the field it orbits in (WellTree.PullAround).
+// Round a body that is the body's own pull inside its outermost child; round a bodyless node a ring member also feels each
+// other member's own pull at their chord, projected toward the node. The zones here are hand-built packs read by the
+// production constructor, with the shipped well curves (c = 45.08 m^.2, eps = 7.32 m^.25). Each expected period is
+// spelled here as T = 2 pi sqrt(d / a), a composed from GravityField.Pull and c and eps read from the zone's own bodies.
 public sealed class OrbitsFromFieldTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "aetheria-orbitsfield-" + Guid.NewGuid().ToString("N"));
@@ -78,7 +78,15 @@ public sealed class OrbitsFromFieldTests : IDisposable
 
     private static float C(Zone zone, CultRecordKey body) => zone.PlanetInstances[body].WellStrength;
     private static float Core(Zone zone, CultRecordKey body) => zone.PlanetInstances[body].RocheLimit;
-    private static float Outside(float distance, float c) => 2 * PI * distance / sqrt(c);
+
+    // The pull of a body's well as one body, at distance d: c times the band term's pull with no band (GravityField.Pull).
+    private static float Pull(float c, float roche, float d) => c * GravityField.Pull(roche, float.PositiveInfinity, float.PositiveInfinity, d);
+    private static float Pull(Zone zone, CultRecordKey body, float d) => Pull(C(zone, body), Core(zone, body), d);
+
+    // A mass the zone has no body of (a family's total): its well from the authored curves, as the law reads them.
+    private static float FamilyPull(float mass, float d) => Pull(Curves().WellStrength.Evaluate(mass), Curves().RocheLimit.Evaluate(mass), d);
+
+    private static float PeriodUnder(float pull, float distance) => 2 * PI * sqrt(distance / pull);
 
     private static void AssertPeriod(float expected, float actual, string what) =>
         Assert.True(Math.Abs(actual / expected - 1f) <= 1e-4f, $"{what}: expected {expected}, got {actual}");
@@ -95,13 +103,12 @@ public sealed class OrbitsFromFieldTests : IDisposable
         w.Body(moonOrbit, 1f);
         var zone = w.Build();
 
-        Assert.True(Core(zone, planet) < 150f && Core(zone, sun) < 3000f, "fixture: both rails run outside the core");
-        AssertPeriod(Outside(150f, C(zone, planet)), zone.Orbits[moonOrbit].Period, "the moon, in its planet's field");
-        AssertPeriod(Outside(3000f, C(zone, sun)), zone.Orbits[planetOrbit].Period, "the planet, in its sun's field");
+        AssertPeriod(PeriodUnder(Pull(zone, planet, 150f), 150f), zone.Orbits[moonOrbit].Period, "the moon, in its planet's field");
+        AssertPeriod(PeriodUnder(Pull(zone, sun, 3000f), 3000f), zone.Orbits[planetOrbit].Period, "the planet, in its sun's field");
     }
 
     [Fact]
-    public void AChildInsideItsParentsCoreOrbitsAsASolidBody()
+    public void AChildInsideItsParentsRocheLimitOrbitsInThePlummerPull()
     {
         var w = NewWorld();
         var sunOrbit = w.Orbit(default, 0f);
@@ -113,9 +120,8 @@ public sealed class OrbitsFromFieldTests : IDisposable
         var far = w.Orbit(planetOrbit, coreRadius * .7f);
         var zone = w.Build();
 
-        var solid = 2 * PI * coreRadius / sqrt(C(zone, planet)); // a = c d / R^2, so T = 2 pi R / sqrt(c) at every d inside
-        AssertPeriod(solid, zone.Orbits[near].Period, "the inner child");
-        AssertPeriod(solid, zone.Orbits[far].Period, "the outer child");
+        AssertPeriod(PeriodUnder(Pull(zone, planet, coreRadius * .3f), coreRadius * .3f), zone.Orbits[near].Period, "the inner child");
+        AssertPeriod(PeriodUnder(Pull(zone, planet, coreRadius * .7f), coreRadius * .7f), zone.Orbits[far].Period, "the outer child");
     }
 
     [Fact]
@@ -130,11 +136,13 @@ public sealed class OrbitsFromFieldTests : IDisposable
         w.Body(outerOrbit, 100f);
         var zone = w.Build();
 
-        AssertPeriod(Outside(3000f, C(zone, sun)), zone.Orbits[outerOrbit].Period, "the outer planet, with a heavy planet inside it");
+        AssertPeriod(PeriodUnder(Pull(zone, sun, 3000f), 3000f), zone.Orbits[outerOrbit].Period, "the outer planet, with a heavy planet inside it");
     }
 
+    // A binary on a bodyless node: a member feels its partner's own pull at their chord (twice the ring's radius), toward
+    // the node, and nothing of the node itself.
     [Fact]
-    public void ABinaryOrbitsUnderHalfItsPartnersPull()
+    public void ABinaryMemberFeelsItsPartnerAtTheChord()
     {
         var w = NewWorld();
         var node = w.Orbit(default, 0f);
@@ -145,10 +153,11 @@ public sealed class OrbitsFromFieldTests : IDisposable
         var zone = w.Build();
 
         Assert.True(C(zone, bodyHeavy) > 1.5f * C(zone, bodyA), "fixture: unequal members");
-        AssertPeriod(Outside(400f, C(zone, bodyHeavy) / 2), zone.Orbits[a].Period, "the light member");
-        AssertPeriod(Outside(400f, C(zone, bodyA) / 2), zone.Orbits[heavy].Period, "the heavy member");
+        AssertPeriod(PeriodUnder(Pull(zone, bodyHeavy, 800f), 400f), zone.Orbits[a].Period, "the light member");
+        AssertPeriod(PeriodUnder(Pull(zone, bodyA, 800f), 400f), zone.Orbits[heavy].Period, "the heavy member");
     }
 
+    // Conservation: the outer body feels one well of the whole mass inside it, c(M_pair + moon), not the sum of strengths.
     [Fact]
     public void AnOuterBodyFeelsTheWholePairAndItsMoons()
     {
@@ -157,15 +166,14 @@ public sealed class OrbitsFromFieldTests : IDisposable
         var m1 = w.Orbit(node, 400f, 0f);
         var m2 = w.Orbit(node, 400f, .5f);
         var moon = w.Orbit(m1, 40f);
-        var body1 = w.Body(m1, 100f);
-        var body2 = w.Body(m2, 300f);
-        var moonBody = w.Body(moon, 5f);
+        w.Body(m1, 100f);
+        w.Body(m2, 300f);
+        w.Body(moon, 5f);
         var outer = w.Orbit(node, 3000f);
         w.Body(outer, 50f);
         var zone = w.Build();
 
-        var whole = C(zone, body1) + C(zone, moonBody) + C(zone, body2);
-        AssertPeriod(Outside(3000f, whole), zone.Orbits[outer].Period, "the outer body, round the pair and the first one's moon");
+        AssertPeriod(PeriodUnder(FamilyPull(405f, 3000f), 3000f), zone.Orbits[outer].Period, "the outer body, round the pair and the first one's moon");
     }
 
     [Fact]
@@ -191,7 +199,7 @@ public sealed class OrbitsFromFieldTests : IDisposable
         w.Body(planet2, 100f);
         var companion2 = w.Orbit(node, 500f, 1f / 6f);
         zone = w.Build();
-        AssertPeriod(Outside(500f, C(zone, inner)), zone.Orbits[planet2].Period, "the planet");
+        AssertPeriod(PeriodUnder(Pull(zone, inner, 500f), 500f), zone.Orbits[planet2].Period, "the planet");
         Assert.Equal(zone.Orbits[planet2].Period, zone.Orbits[companion2].Period);
     }
 
@@ -213,10 +221,10 @@ public sealed class OrbitsFromFieldTests : IDisposable
         var zone = w.Build();
 
         Assert.True(C(zone, heavyBody) > 1.5f * C(zone, lightBody), "fixture: unequal members");
-        AssertPeriod(Outside(400f + offset, (C(zone, lightBody) + C(zone, heavyBody)) / 4), zone.Orbits[companion].Period,
+        AssertPeriod(PeriodUnder((Pull(zone, lightBody, 800f) + Pull(zone, heavyBody, 800f)) / 2, 400f + offset), zone.Orbits[companion].Period,
             "the companion, between its two members");
 
-        // An equal pair: the companion has exactly the members' period.
+        // An equal pair: the companion has the members' period.
         w = NewWorld();
         node = w.Orbit(default, 0f);
         var a = w.Orbit(node, 400f, 0f);
@@ -226,12 +234,13 @@ public sealed class OrbitsFromFieldTests : IDisposable
         companion = w.Orbit(node, 400f, .25f);
         zone = w.Build();
         Assert.True(float.IsFinite(zone.Orbits[a].Period));
-        Assert.Equal(zone.Orbits[a].Period, zone.Orbits[companion].Period);
-        Assert.Equal(zone.Orbits[b].Period, zone.Orbits[companion].Period);
+        AssertPeriod(zone.Orbits[a].Period, zone.Orbits[companion].Period, "the companion, against the first member");
+        AssertPeriod(zone.Orbits[b].Period, zone.Orbits[companion].Period, "the companion, against the second member");
     }
 
-    // The ring is the 0.1 u window about a rail's distance: a member just inside it is a ring partner (pulls half), one just
-    // outside is inside or beyond the rail (pulls whole, or not at all).
+    // The ring is the 0.1 u window about the innermost massive distance: a member just inside it is a ring partner (felt at
+    // the chord), one just outside it is not a partner and the rail has the node's own terms alone, which give a
+    // ring's own member next to no pull.
     [Theory]
     [InlineData(-.09f, true)]
     [InlineData(.09f, true)]
@@ -246,8 +255,11 @@ public sealed class OrbitsFromFieldTests : IDisposable
         var partnerBody = w.Body(partner, 2000f);
         var zone = w.Build();
 
-        var c = C(zone, partnerBody);
-        AssertPeriod(Outside(400f, onRing ? c / 2 : c), zone.Orbits[rail].Period, "the rail, with a partner at " + partnerOffset);
+        if (onRing)
+            AssertPeriod(PeriodUnder(Pull(zone, partnerBody, 800f + partnerOffset), 400f), zone.Orbits[rail].Period,
+                "the rail, with a partner at " + partnerOffset);
+        else
+            Assert.True(zone.Orbits[rail].Period > 1e6f, "a body outside the window is no partner: the rail has no pull of any size");
     }
 
     [Fact]
@@ -264,7 +276,8 @@ public sealed class OrbitsFromFieldTests : IDisposable
         Assert.True(float.IsPositiveInfinity(zone.Orbits[rail].Period), "a body beyond the rail does not pull it");
     }
 
-    // A bodyless node's children read only that node's ring: the well of the body the node itself orbits does not enter.
+    // A bodyless node's children read only that node's own terms and their ring partners: the well of the body the node
+    // itself orbits does not enter, and a lone body on the node has no pull.
     [Fact]
     public void ABodylessNodesChildrenNeverReadItsParentsWell()
     {
@@ -286,8 +299,8 @@ public sealed class OrbitsFromFieldTests : IDisposable
         var bodyA = w.Body(a, 100f);
         var bodyB = w.Body(b, 300f);
         zone = w.Build();
-        AssertPeriod(Outside(200f, C(zone, bodyB) / 2), zone.Orbits[a].Period, "the first member, under its partner alone");
-        AssertPeriod(Outside(200f, C(zone, bodyA) / 2), zone.Orbits[b].Period, "the second member, under its partner alone");
+        AssertPeriod(PeriodUnder(Pull(zone, bodyB, 400f), 200f), zone.Orbits[a].Period, "the first member, under its partner alone");
+        AssertPeriod(PeriodUnder(Pull(zone, bodyA, 400f), 200f), zone.Orbits[b].Period, "the second member, under its partner alone");
     }
 
     [Fact]
