@@ -256,44 +256,50 @@ public static class ZoneGenerator
 	        return loadoutGenerators[faction];
         }
 
+        // L4 or L5: 60 degrees (one sixth of a turn) ahead of or behind the planet on its orbit. Phase is in turns.
         OrbitData CreateLagrangeOrbit(OrbitData baseOrbit)
         {
 	        var lagrangeOrbit = new OrbitData
 	        {
 		        Parent = baseOrbit.Parent,
 		        Distance = baseOrbit.Distance,
-		        Phase = baseOrbit.Phase + PI / 3 * sign(random.NextFloat() - .5f),
+		        Phase = baseOrbit.Phase + sign(random.NextFloat() - .5f) / 6f,
 	        };
 	        pack.Orbits.Add(cache.Upsert(lagrangeOrbit));
 	        return lagrangeOrbit;
         }
 
-        void PlaceTurret(OrbitData orbit, LoadoutGenerator loadoutGenerator, int distanceMultiplier)
+        // A turret co-orbits with its station, k arcs along the orbit (k is signed: behind the station when negative).
+        // One arc is the station's reach plus two of the turret's: the first turret's disc clears the station's by one
+        // turret radius, and turrets step by the same arc, which also clears each other (stationReach + 2 turretReach
+        // is more than 2 turretReach). Phase is in turns, so the arc length divides by the orbit's circumference.
+        void PlaceTurret(OrbitData orbit, LoadoutGenerator loadoutGenerator, int k, float stationReach)
         {
-	        var phase = 20f * distanceMultiplier / orbit.Distance;
+	        var turret = loadoutGenerator.GenerateTurretLoadout();
+	        if (turret == null) return;
+	        var turretReach = (itemManager.GetData(turret.Hull) as HullData).Reach(itemManager.GameplaySettings.SchematicCellSize);
+	        var arc = k * (stationReach + 2 * turretReach);
 
 	        var turretOrbit = new OrbitData
 	        {
 		        Parent = orbit.Parent,
 		        Distance = orbit.Distance,
-		        Phase = orbit.Phase + phase
+		        Phase = orbit.Phase + arc / (2 * PI * orbit.Distance)
 	        };
 	        pack.Orbits.Add(cache.Upsert(turretOrbit));
-	        var turret = loadoutGenerator.GenerateTurretLoadout();
-	        if (turret == null) return;
 	        turret.Orbit = cache.RefOf(turretOrbit);
 	        pack.Entities.Add(turret);
         }
 
-        void PlaceTurrets(OrbitData orbit, LoadoutGenerator loadoutGenerator, int count)
+        // Turrets flank the station alternately: k runs -1, +1, -2, +2, ...
+        void PlaceTurrets(OrbitData orbit, LoadoutGenerator loadoutGenerator, int count, float stationReach)
         {
 	        for(int t=0; t<count; t++)
-	        {
-		        var dist = t / 2;
-		        if (t % 2 == 0) dist = -dist;
-		        PlaceTurret(orbit, loadoutGenerator, dist);
-	        }
+		        PlaceTurret(orbit, loadoutGenerator, (t / 2 + 1) * (t % 2 == 0 ? -1 : 1), stationReach);
         }
+
+        float StationReach(OrbitalEntityPack station) =>
+	        (itemManager.GetData(station.Hull) as HullData).Reach(itemManager.GameplaySettings.SchematicCellSize);
 
         for (var i = 0; i < storyStations.Length; i++)
         {
@@ -312,7 +318,7 @@ public static class ZoneGenerator
 	        station.Story = i;
 	        pack.Entities.Add(station);
 
-	        if (ambient) PlaceTurrets(lagrangeOrbit, GetLoadoutGenerator(story.Faction), story.Turrets);
+	        if (ambient) PlaceTurrets(lagrangeOrbit, GetLoadoutGenerator(story.Faction), story.Turrets, StationReach(station));
         }
 
         for (var i = storyStations.Length; i < selectedStationOrbits.Length; i++)
@@ -334,7 +340,7 @@ public static class ZoneGenerator
 	        station.SecurityRadius = pack.Radius;
 	        pack.Entities.Add(station);
 
-	        if (ambient) PlaceTurrets(lagrangeOrbit, GetLoadoutGenerator(nearestFaction), 2);
+	        if (ambient) PlaceTurrets(lagrangeOrbit, GetLoadoutGenerator(nearestFaction), 2, StationReach(station));
         }
 
         // A boss zone gets its faction's boss whether or not the zone is ambient: the boss is the run's goal, not

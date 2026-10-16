@@ -536,6 +536,19 @@ public class HullData : EquippableItemData
     [Inspectable, JsonProperty("visual"), Key(32)]
     public CultRecordRef<ShipAuthoring> Visual;
 
+    // The farthest corner of any occupied hull cell from the centre of mass the schematic frame uses, in world
+    // units: a true bound on how far the hull reaches from its position (the half-diagonal of the bounding box is not,
+    // as FireControl.Detonate's comment records). A cell at (x, y) spans x +/- .5 and y +/- .5.
+    public float Reach(float cellSize)
+    {
+        var com = Shape.CenterOfMass;
+        var far = 0f;
+        foreach (var c in Shape.Coordinates)
+            foreach (var (dx, dy) in new[] { (-.5f, -.5f), (.5f, -.5f), (-.5f, .5f), (.5f, .5f) })
+                far = max(far, length(float2(c.x + dx, c.y + dy) - com));
+        return far * cellSize;
+    }
+
     [IgnoreMember]
     public Shape InteriorCells
     {
