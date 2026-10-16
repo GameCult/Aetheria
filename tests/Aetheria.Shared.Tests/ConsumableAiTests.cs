@@ -353,9 +353,9 @@ public sealed class ConsumableAiTests : IDisposable
             s.Agent.EntityInfoGathered[s.Prey] = 1f;
             if (!s.Agent.VisibleEnemies.Contains(s.Prey)) s.Agent.VisibleEnemies.Add(s.Prey);
             s.Place(30f, 0f);
+            // The new Minion walks root, patrol, orbit, combat; the tick after it enters combat samples the optimum.
+            for (var i = 0; i < 8 && !(s.State is CombatState); i++) s.Zone.Update(.05f);
             s.Zone.Update(.05f);
-            s.Zone.Update(.05f);
-            s.Zone.Update(.05f); // the new Minion walks root, patrol, combat
         }
         float Optimum() => (float) typeof(CombatState).GetField("_optimumRange", Private).GetValue(s.State);
 
