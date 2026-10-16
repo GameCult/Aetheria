@@ -150,6 +150,10 @@ namespace Aetheria.EditorTools
             }
         }
 
+        // The event Stardust itself attaches its draw at, read from the class so the verifier cannot agree with a copy of it.
+        static CameraEvent DrawEvent() =>
+            (CameraEvent) typeof(Stardust).GetField("DrawEvent", BindingFlags.NonPublic | BindingFlags.Static).GetRawConstantValue();
+
         // The dust is a command buffer on the target camera, which no culling sees: with every particle 10000 below the
         // camera (far past any box a hand could inflate round it) a render still shows dust, and shows none when the
         // same particles have no size.
@@ -157,10 +161,14 @@ namespace Aetheria.EditorTools
         {
             var camera = dust.TargetCamera;
             if (camera == null) { Fail("scene-stardust-uncullable", "Stardust has no TargetCamera"); return; }
-            var attached = camera.GetCommandBuffers(CameraEvent.BeforeImageEffectsOpaque).Count(buffer => buffer.name == "Stardust");
-            if (attached != 1) Fail("scene-stardust-uncullable", $"{attached} Stardust command buffers on the target camera, expected 1");
-            var late = camera.GetCommandBuffers(CameraEvent.BeforeForwardAlpha).Count(buffer => buffer.name == "Stardust");
-            if (late != 0) Fail("scene-stardust-uncullable", $"{late} Stardust command buffers at BeforeForwardAlpha, expected 0");
+            var drawEvent = DrawEvent();
+            var attached = camera.GetCommandBuffers(drawEvent).Count(buffer => buffer.name == "Stardust");
+            if (attached != 1) Fail("scene-stardust-uncullable", $"{attached} Stardust command buffers at {drawEvent} on the target camera, expected 1");
+            foreach (var other in Enum.GetValues(typeof(CameraEvent)).Cast<CameraEvent>().Where(other => other != drawEvent))
+            {
+                var stray = camera.GetCommandBuffers(other).Count(buffer => buffer.name == "Stardust");
+                if (stray != 0) Fail("scene-stardust-uncullable", $"{stray} Stardust command buffers at {other}, expected 0");
+            }
 
             var particles = (ComputeBuffer) bufferField.GetValue(dust);
             float[] Layout(float size, Vector3 centre, float below) => DustLayout(particles.count, size, centre, below);
@@ -240,6 +248,7 @@ namespace Aetheria.EditorTools
             var previous = RenderTexture.active;
             var effects = camera.GetComponents<MonoBehaviour>().Where(behaviour => behaviour.enabled).ToArray();
             var fields = new System.Collections.Generic.List<Texture2D>();
+            GameObject floor = null;
             float[] Render(bool fog, float size)
             {
                 cloud.enabled = fog;
@@ -264,6 +273,12 @@ namespace Aetheria.EditorTools
                 camera.targetTexture = texture;
                 camera.farClipPlane = 1000f;
                 transform.SetPositionAndRotation(position, Quaternion.Euler(90f, 0f, 0f));
+                // The fog only measures a partial density where depth is written: a pixel with no depth is fogged whole (CloudShader sets
+                // density 1 past the far plane). A floor under the dust gives the march a finite ray.
+                floor = GameObject.CreatePrimitive(PrimitiveType.Plane);
+                floor.transform.position = position + Vector3.down * 200f;
+                floor.transform.localScale = Vector3.one * 100f;
+                UnityEngine.Object.DestroyImmediate(floor.GetComponent<Collider>());
 
                 // The scene's own nebula fields are textures the game renders; here a uniform fill of white fog stands in for them.
                 foreach (var (name, format) in new[] { ("_NebulaSurfaceHeight", TextureFormat.RFloat), ("_NebulaPatchHeight", TextureFormat.RHalf), ("_NebulaPatch", TextureFormat.RHalf) })
@@ -275,9 +290,9 @@ namespace Aetheria.EditorTools
                 Shader.SetGlobalFloat("_NebulaFillExponent", 0f);
                 Shader.SetGlobalFloat("_NebulaFillOffset", 0f);
                 Shader.SetGlobalFloat("_NebulaPatchDensity", 0f);
-                Shader.SetGlobalFloat("_NebulaLuminance", 1f);
-                Shader.SetGlobalFloat("_ExtinctionCoefficient", .5f);
-                Shader.SetGlobalFloat("_SafetyDistance", 30f);
+                Shader.SetGlobalFloat("_NebulaLuminance", .01f); // a fog dimmer than the dust: dust drawn over it would otherwise read as a negative contribution
+                Shader.SetGlobalFloat("_ExtinctionCoefficient", .25f); // with the fill density, about 40% of the light to the floor is fogged away
+                Shader.SetGlobalFloat("_SafetyDistance", -1e6f); // below every sample: only the uniform fill, none of the zone's noise
                 Shader.SetGlobalFloat("_TintLodExponent", 0f);
 
                 var clearBare = Render(false, 0f);
@@ -295,9 +310,10 @@ namespace Aetheria.EditorTools
                 }
                 var (clearMean, fogMean) = (drawn == 0 ? 0f : clearSum / drawn, drawn == 0 ? 0f : fogSum / drawn);
                 Debug.Log($"{Tag} stardust under fog: fog control mean |difference|={fogShown}, dust pixels={drawn}, dust contribution cloud off={clearMean}, cloud on={fogMean}, ratio={(clearMean == 0f ? 0f : fogMean / clearMean)}");
-                if (fogShown < 1e-3f) Fail("scene-stardust-under-fog", "control: the cloud renderer changed no pixels, so no fog is in view");
-                else if (drawn == 0 || clearMean <= 0f) Fail("scene-stardust-under-fog", "the dust drew no pixels with the cloud renderer off");
+                if (drawn == 0 || clearMean <= 0f) Fail("scene-stardust-under-fog", "control: the dust drew no pixels with the cloud renderer off");
+                else if (fogShown < 1e-3f) Fail("scene-stardust-under-fog", "control: the cloud renderer changed no pixels, so no fog is in view");
                 else if (fogMean > .9f * clearMean) Fail("scene-stardust-under-fog", "the dust is not attenuated by the fog in front of it: it was drawn after the nebula composites");
+                else if (fogMean < .1f * clearMean) Fail("scene-stardust-under-fog", "the dust is erased, not dimmed, by a partial fog");
             }
             finally
             {
@@ -313,6 +329,7 @@ namespace Aetheria.EditorTools
                 RenderTexture.ReleaseTemporary(texture);
                 UnityEngine.Object.DestroyImmediate(readback);
                 foreach (var field in fields) UnityEngine.Object.DestroyImmediate(field);
+                if (floor != null) UnityEngine.Object.DestroyImmediate(floor);
             }
         }
 
