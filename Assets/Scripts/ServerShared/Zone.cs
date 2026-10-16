@@ -211,6 +211,8 @@ public class Zone
                 belt.Value.Periods[i] = PeriodAround(beltParent, belt.Value.Data.Asteroids[i].Distance, beltOrbit);
         }
 
+        PopulatedRadius = ComputePopulatedRadius();
+
         // Aetheria gravity (target invariant zone-valid-before-tick): every orbit is placed at the pack's time
         // when the zone is built, so each well, light and body pose read before the first Update is where the
         // body is. Velocity stays zero until the first Update differences two placed positions.
@@ -735,6 +737,35 @@ public class Zone
     // The potential of a body's well at the zone's edge, subtracted so every well is zero there: the one owner of the
     // reference. GetHeight sums with it and the renderer's lowering (GravityLowering) hands it to the shader unchanged.
     public float WellReference(Planet body) => GravityField.Potential(body.WellStrength, body.RocheLimit, Pack.Radius);
+
+    // The extent of the populated area, from the zone's origin: owned here; presenters read it, nothing authors it. A static
+    // bound on where anything can be, so it holds at every time and reads nothing the pack's Radius decides: for each body,
+    // its orbit chain's reach plus its Roche limit; for each belt, the chain's reach to the orbit its asteroids circle (the
+    // belt orbit's parent) plus the belt's own Radius, its largest asteroid Distance.
+    public float PopulatedRadius { get; }
+
+    private float ComputePopulatedRadius()
+    {
+        var radius = 0f;
+        foreach (var body in PlanetInstances.Values)
+            radius = max(radius, ChainReach(body.BodyData.Orbit.Key) + body.RocheLimit);
+        foreach (var belt in AsteroidBelts)
+            radius = max(radius, ChainReach(Orbits[Planets[belt.Key].Orbit.Key].Data.Parent.Key) + belt.Value.Radius);
+        return radius;
+    }
+
+    // The most an orbit can lie from the origin: the root's offset plus every orbit Distance down the chain to it.
+    private float ChainReach(CultRecordKey key)
+    {
+        var reach = 0f;
+        while (key.IsSet() && Orbits.TryGetValue(key, out var orbit))
+        {
+            if (orbit.Data.Parent.IsSet()) reach += orbit.Data.Distance;
+            else reach += length(orbit.Data.FixedPosition);
+            key = orbit.Data.Parent.Key;
+        }
+        return reach;
+    }
 
     public float GetHeight(float2 position) => GetHeight(position, _time);
 
