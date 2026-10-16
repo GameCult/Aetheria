@@ -269,16 +269,17 @@ public static class ZoneGenerator
 	        return lagrangeOrbit;
         }
 
-        // A turret co-orbits with its station, k arcs along the orbit (k is signed: behind the station when negative).
-        // One arc is the station's reach plus two of the turret's: the first turret's disc clears the station's by one
-        // turret radius, and turrets step by the same arc, which also clears each other (stationReach + 2 turretReach
-        // is more than 2 turretReach). Phase is in turns, so the arc length divides by the orbit's circumference.
-        void PlaceTurret(OrbitData orbit, LoadoutGenerator loadoutGenerator, int k, float stationReach)
+        // A turret co-orbits with its station, on one side of it (side is -1 behind, +1 ahead), clear of the body inside
+        // it on that side by one of the turret's own radii: its centre sits innerReach + 2 turretReach beyond that
+        // body's. Every body's reach counts, so turrets of differing reach clear each other. Phase is in turns, so the
+        // arc length divides by the orbit's circumference. Returns where the turret sits (signed arc from the station)
+        // and its reach, or null when there is no turret hull to generate, before any orbit is created.
+        (float arc, float reach)? PlaceTurret(OrbitData orbit, LoadoutGenerator loadoutGenerator, float side, float innerArc, float innerReach)
         {
 	        var turret = loadoutGenerator.GenerateTurretLoadout();
-	        if (turret == null) return;
+	        if (turret == null) return null;
 	        var turretReach = (itemManager.GetData(turret.Hull) as HullData).Reach(itemManager.GameplaySettings.SchematicCellSize);
-	        var arc = k * (stationReach + 2 * turretReach);
+	        var arc = innerArc + side * (innerReach + 2 * turretReach);
 
 	        var turretOrbit = new OrbitData
 	        {
@@ -289,13 +290,21 @@ public static class ZoneGenerator
 	        pack.Orbits.Add(cache.Upsert(turretOrbit));
 	        turret.Orbit = cache.RefOf(turretOrbit);
 	        pack.Entities.Add(turret);
+	        return (arc, turretReach);
         }
 
-        // Turrets flank the station alternately: k runs -1, +1, -2, +2, ...
+        // Turrets flank the station alternately, behind then ahead, each side growing outward from the station.
         void PlaceTurrets(OrbitData orbit, LoadoutGenerator loadoutGenerator, int count, float stationReach)
         {
+	        var arcs = new float[2];
+	        var reaches = new[] { stationReach, stationReach };
 	        for(int t=0; t<count; t++)
-		        PlaceTurret(orbit, loadoutGenerator, (t / 2 + 1) * (t % 2 == 0 ? -1 : 1), stationReach);
+	        {
+		        var side = t % 2;
+		        var placed = PlaceTurret(orbit, loadoutGenerator, side == 0 ? -1f : 1f, arcs[side], reaches[side]);
+		        if (placed == null) return;
+		        (arcs[side], reaches[side]) = placed.Value;
+	        }
         }
 
         float StationReach(OrbitalEntityPack station) =>

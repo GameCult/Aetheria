@@ -27,9 +27,11 @@ public sealed class StationPlacementTests : IDisposable
 
     private sealed record Built(uint Seed, Zone Zone, ItemManager Items);
 
-    private IEnumerable<Built> GeneratedZones()
+    // stock may rearrange the catalog before a galaxy is generated; storyTurrets > 0 gives every zone a story station that
+    // authors that many turrets (the '#turrets' tag), the way a narrative does.
+    private IEnumerable<Built> GeneratedZones(Action<ItemManager> stock = null, int storyTurrets = 0, uint seeds = 6, int zonesPerSeed = int.MaxValue)
     {
-        for (uint seed = 1; seed <= 6; seed++)
+        for (uint seed = 1; seed <= seeds; seed++)
         {
             var dir = Path.Combine(_root, $"galaxy{seed}");
             Directory.CreateDirectory(dir);
@@ -46,8 +48,11 @@ public sealed class StationPlacementTests : IDisposable
                 authored.Read<NameGeneratorSettings>("NameGeneratorSettings"), cache, new PlayerSettings(),
                 Directory.CreateDirectory(Path.Combine(dir, "Narrative")), _ => { }, null, seed);
             var items = new ItemManager(cache, new ProvenanceLedger(), settings, _ => { });
-            foreach (var galaxyZone in galaxy.Zones)
+            stock?.Invoke(items);
+            foreach (var galaxyZone in galaxy.Zones.Take(zonesPerSeed))
             {
+                if (storyTurrets > 0)
+                    galaxyZone.Locations.Add(new LocationStory { Zone = galaxyZone, Name = "Test station", Type = LocationType.Station, Turrets = storyTurrets });
                 var pack = ZoneGenerator.GenerateZone(items, authored.Read<ZoneGenerationSettings>("ZoneSettings"), galaxy, galaxyZone,
                     galaxyZone == galaxy.Entrance && galaxy.IsPrelude, true);
                 var zone = new Zone(items, authored.Read<PlanetSettings>("PlanetSettings"), pack, galaxyZone, galaxy);
@@ -101,57 +106,150 @@ public sealed class StationPlacementTests : IDisposable
         Assert.True(ahead > 0 && behind > 0, $"the seeds put stations on one side only (ahead {ahead}, behind {behind})");
     }
 
+    private static List<OrbitalEntity> Orbitals(Built built) => built.Zone.Entities.OfType<OrbitalEntity>().ToList();
+
+    // Every turret belongs to one station on its ring. Each side of a station grows outward from it: a turret's centre sits
+    // one body's reach (the one inside it) plus two of its own beyond that body's centre. Expectations are spelled from the
+    // zone's entities and their reaches, never from the generator's helpers. Returns the largest turret count of a station.
+    private static int AssertFlanks(Built built, ref int flanked, ref int mixedReach)
+    {
+        var orbitals = Orbitals(built);
+        var turrets = orbitals.Where(e => TypeOf(built.Items, e) == HullType.Turret).ToList();
+        var matched = 0;
+        var most = 0;
+        foreach (var station in orbitals.Where(e => TypeOf(built.Items, e) == HullType.Station))
+        {
+            var orbit = built.Zone.Orbits[station.OrbitData];
+            var mine = turrets.Where(t => SameRing(built.Zone.Orbits[t.OrbitData], orbit)).ToList();
+            matched += mine.Count;
+            if (mine.Count == 0) continue;
+            flanked++;
+            most = Math.Max(most, mine.Count);
+            var circumference = 2 * PI * orbit.Data.Distance;
+            // The arc is float phase arithmetic: its absolute error grows with the ring, so the tolerance does too.
+            var slack = circumference * 2e-7f;
+
+            var arcs = mine.Select(turret =>
+            {
+                var phase = Turns(built.Zone.Orbits[turret.OrbitData].Data.Phase - orbit.Data.Phase);
+                if (phase > .5f) phase -= 1;
+                return (turret, arc: phase * circumference);
+            }).ToList();
+            Assert.DoesNotContain(arcs, a => a.arc == 0f);
+            var behind = arcs.Where(a => a.arc < 0).OrderByDescending(a => a.arc).ToList();
+            var ahead = arcs.Where(a => a.arc > 0).OrderBy(a => a.arc).ToList();
+            // Turrets alternate behind then ahead, so behind holds the extra one when the count is odd.
+            Assert.Equal((mine.Count + 1) / 2, behind.Count);
+            Assert.Equal(mine.Count / 2, ahead.Count);
+            if (mine.Select(Contacts.Radius).Distinct().Count() > 1) mixedReach++;
+
+            foreach (var (side, sign) in new[] { (behind, -1f), (ahead, 1f) })
+            {
+                var innerArc = 0f;
+                var innerReach = Contacts.Radius(station);
+                foreach (var (turret, arc) in side)
+                {
+                    var expected = innerArc + sign * (innerReach + 2 * Contacts.Radius(turret));
+                    Assert.True(Math.Abs(arc - expected) <= 1e-4f * Math.Abs(expected) + slack,
+                        $"seed {built.Seed}: a turret sits {arc} along its ring, not {expected}");
+                    innerArc = expected;
+                    innerReach = Contacts.Radius(turret);
+                }
+            }
+
+            var bodies = new List<OrbitalEntity> { station };
+            bodies.AddRange(mine);
+            for (var a = 0; a < bodies.Count; a++)
+                for (var b = a + 1; b < bodies.Count; b++)
+                    Assert.True(length(bodies[a].Position.xz - bodies[b].Position.xz) > Contacts.Radius(bodies[a]) + Contacts.Radius(bodies[b]),
+                        $"seed {built.Seed}: two bodies on one ring overlap");
+        }
+        // A turret off its station's ring is matched to no station and would be dropped from every check above.
+        Assert.True(matched == turrets.Count, $"seed {built.Seed}: {turrets.Count - matched} turrets sit on no station's ring");
+        return most;
+    }
+
     [Fact]
     public void TurretsFlankTheirStation()
     {
         var flanked = 0;
-        var pairsChecked = 0;
+        var mixed = 0;
         foreach (var built in GeneratedZones())
         {
-            var zone = built.Zone;
-            var orbitals = zone.Entities.OfType<OrbitalEntity>().ToList();
-            var turrets = orbitals.Where(e => TypeOf(built.Items, e) == HullType.Turret).ToList();
-            foreach (var station in orbitals.Where(e => TypeOf(built.Items, e) == HullType.Station))
-            {
-                var orbit = zone.Orbits[station.OrbitData];
-                var mine = turrets.Where(t => SameRing(zone.Orbits[t.OrbitData], orbit)).ToList();
-                if (mine.Count == 0) continue;
-                flanked++;
-                var stationReach = Contacts.Radius(station);
-                var circumference = 2 * PI * orbit.Data.Distance;
-                // The arc is float phase arithmetic: its absolute error grows with the ring, so the tolerance does too.
-                var slack = circumference * 2e-7f;
-
-                var ks = new List<int>();
-                foreach (var turret in mine)
-                {
-                    var arcUnit = stationReach + 2 * Contacts.Radius(turret);
-                    var phase = Turns(zone.Orbits[turret.OrbitData].Data.Phase - orbit.Data.Phase);
-                    if (phase > .5f) phase -= 1;
-                    var signedArc = phase * circumference;
-                    var k = (int) Math.Round(signedArc / arcUnit);
-                    Assert.True(k != 0, $"seed {built.Seed}: a turret sits on its station");
-                    Assert.True(Math.Abs(signedArc - k * arcUnit) <= 1e-3f * arcUnit + slack,
-                        $"seed {built.Seed}: a turret's arc {signedArc} is not a whole multiple ({k}) of {arcUnit}");
-                    ks.Add(k);
-                }
-                var expected = Enumerable.Range(0, mine.Count).Select(t => (t / 2 + 1) * (t % 2 == 0 ? -1 : 1)).OrderBy(k => k);
-                Assert.Equal(expected, ks.OrderBy(k => k));
-
-                var bodies = new List<OrbitalEntity> { station };
-                bodies.AddRange(mine);
-                for (var a = 0; a < bodies.Count; a++)
-                    for (var b = a + 1; b < bodies.Count; b++)
-                    {
-                        var apart = length(bodies[a].Position.xz - bodies[b].Position.xz);
-                        Assert.True(apart > Contacts.Radius(bodies[a]) + Contacts.Radius(bodies[b]),
-                            $"seed {built.Seed}: two bodies on one ring overlap ({apart} apart)");
-                        pairsChecked++;
-                    }
-            }
+            AssertFlanks(built, ref flanked, ref mixed);
+            // No station or turret reaches any other orbital entity.
+            var orbitals = Orbitals(built);
+            var placed = orbitals.Where(e => TypeOf(built.Items, e) is HullType.Station or HullType.Turret).ToList();
+            foreach (var body in placed)
+                foreach (var other in orbitals.Where(o => !ReferenceEquals(o, body)))
+                    Assert.True(length(body.Position.xz - other.Position.xz) > Contacts.Radius(body) + Contacts.Radius(other),
+                        $"seed {built.Seed}: a {TypeOf(built.Items, body)} overlaps a {TypeOf(built.Items, other)}");
         }
         Assert.True(flanked > 0, "the seeds generated no station with turrets");
-        Assert.True(pairsChecked > 0, "no pair was checked");
+    }
+
+    // A station that authors more turrets than the ambient two (a narrative's '#turrets' tag) takes the tail of the
+    // sequence, and turret hulls of differing reach each clear their neighbours: a second, larger turret hull is on offer.
+    [Fact]
+    public void ANarrativeStationsTurretsKeepFlankingAndClearEachOtherWhateverTheirReach()
+    {
+        const int authored = 5;
+        var flanked = 0;
+        var mixed = 0;
+        var most = 0;
+        foreach (var built in GeneratedZones(WithALargerTurretHull, authored, 3, 3))
+            most = Math.Max(most, AssertFlanks(built, ref flanked, ref mixed));
+        Assert.True(most == authored, $"no story station carried its {authored} authored turrets (most {most})");
+        Assert.True(mixed > 0, "no station carried turrets of differing reach");
+    }
+
+    // A zone with no turret hull on offer places no turret, and leaves no orbit behind for one.
+    [Fact]
+    public void ANoTurretZoneLeavesNoOrphanTurretOrbit()
+    {
+        var stations = 0;
+        foreach (var built in GeneratedZones(WithoutTurretHulls, 0, 3, 4))
+        {
+            var zone = built.Zone;
+            Assert.DoesNotContain(Orbitals(built), e => TypeOf(built.Items, e) == HullType.Turret);
+            var ridden = zone.Entities.OfType<OrbitalEntity>().Select(e => e.OrbitData).ToHashSet();
+            foreach (var station in Orbitals(built).Where(e => TypeOf(built.Items, e) == HullType.Station))
+            {
+                var orbit = zone.Orbits[station.OrbitData];
+                var strays = zone.Orbits.Count(o => !ridden.Contains(o.Key) && SameRing(o.Value, orbit));
+                Assert.True(strays == 1, $"seed {built.Seed}: a station's ring holds {strays} orbits no entity rides, not just its source's");
+                stations++;
+            }
+        }
+        Assert.True(stations > 0, "the seeds generated no station");
+    }
+
+    private static List<FactionProductData> TurretProducts(ItemManager items) =>
+        items.ItemData.GetAll<FactionProductData>().Where(p => items.ItemData.Get(p.Design) is HullData { HullType: HullType.Turret }).ToList();
+
+    // Priced at zero a design is not on offer, which is how the generator's own product filter drops it.
+    private static void WithoutTurretHulls(ItemManager items)
+    {
+        foreach (var product in TurretProducts(items)) ((HullData) items.ItemData.Get(product.Design)).Price = 0;
+    }
+
+    // The shipped catalog has one turret hull. A copy with a bigger solid shape (a larger reach) and its own product
+    // gives the generator two turret hulls to choose between.
+    private static void WithALargerTurretHull(ItemManager items)
+    {
+        var copyOf = typeof(object).GetMethod("MemberwiseClone", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        foreach (var product in TurretProducts(items))
+        {
+            var hull = (HullData) items.ItemData.Get(product.Design);
+            var larger = (HullData) copyOf.Invoke(hull, null);
+            larger.Name = hull.Name + " (large)";
+            larger.Shape = new Shape(hull.Shape.Width + 2, hull.Shape.Height + 2);
+            foreach (var cell in larger.Shape.AllCoordinates) larger.Shape[cell] = true;
+            var largerProduct = (FactionProductData) copyOf.Invoke(product, null);
+            largerProduct.Name = product.Name + " (large)";
+            largerProduct.Design = new CultRecordRef<CraftedItemData>(items.ItemData.Upsert(larger).Key);
+            items.ItemData.Upsert(largerProduct);
+        }
     }
 
     // The reach every spacing is built from: the farthest corner of any occupied cell from the centre of mass, scaled by
