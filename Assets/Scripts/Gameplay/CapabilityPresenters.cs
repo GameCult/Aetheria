@@ -10,13 +10,10 @@ public interface IAbsorbPresenter
     void Absorb(AbsorbEvent e);
 }
 
-// Grab needs a live Transform to animate, which the engine-free GrabEvent cannot carry (its
-// TargetHandle is a plain identity, not a Unity reference). The binder resolves the handle through a
-// delegate supplied by the event source's owner and hands the presenter the result, along with the
-// initial velocity the target was already moving with (also owner-supplied, for the same reason).
+// Presenters read the event and the simulated pose, never a Transform the sim does not own.
 public interface IGrabPresenter
 {
-    void Grab(GrabEvent e, Transform target, Vector3 initialVelocity);
+    void Grab(GrabEvent e);
 }
 
 public interface IMeleePresenter

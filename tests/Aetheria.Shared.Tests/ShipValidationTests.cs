@@ -15,6 +15,20 @@ public sealed class ShipValidationTests
 
     public static IEnumerable<object[]> CaseNames => Cases.Keys.Select(name => new object[] { name });
 
+    [Theory]
+    [InlineData(HullType.Ship, false)]
+    [InlineData(HullType.Station, true)]
+    [InlineData(HullType.Turret, true)]
+    public void AShipHullWithoutATopSpeedIsRefused(HullType type, bool accepted)
+    {
+        var ship = ShipAuthoringTests.Fixture();
+        ship.Hull.HullType = type;
+        ship.Hull.Behaviors.Clear();
+        ship.Hull.Behaviors.Add(new CapacitorData()); // a hull with other behaviors still has no top speed
+        if (accepted) ship.Validate();
+        else Assert.Contains("top speed", Assert.Throws<InvalidOperationException>(() => ship.Validate()).Message);
+    }
+
     [Fact]
     public void TheFixtureIsValid() => ShipAuthoringTests.Fixture().Validate();
 
@@ -33,7 +47,7 @@ public sealed class ShipValidationTests
         var ship = ShipAuthoringTests.Fixture();
         ship.Hull.Hardpoints[0].Armor = 5;
         ship.Hull.Hardpoints[0].FiringArc = 360;
-        ship.Hull.Hardpoints[0].Type = HardpointType.AetherDrive;
+        ship.Hull.Hardpoints[0].Type = HardpointType.ControlModule;
         ship.Visual.Anchors.RemoveAll(anchor => anchor.Id == "thruster.port");
         ship.Hull.Hardpoints[0].Rotation = ItemRotation.Clockwise;
         ship.Validate();
@@ -59,7 +73,25 @@ public sealed class ShipValidationTests
     {
         var ship = ShipAuthoringTests.Fixture();
         ship.WithId(id);
-        Assert.Contains("ship ID must use", Assert.Throws<InvalidOperationException>(ship.Validate).Message);
+        Assert.Contains("Ship ID must use", Assert.Throws<InvalidOperationException>(ship.Validate).Message);
+    }
+
+    [Theory]
+    [InlineData("com0"), InlineData("console"), InlineData("lpt"), InlineData("auxiliary"), InlineData("a.con"), InlineData("com10")]
+    public void IdsThatOnlyResembleDeviceNamesAreAdmitted(string id)
+    {
+        var ship = ShipAuthoringTests.Fixture();
+        ship.WithId(id);
+        ship.Validate();
+    }
+
+    [Theory]
+    [InlineData("con"), InlineData("abc.")]
+    public void IdRefusalsNameNoValue(string id)
+    {
+        var ship = ShipAuthoringTests.Fixture();
+        ship.WithId(id);
+        Assert.DoesNotContain(id, Assert.Throws<InvalidOperationException>(ship.Validate).Message);
     }
 
     [Theory]
@@ -157,6 +189,10 @@ public sealed class ShipValidationTests
 
         Add("id-null", s => s.Visual.Id = null, "Ship ID is required");
         Add("id-blank", s => s.Visual.Id = "  ", "Ship ID is required");
+        foreach (var device in new[] { "con", "prn", "aux", "nul", "nul.x", "com1", "com9", "lpt1", "lpt9", "con.txt" })
+            Add("id-device-" + device, s => s.Visual.Id = device, "Windows device name");
+        foreach (var id in new[] { "abc.", "a.", "ab.", "a.b." })
+            Add("id-trailing-dot-" + id, s => s.Visual.Id = id, "must not end with a dot");
         Add("hull-null", s => s.Hull = null, "hull data is required");
         Add("hull-name-null", s => s.Hull.Name = null, "hull name is required");
         Add("hull-name-blank", s => s.Hull.Name = " ", "hull name is required");
@@ -172,17 +208,41 @@ public sealed class ShipValidationTests
         Add("anchors-null", s => s.Visual.Anchors = null, "anchors are required");
         Add("anchor-null", s => s.Visual.Anchors.Add(null), "anchor IDs must be present and unique");
         Add("anchor-id-null", s => s.Visual.Anchors[4].Id = null, "anchor IDs must be present and unique");
-        Add("anchor-id-blank", s => s.Visual.Anchors.Add(new ShipAnchor { Id = " ", Role = "articulation", ModelNodeId = "x" }), "anchor IDs must be present and unique");
-        Add("anchor-id-duplicate", s => s.Visual.Anchors.Add(new ShipAnchor { Id = "map", Role = "articulation", ModelNodeId = "x" }), "anchor IDs must be present and unique");
+        Add("anchor-id-blank", s => s.Visual.Anchors.Add(new ShipAnchor { Id = " ", Role = "weapon-muzzle", ModelNodeId = "x" }), "anchor IDs must be present and unique");
+        Add("anchor-id-duplicate", s => s.Visual.Anchors.Add(new ShipAnchor { Id = "map", Role = "weapon-muzzle", ModelNodeId = "x" }), "anchor IDs must be present and unique");
         Add("anchor-node-null", s => s.Visual.Anchors[4].ModelNodeId = null, "needs a model node ID");
         Add("anchor-node-blank", s => s.Visual.Anchors[4].ModelNodeId = " ", "needs a model node ID");
-        Add("anchor-node-shared", s => s.Visual.Anchors.Add(new ShipAnchor { Id = "other", Role = "articulation", ModelNodeId = "map" }), "claimed by more than one anchor");
+        Add("anchor-node-shared", s => s.Visual.Anchors.Add(new ShipAnchor { Id = "other", Role = "weapon-muzzle", ModelNodeId = "map" }), "claimed by more than one anchor");
         foreach (var role in new[] { "map-icon", "hull-collider", "shield", "tractor" })
         {
             Add("role-missing-" + role, s => s.Visual.Anchors.RemoveAll(a => a.Role == role), $"exactly one {role} anchor is required");
             Add("role-doubled-" + role, s => s.Visual.Anchors.Add(new ShipAnchor { Id = "extra", Role = role, ModelNodeId = "extra" }), $"exactly one {role} anchor is required");
         }
 
+        void Joint(ShipParts s, string id, string parent, float[] axes, float[] min, float[] max) =>
+            s.Visual.Joints.Add(new ShipJoint { Id = id, Parent = parent, Axes = axes, Min = min, Max = max });
+        var yaw = new[] { 0f, 1f, 0f };
+        Add("joint-id-blank", s => Joint(s, " ", null, yaw, new[] { -1f }, new[] { 1f }), "joint IDs must be present and unique");
+        Add("joint-null", s => s.Visual.Joints.Add(null), "joint IDs must be present and unique");
+        Add("joint-id-duplicate", s => { Joint(s, "j", null, yaw, new[] { -1f }, new[] { 1f }); Joint(s, "j", null, yaw, new[] { -1f }, new[] { 1f }); }, "joint IDs must be present and unique");
+        Add("joint-id-is-an-anchor-node", s => Joint(s, "map", null, yaw, new[] { -1f }, new[] { 1f }), "is also an anchor's model node");
+        Add("joint-axes-length-four", s => Joint(s, "j", null, new[] { 0f, 1f, 0f, 0f }, new[] { -1f }, new[] { 1f }), "needs one or more degrees of freedom");
+        Add("joint-no-degrees-of-freedom", s => Joint(s, "j", null, new float[0], new float[0], new float[0]), "needs one or more degrees of freedom");
+        Add("joint-null-limits", s => Joint(s, "j", null, yaw, null, null), "needs one or more degrees of freedom");
+        Add("joint-max-count-differs", s => Joint(s, "j", null, yaw, new[] { -1f }, new[] { 1f, 2f }), "needs one or more degrees of freedom");
+        Add("joint-axis-not-unit", s => Joint(s, "j", null, new[] { 0f, 2f, 0f }, new[] { -1f }, new[] { 1f }), "must be a unit vector");
+        Add("joint-axis-not-finite", s => Joint(s, "j", null, new[] { 0f, float.NaN, 0f }, new[] { -1f }, new[] { 1f }), "axes and limits must be finite");
+        Add("joint-limit-not-finite", s => Joint(s, "j", null, yaw, new[] { -1f }, new[] { float.PositiveInfinity }), "axes and limits must be finite");
+        Add("joint-min-not-finite", s => Joint(s, "j", null, yaw, new[] { float.NaN }, new[] { 1f }), "axes and limits must be finite");
+        Add("joint-max-not-a-number", s => Joint(s, "j", null, yaw, new[] { -1f }, new[] { float.NaN }), "axes and limits must be finite");
+        Add("joint-min-above-max", s => Joint(s, "j", null, yaw, new[] { 10f }, new[] { 5f }), "must satisfy -180 <= Min <= Max <= 180");
+        Add("joint-max-181", s => Joint(s, "j", null, yaw, new[] { 0f }, new[] { 181f }), "must satisfy -180 <= Min <= Max <= 180");
+        Add("joint-min-minus-181", s => Joint(s, "j", null, yaw, new[] { -181f }, new[] { 0f }), "must satisfy -180 <= Min <= Max <= 180");
+        Add("joint-parent-dangling", s => Joint(s, "j", "ghost", yaw, new[] { -1f }, new[] { 1f }), "has an unknown parent joint");
+        Add("joint-cycle", s => { Joint(s, "a", "b", yaw, new[] { -1f }, new[] { 1f }); Joint(s, "b", "a", yaw, new[] { -1f }, new[] { 1f }); }, "is on a parent cycle");
+        Add("joint-on-a-thruster-mount", s => { Joint(s, "j", null, yaw, new[] { -1f }, new[] { 1f }); s.Visual.Anchors[4].Joint = "j"; }, "a fixed thruster may not ride a joint");
+        Add("joint-on-a-radiator-mount", s => { Joint(s, "j", null, yaw, new[] { -1f }, new[] { 1f }); s.Visual.Anchors[4].Role = "radiator-mesh"; s.Visual.Anchors[4].Joint = "j"; s.Hull.Hardpoints[0].Type = HardpointType.Radiator; }, "radiator-mesh anchor thruster.port may not ride a joint");
+        Add("joint-on-a-map-icon", s => { Joint(s, "j", null, yaw, new[] { -1f }, new[] { 1f }); s.Visual.Anchors[0].Joint = "j"; }, "may not name a joint");
         Add("anchor-role-unknown", s => s.Visual.Anchors.Add(new ShipAnchor { Id = "x", Role = "engine", ModelNodeId = "x" }), "has unknown role 'engine'");
         Add("anchor-role-null", s => s.Visual.Anchors.Add(new ShipAnchor { Id = "x", Role = null, ModelNodeId = "x" }), "has unknown role ''");
         Add("anchor-role-cased", s => s.Visual.Anchors[0].Role = "Map-Icon", "has unknown role 'Map-Icon'");
@@ -243,6 +303,25 @@ public sealed class ShipValidationTests
         Add("line-color-long", s => s.Visual.SchematicLines[0].Color = new[] { 1f, 1f, 1f, 1f, 1f }, "must be finite RGBA");
         Add("line-color-nan", s => s.Visual.SchematicLines[0].Color[2] = float.NaN, "must be finite RGBA");
         Add("line-color-infinite", s => s.Visual.SchematicLines[0].Color[3] = float.NegativeInfinity, "must be finite RGBA");
+        // Thruster rows: the fixture's thruster joined by a second one at the hull's other cell, both in row "r".
+        void Row(ShipParts s, float arc, float otherArc, ItemRotation otherRotation = ItemRotation.None)
+        {
+            Mount(s).Row = "r";
+            Mount(s).FiringArc = arc;
+            s.Hull.Hardpoints.Add(new HardpointData
+            {
+                Type = HardpointType.Thruster, Position = new int2(0, 0), Shape = new Shape(), Transform = "thruster.starboard",
+                Row = "r", FiringArc = otherArc, Rotation = otherRotation
+            });
+            s.Visual.Anchors.Add(new ShipAnchor { Id = "thruster.starboard", Role = "thruster-emitter", ModelNodeId = "thruster-starboard" });
+        }
+        Add("row-on-weapon", s => { Mount(s).Type = HardpointType.Energy; Mount(s).Row = "r"; }, "only a Thruster hardpoint may state a row");
+        Add("row-rotation-mismatch", s => Row(s, 90, 90, ItemRotation.Reversed), "are in row r and must share Rotation and FiringArc");
+        Add("row-arc-mismatch", s => Row(s, 90, 60), "are in row r and must share Rotation and FiringArc");
+        Add("row-arc-zero", s => Row(s, 0, 0), "thruster row r must state a gimbal FiringArc above 0.");
+        Add("row-arc-above-a-turn", s => Row(s, 361, 361), "thruster hardpoint thruster.port firing arc may be at most 360 degrees");
+        Add("row-of-one-arc-above-a-turn", s => Mount(s).FiringArc = 361, "thruster hardpoint thruster.port firing arc may be at most 360 degrees");
+        Add("row-of-one-arc-far-above-a-turn", s => Mount(s).FiringArc = 400, "firing arc may be at most 360 degrees");
         return cases;
     }
 }

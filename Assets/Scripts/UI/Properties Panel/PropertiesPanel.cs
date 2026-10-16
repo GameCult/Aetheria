@@ -376,7 +376,6 @@ public class PropertiesPanel : MonoBehaviour
 				sheet.AddStat("Manufacturer", () => maker.Name);
 			if (product != null)
 			{
-				AddProperty(product.Name);
 				AddProperty(product.Description);
 			}
 		}
@@ -387,7 +386,7 @@ public class PropertiesPanel : MonoBehaviour
 
 	private void AddEquippableItemProperties(EquippableItem item, Func<PerformanceStat, float> statValueFunction)
 	{
-		if (item.Durability < .01f)
+		if (item.IsDestroyed)
 		{
 			return;
 		}
@@ -424,16 +423,21 @@ public class PropertiesPanel : MonoBehaviour
 		if (gearData.Behaviors.FirstOrDefault(b => b is WeaponData) is WeaponData weapon)
 		{
 			var range = AddCurveField();
-			range.Show("Damage Range", weapon.DamageCurve, t => ActionGameManager.PlayerSettings.Format(lerp(statValueFunction(weapon.MinRange), statValueFunction(weapon.Range), t)));
+			var min = statValueFunction(weapon.MinRange);
+			var effective = statValueFunction(weapon.EffectiveRange);
+			var max = statValueFunction(weapon.Range);
+			range.Show("Damage Range",
+				t => WeaponData.RangeFactor(min, effective, max, weapon.DamageAtMaxRange, lerp(min, max, t)),
+				t => ActionGameManager.PlayerSettings.Format(lerp(min, max, t)),
+				effective < max ? saturate(unlerp(min, max, effective)) : .5f);
 		}
 	}
 
 	private string GetTitle(EquippableItem item)
 	{
-		var data = GameManager.ItemManager.GetData(item);
 		var (tier, upgrades) = GameManager.ItemManager.GetTier(item);
 		return
-			$"<color=#{ColorUtility.ToHtmlStringRGB(tier.Color.ToColor())}>{data.Name}</color><smallcaps><size=60%> ({tier.Name}{new string('+', upgrades)})";
+			$"<color=#{ColorUtility.ToHtmlStringRGB(tier.Color.ToColor())}>{GameManager.ItemManager.Title(item)}</color><smallcaps><size=60%> ({tier.Name}{new string('+', upgrades)})";
 	}
 
 	public void Inspect(EquippedItem item)
@@ -475,7 +479,7 @@ public class PropertiesPanel : MonoBehaviour
 		
 		var gearData = GameManager.ItemManager.GetData(item.EquippableItem);
 		var statusSheet = AddStatSheet();
-		if (item.EquippableItem.Durability < .01f)
+		if (item.EquippableItem.IsDestroyed)
 			statusSheet.AddStat("Durability", () => "Item Destroyed!");
 		else statusSheet.AddStat("Durability", () => $"{(int)(item.EquippableItem.Durability / gearData.Durability * 100)}%");
 		statusSheet.AddStat("Temperature", () => ActionGameManager.PlayerSettings.FormatTemperature(item.Temperature));

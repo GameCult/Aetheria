@@ -127,8 +127,8 @@ public class MainMenu : MonoBehaviour
         _nextMenu.panel.AddButton("Quit", Application.Quit);
     }
 
-    // New Game: every way to set up a run, each with its brief. The test arenas are listed only in editor and
-    // development builds.
+    // New Game: every way to set up a run, each with its brief. A release build lists only the modes; the other ways
+    // to set up a run and the test arenas are listed only in editor and development builds.
     private void ShowScenarios()
     {
         _nextMenu.panel.Clear();
@@ -136,6 +136,8 @@ public class MainMenu : MonoBehaviour
         AddScenarios(Scenarios.Modes);
         if (Debug.isDebugBuild)
         {
+            _nextMenu.panel.AddSection("development");
+            AddScenarios(Scenarios.Development);
             _nextMenu.panel.AddSection("test arenas");
             AddScenarios(Scenarios.Tests);
         }
@@ -297,9 +299,14 @@ public class MainMenu : MonoBehaviour
         _nextMenu.panel.AddField("Show Asteroids in Minimap",
             () => ActionGameManager.PlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap,
             b => ActionGameManager.PlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap = b);
+        _nextMenu.panel.AddField("Screen Shake",
+            () => ActionGameManager.PlayerSettings.GraphicsSettings.ScreenShake,
+            f => ActionGameManager.PlayerSettings.GraphicsSettings.ScreenShake = f,
+            0, 1);
         _nextMenu.panel.AddButton("Back",
             () =>
             {
+                ActionGameManager.SavePlayerSettings();
                 ShowSettings();
                 Fade(false);
             });

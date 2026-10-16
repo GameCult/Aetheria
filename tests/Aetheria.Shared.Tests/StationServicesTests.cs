@@ -19,7 +19,7 @@ public sealed class StationServicesTests : IDisposable
     {
         Directory.CreateDirectory(_root);
         _cache = AetheriaStores.Open(Path.Combine(_root, "Aetheria.cc"), catalogWritable: true);
-        _cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        _cache.Upsert(new VerseGrammar { Revision = 1 });
         var shape = new Shape(5, 5);
         foreach (var cell in shape.AllCoordinates) shape[cell] = true;
         var hardpoint = new HardpointData { Type = HardpointType.Sensors, Position = new int2(0, 0), Shape = new Shape() };

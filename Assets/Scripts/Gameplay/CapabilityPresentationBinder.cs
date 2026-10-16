@@ -8,26 +8,17 @@ using UnityEngine;
 // playground-cut.md fork L: "presentation is chosen per item, independently of capability... one
 // presentation... can visualize any subset of an item's capabilities"). This binder has no knowledge
 // of FieldDriver or any other concrete presentation, and no knowledge of what publishes events --
-// today the FieldShieldTest scene calls Bind() directly; a real capability owner will do the same
-// later without this binder changing.
+// EntityInstance binds every entity's events, and the FieldShieldTest scene binds its stand-in sim's the same way.
 public class CapabilityPresentationBinder : MonoBehaviour
 {
     private readonly List<IDisposable> _subscriptions = new List<IDisposable>();
-    private Func<int, Transform> _grabTargetResolver;
-    private Func<int, Vector3> _grabInitialVelocityResolver;
 
     // Subscribes every presenter interface implemented by components on this object or its children to
-    // the matching stream of `events`. `grabTargetResolver`/`grabInitialVelocityResolver` resolve a
-    // GrabEvent's plain target handle to the live Transform/velocity a grab presenter needs; the owner
-    // of `events` supplies them (the test scene today; the real pickup capability's caller later).
-    public void Bind(CapabilityEvents events, Func<int, Transform> grabTargetResolver = null,
-        Func<int, Vector3> grabInitialVelocityResolver = null)
+    // the matching stream of `events`.
+    public void Bind(CapabilityEvents events)
     {
         Unbind();
         if (events == null) return;
-
-        _grabTargetResolver = grabTargetResolver;
-        _grabInitialVelocityResolver = grabInitialVelocityResolver;
 
         foreach (var presenter in GetComponentsInChildren<IAbsorbPresenter>(true))
         {
@@ -38,12 +29,7 @@ public class CapabilityPresentationBinder : MonoBehaviour
         foreach (var presenter in GetComponentsInChildren<IGrabPresenter>(true))
         {
             var p = presenter;
-            _subscriptions.Add(events.Grab.Subscribe(e =>
-            {
-                var target = _grabTargetResolver?.Invoke(e.TargetHandle);
-                var velocity = _grabInitialVelocityResolver?.Invoke(e.TargetHandle) ?? Vector3.zero;
-                p.Grab(e, target, velocity);
-            }));
+            _subscriptions.Add(events.Grab.Subscribe(e => p.Grab(e)));
         }
 
         foreach (var presenter in GetComponentsInChildren<IMeleePresenter>(true))
@@ -63,8 +49,6 @@ public class CapabilityPresentationBinder : MonoBehaviour
     {
         foreach (var s in _subscriptions) s.Dispose();
         _subscriptions.Clear();
-        _grabTargetResolver = null;
-        _grabInitialVelocityResolver = null;
     }
 
     private void OnDisable() => Unbind();

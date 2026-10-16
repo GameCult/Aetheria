@@ -10,16 +10,28 @@ bl_info = {
     "category": "Object",
 }
 
+import math
+import shutil
 import subprocess
+import sys
+import traceback
+from functools import partial
 from pathlib import Path
 
 import bpy
+import numpy
+from mathutils import Matrix, Vector
 
-from .ship_cc import (HARDPOINT_TYPE_NAMES, ROTATION_NAMES, capture_grease_pencil, decode_hardpoint,
-                      encode_hardpoint, read, read_layout, replace_layout, replace_lines, replace_visual)
+from . import hull_grid
+from .ship_cc import (HARDPOINT_MEMBERS, HARDPOINT_TYPE_NAMES, ROTATION_NAMES, capture_grease_pencil, decode_hardpoint,
+                      encode_hardpoint, layout_revision, read, read_layout, replace_layout, replace_lines,
+                      replace_visual, valid_ship_id)
 
 MODEL_ASSET = "ship.glb"
-AETHERDB_TIMEOUT = 600  # seconds; the first run builds AetherDb
+SOURCE = "Source"  # child collection: the Tripo mesh, input to Rasterise, never exported
+GENERATED = "Generated"  # child collection: derived objects, the Grid (never exported) and the anchors Package makes (exported)
+SHIP_ROOT = "Ship Root"
+AETHERDB_TIMEOUT = 120  # seconds
 
 
 HARDPOINT_TYPES = tuple((str(i), name, name) for i, name in enumerate(HARDPOINT_TYPE_NAMES))
@@ -75,8 +87,61 @@ def _parse_footprint(text):
 def _layout_path(context):
     collection = _ship_collection(context)
     if not collection.get("aetheria.ship_cc"):
-        raise ValueError("Ship collection has no bound .cc path")
+        raise ValueError("The ship collection has no bound .cc path")
     return collection, bpy.path.abspath(collection["aetheria.ship_cc"])
+
+
+def _set_cells(state, width, height, cells):
+    state.width = state.new_width = width
+    state.height = state.new_height = height
+    state.cells.clear()
+    for cell in cells:
+        state.cells.add().occupied = bool(cell)
+
+
+def _load_layout(context, collection, path):
+    """Fills the scene's layout buffer from the bound .cc and redraws the Grid; returns (width, height, hardpoints)."""
+    shape, hardpoints, revision = read_layout(path, _brokkr_cultlib(context))
+    width, height, cells = shape
+    state = context.scene.aetheria_layout
+    state.ship_id = collection["aetheria.id"]
+    state.ship_cc = path
+    state.revision = revision
+    _set_cells(state, width, height, cells)
+    state.hardpoints.clear()
+    for raw in hardpoints:
+        fields = decode_hardpoint(raw)
+        hp = state.hardpoints.add()
+        hp.kind = str(fields["Type"])
+        hp.x, hp.y = fields["Position"]
+        hp.footprint = _footprint(fields["Shape"])
+        hp.mount_id = fields["Transform"] or ""
+        hp.rotation = str(fields["Rotation"])
+        hp.armor = fields["Armor"]
+        hp.firing_arc = fields["FiringArc"]
+    _redraw_grid(collection, state)
+    return width, height, len(hardpoints)
+
+
+_EXPECTED = (OSError, ValueError, RuntimeError, ImportError, KeyError)
+
+
+class Refusal(ValueError):
+    """A refusal Bake From Source raises itself: its message is fixed text that names no input. Blender's ValueError is not one."""
+
+
+def _failure_text(exc):
+    """What an operator reports for exc. This module's own ValueError and RuntimeError messages are fixed text that
+    names no input; any other error is reported by its type, and its text goes to the system console."""
+    if type(exc) in (ValueError, RuntimeError, Refusal):
+        return str(exc)
+    traceback.print_exception(exc)
+    return f"Stopped by {type(exc).__name__}; see the system console"
+
+
+def _refuse(operator, exc):
+    operator.report({"ERROR"}, _failure_text(exc))
+    return {"CANCELLED"}
 
 
 class AETHERIA_OT_load_layout(bpy.types.Operator):
@@ -87,33 +152,13 @@ class AETHERIA_OT_load_layout(bpy.types.Operator):
     def execute(self, context):
         try:
             collection, path = _layout_path(context)
-            shape, hardpoints, revision = read_layout(path, _brokkr_cultlib(context))
-            width, height, cells = shape
-            state = context.scene.aetheria_layout
-            state.ship_id = collection["aetheria.id"]
-            state.ship_cc = path
-            state.revision = revision
-            state.width = state.new_width = width
-            state.height = state.new_height = height
-            state.cells.clear()
-            for cell in cells:
-                state.cells.add().occupied = bool(cell)
-            state.hardpoints.clear()
-            for raw in hardpoints:
-                fields = decode_hardpoint(raw)
-                hp = state.hardpoints.add()
-                hp.kind = str(fields["Type"])
-                hp.x, hp.y = fields["Position"]
-                hp.footprint = _footprint(fields["Shape"])
-                hp.mount_id = fields["Transform"] or ""
-                hp.rotation = str(fields["Rotation"])
-                hp.armor = fields["Armor"]
-                hp.firing_arc = fields["FiringArc"]
-            self.report({"INFO"}, f"Loaded {width}x{height} layout and {len(hardpoints)} hardpoints")
+            if collection.get("aetheria.pending"):
+                raise ValueError("Not saved yet; Save Layout creates it")
+            width, height, count = _load_layout(context, collection, path)
+            self.report({"INFO"}, f"Loaded {width}x{height} layout and {count} hardpoints")
             return {"FINISHED"}
-        except (OSError, ValueError, RuntimeError, ImportError, KeyError) as exc:
-            self.report({"ERROR"}, str(exc))
-            return {"CANCELLED"}
+        except _EXPECTED as exc:
+            return _refuse(self, exc)
 
 
 class AETHERIA_OT_resize_layout(bpy.types.Operator):
@@ -140,7 +185,7 @@ class AETHERIA_OT_add_hardpoint(bpy.types.Operator):
     bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
-        context.scene.aetheria_layout.hardpoints.add()
+        _add_row(context.scene.aetheria_layout)
         return {"FINISHED"}
 
 
@@ -157,6 +202,294 @@ class AETHERIA_OT_remove_hardpoint(bpy.types.Operator):
         return {"FINISHED"}
 
 
+
+MOUNT_ROLE = "weapon-mount"
+MUZZLE_ROLE = "weapon-muzzle"
+MUZZLE_OFFSET = (0.0, -0.5, 0.0)  # in the mount's frame: half a metre along its facing
+WEAPON_TYPES = tuple(item for item in HARDPOINT_TYPES if item[1] in ("Energy", "Ballistic", "Launcher"))
+CENTRELINE = hull_grid.CELL_SIZE / 2  # a mount closer than this to Ship Root's X = 0 has no mirror image
+
+
+def _add_row(state, **fields):
+    """The one row creation: a new layout row, with HardpointData's defaults for anything not named."""
+    hp = state.hardpoints.add()
+    for name, value in fields.items():
+        setattr(hp, name, value)
+    return hp
+
+
+def _mount_objects(collection):
+    """The weapon-mount objects by their aetheria.id."""
+    return {obj["aetheria.id"]: obj for obj in collection.all_objects
+            if obj.get("aetheria.role") == MOUNT_ROLE and isinstance(obj.get("aetheria.id"), str)}
+
+
+def _muzzles(mount):
+    return sorted((child for child in mount.children if child.get("aetheria.role") == MUZZLE_ROLE),
+                  key=lambda child: (int(child.get("aetheria.order", 0)), child.name))
+
+
+def _mount_frame(context):
+    """(collection, layout buffer, Ship Root, grid_origin) for a mount helper: the buffer must be this ship's and the grid
+    must match it."""
+    collection, path = _layout_path(context)
+    state = context.scene.aetheria_layout
+    if state.ship_id != collection["aetheria.id"] or state.ship_cc != path:
+        raise ValueError("Load this collection's layout first")
+    root = _ship_root(collection)
+    origin = collection.get("aetheria.grid_origin")
+    if root is None or origin is None:
+        raise ValueError("Rasterise first: a mount needs the ship's Ship Root and grid")
+    if not _grid_current(collection, state):
+        raise ValueError("Rasterise again: the grid no longer matches the layout")
+    return collection, state, root, (float(origin[0]), float(origin[1]))
+
+
+def _root_local(root, obj):
+    """obj's origin in Ship Root's frame."""
+    return root.matrix_world.inverted() @ obj.matrix_world.translation
+
+
+def _derived_position(state, origin, local, footprint):
+    """The one derivation of a mounted row's Position: the cell at the object's origin (Ship Root frame), offset by the
+    footprint's centre. Refuses a Position outside the grid."""
+    width, height = _parse_footprint(footprint)[0][:2]
+    position = hull_grid.mounted_position(hull_grid.cell_at(origin, (local[0], local[1])), width, height)
+    if not (0 <= position[0] < state.width and 0 <= position[1] < state.height):
+        raise ValueError("The mount lies outside the grid")
+    return position
+
+
+def _selected_mount(context, collection):
+    obj = context.active_object
+    if obj is None or obj.get("aetheria.role") != MOUNT_ROLE or obj.name not in collection.all_objects:
+        raise ValueError("Select a weapon mount")
+    return obj
+
+
+def _mount_row(state, mount_id):
+    row = next((hp for hp in state.hardpoints if hp.mount_id == mount_id), None)
+    if row is None:
+        raise ValueError("The weapon mount has no layout row")
+    return row
+
+
+def _new_mount_id(collection, state):
+    taken = {hp.mount_id for hp in state.hardpoints} | set(_mount_objects(collection))
+    n = 1
+    while f"weapon.{n}" in taken:
+        n += 1
+    return f"weapon.{n}"
+
+
+def _make_empty(collection, anchor_id, role, parent, local, yaw=0.0, order=None):
+    empty = bpy.data.objects.new(anchor_id, None)
+    empty["aetheria.role"] = role
+    empty["aetheria.id"] = anchor_id
+    if order is not None:
+        empty["aetheria.order"] = order
+    collection.objects.link(empty)
+    _attach_to_root(empty, parent)
+    empty.location = tuple(local)
+    empty.rotation_euler = (0.0, 0.0, yaw)
+    return empty
+
+
+def _make_muzzle(collection, mount, k, local, order):
+    return _make_empty(collection, f"{mount['aetheria.id']}.muzzle.{k}", MUZZLE_ROLE, mount, local, order=order)
+
+
+def _add_mount(collection, state, root, origin, kind, rotation, local, footprint="#"):
+    """A weapon-mount object under Ship Root and its row, as a matching pair; returns the mount."""
+    position = _derived_position(state, origin, local, footprint)
+    mount_id = _new_mount_id(collection, state)
+    mount = _make_empty(collection, mount_id, MOUNT_ROLE, root, local, hull_grid.facing_yaw(rotation))
+    _add_row(state, kind=kind, mount_id=mount_id, rotation=str(rotation), footprint=footprint,
+             x=position[0], y=position[1])
+    return mount
+
+
+class AETHERIA_OT_add_weapon(bpy.types.Operator):
+    bl_idname = "aetheria.add_ship_weapon"
+    bl_label = "Add Weapon"
+    bl_description = "Add a weapon mount and its first muzzle at the 3D cursor, with a layout row"
+    bl_options = {"REGISTER", "UNDO"}
+    kind: bpy.props.EnumProperty(name="Type", items=WEAPON_TYPES)
+    rotation: bpy.props.EnumProperty(name="Rotation", items=ROTATIONS)
+
+    def execute(self, context):
+        try:
+            collection, state, root, origin = _mount_frame(context)
+            local = root.matrix_world.inverted() @ context.scene.cursor.location
+            mount = _add_mount(collection, state, root, origin, self.kind, int(self.rotation), local)
+            _make_muzzle(collection, mount, 1, MUZZLE_OFFSET, 1)
+        except _EXPECTED as exc:
+            return _refuse(self, exc)
+        return {"FINISHED"}
+
+
+class AETHERIA_OT_add_muzzle(bpy.types.Operator):
+    bl_idname = "aetheria.add_ship_muzzle"
+    bl_label = "Add Muzzle"
+    bl_description = "Add a muzzle under the selected weapon mount"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        try:
+            collection, _, _, _ = _mount_frame(context)
+            mount = _selected_mount(context, collection)
+            existing = _muzzles(mount)
+            names = {child.name for child in existing}
+            k = len(existing) + 1
+            while f"{mount['aetheria.id']}.muzzle.{k}" in names:
+                k += 1
+            order = max((int(child.get("aetheria.order", 0)) for child in existing), default=0) + 1
+            _make_muzzle(collection, mount, k, MUZZLE_OFFSET, order)
+        except _EXPECTED as exc:
+            return _refuse(self, exc)
+        return {"FINISHED"}
+
+
+class AETHERIA_OT_mirror_mount(bpy.types.Operator):
+    bl_idname = "aetheria.mirror_ship_mount"
+    bl_label = "Mirror Mount"
+    bl_description = "Duplicate the selected weapon mount and its muzzles across the centreline, as a new row"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        try:
+            collection, state, root, origin = _mount_frame(context)
+            mount = _selected_mount(context, collection)
+            row = _mount_row(state, mount["aetheria.id"])
+            local = _root_local(root, mount)
+            if abs(local.x) < CENTRELINE:
+                raise ValueError("The weapon mount is on the centreline; it has no mirror image")
+            # The twin's footprint is the reflection of this one's cells; its object stands in the cell that Position
+            # puts it in (never at -x, whose cell lookup breaks ties one way), so Package derives the Position back.
+            width, height = _parse_footprint(row.footprint)[0][:2]
+            position = hull_grid.mirror_position(_derived_position(state, origin, local, row.footprint), width,
+                                                 state.width)
+            twin_x = hull_grid.cell_centre(origin, *hull_grid.mounted_cell(position, width, height))[0]
+            mirrored = _add_mount(collection, state, root, origin, row.kind,
+                                  hull_grid.mirror_rotation(int(row.rotation)), (twin_x, local.y, local.z),
+                                  hull_grid.mirror_footprint(row.footprint))
+            new_row = _mount_row(state, mirrored["aetheria.id"])
+            for name in ("armor", "firing_arc"):  # the author's own numbers, copied; the helper invents none
+                setattr(new_row, name, getattr(row, name))
+            for k, muzzle in enumerate(_muzzles(mount), start=1):
+                _make_muzzle(collection, mirrored, k, (-muzzle.location.x, muzzle.location.y, muzzle.location.z),
+                             int(muzzle.get("aetheria.order", 0)))
+        except _EXPECTED as exc:
+            return _refuse(self, exc)
+        return {"FINISHED"}
+
+
+class AETHERIA_OT_remove_mount(bpy.types.Operator):
+    bl_idname = "aetheria.remove_ship_mount"
+    bl_label = "Remove Mount"
+    bl_description = "Delete the selected weapon mount, its muzzles and its layout row"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        try:
+            collection, state, _, _ = _mount_frame(context)
+            mount = _selected_mount(context, collection)
+            mount_id = mount["aetheria.id"]
+            for index in reversed(range(len(state.hardpoints))):
+                if state.hardpoints[index].mount_id == mount_id:
+                    state.hardpoints.remove(index)
+            for muzzle in _muzzles(mount):
+                _discard_object(muzzle)
+            _discard_object(mount)
+        except _EXPECTED as exc:
+            return _refuse(self, exc)
+        return {"FINISHED"}
+
+
+def _plan_mounts(collection, state, root, path):
+    """(row, weapon-mount object, Position, yaw) for every buffer row whose Transform names a weapon-mount object: the
+    Position from the object's placement, the yaw from the row's Rotation. Refuses before anything changes."""
+    mounts = _mount_objects(collection)
+    if not mounts or root is None:  # a ship with no Ship Root has no grid to derive from: its rows are the author's
+        return []
+    if state.ship_id != collection["aetheria.id"] or state.ship_cc != path:
+        raise ValueError("Load Layout first: the weapon mounts need this ship's layout")
+    paired = [(hp, mounts[hp.mount_id]) for hp in state.hardpoints if hp.mount_id in mounts]
+    if not paired:
+        return []
+    origin = collection.get("aetheria.grid_origin")
+    if origin is None:
+        raise ValueError("Rasterise first: a mount needs the ship's grid")
+    plan = []
+    for hp, obj in paired:
+        if obj.parent != root:
+            raise ValueError("A weapon mount must be parented to Ship Root")
+        position = _derived_position(state, (float(origin[0]), float(origin[1])), _root_local(root, obj), hp.footprint)
+        plan.append((hp, obj, position, hull_grid.facing_yaw(int(hp.rotation))))
+    return plan
+
+
+def _apply_mounts(context, collection, state, plan):
+    """Writes the planned Positions into the buffer and yaws into the objects, then saves the buffer through
+    _save_layout, so the buffer and the .cc agree."""
+    if not plan:
+        return
+    for hp, obj, position, yaw in plan:
+        hp.x, hp.y = position
+        obj.rotation_mode = "XYZ"
+        obj.rotation_euler = (0.0, 0.0, yaw)
+    _save_layout(context, collection, state)
+
+
+def _encode_buffer(state):
+    """The layout buffer as ship_cc stores it: (shape, hardpoint rows)."""
+    shape = [state.width, state.height, [cell.occupied for cell in state.cells]]
+    rows = [encode_hardpoint(Type=int(hp.kind), Position=[hp.x, hp.y], Shape=_parse_footprint(hp.footprint),
+                             Transform=hp.mount_id, Rotation=int(hp.rotation), Armor=hp.armor, FiringArc=hp.firing_arc)
+            for hp in state.hardpoints]
+    return shape, rows
+
+
+def _save_layout(context, collection, state):
+    """The one writer of the .cc layout: writes the layout buffer, creating the file first when the ship is pending. A
+    failure after the file was created removes what this save made. Returns the hardpoint count."""
+    if not collection.get("aetheria.ship_cc"):
+        raise ValueError("The ship collection has no bound .cc path")
+    path = bpy.path.abspath(collection["aetheria.ship_cc"])
+    ship_id = collection["aetheria.id"]
+    if state.ship_id != ship_id or state.ship_cc != path:
+        raise ValueError("Load this collection's layout before saving")
+    cultlib = _brokkr_cultlib(context)
+    shape, rows = _encode_buffer(state)
+    pending = collection.get("aetheria.pending")
+    folder = Path(path).parent
+    if pending and Path(path).exists():
+        raise ValueError("A ship file already exists at the bound path (Ctrl+Z past a first Save leaves it there); "
+                         "use Bind Ship Collection with that ship.cc, then Load Layout")
+    made_folder = bool(pending) and not folder.exists()
+    revision = state.revision
+    try:
+        if pending:
+            code, output = _aetherdb(context, "create", path, ship_id, pending[0], "--like", pending[1], ship_cc=path)
+            if output:
+                print(output)
+            if code != 0:
+                raise RuntimeError("AetherDb refused to create the ship; its message is in the system console")
+            revision = read_layout(path, cultlib)[2]
+        revision = replace_layout(path, cultlib, ship_id, revision, shape, rows)
+    except Exception:
+        if pending:
+            Path(path).unlink(missing_ok=True)
+            if made_folder:
+                shutil.rmtree(folder, ignore_errors=True)
+        raise
+    state.revision = revision
+    if pending:
+        del collection["aetheria.pending"]
+    _redraw_grid(collection, state)
+    return len(rows)
+
+
 class AETHERIA_OT_save_layout(bpy.types.Operator):
     bl_idname = "aetheria.save_ship_layout"
     bl_label = "Save Layout to .cc"
@@ -164,24 +497,12 @@ class AETHERIA_OT_save_layout(bpy.types.Operator):
 
     def execute(self, context):
         try:
-            collection, path = _layout_path(context)
-            state = context.scene.aetheria_layout
-            if state.ship_id != collection["aetheria.id"] or state.ship_cc != path:
-                raise ValueError("Load this collection's layout before saving")
-            cells = [cell.occupied for cell in state.cells]
-            hardpoints = [encode_hardpoint(
-                              Type=int(hp.kind), Position=[hp.x, hp.y], Shape=_parse_footprint(hp.footprint),
-                              Transform=hp.mount_id, Rotation=int(hp.rotation), Armor=hp.armor, FiringArc=hp.firing_arc)
-                          for hp in state.hardpoints]
-            state.revision = replace_layout(
-                path, _brokkr_cultlib(context), state.ship_id, state.revision,
-                [state.width, state.height, cells], hardpoints
-            )
-            self.report({"INFO"}, f"Saved {len(hardpoints)} hardpoints to {path}")
+            collection, _ = _layout_path(context)
+            count = _save_layout(context, collection, context.scene.aetheria_layout)
+            self.report({"INFO"}, f"Saved the layout and {count} hardpoints")
             return {"FINISHED"}
-        except (OSError, ValueError, RuntimeError, ImportError, KeyError) as exc:
-            self.report({"ERROR"}, str(exc))
-            return {"CANCELLED"}
+        except _EXPECTED as exc:
+            return _refuse(self, exc)
 
 
 def _brokkr_cultlib(context):
@@ -191,15 +512,55 @@ def _brokkr_cultlib(context):
     return brokkr.preferences.cultlib_py_src
 
 
-def _ship_collection(context):
+def _is_ship(collection):
+    return collection.get("aetheria.asset_kind") == "ship"
+
+
+def _ship_collection(context, unbound_ok=False):
+    """The one chooser: the ship collection holding the active object. unbound_ok (Bind, New Ship) also accepts the
+    active object's only collection when no ship collection holds it."""
     obj = context.active_object
     if obj is None:
-        raise ValueError("Select an object in the ship collection")
-    matches = [collection for collection in bpy.data.collections
-               if collection.get("aetheria.asset_kind") == "ship" and obj.name in collection.all_objects]
-    if len(matches) != 1:
-        raise ValueError("Selected object must belong to exactly one bound ship collection")
-    return matches[0]
+        raise Refusal("Select an object in the ship collection")
+    ships = [collection for collection in bpy.data.collections if _is_ship(collection) and obj.name in collection.all_objects]
+    if len(ships) == 1:
+        return ships[0]
+    if unbound_ok and not ships and len(obj.users_collection) == 1:
+        return obj.users_collection[0]
+    raise Refusal("Select an object in exactly one ship collection" if unbound_ok
+                     else "Selected object must belong to exactly one bound ship collection")
+
+
+def _bind_collection(collection, path, ship_id, pending=None):
+    """Binds the collection to the ship .cc at path (aetheria.asset_kind, .id and .ship_cc, and .pending = [name,
+    reference] for a ship whose file the first Save creates), or changes nothing."""
+    if collection.get("aetheria.asset_kind") not in (None, "ship"):
+        raise ValueError("The collection has another aetheria.asset_kind")
+    if collection.get("aetheria.id") not in (None, ship_id):
+        raise ValueError("The collection is bound to another ship ID")
+    stored = path
+    if bpy.data.filepath:
+        try:
+            stored = bpy.path.relpath(path)
+        except ValueError:
+            pass
+    keys = ("aetheria.asset_kind", "aetheria.id", "aetheria.ship_cc", "aetheria.pending")
+    before = {key: collection[key] for key in keys if key in collection}
+    values = {"aetheria.asset_kind": "ship", "aetheria.id": ship_id, "aetheria.ship_cc": stored}
+    if pending:
+        values["aetheria.pending"] = pending
+    try:
+        for key, value in values.items():
+            collection[key] = value
+        if not pending and "aetheria.pending" in collection:
+            del collection["aetheria.pending"]
+    except Exception:
+        for key in keys:  # the ID-property store refused a value: put every key back as it was
+            if key in before:
+                collection[key] = before[key]
+            elif key in collection:
+                del collection[key]
+        raise
 
 
 class AETHERIA_OT_bind_ship_collection(bpy.types.Operator):
@@ -212,38 +573,13 @@ class AETHERIA_OT_bind_ship_collection(bpy.types.Operator):
         try:
             if not context.scene.aetheria_ship_cc_path:
                 raise ValueError("Choose an existing ship authoring .cc file")
-            obj = context.active_object
-            if obj is None:
-                raise ValueError("Select an object in the ship collection")
-            direct = list(obj.users_collection)
-            marked = [collection for collection in bpy.data.collections
-                      if collection.get("aetheria.asset_kind") == "ship" and obj.name in collection.all_objects]
-            if len(marked) == 1:
-                collection = marked[0]
-            elif len(marked) == 0 and len(direct) == 1:
-                collection = direct[0]
-            else:
-                raise ValueError("Select an object in exactly one ship collection")
             path = bpy.path.abspath(context.scene.aetheria_ship_cc_path)
-            ship_id = read(path, _brokkr_cultlib(context)).ship.body[0]
-            if collection.get("aetheria.asset_kind") not in (None, "ship"):
-                raise ValueError(f"{collection.name} has another aetheria.asset_kind")
-            if collection.get("aetheria.id") not in (None, ship_id):
-                raise ValueError(f"{collection.name} is bound to another ship ID")
-            stored = path
-            if bpy.data.filepath:
-                try:
-                    stored = bpy.path.relpath(path)
-                except ValueError:
-                    pass
-            collection["aetheria.asset_kind"] = "ship"
-            collection["aetheria.id"] = ship_id
-            collection["aetheria.ship_cc"] = stored
-            self.report({"INFO"}, f"Bound {collection.name} to {ship_id}")
+            collection = _ship_collection(context, unbound_ok=True)
+            _bind_collection(collection, path, read(path, _brokkr_cultlib(context)).ship.body[0])
+            self.report({"INFO"}, "Bound the ship collection")
             return {"FINISHED"}
-        except (OSError, ValueError, RuntimeError, ImportError) as exc:
-            self.report({"ERROR"}, str(exc))
-            return {"CANCELLED"}
+        except _EXPECTED as exc:
+            return _refuse(self, exc)
 
 
 class AETHERIA_OT_capture_ship_lines(bpy.types.Operator):
@@ -257,7 +593,7 @@ class AETHERIA_OT_capture_ship_lines(bpy.types.Operator):
             obj = context.active_object
             collection = _ship_collection(context)
             if not collection.get("aetheria.ship_cc"):
-                raise ValueError(f"{collection.name} has no bound ship .cc path")
+                raise ValueError("The ship collection has no bound .cc path")
             path = bpy.path.abspath(collection["aetheria.ship_cc"])
             cultlib = _brokkr_cultlib(context)
             if read(path, cultlib).ship.body[0] != collection["aetheria.id"]:
@@ -267,48 +603,84 @@ class AETHERIA_OT_capture_ship_lines(bpy.types.Operator):
                 evaluated=context.scene.aetheria_capture_evaluated_lines,
             )
             count = replace_lines(path, cultlib, lines)
-            self.report({"INFO"}, f"Captured {count} lines into {path}")
+            self.report({"INFO"}, f"Captured {count} lines")
             return {"FINISHED"}
-        except (OSError, ValueError, RuntimeError, ImportError) as exc:
-            self.report({"ERROR"}, str(exc))
-            return {"CANCELLED"}
+        except _EXPECTED as exc:
+            return _refuse(self, exc)
 
 
 class AETHERIA_AP_preferences(bpy.types.AddonPreferences):
     bl_idname = __package__
 
-    aetheria_repo: bpy.props.StringProperty(
-        name="Aetheria repo", subtype="DIR_PATH",
-        description="Aetheria checkout whose tools/AetherDb validates packages. "
-                    "Empty: the nearest folder above the bound .cc that holds tools/AetherDb")
+    game_folder: bpy.props.StringProperty(
+        name="Game folder", subtype="DIR_PATH",
+        description="The folder whose GameData holds Aetheria.cc and Mods (the install folder); its ModTools holds "
+                    "AetherDb. Empty: the nearest folder above the bound .cc whose GameData holds Aetheria.cc")
+
+    max_texture: bpy.props.IntProperty(
+        name="Max texture", default=2048, min=64, soft_max=8192,
+        description="The longest side, in pixels, a material image keeps in ship.glb; larger images are exported "
+                    "scaled to it and the .blend's own images are left as they are")
+
+    bake_size: bpy.props.IntProperty(
+        name="Bake size", default=2048, min=64, soft_max=8192,
+        description="The side, in pixels, of the square albedo and normal images Bake From Source makes")
+
+    bake_cage_extrusion: bpy.props.FloatProperty(
+        name="Bake cage extrusion", default=0.05, min=0.0, unit="LENGTH",
+        description="How far, in metres, Bake From Source pushes each render mesh surface out along its normals before "
+                    "casting rays at Source. Too small misses Source where it rises above the render mesh; too large "
+                    "catches parts across a gap")
+
+    bake_max_ray_distance: bpy.props.FloatProperty(
+        name="Bake max ray distance", default=0.0, min=0.0, unit="LENGTH",
+        description="The longest ray, in metres, Bake From Source casts from the extruded surface. 0 means no limit")
 
     def draw(self, context):
-        self.layout.prop(self, "aetheria_repo")
+        self.layout.prop(self, "game_folder")
+        self.layout.prop(self, "max_texture")
+        self.layout.prop(self, "bake_size")
+        self.layout.prop(self, "bake_cage_extrusion")
+        self.layout.prop(self, "bake_max_ray_distance")
 
 
-def _aetheria_repo(context, ship_cc):
+GAME_FOLDER_REFUSAL = ("Set the add-on's Game folder preference to the folder whose GameData holds Aetheria.cc "
+                       "and whose ModTools holds AetherDb")
+
+
+def _game_folder(context, ship_cc=None):
+    """The folder AetherDb runs against: the Game folder preference, else the nearest folder above the bound .cc whose
+    GameData holds Aetheria.cc. Refusals name the preference and never a path."""
     addon = context.preferences.addons.get(__package__)
-    configured = addon.preferences.aetheria_repo if addon and addon.preferences else ""
+    configured = addon.preferences.game_folder if addon and addon.preferences else ""
     if configured:
-        repo = Path(bpy.path.abspath(configured))
-        if not (repo / "tools" / "AetherDb").is_dir():
-            raise ValueError(f"The Aetheria repo preference {repo} has no tools/AetherDb")
-        return repo
-    for folder in Path(ship_cc).resolve().parents:
-        if (folder / "tools" / "AetherDb").is_dir():
-            return folder
-    raise ValueError("No Aetheria repo above the ship .cc; set it in the add-on's preferences")
+        folder = Path(bpy.path.abspath(configured))
+        if not (folder / "GameData" / "Aetheria.cc").is_file():
+            raise ValueError(GAME_FOLDER_REFUSAL)
+        return folder
+    if ship_cc:
+        for folder in Path(ship_cc).resolve().parents:
+            if (folder / "GameData" / "Aetheria.cc").is_file():
+                return folder
+    raise ValueError(GAME_FOLDER_REFUSAL)
 
 
-def _aetherdb(context, ship_cc, *args):
-    """Runs one AetherDb ship-authoring command; returns its exit code and its output, stdout then stderr. The compiler
-    warnings 'dotnet run' prints when it rebuilds AetherDb are left out; errors are kept."""
-    repo = _aetheria_repo(context, ship_cc)
-    result = subprocess.run(
-        ["dotnet", "run", "--project", str(repo / "tools" / "AetherDb"), "--", "ship-authoring", *args],
-        cwd=repo, capture_output=True, text=True, timeout=AETHERDB_TIMEOUT)
+def _aetherdb(context, *args, ship_cc=None):
+    """Runs one AetherDb ship-authoring command from the game folder's ModTools; returns its exit code and its output,
+    stdout then stderr. ship_cc is the bound .cc the game folder is found from when the preference is empty."""
+    folder = _game_folder(context, ship_cc)
+    tool = folder / "ModTools" / ("AetherDb.exe" if sys.platform == "win32" else "AetherDb")
+    if not tool.is_file():
+        raise ValueError(GAME_FOLDER_REFUSAL)
+    try:
+        result = subprocess.run([str(tool), "ship-authoring", *args], cwd=folder, capture_output=True, text=True,
+                                timeout=AETHERDB_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("AetherDb did not finish in time") from None
+    except OSError:
+        raise RuntimeError("AetherDb could not be started") from None
     lines = (result.stdout + "\n" + result.stderr).splitlines()
-    return result.returncode, "\n".join(line for line in lines if line.strip() and ": warning " not in line)
+    return result.returncode, "\n".join(line for line in lines if line.strip())
 
 
 def _layer_collection(layer, collection):
@@ -330,57 +702,850 @@ def _anchors(collection):
             continue
         anchor_id = obj.get("aetheria.id")
         if not isinstance(anchor_id, str) or not anchor_id.strip():
-            raise ValueError(f"{obj.name} has aetheria.role {role} but no aetheria.id")
+            raise ValueError("An object with aetheria.role has no aetheria.id")
         parent = None
         if role == "weapon-muzzle":
             parent = obj.parent.get("aetheria.id") if obj.parent else None
             if not parent:
-                raise ValueError(f"Muzzle {obj.name} must be parented to its weapon mount object")
+                raise ValueError("A weapon-muzzle must be parented to its weapon mount object")
         rows.append([anchor_id, str(role), anchor_id, parent, int(obj.get("aetheria.order", 0))])
     return rows
 
 
+DEFAULT_MAX_TEXTURE = 2048
+
+
+def _max_texture(context):
+    addon = context.preferences.addons.get(__package__)
+    return addon.preferences.max_texture if addon and addon.preferences else DEFAULT_MAX_TEXTURE
+
+
+def _image_nodes(tree, seen=None):
+    """Every Image Texture node of a node tree, node groups included."""
+    seen = set() if seen is None else seen
+    if tree is None or tree.name_full in seen:
+        return
+    seen.add(tree.name_full)
+    for node in tree.nodes:
+        if node.type == "TEX_IMAGE" and node.image is not None:
+            yield node
+        elif node.type == "GROUP":
+            yield from _image_nodes(node.node_tree, seen)
+
+
+def _swap_in_scaled_images(objects, limit, swaps):
+    """Points each Image Texture node of the objects' materials that holds an image longer than limit at a scaled copy,
+    and appends each (node, original, copy) to swaps for _restore_images, so a failure part way still restores. The
+    originals are never modified."""
+    copies = {}
+    for obj in objects:
+        for slot in obj.material_slots:
+            for node in _image_nodes(slot.material.node_tree if slot.material else None):
+                original = node.image
+                longest = max(original.size)
+                if longest <= limit:
+                    continue
+                if original not in copies:
+                    copy = original.copy()
+                    try:
+                        copy.scale(max(1, round(original.size[0] * limit / longest)),
+                                   max(1, round(original.size[1] * limit / longest)))
+                    except BaseException:
+                        bpy.data.images.remove(copy)  # not yet in swaps, so _restore_images cannot find it
+                        raise
+                    copies[original] = copy
+                node.image = copies[original]
+                swaps.append((node, original, copies[original]))
+
+
+def _restore_images(swaps):
+    for node, original, _ in swaps:
+        node.image = original
+    for copy in {id(copy): copy for _, _, copy in swaps}.values():
+        bpy.data.images.remove(copy)
+
+
 def _export_glb(context, collection, filepath):
-    """Exports the collection's objects, Grease Pencil excluded, with custom properties as node extras."""
+    """Exports the collection's objects with custom properties as node extras: Generated's anchors are exported; Grease
+    Pencil, Source and the Grid are not."""
     view_layer = context.view_layer
     layer = _layer_collection(view_layer.layer_collection, collection)
     if layer is None:
-        raise ValueError(f"{collection.name} is not in the current view layer")
+        raise ValueError("The ship collection is not in the current view layer")
     previous_layer = view_layer.active_layer_collection
     previous_selection = [obj for obj in view_layer.objects if obj.select_get()]
     previous_active = view_layer.objects.active
+    swaps = []
     try:
         view_layer.active_layer_collection = layer
         for obj in previous_selection:
             obj.select_set(False)
-        for obj in collection.all_objects:
-            if obj.type != "GREASEPENCIL" and obj.name in view_layer.objects:
-                obj.select_set(True)
+        derived = _derived_names(collection)
+        exported = [obj for obj in collection.all_objects
+                    if obj.type != "GREASEPENCIL" and obj.name not in derived and obj.name in view_layer.objects]
+        for obj in exported:
+            obj.select_set(True)
+        _swap_in_scaled_images(exported, _max_texture(context), swaps)
         bpy.ops.export_scene.gltf(
             filepath=filepath, export_format="GLB", use_active_collection=True, use_selection=True,
             export_extras=True, export_yup=True, export_apply=True)
+    except RuntimeError:  # the exporter's text holds paths and a traceback
+        traceback.print_exc()
+        raise RuntimeError("The GLB export failed; its message is in the system console") from None
     finally:
+        _restore_images(swaps)
         for obj in view_layer.objects:
             obj.select_set(obj in previous_selection)
         view_layer.objects.active = previous_active
         view_layer.active_layer_collection = previous_layer
 
 
+def _child(collection, kind):
+    """The child collection tagged aetheria.frame == kind. Blender keeps collection names unique per file, so the
+    name 'Source' or 'Generated' cannot identify it."""
+    return next((child for child in collection.children if child.get("aetheria.frame") == kind), None)
+
+
+def _child_or_new(collection, kind, name):
+    child = _child(collection, kind)
+    if child is None:
+        child = bpy.data.collections.new(name)
+        child["aetheria.frame"] = kind
+        collection.children.link(child)
+    return child
+
+
+def _derived_names(collection):
+    """Names of the objects that are never exported: Source's, and Generated's that carry no aetheria.role (the Grid)."""
+    return {obj.name for kind in (SOURCE, GENERATED) for child in [_child(collection, kind)] if child
+            for obj in child.all_objects if kind == SOURCE or "aetheria.role" not in obj}
+
+
+def _ship_root(collection):
+    return next((obj for obj in collection.objects if obj.get("aetheria.ship_root")), None)
+
+
+def _meshes(objects):
+    return [obj for obj in objects if obj.type == "MESH"]
+
+
+def _own_meshes(collection):
+    """The ship's own render meshes: Ship Root's descendants outside Source and Generated that carry no aetheria.role."""
+    derived = _derived_names(collection)
+    return [obj for obj in _meshes(_ship_root(collection).children_recursive)
+            if obj.name not in derived and "aetheria.role" not in obj]
+
+
+def _frame_meshes(collection):
+    """The meshes Rasterise reads: the ship's own, the Source meshes while there are none."""
+    source = _child(collection, SOURCE)
+    return _own_meshes(collection) or (_meshes(source.all_objects) if source else [])
+
+
+def _loose_meshes(collection):
+    """Meshes of a collection that has a Ship Root which are not under the root, Generated's apart. Source meshes count:
+    Rasterise reads them and Flip Nose turns only what hangs from Ship Root."""
+    root = _ship_root(collection)
+    if root is None:
+        return []
+    generated = _child(collection, GENERATED)
+    derived = {obj.name for obj in generated.all_objects} if generated else set()
+    framed = {obj.name for obj in root.children_recursive}
+    return [obj for obj in _meshes(collection.all_objects) if obj.name not in derived and obj.name not in framed]
+
+
+def _refuse_loose_meshes(context, collection):
+    """Refuses while meshes sit outside Ship Root, selecting them so the author can parent them."""
+    loose = _loose_meshes(collection)
+    if loose:
+        _refuse_selecting(context, loose, f"{len(loose)} meshes in the ship collection are not under Ship Root; parent them to it")
+
+
+def _frame_inputs(context, collection, state):
+    """Ship Root and the meshes Rasterise reads, or the refusal that stops Rasterise and Flip Nose before they change
+    anything."""
+    root = _ship_root(collection)
+    if root is None:
+        raise ValueError("The ship collection has no Ship Root; run New Ship first")
+    if state.ship_id != collection["aetheria.id"]:
+        raise ValueError("Load this collection's layout first")
+    _refuse_loose_meshes(context, collection)
+    meshes = _frame_meshes(collection)
+    if not meshes:
+        raise ValueError("The ship collection has no render or Source mesh to rasterise")
+    return root, meshes
+
+
+def _world_mesh(obj, depsgraph, matrix):
+    """The evaluated mesh's points through matrix, as (points, triangles) numpy arrays."""
+    evaluated = obj.evaluated_get(depsgraph)
+    mesh = evaluated.to_mesh()
+    try:
+        points = numpy.empty(len(mesh.vertices) * 3, dtype=numpy.float32)
+        mesh.vertices.foreach_get("co", points)
+        mesh.calc_loop_triangles()
+        triangles = numpy.empty(len(mesh.loop_triangles) * 3, dtype=numpy.int32)
+        mesh.loop_triangles.foreach_get("vertices", triangles)
+    finally:
+        evaluated.to_mesh_clear()
+    linear = numpy.array(matrix, dtype=numpy.float64)
+    return points.reshape(-1, 3) @ linear[:3, :3].T + linear[:3, 3], triangles.reshape(-1, 3)
+
+
+def _held(matrix):
+    """The world matrix an object holds after matrix_world = matrix: Blender keeps location, rotation and scale, so a
+    shear (a non-uniform scaled parent under rotation) is dropped. The hull the author sees afterwards is this one."""
+    return Matrix.LocRotScale(*matrix.decompose())
+
+
+def _triangles_xy(depsgraph, placements):
+    """The top-down triangles of the evaluated meshes, each through its matrix: what the author sees from above.
+    placements is [(object, matrix)]."""
+    triangles = []
+    for obj, matrix in placements:
+        points, indices = _world_mesh(obj, depsgraph, matrix)
+        triangles += points[indices][:, :, :2].tolist()
+    return triangles
+
+
+def _grid_current(collection, state):
+    """Whether the Grid can be drawn: grid_origin was computed for the buffer's own size."""
+    origin = collection.get("aetheria.grid_origin")
+    return (origin is not None and len(origin) == 4 and (int(origin[2]), int(origin[3])) == (state.width, state.height)
+            and len(state.cells) == state.width * state.height)
+
+
+def _discard_object(obj):
+    """Removes obj, then its mesh when nothing else uses it."""
+    mesh = obj.data if obj.type == "MESH" else None
+    bpy.data.objects.remove(obj)
+    if mesh is not None and mesh.users == 0:
+        bpy.data.meshes.remove(mesh)
+
+
+def _attach_to_root(obj, root):
+    """Parents obj to root with an identity parent inverse and a zero local transform: its local frame is Ship Root's."""
+    obj.parent = root
+    obj.matrix_parent_inverse = Matrix.Identity(4)
+    obj.location = (0.0, 0.0, 0.0)
+    obj.rotation_mode = "XYZ"
+    obj.rotation_euler = (0.0, 0.0, 0.0)
+    obj.scale = (1.0, 1.0, 1.0)
+
+
+def _redraw_grid(collection, state):
+    """Redraws the Grid object from the layout buffer and the collection's aetheria.grid_origin while the origin was
+    computed for the buffer's size; otherwise removes the Grid. A collection without a Ship Root or a grid_origin has no
+    frame yet and gets no Grid."""
+    root = _ship_root(collection)
+    origin = collection.get("aetheria.grid_origin")
+    if root is None or origin is None:
+        return
+    generated = _child_or_new(collection, GENERATED, GENERATED)
+    grid = next((obj for obj in generated.objects if obj.get("aetheria.grid")), None)
+    if not _grid_current(collection, state):
+        if grid is not None:
+            _discard_object(grid)
+        return
+    origin = (float(origin[0]), float(origin[1]))
+    half = hull_grid.CELL_SIZE / 2
+    verts, edges, faces = [], [], []
+    for x in range(state.width):
+        for y in range(state.height):
+            cx, cy = hull_grid.cell_centre(origin, x, y)
+            i = len(verts)
+            verts += [(cx - half, cy - half, 0.0), (cx + half, cy - half, 0.0), (cx + half, cy + half, 0.0),
+                      (cx - half, cy + half, 0.0)]
+            if state.cells[x * state.height + y].occupied:
+                faces.append((i, i + 1, i + 2, i + 3))
+            else:
+                edges += [(i, i + 1), (i + 1, i + 2), (i + 2, i + 3), (i + 3, i)]
+    mesh = bpy.data.meshes.new("Grid")
+    mesh.from_pydata(verts, edges, faces)
+    mesh.update(calc_edges=True)
+    if grid is None:
+        grid = bpy.data.objects.new("Grid", mesh)
+        grid["aetheria.grid"] = True
+        generated.objects.link(grid)
+    else:
+        previous, grid.data = grid.data, mesh
+        if previous.users == 0:
+            bpy.data.meshes.remove(previous)
+    _attach_to_root(grid, root)
+    grid.display_type = "WIRE"
+
+
+def _rasterise(context, collection, state):
+    """Proposes the hull's cells from the frame meshes, top-down in Ship Root's frame, into the layout buffer (its
+    hardpoints stay) and stores the grid's placement with the size it was computed for. Writes no file."""
+    root, meshes = _frame_inputs(context, collection, state)
+    to_root = root.matrix_world.inverted()
+    width, height, cells, origin = hull_grid.rasterise(_triangles_xy(
+        context.evaluated_depsgraph_get(), [(obj, to_root @ obj.matrix_world) for obj in meshes]))
+    _place_grid(collection, state, width, height, cells, origin)
+    return width, height
+
+
+def _place_grid(collection, state, width, height, cells, origin):
+    """Puts a rasterised hull into the layout buffer (its hardpoints stay), stores the grid's placement with the size it
+    was computed for and redraws the Grid. The only writer of aetheria.grid_origin."""
+    _set_cells(state, width, height, cells)
+    collection["aetheria.grid_origin"] = [float(origin[0]), float(origin[1]), width, height]
+    _redraw_grid(collection, state)
+
+
+GENERATED_ROLES = (("map-icon", "map", "Map Icon"), ("shield", "shield", "Shield"), ("tractor", "tractor", "Tractor"))
+
+
+def _recentre(root, point):
+    """Moves Ship Root, and the ship with it, so that its local point (x, y) sits at world X = Y = 0."""
+    world = root.matrix_world @ Vector((point[0], point[1], 0.0))
+    moved = root.matrix_world.copy()
+    moved.translation.x -= world.x
+    moved.translation.y -= world.y
+    root.matrix_world = moved
+
+
+def _regenerate_anchors(context, collection, root):
+    """Rebuilds Generated's map-icon, shield and tractor from the render meshes (_own_meshes) in Ship Root's frame:
+    every anchor Package itself generated (marked aetheria.generated) and not marked aetheria.keep is discarded; anything
+    else in Generated, a collider included, is the operator's and stays. Then each of the three roles no other object in the
+    collection carries is made again. The operator's own object, or a kept one, owns its role. Everything that can
+    refuse comes before the first change."""
+    generated = _child_or_new(collection, GENERATED, GENERATED)
+    stale = [obj for obj in generated.all_objects if obj.get("aetheria.generated") and not obj.get("aetheria.keep")]
+    stale_names = {obj.name for obj in stale}
+    held = {obj["aetheria.role"] for obj in collection.all_objects
+            if "aetheria.role" in obj and obj.name not in stale_names}
+    meshes = _own_meshes(collection)
+    missing = [entry for entry in GENERATED_ROLES if meshes and entry[0] not in held]
+    made = []
+    if missing:
+        depsgraph = context.evaluated_depsgraph_get()
+        to_root = root.matrix_world.inverted()
+        points = numpy.vstack([_world_mesh(obj, depsgraph, to_root @ obj.matrix_world)[0] for obj in meshes])
+        if not len(points):
+            raise ValueError("The render meshes have no points to derive the map icon, shield and tractor from")
+        low, high = points.min(axis=0), points.max(axis=0)
+        centre, half = (low + high) / 2, (high - low) / 2
+        for role, anchor_id, name in missing:
+            if role == "map-icon":
+                outline = hull_grid.convex_outline(points[:, :2].tolist())
+                mesh = bpy.data.meshes.new(name)
+                mesh.from_pydata([(x, y, float(centre[2])) for x, y in outline], [], [tuple(range(len(outline)))])
+                mesh.update()
+                made.append((role, anchor_id, bpy.data.objects.new(name, mesh), None, None))
+            elif role == "shield":
+                empty = bpy.data.objects.new(name, None)
+                empty.empty_display_type = "SPHERE"
+                made.append((role, anchor_id, empty, tuple(float(v) for v in centre),
+                             [max(1.15 * float(h), 0.1) for h in half]))
+            else:
+                empty = bpy.data.objects.new(name, None)
+                empty.empty_display_type = "ARROWS"
+                made.append((role, anchor_id, empty, (float(centre[0]), float(low[1]), float(centre[2])), None))
+    for obj in stale:
+        _discard_object(obj)
+    for role, anchor_id, obj, at, scale in made:
+        obj["aetheria.role"] = role
+        obj["aetheria.id"] = anchor_id
+        obj["aetheria.keep"] = False
+        obj["aetheria.generated"] = True
+        generated.objects.link(obj)
+        _attach_to_root(obj, root)
+        if at is not None:
+            obj.location = at
+        if scale is not None:
+            obj.scale = scale
+
+
+class AETHERIA_OT_rasterise_hull(bpy.types.Operator):
+    bl_idname = "aetheria.rasterise_hull"
+    bl_label = "Rasterise Hull"
+    bl_description = "Propose the hull's cells from its top-down silhouette; you edit them afterwards, then Save Layout"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        try:
+            width, height = _rasterise(context, _ship_collection(context), context.scene.aetheria_layout)
+            self.report({"INFO"}, f"Rasterised a {width}x{height} hull")
+            return {"FINISHED"}
+        except _EXPECTED as exc:
+            return _refuse(self, exc)
+
+
+class AETHERIA_OT_flip_nose(bpy.types.Operator):
+    bl_idname = "aetheria.flip_nose"
+    bl_label = "Flip Nose"
+    bl_description = "Turn the hull 180 degrees about Ship Root's Z axis, then rasterise it again"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        try:
+            collection = _ship_collection(context)
+            state = context.scene.aetheria_layout
+            root, _ = _frame_inputs(context, collection, state)
+            turn = root.matrix_world @ Matrix.Rotation(math.pi, 4, "Z") @ root.matrix_world.inverted()
+            for child in root.children:
+                child.matrix_world = turn @ child.matrix_world
+            try:
+                _rasterise(context, collection, state)
+            except Exception:
+                for child in root.children:  # a half turn is its own inverse
+                    child.matrix_world = turn @ child.matrix_world
+                raise
+            self.report({"INFO"}, "Turned the nose about Ship Root")
+            return {"FINISHED"}
+        except _EXPECTED as exc:
+            return _refuse(self, exc)
+
+
+BAKE_SAMPLES = 1  # one sample per texel: the maps are a starting point and the smoke runs on the CPU
+BAKE_MAPS = (("albedo", "sRGB", {"type": "DIFFUSE", "pass_filter": {"COLOR"}}),
+             ("normal", "Non-Color", {"type": "NORMAL", "normal_space": "TANGENT"}))
+
+
+def _principled(material):
+    tree = material.node_tree if material else None
+    return next((node for node in tree.nodes if node.type == "BSDF_PRINCIPLED"), None) if tree else None
+
+
+def _wired_image(material, kind):
+    """The Image Texture node already feeding the material's Principled Base Color (albedo) or, through a Normal Map
+    node, its Normal."""
+    socket = _principled(material).inputs["Base Color" if kind == "albedo" else "Normal"]
+    node = socket.links[0].from_node if socket.is_linked else None
+    if kind == "normal" and node is not None and node.type == "NORMAL_MAP":
+        colour = node.inputs["Color"]
+        node = colour.links[0].from_node if colour.is_linked else None
+    return node if node is not None and node.type == "TEX_IMAGE" else None
+
+
+def _select_only(context, objects):
+    keep = {obj.name for obj in objects}
+    for obj in context.view_layer.objects:
+        obj.select_set(obj.name in keep)
+
+
+def _refuse_selecting(context, offenders, message):
+    """Selects the offenders and refuses with message, which names a count and never an object."""
+    _select_only(context, offenders)
+    raise Refusal(message)
+
+
+def _bake_inputs(context, collection):
+    """The ship ID, the Source meshes and the selected render meshes Bake From Source works on, or the refusal that
+    stops it before anything changes."""
+    if context.mode != "OBJECT":
+        raise Refusal("Switch to Object mode before baking")
+    source = _child(collection, SOURCE)
+    sources = _meshes(source.all_objects) if source else []
+    if _ship_root(collection) is None or not sources:
+        raise Refusal("Bake From Source needs a Ship Root and a mesh in Source; run New Ship first")
+    layer = context.view_layer
+    hidden = [obj for obj in sources if obj.name not in layer.objects or obj.hide_get()]
+    if hidden:
+        _refuse_selecting(context, [obj for obj in hidden if obj.name in layer.objects],
+                          f"{len(hidden)} Source meshes are hidden or outside the view layer; show them to bake")
+    targets = [obj for obj in _own_meshes(collection) if obj.name in layer.objects and obj.select_get()]
+    if not targets:
+        raise Refusal("Select the render meshes to bake onto")
+    shared = {obj.data for obj in sources}
+    linked = [obj for obj in targets if obj.data in shared]
+    if linked:  # a material slot belongs to the mesh data, so the bake would repoint Source's own slot
+        _refuse_selecting(context, linked, f"{len(linked)} selected meshes share their mesh data with a Source mesh; make them single user first")
+    flat = [obj for obj in targets if not obj.data.uv_layers]
+    if flat:
+        _refuse_selecting(context, flat, f"{len(flat)} selected meshes have no UV layer; unwrap them first")
+    bare = [obj for obj in targets if any(_principled(slot.material) is None for slot in obj.material_slots)]
+    if bare:
+        _refuse_selecting(context, bare, f"{len(bare)} selected meshes have a material without a Principled BSDF")
+    return collection["aetheria.id"], sources, targets
+
+
+def _target_materials(targets):
+    return list({slot.material.name: slot.material for obj in targets for slot in obj.material_slots}.values())
+
+
+def _give_own_materials(sources, targets, undo):
+    """Gives each target slot that holds a material a Source mesh also uses a copy of its own, so the bake rewires nothing
+    Source owns; returns how many materials were copied. undo gets the steps that put the slots back."""
+    owned = {slot.material.name for obj in sources for slot in obj.material_slots if slot.material}
+    copies = {}
+    for obj in targets:
+        for index, slot in enumerate(obj.material_slots):
+            original = slot.material
+            if original is None or original.name not in owned:
+                continue
+            if original.name not in copies:
+                copies[original.name] = original.copy()
+                undo.append(partial(_remove_material, copies[original.name].name))
+            undo.append(partial(_set_slot_material, obj.name, index, original.name))
+            slot.material = copies[original.name]
+    return len(copies)
+
+
+def _set_slot_material(object_name, index, material_name):
+    bpy.data.objects[object_name].material_slots[index].material = bpy.data.materials[material_name]
+
+
+def _hold(owner, name, value, restore):
+    """Sets owner.name to value for the bake; restore gets the step that puts the old value back."""
+    restore.append(partial(setattr, owner, name, getattr(owner, name)))
+    setattr(owner, name, value)
+
+
+def _isolate_sources(sources, restore):
+    """The Source materials as the bake should see them: Metallic and Transmission Weight at 0, links into them muted."""
+    seen = set()
+    for obj in sources:
+        for slot in obj.material_slots:
+            for node in (slot.material.node_tree.nodes if slot.material and slot.material.node_tree else ()):
+                if node.type != "BSDF_PRINCIPLED" or (slot.material.name, node.name) in seen:
+                    continue
+                seen.add((slot.material.name, node.name))
+                for name in ("Metallic", "Transmission Weight"):
+                    socket = node.inputs[name]
+                    for link in socket.links:
+                        _hold(link, "is_muted", True, restore)
+                    _hold(socket, "default_value", 0.0, restore)
+
+
+def _remove_image(name):
+    image = bpy.data.images.get(name)
+    if image:
+        bpy.data.images.remove(image)
+
+
+def _remove_node(material_name, node_name):
+    material = bpy.data.materials.get(material_name)
+    node = material.node_tree.nodes.get(node_name) if material and material.node_tree else None
+    if node:
+        material.node_tree.nodes.remove(node)
+
+
+def _remove_material(name):
+    material = bpy.data.materials.get(name)
+    if material:
+        bpy.data.materials.remove(material)
+
+
+def _clear_materials(mesh_name):
+    bpy.data.meshes[mesh_name].materials.clear()
+
+
+def _restore_link(material_name, node_name, input_name, previous):
+    tree = bpy.data.materials[material_name].node_tree
+    socket = tree.nodes[node_name].inputs[input_name]
+    for link in list(socket.links):
+        tree.links.remove(link)
+    if previous:
+        tree.links.new(next(out for out in tree.nodes[previous[0]].outputs if out.identifier == previous[1]), socket)
+
+
+def _set_node_image(material_name, node_name, image_name):
+    bpy.data.materials[material_name].node_tree.nodes[node_name].image = bpy.data.images.get(image_name)
+
+
+def _link_into(material, node, input_name, source, undo):
+    socket = node.inputs[input_name]
+    previous = (socket.links[0].from_node.name, socket.links[0].from_socket.identifier) if socket.is_linked else None
+    material.node_tree.links.new(source, socket)
+    undo.append(partial(_restore_link, material.name, node.name, input_name, previous))
+
+
+def _refuse_taken_names(ship_id, targets):
+    """The ship's pair is {ship_id}.albedo and {ship_id}.normal and there is one pair. An image holding a name must be one
+    this bake replaces (used only by the selected meshes' wiring) or one nothing uses; returns those images, which the bake
+    frees before it names its own. Any other holder refuses."""
+    materials = _target_materials(targets)
+    holders = []
+    for kind, _, _ in BAKE_MAPS:
+        image = bpy.data.images.get(f"{ship_id}.{kind}")
+        if image is None:
+            continue
+        wired = [node for node in (_wired_image(material, kind) for material in materials) if node is not None and node.image == image]
+        if image.use_fake_user or image.users != len(wired):
+            raise Refusal("The ship's baked image names are held by images this bake does not replace; select every "
+                             "mesh that uses them, or rename the other images")
+        holders.append(image)
+    return holders
+
+
+def _bake_map(context, sources, targets, settings, extrusion, max_distance, nodes):
+    """Bakes one map from the Source meshes onto every target, the first target clearing the image and the later ones
+    adding to it. nodes maps a material's name to the Image Texture node that holds this map's image. This is the add-on's
+    only bake."""
+    layer = context.view_layer
+    for index, target in enumerate(targets):
+        _select_only(context, sources + [target])
+        layer.objects.active = target
+        for slot in target.material_slots:
+            slot.material.node_tree.nodes.active = nodes[slot.material.name]
+        bpy.ops.object.bake(
+            use_selected_to_active=True, cage_extrusion=extrusion, max_ray_distance=max_distance, use_clear=index == 0,
+            **settings)
+
+
+def _settle_images(ship_id, images, stale):
+    """The commit's last step: frees the images the bake replaced and the unused ones that held the pair's names, then
+    names the new images {ship_id}.albedo and {ship_id}.normal."""
+    for image in {image.name: image for image in stale}.values():  # named before any is removed
+        if image.users == 0:
+            bpy.data.images.remove(image)
+    for kind, image in images.items():
+        image.name = f"{ship_id}.{kind}"
+
+
+def _bake_from_source(context, collection, replace):
+    """Bakes the Source meshes onto the selected render meshes' UV0 as one albedo and one normal image per ship, and wires
+    them into every material of those meshes. The images are new and are wired only after both bakes finish; any failure
+    puts every changed value back and removes what was made. The Source materials, scene settings and selection are as they
+    were afterwards."""
+    ship_id, sources, targets = _bake_inputs(context, collection)
+    if not replace and any(_wired_image(material, kind) for material in _target_materials(targets) for kind, _, _ in BAKE_MAPS):
+        raise Refusal("Selected meshes already have baked images; confirm the replace")
+    holders = _refuse_taken_names(ship_id, targets)
+    addon = context.preferences.addons[__package__].preferences
+    scene, layer = context.scene, context.view_layer
+    previous_selection = [obj for obj in layer.objects if obj.select_get()]
+    previous_active = layer.objects.active
+    restore, undo, replaced = [], [], {}
+    restore.append(lambda: ([obj.select_set(obj in previous_selection) for obj in layer.objects],
+                            setattr(layer.objects, "active", previous_active)))
+    try:
+        _hold(scene.render, "engine", "CYCLES", restore)
+        _hold(scene.cycles, "samples", BAKE_SAMPLES, restore)
+        _hold(scene.cycles, "device", "CPU", restore)
+        copied = _give_own_materials(sources, targets, undo)
+        for obj in targets:  # her unwrap is UV0, whichever layer is active
+            _hold(obj.data.uv_layers, "active_index", 0, restore)
+        _isolate_sources(sources, restore)
+        images = {}
+        for kind, space, _ in BAKE_MAPS:
+            image = bpy.data.images.new(f"{ship_id}.{kind}", addon.bake_size, addon.bake_size, alpha=False)
+            undo.append(partial(_remove_image, image.name))
+            image.colorspace_settings.name = space
+            images[kind] = image
+        hull = None
+        for obj in targets:
+            if not obj.data.materials:
+                if hull is None:
+                    hull = bpy.data.materials.new(f"{ship_id}.hull")
+                    hull.use_nodes = True
+                    undo.append(partial(_remove_material, hull.name))
+                obj.data.materials.append(hull)
+                undo.append(partial(_clear_materials, obj.data.name))
+        materials = _target_materials(targets)
+        held = {kind: {} for kind, _, _ in BAKE_MAPS}
+        for material in materials:
+            for kind, _, _ in BAKE_MAPS:
+                node = material.node_tree.nodes.new("ShaderNodeTexImage")
+                node.image, node.label = images[kind], f"Baked {kind}"
+                undo.append(partial(_remove_node, material.name, node.name))
+                held[kind][material.name] = node
+        for kind, _, settings in BAKE_MAPS:
+            _bake_map(context, sources, targets, settings, addon.bake_cage_extrusion, addon.bake_max_ray_distance, held[kind])
+        for image in images.values():
+            image.pack()
+        for material in materials:  # the commit: every step is in undo
+            bsdf = _principled(material)
+            for kind, _, _ in BAKE_MAPS:
+                node = held[kind][material.name]
+                old = _wired_image(material, kind)
+                if old is not None:
+                    if old.image:
+                        replaced[old.image.name] = old.image
+                    undo.append(partial(_set_node_image, material.name, old.name, old.image.name if old.image else None))
+                    old.image = images[kind]
+                    _remove_node(material.name, node.name)
+                elif kind == "albedo":
+                    _link_into(material, bsdf, "Base Color", node.outputs["Color"], undo)
+                else:
+                    normal = material.node_tree.nodes.new("ShaderNodeNormalMap")
+                    undo.append(partial(_remove_node, material.name, normal.name))
+                    material.node_tree.links.new(node.outputs["Color"], normal.inputs["Color"])
+                    _link_into(material, bsdf, "Normal", normal.outputs["Normal"], undo)
+    except BaseException:
+        for step in reversed(undo):
+            step()
+        raise
+    finally:
+        for step in reversed(restore):
+            step()
+    _settle_images(ship_id, images, [*replaced.values(), *holders])
+    return copied
+
+
+class AETHERIA_OT_bake_from_source(bpy.types.Operator):
+    bl_idname = "aetheria.bake_from_source"
+    bl_label = "Bake From Source"
+    bl_description = ("Bake the Source meshes' colour and normal onto the selected render meshes' UV0 as the ship's albedo "
+                      "and normal maps, and wire them into their materials. Nothing rebakes unless you press this")
+    bl_options = {"REGISTER", "UNDO"}
+
+    replace: bpy.props.BoolProperty(
+        name="Replace", default=False, options={"SKIP_SAVE"},
+        description="Replace the images the selected meshes' materials already wire into Base Color and Normal")
+
+    def invoke(self, context, event):
+        try:
+            _, _, targets = _bake_inputs(context, _ship_collection(context))
+        except Exception:
+            return self.execute(context)  # the same refusal, reported
+        if any(_wired_image(material, kind) for material in _target_materials(targets) for kind, _, _ in BAKE_MAPS):
+            self.replace = True
+            return context.window_manager.invoke_confirm(
+                self, event, message="The selected meshes already have baked images. Replace them?")
+        return self.execute(context)
+
+    def execute(self, context):
+        try:
+            copied = _bake_from_source(context, _ship_collection(context), self.replace)
+            self.report({"INFO"}, "Baked the albedo and normal maps from Source" + (
+                f"; materials shared with Source, copied for the render meshes: {copied}" if copied else ""))
+            return {"FINISHED"}
+        except Exception as exc:  # the one place a bake's error becomes report text
+            if type(exc) is Refusal:
+                return _refuse(self, exc)
+            traceback.print_exception(exc)  # whatever else Blender raised names objects and images
+            self.report({"ERROR"}, "The bake failed; its message is in the system console")
+            return {"CANCELLED"}
+
+
+def _new_ship(context, ship_id, name, reference, length):
+    """Sets the active collection up as a pending ship: binds it, moves its meshes into Source under a Ship Root, turns
+    them nose to -Y, sizes them to length cells, fills the layout buffer and draws the Grid. The meshes keep their data:
+    the placement is the objects' own matrix, so modifiers act as the author saw them and the cells are the ones checked
+    here. Every check and the rasterising come first; after the bind nothing can refuse. Nothing is written to disk: the
+    first Save creates the file."""
+    if not valid_ship_id(ship_id):
+        raise ValueError("The ship ID must use lower-case letters, digits, dots, underscores or hyphens, must not end "
+                         "in a dot, and must not be a Windows device name")
+    if not name.strip() or not reference.strip():
+        raise ValueError("Give the ship a display name and a reference hull")
+    path = _game_folder(context, bpy.data.filepath or None) / "GameData" / "Mods" / ship_id / "ship.cc"
+    if path.exists():
+        raise ValueError("A ship with this ID already exists under GameData/Mods (Ctrl+Z past a first Save leaves it "
+                         "there); use Bind Ship Collection with its ship.cc, then Load Layout, or give the new ship "
+                         "another ID")
+    collection = _ship_collection(context, unbound_ok=True)
+    if collection.get("aetheria.id") is not None or _ship_root(collection) is not None:
+        raise ValueError("The collection is already a ship")
+    meshes = _meshes(collection.objects)
+    if not meshes:
+        raise ValueError("The ship collection holds no mesh objects to make a ship from")
+    if len(_meshes(collection.all_objects)) != len(meshes):
+        raise ValueError("The ship collection's meshes must sit directly in it, not in child collections")
+    worlds = {obj: obj.matrix_world.copy() for obj in meshes}
+    depsgraph = context.evaluated_depsgraph_get()
+    points = numpy.vstack([_world_mesh(obj, depsgraph, worlds[obj])[0] for obj in meshes])
+    extent_x, extent_y = (float(v) for v in numpy.ptp(points, axis=0)[:2])
+    longest = max(extent_x, extent_y)
+    if longest <= 0:
+        raise ValueError("The hull meshes have no horizontal extent")
+    scale = length * hull_grid.CELL_SIZE / longest
+    transform = Matrix.Diagonal((scale, scale, scale, 1.0))
+    if extent_x > extent_y:
+        transform = transform @ Matrix.Rotation(math.pi / 2, 4, "Z")
+    placed = {obj: _held(transform @ worlds[obj]) for obj in meshes}
+    width, height, cells, origin = hull_grid.rasterise(_triangles_xy(depsgraph, [(obj, placed[obj]) for obj in meshes]))
+    _bind_collection(collection, str(path), ship_id, [name, reference])
+    source = _child_or_new(collection, SOURCE, SOURCE)
+    root = bpy.data.objects.new(SHIP_ROOT, None)
+    root["aetheria.ship_root"] = True
+    collection.objects.link(root)
+    for obj in meshes:
+        collection.objects.unlink(obj)
+        source.objects.link(obj)
+        obj.parent = root
+        obj.matrix_parent_inverse = Matrix.Identity(4)
+        obj.matrix_world = placed[obj]
+    state = context.scene.aetheria_layout
+    state.ship_id = ship_id
+    state.ship_cc = bpy.path.abspath(collection["aetheria.ship_cc"])
+    state.revision = ""
+    state.hardpoints.clear()
+    _place_grid(collection, state, width, height, cells, origin)
+
+
+class AETHERIA_OT_new_ship(bpy.types.Operator):
+    bl_idname = "aetheria.new_ship"
+    bl_label = "New Ship"
+    bl_description = ("Set the active collection up as a new ship: nose toward -Y, sized to the length, with a drafted "
+                      "grid. Nothing is written until Save Layout")
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        scene = context.scene
+        try:
+            _new_ship(context, scene.aetheria_new_ship_id, scene.aetheria_new_ship_name,
+                      scene.aetheria_new_ship_like, scene.aetheria_new_ship_length)
+            self.report({"INFO"}, "New ship set up; Save Layout creates its file")
+            return {"FINISHED"}
+        except _EXPECTED as exc:
+            return _refuse(self, exc)
+
+
+def _ship_centre(context, path):
+    """The saved Shape's centre of mass in cell coordinates, from AetherDb: C# owns it."""
+    code, output = _aetherdb(context, "centre", path, ship_cc=path)
+    try:
+        parts = output.split()
+        if code != 0 or len(parts) != 2:
+            raise ValueError
+        centre = (float(parts[0]), float(parts[1]))
+        if not all(map(math.isfinite, centre)):
+            raise ValueError
+    except ValueError:
+        print(output)
+        raise RuntimeError("AetherDb could not report the ship centre; its message is in the system console") from None
+    return centre
+
+
+def _frame_ship(context, collection, root, path, saved_shape):
+    """Package's frame step for a ship with a Ship Root: the grid must match the saved layout, then the anchors are
+    regenerated and Ship Root is moved last, so that the saved Shape's centre of mass sits at the world origin. The
+    anchors are read from the children's world matrices, so they are made before the move."""
+    origin = collection.get("aetheria.grid_origin")
+    if origin is None or len(origin) != 4 or (int(origin[2]), int(origin[3])) != (saved_shape[0], saved_shape[1]):
+        raise ValueError("Rasterise again: the grid no longer matches the saved layout")
+    centre = _ship_centre(context, path)
+    _regenerate_anchors(context, collection, root)
+    _recentre(root, hull_grid.cell_centre((float(origin[0]), float(origin[1])), centre[0], centre[1]))
+
+
 class AETHERIA_OT_package_ship(bpy.types.Operator):
     bl_idname = "aetheria.package_ship"
     bl_label = "Package Ship"
-    bl_description = ("Write the anchors and ship.glb from the bound collection, capture its LineArt, "
-                      "and run AetherDb's validator")
+    bl_description = ("Put the grid's centre of mass at the world origin, derive the missing map icon, shield and "
+                      "tractor, write the anchors and ship.glb from the bound collection, capture its LineArt, and "
+                      "run AetherDb's validator")
     bl_options = {"REGISTER"}
 
     def execute(self, context):
         scene = context.scene
         try:
             collection, path = _layout_path(context)
+            if collection.get("aetheria.pending"):
+                raise ValueError("Save Layout first")
+            _refuse_loose_meshes(context, collection)
             cultlib = _brokkr_cultlib(context)
             ship_id = collection["aetheria.id"]
+            state = scene.aetheria_layout
+            saved_shape, saved_rows, _ = read_layout(path, cultlib)
+            if state.ship_id == ship_id and state.ship_cc == path:
+                shape, rows = _encode_buffer(state)
+                if layout_revision(shape, rows) != layout_revision(
+                        saved_shape, [row[:len(HARDPOINT_MEMBERS)] for row in saved_rows]):
+                    raise ValueError("Save Layout first")
             if read(path, cultlib).ship.body[0] != ship_id:
                 raise ValueError("The bound collection ID does not match its .cc ship ID")
+            root = _ship_root(collection)
+            mounts = _plan_mounts(collection, state, root, path)
+            if root is not None:
+                _frame_ship(context, collection, root, path, saved_shape)
+            _apply_mounts(context, collection, state, mounts)
             anchors = _anchors(collection)
             _export_glb(context, collection, str(Path(path).with_name(MODEL_ASSET)))
             replace_visual(path, cultlib, ship_id, MODEL_ASSET, anchors)
@@ -389,15 +1554,19 @@ class AETHERIA_OT_package_ship(bpy.types.Operator):
                 replace_lines(path, cultlib, capture_grease_pencil(
                     pencils[0], context.evaluated_depsgraph_get(), scene.frame_current,
                     evaluated=scene.aetheria_capture_evaluated_lines))
-            code, message = _aetherdb(context, path, "validate", path)
-        except (OSError, ValueError, RuntimeError, ImportError, KeyError, subprocess.SubprocessError) as exc:
-            scene.aetheria_package_report = f"Package failed: {exc}"
+            code, message = _aetherdb(context, "validate", path, ship_cc=path)
+        except _EXPECTED as exc:
+            scene.aetheria_package_report = f"Package failed: {_failure_text(exc)}"
             self.report({"ERROR"}, scene.aetheria_package_report)
             return {"CANCELLED"}
-        scene.aetheria_package_report = message or f"validate exited {code}"
+        if message:
+            print(message)
         if code != 0:
-            self.report({"ERROR"}, f"Packaged {len(anchors)} anchors; the validator refused it: {scene.aetheria_package_report}")
+            scene.aetheria_package_report = (f"Packaged {len(anchors)} anchors; the validator refused the ship; "
+                                             "its message is in the system console")
+            self.report({"ERROR"}, scene.aetheria_package_report)
             return {"CANCELLED"}
+        scene.aetheria_package_report = f"Packaged {len(anchors)} anchors; the validator accepted the ship"
         self.report({"INFO"}, scene.aetheria_package_report)
         return {"FINISHED"}
 
@@ -411,21 +1580,36 @@ class AETHERIA_PT_ship(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
+        new = layout.box()
+        new.label(text="New Ship")
+        for prop in ("aetheria_new_ship_id", "aetheria_new_ship_name", "aetheria_new_ship_like",
+                     "aetheria_new_ship_length"):
+            new.prop(context.scene, prop)
+        new.operator("aetheria.new_ship", icon="ADD")
         layout.prop(context.scene, "aetheria_ship_cc_path")
         layout.operator("aetheria.bind_ship_collection", icon="LINKED")
         layout.prop(context.scene, "aetheria_capture_evaluated_lines")
         obj = context.active_object
         layout.label(text=f"Source: {obj.name if obj else '(none)'}")
+        state = context.scene.aetheria_layout
         try:
             collection = _ship_collection(context)
             layout.label(text=f"Ship: {collection['aetheria.id']}")
+            if collection.get("aetheria.pending"):
+                layout.label(text="Not saved yet: Save Layout creates the file", icon="INFO")
+            elif (collection.get("aetheria.grid_origin") is not None and state.ship_id == collection["aetheria.id"]
+                  and not _grid_current(collection, state)):
+                layout.label(text="Rasterise again: the grid no longer matches the layout", icon="INFO")
         except (ValueError, KeyError):
             layout.label(text="No bound ship collection", icon="ERROR")
         layout.operator("aetheria.capture_ship_lines", icon="GREASEPENCIL")
 
         layout.separator()
-        layout.operator("aetheria.load_ship_layout", icon="IMPORT")
-        state = context.scene.aetheria_layout
+        row = layout.row(align=True)
+        row.operator("aetheria.load_ship_layout", icon="IMPORT")
+        row.operator("aetheria.flip_nose", icon="LOOP_BACK")
+        row.operator("aetheria.rasterise_hull", icon="MESH_GRID")
+        layout.operator("aetheria.bake_from_source", icon="RENDER_RESULT")
         if not state.ship_id:
             self._draw_package(context, layout)
             return
@@ -443,20 +1627,34 @@ class AETHERIA_PT_ship(bpy.types.Panel):
                 for x in range(state.width):
                     row.prop(state.cells[x * state.height + y], "occupied", text="")
         layout.label(text="Hardpoints")
+        try:
+            mounts = _mount_objects(_ship_collection(context))
+        except ValueError:
+            mounts = {}
         for index, hp in enumerate(state.hardpoints):
             box = layout.box()
             header = box.row(align=True)
             header.prop(hp, "mount_id")
-            header.operator("aetheria.remove_ship_hardpoint", text="", icon="X").index = index
+            if hp.mount_id not in mounts:  # a mounted row goes with its object: Remove Mount
+                header.operator("aetheria.remove_ship_hardpoint", text="", icon="X").index = index
             box.prop(hp, "kind")
             position = box.row(align=True)
+            position.enabled = hp.mount_id not in mounts
             position.prop(hp, "x")
             position.prop(hp, "y")
+            if hp.mount_id in mounts:
+                box.label(text="Mount object: Position follows it", icon="EMPTY_ARROWS")
             box.prop(hp, "footprint")
             box.prop(hp, "rotation")
             box.prop(hp, "armor")
             box.prop(hp, "firing_arc")
         layout.operator("aetheria.add_ship_hardpoint", icon="ADD")
+        mount_box = layout.box()
+        mount_box.label(text="Mounts")
+        mount_box.operator("aetheria.add_ship_weapon", icon="ADD")
+        mount_box.operator("aetheria.add_ship_muzzle", icon="ADD")
+        mount_box.operator("aetheria.mirror_ship_mount", icon="MOD_MIRROR")
+        mount_box.operator("aetheria.remove_ship_mount", icon="X")
         layout.operator("aetheria.save_ship_layout", icon="FILE_TICK")
         self._draw_package(context, layout)
 
@@ -464,6 +1662,15 @@ class AETHERIA_PT_ship(bpy.types.Panel):
     def _draw_package(context, layout):
         layout.separator()
         layout.operator("aetheria.package_ship", icon="PACKAGE")
+        obj = context.active_object
+        if obj is not None and "aetheria.role" in obj:
+            try:
+                generated = _child(_ship_collection(context), GENERATED)
+            except ValueError:
+                generated = None
+            if generated is not None and obj.name in generated.all_objects:
+                layout.prop(obj, '["aetheria.keep"]', text="Keep")
+                layout.label(text="Generated: Package rebuilds it unless Kept")
         report = context.scene.aetheria_package_report
         if report:
             box = layout.box()
@@ -474,8 +1681,11 @@ class AETHERIA_PT_ship(bpy.types.Panel):
 classes = (AETHERIA_PG_cell, AETHERIA_PG_hardpoint, AETHERIA_PG_layout,
            AETHERIA_OT_load_layout, AETHERIA_OT_resize_layout,
            AETHERIA_OT_add_hardpoint, AETHERIA_OT_remove_hardpoint,
+           AETHERIA_OT_add_weapon, AETHERIA_OT_add_muzzle, AETHERIA_OT_mirror_mount, AETHERIA_OT_remove_mount,
            AETHERIA_OT_save_layout, AETHERIA_OT_bind_ship_collection,
-           AETHERIA_OT_capture_ship_lines, AETHERIA_OT_package_ship, AETHERIA_AP_preferences, AETHERIA_PT_ship)
+           AETHERIA_OT_capture_ship_lines, AETHERIA_OT_new_ship, AETHERIA_OT_flip_nose,
+             AETHERIA_OT_bake_from_source,
+           AETHERIA_OT_rasterise_hull, AETHERIA_OT_package_ship, AETHERIA_AP_preferences, AETHERIA_PT_ship)
 
 
 def register():
@@ -485,6 +1695,14 @@ def register():
     bpy.types.Scene.aetheria_ship_cc_path = bpy.props.StringProperty(
         name="Ship .cc", subtype="FILE_PATH", description="Existing typed ship authoring record"
     )
+    bpy.types.Scene.aetheria_new_ship_id = bpy.props.StringProperty(
+        name="ID", description="The new ship's ID; also the folder under GameData/Mods")
+    bpy.types.Scene.aetheria_new_ship_name = bpy.props.StringProperty(name="Name", description="Display name")
+    bpy.types.Scene.aetheria_new_ship_like = bpy.props.StringProperty(
+        name="Like", default="Djinni", description="Shipped hull whose stats the new ship starts from")
+    bpy.types.Scene.aetheria_new_ship_length = bpy.props.IntProperty(
+        name="Length (cells)", default=10, min=1, max=hull_grid.MAX_CELLS,
+        description="Cells from stern to nose; the hull's long axis becomes this many 2 m cells")
     bpy.types.Scene.aetheria_package_report = bpy.props.StringProperty(
         name="Package report", description="AetherDb's verdict on the last Package Ship")
     bpy.types.Scene.aetheria_capture_evaluated_lines = bpy.props.BoolProperty(
@@ -498,5 +1716,10 @@ def unregister():
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
     del bpy.types.Scene.aetheria_capture_evaluated_lines
+    del bpy.types.Scene.aetheria_new_ship_length
+    del bpy.types.Scene.aetheria_new_ship_like
+    del bpy.types.Scene.aetheria_new_ship_name
+    del bpy.types.Scene.aetheria_new_ship_id
     del bpy.types.Scene.aetheria_package_report
     del bpy.types.Scene.aetheria_ship_cc_path
+

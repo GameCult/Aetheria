@@ -16,14 +16,18 @@ public static class ShipModCatalog
         public ShipAuthoring Visual;
         public string ModelPath;
         public Dictionary<string, uint> NodeIndices;
+        // The package's own products, read from its ship.cc; empty for a package taken from the catalog, where gameplay reads products.
+        public FactionProductData[] Products = Array.Empty<FactionProductData>();
     }
 
     public static CultRecordKey HullKey(string id) => new CultRecordKey("mod-hull:" + id);
     public static CultRecordKey AuthoringKey(string id) => new CultRecordKey("mod-ship:" + id);
 
+    public static CultRecordKey ProductKey(string id, CultRecordKey maker) => new CultRecordKey("mod-product:" + id + ":" + maker.Value);
+
     // A key the mods own. The shipped catalog and its authored records never reference one: a mod may be uninstalled.
     public static bool IsModKey(CultRecordKey key) =>
-        key.IsSet() && (key.Value.StartsWith("mod-hull:", StringComparison.Ordinal) || key.Value.StartsWith("mod-ship:", StringComparison.Ordinal));
+        key.IsSet() && (key.Value.StartsWith("mod-hull:", StringComparison.Ordinal) || key.Value.StartsWith("mod-ship:", StringComparison.Ordinal) || key.Value.StartsWith("mod-product:", StringComparison.Ordinal));
 
     // A package left out of the composition, named by its directory, with every reason it was left out.
     public sealed class Exclusion
@@ -45,7 +49,7 @@ public static class ShipModCatalog
     // named. A collision (with the shipped catalog, or with another package's hull name) excludes every package involved,
     // since neither has a claim to the name. The derived catalog holds the shipped catalog plus the included packages.
     // Unsafe inputs and outputs (a missing catalog, a derived file that would replace a source) still throw: nothing is composed.
-    public static Composition Compose(string shippedCatalog, string outputCatalog, string modsRoot)
+    public static Composition Compose(string shippedCatalog, string outputCatalog, string modsRoot, CultDocumentRegistry registry = null)
     {
         var source = Path.GetFullPath(shippedCatalog);
         var output = Path.GetFullPath(outputCatalog);
@@ -84,7 +88,7 @@ public static class ShipModCatalog
             Directory.CreateDirectory(workspace);
             File.Copy(source, temporary);
             Composition composition;
-            using (var cache = AetheriaStores.Open(temporary, catalogWritable: true))
+            using (var cache = AetheriaStores.Open(temporary, catalogWritable: true, registry: registry))
             {
                 // Collisions are judged against the shipped records alone, before any package is written, so the
                 // verdict does not depend on directory order. CultCache indexes names per concrete type and lets the
@@ -93,6 +97,8 @@ public static class ShipModCatalog
                 var keys = new HashSet<CultRecordKey>(cache.AllStoredDocuments.Select(record => record.Key));
                 var itemNames = new HashSet<string>(cache.GetAll<ItemData>().Select(item => item.Name), StringComparer.Ordinal);
                 var shipIds = new HashSet<string>(cache.GetAll<ShipAuthoring>().Select(existing => existing.Id), StringComparer.Ordinal);
+                var factionKeys = new HashSet<CultRecordKey>(cache.GetAll<Faction>().Select(faction => cache.TryGetHandle(faction).Value.Key));
+                var productNames = new HashSet<string>(cache.GetAll<FactionProductData>().Select(product => product.Name), StringComparer.Ordinal);
                 foreach (var (directory, package) in packages)
                 {
                     var (hull, ship) = (package.Hull, package.Visual);
@@ -102,16 +108,33 @@ public static class ShipModCatalog
                         Exclude(directory, $"hull name '{hull.Name}' collides with an existing catalog item.");
                     if (shipIds.Contains(ship.Id))
                         Exclude(directory, $"ship ID collides with an existing catalog ship authoring record.");
+                    foreach (var product in package.Products)
+                    {
+                        if (!factionKeys.Contains(product.Manufacturer.Key))
+                            Exclude(directory, $"product '{product.Name}' names a manufacturer the shipped catalog holds no faction for.");
+                        if (keys.Contains(ProductKey(ship.Id, product.Manufacturer.Key)))
+                            Exclude(directory, $"a mod product key collides with an existing catalog record.");
+                        if (productNames.Contains(product.Name))
+                            Exclude(directory, $"product name '{product.Name}' collides with an existing catalog product.");
+                    }
                 }
                 foreach (var claim in packages.GroupBy(package => package.Package.Hull.Name, StringComparer.Ordinal).Where(group => group.Count() > 1))
                     foreach (var (directory, package) in claim)
                         Exclude(directory, $"hull name '{claim.Key}' is also claimed by " +
                             string.Join(", ", claim.Where(other => other.Directory != directory).Select(other => other.Directory)) + ".");
+                foreach (var claim in packages.SelectMany(package => package.Package.Products.Select(product => (package.Directory, product.Name)))
+                             .GroupBy(entry => entry.Name, StringComparer.Ordinal).Where(group => group.Select(entry => entry.Directory).Distinct().Count() > 1))
+                    foreach (var directory in claim.Select(entry => entry.Directory).Distinct())
+                        Exclude(directory, $"product name '{claim.Key}' is also claimed by " +
+                            string.Join(", ", claim.Select(entry => entry.Directory).Where(other => other != directory).Distinct()) + ".");
 
                 var included = packages.Where(package => !reasons.ContainsKey(package.Directory)).Select(package => package.Package).ToArray();
                 foreach (var package in included)
-                    // Verbatim: the mod store's own two records, under the keys it already holds them at.
+                {
+                    // Verbatim: the mod store's own records, under the keys it already holds them at.
                     ShipAuthoringStore.Write(cache, package.Hull, package.Visual);
+                    foreach (var product in package.Products) ShipAuthoringStore.WriteProduct(cache, package.Visual.Id, product);
+                }
                 // Shipped hulls too: the derived catalog must not hold a hull that names two bodies.
                 foreach (var hull in cache.GetAll<HullData>())
                     ShipAuthoringStore.RequireOneBody(hull, hull.Name);
@@ -135,8 +158,8 @@ public static class ShipModCatalog
     public static Package ReadPackage(string shipPath)
     {
         var path = Path.GetFullPath(shipPath);
-        var (hull, ship) = ShipAuthoringStore.Read(path);
-        return Bind(hull, ship, Path.GetDirectoryName(path), path);
+        var (hull, ship, products) = ShipAuthoringStore.Read(path);
+        return Bind(hull, ship, products, Path.GetDirectoryName(path), path);
     }
 
     // The package a catalog hull names: its two records come from the catalog, and only the GLB comes from the mod
@@ -147,31 +170,32 @@ public static class ShipModCatalog
             throw new InvalidOperationException($"{hull.Name}: the catalog holds no visual record {hull.Visual.Key.Value}.");
         ShipAuthoringStore.Validate(hull, ship);
         var directory = Path.Combine(Path.GetFullPath(modsRoot), ship.Id);
-        return Bind(hull, ship, directory, Path.Combine(directory, "ship.cc"));
+        return Bind(hull, ship, Array.Empty<FactionProductData>(), directory, Path.Combine(directory, "ship.cc"));
     }
 
     // The one game-side choice of catalog: the shipped file when no package is installed or none survives composition,
     // otherwise the derived file, composed afresh from the shipped one and the surviving packages. Recomposed every
     // call, so the derived file is never stale and never an authority. Excluded packages come back named, for the menu.
-    public static (string Catalog, Exclusion[] Excluded) ResolveCatalog(string shippedCatalog, string derivedCatalog, string modsRoot)
+    public static (string Catalog, Exclusion[] Excluded) ResolveCatalog(string shippedCatalog, string derivedCatalog, string modsRoot,
+        CultDocumentRegistry registry = null)
     {
         if (!Directory.Exists(modsRoot) ||
             !Directory.GetDirectories(modsRoot).Any(directory => File.Exists(Path.Combine(directory, "ship.cc"))))
             return (shippedCatalog, Array.Empty<Exclusion>());
         Composition composition;
         // A failure of the composition itself (an unwritable derived path, say) is still a mod problem, never a reason not to boot.
-        try { composition = Compose(shippedCatalog, derivedCatalog, modsRoot); }
+        try { composition = Compose(shippedCatalog, derivedCatalog, modsRoot, registry); }
         catch (Exception error) { return (shippedCatalog, new[] { new Exclusion { Package = "(all mods)", Reason = error.Message } }); }
         return (composition.Included.Length == 0 ? shippedCatalog : derivedCatalog, composition.Excluded);
     }
 
-    private static Package Bind(HullData hull, ShipAuthoring ship, string directory, string path)
+    private static Package Bind(HullData hull, ShipAuthoring ship, FactionProductData[] products, string directory, string path)
     {
         if (!string.Equals(Path.GetFileName(directory), ship.Id, StringComparison.Ordinal))
             throw new InvalidOperationException($"{path}: ship ID must match its package directory name.");
         var modelPath = Path.GetFullPath(Path.Combine(directory, ship.ModelAsset));
         // Containment is ShipAuthoringStore.Validate's job: it refuses rooted and `..` model paths before this line.
-        if (!File.Exists(modelPath) || !string.Equals(Path.GetExtension(modelPath), ".glb", StringComparison.OrdinalIgnoreCase))
+        if (!File.Exists(modelPath) || !string.Equals(Path.GetExtension(modelPath), ".glb", StringComparison.Ordinal))
             throw new InvalidOperationException($"{ship.Id}: model asset must name an existing GLB inside its package.");
         var modelNodes = ReadNodeIds(modelPath);
         foreach (var anchor in ship.Anchors)
@@ -182,17 +206,52 @@ public static class ShipModCatalog
         foreach (var anchor in ship.Anchors)
             if ((anchor.Role == "thruster-emitter" || anchor.Role == "radiator-mesh") && !modelNodes[anchor.ModelNodeId].HasMesh)
                 throw new InvalidOperationException($"{ship.Id}: {anchor.Role} anchor {anchor.Id} needs a mesh, but model node {anchor.ModelNodeId} has none.");
+        BindRig(ship, modelNodes);
         CultRecordRefs.Validate(hull);
         return new Package
         {
-            Hull = hull, Visual = ship, ModelPath = modelPath,
+            Hull = hull, Visual = ship, Products = products, ModelPath = modelPath,
             NodeIndices = modelNodes.ToDictionary(node => node.Key, node => node.Value.Index, StringComparer.Ordinal)
         };
     }
 
-    // GLB is the xenos asset boundary. Only its node extras, and whether each node names a mesh, are read here; geometry
-    // belongs to the runtime importer.
-    public static Dictionary<string, (uint Index, bool HasMesh)> ReadNodeIds(string path)
+    // The rig the record states must be the rig the model has: every joint is a node, each joint's Parent and each mount's
+    // Joint is the nearest joint above its node, ancestors without an id being walked through by ReadNodeIds, and a radiator
+    // mesh sits under no joint.
+    private static void BindRig(ShipAuthoring ship, Dictionary<string, (uint Index, bool HasMesh, int Parent)> nodes)
+    {
+        var joints = new HashSet<string>((ship.Joints ?? new List<ShipJoint>()).Select(joint => joint.Id), StringComparer.Ordinal);
+        var idAt = nodes.ToDictionary(node => (int)node.Value.Index, node => node.Key);
+        // Parent is already the nearest ancestor that carries an id, so the walk up is the chain of those.
+        string JointAbove(string nodeId)
+        {
+            // glTF forbids cycles; the bound keeps a malformed model from hanging the binder.
+            var parent = nodes[nodeId].Parent;
+            for (var steps = 0; parent >= 0 && steps <= nodes.Count; steps++, parent = nodes[idAt[parent]].Parent)
+                if (joints.Contains(idAt[parent])) return idAt[parent];
+            return null;
+        }
+
+        foreach (var joint in ship.Joints ?? new List<ShipJoint>())
+        {
+            if (!nodes.ContainsKey(joint.Id))
+                throw new InvalidOperationException($"{ship.Id}: model has no node with aetheria.id={joint.Id} for a joint.");
+            if (!string.Equals(JointAbove(joint.Id) ?? "", joint.Parent ?? "", StringComparison.Ordinal))
+                throw new InvalidOperationException($"{ship.Id}: joint {joint.Id} must name the nearest joint above its model node as its Parent.");
+        }
+        foreach (var anchor in ship.Anchors.Where(anchor => RigChains.Actuates(anchor.Role) || anchor.Role == "radiator-mesh"))
+        {
+            var above = JointAbove(anchor.ModelNodeId);
+            if (string.Equals(above ?? "", anchor.Joint ?? "", StringComparison.Ordinal)) continue;
+            throw new InvalidOperationException(anchor.Role == "radiator-mesh"
+                ? $"{ship.Id}: {anchor.Role} anchor {anchor.Id} sits under a joint in the model."
+                : $"{ship.Id}: {(anchor.Role == "weapon-mount" ? "weapon mount" : "thruster emitter")} {anchor.Id} must name the nearest joint above its model node as its Joint.");
+        }
+    }
+
+    // GLB is the xenos asset boundary. Only its node extras, whether each node names a mesh, and its nearest identified ancestor's node index
+    // (-1 for none) are read here; geometry belongs to the runtime importer.
+    public static Dictionary<string, (uint Index, bool HasMesh, int Parent)> ReadNodeIds(string path)
     {
         using var stream = File.OpenRead(path);
         using var reader = new BinaryReader(stream);
@@ -203,17 +262,29 @@ public static class ShipModCatalog
         if (reader.ReadUInt32() != 0x4E4F534A || chunkLength > stream.Length - stream.Position)
             throw new InvalidOperationException($"{path}: missing GLB JSON chunk.");
         var json = JObject.Parse(Encoding.UTF8.GetString(reader.ReadBytes((int)chunkLength)));
-        var ids = new Dictionary<string, (uint Index, bool HasMesh)>(StringComparer.Ordinal);
-        var nodes = json["nodes"]?.OfType<JObject>() ?? Enumerable.Empty<JObject>();
+        var ids = new Dictionary<string, (uint Index, bool HasMesh, int Parent)>(StringComparer.Ordinal);
+        var nodes = (json["nodes"]?.OfType<JObject>() ?? Enumerable.Empty<JObject>()).ToArray();
+        var parents = Enumerable.Repeat(-1, nodes.Length).ToArray();
+        for (var parent = 0; parent < nodes.Length; parent++)
+            foreach (var child in nodes[parent]["children"]?.Select(token => (int)token) ?? Enumerable.Empty<int>())
+                if (child >= 0 && child < nodes.Length) parents[child] = parent;
         uint index = 0;
         foreach (var node in nodes)
         {
             var id = (string)node["extras"]?["aetheria.id"];
             if (string.IsNullOrEmpty(id)) { index++; continue; }
-            if (!ids.TryAdd(id, (index, node["mesh"] != null && node["mesh"].Type != JTokenType.Null)))
+            if (!ids.TryAdd(id, (index, node["mesh"] != null && node["mesh"].Type != JTokenType.Null, IdentifiedAncestor(parents, nodes, (int)index))))
                 throw new InvalidOperationException($"{path}: duplicate GLB node aetheria.id={id}.");
             index++;
         }
         return ids;
+    }
+
+    private static int IdentifiedAncestor(int[] parents, JObject[] nodes, int index)
+    {
+        var parent = parents[index];
+        for (var steps = 0; parent >= 0 && steps <= nodes.Length; steps++, parent = parents[parent])
+            if (!string.IsNullOrEmpty((string)nodes[parent]["extras"]?["aetheria.id"])) return parent;
+        return -1;
     }
 }

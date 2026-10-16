@@ -41,7 +41,6 @@ public sealed class FireControlCut12Tests : IDisposable
         Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
         QualityPriceModifier = new ExponentialLerp(),
         TargetDetectionInfoThreshold = .1f,
-        TargetArmorInfoThreshold = .2f,
         TargetGearInfoThreshold = .8f,
         FiringArc = 170,
         CommitHorizon = .5f,
@@ -130,7 +129,7 @@ public sealed class FireControlCut12Tests : IDisposable
 
         var cache = AetheriaStores.Open(Catalog + Guid.NewGuid().ToString("N"), catalogWritable: true);
         _openCaches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(hullData);
         cache.Upsert(shooterHullData);
         cache.Upsert(new GearData
@@ -142,7 +141,6 @@ public sealed class FireControlCut12Tests : IDisposable
                 Damage = Constant(5), Range = Constant(1000), MinRange = Constant(0),
                 Velocity = Constant(velocity), Spread = Constant(spread), DamageSpread = Constant(0),
                 Penetration = Constant(penetration), Count = Constant(1), BurstTime = Constant(0), Cooldown = Constant(1000),
-                DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } }
             } }
         });
         cache.Upsert(new GearData
@@ -269,10 +267,8 @@ public sealed class FireControlCut12Tests : IDisposable
             Assert.True(target.TryEquip(shield, spos));
         }
 
-        zone.Entities.Add(shooter);
-        zone.Entities.Add(target);
-        shooter.Activate();
-        target.Activate();
+        zone.Admit(shooter, piloted: false);
+        zone.Admit(target, piloted: false);
 
         // Cut 11.3: the shooter sits off the origin -- a shooter at float3.zero makes `target - source` and
         // `target + source` the same vector, hiding a whole class of sign mutants.
@@ -522,6 +518,7 @@ public sealed class FireControlCut12Tests : IDisposable
         var aim = new int2(2, 2);
         var e = Build(TestSettings(), SolidShape(6, 6), precision: 1000f, markerCells: new[] { aim });
         var aimed = e.Markers[0];
+        e.Shooter.RecordReveal(e.Target, aimed, SignatureChannel.LaunchFlash, aimed.Data);
         Assert.True(e.Shooter.TrySelectTargetItem(aimed));
 
         // The aimed item is still equipped (Entity.TryUnequip refuses on an active entity, and reveal/aim
@@ -548,6 +545,7 @@ public sealed class FireControlCut12Tests : IDisposable
     public void AimingAtAnItemBiggerThanOneCellCentresOnItsCentroid()
     {
         var e = Build(TestSettings(), SolidShape(9, 9), precision: 1f, targetFacing: float2(1, 0), equipBigMarker: true);
+        e.Shooter.RecordReveal(e.Target, e.BigMarker, SignatureChannel.LaunchFlash, e.BigMarker.Data);
         Assert.True(e.Shooter.TrySelectTargetItem(e.BigMarker));
 
         var travelDirection = FireControl.TravelDirection(e.Weapon, e.Shooter, e.Target);
@@ -585,6 +583,7 @@ public sealed class FireControlCut12Tests : IDisposable
         // the bounding-box centre along the diagonal, not along either grid axis -- fully onto the lateral
         // axis, instead of losing most of it to the axis a purely axis-aligned facing would leave unmeasured.
         var e = Build(TestSettings(), SolidShape(9, 9), precision: 1f, targetFacing: normalize(float2(1, 1)), equipLMarker: true);
+        e.Shooter.RecordReveal(e.Target, e.LMarker, SignatureChannel.LaunchFlash, e.LMarker.Data);
         Assert.True(e.Shooter.TrySelectTargetItem(e.LMarker));
 
         var travelDirection = FireControl.TravelDirection(e.Weapon, e.Shooter, e.Target);
@@ -975,6 +974,7 @@ public sealed class FireControlCut12Tests : IDisposable
         var aim = new int2(1, 1);
         var e = Build(settings, hullShape, precision, spread: 0, targetFacing: normalize(float2(1f, 1f)),
             markerCells: new[] { aim });
+        e.Shooter.RecordReveal(e.Target, e.Markers[0], SignatureChannel.LaunchFlash, e.Markers[0].Data);
         Assert.True(e.Shooter.TrySelectTargetItem(e.Markers[0]));
 
         var shotId = FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
@@ -1157,6 +1157,7 @@ public sealed class FireControlCut12Tests : IDisposable
 
         var aim = new int2(1, 1);
         var e = Build(TestSettings(), shape, precision: .3f, targetFacing: normalize(float2(.8f, .6f)), markerCells: new[] { aim });
+        e.Shooter.RecordReveal(e.Target, e.Markers[0], SignatureChannel.LaunchFlash, e.Markers[0].Data);
         Assert.True(e.Shooter.TrySelectTargetItem(e.Markers[0]));
 
         var outcomes = FireMany(e, 1500);
@@ -1190,6 +1191,7 @@ public sealed class FireControlCut12Tests : IDisposable
         {
             var e = Build(settings, hullShape, precision: .6f, targetFacing: facing, markerCells: new[] { aimCell });
             var aimed = e.Markers[0];
+            e.Shooter.RecordReveal(e.Target, aimed, SignatureChannel.LaunchFlash, aimed.Data);
             Assert.True(e.Shooter.TrySelectTargetItem(aimed));
             Assert.Same(aimed, e.Shooter.ResolvedTargetItem);
 
@@ -1324,7 +1326,7 @@ public sealed class FireControlCut12Tests : IDisposable
     }
 
     // S3 fix batch (Hands, 2026-09-25): Lane's own comment ("never allocates on its own") and Silhouette's
-    // pooled path are pinned directly, instead of trusting the comment. Measured (Release, LonginusX-shaped
+    // pooled path are pinned directly, instead of trusting the comment. Measured (Release, Longinus-shaped
     // fixture unavailable to this test file -- a 7x9 solid hull is used instead): Lane and Silhouette (given a
     // caller-supplied buffer) allocate exactly 0 bytes over 1000 calls, confirming the S3 change itself
     // (Array.Sort(T[], int, int) resolving Interval/LaneCell's own IComparable<T> at JIT time, not the

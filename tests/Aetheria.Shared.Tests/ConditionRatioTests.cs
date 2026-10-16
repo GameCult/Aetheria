@@ -12,7 +12,7 @@ using static CultMath.math;
 // Should multiply that by actual performance." EquippedItem.ConditionRatio (Entity.cs) is the one number that
 // answers "how healthy does this item actually look": the item's resolved value for a stat against what the
 // same item, same lot, same modifiers would produce with Heat/Durability/PowerSupply pinned to their identity.
-// Thruster.Condition and AetherDrive.Condition (Thruster.cs/AetherDrive.cs) are that ratio read against each
+// Thruster.Condition (Thruster.cs) is that ratio read against each
 // behaviour's own governing stat (Thrust, Torque); ShipInstance.cs (Unity-side, not covered here) multiplies
 // presentation intent by it instead of recomputing any durability/heat/power arithmetic of its own.
 // Each rule here has a matching mutation in tests/mutation_tests_condition_ratio_cut8.py.
@@ -59,7 +59,7 @@ public sealed class ConditionRatioTests : IDisposable
     private CultCache OpenCatalog(ThrusterData thruster, string catalogPath = null)
     {
         var cache = AetheriaStores.Open(catalogPath ?? Catalog, catalogWritable: true);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         var hullShape = new Shape(5, 5);
         foreach (var cell in hullShape.AllCoordinates) hullShape[cell] = true;
         cache.Upsert(new HullData { Name = "Skiff", HullType = HullType.Ship, Shape = hullShape, Durability = 10, Mass = 1000 });
@@ -92,12 +92,14 @@ public sealed class ConditionRatioTests : IDisposable
         var reactorData = cache.GetByName<GearData>("Reactor");
         ((ReactorData) reactorData.Behaviors[0]).Charge = Constant(reactorCharge);
         Assert.True(ship.TryEquip(Mint(cache, items, reactorData)));
-        Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("Consumer"))));
+        // The Skiff's centre column: a thruster there has no torque, so the allocator can fire it alone. These tests pin power,
+        // not flight, and a lone off-centre thruster could not fire without turning.
+        Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("Consumer")), new int2(2, 1)));
 
-        zone.Entities.Add(ship);
+        zone.Admit(ship, piloted: false);
         ship.Aim = float3(0, 0, 1); // Turn stays 0, as in BrownoutTests
-        ship.Activate();
         consumer = ship.Equipment.Single(e => e.Data.Name == "Consumer");
+        Assert.True(ship.GetBehavior<Thruster>().Torque == 0f, "the lone thruster turns nothing");
 
         // Settle at the plateau's center: two ticks so UpdatePerformance's deltaTemp term reads 0 before a test
         // drives its own change, matching HeatResponseTests' own settle pattern.

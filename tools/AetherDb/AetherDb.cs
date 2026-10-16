@@ -19,15 +19,15 @@ public sealed class AetherDb
             catalogWritable: catalogWritable);
     }
 
-    // With no root given, walks up from the working directory to the repository
+    // With no root given, walks up from the working directory to the game folder: the first folder whose GameData holds Aetheria.cc
     public static AetherDb Open(bool catalogWritable = false, bool withRun = false, string root = null) =>
         new AetherDb(root ?? FindRoot(), catalogWritable, withRun);
 
     public static string FindRoot()
     {
         for (var dir = new DirectoryInfo(Environment.CurrentDirectory); dir != null; dir = dir.Parent)
-            if (File.Exists(Path.Combine(dir.FullName, "Aetheria.Shared", "Aetheria.Shared.csproj")))
+            if (File.Exists(Path.Combine(dir.FullName, "GameData", "Aetheria.cc")))
                 return dir.FullName;
-        throw new DirectoryNotFoundException("Run from inside the Aetheria repository.");
+        throw new DirectoryNotFoundException("Run from a folder whose GameData holds Aetheria.cc.");
     }
 }

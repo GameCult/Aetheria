@@ -95,13 +95,13 @@ public class StatModifier : Behavior, IInitializableBehavior, IDisposable, IAlwa
             .Where(g => string.IsNullOrEmpty(data.RequireBehavior) ||
                         entity.ItemManager.GetData(g.EquippableItem).Behaviors.Any(b => b.GetType().Name == data.RequireBehavior));
         return typeof(EquippableItemData).IsAssignableFrom(targetType)
-            ? gear.Where(g => entity.ItemManager.GetData(g.EquippableItem).GetType() == targetType)
+            ? gear.Where(g => targetType.IsAssignableFrom(entity.ItemManager.GetData(g.EquippableItem).GetType()))
                 .Select(g => new Target(g, statField.GetValue(entity.ItemManager.GetData(g.EquippableItem)) as PerformanceStat))
                 .Where(t => t.Stat != null)
                 .ToArray()
-            : gear.Where(g => entity.ItemManager.GetData(g.EquippableItem).Behaviors.Any(bd => bd.GetType() == targetType))
+            : gear.Where(g => entity.ItemManager.GetData(g.EquippableItem).Behaviors.Any(bd => targetType.IsAssignableFrom(bd.GetType())))
                 .SelectMany(g => entity.ItemManager.GetData(g.EquippableItem).Behaviors
-                    .Where(bd => bd.GetType() == targetType)
+                    .Where(bd => targetType.IsAssignableFrom(bd.GetType()))
                     .Select(bd => new Target(g, statField.GetValue(bd) as PerformanceStat)))
                 .Where(t => t.Stat != null)
                 .ToArray();

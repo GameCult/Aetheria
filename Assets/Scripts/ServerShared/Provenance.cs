@@ -58,8 +58,8 @@ public class ProvenanceLedger
     }
 }
 
-// One lot: the design it built, who made it and from what, its rolled workmanship, and how well each design role
-// was filled. Immutable once minted; instances carry a LotId, never a copy.
+// One lot: the design it built, who made it and from what, its rolled workmanship, how well each design role
+// was filled, and the branded product it was made as. Immutable once minted; instances carry a LotId, never a copy.
 [MessagePackObject]
 public class Lot
 {
@@ -67,6 +67,10 @@ public class Lot
     [Key(1)] public Provenance Origin;
     [Key(2)] public float Quality;
     [Key(3)] public List<RoleFill> Roles;
+
+    // The product the lot was made as: the one owner of which product names its units. Unset for unbranded lots
+    // (console give, presets, extracted), which brand their maker only.
+    [Key(4)] public CultRecordRef<FactionProductData> Product;
 
     // The quality a stat reads for one of the design's roles. An unnamed role, a design without roles, and a lot
     // minted before roles existed all fall back to the lot's own workmanship.

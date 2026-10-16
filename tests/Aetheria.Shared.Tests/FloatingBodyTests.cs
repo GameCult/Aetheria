@@ -168,56 +168,10 @@ public sealed class FloatingBodyTests : IDisposable
         Assert.NotEqual(new FloatingBodyId(7), new FloatingBodyId(8));
     }
 
-    // The law ships felt at 3035230b, written out here from that tree's Ship.Update (a per-tick velocity add, no dt)
-    // and not from Zone: the pin must not move when Zone's law does.
-    private static float2 LegacyPushPerFrame(float2 f, float strength)
-    {
-        var m = lengthsq(f);
-        if (m <= .001f) return float2.zero;
-        return normalize(f) * strength * (1 / (1 - m) - 1);
-    }
-
-    [Fact]
-    public void TheGravityLawPushesShipsAsItDidAtSixtyFps()
-    {
-        foreach (var strength in new[] { 1f, 7.5f })
-        foreach (var f in new[] { new float2(.1f, 0), new float2(.2f, .1f), new float2(-.3f, .4f), new float2(.5f, -.5f), new float2(0, .7f) })
-        {
-            var legacy = LegacyPushPerFrame(f, strength);
-            var perFrame = Zone.GravityAcceleration(f, strength) * (1f / 60f);
-            var tolerance = Math.Max(1e-7f, length(legacy) * 1e-5f);
-            Assert.InRange(perFrame.x, legacy.x - tolerance, legacy.x + tolerance);
-            Assert.InRange(perFrame.y, legacy.y - tolerance, legacy.y + tolerance);
-        }
-        // Per second: halving dt halves the push, so the law holds at any tick rate.
-        var a = Zone.GravityAcceleration(new float2(.3f, .1f), 2f);
-        Assert.Equal(a.x * .5f, (a * (1f / 120f)).x * 60f, 5);
-        // The gate: |f|^2 at or below .001 pushes nothing.
-        Assert.Equal(float2.zero, Zone.GravityAcceleration(new float2(.03f, 0), 1f));
-        Assert.NotEqual(float2.zero, Zone.GravityAcceleration(new float2(.0317f, 0), 1f));
-    }
-
-    [Fact]
-    public void DriftMatchesLegacyFloatingItemsAtSixtyFps()
-    {
-        // After 5 s at 60 fps with GravityStrength 1 and a normal of length |f| along x, the legacy GridObject drift
-        // position (measured by Soul, 2026-10-07, off 3035230b's GridObject.Update): |f| .05 -> 1.7371, .1 -> 7.0012,
-        // .3 -> 68.55, .5 -> 231.04. The sim steps the same law with exp decay where GridObject used 1 - k dt.
-        var s = Settings();
-        foreach (var (norm, expected) in new[] { (.05f, 1.7371f), (.1f, 7.0012f), (.3f, 68.55f), (.5f, 231.04f) })
-        {
-            var body = Run(new KinematicBody(), 5f, 1f / 60f, Zone.GravityAcceleration(new float2(norm, 0), 1f), s);
-            Assert.InRange(body.Position.x, expected * .999f, expected * 1.001f);
-            Assert.Equal(0f, body.Position.y, 4);
-        }
-    }
-
-    // Ship.Update's own gravity line, through the real ship and a real zone (no planets: the zone's well alone
-    // gives a slope). The expectation is built from the zone's own normal and the 3035230b ship law, so flipping
-    // the sign or changing how delta enters the line fails here, not only the Zone function's pin above.
+    // Ship.Update's own gravity line, through the real ship and a real zone with one well at the origin.
     private Ship ShipAt(float x, out Zone zone)
     {
-        var cache = AetheriaStores.Open(Path.Combine(_root, Guid.NewGuid().ToString("N") + ".cc"), catalogWritable: true);
+        var cache = AetheriaStores.Open(Path.Combine(_root, Guid.NewGuid().ToString("N") + ".cc"), Path.Combine(_root, Guid.NewGuid().ToString("N") + ".run.cc"), catalogWritable: true);
         _caches.Add(cache);
         var hullShape = new Shape(5, 5);
         foreach (var cell in hullShape.AllCoordinates) hullShape[cell] = true;
@@ -230,8 +184,10 @@ public sealed class FloatingBodyTests : IDisposable
             QualityPriceModifier = new ExponentialLerp()
         };
         var items = new ItemManager(cache, new ProvenanceLedger(), settings, _ => { });
-        var planets = new PlanetSettings { ZoneDepth = 1000, ZoneDepthExponent = 1, GravityStrength = 1 };
-        zone = new Zone(items, planets, new ZonePack { Radius = 1000 }, new GalaxyZone { Name = "Test Zone", Owner = null }, null);
+        var planets = new PlanetSettings { HeightExaggeration = 10f }; // the tilt reads force / K, which K = 1 would hide
+        var pack = new ZonePack { Radius = 1000 };
+        WellFixture.Dig(cache, pack, planets, 300, 100);
+        zone = new Zone(items, planets, pack, new GalaxyZone { Name = "Test Zone", Owner = null }, null);
         var design = cache.GetByName<HullData>("Skiff");
         var hull = new EquippableItem
         {
@@ -239,29 +195,57 @@ public sealed class FloatingBodyTests : IDisposable
             Lot = items.Lots.Add(new Lot { Design = cache.RefOf<ItemData>(design), Origin = new Attributed(), Quality = .5f, Roles = new List<RoleFill>() })
         };
         var ship = new Ship(items, zone, hull, new EntitySettings());
-        zone.Entities.Add(ship);
+        zone.Admit(ship, piloted: false);
         ship.Aim = float3(0, 0, 1);
-        ship.Activate();
         ship.Position = float3(x, 0, 0);
         return ship;
     }
 
     [Fact]
-    public void AShipInAWellIsPulledTowardItByTheLawPerSecond()
+    public void AShipInAWellIsPulledByThePotential()
     {
         foreach (var delta in new[] { 1f / 60f, 1f / 30f })
         {
             var ship = ShipAt(400f, out var zone);
-            var normal = zone.GetNormal(ship.Position.xz);
-            var push = LegacyPushPerFrame(new float2(normal.x, normal.z), zone.Settings.GravityStrength) * (delta * 60f);
-            Assert.True(push.x < 0f, "the well must pull a ship at +x toward the centre");
+            var at = ship.Position.xz;
+            var expected = zone.GetForce(at) * delta;
+            Assert.True(expected.x < 0f, "the well must pull a ship at +x toward the centre");
 
             ship.Update(delta);
 
-            var tolerance = Math.Max(1e-6f, length(push) * 1e-4f);
-            Assert.InRange(ship.Velocity.x, push.x - tolerance, push.x + tolerance);
-            Assert.InRange(ship.Velocity.y, push.y - tolerance, push.y + tolerance);
+            var tolerance = Math.Max(1e-7f, length(expected) * 1e-4f);
+            Assert.InRange(ship.Velocity.x, expected.x - tolerance, expected.x + tolerance);
+            Assert.InRange(ship.Velocity.y, expected.y - tolerance, expected.y + tolerance);
+
+            // The tilt is the surface of the drawn height (potential / K): its slope is the force over K.
+            var slope = zone.GetForce(at) / zone.Settings.HeightExaggeration;
+            var normal = normalize(float3(slope.x, 1f, slope.y));
+            var q = ship.Rotation;
+            var u = float3(q.x, q.y, q.z);
+            var v = float3(0, 1, 0);
+            var up = v + 2 * (q.w * cross(u, v) + cross(u, cross(u, v)));
+            Assert.True(length(up - normal) < 1e-4f, "the ship tilts to the zone's surface normal");
         }
     }
 
+    // Ship.Update's order: position first, then gravity sampled where the ship now is (leapfrog's kick after the drift). A
+    // ship already moving falls toward the centre through the field at its new place, not the one it left.
+    [Fact]
+    public void AMovingShipFeelsTheFieldWhereItHasMoved()
+    {
+        var ship = ShipAt(400f, out var zone);
+        ship.Velocity = float2(-200f, 0f);
+        const float delta = .25f;
+
+        ship.Update(delta);
+
+        var moved = float2(400f, 0f) + float2(-200f, 0f) * delta;
+        Assert.Equal(moved.x, ship.Position.x, 1e-3f);
+        var pulled = (ship.Velocity - float2(-200f, 0f)) / delta;
+        var expected = zone.GetForce(moved);
+        Assert.True(expected.x < 0f, "the well pulls inward at the ship's new place");
+        Assert.InRange(pulled.x, expected.x * (1f + 1e-3f), expected.x * (1f - 1e-3f));
+        Assert.InRange(pulled.y, -1e-3f, 1e-3f);
+        Assert.NotEqual(zone.GetForce(float2(400f, 0f)).x, expected.x); // the premise: the field differs between the two places
+    }
 }

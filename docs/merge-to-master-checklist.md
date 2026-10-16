@@ -33,7 +33,7 @@ Compiled 2026-09-29 by Eyes from the maps on the branch. Pointers are `doc:line`
 ### 2b. Fresh launch (no `run.cc`, no `player.cc`)
 
 3. **Launch to main menu.** Expect no Addressables errors, and the Groups window shows `Assets/Content` under `Default Local Group` (`addressables-cut.md:301`). `player.cc` appears and Continue is disabled (`cultcache-migration-cut.md:2746`). Proves: Addressables Cut 1, CultCache cutover. The 09-17 smoke covered the last two on the old tree; this is a cheap recheck on the new schema.
-4. **New Game (tutorial).** Expect the galaxy generates and the start ship is LonginusX (`settings-globals-cut.md:498`, an expectation, not a recorded check for this stack). Expect a Zenith station with a docking bay in the entrance zone every time (`locomotion-cut.md:375`). Proves: locomotion Cut 1 station rule.
+4. **New Game (tutorial).** Expect the galaxy generates and the start ship is the Longinus (`settings-globals-cut.md:498`, an expectation, not a recorded check for this stack). Expect a Zenith station with a docking bay in the entrance zone every time (`locomotion-cut.md:375`). Proves: locomotion Cut 1 station rule.
 5. **Addressables, "Use Asset Database".** Ships, turret and Zenith spawn; thruster and aether-drive particles show; fire an instant weapon (Autocannon) and a charged one (ChargeBlast SG); action bar icons show (`addressables-cut.md:362-366`). Proves: Addressables Cut 2.
 
 ### 2c. Flight, power and economy
@@ -44,19 +44,19 @@ Compiled 2026-09-29 by Eyes from the maps on the branch. Pointers are `doc:line`
 9. **Brownout and refill (O6, O4).** Brownout reads as degradation, not breakage (`:774`, `:990`). A weapon refilling under brownout stutters instead of firing full rate and cooking the ship (`:729-730`). Proves: power-supply term, brownout, input capacitors.
 10. **Memory across zones (O1).** Play across several zones with kills, open the Profiler or Task Manager, and confirm memory does not climb (`:672-673`, `:980-982`). Proves: stat resolver, the entity-leak fix (map Cut 2). Combine with steps 11 and 12.
 
-### 2d. Combat (against a LonginusX-class AI), then save and Studio
+### 2d. Combat (against a Longinus-class AI), then save and Studio
 
 11. **Fire-control Cut 1 arcs.** Side-mounted weapons still fire at targets abeam; a turret tracks all the way round; nothing fires through the hull (`fire-control-cut.md:397-398`).
 12. **Fire-control Cut 3 and shots.** Shots show rolled impacts and misses; a miss reads as a near-miss, not a bug; damage matches the HUD; aiming at a revealed subsystem concentrates damage; kill time is in the same order as before (`:659-661`). Reveal and selection work, kills drop loot, pickup stores it, the tractor beam still pulls (`headless-playground-cut.md:789-794`). No crash or frozen hot ship when the target vanishes (the 2026-09-20 failure, `fire-control-cut.md:1464-1470`). Recheck after the fixes: unrecorded.
 13. **12.2, bow then beam.** The HUD `hull` factor reads higher from the beam. Turn your armoured face into a slow missile and watch where it lands (`:2380-2383`).
 14. **12.3, launcher into a bow, then a flank.** Use a GT 3K or pswarm launcher. The schematic display pulses the facing edge only (`:2519-2520`).
-15. **12.4, scratch catalog.** Watch a proximity airburst beside a LonginusX and a delayed penetrator into its nose. Damage must land where the model shows the blast; this confirms the centre-of-mass anchor. Bow is already confirmed +y (`:3095-3097`, `:2028-2031`). Proves: 12.4(b) `Detonate`.
+15. **12.4, scratch catalog.** Watch a proximity airburst beside a Longinus and a delayed penetrator into its nose. Damage must land where the model shows the blast; this confirms the centre-of-mass anchor. Bow is already confirmed +y (`:3095-3097`, `:2028-2031`). Proves: 12.4(b) `Detonate`.
 16. **Wormhole, save, Continue.** Take a wormhole, quit, Continue: same items, same tier and brand (`item-provenance-cut.md:536-537`).
 17. **Die.** Continue is disabled and `run.cc` holds no ledger (`:540-541`).
 18. **Shield panel, `FieldShieldTest`.** Follow the numbered look in `shield-panel-cut.md:683-700`. Nothing visible on load. Click the nose: a patch grows and the field ripple runs too. Click the flank: the panel lies flat, not tilted. Click the same spot twice: it strikes the same panel. Spam far-apart clicks: at most 12 panels, oldest replaced. Let them fade: none left. Then the Cut 5 payoff: strong hits dice the patch, and repeated hits on one spot break through on a later hit (`:737-739`). Proves: shield-panel Cuts 3, 4, 5.
 19. **Studio click-through.**
     - Open `Aetheria.cc`. The fire-control behaviour union renders (`fire-control-cut.md:503-506`).
-    - `LonginusX` schematic still underlays the shape drawer (`addressables-cut.md:370-371`).
+    - `Longinus` schematic still underlays the shape drawer (`addressables-cut.md:370-371`).
     - The restored hull records open (`locomotion-cut.md:501`; the map gives no checklist beyond "the Studio click-through").
     - The scratch catalog's new `Fuse` and `BlastRadius` fields edit (from 2a; no map line).
     - Open `GameData/run.cc` after step 16. `aetheria.provenanceledger` renders `Lots` with `Attributed` origins and per-role lists. If Studio cannot draw an int-keyed dictionary of unions, that is a Studio defect to raise, not a schema change (`item-provenance-cut.md:541-544`).

@@ -39,7 +39,6 @@ public sealed class FireControlCut6cTests : IDisposable
         Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
         QualityPriceModifier = new ExponentialLerp(),
         TargetDetectionInfoThreshold = .1f,
-        TargetArmorInfoThreshold = .2f,
         TargetGearInfoThreshold = .8f,
         FiringArc = 170,
         CommitHorizon = .5f,
@@ -83,7 +82,7 @@ public sealed class FireControlCut6cTests : IDisposable
 
         var cache = AetheriaStores.Open(Catalog + Guid.NewGuid().ToString("N"), catalogWritable: true);
         _openCaches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(hullData);
         cache.Upsert(new GearData
         {
@@ -94,7 +93,6 @@ public sealed class FireControlCut6cTests : IDisposable
                 Damage = Constant(10), Range = Constant(range), MinRange = Constant(0),
                 Velocity = Constant(0), Spread = Constant(0), DamageSpread = Constant(0),
                 Penetration = Constant(0), Count = Constant(1), BurstTime = Constant(0), Cooldown = Constant(1000),
-                DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } }
             } }
         });
         cache.Upsert(new GearData
@@ -138,10 +136,8 @@ public sealed class FireControlCut6cTests : IDisposable
         var targetGun = new EquippableItem { Data = targetGunRef, Durability = 1, Lot = 9 };
         Assert.True(target.TryEquip(targetGun, new int2(0, 0)));
 
-        zone.Entities.Add(shooter);
-        zone.Entities.Add(target);
-        shooter.Activate();
-        target.Activate();
+        zone.Admit(shooter, piloted: false);
+        zone.Admit(target, piloted: false);
 
         shooter.Position = float3.zero;
         target.Position = float3(0, 0, targetRange);
@@ -198,7 +194,7 @@ public sealed class FireControlCut6cTests : IDisposable
         CultRecordRef<Faction> maker, targetingMaker;
         using (var seedCache = AetheriaStores.Open(Catalog, catalogWritable: true))
         {
-            seedCache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+            seedCache.Upsert(new VerseGrammar { Revision = 1 });
             maker = seedCache.Upsert(new Faction { Name = "Maker", ShortName = "MKR" });
             targetingMaker = seedCache.Upsert(new Faction { Name = "Targeting Maker", ShortName = "TGM" });
 
@@ -212,6 +208,7 @@ public sealed class FireControlCut6cTests : IDisposable
             var cargo = seedCache.Upsert(new CargoBayData { Name = "Crate", Shape = new Shape(), InteriorShape = new Shape(), Price = 5 });
             var capacitor = seedCache.Upsert(new GearData { Name = "Cap", Hardpoint = HardpointType.Tool, Shape = new Shape(), Price = 1, Behaviors = { new CapacitorData() } });
             var targeting = seedCache.Upsert(new GearData { Name = "Targeting", Hardpoint = HardpointType.Tool, Shape = new Shape(), Price = 1, Behaviors = { new TargetingSystemData() } });
+            var tractor = seedCache.Upsert(new GearData { Name = "Tractor", Hardpoint = HardpointType.Tool, Shape = new Shape(), Price = 1, Behaviors = { new PickupData() } });
 
             // Everything but the targeting system is sold by Maker, who IS in the galaxy. Targeting is sold
             // only by Targeting Maker, who is NOT -- the single point of failure 6c.2 fixes.
@@ -219,6 +216,7 @@ public sealed class FireControlCut6cTests : IDisposable
                      {
                          ("Armed by Maker", hull.Key, maker), ("Gun by Maker", gun.Key, maker),
                          ("Crate by Maker", cargo.Key, maker), ("Cap by Maker", capacitor.Key, maker),
+                         ("Tractor by Maker", tractor.Key, maker),
                          ("Targeting by Targeting Maker", targeting.Key, targetingMaker)
                      })
                 seedCache.Upsert(new FactionProductData { Name = name, Design = new CultRecordRef<CraftedItemData>(design), Manufacturer = factionMaker });
@@ -231,9 +229,9 @@ public sealed class FireControlCut6cTests : IDisposable
         var cache = AetheriaStores.Open(Catalog, Run(), Player());
         _openCaches.Add(cache);
 
-        // A minimal one-zone galaxy whose faction roster excludes Targeting Maker entirely, the same
-        // SavedGame/Galaxy round trip RunSaveTests uses to build a real Galaxy without standing up full
-        // procedural generation.
+        // A minimal one-zone galaxy the same SavedGame/Galaxy round trip RunSaveTests uses builds, without standing
+        // up full procedural generation. Its generator's faction is Maker, whose allegiance does not name
+        // Targeting Maker, so IsAvailable rejects Targeting Maker's products by allegiance.
         var game = new SavedGame
         {
             Factions = new[] { maker },
@@ -250,13 +248,14 @@ public sealed class FireControlCut6cTests : IDisposable
         };
         RunSave.Commit(cache, game, zones, new ProvenanceLedger());
         var galaxy = new Galaxy(cache, cache.GetGlobal<SavedGame>(), _ => { });
-        Assert.False(galaxy.ContainsFaction(targetingMaker));
+        var makerFaction = cache.Get(maker);
+        Assert.False(makerFaction.Allegiance.ContainsKey(targetingMaker));
 
         var random = new Random(1u);
         var settings = TestSettings();
         var log = new List<string>();
         var items = new ItemManager(cache, new ProvenanceLedger(), settings, log.Add);
-        var generator = new LoadoutGenerator(ref random, items, galaxy, null, null, .5f);
+        var generator = new LoadoutGenerator(ref random, items, galaxy, null, makerFaction, .5f);
 
         var pack = generator.GenerateShipLoadout(candidate => candidate.Name == "Armed");
 
@@ -266,8 +265,7 @@ public sealed class FireControlCut6cTests : IDisposable
 
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test", Owner = null }, null);
         var entity = EntitySerializer.Unpack(items, zone, pack);
-        zone.Entities.Add(entity);
-        entity.Activate();
+        zone.Admit(entity, piloted: false);
         zone.Update(0f);
 
         Assert.Null(entity.GetBehavior<TargetingSystem>());

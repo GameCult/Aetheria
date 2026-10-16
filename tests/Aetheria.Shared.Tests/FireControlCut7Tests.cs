@@ -17,7 +17,7 @@ using int2 = CultMath.int2;
 using Random = CultMath.Random;
 
 // Cut 7 (docs/fire-control-cut.md): 7.1, the fifth mutation Soul found survived 197 green tests --
-// FireControl.Fire freezing the raw TargetItem.Value instead of the reveal-re-checked ResolvedTargetItem.
+// FireControl.Fire freezing the raw AimedAt.Item instead of the reveal-re-checked ResolvedTargetItem.
 // Builds its own shooter/target fixture, the same shape FireAuthorityTests uses for Cut 3, rather than
 // reusing that file's private Build helper (the established convention in this campaign's test files).
 public sealed class FireControlCut7Tests : IDisposable
@@ -35,16 +35,14 @@ public sealed class FireControlCut7Tests : IDisposable
         Directory.Delete(_root, true);
     }
 
-    // Detection well below the armor tier, which is well below the gear tier, so an aimed interior item can
-    // decay out of its own reveal while the weapon itself (index 0, the armor tier) and general detection
-    // both stay satisfied -- the shot still fires, only the aim point should be lost.
+    // General detection stays satisfied when the aimed interior item is destroyed -- the shot still fires, only
+    // the aim point is lost.
     private static GameplaySettings TestSettings() => new GameplaySettings
     {
         DefaultEntitySettings = new EntitySettings(),
         Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
         QualityPriceModifier = new ExponentialLerp(),
         TargetDetectionInfoThreshold = .1f,
-        TargetArmorInfoThreshold = .3f,
         TargetGearInfoThreshold = .9f,
         FiringArc = 170,
         CommitHorizon = .5f,
@@ -66,8 +64,8 @@ public sealed class FireControlCut7Tests : IDisposable
     }
 
     // A trimmed copy of FireAuthorityTests.Build: one Sensors-hardpoint weapon plus a Tool-slot targeting
-    // system on the shooter, a target ship with a matching weapon (index 0 in IsRevealed's ranking) and,
-    // through beforeActivate, a second Tool item to aim at (index 1 -- the gear tier).
+    // system on the shooter, a target ship with a matching weapon and,
+    // through beforeActivate, a second Tool item to aim at.
     private Engagement Build(GameplaySettings settings, Action<ItemManager, Ship, Ship> beforeActivate)
     {
         var hullShape = new Shape(5, 5);
@@ -80,7 +78,7 @@ public sealed class FireControlCut7Tests : IDisposable
 
         var cache = AetheriaStores.Open(Catalog + Guid.NewGuid().ToString("N"), catalogWritable: true);
         _openCaches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(hullData);
         cache.Upsert(new GearData
         {
@@ -91,7 +89,6 @@ public sealed class FireControlCut7Tests : IDisposable
                 Damage = Constant(50), Range = Constant(1000), MinRange = Constant(0),
                 Velocity = Constant(0), Spread = Constant(0), DamageSpread = Constant(0),
                 Penetration = Constant(0), Count = Constant(1), BurstTime = Constant(0), Cooldown = Constant(1000),
-                DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } }
             } }
         });
         cache.Upsert(new GearData
@@ -133,10 +130,8 @@ public sealed class FireControlCut7Tests : IDisposable
 
         beforeActivate?.Invoke(items, shooter, target);
 
-        zone.Entities.Add(shooter);
-        zone.Entities.Add(target);
-        shooter.Activate();
-        target.Activate();
+        zone.Admit(shooter, piloted: false);
+        zone.Admit(target, piloted: false);
 
         shooter.Position = float3.zero;
         target.Position = float3(0, 0, 100);
@@ -149,16 +144,14 @@ public sealed class FireControlCut7Tests : IDisposable
     }
 
     // 7.1 (Soul's fifth survivor): FireControl.Fire must freeze source.ResolvedTargetItem, not the raw
-    // source.TargetItem.Value -- the aim point is re-checked against reveal at the instant the trigger is
-    // pulled, same as every other read of it. Mutation: read TargetItem.Value directly. Must die.
+    // source.AimedAt.Item -- the aim point is re-checked against reveal at the instant the trigger is
+    // pulled, same as every other read of it. Mutation: read AimedAt.Item directly. Must die.
     //
-    // The target's non-hull equipment ranks the hardpoint weapon first (armor tier, index 0 of 2) and the
-    // interior "Targeting" item last (gear tier, index 1 of 2, i.e. exactly TargetGearInfoThreshold). Info is
-    // dropped to a level between the two tiers: the weapon stays revealed (so the shot still fires, PBase >
-    // 0) but the aimed item's own tier is no longer met -- the reveal re-check, not a global blackout, is
-    // what must drop the aim point.
+    // The observer saw the target's interior item act and aims at it; the item is then destroyed. The shot is
+    // still worth taking -- this is no blackout -- but the aim point is re-checked at the instant the trigger is
+    // pulled and is lost.
     [Fact]
-    public void AimedItemDropsOutWhenRevealDecaysBeforeFire()
+    public void AimedItemDropsOutWhenItIsDestroyedBeforeFire()
     {
         EquippableItem aimedGear = null;
         var settings = TestSettings();
@@ -171,17 +164,16 @@ public sealed class FireControlCut7Tests : IDisposable
         });
         var aimedItem = e.Target.Equipment.Single(x => x.EquippableItem == aimedGear);
 
-        // Fully reveal and select the interior item as the aim point.
+        // The shooter tracks the target fully and has seen the interior item act; it selects it as the aim point.
         e.Shooter.EntityInfoGathered[e.Target] = 1f;
+        e.Shooter.RecordReveal(e.Target, aimedItem, SignatureChannel.LaunchFlash, aimedItem.Data);
         Assert.True(e.Shooter.TrySelectTargetItem(aimedItem));
         Assert.Same(aimedItem, e.Shooter.ResolvedTargetItem);
 
-        // Decay to halfway between the armor and gear tiers: the weapon (armor tier) stays revealed, the
-        // aimed item (gear tier) does not. The raw field still holds the item -- nothing clears it -- but the
-        // read accessor must now return null.
-        e.Shooter.EntityInfoGathered[e.Target] = (settings.TargetArmorInfoThreshold + settings.TargetGearInfoThreshold) / 2f;
-        Assert.Same(aimedItem, e.Shooter.TargetItem.Value); // raw field: untouched by decay
-        Assert.Null(e.Shooter.ResolvedTargetItem); // read path: re-checked, and drops it
+        // Destroyed: the raw field still holds the item -- nothing clears it -- but the read accessor returns null.
+        aimedGear.Durability = 0f;
+        Assert.Same(aimedItem, e.Shooter.AimedAt.Item);
+        Assert.Null(e.Shooter.ResolvedTargetItem);
 
         var shotId = FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
         var shot = e.Zone.PendingShots.Single(s => s.ShotId == shotId);
@@ -200,7 +192,7 @@ public sealed class FireControlCut7Tests : IDisposable
     [Fact]
     public void ShippedCatalogOpensAndGeneratesAnArmedHull()
     {
-        var gameData = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
+        var gameData = TestCatalog.Repo;
         using var cache = OpenReadOnlyRealCatalog(gameData);
 
         // Force every EquippableItemData -- WeaponItemData included, the type the broken merge could not
@@ -212,7 +204,7 @@ public sealed class FireControlCut7Tests : IDisposable
         Assert.NotEmpty(equippable);
         Assert.Contains(equippable, e => e is WeaponItemData);
 
-        var hull = cache.GetByName<HullData>("LonginusX");
+        var hull = cache.GetByName<HullData>("Longinus");
         Assert.NotNull(hull);
 
         var settings = new GameplaySettings
@@ -239,25 +231,17 @@ public sealed class FireControlCut7Tests : IDisposable
         throw new DirectoryNotFoundException("Run from inside the Aetheria repository -- built test output was not under a recognizable repo root.");
     }
 
-    // AetheriaStores.Open (Assets/Scripts/ServerShared/AetheriaStores.cs) uses `new CultCache()`, whose
-    // default registry (CultDocumentRegistry.Shared) auto-discovers every [CultDocument] type loaded
-    // ANYWHERE in the current process by scanning the whole AppDomain -- including this very test
-    // assembly's own TestCatalogGlobal (AetheriaStoresTests.cs: [CultGlobal], routed to the catalog through
-    // PersonalityAttribute). The shipped catalog naturally carries no record of a test-only type it has
-    // never heard of, so opening it through the shared, process-wide registry throws "no
-    // aetheria.tests.catalogglobal record" -- a same-process, cross-assembly artifact of this test suite,
-    // not something the real game process (which never loads TestCatalogGlobal) can ever hit.
+    // AetheriaStores.Open uses `new CultCache()`, whose default registry (CultDocumentRegistry.Shared) discovers every
+    // [CultDocument] type loaded anywhere in the current process by scanning the whole AppDomain.
     //
     // This reproduces AetheriaStores.Open's own composition and validation exactly, scoped to a registry
     // built only from the shipped assembly's own [CultDocument] types (CultDocumentRegistry.ForTypes does
     // not re-scan the AppDomain the way the default constructor's Refresh() does), so this test still opens
     // the catalog the same way the game does -- same backing store, same missing-global check, same R-heat
-    // validation loop -- without the test assembly's own fixture type poisoning it.
+    // validation loop -- without scanning the whole AppDomain.
     private static CultCache OpenReadOnlyRealCatalog(string catalogPath)
     {
-        var registry = CultDocumentRegistry.ForTypes(typeof(ItemData).Assembly.GetTypes()
-            .Where(t => t is { IsAbstract: false, IsInterface: false })
-            .Where(t => t.GetCustomAttribute<CultDocumentAttribute>() != null));
+        var registry = TestCatalog.Registry();
         var cache = new CultCache(registry);
         try
         {

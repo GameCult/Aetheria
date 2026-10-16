@@ -64,13 +64,12 @@ public class TurretController : Behavior, IInitializableBehavior
             var diff = target.Position - Entity.Position;
             if (_predictShots)
             {
-                var targetHullData = Entity.ItemManager.GetData(target.Hull) as HullData;
                 var targetVelocity = float3(target.Velocity.x, 0, target.Velocity.y);
                 var predictedPosition = first_order_intercept(
                     Entity.Position, float3.zero, _shotSpeed,
                     target.Position, targetVelocity
                 );
-                predictedPosition.y = Entity.Zone.GetHeight(predictedPosition.xz) + targetHullData.GridOffset;
+                predictedPosition.y = target.RideHeight(predictedPosition.xz);
                 Entity.Aim = normalize(predictedPosition - Entity.Position);
             }
             else

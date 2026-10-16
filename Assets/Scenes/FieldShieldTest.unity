@@ -811,6 +811,9 @@ MonoBehaviour:
   Camera: {fileID: 1153356615}
   TestField: {fileID: 909026488}
   Properties: {fileID: 401779935}
+  GrabExtendTime: 1.5
+  GrabEnvelopTime: 0.75
+  GrabPullTime: 1.5
 --- !u!4 &699508827
 Transform:
   m_ObjectHideFlags: 0
@@ -1116,9 +1119,6 @@ MonoBehaviour:
   TendrilBaseDamping: 2
   TendrilTipRadiusAnimationExponent: 2
   TendrilFadeExponent: 2
-  GrabExtendTime: 1.5
-  GrabEnvelopTime: 0.75
-  GrabPullTime: 1.5
   RefractionAxis: 1
 --- !u!114 &909026489
 MonoBehaviour:

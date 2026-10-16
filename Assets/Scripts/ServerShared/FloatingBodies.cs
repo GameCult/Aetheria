@@ -40,3 +40,20 @@ public struct KinematicBody
         Position += (Velocity + Drift) * dt;
     }
 }
+
+// An item adrift in a zone: a death drop or jettisoned cargo. Zone.Release is its only adder; Zone's floating-item
+// step (expiry) and TryPickUp are its only removers. Zone.TryHold and Free are the only writers of Holder, the
+// entity grabbing it with a tractor beam; a held item is placed by Zone, not drifted. Runtime state, never saved.
+public sealed class FloatingItem
+{
+    public FloatingBodyId Id;
+    public ItemInstance Item;
+    public KinematicBody Body;
+    public double ReleasedAt;
+    public float Lifetime;
+    // The entity holding it, or null when it floats free; HeldFrom is where it was claimed and HeldProgress how far
+    // along its pull to the holder (0..1).
+    public Entity Holder;
+    public float2 HeldFrom;
+    public float HeldProgress;
+}

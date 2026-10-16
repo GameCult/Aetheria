@@ -17,7 +17,8 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
         var bindings = new CompositeDisposable();
         zone.ShotCommitted.Where(o => o.ShotId == shotId && o.HasBurstPoint).Subscribe(o => p.BurstAt(At(o))).AddTo(bindings);
         zone.ShotResolved.Where(o => o.ShotId == shotId)
-            .Subscribe(o => p.Resolve(o.Result == ShotResult.Hit || o.Result == ShotResult.Burst, o.HasBurstPoint ? At(o) : (Vector3?) null))
+            .Subscribe(o => p.Resolve(o.Result == ShotResult.Hit || o.Result == ShotResult.Burst, o.HasBurstPoint ? At(o) : (Vector3?) null,
+                ActionGameManager.DrawsAt(o.Target)))
             .AddTo(bindings);
         // The binding outlives a fade-out until the shot's own arrival (the moment the simulation resolves it), plus a
         // second of margin; a shot no longer pending has nothing left to resolve.
@@ -44,7 +45,7 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
             p.SourceEntity = source.Entity;
             if (target != null) p.Target = target.transform;
             else p.TargetPosition = () => burst;
-            p.Frequency = launcher.DodgeFrequency;
+            p.Frequency = item.Evaluate(MunitionParts.Of<MunitionControlData>(item).EvasionFrequency);
             var hp = item.Hardpoint;
             var barrel = source.GetBarrel(hp);
             p.StartPosition = (p.transform.position = barrel.position).ToCultMath();
@@ -53,8 +54,8 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
             p.LiftCurve = launcher.LiftCurve.ToCurve();
             p.ThrustCurve = launcher.ThrustCurve.ToCurve();
             p.Velocity = barrel.forward * weapon.Velocity;
-            p.Thrust = item.Evaluate(launcher.Thrust);
-            p.TopSpeed = item.Evaluate(launcher.MissileVelocity);
+            p.Thrust = item.Evaluate(MunitionParts.Of<MunitionThrusterData>(item).Acceleration);
+            p.TopSpeed = item.Evaluate(MunitionParts.Of<MunitionThrusterData>(item).MaxSpeed);
             Bind(p, source.Entity.Zone, shotId);
             // A round with no target (a fused round fired at none) has no transform to hand a listener.
             OnFireGuided.OnNext((source.Entity, target != null ? target.transform : null, p));
@@ -65,7 +66,7 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
             p.ShotId = shotId;
             p.Source = source.transform;
             p.SourceEntity = source.Entity;
-            p.Frequency = guidance.DodgeFrequency;
+            p.Frequency = item.Evaluate(MunitionParts.Of<MunitionControlData>(item).EvasionFrequency);
             var hp = item.Hardpoint;
             var barrel = source.GetBarrel(hp);
             p.StartPosition = (p.transform.position = barrel.position).ToCultMath();
@@ -74,9 +75,13 @@ public class GuidedProjectileManager : InstantWeaponEffectManager
             p.LiftCurve = guidance.LiftCurve.ToCurve();
             p.ThrustCurve = guidance.ThrustCurve.ToCurve();
             p.Velocity = barrel.forward * weapon.Velocity;
-            p.Thrust = item.Evaluate(guidance.Thrust);
-            p.TopSpeed = item.Evaluate(guidance.MissileVelocity);
-            p.TargetPosition = () => (source.Entity.Position + length(source.LookAtPoint.position.ToCultMath() - source.Entity.Position) * source.Entity.Aim).ToUnity();
+            p.Thrust = item.Evaluate(MunitionParts.Of<MunitionThrusterData>(item).Acceleration);
+            p.TopSpeed = item.Evaluate(MunitionParts.Of<MunitionThrusterData>(item).MaxSpeed);
+            p.TargetPosition = () =>
+            {
+                var drawn = DrawAhead.Position(source.Entity, ActionGameManager.Clock.Lead);
+                return (drawn + length(source.LookAtPoint.position.ToCultMath() - drawn) * source.Entity.Aim).ToUnity();
+            };
             Bind(p, source.Entity.Zone, shotId);
         }
         else Debug.LogError($"Weapon {item.Data.Name} linked to {name} effect, but is not a Launcher!");

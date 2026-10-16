@@ -49,8 +49,7 @@ public enum HardpointType
     Energy,
     Ballistic,
     Launcher,
-    ControlModule,
-    AetherDrive
+    ControlModule
 }
 
 public enum WeaponType
@@ -202,34 +201,6 @@ public enum TemperatureUnit
     Kelvin,
     Celsius,
     Fahrenheit
-}
-
-public enum WeaponAudioEvent
-{
-    Fire,
-    Hit,
-    Miss
-}
-
-public enum ChargedWeaponAudioEvent
-{
-    Start,
-    Stop,
-    Fail
-}
-
-public enum SpecialAudioParameter
-{
-    ShipVelocity,
-    ChargeLevel,
-    TargetLock,
-    Intensity,
-}
-
-public enum LoopingAudioEvent
-{
-    Play,
-    Stop
 }
 
 public enum MusicType

@@ -67,24 +67,18 @@ public static class FireControl
         return blastRadius > 0f ? data.Fuse : null;
     }
 
-    // The one arc gate on the trigger. A fused weapon fires whatever the arc says: a target it cannot bear on is
-    // no reason to keep it silent, the round flies along the arc-clamped aim and bursts at the target's range
-    // (Fire; operator ruling 2026-09-30, "the user is hoping that the arc gets the weapon close enough to still
-    // splash some damage"). A weapon that only hits what it fires at still refuses. Fire reads InArc itself to
-    // choose that flight, so the two share the one bearing test and differ only in this exemption.
-    // Mining Cut 3: a chunk target bears through its own position, on the plane the bearing test reads.
+    // The one gate on the trigger (operator rulings fire-on-solutions, controls-solution-trigger, 2026-10-06). A gun
+    // fires on its solution without the aim, else free along the aim if the aim is inside its arc, else it holds.
+    // A fused weapon fires whatever the arc says: a target it cannot bear on is no reason to keep it silent, the
+    // round flies along the arc-clamped aim and bursts at the target's range (Fire; operator ruling 2026-09-30,
+    // "the user is hoping that the arc gets the weapon close enough to still splash some damage"). A mine layer
+    // lays a body, not a round, and is never arc-gated. The price of a free shot at a target that does not bear is
+    // HitProbability's: zero.
     public static bool ArcPermitsFire(Weapon weapon, Entity shooter)
     {
-        var target = shooter.Target.Value;
-        if (target.IsNone) return true;
-        float3 toTarget;
-        if (target.Chunk is ChunkId chunk)
-        {
-            var at = shooter.Zone.ChunkPose(chunk.Field, chunk.Index).xy;
-            toTarget = float3(at.x, 0, at.y) - shooter.Position;
-        }
-        else toTarget = target.Entity.Position - shooter.Position;
-        return FuseOf(weapon.Item, out _) != null || IsMineLayer(weapon) || InArc(weapon.Item, toTarget);
+        if (FuseOf(weapon.Item, out _) != null || IsMineLayer(weapon)) return true;
+        var solution = Solution(weapon, shooter, shooter.Target.Value);
+        return solution.Bears || solution.Free;
     }
 
     // Whether the shooter's next round from this weapon is refused: the weapons ask before they spend anything, so
@@ -132,35 +126,42 @@ public static class FireControl
         return float2(mount.x * cos(turn) - mount.y * sin(turn), mount.x * sin(turn) + mount.y * cos(turn));
     }
 
-    // Cut 2, R5: whether `observer` has resolved `item` (which must belong to some entity in the zone) well
-    // enough to aim at it. Derived fresh from EntityInfoGathered on every call -- nothing caches a reveal
-    // result, so decay drops it the moment info falls back below tier, with no clearing loop anywhere.
-    //
-    // Ranking: the target's own non-hull equipment, hardpoint-mounted gear first (the big obvious things),
-    // then by size descending, ties broken by equipment order (OrderByDescending is a stable sort, so this
-    // needs no explicit tie-break key). Item i of N reveals once info crosses
-    // lerp(TargetArmorInfoThreshold, TargetGearInfoThreshold, i / max(1, N - 1)) -- the first item to reveal
-    // does so at the armor tier, the last at the gear tier.
-    public static bool IsRevealed(Entity observer, EquippedItem item)
+    // The one owner of a gun's solution against its subject (the designated target; ruling controls-solution-subject).
+    // Bears: the gun can engage the subject, so the player fires on it without the aim. Free: the aim is inside the
+    // arc, so the gun can fire along it. Direction: where a round from this gun travels and where its barrel points --
+    // the subject's intercept when it bears, else the arc-clamped aim. A chunk subject bears through its pose and
+    // flies the aim, as an untargeted round (Subject is null for it). Derived on every read and never stored: turrets
+    // traverse instantly in the simulation. Traverse is the weapon's Tracking (ruling mount-arc-gun-traverse), priced in
+    // TrackingRate; this holds no slew state, and a rig's slew is presentation. It never prices; HitProbability is the one price.
+    public static GunSolution Solution(Weapon weapon, Entity shooter, TargetRef subject)
     {
-        var target = item.Entity;
-        // Cut 5, 5.5 (Soul finding 10): a destroyed item drops out of the ranking entirely rather than merely
-        // failing its own tier -- ranked.IndexOf(item) then returns -1 for it (the same "no longer on this
-        // target" path below), and the survivors' tiers close up over the gap instead of leaving one.
-        var ranked = target.Equipment
-            .Where(e => e.Data.HardpointType != HardpointType.Hull && e.EquippableItem.Durability >= .01f)
-            .OrderByDescending(e => e.Data.HardpointType != HardpointType.Tool)
-            .ThenByDescending(e => e.Data.Shape.Coordinates.Length)
-            .ToList();
-        var index = ranked.IndexOf(item);
-        if (index < 0) return false; // the hull itself, or an item that is no longer on this target
-
-        var settings = observer.ItemManager.GameplaySettings;
-        var info = observer.EntityInfoGathered.TryGetValue(target, out var gathered) ? gathered : 0f;
-        var tier = lerp(settings.TargetArmorInfoThreshold, settings.TargetGearInfoThreshold,
-            (float) index / max(1, ranked.Count - 1));
-        return info >= tier;
+        var bears = false;
+        if (subject.Entity != null) bears = Bears(weapon, shooter, subject.Entity, out _);
+        else if (subject.Chunk is ChunkId chunk)
+        {
+            var at = shooter.Zone.ChunkPose(chunk.Field, chunk.Index).xy;
+            bears = InArc(weapon.Item, float3(at.x, 0, at.y) - shooter.Position);
+        }
+        return new GunSolution
+        {
+            Subject = subject.Entity,
+            Bears = bears,
+            Free = InArc(weapon.Item, shooter.Aim),
+            Direction = bears && subject.Entity != null
+                ? TravelDirection(weapon, shooter, subject.Entity)
+                : AimDirection(weapon.Item, shooter)
+        };
     }
+
+    // The aiming read, and the only reader of live gear beside the book (rulings visibility-per-capability-reveal,
+    // quiet-gear-identifiable-hull-layout-known, reveal-ends-on-perception): `observer` can aim at `item` when its own
+    // book holds a reveal of it (Entity.HasReveal: it saw the item act) and the item is still fitted to its ship and
+    // not destroyed. The book says what was seen; the live item says whether it can still be aimed at. Derived on
+    // every read, never cached; watching a ship reveals no gear. Any aiming choice that reads an item's class or
+    // stats (Combat's target-item choice, its dps) asks this; it is the item gate of Entity's aim slot (TrySelectTargetItem,
+    // ResolvedAim). A mount is aimed by TrySelectMount, which reads no item at all.
+    public static bool IsRevealed(Entity observer, EquippedItem item) =>
+        !item.EquippableItem.IsDestroyed && item.Entity.Equipment.Contains(item) && observer.HasReveal(item.Entity, item);
 
     // Cut 2, Q4: the stats an entity actually fires with. A working targeting system (equipped, online --
     // not destroyed, not shut down) supplies its own resolved stats; anything else falls back to the
@@ -277,21 +278,26 @@ public static class FireControl
                !(weapon is LockWeapon lockWeapon && !lockWeapon.IsLocked);
     }
 
-    // `designated` is the answer above. `inArc` is the bearing test, asked only once a target is designated.
+    // Whether this gun can engage this target: designated and inside the arc. The one test of it; PFire prices a shot
+    // at zero unless it holds, and Solution reads it to decide whether the gun fires on the target. `designated` is
+    // the answer above, kept apart for Solve's burst flight: a designated target out of arc still sets the burst range.
+    public static bool Bears(Weapon weapon, Entity source, Entity target, out float range) =>
+        Bears(weapon, source, target, out range, out _);
+
+    private static bool Bears(Weapon weapon, Entity source, Entity target, out float range, out bool designated)
+    {
+        designated = Designated(weapon, source, target, out range);
+        return designated && InArc(weapon.Item, target.Position - source.Position);
+    }
+
+    // `designated` is the answer above. `inArc` is Bears, asked only once a target is designated.
     // PFire prices a shot at zero unless both hold. Fire reads them to decide what a fused round flies at
     // (operator rulings 2026-09-30): without valid data it has no target and bursts at max range; with data but
     // out of arc it bursts at the target's range, along the aim. The HUD reads Designated and the
     // arc from Solve and Inspect and decides nothing.
     private static float PFire(Weapon weapon, Entity source, Entity target, out float range, out bool designated, out bool inArc)
     {
-        range = 0f;
-        designated = false;
-        inArc = false;
-        if (target == null) return 0f;
-
-        designated = Designated(weapon, source, target, out range);
-        if (!designated) return 0f;
-        inArc = InArc(weapon.Item, target.Position - source.Position);
+        inArc = Bears(weapon, source, target, out range, out designated);
         if (!inArc) return 0f;
 
         var settings = source.ItemManager.GameplaySettings;
@@ -316,8 +322,8 @@ public static class FireControl
     // GetBehavior<TargetingSystem> calls (Accuracy, Resolution via PSensor, Precision), at ~40 B each -- each
     // one walks Entity.Equipment, a ReactiveCollection<T> whose enumerator is heap-allocated per foreach. It is
     // NOT `Behaviors` (the earlier wording here was wrong): EquippedItem.Behaviors is a plain array, allocates
-    // nothing to enumerate. With an item aimed at, ResolveAimPoint -> CellsOf also allocates (a List, then
-    // ToArray) -- about 944 B per HitProbability, on top of the three GetBehavior calls. None of this is
+    // nothing to enumerate. With an item or a mount aimed at, ResolveAimPoint also allocates: CellsOf (a List, then
+    // ToArray) about 944 B per HitProbability, measured; MountCells (a LINQ Select, then ToArray) not measured. Both are on top of the three GetBehavior calls. None of this is
     // Silhouette's or this pooling's cost; it predates Cut 12.2 and belongs to Entity's own collection choice
     // and to CellsOf, out of this cut's scope. Cut 10's own guard is what actually matters
     // operationally: HitProbability and CommitProbability both bail before Forecast is ever called for the
@@ -334,7 +340,8 @@ public static class FireControl
         Silhouette sil;
         try
         {
-            sil = Silhouette(target, targetHull, source.ResolvedTargetItem, bearing, precision, buffer);
+            var aim = source.ResolvedAim;
+            sil = Silhouette(target, targetHull, aim.Item, bearing, precision, buffer, aim.Mount);
             var settings = source.ItemManager.GameplaySettings;
             pSpread = PSpread(weapon.Spread, sil.Span, range, settings.SchematicCellSize);
         }
@@ -581,7 +588,8 @@ public static class FireControl
     // it whether a round is refused before they spend anything -- so a refusal is decided once, by the same
     // code that would have flown the round, and the HUD cannot forecast a burst the trigger will not fire.
     // Direct: a round that resolves against its target (a weapon without a fuse). Burst: a fused round, with
-    // BurstReach the planar distance from the shooter at which it bursts. Refused: a fused round whose blast
+    // BurstReach the planar distance from the shooter at which the payload is delivered (a direct round's target, a fused
+    // round's burst point, 0 for an untargeted direct round), which Fire's range factor reads for every outcome. Refused: a fused round whose blast
     // radius (its arming distance) exceeds the weapon's Range; it cannot be fired.
     public static FireSolution Solve(Weapon weapon, EquippedItem item, Entity source, Entity target)
     {
@@ -616,7 +624,7 @@ public static class FireControl
         // burst's later rounds and a power-starved Range included).
         var engaged = fuse != null && !(designated && inArc) ? null : target;
         var origin = source.Position;
-        var travelDirection = engaged != null ? TravelDirection(weapon, source, engaged) : AimDirection(item, source);
+        var travelDirection = Solution(weapon, source, target).Direction;
 
         var arming = fuse != null ? blastRadius : 0f;
         var burstPosition = engaged != null ? engaged.Position : origin;
@@ -712,14 +720,19 @@ public static class FireControl
 
         var commitHorizon = source.ItemManager.GameplaySettings.CommitHorizon;
 
+        var aim = source.ResolvedAim;
         var shot = new PendingShot
         {
             ShotId = zone.NextShotId(),
             Source = source,
             Target = engaged,
             Weapon = item,
-            Aimed = source.ResolvedTargetItem,
+            Aimed = aim.Item,
+            AimedMount = aim.Mount,
             Damage = damageOverride ?? weapon.Damage,
+            FireMinRange = weapon.MinRange,
+            FireEffectiveRange = weapon.EffectiveRange,
+            FireDamageAtMaxRange = weapon.WeaponData.DamageAtMaxRange,
             Penetration = weapon.Penetration,
             DamageSpread = weapon.DamageSpread,
             DamageType = weapon.WeaponData.DamageType,
@@ -730,6 +743,8 @@ public static class FireControl
             Spread = weapon.Spread,
             FireRange = fireRange,
             FireTime = now,
+            Speed = weapon.Velocity,
+            MaxRange = weapon.Range,
             FireOrigin = origin,
             FireTargetPosition = targetPosition,
             FireTargetVelocity = targetVelocity,
@@ -743,10 +758,19 @@ public static class FireControl
             BlastRadius = blastRadius,
             Committed = false
         };
+        // A round whose delivery point Solve plans reads the falloff here, at that point (BurstReach); a no-lock fused round's
+        // point is decided at its commit (CommitBurst), which reads it there. Each shot reads it once.
+        if (!shot.DeliveredAtCommit) Deliver(ref shot, solution.BurstReach);
 
         zone.PendingShots.Add(shot);
         return shot.ShotId;
     }
+
+    // The one place a shot's damage meets range: the weapon's falloff at the planar distance its payload is delivered at,
+    // over the stats frozen at Fire. A delivery is never farther than the Range it was fired with (a burst is pulled back to
+    // it), so rounding in its distance must not read as beyond it.
+    private static void Deliver(ref PendingShot shot, float reach) =>
+        shot.Damage *= WeaponData.RangeFactor(shot.FireMinRange, shot.FireEffectiveRange, shot.MaxRange, shot.FireDamageAtMaxRange, min(reach, shot.MaxRange));
 
     // Lays a mine for a mine layer: freezes the payload as evaluated now (stats, the item's blast radius, the
     // layer and its faction) and hands the body to Zone.Lay, the one adder. It launches at the shooter's velocity
@@ -779,6 +803,8 @@ public static class FireControl
             FuseDelay = data.FuseDelay,
             Lifetime = data.Lifetime,
             BlastRadius = blastRadius,
+            // Mines are flat (ruling effective-range-authoring-ruled): a mine layer carries no falloff authoring
+            // (StatValidation.ValidateMineLayerFlat), so its figure is the AI's and the panel's at every distance it can engage.
             Damage = weapon.Damage,
             DamageType = weapon.WeaponData.DamageType,
             Layer = source,
@@ -823,11 +849,13 @@ public static class FireControl
 
             if (!shot.Committed && now >= shot.CommitTime)
             {
-                shot.Outcome = Commit(zone, shot, now);
+                shot.Outcome = Commit(zone, ref shot, now);
                 shot.Committed = true;
                 // A contact burst short of max range arrives when the round has flown that far, not at the frozen
                 // max-range time (CommitBurst). Never later than the frozen time.
                 if (shot.Outcome.Result == ShotResult.Burst) shot.ArrivalTime = min(shot.ArrivalTime, now + shot.Outcome.ArrivalIn);
+                // Written back before ShotCommitted fires: a presenter re-reading the record there (Zone.TryGetShot) sees
+                // the committed ArrivalTime a contact burst has just shortened.
                 shots[i] = shot;
                 zone.ShotCommitted.OnNext(shot.Outcome);
             }
@@ -873,16 +901,16 @@ public static class FireControl
 
         var bearing = Bearing(shot.Target, shot.TravelDirection);
         var hullData = shot.Target.ItemManager.GetData(shot.Target.Hull) as HullData;
-        sil = Silhouette(shot.Target, hullData, shot.Aimed, bearing, shot.Precision);
+        sil = Silhouette(shot.Target, hullData, shot.Aimed, bearing, shot.Precision, null, shot.AimedMount);
         var settings = shot.Target.ItemManager.GameplaySettings;
         return p * PSpread(shot.Spread, sil.Span, shot.FireRange, settings.SchematicCellSize) * sil.POnHull;
     }
 
-    private static ShotOutcome Commit(Zone zone, PendingShot shot, float now)
+    private static ShotOutcome Commit(Zone zone, ref PendingShot shot, float now)
     {
         // A fused round with no target rolls nothing: it bursts. Where is decided here, at the commit, from the
         // poses of this tick (R4); Apply performs it.
-        if (shot.Fuse != null && shot.Target == null) return CommitBurst(zone, shot, now);
+        if (shot.DeliveredAtCommit) return CommitBurst(zone, ref shot, now);
 
         // Cut 6b, 6.1 (Soul finding 6): a shot's dice belong to the shot, not to whatever else happened to
         // draw from the engine-wide shared generator first. A pure function of (zone identity, shot id) --
@@ -974,12 +1002,14 @@ public static class FireControl
     // nothing locked stops on what is in its way), and at the max-range point when the line is clear. The point is
     // read from this tick's poses and frozen into the outcome (R4, the same timing Commit reads facing at).
     // Nothing is rolled or drawn, so determinism needs nothing beyond the frozen inputs.
-    private static ShotOutcome CommitBurst(Zone zone, PendingShot shot, float now)
+    private static ShotOutcome CommitBurst(Zone zone, ref PendingShot shot, float now)
     {
         var outcome = MakeOutcome(shot, ShotResult.Burst, false, false, int2.zero, float2.zero, 0f, now);
         outcome.HasBurstPoint = true;
         var reach = length(shot.BurstPosition.xz - shot.FireOrigin.xz);
         var travelled = min(reach, max(HullDistance(zone, shot, reach), shot.BlastRadius));
+        // The delivery point is decided here, so the falloff is read here, at the distance the round travelled to it.
+        Deliver(ref shot, travelled);
         if (travelled < reach)
         {
             outcome.BurstPoint = shot.FireOrigin.xz + shot.TravelDirection * travelled;
@@ -1134,6 +1164,8 @@ public static class FireControl
 
         if (shot.Outcome.Shielded)
         {
+            Publish(shot.Target, AbsorbLayer.Shield, ImpactPoint(shot.Target, shot.Outcome.Cell),
+                float3(shot.TravelDirection.x, 0, shot.TravelDirection.y), shot.Damage, shot.DamageType);
             shot.Target.Shield.TakeHit(shot.DamageType, shot.Damage);
             return;
         }
@@ -1177,7 +1209,29 @@ public static class FireControl
 
         for (var li = 0; li < laneCount; li++) ArrayPool<LaneCell>.Shared.Return(buffers[li]);
 
+        Publish(target, AbsorbLayer.Hull, ImpactPoint(target, shot.Outcome.Cell),
+            float3(shot.TravelDirection.x, 0, shot.TravelDirection.y), shot.Damage, shot.DamageType);
         target.DamageHull(hullDamage);
+    }
+
+    // Where a landed direct hit meets the receiver: the impact cell's world point on its sim pose, at its height.
+    private static float3 ImpactPoint(Entity target, int2 cell)
+    {
+        var world = target.ToWorldPoint((float2) cell);
+        return float3(world.x, target.Position.y, world.y);
+    }
+
+    // The one publisher of an absorbed impact: once per receiver, on its Capabilities, before the damage it reports.
+    private static void Publish(Entity receiver, AbsorbLayer layer, float3 position, float3 direction, float magnitude, DamageType damageType) =>
+        receiver.Capabilities.PublishAbsorb(new AbsorbEvent(position, direction, magnitude, damageType, layer));
+
+    // A blast's impact on one entity: at the blast point (on the entity's height), travelling from the blast out through
+    // the entity's centre, or zero when they coincide.
+    private static void PublishBlast(Entity entity, float2 blast, AbsorbLayer layer, float magnitude, DamageType damageType)
+    {
+        var away = entity.Position.xz - blast;
+        var direction = lengthsq(away) > 0f ? normalize(away) : float2.zero;
+        Publish(entity, layer, float3(blast.x, entity.Position.y, blast.y), float3(direction.x, 0, direction.y), magnitude, damageType);
     }
 
     // Cut 12.4(b) (docs/fire-control-cut.md, "Where P is"): a contact or delayed blast needs a committed hit --
@@ -1562,6 +1616,7 @@ public static class FireControl
             {
                 if (shield.CanTakeHit(damageType, totalShare))
                 {
+                    PublishBlast(entity, worldPlanar, AbsorbLayer.Shield, totalShare, damageType);
                     shield.TakeHit(damageType, totalShare);
                     continue;
                 }
@@ -1591,6 +1646,7 @@ public static class FireControl
                     for (var i = 0; i < amounts.Length; i++) hullTotal += amounts[i];
                 }
 
+            PublishBlast(entity, worldPlanar, AbsorbLayer.Hull, totalShare, damageType);
             entity.DamageHull(hullTotal);
         }
     }
@@ -1712,12 +1768,13 @@ public static class FireControl
     private const float SigmaFloor = 0.5f;
     private static float Sigma(float precision) => max(1f / max(precision, 1e-3f), SigmaFloor);
 
-    // The aim point a silhouette is centred on (R10/Q6: the same frozen Aimed both HitProbability and Fire
-    // read) -- the aimed item's own cell centroid when it currently occupies cells on the target, else the
-    // hull's own centre of mass. One path; the uniform-random branch Cut 6d replaced stays deleted.
-    private static float2 ResolveAimPoint(Entity target, HullData hullData, EquippedItem aimed)
+    // The aim point a silhouette is centred on (R10/Q6: the same frozen Aimed and AimedMount both HitProbability and Fire
+    // read) -- the cells of the mount aimed at when the aim was frozen at a mount (the shooter has not learned what is
+    // fitted there, so never the fitted item's cells), else the aimed item's own cell centroid when it currently occupies
+    // cells on the target, else the hull's own centre of mass. One path; the uniform-random branch Cut 6d replaced stays deleted.
+    private static float2 ResolveAimPoint(Entity target, HullData hullData, EquippedItem aimed, HardpointData mount)
     {
-        var aimedCells = aimed != null ? CellsOf(target, aimed) : null;
+        var aimedCells = mount != null ? MountCells(mount) : aimed == null ? null : CellsOf(target, aimed);
         if (aimedCells != null && aimedCells.Length > 0)
             return aimedCells.Aggregate(float2.zero, (total, c) => total + (float2) c) / aimedCells.Length;
         return hullData.Shape.CenterOfMass;
@@ -1737,7 +1794,7 @@ public static class FireControl
     // call that follows, so it still passes null and gets an owned allocation. A caller-supplied buffer may be
     // larger than coords.Length (ArrayPool rents "at least"), so every loop below is bounded by coords.Length,
     // never buffer.Length.
-    public static Silhouette Silhouette(Entity target, HullData hull, EquippedItem aimed, float2 bearing, float precision, Interval[] buffer = null)
+    public static Silhouette Silhouette(Entity target, HullData hull, EquippedItem aimed, float2 bearing, float precision, Interval[] buffer = null, HardpointData mount = null)
     {
         var ell = Lateral(bearing);
         var coords = hull.Shape.Coordinates;
@@ -1759,7 +1816,7 @@ public static class FireControl
         }
 
         var sigma = Sigma(precision);
-        var aimPoint = ResolveAimPoint(target, hull, aimed);
+        var aimPoint = ResolveAimPoint(target, hull, aimed, mount);
         var a = dot(aimPoint, ell);
 
         var pOnHull = 0f;
@@ -1914,6 +1971,10 @@ public static class FireControl
         exit = min(exit, max(t1, t2));
     }
 
+    // The hull-schematic cells a hardpoint covers, laid as Entity builds its Hardpoints[,] grid.
+    private static int2[] MountCells(HardpointData hardpoint) =>
+        hardpoint.Shape.Coordinates.Select(c => hardpoint.Position + c).ToArray();
+
     // The cells of the target's hull schematic actually occupied by `item` -- GearOccupancy is the one source
     // of truth for where an equipped item's footprint lands, the same table Detonate and ApplyPooled read.
     private static int2[] CellsOf(Entity target, EquippedItem item)
@@ -1938,10 +1999,18 @@ public struct PendingShot
     public Entity Target;
     public EquippedItem Weapon;
     public EquippedItem Aimed;
+    // The mount the aim was at, when it was at a mount rather than an item (Entity.ResolvedAim at Fire), frozen with Aimed:
+    // a reveal between Fire and Commit does not move where this shot was aimed. Null for an item aim or none.
+    public HardpointData AimedMount;
 
     // The frozen payload (R10, Q6): the gun's own stats at the instant the trigger was pulled. Nothing
     // downstream re-evaluates any of these.
     public float Damage;
+    // The weapon's falloff stats at Fire (with MaxRange below), frozen like the rest: what the range factor reads, at Fire or
+    // at commit.
+    public float FireMinRange;
+    public float FireEffectiveRange;
+    public float FireDamageAtMaxRange;
     public float Penetration;
     public float DamageSpread;
     public DamageType DamageType;
@@ -1974,11 +2043,20 @@ public struct PendingShot
     public float3 FireTargetPosition;
     public float3 FireTargetVelocity;
     public float FireTime;
+    // The weapon's Velocity at Fire, frozen with the rest so a presenter draws the same line whatever happens to the stat later.
+    public float Speed;
+    // The weapon's Range at Fire, likewise frozen: how far a presenter may draw a round that misses. FireRange above
+    // is the distance to the engaged target (0 for a round with none), not how far a round that misses flies on.
+    public float MaxRange;
     public float CommitTime;
     public float ArrivalTime;
 
     public bool Committed;
     public ShotOutcome Outcome;
+
+    // A fused round with no target: where it bursts is decided at its commit (the first hull its aim line meets), so its
+    // damage reads the falloff there rather than at Fire.
+    public bool DeliveredAtCommit => Fuse != null && Target == null;
 }
 
 // What a round does when fired (FireControl.Solve): Direct resolves against its target, Burst detonates at a
@@ -1990,8 +2068,18 @@ public enum FireOutcome
     Refused
 }
 
-// Solve's answer. Outcome and BurstReach (planar distance from the shooter to the burst point, read for Burst
-// only) are what the HUD shows; the rest is what Fire freezes into the PendingShot.
+// A gun's solution against its subject (FireControl.Solution): whether the gun bears on the subject, whether the
+// aim is free (inside the arc), and the direction a round from it travels.
+public struct GunSolution
+{
+    public Entity Subject;
+    public bool Bears;
+    public bool Free;
+    public float2 Direction;
+}
+
+// Solve's answer. Outcome and BurstReach (planar distance from the shooter to the burst point; the HUD reads it for
+// Burst, Fire's range factor for both outcomes) are what the HUD shows; the rest is what Fire freezes into the PendingShot.
 public struct FireSolution
 {
     public FireOutcome Outcome;
@@ -2045,8 +2133,9 @@ public struct FireControlDiagnostic
 }
 
 // What a ship can do at this instant, in its own frame: acceleration along each body axis (m/s^2) and the kinematic
-// turn rate each way (rad/s; turning toward the ship's right is Clockwise). Each propulsor reports its share with
-// its own Execute arithmetic and Ship sums them; nothing stores it. Zero is the envelope of anything that is not a Ship.
+// turn rate each way (rad/s; turning toward the ship's right is Clockwise). Ship derives it each update as the box
+// extremes of its thrusters' columns (Ship.RecalculateEnvelope); nothing stores it. Zero is the envelope of anything
+// that is not a Ship.
 public readonly struct ManoeuvreEnvelope
 {
     public readonly float Forward, Reverse, Left, Right, Clockwise, CounterClockwise;
@@ -2060,10 +2149,6 @@ public readonly struct ManoeuvreEnvelope
         Clockwise = clockwise;
         CounterClockwise = counterClockwise;
     }
-
-    public static ManoeuvreEnvelope operator +(ManoeuvreEnvelope a, ManoeuvreEnvelope b) => new ManoeuvreEnvelope(
-        a.Forward + b.Forward, a.Reverse + b.Reverse, a.Left + b.Left, a.Right + b.Right,
-        a.Clockwise + b.Clockwise, a.CounterClockwise + b.CounterClockwise);
 }
 
 // How unpredictably an entity is changing its motion, observed from its measured acceleration. The trend is an

@@ -93,11 +93,6 @@ public interface IActivatedBehavior
     void Deactivate();
 }
 
-public interface IAnalogBehavior
-{
-    float Axis { get; set; }
-}
-
 public interface IEventBehavior
 {
     void ResetEvents();
@@ -157,7 +152,7 @@ public interface IPowerConsumer
  Union(9, typeof(WearData)),
  Union(10, typeof(VelocityConversionData)),
  Union(11, typeof(VelocityLimitData)),
- Union(12, typeof(AetherDriveData)),
+ // Union(12): retired, do not reuse -- was AetherDriveData (retire-longinusx; parked/aether-drive)
  // Union(14, typeof(TowingControllerData)),
  Union(15, typeof(CooldownData)),
  Union(16, typeof(HeatData)),
@@ -187,6 +182,17 @@ public interface IPowerConsumer
  // superseded draft quoted -- checked directly here rather than trusted from that document.
  Union(39, typeof(TargetingSystemData)),
  Union(40, typeof(MineLayerData)),
+ Union(41, typeof(ThrottleLockData)),
+ Union(42, typeof(VapourDumpData)),
+ Union(43, typeof(MunitionHullData)),
+ Union(44, typeof(MunitionThrusterData)),
+ Union(45, typeof(MunitionSeekerData)),
+ Union(46, typeof(MunitionControlData)),
+ Union(47, typeof(MunitionFuelData)),
+ Union(48, typeof(PickupData)),
+ Union(49, typeof(LaunchSuppressorData)),
+ Union(50, typeof(ListenerData)),
+ Union(51, typeof(ScannerData)),
  JsonObject(MemberSerialization.OptIn)]
 public abstract class BehaviorData
 {

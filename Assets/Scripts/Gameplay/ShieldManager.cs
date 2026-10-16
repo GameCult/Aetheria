@@ -5,14 +5,37 @@ using System.Linq;
 using CultMath;
 using CultMath.UnityBridge;
 using static CultMath.math;
+using UniRx;
 using UnityEngine;
 
-public class ShieldManager : MonoBehaviour
+public class ShieldManager : MonoBehaviour, IAbsorbPresenter
 {
     public Prototype ShieldPrototype;
     public float CollisionHitDuration = 3;
 
-    public Entity Entity { get; set; }
+    private Entity _entity;
+    private IDisposable _contacts;
+
+    // Ship-on-ship contact is Zone's (Contacts.Step); this shield only presents it.
+    public Entity Entity
+    {
+        get => _entity;
+        set
+        {
+            _contacts?.Dispose();
+            _entity = value;
+            _contacts = value?.Zone.Contacted.Subscribe(Present);
+        }
+    }
+
+    private void OnDestroy() => _contacts?.Dispose();
+
+    private void Present(ContactEvent contact)
+    {
+        if (contact.A != Entity && contact.B != Entity) return;
+        if (Entity.Shield != null && Entity.Shield.Item.Active.Value)
+            ShowHit(DrawAhead.Carried(Entity, float3(contact.Point.x, Entity.Position.y, contact.Point.y), ActionGameManager.Clock.Lead).ToUnity(), CollisionHitDuration);
+    }
 
     private ShieldEnvelope _envelope;
     private bool _loggedMissingEnvelope;
@@ -29,55 +52,12 @@ public class ShieldManager : MonoBehaviour
         Debug.LogWarning("ShieldManager has no ShieldEnvelope; falling back to its own transform for the hit direction.", this);
     }
 
-    private void OnCollisionEnter(Collision other)
+    // A shot the shield took ripples it where the shot landed, drawn on the hull as it is drawn. The hull layer is
+    // ImpactPresenter's.
+    public void Absorb(AbsorbEvent e)
     {
-        var otherShield = other.collider.GetComponent<ShieldManager>();
-        if (!otherShield)
-        {
-            var gridObject = other.collider.GetComponent<GridObject>();
-            if (gridObject)
-            {
-                var itemPickup = other.collider.GetComponent<ItemPickup>();
-                if (itemPickup)
-                {
-                    if (Entity.CargoBays.Any(c => c.TryStore(itemPickup.Item)))
-                    {
-                        // TODO: Pickup notification!
-                        Destroy(itemPickup.gameObject);
-                    }
-                    else
-                    {
-                        // TODO: Pickup failed notification!
-                        var cp = other.GetContact(0);
-                        gridObject.Velocity += cp.normal * 25;
-                        Debug.Log("Attempted item pickup, but no space in cargo bay!");
-                    }
-                }
-                else
-                {
-                    Debug.Log("Shield collision occurred with grid object, but other collider isn't an item pickup!");
-                }
-            }
-            else
-                Debug.Log("Shield collision occurred, but other collider isn't a shield or a grid object!");
-            return;
-        }
-        var contact = other.GetContact(0);
-        var normal = normalize(float2(contact.normal.x, contact.normal.z));
-        var tangent = normal.Rotate(ItemRotation.CounterClockwise);
-        var v1n = dot(normal, Entity.Velocity);
-        var v1t = dot(tangent, Entity.Velocity);
-        var v2n = dot(normal, otherShield.Entity.Velocity);
-        //var v2t = dot(tangent, otherShield.Entity.Velocity);
-
-        var v1np = PostCollisionVelocity(v1n, Entity.Mass, v2n, otherShield.Entity.Mass);
-        Entity.Velocity = tangent * v1t + normal * v1np;
-        if(Entity.Shield != null && Entity.Shield.Item.Active.Value) ShowHit(contact.point, CollisionHitDuration);
-    }
-
-    private float PostCollisionVelocity(float v1, float m1, float v2, float m2)
-    {
-        return (v1 * (m1 - m2) + m2 * v2) / (m1 + m2);
+        if (e.Layer != AbsorbLayer.Shield || Entity == null || Entity.Shield == null || !Entity.Shield.Item.Active.Value || !ActionGameManager.DrawsAt(Entity)) return;
+        ShowHit(DrawAhead.Carried(Entity, e.Position, ActionGameManager.Clock.Lead).ToUnity(), CollisionHitDuration);
     }
 
     public void ShowHit(Vector3 point, float duration)

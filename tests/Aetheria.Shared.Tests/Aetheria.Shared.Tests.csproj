@@ -11,6 +11,8 @@
     <!-- AuthoredSettings (Unity Settings.asset YAML reader), so fixtures load the shipped gameplay settings
          instead of hand-copying them. -->
     <ProjectReference Include="..\..\tools\AetherDb\AetherDb.csproj" />
+    <!-- The player build's staging rules: Unity-free, owned by Assets/Editor, compiled here so the suite can prove them. -->
+    <Compile Include="..\..\Assets\Editor\PlayerStaging.cs" Link="PlayerStaging.cs" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.4.0" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />

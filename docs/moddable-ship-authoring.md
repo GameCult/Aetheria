@@ -61,11 +61,29 @@ weapon mount object. Thrusters and radiators are mesh objects; the others may
 be empties. Package exports the collection, Grease Pencil excluded, to
 `ship.glb` beside the `.cc`, writes the anchors, captures the lines when the
 collection holds exactly one Grease Pencil object, and shows AetherDb's
-verdict in the panel. It runs `dotnet run --project <repo>/tools/AetherDb`;
-the repo is the add-on preference **Aetheria repo**, or by default the nearest
-folder above the `.cc` holding `tools/AetherDb`.
+verdict in the panel. It runs the AetherDb in the game folder's `ModTools`
+(see Tools below).
 `ship-authoring inspect <ship.cc>` reads drafts; `validate` requires complete
 hull, model, and anchor authoring, and judges `ship.glb` once it exists.
+
+## Tools
+
+Install Blender and the `aetheria_ships` add-on. In the add-on's preferences set
+**Game folder** to your Aetheria install, the folder holding `GameData` (its
+`GameData/Aetheria.cc` and `GameData/Mods`). Left empty, the add-on uses the
+nearest folder above the bound `.cc` whose `GameData` holds `Aetheria.cc`.
+AetherDb ships with the game in `ModTools`; the add-on runs it with the game
+folder as its working directory, and needs neither Unity, the Aetheria repository
+nor dotnet. New Ship creates the package under `<game folder>/GameData/Mods/<id>`.
+
+From a repository checkout, publish AetherDb into the ignored `<repo>/ModTools` and
+author from the repo as the game folder:
+
+    dotnet publish tools/AetherDb -c Release -r <rid> --self-contained -p:PublishSingleFile=true -o ModTools
+
+with `<rid>` one of `win-x64`, `linux-x64`, `osx-arm64`. Linux needs `libssl3`
+and `libicu`; on macOS clear the quarantine flag (`xattr -d com.apple.quarantine
+ModTools/AetherDb`).
 
 ## Objective
 
@@ -144,7 +162,17 @@ keys. Each mod's stable `ShipAuthoring.Id` yields separate deterministic keys
 for its copied `HullData` (`mod-hull:<id>`) and its runtime authoring record
 (`mod-ship:<id>`). A mod's `ship.cc` stores its two records under those same
 keys, and compose copies them verbatim, so the derived catalog holds one hull
-per mod ship and `HullData.Visual` names the `mod-ship` record. The generated
+per mod ship and `HullData.Visual` names the `mod-ship` record. A package may
+also hold the hull's products, `FactionProductData` records stored at
+`mod-product:<id>:<maker key>` (the third key beside `mod-hull` and
+`mod-ship`; a key the mods own, never named by the shipped catalog). The key
+makes a second product by one maker impossible. A ship is its maker's: the hull
+carries the maker's name for it and one product by that maker, and a further
+product is a rebrand by another faction (the Pirates' stolen-and-adapted
+hulls). Compose copies the products verbatim and excludes a package, with a
+named reason, whose product names a maker the shipped catalog holds no faction
+for, or whose product name equals a shipped product's or another package's.
+Blender never writes or edits a product; AetherDb does. The generated
 catalog is disposable; the shipped catalog and each mod's source `.cc` remain
 the owners. A player session opens one catalog snapshot and cannot hot-swap its
 designs beneath existing entities.
@@ -205,7 +233,15 @@ catalog. Continue refuses a run naming a design the catalog no longer holds
    `aetheria.id`, is the object's `aetheria.id`. It then runs
    `AetherDb ship-authoring validate`, which judges the GLB too: node ids,
    and a mesh under every thruster and radiator anchor. The model supplies
-   geometry, not a second copy of hull semantics.
+   geometry, not a second copy of hull semantics. A ship hull needs a top
+   speed (a `VelocityLimitData` behavior; a station or turret does not), and
+   validation refuses one without.
+   After Package, `ship-authoring price <ship.cc> <price>` sets the hull's
+   price and `ship-authoring product <ship.cc> <maker> --name <name>
+   [--description <text>]` writes the package's product by that maker
+   (`--remove` deletes it). A package with a product needs a price above 0,
+   because generation skips price 0; a package with none stays valid and is
+   console-only. Compose follows.
 3. A command-line validator rejects malformed cells, overlapping or dangling
    hardpoints, missing model nodes, and unresolved asset references with
    precise errors. It changes no live catalog or scene on failure. The

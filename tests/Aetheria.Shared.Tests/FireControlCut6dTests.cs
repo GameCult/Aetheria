@@ -41,7 +41,6 @@ public sealed class FireControlCut6dTests : IDisposable
         Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
         QualityPriceModifier = new ExponentialLerp(),
         TargetDetectionInfoThreshold = .1f,
-        TargetArmorInfoThreshold = .2f,
         TargetGearInfoThreshold = .8f,
         FiringArc = 170,
         CommitHorizon = .5f,
@@ -85,7 +84,7 @@ public sealed class FireControlCut6dTests : IDisposable
 
         var cache = AetheriaStores.Open(Catalog + Guid.NewGuid().ToString("N"), catalogWritable: true);
         _openCaches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(hullData);
         cache.Upsert(new GearData
         {
@@ -96,7 +95,6 @@ public sealed class FireControlCut6dTests : IDisposable
                 Damage = Constant(10), Range = Constant(1000), MinRange = Constant(0),
                 Velocity = Constant(0), Spread = Constant(0), DamageSpread = Constant(0),
                 Penetration = Constant(0), Count = Constant(1), BurstTime = Constant(0), Cooldown = Constant(1000),
-                DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } }
             } }
         });
         cache.Upsert(new GearData
@@ -109,8 +107,8 @@ public sealed class FireControlCut6dTests : IDisposable
             } }
         });
         // Durability far above anything a single shot deals: an aim point this cut's tests fire hundreds or
-        // thousands of rounds at must survive being hit directly for the whole run, or Cut 5.5's "a destroyed
-        // item drops out of the reveal ranking" rule pulls the aim out from under later shots mid-sample and
+        // thousands of rounds at must survive being hit directly for the whole run, or a destroyed aim point is
+        // dropped from aiming (FireControl.IsRevealed) and pulls the aim out from under later shots mid-sample and
         // silently corrupts the landing distribution for everything fired after that point.
         cache.Upsert(new GearData
         {
@@ -156,10 +154,8 @@ public sealed class FireControlCut6dTests : IDisposable
             Assert.True(target.TryEquip(marker, markerCell.Value));
         }
 
-        zone.Entities.Add(shooter);
-        zone.Entities.Add(target);
-        shooter.Activate();
-        target.Activate();
+        zone.Admit(shooter, piloted: false);
+        zone.Admit(target, piloted: false);
 
         shooter.Position = float3.zero;
         target.Position = float3(0, 0, targetRange);
@@ -172,6 +168,7 @@ public sealed class FireControlCut6dTests : IDisposable
         if (marker != null)
         {
             var markerItem = target.Equipment.Single(x => x.EquippableItem == marker);
+            shooter.RecordReveal(target, markerItem, SignatureChannel.LaunchFlash, markerItem.Data);
             Assert.True(shooter.TrySelectTargetItem(markerItem));
             Assert.Same(markerItem, shooter.ResolvedTargetItem);
         }

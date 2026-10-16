@@ -30,6 +30,16 @@ public class InstantWeaponData : WeaponData
     {
         return new InstantWeapon(this, item);
     }
+
+    // The one formula of an instant weapon's damage per second at a range; the live weapon calls it with its evaluated
+    // stats, the design with its rated ones. A burst's round carries its share of the totals: PerRound, the one divisor
+    // UpdateStats and the rated read both use.
+    internal static float PerRound(float total, float burstCount) => total / (int) burstCount;
+
+    internal static float RangeDamagePerSecond(float damage, float cooldown, float rangeFactor) => damage * rangeFactor / cooldown;
+
+    public override float RatedRangeDamagePerSecond(float range) =>
+        RangeDamagePerSecond(PerRound(Damage.Max, Count.Max), Cooldown.Max, RatedRangeFactor(range));
 }
 
 public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerConsumer
@@ -61,7 +71,7 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
     public override float DamagePerSecond => Damage / Cooldown;
     public override float RangeDamagePerSecond(float range)
     {
-        return Damage * _data.DamageCurve.Evaluate(saturate(unlerp(MinRange, Range, range))) / Cooldown;
+        return InstantWeaponData.RangeDamagePerSecond(Damage, Cooldown, RangeFactor(range));
     }
 
     public override int Ammo
@@ -129,9 +139,9 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
         BurstTime = Evaluate(_data.BurstTime);
         Cooldown = Evaluate(_data.Cooldown);
 
-        Damage /= (int) BurstCount;
-        Heat /= (int) BurstCount;
-        Energy /= (int) BurstCount;
+        Damage = InstantWeaponData.PerRound(Damage, BurstCount);
+        Heat = InstantWeaponData.PerRound(Heat, BurstCount);
+        Energy = InstantWeaponData.PerRound(Energy, BurstCount);
     }
 
     // Cut 4 (docs/stats-and-power-cut.md §7 Q4): capacity and rate, resolved fresh rather than off the cached
@@ -230,7 +240,6 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
             }
         }
 
-        var firedThisFrame = false;
         _burstTimer += dt;
         while (_burstRemaining > 0 && _burstTimer > 0)
         {
@@ -270,14 +279,9 @@ public class InstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerCo
             // Evaluate it into a local first.
             var shotId = FireControl.Fire(this, Item, Entity);
             OnFire?.Invoke(shotId);
-            if(!firedThisFrame)
-            {
-                Item.FireAudioEvent(WeaponAudioEvent.Fire);
-                firedThisFrame = true;
-            }
             CauseWearDamage(1);
             AddHeat(Heat);
-            Entity.VisibilitySources[this] = Visibility;
+            Entity.SetSignature(this, SignatureChannel.LaunchFlash, Visibility, Item);
         }
         return true;
     }

@@ -44,7 +44,6 @@ public sealed partial class MiningCut3Tests
             SensitivityCurve = curve,
             PingBoost = Constant(.02f),
             PingEnergy = Constant(0f),
-            PingVisibility = Constant(5f),
             PingRange = Constant(300f),
             PingCooldown = Constant(4f)
         });
@@ -54,10 +53,9 @@ public sealed partial class MiningCut3Tests
         var ship = new Ship(s.Items, s.Zone, Mint(s, s.Hull), new EntitySettings());
         Assert.True(ship.TryEquip(Mint(s, eye)));
         Assert.True(ship.TryEquip(Mint(s, gun)));
-        s.Zone.Entities.Add(ship);
+        s.Zone.Admit(ship, piloted: false);
         Hold(ship, at);
         ship.Aim = float3(0, 0, 1);
-        ship.Activate();
         Tick((ship, at)); // equipment comes online and weapons read their ranges on the first tick
         return ship;
     }
@@ -177,7 +175,7 @@ public sealed partial class MiningCut3Tests
             Assert.True(expected.ToHashSet().SetEquals(offered), $"sensitivity {sensitivity}: {expected.Count} visible, {offered.Count} offered");
             visibleSeen += expected.Count;
             if (examined < inReach.Count) pruned++;
-            s.Zone.Entities.Remove(observer);
+            s.Zone.Remove(observer);
         }
         Assert.True(visibleSeen > 50 && pruned > 4, $"degenerate: {visibleSeen} visible, {pruned} queries pruned");
     }
@@ -292,7 +290,7 @@ public sealed partial class MiningCut3Tests
         Assert.Empty(candidates);
         s.Zone.Targets.Within(new TargetSearch(here, 500f), candidates);
         Assert.Empty(candidates);
-        Assert.DoesNotContain(unseen, observer.VisibleEntities);
+        Assert.False(observer.VisibleEntities.Any(x => ReferenceEquals(x, unseen)), "the unseen entity is not visible");
     }
 
     private readonly struct NearestChunk : ITargetKey
@@ -422,7 +420,7 @@ public sealed partial class MiningCut3Tests
         var brightest = all.Max(c => s.Zone.ChunkVisibility(c));
         var unit = Observer(s, float2(5000, 0), 350f, 1f, Falloff());
         var sensitivity = 120f / (brightest * unit.DetectionReachPerVisibility());
-        s.Zone.Entities.Remove(unit);
+        s.Zone.Remove(unit);
 
         var offered = new List<ChunkId>();
         long examined = 0, inReach = 0;
@@ -437,7 +435,7 @@ public sealed partial class MiningCut3Tests
             observer.VisibleChunksInReach(offered);
             examined += s.Zone.Targets.Examined - before;
             inReach += all.Count(c => length(At(s, c) - at) <= 350f);
-            s.Zone.Entities.Remove(observer);
+            s.Zone.Remove(observer);
         }
         Assert.True(examined < .265 * inReach, $"examined {examined} of {inReach} rocks in reach: the visibility bound has loosened");
     }
@@ -460,7 +458,8 @@ public sealed partial class MiningCut3Tests
         var spread = Enumerable.Range(0, 700).Select(_ => Rock(50f + (float) rng.NextDouble() * 5950f, (float) rng.NextDouble(), (float) rng.NextDouble())).ToArray();
         var s = BuildSceneAt(centre, 20000f, 777.25, null, new[] { kind }, Belt(kind, spread), Belt(kind, Annulus(rng, 3000, 999f, 1001f)));
         var game = PlanetSettings(20000f);
-        game.OrbitPeriod = new ExponentialCurve { Multiplier = 1f, Exponent = 1f, Constant = 0f };
+        // The game's periods: T = 2 pi d / sqrt(c) with c = 4 pi^2 is T = d.
+        game.WellStrength = new ExponentialCurve { Constant = 4f * PI * PI };
         var searches = 0;
         foreach (var zone in new[] { s.Zone, new Zone(s.Items, game, s.Pack, new GalaxyZone { Name = "Game periods", Owner = null }, null) })
         foreach (var step in new[] { 0f, 13f, 1e4f, 3.3e7f })

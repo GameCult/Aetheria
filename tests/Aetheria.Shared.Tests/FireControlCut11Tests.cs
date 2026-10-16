@@ -40,7 +40,6 @@ public sealed class FireControlCut11Tests : IDisposable
         Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
         QualityPriceModifier = new ExponentialLerp(),
         TargetDetectionInfoThreshold = .1f,
-        TargetArmorInfoThreshold = .2f,
         TargetGearInfoThreshold = .8f,
         FiringArc = 170,
         CommitHorizon = .5f,
@@ -92,7 +91,7 @@ public sealed class FireControlCut11Tests : IDisposable
 
         var cache = AetheriaStores.Open(Catalog + Guid.NewGuid().ToString("N"), catalogWritable: true);
         _openCaches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(hullData);
         cache.Upsert(new GearData
         {
@@ -103,7 +102,6 @@ public sealed class FireControlCut11Tests : IDisposable
                 Damage = Constant(damage), Range = Constant(1000), MinRange = Constant(0),
                 Velocity = Constant(velocity), Spread = Constant(spread), DamageSpread = Constant(0),
                 Penetration = Constant(0), Count = Constant(1), BurstTime = Constant(0), Cooldown = Constant(1000),
-                DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } }
             } }
         });
         cache.Upsert(new GearData
@@ -177,10 +175,8 @@ public sealed class FireControlCut11Tests : IDisposable
             Assert.True(target.TryEquip(shield, spos));
         }
 
-        zone.Entities.Add(shooter);
-        zone.Entities.Add(target);
-        shooter.Activate();
-        target.Activate();
+        zone.Admit(shooter, piloted: false);
+        zone.Admit(target, piloted: false);
 
         shooter.Position = float3(37, 0, -11);
         target.Position = float3(37, 0, 89); // 100 units straight ahead of the shooter
@@ -280,7 +276,7 @@ public sealed class FireControlCut11Tests : IDisposable
         // What the HUD's arrival countdown reads: time left in flight at commit, 5 s - 4.7 s.
         Assert.Equal(.3f, committed.ArrivalIn, 3);
 
-        e.Zone.Entities.Remove(e.Target); // the target is gone before the shot arrives
+        e.Zone.Remove(e.Target); // the target is gone before the shot arrives
         e.Zone.Update(1f);
 
         Assert.NotNull(resolved);
@@ -307,7 +303,7 @@ public sealed class FireControlCut11Tests : IDisposable
         e.Zone.Update(1f);
         SafeAssert.Empty(committed);
 
-        e.Zone.Entities.Remove(e.Target);
+        e.Zone.Remove(e.Target);
         e.Zone.Update(1f);
 
         foreach (var outcome in new[] { SafeAssert.Only(committed), SafeAssert.Only(resolved) })

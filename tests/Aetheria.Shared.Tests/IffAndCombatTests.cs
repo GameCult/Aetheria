@@ -21,7 +21,7 @@ public sealed class IffAndCombatTests : IDisposable
     {
         Directory.CreateDirectory(_root);
         using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         var hullShape = new Shape(3, 3);
         foreach (var cell in hullShape.AllCoordinates) hullShape[cell] = true;
         cache.Upsert(new HullData
@@ -82,13 +82,7 @@ public sealed class IffAndCombatTests : IDisposable
             Assert.True(ship.TryEquip(gun, HardpointCell));
         }
 
-        // A piloted ship joins as every piloted admission does (Zone.Admit), and so gets its agent and its flight.
-        if (piloted) zone.Admit(ship, true);
-        else
-        {
-            zone.Entities.Add(ship);
-            ship.Activate();
-        }
+        zone.Admit(ship, piloted);
         return ship;
     }
 
@@ -137,8 +131,9 @@ public sealed class IffAndCombatTests : IDisposable
         a.SetIff(b, true);
         Assert.True(a.EntityHostility[b]);
 
-        zone.Entities.Remove(b); // b leaves the zone: a's override on b must be cleared
-        zone.Entities.Add(b); // b returns as a "new" contact from a's perspective
+        zone.Remove(b); // b leaves the zone: a's override on b must be cleared
+        b.Deactivate();
+        zone.Admit(b, piloted: false); // b returns as a "new" contact from a's perspective
 
         Assert.False(a.EntityHostility[b]); // recomputed fresh from the derived (non-hostile) rule
         Assert.False(a.IsHostileTo(b));

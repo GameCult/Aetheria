@@ -1,0 +1,110 @@
+== [0] log (today)  (11s, 6 draws)
+  Sun       ratio p10/50/90/99 [1.44, 2.01, 2.46, 2.81]  parent-only v p10/50/90 [22.06, 23.62, 24.64]  n 2211
+  GasGiant  ratio p10/50/90/99 [1.1, 1.62, 2.21, 2.67]  parent-only v p10/50/90 [18.27, 22.2, 24.57]  n 3566
+  Planet    ratio p10/50/90/99 [0.97, 1.24, 1.71, 2.16]  parent-only v p10/50/90 [15.56, 17.38, 23.61]  n 7445
+  Planetoid ratio p10/50/90/99 [0.95, 1.11, 1.43, 1.76]  parent-only v p10/50/90 [11.51, 14.48, 20.27]  n 10200
+  Belt      ratio p10/50/90/99 [0.95, 1.18, 1.55, 2.01]  parent-only v p10/50/90 [11.41, 14.74, 20.29]  n 3134
+  planets round suns: parent-only v p10/50/90 [16.3, 17.88, 23.65]; share in 12-18 u/s 0.51
+  planets round a median sun (mass p40-p60, 10607-20254): v p10/50/90 [17.06, 17.48, 17.98]; share in 12-18 0.92; n 1116
+  children with no parent pull at their distance: {}
+  mid-zone inward pull by Z: 1000: 1.59, 2125: 1.27, 4182: 0.91, 6846: 0.67, 10000: 0.51
+== [1] K0 lam=0.5*D  (18s, 6 draws)
+  Sun       ratio p10/50/90/99 [0.88, 1.15, 1.5, 1.81]  parent-only v p10/50/90 [14.32, 17.26, 20.53]  n 2211
+  GasGiant  ratio p10/50/90/99 [0.83, 1.04, 1.37, 1.84]  parent-only v p10/50/90 [14.37, 18.21, 22.01]  n 3566
+  Planet    ratio p10/50/90/99 [0.89, 0.99, 1.19, 1.6]  parent-only v p10/50/90 [12.7, 16.4, 22.68]  n 7445
+  Planetoid ratio p10/50/90/99 [0.86, 0.99, 1.14, 1.81]  parent-only v p10/50/90 [9.21, 13.52, 19.8]  n 10200
+  Belt      ratio p10/50/90/99 [0.84, 0.99, 1.2, 1.87]  parent-only v p10/50/90 [8.79, 13.42, 19.6]  n 3134
+  planets round suns: parent-only v p10/50/90 [12.99, 16.87, 22.94]; share in 12-18 u/s 0.57
+  planets round a median sun (mass p40-p60, 10607-20254): v p10/50/90 [15.31, 16.68, 17.47]; share in 12-18 0.99; n 1116
+  children with no parent pull at their distance: {}
+  mid-zone inward pull by Z: 1000: 0.42, 2125: 0.29, 4182: 0.18, 6846: 0.13, 10000: 0.09
+== [2] K0 lam=1*D  (12s, 6 draws)
+  Sun       ratio p10/50/90/99 [1.0, 1.28, 1.56, 1.8]  parent-only v p10/50/90 [18.72, 20.77, 22.92]  n 2211
+  GasGiant  ratio p10/50/90/99 [0.93, 1.14, 1.46, 1.87]  parent-only v p10/50/90 [17.12, 20.03, 23.43]  n 3566
+  Planet    ratio p10/50/90/99 [0.92, 1.03, 1.29, 1.65]  parent-only v p10/50/90 [14.59, 17.03, 23.34]  n 7445
+  Planetoid ratio p10/50/90/99 [0.89, 1.01, 1.21, 1.62]  parent-only v p10/50/90 [10.61, 14.09, 20.1]  n 10200
+  Belt      ratio p10/50/90/99 [0.89, 1.03, 1.27, 1.66]  parent-only v p10/50/90 [10.42, 14.27, 20.05]  n 3134
+  planets round suns: parent-only v p10/50/90 [15.13, 17.56, 23.45]; share in 12-18 u/s 0.55
+  planets round a median sun (mass p40-p60, 10607-20254): v p10/50/90 [16.56, 17.16, 17.72]; share in 12-18 0.99; n 1116
+  children with no parent pull at their distance: {}
+  mid-zone inward pull by Z: 1000: 0.73, 2125: 0.52, 4182: 0.32, 6846: 0.22, 10000: 0.16
+== [3] K0 lam=2*d_Hill  (12s, 6 draws)
+  Sun       ratio p10/50/90/99 [0.98, 1.25, 1.54, 1.83]  parent-only v p10/50/90 [18.72, 20.77, 22.92]  n 2211
+  GasGiant  ratio p10/50/90/99 [0.91, 1.12, 1.46, 1.85]  parent-only v p10/50/90 [17.12, 20.03, 23.43]  n 3566
+  Planet    ratio p10/50/90/99 [0.9, 1.02, 1.27, 1.63]  parent-only v p10/50/90 [14.59, 17.06, 23.34]  n 7445
+  Planetoid ratio p10/50/90/99 [0.89, 1.0, 1.21, 1.63]  parent-only v p10/50/90 [10.48, 14.06, 20.1]  n 10200
+  Belt      ratio p10/50/90/99 [0.89, 1.02, 1.25, 1.7]  parent-only v p10/50/90 [10.25, 14.24, 20.05]  n 3134
+  planets round suns: parent-only v p10/50/90 [15.16, 17.57, 23.45]; share in 12-18 u/s 0.55
+  planets round a median sun (mass p40-p60, 10607-20254): v p10/50/90 [16.58, 17.18, 17.74]; share in 12-18 0.99; n 1116
+  children with no parent pull at their distance: {}
+  mid-zone inward pull by Z: 1000: 0.68, 2125: 0.48, 4182: 0.31, 6846: 0.22, 10000: 0.16
+== [4] cap c*L/r^2, L=100m^.25  (9s, 6 draws)
+  Sun       ratio p10/50/90/99 [1.02, 1.37, 1.74, 2.18]  parent-only v p10/50/90 [14.47, 17.81, 22.17]  n 2211
+  GasGiant  ratio p10/50/90/99 [0.94, 1.21, 1.64, 2.15]  parent-only v p10/50/90 [17.78, 20.24, 23.64]  n 3566
+  Planet    ratio p10/50/90/99 [0.92, 1.08, 1.42, 1.84]  parent-only v p10/50/90 [15.37, 17.21, 23.59]  n 7445
+  Planetoid ratio p10/50/90/99 [0.91, 1.04, 1.32, 1.66]  parent-only v p10/50/90 [11.28, 14.43, 20.27]  n 10200
+  Belt      ratio p10/50/90/99 [0.91, 1.08, 1.4, 1.74]  parent-only v p10/50/90 [11.15, 14.64, 20.29]  n 3134
+  planets round suns: parent-only v p10/50/90 [16.12, 17.77, 23.64]; share in 12-18 u/s 0.52
+  planets round a median sun (mass p40-p60, 10607-20254): v p10/50/90 [16.35, 17.39, 17.95]; share in 12-18 0.93; n 1116
+  children with no parent pull at their distance: {}
+  mid-zone inward pull by Z: 1000: 1.06, 2125: 0.70, 4182: 0.39, 6846: 0.19, 10000: 0.11
+== [5] cap c*L/r^2, L=300m^.25  (9s, 6 draws)
+  Sun       ratio p10/50/90/99 [1.14, 1.5, 1.84, 2.18]  parent-only v p10/50/90 [22.06, 23.62, 24.64]  n 2211
+  GasGiant  ratio p10/50/90/99 [1.0, 1.41, 1.92, 2.4]  parent-only v p10/50/90 [18.27, 22.2, 24.57]  n 3566
+  Planet    ratio p10/50/90/99 [0.95, 1.18, 1.64, 2.06]  parent-only v p10/50/90 [15.56, 17.38, 23.61]  n 7445
+  Planetoid ratio p10/50/90/99 [0.93, 1.08, 1.41, 1.77]  parent-only v p10/50/90 [11.51, 14.48, 20.27]  n 10200
+  Belt      ratio p10/50/90/99 [0.94, 1.13, 1.51, 1.91]  parent-only v p10/50/90 [11.41, 14.74, 20.29]  n 3134
+  planets round suns: parent-only v p10/50/90 [16.3, 17.88, 23.65]; share in 12-18 u/s 0.51
+  planets round a median sun (mass p40-p60, 10607-20254): v p10/50/90 [17.06, 17.48, 17.98]; share in 12-18 0.92; n 1116
+  children with no parent pull at their distance: {}
+  mid-zone inward pull by Z: 1000: 1.52, 2125: 1.09, 4182: 0.63, 6846: 0.38, 10000: 0.25
+== [6] switch L..2L, L=100m^.25  (10s, 6 draws)
+  Sun       ratio p10/50/90/99 [0.66, 1.02, 1.58, 4.99]  parent-only v p10/50/90 [0.0, 13.03, 22.28]  n 1443
+  GasGiant  ratio p10/50/90/99 [0.83, 1.04, 1.49, 2.1]  parent-only v p10/50/90 [16.47, 20.26, 23.68]  n 3491
+  Planet    ratio p10/50/90/99 [0.87, 1.01, 1.3, 1.77]  parent-only v p10/50/90 [15.39, 17.25, 23.6]  n 7437
+  Planetoid ratio p10/50/90/99 [0.87, 1.01, 1.27, 1.62]  parent-only v p10/50/90 [11.22, 14.43, 20.27]  n 10122
+  Belt      ratio p10/50/90/99 [0.87, 1.02, 1.33, 1.63]  parent-only v p10/50/90 [11.09, 14.66, 20.29]  n 3101
+  planets round suns: parent-only v p10/50/90 [16.15, 17.78, 23.65]; share in 12-18 u/s 0.51
+  planets round a median sun (mass p40-p60, 10607-20254): v p10/50/90 [16.92, 17.4, 17.95]; share in 12-18 0.90; n 1116
+  children with no parent pull at their distance: {'Planetoid': 78, 'Belt': 33, 'Planet': 8, 'GasGiant': 75, 'Sun': 768}
+  mid-zone inward pull by Z: 1000: 0.78, 2125: 0.49, 4182: 0.27, 6846: 0.10, 10000: 0.01
+== [7] switch L..2L, L=300m^.25  (9s, 6 draws)
+  Sun       ratio p10/50/90/99 [0.93, 1.23, 1.61, 2.11]  parent-only v p10/50/90 [22.06, 23.62, 24.64]  n 2211
+  GasGiant  ratio p10/50/90/99 [0.92, 1.28, 1.8, 2.37]  parent-only v p10/50/90 [18.27, 22.2, 24.57]  n 3566
+  Planet    ratio p10/50/90/99 [0.93, 1.15, 1.61, 1.99]  parent-only v p10/50/90 [15.56, 17.38, 23.61]  n 7445
+  Planetoid ratio p10/50/90/99 [0.93, 1.08, 1.4, 1.74]  parent-only v p10/50/90 [11.51, 14.48, 20.27]  n 10200
+  Belt      ratio p10/50/90/99 [0.92, 1.12, 1.48, 1.89]  parent-only v p10/50/90 [11.41, 14.74, 20.29]  n 3134
+  planets round suns: parent-only v p10/50/90 [16.3, 17.88, 23.65]; share in 12-18 u/s 0.51
+  planets round a median sun (mass p40-p60, 10607-20254): v p10/50/90 [17.06, 17.48, 17.98]; share in 12-18 0.92; n 1116
+  children with no parent pull at their distance: {}
+  mid-zone inward pull by Z: 1000: 1.50, 2125: 1.01, 4182: 0.48, 6846: 0.26, 10000: 0.16
+== [8] uniform-disc subtraction  (9s, 6 draws)
+  Sun       ratio p10/50/90/99 [0.87, 1.33, 1.77, 2.27]  parent-only v p10/50/90 [22.06, 23.62, 24.64]  n 2211
+  GasGiant  ratio p10/50/90/99 [0.93, 1.31, 1.8, 2.48]  parent-only v p10/50/90 [18.27, 22.2, 24.57]  n 3566
+  Planet    ratio p10/50/90/99 [0.91, 1.14, 1.48, 1.93]  parent-only v p10/50/90 [15.56, 17.38, 23.61]  n 7445
+  Planetoid ratio p10/50/90/99 [0.92, 1.07, 1.38, 1.68]  parent-only v p10/50/90 [11.51, 14.48, 20.27]  n 10200
+  Belt      ratio p10/50/90/99 [0.91, 1.13, 1.47, 1.75]  parent-only v p10/50/90 [11.41, 14.74, 20.29]  n 3134
+  planets round suns: parent-only v p10/50/90 [16.3, 17.88, 23.65]; share in 12-18 u/s 0.51
+  planets round a median sun (mass p40-p60, 10607-20254): v p10/50/90 [17.06, 17.48, 17.98]; share in 12-18 0.92; n 1116
+  children with no parent pull at their distance: {}
+  mid-zone inward pull by Z: 1000: 1.00, 2125: 0.77, 4182: 0.55, 6846: 0.42, 10000: 0.32
+== [9] exponent p=0.5  (8s, 6 draws)
+  Sun       ratio p10/50/90/99 [1.07, 1.24, 1.4, 1.65]  parent-only v p10/50/90 [31.31, 37.15, 41.3]  n 2211
+  GasGiant  ratio p10/50/90/99 [1.0, 1.14, 1.37, 1.87]  parent-only v p10/50/90 [19.55, 31.81, 41.01]  n 3566
+  Planet    ratio p10/50/90/99 [0.98, 1.05, 1.24, 1.58]  parent-only v p10/50/90 [13.09, 17.28, 37.12]  n 7445
+  Planetoid ratio p10/50/90/99 [0.94, 1.03, 1.26, 2.32]  parent-only v p10/50/90 [6.19, 11.0, 25.38]  n 10200
+  Belt      ratio p10/50/90/99 [0.93, 1.05, 1.3, 2.33]  parent-only v p10/50/90 [6.04, 11.43, 25.43]  n 3134
+  planets round suns: parent-only v p10/50/90 [14.72, 18.53, 37.29]; share in 12-18 u/s 0.47
+  planets round a median sun (mass p40-p60, 10607-20254): v p10/50/90 [16.48, 17.5, 18.77]; share in 12-18 0.68; n 1116
+  children with no parent pull at their distance: {}
+  mid-zone inward pull by Z: 1000: 0.67, 2125: 0.87, 4182: 0.73, 6846: 0.61, 10000: 0.51
+== [10] hyperbolic kernel ell=Z/2  (9s, 6 draws)
+  Sun       ratio p10/50/90/99 [1.39, 1.98, 2.5, 2.93]  parent-only v p10/50/90 [18.65, 20.75, 23.26]  n 2211
+  GasGiant  ratio p10/50/90/99 [1.05, 1.59, 2.22, 2.7]  parent-only v p10/50/90 [17.47, 20.27, 23.71]  n 3566
+  Planet    ratio p10/50/90/99 [0.95, 1.21, 1.69, 2.17]  parent-only v p10/50/90 [15.06, 17.31, 23.46]  n 7445
+  Planetoid ratio p10/50/90/99 [0.94, 1.09, 1.41, 1.76]  parent-only v p10/50/90 [11.49, 14.45, 20.17]  n 10200
+  Belt      ratio p10/50/90/99 [0.95, 1.15, 1.51, 1.91]  parent-only v p10/50/90 [11.4, 14.66, 20.15]  n 3134
+  planets round suns: parent-only v p10/50/90 [15.7, 17.78, 23.53]; share in 12-18 u/s 0.53
+  planets round a median sun (mass p40-p60, 10607-20254): v p10/50/90 [17.0, 17.42, 17.91]; share in 12-18 0.96; n 1116
+  children with no parent pull at their distance: {}
+  mid-zone inward pull by Z: 1000: 1.28, 2125: 1.03, 4182: 0.72, 6846: 0.54, 10000: 0.41

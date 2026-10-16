@@ -66,20 +66,21 @@ public sealed class MineTests : IDisposable
 
     private Lab Build(float blast = 4f, float arming = 2f, float fuse = 2f, float life = 30f, float spread = 0f, float velocity = 0f,
         float damage = 100f, float range = 1000f, float cooldown = 1000f, Faction layerFaction = null,
-        WeaponFuse? fuseKind = WeaponFuse.Proximity, bool well = false, float3? layerAt = null, int magazine = 100)
+        WeaponFuse? fuseKind = WeaponFuse.Proximity, bool well = false, float3? layerAt = null, int magazine = 100,
+        float minRange = 0f)
     {
         var settings = new GameplaySettings
         {
             DefaultEntitySettings = new EntitySettings(),
             Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
             QualityPriceModifier = new ExponentialLerp(),
-            TargetDetectionInfoThreshold = .1f, TargetArmorInfoThreshold = .2f, TargetGearInfoThreshold = .8f,
+            TargetDetectionInfoThreshold = .1f, TargetGearInfoThreshold = .8f,
             FiringArc = 170, CommitHorizon = .5f, SchematicCellSize = 2f,
             UnaidedAccuracy = .05f, UnaidedTracking = 10f, UnaidedPrecision = 1000f, AgentMinHitProbability = 0f
         };
-        var cache = AetheriaStores.Open(Path.Combine(_root, Guid.NewGuid().ToString("N") + ".cc"), catalogWritable: true);
+        var cache = AetheriaStores.Open(Path.Combine(_root, Guid.NewGuid().ToString("N") + ".cc"), Path.Combine(_root, Guid.NewGuid().ToString("N") + ".run.cc"), catalogWritable: true);
         _caches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         HullData Hull(string name, Shape shape) => new HullData
         {
             Name = name, HullType = HullType.Ship, Shape = shape, Durability = 1000000, Mass = 1000, Armor = 0,
@@ -91,10 +92,10 @@ public sealed class MineTests : IDisposable
         var data = new MineLayerData
         {
             ArmingDelay = arming, FuseDelay = fuse, Lifetime = life,
-            Damage = Constant(damage), Range = Constant(range), MinRange = Constant(0), Velocity = Constant(velocity),
+            Damage = Constant(damage), Range = Constant(range), MinRange = Constant(minRange),
+            Velocity = Constant(velocity),
             Spread = Constant(spread), DamageSpread = Constant(0), Penetration = Constant(0), Count = Constant(1),
             BurstTime = Constant(0), Cooldown = Constant(cooldown), MagazineSize = magazine,
-            DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } }
         };
         cache.Upsert(new WeaponItemData
         {
@@ -117,8 +118,10 @@ public sealed class MineTests : IDisposable
         var ledger = new ProvenanceLedger();
         for (var i = 1; i <= 500; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = 1 };
         var items = new ItemManager(cache, ledger, settings, _ => { });
-        var planets = well ? new PlanetSettings { ZoneDepth = 1000, ZoneDepthExponent = 1, GravityStrength = 1 } : new PlanetSettings();
-        var zone = new Zone(items, planets, new ZonePack { Radius = well ? 1000 : 0 }, new GalaxyZone { Name = "Mines", Owner = null }, null);
+        var planets = new PlanetSettings();
+        var pack = new ZonePack { Radius = well ? 1000 : 0 };
+        if (well) WellFixture.Dig(cache, pack, planets, 300, 100);
+        var zone = new Zone(items, planets, pack, new GalaxyZone { Name = "Mines", Owner = null }, null);
         var lab = new Lab { Items = items, Zone = zone, Data = data, ItemData = cache.GetByName<WeaponItemData>("Mine Layer") };
 
         var layerRef = items.ItemData.RefOf<ItemData>(items.ItemData.GetByName<HullData>("Layer"));
@@ -130,8 +133,7 @@ public sealed class MineTests : IDisposable
         var targeting = lab.Make("Targeting", 1);
         Assert.True(layer.TryFindSpace(targeting, out var tpos));
         Assert.True(layer.TryEquip(targeting, tpos));
-        zone.Entities.Add(layer);
-        layer.Activate();
+        zone.Admit(layer, piloted: false);
         layer.Position = layerAt ?? float3(-53, 0, -101);
         lab.Layer = layer;
         zone.Update(1f);
@@ -152,8 +154,7 @@ public sealed class MineTests : IDisposable
             Assert.True(ship.TryFindSpace(gear, out var spos));
             Assert.True(ship.TryEquip(gear, spos));
         }
-        lab.Zone.Entities.Add(ship);
-        ship.Activate();
+        lab.Zone.Admit(ship, piloted: false);
         ship.Position = at;
         if (shield != null) ship.Shield.Item.Enabled.Value = true;
         return ship;
@@ -446,6 +447,24 @@ public sealed class MineTests : IDisposable
         Assert.True(shipsA[4].Hull.Durability < 1000000f);
     }
 
+    // The trigger gate never arcs a mine layer (FireControl.ArcPermitsFire; IsMineLayer is its own half of the
+    // exemption). The layer is unfused, so the fused half cannot pass it: only the mine-layer exemption can. An unfused
+    // layer lays nothing (Lay), so the gate is the layer this is decided at. The fixture checks the aim is outside
+    // the arc, with no target designated, so the gate has no other way to pass.
+    [Fact]
+    public void AMineLayerPassesTheTriggerGateWithTheAimOutsideItsArc()
+    {
+        var lab = Build(fuseKind: null);
+        Assert.Null(FireControl.FuseOf(lab.WeaponItem, out _));
+        Assert.True(FireControl.IsMineLayer(lab.Weapon));
+        lab.Layer.Aim = -FireControl.MountDirection(lab.WeaponItem);
+        Assert.False(FireControl.InArc(lab.WeaponItem, lab.Layer.Aim), "fixture: the aim must be outside the arc");
+        Assert.False(FireControl.Solution(lab.Weapon, lab.Layer, lab.Layer.Target.Value).Free);
+        Assert.False(FireControl.Solution(lab.Weapon, lab.Layer, lab.Layer.Target.Value).Bears);
+
+        Assert.True(FireControl.ArcPermitsFire(lab.Weapon, lab.Layer));
+    }
+
     [Fact]
     public void LayingFiresNoShot()
     {
@@ -530,6 +549,41 @@ public sealed class MineTests : IDisposable
         Assert.True(angles.Max() > 10f && angles.Min() < -10f, "the angle spans +-Spread/2, not a narrower cone");
     }
 
+    // Mines are flat (ruling effective-range-authoring-ruled): a layer's MinRange and Range gate where it may lay, and the one
+    // RangeFactor reads 1 inside them, so the mine's damage, the AI's figure and the panel's function agree at every distance.
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(5f)]
+    public void AMineLayerIsFlatForTheMineTheAIAndThePanel(float minRange)
+    {
+        var lab = Build(damage: 100f, range: 1000f, minRange: minRange, layerFaction: A);
+        var mine = LayOne(lab);
+        Assert.Equal(100f, mine.Damage, 3);
+
+        var data = lab.Weapon.WeaponData;
+        foreach (var at in new[] { 5f, 10f, 100f, 500f, 999f })
+        {
+            Assert.Equal(mine.Damage, lab.Weapon.RangeDamagePerSecond(at) * lab.Weapon.Cooldown, 3);
+            Assert.Equal(mine.Damage, 100f * WeaponData.RangeFactor(data.MinRange.Max, data.EffectiveRange.Max, data.Range.Max, data.DamageAtMaxRange, at), 3);
+        }
+    }
+
+    // A falloff on a mine layer would act on nothing the mine does, so the catalog refuses it where it is authored.
+    [Theory]
+    [InlineData(10f, 0f)]
+    [InlineData(float.PositiveInfinity, .3f)]
+    public void AMineLayerAuthoringFalloffIsRefused(float effective, float end)
+    {
+        var item = new WeaponItemData
+        {
+            Name = "Mine Layer", Hardpoint = HardpointType.Sensors, Shape = new Shape(), BlastRadius = 4f,
+            Behaviors = { new MineLayerData { Range = Constant(1000f), EffectiveRange = Constant(effective), DamageAtMaxRange = end } }
+        };
+        var refusal = Assert.Throws<InvalidOperationException>(() => StatValidation.ValidateMineLayerFlat(item.Name, item.Behaviors));
+        Assert.Contains("falloff", refusal.Message);
+        Assert.Throws<InvalidOperationException>(() => CultRecordRefs.Validate(item));
+    }
+
     [Fact]
     public void ThePayloadIsFrozen()
     {
@@ -597,7 +651,7 @@ public sealed class MineTests : IDisposable
         lab.Layer.Position = float3(5000, 0, 5000);
         foreach (var step in Steps(1f, .1f)) lab.Zone.Update(step);
         lab.Layer.DamageHull(5000000f);
-        Assert.DoesNotContain(lab.Layer, lab.Zone.Entities);
+        Assert.False(lab.Zone.Entities.Any(x => ReferenceEquals(x, lab.Layer)), "the layer is removed from the zone");
         foreach (var step in Steps(1.5f, .1f)) lab.Zone.Update(step);
 
         Assert.Equal(0, removed);
@@ -723,5 +777,39 @@ public sealed class MineTests : IDisposable
         Assert.Single(log);
         Assert.False(string.IsNullOrWhiteSpace(log[0]));
         Assert.Empty(lab.Zone.PendingShots);
+    }
+
+    // Loot is drawn on its own stream (aetheria-release loot-1): a mine laid with body id 1 and the zone's first
+    // death share ordinal 1, so only the stream tells their draws apart. The lay's first draw fixes the mine's
+    // turn; setting LootDropProbability just either side of that same number decides the first gate draw of the
+    // first death. With one stream the gate would follow the mine's turn.
+    private (Lab Lab, float U) LayThenReadTurn(float? probability)
+    {
+        var lab = Build(spread: 40f, velocity: 5f, layerFaction: A);
+        lab.Layer.Velocity = float2.zero;
+        lab.Layer.Direction = normalize(float2(1, 2));
+        var mine = LayOne(lab);
+        var mount = FireControl.MountDirection(lab.WeaponItem).xz;
+        var turned = mine.Body.Velocity / 5f;
+        var degrees = (MathF.Atan2(turned.y, turned.x) - MathF.Atan2(mount.y, mount.x)) * 180f / MathF.PI;
+        if (probability.HasValue) lab.Items.GameplaySettings.LootDropProbability = probability.Value;
+        return (lab, (degrees + 20f) / 40f);
+    }
+
+    private static bool FirstGearDropped(Lab lab)
+    {
+        var gear = lab.Layer.Equipment.First(e => e != lab.Layer.EquippedHull).EquippableItem;
+        lab.Layer.HeatstrokeDeath.OnNext(UniRx.Unit.Default);
+        return lab.Zone.FloatingItems.Any(f => f.Item == gear);
+    }
+
+    [Fact]
+    public void LootDiceAreNotTheMineDice()
+    {
+        var u = LayThenReadTurn(null).U;
+        Assert.InRange(u, .01f, .99f);
+        var above = FirstGearDropped(LayThenReadTurn(u + .003f).Lab);
+        var below = FirstGearDropped(LayThenReadTurn(u - .003f).Lab);
+        Assert.False(above && !below, "the first loot gate draw equals the first mine draw");
     }
 }

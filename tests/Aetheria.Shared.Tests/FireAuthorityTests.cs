@@ -94,7 +94,7 @@ public sealed class FireAuthorityTests : IDisposable
 
         var cache = AetheriaStores.Open(Catalog + Guid.NewGuid().ToString("N"), catalogWritable: true);
         _openCaches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(hullData);
         cache.Upsert(new GearData
         {
@@ -105,7 +105,6 @@ public sealed class FireAuthorityTests : IDisposable
                 Damage = Constant(damage), Range = Constant(range), MinRange = Constant(minRange),
                 Velocity = Constant(velocity), Spread = Constant(spread), DamageSpread = Constant(damageSpread),
                 Penetration = Constant(penetration), Count = Constant(1), BurstTime = Constant(0), Cooldown = Constant(1000),
-                DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } }
             } }
         });
         cache.Upsert(new GearData
@@ -176,10 +175,8 @@ public sealed class FireAuthorityTests : IDisposable
         // extra gear a test needs (a second aimable item, a shield, a reactor) must go on before Activate().
         beforeActivate?.Invoke(items, shooter, target);
 
-        zone.Entities.Add(shooter);
-        zone.Entities.Add(target);
-        shooter.Activate();
-        target.Activate();
+        zone.Admit(shooter, piloted: false);
+        zone.Admit(target, piloted: false);
 
         shooter.Position = float3.zero;
         target.Position = float3(0, 0, targetRange);
@@ -327,7 +324,7 @@ public sealed class FireAuthorityTests : IDisposable
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
         var before = e.Target.Hull.Durability;
 
-        e.Zone.Entities.Remove(e.Target);
+        e.Zone.Remove(e.Target);
         e.Zone.Update(10f); // well past arrival
 
         Assert.Equal(before, e.Target.Hull.Durability);
@@ -479,7 +476,8 @@ public sealed class FireAuthorityTests : IDisposable
             });
         var aimedItem = e.Target.Equipment.Single(x => x.EquippableItem == aimedGear);
 
-        e.Shooter.EntityInfoGathered[e.Target] = 1f; // fully revealed
+        e.Shooter.EntityInfoGathered[e.Target] = 1f; // fully tracked
+        e.Shooter.RecordReveal(e.Target, aimedItem, SignatureChannel.LaunchFlash, aimedItem.Data);
         Assert.True(e.Shooter.TrySelectTargetItem(aimedItem));
 
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);

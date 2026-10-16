@@ -42,7 +42,6 @@ public sealed class FireControlCut9Tests : IDisposable
         Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
         QualityPriceModifier = new ExponentialLerp(),
         TargetDetectionInfoThreshold = .1f,
-        TargetArmorInfoThreshold = .2f,
         TargetGearInfoThreshold = .8f,
         FiringArc = 170,
         CommitHorizon = .5f,
@@ -90,7 +89,7 @@ public sealed class FireControlCut9Tests : IDisposable
 
         var cache = AetheriaStores.Open(Catalog + Guid.NewGuid().ToString("N"), catalogWritable: true);
         _openCaches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(hullData);
         // A bare, inert item -- not read by anything this test cares about, but Entity.Update's
         // `foreach (var item in _orderedEquipment)` NREs if an entity was never equipped with anything at
@@ -129,10 +128,8 @@ public sealed class FireControlCut9Tests : IDisposable
         Assert.True(target.TryFindSpace(targetMarker, out var targetMarkerPos));
         Assert.True(target.TryEquip(targetMarker, targetMarkerPos));
 
-        zone.Entities.Add(shooter);
-        zone.Entities.Add(target);
-        shooter.Activate();
-        target.Activate();
+        zone.Admit(shooter, piloted: false);
+        zone.Admit(target, piloted: false);
 
         shooter.Position = float3.zero;
         target.Position = float3(0, 0, 100);
@@ -286,7 +283,7 @@ public sealed class FireControlCut9Tests : IDisposable
 
         var cache = AetheriaStores.Open(Catalog + Guid.NewGuid().ToString("N"), catalogWritable: true);
         _openCaches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(hullData);
         cache.Upsert(new GearData
         {
@@ -297,7 +294,6 @@ public sealed class FireControlCut9Tests : IDisposable
                 Damage = Constant(10), Range = Constant(1000), MinRange = Constant(0),
                 Velocity = Constant(0), Spread = Constant(spread), DamageSpread = Constant(0),
                 Penetration = Constant(0), Count = Constant(1), BurstTime = Constant(0), Cooldown = Constant(1000),
-                DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } }
             } }
         });
         cache.Upsert(new GearData
@@ -340,10 +336,8 @@ public sealed class FireControlCut9Tests : IDisposable
         var targetGun = new EquippableItem { Data = targetGunRef, Durability = 1, Lot = 5 };
         Assert.True(target.TryEquip(targetGun, new int2(0, 0)));
 
-        zone.Entities.Add(shooter);
-        zone.Entities.Add(target);
-        shooter.Activate();
-        target.Activate();
+        zone.Admit(shooter, piloted: false);
+        zone.Admit(target, piloted: false);
 
         shooter.Position = float3.zero;
         target.Position = float3(0, 0, 100);
@@ -374,7 +368,7 @@ public sealed class FireControlCut9Tests : IDisposable
         // Even extents: CenterOfMass is the raw mean of integer cell coordinates (ItemData.cs), with no
         // +0.5 cell-centre offset -- an odd extent's mean lands exactly on an occupied cell (no cliff to
         // reproduce), while an even one lands on the half-cell boundary between two cells, the same
-        // off-integer shape every shipped hull's real (irregular) footprint produces (LonginusX 2.5/6.697,
+        // off-integer shape every shipped hull's real (irregular) footprint produces (Longinus 2.5/6.697,
         // Zenith 5.5/5.5, Turret 3.5/3.5).
         var hullShape = SolidShape(6, 12);
 
@@ -527,7 +521,7 @@ public sealed class FireControlCut9Tests : IDisposable
 
         var cache = AetheriaStores.Open(Catalog + Guid.NewGuid().ToString("N"), catalogWritable: true);
         _openCaches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(hullData);
         cache.Upsert(new GearData
         {
@@ -538,7 +532,6 @@ public sealed class FireControlCut9Tests : IDisposable
                 Damage = Constant(0), Range = Constant(1000), MinRange = Constant(0), Velocity = Constant(0),
                 Spread = Constant(0), DamageSpread = Constant(0), Penetration = Constant(0), Count = Constant(1),
                 BurstTime = Constant(0), Cooldown = Constant(1000),
-                DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } },
                 LockSpeed = Constant(1), SensorImpact = Constant(1), LockAngle = Constant(170),
                 DirectionImpact = Constant(1), Decay = Constant(1)
             } }
@@ -567,10 +560,8 @@ public sealed class FireControlCut9Tests : IDisposable
         var bystanderGun = new EquippableItem { Data = bystanderGunRef, Durability = 1, Lot = 4 };
         Assert.True(bystander.TryEquip(bystanderGun, new int2(0, 0))); // _orderedEquipment must not be empty/null for Update to run
 
-        zone.Entities.Add(locker);
-        zone.Entities.Add(bystander);
-        locker.Activate();
-        bystander.Activate();
+        zone.Admit(locker, piloted: false);
+        zone.Admit(bystander, piloted: false);
 
         locker.Position = float3.zero;
         bystander.Position = float3(0, 0, 100);
@@ -603,7 +594,7 @@ public sealed class FireControlCut9Tests : IDisposable
         // the target dies or leaves while the locker is inactive -- its own Zone.Entities.ObserveRemove
         // subscription (the only thing that would have nulled Target) was disposed by Deactivate above, so
         // nothing reacts to this removal yet.
-        s.Zone.Entities.Remove(s.Bystander);
+        s.Zone.Remove(s.Bystander);
 
         s.Locker.Activate(); // undock
         Assert.True(s.Locker.Active);

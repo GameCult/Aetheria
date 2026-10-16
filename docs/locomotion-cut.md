@@ -2,6 +2,10 @@
 
 Date: 2026-09-22
 
+Superseded on 2026-10-09 for its body facts, consumer audit and Cuts 2-3 by `docs/aetheria-release-map.md`,
+section "Flight control allocates thrust": the aether drive was deleted and `Ship.Turn` replaced `LookDirection`
+as the facing command after this was written. Cuts 4 and 5 remain design input only.
+
 Status: target and cut map, from an Imagination pass revised on 2026-09-22. Cut 1 (the Longinus and Djinni hulls,
 five thruster designs, and tutorial entrance station rule) landed on `codex/locomotion-cut1` and was merged into
 `codex/fire-control-12` at `e160bbe5` on 2026-09-26. Cuts 2 to 5 remain target work. The operator's Q1, Q2,

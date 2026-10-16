@@ -23,6 +23,12 @@ public class ConstantWeaponData : WeaponData
     {
         return new ConstantWeapon(this, item);
     }
+
+    // The one formula of a beam's damage per second at a range (see InstantWeaponData.RangeDamagePerSecond).
+    internal static float RangeDamagePerSecond(float damage, float rangeFactor) => damage * rangeFactor;
+
+    public override float RatedRangeDamagePerSecond(float range) =>
+        RangeDamagePerSecond(Damage.Max, RatedRangeFactor(range));
 }
 
 public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerConsumer
@@ -49,7 +55,7 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerC
     public override float DamagePerSecond => Damage;
     public override float RangeDamagePerSecond(float range)
     {
-        return Damage * _data.DamageCurve.Evaluate(saturate(unlerp(MinRange, Range, range)));
+        return ConstantWeaponData.RangeDamagePerSecond(Damage, RangeFactor(range));
     }
 
     public event Action OnReloadBegin;
@@ -170,7 +176,7 @@ public class ConstantWeapon : Weapon, IProgressBehavior, IEventBehavior, IPowerC
 
             CauseWearDamage(dt);
             AddHeat(Evaluate(_data.Heat) * dt);
-            Entity.VisibilitySources[this] = Evaluate(_data.Visibility);
+            Entity.SetSignature(this, SignatureChannel.LaunchFlash, Evaluate(_data.Visibility), Item);
 
             // Cut 4 (docs/fire-control-cut.md): a beam is a sequence of rolls, not a continuous truth -- one
             // FireControl.Fire per BeamResolveInterval, for that interval's worth of Damage, through the same

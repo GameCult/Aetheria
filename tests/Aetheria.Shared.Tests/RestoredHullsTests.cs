@@ -19,14 +19,14 @@ using Random = CultMath.Random;
 // content restore-hulls landed, against the real shipped catalog, read-only: the hulls exist with the expected
 // thruster hardpoint counts, every thruster hardpoint accepts a catalog thruster design through TryEquip at its
 // own position, and the ship then moves and turns for a few ticks under MovementDirection/Turn on the
-// pre-Cut-3 mixer -- proof of the restored content, not of a controller this cut does not touch.
+// thrust allocator -- proof of the restored content, not of a controller this cut does not touch.
 public sealed class RestoredHullsTests
 {
     // Soul's finding #1 (this cut's fix batch 3): a hand-set GameplaySettings fixture left thermal radiation and
     // conduction at their bare-class defaults (1/1/1) against the shipped 3 / 1e-8 / 0.01
     // (Assets/Resources/Settings.asset), so equipped parts froze toward 0 K, performance collapsed to 0 from
     // cold, and TorqueMultiplier defaulting to 0 on top of that made every thruster's yaw contribution silently
-    // zero (Ship.cs's mixer applies Torque*Thrust*TorqueMultiplier/Mass) -- velocity moved but Direction never
+    // zero (Thruster.Column applies Torque*Thrust*TorqueMultiplier/Mass) -- velocity moved but Direction never
     // turned, which looks exactly like a content defect instead of a fixture gap. AuthoredSettings
     // (tools/AetherDb/AuthoredSettings.cs) is the same headless YAML reader tools/AetherDb already uses to
     // inspect Settings.asset outside Unity; this loads the real GameplaySettings the same way instead of
@@ -38,9 +38,7 @@ public sealed class RestoredHullsTests
     // real catalog's validation the way the shared, AppDomain-scanning CultCache() default would.
     private static CultCache OpenReadOnlyRealCatalog(string catalogPath)
     {
-        var registry = CultDocumentRegistry.ForTypes(typeof(ItemData).Assembly.GetTypes()
-            .Where(t => t is { IsAbstract: false, IsInterface: false })
-            .Where(t => t.GetCustomAttribute<CultDocumentAttribute>() != null));
+        var registry = TestCatalog.Registry();
         var cache = new CultCache(registry);
         cache.AddBackingStore(new SingleFileMessagePackBackingStore(catalogPath, true), AetheriaStores.CatalogTypes);
         return cache;
@@ -54,7 +52,7 @@ public sealed class RestoredHullsTests
         throw new DirectoryNotFoundException("Run from inside the Aetheria repository.");
     }
 
-    internal static CultCache OpenCatalog() => OpenReadOnlyRealCatalog(Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc"));
+    internal static CultCache OpenCatalog() => OpenReadOnlyRealCatalog(TestCatalog.Repo);
 
     // Shared tutorial-galaxy construction settings (Assets/Resources/Settings.asset's own values), factored out
     // so every test that needs a real tutorial Galaxy -- not just EntranceZoneAlwaysGetsADockedStationAcrossSeeds
@@ -116,13 +114,61 @@ public sealed class RestoredHullsTests
         return planetOrbits.Count(o => o.Parent.IsSet() && o.Parent.Key.Equals(orbit.Parent.Key) && abs(o.Distance - orbit.Distance) < .1f) > 1;
     }
 
+    // The zone a test needs is chosen by the property its claim is about, from the galaxy the generator rolled, because
+    // which zone has that property follows the noise kernel (CultMath 0.3.0 re-rolled "EAC-7089" and "EAC-2733" away).
+    // A planet orbit is a genuine Lagrange candidate when it is the only planet at its distance under its parent --
+    // exactly what ZoneGenerator's potentialLagrangePoints filter keeps.
+    private static OrbitData[] ParentedPlanetOrbits(CultCache cache, ZonePack pack) =>
+        pack.Planets.Select(p => cache.Get(cache.Get(p).Orbit)).Where(o => o.Parent.IsSet()).ToArray();
+
+    private static bool HasGenuineLagrangeCandidate(OrbitData[] planetOrbits) =>
+        planetOrbits.Any(o => planetOrbits.Count(c => c.Parent.Key.Equals(o.Parent.Key) && abs(c.Distance - o.Distance) < .1f) == 1);
+
+    // The first seed, and in its tutorial galaxy the first non-entrance zone, that has planets every one of which is a
+    // rosette member: no genuine Lagrange candidate, so only the entrance's widened candidate set can seat a station
+    // there. Such a zone is rare, so seeds are tried in order until one has it.
+    // The scan is the cost (tens of seconds), and it depends only on the generator, so both tests share one result
+    // through a lazy computed under its own scratch run store.
+    private static readonly Lazy<(uint seed, string zoneName)> NoLagrangeCandidateZoneScan = new(ScanForNoLagrangeCandidateZone);
+
+    private static (uint seed, string zoneName) NoLagrangeCandidateZone() => NoLagrangeCandidateZoneScan.Value;
+
+    private static (uint seed, string zoneName) ScanForNoLagrangeCandidateZone()
+    {
+        var scratchRun = Path.Combine(Path.GetTempPath(), $"aetheria-nolagrange-scan-{Guid.NewGuid():N}.cc");
+        try
+        {
+            using var cache = OpenReadOnlyRealCatalogWithScratchRun(TestCatalog.Repo, scratchRun);
+            return ScanForNoLagrangeCandidateZone(cache);
+        }
+        finally
+        {
+            if (File.Exists(scratchRun)) File.Delete(scratchRun);
+        }
+    }
+
+    private static (uint seed, string zoneName) ScanForNoLagrangeCandidateZone(CultCache cache)
+    {
+        var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
+        for (var seed = 1u; seed <= 64u; seed++)
+        {
+            var galaxy = new Galaxy(TutorialGalaxySettings(), TutorialBackgroundSettings(), TutorialNameSettings(),
+                cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed);
+            foreach (var zone in galaxy.Zones.Where(z => !ReferenceEquals(z, galaxy.Entrance)))
+            {
+                var orbits = ParentedPlanetOrbits(cache, ZoneGenerator.GenerateZone(items, TutorialZoneSettings(), galaxy, zone, isTutorial: false, ambient: false));
+                if (orbits.Length > 0 && !HasGenuineLagrangeCandidate(orbits)) return (seed, zone.Name);
+            }
+        }
+        Assert.Fail("fixture: no tutorial galaxy at seeds 1-64 has a zone whose planets are all rosette members.");
+        return default;
+    }
+
     // ZoneGenerator.GenerateZone writes OrbitData/BodyData (run-store types, AetheriaStores.RunTypes), so a
     // catalog-only cache has no home for them. A scratch run file, deleted after the seed that used it.
     private static CultCache OpenReadOnlyRealCatalogWithScratchRun(string catalogPath, string runPath)
     {
-        var registry = CultDocumentRegistry.ForTypes(typeof(ItemData).Assembly.GetTypes()
-            .Where(t => t is { IsAbstract: false, IsInterface: false })
-            .Where(t => t.GetCustomAttribute<CultDocumentAttribute>() != null));
+        var registry = TestCatalog.Registry();
         var cache = new CultCache(registry);
         cache.AddBackingStore(new SingleFileMessagePackBackingStore(catalogPath, true), AetheriaStores.CatalogTypes);
         cache.AddBackingStore(new SingleFileMessagePackBackingStore(runPath), AetheriaStores.RunTypes);
@@ -201,9 +247,37 @@ public sealed class RestoredHullsTests
         }
     }
 
-    // A restored hull with every thruster hardpoint (and its reactor) filled, activated and warmed up: the
-    // rotation thrusters the helm tests need. The caller owns the cache.
-    internal static Ship BuildThrustedShip(CultCache cache, string name)
+    // The dock intro dereferences the ship's VelocityLimit unguarded (ActionGameManager), so every ship hull the catalog
+    // sells carries exactly one, with a top speed that is a finite positive number. After the retirement
+    // (ruling retire-longinusx) the shipped ship hulls are the Longinus and the Djinni.
+    [Fact]
+    public void EveryShippedShipHullHasATopSpeed()
+    {
+        using var cache = OpenCatalog();
+        var sold = cache.GetAll<FactionProductData>().Select(product => product.Design.Key).ToHashSet();
+        var ships = cache.GetAll<HullData>().Where(h => h.HullType == HullType.Ship && sold.Contains(cache.RefOf(h).Key)).OrderBy(h => h.Name, StringComparer.Ordinal).ToArray();
+        Assert.Equal(new[] { "Djinni", "Longinus" }, ships.Select(h => h.Name));
+        foreach (var hull in ships)
+        {
+            Assert.Single(hull.Behaviors.OfType<VelocityLimitData>());
+            var limit = BuildThrustedShip(cache, hull.Name).GetBehavior<VelocityLimit>().Limit;
+            Assert.True(float.IsFinite(limit) && limit > 0f, $"{hull.Name}'s top speed is {limit}");
+        }
+    }
+
+    // For a fixture that pins flight, not brownout: the thrusters draw no power. A ship with every thruster firing asks
+    // for more than its reactor gives, and a brownout scales the thrusters' thrust unevenly (follow-up
+    // allocator-brownout-columns), so the turn or heading a test reads would be the brownout's.
+    internal static void FreeThrusterPower(CultCache cache)
+    {
+        foreach (var gear in cache.GetAll<GearData>())
+            foreach (var thruster in gear.Behaviors.OfType<ThrusterData>())
+                thruster.EnergyUsage = new PerformanceStat { Min = 0, Max = 0 };
+    }
+
+    // A restored hull with every thruster hardpoint (and its reactor, and the first hardpoint of each type in
+    // alsoFill) filled, activated and warmed up: the rotation thrusters the helm tests need. The caller owns the cache.
+    internal static Ship BuildThrustedShip(CultCache cache, string name, params HardpointType[] alsoFill)
     {
         var hull = cache.GetByName<HullData>(name);
         var thrusterDesigns = cache.GetAll<GearData>().Where(g => g.Hardpoint == HardpointType.Thruster).ToArray();
@@ -224,22 +298,24 @@ public sealed class RestoredHullsTests
             Assert.True(ship.TryEquip(gearItem, hardpoint.Position));
         }
 
-        // A reactor: Victoire (one of Cut 1's own restored thrusters, docs/locomotion-cut.md's own note on it)
+        // A reactor: Racing Drive (one of Cut 1's own restored thrusters, docs/locomotion-cut.md's own note on it)
         // carries a real EnergyUsage draw unlike its four siblings, so an unpowered ship reads as though only
         // some fitting thrusters produce thrust -- an artifact of which design TryEquip's own hardpoint search
         // happens to land on, not of the restored content. Every hull here also has a Reactor hardpoint; a real
         // ship always carries one, so this fixture should too.
-        var reactorHardpoint = hull.Hardpoints.FirstOrDefault(h => h.Type == HardpointType.Reactor);
-        if (reactorHardpoint != null)
+        // Types named by the caller (a radiator, say) are filled the same way, one hardpoint each; a ship cannot be
+        // equipped once it is active.
+        foreach (var type in new[] { HardpointType.Reactor }.Concat(alsoFill))
         {
-            var reactorDesign = cache.GetAll<GearData>().First(reactorHardpoint.IsFilledBy);
-            var reactorItem = new EquippableItem { Data = cache.RefOf<ItemData>(reactorDesign), Durability = reactorDesign.Durability, Lot = lot++ };
-            Assert.True(ship.TryEquip(reactorItem, reactorHardpoint.Position));
+            var filled = hull.Hardpoints.FirstOrDefault(h => h.Type == type);
+            if (filled == null) continue;
+            var filler = cache.GetAll<GearData>().First(filled.IsFilledBy);
+            var fillerItem = new EquippableItem { Data = cache.RefOf<ItemData>(filler), Durability = filler.Durability, Lot = lot++ };
+            Assert.True(ship.TryEquip(fillerItem, filled.Position));
         }
 
-        zone.Entities.Add(ship);
+        zone.Admit(ship, piloted: false);
         ship.Position = float3.zero;
-        ship.Activate();
         zone.Update(0f); // warm-up: resolves equipment stats before the driven ticks read them
         return ship;
     }
@@ -247,7 +323,7 @@ public sealed class RestoredHullsTests
     // "The ship then moves and turns... for a few ticks" (docs/locomotion-cut.md verification list). Equips
     // every thruster hardpoint with a fitting design, then drives MovementDirection/Turn the same way
     // ActionGameManager's player-input path does (docs' own consumer audit) and checks Entity.Velocity and
-    // Entity.Direction both move over a few ticks on the current (pre-Cut-3) mixer.
+    // Entity.Direction both move over a few ticks under the thrust allocator.
     [Theory]
     [InlineData("Longinus")]
     [InlineData("Djinni")]
@@ -261,7 +337,7 @@ public sealed class RestoredHullsTests
         var startDirection = ship.Direction;
 
         ship.MovementDirection = float2(0, 1); // full forward, same axis ActionGameManager.Input.Player.Move drives
-        ship.Turn = 1; // a turn command, so the mixer's yaw thrusters have work to do
+        ship.Turn = 1; // a turn command, so the allocator's yaw thrusters have work to do
         for (var i = 0; i < 10; i++) zone.Update(1f / 60f);
 
         Assert.NotEqual(startVelocity, ship.Velocity);
@@ -290,7 +366,7 @@ public sealed class RestoredHullsTests
         var tutorialSettings = TutorialGalaxySettings();
         var background = TutorialBackgroundSettings();
         var names = TutorialNameSettings();
-        var gameData = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
+        var gameData = TestCatalog.Repo;
         var sawGenuineLagrangeOrbit = false;
         for (uint seed = 1; seed <= 25; seed++)
         {
@@ -331,7 +407,7 @@ public sealed class RestoredHullsTests
         var tutorialSettings = TutorialGalaxySettings();
         var background = TutorialBackgroundSettings();
         var names = TutorialNameSettings();
-        var gameData = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
+        var gameData = TestCatalog.Repo;
         var sawGenuineCandidate = false;
         for (uint seed = 1; seed <= 25; seed++)
         {
@@ -372,7 +448,7 @@ public sealed class RestoredHullsTests
     [Fact]
     public void ThrowReachableWithAuthoredSettings()
     {
-        var gameData = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
+        var gameData = TestCatalog.Repo;
         var scratchRun = Path.Combine(Path.GetTempPath(), $"aetheria-entrance-throw-{Guid.NewGuid():N}.cc");
         try
         {
@@ -406,7 +482,7 @@ public sealed class RestoredHullsTests
     [Fact]
     public void MultiRootEntranceStationOrbitsAreAlwaysParentedWithPositiveDistance()
     {
-        var gameData = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
+        var gameData = TestCatalog.Repo;
         var scratchRun = Path.Combine(Path.GetTempPath(), $"aetheria-entrance-multiroot-{Guid.NewGuid():N}.cc");
         try
         {
@@ -457,7 +533,7 @@ public sealed class RestoredHullsTests
         var tutorialSettings = TutorialGalaxySettings();
         var background = TutorialBackgroundSettings();
         var names = TutorialNameSettings();
-        var gameData = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
+        var gameData = TestCatalog.Repo;
 
         var checkedAny = false;
         for (uint seed = 1; seed <= 25; seed++)
@@ -510,8 +586,8 @@ public sealed class RestoredHullsTests
     // flying: a real, unforced Longinus holds thrust (and the hull's own VelocityLimit) running well past the
     // window this test drives.
     //
-    // Real settings also retired the old +-10 tolerance's premise. On real physics the mixer's own tick order
-    // (Ship.cs: a tick's thrust-driven velocity is checked against VelocityLimit's cap on the FOLLOWING tick)
+    // Real settings also retired the old +-10 tolerance's premise. On real physics the tick order
+    // (Entity: a tick's thrust-driven velocity is checked against VelocityLimit's cap on the FOLLOWING tick)
     // settles into a steady state at the cap plus one tick's own forward acceleration, not at the literal cap --
     // measured here at ~103.3 for this seed's generated loadout, not the ~110 an unconstrained +-10 tolerance
     // would also accept. +4 keeps that real headroom on the ceiling side. The floor is tighter (-3): a
@@ -541,9 +617,8 @@ public sealed class RestoredHullsTests
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test", Owner = null }, null);
         var ship = (Ship) EntitySerializer.Unpack(items, zone, pack);
 
-        zone.Entities.Add(ship);
+        zone.Admit(ship, piloted: false);
         ship.Position = float3.zero;
-        ship.Activate();
         zone.Update(0f);
 
         ship.MovementDirection = float2(0, 1); // full forward
@@ -635,8 +710,8 @@ public sealed class RestoredHullsTests
         return new Galaxy(cache, game, _ => { });
     }
 
-    // Cut 1 fix batch 2 (Soul's finding #2): the tutorial entrance's widened candidate set. Seed 3's real tutorial
-    // galaxy has a zone, "EAC-7089", whose planets are entirely one rosette with no captured satellites at all: 4
+    // Cut 1 fix batch 2 (Soul's finding #2): the tutorial entrance's widened candidate set. A real tutorial
+    // galaxy has a zone (NoLagrangeCandidateZone finds one; under CultMath 0.2.x it was seed 3's "EAC-7089"), whose planets are entirely one rosette with no captured satellites at all: 4
     // planets sharing one Distance under one Parent, and nothing else -- potentialLagrangePoints is empty for it
     // (verified directly against this exact fixture, not carried over from Soul's own forced-fallback probe, whose
     // own candidate check undercounted planet orbits by using pack.Planets.Count -- which excludes Empty rosette
@@ -656,12 +731,13 @@ public sealed class RestoredHullsTests
     [Fact]
     public void TutorialEntranceWithNoLagrangeCandidateStillSeatsAStationWithFiniteNearbyTurrets()
     {
-        var gameData = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
+        var gameData = TestCatalog.Repo;
         var scratchRun = Path.Combine(Path.GetTempPath(), $"aetheria-entrance-widened-{Guid.NewGuid():N}.cc");
         try
         {
             using var cache = OpenReadOnlyRealCatalogWithScratchRun(gameData, scratchRun);
-            var galaxy = BuildGalaxyWithForcedEntrance(cache, seed: 3u, "EAC-7089");
+            var (seed, zoneName) = NoLagrangeCandidateZone();
+            var galaxy = BuildGalaxyWithForcedEntrance(cache, seed, zoneName);
 
             var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
             var pack = ZoneGenerator.GenerateZone(items, TutorialZoneSettings(), galaxy, galaxy.Entrance, isTutorial: true);
@@ -699,12 +775,12 @@ public sealed class RestoredHullsTests
 
     // Cut 1 fix batch 2 (Soul's finding #2, leak check): the entrance override must not leak to (a) other
     // tutorial zones or (b) a non-tutorial game's own entrance zone. Both are pinned against a seed-1 galaxy --
-    // the widened-candidate test above uses a different fixture, seed 3's "EAC-7089" -- so this test and the one
+    // the widened-candidate test above uses a different fixture, NoLagrangeCandidateZone's -- so this test and the one
     // below it stand or fall on this one known fixture, not that one.
     [Fact]
     public void EntranceOverrideDoesNotLeakToOtherTutorialZonesOrNonTutorialGames()
     {
-        var gameData = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
+        var gameData = TestCatalog.Repo;
         var scratchRun = Path.Combine(Path.GetTempPath(), $"aetheria-entrance-leak-{Guid.NewGuid():N}.cc");
         try
         {
@@ -720,7 +796,8 @@ public sealed class RestoredHullsTests
 
             // (a) A non-entrance tutorial zone that naturally rolls zero stations keeps that roll under
             // isTutorial: true -- the floor must not leak past the galaxy.Entrance reference check.
-            var otherZone = galaxy.Zones.Single(z => z.Name == "EAC-2733");
+            // The zone is chosen by its natural roll: zero stations without the tutorial floor (isTutorial: false).
+            var otherZone = galaxy.Zones.First(z => !ReferenceEquals(z, galaxy.Entrance) && StationCount(z, isTutorial: false) == 0);
             Assert.NotSame(galaxy.Entrance, otherZone);
             Assert.Equal(0, StationCount(otherZone, isTutorial: true));
 
@@ -744,7 +821,7 @@ public sealed class RestoredHullsTests
     [Fact]
     public void ForcedTutorialEntranceStationDoesNotInflateEnemyCount()
     {
-        var gameData = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
+        var gameData = TestCatalog.Repo;
         var scratchRun = Path.Combine(Path.GetTempPath(), $"aetheria-entrance-enemycount-{Guid.NewGuid():N}.cc");
         try
         {
@@ -775,7 +852,7 @@ public sealed class RestoredHullsTests
     }
 
     // Cut 1 fix batch 3 (F6, N2): the entrance-only widening must not leak to a non-entrance zone that would
-    // otherwise get zero stations. Seed 3's "EAC-7089" (the same no-Lagrange fixture the widened-candidate test
+    // otherwise get zero stations. NoLagrangeCandidateZone's zone (the same no-Lagrange fixture the widened-candidate test
     // above uses, this time NOT retargeted as Entrance) rolls a real, nonzero station count on its own -- forced
     // here by boosting one faction's presence there (HomeZone distance 0, InfluenceDistance 50, so the roll's
     // floor(rand * (factionPresence+1)) is overwhelmingly likely nonzero) via the same public SavedGame round
@@ -826,13 +903,14 @@ public sealed class RestoredHullsTests
     [Fact]
     public void WideningDoesNotLeakToANonEntranceNoLagrangeZoneThatRollsAStation()
     {
-        var gameData = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
+        var gameData = TestCatalog.Repo;
         var scratchRun = Path.Combine(Path.GetTempPath(), $"aetheria-widen-leak-{Guid.NewGuid():N}.cc");
         try
         {
             using var cache = OpenReadOnlyRealCatalogWithScratchRun(gameData, scratchRun);
-            var galaxy = BuildGalaxyWithBoostedPresence(cache, seed: 3u, "EAC-7089");
-            var zone = galaxy.Zones.Single(z => z.Name == "EAC-7089");
+            var (seed, zoneName) = NoLagrangeCandidateZone();
+            var galaxy = BuildGalaxyWithBoostedPresence(cache, seed, zoneName);
+            var zone = galaxy.Zones.Single(z => z.Name == zoneName);
             Assert.NotSame(galaxy.Entrance, zone);
 
             var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
@@ -840,8 +918,7 @@ public sealed class RestoredHullsTests
 
             // Confirms this fixture still has no genuine (non-rosette) Lagrange candidate -- a regression here
             // would mean the fixture no longer probes what this test claims to probe.
-            var planetOrbits = pack.Planets.Select(p => cache.Get(cache.Get(p).Orbit)).Where(o => o.Parent.IsSet()).ToArray();
-            var hasGenuineCandidate = planetOrbits.Any(o => planetOrbits.Count(c => c.Parent.Key.Equals(o.Parent.Key) && abs(c.Distance - o.Distance) < .1f) == 1);
+            var hasGenuineCandidate = HasGenuineLagrangeCandidate(ParentedPlanetOrbits(cache, pack));
             Assert.False(hasGenuineCandidate, "the entrance-adjacent fixture zone now has a genuine Lagrange candidate; it no longer tests the no-Lagrange leak path.");
 
             var stationCount = pack.Entities.OfType<OrbitalEntityPack>().Count(e => (cache.Get(e.Hull.Data) as HullData)?.HullType == HullType.Station);
@@ -875,7 +952,7 @@ public sealed class RestoredHullsTests
 
         // Every restored thruster's particle effect is Thruster 1.prefab, by the legacy record (soul-dump.txt).
         var thruster1Guid = GuidOf("Assets/Content/Prefabs/Thrusters/Thruster 1.prefab");
-        var restoredThrusterNames = new[] { "deep space burnout", "Large Drive", "Victoire", "Small Drive", "Talaria", "RevvITup 2.0", "Medium Drive" };
+        var restoredThrusterNames = new[] { "Burn Drive", "Large Drive", "Racing Drive", "Small Drive", "Rugged Drive", "High-Thrust Drive", "Medium Drive" };
         foreach (var name in restoredThrusterNames)
         {
             var design = cache.GetAll<GearData>().First(g => g.Name == name);

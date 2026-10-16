@@ -42,7 +42,6 @@ public sealed class FireControlCut123Tests : IDisposable
         Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
         QualityPriceModifier = new ExponentialLerp(),
         TargetDetectionInfoThreshold = .1f,
-        TargetArmorInfoThreshold = .2f,
         TargetGearInfoThreshold = .8f,
         FiringArc = 170,
         CommitHorizon = .5f,
@@ -104,7 +103,7 @@ public sealed class FireControlCut123Tests : IDisposable
 
         var cache = AetheriaStores.Open(Catalog + Guid.NewGuid().ToString("N"), catalogWritable: true);
         _openCaches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(hullData);
         cache.Upsert(shooterHullData);
         cache.Upsert(new GearData
@@ -116,7 +115,6 @@ public sealed class FireControlCut123Tests : IDisposable
                 Damage = Constant(5), Range = Constant(1000), MinRange = Constant(0),
                 Velocity = Constant(0), Spread = Constant(0), DamageSpread = Constant(damageSpread),
                 Penetration = Constant(penetration), Count = Constant(1), BurstTime = Constant(0), Cooldown = Constant(1000),
-                DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } }
             } }
         });
         cache.Upsert(new GearData
@@ -224,10 +222,8 @@ public sealed class FireControlCut123Tests : IDisposable
             cockpit = target.Equipment.Single(x => x.EquippableItem == ci);
         }
 
-        zone.Entities.Add(shooter);
-        zone.Entities.Add(target);
-        shooter.Activate();
-        target.Activate();
+        zone.Admit(shooter, piloted: false);
+        zone.Admit(target, piloted: false);
 
         // Cut 11.3: the shooter sits off the origin.
         shooter.Position = float3(37, 0, -11);
@@ -566,7 +562,7 @@ public sealed class FireControlCut123Tests : IDisposable
         var outcome = FireUntilHit(e, damageOverride: 5f);
         Assert.NotNull(outcome);
         Assert.True(outcome.Hit);
-        Assert.Same(e.Shooter, source);
+        Assert.True(ReferenceEquals(e.Shooter, source), "the hit names the shooter");
     }
 
     // Stryker survivors: FireControl.Apply's two `walked[li] > 0` checks (metalLanes counting, and the

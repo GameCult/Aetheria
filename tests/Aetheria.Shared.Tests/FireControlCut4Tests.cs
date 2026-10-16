@@ -82,7 +82,7 @@ public sealed class FireControlCut4Tests : IDisposable
     {
         var cache = AetheriaStores.Open(Catalog + Guid.NewGuid().ToString("N"), catalogWritable: true);
         _openCaches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(MakeHullData());
         cache.Upsert(new GearData
         {
@@ -92,7 +92,6 @@ public sealed class FireControlCut4Tests : IDisposable
             {
                 Damage = Constant(damage), Range = Constant(1000), MinRange = Constant(0),
                 Velocity = Constant(0), Spread = Constant(0), DamageSpread = Constant(0), Penetration = Constant(0),
-                DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } }
             } }
         });
         cache.Upsert(new GearData
@@ -154,10 +153,8 @@ public sealed class FireControlCut4Tests : IDisposable
         var targetGun = new EquippableItem { Data = targetGunRef, Durability = 1, Lot = 9 };
         Assert.True(target.TryEquip(targetGun, new int2(0, 0)));
 
-        zone.Entities.Add(shooter);
-        zone.Entities.Add(target);
-        shooter.Activate();
-        target.Activate();
+        zone.Admit(shooter, piloted: false);
+        zone.Admit(target, piloted: false);
 
         shooter.Position = float3.zero;
         target.Position = float3(0, 0, targetRange);
@@ -205,7 +202,7 @@ public sealed class FireControlCut4Tests : IDisposable
     {
         var cache = AetheriaStores.Open(Catalog + Guid.NewGuid().ToString("N"), catalogWritable: true);
         _openCaches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(MakeHullData());
         cache.Upsert(new GearData
         {
@@ -216,7 +213,6 @@ public sealed class FireControlCut4Tests : IDisposable
                 Damage = Constant(10), Range = Constant(1000), MinRange = Constant(0), Velocity = Constant(0),
                 Spread = Constant(0), DamageSpread = Constant(0), Penetration = Constant(0),
                 Count = Constant(1), BurstTime = Constant(0), Cooldown = Constant(1000),
-                DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } }
             } }
         });
         cache.FlushAsync().Wait();
@@ -233,8 +229,7 @@ public sealed class FireControlCut4Tests : IDisposable
         Assert.True(shooter.TryEquip(gun, new int2(0, 0)));
         var weapon = (InstantWeapon) shooter.Equipment.Single(e => e.EquippableItem == gun).Behaviors.Single(b => b is Weapon);
 
-        zone.Entities.Add(shooter);
-        shooter.Activate();
+        zone.Admit(shooter, piloted: false);
         zone.Update(0f); // warm up resolved stats
 
         // No target, no OnFire subscriber -- exactly a headless shooter with no target and no presentation.
@@ -258,7 +253,7 @@ public sealed class FireControlCut4Tests : IDisposable
     {
         var cache = AetheriaStores.Open(Catalog + Guid.NewGuid().ToString("N"), catalogWritable: true);
         _openCaches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(MakeHullData(armor));
         cache.FlushAsync().Wait();
 
@@ -276,7 +271,7 @@ public sealed class FireControlCut4Tests : IDisposable
         var ship = new Ship(items, zone, hull, new EntitySettings());
         ship.Position = position;
         ship.Direction = direction;
-        zone.Entities.Add(ship);
+        zone.Admit(ship, piloted: false);
         return ship;
     }
 

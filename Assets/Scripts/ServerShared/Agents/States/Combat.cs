@@ -33,22 +33,24 @@ public class CombatState : BaseState
         _availableLockingWeapons.Clear();
         
         var toTarget = target.Position - _agent.Ship.Position;
-        var targetDistance = length(toTarget);
+        var targetDistance = length(toTarget.xz);
 
         // Cut 2 (docs/fire-control-cut.md): aim at whichever revealed weapon on the target hits hardest at
         // this range, or clear the aim point when nothing qualifies -- the same predicate
-        // (FireControl.IsRevealed) and the same writer (TrySelectTargetItem) the player path uses.
+        // (FireControl.IsRevealed) and the same writer (TrySelectTargetItem) the player path uses. Which weapons it
+        // believes the target has, and how hard each hits, come from its book's claims, not the target's live gear
+        // (aetheria-ew, classify-from-belief; ew-claim-weapon-measure-ruled: the claimed design's rated figures); the
+        // reveal's Item is the aim and stays the truth.
         EquippedItem bestTargetItem = null;
         var bestTargetDps = float.MinValue;
-        foreach (var targetItem in target.Equipment)
+        foreach (var reveal in _agent.Ship.RevealedWeapons(target))
         {
-            if (!(targetItem.Behaviors.FirstOrDefault(b => b is Weapon) is Weapon targetWeapon)) continue;
-            if (!FireControl.IsRevealed(_agent.Ship, targetItem)) continue;
-            var dps = targetWeapon.RangeDamagePerSecond(targetDistance);
+            if (!FireControl.IsRevealed(_agent.Ship, reveal.Item)) continue;
+            var dps = reveal.Claimed.Behaviors.OfType<WeaponData>().First().RatedRangeDamagePerSecond(targetDistance);
             if (dps > bestTargetDps)
             {
                 bestTargetDps = dps;
-                bestTargetItem = targetItem;
+                bestTargetItem = reveal.Item;
             }
         }
         _agent.Ship.TrySelectTargetItem(bestTargetItem);
@@ -108,9 +110,8 @@ public class CombatState : BaseState
                 // Cut 3 (docs/fire-control-cut.md): the one prediction function, shared with FireControl.Fire's
                 // own snapshot and the roll's deviation measurement -- two separate predictions here and in the
                 // roll would let an AI aim at one point and get judged for missing a different one.
-                var targetHullData = _agent.ItemManager.GetData(target.Hull) as HullData;
                 var predictedPosition = FireControl.PredictedIntercept(testWeapon, _agent.Ship, target);
-                predictedPosition.y = _agent.Ship.Zone.GetHeight(predictedPosition.xz) + targetHullData.GridOffset;
+                predictedPosition.y = target.RideHeight(predictedPosition.xz);
                 toTarget = normalize(predictedPosition - _agent.Ship.Position);
             }
 
@@ -138,8 +139,8 @@ public class CombatState : BaseState
         var maxRange = Single.MinValue;
         foreach (var weapon in _agent.Ship.Weapons)
         {
-            if (weapon.Range < minRange)
-                minRange = weapon.Range;
+            if (weapon.MinRange < minRange)
+                minRange = weapon.MinRange;
             if (weapon.Range > maxRange)
                 maxRange = weapon.Range;
         }
@@ -152,7 +153,7 @@ public class CombatState : BaseState
             float dps = 0;
             foreach (var weapon in _agent.Ship.Weapons)
             {
-                if (weapon.Item.Online.Value && weapon.MinRange < range && range < weapon.Range)
+                if (weapon.Item.Online.Value)
                     dps += weapon.RangeDamagePerSecond(range);
             }
 

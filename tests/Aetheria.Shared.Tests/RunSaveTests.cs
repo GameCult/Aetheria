@@ -23,7 +23,7 @@ public sealed class RunSaveTests : IDisposable
         using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
         cache.Commit(batch =>
         {
-            batch.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+            batch.Upsert(new VerseGrammar { Revision = 1 });
             batch.Upsert(new Faction { Name = "Adrasteia", ShortName = "ADR" });
         });
     }
@@ -78,6 +78,52 @@ public sealed class RunSaveTests : IDisposable
 
         Assert.Equal(before, new[] { Catalog, Player }.Select(Hash).ToArray());
         Assert.Equal(8, RecordsIn(Run));
+    }
+
+    // Continue finds the player's entity by its place in the saved zone: the index Capture writes must be the entity's
+    // place in the live zone, and survive the round trip to the same entity's pack.
+    [Fact]
+    public void ThePlayersZoneIndexSurvivesSaveAndContinue()
+    {
+        using (var cache = AetheriaStores.Open(Catalog, catalogWritable: true))
+        {
+            var shape = new Shape(4, 4);
+            foreach (var cell in shape.AllCoordinates) shape[cell] = true;
+            foreach (var name in new[] { "Skiff", "Barge" })
+                cache.Upsert(new HullData { Name = name, HullType = HullType.Ship, Shape = shape, Durability = 100, Mass = 100 });
+            cache.FlushAsync().Wait();
+        }
+
+        using (var cache = Open())
+            RunSave.Commit(cache, Game(cache), Zones(2, StageZoneContents(cache), 0), new ProvenanceLedger());
+
+        using (var cache = Open())
+        {
+            var galaxy = new Galaxy(cache, cache.GetGlobal<SavedGame>(), _ => { });
+            var ledger = new ProvenanceLedger();
+            for (var i = 1; i <= 2; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = 1 };
+            var items = new ItemManager(cache, ledger, TestSettings(), _ => { });
+            var zone = new Zone(items, new PlanetSettings(), new ZonePack(), galaxy.Zones[0], galaxy);
+            galaxy.Zones[0].Contents = zone;
+            Ship Make(string hull, int lot) => new Ship(items, zone, new EquippableItem
+            {
+                Data = items.ItemData.RefOf<ItemData>(items.ItemData.GetByName<HullData>(hull)), Durability = 100, Lot = lot
+            }, new EntitySettings());
+            var other = Make("Skiff", 1);
+            var player = Make("Barge", 2);
+            zone.Admit(other, piloted: false);
+            zone.Admit(player, piloted: false);
+            var (game, zones) = RunSave.Capture(cache, galaxy, zone, player, new SavedActionBarBinding[0], 0);
+            RunSave.Commit(cache, game, zones, items.Lots);
+        }
+
+        using (var cache = Open())
+        {
+            var saved = cache.GetGlobal<SavedGame>();
+            Assert.Equal(1, saved.CurrentZoneEntity);
+            var packs = cache.Get(saved.Zones[saved.CurrentZone]).Contents.Entities;
+            Assert.Equal("Barge", cache.Get(packs[saved.CurrentZoneEntity].Hull.Data).Name);
+        }
     }
 
     [Fact]
@@ -307,7 +353,8 @@ public sealed class RunSaveTests : IDisposable
             var gear = cache.Upsert(new GearData { Name = "Scanner", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 5 });
             var cargo = cache.Upsert(new CargoBayData { Name = "Hold", Shape = new Shape(), InteriorShape = new Shape(), Price = 3 });
             var capacitor = cache.Upsert(new GearData { Name = "Cap", Hardpoint = HardpointType.Tool, Shape = new Shape(), Price = 1, Behaviors = { new CapacitorData() } });
-            foreach (var (name, design) in new[] { ("Runabout by Generator Maker", hull.Key), ("Scanner by Generator Maker", gear.Key), ("Hold by Generator Maker", cargo.Key), ("Cap by Generator Maker", capacitor.Key) })
+            var tractor = cache.Upsert(new GearData { Name = "Tractor", Hardpoint = HardpointType.Tool, Shape = new Shape(), Price = 1, Behaviors = { new PickupData() } });
+            foreach (var (name, design) in new[] { ("Runabout by Generator Maker", hull.Key), ("Scanner by Generator Maker", gear.Key), ("Hold by Generator Maker", cargo.Key), ("Cap by Generator Maker", capacitor.Key), ("Tractor by Generator Maker", tractor.Key) })
                 cache.Upsert(new FactionProductData { Name = name, Design = new CultRecordRef<CraftedItemData>(design), Manufacturer = maker });
             cache.FlushAsync().Wait();
         }
@@ -357,6 +404,48 @@ public sealed class RunSaveTests : IDisposable
                 var lot = storedLots[instance.Lot];
                 Assert.Equal(instance.Data.Key, lot.Design.Key);
             }
+        }
+    }
+
+    // A lot's product is what names its units, so it must come back from the run file as the same product key; a lot
+    // minted without one reads unset.
+    [Fact]
+    public void ALotsProductSurvivesTheRunSave()
+    {
+        CultRecordRef<FactionProductData> product;
+        using (var cache = AetheriaStores.Open(Catalog, catalogWritable: true))
+        {
+            var lamp = new CultRecordRef<CraftedItemData>(cache.Upsert(new GearData { Name = "Lamp" }).Key);
+            var maker = cache.RefOf(cache.GetAll<Faction>().Single());
+            product = new CultRecordRef<FactionProductData>(cache.Upsert(
+                new FactionProductData { Name = "Lamp Prime", Design = lamp, Manufacturer = maker }).Key);
+            cache.FlushAsync().Wait();
+        }
+        using (var cache = Open())
+        {
+            var design = cache.RefOf<ItemData>(cache.GetByName<GearData>("Lamp"));
+            var lots = new ProvenanceLedger { NextLot = 3 };
+            lots.Lots[1] = new Lot { Design = design, Origin = new Attributed(), Product = product };
+            lots.Lots[2] = new Lot { Design = design, Origin = new Attributed() };
+            var zone = new SavedZone
+            {
+                Name = "Zone 0", AdjacentZones = Array.Empty<int>(), Factions = Array.Empty<int>(), Owner = -1,
+                Contents = new ZonePack
+                {
+                    Entities = new List<EntityPack>
+                    {
+                        BarePack(hull: new EquippableItem { Data = design, Lot = 1 }),
+                        BarePack(hull: new EquippableItem { Data = design, Lot = 2 })
+                    }
+                }
+            };
+            RunSave.Commit(cache, Game(cache), new[] { zone }, lots);
+        }
+        using (var cache = Open())
+        {
+            var stored = RunSave.Lots(cache);
+            Assert.Equal(product.Key, stored[1].Product.Key);
+            Assert.False(stored[2].Product.IsSet());
         }
     }
 

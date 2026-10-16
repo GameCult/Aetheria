@@ -1,0 +1,11 @@
+warp at cycle start True; grid 256; sigma [482, 180, 180, 305, 146, 103]; edge width 40.0 u; web at cycle start True
+pot-well: corr physarumA 0.279; members 3588; changed in 1 s 0.326; presence step max 1.0000 (1 steps > .1 of 1500); sites visited per evaluation 181; 0.65 ms/eval (Python); 86s
+pot-newton: corr physarumA 0.338; members 689; changed in 1 s 0.299; presence step max 0.0483 (0 steps > .1 of 1500); sites visited per evaluation 181; 0.60 ms/eval (Python); 84s
+mult: corr physarumA 0.335; members 3270; changed in 1 s 0.279; presence step max 0.0910 (0 steps > .1 of 1500); sites visited per evaluation 181; 0.51 ms/eval (Python); 85s
+add: corr physarumA 0.263; members 4077; changed in 1 s 0.338; presence step max 0.0899 (0 steps > .1 of 1500); sites visited per evaluation 181; 0.50 ms/eval (Python); 84s
+power: corr physarumA 0.313; members 3817; changed in 1 s 0.312; presence step max 0.0287 (0 steps > .1 of 1500); sites visited per evaluation 181; 0.74 ms/eval (Python); 85s
+flow-aniso: corr physarumA 0.322; members 4090; changed in 1 s 0.300; presence step max 0.0373 (0 steps > .1 of 1500); sites visited per evaluation 181; 0.66 ms/eval (Python); 88s
+lp05: corr physarumA 0.274; members 6662; changed in 1 s 0.306; presence step max 1.0000 (72 steps > .1 of 1500); sites visited per evaluation 181; 0.74 ms/eval (Python); 87s
+lpinf: corr physarumA 0.307; members 3761; changed in 1 s 0.275; presence step max 1.0000 (237 steps > .1 of 1500); sites visited per evaluation 181; 0.61 ms/eval (Python); 85s
+skein-web: corr physarumA 0.296; members 1501; changed in 1 s 0.205; presence step max 0.0138 (0 steps > .1 of 1500); sites visited per evaluation 187; 0.36 ms/eval (Python); 106s
+mult-strands: corr physarumA 0.388; members 4462; changed in 1 s 0.238; presence step max 0.0910 (0 steps > .1 of 1500); sites visited per evaluation 193; 0.62 ms/eval (Python); 89s

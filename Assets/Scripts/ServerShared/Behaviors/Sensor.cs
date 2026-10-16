@@ -24,8 +24,7 @@ public class SensorData : BehaviorData
     [Inspectable, JsonProperty("pingEnergy"), Key(6), RuntimeInspectable]
     public PerformanceStat PingEnergy;
 
-    [Inspectable, JsonProperty("pingVisibility"), Key(7), RuntimeInspectable]
-    public PerformanceStat PingVisibility;
+    // Key 7 (pingVisibility) is retired: never reuse it.
 
     [Inspectable, JsonProperty("pingRange"), Key(8), RuntimeInspectable]
     public PerformanceStat PingRange;
@@ -38,6 +37,16 @@ public class SensorData : BehaviorData
 
     [Inspectable, JsonProperty("pingRadiusExponent"), Key(11)]
     public float PingRadiusExponent = .5f;
+
+    // The width in degrees of the cone a ping sweeps, about the sensor's facing (ruling illuminator-beamforming:
+    // how much a ping reveals is a stat). 360 or more is omnidirectional; a design without it reads as 360.
+    [Inspectable, JsonProperty("beamWidth"), Key(12)]
+    public PerformanceStat BeamWidth;
+
+    // The ratio of how far this sensor sees to how far others hear it (ruling sensor-stat-set); a design without it
+    // reads as 1.
+    [Inspectable, JsonProperty("interceptFactor"), Key(13)]
+    public PerformanceStat InterceptFactor;
     
     public override Behavior CreateInstance(EquippedItem item)
     {
@@ -61,7 +70,14 @@ public class Sensor : Behavior, IEventBehavior, IPowerConsumer
     private float _pingLerp;
     private bool _pinging;
     private float _pingRadius;
-    private HashSet<Entity> _pingedEntities = new HashSet<Entity>();
+
+    // The subjects this ping's wavefront has reached, in the beam or not; each is crossed at most once per ping.
+    // Ping() is the one reset. A sweeping tick drops every subject no longer in the zone, so a subject that
+    // leaves and comes back inside the front is reached again, as a ship arriving inside the front is.
+    private readonly HashSet<Entity> _reached = new HashSet<Entity>();
+
+    // The zone the ping began in: a ping belongs to it, and ends when the pinger is anywhere else.
+    private Zone _pingZone;
 
     public float Cooldown
     {
@@ -71,6 +87,19 @@ public class Sensor : Behavior, IEventBehavior, IPowerConsumer
     public float PingRadius
     {
         get => _pingRadius;
+    }
+
+    public float BeamWidth => _data.BeamWidth == null ? 360f : Evaluate(_data.BeamWidth);
+
+    public float InterceptFactor => _data.InterceptFactor == null ? 1f : Evaluate(_data.InterceptFactor);
+
+    public float2 Facing => Direction.xz;
+
+    // Whether the offset `diff` (length `dist`) from this sensor lies inside its beam.
+    private bool InBeam(float2 diff, float dist)
+    {
+        var beam = BeamWidth;
+        return beam >= 360f || dot(Facing, diff) >= dist * cos(beam * .5f * .0174533f);
     }
 
     public float PingBrightness => pow(1 - _pingLerp, _data.PingRadiusExponent);
@@ -114,12 +143,12 @@ public class Sensor : Behavior, IEventBehavior, IPowerConsumer
         // nothing would ever fill this capacitor; bypass it rather than starving such an instance forever.
         if(_pingCooldown < 0 && (Item == null || _capacitor.TrySpend(_capacitor.Capacity)))
         {
-            Entity.VisibilitySources[this] = Evaluate(_data.PingVisibility);
             _pinging = true;
+            _pingZone = Entity.Zone;
             _pingCooldown = 1;
             _pingLerp = 0;
             _pingRadius = 0;
-            _pingedEntities.Clear();
+            _reached.Clear();
             OnPingStart?.Invoke();
         }
     }
@@ -140,15 +169,15 @@ public class Sensor : Behavior, IEventBehavior, IPowerConsumer
         // instance never reaches PowerBus.Step (see Ping()) and so never accrues charge.
         if (Item != null)
             _capacitor.AddCharge(_capacitor.RequestedFill(dt) * Item.PowerSupply);
+        if (_pinging && Entity.Zone != _pingZone) EndPing();
+        var sweeping = _pinging;
         if (_pinging)
         {
             _pingLerp += dt / _data.PingDuration;
             _pingRadius = lerp(0, Evaluate(_data.PingRange), pow(_pingLerp, _data.PingRadiusExponent));
-            if (_pingLerp > 1)
-            {
-                _pinging = false;
-                OnPingEnd?.Invoke();
-            }
+            _reached.IntersectWith(Entity.Zone.Entities);
+            Entity.Emit(Item, Evaluate(_data.PingRange) / InterceptFactor);
+            if (_pingLerp > 1) EndPing();
         }
 
         _pingCooldown -= dt / Evaluate(_data.PingCooldown);
@@ -160,17 +189,44 @@ public class Sensor : Behavior, IEventBehavior, IPowerConsumer
 
             var diff = entity.Position.xz - Entity.Position.xz;
             var dist = length(diff);
+            var obscuration = Entity.Zone.Obscuration(Entity.Position.xz, entity.Position.xz);
             float previous, next;
             Entity.EntityInfoGathered.TryGetValue(entity, out previous);
-            if (!_pingedEntities.Contains(entity) && dist < _pingRadius)
+
+            var sensitivity = Evaluate(_data.Sensitivity);
+            var response = _data.PingBoost == null ? 0f : Evaluate(_data.PingBoost);
+            var credit = 0f;
+            var heard = false;
+
+            // The first sweeping tick this ping's wavefront is past the entity is its one crossing. Inside the beam
+            // it paints the subject (it learns it is swept), credits this sensor, and is returned to every ally; an
+            // ally hears it silently (ruling sensor-stat-set item 3): credit, no paint, no emission.
+            if (sweeping && dist < _pingRadius && _reached.Add(entity) && InBeam(diff, dist))
             {
-                _pingedEntities.Add(entity);
-                next = saturate(previous + Gain(entity.Visibility, Evaluate(_data.Sensitivity), Evaluate(_data.PingBoost), dist, dt, true));
+                heard = true;
+                entity.ReceivePaint(Entity, Item, PaintMode.Search, 0);
+                credit += Gain(entity.Visibility, sensitivity, response, dist, dt, true, obscuration);
+                var pingReturn = new PingReturn(entity, dist, obscuration, Evaluate(_data.PingRange));
+                foreach (var ally in Entity.Zone.Entities)
+                    if (ally != Entity && ally != entity && ally.Faction != null && ally.Faction == Entity.Faction && !ally.IsHostileTo(Entity))
+                        ally.ReceiveReturn(pingReturn);
             }
+
+            // An ally's ping returned off this subject (ruling ally-echo-bistatic-oval): heard while the
+            // illuminated and received ranges sit inside the oval Rt x Rr < PingRange^2, credited at their geometric mean.
+            foreach (var r in Entity.PingReturns)
+            {
+                if (r.Subject != entity || r.IlluminatedRange * dist >= r.MaxRange * r.MaxRange) continue;
+                heard = true;
+                credit += Gain(entity.Visibility, sensitivity, response, sqrt(r.IlluminatedRange * dist), dt, true, sqrt(r.IlluminatedObscuration * obscuration));
+            }
+
+            if (heard)
+                next = saturate(previous + credit);
             else
             {
                 var angle = acos(dot(forward, normalize(diff)));
-                next = saturate(previous + Gain(entity.Visibility, Evaluate(_data.Sensitivity), _data.SensitivityCurve.Evaluate(angle / PI), dist, dt, false));
+                next = saturate(previous + Gain(entity.Visibility, sensitivity, _data.SensitivityCurve.Evaluate(angle / PI), dist, dt, false, obscuration));
             }
             next *= 1 - ItemManager.GameplaySettings.TargetInfoDecay * dt;
             //Context.Log($"{entity.Name} visibility {(int)(previous * 100)}% -> {(int)(next * 100)}%");
@@ -179,15 +235,23 @@ public class Sensor : Behavior, IEventBehavior, IPowerConsumer
         return true;
     }
 
+    private void EndPing()
+    {
+        _pinging = false;
+        OnPingEnd?.Invoke();
+    }
+
     // Mining Cut 3 (docs/mining-cut-refresh.md): the one detection gain rule -- the info one observation of a
     // target adds. A ping adds `visibility × sensitivity × PingBoost × distance` once; a passive tick adds
     // `visibility × sensitivity × curve(angle/π) × dt / distance`. `response` is PingBoost for a ping and the
-    // sensitivity curve at the bearing for a passive tick. The entity loop above and the chunk query
-    // (Entity.ChunkInfo, through PassiveRate) both call this; nothing else multiplies these terms.
-    public static float Gain(float visibility, float sensitivity, float response, float distance, float dt, bool ping) =>
-        ping
+    // sensitivity curve at the bearing for a passive tick. `obscuration` is the fraction of the signal that
+    // survives the vapour clouds on the sight line (Zone.Obscuration, 1f with none), scaling both. The entity
+    // loop above and the chunk query (Entity.ChunkInfo, through PassiveRate) both call this; nothing else
+    // multiplies these terms.
+    public static float Gain(float visibility, float sensitivity, float response, float distance, float dt, bool ping, float obscuration) =>
+        (ping
             ? visibility * sensitivity * response * distance
-            : visibility * sensitivity * response * dt / distance;
+            : visibility * sensitivity * response * dt / distance) * obscuration;
 
     // The passive gain per second this sensor draws from a target of `visibility` at the planar `position`:
     // Gain over one second, with the bearing measured from this sensor's own facing exactly as Execute does.
@@ -195,7 +259,8 @@ public class Sensor : Behavior, IEventBehavior, IPowerConsumer
     {
         var diff = position - Entity.Position.xz;
         var angle = acos(dot(Direction.xz, normalize(diff)));
-        return Gain(visibility, Evaluate(_data.Sensitivity), _data.SensitivityCurve.Evaluate(angle / PI), length(diff), 1f, false);
+        return Gain(visibility, Evaluate(_data.Sensitivity), _data.SensitivityCurve.Evaluate(angle / PI), length(diff), 1f, false,
+            Entity.Zone.Obscuration(Entity.Position.xz, position));
     }
 
     // An upper bound on sensitivity x response over every bearing, so PassiveRate(v, p) <= v x this / distance

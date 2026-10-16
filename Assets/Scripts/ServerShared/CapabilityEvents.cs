@@ -7,30 +7,35 @@ using UniRx;
 using CultMath;
 
 // Capability event contract (docs/headless-playground-cut.md fork L, operator ruling 2026-09-17):
-// pickup, impact absorption, melee blade and propulsion are separate item capabilities. Simulation
-// (not yet built -- this file only stands up the wire shape) will own each capability's rules and
-// emit these events; any number of presentations (the field shield today, later an IFS shatter
-// plane or an advected particle field) subscribe to the event kinds they visualize and decide
-// nothing about the rule. This file has no engine dependency: it compiles into the headless
-// Aetheria.Shared build (see Aetheria.Shared.csproj) with no publisher wired up yet.
+// pickup, impact absorption, melee blade and propulsion are separate item capabilities. Simulation owns
+// each capability's rules and emits these events (FireControl publishes Absorb; the others are not yet
+// built); any number of presentations (the field shield today, later an IFS shatter plane or an advected
+// particle field) subscribe to the event kinds they visualize and decide nothing about the rule. This file
+// has no engine dependency: it compiles into the headless Aetheria.Shared build (see Aetheria.Shared.csproj).
 
-// One absorbed impact: a hit landing on the item's shield/armor capability. DamageType rides along
-// so presenters can vary visuals per type; the damage-type mask itself belongs to the absorb
-// capability's own data and is out of scope for this cut (operator, 2026-09-17) -- this struct only
-// carries the hit's existing type through, unfiltered.
+// Which layer of the receiver took an absorbed impact.
+public enum AbsorbLayer { Shield, Hull }
+
+// One absorbed impact on a shield or a hull, published once per receiver by FireControl on that entity's
+// Entity.Capabilities. Position is a world point on the receiver's sim pose at the tick the impact lands (a
+// presenter draws it with DrawAhead.Carried); Direction is the way the impact travels. DamageType rides along
+// so presenters can vary visuals per type; the damage-type mask itself belongs to the absorb capability's own
+// data and is out of scope (operator, 2026-09-17) -- this struct only carries the hit's existing type through.
 public readonly struct AbsorbEvent
 {
     public readonly float3 Position;
     public readonly float3 Direction;
     public readonly float Magnitude;
     public readonly DamageType DamageType;
+    public readonly AbsorbLayer Layer;
 
-    public AbsorbEvent(float3 position, float3 direction, float magnitude, DamageType damageType)
+    public AbsorbEvent(float3 position, float3 direction, float magnitude, DamageType damageType, AbsorbLayer layer)
     {
         Position = position;
         Direction = direction;
         Magnitude = magnitude;
         DamageType = damageType;
+        Layer = layer;
     }
 }
 
@@ -47,19 +52,18 @@ public enum GrabPhase
     Cancelled
 }
 
-// The target is identified by a plain handle, not a Unity type: the simulation will own the real
-// target identity (a loot drop or item instance id) once the pickup capability exists. Today's only
-// publisher (the FieldShieldTest scene) hands out its own handles; nothing here interprets them.
+// One phase of a grab. The target is the floating item the Pickup behaviour holds (the FieldShieldTest scene
+// publishes its own handles as ids); nothing here interprets it.
 public readonly struct GrabEvent
 {
-    public readonly int TargetHandle;
+    public readonly FloatingBodyId Target;
     public readonly GrabPhase Phase;
     public readonly float3 TargetPosition;
     public readonly float PhaseDuration;
 
-    public GrabEvent(int targetHandle, GrabPhase phase, float3 targetPosition, float phaseDuration)
+    public GrabEvent(FloatingBodyId target, GrabPhase phase, float3 targetPosition, float phaseDuration)
     {
-        TargetHandle = targetHandle;
+        Target = target;
         Phase = phase;
         TargetPosition = targetPosition;
         PhaseDuration = phaseDuration;
@@ -101,10 +105,10 @@ public readonly struct ThrustEvent
     }
 }
 
-// Per-entity (or per-item) source of capability events. One instance is owned by whatever will
-// eventually decide these rules; today the FieldShieldTest scene stands in for that owner. Follows
-// the Subject<T>-per-event-kind idiom already used on Entity (IncomingHit, HullDamage, etc): each
-// event kind gets its own stream, and a subscriber to one kind never sees another.
+// Per-entity source of capability events: one instance per Entity (Entity.Capabilities), published by
+// FireControl for Absorb; the FieldShieldTest scene keeps its own instance. Follows the Subject<T>-per-event-kind
+// idiom already used on Entity (IncomingHit, HullDamage, etc): each event kind gets its own stream, and a
+// subscriber to one kind never sees another.
 public class CapabilityEvents
 {
     private readonly Subject<AbsorbEvent> _absorb = new Subject<AbsorbEvent>();

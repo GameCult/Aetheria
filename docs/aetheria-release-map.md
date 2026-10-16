@@ -12,6 +12,71 @@ Every anchor below is against `origin/master` `f1dee184` and was read in a spars
 scratch worktree on 2026-10-03, unless the line or its section says otherwise. The section "Demo scope" holds
 the 2026-10-06 re-scope: the release this campaign plans is the demo.
 
+## Cut sequence
+
+Cuts without a `cut_spec`, withdrawn 2026-10-12 under map-only-what-runs: a spec is admitted when Self is about to dispatch the cut. Each line is a cut label, its title, and what it waits on; re-map it by a fresh Imagination pass against the Body when the frontier reaches it.
+
+- audio-present: First sound: native Unity audio presents fire, charge, charge failure, impact (shield and hull) and destruction through one pooled player, gated on ActionGameManager.DrawsAt; an AudioMixer with Master, Music, Effects and Interface groups applies PlayerAudioSettings (new PlayerSettings key 7) from the empty ShowAudioSettings page; ImpactCue gains DamageType; the wavs are copied from the Wwise Originals with provenance lines; WireAudio adds the listener and enables audio. Body facts: section "audio-1" (AU4-AU6) and B6-B7. Waits on: audio-1.
+- ballistic-ammo: Ballistic weapons fire real rounds: a weapon that draws rounds takes no reactor power, every magazine comes from cargo. Waits on: mining-merge (refresh needed (ruling ballistics-cycle-power contradicts its DrawsPower rule)).
+- material-graph: Material graph record and judge: MaterialGraph in Aetheria.cc, the release whitelist, closed vocabularies, scopes, the. Waits on: nothing in the mind (held post-demo by ruling demo-material-scope).
+- material-library-export: Blender material export: a faithful node-group dumper, Export and Check Material Graph calling AetherDb, the library. Waits on: material-graph (held post-demo by ruling demo-material-scope; blocked on material-graph).
+- hull-bakes: MaterialBakes: content-addressed pair and wear bakes dispatched from generated kernels, refcounted, read back and. Waits on: material-lowering (held post-demo by ruling demo-material-scope; blocked on material-lowering).
+- material-lowering: Material lowering: MaterialGraph to CultMath expression IR, generated compute kernels per graph (surface, worn. Waits on: material-graph, material-library-export (held post-demo by ruling demo-material-scope; blocked on material-graph).
+- ships-studio-schematic: Studio draws a mod hull's shipped schematic strokes under its cell grid and paints hardpoint footprints, with the rules. Waits on: nothing in the mind (ready but not queued).
+- controls-ai-bearing: Controls 5: AI ships turn to bring their chosen weapon group to bear (broadsides for side mounts, the nose for forward. Waits on: controls-helm, controls-mount-aim (refresh needed (Broadside scenario gone)).
+- controls-hud: Controls 3: the HUD shows each weapon group's solution state on its crosshair (on solution, free, holding), arcs in the. Waits on: controls-mount-aim (refresh needed (HUD overlap, 48-commit drift)).
+- ai-autofire: Missiles 4: the AI fires through the same chooser. Combat and TurretController take each weapon's subject from. Waits on: autofire-threshold, controls-ai-bearing (blocked on autofire-threshold and controls-ai-bearing).
+- missile-records: Missiles 1: a guided shot is a stepped munition record: PN on its own seeker, reacquisition, a fuel budget spent by its. Waits on: missile-stats (blocked on the missile chain head; refresh needed).
+- missile-odds: Missiles 1c (r2): a guided round's hit is one roll at its terminal gate, priced by FireControl from its miss, seeker. Waits on: missile-records, evasion-term (blocked on missile-records).
+- missile-presenter: Missiles 1b (r3): GuidedProjectile presents the stepped munition drawn ahead by Lead; its binding ends on sim events. Waits on: missile-odds, controls-helm, sim-speed (blocked on missile-odds).
+- munition-jink: Missiles 2b: inbound rounds make a munition jink above its reserve; the jink spends its fuel and reaches the PD price. Waits on: munition-shots (blocked on munition-shots).
+- munition-shots: Missiles 2 (r5): shots take a munition subject; PD at a munition is priced through the ships' evasion core (own. Waits on: missile-odds, controls-mount-aim (blocked on missile-odds; envelope refresh needed).
+- faction-play-2: Faction play 2 (r2, master 4d664b53): pack slots and Lucent's duel, hull break-off to a refuge, and ping cadence, all. Waits on: faction-play-1, feedback-1 (blocked on faction-play-1 merge and feedback-1).
+- faction-play-3: Faction play 3 (r2, master 4d664b53): support ships and anchors, and the cast played in Terminus (Demo): Pirates. Waits on: faction-play-2, demo-galaxy (blocked on faction-play-2).
+- faction-play-4: Faction play 4 (r3): the tender loop on real rounds, full-game scope. A member low on magazines rearms from its tender. Waits on: faction-play-3, ballistic-ammo (blocked on faction-play-3 and ballistic-ammo).
+- retire-prelude: Retire the prelude and the tutorial: Galaxy.IsPrelude, SavedGame.IsTutorial, TutorialGalaxy and. Waits on: demo-galaxy, boss-gate, retire-longinusx, gear-without-presence (refresh needed (96-commit drift)).
+- autofire-threshold: Missiles 3 (r5): autofire in the sim. Each autofire gun picks its subject through ChooseSubject (munitions first) and. Waits on: munition-shots (blocked on munition-shots).
+- boss-hull-derived: A faction's boss hull is derived (r2): HullData.Boss on a hull the faction makes a product of, set by its own. Waits on: boss-gate, pirates-record, package-product (all merged; not blocked). Runs after faction-pair's faction-play-1 and maker-only-faction, which edit Faction in Corporations.cs and the main galaxy's faction draw in Galaxy.cs; like every catalog command it also edits tools/AetherDb/Program.cs. No Boss hull exists until the operator's Zhestokost boss package (follow-up zhestokost-boss-hull). Body facts: Products PL5-PL6.
+- autofire-controls: Missiles 3b (r2): the player sets autofire; the HUD marks munitions and autofire groups; the Point Defense scenario. Waits on: autofire-threshold, controls-hud, pd-gear (blocked on autofire-threshold and controls-hud).
+- broadside-gunboat: Broadside returns on a real gunboat: the operator's Zhestokost line-gunboat package (side-rotated Ballistic hardpoints). Waits on: mods-in-tree, package-product (blocked on package-product and the operator package).
+- demo-cast-hulls: Demo cast hulls land (r3): the operator's five packages under GameData/Mods, each its maker's ship under its own name. Waits on: mods-in-tree, pirates-record, package-product, boss-hull-derived (blocked on package-product, boss-hull-derived and operator packages).
+- minor-power-makers: Aya Collective, Megiddo and Orbital Forge in the catalog: an AetherDb one-shot authors three manufacturer-only. Waits on: maker-only-faction, pd-gear, pirates-record, gear-without-presence, generic-design-names (blocked on maker-only-faction merge and generic-design-names; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
+- ships-addon-mesh-mounts: Blender thruster and radiator mounts (from mounts r3): meshes from selected faces or a tagged mesh, each with its row. Waits on: ships-addon-mounts (blocked on ships-addon-mounts).
+- ships-addon-mask-bakes: Blender mask helpers (from paint r2): Suggest Regions by weighted k-means in CIELAB, Bake Starting Mask, Bake Wear from. Waits on: ships-addon-paint (blocked on ships-addon-paint).
+- ships-addon-paint: Blender hull mask record (r3): mask slot, New Mask, factory livery, Package UV0 and mask checks, ship.mask.png, region. Waits on: ships-hull-material, ships-addon-frame, ships-addon-guards (blocked on ships-hull-material (premise obsolete under mask-channels-place-materials)).
+- matrix-coilguns: Weapon matrix, EMPS row: Light Coilgun, Coilgun, Railgun and Heavy Railgun at Small to ExtraLarge, with roles and two. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
+- matrix-beams: Weapon matrix, Laser and PPC rows: Medium and Large Beam Lasers, Heavy Ion Cannon and Ion Lance, with roles and two. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
+- matrix-cannons: Weapon matrix, XPS row: Heavy Autocannon (Large) and Siege Cannon (ExtraLarge), with roles and two makers each. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
+- matrix-lightning: Weapon matrix, ESD row: Arc Thrower (Small), Storm Projector (Medium) and Tempest Projector (ExtraLarge) beside plight. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
+- matrix-missiles: Weapon matrix, Missile and MicroMissile rows: Light and Heavy Missile Launchers, Torpedo Launcher and Micromissile. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
+- caliber-bands: Caliber is the size: five records recalibered, every weapon footprint held in its caliber's band, and every matrix cell. Waits on: matrix-coilguns, matrix-cannons, matrix-beams, matrix-lightning, matrix-missiles, matrix-mines, matrix-flamers (blocked on the seven matrix cuts; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
+- matrix-flamers: Weapon matrix, Jet row: Light Flamethrower, Flamethrower, Heavy Flamethrower and Inferno Projector, thermal pellet guns. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
+- matrix-mines: Weapon matrix, Mine row: Mine Rack, Heavy Mine Layer and Minefield Projector beside the Mine Launcher, with warhead and. Waits on: roles-backfill (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
+- product-lines-gear: Gear product lines: the twenty-two second-maker products of follow-up gear-product-lines, with role quality from maker. Waits on: product-lines-weapons (same catalog writer: it adds 'product-lines gear' to that cut's ProductLinesCommand.cs); generic-design-names and roles-backfill are merged. Twenty products, not twenty-two: Compact Sensor already has Finch and Lucent products. Ruling maker-design-tiers-allowed (2026-10-16) changes nothing in its table, which keeps one product per maker per design. product-lines-weapons r4 deletes NoMakerSellsTwoProductsOfOneDesign and drops the command's matching refusal, so this cut's rows face no such refusal. Body facts: Products PL3.
+- product-tiers: A maker sells several products of one design at different performance (ruling maker-design-tiers-allowed, 2026-10-16). In the operator's words, "segmentation via binning and sub-assembly selection": no new innovation or component roles. Maps per-tier ProductRole quality and a Price that follows quality, which today comes from the design (question maker-design-tiers, depends). The tier rows go through product-lines' ProductLinesCommand. Product names stay unique (NoTwoProductsShareAName). ProductRole's mean and deviation come from the maker's one MakerProfiles row, so two tiers at one maker need a per-tier offset. That offset is this cut's design, not a second profile table. Ship products are keyed one per maker per hull (ShipModCatalog.ProductKey(id, maker)); whether hull tiers widen that key is this cut's to map, not assumed. Waits on: product-lines-weapons (its command and the deleted test); product-lines-gear (same catalog writer).
+- run-seed: Drops mix a per-game seed stored in the save (ruling loot-seed-in-save, 2026-10-16). A new game rolls different drops from other games, reloading one save repeats its drops, and tests pass a fixed seed. Today Zone.CombatSeed is the zone name's StableHash (Zone.cs:144). It feeds three dice: the loot dice (Zone.cs:414, LootStream, by death ordinal), the mine lay scatter (FireControl.cs:791, MineStream) and the shot dice (FireControl.cs:930). The ruling covers drops, and the question named loot and mine fragments, so the seed mixes into the loot and mine streams. Whether hit rolls also take it is not ruled: the cut raises it. Do not change CombatSeed itself and carry that along silently. The seed lives on SavedGame, minted by the new-run branch. The run lifecycle is record-level (ActionGameManager.cs:58-60), so the seed must reach Zone at construction from the run, not from the catalog. Owns follow-up loot-dice-run-seed (its old owners, loot-1 r2 and sim-mines, are merged). Waits on: nothing in the mind.
+- mining-yield: Mining Cut 5 (docs/mining-cut-refresh.md 'Cut 5. Composition, the loot roll, the mined lot, and the same-path test agent'). Ruling mining-overflow-floats (2026-10-16) replaces that plan's deposit rule: units a shot extracts go into the shooter's cargo through TryStore, and what the hold cannot take is released through Zone.Release (Zone.cs:356) as floating items, which the player and NPCs collect through the one pickup path. The plan's AFullHoldLosesTheOverflow test becomes AFullHoldReleasesTheOverflow. Mining Cuts 4 and 7 stay with follow-up mining-cuts-4-5-7, which this cut's spec resolves with them. Waits on: mining Cut 4 (FireControl shots at chunks), full game (demo scope table: no buyer for ore in the demo).
+- boost-gear-combat: Stat boosters, combat, tiered by size: a modest 1x1 and a strong 2x2 each for Damage and Range on every gun through. Waits on: boost-gear-systems (blocked on boost-gear-systems; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first). After damage-falloff: a Range Extender multiplies Range only, so it lengthens the falloff ramp and leaves EffectiveRange where it was; the cut decides whether it also targets EffectiveRange (section "Damage falloff at fire time", DF8).
+- boost-gear-systems: Stat boosters, systems, tiered by size: a modest 1x1 and a strong 2x2 each for Thrust, Signal, Emissivity and Reactor. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
+- ships-player: S3, agent side: a player built by AetheriaBuild composes and preloads mod ships with Aetheria materials only, radiators. Waits on: ships-mounts, ships-hull-material, player-build (blocked on ships-hull-material).
+- ships-addon-gizmos: Blender Ship Mounts tool (r6): gizmos select and drag mounts snapped to cells in Ship Root's frame; arc fans from the. Waits on: ships-addon-mesh-mounts (blocked on ships-addon-mesh-mounts).
+- link-rig-presenter: Unity drives each driven joint's chain (r2): a MountRig aims its lead muzzle along the sim's solution, slewed at the. Waits on: link-rig-record, ships-addon-link-package (blocked on ships-addon-link-package).
+- ships-addon-link-package: Blender Package for moving parts (r3): joints from bone IK settings, each weapon mount's joint from its bone ancestry. Waits on: link-rig-record, ships-addon-mounts, ships-addon-mesh-mounts (blocked on ships-addon-mounts and mesh-mounts).
+- vector-rows-allocator: Vectored rows flown: each row is one actuator in the allocator's one solve, picking throttle and angle step in its slew. Waits on: vector-rows-record, thrust-allocator-core, thrust-allocator, envelope-from-columns (blocked on vector-rows-record).
+- forge-seed: Seed GameCult/Aetheria on the Eureka forge: every branch, tag and LFS object, nothing repointed. Waits on: nothing in the mind (forge move not started this session).
+- forge-switch: Switch Aetheria's primary host to the forge: freeze, final re-sync, .lfsconfig, push mirror created. Waits on: forge-seed (blocked on forge-seed).
+- forge-verify: Verify the move: GitHub mirror receives pushes, fresh clones resolve LFS only via the forge. Waits on: forge-switch (blocked on forge-switch).
+- mining-index-tree: last mapped as cut-mining-index-tree.r1 (withdrawn). Waits on: a refresh against the visibility chain (Entity.cs detection path churned); carries follow-up mining-index-tree-findings.
+- mining-belt-cells: last mapped as cut-mining-belt-cells.r1 (withdrawn). Waits on: mining-index-tree; carries follow-up mining-belt-cells-findings (seven test gaps).
+- sim-speed-scale: last mapped as cut-sim-speed-scale.r2 (withdrawn). Waits on: sim-contact, loot-3, missile-presenter; carries follow-up sim-speed-scale-findings.
+- hardpoint-socket-palette: one socket brush per standard footprint shape, fixing shape and proportion (pivot, facing, clearance) with scale set per mount, molded into the hull in the brush tree. Waits on: brush-tree weld (spike round 4). Rulings: hardpoint-sizes-are-footprint-palette, hardpoints-and-floating-greebles. HELD for the operator walkthrough on Starfire (ruling hardpoint-work-held-for-walkthrough). Schematic and model are separate spaces linked only by mount name (ruling schematic-and-model-are-separate-spaces).
+- hardpoint-adapters: adapter pieces covering a smaller gear footprint inside a larger socket. Waits on: hardpoint-socket-palette. HELD for the operator walkthrough on Starfire (ruling hardpoint-work-held-for-walkthrough). Schematic and model are separate spaces linked only by mount name (ruling schematic-and-model-are-separate-spaces).
+- gear-models-per-footprint: item records gain a model reference; weapons, launchers and thrusters get gear models built to their footprint and drawn at the named mount the hardpoint addresses. Waits on: hardpoint-socket-palette; lifts the validator ban on anchors for internal kinds only when their treatment is ruled. HELD for the operator walkthrough on Starfire (ruling hardpoint-work-held-for-walkthrough). Schematic and model are separate spaces linked only by mount name (ruling schematic-and-model-are-separate-spaces).
+- radiator-geonodes: a Geometry Nodes setup molds radiator panels over a region marked on the model under the radiator hardpoint's name, in the live hull stack. Waits on: Ruling: radiator-panels-molded-by-geonodes. HELD for the operator walkthrough on Starfire (ruling hardpoint-work-held-for-walkthrough). Schematic and model are separate spaces linked only by mount name (ruling schematic-and-model-are-separate-spaces).
+- floating-greeble-library: operator seed pieces, model-written parametric families, placements as hull-local data (never a GN scatter on the live mesh), merged into the ship mesh at export, kept out of socket clearance. Waits on: operator seed set. Research: GameCult.Geometry.Csg docs/research/greebles-prior-art.md (4877300).
+
+- sensor-bearing-shape: SensorData.SensitivityCurve (gain over bearing angle / PI, read in the sim by Sensor.cs:229,262 and bounded by HullRange at :271) becomes authored scalars or is replaced by the beam width ruling sensor-stat-set already names. Waits on: the sensor-catalog chain; decide with it, not before.
+- consumable-effectiveness: ConsumableItemData.Effectiveness (a BezierCurve over progress through duration, read by Entity.cs:1921 ConsumableProgressFactor) is null on both shipped consumables, so any stat that declares a ConsumableProgress term throws; delete it or give it a validated shape. Waits on: nothing in the mind.
 ## Body facts
 
 **B1. No impact event carries a world point.**
@@ -133,6 +198,94 @@ origin/master...origin/<lane>` hunk headers):
 **B11. The headless tests compile only `ServerShared`.** That covers
 `Aetheria.Shared/Aetheria.Shared.csproj:20` and `tests/Aetheria.Shared.Tests`. A rule
 that must be pinned headless must live in `ServerShared`.
+
+### audio-1
+
+Refresh of B4-B7 for cut `audio-1`, read by `git show` and `git grep` against
+`origin/master` `6b6e7c7c` on 2026-10-16 (imagination-ag4-audio-1). The LFS-held
+`ProjectSettings/AudioManager.asset` was read in the smudged worktree `C:\aeth-wt\ag4-map`
+at the same commit.
+
+**AU1. The Wwise-keyed path on `EquippedItem` is still dead at its source** (revises B5).
+- Nothing in production assigns `EquippedItem.SoundBank` (`Entity.cs:2152`); only the two
+  test fixtures do (`FireControlPerWeaponTests.cs:462`, `:733`). So every `FireAudioEvent`
+  and `SetAudioParameter` overload (`Entity.cs:2193-2262`) returns at its null check, and
+  nothing in production subscribes `AudioEvents` or `AudioParameters` (`:2178-2180`).
+- Call sites: `InstantWeapon.cs:243` and `:283-287` (`firedThisFrame`), `ChargedWeapon.cs:148`,
+  `:165`, `:180`, `:196`, `Reactor.cs:97`, `Thruster.cs:112`.
+- New since B5: `EquippedItem.Update` loops `Data.AudioStats` every tick for every item and
+  calls `SetAudioParameter` with each (`Entity.cs:2463-2466`). `AudioStats` is catalog key 22
+  (`ItemData.cs:406-407`, element type `AudioStat` at `:441-449`, a Wwise parameter id and a
+  stat); `SoundBank` is catalog key 21 (`:403-404`).
+- Gone since B5: the `AetherDrive` audio calls and its `RpmAudioParameter` and
+  `TorqueRatioAudioParameter` fields (grep 0), and the `EntityInstance` block that read
+  `item.Data.SoundBank` (grep 0). Follow-up `wwise-catalog-fields` still names both; its live
+  set is `SoundBank` (key 21), `AudioStats` (key 22) and `Faction.OverworldMusic`,
+  `CombatMusic`, `BossMusic` (`Corporations.cs:52-59`, keys 13 to 15).
+- `WwiseMetadata.cs` (91 lines) and `WwiseSoundBinding.cs` (21 lines) are used only by that
+  surface; both have `.meta` files. A repo-wide grep outside `docs` finds the Wwise symbols in
+  exactly these files: `ChargedWeapon.cs`, `InstantWeapon.cs`, `Reactor.cs`, `Thruster.cs`,
+  `Entity.cs`, `Enums.cs`, `ItemData.cs`, the two Wwise files and `FireControlPerWeaponTests.cs`.
+- `Enums.cs:206-233` hold `WeaponAudioEvent`, `ChargedWeaponAudioEvent`,
+  `SpecialAudioParameter` and `LoopingAudioEvent`. `MusicType` (`:234`) is live:
+  `ActionGameManager.cs:120`, `:738`, `:1271-1285` (`PlayMusic` is an empty TODO).
+- Commented-out `AkSoundEngine` calls remain at `ActionGameManager.cs:892` (dock),
+  `ShipInstance.cs:48-51` (thruster) and `InventoryPanel.cs:355`, `:402`, `:411`. They are
+  dead text that marks where the audio sequel's sounds go.
+
+**AU2. What the tests pin about sound.** `FireControlPerWeaponTests` counts Wwise events as
+a cost: `Costs.Sounds` (`:444`) fed by the fixture at `:462-464`, asserted at `:512` and
+`:522`, and `Charge`'s `sounds` (`:727-743`) asserted at `:751` and `:756`. The same tests
+count `Announced` (`OnFire`, `:467`, asserted `:516`, `:526`) and `Starts` (`OnStartCharging`,
+`:736`, asserted `:750`, `:755`). Those are the events a presenter will hear, so the rule
+"a refused round costs no sound" (operator 2026-09-30) stays pinned without the Wwise counter.
+
+**AU3. `GameData/SoundbanksInfo.json` is shipped by nothing.** It is 2,648 lines and read by
+no code. `PlayerStaging.Stage` copies only `Aetheria.cc`, `Narrative/**` and `Mods/**`
+(`Assets/Editor/PlayerStaging.cs:16-32`), and its header names the file as not shipped
+(`:3-6`). `PlayerStagingTests.cs:20` writes a file of that name as a stray GameData entry that
+must not be staged (asserted at `:58`, in `StagesNothingElseFromGameData`). `docs/build-delivery-cut.md:231` still says to copy it.
+
+**AU4. Unity audio is unchanged since B6.** `AudioManager.asset:17` has `m_DisableAudio: 1`.
+`ARPG.unity` and `Main Menu.unity` have 0 `AudioListener:`. `Assets/Audio` holds only
+`Music.meta`. `MainMenu` has an Audio button (`UI/MainMenu.cs:250-255`) leading to an empty
+`ShowAudioSettings` (`:327-337`).
+
+**AU5. What feedback-1 and feedback-present landed for audio to render.**
+- `ImpactCue` (`ServerShared/Feedback.cs:11-27`) carries layer, position, direction,
+  intensity and shake, not the damage type. `AbsorbEvent` carries `DamageType`
+  (`CapabilityEvents.cs:24-40`).
+- `ImpactPresenter` draws the hull reaction only where `ActionGameManager.DrawsAt` allows
+  (`ImpactPresenter.cs:27`; `ActionGameManager.cs:1302-1304`: the player's ship or a tracked
+  contact).
+- Weapon events are subscribed in `EntityInstance.SetEntity` (`:217-249`), and
+  `Entity.Death` is an `IObservable<CauseOfDeath>` (`Entity.cs:271`).
+- `PlayerSettings` holds keys 0 and 3 to 6, and `ScenarioTests.OldPlayerSettingsLoad`
+  (`:560-582`) pins a 7-entry store loading.
+
+**AU6. The 2021 library against the demo's weapon types.** `WeaponType` has ten values
+(`Enums.cs:55`). `Originals/SFX` (409 tracked entries, `.akd` included) has fire sounds for
+cannon, ion cannon, machine gun, railgun, lightning gun (boom and discharge) and flamethrower;
+hits for cannon, ion cannon, lightning gun, machine gun and railgun; charge and charge-fail
+for railgun, ion cannon and lightning gun; two ship-destroyed sounds; and shield up, down and
+active. Nothing there is a laser, missile, micromissile or mine sound, and nothing is a hit on
+a shield. Bar 7 of the target asks that every weapon type sounds distinct, so `audio-present`
+fills those types from operator or AquaSynth material, or reuses a near family until it has them.
+
+**AU7. Lanes.** The one open spec, `consumable-ai` r3, edits `Entity.cs` only around `:885`.
+None of the six most recent `origin/eureka/*` branches touches an `audio-1` file.
+
+**Why audio-1 is subtraction only.** r1 was one cut: delete the Wwise path, add the cue
+vocabulary and settings, copy the wavs, wire the scenes in batchmode and add the settings
+page. That is the same scale as feedback-1 r1, which was split so that each half fits one Hands
+pass. `audio-1` now does only the deletion, which makes the invariant `sim-names-no-sound` true
+on master. It is headless-verifiable and adds nothing that lacks a consumer. Everything
+audible moves to `audio-present`, and so do `ImpactCue.DamageType` and
+`PlayerAudioSettings`, because their only consumers are the audio presenter and the
+mixer. r1's `Feedback.Gain(intensity, channel, master)` is not carried forward: a Unity
+`AudioMixer` with exposed group volumes is the established owner of channel volume, so the
+presenter passes `cue.Intensity` as the one-shot's volume and the mixer applies the player's
+settings.
 
 ## Model page
 
@@ -303,8 +456,8 @@ record.
 | spec | `faction-play-3` | demo | Support and anchors; the played proof moves here for the cast; needs r2. |
 | spec | `faction-play-4` | full game | The tender loop on real rounds is depth past the demo's proof. |
 | spec | `loot-1` | demo | Floating items in the simulation; loot is what the player sells. |
-| spec | `loot-2` | demo | Pickup as a capability. |
-| spec | `loot-3` | demo | The grab presented in Unity; merges the loot branch. |
+| spec | `loot-2` | demo | Pickup as a capability; r3 mapped 2026-10-13 on `loot-1-present`. Alone it restores pickup in play (no beam or tendril visual). |
+| spec | `loot-3` | demo | The grab is presented, not simulated, in Unity: `TractorBeam` becomes a grab presenter, the binder's resolvers and `FieldDriver`'s transform moving go. Pure presentation after `loot-2`; sized separately, not folded (see `L10`). |
 | spec | `ballistic-ammo` | demo | Ruled for everyone and unblocked; ammunition is a cargo good in the Pirates' game. Needs a balance pass. |
 | spec | `ships-player` | demo | A built player loads package hulls: every demo hull needs it. |
 | spec | `ships-addon-frame` | demo | The Blender step from a Tripo mesh to a hull, no Unity. Stale against `ship-data-all-in-cc` if `demo-ship-cc-timing` rules before-hulls. |
@@ -376,6 +529,373 @@ record.
 Counts: demo 52 (31 specs, 11 of them landed, and 21 follow-ups); full game 34 (9 specs,
 25 follow-ups); obsolete 2 follow-ups. No in-force spec lost its purpose in both scopes,
 so none was withdrawn.
+
+### Demo hulls, the Pirates and the boss
+
+Anchors are against `origin/master` `4d664b53`, unless marked `@2a5fc00b`, the tip of the
+unmerged `eureka/aetheria-release-boss-gate` branch (which contains demo-galaxy). Read by
+`cut-pirates-record`, `cut-package-product`, `cut-boss-hull-derived` and `cut-demo-cast-hulls`;
+question `pirates-record-content` ruled the record's content (see "The Pirates record" below).
+
+- **H1. The catalog at `4d664b53` still has no Pirates, and no faction has a boss hull.** Probe:
+  `git show 4d664b53:GameData/Aetheria.cc | git lfs smudge`, decoded with Python `msgpack`
+  using the store's own schema table. Result: 12 `aetheria.faction` records, the same twelve
+  as D6, with no Pirates. `BossHull` (slot 10) is the empty key `''` on all twelve. Each
+  faction's `Allegiance` holds 11 entries, one for every other faction. Influence runs from
+  2 to 6. There are 12 `NameFile` records: Australia, Congo, Germany, India, Iran, Japan,
+  Mexico, Russia, Swahili, Thailand, USA and pleiades. There are 5 hulls: LonginusX, Longinus
+  and Djinni (`HullType` 0, ship), Zenith (1, station) and Turret (2, turret). Their prices
+  are 7.5M, 7.5M, 10M, 10M and 0.5M. There are 64 products. The catalog changed once after
+  `df7c44f2`: `3d77f2e0` (evasion-catalog tracking).
+- **H2. "Pirates" appears only on the unmerged demo branches.** `git grep -i pirate` over
+  `*.cs` at `4d664b53` returns nothing. At `@2a5fc00b`, `DemoTerminus.cs:10` sets
+  `ProtagonistFaction = "Pirates"`, which `Galaxy.ResolveFaction` resolves by name prefix.
+  The test partial `RunStartTests` copies `GameData/Aetheria.cc` into a scratch directory
+  (`RunStartTests.cs:36-46 @2a5fc00b`). `AddPirates()` (`DemoTerminusTests.cs:20-28
+  @2a5fc00b`) upserts a stand-in Pirates record whose allegiance covers every faction. It is
+  called 21 times: DemoTerminusTests 9, RunGoalTests 10, ScenarioTests 2. Test
+  `DemoTerminus_missing_cast_refused` (`DemoTerminusTests.cs:86-95 @2a5fc00b`) asserts that
+  the shipped catalog has no Pirates. Once the record lands, both the stand-in and that
+  assertion are wrong: the stand-in duplicates the record and the assertion fails.
+- **H3. demo-galaxy and boss-gate are held but unmerged.** `boss-gate` contains
+  `demo-galaxy`; its tip is `2a5fc00b`, 17 commits ahead of master and 94 behind. Verdicts
+  `cut-demo-galaxy.s4` and `cut-boss-gate.s2` hold. Finding
+  `cut-boss-gate.s1.boss-hull-is-a-strangers` records that the demo cannot be generated on
+  the bare catalog, because the Pirates record is missing.
+- **H4. A package holds exactly two records, and no product.** `ShipAuthoringStore.LoadRecords`
+  (`ShipAuthoring.cs:155-167`) refuses any count other than one hull and one visual.
+  `ship_cc.py:85-86` refuses any file that does not hold exactly two envelopes.
+  `ShipModCatalog.Compose` (`ShipModCatalog.cs:48-133`) writes only those two records
+  (`:113-115`). Generation, station stock and the boss all choose from
+  `FactionProductData` (M5). A package hull is therefore reachable only through the
+  console's `give` command. Ruling `package-carries-product` is not implemented on master.
+- **H5. Mod keys.** `IsModKey` (`ShipModCatalog.cs:25-26`) recognises `mod-hull:` and
+  `mod-ship:`. Its comment states the rule that the shipped catalog never references a mod
+  key, because a mod may be uninstalled. A shipped `Faction.BossHull` therefore cannot name
+  a package hull.
+- **H6. Package hulls and top speed.** `ship-authoring create` without `--like`
+  (`ShipAuthoringCommands.cs:45-66`) writes a hull with no behaviours and `Price` 0.
+  `HullLike` copies the reference's members, `VelocityLimit` and `Price` included
+  (`ShipAuthoring.cs:91-106`). `Validate` (`ShipAuthoring.cs:186-293`) has no rule about top
+  speed or price. This is R6, still true. Generation silently skips price-0 products (M5).
+- **H7. Where boss and hull type are read.** At `@2a5fc00b`:
+  - `LoadoutGenerator.GenerateBossLoadout` (`:178-196`) uses `Faction.BossHull` when it is
+    set and sold. Otherwise it falls back to the priciest ship hull on offer.
+  - `RandomHull` (`:131-136`) is the one hull chooser. `GenerateShipLoadout` reaches it at
+    `:37`.
+  - The station stock filter (`:112`) admits ship hulls only.
+  - `Galaxy.PlaceFactionsMain` picks its boss factions by `BossHull.IsSet()` (`:296-299`).
+  - AetherDb's `factions` command prints `BossHull` (`Program.cs:662-672`), and `dangling`
+    mentions it (`:544`).
+
+  No other reader exists. `HullType` is `Ship | Station | Turret` (`Enums.cs:140-145`).
+  Thrusters carry `EntityTypeRestriction(HullType.Ship)`, so a boss must be a `Ship`, not a
+  new `HullType`.
+- **H8. HullData's free key.** Keys in use: ItemData 1, 2, 4-8; CraftedItemData 9;
+  EquippableItemData 10-16, 18-22, 30, 31; HullData 23-29, 32. Key 33 is free on
+  `HullData`. evasion-term's key 33 is on `WeaponData`, a sibling type.
+- **H9. Emoji in names.** The TextMesh Pro default sprite asset
+  (`Assets/TextMesh Pro/Sprites/EmojiOne.json`) holds 16 face glyphs (1f600-1f923, 263a,
+  2639) and no others. The fire emoji in the Pirate Coalition's equipment copy would not
+  render without a new emoji asset (see "Full emoji").
+- **H10. Pirates lore that the record reads from.** Sources:
+  - The vault note `Worldbuilding/Pre-Elysium/Factions/Powers/Major/Pirate Coalition.md`:
+    a loose network, no central command.
+  - `Brainstorming/Faction Flavor and Visual Identity.md:526-557`. Its points: stolen and
+    adapted equipment gives the faction its range rather than an exclusive technology;
+    products are named in emoji; hulls show several surviving finishes interrupted by primer,
+    with one crew accent colour.
+  - `Game Design/Faction Play.md:395` and `:416`: pirates buy everyone's gear.
+  - Corporate Roster: the pirate name is rolled per run. The demo's record is fixed.
+- **H11. Packages in git and in builds.** At `4d664b53`, `.gitattributes` has no `*.glb`
+  rule, and `GameData/*.cc` does not match `GameData/Mods/<id>/ship.cc` (M11 still true).
+  There is no player build entry point; `ships-player` owns staging. `ActionGameManager`
+  composes from `GameData/Mods` (`:49`, `:63`), so editor play reads packages from the repo.
+
+#### The Pirates record
+
+Draft for question `pirates-record-content`.
+
+| Field | Draft | Why |
+|---|---|---|
+| Name, ShortName | `Pirates`, `Pirates` | DemoTerminus's cast field and ruling `demo-cast` both say "Pirates" |
+| Description | "A loose coalition of crews and hidden docks moving people and goods outside official control. No command, no common law: possession has a maintenance schedule." | Vault note; Faction Play's operating logic |
+| PrimaryColor | (0.42, 0.40, 0.37), primer grey | "finishes interrupted by primer" |
+| SecondaryColor | (1.00, 0.45, 0.05), the crew's accent colour | "a crew's chosen accent colour" |
+| GeonameFile | `pleiades` | Star names suit hidden docks; it is not one of the cast's files |
+| InfluenceDistance | 3 | Scattered bases, no continuous territory |
+| Allegiance | 1.0 to each of the 12 other factions; no other faction's allegiance changes | Pirates buy everyone's gear. Only the Pirates field Pirates-made products, including their hull |
+| Personality, music, BossHull | Empty or unset | Doctrine arrives with faction-play r2; the Pirates are not a boss |
+
+Products: stolen-and-adapted rebrands over other makers' designs. The Pirates own no design;
+their range is what they took (Faction Flavor `:532`). Each product's roles: one ProductRole per
+role the design declares, mean .45, sd .22 (middling and inconsistent, against makers' .15).
+Names are emoji; the text gloss is for the operator's review and is not stored.
+
+| Product name | Gloss | Design (current maker) | Description |
+|---|---|---|---|
+| 🫳🔫 | finders keepers | Autocannon (Zhestokost) | "Serial number filed off. Still shoots." |
+| 🪦🤠 | second owner | Earp (Aeronautics Unlimited) | "The previous owner had no further use for it." |
+| 🧾🚫 | no receipt | FastBlast+- (NiteLife Energy) | "Warranty void where prohibited, which is everywhere." |
+| 🎨🙈 | overpainted | 6k Shooter (Zhestokost) | "The logo underneath is somebody else's problem." |
+| 🔥 | the fire | scorched void policy (Death Monkey Explosives) | "Turns out we did start the fire after all." (the roster's line, `Corporate Roster and Item Wishlist.md:85`) |
+| 👀🎯 | borrowed eyes | Targeting Computer (generic) | "Somebody else's eyes. They still work." |
+| 🔑🏃💨 | hotwired | Small Drive (Lightsail Express) | "Hotwired. Do not ask about the ignition." |
+| 📦🤫 | not as declared | Store-All Plus (Lightsail Express) | "Contents not as declared." |
+
+None is on a Miss Terri's design. Each (Pirates, design) pair is new, so `Brand` stays
+unambiguous (CG4). The fire product moves to the flamethrower design if follow-up
+`pirates-flamethrower` lands one.
+
+The record's data does not depend on the emoji font: the simulation owns facts and the font is a
+presenter (invariant `sim-owns-facts`). So the record waits on boss-gate (H2) and not on the emoji
+cuts, and the demo's Pirates (finding `boss-hull-is-a-strangers`) are not held behind a Unity
+presentation cut. Until the emoji font lands, editor play shows the names as missing-glyph boxes.
+
+#### The boss hull is derived, not named
+
+Follow-up `zhestokost-boss-hull` left this map to choose between two options. One was an
+AetherDb command that names the package hull from `Faction.BossHull`. The other was a package
+that declares which faction it is the boss of. The first is ruled out by H5: the shipped
+catalog would name a mod key, and uninstalling the package would leave the reference
+dangling.
+
+The second option, built from parts that already exist:
+- `HullData.Boss` (key 33, bool) marks a hull that only bosses fly.
+- The package's own products name the faction as manufacturer (`package-carries-product`).
+- A faction's boss hull is then the `Boss` hull it manufactures.
+- `Faction.BossHull` has no writer in the catalog (H1), so it is deleted. Key 10 is retired,
+  as `ShipAuthoring` key 1 was.
+
+Starsector is the prior art: a mod puts its ships into an existing faction by shipping a
+faction file that the engine merges. The package therefore carries its own availability (map
+"Why first-party hulls through the package path").
+
+The consequence for the product: a `Boss` hull is never station stock, never ordinary traffic,
+and never offered by `RandomHull` unless the caller asks for a boss. That keeps the boss
+unique. If a faction makes no `Boss` hull, boss-gate's logged fallback stands.
+
+**Why top speed is refused at `Validate`.** `Validate` is the one owner of top speed (follow-up
+`package-hull-top-speed`): compose then excludes a speedless package with its name, and the
+dock intro never sees one. Handling the absence at the intro was rejected because it would let
+a hull fly with no cap.
+
+Ruling `demo-content-bar` also needs NPC role hulls (haulers, tenders, miners) and a dockable
+station; follow-up `demo-role-hulls` owns them.
+
+### Full emoji
+
+Anchors are against `origin/master` `4d664b53`. Read by `cut-emoji-font` and `cut-emoji-sequences`;
+question `emoji-art-set` asks which pinned font input and fetch step the font build uses.
+Rulings this rests on: `pirates-record-content` (emoji-names) and the operator's "I totally want
+full emoji support".
+
+- **E1. TextMesh Pro is the one inside `com.unity.ugui` 2.0.0, on Unity 6000.3.24f1.**
+  `ProjectSettings/ProjectVersion.txt`; `Packages/manifest.json:19` (`"com.unity.ugui": "2.0.0"`);
+  there is no separate `com.unity.textmeshpro` entry. Source read from
+  `F:\Projects\Aetheria\Library\PackageCache\com.unity.ugui@b996e7548785\Runtime\TMP` (read only).
+- **E2. TMP Settings today** (`Assets/TextMesh Pro/Resources/TMP Settings.asset`, an LFS file):
+  `m_ActiveFontFeatures: 00000000` (:18), `m_fallbackFontAssets: []` (:36),
+  `m_defaultSpriteAsset` = EmojiOne (`c41005c1…`, :39-40), `m_enableEmojiSupport: 1` (:42),
+  `m_EmojiFallbackTextAssets: []` (:44). Default font asset is LiberationSans SDF (:27).
+- **E3. EmojiOne is a 16-face sample and nothing uses it.** `Assets/TextMesh Pro/Sprites/EmojiOne.json`
+  holds 16 faces (H9). `git grep "<sprite"` outside the TMP folder: nothing. EmojiOne's guid is
+  referenced only by its own meta and TMP Settings; no prefab or scene sets `m_spriteAsset`. Its
+  attribution file says only "review their licensing terms" (EmojiOne/JoyPixels art is not openly
+  licensed).
+- **E4. TMP's emoji path, by source read.**
+  - Lookup: `TextMeshProUGUI.cs:1932-1944` (and `TextMeshPro.cs:1619`): when a code point is an
+    emoji-presentation form not followed by U+FE0E, or an emoji followed by U+FE0F, TMP searches
+    `TMP_Settings.emojiFallbackTextAssets` first, through
+    `TMP_FontAssetUtilities.GetTextElementFromTextAssets`. That list takes font assets.
+  - Sprite assets resolve one code point each (`TMP_SpriteAsset.GetSpriteIndexFromUnicode`,
+    `:216`, a `Dictionary<uint, TMP_SpriteCharacter>`), so a sprite asset cannot match a ZWJ,
+    skin-tone, flag or keycap sequence. Sequences resolve only through a font asset's GSUB
+    ligature records.
+  - Ligatures: `TextMeshProUGUI.cs:2050-2118`. Gated by `bool ligature =
+    m_ActiveFontFeatures.Contains(OTL_FeatureTag.liga)` (`:1824`), per component. Matching skips
+    ZWJ and VS1-VS16 when they are not the expected component
+    (`TMP_TextParsingUtilities.IsIgnorableForLigature`, `:172-178`), consumes a trailing variation
+    selector, and collapses the span into one glyph. The ligature table read is the current font
+    asset's, which is the emoji font when the fallback found the first code point (`:2021-2023`).
+  - Records come from `FontEngine.GetLigatureSubstitutionRecords` as glyphs are added to a dynamic
+    font asset (`TMP_FontAsset.cs:3097-3131`).
+  - Colour glyphs: a font asset in `GlyphRenderMode.COLOR` gets an RGBA32 atlas and the
+    `TextMeshPro/Sprite` shader (`TMP_FontAsset.cs:606-625`); its vertices are forced white, so a
+    `<color>` tag around an emoji does not tint it (`TMP_Text.cs:5376-5385`).
+  - `TMP_Text.OnMissingCharacter` (`TMP_Text.cs:1389`) is a static event raised for every
+    missing code point: the smoke's probe.
+- **E5. No text component has ligatures on.** 154 TMP components in 50 files (48 prefabs, 2
+  scenes), none legacy `UnityEngine.UI.Text`. Serialized feature lists: 24 x `00000000` (legacy:
+  converted on load to `[kern]` when `m_enableKerning`, `TMP_Text.cs:6082-6088`) and 38 x
+  `6e72656b` (`kern`), all in the two scenes (`ARPG.unity` 64 lines with the field,
+  `FieldShieldTest.unity` 1; `grep -rc "m_ActiveFontFeatures: 6e72656b$"` over prefabs and
+  scenes = 38). The 48 prefabs' components have no field and take the same legacy path. One component is
+  created at runtime (`ActionGameManager.cs:301`, the FACE AIM mark).
+- **E6. Turning `liga` on changes no Latin text.** All ten project font assets (`Assets/Fonts/*/*.asset`,
+  LiberationSans SDF) are static (`m_AtlasPopulationMode: 0`) with zero ligature records. Only
+  the emoji font would supply ligatures.
+- **E7. LFS.** `.gitattributes:33` `*.ttf` and `:50` `*.asset` are LFS; TMP Settings.asset,
+  EmojiOne.asset and EmojiOne.png are LFS objects today.
+- **E8. Editor batch pattern.** `Assets/Scripts/Editor/EngineAssetCheck.cs:35-50`: a MenuItem plus
+  `-executeMethod EngineAssetCheck.Run`, exit 1 on failure in batchmode. The emoji builder and
+  smoke follow it.
+- **E9. Prior art (web, 2026-10-08).**
+  - Unity's documented path for colour emoji is a colour font asset in TMP Settings' Emoji
+    Fallback Text Assets (TMP 3.2/4.0 manual "Color emojis"; Unity 6 manual
+    `UIE-color-emojis`). Unsupported: SVG colour glyphs, AAT fonts, COLRv1 (the manual names
+    "Noto Color Emoji" as the COLRv1 case), and chain-context and single-substitution features.
+    Ligature substitution (GSUB type 4), which carries ZWJ, skin-tone and flag sequences, is
+    supported. COLRv0 is supported (the manual's Android note).
+  - Unity forum thread 932305: the CBDT `NotoColorEmoji.ttf` from the googlefonts repo renders
+    through a Color font asset; the Google Fonts download (COLRv1) does not.
+  - Sets: Twemoji (`jdecked/twemoji`, community fork, Emoji 17.0, graphics CC-BY 4.0; distro
+    packages build COLRv0/COLRv1/CBDT TTFs from its SVGs with `nanoemoji`, version 17.0.2).
+    Noto Emoji (`googlefonts/noto-emoji`: fonts OFL 1.1, images Apache 2.0; the prebuilt
+    `NotoColorEmoji.ttf` is CBDT, bitmaps from `png/128`). OpenMoji (CC-BY-SA 4.0; COLRv0 font
+    shipped; outlined line-art).
+  - Not verified here: the exact jdecked release assets (its release page lists two source
+    archives and no TTF), so a Twemoji TTF is built, not downloaded.
+- **E10. Visual identity.** AetheriaLore `Brainstorming/Faction Flavor and Visual Identity.md:532,
+  541, 548`: Pirates' products are named in emoji, a crew vocabulary; hulls carry "large emoji
+  marks". `Ship Design Language.md:222-226`: one large emoji crew emblem painted three times.
+  `Corporate Roster and Item Wishlist.md:85`: "Named entirely in emoji. The flamethrower is" the
+  fire emoji. `Game Design/Visual and Sensory Direction.md` says nothing about an emoji art set;
+  its interface register is "should feel like equipment" (:43).
+
+**Why one colour emoji font asset.** One owner: a colour emoji font asset generated from a pinned
+font file, set as TMP's emoji fallback and appended to TMP's global fallback list. Every TMP text
+renders emoji through it with no per-component wiring, because TMP itself routes emoji code points
+there (E4).
+
+Rejected: a generated TMP sprite asset (the brief's first guess). Sprite lookup is one code point
+per sprite (E4), so full emoji would also need a text preprocessor that rewrites every sequence to
+a private-use code point, installed on every one of 154 components and every runtime text. That is
+more code doing what TMP's font path already does.
+
+Rejected: a runtime-built font asset (`TMP_FontAsset.CreateFontAsset` at boot). It needs
+`Shader.Find("TextMeshPro/Sprite")` in a player (`TMP_FontAsset.cs:625`), which a build strips
+unless the shader is always-included; an editor-built asset references its material and shader.
+
+Sequences need `liga` on the rendering component (E4, E5). There is no global TMP switch, so the
+sequences cut sets it on every serialized component through one editor command and on TMP
+Settings' defaults for new components. It changes no Latin text (E6).
+
+The atlas is dynamic and multi-atlas: glyphs rasterise on first use, so nothing is hand-made and
+nothing is pre-baked. `m_ClearDynamicDataOnBuild: 1` (TMP Settings) already clears dynamic atlases
+at build. The pinned font file is the only binary input, and its provenance is a lock file
+(source, version, sha256 in and out). `emoji-art-set` decides only which pinned input and which
+fetch step; the asset, settings, smoke and deletion are the same for every option. The font build
+itself (option twemoji: nanoemoji) runs under `py -3` on Yggdrasil, not Starfire; the Unity batch
+run is Starfire's. The sequences command touches only the `m_ActiveFontFeatures` line of each of
+48 prefabs and 2 scenes, so it wants the freshest master and a quick merge.
+
+### Retiring the prelude and the tutorial
+
+Body: `origin/master` `4d664b53`; "merge tree M" as in the faction-play re-anchor (BS-probes), unless
+noted. Read by `cut-retire-prelude` and `cut-gear-without-presence`; question `dev-scenarios-cast`
+asks which galaxy the six test scenarios use once the authored cast goes. D1 and "Why the demo is a
+prelude galaxy" describe the code before this retirement.
+
+- **PR1.** `Galaxy.IsPrelude` (`Galaxy.cs:30`) is written by three constructors: the save
+  constructor from `SavedGame.IsTutorial` (`:53`), the main constructor `false` (`:107`), the
+  prelude constructor `true` (`:175`). Its readers (grep over Assets, tests, tools): `InfluenceOf`
+  (`:158-161`, halves influence rounding up), `LoadoutGenerator.IsAvailable` (`:211-214`, every
+  product on offer), `RunStart.GenerateArena` (`RunStart.cs:29`) and
+  `ActionGameManager.PopulateLevel` (`ActionGameManager.cs:721-727`) as ZoneGenerator's
+  `isTutorial`, `RunSave.Capture` (`SavedGame.cs:77`), and tests (`RunGoalTests.cs:22`,
+  `RunStartTests.cs:146`, `ScenarioTests.cs:137, :146, :554-557`).
+- **PR2.** `InfluenceOf` feeds both generation and later zone generation: `Galaxy.cs:214-247`
+  (cast homes), `:314-324` (main homes), `:342-349` (influence), and `ZoneGenerator.cs:212`
+  (`factionPresence`, which sets station and enemy counts). A restored galaxy generates unvisited
+  zones through `PopulateLevel`, so the halving must persist with the run, today through
+  `SavedGame.IsTutorial` (key 11).
+- **PR3.** `ZoneGenerator.GenerateZone(..., bool isTutorial = false, bool ambient = true)`
+  (`:40-46`): the entrance station floor at `:223-224`, the widened orbit pool at `:238` and
+  `:246-248`, and the throw at `:327-329` all apply only to `isTutorial && galaxyZone ==
+  galaxy.Entrance`. Source: operator 2026-09-25 "Tutorial station" (`docs/locomotion-cut.md:375`),
+  scoped to the tutorial level.
+- **PR4.** The cast type is `TutorialGenerationSettings` (`Settings.cs:96-106`): five faction
+  names, LinkDensity, ZoneCount. Readers: `GameSettings.cs:30` (field, plus
+  `TutorialBackgroundSettings` `:31`), `GalaxyStage.cs:16, :29, :71-74` (`Prelude()` and
+  `Prelude(cast)`), `RunStart.cs:36-37`, `ScenarioStage.cs:21-35` (read only by
+  `TutorialGalaxy.cs:13`), `MainMenu.cs:178-179`, `ActionGameManager.cs:848`,
+  `DemoTerminus.cs:8` (the demo's cast), `tools/AetherDb/Program.cs:489-533` (`settings` and
+  `settings-dump`).
+- **PR5.** `Assets/Resources/Settings.asset` (LFS, smudged at 4d664b53) `:43-52`: the authored cast
+  is protagonist `Miss`, antagonist `Zhe`, buffer `Luc`, neutrals `Aero` and `Finch`, quest
+  `Adras`, 64 zones; `TutorialBackgroundSettings` at `:53`.
+- **PR6.** Six test scenarios generate `stage.Prelude()`, the authored cast: Arcs, DjinniShakedown,
+  Duel, LauncherAngles, LongHaul, StarvedReactor (`Scenarios/*.cs`, one line each).
+  `Scenarios.Development` is `{ TutorialGalaxy, MainGalaxy }` (`Scenarios.cs:8`). Their galaxy
+  includes Miss Terri's as protagonist.
+- **PR7.** The prelude constructor's `playerSettings` and `narrativeDirectory` parameters feed only
+  the StoryProcessor lines commented out at `Galaxy.cs:258-260` (dead since ce1a0a46, 2021, per
+  locomotion-cut.md:375).
+- **PR8.** `LoadoutGenerator.IsAvailable` (`:211-214`) and `ManufacturerPreference` (`:217-226`):
+  availability requires `Galaxy.ContainsFaction(manufacturer)` unless the galaxy is a prelude; an
+  absent manufacturer has no home zone, so `ManufacturerPreference` gives it distance 0, the
+  highest weight its allegiance allows. `Galaxy.ContainsFaction` (`:453-457`, cache
+  `_containedFactions` `:36`) has one game reader (IsAvailable); other readers are
+  `FireControlCut6cTests.cs:253` and the AetherDb `loadout exclude-sellers` mode
+  (`Program.cs:745-790`), which builds a galaxy without named factions precisely to exercise the
+  presence gate. `ScenarioStage.cs:29` builds its availability with Faction null, which today means
+  every present maker.
+- **PR9.** `SavedGame` (`SavedGame.cs:9-52`) is an int-keyed MessagePack document
+  `aetheria.savedgame` v1, keys 0-13; `IsTutorial` is key 11.
+- **PR10.** Tests touching the concept (grep -c "tutorial|prelude", case-insensitive):
+  RestoredHullsTests 65, ScenarioTests 30, DemoTerminusTests 29, RunStartTests 16, MiningCut3Tests
+  3, RunGoalTests 1. Most are the `TutorialGalaxySettings()` fixture family in RestoredHullsTests
+  and the `isTutorial:` argument.
+- **PR11.** Open boss-gate finding `test-reads-isprelude` (verdict cut-boss-gate.s1) is
+  `RunGoalTests.cs:22`; retiring the flag removes it by construction.
+
+**Why two cuts.** The follow-up asks to absorb gear-availability-without-presence and to keep the
+subtraction separate from behaviour. Removing the presence gate changes what every galaxy
+generates, so it is its own cut (`gear-without-presence`), landed first; `retire-prelude` then
+deletes the flag with no behaviour change except where named.
+
+**Why `IsPrelude` is split by rule, not renamed.** It bundles four unrelated rules, and each goes
+to its owner:
+- influence halving -> the cast's own `InfluenceScale` (the demo's cast sets .5, so its galaxy is
+  unchanged), carried by the Galaxy and the save (key 14) because later zones read it (PR2);
+- the entrance station -> `Scenario.EntranceStation`, a declaration beside `Ambient`, default true,
+  false for MainGalaxy, so every scenario's arena is unchanged; RunStart.GenerateArena applies it;
+- availability -> the general rule of gear-without-presence;
+- the save flag -> deleted (key 11 retired; ruling `no-save-compatibility-before-players`).
+
+A renamed flag on Galaxy was rejected: it would keep one switch deciding four things.
+
+**Absent manufacturers.** Preference weights by distance to the maker's headquarters, and an absent
+maker has none. The cut weighs it one jump beyond the farthest zone. Prior art: the gravity model
+of trade (Tinbergen 1962; Anderson and van Wincoop 2003) weights flows by distance decay, and a
+supplier with no local presence carries the largest trade cost, so it is reachable but least
+preferred. Zero distance (today's accident) would make absent makers the most preferred, inverting
+the rule.
+
+**Old saves.** Key 14 absent decodes as 0 and the save constructor refuses a non-positive scale by
+name. Per ruling `no-save-compatibility-before-players` nothing reads key 11.
+
+### Model page rows
+
+| Kind | What names it | Over time | Who decides |
+|---|---|---|---|
+| Pirates `Faction` | Catalog record, name `Pirates` | Authored once by `AetherDb pirates-faction apply`; doctrine is added by faction-play r2 | Ruling `pirates-record-content`; the operator sees the dry run |
+| Package product | `mod-product:<id>:<maker key>` in the package's `ship.cc` | Written by `AetherDb ship-authoring product`; copied verbatim by compose; Blender never edits it | The package author |
+| Boss hull | `HullData.Boss` (key 33) | Set by `ship-authoring boss`; a faction's boss hulls are derived per generation from the products it makes | The package author; `BossHullsOf` derives |
+| `Faction.BossHull` (key 10) | Retired | Deleted by `boss-hull-derived` | none |
+| Pirates products | 8 `FactionProductData`, emoji names, over other makers' designs | Authored with the faction in one commit | Ruling `pirates-record-content` |
+| Package hull price | `HullData.Price` | Written by `ship-authoring price` (or `create --like`) | The package author |
+| Emoji font file | `Assets/Fonts/Emoji/<set>.ttf` + `emoji-font.lock` | Rebuilt only by `tools/emoji` at a new pinned version | The operator's `emoji-art-set` ruling |
+| Emoji font asset | `Assets/Fonts/Emoji/Emoji.asset` (dynamic, COLOR, multi-atlas) | Regenerated by `EmojiFont.Build`; atlas filled at runtime, cleared at build | `EmojiFont.Build` |
+| TMP emoji routing | TMP Settings `m_EmojiFallbackTextAssets` and `m_fallbackFontAssets` | Set by `EmojiFont.Build` | `EmojiFont.Build`; no prefab overrides it |
+| Ligatures per text | Each TMP component's `fontFeatures` | `liga` added once by `EmojiFont.EnableLigatures`; new components inherit TMP Settings | `EmojiFont.EnableLigatures`, then the component |
+| EmojiOne sample | none | Deleted by `emoji-font` | none |
+| Galaxy cast (replaces `TutorialGenerationSettings`) | A scenario's code constant (`DemoTerminus.Cast`) | Compiled with the game; no authored settings copy | The scenario |
+| `Galaxy.InfluenceScale` | Its galaxy | Set by the constructor (the cast's value, 1 for main), saved as `SavedGame` key 14 | The cast |
+| `Scenario.EntranceStation` | Its scenario | Compiled | The scenario; `RunStart` applies it |
+| `SavedGame` key 11 (`IsTutorial`) | Retired | Not read, not written | none |
+| `Galaxy.IsPrelude`, `TutorialGalaxy`, `TutorialGenerationSettings`, `GameSettings.TutorialGenerationSettings` | Deleted by `retire-prelude` | | none |
 
 ## Faction play: the NPC scripting
 
@@ -642,8 +1162,9 @@ and builds on `Zone.Release` from `loot-1`.
 
 | Kind | Identity | Lifecycle | Authority |
 |---|---|---|---|
-| Doctrine | `Faction.Doctrine`, catalog, key 17. | Authored through an `AetherDb` catalog command, as the targeting migrations were. | The catalog author. Read when a ship joins a flight. |
-| Flight | Runtime: zone plus faction. | Formed at admission, rebuilt on load, gone with the zone. Never persisted. | Itself alone, for members' `Target`, `Task`, hails and pings. |
+| Doctrine | `Faction.Doctrine`, catalog, key 17. | Authored through an `AetherDb` catalog command, as the targeting migrations were. Null reads as the default doctrine built from `GameplaySettings`. | The catalog author. Read when a ship joins a flight. |
+| Agent (`Zone.Agents`) | Its ship. | Created by `Zone.Admit`, removed on the `Entities` removal path (it was never removed before). | `Zone`. |
+| Flight | Runtime: zone plus faction. | Created on first join, rebuilt on load; members leave on removal or death, and it goes with the zone. Never persisted. | Itself alone, for members' `Target`, `Task`, hails and pings. |
 | Track (flight picture) | Runtime: flight plus hostile entity. | Lives while any member sees it, or a sharer lends it. | The flight, from members' perception. Never written into `EntityInfoGathered`. |
 | Duel | Runtime: flight plus challenger. | Offered, then held or broken. Ends when the challenger leaves the picture or dies. | The flight, from landed hits with their source. |
 | Ammunition baseline | Runtime: member. | Counted at admission. | The flight. Rearm moves real cargo through `TryTransferItems`. |
@@ -703,6 +1224,106 @@ Each is sized at roughly 550 to 720 lines with tests, under 200k Hands tokens. A
 four wait for `codex/mining` (it changes `Target`'s type and edits `Minion.cs`) and
 `codex/scenarios` (it rewrites admission in `Zone.cs`) to merge, because the first
 cut rewrites exactly those lines.
+
+### Re-anchor on master 4d664b53 (2026-10-08)
+
+Body: `origin/master` `4d664b537f76029fbaee94392da3d8a122f81339`, read in a detached scratch
+worktree. Where a probe says "merge tree M", it read `git merge-tree --write-tree origin/master
+origin/eureka/aetheria-release-boss-gate` = tree `8387b47214ef6e44cae28a4e6a2b9b91d51464d9`
+(boss-gate `2a5fc00b` contains demo-galaxy `85d0a148`; the merge is clean, no conflicts) with
+`git show <tree>:<path>`. No commit was made. Read by the faction-play cuts, r2 and later.
+
+- **BS1. Branch state.** `git merge-base --is-ancestor`: `codex/mining`, `codex/scenarios`,
+  `eureka/aetheria-release-mining` and `-scenarios` are ancestors of master.
+  `eureka/aetheria-release-demo-galaxy` (85d0a148) and `-boss-gate` (2a5fc00b) are NOT.
+  demo-galaxy's merge base with master is 228f241e; master is 94 commits ahead of it.
+  `-retire-longinusx` on origin equals master (4d664b53): its Hands had not pushed.
+- **BS2.** `git merge-tree --write-tree --name-only origin/master <branch>`: demo-galaxy and
+  boss-gate each merge into master with no conflicting path (trees f3f69e84 and 8387b472).
+- **BS3.** feedback-1, ballistic-ammo, controls-mount-aim, controls-ai-bearing, autofire-threshold
+  and ai-autofire had in-force specs and no report (specs-with-no-report query, as of ordinal 753).
+  `CapabilityEvents.PublishAbsorb` has no caller in `Assets/Scripts/ServerShared` (grep):
+  feedback-1's absorb publish sites do not exist yet.
+- **FP1.** `Minion.cs:7-22`: constructor `Minion(Ship ship)`; `:14` is the one VisibleEnemies
+  subscription that writes `Ship.SetTarget(add.Value)` when `Target.Value.IsNone`; combat
+  transitions read `Ship.Target.Value.Entity` (`:18`, `:21`).
+- **FP2.** `Zone.cs`: `Agents` `:40`; `Admit` `:167-172` is the only `Agents.Add` in Assets (grep)
+  and the comment names it the one admission; `CreateAgent` `:174-181` draws the circuit at `:178`
+  and assigns `agent.Task` at `:179`; the agent loop `:221-222`; the only Entities subscription is
+  the death subscription at `:107` (ObserveAdd -> Death -> Remove + Deactivate).
+- **FP3. Nothing ever removes an agent.** `Agents.Remove`/`Clear` appear nowhere in Assets or tests
+  (grep). A dead or departed ship's Minion keeps running every tick. Removal from `Zone.Entities`
+  happens at `Zone.cs:107` (death), `Entity.cs:1268` (docking) and `ActionGameManager.cs:725` (the
+  player's zone transfer).
+- **FP4.** `Entity.cs`: `_iffOverrides` `:53`; `Target` `:60` (TargetRef, one writer `SetTarget`
+  `:358`); `SetIff` `:811-815`; `IsHostileTo` `:817-836`; `GetFactionRelationship` `:838-845` reads
+  `Galaxy.FactionRelationships` only for the player's ship, so NPC-vs-NPC hostility is still only
+  trespass in an owned zone plus reciprocity ("TODO: Inter-faction hostility"). Consequence for the
+  demo: the allied Pirates and the antagonist Zhestokost do not fight each other; the Pirates'
+  doctrine is seen only against trespassers in Pirates zones. Relations (key 16) remain unmapped.
+- **FP5.** `FireControl.cs:104-112` `AgentFires(weapon, shooter, target)` reads
+  `GameplaySettings.AgentMinHitProbability` at `:109`. Callers: `Combat.cs:121` and
+  `TurretController.cs:83` (grep). `Combat.cs:159` reads `AgentRangeExponent`; `_optimumRange`
+  `:13`. `Settings.cs:251` and `:274` hold the two globals. Ten FireControl test fixtures set
+  `AgentMinHitProbability = 0f` in their settings.
+- **FP6.** `Agent.cs`: `Task` `:22`, `Settings` `:25`, constructor `:28-36`, `Update` `:47-59` zeroes
+  `Ship.Turn` each tick (controls-helm), `Accelerate` `:61-84`. `TaskType` `AgentTask.cs:24-33` has
+  no Follow or Flee. States live in `Agents/States` (BaseState, Combat, MoveTo); `PatrolOrbitsState`
+  is in `Agents/Tasks/PatrolOrbits.cs:10`.
+- **FP7.** `Corporations.cs`: Faction keys run to `BossMusic` Key(15) at `:58-59`; keys 16 and 17
+  are free.
+- **FP8.** `tools/AetherDb/Program.cs` command switch `:23-40`; `TargetingCatalog(bool apply)` at
+  `:1096` is the dry-run/apply precedent.
+- **FP9.** Tests that construct `new Minion(ship)` directly: `FireControlPerWeaponTests.cs:276,
+  :291, :580, :597` and `FireControlTests.cs:214`; `RunStartTests.cs:100` and `SafeAssert.cs:44`
+  read `zone.Agents`.
+- **FP10.** `LoadoutGenerator.cs`: `GenerateShipLoadout(Predicate<HullData>)` `:35-50`,
+  `EquipHardpoints` `:220-263`, `FillInterior` `:265`. `ZoneGenerator.cs`: faction ships
+  `:342-348`, wanderers `:350-364`, `return pack` `:366`. boss-gate adds a boss block to both files
+  (+38 and +18 lines), so anchors in them move by symbol after it merges.
+- **FP11.** `Entity.TryTransferItems(Entity, CultRecordKey, int)` at `Entity.cs:977`. No
+  `GeneratedMagazines` or `AmmoType` exists in `LoadoutGenerator.cs` or `Settings.cs`:
+  ballistic-ammo has not landed.
+- **FP12.** `Entity.Sensor` `:142`; `Sensor.Ping()` `Sensor.cs:110`.
+- **FP13.** Catalog `GameData/Aetheria.cc` at 4d664b53 (LFS, smudged in the worktree): the string
+  "Pirates" occurs only inside geoname lists, no Faction record (H1). Follow-up
+  `pirates-catalog-record` is the owner.
+- **FP14.** Lore source for the Pirates' doctrine: AetheriaLore `Aetheria/Game Design/Faction
+  Play.md` section "Pirate Coalition" (`:333-338`) and the summary row `:386`: crews want cargo,
+  not death; demand a drop, hit drives, leave fights they are losing. Of these, the flight
+  primitives express the demand (hail and grace) and leaving a losing fight (break-off). Demanding
+  a drop as compliance and aiming for drives need jettison (map item 10) and subsystem aim, which
+  no cut builds yet.
+
+**What changed from the first anchor.** The first faction-play pass anchored on `f1dee184` and
+waited for the mining and scenarios lanes. Both are merged (BS1), so the later specs branch from
+master and anchor on 4d664b53. Target is a TargetRef written only through `SetTarget`, and
+`Zone.Admit` is the only creator of agents, as the follow-up says.
+
+Agents are also removed on entity removal (FP3). A flight whose membership follows removal while
+the agent list does not would leave two answers to "who is in this zone"; one subscription now
+decides both.
+
+The Pirates' doctrine is authored in the doctrine-catalog command's table. While the catalog lacks
+the Pirates record (FP13), the command names the missing faction and writes the rest; once the
+record lands, re-running apply writes it. No doctrine, barks or levers for Miss Terri's.
+
+The played proof sits in the DemoTerminus scenario with the demo cast, because the third cut
+completes the behaviours the demo cast shows (Zhestokost's tender column, Lucent's duel, AU's
+haulers); the fourth keeps the tender loop as full-game scope with no proof.
+
+The ping cadence asks `Sensor.Ping()` and nothing more. Follow-up `sensor-stat-set-cut` is a
+separate, larger mapping (per-sensor power, beam width, passive gear, shared tracks) and was not
+mapped here; whatever Ping becomes, the flight only decides when to ask.
+
+Key layout on Faction: Relations 16 (reserved, ruling `faction-relations-field`), Doctrine 17
+(ruling `faction-doctrine-typed`). ships-hull-livery's Livery at 16 must move to 18 (follow-up
+`livery-key-collision`, owner ships-hull-livery's next revision).
+
+Collision: `ai-autofire` rewrites Combat's and TurretController's fire decision "at the agent
+threshold". After faction-play-1 the agent threshold is the member's
+`RoleDoctrine.MinHitProbability` (turrets keep the global). Whichever lands second re-anchors; the
+next ai-autofire revision should read `_agent.Doctrine.MinHitProbability`.
 
 ### Prior art
 
@@ -2579,6 +3200,56 @@ Admitted on 2026-10-03, along with question `ship-authoring-host`:
     holds before C4 maps it.
   - This is follow-up `c4-ship-element-ids`.
 
+### Removing a broken mod (ship-render-fixes r3)
+
+Ruling `mod-import-fault-refuse-entry` (2026-10-16) adds, in the operator's words, "an
+affordance for them to immediately remove said mod" wherever the broken mod is surfaced.
+Probes, source read at master `a8586d08` (these files are unchanged since `6b6e7c7c`):
+
+- **MR1. Install is a directory; presence is enablement.** A package is a directory
+  `GameData/Mods/<id>/` holding `ship.cc` and its GLB (`ActionGameManager.cs:49`).
+  `Compose` reads every top-level directory that has a `ship.cc`
+  (`ShipModCatalog.cs:71-79`); one without is skipped. No enable list, disable flag
+  or mod record exists in `player.cc`, `run.cc` or the catalog. Uninstalling is
+  taking the directory out of `Mods`.
+- **MR2. A catalog hull finds its package by id.** `PackageOf` reads
+  `<modsRoot>/<ship.Id>` (`ShipModCatalog.cs:167-176`), so an import fault in
+  `Preload` can name its package directory without parsing text.
+- **MR3. The catalog is open until exit.** `ActionGameManager.CultCache` attaches the
+  derived catalog once (`:53-75`), and `ResolveCatalog` recomposes at every boot
+  (`ShipModCatalog.cs:179-190`). A removal takes effect at the next boot. Dropping a
+  hull from this boot's open catalog would be a second writer of catalog membership,
+  which the question already left out.
+- **MR4. GameData is the player's writable store, and staging ships only three
+  entries.** `run.cc` and `player.cc` are written under `GameData`, so a build
+  already needs it writable. `PlayerStaging.Stage` copies `Aetheria.cc`, `Narrative`
+  and `Mods` only (`Assets/Editor/PlayerStaging.cs:1-30`), so a sibling
+  `GameData/RemovedMods` is never staged into a build. In the editor, `GameData` is
+  the repo's own, so `.gitignore` must keep `GameData/RemovedMods/` out of commits.
+- **MR5. Both surfaces use one dialog, and it can hold buttons.** `MainMenu.Refuse`
+  (`MainMenu.cs:219-226`) shows Compose's exclusions at the title (`:99-103`) and a
+  faulted `Loading` at entry (`:207-216`). `ConfirmationDialog` is a
+  `PropertiesPanel`, whose `AddButton(name, onClick)` (`PropertiesPanel.cs:182`) is
+  wired in `Main Menu Canvas.prefab` (`PropertyButton` and `ButtonField` are set at
+  `:783-785`).
+
+**The choice: move aside.** The existing lifecycle has one enablement fact, the
+directory's presence under `Mods` (MR1). Moving the directory to
+`GameData/RemovedMods/<id>` is the uninstall that lifecycle already has. It is
+reversible: moving the directory back reinstalls the mod. It adds no state and no
+second input to `Compose`.
+
+- Deleting the files is rejected. It is irreversible, and the package may be the
+  player's own unsaved authoring work or a shipped package.
+- A disable list in `player.cc` is rejected. It is the persistent record that
+  `quarantine-next-boot` would have cost and the operator did not choose. It would
+  also give `Compose` a second enablement owner, and it would need a re-enable
+  screen.
+
+Factorio offers to disable a mod at its load error; here the directory is the
+enablement, so moving it is that same disable. No operator question is raised:
+nothing the player made is destroyed, and no new state is chosen.
+
 ### Model page rows
 
 | Kind | Identity | Lifecycle | Authority |
@@ -2804,6 +3475,81 @@ belt-freeze rulings (lines 830-876).
   - `CapabilityPresentationBinder` resolves it to a live `Transform` through delegates
     (`:16-45`), and only `FieldTester` supplies them.
 
+**L10. Loot 2 r3: what the branch `eureka/aetheria-release-loot-1-present` (`e24d942b`) holds, by probe.**
+Pass: Imagination `imagination-aeth-loot-2`, session `self-2026-10-13-ag`. Detached worktree
+`C:\aeth-wt\imag-loot2` at `e24d942b`, removed at the end. Nothing was built; every claim is a source read or a
+decode of the catalog record.
+- **Pickup is dead in play on this branch, by design.** `TryPickUp(` has no caller outside tests and the editor
+  smoke (`FloatingItemsDrawnSmoke.cs:184`); `TractorBeam.Update` (21 lines) only turns the beam to
+  `Direction` and sets its emission to 0; `ShieldManager.OnCollisionEnter` and the Unity loot roll are deleted.
+- **The Tractor Beam record, decoded from `GameData/Aetheria.cc`** (`GearData` keys: 11 behaviours, 23
+  hardpoint type): hardpoint 8 (`Sensors`), behaviours empty, 1x1 shape, mass 86, temperature 200..400
+  optimum 251 plateau 24 (a real span). So L8 stands; it is `Tool` gear after the migration.
+- **`BehaviorData` union keys 40-47 are taken** (`Behaviors.cs:182-191`: MineLayer 40 to MunitionFuel 47). `PickupData` is
+  key 48. r2's key 40 was stale.
+- **The event's target type is `FloatingBodyId`** (a `uint` struct, `FloatingBodies.cs:11-18`), not `FloatingItemId`.
+- **`GrabEvent` is still read by the binder** (`CapabilityPresentationBinder.cs:45-46` passes `e.TargetHandle` to two
+  resolver delegates), so deleting `TargetHandle` in `loot-2` breaks the Unity compile unless the binder's delegate
+  parameter type and `FieldTester`'s two lambdas change with it. That is a type swap in `loot-2`; the delegates
+  themselves go in `loot-3`. r2 listed none of it.
+- **The ramp moved:** `ActionGameManager.cs:1335-1337` at `e24d942b` (was 1307-1309). `Entity.Aim` is the pilot's
+  direction (`Entity.cs:78-81`; r2 said `LookDirection`, which does not exist).
+- **Behaviour timing:** `EquippedItem.Update` runs `Execute` only while `Active.Value` and
+  `IAlwaysUpdatedBehavior.Update` regardless (`Entity.cs:2208-2229`); `TryUnequip` refuses an active entity
+  (`Entity.cs:1253-1257`), so gear cannot leave a ship mid-grab; destruction clears `Active`, and `Zone.Remove`
+  covers death, dock and jump.
+- **Generation:** `GenerateShipLoadout` is the one path for generated ships and for the player's start
+  (`ScenarioStage.cs:76`, `LoadoutGenerator.cs:43-58`); `FillInterior` also serves stations and turrets
+  (`:117`, `:287`), so the ship-only pickup goes in `GenerateShipLoadout`, not in `FillInterior`. Tool gear takes any
+  interior (`Entity.cs:1318`) and `HasHome` is always true for it (`LoadoutGenerator.cs:240`).
+- **Who still sees a grab on this branch** (corrected by L11: `FieldDriver` is on no ship; the clause below was read from names):
+  `FieldDriver` is a child of every ship's shield and an `IGrabPresenter`; with no
+  resolvers it receives a null `Transform` and does nothing (`FieldDriver.cs:206-210`). A `loot-2` grab therefore
+  moves the item (the `ItemPickup` follows `Zone` poses) with no beam and no tendril until `loot-3`.
+- **Sizing:** `loot-2` alone is about 480 lines and 9 sim tests, roughly 100 Hands calls (two commit groups,
+  A the sim and B the catalog, generation and input). `loot-3` is Unity-only, about 120 lines added and 60 removed
+  plus a Starfire compile and smoke. Folding them passes the 150-call budget, so they stay two specs and `loot-2` is the
+  one that restores pickup.
+
+**L11. Loot 3 r2: the grab's presentation on master `cb14a816`, by probe (2026-10-13).**
+Pass: Imagination `imagination-aeth-loot-3`, session `self-2026-10-13-ag2`. Detached worktree `C:\aeth-wt\imag-loot-3`
+at `cb14a816` (loot-1-present and loot-2 merged by `fbe05c79`, feedback-present earlier). Nothing was built; every claim
+is a source read or a `git grep` of serialized assets by script GUID.
+- **`FieldDriver` is on no ship.** Its script GUID (`a9ee74b0...`) occurs in exactly one asset, `Assets/Scenes/FieldShieldTest.unity`;
+  `Shield.prefab`, `Longinus.prefab` and `Djinni.prefab` carry `ShieldManager` (an `IAbsorbPresenter` only,
+  `ShieldManager.cs:11`), and no code adds a `FieldDriver`. L10's "child of every ship's shield" was a name-level read.
+  So in play the only grab presenter after this cut is `TractorBeam`; the tendril stays a FieldShieldTest look.
+- **`TractorBeam` is a child of every ship before its binding runs.** Prefab ships carry it (`Longinus.prefab`,
+  `Djinni.prefab`, GUID `3f02211f...`); mod ships get it in `ShipModShips.cs:125` while the prototype is built, before
+  `ZoneRenderer.LoadEntity` calls `SetEntity` (`ZoneRenderer.cs:409`). `EntityInstance.SetEntity` binds the entity's
+  one `CapabilityEvents` with `GetComponentsInChildren<IGrabPresenter>(true)` (`EntityInstance.cs:175-176`,
+  `CapabilityPresentationBinder.cs:38`), so a `TractorBeam : IGrabPresenter` is subscribed with no new wiring.
+- **The binder's resolvers have no game caller.** `EntityInstance.cs:176` binds with none; only `FieldTester.cs:62-65`
+  passes them. `FieldDriver.Grab` acts only on `Started` with a non-null `Transform` (`FieldDriver.cs:206-210`), then
+  times its own phases on real time, moves the test pickup and `Destroy`s it (`:280-345`): the forbidden writers fork
+  L's deletion line names (`docs/headless-playground-cut.md:959-961`).
+- **The beam's aim needs no pose lookup.** `Zone.TryHold` sets `HeldFrom = Body.Position` (`Zone.cs:348-353`), a held
+  item is not integrated, and its pose is `lerp(HeldFrom, Holder.Position.xz, smoothstep(HeldProgress))`
+  (`Zone.cs:404`). So for the whole grab the item lies on the segment from the holder to `HeldFrom`, and the
+  direction from the ship to the item is the direction to `HeldFrom`, which `Started` carries as `TargetPosition`
+  (`Pickup.cs:97`, `:170`, y set to the ship's height). One caution: the `Cancelled` published when the held item has
+  vanished carries `float3(0)` (`Pickup.cs:106`), so a presenter never reads `TargetPosition` on `Cancelled`.
+- **Who drives the beam:** only the player writes `TractorCommand` (`ActionGameManager.cs:1355`); `ShipInstance.cs:92-93`
+  writes `TractorBeam.Power` (derived `Pickup.Power`) and `Direction` (`Entity.Aim`) every frame. NPCs never grab, so
+  the visibility gate (follow-up `presentation-gated-on-tracked`) has no beam case today.
+- **The operator's original beam look** (`TractorBeam.cs` at `f1dee184`) emitted at `Power` only while something was in
+  the beam and emitted nothing otherwise. The sim's equivalent of "something in the beam" is a grab in progress.
+  `Radius 25`, `Traction 25`, `Distance 75` on `Tractor Beam.prefab:4821-4823` are dead since `c7c7e585`: the sim owns
+  range and radius (`PickupData`).
+- **The multi-bay gap is a fixture order, not a hull size.** `Entity.TryFindSpace` and `TryEquip` refuse once the
+  entity is active (`Entity.cs:1415-1419`, `:1476-1477`), and `Zone.Admit` activates it (`Zone.cs:216-221`); PickupTests'
+  `Spawn` admits at `:119`, so a second crate equipped after `Spawn` is refused whatever the room. The Skiff is 5x5 and a
+  `CargoBayData` with `new Shape()` is 1x1 (`ItemData.cs:25-29`), so two crates and the beam fit when equipped before
+  `Admit`. Selection's `Any` over bays is `Pickup.cs:159`.
+- **Concurrency:** the EW-claims Hands worktree (`C:\aeth-wt\ew-claims`) modifies `Combat.cs`, the four Weapon
+  behaviours, `Entity.cs`, `Sensing.cs`, `SchematicDisplay.cs` and nine test files; none is a file this cut touches
+  (`PickupTests.cs` included).
+
 **L9. The ammunition substrate, by catalog probe** (same job, catalog `70a7b0a9`):
 
 | Hardpoint | Weapon | Behaviour | Magazine | Ammo | Energy |
@@ -2846,10 +3592,10 @@ belt-freeze rulings (lines 830-876).
 | Belt band (provider region) | Belt key plus band index; arc segments by key order. | Derived from `AsteroidBeltData`, `PlanetSettings` and time. Re-keyed lazily, a bounded number per query. Cache only. `mining-belt-cells` replaces it with rings and cells. | `BeltTargets`. |
 | Belt ring and cell (after `mining-belt-cells`) | Belt key, ring index, cell index. A ring is a run of rocks by orbit distance; its cells are equal sectors of a frame turning at the ring's mean rate. | Derived when the belt is built, never saved. A ring is refreshed (its rocks re-bucketed) when its drift passes one cell, within a rock budget per query. | `BeltTargets`. |
 | Target choice | The `TargetRef` a key press writes. | Made per press; no list is kept between presses. | `Entity` (reticle, next, previous, nearest), through `SetTarget`. |
-| Floating item | `FloatingItemId`: a zone counter, never reused in a zone. | Released at death (and later by jettison); drifts; held during a grab; removed into cargo by `TryPickUp`, or at `FloatingItemLifetime`. Not saved: gone when the zone unloads, as Unity loot is today. | `Zone`: release, step, expiry and commit. |
+| Floating item | `FloatingBodyId`: a zone counter, never reused in a zone. | Released at death (and later by jettison); drifts; held during a grab; removed into cargo by `TryPickUp`, or at `FloatingItemLifetime`. Not saved: gone when the zone unloads, as Unity loot is today. | `Zone`: release, step, expiry and commit. |
 | Loot dice | Zone `CombatSeed`, loot stream, death ordinal. | One generator per death, discarded after the roll. | `Zone.DropLoot`, on `SimulationDice`. Never `UnityEngine.Random`, never a shared stream. |
-| Grab | Holder entity plus `FloatingItemId`. | Started, Extend, Envelop, Pull, then Completed or Cancelled. One holder per item, one grab per Pickup. | The `Pickup` behaviour owns the timeline; `Zone` owns the held pose and the commit. |
-| Pickup capability | `PickupData` (BehaviorData union key 40) on the Tractor Beam design. | Authored by an AetherDb one-shot, then edited in the catalog. Every generated ship carries one. | The catalog author. |
+| Grab | Holder entity plus `FloatingBodyId` (`FloatingBodies.cs:11`; r2 and earlier misnamed it `FloatingItemId`). | Started, Extend, Envelop, Pull, then Completed or Cancelled. One holder per item, one grab per Pickup. | The `Pickup` behaviour owns the timeline; `Zone` owns the held pose and the commit. |
+| Pickup capability | `PickupData` (BehaviorData union key 48; 40-47 are taken at `e24d942b`) on the Tractor Beam design, which moves from a Sensors hardpoint to Tool gear. | Authored by an AetherDb one-shot, then edited in the catalog. Every generated ship carries one. | The catalog author. |
 | Ammunition | An `AmmoType` commodity; one unit is one magazine. | Stocked at generation and in station inventories; consumed one unit per reload; moved by `TryTransferItems` when rearming. | Cargo. `WeaponData.DrawsRounds`, derived from `AmmoType`, decides reactor or magazine. |
 
 ### Merge order
@@ -3183,7 +3929,7 @@ weapons compete for reactor power, and ballistic weapons compete for cargo.
 
 This is a default, not a ruling. The operator can ask for calibres at any time.
 
-**Why mining's Q6a should be asked again.** Mining ruled that ore is lost when a hold
+**Why mining's Q6a was asked again (answered 2026-10-16: floats, ruling mining-overflow-floats; owner mining-yield).** Mining ruled that ore is lost when a hold
 is full (Q6a A), because pickups were Unity-only (mining-cut.md:286-287). After
 `loot-1`, overflow could float through `Zone.Release` like any other loot. Follow-up
 `mining-cuts-4-5-7` carries the question to that map.
@@ -4050,6 +4796,93 @@ pass of 2026-10-07, source marks as in Controls; the EVE formula is the player w
   today, and any larger shape fits no hull, like CShot. Nothing in the record settles its intended
   shape; question `plight-shape` asks it.
 
+### Body facts: evasion core, mount term and autofire seams (2026-10-08)
+
+Body: `origin/master` `4d664b53`, read in a detached worktree. The in-flight branch
+`origin/eureka/aetheria-release-controls-mount-aim` (e103b90a, 538b11b4) was read with `git diff
+4d664b53 <branch>`, never checked out. Read by `cut-munition-shots`, `cut-munition-jink`,
+`cut-autofire-threshold` and `cut-autofire-controls`.
+
+- **MA1. Master's evasion is two factors in one price** (source read, `FireControl.cs`).
+  `HitProbability` (:350-357) is `PFire * PMount(AngularVelocity(source, target),
+  TrackingRate(weapon, source)) * PSpread * POnHull * PDeviation(evasion, Tracking(source))`.
+  `Forecast` (:326) computes `evasion = Evasion(target, TravelDirection)`. The mount factor reads
+  the gun's rate times the ship's gear (`TrackingRate`, :221-224); the jink factor reads the ship's
+  gear alone in metres (`Tracking`, :195-199), as rulings `tracking-per-gun` and `jink-per-ship`
+  say.
+- **MA2. The evasion core is already subject-free** (`FireControl.cs:496-516`).
+  `Evasion(Entity, los)` returns 0 for a non-Ship and otherwise calls the pure
+  `Evasion(in ManoeuvreEnvelope, float2 heading, in ManoeuvreTrack, float2 los, float window)`,
+  whose comment calls it "the one call guns and munitions make". A munition can answer it with its
+  own envelope, heading and track without a second evasion function.
+- **MA3. The envelope and track types** (`FireControl.cs:2049-2115`). `ManoeuvreEnvelope` is six
+  accelerations (Forward, Reverse, Left, Right in m/s^2 along body axes; Clockwise,
+  CounterClockwise turn rates). `ManoeuvreTrack.Observe(float2 acceleration, float dt, float
+  window)` keeps trend, innovation and second moments and forgets a window after the last change
+  of vector. `Reach` (:521-546) with both turn rates zero reduces to the box's no-turn support
+  `0.5 * (face along) * T^2` plus faces whose turn is zero (`ReachFace` returns 0 for a turned face
+  when its rate is below 1e-4, :552). So a point-mass munition with no turn rate is priced by its
+  box alone, which is what a vector-commanded munition can do.
+- **MA4. Who writes a ship's track** (grep over `Assets/Scripts/ServerShared`). One writer:
+  `Entity.Update` at `Entity.cs:1478` (`Manoeuvre.Observe(Acceleration, delta, SolutionWindow)`),
+  acceleration being the base update's velocity change with the limit clamp added back (:1477).
+  Thrusters supply the envelope (`Thruster.Manoeuvre()`, `Thruster.cs:98`); `Ship.Envelope` sums
+  them (`Ship.cs:153-159`).
+- **MA5. Fire freezes the mount for an entity subject only** (`FireControl.cs:688`). `pFire =
+  solution.PFire * (solution.Engaged != null ? PMount(AngularVelocity(source, solution.Engaged),
+  TrackingRate(weapon, source)) : 1f)`. `CommitProbability` (:864-878) multiplies the frozen
+  `PFire` by `DeviationProbability` (:483-489), which adds `Evasion(shot.Target, ...)` to the
+  realised drift. A munition subject needs both: the mount frozen at fire from its own position and
+  velocity, and the evasion at commit from its own track.
+- **MA6. `AngularVelocity` has a planar overload** (`FireControl.cs:209-213`):
+  `AngularVelocity(float2 offset, float2 relativeVelocity)`, range floored at 1 m. A munition's
+  offset is `Flight.Position - source.Position.xz` and its relative velocity `Flight.Velocity -
+  source.Velocity`; no new geometry is needed.
+- **MA7. No munition code is on master** (`ls Assets/Scripts/ServerShared`, grep `MunitionId`).
+  `Munitions.cs`, `MunitionFlight` and `MunitionId` do not exist; `TargetRef` (`Zone.cs:646-670`)
+  has only Entity and Chunk. missile-stats, missile-records and missile-odds had no report
+  (specs-with-no-report query, as of ordinal 750). munition-shots' anchors into that code are by
+  name.
+- **MA8. controls-mount-aim, in execution, changes the seams these cuts touch** (diff of
+  4d664b53..origin/eureka/aetheria-release-controls-mount-aim, FireControl.cs and Weapon.cs): adds
+  `Solution(Weapon, Entity shooter, TargetRef subject)` after `AimDirection` returning `GunSolution
+  { Entity Subject; bool Bears; bool Free; float2 Direction }`; adds `Bears(weapon, source, Entity
+  target, out range)` and routes `PFire` through it; rewrites `ArcPermitsFire` to `fused || mine
+  layer || Solution(weapon, shooter, shooter.Target.Value)` bears or free; Solve's travel direction
+  becomes `Solution(weapon, source, target).Direction`. The branch dropped the Broadside scenario
+  (538b11b4: no catalog hull has side-rotated gun hardpoints).
+- **MA9. PendingShot construction sites** (grep `new PendingShot` over Assets/Scripts and tests):
+  two, `FireControl.Fire` and `FireControlCut9Tests.cs`. Readers of `shot.Target` in FireControl:
+  :487-488, :808, :867-876, :884, :920-950, :1132-1140, :1190, :1483; outside:
+  `EntityInstance.cs:331-333`.
+- **MA10. Autofire seams on master** (source reads): `Entity.WeaponGroups` `Entity.cs:82`, sized
+  :791-793, removal path :1050; `PowerBus.Step` :1453 then the equipment loop :1455-1458 (the only
+  place equipped behaviours execute in `Entity.Update`); `Weapon.Activate/Deactivate` set `_firing`
+  only (`Weapon.cs:156-164`), so a weapon draws no power by being triggered. `StanceAllowsFire`
+  `Weapon.cs:113`, `ArcAllowsFire` :123. `Refuses` `FireControl.cs:93-95`, `AgentFires` :104-112
+  (its first branch is the mine layer's: worth it when `Solve` says Designated). `Fire` reads
+  `source.Target.Value.Entity` at :683. `EntityPack` keys 0-16 on the base class, subclasses use
+  17-20, key 21 unused (`EntitySerializer.cs`). `ActionBarWeaponGroupBinding`
+  `ActionBarSlot.cs:177-210`; slot input actions are created in `ActionGameManager.createBinding`
+  (:434-442, `started` activates, `canceled` deactivates). `ControlsHud.cs` does not exist on master
+  (controls-hud creates it). `Zone.Targets.Within(in TargetSearch, List<TargetCandidate> into)`
+  (`TargetingIndex.cs:99`) fills a caller's list. `Scenarios.Tests` (`Scenarios.cs:7-10`) ends with
+  `LauncherAngles, LongHaul`.
+- **MA11. The close-crosser fixture already exists**
+  (`tests/Aetheria.Shared.Tests/EvasionTrackingTests.cs`). `EvMountRange(gunRate, laserRate)` sets
+  two guns on one shooter to authored rates through `EvSetRate` (:23-29), and
+  `LightAndHeavyGunsSplitOnAFastCloseCrosser` (:139-160) with rates 40 and 3 and `EvCross(range,
+  jinking: false, float2(100, 0))` at 200 m measures PMount >= 0.85 and <= 0.01. The steady
+  crosser's evasion is zero (EvCross settles the track), so the split is the mount term alone. The
+  fixture places the target with `ScenarioStance.Neutral` (default of `ScenarioStage.Place`,
+  `ScenarioStage.cs:109`); `Entity.SetIff(other, true)` (`Entity.cs:810`) or
+  `ScenarioStance.Hostile` makes it hostile.
+- **MA12. No PD-class gun is in the catalog** (tracking table). The highest authored rates are
+  ClearPath 12 and Spectra 10 deg/s; launchers are +infinity. Against inbound missiles the angular
+  velocity is small (mostly radial approach), so these suffice to engage salvos in a scenario;
+  against a fast close crosser ClearPath prices 0.37 / 0.76 (TC / FCA, map table). The catalog
+  growth section's PD guns (CG-probes) are the content that closes this.
+
 ### The design
 
 **The resolution model** is ruled: `missiles-resolution-model`, geometry-sets-odds. The second
@@ -4312,10 +5145,29 @@ jink*: evasion against inbound PD draws only on fuel above the reserve, so a dum
 (reserve 0) jinks itself dry while a smart one stops jinking to keep its terminal. (4) *The
 price*: the correction scales with it.
 
-**The missile's stats** (ruling `missile-stats-now-gear-later`). One `MunitionData` object on
-`LauncherData` and on `GuidedWeaponData`, grouped by the gear each group will later come
-from, so the entity cut replaces a group with a derivation from that gear without
-reshaping anything that reads it:
+**The missile's stats** (ruling `missile-stats-now-gear-later`). A missile type's stats
+are five dedicated gear-part behaviours on the launcher's own design, beside its
+`LauncherData` or `GuidedWeaponData`, one per gear category the entity cut will derive them
+from (ruling `drones-and-munitions-are-entities`: dedicated types, so a missile thruster is
+not a ship thruster). Each is a `BehaviorData` with `PerformanceStat` fields evaluated through
+the item, so roles, validation, stat modifiers and the trade panel reach them by the paths
+they already walk (MS1). `MunitionParts.Of<T>(EquippedItem)` is the one read path.
+
+| Part (gear later) | Fields | Replaces |
+|---|---|---|
+| `MunitionHullData` (missile hull) | `Durability`, `Radius` | nothing (new) |
+| `MunitionThrusterData` (missile thruster) | `Acceleration` (main motor), `Lateral` (sideways cap), `MaxSpeed`, `Visibility` (its `DrivePlume` strength at full throttle, as `ThrusterData.Visibility`) | `Thrust`, `MissileVelocity` |
+| `MunitionSeekerData` (seeker) | `Sensitivity` (detection power, as `SensorData.Sensitivity`), `BeamWidth` (full cone, degrees, the sensor-stat-set name), `Range` | nothing (new) |
+| `MunitionControlData` (guidance) | `Navigation`, `Evasion`, `EvasionFrequency`, `Lifetime`, `Cognition` (0 to 1, ruling `missile-cognition`) | `DodgeFrequency` |
+| `MunitionFuelData` (tank) | `DeltaV` | nothing (new) |
+| payload | no part: `Munitions.Payload` (missile-records) reads the weapon's warhead fields | nothing |
+
+There is no single-number `Signature`: under ruling `visibility-per-capability-reveal` a
+missile is seen through channels, and the one it owns as gear is its plume
+(`Thrusters.Visibility`, `SignatureChannel.DrivePlume`). How an observer perceives it is the
+visibility chain's. The seeker is passive here (it reads a target, emits nothing); whether a
+seeker reads one channel or the sum, and whether an active seeker paints, is missile-records'
+decision against the visibility chain, not a stat.
 
 | Group (gear later) | Fields (`PerformanceStat`, evaluated through the item) | Replaces |
 |---|---|---|
@@ -4529,12 +5381,12 @@ while one of your autofire guns has it as subject.
 | Kind | Identity | Lifecycle | Authority |
 |---|---|---|---|
 | Munition (light record) | Its `PendingShot`'s `ShotId`, as `MunitionId` in a `TargetRef`. | From fire through its terminal gate (commit) to arrival, or until interception or lifetime; never saved, as pending shots are not. | `FireControl` for transitions and the roll; `Munitions.Advance` for flight. |
-| Munition flight | `PendingShot.Flight` (position, velocity, delta-v, command, wear, seeker, lock, faction, inbound rounds). | Stepped every tick; gone with its shot. | `Munitions.Advance` under `FireControl.Step`; wear by `DamageMunition`. |
+| Munition flight | `PendingShot.Flight` (position, velocity, delta-v, command, wear, seeker, lock, faction, inbound rounds, `Track`). | Stepped every tick; gone with its shot. `Flight.Track` observes the command Advance applied each step; it is runtime, never saved, and discarded with the shot. | `Munitions.Advance` under `FireControl.Step`, the one writer of the track (as `Entity.Update` is for a ship); `Munitions.Envelope` derives what it can reach from its stats and fuel, and `FireControl` prices it through the same evasion core as a ship; wear by `DamageMunition`. |
 | Entity manoeuvre track | `Entity.Manoeuvre` (`ManoeuvreTrack`: trend, filtered innovation, its second moment). | Observed every update from the velocity change across the base update; never saved. | `Entity.Update`. |
 | Ship envelope | `Ship.Envelope` (`ManoeuvreEnvelope`: four body-frame accelerations, two turn rates). | Recomputed every update from the live propulsors; never saved. | `Ship`, from each propulsor's report. |
 | Missile stats | `MunitionData` on `LauncherData` / `GuidedWeaponData`, six groups. | Catalog data in `Aetheria.cc`. | The catalog now; gear once munitions are entities. |
 | Autofire setting | Per weapon group, `Entity.Autofire` (on, threshold). | Set by the player; saved in `EntityPack` key 21. | The player. |
-| Autofire subject | Per weapon, runtime only. | Re-picked by `Autofire.Update` when the current one stops being worth firing. | `FireControl.ChooseSubject`. |
+| Autofire subject | Per weapon, `Weapon.AutofireSubject`, runtime only. | Re-picked every tick, and when the current one stops being worth firing. | `FireControl.ChooseSubject`. |
 
 ### Rationale
 
@@ -4639,6 +5491,508 @@ reading can take), jamming and soft kill; boost and midcourse fuel planning; min
 (`bodies-entity-and-mines`); whether launchers draw rounds (`launcher-ammunition`). Whether
 the demo cast fields launchers for the player's PD to meet is content: the cuts add a
 `Point Defense` scenario for the operator check.
+
+**Why a munition's evasion goes through the ship's core.** Follow-up
+`munition-shots-evasion-interface` (absorbed by `cut-munition-shots`) asked that a munition answer
+`FireControl.Evasion` "with its own manoeuvre envelope (from its missile-stats thruster group) and
+its own course-change record, like ships do". The earlier price went through a direct agility
+(`Stats.Lateral` while fuelled) and the command vector, which is the strafe-only reading ruling
+`evasion-is-unpredictability` overturned for ships. The munition now gives the core the two inputs
+it reads: `Munitions.Envelope(flight)` (faces equal to Advance's own command clamps; no turn rates,
+because a munition commands any planar vector at once, MA3) and `Flight.Track` (observed by
+Advance, MA4's pattern). Then `Evasion(flight, los)` is one line over the shared core, a jinking
+missile is evasive because its track sees changes of vector, and a dry one is not because its
+envelope is zero. A missile pursuing a weaving target also shows innovation from its PN commands;
+that is evasion by the ruling's own measure ("how much the ship is actually changing its vector"),
+not a defect.
+
+**Why the mount term is the munition's own geometry.** Follow-up `munition-shots-mount-term`:
+`PMount(AngularVelocity(Flight.Position - source.Position.xz, Flight.Velocity - source.Velocity),
+TrackingRate(weapon, source))` (MA6), frozen at fire like an entity's (MA5), with the jink forgiven
+per ship by `Tracking(source)` (ruling `jink-per-ship`). Inbound missiles approach mostly radially,
+so their angular velocity is small and PD guns hold them; a missile crossing close is hard to
+follow, which is the CIWS geometry and EVE's tracking formula `0.5^((omega/rate)^2)` the mount term
+already is.
+
+**Why the box support is enough.** `Reach`'s no-turn support assumes the lateral and along-track
+faces fire independently (a box), while Advance clamps the total command to `Stats.Acceleration` (a
+disc with a lateral cap). Across the line of sight the binding limit is the lateral face, which the
+box and the disc share; the corners overstate reach only on oblique lines of sight, and the
+observed track caps the evasion before the envelope does in every case the tests build. A disc
+support would be a second reach function for one corner case; not bought.
+
+**Why munition-shots is split.** The earlier estimate was 465 lines and 12 tests across Solve,
+Fire, Step, Commit, Apply, Detonate, Solution and Advance, and the envelope, track and mount term
+add to it. The evasion-term cut of similar reach took 190 calls and overran (memory
+`hands-batch-sizing-and-stryker-offsets`). The jink (inbound-round count, Advance step 4 and the
+fuel-spend tests) is a separate behaviour with its own rulings (`missiles-fuel-and-seekers`,
+`missile-cognition`) and its own failure modes, and it reaches the PD price only through the track.
+So `munition-shots` is the subject, price and resolution (about 380 lines) and `munition-jink` is
+the jink (about 170 lines), each falsifiable alone.
+
+**Why the autofire divert test uses a steady close crosser.** Under ruling
+`evasion-angular-velocity-r2` a steady fast crosser close in evades through the mount term even
+with no jink, and that is exactly where ruling `speed-demon-counterplay` wants light guns to hold a
+ship heavy guns cannot. MA11's fixture gives the split (PMount >= 0.85 against <= 0.01) with zero
+evasion, so the test proves the chooser reads the per-gun price and nothing else. The threshold is
+set inside the interval between the heavy gun's price and the lower of the light gun's price and
+the heavy gun's price without the mount, so a Worth that drops the mount, or reads the ship's gear
+in place of the gun's rate, lets the heavy gun fire and fails.
+
+**Why autofire-threshold is split too.** The earlier version (about 520 lines) mixed the headless
+chooser, Worth, SubjectOf, the saved settings and 13 tests with Unity work (action-bar modifiers,
+HUD diamonds, a new scenario) whose every loop needs a Starfire compile. `autofire-threshold` keeps
+the sim half (about 360 lines) and gives the settings one writer, `Entity.SetAutofire`, so the
+presentation half, `autofire-controls` (about 190 lines), writes nothing else.
+
+**Unowned checks.**
+- `missile-odds` was written against evasion-term. It prices a missile's hit on a ship with the
+  target's evasion; whether a missile as shooter takes any mount term was never ruled (the tracking
+  table lists launchers at +infinity: "the round steers itself"). Worth a check before missile-odds
+  is dispatched, if no parallel pass already owns it.
+- No PD-class gun existed (MA12). The Point Defense scenario and the speed-demon play check could
+  run on ClearPath and Spectra, but the ruled outcome "PD-class guns hit a speed demon reliably"
+  has no catalog gun to show it until one is authored (see "Catalog growth").
+
+## Catalog growth: generic designs, branded products
+
+Ruling `catalog-grows-generic-designs-branded-products` (operator, 2026-10-08): designs are generic
+and branding lives in products. A design is expected to carry several products. `Title` is the one
+owner of an item's displayed title (`ItemManager.Title`, landed by `product-titles`); there is no
+`DisplayName`. Body: `GameCult/Aetheria` `origin/master` `4d664b537f76029fbaee94392da3d8a122f81339`,
+unless a fact names another anchor (LP facts read the `product-titles` head `7f700d3c`). Read by
+`cut-pd-gear`, `cut-lot-product`, `cut-generic-design-names`, `cut-product-lines-weapons`,
+`cut-product-titles` and `cut-pirates-record`; question `minor-power-brands` and follow-up
+`gear-product-lines` own the rest of the gear.
+
+### Body facts
+
+Catalog decode method for CG1-CG4: `cultcache_py` `SingleFileMessagePackBackingStore.
+pull_all()` over `GameData/Aetheria.cc` at `4d664b53` (LFS pulled into the worktree), each payload
+`msgpack.unpackb`ed and read by MessagePack key (the M28 method); the store is `cultcache.store.v1`
+with 13 schemas and 217 records. Scratch scripts were not committed.
+
+- **CG1. The catalog's record census at 4d664b53.** 64 FactionProductData, 51 CompoundCommodityData,
+  32 GearData, 18 WeaponItemData, 13 SimpleCommodityData, 12 Faction, 12 NameFile, 5 HullData,
+  4 CargoBayData, 1 FieldKindData, 1 DockingBayData, 1 InputLayout, 0 Loadout. Factions (short
+  names): AU, Adrasteia, Alakrita, DME, Ewan Hart, Finch, Lightsail, Lucent, Miss Terri's,
+  NiteLife, R&D, Zhestokost. No Pirates record yet (H1).
+- **CG2. The data model already separates design from product; the content does not** (source read
+  plus CG1). `FactionProductData` (`ServerShared/FactionProduct.cs:14-31`: Name 1, Description 2,
+  Design 3 `CultRecordRef<CraftedItemData>`, Manufacturer 4 `CultRecordRef<Faction>`, Roles 5
+  `ProductRole{Role, Mean, StandardDeviation}`) is a manufacturer's branded variant of a design; its
+  own comment says a market segment is "a second product with a role pumped up". Price is on the
+  design, not the product (`HullData.Price`, H1). Generation and station stock pick products, not
+  designs (`LoadoutGenerator.RandomProducts`, `:142-171`; `GenerateStationLoadout` stocks 16 random
+  products, `:107-114`). Presets build a design by its first available product in record-key order
+  (`Loadout.Resolve`, `Loadout.cs:160-191`). But of the 59 sold designs only Targeting Computer and
+  Fire Control Array carry more than one product (3 each: Panopticon Prime by Finch, ClapBack Ultra
+  by Lucent, LockOn Pro by NiteLife on the array, and Panopticon, ClapBack, LockOn on the
+  computer); every other design has exactly one product, and in 49 of them the design's own name is
+  the brand (product name equals design name: ClearPath, Spectra, Earp, Manhattan, Store-All Plus
+  ...). Three designs already have generic names under a brand product (Core Power -> Steadfast,
+  plight -> DragOnBreath, pswarm -> Leonid); seven generic-named designs sell a product of the same
+  generic name (Autocannon, Cockpit 2x2, Turret Control Module, Industrial Thermostatic Heater,
+  Medium Drive, Small Drive, Medium Docking Bay). Most designs' `Description` is the brand's voice
+  ("Defend your precious cargo and have fun doing it"); 20 products carry an empty or `[TODO]`
+  description. 64 products over 60 designs; 0 duplicate (design, maker) pairs.
+- **CG3. Where the player sees a name** (source read, master). `PropertiesPanel.GetTitle`
+  (`UI/Properties Panel/PropertiesPanel.cs:431-437`, `data.Name`) and the trade list
+  (`UI/Menu/TradeMenu.cs:193-197`, the Name column, tier-coloured) and buy dialog (`:355`) show the
+  design `Name`. The product name and description appear only as extra property lines after `Brand`
+  (`PropertiesPanel.cs:370-380`); `Inspect(ItemData)` shows the design as `Type` (`:530`). So today
+  the brand reaches the headline only because design names are brand names, and a product named in
+  emoji would be listed under its design's name. `product-titles` moves the headline to the
+  product (see LP3).
+- **CG4. A lot does not record its product** (source read, master). `Lot`
+  (`ServerShared/Provenance.cs:64-70`) holds Design 0, Origin 1, Quality 2, Roles 3.
+  `ItemManager.CreateLot(product)` (`ItemManager.cs:134-155`) writes the maker into `Origin` and
+  drops the product. `ItemManager.Brand` (`:206-222`) re-derives the product as the lowest-key
+  `FactionProductData` with that maker and design. Two products of one design by one maker (the
+  market segment `ProductRole`'s comment designs for) are therefore indistinguishable after
+  creation: the player sees the lower-key product's name and text whatever was bought. Today no
+  maker sells two products of one design (CG2), so nothing shows it yet. lot-product has since landed: a lot records its product, and ruling maker-design-tiers-allowed (2026-10-16) permits tiers (cut line product-tiers).
+- **CG5. Weapon fields and the reference small guns** (source read `Behaviors/Weapon.cs:20-72`,
+  `Behaviors/InstantWeapon.cs:10-20`, `ItemData.cs:477-509`; catalog decode). WeaponData keys:
+  DamageType 1, Damage 2, Penetration 3, DamageSpread 4, MinRange 5, Range 6, DamageCurve 7,
+  EffectPrefab 8, Energy 9, Heat 10, Visibility 11, AmmoType 12, MagazineSize 13, ReloadTime 14,
+  Spread 15, Velocity 16, Tracking 33; InstantWeaponData Count 17, BurstTime 18, Cooldown 19;
+  WeaponItemData WeaponRange 24, Caliber 25, WeaponType 26, FireTypes 27, Modifiers 28,
+  BlastRadius 29, Fuse 32; GearData Hardpoint 23 (enum order Hull..AetherDrive: Energy 9,
+  Ballistic 10, Launcher 11). Shape is `[width, height, cells]`. Evaluated (Min-Max):
+
+  | Design | HP | Mass | Price | Dmg | Range | Cooldown | Count | Spread | Velocity | Energy | Ammo/Mag | Tracking |
+  |---|---|---|---|---|---|---|---|---|---|---|---|---|
+  | ClearPath | Ballistic 2 cells | 50 | 50,000 | 2-6 | 250-600 | 0.1-0.033 | 1 | 1.25-0.25 | 700-1250 | 1-0.5 | none / 0 | 12 |
+  | Spectra | Energy 2 | 25 | 125,000 | 20-85 | 800-1750 | 0.5-0.25 | 1 | 0.1-0 | 0 (beam) | 20-40 | none | 10 |
+  | FastBlast+- | Energy 2 | 125 | 150,000 | 20-80 | 500-1250 | 0.33-0.1 | 12 | 3-1 | 400-900 | 0 | cells / 12 | 9 |
+  | Autocannon | Ballistic 4 | 75 | 250,000 | 3 | 1000 | 0.5 | 1 | 0.5 | 500 | 5 | Ammo / 50 | 4 |
+  | DeathCluster | Ballistic 4 | 250 | 450,000 | 100-250 | 500-1000 | 1-0.25 | 12-15 | 3-0.5 | 750-1500 | 25-5 | Ammo / 8 | 3 |
+
+  Damage, Heat and Energy are divided by the burst count per pellet (`InstantWeapon.cs:128-134`).
+  The ammunition commodity is the SimpleCommodity that Autocannon's AmmoType names (`3085fc8a...`).
+- **CG6. Homes for one-cell guns** (source read `LoadoutGenerator.HasHome`, `:173-176`;
+  `HardpointData.Takes`, M30). A design is offered only if some catalog hull has a hardpoint that
+  `Takes` it, which is any design of the slot's type whose shape lies within the slot. Longinus has
+  two Energy 1x2 hardpoints, Djinni two Ballistic 1x2, the station Turret two Ballistic 2x4. So a
+  1x1 Ballistic or Energy gun and a 1x2 Ballistic gun all have homes on master.
+- **CG7. Munitions on master.** `missile-records`, `missile-stats`, `munition-shots`,
+  `autofire-threshold` and `autofire-controls` had no report: master has no munition record yet
+  (MA7). missile-stats authors munition `Durability 20`. `Detonate` is the one blast path and
+  damages entities, not munitions (missile-odds, "Detonate is the one blast path").
+- **CG8. A shipped weapon may not carry a fuse today.**
+  `FireControlCut124Tests.ShippedCatalogIsNeutralOnBlastRadiusAndFuse`
+  (`tests/Aetheria.Shared.Tests/FireControlCut124Tests.cs:2591-2610`) asserts every shipped weapon's
+  BlastRadius and Fuse are null. An airburst flak gun would break it; the flak below is a pellet gun.
+- **CG9. The catalog tracking test** (`tests/Aetheria.Shared.Tests/EvasionTrackingTests.cs:290-313`,
+  `EveryCatalogGunTracks`) requires every non-launcher gun's Tracking finite, Min = Max > 0. New
+  guns must author it.
+- **CG10. Design names in code at 4d664b53** (`git grep -F` over `*.cs` for the quoted names of
+  the generic-names table). 61 hits in 12 files: scenarios Arcs.cs 14, Duel.cs 11,
+  LauncherAngles.cs 8, StarvedReactor.cs 6; tests EvasionTermTests 10, BrownoutTests,
+  EvasionTrackingTests, PowerCurveTests, RestoredHullsTests, RunStartTests, ScenarioTests 1 each;
+  tools/AetherDb/Program.cs 6. Loadout and product references are by record key, unaffected by a
+  rename.
+- **CG11. Behaviour index 31 is CapacitorData** (`ServerShared/Behaviors/Behaviors.cs:178`), so
+  PotaT+- is NiteLife's capacitor. The wishlist's "capacitors: no products" line is stale.
+- **CG12. Vault sources read** (AetheriaLore `33cd06a`): `Aetheria/Game Design/Faction Play.md`
+  (loadout and quirk lines 118-266, 307-357), `Aetheria/Brainstorming/Faction Flavor and Visual
+  Identity.md` (Aya point defense and interceptors :458, Megiddo decoys and interception :566),
+  `Aetheria/Brainstorming/Corporate Roster and Item Wishlist.md` (item ideas :57-87, gaps :97-146;
+  its "What this is for" names the design/product text split). Zhestokost's loadout names "flak and
+  shrapnel (MFer, DeathCluster)" against missiles; Lightsail's names ClearPath as its machine gun
+  and Cetacean Navigators' Waykeeper escorts carry point defense with Lightsail haulers; Aya and
+  Megiddo are the heavy-PD and decoy factions but are not catalog factions. `Ship Play Concepts.md`
+  was not found in either repo at these heads.
+- **LP1. `Lot` keys** (`Assets/Scripts/ServerShared/Provenance.cs:63-80`, at 7f700d3c). Keys 0-3
+  (Design, Origin, Quality, Roles); key 4 is free. Lots and origins already carry
+  `CultRecordRef<ItemData|Faction|SimpleCommodityData>` through MessagePack (:66, :101, :108, :119),
+  so a fourth `CultRecordRef<T>` needs no formatter work.
+- **LP2.** `ItemManager.Brand` (ItemManager.cs:206-222) derives the product at :217-220 with
+  `GetAll<FactionProductData>().Where(maker and design).OrderBy(key).FirstOrDefault()`. It is the
+  only such derivation in Assets/ (git grep `GetAll<FactionProductData>`: ItemManager :217, plus
+  Loadout :194 and LoadoutGenerator :145, which choose a product to mint, not read an item's).
+- **LP3.** `Title` (ItemManager.cs:226-227) reads `Brand(crafted).Product?.Name`. Brand's readers:
+  Title, PropertiesPanel.cs:374 (Manufacturer and description), tests LoadoutTests
+  :336/:359/:395/:844 and RunStartTests :136/:678. Nothing else reads an item's brand, so fixing
+  Brand fixes every reader.
+- **LP4.** Lot writers in Assets/: only `CreateLot(product)` (:136-158) and `CreateLot(design,
+  maker, quality)` (:161-170). Production callers of the second: ActionGameManager.cs:544/:548
+  (console give, no maker) and Loadout.cs:182 (unbranded preset, no maker). No `new Produced` in
+  Assets/ or tools/; Produced lots exist only in tests.
+- **LP5.** Behaviour change: a lot from `CreateLot(design, maker, q)` whose maker sells that design
+  used to brand as the maker's key-first product; once the lot records its product it brands
+  (maker, null) and titles by design. No production path mints such a lot (LP4).
+- **LP6.** Tests pinning the derivation: LoadoutTests
+  `BrandPicksFirstProductInKeyOrderForSameMakerAndDesign` (:375-397) pins the tie-break that goes
+  away; its comment says the census's duplicate detector exists because of it. Stale comment in
+  LoadoutTests :315-317 ("Brand() requires at most one product per (maker, design)").
+- **LP7.** AetherDb census (tools/AetherDb/Program.cs:124-138) prints "(maker, design) pairs with
+  more than one product" as a fault, justified by Brand's tie-break. Under the ruling a design
+  carries several products, and a maker may sell two of one design; with `Lot.Product` the pair is
+  no longer ambiguous.
+- **LP8.** Run save: `RunSave.Commit` (SavedGame.cs:138) writes the reachable ledger;
+  `RunSave.Lots(cache)` (:132) reads it back. RunSaveTests :382-400 shows the fixture shape (a
+  ledger plus a SavedZone whose pack references the lot).
+- **LP9.** ItemTitleTests (tests/Aetheria.Shared.Tests/ItemTitleTests.cs) builds Array with
+  products Panopticon Prime (Finch, key array-finch) and ClapBack Ultra (Lucent); Soul's probe added
+  a second Finch product of Array and saw Title return the first (finding `title-key-first-product`).
+
+### Content tables
+
+Drafted content that specs cite. Names are drafts the operator may rename.
+
+**Maker profiles** (one Mean / StandardDeviation applied to every role of the design, from Faction
+Play's loadout lines and the existing products' roles):
+
+| Maker | Mean | Dev | Why |
+|---|---|---|---|
+| Zhestokost | .50 | .08 | armour and consistency, no finesse |
+| AU | .50 | .12 | "mid-quality, consistent: the all-rounder" |
+| Lightsail | .55 | .10 | freight reliability |
+| R&D | .60 | .15 | compute, contractor quality |
+| Lucent | .60 | .15 | premium, loud |
+| NiteLife | .55 | .12 | energy specialist |
+| Finch | .65 | .20 | "high variance in role quality" |
+| Alakrita | .60 | .14 | light, fragile, excellent |
+| DME | .55 | .20 | runs hot, uneven |
+| Adrasteia | .60 | .10 | exacting |
+
+No product is authored for Miss Terri's (ruling `miss-terris-belongs-to-emily-r3`) or the Pirates
+(the Pirates record owns their products, ruling `pirates-record-content`).
+
+**PD products** (`pd-gear`; the three new designs are the Point Defense Gun, Point Defense Laser and
+Flak Gun, whose stats follow under the rationale):
+
+| Design | Product | Maker | Description |
+|---|---|---|---|
+| Point Defense Gun | Waykeeper | Lightsail | Freight first, questions later. Keeps a hauler's paint unscratched through a full salvo. |
+| Point Defense Gun | Rampart | Zhestokost | A column does not dodge. It does not need to. |
+| Point Defense Gun | Swatter | AU | Keeps the rocks and the rockets off your back while you work. |
+| Point Defense Gun | Catch-All | R&D | Guaranteed to stop the missile!* *Missile defined as whatever it stops. |
+| Point Defense Laser | Glare | Lucent | Every missile gets its moment in the spotlight. A short one. |
+| Point Defense Laser | Nightlight | NiteLife | Lights out for anything with a warhead. Shares the bus with your blasters, so mind the meter. |
+| Point Defense Laser | Wren | Finch | Small, quiet and quicker than it looks, most days. |
+| Point Defense Laser | Gnat | Alakrita | Weighs less than your conscience and keeps the fast pass fast. |
+| Flak Gun | MFer | Zhestokost | Our shrapnel turns your enemies into scrapnel. (the operator's own line, Item Wishlist :57) |
+| Flak Gun | Hailstorm | AU | A wall of steel for crews who would rather not count missiles. |
+| Flak Gun | sky full of teeth | DME | light it up/ shake it loose/ nothing gets through tonight |
+
+**Generic design names** (`generic-design-names`; hulls, Traction and already generic names
+excluded: hull names are the model names other passes are revising, retire-longinusx deletes
+Traction):
+
+| Old design name | Generic design | Functional description |
+|---|---|---|
+| ClearPath | Light Machine Gun | Light ballistic hose: many small rounds at short range. |
+| 6k Shooter | Slug Rifle | Single heavy slugs, fired as fast as the trigger. |
+| Earp | Long Slug Rifle | A lighter slug rifle with the longest ballistic reach. |
+| DeathCluster | Cluster Cannon | Medium shotgun: a heavy volley of pellets. |
+| pretty pretty bang bang | Charged Scattergun | Ballistic shotgun that charges for a heavier volley. |
+| Spectra | Light Laser | The lightest beam: low damage, quick cycle, long reach. |
+| FastBlast+- | Cell Blaster | Rapid energy bursts fed by cells that cut its reactor draw. |
+| ColdFire | Long Laser | Heavy small beam: slow, hard-hitting, long reach. |
+| CShot RainbowLite Lazer | Heavy Beam Laser | The heaviest beam: nine cells, enormous damage and reach. |
+| ChargeBlast+- | Charged Blaster | One charged knockout shot. |
+| ChargeBlast SG | Charged Scatter Blaster | Charged energy shotgun. |
+| plight | Lightning Projector | Charged chain lightning. |
+| GT 3K | Guided Missile Launcher | Fires guided missiles. |
+| LRMM72 | Long-Range Missile Rack | Large missile rack for long engagements. |
+| SRMM72 | Short-Range Missile Rack | Extra-large rack of short-range missiles. |
+| pswarm | Swarm Rocket Pod | Dumbfire rockets in a swarm. |
+| scorched void policy | Incendiary Rocket Pod | Incendiary dumbfire rockets. |
+| Arctica | Adaptive Radiator | Radiator whose output scales widely with conditions. |
+| Iapyx | Radiator | Standard two-cell radiator. |
+| Skiron | Long Radiator | Four-cell radiator with a large surface. |
+| OK Disperser | Heat Pump | Moves heat to where it can be shed. |
+| cold like my heart | Cryogenic Heat Pump | Heavy heat pump that drives temperatures far down. |
+| Core Power | Compact Reactor | Small reactor. |
+| Manhattan | Heavy Reactor | Large three-by-three reactor. |
+| Notorious | High-Yield Reactor | Large reactor with a wide output range. |
+| Vulcan | Ring Reactor | Ring-shaped reactor, four by four. |
+| MoveOnPro | Muon Fusion Reactor | Compact fusion reactor that draws a reservoir. |
+| Core Power Station Reactor | Station Reactor | A reactor sized for a station's core. |
+| Manhattan Station Reactor | Heavy Station Reactor | A heavy reactor sized for a station's core. |
+| Notorious Station Reactor | High-Yield Station Reactor | A high-yield reactor sized for a station's core. |
+| Vulcan Station Reactor | Ring Station Reactor | A ring reactor sized for a station's core. |
+| MoveOnPro Station Reactor | Muon Fusion Station Reactor | A muon fusion reactor sized for a station's core. |
+| RevvITup 2.0 | High-Thrust Drive | Large drive: huge thrust, little torque. |
+| deep space burnout | Burn Drive | Large drive that runs very hot. |
+| Talaria | Rugged Drive | Two-cell working drive. |
+| Victoire | Racing Drive | Feather-light two-cell drive with extreme response. |
+| The Bat | Sensor Array | Two-by-two long-range sensor array. |
+| not if i see you first | Compact Sensor | One-cell sensor. |
+| PotaT+- | Capacitor | Stores charge for burst draw. |
+| SafeStuff II | Secure Cargo Bay | Three-by-three secured hold. |
+| Store-All Enterprise Edition | Large Cargo Bay | Six-by-six hold. |
+| Store-All Plus | Cargo Bay | Two-by-two hold. |
+| Store-All Plus Mini | Small Cargo Bay | One-cell hold. |
+
+The product keeps the old name, so the brand survives as the product. Products whose name equals a
+generic design get a brand: Autocannon (Zhestokost) -> Hammerfall; Cockpit 2x2 (Lightsail) ->
+Wheelhouse; Industrial Thermostatic Heater (Lightsail) -> Hearth; Medium Drive (Lightsail) -> Steady
+Haul; Small Drive (Lightsail) -> Short Hop; Turret Control Module (AU) -> Watchtower; Medium Docking
+Bay (AU) -> Open Berth. The Bat's product is Miss Terri's: its record is not touched; only the
+generic design under it is renamed. Description move: the design's old text goes to its product
+when the product's is empty, `[TODO]` or identical; otherwise the product keeps its own and the
+dropped design text is printed in the dry run and the commit message.
+
+**Weapon product lines** (`product-lines-weapons`):
+
+| Design | New product | Maker | Description |
+|---|---|---|---|
+| Light Machine Gun | Rattler | AU | Cheap, loud, and there when the rocks start moving. |
+| Slug Rifle | SM-6 Marksman | R&D | Standardised, certified, guaranteed to hit the target.* |
+| Long Slug Rifle | Longshot | Finch | Light, quiet and dead accurate, when it feels like it. |
+| Autocannon | Workhorse | AU | Feeds from anything, fires at anything. |
+| Cluster Cannon | everything at once | DME | why aim/ when you can be everywhere |
+| Charged Scattergun | Grapeshot | Zhestokost | The old answer to boarders, sized for the void. |
+| Light Laser | Sparrow | Finch | Barely registers on the scale, or on their sensors. |
+| Light Laser | Spotlight | Lucent | Make sure they know who got them. |
+| Cell Blaster | Strobe | Lucent | Fast, bright, and very hard to ignore. |
+| Long Laser | Kestrel | Finch | Hovers at the edge of range, then stoops. |
+| Heavy Beam Laser | Afterglow | NiteLife | Keeps glowing long after the fight is over. |
+| Charged Blaster | Encore | Lucent | One more, for the fans. |
+| Charged Scatter Blaster | nobody leaves early | DME | doors are locked/ lights are low/ stay for the finale |
+| Lightning Projector | Static Shock | NiteLife | A jolt for every ship in reach. |
+| Guided Missile Launcher | Homer | Finch | Finds its way, mostly. |
+| Long-Range Missile Rack | Long Haul | AU | Delivers to the far side of the zone. |
+| Short-Range Missile Rack | Short Fuse | AU | For problems already too close. |
+| Swarm Rocket Pod | Confetti | Lucent | Every launch is a celebration. |
+| Incendiary Rocket Pod | Trebuchet | Zhestokost | Siege fire for a column that does not stop. |
+
+### Model page rows
+
+| Kind | What names it | Over time | Who decides |
+|---|---|---|---|
+| `FactionProductData` (catalog) | Its record | Every sold design carries at least one product whose name differs from the design's, and is expected to carry several | The catalog author: the brand a player sees |
+| Item title | `ItemManager.Title(item)` | Derived on each read from the lot's brand; the design name stays as `Type` | `ItemManager.Title`, the one owner; there is no `DisplayName` |
+| `Lot` (run save) | `Lot.Product` (key 4) | Written once by `CreateLot(product)`; a lot made without a product (console give, extraction) has none and shows its maker only. A product that no longer resolves reads as unbranded | `CreateLot`; `Brand` reads it and nothing re-derives a product from maker and design |
+| `WeaponItemData` (catalog) | Three new generic designs: Point Defense Gun, Point Defense Laser, Flak Gun | Authored once by `pd-gear` | The catalog author |
+
+### Rationale
+
+**Titles name the product.** One engine-free derivation in ServerShared, `ItemManager.Title(
+CraftedItemInstance)`: the brand's product name, else the design name. Every title site reads it.
+This is what makes "branding lives in products" visible, and what shows the Pirates' emoji names.
+`lot-product` moves the brand's authority from a catalog query (LP2) into the lot, so that two
+products of one design by one maker stay distinct (CG4, LP9). A first plan for it added a
+`DisplayName` over the same hunks as `Title`; Soul verdict `cut-product-titles.s1` found two title
+owners in force (`title-vs-displayname-split`) and Self ruled Title the one owner. A lot whose
+product no longer resolves (a removed mod's product) reads as unbranded: `Brand` returns (maker,
+null) and `Title` falls back to the design; `RequireDesigns` is not widened (ruling
+`no-save-compatibility-before-players`). The census duplicate-brand block (LP7) goes away.
+
+**Why three PD designs and not five.** The missile-defence rulings in force are `pd-who-engages`
+(any gun, priced by its own stats), `missiles-sim-side-light` (missiles are lightweight records PD
+can engage), `weapon-tracking-authored` (a PD class near 40 deg/s exists to be authored) and
+`speed-demon-counterplay`. They need guns with PD stats, which the catalog lacks: the PD Gun
+(ballistic hose, the Djinni's slots), the PD Laser (energy, the Longinus's slots, so the demo's
+starting hull can fit PD) and the Flak Gun (Zhestokost's flak doctrine as a pellet gun, which needs
+no new rule: each pellet rolls). An interceptor launcher needs missiles that take munition subjects
+and a decoy launcher needs a signature the seeker can read that is not a ship; both are new
+mechanics, which the target's not-in-scope line excludes until ruled. They are follow-ups
+`interceptor-launcher` and `missile-decoys-signature`, not catalog content. An airburst flak (a
+blast that wears munitions in its disc) is follow-up `flak-airburst-at-munitions`.
+
+**Derivation of the PD stats** (from CG5 and the tracking table). Tracking 40 is the table's PD
+anchor (0.82 / 0.94 against the speed demon at TC / FCA). PD Gun is ClearPath's role pushed to its
+extreme: one cell, lighter (40 kg), less damage per round (1.5-4) at a higher rate (0.06-0.025 s)
+and shorter reach (300-550 m), because a munition has 20 durability (CG7): 5 to 14 rounds kill one.
+It draws ammunition (`ballistics-real-ammo`) and a small cycling energy, 0.4-0.2
+(`ballistics-cycle-power`). PD Laser is Spectra's role: instant beam, 5-12 per shot every 0.2-0.1 s
+to 400-750 m, energy-limited at 6-10 a shot, 2 to 4 hits a missile. Flak Gun is DeathCluster's
+shotgun at small calibre, 1x2: 6-8 pellets sharing 30-70 damage a volley, 350-800 m, Tracking 20
+(between PD and ClearPath, because pellets cover what tracking misses).
+
+### Refresh at 1746e8bd (generic-design-names r3, 2026-10-13)
+
+Re-probe of this section against `origin/master` `1746e8bdc8c86f142ab0ea8952dbccdc851c3dc2` by
+`imagination-aeth-generic-names` (session self-2026-10-13-ag2), after ruling `catalog-breadth-now`
+lifted the hold. Catalog decode: `cultcache_py` `SingleFileMessagePackBackingStore.pull_all()` over
+`GameData/Aetheria.cc` at that head, payloads by MessagePack key (the CG1 method); literal census: a
+script counting each quoted old name (`"<name>"`, fixed string) over `git ls-files '*.cs'`. Scratch
+scripts were not committed. The rename table above ("Generic design names", 43 rows) stands unchanged:
+every old name is present exactly once and no generic name is taken by any record or product.
+
+- **GN1. Census at 1746e8bd.** 86 FactionProductData, 51 CompoundCommodityData, 31 GearData,
+  27 WeaponItemData, 13 SimpleCommodityData, 13 Faction (Pirates added), 12 NameFile, 5 HullData
+  (Djinni, Longinus, Turret, Zenith, Smoke Test Hull), 4 CargoBayData, 3 PersonalityAttribute, 2 ConsumableItemData,
+  1 DockingBayData, 1 FieldKindData, 1 InputLayout, 1 verse_grammar, 7 verse_verb. Traction is gone
+  (retire-longinusx). Landed since CG1: product-titles (`ItemManager.Title`, ItemManager.cs:228-229,
+  the one title owner; no `DisplayName`), lot-product (`Lot.Product`, Provenance.cs:73), pd-gear,
+  pirates-record (8 emoji rebrands), mine-launcher, roles-backfill, consumables-first-set.
+- **GN2. Designs whose product shares their name: 43 non-hull designs** (CG2 counted 49 at
+  4d664b53). 35 are rows of the rename table; the other 8 keep a generic design name and need a
+  brand: Autocannon (Zhestokost), Cockpit 2x2, Industrial Thermostatic Heater, Medium Drive,
+  Small Drive (Lightsail), Turret Control Module, Medium Docking Bay (AU), and the new one,
+  **Mine Launcher (DME)**, whose product `Mine Launcher` was authored by `mine-launcher`
+  (Program.cs:1779) with the design's functional line as its text and an empty design description.
+  Pirates products sit on Store-All Plus, Small Drive, Targeting Computer, 6k Shooter, Autocannon,
+  Earp, FastBlast+- and scorched void policy; none is touched (ruling `pirates-record-content`).
+- **GN3. Description classes for the 43 rows.** 40 products carry exactly the design's text or
+  both are empty or `[TODO]`; 3 differ: plight/DragOnBreath (the product's text is an authoring
+  note, "The subsidiary plight's own description already namechecks..."), pswarm/Leonid (the design's
+  text is DME's "let's set the stars on fire" lyric, a duplicate of scorched void policy's) and
+  Core Power/Steadfast. Empty or `[TODO]` on both sides: LRMM72, SRMM72, Iapyx, Skiron,
+  RevvITup 2.0, Talaria, The Bat, not if i see you first, PotaT+-. The five station reactor
+  designs share the functional line "A reactor sized for a station's core." and their products
+  (Steadfast Station, Manhattan Station, Notorious Station, Vulcan Station, MoveOnPro Station) are
+  empty. Victoire's product is empty under a flavour design text.
+- **GN4. Authoring notes shipped as player text.** Eight product descriptions end in " (new text)":
+  Panopticon, Panopticon Prime, ClapBack, ClapBack Ultra, LockOn, LockOn Pro, Steadfast, True North.
+  Their source literals are in TargetingCatalog (Program.cs:1177, 1180, 1200, 1203) and
+  TargetingCatalog6c (:1315, 1318, 1321, 1324); DragOnBreath's note is Program.cs:1194.
+- **GN5. Old-name literals in C#: 232 on 202 lines in 30 files** (CG10 counted 61 in 12). Every
+  hit resolves a design by `Name` (scenario fits, `GetByName`, `Data.Name ==`, AetherDb templates and
+  name-keyed maps) or is a comment; none names a product. By file: EvasionTermTests 28,
+  tools/AetherDb/Program.cs 26 (lines 236, 408, 1193, 1196, 1199, 1530, 1538, 1545, 1716-1720,
+  1890-1891, 2055-2058, 2061), Pursuit 22, Arcs 17, MunitionPartsTests 14, Duel 13, Belt 10,
+  Crossing 10, LauncherAngles 10, StarvedReactor 8, WeaponFeel 8, RolesBackfillCommandTests 8,
+  FusedRounds 7, CatalogRoleTests 7, AiFusedDiscipline 6, RefusedRounds 6, EvasionTrackingTests 5,
+  PiratesFactionCommandTests 5, RestoredHullsTests 4, RunStartTests 4, SmokeRoundsSteppedTests 3,
+  CrossingScenarioTests 2, SmokeRoundsCommandTests 2, and one each in BrownoutTests (comment),
+  PowerCurveTests (comment), ScenarioTests, SmokeHullCommandTests, SmokeHullScenarioTests,
+  SmokeRoundsScenarioTests, ThrustAllocationTests. No non-C# file in the tree names them except docs.
+- **GN6. Name-keyed authority in AetherDb.** `ToolRolesByDesign` (Program.cs:229-241) is keyed by
+  design name and feeds `HasRoleMap`, which CatalogRoleTests reads: its `"PotaT+-"` key (:236) must
+  become `"Capacitor"` or the capacitor silently loses its role map. `BackfillDesigns`
+  (:1890-1891), the roles-migrate Arctica special case (:408), and the templates of pd-gear
+  (:1530-1545), smoke-rounds (:1716-1720) and pirates-faction (:2055-2061) resolve by name; the
+  command tests for roles-backfill, smoke-rounds, smoke-hull and pirates-faction run those commands
+  on a scratch copy of the shipped catalog, so after the rename they find designs only by the
+  generic names.
+- **GN7. Order-sensitive pin.** `RunStartTests.TheSoldHardpointGearWithNoHomeToday`
+  (RunStartTests.cs:450-460) orders names ordinally; after the rename the list is
+  Charged Blaster, Charged Scatter Blaster, Heat Pump, Heavy Beam Laser (not a positional swap).
+- **GN8. In-flight branches that add old-name literals** (diff against master, 2026-10-13):
+  `eureka/aetheria-release-scenarios-lock-on-r3` (LockOn.cs, 9 literals: the scenario hull fit) and
+  `eureka/aetheria-release-sensor-catalog-r2` (its sensor-stat-set table names "The Bat" and
+  "not if i see you first" for four new products: Floodlight and Beacon by Lucent, Pinion and
+  Kestrel by Finch). It also adds `["Passive Array"]` to `ToolRolesByDesign`, the dictionary GN6
+  edits. `aetheria-ew` ew-hide-launch-catalog names only "Targeting Computer" and its own new design.
+
+### Content: brands, flavour and functional text (generic-design-names r3)
+
+Ruling `kitchen-sink-content` applied where r2 chose narrowly: r2 left nine products with no text,
+moved the station reactors' functional line into their products as if it were flavour, dropped
+three design texts, and branded seven same-named products. r3 brands all eight (GN2), gives every
+product of the touched designs its own text (except Miss Terri's, ruling
+`miss-terris-belongs-to-emily-r3`), strips the eight authoring notes (GN4), and keeps every old
+brand verbatim as a product name (ruling `setting-permits-necrotech`: names are not trimmed for
+tone). Names and lines are drafts the operator may rename.
+
+**Brands for same-named products** (product renamed; its text set as below):
+
+| Design (unchanged name) | Maker | Old product name | Brand | Product text |
+|---|---|---|---|---|
+| Autocannon | Zhestokost | Autocannon | Hammerfall | The rounds fall steadily, and they do not stop until the work is done. |
+| Cockpit 2x2 | Lightsail | Cockpit 2x2 | Wheelhouse | Every Lightsail captain's favourite chair. The view comes standard. |
+| Industrial Thermostatic Heater | Lightsail | Industrial Thermostatic Heater | Hearth | A warm hold, a warm crew, and a warm welcome at the cold end of the run. |
+| Medium Drive | Lightsail | Medium Drive | Steady Haul | Keeps you going and going and going... (the design's old text, moved) |
+| Small Drive | Lightsail | Small Drive | Short Hop | Dock to dock, and not a metre further than the manifest says. |
+| Turret Control Module | AU | Turret Control Module | Watchtower | Point it at the dark and get back to work. It keeps watch. |
+| Medium Docking Bay | AU | Medium Docking Bay | Open Berth | Room for a friend, a customer or a tug. We don't ask which. |
+| Mine Launcher | DME | Mine Launcher | parting gift | we were never here/ but we left you something/ it's waiting where we were |
+
+**Functional design text for those eight** (the design's Description; flavour lives in the product):
+Autocannon "Belt-fed cannon: a steady stream of rounds at long reach."; Cockpit 2x2 "Two-by-two crew
+cockpit."; Industrial Thermostatic Heater "Turns reactor power into heat to keep the hull warm.";
+Medium Drive "Mid-sized working drive."; Small Drive "Small working drive."; Turret Control Module
+"Control module for a station turret."; Medium Docking Bay "Docking bay for mid-sized ships.";
+Mine Launcher "Lays a drifting proximity mine that arms after two seconds." (moved from its product).
+
+**Product text set explicitly** (by product name and maker; every other product of a renamed
+design keeps its text, which GN3 shows equals the design's old text):
+
+| Product (maker) | Design after rename | Text |
+|---|---|---|
+| Victoire (Alakrita) | Racing Drive | The most responsive thruster on the market, for the most irresponsible of racing pilots. (moved from the design) |
+| DragOnBreath (Lucent) | Lightning Projector | plight's old design text, verbatim (moved; replaces the authoring note) |
+| Steadfast (R&D) | Compact Reactor | It gets the job done, but that's all. Rated for continuous operation. "Continuous" does not imply "uninterrupted." |
+| Steadfast Station (R&D) | Station Reactor | Rated for continuous operation at station scale. The fine print scales too. |
+| Manhattan Station (Zhestokost) | Heavy Station Reactor | A fortress needs a furnace. This is the furnace. |
+| Notorious Station (Lucent) | High-Yield Station Reactor | The biggest reaction in the system, and everyone docked here will hear about it. |
+| Vulcan Station (AU) | Ring Station Reactor | Keeps the lights on and the forges hot. |
+| MoveOnPro Station (NiteLife) | Muon Fusion Station Reactor | The club never closes. Neither does the reactor. |
+| LRMM72 (R&D) | Long-Range Missile Rack | Engages targets at up to seventy-two kilometres!* *In a vacuum, against a cooperative target. |
+| SRMM72 (DME) | Short-Range Missile Rack | seventy-two reasons/ to keep your distance/ all of them leaving at once |
+| Iapyx (AU) | Radiator | Two cells of honest fin. Bolt it on and forget it's there. |
+| Skiron (AU) | Long Radiator | When the job runs hot, run a bigger fin. |
+| Talaria (AU) | Rugged Drive | Takes a knock, keeps pushing. Built for crews who work for a living. |
+| RevvITup 2.0 (NiteLife) | High-Thrust Drive | Floor it. The bass drops when you do. |
+| PotaT+- (NiteLife) | Capacitor | Holds the charge until the drop, then lets it all go at once. |
+| not if i see you first (DME) | Compact Sensor | eyes in the dark/ you were seen before you looked/ say goodnight |
+
+Leonid keeps its own text; pswarm's dropped lyric survives on scorched void policy (GN3). The Bat's
+product (Miss Terri's) is not touched. The eight " (new text)" suffixes (GN4) are removed from the
+shipped products and from their source literals; Steadfast's full text is the row above.
+
+**Concurrency.** Every catalog cut writes `GameData/Aetheria.cc` through an idempotent AetherDb
+command; whoever merges second takes master's `.cc` and reruns its own apply (ruling
+`catalog-breadth-now`), never a hand merge. Because this cut renames the names other commands look
+up, a cut that merges after it must spell the generic names; one that merges before it is swept by
+this cut's final pass (GN8).
 
 ## Retiring the LonginusX and parking the aether drive
 
@@ -4906,6 +6260,26 @@ factor), which waits on all of them.
   (`Agent.Update`), and `Combat` draws one jittered range sample per step (`Combat.cs:145`);
   a smaller step means more decisions per sim second, the same per real second. No ruling
   fixes a per-step count.
+
+**Body facts for ballistic-flight r2** (source reads at e56f9c8b, 2026-10-09, imagination-aeth-ballistic-r2):
+
+- B-r2-1. FireControl.Step writes a committed shot back (`shots[i] = shot`, FireControl.cs:868) before `ShotCommitted` fires (:869). A no-lock fused round stopped by a hull has its `ArrivalTime` shortened at that commit (:867; CommitBurst :1024). A presenter's fire-time copy of the shot therefore carries a stale arrival unless it re-reads the record at `ShotCommitted`.
+- B-r2-2. `FireControl.Designated` measures `range` to any non-null target before the in-range test (:293-297), and a direct round's FlightDistance is that range. A direct round can therefore be fired at a target beyond Range and arrive after `FireTime + MaxRange/Speed`.
+- B-r2-3. `InstantWeapon.Execute` calls `FireControl.Fire` and then `OnFire` (:271-272) inside the entity loop, and `FireControl.Step` runs after it (Zone.cs:232). A presenter spawned from `OnFire` binds `ShotCommitted` and `ShotResolved` before its shot can commit or resolve, including a round fired at nothing that commits and misses in the same step.
+- B-r2-4. Solve aims a direct or engaged fused round at the predicted intercept (`Solution().Direction`, :135-156) but sets FlightDistance to the current planar range (:654-666), so on a moving target the arrival point on the frozen line is not where the target is. Open as question direct-arrival-at-intercept.
+
+**Why a round's end is one sim statement.** The sim resolves a round at `ArrivalTime`. A drawn round that ends anywhere else needs a second owner of the end, which is what ballistic-flight s1 found in Projectile. `FireControl.RoundEnd(shot, known)` states the end for what the sim has published about the outcome: arrival for a hit, a burst or an unknown outcome, and the frozen weapon range for a miss, never short of arrival. `RoundAt` clamps there. A round whose outcome is not yet published waits at its arrival point for at most one step instead of overshooting. The drawing rules (placement, barrel blend, stop, done) are pure statics in DrawAhead, beside the ships' draw-ahead, so the headless suite tests them by behaviour rather than by grep.
+
+**Ballistic flight is presentation (r3, 2026-10-09).** After rulings projectile-flight-is-presentation, sim-hooks-presentation-agnostic and direct-arrival-keep-timing, FireControl owns only a shot's facts: the outcome, when damage lands (ArrivalTime, a contact burst's shortened arrival, the commit tick), the impact cell with its target, and a fused round's burst point. DrawAhead owns the drawn round, as pure statics tested headless.
+
+Probes at d98818ea:
+(1) The impact cell is already on the outcome: on a hit, Commit stores the first cell of the shot's lane (FireControl.cs:960-988), MakeOutcome copies Cell and Target (:1527-1544), and ShotCommitted and ShotResolved publish the outcome (:881, :894). No sim hook was needed.
+(2) Entity.ToWorldPoint (Entity.cs:717-725) is the one schematic-to-world frame. The step turns Direction by `mul(Direction, float2x2.Rotate(TurnRate*dt))` (Thruster.cs:129), so the cell on the drawn pose is `Position(target, lead).xz + Rotate(ToWorldPoint(cell) - Position.xz, TurnRate*lead)`, exactly.
+(3) The commit tick equals `record.ArrivalTime - outcome.ArrivalIn` for every result (:877-881, :1541).
+(4) An engaged proximity round is Hit or Burst, never Miss; it bursts at BurstPosition frozen at Fire (:1009-1017, :1148-1150), and it is drawn there.
+(5) A target that leaves the zone mid-flight resolves as a fresh Miss (:857-868).
+
+Rationale: a hit follows its frozen line until the commit tick, then blends onto its impact cell on the target's drawn pose, so it lands on the hull rather than at the frozen line's arrival point. The sim's damage timing is unchanged. A miss flies on to the weapon's frozen range, which is DrawAhead.RoundEnd's choice. A kink at the commit frame (at most one step's share of the line-to-hull gap) and a snap back to the line after a target-gone Miss are accepted presentation. Rejected: publishing the lane's entry point as a new sim field; the ruling names the cell, so a hit effect may sit up to half a cell inside the hull skin. Risk: a hull mesh not aligned with its schematic makes hits land beside the mesh; that is a content fault, and the operator's moving-target check shows it.
 
 ### Census
 
@@ -5263,3 +6637,3649 @@ reverse. One coverage test makes "triggered by" and "harmed by" the same disc.
 **Why no targeting provider or point defense against mines.** The old mine was neither
 detectable nor shootable, and ruling `pd-who-engages` prices munitions, which a mine is not.
 Detection of floating bodies stays with follow-up `bodies-detection`.
+
+## Catalog breadth: the weapon matrix, roles backfill and stat-boosting gear
+
+Pass: Imagination `imagination-catalog-breadth`, session `self-2026-10-08b`. Self merges this into
+`docs/aetheria-release-map.md`; nothing here is committed. Body: `GameCult/Aetheria` origin/master
+`a8f71d463bf1160de0b5f23caa56dc7957252345` (fetched 2026-10-08), detached worktree in the session
+scratchpad, removed at the end. Rulings applied: `catalog-breadth-weapons-gear-consumables`,
+`catalog-grows-generic-designs-branded-products`, `tech-lineage-per-component-role`,
+`weapon-tracking-authored`, `plight-not-one-cell`, `plight-shape`. Operator, 2026-10-08, relayed by
+Self: "All this comes with roles and components too, right?" (not yet admitted as a ruling; Self
+should admit it so specs can cite it by id).
+
+Part (c), consumables, is not mapped here. The component-role rule (CB-R1) and the stacking rule
+(question `boost-stacking`) are written so that pass reuses them unchanged.
+
+### Body facts
+
+Decode method: `cultcache_py` `SingleFileMessagePackBackingStore.pull_all()` over
+`GameData/Aetheria.cc` at a8f71d46 (LFS pulled into the worktree), payloads `msgpack.unpackb`ed and
+read by MessagePack key. Scratch scripts `cat.py`, `wm.py`, `stats.py`, not committed.
+
+- **CB1. Census at a8f71d46.** 74 FactionProductData, 51 CompoundCommodityData, 31 GearData,
+  22 WeaponItemData, 13 SimpleCommodityData, 12 Faction, 12 NameFile, 4 CargoBayData, 4 HullData,
+  3 PersonalityAttribute, 1 FieldKindData, 1 DockingBayData, 1 InputLayout. pd-gear and the Mine
+  Launcher are on master; the Pirates (pirates-record 8e51016f), lot-product (ec081b9b),
+  generic-design-names, product-lines-weapons, maker-only-faction (5dce222b), mods-in-tree
+  (cc83f5ad) and faction-play-1 (b3d1e929) are not. Design names are still the branded ones.
+- **CB2. The catalog already has a category axis and a size axis on weapons** (source read
+  `ItemData.cs:477-487`, `Enums.cs:55-83`). `WeaponItemData.WeaponType` (key 26: ElectromagneticallyPropelled,
+  ExplosivelyPropelled, Laser, Electrostatic, ParticleProjection, Missile, MicroMissile, SplitMissile,
+  Mine, Jet) and `WeaponCaliber` (key 25: Small, Medium, Large, ExtraLarge). The operator's vault note
+  `AetheriaLore Aetheria/Worldbuilding/Post-Elysium/Reference/Weapon Category Codes.md` (33cd06a)
+  defines the same taxonomy: caliber S/M/L/XL, weapon types EMPS, XPS, L, PL, ESD, PPC, launchers
+  M, MM, MIRV with guidance D/G/S. The enum lacks PL (pulse laser) and adds Mine and Jet. The only
+  code readers are the action-bar icon (`Gameplay/ActionBarSlot.cs:154`, `GameSettings.cs:52-54`).
+- **CB3. The matrix at a8f71d46** (type x authored caliber, with cell footprint):
+
+  | Type | Small | Medium | Large | ExtraLarge |
+  |---|---|---|---|---|
+  | XPS (Ballistic) | ClearPath 2, Earp 2, 6k Shooter 2, PD Gun 1 | Autocannon 4, DeathCluster 4, pretty pretty bang bang 4, Flak Gun 2 | - | - |
+  | EMPS | - | - | - | - |
+  | Laser (Energy) | Spectra 2, ColdFire 2, PD Laser 1, CShot RainbowLite Lazer 9 | - | - | - |
+  | ESD (Energy) | - | - | plight 2 | - |
+  | PPC (Energy) | FastBlast+- 2 | ChargeBlast+- 4, ChargeBlast SG 4 | - | - |
+  | Missile (Launcher) | - | GT 3K 3 | - | - |
+  | MicroMissile (Launcher) | - | scorched void policy 3, pswarm 1 | LRMM72 6 | SRMM72 6 |
+  | SplitMissile | - | - | - | - |
+  | Mine (Launcher) | - | Mine Launcher 1 | - | - |
+  | Jet | - | - | - | - |
+
+  Caliber and footprint disagree in six designs: CShot (Small, 9 cells), plight (Large, 2),
+  pswarm (Medium, 1), SRMM72 (ExtraLarge, 6 like LRMM72's Large), Mine Launcher (Medium, 1),
+  Flak Gun (Medium, 2). Map M30 already recorded CShot and plight.
+- **CB4. Weapon homes on master** (`HullData.Hardpoints`, key 23). Longinus: Energy 1x2 x2,
+  Launcher 1x3 x2. Djinni: Ballistic 1x2 x2, Launcher 1x3 x2, Launcher 3x2 x2. Turret (station):
+  Ballistic 2x4 x2. Zenith: none. `LoadoutGenerator.HasHome` (`:201`) offers a design only if some
+  hull's hardpoint `Takes` it, so a Large or ExtraLarge Energy gun, an ExtraLarge launcher and a
+  2x2 Energy gun have no home until a hull carries such a mount. No mod package is in the tree yet.
+- **CB5. Roles and components today** (source read `ItemData.cs:315-331`, `FactionProduct.cs:14-40`,
+  `Provenance.cs:73`, `ItemData.cs:640-720`). A design declares `Roles` (`ItemRole`, a name only;
+  its comment: "the part itself earns a record when crafting needs one to exist"). A product
+  authors `ProductRole{Role, Mean, StandardDeviation}` per role; `ItemManager.CreateLot`
+  (`ItemManager.cs:149`) rolls each role's quality into the lot; a stat reads it through a
+  `StatTerm{Source: Quality, Role}`. No record type for a component item exists; the 51
+  CompoundCommodityData (Circuit Board, Reaction Chamber, Heat Sink Tile, Trigger ...) carry no
+  roles and nothing links a role to them. Lineage (`tech-lineage-per-component-role`) has no field.
+- **CB6. Roles are live only where a stat reads them.** `AetherDb roles-migrate`
+  (`tools/AetherDb/Program.cs:255-378`) assigned roles per kind from fixed field maps
+  (`:156-216`) and skipped flat stats (`Min == Max`) and kinds with no quality-reading behaviour.
+  The census prints, but no test fails on, products that author no spread for a role
+  (`Program.cs:110-127`).
+- **CB7. The audit of in-flight content for roles** (decode plus pirates-record diff read):
+  - pd-gear (merged): all three designs declare their kind's roles, each read by non-flat stats;
+    every product authors ProductRole for each. No gap.
+  - Pirates (pirates-record 8e51016f, `Program.cs` diff lines 66-82): every rebrand mirrors its
+    design's roles at apply time (mean .45, sd .22). It inherits the design's gaps: its Autocannon
+    rebrand carries no roles because Autocannon declares none.
+  - Mine Launcher (merged): no roles, every MineLayerData stat flat with no terms at all; its DME
+    product authors none.
+  - Also role-less with flat stats: Autocannon, LRMM72, SRMM72 (every stat Min == Max, Quality term
+    with no role). Large Drive reads Quality with no role and declares none. Cargo bays, docking
+    bay, Cockpit 2x2, Turret Control Module and Tractor Beam carry no quality-reading stat.
+- **CB8. Stat modifiers exist and work for passive gear** (source read
+  `Behaviors/StatModifier.cs`, `StatResolver.cs:108-145`, `Entity.cs:1960-1980`).
+  `StatModifierData` (behaviour union 4) names a target `StatReference{Target type name, Stat
+  field}`, a magnitude `PerformanceStat` (so per-role quality works), `Constant` or `Multiplier`,
+  and an optional `RequireBehavior`. While the gear is Active its behaviour groups execute in order
+  and stop at the first that fails (`Entity.cs:1969-1976`), so an `EnergyDraw` before the modifier
+  gates it on power; the modifier attaches to every matching stat on the same entity and detaches
+  when it stops executing. `PerformanceStat.Evaluate` applies `lerp * Scale + Constant`, then the
+  power factor (`ItemData.cs:700-722`). The sim reads every boosted stat through `Evaluate`
+  (Thruster.cs:43, Sensor.cs:168, Radiator.cs:118, Weapon.cs:133-143, VelocityLimit.cs:35,
+  TargetingSystem.cs:80). The catalog's one modifier: MoveOnPro (both sizes) scales
+  `CapacitorData.Capacity` by 1.1-1.25.
+- **CB9. Gap: a modifier cannot target a base behaviour type.** `TargetsOf`
+  (`StatModifier.cs:91-114`) matches `GetType() == targetType` at `:98`, `:102` and `:104`, while
+  `ResolveStatField` resolves any `BehaviorData` subtype by name, abstract ones included
+  (`ItemData.cs:785-799`, `Extensions.cs:36-44`). A modifier on `WeaponData.Damage` validates and
+  then attaches to nothing, because every gun's behaviour is a concrete subtype (AutoWeaponData,
+  InstantWeaponData, ChargedWeaponData, ConstantWeaponData, LauncherData, MineLayerData).
+- **CB10. Stacking today is unbounded.** `StatResolver.ScaleModifier` multiplies every attached
+  scale and `ConstantModifier` sums every constant (`StatResolver.cs:108-122`). Ten 1.15
+  multipliers compound to 4.0x. Consumable effects attach through the same resolver
+  (`Entity.cs:857-881`, `StatModifier.cs:63`), so the stacking rule is shared with part (c).
+- **CB11. Where stat gear lives.** Tool gear has no hardpoint and fits any free interior cell
+  (`Entity.cs:1076-1090`); Targeting Computer (Tool 1x1: TargetingSystem, EnergyDraw 2, Heat 15) is
+  the closest template for a powered booster.
+- **CB12. Consumables already have a sim mechanism** (for part (c), not mapped here):
+  `ConsumableItemData` (`ItemData.cs`, keys 10-14: Behaviors, Stackable, Duration, Icon,
+  Effectiveness) is a CraftedItemData, so it declares roles; `Entity.TryActivateConsumable`
+  (`:872`) and `ConsumableItemEffect` (`:1582`) run its behaviours, including StatModifier, with a
+  `ConsumableProgress` stat source. The catalog holds no consumable record.
+
+### Model page row changes
+
+- **WeaponItemData (catalog)**: who decides gains "the matrix cell": `WeaponType` and
+  `WeaponCaliber` are the authored category and size (question `weapon-matrix-axes`); footprint
+  lies in its caliber's band (Small 1-2 cells, Medium 3-4, Large 5-6, ExtraLarge 7-9).
+- **CraftedItemData.Roles / FactionProductData.Roles**: a design declares a role only if a non-flat
+  stat reads it; every product authors one ProductRole per role (rule CB-R1).
+- **StatModifierData**: targets a behaviour type and its subtypes (after modifier-subtypes); the
+  resolver's stacking rule is the one for gear and consumables alike (question `boost-stacking`).
+
+### Rules (cited by the specs)
+
+- **CB-R1, roles and components (the whole ruling, consumables included).** A crafted design
+  (weapon, gear, consumable) declares roles iff it has a stat that varies with quality. Each
+  declared role is read by at least one non-flat stat's `Quality` term; each non-flat stat reads
+  exactly one declared role; every product that sells the design authors one ProductRole per
+  role, from its maker's profile (catalog-growth addenda table; Pirates .45/.22 per pirates-record).
+  Roles come from the kind's field map in `Program.cs:156-216`, extended for new kinds as named in
+  each spec. A consumable's roles govern its effect magnitude stats the same way. Under the
+  recommended option of question `component-items`, the component is the (design role, product
+  ProductRole) pair: no component item record until crafting reads one, and the lineage mark of
+  `tech-lineage-per-component-role` lands on ProductRole when the first aethertech product does.
+- **CB-R2, authoring a new design.** Copy a template by record key (never by name, so it holds
+  across generic-design-names), set the shape, caliber, type and name, set every authored stat by
+  the ladder below as a Min-Max range of value x (0.8, 1.2) (benefit stats rise with quality, cost
+  stats fall), keep the template's non-quality terms, point each Quality term at its role, author
+  Tracking per weapon with no terms (`weapon-tracking-authored`), carry no BlastRadius or Fuse
+  (`FireControlCut124Tests.cs:2589`), no AmmoType (the ballistic-ammo revision owns rounds), and a
+  description with no maker name. Two or more products from distinct makers, never Miss Terri's or
+  the Pirates, product name never the design name.
+- **CB-R3, caliber ladder** (per step from the template's caliber): Damage per shot x2.0, Range
+  x1.2, Mass x2.0, Price x2.0, Energy and Heat x1.8, Cooldown x1.25, Spread x0.85, Visibility x1.5.
+  Tracking (authored, steep): 2-cell Small 10-12, Medium 5-6, Large 3, ExtraLarge 1.5; flame guns
+  double those (the cone covers what tracking misses).
+- **CB-R4, footprints for new designs.** Small 1x2, Medium 2x2 (launchers 1x3), Large 2x3
+  (launchers 3x2), ExtraLarge 2x4 (fits the station Turret's Ballistic 2x4).
+- **CB-R5, catalog blob.** Each content cut lands through one idempotent AetherDb command; under
+  follow-up `catalog-blob-merge-order` its merge takes master's catalog, reruns the command's
+  `apply`, commits the regenerated blob in its own LFS commit with the dry-run text and reruns the
+  suite. No cut picks a side's blob.
+
+### Design tables
+
+Product names are drafts in each maker's voice (profiles: catalog-growth addenda); Hands writes the
+one-line descriptions in that voice.
+
+**matrix-coilguns** (EMPS, Ballistic hardpoint, template ClearPath `0271bb97` for Small and
+Autocannon `13116166` above; EMPS vs XPS at one caliber: Velocity x2.5, Penetration authored high,
+Energy x3 per `ballistics-cycle-power`, Damage x1.2, Cooldown x1.6; roles barrel, feed mechanism):
+
+| Design | Caliber | Shape | Products (maker) |
+|---|---|---|---|
+| Light Coilgun | Small | 1x2 | RC-1 Needle (R&D), Pin (Finch) |
+| Coilgun | Medium | 2x2 | RC-4 Spindle (R&D), Plumb Line (Adrasteia) |
+| Railgun | Large | 2x3 | True Meridian (Adrasteia), RX-9 Lancer (R&D), Gavel (Zhestokost) |
+| Heavy Railgun | ExtraLarge | 2x4 | Axis (Adrasteia), Long Reach (AU) |
+
+**matrix-cannons** (XPS, template Autocannon, AutoWeaponData; barrel, feed mechanism):
+
+| Heavy Autocannon | Large | 2x3 | Bulwark (Zhestokost), Foreman (AU) |
+|---|---|---|---|
+| Siege Cannon | ExtraLarge | 2x4 | Last Word (Zhestokost), big red problem (DME) |
+
+**matrix-beams** (Energy; Laser from ColdFire `2933c4ce`, PPC from ChargeBlast+- `499f7891`;
+focusing array, power coupling):
+
+| Medium Beam Laser | Medium | 2x2 | Filament (Alakrita), Limelight (Lucent) |
+|---|---|---|---|
+| Large Beam Laser | Large | 2x3 | Marquee (Lucent), Clear Sight (Adrasteia) |
+| Heavy Ion Cannon | Large | 2x3 | Blackout (NiteLife), short circuit (DME) |
+| Ion Lance | ExtraLarge | 2x4 | Lights Out (NiteLife), IX-12 Breaker (R&D) |
+
+**matrix-lightning** (ESD, ChargedWeaponData from plight `632420a6`; focusing array, power coupling):
+
+| Arc Thrower | Small | 1x2 | Sparkler (Lucent), Live Wire (NiteLife) |
+|---|---|---|---|
+| Storm Projector | Medium | 2x2 | Thunderhead (NiteLife), everybody dance (DME) |
+| Tempest Projector | ExtraLarge | 2x4 | Grand Finale (Lucent), Mains (NiteLife) |
+
+**matrix-missiles** (Launcher; Missile from GT 3K `5ee2ff03`, MicroMissile from LRMM72 `32157982`;
+guidance system, thruster, warhead):
+
+| Light Missile Launcher | Small | 1x2 | Fledgling (Finch), Courier (AU) |
+|---|---|---|---|
+| Heavy Missile Launcher | Large | 3x2 | GT 6K (R&D), Freight Forward (AU) |
+| Torpedo Launcher | ExtraLarge | 2x4 | Battering Ram (Zhestokost), GT 12K (R&D) |
+| Micromissile Battery | ExtraLarge | 2x4 | the whole show (DME), Fireworks (Lucent) |
+
+**matrix-mines** (Launcher, MineLayerData from Mine Launcher `1b4a2bb3`; new role map: warhead
+reads Damage, Penetration, DamageSpread; dispenser reads Range, Cooldown, Spread, Velocity, Energy,
+Heat, Visibility; ArmingDelay, FuseDelay and Lifetime stay authored per design, not ladder-scaled):
+
+| Mine Rack | Medium | 1x3 | party favours (DME), Caltrop (Zhestokost) |
+|---|---|---|---|
+| Heavy Mine Layer | Large | 3x2 | surprise party (DME), Wake Warden (Lightsail) |
+| Minefield Projector | ExtraLarge | 2x4 | Exclusion Zone (Zhestokost), do not enter (DME) |
+
+**matrix-flamers** (Jet, Ballistic hardpoint, InstantWeaponData pellet gun from Flak Gun
+`6af6446e`: DamageType Thermal, Count 8-12, Spread 25-35 deg, Range 150-300 at Small, Velocity
+300; roles nozzle (Range, Spread, Velocity) and fuel pump (Damage, Cooldown, Energy, Heat,
+Visibility)). Absorbs follow-up `pirates-flamethrower`'s design; the Pirates' own 🔥 product moves
+in their own record, not here.
+
+| Light Flamethrower | Small | 1x2 | hot take (DME), Scorch (Zhestokost) |
+|---|---|---|---|
+| Flamethrower | Medium | 2x2 | keep it lit (DME), Brushfire (AU) |
+| Heavy Flamethrower | Large | 2x3 | Purifier (Zhestokost), burn the boats (DME) |
+| Inferno Projector | ExtraLarge | 2x4 | Ashfall (Zhestokost), Afterparty (NiteLife) |
+
+After these, every cell of CB3 is filled except the SplitMissile row (follow-up
+`mirv-split-munition`): 24 new designs, 49 new products.
+
+**Stat boosters** (Tool 1x1, template Targeting Computer `c07ea205`'s EnergyDraw and Heat, then a
+StatModifierData Multiplier in the same group so power gates it; roles amplifier (the magnitude)
+and regulator (EnergyDraw, Heat); magnitude per question `boost-strength`). Superseded 2026-10-09 by
+ruling `boost-strength-tiered-by-size`: each stat gets a modest 1x1 and a strong 2x2 design, tabled in
+'Spec refresh 2026-10-09' below):
+
+| Design | Targets | Products (maker) | Cut |
+|---|---|---|---|
+| Thrust Amplifier | ThrusterData.Thrust | Tailwind (Finch), Second Wind (Lightsail) | boost-gear-systems |
+| Signal Amplifier | SensorData.Sensitivity | Earful (Finch), Lookout (AU) | boost-gear-systems |
+| Emissivity Booster | RadiatorData.Emissivity | Cold Read (Adrasteia), Cool Head (Lightsail) | boost-gear-systems |
+| Reactor Overclock | ReactorData.Charge | Afterhours (NiteLife), redline (DME) | boost-gear-systems |
+| Damage Amplifier | WeaponData.Damage | Showstopper (Lucent), Heavy Hand (Zhestokost) | boost-gear-combat |
+| Range Extender | WeaponData.Range | Far Sight (Adrasteia), Long Look (Finch) | boost-gear-combat |
+| Shield Booster | ShieldData.Capacity | Thick Skin (AU), SB-2 Bastion (R&D) | boost-gear-combat |
+
+### Rationale
+
+**Why the category is WeaponType and the size is WeaponCaliber.** The operator's own taxonomy
+(CB2) names exactly these two axes, and the catalog already carries both fields. Footprint is mount
+space, which the brief's "sizes (cell footprints)" reads as the size; the two disagree in six
+records (CB3). Recommended: caliber is the one authored size, and a catalog test holds every
+footprint inside its caliber's band, so neither can drift; the six are fixed as content. plight is
+the exception the operator holds open (ruling `plight-shape`, Defaulted, revisit after play): it
+stays Large, and the band test names that ruling as its one exemption. Prior art: Starsector mounts
+are type x size (small/medium/large; ballistic/energy/missile) and every type exists at every size;
+Elite's hardpoints are class 1-4 with weapon families not filling every class.
+
+**Why MIRV waits.** A split missile with no split is a mislabelled missile. Missiles become stepped
+munition records only after missile-records (r3, no report); splitting belongs on that record.
+
+**Why components are the role and its ProductRole.** No system reads a part record (crafting is not
+in the demo; the target's not-in-scope line excludes new mechanics), so a component item now would
+be inert data. X4 and EVE give components item records because their economies produce and consume
+them; the role-quality pair already carries what the operator's examples need (a laser better at
+what its focusing role governs). Question `component-items` asks the operator.
+
+**Why the stacking question recommends diminishing returns.** Interior cells are cheap compared with
+hardpoints, so unbounded multiplication (CB10) makes a hold full of amplifiers the dominant fit.
+EVE University, Stacking penalties (fetched 2026-10-08): the n-th percentage modifier on one
+attribute is multiplied by S(n-1), S(u) = e^-(u/2.67)^2, strongest first, so 100%, 86.9%, 57.1%,
+28.3%, 10.6%, 3.0%; absolute effects are never penalized; positive and negative effects are
+penalized separately. Starsector hullmods are on or off per ship and priced in ordnance points
+(starsector.wiki.gg/wiki/Hullmods, fetched 2026-10-08: Unstable Injector raises speed and cuts
+weapon range 25%); the exact bonus values were not on that page. Nebulous jammers stack on a similar
+diminishing curve (consumables prior-art file, "Stacking and exclusivity"). Because consumables
+attach through the same resolver, whichever rule the operator picks covers part (c) too.
+
+**Cut order.** roles-backfill and modifier-subtypes are independent of everything here. The seven
+matrix cuts are independent of one another and of generic-design-names (templates by key, new
+designs born generic); they wait only on the axis ruling. caliber-bands lands last: it recalibers
+six records and adds the band and coverage tests that would fail before the matrix fills.
+product-lines-weapons r2 adds roles-backfill to r1's dependencies so its new products of Autocannon,
+LRMM72, SRMM72 and Mine Launcher author ProductRole for real roles. product-lines-gear turns
+follow-up `gear-product-lines` into a spec (Self withdraws the follow-up as absorbed when it
+admits nothing else over it). boost-gear-combat waits on modifier-subtypes; modifier-stacking and
+both boost cuts wait on the operator.
+
+**Record keys.** No cut here adds a MessagePack key to any type, so none touches the Faction key
+collision (maker-only-faction 19, faction-play-1 Doctrine, livery 18).
+
+### Admitted (mind receipts 2026-10-08 19:48-19:50 UTC)
+
+Questions: `weapon-matrix-axes` (raised in matrix-coilguns, blocks every matrix cut and
+caliber-bands), `component-items` (raised in nothing: the specs follow its recommended option and
+stay valid under the others), `boost-strength` (raised in boost-gear-systems), `boost-stacking`
+(raised in modifier-stacking). Cut specs r1: roles-backfill, modifier-subtypes, modifier-stacking,
+boost-gear-systems, boost-gear-combat, matrix-coilguns, matrix-cannons, matrix-beams,
+matrix-lightning, matrix-missiles, matrix-mines, matrix-flamers, caliber-bands, product-lines-gear;
+product-lines-weapons r2 with resolution `cut_spec.cut-product-lines-weapons.r1.n1` (Superseded).
+Follow-ups: `mirv-split-munition`, `homeless-calibers`, `matrix-rounds`. Left for Self:
+follow-up `gear-product-lines` is absorbed by product-lines-gear (close it when that merges);
+follow-up `pirates-flamethrower`'s design half is absorbed by matrix-flamers (its product move
+stays the Pirates' record's).
+
+## Consumables: the host fix, supply, throttle lock and vapour cloud
+
+Pass: Imagination `imagination-consumables`, session `self-2026-10-08b`. Self merges this into
+`docs/aetheria-release-map.md`; nothing here is committed. Body: `GameCult/Aetheria` origin/master
+`a8f71d463bf1160de0b5f23caa56dc7957252345` (fetched 2026-10-08 ~20:00 UTC; the pirates-record merge had
+not landed), detached worktree in the session scratchpad, removed at the end. Catalog: LFS blob
+`GameData/Aetheria.cc` sha256 `5ecf375f...a011`, decoded with `cultcache_py`
+`SingleFileMessagePackBackingStore.pull_all()` and `msgpack` (payloads are arrays indexed by MessagePack
+key). Scratch probes `q1_thrust_speed.py`, `q2_templates.py`, not committed.
+
+Rulings applied: `catalog-breadth-weapons-gear-consumables` (operator: "consumables (goofy stuff like
+juicing your thrusters for a few seconds but locking the throttle at max, or a consumable coolant that
+turns into a cloud of vapor to break locks)"), `catalog-breadth-roles-and-components` ("All this comes
+with roles and components too, right?"), `catalog-grows-generic-designs-branded-products`,
+`sensor-stat-set`. Reused unchanged from parts (a) and (b)
+(`F:\Projects\aetheria-map-addenda-catalog-breadth-2026-10-08.md`): CB-R1 (roles), CB-R2 (authoring),
+CB-R5 (catalog blob), and the stacking rule of question `boost-stacking` through cut `modifier-stacking`.
+Prior art: `F:\Projects\aetheria-consumables-prior-art-2026-10-08.md` (cited below as PA section n).
+
+### Body facts
+
+- **CC1. The consumable mechanism exists end to end in code, and no record uses it.** Census: no
+  `aetheria.consumableitemdata` record in the catalog (decode). `ConsumableItemData : CraftedItemData`
+  (`ItemData.cs:342-358`, keys 10 Behaviors, 11 Stackable, 12 Duration, 13 Icon, 14 Effectiveness;
+  Roles at key 9 from CraftedItemData). Instance `ConsumableItem` (`ItemInstance.cs:65`, union 3 and 2).
+  Activation: `Entity.TryActivateConsumable` (`Entity.cs:872-884`) refuses a second active effect of a
+  non-Stackable design (`CanActivateConsumable`, `:867-870`), takes the first instance of that design
+  from cargo, builds a `ConsumableItemEffect` and removes the instance. Each tick
+  (`Entity.cs:1443-1454`) the effect updates its behaviours in order, stopping at the first that fails
+  (`ConsumableItemEffect.Update`, `:1604-1619`), and at `RemainingDuration < 0` is dropped after
+  `Resolver.Forget(effect)`. Catalog load validates a consumable's modifiers and role usage
+  (`AetheriaStores.cs:77-80`).
+- **CC2. Player input exists; AI input does not.** The player drags a consumable from cargo onto an
+  action-bar slot (`ActionGameManager.cs:484-485`), the slot calls `TryActivateConsumable`
+  (`ActionBarSlot.cs:118-121`), shows the count in cargo and the remaining-duration fill
+  (`:128-134`), and the binding is saved (`SavedGame.cs:221,230`). Nothing in `Agents/` calls it
+  (grep: the only caller is `ActionBarSlot.cs:120`).
+- **CC3. Defect: a consumable's stat modifier never reaches anything, and would throw.**
+  `StatModifier.Initialize` (`StatModifier.cs:82-89`) is what computes `_targets`; the only caller of
+  `IInitializableBehavior.Initialize` is `Entity.Activate` over `Equipment` (`Entity.cs:202-207`).
+  `ActivateConsumable` (`Entity.cs:857-860`) never calls it, so `_targets` stays null. The effect's
+  `Update` runs `IAlwaysUpdatedBehavior.Update` before `Execute`; on the second tick `_executed && !_applied`
+  calls `ApplyModifier` (`:224-230`), which iterates the null `_targets`: a NullReferenceException.
+  Source read; no test covers it (the expiry test `StatResolverTests.cs:363` uses a consumable with no
+  behaviours). Body fact CB10's claim that consumable effects attach through the resolver holds for the
+  resolver's API, not for this host path.
+- **CC4. Defect: an expired consumable's modifiers would outlive it.** Attachments are keyed by the
+  target item as owner and the `StatModifier` instance as modifier key (`StatModifier.cs:224-237`).
+  Expiry calls `Resolver.Forget(effect)` (`Entity.cs:1451`), which removes only entries whose owner is
+  the effect (`StatResolver.cs:154-170`); nothing calls `StatModifier.Dispose` (`:245-249`). Once CC3 is
+  fixed, a boost would stay attached to the thrusters forever.
+- **CC5. Defect: a bought or generated consumable is not a ConsumableItem.**
+  `ItemManager.CreateInstance(int lot)` (`ItemManager.cs:173-189`) returns `EquippableItem` or else
+  `CompoundCommodity`; `TryActivateConsumable` then casts the cargo instance to `ConsumableItem`
+  (`Entity.cs:880`), an InvalidCastException. The tests build `ConsumableItem` by hand for this reason
+  (`LoadoutTests.cs:787-791`).
+- **CC6. Nobody sells consumables, and nothing restocks.** Station stock is
+  `RandomProducts<EquippableItemData>(16, 1, ...)` into the station's cargo at generation
+  (`LoadoutGenerator.cs:110-119`); `RandomProducts` and `AvailableProducts` are constrained to
+  `EquippableItemData` (`:142`, `:154`) because the availability rule includes `HasHome` (`:164`).
+  Stations are generated once per zone (`ZoneGenerator.cs:303,324`); no code restocks a station
+  (grep `Restock`, `GenerateStationLoadout`). The trade menu sells out of station cargo
+  (`StationServices.TryBuy`, `StationServices.cs:73`; `BuyPrice` prices any CraftedItemInstance, `:13-24`).
+- **CC7. Cargo is the inventory.** A crafted instance occupies its design's `Shape` cells in a cargo bay
+  (`Entity.cs:2187-2207`); there is no item stack for crafted items. A consumable design therefore needs
+  a Shape (ItemData key 5); CompoundCommodity records have none (decode: Shape None, Price 0), so they are
+  not templates. Targeting Computer `c07ea205` is the 1x1 template for mass, specific heat and
+  conductivity (CB11).
+- **CC8. How locks are decided.** Per observer, `EntityInfoGathered[target]` rises by `Sensor.Gain`
+  (`Sensor.cs:187-189`: passive `visibility x sensitivity x curve(bearing) x dt / distance`, ping
+  `visibility x sensitivity x PingBoost x distance` once) and decays by `TargetInfoDecay` each tick
+  (`Sensor.cs:155-178`). Crossing `TargetDetectionInfoThreshold` adds or removes the target from
+  `VisibleEnemies` (`Entity.cs:261-277`); leaving `VisibleEnemies` clears the observer's target
+  (`Entity.cs:248-250`), which zeroes every `LockWeapon` lock (target changed, `LockWeapon.cs:85-90`).
+  Lock rate is `LockSpeed x info^SensorImpact` inside `LockAngle` (`:98-105`); launchers are
+  LockWeapons (`Launcher.cs:7`, `CreateInstance` returns `LockWeapon`). FireControl's sensor factor
+  also reads info (`FireControl.cs:439-442`). Minions retarget when an enemy re-enters
+  `VisibleEnemies` (`Minion.cs:13`). A missile already in flight is a Unity `GuidedProjectile` that
+  follows its `Target` transform (`GuidedProjectile.cs:44,142`); the simulation does not re-decide it.
+  The same `Gain` serves chunk detection through `PassiveRate` (`Sensor.cs:194-199`, `Entity.cs:384`),
+  and `MiningCut3Tests.cs:254` pins the entity info trace bit for bit.
+- **CC9. How thrust and the throttle work.** `Ship.MovementDirection` (`Ship.cs:27`) has two writers, the
+  player's input (`ActionGameManager.cs:1339`) and the agent (`Agent.cs:70-80`); `Ship.Update`
+  (`Ship.cs:231-257`) turns it into each thruster's `Axis` (strafe at `:241-252`, forward and reverse at
+  `:255-256`) and `Turn` into rotation. A thruster pushes by `Thrust` and adds heat and visibility
+  proportional to its input, not to thrust (`Thruster.cs:116-137`), so a Thrust multiplier alone costs no
+  heat. Top speed is a hull's `VelocityLimitData.TopSpeed` (decode: Djinni 50, Longinus 100), clamped in
+  `VelocityLimit.Execute`; the hull is in `Equipment` (`Entity.cs:886`, MapEntity), so a modifier on
+  `VelocityLimitData.TopSpeed` reaches it. Catalog thrusters: Small Drive 75k, Talaria 75k-250k, Medium
+  Drive 100k-300k, deep space burnout and RevvITup 250k-1M, Victoire 200k-1.5M (Thrust Min-Max).
+- **CC10. Zone bodies.** A mine is a runtime-only `KinematicBody` in `Zone.Mines` (`Mines.cs`,
+  `Zone.cs:22`), added only by `Zone.Lay` (`:235-239`), stepped and removed only by `StepMines`
+  (`:245-260`) after the entity loop, never saved, and drawn by one `ZoneRenderer` subscription
+  (`ZoneRenderer.cs:225-264`, `MinePrefab` `:47`). This is the pattern a vapour cloud follows.
+- **CC11. A consumable's own heat does nothing.** `Behavior.AddHeat` is a no-op for a consumable host
+  (`Behaviors.cs:60`, "TODO: Heat for Consumables"). The first set takes its heat cost through the
+  thrusters' own Heat stat instead.
+- **CC12. Record keys.** `BehaviorData` union ids run to 40 (`MineLayerData`, `Behaviors.cs:189`); 12 and
+  26 are retired. No remote branch (71 refs, `git show <ref>:.../Behaviors.cs`) claims 41 or above. This
+  pass claims **41 `ThrottleLockData`** and **42 `VapourDumpData`**. No key is added to Faction,
+  ConsumableItemData or any saved type; the Faction 16-19 collision is untouched. `VapourCloud` is
+  runtime only, like `Mine`.
+
+### Model page row changes
+
+- **ConsumableItemData (catalog)**: new live row. Named by record key; a design with roles (CB-R1),
+  Shape 1x1, a Price, Stackable false, a Duration, and behaviours. Decided by its AetherDb command.
+- **ConsumableItem (run save, cargo)**: created by `ItemManager.CreateInstance` for a consumable design;
+  lives in a cargo bay; consumed by `TryActivateConsumable`.
+- **ConsumableItemEffect (runtime)**: one per activation; owns its behaviours' lifetime: initialised at
+  activation, disposed at expiry, then forgotten by the resolver. Not saved.
+- **Entity.ThrottleLocked (derived)**: true while any active effect carries a `ThrottleLock`. Nobody
+  writes it. `Ship.Update` is the one place that turns intent (`MovementDirection`) into thruster axes,
+  and it reads the lock there.
+- **VapourCloud (runtime, Zone.Clouds)**: added only by `Zone.Vent`, stepped and removed only by
+  `Zone.StepClouds`. `Zone.Obscuration(a, b)` is derived from the live clouds; `Sensor.Gain` is its one
+  reader.
+
+### Rules (cited by the specs)
+
+- **CS-R1, the consumable mechanic.** A consumable is a cargo item, single use, activated from the action
+  bar (player) or by an agent rule (AI). Its effect is timed (`Duration`) and carries its own drawback in
+  the same record. A non-Stackable design allows one active effect at a time, so its Duration is also its
+  cooldown; no second cooldown mechanism. Boosts from a consumable multiply with gear under the one resolver
+  rule (ruling `boost-stacking-multiply`; pinned by cut `modifier-stacking` r3).
+- **CS-R2, roles.** Per CB-R1, every non-flat effect stat reads one declared role and every product
+  authors one ProductRole per role. Benefit magnitudes rise with quality, cost magnitudes fall.
+- **CS-R3, the throttle lock.** While locked, the effective movement intent is full forward, no strafe,
+  no reverse; turning stays with the pilot (question `overdrive-steering`). Intent writers keep writing;
+  they are not owners of the thruster axes.
+- **CS-R4, obscuration.** A cloud is a disc with an opacity that fades linearly to 0 over its lifetime.
+  Every sensor gain (passive, ping and chunk) is multiplied by the product of `(1 - opacity)` over the
+  clouds the sight line crosses, endpoints inside counting as crossing; with no cloud crossed no
+  multiplication happens, so the info trace is bit-identical. Symmetric: the venting ship sees out no
+  better than others see in. Lock loss is the existing rule (CC8): info decays below the detection
+  threshold and the target is dropped. A sensor strong or close enough still burns through.
+
+### Design tables
+
+**Thruster Overdrive** (cut `consumables-first-set`; ConsumableItemData; Shape 1x1; Mass 10; Price
+6,000; Stackable false; Duration 5 s; roles **propellant**, **regulator**; behaviours in order:
+ThrottleLock, then four StatModifierData Multipliers):
+
+| Target stat | Magnitude Min-Max | Role |
+|---|---|---|
+| ThrusterData.Thrust | 2.0-3.0 | propellant |
+| VelocityLimitData.TopSpeed | 1.5-2.0 | propellant |
+| ThrusterData.Heat | 4.0-2.5 | regulator |
+| ThrusterData.Visibility | 4.0-2.5 | regulator |
+
+Products: **send it** (Death Monkey Explosives), **Updraft** (Finch Cybernetics). The heat and plume cost
+is real because thrusters heat by input, not thrust (CC9): a locked throttle runs every forward thruster
+at full input for 5 s at up to 4x heat and plume. Prior art: Starsector Burn Drive (+200 speed for 5 s,
+no steering, PA 1), Plasma Jets (+375% acceleration, 3 s, PA 1), EVE overheating (+50% propulsion, heat
+damage, PA 5).
+
+**Coolant Vent** (same cut; ConsumableItemData; Shape 1x1; Mass 15; Price 4,000; Stackable false;
+Duration 12 s; roles **nozzle**, **coolant**; behaviours in order: VapourDump, then one StatModifierData
+Multiplier):
+
+| Stat | Min-Max | Role |
+|---|---|---|
+| VapourDumpData.Radius | authored so the cloud encloses the largest ship hull (Djinni, 14x17 cells) at Min; Max 1.5x Min | nozzle |
+| VapourDumpData.Opacity | 0.80-0.95 | nozzle |
+| VapourDumpData.Lifetime | 10-14 s | coolant |
+| RadiatorData.Emissivity (penalty, the drawback: the coolant is gone) | 0.4-0.6 | coolant |
+
+Products: **Smoke Machine** (NiteLife Energy), **Morning Fog** (Lightsail Express). Prior art: Nebulous
+jamming against seeker return (PA 8), Elite heat sink and silent running (PA 3), Star Citizen chaff as a
+field effect (PA 9), EVE ECM chance as strength against sensor strength (PA 5).
+
+### Rationale
+
+**Fix the host before adding content.** The mechanism the brief names (CB12) exists but is broken in
+three places (CC3, CC4, CC5): a consumable with a stat modifier throws on its second tick, would leak its
+boost if it did not, and can never be bought. `consumable-host` is the smallest cut that makes the
+existing path true; no new owner. Cut `modifier-stacking`'s test `AConsumableBoostStacksWithGear` cannot
+pass before it, so its r2 adds the dependency and nothing else.
+
+**Why the throttle lock is derived, not latched.** Two writers already set `MovementDirection` (CC9). A
+third writer (the consumable) would race them; a latch set by a behaviour and cleared each tick is a
+second owner of time. `Entity.ThrottleLocked` derived from the active effects, read once in
+`Ship.Update`, cannot outlive its effect and needs no reset path.
+
+**Why obscuration and not a flat break.** The sim already decides locks by information against a
+threshold (CC8), and lock loss already clears targets and zeroes locks. Scaling gain along the sight line
+makes the cloud a contest of signal against obscurant, the Nebulous shape (PA 8: a seeker's return must
+exceed the jamming it feels; burnthrough exists), and EVE's lesson that a guaranteed area break is
+unreliable or oppressive is avoided (PA 5). A flat break would add a second rule that drops targets,
+beside the one that exists. The cloud rides `Sensor.Gain`, which survives the `sensor-stat-set` rebuild
+(every emitter still produces a gain). In-flight missiles are not re-decided by the sim (CC8): the cloud
+denies the lock before launch; seekers in flight are follow-up `cloud-vs-missiles-in-flight`.
+
+**Why the cloud is a zone body that inherits velocity.** Vented gas keeps the ship's velocity
+(KinematicBody, CC10), so a coasting ship stays inside it and a ship that burns leaves it: the two
+consumables combine (vent, then overdrive out of the cloud) and their drawbacks bite each other (the
+overdrive plume is bright; leaving the cloud ends the cover). The symmetric rule makes hiding blind.
+
+**Hoarding** (written for the abundant option; the operator ruled `consumables-scarce` on 2026-10-09 and
+accepted the hoarding risk, so the cheap, everywhere-stocked half of this paragraph no longer holds: see
+'Spec refresh 2026-10-09'). The elixir literature (PA 10) names scarcity, unlimited inventory and unclear purpose as
+causes, and caps, abundance and situational need as cures. Here: cargo cells and mass are the cap (CC7),
+both designs are cheap (6,000 and 4,000 against 25,000-250,000 for a drive) and stocked at every station
+under question `consumable-supply`, AI pilots use them (cut `consumable-ai`) so the player sees what
+they do, and each solves a moment (being locked, needing distance) rather than adding a stat the player
+could save for a boss. Neither is a permanent advantage: each carries its drawback inside the effect.
+X4's lesson (PA 9: flares strong in AI hands, worthless in the player's) is answered by giving the player
+and the AI the same rule and the same information (a painted target always knows, `sensor-stat-set`).
+
+**Magnitudes** are authored ranges grounded in the prior art above; follow-up `combat-pace-pass`
+measures time-to-kill and engagement distance and tunes them with everything else. No question is
+raised on them.
+
+**Cut order.** `consumable-host`, `throttle-lock` and `vapour-cloud` are independent. `consumable-supply`
+needs the host (instances). `vapour-cloud-presenter` needs the cloud. `consumables-first-set` needs the
+host, the lock and the cloud. `consumable-ai` needs all of those and supply. `modifier-stacking` r2 now
+waits on the host.
+
+### Admitted
+
+Receipt `mind-commit-06b3cb76...` (2026-10-08 20:05 UTC). Questions: `consumable-supply` (raised in
+consumable-supply), `vapour-cloud-model` (raised in vapour-cloud), `overdrive-steering` (raised in
+throttle-lock). Cut specs r1: consumable-host, consumable-supply, throttle-lock, vapour-cloud,
+vapour-cloud-presenter, consumables-first-set, consumable-ai; modifier-stacking r2 (adds depends_on
+consumable-host) with resolution `cut_spec.cut-modifier-stacking.r1.n1` (Superseded). Follow-ups:
+`cloud-vs-missiles-in-flight`, `modifier-magnitude-frozen-at-attach`, `consumable-heat-noop`,
+`station-restock`. Claimed keys: BehaviorData union 41 ThrottleLockData, 42 VapourDumpData (keys 1-3).
+
+## Ships add-on frame r5: authoring without the repo
+
+Imagination, agent `imagination-addon-frame`, session `self-2026-10-08b`. Campaign
+`aetheria-release`. Builds on `F:\Projects\aetheria-map-addenda-addon-refresh-2026-10-08.md`
+(A1 to A14); A14 recorded the tension this page resolves. Numbering continues at B1.
+
+Pinned heads: Aetheria `07dcb580` (branch `eureka/aetheria-release-ships-addon-frame-r4`,
+local and on origin; the brief's name `eureka/aetheria-release-ships-addon-frame` does not
+exist), CultLib `05e67014` (main), CultLib `45c2f400` (Aetheria's pinned
+`CultLibRevision`, `Directory.Build.props:6`). Every line number below is at `07dcb580`.
+
+### Body facts
+
+**B1. What New Ship needs from the repo (source read).** `_new_ship`
+(`tools/blender/aetheria_ships/__init__.py:556-605`) finds the repo by walking up for
+`tools/AetherDb` (`_aetheria_repo`, 314-325), writes to `<repo>/GameData/Mods/<id>/ship.cc`,
+and runs `dotnet run --project <repo>/tools/AetherDb -- ship-authoring create` (`_aetherdb`,
+328-336). `create` (`tools/AetherDb/ShipAuthoringCommands.cs:47-67`) reads the reference
+hull from `GameData/Aetheria.cc` through `AetherDb.Open()`, whose `FindRoot`
+(`tools/AetherDb/AetherDb.cs:26-32`) keys on `Aetheria.Shared/Aetheria.Shared.csproj`, and
+builds the hull with `ShipAuthoringStore.HullLike`
+(`Assets/Scripts/ServerShared/ShipAuthoring.cs:95-106`): copy every member, reset Name,
+Shape (`new Shape()`), Hardpoints, Prefab, Schematic and Visual. `create` does not run the
+ship-ID rule; only `Validate` (`ShipAuthoring.cs:189-192`) does.
+
+The same `_aetherdb` port also carries Package's `validate` (`__init__.py:650`), and the
+specs in force add `centre` (package-frame r1) and `paint` (paint r3). So the repo and
+dotnet dependency is the port's, not New Ship's alone: Package already needs both today.
+
+**B2. Where an author's machine gets the shipped catalog (source read).** The game reads
+`<install>/GameData/Aetheria.cc` and `<install>/GameData/Mods`
+(`Assets/Scripts/Gameplay/ActionGameManager.cs:40,48-49`), with `GameData` beside the
+player's data folder. A ship author who has the game has both. No build or release script
+in the repo copies `GameData` into a player build (searched `Assets/Scripts/Editor`,
+`tools`, workflow files): the runtime contract is the only evidence that a release carries
+it.
+
+**B3. Studio needs Unity (source read).** CultCache Studio is
+`CultCacheStudioWindow : EditorWindow` (`CultLib src/GameCult.Unity/Assets/Caching/Editor/
+CultCacheStudioWindow.cs`), opened from a Unity menu item. Ruling
+`authoring-host-thin-imgui-then-thing` keeps it an IMGUI skin until a Thing host after the
+release. Studio therefore cannot be the repo-free and Unity-free creator before then.
+
+**B4. The shipped catalog's schema catalog (probe `probes/p1_catalog.py` on the
+`07dcb580` LFS object `9e75d9a4...`).** 13 catalog entries, 219 records, 5 hulldata
+records (LonginusX, Zenith, Turret, Djinni, Longinus; Djinni, Longinus and LonginusX are
+`HullType` 0, Ship). It carries an `aetheria.hulldata` entry and **no
+`aetheria.ship_authoring` entry**: the C# store writes catalog entries only for types it
+holds records of.
+
+**B5. cultcache-py cannot derive a C# catalog identity (probe `p3_schema_id.py` and source
+read).** For all 13 C#-written entries, `content_hash == sha256(canonical_schema_json)`
+but `schema_id != sha256(canonical_schema_json)`: C# derives the id from a semantic
+fingerprint over its member descriptors (`CultLib src/GameCult.Caching/CultCache.cs:
+655-658`), with type names from `CultSchemaTypeNames.FromType`. cultcache-py's
+`DocumentDefinition.catalog_entry` (`packages/cultcache-py/src/cultcache_py/documents.py:
+105-143`) defaults the schema id and content hash to the type name, and its store's
+default entry for an unregistered envelope is a stub with no members
+(`stores.py:356-368`). Python can carry a C#-written entry through a write; it cannot
+author one.
+
+**B6. Encode and decode probe on Yggdrasil (`ygg-verify.sh`, image
+mcr.microsoft.com/dotnet/sdk:10.0, Aetheria `07dcb580`, CultLib `45c2f400` staged,
+logs `scratchpad/probes/ygg-create-1.log` and `ygg-publish-2.log`).** Reference:
+`dotnet run ... ship-authoring create /tmp/o/dn/ship.cc probe.a "Probe A" --like Djinni`.
+
+| Candidate | catalog hulldata | catalog ship_authoring | hull record | ship record | C# `inspect` |
+|---|---|---|---|---|---|
+| cultcache-py, no template (`py_create.py`) | identical (copied from the shipped catalog) | **differs**: stub, schema id `aetheria.ship_authoring`, version `aetheria.ship_authoring.v1`, members `[]` | equal values | identical bytes | loads: `probe.a: Probe A, 0 hardpoints` |
+| cultcache-py with the C# file's ship_authoring entry | identical | identical | **equal values, different bytes**: 20 `float32` (`0xca`) slots re-encoded `float64` (`0xcb`), 204 to 284 bytes | identical | loads |
+| published AetherDb (B7) | identical | identical | identical | identical | loads |
+
+`stored_at` is ignored throughout. `new Shape()` encodes `[[1, 1, [true]]]`. The C# reader
+accepted the stub catalog by schema name (compatible drift, `CultCache.cs:518-522,
+803-830`), reporting every slot as `defaulted_missing_slot` while still decoding the
+payload's values: that warning text and the observed behaviour disagree, so a file that
+relies on it relies on a CultLib behaviour nobody owns. The float widening is the same in
+today's `ship_cc.replace_layout`, which re-packs the whole hull body on every Save; C#
+reads `float64` into `float` (smoke_frame's Package validated after a Rasterise write), so
+it is a wire-parity gap, not a corruption (follow-up `py-float-width-parity`).
+
+**B7. A published AetherDb needs neither dotnet nor the repo (Yggdrasil, log
+`ygg-nodotnet-5.log`).** `dotnet publish tools/AetherDb -c Release -r linux-x64
+--self-contained -p:PublishSingleFile=true` gave one 77,287,607-byte executable (75 MB
+folder with pdbs). Run in `debian:bookworm-slim` with no dotnet (`command -v dotnet`:
+none), from a folder holding only `GameData/Aetheria.cc` plus an empty
+`Aetheria.Shared/Aetheria.Shared.csproj` (the current `FindRoot` marker), `create ...
+--like Djinni` took 1.1 s and wrote a file whose catalog and both records are byte-identical
+to the dotnet-run reference. The first run aborted with `No usable version of libssl was
+found`; with `libssl3` and `libicu72` installed it ran. Windows needs neither package; the
+win-x64 publish was not probed.
+
+**B8. The reserved-name gap is the owner's (same log).** The published tool created
+`/out/con/ship.cc` for ID `con` and `inspect` loaded it: the C# rule (`ShipAuthoring.cs:
+190-192`) admits Windows device names, and `create` does not run it at all (B1).
+
+**B9. Downstream specs read (mind, 2026-10-08).** package-frame r1 says "after frame r4 has
+merged" and its recentre test edits cells and Packages with no Save; mounts r4's Package
+writes derived Positions straight to the .cc through `replace_layout`; gizmos r2's drag
+release writes through `replace_layout` from an interactive (undoable) tool. bake r1,
+guards r1, mesh-mounts r1, mask-bakes r1 and paint r3 do not depend on what r5 changes
+(paint's `paint` command goes through the `_aetherdb` port, which the tool cut moves).
+
+### The owner answer
+
+**What can create and write a ship .cc on an author's machine without the repo or
+dotnet?** Two things, by probe: cultcache-py, if a C#-written `aetheria.ship_authoring`
+catalog entry is handed to it (B5, B6); or AetherDb itself, published self-contained
+(B7). Studio cannot before the Thing host (B3).
+
+Recommendation: the published AetherDb (question `authoring-tool-without-repo`, option
+`published-aetherdb`). It keeps C# the single owner of every ship-package rule the add-on
+calls (HullLike, the ID rule, Validate, CenterOfMass, Paint) and removes the repo and the
+SDK from all four commands at once, which the Python route does not: Package, centre and
+paint would still need the repo. The Python route needs a second copy of HullLike's reset
+list and a pinned catalog entry, and widens floats until CultLib fixes B6. The repo-free
+reference hull is the author's own game install (`GameData/Aetheria.cc`, B2).
+
+Prior art (from knowledge; no Eyes pass was run in this budget, so confidence is medium):
+game modding kits that keep one rule owner ship the game's own code compiled to modders
+rather than re-implementing it in the content tool: Valve's Source SDK ships compiled
+studiomdl, vbsp and vrad; Bethesda's Creation Kit is built on the engine's record code;
+games that ship no tool (Factorio, KSP, Minecraft data packs) validate content at game
+load, which Aetheria also does (`ShipModCatalog.ResolveCatalog` excludes a bad package and
+names it). Blender add-ons that drive external compilers (the Source Engine tools add-on,
+io_scene_valvesource, calling studiomdl) take the executable's path as a preference.
+
+### Authority map, r5
+
+- **Owner of the .cc on the author's machine:** two explicit, non-undo writers. Save
+  Layout owns cells and hardpoints (and the first Save of a new ship creates the file
+  through the published AetherDb `create`). Package owns the visual (model asset, anchors,
+  lines) and, from mounts r5, saves the layout buffer through Save's writer. C# (through
+  the published AetherDb) owns HullLike, the ship-ID rule, Validate, CenterOfMass and Paint.
+- **Owner of the frame:** the .blend. The layout buffer (`scene.aetheria_layout`),
+  `aetheria.grid_origin` with the grid size it was computed for, Ship Root and the objects
+  under it all live in the .blend, so Blender's undo moves them together.
+- **Demotions.** Rasterise and Flip Nose are no longer .cc writers; they propose cells
+  into the buffer. New Ship is no longer a .cc writer; it binds a pending ship. The repo is
+  no longer an input; the game data folder is. `dotnet run` is no longer a path.
+- **Package and an unsaved buffer.** Package refuses while the bound collection's buffer
+  differs from the .cc ("Save Layout first"), so it never packages cells the author has
+  not saved. The comparison is ship_cc's own layout revision of the buffer against the
+  revision Load or Save recorded. Mounts r5 derives Positions into the buffer after that
+  check and saves them through Save's writer.
+- **One chooser** decides which collection is the ship; Bind and New Ship accept an
+  unbound collection through it, everything else requires a bound one.
+- **One frame predicate:** the ship's meshes are Ship Root's descendants outside Source
+  and Generated with no `aetheria.role`. Rasterise reads them; Flip Nose turns Ship Root's
+  children; package-frame's recentre moves Ship Root. A mesh in the bound collection that
+  is not under Ship Root is refused by Rasterise, Flip Nose and Package with a count, never
+  silently left out.
+
+### Rationale
+
+**Why Save, not the UNDO operators, writes the .cc.** Blender's memfile undo restores the
+.blend and cannot restore a file on disk. Any undoable operator that writes the .cc splits
+the grid's truth (finding `undo-splits-origin-from-cells`), and dropping the UNDO flag does
+not help: the next undo push still restores the scene to the step before. So no undoable
+operator writes the disk, and the .cc changes only on an explicit Save or Package. This is
+the editor-buffer pattern Blender itself follows for external files (images are edited in
+memory and saved with Image > Save; the .blend is saved explicitly).
+
+**Why New Ship creates nothing on disk (`new-ship-orphans-cc`).** Creation is deferred to
+the first Save, which creates and fills the file in one operator: `create`, then the
+buffer through `replace_layout`, and on any failure after `create` it removes the file and
+the folder it made. Nothing persists unless the ship is valid enough to save, and an undone
+New Ship leaves nothing to orphan.
+
+**Grid placement against outside edits.** Studio can resize the grid. `grid_origin` is
+stored with the width and height it was computed for, and the Grid is drawn only while the
+buffer has that size; otherwise the panel asks for Rasterise again. This keeps a stale
+origin from placing cells, without moving the origin into the .cc (the runtime derives
+alignment from the centre of mass after package-frame and never needs it).
+
+**Errors (`create-failure-echoes-inputs`).** Operator reports carry fixed text per failure;
+AetherDb's own output goes to the system console, not the report.
+
+**Ship IDs (`ship-id-allows-reserved-names`).** The rule stays C#'s
+(`ShipAuthoringStore`), gains the Windows device names (con, prn, aux, nul, com1-9,
+lpt1-9, alone or before a dot) and is run by `create`. New Ship checks it before anything
+moves through `ship_cc.valid_ship_id`, whose constants ShipSchemaPinTests pins to the C#
+rule, as it already pins the slot numbers.
+
+**Rejected.** Studio owning creation (needs Unity until the Thing host, B3). A local
+encoder or catalog entry in the add-on derived by hand (B5: Python cannot derive C#'s
+schema id; the brief forbids it). Relying on cultcache-py's stub catalog entry (B6: the C#
+reader's behaviour contradicts its own warning). A framework-dependent publish (it needs
+the .NET runtime installed, which is the install the ruling removes).
+
+### Model page rows (changed)
+
+| Kind | Named by | Over time | Decides |
+|---|---|---|---|
+| Ship .cc | `GameData/Mods/<id>/ship.cc` under the author's game data folder | created by the first Save of a pending ship; changed by Save, Package, Capture Lines | Save (layout), Package (visual), C# rules through the published AetherDb |
+| Layout buffer | `scene.aetheria_layout` | filled by Load or New Ship, edited by Rasterise, Flip Nose, Resize and hardpoint ops, undoable | the author; persisted only by Save |
+| Grid placement | `aetheria.grid_origin` = [x, y, width, height] on the collection | written by Rasterise only, undoable | Rasterise |
+| Pending ship | `aetheria.pending` = [name, reference] on the collection | set by New Ship, cleared by the Save that creates the file | New Ship, then Save |
+
+## Flight control allocates thrust
+
+Pass: Imagination, session `self-2026-10-09-morning`. Body: `GameCult/Aetheria` origin/master `80d2c7f3`,
+detached worktree, removed at the end. Ruling: `flight-control-allocates-thrust` (operator words in its
+`operator_quote`). Prior art: `F:\Projects\aetheria-thrust-allocation-prior-art-2026-10-09.md` (Eyes; cited
+as PA). This section supersedes the body facts, consumer audit and Cuts 2-3 of `docs/locomotion-cut.md`
+(2026-09-22), which predate the aether drive's deletion (`2cfdc728`) and the LookDirection-to-Turn change.
+That file's Cut 4 (AI heading planner) and Cut 5 (combat facing) are carried as follow-ups, not as specs.
+
+### Body facts
+
+- **TA1. The plant.** 2D translation plus kinematic yaw. `Thruster` is the only propulsor
+  (`Ship.cs:138-139`). Per unit throttle a thruster adds `-push * Thrust / Mass` to velocity along its mount
+  and turns `Direction` by `Torque * Thrust * TorqueMultiplier / Mass` rad/s (`Thruster.cs:127-130`).
+  `Torque` is the sine of the moment arm (`Thruster.cs:65-70`). `Axis` saturates to [0,1]
+  (`Thruster.cs:46-50`). Authored `TorqueFloor` 0.5, `TorqueMultiplier` 0.1 (`Settings.asset`, read by
+  the probe through `AuthoredSettings`).
+- **TA2. The mixer and its satellites** (`Ship.cs` at `80d2c7f3`): bucket sets `:33-40`, built in
+  `Activate` `:97-116` from mount rotation and from `Torque` against `TorqueFloor`; aggregates `:51-60`;
+  `TurnTime` `:62-67` (no caller); `ItemDestroyed` pruning `:121`, `:124-134`; `RecalculateThrust` and six
+  `Recalculate*` `:150-227`; the mixer `:236-259` (strafe trim with an unguarded division by the trim
+  count at `:237`, `:246`). Readers outside `Ship.cs`: the aggregates only in
+  `EvasionTermTests.cs:708-709` and `:997-1056`; `TurnTime` none; `IAnalogBehavior`
+  (`Behaviors.cs:96-99`) only `Thruster.cs:40` and a comment at `Entity.cs:2343`. `Thruster.Manoeuvre`
+  (`Thruster.cs:98-114`) is the envelope's per-thruster term and the only other `TorqueFloor` reader in
+  source (`:109`); tests read the floor at `EvasionTermTests.cs:331-332,383-384` and
+  `SteeringTests.cs:304-305`.
+- **TA3. The Duel ship, probed** (scratch test in `RunStartTests`, Yggdrasil job, CultMath `614fd445`,
+  2026-10-09). Longinus, mass 4235, four thrusters. Per unit throttle (starboard m/s^2, forward m/s^2,
+  clockwise deg/s):
+
+  | Thruster | Cell, mount | Thrust | Column |
+  |---|---|---|---|
+  | Large Drive | (1,0) Reversed | 228441 | (0, 53.94, +49.24) |
+  | Large Drive | (3,0) Reversed | 259158 | (0, 61.19, -55.86) |
+  | Talaria | (2,14) CounterClockwise | 123144 | (+29.08, 0, +166.26) |
+  | Talaria | (3,14) Clockwise | 92312 | (-21.80, 0, -124.63) |
+
+  The two drives share a design and a lot quality (0.300) and still differ by 13% in live thrust, so
+  held forward thrust is a 6.6 deg/s turn. The two Talarias have equal torque-to-sideways ratios, so
+  together they cannot make a pure torque: any turn on this hull pushes it sideways.
+- **TA4. Allocation probe** (same job; `player.Update` stepped alone at 1/60 s; a scratch hook replaced
+  the mixer with a `BoundedLeastSquares` solve; rows normalised per axis by the box extreme, ridge 1e-3;
+  "prio" is a yaw row weight of 1000; heading in degrees, clockwise positive; axes are the four throttles
+  in the table's order):
+
+  | Case | mixer | WLS w=1 | WLS w=3 | prio |
+  |---|---|---|---|---|
+  | forward, intact, 2 s heading | -12.09 | -6.41 | -1.38 | **0.017** |
+  | forward, strong drive off, 2 s | 97.41 | 59.06 | 14.24 | **-0.014** (axes .92 0 0 .36) |
+  | forward, weak drive off, 2 s | -109.65 | -56.22 | -11.47 | **0.026** (axes 0 .90 .29 0) |
+  | forward, nose Talaria (2,14) off, 2 s | -12.09 | -8.83 | -2.97 | **0.012** |
+  | strafe right, 2 s | 0 (no strafe at all) | 181.39 | 39.29 | **0.023** (axes 0 .85 .28 0) |
+  | forward + Turn 1, mean deg/s | 159.9 | 94.2 | 189.0 | **214.9** (axes 1 0 1 0) |
+  | Turn 1 in place, mean deg/s | 166.1 (axes 0 0 1 0) | 97.8 (.57 0 .42 0) | 188.9 (1 0 .84 0) | **214.9** (1 0 1 0) |
+  | Turn -1 in place | -124.6 | -81.8 | -158.8 | **-179.6** |
+  | Turn 1, Talaria (2,14) off | 0 (stuck) | 12.4 | 36.8 | **48.8** (drive only) |
+  | intent zero | 0 | 0 | 0 | 0 |
+
+  Box extremes: clockwise 215.5 deg/s, counter-clockwise 180.5 deg/s, forward 115.1 m/s^2, starboard
+  29.1, port 21.8. A yaw-first solve holds heading to hundredths of a degree whatever is lost; a weighted
+  solve at the old map's default (w = 3) leaves a drift the ruling forbids. Solve cost: 14.2 us mean
+  (including per-call allocation, n = 4), at most 11 active-set iterations over 2000 random intents.
+- **TA5. The Execute gate drops small balancing throttles.** `Thruster.Execute` and `PowerRequest` act only
+  above throttle .01 (`Thruster.cs:87,124`). Probe: weighted solve, full forward, 10 s: heading -7.49 deg
+  with the gate, -4.56 without; forward 0.3, 10 s: -0.213 deg with, -0.028 without. A balancing throttle
+  below .01 on a 166 deg/s Talaria leaves up to 1.7 deg/s unbalanced.
+- **TA6. A power-gated column deadlocks.** `PowerRequest` is proportional to the throttle
+  (`Thruster.cs:87`) and `PowerBus.Step` grants after `Ship.Update` (`Entity.cs:1463`), so a column zeroed
+  for `PowerSupply <= 1e-4` gets throttle 0, requests nothing, and is never granted. The column's thrust is
+  therefore `EvaluateNominalPower(Thrust)` (full grant; heat, durability, quality and modifiers live,
+  `Entity.cs:1856`) and its liveness is `Item.Active` only. A browned-out thruster still under-delivers
+  after the solve (follow-up `allocator-brownout-columns`).
+- **TA7. The Duel arena moves the player by itself.** With forward thrust the player's velocity swings
+  between about +28 and -28 m/s along the nose every ~60 ticks with no `VelocityLimit` clamp (limit 100,
+  drag 0.1), while intent zero leaves it at rest. Translation measured in the Duel is not thrust; tests that
+  measure translation use `RestoredHullsTests.BuildThrustedShip`. Traced 2026-10-10 (TW1 below): a
+  harness artifact of stepping `player.Update` without `Zone.Update`, which leaves every orbit at the
+  origin and stacks the zone's gravity wells on the spawn.
+- **TA8. CultMath 0.3.0 re-rolls generated content.** Full suite at `80d2c7f3` with only
+  `CultMathRevision` moved to `614fd445` (tag `cultmath-unity-v0.3.0`): 1057 pass, 5 fail.
+  `TutorialGalaxy_unchanged` (faction homes differ), three `RestoredHullsTests` that pick zones by name
+  (`RestoredHullsTests.cs:624,740,807`: "EAC-7089", "EAC-2733" no longer exist) and
+  `ACoastingAgileShipIsEasierToHitThanTheSameShipJinking` (hits 95 jinking against 78 coasting; its target
+  is `stage.Generated("Djinni")`, `EvasionTermTests.cs:520`, so the target's fit follows the galaxy). The
+  cause is 0.3.0's breaking `snoise` kernel (its CHANGELOG), read in C# by `Settings.cs:72-73` (galaxy
+  cloud density), `GlobalData.cs:30` and `Environment.cs:132,144`. Shaders use the GPU Noise plugin, not
+  CultMath (`Background.shader:39`), so nothing on the GPU moves. Every other DemoTerminus test passes.
+  Between the tags CultMath also adds `phacelle` (MPL-2.0 files), `cellular`, `smin_grad`, the `*_grad`
+  noises and `BoundedLeastSquares`; no existing signature changes.
+- **TA9. The pin guard.** `Directory.Build.targets:21` conditions `VerifyCultLibRevision` on a
+  backslash-spelled project identity; `docs/mining-cut-refresh.md:155-157` infers it never fires on Linux.
+  Yggdrasil's `~/eureka-verify/pins` holds `cultlib-45c2f40` and `cultlib-6d5e209` only;
+  `~/eureka-verify/repos/CultLib.git` contains `614fd445`.
+
+### Authority map
+
+- **Owner:** `ThrustAllocator` (new, one per `Ship`, stepped in `Ship.Update`) turns intent into every
+  thruster's throttle.
+- **Inputs:** intent (`MovementDirection`, or full forward while `Entity.ThrottleLocked`; `Turn`), and one
+  column per thruster: its body push and turn per unit throttle at full grant, zero when the item is not
+  `Active`.
+- **Outputs:** `Thruster.Axis` for the tick, read only by `Execute`, `PowerRequest` and presentation.
+- **Derived:** the box extremes (what intent is a fraction of) are derived from the columns each tick; the
+  envelope becomes the same extremes (cut `envelope-from-columns`). The warm start is command state, never
+  truth.
+- **Demoted or dead:** the bucket sets, aggregates, strafe trim, `TurnTime`, `RemoveThruster` pruning and
+  `IAnalogBehavior` are deleted. `TorqueFloor` is no longer an owner of anything; it dies with
+  `Thruster.Manoeuvre`. A thruster's capability is no longer classified by mount or by a floor; it is its
+  column.
+- **Forbidden writers:** any `Axis` write outside `Ship.Update`; any rule that classifies a thruster as
+  "for" rotation or translation; any second solve or fallback mixer; any liveness set kept across ticks.
+- **Shared paths:** player helm, agents, the throttle lock and tests all reach the throttles only through
+  intent.
+
+### Model page rows (changed)
+
+| Kind | Named by | Over time | Decides |
+|---|---|---|---|
+| Thruster column (runtime) | the `Thruster` behaviour | rebuilt every tick from live stats and `Item.Active` | `ThrustAllocator` reads; item state stays `EquippedItem`'s and `PowerBus`'s |
+| Allocator warm start (runtime) | the ship's `ThrustAllocator` | last tick's throttles; reset when the thruster count changes | `ThrustAllocator`; never saved |
+| `GameplaySettings.TorqueFloor` (authored) | field name | deleted by `envelope-from-columns`; the `Settings.asset` line is left for Unity to drop (it lands in `AuthoredSettings.Unplaced`) | nobody after the cut |
+
+### Rationale
+
+- **Yaw before translation for a hold.** The ruling forbids yaw from asymmetry, and TA4 shows a weighted
+  solve cannot deliver that at any weight that also lets a turn trade: holding is exact only when the yaw
+  row dominates. Prior art agrees for spacecraft-like plants: MechJeb weights torque 200 times translation,
+  and the Space Engineers allocation proposal serves rotation authority first (PA A3). Multirotors do the
+  opposite (PX4 and ArduPilot sacrifice yaw, PA A2) because yaw is not their stability axis. Translation
+  first was rejected: it reproduces the mixer's drift. What gives under saturation is translation, so a
+  damaged ship crabs rather than spins; the operator expected exactly that ("crab walking just became
+  optimal", `docs/locomotion-cut.md:25-29` at `80d2c7f3`).
+- **What a full turn spends is the operator's call** (question `turn-authority`), because the operator's
+  2026-09-22 words on rotation demand (`docs/locomotion-cut.md:82-87` at `80d2c7f3`) and TA4's numbers pull different
+  ways.
+- **One solve with a large yaw weight, not two sequential solves.** The large-weight form approximates
+  sequential least squares (PA A1, Schofield) with one call, deterministic and allocation-free; a yaw
+  weight of 1000 against a ridge of 1e-4 keeps the conditioning near 1e5, inside the range the solver
+  documents as exact (`BoundedLeastSquares.cs` remarks).
+- **The ridge** makes the optimum unique, so the warm start never changes the answer and two equal
+  thrusters share a demand. It costs 0.01% of full thrust.
+- **No actuator interface.** One kind of actuator exists. The allocator takes columns and returns
+  throttles, so a vectored row (follow-up `vectored-thruster-rows`) is more columns: a row tilting within
+  +-theta becomes an axial variable in [0,1] and a lateral variable in [-sin theta, sin theta], and its slew
+  rate narrows the lateral variable's bounds each tick. Bounds stay boxes, which is what the solver takes;
+  the row maps its two solved variables back to a throttle and an angle.
+- **The pin bump is its own cut.** The solver exists only from 0.3.0, and 0.3.0 re-rolls generated content
+  (TA8). Backporting the solver to a 0.2.5 was rejected: CultLib releases from main, and a branch release
+  would carry the old noise kernel's seam bug forward. `no-save-compatibility-before-players` covers the
+  re-rolled galaxy.
+- **Order.** `cultmath-0-3-pin`, then `thrust-allocator-core`; `throttle-lock` lands on the mixer as
+  specified, then `thrust-allocator` deletes the mixer, keeps throttle-lock's one intent line as the
+  allocator's input and rewrites throttle-lock's two mixer-shaped tests in allocator terms. One owner of
+  `Ship.Update`'s thruster block at every step.
+
+### Revision: translation error costs linearly (core r2)
+
+Pass: Imagination, session `self-2026-10-09-morning`, after Hands stopped on `cut-thrust-allocator-core.r1`
+(question `allocator-translation-cost-l2-has-no-onset`, ruling `allocator-l1-translation-cost`, operator
+ruling `turn-authority-full`). Probes ran the real `CultMath.BoundedLeastSquares` (CultLib `614fd445`, the
+pinned 0.3.0) in a scratch console on Yggdrasil, logs `l1probe1.log` to `l1probe3.log` in the session
+scratchpad (`imag-allocator-r2`). Column sets: TA3 (Duel Longinus); TA3 with the clockwise Talaria zeroed;
+a symmetric Djinni-like hull (mains (0,50,+-20), fore laterals (+-20,0,+-80), aft laterals (+-20,0,-+60),
+bow (0,-30,0)); drives 0.3% apart for the tiny-imbalance hold.
+
+- **TA10. A squared translation cost has no onset** (Hands' probe, confirmed): r1's TA-R2 mixes the
+  drive into a turn from Turn 0 for any weights, so it cannot meet `turn-authority-full`.
+- **TA11. The split form works only when the solver resolves it.** Variables: throttles and four error
+  variables e+x, e-x, e+y, e-y in [0,2]; rows H*(B_r u / s_r - e+ + e-) = H d_r / s_r, the yaw row
+  Wy * B_z u / s_z = Wy d_z / s_z, a cost row w*e = -w*kappa per error variable (linear slope
+  L = 2 w^2 kappa, quadratic part at most e/(2 kappa) of it), a ridge row rho*u per throttle.
+  At the solver's fixed KKT tolerance (1e-6 of the gradient at the origin) every one of 84 settings in two
+  grids failed somewhere: Hands' (H 300, Wy 1, w .01, kappa 2, rho .01) and the first choice (H 100, Wy 10,
+  w .01, kappa 10, rho 1e-3) gave all-zero throttles for move (0,1) and for a strafe, because the cost
+  signal L is below the tolerance against the H^2 and Wy^2 terms; larger L settings served translation
+  but gave throttles that depended on the warm start by up to 0.62 (ties the ridge cannot resolve below
+  the tolerance). The chain the form needs, tolerance << rho^2 << L << H^2, Wy^2, with L/H^2 about 1e-4
+  for a sharp onset and L/Wy^2 about 1e-6 for the hold, spans more than the 1e6 that tolerance leaves.
+- **TA12. With the tolerance at 1e-12 everything holds** (`l1probe3.log`, same grid, scratch change of
+  the constant): warm-start difference 0 in every setting, IterationLimit never reached, at most 10
+  iterations. Chosen H 100, Wy 1000, w .3, kappa 10, rho .1:
+
+  | Check | Result |
+  |---|---|
+  | Duel onset, clockwise / counter-clockwise | .772 / .691 (columns: 166.26/215.50 = .7715, 124.63/180.49 = .6905) |
+  | Duel, clockwise Talaria lost | drive from Turn > 0, Turn .1 gives drive .0999; Turn 1 gives 49.23 deg/s |
+  | Symmetric hull | no translation up to Turn .88 (pure-torque pairs, then mains cancelled by the bow); strafe .95 of the extreme |
+  | Hold, forward, yaw rate (deg/s) | intact -.0003, strong drive off .0003, weak drive off -.0002, drives .3% apart .0003 |
+  | Forward served, move (0,1) | 1.000 of the forward extreme |
+  | Largest throttle step per .001 of Turn over [-1,1] | .0133 (the steepest column ratio; Duel's drive slope is .0044) |
+  | Largest yaw residual in the sweeps | .0006 deg/s |
+  | cond(A), estimated from A^T A | 1.0e4; the solver documents exact results through 3e5 |
+
+  Neighbouring settings fail one check each: H 30 leaks the drive at Turn .001; w 1 or 3 leaks it at
+  .0014 throttle before the onset (L/H^2 too large); rho .03 makes throttles jump up to .12 per .001 of
+  Turn (near-ties resolved too steeply); Wy 300 lets the hold drift .003 deg/s.
+- **TA13. The Duel Longinus does not strafe.** Under the linear cost a starboard strafe would need the
+  counter-turning drive at full to hold heading, which costs more forward error than the strafe gains,
+  so move (1,0) gives no throttle. Today's mixer gives none either (TA4). The symmetric hull strafes.
+
+Rationale changes:
+
+- **The solve keeps one call; the tolerance is the solver owner's to expose.** CultMath's
+  `BoundedLeastSquares.Solve` gets an optional relative KKT tolerance (default unchanged, 1e-6), filled in
+  CultLib, never worked around in Aetheria; the allocator passes 1e-12 and relies on the solver's
+  progress rule to stop at its noise floor. Follow-up `cultmath-bls-kkt-tolerance` carries it; Aetheria
+  takes it by a pin bump in the core cut's first commit.
+- **The onset is an ordering, not a label.** Under a linear cost the actuator with the least normalised
+  translation per unit of turn serves first and the next joins only when it saturates; on the Duel that
+  is the Talaria, so the onset is the Talaria's share of the turn extreme and moves with the columns
+  (damage, heat, brownout). Nothing classifies a thruster as attitude or drive.
+- The bullets "One solve with a large yaw weight" and "The ridge" above describe r1 and are superseded
+  by this revision: the yaw weight is 1000 against a ridge of .1, and uniqueness of the answer depends on
+  the tolerance as well as the ridge.
+
+### Wiring refresh at `08d064c8` (2026-10-10)
+
+Pass: Imagination `imagination-aeth-allocator-wiring`, session `self-2026-10-10-ag`. Body:
+`GameCult/Aetheria` origin/master `08d064c8` (thrust-allocator-core merged, CultMath pinned at 0.4.0,
+`CultMathRoot` `cultlib-252e226c` on Yggdrasil), detached worktree `C:\aeth-wt\map-articulated`. Probes:
+scratch partial `RunStartTests` facts `ImagProbeDuelOscillation` and `ImagProbeCatalogThrusters`, run on
+Yggdrasil through the stopgap (logs `j2.log`, `j3.log` in the session scratchpad
+`imagination-aeth-allocator-wiring`). The allocator cases patched the scratch clone's `Ship.Update` only:
+after the mixer, a static flag overwrote every `Axis` with `ThrustAllocator.Allocate` over columns built
+from live `Thrust` (equal to `NominalThrust` on the fully powered Duel ship). Each case is a fresh Duel
+launch stepped 240 ticks at 1/60 s; heading in degrees from the launch heading.
+
+- **TW1. The Duel oscillation is a harness artifact** (follow-up `duel-velocity-oscillation`, TA7).
+  `Orbit.Position` starts at `float2.zero` (`Zone.cs:726`) and is set only by `Zone.Update`
+  (`Zone.cs:218-223`). Stepping `player.Update` alone leaves all 38 bodies of the Duel's arena zone (4 suns,
+  4 gas giants, 30 planets, wells 546-9420 m wide) at the origin, which is the player's spawn
+  (`Duel.cs`: `stage.Player(fighter, float2(0, 0))`). Their wells stack there: `Zone.GetForce` is 0 at the
+  origin, -64 m/s^2 at (0,5), -982 at (0,20), -8082 at (0,80). Under thrust the ship climbs out and falls
+  back through the stack, which is the swing TA7 saw:
+
+  | Case (Duel player, 240 ticks) | Along-nose speed, max / min (m/s) | Heading at tick 120 / 240 |
+  |---|---|---|
+  | A mixer, forward, `player.Update` | 31.5 / -30.6 (first below -1 at tick 36) | -12.09 / -21.94 |
+  | B mixer, forward, `arena.Update` | 101.7 / 1.9 | -12.09 / -21.94 |
+  | C mixer, forward, `player.Update`, `GravityStrength` 0 | 101.7 / 1.9 (B to the digit) | as B |
+  | D mixer, intent zero, `player.Update` | 0 / 0 | 0 |
+  | E allocator, forward, `player.Update` | 31.5 / -30.8 | .018 / .036 |
+  | F allocator, forward, `player.Update`, `GravityStrength` 0 | 101.9 / 0 | .018 / .036 |
+  | I mixer, forward .3, `player.Update` | 12.7 / -12.3 | -3.88 / -7.56 |
+  | J allocator, forward .3, `player.Update` | 12.7 / -12.3 | .001 / .002 |
+
+  The first `Zone.Update` moves the bodies to their orbits: the spawn's height goes from -3316 to -69 and
+  the field at the player stays under 4.3 m/s^2 for the whole run (case B). The game ticks the zone before
+  any ship (`Zone.Update` sets orbits first), so play never sees the stack. Neither the mixer, damping, the
+  tick nor `Steering.Toward` is involved (no `Turn` in A to J; D and C rule out drift and drag).
+- **TW2. Wiring is irrelevant to the oscillation and removes the drift.** E and J match A and I in speed
+  (the well decides it) and hold heading to hundredths of a degree where the mixer turns 6.4 deg/s (TA3,
+  reproduced at `08d064c8`: -12.09 deg in 120 ticks). Full forward: both drives at 1 and the Talaria (2,14)
+  at .039 falling to .027 as heat moves the drives, so the ship crabs to starboard at 1.6 m/s at top speed.
+  Forward .3: drives at .319 and .283, no Talaria. With `Turn` .5 (LaunchDuel's intent) the allocator
+  turns 107 deg/s (.5 of the 215.5 extreme, Talaria .68, both drives 1); the mixer 77.
+- **TW3. Top speed overshoots the limit by one tick of thrust.** Case B settles at 101.4-101.7 m/s against
+  `VelocityLimit` 100 with `LimitClamp` about 1.7 m/s each tick: the limit clamps before the drives push in
+  the same tick. Mixer and allocator alike; nothing in this campaign's flight cuts owns the order.
+- **TW4. No shipped hull reaches the allocator's large-hull regime.** The catalog holds two Ship hulls:
+  Djinni, 8 thruster hardpoints (Reversed 3, CounterClockwise 2, Clockwise 2, None 1), and Longinus, 4.
+  `GameData` holds only `Aetheria.cc`, `Narrative/` and `SoundbanksInfo.json`; no package hull is in the
+  tree. Finding `large-hull-degradation` starts at about 32 thrusters.
+- **TW5. Every thruster's Thrust carries PowerSupply^1.** All seven catalog thruster designs (Large,
+  Medium, Small Drive, Talaria, Victoire, RevvITup 2.0, deep space burnout) carry `PowerSupply` with
+  exponent 1 on `Thrust`; none carries it on `EnergyUsage`. All thrusters share `PowerTiers.Medium`
+  (`Thruster.cs:91`). Under a brownout that grants one fraction to the whole tier every column scales
+  alike and the solved balance survives; it breaks only where grants differ within the tier. That is the
+  question follow-up `allocator-brownout-columns` keeps.
+- **TW6. What moved since `80d2c7f3`.** `Ship.cs` gained only throttle-lock's two lines (`:236-237`): the
+  mixer is now `:238-261` inside the gate `:233-262`. `Thruster.cs`, `Behaviors.cs:96-99`,
+  `Settings.cs:214`, `SteeringTests.cs`, `BrownoutTests.cs`, `ConditionRatioTests.cs`, `SimClockTests.cs`
+  and `RunStartTests.cs` are unchanged. `Entity.cs`'s commented `IAnalogBehavior` field is `:2360`.
+  `EvasionTermTests.cs` moved +16: `TheAggregatesReadLiveThrust` `:716-734` (the `ForwardThrust` asserts
+  `:724-725`), `EveryAggregateAndTheCompensationReadLiveThrust` `:1013-1072`. `ThrottleLockTests.cs`
+  exists (274 lines, 7 facts and theories); every assertion is an exact mixer `Axis` (1 or 0) on a fixture
+  whose thrusters are found by mount rotation. `ThrustAllocatorTests.TheStartDoesNotChangeTheAnswer`
+  (`:253-265`) asserts start independence at 1e-5 on one point while finding `solver-converged-early`
+  stands; the CultMath stop fix (`cultlib-gaps:cut_spec:cut-bls-release-stop.r1`) owns what happens to it.
+
+Refresh decisions (specs `cut-thrust-allocator.r3`, `cut-envelope-from-columns.r2`):
+
+- **Translation may be measured in the Duel if the arena is stepped.** TA7's rule is replaced by TW1's
+  cause: a test that reads velocity steps `arena.Update`, or uses `BuildThrustedShip`; a test that reads
+  only heading may step `player.Update` (heading in A equals B to the digit). The unplaced-orbit defect
+  is the zone's, not flight's (follow-up `zone-orbits-unplaced-before-first-tick`).
+- **`Column(thrust)` from the first cut.** The wiring cut adds `Column(float thrust)` and passes
+  `NominalThrust`; envelope-from-columns passes live thrust to the same method. r1 had the envelope cut
+  change the signature, which was churn on one owner.
+- **Folded:** `allocator-residual-pins` (a micro-intent test in `ThrustAllocatorTests`). **Left, with
+  reasons:** `allocator-large-hull` (TW4: no shipped hull is near 32 thrusters; it gates on package hulls);
+  `allocator-brownout-columns` (TW5: a design question, not the wiring); `steering-feasible-direction`
+  (reads the envelope's clockwise and counter-clockwise terms, so it follows envelope-from-columns);
+  `allocator-ai-planner` (plans through the wired allocator, so it follows this cut). Answered by the
+  wiring when it holds: `asymmetric-drive-torque` (flight control balances the drives, TW2).
+
+## Spec refresh 2026-10-09: scarce consumables, the fog bank, multiply, tiered boosters, the shipped AetherDb
+
+Pass: Imagination `imagination-spec-refresh`, session `self-2026-10-09-morning`, follow-up
+`rulings-2026-10-09-spec-refresh`. Body: `GameCult/Aetheria` origin/master `439d488a` (and `07dcb580`, the
+frame-r4 branch, for the authoring tool), detached worktree `C:\aeth-wt\imag-refresh`, removed at the end.
+Rulings applied (read their `operator_quote` in the mind): `consumables-scarce`, `vapour-cloud-obscuration`,
+`boost-stacking-multiply`, `boost-strength-tiered-by-size`, `components-are-roles-for-demo`,
+`published-aetherdb-with-game`, `overdrive-keep-steering`; composed with `flight-control-allocates-thrust`
+and `turn-authority-full` (section 'Flight control allocates thrust' above). No question is raised: every
+choice below is a project default or authored content that follow-up `combat-pace-pass` tunes.
+
+### Body facts
+
+- **RF1. The cloud patch layer (scene and source read).** `ARPG.unity` holds a camera named `Patch`
+  (GameObject 559840914, local y 10 under the fog camera parent, culling mask 2048 = layer 11 `Patch`
+  in `ProjectSettings/TagManager.asset`) whose target is `Assets/Resources/Fog Patch.renderTexture`
+  (guid `c618a6b2...`). `VolumeSampling.cs:69` publishes it as `_NebulaPatch`; `Volumetric.cginc:95-98`
+  reads it as the patch's vertical thickness: `saturate((-abs(y + disp - FloorOffset) + patch) /
+  PatchBlend) * PatchDensity`. The one environment is `Settings.DefaultEnvironment`
+  (`ActionGameManager.cs:216-222`): PatchDensity .35, FloorOffset -20, PatchBlend 25
+  (`Assets/Resources/Settings.asset:389-392`). What paints the layer today: two quads under
+  `SectorBrushes`, `Depth Micro` and `Depth Macro`, with `Sector Patch Depth Small/Large.mat` on
+  `Brushes/Simplex Brush` (additive `Blend One One`, world-space noise, `_Depth` 10 and 20). A fog-bank
+  brush already exists and nothing references it: `Assets/Prefabs/RPG/Fog Patch.prefab` (layer 11, a quad
+  rotated to face up, `Fog Brush.mat` on `Brushes/Power Brush`, `_Depth` 80, `_Power` 16, `_Cutoff` 1;
+  prefab guid `4084aa3d...`, grep of every scene, prefab and asset: no reference). A quad of side 2R
+  carries the brush's pulse out to radius R (`PowerBrush.shader`: `dist = length(uv - .5) * 2`).
+- **RF2. Drawing a zone body ahead.** `DrawAhead.cs:15-18` draws an entity at `Position + Velocity *
+  Lead`; `KinematicBody.TotalVelocity` (`FloatingBodies.cs:31-32`) is commented "What a presenter draws
+  ahead with". `MineInstance.Place` draws the latest body with no lead. The mine presenter's hooks at
+  `439d488a`: `ZoneRenderer.cs:47` (MinePrefab), `:97` (`_mines`), `:227-235` (load and subscribe),
+  `:259-264` (LoadMine), `:289-291` (ClearZone).
+- **RF3. Generation draws (source read).** `LoadoutGenerator` holds its own copy of the caller's
+  `Random` (`LoadoutGenerator.cs:27`), and the wanderer generator is reused across ships
+  (`ZoneGenerator.cs:378`), so one extra draw in `GenerateShipLoadout` shifts every later wanderer.
+  `ItemManager.CreateInstance` rolls lot quality on `ItemManager.Random` (`ItemManager.cs:123`), so
+  every extra instance shifts later lots. The catalog at `439d488a` holds no consumable record (CC1), so
+  a consumable step that draws only when a consumable is on offer leaves every current golden untouched.
+- **RF4. Death drops carry.** Today `EntityInstance.cs:296-316` drops each cargo item on death; cut
+  `loot-1` r2 moves this into `Zone.DropLoot` ("every cargo stack drops"). A consumable an AI ship
+  carries is therefore loot when it dies, through the owner that already decides loot.
+- **RF5. Multiply is the rule and nothing pins it.** `StatResolver.ScaleModifier`
+  (`StatResolver.cs:108-114`) multiplies every attached scale; `ConstantModifier` (`:116-122`) sums.
+  `StatResolverTests.cs` (455 lines) has no test with two scales on one stat. No spec in force names
+  `modifier-stacking` in `depends_on` (specs-with-no-report recipe, 2026-10-09).
+- **RF6. No player build entry point exists.** No `BuildPipeline`, `BuildPlayerOptions` or
+  `IPostprocessBuild` anywhere in `Assets/Scripts` or `Assets/Editor` (which holds only
+  `Epiphany/EpiphanyEditorBridge.cs`). Ruling `adopt-build-cut-1` (2026-10-03) ordered
+  `docs/build-delivery-cut.md` Cut 1 mapped as one cut; none was admitted, and `ships-player` r2 adds its
+  Mods staging to "the committed entry point". The game reads `<dataPath>/../GameData`
+  (`ActionGameManager.cs:37-41`, `:48-49`). `GameData` at `439d488a` holds `Aetheria.cc`, `Narrative/`
+  (read by `MainMenu.cs:183`) and `SoundbanksInfo.json`, which no C# file reads (grep) and which
+  `audio-1` retires with Wwise. Addressables: `m_BuildAddressablesWithPlayerBuild: 0`
+  (`AddressableAssetSettings.asset:61`, PreferencesValue), so whether content builds with the player is
+  a per-machine preference today. Build-delivery 0.2 (probe, 2026-09-17) found a read-only
+  `AetheriaStores.Open` of a missing catalog silent; not re-probed at `439d488a` (`AetheriaStores.cs:16-31`
+  is unchanged in kind), so its test is written first and must fail first.
+- **RF7. The install's tool folder cannot be `Tools`.** The repo has `tools/`; Windows paths are
+  case-insensitive, so a developer publishing AetherDb into `<repo>/Tools` would write into `tools/`.
+  The install folder is `ModTools/`, gitignored at the repo root.
+- **RF8. The add-on anchors at `07dcb580` are r1's** (`__init__.py:29` timeout, `:302-311`
+  preference, `:314-325` `_aetheria_repo`, `:328-336` `_aetherdb`, `:576-577` New Ship's target;
+  `AetherDb.cs:26-32` FindRoot, identical on `439d488a`).
+
+### Model page rows (changed)
+
+| Kind | Named by | Over time | Decides |
+|---|---|---|---|
+| Consumable stock (runtime, station cargo) | the station | rolled once at generation: a station stocks with chance `StationConsumableChance`, then one product, 1 to `StationConsumableUnits` units | `LoadoutGenerator`, through `AvailableProducts` |
+| Carried consumable (runtime, ship cargo) | the ship | rolled once at generation with chance `ShipConsumableChance`, one unit; spent by `consumable-ai` or dropped as loot on death | `LoadoutGenerator`; then the consumable host or `Zone.DropLoot` |
+| Fog bank (presentation) | its `VapourCloud` | one patch brush per cloud, depth = authored depth x the cloud's opacity fraction, destroyed when the cloud leaves `Zone.Clouds` | `ZoneRenderer`'s one subscription; writes nothing to the sim |
+| Player directory | the build output root | made by one `AetheriaBuild` run: player, `GameData/Aetheria.cc`, `GameData/Narrative/**`, `GameData/Mods/**`, `ModTools/AetherDb.exe` | `AetheriaBuild` alone |
+| Ship author's game folder | the add-on's one preference | the folder whose `GameData` holds `Aetheria.cc`; `ModTools/AetherDb` is found under it | the author |
+
+### Design tables
+
+**Stat boosters, tiered by size** (ruling `boost-strength-tiered-by-size`). Shape and template per CB-R2
+and the r1 table: Tool gear, Targeting Computer `c07ea205`'s EnergyDraw and Heat, then a StatModifierData
+Multiplier in the same group; roles amplifier (magnitude) and regulator (EnergyDraw, Heat). The 1x1 keeps
+the template's EnergyDraw, Heat, Mass and Price; the 2x2 takes 3x EnergyDraw and Heat and 4x Mass and
+Price. Magnitude Min-Max (rises with amplifier quality): 1x1 **1.03-1.08**, 2x2 **1.20-1.40**. Both
+designs on one stat multiply (ruling `boost-stacking-multiply`), so a 1x1 and a 2x2 at best quality give
+1.512.
+
+| Stat | 1x1 design: products | 2x2 design: products | Cut |
+|---|---|---|---|
+| ThrusterData.Thrust | Thrust Amplifier: Tailwind (Finch), Second Wind (Lightsail) | Thrust Amplifier Array: Jetstream (Finch), Trade Wind (Lightsail) | boost-gear-systems |
+| SensorData.Sensitivity | Signal Amplifier: Earful (Finch), Lookout (AU) | Signal Amplifier Array: Big Ears (Finch), Watchtower (AU) | boost-gear-systems |
+| RadiatorData.Emissivity | Emissivity Booster: Cold Read (Adrasteia), Cool Head (Lightsail) | Emissivity Booster Array: Dead Calm (Adrasteia), Cold Storage (Lightsail) | boost-gear-systems |
+| ReactorData.Charge | Reactor Overclock: Afterhours (NiteLife), redline (DME) | Reactor Overclock Array: Last Call (NiteLife), meltdown (DME) | boost-gear-systems |
+| WeaponData.Damage | Damage Amplifier: Showstopper (Lucent), Heavy Hand (Zhestokost) | Damage Amplifier Array: Encore (Lucent), Iron Fist (Zhestokost) | boost-gear-combat |
+| WeaponData.Range | Range Extender: Far Sight (Adrasteia), Long Look (Finch) | Range Extender Array: Horizon Line (Adrasteia), Far Flight (Finch) | boost-gear-combat |
+| ShieldData.Capacity | Shield Booster: Thick Skin (AU), SB-2 Bastion (R&D) | Shield Booster Array: Hard Shell (AU), SB-8 Rampart (R&D) | boost-gear-combat |
+
+Both boost cuts are held behind follow-up `role-targeted-adjacent-boosts`: if the operator rules that
+boosters address a role (and adjacency), the Target column changes and these specs get another revision.
+
+**The first consumables, strengthened** (ruling `consumables-scarce`: rare, stronger). Changes from the
+'Consumables' tables above; everything not named is unchanged.
+
+| Design | Field | Was | Now |
+|---|---|---|---|
+| Thruster Overdrive | Duration | 5 s | 6 s |
+| | Price | 6,000 | 18,000 |
+| | Thrust (propellant) | 2.0-3.0 | 3.0-4.5 |
+| | TopSpeed (propellant) | 1.5-2.0 | 2.0-3.0 |
+| | Thruster Heat, Visibility (regulator, falling) | 4.0-2.5 | 5.0-3.0 |
+| Coolant Vent | Duration | 12 s | 15 s |
+| | Price | 4,000 | 12,000 |
+| | Radius Min | half the Djinni diagonal x 1.25 | x 1.5 (Max stays 1.5x Min) |
+| | Opacity (nozzle) | .80-.95 | .90-.98 |
+| | Lifetime (coolant) | 10-14 s | 14-20 s |
+| | Radiator Emissivity penalty (coolant) | .4-.6 | .3-.5 |
+
+**Supply, scarce.** `StationConsumableChance` .25, `StationConsumableUnits` 2 (one product, 1-2 units),
+`ShipConsumableChance` .10, `ShipConsumableUnits` 1. Named constants in `LoadoutGenerator` beside the gear
+stock's literal 16, as r1 had them.
+
+### Rationale
+
+**Scarcity through the owners that exist.** "Rare loot and a few stations" needs no loot table: a ship
+that carries a consumable drops it on death through the one loot owner (RF4), and only a quarter of
+stations stock any. The same roll makes AI use rare, so when the player meets a vent or an overdrive in
+an AI's hands it is an event, and killing that ship before it fires is a reason to loot it. Stronger
+effects at a higher price follow the ruling; the hoarding risk is the operator's, accepted. The consumable
+step draws nothing when no consumable is on offer (RF3), so this cut re-rolls no current fixture; once
+`consumables-first-set` lands the generated galaxy re-rolls once, which
+`no-save-compatibility-before-players` covers.
+
+**The fog bank is a patch brush.** The operator's words in `vapour-cloud-obscuration`: painting into the
+patch layer is the presenter. The volumetric pass already turns patch thickness into fog the ship flies
+inside (RF1), so a cloud is one more additive brush on layer `Patch`, and `Fog Patch.prefab` is that brush,
+already authored. Its depth is the authored depth times `OpacityAt / Opacity`, so the fog thins exactly as
+the sim's obscuration does and is gone when the cloud is removed (opacity reaches 0 at Lifetime). r1's
+particle system is dropped: a second renderer for a thing the nebula already draws.
+
+**Multiply needs a test, not code.** The ruling keeps today's arithmetic (RF5), so `modifier-stacking`
+shrinks to the tests that pin it, gear with gear and consumable with gear. A rule nobody pins is a rule a
+later "balance" patch removes silently.
+
+**The boost tiers.** A strong 2x2 and a modest 1x1 per stat lets cell budget, not a stacking curve, bound a
+ship: four cells buy x1.20-1.40 from one array or x1.13-1.36 from four 1x1s (1.03^4 to 1.08^4) at 4x the
+power and heat, so at equal quality the array is the better use of cells and power and a hold full of
+smalls is the expensive fit. Under multiply nothing else bounds stacking, so these two ranges are the
+bound; combat-pace-pass tunes them.
+
+**How the boosts and the overdrive compose with flight control.** A Thrust multiplier (Thrust Amplifier,
+Thruster Overdrive) changes only the resolved `ThrusterData.Thrust`. From `thrust-allocator` on, the
+allocator's columns are the thrusters' `EvaluateNominalPower(Thrust)` each tick (TA6), so a boosted drive
+is a stronger column and the yaw-first solve still holds heading when one drive is boosted and its twin
+is not; the evasion envelope reads the same columns (`envelope-from-columns`). The overdrive's lock is
+intent (throttle-lock), not throttles: under the allocator "throttle at max" means full forward intent,
+and a drive may be trimmed below 1 to hold heading. So no booster or consumable spec writes an `Axis`,
+touches `Ship.Update` or `Thruster.cs`, or asserts per-thruster throttles; their tests observe resolved
+stats, `ThrottleLocked` and motion, which hold before and after the allocator lands.
+
+**The shipped tool and the player build are two owners, in order.** `ships-authoring-tool` owns where the
+add-on finds AetherDb (the game folder's `ModTools/`) and what AetherDb treats as its root (a folder whose
+`GameData` holds `Aetheria.cc`). `player-build` owns what a player directory contains, the published
+AetherDb included. A self-contained single-file publish was probed at 77 MB for linux-x64 (B7); the
+Windows player carries the win-x64 one. One preference replaces r1's two: the tool's path is derived from
+the game folder, so the two cannot disagree. `ships-player` r3 drops its own Mods staging line and builds
+through `player-build`, so one cut decides the staging list.
+
+**Component records** are owed after the demo cut (ruling `components-are-roles-for-demo`); follow-up
+`component-records-after-demo` carries the mapping so it outlives this refresh.
+
+### Admitted
+
+Receipts `mind-commit-d41d568c...`, `mind-commit-dc5c5a2a...`, `mind-commit-c2edfe6d...` (2026-10-09
+13:24-13:28 UTC). Revisions, each with the resolution superseding its predecessor: consumable-supply r2,
+vapour-cloud-presenter r2, modifier-stacking r3 (shrunk to tests), consumables-first-set r2 (not named in the
+follow-up; reshaped by `consumables-scarce`), boost-gear-systems r2 and boost-gear-combat r2 (held),
+ships-authoring-tool r2, ships-player r3. New: cut player-build r1, follow-up
+`component-records-after-demo`. No question raised.
+
+## Articulated mounts
+
+Mapped 2026-10-09 by Imagination (`imagination-aeth-articulated`, session `self-2026-10-09-ag`) for follow-up
+`articulated-mounts`, against `origin/master` `6d83597b`. Re-mapped 2026-10-10 by Imagination
+(`imagination-aeth-articulated-r2`, session `self-2026-10-10-ag`) against `origin/master` `acea1aa7`, after the
+operator's rulings `mount-arc-gun-traverse` (arc on the hardpoint, traverse on the weapon, the link presentation
+only; it supersedes `arc-on-the-hardpoint`, which superseded `arc-and-traverse-on-the-link`) and
+`solver-in-gamecult-animation`. Rulings in force: `mount-arc-gun-traverse`, `rig-is-presentation`,
+`solver-in-gamecult-animation`, `sim-hooks-presentation-agnostic`, `projectile-flight-is-presentation`,
+`ship-roles-are-tags`, `thrusters-radiators-are-meshes`. AM1-AM11 were probed at `6d83597b`; AM12-AM17 at
+`acea1aa7`. Every anchor in the specs is exact at `acea1aa7`. Where AM1-AM11 speak of links, read them as the
+2026-10-09 model; AM12-AM17 and everything after them are the live model.
+
+**Scope tension for Self.** Target r4's `not_in_scope` lists "articulated mounts". The operator asked for this work
+(her hermit-crab hull carries its big gun on a jointed arm). The target needs a revision that takes articulated
+mounts out of `not_in_scope` before Hands is briefed.
+
+### Body facts
+
+**AM1. Arc is per hardpoint today, not per weapon.** `FireControl.ArcFor` (`FireControl.cs:36-41`) reads
+`HardpointData.FiringArc` (`ItemData.cs:567-569`, key 6) when above zero, else `GameplaySettings.FiringArc`
+(`Settings.cs:222`, initializer 120). `InArc` (`:50-58`) passes 360 or more unconditionally. The only shipped writer
+was `AetherDb firing-arc-migrate` (`tools/AetherDb/Program.cs:998-1047`), which set 360 on the Turret hull's
+Ballistic hardpoints. Twenty-three hardpoint initializers author `FiringArc`, all in tests (`git grep -nE
+"[{,] *FiringArc = |^ +FiringArc = "` over tests, Assets/Scripts and tools: 23), and eight accessors read or write
+it (`hardpoint\??\.FiringArc|Mount\(s\)\.FiringArc|Hardpoints\[0\]\.FiringArc`: 8). The brief's "per weapon,
+default 120, turret 360" is this per-hardpoint rule.
+
+**AM2. Traverse is not simulated; it only prices.** `Solution` (`FireControl.cs:128-152`) says turrets traverse
+instantly in the simulation and that link traverse "will make this stateful behind the same signature".
+`TrackingRate` (`:238-245`) is the gun's `Weapon.Tracking` times the ship's targeting gear over `UnaidedTracking`,
++infinity for an unauthored gun, and only `PMount` reads it (`:383`, `:427`, `:720`). Follow-up
+`articulated-mount-traverse-min` puts the link's traverse inside `TrackingRate` as the slower of the two. These cuts
+add no slew state: arc and aim stay derived on every read.
+
+**AM3. The visual record reserves a pivot role nobody uses.** `ShipAuthoringStore.Roles` (`ShipAuthoring.cs:50-58`)
+includes `articulation`, "a pivot, never a mount". No add-on code tags it, and `ShipModShips.Assemble` gives every
+mod ship `ArticulationPoints = Array.Empty<ArticulationPoint>()` (`ShipModShips.cs:164`). The authoring doc says no
+pivot is planned "until pivots move onto `HullData`" (`docs/moddable-ship-authoring.md:188-189`).
+
+**AM4. `ArticulationPoint` is one yaw/pitch pivot with no yaw clamp.** `ArticulationPoint.cs:9-48` slews yaw and
+pitch toward `Target` at `Speed` and clamps only pitch. `ShipPrefabAuthoring.cs:139-149` parses
+`Pivot.Group.YawMin.YawMax.PitchMin.PitchMax.Speed` but stores no yaw limit, so the Controls section's C9 line
+("clamps yaw to YawMin..YawMax") is wrong on this base. A single pivot needs no IK. `EntityInstance.cs:282-289`
+gives each articulation group an aim transform, and `LateUpdate` places it (`:410-417`) from
+`FireControl.Solution(...).Direction` of the group's first weapon. A link presenter follows that read. The Eyes IK
+report (AM11) found the same two facts.
+
+**AM5. The GLB path maps every node that carries `aetheria.id`.** `ShipModCatalog.ReadNodeIds`
+(`ShipModCatalog.cs:195-218`) reads node extras, refuses a duplicate id and records whether the node has a mesh; it
+keeps no parent relation. `Bind` (`:168-191`) checks each anchor's node. `ShipModVisual.LoadAsync` maps anchors to
+Transforms through glTFast's instantiator (`ShipModVisual.cs:51-54`). A joint is an ordinary glTF node, so the same
+map reaches it once it carries an id.
+
+**AM6. Probe: the add-on's export keeps an armature, its skin and data-bone extras.** Run on Starfire 2026-10-09
+with Blender 5.2.2 LTS at `C:\Program Files (x86)\Steam\steamapps\common\Blender\blender.exe`
+(`--background --factory-startup`). Script `probe_rig_export.py` in the session scratchpad
+(`...\scratchpad\imagination-aeth-articulated\`). It builds a collection with a hull cube; an armature
+Shoulder > Elbow > Wrist; a cylinder skinned to Wrist through an Armature modifier; an empty `weapon-mount`
+parented to the Wrist bone (`parent_type = BONE`) with a muzzle child; a Limit Rotation constraint on Elbow; and
+custom properties on the Wrist data bone (`aetheria.role=link`, `aetheria.id=link.claw`) and on the Wrist pose bone.
+It exports with the add-on's options (`__init__.py:359-361`: GLB, `use_active_collection`, `use_selection`,
+`export_extras`, `export_yup`, `export_apply`). Result:
+- One skin with joints `Shoulder, Elbow, Wrist`; the barrel node has `skin: 0` and a mesh. `export_apply` did not
+  bake the armature away.
+- Joints are ordinary nodes in the hierarchy (`Arm > Shoulder > Elbow > Wrist > ClawGun > ClawGun.Muzzle`): the
+  bone-parented empty is a child of the Wrist joint node and keeps its extras.
+- Data-bone custom properties export as the joint node's `extras` (`Wrist` carried `aetheria.role` and
+  `aetheria.id`). The pose-bone property did **not** export. A tag set by hand in Pose Mode's custom-properties
+  panel is lost; the add-on must write data-bone properties.
+- The Limit Rotation constraint left no trace in the GLB (no extension, no extras). glTF carries no joint limits,
+  so the add-on must package them.
+- The armature object's own custom property exported as extras on the `Arm` node.
+
+**AM7. The ship file carries unknown slots through.** `ship_cc.replace_layout` (`ship_cc.py:161-195`) and
+`replace_visual` (`:116-140`) append each row's slots past the known members by mount or anchor id, and edit only
+their own slots. `ShipSchemaPinTests` pins the Python slot numbers and member orders to the C# keys and asserts
+`HARDPOINT_MEMBERS` has 7 names. A C# cut that adds `HardpointData` key 7 or `HullData` key 33 therefore needs no
+Python change: the add-on carries both untouched until the add-on cut names them.
+
+**AM8. The schema version string is not a gate.** CultCache resolves a persisted record by schema name when the
+local type has one version (CultLib `src/GameCult.Caching/CultCache.cs:518-523`). `aetheria.hulldata` and
+`aetheria.ship_authoring` are both `"1"` (`ItemData.cs:510`, `ShipAuthoring.cs:12`). Bumping either buys no
+refusal. A retired slot is guarded by a raw-payload refusal instead, as `RefuseLegacyEmbeddedHull`
+(`ShipAuthoring.cs:124-151`) guards ShipAuthoring key 1. Every cut here keeps both versions at `"1"`.
+
+**AM9. Calibre is a footprint band, held only in a test so far.** `WeaponItemData.WeaponCaliber`
+(`ItemData.cs:482-483`) runs Small to ExtraLarge (`Enums.cs:77-83`). Cut `caliber-bands` (unlanded) states the bands
+(Small 1-2 cells, Medium 3-4, Large 5-6, ExtraLarge 7-9) only inside its test. No balance source names an arc cap
+per calibre: AetheriaLore `Game Design/Ship Play Concepts.md` fork 2 (line 24, read in the ship-language
+worktree) gives the trade without numbers.
+
+**AM10. In-flight add-on specs that touch arcs.** Among in-force specs with no report, only `ships-addon-gizmos` r3
+(arc fan from the row's arc) and `ships-addon-mounts` r5 (row defaults include `FiringArc`; a negative grep on
+`.firing_arc =`) name a hardpoint arc. `controls-hud` r2, `controls-ai-bearing` r1 and `munition-shots` r5 read
+`ArcFor` or `TrackingRate`, whose signatures these cuts keep.
+
+**AM11. Eyes prior art on IK** (`C:\Users\Meta\AppData\Local\Temp\claude\F--Projects-CultLib\f24b705c-99b0-4915-8cd0-d31d652edbbf\scratchpad\eyes-ik-prior-art\ik-prior-art.md`).
+Damped least squares, min `||[J; lambda I] dtheta - [e; 0]||^2` with the joint bounds as the box, has exactly the
+form of CultMath's existing `BoundedLeastSquares`. Every engine Eyes checked (Unity Animation Rigging, Godot 4.6,
+Unreal Control Rig) keeps IK in the animation layer; none was found in a math library. Aim-an-axis leaves twist
+about the aim free, so a chain aims with two effective degrees of freedom.
+
+**AM12. The sim already matches ruling `mount-arc-gun-traverse`; no sim cut is owed.** Probed at `acea1aa7`.
+Arc: `HardpointData.FiringArc` (`ItemData.cs:567-569`, key 6) is the per-hardpoint, per-hull arc, and
+`FireControl.ArcFor` (`FireControl.cs:34-41`) reads it, falling back to `GameplaySettings.FiringArc` (120) at 0.
+Traverse: `WeaponData.Tracking` (`Behaviors/Weapon.cs:70-73`, key 33, degrees per second, +infinity when
+unauthored; ruling `weapon-tracking-authored`) is a weapon stat, and `FireControl.TrackingRate`
+(`FireControl.cs:239-245`) is that rate times the ship's targeting gear. Nothing reads a link, and no `LinkData`,
+`HullLinks` or `HardpointData.Link` exists (`git grep` over Assets, tests and tools: 0). The only stale text is the
+comment at `FireControl.cs:133-134`, which says traverse belongs to the link and cites the superseded ruling.
+`ShipAuthoring.cs`, `ShipModCatalog.cs`, `ShipModPlan.cs`, `ItemData.cs`, `ShipModVisual.cs`, `ShipModShips.cs`,
+`EntityInstance.cs`, `CultCacheDrawers.cs`, `tools/blender`, `docs/moddable-ship-authoring.md` and the ship tests
+are byte-identical between `6d83597b` and `acea1aa7` (`git diff --stat`); `FireControl.cs` gained 9 lines, all
+below line 755.
+
+**AM13. Shipped traverse falls with calibre already.** Probe `probe_track.py` (scratchpad
+`imagination-aeth-articulated-r2`, cultcache-py over `GameData/Aetheria.cc` at `acea1aa7`), `WeaponData.Tracking`
+per weapon item: Small guns 1.5 to 40 degrees per second (ClearPath 12, Earp 8, Spectra 10, ColdFire 6, the two
+point-defence guns 40, RainbowLite 1.5); Medium guns 3 to 20 (Autocannon 4, ChargeBlast 3 and 3.5, Flak 20); the
+one Large gun (plight) 2; launchers and the mine launcher +infinity. Twenty-two weapon items in all.
+
+**AM14. Shipped hardpoints and arcs.** Probe `probe_arcs.py` (same scratchpad): the catalog holds four hulls. Only
+the Turret hull authors an arc: its two Ballistic hardpoints, 8 cells each (2x4, the ExtraLarge band), at 360. Ship
+hulls carry weapon hardpoints of 2 cells (Energy, Ballistic) and 3 or 6 cells (Launcher), all at `FiringArc` 0, so
+the default 120 applies. Cut `caliber-bands` (unlanded) states the bands Small 1-2 cells, Medium 3-4, Large 5-6,
+ExtraLarge 7-9 only in its test (AM9).
+
+**AM15. What CultMath has for the rig today.** `F:\Projects\CultLib\packages\cultmath\src\CultMath`, read
+2026-10-10: `quaternion` (`quaternion.cs`) is a plain struct with `identity`, `LookRotation(forward, up)` and float4
+conversions; `math.normalize(quaternion)` (`math.cs:225-235`) is the only quaternion operation. There is no
+quaternion product, conjugate, axis-angle constructor, vector rotation by a quaternion, slerp, swing-twist split or
+joint clamp. `BoundedLeastSquares.Solve(m, n, a, b, lo, hi, x, workspace, out iterations, ...)` minimises
+`||A x - b||^2` in a box, dense and allocation-free, with `WorkspaceLength(n)`. That is the solve AM11 names.
+
+**AM16. A moving part needs no record of its own.** The joint tree (AM6: bones export as ordinary nodes with their
+data-bone extras) already says which moving part a weapon mount rides: the nearest joint above the mount's node.
+A tag on that bone adds nothing the hierarchy does not say, and the arc and traverse the link record carried now
+live on the hardpoint and the weapon (AM12).
+
+**AM17. The add-on chain under these cuts is unlanded.** Specs `ships-addon-frame` r5, `ships-addon-mounts` r5 and
+`ships-addon-mesh-mounts` r1 have no report; `tools/blender` at `acea1aa7` is the pre-r5 add-on (`_save_layout`
+absent; Save Layout writes `FiringArc` from the panel's `firing_arc`, `__init__.py:43`, `:111`, `:174`, `:458`).
+The add-on specs below are anchored at `acea1aa7` and name the region to re-find once that chain merges.
+
+### Model page
+
+| Kind | Identity | Lifecycle | Authority |
+|---|---|---|---|
+| Hardpoint arc (`HardpointData.FiringArc`, key 6, unchanged) | The hardpoint's mount id (`Transform`) on its hull. 0 is a fixed mount at `GameplaySettings.FiringArc`. | Authored per hull in the add-on's panel (or Studio for a shipped hull) and written by Save or Package. A package edited after a save changes the arc a run's guns use on Continue; it moves no cell, so it adds nothing to `mod-hull-changed-under-run`. | The ship author. `ShipAuthoringStore.Validate` judges it finite and non-negative and, for a mount on a joint, positive and within the joint chain's yaw reach. `FireControl.ArcFor` is its one reader. |
+| Traverse (`WeaponData.Tracking`, key 33, unchanged) | A stat of the weapon item. | Authored per weapon design; any gun goes on any mount (ruling `mount-arc-gun-traverse`). | The weapon designer. `FireControl.TrackingRate` prices it; the rig presenter slews the picture at the same rate. |
+| Joint (`ShipJoint` in `ShipAuthoring.Joints`, key 5) | Its bone's `aetheria.id`, which is its GLB node id. Package assigns `joint.<n>` once to a data bone on a weapon mount's chain and keeps it there. | Re-rigging changes only the visual record; every Package and compose judges it again. No save, sim fact or catalog record names a joint. | The author's Blender bone IK settings (lock, limit, min, max), copied by Package. Validate judges the tree and the reach; Bind judges it against the GLB. No joint feeds a sim fact (ruling `rig-is-presentation`). |
+| A mount's joint (`ShipAnchor.Joint`, key 5) | On a `weapon-mount` anchor only: the nearest joint above the mount's node; empty for a fixed mount. | Derived at Package from the mount's bone ancestry, as mounted `Position` is derived from the object. Re-parenting in Blender changes it at the next Package. | The Blender hierarchy; Package derives it; Bind refuses a GLB whose hierarchy disagrees. No panel or Studio edit writes it. |
+| Rig (the Unity `MountRig`, one per driven joint) | The driven joint's id. | Cache-only: built with the prototype at boot from `ShipModPlan.Rigs` and the rest pose. | Writes only its joints' Transforms. Reads the lead weapon's `GunSolution.Direction` and `TrackingRate`. |
+
+A driven joint is a joint some weapon-mount anchor names. Its chain is that joint and its ancestors up to, not
+including, the nearest ancestor that is itself driven, so a turret on a turret solves as two chains and the outer
+chain never moves under the inner gun's solve.
+
+**C4 (follow-up `c4-ship-element-ids`).** No link element kind exists for variants: a variant that narrows a gun's
+arc is a hardpoint tail-slot patch on `FiringArc`, by mount id, which C4 already plans.
+
+### Authority map
+
+- **Owner.** The hardpoint owns its arc (`FiringArc`), per hull. The weapon owns its traverse (`Tracking`). The
+  Blender hierarchy owns which joint a mount rides, derived into `ShipAnchor.Joint` at Package. The bone IK settings
+  own the joint limits, packaged into `ShipAuthoring.Joints`. FireControl owns the aim (`GunSolution.Direction`).
+- **Sim inputs.** `HardpointData.FiringArc` and `WeaponData.Tracking`, as on `acea1aa7`. Nothing the rig adds.
+- **Outputs.** `ArcFor`, `InArc`, `AimDirection`, `Solution` and `TrackingRate`, unchanged. Presentation reads the
+  lead weapon's `GunSolution.Direction` and `TrackingRate`.
+- **Derived.** `ShipAnchor.Joint`, from the hierarchy. A driven joint's chain, from the joint tree. Yaw reach, from
+  the chain's degrees of freedom. The rigs and their `AimChain`s (cache-only).
+- **No longer owners.** The link is not a record: `LinkData`, `HullData.Links`, `HardpointData.Link`, the Tag Link
+  operator and link rows are not built (cuts `links-record`, `links-arc`, `ships-addon-link-rows` withdrawn).
+  `FiringArc` is not retired (cut `retire-firing-arc` withdrawn). The `articulation` role is cut; a joint is not an
+  anchor.
+- **Forbidden writers.** No joint limit, bone length, IK result or Unity transform feeds `ArcFor`, `TrackingRate`
+  or any sim fact. No panel or Studio edit writes `ShipAnchor.Joint`. No helper invents an arc. The add-on keeps no
+  copy of `GameplaySettings.FiringArc`.
+- **Shared paths.** Validate's reach check and `ShipModPlan.Rigs` define a chain through one helper. Package and
+  the gizmo drag derive a mount's place through the same hull_grid functions.
+
+### Rationale
+
+**A moving part is a joint, not a record.** The operator ruled the link carries no sim stat (AM12). What remained
+of it was a tag and a row holding nothing but an id. The joint tree already says which part a mount rides (AM16),
+so the record keeps only what the presenter and the judge need: the joints with their limits, and on each weapon
+mount the joint it rides. Moving parts come from armature bones only. A turret built from plain objects is a
+one-bone armature; there is no object-link path, so joints have one source.
+
+**A bone with no free axis is not a joint.** Package turns a chain bone into a joint only when its IK settings
+leave at least one degree of freedom. A gun on a fully locked bone has no joint above it and is a fixed mount at
+its own arc, the default included.
+
+**A gun on a joint states its arc.** The judge checks the chain's yaw reach against the arc, and the judge has no
+`GameplaySettings` (the default is a game setting, and the add-on keeps no copy of it either). So a weapon whose
+mount rides a joint must author `FiringArc` above 0. Weapons on one joint share one `Rotation` and one `FiringArc`,
+because the lead weapon's aim moves them all.
+
+**The reach check is yaw only, and conservative** (unchanged from 2026-10-09). The sim is planar. A chain covers the
+arc when the summed ranges of its degrees of freedom whose axis lies within 5 degrees of Ship Root up reach the
+arc, capped at 360. Serial parallel axes add, so the sum is exact for the arms the add-on makes. A chain whose yaw
+comes only from tilted axes is refused with a message naming the joint.
+
+**Joint limits come from Blender's bone IK settings, not from Limit Rotation constraints** (unchanged). Blender's
+own IK honours `lock_ik_*`, `use_ik_limit_*` and `ik_min_*`/`ik_max_*`; glTF carries no constraint (AM6).
+
+**The presenter slews at the weapon's traverse.** It turns its aim toward the lead weapon's
+`GunSolution.Direction` (already arc-clamped by the sim) at most `FireControl.TrackingRate(lead, entity)` degrees
+per second, the rate the sim prices the angular term with. +infinity is no slew. The sim stays stateless.
+
+**No Aetheria-side solver port.** Ruling `solver-in-gamecult-animation` puts the solve in a pure CultLib package.
+The presenter calls that package's API; an Aetheria interface with one implementation would be a second surface
+buying nothing a pure, headless-testable library does not already give.
+
+**Calibre and arc.** The operator's own examples put a heavy gun on a wide arc (the crab's claw) and a light gun in
+a narrow port, and her ruling says calibre caps are enforced "if at all". The shipped Turret's ExtraLarge
+hardpoints sweep 360 (AM14), and the weapon's traverse already falls with calibre (AM13), which prices a heavy gun
+on a wide arc through `TrackingRate`. Question `hardpoint-arc-caps` puts the choice to her with no-cap recommended.
+Under no-cap, follow-up `caliber-bands-one-table` is moot: the band table stays in `caliber-bands`' test, its only
+reader. Under either cap option the judge reads the bands, so they become one table in ServerShared and that test
+reads it.
+
+**Thrusters on joints stay a follow-up.** A gimballed thruster changes where thrust points, which is a sim fact the
+thrust allocator does not model. Validate refuses `ShipAnchor.Joint` on any non-weapon anchor and Bind refuses a
+thruster or radiator node under a joint, both naming follow-up `gimballed-thrusters`.
+
+### The rig's interface to GameCult.Animation and CultMath
+
+This is what `link-rig-presenter` calls; a later cultlib-gaps pass maps the cuts that provide it. Types and
+operations only. Angles are radians at this API (the record's degrees convert once, when the presenter builds its
+chain).
+
+CultMath (`quaternion`, `float3`; pure and allocation-free):
+- `math.mul(quaternion a, quaternion b) -> quaternion`, composing in the Unity.Mathematics convention (`mul(a, b)`
+  applies `b` first).
+- `math.rotate(quaternion q, float3 v) -> float3`.
+- `math.conjugate(quaternion q) -> quaternion` and `math.inverse(quaternion q) -> quaternion`.
+- `quaternion.AxisAngle(float3 unitAxis, float radians) -> quaternion`.
+- `math.slerp(quaternion a, quaternion b, float t) -> quaternion` (shortest arc).
+- Swing-twist and joint clamps, which the ruling also gives CultMath. The presenter does not call them (its degrees
+  of freedom are per-axis boxes); GameCult.Animation may: `math.swing_twist(quaternion q, float3 unitTwistAxis, out
+  quaternion swing, out quaternion twist)`, `math.clamp_hinge(quaternion q, float3 unitAxis, float min, float max)
+  -> quaternion`, `math.clamp_cone(quaternion swing, float3 unitAxis, float maxAngle) -> quaternion`,
+  `math.clamp_twist(quaternion twist, float3 unitAxis, float min, float max) -> quaternion`.
+
+GameCult.Animation (a new CultLib package, netstandard2.1, depending only on CultMath, and published as a UPM package
+`org.gamecult.animation` beside `org.gamecult.cultmath` so Aetheria's `Packages/manifest.json` pins it the same way):
+- `AimJoint { float3 RestPosition; quaternion RestRotation; }`: rest offset and rotation relative to the previous
+  joint (the first relative to the chain root's frame).
+- `AimDof { int Joint; float3 Axis; float Min; float Max; }`: a unit axis in that joint's local frame and its bounds.
+- `AimEffector { float3 Offset; float3 Axis; }`: the muzzle's offset and unit aim axis in the last joint's frame.
+- `AimChain.Create(ReadOnlySpan<AimJoint> joints, ReadOnlySpan<AimDof> dofs, AimEffector effector) -> AimChain`:
+  validates (finite values, unit axes within a tolerance, `Min <= Max`, `Joint` ascending and in range) and throws
+  `ArgumentException` naming the field, never the value. Exposes `JointCount` and `DofCount`.
+- `AimChain.WorkspaceLength(in AimChain chain) -> int`.
+- `AimChainSolver.Solve(in AimChain chain, ReadOnlySpan<float> current, float3 targetDirection, Span<float> next,
+  Span<float> workspace) -> AimSolveStatus` (`Converged`, `IterationCap`, `InvalidInput`): turns the effector's aim
+  axis toward `targetDirection` (chain root frame) by damped least squares over `BoundedLeastSquares`, every angle
+  in `next` inside its `[Min, Max]`, twist about the aim left free; deterministic, allocation-free, warm-started from
+  `current`.
+- `AimChain.Pose(in AimChain chain, ReadOnlySpan<float> angles, Span<quaternion> localRotations)`: each joint's
+  local rotation, its rest rotation times the product of its degrees of freedom's axis-angle rotations in DOF order.
+- `AimChain.EffectorDirection(in AimChain chain, ReadOnlySpan<float> angles) -> float3`: the aim axis in the chain
+  root's frame (forward kinematics), for tests and the presenter's settled check.
+
+Aetheria keeps the glTF-to-Unity axis conversion (`JointAxes.ToLocal`, ServerShared, pure), the slew (planar angle
+arithmetic over the existing `math.atan2` and `math.rotate(float2, radians)`), and the `UnityEngine.Quaternion`
+conversion at the Transform write.
+
+### Cut order
+
+1. `link-rig-record` r3, no dependency: the joint record, the judge's rig rules, Bind's GLB checks,
+   `ShipModPlan.Rigs`, and the stale FireControl comment. **First.**
+2. `ships-addon-gizmos` r6 after `ships-addon-mesh-mounts`: arc fans from the row's `FiringArc`.
+3. `ships-addon-link-package` r3 after `link-rig-record`, `ships-addon-mounts` and `ships-addon-mesh-mounts`:
+   Package writes the joints and each weapon mount's joint.
+4. `link-rig-presenter` r2 after `link-rig-record`, `ships-addon-link-package`, and the CultLib release carrying the
+   interface above (cultlib-gaps), pinned.
+5. `link-calibre-judge` r2: blocked on question `hardpoint-arc-caps`; withdrawn if she rules no-cap.
+
+Withdrawn: `links-record` r1, `links-arc` r1, `retire-firing-arc` r1, `ships-addon-link-rows` r1, and question
+`calibre-arc-caps`.
+
+### Admitted
+
+2026-10-09 (`imagination-aeth-articulated`): receipts `mind-commit-b0c6b373...`, `mind-commit-c00a16b5...`,
+`mind-commit-08fce00f...`, `mind-commit-06e09a45...`.
+
+2026-10-10 (`imagination-aeth-articulated-r2`): receipts `mind-commit-0b2e932e...` (withdrew links-record r1, links-arc r1,
+retire-firing-arc r1, ships-addon-link-rows r1; link-rig-record r3; ships-addon-gizmos r6),
+`mind-commit-0c23fa01...` (ships-addon-link-package r2, link-rig-presenter r2, link-calibre-judge r2, question
+`hardpoint-arc-caps`, withdrew question `calibre-arc-caps`) and `mind-commit-40788d58...` (ships-addon-link-package r3,
+r2's arm smoke pins fixed). context-pack read every anchor SAME at `acea1aa7`.
+
+## Vectored thruster rows
+
+Pass: Imagination (`imagination-aeth-vectoring`), session `self-2026-10-10-ag`. Body: `GameCult/Aetheria` origin/master
+`30d02719`; the allocator at `1fc98bdc` (branch `eureka/aetheria-release-thrust-allocator-core`, read-only, a fix
+batch in flight); the rig record at `562de34c` (branch `eureka/aetheria-release-link-rig-record`, Soul pass running);
+CultMath `BoundedLeastSquares` at CultLib origin/main `50512e6e`. One design owns follow-ups `vectored-thruster-rows`
+(operator: "if that dine and dash could tilt that vector for each row of thrusters it would be even more hyper
+maneuverable"; a gimbal per row, not per thruster) and `gimballed-thrusters`. Prior art:
+`docs/research/thrust-vectoring-prior-art.md` at `30d02719` (cited as VP, by section).
+
+### Body facts
+
+- **V1. A column is linear in the push direction.** The allocator's column is xy = push * thrust / mass and
+  z = `Torque` * thrust * `TorqueMultiplier` / mass (spec `cut-thrust-allocator.r1`, adds; `ThrustAllocator.cs:8-18`
+  at `1fc98bdc`). `Torque` is `-dot(normalize(toCenter), float2(1,0).Rotate(rotation))` (`Thruster.cs:62-71`), linear
+  in the direction vector. So a thruster tilted by angle a has column c(a) = cos a * c(0) + sin a * c(pi/2): two fixed
+  columns per thruster carry every tilt. This is VP 1.1's virtual-actuator trick, exact for Aetheria's planar plant.
+- **V2. BoundedLeastSquares has box bounds only** (`BoundedLeastSquares.cs`, CultLib `50512e6e`: `lo <= x <= hi`,
+  dense primal active set, iteration cap 100, warm start in `x`). A gimbal wedge |v| <= tan(theta) u is not a box
+  (VP 2). The design below never needs the wedge: the per-tick slew window in the row's own frame is narrow (3 deg at
+  90 deg/s and 30 Hz, 12 deg at 360 deg/s), so v is boxed by the sine of the window and the recovered angle is
+  clamped to the window and the gimbal. No CultMath capability is missing, so no cultlib-gaps follow-up.
+- **V3. The sim already has the data seam.** `HardpointData.FiringArc` (key 6) is the hardpoint's arc
+  (`ItemData.cs:567-569`); `EquippedItem.Hardpoint` gives a behaviour its hardpoint (`Entity.cs:1688`, read by
+  `FireControl.ArcFor`, `FireControl.cs:36-41`). `HardpointData` uses keys 0-6; `ThrusterData` keys 1-5
+  (`Thruster.cs:12-27`; `BehaviorData` owns key 0). At `562de34c` the judge refuses a `thruster-emitter` anchor on a
+  joint, naming follow-up `gimballed-thrusters` (`ShipAuthoring.cs:360-363`), and checks that weapon mounts on one
+  joint share `Rotation` and `FiringArc` and that the chain's yaw reach covers the arc (`:370-385`).
+- **V4. The gimbal is a sim fact.** By V1 the angle changes push and turn, which the allocator and the evasion
+  envelope read. In V6, fixed rows leave forward and reverse at E 0.361 on the small hull; tilting rows take both to
+  0.000. So the row angle, its limit and its slew are simulation state and stats (target invariant `sim-owns-facts`);
+  the joint only draws `Thruster.Angle` (rulings `rig-is-presentation`, `mount-arc-gun-traverse`).
+- **V5. Probe harness.** Scratch C# console at `scratchpad/imagination-aeth-vectoring/harness` (local commit
+  `b5162ab`, then a v2 that fixed M4's scoring and added M3c and M5), `Program.cs` plus a verbatim copy of
+  `BoundedLeastSquares.cs` from `50512e6e`, run on Yggdrasil through `ygg-verify.sh` (`dotnet run -c Release`, image
+  `mcr.microsoft.com/dotnet/sdk:10.0`), 2026-10-10, exit 0 both runs (`run1.log`, `run2.log` beside it). The core
+  solve copies `ThrustAllocator` at `1fc98bdc` exactly (weights 100 and 1000, L1 split error variables, ridge 0.1,
+  KKT 1e-12, cap 100); every method shares it and shares one demand scale (V7). Hulls: *small*, two mains (accel 10)
+  and two side rows of four (accel 2, pushing across the hull, gimbal +-45 deg); *large*, four mains and four rows of
+  eight (36 thrusters). 30 Hz, 90 ticks per intent from rows at 0, 12 intents (full strafes, forward, reverse, two
+  diagonals, full turns, forward plus turn, strafe plus half turn, two partial). E is the realized wrench's error
+  against the demand, normalised per axis by the box extreme. REF is a brute-force grid over both row angles
+  (37 x 37, no slew limit) with the fixed-column solve inside, minimum weighted error.
+- **V6. Results** (mean E over the 12 intents after 90 ticks; worst single solve's iterations; us per tick on
+  Yggdrasil):
+
+  | Method | small 90 deg/s | small 360 deg/s | large 90 deg/s | solves/tick | worst iters (large) | us/tick (large) |
+  |---|---|---|---|---|---|---|
+  | REF grid (static optimum, shared row angle) | 0.134 | 0.134 | n/a | 1369 | n/a | n/a |
+  | M0 fixed rows (today) | 0.298 | 0.298 | 0.310 | 1 | 95 | 36 |
+  | M1 row as one actuator: shared throttle, (u, v) in the row frame, slew-boxed | 0.142 | 0.138 | 0.133 | 1 | 20 | 3 |
+  | M2 cascade: per-thruster (u, v), one angle per row, re-solve | 0.137 | 0.131 | 0.131 | 2 | 95 | 267 |
+  | M3 angle step linearised at last tick's throttles, one solve | 0.201 | 0.196 | 0.215 | 1 | 95 | 74 |
+  | M3c as M3, idle rows linearised at throttle .25 | 0.138 | 0.136 | 0.132 | 1 | 100 (2 IterationLimit) | 79 |
+  | M5 M1's angle, then per-thruster re-solve | 0.142 | 0.138 | 0.131 | 2 | 95 | 44 |
+  | M4 per-thruster gimbals (no row constraint; upper bound) | 0.138 | 0.135 | 0.129 | 1 | 89 | 328 |
+
+  No method produced NaN. M1, M2, M3c, M4 and M5 reach E 0.000 on forward and reverse (M0 and M3: 0.361). The large
+  hull's 95-iteration solves are the fixed per-thruster solve itself (M0 is also 95): finding
+  `cut-thrust-allocator-core.s1.large-hull-degradation`, follow-up `allocator-large-hull`. M1 collapses each row to
+  two variables (12 on the large hull instead of 36) and stays at 20 iterations, which is the "group identical
+  columns" remedy that follow-up names, arrived at for free.
+- **V7. The demand scale must be the gimbal reach.** The allocator scales intent by box extremes it sums from the
+  columns it is given (`ThrustAllocator.cs:44-61`). With rows tilting, current-column extremes move every tick, so
+  "full forward" would change meaning as the rows swing. The probe scales by the reach: per thruster and half-axis,
+  the maximum of A cos a + B sin a over the gimbal (closed form: sqrt(A^2 + B^2) when atan2(B, A) lies inside the arc,
+  else the better end). Small hull: +y 31.3 (mains 20, eight row thrusters 2 sin 45 deg each), -y 11.3, +-x 8.0,
+  +-z 12.53. The same reach is the envelope's box (cut `envelope-from-columns`), so intent and evasion read one
+  geometry.
+- **V8. Zero thrust: hold the angle, but never linearise through the throttle.** Schedule strafe right, idle, strafe
+  left, forward, idle, reverse, 30 ticks each, both hulls, 90 deg/s. M1 and M5: every step within the window (3.00
+  deg max), idle drift 0.000 deg, idle throttle 0, no sign flips in the late half of any phase, and reverse ends at
+  -45/45 (correct). M2: one or two late sign flips, and 3 deg of idle drift on the large hull (its stage one aims
+  idle rows with v alone). M3 is trapped: a row at zero throttle has a zero angle column, so it never tilts, forward
+  stays at E 0.361 and reverse ends at 45/-45 (the wrong way). M3c unsticks it but chatters (15 late flips), fires
+  at full throttle while idle on the large hull and hits the cap. Holding the previous angle when the row's (u, v)
+  is near zero (|(u, v)| < 1e-6) is enough once (u, v) are free variables: v can aim an idle row without thrust, and
+  the box's overcount is useful there.
+
+### Model page rows
+
+| Kind | Identity | Lifecycle | Authority |
+|---|---|---|---|
+| Gimbal limit (`HardpointData.FiringArc`, key 6, on a `Thruster` hardpoint; question `vector-row-data-home`) | The hardpoint's mount id (`Transform`) on its hull. Full width in degrees, as for a gun; the row swings +-FiringArc/2 about `Rotation`. 0 is a fixed thruster; thrusters get no `GameplaySettings.FiringArc` fallback. | Authored per hull with the other hardpoint fields; Save or Package writes it; a package edit changes it on Continue (moves no cell). | The ship author. The judge requires every member of a row to share it and the row's joint chain to reach it. The thruster reads it at activation. |
+| Row (`HardpointData.Row`, new key 7, string) | Unique within its hull; empty means not in a row. A `Thruster` hardpoint with `FiringArc` > 0 and no `Row` is a row of one. | Authored per hull; renaming a row changes no save (no save names a row; ruling `no-save-compatibility-before-players`). | The ship author. Judge: only on `Thruster` hardpoints; members share `Rotation` and a `FiringArc` > 0. Never derived from a joint (ruling `rig-is-presentation`). |
+| Slew rate (`ThrusterData.Slew`, new key 6, `PerformanceStat`, deg/s) | A stat of the thruster design. | Authored per design; heat, durability and quality move it live like `Thrust`. A row slews at its slowest live member. | The gear designer, as a weapon's traverse is (ruling `mount-arc-gun-traverse`). |
+| Live row angle (`Thruster.Angle`, runtime) | The thruster behaviour; every member of a row holds the same value. Radians from the hardpoint's `Rotation`. | 0 at `Activate`; moves at most slew x dt per tick; held while the row is idle; never saved (a load restarts at 0). | `ThrustAllocator` decides it; `Ship.Update` is its one writer. `Execute`, the envelope and presentation read it. The rig draws it and never writes it. |
+| Row actuator (runtime) | The row, built at `Activate` from its members' hardpoints. | Rebuilt when the thruster set changes (the allocator's resize rule). A dead member's columns are zero, so the row keeps steering with the rest. | `ThrustAllocator` reads the summed along and across columns and the slew window, and decides one throttle and one angle step per row. |
+
+### Authority map
+
+- **Owner.** `ThrustAllocator` decides every fixed thruster's throttle and every row's throttle and angle step, in one
+  `BoundedLeastSquares` solve (question `vector-row-formulation`, recommended `shared-throttle-row`).
+- **Inputs.** Intent (unchanged); each fixed thruster's column; per row, the summed column along and across its live
+  angle and its slew window [max(-arc/2 - angle, -slew dt), min(arc/2 - angle, slew dt)]; the reach (V7).
+- **Outputs.** `Thruster.Axis` for every thruster (a row's members share the row's) and `Thruster.Angle` for every
+  row member, read by `Execute`, `PowerRequest`, the envelope and presentation.
+- **Derived.** The reach and the envelope (one helper); a row's summed columns; the slew window.
+- **No longer owners.** `Allocate` no longer sums its box extremes from the current columns; they come from the reach
+  helper. A joint, its limits and the IK pose decide nothing in the sim.
+- **Forbidden writers.** Any `Angle` write outside `Ship.Update`; any read of `ShipJoint`, `ShipAnchor.Joint` or a
+  Unity transform in `Thruster`, `Ship` or `ThrustAllocator`; a second throttle solve or fallback mixer; an angle step
+  linearised through last tick's throttles (M3, V8).
+- **Shared paths.** Player helm, agents, the throttle lock and tests reach rows only through intent.
+  `Thruster.Column(angle)` is the one geometry function `Execute`, the allocator and the envelope call.
+
+### Rationale
+
+- **Why one actuator per row.** M1 matches M5 (per-member throttles after the same angle) within 0.002 mean E on all
+  three sweeps, is within 0.008 of the static optimum, keeps the allocator's one solve (ruling
+  `one-weighted-solve-no-rotation-demand`; the thrust-allocator authority map forbids a second solve) and is the
+  cheapest in iterations and time. M2 is the most accurate (0.131) but doubles the variables, reaches 95 of 100
+  iterations on 36 thrusters and drifts idle rows. What M1 gives up is differential throttle inside a row: on these
+  hulls it measured nothing, and a row that needs it can be authored as two rows. The operator decides: question
+  `vector-row-formulation`.
+- **Why the limit is the hardpoint's arc and the slew the gear's.** It is ruling `mount-arc-gun-traverse` applied to
+  thrusters: how far a mount swings is ship authoring; how fast is the part's own stat. Reusing `FiringArc` adds no
+  field that the add-on, Studio and C4 must learn; its meaning (how far the mounted item may point from `Rotation`)
+  already fits. Question `vector-row-data-home` holds the alternatives.
+- **Why the envelope counts the whole gimbal, not the slew.** The envelope already ignores the time to swing the
+  hull (cut `envelope-from-columns` sums box extremes); counting slew time only for rows would be a second,
+  inconsistent time model. If the pace pass finds slow gimbals over-credited, slew time enters the envelope for hull
+  turn and rows together.
+- **Sequence.** Both cuts land after `thrust-allocator` and `envelope-from-columns`, whose `Ship.Update` wiring and
+  `RecalculateEnvelope` they change, and after `link-rig-record`, whose judge they extend. The rig and the add-on are
+  follow-up `vector-rows-presentation`: nothing authors a `Row` until the add-on does, so the record cut is inert
+  data until then.
+
+### Cut order
+
+1. `vector-rows-record` after `link-rig-record`, `thrust-allocator` and `envelope-from-columns`:
+   `HardpointData.Row`, `ThrusterData.Slew`, the judge's row rules, thruster anchors allowed on joints with the
+   reach check.
+2. `vector-rows-allocator` after `vector-rows-record`, `thrust-allocator-core`, `thrust-allocator` and
+   `envelope-from-columns`: rows as one actuator each in the solve, `Thruster.Angle`, `Column(angle)`, the reach
+   helper for demand and envelope. Its `Ship.cs` anchors are written against the merged wiring at Hands time
+   (the spec says where).
+
+### Admitted
+
+2026-10-10 (`imagination-aeth-vectoring`): receipt `mind-commit-2829a7e1...` (cut_specs `cut-vector-rows-record.r1`,
+`cut-vector-rows-allocator.r1`, questions `vector-row-formulation` and `vector-row-data-home`, follow-up
+`vector-rows-presentation`) and `mind-commit-e1337a9c...` (`cut-vector-rows-record.r2` superseding r1: its
+ShipValidationTests anchor named the wrong class). context-pack read every anchor SAME: record r2 at `562de34c`,
+allocator r1 at `1fc98bdc`.
+# Lock warning (cut lock-warning) and consumable-ai r2
+
+Imagination imagination-aeth-lock-warning, session self-2026-10-10-ag, 2026-10-10.
+Pinned to Aetheria origin/master 08d064c8dce6081bb48e1922a3090c855db2e7c6 (lock-warning)
+and to branch eureka/aetheria-release-consumable-ai head f2ecc96a (consumable-ai r2,
+not merged to master). For Self to fold into docs/aetheria-release-map.md.
+
+## Body facts (probes and source reads)
+
+LW1. The sim has no fact a ship owns about locks on it. `Entity.TargetedBy`
+(Subject) and `Entity.TargetedByCount` (Entity.cs:174-175 at 08d064c8) count ships
+whose *selected* target is this one (Entity.cs:255-259). Selecting a target emits
+nothing, so that count is not something the targeted ship can sense. Its one
+reader is the HUD's music switch (ActionGameManager.cs:1063).
+
+LW2. The HUD's lock bar is the player's own *outgoing* lock: one `LockIndicator`
+per own `LockWeapon` (ActionGameManager.cs:1139-1144), driven by `targetLock.Lock`
+(noise, frequency, spin; :1440-1452). No incoming-lock presenter exists.
+
+LW3. A lock is built only inside `LockWeapon.Execute` (LockWeapon.cs:81-110): the
+lock resets when the target changes (86-90); it grows only on a hostile entity
+target while the angle between the shooter's Aim and the target is under
+LockAngle (100-105); outside that it decays (106). The lock speed scales with
+`Entity.EntityInfoGathered[target]` raised to SensorImpact, the shooter's private
+sensor state. `IsLocked` is `_lock > .99` (66).
+
+LW4. Behaviours execute only while their item is Active
+(EquippedItem.Update, Entity.cs:1982-1998; consumable effects at 1626-1635).
+A behaviour that stops executing leaves its fields as they were, so any
+"painting" flag stored on the weapon goes stale when the launcher goes offline.
+A warning must therefore be re-asserted each tick by the emitter, never read
+from emitter state that might be stale.
+
+LW5. `Entity.Update` returns at once when the entity is inactive
+(Entity.cs:1376-1379) and already walks `Zone.Entities` every tick for
+hostility (1406-1414). `Deactivate` (772-787) disposes subscriptions and clears
+the visibility collections. `Entity.VisibilitySources` (88, decayed in Update
+1395-1400) is the existing precedent for state other entities push onto a ship.
+
+LW6. consumable-ai h1 (f2ecc96a) reads `e.Weapons.OfType<LockWeapon>().Any(w =>
+w.Lock > .5)` over `ship.VisibleEnemies` filtered to enemies targeting this ship
+(Combat.cs:147-148), after the `target == null` early return (Combat.cs:33-34).
+Finding reads-enemy-weapon-state: private emitter state, and the unseen-locker
+case inverted (a locker the ship cannot see never warns).
+
+LW7. `Entity.TryActivateConsumable` (Entity.cs:895-907 at f2ecc96a) has no
+liveness guard, and `CanActivateConsumable` (883-886) admits a Stackable design
+every call. A dead or docked ship's agent still ticks (finding
+deactivated-ship-spends-cargo); a stack of vents drains one per locked tick
+(finding stackable-vent-drained-per-tick).
+
+LW8. ConsumableAiTests (f2ecc96a) holds a lock steady by turning lockers away
+after one tick (`HoldLocks`, 204-210). Once warnings come from paints, a locker
+looking away is the no-paint case, so every vent fixture must keep its lockers
+painting.
+
+## Authority map: the incoming-lock warning
+
+- Owner: `Entity` (ServerShared) owns `IncomingLocks`, the ship's list of
+  `LockWarning` facts, published once per Entity.Update.
+- Emission owner: `LockWeapon.Execute` is the one place that decides a beam is
+  on a ship (the LockAngle test it already makes). Each tick it paints, it
+  pushes one paint to the target: `target.ReceivePaint(Entity.Position,
+  Item?.Data, Lock)`. Nothing else calls ReceivePaint.
+- Inputs: paints received since the ship's last Update (emitter position,
+  emitting gear design, lock strength). Never the emitter's weapon list, target
+  slot or EntityInfoGathered.
+- Outputs: `IReadOnlyList<LockWarning> IncomingLocks`, each with Bearing (unit
+  xz direction from this ship to the emitter at paint time), EmitterClass (the
+  emitting gear's `EquippableItemData`, null for a consumable-borne emitter)
+  and Strength (0..1; content is question lock-warning-content).
+- Derived state: the paint inbox is a one-tick buffer, swapped into
+  IncomingLocks at the top of the receiver's Update and cleared. The list is
+  empty on an inactive ship and cleared by Deactivate.
+- Forbidden writers and readers: CombatState and every Agents/ file read no
+  `LockWeapon`, `.Lock` or `IsLocked` of another ship; ActionGameManager reads
+  enemy lock state only through `CurrentEntity.IncomingLocks`.
+  `TargetedBy`/`TargetedByCount` are not lock facts and nothing new reads them.
+- Shared paths: the AI's vent rule (CombatState) and the player's HUD
+  indicator read the same list: same ship, same information (ruling
+  same-ship-same-inputs, finding reads-enemy-weapon-state).
+- Timing: an emitter that executes after the receiver in tick N is published at
+  the receiver's tick N+1, so each publish window holds each emitter's one
+  Execute; a warning lags its paint by at most one tick and never outlives it by
+  more than one (LW4 is why: no stale flags).
+- Deletion line: none in this cut (additive); consumable-ai r2 deletes the
+  `VisibleEnemies`/`LockWeapon.Lock` read at Combat.cs:147-148.
+
+## Rationale
+
+- Push from the beam, not a scan by the receiver. A receiver-side scan of
+  `Zone.Entities` for lock weapons aimed at it would re-derive LockWeapon's arc
+  test (two owners of "the beam is on you") or read a stored painting flag that
+  goes stale offline (LW4). The push re-asserts the paint every tick it is true,
+  in the code that already decides it, and the receiver owns only what it
+  learns.
+- Why the receiver is still the owner: the warning is a fact about what this
+  ship senses (ruling sensor-stat-set item 4), and a later receiver stat
+  (passive listening gear, the sensor-stat-set cut) belongs here, not on the
+  emitter.
+- Search versus track is not in this cut. The only emitter in the sim is the
+  LockWeapon, a narrow track beam by nature (item 1). A Mode field would have
+  one producer and no reader that could ever see the other value. The
+  sensor-stat-set cut adds Mode when it lands the first wide search emitter.
+  This cut is the first slice of follow-up sensor-stat-set-cut: the receiver
+  half of item 4 for the emitter that exists. That follow-up stays open for
+  power, beam width, intercept factor, passive listening, shared tracks and
+  search mode.
+- What the ship learns about lock progress is a product fork: item 4 lists
+  bearing, emitter class and search versus track, not progress. Question
+  lock-warning-content. Recommendation `strength`; see the question.
+- Prior art for that fork (from general knowledge, no Eyes pass this time;
+  confidence moderate): a real radar warning receiver shows emitter type,
+  bearing, a relative signal strength (closeness and threat, not the shooter's
+  lock progress) and mode (search, track, launch). Flight games mostly reduce
+  this to stages: a "locking" tone, a "locked" tone, then a missile alert.
+  A continuous lock-progress readout is a game abstraction, chosen for the
+  reaction window it gives.
+- The music switch (LW1) is a separate instruments-bound leak and a separate
+  product choice (gun-only enemies never paint), so it is a follow-up, not part
+  of this cut.
+
+## consumable-ai r2
+
+- The vent rule reads `ship.IncomingLocks`: vent when any one warning's
+  Strength passes .5 (the strongest, never a sum), before the `target == null`
+  return so a ship painted by a locker it cannot see or has not targeted still
+  vents. The unseen-locker test flips from "does not vent" to "vents".
+- `TryActivateConsumable` refuses on an inactive entity: the one path guards
+  player and AI alike (finding deactivated-ship-spends-cargo).
+- The AI does not activate a consumable whose kind already has an active
+  effect, Stackable or not (finding stackable-vent-drained-per-tick). The
+  player may still stack by hand; `CanActivateConsumable` is unchanged.
+- Tests pin the vent edge at .49/.51, the arc at 14/16 degrees, and an optimum
+  range distinct from the shortest gun's range (findings
+  lock-and-arc-bands-unpinned, optimum-range-not-pinned).
+- Order: the consumable-only edits land on the branch at f2ecc96a, then Hands
+  merges origin/master (with lock-warning merged), then rewrites the vent rule;
+  Combat.cs is untouched by lock-warning, so its anchors read the same after
+  the merge.
+
+## Admitted (receipt mind-commit-35d69407...)
+
+- cut_spec cut-lock-warning.r1 (base 08d064c8), question lock-warning-content
+  (raised in it, recommended `strength`), cut_spec cut-consumable-ai.r2 (base
+  f2ecc96a, depends_on lock-warning), resolution superseding consumable-ai r1,
+  follow-ups music-reads-targeted-count and lock-warning-audio-cue.
+- context-pack: lock-warning 9/9 anchors SAME at 08d064c8; consumable-ai r2
+  12/12 SAME at f2ecc96a (temporary detached worktrees, removed).
+
+# Visibility rework: signature channels, reveals and sensor stats
+
+Imagination imagination-aeth-visibility, session self-2026-10-11-ag, 2026-10-11.
+Pinned to Aetheria origin/master 93b7ff8da0f67d4958cbe4b6e96f1d824c62a629 (lock-warning and
+envelope-from-columns merged). Rulings: visibility-per-capability-reveal, sensor-stat-set,
+illuminator-beamforming, lock-and-visibility-rethink, launcher-lock-solution-quality,
+lock-warning-strength, shared-track-bearing-only, missiles-seeker-retarget, vapour-cloud-obscuration,
+quiet-gear-identifiable-hull-layout-known (revision pass by imagination-aeth-quiet-gear, same day).
+Prior art: docs/research/lock-launch-and-graded-visibility-prior-art.md (cited below as PA:line;
+section 6 for quiet gear and hull layout).
+This section owns follow-up sensor-stat-set-cut.
+
+## Body facts (probes and source reads at 93b7ff8d)
+
+Paths under Assets/Scripts/ServerShared unless noted.
+
+V1. One signature scalar. `Entity.VisibilitySources` is `Dictionary<object, float>` keyed by the
+emitting object (Entity.cs:88); `Entity.Visibility` is the plain sum (161). Writers, each keyed by
+itself: hull thermal radiation, keyed by the entity (Entity.cs:1619, summed over border cells
+1598-1608); Radiator (Radiator.cs:121, every Update); Reflector cross-section x light
+(Reflector.cs:46); Visibility gear (Visibility.cs:44); ConstantWeapon each beam tick
+(ConstantWeapon.cs:173); InstantWeapon each round, launchers included because LauncherData creates a
+LockWeapon : InstantWeapon (InstantWeapon.cs:280; Launcher.cs:30-33); Thruster input x Visibility,
+max-in-place (Thruster.cs:121-123); Sensor ping (`PingVisibility`, Sensor.cs:117). Grep: 8 writer
+files, plus tests VapourCloudTests:153, FireControlPerWeaponTests (2), MineTests (1).
+
+V2. Decay. Entity.Update decays every source by `GameplaySettings.VisibilityDecay` and removes it
+below 0.1 (Entity.cs:1424-1429). Deactivate does not clear VisibilitySources (780-794).
+
+V3. Heat feeds visibility twice: hull border cells radiate T^HeatRadiationExponent x multiplier into
+the entity's own source (Entity.cs:1598-1619); radiators radiate their own temperature x Emissivity
+(Radiator.cs:118-121). Thrusters and weapons AddHeat, which reaches visibility only later, through
+radiation. Weapons and thrusters also write their own instant source (V1).
+
+V4. One track scalar per pair. `Entity.EntityInfoGathered[other]` (Entity.cs:89), seeded 0 on
+activate and zone add (218, 224), removed on zone remove (231), cleared on Deactivate (788). Its only
+writer is `Sensor.Execute` (Sensor.cs:156-179): a passive gain from `entity.Visibility` through
+Sensitivity x curve(angle) x dt / distance, or a ping gain once per ping when the expanding radius
+passes the entity (`_pingedEntities`, 64, 166-170), then decay (176). Both scale by
+`Zone.Obscuration` (163). `Sensor.Gain` is the one gain rule (190-193).
+
+V5. Readers of the track scalar: `VisibleEntities/Enemies/Friendlies` cross at
+`TargetDetectionInfoThreshold` (Entity.cs:269-285); `FireControl.Designated` needs VisibleEntities
+(FireControl.cs:291-298); hit odds `PSensor` (323) and Inspect (415); `IsRevealed` gear tiers
+(164-183); `LockWeapon` lock rate (LockWeapon.cs:104); `TargetingSystem` resolution doc
+(TargetingSystem.cs:23); ZoneRenderer perspective (ZoneRenderer.cs:552-553); the HUD (V9). About 80
+test sites read or write it (grep across 25 test files).
+
+V6. Reveal today is one tier ladder on the track scalar. `FireControl.IsRevealed(observer, item)`
+ranks the target's non-hull gear (hardpoint first, then size) and reveals item i of N at
+lerp(TargetArmorInfoThreshold, TargetGearInfoThreshold, i/(N-1)) (FireControl.cs:164-183). Readers:
+Entity.TrySelectTargetItem and ResolvedTargetItem (Entity.cs:353, 364), Combat target-item choice
+(Agents/States/Combat.cs:45), the HUD subsystem list (ActionGameManager.cs:435), SchematicDisplay's
+enemy weapon list (UI/HUD/SchematicDisplay.cs:102). The two thresholds are read only there and in
+test fixtures (15 test files set them).
+
+V7. Paints (lock-warning, merged e386e1c4). `LockWeapon.Execute` paints the target each tick it
+builds lock inside LockAngle: `target.ReceivePaint(Entity.Position, Item?.Data, Lock)`
+(LockWeapon.cs:98-106). `LockWarning {Bearing, EmitterClass, Strength}` (114-130). Entity owns
+`_paintInbox`, `_incomingLocks`, `IncomingLocks` (Entity.cs:176-181), `PublishPaints` (799-804) and
+`ReceivePaint` (807-811); Zone.Update publishes every entity's paints before any entity updates
+(Zone.cs:229-231). A ping paints nothing; no warning carries a mode.
+
+V8. A ping is an omnidirectional expanding radius (Sensor.cs:143-152), heard by nobody: its only
+outward effect is the `PingVisibility` bump to the pinger's summed Visibility (117), which every
+observer's passive gain then reads like heat. No beam width, no intercept stat, no ally share.
+`Sensor.Ping` callers: the player's input (AetheriaInput, ActionGameManager) and, after
+faction-play-2, Flight.
+
+V9. The HUD reads other ships' private knowledge. Hostile and friendly indicators fill from
+`indicator.Key.EntityInfoGathered[CurrentEntity]`, the other ship's track of the player
+(ActionGameManager.cs:1285-1302); the target panel's `VisibilityToTargetFill` reads
+`target.EntityInfoGathered[CurrentEntity]` (1330); music switches on `TargetedByCount` (1068-1071),
+which counts selection (Entity.cs:174-175, 261-266). The target panel also reads the target's exact
+hull and shield (1331-1332). Invariant instruments-bound forbids all four.
+
+V10. The AI reads own-ship facts plus `VisibleEnemies` (Agents/Minion.cs:14,
+Behaviors/TurretController.cs:98) and `IsRevealed` (Combat.cs:45). On master no Agents/ code reads
+another ship's weapons; the violation in finding cut-consumable-ai.s1.reads-enemy-weapon-state lives
+on the unmerged consumable-ai branch (f2ecc96a, Combat.cs:147-148).
+
+V11. `Entity.ChunkInfo` (Entity.cs:383-395) is the settled passive info for a signature at a point:
+saturate(sum of `Sensor.PassiveRate(v, p)` over `ActiveSensors()` / (n x TargetInfoDecay)). It is
+linear in the signature below saturation. `DetectionReachPerVisibility` (607-619) bounds it.
+missile-records r3 plans to move that arithmetic into a static `Sensor.SettledInfo` (its deletes,
+Entity.cs:368-369 at 7f51d46d).
+
+V12. Stats and keys. SensorData keys 3-11 (Sensitivity 3, curve 4, PingBoost 5, PingEnergy 6,
+PingVisibility 7, PingRange 8, PingCooldown 9, PingDuration 10, PingRadiusExponent 11; Sensor.cs:15-40).
+LockWeaponData keys 21-25 (LockWeapon.cs:12-25). VisibilityData keys 1-2 (Visibility.cs).
+GameplaySettings is keyAsPropertyName MessagePack (Settings.cs:158-159); VisibilityDecay,
+TargetInfoDecay and the three info thresholds sit at Settings.cs:215-219. Brand flavour reaches a
+stat through product role quality (FactionProduct.cs roles, Key 5; boost-gear-systems' "magnitude
+reads amplifier").
+
+V13. Zone clock: `Zone.Time` (Zone.cs:75). Entity.Update order: inactive return (1408), hostility,
+targets, source decay (1424-1429), temperature (1431), PowerBus.Step (1510), the equipment loop
+(1512-1515).
+
+V14. Still unmerged and touching these files: missile-stats/records/odds, munition-shots,
+autofire-threshold (FireControl, Entity 82/791/1050/1453), controls-hud (ActionGameManager
+1041-1057, 1390-1410), faction-play-1/2 (Flight, Sensor.Ping callers), consumable-ai (Combat.cs).
+The cuts below keep their hunks out of those regions.
+
+V15. Hull layout (read at 93b7ff8d for ruling quiet-gear-identifiable-hull-layout-known). A hull's
+layout is catalog data: `HullData.Hardpoints`, a list of `HardpointData {Type, Position, Shape,
+Rotation, Armor, FiringArc}` (ItemData.cs:511-514, 559-569); `HardpointType` has Reactor, Shield,
+Sensors, Radiator, Thruster, weapon and other types (Enums.cs:38-53). Entity builds a per-cell map
+`Hardpoints[x,y]` at Position + each Shape coordinate, no rotation applied (Entity.cs:941-948).
+`EquippedItem.Hardpoint` is the one hardpoint an item occupies, null for Tool gear and the hull
+(Entity.cs:1716-1718). `Entity.HullData` is public (131, set 819). Tool gear sits anywhere in
+InteriorCells and is not part of the layout.
+
+V16. Aim point. `Entity.TargetItem` (Entity.cs:76) is written only by `TrySelectTargetItem`, gated
+on IsRevealed (344-357); `ResolvedTargetItem` re-checks IsRevealed (363-366). FireControl reads it
+in HitProbability (`Silhouette(..., source.ResolvedTargetItem, ...)`, FireControl.cs:362) and freezes
+it into `PendingShot.Aimed` at Fire (746, field 1969), read back at 905. `ResolveAimPoint` centres
+the kernel on the aimed item's occupied cells, `CellsOf` from GearOccupancy (1748-1753, 1948-1956),
+else the hull's centre of mass. Selection lists: the player's cycle (ActionGameManager.cs:431-443),
+SchematicDisplay's enemy weapon list (UI/HUD/SchematicDisplay.cs:98-104), AI Combat (Combat.cs:40-53),
+which also reads the revealed weapon's RangeDamagePerSecond. About 48 test sites read TargetItem or
+Aimed across 8 test files; FireControlCut12Tests pins ResolveAimPoint's cell average (520-590).
+
+## Model page
+
+| Kind | Identity | Lifecycle | Authority |
+|---|---|---|---|
+| Signature channel (`SignatureChannel`: Thermal, Reflection, DrivePlume, LaunchFlash, Emission) | A closed enum, the five channels of ruling visibility-per-capability-reveal. Saved only as `VisibilityData.Channel` (catalog, by value; append-only, a value is never reused). | Fixed set; a new channel is a code change and a ruling. | The ruling. Code names each writer's channel; the catalog names a Visibility gear's. |
+| Light signature (`Signature {Channel, Strength, Item}` in `Entity.VisibilitySources`) | (emitting entity, source object). The source is the writing behaviour, or the entity for hull radiation; the key is a reference, so injective. `Item` is derived from the behaviour's `Item` (null for hull radiation and consumable effects). Channel Emission is never a light signature (after cut emissions-heard). | Written each tick its source acts (thermal, radiator, reflector, visibility gear continuously; weapon fire and plume when they act). Decayed by VisibilityDecay in the owner's Update and removed below 0.1. Runtime only, never saved. | One writer per entry: its source, through `Entity.SetSignature`. Entity.Update the only decayer. Forbidden: another entity, any presenter, a direct dictionary write. `Visibility` (the sum) stays the track input. |
+| Active emission (`ActiveEmission {Item, HearRange, Claimed}` in the emitter's private `_emissions`) | (emitting entity, emitting item, tick). No persistent id. | Written by `Entity.Emit` during the emitter's Update each tick it emits (a ping wavefront in flight, a lock paint inside LockAngle, a held scan after inspection-scanner); read only by other entities' Sense in the same tick; cleared by the emitter's next PublishInbox and by Deactivate. No mode. Never saved. | Sensor.Execute, LockWeapon.Execute and (inspection-scanner) Scanner.Execute through `Entity.Emit`, which stamps `Claimed = ClaimOf(item)`. HearRange = the emitter's range / its InterceptFactor, fixed at the emit. (Body at b836af48: IS3.) |
+| Paint warning (`PaintWarning {Bearing, EmitterClass, Mode, Strength}` in `Entity.IncomingPaints`; was LockWarning / IncomingLocks) | (painted entity, tick, painter beam). No id. | One tick after its last paint (unchanged from lock-warning). Search paints carry Strength 0; Scan paints (inspection-scanner) carry the scan's progress. | LockWeapon.Execute (Track), a ping wavefront crossing (Search, Sensor.Execute) and a held scan (Scan, Scanner.Execute) call ReceivePaint; Entity publishes, and PublishInbox records the painter's item as an Emission reveal. Painted targets are always warned (sensor-stat-set 4, scan-is-an-act). |
+| Track (`EntityInfoGathered[subject]`) | (observer, subject entity). | Seeded 0 on zone entry, revised each tick by each active sensor (passive gain, decay), plus one monostatic gain on the tick its own ping crosses the subject and one bistatic gain per published ping return (R2); removed when the subject leaves; cleared on Deactivate. Runtime only. | Sensor.Execute only, reading the observer's own receivers and its own published returns. Forbidden: shared-track writes (ruling shared-track-bearing-only), presenters, other ships, any read of another ship's Sensor state. |
+| Ping sweep (`Sensor._reached`, per pinging sensor) | (pinging sensor, ping). The set of subjects the wavefront has reached this ping, in the beam or not. | Cleared at Ping(); a subject joins on the first sweeping tick it lies inside the radius, and that is its one crossing (credited and painted only if inside the beam then); nothing joins after the ping's last step; emptied when the sensor is idle. Runtime only. | The pinging Sensor.Execute alone decides "this ping crossed this subject, once". Forbidden: another sensor or ship reading its radii; an interval sample standing in for it. |
+| Ping return (`PingReturn {Subject, IlluminatedRange, IlluminatedObscuration, MaxRange}` in the ally's `PingReturns`) | (receiving entity, pinging sensor, subject, tick). No id. | Posted by the pinger to each ally's inbox on the crossing tick; published in the zone pre-phase with paints (`PublishInbox`); lives exactly one tick. Never saved. | The pinger posts (it owns the illuminated leg and its own range); the receiving Sensor credits from its own Sensitivity, PingBoost, distance and sight line (it owns the receive leg). Forbidden: the pinger writing the ally's track; the ally reading the pinger. |
+| Reveal (`Reveal {Item, Channel, Bearing, Time}` in the observer's reveal book, keyed (subject, item)) | (observer, subject entity, revealed item), by reference. Channel is null for a reveal by inspection (cut inspection-scanner). | Created on the first act the observer's instruments receive, or for every fitted, non-destroyed, non-hull item when the observer's scanner completes a scan (Channel null, Claimed the subject's `ClaimOf(item)`, as any act records the claim it carries: aetheria-ew one-judge; a scan creates and refreshes entries and ends none); Channel, Bearing and Time refreshed by each later act; ended for an item when the observer perceives its destruction, and for all of a subject's items when the observer perceives the subject's death or departure (acts received through the observer's own Sense step, never a subscription to the subject); a subject leaving the zone does not by itself empty any book: its entries stay unrefreshed and are pruned once the freshest is older than BearingMemory; Contact never reads the subject's live equipment or Durability, and only the aiming read (IsRevealed, IsLocated) filters on the live item (Durability < .01 or off the subject) (Defaulted ruling reveal-ends-on-perception); RecordReveal and its one removal counterpart are the book's only writers and its one membership gate; cleared on Deactivate. Not decayed: memory of the sitting. Never saved. | `Entity.Sense` (once per Entity.Update) for light acts and heard emissions; `ReceivePaint` for paints; `Entity.RecordInspection` (called by the observer's own Scanner) for scans. Forbidden: Sensor's track loop, presenters, another ship, shared tracks. |
+| Hull layout knowledge (derived by `Entity.LayoutOf(subject)`) | (observer, subject hull class). The class is the subject's HullData; the layout is its Hardpoints (type, position, shape). | Derived on read: the subject's HullData.Hardpoints while ContactOf(subject).Identified, else empty. Stored nowhere; never says what is fitted. | `Entity.LayoutOf` is the one derivation (ruling quiet-gear-identifiable-hull-layout-known). Readers: IsLocated, the target schematic, the player's cycle. |
+| Contact (`Contact`, derived by `Entity.ContactOf(subject)`) | (observer, subject). | Derived on read from track, reveals, the zone clock and `BearingMemory`; stored nowhere. Flags: Detected (tracked, or a reveal younger than BearingMemory), Tracked (track > TargetDetectionInfoThreshold, which is VisibleEntities), Classified (detected and any reveal), Identified (track >= TargetGearInfoThreshold, name kept, now the identify threshold). Bearing: the true bearing while tracked, else the freshest reveal's. | `Entity.ContactOf` is the one derivation. HUD and AI read it; VisibleEntities stays the tracked set. |
+| Located item (`FireControl.IsLocated(observer, item)`) and aim point | (observer, subject item). | Derived on every read: revealed, or on a hardpoint of a layout the observer holds. The aim point is the item's own cells when revealed, else its hardpoint's cells; the choice is frozen into the shot with Aimed. | FireControl (R10). TrySelectTargetItem and ResolvedTargetItem gate on IsLocated; anything that reads an item's stats or class (AI weapon choice, schematic weapon rows) gates on IsRevealed. |
+| Scan (`Scanner` behaviour; progress per (scanner, target)) | (scanning item, the ship's Target entity). | Progress builds in Execute while the item is Active and its Target is tracked (VisibleEntities) and within Range (TargetRange), at 1/ScanTime per second; falls at the same rate in the behaviour's always-run Update on any tick it was not held (out of range, untracked, no target, or the item inactive: ruling scan-held-beam); reset on a target change; at 1 the scan completes (RecordInspection) and progress restarts. Runtime only. No hostility gate (a scan reads no true faction: classify-from-belief). | The Scanner behaviour owns progress; RecordInspection in Entity.cs writes the reveals through RecordReveal's gate. While held: a Scan paint (Strength = progress) on the target and Emit(Item, Range / InterceptFactor) (ruling scan-is-an-act). |
+| Sensor stats (SensorData Sensitivity key 3 = detection power, BeamWidth key 12, InterceptFactor key 13; LockWeaponData.InterceptFactor key 26; ListenerData.Multiple key 1; ScannerData Range 1, ScanTime 2, InterceptFactor 3) | Fields of a catalog design; brand flavour through product role quality. | Authored by AetherDb (cut sensor-catalog); resolved per item through StatResolver. PingVisibility (key 7) is retired, never reused. | The catalog. Readers: Sensor (BeamWidth, InterceptFactor), LockWeapon (InterceptFactor), Entity.HearingMultiple (ListenerData). |
+
+No empty cell. Two decisions are defaults, not rulings: reveals never decay within a sitting (a ship
+you saw fire a railgun still has one), and a reveal carries a bearing only; position comes only from
+the track, as passive imaging and pings give it today (ruling text: "range only where the channel
+gives it").
+
+## Authority map
+
+- Owner: the observer's Entity owns what it knows: its track (written by its own Sensors), its
+  reveals and paint warnings (written by `Entity.Sense` and `ReceivePaint`), and the derived Contact.
+  The emitter's Entity owns what it emits: light signatures (`SetSignature`) and active emissions
+  (`Emit`).
+- Inputs: other entities' published light signatures and active emissions (physical facts about
+  energy leaving them), positions, the zone's obscuration and clock; the observer's own sensors,
+  listeners and settings.
+- Outputs: EntityInfoGathered and the Visible sets (unchanged meaning), reveals, IncomingPaints,
+  `ContactOf`, `IsRevealed`.
+- Derived state: Visibility (sum of light signatures); Contact and its levels; LayoutOf (the
+  identified subject's hardpoints); IsLocated and the aim point's cells; IsRevealed (a reveal
+  of a live item, after cut reveals-replace-tiers); HearRange (range / alpha at the emit);
+  HearingMultiple (1 with an active sensor, else 0, raised by listener gear).
+- Demotions: "Visibility is no longer the whole signature; it is the light-channel sum, the track
+  input only." "IsRevealed is no longer derived from track tiers; it is derived from reveals."
+  "A ping is no longer a brightness bump; it is a search emission heard within PingRange / alpha."
+  "TargetedBy and TargetedByCount are not owners of anything; they are deleted (cut contact-hud)."
+  "Track quality no longer reveals gear; at the identify threshold it gives the hull's layout only,
+  and quiet gear is learned by inspection."
+- Forbidden writers: any code writing `VisibilitySources` except `Entity.SetSignature`; any reveal
+  write outside `Entity.Sense`, `ReceivePaint` and `RecordInspection`; any stats or class read of a
+  located but unrevealed item (AI dps, schematic weapon rows); Sensor's track loop writing reveals; any
+  presenter or Agents/ code reading another ship's `EntityInfoGathered`, weapons, lock or
+  `IncomingPaints`; shared tracks writing track or reveals.
+- Shared paths: the player's HUD and the AI read the same `ContactOf`, `VisibleEnemies`,
+  `IsRevealed` and `IncomingPaints`. One crossing decision per ping (the pinger's swept set) feeds
+  the subject's Search paint, the pinger's own credit and every ally's return, so list order, motion
+  and the pinger stopping cannot change the count; an ally's credit reaches it only through its
+  published PingReturns. Light acts and heard emissions reach the reveal book through the one `Sense` step;
+  paints through ReceivePaint, which also records the emitter's reveal.
+- Deletion line: the stateless interval crossing (`_previousRadius`, `PreviousRadius`, `Crossing`,
+  `_alliedPingers` and the allied-pinger scan) before the swept set and ping returns are added
+  (revision cut-paint-modes.r3), `PingVisibility`, the IsRevealed
+  tier ranking and `TargetArmorInfoThreshold`, `TargetedBy`/`TargetedByCount`, and the HUD's reads
+  of other ships' track are deleted before the behaviour that replaces each is added.
+
+Structural limit, stated plainly: one C# assembly holding `Entity` references cannot make
+`other.EntityInfoGathered` unreachable from Agents/ or the HUD. These cuts remove every need to read
+it (every fact another ship causes on you arrives on your own Entity), delete the existing reads,
+and pin the boundary with negative checks. Making it unreachable by type (agents and the HUD hold
+contact handles, never another Entity) is follow-up opaque-contact-handles.
+
+## The rules
+
+R1. Channels. Hull radiation, radiators and Visibility gear (default) write Thermal; reflectors
+Reflection; thrusters DrivePlume; every weapon discharge (gun round, beam tick, launch) LaunchFlash.
+Emission is active emission only (pings, paints) and never sums into Visibility (from cut
+emissions-heard; cut signature-channels labels the ping's interim bump Emission to stay
+behaviour-preserving).
+
+R2. Track. Unchanged arithmetic over `Visibility`. The pinging sensor alone decides crossings. On
+each tick it sweeps (the tick of the ping's first step through the step that ends it), a subject T
+not yet in the ping's swept set and at planar distance R_t < Radius joins the set; that is the
+ping's one crossing of T. It counts only if T then lies within BeamWidth/2 of the sensor's facing
+(BeamWidth >= 360 is omnidirectional); a subject outside the beam when the front reaches it is never
+crossed by that ping, even if it later drifts into the beam or the beam slews onto it. Motion cannot
+miss or repeat a crossing: a subject closing on the pinger is crossed once, one outrunning the front
+is not crossed. A ship that enters the zone inside the front mid-ping counts as reached on its first
+sweeping tick (as at base; a default). A crossing adds the existing ping gain once to the pinger's
+own track of T on the same tick (monostatic: Gain at R_t, obscuration of the pinger-T line). On the
+same tick the pinger posts a PingReturn {T, R_t, Obscuration(pinger, T), PingRange} to every ally
+(same non-null Faction, not hostile from the ally's side, not T itself); the zone pre-phase
+publishes it, and on the next tick each of the ally's executing sensors credits T once when
+R_t x R_r < PingRange^2, with Gain(T.Visibility, own Sensitivity, own PingBoost, sqrt(R_t x R_r),
+dt, ping, sqrt(o_t x o_r)); R_r and o_r are the ally's own distance and sight line to T. The
+equivalent range sqrt(R_t x R_r) and the geometric-mean obscuration reduce exactly to the
+monostatic credit when the ally stands at the pinger; the gate is the illuminator's monostatic
+reach carried to the bistatic oval of Cassini (prior-art note, section 7). The ally emits nothing
+and is not revealed. Nothing it reads belongs to the pinger, so its credit does not depend on list
+order, and a pinger that stops after the crossing leaves no echo behind.
+
+R3. Paints. A crossing paints T with Mode Search, Strength 0. A lock paint is Mode Track, Strength =
+the lock (lock-warning-strength). The painted ship always learns bearing, emitter class and mode
+(sensor-stat-set 4), whatever obscuration or hearing range. An opaque cloud on the pinger-T line
+still lets the paint through while it zeroes the pinger's credit and every ally's return
+(vapour-cloud-obscuration: an echo crosses both legs).
+
+R4. Reveal by act (light). Observer O records a reveal of item i on subject E when the light
+signature of i alone would settle O's passive info above TargetDetectionInfoThreshold:
+Strength x `PassiveInfoPerSignature(E.position)` > threshold, where PassiveInfoPerSignature is
+ChunkInfo's arithmetic per unit signature over O's active sensors (obscuration included). Hull
+radiation (no item) reveals nothing; it only feeds the track.
+
+R5. Reveal by hearing (emission). O records a reveal of the emitting item when
+distance(O, E) <= HearRange x O.HearingMultiple x Obscuration(O, E). HearRange = PingRange /
+InterceptFactor for a ping, weapon Range / InterceptFactor for a lock paint. HearingMultiple is 1
+when O has an active sensor, else 0, and the largest ListenerData.Multiple of O's active listeners
+when that is larger (sensor-stat-set 2). Bearing only; nothing feeds the track.
+
+R6. Paint reveals. ReceivePaint also records the emitter's reveal (Channel Emission) on the painted
+ship.
+
+R7. Contact levels (visibility-per-capability-reveal). As in the model page row. BearingMemory is a
+GameplaySettings value (default 6 s). TargetGearInfoThreshold keeps its name and stored value and
+becomes the Identified threshold; TargetArmorInfoThreshold is deleted.
+
+R8. IsRevealed(O, item) is true exactly when O holds a reveal of item, item is on its subject and
+Durability >= .01 (cut reveals-replace-tiers). Question gear-reveal-by-dwell was answered with
+neither option: ruling quiet-gear-identifiable-hull-layout-known ("Identifying those quiet
+subsystems should still be possible, even if you need special gear to do it. Also, with enough data
+to infer the hull class I should know where the reactor is even if I don't have its specs."). Acts
+still reveal (R4-R6); watching alone reveals no gear; quiet gear is revealed by inspection (R11).
+
+R9. Layout. LayoutOf(O, E) is E.HullData.Hardpoints while ContactOf(E).Identified, else empty.
+Inferring the hull class is the Identified level (track >= TargetGearInfoThreshold). The layout
+says where each mount is and its type; never what is fitted, its class or its specs.
+
+R10. Located and aimed. IsLocated(O, item) = IsRevealed(O, item) or (item.Hardpoint != null and
+LayoutOf(O, item.Entity) holds item.Hardpoint). Subsystem selection (player and AI) gates on
+IsLocated. The aim point of a revealed item is its own occupied cells (as today); of a located,
+unrevealed item, its hardpoint's cells (Position + Shape). The choice is frozen at Fire with Aimed.
+A selection list shows a located, unrevealed item by its hardpoint type only ("Reactor mount").
+Anything that reads an item's stats or class (AI weapon choice by RangeDamagePerSecond, the
+schematic's weapon rows) still gates on IsRevealed.
+
+R11. Inspection. A Scanner (Tool gear, cut inspection-scanner) works on its ship's Target. While the
+target is Tracked and within Range, progress rises at 1/ScanTime per second, else falls at the same
+rate; a target change resets it. At 1, RecordInspection(target) records a reveal (Channel null,
+Bearing and Time as any reveal) of every live non-hull item on the target, and progress restarts.
+Under the recommended options of questions scanner-reveals-its-user and scanner-held-or-pulse: each
+scanning tick paints the target Mode Scan with Strength = progress, and emits (Item,
+Range / InterceptFactor, Scan), so the target is warned and third parties can hear the scanner.
+Cargo is not equipment and is not revealed (no cut owns cargo scanning).
+
+## Rationale
+
+- Channels and per-capability knowledge: warning receivers and missile-warning sensors are
+  channel-specific, each giving emitter class and bearing or launch angle (PA:70-76); option b of
+  question visibility-model was recommended because no game found models fire, burn and emission as
+  separate reveals (PA:89-95). Reusing the detection arithmetic for the reveal threshold (R4) means an
+  act is revealed exactly when that act alone would make its emitter detectable: no new tuning
+  constant, and DetectionReachPerVisibility still bounds it.
+- Range-gated hearing (R5) is the ruling's own definition of alpha ("how far it sees to how far
+  others hear it") and of passive gear ("a multiple of their own range"); emission detectable at
+  about twice its usable range is the USNI rule of thumb (PA:80-82). Counter-detection when emitting
+  is how Cold Waters and Command treat radar (PA:80-85).
+- Bistatic ally credit (R2): one emitter illuminates, silent allies receive passively; the target
+  still knows it is painted (ruling illuminator-beamforming's reading). It is the ally's own receiver,
+  so ruling shared-track-bearing-only (a shared track never writes the track) still holds.
+- Swept set, not an interval sample. h1's stateless PreviousRadius <= d < Radius test missed a
+  closing ship and credited an outward one several times (verdict cut-paint-modes.s1, Soul's
+  MovingSubjectProbe: inward at 60 m/s, 12 of 48 unpainted; outward, up to 3 paints), and it made
+  allies read the pinger's mutable radii, which tied their credit to zone list order and froze an
+  interval when the sensor stopped executing. Any correct crossing rule must remember something per
+  subject per ping. The per-ping set the base already had is the smallest such memory; adding every
+  subject inside the radius, not only those in the beam, keeps a beam slew or a drifting ship from
+  being crossed behind the front. A swept-volume test on each subject's motion would need the same
+  per-subject memory plus velocity, and buys nothing the set lacks.
+- Ping returns as a published fact. The crossing is decided once, by the pinger, and travels to
+  allies the way paints travel to the painted ship (one-tick inbox, zone pre-phase), so every
+  reader sees it whatever the update order, and a removed or disabled pinger cannot un-cross or
+  re-cross anything. Each side owns its own leg of the echo.
+- Bistatic bound (R2). A bistatic receiver detects the echo when R_t x R_r is within a constant set
+  by the transmitter and the receiver: the oval of Cassini replaces the monostatic circle (PA
+  section 7). CEC shares fire-control-quality measurements and lets a ship engage a target it never
+  detected; ruling shared-track-bearing-only rejected exactly that (option b), so the ally's credit
+  has to be its own detection of the return, bounded as one.
+- Reveals do not decay because ELINT accumulates into an order of battle over many events (PA:89-95);
+  the track still decays, so a remembered railgun on a ship you cannot see is a Classified bearing
+  marker only while the memory is fresh.
+- Hearing and reveals live in one per-entity `Sense` step rather than in Sensor.Execute so that a
+  ship with two sensors or with listener gear and no sensor senses once; Sensor.Execute keeps the
+  track arithmetic byte-for-byte, which the 80 test sites pin.
+- Layout from class (R9): recognition works by identifying the class and reading the class
+  reference for where its mounts are, without the ship's fit or condition (PA section 6b). Layout is
+  derived from the identify level rather than remembered, because aiming already needs a track.
+- Occupancy shows (a default): only filled mounts can be selected, so an observer learns which
+  mounts are filled. A fitted mount is a structural fact imaging resolves (PA section 6b, ISAR
+  antenna returns), and keeping selection item-based avoids retyping the aim slot across 48 test
+  sites. Hiding occupancy would need the aim slot to name a hardpoint instead of an item.
+- Mount-cell aim (R10): an observer that knows only the mount aims at the mount; centring on the
+  fitted item's own cells would leak its footprint through the hit forecast (invariant
+  instruments-bound).
+- Inspection (R11): every game found that identifies non-emitting fit does it with a dedicated
+  scanner gated on a lock or a held range (EVE partial scans, Elite's 10 s held scan that alerts the
+  target and degrades when broken); the real analogues are ISAR imaging (active) and ACINT (long
+  specialised dwell) (PA section 6a-6c). A full reveal at completion replaces EVE's random partial
+  result: ScanTime is the cost knob, and randomness would be a second one. Range is a catalog stat,
+  authored well inside weapon range, not a question.
+- Emissions publish in the zone pre-phase beside paints because lock-warning's fix batch found order
+  dependence when a ship read state another ship wrote mid-tick (LW fix 1, 1c5c6020).
+
+Further prior art not gathered, flagged rather than guessed: how Nebulous and CMO display bearing-only
+contacts (PA:96-101 lists the wiki as unread); the HUD's bearing marker below follows the
+incoming-lock indicator already in tree.
+
+## Cut order
+
+signature-channels -> paint-modes -> contact-reveals -> emissions-heard -> sensor-catalog;
+contact-reveals -> reveals-replace-tiers (r2, unblocked by ruling
+quiet-gear-identifiable-hull-layout-known) -> layout-aim;
+emissions-heard + paint-modes -> contact-hud;
+sensor-catalog + contact-hud + reveals-replace-tiers -> inspection-scanner (waits on questions
+scanner-reveals-its-user and scanner-held-or-pulse). consumable-ai's re-map follows paint-modes.
+
+## Admitted (receipts mind-commit-7a633910..., mind-commit-b158ffb9..., mind-commit-2892979b...)
+
+Specs, all based at 93b7ff8d: cut-signature-channels.r1, cut-paint-modes.r2 (r1 superseded: an
+anchor past the end of LockWeapon.cs), cut-contact-reveals.r1, cut-emissions-heard.r1,
+cut-reveals-replace-tiers.r1 (blocked on question gear-reveal-by-dwell), cut-contact-hud.r1,
+cut-sensor-catalog.r1. Question gear-reveal-by-dwell (recommended acts-only). Follow-ups
+consumable-ai-reads-paints, missile-records-settled-info, launcher-lock-gate-cut,
+opaque-contact-handles, target-panel-reads-enemy-hull, two-listener-fix. context-pack read every
+anchor SAME at 93b7ff8d. contact-hud folds follow-up music-reads-targeted-count.
+
+What the other specs in force take from this map: consumable-ai's re-map reads IncomingPaints with
+Mode Track (follow-up consumable-ai-reads-paints); missile-records re-anchors its settled-info
+extraction on PassiveInfoPerSignature (follow-up missile-records-settled-info); faction-play-2's
+ping cadence keeps calling Sensor.Ping, and Lucent's loud doctrine is the low InterceptFactor the
+sensor-catalog cut authors; autofire-threshold and controls-hud are unchanged (VisibleEnemies,
+Designated and the crosshair regions keep their meaning and lines).
+
+### Revision for ruling quiet-gear-identifiable-hull-layout-known (receipt mind-commit-e0e8fe50...)
+
+imagination-aeth-quiet-gear, 2026-10-11, same base 93b7ff8d (master e0b123a9 moved docs only).
+Admitted: cut-reveals-replace-tiers.r2 (r1 superseded by resolution
+cut_spec.cut-reveals-replace-tiers.r1.n1: unblocked, dwell alternative dropped); cut-layout-aim.r1
+(new, after reveals-replace-tiers: LayoutOf, IsLocated, mount-cell aim, mount rows on the target
+schematic); cut-inspection-scanner.r1 (new, after sensor-catalog, contact-hud and
+reveals-replace-tiers: the special gear; its own cut because sensor-catalog is already sized near
+one Hands pass). Questions scanner-reveals-its-user (recommended scan-is-an-act) and
+scanner-held-or-pulse (recommended held-beam), both raised in inspection-scanner. context-pack read
+every anchor SAME at 93b7ff8d. Unchanged and still in force: signature-channels.r1, paint-modes.r2,
+contact-reveals.r1 (layout is derived, not stored in the reveal record; the scanner cut widens
+Reveal.Channel to nullable), emissions-heard.r1, contact-hud.r1 (the scanner cut adds Scan paints to
+the incoming indicator), sensor-catalog.r1.
+
+### Revision for verdict cut-paint-modes.s1 (imagination-aeth-paint-crossing, 2026-10-11)
+
+Base c1d5487b (branch eureka/aetheria-release-paint-modes, h1's head). Findings
+moving-subject-crossing-sampled (High), ally-credit-depends-on-list-order,
+stale-interval-after-sensor-stops, ally-credit-unbounded-by-range, beamwidth-wire-unpinned (Medium)
+and cloud-legs-unpinned (Low) fold into cut-paint-modes.r3, which supersedes r2 and is written as a
+fix to the landed code. Body facts read at c1d5487b: Sensor.cs:93-100, Crossing samples distance
+once per tick against [PreviousRadius, PingRadius); Sensor.cs:183-189, every sensor reads every
+allied sensor's radii through GetBehaviors; Entity.cs:2033-2041 runs Execute only while the item is
+Active, so a stopped sensor's radii freeze; Zone.cs:230 publishes every inbox before any entity
+updates (the pre-phase the ping return reuses); base a47f967d Sensor.cs:64,122,166-168 held the
+per-ping set this revision restores as `_reached`. The bistatic arithmetic keeps
+ConcurrentSweepsCreditOncePerCrossing's numbers (A and C both 100 from T) and moves
+AnAllyHearsTheReturnSilently's ally credit from .15 to 5 x 3 x .0002 x sqrt(100 x 50) = .21213.
+Soul's scratch probes (SoulProbeTests.cs, never committed) become r3's moving-subject, order,
+stale-interval, far-ally and cloud tests. The bistatic bound is a default from rulings, not a new
+ruling: illuminator-beamforming's recorded reading ("silent allies receive the return passively")
+and shared-track-bearing-only ("the recipient fires only on its own sensors").
+
+## Scenarios for operator checks
+
+Mapped 2026-10-11 by Imagination (`imagination-aeth-scenarios`, session `self-2026-10-11-ag`) against
+`origin/master` `12dfcef5`, from the operator's question "Do we have scenarios for all of the things I need to
+test?" and Eyes' gap table (scratchpad `eyes-aeth-operator-checks/checks.md`). One strand of six scenario cuts
+reaches every built check that needs staging. Checks that a new run reaches (station play, faction play, the
+boss gate) stay ordinary play; checks in Blender, Studio, the Editor or a build are not scenario-shaped.
+
+### Body facts (source reads at 12dfcef5)
+
+- SC1. `Scenarios.cs:4-13` already has the three lists: Modes (release), Development and Tests (editor and
+  development builds). Every new arena goes in Tests. No menu question remains.
+- SC2. `ScenarioStage` verbs: Fit, Bare, Generated, Preset, Player, Place (stance, piloted), Cargo
+  (`ScenarioStage.cs:52-133`). Cargo resolves `Named<EquippableItemData>` only (`:127`, `:154-160`). No verb
+  sets velocity, places a cloud or picks a belt.
+- SC3. Consumables are `ConsumableItemData : CraftedItemData`, not equippable (`ItemData.cs:343`, `:362`).
+  `ItemManager.CreateInstance(product)` builds a `ConsumableItem` (`ItemManager.cs:186`);
+  `LoadoutGenerator.StockConsumables` (`:141-155`) is the precedent for stocking a hold. Catalog designs
+  "Thruster Overdrive" (first behaviour `ThrottleLockData`) and "Coolant Vent" (`VapourDumpData`)
+  (`tools/AetherDb/Program.cs:1959`; `ConsumablesFirstSetTests.cs:16,61,76`). No scenario can stage a
+  consumable today.
+- SC4. Nothing outside ServerShared reads `Zone.Clouds`: a vented cloud is undrawn until cut
+  vapour-cloud-presenter r2 lands. The hiding is simulation and reachable now; the fog bank is not.
+- SC5. The only `Sensor.Ping()` call is the player's (`ActionGameManager.cs:391`): no AI searches by ping. AI
+  locks through launchers (`LauncherData : LockWeaponData`); the HUD warning reads `IncomingPaints`, Track
+  paints only (`ActionGameManager.cs:1460-1466`). "A hostile that searches and locks" is staged as a hostile
+  that must first find the player passively, then locks.
+- SC6. No `SetAutofire` or `AutofireSubject` on master: PD guns cannot engage munitions until
+  autofire-threshold lands. The Point Defense scenario stays in cut autofire-controls r2, which depends on it.
+- SC7. Mine Launcher: Launcher hardpoint, has a product, proximity fuse, blast 25, arming 2 s, fuse 2 s,
+  lifetime 30 s (`MineLauncherCatalogTests.cs:13-27`).
+- SC8. plight is 1x2 and fits a Longinus Energy hardpoint (`EvasionTrackingTests.cs:459-467`); the PD Laser fits
+  a Longinus Energy hardpoint (`:431`).
+- SC9. Prefabs with `ArticulationPoint`: Djinni ("Ballistic Articulation", `Djinni.prefab:7317`), Longinus
+  ("Energy Left", "Energy Right", Yaw -1..1, Pitch -80..80, `Longinus.prefab:467-506,844-883`), Turret.
+  `ActionGameManager.cs:1050-1060` groups barrels by `ArticulationPoint.Group`. Which hardpoint each node
+  carries is Unity-only; the Djinni's ballistic node is the clearest legacy articulated barrel.
+- SC10. `EntityInstance.GetBarrel` falls back to the entity's transform for a hardpoint its prefab lacks
+  (`EntityInstance.cs:346-356`): a Smoke Test Hull hardpoint absent from Longinus.prefab fires from the hull
+  centre, with no error.
+- SC11. Belts: `Zone.Planets`, `Zone.AsteroidBelts` (`Zone.cs:27,31,120-132`); a belt's rock count is
+  `AsteroidCount(mass x distance)` (`ZoneGenerator.cs:144-147`). Ambient false keeps planets and orbits
+  (`Scenario.cs:17-19`). No scenario stages a belt.
+- SC12. The census `EveryUnsoldDesignIsAScenarioTestDesign` (`ScenarioTests.cs:522-546`) fails while any
+  product-less design is carried by no scenario, so a test design lands in the same commit as the scenario that
+  carries it. scenarios-smoke r3's `ProductlessAreTestDesigns` is this test, already on master.
+- SC13. Catalog commands stay in `Program.cs` and are replayed on master's catalog at merge (pd-gear
+  `a8f71d46`; mine-launcher and consumables-first-set kept). r3's run-once-then-delete plan is revised to that
+  practice: `GameData/Aetheria.cc` is a binary LFS blob, so a merge with another catalog change is a replay.
+- SC14. The six test arenas generate `stage.Prelude()` (the authored prelude cast); ruling dev-scenarios-cast
+  is realised by the unbuilt cut retire-prelude. New arenas generate `stage.Prelude(DemoTerminus.Cast)` now;
+  retire-prelude's negative check `Prelude\(` catches them, and its Hands moves them with the six
+  (follow-up retire-prelude-moves-new-arenas).
+- SC15. Broadside.cs was deleted in `538b11b4`; its return on the operator's Zhestokost gunboat is cut
+  broadside-gunboat r1, which waits on her package.
+- SC16. The contact-reveals Hands works in Entity, Sensor and FireControl (`C:\aeth-wt\contact-reveals`). No
+  scenario cut edits those files. Lock On's situation test reads `IncomingPaints`, whose timing contact-reveals
+  may change, so Lock On is ordered after it.
+
+### Check to scenario
+
+| Operator check (source) | Scenario | Cut |
+|---|---|---|
+| Weapon feel: ChargeBlast SG and Autocannon fire, burst cadence, charge release-press (scenarios-cut 5.1) | Weapon Feel (new) | scenarios-smoke r4 |
+| Side mounts fire abeam (5.1 side-mounts-fire-abeam) | Arcs (test hull, a hull on each beam) | scenarios-smoke r4 |
+| Broadside: starboard and port groups fire or hold on a designated hull; free aim to port (controls-mount-aim r2 line 2) | Arcs if question arcs-broadside-flanks is answered a; else Broadside on the gunboat | scenarios-smoke r4 or broadside-gunboat r1 |
+| Fused rounds A.1-A.5, airburst, penetrator, HUD forecast, unbranded (5.1) | Fused Rounds (new) | scenarios-smoke-rounds r1 |
+| Refused rounds; AI fused discipline (5.1) | Refused Rounds, AI Fused Discipline (new) | scenarios-smoke-rounds r1 |
+| Mine Launcher: lay with AI chasing, pulses, blast, 30 s expiry (sim-mines-presenter) | Pursuit (new) | scenarios-pursuit r1 |
+| Vented cloud hides a coasting ship from a distant pursuer; burn-out ends cover (vapour-cloud r1) | Pursuit | scenarios-pursuit r1 |
+| Overdrive plume while steering; throttle lock drives forward, turning works (consumables-first-set, throttle-lock) | Pursuit | scenarios-pursuit r1 |
+| Fast hull crossing close; Djinni at range hit by plight; FCA helps small guns (evasion-term r6) | Crossing (new) | scenarios-crossing r1 |
+| plight shape and tracking (follow-up plight-play-check) | Crossing | scenarios-crossing r1 |
+| Legacy prefab articulated barrels point at a bearing target, else the arc edge (controls-mount-aim r2 line 3) | Djinni Shakedown (gains two targets) | scenarios-crossing r1 |
+| Big belt next/previous and reticle sweep; indicator on the rock (mining-target-queries, ruling mining-merge-on-agent-proof) | Belt (new) | scenarios-belt r1 |
+| AI launcher lock warning; HUD incoming-paint indicator, Track only (lock-warning, paint-modes) | Lock On (new) | scenarios-lock-on r1 |
+| Missile salvo meets PD; autofire marks and thresholds (pd-gear, autofire-controls) | Point Defense | autofire-controls r2 (not taken: needs autofire-threshold, SC6) |
+
+Not staged: station, trade, faction-play, boss-gate and consumable-supply checks (ordinary play in Terminus);
+Blender, Studio, Editor, build and compile checks (not scenario-shaped). Unbuilt cuts' checks name their own
+arenas when they are mapped.
+
+### Cut order
+
+1. scenarios-smoke r4: Smoke Test Hull, Weapon Feel, Arcs on the test hull. Blocked on question
+   arcs-broadside-flanks.
+2. scenarios-smoke-rounds r1: five smoke weapons, Fused Rounds, Refused Rounds, AI Fused Discipline. After 1:
+   both write the binary catalog, and Refused Rounds needs the test hull's 2x2 energy mount.
+3. scenarios-pursuit r1: the Cargo verb takes consumables; Pursuit. Independent.
+4. scenarios-crossing r1: Crossing; Djinni Shakedown targets. Independent.
+5. scenarios-belt r1: Belt, on a scanned seed. Independent.
+6. scenarios-lock-on r1: Lock On. After contact-reveals (SC16).
+
+Cuts 3 to 5 touch only their own scenario file, their own test file and one line of `Scenarios.cs`, so they
+can run in parallel; the second to merge resolves the one-line list conflict. Each new test file is a partial
+of `RunStartTests`, so only cut 1 edits `ScenarioTests.cs` (ArcsGeometry). Seeds: 107 Weapon Feel, 108 Fused
+Rounds, 109 Refused Rounds, 110 AI Fused Discipline, 111 Pursuit, 112 Crossing, Belt's scanned seed, 113 Lock On.
+
+### Rationale
+
+- One scenario per situation, not per check: Pursuit carries the mines, the vent and the overdrive because all
+  three need the same thing, a hostile on your tail. Crossing carries plight and the evasion check because both
+  are guns against a fast hull.
+- The test hull is product-less test content, which ruling weapon-feel-to-smoke-cut-test-hull allows. It is
+  not a faction ship and does not compete with the operator's gunboat, which keeps its own Broadside.
+- The Cargo verb grows to take consumables because nothing else can stage one; a cloud verb would stage the
+  result of venting instead of the vent the operator checks.
+
+# package-product r4: refresh against Aetheria b6262467 (2026-10-12)
+
+Imagination, agent imagination-aeth-refresh-package-product, session self-2026-10-11-ag2.
+Supersedes cut-package-product.r3 (base 4d664b53). Body facts below were probed at b6262467
+in a detached worktree; anchors are file:line at b6262467.
+
+## What changed since r3
+
+- 13 commits touched the ship-authoring files (frame r4 54ac0fcf, package-frame 8d9acf26, the
+  mods-in-tree merge 2be1f8ef, authoring-tool pins 0b5cad89/2be6ed9d, rig 9e516d06). Every r3
+  anchor moved; r4 re-anchors all of them.
+- r3's C# deletion (LoadRecords "exactly-two count" at :157-161) no longer exists. LoadRecords
+  (ShipAuthoring.cs:170-184) counts hulls and visuals by type. The real gate on a third record
+  kind is CultCache routing (probe 1). The "exactly one hull record, found" messages are right
+  and stay; r3's negative check on that text is dropped.
+- lot-product landed: ItemManager.Brand (ItemManager.cs:211-224) reads the product the lot
+  records, not maker+design. r3's "so Brand stays unambiguous" justification is stale. The
+  per-maker key is kept for a different reason: it makes `ship-authoring product <maker>`
+  idempotent (replace, not add) and states the ship rule (since ruling maker-design-tiers-allowed, 2026-10-16, a hull rule only, which product-tiers revisits; one product per maker per hull:
+  the maker's own, plus rebrands by other factions). Follow-up
+  stale-maker-design-uniqueness-test is unaffected.
+- mods-in-tree landed: tests/Aetheria.Shared.Tests/TestCatalog.cs and RunStartTests boot the
+  catalog the game boots. GameData/Mods does not exist on master yet (no packages).
+- Rulings since 2026-10-08 folded in: ship-data-all-in-cc (products are records in ship.cc,
+  which is where all ship data goes; nothing here adds a sidecar), demo-ship-cc-timing (this
+  cut is on today's package path, which the demo hulls use), package-frame-defer-collider
+  (unrelated: no collider work), mods-are-compiled-plugins (no conflict: products are data,
+  not a scripting surface), ship-roles-are-tags (unrelated: add-on object roles). Withdrawn
+  ships-hull-material r2 and ships-hull-livery r1 are not depended on; r3 did not either.
+- Shape change from r3: Write(cache, hull, visual) is NOT widened (11 callers). A separate
+  WriteProduct/DeleteProduct pair is the one product writer. Load/Read become a 3-tuple
+  (18 deconstruction sites in 6 files, one of them the Unity-only Editor file).
+
+## Probes
+
+1. CultCache routing (CultLib src/GameCult.Caching/CultCache.cs at tag cultlib-unity-v1.0.60,
+   :1315-1362 AddBackingStore, :1722-1729 Validate; same text on CultLib main :2569, :2600).
+   ShipAuthoringStore.Open (ShipAuthoring.cs:91) routes only HullData and ShipAuthoring. A
+   loaded record whose type has no home throws "<schema> record <key> was loaded from <path>
+   but its home is no store." during Open. So TODAY a ship.cc holding a FactionProductData
+   cannot even be opened, and r3 never said to add the type to Open's homes. r4 adds
+   typeof(FactionProductData) to Open's homes; any other kind stays refused by the cache.
+2. cultcache-py push (CultLib packages/cultcache-py/src/cultcache_py/stores.py:103-107,
+   :120-125, :138-155): push re-reads every envelope and rewrites them all with their catalog
+   entries. replace_lines/replace_visual/replace_layout (ship_cc.py:122-211) push one envelope,
+   so product envelopes survive every Blender save once read() admits them.
+3. Shipped catalog decode (GameData/Aetheria.cc via cultcache-py, probe.py/probe2.py beside
+   this file): 86 FactionProductData, 13 Faction, 5 HullData. Faction keys are GUID strings,
+   some dashed, some not (Zhestokost 16bad4f9-7fb5-41c5-8da0-dc76709eb7d3, Pirates
+   1d8a168def994a76a1ce7cb18f59c038). No duplicate product names. Shipped hull products: one
+   each, product name equal to hull name (Longinus by Alakrita, Djinni by Rossum & Douglas,
+   Zenith by Aeronautics Unlimited, Turret by Zhestokost); roles [] or [plating]. Smoke Test
+   Hull has no product. Aya Collective, Megiddo and Orbital Forge (ruling minor-power-brands)
+   are not in the catalog yet; the product command resolves whatever factions the catalog holds.
+4. Price: LoadoutGenerator.AvailableProducts filters `entry.design.Price > 0`
+   (LoadoutGenerator.cs:194). A sold package hull at Price 0 would be silently unsold.
+5. Top speed: HullType defaults to Ship (Enums.cs:139-144). ShipAuthoringTests.Fixture()
+   (ShipAuthoringTests.cs:373-400, about 80 uses) has no VelocityLimitData, so the Validate
+   rule needs one line added to the fixture. The add-on's New Ship always runs create --like
+   (__init__.py:229) and smoke_package.py:190 uses --like Djinni, so Blender paths already
+   carry a VelocityLimit and no add-on file changes.
+
+## Lanes (for Self's sequencing)
+
+- Blender add-on: this cut touches tools/blender/aetheria_ships/ship_cc.py (:1-6, :17-18,
+  :86-111) and tools/blender/tests/test_ship_cc.py only. It does not touch __init__.py or
+  hull_grid.py, which ships-addon-mounts r5 edits, so it runs beside mounts.
+- ships-addon-guards r1 edits ship_cc.py's _libraries (now :65-71); disjoint hunks.
+- ships-addon-paint r3 adds 'paint' to ShipAuthoringCommands.cs (usage :11 and the command
+  chain); boss-hull-derived r2 adds 'boss' there. Same file, adjacent hunks: merge order
+  matters only for the usage line.
+- Unity-only file: Assets/Scripts/Editor/ShipModPlaySmoke.cs:99 (one deconstruction). It is
+  not compiled by the headless suite; the negative grep in the spec catches a missed site.
+
+## Dependants
+
+boss-hull-derived r2, broadside-gunboat r1 and demo-cast-hulls r3 name the commands
+`ship-authoring product <ship.cc> <maker> --name <n> [--description <d>]`, `price`, and the
+key shape mod-product:<id>:<maker key>. r4 keeps all three exactly, so none needs a refresh
+for this cut's sake.
+
+# missile-stats r3: refresh map (Imagination, 2026-10-12)
+
+Spec: `aetheria-release:cut_spec:cut-missile-stats.r3`, superseding r2. Base: Aetheria
+origin/master `b6262467` (Merge cut-scenarios-smoke). Probed in a detached worktree at
+`C:\aeth-wt\imag-refresh-ms` (removed after the pass). Self: commit the "Body facts" and
+"Map section replacement" below into `docs/aetheria-release-map.md` ('Missiles and point
+defense') before dispatching Hands. The spec's `first` points Hands there.
+
+## Premise check
+
+- Nothing of r2 has landed: no `eureka/aetheria-release-missile-stats` branch on origin,
+  no `MunitionData`, `Munition*` or `class Munition` anywhere in `Assets/Scripts`, `tools`
+  or `tests`; `Launcher.cs:10-61` is byte-for-byte the shape r2 anchored. So r3 is a
+  refresh, not a withdrawal.
+
+## Body facts (probe at b6262467, 2026-10-12)
+
+- **MS1. Every stat walker is flat.** Each reader that enumerates a design's stats walks
+  `behavior.GetType().GetFields().Where(f => f.FieldType == typeof(PerformanceStat))`, one
+  level only: `StatValidation.ValidateRoleUsage` (`ItemData.cs:825-844`, run at catalog
+  load and Upsert from `AetheriaStores.Validate`, `AetheriaStores.cs:77-90`),
+  `StatValidation.ResolveStatField` for StatModifier targets (`ItemData.cs:788-800`), AetherDb
+  `RolesMigrate` and `RolesBackfill` (`Program.cs:305`, `:1807`, `:1824`, `:1843`), and the
+  CB-R1 test's `CatalogRoleTests.StatsOf` (`CatalogRoleTests.cs:11-15`), which
+  `RolesBackfillCommandTests.Reset` reuses (`:53`). The trade menu and properties panel show
+  `RuntimeInspectable` fields one level deep (`TradeMenu.cs:253`, `PropertiesPanel.cs:407`).
+- **MS2. r2's nested object would have broken CB-R1.** The launchers' `Thrust` and
+  `MissileVelocity` are the only stats reading role `thruster` on GT 3K, LRMM72, SRMM72, pswarm
+  and scorched void policy (census MS4). Moved into a nested `MunitionData.Thrusters`, they
+  vanish from every walker in MS1: `ShippedCatalogRolesAreLive` fails ("declares [..,
+  thruster, ..] but non-flat stats read [..]"), role validation stops checking them, and no
+  StatModifier can target a missile stat. This is why r3 makes each group its own
+  `BehaviorData` on the launcher design instead.
+- **MS3. A behaviour on a design is cheap and inert-safe.** `EquippedItem` instantiates
+  every `Data.Behaviors` entry (`Entity.cs:1873-1883`) and groups them by `Group`;
+  `Behavior.Execute` defaults to `return true` (`Behaviors.cs:84-87`). Entity registers only
+  `Weapon`, `Radiator`, `Shield` and the like by type (`Entity.cs:1305-1312`); the thrust
+  allocator, sensing and signatures read `Thruster`, `Sensor`, `Visibility` by type, so new
+  part types are read by nothing they do not name. The `BehaviorData` union's last key is
+  `Union(42, VapourDumpData)` (`Behaviors.cs:186`); 43 onward is free. `WeaponData`'s own
+  union (`Weapon.cs:16`) is untouched (parts are not weapons).
+- **MS4. Census of munition designs** (msgpack read of the LFS `GameData/Aetheria.cc` at
+  b6262467; `python -I census.py` in this folder):
+
+  | Design | Data | Thrust (role) | MissileVelocity (role) | DodgeFrequency | Range | Velocity |
+  |---|---|---|---|---|---|---|
+  | GT 3K | LauncherData | 135-325 (thruster) | 150-300 (thruster) | 0.25 | 1650-3500 | 100-175 |
+  | LRMM72 | LauncherData | 400-600 (thruster) | 200-300 (thruster) | 0.25 | 1600-2400 | 120-180 |
+  | SRMM72 | GuidedWeaponData | 1600-2400 (thruster) | 400-600 (thruster) | 1.0 | 600-900 | 40-60 |
+  | pswarm | GuidedWeaponData | 500-2000 (thruster) | 400-600 (thruster) | 1.0 | 500-1250 | 50-100 |
+  | scorched void policy | GuidedWeaponData | 500-2000 (thruster) | 400-600 (thruster) | 1.0 | 500-1250 | 50-100 |
+
+  Each has its launcher behaviour at Group 0 and no other behaviour. The two ship sensor
+  designs carry `SensorData.Sensitivity` 0.25-1.5 ("not if i see you first") and 1.0-2.0
+  ("The Bat"), role `receiver`. Ship thruster plumes (`ThrusterData.Visibility`, the
+  `DrivePlume` channel, `Thruster.cs:123`) run 40-800.
+- **MS5. M13 is stale.** roles-backfill (merged `e915f952`) gave LRMM72 and SRMM72 quality
+  ranges and roles; they are no longer flat. LRMM72 is a lock-on `LauncherData` and SRMM72 a
+  `GuidedWeaponData`. r2's "flat dumbfire pair, Sensors.Range 0 and Lateral 0" rested on the
+  flatness alone.
+- **MS6. RolesBackfill must keep reproducing the catalog.** `RolesBackfillCommandTests`
+  flattens LRMM72 and SRMM72 in a scratch catalog and reruns `RolesBackfill`, which ranges
+  only the fields its `LauncherRoles` map names (`Program.cs:163-172`). After migration the
+  thruster stats are named `Acceleration`, `Lateral`, `MaxSpeed`; unless the map names them
+  (`thruster`), the rerun leaves them flat and the test fails. Replacing the map's `Thrust` and
+  `MissileVelocity` keys with those three is required, not cosmetic.
+- **MS7. The LonginusX is gone** (retire-longinusx merged); r2 calibrated `Sensitivity`
+  against its cruising Visibility. Launcher Angles now fits the GT 3K and pswarm on a Longinus
+  and targets bare Longinuses (`ServerShared/Scenarios/LauncherAngles.cs:16-34`).
+- **MS8. The negative grep in r2 was wrong.** `\bThrust\b` over `Assets/Scripts` matches
+  `ThrusterData.Thrust` and `Thruster.Thrust` (`Thruster.cs:43-72`, `Ship.cs:99`). r3 uses
+  `(launcher|guidance)\.Thrust\b` and `MissileVelocity|DodgeFrequency`, both tested at base
+  (they match exactly `GuidedProjectileManager.cs:47,56,57,68,77,78`, `Launcher.cs` and
+  `Program.cs:171`).
+- **MS9. The launcher lock still gates fire** (`LockWeapon.cs:56`); ruling
+  `launcher-lock-solution-quality` is owned by follow-up `launcher-lock-gate-cut`, not here.
+  `origin` is still GitHub; the forge switch has not landed.
+
+## Map section replacement
+Applied in place to the "The missile's stats" paragraph of this map (commit of 2026-10-12).
+
+## Rationale
+
+- **Parts as behaviours, not a nested object.** MS1-MS2: a nested object is invisible to
+  every stat walker, so it breaks CB-R1 and role validation and forces seven walker edits (or a
+  new walker owner). Parts as behaviours need no walker change, keep roles and modifiers
+  working, and move to munition gear designs nearly unchanged when munitions become entities.
+  Cost: five small types, five union keys, one inert behaviour and one completeness check.
+- **Completeness check.** A launcher design without its parts would fault in missile-records
+  at the first launch. `StatValidation.ValidateMunitionParts` refuses it at catalog load and
+  Upsert, beside `ValidateStatModifiers`, so a mod launcher missing a part is named at load.
+- **All five designs guided.** MS5: both data types are guided by their own semantics (a
+  lock-on launcher and a guided weapon), and the only argument for dumbfire (flatness) is gone.
+  The micro pair get lower cognition (0.25) than the full missiles (0.5); the operator tunes
+  per design. If the operator wants a true rocket, it is a design with `Seeker.Range` 0,
+  `Lateral` 0 and `Cognition` 0, which missile-odds already prices (its dumbfire test).
+- **Seeker sensitivity is a placeholder, calibrated downstream.** r2 calibrated against the
+  LonginusX's summed Visibility (MS7), and the summed number is what the visibility chain is
+  replacing. r3 authors `Sensitivity` flat at 0.75, half the weakest ship receiver's top
+  (MS4); missile-records owns the reading rule and its headless harness, so it owns the
+  calibration test.
+- **Plume visibility is a placeholder.** `Visibility` flat 10, a sixth of the Small Drive's
+  plume top (MS4); munition-shots' detection tests calibrate it.
+
+## Downstream: what r3 changes for each missile spec (read-only; not revised here)
+
+- **missile-records.r3**: changes. `Munitions.Stats` reads the five parts through
+  `MunitionParts.Of<T>` instead of one `MunitionData` field; `ConeHalfAngle` becomes
+  `Seeker.BeamWidth / 2`; `MunitionTargets` region MaxVisibility reads `Thrusters.Visibility`
+  (no `Signature`); its operator and seeker calibration must replace the LonginusX reference
+  (MS7); its `Launch` still assumes the launcher lock gate (follow-up
+  `launcher-lock-gate-cut`); its seeker reads `seeker.Visibility` (the sum), which the
+  visibility chain is splitting by channel. Base must move past b6262467.
+- **missile-odds.r2**: small. Reads frozen `Lateral`, `Cognition` by name (unchanged names);
+  its dumbfire test case is still valid as a constructed design; its operator check names the
+  LonginusX and must name the Longinus.
+- **missile-presenter.r3**: small. Its throttle reads `Stats.Acceleration` (unchanged name);
+  `GuidanceCurve`/`ThrustCurve` deletion is unchanged. `DodgeFrequency` is already gone after
+  r3, so the presenter's `Frequency` reads `Control.EvasionFrequency` (r3 does that).
+- **munition-shots.r5**: changes. `Stats.Signature` no longer exists: `Designated` and the
+  `ASignatureRaisesDetection`-style pin read `Thrusters.Visibility` (or what the visibility
+  chain makes of a plume); `Stats.Radius` and the `Munitions.Envelope` faces
+  (`Acceleration`, `Lateral`) are unchanged. Already owes an envelope refresh (Eyes,
+  backlog-b1).
+- **munition-jink.r1**: unchanged by r3 (reads `Evasion`, `Lateral`, `EvasionFrequency`,
+  `Cognition` by name).
+- **autofire-threshold.r5**: unchanged by r3 (reads `Munitions.TimeToGo` and detection, not
+  stats).
+- **autofire-controls.r2**: unchanged by r3 (reads `DeltaV` from the flight, not the stat).
+- **ai-autofire.r1**: unchanged by r3.
+- **matrix-missiles.r1** (catalog breadth, not in the chain): changes. "Author its per-missile
+  stat groups the same way" now means appending the five part behaviours to each new design,
+  with `LauncherRoles`' new keys; `ValidateMunitionParts` refuses a new launcher without them.
+
+## Follow-up state
+
+- `launcher-flight-fields` (in force): r3 deletes `Thrust`, `DodgeFrequency` and
+  `MissileVelocity`; `GuidanceCurve`/`ThrustCurve` stay for missile-presenter. Self may
+  resolve it `Fixed` only when both have landed (not admitted here).
+
+
+# Refresh 2026-10-12: feedback and loot (for docs/aetheria-release-map.md)
+
+Probed by Imagination (agent imagination-aeth-refresh-feedback-loot, session self-2026-10-11-ag2) on a detached
+worktree of Aetheria origin/master b6262467, 2026-10-12. Every anchor below is file:line at b6262467.
+
+## Body facts
+
+RF1. The sim already publishes where a direct round lands. `ShotOutcome` (FireControl.cs:2210-2237) carries
+`Target`, `Result`, `Cell` (the impact cell, set in Commit at FireControl.cs:954-971 for every hit, shielded
+or not), `Shielded`, `ShieldBroken`, `BurstPoint`/`HasBurstPoint`, and `DamageType`. It carries no damage
+magnitude. `Zone.ShotResolved` republishes it at arrival (FireControl.cs:874), after `Apply`.
+
+RF2. `DrawAhead` (ServerShared/DrawAhead.cs:13-100) is the pure presentation static set, never called by
+ServerShared. `DrawAhead.Impact(target, cell, lead)` (:62-68) is "the impact cell's centre on the target's drawn
+pose" (ruling projectile-flight-is-presentation, direct-arrival-keep-timing). `Projectile.Resolve`
+(Gameplay/Weapons/Projectile.cs:63-71) draws the round there and spawns the weapon's own `HitEffect` at that
+point; `GuidedProjectile`, `HitscanEffect` and `MineInstance.Blast` (MineInstance.cs:62-67) each spawn their own
+weapon-side hit effect. So the round's end is already drawn. What no presenter shows today: a shield reaction to
+a weapon hit (ShieldManager.ShowHit has one caller, the Unity collision at ShieldManager.cs:75), anything on an
+entity a blast touches other than the blast flash at its centre, intensity relative to the receiver, and any
+camera response.
+
+RF3. No absorb publisher exists in the game. `PublishAbsorb(` has two sites: the definition
+(CapabilityEvents.cs:120) and the FieldShieldTest scene (UI/FieldTester.cs:76). `Entity` has no
+`CapabilityEvents`. Ships bind no `CapabilityPresentationBinder` (EntityInstance.SetEntity :159-170).
+`ShieldInterceptor` (the panel presenter) is used only in Scenes/FieldShieldTest.unity (GUID
+fdca6a832d764b6e89fc83fdcf7b42d7 appears in no ship prefab). Ships' shield visual is ShieldManager.ShowHit.
+
+RF4. Damage sites. Direct: `Apply` (FireControl.cs:1123-1146) routes to `ApplyDirectHit` (:1156-1210: shield
+break at :1162, shielded TakeHit and return at :1164-1168, IncomingHit :1174, `DamageHull` :1209) or
+`ApplyBlastHit` (:1216-1258, which only locates the point and calls `Detonate` at :1257). Every blast, including
+proximity and no-target bursts (:1128-1132) and mines (Zone.cs:299, StepMines), goes through
+`FireControl.Detonate` (:1552-1625): per touched entity, `totalShare`, shield `CanTakeHit`/`TakeHit`/`continue`
+at :1588-1598 (Break otherwise), `DamageHull(hullTotal)` at :1623. Five publish points therefore cover every
+landed impact: shielded direct, hull direct, shielded blast share, hull blast share. A missile is a shot with a
+fuse, so it is covered.
+
+RF5. Unity/Cinemachine body: com.unity.cinemachine 2.10.7 (Packages/manifest.json:8);
+`ActionGameManager.FollowCamera` is a `CinemachineVirtualCamera` (ActionGameManager.cs:136). No `Impulse` in
+Assets/Scripts. The player's ship is `ActionGameManager.Instance.CurrentEntity` (:36, :227).
+`PlayerGraphicsSettings` holds keys 0-1 (PlayerSettings.cs:63-67). `MainMenu.ShowGraphicsSettings`
+(MainMenu.cs:287-308) has no `SavePlayerSettings()` on Back, unlike gameplay settings (:278-283).
+`PropertiesPanel.AddField(string, Func<float>, Action<float>, float min, float max)` exists
+(UI/Properties Panel/PropertiesPanel.cs:290).
+
+RF6. Floating bodies landed (38c47d80): `FloatingBodyId`, `KinematicBody.Step` (FloatingBodies.cs:12-42),
+`Zone.NextBodyId()` (Zone.cs:93-94), and `GameplaySettings.FloatingBodyDrag/LaunchDrag/Gravity`
+(Settings.cs:176-180) as C# defaults only: that commit edited no Settings.asset. `SimulationDice.For` and
+`LootStream = 1` exist (SimulationDice.cs:11, :30). `FloatingBodyTests.DriftMatchesLegacyFloatingItemsAtSixtyFps`
+already pins the drift against GridObject.
+
+RF7. Zone's two free-body collections set the precedent loot follows: `ReactiveCollection<Mine> Mines` and
+`ReactiveCollection<VapourCloud> Clouds` (Zone.cs:22, :26), each a record class with an `Id`/`Body`
+(Mines.cs), one adder (`Lay` :242-246, `Vent` :248-253), one stepper in `Update` after the entity loop and
+before `FireControl.Step` (`StepMines` :233/:285-300, `StepClouds` :234/:271-279). ZoneRenderer lowers mines by
+`ObserveAdd`/`ObserveRemove` into a `Dictionary<Mine, MineInstance>` (ZoneRenderer.cs:97, :227-235, :259-264,
+cleared at :289-291); `MineInstance` places itself at the latest sim body each frame and spins for show
+(MineInstance.cs:31-60). Zone's death subscription is one line (Zone.cs:111).
+
+RF8. Unity loot today: EntityInstance's HullDamage handler rolls `Random.value` and `Random.onUnitSphere` and
+calls `ZoneRenderer.DropItem` (EntityInstance.cs:296-316; destroy effect :317-321 stays). `ZoneRenderer`:
+pickup fields typed `GridObject` (:43-46), `_loot` (:96), ClearZone loop (:293-295), view-origin loop in Update
+(:466-472), `DestroyLoot` and `DropItem` (:585-618, with the item-kind switch :592-599 and label tint
+:605-615). `ShieldManager.OnCollisionEnter` stores a pickup on contact (:35-63). `TractorBeam` pulls
+GridObjects by SphereCastAll (:20-27). `GridObject` (51 lines) integrates drift on Time.deltaTime. Its GUID
+737f47c158214f0995ba2835f040ed96 is on the five pickup prefabs (Assets/Prefabs/RPG/Pickups, text YAML, not
+LFS), each with RotationSpeed 1, GridOffset 0, a kinematic Rigidbody, a sphere collider, layer 21.
+ARPG.unity:16220-16224 references the GridObject components by fileID, so retyping the fields needs the editor
+re-assignment. `GameSettings.PickupLifetime/LootDropProbability/LootDropVelocity` (GameSettings.cs:14-16) are
+read only there. `FireControlCut8Tests.LootStillDropsOnDeath_EquipmentSurvivesDeactivate` (:302-341) mirrors
+the Unity handler.
+
+RF9. In-flight overlap with the visibility chain (origin/eureka/aetheria-release-contact-reveals against
+b6262467): Entity.cs hunks from :189 on (none at the subjects :175-186); FireControl.cs one line at :171 (fire
+control's subsystem ranking, not the damage path); Zone.cs inserts after :111 (an ObserveRemove departure
+record) and after the entity loop at :231 (`Sense`); EntityInstance.cs:293 (`IsDestroyed`). feedback-1 stays at
+Entity.cs:175 and FireControl.cs :1156-1210 and :1588-1623; loot-1 edits Zone.cs:111 (adjacent to the
+contact-reveals insert: whichever lands second resolves a two-line textual conflict) and inserts after :234.
+
+## Rationale
+
+Why feedback-1 still publishes an absorb from FireControl, now that ShotResolved carries the cell (RF1, RF2):
+ShotResolved is per shot, carries no magnitude, and says nothing about blasts, whose per-entity share and shield
+decision exist only inside Detonate. One per-entity absorb at the damage sites covers direct hits, blasts,
+missiles and mines with one stream, which faction-play-2 also reads (its first line requires the publish sites
+to stay in ApplyDirectHit and Detonate). The commit record stays unchanged.
+
+Why the hull absorb's Position is the impact cell, not r1's centre-lane entry point: ruling
+direct-arrival-keep-timing draws a hit at its impact cell on the target's drawn pose, and the weapon's own hit
+effect is already drawn there (RF2). Using the same cell keeps the receiver's reaction and the weapon's flash on
+one point, and removes r1's EntryPoint helper and its deletion. A shielded direct hit also has a Cell (RF1), the
+first cell on the shooter's side, so both layers use one point formula.
+
+Why `DrawAhead.Carried`: a presenter receives a world point at the sim pose and must draw it on the drawn pose.
+`Impact` already does exactly that for a cell; generalising its body to a point and making `Impact` call it is
+one owner, not two.
+
+Why the split (feedback-1 and feedback-present; loot-1 and loot-1-present): each r1/r2 scope estimated at 85-95
+Hands calls once the Starfire compile and editor wiring are counted, above the 75-call ceiling. The split is
+along the sim/presentation seam: feedback-1 and loot-1 are headless-provable on Yggdrasil and need only a Unity
+compile; the presentation halves carry the editor wiring and the operator checks. The loot halves stay on the
+one loot branch, because loot-1-present deletes the Unity pickup path that loot-2 and loot-3 replace.
+
+Why no Settings.asset edit for loot: floating-bodies added its three settings as C# defaults with no asset
+change (RF6); loot's three follow that precedent.
+
+Why the receiver-side hull effect stays although the weapon draws its own hit effect: the weapon's effect is
+the weapon's look (content bar: every weapon distinct in look and sound); the receiver's reaction, scaled by
+the hit's share of that hull's durability, is the "mechanics visible and visceral" half of
+operator-release-direction. They meet on one point; the reaction is tuned in ImpactFeedback, and an
+operator check asks whether the two read as one hit.
+
+# Visibility refresh at efee2a2a
+
+Imagination imagination-aeth-refresh-visibility, session self-2026-10-11-ag2, 2026-10-12.
+Pinned to Aetheria origin/master efee2a2adcdfd552535540ff49d8d5c07eae442b (contact-reveals r2 merged:
+Defaulted ruling reveal-ends-on-perception). Read-only detached worktree. This section supersedes the
+"Visibility rework" section's anchors (taken at 93b7ff8d) for every spec revised here, and amends three of
+its model page rows and its cut order. Folds follow-up knowledge-reads-outside-contactof (sites named in
+contact-hud r2 and reveals-replace-tiers r3; see VR10 and the rationale for where the schematic went).
+Paths under Assets/Scripts/ServerShared unless noted.
+
+## Body facts (source reads at efee2a2a)
+
+VR1. The reveal book. `_reveals` (Entity.cs:218) with scratch lists `_endedItems`, `_agedSubjects`
+(219-220). `RecordReveal` (893-905) is the one way in and the one gate: it returns when the observer is
+inactive, the item is null, the subject is not in `Zone.Entities`, or `PerceivesDestroyed(subject, item)`
+(907-911: `item.EquippableItem.IsDestroyed` and the observer's track of the subject at or above
+TargetGearInfoThreshold). `EndReveals` (913-921) is the one way out; its only caller is Sense.
+`RevealsOf` (929-930) returns the book's values with no live filter: a destroyed item the observer did not
+perceive, and every entry of a departed subject until the prune, stay in it. `ContactOf` (933-950).
+`Deactivate` clears the book (858).
+
+VR2. The destroyed predicate is `EquippableItem.IsDestroyed`, shared by PerceivesDestroyed
+(Entity.cs:910), ItemDestroyed (1021), DurabilityOnline (2202) and IsRevealed's ranking filter
+(FireControl.cs:171). No `Durability < .01` literal remains in Entity.cs or FireControl.cs.
+
+VR3. Tick order (Zone.cs:233-245): every entity's PublishInbox, then every Update, then every Sense, then
+`_departures.Clear()`, then mines, clouds and FireControl.Step. Sense (Entity.cs:958-1005), per live
+other: light-act loop (skips item-null entries and Channel Emission, 970), then the Identified end pass
+(975-982); then the Departures pass (986-992); then the prune of departed subjects (995-1004).
+`PassiveInfo` (433-443) refills the `ActiveSensors()` buffer (673-689) on every call. An emission written
+during Update N and read in Sense N is order-free for the same reason the light acts are.
+
+VR4. Departures. `Zone._departures` and `Departures` (Zone.cs:75-76); the one writer is the ObserveRemove
+subscription (116-117), recording `Visibility - SignatureOn(SignatureChannel.Emission)`. The struct and its
+comment ("its signature outside the Emission channel") are Sensing.cs:94-111.
+
+VR5. Emission as light, still live. The only writer of Channel Emission in production is
+`Sensor.Ping` (Sensor.cs:140, `SetSignature(this, Emission, PingVisibility, Item)`, commented interim).
+`Entity.Visibility` (Entity.cs:171) sums every channel, so a ping still brightens the pinger in every
+observer's track gain (Sensor.Gain reads `entity.Visibility`). The code that tells Emission apart from light
+is Sense's skip (Entity.cs:970) and the departure subtraction (Zone.cs:117); `SignatureOn` (Entity.cs:172-173)
+has no other production reader. `VisibilityData.Channel` (Behaviors/Visibility.cs:19-20, Key 3) can author
+any channel, Emission included; Visibility gear writes it through SetSignature (Visibility.cs:47).
+
+VR6. Sensor keys. SensorData keys 3-12 (Sensor.cs:15-44); 13 is free; PingVisibility is key 7 (27-28).
+`tools/AetherDb/Program.cs:196-201` (SensorRoles) maps PingVisibility to role `emitter`.
+
+VR7. Key collision in emissions-heard r1. LockWeaponData's MessagePack chain is WeaponData 1-16 and 33
+(Behaviors/Weapon.cs), InstantWeaponData 17-20 (InstantWeapon.cs:12-21), LockWeaponData 21-25
+(LockWeapon.cs:12-25), and LauncherData : LockWeaponData 26-31 (Launcher.cs:10-27). r1's
+`LockWeaponData Key(26) InterceptFactor` would collide with LauncherData's Key(26). The first key free in
+the chain and in every InstantWeaponData sibling (ChargedWeaponData uses 21-32, MineLayerData 21-23) is 34.
+
+VR8. Paint and ping writers. LockWeapon.Execute paints the Target each tick inside LockAngle
+(LockWeapon.cs:81-111, ReceivePaint at 105). Sensor.Execute: the sweep block (Sensor.cs:169-175, `_pinging`
+until EndPing at 232), crossing paints and ally returns (196-207, ReceivePaint at 201). The only `Sensor.Ping()` caller is the
+player's input (Gameplay/ActionGameManager.cs:391).
+
+VR9. Tests that treat Emission as light: ContactRevealTests AnEmissionEntryIsNotLight (383-393) and
+AnEmissionSignatureDoesNotMakeADepartureSeen (670-685); SignatureTests APingShowsAnEmissionWithItsItem
+(327-344), AVisibilityBehaviourTravelsOnItsAuthoredChannel's Emission row (349), VisibilityIsStillTheSum
+(372-393: an Emission VisibilityData at 379, SignatureOn asserts 386-390), DecayKeepsEachSourcesOwnItem
+(418-450: the ping is the Emission writer, 431-436); PaintModeTests AnAllyHearsTheReturnSilently's
+`cEmission` (262, 271). PingVisibility in fixtures: ContactRevealTests:150, MiningCut3Tests:122, 135, 1035,
+MiningIndexTests:47, PaintModeTests:102, SignatureTests:334, 423, VapourCloudTests:88.
+
+VR10. Knowledge read outside ContactOf/RevealsOf (follow-up knowledge-reads-outside-contactof, sites read
+at efee2a2a):
+- Gameplay/ActionGameManager.cs:1277-1303: hostile and friendly indicator fills read the OTHER ship's
+  `EntityInfoGathered[CurrentEntity]`, and the hostile "spotted" blink thresholds it
+  (TargetSpottedBlinkFrequency/Offset, 116-117, read only there).
+- ActionGameManager.cs:1326-1332: TargetVisibilityFill thresholds the player's own track by hand;
+  VisibilityToTargetFill reads the target's track of the player; hull and shield fills read the target's
+  exact state (follow-up target-panel-reads-enemy-hull).
+- Zone Display/ZoneRenderer.cs:551-554: the compass icon thresholds PerspectiveEntity's track by hand.
+- UI/HUD/SchematicDisplay.cs:98-104: enemy weapon rows iterate the subject's live Equipment through
+  FireControl.IsRevealed (the aiming read, which ranks live gear). The rows are built once per ShowShip
+  (called on target change, ActionGameManager.cs:1169-1170), so a reveal gained after selection never shows.
+  SchematicDisplay.cs:191-192 shows `_entity.Visibility` for an enemy too; 194-199 the enemy's exact hull
+  (same class as follow-up target-panel-reads-enemy-hull, which names only the target panel).
+- Music: the TargetedByCount subscription (ActionGameManager.cs:1068-1071); TargetedBy and TargetedByCount
+  (Entity.cs:186-187) and their subscriptions (300-305).
+- Aiming reads that stay on IsRevealed by the ruling: TrySelectTargetItem (Entity.cs:392), ResolvedTargetItem
+  (403), Combat.cs:45, the player's cycle (ActionGameManager.cs:435).
+
+VR11. A departed subject stays in the book (and ContactOf reports it Detected) until its freshest reveal is
+BearingMemory old. Nothing lists the book's subjects; a presenter that enumerates `Zone.Entities` for
+contacts therefore drops an unseen departure the instant it happens, which is what the ruling forbids.
+
+VR12. IsRevealed (FireControl.cs:155-183) ranks the subject's live non-hull, non-destroyed gear by tier on
+TargetArmorInfoThreshold..TargetGearInfoThreshold. TargetArmorInfoThreshold: Settings.cs:220,
+Assets/Resources/Settings.asset:313, FireControl.cs:162 and 180, a comment at tools/AetherDb/Program.cs:1140,
+and 19 test files (ContactRevealTests, FireControlCut11/123/124/12/5/6/6c/6d/7/8/9, FireControlPerWeapon,
+LockWarning, Mine, PaintMode, Signature, TargetingSystem, VapourCloud). AuthoredSettings puts an unknown
+asset key in `Unplaced` without failing (tools/AetherDb/AuthoredSettings.cs:18). Tests that select or read
+IsRevealed through tiers: TargetingSystemTests 173-246, ContactRevealTests 726-737, FireControlCut5Tests
+587-613, FireControlCut7Tests 69 and 151-184, FireControlCut12Tests 525, 551, 588, 978, 1160, 1193,
+FireControlCut6dTests 175, FireAuthorityTests 483.
+
+VR13. HUD prototypes. HostileTargetIndicator and FriendlyTargetIndicator (ActionGameManager.cs:156-157)
+instantiate `VisibleTargetIndicator {Transform, Fill, Place}` (UI/HUD/VisibleTargetIndicator.cs:6-11): no
+text element. The incoming lock indicator reuses the LockIndicator prototype (1151-1153); its update is
+1459-1476 (Track paints only).
+
+VR14. Scenarios. Arcs now stages the Smoke Test Hull (Scenarios/Arcs.cs:26), so "the player's Longinus is
+Arcs' fit" (scenarios-lock-on r1) no longer holds. Duel's fighter (Scenarios/Duel.cs:16-32: Longinus, two
+GT 3K) is the fit for both sides; Duel places its piloted rival at 900 m (35). Seeds taken: 101-107, 111,
+112; 113 is free. `Scenarios.Tests` ends with `new Crossing()` (Scenarios.cs:10-13). Crossing and Pursuit
+generate `stage.Prelude(DemoTerminus.Cast)`.
+
+VR15. Layout-aim anchors: TargetItem (Entity.cs:72-77), TrySelectTargetItem (379-397), ResolvedTargetItem
+(399-405); FireControl.cs: Forecast's Silhouette call (362), Fire's `Aimed =` (746), CommitProbability
+(894-905), ResolveAimPoint (1744-1755), Silhouette (1769-1791), CellsOf (1948), PendingShot (1963-1970);
+Silhouette test call sites FireControlCut12Tests 768, 1348, 1353, 1375. `GameSettings.GetIcon(HardpointType)`
+is Assets/Scripts/Gameplay/GameSettings.cs:51; `SchematicListElement.ShowWeapon` is UI/HUD/SchematicListElement.cs:30.
+After reveals-replace-tiers lands, FireControl.cs lines below 183 move up about 20: find by symbol.
+
+## Model page amendments
+
+- Light signature: Channel Emission is never a light signature from cut ping-signature-retired on:
+  `SetSignature` refuses it (ArgumentException), so `Visibility` is the light sum with no exception, the
+  departure records `Visibility`, and Sense needs no Emission skip.
+- Active emission: `ActiveEmission {Item, HearRange}` in the emitter's private `_emissions`. Written by
+  `Entity.Emit` during the emitter's Update (Sensor.Execute while its ping sweeps; LockWeapon.Execute each
+  tick it paints; later Scanner.Execute); read only by other entities' Sense in the same tick; cleared in
+  the emitter's PublishInbox (the next tick's pre-phase) and by Deactivate. No inbox and no published copy:
+  its one reader runs after every Update, so the read is order-free without one. No Mode field: nothing reads
+  it (warnings carry the mode; the reveal's channel is Emission for every emission).
+- Sensor stats: LockWeaponData.InterceptFactor is Key 34 (not 26: VR7). SensorData.InterceptFactor Key 13.
+  Both null-tolerant, absent reads as 1 (BeamWidth's precedent, Sensor.cs:41-44 and 89).
+- Reveal: unchanged from the ruling-amended row, plus: heard emissions enter through RecordReveal with
+  Channel Emission; the aiming read IsRevealed (after reveals-replace-tiers) is book AND live (on its subject,
+  not IsDestroyed); every knowledge reader (HUD rows, markers, music) reads the book and ContactOf only.
+
+## Rationale
+
+- Split of emissions-heard. r1 was budgeted at 100 Hands calls, over the 75 ceiling. Its deletion line
+  (retire the ping's light signature) is separable and behaviour-complete on its own: pings stop brightening
+  the pinger, and Emission stops being a light channel. That subtraction becomes cut ping-signature-retired;
+  emissions-heard r2 is only the addition (Emit, hearing, InterceptFactor). Retiring the light signature
+  also deletes two compensators that exist only because Emission could be light: Sense's Emission skip and
+  the departure's Emission subtraction, and with it `SignatureOn`, whose one production reader is that
+  subtraction.
+- Emissions without an inbox. Paints need an inbox because their readers run inside Update (AI,
+  IncomingPaints), where order matters. An emission's only reader is Sense, which runs after every Update
+  (VR3), so the emission is read the tick it is made, with that tick's bearing, exactly as a light act. The
+  r1 rationale ("emissions publish in the pre-phase beside paints", map Rationale last bullet) was written
+  when Sense ran inside Entity.Update; contact-reveals moved it out.
+- No catalog re-save for PingVisibility. MessagePack ignores an int key with no member on read; a re-save
+  only rewrites a 12 MB LFS file to drop one nil. The census proves the catalog loads; the next catalog cut
+  that saves GameData drops the key for free.
+- The schematic site moved to contact-hud. The follow-up assigned it to reveals-replace-tiers. The schematic's
+  weapon rows are a knowledge read (the book), not the aiming read IsRevealed that cut rewrites; grouping
+  every presenter knowledge read in contact-hud keeps reveals-replace-tiers headless (no Unity compile) and
+  near the 75-call ceiling, and puts each site where its negative check lives (no IsRevealed in UI/).
+- Split of contact-hud. r1 was budgeted at 90 calls. The reads it rewires (indicator fills, target panel
+  fills, compass, schematic rows, music, TargetedBy) are subtraction and rewiring with negative checks; the
+  bearing markers and search flash are a new presenter. The second half becomes cut bearing-markers.
+- Contacts are enumerated from the book, not the zone (VR11). `Entity.RevealedSubjects` (the book's keys) is
+  the one list of remembered contacts; a subject is Detected-not-Tracked only through a remembered reveal,
+  so markers and music need no `Zone.Entities` walk.
+- The indicator fill. The old fill showed how well the OTHER ship sees you (forbidden). The player's own
+  track of a tracked hostile is always above detection, so "own track over the detection threshold" would
+  be a constant. The fill shows progress from Tracked to Identified instead:
+  unlerp(TargetDetectionInfoThreshold, TargetGearInfoThreshold, ContactOf(k).Info). The spotted blink had
+  no honest source and goes with its two serialized fields.
+- Mount rows from the layout (layout-aim r2). The ruling keeps live gear for the aiming read only. The
+  schematic's mount rows are knowledge, so they list LayoutOf's hardpoints (the class reference, which says
+  where mounts are, filled or not) minus those a revealed weapon row occupies; selection (the cycle) still
+  walks live IsLocated items, so occupancy shows only through what can be aimed at (the map's Occupancy
+  default, unchanged).
+- A scan ends nothing (inspection-scanner r2). The ruling routes every end through Sense; RecordInspection
+  records live, non-destroyed gear and never calls EndReveals.
+- Overlap check, emissions-heard vs reveals-replace-tiers: after the split they share only Entity.cs
+  (Emit near ReceivePaint 885 and hearing in Sense 958-1005, against HasReveal placed right after RevealsOf
+  at 930) and no decision (hearing writes the book; IsRevealed reads it). Both follow ping-signature-retired,
+  which owns every shared test fixture (PingVisibility and the Emission tests sit beside the threshold lines),
+  and run in parallel.
+
+## Cut order
+
+contact-reveals (merged) -> ping-signature-retired -> {emissions-heard, reveals-replace-tiers};
+emissions-heard -> sensor-catalog (r1 unchanged);
+paint-modes (merged) -> contact-hud r2 (independent of the above; its Entity hunks at 186, 300 and ~922
+stay clear of ping-signature-retired's 97/172 and emissions-heard's);
+contact-hud + emissions-heard -> bearing-markers;
+reveals-replace-tiers + contact-hud -> layout-aim r2;
+emissions-heard + reveals-replace-tiers -> inspection-scanner r2 (headless sim, split);
+inspection-scanner + sensor-catalog + bearing-markers -> scanner-catalog r1 (catalog and HUD, split).
+contact-reveals (merged) -> scenarios-lock-on r2 (independent; Scenarios only).
+
+Sizes (Hands calls, budget / cap): ping-signature-retired 45/60, emissions-heard 65/80,
+reveals-replace-tiers 75/90, contact-hud 55/70, bearing-markers 50/65, layout-aim 75/90 (declared stop point
+before the schematic rows), inspection-scanner 65/80, scanner-catalog 45/60, scenarios-lock-on 60/80.
+
+- Split of inspection-scanner. r1 was 110 calls. The sim (Scanner, RecordInspection, Scan paint and
+  emission, fixture designs) is headless and needs neither the catalog nor the HUD; the catalog design and
+  the indicator's Scan case become cut scanner-catalog. inspection-scanner then waits only on Emit
+  (emissions-heard) and the aiming read (reveals-replace-tiers).
+
+## Specs checked and unchanged
+
+sensor-catalog r1: rests on HearingMultiple and InterceptFactor from emissions-heard (kept by name; the
+LockWeaponData key it does not name moves to 34) and on nothing contact-reveals r2 changed. Its anchors
+predate emissions-heard and are re-read at dispatch.
+
+## Not owned by any cut here
+
+SchematicDisplay.cs:194-199 fills an enemy's hull durability from its exact state: the same instruments-bound
+gap as follow-up target-panel-reads-enemy-hull (which names only ActionGameManager.cs:1331-1332). It is an
+operator design call already queued there; contact-hud r2 leaves both alone. Self may widen that follow-up's
+locations when it next revises it.
+
+## Admitted (imagination-aeth-refresh-visibility, 2026-10-12)
+
+- mind-commit-965050b2...: cut-ping-signature-retired.r1 (new), cut-emissions-heard.r2, resolution
+  cut_spec.cut-emissions-heard.r1.n1 (Superseded).
+- mind-commit-ae02c1a1...: cut-reveals-replace-tiers.r3, resolution cut_spec.cut-reveals-replace-tiers.r2.n1;
+  cut-contact-hud.r2, resolution cut_spec.cut-contact-hud.r1.n1; cut-bearing-markers.r1 (new).
+- mind-commit-46be7249...: cut-scenarios-lock-on.r2, resolution cut_spec.cut-scenarios-lock-on.r1.n1;
+  cut-layout-aim.r2, resolution cut_spec.cut-layout-aim.r1.n1.
+- mind-commit-5e80fc20...: cut-inspection-scanner.r2, resolution cut_spec.cut-inspection-scanner.r1.n1;
+  cut-scanner-catalog.r1 (new).
+Unchanged: cut-sensor-catalog.r1. No question raised: every choice here follows a ruling in force or a
+default stated in the rationale.
+
+# Visibility refresh at 0898725f
+
+Imagination imagination-aeth-vis-refresh, session self-2026-10-13-ag2, 2026-10-13. Pinned to Aetheria
+origin/master 0898725f (contact-hud, emissions-heard, reveals-replace-tiers, ping-signature-retired, loot-2 and
+aetheria-ew ew-hide-launch merged). Read-only detached worktree. Refreshes cut_specs scenarios-lock-on (r2 -> r3)
+and sensor-catalog (r1 -> r2). Paths under Assets/Scripts/ServerShared unless noted.
+
+## Body facts (source reads at 0898725f)
+
+VF1. `Scenarios.Tests` (Scenarios/Scenarios.cs:10-13) is one line (12) ending `new Crossing(), new Belt()`.
+Seeds taken: 24 (Belt), 101-112. 113 is still free.
+
+VF2. Duel's fighter fit is Scenarios/Duel.cs:16-31 (Longinus, two GT 3K, sensor "not if i see you first");
+the player at 33, the piloted hostile rival at 900 m at 34. Duel generates `stage.Prelude()`; Crossing.cs:22 and
+Pursuit.cs:18 generate `stage.Prelude(DemoTerminus.Cast)`. Every scenario commits its `.cs.meta`.
+
+VF3. The only `Sensor.Ping()` caller is the player's input (Gameplay/ActionGameManager.cs:394): SC5 stands.
+
+VF4. A lock paints only when the locker has a hostile Target inside LockAngle (Behaviors/LockWeapon.cs:85-117);
+it paints Track (`ReceivePaint` 111) and emits `Range / InterceptFactor` (112). The AI's target comes from
+`VisibleEnemies` (Agents/Minion.cs:14), which fills when the track crosses TargetDetectionInfoThreshold
+(Entity.cs:315-331).
+
+VF5. The incoming-lock indicator reads only `IncomingPaints`, Track mode, strongest first
+(ActionGameManager.cs:1478-1491); IncomingLockIndicatorDistance is 164. `PaintWarning` is Sensing.cs:75-90.
+
+VF6. Scenario tests are partials of RunStartTests (CrossingScenarioTests.cs, PursuitScenarioTests.cs,
+BeltScenarioTests.cs); EveryScenarioStages is ScenarioTests.cs:97.
+
+VF7. Hearing: `HearingMultiple()` is `private int`, 1 with any active sensor, else 0 (Entity.cs:696-698; its
+comment promises "Listener gear extends it"). Sense reads it once into `var hearing` (992) and hears an
+emission when `planar <= emission.HearRange * hearing * obscuration` (1007-1015). A float return compiles in
+Sense unchanged.
+
+VF8. `ActiveSensors()` (Entity.cs:680-693) counts active equipment and active consumables.
+`GetBehaviors<T>()` (1621-1628) walks equipment only and ignores Active.
+
+VF9. Alpha keys landed: SensorData.InterceptFactor Key 13 (Behaviors/Sensor.cs:47-49), read as 1 when absent
+(94); LockWeaponData.InterceptFactor Key 34 (Behaviors/LockWeapon.cs:28-30), read as 1 when absent (58).
+BeamWidth reads 360 when absent (Sensor.cs:92). EmissionTests (tests/Aetheria.Shared.Tests/EmissionTests.cs, a
+partial of ContactRevealTests) pins hearing, alpha keys and the absent-reads-as-one rule; fixtures Eye, Shout and
+Roar are upserted in ContactRevealTests' constructor (56-61).
+
+VF10. BehaviorData union: LaunchSuppressorData is 49 (Behaviors/Behaviors.cs:193); 50 is free.
+LaunchSuppressor.cs is the newest stat-holding behaviour with both CreateInstance overloads.
+
+VF11. AetherDb: the command switch ends at verse-grammar (tools/AetherDb/Program.cs:52) and the usage line is 54.
+Field-to-role maps: SensorRoles 206-211 (Sensitivity -> receiver, Ping* -> emitter), ToolRolesByDesign by design
+name 229-241, MakerProfiles (Mean, Dev) 244-249 (no Sol). PdGearCatalog (1488) is the authoring precedent.
+
+VF12. Stat evaluation is `lerp(Min, Max, product of q^e)` (ItemData.cs:721-728), so an alpha of Min .5, Max 2
+reads 1 at quality .5 only with exponent log2(3) (about 1.585).
+
+VF13. CB-R1 (tests/Aetheria.Shared.Tests/CatalogRoleTests.cs:41-70): every non-flat stat reads exactly one
+declared role, every declared role is read, and every product authors each declared role once. A new role on a
+sensor design therefore needs a ProductRole on every one of its products.
+
+VF14. aetheria-ew: its target keeps the two-listener fix out of EW (docs/aetheria-ew-target.md:174). Its cut 1b
+`ew-hide-launch-catalog` (unmapped) will write GameData/Aetheria.cc and append an AetherDb command.
+
+## Concurrency against aetheria-ew ew-claims-in-the-book
+
+That cut edits Sensing.cs (Signature, ActiveEmission, Reveal, Contact), Entity.cs (SetSignature, Emit,
+ReceivePaint, RecordReveal, ContactOf, Sense and new lines after SetSignature and RevealsOf), Combat.cs,
+SchematicDisplay.cs and the Weapon behaviours.
+
+- scenarios-lock-on r3: no shared file. Its test reads PaintWarning's Mode, Bearing and Strength, not
+  EmitterClass. Runs now.
+- sensor-catalog r2: in Entity.cs only HearingMultiple (696-698), outside every claims hunk; Sense is not edited.
+  One shared test file (ContactRevealTests.cs constructor, one Upsert line): a line-level merge, keep both.
+  Runs now. Its binary catalog write conflicts with any other catalog cut, not with claims: the second to merge
+  reruns its idempotent apply on master's .cc.
+
+## Rationale
+
+- No redundant catalog data. r1 authored BeamWidth 360 on every sensor and alpha 1 on every lock weapon. Both
+  equal what an absent value reads (VF9), and EmissionTests pins that rule, so the writes would change nothing
+  but the bytes of a 12 MB LFS file. Lock weapons keep alpha 1 until a content cut gives launchers brand
+  flavour.
+- A listener's role is `receiver`, not `emission-discipline`. A listener emits nothing; `receiver` already
+  names the sensor's listening stat (Sensitivity). Brand flavour for listeners is not ruled, so their quality
+  follows MakerProfiles.
+- HearingMultiple becomes float because Multiple is a quality-ranged stat (2-3); Sense needs no edit (VF7).
+- Size. r1 was 110 calls. Dropping the redundant authoring and keeping Unity out of it brings it to 75/90, with a
+  declared stop point after the headless half.
+
+## Cut order (amends 'Visibility refresh at efee2a2a')
+
+emissions-heard (merged) -> sensor-catalog r2 (runs now); contact-reveals (merged) -> scenarios-lock-on r3
+(runs now). Both may run beside each other and beside aetheria-ew ew-claims-in-the-book.
+Sizes (Hands calls, budget / cap): scenarios-lock-on 55/75, sensor-catalog 75/90.
+
+## Admitted (imagination-aeth-vis-refresh, 2026-10-13)
+
+- mind-commit-7be0c784...: cut-scenarios-lock-on.r3, resolution cut_spec.cut-scenarios-lock-on.r2.n1
+  (Superseded); cut-sensor-catalog.r2, resolution cut_spec.cut-sensor-catalog.r1.n1 (Superseded).
+No question raised.
+
+## Weapon damage over range (imagination-aeth-range-ramps, 2026-10-13)
+
+Asked by operator ruling range-ramps-not-curve ("Is range still a curve?"), then by her follow-up: if the generic form is the same data structure with linear segments, is it still worth changing? This section answers that from the Body. Probes ran at master 1746e8bd.
+
+### Body facts
+
+**R1. No hit applies range falloff.** `FireControl.Fire` (`FireControl.cs:679`) freezes the payload with `Damage = damageOverride ?? weapon.Damage` (`:725`; the mine path `:787` the same). InstantWeapon fires `FireControl.Fire(this, Item, Entity)` (`InstantWeapon.cs:271`); ConstantWeapon passes `Damage * interval` (`ConstantWeapon.cs:188`); ChargedWeapon scales `Damage` by charge only (`ChargedWeapon.cs:124`). Every resolution path reads `shot.Damage` unscaled (`FireControl.cs:960, 1108, 1145-1146, 1183, 1259`). Range only gates: a shot outside `[MinRange, Range]` is not taken (`FireControl.cs:274`; `LockWeapon.cs:62`).
+
+**R2. Who reads `DamageCurve`.** Only estimates and UI: `RangeDamagePerSecond` in `InstantWeapon.cs:64`, `ConstantWeapon.cs:52`, `ChargedWeapon.cs:83`, read by the AI's threat and fit sums (`Agents/States/Combat.cs:46, 71, 155`), and the properties panel's "Damage Range" chart (`UI/Properties Panel/PropertiesPanel.cs:426`). On `eureka/aetheria-ew-ew-claims-in-the-book` (adb632fe) the same curve also feeds the static rated formulas (`InstantWeapon.cs:43`, `ConstantWeapon.cs:32`, `ChargedWeapon.cs:64`) behind `RatedRangeDamagePerSecond`, read by `Combat.cs:48` for a claimed hull. So the AI and the panel price a falloff that the sim never applies.
+
+**R3. Census of every shipped authored curve** (scratch AetherDb command over `GameData/Aetheria.cc` at 1746e8bd, run on Yggdrasil; keys are Unity keyframes `time,value,inTangent,outTangent`; the scratch clone is deleted):
+
+| Field | Records | Distinct shapes | Shape |
+|---|---|---|---|
+| `WeaponData.DamageCurve` | 27 (13 Auto, 5 Charged, 3 Guided, 2 Instant, 2 Launcher, 1 Constant, 1 MineLayer) | 2 | 26 share one default: `0,1,0,0; 1,0,-1.7656,-1.7656`, 1 at MinRange easing down to 0 at Range (0.72 at the midpoint, 0.33 at 0.8, 0.09 at 0.95; close to `1 - t^2`). Mine Launcher is flat 1. |
+| `SensorData.SensitivityCurve` | 2 (not if i see you first, The Bat) | 1 | The same default template, over bearing. |
+| `ConsumableItemData.Effectiveness` | 2 (Coolant Vent, Thruster Overdrive) | 1 | null on both. |
+| Launcher / GuidedWeapon `guidance`, `thrustCurve`, `liftCurve` (`float4[]`) | 2 launchers, 3 guided | 4 | Hand-authored multi-key shapes (GT 3K's guidance has 11 keys); read only by presentation flight (`GuidedProjectileManager.cs:54-76`), which ruling projectile-flight-is-presentation leaves to Unity. |
+
+MinRange is 0 on 25 of 27 weapons; LRMM72 has 500..500 and GT 3K has 500..50 (Min above Max).
+
+No weapon's falloff was ever authored: 26 weapons carry one copied template, and the shape is not applied to damage.
+
+### Options, with cost
+
+- **Delete the curve (recommended).** Damage is flat inside `[MinRange, Range]`, which is what the sim already does; the AI and the panel then read the truth. Cost: one small cut (line damage-curve-delete), estimated under 60 Hands calls. It deletes a field, three formula reads (plus the claims cut's rated copies) and a UI chart, and re-saves the catalog. Behaviour change: none in combat. The AI rates far targets higher than today; at 0.95 of Range it now discounts real damage about 11x, and to zero at Range itself.
+- **Make falloff real.** Apply a range factor in `FireControl.Fire`'s payload, so the AI, the panel and the hit read one function. Cost: a hit-path change with fire-control tests, a balance shift on all 26 weapons at once (today's template would take about 67% off a shot at 0.8 of Range), and an authoring pass, because the census holds no shape anyone chose. Only worth it if falloff is wanted as a weapon-identity lever (for example shotgun against rail), and then the shape is decided per family at that time. Linear keyframes or two ramps both fit it.
+- **Leave it.** Zero cost now. The AI's threat estimates and the panel keep describing a falloff that does not exist.
+
+### Is the linear-keyframe type still worth building
+
+Not for range: the deletion removes the only weapon use. Of the other BezierCurve uses, one is live in the sim (sensor bearing gain, on 2 records with the default template), one is null on every record (consumable effectiveness), and the launcher curves are `float4[]` Unity keyframes used only in presentation. A piecewise-linear keyframe type would be the same data with straight segments. Its real gains over BezierCurve are small: `HullRange` becomes exact (the extremes sit at the keys), and the mutable `_cachedIndices` search cache goes from shared sim data. That does not earn a new type or a CultMath change now: CultMath's `lerp` and `unlerp` already are the segment math, and CultMath holds no keyed or serialized curve. Decide it when the sensor line is mapped. R-heat's four scalars stay: they are the controls the operator asked for ("Same shape, more intuitive controls").
+
+
+# Inspection-scanner refresh at b836af48
+
+Imagination imagination-aeth-inspection-scanner, session self-2026-10-14-ag, 2026-10-14. Pinned to Aetheria
+origin/master b836af48 (contact-hud, emissions-heard, reveals-replace-tiers, scenarios-lock-on, aetheria-ew
+ew-hide-launch and ew-claims-in-the-book, loot-3 merged). Refreshes cut_spec inspection-scanner (r2 -> r3) only;
+bearing-markers, layout-aim and scanner-catalog stay lines in the cut sequence. Paths under
+Assets/Scripts/ServerShared unless noted. Source reads at b836af48.
+
+## Body facts
+
+IS1. r2's anchors at b836af48 (context-pack): PaintMode moved to Sensing.cs:42-46 (comment 39-41); Reveal is
+Sensing.cs:104-120 (comment 99-103) and gained `Claimed` (ew-claims-in-the-book); RecordReveal is Entity.cs:944-950
+(comment 937-943) and takes `(subject, item, channel, claimed)`. `Reveal.Channel` is still a non-null
+`SignatureChannel`. The only `new Reveal(` is Entity.cs:949.
+
+IS2. No production code reads `Reveal.Channel`: its readers are tests only (ContactRevealTests 321, 410, 413, 437,
+1000; EmissionTests 62, 103, 111; LaunchSuppressorTests 61), each `Assert.Equal(SignatureChannel.X, reveal.Channel)`,
+which infers `T = SignatureChannel?` once Channel is nullable and so needs no edit.
+
+IS3. Claims (aetheria-ew ew-claims-in-the-book): `Entity.ClaimOf(item)` (Entity.cs:117-118) is the item's data
+unless claimed otherwise; `Claim` is the one write port, tests only until ew-masquerade (109-127). Every act stamps
+it: SetSignature (106), Emit (921-925: `ActiveEmission(item, hearRange, ClaimOf(item))`, two arguments, no mode),
+ReceivePaint (931-935: `PaintWarning(bearing, emitter.ClaimOf(item), mode, strength)`). PublishInbox (897-911)
+records each painter's item as an Emission reveal with the paint's EmitterClass. Classifying readers read
+`Reveal.Claimed` (RevealedWeapons 985-987, SchematicRows 1000-1003); ContactOf derives Profile from
+`subject.ClaimedHull` at Identified (1011-1030).
+
+IS4. The hull is an equipped item: `EquippedHull` is added to `Equipment` (Entity.cs:1217-1218), and Claim refuses a
+hull class on any other item and any other class on the hull (123-124). A scan that walks Equipment must skip
+`subject.EquippedHull` explicitly.
+
+IS5. Behaviour execution (EquippedItem.Update, Entity.cs:2299-2320): Execute runs per behaviour group only while
+`Active.Value` (Enabled && Online, 2126-2127); every `IAlwaysUpdatedBehavior.Update` runs after it on every tick,
+active or not. A behaviour whose Execute alone decays progress therefore freezes while its item is inactive.
+`TargetRange` is computed in Entity.Update (1704-1706) before the equipment updates.
+
+IS6. Aim gate: `FireControl.IsRevealed(observer, item)` is book AND live (FireControl.cs:160-161);
+`TrySelectTargetItem` and `ResolvedTargetItem` read it (Entity.cs:410-432). A scan reveal therefore makes quiet gear
+selectable with no change to aim. `IsLocated` does not exist at b836af48 (layout-aim is unmapped).
+
+IS7. BehaviorData union ends at `Union(49, LaunchSuppressorData)` (Behaviors/Behaviors.cs:193). Sensor-catalog's
+branch (eureka/aetheria-release-sensor-catalog-r2, head 068adf0d) takes 50 for ListenerData at the same place.
+ResourceScanner (Union 28, Behaviors/ResourceScanner.cs) is a parked mining behaviour with its own data keys; the
+new `ScannerData` is a separate type.
+
+IS8. Paint readers: the incoming-lock indicator takes the strongest Track paint (Gameplay/ActionGameManager.cs:
+1478-1491), so a Scan paint never shows as a lock; the combat flag is `VisibleEnemies.Count > 0 ||
+IncomingPaints.Count > 0` (1270), so a ship being scanned enters the combat state, as it does when pinged.
+
+IS9. Negative-check baselines: `Emit(` in Assets/Scripts/ServerShared appears in Entity.cs, Sensor.cs and
+LockWeapon.cs (Editor/ShipModPreview.cs is a particle Emit); `ReceivePaint(` in Entity.cs, Sensor.cs and
+LockWeapon.cs; `RecordReveal(` and `EndReveals(` only in Entity.cs.
+
+IS10. Test fixture: ContactRevealTests is a partial class (EmissionTests, ClaimTests are partials); its constructor
+writes the fixture catalog (37-110), `Tool(name, behavior)` (236-241) makes a Tool gear, and `Add(position, mounts,
+tools)` (250-271) places tools by TryFindSpace on the five-by-five "Rack" hull.
+
+## Shared sites with sensor-catalog (branch head 068adf0d)
+
+Read as `git diff b836af48...068adf0d` (merge-base e99cfbed); line numbers below are b836af48's.
+
+- Behaviors/Behaviors.cs union list: both insert after `Union(49, ...)` (193). Sensor-catalog takes 50; this cut
+  takes 51 whichever merges first. A textual conflict only: keep both lines.
+- tests/Aetheria.Shared.Tests/ContactRevealTests.cs constructor: sensor-catalog inserts 18 lines after the Roar
+  upsert (61) and edits `Make` (243-246). This cut inserts its scanner designs after `Locker("Hushed")` (98), a
+  different hunk.
+- Entity.cs: sensor-catalog rewrites HearingMultiple (716-718 at b836af48), which this cut does not edit; every hunk of this cut
+  in Entity.cs (SetSignature is untouched; RecordReveal 937-950) lies below it and shifts by +15 if sensor-catalog
+  merges first. Semantics shared: a third party hears the scanner at HearRange times its HearingMultiple, which a
+  listener raises above 1. This cut's hearing test uses a sensor-only observer, so it holds under either order.
+- No other shared file (sensor-catalog's Listener.cs, AetherDb, CatalogRoleTests, ListenerTests, EvasionTermTests
+  and the catalog blob are untouched here).
+
+Order: either; neither waits on the other. Running beside each other costs the two one-line merges above.
+
+## Rationale
+
+- A scan records the claim, not the truth. Every act stamps the class its ship claims (IS3), and the aetheria-ew
+  target's one-judge invariant puts every see-through in one function (illumination-burns-through names paints
+  among what burns through). A scan that recorded `item.Data` would be a second see-through path outside the judge,
+  and would read the true item's data to classify (classify-from-belief). RecordInspection therefore records
+  `subject.ClaimOf(item)`. While no production code writes a claim (IS3) this equals the truth, so ruling
+  quiet-gear-identifiable-hull-layout-known is met today; whether a Scan paint burns through a lie is cut
+  ew-burn-through's, which reads paints already.
+- Aim under a hull lie stays ew-masquerade's. Ruling ew-aim-under-hull-lie-ruled closes gear aim while a hull lie is
+  believed. That gate will sit on the aim read (IsRevealed), which governs scan reveals and act reveals alike, so
+  this cut adds nothing for it.
+- No hostility gate. LockWeapon requires `IsHostileTo` (LockWeapon.cs:98), which reads the true faction. A scanner
+  inspects whatever its ship targets, and its gate reads only the track and range (ruling
+  ew-hostility-from-belief-ruled moves allegiance to belief).
+- Decay in one place. r2 decayed in Execute, which freezes while the item is inactive (IS5), so a powered-down
+  scanner held its progress: a broken beam that does not decay, against ruling scan-held-beam. r3 decays in the
+  behaviour's IAlwaysUpdatedBehavior.Update on any tick Execute did not hold the scan, the one decay site for every
+  way a scan breaks.
+- Channel stays `SignatureChannel?` (null = inspection), r2's design. A new SignatureChannel member would be a new
+  channel, which the model page reserves for a ruling (row Signature channel), and nothing in production reads the
+  channel (IS2).
+- The AI test is dropped. The Scanner reads only its ship's Target, so an AI ship scans through the same path by
+  construction (ruling same-ship-same-inputs); a negative check that Scanner.cs reads no Agents or input type
+  carries the claim instead of an agent fixture.
+- Size: 65/80 Hands calls, as r2; one pass.
+
+## Cut order (amends 'Visibility refresh at efee2a2a')
+
+emissions-heard, reveals-replace-tiers, contact-hud and ew-claims-in-the-book (all merged) -> inspection-scanner r3
+(runs now, beside sensor-catalog r2); inspection-scanner + sensor-catalog + bearing-markers -> scanner-catalog
+(unchanged line). bearing-markers and layout-aim are unchanged lines, mapped when they are about to run.
+
+## Admitted (imagination-aeth-inspection-scanner, 2026-10-14)
+
+- mind-commit-6e261b55...: cut-inspection-scanner.r3 (base b836af48), resolution cut_spec.cut-inspection-scanner.r2.n1
+  (Superseded). context-pack on r3: all six anchors SAME. No question raised.
+
+## Damage falloff at fire time (imagination-aeth-damage-falloff, 2026-10-14)
+
+Operator ruling damage-curve-fate-ruled (make-falloff-real): "Simplify weapon range to minimum, effective and maximum, one lerp." The BezierCurve DamageCurve goes; hits, the AI and the panel read one function. Probes ran at origin/master b836af48 (worktree `C:\aeth-wt\map-damage-falloff`).
+
+### Body facts
+
+**DF1. The census at 1746e8bd still holds at b836af48.** `git log 1746e8bd..b836af48 -- GameData/Aetheria.cc` lists only launch-suppressor's two applies, which add gear, not weapons. Re-probed on Yggdrasil (scratch console over `AetheriaStores.Open`, job `imagination-aeth-damage-falloff/probe1.log`, 2026-10-14): 27 weapon designs carry a DamageCurve, 26 the copied default `(0,1,0,0) (1,0,-1.77,-1.77)`, Mine Launcher flat `(0,1) (1,1)`. By behaviour: Instant 2, Auto 13, Charged 5, Constant 1 (21 guns and beams, three of them the Smoke Refused rounds at Range 20); Guided 3 and Launcher 2 (5 missiles); MineLayer 1. No gear in the catalog carries a StatModifier on any Range stat.
+
+**DF2. Range stats as authored.** MinRange is 0..0 on 25 weapons (terms `Heat:1`, inert at 0); LRMM72 500..500 and GT 3K 500..50 (follow-up gt3k-minrange-inverted). Range is quality-ranged on every weapon but the three Smoke Refused (20..20): for example Autocannon 800..1200 `[Heat:1, Quality:barrel:2]`, CShot RainbowLite 1000..3000 `[Heat:.5, Durability:.25, Quality:focusing array:2]`, Mine Launcher 1600..2400 `[Quality:dispenser:2]`. Each Range reads one declared role, so a stat with Range's terms copied reads the same role, and CB-R1 (`CatalogRoleTests.ShippedCatalogRolesAreLive`) holds.
+
+**DF3. Where the curve is read at b836af48** (aetheria-ew ew-claims-in-the-book has merged, so the rated copies are live):
+- `WeaponData.DamageCurve` key 7 (`Weapon.cs:40-41`). The highest key in the WeaponData hierarchy is 34 (`LockWeapon.cs`); 35 and 36 are free.
+- Three shared formulas: `InstantWeaponData.RangeDamagePerSecond` (`InstantWeapon.cs:39-40`), `ConstantWeaponData` (`ConstantWeapon.cs:28-29`), `ChargedWeaponData` (`ChargedWeapon.cs:59-61`), each `curve.Evaluate(saturate(unlerp(minRange, range, at)))`. Each has a rated caller (`:42-43`, `:31-32`, `:63-65`) and a live caller (`:73-76`, `:57-60`, `:91-95`).
+- AI: `Combat.cs:48` (claimed design, rated), `:73` (own groups, live), `:157` (SampleDps, live).
+- Panel: `PropertiesPanel.cs:423-427` draws the curve through `CurveField.Show(string, BezierCurve, ...)` (`CurveField.cs:39-73`); that is CurveField's only caller, and its `showMax` path is unused.
+- Tools: AetherDb `smoke-rounds` copies it (`Program.cs:1741`), `mine-launcher` authors a flat one (`:1831`).
+- Tests: 30 fixture lines in 21 files set a curve, all flat but `ContactRevealTests.cs:170`, which sets `ClaimTests`' falling `Falloff()` (`ClaimTests.cs:22`) through `ContactRevealTests.Spanned` (`:165-175`); `FireControlTests.ClaimedDesign` takes a curve (`:289-299`) and `TheAIRanksClaimsAtTheTargetsDistance` passes a falling one (`:361-364`); `RunStartTests.EverySoldWeaponHasADamageCurve` (`:463-473`) requires one on every sold weapon.
+- Not readers: `BezierCurve` itself stays (SensorData.SensitivityCurve, `Sensor.cs`); the Unity weapon presenters read `Range` only.
+
+**DF4. Who decides range today.** One gate, `FireControl.Designated` (`FireControl.cs:270-276`): planar range, inclusive `[MinRange, Range]`, read by PFire, Solve, the agents' trigger and Combat's group test (`Combat.cs:65`). `LockWeapon.CanFire` (`LockWeapon.cs:62`) keeps its own strict `(MinRange, Range)` test. The AI's distance is 3D (`Combat.cs:35`, `length(toTarget)`) while the gate is planar (FireControl R7). SampleDps (`Combat.cs:136-168`) samples only between the shortest and longest weapon **Range**, so a ship whose guns share one Range samples one point, its maximum: with falloff to zero there, that ship's optimum stays at its initial 0 and it closes to point blank.
+
+**DF5. Where damage is decided at fire time.** `FireControl.Fire` freezes `Damage = damageOverride ?? weapon.Damage` into the PendingShot (`FireControl.cs:725`); a beam passes `Damage * interval` as the override (`ConstantWeapon.cs:188`), and a charged gun's Damage is already lerped by charge. Every resolution path reads the frozen `shot.Damage`. `Solve` already computes the distance the payload is delivered at: `BurstReach = length((burstPosition - origin).xz)` (`:654`), where `burstPosition` is the engaged target for a direct round, the armed burst point for a fused one (bomb fishing at Range included), and the origin (0) for an untargeted direct round. Its comments (`:587`, `:2040-2041`) say it is read for Burst only. Mines are laid by `Lay` (`:787`) with no range from the shooter.
+
+**DF6. The AI's range bias.** `Settings.AgentRangeExponent` defaults to .25 (`Settings.cs:255`); SampleDps multiplies dps by `range^.25`. For a gun flat to E and ramping linearly to 0 at M, `d/dr ln(dps) = .25/r - 1/(M - r)` just past E is negative whenever E > M/5, so the optimum is E itself: the AI holds at its effective range.
+
+**DF7. Prior art for the unruled numbers** (short search, 2026-10-14; community sources, not publisher documentation). MechWarrior Online: damage falls linearly from a weapon's optimal range to zero at its maximum, about 2x optimal for energy weapons and 3x for autocannons; LRMs instead ramp up below their minimum range ([MWO forum](https://mwomercs.com/forums/topic/155906-ac2-range-change-was-great-now-do-it-for-all-the-autocannons/), [MWO wiki, C-LRM 10](https://mwo.fandom.com/wiki/C-LRM_10)). Elite Dangerous: lasers fall off linearly from about 500 m to zero at their 3 km maximum; cannons and missiles do not fall off ([Steam discussion](https://steamcommunity.com/app/359320/discussions/0/2653115771069188807)). Shooters with a damage floor (Battlefield, Destiny) have no hard range gate to meet. Both games with a min/effective/max triple end at zero, and both exempt missiles.
+
+**DF8. Range boosters.** A StatModifier targets one stat by reference (`StatModifier.cs:229`). The boost-gear-combat line's Range Extender (section "Catalog breadth", design tables) targets `WeaponData.Range`; after this cut it lengthens the ramp and leaves EffectiveRange. No shipped gear modifies a range today (DF1), so nothing changes now.
+
+### The design
+
+One function, `WeaponData.RangeFactor(min, effective, max, damageAtMax, at)`: 0 outside the gate's inclusive `[min, max]`; with `e = clamp(effective, min, max)`, 1 on `[min, e]`, then `lerp(1, damageAtMax, unlerp(e, max, at))` up to `max`; 1 everywhere inside the gate when `e >= max`. EffectiveRange is a PerformanceStat (key 35) defaulting to +infinity, as Tracking does (key 33), so an unauthored weapon is flat and every fixture keeps its damage. `DamageAtMaxRange` is a plain float (key 36, default 0): quality does not vary it, so it needs no role. Callers:
+- the hit: `Fire` multiplies the frozen Damage by the factor at `solution.BurstReach`;
+- the AI: the three DPS formulas take the factor in place of the curve (live through `Weapon.RangeFactor`, rated through `WeaponData.RatedRangeFactor` over each stat's Max); Combat reads planar range and samples from the shortest MinRange;
+- the panel: CurveField plots any `Func<float, float>`, and the panel passes the factor over `[min, max]`.
+
+Missiles and mines get no EffectiveRange (flat): DF7's games exempt missiles, and a mine's damage happens where the mine is, not at a range from its layer.
+
+### Model page rows
+
+| Kind | Identity | Lifecycle | Authority |
+|---|---|---|---|
+| Weapon range shape (`WeaponData` MinRange key 5, Range key 6, EffectiveRange key 35, DamageAtMaxRange key 36; DamageCurve key 7 retired, never reused) | Fields of a catalog weapon design; ranges resolved per item through StatResolver. | Authored by AetherDb `range-falloff` (cut damage-falloff); an unauthored EffectiveRange means no falloff. | The catalog. One reader, `WeaponData.RangeFactor`: FireControl.Fire (the hit), the DPS formulas (Combat's choices) and PropertiesPanel (the chart). |
+
+### Rationale
+
+- BurstReach, not FireRange: FireRange is the target's distance or 0, so a fused round fished to Range would land at full damage. BurstReach is where the payload is delivered for every outcome, and Solve already computes it.
+- EffectiveRange is a stat, not a fraction of Range: the ruling names three authored ranges. A copied stat moves with quality, heat and wear as Range does (DF2); only a booster on Range alone moves one without the other (DF8).
+- +infinity as the unauthored value: it is Tracking's precedent, it keeps every fixture's damage, and "no falloff" becomes a value the function already handles rather than a flag.
+- Size: one Hands pass (about 110 calls, cap 150), with a declared stop point before the catalog apply.
+- The two numbers the operator has not ruled (the end multiplier and how effective ranges are authored) are authored data with defaults from DF7, so they do not block Hands; a different answer is a rerun of `range-falloff` with other arguments.
+
+# Bearing-markers refresh at 3300e16e
+
+Imagination imagination-ag2-bearing-markers, session self-2026-10-14-ag2, 2026-10-14. Pinned to Aetheria
+origin/master 3300e16e (contact-hud h3 head 0681d6f2, emissions-heard h2 3c628f54, inspection-scanner h3 66d06989 and
+sensor-catalog h5 7633408f are all ancestors; `git merge-base --is-ancestor`). Read-only detached worktree
+`C:\aeth-wt\ag2-imag`. Refreshes cut_spec bearing-markers (r1, base efee2a2a -> r2). No `eureka/aetheria-release-bearing-markers`
+branch exists on origin, so r2 starts from 3300e16e. Paths under Assets/Scripts unless noted.
+
+## Body facts (source reads at 3300e16e)
+
+BM1. context-pack of r1 `--since efee2a2a`: four ActionGameManager anchors moved (+3, +4, +18) and the r1 Update window
+(1275-1305) was rewritten by contact-hud (PlaceFill, UpdateMusic, DrawsAt); VisibleTargetIndicator.cs unchanged.
+
+BM2. The reads r1 named exist: `Entity.RevealedSubjects` (ServerShared/Entity.cs:1000), `RevealsOf` (1008),
+`RevealedWeapons` (1015-1017, the one classifying read of the book for weapons), `ContactOf` (1041-1060), `IsHostileTo`
+(1166), `IncomingPaints` (240); `Contact.Bearing` is the true bearing while tracked, else the freshest reveal's
+(ServerShared/Sensing.cs:168-196).
+
+BM3. The book changed shape under r1 (aetheria-ew ew-claims-in-the-book): `Reveal` carries `Claimed` beside the true
+`Item` (Sensing.cs:101-120), and "`Claimed` ... is what every classifying reader reads". r1's label ("the distinct item
+names of RevealsOf(s)") would read `Item`, the truth. A label names `Reveal.Claimed`.
+
+BM4. `PaintMode` is `Search, Track, Scan` (Sensing.cs:43-48; Scan added by inspection-scanner). The incoming indicator
+still follows Track only (ActionGameManager.cs:1478-1494); its comment says Search paints "are presented by
+contact-hud", which is stale: contact-hud r2 split them to this cut. scanner-catalog r1 adds Scan to that selection.
+
+BM5. A Search paint is one tick: Sensor.Execute paints a subject on "the first sweeping tick this ping's wavefront is
+past the entity" (ServerShared/Behaviors/Sensor.cs:203-207), and a warning lives one tick after its paint
+(Entity.cs:218-222). The zone steps on a fixed 1/60 s `SimClock` (ActionGameManager.cs:238), several or no ticks per
+frame (`Clock.Advance` callback, 1363). A presenter reading IncomingPaints once per frame drops crossings below 60 fps
+and repeats them above it; the Track indicator is continuous and does not care. The sweep flash collects Search
+warnings per tick inside the Advance callback.
+
+BM6. Music (contact-hud, ActionGameManager.cs:1266-1282) walks RevealedSubjects for "hostile and Detected"; markers
+need "hostile, Detected, not Tracked" over the same book. One derivation on Entity serves both
+(`RememberedHostiles`), so music and markers cannot disagree on what is remembered.
+
+BM7. HUD prototypes live in the scene, not in prefabs: the only file referencing VisibleTargetIndicator's guid
+(e39172b0...) is Scenes/ARPG.unity (38,498 lines). "Visible Hostile" (line 27655) and "Visible Friendly" have
+children Fill and Stroke only, no text. The LockIndicator prototype is "Missile Lock": RectTransform, CanvasRenderer,
+a red Image, Rotate, PlaceUIElementWorldspace. Probe: scratchpad `imagination-ag2-bearing-markers/scene.py` and
+`lockind.py` over the scene YAML. Wiring a label in the scene is a multi-document YAML insert (GameObject,
+RectTransform, CanvasRenderer, TMP component with a font reference), not a clean text edit; TMP Settings names a
+default font (`Assets/TextMesh Pro/Resources/TMP Settings.asset:27`), so a label created at runtime needs no asset wiring.
+
+BM8. `Prototype` pools per original prototype (Prototype.cs:41-75): a marker returned to HostileTargetIndicator's pool
+is reused by the tracked-hostile indicators, and a flash returned to LockIndicator's pool by the lock indicators. A
+pooled marker must hide its label and a flash restore its alpha before ReturnToPool. UnbindEntity destroys the
+hostile and friendly indicators and returns the lock indicators (ActionGameManager.cs:999-1010).
+
+BM9. Negative greps at base: `EntityInfoGathered|VisibilitySources` under Gameplay/ and UI/ is zero; `Zone\.Entities`
+in ActionGameManager is two (821 save load, 881 zone cleanup); `PaintMode\.Search` in ActionGameManager is zero.
+
+BM10. Open Soul findings (aetheria-release and aetheria-ew, in force): none sits on the cut's sites (the nearest,
+boss-gate win-unguarded, is ActionGameManager.cs:1193 and 329, Win). No aetheria-ew or aetheria-fauna spec in force
+lacks a report. layout-aim r2 edits ActionGameManager only at 431-446 (the cycle).
+
+## Rationale
+
+- The label reads the claim (BM3), and the classifying read is one Entity method beside RevealedWeapons
+  (`ClaimedClasses`), tested headless (invariant rules-tested-headless), not a LINQ chain in the presenter.
+- Runtime label instead of scene wiring (BM7): r1 left the scene edit to the operator if YAML was unclean, and it is.
+  VisibleTargetIndicator owns its label, creating a TMP child on first use, so the cut ships without an undone step.
+- Per-tick sweep collection (BM5): the only read of a one-tick warning that neither drops nor repeats it. It is a
+  read inside the step callback after `Update`, not a sim change.
+- Size: about 60 Hands calls, cap 80, one pass (Entity and two tests on Yggdrasil, Unity compile on Starfire).
+
+## Cut order (amends 'Visibility refresh at efee2a2a')
+
+contact-hud, emissions-heard, inspection-scanner and sensor-catalog (all merged) -> bearing-markers r2 (runs now).
+inspection-scanner + sensor-catalog + bearing-markers -> scanner-catalog (line unchanged): its r1 is based on
+efee2a2a and must be refreshed after bearing-markers merges; its incoming-indicator window moves, and the stale
+comment it would have rewritten is rewritten here. layout-aim (line unchanged) is also on efee2a2a and its anchors
+have moved (FireControl.cs and SchematicDisplay.cs TOUCHED at 3300e16e); refresh it when it is about to run.
+
+## Admitted (imagination-ag2-bearing-markers, 2026-10-14)
+
+- mind-commit-1282bd27...: cut-bearing-markers.r2 (base 3300e16e), resolution cut_spec.cut-bearing-markers.r1.n1 (Superseded).
+- mind-commit-6d2f78d4...: cut-bearing-markers.r3 (base 3300e16e; Entity.cs window widened to 996-1018 so it shows
+  RevealedWeapons whole), resolution cut_spec.cut-bearing-markers.r2.n1 (Superseded). context-pack on r3: all ten
+  anchors SAME. No question raised.
+
+# Visibility refresh at a17dab36
+
+Imagination imagination-ag2-visibility, session self-2026-10-14-ag2, 2026-10-14. Pinned to Aetheria origin/master
+a17dab36 (bearing-markers merged; inspection-scanner, sensor-catalog, contact-hud, reveals-replace-tiers and
+aetheria-ew ew-claims-in-the-book are ancestors). Read-only detached worktree `C:\aeth-wt\ag2-imag-vis`. Refreshes
+cut_specs scanner-catalog (r1 -> r2) and layout-aim (r2 -> r3), both based on efee2a2a. No
+`eureka/aetheria-release-scanner-catalog` or `eureka/aetheria-release-layout-aim` branch exists on origin
+(`git ls-remote`), so both start fresh. Paths under Assets/Scripts unless noted.
+
+## Body facts (source reads at a17dab36)
+
+VA1. context-pack `--since efee2a2a`: scanner-catalog r1's two anchors TOUCHED (AetherDb Program.cs 48-55 -> 51-60;
+the incoming-indicator window 1459-1476 -> 1496-1583, rewritten by bearing-markers). layout-aim r2: Entity.cs 72-77 and
+SchematicListElement 24-31 SAME; Entity 379-405 MOVED +31; FireControl 155-183 TOUCHED (IsRevealed is now 155-161),
+the rest MOVED (-22 to +21, damage-falloff); the ActionGameManager cycle MOVED +14; SchematicDisplay 66-120 TOUCHED.
+
+VA2. The enemy schematic lists weapons only. `Entity.SchematicRows` (ServerShared/Entity.cs:1052-1059) is the one owner
+of rows: own ship, its weapons with live range; any other ship, `RevealedWeapons` (1035-1037, claimed class carries
+WeaponData). `SchematicRow.Range` (ServerShared/Sensing.cs:124-152) takes `First()` of the class's WeaponData, so a gear
+row would throw. SchematicDisplay renders rows only (`WeaponRows` 98, `BuildRows` 114-132, `ShowWeapon` per weapon
+claim, RangeLabel written for every row 236-242).
+
+VA3. Consequence: a finished scan (inspection-scanner, merged) records the reactor, shields and other gear in the book
+(`RecordInspection`, Entity.cs:977-983) and nothing displays them; their only effect is that the cycle can select them
+(IsRevealed). scanner-catalog r1's operator check ("its reactor, shields and armour appear on its schematic") could not
+pass. ClaimedClasses (1041-1042) labels bearing markers only, for untracked remembered hostiles.
+
+VA4. No HUD shows the player's own scan building. `IProgressBehavior` is read only by own-ship weapon rows
+(SchematicDisplay.cs:120); outgoing progress indicators exist only for LockWeapons (`_lockingIndicators`,
+ActionGameManager.cs:206; built 1160-1165; updated 1486-1495 behind an `IsHostileTo` gate; returned 1024-1025). The
+Scanner (ServerShared/Behaviors/Scanner.cs:39-100) runs while its item is Active and paints `PaintMode.Scan` with its
+progress (87), emitting at `Range / InterceptFactor` (88).
+
+VA5. The incoming indicator still takes the strongest Track paint only (ActionGameManager.cs:1497-1503).
+`PaintMode.Search` appears once in ActionGameManager (1381, the per-tick sweep collection).
+
+VA6. Catalog pattern. `LaunchSuppressorCatalog(bool apply, string root = null)` (tools/AetherDb/Program.cs:2718-2850)
+is the current shape of a new-gear command: Targeting Computer thermal template, one linear Quality term per stat,
+all-or-nothing idempotence with a partial refusal, an `ExpectUnchanged` batch, tests on a temp root
+(LaunchSuppressorCommandTests) and on the shipped catalog (LaunchSuppressorCatalogTests). The emission-discipline curve
+(.5..2, exponent log2(3)) and `DisciplineMean` (Lucent .2, Finch and Sol .8, others .5) are Program.cs:1680-1690;
+`MakerProfiles` 249-254 (no Sol entry); `ToolRolesByDesign` 233-245 feeds CB-R1 through `HasRoleMap` (283-284).
+Commands are listed at 25-56, usage at 58.
+
+VA7. Residual-test sites. ScannerTests (a ContactRevealTests partial): `AScanReadsNoHostility` (310-340, the target has
+no sensor and only the end book is asserted) and `AScanTakesTheSamePathForAnyPilot` (341-380, a task-less `Agent` that
+stays in BaseState). A `Minion` is constructible in a test zone (FireControlPerWeaponTests.cs:274). EmissionTests
+318-335 pins the Sensor's `InterceptFactor` property through a lot, not the heard range (Sensor.cs:179 emits
+`PingRange / InterceptFactor`), so emit-alpha-read-pinned still applies, and Scanner.cs:88 has the same read unpinned.
+The docked test is ContactRevealTests.cs:1691-1709 (SetIff true only). ContactRevealTests' partials are ClaimTests,
+EmissionTests, LaunchSuppressorTests, ListenerTests and ScannerTests; about 169 assertion lines pass items or reveals
+to xunit 2.9.3, so residual (2) of bearing-markers-test-residuals, if real, is one formatter fix (a short ToString on
+EquippedItem and Entity), never a per-site sweep. Whether `ArgumentFormatter.Format` walks the graph is unprobed;
+Hands probes first.
+
+VA8. layout-aim anchors at a17dab36: TargetItem Entity.cs:72-77; TrySelectTargetItem and ResolvedTargetItem 410-436;
+IsRevealed FireControl.cs:155-161; Forecast's Silhouette call 340 (window 330-343); Fire's PendingShot 719-735 (Aimed
+725); CommitProbability's Silhouette 898; ResolveAimPoint 1765-1774; Silhouette 1790 (aim point 1812); CellsOf
+1967-1977; PendingShot 1984-1994; the cycle ActionGameManager.cs:442-457; the selection mark SchematicDisplay.cs:203-209.
+Test Silhouette call sites: FireControlCut12Tests 767, 1350, 1355, 1377.
+
+VA9. Claimed and true hull. `ContactOf` (Entity.cs:1066-1085) derives `Profile = subject.ClaimedHull` at Identified;
+`ClaimedHull` (116) is `ClaimOf(EquippedHull) as HullData ?? HullData`, and `ClaimOf` (117-118) is the item's data unless
+claimed. `HullData` (1161) and `EquippedHull` (1272) both come from `GetData(hull)`; each item's `Hardpoint` comes from
+`HardpointAt` over that hull data (1479, 1491; EquippedItem.Hardpoint 2057-2060, null for Tool gear and the hull). So
+with no claim, `Profile.Hardpoints` are the very objects the items carry (r3's tests pin the identity); under a hull lie
+they are another record's and match no fitted item. `Hardpoints[,]` is built at 1283-1291 (Position + Shape cells).
+
+VA10. Aim-gate callers: the cycle (ActionGameManager.cs:449, walks live Equipment), Combat (Agents/States/Combat.cs:47
+IsRevealed over RevealedWeapons, 55 the writer), and the gate itself (Entity.cs:423, 434).
+
+VA11. Negative baselines: `subject\.HullData` in Entity.cs 0; `\.Equipment` in SchematicDisplay.cs and
+SchematicListElement.cs 0; `IsLocated(` anywhere 0; `CellsOf(` in FireControl.cs 2; `Durability < ` in FireControl.cs
+and Entity.cs 0; `r\.Item\.Data` in Entity.cs 0.
+
+VA12. Open Soul findings (aetheria-release, aetheria-ew) on these sites: none. Nearest: boss-gate win-unguarded (Win)
+and faction-play-1 trespass-reads-zone-owner (Entity.cs:190). The enemy schematic's hull bar reads the target's true
+`Hull.Durability` (SchematicDisplay.cs:212-219): follow-up target-panel-reads-enemy-hull, an operator design call that
+neither cut touches. The outgoing lock indicator's `IsHostileTo` gate reads true allegiance
+(aetheria-ew:follow_up:bearing-only-allegiance, owned by ew-belief-allegiance); scanner-catalog keeps it on locks and
+puts no hostility gate on scans.
+
+## Rationale
+
+- Scanned gear rows belong to scanner-catalog (VA3). The scanner is merged and invisible in play; the cut that sells it
+  is the one that makes what it reveals readable. The rows read `Reveal.Claimed` only, as bearing-markers' labels do,
+  so a scan under a claim shows the claim (instruments-bound, classify-from-belief).
+- What a gear row shows: the hardpoint-type icon and the claimed design's name, in a runtime label created as
+  VisibleTargetIndicator creates its own (no prefab edit). Imagination's default, not an operator ruling: the cheapest
+  read that tells a scanned row from layout-aim's unnamed mount row. A richer line (one rated figure per kind) is a
+  later UX-ledger item if the operator wants it.
+- The own-scan indicator reuses the lock indicator's list and curve (VA4) rather than adding a second indicator path:
+  one list of progress sources, one update loop, one return path.
+- Three scanner products (Finch, AU, Lucent): rulings catalog-grows-generic-designs-branded-products and
+  kitchen-sink-content lean to several products per design, and quiet, middling and loud emission-discipline means make
+  the maker a real choice. Design name `Inspection Scanner` per designs-are-tech-nodes.
+- Layout from the believed hull (VA9). r2 read `subject.HullData`, the truth, beside a book that now carries claims.
+  Reading `Profile` keeps the layout instruments-bound and makes ew-aim-under-hull-lie-ruled hold by construction: under
+  a lie no fitted item's Hardpoint is in the claimed layout, so nothing is located while the ship stays targetable.
+- Mount rows move into Entity.SchematicRows. Since aetheria-ew it is the one owner of enemy rows; r2 put them in
+  SchematicDisplay, which would have made the renderer decide rows again. `SchematicRow.Marks` keeps the selection rule
+  out of the renderer too.
+- Order: scanner-catalog first, layout-aim second, sequential. Both edit SchematicRow (Sensing.cs 124-152),
+  SchematicRows (Entity.cs 1052-1059) and BuildRows (SchematicDisplay.cs 114-132), and layout-aim reuses
+  scanner-catalog's `ShowGear` and nullable `Range` (invariant lanes-respected). Their ActionGameManager hunks are
+  disjoint (cycle 442-457; indicators 204-208, 1022-1028, 1158-1170, 1484-1513). scanner-catalog goes first because its
+  dependencies are all merged, it completes a merged mechanic, and layout-aim then extends a row type that already holds
+  weapon and gear rows.
+- Sizes: scanner-catalog about 110 Hands calls (cap 150; declared stop before the residual tests); layout-aim about 85
+  (cap 110; declared stop before the schematic rows).
+
+## Cut order (amends 'Visibility refresh at efee2a2a')
+
+inspection-scanner, sensor-catalog and bearing-markers (all merged) -> scanner-catalog r2 (runs now) -> layout-aim r3
+(after scanner-catalog merges; its anchors are exact at a17dab36, and Self refreshes it if context-pack then reports its
+windows TOUCHED beyond scanner-catalog's own hunks).
+
+## Admitted (imagination-ag2-visibility, 2026-10-14)
+
+- mind-commit-220669ba...: cut-scanner-catalog.r2 (base a17dab36), resolution cut_spec.cut-scanner-catalog.r1.n1
+  (Superseded). Folds follow-ups scanner-test-residuals, emit-alpha-read-pinned and bearing-markers-test-residuals.
+  context-pack on r2: all sixteen anchors SAME.
+- mind-commit-2df0d64a...: cut-layout-aim.r3 (base a17dab36, depends on scanner-catalog), resolution
+  cut_spec.cut-layout-aim.r2.n1 (Superseded). context-pack on r3: all fifteen anchors SAME. No question raised.
+
+# Mount cycle at 3f5cef68
+
+Imagination imagination-ag2-visibility, session self-2026-10-14-ag2, 2026-10-15. Pinned to Aetheria origin/master
+3f5cef68 (layout-aim and scanner-catalog merged). Read-only detached worktree `C:\aeth-wt\ag2-imag-cycle`. Maps cut
+mount-cycle-and-test-hygiene (ruling cycle-skips-only-perceived-destroyed; follow-ups entity-formats-safely and
+floating-items-smoke-label-fade-flake). Paths under Assets/Scripts unless noted.
+
+## Body facts (source reads at 3f5cef68)
+
+MC1. The cycle (Gameplay/ActionGameManager.cs:447-459) walks `target.Equipment`, the true fitted items, filtered by
+`FireControl.IsLocated`, and writes through `TrySelectTargetItem`. An empty mount has no item, so it can never be aimed.
+
+MC2. Identification is observer state: `ContactOf` (ServerShared/Entity.cs:1085-1103) sets `identified = info >=
+TargetGearInfoThreshold` (1101), `info` being the observer's EntityInfoGathered; `Profile` is `subject.ClaimedHull`
+(116), the subject's claim. `LayoutOf` (1078) is `Profile.Hardpoints`. Nothing in this chain compares claim and truth.
+
+MC3. The comparison of claim and truth is in two places. `IsLocated` (ServerShared/FireControl.cs:169-171) tests the
+true item's `Hardpoint` against `LayoutOf` by reference: under a hull lie no item is located, so the cycle is empty while
+an honest ship of the claimed hull fills it. That emptiness is the leak the operator asked about. And SchematicRows'
+covering filter (Entity.cs:1072, `!claimed.Any(r => r.Item.Hardpoint == h)`): under a lie a revealed item hides no
+claimed mount row, so row counts differ between a liar and an honest ship of the claimed hull.
+
+MC4. No observer record of a perceived destruction exists. `PerceivesDestroyed` (987-991) is identification plus the
+item's live `IsDestroyed`, the ruled perception rule (reveal-ends-on-perception); its readers are RecordReveal's gate
+(966) and Sense (1141-1149), which ends the item's reveal, after which the book forgets it. Departure and ageing end a
+subject's reveals through `EndReveals(subject, null)` (1158, 1170); `Deactivate` clears the book (910).
+
+MC5. Aim consumers: `TargetItem` (Entity.cs:77, ReactiveProperty, no subscriber outside Entity), its writer (415-429),
+`ResolvedTargetItem` (434-437); Combat writes revealed weapons only (Agents/States/Combat.cs:43-55); FireControl
+Forecast (355), Fire (740-741, `AimsAtMount`), CommitProbability (914); `SchematicRow.Marks` (Sensing.cs:157) and the
+display (SchematicDisplay.cs:213); `ResolveAimPoint` (FireControl.cs:1785-1791), `MountCells` (1985-1986),
+`PendingShot.Aimed`/`AimAtMount` (2011-2014).
+
+MC6. Tests: `TrySelectTargetItem` 39 uses, `ResolvedTargetItem` 24, `TargetItem.Value` 21 (FireControlTests 277-476,
+TargetingSystemTests 169-185, FireControlCut7Tests 175), `IsLocated` and `AimAtMount` only in LayoutAimTests,
+`.Aimed` in FireControlCut12Tests 982 and FireControlCut7Tests 182. Silhouette test call sites pass no aim flag.
+
+MC7. Entity has no ToString override and no id; `Name` (83) is public. Soul finding cut-boss-gate.s1.failed-assert-aborts-host
+(Assert.Single over zone Entities crashes the host) is the same defect as follow-up entity-formats-safely.
+
+MC8. Negative baselines: `Equipment.Where` in ActionGameManager.cs 1 (the cycle); `Item.Hardpoint == h` in Entity.cs 1;
+`subject.HullData` in Entity.cs 0.
+
+MC9. The smoke (Editor/FloatingItemsDrawnSmoke.cs) is a coroutine stepped once per `EditorApplication.update` with a
+3000-frame guard (63). The label check sets LabelPersistDuration 1 and LabelFadeDuration .2 (186-187) and waits at most
+1200 frames for the alpha (188, 191). ItemPickup fades on `Time.time` and `Time.deltaTime` (Gameplay/ItemPickup.cs:60-65),
+so the label needs about 1.2 game seconds; in batch mode 1200 frames can pass in less, which is the flake.
+
+MC10. Open Soul findings on these sites: none besides MC7's.
+
+## Rationale
+
+- One aim slot holding an item or a mount. Empty mounts must be aimable (the ruling), and a mount is not an item, so the
+  slot widens; two slots side by side would be two owners of one aim. A located but unrevealed item is aimed as its
+  mount, which is what layout-aim already did through AimsAtMount, now said by the slot's kind instead of a flag.
+- The cycle is the schematic's rows. SchematicRows already owns what the observer believes the target has; the cycle
+  is those rows minus mounts seen destroyed, so the cycle and the display cannot disagree.
+- Covering goes (MC3). Any rule that hides a mount row under a revealed item compares the true item's mount with the
+  believed layout. Without it, every layout mount is a row and a revealed item has its own row as well: some redundancy
+  on an honest ship, and identical rows and cycle for a liar and an honest ship of the claimed hull, which is what the
+  ruling asks.
+- The record of mounts seen destroyed is new observer state, written at the one perception site with the ruled rule.
+  What it cannot do under a lie (no claimed mount is ever recorded) is follow-up perceived-destruction-under-hull-lie,
+  owned by aetheria-ew; no ship lies until ew-masquerade.
+- Entity.ToString fixes the formatter at its owner (the follow-up's own reasoning), closing the recurring host crash.
+- The smoke waits on game time because the fade runs on game time; its hang guard becomes real time for the same
+  reason.
+- Size: about 110 Hands calls, cap 140, above the 60-80 Self asked for: widening the aim slot touches FireControl's three
+  aim reads and about 60 test lines. Declared stop: deliverables 2 and 3, then the sim half of 1.
+
+## Cut sequence
+
+layout-aim and scanner-catalog (merged) -> mount-cycle-and-test-hygiene r1 (runs now).
+
+## Admitted (imagination-ag2-visibility, 2026-10-15)
+
+- mind-commit-67c50e4b...: cut-mount-cycle-and-test-hygiene.r1 (base 3f5cef68) and follow-up
+  perceived-destruction-under-hull-lie. context-pack on r1: all thirty anchors SAME. No question raised.
+
+# consumable-ai r3
+
+Imagination imagination-ag4-consumable-ai, session self-2026-10-16-ag4, 2026-10-16.
+Pinned to Aetheria origin/master 533b301e4965bbb4ebb6f6fb33e1d0e58a931aa2.
+
+## Body facts
+
+CA1. The h1 branch `eureka/aetheria-release-consumable-ai` (head f2ecc96a) never merged:
+f2ecc96a is not an ancestor of 533b301e, the merge base is e71540be, and master is 655 commits
+past it. Master has no AI consumable use: no `VapourDumpData`, `ThrottleLockData` or
+`ActivateConsumable` under `Assets/Scripts/ServerShared/Agents`. The branch merges textually clean
+(`git merge-tree`), but its test rig does not compile on master (`TestCatalogGlobal` and
+`GameplaySettings.TargetArmorInfoThreshold` are gone) and its lockers hold a lock by turning
+away, which on master stops the paint one tick later (CA3). r3 re-lands on a fresh branch.
+
+CA2. `Entity.IncomingPaints` (Entity.cs:245) is the warning surface: `PaintWarning {Bearing,
+EmitterClass, Mode, Strength}` (Sensing.cs:85-98) with `PaintMode {Search, Track, Scan}`
+(Sensing.cs:43-48). `LockWeapon.Execute` paints `Track` with its lock (LockWeapon.cs:110-111);
+Scan carries a scanner's progress. The HUD reads the strongest Track or Scan paint
+(ActionGameManager.cs:1494-1500). The vent rule reads Track only: under
+launcher-lock-solution-quality a lock warning means a fire-control emitter is tracking the ship,
+and a scan is not fire control.
+
+CA3. Tick order (Zone.cs:318-323): every agent updates, then every entity runs `PublishInbox`,
+then `Update`, then `Sense`. An agent therefore reads the paints published at the start of the
+previous zone tick; a paint lives one tick after its last `ReceivePaint` (Entity.cs:970-980).
+`ReceivePaint` and `PublishInbox` are internal, visible to the test project
+(Aetheria.Shared.csproj:28).
+
+CA4. Death (Zone.cs:255) and docking (Entity.cs:1754-1755) call `Zone.Remove` and `Deactivate`;
+`Zone.Agents` is never pruned, so a removed ship's Minion keeps ticking with its own target set.
+`Deactivate` clears `IncomingPaints` (Entity.cs:961), so only the overdrive branch can fire on an
+inactive ship; `TryActivateConsumable` (Entity.cs:1353-1365) has no activity check. The agent
+also keeps steering and activating weapons on an inactive ship; that wider fault is outside
+this cut.
+
+CA5. `CanActivateConsumable` (Entity.cs:1348-1351) lets a Stackable design through while one is
+active. Every catalog design today is non-stackable (tools/AetherDb/Program.cs:2409), so the AI
+hold is latent until a stackable design lands.
+
+CA6. Minion enters CombatState only with a target and leaves when it loses one
+(Minion.cs:14-19), so a vent rule placed before CombatState's `target == null` return (r2) adds
+nothing; r3 keeps both rules in `UseConsumables` after the locking weapons activate.
+
+CA7. FireControlTests already reads `_optimumRange` by reflection and authors a gun with Range
+1000 and EffectiveRange 500 whose optimum is about 500 (FireControlTests.cs:440-464). That rig
+separates the optimum from both the shortest and longest gun range, which h1's two flat guns
+could not (finding optimum-range-not-pinned).
+
+## Admitted (receipt mind-commit-ccdd207e...)
+
+- cut_spec cut-consumable-ai.r3 (base 533b301e, branch eureka/aetheria-release-consumable-ai-r3,
+  depends_on lock-warning and paint-modes) and the resolution superseding r2. No question raised.
+- context-pack: six anchors SAME at 533b301e, one new file.
+- Finding cut-lock-warning.s2.strength-pinned-only-to-point-nine-nine is deferred to r2, now
+  superseded; r3 carries its pin, so its deferral wants re-pointing at r3.
+
+## Products
+
+Probes by imagination-ag4-products (session self-2026-10-16-ag4), 2026-10-16, on origin/master
+`6b6e7c7c`, shipped catalog LFS oid `ed0500b462`. The catalog was read by decoding its
+`cultcache.store.v1` MessagePack snapshot with the store's own schema catalog (slot to member
+name), in a scratch Python script; no game code ran.
+
+- **PL1, the catalog:** 277 records. 13 factions; 101 FactionProductData; 27 WeaponItemData
+  (six of them Smoke test designs with no product), 35 GearData, 5 HullData, 4 cargo bays,
+  2 consumables, 1 docking bay.
+- **PL2, weapon makers:** 14 sold weapon designs have one maker (Charged Blaster, Charged Scatter
+  Blaster, Charged Scattergun, Cluster Cannon, Guided Missile Launcher, Heavy Beam Laser, Light
+  Laser, Light Machine Gun, Lightning Projector, Long Laser, Long-Range Missile Rack, Mine
+  Launcher, Short-Range Missile Rack, Swarm Rocket Pod). Five have two makers (Autocannon, Cell
+  Blaster, Incendiary Rocket Pod, Long Slug Rifle, Slug Rifle), Flak Gun has three, and both
+  point-defense designs have four. None of the twenty product-lines rows names a maker that
+  already sells its design, and with them every sold weapon design has at least two makers.
+  (Spec `cut-product-lines-weapons.r3` says "Charged Blaster, Light Laser and fourteen others" in
+  one test pin; the count is fourteen in all.)
+- **PL3, gear:** follow-up gear-product-lines' two Compact Sensor rows (+Finch, +Lucent) are
+  already filled: Compact Sensor is sold by DME, Lucent (Beacon) and Finch (Kestrel). The gear
+  lines are twenty products. Sensor Array is sold by Miss Terri's, Finch and Lucent, so AU's
+  Ranger would be a fourth maker. Every other assignment's maker sells nothing of its design.
+- **PL4, names:** of the draft product names, only Kestrel is already a record name (Finch's
+  Compact Sensor product), so Finch's Long Laser product is Merlin. No design text contains any
+  draft name. NoDesignTextNamesAProduct checks with a case-sensitive Contains on product names
+  longer than three characters. No product name is duplicated in the catalog today.
+- **PL5, catalog writers:** every AetherDb catalog command is a case in `Program.Main`'s switch
+  (`tools/AetherDb/Program.cs:23-58`), and most of them are Program methods. `MakerProfiles`
+  (`:254`) is private. So boss-hull-derived (BossHull reads at `:581` and `:705-707`), the
+  product lines and faction-pair's catalog commands all edit Program.cs, and no candidate
+  sibling of product-lines-weapons is file-disjoint from it.
+- **PL6, boss hull:** the BossHull readers are `Corporations.cs:44`, `Galaxy.cs:297`,
+  `LoadoutGenerator.cs:212-224`, `Program.cs:581` and `:705-707`, and `RunGoalTests.cs:74-114`.
+  HullData's slot 33 is free, since its slots end at 32 (Visual). Zhestokost's only hull product
+  is the Turret, so until the operator's boss package exists a derived boss always falls back.
+  faction-play-1 (Faction key 17) and maker-only-faction (Faction key 19 and the main galaxy's
+  faction draw) edit the same Faction class and Galaxy.
+
+Order, from these facts: product-lines-weapons goes first. It is the follow-up's stated first
+line, it carries the demo's combat feel (ruling release-bar), and it is the only one of the three
+whose files avoid faction-pair's Faction and Galaxy edits. product-lines-gear follows it on the
+same command file. boss-hull-derived waits for faction-pair to merge. Until the boss package
+exists it changes nothing a player sees.
+
+## Faction pair at 6b6e7c7c (imagination-ag4-faction-pair, 2026-10-16)
+
+Imagination imagination-ag4-faction-pair, session self-2026-10-16-ag4. Master pinned at Aetheria
+origin/master 6b6e7c7c26f39836c7ae29f382434d2932752250 (c5c9086e, a fauna-map docs commit, landed
+during the pass and changes no code). Probes ran in scratch clones under the session scratchpad
+(`imagination-ag4-faction-pair/`); no commit left them.
+
+### Body facts
+
+FP-R1. `eureka/aetheria-release-faction-play-1` (tip b3d1e929, merge base 4d664b53) merges onto
+6b6e7c7c with four textual conflicts: GameData/Aetheria.cc (binary), IffAndCombatTests.NewShip
+(master now admits every ship through `Zone.Admit(ship, piloted: false)`), one FireControlPerWeaponTests
+hunk (master reworded the fixture asserts) and the AetherDb command switch. Master has not changed
+Agent.cs, Minion.cs, AgentTask.cs or PatrolOrbits.cs since 4d664b53; Combat.cs moved 13 lines,
+TurretController.cs 2.
+
+FP-R2. With the conflicts resolved mechanically (probe merge 0296a3dc), Aetheria.Shared and AetherDb
+compile on Yggdrasil. The test project has 8 errors, all on sites master added or changed after
+4d664b53: four `new Minion(ship)` calls (FireControlPerWeaponTests, LayoutAimTests:419,
+ScannerTests:382), one three-argument `AgentFires` (SolutionTests:178), `Zone.Entities.Remove`
+(Entities is now a read-only MemberView; `Zone.Remove` is the path) and two `TestCatalogGlobal`
+fixtures (retired by 0b721d69 for the VerseGrammar global).
+
+FP-R3. With those 8 fixed (probe fbc2e952), the whole suite ran 2027 of 2028 green (Yggdrasil,
+13 min). The one red is VerseGrammarTests' one-ShipAction-verb-per-TaskType rule: r2's
+`TaskType.Follow` has no verb. VerseGrammarCommand's apply adds a missing verb and leaves the
+rest, so a `follow` verb plus a re-run of `verse-grammar apply` closes it. Ghostlight lists no
+verb names of its own.
+
+FP-R4. r2's negative greps hold on the merge tree, except that `\.Task\s*=` also matches
+`patrolState.Task` in Minion.cs:12, a sub-state field r2 wrote itself; r3 narrows the pattern.
+
+FP-R5. All seven in-force s1/s2 findings are still live at b3d1e929 in the lines the triage named
+(Flight.cs:136-167, :175-179; FlightTests fixtures at the origin, Pilot only takes x). DoctrineCatalog
+finds factions by `OrdinalIgnoreCase` (DoctrineCatalog.cs:42), the third Pirates matcher that
+follow-up pirates-allegiance-and-identity counts; its comment at :6-8 still says the Pirates record
+is owed, and it is on master.
+
+FP-R6. Decision: merge-forward. Unlike consumable-ai (CA1), the production code compiles unchanged on
+master and the design still fits it (CA4's unpruned Zone.Agents is exactly what r2's removal
+subscription fixes). The cost is four conflict hunks and eight one-line test fixes, against
+re-landing 1,179 lines that two Soul passes measured.
+
+MO-R1. `eureka/aetheria-release-maker-only-faction` (tip 5dce222b, base 594d3477) merges onto
+6b6e7c7c with no conflict, and on the probe merge (bfb699b8) MakerOnly, Pirates, DemoTerminus and
+Galaxy tests ran 27 of 27 green.
+
+MO-R2. The branch is one commit of 89 lines: a 4-line field, a 1-line filter and the test file the
+fix batch must rewrite (maker-tests-too-thin). The fix's other sites, `PiratesFaction`
+(Program.cs:2261-2357), PiratesFactionCommandTests and ResolveCast's current shape (Galaxy.cs:145-147),
+do not exist at 5dce222b, so no anchor at the branch tip reaches them.
+
+MO-R3. Decision: re-land on a fresh branch off master after faction-play-1 merges, with 5dce222b as
+reference. The merge-forward works (MO-R1); re-land is chosen because almost nothing in this pass is
+on the branch, and because both cuts add fields after `BossMusic` in one Corporations.cs hunk.
+
+MO-R4. Pirates allegiance: `PiratesFaction` writes 1.0 to every faction in the catalog at first
+apply (Program.cs:2294-2295) and returns 'nothing to do' if the record exists (:2265-2270);
+LoadoutGenerator reads Allegiance as authored data (:253-263). The three minor-power makers
+(cut minor-power-makers) would be missing from it, and PiratesAreInTheShippedCatalog would go red.
+
+### Rationale
+
+- **Allegiance stays authored and the apply becomes re-runnable**, rather than an allegiance derived
+  at read time. Deriving it needs a new Faction key or a Pirates case in LoadoutGenerator, which is a
+  second owner of who the Pirates can field. A re-runnable apply keeps the record as the one owner,
+  and PiratesAreInTheShippedCatalog fails when someone forgets to re-run it. Merge checklist: the
+  minor-power-makers merge, and any later new faction, re-run `pirates-faction apply`.
+- **Pirates identity is the exact ordinal Name** in every AetherDb writer (PiratesFaction, the role
+  backfill at Program.cs:2220, DoctrineCatalog). The record key is minted at apply, so no constant key
+  exists to match. `Galaxy.ResolveFaction` keeps its prefix match: it resolves every cast name
+  (DemoTerminusTests casts "Zhe", "Luc"); it is not the Pirates' identity.
+- **One territory rule.** `Galaxy.HoldsTerritory` is read by the main draw and by ResolveCast, so the
+  prelude cannot place a faction the record says holds none (prelude-cast-ignores-flag).
+- **The follow verb** is the verse-grammar rule (one ShipAction verb per TaskType) applied to r2's
+  new task kind, not a new design. It binds `target: Faction` like attack and tow.
+- **follow-up faction-play-reanchor-demo:** r2 met the anchor (TargetRef, Zone.Admit), the Pirates
+  doctrine and the Miss Terri's exclusion. Now that the Pirates record is on master, r3's doctrine
+  apply writes all four. The played proof in the demo cast stays with faction-play-3 (line 35);
+  r3's operator checks run in DemoTerminus. Nothing else it asks is unmet, and Self can close it
+  when faction-play-1 merges.
+- **Later faction-play cuts, not specced here:** faction-play-2 (pack slots, Lucent's duel, hull
+  break-off, ping cadence) re-anchors after faction-play-1 merges and must use Flight's
+  Engaged-first ordering from r3. faction-play-3 (support ships, anchors, the cast played in
+  DemoTerminus) owns the demo-cast played proof.
+
+### Cut order
+
+faction-play-1 r3 runs first. maker-only-faction r2 has `depends_on` faction-play-1: Faction keys
+are taken in order 17 then 19, and both add fields in the Corporations.cs hunk after BossMusic, so
+the two cannot run in parallel worktrees. faction-play-1 shares Combat.cs and Entity.cs with
+consumable-ai r3, in disjoint regions; whichever merges second rebases.
+
+Merge checklist for faction-play-1: take master's Aetheria.cc, re-run `doctrine-catalog apply`
+(finding pirates-doctrine-no-landing-step) and `verse-grammar apply`, commit the blob and push LFS
+(follow-up catalog-blob-merge-order). The Doctrine.cs trespass comment is corrected in r3
+(trespass-reads-zone-owner). For maker-only-faction there is no catalog change.
+
+### Admitted (receipt mind-commit-c29ac23f...)
+
+- cut_spec cut-faction-play-1.r3 (base b3d1e929, merge-forward onto 6b6e7c7c, branch unchanged) and
+  the resolution superseding r2. context-pack: 17 anchors SAME at b3d1e929; carried onto the probe
+  merge, 13 SAME and 4 TOUCHED: three are the conflict hunks r3 resolves; the fourth is the turret
+  window (FireControlPerWeaponTests:300-320), where master added 34 lines. Hands writes the new
+  turret test after master's turret tests.
+- cut_spec cut-maker-only-faction.r2 (base 6b6e7c7c, re-land, branch
+  eureka/aetheria-release-maker-only-faction-r2, depends_on faction-play-1) and the resolution
+  superseding r1. context-pack: 6 anchors SAME at 6b6e7c7c.
+- No question raised.

@@ -4818,6 +4818,3 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ParticleSystem: {fileID: 5087162364086924483}
-  Radius: 25
-  Traction: 25
-  Distance: 75

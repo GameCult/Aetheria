@@ -15,11 +15,42 @@ using float2 = CultMath.float2;
 public class Zone
 {
     public Action<string> Log;
-    public ReactiveCollection<Entity> Entities = new ReactiveCollection<Entity>();
+
+    // Membership, in admission order. Admit and Remove are the only writers; everyone else reads this view, which has
+    // no mutating member, so the death watch below follows membership by construction.
+    private readonly ReactiveCollection<Entity> _entities = new ReactiveCollection<Entity>();
+    public MemberView Entities { get; }
+
+    public sealed class MemberView : IReadOnlyReactiveCollection<Entity>
+    {
+        private readonly ReactiveCollection<Entity> _members;
+        internal MemberView(ReactiveCollection<Entity> members) => _members = members;
+        public int Count => _members.Count;
+        public Entity this[int index] => _members[index];
+        public int IndexOf(Entity entity) => _members.IndexOf(entity);
+        public bool Contains(Entity entity) => _members.Contains(entity);
+        public IEnumerator<Entity> GetEnumerator() => _members.GetEnumerator();
+        IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+        public UniRx.IObservable<CollectionAddEvent<Entity>> ObserveAdd() => _members.ObserveAdd();
+        public UniRx.IObservable<int> ObserveCountChanged(bool notifyCurrentCount = false) => _members.ObserveCountChanged(notifyCurrentCount);
+        public UniRx.IObservable<CollectionMoveEvent<Entity>> ObserveMove() => _members.ObserveMove();
+        public UniRx.IObservable<CollectionRemoveEvent<Entity>> ObserveRemove() => _members.ObserveRemove();
+        public UniRx.IObservable<CollectionReplaceEvent<Entity>> ObserveReplace() => _members.ObserveReplace();
+        public UniRx.IObservable<Unit> ObserveReset() => _members.ObserveReset();
+    }
 
     // Laid mines, in lay order. Zone owns their existence: Lay is the one adder, the mine step the one remover,
     // and every removal is a blast. Runtime state, never saved.
     public ReactiveCollection<Mine> Mines = new ReactiveCollection<Mine>();
+
+    // Vented vapour clouds, in vent order. Zone owns their existence: Vent is the one adder, StepClouds the one
+    // remover, and Obscuration the one reader that detection uses. Runtime state, never saved.
+    public ReactiveCollection<VapourCloud> Clouds = new ReactiveCollection<VapourCloud>();
+
+    // Floating items (death drops, jettisoned cargo), in release order. Zone owns their existence: Release is the one
+    // adder; StepFloatingItems (expiry) and TryPickUp are the only removers. TryHold, Free and Remove-of-the-holder
+    // are the only writers of FloatingItem.Holder. Runtime state, never saved.
+    public ReactiveCollection<FloatingItem> FloatingItems = new ReactiveCollection<FloatingItem>();
     public Dictionary<CultRecordKey, BodyData> Planets = new Dictionary<CultRecordKey, BodyData>();
     public Dictionary<CultRecordKey, Planet> PlanetInstances = new Dictionary<CultRecordKey, Planet>();
 
@@ -55,6 +86,8 @@ public class Zone
     public List<PendingShot> PendingShots = new List<PendingShot>();
     public Subject<ShotOutcome> ShotCommitted = new Subject<ShotOutcome>();
     public Subject<ShotOutcome> ShotResolved = new Subject<ShotOutcome>();
+    // Contacts.Step publishes each hull-on-hull contact it resolves; presentations are the only readers.
+    public Subject<ContactEvent> Contacted = new Subject<ContactEvent>();
     private int _nextShotId;
     public int NextShotId() => ++_nextShotId;
 
@@ -73,13 +106,16 @@ public class Zone
         return false;
     }
 
+    private readonly List<Departure> _departures = new List<Departure>();
+    internal IReadOnlyList<Departure> Departures => _departures;
+
     public float Time
     {
         get => (float) _time;
     }
 
     // Zone time at full precision, for the index's orbital keys, which must agree with ChunkPose's own.
-    internal double ExactTime => _time;
+    public double ExactTime => _time;
     public ZonePack Pack { get; }
     public GalaxyZone GalaxyZone { get; }
     public Galaxy Galaxy { get; }
@@ -94,8 +130,16 @@ public class Zone
     private uint _lastBodyId;
     public FloatingBodyId NextBodyId() => new FloatingBodyId(++_lastBodyId);
 
+    // The death ordinal of the loot dice: the nth death in this zone rolls on SimulationDice.For(CombatSeed, LootStream, n).
+    private uint _deaths;
+
+    // One death subscription per member entity: Admit creates it together with the membership, Remove disposes it
+    // together with the membership, and nothing else touches either.
+    private readonly Dictionary<Entity, IDisposable> _deathWatches = new Dictionary<Entity, IDisposable>();
+
     public Zone(ItemManager itemManager, PlanetSettings settings, ZonePack pack, GalaxyZone galaxyZone, Galaxy galaxy)
     {
+        Entities = new MemberView(_entities);
         _time = pack.Time;
         GalaxyZone = galaxyZone;
         Galaxy = galaxy;
@@ -109,7 +153,11 @@ public class Zone
         // in the simulation, not only in Unity's own loot-drop subscription. One subscription point covers
         // every join, whichever caller admits the entity (deserialization below, a jump, a spawned turret) --
         // ObserveAdd fires for all of them. Forbidden writer: no presentation may remove an entity from Zone.
-        Entities.ObserveAdd().Subscribe(add => add.Value.Death.Subscribe(_ => { Entities.Remove(add.Value); add.Value.Deactivate(); }));
+        // The death watch lives exactly as long as the entity's membership in this zone: installed on admission,
+        // disposed on removal (death, dock, jump), so an entity admitted again never holds a second one.
+        // The one record of a removal for observers (ruling reveal-ends-on-perception): read by the next Sense pass.
+        _entities.ObserveRemove().Subscribe(remove => _departures.Add(new Departure(remove.Value, remove.Value.Position.xz,
+            remove.Value.Visibility)));
 
         // Leaving Entities, by death, docking or a transfer, is leaving the zone's pilots: the agent and its flight
         // membership go with the ship, so nothing keeps flying a hull that is not here.
@@ -125,7 +173,7 @@ public class Zone
 
         foreach (var orbit in pack.Orbits)
         {
-            Orbits.Add(orbit.Key, new Orbit(Settings, cache.Get(orbit)));
+            Orbits.Add(orbit.Key, new Orbit(cache.Get(orbit)));
         }
 
         foreach (var body in pack.Planets)
@@ -139,7 +187,6 @@ public class Zone
                     // the rule generation uses, and keeps it.
                     FieldKinds.Ensure(body.Key, belt, cache);
                     AsteroidBelts[body.Key] = new AsteroidBelt(belt);
-                    Targets.Add(new BeltTargets(this, body.Key, belt, settings, _time));
                     break;
                 case SunData sun:
                     var sunInstance = new Sun(settings, sun, Orbits[planet.Orbit.Key]);
@@ -154,6 +201,42 @@ public class Zone
                     break;
             }
         }
+
+        // Orbits, bodies and belts exist: every rail's period is derived once, from the field it orbits in.
+        foreach (var orbit in Orbits)
+        {
+            var parent = orbit.Value.Data.Parent;
+            if (!parent.IsSet()) continue;
+            if (!_childOrbits.TryGetValue(parent.Key, out var siblings))
+                _childOrbits[parent.Key] = siblings = new List<CultRecordKey>();
+            siblings.Add(orbit.Key);
+        }
+        foreach (var body in PlanetInstances)
+            if (body.Value.WellStrength > 0)
+                _wellOn.TryAdd(Planets[body.Key].Orbit.Key, body.Value);
+        foreach (var orbit in Orbits)
+            orbit.Value.Period = orbit.Value.Data.Parent.IsSet()
+                ? PeriodAround(orbit.Value.Data.Parent.Key, orbit.Value.Data.Distance, orbit.Key)
+                : float.PositiveInfinity;
+        foreach (var belt in AsteroidBelts)
+        {
+            var beltOrbit = Planets[belt.Key].Orbit.Key;
+            var beltParent = Orbits[beltOrbit].Data.Parent.Key;
+            for (var i = 0; i < belt.Value.Periods.Length; i++)
+                belt.Value.Periods[i] = PeriodAround(beltParent, belt.Value.Data.Asteroids[i].Distance, beltOrbit);
+        }
+
+        PopulatedRadius = ComputePopulatedRadius();
+
+        // Aetheria gravity (target invariant zone-valid-before-tick): every orbit is placed at the pack's time
+        // when the zone is built, so each well, light and body pose read before the first Update is where the
+        // body is. Velocity stays zero until the first Update differences two placed positions.
+        foreach (var orbit in Orbits)
+            GetOrbitPosition(orbit.Key);
+
+        // BeltTargets copies the belts' periods, so it is built after them.
+        foreach (var belt in AsteroidBelts)
+            Targets.Add(new BeltTargets(this, belt.Key, belt.Value.Data, settings, _time));
 
         // Cut 2 (docs/mining-cut.md): read after belts are built so a later ChunkExists/ChunkRadius call has
         // Planets/AsteroidBelts populated. A pack from before key 6 existed has ChunkWear == null (nullable
@@ -175,15 +258,30 @@ public class Zone
         // TODO: Associate planets with stored entities for planetary colonies
     }
 
-    // The one admission into this zone (docs/scenarios-cut.md, 2.2): the only writer of Entities.Add and the only
+    // The one admission into this zone (docs/scenarios-cut.md, 2.2): the only writer of membership and the only
     // creator of agents. Construction, new-run staging (RunStart), warp arrival, undock and the console's spawned
     // turret all join through here. A piloted entity gets the zone's Minion; an unpiloted one gets no agent at all.
-    // Only a ship can be piloted. The Death subscription above covers every join, whichever caller admits it.
+    // Only a ship can be piloted. The death watch is installed here, for every join, whichever caller admits it.
+    // An entity that is already a member is refused: it would hold a second watch and a second agent.
     public void Admit(Entity entity, bool piloted)
     {
-        Entities.Add(entity);
+        if (_entities.Contains(entity)) throw new InvalidOperationException("entity: already a member of this zone");
+        _entities.Add(entity);
+        _deathWatches.Add(entity, entity.Death.Subscribe(_ => { DropLoot(entity); Remove(entity); entity.Deactivate(); }));
         entity.Activate();
         if (piloted) Agents.Add(CreateAgent((Ship) entity));
+    }
+
+    // The one removal from this zone (death, dock, jump): membership and its death watch leave together. False, and
+    // nothing changes, when the entity is not a member. The caller deactivates; Remove does not.
+    public bool Remove(Entity entity)
+    {
+        if (!_entities.Remove(entity)) return false;
+        _deathWatches.Remove(entity, out var watch);
+        watch.Dispose();
+        foreach (var floating in FloatingItems)
+            if (ReferenceEquals(floating.Holder, entity)) Free(floating.Id);
+        return true;
     }
 
     private Agent CreateAgent(Ship ship)
@@ -204,10 +302,11 @@ public class Zone
         {
             Radius = Pack.Radius,
             Mass = Pack.Mass,
-            Entities = Entities.Select(EntitySerializer.Pack).ToList(),
+            Entities = _entities.Select(EntitySerializer.Pack).ToList(),
             Orbits = Orbits.Keys.Select(key => new CultRecordRef<OrbitData>(key)).ToList(),
             Planets = Planets.Keys.Select(key => new CultRecordRef<BodyData>(key)).ToList(),
             Time = _time,
+            BossSpawned = Pack.BossSpawned,
             // Cut 2 (docs/mining-cut.md): drop entries that carry no live information -- healed (no damage) and
             // not currently broken -- so a save never accumulates wear rows for chunks nobody has touched since
             // they last respawned.
@@ -220,18 +319,16 @@ public class Zone
 
     private bool IsExpired(ChunkWear wear) => wear.Damage <= 0f && (!wear.BrokenUntil.HasValue || wear.BrokenUntil.Value <= _time);
 
-    public void AddOrbit(OrbitData orbit)
-    {
-        Orbits.Add(_itemManager.ItemData.RefOf(orbit).Key, new Orbit(Settings, orbit));
-    }
-
     public void Update(float deltaTime)
     {
         _time += deltaTime;
         _updatedOrbits.Clear();
+        // Every previous position is taken before any orbit is placed: GetOrbitPosition places a parent as a
+        // side effect of placing its child, so differencing inside one loop would depend on dictionary order.
+        foreach (var orbit in Orbits)
+            orbit.Value.PreviousPosition = orbit.Value.Position;
         foreach (var orbit in Orbits)
         {
-            orbit.Value.PreviousPosition = orbit.Value.Position;
             orbit.Value.Position = GetOrbitPosition(orbit.Key);
             orbit.Value.Velocity = (orbit.Value.Position - orbit.Value.PreviousPosition) / deltaTime;
         }
@@ -240,9 +337,19 @@ public class Zone
         foreach(var agent in Agents.ToArray())
             agent.Update(deltaTime);
 
-        foreach (var entity in Entities.ToArray()) entity.Update(deltaTime);
+        var entities = Entities.ToArray();
+        foreach (var entity in entities) entity.PublishInbox();
+        foreach (var entity in entities) entity.Update(deltaTime);
+        foreach (var entity in entities) entity.Sense();
+        _departures.Clear();
 
         StepMines(deltaTime);
+        StepClouds(deltaTime);
+        StepFloatingItems(deltaTime);
+
+        // Hull contact (cut sim-contact): after every entity has moved and the mines and clouds have taken
+        // their toll, so only hulls still in the zone touch, and before shots resolve against the result.
+        Contacts.Step(this);
 
         // Cut 3: after every entity has had its chance to fire this tick, age and resolve the shots that
         // firing queued. A shot fired this tick with a flight time shorter than CommitHorizon commits and
@@ -254,6 +361,134 @@ public class Zone
     {
         mine.LaidAt = _time;
         Mines.Add(mine);
+    }
+
+    public void Vent(VapourCloud cloud)
+    {
+        cloud.Id = NextBodyId();
+        cloud.VentedAt = _time;
+        Clouds.Add(cloud);
+    }
+
+    // The one adder of floating items: death drops and jettison both come here. The item drifts as a KinematicBody
+    // launched at `velocity` and expires after FloatingItemLifetime.
+    public FloatingItem Release(ItemInstance item, float2 position, float2 velocity)
+    {
+        var floating = new FloatingItem
+        {
+            Id = NextBodyId(), Item = item, Body = new KinematicBody { Position = position, Velocity = velocity },
+            ReleasedAt = _time, Lifetime = _itemManager.GameplaySettings.FloatingItemLifetime
+        };
+        FloatingItems.Add(floating);
+        return floating;
+    }
+
+    // The one commit of a pickup: the first of the taker's cargo bays that accepts the item stores it and the item
+    // stops floating. Otherwise nothing changes.
+    // An item held by another entity is refused: one holder per item holds at the commit as well.
+    public bool TryPickUp(Entity taker, FloatingBodyId id)
+    {
+        var floating = FloatingItems.FirstOrDefault(f => f.Id.Equals(id));
+        if (floating == null || (floating.Holder != null && !ReferenceEquals(floating.Holder, taker))) return false;
+        if (!taker.CargoBays.Any(bay => bay.TryStore(floating.Item))) return false;
+        FloatingItems.Remove(floating);
+        return true;
+    }
+
+    // The tractor beam's claim on a floating item: false if it is absent or already held. The item stays where it is
+    // until its pull begins; StepFloatingItems places it from then on.
+    public bool TryHold(Entity holder, FloatingBodyId id)
+    {
+        var floating = FloatingItems.FirstOrDefault(f => f.Id.Equals(id));
+        if (floating == null || floating.Holder != null) return false;
+        floating.Holder = holder;
+        floating.HeldFrom = floating.Body.Position;
+        floating.HeldProgress = 0;
+        return true;
+    }
+
+    // How far along its pull to the holder a held item is, 0..1.
+    public void SetHeldProgress(FloatingBodyId id, float progress)
+    {
+        var floating = FloatingItems.FirstOrDefault(f => f.Id.Equals(id));
+        if (floating?.Holder != null) floating.HeldProgress = saturate(progress);
+    }
+
+    // Lets a held item go: it floats on from where it is with the Velocity and Drift it had.
+    public void Free(FloatingBodyId id)
+    {
+        var floating = FloatingItems.FirstOrDefault(f => f.Id.Equals(id));
+        if (floating == null) return;
+        floating.Holder = null;
+        floating.HeldProgress = 0;
+    }
+
+    // Called from the death subscription, before the entity leaves the zone: one generator per death. Each equipped
+    // item but the hull drops on a LootDropProbability draw; every cargo stack drops whole. Each drop leaves from the
+    // dead entity's position at a random heading. Draw order: Equipment order (the probability draw, then the heading
+    // of a dropped item), then each cargo bay's stacks in CargoBays order (a heading each).
+    private void DropLoot(Entity dead)
+    {
+        var settings = _itemManager.GameplaySettings;
+        var random = SimulationDice.For(CombatSeed, SimulationDice.LootStream, ++_deaths);
+        var at = new float2(dead.Position.x, dead.Position.z);
+        float2 Heading() { var angle = random.NextFloat() * 2f * PI; return float2(cos(angle), sin(angle)); }
+        foreach (var equipped in dead.Equipment.ToArray())
+        {
+            if (equipped == dead.EquippedHull || !(random.NextFloat() < settings.LootDropProbability)) continue;
+            Release(equipped.EquippableItem, at, Heading() * settings.LootDropVelocity);
+        }
+        foreach (var bay in dead.CargoBays.ToArray())
+            foreach (var stack in bay.Cargo.Keys.ToArray())
+                Release(stack, at, Heading() * settings.LootDropVelocity);
+    }
+
+    // After StepClouds and before FireControl.Step: each floating item drifts as a KinematicBody on the zone's force
+    // and is removed once its lifetime has run out. A held item is neither integrated nor expired: it is placed
+    // between where it was claimed and its holder, now that the entities have moved.
+    // The curve a held item rides from where it was claimed to its holder: the one owner, which the test scene's
+    // stand-in sim and tendril call rather than spell again.
+    public static float HeldPull(float progress) => smoothstep(0f, 1f, progress);
+
+    private void StepFloatingItems(float deltaTime)
+    {
+        var settings = _itemManager.GameplaySettings;
+        foreach (var floating in FloatingItems.ToArray())
+        {
+            if (floating.Holder != null)
+            {
+                floating.Body.Position = lerp(floating.HeldFrom, floating.Holder.Position.xz, HeldPull(floating.HeldProgress));
+                continue;
+            }
+            floating.Body.Step(deltaTime, GetForce(floating.Body.Position), settings);
+            if (floating.ReleasedAt + floating.Lifetime <= _time) FloatingItems.Remove(floating);
+        }
+    }
+
+    // The fraction of a sight line's signal that survives the clouds between `a` and `b`: the product of
+    // (1 - opacity now) over every cloud whose disc the segment touches, so 1f when none does. Derived from the
+    // live clouds at each call and stored nowhere; Sensor.Gain is where it enters detection.
+    public float Obscuration(float2 a, float2 b)
+    {
+        var through = 1f;
+        for (var i = 0; i < Clouds.Count; i++)
+        {
+            var cloud = Clouds[i];
+            if (cloud.Touches(a, b)) through *= 1f - cloud.OpacityAt(_time);
+        }
+        return through;
+    }
+
+    // After StepMines: each cloud drifts as a KinematicBody on the zone's force, as a mine does, and is removed
+    // once its lifetime has run out. Nothing else removes a cloud.
+    private void StepClouds(float deltaTime)
+    {
+        var settings = _itemManager.GameplaySettings;
+        foreach (var cloud in Clouds.ToArray())
+        {
+            cloud.Body.Step(deltaTime, GetForce(cloud.Body.Position), settings);
+            if (cloud.VentedAt + cloud.Lifetime <= _time) Clouds.Remove(cloud);
+        }
     }
 
     // After the entity loop and before FireControl.Step, in lay order: each mine drifts as a KinematicBody, is
@@ -292,28 +527,118 @@ public class Zone
 
         if (!_updatedOrbits.Contains(orbitID))
         {
-            var orbit = Orbits[orbitID];
-            float2 pos = float2.zero;
-            if (orbit.Period > .01f)
-            {
-                var phase = (float) frac(_time / orbit.Period);
-                pos = OrbitData.Evaluate(frac(phase + orbit.Data.Phase)) * orbit.Data.Distance;
-
-                if (float.IsNaN(pos.x))
-                {
-                    //_context.Log("Orbit position is NaN, something went very wrong!");
-                    pos = float2.zero;
-                }
-            }
-
-            var parentPosition = !Orbits[orbitID].Data.Parent.IsSet()
-                ? Orbits[orbitID].Data.FixedPosition :
-                GetOrbitPosition(orbit.Data.Parent.Key);
-            Orbits[orbitID].Position = parentPosition + pos;
+            Orbits[orbitID].Position = RailAt(orbitID, _time);
             _updatedOrbits.Add(orbitID);
         }
 
         return Orbits[orbitID].Position;
+    }
+
+    // The rail law, once: where an orbit sits from its parent's node at a time. An infinite period (a parentless orbit,
+    // or one with no field to circle in) leaves the orbit at its phase: frac(t / inf) is 0.
+    private static float2 Offset(Orbit orbit, double time)
+    {
+        var pos = float2.zero;
+        if (orbit.Period > .01f)
+        {
+            var phase = (float) frac(time / orbit.Period);
+            pos = OrbitData.Evaluate(frac(phase + orbit.Data.Phase)) * orbit.Data.Distance;
+
+            if (float.IsNaN(pos.x))
+                pos = float2.zero;
+        }
+
+        return pos;
+    }
+
+    // The same rail law at any time, with no memo read or written: a parent is its own rail at that time.
+    private float2 RailAt(CultRecordKey orbitID, double time)
+    {
+        if (!orbitID.IsSet())
+            return float2.zero;
+        if (!Orbits.TryGetValue(orbitID, out var orbit))
+        {
+            Log?.Invoke("Requested orbit is not part of this zone!");
+            return float2.zero;
+        }
+        var parentPosition = !orbit.Data.Parent.IsSet() ? orbit.Data.FixedPosition : RailAt(orbit.Data.Parent.Key, time);
+        return parentPosition + Offset(orbit, time);
+    }
+
+    // Where an orbit is at a time: pure, writes nothing. At the step's own time it is the step's memo (GetOrbitPosition);
+    // at any other time (a presenter's drawn time) it is the rail law evaluated there.
+    public float2 OrbitPositionAt(CultRecordKey orbitID, double time)
+    {
+        if (!orbitID.IsSet())
+            return float2.zero;
+        if (!Orbits.ContainsKey(orbitID))
+        {
+            Log?.Invoke("Requested orbit is not part of this zone!");
+            return float2.zero;
+        }
+
+        return time == _time ? GetOrbitPosition(orbitID) : RailAt(orbitID, time);
+    }
+
+    // orbit -> the well-bearing body on it, and orbit -> the orbits whose parent it is. Derived from the pack in the
+    // constructor, read only by PeriodAround and Strength.
+    private readonly Dictionary<CultRecordKey, Planet> _wellOn = new Dictionary<CultRecordKey, Planet>();
+    private readonly Dictionary<CultRecordKey, List<CultRecordKey>> _childOrbits = new Dictionary<CultRecordKey, List<CultRecordKey>>();
+    private readonly Dictionary<CultRecordKey, float> _strengths = new Dictionary<CultRecordKey, float>();
+
+    // The one owner of a rail's period (Orbit.Period, AsteroidBelt.Periods): 2 pi sqrt(d / a), a being the pull the
+    // field gives at distance d from the node being orbited. Round a body, that is the body's own well through
+    // GravityField. Round a bodyless node it is the ring law: the strength of the node's orbits inside d, plus the
+    // ring term for the orbits on d itself (within RingWindow of it), taken as a point at the node. A bodied self
+    // feels half the strength of its ring partners (as a binary does); a strengthless self (a station, a turret)
+    // takes the period its bodied ring partners have, the mean of what each of them feels. No pull gives an
+    // infinite period.
+    private const float RingWindow = 0.1f;
+
+    private float PeriodAround(CultRecordKey parentOrbit, float distance, CultRecordKey self)
+    {
+        float a;
+        if (_wellOn.TryGetValue(parentOrbit, out var body))
+            a = length(GravityField.Acceleration(body.WellStrength, body.RocheLimit, float2(distance, 0)));
+        else
+        {
+            var inside = 0f;
+            var ring = new List<(CultRecordKey Orbit, float Strength)>();
+            if (_childOrbits.TryGetValue(parentOrbit, out var children))
+                foreach (var child in children)
+                {
+                    var childDistance = Orbits[child].Data.Distance;
+                    var childStrength = Strength(child);
+                    if (childDistance < distance - RingWindow) inside += childStrength;
+                    else if (childDistance <= distance + RingWindow && childStrength > 0) ring.Add((child, childStrength));
+                }
+            // Whose pull self feels: its own if it has strength, else each bodied member of the ring.
+            var ringSum = 0f;
+            foreach (var member in ring) ringSum += member.Strength;
+            var selfBodied = Strength(self) > 0;
+            var feelings = 0f;
+            var feelers = 0;
+            foreach (var member in ring)
+                if (!selfBodied || member.Orbit.Equals(self))
+                {
+                    feelings += (ringSum - member.Strength) / 2;
+                    feelers++;
+                }
+            var strength = inside + (feelers > 0 ? feelings / feelers : 0f);
+            a = length(GravityField.Acceleration(strength, 0f, float2(distance, 0)));
+        }
+        return a > 0 && distance > 0 ? 2 * PI * sqrt(distance / a) : float.PositiveInfinity;
+    }
+
+    // The well strength an orbit carries as a node: its own body's plus every orbit round it, recursively.
+    private float Strength(CultRecordKey orbit)
+    {
+        if (_strengths.TryGetValue(orbit, out var known)) return known;
+        var strength = _wellOn.TryGetValue(orbit, out var body) ? body.WellStrength : 0f;
+        if (_childOrbits.TryGetValue(orbit, out var children))
+            foreach (var child in children)
+                strength += Strength(child);
+        return _strengths[orbit] = strength;
     }
 
     public float2 GetOrbitVelocity(CultRecordKey orbit)
@@ -379,12 +704,15 @@ public class Zone
 
     // Cut 1 (docs/mining-cut.md): a chunk's pose is a pure function of zone time, computed when asked. No stored
     // pose survives a tick; the sim and the renderer both read it fresh through here.
-    public float4 ChunkPose(CultRecordKey belt, int index)
+    public float4 ChunkPose(CultRecordKey belt, int index) => ChunkPose(belt, index, _time);
+
+    // The same pose at any time: the sim reads it at _time, a presenter at the drawn time (DrawAhead.Time).
+    public float4 ChunkPose(CultRecordKey belt, int index, double time)
     {
         var beltData = Planets[belt] as AsteroidBeltData;
-        var parentPosition = GetOrbitPosition(Orbits[beltData.Orbit.Key].Data.Parent.Key);
+        var parentPosition = OrbitPositionAt(Orbits[beltData.Orbit.Key].Data.Parent.Key, time);
         var size = ChunkRadius(new ChunkId(belt, index));
-        return AsteroidBelts[belt].Pose(index, _time, parentPosition, Settings, size);
+        return AsteroidBelts[belt].Pose(index, time, parentPosition, size);
     }
 
     // Mining Cut 3 (docs/mining-cut-refresh.md): how bright a chunk is -- Reflector's rule (cross-section × the light
@@ -399,33 +727,13 @@ public class Zone
         return kind.CrossSection * PI * cells * cells * GetLight(ChunkPose(chunk.Field, chunk.Index).xy);
     }
 
-    public void EvaluateBelt(CultRecordKey belt, Span<float4> into)
+    public void EvaluateBelt(CultRecordKey belt, Span<float4> into, double time)
     {
         var beltData = Planets[belt] as AsteroidBeltData;
-        var parentPosition = GetOrbitPosition(Orbits[beltData.Orbit.Key].Data.Parent.Key);
+        var parentPosition = OrbitPositionAt(Orbits[beltData.Orbit.Key].Data.Parent.Key, time);
         var beltInstance = AsteroidBelts[belt];
         for (var i = 0; i < beltData.Asteroids.Length; i++)
-            into[i] = beltInstance.Pose(i, _time, parentPosition, Settings, ChunkRadius(new ChunkId(belt, i)));
-    }
-
-    public OrbitData CreateOrbit(CultRecordKey parent, float2 position)
-    {
-        var parentPosition = GetOrbitPosition(parent);
-        var delta = position - parentPosition;
-        var distance = length(delta);
-        var period = Settings.OrbitPeriod.Evaluate(distance);
-        var phase = atan2(delta.y, delta.x) / (PI * 2);
-        var currentPhase = frac(_time / period);
-        var storedPhase = (float) frac(phase - currentPhase);
-
-        var orbit = new OrbitData
-        {
-            Distance = distance,
-            Parent = new CultRecordRef<OrbitData>(parent),
-            Phase = storedPhase
-        };
-        Orbits.Add(_itemManager.ItemData.Upsert(orbit).Key, new Orbit(Settings, orbit));
-        return orbit;
+            into[i] = beltInstance.Pose(i, time, parentPosition, ChunkRadius(new ChunkId(belt, i)));
     }
 
     public SecurityLevel GetSecurityLevel(float2 pos)
@@ -445,34 +753,53 @@ public class Zone
         return security;
     }
 
-    public float GetHeight(float2 position)
+    // The potential of a body's well at the zone's edge, subtracted so every well is zero there: the one owner of the
+    // reference. GetHeight sums with it and the renderer's lowering (GravityLowering) hands it to the shader unchanged.
+    public float WellReference(Planet body) => GravityField.Potential(body.WellStrength, body.RocheLimit, Pack.Radius);
+
+    // The extent of the populated area, from the zone's origin: owned here; presenters read it, nothing authors it. A static
+    // bound on where anything can be, so it holds at every time and reads nothing the pack's Radius decides: for each body,
+    // its orbit chain's reach plus its Roche limit; for each belt, the chain's reach to the orbit its asteroids circle (the
+    // belt orbit's parent) plus the belt's own Radius, its largest asteroid Distance.
+    public float PopulatedRadius { get; }
+
+    private float ComputePopulatedRadius()
     {
-        var result = -PowerPulse(length(position)/(Pack.Radius*2), Settings.ZoneDepthExponent) * Settings.ZoneDepth;
+        var radius = 0f;
+        foreach (var body in PlanetInstances.Values)
+            radius = max(radius, ChainReach(body.BodyData.Orbit.Key) + body.RocheLimit);
+        foreach (var belt in AsteroidBelts)
+            radius = max(radius, ChainReach(Orbits[Planets[belt.Key].Orbit.Key].Data.Parent.Key) + belt.Value.Radius);
+        return radius;
+    }
+
+    // The most an orbit can lie from the origin: the root's offset plus every orbit Distance down the chain to it.
+    private float ChainReach(CultRecordKey key)
+    {
+        var reach = 0f;
+        while (key.IsSet() && Orbits.TryGetValue(key, out var orbit))
+        {
+            if (orbit.Data.Parent.IsSet()) reach += orbit.Data.Distance;
+            else reach += length(orbit.Data.FixedPosition);
+            key = orbit.Data.Parent.Key;
+        }
+        return reach;
+    }
+
+    public float GetHeight(float2 position) => GetHeight(position, _time);
+
+    // The field at a time: each well sits where its body's rail puts it then. The sim reads it at _time, a presenter at
+    // the drawn time, so a ship rides the same slope the drawn planet's well makes.
+    public float GetHeight(float2 position, double time)
+    {
+        var result = 0f;
         foreach (var body in PlanetInstances.Values)
         {
-            var p = position - body.Orbit.Position; //GetOrbitPosition(body.BodyData.Orbit)
-            var distSqr = lengthsq(p);
-            var gravityRadius = body.GravityWellRadius;
-            if (distSqr < gravityRadius*gravityRadius)
-            {
-                var depth = body.GravityWellDepth;
-                result -= PowerPulse(sqrt(distSqr) / gravityRadius, body.BodyData.GravityDepthExponent) * depth;
-            }
-
-            if (body is GasGiant gas)
-            {
-                var waveRadius = gas.GravityWavesRadius;
-                if(distSqr < waveRadius*waveRadius)
-                {
-                    var depth = gas.GravityWavesDepth;
-                    var frequency = Settings.WaveFrequency.Evaluate(body.BodyData.Mass);
-                    var speed = gas.GravityWavesSpeed;
-                    result -= RadialWaves(sqrt(distSqr) / waveRadius, 8, 1.25f, frequency, (float) (_time * speed)) * depth;
-                }
-            }
+            var offset = position - OrbitPositionAt(body.BodyData.Orbit.Key, time);
+            result += GravityField.Potential(body.WellStrength, body.RocheLimit, length(offset)) - WellReference(body);
         }
 
-        return result;
+        return result / Settings.HeightExaggeration;
     }
 
     public float GetLight(float2 position)
@@ -492,25 +819,27 @@ public class Zone
     internal float SchematicCellSize => _itemManager.GameplaySettings.SchematicCellSize;
     internal float FieldCrossSection(AsteroidBeltData belt) => _itemManager.ItemData.Get(belt.Kind)?.CrossSection ?? 0f;
 
-    // The one law of how a gravity well pushes anything: ships, floating items and mines all read it. The shape is
-    // the one ships have always felt, normalize(f) * strength * (1 / (1 - |f|^2) - 1), gated off below |f|^2 = .001.
-    // It is an acceleration, per second: the legacy law added that amount once per 60 fps frame with no dt, so
-    // GravityReferenceRate (60) restates it and `acceleration * dt` gives the legacy push at 60 fps.
-    public const float GravityReferenceRate = 60f;
-
-    public static float2 GravityAcceleration(float2 normalXz, float strength)
-    {
-        var magnitude = lengthsq(normalXz);
-        if (magnitude <= .001f) return float2.zero;
-        return normalize(normalXz) * strength * (1 / (1 - magnitude) - 1) * GravityReferenceRate;
-    }
-
-    // The acceleration the well exerts at `position`.
+    // The one source of gravitational acceleration (u/s^2): the sum of every body's well (GravityField). Ships,
+    // floating items, clouds and mines all read it, and so does Flow. It is the gradient of the potential GetHeight
+    // draws, so the two cannot disagree.
     public float2 GetForce(float2 position)
     {
-        var normal = GetNormal(position);
-        return GravityAcceleration(new float2(normal.x, normal.z), Settings.GravityStrength);
+        var force = float2.zero;
+        foreach (var body in PlanetInstances.Values)
+            force += GravityField.Acceleration(body.WellStrength, body.RocheLimit, position - body.Orbit.Position);
+        return force;
     }
+
+    // The global flow velocity at `position` in zone time, in u/s (FlowField is the law). The slope term reads the
+    // downhill direction, which is the force.
+    public float3 Flow(float3 position) =>
+        FlowField.At(Settings.Flow, position, FlowScroll, GetForce(position.xz));
+
+    // The flow's noise scroll at zone time (Zone.Flow evaluates at exactly this); lowered to the shaders' _FlowScroll.
+    public float2 FlowScroll => FlowField.Scroll(Settings.Flow, _time);
+
+    // The phase of a cycle of `period` seconds at zone time, for presenters that animate on the flow.
+    public float CyclePhase(float period) => FlowField.Cycle(_time, period);
 
     public static float PowerPulse(float x, float exponent)
     {
@@ -519,22 +848,12 @@ public class Zone
         return pow((x + 1) * (1 - x), exponent);
     }
 
-    public static float RadialWaves(float x, float maskExponent, float sineExponent, float frequency, float phase)
+    // The surface normal of the drawn height (potential / K), derived from the force. Display only (ship tilt): the
+    // sim never reads it as a force.
+    public float3 GetNormal(float2 pos)
     {
-        //x *= 2;
-        return PowerPulse(x, maskExponent) * cos(pow(x*2, sineExponent) * frequency + phase);
-    }
-
-    public float3 GetNormal(float2 pos, float step = .1f, float mul = 1)
-    {
-        float hL = GetHeight(new float2(pos.x - step, pos.y)) * mul;
-        float hR = GetHeight(new float2(pos.x + step, pos.y)) * mul;
-        float hD = GetHeight(new float2(pos.x, pos.y - step)) * mul;
-        float hU = GetHeight(new float2(pos.x, pos.y + step)) * mul;
-
-        // Deduce terrain normal
-        float3 normal = new float3((hL - hR), (hD - hU), step*2);
-        return normalize(normal).xzy;
+        var slope = GetForce(pos) / Settings.HeightExaggeration;
+        return normalize(new float3(slope.x, 1f, slope.y));
     }
 }
 
@@ -543,9 +862,12 @@ public class Planet
     public Orbit Orbit;
     protected readonly PlanetSettings Settings;
     public BodyData BodyData;
-    public float GravityWellDepth;
-    public float GravityWellRadius;
     public float BodyRadius;
+
+    // The well (GravityField): strength c by mass, and the Roche limit, which is both the closest a child may orbit and
+    // the well's softened core radius R (one curve of mass, never per body). Both are authored PlanetSettings curves.
+    public float WellStrength;
+    public float RocheLimit;
 
     public Planet(PlanetSettings settings, BodyData data, Orbit orbit)
     {
@@ -558,30 +880,22 @@ public class Planet
     public void CalculateProperties()
     {
         BodyRadius = Settings.BodyRadius.Evaluate(BodyData.Mass) * BodyData.BodyRadiusMultiplier;
-        GravityWellRadius = Settings.GravityRadius.Evaluate(BodyData.Mass) * BodyData.GravityRadiusMultiplier;
-        GravityWellDepth = Settings.GravityDepth.Evaluate(BodyData.Mass) * BodyData.GravityDepthMultiplier;
+        WellStrength = Settings.WellStrength.Evaluate(BodyData.Mass);
+        RocheLimit = Settings.RocheLimit.Evaluate(BodyData.Mass);
+        if (!(WellStrength >= 0f) || float.IsInfinity(WellStrength))
+            throw new InvalidOperationException("A body's well strength must be finite and not negative (PlanetSettings.WellStrength).");
+        if (WellStrength > 0 && !(RocheLimit > 0f && !float.IsInfinity(RocheLimit)))
+            throw new InvalidOperationException("A body's Roche limit, which is its core radius, must be positive and finite (PlanetSettings.RocheLimit).");
     }
 }
 
 public class GasGiant : Planet
 {
     public GasGiantData GasGiantData;
-    public float GravityWavesDepth;
-    public float GravityWavesRadius;
-    public float GravityWavesSpeed;
 
     public GasGiant(PlanetSettings settings, GasGiantData data, Orbit orbit) : base(settings, data, orbit)
     {
         GasGiantData = data;
-        CalculateProperties();
-    }
-
-    public new void CalculateProperties()
-    {
-        base.CalculateProperties();
-        GravityWavesDepth = Settings.WaveDepth.Evaluate(BodyData.Mass) * GasGiantData.WaveDepthMultiplier;
-        GravityWavesRadius = Settings.WaveRadius.Evaluate(BodyData.Mass) * GasGiantData.WaveRadiusMultiplier;
-        GravityWavesSpeed = Settings.WaveSpeed.Evaluate(BodyData.Mass) * GasGiantData.WaveSpeedMultiplier;
     }
 }
 
@@ -608,9 +922,14 @@ public class AsteroidBelt
     public AsteroidBeltData Data;
     public float Radius { get; }
 
+    // Each asteroid's orbital period, in seconds: derived once at zone build by Zone.PeriodAround (the field at the
+    // asteroid's own distance from the belt's parent), the only period Pose and BeltTargets divide by.
+    public float[] Periods { get; }
+
     public AsteroidBelt(AsteroidBeltData data)
     {
         Data = data;
+        Periods = new float[data.Asteroids.Length];
         Radius = data.Asteroids.Max(a => a.Distance);
     }
 
@@ -618,12 +937,11 @@ public class AsteroidBelt
     // The only place a chunk pose is computed; no per-tick copy survives it. Cut 2: size is no longer read from
     // per-belt storage -- Zone owns wear now, so the caller (Zone.ChunkPose/EvaluateBelt) computes it through
     // Zone.ChunkRadius and passes it in.
-    public float4 Pose(int index, double time, float2 parentPosition, PlanetSettings settings, float size)
+    public float4 Pose(int index, double time, float2 parentPosition, float size)
     {
         var asteroid = Data.Asteroids[index];
         var rot = (float) (time * asteroid.RotationSpeed % (PI * 2));
-        var pos = OrbitData.Evaluate((float) frac(time / settings.OrbitPeriod.Evaluate(asteroid.Distance) +
-                                                  asteroid.Phase)) * asteroid.Distance + parentPosition;
+        var pos = OrbitData.Evaluate((float) frac(time / Periods[index] + asteroid.Phase)) * asteroid.Distance + parentPosition;
         return float4(pos.x, pos.y, rot, size);
     }
 
@@ -705,11 +1023,13 @@ public class Orbit
     public float2 Velocity = float2.zero;
     public float2 Position = float2.zero;
     public float2 PreviousPosition = float2.zero;
-    public float Period;
 
-    public Orbit(PlanetSettings settings, OrbitData data)
+    // Seconds per turn, written only by the Zone constructor (Zone.PeriodAround); infinite when the orbit has no
+    // field to circle in.
+    public float Period { get; internal set; }
+
+    public Orbit(OrbitData data)
     {
         Data = data;
-        Period = settings.OrbitPeriod.Evaluate(data.Distance);
     }
 }

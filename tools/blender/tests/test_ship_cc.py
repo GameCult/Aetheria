@@ -97,6 +97,17 @@ class ShipFileCase(unittest.TestCase):
     def ship(self):
         return ship_cc.read(self.path, PACKAGES).ship.body
 
+    def add_products(self):
+        """Two products as C# stores them, one per maker; Python reads them as envelopes and never encodes one."""
+        entry = catalog("product-schema-1", ship_cc.PRODUCT_SCHEMA)
+        store = cultcache_py.SingleFileMessagePackBackingStore(self.path)
+        store.push(envelope("mod-product:mod.skiff:faction:acme", ship_cc.PRODUCT_SCHEMA, entry, [None, "Acme Skiff", "Reliable."]))
+        store.push(envelope("mod-product:mod.skiff:faction:rival", ship_cc.PRODUCT_SCHEMA, entry, [None, "Rival Skiff", None, "tail"]))
+
+    def products(self):
+        return {(e.type, e.key): e for e in cultcache_py.SingleFileMessagePackBackingStore(self.path).pull_all()
+                if e.type == ship_cc.PRODUCT_SCHEMA}
+
     def hull(self):
         return ship_cc.read(self.path, PACKAGES).hull.body
 
@@ -114,6 +125,12 @@ class ReadTests(ShipFileCase):
         self.assertEqual(ship_cc.SCHEMA, file.ship.envelope.type)
         self.assertEqual("Skiff", file.hull.body[1])
         self.assertEqual(ship_cc.HULL_SCHEMA, file.hull.envelope.type)
+
+    def test_reads_a_file_whose_hull_also_carries_products(self):
+        self.add_products()
+        file = ship_cc.read(self.path, PACKAGES)
+        self.assertEqual("mod.skiff", file.ship.body[0])
+        self.assertEqual("Skiff", file.hull.body[1])
 
     def test_refuses_a_file_with_another_record_beside_the_pair(self):
         cultcache_py.SingleFileMessagePackBackingStore(self.path).push(cultcache_py.CultCacheEnvelope.create(
@@ -136,11 +153,18 @@ class ReadTests(ShipFileCase):
         with self.assertRaisesRegex(ValueError, "must hold exactly one"):
             ship_cc.read(self.path, PACKAGES)
 
-    def test_refuses_a_file_with_no_record(self):
+    def test_refuses_a_zero_byte_file_as_cultcache_does(self):
+        # An empty file is not a store (CultLib pins this): the owner's refusal passes through, the add-on adds none.
         empty = str(Path(self.path).with_name("empty.cc"))
         Path(empty).write_bytes(b"")
-        with self.assertRaisesRegex(ValueError, "must hold exactly one"):
+        with self.assertRaises(ValueError) as owner:
+            cultcache_py.SingleFileMessagePackBackingStore(empty).pull_all()
+        with self.assertRaises(ValueError) as raised:
             ship_cc.read(empty, PACKAGES)
+        # The very refusal cultcache-py makes, not one the add-on spells beside it (its shape refusal is a ValueError too).
+        self.assertIs(type(raised.exception), type(owner.exception))
+        self.assertEqual(str(raised.exception), str(owner.exception))
+        self.assertNotIn("must hold exactly one", str(raised.exception))
 
     def test_refuses_a_ship_record_that_still_carries_the_retired_embedded_hull(self):
         for name, ship in (("nested hull", ["mod.skiff", hull_body()]),
@@ -188,6 +212,61 @@ class ReadTests(ShipFileCase):
                 self.write(ship_body(), payload)
                 with self.assertRaisesRegex(ValueError, "incompatible"):
                     ship_cc.read(self.path, PACKAGES)
+
+
+class ProductCarryThroughTests(ShipFileCase):
+    """Products lie beside the pair, owned by C#: every push rewrites the file and leaves them byte-identical."""
+
+    def test_each_edit_leaves_both_product_envelopes_byte_identical(self):
+        self.add_products()
+        before = self.products()
+        self.assertEqual(2, len(before))
+        hull = hull_body()
+        revision = ship_cc.layout_revision(hull[ship_cc.HULL_SHAPE_SLOT][0], hull[ship_cc.HULL_HARDPOINTS_SLOT])
+        edits = (
+            lambda: ship_cc.replace_lines(self.path, PACKAGES, LINES),
+            lambda: ship_cc.replace_visual(self.path, PACKAGES, "mod.skiff", "ship.glb", [["map", "map-icon", "map", None, 0]]),
+            lambda: ship_cc.replace_layout(self.path, PACKAGES, "mod.skiff", revision, [2, 2, [True, True, True, False]],
+                                           [row[:len(ship_cc.HARDPOINT_MEMBERS)] for row in hull[ship_cc.HULL_HARDPOINTS_SLOT]]),
+        )
+        for index, edit in enumerate(edits):
+            with self.subTest(edit=index):
+                edit()
+                after = self.products()
+                self.assertEqual(before.keys(), after.keys())
+                for key in before:
+                    self.assertEqual(before[key].payload, after[key].payload)
+                    self.assertEqual(before[key].key, after[key].key)
+        # The edits really ran: the shape the layout edit wrote is in the file beside the carried products.
+        self.assertEqual([2, 2, [True, True, True, False]], ship_cc.read(self.path, PACKAGES).hull.body[ship_cc.HULL_SHAPE_SLOT][0])
+
+
+class RigCarryThroughTests(ShipFileCase):
+    """The rig (ShipAuthoring slot 5 Joints, ShipAnchor slot 5 Joint) lies past every slot this module edits, so a save keeps it."""
+
+    JOINTS = [["turret", None, [0.0, 1.0, 0.0], [-30.0], [30.0]]]
+
+    def setUp(self):
+        super().setUp()
+        ship = ship_body()
+        ship.append(self.JOINTS)
+        ship[ship_cc.ANCHORS_SLOT] = [["gun", "weapon-mount", "gun", None, 0, "turret"], ["map", "map-icon", "map", None, 0]]
+        self.write(ship, hull_body())
+
+    def test_replace_visual_keeps_the_joints_and_each_mounts_joint_by_anchor_id(self):
+        ship_cc.replace_visual(self.path, PACKAGES, "mod.skiff", "ship.glb",
+                               [["map", "map-icon", "map", None, 0], ["gun", "weapon-mount", "gun", None, 0]])
+        ship = self.ship()
+        self.assertEqual(self.JOINTS, ship[5])
+        self.assertEqual([["map", "map-icon", "map", None, 0], ["gun", "weapon-mount", "gun", None, 0, "turret"]],
+                         ship[ship_cc.ANCHORS_SLOT])
+
+    def test_replace_lines_keeps_the_joints_and_the_anchor_rows(self):
+        before = self.ship()
+        ship_cc.replace_lines(self.path, PACKAGES, LINES)
+        after = self.ship()
+        self.assertEqual(self.JOINTS, after[5])
+        self.assertEqual(before[ship_cc.ANCHORS_SLOT], after[ship_cc.ANCHORS_SLOT])
 
 
 class ReplaceLinesTests(ShipFileCase):
@@ -311,6 +390,16 @@ class LayoutTests(ShipFileCase):
         self.write(ship, hull)
         self.assertNotEqual(revision, self.layout()[2])
 
+    def test_layout_revision_is_the_revision_replace_layout_returns_for_the_same_shape_and_rows(self):
+        _, _, revision = self.layout()
+        cells = [True, True, True, False]
+        rows = [hardpoint_row("thruster.starboard", tail=())]  # a mount the file carried no later slots for
+        saved = self.edit(revision, cells=cells, hardpoints=rows)
+        self.assertEqual(saved, ship_cc.layout_revision(shape(2, 2, cells), rows))
+        self.assertEqual(saved, self.layout()[2])
+        self.assertNotEqual(saved, ship_cc.layout_revision(shape(2, 2, [True, True, False, False]), rows))
+        self.assertNotEqual(saved, ship_cc.layout_revision(shape(2, 2, cells), []))
+
     def test_the_revision_follows_the_hardpoints_too(self):
         _, _, revision = self.layout()
         moved = hardpoint_row(tail=())
@@ -419,7 +508,7 @@ class LayoutTests(ShipFileCase):
             row = ship_cc.encode_hardpoint(**{**ship_cc.decode_hardpoint(hardpoint_row(tail=())),
                                               "Shape": [shape(2, 1, cells)]})
             with self.subTest(name):
-                with self.assertRaisesRegex(ValueError, "thruster.port footprint cells must be booleans"):
+                with self.assertRaisesRegex(ValueError, "Hardpoint footprint cells must be booleans"):
                     self.edit(revision, hardpoints=[row])
         self.assertEqual(before, self.bytes())
 
@@ -456,7 +545,7 @@ class LayoutTests(ShipFileCase):
                                 ("short", shape(2, 1, [True])), ("empty", shape(1, 1, [False]))):
             row = ship_cc.encode_hardpoint(**{**ship_cc.decode_hardpoint(hardpoint_row(tail=())), "Shape": [footprint]})
             with self.subTest(name):
-                with self.assertRaisesRegex(ValueError, "thruster.port has an invalid footprint"):
+                with self.assertRaisesRegex(ValueError, "hardpoint has an invalid footprint"):
                     self.edit(revision, hardpoints=[row])
         self.assertEqual(before, self.bytes())
 
@@ -507,6 +596,122 @@ class CSharpWrittenFixtureTests(unittest.TestCase):
                 target.mkdir(parents=True, exist_ok=True)
                 shutil.copy(path, target / "ship.cc")
                 shutil.copy(Path(os.environ["SHIP_FIXTURE_DIR"]) / "mod.skiff" / "skiff.glb", target / "skiff.glb")
+
+
+class RefusalsNameNoInputTests(ShipFileCase):
+    def test_refusals_name_no_path_mount_or_anchor_id(self):
+        _, _, revision = ship_cc.read_layout(self.path, PACKAGES)
+        mount = "mount.zq-unique"
+        duplicate = [[ "anchor.zq-unique", "map-icon", "n1", None, 0], ["anchor.zq-unique", "shield", "n2", None, 0]]
+        bad_footprint = ship_cc.encode_hardpoint(
+            Type=3, Position=[1, 0], Shape=[[1, 1, [0]]], Transform=mount, Rotation=0, Armor=0.0, FiringArc=0.0)
+        empty_footprint = ship_cc.encode_hardpoint(
+            Type=3, Position=[1, 0], Shape=[[1, 1, [False]]], Transform=mount, Rotation=0, Armor=0.0, FiringArc=0.0)
+        calls = (lambda: ship_cc.replace_visual(self.path, PACKAGES, "mod.skiff", "ship.glb", duplicate),
+                 lambda: ship_cc.replace_layout(self.path, PACKAGES, "mod.skiff", revision, [2, 2, [True] * 4], [bad_footprint]),
+                 lambda: ship_cc.replace_layout(self.path, PACKAGES, "mod.skiff", revision, [2, 2, [True] * 4], [empty_footprint]),
+                 lambda: ship_cc.read(os.path.join(self.path, "missing.cc"), PACKAGES))
+        for call in calls:
+            with self.subTest(call):
+                with self.assertRaises(Exception) as caught:
+                    call()
+                for forbidden in ("zq-unique", self.path, os.path.dirname(self.path)):
+                    self.assertNotIn(forbidden, str(caught.exception))
+
+
+class UntestedCultCacheTests(ShipFileCase):
+    """_libraries refuses a cultcache-py that is not the version the raw envelope writes were tested against. The version
+    is read from the checkout of the module that actually imports, so each case imports a stub cultcache_py."""
+
+    def setUp(self):
+        super().setUp()
+        saved_modules = {name: module for name, module in sys.modules.items() if name.split(".")[0] == "cultcache_py"}
+        saved_path = list(sys.path)
+        for name in saved_modules:
+            del sys.modules[name]
+        self.addCleanup(self.restore, saved_modules, saved_path)
+
+    @staticmethod
+    def restore(saved_modules, saved_path):
+        for name in [name for name in sys.modules if name.split(".")[0] == "cultcache_py"]:
+            del sys.modules[name]
+        sys.modules.update(saved_modules)
+        sys.path[:] = saved_path
+
+    def packages(self, version=None, with_source=True):
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, root, True)
+        checkout = root / "cultcache-py"
+        checkout.mkdir()
+        if version is not None:
+            (checkout / "pyproject.toml").write_text(
+                f'[project]\nname = "cultcache-py"\nversion = "{version}"\n', encoding="utf-8")
+        if with_source:
+            (checkout / "src" / "cultcache_py").mkdir(parents=True)
+            (checkout / "src" / "cultcache_py" / "__init__.py").write_text("", encoding="utf-8")
+        return str(root)
+
+    def test_a_different_version_is_refused_naming_the_version_and_the_packages_path(self):
+        before = self.bytes()
+        # any drift, not only a different major; 0.3.0.1 and 0.3.0rc1 start with the tested version and are not it
+        for version in ("9.9.9", "0.4.0", "0.3.1", "0.3", "0.3.0.1", "0.3.0rc1", "0.3.00"):
+            for call in (lambda stub: ship_cc.read(self.path, stub), lambda stub: ship_cc.read_layout(self.path, stub)):
+                stub = self.packages(version)
+                with self.subTest(version=version), self.assertRaises(ValueError) as caught:
+                    call(stub)
+                    self.fail("accepted")
+                self.assertIn(version, str(caught.exception))
+                self.assertIn(stub, str(caught.exception))
+                self.restore({}, list(sys.path))  # the next import is fresh
+        self.assertEqual(before, self.bytes())
+
+    def test_a_save_through_an_untested_cultcache_writes_nothing(self):
+        _, _, revision = ship_cc.read_layout(self.path, PACKAGES)
+        before = self.bytes()
+        self.restore({}, list(sys.path))
+        with self.assertRaises(ValueError):
+            ship_cc.replace_layout(self.path, self.packages("9.9.9"), "mod.skiff", revision, [2, 2, [True] * 4], [])
+        self.assertEqual(before, self.bytes())
+
+    def test_a_missing_pyproject_is_refused(self):
+        stub = self.packages()
+        with self.assertRaises(ValueError) as caught:
+            ship_cc.read(self.path, stub)
+        self.assertIn(stub, str(caught.exception))
+
+    def test_the_guard_certifies_the_library_that_is_imported_not_the_path_it_was_given(self):
+        # A pyproject that says 0.3.0 beside a path whose source is not what imports does not vouch for the import.
+        real = self.packages("0.4.0")  # imports first, and is the library in use
+        with self.assertRaises(ValueError):
+            ship_cc.read(self.path, real)
+        liar = self.packages("0.3.0", with_source=False)  # claims the tested version, supplies no source
+        sys.path.insert(0, str(Path(real) / "cultcache-py" / "src"))
+        with self.assertRaises(ValueError) as caught:
+            ship_cc.read(self.path, liar)
+        self.assertIn("0.4.0", str(caught.exception))
+
+    def test_the_tested_version_is_the_one_the_real_packages_directory_carries(self):
+        self.restore({}, list(sys.path))
+        self.assertEqual("mod.skiff", ship_cc.read(self.path, PACKAGES).ship.body[0])
+        import cultcache_py
+        self.assertEqual(ship_cc.TESTED_CULTCACHE_PY, ship_cc._cultcache_py_version(cultcache_py))
+
+
+class ShipIdTests(unittest.TestCase):
+    def test_admits_the_ids_the_c_sharp_rule_admits(self):
+        for ship_id in ("probe.a", "a", "0x", "a_b-c", "com10", "com0", "lpt0", "console", "aux2", "a.nul", "x.com1"):
+            with self.subTest(ship_id):
+                self.assertTrue(ship_cc.valid_ship_id(ship_id))
+
+    def test_refuses_device_names_alone_or_before_a_dot_and_every_other_malformed_id(self):
+        for ship_id in ("con", "nul.x", "com1", "lpt9", "prn", "aux.txt", "com5.a", "abc.", "a..", "Upper", ".x", "_x",
+                        "-x", "", "a b", "a/b", "a:b", "abé", "a\b"):
+            with self.subTest(ship_id):
+                self.assertFalse(ship_cc.valid_ship_id(ship_id))
+
+    def test_the_constants_name_the_allowed_characters_and_the_reserved_stems(self):
+        self.assertEqual(set("abcdefghijklmnopqrstuvwxyz0123456789._-"), set(ship_cc.SHIP_ID_CHARS))
+        self.assertEqual(22, len(ship_cc.RESERVED_SHIP_IDS))
 
 
 class HardpointRowTests(unittest.TestCase):

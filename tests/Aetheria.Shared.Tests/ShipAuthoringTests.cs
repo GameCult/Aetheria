@@ -26,7 +26,7 @@ public sealed class ShipAuthoringTests
                 ShipAuthoringStore.Write(cache, ship.Hull, ship.Visual);
                 await cache.FlushAsync();
             }
-            var (hull, visual) = ShipAuthoringStore.Read(path);
+            var (hull, visual, _) = ShipAuthoringStore.Read(path);
             Assert.Equal("mod.skiff", visual.Id);
             Assert.Equal("Skiff", hull.Name);
             Assert.True(hull.Shape.Cells[1, 0]);
@@ -232,7 +232,7 @@ public sealed class ShipAuthoringTests
 
     private static readonly string[] AllRoles =
     {
-        "map-icon", "hull-collider", "shield", "tractor", "thruster-emitter", "weapon-mount", "weapon-muzzle", "radiator-mesh", "articulation"
+        "map-icon", "hull-collider", "shield", "tractor", "thruster-emitter", "weapon-mount", "weapon-muzzle", "radiator-mesh"
     };
 
     // The fixture with its thruster swapped for one hardpoint of the given type at mount id "mount", and no anchor for it.
@@ -251,7 +251,7 @@ public sealed class ShipAuthoringTests
     [Theory]
     [InlineData(HardpointType.Hull), InlineData(HardpointType.Tool), InlineData(HardpointType.Thermal), InlineData(HardpointType.WarpDrive),
      InlineData(HardpointType.Reactor), InlineData(HardpointType.Shield), InlineData(HardpointType.Sensors),
-     InlineData(HardpointType.ControlModule), InlineData(HardpointType.AetherDrive)]
+     InlineData(HardpointType.ControlModule)]
     public void AnInternalHardpointCarriesNoAnchor(HardpointType type)
     {
         WithOnly(type).Validate();
@@ -381,6 +381,7 @@ public sealed class ShipAuthoringTests
             {
                 Name = "Skiff",
                 Shape = shape,
+                Behaviors = { new VelocityLimitData() },
                 Visual = new CultRecordRef<ShipAuthoring>(ShipModCatalog.AuthoringKey("mod.skiff")),
                 Hardpoints = new List<HardpointData>
                 {

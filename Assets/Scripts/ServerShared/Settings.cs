@@ -13,25 +13,27 @@ using static CultMath.math;
 [Serializable, MessagePackObject(keyAsPropertyName:true), JsonObject]
 public class PlanetSettings
 {
-    public float ZoneDepthExponent;
-    public float ZoneDepth;
-    public float ZoneBoundaryFog;
-    public ExponentialCurve GravityDepth;
-    public ExponentialCurve GravityRadius;
-    public ExponentialCurve WaveDepth;
-    public ExponentialCurve WaveRadius;
-    public ExponentialCurve WaveFrequency;
-    public ExponentialCurve WaveSpeed;
     public ExponentialCurve LightRadius;
     public ExponentialCurve BodyRadius;
+
+    // The closest a child may orbit its parent, in u, by the parent's mass, and the softened core radius of the parent's
+    // well (the steepest drawn slope sits at the Roche limit). Authored like BodyRadius, never per body.
+    public ExponentialCurve RocheLimit = new ExponentialCurve();
+
+    // A body's well strength by its mass (GravityField): c in u^2/s^2 (the pull is c / r beyond the core, which is the Roche limit).
+    public ExponentialCurve WellStrength = new ExponentialCurve();
+
+    // The one global exaggeration of gravity height: height = potential / K, in u/s^2 per unit of height.
+    public float HeightExaggeration = 1f;
     public float AsteroidVerticalOffset = -5f;
     public ExponentialLerp AsteroidSize;
     public ExponentialLerp AsteroidHitpoints;
     public ExponentialLerp AsteroidRespawnTime;
-    public float GravityStrength;
     public float SecureAreaRadiusMultiplier = .45f;
 
-    public ExponentialCurve OrbitPeriod;
+
+    // The global flow stardust and nebula follow and the sim knows (FlowField). Zero flow by default.
+    public FlowSettings Flow = new FlowSettings();
 }
 
 [Serializable, MessagePackObject(keyAsPropertyName:true), JsonObject]
@@ -178,6 +180,11 @@ public class GameplaySettings
     public float FloatingBodyDrag = .05f;
     public float FloatingBodyLaunchDrag = .2f;
     public float FloatingBodyGravity = 1f;
+    // Loot: the chance each equipped item (the hull excepted) drops when its carrier dies, the launch speed of a
+    // dropped item, and how many seconds a floating item lasts.
+    public float LootDropProbability = .25f;
+    public float LootDropVelocity = 25f;
+    public float FloatingItemLifetime = 30f;
     public float SevereHeatstrokeRiskThreshold = .25f;
     public float WormholeDepth = 1000;
     public float WormholeExitVelocity = 20;
@@ -211,14 +218,13 @@ public class GameplaySettings
     public float LockIndicatorNoiseAmplitude = 50f;
     public ExponentialLerp LockIndicatorFrequency;
     public ExponentialLerp LockSpinSpeed;
-    public float TorqueFloor;
     public float TorqueMultiplier;
-    public float AetherTorqueMultiplier;
-    public float AetherHeatMultiplier;
     public float VisibilityDecay;
+    // Seconds a reveal's bearing keeps a ship Detected after its last act with no track (Entity.ContactOf).
+    public float BearingMemory = 6;
     public float TargetInfoDecay;
     public float TargetDetectionInfoThreshold;
-    public float TargetArmorInfoThreshold;
+    // Also the Identified threshold: the track level at which a ship's hull class, and with it its layout, is known.
     public float TargetGearInfoThreshold;
     public float ConvergenceMinimumDistance;
     public float FiringArc = 120;
@@ -240,7 +246,7 @@ public class GameplaySettings
     // UnaidedTracking above -- FireControl.Precision falls back to this the same way it already falls back to
     // UnaidedAccuracy/UnaidedTracking. Precision is now a grouping tightness (FireControl.Sigma = 1/Precision,
     // in hull-schematic cell units), not the old coin-flip probability, so the unaided floor has to be
-    // authored on that scale. .3 -> sigma 3.33 cells: against the live catalog's own hulls (LonginusX 6x17,
+    // authored on that scale. .3 -> sigma 3.33 cells: against the live catalog's own hulls (Longinus 6x17,
     // Zenith 12x12, Turret 8x8) that puts pOnHull at the hull's own centre of mass around .5-.84 -- broadly
     // sprayed across the whole silhouette (sigma is a large fraction of the hull's own width) while still
     // landing on the ship more often than not. A tighter floor (e.g. .1, sigma 10) was tried first and
@@ -267,6 +273,17 @@ public class GameplaySettings
     // World units per hull-schematic cell, used only by FireControl.HitProbability's angular-size term
     // (pSpread) to turn a hull's cell footprint into a real-world silhouette size at range.
     public float SchematicCellSize = 2f;
+
+    // Restitution of a hull striking a hull (Contacts.Step): the speed at which a pair separates along the contact
+    // normal is this times the speed at which it closed. 0 is perfectly inelastic, 1 perfectly elastic.
+    public float ContactRestitution = .5f;
+
+    // Heights above the field of the ship plane, the orbital layer (stations, turrets: every OrbitalEntity) and the floater
+    // layer (loot, mines): orbitals above ships and floaters below them, so no ship ever touches either (ruling
+    // aetheria-gravity:orbitals-above-floaters-below).
+    public float ShipLayerHeight = 3f;
+    public float OrbitalLayerHeight = 15f;
+    public float FloaterLayerHeight = 0f;
 
     // The floor an AI's own predicted hit probability (FireControl.HitProbability) must clear before it counts
     // a firing solution worth taking (Combat.cs, TurretController.cs). Player fire is gated on arc alone

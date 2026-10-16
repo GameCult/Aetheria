@@ -648,7 +648,10 @@ lens area add about 35 over v1).
 - **`Lot` moves** from `CraftedItemInstance` (`ItemInstance.cs:38`) to `ItemInstance`, keeping key 11. Coordinate
   with variants C4 (A.6).
 - **The deposit (Q6a A):** units go straight into the shooter's cargo at arrival (a direct hit) or at detonation (a
-  blast), through `TryStore` (`Entity.cs:1805`). A full hold loses the overflow.
+  blast), through `TryStore` (`Entity.cs:1805`). A full hold releases the overflow as floating items through
+  `Zone.Release`, which the player and NPCs collect (ruling `aetheria-release:ruling:mining-overflow-floats`,
+  2026-10-16, superseding Q6a A's 'lost', whose premise was Unity-only pickups; cut line `mining-yield` in the
+  release map).
 - **Tunables:** `MiningDepthPerPenetration` on `GameplaySettings`; `AsteroidYield` (`ExponentialLerp`) and
   `ChunkCompositionVariance` on `PlanetSettings`. None may be CultMath-typed while settings are Unity-serialized.
 - **The same-path test agent (Q9 = C, replacing Cut 6).** A headless test drives a ship through exactly the
@@ -704,7 +707,7 @@ lens area add about 35 over v1).
 | `UnitsFromOneSourceStack`, `UnitsFromTwoSourcesDoNot` | Q6b A, and the negative for `Entity.cs:1856`. |
 | `ASplitStackKeepsItsLot` | The negative for `Entity.cs:1934`. |
 | `AMinedStackSurvivesSaveGc` | The negative for `SavedGame.cs:113`. It fails on the old roots. |
-| `AFullHoldLosesTheOverflow` | Q6a A. |
+| `AFullHoldReleasesTheOverflow` | Ruling mining-overflow-floats (was Q6a A's `AFullHoldLosesTheOverflow`). |
 | `CompositionIsStableAcrossContinue` | Derived, never stored. |
 | `TwoKindsRollDifferentTables` | Per field kind (Q2, Q11). |
 | `ATestAgentMinesThroughThePlayersPath` | Q9 = C. After N seconds: ore in the hold, every unit's lot `Extracted` from that belt, and every unit traceable to a `ShotOutcome` or a detonation. The negative: grep for any call to `Zone.Wear` or `ItemManager.ExtractedLot` outside `FireControl.cs`. |
@@ -835,7 +838,7 @@ about 90 lines of AI code from the plan.
 |---|---|---|
 | Q4 | A, the formula as written | Cut 5 |
 | Q5 | A, per hit | Cut 5 |
-| Q6a | A, straight into cargo; overflow lost | Cut 5 |
+| Q6a | A, straight into cargo; overflow floats (ruling mining-overflow-floats, 2026-10-16, replaces 'lost') | Cut 5 |
 | Q6b | A, one lot per (zone, field, commodity) source | Cut 5 |
 | Q7 | A′, a per-kind entry list (commodity, abundance, affinity), derived, never stored per chunk | Cuts 3 and 5 |
 | Q8 | **B**, author Corrosive and Ionizing weapons (against v1's recommendation) | Cut 7 §4 |

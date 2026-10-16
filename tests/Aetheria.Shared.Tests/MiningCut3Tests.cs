@@ -47,21 +47,16 @@ public sealed partial class MiningCut3Tests : IDisposable
         FiringArc = 90f
     };
 
-    // Flat terrain (no zone depth, no gravity wells), one sun whose light reaches 1000 units, and the chunk
+    // Every sun carries a well (the belts circle in it, c = 9), one sun whose light reaches 1000 units, and the chunk
     // curves MiningCut2Tests uses, so sizes and wear vary over the fixture's range.
     private static PlanetSettings PlanetSettings(float lightRadius = 1000f) => new PlanetSettings
     {
-        OrbitPeriod = new ExponentialCurve { Multiplier = 0.6f, Exponent = 1.3f, Constant = 40f },
+        WellStrength = new ExponentialCurve { Constant = 9f },
+        RocheLimit = new ExponentialCurve { Constant = 1f },
         AsteroidSize = new ExponentialLerp { Minimum = 2f, Maximum = 9f, Exponent = 1.7f },
         AsteroidHitpoints = new ExponentialLerp { Minimum = 20f, Maximum = 220f, Exponent = 1.6f },
         AsteroidRespawnTime = new ExponentialLerp { Minimum = 8f, Maximum = 96f, Exponent = 1.2f },
         BodyRadius = new ExponentialCurve(),
-        GravityRadius = new ExponentialCurve(),
-        GravityDepth = new ExponentialCurve(),
-        WaveDepth = new ExponentialCurve(),
-        WaveRadius = new ExponentialCurve(),
-        WaveSpeed = new ExponentialCurve(),
-        WaveFrequency = new ExponentialCurve(),
         LightRadius = new ExponentialCurve { Constant = lightRadius }
     };
 
@@ -108,7 +103,7 @@ public sealed partial class MiningCut3Tests : IDisposable
         Directory.CreateDirectory(dir);
         var cache = AetheriaStores.Open(Path.Combine(dir, "Aetheria.cc"), Path.Combine(dir, "run.cc"), catalogWritable: true);
         _caches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         var hullShape = new Shape(5, 5);
         foreach (var cell in hullShape.AllCoordinates) hullShape[cell] = true;
         var hull = new HullData { Name = "Skiff", HullType = HullType.Ship, Shape = hullShape, Durability = 10, Mass = 1000 };
@@ -119,7 +114,6 @@ public sealed partial class MiningCut3Tests : IDisposable
             SensitivityCurve = Falloff(),
             PingBoost = Constant(.02f),
             PingEnergy = Constant(0f),
-            PingVisibility = Constant(5f),
             PingRange = Constant(300f),
             PingCooldown = Constant(4f)
         });
@@ -132,7 +126,6 @@ public sealed partial class MiningCut3Tests : IDisposable
             SensitivityCurve = Falloff(),
             PingBoost = Constant(.02f),
             PingEnergy = Constant(0f),
-            PingVisibility = Constant(5f),
             PingRange = Constant(300f),
             PingCooldown = Constant(4f)
         });
@@ -222,10 +215,9 @@ public sealed partial class MiningCut3Tests : IDisposable
             s.Cache.Upsert(gun);
             Assert.True(ship.TryEquip(Mint(s, gun)));
         }
-        s.Zone.Entities.Add(ship);
+        s.Zone.Admit(ship, piloted: false);
         Hold(ship, at);
         ship.Aim = float3(0, 0, 1);
-        ship.Activate();
         return ship;
     }
 
@@ -311,6 +303,32 @@ public sealed partial class MiningCut3Tests : IDisposable
         var discrete = settled * (1f - GameSettings().TargetInfoDecay * Dt);
         Assert.True(abs(perTick - discrete) <= 1e-3f * settled,
             $"per-tick loop settled at {perTick}, the on-demand value implies {discrete} (settled {settled})");
+    }
+
+    // ChunkInfo's value is not changed by moving its arithmetic under PassiveInfo: six observers at different
+    // places and bearings, one with a second sensor so the average is live, read the same chunk, and every value
+    // matches the bits recorded at base 12dfcef5, before the extraction (a different order of the multiplication
+    // by the chunk's brightness moves them in the last bits).
+    private static readonly uint[] ChunkInfoAtBase = new uint[] { 1045120030u, 1039274086u, 1030543422u, 1029120970u, 1036363351u, 1035122917u };
+
+    [Fact]
+    public void ChunkInfoIsBitIdenticalToItsValueBeforeTheExtraction()
+    {
+        var kind = Kind("Asteroid", 1f);
+        var s = BuildScene(new[] { kind }, Belt(kind, Rock(150f)));
+        var chunk = new ChunkId(s.Belts[0], 0);
+        var places = new[] { float2(50, -150), float2(-80, -60), float2(10, 200), float2(-300, 40), float2(120, 120), float2(0, -400) };
+        var values = new List<float>();
+        for (var i = 0; i < places.Length; i++)
+        {
+            var observer = SpawnShip(s, places[i], sensor: true, secondSensor: i == 2);
+            Tick((observer, places[i])); // brings the sensors online
+            values.Add(observer.ChunkInfo(chunk));
+        }
+
+        Assert.All(values, v => Assert.InRange(v, 1e-4f, .99f)); // a live, unsaturated reading at every place
+        var actual = values.Select(Bits).ToArray();
+        Assert.True(actual.SequenceEqual(ChunkInfoAtBase), "ChunkInfo bits: " + string.Join(",", actual));
     }
 
     // A chunk outside every sun's light is dark: no visibility, no info, and it cannot be picked, while a lit
@@ -719,6 +737,7 @@ public sealed partial class MiningCut3Tests : IDisposable
         Tick((shooter, eyeAt));
         var gun = shooter.Weapons.Single();
 
+        shooter.Aim = float3(0, 0, -1); // astern: only a solution can fire the gun
         Assert.True(shooter.SetTarget(ahead));
         Assert.True(gun.ArcAllowsFire);
         Assert.True(gun.StanceAllowsFire);
@@ -728,14 +747,39 @@ public sealed partial class MiningCut3Tests : IDisposable
         Assert.True(gun.StanceAllowsFire);
     }
 
+    // The same bearing through the solution: a chunk ahead is a solution, one to the side is not, and a chunk is a
+    // solution without a subject entity (its round flies the aim, as an untargeted one).
+    [Fact]
+    public void AChunkTargetBearsByItsPose()
+    {
+        var kind = Kind("Asteroid", 4f);
+        var s = BuildScene(new[] { kind }, Belt(kind, Rock(150f, .25f), Rock(150f)));
+        var eyeAt = float2(-10, 50);
+        var shooter = SpawnShip(s, eyeAt, sensor: true, weaponRanges: 300f);
+        Tick((shooter, eyeAt));
+        var gun = shooter.Weapons.Single();
+
+        var ahead = FireControl.Solution(gun, shooter, new ChunkId(s.Belts[0], 0));
+        var aside = FireControl.Solution(gun, shooter, new ChunkId(s.Belts[0], 1));
+
+        Assert.True(ahead.Bears);
+        Assert.Null(ahead.Subject);
+        Assert.False(aside.Bears);
+
+        // The bearing is the chunk's pose minus the shooter's position: from (100, -100) the side chunk at (150, 0)
+        // is 26 degrees off the nose, though its pose sum with the shooter's position would be far abeam.
+        var nearAt = float2(100, -100);
+        var near = SpawnShip(s, nearAt, sensor: true, weaponRanges: 300f);
+        Tick((shooter, eyeAt), (near, nearAt));
+        Assert.True(FireControl.Solution(near.Weapons.Single(), near, new ChunkId(s.Belts[0], 1)).Bears);
+    }
+
     // A writable copy of the shipped catalog plus a scratch run store, through a registry scoped to the shipped
     // assembly's own document types (RestoredHullsTests' composition): this test assembly's own catalog global
     // would otherwise be demanded of a catalog that was never authored with it.
     private static CultCache OpenShippedCatalogCopy(string catalogPath, string runPath)
     {
-        var registry = CultDocumentRegistry.ForTypes(typeof(ItemData).Assembly.GetTypes()
-            .Where(t => t is { IsAbstract: false, IsInterface: false })
-            .Where(t => t.GetCustomAttributes(typeof(CultDocumentAttribute), false).Length > 0));
+        var registry = TestCatalog.Registry();
         var cache = new CultCache(registry);
         cache.AddBackingStore(new GameCult.Caching.MessagePack.SingleFileMessagePackBackingStore(catalogPath, false), AetheriaStores.CatalogTypes);
         cache.AddBackingStore(new GameCult.Caching.MessagePack.SingleFileMessagePackBackingStore(runPath), AetheriaStores.RunTypes);
@@ -748,7 +792,7 @@ public sealed partial class MiningCut3Tests : IDisposable
     [Fact]
     public void GenerationChoosesTheKindByTheSameFunction()
     {
-        var shipped = Path.Combine(RestoredHullsTests.FindRepoRoot(), "GameData", "Aetheria.cc");
+        var shipped = TestCatalog.Repo;
         var belts = 0;
         for (uint seed = 1; seed <= 25 && belts < 3; seed++)
         {
@@ -815,10 +859,9 @@ public sealed partial class MiningCut3Tests : IDisposable
             var ship = new Ship(s.Items, s.Zone, Mint(s, s.Hull), new EntitySettings());
             Assert.True(ship.TryEquip(Mint(s, s.Eye)));
             foreach (var weapon in weapons) Assert.True(ship.TryEquip(Mint(s, weapon)));
-            s.Zone.Entities.Add(ship);
+            s.Zone.Admit(ship, piloted: false);
             Hold(ship, eyeAt);
             ship.Aim = float3(0, 0, 1);
-            ship.Activate();
             Tick((ship, eyeAt)); // weapons read their ranges when they run
             return ship;
         }
@@ -972,7 +1015,7 @@ public sealed partial class MiningCut3Tests : IDisposable
         Directory.CreateDirectory(dir);
         var cache = AetheriaStores.Open(Path.Combine(dir, "Aetheria.cc"), Path.Combine(dir, "run.cc"), catalogWritable: true);
         _caches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         var shape = new Shape(5, 5);
         foreach (var cell in shape.AllCoordinates) shape[cell] = true;
         var hull = new HullData { Name = "Skiff", HullType = HullType.Ship, Shape = shape, Durability = 10, Mass = 1000 };
@@ -980,7 +1023,7 @@ public sealed partial class MiningCut3Tests : IDisposable
         var eye = Gear("Eye", new SensorData
         {
             Sensitivity = Constant(sensitivity), SensitivityCurve = Falloff(), PingBoost = Constant(boost),
-            PingEnergy = Constant(0f), PingVisibility = Constant(5f), PingRange = Constant(300f), PingCooldown = Constant(4f)
+            PingEnergy = Constant(0f), PingRange = Constant(300f), PingCooldown = Constant(4f)
         });
         cache.Upsert(eye);
         var items = new ItemManager(cache, new ProvenanceLedger(), GameSettings(), _ => { });
@@ -1015,7 +1058,7 @@ public sealed partial class MiningCut3Tests : IDisposable
         var dir = Path.Combine(_root, "shipped");
         Directory.CreateDirectory(dir);
         var catalog = Path.Combine(dir, "Aetheria.cc");
-        File.Copy(Path.Combine(RestoredHullsTests.FindRepoRoot(), "GameData", "Aetheria.cc"), catalog);
+        File.Copy(TestCatalog.Repo, catalog);
         using var cache = OpenShippedCatalogCopy(catalog, Path.Combine(dir, "run.cc"));
         Assert.Contains(cache.GetAll<FieldKindData>(), kind => kind.GenerationWeight > 0f);
     }

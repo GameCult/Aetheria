@@ -18,7 +18,7 @@ using float3 = CultMath.float3;
 
 // RunStart owns what a new run starts with, and Zone.Admit is the one admission into a zone (docs/scenarios-cut.md,
 // 2.2 and R). Every test stages into a real arena: the entrance zone of a prelude galaxy at a fixed seed, built from a
-// scratch copy of the shipped catalog and the authored settings (Assets/Resources/Settings.asset).
+// scratch copy of the catalog the game boots (TestCatalog) and the authored settings (Assets/Resources/Settings.asset).
 public sealed partial class RunStartTests : IDisposable
 {
     private const uint GalaxySeed = 1;
@@ -38,11 +38,11 @@ public sealed partial class RunStartTests : IDisposable
         var repo = FindRepoRoot();
         Directory.CreateDirectory(_root);
         var catalog = Path.Combine(_root, "Aetheria.cc");
-        File.Copy(Path.Combine(repo, "GameData", "Aetheria.cc"), catalog);
+        File.Copy(TestCatalog.Repo, catalog);
 
         // A registry scoped to the shipped assembly's own [CultDocument] types, as RestoredHullsTests composes it, so
         // this test assembly's own documents never reach the real catalog's validation.
-        _cache = new CultCache(Registry());
+        _cache = new CultCache(TestCatalog.Registry());
         _cache.AddBackingStore(new SingleFileMessagePackBackingStore(catalog), AetheriaStores.CatalogTypes);
         _cache.AddBackingStore(new SingleFileMessagePackBackingStore(Path.Combine(_root, "run.cc")), AetheriaStores.RunTypes);
 
@@ -68,11 +68,7 @@ public sealed partial class RunStartTests : IDisposable
         Directory.Delete(_root, true);
     }
 
-    private static CultDocumentRegistry Registry() => CultDocumentRegistry.ForTypes(typeof(ItemData).Assembly.GetTypes()
-        .Where(t => t is { IsAbstract: false, IsInterface: false })
-        .Where(t => t.GetCustomAttribute<CultDocumentAttribute>() != null));
-
-    private static string FindRepoRoot()
+    internal static string FindRepoRoot()
     {
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir != null; dir = dir.Parent)
             if (File.Exists(Path.Combine(dir.FullName, "Aetheria.Shared", "Aetheria.Shared.csproj")))
@@ -119,8 +115,8 @@ public sealed partial class RunStartTests : IDisposable
 
     private const float Freezing = 273.15f;
 
-    // A main-sector galaxy (not the prelude, which offers every product): each station's gear must come from
-    // manufacturers its faction can reach, the galaxy's factions its allegiance names.
+    // A main-sector galaxy: each station's gear must come from manufacturers its faction can reach, the makers its
+    // allegiance names, present in the galaxy or not.
     private Galaxy MainSectorGalaxy()
     {
         var authored = AuthoredSettings.Load(FindRepoRoot());
@@ -357,7 +353,7 @@ public sealed partial class RunStartTests : IDisposable
     [Fact]
     public void GenerationOffersExactlyTheSoldGearSomeHullCanFit()
     {
-        var hulls = _cache.GetAll<HullData>().ToArray();
+        var hulls = LoadoutGenerator.SoldHulls(_cache);
         var sold = _cache.GetAll<FactionProductData>().Where(p => p.Manufacturer.IsSet()).Select(p => p.Design.Key).ToHashSet();
         var generator = PreludeGenerator();
         var wrong = _cache.GetAll<EquippableItemData>()
@@ -370,7 +366,7 @@ public sealed partial class RunStartTests : IDisposable
             "the Autocannon fits the turret's 8-cell Ballistic hardpoint, so it is offered");
     }
 
-    // Gear no hull can fit is never offered; authoring a hull whose hardpoint takes it makes it offered.
+    // Gear no sold hull can fit is never offered; a product selling a hull whose hardpoint takes it makes it offered.
     [Fact]
     public void GearNoHullCanFitIsOfferedOnlyOnceAHullTakesIt()
     {
@@ -382,10 +378,15 @@ public sealed partial class RunStartTests : IDisposable
         foreach (var cell in shape.AllCoordinates) shape[cell] = true;
         var hardpointShape = new Shape(8, 8);
         foreach (var cell in hardpointShape.AllCoordinates) hardpointShape[cell] = true;
-        _cache.Upsert(new HullData
+        var bigMount = new HullData
         {
             Name = "Big Mount", HullType = HullType.Ship, Shape = shape, Durability = 100, Mass = 1000, Price = 1,
             Hardpoints = { new HardpointData { Type = HardpointType.Ballistic, Position = int2(0, 0), Shape = hardpointShape } }
+        };
+        _cache.Upsert(bigMount);
+        _cache.Upsert(new FactionProductData
+        {
+            Name = "Big Mount", Design = new CultRecordRef<CraftedItemData>(_cache.RefOf(bigMount).Key), Manufacturer = _cache.RefOf(_protagonist)
         });
         Assert.True(Offered(generator, huge), "a hull whose hardpoint takes it gives it a home");
     }
@@ -443,33 +444,21 @@ public sealed partial class RunStartTests : IDisposable
         Assert.True(disagreements.Count == 0, string.Join("; ", disagreements.Take(10)) + $" ({disagreements.Count} in all)");
     }
 
-    // The sold hardpoint gear that no hull fits even loosely today, stated so that authoring a hull that takes one
-    // shows up here as a changed list.
+    // The sold hardpoint gear the generator gives no home today: the production rule (LoadoutGenerator.HasHome over the hulls a
+    // product sells). The Smoke Test Hull, which no product sells, gives Charged Scatter Blaster and Charged Blaster no home; authoring a
+    // sold hull that takes one shows up here as a changed list.
     [Fact]
     public void TheSoldHardpointGearWithNoHomeToday()
     {
-        var hulls = _cache.GetAll<HullData>().ToArray();
         var sold = _cache.GetAll<FactionProductData>().Select(product => product.Design.Key).ToHashSet();
+        var hulls = LoadoutGenerator.SoldHulls(_cache);
         var homeless = _cache.GetAll<EquippableItemData>()
             .Where(design => sold.Contains(_cache.RefOf(design).Key) && design.Price > 0)
-            .Where(design => design.HardpointType != HardpointType.Tool && design.HardpointType != HardpointType.Hull)
-            .Where(design => !hulls.Any(hull => hull.Hardpoints.Any(hardpoint => hardpoint.Takes(design))))
+            .Where(design => !LoadoutGenerator.HasHome(design, hulls))
             .Select(design => design.Name).OrderBy(name => name, StringComparer.Ordinal).ToArray();
-        Assert.Equal(new[] { "CShot RainbowLite Lazer", "ChargeBlast SG", "ChargeBlast+-", "OK Disperser" }, homeless);
+        Assert.Equal(new[] { "Charged Blaster", "Charged Scatter Blaster", "Heat Pump", "Heavy Beam Laser" }, homeless);
     }
 
-    // A sold weapon can be generated onto an NPC, whose combat state samples its damage at range, so every weapon a
-    // product sells carries a damage curve.
-    [Fact]
-    public void EverySoldWeaponHasADamageCurve()
-    {
-        var sold = _cache.GetAll<FactionProductData>().Select(product => product.Design.Key).ToHashSet();
-        var missing = _cache.GetAll<EquippableItemData>()
-            .Where(design => sold.Contains(_cache.RefOf(design).Key))
-            .Where(design => design.Behaviors.OfType<WeaponData>().Any(weapon => weapon.DamageCurve?.Keys == null || weapon.DamageCurve.Keys.Length == 0))
-            .Select(design => design.Name).OrderBy(name => name, StringComparer.Ordinal).ToList();
-        Assert.True(missing.Count == 0, $"sold weapons with no damage curve: {string.Join(", ", missing)}");
-    }
 
     // An empty hull of this kind to equip into by hand.
     private Entity BareHull(HullData hull) =>
@@ -670,7 +659,7 @@ public sealed partial class RunStartTests : IDisposable
     public void TheRealHullsMaterializeBareFromABrandedProduct()
     {
         var available = new LoadoutGenerator(ref _items.Random, _items, _galaxy, _galaxy.Entrance, null, 2);
-        foreach (var hull in new[] { Hull("Djinni"), Hull("LonginusX"), TurretHull() })
+        foreach (var hull in new[] { Hull("Djinni"), Hull("Longinus"), TurretHull() })
         {
             var failures = new List<string>();
             var entity = Loadouts.Materialize(_items, null, BareLoadout(hull), available.IsAvailable, failures);

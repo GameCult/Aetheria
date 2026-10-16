@@ -71,6 +71,8 @@ Client-Server communication is implemented using [LiteNetLib](https://github.com
 
 Game content lives in `GameData/Aetheria.cc`, a [CultCache](https://github.com/GameCult/CultLib) store that is read-only at runtime. Run state and player state (settings and bindings) live in their own `.cc` stores in the same cache. Persistent data types carry MessagePack attributes; some also carry [JSON.Net](https://www.newtonsoft.com/json) attributes.
 
+Emoji are drawn from [Twemoji](https://github.com/jdecked/twemoji) v17.0.3, converted to a colour font (`Assets/Fonts/Emoji/Twemoji.ttf`, built by `tools/emoji/fetch_emoji_font.py`; the artwork itself is not edited). Copyright (c) 2022–present Jason Sofonia & Justine De Caires; copyright (c) 2014–2021 Twitter. The graphics are licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); the full notice is `Assets/Fonts/Emoji/LICENSE.txt`.
+
 ### Programming Paradigms
 
 The codebase makes heavy use of C#'s [Language Integrated Queries (LINQ)](https://docs.microsoft.com/en-us/dotnet/csharp/programming-guide/concepts/linq/), allowing for the concise representation of operations that modify or filter collections (though they do generate some garbage so must be avoided within the update loop). Asynchronous stream processing is often performed using the [functional reactive programming](http://reactivex.io/) paradigm, which is achieved using [Microsoft's Reactive Extensions](https://github.com/dotnet/reactive) on the server and [Reactive Extensions for Unity](https://github.com/neuecc/UniRx). Combining Observables with LINQ allows for extremely powerful expressions of the programmer's intent.

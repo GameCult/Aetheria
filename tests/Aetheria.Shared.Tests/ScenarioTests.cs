@@ -44,7 +44,7 @@ public sealed partial class RunStartTests
         public override void Stage(ScenarioStage stage) => _stage(stage);
     }
 
-    private static IEnumerable<Scenario> EveryScenario => Scenarios.Modes.Concat(Scenarios.Tests);
+    private static IEnumerable<Scenario> EveryScenario => Scenarios.Modes.Concat(Scenarios.Development).Concat(Scenarios.Tests);
 
     // The galaxy inputs the menu hands to RunStart, read from the authored settings.
     private GalaxyStage Inputs(Func<uint> clock = null)
@@ -129,7 +129,7 @@ public sealed partial class RunStartTests
     [Fact]
     public void ModesMatchOldNewGame()
     {
-        Assert.Equal("LonginusX", _startingHull);
+        Assert.Equal("Longinus", _startingHull);
 
         var tutorial = Launch(new TutorialGalaxy(), Inputs(() => GalaxySeed));
         Assert.Empty(tutorial.failures);
@@ -285,8 +285,8 @@ public sealed partial class RunStartTests
         var failures = Refused(Arena(true), new Scripted(true, stage =>
         {
             stage.Player(stage.Bare("Djinni"), float2(0, 0));
-            stage.Place(stage.Generated("LonginusX"), float2(300, 0), stance: ScenarioStance.Hostile, piloted: true);
-            stage.Place(stage.Fit("LonginusX", ("No Such Gun", int2(1, 8), ItemRotation.None)), float2(-300, 0));
+            stage.Place(stage.Generated("Longinus"), float2(300, 0), stance: ScenarioStance.Hostile, piloted: true);
+            stage.Place(stage.Fit("Longinus", ("No Such Gun", int2(1, 8), ItemRotation.None)), float2(-300, 0));
         }));
         Assert.Contains("No Such Gun", Assert.Single(failures));
     }
@@ -301,8 +301,8 @@ public sealed partial class RunStartTests
         var staged = Stage(zone, new Scripted(true, stage =>
         {
             stage.Player(stage.Bare("Djinni"), float2(0, 0));
-            stage.Place(stage.Generated("LonginusX"), float2(300, 0), stance: ScenarioStance.Hostile, piloted: true);
-            stage.Place(stage.Bare("LonginusX"), float2(-300, 0), stance: ScenarioStance.Neutral, piloted: false);
+            stage.Place(stage.Generated("Longinus"), float2(300, 0), stance: ScenarioStance.Hostile, piloted: true);
+            stage.Place(stage.Bare("Longinus"), float2(-300, 0), stance: ScenarioStance.Neutral, piloted: false);
         }));
         var player = staged.Player;
         var hostile = staged.Entities[0];
@@ -336,8 +336,8 @@ public sealed partial class RunStartTests
         var staged = Stage(zone, new Scripted(true, stage =>
         {
             stage.Player(stage.Bare("Djinni"), float2(0, 0));
-            stage.Place(stage.Bare("LonginusX"), float2(300, 0), stance: ScenarioStance.Hostile);
-            stage.Place(stage.Bare("LonginusX"), float2(-300, 0), stance: ScenarioStance.Hostile);
+            stage.Place(stage.Bare("Longinus"), float2(300, 0), stance: ScenarioStance.Hostile);
+            stage.Place(stage.Bare("Longinus"), float2(-300, 0), stance: ScenarioStance.Hostile);
         }));
         var player = staged.Player;
         var hostile = staged.Entities[0];
@@ -477,8 +477,8 @@ public sealed partial class RunStartTests
         }
     }
 
-    // Arcs' geometry: the bow hull sits inside every one of the player's mount arcs, the stern hull outside all of them,
-    // and the turret is hostile.
+    // Arcs' geometry: the bow hull sits inside every one of the player's forward mount arcs, the stern hull outside all of
+    // them (the side mounts are ArcsFlanks'), the turret is hostile and the bare hulls are neutral.
     [Fact]
     public void ArcsGeometry()
     {
@@ -489,7 +489,7 @@ public sealed partial class RunStartTests
         var turret = Assert.IsType<OrbitalEntity>(staged.Entities[2]);
         Assert.Equal((Arcs.Bow, Arcs.Stern, Arcs.Turret), (bow.Position.xz, stern.Position.xz, turret.Position.xz));
 
-        var mounts = player.Equipment.Where(item => item.Behaviors.OfType<Weapon>().Any()).ToList();
+        var mounts = player.Equipment.Where(item => item.Behaviors.OfType<Weapon>().Any() && item.EquippableItem.Rotation == ItemRotation.None).ToList();
         Assert.NotEmpty(mounts);
         foreach (var mount in mounts)
         {
@@ -497,7 +497,7 @@ public sealed partial class RunStartTests
             Assert.False(FireControl.InArc(mount, stern.Position - player.Position), $"{mount.Data.Name} bears on the stern hull");
         }
         Assert.True(player.IsHostileTo(turret) && turret.IsHostileTo(player), "the turret is hostile");
-        Assert.False(player.IsHostileTo(bow) || player.IsHostileTo(stern), "the bare hulls are neutral");
+        Assert.False(player.IsHostileTo(bow) || player.IsHostileTo(stern) || player.IsHostileTo(staged.Entities[3]) || player.IsHostileTo(staged.Entities[4]), "the bare hulls are neutral");
     }
 
     // Q3 (operator, 2026-09-30): a design no product sells is a scenario test design and nothing else. A test design
@@ -537,7 +537,7 @@ public sealed partial class RunStartTests
 
         runs.Add(Stage(Arena(false), new Scripted(false, stage =>
         {
-            var ship = stage.Player(stage.Fit("Djinni", ("Census Fitted", int2(1, 6), ItemRotation.None), ("Store-All Plus", int2(3, 6), ItemRotation.None)), float2(0, 0));
+            var ship = stage.Player(stage.Fit("Djinni", ("Census Fitted", int2(1, 6), ItemRotation.None), ("Cargo Bay", int2(3, 6), ItemRotation.None)), float2(0, 0));
             stage.Cargo(ship, "Census Carried");
         })));
         Assert.Empty(UnsoldAndUnplaced(runs));
@@ -579,5 +579,20 @@ public sealed partial class RunStartTests
         Assert.Equal((TemperatureUnit.Kelvin, 5), (settings.GameplaySettings.TemperatureUnit, settings.GameplaySettings.SignificantDigits));
         Assert.Equal("<Keyboard>/1", Assert.Single(settings.InputSettings.ActionBarInputs));
         Assert.Equal((Quality.High, true), (settings.GraphicsSettings.NebulaQuality, settings.GraphicsSettings.ShowAsteroidsInMinimap));
+    }
+
+    // A scenario's Brief is player text (the menu shows it): it names gear by what the catalog sells today. A name a rename retired,
+    // that no design or product carries any more, would send the player looking for gear that is gone.
+    [Fact]
+    public void NoScenarioBriefNamesRetiredGear()
+    {
+        var current = _cache.GetAll<EquippableItemData>().Select(design => design.Name)
+            .Concat(_cache.GetAll<FactionProductData>().Select(product => product.Name)).ToHashSet(StringComparer.Ordinal);
+        var stale = new List<string>();
+        foreach (var scenario in EveryScenario)
+            foreach (var retired in Program.Renames.Select(row => row.Old).Where(name => !current.Contains(name)))
+                if (System.Text.RegularExpressions.Regex.IsMatch(scenario.Brief, @"(?<!\w)" + System.Text.RegularExpressions.Regex.Escape(retired) + @"s?(?!\w)"))
+                    stale.Add(scenario.Name + " names " + retired);
+        Assert.True(stale.Count == 0, "scenario briefs naming gear the catalog no longer has: " + string.Join("; ", stale));
     }
 }

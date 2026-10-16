@@ -64,6 +64,7 @@ public class EntityInstance : MonoBehaviour
     public Dictionary<HardpointData, int> BarrelIndices { get; private set; }
     public Dictionary<Radiator, MeshRenderer> RadiatorMeshes { get; private set; }
     public Transform LookAtPoint { get; private set; }
+    private Dictionary<int, Transform> _groupAims;
     public Entity Entity { get; private set; }
     public ZoneRenderer ZoneRenderer { get; private set; }
     public Transform LocalSpace { get; private set; }
@@ -166,6 +167,13 @@ public class EntityInstance : MonoBehaviour
 
         if(Shield)
             Shield.Entity = entity;
+
+        // Landed impacts reach the screen through the entity's one binding: the shield ripple (ShieldManager) and the
+        // hull reaction and camera kick (ImpactPresenter) subscribe to the Absorb stream the simulation publishes.
+        var impacts = gameObject.GetComponent<ImpactPresenter>() ?? gameObject.AddComponent<ImpactPresenter>();
+        impacts.Entity = entity;
+        (gameObject.GetComponent<CapabilityPresentationBinder>() ?? gameObject.AddComponent<CapabilityPresentationBinder>())
+            .Bind(entity.Capabilities);
         foreach (var hullCollider in HullColliders) hullCollider.Entity = entity;
 
         foreach (var item in entity.Equipment)
@@ -179,14 +187,15 @@ public class EntityInstance : MonoBehaviour
                     {
                         var pingInstance = Instantiate(PingPrefab);
                         var pingMesh = pingInstance.GetComponent<MeshRenderer>();
-                        pingInstance.position = entity.Position.ToUnity();
+                        pingInstance.position = DrawAhead.Position(entity, ActionGameManager.Clock.Lead).ToUnity();
                         _pingBrightness = pingMesh.material.GetFloat("_Depth");
                         _currentPing = (pingInstance, pingMesh);
                     };
                     sensor.OnPingEnd += OnSensorPingEnd;
                 }
                 
-                if (behavior is InstantWeapon instantWeapon)
+                // A mine layer's presentation is the mine it lays (MineInstance, drawn by ZoneRenderer from Zone.Mines).
+                if (behavior is InstantWeapon instantWeapon && !FireControl.IsMineLayer(instantWeapon))
                 {
                     var data = (InstantWeaponData) instantWeapon.Data;
                     if (!_instantWeaponManagers.ContainsKey(data))
@@ -276,39 +285,22 @@ public class EntityInstance : MonoBehaviour
         // HullColliders no longer publish Hit or a blast event at all (R8).
 
         LookAtPoint = new GameObject($"{entity.Name} Look Point").transform;
-        
+
+        // One aim point per articulation group, placed each LateUpdate where the group's first weapon aims.
+        _groupAims = new Dictionary<int, Transform>();
         foreach (var articulationPoint in ArticulationPoints)
         {
-            articulationPoint.Target = LookAtPoint;
+            if (!_groupAims.TryGetValue(articulationPoint.Group, out var aim))
+                _groupAims[articulationPoint.Group] = aim = new GameObject($"{entity.Name} Aim {articulationPoint.Group}").transform;
+            articulationPoint.Target = aim;
         }
 
         _subscriptions.Add(Entity.HullDamage.Subscribe(_ =>
         {
-            if (Entity.Hull.Durability < .01f)
+            if (Entity.Hull.IsDestroyed)
             {
                 if (!this) return;
                 _destroyed = true;
-                foreach (var gear in Entity.Equipment)
-                {
-                    if (gear != Entity.EquippedHull && Random.value < ZoneRenderer.Settings.LootDropProbability)
-                    {
-                        ZoneRenderer.DropItem(
-                            Entity.Position.ToUnity(), 
-                            Random.onUnitSphere * ZoneRenderer.Settings.LootDropVelocity, 
-                            gear.EquippableItem);
-                    }
-                }
-
-                foreach (var cargo in Entity.CargoBays)
-                {
-                    foreach (var item in cargo.Cargo.Keys)
-                    {
-                        ZoneRenderer.DropItem(
-                            Entity.Position.ToUnity(), 
-                            Random.onUnitSphere * ZoneRenderer.Settings.LootDropVelocity, 
-                            item);
-                    }
-                }
                 if (DestroyEffect != null)
                 {
                     var t = Instantiate(DestroyEffect).transform;
@@ -398,11 +390,23 @@ public class EntityInstance : MonoBehaviour
             x.Value.material.SetFloat("_Emission", Entity.ItemManager.GameplaySettings.TemperatureEmissionCurve.Evaluate(x.Key.RadiatorTemperature));
         }
 
-        LookAtPoint.position = transform.position + Entity.Aim.ToUnity() * 
-            (!Entity.Target.Value.IsNone ? max(Entity.TargetRange,Entity.ItemManager.GameplaySettings.ConvergenceMinimumDistance) : 10000);
-        LocalSpace.localPosition = transform.position = Entity.Position.ToUnity();
+        // The drawn pose first: the camera's LookAt and the barrels read this frame's pose, not the last frame's.
+        var drawn = DrawAhead.Position(Entity, ActionGameManager.Clock.Lead);
+        LocalSpace.localPosition = transform.position = drawn.ToUnity();
+        var aimDistance = !Entity.Target.Value.IsNone
+            ? max(Entity.TargetRange, Entity.ItemManager.GameplaySettings.ConvergenceMinimumDistance)
+            : 10000;
+        LookAtPoint.position = transform.position + Entity.Aim.ToUnity() * aimDistance;
+        foreach (var group in _groupAims)
+        {
+            var weapon = group.Key >= 0 && group.Key < Entity.WeaponGroups.Length ? Entity.WeaponGroups[group.Key].weapons.FirstOrDefault() : null;
+            if (weapon == null) { group.Value.position = LookAtPoint.position; continue; }
+            var barrel = Barrels.TryGetValue(weapon.Item.Hardpoint, out var barrels) ? barrels[0].position : transform.position;
+            var direction = FireControl.Solution(weapon, Entity, Entity.Target.Value).Direction;
+            group.Value.position = barrel + new Vector3(direction.x, 0, direction.y) * aimDistance;
+        }
         if (_influenceInstance)
-            _influenceInstance.position = new Vector3(Entity.Position.x, 0, Entity.Position.z);
+            _influenceInstance.position = new Vector3(drawn.x, 0, drawn.z);
     }
 
     public virtual void OnDestroy()

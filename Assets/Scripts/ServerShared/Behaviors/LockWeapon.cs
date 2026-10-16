@@ -23,6 +23,11 @@ public class LockWeaponData : InstantWeaponData
 
     [Inspectable, JsonProperty("decay"), Key(25)]
     public PerformanceStat Decay = new PerformanceStat();
+
+    // The ratio of how far this lock sees to how far others hear it (ruling sensor-stat-set); a design without it
+    // reads as 1.
+    [Inspectable, JsonProperty("interceptFactor"), Key(34)]
+    public PerformanceStat InterceptFactor;
     
     public override Behavior CreateInstance(EquippedItem item)
     {
@@ -50,6 +55,7 @@ public class LockWeapon : InstantWeapon
     public float LockAngle { get; private set; }
     public float DirectionImpact { get; private set; }
     public float Decay { get; private set; }
+    public float InterceptFactor => _data.InterceptFactor == null ? 1f : Evaluate(_data.InterceptFactor);
 
     public override float Progress => saturate(_cooldown > 0 ? _cooldown : _lock);
 
@@ -102,6 +108,8 @@ public class LockWeapon : InstantWeapon
             {
                 var lerp = 1 - unlerp(0, 90, degrees);
                 _lock = saturate(_lock + pow(lerp, DirectionImpact) * dt * LockSpeed * pow(Entity.EntityInfoGathered[target], SensorImpact));
+                target.ReceivePaint(Entity, Item, PaintMode.Track, Lock);
+                Entity.Emit(Item, Range / InterceptFactor);
             }
             else _lock = saturate(_lock - dt * Decay);
         }
@@ -109,4 +117,3 @@ public class LockWeapon : InstantWeapon
         return base.Execute(dt);
     }
 }
-

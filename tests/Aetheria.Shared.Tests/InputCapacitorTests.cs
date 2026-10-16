@@ -36,7 +36,7 @@ public sealed class InputCapacitorTests : IDisposable
     private CultCache OpenCatalog()
     {
         var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         var hullShape = new Shape(5, 5);
         foreach (var cell in hullShape.AllCoordinates) hullShape[cell] = true;
         cache.Upsert(new HullData { Name = "Skiff", HullType = HullType.Ship, Shape = hullShape, Durability = 10, Mass = 1000 });
@@ -97,8 +97,7 @@ public sealed class InputCapacitorTests : IDisposable
 
         Assert.True(ship.TryEquip(Mint(cache, items, reactorData)));
 
-        zone.Entities.Add(ship);
-        ship.Activate();
+        zone.Admit(ship, piloted: false);
 
         return (ship, items, ship.GetBehavior<Reactor>());
     }

@@ -1,0 +1,193 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using CultMath;
+using GameCult.Caching;
+using Xunit;
+using static CultMath.math;
+using float2 = CultMath.float2;
+using float3 = CultMath.float3;
+
+// Aetheria gravity, target invariant zone-valid-before-tick: a zone's orbits are placed when it is built, so
+// its wells, lights and body poses are right before the first Update (follow-up
+// aetheria-release:follow_up:zone-orbits-unplaced-before-first-tick). The zone here is the production
+// constructor reading a pack; nothing places an orbit but that constructor and Zone.Update.
+public sealed class ZonePlacedAtBuildTests : IDisposable
+{
+    private static readonly float2 RootAt = new float2(300f, -200f);
+    private const float Distance = 400f;
+    private const float SunStrength = 100f; // the root's body: the planet circles in its field
+
+    private readonly string _root = Path.Combine(Path.GetTempPath(), "aetheria-zoneplaced-" + Guid.NewGuid().ToString("N"));
+    private readonly List<CultCache> _caches = new List<CultCache>();
+
+    public ZonePlacedAtBuildTests() => Directory.CreateDirectory(_root);
+
+    public void Dispose()
+    {
+        foreach (var cache in _caches) cache.Dispose();
+        Directory.Delete(_root, true);
+    }
+
+    private static GameplaySettings GameSettings() => new GameplaySettings
+    {
+        DefaultEntitySettings = new EntitySettings(),
+        Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
+        QualityPriceModifier = new ExponentialLerp()
+    };
+
+    private static ExponentialCurve Flat(float v) => new ExponentialCurve { Constant = v };
+
+    // A sun on the fixed root orbit at RootAt, a planet orbiting it at Distance from `phase`, and a light moon body on
+    // the moon orbit so the moon's moon has a field to circle in. A body's well is 100 per unit of mass; every core
+    // (Roche limit) is 20 u.
+    private static PlanetSettings Settings() => new PlanetSettings
+    {
+        BodyRadius = Flat(20f),
+        WellStrength = new ExponentialCurve { Multiplier = 100f, Exponent = 1f },
+        RocheLimit = Flat(20f),
+        LightRadius = Flat(0f)
+    };
+
+    private sealed class Scene
+    {
+        public CultCache Cache;
+        public ItemManager Items;
+        public HullData Hull;
+        public Zone Zone;
+        public CultRecordKey PlanetOrbit;
+        public CultRecordKey MoonOrbit;
+        public CultRecordKey MoonsMoonOrbit;
+    }
+
+    private Scene Build(float phase, double time, bool moonFirst = false)
+    {
+        var dir = Path.Combine(_root, $"zone{_caches.Count}");
+        Directory.CreateDirectory(dir);
+        var cache = AetheriaStores.Open(Path.Combine(dir, "Aetheria.cc"), Path.Combine(dir, "run.cc"), catalogWritable: true);
+        _caches.Add(cache);
+        cache.Upsert(new VerseGrammar { Revision = 1 });
+        var shape = new Shape(5, 5);
+        foreach (var cell in shape.AllCoordinates) shape[cell] = true;
+        var hull = new HullData { Name = "Skiff", HullType = HullType.Ship, Shape = shape, Durability = 10, Mass = 1000 };
+        cache.Upsert(hull);
+        var items = new ItemManager(cache, new ProvenanceLedger(), GameSettings(), _ => { });
+
+        var rootOrbit = cache.Upsert(new OrbitData { FixedPosition = RootAt }).Key;
+        var planetOrbit = cache.Upsert(new OrbitData
+        {
+            Parent = new CultRecordRef<OrbitData>(rootOrbit), Distance = Distance, Phase = phase
+        }).Key;
+        var moonOrbit = cache.Upsert(new OrbitData
+        {
+            Parent = new CultRecordRef<OrbitData>(planetOrbit), Distance = 100f
+        }).Key;
+        var moonsMoonOrbit = cache.Upsert(new OrbitData
+        {
+            Parent = new CultRecordRef<OrbitData>(moonOrbit), Distance = 40f
+        }).Key;
+        var sun = cache.Upsert(new PlanetData { Orbit = new CultRecordRef<OrbitData>(rootOrbit), Mass = 1f }).Key;
+        var planet = cache.Upsert(new PlanetData { Orbit = new CultRecordRef<OrbitData>(planetOrbit), Mass = 1f }).Key;
+        var moon = cache.Upsert(new PlanetData { Orbit = new CultRecordRef<OrbitData>(moonOrbit), Mass = .01f }).Key;
+        var pack = new ZonePack
+        {
+            Planets = { new CultRecordRef<BodyData>(sun), new CultRecordRef<BodyData>(planet), new CultRecordRef<BodyData>(moon) },
+            Radius = 5000f,
+            Mass = 10000f,
+            Time = time
+        };
+        // The same three orbits either way; only the order the pack lists them in differs.
+        var listed = moonFirst ? new[] { moonsMoonOrbit, moonOrbit, planetOrbit, rootOrbit } : new[] { rootOrbit, planetOrbit, moonOrbit, moonsMoonOrbit };
+        foreach (var key in listed) pack.Orbits.Add(new CultRecordRef<OrbitData>(key));
+        var zone = new Zone(items, Settings(), pack, new GalaxyZone { Name = "Placed", Owner = null }, null);
+        return new Scene { Cache = cache, Items = items, Hull = hull, Zone = zone, PlanetOrbit = planetOrbit, MoonOrbit = moonOrbit, MoonsMoonOrbit = moonsMoonOrbit };
+    }
+
+    [Theory]
+    [InlineData(.1f, 0.0)]
+    [InlineData(.35f, 0.0)]
+    [InlineData(.1f, 123.0)]
+    [InlineData(.35f, 123.0)]
+    public void ABodysWellSitsOnItsOrbitBeforeTheFirstTick(float phase, double time)
+    {
+        var s = Build(phase, time);
+        var orbit = s.Zone.Orbits[s.PlanetOrbit];
+        var turns = (float) frac(time / orbit.Period);
+        var expected = RootAt + OrbitData.Evaluate(frac(turns + phase)) * Distance;
+
+        Assert.InRange(length(orbit.Position - expected), 0f, .01f);
+
+        // The well pulls toward the body's place: a point 30 u east of it is pushed west.
+        var force = s.Zone.GetForce(expected + new float2(30f, 0f));
+        Assert.True(length(force) > 0f, "the well exerts a force");
+        Assert.InRange(normalize(force).x, -1f, -.99f);
+    }
+
+    // A moon's moon (the fourth orbit, a child of a child of the planet) is placed by the constructor too, whichever
+    // order the pack lists the chain in: each orbit sits its distance from its parent at its own phase of its own period.
+    [Theory]
+    [InlineData(false, 0.0)]
+    [InlineData(true, 0.0)]
+    [InlineData(false, 123.0)]
+    [InlineData(true, 123.0)]
+    public void AMoonsMoonSitsOnItsOrbitBeforeTheFirstTick(bool moonFirst, double time)
+    {
+        var s = Build(.1f, time, moonFirst);
+        var planet = s.Zone.Orbits[s.PlanetOrbit];
+        var moon = s.Zone.Orbits[s.MoonOrbit];
+        var moonsMoon = s.Zone.Orbits[s.MoonsMoonOrbit];
+        float2 Offset(Orbit orbit) => OrbitData.Evaluate(frac((float) frac(time / orbit.Period) + orbit.Data.Phase)) * orbit.Data.Distance;
+
+        var planetAt = RootAt + Offset(planet);
+        var moonAt = planetAt + Offset(moon);
+        var moonsMoonAt = moonAt + Offset(moonsMoon);
+
+        Assert.True(moon.Period > .01f && moonsMoon.Period > .01f, "the chain's orbits move");
+        Assert.InRange(length(moon.Position - moonAt), 0f, .01f);
+        Assert.InRange(length(moonsMoon.Position - moonsMoonAt), 0f, .01f);
+        Assert.True(length(moonsMoonAt - moonAt) > 1f, "the moon's moon is not on its parent");
+    }
+
+    // A parent's velocity is its own orbital velocity on the first tick and every tick after, whichever order
+    // the pack lists a moon and its planet in. dt differs per tick so a velocity taken from a fixed step fails.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TheFirstTickVelocityIsTheOrbitsSpeed(bool moonFirst)
+    {
+        var s = Build(.35f, 0.0, moonFirst);
+        var expected = sqrt(SunStrength); // outside the core T = 2 pi d / sqrt(c): the speed is sqrt(c), whatever d
+        foreach (var dt in new[] { 1f / 60f, 1f / 30f, 1f / 60f })
+        {
+            s.Zone.Update(dt);
+            var speed = length(s.Zone.Orbits[s.PlanetOrbit].Velocity);
+            Assert.InRange(speed, expected * .99f, expected * 1.01f);
+        }
+    }
+
+    [Fact]
+    public void AShipSteppedAloneFeelsTheBodyWhereItIs()
+    {
+        var s = Build(.1f, 0.0);
+        var planetAt = s.Zone.Orbits[s.PlanetOrbit].Position;
+        var ship = new Ship(s.Items, s.Zone, new EquippableItem
+        {
+            Data = s.Cache.RefOf<ItemData>(s.Hull),
+            Durability = s.Hull.Durability,
+            Lot = s.Items.Lots.Add(new Lot
+            {
+                Design = s.Cache.RefOf<ItemData>(s.Hull), Origin = new Attributed(), Quality = .5f, Roles = new List<RoleFill>()
+            })
+        }, new EntitySettings());
+        s.Zone.Admit(ship, piloted: false);
+        var at = planetAt + new float2(0f, 60f);
+        ship.Position = float3(at.x, ship.Position.y, at.y);
+        ship.Velocity = float2.zero;
+
+        ship.Update(1f / 60f); // the ship alone: no Zone.Update has run
+
+        Assert.True(length(ship.Velocity) > 0f, "the ship is pulled");
+        var toward = normalize(planetAt - at);
+        Assert.True(dot(normalize(ship.Velocity), toward) > .99f, "the pull is toward the planet, not toward the origin");
+    }
+}

@@ -34,9 +34,7 @@ public class Stardust : MonoBehaviour
     public Texture Heightmap;
     public Texture2D ParticleColors;
     //public Transform TargetTransform;
-    public Camera GravityCamera;
 
-    private float _flowScroll;
     private const int GROUP_SIZE = 128;
     private int _updateParticlesKernel;
     #endregion
@@ -57,6 +55,12 @@ public class Stardust : MonoBehaviour
 
     private ComputeBuffer _quadPoints;
     private const int QUAD_STRIDE = 12;
+
+    // The dust is drawn by a command buffer on TargetCamera: a camera replays its buffers at their event and never culls them,
+    // so the draw needs no bounds and no extent can fall short of how deep the field is.
+    private CommandBuffer _draw;
+    // Before the [ImageEffectOpaque] nebula, so its march fogs the dust; a deferred camera skips the forward-opaque events when nothing forward-opaque is drawn (B46, B49).
+    private const CameraEvent DrawEvent = CameraEvent.BeforeImageEffectsOpaque;
 
     #endregion
 
@@ -92,6 +96,33 @@ public class Stardust : MonoBehaviour
 			new Vector3(-.5f, -.5f),
 			new Vector3(-.5f, .5f)
 		});
+
+        //The buffers never change after this, so the material is bound once
+        ParticleMaterial.SetBuffer("particles", _particlesBuffer);
+        ParticleMaterial.SetBuffer("quadPoints", _quadPoints);
+
+        //Start may run again (the scene harness calls it by hand): drop the previous draw before building the next
+        DetachDraw();
+        _draw?.Release();
+        _draw = new CommandBuffer { name = "Stardust" };
+        _draw.DrawProcedural(Matrix4x4.identity, ParticleMaterial, 0, MeshTopology.Triangles, 6, Span * Span);
+        AttachDraw();
+    }
+
+    void OnEnable() => AttachDraw();
+
+    void OnDisable() => DetachDraw();
+
+    void AttachDraw()
+    {
+        if (_draw != null && TargetCamera != null)
+            TargetCamera.AddCommandBuffer(DrawEvent, _draw);
+    }
+
+    void DetachDraw()
+    {
+        if (_draw != null && TargetCamera != null)
+            TargetCamera.RemoveCommandBuffer(DrawEvent, _draw);
     }
     #endregion
 
@@ -102,9 +133,9 @@ public class Stardust : MonoBehaviour
         //Bind resources to compute shader
         ParticleCalculation.SetBuffer(_updateParticlesKernel, "particles", _particlesBuffer);
 
-        ParticleCalculation.SetFloat("time", Time.time);
+        // Particle lifetimes cycle on the flow clock (zone time), so the dust stops with the sim like everything the flow moves.
+        ParticleCalculation.SetFloat("phase", FlowField.Cycle(VolumeSampling.FlowClock, Period));
 
-        var pos = GravityCamera.transform.position;
         ParticleCalculation.SetFloat("period", Period);
         ParticleCalculation.SetFloat("spacing", Spacing);
         ParticleCalculation.SetFloat("ceilingHeight", Ceiling);
@@ -121,31 +152,7 @@ public class Stardust : MonoBehaviour
         //Dispatch, launch threads on GPU
         int numberOfGroups = Mathf.CeilToInt((float)Span * Span / GROUP_SIZE);
         ParticleCalculation.Dispatch(_updateParticlesKernel, numberOfGroups, 1, 1);
-        
-        ParticleMaterial.SetBuffer("particles", _particlesBuffer);
-        ParticleMaterial.SetBuffer("quadPoints", _quadPoints);
-        Graphics.DrawProcedural(ParticleMaterial, new Bounds(pos, new Vector3(Spacing * Span, 2048, Spacing * Span)), MeshTopology.Triangles, 6, Span * Span, TargetCamera, null, ShadowCastingMode.Off, false, 0);
     }
-    #endregion
-
-    #region rendering
-    // void OnRenderObject()
-    // {
-    //     if (Camera.current == TargetCamera || Camera.current.name == "SceneCamera")
-    //     {
-    //         //Bind resources to material
-    //         ParticleMaterial.SetBuffer("particles", _particlesBuffer);
-    //         ParticleMaterial.SetBuffer("quadPoints", _quadPoints);
-    //         // ParticleMaterial.SetFloat("velocityStretch", ParticleVelocityStretch);
-    //         // ParticleMaterial.SetVector("velocity", PlayerVelocity);
-    //         
-    //         //Set the pass
-    //         ParticleMaterial.SetPass(0);
-    //
-    //         //Draw
-    //         Graphics.DrawProceduralNow(MeshTopology.Triangles, 6, Span * Span);
-    //     }
-    // }
     #endregion
 
     #region cleanup
@@ -153,6 +160,9 @@ public class Stardust : MonoBehaviour
     {
 //        m_emitterProxies.Release();
 //        _temperature.Release();
+        DetachDraw();
+        _draw?.Release();
+        _draw = null;
         if(_particlesBuffer!=null)
         {
             _particlesBuffer.Release();

@@ -33,7 +33,7 @@ UNITY_EXE = r"C:\Program Files\Unity\Hub\Editor\6000.3.24f1\Editor\Unity.exe"
 ITEM_DATA_CS = REPO_ROOT / "Assets" / "Scripts" / "ServerShared" / "ItemData.cs"
 DIRECTORY_BUILD_PROPS = REPO_ROOT / "Directory.Build.props"
 
-# A known-good record to mutate: HullData "LonginusX", whose Prefab already resolves (see the Cut 2
+# A known-good record to mutate: HullData "Longinus", whose Prefab already resolves (see the Cut 2
 # migration report). Texture2D guid is its own Schematic (schema_Longinus.png), still a real,
 # addressable asset, just the wrong type for Prefab (which wants a GameObject+EntityInstance).
 TEXTURE_GUID = "51702555e534a7a4fb39eb105b80bbaf"
@@ -109,7 +109,7 @@ using System.Linq;
 using System.Reflection;
 using GameCult.Caching;
 
-// Scratch-only (not landed): sets HullData "LonginusX".Prefab to an arbitrary string in a copy of
+// Scratch-only (not landed): sets HullData "Longinus".Prefab to an arbitrary string in a copy of
 // the catalog, for tests/mutation_tests.py to feed to EngineAssetCheck and prove it fails.
 internal static class Program
 {
@@ -122,12 +122,12 @@ internal static class Program
         {
             var stored = cache.AllStoredDocuments.First(s =>
                 s.Descriptor.DocumentType.Name == "HullData" &&
-                (string)s.Descriptor.DocumentType.GetField("Name").GetValue(s.Document) == "LonginusX");
+                (string)s.Descriptor.DocumentType.GetField("Name").GetValue(s.Document) == "Longinus");
             var field = stored.Descriptor.DocumentType.GetField("Prefab", BindingFlags.Public | BindingFlags.Instance);
             field.SetValue(stored.Document, newValue);
             cache.UpsertAsync(stored.Descriptor.DocumentType, stored.Document, stored.Key).Wait();
             cache.FlushAllBackingStores();
-            Console.WriteLine($"Set HullData \"LonginusX\".Prefab = \"{newValue}\"");
+            Console.WriteLine($"Set HullData \"Longinus\".Prefab = \"{newValue}\"");
             return 0;
         }
         finally
@@ -217,11 +217,11 @@ def main():
                 if code == 0:
                     failures.append(f"{name}: EngineAssetCheck exited 0; the mutation was not caught")
                     continue
-                if "LonginusX" not in text:
-                    failures.append(f"{name}: failure did not name the record (LonginusX)")
+                if "Longinus" not in text:
+                    failures.append(f"{name}: failure did not name the record (Longinus)")
                     continue
                 assert_contains(text, expect, name)
-                print(f"OK: caught, exit {code}, named LonginusX, mentioned {expect!r}")
+                print(f"OK: caught, exit {code}, named Longinus, mentioned {expect!r}")
             except SystemExit as exc:
                 failures.append(f"{name}: {exc}")
             finally:

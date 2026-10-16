@@ -1,0 +1,10 @@
+# This is an Asset Catalog Definition file for Blender.
+#
+# Empty lines and lines starting with `#` will be ignored.
+# The first non-ignored line should be the version indicator.
+# Other lines are of the format "UUID:catalog/path/for/assets:simple catalog name"
+
+VERSION 1
+
+2c70f9d2-3a69-4004-8f42-4712b3e6c439:Aetheria:Aetheria
+a71be0dc-105e-4c66-8ff3-acb25522e9cd:Aetheria/PBR:Aetheria-PBR

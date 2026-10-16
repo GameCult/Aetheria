@@ -68,7 +68,10 @@ public sealed class GalaxyStage
     }
 
     // A prelude galaxy: the tutorial settings and their fixed factions, centred in dense cloud.
-    public Galaxy Prelude()
+    public Galaxy Prelude() => Prelude(_prelude);
+
+    // A prelude galaxy of the given fixed cast, centred in dense cloud.
+    public Galaxy Prelude(TutorialGenerationSettings cast)
     {
         var background = Copy(_preludeBackground);
         var random = new Random(Seed);
@@ -78,7 +81,7 @@ public sealed class GalaxyStage
             background.NoisePosition = random.NextFloat() * 1000;
             _progress?.Invoke($"Finding Galaxy Position: iteration {iteration++}");
         } while (background.CloudDensity(float2(.5f)) < .5f);
-        return new Galaxy(_prelude, background, _names, _cache, _playerSettings, _narrativeDirectory, _log, _progress, Seed);
+        return new Galaxy(cast, background, _names, _cache, _playerSettings, _narrativeDirectory, _log, _progress, Seed);
     }
 
     private static SectorBackgroundSettings Copy(SectorBackgroundSettings settings) =>

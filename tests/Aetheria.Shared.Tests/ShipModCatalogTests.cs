@@ -21,8 +21,8 @@ public sealed class ShipModCatalogTests : IDisposable
     {
         Directory.CreateDirectory(Mods);
         using var cache = AetheriaStores.Open(Shipped, catalogWritable: true);
-        // The test assembly registers TestCatalogGlobal (AetheriaStoresTests), so any populated catalog must hold one.
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        // A populated catalog must hold the VerseGrammar global.
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(new HullData { Name = "Wasp", Shape = ShipAuthoringTests.Fixture().Hull.Shape });
         cache.Upsert(new GearData { Name = "Widget" });
         cache.FlushAsync().Wait();
@@ -89,7 +89,7 @@ public sealed class ShipModCatalogTests : IDisposable
     public void ComposeCopiesTheModStoresRecordsUnchangedAndTheHullNamesItsVisualByRef()
     {
         WritePackage("mod.skiff");
-        var (modHull, modVisual) = ShipAuthoringStore.Read(Path.Combine(Mods, "mod.skiff", "ship.cc"));
+        var (modHull, modVisual, _) = ShipAuthoringStore.Read(Path.Combine(Mods, "mod.skiff", "ship.cc"));
         ShipModCatalog.Compose(Shipped, Derived, Mods);
 
         using var cache = AetheriaStores.Open(Derived);
@@ -286,6 +286,18 @@ public sealed class ShipModCatalogTests : IDisposable
         Assert.Equal("ship ID collides with an existing catalog ship authoring record.", Assert.Single(composition.Excluded).Reason);
     }
 
+    // The loader and the LFS rule (GameData/Mods/**/*.glb) agree: only a lowercase .glb is a model.
+    [Fact]
+    public void AModelWithAnUppercaseExtensionIsRefused()
+    {
+        WritePackage("mod.skiff", modelAsset: "skiff.GLB");
+
+        var excluded = Assert.Single(ShipModCatalog.Compose(Shipped, Derived, Mods).Excluded);
+
+        Assert.Equal("mod.skiff", excluded.Package);
+        Assert.Contains("GLB", excluded.Reason);
+    }
+
     // The game's boot: a bad package is named and the rest boot; with none left, the shipped catalog boots.
     [Fact]
     public void TheBootCatalogSurvivesBadPackages()
@@ -419,6 +431,48 @@ public sealed class ShipModCatalogTests : IDisposable
         Assert.Contains("records and model", output);
     }
 
+    [Theory]
+    [InlineData("con"), InlineData("nul.x"), InlineData("abc.")]
+    public void CreateRefusesABadIdBeforeTouchingTheDisk(string id)
+    {
+        var target = Path.Combine(_directory.Path, "GameData", "Mods", id, "ship.cc");
+        // The display name is itself a valid ship ID, so a rule applied to it instead of the ID would not refuse.
+        var (code, output, error) = Run("create", target, id, "probe", "--like", "Djinni");
+        Assert.Equal(1, code);
+        Assert.Contains("Ship ID", error);
+        Assert.False(Directory.Exists(Path.Combine(_directory.Path, "GameData")));
+    }
+
+    [Fact]
+    public void CreateJudgesTheIdAndTakesAnyDisplayName()
+    {
+        var target = Path.Combine(_directory.Path, "GameData", "Mods", "probe.a", "ship.cc");
+        var (code, output, error) = Run("create", target, "probe.a", "Probe A");
+        Assert.Equal(0, code);
+        Assert.True(File.Exists(target), error);
+    }
+
+    [Fact]
+    public void CentreCommandPrintsShapeCenterOfMass()
+    {
+        // An L: its centre of mass (1.2, 0.2) is not the bounds centre (1.5, 0.5).
+        var shape = new Shape(4, 2);
+        foreach (var (x, y) in new[] { (0, 0), (1, 0), (2, 0), (3, 0), (0, 1) }) shape.Cells[x, y] = true;
+        var target = Path.Combine(_directory.Path, "GameData", "Mods", "probe.l", "ship.cc");
+        Assert.Equal(0, Run("create", target, "probe.l", "Probe L").Code);
+        var (hull, ship, _) = ShipAuthoringStore.Load(target);
+        hull.Shape = shape;
+        using (var cache = ShipAuthoringStore.Open(target, writable: true))
+        {
+            ShipAuthoringStore.Write(cache, hull, ship);
+            cache.FlushAsync().Wait();
+        }
+        var (code, output, error) = Run("centre", target);
+        Assert.Equal(0, code);
+        Assert.Equal("1.2 0.2", output.Trim());
+        Assert.Equal("", error);
+    }
+
     private static (int Code, string Output, string Error) Run(params string[] args)
     {
         var (output, error) = (new StringWriter(), new StringWriter());
@@ -434,7 +488,7 @@ public sealed class ShipModCatalogTests : IDisposable
     {
         var path = Write("nodes.glb", ShipFixture.Glb(@"{""asset"":{""version"":""2.0""},""nodes"":[
             {""name"":""plain""},{""extras"":{""aetheria.id"":""a""}},{""extras"":{}},{""extras"":{""aetheria.id"":""""}},{""mesh"":0,""extras"":{""aetheria.id"":""b""}}]}"));
-        Assert.Equal(new Dictionary<string, (uint, bool)> { ["a"] = (1, false), ["b"] = (4, true) }, ShipModCatalog.ReadNodeIds(path));
+        Assert.Equal(new Dictionary<string, (uint, bool, int)> { ["a"] = (1, false, -1), ["b"] = (4, true, -1) }, ShipModCatalog.ReadNodeIds(path));
     }
 
     [Fact]
@@ -598,7 +652,7 @@ public sealed class ShipModCatalogTests : IDisposable
     private void WritePackage(string id, string hullName = "Skiff", string[] nodes = null, string modelAsset = "skiff.glb",
         Action<ShipParts> tweak = null, string[] meshNodes = null) => ShipFixture.WritePackage(Mods, id, hullName, nodes, modelAsset, tweak, meshNodes);
 
-    private static Dictionary<string, uint> Indices(Dictionary<string, (uint Index, bool HasMesh)> nodes) =>
+    private static Dictionary<string, uint> Indices(Dictionary<string, (uint Index, bool HasMesh, int Parent)> nodes) =>
         nodes.ToDictionary(node => node.Key, node => node.Value.Index);
 
     private static int Occurrences(byte[] haystack, byte[] needle)

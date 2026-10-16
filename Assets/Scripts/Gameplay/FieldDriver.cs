@@ -63,11 +63,7 @@ public class FieldDriver : MonoBehaviour, IAbsorbPresenter, IGrabPresenter, IMel
     // public float GrabScaleAnimationExponent = .5f;
 
     [Inspectable]
-    public float GrabExtendTime;
-    [Inspectable]
-    public float GrabEnvelopTime;
-    [Inspectable]
-    public float GrabPullTime;
+    public float TendrilTipScale = 1;
     
     [Inspectable]
     public RectTransform.Axis RefractionAxis = RectTransform.Axis.Horizontal;
@@ -81,28 +77,16 @@ public class FieldDriver : MonoBehaviour, IAbsorbPresenter, IGrabPresenter, IMel
     private float _meleeTime;
     private bool _meleeActive;
     private MeshCollider _collider;
-    private Transform _grabObject;
-    private Vector3 _grabObjectStartPos;
-    private Vector3 _grabObjectStartTendrilBasePos;
-    private Vector3 _grabObjectEndPos;
-    private Vector3 _grabObjectVelocity;
-    private float _grabObjectScale;
+    private bool _grabbing;
+    private GrabPhase _grabPhase;
     private float _grabTime;
-    private TendrilPhase _grabPhase;
+    private float _phaseDuration;
+    private Vector3 _grabStart;
+    private Vector3 _grabStartTendrilBase;
     private Vector3 _tendrilBasePos;
     private Vector3 _tendrilBendTarget;
     private Vector3 _tendrilTargetPos;
     private float _fadePoint;
-
-    // Named distinctly from the global GrabPhase (CapabilityEvents.cs): this is FieldDriver's own
-    // internal tendril-animation timing, still owned here until a real pickup capability exists to
-    // publish per-phase GrabEvent transitions (see Grab(GrabEvent, Transform, Vector3) below).
-    private enum TendrilPhase
-    {
-        Extend,
-        Envelop,
-        Pull
-    }
 
     private struct FieldHit
     {
@@ -181,32 +165,41 @@ public class FieldDriver : MonoBehaviour, IAbsorbPresenter, IGrabPresenter, IMel
         _meleeTime = 0;
     }
 
-    public bool CanGrab => _grabObject == null;
-
-    public void GrabObject(Transform t, Vector3 v)
-    {
-        _grabPhase = TendrilPhase.Extend;
-        _grabObject = t;
-        _grabObjectStartPos = t.position;
-        _grabObjectVelocity = v;
-        _grabObjectScale = t.localScale.x;
-        _tendrilBasePos = _grabObjectStartTendrilBasePos = _collider.ClosestPoint(_grabObjectStartPos);
-        _fadePoint = .999f;
-    }
-
     // IAbsorbPresenter: delegates straight to the existing hit-buffer mechanism. e.DamageType is not
     // read -- the field shield has no per-damage-type visual today; it rides along in the event for
     // presentations that do vary by type (the mask itself is absorb-capability data, out of scope here).
     public void Absorb(AbsorbEvent e) => AddHit(e.Position, e.Direction, e.Magnitude);
 
-    // IGrabPresenter: only the Started phase does anything today. FieldDriver still times the
-    // extend/envelop/pull animation itself (TendrilPhase above, driven by GrabExtendTime/
-    // GrabEnvelopTime/GrabPullTime) because no capability yet publishes those phase transitions;
-    // once one does, this is where FieldDriver would react to Envelop/Pull/Completed/Cancelled too.
-    public void Grab(GrabEvent e, Transform target, Vector3 initialVelocity)
+    // IGrabPresenter: the simulation owns the grab; this draws the tendril from the events alone. Started records
+    // where the item is held and where the tendril leaves the field; Extend, Envelop and Pull set the phase and
+    // restart the real-time phase clock over the event's duration (it clamps at 1 until the next event, so a
+    // slowed simulation stretches the wait, not the animation); Completed and Cancelled end it.
+    public void Grab(GrabEvent e)
     {
-        if (e.Phase == GrabPhase.Started && target != null)
-            GrabObject(target, initialVelocity);
+        switch (e.Phase)
+        {
+            case GrabPhase.Started:
+                _grabbing = true;
+                _grabPhase = GrabPhase.Started;
+                _grabStart = e.TargetPosition.ToUnity();
+                _tendrilBasePos = _grabStartTendrilBase = _collider.ClosestPoint(_grabStart);
+                _tendrilTargetPos = _grabStart;
+                _fadePoint = .999f;
+                break;
+            case GrabPhase.Extend:
+            case GrabPhase.Envelop:
+            case GrabPhase.Pull:
+                if (!_grabbing) break;
+                _grabPhase = e.Phase;
+                _grabTime = 0;
+                _phaseDuration = e.PhaseDuration;
+                break;
+            case GrabPhase.Completed:
+            case GrabPhase.Cancelled:
+                _grabbing = false;
+                _field.SetFloat("_TendrilInfluence", 0);
+                break;
+        }
     }
 
     // IMeleePresenter: the field shield's swing shape comes from its own authored curves
@@ -277,74 +270,47 @@ public class FieldDriver : MonoBehaviour, IAbsorbPresenter, IGrabPresenter, IMel
         }
         
         
-        if(_grabObject != null)
+        if (_grabbing && _grabPhase != GrabPhase.Started)
         {
-            _grabTime += Time.deltaTime / _grabPhase switch
+            _grabTime = min(1, _grabTime + Time.deltaTime / max(_phaseDuration, 1e-4f));
+            _tendrilBasePos = damp(_tendrilBasePos.ToCultMath(), _tendrilTargetPos.ToCultMath(), TendrilBaseDamping, Time.deltaTime).ToUnity();
+            switch (_grabPhase)
             {
-                TendrilPhase.Extend => GrabExtendTime,
-                TendrilPhase.Envelop => GrabEnvelopTime,
-                TendrilPhase.Pull => GrabPullTime,
-                _ => throw new ArgumentOutOfRangeException()
-            };
-            if (_grabTime > 1)
-            {
-                _grabTime = 0;
-                if (_grabPhase == TendrilPhase.Envelop)
-                {
-                    _grabObjectEndPos = _grabObject.position;
-                }
-                if (_grabPhase == TendrilPhase.Pull)
-                {
-                    Destroy(_grabObject.gameObject);
-                    _grabObject = null;
-                    _field.SetFloat("_TendrilInfluence", 0);
-                }
-                else _grabPhase++;
+                case GrabPhase.Extend:
+                    _tendrilBendTarget = _grabStart;
+                    _tendrilTargetPos = lerp(
+                        lerp(_grabStartTendrilBase.ToCultMath(), _grabStart.ToCultMath(), _grabTime),
+                        _grabStart.ToCultMath(),
+                        pow(_grabTime, TendrilExtensionExponent)).ToUnity();
+                    _field.SetFloat("_TendrilInfluence", pow(_grabTime, TendrilExtendBaseAnimationExponent));
+                    _field.SetFloat("_TendrilSize", lerp(TendrilBaseRadius/2,TendrilBaseRadius,pow(_grabTime, TendrilExtendBaseAnimationExponent)));
+                    _field.SetFloat("_TendrilRadius", TendrilTipScale * pow(_grabTime, TendrilTipRadiusAnimationExponent) * TendrilTipRadius);
+                    break;
+                case GrabPhase.Envelop:
+                    _tendrilBendTarget = _grabStart;
+                    _tendrilTargetPos = _grabStart;
+                    _field.SetFloat("_TendrilInfluence", 1);
+                    _field.SetFloat("_TendrilSize", TendrilBaseRadius);
+                    _field.SetFloat("_TendrilRadius", TendrilTipScale * TendrilTipRadius);
+                    break;
+                case GrabPhase.Pull:
+                    // The curve of Zone's held pose (Zone.HeldPull): the tip rides the item the simulation pulls in.
+                    _tendrilTargetPos = lerp(_grabStart.ToCultMath(), transform.position.ToCultMath(), Zone.HeldPull(_grabTime)).ToUnity();
+                    _tendrilBendTarget = _grabStart;
+                    if (_fadePoint > .99 && transform.InverseTransformPoint(_tendrilTargetPos).sqrMagnitude < 1)
+                        _fadePoint = _grabTime;
+                    _field.SetFloat("_TendrilInfluence", pow(smoothstep(1, _fadePoint, _grabTime), TendrilFadeExponent));
+                    _field.SetFloat("_TendrilSize", TendrilBaseRadius);
+                    _field.SetFloat("_TendrilRadius", TendrilTipScale * TendrilTipRadius);
+                    break;
             }
-
-            if (_grabObject != null)
-            {
-                _tendrilBasePos = damp(_tendrilBasePos.ToCultMath(), _grabObject.position.ToCultMath(), TendrilBaseDamping, Time.deltaTime).ToUnity();
-                switch (_grabPhase)
-                {
-                    case TendrilPhase.Extend:
-                        _tendrilBendTarget = _grabObjectStartPos;
-                        _grabObject.position += _grabObjectVelocity * Time.deltaTime;
-                        _tendrilTargetPos = lerp(
-                            lerp(_grabObjectStartTendrilBasePos.ToCultMath(), _grabObjectStartPos.ToCultMath(), _grabTime), 
-                            lerp(_grabObjectStartPos.ToCultMath(), _grabObject.position.ToCultMath(), _grabTime),
-                            pow(_grabTime, TendrilExtensionExponent)).ToUnity();
-                        _field.SetFloat("_TendrilInfluence", pow(_grabTime, TendrilExtendBaseAnimationExponent));
-                        _field.SetFloat("_TendrilSize", lerp(TendrilBaseRadius/2,TendrilBaseRadius,pow(_grabTime, TendrilExtendBaseAnimationExponent)));
-                        _field.SetFloat("_TendrilRadius", _grabObjectScale * pow(_grabTime, TendrilTipRadiusAnimationExponent) * TendrilTipRadius);
-                        break;
-                    case TendrilPhase.Envelop:
-                        _tendrilBendTarget = _grabObjectStartPos;
-                        _tendrilTargetPos = _grabObject.position += _grabObjectVelocity * Time.deltaTime * (1-_grabTime);
-                        _field.SetFloat("_TendrilInfluence", 1);
-                        _field.SetFloat("_TendrilSize", TendrilBaseRadius);
-                        _field.SetFloat("_TendrilRadius", _grabObjectScale * TendrilTipRadius);
-                        break;
-                    case TendrilPhase.Pull:
-                        _tendrilTargetPos = _grabObject.position = lerp(_grabObjectEndPos.ToCultMath(), transform.position.ToCultMath(), _grabTime*_grabTime).ToUnity();
-                        _tendrilBendTarget = lerp(_grabObjectStartPos.ToCultMath(), _grabObjectEndPos.ToCultMath(), _grabTime*_grabTime).ToUnity();
-                        if (_fadePoint > .99 && transform.InverseTransformPoint(_grabObject.position).sqrMagnitude < 1)
-                            _fadePoint = _grabTime;
-                        _field.SetFloat("_TendrilInfluence", pow(smoothstep(1, _fadePoint, _grabTime), TendrilFadeExponent));
-                        _field.SetFloat("_TendrilSize", TendrilBaseRadius);
-                        _field.SetFloat("_TendrilRadius", _grabObjectScale * TendrilTipRadius);
-                        break;
-                    default:
-                        throw new ArgumentOutOfRangeException();
-                }
-                var tendrilRadii = EnvelopeRadiiOrFallback();
-                _field.SetVector("_TendrilBase", Vector3.Scale(transform.InverseTransformPoint(_tendrilBasePos).normalized, tendrilRadii));
-                _field.SetVector("_TendrilBend", Vector3.Scale(transform.InverseTransformPoint(_tendrilBendTarget), tendrilRadii));
-                _field.SetVector("_TendrilTarget", Vector3.Scale(transform.InverseTransformPoint(_tendrilTargetPos), tendrilRadii));
-            }
+            var tendrilRadii = EnvelopeRadiiOrFallback();
+            _field.SetVector("_TendrilBase", Vector3.Scale(transform.InverseTransformPoint(_tendrilBasePos).normalized, tendrilRadii));
+            _field.SetVector("_TendrilBend", Vector3.Scale(transform.InverseTransformPoint(_tendrilBendTarget), tendrilRadii));
+            _field.SetVector("_TendrilTarget", Vector3.Scale(transform.InverseTransformPoint(_tendrilTargetPos), tendrilRadii));
         }
     }
-    
+
     private float almostIdentity( float x )
     {
         return x*x*(2.0f-x);
@@ -358,7 +324,7 @@ public class FieldDriver : MonoBehaviour, IAbsorbPresenter, IGrabPresenter, IMel
     private const int GIZMO_STEPS = 16;
     private void OnDrawGizmosSelected()
     {
-        if (_grabObject != null)
+        if (_grabbing)
         {
             Vector3 previous = _tendrilBasePos;
             for (int i = 1; i <= GIZMO_STEPS; i++)

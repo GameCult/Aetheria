@@ -11,14 +11,10 @@ using UnityEngine;
 public class GameSettings : ScriptableObject
 {
     public string StartingHullName = "Longinus";
-    public float PickupLifetime = 30;
-    public float LootDropProbability = .25f;
-    public float LootDropVelocity = 25;
     public float HeatstrokePhasingFloor = 0;
     public float HeatstrokePhasingFrequency = 5;
     public float WormholeDistanceRatio;
     public float DefaultViewDistance;
-    public float MinimapZoneGravityRange;
     public float[] MinimapZoomLevels;
     public int DefaultMinimapZoom;
     public ExponentialCurve IconSize;

@@ -64,7 +64,7 @@ public sealed class PowerCurveTests : IDisposable
     private CultCache OpenCatalog(PerformanceStat curveStat)
     {
         var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         var hullShape = new Shape(5, 5);
         foreach (var cell in hullShape.AllCoordinates) hullShape[cell] = true;
         cache.Upsert(new HullData { Name = "Skiff", HullType = HullType.Ship, Shape = hullShape, Durability = 10, Mass = 1000 });
@@ -103,8 +103,7 @@ public sealed class PowerCurveTests : IDisposable
         Assert.True(ship.TryEquip(Mint(cache, items, reactorData)));
         Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("Engine"))));
 
-        zone.Entities.Add(ship);
-        ship.Activate();
+        zone.Admit(ship, piloted: false);
         return ship;
     }
 
@@ -274,7 +273,7 @@ public sealed class PowerCurveTests : IDisposable
         var goodEnergy = new PerformanceStat { Min = 1, Max = 1, Terms = { new StatTerm { Source = StatSource.PowerSupply, Exponent = 1 } } };
         using (var cache = AetheriaStores.Open(Catalog, catalogWritable: true))
         {
-            cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+            cache.Upsert(new VerseGrammar { Revision = 1 });
             cache.UpsertAsync(new GearData
             {
                 Name = "CurvedThruster", Hardpoint = HardpointType.Tool, Shape = new Shape(), Durability = 10,
@@ -294,7 +293,7 @@ public sealed class PowerCurveTests : IDisposable
     {
         var goodEnergy = new PerformanceStat { Min = 1, Max = 1, Terms = { new StatTerm { Source = StatSource.PowerSupply, Exponent = 1 } } };
         using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
 
         cache.Upsert(new GearData
         {
@@ -307,7 +306,7 @@ public sealed class PowerCurveTests : IDisposable
 
     // --- F6 (docs/stats-and-power-cut.md, Soul pass 2026-09-19) named PumpedHeat as a Radiator request field
     // --- (PowerRequest's own early-out gate reads it, the exact shape Soul reproduced against the shipped
-    // --- catalog's "OK Disperser": SOUL_RadiatorRequestDependsOnItsOwnGrantAndOscillates) and, at the time,
+    // --- catalog's "Heat Pump": SOUL_RadiatorRequestDependsOnItsOwnGrantAndOscillates) and, at the time,
     // --- refused a PowerSupply term there for exactly that reason. The nominal-request ruling above is what
     // --- actually fixes the oscillation (the request no longer reads the live grant at all), so this shape is
     // --- accepted now -- the six shipped records this ruling exists to make legal again include exactly this
@@ -318,7 +317,7 @@ public sealed class PowerCurveTests : IDisposable
     {
         var curvedPumpedHeat = new PerformanceStat { Min = 1000, Max = 4000, Terms = { new StatTerm { Source = StatSource.PowerSupply, Exponent = 1 } } };
         using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
 
         cache.Upsert(new GearData
         {
@@ -342,7 +341,7 @@ public sealed class PowerCurveTests : IDisposable
     {
         var curvedRefillDuration = new PerformanceStat { Min = 2, Max = 2, Terms = { new StatTerm { Source = StatSource.PowerSupply, Exponent = 1 } } };
         using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
 
         cache.Upsert(new GearData
         {
@@ -376,7 +375,7 @@ public sealed class PowerCurveTests : IDisposable
         };
 
         using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         var hullShape = new Shape(3, 3);
         foreach (var cell in hullShape.AllCoordinates) hullShape[cell] = true;
         cache.Upsert(new HullData
@@ -408,9 +407,8 @@ public sealed class PowerCurveTests : IDisposable
         var ship = new Ship(items, zone, hullItem, new EntitySettings());
         Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("Drain")), HardpointCell));
         Assert.True(ship.TryEquip(Mint(cache, items, cache.GetByName<GearData>("Booster")), SecondHardpointCell));
-        zone.Entities.Add(ship);
 
-        var error = Assert.Throws<InvalidOperationException>(() => ship.Activate());
+        var error = Assert.Throws<InvalidOperationException>(() => zone.Admit(ship, piloted: false));
         Assert.Contains("Drain", error.Message);   // the item whose request would be corrupted
         Assert.Contains("Booster", error.Message); // the item whose modifier would corrupt it
     }

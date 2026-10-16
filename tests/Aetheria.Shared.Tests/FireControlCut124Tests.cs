@@ -23,7 +23,7 @@ using int2 = CultMath.int2;
 // follows, with the rules this cut's own tests must obey: SchematicCellSize 2 throughout (the 12.3 fixture's
 // cell size of 1 would hide a missing `/ SchematicCellSize`), the target off the origin, and a hull whose
 // centre of mass is not an integer cell.
-public sealed class FireControlCut124Tests : IDisposable
+public sealed partial class FireControlCut124Tests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "aetheria-firecontrolcut124-" + Guid.NewGuid().ToString("N"));
     private string Catalog => Path.Combine(_root, "Aetheria.cc");
@@ -44,7 +44,6 @@ public sealed class FireControlCut124Tests : IDisposable
         Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
         QualityPriceModifier = new ExponentialLerp(),
         TargetDetectionInfoThreshold = .1f,
-        TargetArmorInfoThreshold = .2f,
         TargetGearInfoThreshold = .8f,
         FiringArc = 170,
         CommitHorizon = commitHorizon,
@@ -87,7 +86,7 @@ public sealed class FireControlCut124Tests : IDisposable
     // (LockAngle 180 admits any bearing) or never grows (LockAngle 0 admits none, so it only decays). A stat
     // term on Range lets a test scale it below its authored value through the power supply.
     private static InstantWeaponData WeaponBehavior(float damage, float range, StatSource? rangeTerm, float velocity, float penetration,
-        bool lockWeapon, bool lockAcquires)
+        bool lockWeapon, bool lockAcquires, float effectiveRange = float.PositiveInfinity, float damageAtMaxRange = 0f)
     {
         var data = lockWeapon ? new LockWeaponData
         {
@@ -98,6 +97,8 @@ public sealed class FireControlCut124Tests : IDisposable
         data.Range = rangeTerm == null ? Constant(range)
             : new PerformanceStat { Min = range, Max = range, Terms = { new StatTerm { Source = rangeTerm.Value, Exponent = 1f } } };
         data.MinRange = Constant(0);
+        data.EffectiveRange = Constant(effectiveRange);
+        data.DamageAtMaxRange = damageAtMaxRange;
         data.Velocity = Constant(velocity);
         data.Spread = Constant(0);
         data.DamageSpread = Constant(0);
@@ -105,7 +106,6 @@ public sealed class FireControlCut124Tests : IDisposable
         data.Count = Constant(1);
         data.BurstTime = Constant(0);
         data.Cooldown = Constant(1000);
-        data.DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } };
         return data;
     }
 
@@ -118,7 +118,8 @@ public sealed class FireControlCut124Tests : IDisposable
         int2? cockpitCell = null, float cockpitDurability = 1000f,
         (string Name, Shape Shape, int2 Cell, float Durability)[] custom = null,
         float accuracy = 1f, int2? gunCell = null, float weaponRange = 100000f,
-        float hardpointArc = 0f, StatSource? rangeTerm = null, bool lockWeapon = false, bool lockAcquires = true)
+        float hardpointArc = 0f, StatSource? rangeTerm = null, bool lockWeapon = false, bool lockAcquires = true,
+        float effectiveRange = float.PositiveInfinity, float damageAtMaxRange = 0f)
     {
         var hullData = new HullData
         {
@@ -133,7 +134,7 @@ public sealed class FireControlCut124Tests : IDisposable
 
         var cache = AetheriaStores.Open(Catalog + Guid.NewGuid().ToString("N"), catalogWritable: true);
         _openCaches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(hullData);
         cache.Upsert(shooterHullData);
         cache.Upsert(new WeaponItemData
@@ -141,7 +142,7 @@ public sealed class FireControlCut124Tests : IDisposable
             Name = "Gun", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Durability = 1,
             MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000,
             Fuse = fuse, BlastRadius = blastRadius, WeaponModifiers = modifiers,
-            Behaviors = { WeaponBehavior(damage, weaponRange, rangeTerm, velocity, penetration, lockWeapon, lockAcquires) }
+            Behaviors = { WeaponBehavior(damage, weaponRange, rangeTerm, velocity, penetration, lockWeapon, lockAcquires, effectiveRange, damageAtMaxRange) }
         });
         cache.Upsert(new GearData
         {
@@ -242,10 +243,8 @@ public sealed class FireControlCut124Tests : IDisposable
             Assert.True(target.TryEquip(shield, spos));
         }
 
-        zone.Entities.Add(shooter);
-        zone.Entities.Add(target);
-        shooter.Activate();
-        target.Activate();
+        zone.Admit(shooter, piloted: false);
+        zone.Admit(target, piloted: false);
 
         // Off-origin (the fixture rule): the shooter sits away from the world origin, and the target sits
         // `targetRange` ahead of it along the shooter's own +z, so a stationary target's TravelDirection is
@@ -469,14 +468,13 @@ public sealed class FireControlCut124Tests : IDisposable
     }
 
     // The same rule on the shipped hulls: a blast just grazing the corner farthest from the centre of mass. The
-    // corners of the shipped Longinus and LonginusX reach past the old cull's box-half-diagonal bound.
+    // corner of the shipped Longinus reaches past the old cull's box-half-diagonal bound.
     [Theory]
     [InlineData("Longinus")]
-    [InlineData("LonginusX")]
     public void AGrazingBlastAtAShippedHullsFarthestCornerLands(string hullName)
     {
         Shape shape;
-        var cache = OpenReadOnlyRealCatalog(Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc"), out _);
+        var cache = OpenReadOnlyRealCatalog(TestCatalog.Repo, out _);
         try { shape = cache.GetByName<HullData>(hullName).Shape; }
         finally { cache.Dispose(); }
 
@@ -516,8 +514,7 @@ public sealed class FireControlCut124Tests : IDisposable
             Data = e.Items.ItemData.RefOf<ItemData>(e.Items.ItemData.GetByName<GearData>("Marker")), Durability = 1000000, Lot = lot + 1
         };
         Assert.True(ship.TryEquip(marker, new int2(1, 1)));
-        e.Zone.Entities.Add(ship);
-        ship.Activate();
+        e.Zone.Admit(ship, piloted: false);
         ship.Position = position;
         return ship;
     }
@@ -1397,7 +1394,7 @@ public sealed class FireControlCut124Tests : IDisposable
         var e = Build(TestSettings(), SolidShape(5, 4), velocity: 0, fuse: fuse, blastRadius: 4f, damage: 100f,
             weaponRange: NoLockRange, targetRange: 40f);
         e.Shooter.Direction = float2(0, -1);
-        Aim(e, float2(0, -1));
+        Aim(e, float2(0, 1)); // outside the flipped mount's arc too: no solution, and the aim is not free
         Assert.Equal(fires, e.Weapon.ArcAllowsFire);
         var committed = 0;
         using var c = e.Zone.ShotCommitted.Subscribe(_ => committed++);
@@ -1466,7 +1463,7 @@ public sealed class FireControlCut124Tests : IDisposable
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
         Assert.True(SafeAssert.OnlyShot(e.Zone).Target == e.Target, "fixture: the pushed-out round keeps its target");
         e.Zone.Update(.01f);
-        e.Zone.Entities.Remove(e.Target);
+        e.Zone.Remove(e.Target);
         e.Zone.Update(3f);
 
         SafeAssert.NoShots(e.Zone);
@@ -1511,7 +1508,7 @@ public sealed class FireControlCut124Tests : IDisposable
         var e = Build(TestSettings(), SolidShape(5, 4), velocity: 20f, fuse: WeaponFuse.Proximity, blastRadius: 4f, damage: 100f);
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
         using var c = e.Zone.ShotCommitted.Subscribe(_ => throw new InvalidOperationException("observer"));
-        e.Zone.Entities.Remove(e.Target);
+        e.Zone.Remove(e.Target);
 
         Assert.ThrowsAny<Exception>(() => e.Zone.Update(.01f));
         var second = Record.Exception(() => e.Zone.Update(.01f));
@@ -2005,7 +2002,7 @@ public sealed class FireControlCut124Tests : IDisposable
 
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
         for (var i = 0; i < updatesBeforeLeaving; i++) e.Zone.Update(.01f);
-        e.Zone.Entities.Remove(e.Shooter);
+        e.Zone.Remove(e.Shooter);
         e.Zone.Update(4f);
 
         SafeAssert.NoShots(e.Zone);
@@ -2023,7 +2020,7 @@ public sealed class FireControlCut124Tests : IDisposable
 
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
         e.Zone.Update(.01f);
-        e.Zone.Entities.Remove(e.Shooter);
+        e.Zone.Remove(e.Shooter);
         e.Zone.Update(6f);
 
         SafeAssert.NoShots(e.Zone);
@@ -2045,7 +2042,7 @@ public sealed class FireControlCut124Tests : IDisposable
 
         for (var i = 0; i < 12; i++) FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
         e.Zone.Update(.01f);
-        e.Zone.Entities.Remove(e.Shooter);
+        e.Zone.Remove(e.Shooter);
         e.Zone.Update(6f);
 
         SafeAssert.NoShots(e.Zone);
@@ -2275,7 +2272,7 @@ public sealed class FireControlCut124Tests : IDisposable
         FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
         e.Zone.Update(committedFirst ? 4.6f : .01f);
         Assert.Equal(committedFirst, e.Zone.PendingShots[0].Committed);
-        e.Zone.Entities.Remove(e.Target);
+        e.Zone.Remove(e.Target);
         e.Zone.Update(6f);
 
         foreach (var s in subscriptions) s.Dispose();
@@ -2574,28 +2571,29 @@ public sealed class FireControlCut124Tests : IDisposable
 
     private static CultCache OpenReadOnlyRealCatalog(string catalogPath, out SingleFileMessagePackBackingStore store)
     {
-        var registry = CultDocumentRegistry.ForTypes(typeof(ItemData).Assembly.GetTypes()
-            .Where(t => t is { IsAbstract: false, IsInterface: false })
-            .Where(t => t.GetCustomAttribute<CultDocumentAttribute>() != null));
+        var registry = TestCatalog.Registry();
         var cache = new CultCache(registry);
         store = new SingleFileMessagePackBackingStore(catalogPath, true);
         cache.AddBackingStore(store, AetheriaStores.CatalogTypes);
         return cache;
     }
 
-    // Every WeaponItemData in the shipped catalog has a null BlastRadius and a null Fuse, and the weapon
+    // Every WeaponItemData a product sells in the shipped catalog has a null BlastRadius and a null Fuse, and the weapon
     // schema's own migration report is Exact. (Until the scenarios product-gap pass rewrote the catalog on
     // 2026-09-30 it was CompatibleDrift with only slot 32 defaulted: the file predated BlastRadius and Fuse.)
     [Fact]
     public void ShippedCatalogIsNeutralOnBlastRadiusAndFuse()
     {
-        var gameData = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
+        var gameData = TestCatalog.Repo;
         var cache = OpenReadOnlyRealCatalog(gameData, out var store);
         try
         {
             var weapons = cache.GetAll<WeaponItemData>().ToList();
             Assert.NotEmpty(weapons);
-            foreach (var w in weapons)
+            // A mine layer is the one shipped weapon that carries a blast: its radius is the mine's (MineLauncherCatalogTests).
+            // The product-less smoke weapons are the fused designs scenarios fit; only what a product sells is neutral.
+            var sold = cache.GetAll<FactionProductData>().Select(product => product.Design.Key).ToHashSet();
+            foreach (var w in weapons.Where(w => !w.Behaviors.OfType<MineLayerData>().Any() && sold.Contains(cache.RefOf(w).Key)))
             {
                 Assert.Null(w.BlastRadius);
                 Assert.Null(w.Fuse);
@@ -2621,7 +2619,7 @@ public sealed class FireControlCut124Tests : IDisposable
     [Fact]
     public void WeaponFuseAndBlastRadiusRoundTripThroughAWrittenCatalog()
     {
-        var src = Path.Combine(FindRepoRoot(), "GameData", "Aetheria.cc");
+        var src = TestCatalog.Repo;
         var fuseValues = new WeaponFuse?[] { null, WeaponFuse.Contact, WeaponFuse.Proximity, WeaponFuse.Delayed };
         var radiusValues = new float?[] { null, 0f, 12.5f };
 
@@ -2636,9 +2634,7 @@ public sealed class FireControlCut124Tests : IDisposable
                     var cache = OpenReadOnlyRealCatalog(tmp, out _);
                     cache.Dispose();
                 }
-                var writeCache = new CultCache(CultDocumentRegistry.ForTypes(typeof(ItemData).Assembly.GetTypes()
-                    .Where(t => t is { IsAbstract: false, IsInterface: false })
-                    .Where(t => t.GetCustomAttribute<CultDocumentAttribute>() != null)));
+                var writeCache = new CultCache(TestCatalog.Registry());
                 writeCache.AddBackingStore(new SingleFileMessagePackBackingStore(tmp, false), AetheriaStores.CatalogTypes);
                 var w = writeCache.GetAll<WeaponItemData>().OrderBy(x => x.Name).First();
                 w.Fuse = fuse;

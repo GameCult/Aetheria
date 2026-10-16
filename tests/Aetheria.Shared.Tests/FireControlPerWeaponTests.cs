@@ -35,13 +35,13 @@ public sealed class FireControlPerWeaponTests : IDisposable
         Directory.Delete(_root, true);
     }
 
-    private static GameplaySettings TestSettings(float minHit) => new GameplaySettings
+    private static GameplaySettings TestSettings(float minHit, float orbitalLayerHeight) => new GameplaySettings
     {
+        OrbitalLayerHeight = orbitalLayerHeight,
         DefaultEntitySettings = new EntitySettings(),
         Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
         QualityPriceModifier = new ExponentialLerp(),
         TargetDetectionInfoThreshold = .1f,
-        TargetArmorInfoThreshold = .2f,
         TargetGearInfoThreshold = .8f,
         FiringArc = 170,
         CommitHorizon = .5f,
@@ -72,7 +72,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
     {
         public Zone Zone;
         public Ship Shooter;
-        public Ship Target;
+        public Entity Target;
         public List<Gun> Guns = new List<Gun>();
         public Gun Gun => Guns[0];
         public Gun Decoy;
@@ -84,7 +84,8 @@ public sealed class FireControlPerWeaponTests : IDisposable
     private Rig Build(
         (ItemRotation Rotation, float Arc)[] mounts = null, bool beam = false, WeaponFuse? fuse = null, float blast = 0f,
         float range = 100f, float targetRange = 60f, float accuracy = 1f, float minHit = .2f, bool lockWeapon = false,
-        bool turret = false, float energy = 0f, float heat = 0f, float visibility = 0f, int magazine = 0, bool singleAmmoBurst = false, bool decoy = false, bool charged = false, bool auto = false)
+        bool turret = false, float energy = 0f, float heat = 0f, float visibility = 0f, int magazine = 0, bool singleAmmoBurst = false, bool decoy = false, bool charged = false, bool auto = false,
+        float effective = float.PositiveInfinity, float damageAtMax = 0f, float velocity = 0f, float targetLayerHeight = 0f)
     {
         mounts ??= new[] { (ItemRotation.None, 0f) };
         var hullData = new HullData
@@ -133,7 +134,9 @@ public sealed class FireControlPerWeaponTests : IDisposable
         behavior.Damage = Constant(100);
         behavior.Range = Constant(range);
         behavior.MinRange = Constant(0);
-        behavior.Velocity = Constant(0);
+        behavior.EffectiveRange = Constant(effective);
+        behavior.DamageAtMaxRange = damageAtMax;
+        behavior.Velocity = Constant(velocity);
         behavior.Spread = Constant(0);
         behavior.DamageSpread = Constant(0);
         behavior.Penetration = Constant(0);
@@ -141,11 +144,10 @@ public sealed class FireControlPerWeaponTests : IDisposable
         behavior.Heat = Constant(heat);
         behavior.Visibility = Constant(visibility);
         behavior.MagazineSize = magazine;
-        behavior.DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } };
 
         var cache = AetheriaStores.Open(Catalog + Guid.NewGuid().ToString("N"), catalogWritable: true);
         _openCaches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(hullData);
         cache.Upsert(shooterHullData);
         cache.Upsert(new WeaponItemData
@@ -166,7 +168,6 @@ public sealed class FireControlPerWeaponTests : IDisposable
                     Count = Constant(1), BurstTime = Constant(0), Cooldown = Constant(1), Damage = Constant(50), Range = Constant(100),
                     MinRange = Constant(0), Velocity = Constant(0), Spread = Constant(0), DamageSpread = Constant(0), Penetration = Constant(0),
                     Energy = Constant(0), Heat = Constant(0), Visibility = Constant(0),
-                    DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } }
                 }
             }
         });
@@ -192,7 +193,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
 
         var ledger = new ProvenanceLedger();
         for (var i = 1; i <= 100; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = 1 };
-        var items = new ItemManager(cache, ledger, TestSettings(minHit), _ => { });
+        var items = new ItemManager(cache, ledger, TestSettings(minHit, targetLayerHeight), _ => { });
         var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "PerWeapon", Owner = null }, null);
 
         EquippableItem Make(string name, int lot, float durability) => new EquippableItem
@@ -235,13 +236,16 @@ public sealed class FireControlPerWeaponTests : IDisposable
             Assert.True(shooter.TryEquip(t, upos));
         }
 
-        var target = new Ship(items, zone, new EquippableItem { Data = hullRef, Durability = 1000000, Lot = lot++ }, new EntitySettings());
+        // A target layer height rides the target on the orbital layer at that height (the shooter is a ship, on the ship layer),
+        // so the two sit at different heights.
+        var targetItem = new EquippableItem { Data = hullRef, Durability = 1000000, Lot = lot++ };
+        Entity target = targetLayerHeight != 0f
+            ? new OrbitalEntity(items, zone, targetItem, default, new EntitySettings())
+            : new Ship(items, zone, targetItem, new EntitySettings());
         Assert.True(target.TryEquip(Make("Gun", lot++, 1), new int2(0, 0)));
 
-        zone.Entities.Add(shooter);
-        zone.Entities.Add(target);
-        shooter.Activate();
-        target.Activate();
+        zone.Admit(shooter, piloted: false);
+        zone.Admit(target, piloted: false);
 
         shooter.Position = float3(-53, 0, -101);
         target.Position = shooter.Position + float3(0, 0, targetRange);
@@ -308,6 +312,40 @@ public sealed class FireControlPerWeaponTests : IDisposable
         r.Zone.Update(1f);
 
         Assert.True(r.Gun.Weapon.Firing, "the turret must fire a fused weapon at a designated target out of arc");
+    }
+
+    // The AI aims at the height a target rides at (Entity.RideHeight: field plus the layer the target's kind rides on),
+    // not at the plane and not at the shooter's own layer. A target on a layer 40 u up against a shooter on the ship
+    // layer, a shot fast enough to be predicted: the turret's and Combat's aim point at the target's stepped pose.
+    // Kills: either aim site spelling its own offset (dropped, added to, scaled, or the shooter's layer).
+    [Fact]
+    public void ATurretAimsAtTheHeightATargetRidesAt()
+    {
+        var r = Build(turret: true, velocity: 500f, targetLayerHeight: 40f);
+        r.Zone.Update(1f);
+
+        AssertAimsAtTarget(r);
+    }
+
+    [Fact]
+    public void CombatAimsAtTheHeightATargetRidesAt()
+    {
+        var r = Build(velocity: 500f, targetLayerHeight: 40f);
+        r.Zone.Agents.Add(new Minion(r.Shooter, FactionDoctrine.Default(r.Shooter.ItemManager.GameplaySettings).Combatant));
+        r.Zone.Update(1f);
+        r.Zone.Update(1f);
+
+        AssertAimsAtTarget(r);
+    }
+
+    private static void AssertAimsAtTarget(Rig r)
+    {
+        var toTarget = r.Target.Position - r.Shooter.Position;
+        Assert.True(abs(toTarget.y) > 30f, "fixture: the raised hull is well above the shooter");
+        var expected = normalize(toTarget);
+        Assert.Equal(expected.x, r.Shooter.Aim.x, 3);
+        Assert.Equal(expected.y, r.Shooter.Aim.y, 3);
+        Assert.Equal(expected.z, r.Shooter.Aim.z, 3);
     }
 
     public enum Withheld { NoTarget, OutOfRange, NotVisible, Unlocked }
@@ -403,7 +441,6 @@ public sealed class FireControlPerWeaponTests : IDisposable
     {
         public int Ammo;
         public float ChargeSpent;
-        public int Sounds;
         public int Wears;
         public float Heat;
         public bool Visible;
@@ -413,7 +450,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
     }
 
     // One discrete weapon, triggered once at no target, with every cost observable: a magazine, an energy charge,
-    // a sound bank, wear events, heat and visibility. Range 29.5 refuses (arming 30); Range 40 fires.
+    // wear events, heat and visibility. Range 29.5 refuses (arming 30); Range 40 fires.
     private Costs Pull(float range, bool single, bool viaTrigger, bool staleRange = false, bool auto = false)
     {
         var r = Build(fuse: WeaponFuse.Proximity, blast: 30f, range: range, energy: 50f, heat: 5000f, visibility: 100f, magazine: 5, singleAmmoBurst: single, auto: auto);
@@ -421,9 +458,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
         Aim(r, float2(0, 1));
         var weapon = (InstantWeapon) r.Gun.Weapon;
         var capacitor = (InputCapacitor) typeof(InstantWeapon).GetField("_capacitor", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(weapon);
-        r.Gun.Item.SoundBank = new WwiseMetaSoundBank { IncludedEvents = new[] { new WwiseMetaObject { Id = 7, Name = "gun_fire" } } };
         var costs = new Costs();
-        r.Gun.Item.AudioEvents.Subscribe(_ => costs.Sounds++);
         r.Zone.ShotCommitted.Subscribe(_ => costs.Shots++); // a fused round with no flight commits and resolves in its own tick
         r.Shooter.ItemDamage.Subscribe(t => { if (t.Item1 == r.Gun.Item) costs.Wears++; });
         weapon.OnFire += _ => costs.Announced++;
@@ -449,18 +484,18 @@ public sealed class FireControlPerWeaponTests : IDisposable
         costs.Ammo = ammoBefore - weapon.Ammo;
         costs.ChargeSpent = chargeBefore - capacitor.Charge;
         costs.Heat = r.Gun.Item.Temperature - heatBefore;
-        costs.Visible = r.Shooter.VisibilitySources.TryGetValue(weapon, out var v) && v > 1f;
+        costs.Visible = r.Shooter.VisibilitySources.TryGetValue(weapon, out var v) && v.Strength > 1f;
         costs.CanFire = weapon.CanFire;
         return costs;
     }
 
     // Control: the same weapon with Range to spare pays every cost, so a free refusal below is not a fixture that
-    // never spends. Then the refusal costs nothing: no ammo, no energy, no sound, no wear, no heat, no
+    // never spends. Then the refusal costs nothing: no ammo, no energy, no announcement, no wear, no heat, no
     // visibility, no shot. `single` is a weapon that pays once per burst, at its first unrefused round rather than at each;
     // `viaTrigger` false authorises the burst directly (the way a trigger that passed leaves it) on a weapon whose
     // Range is short, so the Trigger check cannot be what stops the round and Execute must refuse it itself.
     // Kills, one per row of the assertions: a spend that precedes the refusal (Execute or Trigger), an
-    // announcement, a sound, wear, heat or visibility left ahead of the `continue`.
+    // announcement (what a presenter hears), wear, heat or visibility left ahead of the `continue`.
     [Theory]
     [InlineData(false, true)]
     [InlineData(true, true)]
@@ -471,7 +506,6 @@ public sealed class FireControlPerWeaponTests : IDisposable
         Assert.True(fired.Shots == 1, $"shots {fired.Shots}");
         Assert.True(fired.Ammo == 1, $"ammo spent {fired.Ammo}");
         Assert.True(fired.ChargeSpent > 1f, "a fired round spends its energy");
-        Assert.Equal(1, fired.Sounds);
         Assert.True(fired.Wears > 0);
         Assert.True(fired.Heat > 0f);
         Assert.True(fired.Visible);
@@ -481,7 +515,6 @@ public sealed class FireControlPerWeaponTests : IDisposable
         Assert.Equal(0, refused.Shots);
         Assert.Equal(0, refused.Ammo);
         Assert.Equal(0f, refused.ChargeSpent);
-        Assert.Equal(0, refused.Sounds);
         Assert.Equal(0, refused.Wears);
         Assert.True(fired.Heat - refused.Heat > 5f, $"a refused round adds no heat ({refused.Heat} vs {fired.Heat})");
         Assert.False(refused.Visible);
@@ -511,7 +544,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
         var request = weapon.PowerRequest(.1f);
         for (var i = 0; i < 5; i++) r.Zone.Update(.1f);
 
-        var visible = r.Shooter.VisibilitySources.TryGetValue(weapon, out var v) && v > 1f;
+        var visible = r.Shooter.VisibilitySources.TryGetValue(weapon, out var v) && v.Strength > 1f;
         return (shots, wears, request, visible, r.Gun.Item.Temperature - heatBefore, stops, weapon.Firing);
     }
 
@@ -593,7 +626,8 @@ public sealed class FireControlPerWeaponTests : IDisposable
     public void CombatDoesNotPickAGroupWhoseWeaponCannotReachTheTarget()
     {
         var r = Build(range: 10f, targetRange: 20f, decoy: true);
-        Assert.True(r.Gun.Weapon.RangeDamagePerSecond(20f) > r.Decoy.Weapon.RangeDamagePerSecond(20f), "fixture: the short gun is the stronger group");
+        Assert.True(r.Gun.Weapon.RangeDamagePerSecond(5f) > r.Decoy.Weapon.RangeDamagePerSecond(5f), "fixture: the short gun is the stronger group");
+        Assert.Equal(0f, r.Gun.Weapon.RangeDamagePerSecond(20f)); // the damage function already reads 0 beyond Range
         r.Zone.Agents.Add(new Minion(r.Shooter, FactionDoctrine.Default(r.Shooter.ItemManager.GameplaySettings).Combatant));
 
         r.Zone.Update(1f);
@@ -601,6 +635,28 @@ public sealed class FireControlPerWeaponTests : IDisposable
 
         Assert.False(r.Gun.Weapon.Firing, "a weapon that cannot reach the target is never activated");
         Assert.True(r.Decoy.Weapon.Firing, "the group that reaches is the one picked");
+    }
+
+    // Combat's group pick reads the falloff at the target's real distance. The gun falls off from 10 to 0 at 100, the decoy
+    // is flat at 50: at 60 the gun makes 44 (the decoy is picked) while at half that distance it makes 78 and at double it
+    // makes 0; with the gun flat to 40 it makes 67 at 60 (picked) and 0 at double. The fixture states both neighbours so a
+    // pick made at a scaled distance reads the other way. Kills: the group's DPS read at a distance other than the target's.
+    [Theory]
+    [InlineData(10f, false)]
+    [InlineData(40f, true)]
+    public void CombatPicksTheGroupStrongestAtTheTargetsDistance(float effective, bool gunPicked)
+    {
+        var r = Build(range: 100f, targetRange: 60f, effective: effective, decoy: true);
+        var decoy = r.Decoy.Weapon.RangeDamagePerSecond(60f);
+        Assert.Equal(gunPicked, r.Gun.Weapon.RangeDamagePerSecond(60f) > decoy);
+        Assert.True(r.Gun.Weapon.RangeDamagePerSecond(effective == 10f ? 30f : 120f) > decoy == !gunPicked, "fixture: the scaled distance reads the other way");
+        r.Zone.Agents.Add(new Minion(r.Shooter, FactionDoctrine.Default(r.Shooter.ItemManager.GameplaySettings).Combatant));
+
+        r.Zone.Update(1f);
+        r.Zone.Update(1f);
+
+        Assert.Equal(gunPicked, r.Gun.Weapon.Firing);
+        Assert.Equal(!gunPicked, r.Decoy.Weapon.Firing);
     }
 
     // Combat's range test is Designated's, not a second one: a target exactly at max range is in reach (the old
@@ -685,26 +741,23 @@ public sealed class FireControlPerWeaponTests : IDisposable
         Assert.True(refused.CanFire, "a burst that fired nothing leaves no cooldown");
     }
 
-    // A refused charged weapon never starts charging: no charge heat, no audio, no start event, and it can be
-    // triggered again at once. The control (Range 40) charges, sounds and heats.
+    // A refused charged weapon never starts charging: no charge heat, no start event a presenter could sound, and it can be
+    // triggered again at once. The control (Range 40) charges and heats.
     // Kills: ChargedWeapon.Activate that does not ask FireControl.
-    private (int Starts, int Sounds, float Heat, bool Charging) Charge(float range)
+    private (int Starts, float Heat, bool Charging) Charge(float range)
     {
         var r = Build(charged: true, fuse: WeaponFuse.Proximity, blast: 30f, range: range);
         r.Shooter.SetTarget(TargetRef.None);
         Aim(r, float2(0, 1));
         var weapon = (ChargedWeapon) r.Gun.Weapon;
-        r.Gun.Item.SoundBank = new WwiseMetaSoundBank { IncludedEvents = new[] { new WwiseMetaObject { Id = 7, Name = "gun_charge_play" } } };
         var starts = 0;
-        var sounds = 0;
         weapon.OnStartCharging += () => starts++;
-        r.Gun.Item.AudioEvents.Subscribe(_ => sounds++);
         var heatBefore = r.Gun.Item.Temperature;
 
         weapon.Activate();
         for (var i = 0; i < 3; i++) r.Zone.Update(.1f);
 
-        return (starts, sounds, r.Gun.Item.Temperature - heatBefore, weapon.Progress > 0f);
+        return (starts, r.Gun.Item.Temperature - heatBefore, weapon.Progress > 0f);
     }
 
     [Fact]
@@ -712,12 +765,10 @@ public sealed class FireControlPerWeaponTests : IDisposable
     {
         var fired = Charge(40f);
         Assert.Equal(1, fired.Starts);
-        Assert.True(fired.Sounds > 0, "control: charging sounds");
         Assert.True(fired.Heat > 0f, "control: charging heats");
 
         var refused = Charge(29.5f);
         Assert.Equal(0, refused.Starts);
-        Assert.Equal(0, refused.Sounds);
         Assert.True(fired.Heat - refused.Heat > 5f, $"a refused weapon adds no charge heat ({refused.Heat} vs {fired.Heat})");
     }
     // A triggered burst has not started its cooldown, but it is not ready either: pulled again before its first round

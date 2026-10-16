@@ -190,7 +190,7 @@ public static class Loadouts
         return () => (EquippableItem) itemManager.CreateInstance(product);
     }
 
-    private static FactionProductData[] ProductsInKeyOrder(CultCache cache) =>
+    internal static FactionProductData[] ProductsInKeyOrder(CultCache cache) =>
         cache.GetAll<FactionProductData>().OrderBy(p => cache.RefOf(p).Key.Value, StringComparer.Ordinal).ToArray();
 
     private static string Cell(LoadoutSlot slot) => $"slot {slot.Position.x},{slot.Position.y}";

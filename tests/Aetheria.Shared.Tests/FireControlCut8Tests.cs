@@ -39,7 +39,6 @@ public sealed class FireControlCut8Tests : IDisposable
         Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
         QualityPriceModifier = new ExponentialLerp(),
         TargetDetectionInfoThreshold = .1f,
-        TargetArmorInfoThreshold = .2f,
         TargetGearInfoThreshold = .8f,
         FiringArc = 170,
         CommitHorizon = .5f,
@@ -83,7 +82,7 @@ public sealed class FireControlCut8Tests : IDisposable
 
         var cache = AetheriaStores.Open(Catalog + Guid.NewGuid().ToString("N"), catalogWritable: true);
         _openCaches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(hullData);
         cache.Upsert(new GearData
         {
@@ -94,7 +93,6 @@ public sealed class FireControlCut8Tests : IDisposable
                 Damage = Constant(damage), Range = Constant(1000), MinRange = Constant(0),
                 Velocity = Constant(0), Spread = Constant(0), DamageSpread = Constant(0),
                 Penetration = Constant(0), Count = Constant(1), BurstTime = Constant(0), Cooldown = Constant(1000),
-                DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } }
             } }
         });
         cache.Upsert(new GearData
@@ -138,10 +136,8 @@ public sealed class FireControlCut8Tests : IDisposable
         var targetGun = new EquippableItem { Data = targetGunRef, Durability = 1, Lot = 4 };
         Assert.True(target.TryEquip(targetGun, new int2(0, 0)));
 
-        zone.Entities.Add(shooter);
-        zone.Entities.Add(target);
-        shooter.Activate();
-        target.Activate();
+        zone.Admit(shooter, piloted: false);
+        zone.Admit(target, piloted: false);
 
         shooter.Position = float3.zero;
         target.Position = float3(0, 0, 100);
@@ -177,7 +173,7 @@ public sealed class FireControlCut8Tests : IDisposable
 
         var cache = AetheriaStores.Open(Catalog + Guid.NewGuid().ToString("N"), catalogWritable: true);
         _openCaches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(hullData);
         cache.Upsert(new GearData
         {
@@ -188,7 +184,6 @@ public sealed class FireControlCut8Tests : IDisposable
                 Damage = Constant(0), Range = Constant(1000), MinRange = Constant(0), Velocity = Constant(0),
                 Spread = Constant(0), DamageSpread = Constant(0), Penetration = Constant(0), Count = Constant(1),
                 BurstTime = Constant(0), Cooldown = Constant(1000),
-                DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } },
                 LockSpeed = Constant(1), SensorImpact = Constant(1), LockAngle = Constant(170),
                 DirectionImpact = Constant(1), Decay = Constant(1)
             } }
@@ -217,10 +212,8 @@ public sealed class FireControlCut8Tests : IDisposable
         var bystanderGun = new EquippableItem { Data = bystanderGunRef, Durability = 1, Lot = 4 };
         Assert.True(bystander.TryEquip(bystanderGun, new int2(0, 0))); // _orderedEquipment must not be empty/null for Update to run
 
-        zone.Entities.Add(locker);
-        zone.Entities.Add(bystander);
-        locker.Activate();
-        bystander.Activate();
+        zone.Admit(locker, piloted: false);
+        zone.Admit(bystander, piloted: false);
 
         locker.Position = float3.zero;
         bystander.Position = float3(0, 0, 100);
@@ -273,8 +266,8 @@ public sealed class FireControlCut8Tests : IDisposable
 
         s.Locker.Deactivate();
         Assert.False(s.Locker.Active);
-        Assert.DoesNotContain(s.Bystander, s.Locker.EntityInfoGathered.Keys);
-        Assert.Same(s.Bystander, s.Locker.Target.Value.Entity); // Deactivate does not null the entity's own Target
+        Assert.False(s.Locker.EntityInfoGathered.Keys.Any(k => ReferenceEquals(k, s.Bystander)), "the bystander is dropped from the locker's info");
+        Assert.True(ReferenceEquals(s.Bystander, s.Locker.Target.Value.Entity), "the target is kept"); // Deactivate does not null the entity's own Target
 
         var ex = Record.Exception(() => s.Locker.Update(.1f));
         Assert.Null(ex);
@@ -297,42 +290,5 @@ public sealed class FireControlCut8Tests : IDisposable
         Assert.False(e.Target.Active);
         Assert.Empty(e.Target.EntityInfoGathered);
         Assert.True(e.Target.VisibleEntities.Count == 0, "the target's visible set must be empty");
-    }
-
-    // ---- Ordering risk (8.1's own callout): EntityInstance's loot-drop subscription (EntityInstance.cs:292-325)
-    // reads Entity.Equipment on Entity.HullDamage, independent of Entity.Death/Deactivate. EntityInstance
-    // itself is a MonoBehaviour and cannot run headlessly (it lives in the Gameplay assembly, not
-    // Aetheria.Shared), so the actual drop call (ZoneRenderer.DropItem) is an operator check, not something
-    // this suite reaches. What this suite CAN confirm headlessly is the data precondition that call depends
-    // on: Deactivate() must not clear Equipment, regardless of subscription order relative to Zone's own
-    // Death-triggered removal. ----
-
-    // Mirrors EntityInstance's own subscription shape (HullDamage, re-checking Durability itself) established
-    // AFTER the target has already joined the zone -- so Zone's Death-derived Deactivate (subscribed at join
-    // time, per 8.1) fires first on the same HullDamage.OnNext call, and this handler observes Equipment
-    // strictly after that. If Deactivate ever starts clearing Equipment, this goes red.
-    [Fact]
-    public void LootStillDropsOnDeath_EquipmentSurvivesDeactivate()
-    {
-        var e = Build(TestSettings(), damage: 10000, hullDurability: 5); // one hit is lethal
-
-        List<EquippedItem> equipmentAtDeath = null;
-        e.Target.HullDamage.Subscribe(_ =>
-        {
-            if (e.Target.Hull.Durability < .01f) equipmentAtDeath = e.Target.Equipment.ToList();
-        });
-
-        FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
-        e.Zone.Update(.1f);
-
-        Assert.True(e.Target.Hull.Durability < .01f);
-        Assert.False(e.Target.Active); // Zone's Death subscription (subscribed before this test's own) already
-                                        // deactivated the target by the time this handler runs.
-        Assert.NotNull(equipmentAtDeath);
-        Assert.NotEmpty(equipmentAtDeath); // the target's own gun -- Deactivate must not have cleared Equipment
-
-        // Operator check, not reachable headlessly: confirm in play that ZoneRenderer.DropItem still fires for
-        // each surviving equipment/cargo entry (EntityInstance.cs:292-325) after this cut, i.e. that loot
-        // actually drops on a live kill, not only that the data behind it survived Deactivate().
     }
 }

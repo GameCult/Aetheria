@@ -27,12 +27,11 @@ public class ZoneRenderer : MonoBehaviour
     public GameSettings Settings;
     public Transform ZoneRoot;
     public Transform SectorBrushes;
-    public MeshRenderer SectorBoundaryBrush;
+    // The ambient tint quad, sized from the zone's populated radius, never under SectorBrushes: FitAmbientLight.
+    public Transform AmbientLight;
     public CinemachineVirtualCamera SceneCamera;
     public Camera[] FogCameras;
     public Camera[] MinimapCameras;
-    public Material FogMaterial;
-    public float FogFarFadeFraction = .125f;
     public float FarPlaneDistanceMultiplier = 2;
     public InstancedMesh[] AsteroidMeshes;
     public int AsteroidSpritesheetWidth = 4;
@@ -40,11 +39,15 @@ public class ZoneRenderer : MonoBehaviour
     public LODHandler LODHandler;
     public Slime SlimeRenderer;
     public Camera SlimeGravityCamera;
-    public GridObject SimpleCommodityPickup;
-    public GridObject CompoundCommodityPickup;
-    public GridObject GearPickup;
-    public GridObject WeaponPickup;
+    public ItemPickup SimpleCommodityPickup;
+    public ItemPickup CompoundCommodityPickup;
+    public ItemPickup GearPickup;
+    public ItemPickup WeaponPickup;
+    public MineInstance MinePrefab;
+    public VapourCloudInstance CloudPrefab;
     public Material[] MapGravityMaterials;
+    // The gravity field's material (Brushes/Gravity Field): GravityLowering makes the one quad that draws it.
+    public Material GravityField;
 
     [Header("Tour")] public bool Tour;
     public float TourSwitchTime = 5f;
@@ -76,7 +79,8 @@ public class ZoneRenderer : MonoBehaviour
     // is stored on AsteroidBelt any more.
     private Dictionary<CultRecordKey, float4[]> _beltTransforms = new Dictionary<CultRecordKey, float4[]>();
     private float _viewDistance;
-    //private float _maxDepth;
+    private GameObject _gravityField;
+    private ComputeBuffer _gravityWells;
     private float _minimapDistance;
 
     private int _tourIndex = -1;
@@ -92,7 +96,9 @@ public class ZoneRenderer : MonoBehaviour
     private bool _showAsteroidUI;
 
     public Dictionary<Wormhole, (GameObject gravity, CompassIcon icon)> WormholeInstances = new Dictionary<Wormhole, (GameObject, CompassIcon)>();
-    private List<ItemPickup> _loot = new List<ItemPickup>();
+    private Dictionary<FloatingItem, ItemPickup> _floatingItems = new Dictionary<FloatingItem, ItemPickup>();
+    private Dictionary<Mine, MineInstance> _mines = new Dictionary<Mine, MineInstance>();
+    private Dictionary<VapourCloud, VapourCloudInstance> _clouds = new Dictionary<VapourCloud, VapourCloudInstance>();
 
     public Zone Zone { get; private set; }
     public ItemManager ItemManager { get; set; }
@@ -135,8 +141,6 @@ public class ZoneRenderer : MonoBehaviour
             foreach (var camera in FogCameras)
                 camera.orthographicSize = value;
             SceneCamera.m_Lens.FarClipPlane = value * FarPlaneDistanceMultiplier;
-            FogMaterial.SetFloat("_DepthCeiling", value);
-            FogMaterial.SetFloat("_DepthBlend", FogFarFadeFraction * value);
         }
     }
 
@@ -185,13 +189,38 @@ public class ZoneRenderer : MonoBehaviour
         _transposer = SceneCamera.GetCinemachineComponent<CinemachineTransposer>();
     }
 
+    // The ambient is a gaussian: its brightness at the populated edge is the material's _EdgeBrightness (a shape, authored), and
+    // the quad reaches out to where its brightest channel falls to AmbientFloor. Fog Tint is B10G11R11_UFloatPack32 and cannot
+    // follow a gaussian into its tail: measured, the drawn value stops following it near 4 floors and holds a plateau of
+    // about 3.2e-5 before dropping to zero (AmbientEdgeVerify asserts the format and measures it). A quad sized to 1e-5 of the
+    // centre therefore ended in a plateau and a step to zero; sized to the floor it ends at the last value the format holds,
+    // so the one step to dark is that value. The one writer of the quad's size and _Reach, and the one place the verify
+    // reads the sizing from.
+    public const float AmbientFloor = 1f / (1 << 15);
+
+    public static void FitAmbientLight(Transform light, Zone zone)
+    {
+        var renderer = light.GetComponent<MeshRenderer>();
+        var material = renderer.sharedMaterial;
+        var tint = material.GetColor("_Color").linear;
+        var centre = material.GetFloat("_Depth") * Mathf.Max(tint.r, Mathf.Max(tint.g, tint.b));
+        var reach = Mathf.Sqrt(Mathf.Log(centre / AmbientFloor) / Mathf.Log(1f / material.GetFloat("_EdgeBrightness")));
+        light.localScale = 2f * reach * zone.PopulatedRadius * Vector3.one;
+        var block = new MaterialPropertyBlock();
+        renderer.GetPropertyBlock(block);
+        block.SetFloat("_Reach", reach);
+        renderer.SetPropertyBlock(block);
+    }
+
     public void LoadZone(Zone zone)
     {
         ClearZone();
         Zone = zone;
         SectorBrushes.localScale = zone.Pack.Radius * 2 * Vector3.one;
+        FitAmbientLight(AmbientLight, zone);
         SlimeGravityCamera.orthographicSize = zone.Pack.Radius;
         SlimeRenderer.ZoneRadius = zone.Pack.Radius;
+        if (_gravityField == null) _gravityField = GravityLowering.CreateField(GravityField);
         foreach (var p in zone.Planets)
             LoadPlanet(p.Key, p.Value);
 
@@ -222,6 +251,34 @@ public class ZoneRenderer : MonoBehaviour
             UnloadEntity(e.Value);
         }));
 
+        // Every mine, whoever laid it, is drawn through this one subscription. A mine leaves Zone.Mines only by
+        // its blast, so a removal plays the blast; ClearZone below destroys the rest without one.
+        foreach (var mine in zone.Mines) LoadMine(zone, mine);
+        _zoneSubscriptions.Add(zone.Mines.ObserveAdd().Subscribe(e => LoadMine(zone, e.Value)));
+        _zoneSubscriptions.Add(zone.Mines.ObserveRemove().Subscribe(e =>
+        {
+            if (!_mines.Remove(e.Value, out var instance)) return;
+            instance.Blast();
+        }));
+
+        // Every floating item, whoever released it (a death drop, jettisoned cargo), is drawn through this one
+        // subscription. An item leaves Zone.FloatingItems by expiry or by pickup, and either way its pickup is gone.
+        foreach (var floating in zone.FloatingItems) LoadFloatingItem(zone, floating);
+        _zoneSubscriptions.Add(zone.FloatingItems.ObserveAdd().Subscribe(e => LoadFloatingItem(zone, e.Value)));
+        _zoneSubscriptions.Add(zone.FloatingItems.ObserveRemove().Subscribe(e =>
+        {
+            if (_floatingItems.Remove(e.Value, out var pickup) && pickup) Destroy(pickup.gameObject);
+        }));
+
+        // Every vapour cloud, whoever vented it, is drawn through this one subscription. A cloud leaves Zone.Clouds
+        // when its opacity has reached nothing, so a removal destroys its fog bank with nothing left to show.
+        foreach (var cloud in zone.Clouds) LoadCloud(zone, cloud);
+        _zoneSubscriptions.Add(zone.Clouds.ObserveAdd().Subscribe(e => LoadCloud(zone, e.Value)));
+        _zoneSubscriptions.Add(zone.Clouds.ObserveRemove().Subscribe(e =>
+        {
+            if (_clouds.Remove(e.Value, out var instance)) Destroy(instance.gameObject);
+        }));
+
         if (zone.GalaxyZone != null)
         {
             foreach (var adjacentZone in zone.GalaxyZone.AdjacentZones)
@@ -233,7 +290,52 @@ public class ZoneRenderer : MonoBehaviour
                     Position = dir * zone.Pack.Radius * Settings.WormholeDistanceRatio
                 });
             }
+
+            // The run's exit gate is presentation only: whether it opens is RunGoal.ExitOpen, read when it is used.
+            if (zone.GalaxyZone == zone.Galaxy.Exit)
+                AddWormhole(new Wormhole
+                {
+                    Exit = true,
+                    Position = RunGoal.ExitGatePosition(zone, Settings.WormholeDistanceRatio)
+                });
         }
+    }
+
+    private void LoadMine(Zone zone, Mine mine)
+    {
+        var instance = Instantiate(MinePrefab);
+        instance.Bind(zone, mine, ItemManager.GameplaySettings);
+        _mines.Add(mine, instance);
+    }
+
+    private void LoadFloatingItem(Zone zone, FloatingItem floating)
+    {
+        var prefab = floating.Item switch
+        {
+            SimpleCommodity _ => SimpleCommodityPickup,
+            CompoundCommodity _ => CompoundCommodityPickup,
+            EquippableItem equippableItem when ItemManager.GetData(equippableItem) is WeaponItemData => WeaponPickup,
+            EquippableItem _ => GearPickup,
+            _ => throw new NotImplementedException()
+        };
+        var pickup = Instantiate(prefab, ZoneRoot);
+        pickup.Bind(zone, floating, ItemManager.GameplaySettings);
+        pickup.ScanLabel.text = ItemManager.Title(floating.Item);
+        if (floating.Item is CraftedItemInstance craftedItemInstance)
+        {
+            var c = ItemManager.GetTier(craftedItemInstance).tier.Color.ToColor();
+            c.a = 0;
+            pickup.ScanLabel.color = c;
+        }
+        else pickup.ScanLabel.color = new Color(.75f, .75f, .75f, 0);
+        _floatingItems.Add(floating, pickup);
+    }
+
+    private void LoadCloud(Zone zone, VapourCloud cloud)
+    {
+        var instance = Instantiate(CloudPrefab);
+        instance.Bind(zone, cloud);
+        _clouds.Add(cloud, instance);
     }
 
     public void AddWormhole(Wormhole wormhole)
@@ -245,9 +347,17 @@ public class ZoneRenderer : MonoBehaviour
         WormholeInstances.Add(wormhole, (instance.gameObject, icon));
     }
 
+    void OnDestroy()
+    {
+        _gravityWells?.Release();
+        _gravityWells = null;
+    }
+
     public void ClearZone()
     {
         if (Zone == null) return;
+        _gravityWells?.Release();
+        _gravityWells = null;
         foreach (var wormhole in WormholeInstances.Values)
         {
             Destroy(wormhole.gravity);
@@ -259,9 +369,17 @@ public class ZoneRenderer : MonoBehaviour
             subscription.Dispose();
         _zoneSubscriptions.Clear();
         
-        foreach(var gridObject in _loot) 
-            if(gridObject) Destroy(gridObject.gameObject);
-        _loot.Clear();
+        foreach (var instance in _mines.Values)
+            if (instance) Destroy(instance.gameObject);
+        _mines.Clear();
+
+        foreach (var instance in _clouds.Values)
+            if (instance) Destroy(instance.gameObject);
+        _clouds.Clear();
+
+        foreach (var pickup in _floatingItems.Values)
+            if (pickup) Destroy(pickup.gameObject);
+        _floatingItems.Clear();
 
         foreach (var entity in Zone.Entities)
         {
@@ -387,17 +505,12 @@ public class ZoneRenderer : MonoBehaviour
                 else planet = Instantiate(GasGiant, ZoneRoot);
 
                 var gas = (GasGiantObject) planet;
-                var gasGiant = Zone.PlanetInstances[key] as GasGiant;
                 gas.Body.material.SetTexture("_ColorRamp", gasGiantData.Colors.ToGradient(!(planetData is SunData)).ToTexture());
                 // gasGiantData.AlbedoRotationSpeed.Subscribe(f => gas.SunMaterial.AlbedoRotationSpeed = f);
                 // gasGiantData.FirstOffsetRotationSpeed.Subscribe(f => gas.SunMaterial.FirstOffsetRotationSpeed = f);
                 // gasGiantData.SecondOffsetRotationSpeed.Subscribe(f => gas.SunMaterial.SecondOffsetRotationSpeed = f);
                 // gasGiantData.FirstOffsetDomainRotationSpeed.Subscribe(f => gas.SunMaterial.FirstOffsetDomainRotationSpeed = f);
                 // gasGiantData.SecondOffsetDomainRotationSpeed.Subscribe(f => gas.SunMaterial.SecondOffsetDomainRotationSpeed = f);
-                gas.GravityWaves.transform.localScale = gasGiant.GravityWavesRadius * Vector3.one;
-                gas.GravityWaves.material.SetFloat("_Depth", gasGiant.GravityWavesDepth);
-                gas.GravityWaves.material.SetFloat("_Frequency", Settings.PlanetSettings.WaveFrequency.Evaluate(planetData.Mass));
-                //gas.WaveScroll.Speed = Properties.GravitySettings.WaveSpeed.Evaluate(f);
             }
             else
             {
@@ -412,11 +525,6 @@ public class ZoneRenderer : MonoBehaviour
 
             var planetInstance = Zone.PlanetInstances[key];
             planet.Body.transform.localScale = planetInstance.BodyRadius * Vector3.one;
-            planet.GravityWell.transform.localScale = planetInstance.GravityWellRadius * Vector3.one;
-            // var depth = planetInstance.GravityWellDepth;
-            // if (depth > _maxDepth) _maxDepth = depth;
-            planet.GravityWell.material.SetFloat("_Depth", planetInstance.GravityWellDepth);
-            planet.Icon.transform.position = new Vector3(0, -planetInstance.GravityWellDepth, 0);
             planet.Icon.transform.localScale = Settings.IconSize.Evaluate(planetInstance.BodyData.Mass) * Vector3.one;
 
 
@@ -434,9 +542,11 @@ public class ZoneRenderer : MonoBehaviour
     void Update()
     {
         var maxDepth = 0f;
-        foreach (var loot in _loot)
+        var lead = ActionGameManager.Clock.Lead;
+        GravityLowering.Lower(Zone, lead, ref _gravityWells);
+        foreach (var loot in _floatingItems.Values)
         {
-            loot.ViewOrigin = PerspectiveEntity.Position;
+            loot.ViewOrigin = DrawAhead.Position(PerspectiveEntity, lead);
             loot.ViewDirection = PerspectiveEntity.Aim;
         }
         
@@ -455,11 +565,11 @@ public class ZoneRenderer : MonoBehaviour
         foreach (var (key, belt) in Zone.AsteroidBelts)
         {
             // Cut 1 (docs/mining-cut.md): belts have no stored pose any more. The renderer fills its own buffer
-            // from Zone.EvaluateBelt, at the current zone time, every frame.
-            var orbitPosition = Zone.GetOrbitPosition(Zone.Orbits[belt.Data.Orbit.Key].Data.Parent.Key);
-            var height = Zone.GetHeight(orbitPosition);
+            // from Zone.EvaluateBelt, at the drawn time (DrawAhead.Time), every frame.
+            var orbitPosition = DrawAhead.Orbit(Zone, Zone.Orbits[belt.Data.Orbit.Key].Data.Parent.Key, lead);
+            var height = DrawAhead.Height(Zone, orbitPosition, lead);
             var transforms = _beltTransforms[key];
-            Zone.EvaluateBelt(key, transforms);
+            Zone.EvaluateBelt(key, transforms, DrawAhead.Time(Zone, lead));
             if(isVisible(new Bounds(
                 new Vector3(orbitPosition.x,height,orbitPosition.y),
                 new Vector3(belt.Radius * 2,100,belt.Radius * 2))))
@@ -492,18 +602,17 @@ public class ZoneRenderer : MonoBehaviour
         foreach (var planet in Planets)
         {
             var planetInstance = Zone.PlanetInstances[planet.Key];
-            var p = Zone.GetOrbitPosition(planetInstance.BodyData.Orbit.Key);
-            var height = Zone.GetHeight(p);
+            var p = DrawAhead.Orbit(Zone, planetInstance.BodyData.Orbit.Key, lead);
+            var height = DrawAhead.Height(Zone, p, lead);
             if (-height > maxDepth) maxDepth = -height;
             planet.Value.transform.position = new Vector3(p.x, 0, p.y);
             planet.Value.Body.transform.localPosition = new Vector3(0, height + planetInstance.BodyRadius * 2, 0);
+            planet.Value.Icon.transform.localPosition = new Vector3(0, height, 0);
             if (planet.Value is GasGiantObject gasGiantObject)
             {
-                gasGiantObject.GravityWaves.material.SetFloat("_Phase",
-                    Zone.Time * ((GasGiant) Zone.PlanetInstances[planet.Key]).GravityWavesSpeed);
                 if (!(planet.Value is SunObject))
                 {
-                    var toParent = normalize(Zone.GetOrbitPosition(Zone.Orbits[planetInstance.BodyData.Orbit.Key].Data.Parent.Key) - p);
+                    var toParent = normalize(DrawAhead.Orbit(Zone, Zone.Orbits[planetInstance.BodyData.Orbit.Key].Data.Parent.Key, lead) - p);
                     gasGiantObject.SunMaterial.LightingDirection = new Vector3(toParent.x, 0, toParent.y);
                 }
             }
@@ -514,12 +623,11 @@ public class ZoneRenderer : MonoBehaviour
         {
             if(entityInstance.CompassIcon)
             {
-                var difference = entityInstance.Entity.Position.xz - PerspectiveEntity.Position.xz;
+                var difference = DrawAhead.Position(entityInstance.Entity, lead).xz - DrawAhead.Position(PerspectiveEntity, lead).xz;
                 var distance = length(difference);
                 
                 entityInstance.CompassIcon.gameObject.SetActive(
-                    PerspectiveEntity.EntityInfoGathered.ContainsKey(entityInstance.Entity) && 
-                    PerspectiveEntity.EntityInfoGathered[entityInstance.Entity] > Settings.GameplaySettings.TargetDetectionInfoThreshold &&
+                    PerspectiveEntity.ContactOf(entityInstance.Entity).Tracked &&
                     distance > _minimapDistance);
                 entityInstance.CompassIcon.transform.rotation = Quaternion.Euler(0, 0, Mathf.Atan2(difference.y, difference.x) * Mathf.Rad2Deg - 90);
             }
@@ -527,63 +635,22 @@ public class ZoneRenderer : MonoBehaviour
 
         foreach (var wormhole in WormholeInstances.Values)
         {
-            var difference = wormhole.gravity.transform.position.Flatland() - PerspectiveEntity.Position.xz.ToUnity();
+            var difference = wormhole.gravity.transform.position.Flatland() - DrawAhead.Position(PerspectiveEntity, lead).xz.ToUnity();
             var distance = difference.magnitude;
             wormhole.icon.gameObject.SetActive(distance > _minimapDistance);
             wormhole.icon.transform.rotation = Quaternion.Euler(0, 0, Mathf.Atan2(difference.y, difference.x) * Mathf.Rad2Deg - 90);
         }
 
         //var fogPos = FogCameraParent.position;
-        SectorBoundaryBrush.material.SetFloat("_Power", Settings.PlanetSettings.ZoneDepthExponent);
-        SectorBoundaryBrush.material.SetFloat("_Depth", Settings.PlanetSettings.ZoneDepth + Settings.PlanetSettings.ZoneBoundaryFog);
-        var startDepth = Zone.PowerPulse(Settings.MinimapZoneGravityRange, Settings.PlanetSettings.ZoneDepthExponent) *
-                          Settings.PlanetSettings.ZoneDepth;
-        var depthRange = Settings.PlanetSettings.ZoneDepth - startDepth + maxDepth;
+        var depthRange = Mathf.Max(maxDepth, 1f);
         foreach (var mat in MapGravityMaterials)
         {
-            mat.SetFloat("_StartDepth", startDepth);
+            mat.SetFloat("_StartDepth", 0f);
             mat.SetFloat("_DepthRange", depthRange);
         }
-        //Shader.SetGlobalFloat("_GridOffset", Settings.PlanetSettings.ZoneBoundaryFog);
         // var gravPos = MinimapGravityQuad.transform.position;
-        // gravPos.y = -Settings.PlanetSettings.ZoneDepth - _maxDepth;
         // MinimapGravityQuad.transform.position = gravPos;
         // MinimapTintQuad.transform.position = gravPos - Vector3.up*10;
-    }
-
-    public void DestroyLoot(ItemPickup loot)
-    {
-        _loot.Remove(loot);
-    }
-
-    public void DropItem(Vector3 position, Vector3 velocity, ItemInstance item)
-    {
-        var gridObject = item switch
-        {
-            SimpleCommodity _ => Instantiate(SimpleCommodityPickup),
-            CompoundCommodity _ => Instantiate(CompoundCommodityPickup),
-            EquippableItem equippableItem when ItemManager.GetData(equippableItem) is WeaponItemData => Instantiate(WeaponPickup),
-            EquippableItem _ => Instantiate(GearPickup),
-            _ => throw new NotImplementedException()
-        };
-        var t = gridObject.transform;
-        t.parent = ZoneRoot;
-        gridObject.Zone = Zone;
-        t.position = position;
-        gridObject.Velocity = velocity;
-        var itemPickup = gridObject.gameObject.GetComponent<ItemPickup>();
-        itemPickup.Item = item;
-        itemPickup.ZoneRenderer = this;
-        itemPickup.ScanLabel.text = ItemManager.GetData(item).Name;
-        if (item is CraftedItemInstance craftedItemInstance)
-        {
-            var c = ItemManager.GetTier(craftedItemInstance).tier.Color.ToColor();
-            c.a = 0;
-            itemPickup.ScanLabel.color = c;
-        }
-        else itemPickup.ScanLabel.color = new Color(.75f, .75f, .75f, 0);
-        gridObject.gameObject.AddComponent<TimedDestroy>().Duration = Settings.PickupLifetime;
-        _loot.Add(itemPickup);
     }
 }
 
@@ -672,7 +739,7 @@ public class AsteroidBeltUI
 
     public void Update(float4[] transforms, float height)
     {
-        var parentPosition = _zone.GetOrbitPosition(_orbitParent);
+        var parentPosition = DrawAhead.Orbit(_zone, _orbitParent, ActionGameManager.Clock.Lead);
         for (var i = 0; i < transforms.Length; i++)
         {
             var transform = transforms[i];

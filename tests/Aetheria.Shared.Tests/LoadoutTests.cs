@@ -25,7 +25,7 @@ public sealed class LoadoutTests : IDisposable
     {
         Directory.CreateDirectory(_root);
         using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         var maker = cache.Upsert(new Faction { Name = "Maker", ShortName = "MKR" });
 
         var hullShape = new Shape(3, 3);
@@ -313,8 +313,8 @@ public sealed class LoadoutTests : IDisposable
     }
 
     // Two new makers, each with one Lamp product, upserted into the live cache so its enumeration order (z before a)
-    // disagrees with record-key order; a reopened snapshot could already hand them back sorted. Brand() requires at
-    // most one product per (maker, design), so each gets its own maker rather than sharing "Maker".
+    // disagrees with record-key order; a reopened snapshot could already hand them back sorted. Each gets its own
+    // maker rather than sharing "Maker".
     [Fact]
     public void FirstAvailableProductInKeyOrderBuildsTheSlot()
     {
@@ -370,30 +370,6 @@ public sealed class LoadoutTests : IDisposable
         var failures = new List<string>();
         Assert.Null(Loadouts.Materialize(items, null, HandBuilt(cache), p => p.Name != "Lamp by Maker", failures));
         Assert.Equal("slot 0,0: no available product of Lamp", Assert.Single(failures));
-    }
-
-    // Census's duplicate (maker, design) detector exists precisely because this should never happen in an
-    // authored catalog; Brand()'s tie-break is what a runtime item falls back on if it ever does, so it must stay
-    // deterministic rather than however the cache happens to enumerate.
-    [Fact]
-    public void BrandPicksFirstProductInKeyOrderForSameMakerAndDesign()
-    {
-        using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
-        var maker = cache.Upsert(new Faction { Name = "TieBreaker", ShortName = "TIE" });
-        var lamp = new CultRecordRef<CraftedItemData>(cache.RefOf(cache.GetByName<GearData>("Lamp")).Key);
-        cache.Commit(batch => batch.Upsert(typeof(FactionProductData), new FactionProductData { Name = "lamp-b", Design = lamp, Manufacturer = maker }, new CultRecordKey("lamp-b")));
-        cache.Commit(batch => batch.Upsert(typeof(FactionProductData), new FactionProductData { Name = "lamp-a", Design = lamp, Manufacturer = maker }, new CultRecordKey("lamp-a")));
-
-        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
-        var lotId = items.Lots.Add(new Lot
-        {
-            Design = cache.RefOf<ItemData>(cache.GetByName<GearData>("Lamp")),
-            Origin = new Produced { Faction = maker, Station = 1, Facility = 2, Inputs = Array.Empty<int>() },
-            Quality = .5f, Roles = new List<RoleFill>()
-        });
-        var instance = (EquippableItem) items.CreateInstance(lotId);
-        var (_, product) = items.Brand(instance);
-        Assert.Equal("lamp-a", product.Name);
     }
 
     // F2: this test must not enumerate reloaded instances through EntitySerializer.Items, the GC root walk under
@@ -525,7 +501,8 @@ public sealed class LoadoutTests : IDisposable
             }
         });
         var capacitor = cache.Upsert(new GearData { Name = "Cap", Hardpoint = HardpointType.Tool, Shape = new Shape(), Price = 1, Behaviors = { new CapacitorData() } });
-        foreach (var (name, design) in new[] { ("Twin by Maker", hull.Key), ("Cap by Maker", capacitor.Key) })
+        var tractor = cache.Upsert(new GearData { Name = "Tractor", Hardpoint = HardpointType.Tool, Shape = new Shape(), Price = 1, Behaviors = { new PickupData() } });
+        foreach (var (name, design) in new[] { ("Twin by Maker", hull.Key), ("Cap by Maker", capacitor.Key), ("Tractor by Maker", tractor.Key) })
             cache.Upsert(new FactionProductData { Name = name, Design = new CultRecordRef<CraftedItemData>(design), Manufacturer = maker });
         cache.FlushAsync().Wait();
 
@@ -784,11 +761,7 @@ public sealed class LoadoutTests : IDisposable
         var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
         var hullItem = (EquippableItem) items.CreateInstance(items.CreateLot(hullData, maker, .5f));
         var ship = new Ship(items, null, hullItem, new EntitySettings());
-        // ItemManager.CreateInstance has no ConsumableItemData branch (it only special-cases EquippableItemData,
-        // falling back to CompoundCommodity otherwise); build the instance directly, as that method does for
-        // EquippableItem.
-        var consumableLot = items.CreateLot(consumableData, maker, .5f);
-        var consumableItem = new ConsumableItem { Data = cache.RefOf<ItemData>(consumableData), Lot = consumableLot };
+        var consumableItem = (ConsumableItem) items.CreateInstance(items.CreateLot(consumableData, maker, .5f));
         var effect = new ConsumableItemEffect(consumableItem, ship);
         effect.Update(5f); // half the duration elapsed -> progress .5 -> effectiveness .5 on a linear ramp
 

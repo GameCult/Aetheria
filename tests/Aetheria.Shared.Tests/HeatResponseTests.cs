@@ -50,7 +50,7 @@ public sealed class HeatResponseTests : IDisposable
     private CultCache OpenCatalogWithThermalGear()
     {
         var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(new Faction { Name = "Maker", ShortName = "MKR" });
         var hullShape = new Shape(3, 3);
         foreach (var cell in hullShape.AllCoordinates) hullShape[cell] = true;
@@ -127,7 +127,7 @@ public sealed class HeatResponseTests : IDisposable
         {
             var catalog = Path.Combine(root, "Aetheria.cc");
             using var cache = AetheriaStores.Open(catalog, catalogWritable: true);
-            cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+            cache.Upsert(new VerseGrammar { Revision = 1 });
             var ex = Assert.Throws<InvalidOperationException>(() => cache.Upsert(new GearData
             {
                 Name = "BadOptimum", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 1,
@@ -148,7 +148,7 @@ public sealed class HeatResponseTests : IDisposable
         {
             var catalog = Path.Combine(root, "Aetheria.cc");
             using var cache = AetheriaStores.Open(catalog, catalogWritable: true);
-            cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+            cache.Upsert(new VerseGrammar { Revision = 1 });
             var ex = Assert.Throws<InvalidOperationException>(() => cache.Upsert(new GearData
             {
                 Name = "BadPlateau", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 1,
@@ -169,7 +169,7 @@ public sealed class HeatResponseTests : IDisposable
         {
             var catalog = Path.Combine(root, "Aetheria.cc");
             using var cache = AetheriaStores.Open(catalog, catalogWritable: true);
-            cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+            cache.Upsert(new VerseGrammar { Revision = 1 });
             var ex = Assert.Throws<InvalidOperationException>(() => cache.Upsert(new GearData
             {
                 Name = "ZeroSpan", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 1,
@@ -193,7 +193,7 @@ public sealed class HeatResponseTests : IDisposable
         {
             var catalog = Path.Combine(root, "Aetheria.cc");
             using var cache = AetheriaStores.Open(catalog, catalogWritable: true);
-            cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+            cache.Upsert(new VerseGrammar { Revision = 1 });
             var ex = Assert.Throws<InvalidOperationException>(() => cache.Upsert(new GearData
             {
                 Name = "NaNHeat", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 1,
@@ -216,7 +216,7 @@ public sealed class HeatResponseTests : IDisposable
         {
             var catalog = Path.Combine(root, "Aetheria.cc");
             using var cache = AetheriaStores.Open(catalog, catalogWritable: true);
-            cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+            cache.Upsert(new VerseGrammar { Revision = 1 });
             var ex = Assert.Throws<InvalidOperationException>(() => cache.Upsert(new GearData
             {
                 Name = "PokingPlateau", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 1,

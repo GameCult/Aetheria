@@ -43,6 +43,11 @@ public class ZonePack
     // default instance.
     [JsonProperty("chunkWear"), Key(6)]
     public List<ChunkWearPack> ChunkWear;
+
+    // True once this zone's boss has been spawned. The dead boss leaves no entity, so this is the one fact that tells a
+    // slain boss from one that never existed; RunGoal.ExitOpen reads it. Written only by ZoneGenerator, carried by PackZone.
+    [JsonProperty("bossSpawned"), Key(7)]
+    public bool BossSpawned;
 }
 
 // Cut 2 (docs/mining-cut.md): one packed wear entry for one chunk. "Field" names the body that owns the chunk
@@ -81,15 +86,6 @@ public abstract class BodyData
 
     [JsonProperty("bodyRadiusMul")] [Key(5)]
     public float BodyRadiusMultiplier = 1;
-
-    [JsonProperty("gravRadiusMul")] [Key(6)]
-    public float GravityRadiusMultiplier = 1;
-
-    [JsonProperty("depthMul")] [Key(7)]
-    public float GravityDepthMultiplier = 1;
-
-    [JsonProperty("depthExp")] [Key(8)]
-    public float GravityDepthExponent = 16;
 }
 
 [CultDocument("aetheria.planetdata", "1"), MessagePackObject, JsonObject(MemberSerialization.OptIn)]
@@ -180,18 +176,6 @@ public class GasGiantData : BodyData
 
     [JsonProperty("albedoRotationSpeed"), Key(13)]
     public float AlbedoRotationSpeed = 1;
-
-    [JsonProperty("gravRadiusMul")] [Key(14)]
-    public float WaveRadiusMultiplier = 1;
-
-    [JsonProperty("depthMul")] [Key(15)]
-    public float WaveDepthMultiplier = 1;
-
-    [JsonProperty("depthExp")] [Key(16)]
-    public float WaveDepthExponent = 8;
-
-    [JsonProperty("depthExp")] [Key(17)]
-    public float WaveSpeedMultiplier = 8;
 
     [JsonProperty("materialOverrides"), Key(18)]
     public List<string> MaterialOverrides = new List<string>();

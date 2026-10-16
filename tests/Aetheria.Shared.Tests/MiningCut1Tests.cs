@@ -33,11 +33,17 @@ public sealed class MiningCut1Tests : IDisposable
 
     // Authored-shape curves, not defaults: a default ExponentialLerp/ExponentialCurve evaluates to a flat
     // constant everywhere, which would hide a broken formula (every asteroid or every damage state would read
-    // alike). These give period, size and hitpoints real, distinct curvature over the fixture's distance and
-    // damage range.
+    // alike). These give size and hitpoints real, distinct curvature over the fixture's damage range. A body's
+    // well strength is its mass here (c = mass), with a small constant core, so the test spells every period from
+    // the masses it chose.
+    private const float SunStrength = 400f;
+    private const float PlanetStrength = 25f;
+
     private static PlanetSettings Settings() => new PlanetSettings
     {
-        OrbitPeriod = new ExponentialCurve { Multiplier = 0.6f, Exponent = 1.3f, Constant = 40f },
+        BodyRadius = new ExponentialCurve(),
+        WellStrength = new ExponentialCurve { Multiplier = 1f, Exponent = 1f },
+        RocheLimit = new ExponentialCurve { Constant = 2f },
         AsteroidSize = new ExponentialLerp { Minimum = 2f, Maximum = 9f, Exponent = 1.7f },
         AsteroidHitpoints = new ExponentialLerp { Minimum = 10f, Maximum = 300f, Exponent = 2f },
         AsteroidRespawnTime = new ExponentialLerp { Minimum = 5f, Maximum = 60f, Exponent = 1f }
@@ -48,7 +54,7 @@ public sealed class MiningCut1Tests : IDisposable
     private const float RootPhase = 0.17f;
 
     // A belt of AsteroidCount asteroids at distinct distances, phases, size parameters and rotation speeds,
-    // orbiting a parent (RootDistance/RootPhase) that is itself moving -- so a test that reads the parent's
+    // orbiting a planet (RootDistance/RootPhase round a fixed sun) that is itself moving -- so a test that reads the parent's
     // motion through ChunkPose is exercising real recursion, not a fixed point. Each call opens its own
     // catalog, so two zones built from this fixture never share cache state.
     private (Zone zone, CultRecordKey beltKey, Asteroid[] asteroids, PlanetSettings settings) BuildFixture()
@@ -63,8 +69,12 @@ public sealed class MiningCut1Tests : IDisposable
         var items = new ItemManager(cache, new ProvenanceLedger(), GameSettings(), _ => { });
         var settings = Settings();
 
-        var rootOrbit = new OrbitData { Distance = RootDistance, Phase = RootPhase };
+        var sunOrbitKey = cache.Upsert(new OrbitData()).Key;
+        var sunKey = cache.Upsert(new PlanetData { Name = "Sun", Orbit = new CultRecordRef<OrbitData>(sunOrbitKey), Mass = SunStrength }).Key;
+
+        var rootOrbit = new OrbitData { Parent = new CultRecordRef<OrbitData>(sunOrbitKey), Distance = RootDistance, Phase = RootPhase };
         var rootKey = cache.Upsert(rootOrbit).Key;
+        var planetKey = cache.Upsert(new PlanetData { Name = "Planet", Orbit = new CultRecordRef<OrbitData>(rootKey), Mass = PlanetStrength }).Key;
 
         var beltOrbit = new OrbitData { Parent = new CultRecordRef<OrbitData>(rootKey), Distance = 900f, Phase = 0.42f };
         var beltOrbitKey = cache.Upsert(beltOrbit).Key;
@@ -86,8 +96,8 @@ public sealed class MiningCut1Tests : IDisposable
 
         var pack = new ZonePack
         {
-            Orbits = { new CultRecordRef<OrbitData>(rootKey), new CultRecordRef<OrbitData>(beltOrbitKey) },
-            Planets = { new CultRecordRef<BodyData>(beltKey) },
+            Orbits = { new CultRecordRef<OrbitData>(sunOrbitKey), new CultRecordRef<OrbitData>(rootKey), new CultRecordRef<OrbitData>(beltOrbitKey) },
+            Planets = { new CultRecordRef<BodyData>(sunKey), new CultRecordRef<BodyData>(planetKey), new CultRecordRef<BodyData>(beltKey) },
             Radius = 5000f,
             Mass = 10000f,
             Time = 0
@@ -97,22 +107,22 @@ public sealed class MiningCut1Tests : IDisposable
         return (zone, beltKey, asteroids, settings);
     }
 
-    // The formula of Zone.GetOrbitPosition (unchanged by this cut), reimplemented here so the expected value
-    // never calls production orbit code.
-    private static float2 OrbitPosition(double time, float distance, float phase, PlanetSettings settings, float2 fixedPosition = default)
+    // Zone.GetOrbitPosition's placement round a body of well strength `strength`, with the period spelled here from
+    // the field law outside the core (a = c/d, so T = 2 pi d / sqrt(c)), so the expected value never calls
+    // production orbit code.
+    private static float2 OrbitPosition(double time, float distance, float phase, float strength, float2 fixedPosition = default)
     {
-        var period = settings.OrbitPeriod.Evaluate(distance);
-        if (period <= .01f) return fixedPosition;
+        var period = 2 * PI * distance / sqrt(strength);
         var wrapped = (float) frac(time / period);
         return OrbitData.Evaluate(frac(wrapped + phase)) * distance + fixedPosition;
     }
 
-    // The formula of AsteroidBelt.Pose (Zone.cs:269-271 before this cut), reimplemented independently.
-    private static float4 ExpectedPose(double time, Asteroid asteroid, float2 parentPosition, PlanetSettings settings, float size)
+    // The pose of an asteroid circling a planet of well strength `strength`, spelled independently of AsteroidBelt.Pose.
+    private static float4 ExpectedPose(double time, Asteroid asteroid, float2 parentPosition, float strength, float size)
     {
         var rot = (float) (time * asteroid.RotationSpeed % (PI * 2));
-        var pos = OrbitData.Evaluate((float) frac(time / settings.OrbitPeriod.Evaluate(asteroid.Distance) + asteroid.Phase))
-                  * asteroid.Distance + parentPosition;
+        var period = 2 * PI * asteroid.Distance / sqrt(strength);
+        var pos = OrbitData.Evaluate((float) frac(time / period + asteroid.Phase)) * asteroid.Distance + parentPosition;
         return float4(pos.x, pos.y, rot, size);
     }
 
@@ -136,11 +146,11 @@ public sealed class MiningCut1Tests : IDisposable
             time += dt;
         }
 
-        var parentPosition = OrbitPosition(time, RootDistance, RootPhase, settings);
+        var parentPosition = OrbitPosition(time, RootDistance, RootPhase, SunStrength);
 
         for (var i = 0; i < asteroids.Length; i++)
         {
-            var expected = ExpectedPose(time, asteroids[i], parentPosition, settings, settings.AsteroidSize.Evaluate(asteroids[i].Size));
+            var expected = ExpectedPose(time, asteroids[i], parentPosition, PlanetStrength, settings.AsteroidSize.Evaluate(asteroids[i].Size));
             var actual = zone.ChunkPose(beltKey, i);
             AssertClose(expected.x, actual.x, 0.01f, $"asteroid {i} x");
             AssertClose(expected.y, actual.y, 0.01f, $"asteroid {i} y");
@@ -157,13 +167,13 @@ public sealed class MiningCut1Tests : IDisposable
     {
         var (zone, beltKey, asteroids, settings) = BuildFixture();
         zone.Update(40f);
-        var parentPosition = OrbitPosition(40.0, RootDistance, RootPhase, settings);
+        var parentPosition = OrbitPosition(40.0, RootDistance, RootPhase, SunStrength);
 
         var wrapped = 0;
         for (var i = 0; i < asteroids.Length; i++)
         {
             if (40.0 * asteroids[i].RotationSpeed > PI * 2) wrapped++;
-            var expected = ExpectedPose(40.0, asteroids[i], parentPosition, settings, settings.AsteroidSize.Evaluate(asteroids[i].Size));
+            var expected = ExpectedPose(40.0, asteroids[i], parentPosition, PlanetStrength, settings.AsteroidSize.Evaluate(asteroids[i].Size));
             var actual = zone.ChunkPose(beltKey, i);
             AssertClose(expected.z, actual.z, 0.001f, $"asteroid {i} rotation");
             Assert.InRange(actual.z, 0f, PI * 2);
@@ -232,7 +242,7 @@ public sealed class MiningCut1Tests : IDisposable
         zone.Update(0.37f);
 
         var buffer = new float4[asteroids.Length];
-        zone.EvaluateBelt(beltKey, buffer);
+        zone.EvaluateBelt(beltKey, buffer, zone.ExactTime);
 
         Assert.Equal(asteroids.Length, buffer.Length);
         for (var i = 0; i < asteroids.Length; i++)

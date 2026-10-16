@@ -113,8 +113,11 @@ public class ActionGameManager : MonoBehaviour
     //public string StarterShipTemplate = "Longinus";
     // The run's credits: seeded from the scenario stage on a new game and from SavedGame on Continue, written by SaveRun.
     [NonSerialized] public int Credits;
-    public float TargetSpottedBlinkFrequency = 20;
-    public float TargetSpottedBlinkOffset = -.25f;
+    // Presentation scale: the player's own Visibility at which the target panel's VisibilityToTargetFill reads full.
+    public float OwnSignatureFullScale = 10;
+    // The music last asked for: Update decides it each frame from what the player's own instruments hold and calls
+    // PlayMusic only when it changes.
+    private MusicType? _music;
     
     [Header("Postprocessing")]
     public float DeathPostTransitionTime;
@@ -157,6 +160,12 @@ public class ActionGameManager : MonoBehaviour
     public Prototype FriendlyTargetIndicator;
     public PlaceUIElementWorldspace ViewDot;
     public Prototype LockIndicator;
+    // Presentation tuning: how far from the ship, toward the locker, the incoming-lock indicator sits.
+    public float IncomingLockIndicatorDistance = 30;
+    // Presentation tuning: how far from the ship, toward a remembered hostile's bearing, its marker sits; how long a
+    // sweep flash takes to fade.
+    public float BearingMarkerDistance = 40;
+    public float SearchFlashSeconds = .6f;
     public PlaceUIElementWorldspace[] Crosshairs;
     public GameObject HitMarker;
     public float HitMarkerDuration;
@@ -177,8 +186,6 @@ public class ActionGameManager : MonoBehaviour
     public Sprite ShieldIcon;
     public Sprite NoShieldIcon;
 
-    public float IntroDuration;
-    
     //public PlayerInput Input;
     
     // private CinemachineFramingTransposer _transposer;
@@ -196,9 +203,19 @@ public class ActionGameManager : MonoBehaviour
     private readonly HelmInput _helm = new HelmInput();
     private TextMeshProUGUI _faceAimMark;
     private (HardpointData[] hardpoints, Transform[] barrels, PlaceUIElementWorldspace crosshair)[] _articulationGroups;
-    private (LockWeapon targetLock, PlaceUIElementWorldspace indicator, Rotate spin)[] _lockingIndicators;
+    // The outgoing progress indicators on the player's target: one per lock weapon (its Lock, shown only on a hostile target)
+    // and one per scanner (its scan Progress, shown on any target: a scan reads no stance).
+    private (Func<float> progress, bool hostileOnly, PlaceUIElementWorldspace indicator, Rotate spin)[] _progressIndicators;
+    private (PlaceUIElementWorldspace indicator, Rotate spin) _incomingLockIndicator;
     private Dictionary<Entity, VisibleTargetIndicator> _visibleHostileIndicators = new Dictionary<Entity, VisibleTargetIndicator>();
     private Dictionary<Entity, VisibleTargetIndicator> _visibleFriendlyIndicators = new Dictionary<Entity, VisibleTargetIndicator>();
+    // Display-only: a marker per remembered hostile (shares HostileTargetIndicator's pool), the Search warnings the last
+    // ticks delivered (bearing, zone time; a per-tick buffer), and the sweep flashes drawn from them.
+    private readonly Dictionary<Entity, VisibleTargetIndicator> _bearingMarkers = new Dictionary<Entity, VisibleTargetIndicator>();
+    private readonly List<(float2 bearing, float time)> _pendingSweeps = new List<(float2, float)>();
+    private readonly List<(PlaceUIElementWorldspace indicator, Image image, float2 bearing, float time)> _sweepFlashes =
+        new List<(PlaceUIElementWorldspace, Image, float2, float)>();
+    private readonly List<Entity> _markerScratch = new List<Entity>();
     private List<IDisposable> _shipSubscriptions = new List<IDisposable>();
     private List<IDisposable> _targetSubscriptions = new List<IDisposable>();
     private readonly Dictionary<EquippedItem, ShotOutcome> _debugLastShots = new Dictionary<EquippedItem, ShotOutcome>();
@@ -231,6 +248,8 @@ public class ActionGameManager : MonoBehaviour
     
     public ItemManager ItemManager { get; private set; }
     public Zone Zone { get; private set; }
+    public static SimClock Clock { get; } = new SimClock(1f / 60f);
+    private bool _zoneEntered;
 
     private readonly (float2 direction, string name)[] _directions = {
         (float2(0, 1), "Front"),
@@ -317,7 +336,7 @@ public class ActionGameManager : MonoBehaviour
         Input.Global.ZoneMap.performed += context =>
         {
             ToggleMenuTab(MenuTab.Map);
-                MenuMap.Position = CurrentEntity.Position.xz;
+                MenuMap.Position = DrawAhead.Position(CurrentEntity, Clock.Lead).xz;
         };
 
         Input.Global.Inventory.performed += context => ToggleMenuTab(MenuTab.Inventory);
@@ -341,6 +360,19 @@ public class ActionGameManager : MonoBehaviour
                 foreach (var wormhole in ZoneRenderer.WormholeInstances.Keys)
                 {
                     if (!(length(wormhole.Position - CurrentEntity.Position.xz) < Settings.GameplaySettings.WormholeExitRadius)) continue;
+                    if (wormhole.Exit)
+                    {
+                        // The exit gate leads nowhere: RunGoal decides whether it is open, and an open one ends the run.
+                        if (RunGoal.ExitOpen(Zone)) Win();
+                        else
+                        {
+                            Dialog.Clear();
+                            Dialog.Title.text = $"The exit gate is sealed. {RunGoal.Boss(Zone)?.Name ?? "Its guardian"} holds it shut.";
+                            Dialog.Show();
+                            Dialog.MoveToCursor();
+                        }
+                        return;
+                    }
                     EnterWormhole(wormhole);
                 }
                 Dock();
@@ -409,22 +441,9 @@ public class ActionGameManager : MonoBehaviour
         Input.Player.TargetNext.performed += context => CurrentEntity.TargetNext();
         Input.Player.TargetPrevious.performed += context => CurrentEntity.TargetPrevious();
 
-        // Cut 2 (docs/fire-control-cut.md): cycles the aim point among the current target's revealed
-        // subsystems -- decides nothing itself, only calls the one writer (TrySelectTargetItem), same
-        // predicate (FireControl.IsRevealed) the AI path uses. Entity-only: a chunk has no subsystems.
-        Input.Player.CycleTargetItem.performed += context =>
-        {
-            var target = CurrentEntity.Target.Value.Entity;
-            if (target == null) return;
-            var revealed = target.Equipment.Where(x => FireControl.IsRevealed(CurrentEntity, x)).ToArray();
-            if (revealed.Length == 0)
-            {
-                CurrentEntity.TrySelectTargetItem(null);
-                return;
-            }
-            var currentItemIndex = Array.IndexOf(revealed, CurrentEntity.ResolvedTargetItem);
-            CurrentEntity.TrySelectTargetItem(revealed[(currentItemIndex + 1) % revealed.Length]);
-        };
+        // Cut 2 (docs/fire-control-cut.md): steps the aim through the target's schematic rows -- every mount this ship
+        // has located, empty or not, minus the ones it saw destroyed. Decides nothing: the entity owns the cycle.
+        Input.Player.CycleTargetItem.performed += context => CurrentEntity.CycleAim();
 
         #endregion
 
@@ -715,14 +734,16 @@ public class ActionGameManager : MonoBehaviour
             galaxyZone.Contents = new Zone(ItemManager, Settings.PlanetSettings, galaxyZone.PackedContents, galaxyZone, CurrentGalaxy);
         }
         Zone = galaxyZone.Contents;
+        _zoneEntered = true; // the clock forgets its lead between frames, never inside a step
         PlayMusic(MusicType.Overworld);
+        _music = MusicType.Overworld;
         
         Zone.Log = s => Debug.Log($"Zone: {s}");
 
         if (CurrentEntity != null)
         {
             CurrentEntity.Deactivate();
-            CurrentEntity.Zone.Entities.Remove(CurrentEntity);
+            CurrentEntity.Zone.Remove(CurrentEntity);
             CurrentEntity.Zone = Zone;
             Zone.Admit(CurrentEntity, piloted: false);
         }
@@ -805,7 +826,6 @@ public class ActionGameManager : MonoBehaviour
                 }
                 else
                 {
-                    //StartCoroutine(IntroCutscene(targetEntity as Ship));
                     BindToEntity(targetEntity);
                 }
         
@@ -851,35 +871,6 @@ public class ActionGameManager : MonoBehaviour
         Credits = staged.Credits;
         SectorMap.QueueZoneReveal(CurrentGalaxy.Entrance.AdjacentZones.Prepend(CurrentGalaxy.Entrance));
         BindToEntity(staged.Player);
-    }
-
-    private IEnumerator IntroCutscene(Ship ship)
-    {
-        ZoneRenderer.PerspectiveEntity = ship;
-        var entityPosition = ship.Position.xz;
-        var followOrbit = Zone.Orbits.Keys.MinBy(o => lengthsq(Zone.GetOrbitPosition(o) - entityPosition));
-        var followPlanet = ZoneRenderer.Planets[Zone.Planets.FirstOrDefault(p => p.Value.Orbit.Key.Equals(followOrbit)).Key];
-        DockCamera.Follow = followPlanet.Body.transform;
-        var rootOrbit = followOrbit;
-        while (Zone.Orbits[rootOrbit].Data.Parent.IsSet())
-            rootOrbit = Zone.Orbits[rootOrbit].Data.Parent.Key;
-        var rootPlanet = ZoneRenderer.Planets[Zone.Planets.FirstOrDefault(p => p.Value.Orbit.Key.Equals(rootOrbit)).Key];
-        DockCamera.LookAt = rootPlanet.Body.transform;
-
-        var shipVelocity = ship.GetBehavior<VelocityLimit>().Limit;
-        var followOrbitPosition = Zone.GetOrbitPosition(followOrbit);
-        var shipDirection = normalize(Zone.GetOrbitPosition(rootOrbit) - followOrbitPosition);
-        ship.Position.xz = followOrbitPosition - shipDirection * shipVelocity * IntroDuration;
-
-        var startTime = Time.time;
-        while (Time.time - startTime < IntroDuration)
-        {
-            ship.Direction = shipDirection;
-            ship.Velocity = shipDirection * shipVelocity;
-            yield return null;
-        }
-        
-        BindToEntity(ship);
     }
 
     public void Dock()
@@ -948,7 +939,7 @@ public class ActionGameManager : MonoBehaviour
                 Dialog.MoveToCursor();
                 // TODO: SFX: Fail
             }
-            else if (CurrentEntity.GetBehavior<Thruster>() == null && CurrentEntity.GetBehavior<AetherDrive>() == null)
+            else if (CurrentEntity.GetBehavior<Thruster>() == null)
             {
                 Dialog.Clear();
                 Dialog.Title.text = "Can't undock. Missing thruster component!";
@@ -1012,9 +1003,17 @@ public class ActionGameManager : MonoBehaviour
         
         foreach (var indicator in _visibleFriendlyIndicators) Destroy(indicator.Value.gameObject);
         _visibleFriendlyIndicators.Clear();
+
+        foreach (var marker in _bearingMarkers.Values) RetireMarker(marker);
+        _bearingMarkers.Clear();
+        foreach (var flash in _sweepFlashes) RetireFlash(flash.indicator, flash.image);
+        _sweepFlashes.Clear();
+        _pendingSweeps.Clear();
         
-        if(_lockingIndicators!=null) foreach(var (_, indicator, _) in _lockingIndicators)
+        if(_progressIndicators!=null) foreach(var (_, _, indicator, _) in _progressIndicators)
             indicator.GetComponent<Prototype>().ReturnToPool();
+        if(_incomingLockIndicator.indicator != null) _incomingLockIndicator.indicator.GetComponent<Prototype>().ReturnToPool();
+        _incomingLockIndicator = default;
         DisablePlayerInput();
         Cursor.lockState = CursorLockMode.None;
         GameplayUI.gameObject.SetActive(false);
@@ -1075,11 +1074,6 @@ public class ActionGameManager : MonoBehaviour
             crosshair.gameObject.SetActive(false);
         foreach (var group in _articulationGroups)
             group.crosshair.gameObject.SetActive(true);
-        
-        _shipSubscriptions.Add(CurrentEntity.TargetedByCount.Subscribe(count =>
-        {
-            PlayMusic(count > 0 ? MusicType.Combat : MusicType.Overworld);
-        }));
         
         _shipSubscriptions.Add(CurrentEntity.Target.Subscribe(target =>
         {
@@ -1152,12 +1146,18 @@ public class ActionGameManager : MonoBehaviour
         
         _shipSubscriptions.Add(CurrentEntity.Death.Subscribe(Die));
         
-        _lockingIndicators = CurrentEntity.GetBehaviors<LockWeapon>()
+        var progressSources = CurrentEntity.GetBehaviors<LockWeapon>().Select(x => ((Func<float>) (() => x.Lock), true))
+            .Concat(CurrentEntity.GetBehaviors<Scanner>().Select(x => ((Func<float>) (() => x.Progress), false)));
+        _progressIndicators = progressSources
             .Select(x =>
             {
                 var i = LockIndicator.Instantiate<PlaceUIElementWorldspace>();
-                return (x, i, i.GetComponent<Rotate>());
+                return (x.Item1, x.Item2, i, i.GetComponent<Rotate>());
             }).ToArray();
+
+        var incoming = LockIndicator.Instantiate<PlaceUIElementWorldspace>();
+        incoming.gameObject.SetActive(false);
+        _incomingLockIndicator = (incoming, incoming.GetComponent<Rotate>());
     }
 
     private void UpdatePlayerPanel()
@@ -1178,16 +1178,18 @@ public class ActionGameManager : MonoBehaviour
         }
     }
 
-    // A chunk's simulated position is planar (Zone.ChunkPose); the renderer draws it at the asteroid layer's height.
+    // A chunk's pose is planar (Zone.ChunkPose), read at the drawn time so the reticle sits on the drawn rock; the renderer
+    // draws it at the asteroid layer's height.
     private float3 ChunkWorldPosition(ChunkId chunk)
     {
-        var pose = CurrentEntity.Zone.ChunkPose(chunk.Field, chunk.Index);
+        var zone = CurrentEntity.Zone;
+        var pose = zone.ChunkPose(chunk.Field, chunk.Index, DrawAhead.Time(zone, Clock.Lead));
         return float3(pose.x, Settings.PlanetSettings.AsteroidVerticalOffset, pose.y);
     }
 
-    private void Die(CauseOfDeath cause)
+    // The one way a run ends, won or lost: the run is cleared and the main menu returns.
+    private void EndRun()
     {
-        var deathTime = Time.time;
         UnbindEntity();
         CurrentEntity = null;
         MainMenu.gameObject.SetActive(true);
@@ -1195,6 +1197,21 @@ public class ActionGameManager : MonoBehaviour
         CurrentGalaxy = null;
         RunSave.Clear(CultCache);
         SavePlayerSettings();
+    }
+
+    private void Win()
+    {
+        EndRun();
+        Dialog.Clear();
+        Dialog.Title.text = "You have escaped the Terminus. This was the demo; the whole of it is yet to come.";
+        Dialog.Show();
+        Dialog.MoveToCursor();
+    }
+
+    private void Die(CauseOfDeath cause)
+    {
+        var deathTime = Time.time;
+        EndRun();
         Observable.EveryUpdate()
             .Where(_ => Time.time - deathTime < DeathPostTransitionTime)
             .Subscribe(_ =>
@@ -1256,6 +1273,36 @@ public class ActionGameManager : MonoBehaviour
         // TODO: SFX: Music
     }
 
+    // What the player's own instruments say about combat, nothing a hostile knows: a hostile tracked, a paint on the
+    // player, or a remembered hostile the player still has a bearing on (a reveal younger than BearingMemory).
+    private void UpdateMusic()
+    {
+        var combat = CurrentEntity.VisibleEnemies.Count > 0 || CurrentEntity.IncomingPaints.Count > 0;
+        combat |= CurrentEntity.RememberedHostiles.Any();
+        var type = combat ? MusicType.Combat : MusicType.Overworld;
+        if (_music == type) return;
+        _music = type;
+        PlayMusic(type);
+    }
+
+    // An indicator's fill is how far the player's own sensors have resolved the ship from a track toward identifying
+    // it (ContactOf.Info over the detection-to-gear span): nothing of what the ship sees of the player.
+    private void PlaceFill(VisibleTargetIndicator indicator, Entity subject)
+    {
+        indicator.Fill.enabled = subject.Active;
+        if (!subject.Active) return;
+        var settings = Settings.GameplaySettings;
+        indicator.Fill.fillAmount = saturate(unlerp(settings.TargetDetectionInfoThreshold, settings.TargetGearInfoThreshold,
+            CurrentEntity.ContactOf(subject).Info));
+    }
+
+    // Whether an effect drawn at `subject`'s true position may be drawn: the player's own ship, or a ship its
+    // instruments track. The one seam for impact and hit effects (follow-up presentation-gated-on-tracked); a bearing
+    // alone (Detected without Tracked) places nothing there. No player ship, nothing to gate on.
+    public static bool DrawsAt(Entity subject) =>
+        Instance == null || Instance.CurrentEntity == null || subject == null || subject == Instance.CurrentEntity ||
+        Instance.CurrentEntity.ContactOf(subject).Tracked;
+
     void Update()
     {
         if(!_paused)
@@ -1269,30 +1316,14 @@ public class ActionGameManager : MonoBehaviour
                 foreach (var indicator in _visibleHostileIndicators)
                 {
                     indicator.Value.gameObject.SetActive(indicator.Key!=CurrentEntity.Target.Value.Entity);
-                    indicator.Value.Place.Target = indicator.Key.Position.ToUnity();
-                    if (!indicator.Key.Active)
-                        indicator.Value.Fill.enabled = false;
-                    else
-                    {
-                        indicator.Value.Fill.fillAmount =
-                            saturate(indicator.Key.EntityInfoGathered[CurrentEntity] / Settings.GameplaySettings.TargetDetectionInfoThreshold);
-                        indicator.Value.Fill.enabled =
-                            !(indicator.Key.EntityInfoGathered[CurrentEntity] > Settings.GameplaySettings.TargetDetectionInfoThreshold) ||
-                            sin(TargetSpottedBlinkFrequency * Time.time) + TargetSpottedBlinkOffset > 0;
-                    }
+                    indicator.Value.Place.Target = DrawAhead.Position(indicator.Key, Clock.Lead).ToUnity();
+                    PlaceFill(indicator.Value, indicator.Key);
                 }
                 foreach (var indicator in _visibleFriendlyIndicators)
                 {
                     indicator.Value.gameObject.SetActive(indicator.Key!=CurrentEntity.Target.Value.Entity);
-                    indicator.Value.Place.Target = indicator.Key.Position.ToUnity();
-                    if (!indicator.Key.Active)
-                        indicator.Value.Fill.enabled = false;
-                    else
-                    {
-                        indicator.Value.Fill.enabled = true;
-                        indicator.Value.Fill.fillAmount =
-                            saturate(indicator.Key.EntityInfoGathered[CurrentEntity] / Settings.GameplaySettings.TargetDetectionInfoThreshold);
-                    }
+                    indicator.Value.Place.Target = DrawAhead.Position(indicator.Key, Clock.Lead).ToUnity();
+                    PlaceFill(indicator.Value, indicator.Key);
                 }
                 var look = Input.Player.Look.ReadValue<Vector2>();
                 var sensitivity = PlayerSettings.InputSettings.Sensitivity;
@@ -1313,23 +1344,36 @@ public class ActionGameManager : MonoBehaviour
                     ship.Turn = _helm.Demand(ship, _viewDirection.xz, Input.Player.Turn.ReadValue<float>());
                 }
 
+                UpdateMusic();
                 UpdateFireControlDebug(CurrentEntity.Target.Value);
                 var target = CurrentEntity.Target.Value.Entity;
                 if (target != null)
                 {
                     var threshold = Settings.GameplaySettings.TargetDetectionInfoThreshold;
-                    TargetVisibilityFill.fillAmount = lerp(.25f, .75f, (CurrentEntity.EntityInfoGathered[target] - threshold)/(1-threshold));
-                    VisibilityToTargetFill.fillAmount = lerp(.25f, .75f, target.EntityInfoGathered[CurrentEntity] / threshold);
+                    TargetVisibilityFill.fillAmount = lerp(.25f, .75f, (CurrentEntity.ContactOf(target).Info - threshold)/(1-threshold));
+                    VisibilityToTargetFill.fillAmount = lerp(.25f, .75f, saturate(CurrentEntity.Visibility / OwnSignatureFullScale));
                     TargetHitpointsFill.fillAmount = lerp(.25f, .75f, target.Hull.Durability / target.EquippedHull.Data.Durability);
                     TargetShieldsFill.fillAmount = target.Shield == null ? 0 : lerp(.25f, .75f, target.Shield.Progress);
                 }
 
-                var tractorPower = Input.Player.TractorBeam.ReadValue<float>();
-                CurrentEntity.TractorPower =
-                    saturate(CurrentEntity.TractorPower + sign(tractorPower - CurrentEntity.TractorPower) * Time.deltaTime * 2);
+                CurrentEntity.TractorCommand = Input.Player.TractorBeam.ReadValue<float>();
             }
-            Zone.Update(Time.deltaTime);
         }
+        // One clock steps the zone, paused or not: a paused frame feeds it no real time.
+        // A zone entered inside a step (a wormhole) ends this frame's stepping: the rest of its steps are the old zone's.
+        void EnterNewZone() { if (_zoneEntered) { Clock.Reset(); _zoneEntered = false; } }
+        EnterNewZone();
+        var steppedZone = Zone;
+        Clock.Advance(_paused ? 0f : Time.deltaTime, delta =>
+        {
+            if (Zone != steppedZone) return;
+            steppedZone.Update(delta);
+            // A warning lives one tick, so sweeps are collected per tick, never read per frame.
+            if (CurrentEntity != null && CurrentEntity.Zone == steppedZone)
+                foreach (var warning in CurrentEntity.IncomingPaints)
+                    if (warning.Mode == PaintMode.Search) _pendingSweeps.Add((warning.Bearing, steppedZone.Time));
+        });
+        EnterNewZone();
     }
 
     private static string ResultLabel(ShotResult result) => result switch
@@ -1395,7 +1439,7 @@ public class ActionGameManager : MonoBehaviour
             : $"base {d.PBase:P1}";
 
         DebugInfoText.text =
-            $"FIRE CONTROL - {selectedItem.Data.Name}\n" +
+            $"FIRE CONTROL - {ItemManager.Title(selectedItem.EquippableItem)}\n" +
             $"{gates}\n" +
             $"range {d.Range:F0} [{d.MinRange:F0}..{d.MaxRange:F0}]\n" +
             $"info {d.Info:F3}/{d.InfoDemandCeiling:F3} sensor {d.PSensor:F3}\n" +
@@ -1416,13 +1460,15 @@ public class ActionGameManager : MonoBehaviour
     {
         if (CurrentEntity == null || CurrentEntity.Parent != null) return;
 
+        var lead = Clock.Lead;
+        var ownDrawn = DrawAhead.Position(CurrentEntity, lead);
         ViewDot.Target = ZoneRenderer.EntityInstances[CurrentEntity].LookAtPoint.position;
         var target = CurrentEntity.Target.Value;
         if (target.Chunk is ChunkId chunk)
             TargetIndicator.Target = ChunkWorldPosition(chunk).ToUnity();
         else if (target.Entity != null)
-            TargetIndicator.Target = target.Entity.Position.ToUnity();
-        var distance = length(ViewDot.Target.ToCultMath() - CurrentEntity.Position);
+            TargetIndicator.Target = DrawAhead.Position(target.Entity, lead).ToUnity();
+        var distance = length(ViewDot.Target.ToCultMath() - ownDrawn);
         foreach (var (_, barrels, crosshair) in _articulationGroups)
         {
             var averagePosition = Vector3.zero;
@@ -1432,18 +1478,112 @@ public class ActionGameManager : MonoBehaviour
             crosshair.Target = averagePosition;
         }
         
-        foreach (var (targetLock, indicator, spin) in _lockingIndicators)
+        foreach (var (progress, hostileOnly, indicator, spin) in _progressIndicators)
         {
-            var showLockingIndicator = targetLock.Lock > .01f && CurrentEntity.Target.Value.Entity != null && CurrentEntity.IsHostileTo(CurrentEntity.Target.Value.Entity);
-            indicator.gameObject.SetActive(showLockingIndicator);
-            if(showLockingIndicator)
+            var value = progress();
+            var targetEntity = CurrentEntity.Target.Value.Entity;
+            var showIndicator = value > .01f && targetEntity != null && (!hostileOnly || CurrentEntity.IsHostileTo(targetEntity));
+            indicator.gameObject.SetActive(showIndicator);
+            if(showIndicator)
             {
-                indicator.Target = CurrentEntity.Target.Value.Entity.Position.ToUnity();
-                indicator.NoiseAmplitude = Settings.GameplaySettings.LockIndicatorNoiseAmplitude * (1 - targetLock.Lock);
-                indicator.NoiseFrequency = Settings.GameplaySettings.LockIndicatorFrequency.Evaluate(targetLock.Lock);
-                spin.Speed = Settings.GameplaySettings.LockSpinSpeed.Evaluate(targetLock.Lock);
+                indicator.Target = DrawAhead.Position(targetEntity, lead).ToUnity();
+                ApplyLockProgress(indicator, spin, value);
             }
         }
+
+        // The strongest lock or scan on the player's ship, read only from IncomingPaints (never another ship's LockWeapon or
+        // Scanner). A Scan paint's Strength is the scan's progress (ruling scan-is-an-act). Search paints (ping sweeps) are
+        // this class's sweep flashes (UpdateSweepFlashes). Same curves as the outgoing indicator, driven by the warning's Strength.
+        var warnings = CurrentEntity.IncomingPaints;
+        var strongest = -1;
+        for (var w = 0; w < warnings.Count; w++)
+            if ((warnings[w].Mode is PaintMode.Track or PaintMode.Scan) && (strongest < 0 || warnings[w].Strength > warnings[strongest].Strength)) strongest = w;
+        var (incomingIndicator, incomingSpin) = _incomingLockIndicator;
+        incomingIndicator.gameObject.SetActive(strongest >= 0);
+        if (strongest >= 0)
+        {
+            var warning = warnings[strongest];
+            incomingIndicator.Target = DrawAhead.AtBearing(CurrentEntity, warning.Bearing, IncomingLockIndicatorDistance, lead).ToUnity();
+            ApplyLockProgress(incomingIndicator, incomingSpin, warning.Strength);
+        }
+
+        UpdateBearingMarkers();
+        UpdateSweepFlashes();
+    }
+
+    // One marker per remembered hostile (a contact held by a bearing only): at the bearing the book keeps, labelled with the
+    // classes it claimed. Never at the subject's position, never read from its gear.
+    private void UpdateBearingMarkers()
+    {
+        var remembered = CurrentEntity.RememberedHostiles.ToList();
+        _markerScratch.Clear();
+        foreach (var subject in _bearingMarkers.Keys)
+            if (!remembered.Contains(subject)) _markerScratch.Add(subject);
+        foreach (var subject in _markerScratch)
+        {
+            RetireMarker(_bearingMarkers[subject]);
+            _bearingMarkers.Remove(subject);
+        }
+        foreach (var subject in remembered)
+        {
+            if (!_bearingMarkers.TryGetValue(subject, out var marker))
+            {
+                marker = HostileTargetIndicator.Instantiate<VisibleTargetIndicator>();
+                marker.Fill.enabled = false;
+                _bearingMarkers.Add(subject, marker);
+            }
+            marker.gameObject.SetActive(true);
+            var bearing = CurrentEntity.ContactOf(subject).Bearing;
+            marker.Place.Target = DrawAhead.AtBearing(CurrentEntity, bearing, BearingMarkerDistance, Clock.Lead).ToUnity();
+            marker.ShowLabel(string.Join(", ", CurrentEntity.ClaimedClasses(subject).Select(c => c.Name)));
+        }
+    }
+
+    // A pooled indicator goes back as the next hostile indicator will want it: label hidden, fill restored.
+    private static void RetireMarker(VisibleTargetIndicator marker)
+    {
+        marker.ShowLabel(null);
+        marker.Fill.enabled = true;
+        marker.GetComponent<Prototype>().ReturnToPool();
+    }
+
+    private static void RetireFlash(PlaceUIElementWorldspace indicator, Image image)
+    {
+        if (image != null) image.color = new Color(image.color.r, image.color.g, image.color.b, 1);
+        indicator.GetComponent<Prototype>().ReturnToPool();
+    }
+
+    // A ping crossing the player draws one flash toward the pinger, fading over SearchFlashSeconds of zone time.
+    private void UpdateSweepFlashes()
+    {
+        foreach (var (bearing, time) in _pendingSweeps)
+        {
+            var indicator = LockIndicator.Instantiate<PlaceUIElementWorldspace>();
+            ApplyLockProgress(indicator, indicator.GetComponent<Rotate>(), 0); // a pooled lock indicator keeps its last tightening
+            _sweepFlashes.Add((indicator, indicator.GetComponentInChildren<Image>(), bearing, time));
+        }
+        _pendingSweeps.Clear();
+        for (var i = _sweepFlashes.Count - 1; i >= 0; i--)
+        {
+            var (indicator, image, bearing, time) = _sweepFlashes[i];
+            var age = Zone.Time - time;
+            if (age < 0 || age >= SearchFlashSeconds)
+            {
+                RetireFlash(indicator, image);
+                _sweepFlashes.RemoveAt(i);
+                continue;
+            }
+            indicator.Target = DrawAhead.AtBearing(CurrentEntity, bearing, IncomingLockIndicatorDistance, Clock.Lead).ToUnity();
+            if (image != null) image.color = new Color(image.color.r, image.color.g, image.color.b, 1 - age / SearchFlashSeconds);
+        }
+    }
+
+    // The one lock-indicator curve: outgoing (the player's own lock) and incoming (the warning's strength) both tighten through it.
+    private void ApplyLockProgress(PlaceUIElementWorldspace indicator, Rotate spin, float progress)
+    {
+        indicator.NoiseAmplitude = Settings.GameplaySettings.LockIndicatorNoiseAmplitude * (1 - progress);
+        indicator.NoiseFrequency = Settings.GameplaySettings.LockIndicatorFrequency.Evaluate(progress);
+        spin.Speed = Settings.GameplaySettings.LockSpinSpeed.Evaluate(progress);
     }
 }
 

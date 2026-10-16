@@ -40,7 +40,6 @@ public sealed class FireControlCut5Tests : IDisposable
         Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
         QualityPriceModifier = new ExponentialLerp(),
         TargetDetectionInfoThreshold = .1f,
-        TargetArmorInfoThreshold = .2f,
         TargetGearInfoThreshold = .8f,
         FiringArc = 170,
         CommitHorizon = .5f,
@@ -97,7 +96,7 @@ public sealed class FireControlCut5Tests : IDisposable
 
         var cache = AetheriaStores.Open(Catalog + Guid.NewGuid().ToString("N"), catalogWritable: true);
         _openCaches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(hullData);
         cache.Upsert(new GearData
         {
@@ -108,7 +107,6 @@ public sealed class FireControlCut5Tests : IDisposable
                 Damage = Constant(damage), Range = Constant(range), MinRange = Constant(minRange),
                 Velocity = Constant(velocity), Spread = Constant(spread), DamageSpread = Constant(damageSpread),
                 Penetration = Constant(penetration), Count = Constant(1), BurstTime = Constant(0), Cooldown = Constant(1000),
-                DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } }
             } }
         });
         cache.Upsert(new GearData
@@ -184,10 +182,8 @@ public sealed class FireControlCut5Tests : IDisposable
 
         beforeActivate?.Invoke(items, shooter, target);
 
-        zone.Entities.Add(shooter);
-        zone.Entities.Add(target);
-        shooter.Activate();
-        target.Activate();
+        zone.Admit(shooter, piloted: false);
+        zone.Admit(target, piloted: false);
 
         shooter.Position = float3.zero;
         target.Position = float3(0, 0, targetRange);
@@ -284,7 +280,7 @@ public sealed class FireControlCut5Tests : IDisposable
     {
         var cache = AetheriaStores.Open(Catalog + Guid.NewGuid().ToString("N"), catalogWritable: true);
         _openCaches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(new HullData
         {
             Name = "Hull", HullType = HullType.Ship, Shape = SolidShape(5, 5), Durability = 1000, Mass = 1000,
@@ -298,7 +294,6 @@ public sealed class FireControlCut5Tests : IDisposable
             {
                 Damage = Constant(10), Range = Constant(1000), MinRange = Constant(0), Velocity = Constant(0),
                 Spread = Constant(0), DamageSpread = Constant(0), Penetration = Constant(0),
-                DamageCurve = new BezierCurve { Keys = new[] { float4(0, 1, 0, 0), float4(1, 1, 0, 0) } }
             } }
         });
         cache.Upsert(new GearData
@@ -339,10 +334,8 @@ public sealed class FireControlCut5Tests : IDisposable
         var targetGun = new EquippableItem { Data = targetGunRef, Durability = 1, Lot = 5 };
         Assert.True(target.TryEquip(targetGun, new int2(0, 0)));
 
-        zone.Entities.Add(shooter);
-        zone.Entities.Add(target);
-        shooter.Activate();
-        target.Activate();
+        zone.Admit(shooter, piloted: false);
+        zone.Admit(target, piloted: false);
 
         shooter.Position = float3.zero;
         target.Position = targetPosition;
@@ -364,6 +357,7 @@ public sealed class FireControlCut5Tests : IDisposable
         var settings = TestSettings();
         settings.FiringArc = 60; // narrow -- an abeam target is well outside it
         var e = BuildBeam(settings, float3(100, 0, 0)); // directly abeam
+        e.Shooter.Aim = float3(0, 0, -1); // astern, outside the arc: nothing bears and the aim is not free
 
         e.Weapon.Activate();
         Assert.True(e.Weapon.Firing); // Activate() sets _firing unconditionally, same as InstantWeapon.Trigger
@@ -392,7 +386,7 @@ public sealed class FireControlCut5Tests : IDisposable
     {
         var cache = AetheriaStores.Open(Catalog + Guid.NewGuid().ToString("N"), catalogWritable: true);
         _openCaches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(new HullData
         {
             Name = "Hull", HullType = HullType.Ship, Shape = SolidShape(3, 3), Durability = 1000, Mass = 1000,
@@ -426,10 +420,8 @@ public sealed class FireControlCut5Tests : IDisposable
         var targetGun = new EquippableItem { Data = gunRef, Durability = 1, Lot = 4 };
         Assert.True(target.TryEquip(targetGun, new int2(0, 0)));
 
-        zone.Entities.Add(shooter);
-        zone.Entities.Add(target);
-        shooter.Activate();
-        target.Activate();
+        zone.Admit(shooter, piloted: false);
+        zone.Admit(target, piloted: false);
 
         return (items, shooter, target, weaponItem);
     }
@@ -466,11 +458,13 @@ public sealed class FireControlCut5Tests : IDisposable
         shooter.Position = float3.zero;
         target.Position = float3(100, 0, 0); // directly abeam
         shooter.SetTarget(target);
+        shooter.Aim = float3(0, 0, -1); // astern, outside the arc: only a solution can fire the gun
 
         var weapon = (Weapon) weaponItem.Behaviors.Single(b => b is Weapon);
         Assert.False(weapon.ArcAllowsFire);
 
         target.Position = float3(0, 0, 100); // dead ahead
+        shooter.Aim = float3(0, 0, 1);       // the free aim fires, as a gun with no target would
         Assert.True(weapon.ArcAllowsFire);
     }
 
@@ -489,6 +483,7 @@ public sealed class FireControlCut5Tests : IDisposable
         e.Shooter.Position = float3.zero;
         e.Target.Position = float3(100, 0, 0); // abeam -- outside the narrow 60-degree arc
         e.Shooter.SetTarget(e.Target);
+        e.Shooter.Aim = float3(0, 0, -1); // astern, outside the arc: nothing bears and the aim is not free
 
         var resolvedCount = 0;
         e.Zone.ShotResolved.Subscribe(_ => resolvedCount++);
@@ -530,7 +525,7 @@ public sealed class FireControlCut5Tests : IDisposable
     {
         var cache = AetheriaStores.Open(Catalog + Guid.NewGuid().ToString("N"), catalogWritable: true);
         _openCaches.Add(cache);
-        cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         cache.Upsert(new HullData
         {
             Name = "Hull", HullType = HullType.Ship, Shape = SolidShape(6, 4), Durability = 1000, Mass = 1000
@@ -572,40 +567,35 @@ public sealed class FireControlCut5Tests : IDisposable
         Assert.True(target.TryEquip(medium, mediumPos));
         var mediumItem = target.Equipment.Single(e => e.EquippableItem == medium);
 
-        zone.Entities.Add(target);
-        target.Activate();
+        zone.Admit(target, piloted: false);
 
         return (items, target, bigItem, mediumItem);
     }
 
-    // A destroyed item drops out of the ranking entirely: it is never revealed regardless of info, and the
-    // survivor's own tier closes up over the gap rather than leaving one. Mutation: drop the Durability filter
-    // from IsRevealed's ranking (a destroyed item keeps its old tier and TargetItem keeps aiming at a corpse).
+    // A destroyed item stops being an aim point: IsRevealed is false for it though the observer's book still
+    // holds it, and the survivor the observer saw act stays aimable. Mutation: drop the IsDestroyed filter from
+    // IsRevealed (TargetItem keeps aiming at a corpse).
     [Fact]
     public void DestroyedItemStopsBeingAimPoint()
     {
-        var settings = TestSettings(); // Armor .2, Gear .8
+        var settings = TestSettings();
         var (items, target, big, medium) = BuildRevealTarget(settings);
         var observerHullRef = items.ItemData.RefOf<ItemData>(items.ItemData.GetByName<HullData>("Hull"));
         var observer = new Ship(items, target.Zone, new EquippableItem { Data = observerHullRef, Durability = 1000, Lot = 1 }, new EntitySettings());
-        target.Zone.Entities.Add(observer);
-        observer.Activate();
+        target.Zone.Admit(observer, piloted: false);
         observer.SetTarget(target);
 
-        // With both items alive: Big (index 0) reveals at .2, Medium (index 1) at .8.
-        observer.EntityInfoGathered[target] = .3f;
+        observer.RecordReveal(target, big, SignatureChannel.LaunchFlash, big.Data);
+        observer.RecordReveal(target, medium, SignatureChannel.LaunchFlash, medium.Data);
         Assert.True(FireControl.IsRevealed(observer, big));
-        Assert.False(FireControl.IsRevealed(observer, medium));
+        Assert.True(FireControl.IsRevealed(observer, medium));
         Assert.True(observer.TrySelectTargetItem(big));
 
-        // Destroy Big: it drops out of the ranking outright, so it can never be revealed again regardless of
-        // info, and it stops being a valid aim point on the very next read -- no clearing loop needed.
         big.EquippableItem.Durability = 0f;
         Assert.False(FireControl.IsRevealed(observer, big));
         Assert.Null(observer.ResolvedTargetItem);
 
-        // Medium is now the only survivor, so it inherits index 0's own tier (.2), not its old index-1 tier
-        // (.8) -- the gap closes rather than leaving Medium stranded behind a tier meant for a corpse.
+        // Medium was seen too, so it stays aimable; the destroyed neighbour changes nothing about it.
         Assert.True(FireControl.IsRevealed(observer, medium));
     }
 

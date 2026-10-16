@@ -24,6 +24,10 @@
     <Compile Include="$(Assets)Plugins\Ink\**\*.cs" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Tests record reveals through Entity.RecordReveal, the book's one writer -->
+    <InternalsVisibleTo Include="Aetheria.Shared.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="$(CultMathRoot)\packages\cultmath\src\CultMath\CultMath.csproj" />
     <ProjectReference Include="$(CultLibRoot)\src\GameCult.Caching\GameCult.Caching.csproj" />
     <ProjectReference Include="$(CultLibRoot)\src\GameCult.Caching.MessagePack\GameCult.Caching.MessagePack.csproj" />

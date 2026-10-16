@@ -33,6 +33,7 @@ public sealed class ShipSchemaPinTests
     {
         Assert.Equal(typeof(ShipAuthoring).GetCustomAttribute<CultDocumentAttribute>().SchemaName, Text("SCHEMA"));
         Assert.Equal(typeof(HullData).GetCustomAttribute<CultDocumentAttribute>().SchemaName, Text("HULL_SCHEMA"));
+        Assert.Equal(typeof(FactionProductData).GetCustomAttribute<CultDocumentAttribute>().SchemaName, Text("PRODUCT_SCHEMA"));
         Assert.Equal(1, Integer("RETIRED_HULL_SLOT"));
         // Key 1 held the embedded hull until S1. A later member must not take it, or an old file would decode as it.
         Assert.DoesNotContain(typeof(ShipAuthoring).GetMembers(BindingFlags.Public | BindingFlags.Instance),
@@ -65,6 +66,48 @@ public sealed class ShipSchemaPinTests
         Assert.Equal(5, members.Length);
         for (var slot = 0; slot < members.Length; slot++)
             Assert.Equal(slot, KeyOf(typeof(ShipAnchor), members[slot]));
+    }
+
+    // ship_cc.py edits slots 2 to 4 of a ship and the first five slots of an anchor row, and carries every later slot (replace_visual
+    // by anchor Id). The rig lives in those later slots; their numbers are the contract that carry-through keeps.
+    [Fact]
+    public void TheRigLivesInTheSlotsPastTheOnesPythonEdits()
+    {
+        Assert.Equal(Integer("SCHEMATIC_LINES_SLOT") + 1, KeyOf(typeof(ShipAuthoring), nameof(ShipAuthoring.Joints)));
+        Assert.Equal(Strings("ANCHOR_MEMBERS").Length, KeyOf(typeof(ShipAnchor), nameof(ShipAnchor.Joint)));
+    }
+
+    // New Ship refuses a bad ship ID before it touches anything, with ship_cc.valid_ship_id; these two constants are that
+    // rule's data, so the C# rule that create and Validate share must agree with them on every character and every stem.
+    [Fact]
+    public void PythonShipIdConstantsAreTheRuleRequireShipIdEnforces()
+    {
+        var allowed = Text("SHIP_ID_CHARS");
+        var reserved = Strings("RESERVED_SHIP_IDS");
+        for (var code = 0; code < 256; code++)
+        {
+            var c = (char)code;
+            Assert.Equal(allowed.Contains(c), Accepts("a" + c + "a"));
+            Assert.Equal(allowed.Contains(c) && c != '.' && c != '_' && c != '-', Accepts(c + "a"));
+        }
+        var stems = new List<string>();
+        for (var a = 'a'; a <= 'z'; a++)
+            for (var b = 'a'; b <= 'z'; b++)
+                for (var c = 'a'; c <= 'z'; c++)
+                    stems.Add($"{a}{b}{c}");
+        for (var digit = 0; digit <= 9; digit++)
+            stems.AddRange(new[] { $"com{digit}", $"lpt{digit}" });
+        foreach (var stem in stems)
+        {
+            Assert.Equal(!reserved.Contains(stem), Accepts(stem));
+            Assert.Equal(!reserved.Contains(stem), Accepts(stem + ".x"));
+        }
+    }
+
+    private static bool Accepts(string id)
+    {
+        try { ShipAuthoringStore.RequireShipId(id); return true; }
+        catch (InvalidOperationException) { return false; }
     }
 
     [Fact]

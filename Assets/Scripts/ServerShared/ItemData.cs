@@ -519,8 +519,7 @@ public class HullData : EquippableItemData
     [Inspectable, JsonProperty("hullType"), Key(25)]
     public HullType HullType;
 
-    [Inspectable, JsonProperty("gridOffset"), Key(26)]
-    public float GridOffset;
+    // Key(26) retired 2026-10-16 (per-hull GridOffset; the layer is the kind's, GameplaySettings). Do not reuse.
 
     [Inspectable, JsonProperty("armor"), Key(27)]
     public float Armor;
@@ -535,6 +534,19 @@ public class HullData : EquippableItemData
     // names exactly one of Prefab and Visual. Keys 30 and 31 are EquippableItemData's, so 32 is the next free key.
     [Inspectable, JsonProperty("visual"), Key(32)]
     public CultRecordRef<ShipAuthoring> Visual;
+
+    // The farthest corner of any occupied hull cell from the centre of mass the schematic frame uses, in world
+    // units: a true bound on how far the hull reaches from its position (the half-diagonal of the bounding box is not,
+    // as FireControl.Detonate's comment records). A cell at (x, y) spans x +/- .5 and y +/- .5.
+    public float Reach(float cellSize)
+    {
+        var com = Shape.CenterOfMass;
+        var far = 0f;
+        foreach (var c in Shape.Coordinates)
+            foreach (var (dx, dy) in new[] { (-.5f, -.5f), (.5f, -.5f), (-.5f, .5f), (.5f, .5f) })
+                far = max(far, length(float2(c.x + dx, c.y + dy) - com));
+        return far * cellSize;
+    }
 
     [IgnoreMember]
     public Shape InteriorCells
@@ -566,7 +578,12 @@ public class HardpointData
     [Inspectable, JsonProperty("armor"), Key(5)] public float Armor;
     // Full arc width in degrees a weapon on this hardpoint may bear across; 0 means "use
     // GameplaySettings.FiringArc" (docs/fire-control-cut.md R6). Turrets author 360 (Q1).
+    // On a Thruster hardpoint it is the full gimbal width: the row swings +-FiringArc/2 about Rotation, 0 is a
+    // fixed thruster, and there is no GameplaySettings fallback.
     [Inspectable, JsonProperty("firingArc"), Key(6)] public float FiringArc;
+    // Thruster hardpoints sharing a non-empty Row swing as one row; a Thruster hardpoint with FiringArc > 0 and no Row
+    // is a row of one. Only a Thruster hardpoint may state one.
+    [Inspectable, JsonProperty("row"), Key(7)] public string Row;
 
     public override string ToString()
     {
@@ -720,7 +737,10 @@ public class PerformanceStat
                 _ => throw new ArgumentOutOfRangeException(nameof(term.Source), term.Source, $"Unknown StatSource on {Min}-{Max} stat")
             };
         }
-        return (lerp(Min, Max, factor) * context.ScaleModifier(this) + context.ConstantModifier(this)) * powerMultiplier;
+        // A stat whose span is a single value has nothing to interpolate: an unauthored stat is +infinity at both ends
+        // (Tracking, EffectiveRange), and lerp(+inf, +inf, f) is NaN.
+        var interpolated = Min == Max ? Min : lerp(Min, Max, factor);
+        return (interpolated * context.ScaleModifier(this) + context.ConstantModifier(this)) * powerMultiplier;
     }
 }
 
@@ -815,6 +835,38 @@ public static class StatValidation
                 }
     }
 
+    // Ruling missile-stats-now-gear-later: a munition design (a LauncherData or GuidedWeaponData behaviour) carries exactly
+    // one of each of the five munition parts, and any other design carries none. Runs wherever ValidateStatModifiers runs,
+    // so a launcher missing a part is named at catalog load and Upsert rather than at its first launch.
+    public static void ValidateMunitionParts(string ownerName, IEnumerable<BehaviorData> behaviors)
+    {
+        var all = (behaviors ?? Enumerable.Empty<BehaviorData>()).Where(b => b != null).ToArray();
+        var isMunition = all.Any(b => b is LauncherData || b is GuidedWeaponData);
+        foreach (var part in new[] { typeof(MunitionHullData), typeof(MunitionThrusterData), typeof(MunitionSeekerData), typeof(MunitionControlData), typeof(MunitionFuelData) })
+        {
+            var count = all.Count(b => b.GetType() == part);
+            var expected = isMunition ? 1 : 0;
+            if (count != expected)
+                throw new InvalidOperationException(
+                    $"{ownerName}: carries {count} {part.Name}, but a {(isMunition ? "munition" : "non-munition")} design carries {expected}");
+        }
+    }
+
+    // Ruling effective-range-authoring-ruled: mines are flat. A mine layer's Range and MinRange gate where it may lay; its
+    // damage meets no range, so it carries no falloff authoring, and WeaponData.RangeFactor reads 1 inside the gate for the
+    // mine, the AI and the panel alike. Refused here, with the other catalog rules, wherever those run.
+    public static void ValidateMineLayerFlat(string ownerName, IEnumerable<BehaviorData> behaviors)
+    {
+        foreach (var layer in (behaviors ?? Enumerable.Empty<BehaviorData>()).OfType<MineLayerData>())
+        {
+            var effective = layer.EffectiveRange;
+            if (effective == null || !float.IsPositiveInfinity(effective.Min) || !float.IsPositiveInfinity(effective.Max) || (effective.Terms != null && effective.Terms.Count > 0))
+                throw new InvalidOperationException($"{ownerName}: {nameof(MineLayerData)}.{nameof(WeaponData.EffectiveRange)} is authored, but a mine layer carries no damage falloff");
+            if (layer.DamageAtMaxRange != 0f)
+                throw new InvalidOperationException($"{ownerName}: {nameof(MineLayerData)}.{nameof(WeaponData.DamageAtMaxRange)} is authored, but a mine layer carries no damage falloff");
+        }
+    }
+
     // Cut 7 (docs/stats-and-power-cut.md): "a stat naming a role its design lacks" must be refused, not silently
     // fall back to the lot's own workmanship (Lot.QualityForRole already falls back for a role a lot never rolled
     // -- that is the intended forward-compat path for an old lot meeting a newly-authored role. This is the other
@@ -855,8 +907,7 @@ public static class StatValidation
     //
     // F6 (docs/stats-and-power-cut.md, Soul pass 2026-09-19) named every field a PowerRequest implementation
     // actually reads, not just each consumer's top-level request field: Radiator.PowerRequest also reads
-    // PumpedHeat and WasteHeat, AetherDrive.PowerRequest also reads Torque, LambdaMultiplier, MaximumRpm and
-    // PassiveCoupling, Shield.PowerRequest (via RefreshReserve) also reads RefillDuration and RestoreDuration,
+    // PumpedHeat and WasteHeat, Shield.PowerRequest (via RefreshReserve) also reads RefillDuration and RestoreDuration,
     // InstantWeapon.PowerRequest (via RefreshInputCapacitor) also reads Cooldown and Count, and Sensor.
     // PowerRequest (via RefreshInputCapacitor) also reads PingCooldown. Audited directly against each
     // PowerRequest method's own body (and RefreshReserve/RefreshInputCapacitor, which PowerRequest calls into)
@@ -892,11 +943,6 @@ public static class StatValidation
         (typeof(RadiatorData), nameof(RadiatorData.EnergyUsage)),
         (typeof(RadiatorData), nameof(RadiatorData.PumpedHeat)),
         (typeof(RadiatorData), nameof(RadiatorData.WasteHeat)),
-        (typeof(AetherDriveData), nameof(AetherDriveData.EnergyDraw)),
-        (typeof(AetherDriveData), nameof(AetherDriveData.Torque)),
-        (typeof(AetherDriveData), nameof(AetherDriveData.LambdaMultiplier)),
-        (typeof(AetherDriveData), nameof(AetherDriveData.MaximumRpm)),
-        (typeof(AetherDriveData), nameof(AetherDriveData.PassiveCoupling)),
     };
 
     // Whether `stat` is the request stat of some IPowerConsumer behaviour on `data` -- used by StatModifier's

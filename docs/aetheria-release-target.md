@@ -146,7 +146,9 @@ The typed target carries these as labelled statements. The reasons:
   (ruling `targeting-sublinear-wanted-not-critical`), and belt rendering through the
   index.
 - The faction-play tender loop (`faction-play-4`), drones and munitions, the
-  Colosseum, articulated mounts.
+  Colosseum, gimballed thrusters. Articulated weapon mounts are in scope: the arc
+  is the hardpoint's, traverse is the weapon's, and the moving part is
+  presentation only (ruling `mount-arc-gun-traverse`).
 - Narrative: storylets, Ghostlight, Ink beats per boss.
 - Volumetrics and the nebula backport.
 - Asura and procedural planet content.

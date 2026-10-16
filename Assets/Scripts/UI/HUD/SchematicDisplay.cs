@@ -22,8 +22,6 @@ public class SchematicDisplay : MonoBehaviour
     public GameObject ShieldIcon;
     public Image HeatsinkBackground;
 
-    public GameObject AetherDriveUi;
-
     public TextMeshProUGUI EnergyLabel;
     public TextMeshProUGUI CockpitTemperatureLabel;
     public TextMeshProUGUI RadiatorTemperatureLabel;
@@ -32,9 +30,6 @@ public class SchematicDisplay : MonoBehaviour
     public TextMeshProUGUI VisibilityLabel;
     public TextMeshProUGUI HullDurabilityLabel;
     public TextMeshProUGUI DistanceLabel;
-    public TextMeshProUGUI ForwardRPMLabel;
-    public TextMeshProUGUI StrafeRPMLabel;
-    public TextMeshProUGUI TurnRPMLabel;
 
     public RectTransform SensorCooldownFill;
     public RectTransform EnergyFill;
@@ -42,9 +37,6 @@ public class SchematicDisplay : MonoBehaviour
     public RectTransform HeatstrokeMeterFill;
     public RectTransform HypothermiaMeterFill;
     public RectTransform HeatstrokeLimitFill;
-    public RectTransform ForwardRPMFill;
-    public RectTransform StrafeRPMFill;
-    public RectTransform TurnRPMFill;
 
     private Entity _entity;
     private EquippableItem _hull;
@@ -55,7 +47,6 @@ public class SchematicDisplay : MonoBehaviour
     private HeatStorage[] _heatStorages;
     private EquippedCargoBay[] _cargoBays;
     private SchematicDisplayItem[] _schematicItems;
-    private AetherDrive _aetherDrive;
 
     private bool _enemy;
     private Entity _player;
@@ -67,7 +58,8 @@ public class SchematicDisplay : MonoBehaviour
 
     public class SchematicDisplayItem
     {
-        public EquippedItem Item;
+        // The row Entity.SchematicRows derived: which item, which class and which range it shows.
+        public SchematicRow Row;
         public SchematicListElement ListElement;
         public IProgressBehavior Cooldown;
         // public ItemUsage ItemUsage;
@@ -78,20 +70,16 @@ public class SchematicDisplay : MonoBehaviour
     {
         _enemy = player != null;
         _player = player;
-        if (_schematicItems != null)
-            foreach (var item in _schematicItems)
-            {
-                item.ListElement.GetComponent<Prototype>().ReturnToPool();
-            }
+        ReturnRows();
 
         _entity = entity;
+        if (VisibilityLabel)
+            VisibilityLabel.gameObject.SetActive(!_enemy);
         if (!_enemy)
         {
             _cockpit = entity.GetBehavior<Cockpit>();
             _reactor = entity.GetBehavior<Reactor>();
             _capacitors = entity.GetBehaviors<Capacitor>().ToArray();
-            _aetherDrive = entity.GetBehavior<AetherDrive>();
-            AetherDriveUi.SetActive(_aetherDrive != null);
 
             _radiators = entity.GetBehaviors<Radiator>().ToArray();
             if (_radiators.Length == 0)
@@ -106,24 +94,41 @@ public class SchematicDisplay : MonoBehaviour
                 CargoTemperatureLabel.text = "N/A";
         }
         
-        // Cut 2 (docs/fire-control-cut.md): an enemy schematic shows only what `player` has actually
-        // resolved (FireControl.IsRevealed) -- the same predicate the selection writer and the AI use. The
-        // player's own schematic is unfiltered; there is nothing to reveal about your own ship.
-        _schematicItems = entity.Equipment
-            .Where(x => x.Behaviors.Any(b => b.Data is WeaponData) && (!_enemy || FireControl.IsRevealed(player, x)))
+        BuildRows(Rows());
+    }
+
+    // Which rows, which class and which range label are Entity.SchematicRows' decision (aetheria-ew, classify-from-belief);
+    // this display only renders them.
+    private IEnumerable<SchematicRow> Rows() => (_player ?? _entity).SchematicRows(_entity);
+
+    private void ReturnRows()
+    {
+        if (_schematicItems == null) return;
+        foreach (var item in _schematicItems)
+            item.ListElement.GetComponent<Prototype>().ReturnToPool();
+        _schematicItems = null;
+    }
+
+    private void BuildRows(IEnumerable<SchematicRow> rows)
+    {
+        _schematicItems = rows
             .Select(x => new SchematicDisplayItem
             {
-                Item = x, 
+                Row = x,
                 ListElement = ListElementPrototype.Instantiate<SchematicListElement>(),
-                Cooldown = _enemy ? null : (IProgressBehavior) x.Behaviors.FirstOrDefault(b=> b is IProgressBehavior),
+                Cooldown = _enemy ? null : (IProgressBehavior) x.Item.Behaviors.FirstOrDefault(b=> b is IProgressBehavior),
                 // ItemUsage = _enemy ? null : (ItemUsage) x.Behaviors.FirstOrDefault(b=> b is ItemUsage),
-                Weapon = (Weapon) x.Behaviors.FirstOrDefault(b=>b is Weapon)
+                Weapon = _enemy ? null : (Weapon) x.Item.Behaviors.FirstOrDefault(b=>b is Weapon)
             })
             .ToArray();
         foreach (var x in _schematicItems)
         {
-            if(x.Item.Data is WeaponItemData weaponItemData)
+            if (x.Row.Mount != null)
+                x.ListElement.ShowGear(x.Row.Mount.Type, null);
+            else if(x.Row.Claimed is WeaponItemData weaponItemData)
                 x.ListElement.ShowWeapon(weaponItemData);
+            else
+                x.ListElement.ShowGear(x.Row.Claimed.HardpointType, x.Row.Claimed.Name);
             //x.ListElement.Label.text = x.Item.EquippableItem.Name;
             if (!_enemy)
             {
@@ -186,32 +191,28 @@ public class SchematicDisplay : MonoBehaviour
                     EnergyFill.anchorMax = new Vector2(charge / maxCharge, 1);
                     EnergyLabel.text = $"{((int)charge).ToString()}/{((int)maxCharge).ToString()} + ({((int)_reactor.Draw).ToString()})";
                 }
-
-                if (_aetherDrive != null)
-                {
-                    ForwardRPMLabel.text = ActionGameManager.PlayerSettings.Format(_aetherDrive.Rpm.x);
-                    ForwardRPMFill.anchorMax = new Vector2(_aetherDrive.Rpm.x / _aetherDrive.MaximumRpm, 1);
-                    
-                    StrafeRPMLabel.text = ActionGameManager.PlayerSettings.Format(_aetherDrive.Rpm.y);
-                    StrafeRPMFill.anchorMax = new Vector2(_aetherDrive.Rpm.y / _aetherDrive.MaximumRpm, 1);
-                    
-                    TurnRPMLabel.text = ActionGameManager.PlayerSettings.Format(_aetherDrive.Rpm.z);
-                    TurnRPMFill.anchorMax = new Vector2(_aetherDrive.Rpm.z / _aetherDrive.MaximumRpm, 1);
-                }
             }
             // else
             // {
             //     DistanceLabel.text = $"{(int)length(_entity.Position - _player.Position)}";
             // }
 
+            // A reveal gained or ended after selection changes the rows with no event to hook: rebuild when the
+            // revealed set differs from the rows' items.
+            if (_enemy && !Rows().Select(r => r.Key).SequenceEqual(_schematicItems.Select(x => x.Row.Key)))
+            {
+                ReturnRows();
+                BuildRows(Rows());
+            }
+
             // Cut 2 (docs/fire-control-cut.md): marks whichever row is the player's current aim point.
-            // Re-checked every frame (not just on ShowShip) because ResolvedTargetItem can drop on its own
+            // Re-checked every frame (not just on ShowShip) because ResolvedAim can drop on its own
             // as info decays, with no event to hook.
             if (_enemy && _schematicItems != null)
                 foreach (var x in _schematicItems)
-                    x.ListElement.SetSelected(x.Item == _player.ResolvedTargetItem);
+                    x.ListElement.SetSelected(x.Row.Marks(_player.ResolvedAim));
 
-            if(VisibilityLabel)
+            if(VisibilityLabel && !_enemy)
                 VisibilityLabel.text = ((int)_entity.Visibility).ToString();
 
             if(HullDurabilityFill)
@@ -227,11 +228,11 @@ public class SchematicDisplay : MonoBehaviour
             {
                 if (!_enemy)
                 {
-                    var itemData = _entity.ItemManager.GetData(x.Item.EquippableItem);
-                    x.ListElement.HeatFill.anchorMax = new Vector2(unlerp(itemData.MinimumTemperature, itemData.MaximumTemperature, x.Item.Temperature), 0);
+                    var itemData = _entity.ItemManager.GetData(x.Row.Item.EquippableItem);
+                    x.ListElement.HeatFill.anchorMax = new Vector2(unlerp(itemData.MinimumTemperature, itemData.MaximumTemperature, x.Row.Item.Temperature), 0);
                     if (x.Cooldown != null)
                         x.ListElement.CooldownFill.anchorMax = new Vector2(x.Cooldown.Progress, 1);
-                    x.ListElement.DurabilityLabel.text = $"{(int)(x.Item.EquippableItem.Durability / itemData.Durability * 100)}%";
+                    x.ListElement.DurabilityLabel.text = $"{(int)(x.Row.Item.EquippableItem.Durability / itemData.Durability * 100)}%";
                     if (x.Weapon.WeaponData.AmmoType.IsSet())
                     {
                         if(x.Weapon.WeaponData.MagazineSize > 1)
@@ -241,10 +242,11 @@ public class SchematicDisplay : MonoBehaviour
                     }
                 }
 
-                if (x.Weapon.WeaponData != null)
+                if (x.ListElement.RangeLabel)
                 {
-                    if(x.ListElement.RangeLabel)
-                        x.ListElement.RangeLabel.text = ((int) x.Weapon.Range).ToString();
+                    var range = x.Row.Range;
+                    x.ListElement.RangeLabel.gameObject.SetActive(range.HasValue);
+                    if (range.HasValue) x.ListElement.RangeLabel.text = ((int) range.Value).ToString();
                 }
             }
         }

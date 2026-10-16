@@ -37,8 +37,16 @@ public abstract class WeaponData : BehaviorData
     [Inspectable, JsonProperty("range"), Key(6)]
     public PerformanceStat Range = new PerformanceStat();
 
-    [InspectableAnimationCurve, JsonProperty("damageCurve"), Key(7)]
-    public BezierCurve DamageCurve;
+    // Key 7 was the damage curve, retired and never reused.
+
+    // The range up to which a round does its full damage; from here to Range damage lerps to DamageAtMaxRange. Unauthored
+    // is no falloff (Tracking's precedent): +infinity clamps to Range in RangeFactor.
+    [Inspectable, JsonProperty("effectiveRange"), Key(35)]
+    public PerformanceStat EffectiveRange = new PerformanceStat { Min = float.PositiveInfinity, Max = float.PositiveInfinity };
+
+    // The multiplier on damage at Range, the end of the lerp (0 is nothing arriving at maximum range).
+    [Inspectable, JsonProperty("damageAtMaxRange"), Key(36)]
+    public float DamageAtMaxRange;
     
     [Inspectable, CultInspectorAssetGuid, JsonProperty("effect"), Key(8)]  
     public string EffectPrefab;
@@ -71,6 +79,25 @@ public abstract class WeaponData : BehaviorData
     // weapon-tracking-authored). Unauthored is a mount that follows anything: FireControl.PMount reads +infinity as 1.
     [Inspectable, JsonProperty("tracking"), Key(33), RuntimeInspectable]
     public PerformanceStat Tracking = new PerformanceStat { Min = float.PositiveInfinity, Max = float.PositiveInfinity };
+
+    // What an observer who believes this is the design measures it by (aetheria-ew, ew-claim-weapon-measure-ruled): the
+    // design's rated figures, each stat's Max (what a stat with no terms resolves to), through the same formula the
+    // live weapon's RangeDamagePerSecond runs over its evaluated stats. Never the carrier's quality, heat, wear or power.
+    public abstract float RatedRangeDamagePerSecond(float range);
+    public float RatedRangeFactor(float at) => RangeFactor(MinRange.Max, EffectiveRange.Max, Range.Max, DamageAtMaxRange, at);
+
+    // The one function of how much of a weapon's damage arrives at a planar range: 0 outside [min, max] (inclusive, as
+    // FireControl.Designated), 1 up to the effective range, then one lerp to damageAtMax at max. An effective range outside
+    // [min, max] clamps into it.
+    public static float RangeFactor(float min, float effective, float max, float damageAtMax, float at)
+    {
+        if (at < min || at > max) return 0f;
+        var e = clamp(effective, min, max);
+        return e >= max ? 1f : lerp(1f, damageAtMax, saturate(unlerp(e, max, at)));
+    }
+
+    [IgnoreMember]
+    public float RatedRange => Range.Max;
 }
 
 public abstract class Weapon : Behavior, IActivatedBehavior
@@ -81,11 +108,13 @@ public abstract class Weapon : Behavior, IActivatedBehavior
     public abstract float RangeDamagePerSecond(float range);
     public abstract int Ammo { get; }
     public WeaponData WeaponData => _data;
+    public float RangeFactor(float at) => WeaponData.RangeFactor(MinRange, EffectiveRange, Range, _data.DamageAtMaxRange, at);
     
     public float Damage { get; protected set; }
     public float Penetration { get; protected set; }
     public float DamageSpread { get; protected set; }
     public float MinRange { get; protected set; }
+    public float EffectiveRange { get; protected set; }
     public float Range { get; protected set; }
     public float Energy { get; protected set; }
     public float Heat { get; protected set; }
@@ -112,14 +141,10 @@ public abstract class Weapon : Behavior, IActivatedBehavior
     // so a weapon is never safed against one.
     public bool StanceAllowsFire => Entity.Target.Value.Entity == null || Entity.IsHostileTo(Entity.Target.Value.Entity);
 
-    // Cut 3 (docs/fire-control-cut.md, Q2): player fire is arc-gated like everyone else's. This is the same
-    // predicate (FireControl.InArc) Combat.cs and TurretController.cs gate AI and turret fire with, read at
-    // the one point every shooter's trigger passes through (InstantWeapon.Trigger) -- not a parallel check, and
-    // not the AI's own AgentMinHitProbability heuristic, which is a "worth it" decision layered above this
-    // gate, not the gate itself. With no target set, behaviour is unchanged (nothing to bear on).
-    // Cut 5, 5.4 (Soul finding 11): the point-blank special case this used to carry moved into InArc itself --
-    // one bearing test, one owner, so every caller (not just this one) gets a point-blank shot that bears.
-    // FireControl owns the gate, including its one exemption: a fused weapon fires out of arc.
+    // The trigger gate for player and AI shooters alike, read at the one point every shooter's trigger passes
+    // through (InstantWeapon.Trigger). A gun fires on its solution (FireControl.Solution) without the aim, else
+    // along the aim when the aim is inside its arc, else it holds. An AI shooter's aim is its intercept, so its
+    // fire is unchanged. FireControl owns the gate, including its exemption: a fused weapon fires out of arc.
     public bool ArcAllowsFire => FireControl.ArcPermitsFire(this, Entity);
 
     public Weapon(WeaponData data, EquippedItem item) : base(data, item)
@@ -138,6 +163,7 @@ public abstract class Weapon : Behavior, IActivatedBehavior
         Penetration = Evaluate(_data.Penetration);
         DamageSpread = Evaluate(_data.DamageSpread);
         MinRange = Evaluate(_data.MinRange);
+        EffectiveRange = Evaluate(_data.EffectiveRange);
         Range = Evaluate(_data.Range);
         Energy = Evaluate(_data.Energy);
         Heat = Evaluate(_data.Heat);

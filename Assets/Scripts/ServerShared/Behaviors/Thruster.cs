@@ -25,6 +25,11 @@ public class ThrusterData : BehaviorData
 
     [Inspectable, CultInspectorAssetGuid, JsonProperty("Particles"), Key(5)]
     public string ParticlesPrefab;
+
+    // The gimbal's slew rate in degrees per second: the part's own stat, as a weapon's traverse is
+    // (ruling mount-arc-gun-traverse). The swing limit is the hardpoint's FiringArc, the row its Row.
+    [Inspectable, JsonProperty("slew"), Key(6), RuntimeInspectable]
+    public PerformanceStat Slew = new PerformanceStat();
     
     public override Behavior CreateInstance(EquippedItem item)
     {
@@ -37,11 +42,23 @@ public class ThrusterData : BehaviorData
     }
 }
 
-public class Thruster : Behavior, IAnalogBehavior, IPowerConsumer
+public class Thruster : Behavior, IPowerConsumer
 {
     // Live: heat, quality, durability and power move this stat after construction, so it is read, never cached.
     public float Thrust => Evaluate(_data.Thrust);
+    // Thrust at a full grant, the same stat read without the power-supply term: what a column promises. Live, like Thrust.
+    public float NominalThrust => EvaluateNominalPower(_data.Thrust);
     public float Torque { get; }
+
+    // This thruster's effect per unit throttle at the given thrust, in the body frame: xy is the push (x starboard, y
+    // forward), z the clockwise yaw rate in rad/s. Zero when the item is absent or offline. The one geometry owner for
+    // the allocator and the envelope.
+    public float3 Column(float thrust)
+    {
+        if (Item == null || !Item.Active.Value) return default;
+        var push = -float2(0, 1).Rotate(Item.EquippableItem.Rotation) * thrust / Entity.Mass;
+        return float3(push.x, push.y, Torque * thrust * ItemManager.GameplaySettings.TorqueMultiplier / Entity.Mass);
+    }
 
     public float Axis
     {
@@ -84,53 +101,30 @@ public class Thruster : Behavior, IAnalogBehavior, IPowerConsumer
     // registered request field (StatValidation.PowerRequestFields) -- read nominally, same reasoning as every
     // other IPowerConsumer in this cut, though EnergyUsage carries no PowerSupply term in Thruster's own shipped
     // catalog today; Thrust (the field Cut 7 curves) is a separate stat Execute reads with the real Evaluate.
-    public float PowerRequest(float dt) => _input > .01f ? _input * EvaluateNominalPower(_data.EnergyUsage) : 0f;
+    public float PowerRequest(float dt) => _input > 0f ? _input * EvaluateNominalPower(_data.EnergyUsage) : 0f;
 
     // Cut 5 (docs/stats-and-power-cut.md §1.3, PowerTiers.cs): Medium -- mobility. Losing thrust for a tick
     // under brownout is an inconvenience, not the cascading failure a starved radiator or shield causes.
     public int DefaultPowerTier => PowerTiers.Medium;
 
-    // What this thruster adds to the ship's manoeuvre envelope: Execute's own arithmetic at full input, read live.
-    // Its push is Thrust / Mass along its mount, into the matching body
-    // axis, even for a flank thruster that only turns (it pushes whenever it turns); its turn is |Torque| * Thrust *
-    // TorqueMultiplier / Mass into the side its Torque sign fires on, when |Torque| clears the floor. Zero when the
-    // item is offline or unpowered, the same gates Execute applies.
-    public ManoeuvreEnvelope Manoeuvre()
-    {
-        if (Item == null || !Item.Active.Value || Item.PowerSupply <= 1e-4f) return default;
-        var settings = ItemManager.GameplaySettings;
-        var thrust = Thrust;
-        var acceleration = thrust / Entity.Mass;
-        var forward = normalize(Entity.Direction);
-        var right = forward.Rotate(ItemRotation.Clockwise);
-        var push = -forward.Rotate(Item.EquippableItem.Rotation);
-        var along = dot(push, forward);
-        var across = dot(push, right);
-        var turn = abs(Torque) > settings.TorqueFloor ? abs(Torque) * thrust * settings.TorqueMultiplier / Entity.Mass : 0f;
-        return new ManoeuvreEnvelope(
-            max(along, 0f) * acceleration, max(-along, 0f) * acceleration,
-            max(-across, 0f) * acceleration, max(across, 0f) * acceleration,
-            Torque > 0f ? turn : 0f, Torque < 0f ? turn : 0f);
-    }
-
     public override bool Execute(float dt)
     {
-        Item.SetAudioParameter(SpecialAudioParameter.Intensity, _input);
         // Cut 7 (docs/stats-and-power-target.md): "continuous consumers brown out ... through a power supply
         // curve on their performance stats." Thrust below is a plain Evaluate() read, so once the catalog's own
         // Thrust stat carries a PowerSupply term, a partial grant already comes back reduced -- this gate no
         // longer demands a full grant, only that the thruster is being asked to do anything (_input) and that it
         // has not been cut to true zero supply (the epsilon PowerBus itself already treats as "nothing granted").
-        if(_input > .01f && Item.PowerSupply > 1e-4f)
+        if(_input > 0f && Item.PowerSupply > 1e-4f)
         {
             var thrust = Thrust;
             Entity.Velocity -= Direction.xz * _input * thrust / Entity.Mass * dt;
-            Entity.Direction = mul(Entity.Direction,
-                CultMath.float2x2.Rotate(_input * Torque * thrust * ItemManager.GameplaySettings.TorqueMultiplier / Entity.Mass * dt));
+            var turnRate = _input * Torque * thrust * ItemManager.GameplaySettings.TorqueMultiplier / Entity.Mass;
+            Entity.Direction = mul(Entity.Direction, CultMath.float2x2.Rotate(turnRate * dt));
+            Entity.TurnRate += turnRate;
             AddHeat(_input * Evaluate(_data.Heat) * dt);
             var vis = _input * Evaluate(_data.Visibility);
-            if (!Entity.VisibilitySources.ContainsKey(this) || vis > Entity.VisibilitySources[this])
-                Entity.VisibilitySources[this] = vis;
+            if (!Entity.VisibilitySources.TryGetValue(this, out var burn) || vis > burn.Strength)
+                Entity.SetSignature(this, SignatureChannel.DrivePlume, vis, Item);
             return true;
         }
         return false;

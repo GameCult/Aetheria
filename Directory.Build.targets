@@ -18,7 +18,7 @@
   <Target Name="VerifyCultLibRevision"
           BeforeTargets="ResolveProjectReferences"
           Outputs="%(PinnedCultLib.Identity)"
-          Condition="'$(SkipCultLibRevisionCheck)' != 'true' and '@(ProjectReference->AnyHaveMetadataValue('Identity', '$(CultMathRoot)\packages\cultmath\src\CultMath\CultMath.csproj'))' == 'true'">
+          Condition="'$(SkipCultLibRevisionCheck)' != 'true' and '@(ProjectReference->WithMetadataValue('Filename','CultMath'))' != ''">
     <Error Condition="!Exists('%(PinnedCultLib.Root)\%(PinnedCultLib.Project)')"
            Text="%(PinnedCultLib.RootProperty) '%(PinnedCultLib.Root)' does not contain %(PinnedCultLib.Project)." />
     <Exec Command="&quot;$(GitExecutable)&quot; -C &quot;%(PinnedCultLib.Root)&quot; rev-parse HEAD"

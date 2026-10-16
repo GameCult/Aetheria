@@ -268,7 +268,7 @@ public sealed class FlightTests : IDisposable
         Assert.Equal(new[] { leaves, stays }, _zone.Agents.Select(a => a.Ship));
         Assert.Equal(2, flight.Count);
 
-        _zone.Entities.Remove(leaves);
+        _zone.Remove(leaves);
         Assert.Equal(new[] { stays }, _zone.Agents.Select(a => a.Ship));
         Assert.Equal(1, flight.Count);
         Assert.True(flight.Contains(_zone.Agents.Single()));
@@ -623,7 +623,7 @@ public sealed class FlightTests : IDisposable
         {
             using (var cache = AetheriaStores.Open(path, catalogWritable: true))
             {
-                cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+                cache.Upsert(new VerseGrammar { Revision = 1 });
                 cache.Upsert(new Faction
                 {
                     Name = "Armed",
@@ -661,7 +661,7 @@ public sealed class FlightTests : IDisposable
         {
             using (var cache = AetheriaStores.Open(path, catalogWritable: true))
             {
-                cache.Upsert(new TestCatalogGlobal { Name = "Temperament" });
+                cache.Upsert(new VerseGrammar { Revision = 1 });
                 foreach (var name in new[] { "Zhestokost", "Lucent Media", "Aeronautics Unlimited" }) cache.Upsert(new Faction { Name = name });
                 cache.FlushAsync().Wait();
             }
