@@ -95,8 +95,8 @@ public sealed class FlightTests : IDisposable
         var track = Track();
         See(a, track);
         See(b, track);
-        a.EntityInfoGathered[track] = .7f;
-        b.EntityInfoGathered[track] = .7f;
+        a.EntityInfoGathered[track] = MathF.BitDecrement(.8f); // just under the threshold
+        b.EntityInfoGathered[track] = MathF.BitDecrement(.8f);
 
         Tick(.1f);
         Assert.True(a.Target.Value.IsNone);
@@ -136,29 +136,38 @@ public sealed class FlightTests : IDisposable
         Assert.True(member.Target.Value.IsNone);
     }
 
-    [Fact]
-    public void GraceHailsOnceFromTheNearestThenEngages()
+    public static System.Collections.Generic.IEnumerable<object[]> BuildOrders() =>
+        from order in new[] { "NTF", "NFT", "TNF", "TFN", "FNT", "FTN" }
+        select new object[] { order };
+
+    // The track is off the origin. N is the nearest member; T is nearer than N in x alone and F nearer in z alone, both
+    // farther in distance. Built in every order: the speaker is the nearest by distance, not first or last built, nor
+    // the nearest on one axis. Kills: the hail from the first or last member, or from the nearest by x or by z only.
+    [Theory]
+    [MemberData(nameof(BuildOrders))]
+    public void GraceHailsOnceFromTheNearestThenEngages(string order)
     {
         var faction = WithDoctrine(EngageOn.Detection, grace: 5, hail: "Hold.");
-        var far = Pilot(faction, 0);
-        var near = Pilot(faction, 90); // built second: the nearest, not the first built, speaks
-        var track = Track(100);
-        See(near, track);
-        See(far, track);
+        var (tx, tz) = (300f, -200f);
+        var spots = new System.Collections.Generic.Dictionary<char, (float x, float z)>
+            { ['N'] = (tx + 30, tz + 40), ['T'] = (tx + 5, tz + 120), ['F'] = (tx - 200, tz + 10) };
+        var ships = order.ToDictionary(c => c, c => Pilot(faction, spots[c].x, spots[c].z));
+        var track = Track(tx, tz);
+        foreach (var ship in ships.Values) See(ship, track);
 
         Tick(.1f);
 
-        Assert.True(near.Messages.ContainsKey("Hold."));
-        Assert.False(far.Messages.ContainsKey("Hold."));
-        Assert.True(near.Target.Value.IsNone && far.Target.Value.IsNone);
+        Assert.True(ships['N'].Messages.ContainsKey("Hold."));
+        Assert.False(ships['T'].Messages.ContainsKey("Hold."));
+        Assert.False(ships['F'].Messages.ContainsKey("Hold."));
+        Assert.All(ships.Values, m => Assert.True(m.Target.Value.IsNone));
         Assert.All(_zone.Agents, a => Assert.IsType<FollowTask>(a.Task));
 
         Tick(4.8f);
-        Assert.True(near.Target.Value.IsNone && far.Target.Value.IsNone);
+        Assert.All(ships.Values, m => Assert.True(m.Target.Value.IsNone));
 
         Tick(.4f);
-        Assert.Same(track, near.Target.Value.Entity);
-        Assert.Same(track, far.Target.Value.Entity);
+        Assert.All(ships.Values, m => Assert.Same(track, m.Target.Value.Entity));
     }
 
     [Fact]
@@ -183,14 +192,20 @@ public sealed class FlightTests : IDisposable
 
     // Grace 3 against ComplySpeed 10: a track at 5 is slower than ComplySpeed (complied) though faster than the Grace
     // number, and one at 12 is faster than both. Kills: either comparison reading Grace for ComplySpeed.
+    // The speed is the length of the velocity: along x, along y, and on the diagonal at the same speed. Kills: either
+    // comparison reading one component.
     [Theory]
-    [InlineData(5f, false)]
-    [InlineData(12f, true)]
-    public void ComplianceIsJudgedOnComplySpeedAndNotOnGrace(float speed, bool engaged)
+    [InlineData(5f, false, 1f, 0f)]
+    [InlineData(12f, true, 1f, 0f)]
+    [InlineData(5f, false, 0f, 1f)]
+    [InlineData(12f, true, 0f, 1f)]
+    [InlineData(5f, false, .6f, .8f)]
+    [InlineData(12f, true, .6f, .8f)]
+    public void ComplianceIsJudgedOnComplySpeedAndNotOnGrace(float speed, bool engaged, float dx, float dy)
     {
         var member = Pilot(WithDoctrine(EngageOn.Detection, grace: 3, hail: "Hold.", comply: 10));
         var track = Track();
-        track.Velocity = new float2(speed, 0);
+        track.Velocity = new float2(dx, dy) * speed;
         See(member, track);
 
         Tick(.5f);
@@ -578,48 +593,54 @@ public sealed class FlightTests : IDisposable
 
     public static System.Collections.Generic.IEnumerable<object[]> UnseenGeometries() =>
         from distance in new[] { 90f, 900f }
-        from blindFirst in new[] { true, false }
+        from blindIndex in new[] { 0, 1, 2 }
         from graced in new[] { false, true }
         from right in new[] { true, false }
-        select new object[] { distance, blindFirst, graced, right };
+        from blindAt in new[] { new[] { -300f, 250f }, new[] { 300f, -250f } }
+        select new object[] { distance, blindIndex, graced, right, blindAt[0], blindAt[1] };
 
-    // A member that cannot see the engaged track steers on it as a bearing, wherever it is, whoever was built first, with
-    // or without a hail first (the grace ends in a grudge), left or right of the member. Kills: the unseen rule holding
-    // the track only near, only for a non-first member, only with no grace, or only on one side.
+    // A member that cannot see the engaged track steers on it as a bearing, wherever it is (off the origin, on both axes),
+    // at any index in the flight, with or without a hail first (the grace ends in a grudge), left or right of the member.
+    // Kills: the unseen rule holding the track only near, only for one member index, only with no grace, only on one
+    // side, or only for a member at the origin or below some coordinate.
     [Theory]
     [MemberData(nameof(UnseenGeometries))]
-    public void AMemberThatCannotSeeTheEngagedTrackClosesOnItsBearing(float distance, bool blindFirst, bool graced, bool right)
+    public void AMemberThatCannotSeeTheEngagedTrackClosesOnItsBearing(float distance, int blindIndex, bool graced, bool right, float x, float z)
     {
         var faction = WithDoctrine(EngageOn.Detection, grace: graced ? 5 : 0, hail: "Hold.");
-        Ship blind, sighted;
-        if (blindFirst) { blind = Pilot(faction, 0, 0); sighted = Pilot(faction, 0, 400); }
-        else { sighted = Pilot(faction, 0, 400); blind = Pilot(faction, 0, 0); }
-        var track = Track(right ? distance : -distance);
-        See(sighted, track);
+        var members = new Ship[3];
+        var sightedOffsets = new[] { 400f, -450f };
+        for (int i = 0, s = 0; i < 3; i++)
+            members[i] = i == blindIndex ? Pilot(faction, x, z) : Pilot(faction, x, z + sightedOffsets[s++]);
+        var blind = members[blindIndex];
+        var sighted = members.Where(m => m != blind).ToArray();
+        var track = Track(x + (right ? distance : -distance), z + 60);
+        foreach (var m in sighted) See(m, track);
         if (graced)
         {
             Tick(.1f); // hailed, not yet engaged
-            sighted.SetIff(track, true);
+            sighted[0].SetIff(track, true);
         }
 
         Tick(.1f);
 
-        Assert.Same(track, sighted.Target.Value.Entity);
+        Assert.All(sighted, m => Assert.Same(track, m.Target.Value.Entity));
         Assert.True(blind.Target.Value.IsNone);
         var task = Assert.IsType<FollowTask>(_zone.Agents.Single(a => a.Ship == blind).Task);
         Assert.Same(track, task.Anchor);
     }
 
-    // The flight's engaged track outranks a hailed one a blind member does see, though that one is nearer. Kills: the
-    // anchor picked by distance alone, or kept once something outranks it.
+    // The flight's engaged track outranks a hailed one a blind member does see, though that one is nearer. Both sit
+    // either side of a blind member off the origin. Kills: the anchor picked by distance alone, or kept once something
+    // outranks it.
     [Fact]
     public void ABlindMemberAnchorsOnTheEngagedTrackOverANearerHailingOne()
     {
         var faction = WithDoctrine(EngageOn.Detection, grace: 5, hail: "Hold.");
-        var blind = Pilot(faction, 0, 0);
-        var sighted = Pilot(faction, 0, 400);
-        var engaged = Track(900);
-        var hailing = Track(50);
+        var blind = Pilot(faction, -300, 250);
+        var sighted = Pilot(faction, -300, 650);
+        var engaged = Track(600, 250);
+        var hailing = Track(-250, 250);
         See(sighted, engaged);
         See(blind, hailing);
         Tick(.1f);
@@ -725,6 +746,144 @@ public sealed class FlightTests : IDisposable
         minion.Update(.1f);
 
         Assert.IsType<BaseState>(CurrentState(minion));
+    }
+
+    // A complied track that moves off at ComplySpeed or more is engaged, whichever way it moves: the diagonal's x
+    // component alone is under the speed. Kills: the Complied exit reading one component.
+    [Theory]
+    [InlineData(1f, 0f)]
+    [InlineData(0f, 1f)]
+    [InlineData(.6f, .8f)]
+    public void ACompliedTrackSpeedingOffOnAnyAxisIsEngaged(float dx, float dy)
+    {
+        var member = Pilot(WithDoctrine(EngageOn.Detection, grace: 1, hail: "Hold.", comply: 10));
+        var track = Track();
+        See(member, track);
+        Tick(.5f);
+        Tick(1f);
+        Assert.True(member.Target.Value.IsNone, "complied while still");
+
+        track.Velocity = new float2(dx, dy) * 12f;
+        Tick(.1f);
+
+        Assert.Same(track, member.Target.Value.Entity);
+    }
+
+    // A track with no presence value is permitted: a Trespass doctrine leaves it alone.
+    [Fact]
+    public void TrespassLeavesATrackWithNoPresenceValueAlone()
+    {
+        var member = Pilot(WithDoctrine(EngageOn.Trespass));
+        var track = Track();
+        Assert.Null(track.PresencePermitted);
+        See(member, track);
+
+        Tick(.1f);
+
+        Assert.True(member.Target.Value.IsNone);
+    }
+
+    // The follower matches the anchor's velocity: at the standoff the pull is zero, the desired velocity is the
+    // anchor's, and the ship turns toward it, either way. Kills: the anchor's velocity dropped from the desired one.
+    [Fact]
+    public void AFollowerAtItsStandoffTurnsToMatchTheAnchorsVelocity()
+    {
+        float TurnFor(float anchorVelocityX)
+        {
+            var ship = Pilot(null, -200, 50);
+            var anchor = Track();
+            anchor.Position = ship.Position + new float3(0, 0, 100);
+            anchor.Velocity = new float2(anchorVelocityX, 0);
+            var minion = new Minion(ship, FactionDoctrine.Default(_items.GameplaySettings).Combatant)
+                { Task = new FollowTask { Anchor = anchor, Standoff = 100 } };
+            minion.Update(.1f);
+            minion.Update(.1f);
+            return ship.Turn;
+        }
+
+        var east = TurnFor(100);
+        var west = TurnFor(-100);
+
+        Assert.NotEqual(0f, east);
+        Assert.Equal(sign(east), -sign(west));
+    }
+
+    // Faction.Doctrine rides at wire slot 17; slot 16 is reserved for Relations. Kills: the key moved.
+    [Fact]
+    public void TheFactionDoctrineRidesAtWireSlot17()
+    {
+        var faction = new Faction { Name = "Armed", Doctrine = new FactionDoctrine { EngageOn = EngageOn.Trespass, Grace = 6f } };
+
+        var slots = MessagePack.MessagePackSerializer.Deserialize<object[]>(MessagePack.MessagePackSerializer.Serialize(faction));
+
+        Assert.Equal(18, slots.Length);
+        Assert.Null(slots[16]);
+        var doctrine = Assert.IsType<object[]>(slots[17]);
+        Assert.Equal(6f, Convert.ToSingle(doctrine[1]));
+    }
+
+    // The catalog names a faction exactly: a prefix, a longer name or another case is another faction. Kills: the match
+    // widened to StartsWith, Contains or a case-insensitive compare.
+    [Fact]
+    public void TheCatalogMatchesFactionNamesExactly()
+    {
+        var path = TempCatalog();
+        try
+        {
+            var near = new[] { "Zhestokost Prime", "zhestokost", "The Pirates", "Pirate", "Lucent Media " };
+            using (var cache = AetheriaStores.Open(path, catalogWritable: true))
+            {
+                cache.Upsert(new VerseGrammar { Revision = 1 });
+                cache.Upsert(new Faction { Name = "Zhestokost" });
+                foreach (var name in near) cache.Upsert(new Faction { Name = name });
+                cache.FlushAsync().Wait();
+            }
+
+            using (var cache = AetheriaStores.Open(path, catalogWritable: true))
+            {
+                DoctrineCatalog.Run(cache, apply: true, new StringWriter());
+                cache.FlushAsync().Wait();
+            }
+
+            using (var cache = AetheriaStores.Open(path))
+            {
+                var factions = cache.GetAll<Faction>().ToArray();
+                Assert.NotNull(factions.Single(f => f.Name == "Zhestokost").Doctrine);
+                Assert.All(factions.Where(f => near.Contains(f.Name)), f => Assert.Null(f.Doctrine));
+            }
+        }
+        finally { File.Delete(path); }
+    }
+
+    // A rerun that finds nothing to author writes nothing: the file is the same bytes.
+    [Fact]
+    public void ReapplyingTheCatalogLeavesTheBytesAlone()
+    {
+        var path = TempCatalog();
+        try
+        {
+            using (var cache = AetheriaStores.Open(path, catalogWritable: true))
+            {
+                cache.Upsert(new VerseGrammar { Revision = 1 });
+                foreach (var name in new[] { "Zhestokost", "Lucent Media", "Aeronautics Unlimited", "Pirates" }) cache.Upsert(new Faction { Name = name });
+                cache.FlushAsync().Wait();
+            }
+
+            void Apply()
+            {
+                using var cache = AetheriaStores.Open(path, catalogWritable: true);
+                DoctrineCatalog.Run(cache, apply: true, new StringWriter());
+                cache.FlushAsync().Wait();
+            }
+
+            Apply();
+            var first = File.ReadAllBytes(path);
+            System.Threading.Thread.Sleep(50); // a rewritten stamp would differ
+            Apply();
+
+            Assert.Equal(first, File.ReadAllBytes(path));
+        }
+        finally { File.Delete(path); }
     }
 
     private static string TempCatalog() => Path.Combine(Path.GetTempPath(), "aetheria-doctrine-" + Guid.NewGuid().ToString("N") + ".cc");

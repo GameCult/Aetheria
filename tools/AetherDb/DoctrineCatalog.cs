@@ -6,6 +6,8 @@ using GameCult.Caching;
 // Authors the starting FactionDoctrine of the four factions the demo cast uses (aetheria-release, faction-play-1).
 // Tuning is a starting point; the operator adjusts it after play. The Pirates record is on master (cut pirates-record);
 // a faction with no Faction record is named and skipped, and apply is re-run after a cast faction's record lands.
+// A faction that already has a doctrine is kept as it is (the operator tunes after play), so a rerun that finds
+// nothing to author writes nothing.
 public static class DoctrineCatalog
 {
     private static readonly (string faction, FactionDoctrine doctrine)[] Table =
@@ -46,6 +48,12 @@ public static class DoctrineCatalog
                 continue;
             }
 
+            if (faction.Doctrine != null)
+            {
+                output.WriteLine($"{name}: already has a doctrine, kept");
+                continue;
+            }
+
             output.WriteLine($"{name}: engage on {doctrine.EngageOn}, grace {doctrine.Grace:0.##}s, hail \"{doctrine.Hail}\", " +
                              $"comply {doctrine.ComplySpeed:0.##}, range exponent {doctrine.Combatant.RangeExponent:0.##}, " +
                              $"min hit {doctrine.Combatant.MinHitProbability:0.##}");
@@ -56,6 +64,13 @@ public static class DoctrineCatalog
         if (!apply)
         {
             output.WriteLine("\nDry run. Pass \"apply\" to author them.");
+            return 0;
+        }
+
+        if (changed.Count == 0)
+        {
+            output.WriteLine("
+Nothing to author.");
             return 0;
         }
 

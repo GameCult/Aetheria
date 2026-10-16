@@ -331,15 +331,35 @@ public sealed class FireControlPerWeaponTests : IDisposable
         Assert.Equal(fires, r.Gun.Weapon.Firing);
     }
 
+    // The same threshold a hundredth either side of the shot's price. Kills: the turret's threshold loosened or
+    // tightened by a tenth or a hundredth.
+    [Theory]
+    [InlineData(.01f, false)]
+    [InlineData(-.01f, true)]
+    public void ATurretHoldsAShotJustUnderTheThresholdAndTakesOneJustOver(float thresholdAbovePrice, bool fires)
+    {
+        var probe = Build(accuracy: .5f, minHit: 0f, turret: true);
+        var price = FireControl.HitProbability(probe.Gun.Weapon, probe.Shooter, probe.Target);
+        var r = Build(accuracy: .5f, minHit: price + thresholdAbovePrice, turret: true);
+        Assert.Equal(price, FireControl.HitProbability(r.Gun.Weapon, r.Shooter, r.Target), 5);
+
+        r.Zone.Update(1f);
+        r.Zone.Update(1f);
+
+        Assert.Equal(fires, r.Gun.Weapon.Firing);
+    }
+
     // A flight's members hold off at 1.1 x their longest gun when the doctrine authors no standoff (every authored
-    // doctrine leaves it 0), and at the authored distance otherwise. Guns of Range 50 and 100 on one ship. Kills: the
+    // doctrine leaves it 0), and at the authored distance otherwise. Guns of Range r and 2r on one ship, at two r and two authored values. Kills: the factor replaced by an offset or an affine rule, the
     // default zeroed, inverted, taken from the shortest gun, or the authored value ignored.
     [Theory]
-    [InlineData(0f, 110f)]
-    [InlineData(40f, 40f)]
-    public void AFlightHoldsOffAtTheDefaultOrAuthoredStandoff(float holdStandoff, float expected)
+    [InlineData(50f, 0f, 110f)]
+    [InlineData(100f, 0f, 220f)]
+    [InlineData(50f, 40f, 40f)]
+    [InlineData(50f, 250f, 250f)]
+    public void AFlightHoldsOffAtTheDefaultOrAuthoredStandoff(float range, float holdStandoff, float expected)
     {
-        var r = Build(range: 50f, decoy: true);
+        var r = Build(range: range, decoy: true);
         r.Shooter.SetIff(r.Target, null);
         if (!r.Shooter.VisibleEnemies.Contains(r.Target)) r.Shooter.VisibleEnemies.Add(r.Target);
         var settings = r.Shooter.ItemManager.GameplaySettings;
