@@ -176,4 +176,87 @@ public sealed class ProductLinesCommandTests : IDisposable
         using var after = Open();
         Assert.Contains(after.GetAll<FactionProductData>(), p => p.Name == "Scratch tier");
     }
+
+    // Master's committed catalog holds records written on a schema older than today's (HullData lost a member after the last
+    // catalog write). The scratch copy gets that shape: the hull records point at an earlier schema id the loader resolves to
+    // the current type.
+    private string MakeHullsStale()
+    {
+        var snapshot = CultDocumentMessagePackSerialization.DeserializeSnapshot(File.ReadAllBytes(CatalogPath));
+        var current = snapshot.SchemaCatalog.Single(e => e.SchemaName == "aetheria.hulldata");
+        var stale = new CultSchemaCatalogEntry
+        {
+            SchemaId = "sha256:earlier-hulldata", SchemaName = current.SchemaName, SchemaVersion = current.SchemaVersion,
+            ContentHash = "sha256:earlier-hulldata", CanonicalSchemaJson = current.CanonicalSchemaJson, Members = current.Members,
+        };
+        snapshot.SchemaCatalog = snapshot.SchemaCatalog.Append(stale).ToArray();
+        var hulls = snapshot.Records.Where(r => r.SchemaId == current.SchemaId).ToArray();
+        Assert.NotEmpty(hulls);
+        foreach (var hull in hulls) hull.SchemaId = stale.SchemaId;
+        File.WriteAllBytes(CatalogPath, CultDocumentMessagePackSerialization.SerializeSnapshot(snapshot));
+        return stale.SchemaId;
+    }
+
+    [Fact]
+    public void Apply_lands_on_a_catalog_that_holds_records_of_an_older_schema_and_replays_to_the_same_bytes()
+    {
+        var stale = MakeHullsStale();
+        var before = Records();
+
+        Assert.Equal(0, ProductLinesCommand.Run(LineApply, _root));
+        var landed = File.ReadAllBytes(CatalogPath);
+        Assert.Equal(_shipped, Line20());
+        var after = Records();
+        foreach (var (key, record) in before)
+            Assert.True(record.Payload.AsSpan().SequenceEqual(after[key].Payload) && record.SchemaId == after[key].SchemaId, "a record the command did not author changed");
+        Assert.Contains(after.Values, r => r.SchemaId == stale);
+
+        Assert.Equal(0, ProductLinesCommand.Run(LineApply, _root));
+        Assert.Equal(landed, File.ReadAllBytes(CatalogPath));
+    }
+
+    private void AddProduct(string name, string design, string maker)
+    {
+        using var cache = Open();
+        var designRecord = cache.GetAll<WeaponItemData>().First(w => w.Name == design);
+        var makerRecord = cache.GetAll<Faction>().First(f => f.ShortName == maker);
+        cache.Upsert(new FactionProductData { Name = name, Design = new CultRecordRef<CraftedItemData>(cache.RefOf(designRecord).Key), Manufacturer = cache.RefOf(makerRecord) });
+        cache.FlushAsync().Wait();
+    }
+
+    // Sparrow is the Light Laser by Finch. A product of that name is the row only when design and maker both match.
+    [Theory]
+    [InlineData("Sparrow", "Light Machine Gun", "Finch")]
+    [InlineData("Sparrow", "Light Laser", "Zhestokost")]
+    [InlineData("sparrow", "Light Laser", "Finch")]
+    public void Apply_refuses_a_name_unless_design_and_maker_both_match_it_ignoring_case(string name, string design, string maker)
+    {
+        AddProduct(name, design, maker);
+        var conflicted = File.ReadAllBytes(CatalogPath);
+
+        Assert.Throws<InvalidOperationException>(() => ProductLinesCommand.Run(LineApply, _root));
+        Assert.Equal(conflicted, File.ReadAllBytes(CatalogPath));
+    }
+
+    [Fact]
+    public void Apply_refuses_a_row_name_that_is_a_designs_and_writes_nothing()
+    {
+        using (var cache = Open())
+        {
+            cache.Upsert(new WeaponItemData { Name = "Tripwire" });
+            cache.FlushAsync().Wait();
+        }
+        var conflicted = File.ReadAllBytes(CatalogPath);
+
+        Assert.Throws<InvalidOperationException>(() => ProductLinesCommand.Run(LineApply, _root));
+        Assert.Equal(conflicted, File.ReadAllBytes(CatalogPath));
+    }
+
+    // The command is reached as AetherDb's product-lines word, with the line after it; the shipped catalog holds the line.
+    [Fact]
+    public void The_product_lines_word_runs_the_named_line_and_refuses_an_unknown_one()
+    {
+        Assert.Equal(0, Program.Main(new[] { "product-lines", "weapons" }));
+        Assert.Equal(1, Program.Main(new[] { "product-lines", "nonesuch" }));
+    }
 }

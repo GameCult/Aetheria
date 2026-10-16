@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using GameCult.Caching;
 using Xunit;
@@ -16,16 +17,20 @@ public sealed class ProductLinesCatalogTests
     {
         using var cache = RestoredHullsTests.OpenCatalog();
         var products = cache.GetAll<FactionProductData>().ToArray();
-        var sold = 0;
+        var unsold = new List<string>();
         foreach (var design in cache.GetAll<WeaponItemData>())
         {
             var key = cache.RefOf(design).Key;
             var makers = products.Where(p => p.Design.Key.Equals(key)).Select(p => p.Manufacturer.Key).Distinct().Count();
-            if (makers == 0) continue;
-            sold++;
+            if (makers == 0)
+            {
+                unsold.Add(design.Name);
+                continue;
+            }
             Assert.True(makers >= 2, $"the weapon design \"{design.Name}\" is sold by {makers} maker");
         }
-        Assert.True(sold >= 20, "the catalog should sell many weapon designs");
+        // The designs no product sells are the Smoke test designs and no others: a design that lost all its products is a failure.
+        Assert.All(unsold, name => Assert.StartsWith("Smoke ", name));
     }
 
     [Fact]

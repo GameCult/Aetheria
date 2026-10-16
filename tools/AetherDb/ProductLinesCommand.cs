@@ -112,11 +112,13 @@ public static class ProductLinesCommand
             return 0;
         }
 
-        // ExpectUnchanged lands the batch onto the file as it is: every other record keeps the bytes it has, where a plain
-        // commit would re-encode the whole catalog through today's types.
+        // The batch lands onto the file as it is: every other record keeps the bytes it has, where a plain commit would
+        // re-encode the whole catalog through today's types. What it expects is that each key it authors is still absent, the
+        // one condition the command's own validation rests on. ExpectUnchanged would compare the file's schema ids with the
+        // loaded ones and refuse any catalog that holds a record written on an older schema, whatever the batch is.
         if (!db.Cache.Commit(batch =>
         {
-            batch.ExpectUnchanged();
+            foreach (var (row, _, _, _) in missing) batch.Expect(KeyOf(row), null);
             foreach (var (row, design, maker, _) in missing)
             {
                 var (mean, dev) = Program.MakerProfiles[row.Maker];
