@@ -301,12 +301,12 @@ public sealed class VerseGrammarTests : IDisposable
 
     // The shipped catalog carries the command's output.
     [Fact]
-    public void The_shipped_catalog_holds_revision_one_and_the_seven_starter_verbs()
+    public void The_shipped_catalog_holds_revision_one_and_the_eight_starter_verbs()
     {
         using var cache = OpenScoped(Path.Combine(AetherDb.FindRoot(), "GameData", "Aetheria.cc"), true);
         Assert.Equal(1, cache.GetGlobal<VerseGrammar>().Revision);
         var starter = VerseGrammarCommand.StarterVerbs();
-        Assert.Equal(7, starter.Length);
+        Assert.Equal(8, starter.Length);
         var shipped = cache.GetAll<VerseVerb>().ToArray();
         Assert.Equal(starter.Length, shipped.Length);
         foreach (var expected in starter)

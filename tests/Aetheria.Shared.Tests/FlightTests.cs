@@ -656,6 +656,7 @@ public sealed class FlightTests : IDisposable
 
         member.VisibleEnemies.Remove(hot);
         Tick(.1f);
+        Assert.True(member.Target.Value.IsNone, "Target " + member.Target.Value.Entity);
         Assert.IsType<FollowTask>(minion.Task);
         UpdateUntil(minion, () => !(CurrentState(minion) is CombatState));
         UpdateUntil(minion, () => CurrentState(minion) is FollowState);
