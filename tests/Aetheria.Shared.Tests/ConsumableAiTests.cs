@@ -150,10 +150,7 @@ public sealed class ConsumableAiTests : IDisposable
         var maker = cache.RefOf(cache.GetByName<Faction>("Maker"));
         EquippableItem Make<T>(string name) where T : CraftedItemData =>
             (EquippableItem) items.CreateInstance(items.CreateLot(cache.GetByName<T>(name), maker, .5f));
-        // One fixed orbit far from the fight: a pilot that is not engaged patrols it, as production's would.
-        var pack = new ZonePack();
-        pack.Orbits.Add(cache.Upsert(new OrbitData { FixedPosition = float2(0, 5000) }));
-        var zone = new Zone(items, new PlanetSettings(), pack, new GalaxyZone { Name = "Test Zone", Owner = null }, null);
+        var zone = new Zone(items, new PlanetSettings(), new ZonePack(), new GalaxyZone { Name = "Test Zone", Owner = null }, null);
         Ship NewShip(string gear)
         {
             var ship = new Ship(items, zone, Make<HullData>("Skiff"), new EntitySettings())
@@ -176,6 +173,8 @@ public sealed class ConsumableAiTests : IDisposable
         scene.Hold = scene.Agent.CargoBays.Single();
         // The agent joins as the zone admits a piloted ship (its Minion and CombatState come from production); the
         // locker is a gun ship nobody pilots.
+        // One fixed orbit far from the fight, before the agent joins: a pilot that is not engaged patrols it, as production's would.
+        zone.Orbits.Add(new CultRecordKey("test-orbit"), new Orbit(new OrbitData { FixedPosition = float2(0, 5000) }));
         zone.Admit(scene.Agent, piloted: true);
         zone.Admit(scene.Prey, piloted: false);
         zone.Admit(scene.Locker, piloted: false);

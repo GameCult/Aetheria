@@ -60,10 +60,7 @@ public class Flight
     public void Update(float dt)
     {
         _time += dt;
-        // A track any member has made friendly (a truce override) is not the flight's to engage or follow, though a flightmate
-        // still senses it as hostile: the overrides are per member, so the picture is where they meet.
-        var picture = _members.SelectMany(m => m.Agent.Ship.VisibleEnemies).Distinct()
-            .Where(e => !_members.Any(m => m.Agent.Ship.IffOverride(e) == false)).ToList();
+        var picture = _members.SelectMany(m => m.Agent.Ship.VisibleEnemies).Distinct().ToList();
         foreach (var gone in _tracks.Keys.Where(t => !picture.Contains(t)).ToList()) _tracks.Remove(gone);
 
         foreach (var entity in picture)
@@ -156,7 +153,8 @@ public class Flight
         // No engaged track in this member's own sensors: it steers on the flight's picture, a bearing and never targeting
         // data (ruling shared-track-bearing-only). That is the hailed and the complied, and an engaged track only a flightmate sees.
         Aim(ship, null);
-        var held = picture.Where(e => _tracks[e].Phase != Phase.None).ToList();
+        // Overrides are per member: a flightmate's hostile track is not one this member follows after it has made it friendly.
+        var held = picture.Where(e => _tracks[e].Phase != Phase.None && ship.IffOverride(e) != false).ToList();
         if (held.Count > 0)
         {
             // An engaged track outranks a hailed one; the held anchor is kept only while nothing outranks it.

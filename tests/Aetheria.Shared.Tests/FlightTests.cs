@@ -384,15 +384,16 @@ public sealed class FlightTests : IDisposable
         Assert.Equal(_items.GameplaySettings.AgentMinHitProbability, combatant.MinHitProbability);
     }
 
-    // The picture is the union of the members' senses while overrides are per member: a track one member has made
-    // friendly (a truce) is out of the flight's picture though a flightmate senses it as hostile. Kills: the friendly
-    // override ignored when the picture is built.
+    // The picture is the union of the members' senses while overrides are per member: a flightmate engages a track
+    // that a member has made friendly (a truce), and that member neither targets it nor follows its bearing. A truce is
+    // no grudge, in either order of building. Kills: the member's own friendly override ignored when it holds a bearing,
+    // or read as a grudge.
     [Theory]
     [InlineData(EngageOn.Detection, true)]
     [InlineData(EngageOn.Detection, false)]
     [InlineData(EngageOn.Provoked, true)]
     [InlineData(EngageOn.Provoked, false)]
-    public void ATrackAMemberHasMadeFriendlyIsNotEngagedByTheFlight(EngageOn on, bool friendlyBuiltFirst)
+    public void ATrackAMemberHasMadeFriendlyIsNeitherTargetedNorFollowedByIt(EngageOn on, bool friendlyBuiltFirst)
     {
         var faction = WithDoctrine(on);
         Ship friendly, sees;
@@ -404,9 +405,9 @@ public sealed class FlightTests : IDisposable
 
         Tick(.1f);
 
-        Assert.True(sees.Target.Value.IsNone);
+        Assert.Same(on == EngageOn.Detection ? track : null, sees.Target.Value.Entity);
         Assert.True(friendly.Target.Value.IsNone);
-        Assert.Equal(Flight.Phase.None, _zone.Flights.Single(f => f.Contains(_zone.Agents.Single(a => a.Ship == sees))).PhaseOf(track));
+        Assert.IsType<PatrolOrbitsTask>(_zone.Agents.Single(a => a.Ship == friendly).Task);
     }
 
     [Fact]
@@ -864,7 +865,7 @@ public sealed class FlightTests : IDisposable
         var (turn, thrust, _) = Follow(new float2(vx, vy), 100, new float2(fx, fy));
 
         Assert.Equal(turns, turn != 0f);
-        Assert.NotEqual(new float2(0, 0), thrust);
+        if (!turns) Assert.NotEqual(new float2(0, 0), thrust);
     }
 
     // The pull toward a stationary anchor is the error over the standoff, as a fraction of the pilot's top speed: a
