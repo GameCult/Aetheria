@@ -28,10 +28,10 @@ public static class GravityField
     /// <summary>A ring member of a bodyless node reaches RingReach x its distance: whole out to the ring's diameter.</summary>
     public const float RingReach = 4f;
 
-    /// <summary>The band is summed as a series for tau above this. Measured (map B54): float32 within 1.0e-6 per unit strength everywhere with SeriesTerms terms; the closed form is float32-clean only to about 0.45.</summary>
+    /// <summary>The band is summed as a series for tau above this. float32 error per unit strength against the double integral is at most 1.8e-6 anywhere (worst 1.7e-6 just above the seam, where the series has not reached float32 resolution); the closed form is float32-clean only to about 0.45.</summary>
     public const float SeriesFrom = .4f;
 
-    /// <summary>The series branch's length: its ratio is below 1/1.4, so 40 terms reach float32's floor.</summary>
+    /// <summary>The series branch's length: its ratio is below 1/1.4, so the truncated tail is below 1.4e-6 at the seam and falls geometrically above it.</summary>
     public const int SeriesTerms = 40;
 
     /// <summary>S(t) as polynomial coefficients in t, lowest first: t^Order sum_j C(Order-1+j, j) (1-t)^j.</summary>

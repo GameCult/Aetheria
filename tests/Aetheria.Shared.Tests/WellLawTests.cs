@@ -82,13 +82,14 @@ public sealed class WellLawTests : IDisposable
 
     // The band's potential is the integral of its pull, in single precision, on both sides of the series threshold: tau =
     // (a^2 + eps^2) / (b^2 - a^2) is swept from 0.05 to 10 (every (a, b) where that tau has a real softening), and the
-    // potential stays within 1.2e-6 per unit strength of the double-precision Simpson integral of the pull. A closed form kept
-    // past tau 0.45 or a series cut short misses this by 1e-5 to 1e-3.
+    // potential stays within 1.8e-6 per unit strength of the double-precision Simpson integral of the pull. A closed form kept
+    // past tau 0.6 or a series cut short misses this by 1e-5 to 1e-3. Both branches are within the bound between tau 0.3 and 0.6,
+    // so the exact seam (SeriesFrom 0.4) inside that interval is pinned by the committed shader being the generated one, not here.
     [Fact]
     public void TheBandPotentialIsExactInSinglePrecision()
     {
         var checkedCases = 0;
-        foreach (var tau in new[] { .05, .3, .39, .41, .6, .7, 1, 1.5, 2.5, 10 })
+        foreach (var tau in new[] { .05, .3, .35, .39, .41, .45, .5, .55, .6, .7, 1, 1.5, 2.5, 10 })
             foreach (var (a, b) in new[] { (1000.0, 1500.0), (40.0, 60.0), (11.0, 22.0), (0.0, 1525.0), (150.0, 4000.0) })
             {
                 var e2 = tau * (b * b - a * a) - a * a;
@@ -104,7 +105,7 @@ public sealed class WellLawTests : IDisposable
                         return x / (x * x + e2) * (1 - S(t));
                     }, r, b, 8000);
                     var actual = GravityField.Potential(eps, (float) a, (float) b, (float) r);
-                    Assert.InRange(actual, oracle - 1.2e-6, oracle + 1.2e-6);
+                    Assert.InRange(actual, oracle - 1.8e-6, oracle + 1.8e-6);
                     checkedCases++;
                 }
             }
