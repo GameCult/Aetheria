@@ -35,7 +35,7 @@ public sealed class ProductChoiceTests : IDisposable
         public CultCache Cache;
         public ItemManager Items;
         public Galaxy Galaxy;
-        public Faction OutA, OutZ, OutBoth;
+        public Faction OutA, OutZ, OutBoth, OutNone;
 
         public LoadoutGenerator Outfitter(Faction faction, uint seed)
         {
@@ -76,6 +76,7 @@ public sealed class ProductChoiceTests : IDisposable
             seed.Upsert(new Faction { Name = "OutA", ShortName = "OTA", Allegiance = { { alpha, 1f } } });
             seed.Upsert(new Faction { Name = "OutZ", ShortName = "OTZ", Allegiance = { { zeta, 1f } } });
             seed.Upsert(new Faction { Name = "OutBoth", ShortName = "OTB", Allegiance = { { alpha, 1f }, { zeta, .1f } } });
+            seed.Upsert(new Faction { Name = "OutNone", ShortName = "OTN" });
             var shape = new Shape(3, 3);
             foreach (var cell in shape.AllCoordinates) shape[cell] = true;
             var skiff = seed.Upsert(new HullData
@@ -116,7 +117,7 @@ public sealed class ProductChoiceTests : IDisposable
         RunSave.Commit(cache, game, zones, new ProvenanceLedger());
         return new Rig
         {
-            Cache = cache, OutA = outA, OutZ = outZ, OutBoth = cache.GetByName<Faction>("OutBoth"),
+            Cache = cache, OutA = outA, OutZ = outZ, OutBoth = cache.GetByName<Faction>("OutBoth"), OutNone = cache.GetByName<Faction>("OutNone"),
             Items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { }),
             Galaxy = new Galaxy(cache, cache.GetGlobal<SavedGame>(), _ => { })
         };
@@ -149,6 +150,18 @@ public sealed class ProductChoiceTests : IDisposable
         var alpha = drawn.Count(name => name == "lamp-a");
         Assert.InRange(alpha, 160, 199);
         Assert.Contains("lamp-z", drawn);
+    }
+
+    // An outfitter that reaches no maker of the design gets nothing, however the weights fall: the slot fails.
+    [Fact]
+    public void AnOutfitterThatReachesNoMakerGetsNoProduct()
+    {
+        var rig = Build("lamp-z", "lamp-a");
+        var generator = rig.Outfitter(rig.OutNone, 1);
+        Assert.Null(generator.ChooseProduct(rig.Cache.GetByName<GearData>("Lamp")));
+        var failures = new List<string>();
+        Assert.Null(Materialize(rig, rig.Fit(), generator.ChooseProduct, failures));
+        Assert.Equal("slot 0,0: no available product of Lamp", Assert.Single(failures));
     }
 
     [Fact]
