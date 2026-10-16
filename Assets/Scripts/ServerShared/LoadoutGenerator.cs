@@ -177,7 +177,7 @@ public class LoadoutGenerator
     {
         var (available, preferManufacturers) = AvailableProducts(filter, required);
         return available.WeightedRandomElements(ref Random, entry =>
-                (preferManufacturers ? ManufacturerPreference(entry.product.Manufacturer) : 1) *
+                (preferManufacturers ? ProductWeight(entry.product) : 1) *
                 pow(entry.design.Shape.Coordinates.Length, sizeExponent) / // Prioritize larger items
                 pow(entry.design.Price, PriceExponent), // Penalize item price to a controllable degree
             count);
@@ -243,14 +243,33 @@ public class LoadoutGenerator
 
     // No galaxy, or no faction, means no allegiance to filter by: every product is on offer. A fixture generates
     // loadouts that way, so a test can exercise placement and products without standing up a whole galaxy; a scenario
-    // stage has no faction and reaches every maker. Loadouts.Materialize takes availability as a predicate; RunStart,
-    // the game's one preset spawner, passes this, so presets and generation share one availability rule. A faction
+    // stage has no faction and reaches every maker. Loadouts.Materialize takes a chooser and ChooseProduct is the game's,
+    // so presets and generation share this one availability rule. A faction
     // always reaches its own manufacturer's gear, and otherwise gear made by a manufacturer its allegiance names
     // (operator, 2026-09-30: allegiance lists only other factions). Whether that manufacturer is present in the galaxy
     // does not matter (operator, 2026-10-06: a faction need not be present for its gear to be available).
     public bool IsAvailable(FactionProductData product) =>
         Galaxy == null || Faction == null ||
         ItemManager.ItemData.Get(product.Manufacturer) == Faction || Faction.Allegiance.ContainsKey(product.Manufacturer);
+
+    // How much this outfitter favors a product: its maker's preference. The one weight of generation and of ChooseProduct.
+    public float ProductWeight(FactionProductData product) => ManufacturerPreference(product.Manufacturer);
+
+    // The product a design named without one is built as (ruling loadout-product-optional-context-chooses): among the
+    // products of the design this outfitter can get, one draw from the run's seeded Random weighted by ProductWeight;
+    // null when none, and uniform over them when every weight is 0. Candidates are ordered by name so the draw's
+    // enumeration, and so its result, never depends on record keys. All of the policy is this body.
+    public FactionProductData ChooseProduct(CraftedItemData design)
+    {
+        var key = ItemManager.ItemData.RefOf(design).Key;
+        var candidates = ItemManager.ItemData.GetAll<FactionProductData>()
+            .Where(product => product.Design.Key.Equals(key) && IsAvailable(product))
+            .OrderBy(product => product.Name, StringComparer.Ordinal)
+            .ToArray();
+        if (candidates.Length == 0) return null;
+        var uniform = candidates.All(product => ProductWeight(product) <= 0);
+        return candidates.WeightedRandomElements(ref Random, product => uniform ? 1 : ProductWeight(product), 1)[0];
+    }
 
     // Prioritize products from the zone faction and its allies, penalizing distance to the manufacturer's headquarters.
     // A manufacturer with no home zone in this galaxy weighs as if its headquarters lay one jump beyond the farthest
