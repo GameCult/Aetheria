@@ -100,6 +100,7 @@ namespace Aetheria.EditorTools
         {
             var settings = AssetDatabase.LoadAssetAtPath<GameSettings>("Assets/Resources/Settings.asset")?.GameplaySettings
                 ?? throw new InvalidOperationException("No Settings.asset.");
+            settings.FloaterLayerHeight = -1.5f; // nonzero, so a presenter that drops the floater layer fails
 
             var wired = SessionState.GetString(Wiring, "").Split('|').Select(entry => entry.Split('=')).ToDictionary(pair => pair[0], pair => pair[1]);
             var pickupPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(wired["SimpleCommodityPickup"])?.GetComponent<ItemPickup>();
@@ -178,6 +179,8 @@ namespace Aetheria.EditorTools
                 want = mine.Body.Position + mineVelocity * lead;
                 Require(Mathf.Abs(seen.x - want.x) < Tolerance && Mathf.Abs(seen.z - want.y) < Tolerance,
                     $"MineInstance at lead {lead}: drawn x/z {seen.x},{seen.z}, the step plus velocity times lead {want.x},{want.y}.");
+                Require(Mathf.Abs(seen.y - DrawAhead.FloaterHeight(zone, settings, new float2(want.x, want.y), lead)) < Tolerance,
+                    $"MineInstance y {seen.y} is not on the floater layer.");
 
                 // The round's line is a function of the drawn time: it moves RoundSpeed * lead along its direction between leads.
                 seen = projectile.transform.position;

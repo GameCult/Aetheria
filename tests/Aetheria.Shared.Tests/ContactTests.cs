@@ -98,9 +98,9 @@ public sealed class ContactTests : IDisposable
         var cache = AetheriaStores.Open(Path.Combine(_root, Guid.NewGuid().ToString("N") + ".cc"), catalogWritable: true);
         _caches.Add(cache);
         cache.Upsert(new VerseGrammar { Revision = 1 });
-        HullData Hull(string name, Shape shape, float mass) => new HullData
+        HullData Hull(string name, Shape shape, float mass, HullType type = HullType.Ship) => new HullData
         {
-            Name = name, HullType = HullType.Ship, Shape = shape, Durability = 1000000, Mass = mass, Armor = 0,
+            Name = name, HullType = type, Shape = shape, Durability = 1000000, Mass = mass, Armor = 0,
             Hardpoints = { new HardpointData { Type = HardpointType.Sensors, Position = new int2(0, 0), Shape = new Shape() } }
         };
         cache.Upsert(Hull("Solid", Solid(5, 5), 1000));
@@ -109,6 +109,9 @@ public sealed class ContactTests : IDisposable
         cache.Upsert(Hull("Mid", Solid(5, 5), 3000));
         cache.Upsert(Hull("Ell", Ell(), 1000));
         cache.Upsert(Hull("Longinus", ShippedLonginus(), 1000));
+        // The orbital hulls carry their real types, so a filter by runtime kind and one by hull type are told apart.
+        cache.Upsert(Hull("Station", Solid(5, 5), 1000000, HullType.Station));
+        cache.Upsert(Hull("Turret", Solid(5, 5), 1000, HullType.Turret));
         cache.FlushAsync().Wait();
 
         var ledger = new ProvenanceLedger();
@@ -390,9 +393,9 @@ public sealed class ContactTests : IDisposable
     {
         var lab = Build();
         var ship = lab.Add("Solid", float3(0, 0, 0), float2(10, 0));
-        var station = lab.AddOrbital("Heavy", float3(10, 0, 0), float2(0, 0));
+        var station = lab.AddOrbital("Station", float3(10, 0, 0), float2(0, 0));
         // Behind the ship and faster than it, so it closes on the ship as the station does.
-        var turret = lab.AddOrbital("Solid", float3(-10, 0, 0), float2(30, 0));
+        var turret = lab.AddOrbital("Turret", float3(-10, 0, 0), float2(30, 0));
         lab.Step();
         Assert.Empty(lab.Events);
         Assert.Equal(float2(10, 0), ship.Velocity);
@@ -408,7 +411,7 @@ public sealed class ContactTests : IDisposable
         var lab = Build(.5f);
         var a = lab.Add("Solid", float3(0, 0, 0), float2(10, 0));
         var b = lab.Add("Solid", float3(10, 0, 0), float2(-10, 0));
-        lab.AddOrbital("Heavy", float3(5, 0, 0), float2(0, 0));
+        lab.AddOrbital("Station", float3(5, 0, 0), float2(0, 0));
         lab.Step();
 
         var contact = Assert.Single(lab.Events);

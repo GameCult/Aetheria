@@ -74,7 +74,8 @@ public sealed class PickupTests : IDisposable
             TargetDetectionInfoThreshold = .1f, TargetGearInfoThreshold = .8f,
             FiringArc = 170, CommitHorizon = .5f, SchematicCellSize = 1f,
             UnaidedAccuracy = .05f, UnaidedTracking = 10f, UnaidedPrecision = 2f, AgentMinHitProbability = 0f,
-            LootDropProbability = 0, LootDropVelocity = 25, FloatingItemLifetime = lifetime
+            LootDropProbability = 0, LootDropVelocity = 25, FloatingItemLifetime = lifetime,
+            ShipLayerHeight = 3f, FloaterLayerHeight = -1.5f
         };
         var cache = AetheriaStores.Open(Path.Combine(_root, Guid.NewGuid().ToString("N") + ".cc"), catalogWritable: true);
         _caches.Add(cache);
@@ -242,6 +243,22 @@ public sealed class PickupTests : IDisposable
             Assert.Equal(ticksAfterClaim * rate / 60, commit - claim);
             Assert.Equal(5, ship.CargoBays.Single().Cargo.Keys.OfType<SimpleCommodity>().Single().Quantity);
         }
+    }
+
+    // The beam ends on the loot where the loot is drawn: the field plus the floater layer, not the grabbing ship's plane
+    // (ruling orbitals-above-floaters-below).
+    [Fact]
+    public void AGrabPointRidesTheFloaterLayerNotTheShips()
+    {
+        using var bag = new CompositeDisposable();
+        var lab = Build(Beam());
+        var ship = Spawn(lab, float3(0, 0, 0));
+        var item = Drift(lab, 40, 0);
+        var events = Watch(ship, bag);
+        ship.TractorCommand = 1;
+        for (var tick = 1; tick <= 150; tick++) lab.Zone.Update(1 / 60f);
+        Assert.NotEmpty(events);
+        Assert.All(events, e => Assert.Equal(lab.Zone.GetHeight(e.TargetPosition.xz, lab.Zone.ExactTime) - 1.5f, e.TargetPosition.y, 3));
     }
 
     [Fact]
