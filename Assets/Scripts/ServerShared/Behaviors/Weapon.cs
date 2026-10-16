@@ -173,9 +173,13 @@ public abstract class Weapon : Behavior, IActivatedBehavior
         Tracking = Evaluate(_data.Tracking);
     }
 
+    // False until the first active tick has evaluated the stats above: before it they all read zero.
+    public bool StatsKnown { get; private set; }
+
     public override bool Execute(float dt)
     {
         UpdateStats();
+        StatsKnown = true;
         return true;
     }
 

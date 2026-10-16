@@ -46,6 +46,7 @@ public sealed class ConsumableAiTests : IDisposable
         public Ship Agent, Prey, Locker;
         public EquippedCargoBay Hold;
         public ConsumableItemData Vent, Overdrive, Decoy, StackableVent;
+        public GearData LongGun;
         public CultRecordRef<Faction> Maker;
         public float Optimum;
 
@@ -58,11 +59,12 @@ public sealed class ConsumableAiTests : IDisposable
         public object State => typeof(Agent).GetField("_currentState", Private).GetValue(Zone.Agents.Single());
         public void AssertInCombat() => Assert.True(State is CombatState, $"the agent is in {State?.GetType().Name}");
 
-        // The target at `distance` and `degrees` off the hull's heading, the agent at the origin heading (0, 1).
-        public void Place(float distance, float degrees)
+        // The target at `distance` and `degrees` off north, the agent at the origin with its hull `hullDegrees` off north.
+        public void Place(float distance, float degrees, float hullDegrees = 0f)
         {
             Agent.Position = float3.zero;
-            Agent.Direction = float2(0, 1);
+            var h = hullDegrees * 0.0174533f;
+            Agent.Direction = float2(sin(h), cos(h));
             var a = degrees * 0.0174533f;
             Prey.Position = float3(sin(a) * distance, 0, cos(a) * distance);
         }
@@ -78,9 +80,9 @@ public sealed class ConsumableAiTests : IDisposable
         }
     }
 
-    private static GearData GunData() => new GearData
+    private static GearData GunData(float effective, string name = "Gun") => new GearData
     {
-        Name = "Gun", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Durability = 1,
+        Name = name, Hardpoint = HardpointType.Sensors, Shape = new Shape(), Durability = 1,
         MinimumTemperature = -1000, MaximumTemperature = 1000, OptimalTemperature = 0, PlateauWidth = 2000,
         Behaviors =
         {
@@ -89,12 +91,12 @@ public sealed class ConsumableAiTests : IDisposable
                 Damage = Const(10), Range = Const(1000), MinRange = Const(0), Velocity = Const(0),
                 Spread = Const(0), DamageSpread = Const(0), Penetration = Const(0), Count = Const(1),
                 BurstTime = Const(0), Cooldown = Const(1),
-                EffectiveRange = Const(500), DamageAtMaxRange = 0f
+                EffectiveRange = Const(effective), DamageAtMaxRange = 0f
             }
         }
     };
 
-    private Scene Build(bool carryVent = false, bool carryOverdrive = false, bool carryDecoy = false, int stackableVents = 0)
+    private Scene Build(bool carryVent = false, bool carryOverdrive = false, bool carryDecoy = false, int stackableVents = 0, float effective = 500f)
     {
         var cache = AetheriaStores.Open(Path.Combine(_root, Guid.NewGuid().ToString("N") + ".cc"), catalogWritable: true);
         _caches.Add(cache);
@@ -107,7 +109,8 @@ public sealed class ConsumableAiTests : IDisposable
             Name = "Skiff", HullType = HullType.Ship, Shape = hullShape, Durability = 1000000, Mass = 1000,
             Hardpoints = { new HardpointData { Type = HardpointType.Sensors, Position = HardpointCell, Shape = new Shape() } }
         });
-        cache.Upsert(GunData());
+        cache.Upsert(GunData(effective));
+        cache.Upsert(GunData(800f, "LongGun"));
         cache.Upsert(LockWarningTests.Launcher("Launcher", lockSpeed: .6f, sensorImpact: 1, lockAngle: 30, directionImpact: 1));
         var interior = new Shape(4, 1);
         foreach (var cell in interior.AllCoordinates) interior[cell] = true;
@@ -158,15 +161,16 @@ public sealed class ConsumableAiTests : IDisposable
             Overdrive = cache.GetByName<ConsumableItemData>("Coolant"),
             Decoy = cache.GetByName<ConsumableItemData>("Flare"),
             StackableVent = cache.GetByName<ConsumableItemData>("StackVent"),
+            LongGun = cache.GetByName<GearData>("LongGun"),
             Agent = NewShip("Gun"), Prey = NewShip(null), Locker = NewShip("Launcher")
         };
         Assert.True(scene.Agent.TryEquip(Make<CargoBayData>("Hold"), HoldCell));
         scene.Hold = scene.Agent.CargoBays.Single();
-        // The agent is driven by a Minion added by hand; the locker is a gun ship nobody pilots.
-        zone.Admit(scene.Agent, piloted: false);
+        // The agent joins as the zone admits a piloted ship (its Minion and CombatState come from production); the
+        // locker is a gun ship nobody pilots.
+        zone.Admit(scene.Agent, piloted: true);
         zone.Admit(scene.Prey, piloted: false);
         zone.Admit(scene.Locker, piloted: false);
-        zone.Agents.Add(new Minion(scene.Agent));
         zone.Update(0f); // brings the gear online
         scene.Agent.SetIff(scene.Prey, true);
         scene.Agent.EntityInfoGathered[scene.Prey] = 1f;
@@ -177,12 +181,10 @@ public sealed class ConsumableAiTests : IDisposable
         zone.Update(.05f);
         scene.AssertInCombat();
 
-        // The state sampled before the weapons' first stat evaluation: sample again over the live stats.
-        typeof(CombatState).GetMethod("SampleDps", Private).Invoke(scene.State, null);
+        // Read, never re-sampled: the optimum is whatever production derived for the spawned ship.
         scene.Optimum = (float) typeof(CombatState).GetField("_optimumRange", Private).GetValue(scene.State);
-        Assert.InRange(scene.Optimum, 500f - 1000f / 32f, 500f + 1000f / 32f);
+        Assert.InRange(scene.Optimum, effective - 1000f / 32f, effective + 1000f / 32f);
 
-        // Stocked only now: before the first stat evaluation the optimum reads 0 and any target looks distant.
         if (carryVent) scene.Store(scene.Vent);
         if (carryOverdrive) scene.Store(scene.Overdrive);
         if (carryDecoy) scene.Store(scene.Decoy);
@@ -265,17 +267,24 @@ public sealed class ConsumableAiTests : IDisposable
         Assert.Equal(1, s.Carried);
     }
 
+    // Two guns, optimums about 300 and 700: the threshold is twice the optimum the ship derived, so no constant, no gun
+    // range and no scaling of the arc by distance can sit at 2 x optimum +- 20 for both.
     [Theory]
-    [InlineData(0f, 2f, 20f, true)]
-    [InlineData(14f, 2f, 20f, true)]
-    [InlineData(16f, 2f, 20f, false)]
-    [InlineData(30f, 2f, 20f, false)]
-    [InlineData(180f, 2f, 20f, false)]
-    [InlineData(0f, 2f, -20f, false)]
-    [InlineData(0f, 1f, 0f, false)]
-    public void AnAgentOverdrivesToClose(float degrees, float optimums, float offset, bool overdrives)
+    [InlineData(300f, 0f, 2f, 20f, true)]
+    [InlineData(300f, 14f, 2f, 20f, true)]
+    [InlineData(300f, 16f, 2f, 20f, false)]
+    [InlineData(300f, 30f, 2f, 20f, false)]
+    [InlineData(300f, 180f, 2f, 20f, false)]
+    [InlineData(300f, 0f, 2f, -20f, false)]
+    [InlineData(300f, 0f, 1f, 0f, false)]
+    [InlineData(700f, 0f, 2f, 20f, true)]
+    [InlineData(700f, 14f, 2f, 20f, true)]
+    [InlineData(700f, 16f, 2f, 20f, false)]
+    [InlineData(700f, 0f, 2f, -20f, false)]
+    [InlineData(700f, 0f, 1f, 0f, false)]
+    public void AnAgentOverdrivesToClose(float effective, float degrees, float optimums, float offset, bool overdrives)
     {
-        var s = Build(carryVent: true, carryOverdrive: true);
+        var s = Build(carryVent: true, carryOverdrive: true, effective: effective);
         s.AssertInCombat();
         s.Place(optimums * s.Optimum + offset, degrees);
 
@@ -284,6 +293,80 @@ public sealed class ConsumableAiTests : IDisposable
         Assert.Equal(overdrives, s.Active(s.Overdrive));
         Assert.False(s.Active(s.Vent));
         Assert.Equal(overdrives ? 1 : 2, s.Carried);
+    }
+
+    // The arc is the hull's heading against the bearing to the target; the aim always points at the target, so an
+    // arc taken from the aim would surge with the hull pointing away.
+    [Theory]
+    [InlineData(0f, 14f, true)]
+    [InlineData(0f, -14f, true)]
+    [InlineData(0f, 16f, false)]
+    [InlineData(0f, 90f, false)]
+    public void TheArcIsTheHullsHeadingNotTheAim(float targetDegrees, float hullDegrees, bool overdrives)
+    {
+        var s = Build(carryOverdrive: true);
+        s.AssertInCombat();
+        s.Place(3 * s.Optimum, targetDegrees, hullDegrees);
+
+        s.Tick();
+
+        Assert.Equal(overdrives, s.Active(s.Overdrive));
+    }
+
+    // The production path for the optimum: a ship the zone admits as piloted derives it from its gun's live stats
+    // before it needs it, and re-derives it when its loadout changes. The gun's effective range is 500 and the
+    // refitted gun's is 800, so the optimum moves with the weapons it has now.
+    [Fact]
+    public void ASpawnedShipsOptimumFollowsItsWeaponsAndNeverReadsZero()
+    {
+        var s = Build(carryOverdrive: true);
+        s.AssertInCombat();
+        Assert.InRange(s.Optimum, 500f - 1000f / 32f, 500f + 1000f / 32f);
+        s.Place(30f, 0f);
+
+        s.Tick();
+        s.Tick();
+
+        Assert.False(s.Active(s.Overdrive)); // 30 m is not "distant" against a derived optimum
+        Assert.Equal(1, s.Carried);
+
+        var longGun = (EquippableItem) s.Items.CreateInstance(s.Items.CreateLot(s.LongGun, s.Maker, .5f));
+        Assert.NotNull(s.Agent.TryUnequip(s.Agent.Equipment.Single(e => e.Behaviors.OfType<Weapon>().Any())));
+        Assert.True(s.Agent.TryEquip(longGun, HardpointCell));
+        s.Zone.Update(.05f);
+        s.Zone.Update(.05f);
+        var refit = (float) typeof(CombatState).GetField("_optimumRange", Private).GetValue(s.State);
+        Assert.NotEqual(s.Optimum, refit);
+        Assert.InRange(refit, 800f - 1000f / 32f, 800f + 1000f / 32f);
+    }
+
+    // A Search or Scan paint and a Track paint in one tick, in either order: the strongest Track paint decides.
+    [Theory]
+    [InlineData(PaintMode.Search, PaintMode.Track)]
+    [InlineData(PaintMode.Track, PaintMode.Search)]
+    [InlineData(PaintMode.Scan, PaintMode.Track)]
+    [InlineData(PaintMode.Track, PaintMode.Scan)]
+    public void AMixOfPaintsInOneTickVentsOnTheTrackPaint(PaintMode first, PaintMode second)
+    {
+        var s = Build(carryVent: true);
+        s.AssertInCombat();
+
+        s.Tick((first, first == PaintMode.Track ? .9f : .2f), (second, second == PaintMode.Track ? .9f : .2f));
+
+        Assert.True(s.Active(s.Vent));
+        Assert.Equal(0, s.Carried);
+    }
+
+    [Fact]
+    public void AMixOfWeakTrackAndStrongSearchPaintsDoesNotVent()
+    {
+        var s = Build(carryVent: true);
+        s.AssertInCombat();
+
+        s.Tick((PaintMode.Search, .9f), (PaintMode.Track, .3f));
+        s.Tick((PaintMode.Track, .3f), (PaintMode.Scan, .9f));
+
+        Assert.False(s.Active(s.Vent));
     }
 
     [Fact]
@@ -346,5 +429,42 @@ public sealed class ConsumableAiTests : IDisposable
 
         Assert.True(s.Active(s.StackableVent));
         Assert.Equal(2, s.Carried);
+    }
+
+    // The hold is per kind: a second vent design in cargo is not spent while one vent is active, and an active
+    // overdrive does not stop a vent.
+    [Fact]
+    public void TheHoldIsPerKindNotPerDesignAndNotPerAnyConsumable()
+    {
+        var s = Build(carryVent: true, carryOverdrive: true, stackableVents: 1);
+        s.AssertInCombat();
+        s.Place(3 * s.Optimum, 0f);
+        s.Tick(); // overdrive
+        Assert.True(s.Active(s.Overdrive));
+
+        s.Tick((PaintMode.Track, .6f));
+        s.Tick((PaintMode.Track, .6f));
+        s.Tick((PaintMode.Track, .6f));
+
+        Assert.True(s.Active(s.Overdrive));
+        Assert.Equal(1, new[] { s.Vent, s.StackableVent }.Count(s.Active)); // one vent, whichever design came first
+        Assert.Equal(1, s.Carried); // the other vent design is still in cargo
+    }
+
+    // The vent reads only the agent's own paints: with its target gone from VisibleEnemies (still targeted, no
+    // longer sensed) and the locker unseen, it still vents.
+    [Fact]
+    public void AVentDoesNotNeedAnyEnemyInSight()
+    {
+        var s = Build(carryVent: true);
+        s.AssertInCombat();
+        s.Agent.VisibleEnemies.Clear();
+        Assert.Equal(s.Prey, s.Agent.Target.Value.Entity);
+        Assert.DoesNotContain(s.Locker, s.Agent.VisibleEnemies);
+
+        s.Tick((PaintMode.Track, .9f));
+
+        Assert.Empty(s.Agent.VisibleEnemies);
+        Assert.True(s.Active(s.Vent));
     }
 }
