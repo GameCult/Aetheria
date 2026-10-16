@@ -142,6 +142,9 @@ public class ZoneGenerationSettings
     public float SunSecondaryColorDistance = .25f;
     public float SunLightSaturation = .5f;
     public float SunFogTintSaturation = .5f;
+    // The green band no sun colour may take, as fractions of the hue circle (75 to 165 degrees: chartreuse through spring green).
+    public float SunHueExcludedStart = 75f / 360f;
+    public float SunHueExcludedEnd = 165f / 360f;
     
     public ExponentialLerp GasGiantBandCount;
     public float GasGiantBandColorSeparation = .25f;

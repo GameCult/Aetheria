@@ -18,6 +18,29 @@ public static class ColorMath
         return saturate(float3(r,g,b));
     }
     
+    // A hue band on the circle runs from start up to end, wrapping past 1 when end < start.
+    public static bool HueInBand(float hue, float start, float end) => frac(hue - start) < frac(end - start);
+
+    // Maps u in [0,1) onto the hues outside the band, so a uniform draw stays uniform over the allowed arc.
+    public static float HueOutsideBand(float u, float start, float end) => frac(end + u * AllowedArc(start, end));
+
+    static float AllowedArc(float start, float end) => 1 - frac(end - start);
+
+    // The second hue of a pair whose first is HueOutsideBand(u): distance away along the allowed arc, on the side given by up,
+    // reflected to the other side if that would leave the arc. Both hues lie on one arc, so the straight RGB blend between
+    // the two stops never crosses the band. The distance is capped at half the arc, so the reflection always fits and a
+    // wide band shortens the distance instead of leaving the secondary inside it.
+    public static float SecondaryHueOutsideBand(float u, bool up, float distance, float start, float end)
+    {
+        float arc = AllowedArc(start, end);
+        float d = min(distance, arc / 2);
+        float t = u * arc;
+        float s = up ? t + d : t - d;
+        if (s < 0 || s > arc)
+            s = up ? t - d : t + d;
+        return frac(end + s);
+    }
+
     public static float3 HsvToRgb(in float3 hsv)
     {
         float3 rgb = HueToRgb(hsv.x);
@@ -35,7 +58,7 @@ public static class ColorMath
     public static float3 RgbToHcv(in float3 rgb)
     {
         // Based on work by Sam Hocevar and Emil Persson
-        float4 p = (rgb.y < rgb.z) ? float4(rgb.zy, -1.0f, 2.0f/3.0f) : float4(rgb.zy, 0.0f, -1.0f/3.0f);
+        float4 p = (rgb.y < rgb.z) ? float4(rgb.zy, -1.0f, 2.0f/3.0f) : float4(rgb.yz, 0.0f, -1.0f/3.0f);
         float4 q = (rgb.x < p.x) ? float4(p.xyw, rgb.x) : float4(rgb.x, p.yzx);
         float c = q.x - min(q.w, q.y);
         float h = abs((q.w - q.y) / (6 * c + Epsilon) + q.z);
