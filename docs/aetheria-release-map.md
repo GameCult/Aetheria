@@ -10316,3 +10316,76 @@ Merge checklist for faction-play-1: take master's Aetheria.cc, re-run `doctrine-
   eureka/aetheria-release-maker-only-faction-r2, depends_on faction-play-1) and the resolution
   superseding r1. context-pack: 6 anchors SAME at 6b6e7c7c.
 - No question raised.
+
+## Map presenter (imagination-ag4-map-presenter, 2026-10-16)
+
+Spec `aetheria-release:cut_spec:cut-map-presenter.r1`, question
+`aetheria-release:question:contact-icon-heading`. Source reads at da6fe033;
+no Unity probe was run.
+
+### Body facts
+
+- Map cameras (ARPG.unity): every Minimap*/Map* camera is orthographic, near
+  0.3, far 1000, looking straight down. The minimap set sits at y 10 and
+  copies the target's x and z only (CopyTransform). The map screen moves its
+  cameras to `Position.Flatland(1)`, which puts them at y 1 (MapRenderer.cs:120).
+  Masks: Map Overlays 49152 (layers 14 Minimap, 15 Asteroids), Map Gravity 512
+  (9), Map Tint 8192 (13), Map Influence 262144 (18).
+- Planet icons: the `Minimap Icon` child of Planet, Gas Giant and Sun sits at
+  the planet's root. ZoneRenderer.Update (:610) moves it to the field height,
+  `y = DrawAhead.Height`. Once a well is deeper than about 990 below the
+  camera, the icon is past the far plane, which is the operator's missing
+  planets.
+- Ship, station and turret icons: an `Icon` / `Minimap Icon` / `SHIP.MapIcon`
+  child of the entity on layer 14. It inherits the entity transform, which is
+  set to `DrawAhead.Position` (ride height, so field height plus layer) and to
+  `DrawAhead.Rotation` (ShipInstance.cs:105, the full 3D pose). That is why the
+  icon tilts with the hull, and why it also clips in deep wells. Mod ships
+  build the same child from the package's `map-icon` node (ShipModShips.cs:97).
+  The child's material joins the hull's fade instances (EntityInstance Awake).
+- Belt asteroids: AsteroidBeltUI, one MeshFilter on layer 14 per belt, drawn
+  at the field height. Every frame it rotates 4 vertices per asteroid on the
+  CPU and reassigns `Mesh.vertices`, which uploads the whole vertex array. It
+  runs only while `ShowAsteroidUI` is on, which follows
+  `PlayerGraphicsSettings.ShowAsteroidsInMinimap` (key 1, menu field
+  MainMenu.cs:299) and is forced on in the map screen. This is the cost the
+  operator added the setting for. The 3D belt already fills `_beltTransforms`
+  (float4 per asteroid) every frame.
+- Already 2D: GravityField.shader writes `-gravityHeight` as a colour into an
+  RFloat texture from a flat quad. The tint, influence and patch passes are
+  flat quads at the root height. None of them clips on depth. The contour's
+  `_DepthRange` is a per-frame normalisation over the drawn planets' depths,
+  not a camera bound.
+- Still 3D through a map camera: the sensor ping tint (EntityInstance.cs:190),
+  placed at the entity's 3D ride height on the Tint layer. The spec moves it
+  to the map plane.
+- Dead: MapView.cs. Its guid is referenced by no scene or prefab, and its
+  `_input` is never bound.
+- Partly in place: no owner exists. ZoneRenderer, EntityInstance, MapRenderer
+  and AsteroidBeltUI each write part of the map.
+
+### Rationale
+
+- Placing icons in 2D was ruled by the operator ("depth bound doesn't matter
+  if the dedicated owner places them in 2D as it should"). It also removes any
+  need for a depth bound from WellTree, so the cut does not depend on well-law
+  r3 and runs now.
+- Icons are drawn, not parented. The presenter reads each icon's mesh,
+  material and authored local rotation once and destroys the child, so no
+  world transform can carry an icon. The authoring contract (the `map-icon`
+  anchor) and the prefab smokes are unchanged.
+- Belts: one instanced procedural draw per belt from the buffer the 3D path
+  already fills. The CPU work drops from per-vertex rotation plus a mesh
+  upload to one `SetData` of 16 bytes per asteroid. This is the standard GPU
+  instancing route (Unity `Graphics.RenderMeshPrimitives` /
+  `DrawMeshInstancedProcedural`). RTS minimaps draw the same way: a cached or
+  cheap terrain layer, plus unit markers drawn as sprites. No Eyes pass was
+  run, so the confidence is moderate; the measurement in the spec decides.
+- No low-spec question is raised. Once the belt sprites cost about one buffer
+  upload per belt, a toggle protects nothing. If Hands measures 0.1 ms or more
+  per frame at head, that comes back as a fork.
+
+### Cut sequence
+
+- Contact icons gated on perception (yaw-when-tracked): waits on
+  `contact-icon-heading` and the visibility chain.
