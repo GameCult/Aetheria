@@ -166,6 +166,8 @@ public sealed class ConsumableAiTests : IDisposable
         if (carryOverdrive) scene.Store(scene.Overdrive);
         if (carryDecoy) scene.Store(scene.Decoy);
         for (var i = 0; i < stackableVents; i++) scene.Store(scene.StackableVent);
+        Assert.True(scene.Carried == (carryVent ? 1 : 0) + (carryOverdrive ? 1 : 0) + (carryDecoy ? 1 : 0) + stackableVents,
+            $"carried {scene.Carried}, cargo entries {scene.Hold.Cargo.Count}: {string.Join(",", scene.Hold.Cargo.Keys.Select(k => k.GetType().Name))}");
 
         // The agent is driven by a Minion added by hand; the locker is a gun ship nobody pilots.
         zone.Admit(scene.Agent, piloted: false);
