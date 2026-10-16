@@ -74,12 +74,13 @@ public sealed class StationPlacementTests : IDisposable
         foreach (var built in GeneratedZones())
         {
             var zone = built.Zone;
-            var hosting = zone.Planets.Values.Select(body => body.Orbit.Key).ToHashSet();
+            // The source is the one ring orbit no orbital entity rides: a planet's, or a bodyless node's the generator picked.
+            var ridden = zone.Entities.OfType<OrbitalEntity>().Select(e => e.OrbitData).ToHashSet();
             foreach (var station in zone.Entities.OfType<OrbitalEntity>().Where(e => TypeOf(built.Items, e) == HullType.Station))
             {
                 var orbit = zone.Orbits[station.OrbitData];
-                var sources = zone.Orbits.Where(o => hosting.Contains(o.Key) && !o.Key.Equals(station.OrbitData) && SameRing(o.Value, orbit)).ToList();
-                Assert.True(sources.Count == 1, $"seed {built.Seed}: a station shares its ring with {sources.Count} planets, not one");
+                var sources = zone.Orbits.Where(o => !ridden.Contains(o.Key) && SameRing(o.Value, orbit)).ToList();
+                Assert.True(sources.Count == 1, $"seed {built.Seed}: a station shares its ring with {sources.Count} unridden orbits, not one");
                 var planet = sources[0].Value;
 
                 var offset = Turns(orbit.Data.Phase - planet.Data.Phase);
