@@ -67,6 +67,9 @@ public class MapPresenter
     public float IconSize => _mapScreenOpen ? _mapScreenScale : _minimapScale;
     public void SetMinimapScale(float scale) => _minimapScale = scale;
     public void OpenMapScreen(bool open) => _mapScreenOpen = open;
+
+    // PlayerGraphicsSettings.ShowAsteroidsInMinimap: belt sprites on the minimap; the map screen always shows them.
+    public bool BeltsOnMinimap { get; set; }
     public void SetMapScreenScale(float scale) => _mapScreenScale = scale;
 
     // Destroy in play mode, DestroyImmediate where the editor smokes run without one.
@@ -160,12 +163,18 @@ public class MapPresenter
 
     // A belt's map sprites: the 3D belt's per-frame float4s (x, y planar, z spin, w size), uploaded as they are.
     public void RegisterBelt(CultRecordKey key, float4[] source) =>
-        _belts[key] = new Belt { Source = source, Buffer = new ComputeBuffer(source.Length, 16) };
+        _belts[key] = new Belt
+        {
+            Source = source,
+            Buffer = new ComputeBuffer(source.Length, 16, ComputeBufferType.Structured, ComputeBufferMode.SubUpdates)
+        };
 
     // One instanced draw per belt: six vertices per asteroid, expanded to a quad on the map plane by the shader.
     private void DrawBelt(Belt belt)
     {
-        belt.Buffer.SetData(belt.Source);
+        var upload = belt.Buffer.BeginWrite<float4>(0, belt.Source.Length);
+        upload.CopyFrom(belt.Source);
+        belt.Buffer.EndWrite<float4>(belt.Source.Length);
         belt.Block.SetBuffer(BeltProperty, belt.Buffer);
         belt.Block.SetVector(SheetProperty, _spriteSheet);
         belt.Block.SetFloat(PlaneProperty, PlaneY + BeltOffset);
@@ -222,7 +231,8 @@ public class MapPresenter
             material.SetFloat("_DepthRange", depthRange);
         }
 
-        foreach (var belt in _belts.Values) DrawBelt(belt);
+        if (BeltsOnMinimap || _mapScreenOpen)
+            foreach (var belt in _belts.Values) DrawBelt(belt);
     }
 
     public void Clear()

@@ -297,6 +297,7 @@ public class ActionGameManager : MonoBehaviour
         ItemManager = new ItemManager(CultCache, PendingScenario != null ? new ProvenanceLedger() : RunSave.Lots(CultCache),
             Settings.GameplaySettings, Debug.Log);
         ZoneRenderer.ItemManager = ItemManager;
+        ZoneRenderer.Map.BeltsOnMinimap = PlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap;
         
         // TODO: Process Stories
 

@@ -141,6 +141,7 @@ public static class MapPresenterSmoke
         var belt = new float4[Asteroids];
         map.RegisterBelt(beltKey, belt);
         zone.EvaluateBelt(beltKey, belt, DrawAhead.Time(zone, 0));
+        map.BeltsOnMinimap = true;
         map.SetFade(ship, 1f);
         map.SetFade(other, 1f);
         map.SetMinimapScale(2f);
@@ -176,6 +177,16 @@ public static class MapPresenterSmoke
         map.ReadBelt(beltKey, read);
         for (var i = 0; i < belt.Length; i++)
             Require(read[i].x == belt[i].x && read[i].y == belt[i].y && read[i].z == belt[i].z && read[i].w == belt[i].w, $"Belt buffer differs from the frame's floats at {i}.");
+
+        // The setting still gates belts on the minimap, and the map screen always shows them.
+        map.BeltsOnMinimap = false;
+        map.Draw(zone, 0);
+        Require(map.BeltDraws == 0, "A belt drew on the minimap with the setting off.");
+        map.OpenMapScreen(true);
+        map.Draw(zone, 0);
+        Require(map.BeltDraws == 1, "The map screen did not draw the belt with the setting off.");
+        map.OpenMapScreen(false);
+        map.BeltsOnMinimap = true;
 
         // Fade: half faded reaches the icon's colour alpha on the next draw; faded out draws nothing.
         map.SetFade(ship, .5f);

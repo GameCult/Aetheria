@@ -63,6 +63,7 @@ public static class MapBeltPerf
         var transforms = new float4[count];
         // BEGIN MEASURED SETUP
         var presenter = new MapPresenter(new Material[0], AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/UI/MapAsteroid.mat"), 4, 4, 3f);
+        presenter.BeltsOnMinimap = true;
         presenter.RegisterBelt(beltKey, transforms);
         // END MEASURED SETUP
         var stopwatch = new Stopwatch();

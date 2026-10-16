@@ -296,6 +296,9 @@ public class MainMenu : MonoBehaviour
                 CloudRenderer.quality = ActionGameManager.PlayerSettings.GraphicsSettings.NebulaQuality;
             },
             Enum.GetNames(typeof(Quality)));
+        _nextMenu.panel.AddField("Show Asteroids in Minimap",
+            () => ActionGameManager.PlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap,
+            b => ActionGameManager.PlayerSettings.GraphicsSettings.ShowAsteroidsInMinimap = b);
         _nextMenu.panel.AddField("Screen Shake",
             () => ActionGameManager.PlayerSettings.GraphicsSettings.ScreenShake,
             f => ActionGameManager.PlayerSettings.GraphicsSettings.ScreenShake = f,
