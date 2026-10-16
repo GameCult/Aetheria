@@ -109,7 +109,6 @@ public class Thruster : Behavior, IPowerConsumer
 
     public override bool Execute(float dt)
     {
-        Item.SetAudioParameter(SpecialAudioParameter.Intensity, _input);
         // Cut 7 (docs/stats-and-power-target.md): "continuous consumers brown out ... through a power supply
         // curve on their performance stats." Thrust below is a plain Evaluate() read, so once the catalog's own
         // Thrust stat carries a PowerSupply term, a partial grant already comes back reduced -- this gate no

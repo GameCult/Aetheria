@@ -145,7 +145,6 @@ public class ChargedWeapon : InstantWeapon
         if (_charging)
         {
             _charge += dt / ChargeTime;
-            Item.SetAudioParameter(SpecialAudioParameter.ChargeLevel, saturate(_charge));
             if (!_charged)
             {
                 AddHeat(ChargeHeat * (dt / ChargeTime));
@@ -162,7 +161,6 @@ public class ChargedWeapon : InstantWeapon
                 _coolingDown = true;
                 _charge = 0;
                 OnFailed?.Invoke();
-                Item.FireAudioEvent(ChargedWeaponAudioEvent.Fail);
                 CauseDamage(_data.FailureDamage);
             }
         }
@@ -177,7 +175,6 @@ public class ChargedWeapon : InstantWeapon
         if(!_charging && CanFire && !FireControl.Refuses(this, Entity))
         {
             OnStartCharging?.Invoke();
-            Item.FireAudioEvent(ChargedWeaponAudioEvent.Start);
             _charging = true;
             _charged = false;
         }
@@ -193,7 +190,6 @@ public class ChargedWeapon : InstantWeapon
                 _charge = 0;
             }
             OnStopCharging?.Invoke();
-            Item.FireAudioEvent(ChargedWeaponAudioEvent.Stop);
             _charging = false;
         }
     }

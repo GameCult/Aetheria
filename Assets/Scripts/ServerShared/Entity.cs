@@ -2149,7 +2149,6 @@ public class EquippedItem : IStatContext
 
     private bool _thermalOnline;
     private bool _durabilityOnline;
-    public WwiseMetaSoundBank SoundBank;
     
     public Behavior[] Behaviors { get; }
     public Dictionary<int, BehaviorGroup> BehaviorGroups { get; }
@@ -2175,10 +2174,6 @@ public class EquippedItem : IStatContext
     public ReadOnlyReactiveProperty<bool> Active { get; }
     public ItemManager ItemManager { get; }
 
-    public Subject<uint> AudioEvents { get; } = new Subject<uint>();
-    public Subject<(uint id, float v)> AudioParameters { get; } = new Subject<(uint id, float v)>();
-    public Dictionary<uint, float> AudioParameterValues { get; } = new Dictionary<uint, float>();
-
     private float oldTemperature;
     public float Temperature
     {
@@ -2188,77 +2183,6 @@ public class EquippedItem : IStatContext
             foreach (var x in InsetShape.Coordinates) sum += Entity.Temperature[x.x, x.y];
             return sum/InsetShape.Coordinates.Length;
         }
-    }
-
-    public void FireAudioEvent(uint eventId, bool skipVerify = false)
-    {
-        if(SoundBank != null && (skipVerify || SoundBank.IncludedEvents.Any(o => o.Id == eventId)))
-            AudioEvents.OnNext(eventId);
-    }
-
-    public void FireAudioEvent(WwiseSoundBinding soundBinding)
-    {
-        FireAudioEvent(soundBinding.PlayEvent);
-    }
-
-    public void PlaySound(WwiseLoopingSoundBinding soundBinding)
-    {
-        FireAudioEvent(soundBinding.PlayEvent);
-    }
-
-    public void StopSound(WwiseLoopingSoundBinding soundBinding)
-    {
-        FireAudioEvent(soundBinding.StopEvent);
-    }
-
-    public void FireAudioEvent(WeaponAudioEvent weaponAudioEvent)
-    {
-        if (SoundBank == null) return;
-        var eventObject = SoundBank.GetEvent(weaponAudioEvent);
-        if (eventObject == null)
-        {
-            ItemManager.Log($"Attempted to trigger {Enum.GetName(typeof(WeaponAudioEvent), weaponAudioEvent)} weapon audio event, but the soundbank doesn't support it!");
-            return;
-        }
-        FireAudioEvent(eventObject.Id, true);
-    }
-
-    public void FireAudioEvent(ChargedWeaponAudioEvent weaponAudioEvent)
-    {
-        if (SoundBank == null) return;
-        var eventObject = SoundBank.GetEvent(weaponAudioEvent);
-        if (eventObject == null)
-        {
-            ItemManager.Log($"Attempted to trigger {Enum.GetName(typeof(ChargedWeaponAudioEvent), weaponAudioEvent)} weapon audio event, but the soundbank doesn't support it!");
-            return;
-        }
-        FireAudioEvent(eventObject.Id, true);
-    }
-
-    public void SetAudioParameter(uint id, float v, bool skipVerify = false)
-    {
-        if (SoundBank != null && (skipVerify || SoundBank.GameParameters.Any(o => o.Id == id)))
-        {
-            AudioParameterValues[id] = v;
-            AudioParameters.OnNext((id, v));
-        }
-    }
-
-    // public void SetAudioParameter(WwiseParameterBinding binding)
-    // {
-    //     FireAudioEvent(binding.Parameter);
-    // }
-
-    public void SetAudioParameter(SpecialAudioParameter p, float v)
-    {
-        if (SoundBank == null) return;
-        var metaObject = SoundBank.GetParameter(p);
-        if (metaObject == null)
-        {
-            ItemManager.Log($"Attempted to set {Enum.GetName(typeof(ChargedWeaponAudioEvent), p)} audio parameter, but the soundbank doesn't support it!");
-            return;
-        }
-        SetAudioParameter(metaObject.Id, v, true);
     }
 
     public EquippedItem(ItemManager itemManager, EquippableItem item, int2 position, Entity entity, HardpointData hardpoint)
@@ -2460,11 +2384,6 @@ public class EquippedItem : IStatContext
 
     public void Update(float delta)
     {
-        foreach (var audioStat in Data.AudioStats)
-        {
-            SetAudioParameter(audioStat.Parameter, Evaluate(audioStat.Stat));
-        }
-        
         if (Active.Value)
         {
             foreach (var group in BehaviorGroups.Values)

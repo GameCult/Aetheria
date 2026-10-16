@@ -94,8 +94,6 @@ public class Reactor : Behavior
             Draw = 0;
         }
 
-        Item.SetAudioParameter(SpecialAudioParameter.Intensity, max(.25f, 1 - 1 / CurrentLoadRatio));
-
         AddHeat(heat);
         return true;
     }

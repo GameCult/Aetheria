@@ -441,7 +441,6 @@ public sealed class FireControlPerWeaponTests : IDisposable
     {
         public int Ammo;
         public float ChargeSpent;
-        public int Sounds;
         public int Wears;
         public float Heat;
         public bool Visible;
@@ -451,7 +450,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
     }
 
     // One discrete weapon, triggered once at no target, with every cost observable: a magazine, an energy charge,
-    // a sound bank, wear events, heat and visibility. Range 29.5 refuses (arming 30); Range 40 fires.
+    // wear events, heat and visibility. Range 29.5 refuses (arming 30); Range 40 fires.
     private Costs Pull(float range, bool single, bool viaTrigger, bool staleRange = false, bool auto = false)
     {
         var r = Build(fuse: WeaponFuse.Proximity, blast: 30f, range: range, energy: 50f, heat: 5000f, visibility: 100f, magazine: 5, singleAmmoBurst: single, auto: auto);
@@ -459,9 +458,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
         Aim(r, float2(0, 1));
         var weapon = (InstantWeapon) r.Gun.Weapon;
         var capacitor = (InputCapacitor) typeof(InstantWeapon).GetField("_capacitor", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(weapon);
-        r.Gun.Item.SoundBank = new WwiseMetaSoundBank { IncludedEvents = new[] { new WwiseMetaObject { Id = 7, Name = "gun_fire" } } };
         var costs = new Costs();
-        r.Gun.Item.AudioEvents.Subscribe(_ => costs.Sounds++);
         r.Zone.ShotCommitted.Subscribe(_ => costs.Shots++); // a fused round with no flight commits and resolves in its own tick
         r.Shooter.ItemDamage.Subscribe(t => { if (t.Item1 == r.Gun.Item) costs.Wears++; });
         weapon.OnFire += _ => costs.Announced++;
@@ -493,12 +490,12 @@ public sealed class FireControlPerWeaponTests : IDisposable
     }
 
     // Control: the same weapon with Range to spare pays every cost, so a free refusal below is not a fixture that
-    // never spends. Then the refusal costs nothing: no ammo, no energy, no sound, no wear, no heat, no
+    // never spends. Then the refusal costs nothing: no ammo, no energy, no announcement, no wear, no heat, no
     // visibility, no shot. `single` is a weapon that pays once per burst, at its first unrefused round rather than at each;
     // `viaTrigger` false authorises the burst directly (the way a trigger that passed leaves it) on a weapon whose
     // Range is short, so the Trigger check cannot be what stops the round and Execute must refuse it itself.
     // Kills, one per row of the assertions: a spend that precedes the refusal (Execute or Trigger), an
-    // announcement, a sound, wear, heat or visibility left ahead of the `continue`.
+    // announcement (what a presenter hears), wear, heat or visibility left ahead of the `continue`.
     [Theory]
     [InlineData(false, true)]
     [InlineData(true, true)]
@@ -509,7 +506,6 @@ public sealed class FireControlPerWeaponTests : IDisposable
         Assert.True(fired.Shots == 1, $"shots {fired.Shots}");
         Assert.True(fired.Ammo == 1, $"ammo spent {fired.Ammo}");
         Assert.True(fired.ChargeSpent > 1f, "a fired round spends its energy");
-        Assert.Equal(1, fired.Sounds);
         Assert.True(fired.Wears > 0);
         Assert.True(fired.Heat > 0f);
         Assert.True(fired.Visible);
@@ -519,7 +515,6 @@ public sealed class FireControlPerWeaponTests : IDisposable
         Assert.Equal(0, refused.Shots);
         Assert.Equal(0, refused.Ammo);
         Assert.Equal(0f, refused.ChargeSpent);
-        Assert.Equal(0, refused.Sounds);
         Assert.Equal(0, refused.Wears);
         Assert.True(fired.Heat - refused.Heat > 5f, $"a refused round adds no heat ({refused.Heat} vs {fired.Heat})");
         Assert.False(refused.Visible);
@@ -721,26 +716,23 @@ public sealed class FireControlPerWeaponTests : IDisposable
         Assert.True(refused.CanFire, "a burst that fired nothing leaves no cooldown");
     }
 
-    // A refused charged weapon never starts charging: no charge heat, no audio, no start event, and it can be
-    // triggered again at once. The control (Range 40) charges, sounds and heats.
+    // A refused charged weapon never starts charging: no charge heat, no start event a presenter could sound, and it can be
+    // triggered again at once. The control (Range 40) charges and heats.
     // Kills: ChargedWeapon.Activate that does not ask FireControl.
-    private (int Starts, int Sounds, float Heat, bool Charging) Charge(float range)
+    private (int Starts, float Heat, bool Charging) Charge(float range)
     {
         var r = Build(charged: true, fuse: WeaponFuse.Proximity, blast: 30f, range: range);
         r.Shooter.SetTarget(TargetRef.None);
         Aim(r, float2(0, 1));
         var weapon = (ChargedWeapon) r.Gun.Weapon;
-        r.Gun.Item.SoundBank = new WwiseMetaSoundBank { IncludedEvents = new[] { new WwiseMetaObject { Id = 7, Name = "gun_charge_play" } } };
         var starts = 0;
-        var sounds = 0;
         weapon.OnStartCharging += () => starts++;
-        r.Gun.Item.AudioEvents.Subscribe(_ => sounds++);
         var heatBefore = r.Gun.Item.Temperature;
 
         weapon.Activate();
         for (var i = 0; i < 3; i++) r.Zone.Update(.1f);
 
-        return (starts, sounds, r.Gun.Item.Temperature - heatBefore, weapon.Progress > 0f);
+        return (starts, r.Gun.Item.Temperature - heatBefore, weapon.Progress > 0f);
     }
 
     [Fact]
@@ -748,12 +740,10 @@ public sealed class FireControlPerWeaponTests : IDisposable
     {
         var fired = Charge(40f);
         Assert.Equal(1, fired.Starts);
-        Assert.True(fired.Sounds > 0, "control: charging sounds");
         Assert.True(fired.Heat > 0f, "control: charging heats");
 
         var refused = Charge(29.5f);
         Assert.Equal(0, refused.Starts);
-        Assert.Equal(0, refused.Sounds);
         Assert.True(fired.Heat - refused.Heat > 5f, $"a refused weapon adds no charge heat ({refused.Heat} vs {fired.Heat})");
     }
     // A triggered burst has not started its cooldown, but it is not ready either: pulled again before its first round
