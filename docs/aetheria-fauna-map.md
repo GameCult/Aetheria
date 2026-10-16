@@ -459,14 +459,35 @@ compositions now and the tape later, or unpark the tape for this).
 `aetheria-fauna:question:body-diagram-metric` (which metric draws the large-scale Skein from the bodies, after the
 operator's sketch; images per option in `docs/research/2026-10-14-body-voronoi-probe/`, facts B37-B42).
 
+### trophic-nodes
+
+Imagination (agent `imagination-ag4-trophic`, session `self-2026-10-16-ag4`), 2026-10-16, against Aetheria master
+`6b6e7c7c` and CultLib `origin/main` `f697e03f`. Line 2 is not one cut: under `trophic-graph-tape-ruled` the habitat
+is an `ExprGraph`, so `Habitat` composes graph ops, and the ops wait on the CultMath functions. All three cuts change
+only CultLib, which is `cultmath-tapes`' repo (this campaign's repos are Aetheria alone), so they are mapped there
+(CultLib `docs/cultmath-interval-ground-cut.md`, Pass 7 lines 3-5 and its "trophic-nodes" section, body facts
+TN1-TN6). What this map's r4 decisions name and where it went:
+
+| r4 gap | CultLib owner | Note |
+|---|---|---|
+| (3) segment distance twin | `trophic-nodes` | out-free `distance_to_segment` (float2, float3) with HLSL twins; the `out` form stays (Galaxy.cs) |
+| (2) weighted diagram over a site span | `trophic-nodes` | power and multiplicative scores, a fold over the sites (`site_cells_*`), border distance and unit normal (B37's `body_border`, analytic gradient) |
+| (4) soft Gabriel gate | `trophic-nodes` | per-pair margin with a shader twin; C# gate over the span, unweighted positions as B33/TN1 |
+| strands (max of gated Gaussians) | `expr-trophic-ops` | a span op is a CultMath function; the width law stays a fauna parameter |
+| (1) weighted lattice cellular | `lattice-weighted-cellular` | reads the body span through `trophic-nodes`' power cells (`lattice-weight-from-bodies-ruled`) |
+| (5) composition parity | `tape-interpreter` | graph parity, CultLib Pass 7 |
+
 ### Cut sequence (r4, one line each; each is mapped when it is about to run; r3 lines 4-25 stand after line 7)
 
 1. `fauna-flow-field`: on master (`FlowField`, `Zone.Flow`, `FlowFieldParityVerify`).
-2. `cultmath-trophic-nodes` (CultLib): gaps (1)-(4) above with HLSL twins, mirror tests and stated weight ranges;
-   a CultMath Unity tag. Waits on both questions.
+2. `cultmath-trophic-nodes` (CultLib, campaign `cultmath-tapes`; see "trophic-nodes" below): three CultLib cuts,
+   `trophic-nodes` (gaps (2)-(4), spec `cultmath-tapes:cut_spec:cut-trophic-nodes.r1`), then
+   `lattice-weighted-cellular` (gap (1)), then `expr-trophic-ops` (the graph ops, the strand reduction, a CultMath
+   Unity tag). Both questions are ruled.
 3. `fauna-trophic-habitat` (Aetheria): the CultMath pin bump; `Habitat` composes environment, Skein, glim and krill
    in C# at candidates; per-species settings records; the r3 candidates and fade; tests for the r4 invariants; the
-   per-candidate cost measured. Replaces r3 line 2. Waits on 2.
+   per-candidate cost measured. Replaces r3 line 2. Waits on `expr-trophic-ops` and its Unity tag (line 2's last
+   cut), not on `trophic-nodes` alone.
 4. `fauna-krill-swarms`: as r3 line 3, on 3's krill hosting.
 5. `cultmath-composition-parity` (CultLib): gap (5), a CultMath-owned check that a consumer's C# composition and its
    HLSL twin agree on a device; `FlowField`'s `Tri3D` moves under it. Waits on Self's scoping.
