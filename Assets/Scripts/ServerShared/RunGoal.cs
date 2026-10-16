@@ -17,7 +17,9 @@ public static class RunGoal
         zone.Galaxy?.Exit != null && zone.GalaxyZone == zone.Galaxy.Exit && zone.Pack.BossSpawned && !BossAlive(zone);
 
     // Where the exit gate sits: at the adjacency wormholes' radius (the zone's radius times the ratio), in the middle of
-    // the widest angular gap between them, so it shares a point with none. A zone with no neighbours gets the +x axis.
+    // the widest angular gap between them, so it shares a point with none. Of exactly equal gaps the first in ascending angle
+    // wins (the <= below): placement is not saved, so this rule is what keeps the gate still between builds. A zone with no
+    // neighbours gets the +x axis.
     public static float2 ExitGatePosition(Zone zone, float wormholeDistanceRatio)
     {
         var radius = zone.Pack.Radius * wormholeDistanceRatio;

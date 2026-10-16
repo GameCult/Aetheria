@@ -362,9 +362,8 @@ public class ActionGameManager : MonoBehaviour
                     if (!(length(wormhole.Position - CurrentEntity.Position.xz) < Settings.GameplaySettings.WormholeExitRadius)) continue;
                     if (wormhole.Exit)
                     {
-                        // The exit gate leads nowhere: RunGoal decides whether it is open, and an open one ends the run.
-                        if (RunGoal.ExitOpen(Zone)) Win();
-                        else
+                        // The exit gate leads nowhere: TryWin consults RunGoal and ends the run when the gate is open.
+                        if (!TryWin())
                         {
                             Dialog.Clear();
                             Dialog.Title.text = $"The exit gate is sealed. {RunGoal.Boss(Zone)?.Name ?? "Its guardian"} holds it shut.";
@@ -1199,13 +1198,17 @@ public class ActionGameManager : MonoBehaviour
         SavePlayerSettings();
     }
 
-    private void Win()
+    // The one way a run is won: RunGoal decides whether the exit is open (read before EndRun clears the galaxy), the
+    // caller shows its own refusal.
+    private bool TryWin()
     {
+        if (!RunGoal.ExitOpen(Zone)) return false;
         EndRun();
         Dialog.Clear();
         Dialog.Title.text = "You have escaped the Terminus. This was the demo; the whole of it is yet to come.";
         Dialog.Show();
         Dialog.MoveToCursor();
+        return true;
     }
 
     private void Die(CauseOfDeath cause)
