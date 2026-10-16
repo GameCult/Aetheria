@@ -312,38 +312,6 @@ public sealed class LoadoutTests : IDisposable
         Assert.Contains("slot 0,0: Crate does not fit", failure);
     }
 
-    // Two new makers, each with one Lamp product, upserted into the live cache so its enumeration order (z before a)
-    // disagrees with record-key order; a reopened snapshot could already hand them back sorted. Each gets its own
-    // maker rather than sharing "Maker".
-    [Fact]
-    public void FirstAvailableProductInKeyOrderBuildsTheSlot()
-    {
-        using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
-        var lamp = new CultRecordRef<CraftedItemData>(cache.RefOf(cache.GetByName<GearData>("Lamp")).Key);
-        var zMaker = cache.Upsert(new Faction { Name = "Zeta", ShortName = "ZET" });
-        var aMaker = cache.Upsert(new Faction { Name = "Alpha", ShortName = "ALP" });
-        cache.Commit(batch => batch.Upsert(typeof(FactionProductData), new FactionProductData { Name = "lamp-z", Design = lamp, Manufacturer = zMaker }, new CultRecordKey("lamp-z")));
-        cache.Commit(batch => batch.Upsert(typeof(FactionProductData), new FactionProductData { Name = "lamp-a", Design = lamp, Manufacturer = aMaker }, new CultRecordKey("lamp-a")));
-        Assert.Equal(new[] { "lamp-z", "lamp-a" }, cache.GetAll<FactionProductData>().Select(p => p.Name).Where(name => name.StartsWith("lamp-")));
-
-        var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
-        var hand = HandBuilt(cache);
-        string LampProduct(Predicate<FactionProductData> available, List<string> failures)
-        {
-            var ship = Loadouts.Materialize(items, null, hand, available, failures);
-            if (ship == null) return null;
-            var unit = ship.Equipment.Single(item => item.EquippableItem != ship.Hull && item.Position.Equals(HardpointCell)).EquippableItem;
-            return items.Brand(unit).Product.Name;
-        }
-
-        var failures = new List<string>();
-        Assert.Equal("lamp-a", LampProduct(p => p.Name != "Lamp by Maker", failures));
-        Assert.Equal("lamp-z", LampProduct(p => p.Name != "Lamp by Maker" && p.Name != "lamp-a", failures));
-        Assert.Empty(failures);
-        Assert.Null(LampProduct(p => !p.Name.StartsWith("Lamp") && !p.Name.StartsWith("lamp"), failures));
-        Assert.Contains("slot 0,0: no available product of Lamp", Assert.Single(failures));
-    }
-
     // Scenarios Q3 (docs/scenarios-cut.md): a design no product makes is outside the economy, and a preset builds it
     // unbranded -- no maker -- at the one named quality. "Orphan" has no product in this catalog.
     [Fact]
@@ -368,7 +336,7 @@ public sealed class LoadoutTests : IDisposable
         using var cache = Open();
         var items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { });
         var failures = new List<string>();
-        Assert.Null(Loadouts.Materialize(items, null, HandBuilt(cache), p => p.Name != "Lamp by Maker", failures));
+        Assert.Null(Loadouts.Materialize(items, null, HandBuilt(cache), _ => null, failures));
         Assert.Equal("slot 0,0: no available product of Lamp", Assert.Single(failures));
     }
 
@@ -918,9 +886,17 @@ public sealed class LoadoutTests : IDisposable
         Assert.Equal(originalThreshold, template.ShutdownPerformance);
     }
 
-    // Everything available: for tests about placement and failure lists.
+    // The deterministic chooser for tests about placement and failure lists: the design's only product, and nothing (so a
+    // failure) when it has several.
+    internal static Func<CraftedItemData, FactionProductData> SoleProduct(CultCache cache) => design =>
+    {
+        var key = cache.RefOf(design).Key;
+        var made = cache.GetAll<FactionProductData>().Where(p => p.Design.Key.Equals(key)).Take(2).ToArray();
+        return made.Length == 1 ? made[0] : null;
+    };
+
     private static Entity Build(ItemManager items, Loadout loadout, List<string> failures) =>
-        Loadouts.Materialize(items, null, loadout, _ => true, failures);
+        Loadouts.Materialize(items, null, loadout, SoleProduct(items.ItemData), failures);
 
     private static (int2, ItemRotation, CultRecordKey) Describe(LoadoutSlot slot) => (slot.Position, slot.Rotation, slot.Design.Key);
 

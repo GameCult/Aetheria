@@ -662,7 +662,7 @@ public sealed partial class RunStartTests : IDisposable
         foreach (var hull in new[] { Hull("Djinni"), Hull("Longinus"), TurretHull() })
         {
             var failures = new List<string>();
-            var entity = Loadouts.Materialize(_items, null, BareLoadout(hull), available.IsAvailable, failures);
+            var entity = Loadouts.Materialize(_items, null, BareLoadout(hull), available.ChooseProduct, failures);
             Assert.Empty(failures);
             Assert.NotNull(_items.Brand(entity.Hull).Maker);
         }
@@ -681,7 +681,7 @@ public sealed partial class RunStartTests : IDisposable
         Assert.True(ships.Count > 1);
         foreach (var ship in ships) Assert.Equal(ship.IsPlayerShip ? 0 : 1, AgentsOf(zone, ship));
 
-        var arriving = (Ship) Loadouts.Materialize(_items, zone, BareLoadout(Hull("Djinni")), _ => true, new List<string>());
+        var arriving = (Ship) Loadouts.Materialize(_items, zone, BareLoadout(Hull("Djinni")), new LoadoutGenerator(ref _items.Random, _items, _galaxy, _galaxy.Entrance, null, 2).ChooseProduct, new List<string>());
         var agents = zone.Agents.Count;
         zone.Admit(arriving, piloted: false);
         SafeAssert.In(zone, arriving, "the arrival is admitted");
