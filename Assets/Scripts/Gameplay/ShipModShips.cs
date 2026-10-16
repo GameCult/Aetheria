@@ -66,7 +66,7 @@ public static class ShipModShips
             catch (Exception error)
             {
                 visual?.Destroy();
-                faults.Add(new ShipModCatalog.Exclusion { Package = catalog.Get(hull.Visual)?.Id ?? hull.Name, Reason = $"{hull.Name}: {error.Message}" });
+                faults.Add(new ShipModCatalog.Exclusion { Package = catalog.Get(hull.Visual)?.Id ?? "(all mods)", Reason = $"{hull.Name}: {error.Message}" });
             }
         }
         if (faults.Count > 0) throw new ImportFault(faults.ToArray());

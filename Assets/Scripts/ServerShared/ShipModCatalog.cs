@@ -194,22 +194,48 @@ public static class ShipModCatalog
     // Returns the destination. Compose and ResolveCatalog never read RemovedMods.
     public static string RemovePackage(string modsRoot, string package)
     {
-        if (string.IsNullOrEmpty(package) || package == "." || package == ".." || package == "(all mods)" ||
-            package != Path.GetFileName(package) || package.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
-            throw new ArgumentException("Not a mod package name.", nameof(package));
-        var source = Path.Combine(Path.GetFullPath(modsRoot), package);
-        if (!Directory.Exists(source)) throw new DirectoryNotFoundException("The package is not a directory under the mods folder.");
+        var root = Path.GetFullPath(modsRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        // Containment, not a blacklist: the package must resolve to a strict child of the mods folder whose final name is
+        // the name given. A name the filesystem rewrites ('...', 'a.', 'a ', 'CON', 'a:b') resolves to something else.
+        if (!IsPackageName(package)) throw new ArgumentException("Not a mod package name.", nameof(package));
+        var source = ChildOf(root, package) ?? throw new ArgumentException("Not a mod package name.", nameof(package));
+        var info = new DirectoryInfo(source);
+        if (!info.Exists) throw new DirectoryNotFoundException("The package is not a directory under the mods folder.");
+        if (info.Attributes.HasFlag(FileAttributes.ReparsePoint))
+            throw new ArgumentException("A package that is a link is not removed.", nameof(package));
         var removed = RemovedRoot(modsRoot);
         Directory.CreateDirectory(removed);
-        var destination = Path.Combine(removed, package);
-        for (var copy = 2; Directory.Exists(destination) || File.Exists(destination); copy++)
-            destination = Path.Combine(removed, $"{package} ({copy})");
+        var destination = ChildOf(removed, package);
+        for (var copy = 2; destination != null && (Directory.Exists(destination) || File.Exists(destination)); copy++)
+            destination = ChildOf(removed, $"{package} ({copy})");
+        if (destination == null) throw new ArgumentException("Not a mod package name.", nameof(package));
         Directory.Move(source, destination);
         return destination;
     }
 
+    private static readonly string[] ReservedDeviceNames =
+        { "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+          "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9" };
+
+    // A name Windows keeps as written: not a dot name, no separator, stream colon or wildcard, no trailing dot or space, and
+    // not a device name (with or without an extension). Held on every platform so a mod moves the same way everywhere.
+    private static bool IsPackageName(string name) =>
+        !string.IsNullOrEmpty(name) && name != "(all mods)" && name.Trim('.') != "" &&
+        name.IndexOfAny(Path.GetInvalidFileNameChars()) < 0 && name.IndexOfAny(new[] { ':', '*', '?', '"', '<', '>', '|', '/', '\\' }) < 0 &&
+        name.All(character => character >= ' ') && !name.EndsWith('.') && !name.EndsWith(' ') &&
+        !ReservedDeviceNames.Contains(name.Split('.')[0].TrimEnd(' '), StringComparer.OrdinalIgnoreCase);
+
+    // The full path of `name` directly under `root`, or null when the filesystem would resolve it anywhere else or under
+    // another name. The comparison is of resolved path segments, never of a string prefix ('Mods2' is not inside 'Mods').
+    private static string ChildOf(string root, string name)
+    {
+        var full = Path.GetFullPath(Path.Combine(root, name));
+        return string.Equals(Path.GetDirectoryName(full), root, StringComparison.Ordinal) &&
+               string.Equals(Path.GetFileName(full), name, StringComparison.Ordinal) ? full : null;
+    }
+
     private static string RemovedRoot(string modsRoot) =>
-        Path.Combine(Path.GetDirectoryName(Path.GetFullPath(modsRoot)), "RemovedMods");
+        Path.Combine(Path.GetDirectoryName(Path.GetFullPath(modsRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)), "RemovedMods");
 
     private static Package Bind(HullData hull, ShipAuthoring ship, FactionProductData[] products, string directory, string path)
     {

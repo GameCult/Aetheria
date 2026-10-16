@@ -228,19 +228,23 @@ public class MainMenu : MonoBehaviour
 
     // Refuse for faults that name mod packages: each distinct package gets a Remove button, the one RemovePackage. The catalog
     // stays as this boot opened it, so the dialog says that removal takes effect at the next launch.
+    private readonly HashSet<string> _removedPackages = new();
+
     public void RefuseMods(string title, ShipModCatalog.Exclusion[] faults)
     {
+        // A package moved aside this session stays named but loses its button: this boot's catalog still holds it.
+        var open = faults.Where(fault => !_removedPackages.Contains(fault.Package)).ToArray();
         var reason = string.Join("\n", faults.Select(fault => fault.ToString()));
         Debug.LogError($"{title}: {reason}");
         Dialog.Clear();
         Dialog.Title.text = title;
         Dialog.AddProperty(() => reason);
-        foreach (var package in faults.Select(fault => fault.Package).Where(package => package != "(all mods)").Distinct())
-            Dialog.AddButton($"Remove {package}", () => Remove(package));
+        foreach (var package in open.Select(fault => fault.Package).Where(package => package != "(all mods)").Distinct())
+            Dialog.AddButton($"Remove {package}", () => Remove(title, faults, package));
         Dialog.Show(onCancel: () => { }, cancelText: "OK");
     }
 
-    private void Remove(string package)
+    private void Remove(string title, ShipModCatalog.Exclusion[] faults, string package)
     {
         string destination;
         try { destination = ShipModCatalog.RemovePackage(ActionGameManager.ModsPath, package); }
@@ -249,12 +253,13 @@ public class MainMenu : MonoBehaviour
             Refuse($"Could not remove {package}", $"{error.Message} Remove it by hand from {ActionGameManager.ModsPath}.");
             return;
         }
+        _removedPackages.Add(package);
         var done = $"{package} moved to {destination}. Mods load at launch: restart Aetheria to play without it, or move it back into Mods to reinstall.";
         Debug.Log(done);
         Dialog.Clear();
         Dialog.Title.text = $"Removed {package}";
         Dialog.AddProperty(() => done);
-        Dialog.Show(onConfirm: Application.Quit, onCancel: () => { }, confirmText: "Quit", cancelText: "OK");
+        Dialog.Show(onConfirm: Application.Quit, onCancel: () => { if (faults.Any(fault => fault.Package != "(all mods)" && !_removedPackages.Contains(fault.Package))) RefuseMods(title, faults); }, confirmText: "Quit", cancelText: "OK");
     }
 
     private void ShowSettings()

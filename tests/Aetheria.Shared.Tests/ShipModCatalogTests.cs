@@ -612,20 +612,64 @@ public sealed class ShipModCatalogTests : IDisposable
         Assert.False(File.Exists(Path.Combine(second, "marker.txt")));
     }
 
-    [Fact]
-    public void RemovePackageRefusesWhatIsNotAPackageDirectory()
+    // Hostile ids: the ones a filesystem rewrites or resolves elsewhere. A directory is created for each where the platform
+    // allows it, so a refusal that merely finds nothing is not enough. Nothing outside the intended package may move.
+    [Theory]
+    [InlineData("")]
+    [InlineData(".")]
+    [InlineData("..")]
+    [InlineData("...")]
+    [InlineData(".. ")]
+    [InlineData("a.")]
+    [InlineData("a ")]
+    [InlineData("CON")]
+    [InlineData("con.txt")]
+    [InlineData("NUL")]
+    [InlineData("a:b")]
+    [InlineData("(all mods)")]
+    [InlineData("a/b")]
+    [InlineData("a\\b")]
+    [InlineData("../Mods")]
+    [InlineData("../Mods2")]
+    [InlineData("missing")]
+    public void RemovePackageRefusesWhatIsNotAPackageDirectory(string name)
     {
         WritePackage("mod.skiff");
         File.WriteAllText(Path.Combine(_directory.Path, "outside.txt"), "x");
         Directory.CreateDirectory(Path.Combine(_directory.Path, "Mods2"));
-        foreach (var name in new[] { "", ".", "..", "(all mods)", "a/b", "a\\b", "../Mods", "missing" })
-            Assert.ThrowsAny<Exception>(() => ShipModCatalog.RemovePackage(Mods, name));
+        try { Directory.CreateDirectory(Path.Combine(Mods, name)); } catch (Exception) { }
+        var before = Directory.GetDirectories(Mods).Select(Path.GetFileName).OrderBy(n => n, StringComparer.Ordinal).ToArray();
+
+        Assert.ThrowsAny<Exception>(() => ShipModCatalog.RemovePackage(Mods, name));
+
         Assert.True(Directory.Exists(Mods));
         Assert.True(Directory.Exists(Path.Combine(Mods, "mod.skiff")));
         Assert.True(Directory.Exists(Path.Combine(_directory.Path, "Mods2")));
         Assert.True(File.Exists(Path.Combine(_directory.Path, "outside.txt")));
         Assert.False(Directory.Exists(RemovedMods));
-        Assert.Equal(new[] { "mod.skiff" }, Directory.GetDirectories(Mods).Select(Path.GetFileName));
+        Assert.Equal(before, Directory.GetDirectories(Mods).Select(Path.GetFileName).OrderBy(n => n, StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void RemovePackageRefusesAnAbsolutePathAndAnInPackageLinkOutsideMods()
+    {
+        WritePackage("mod.skiff");
+        var outside = Path.Combine(_directory.Path, "Outside");
+        Directory.CreateDirectory(outside);
+        File.WriteAllText(Path.Combine(outside, "keep.txt"), "x");
+        Assert.ThrowsAny<Exception>(() => ShipModCatalog.RemovePackage(Mods, outside));
+        Assert.True(File.Exists(Path.Combine(outside, "keep.txt")));
+
+        var linked = true;
+        try { Directory.CreateSymbolicLink(Path.Combine(Mods, "link"), outside); } catch (Exception) { linked = false; }
+        if (linked)
+        {
+            Assert.ThrowsAny<Exception>(() => ShipModCatalog.RemovePackage(Mods, "link"));
+            Assert.True(File.Exists(Path.Combine(outside, "keep.txt")));
+            Assert.True(Directory.Exists(Path.Combine(Mods, "link")));
+        }
+        Assert.False(Directory.Exists(RemovedMods));
+        Assert.True(Directory.Exists(Path.Combine(Mods, "mod.skiff")));
     }
 
     [Fact]
