@@ -27,10 +27,10 @@ namespace Aetheria.EditorTools
         const string Tag = "[GravityFieldParityVerify]";
         const int Size = 256;
         // Measured on this tree (the "max error" line this run prints): the largest |texel + GetHeight| over the windows of the three
-        // frames and windows is 0.0065 u, in the last frame's planetoid window (float32 on both sides, the GPU's log against the CPU's, the
-        // quad's interpolated world position). The tolerance is 4.6x that. A 0.1% error in the tail constant (.5 -> .501)
-        // moves the drawn height by 0.053 u where all three tails reach (the planetoid and zone windows), 1.8x the
-        // tolerance; a reference of zero moves it by about 150 u.
+        // frames is 0.0108 u, in the moved frame's planetoid window (float32 on both sides, the GPU's log and the closed form's
+        // single-precision floor of 1.5e-5 per unit strength against the CPU's, the quad's interpolated world position). The
+        // tolerance is 2.8x that. A band whose terms were drawn from the wrong edge (reference, inner or outer) moves the
+        // drawn height by whole units.
         const float Tolerance = 0.03f;
         // The worst angle between the texture's central difference and GetForce (B28: 1.0 degrees median zone, 2.9 worst).
         const float GradientDegrees = 3f;
@@ -74,16 +74,19 @@ namespace Aetheria.EditorTools
                 GravityLowering.Lower(zone, 0f, ref wells);
                 field = GravityLowering.CreateField(material);
 
-                // Three frames through the one buffer, as ZoneRenderer.Update runs it: the bodies as built, then two moves
-                // (an orbit's Position is what Zone.GetHeight reads). A lowering that mirrors an axis or stops refreshing
-                // the upload agrees with the sim in the first frame only where it is symmetric, and not after a move.
+                // Three frames through the one buffer, as ZoneRenderer.Update runs it: the bodies as built, then two moves (an
+                // orbit's Position is what Zone.GetHeight reads). A move keeps the tree's geometry, since a rail never leaves
+                // its parent's distance and the walk skips a subtree outside its reach: the sun is the root, the planet is
+                // its Distance from the sun, the planetoid its Distance from the planet. A lowering that mirrors an axis or
+                // stops refreshing the upload agrees with the sim in the first frame only where it is symmetric.
                 CheckFrame("built", zone, orbits);
-                orbits[1].Position = new float2(-420f, 560f);
-                orbits[2].Position = new float2(900f, -700f);
+                orbits[1].Position = Around(orbits[0], orbits[1], .31f);
+                orbits[2].Position = Around(orbits[1], orbits[2], .77f);
                 GravityLowering.Lower(zone, 0f, ref wells);
                 CheckFrame("moved", zone, orbits);
                 orbits[0].Position = new float2(210f, -95f);
-                orbits[2].Position = new float2(-1800f, 1300f);
+                orbits[1].Position = Around(orbits[0], orbits[1], .52f);
+                orbits[2].Position = Around(orbits[1], orbits[2], .05f);
                 GravityLowering.Lower(zone, 0f, ref wells);
                 CheckFrame("moved-again", zone, orbits);
                 Debug.Log($"{Tag} max error {_maxError:G4} u (tolerance {Tolerance:G4}); max gradient angle {_maxAngle:F2} degrees (limit {GradientDegrees:F0})");
@@ -107,6 +110,9 @@ namespace Aetheria.EditorTools
         }
 
         static float Core(Zone zone, float mass) => zone.Settings.RocheLimit.Evaluate(mass);
+
+        // Where an orbit lies when it stands `turns` round its parent at its Distance.
+        static float2 Around(Orbit parent, Orbit child, float turns) => parent.Position + child.Data.Distance * OrbitData.Evaluate(turns);
 
         static Vector2 At(Orbit orbit) => new Vector2(orbit.Position.x, orbit.Position.y);
 
