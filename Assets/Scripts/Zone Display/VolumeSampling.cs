@@ -106,10 +106,12 @@ public class VolumeSampling : MonoBehaviour
     static GlobalKeyword KeywordFlowSlope => _keywordFlowSlope ??= GlobalKeyword.Create("FLOW_SLOPE");
 
     /// <summary>
-    /// The time the flow runs on: the zone's own (so drift stops with the sim and follows sim speed), or on menus,
-    /// where no zone exists, the presentation clock.
+    /// The time the flow runs on: the zone's drawn time (DrawAhead.Time, so drift stops with the sim and follows sim
+    /// speed), or on menus, where no zone exists, the presentation clock.
     /// </summary>
-    public static double FlowClock => ActionGameManager.Instance?.Zone?.ExactTime ?? Time.timeSinceLevelLoad;
+    public static double FlowClock => ActionGameManager.Instance?.Zone is { } zone
+        ? DrawAhead.Time(zone, ActionGameManager.Clock.Lead)
+        : Time.timeSinceLevelLoad;
 
     /// <summary>
     /// The one place that sets the flow uniforms and keywords: every shader flow term derives from FlowSettings and

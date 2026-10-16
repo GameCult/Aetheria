@@ -1975,8 +1975,10 @@ public abstract class Entity
     }
 
     // Where an unparented entity sits on the field at a planar point: the zone's height there plus the hull's grid offset.
-    // The step puts the entity here at its own xz, and the presenter at its drawn xz (DrawAhead).
-    public float RideHeight(float2 planar) => Zone.GetHeight(planar) + (ItemManager.GetData(Hull) as HullData).GridOffset;
+    // The step rides at its own time and xz, the presenter at the drawn time and its drawn xz (DrawAhead).
+    public float RideHeight(float2 planar, double time) => Zone.GetHeight(planar, time) + (ItemManager.GetData(Hull) as HullData).GridOffset;
+
+    public float RideHeight(float2 planar) => RideHeight(planar, Zone.ExactTime);
 
     private void UpdateTemperature(float delta)
     {

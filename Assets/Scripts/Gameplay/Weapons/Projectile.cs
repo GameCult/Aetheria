@@ -50,8 +50,9 @@ public class Projectile : MonoBehaviour
     private void Draw()
     {
         var lead = ActionGameManager.Clock.Lead;
-        transform.position = V(DrawAhead.Round(_shot, _known, _barrel, BlendTime, _zone.Time, lead));
-        if (DrawAhead.RoundOver(_shot, _known, _zone.Time, lead)) Finish();
+        var drawn = DrawAhead.Time(_zone, lead);
+        transform.position = V(DrawAhead.Round(_shot, _known, _barrel, BlendTime, drawn));
+        if (DrawAhead.RoundOver(_shot, _known, drawn)) Finish();
     }
 
     // The sim's commit: the record it holds now (a contact burst's arrival is shortened here) and what it decided.

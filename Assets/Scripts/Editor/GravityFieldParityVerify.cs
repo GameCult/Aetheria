@@ -71,7 +71,7 @@ namespace Aetheria.EditorTools
                     ?? throw new InvalidOperationException("No Gravity Field.mat.");
 
                 var zone = BuildZone(settings, work, out var orbits);
-                GravityLowering.Lower(zone, ref wells);
+                GravityLowering.Lower(zone, 0f, ref wells);
                 field = GravityLowering.CreateField(material);
 
                 // Three frames through the one buffer, as ZoneRenderer.Update runs it: the bodies as built, then two moves
@@ -80,11 +80,11 @@ namespace Aetheria.EditorTools
                 CheckFrame("built", zone, orbits);
                 orbits[1].Position = new float2(-420f, 560f);
                 orbits[2].Position = new float2(900f, -700f);
-                GravityLowering.Lower(zone, ref wells);
+                GravityLowering.Lower(zone, 0f, ref wells);
                 CheckFrame("moved", zone, orbits);
                 orbits[0].Position = new float2(210f, -95f);
                 orbits[2].Position = new float2(-1800f, 1300f);
-                GravityLowering.Lower(zone, ref wells);
+                GravityLowering.Lower(zone, 0f, ref wells);
                 CheckFrame("moved-again", zone, orbits);
                 Debug.Log($"{Tag} max error {_maxError:G4} u (tolerance {Tolerance:G4}); max gradient angle {_maxAngle:F2} degrees (limit {GradientDegrees:F0})");
 

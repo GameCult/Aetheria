@@ -32,9 +32,10 @@ public static class GravityLowering
 
     /// <summary>
     /// Fills one record per body of the zone (a null zone has none) and sets the shader globals. The buffer is the
-    /// caller's, (re)allocated to the body count (at least one, so the global is always bound).
+    /// caller's, (re)allocated to the body count (at least one, so the global is always bound). Wells are lowered at the
+    /// drawn time (DrawAhead.Time), the same T the planets and a ship's ride height use.
     /// </summary>
-    public static void Lower(Zone zone, ref ComputeBuffer wells)
+    public static void Lower(Zone zone, float lead, ref ComputeBuffer wells)
     {
         var count = zone?.PlanetInstances.Count ?? 0;
         var capacity = Mathf.Max(count, 1);
@@ -48,13 +49,16 @@ public static class GravityLowering
         var i = 0;
         if (zone != null)
             foreach (var body in zone.PlanetInstances.Values)
+            {
+                var well = DrawAhead.Well(zone, body, lead);
                 _records[i++] = new WellRecord
                 {
-                    Position = new Vector2(body.Orbit.Position.x, body.Orbit.Position.y),
-                    Strength = body.WellStrength,
-                    CoreRadius = body.RocheLimit,
-                    Reference = zone.WellReference(body)
+                    Position = new Vector2(well.Position.x, well.Position.y),
+                    Strength = well.Strength,
+                    CoreRadius = well.CoreRadius,
+                    Reference = well.Reference
                 };
+            }
         wells.SetData(_records);
 
         Shader.SetGlobalBuffer(WellsId, wells);

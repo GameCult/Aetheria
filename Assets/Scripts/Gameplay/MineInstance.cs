@@ -55,8 +55,9 @@ public class MineInstance : MonoBehaviour
 
     private void Place()
     {
-        var p = _mine.Body.Position;
-        transform.position = new Vector3(p.x, _zone.GetHeight(p) + GridOffset, p.y);
+        var lead = ActionGameManager.Clock.Lead;
+        var p = DrawAhead.Position(_mine.Body, lead);
+        transform.position = new Vector3(p.x, DrawAhead.Height(_zone, p, lead) + GridOffset, p.y);
     }
 
     // The mine left Zone.Mines, which only its blast does: show it where it was drawn last.

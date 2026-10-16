@@ -242,7 +242,7 @@ public sealed class MiningCut1Tests : IDisposable
         zone.Update(0.37f);
 
         var buffer = new float4[asteroids.Length];
-        zone.EvaluateBelt(beltKey, buffer);
+        zone.EvaluateBelt(beltKey, buffer, zone.ExactTime);
 
         Assert.Equal(asteroids.Length, buffer.Length);
         for (var i = 0; i < asteroids.Length; i++)
