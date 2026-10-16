@@ -126,6 +126,7 @@ namespace Aetheria.EditorTools
             renderer.MinePrefab = minePrefab;
             renderer.ItemManager = items;
             renderer.SectorBrushes = new GameObject("Wiring Brushes").transform;
+            renderer.AmbientLight = AmbientEdgeVerify.NewAmbientLight();
             renderer.SlimeGravityCamera = new GameObject("Wiring Gravity Camera").AddComponent<Camera>();
             var slimeObject = new GameObject("Wiring Slime");
             slimeObject.SetActive(false);

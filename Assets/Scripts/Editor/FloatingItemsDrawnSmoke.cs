@@ -147,6 +147,7 @@ public static class FloatingItemsDrawnSmoke
             typeof(ZoneRenderer).GetField(name).SetValue(renderer, pickup);
         renderer.ItemManager = items;
         renderer.SectorBrushes = new GameObject("Smoke Brushes").transform;
+        renderer.AmbientLight = Aetheria.EditorTools.AmbientEdgeVerify.NewAmbientLight();
         renderer.SlimeGravityCamera = new GameObject("Smoke Gravity Camera").AddComponent<Camera>();
         var slimeObject = new GameObject("Smoke Slime");
         slimeObject.SetActive(false); // the real Slime needs its compute shader; LoadZone only sets its radius

@@ -27,6 +27,8 @@ public class ZoneRenderer : MonoBehaviour
     public GameSettings Settings;
     public Transform ZoneRoot;
     public Transform SectorBrushes;
+    // The ambient tint quad, sized from the zone's populated radius, never under SectorBrushes: FitAmbientLight.
+    public Transform AmbientLight;
     public CinemachineVirtualCamera SceneCamera;
     public Camera[] FogCameras;
     public Camera[] MinimapCameras;
@@ -191,11 +193,28 @@ public class ZoneRenderer : MonoBehaviour
         _transposer = SceneCamera.GetCinemachineComponent<CinemachineTransposer>();
     }
 
+    // The ambient is a gaussian: its brightness at the populated edge is the material's _EdgeBrightness (a shape, authored), and
+    // the quad reaches out to where it falls to AmbientFloor of the centre, so no edge is ever drawn. The one writer of the
+    // quad's size and _Reach, and the one place the verify reads the sizing from.
+    const float AmbientFloor = 1e-5f;
+
+    public static void FitAmbientLight(Transform light, Zone zone)
+    {
+        var renderer = light.GetComponent<MeshRenderer>();
+        var reach = Mathf.Sqrt(Mathf.Log(1f / AmbientFloor) / Mathf.Log(1f / renderer.sharedMaterial.GetFloat("_EdgeBrightness")));
+        light.localScale = 2f * reach * zone.PopulatedRadius * Vector3.one;
+        var block = new MaterialPropertyBlock();
+        renderer.GetPropertyBlock(block);
+        block.SetFloat("_Reach", reach);
+        renderer.SetPropertyBlock(block);
+    }
+
     public void LoadZone(Zone zone)
     {
         ClearZone();
         Zone = zone;
         SectorBrushes.localScale = zone.Pack.Radius * 2 * Vector3.one;
+        FitAmbientLight(AmbientLight, zone);
         SlimeGravityCamera.orthographicSize = zone.Pack.Radius;
         SlimeRenderer.ZoneRadius = zone.Pack.Radius;
         if (_gravityField == null) _gravityField = GravityLowering.CreateField(GravityField);

@@ -124,7 +124,7 @@ namespace Aetheria.EditorTools
         // mass 0, whose well has no strength (a legal body; its curves give c = 0 and R = 0), at (1700, 300): parentless,
         // fixed, off both axes and asymmetric, so the zone's wells sit where the verify says before any Update and a
         // mirrored or swapped axis cannot agree with the sim.
-        static Zone BuildZone(GameSettings settings, string work, out Orbit[] orbits)
+        internal static Zone BuildZone(GameSettings settings, string work, out Orbit[] orbits, float radius = 4182f)
         {
             var cache = AetheriaStores.Open(Path.Combine(work, "catalog.cc"), Path.Combine(work, "run.cc"), catalogWritable: true);
             cache.Upsert(new VerseGrammar { Revision = 1 });
@@ -133,7 +133,7 @@ namespace Aetheria.EditorTools
             var positions = new[] { new Vector2(-130f, 85f), new Vector2(610f, -240f), new Vector2(670f, -270f), new Vector2(1700f, 300f) };
             var masses = new[] { 14152f, 273.9f, 29.2f, 0f };
             var keys = new CultRecordKey[positions.Length];
-            var pack = new ZonePack { Radius = 4182f };
+            var pack = new ZonePack { Radius = radius };
             for (var i = 0; i < positions.Length; i++)
             {
                 var orbit = keys[i] = cache.Upsert(new OrbitData { FixedPosition = new float2(positions[i].x, positions[i].y) }).Key;
