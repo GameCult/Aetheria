@@ -9931,3 +9931,60 @@ layout-aim and scanner-catalog (merged) -> mount-cycle-and-test-hygiene r1 (runs
 
 - mind-commit-67c50e4b...: cut-mount-cycle-and-test-hygiene.r1 (base 3f5cef68) and follow-up
   perceived-destruction-under-hull-lie. context-pack on r1: all thirty anchors SAME. No question raised.
+
+# consumable-ai r3
+
+Imagination imagination-ag4-consumable-ai, session self-2026-10-16-ag4, 2026-10-16.
+Pinned to Aetheria origin/master 533b301e4965bbb4ebb6f6fb33e1d0e58a931aa2.
+
+## Body facts
+
+CA1. The h1 branch `eureka/aetheria-release-consumable-ai` (head f2ecc96a) never merged:
+f2ecc96a is not an ancestor of 533b301e, the merge base is e71540be, and master is 655 commits
+past it. Master has no AI consumable use: no `VapourDumpData`, `ThrottleLockData` or
+`ActivateConsumable` under `Assets/Scripts/ServerShared/Agents`. The branch merges textually clean
+(`git merge-tree`), but its test rig does not compile on master (`TestCatalogGlobal` and
+`GameplaySettings.TargetArmorInfoThreshold` are gone) and its lockers hold a lock by turning
+away, which on master stops the paint one tick later (CA3). r3 re-lands on a fresh branch.
+
+CA2. `Entity.IncomingPaints` (Entity.cs:245) is the warning surface: `PaintWarning {Bearing,
+EmitterClass, Mode, Strength}` (Sensing.cs:85-98) with `PaintMode {Search, Track, Scan}`
+(Sensing.cs:43-48). `LockWeapon.Execute` paints `Track` with its lock (LockWeapon.cs:110-111);
+Scan carries a scanner's progress. The HUD reads the strongest Track or Scan paint
+(ActionGameManager.cs:1494-1500). The vent rule reads Track only: under
+launcher-lock-solution-quality a lock warning means a fire-control emitter is tracking the ship,
+and a scan is not fire control.
+
+CA3. Tick order (Zone.cs:318-323): every agent updates, then every entity runs `PublishInbox`,
+then `Update`, then `Sense`. An agent therefore reads the paints published at the start of the
+previous zone tick; a paint lives one tick after its last `ReceivePaint` (Entity.cs:970-980).
+`ReceivePaint` and `PublishInbox` are internal, visible to the test project
+(Aetheria.Shared.csproj:28).
+
+CA4. Death (Zone.cs:255) and docking (Entity.cs:1754-1755) call `Zone.Remove` and `Deactivate`;
+`Zone.Agents` is never pruned, so a removed ship's Minion keeps ticking with its own target set.
+`Deactivate` clears `IncomingPaints` (Entity.cs:961), so only the overdrive branch can fire on an
+inactive ship; `TryActivateConsumable` (Entity.cs:1353-1365) has no activity check. The agent
+also keeps steering and activating weapons on an inactive ship; that wider fault is outside
+this cut.
+
+CA5. `CanActivateConsumable` (Entity.cs:1348-1351) lets a Stackable design through while one is
+active. Every catalog design today is non-stackable (tools/AetherDb/Program.cs:2409), so the AI
+hold is latent until a stackable design lands.
+
+CA6. Minion enters CombatState only with a target and leaves when it loses one
+(Minion.cs:14-19), so a vent rule placed before CombatState's `target == null` return (r2) adds
+nothing; r3 keeps both rules in `UseConsumables` after the locking weapons activate.
+
+CA7. FireControlTests already reads `_optimumRange` by reflection and authors a gun with Range
+1000 and EffectiveRange 500 whose optimum is about 500 (FireControlTests.cs:440-464). That rig
+separates the optimum from both the shortest and longest gun range, which h1's two flat guns
+could not (finding optimum-range-not-pinned).
+
+## Admitted (receipt mind-commit-ccdd207e...)
+
+- cut_spec cut-consumable-ai.r3 (base 533b301e, branch eureka/aetheria-release-consumable-ai-r3,
+  depends_on lock-warning and paint-modes) and the resolution superseding r2. No question raised.
+- context-pack: six anchors SAME at 533b301e, one new file.
+- Finding cut-lock-warning.s2.strength-pinned-only-to-point-nine-nine is deferred to r2, now
+  superseded; r3 carries its pin, so its deferral wants re-pointing at r3.
