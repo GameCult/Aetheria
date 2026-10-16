@@ -169,6 +169,7 @@ public sealed class ConsumableAiTests : IDisposable
         // The agent joins as the zone admits a piloted ship (its Minion and CombatState come from production); the
         // locker is a gun ship nobody pilots.
         zone.Admit(scene.Agent, piloted: true);
+        zone.Agents.Single().Task = null; // the test zone has no orbits to patrol; the Minion and its CombatState are production's
         zone.Admit(scene.Prey, piloted: false);
         zone.Admit(scene.Locker, piloted: false);
         zone.Update(0f); // brings the gear online
