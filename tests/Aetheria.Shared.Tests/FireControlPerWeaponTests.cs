@@ -331,11 +331,11 @@ public sealed class FireControlPerWeaponTests : IDisposable
         Assert.Equal(fires, r.Gun.Weapon.Firing);
     }
 
-    // The same threshold a hundredth either side of the shot's price. Kills: the turret's threshold loosened or
+    // The same threshold half a hundredth either side of the shot's price. Kills: the turret's threshold loosened or
     // tightened by a tenth or a hundredth.
     [Theory]
-    [InlineData(.01f, false)]
-    [InlineData(-.01f, true)]
+    [InlineData(.005f, false)]
+    [InlineData(-.005f, true)]
     public void ATurretHoldsAShotJustUnderTheThresholdAndTakesOneJustOver(float thresholdAbovePrice, bool fires)
     {
         var probe = Build(accuracy: .5f, minHit: 0f, turret: true);
