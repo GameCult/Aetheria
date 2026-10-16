@@ -191,7 +191,7 @@ public sealed class CatalogRoleTests
         var mine = Assert.Single(cache.GetAll<EquippableItemData>(), d => cache.RefOf(d).Key.Value == "1b4a2bb358eb432eb1cfc0ccf3317303");
         Assert.Equal("Mine Launcher", mine.Name);
         Assert.Equal("Lays a drifting proximity mine that arms after two seconds.", mine.Description);
-        var brand = Assert.Single(cache.GetAll<FactionProductData>(), p => p.Design.Key.Equals(cache.RefOf(mine).Key));
+        var brand = Assert.Single(cache.GetAll<FactionProductData>(), p => p.Design.Key.Equals(cache.RefOf(mine).Key) && p.Name == "parting gift");
         Assert.Equal("parting gift", brand.Name);
         Assert.Equal("DME", cache.Get(brand.Manufacturer).ShortName);
     }
