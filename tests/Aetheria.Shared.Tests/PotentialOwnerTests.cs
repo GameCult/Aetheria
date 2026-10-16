@@ -306,7 +306,7 @@ public sealed class PotentialOwnerTests : IDisposable
                     (two.GetHeight(p + float2(step, 0)) - two.GetHeight(p - float2(step, 0))) * k / (2 * step),
                     (two.GetHeight(p + float2(0, step)) - two.GetHeight(p - float2(0, step))) * k / (2 * step));
                 var force = two.GetForce(p);
-                Assert.InRange(length(gradient + force), 0f, length(force) * 1e-2f + 1e-4f);
+                Assert.InRange(length(gradient + force), 0f, length(force) * 1e-2f + 1e-4f + 3e-5f * k); // flat ground between the subzones reads the float32 resolution of the height, times K
             }
         }
     }
