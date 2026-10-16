@@ -9,13 +9,15 @@ using UnityEngine;
 using float4 = CultMath.float4;
 using Debug = UnityEngine.Debug;
 
-// The map's belt cost per frame, CPU milliseconds and managed allocation: MapPresenter's belt upload and draw for belts of
-// 1000, 4000 and 10000 asteroids (a generated belt holds 11 + sqrt(mass * distance), Settings.asset). Needs a GPU device.
+// The map's belt cost per frame, CPU milliseconds and managed allocation, for belts of 1000, 2250 (the generated
+// maximum, Settings.asset) and 4000 asteroids: the base revision's AsteroidBeltUI.Update (MapBeltPerfBase, a verbatim copy)
+// and MapPresenter's belt upload and draw, each as the median and interquartile range of 21 runs of 300 frames after
+// a warm-up, in this one Unity job. CPU time only: GPU cost is not covered. Needs a GPU device.
 //
 //   Unity -batchmode -projectPath <project> -executeMethod MapBeltPerf.Run -logFile <log>
 public static class MapBeltPerf
 {
-    private const int Warmup = 60, Frames = 600;
+    private const int Warmup = 60, Frames = 300, RunCount = 21;
 
     public static void Run()
     {
@@ -23,7 +25,7 @@ public static class MapBeltPerf
         try
         {
             Directory.CreateDirectory(work);
-            foreach (var count in new[] { 1000, 4000, 10000 }) Measure(work, count);
+            foreach (var count in new[] { 1000, 2250, 4000 }) Measure(work, count);
             EditorApplication.Exit(0);
         }
         catch (Exception exception)
@@ -61,24 +63,55 @@ public static class MapBeltPerf
         }, pack, new GalaxyZone { Name = "Perf", Owner = null }, null);
 
         var transforms = new float4[count];
-        // BEGIN MEASURED SETUP
         var presenter = new MapPresenter(new Material[0], AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/UI/MapAsteroid.mat"), 4, 4, 3f);
         presenter.BeltsOnMinimap = true;
         presenter.RegisterBelt(beltKey, transforms);
-        // END MEASURED SETUP
+        var baseBelt = new MapBeltPerfBase(zone, zone.AsteroidBelts[beltKey], 4, 4, 3f);
+
+        Report("base", count, Runs(zone, beltKey, transforms, () => baseBelt.Update(transforms, 0f)));
+        Report("head", count, Runs(zone, beltKey, transforms, () => presenter.Draw(zone, 0)));
+        presenter.Clear();
+    }
+
+    // Each run is Frames frames after Warmup frames; the figure is one run's CPU ms per frame and managed bytes per frame.
+    private static (double ms, long bytes)[] Runs(Zone zone, CultRecordKey beltKey, float4[] transforms, Action frame)
+    {
+        var results = new (double, long)[RunCount];
         var stopwatch = new Stopwatch();
-        long allocated = 0;
-        for (var frame = 0; frame < Warmup + Frames; frame++)
+        var time = 0.0;
+        for (var run = -1; run < RunCount; run++)
         {
-            zone.EvaluateBelt(beltKey, transforms, 0.016 * frame);
-            var bytes = GC.GetAllocatedBytesForCurrentThread();
-            if (frame >= Warmup) stopwatch.Start();
-            // BEGIN MEASURED FRAME
-            presenter.Draw(zone, 0);
-            // END MEASURED FRAME
-            if (frame >= Warmup) stopwatch.Stop();
-            if (frame >= Warmup) allocated += GC.GetAllocatedBytesForCurrentThread() - bytes;
+            stopwatch.Reset();
+            long allocated = 0;
+            for (var i = 0; i < Warmup + Frames; i++)
+            {
+                zone.EvaluateBelt(beltKey, transforms, time += 0.016);
+                var bytes = GC.GetAllocatedBytesForCurrentThread();
+                if (i >= Warmup) stopwatch.Start();
+                frame();
+                if (i >= Warmup) stopwatch.Stop();
+                if (i >= Warmup) allocated += GC.GetAllocatedBytesForCurrentThread() - bytes;
+            }
+            if (run >= 0) results[run] = (stopwatch.Elapsed.TotalMilliseconds / Frames, allocated / Frames);
         }
-        Debug.Log($"[MapBeltPerf] asteroids={count} cpu_ms_per_frame={stopwatch.Elapsed.TotalMilliseconds / Frames:F4} gc_bytes_per_frame={allocated / Frames}");
+        return results;
+    }
+
+    private static double Quantile(double[] sorted, double q)
+    {
+        var at = q * (sorted.Length - 1);
+        var low = (int)Math.Floor(at);
+        var high = Math.Min(low + 1, sorted.Length - 1);
+        return sorted[low] + (sorted[high] - sorted[low]) * (at - low);
+    }
+
+    private static void Report(string revision, int count, (double ms, long bytes)[] runs)
+    {
+        var ms = runs.Select(r => r.ms).OrderBy(v => v).ToArray();
+        var bytes = runs.Select(r => (double)r.bytes).OrderBy(v => v).ToArray();
+        var units = Process.GetProcessesByName("Unity").Length;
+        Debug.Log($"[MapBeltPerf] revision={revision} asteroids={count} runs={runs.Length} frames_per_run={Frames} " +
+                  $"cpu_ms_median={Quantile(ms, .5):F4} iqr={Quantile(ms, .25):F4}-{Quantile(ms, .75):F4} " +
+                  $"gc_bytes_median={Quantile(bytes, .5):F0} unity_processes={units} cpus={Environment.ProcessorCount}");
     }
 }

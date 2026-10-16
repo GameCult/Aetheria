@@ -51,17 +51,38 @@ public static class MapPresenterSmoke
 
     private static void Awaken(Component component) => component.GetType().GetMethod("Awake", Any)?.Invoke(component, null);
 
-    private static MeshRenderer NewIcon(Transform parent)
+    // flat: authored lying on the map plane (facing up), as a real icon is; the smoke's own icons are authored upright
+    // so that their rotation is exactly the yaw.
+    private static MeshRenderer NewIcon(Transform parent, bool flat)
     {
         var icon = GameObject.CreatePrimitive(PrimitiveType.Quad);
         icon.layer = LayerMask.NameToLayer("Minimap");
         icon.transform.SetParent(parent, false);
+        if (flat) icon.transform.localRotation = Quaternion.Euler(90, 0, 0);
         var renderer = icon.GetComponent<MeshRenderer>();
         renderer.sharedMaterial = new Material(Shader.Find("Unlit/Color")) { color = new Color(1, 1, 1, .8f) };
         return renderer;
     }
 
+    // What Build leaves registered with a presenter, for the checks here and for MapPresenterCapture.
+    internal sealed class Fixture
+    {
+        public Zone Zone;
+        public MapPresenter Map;
+        public Ship Ship, Other;
+        public EntityInstance ShipInstance, OtherInstance;
+        public CultRecordKey SunKey, BeltKey;
+        public float4[] Belt;
+        public Transform Roots;
+    }
+
     private static void Check(string work)
+    {
+        var f = Build(work, flatIcons: false);
+        Checks(f);
+    }
+
+    internal static Fixture Build(string work, bool flatIcons)
     {
         var settings = AssetDatabase.LoadAssetAtPath<GameSettings>("Assets/Resources/Settings.asset")
             ?? throw new InvalidOperationException("No Settings.asset.");
@@ -99,15 +120,19 @@ public static class MapPresenterSmoke
         var hullRef = items.ItemData.RefOf<ItemData>(items.ItemData.GetByName<HullData>("Smoke Hull"));
         var ship = new Ship(items, zone, new EquippableItem { Data = hullRef, Durability = 1000, Lot = 1 }, new EntitySettings());
         var other = new Ship(items, zone, new EquippableItem { Data = hullRef, Durability = 1000, Lot = 2 }, new EntitySettings());
-        ship.Position = float3(300, 0, 200);
-        other.Position = float3(-300, 0, 100);
+        ship.Position = float3(300, 50, 200);
+        other.Position = float3(-300, -90, 100);
         zone.Admit(ship, piloted: false);
         zone.Admit(other, piloted: false);
 
-        // A hull rolled 30 and pitched 20 degrees, heading 40 degrees from +z: Direction is the heading, Rotation the full pose.
-        var heading = Quaternion.Euler(0, 40, 0);
-        var forward = heading * Quaternion.Euler(-20, 0, 0) * Vector3.forward;
-        var pose = Quaternion.LookRotation(forward, Quaternion.AngleAxis(30, forward) * Vector3.up);
+        // A hull heading 40 degrees from +z, pitched up 89.9 and rolled 30: its forward is almost vertical, where the pose's
+        // eulerAngles.y is the gimbal decomposition (yaw and roll folded together), not the heading. The heading is the
+        // forward projected onto the map plane, 40. The fixture asserts the two differ, so a yaw read from eulerAngles
+        // cannot pass.
+        var pose = Quaternion.Euler(0, 40, 0) * Quaternion.Euler(-89.9f, 0, 30);
+        var flatForward = pose * Vector3.forward;
+        Require(Mathf.Abs(Mathf.DeltaAngle(Mathf.Atan2(flatForward.x, flatForward.z) * Mathf.Rad2Deg, 40f)) < .5f, "The fixture's forward does not head 40.");
+        Require(Mathf.Abs(Mathf.DeltaAngle(pose.eulerAngles.y, 40f)) > 10f, $"The fixture's eulerAngles.y {pose.eulerAngles.y} is aligned with its heading.");
         ship.Direction = float2(Mathf.Sin(40 * Mathf.Deg2Rad), Mathf.Cos(40 * Mathf.Deg2Rad));
         typeof(Ship).GetProperty("Rotation", Any).GetSetMethod(true).Invoke(ship, new object[] { new CultMath.quaternion(pose.x, pose.y, pose.z, pose.w) });
 
@@ -124,7 +149,7 @@ public static class MapPresenterSmoke
             instance.ThrusterHardpoints = new ThrusterHardpoint[0];
             instance.WeaponHardpoints = new WeaponHardpoint[0];
             instance.ArticulationPoints = new ArticulationPoint[0];
-            instance.MapIcon = NewIcon(body.transform);
+            instance.MapIcon = NewIcon(body.transform, flatIcons);
             var zoneRenderer = new GameObject("Smoke Zone Renderer").AddComponent<ZoneRenderer>();
             zoneRenderer.Settings = settings;
             zoneRenderer.MapGravityMaterials = new Material[0];
@@ -137,7 +162,7 @@ public static class MapPresenterSmoke
         var otherInstance = Bound(other);
         var sunRoot = new GameObject("Smoke Sun").transform;
         sunRoot.SetParent(roots);
-        map.RegisterPlanet(sunKey, NewIcon(sunRoot), sunRoot);
+        map.RegisterPlanet(sunKey, NewIcon(sunRoot, flatIcons), sunRoot);
         var belt = new float4[Asteroids];
         map.RegisterBelt(beltKey, belt);
         zone.EvaluateBelt(beltKey, belt, DrawAhead.Time(zone, 0));
@@ -146,12 +171,13 @@ public static class MapPresenterSmoke
         map.SetFade(other, 1f);
         map.SetMinimapScale(2f);
         map.Draw(zone, 0);
-        Checks(zone, map, ship, other, shipInstance, otherInstance, sunKey, beltKey, belt, roots);
+        return new Fixture { Zone = zone, Map = map, Ship = ship, Other = other, ShipInstance = shipInstance,
+            OtherInstance = otherInstance, SunKey = sunKey, BeltKey = beltKey, Belt = belt, Roots = roots };
     }
 
-    private static void Checks(Zone zone, MapPresenter map, Ship ship, Ship other, EntityInstance shipInstance,
-        EntityInstance otherInstance, CultRecordKey sunKey, CultRecordKey beltKey, float4[] belt, Transform roots)
+    private static void Checks(Fixture f)
     {
+        var (zone, map, ship, other, sunKey, beltKey, belt, roots) = (f.Zone, f.Map, f.Ship, f.Other, f.SunKey, f.BeltKey, f.Belt, f.Roots);
         // Deep planet: the sun's field is deeper than 2000 below the plane, and its icon sits on the map plane inside both
         // map cameras' clip range (minimap at y 10, map screen at y 1; near 0.3, far 1000, looking down).
         var well = zone.GetHeight(DrawAhead.Orbit(zone, zone.PlanetInstances[sunKey].BodyData.Orbit.Key, 0), 0);
@@ -160,8 +186,22 @@ public static class MapPresenterSmoke
         var y = sunIcon.GetPosition().y;
         Require(y < 1f - .3f && y > 10f - 1000f && Mathf.Abs(y - MapPresenter.PlaneY) < .5f, $"The sun's icon is drawn at y {y}, not on the map plane.");
 
-        // Tilted hull: the icon turns by yaw 40 about up, times its authored rotation (identity here), with no roll or pitch.
+        // Axes: each icon sits at its sim position's planar x and z (a ship at (300, 200), the other at (-300, 100), the sun at
+        // its orbit), never swapped, and never at the 3D height (the ships ride at y 50 and -90, the sun's well is below -2000).
+        var shipAt = DrawAhead.Position(ship, 0);
+        Require(Mathf.Abs(shipAt.x - 300f) < 1e-3f && Mathf.Abs(shipAt.z - 200f) < 1e-3f, $"The ship's sim position is ({shipAt.x}, {shipAt.z}), not (300, 200).");
+        var sunAt = DrawAhead.Orbit(zone, zone.PlanetInstances[sunKey].BodyData.Orbit.Key, 0);
         Require(map.TryDrawn(ship, out var shipIcon, out _), "The ship registered no icon.");
+        Require(Mathf.Abs(shipIcon.GetPosition().x - 300f) < 1e-3f && Mathf.Abs(shipIcon.GetPosition().z - 200f) < 1e-3f,
+            $"The ship's icon is at ({shipIcon.GetPosition().x}, {shipIcon.GetPosition().z}), not its sim position (300, 200).");
+        Require(map.TryDrawn(other, out var otherIcon, out _), "The second ship registered no icon.");
+        Require(Mathf.Abs(otherIcon.GetPosition().x + 300f) < 1e-3f && Mathf.Abs(otherIcon.GetPosition().z - 100f) < 1e-3f,
+            $"The second ship's icon is at ({otherIcon.GetPosition().x}, {otherIcon.GetPosition().z}), not (-300, 100).");
+        Require(Mathf.Abs(sunIcon.GetPosition().x - sunAt.x) < 1e-3f && Mathf.Abs(sunIcon.GetPosition().z - sunAt.y) < 1e-3f,
+            $"The sun's icon is at ({sunIcon.GetPosition().x}, {sunIcon.GetPosition().z}), not its orbit ({sunAt.x}, {sunAt.y}).");
+        Require(Mathf.Abs(otherIcon.GetPosition().y - (MapPresenter.PlaneY + MapPresenter.ShipOffset)) < 1e-4f, "The second ship's icon took the 3D height.");
+
+        // Tilted hull: the icon turns by the heading projected onto the map plane (40) times its authored rotation (identity here), with no roll or pitch.
         var want = Quaternion.Euler(0, 40, 0);
         Require(Quaternion.Angle(shipIcon.rotation, want) < .1f, $"The icon is rotated {shipIcon.rotation.eulerAngles}, not yaw 40 alone.");
         Require(Vector3.Angle(shipIcon.rotation * Vector3.up, Vector3.up) < .1f, "The icon's up axis tilted with the hull.");
