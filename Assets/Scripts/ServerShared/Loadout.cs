@@ -6,9 +6,10 @@ using GameCult.Caching;
 using MessagePack;
 using CultMath;
 
-// A ship preset (a variant): item designs only, the hull's design, and per hull cell a design and its rotation. A design
-// names no manufacturer; which product builds a slot is a fact of the galaxy the preset is materialized in, which keeps
-// a preset portable across galaxies. Authored catalog data: written in CultCache Studio or by the editor capture
+// A ship preset (a variant): the hull's design, and per hull cell a design and its rotation. A slot names a design and
+// may name a product of it; a design-only slot is open on purpose, and whoever materializes the preset chooses its
+// product from the galaxy it is built in (ruling loadout-product-optional-context-chooses), which keeps a preset
+// portable across galaxies. A preset that needs a brand names it. Authored catalog data: written in CultCache Studio or by the editor capture
 // command, read at runtime.
 [CultDocument("aetheria.loadout", "1"), MessagePackObject]
 public class Loadout
@@ -17,6 +18,7 @@ public class Loadout
     [Key(1)] public CultRecordRef<HullData> Hull;
     [Key(2)] public List<LoadoutSlot> Slots = new List<LoadoutSlot>();
     [Key(3)] public int[][] WeaponGroups;          // indices into Slots
+    [Key(4)] public CultRecordRef<FactionProductData> HullProduct; // unset: the hull's design alone, chosen at materialization
 }
 
 [MessagePackObject]
@@ -25,14 +27,15 @@ public class LoadoutSlot
     [Key(0)] public int2 Position;                 // hull cell passed to Entity.TryEquip(item, int2)
     [Key(1)] public ItemRotation Rotation;
     [Key(2)] public CultRecordRef<EquippableItemData> Design;
+    [Key(3)] public CultRecordRef<FactionProductData> Product; // unset: design-only, chosen at materialization
 }
 
 // The owner of loadouts: capture from a live ship, the only writer, and the only builder of an entity from a loadout.
 public static class Loadouts
 {
     // Records the hull design and one slot per equipped item (gear, then cargo bays, then docking bays) with its cell,
-    // rotation and design. Entity.Equipment also holds the hull's own unit; that is Hull, not a slot. Nothing about the
-    // units themselves: no product, quality, ingredients, cargo or state.
+    // rotation, design and product (unset for an unbranded unit). Entity.Equipment also holds the hull's own unit; that is
+    // Hull, not a slot. Nothing else about the units: no quality, ingredients, cargo or state.
     public static Loadout Capture(ItemManager itemManager, Entity entity, string name)
     {
         var cache = itemManager.ItemData;
@@ -46,17 +49,22 @@ public static class Loadouts
         {
             Name = name,
             Hull = cache.RefOf((HullData) itemManager.GetData(entity.Hull)),
+            HullProduct = ProductRef(itemManager, entity.Hull),
             Slots = items.Select(item => new LoadoutSlot
             {
                 Position = item.Position,
                 Rotation = item.EquippableItem.Rotation,
-                Design = cache.RefOf(itemManager.GetData(item.EquippableItem))
+                Design = cache.RefOf(itemManager.GetData(item.EquippableItem)),
+                Product = ProductRef(itemManager, item.EquippableItem)
             }).ToList(),
             WeaponGroups = entity.WeaponGroups
                 .Select(group => group.items.Select(item => items.IndexOf(item)).ToArray())
                 .ToArray()
         };
     }
+
+    private static CultRecordRef<FactionProductData> ProductRef(ItemManager itemManager, CraftedItemInstance unit) =>
+        itemManager.Brand(unit).Product is { } product ? itemManager.ItemData.RefOf(product) : default;
 
     // A preset's key derives from its name, so capturing the same name again addresses the same record.
     public static CultRecordKey KeyOf(string name) => new CultRecordKey("loadout:" + name);
@@ -95,24 +103,23 @@ public static class Loadouts
     // All-or-nothing: returns an entity only when every design resolved and fitted, the loadout has at most
     // WeaponGroupCount weapon groups, and every group index names a weapon slot. Every failure is listed; on any failure
     // nothing is returned and the zone and cache are unchanged, but a failed fit has already drawn from
-    // itemManager.Random. How each design is built is Resolve's rule. A game spawner is to pass
-    // LoadoutGenerator.IsAvailable as isAvailable, with no fallback to any manufacturer; RunStart does. The hull's type
+    // itemManager.Random. How each design is built is Resolve's rule. A design-only slot is chosen by choose; a game
+    // spawner is to pass LoadoutGenerator.ChooseProduct, with no fallback to any manufacturer; RunStart does. The hull's type
     // picks the entity: a ship hull builds a Ship, a turret hull an OrbitalEntity with no orbit, which stays where it is
     // put; a station hull is refused. The entity always gets exactly WeaponGroupCount groups; a loadout with fewer is
     // padded with empty groups. A failed materialization leaves any minted lots in the live ledger; they are not roots,
     // so the next commit drops them.
     public static Entity Materialize(ItemManager itemManager, Zone liveZone, Loadout loadout,
-        Predicate<FactionProductData> isAvailable, List<string> failures)
+        Func<CraftedItemData, FactionProductData> choose, List<string> failures)
     {
         var cache = itemManager.ItemData;
-        var products = ProductsInKeyOrder(cache);
         var reported = failures.Count;
 
-        var hullBuild = Resolve(itemManager, products, loadout.Hull, isAvailable, "hull", failures);
+        var hullBuild = Resolve(itemManager, loadout.Hull, loadout.HullProduct, choose, "hull", failures);
         var hullData = cache.Get(loadout.Hull);
         if (hullData is { HullType: HullType.Station })
             failures.Add($"hull: {hullData.Name} is a station hull; a preset builds a ship or a turret");
-        var slotBuilds = loadout.Slots.Select(slot => Resolve(itemManager, products, slot.Design, isAvailable, Cell(slot), failures)).ToArray();
+        var slotBuilds = loadout.Slots.Select(slot => Resolve(itemManager, slot.Design, slot.Product, choose, Cell(slot), failures)).ToArray();
         var groups = loadout.WeaponGroups ?? new int[0][];
         var groupCount = itemManager.GameplaySettings.WeaponGroupCount;
         if (groups.Length > groupCount) failures.Add($"weapon groups: {groups.Length} groups, at most {groupCount}");
@@ -124,7 +131,7 @@ public static class Loadouts
         }
         if (failures.Count > reported) return null;
 
-        var hull = hullBuild();
+        var hull = (EquippableItem) hullBuild();
         var settings = itemManager.GameplaySettings.DefaultEntitySettings;
         Entity entity = hullData.HullType == HullType.Turret
             ? new OrbitalEntity(itemManager, liveZone, hull, default, settings)
@@ -133,7 +140,7 @@ public static class Loadouts
         for (var i = 0; i < loadout.Slots.Count; i++)
         {
             var slot = loadout.Slots[i];
-            var unit = slotBuilds[i]();
+            var unit = (EquippableItem) slotBuilds[i]();
             unit.Rotation = slot.Rotation;
             if (!entity.TryEquip(unit, slot.Position))
             {
@@ -159,39 +166,51 @@ public static class Loadouts
     }
 
     // How one design is built, or null with the failure listed; nothing is minted until the returned builder runs. A
-    // design is built by its first available product in record-key order. A design with no product at all is outside
-    // the economy (docs/scenarios-cut.md, Q3: generation, stock and sale all go through products) and is built
-    // unbranded, with no maker, at UnbrandedQuality. A design whose products are all unavailable is not built.
-    public static Func<EquippableItem> Resolve<T>(ItemManager itemManager, CultRecordRef<T> design,
-        Predicate<FactionProductData> isAvailable, string where, List<string> failures) where T : EquippableItemData =>
-        Resolve(itemManager, ProductsInKeyOrder(itemManager.ItemData), design, isAvailable, where, failures);
-
-    private static Func<EquippableItem> Resolve<T>(ItemManager itemManager, FactionProductData[] products,
-        CultRecordRef<T> design, Predicate<FactionProductData> isAvailable, string where, List<string> failures)
-        where T : EquippableItemData
+    // pinned product is built as named, whatever choose says; it must be a product of the design. A design with no
+    // product at all is outside the economy (docs/scenarios-cut.md, Q3: generation, stock and sale all go through
+    // products) and is built unbranded, with no maker, at UnbrandedQuality. Otherwise choose names the product, and
+    // null (nothing available) or a product of another design is a failure.
+    public static Func<CraftedItemInstance> Resolve<T>(ItemManager itemManager, CultRecordRef<T> design,
+        CultRecordRef<FactionProductData> product, Func<CraftedItemData, FactionProductData> choose, string where,
+        List<string> failures) where T : CraftedItemData
     {
-        var data = itemManager.ItemData.Get(design);
+        var cache = itemManager.ItemData;
+        var data = cache.Get(design);
         if (data == null)
         {
             failures.Add($"{where}: design {design.Key} is not in the catalog");
             return null;
         }
 
-        var made = products.Where(p => p.Design.Key.Equals(design.Key)).ToArray();
-        if (made.Length == 0)
-            return () => (EquippableItem) itemManager.CreateInstance(itemManager.CreateLot(data, default, UnbrandedQuality));
-
-        var product = made.FirstOrDefault(p => isAvailable(p));
-        if (product == null)
+        FactionProductData made;
+        if (product.IsSet())
         {
-            failures.Add($"{where}: no available product of {data.Name}");
+            made = cache.Get(product);
+            if (made == null)
+            {
+                failures.Add($"{where}: product {product.Key} is not in the catalog");
+                return null;
+            }
+        }
+        else
+        {
+            if (!cache.GetAll<FactionProductData>().Any(p => p.Design.Key.Equals(design.Key)))
+                return () => itemManager.CreateInstance(itemManager.CreateLot(data, default, UnbrandedQuality));
+            made = choose(data);
+            if (made == null)
+            {
+                failures.Add($"{where}: no available product of {data.Name}");
+                return null;
+            }
+        }
+
+        if (!made.Design.Key.Equals(design.Key))
+        {
+            failures.Add($"{where}: product {made.Name} is not a product of {data.Name}");
             return null;
         }
-        return () => (EquippableItem) itemManager.CreateInstance(product);
+        return () => itemManager.CreateInstance(made);
     }
-
-    internal static FactionProductData[] ProductsInKeyOrder(CultCache cache) =>
-        cache.GetAll<FactionProductData>().OrderBy(p => cache.RefOf(p).Key.Value, StringComparer.Ordinal).ToArray();
 
     private static string Cell(LoadoutSlot slot) => $"slot {slot.Position.x},{slot.Position.y}";
 }
