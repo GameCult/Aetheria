@@ -29,8 +29,9 @@ public sealed class FireControlTests : IDisposable
         Directory.Delete(_root, true);
     }
 
-    private static GameplaySettings TestSettings() => new GameplaySettings
+    private static GameplaySettings TestSettings(float shipLayerHeight = 3f) => new GameplaySettings
     {
+        ShipLayerHeight = shipLayerHeight,
         DefaultEntitySettings = new EntitySettings(),
         Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
         QualityPriceModifier = new ExponentialLerp(),
@@ -45,13 +46,13 @@ public sealed class FireControlTests : IDisposable
 
     // `well` digs the zone one well at the origin (WellFixture), so heights differ across the zone.
     private (ItemManager items, Ship ship, EquippedItem[] weapons) BuildShipWithHardpoints(
-        bool well, (ItemRotation rotation, float firingArc)[] hardpoints, float gridOffset = 0f)
+        bool well, (ItemRotation rotation, float firingArc)[] hardpoints, float shipLayerHeight = 0f)
     {
         var hullShape = new Shape(Math.Max(hardpoints.Length, 3), 3);
         foreach (var cell in hullShape.AllCoordinates) hullShape[cell] = true;
         // Mass defaults to 0 (ItemData.cs:285), which zeroes ThermalMass (Entity.cs MapEntity) and NaNs
         // UpdateTemperature -- author a real mass so the entity's own temperature stays a real number.
-        var hullData = new HullData { Name = "TestHull", HullType = HullType.Ship, Shape = hullShape, Durability = 1, Mass = 1000, GridOffset = gridOffset };
+        var hullData = new HullData { Name = "TestHull", HullType = HullType.Ship, Shape = hullShape, Durability = 1, Mass = 1000 };
         for (var i = 0; i < hardpoints.Length; i++)
             hullData.Hardpoints.Add(new HardpointData
             {
@@ -87,7 +88,7 @@ public sealed class FireControlTests : IDisposable
         ledger.Lots[1] = new Lot { Origin = new Attributed(), Quality = 1 }; // hull
         for (var i = 0; i < hardpoints.Length; i++)
             ledger.Lots[2 + i] = new Lot { Origin = new Attributed(), Quality = 1 }; // guns
-        var items = new ItemManager(_openCache, ledger, TestSettings(), _ => { });
+        var items = new ItemManager(_openCache, ledger, TestSettings(shipLayerHeight), _ => { });
         var planets = new PlanetSettings();
         var pack = new ZonePack();
         if (well) WellFixture.Dig(_openCache, pack, planets, 300f, 100f);
@@ -386,7 +387,7 @@ public sealed class FireControlTests : IDisposable
     [Fact]
     public void ADrawnShipRidesTheFieldAtItsDrawnPosition()
     {
-        var (items, ship, _) = BuildShipWithHardpoints(true, new[] { (ItemRotation.None, 0f) }, gridOffset: 2.5f);
+        var (items, ship, _) = BuildShipWithHardpoints(true, new[] { (ItemRotation.None, 0f) }, shipLayerHeight: 2.5f);
         var zone = ship.Zone;
         ship.Position = float3(200, 0, 0);
         zone.Update(1f);

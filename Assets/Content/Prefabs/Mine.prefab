@@ -146,6 +146,5 @@ MonoBehaviour:
   ActiveEmission: 100
   ArmedEmission: 1000
   RotationSpeed: 1
-  GridOffset: 0
   HitEffect: {fileID: 1121192042590650, guid: e1b08032bec16ba4eb1ae23cbd572664, type: 3}
   HitEffectScale: 10

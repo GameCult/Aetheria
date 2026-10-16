@@ -17,21 +17,22 @@ public class MineInstance : MonoBehaviour
     public float ActiveEmission = 100f;
     public float ArmedEmission = 1000f;
     public float RotationSpeed = 1f;
-    public float GridOffset;
     // The blast's particles; the effect prefab destroys itself when its particle system stops.
     public GameObject HitEffect;
     public float HitEffectScale = 10f;
 
     private Zone _zone;
+    private GameplaySettings _settings;
     private Mine _mine;
     private Material _material;
     private float _timeOffset;
     private float _pulse;
     private float _emission;
 
-    public void Bind(Zone zone, Mine mine)
+    public void Bind(Zone zone, Mine mine, GameplaySettings settings)
     {
         _zone = zone;
+        _settings = settings;
         _mine = mine;
         _material = MeshRenderer.materials[EmissionSubmesh];
         _timeOffset = Random.value * 100;
@@ -57,7 +58,7 @@ public class MineInstance : MonoBehaviour
     {
         var lead = ActionGameManager.Clock.Lead;
         var p = DrawAhead.Position(_mine.Body, lead);
-        transform.position = new Vector3(p.x, DrawAhead.Height(_zone, p, lead) + GridOffset, p.y);
+        transform.position = new Vector3(p.x, DrawAhead.FloaterHeight(_zone, _settings, p, lead), p.y);
     }
 
     // The mine left Zone.Mines, which only its blast does: show it where it was drawn last.

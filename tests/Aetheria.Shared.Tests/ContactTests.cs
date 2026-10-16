@@ -14,7 +14,8 @@ using int2 = CultMath.int2;
 
 // Hull contact in the sim (aetheria-release cut sim-contact; rulings unity-presents-only-r3 and
 // ship-bounce-restitution-setting): Zone.Update steps Contacts, which applies the restitution impulse along the
-// normal of two touching, closing hull discs and publishes the contact. Every test
+// normal of two touching, closing ship discs and publishes the contact. Contact is ship on ship: orbital entities
+// sit above the ship plane and take no part in it (ruling aetheria-gravity:orbitals-above-floaters-below). Every test
 // drives Zone.Update, the path the game takes. SchematicCellSize is 2, so a solid 5x5 hull has a radius of
 // 2.5 * sqrt(2) * 2 = 7.07 and two such hulls ten apart touch.
 public sealed class ContactTests : IDisposable
@@ -70,6 +71,17 @@ public sealed class ContactTests : IDisposable
             return ship;
         }
 
+        // A station or turret: an orbital entity with no orbit, so it stays where it is put.
+        public OrbitalEntity AddOrbital(string hull, float3 at, float2 velocity)
+        {
+            var hullRef = Items.ItemData.RefOf<ItemData>(Items.ItemData.GetByName<HullData>(hull));
+            var orbital = new OrbitalEntity(Items, Zone, new EquippableItem { Data = hullRef, Durability = 1000000, Lot = Lot++ }, default, new EntitySettings());
+            Zone.Admit(orbital, piloted: false);
+            orbital.Position = at;
+            orbital.Velocity = velocity;
+            return orbital;
+        }
+
         public void Step() => Zone.Update(.01f);
     }
 
@@ -86,9 +98,9 @@ public sealed class ContactTests : IDisposable
         var cache = AetheriaStores.Open(Path.Combine(_root, Guid.NewGuid().ToString("N") + ".cc"), catalogWritable: true);
         _caches.Add(cache);
         cache.Upsert(new VerseGrammar { Revision = 1 });
-        HullData Hull(string name, Shape shape, float mass) => new HullData
+        HullData Hull(string name, Shape shape, float mass, HullType type = HullType.Ship) => new HullData
         {
-            Name = name, HullType = HullType.Ship, Shape = shape, Durability = 1000000, Mass = mass, Armor = 0,
+            Name = name, HullType = type, Shape = shape, Durability = 1000000, Mass = mass, Armor = 0,
             Hardpoints = { new HardpointData { Type = HardpointType.Sensors, Position = new int2(0, 0), Shape = new Shape() } }
         };
         cache.Upsert(Hull("Solid", Solid(5, 5), 1000));
@@ -97,6 +109,9 @@ public sealed class ContactTests : IDisposable
         cache.Upsert(Hull("Mid", Solid(5, 5), 3000));
         cache.Upsert(Hull("Ell", Ell(), 1000));
         cache.Upsert(Hull("Longinus", ShippedLonginus(), 1000));
+        // The orbital hulls carry their real types, so a filter by runtime kind and one by hull type are told apart.
+        cache.Upsert(Hull("Station", Solid(5, 5), 1000000, HullType.Station));
+        cache.Upsert(Hull("Turret", Solid(5, 5), 1000, HullType.Turret));
         cache.FlushAsync().Wait();
 
         var ledger = new ProvenanceLedger();
@@ -339,21 +354,21 @@ public sealed class ContactTests : IDisposable
         Assert.Empty(lab.Events);
     }
 
-    // A ship against a 1000x heavier body: the heavy body takes (1 + e) m / (m + M) of the ship's closing speed
+    // A ship against a 1000x heavier ship: the heavy ship takes (1 + e) m / (m + M) of the ship's closing speed
     // and the ship rebounds with the rest of its momentum.
     [Fact]
-    public void AShipAgainstAStationRebounds()
+    public void AShipAgainstAHeavyHullRebounds()
     {
         var lab = Build(.5f);
         var ship = lab.Add("Solid", float3(0, 0, 0), float2(10, 0));
-        var station = lab.Add("Heavy", float3(10, 0, 0), float2(0, 0));
+        var heavy = lab.Add("Heavy", float3(10, 0, 0), float2(0, 0));
         Assert.Equal(1000f, ship.Mass);
-        Assert.Equal(1000000f, station.Mass);
+        Assert.Equal(1000000f, heavy.Mass);
         lab.Step();
 
-        var n = NormalOf(ship, station);
+        var n = NormalOf(ship, heavy);
         var closing = 10f * n.x;
-        Assert.Equal(1.5f * closing * 1000f / 1001000f, dot(n, station.Velocity), 4);
+        Assert.Equal(1.5f * closing * 1000f / 1001000f, dot(n, heavy.Velocity), 4);
         Assert.Equal(closing - 1.5f * closing * 1000000f / 1001000f, dot(n, ship.Velocity), 3);
     }
 
@@ -369,6 +384,41 @@ public sealed class ContactTests : IDisposable
         Assert.Empty(lab.Events);
         Assert.Equal(10f, a.Velocity.x, 4);
         Assert.Equal(-10f, b.Velocity.x, 4);
+    }
+
+    // Orbital entities live above the ship plane (ruling orbitals-above-floaters-below): a ship closing on a station
+    // and on a turret flies through both, and nothing is published.
+    [Fact]
+    public void AShipFliesThroughAStationAndATurret()
+    {
+        var lab = Build();
+        var ship = lab.Add("Solid", float3(0, 0, 0), float2(10, 0));
+        var station = lab.AddOrbital("Station", float3(10, 0, 0), float2(0, 0));
+        // Behind the ship and faster than it, so it closes on the ship as the station does.
+        var turret = lab.AddOrbital("Turret", float3(-10, 0, 0), float2(30, 0));
+        lab.Step();
+        Assert.Empty(lab.Events);
+        Assert.Equal(float2(10, 0), ship.Velocity);
+        Assert.Equal(float2(0, 0), station.Velocity);
+        Assert.Equal(float2(30, 0), turret.Velocity);
+    }
+
+    // An orbital overlapping a colliding pair changes nothing about the pair (ruling ship-bounce-restitution-setting):
+    // one contact, between the two ships, with the restitution split of the pair alone.
+    [Fact]
+    public void TwoShipsStillBounceBesideAnOrbital()
+    {
+        var lab = Build(.5f);
+        var a = lab.Add("Solid", float3(0, 0, 0), float2(10, 0));
+        var b = lab.Add("Solid", float3(10, 0, 0), float2(-10, 0));
+        lab.AddOrbital("Station", float3(5, 0, 0), float2(0, 0));
+        lab.Step();
+
+        var contact = Assert.Single(lab.Events);
+        Assert.Contains(a, new[] { contact.A, contact.B });
+        Assert.Contains(b, new[] { contact.A, contact.B });
+        var n = NormalOf(a, b);
+        Assert.Equal(.5f * 20f * n.x, dot(n, b.Velocity - a.Velocity), 3);
     }
 
     // Pairs resolve one after another in list order, so a body touching two others in one tick can leave the pile

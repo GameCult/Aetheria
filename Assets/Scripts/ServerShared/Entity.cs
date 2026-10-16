@@ -1974,9 +1974,13 @@ public abstract class Entity
         Manoeuvre.Observe(Acceleration, delta, ItemManager.GameplaySettings.SolutionWindow);
     }
 
-    // Where an unparented entity sits on the field at a planar point: the zone's height there plus the hull's grid offset.
-    // The step rides at its own time and xz, the presenter at the drawn time and its drawn xz (DrawAhead).
-    public float RideHeight(float2 planar, double time) => Zone.GetHeight(planar, time) + (ItemManager.GetData(Hull) as HullData).GridOffset;
+    // The height above the field of the layer this kind of entity rides on (GameplaySettings): ships the ship plane,
+    // orbital entities the orbital layer above it.
+    public abstract float LayerHeight { get; }
+
+    // Where an unparented entity sits on the field at a planar point: the zone's height there plus the layer this kind of
+    // entity rides on. The step rides at its own time and xz, the presenter at the drawn time and its drawn xz (DrawAhead).
+    public float RideHeight(float2 planar, double time) => Zone.GetHeight(planar, time) + LayerHeight;
 
     public float RideHeight(float2 planar) => RideHeight(planar, Zone.ExactTime);
 

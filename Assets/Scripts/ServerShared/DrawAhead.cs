@@ -26,6 +26,9 @@ public static class DrawAhead
     // The field's height at a point at the drawn time, its wells where their rails put them at T.
     public static float Height(Zone zone, float2 planar, float lead) => zone.GetHeight(planar, Time(zone, lead));
 
+    // The drawn height of a floater (loot, mines): the field at the drawn time plus the floater layer.
+    public static float FloaterHeight(Zone zone, GameplaySettings settings, float2 planar, float lead) => Height(zone, planar, lead) + settings.FloaterLayerHeight;
+
     // A ship in a wormhole animation has its pose scripted by the step, not integrated from Velocity and TurnRate,
     // so it is drawn where the step put it: extrapolating a scripted pose draws a streak that resets every step.
     // A child is drawn where its parent is drawn, as the step copies the parent's pose onto it.

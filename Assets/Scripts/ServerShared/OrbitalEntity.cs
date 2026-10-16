@@ -23,6 +23,8 @@ public class OrbitalEntity : Entity
         OrbitData = orbit;
     }
 
+    public override float LayerHeight => ItemManager.GameplaySettings.OrbitalLayerHeight;
+
     public override void Update(float delta)
     {
         if (OrbitData.IsSet())

@@ -167,5 +167,5 @@ public class Pickup : Behavior, IAlwaysUpdatedBehavior
     }
 
     private void Publish(GrabPhase phase, FloatingItem item, float duration) =>
-        Entity.Capabilities.PublishGrab(new GrabEvent(item.Id, phase, float3(item.Body.Position.x, Entity.Position.y, item.Body.Position.y), duration));
+        Entity.Capabilities.PublishGrab(new GrabEvent(item.Id, phase, float3(item.Body.Position.x, DrawAhead.FloaterHeight(Entity.Zone, Entity.ItemManager.GameplaySettings, item.Body.Position, 0), item.Body.Position.y), duration));
 }

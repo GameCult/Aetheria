@@ -90,6 +90,8 @@ public static class FloatingItemsDrawnSmoke
     {
         var settings = AssetDatabase.LoadAssetAtPath<GameSettings>("Assets/Resources/Settings.asset")?.GameplaySettings
             ?? throw new InvalidOperationException("No Settings.asset.");
+        // A floater rides its own layer: a nonzero one (never saved back to the asset), so a presenter that drops it fails.
+        settings.FloaterLayerHeight = -1.5f;
 
         // The wiring: the scene's ZoneRenderer names an ItemPickup prefab in each of the four fields, and none of those
         // prefabs keeps a script that no longer exists.
@@ -159,7 +161,7 @@ public static class FloatingItemsDrawnSmoke
         {
             var lead = ActionGameManager.Clock.Lead;
             var at = DrawAhead.Position(floating.Body, lead);
-            var want = new Vector3(at.x, DrawAhead.Height(zone, at, lead), at.y);
+            var want = new Vector3(at.x, DrawAhead.FloaterHeight(zone, settings, at, lead), at.y);
             Require(Vector3.Distance(pickup.transform.position, want) < 1e-3f,
                 $"{what}: the pickup is at {pickup.transform.position}, the body at {want}.");
         }

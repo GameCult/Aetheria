@@ -519,8 +519,7 @@ public class HullData : EquippableItemData
     [Inspectable, JsonProperty("hullType"), Key(25)]
     public HullType HullType;
 
-    [Inspectable, JsonProperty("gridOffset"), Key(26)]
-    public float GridOffset;
+    // Key(26) retired 2026-10-16 (per-hull GridOffset; the layer is the kind's, GameplaySettings). Do not reuse.
 
     [Inspectable, JsonProperty("armor"), Key(27)]
     public float Armor;
