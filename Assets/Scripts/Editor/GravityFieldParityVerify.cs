@@ -120,10 +120,11 @@ namespace Aetheria.EditorTools
             CheckGradient(zone, orbits.Select(At).ToArray());
         }
 
-        // A sun (14152 at (-130, 85)), a planet (273.9 at (610, -240)), a planetoid (29.2 at (670, -270)) and a body of
-        // mass 0, whose well has no strength (a legal body; its curves give c = 0 and R = 0), at (1700, 300): parentless,
-        // fixed, off both axes and asymmetric, so the zone's wells sit where the verify says before any Update and a
-        // mirrored or swapped axis cannot agree with the sim.
+        // A sun (14152 at (-130, 85)), its planet (273.9, placed at (610, -240) at the pack's time), the planet's planetoid
+        // (29.2, placed at (670, -270)) and a body of mass 0, whose well has no strength (a legal body; its curves give
+        // c = 0 and R = 0), at (1700, 300): a family, so the band terms are drawn (the planet's and the sun's cusps and
+        // fades), off both axes and asymmetric, so the zone's wells sit where the verify says before any Update and a
+        // mirrored or swapped axis cannot agree with the sim. The sun and the zero-mass body are fixed roots.
         internal static Zone BuildZone(GameSettings settings, string work, out Orbit[] orbits, float radius = 4182f)
         {
             var cache = AetheriaStores.Open(Path.Combine(work, "catalog.cc"), Path.Combine(work, "run.cc"), catalogWritable: true);
@@ -132,11 +133,20 @@ namespace Aetheria.EditorTools
             var items = new ItemManager(cache, new ProvenanceLedger(), settings.GameplaySettings, _ => { });
             var positions = new[] { new Vector2(-130f, 85f), new Vector2(610f, -240f), new Vector2(670f, -270f), new Vector2(1700f, 300f) };
             var masses = new[] { 14152f, 273.9f, 29.2f, 0f };
+            var parents = new[] { -1, 0, 1, -1 };
             var keys = new CultRecordKey[positions.Length];
             var pack = new ZonePack { Radius = radius };
             for (var i = 0; i < positions.Length; i++)
             {
-                var orbit = keys[i] = cache.Upsert(new OrbitData { FixedPosition = new float2(positions[i].x, positions[i].y) }).Key;
+                var data = new OrbitData { FixedPosition = new float2(positions[i].x, positions[i].y) };
+                if (parents[i] >= 0)
+                {
+                    var offset = positions[i] - positions[parents[i]];
+                    data.Parent = new CultRecordRef<OrbitData>(keys[parents[i]]);
+                    data.Distance = offset.magnitude;
+                    data.Phase = Mathf.Atan2(offset.y, offset.x) / (2f * Mathf.PI);
+                }
+                var orbit = keys[i] = cache.Upsert(data).Key;
                 var body = cache.Upsert(new PlanetData
                     { Name = "Body " + i, Orbit = new CultRecordRef<OrbitData>(orbit), Mass = masses[i] }).Key;
                 pack.Orbits.Add(new CultRecordRef<OrbitData>(orbit));

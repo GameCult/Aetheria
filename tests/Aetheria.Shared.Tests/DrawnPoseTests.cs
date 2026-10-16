@@ -16,7 +16,8 @@ using float3 = CultMath.float3;
 // Every drawn pose is evaluated at one drawn time, T = Zone.ExactTime + Clock.Lead (DrawAhead.Time). The operator's report:
 // coasting beside a planet and looking at it, the planet jumped back and forth every frame, because the planet was drawn at
 // the last step's orbit while the ship was drawn a lead ahead of its last step. Each rail below is spelled here from the
-// field law outside the core (a = c / d, so T = 2 pi d / sqrt(c)), never by calling the production rail; the zone is built
+// field law inside a node's outermost child (the node pulls as its body alone: a = c d / (d^2 + eps^2), T = 2 pi sqrt(d / a)),
+// never by calling the production rail; the zone is built
 // by the production constructor and stepped by Zone.Update, and the clock is the production SimClock.
 public sealed class DrawnPoseTests : IDisposable
 {
@@ -126,7 +127,7 @@ public sealed class DrawnPoseTests : IDisposable
 
     private static float2 Around(float2 center, double time, float distance, float phase, float strength)
     {
-        var period = 2 * PI * distance / sqrt(strength);
+        var period = 2 * PI * sqrt(distance / (strength * distance / (distance * distance + 4f)));
         var wrapped = (float) frac(time / period);
         return center + OrbitData.Evaluate(frac(wrapped + phase)) * distance;
     }
@@ -135,13 +136,14 @@ public sealed class DrawnPoseTests : IDisposable
     private static float2 MoonAt(double time) => Around(PlanetAt(time), time, MoonDistance, MoonPhase, PlanetMass);
     private static float2 StationAt(double time) => Around(PlanetAt(time), time, StationDistance, StationPhase, PlanetMass);
 
-    // The field at a point at a time, with each well where its rail puts it then.
+    // The field at a point at a time: the zone's terms (WellTree owns which exist), each at the position this test spells
+    // for its node's rail at that time.
     private static float FieldAt(World w, float2 point, double time)
     {
-        var wells = new (float2 At, float Strength)[] { (SunCentre, SunMass), (PlanetAt(time), PlanetMass), (MoonAt(time), MoonMass) };
+        float2 At(CultRecordKey node) => node.Equals(w.PlanetOrbit) ? PlanetAt(time) : node.Equals(w.MoonOrbit) ? MoonAt(time) : SunCentre;
         var sum = 0f;
-        foreach (var (at, strength) in wells)
-            sum += GravityField.Potential(strength, 2f, length(point - at)) - GravityField.Potential(strength, 2f, w.Zone.Pack.Radius);
+        foreach (var term in w.Zone.Wells.Terms)
+            sum += term.Strength * GravityField.Potential(term.Softening, term.Inner, term.Outer, length(point - At(term.Node))) - term.Reference;
         return sum / w.HeightExaggeration;
     }
 
@@ -342,34 +344,27 @@ public sealed class DrawnPoseTests : IDisposable
         }
     }
 
-    // The well the shader takes is its body's rail at the drawn time: the lowering copies DrawAhead.Well and decides
-    // nothing, so the drawn well and the drawn planet share one pose at a non-zero lead, and the strength, core and
-    // reference are the field law's (spelled here from the masses, the core 2 and the zone's edge), not the step's.
+    // The term the shader takes sits on its node's rail at the drawn time: the lowering copies DrawAhead.Orbit of the term's
+    // node and decides nothing, so a drawn term and the drawn planet share one pose at a non-zero lead.
     [Fact]
-    public void AWellIsLoweredAtTheDrawnTime()
+    public void ATermIsLoweredAtItsNodesDrawnRail()
     {
         var w = Build();
         Step(w, 1f / 60f, 803);
+        Assert.Contains(w.Zone.Wells.Terms, t => t.Node.Equals(w.PlanetOrbit));
+        Assert.Contains(w.Zone.Wells.Terms, t => t.Node.Equals(w.MoonOrbit));
         foreach (var lead in new[] { 0f, .004f, .0166f })
         {
             var time = w.Zone.ExactTime + lead;
-            foreach (var body in w.Zone.PlanetInstances.Values)
+            foreach (var term in w.Zone.Wells.Terms)
             {
-                var key = body.BodyData.Orbit.Key;
-                var (at, strength) = key.Equals(w.PlanetOrbit) ? (PlanetAt(time), PlanetMass)
-                    : key.Equals(w.MoonOrbit) ? (MoonAt(time), MoonMass)
-                    : (SunCentre, SunMass);
-                var well = DrawAhead.Well(w.Zone, body, lead);
-                AssertNear(at, well.Position, 1e-3f, $"well of the {strength} body at lead {lead}");
-                Assert.Equal(strength, well.Strength, 3);
-                Assert.Equal(2f, well.CoreRadius, 3);
-                Assert.Equal(GravityField.Potential(strength, 2f, w.Zone.Pack.Radius), well.Reference, 3);
+                var at = term.Node.Equals(w.PlanetOrbit) ? PlanetAt(time) : term.Node.Equals(w.MoonOrbit) ? MoonAt(time) : SunCentre;
+                AssertNear(at, DrawAhead.Orbit(w.Zone, term.Node, lead), 1e-3f, $"term of a body at lead {lead}");
             }
         }
 
-        var planet = w.Zone.PlanetInstances.Values.Single(b => b.BodyData.Orbit.Key.Equals(w.PlanetOrbit));
-        Assert.True(length(DrawAhead.Well(w.Zone, planet, .0166f).Position - DrawAhead.Well(w.Zone, planet, 0f).Position) > .1f, "the well moves over a lead");
-        AssertNear(w.Zone.Orbits[w.PlanetOrbit].Position, DrawAhead.Well(w.Zone, planet, 0f).Position, 0f, "at lead 0 the well is the step's memo");
+        Assert.True(length(DrawAhead.Orbit(w.Zone, w.PlanetOrbit, .0166f) - DrawAhead.Orbit(w.Zone, w.PlanetOrbit, 0f)) > .1f, "the term moves over a lead");
+        AssertNear(w.Zone.Orbits[w.PlanetOrbit].Position, DrawAhead.Orbit(w.Zone, w.PlanetOrbit, 0f), 0f, "at lead 0 the term is the step's memo");
     }
 
     // A HUD marker round the ship the camera follows (an incoming lock, a contact's bearing, a ping's flash) is anchored on

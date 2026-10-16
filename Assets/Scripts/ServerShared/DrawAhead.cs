@@ -51,24 +51,6 @@ public static class DrawAhead
         return float3(at.x + bearing.x * distance, at.y, at.z + bearing.y * distance);
     }
 
-    // One well as the shader takes it: its body's rail at the drawn time, with the strength, core and reference the sim's
-    // GetHeight sums with. GravityLowering copies it into the shader's record and decides nothing.
-    public readonly struct DrawnWell
-    {
-        public readonly float2 Position;
-        public readonly float Strength, CoreRadius, Reference;
-        public DrawnWell(float2 position, float strength, float coreRadius, float reference)
-        {
-            Position = position;
-            Strength = strength;
-            CoreRadius = coreRadius;
-            Reference = reference;
-        }
-    }
-
-    public static DrawnWell Well(Zone zone, Planet body, float lead) =>
-        new DrawnWell(Orbit(zone, body.BodyData.Orbit.Key, lead), body.WellStrength, body.RocheLimit, zone.WellReference(body));
-
     // A free body (a vapour cloud) drawn where the frame falls lead sim seconds after the last step, by the velocity
     // that step moved it with: the launch velocity and the drift together.
     public static float2 Position(KinematicBody body, float lead) => body.Position + body.TotalVelocity * lead;
