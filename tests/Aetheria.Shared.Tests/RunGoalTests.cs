@@ -196,17 +196,19 @@ public sealed partial class RunStartTests
     public void Exit_open_only_in_the_exit_zone()
     {
         var galaxy = RunStart.Generate(new MainGalaxy(), Inputs(() => 1));
-        var others = galaxy.BossZones.Values.Where(zone => zone != galaxy.Exit).Distinct().ToArray();
-        Assert.NotEmpty(others);
-        foreach (var bossZone in others)
-        {
-            var zone = ZoneOf(galaxy, bossZone);
-            Assert.True(zone.Pack.BossSpawned);
-            foreach (var boss in zone.Entities.Where(entity => entity.IsBoss).ToArray())
-                boss.HeatstrokeDeath.OnNext(Unit.Default);
-            Assert.False(RunGoal.BossAlive(zone));
-            Assert.False(RunGoal.ExitOpen(zone));
-        }
+        // The shipped catalog sets no BossHull outside the demo's antagonist, so the main galaxy places no boss: give a
+        // faction one and a boss zone that is not the exit, as the generator would for a faction with a boss hull.
+        var faction = galaxy.Factions.First();
+        faction.BossHull = _cache.RefOf(SoldShipHulls().First());
+        var bossZone = galaxy.Zones.First(zone => zone != galaxy.Exit);
+        galaxy.BossZones[faction] = bossZone;
+        var zone = ZoneOf(galaxy, bossZone);
+        Assert.True(zone.Pack.BossSpawned);
+        Assert.NotEmpty(zone.Entities.Where(entity => entity.IsBoss));
+        foreach (var boss in zone.Entities.Where(entity => entity.IsBoss).ToArray())
+            boss.HeatstrokeDeath.OnNext(Unit.Default);
+        Assert.False(RunGoal.BossAlive(zone));
+        Assert.False(RunGoal.ExitOpen(zone));
     }
 
     // A boss that cannot be generated (no ship hull on offer at all) never marks the zone as having spawned one.
