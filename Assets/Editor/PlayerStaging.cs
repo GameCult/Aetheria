@@ -2,9 +2,8 @@ using System;
 using System.IO;
 
 // What a player directory holds beside the executable's data: GameData/Aetheria.cc, GameData/Narrative/** and, when
-// the repo has one, GameData/Mods/**. Nothing else under GameData ships (run.cc and player.cc are the player's own;
-// SoundbanksInfo.json is read by no code). Unity-free so the headless suite can prove the rules; AetheriaBuild is the
-// only caller.
+// the repo has one, GameData/Mods/**. Nothing else under GameData ships (run.cc and player.cc are the player's own).
+// Unity-free so the headless suite can prove the rules; AetheriaBuild is the only caller.
 internal static class PlayerStaging
 {
     public const string Catalog = "Aetheria.cc";
