@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using GameCult.Caching;
 using CultMath;
 using static CultMath.math;
+using float2 = CultMath.float2;
 
 /// <summary>An orbit as the well tree reads it: where it hangs on the tree and the mass of the well-bearing body on it (0 for none).</summary>
 public readonly struct WellNode
