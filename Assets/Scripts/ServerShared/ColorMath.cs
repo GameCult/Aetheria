@@ -18,6 +18,12 @@ public static class ColorMath
         return saturate(float3(r,g,b));
     }
     
+    // A hue band on the circle runs from start up to end, wrapping past 1 when end < start.
+    public static bool HueInBand(float hue, float start, float end) => frac(hue - start) < frac(end - start);
+
+    // Maps u in [0,1) onto the hues outside the band, so a uniform draw stays uniform over the allowed arc.
+    public static float HueOutsideBand(float u, float start, float end) => frac(end + u * (1 - frac(end - start)));
+
     public static float3 HsvToRgb(in float3 hsv)
     {
         float3 rgb = HueToRgb(hsv.x);

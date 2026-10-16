@@ -159,8 +159,11 @@ public static class ZoneGenerator
             {
 	            if (gas is SunData sun)
 	            {
-		            float primary = random.NextFloat();
-		            float secondary = frac(primary + 1 + zoneSettings.SunSecondaryColorDistance * (random.NextFloat() > .5 ? 1 : -1));
+		            float primary = ColorMath.HueOutsideBand(random.NextFloat(), zoneSettings.SunHueExcludedStart, zoneSettings.SunHueExcludedEnd);
+		            float step = zoneSettings.SunSecondaryColorDistance * (random.NextFloat() > .5 ? 1 : -1);
+		            float secondary = frac(primary + 1 + step);
+		            if (ColorMath.HueInBand(secondary, zoneSettings.SunHueExcludedStart, zoneSettings.SunHueExcludedEnd))
+			            secondary = frac(primary + 1 - step);
 		            gas.Colors = new []
 		            {
 			            float4(ColorMath.HsvToRgb(float3(primary, zoneSettings.SunColorSaturation, .5f)), 0),
