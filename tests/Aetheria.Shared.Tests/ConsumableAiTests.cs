@@ -332,8 +332,12 @@ public sealed class ConsumableAiTests : IDisposable
         Assert.Equal(1, s.Carried);
 
         var longGun = (EquippableItem) s.Items.CreateInstance(s.Items.CreateLot(s.LongGun, s.Maker, .5f));
+        Assert.True(s.Zone.Remove(s.Agent)); // refitting is a docked ship's act: out of the zone and inactive
+        s.Agent.Deactivate();
         Assert.NotNull(s.Agent.TryUnequip(s.Agent.Equipment.Single(e => e.Behaviors.OfType<Weapon>().Any())));
         Assert.True(s.Agent.TryEquip(longGun, HardpointCell));
+        s.Zone.Admit(s.Agent, piloted: false); // back in, the agent's Minion keeps its CombatState
+        s.Place(30f, 0f);
         s.Zone.Update(.05f);
         s.Zone.Update(.05f);
         var refit = (float) typeof(CombatState).GetField("_optimumRange", Private).GetValue(s.State);
