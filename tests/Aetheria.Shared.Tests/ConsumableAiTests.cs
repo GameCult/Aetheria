@@ -7,6 +7,9 @@ using CultMath;
 using GameCult.Caching;
 using Xunit;
 using static CultMath.math;
+using float2 = CultMath.float2;
+using float3 = CultMath.float3;
+using int2 = CultMath.int2;
 
 // AI pilots use consumables (aetheria-release cut consumable-ai r3; rulings sensor-stat-set item 4,
 // lock-warning-strength, launcher-lock-solution-quality): CombatState vents when ONE Track paint in the ship's own
