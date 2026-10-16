@@ -35,7 +35,7 @@ public sealed class ProductChoiceTests : IDisposable
         public CultCache Cache;
         public ItemManager Items;
         public Galaxy Galaxy;
-        public Faction OutA, OutZ;
+        public Faction OutA, OutZ, OutBoth;
 
         public LoadoutGenerator Outfitter(Faction faction, uint seed)
         {
@@ -75,6 +75,7 @@ public sealed class ProductChoiceTests : IDisposable
             var mu = seed.Upsert(new Faction { Name = "Mu", ShortName = "MU" });
             seed.Upsert(new Faction { Name = "OutA", ShortName = "OTA", Allegiance = { { alpha, 1f } } });
             seed.Upsert(new Faction { Name = "OutZ", ShortName = "OTZ", Allegiance = { { zeta, 1f } } });
+            seed.Upsert(new Faction { Name = "OutBoth", ShortName = "OTB", Allegiance = { { alpha, 1f }, { zeta, .1f } } });
             var shape = new Shape(3, 3);
             foreach (var cell in shape.AllCoordinates) shape[cell] = true;
             var skiff = seed.Upsert(new HullData
@@ -115,7 +116,7 @@ public sealed class ProductChoiceTests : IDisposable
         RunSave.Commit(cache, game, zones, new ProvenanceLedger());
         return new Rig
         {
-            Cache = cache, OutA = outA, OutZ = outZ,
+            Cache = cache, OutA = outA, OutZ = outZ, OutBoth = cache.GetByName<Faction>("OutBoth"),
             Items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { }),
             Galaxy = new Galaxy(cache, cache.GetGlobal<SavedGame>(), _ => { })
         };
@@ -132,6 +133,19 @@ public sealed class ProductChoiceTests : IDisposable
         Assert.Equal("lamp-a", rig.LampBrand(Materialize(rig, rig.Fit(), rig.Outfitter(rig.OutA, 1).ChooseProduct, failures)));
         Assert.Equal("lamp-z", rig.LampBrand(Materialize(rig, rig.Fit(), rig.Outfitter(rig.OutZ, 1).ChooseProduct, failures)));
         Assert.Empty(failures);
+    }
+
+    // An outfitter that reaches both makers favors the one its allegiance weighs ten times heavier: the draw follows
+    // ManufacturerPreference rather than splitting evenly.
+    [Fact]
+    public void TheDrawFollowsTheOutfittersPreference()
+    {
+        var rig = Build("lamp-z", "lamp-a");
+        var lamp = rig.Cache.GetByName<GearData>("Lamp");
+        var drawn = Enumerable.Range(1, 200).Select(seed => rig.Outfitter(rig.OutBoth, (uint) seed).ChooseProduct(lamp).Name).ToArray();
+        var alpha = drawn.Count(name => name == "lamp-a");
+        Assert.InRange(alpha, 160, 199);
+        Assert.Contains("lamp-z", drawn);
     }
 
     [Fact]
