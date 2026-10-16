@@ -201,11 +201,17 @@ public static class ShipModCatalog
         foreach (var anchor in ship.Anchors)
             if (!modelNodes.ContainsKey(anchor.ModelNodeId))
                 throw new InvalidOperationException($"{ship.Id}: model has no node with aetheria.id={anchor.ModelNodeId} for anchor {anchor.Id}.");
-        // A thruster's mesh is its exhaust emission surface and a radiator's mesh is what glows (ruling
-        // thrusters-radiators-are-meshes), so either on an empty node is refused here, before any catalog sees the ship.
+        // Assemble reads a renderer or collider mesh from these anchors' nodes and refuses without one, and reads the shield
+        // node's scale as three positive radii (ruling thrusters-radiators-are-meshes). These refusals stand in for Assemble's
+        // throws, so a package Compose includes is one the importer's assembler can build; the exhaust emission surface and
+        // the glowing radiator are meshes by that same ruling. A weapon mount and a tractor may be empties.
         foreach (var anchor in ship.Anchors)
-            if ((anchor.Role == "thruster-emitter" || anchor.Role == "radiator-mesh") && !modelNodes[anchor.ModelNodeId].HasMesh)
+            if ((anchor.Role == "thruster-emitter" || anchor.Role == "radiator-mesh" || anchor.Role == "map-icon" || anchor.Role == "hull-collider") &&
+                !modelNodes[anchor.ModelNodeId].HasMesh)
                 throw new InvalidOperationException($"{ship.Id}: {anchor.Role} anchor {anchor.Id} needs a mesh, but model node {anchor.ModelNodeId} has none.");
+        foreach (var anchor in ship.Anchors)
+            if (anchor.Role == "shield" && !modelNodes[anchor.ModelNodeId].PositiveScale)
+                throw new InvalidOperationException($"{ship.Id}: shield anchor {anchor.Id} needs three positive scale radii on model node {anchor.ModelNodeId}, with no matrix.");
         BindRig(ship, modelNodes);
         CultRecordRefs.Validate(hull);
         return new Package
@@ -218,7 +224,7 @@ public static class ShipModCatalog
     // The rig the record states must be the rig the model has: every joint is a node, each joint's Parent and each mount's
     // Joint is the nearest joint above its node, ancestors without an id being walked through by ReadNodeIds, and a radiator
     // mesh sits under no joint.
-    private static void BindRig(ShipAuthoring ship, Dictionary<string, (uint Index, bool HasMesh, int Parent)> nodes)
+    private static void BindRig(ShipAuthoring ship, Dictionary<string, (uint Index, bool HasMesh, int Parent, bool PositiveScale)> nodes)
     {
         var joints = new HashSet<string>((ship.Joints ?? new List<ShipJoint>()).Select(joint => joint.Id), StringComparer.Ordinal);
         var idAt = nodes.ToDictionary(node => (int)node.Value.Index, node => node.Key);
@@ -249,9 +255,13 @@ public static class ShipModCatalog
         }
     }
 
+    // No matrix, and every scale component (default 1) above zero: what Assemble's shield radii need.
+    private static bool PositiveScale(JObject node) =>
+        node["matrix"] == null && (node["scale"] == null || node["scale"].Select(component => (double)component).All(component => component > 0));
+
     // GLB is the xenos asset boundary. Only its node extras, whether each node names a mesh, and its nearest identified ancestor's node index
-    // (-1 for none) are read here; geometry belongs to the runtime importer.
-    public static Dictionary<string, (uint Index, bool HasMesh, int Parent)> ReadNodeIds(string path)
+    // (-1 for none) are read here, plus whether the node's scale is three positive radii with no matrix; geometry belongs to the runtime importer.
+    public static Dictionary<string, (uint Index, bool HasMesh, int Parent, bool PositiveScale)> ReadNodeIds(string path)
     {
         using var stream = File.OpenRead(path);
         using var reader = new BinaryReader(stream);
@@ -262,7 +272,7 @@ public static class ShipModCatalog
         if (reader.ReadUInt32() != 0x4E4F534A || chunkLength > stream.Length - stream.Position)
             throw new InvalidOperationException($"{path}: missing GLB JSON chunk.");
         var json = JObject.Parse(Encoding.UTF8.GetString(reader.ReadBytes((int)chunkLength)));
-        var ids = new Dictionary<string, (uint Index, bool HasMesh, int Parent)>(StringComparer.Ordinal);
+        var ids = new Dictionary<string, (uint Index, bool HasMesh, int Parent, bool PositiveScale)>(StringComparer.Ordinal);
         var nodes = (json["nodes"]?.OfType<JObject>() ?? Enumerable.Empty<JObject>()).ToArray();
         var parents = Enumerable.Repeat(-1, nodes.Length).ToArray();
         for (var parent = 0; parent < nodes.Length; parent++)
@@ -273,7 +283,7 @@ public static class ShipModCatalog
         {
             var id = (string)node["extras"]?["aetheria.id"];
             if (string.IsNullOrEmpty(id)) { index++; continue; }
-            if (!ids.TryAdd(id, (index, node["mesh"] != null && node["mesh"].Type != JTokenType.Null, IdentifiedAncestor(parents, nodes, (int)index))))
+            if (!ids.TryAdd(id, (index, node["mesh"] != null && node["mesh"].Type != JTokenType.Null, IdentifiedAncestor(parents, nodes, (int)index), PositiveScale(node))))
                 throw new InvalidOperationException($"{path}: duplicate GLB node aetheria.id={id}.");
             index++;
         }
