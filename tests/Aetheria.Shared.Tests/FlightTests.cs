@@ -138,12 +138,14 @@ public sealed class FlightTests : IDisposable
     }
 
     public static System.Collections.Generic.IEnumerable<object[]> BuildOrders() =>
-        from order in new[] { "NTF", "NFT", "TNF", "TFN", "FNT", "FTN" }
+        from order in new[] { "NTFM", "MFTN", "TMNF", "FNMT", "NMTF", "TFMN" }
         select new object[] { order };
 
-    // The track is off the origin. N is the nearest member; T is nearer than N in x alone and F nearer in z alone, both
-    // farther in distance. Built in every order: the speaker is the nearest by distance, not first or last built, nor
-    // the nearest on one axis. Kills: the hail from the first or last member, or from the nearest by x or by z only.
+    // The track is off the origin. N is the nearest member by distance, on the diagonal; T is nearer than N in x alone, F
+    // nearer in z alone, and M nearest by the sum of the axis distances (60 against N's 80), all farther in distance.
+    // Built in several orders: the speaker is the nearest by distance, not first or last built, nor the nearest on one
+    // axis or by the sum of components. Kills: the hail from the first or last member, or from the nearest by x, by z
+    // or by the sum of components.
     [Theory]
     [MemberData(nameof(BuildOrders))]
     public void GraceHailsOnceFromTheNearestThenEngages(string order)
@@ -151,7 +153,7 @@ public sealed class FlightTests : IDisposable
         var faction = WithDoctrine(EngageOn.Detection, grace: 5, hail: "Hold.");
         var (tx, tz) = (300f, -200f);
         var spots = new System.Collections.Generic.Dictionary<char, (float x, float z)>
-            { ['N'] = (tx + 30, tz + 40), ['T'] = (tx + 5, tz + 120), ['F'] = (tx - 200, tz + 10) };
+            { ['N'] = (tx + 40, tz + 40), ['T'] = (tx + 5, tz + 120), ['F'] = (tx - 200, tz + 10), ['M'] = (tx + 60, tz) };
         var ships = order.ToDictionary(c => c, c => Pilot(faction, spots[c].x, spots[c].z));
         var track = Track(tx, tz);
         foreach (var ship in ships.Values) See(ship, track);
@@ -161,6 +163,7 @@ public sealed class FlightTests : IDisposable
         Assert.True(ships['N'].Messages.ContainsKey("Hold."));
         Assert.False(ships['T'].Messages.ContainsKey("Hold."));
         Assert.False(ships['F'].Messages.ContainsKey("Hold."));
+        Assert.False(ships['M'].Messages.ContainsKey("Hold."));
         Assert.All(ships.Values, m => Assert.True(m.Target.Value.IsNone));
         Assert.All(_zone.Agents, a => Assert.IsType<FollowTask>(a.Task));
 
@@ -202,6 +205,8 @@ public sealed class FlightTests : IDisposable
     [InlineData(12f, true, 0f, 1f)]
     [InlineData(5f, false, .6f, .8f)]
     [InlineData(12f, true, .6f, .8f)]
+    [InlineData(8f, false, .7071f, .7071f)]  // 11.3 by the sum of components, 8 by length
+    [InlineData(12f, true, .7071f, .7071f)]  // 8.5 by the larger component, 12 by length
     public void ComplianceIsJudgedOnComplySpeedAndNotOnGrace(float speed, bool engaged, float dx, float dy)
     {
         var member = Pilot(WithDoctrine(EngageOn.Detection, grace: 3, hail: "Hold.", comply: 10));
@@ -379,6 +384,28 @@ public sealed class FlightTests : IDisposable
         Assert.Equal(_items.GameplaySettings.AgentMinHitProbability, combatant.MinHitProbability);
     }
 
+    // The picture is the union of the members' senses while overrides are per member: a track one member has made
+    // friendly (a truce) is out of the flight's picture though a flightmate senses it as hostile. Kills: the friendly
+    // override ignored when the picture is built.
+    [Theory]
+    [InlineData(EngageOn.Detection)]
+    [InlineData(EngageOn.Provoked)]
+    public void ATrackAMemberHasMadeFriendlyIsNotEngagedByTheFlight(EngageOn on)
+    {
+        var faction = WithDoctrine(on);
+        var friendly = Pilot(faction);
+        var sees = Pilot(faction, 10);
+        var track = Track();
+        friendly.SetIff(track, false);
+        See(sees, track);
+
+        Tick(.1f);
+
+        Assert.True(sees.Target.Value.IsNone);
+        Assert.True(friendly.Target.Value.IsNone);
+        Assert.Equal(Flight.Phase.None, _zone.Flights.Single(f => f.Contains(sees)).PhaseOf(track));
+    }
+
     [Fact]
     public void AnyMembersGrudgeEngagesTheWholeFlight()
     {
@@ -469,6 +496,25 @@ public sealed class FlightTests : IDisposable
         second.Position = new float3(990, 0, 0);
         Tick(.1f);
         Assert.Same(first, member.Target.Value.Entity); // kept, though the other is nearer now
+    }
+
+    // Three engaged tracks, each nearest by a different measure from the member: A by the sum of components (100), C by
+    // length (99.2), B by x alone (60). The member picks the nearest by length. Kills: the pick by the sum of components
+    // or by x alone.
+    [Fact]
+    public void AMemberPicksTheNearestEngagedTrackByLength()
+    {
+        var member = Pilot(new Faction { Name = "Plain" }, 1000, 500);
+        var a = Track(1100, 500);
+        var b = Track(1060, 590);
+        var c = Track(1075, 565);
+        See(member, a);
+        See(member, b);
+        See(member, c);
+
+        Tick(.1f);
+
+        Assert.Same(c, member.Target.Value.Entity);
     }
 
     [Fact]
@@ -784,29 +830,52 @@ public sealed class FlightTests : IDisposable
         Assert.True(member.Target.Value.IsNone);
     }
 
-    // The follower matches the anchor's velocity: at the standoff the pull is zero, the desired velocity is the
-    // anchor's, and the ship turns toward it, either way. Kills: the anchor's velocity dropped from the desired one.
-    [Fact]
-    public void AFollowerAtItsStandoffTurnsToMatchTheAnchorsVelocity()
+    // A follower at a distance from an anchor; the hull faces across the line to the anchor, so a demanded velocity
+    // along that line needs a turn. Returns the pilot's turn and thrust after two updates, and its top speed.
+    private (float turn, float2 thrust, float topSpeed) Follow(float2 anchorVelocity, float distance, float2 facing)
     {
-        float TurnFor(float anchorVelocityX)
-        {
-            var ship = Pilot(null, -200, 50);
-            var anchor = Track();
-            anchor.Position = ship.Position + new float3(0, 0, 100);
-            anchor.Velocity = new float2(anchorVelocityX, 0);
-            var minion = new Minion(ship, FactionDoctrine.Default(_items.GameplaySettings).Combatant)
-                { Task = new FollowTask { Anchor = anchor, Standoff = 100 } };
-            minion.Update(.1f);
-            minion.Update(.1f);
-            return ship.Turn;
-        }
+        var ship = Pilot(null, -200, 50);
+        ship.Direction = facing;
+        var anchor = Track();
+        anchor.Position = ship.Position + new float3(0, 0, distance);
+        anchor.Velocity = anchorVelocity;
+        var minion = new Minion(ship, FactionDoctrine.Default(_items.GameplaySettings).Combatant)
+            { Task = new FollowTask { Anchor = anchor, Standoff = 100 } };
+        minion.Update(.1f);
+        minion.Update(.1f);
+        return (ship.Turn, ship.MovementDirection, minion.TopSpeed);
+    }
 
-        var east = TurnFor(100);
-        var west = TurnFor(-100);
+    // At the standoff the pull is zero and the demanded velocity is the anchor's alone. Accelerate turns the hull only
+    // for a velocity error above 20 and thrusts all ways above 1, so the anchor's velocity of 30 turns the hull on
+    // either axis and one of 15 does not (it thrusts). Kills: the anchor's velocity dropped, halved, doubled, or
+    // reduced to one component.
+    [Theory]
+    [InlineData(30f, 0f, 0f, 1f, true)]
+    [InlineData(0f, 30f, 1f, 0f, true)]
+    [InlineData(-30f, 0f, 0f, 1f, true)]
+    [InlineData(15f, 0f, 0f, 1f, false)]
+    [InlineData(0f, 15f, 1f, 0f, false)]
+    public void AFollowerAtItsStandoffMatchesTheAnchorsVelocityAtFullScale(float vx, float vy, float fx, float fy, bool turns)
+    {
+        var (turn, thrust, _) = Follow(new float2(vx, vy), 100, new float2(fx, fy));
 
-        Assert.NotEqual(0f, east);
-        Assert.Equal(sign(east), -sign(west));
+        Assert.Equal(turns, turn != 0f);
+        Assert.NotEqual(float2.zero, thrust);
+    }
+
+    // The pull toward a stationary anchor is the error over the standoff, as a fraction of the pilot's top speed: a
+    // pull of 30 turns the hull and one of 15 does not. Kills: the pull halved or doubled.
+    [Theory]
+    [InlineData(30f, true)]
+    [InlineData(15f, false)]
+    public void AFollowersPullIsTheErrorOverTheStandoffAtTopSpeed(float wantedPull, bool turns)
+    {
+        var top = Follow(float2.zero, 100, new float2(1, 0)).topSpeed;
+        Assert.True(top >= 60f, "the fixture needs a top speed above the pull it asks for");
+        var (turn, _, _) = Follow(float2.zero, 100 + 100 * wantedPull / top, new float2(1, 0));
+
+        Assert.Equal(turns, turn != 0f);
     }
 
     // Faction.Doctrine rides at wire slot 17; slot 16 is reserved for Relations. Kills: the key moved.
@@ -822,6 +891,53 @@ public sealed class FlightTests : IDisposable
         Assert.Null(slots[16]);
         var doctrine = Assert.IsType<object[]>(slots[17]);
         Assert.Equal(6f, Convert.ToSingle(doctrine[1]));
+    }
+
+    // A cast faction that already has a doctrine keeps it, whatever it holds: one that differs in its engagement and one
+    // that differs only below it. Kills: the keep tested on the engagement alone, or on any one field.
+    [Fact]
+    public void TheCatalogKeepsATunedDoctrine()
+    {
+        var path = TempCatalog();
+        FactionDoctrine Tuned(EngageOn on) => new FactionDoctrine
+        {
+            EngageOn = on, Grace = 99f, Hail = "Mine.", ComplySpeed = 3f,
+            Combatant = new RoleDoctrine { RangeExponent = .7f, MinHitProbability = .9f, HoldStandoff = 5f }
+        };
+        try
+        {
+            using (var cache = AetheriaStores.Open(path, catalogWritable: true))
+            {
+                cache.Upsert(new VerseGrammar { Revision = 1 });
+                cache.Upsert(new Faction { Name = "Zhestokost", Doctrine = Tuned(EngageOn.Never) });
+                cache.Upsert(new Faction { Name = "Lucent Media", Doctrine = Tuned(EngageOn.Detection) });
+                cache.FlushAsync().Wait();
+            }
+
+            var output = new StringWriter();
+            using (var cache = AetheriaStores.Open(path, catalogWritable: true))
+            {
+                DoctrineCatalog.Run(cache, apply: true, output);
+                cache.FlushAsync().Wait();
+            }
+
+            using (var cache = AetheriaStores.Open(path))
+            {
+                foreach (var (name, on) in new[] { ("Zhestokost", EngageOn.Never), ("Lucent Media", EngageOn.Detection) })
+                {
+                    var kept = cache.GetAll<Faction>().Single(f => f.Name == name).Doctrine;
+                    Assert.Equal(on, kept.EngageOn);
+                    Assert.Equal(99f, kept.Grace);
+                    Assert.Equal("Mine.", kept.Hail);
+                    Assert.Equal(3f, kept.ComplySpeed);
+                    Assert.Equal(.7f, kept.Combatant.RangeExponent);
+                    Assert.Equal(.9f, kept.Combatant.MinHitProbability);
+                    Assert.Equal(5f, kept.Combatant.HoldStandoff);
+                    Assert.Contains($"{name}: already has a doctrine, kept", output.ToString());
+                }
+            }
+        }
+        finally { File.Delete(path); }
     }
 
     // The catalog names a faction exactly: a prefix, a longer name or another case is another faction. Kills: the match

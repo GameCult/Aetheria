@@ -60,7 +60,10 @@ public class Flight
     public void Update(float dt)
     {
         _time += dt;
-        var picture = _members.SelectMany(m => m.Agent.Ship.VisibleEnemies).Distinct().ToList();
+        // A track any member has made friendly (a truce override) is not the flight's to engage or follow, though a flightmate
+        // still senses it as hostile: the overrides are per member, so the picture is where they meet.
+        var picture = _members.SelectMany(m => m.Agent.Ship.VisibleEnemies).Distinct()
+            .Where(e => !_members.Any(m => m.Agent.Ship.IffOverride(e) == false)).ToList();
         foreach (var gone in _tracks.Keys.Where(t => !picture.Contains(t)).ToList()) _tracks.Remove(gone);
 
         foreach (var entity in picture)
