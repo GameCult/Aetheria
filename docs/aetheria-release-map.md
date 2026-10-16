@@ -10168,6 +10168,39 @@ name), in a scratch Python script; no game code ran.
   faction-play-1 (Faction key 17) and maker-only-faction (Faction key 19 and the main galaxy's
   faction draw) edit the same Faction class and Galaxy.
 
+Probes PL7-PL9 by imagination-ag4-loadout-product (session self-2026-10-16-ag4), 2026-10-16,
+for cut-product-lines-weapons.r5. Catalogs decoded as above: master's (oid `ed0500b4`, the
+blob at `cee8cd6e`) and the branch's (oid `ba783127`, at `ae290654`). Scripts `picks.py` and
+`pins.py` in the agent's scratch, reusing soul-ag4-weapons' `lib.py`.
+
+- **PL7, presets:** neither catalog holds an `aetheria.loadout` record. No shipped preset
+  needs a pinned product; only presets captured later carry one.
+- **PL8, scenario rigs:** at `ae290654` the callers of design-only resolution are
+  `ScenarioStage` only (`Fit`, `Bare`, `Cargo` through `Loadouts.Materialize`/`Resolve`, and
+  Cargo's consumable path at `ScenarioStage.cs:138`), plus tests. The stage's availability is a
+  `LoadoutGenerator` with no faction, so every maker is available and key order picked.
+  DemoTerminus, MainGalaxy, TutorialGalaxy, LongHaul and every `stage.Generated` placement go
+  through `GenerateShipLoadout` instead, already a seeded weighted draw. The twelve scenarios
+  that name designs (AiFusedDiscipline, Arcs, Belt, Crossing, Duel, FusedRounds,
+  LauncherAngles, LockOn, Pursuit, RefusedRounds, StarvedReactor, WeaponFeel) name 15
+  designs that have two or more products. Their pre-cut picks, first by key on `ed0500b4`, are
+  r5's pin table. Six of them (Autocannon, Guided Missile Launcher, Lightning Projector, Light
+  Laser, Mine Launcher, Swarm Rocket Pod) changed pick at `ae290654`. The other nine kept
+  theirs only by key luck.
+- **PL9, price and context:** a unit's price is its design's `Price` times
+  `QualityPriceModifier` of its lot's quality (`ItemManager.cs:114-118`). Every product of
+  one design therefore costs the same, and affordability cannot rank them until a product
+  carries a price. The context a chooser can read is `LoadoutGenerator`'s: Faction through
+  `IsAvailable` (`LoadoutGenerator.cs:251-253`), Zone and Galaxy through
+  `ManufacturerPreference` (`:258-270`), and the run's Random. No caller has an outfitting
+  budget. `ScenarioStage.Credits` is the player's starting purse.
+
+Rationale for r5: the ruling's open case is a faction outfitting, and `LoadoutGenerator`
+already is that outfitter (allegiance, home-zone distance, seed). So the chooser lives there
+and reuses its availability rule and weight rather than a second economy. Rigs are pinned
+because their tests measure stats, which a brand changes (Crossing's 1216 m to 948 m). The
+selection policy is question design-only-product-draw. r5 follows its recommendation.
+
 Order, from these facts: product-lines-weapons goes first. It is the follow-up's stated first
 line, it carries the demo's combat feel (ruling release-bar), and it is the only one of the three
 whose files avoid faction-pair's Faction and Galaxy edits. product-lines-gear follows it on the
