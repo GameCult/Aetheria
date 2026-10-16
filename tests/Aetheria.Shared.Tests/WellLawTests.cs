@@ -289,6 +289,17 @@ public sealed class WellLawTests : IDisposable
             }
         Assert.True(flat > 100, "fixture: there is open ground between the subzones");
 
+        // The rim: from A to 1.5 A the zone's pull rises from nothing to its whole Plummer pull as the order-4 smoothstep of
+        // (d^2 - A^2) / ((1.5 A)^2 - A^2), A being the reach-derived radius above.
+        foreach (var (radius, angle) in new[] { (1.05f, .7f), (1.15f, 3.1f), (1.25f, 5.0f), (1.35f, 1.9f), (1.45f, 4.2f) })
+        {
+            var p = centre + float2(span * radius * cos(angle), span * radius * sin(angle));
+            var d = length(centre - p);
+            var t = ((double) d * d - (double) span * span) / (2.25 * span * span - (double) span * span);
+            var expected = (centre - p) / d * (float) (Plummer(curves, 6100f, d) * S(t));
+            Assert.InRange(length(zone.GetForce(p) - expected), 0f, 2e-5f * Plummer(curves, 6100f, d));
+        }
+
         foreach (var (radius, angle) in new[] { (1.6f, .4f), (3f, 2.5f), (8f, 5.1f) })
         {
             var p = centre + float2(span * radius * cos(angle), span * radius * sin(angle));
@@ -307,7 +318,7 @@ public sealed class WellLawTests : IDisposable
         w.Body(sun, 5000f);
         var planet = w.Orbit(sun, 3000f);
         w.Body(planet, 172f);
-        var belt = w.Belt(w.Orbit(planet, 43f, .4f), 10f, 43f, 87f);
+        var belt = w.Belt(w.Orbit(planet, 43f, .4f), 87f, 10f, 43f); // the outermost asteroid is not the last listed
         var zone = w.Build();
 
         Assert.Equal(1.5f * 87f, zone.Wells.Support(planet), 3);
@@ -344,6 +355,33 @@ public sealed class WellLawTests : IDisposable
             var t = (r * r - 225.0 * 225) / (337.5 * 337.5 - 225.0 * 225);
             var expected = Plummer(curves, 101f, r) * (1 - S(t));
             var scale = Plummer(curves, 101f, r); // float rounding of the four cancelling terms is relative to the Plummer pull
+            Assert.InRange(zone.Wells.PullAround(planet, r, moon), expected - 1e-5 * scale, expected + 1e-5 * scale);
+        }
+    }
+
+    // A wide family fades from Gamma x its reach, not its support: a planet at 2000 with a moon at 100 has support 150 and reach
+    // 1000 (half its distance), so it pulls as the whole family out to 500 and gives way from there as the order-4 smoothstep
+    // of (r^2 - 500^2) / (1000^2 - 500^2).
+    [Fact]
+    public void AWideFamilysPullFadesFromGammaTimesItsReach()
+    {
+        var w = _worlds.New();
+        var sun = w.Orbit(default, 0f);
+        w.Body(sun, 5000f);
+        var planet = w.Orbit(sun, 2000f);
+        w.Body(planet, 100f);
+        var moon = w.Orbit(planet, 100f);
+        w.Body(moon, 1f);
+        var zone = w.Build();
+        var curves = ZoneWorlds.Curves();
+
+        Assert.Equal(150f, zone.Wells.Support(planet), 3);
+        Assert.Equal(1000f, zone.Wells.Reach(planet), 3);
+        foreach (var r in new[] { 480f, 520f, 600f, 700f, 800f, 900f, 980f })
+        {
+            var t = Math.Max(0.0, (r * r - 500.0 * 500) / (1000.0 * 1000 - 500.0 * 500));
+            var expected = Plummer(curves, 101f, r) * (1 - S(t));
+            var scale = Plummer(curves, 101f, r);
             Assert.InRange(zone.Wells.PullAround(planet, r, moon), expected - 1e-5 * scale, expected + 1e-5 * scale);
         }
     }

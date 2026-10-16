@@ -259,8 +259,10 @@ public sealed class WellTree
 
     // A root's reach. The one place the subzone shape is decided (question multi-root-zone-shape): a sole massive root is the
     // whole zone (+inf, so its global term is the far field); with several, isolated-subzones bounds each root to Reach x the
-    // distance to the nearest other massive root, or its floor (Beta x support) if more. The superposed-inside option is
-    // this one return: Beta x max(pack radius, max over massive roots of |anchor - Centre| + support).
+    // distance to the nearest other massive root, or its floor (Beta x support) if more. The superposed-inside option
+    // (Beta x max(pack radius, max over massive roots of |anchor - Centre| + support)) is not a change to this return: it needs
+    // every massive root's support, and roots are processed one at a time here, so it would take a second pass over the roots
+    // once their supports exist.
     private float SubzoneReach(int root, float floor)
     {
         if (_massiveRoots.Length < 2) return float.PositiveInfinity;
