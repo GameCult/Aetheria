@@ -355,6 +355,7 @@ public sealed class ConsumableAiTests : IDisposable
             s.Place(30f, 0f);
             s.Zone.Update(.05f);
             s.Zone.Update(.05f);
+            s.Zone.Update(.05f); // the new Minion walks root, patrol, combat
         }
         float Optimum() => (float) typeof(CombatState).GetField("_optimumRange", Private).GetValue(s.State);
 
