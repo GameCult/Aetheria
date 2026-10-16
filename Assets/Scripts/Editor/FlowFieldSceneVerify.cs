@@ -156,19 +156,19 @@ namespace Aetheria.EditorTools
         {
             var camera = dust.TargetCamera;
             if (camera == null) { Fail("scene-stardust-uncullable", "Stardust has no TargetCamera"); return; }
-            var attached = camera.GetCommandBuffers(CameraEvent.AfterForwardOpaque).Count(buffer => buffer.name == "Stardust");
+            var attached = camera.GetCommandBuffers(CameraEvent.BeforeForwardAlpha).Count(buffer => buffer.name == "Stardust");
             if (attached != 1) Fail("scene-stardust-uncullable", $"{attached} Stardust command buffers on the target camera, expected 1");
 
             var particles = (ComputeBuffer) bufferField.GetValue(dust);
             var side = Mathf.RoundToInt(Mathf.Sqrt(particles.count));
-            float[] Layout(float size)
+            float[] Layout(float size, Vector3 centre, float below)
             {
                 var data = new float[particles.count * 7];
                 for (var i = 0; i < particles.count; i++)
                 {
-                    data[i * 7 + 0] = ((i % side) - side / 2f) * 4f;
-                    data[i * 7 + 1] = -50000f;
-                    data[i * 7 + 2] = ((i / side) - side / 2f) * 4f;
+                    data[i * 7 + 0] = centre.x + ((i % side) - side / 2f) * 4f;
+                    data[i * 7 + 1] = centre.y - below;
+                    data[i * 7 + 2] = centre.z + ((i / side) - side / 2f) * 4f;
                     data[i * 7 + 3] = data[i * 7 + 4] = data[i * 7 + 5] = 1f;
                     data[i * 7 + 6] = size;
                 }
@@ -183,10 +183,10 @@ namespace Aetheria.EditorTools
             var previous = RenderTexture.active;
             // Image effects on the camera would write their own frame over the dust; only the dust draw is under test.
             var effects = camera.GetComponents<MonoBehaviour>().Where(behaviour => behaviour.enabled).ToArray();
-            Color32[] Render(float size)
+            Color32[] Render(float size, Vector3 centre, float below)
             {
                 Call(dust, "Update"); // on a bounded draw this queues the draw for the camera; here it dispatches the compute
-                particles.SetData(Layout(size));
+                particles.SetData(Layout(size, centre, below));
                 camera.Render();
                 RenderTexture.active = texture;
                 readback.ReadPixels(new Rect(0, 0, 64, 64), 0, 0);
@@ -196,14 +196,21 @@ namespace Aetheria.EditorTools
             try
             {
                 foreach (var effect in effects) effect.enabled = false;
-                transform.SetPositionAndRotation(new Vector3(0f, -40000f, 0f), Quaternion.Euler(90f, 0f, 0f));
-                camera.farClipPlane = 30000f;
                 camera.clearFlags = CameraClearFlags.SolidColor;
                 camera.backgroundColor = Color.black;
-                camera.cullingMask = 0;
+                camera.cullingMask = 1;
                 camera.targetTexture = texture;
-                var withDust = Render(400f); // the material scales a quad by distance^.33, so at this range it needs this size to cover pixels
-                var without = Render(0f);
+                // control: the camera where the scene put it, dust 100 below, inside any box a hand-set extent would give
+                transform.SetPositionAndRotation(position, Quaternion.Euler(90f, 0f, 0f));
+                camera.farClipPlane = 1000f;
+                var nearWith = Render(5f, position, 100f); var nearWithout = Render(0f, position, 100f);
+                var nearDiff = 0; for (var i = 0; i < nearWith.Length; i++) if (!nearWith[i].Equals(nearWithout[i])) nearDiff++;
+                Debug.Log($"{Tag} stardust near-control differing pixels={nearDiff}");
+                if (nearDiff == 0) Fail("scene-stardust-uncullable", "control: dust 100 below the camera drew no pixels");
+                transform.SetPositionAndRotation(new Vector3(0f, -40000f, 0f), Quaternion.Euler(90f, 0f, 0f));
+                camera.farClipPlane = 30000f;
+                var withDust = Render(400f, transform.position, 10000f); // the material scales a quad by distance^.33, so at this range it needs this size to cover pixels
+                var without = Render(0f, transform.position, 10000f);
                 var differing = 0;
                 for (var i = 0; i < withDust.Length; i++)
                     if (!withDust[i].Equals(without[i])) differing++;

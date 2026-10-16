@@ -59,7 +59,7 @@ public class Stardust : MonoBehaviour
     // The dust is drawn by a command buffer on TargetCamera: a camera replays its buffers at their event and never culls them,
     // so the draw needs no bounds and no extent can fall short of how deep the field is.
     private CommandBuffer _draw;
-    private const CameraEvent DrawEvent = CameraEvent.AfterForwardOpaque;
+    private const CameraEvent DrawEvent = CameraEvent.BeforeForwardAlpha;
 
     #endregion
 
