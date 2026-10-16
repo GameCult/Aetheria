@@ -4,6 +4,7 @@ using GameCult.Caching;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 
 namespace Aetheria.EditorTools
@@ -12,10 +13,12 @@ namespace Aetheria.EditorTools
     /// Batchmode check for campaign aetheria-gravity, cut ambient-follows-populated-area: the ambient tint falls softly to
     /// dark and never hits an edge (ruling dark-beyond-populated-area). It opens ARPG.unity, takes the Ambient Fog Light the
     /// scene wires into ZoneRenderer, sizes it for a generated zone with ZoneRenderer.FitAmbientLight (the call LoadZone
-    /// makes, not a copy), renders it through an orthographic camera that culls its layer into a float target, and checks the
-    /// radial profile against exp(-(r/P)^2 ln(1/_EdgeBrightness)) times the centre out to 2 P (P is Zone.PopulatedRadius),
-    /// that it is lit at Pack.Radius, that the quad's rim is at most 2e-5 of the centre, and that no texel is more than half
-    /// a decade from its neighbour.
+    /// makes, not a copy), renders it through an orthographic camera that culls its layer into a target built from the descriptor of the production
+    /// Fog Tint render texture (B10G11R11_UFloatPack32, the format the Tint cameras write), and checks the
+    /// radial profile against exp(-(r/P)^2 ln(1/_EdgeBrightness)) times the centre, to within what that format stores (a
+    /// 5-bit mantissa) wherever the gaussian is at least a few ZoneRenderer.AmbientFloor (P is Zone.PopulatedRadius), that it
+    /// is lit at Pack.Radius, that the quad's rim and every lit texel beside a dark one are
+    /// at most two floors, and that no two lit texels are more than half a decade apart.
     ///
     /// Renders, so it needs a graphics device: run WITHOUT -nographics.
     ///   Unity -batchmode -projectPath &lt;repo&gt; -executeMethod Aetheria.EditorTools.AmbientEdgeVerify.Run -logFile &lt;path&gt;
@@ -26,6 +29,14 @@ namespace Aetheria.EditorTools
         const string Tag = "[AmbientEdgeVerify]";
         const int Size = 512;
         const int AmbientLayer = 13;
+        const string FogTintPath = "Assets/Resources/Fog Tint.renderTexture";
+        // A float with a 5-bit mantissa (Fog Tint's blue) steps by 2^-5 of its value, and the target truncates to a step.
+        const float FormatRelativeError = 1f / 32f;
+        // The profile is held to the gaussian where it is at least this many floors; below that the format's tail is measured, not held.
+        const float FaithfulFloors = 8f;
+        // The rim and every lit texel beside a dark one hold at most this many floors, 2^-14 (the smallest normal of the format's
+        // floats): the one step to dark is the format's last value. Measured on the Fog Tint format it is 1.5 floors at most.
+        const float StepToDarkFloors = 2f;
         static bool _ok = true;
 
         static void OnLog(string message, string stack, LogType type)
@@ -96,6 +107,9 @@ namespace Aetheria.EditorTools
 
         static void Check(ZoneRenderer renderer, Zone zone)
         {
+            var production = AssetDatabase.LoadAssetAtPath<RenderTexture>(FogTintPath);
+            if (production == null || production.graphicsFormat != GraphicsFormat.B10G11R11_UFloatPack32)
+                Fail("format", $"Fog Tint is {(production == null ? "missing" : production.graphicsFormat.ToString())}, not the B10G11R11_UFloatPack32 that AmbientFloor and FormatRelativeError describe");
             var light = renderer.AmbientLight;
             if (light.parent != null) Fail("wiring", $"the ambient quad sits under {light.parent.name}, whose scale is the pack radius's");
             if (light.gameObject.layer != AmbientLayer) Fail("wiring", $"the ambient quad is on layer {light.gameObject.layer}, not {AmbientLayer}");
@@ -104,13 +118,18 @@ namespace Aetheria.EditorTools
             var meshRenderer = light.GetComponent<MeshRenderer>();
             var material = meshRenderer.sharedMaterial;
             var edge = material.GetFloat("_EdgeBrightness");
-            var centre = material.GetFloat("_Depth") * material.GetColor("_Color").linear.r;
+            var tint = material.GetColor("_Color").linear;
+            var centre = material.GetFloat("_Depth") * Mathf.Max(tint.r, Mathf.Max(tint.g, tint.b));
             var populated = zone.PopulatedRadius;
             var half = light.localScale.x / 2f;
             Debug.Log($"{Tag} populated radius {populated:F1} u, pack radius {zone.Pack.Radius:F1} u, quad half-extent {half:F1} u, edge brightness {edge:G3}, centre {centre:G4}");
             if (!(populated > 0f) || !(half > populated)) { Fail("sizing", $"the quad half-extent {half:F1} u does not reach beyond the populated radius {populated:F1} u"); return; }
 
             Render(light, half * 1.05f, out var value, out var world);
+            var floor = ZoneRenderer.AmbientFloor;
+            Debug.Log($"{Tag} format floor {floor:E2} = {floor / centre:E2} of the centre; tail (drawn / floor): "
+                + string.Join(" ", System.Linq.Enumerable.Select(new[] { 1.5f, 1.75f, 1.9f, 2f, 2.05f, 2.1f, 2.15f, 2.2f },
+                    k => $"{k}P:{Sample(value, world, new Vector2(k * populated, 0f)) / floor:G3}")));
             var logFall = Mathf.Log(1f / edge);
             foreach (var k in new[] { 0f, .5f, 1f, 1.5f, 2f })
             {
@@ -124,21 +143,21 @@ namespace Aetheria.EditorTools
             {
                 if (float.IsNaN(value[i])) { Fail("texels", $"texel {i}: NaN"); return; }
                 var r = world[i].magnitude;
-                if (r <= 2f * populated)
+                var expected = centre * Mathf.Exp(-(r / populated) * (r / populated) * logFall);
+                if (r <= half && expected >= FaithfulFloors * floor)
                 {
-                    var expected = centre * Mathf.Exp(-(r / populated) * (r / populated) * logFall);
-                    var error = Mathf.Abs(value[i] - expected) / expected;
+                    var error = Mathf.Abs(value[i] - expected) / (FormatRelativeError * expected);
                     worstProfile = Mathf.Max(worstProfile, error);
                     compared++;
-                    if (error > .01f) { Fail("profile", $"at r = {r / populated:F3} P: expected {expected:G5}, drawn {value[i]:G5}, off by {error * 100f:F2}%"); return; }
+                    if (error > 1f) { Fail("profile", $"at r = {r / populated:F3} P: expected {expected:G5}, drawn {value[i]:G5}, off by {error:F2} times the format's step"); return; }
                 }
                 // The rim: the texels in the quad's outermost ring (within two texels of its edge).
                 var edgeDistance = half - Mathf.Max(Mathf.Abs(world[i].x), Mathf.Abs(world[i].y));
                 if (edgeDistance >= 0f && edgeDistance < 2f * (half * 1.05f * 2f / Size)) rim = Mathf.Max(rim, value[i]);
             }
-            Debug.Log($"{Tag} profile: {compared} texels within 2 P, worst error {worstProfile * 100f:F3}%; rim {rim / centre:E2} of the centre");
-            if (compared < Size * Size / 8) Fail("profile", $"only {compared} texels were within 2 P; the check is vacuous");
-            if (rim > 2e-5f * centre) Fail("rim", $"the quad's rim is {rim / centre:E2} of the centre, above 2e-5");
+            Debug.Log($"{Tag} profile: {compared} texels held to the gaussian, worst error {worstProfile:F3} of the format's step; rim {rim / centre:E2} of the centre");
+            if (compared < Size * Size / 16) Fail("profile", $"only {compared} texels were held to the gaussian; the check is vacuous");
+            if (rim > floor * StepToDarkFloors) Fail("rim", $"the quad's rim is {rim / floor:G3} times the format floor");
 
             var atPack = Sample(value, world, new Vector2(zone.Pack.Radius, 0f));
             Debug.Log($"{Tag} at Pack.Radius: {atPack / centre:E2} of the centre");
@@ -152,7 +171,7 @@ namespace Aetheria.EditorTools
                 if (here <= 0f) continue;
                 foreach (var next in new[] { x + 1 < Size ? value[y * Size + x + 1] : 0f, y + 1 < Size ? value[(y + 1) * Size + x] : 0f })
                 {
-                    if (next <= 0f) continue;
+                    if (next <= 0f) { if (here > floor * StepToDarkFloors) Fail("last-step", $"a lit texel of {here / floor:G3} floors sits beside a dark one"); continue; }
                     worstJump = Mathf.Max(worstJump, Mathf.Abs(Mathf.Log10(here / next)));
                 }
             }
@@ -172,12 +191,13 @@ namespace Aetheria.EditorTools
         }
 
         // Renders the ambient layer through a downward orthographic camera centred on the origin, as the Tint cameras see it,
-        // and returns the value of every texel with the world xz of its centre, which is asked of the camera.
+        // and returns the brightest channel of every texel with the world xz of its centre, which is asked of the camera.
         static void Render(Transform light, float half, out float[] value, out Vector2[] world)
         {
-            var rt = new RenderTexture(Size, Size, 0, RenderTextureFormat.RFloat) { filterMode = FilterMode.Point };
+            var production = AssetDatabase.LoadAssetAtPath<RenderTexture>(FogTintPath) ?? throw new InvalidOperationException("No Fog Tint render texture.");
+            var rt = new RenderTexture(production.descriptor) { filterMode = FilterMode.Point };
             var cameraObject = new GameObject("Ambient Edge Camera");
-            var read = new Texture2D(Size, Size, TextureFormat.RFloat, false);
+            var read = new Texture2D(Size, Size, TextureFormat.RGBAFloat, false);
             var previous = RenderTexture.active;
             try
             {
@@ -199,7 +219,10 @@ namespace Aetheria.EditorTools
                 RenderTexture.active = rt;
                 read.ReadPixels(new Rect(0, 0, Size, Size), 0, 0);
                 read.Apply();
-                value = read.GetPixelData<float>(0).ToArray();
+                var pixels = read.GetPixelData<float>(0);
+                value = new float[Size * Size];
+                for (var i = 0; i < value.Length; i++)
+                    value[i] = Mathf.Max(pixels[4 * i], Mathf.Max(pixels[4 * i + 1], pixels[4 * i + 2]));
                 world = new Vector2[Size * Size];
                 for (var y = 0; y < Size; y++)
                 for (var x = 0; x < Size; x++)

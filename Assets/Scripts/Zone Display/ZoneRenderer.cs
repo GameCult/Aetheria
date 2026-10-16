@@ -194,14 +194,21 @@ public class ZoneRenderer : MonoBehaviour
     }
 
     // The ambient is a gaussian: its brightness at the populated edge is the material's _EdgeBrightness (a shape, authored), and
-    // the quad reaches out to where it falls to AmbientFloor of the centre, so no edge is ever drawn. The one writer of the
-    // quad's size and _Reach, and the one place the verify reads the sizing from.
-    const float AmbientFloor = 1e-5f;
+    // the quad reaches out to where its brightest channel falls to AmbientFloor. Fog Tint is B10G11R11_UFloatPack32 and cannot
+    // follow a gaussian into its tail: measured, the drawn value stops following it near 4 floors and holds a plateau of
+    // about 3.2e-5 before dropping to zero (AmbientEdgeVerify asserts the format and measures it). A quad sized to 1e-5 of the
+    // centre therefore ended in a plateau and a step to zero; sized to the floor it ends at the last value the format holds,
+    // so the one step to dark is that value. The one writer of the quad's size and _Reach, and the one place the verify
+    // reads the sizing from.
+    public const float AmbientFloor = 1f / (1 << 15);
 
     public static void FitAmbientLight(Transform light, Zone zone)
     {
         var renderer = light.GetComponent<MeshRenderer>();
-        var reach = Mathf.Sqrt(Mathf.Log(1f / AmbientFloor) / Mathf.Log(1f / renderer.sharedMaterial.GetFloat("_EdgeBrightness")));
+        var material = renderer.sharedMaterial;
+        var tint = material.GetColor("_Color").linear;
+        var centre = material.GetFloat("_Depth") * Mathf.Max(tint.r, Mathf.Max(tint.g, tint.b));
+        var reach = Mathf.Sqrt(Mathf.Log(centre / AmbientFloor) / Mathf.Log(1f / material.GetFloat("_EdgeBrightness")));
         light.localScale = 2f * reach * zone.PopulatedRadius * Vector3.one;
         var block = new MaterialPropertyBlock();
         renderer.GetPropertyBlock(block);
