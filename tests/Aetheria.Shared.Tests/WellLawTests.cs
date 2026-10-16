@@ -190,7 +190,7 @@ public sealed class WellLawTests : IDisposable
     private Zone ThreeSubzones(out CultRecordKey[] roots)
     {
         var w = _worlds.New();
-        var big = w.Orbit(default, 0f);
+        var big = w.Orbit(default, 3000f, .85f);
         w.Body(big, 5000f);
         w.Body(w.Orbit(big, 800f), 100f);
         var small = w.Orbit(default, 9000f, .3f);
@@ -212,6 +212,13 @@ public sealed class WellLawTests : IDisposable
         var centre = float2.zero;
         for (var i = 0; i < roots.Length; i++) centre += zone.Orbits[roots[i]].Position * ThreeSubzoneMass[i] / 6100f;
         Assert.InRange(length(zone.Wells.Centre - centre), 0f, 1e-3f);
+
+        // Each subzone reaches half the way to its nearest neighbour, or 1.5 of its support if more.
+        for (var i = 0; i < roots.Length; i++)
+        {
+            var nearest = Enumerable.Range(0, roots.Length).Where(j => j != i).Min(j => length(zone.Orbits[roots[j]].Position - zone.Orbits[roots[i]].Position));
+            Assert.Equal(Math.Max(.5f * nearest, 1.5f * zone.Wells.Support(roots[i])), zone.Wells.Reach(roots[i]), 2);
+        }
 
         var far = 10f * zone.Pack.Radius;
         foreach (var angle in new[] { 0f, 2.1f, 4.4f })
