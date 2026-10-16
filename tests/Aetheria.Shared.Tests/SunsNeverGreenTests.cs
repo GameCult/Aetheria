@@ -113,6 +113,52 @@ public sealed class SunsNeverGreenTests : IDisposable
         Assert.Contains(hues, hue => ColorMath.HueInBand(hue, 75f * Degree, 165f * Degree));
     }
 
+    [Fact]
+    public void TheDrawIsUniformOverTheAllowedArc()
+    {
+        var settings = new ZoneGenerationSettings();
+        const int draws = 1000, bins = 10;
+        var counts = new int[bins];
+        var arc = 1f - (settings.SunHueExcludedEnd - settings.SunHueExcludedStart);
+        for (var i = 0; i < draws; i++)
+        {
+            var hue = ColorMath.HueOutsideBand((i + .5f) / draws, settings.SunHueExcludedStart, settings.SunHueExcludedEnd);
+            var along = hue - settings.SunHueExcludedEnd;
+            if (along < 0) along += 1f;
+            counts[Math.Min(bins - 1, (int)(along / arc * bins))]++;
+        }
+        Assert.All(counts, count => Assert.InRange(count, draws / bins - 1, draws / bins + 1));
+    }
+
+    // The body blends its two stops in RGB (Gradient Blend), so the blend is sampled, not just the stops.
+    [Theory]
+    [InlineData(75f, 165f)]
+    [InlineData(55f, 185f)]
+    [InlineData(20f, 250f)]
+    public void TheRampBetweenTheStopsNeverCrossesTheBand(float startDegrees, float endDegrees)
+    {
+        var suns = GenerateSuns(z =>
+        {
+            z.SunHueExcludedStart = startDegrees * Degree;
+            z.SunHueExcludedEnd = endDegrees * Degree;
+        }, out _);
+        Assert.True(suns.Count >= 10, $"only {suns.Count} suns generated");
+        foreach (var sun in suns)
+        {
+            var a = sun.Colors[0].xyz;
+            var b = sun.Colors[1].xyz;
+            for (var step = 0; step <= 40; step++)
+            {
+                var hue = ColorMath.RgbToHsv(a + (b - a) * (step / 40f)).x;
+                Assert.False(ColorMath.HueInBand(hue, startDegrees * Degree + Slack, endDegrees * Degree - Slack),
+                    $"the ramp passed through the band (hue {hue / Degree:F1} degrees, step {step}/40)");
+            }
+            foreach (var colourHue in Hues(sun))
+                Assert.False(ColorMath.HueInBand(colourHue, startDegrees * Degree + Slack, endDegrees * Degree - Slack),
+                    $"a sun colour fell in the band (hue {colourHue / Degree:F1} degrees)");
+        }
+    }
+
     private static IEnumerable<float> Hues(SunData sun) =>
         sun.Colors.Select(c => c.xyz)
             .Concat(new[] { sun.FogTintColor, sun.LightColor })
