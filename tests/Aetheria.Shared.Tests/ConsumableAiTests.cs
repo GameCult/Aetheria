@@ -345,7 +345,8 @@ public sealed class ConsumableAiTests : IDisposable
             Assert.True(s.Zone.Remove(s.Agent));
             s.Agent.Deactivate();
             fit(s.Agent);
-            s.Zone.Admit(s.Agent, piloted: false); // back in, the agent's Minion keeps its CombatState
+            s.Zone.Admit(s.Agent, piloted: true); // back in as a pilot: the zone gives it a new Minion and CombatState
+            s.Zone.Agents.Single().Task = null; // no orbits to patrol in the test zone
             s.Place(30f, 0f);
             s.Zone.Update(.05f);
             s.Zone.Update(.05f);
