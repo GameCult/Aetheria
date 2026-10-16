@@ -190,6 +190,43 @@ public sealed partial class RunStartTests
         Assert.False(RunGoal.ExitOpen(exit));
     }
 
+    // The gate is the exit zone's alone. The main galaxy puts bosses on choke points that are not its exit: such a zone's
+    // boss spawns and dies, and no gate opens, because the exit-zone condition is what keeps a slain boss from winning.
+    [Fact]
+    public void Exit_open_only_in_the_exit_zone()
+    {
+        var galaxy = RunStart.Generate(new MainGalaxy(), Inputs(() => 1));
+        // The shipped catalog sets no BossHull outside the demo's antagonist, so the main galaxy places no boss: give a
+        // faction one and a boss zone that is not the exit, as the generator would for a faction with a boss hull.
+        var faction = galaxy.Factions.First();
+        faction.BossHull = _cache.RefOf(SoldShipHulls().First());
+        var bossZone = galaxy.Zones.First(zone => zone != galaxy.Exit);
+        galaxy.BossZones[faction] = bossZone;
+        var zone = ZoneOf(galaxy, bossZone);
+        Assert.True(zone.Pack.BossSpawned);
+        Assert.NotEmpty(zone.Entities.Where(entity => entity.IsBoss));
+        foreach (var boss in zone.Entities.Where(entity => entity.IsBoss).ToArray())
+            boss.HeatstrokeDeath.OnNext(Unit.Default);
+        Assert.False(RunGoal.BossAlive(zone));
+        Assert.False(RunGoal.ExitOpen(zone));
+    }
+
+    // A boss that cannot be generated (no ship hull on offer at all) never marks the zone as having spawned one.
+    [Fact]
+    public void Exit_sealed_when_no_ship_hull_is_on_offer()
+    {
+        var galaxy = DemoGalaxy(1);
+        foreach (var product in _cache.GetAll<FactionProductData>().Where(product => _cache.Get(product.Design) is HullData { HullType: HullType.Ship }).ToArray())
+            Assert.True(_cache.Remove(_cache.RefOf(product).Key));
+        var log = new List<string>();
+        var items = LoggingItems(log);
+        var pack = BossZonePack(galaxy, items, galaxy.Exit, ambient: false);
+        Assert.False(pack.BossSpawned);
+        Assert.DoesNotContain(pack.Entities, entity => entity.Boss);
+        Assert.Contains(log, line => line.Contains("No boss could be generated for Zhestokost"));
+        Assert.False(RunGoal.ExitOpen(new Zone(items, _planetSettings, pack, galaxy.Exit, galaxy)));
+    }
+
     // A boss killed before the save stays dead after it, and the gate stays open: the spawn fact travels with the zone.
     [Fact]
     public void Exit_open_after_save_of_a_slain_boss()
@@ -264,5 +301,29 @@ public sealed partial class RunStartTests
         var best = Enumerable.Range(0, 7200).Max(step => Separation(step * Math.PI / 3600));
         Assert.True(Separation(Math.Atan2(gate.y, gate.x)) >= best - 0.002,
             $"the gate's nearest wormhole is {Separation(Math.Atan2(gate.y, gate.x))} rad away; the widest gap's middle is {best}");
+    }
+
+    // Two neighbours straight across leave two gaps of exactly pi: the first in ascending angle (from -pi) wins, so the
+    // gate sits at +radius on y, not -radius.
+    [Fact]
+    public void Exit_gate_takes_the_first_of_equal_gaps()
+    {
+        var galaxy = DemoGalaxy(1);
+        var zone = ZoneOf(galaxy, galaxy.Exit);
+        const float ratio = 0.75f;
+        var originalPosition = galaxy.Exit.Position;
+        var origin = galaxy.Exit.Position = math.float2(500, -300);
+        var original = galaxy.Exit.AdjacentZones;
+        galaxy.Exit.AdjacentZones = new List<GalaxyZone>
+        {
+            new GalaxyZone { Position = math.float2(510, -300) },
+            new GalaxyZone { Position = math.float2(490, -300) },
+        };
+        float2 gate;
+        try { gate = RunGoal.ExitGatePosition(zone, ratio); }
+        finally { galaxy.Exit.AdjacentZones = original; galaxy.Exit.Position = originalPosition; }
+
+        Assert.Equal(0, gate.x, 3);
+        Assert.Equal(zone.Pack.Radius * ratio, gate.y, 2);
     }
 }
