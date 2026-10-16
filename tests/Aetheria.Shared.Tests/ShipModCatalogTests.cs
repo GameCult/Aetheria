@@ -619,7 +619,7 @@ public sealed class ShipModCatalogTests : IDisposable
         WritePackage("mod.skiff");
         File.WriteAllText(Path.Combine(_directory.Path, "outside.txt"), "x");
         Directory.CreateDirectory(Path.Combine(_directory.Path, "Mods2"));
-        foreach (var name in new[] { "", ".", "..", "(all mods)", "a/b", "a\b", "../Mods", "missing" })
+        foreach (var name in new[] { "", ".", "..", "(all mods)", "a/b", "a\\b", "../Mods", "missing" })
             Assert.ThrowsAny<Exception>(() => ShipModCatalog.RemovePackage(Mods, name));
         Assert.True(Directory.Exists(Mods));
         Assert.True(Directory.Exists(Path.Combine(Mods, "mod.skiff")));
