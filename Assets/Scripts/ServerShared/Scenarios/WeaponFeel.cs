@@ -24,13 +24,13 @@ public sealed class WeaponFeel : Scenario
             ("Rugged Drive", int2(4, 14), CounterClockwise),
             ("Rugged Drive", int2(5, 14), Clockwise),
             ("Compact Reactor", int2(4, 4), None),
-            ("Charged Scatter Blaster", int2(3, 17), None),
-            ("Autocannon", int2(5, 17), None),
-            ("Cell Blaster", int2(3, 8), None),
+            ("ChargeBlast SG", int2(3, 17), None), // Charged Scatter Blaster
+            ("🫳🔫", int2(5, 17), None), // Autocannon
+            ("FastBlast+-", int2(3, 8), None), // Cell Blaster
             ("Radiator", int2(4, 2), CounterClockwise),
             ("Radiator", int2(5, 2), Clockwise),
-            ("Compact Sensor", int2(5, 10), None),
-            ("Fire Control Array", int2(3, 6), Clockwise));
+            ("not if i see you first", int2(5, 10), None), // Compact Sensor
+            ("Panopticon Prime", int2(3, 6), Clockwise)); // Fire Control Array
 
         stage.Player(shooter, float2(0, 0), facing: float2(0, 1));
         stage.Place(stage.Bare("Longinus"), Target);

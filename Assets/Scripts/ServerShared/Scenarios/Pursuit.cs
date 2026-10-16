@@ -26,15 +26,15 @@ public sealed class Pursuit : Scenario
             ("Rugged Drive", int2(2, 14), CounterClockwise),
             ("Rugged Drive", int2(3, 14), Clockwise),
             ("Compact Reactor", int2(2, 4), None),
-            ("Mine Launcher", int2(0, 5), None),
-            ("Swarm Rocket Pod", int2(5, 5), None),
-            ("Cell Blaster", int2(1, 8), None),
-            ("Cell Blaster", int2(4, 8), None),
+            ("parting gift", int2(0, 5), None), // Mine Launcher
+            ("Leonid", int2(5, 5), None), // Swarm Rocket Pod
+            ("FastBlast+-", int2(1, 8), None), // Cell Blaster
+            ("FastBlast+-", int2(4, 8), None), // Cell Blaster
             ("Radiator", int2(2, 2), CounterClockwise),
             ("Radiator", int2(3, 2), Clockwise),
-            ("Compact Sensor", int2(3, 10), None),
-            ("Fire Control Array", int2(1, 6), Clockwise),
-            ("Cargo Bay", int2(2, 8), None));
+            ("not if i see you first", int2(3, 10), None), // Compact Sensor
+            ("Panopticon Prime", int2(1, 6), Clockwise), // Fire Control Array
+            ("Store-All Plus", int2(2, 8), None)); // Cargo Bay
         var pursuer = stage.Fit("Longinus",
             ("Cockpit 2x2", int2(2, 6), None),
             ("Large Drive", int2(1, 0), Reversed),
@@ -42,19 +42,19 @@ public sealed class Pursuit : Scenario
             ("Rugged Drive", int2(2, 14), CounterClockwise),
             ("Rugged Drive", int2(3, 14), Clockwise),
             ("Compact Reactor", int2(2, 4), None),
-            ("Guided Missile Launcher", int2(0, 5), None),
-            ("Guided Missile Launcher", int2(5, 5), None),
-            ("Cell Blaster", int2(1, 8), None),
-            ("Cell Blaster", int2(4, 8), None),
+            ("GT 3K", int2(0, 5), None), // Guided Missile Launcher
+            ("GT 3K", int2(5, 5), None), // Guided Missile Launcher
+            ("FastBlast+-", int2(1, 8), None), // Cell Blaster
+            ("FastBlast+-", int2(4, 8), None), // Cell Blaster
             ("Radiator", int2(2, 2), CounterClockwise),
             ("Radiator", int2(3, 2), Clockwise),
-            ("Compact Sensor", int2(3, 10), None),
+            ("not if i see you first", int2(3, 10), None), // Compact Sensor
             ("Capacitor", int2(1, 5), None),
-            ("Fire Control Array", int2(1, 6), Clockwise),
-            ("Cargo Bay", int2(2, 8), None));
+            ("Panopticon Prime", int2(1, 6), Clockwise), // Fire Control Array
+            ("Store-All Plus", int2(2, 8), None)); // Cargo Bay
 
         var player = stage.Player(layer, float2(0, 0), facing: float2(0, 1));
-        stage.Cargo(player, "Coolant Vent", "Coolant Vent", "Coolant Vent", "Thruster Overdrive", "Thruster Overdrive");
+        stage.Cargo(player, "Morning Fog", "Morning Fog", "Morning Fog", "send it", "send it");
         stage.Place(pursuer, float2(0, -Astern), facing: float2(0, 1), stance: ScenarioStance.Hostile, piloted: true);
     }
 }

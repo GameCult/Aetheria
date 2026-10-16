@@ -9,11 +9,11 @@ using float3 = CultMath.float3;
 // The run half of a scenario's vocabulary (docs/scenarios-cut.md, R.4). A scenario's Stage builds its fits and places
 // them here; nothing joins the arena until Stage returns with no failure, and then RunStart admits it all at once.
 // Every verb names what it could not do instead of throwing, so one bad name in a script lists every bad name.
-// Designs and hulls are named as the catalog names them. Only RunStart builds a stage.
+// Designs, hulls and products are named as the catalog names them. Only RunStart builds a stage.
 public sealed class ScenarioStage
 {
     private readonly ItemManager _items;
-    private readonly Predicate<FactionProductData> _available;
+    private readonly Func<CraftedItemData, FactionProductData> _choose;
     private readonly List<string> _failures = new List<string>();
     private readonly List<Placement> _placed = new List<Placement>();
     private int _placements;
@@ -25,8 +25,9 @@ public sealed class ScenarioStage
         StartingHull = startingHull;
         TutorialGenerationSettings = tutorialGenerationSettings;
         Credits = items.GameplaySettings.StartingCredits;
-        // A fit names designs, not manufacturers, so what the galaxy offers decides which product builds each one.
-        _available = new LoadoutGenerator(ref items.Random, items, arena.Galaxy, arena.GalaxyZone, null, 2).IsAvailable;
+        // A design named without a product is chosen by the generator's ChooseProduct. The stage outfits with no faction,
+        // so every maker is reachable and the run's seed draws.
+        _choose = new LoadoutGenerator(ref items.Random, items, arena.Galaxy, arena.GalaxyZone, null, 2).ChooseProduct;
     }
 
     public Galaxy Galaxy => Arena.Galaxy;
@@ -49,18 +50,24 @@ public sealed class ScenarioStage
         public bool Piloted;
     }
 
-    // A hull fitted slot by slot: each slot a design, the hull cell it goes in, and its rotation.
+    // A hull fitted slot by slot: each slot a design or a product, the hull cell it goes in, and its rotation. A name is
+    // a design (open: the stage chooses its product) or a product (pinned: that brand).
     public ScenarioFit Fit(string hull, params (string design, int2 cell, ItemRotation rotation)[] slots)
     {
         var where = $"fit {hull}";
-        var hullData = Named<HullData>(hull, where);
+        var (hullData, hullProduct) = NamedOrProduct<HullData>(hull, where);
         var loadout = new Loadout { Name = hull, WeaponGroups = new int[0][] };
         if (hullData != null) loadout.Hull = _items.ItemData.RefOf(hullData);
+        if (hullProduct != null) loadout.HullProduct = _items.ItemData.RefOf(hullProduct);
         foreach (var (design, cell, rotation) in slots)
         {
-            var data = Named<EquippableItemData>(design, where);
+            var (data, product) = NamedOrProduct<EquippableItemData>(design, where);
             if (data == null) continue;
-            loadout.Slots.Add(new LoadoutSlot { Design = _items.ItemData.RefOf(data), Position = cell, Rotation = rotation });
+            loadout.Slots.Add(new LoadoutSlot
+            {
+                Design = _items.ItemData.RefOf(data), Position = cell, Rotation = rotation,
+                Product = product == null ? default : _items.ItemData.RefOf(product)
+            });
         }
         return hullData != null && loadout.Slots.Count == slots.Length ? new ScenarioFit(loadout) : null;
     }
@@ -119,38 +126,22 @@ public sealed class ScenarioStage
         return entity;
     }
 
-    // Items in the entity's first cargo bay, one per design named. A name is an equippable design (built as a fit
-    // builds it) or a consumable design (built from its first available product in key order, as a generated hold is
-    // stocked); a name that is neither is a failure.
-    public void Cargo(Entity entity, params string[] designs)
+    // Items in the entity's first cargo bay, one per name. A name is an equippable or consumable design (open: the stage
+    // chooses its product) or a product of one (pinned); a name that is neither is a failure.
+    public void Cargo(Entity entity, params string[] names)
     {
         if (entity == null) return;
         var where = $"cargo of {entity.Name}";
         var bay = entity.CargoBays.FirstOrDefault();
-        foreach (var design in designs)
+        foreach (var name in names)
         {
-            var data = Named<CraftedItemData>(design, where, found => found is EquippableItemData || found is ConsumableItemData);
+            var (data, product) = NamedOrProduct<CraftedItemData>(name, where, found => found is EquippableItemData || found is ConsumableItemData);
             if (data == null) continue;
-            Func<CraftedItemInstance> build;
-            if (data is ConsumableItemData)
-            {
-                var key = _items.ItemData.RefOf(data).Key;
-                var product = Loadouts.ProductsInKeyOrder(_items.ItemData).Where(p => p.Design.Key.Equals(key)).FirstOrDefault(p => _available(p));
-                if (product == null)
-                {
-                    _failures.Add($"{where}: no product offers {design}");
-                    continue;
-                }
-                build = () => _items.CreateInstance(product);
-            }
-            else
-            {
-                var equippable = Loadouts.Resolve(_items, _items.ItemData.RefOf((EquippableItemData) data), _available, where, _failures);
-                if (equippable == null) continue;
-                build = equippable;
-            }
+            var build = Loadouts.Resolve(_items, _items.ItemData.RefOf(data),
+                product == null ? default : _items.ItemData.RefOf(product), _choose, where, _failures);
+            if (build == null) continue;
             if (bay == null || !bay.TryStore(build()))
-                _failures.Add($"{where}: no room for {design}");
+                _failures.Add($"{where}: no room for {name}");
         }
     }
 
@@ -163,7 +154,7 @@ public sealed class ScenarioStage
         else
         {
             var failures = new List<string>();
-            entity = Loadouts.Materialize(_items, Arena, fit.Loadout, _available, failures);
+            entity = Loadouts.Materialize(_items, Arena, fit.Loadout, _choose, failures);
             _failures.AddRange(failures.Select(failure => $"{where} ({fit.Loadout.Name}): {failure}"));
             if (entity == null) return null;
         }
@@ -171,6 +162,17 @@ public sealed class ScenarioStage
         entity.Position = float3(at.x, 0, at.y);
         if (lengthsq(facing) > 0) entity.Direction = normalize(facing);
         return entity;
+    }
+
+    // A name is a design, or else exactly one product (names are unique) whose design is a T passing among: the design
+    // and that product. Neither is Named's failure.
+    private (T design, FactionProductData product) NamedOrProduct<T>(string name, string where, Func<T, bool> among = null) where T : CraftedItemData
+    {
+        var cache = _items.ItemData;
+        var products = cache.GetAll<FactionProductData>().Where(p => p.Name == name && cache.Get(p.Design) is T design && (among == null || among(design))).Take(2).ToArray();
+        if (products.Length == 1 && !cache.GetAll<T>().Any(data => data.Name == name && (among == null || among(data))))
+            return ((T) cache.Get(products[0].Design), products[0]);
+        return (Named(name, where, among), null);
     }
 
     private T Named<T>(string name, string where, Func<T, bool> among = null) where T : CraftedItemData
