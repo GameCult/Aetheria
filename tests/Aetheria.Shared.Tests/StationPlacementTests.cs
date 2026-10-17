@@ -378,8 +378,11 @@ public sealed class StationPlacementTests : IDisposable
                 var reach = Contacts.Radius(mine[0]);
                 var circumference = 2 * PI * orbit.Data.Distance;
                 var arcs = mine.Select(t => { var turn = Turns(zone.Orbits[t.OrbitData].Data.Phase - orbit.Data.Phase); return (turn > .5f ? turn - 1 : turn) * circumference; }).ToList();
-                // Half the ring away a turret's side is ambiguous (its signed arc wraps), so such a station is not read.
-                if (arcs.Any(a => Math.Abs(a) > .45f * circumference)) { ambiguous++; continue; }
+                // Half the ring away a turret's side is ambiguous (its signed arc wraps). A belt in the base's family has an extent the
+                // generator spelled from its authored width and the zone reads from its rocks, so the stop distance is not known to the
+                // test. Neither station is read.
+                bool InFamily(CultRecordKey key) { for (; zone.Orbits[key].Data.Parent.IsSet(); key = zone.Orbits[key].Data.Parent.Key) if (key.Equals(source[0])) return true; return key.Equals(source[0]); }
+                if (arcs.Any(a => Math.Abs(a) > .45f * circumference) || zone.AsteroidBelts.Any(b => InFamily(zone.Planets[b.Key].Orbit.Key))) { ambiguous++; continue; }
                 stations++;
                 foreach (var sign in new[] { -1f, 1f })
                 {
@@ -396,7 +399,7 @@ public sealed class StationPlacementTests : IDisposable
                 }
             }
         }
-        _output.WriteLine($"story stations {stations} (not read, ambiguous: {ambiguous}), sides {sides}, sides that stopped {stops}, of them with the next turret at 0.8 to 1 of the stop distance {nearBase}");
+        _output.WriteLine($"story stations {stations} (not read: {ambiguous}), sides {sides}, sides that stopped {stops}, of them with the next turret at 0.8 to 1 of the stop distance {nearBase}");
         Assert.True(stops > 0 && nearBase > 0, $"{stops} stops, {nearBase} in the 0.8 band: the seeds do not exercise the rule");
     }
 
