@@ -257,19 +257,29 @@ public sealed class WellTree
         }
     }
 
-    // A root's reach. The one place the subzone shape is decided (question multi-root-zone-shape): a sole massive root is the
-    // whole zone (+inf, so its global term is the far field); with several, isolated-subzones bounds each root to Reach x the
-    // distance to the nearest other massive root, or its floor (Beta x support) if more. The superposed-inside option
-    // (Beta x max(pack radius, max over massive roots of |anchor - Centre| + support)) is not a change to this return: it needs
-    // every massive root's support, and roots are processed one at a time here, so it would take a second pass over the roots
-    // once their supports exist.
+    // A root's reach: the floor (Beta x support) or the subzone reach, whichever is more. The subzone shape is decided in the
+    // public static SubzoneReach (multi-root-isolated-subzones): the generator calls the same function, so Reach x the nearest
+    // root's distance is spelled once and the roots' windows are fitted to it (root-window-floor).
     private float SubzoneReach(int root, float floor)
     {
-        if (_massiveRoots.Length < 2) return float.PositiveInfinity;
+        var anchors = new List<float2>();
+        foreach (var other in _massiveRoots) anchors.Add(_anchor[other]);
+        return Math.Max(SubzoneReach(anchors, Array.IndexOf(_massiveRoots, root)), floor);
+    }
+
+    /// <summary>
+    /// A subzone root's reach among the zone's massive roots' anchors: a sole massive root is the whole zone (+inf, so its
+    /// global term is the far field); with several, each root is bounded to GravityField.Reach x the distance to the nearest
+    /// other root (multi-root-isolated-subzones). The superposed-inside option is not a change to this return: it needs every
+    /// root's support, and roots are processed one at a time.
+    /// </summary>
+    public static float SubzoneReach(IReadOnlyList<float2> anchors, int root)
+    {
+        if (anchors.Count < 2) return float.PositiveInfinity;
         var nearest = float.PositiveInfinity;
-        foreach (var other in _massiveRoots)
-            if (other != root) nearest = Math.Min(nearest, length(_anchor[other] - _anchor[root]));
-        return Math.Max(GravityField.Reach * nearest, floor);
+        for (var other = 0; other < anchors.Count; other++)
+            if (other != root) nearest = Math.Min(nearest, length(anchors[other] - anchors[root]));
+        return GravityField.Reach * nearest;
     }
 
     private void EmitTerms(int[] parent, float[] body, float[] family, int[][] ring, float[] lower, RingGroup[] group,
@@ -395,8 +405,7 @@ public sealed class WellTree
     /// <summary>
     /// The pull (toward the node, u/s^2) a rail at `distance` round `parentOrbit` is given: the node's own terms at that
     /// distance. A ring member of a bodyless node adds each other member's own terms at their chord (positions at t = 0),
-    /// projected toward the node; a strengthless orbit on that ring (a station, a turret) takes the mean of what the ring's
-    /// members feel, so it keeps their period. Infinite period for a pull of 0 is the caller's.
+    /// projected toward the node. Infinite period for a pull of 0 is the caller's.
     /// </summary>
     public float PullAround(CultRecordKey parentOrbit, float distance, CultRecordKey self)
     {
@@ -405,12 +414,7 @@ public sealed class WellTree
         var members = _ring[node];
         if (members == null || members.Length < 2) return pull;
         if (_index.TryGetValue(self, out var me) && Array.IndexOf(members, me) >= 0) return pull + PartnersPull(members, me);
-        var inner = float.PositiveInfinity;
-        foreach (var m in members) inner = Math.Min(inner, _distance[m]);
-        if (Math.Abs(distance - inner) > RingWindow) return pull;
-        var mean = 0f;
-        foreach (var m in members) mean += PartnersPull(members, m) / members.Length;
-        return pull + mean;
+        return pull;
     }
 
     // What the other members of a ring pull member m with, along the direction from m to the node.

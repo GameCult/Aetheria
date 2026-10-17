@@ -7,7 +7,7 @@ public sealed class LockOn : Scenario
     public override string Brief => "A hostile closes from out of sight, finds you and locks. Verify: no warning at first; once it locks, one " +
                                     "indicator appears toward it and tightens as the lock grows; break line of sight or range and it vanishes; " +
                                     "your own ping shows no incoming paint on its side, only the lock does.";
-    public override uint Seed => 113;
+    public override uint Seed => 1;
     public override bool Ambient => false;
 
     // The hostile starts about 4000 m off, ahead and to port of the player, facing the player. At that range its passive

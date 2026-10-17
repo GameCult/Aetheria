@@ -57,9 +57,10 @@ public sealed class RestoredHullsTests
     // Shared tutorial-galaxy construction settings (Assets/Resources/Settings.asset's own values), factored out
     // so every test that needs a real tutorial Galaxy -- not just EntranceZoneAlwaysGetsADockedStationAcrossSeeds
     // -- builds it the same way instead of re-inlining the same ~20 fields.
+    internal static PlanetSettings AuthoredPlanetSettings() => AuthoredSettings.Load(RunStartTests.FindRepoRoot()).Read<PlanetSettings>("PlanetSettings");
+
     internal static ZoneGenerationSettings TutorialZoneSettings() => new ZoneGenerationSettings
     {
-        PlanetSafetyRadius = new ExponentialCurve { Exponent = .25f, Multiplier = 2.5f, Constant = 0 },
         MassFloor = 1, SunMass = 5000, GasGiantMass = 1000, PlanetMass = 100,
         SatellitePasses = 5, SatelliteCreationMassFloor = 100, SatelliteCreationProbability = .25f,
         BinaryCreationProbability = .1f, RosetteProbability = .1f,
@@ -156,7 +157,7 @@ public sealed class RestoredHullsTests
                 cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed);
             foreach (var zone in galaxy.Zones.Where(z => !ReferenceEquals(z, galaxy.Entrance)))
             {
-                var orbits = ParentedPlanetOrbits(cache, ZoneGenerator.GenerateZone(items, TutorialZoneSettings(), galaxy, zone, isTutorial: false, ambient: false));
+                var orbits = ParentedPlanetOrbits(cache, ZoneGenerator.GenerateZone(items, TutorialZoneSettings(), AuthoredPlanetSettings(), galaxy, zone, isTutorial: false, ambient: false));
                 if (orbits.Length > 0 && !HasGenuineLagrangeCandidate(orbits)) return (seed, zone.Name);
             }
         }
@@ -377,7 +378,7 @@ public sealed class RestoredHullsTests
                 var galaxy = new Galaxy(tutorialSettings, background, names, cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed);
 
                 var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
-                var pack = ZoneGenerator.GenerateZone(items, zoneSettings, galaxy, galaxy.Entrance, isTutorial: true);
+                var pack = ZoneGenerator.GenerateZone(items, zoneSettings, AuthoredPlanetSettings(), galaxy, galaxy.Entrance, isTutorial: true);
 
                 var dockedStation = pack.Entities.OfType<OrbitalEntityPack>()
                     .FirstOrDefault(e => (cache.Get(e.Hull.Data) as HullData)?.HullType == HullType.Station && e.DockingBays.Length > 0);
@@ -418,7 +419,7 @@ public sealed class RestoredHullsTests
                 var galaxy = new Galaxy(tutorialSettings, background, names, cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed);
 
                 var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
-                var pack = ZoneGenerator.GenerateZone(items, zoneSettings, galaxy, galaxy.Entrance, isTutorial: true);
+                var pack = ZoneGenerator.GenerateZone(items, zoneSettings, AuthoredPlanetSettings(), galaxy, galaxy.Entrance, isTutorial: true);
 
                 var planetOrbits = pack.Planets.Select(p => cache.Get(cache.Get(p).Orbit)).Where(o => o.Parent.IsSet()).ToArray();
                 var hasGenuineCandidate = planetOrbits.Any(o => planetOrbits.Count(c => c.Parent.Key.Equals(o.Parent.Key) && abs(c.Distance - o.Distance) < .1f) == 1);
@@ -460,9 +461,11 @@ public sealed class RestoredHullsTests
             var zoneSettings = TutorialZoneSettings();
             zoneSettings.RosetteProbability = 0;
             zoneSettings.MassFloor = 1e9f;
+            // One subzone: the zone's only body is a parentless root. (Several roots give the station a root to orbit.)
+            zoneSettings.SubZoneCount = new ExponentialLerp { Exponent = 1, Minimum = 0, Maximum = 0 };
 
             Assert.Throws<InvalidOperationException>(() =>
-                ZoneGenerator.GenerateZone(items, zoneSettings, galaxy, galaxy.Entrance, isTutorial: true));
+                ZoneGenerator.GenerateZone(items, zoneSettings, AuthoredPlanetSettings(), galaxy, galaxy.Entrance, isTutorial: true));
         }
         finally
         {
@@ -497,13 +500,10 @@ public sealed class RestoredHullsTests
             zoneSettings.SatelliteCreationProbability = 0;
             zoneSettings.BinaryCreationProbability = 0;
 
-            var pack = ZoneGenerator.GenerateZone(items, zoneSettings, galaxy, galaxy.Entrance, isTutorial: true);
+            var pack = ZoneGenerator.GenerateZone(items, zoneSettings, AuthoredPlanetSettings(), galaxy, galaxy.Entrance, isTutorial: true);
 
-            var roots = pack.Planets.Select(p => cache.Get(p).Orbit)
-                .Select(cache.Get)
-                .Select(o => o.Parent.IsSet() ? o.Parent.Key.Value : "(root)")
-                .Distinct().Count();
-            Assert.True(roots > 1, $"this fixture no longer produces a multi-root entrance (only {roots} distinct parent); it no longer tests the fragmented-topology case.");
+            var roots = pack.Planets.Select(p => cache.Get(cache.Get(p).Orbit)).Count(o => !o.Parent.IsSet());
+            Assert.True(roots > 1, $"this fixture no longer produces a multi-root entrance (only {roots} root); it no longer tests the fragmented-topology case.");
 
             var stations = pack.Entities.OfType<OrbitalEntityPack>()
                 .Where(e => (cache.Get(e.Hull.Data) as HullData)?.HullType == HullType.Station).ToArray();
@@ -545,7 +545,7 @@ public sealed class RestoredHullsTests
                 var galaxy = new Galaxy(tutorialSettings, background, names, cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed);
 
                 var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
-                var pack = ZoneGenerator.GenerateZone(items, zoneSettings, galaxy, galaxy.Entrance, isTutorial: true);
+                var pack = ZoneGenerator.GenerateZone(items, zoneSettings, AuthoredPlanetSettings(), galaxy, galaxy.Entrance, isTutorial: true);
 
                 var dockedStation = pack.Entities.OfType<OrbitalEntityPack>()
                     .FirstOrDefault(e => (cache.Get(e.Hull.Data) as HullData)?.HullType == HullType.Station && e.DockingBays.Length > 0);
@@ -740,7 +740,7 @@ public sealed class RestoredHullsTests
             var galaxy = BuildGalaxyWithForcedEntrance(cache, seed, zoneName);
 
             var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
-            var pack = ZoneGenerator.GenerateZone(items, TutorialZoneSettings(), galaxy, galaxy.Entrance, isTutorial: true);
+            var pack = ZoneGenerator.GenerateZone(items, TutorialZoneSettings(), AuthoredPlanetSettings(), galaxy, galaxy.Entrance, isTutorial: true);
 
             var station = pack.Entities.OfType<OrbitalEntityPack>()
                 .FirstOrDefault(e => (cache.Get(e.Hull.Data) as HullData)?.HullType == HullType.Station && e.DockingBays.Length > 0);
@@ -749,7 +749,11 @@ public sealed class RestoredHullsTests
 
             // Confirms this fixture still exercises the widened path (a regression here would mean the fixture no
             // longer probes what this test claims to probe).
-            Assert.True(IsRosetteMember(cache, pack, stationOrbit), "the entrance station no longer sits on a rosette-only orbit -- this fixture no longer tests the widened candidate path.");
+            // The zone has no body alone on its ring, so the station orbits the root node beyond its ring group.
+            var rootOrbit = cache.Get(stationOrbit.Parent);
+            Assert.False(rootOrbit.Parent.IsSet(), "the entrance station no longer orbits a root node -- this fixture no longer tests the no-candidate path.");
+            var ring = pack.Planets.Select(p => cache.Get(cache.Get(p).Orbit)).Where(o => o.Parent.IsSet() && o.Parent.Key.Equals(stationOrbit.Parent.Key)).Select(o => o.Distance).DefaultIfEmpty(0f).Min();
+            Assert.True(stationOrbit.Distance >= (1 + GravityField.RingReach) * GravityField.Beta * ring * .999f, $"the entrance station at {stationOrbit.Distance} sits inside its node's ring group of radius {ring}.");
 
             var turrets = pack.Entities.OfType<OrbitalEntityPack>()
                 .Where(e => (cache.Get(e.Hull.Data) as HullData)?.HullType != HullType.Station).ToArray();
@@ -790,7 +794,7 @@ public sealed class RestoredHullsTests
             var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
 
             int StationCount(GalaxyZone zone, bool isTutorial) =>
-                ZoneGenerator.GenerateZone(items, TutorialZoneSettings(), galaxy, zone, isTutorial)
+                ZoneGenerator.GenerateZone(items, TutorialZoneSettings(), AuthoredPlanetSettings(), galaxy, zone, isTutorial)
                     .Entities.OfType<OrbitalEntityPack>()
                     .Count(e => (cache.Get(e.Hull.Data) as HullData)?.HullType == HullType.Station);
 
@@ -830,7 +834,7 @@ public sealed class RestoredHullsTests
                 cache, new PlayerSettings(), new DirectoryInfo(Path.GetTempPath()), _ => { }, null, seed: 1u);
             var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
 
-            var pack = ZoneGenerator.GenerateZone(items, TutorialZoneSettings(), galaxy, galaxy.Entrance, isTutorial: true);
+            var pack = ZoneGenerator.GenerateZone(items, TutorialZoneSettings(), AuthoredPlanetSettings(), galaxy, galaxy.Entrance, isTutorial: true);
             var stationCount = pack.Entities.OfType<OrbitalEntityPack>().Count(e => (cache.Get(e.Hull.Data) as HullData)?.HullType == HullType.Station);
             // Soul's finding (this cut's fix batch 3): pack.Entities.OfType<ShipPack>().Count() also counts the
             // zone's neutral wanderers (ZoneGenerator.cs's own EligibleWandererFactions spawn, keyed to
@@ -914,7 +918,7 @@ public sealed class RestoredHullsTests
             Assert.NotSame(galaxy.Entrance, zone);
 
             var items = new ItemManager(cache, new ProvenanceLedger(), Settings(), _ => { });
-            var pack = ZoneGenerator.GenerateZone(items, TutorialZoneSettings(), galaxy, zone, isTutorial: true);
+            var pack = ZoneGenerator.GenerateZone(items, TutorialZoneSettings(), AuthoredPlanetSettings(), galaxy, zone, isTutorial: true);
 
             // Confirms this fixture still has no genuine (non-rosette) Lagrange candidate -- a regression here
             // would mean the fixture no longer probes what this test claims to probe.

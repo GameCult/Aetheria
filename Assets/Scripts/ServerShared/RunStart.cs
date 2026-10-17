@@ -23,11 +23,11 @@ public static class RunStart
         return scenario.Generate(stage) ?? throw new InvalidOperationException($"Scenario {scenario.Name} generated no galaxy.");
     }
 
-    public static ZonePack GenerateArena(ItemManager itemManager, ZoneGenerationSettings zoneSettings, Galaxy galaxy, Scenario scenario)
+    public static ZonePack GenerateArena(ItemManager itemManager, ZoneGenerationSettings zoneSettings, PlanetSettings planetSettings, Galaxy galaxy, Scenario scenario)
     {
         SeedItems(itemManager, galaxy, 1);
         return galaxy.Entrance.PackedContents = ZoneGenerator.GenerateZone(
-            itemManager, zoneSettings, galaxy, galaxy.Entrance, galaxy.IsPrelude, scenario.Ambient);
+            itemManager, zoneSettings, planetSettings, galaxy, galaxy.Entrance, galaxy.IsPrelude, scenario.Ambient);
     }
 
     // Runs the scenario's Stage, then admits its player and everything it placed: each entity's stance set both ways

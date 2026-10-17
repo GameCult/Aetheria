@@ -78,7 +78,7 @@ public sealed partial class RunStartTests : IDisposable
 
     // The fixture galaxy's arena, with or without its generated ships and turrets.
     private Zone Arena(bool ambient) =>
-        new Zone(_items, _planetSettings, RunStart.GenerateArena(_items, _zoneSettings, _galaxy, new Scripted(ambient, _ => { })), _galaxy.Entrance, _galaxy);
+        new Zone(_items, _planetSettings, RunStart.GenerateArena(_items, _zoneSettings, _planetSettings, _galaxy, new Scripted(ambient, _ => { })), _galaxy.Entrance, _galaxy);
 
     private HullData Hull(string name) => _cache.GetAll<HullData>().Single(hull => hull.Name == name);
 
@@ -311,8 +311,14 @@ public sealed partial class RunStartTests : IDisposable
     [Fact]
     public void NoOrbitStandsStillAgainstItsParent()
     {
-        var zone = Arena(false); // no ships: nothing but the zone runs
-        Assert.True(zone.AsteroidBelts.Count > 0, "the arena has an asteroid belt to race against");
+        // No ships: nothing but the zone runs. Belts are rarer than they were, so the first galaxy seed whose entrance holds one.
+        Zone zone = null;
+        for (uint seed = GalaxySeed; zone == null && seed < GalaxySeed + 60; seed++)
+        {
+            var (_, arena, _, _) = Launch(new Scripted(false, _ => { }, seed), Inputs());
+            if (arena.AsteroidBelts.Count > 0) zone = arena;
+        }
+        Assert.True(zone != null, "no arena of the first 60 seeds has an asteroid belt to race against");
         float2 Relative(Orbit orbit, bool previous) =>
             (previous ? orbit.PreviousPosition : orbit.Position) -
             (zone.Orbits.TryGetValue(orbit.Data.Parent.Key, out var parent) ? previous ? parent.PreviousPosition : parent.Position : orbit.Data.FixedPosition);
@@ -673,7 +679,7 @@ public sealed partial class RunStartTests : IDisposable
     [Fact]
     public void AdmitIsTheOnlyAgentCreator()
     {
-        var pack = RunStart.GenerateArena(_items, _zoneSettings, _galaxy, new Scripted(true, _ => { }));
+        var pack = RunStart.GenerateArena(_items, _zoneSettings, _planetSettings, _galaxy, new Scripted(true, _ => { }));
         var packedPlayer = pack.Entities.OfType<ShipPack>().First();
         packedPlayer.IsPlayerShip = true;
         var zone = new Zone(_items, _planetSettings, pack, _galaxy.Entrance, _galaxy);

@@ -722,6 +722,7 @@ public class ActionGameManager : MonoBehaviour
             galaxyZone.PackedContents ??= ZoneGenerator.GenerateZone(
                 ItemManager,
                 Settings.ZoneSettings,
+                Settings.PlanetSettings,
                 CurrentGalaxy,
                 galaxyZone,
                 CurrentGalaxy.IsPrelude
@@ -845,7 +846,7 @@ public class ActionGameManager : MonoBehaviour
         {
             staged = RunSave.Replace(CultCache, () =>
             {
-                RunStart.GenerateArena(ItemManager, Settings.ZoneSettings, CurrentGalaxy, scenario);
+                RunStart.GenerateArena(ItemManager, Settings.ZoneSettings, Settings.PlanetSettings, CurrentGalaxy, scenario);
                 PopulateLevel(CurrentGalaxy.Entrance);
                 return RunStart.Stage(ItemManager, Zone, scenario, Settings.StartingHullName, Settings.TutorialGenerationSettings, failures);
             });
