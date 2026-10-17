@@ -244,11 +244,15 @@ public static class ZoneGenerator
         var isTutorialEntrance = isTutorial && galaxyZone == galaxy.Entrance;
         if (isTutorialEntrance && stationCount < 1) stationCount = 1;
         // A station's source is a well-bearing body alone on its ring whose rail clears every massive sibling's extent (the
-        // sibling's support, or its Roche margin if more): its Lagrange orbit then sits clear of any other body.
+        // sibling's support, or its Roche margin if more) and the largest reach of any station or turret hull: whatever hull
+        // is built there, its Lagrange orbit then sits clear of any other body.
+        var cellSize = itemManager.GameplaySettings.SchematicCellSize;
+        var largestReach = cache.GetAll<HullData>().Where(h => h.HullType == HullType.Station || h.HullType == HullType.Turret)
+	        .Select(h => h.Reach(cellSize)).DefaultIfEmpty(0f).Max();
         var candidates = planets
 	        .Where(p => p.Parent != null && !p.Empty && !p.Belt
 		        && p.Parent.Children.TrueForAll(c => c == p || (abs(c.Distance - p.Distance) >= WellTree.RingWindow
-			        && (!Massive(c) || abs(c.Distance - p.Distance) > Extent(c)))))
+			        && (!Massive(c) || abs(c.Distance - p.Distance) > Extent(c) + largestReach))))
 	        .OrderBy(p => p.Distance)
 	        .ToArray();
         // (the rail, how far a body on it keeps others out, whether it is a station's own orbit rather than a base's)
