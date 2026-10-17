@@ -64,7 +64,6 @@ public static class MapBeltPerf
 
         var transforms = new float4[count];
         var presenter = new MapPresenter(new Material[0], AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/UI/MapAsteroid.mat"), 4, 4, 3f);
-        presenter.BeltsOnMinimap = true;
         presenter.RegisterBelt(beltKey, transforms);
         var baseBelt = new MapBeltPerfBase(zone, zone.AsteroidBelts[beltKey], 4, 4, 3f);
 
