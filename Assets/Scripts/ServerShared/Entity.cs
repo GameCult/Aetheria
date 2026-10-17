@@ -1262,7 +1262,7 @@ public abstract class Entity
         if (!_telemetry.TryGetValue(other, out var claimed)) return false;
         var owner = Zone.GalaxyZone.Owner;
         if (owner == null) return false;
-        return (claimed == owner && !(other.PresencePermitted?.Value ?? true)) || (Faction == owner && BelievesTrespassing(other));
+        return (claimed == owner && !(PresencePermitted?.Value ?? true)) || (Faction == owner && BelievesTrespassing(other));
     }
 
     // The faction `subject`'s telemetry claimed when this observer first tracked it; false while the contact is unknown.
