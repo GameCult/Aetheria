@@ -10,8 +10,8 @@ using float2 = CultMath.float2;
 using float3 = CultMath.float3;
 
 // Batch proof that the presenters read the drawn pose through the clock: DrawnPoseTests pins the pose maths headlessly,
-// and this is what pins that each presenter passes ActionGameManager.Clock.Lead into it. A zone is loaded into a fresh
-// ZoneRenderer with the pickup and mine prefabs ARPG.unity's ZoneRenderer names; a loose Projectile is launched on the
+// and this is what pins that each presenter passes ActionGameManager.Clock.Lead into it. A zone with a sun and a planet on a moving rail
+// is built and the pickup and mine prefabs ARPG.unity's ZoneRenderer names are bound to it as the renderer binds them; a loose Projectile is launched on the
 // zone. The zone is stepped once, then the clock is set to leads 0, 0.008 and 0.015 s with no step, and each presenter's
 // own Update places its transform. A body is drawn at its last step plus its step velocity times the lead, spelled here
 // from the body's fields, so a presenter that reads lead 0 (or half the lead) sits on the step and fails.
@@ -135,20 +135,6 @@ namespace Aetheria.EditorTools
             var zone = new Zone(items, curves, pack, null, null);
 
             var rootObject = new GameObject("Wiring Zone Root");
-            var rendererObject = new GameObject("Wiring Zone Renderer");
-            rendererObject.SetActive(false); // inactive: ZoneRenderer.Update needs a GPU and is not part of this check
-            var renderer = rendererObject.AddComponent<ZoneRenderer>();
-            renderer.ZoneRoot = rootObject.transform;
-            renderer.SimpleCommodityPickup = pickupPrefab;
-            renderer.MinePrefab = minePrefab;
-            renderer.ItemManager = items;
-            renderer.SectorBrushes = new GameObject("Wiring Brushes").transform;
-            renderer.AmbientLight = AmbientEdgeVerify.NewAmbientLight();
-            renderer.SlimeGravityCamera = new GameObject("Wiring Gravity Camera").AddComponent<Camera>();
-            var slimeObject = new GameObject("Wiring Slime");
-            slimeObject.SetActive(false);
-            renderer.SlimeRenderer = slimeObject.AddComponent<Slime>();
-            renderer.LoadZone(zone);
 
             var ore = new SimpleCommodity { Data = items.ItemData.RefOf<ItemData>(items.ItemData.GetByName<SimpleCommodityData>("Wiring Ore")), Quantity = 7 };
             var floating = zone.Release(ore, new float2(3, 4), new float2(10, 0));
@@ -158,6 +144,13 @@ namespace Aetheria.EditorTools
                 ArmingDelay = 1e6f, FuseDelay = 1f, Lifetime = 1e6f, BlastRadius = 1f
             };
             zone.Lay(mine);
+
+            // Bound the way ZoneRenderer.LoadFloatingItem and LoadMine bind them: the prefab ARPG.unity names, Bind(zone, body, settings).
+            // (A ZoneRenderer would load this zone's sun and planet too, and that needs the planet prefab, the map and a GPU.)
+            var pickup = UnityEngine.Object.Instantiate(pickupPrefab, rootObject.transform);
+            pickup.Bind(zone, floating, settings);
+            var mineInstance = UnityEngine.Object.Instantiate(minePrefab, rootObject.transform);
+            mineInstance.Bind(zone, mine, settings);
 
             // A round on its frozen line, no target and no outcome known: drawn at FireOrigin + direction * speed * (T - FireTime).
             var shot = new PendingShot
@@ -171,8 +164,6 @@ namespace Aetheria.EditorTools
 
             zone.Update(.5f);
 
-            var pickup = rootObject.GetComponentsInChildren<ItemPickup>(true).Single(p => p.Item == ore);
-            var mineInstance = UnityEngine.Object.FindObjectsByType<MineInstance>(FindObjectsInactive.Include, FindObjectsSortMode.None).Single();
 
             var pickupVelocity = floating.Body.TotalVelocity;
             var mineVelocity = mine.Body.TotalVelocity;
