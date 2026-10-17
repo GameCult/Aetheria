@@ -56,9 +56,10 @@ public static class Program
             case "generic-designs": return GenericDesigns(args.Contains("apply"));
             case "inspection-scanner": return InspectionScannerCatalog(args.Contains("apply"));
             case "product-lines": return ProductLinesCommand.Run(args.Skip(1).ToArray());
+            case "minor-power-factions": return MinorPowerFactionsCommand.Run(args.Skip(1).ToArray());
             case "doctrine-catalog": return DoctrineCatalog.Run(AetherDb.Open(catalogWritable: args.Contains("apply")).Cache, args.Contains("apply"), Console.Out);
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], range-falloff [apply] [--effective <fraction>] [--end <multiplier>], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], smoke-hull [apply], smoke-rounds [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], launch-suppressor [apply], pirates-faction [apply], verse-grammar [apply], generic-designs [apply], sensor-stat-set [apply], inspection-scanner [apply], product-lines weapons [apply], doctrine-catalog [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], range-falloff [apply] [--effective <fraction>] [--end <multiplier>], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], smoke-hull [apply], smoke-rounds [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], launch-suppressor [apply], pirates-faction [apply], verse-grammar [apply], generic-designs [apply], sensor-stat-set [apply], inspection-scanner [apply], minor-power-factions [apply], product-lines weapons|minor-powers [apply], doctrine-catalog [apply]");
                 return 1;
         }
     }
@@ -258,6 +259,7 @@ public static class Program
         ["Zhestokost"] = (.50f, .08f), ["AU"] = (.50f, .12f), ["Lightsail"] = (.55f, .10f), ["R&D"] = (.60f, .15f),
         ["Lucent"] = (.60f, .15f), ["NiteLife"] = (.55f, .12f), ["Finch"] = (.65f, .20f), ["Alakrita"] = (.60f, .14f),
         ["DME"] = (.55f, .20f), ["Adrasteia"] = (.60f, .10f),
+        ["Aya"] = (.50f, .08f), ["Megiddo"] = (.75f, .05f), ["Forge"] = (.45f, .15f),
     };
 
     private static readonly (float Mean, float Dev) PirateProfile = (.45f, .22f);
@@ -2259,6 +2261,11 @@ public static class Program
     // only, written here as \U escapes so no editor or shell mangles them; the dry run prints them raw and as code points.
     //
     // Dry run unless passed "apply", same contract as the other *-migrate commands.
+    // The factions the Pirates do not yet hold allegiance to: every faction but themselves and those already named. The one
+    // rule of both the first apply and the top-up, so they cannot diverge.
+    private static Faction[] AllegianceGaps(AetherDb db, Faction pirates, IEnumerable<Faction> factions) =>
+        factions.Where(f => !ReferenceEquals(f, pirates) && !pirates.Allegiance.ContainsKey(db.Cache.RefOf(f))).ToArray();
+
     public static int PiratesFaction(bool apply, string root = null)
     {
         var db = AetherDb.Open(catalogWritable: apply, root: root);
@@ -2266,7 +2273,23 @@ public static class Program
         var existing = db.Cache.GetAll<Faction>().FirstOrDefault(f => f.Name == "Pirates");
         if (existing != null)
         {
-            Console.WriteLine("A faction named \"Pirates\" already exists; nothing to do.");
+            // A Pirates record already in the catalog is topped up, never rewritten: it gains allegiance 1.0 to each faction added
+            // since, under its existing key, and nothing else changes.
+            var gaps = AllegianceGaps(db, existing, db.Cache.GetAll<Faction>());
+            if (gaps.Length == 0)
+            {
+                Console.WriteLine("The Pirates' allegiance already covers every faction; nothing to do.");
+                return 0;
+            }
+            Console.WriteLine($"The Pirates lack allegiance to {gaps.Length} faction(s): {string.Join(", ", gaps.Select(f => f.Name))}.");
+            if (!apply)
+            {
+                Console.WriteLine("\nDry run. Pass \"apply\" to give them allegiance 1.0 to each.");
+                return 0;
+            }
+            foreach (var gap in gaps) existing.Allegiance[db.Cache.RefOf(gap)] = 1f;
+            db.Cache.Commit(batch => batch.Upsert(typeof(Faction), existing, db.Cache.RefOf(existing).Key));
+            Console.WriteLine($"\nGave the Pirates allegiance 1.0 to {gaps.Length} faction(s) in Aetheria.cc");
             return 0;
         }
 
@@ -2293,7 +2316,7 @@ public static class Program
             GeonameFile = db.Cache.RefOf(nameFile),
             InfluenceDistance = 3,
         };
-        foreach (var other in others) pirates.Allegiance[db.Cache.RefOf(other)] = 1f;
+        foreach (var other in AllegianceGaps(db, pirates, others)) pirates.Allegiance[db.Cache.RefOf(other)] = 1f;
 
         var rebrands = new (string Design, string Name, string Description)[]
         {
