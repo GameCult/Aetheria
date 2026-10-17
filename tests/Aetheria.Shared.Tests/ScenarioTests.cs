@@ -581,7 +581,7 @@ public sealed partial class RunStartTests
         Assert.Equal("hash", settings.HashedStoryFiles["story"]);
         Assert.Equal((TemperatureUnit.Kelvin, 5), (settings.GameplaySettings.TemperatureUnit, settings.GameplaySettings.SignificantDigits));
         Assert.Equal("<Keyboard>/1", Assert.Single(settings.InputSettings.ActionBarInputs));
-        Assert.Equal((Quality.High, 1f), (settings.GraphicsSettings.NebulaQuality, settings.GraphicsSettings.ScreenShake));
+        Assert.Equal((Quality.High, 0.25f), (settings.GraphicsSettings.NebulaQuality, settings.GraphicsSettings.ScreenShake));
     }
 
     // A scenario's Brief is player text (the menu shows it): it names gear by what the catalog sells today. A name a rename retired,
