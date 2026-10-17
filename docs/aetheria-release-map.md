@@ -10576,3 +10576,117 @@ C:\aeth-wt\imag-ag5-assembly at origin/master 0f5def17.
 | Maker assembly (`Faction.Assembly`, key 19) | The Faction record key. | Null until `assembly-from-maker apply` seeds it at part mean + .1; afterwards edited in Studio and never re-derived. | The operator in Studio; the command only fills nulls. |
 | Product assembly (`FactionProductData.Assembly`, key 6) | The product record key. | Null (the maker's) unless a tier row or Studio sets it. | The operator or the product-lines tier rows; no command derives it. |
 | Lot quality (`Lot.Quality`, final assembly) | The lot ordinal in the run ledger. | Written once at mint by `CreateLot(product[, quality])`, drawn or stated; never rewritten. | `ItemManager.CreateLot`; readers move to effective quality in cut quality-readers. |
+
+## Place names: faction-curated lists
+
+Spec `cut-faction-curated-place-names.r2` (r1 superseded for one LFS anchor). It rests on
+ruling `faction-curated-place-names` (2026-10-17), which restates `authored-settlement-data`
+(2026-10-08). Her words decide the first part: each faction gets its own curated list, and
+Markov generation is retired. The second part, where each name carries historical, narrative
+and strategic intent once economics-driven placement exists, is a sketch of where this goes.
+This cut builds the structure and the first lists. It does not write the final lore.
+
+### Body facts
+
+All probes ran at `0f5def17` in `C:\aeth-wt\imag-ag5-placenames` on 2026-10-17. The probe
+used a scratch console project that referenced the prebuilt AetherDb and Aetheria.Shared DLLs
+from `C:\aeth-wt\ag4-merge-e` (Release). That tree carries the same Faction and NameFile
+shapes, and it read this worktree's catalog.
+
+- **P1 Consumers of the generator.** `git grep` in Assets, tools and tests:
+  `MarkovNameGenerator` is constructed only at `Galaxy.cs:364` (one per placed faction, from
+  `cache.Get(faction.GeonameFile).Names`) and in the editor window `Editor/NameTools.cs:82`.
+  `Galaxy.GenerateNames` (`:353-379`) is the one writer of zone names. It runs last in both
+  constructors (`:134`, `:262`). An owned zone takes the next Markov name. An unowned zone
+  takes `EAC-{random.NextInt(9999)}`, with no uniqueness check. No test names the generator.
+  `NameGeneratorSettings` reaches the galaxy through `GalaxyStage`, `MainMenu.cs:180`,
+  `GameSettings.cs:25` and `Settings.asset:38-41`, and through 18 test call sites. The
+  `Galaxy.NameGeneratorSettings` property is never assigned.
+- **P2 Consumers of GeonameFile and NameFile.** `Corporations.cs:40-41` (key 9, the
+  reference) and `:67-72` (the type, `aetheria.namefile`). `AetheriaStores.cs:10` lists it as
+  a catalog type. `Program.Factions` counts an unset reference as broken, and
+  `Program.PiratesFaction` requires `pleiades`. `MinorPowerFactionsCommand` refuses a missing
+  name file. Four tests read it: `MinorPowersTests:60`, `PiratesRecordTests:28`, and
+  `PiratesFactionCommandTests:85` and `:180`. Ghostlight, AetheriaLore and gamecult-ops never
+  name it.
+- **P3 The data.** The catalog holds 12 NameFile records with about 1.18 million entries.
+  They are word-split geonames dumps, not names: Australia's first entries are `Great`,
+  `Australian`, `Bight`. India has 298k entries and pleiades starts with a header word.
+  pleiades is shared by Megiddo, Pirates, Alakrita and Forge, and Congo by Aya and Lucent.
+  `Assets/Resources/Geonames/` holds the 12 source CSVs as LFS pointers, plus `bad-words.txt`
+  (1384 lines). No code loads them.
+- **P4 How many names a faction needs.** Seeds 1-40. In the main galaxy (196 zones, 12 of 16
+  factions placed, about 64 unowned), the mean number of owned zones per placed faction runs
+  from 6.3 (Megiddo) to 13.6 (Lucent), and the maximum is 28 (NiteLife). In the prelude (64
+  zones, about 18 unowned), the maximum is 18 (Lucent), and Miss Terri's holds a mean of 5.7
+  zones (maximum 7) in 40 of 40 runs. Aya and Megiddo were placed in 40 of 40 main galaxies.
+  The draw is not this cut's concern, but the bias is worth a look.
+- **P5 Removing a stored type.** CultCache throws `No local CultCache schema matches
+  persisted schema` when a persisted record's schema has no local type (CultLib
+  `src/GameCult.Caching/CultCache.cs:531-532`). A dropped member is shed
+  (`:3207-3212`). So NameFile records must be purged while the type exists, and the cut's
+  commit order follows from that.
+- **P6 Coupling through the name.** `ZoneGenerator.cs:52` seeds a zone's bodies from
+  `Name.StableHash()`, and `Zone.CombatSeed` is the same hash. Markov also consumed the
+  galaxy's Random, so every name changes, and with it every zone's content. Topology does not.
+- **P7 Faction identity.** The record keys of all 16 factions were read from the catalog
+  (the spec's rows carry them). The minor powers' keys are hash-derived, and the 11 legacy
+  factions have GUIDs.
+
+### The draw rule
+
+`Galaxy.NamePlaces` is the one writer of names. For each placed faction, it orders the
+faction's owned zones by distance to its home and then by zone index. The home zone takes
+`Places[0]`, the capital, and each later zone takes the next unused name. When the list runs
+out, a zone takes a catalogue designation (`EAC-####`), as unowned zones always have, and
+every designation is now unique. That is the only owner of exhaustion, and it needs no
+ruling: a frontier system without a curated name keeps its survey number, which is true to
+the setting. Lists of 20 cover the observed means with room to spare. Only the rare large
+holdings (P4, maximum 28) reach the designations, and only at their far edge.
+
+Prior art: Civilization's per-civilization city lists are ordered and taken in order, so the
+capital and the historically central names come first. Stellaris draws from per-species name
+lists and falls back to designations. This rule takes Civilization's order, because her
+sketch gives names strategic intent and order is the one form of intent a flat list can carry
+today. It takes the designation fallback from both, and invents no names when a list runs out.
+
+### Model page rows
+
+| Kind | Named by | Over time | Who decides |
+|---|---|---|---|
+| Faction.Places (catalog, key 21, `FactionPlace[]`) | Its faction's record key; an entry by its position and Name | Authored as a table row in `PlaceNamesCommand`, replayed onto the catalog at each merge. Later, each entry gains intent keys (2 and up) | The operator rules on the lists. Agents draft them, except Miss Terri's (Emily) |
+| GalaxyZone.Name (run) | The zone's index in its galaxy | Derived once by `NamePlaces` at generation, saved in SavedGame, never re-derived | `NamePlaces`, from Places and the layout |
+| NameFile, `aetheria.namefile` | Retired | Purged by the cut's commit-1 apply, then the type is deleted | None |
+
+### Rationale
+
+- **Why a field on Faction, not a record per place.** Places belong to their faction: a
+  faction's author writes them, they live and die with the faction record, and nothing
+  references one place from outside a run yet. A record per place (the settlement shape
+  `authored-settlement-data` reads toward) earns its own identity once placement, stories or
+  saves need to point at one place across runs. The element type is a one-field struct, not
+  a string, because her words name the fields to come (historical, narrative and strategic
+  intent). Adding them is then new keys, not a migration.
+- **Why a table in an AetherDb command.** Every other piece of authored catalog content in
+  this campaign is a replayable command, because the catalog blob cannot be merged
+  (`catalog-blob-merge-order`). The table is keyed by record key, under ruling
+  `faction-identity-is-record-key`.
+- **Why the lists say what they say.** Elysium's settlers came from Sol through the Rupture.
+  Diaspora settlers name new places after old homes, founding events and their own
+  vocabulary, so each list mixes three sources: the faction's Sol holdings in canon, its
+  history, and its voice. Capitals: Aya takes Hellas, after the Hellas Basin and the 2384
+  Congress. Zhestokost takes Cimmeria (the Terra Cimmeria seizure), AU Ceres Ramp (the Ceres
+  Control War, and "ramp" for a developing site), Finch Tycho (the riots), Lucent Ishtar
+  Studios (Venus), NiteLife Caloris Array (the Mercury arrays) and Forge Hollow Pallas (Belt
+  yards).
+  Voices: AU gets half-built names (Faction Play says its zones have them), DME lowercase
+  venue names, Adrasteia absences, Megiddo custody and its "Earth stars", and the Pirates
+  repainted and stolen names, with two emoji.
+- **Language.** The vault says accurate Akan, Afrihili and Hebrew text "needs supplied text",
+  so Aya's and Megiddo's lists are English in their own voices, until someone supplies a
+  source. Russian (Zhestokost), Malay (NiteLife), German (R&D), Latin (Alakrita) and Sanskrit
+  (Adrasteia) words are common nouns that an agent can check. A native reader should still
+  pass over them.
+- **Miss Terri's** gets no list from any agent (`miss-terris-belongs-to-emily-r3`). Question
+  `miss-terris-place-names` recommends asking Emily now, because the demo prelude shows her
+  zones as designations until a list exists.
