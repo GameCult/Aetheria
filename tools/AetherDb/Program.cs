@@ -2284,14 +2284,12 @@ public static class Program
             Console.WriteLine($"The Pirates lack allegiance to {gaps.Length} faction(s): {string.Join(", ", gaps.Select(f => f.Name))}.");
             if (!apply)
             {
-                Console.WriteLine("
-Dry run. Pass \"apply\" to give them allegiance 1.0 to each.");
+                Console.WriteLine("\nDry run. Pass \"apply\" to give them allegiance 1.0 to each.");
                 return 0;
             }
             foreach (var gap in gaps) existing.Allegiance[db.Cache.RefOf(gap)] = 1f;
             db.Cache.Commit(batch => batch.Upsert(typeof(Faction), existing, db.Cache.RefOf(existing).Key));
-            Console.WriteLine($"
-Gave the Pirates allegiance 1.0 to {gaps.Length} faction(s) in Aetheria.cc");
+            Console.WriteLine($"\nGave the Pirates allegiance 1.0 to {gaps.Length} faction(s) in Aetheria.cc");
             return 0;
         }
 
