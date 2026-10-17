@@ -116,7 +116,23 @@ namespace Aetheria.EditorTools
             cache.FlushAsync().Wait();
             var ledger = new ProvenanceLedger();
             var items = new ItemManager(cache, ledger, settings, _ => { });
-            var zone = new Zone(items, new PlanetSettings(), new ZonePack(), null, null);
+
+            // A sun and a planet on a moving rail round it, both near the bodies below: the field under a floater changes with the
+            // drawn time, so a presenter that samples it at the step's time, drops it, or reads lead 0 for the height draws a different y.
+            var sunOrbit = cache.Upsert(new OrbitData { FixedPosition = new float2(-60, -40) }).Key;
+            var planetOrbit = cache.Upsert(new OrbitData { Parent = new CultRecordRef<OrbitData>(sunOrbit), Distance = 40f, Phase = .3f }).Key;
+            var pack = new ZonePack { Radius = 5000f, Mass = 10000f };
+            pack.Orbits.Add(new CultRecordRef<OrbitData>(sunOrbit));
+            pack.Orbits.Add(new CultRecordRef<OrbitData>(planetOrbit));
+            pack.Planets.Add(new CultRecordRef<BodyData>(cache.Upsert(new PlanetData { Name = "Wiring Sun", Orbit = new CultRecordRef<OrbitData>(sunOrbit), Mass = 400f }).Key));
+            pack.Planets.Add(new CultRecordRef<BodyData>(cache.Upsert(new PlanetData { Name = "Wiring Planet", Orbit = new CultRecordRef<OrbitData>(planetOrbit), Mass = 100f }).Key));
+            var curves = new PlanetSettings
+            {
+                BodyRadius = new ExponentialCurve(),
+                WellStrength = new ExponentialCurve { Multiplier = 1f, Exponent = 1f },
+                RocheLimit = new ExponentialCurve { Constant = 2f }
+            };
+            var zone = new Zone(items, curves, pack, null, null);
 
             var rootObject = new GameObject("Wiring Zone Root");
             var rendererObject = new GameObject("Wiring Zone Renderer");
@@ -162,6 +178,12 @@ namespace Aetheria.EditorTools
             var mineVelocity = mine.Body.TotalVelocity;
             Require(Mathf.Abs(pickupVelocity.x) > 1f && Mathf.Abs(mineVelocity.y) > 1f, "The fixture's bodies stopped: a lead would not move them.");
 
+            // The field under each floater really is a function of the drawn time here, by more than the tolerance at the largest lead.
+            const float LargestLead = .015f;
+            foreach (var at in new[] { floating.Body.Position + pickupVelocity * LargestLead, mine.Body.Position + mineVelocity * LargestLead })
+                Require(Mathf.Abs(DrawAhead.Height(zone, at, LargestLead) - zone.GetHeight(at, zone.ExactTime)) > 5 * Tolerance,
+                    "The fixture's field is flat under a floater: a drawn time would not move its height.");
+
             Vector2 baseline = default;
             foreach (var leadSeconds in new[] { 0f, .008f, .015f })
             {
@@ -175,6 +197,9 @@ namespace Aetheria.EditorTools
                 var want = floating.Body.Position + pickupVelocity * lead;
                 Require(Mathf.Abs(seen.x - want.x) < Tolerance && Mathf.Abs(seen.z - want.y) < Tolerance,
                     $"ItemPickup at lead {lead}: drawn x/z {seen.x},{seen.z}, the step plus velocity times lead {want.x},{want.y}.");
+
+                Require(Mathf.Abs(seen.y - DrawAhead.FloaterHeight(zone, settings, new float2(want.x, want.y), lead)) < Tolerance,
+                    $"ItemPickup y {seen.y} is not on the floater layer.");
 
                 seen = mineInstance.transform.position;
                 want = mine.Body.Position + mineVelocity * lead;
