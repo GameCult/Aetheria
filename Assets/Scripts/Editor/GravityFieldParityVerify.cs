@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using GameCult.Caching;
@@ -27,14 +28,16 @@ namespace Aetheria.EditorTools
         const string Tag = "[GravityFieldParityVerify]";
         const int Size = 256;
         // Measured on this tree (the "max error" line this run prints): the largest |texel + GetHeight| over the windows of the three
-        // frames and windows is 0.0065 u, in the last frame's planetoid window (float32 on both sides, the GPU's log against the CPU's, the
-        // quad's interpolated world position). The tolerance is 4.6x that. A 0.1% error in the tail constant (.5 -> .501)
-        // moves the drawn height by 0.053 u where all three tails reach (the planetoid and zone windows), 1.8x the
-        // tolerance; a reference of zero moves it by about 150 u.
+        // frames is 0.0103 u, in the moved-again frame's sun window (float32 on both sides, the GPU's log and the closed form's
+        // single-precision floor of 1.5e-5 per unit strength against the CPU's, the quad's interpolated world position). The
+        // tolerance is 2.9x that. A band whose terms were drawn from the wrong edge (reference, inner or outer) moves the
+        // drawn height by whole units.
         const float Tolerance = 0.03f;
         // The worst angle between the texture's central difference and GetForce (B28: 1.0 degrees median zone, 2.9 worst).
         const float GradientDegrees = 3f;
-        static float _maxError, _maxAngle;
+        // Below this force (u/s^2) the drawn height differs between neighbouring texels by less than float32 resolves.
+        const float FlatForce = 1e-3f;
+        static float _maxError, _maxAngle, _maxTau;
         static bool _ok = true;
 
         static void OnLog(string message, string stack, LogType type)
@@ -70,22 +73,29 @@ namespace Aetheria.EditorTools
                 var material = AssetDatabase.LoadAssetAtPath<Material>("Assets/Materials/Brushes/Gravity Field.mat")
                     ?? throw new InvalidOperationException("No Gravity Field.mat.");
 
-                var zone = BuildZone(settings, work, out var orbits);
+                var zone = BuildZone(settings, work, out var orbits, multiRoot: true);
                 GravityLowering.Lower(zone, 0f, ref wells);
                 field = GravityLowering.CreateField(material);
 
-                // Three frames through the one buffer, as ZoneRenderer.Update runs it: the bodies as built, then two moves
-                // (an orbit's Position is what Zone.GetHeight reads). A lowering that mirrors an axis or stops refreshing
-                // the upload agrees with the sim in the first frame only where it is symmetric, and not after a move.
+                // Three frames through the one buffer, as ZoneRenderer.Update runs it: the bodies as built, then two moves (an
+                // orbit's Position is what Zone.GetHeight reads). A move keeps the tree's geometry, since a rail never leaves
+                // its parent's distance and the walk skips a subtree outside its reach: the sun is the root, the planet is
+                // its Distance from the sun, the planetoid its Distance from the planet. A lowering that mirrors an axis or
+                // stops refreshing the upload agrees with the sim in the first frame only where it is symmetric.
                 CheckFrame("built", zone, orbits);
-                orbits[1].Position = new float2(-420f, 560f);
-                orbits[2].Position = new float2(900f, -700f);
+                orbits[1].Position = Around(orbits[0], orbits[1], .31f);
+                orbits[2].Position = Around(orbits[1], orbits[2], .77f);
+                orbits[5].Position = Around(orbits[1], orbits[5], .41f);
                 GravityLowering.Lower(zone, 0f, ref wells);
                 CheckFrame("moved", zone, orbits);
                 orbits[0].Position = new float2(210f, -95f);
-                orbits[2].Position = new float2(-1800f, 1300f);
+                orbits[1].Position = Around(orbits[0], orbits[1], .52f);
+                orbits[2].Position = Around(orbits[1], orbits[2], .05f);
+                orbits[5].Position = Around(orbits[1], orbits[5], .93f);
                 GravityLowering.Lower(zone, 0f, ref wells);
                 CheckFrame("moved-again", zone, orbits);
+                if (_maxTau <= 1f) Fail("series-branch", $"the largest tau over the drawn bounded terms is {_maxTau:G4}; no window draws the series branch");
+                Debug.Log($"{Tag} largest drawn tau {_maxTau:G4}");
                 Debug.Log($"{Tag} max error {_maxError:G4} u (tolerance {Tolerance:G4}); max gradient angle {_maxAngle:F2} degrees (limit {GradientDegrees:F0})");
 
                 CheckWiring(settings);
@@ -108,35 +118,69 @@ namespace Aetheria.EditorTools
 
         static float Core(Zone zone, float mass) => zone.Settings.RocheLimit.Evaluate(mass);
 
+        // Where an orbit lies when it stands `turns` round its parent at its Distance.
+        static float2 Around(Orbit parent, Orbit child, float turns) => parent.Position + child.Data.Distance * OrbitData.Evaluate(turns);
+
         static Vector2 At(Orbit orbit) => new Vector2(orbit.Position.x, orbit.Position.y);
 
         // Orbits 0-2 are the sun, the planet and the planetoid, each window centred where the body is now; orbit 3 is the
-        // body of no strength. The zone window holds all four.
+        // body of no strength, orbit 4 the second sun and orbit 5 the planet's moon inside its Roche limit (whose band has
+        // tau above 1: the series branch of the shader). The zone window holds all of them; the far window is centred on the
+        // zone node, so its band (nothing inside A, the zone's mass beyond Beta A) is drawn. A window draws a term when
+        // the term's disc reaches it; the largest tau over the drawn terms must exceed 1 or the series branch went unchecked.
         static void CheckFrame(string frame, Zone zone, Orbit[] orbits)
         {
             CheckTexels(frame + "-planetoid", zone, At(orbits[2]), 4f * Core(zone, 29.2f));
+            CheckTexels(frame + "-planet", zone, At(orbits[1]), 4f * Core(zone, 273.9f));
             CheckTexels(frame + "-sun", zone, At(orbits[0]), 4f * Core(zone, 14152f));
             CheckTexels(frame + "-zone", zone, Vector2.zero, 1.05f * zone.Pack.Radius);
+            var centre = new Vector2(zone.Wells.Centre.x, zone.Wells.Centre.y);
+            var span = 0f;
+            foreach (var root in new[] { orbits[0], orbits[4] })
+                span = Math.Max(span, (At(root) - centre).magnitude + zone.Wells.Reach(zone.Orbits.First(o => o.Value == root).Key));
+            // The wells have their own windows: out here a texel is 40 u wide, so only the ring from 0.9 A outward, where the
+            // zone node's band rises and the zone becomes one body, is measured.
+            CheckTexels(frame + "-far", zone, centre, 1.6f * span, .9f * span);
             CheckGradient(zone, orbits.Select(At).ToArray());
         }
 
-        // A sun (14152 at (-130, 85)), a planet (273.9 at (610, -240)), a planetoid (29.2 at (670, -270)) and a body of
-        // mass 0, whose well has no strength (a legal body; its curves give c = 0 and R = 0), at (1700, 300): parentless,
-        // fixed, off both axes and asymmetric, so the zone's wells sit where the verify says before any Update and a
-        // mirrored or swapped axis cannot agree with the sim.
-        internal static Zone BuildZone(GameSettings settings, string work, out Orbit[] orbits, float radius = 4182f)
+        // A sun (14152 at (-130, 85)), its planet (273.9, placed at (610, -240) at the pack's time), the planet's planetoid
+        // (29.2, placed at (670, -270)) and a body of mass 0, whose well has no strength (a legal body; its curves give
+        // c = 0 and R = 0), at (1700, 300): a family, so the band terms are drawn (the planet's and the sun's cusps and
+        // fades), off both axes and asymmetric, so the zone's wells sit where the verify says before any Update and a
+        // mirrored or swapped axis cannot agree with the sim. The sun and the zero-mass body are fixed roots.
+        internal static Zone BuildZone(GameSettings settings, string work, out Orbit[] orbits, float radius = 4182f, bool multiRoot = false)
         {
             var cache = AetheriaStores.Open(Path.Combine(work, "catalog.cc"), Path.Combine(work, "run.cc"), catalogWritable: true);
             cache.Upsert(new VerseGrammar { Revision = 1 });
             cache.FlushAsync().Wait();
             var items = new ItemManager(cache, new ProvenanceLedger(), settings.GameplaySettings, _ => { });
-            var positions = new[] { new Vector2(-130f, 85f), new Vector2(610f, -240f), new Vector2(670f, -270f), new Vector2(1700f, 300f) };
-            var masses = new[] { 14152f, 273.9f, 29.2f, 0f };
-            var keys = new CultRecordKey[positions.Length];
-            var pack = new ZonePack { Radius = radius };
-            for (var i = 0; i < positions.Length; i++)
+            var positions = new List<Vector2> { new Vector2(-130f, 85f), new Vector2(610f, -240f), new Vector2(670f, -270f), new Vector2(1700f, 300f) };
+            var masses = new List<float> { 14152f, 273.9f, 29.2f, 0f };
+            var parents = new List<int> { -1, 0, 1, -1 };
+            if (multiRoot)
             {
-                var orbit = keys[i] = cache.Upsert(new OrbitData { FixedPosition = new float2(positions[i].x, positions[i].y) }).Key;
+                // A second sun (a second subzone, so the zone node exists) and a moon of the planet 0.6 of its Roche limit away.
+                positions.Add(new Vector2(-2400f, -1900f));
+                masses.Add(3000f);
+                parents.Add(-1);
+                positions.Add(positions[1] + new Vector2(-.6f * settings.PlanetSettings.RocheLimit.Evaluate(273.9f), 0f));
+                masses.Add(1f);
+                parents.Add(1);
+            }
+            var keys = new CultRecordKey[positions.Count];
+            var pack = new ZonePack { Radius = radius };
+            for (var i = 0; i < positions.Count; i++)
+            {
+                var data = new OrbitData { FixedPosition = new float2(positions[i].x, positions[i].y) };
+                if (parents[i] >= 0)
+                {
+                    var offset = positions[i] - positions[parents[i]];
+                    data.Parent = new CultRecordRef<OrbitData>(keys[parents[i]]);
+                    data.Distance = offset.magnitude;
+                    data.Phase = Mathf.Atan2(offset.y, offset.x) / (2f * Mathf.PI);
+                }
+                var orbit = keys[i] = cache.Upsert(data).Key;
                 var body = cache.Upsert(new PlanetData
                     { Name = "Body " + i, Orbit = new CultRecordRef<OrbitData>(orbit), Mass = masses[i] }).Key;
                 pack.Orbits.Add(new CultRecordRef<OrbitData>(orbit));
@@ -195,13 +239,29 @@ namespace Aetheria.EditorTools
             }
         }
 
-        static void CheckTexels(string window, Zone zone, Vector2 centre, float half)
+        // The largest tau = (a^2 + eps^2) / (b^2 - a^2) over the bounded terms whose disc reaches the window's square.
+        static void NoteTau(Zone zone, Vector2 centre, float half)
+        {
+            foreach (var term in zone.Wells.Terms)
+            {
+                if (float.IsPositiveInfinity(term.Outer)) continue;
+                var at = term.Node.IsSet() ? zone.Orbits[term.Node].Position : zone.Wells.Centre;
+                if (Math.Abs(at.x - centre.x) > half + term.Outer || Math.Abs(at.y - centre.y) > half + term.Outer) continue;
+                _maxTau = Math.Max(_maxTau, (term.Inner * term.Inner + term.Softening * term.Softening) / (term.Outer * term.Outer - term.Inner * term.Inner));
+            }
+        }
+
+        static void CheckTexels(string window, Zone zone, Vector2 centre, float half, float ringFrom = 0f)
         {
             Render(centre, half, out var depth, out var world);
+            NoteTau(zone, centre, half);
             var worst = 0f;
             var live = 0;
+            var measured = 0;
             for (var i = 0; i < depth.Length; i++)
             {
+                if ((world[i] - centre).magnitude < ringFrom) continue;
+                measured++;
                 var expected = -zone.GetHeight(new float2(world[i].x, world[i].y));
                 if (float.IsNaN(depth[i])) { Fail($"{window}-texels", $"texel {i}: NaN"); return; }
                 var error = Math.Abs(depth[i] - expected);
@@ -215,7 +275,7 @@ namespace Aetheria.EditorTools
             }
             _maxError = Math.Max(_maxError, worst);
             // A window that draws nothing agrees with a zone that is flat: the check must be live.
-            if (live < depth.Length / 2) Fail($"{window}-texels", $"only {live} of {depth.Length} texels are deeper than 1 u; the check is vacuous");
+            if (live < measured / 2) Fail($"{window}-texels", $"only {live} of {measured} texels are deeper than 1 u; the check is vacuous");
             Debug.Log($"{Tag} {window}: {depth.Length} texels, max error {worst:G4} u");
         }
 
@@ -239,6 +299,7 @@ namespace Aetheria.EditorTools
                 var det = au.x * av.y - au.y * av.x;
                 var g = new Vector2((du * av.y - dv * au.y) / det, (dv * au.x - du * av.x) / det);
                 var f = zone.GetForce(new float2(here.x, here.y));
+                if (CultMath.math.length(f) < FlatForce) continue; // between the subzones the ground is flat: no direction to compare
                 var angle = Vector2.Angle(g, new Vector2(f.x, f.y));
                 if (float.IsNaN(angle) || angle > GradientDegrees)
                 {

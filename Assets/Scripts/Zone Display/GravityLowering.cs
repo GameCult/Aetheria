@@ -3,8 +3,8 @@ using UnityEngine;
 
 /// <summary>
 /// The renderer's lowering of the zone's potential (aetheria-gravity, cut grid-lowering). Zone.GetHeight owns the drawn
-/// height: this hands its inputs (each well's position, strength, core radius and reference, and the exaggeration) to
-/// Assets/Shaders/Gravity.cginc, which sums them per texel, and makes the one quad that carries the sum into every
+/// height: this hands its inputs (each term's position, strength, softening, band edges and reference, and the
+/// exaggeration) to Assets/Shaders/Gravity.cginc, which sums them per texel, and makes the one quad that carries the sum into every
 /// camera that culls layer 9. Nothing here decides a height.
 /// </summary>
 public static class GravityLowering
@@ -14,30 +14,32 @@ public static class GravityLowering
     /// <summary>The quad's side in u: larger than any zone (10000) plus any view (4096); texels outside a camera cost nothing.</summary>
     public const float FieldExtent = 100000f;
 
-    // Mirrors the well record of Gravity.cginc: float2 position, strength, coreRadius, reference.
+    // Mirrors the term record of Gravity.cginc: float2 position, strength, softening, inner, outer, reference.
     [StructLayout(LayoutKind.Sequential)]
-    struct WellRecord
+    struct TermRecord
     {
         public Vector2 Position;
         public float Strength;
-        public float CoreRadius;
+        public float Softening;
+        public float Inner;
+        public float Outer;
         public float Reference;
     }
 
-    static readonly int Stride = Marshal.SizeOf<WellRecord>();
+    static readonly int Stride = Marshal.SizeOf<TermRecord>();
     static readonly int WellsId = Shader.PropertyToID("_GravityWells");
     static readonly int CountId = Shader.PropertyToID("_GravityWellCount");
     static readonly int ExaggerationId = Shader.PropertyToID("_HeightExaggeration");
-    static WellRecord[] _records = new WellRecord[0];
+    static TermRecord[] _records = new TermRecord[0];
 
     /// <summary>
-    /// Fills one record per body of the zone (a null zone has none) and sets the shader globals. The buffer is the
-    /// caller's, (re)allocated to the body count (at least one, so the global is always bound). Wells are lowered at the
-    /// drawn time (DrawAhead.Time), the same T the planets and a ship's ride height use.
+    /// Fills one record per term of the zone's WellTree (a null zone has none) and sets the shader globals. The buffer is
+    /// the caller's, (re)allocated to the term count (at least one, so the global is always bound). Terms are lowered at
+    /// their node's rail at the drawn time (DrawAhead.Time), the same T the planets and a ship's ride height use.
     /// </summary>
     public static void Lower(Zone zone, float lead, ref ComputeBuffer wells)
     {
-        var count = zone?.PlanetInstances.Count ?? 0;
+        var count = zone?.Wells.Terms.Count ?? 0;
         var capacity = Mathf.Max(count, 1);
         if (wells == null || wells.count != capacity)
         {
@@ -45,20 +47,21 @@ public static class GravityLowering
             wells = new ComputeBuffer(capacity, Stride);
         }
 
-        if (_records.Length != capacity) _records = new WellRecord[capacity];
-        var i = 0;
-        if (zone != null)
-            foreach (var body in zone.PlanetInstances.Values)
+        if (_records.Length != capacity) _records = new TermRecord[capacity];
+        for (var t = 0; t < count; t++)
+        {
+            var term = zone.Wells.Terms[t];
+            var at = term.Node.IsSet() ? DrawAhead.Orbit(zone, term.Node, lead) : zone.Wells.Centre; // an unset node is the zone node, stationary at Centre
+            _records[t] = new TermRecord
             {
-                var well = DrawAhead.Well(zone, body, lead);
-                _records[i++] = new WellRecord
-                {
-                    Position = new Vector2(well.Position.x, well.Position.y),
-                    Strength = well.Strength,
-                    CoreRadius = well.CoreRadius,
-                    Reference = well.Reference
-                };
-            }
+                Position = new Vector2(at.x, at.y),
+                Strength = term.Strength,
+                Softening = term.Softening,
+                Inner = term.Inner,
+                Outer = term.Outer,
+                Reference = term.Reference
+            };
+        }
         wells.SetData(_records);
 
         Shader.SetGlobalBuffer(WellsId, wells);

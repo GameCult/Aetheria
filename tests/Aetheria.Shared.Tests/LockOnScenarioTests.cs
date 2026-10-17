@@ -35,6 +35,7 @@ public sealed partial class RunStartTests
 
         var lockedAt = -1;
         var bearingDot = 0f;
+        var stagedDrift = 0f;
         var strengths = new List<float>();
         for (var tick = 0; tick < 600 && (lockedAt < 0 || tick < lockedAt + 40); tick++)
         {
@@ -44,13 +45,16 @@ public sealed partial class RunStartTests
                 if (lockedAt < 0)
                 {
                     lockedAt = tick;
-                    bearingDot = dot(normalize(paint.Bearing), toPlayer * -1f);
+                    // The warning points at the hostile where it is at the lock; the hostile has left the staged line by then.
+                    var live = normalize(hostile.Position.xz - player.Position.xz);
+                    bearingDot = dot(normalize(paint.Bearing), live);
+                    stagedDrift = degrees(acos(clamp(dot(live, -toPlayer), -1f, 1f)));
                 }
                 strengths.Add(paint.Strength);
             }
         }
         Assert.True(lockedAt >= 0, "the hostile never locked the player within 600 ticks of .1 s");
-        Assert.True(bearingDot >= cos(radians(5f)), "the warning points at the hostile");
+        Assert.True(bearingDot >= cos(radians(.5f)), $"the warning points at the hostile where it is (the hostile is {stagedDrift} deg off its staged line at the lock)");
         Assert.True(strengths.First() < strengths.Last(), $"the lock tightens: Strength went {strengths.First()} to {strengths.Last()}");
     }
 }

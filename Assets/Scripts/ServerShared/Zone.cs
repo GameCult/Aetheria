@@ -141,6 +141,7 @@ public class Zone
         Pack = pack;
         _itemManager = itemManager;
         Settings = settings;
+        _orbitPositionAt = OrbitPositionAt;
         CombatSeed = galaxyZone?.Name.StableHash() ?? 1337u;
         var cache = itemManager.ItemData;
 
@@ -187,18 +188,29 @@ public class Zone
             }
         }
 
-        // Orbits, bodies and belts exist: every rail's period is derived once, from the field it orbits in.
-        foreach (var orbit in Orbits)
-        {
-            var parent = orbit.Value.Data.Parent;
-            if (!parent.IsSet()) continue;
-            if (!_childOrbits.TryGetValue(parent.Key, out var siblings))
-                _childOrbits[parent.Key] = siblings = new List<CultRecordKey>();
-            siblings.Add(orbit.Key);
-        }
+        // Orbits, bodies and belts exist: the field's terms are built once, and every rail's period is derived from them.
+        var wellMass = new Dictionary<CultRecordKey, float>();
         foreach (var body in PlanetInstances)
             if (body.Value.WellStrength > 0)
-                _wellOn.TryAdd(Planets[body.Key].Orbit.Key, body.Value);
+                wellMass.TryAdd(Planets[body.Key].Orbit.Key, body.Value.BodyData.Mass);
+        // A belt's rail carries its asteroids, which spread beyond the rail's own distance: its extent is the outermost.
+        var beltExtent = new Dictionary<CultRecordKey, float>();
+        foreach (var belt in AsteroidBelts)
+        {
+            var extent = 0f;
+            foreach (var asteroid in belt.Value.Data.Asteroids) extent = Math.Max(extent, asteroid.Distance);
+            beltExtent[Planets[belt.Key].Orbit.Key] = extent;
+        }
+        var wellNodes = new List<WellNode>();
+        foreach (var orbit in Orbits)
+        {
+            var data = orbit.Value.Data;
+            wellNodes.Add(new WellNode(orbit.Key, data.Parent.Key, data.Distance, data.Phase,
+                wellMass.TryGetValue(orbit.Key, out var mass) ? mass : 0f,
+                beltExtent.TryGetValue(orbit.Key, out var reach) ? Math.Max(reach, data.Distance) : data.Distance,
+                    data.FixedPosition + OrbitData.Evaluate(frac(data.Phase)) * data.Distance)); // a root's stationary place: Offset at an infinite period
+        }
+        Wells = WellTree.Build(wellNodes, settings, pack.Radius);
         foreach (var orbit in Orbits)
             orbit.Value.Period = orbit.Value.Data.Parent.IsSet()
                 ? PeriodAround(orbit.Value.Data.Parent.Key, orbit.Value.Data.Distance, orbit.Key)
@@ -561,65 +573,17 @@ public class Zone
         return time == _time ? GetOrbitPosition(orbitID) : RailAt(orbitID, time);
     }
 
-    // orbit -> the well-bearing body on it, and orbit -> the orbits whose parent it is. Derived from the pack in the
-    // constructor, read only by PeriodAround and Strength.
-    private readonly Dictionary<CultRecordKey, Planet> _wellOn = new Dictionary<CultRecordKey, Planet>();
-    private readonly Dictionary<CultRecordKey, List<CultRecordKey>> _childOrbits = new Dictionary<CultRecordKey, List<CultRecordKey>>();
-    private readonly Dictionary<CultRecordKey, float> _strengths = new Dictionary<CultRecordKey, float>();
+    /// <summary>The zone's gravity: the terms of its orbit tree (WellTree owns which exist and the walk that sums them).</summary>
+    public WellTree Wells { get; }
 
-    // The one owner of a rail's period (Orbit.Period, AsteroidBelt.Periods): 2 pi sqrt(d / a), a being the pull the
-    // field gives at distance d from the node being orbited. Round a body, that is the body's own well through
-    // GravityField. Round a bodyless node it is the ring law: the strength of the node's orbits inside d, plus the
-    // ring term for the orbits on d itself (within RingWindow of it), taken as a point at the node. A bodied self
-    // feels half the strength of its ring partners (as a binary does); a strengthless self (a station, a turret)
-    // takes the period its bodied ring partners have, the mean of what each of them feels. No pull gives an
-    // infinite period.
-    private const float RingWindow = 0.1f;
+    private readonly Func<CultRecordKey, double, float2> _orbitPositionAt;
 
+    // The one owner of a rail's period (Orbit.Period, AsteroidBelt.Periods): 2 pi sqrt(d / a), a being the pull the field
+    // gives at distance d from the node being orbited (WellTree.PullAround). No pull gives an infinite period.
     private float PeriodAround(CultRecordKey parentOrbit, float distance, CultRecordKey self)
     {
-        float a;
-        if (_wellOn.TryGetValue(parentOrbit, out var body))
-            a = length(GravityField.Acceleration(body.WellStrength, body.RocheLimit, float2(distance, 0)));
-        else
-        {
-            var inside = 0f;
-            var ring = new List<(CultRecordKey Orbit, float Strength)>();
-            if (_childOrbits.TryGetValue(parentOrbit, out var children))
-                foreach (var child in children)
-                {
-                    var childDistance = Orbits[child].Data.Distance;
-                    var childStrength = Strength(child);
-                    if (childDistance < distance - RingWindow) inside += childStrength;
-                    else if (childDistance <= distance + RingWindow && childStrength > 0) ring.Add((child, childStrength));
-                }
-            // Whose pull self feels: its own if it has strength, else each bodied member of the ring.
-            var ringSum = 0f;
-            foreach (var member in ring) ringSum += member.Strength;
-            var selfBodied = Strength(self) > 0;
-            var feelings = 0f;
-            var feelers = 0;
-            foreach (var member in ring)
-                if (!selfBodied || member.Orbit.Equals(self))
-                {
-                    feelings += (ringSum - member.Strength) / 2;
-                    feelers++;
-                }
-            var strength = inside + (feelers > 0 ? feelings / feelers : 0f);
-            a = length(GravityField.Acceleration(strength, 0f, float2(distance, 0)));
-        }
+        var a = Wells.PullAround(parentOrbit, distance, self);
         return a > 0 && distance > 0 ? 2 * PI * sqrt(distance / a) : float.PositiveInfinity;
-    }
-
-    // The well strength an orbit carries as a node: its own body's plus every orbit round it, recursively.
-    private float Strength(CultRecordKey orbit)
-    {
-        if (_strengths.TryGetValue(orbit, out var known)) return known;
-        var strength = _wellOn.TryGetValue(orbit, out var body) ? body.WellStrength : 0f;
-        if (_childOrbits.TryGetValue(orbit, out var children))
-            foreach (var child in children)
-                strength += Strength(child);
-        return _strengths[orbit] = strength;
     }
 
     public float2 GetOrbitVelocity(CultRecordKey orbit)
@@ -734,10 +698,6 @@ public class Zone
         return security;
     }
 
-    // The potential of a body's well at the zone's edge, subtracted so every well is zero there: the one owner of the
-    // reference. GetHeight sums with it and the renderer's lowering (GravityLowering) hands it to the shader unchanged.
-    public float WellReference(Planet body) => GravityField.Potential(body.WellStrength, body.RocheLimit, Pack.Radius);
-
     // The extent of the populated area, from the zone's origin: owned here; presenters read it, nothing authors it. A static
     // bound on where anything can be, so it holds at every time and reads nothing the pack's Radius decides: for each body,
     // its orbit chain's reach plus its Roche limit; for each belt, the chain's reach to the orbit its asteroids circle (the
@@ -769,19 +729,9 @@ public class Zone
 
     public float GetHeight(float2 position) => GetHeight(position, _time);
 
-    // The field at a time: each well sits where its body's rail puts it then. The sim reads it at _time, a presenter at
+    // The field at a time: each term sits where its node's rail puts it then. The sim reads it at _time, a presenter at
     // the drawn time, so a ship rides the same slope the drawn planet's well makes.
-    public float GetHeight(float2 position, double time)
-    {
-        var result = 0f;
-        foreach (var body in PlanetInstances.Values)
-        {
-            var offset = position - OrbitPositionAt(body.BodyData.Orbit.Key, time);
-            result += GravityField.Potential(body.WellStrength, body.RocheLimit, length(offset)) - WellReference(body);
-        }
-
-        return result / Settings.HeightExaggeration;
-    }
+    public float GetHeight(float2 position, double time) => Wells.Potential(position, _orbitPositionAt, time) / Settings.HeightExaggeration;
 
     public float GetLight(float2 position)
     {
@@ -800,16 +750,10 @@ public class Zone
     internal float SchematicCellSize => _itemManager.GameplaySettings.SchematicCellSize;
     internal float FieldCrossSection(AsteroidBeltData belt) => _itemManager.ItemData.Get(belt.Kind)?.CrossSection ?? 0f;
 
-    // The one source of gravitational acceleration (u/s^2): the sum of every body's well (GravityField). Ships,
-    // floating items, clouds and mines all read it, and so does Flow. It is the gradient of the potential GetHeight
-    // draws, so the two cannot disagree.
-    public float2 GetForce(float2 position)
-    {
-        var force = float2.zero;
-        foreach (var body in PlanetInstances.Values)
-            force += GravityField.Acceleration(body.WellStrength, body.RocheLimit, position - body.Orbit.Position);
-        return force;
-    }
+    // The one source of gravitational acceleration (u/s^2): the walk of the zone's terms (WellTree). Ships, floating items,
+    // clouds and mines all read it, and so does Flow. It is the gradient of the potential GetHeight draws, so the two
+    // cannot disagree.
+    public float2 GetForce(float2 position) => Wells.Force(position, _orbitPositionAt, _time);
 
     // The global flow velocity at `position` in zone time, in u/s (FlowField is the law). The slope term reads the
     // downhill direction, which is the force.
@@ -861,12 +805,7 @@ public class Planet
     public void CalculateProperties()
     {
         BodyRadius = Settings.BodyRadius.Evaluate(BodyData.Mass) * BodyData.BodyRadiusMultiplier;
-        WellStrength = Settings.WellStrength.Evaluate(BodyData.Mass);
-        RocheLimit = Settings.RocheLimit.Evaluate(BodyData.Mass);
-        if (!(WellStrength >= 0f) || float.IsInfinity(WellStrength))
-            throw new InvalidOperationException("A body's well strength must be finite and not negative (PlanetSettings.WellStrength).");
-        if (WellStrength > 0 && !(RocheLimit > 0f && !float.IsInfinity(RocheLimit)))
-            throw new InvalidOperationException("A body's Roche limit, which is its core radius, must be positive and finite (PlanetSettings.RocheLimit).");
+        (WellStrength, RocheLimit) = WellTree.Curves(Settings, BodyData.Mass);
     }
 }
 

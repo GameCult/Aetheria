@@ -134,7 +134,7 @@ public sealed partial class MiningCut3Tests : IDisposable
         var items = new ItemManager(cache, new ProvenanceLedger(), GameSettings(), _ => { });
 
         var sunOrbit = cache.Upsert(new OrbitData { FixedPosition = sunAt }).Key;
-        var sun = cache.Upsert(new SunData { Orbit = new CultRecordRef<OrbitData>(sunOrbit) }).Key;
+        var sun = cache.Upsert(new SunData { Orbit = new CultRecordRef<OrbitData>(sunOrbit), Mass = 1f }).Key;
         var pack = new ZonePack
         {
             Orbits = { new CultRecordRef<OrbitData>(sunOrbit) },
@@ -147,7 +147,7 @@ public sealed partial class MiningCut3Tests : IDisposable
         {
             var orbit = cache.Upsert(new OrbitData { FixedPosition = at }).Key;
             pack.Orbits.Add(new CultRecordRef<OrbitData>(orbit));
-            pack.Planets.Add(new CultRecordRef<BodyData>(cache.Upsert(new SunData { Orbit = new CultRecordRef<OrbitData>(orbit) }).Key));
+            pack.Planets.Add(new CultRecordRef<BodyData>(cache.Upsert(new SunData { Orbit = new CultRecordRef<OrbitData>(orbit), Mass = 1f }).Key));
         }
         var scene = new Scene { Cache = cache, Items = items, Hull = hull, Eye = eye, DimEye = dimEye, Pack = pack };
         scene.Kinds.AddRange(kinds ?? new FieldKindData[0]);

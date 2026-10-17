@@ -16,11 +16,12 @@ public class PlanetSettings
     public ExponentialCurve LightRadius;
     public ExponentialCurve BodyRadius;
 
-    // The closest a child may orbit its parent, in u, by the parent's mass, and the softened core radius of the parent's
-    // well (the steepest drawn slope sits at the Roche limit). Authored like BodyRadius, never per body.
+    // The closest a child may orbit its parent, in u, by the parent's mass, and the Plummer softening of the parent's
+    // well (the steepest slope, 0.5 c / eps, sits at the Roche limit). Authored like BodyRadius, never per body.
     public ExponentialCurve RocheLimit = new ExponentialCurve();
 
-    // A body's well strength by its mass (GravityField): c in u^2/s^2 (the pull is c / r beyond the core, which is the Roche limit).
+    // A body's well strength by its mass (GravityField): c in u^2/s^2. The pull is c d / (d^2 + eps^2) inside a family and
+    // c(family mass) beyond it (WellTree); eps is the Roche limit.
     public ExponentialCurve WellStrength = new ExponentialCurve();
 
     // The one global exaggeration of gravity height: height = potential / K, in u/s^2 per unit of height.

@@ -73,8 +73,8 @@ public sealed class PotentialOwnerTests : IDisposable
     private static void Near(float expected, float actual, float relative) =>
         Assert.InRange(actual, expected - Math.Abs(expected) * relative - 1e-5f, expected + Math.Abs(expected) * relative + 1e-5f);
 
-    // The law written out: potential c r^2 / 2R^2 inside the core, c (ln(r / R) + 1/2) beyond.
-    private static float Phi(float c, float core, float r) => r < core ? c * r * r / (2 * core * core) : c * (log(r / core) + .5f);
+    // The law of a lone body written out (its global term): the Plummer potential c ln(r^2 + eps^2) / 2, eps the Roche limit.
+    private static float Phi(float c, float eps, float r) => c * .5f * log(r * r + eps * eps);
 
     // A zone whose bodies have no authored gravity curves (most test zones) has no pull and no dip, and no NaN either.
     [Fact]
@@ -103,12 +103,13 @@ public sealed class PotentialOwnerTests : IDisposable
             var zone = ZoneOf(planets, (mass, float2.zero));
             var core = planets.RocheLimit.Evaluate(mass);
             foreach (var r in new[] { 3f * core, 10f * core, PackRadius / 2f })
-                Near(planets.WellStrength.Evaluate(mass), length(zone.GetForce(new float2(r, 0))) * r, 1e-3f);
+                Near(planets.WellStrength.Evaluate(mass) * r * r / (r * r + core * core), length(zone.GetForce(new float2(r, 0))) * r, 1e-3f);
         }
     }
 
+    // The steepest pull of the Plummer well is at its softening, which is the Roche curve: it rises up to it and falls beyond.
     [Fact]
-    public void TheCoreRadiusIsTheRocheCurve()
+    public void TheSteepestPullIsAtTheRocheCurve()
     {
         var planets = Curves();
         foreach (var mass in new[] { 29.2f, 14152.4f })
@@ -116,10 +117,8 @@ public sealed class PotentialOwnerTests : IDisposable
             var zone = ZoneOf(planets, (mass, float2.zero));
             var core = planets.RocheLimit.Evaluate(mass);
             float Pull(float r) => length(zone.GetForce(new float2(0, r)));
-            var slope = Pull(.25f * core) / (.25f * core);
-            Near(slope, Pull(.5f * core) / (.5f * core), 1e-3f);
-            Near(slope, Pull(.9f * core) / (.9f * core), 1e-3f);
-            Assert.True(Pull(core) > Pull(.98f * core), "the pull still rises up to the core radius");
+            Near(planets.WellStrength.Evaluate(mass) / (2f * core), Pull(core), 1e-3f);
+            Assert.True(Pull(core) > Pull(.98f * core), "the pull still rises up to the Roche limit");
             Assert.True(Pull(core) > Pull(1.02f * core), "and falls beyond it");
         }
     }
@@ -146,10 +145,10 @@ public sealed class PotentialOwnerTests : IDisposable
         ZoneOf(Constants(50f), (100f, float2.zero));
     }
 
-    // core-at-roche-and-exaggeration-up: growing the core to the Roche limit (3 m^.25 to 7.32 m^.25, 2.44x) and dividing the
-    // global K by that factor leaves the steepest drawn slope (|grad phi| / K, at the core) where it was, and draws every
-    // slope outside the old core 2.44x steeper. The "before" side is the previous authoring, stated here from the ruling:
-    // core 3 m^.25 and K 10. The "after" side is the shipped Settings.asset read through the production zone.
+    // core-at-roche-and-exaggeration-up: the Plummer well's steepest pull is 0.5 c / eps at the Roche limit (eps = 7.32 m^.25),
+    // half the harmonic core's c / R, so K halves with the law and the steepest drawn slope stays where the previous authoring
+    // had it. The "before" side is stated from the ruling: core 3 m^.25 and K 10. The "after" side is the shipped
+    // Settings.asset read through the production zone. Outside the old core the funnel draws steeper than it did.
     [Fact]
     public void ThePeakDrawnSlopeStaysAndTheFunnelDrawsSteeper()
     {
@@ -165,10 +164,8 @@ public sealed class PotentialOwnerTests : IDisposable
             var peakBefore = c / oldCore / oldExaggeration;
             Assert.InRange(Drawn(planets.RocheLimit.Evaluate(mass)), peakBefore * .98f, peakBefore * 1.02f);
 
-            var rocheOverOldCore = planets.RocheLimit.Evaluate(mass) / oldCore;
             var farBefore = c / (3f * oldCore) / oldExaggeration;
-            Near(rocheOverOldCore, Drawn(3f * oldCore) / farBefore, 1e-2f);
-            Assert.InRange(Drawn(3f * oldCore) / farBefore, 2.44f * .99f, 2.44f * 1.01f);
+            Assert.InRange(Drawn(3f * oldCore) / farBefore, 2.9f, 2.98f);
         }
     }
 
@@ -247,8 +244,9 @@ public sealed class PotentialOwnerTests : IDisposable
         }
     }
 
+    // A lone body is a global term: it pulls as the Plummer well at every range, with no rim and no gate.
     [Fact]
-    public void TheTailIsAPointMassWithNoRimAndNoGate()
+    public void TheGlobalTermIsPlummerAtEveryRange()
     {
         var planets = Curves();
         var zone = ZoneOf(planets, (273.9f, float2.zero));
@@ -259,31 +257,8 @@ public sealed class PotentialOwnerTests : IDisposable
         {
             var at = new float2(r * cos(angle), r * sin(angle));
             var force = zone.GetForce(at);
-            Near(c, length(force) * r, 1e-3f);
+            Near(c * r * r / (r * r + core * core), length(force) * r, 1e-3f);
             Assert.True(dot(normalize(force), normalize(-at)) > .9999f, "the pull points at the body");
-        }
-    }
-
-    [Fact]
-    public void WellsSuperpose()
-    {
-        var planets = Curves();
-        var a = (mass: 29.2f, at: new float2(-300f, 0f));
-        var b = (mass: 14152.4f, at: new float2(300f, 0f));
-        var both = ZoneOf(planets, a, b);
-        var onlyA = ZoneOf(planets, a);
-        var onlyB = ZoneOf(planets, b);
-        var probes = new[]
-        {
-            float2(-300f, 0f), float2(300f, 0f), float2(-310f, 4f), float2(305f, -9f), float2(0f, 0f), float2(0f, 250f),
-            float2(-150f, 100f), float2(150f, -100f), float2(900f, 700f), float2(-1200f, -300f), float2(40f, 3000f), float2(-300f, -40f)
-        };
-        foreach (var p in probes)
-        {
-            var sum = onlyA.GetForce(p) + onlyB.GetForce(p);
-            Near(sum.x, both.GetForce(p).x, 1e-4f);
-            Near(sum.y, both.GetForce(p).y, 1e-4f);
-            Near(onlyA.GetHeight(p) + onlyB.GetHeight(p), both.GetHeight(p), 1e-4f);
         }
     }
 
@@ -297,7 +272,7 @@ public sealed class PotentialOwnerTests : IDisposable
             var c = planets.WellStrength.Evaluate(273.9f);
             var core = planets.RocheLimit.Evaluate(273.9f);
             Assert.Equal(0f, lone.GetHeight(new float2(PackRadius, 0)), 4);
-            Near(-c * (log(PackRadius / core) + .5f) / k, lone.GetHeight(float2.zero), 1e-4f);
+            Near(-c * .5f * log((PackRadius * PackRadius + core * core) / (core * core)) / k, lone.GetHeight(float2.zero), 1e-4f);
 
             var two = ZoneOf(planets, (29.2f, new float2(-300f, 0f)), (14152.4f, new float2(300f, 0f)));
             var c0 = planets.WellStrength.Evaluate(29.2f);
@@ -305,65 +280,34 @@ public sealed class PotentialOwnerTests : IDisposable
             var c1 = planets.WellStrength.Evaluate(14152.4f);
             var core1 = planets.RocheLimit.Evaluate(14152.4f);
             const float step = .5f;
-            // Inside the two cores as well, out to their outer bands (0.5 R to R), where the potential is the quadratic bowl.
+            // Inside the two softenings as well, where the Plummer potential is smooth through the centre.
             var inCore = new[]
             {
                 float2(-300f + .5f * core0, 0f), float2(-300f, .65f * core0), float2(-300f - .86f * core0, 0f), float2(-300f + .6f * core0, .6f * core0),
                 float2(300f + .55f * core1, 0f), float2(300f, -.7f * core1), float2(300f - .86f * core1, 0f), float2(300f + .9f * core1, 0f)
             };
-            foreach (var p in inCore.Concat(new[] { float2(-200f, 120f), float2(0f, 0f), float2(100f, -300f), float2(500f, 40f), float2(-290f, 12f), float2(310f, 20f), float2(700f, 700f), float2(-80f, -500f) }))
+            // Two suns 600 apart are two subzones: each is felt only inside its own reach (half the distance, 300), so the height
+            // there is that well's alone (plus the zone node's constant, which differences cancel) and the force is its alone.
+            var w0 = float2(-300f, 0f);
+            var w1 = float2(300f, 0f);
+            foreach (var p in inCore.Concat(new[] { float2(-200f, 120f), float2(100f, -300f), float2(500f, 40f), float2(-290f, 12f), float2(310f, 20f), float2(700f, 700f), float2(-80f, -500f) }))
             {
-                var expected = Phi(c0, core0, length(p - float2(-300f, 0f))) - Phi(c0, core0, PackRadius)
-                             + Phi(c1, core1, length(p - float2(300f, 0f))) - Phi(c1, core1, PackRadius);
-                Near(expected, two.GetHeight(p) * k, 1e-3f);
+                var near0 = length(p - w0) < 140f; // inside Gamma x reach (150) the well is its Plummer pull whole
+                var near1 = length(p - w1) < 140f;
+                if (near0 || near1)
+                {
+                    var (at, wc, wcore) = near0 ? (w0, c0, core0) : (w1, c1, core1);
+                    var expected = Phi(wc, wcore, length(p - at)) - Phi(wc, wcore, 0f);
+                    Near(expected, (two.GetHeight(p) - two.GetHeight(at)) * k, 1e-3f);
+                }
 
                 // The downhill slope of the potential is the force: the central difference of height * K is -GetForce.
                 var gradient = float2(
                     (two.GetHeight(p + float2(step, 0)) - two.GetHeight(p - float2(step, 0))) * k / (2 * step),
                     (two.GetHeight(p + float2(0, step)) - two.GetHeight(p - float2(0, step))) * k / (2 * step));
                 var force = two.GetForce(p);
-                Assert.InRange(length(gradient + force), 0f, length(force) * 1e-2f + 1e-4f);
+                Assert.InRange(length(gradient + force), 0f, length(force) * 1e-2f + 1e-4f + 3e-5f * k); // flat ground between the subzones reads the float32 resolution of the height, times K
             }
-        }
-    }
-
-    // Inside the core the potential is the bowl c r^2 / 2R^2 all the way out to R: the drop from a lone body's centre to a point
-    // at r is exactly that, from the middle of the core to a hair inside its edge (the log form agrees with the bowl to second
-    // order at R, so only a tight tolerance sees a join that sits just inside it).
-    [Fact]
-    public void TheCoreIsTheBowlUpToItsEdge()
-    {
-        foreach (var k in new[] { 1f, 10f })
-        {
-            var planets = Curves(k);
-            foreach (var mass in new[] { 29.2f, 14152.4f })
-            {
-                var zone = ZoneOf(planets, (mass, float2.zero));
-                var c = planets.WellStrength.Evaluate(mass);
-                var core = planets.RocheLimit.Evaluate(mass);
-                foreach (var fraction in new[] { .5f, .75f, .9f, .95f, .98f, .99f, .996f })
-                foreach (var angle in new[] { 0f, 2.3f })
-                {
-                    var r = fraction * core;
-                    var drop = (zone.GetHeight(new float2(r * cos(angle), r * sin(angle))) - zone.GetHeight(float2.zero)) * k;
-                    Near(c * fraction * fraction / 2f, drop, 2e-5f);
-                }
-            }
-        }
-    }
-
-    [Fact]
-    public void TheCoreMeetsTheTailAtItsRadius()
-    {
-        var planets = Curves();
-        foreach (var mass in new[] { 29.2f, 14152.4f })
-        {
-            var zone = ZoneOf(planets, (mass, float2.zero));
-            var core = planets.RocheLimit.Evaluate(mass);
-            var inside = new float2(core * (1f - 1e-3f), 0);
-            var outside = new float2(core * (1f + 1e-3f), 0);
-            Assert.InRange(abs(zone.GetHeight(inside) - zone.GetHeight(outside)), 0f, abs(zone.GetHeight(outside)) * 1e-3f);
-            Assert.InRange(abs(length(zone.GetForce(inside)) - length(zone.GetForce(outside))), 0f, length(zone.GetForce(outside)) * 1e-3f);
         }
     }
 }
