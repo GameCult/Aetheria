@@ -30,8 +30,9 @@ public static class DrawAhead
     public static float FloaterHeight(Zone zone, GameplaySettings settings, float2 planar, float lead) => Height(zone, planar, lead) + settings.FloaterLayerHeight;
 
     // A belt rock's drawn position (ruling asteroids-on-floater-layer): its planar pose at the drawn time, on the floater layer over the field.
-    // Open question asteroid-clearance: the rock centre sits at the layer. ChunkHeight is the one line that changes if its top should (pose.w is the radius).
-    public static float ChunkHeight(Zone zone, GameplaySettings settings, float4 pose, float lead) => FloaterHeight(zone, settings, pose.xy, lead);
+    // Ruling asteroid-tops-at-layer: the rock's top sits at the layer, so its centre is a drawn radius below it. pose.w is that radius:
+    // the renderer scales the unit rock mesh by it.
+    public static float ChunkHeight(Zone zone, GameplaySettings settings, float4 pose, float lead) => FloaterHeight(zone, settings, pose.xy, lead) - pose.w;
 
     public static float3 Chunk(Zone zone, GameplaySettings settings, ChunkId chunk, float lead)
     {

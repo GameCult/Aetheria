@@ -349,9 +349,10 @@ public sealed class DrawnPoseTests : IDisposable
     }
 
     // The reticle (DrawAhead.Chunk) and the renderer's per-rock instance (DrawAhead.ChunkHeight on EvaluateBelt's drawn pose)
-    // are one height: the field at the rock's planar position at the drawn time, plus the floater layer. Ruling asteroids-on-floater-layer.
+    // are one height: the field at the rock's planar position at the drawn time, plus the floater layer, less its drawn radius, so its top
+    // is at the layer. Rulings asteroids-on-floater-layer, asteroid-tops-at-layer.
     [Fact]
-    public void AChunkIsDrawnOnTheFloaterLayerOverTheField()
+    public void AChunkIsDrawnWithItsTopOnTheFloaterLayerOverTheField()
     {
         var w = Build();
         Step(w, 1f / 60f, 301);
@@ -367,7 +368,11 @@ public sealed class DrawnPoseTests : IDisposable
             var reticle = DrawAhead.Chunk(w.Zone, settings, new ChunkId(w.Belt, i), lead);
             var field = FieldAt(w, drawn[i].xy, time);
             AssertNear(drawn[i].xy, reticle.xz, 1e-3f, $"chunk {i} reticle xz");
-            Assert.Equal(field + FloaterLayerHeight, reticle.y, 3);
+            var radius = w.Zone.ChunkRadius(new ChunkId(w.Belt, i));
+            Assert.True(radius > 2f, $"chunk {i} has a radius that any scaling of it would move");
+            Assert.Equal(radius, drawn[i].w, 4);
+            Assert.Equal(field + FloaterLayerHeight - radius, reticle.y, 3);
+            Assert.Equal(field + FloaterLayerHeight, reticle.y + radius, 3);
             Assert.Equal(reticle.y, DrawAhead.ChunkHeight(w.Zone, settings, drawn[i], lead), 4);
             if (abs(field) > 1f) deep++;
         }
