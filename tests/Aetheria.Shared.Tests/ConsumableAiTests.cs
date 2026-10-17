@@ -519,4 +519,31 @@ public sealed class ConsumableAiTests : IDisposable
         Assert.True(s.Active(s.Vent));
         Assert.Equal(0, s.Carried);
     }
+
+    // A following agent has a task to follow and no target, and it vents all the same (ruling vent-in-any-state names
+    // patrol, follow and combat). The agent is driven directly: the zone's flight is the sole writer of its Task.
+    [Fact]
+    public void AFollowingAgentVentsToo()
+    {
+        var s = Build(carryVent: true);
+        var agent = s.Zone.Agents.Single();
+        agent.VisibleEnemies.Clear();
+        agent.Task = new FollowTask { Anchor = s.Prey, Standoff = 100 };
+        for (var i = 0; i < 6 && !(s.State is FollowState); i++) agent.Update(.05f);
+        Assert.True(s.State is FollowState, $"the agent is in {s.State?.GetType().Name}");
+
+        void Paint(float strength)
+        {
+            s.Agent.ReceivePaint(s.Locker, s.Locker.Equipment.Single(i => i.Behaviors.Any(b => b is LockWeapon)), PaintMode.Track, strength);
+            s.Agent.PublishInbox();
+            agent.Update(.05f);
+        }
+        Paint(.3f);
+        Assert.False(s.Active(s.Vent));
+        Paint(.9f);
+
+        Assert.True(s.State is FollowState);
+        Assert.True(s.Active(s.Vent));
+        Assert.Equal(0, s.Carried);
+    }
 }

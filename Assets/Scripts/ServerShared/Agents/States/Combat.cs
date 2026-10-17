@@ -10,9 +10,6 @@ using float2x2 = CultMath.float2x2;
 public class CombatState : BaseState
 {
     private const int DPS_SAMPLE_COUNT = 32;
-    // The Strength of one Track paint in this ship's own IncomingPaints: a fire-control emitter tracking this ship
-    // that hard (rulings lock-warning-strength, sensor-stat-set item 4, launcher-lock-solution-quality).
-    private const float LockAlarm = .5f;
     // Overdrive only to close a target farther than this many optimum ranges, while heading within this many degrees of it.
     private const float OverdriveRangeFactor = 2f;
     private const float OverdriveArcDegrees = 15f;

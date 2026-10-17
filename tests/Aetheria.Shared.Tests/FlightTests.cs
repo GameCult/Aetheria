@@ -138,14 +138,14 @@ public sealed class FlightTests : IDisposable
     }
 
     public static System.Collections.Generic.IEnumerable<object[]> BuildOrders() =>
-        from order in new[] { "NTFM", "MFTN", "TMNF", "FNMT", "NMTF", "TFMN" }
+        from order in new[] { "NTFMZ", "MFTNZ", "TMZNF", "FNMTZ", "ZNMTF", "TFMZN" }
         select new object[] { order };
 
     // The track is off the origin. N is the nearest member by distance, on the diagonal; T is nearer than N in x alone, F
     // nearer in z alone, and M nearest by the sum of the axis distances (60 against N's 80), all farther in distance.
     // Built in several orders: the speaker is the nearest by distance, not first or last built, nor the nearest on one
     // axis or by the sum of components. Kills: the hail from the first or last member, or from the nearest by x, by z
-    // or by the sum of components.
+    // or by the sum of components (Z is nearest with z halved: 70 against N's 57, 35 against 45).
     [Theory]
     [MemberData(nameof(BuildOrders))]
     public void GraceHailsOnceFromTheNearestThenEngages(string order)
@@ -153,7 +153,7 @@ public sealed class FlightTests : IDisposable
         var faction = WithDoctrine(EngageOn.Detection, grace: 5, hail: "Hold.");
         var (tx, tz) = (300f, -200f);
         var spots = new System.Collections.Generic.Dictionary<char, (float x, float z)>
-            { ['N'] = (tx + 40, tz + 40), ['T'] = (tx + 5, tz + 120), ['F'] = (tx - 200, tz + 10), ['M'] = (tx + 60, tz) };
+            { ['N'] = (tx + 40, tz + 40), ['T'] = (tx + 5, tz + 120), ['F'] = (tx - 200, tz + 10), ['M'] = (tx + 60, tz), ['Z'] = (tx, tz + 70) };
         var ships = order.ToDictionary(c => c, c => Pilot(faction, spots[c].x, spots[c].z));
         var track = Track(tx, tz);
         foreach (var ship in ships.Values) See(ship, track);
@@ -164,6 +164,7 @@ public sealed class FlightTests : IDisposable
         Assert.False(ships['T'].Messages.ContainsKey("Hold."));
         Assert.False(ships['F'].Messages.ContainsKey("Hold."));
         Assert.False(ships['M'].Messages.ContainsKey("Hold."));
+        Assert.False(ships['Z'].Messages.ContainsKey("Hold."));
         Assert.All(ships.Values, m => Assert.True(m.Target.Value.IsNone));
         Assert.All(_zone.Agents, a => Assert.IsType<FollowTask>(a.Task));
 
@@ -207,6 +208,8 @@ public sealed class FlightTests : IDisposable
     [InlineData(12f, true, .6f, .8f)]
     [InlineData(8f, false, .7071f, .7071f)]  // 11.3 by the sum of components, 8 by length
     [InlineData(12f, true, .7071f, .7071f)]  // 8.5 by the larger component, 12 by length
+    [InlineData(9.5f, false, 1f, 0f)]  // within a tenth of ComplySpeed, each side
+    [InlineData(10.5f, true, 1f, 0f)]
     public void ComplianceIsJudgedOnComplySpeedAndNotOnGrace(float speed, bool engaged, float dx, float dy)
     {
         var member = Pilot(WithDoctrine(EngageOn.Detection, grace: 3, hail: "Hold.", comply: 10));
@@ -860,6 +863,10 @@ public sealed class FlightTests : IDisposable
     [InlineData(-30f, 0f, 0f, 1f, true)]
     [InlineData(15f, 0f, 0f, 1f, false)]
     [InlineData(0f, 15f, 1f, 0f, false)]
+    [InlineData(22f, 0f, 0f, 1f, true)]   // a tenth under the scale still passes 20 only at full scale
+    [InlineData(19f, 0f, 0f, 1f, false)]  // a tenth over it would pass 20
+    [InlineData(0f, 22f, 1f, 0f, true)]
+    [InlineData(0f, 19f, 1f, 0f, false)]
     public void AFollowerAtItsStandoffMatchesTheAnchorsVelocityAtFullScale(float vx, float vy, float fx, float fy, bool turns)
     {
         var (turn, thrust, _) = Follow(new float2(vx, vy), 100, new float2(fx, fy));
@@ -873,6 +880,8 @@ public sealed class FlightTests : IDisposable
     [Theory]
     [InlineData(30f, true)]
     [InlineData(15f, false)]
+    [InlineData(22f, true)]
+    [InlineData(19f, false)]
     public void AFollowersPullIsTheErrorOverTheStandoffAtTopSpeed(float wantedPull, bool turns)
     {
         var top = Follow(new float2(0, 0), 100, new float2(1, 0)).topSpeed;
