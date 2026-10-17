@@ -63,6 +63,19 @@ public class Faction
     // The faction's rules of engagement; null fights as FactionDoctrine.Default.
     [Inspectable, JsonProperty("doctrine"), Key(17)]
     public FactionDoctrine Doctrine;
+
+    // Curated place names in authored order; the home zone takes the first (ruling faction-curated-place-names).
+    // Authored by AetherDb place-names, which restores the table on every apply.
+    [Inspectable, JsonProperty("places"), Key(21)]
+    public FactionPlace[] Places = Array.Empty<FactionPlace>();
+}
+
+// Historical, narrative and strategic intent join as keys 2+ when economics-driven placement lands (ruling faction-curated-place-names).
+[MessagePackObject, JsonObject(MemberSerialization.OptIn)]
+public class FactionPlace
+{
+    [Inspectable, JsonProperty("name"), Key(1)]
+    public string Name;
 }
 
 [CultDocument("aetheria.namefile", "1"), Inspectable, MessagePackObject]
