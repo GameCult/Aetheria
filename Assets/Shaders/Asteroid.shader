@@ -12,7 +12,6 @@ Shader "Aetheria/Asteroid"
     #pragma fragment frag
     #include "UnityCG.cginc" // for UnityObjectToWorldNormal
     #include_with_pragmas "Assets/Shaders/Volumetric.cginc"
-    uniform float _AsteroidVerticalOffset;
 
     struct v2f
     {
@@ -25,11 +24,7 @@ Shader "Aetheria/Asteroid"
     {
         v2f o;
         UNITY_SETUP_INSTANCE_ID(v);
-        float3 worldOrigin = mul(unity_ObjectToWorld, float4(0, 0, 0, 1.0)).xyz;
         float3 worldPos = mul(unity_ObjectToWorld, float4(v.vertex.xyz, 1.0)).xyz;
-        const float2 uv = getUV(worldOrigin.xz);
-        const float surfaceDisp = tex2Dlod(_NebulaSurfaceHeight, half4(uv, 0, 0)).r;
-        worldPos.y += _AsteroidVerticalOffset - surfaceDisp;
         o.vertex = mul(UNITY_MATRIX_VP, float4(worldPos, 1.0));
         o.uv = v.texcoord;
         // get vertex normal in world space
