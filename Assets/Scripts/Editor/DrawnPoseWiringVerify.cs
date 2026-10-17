@@ -119,13 +119,13 @@ namespace Aetheria.EditorTools
 
             // A sun and a planet on a moving rail round it, both near the bodies below: the field under a floater changes with the
             // drawn time, so a presenter that samples it at the step's time, drops it, or reads lead 0 for the height draws a different y.
-            var sunOrbit = cache.Upsert(new OrbitData { FixedPosition = new float2(-46, 9) }).Key;
+            var sunOrbit = cache.Upsert(new OrbitData { FixedPosition = new float2(-55, -.5f) }).Key;
             var planetOrbit = cache.Upsert(new OrbitData { Parent = new CultRecordRef<OrbitData>(sunOrbit), Distance = 40f, Phase = 0f }).Key;
             var pack = new ZonePack { Radius = 5000f, Mass = 10000f };
             pack.Orbits.Add(new CultRecordRef<OrbitData>(sunOrbit));
             pack.Orbits.Add(new CultRecordRef<OrbitData>(planetOrbit));
             pack.Planets.Add(new CultRecordRef<BodyData>(cache.Upsert(new PlanetData { Name = "Wiring Sun", Orbit = new CultRecordRef<OrbitData>(sunOrbit), Mass = 400f }).Key));
-            pack.Planets.Add(new CultRecordRef<BodyData>(cache.Upsert(new PlanetData { Name = "Wiring Planet", Orbit = new CultRecordRef<OrbitData>(planetOrbit), Mass = 100f }).Key));
+            pack.Planets.Add(new CultRecordRef<BodyData>(cache.Upsert(new PlanetData { Name = "Wiring Planet", Orbit = new CultRecordRef<OrbitData>(planetOrbit), Mass = 400f }).Key));
             var curves = new PlanetSettings
             {
                 BodyRadius = new ExponentialCurve(),
@@ -137,7 +137,7 @@ namespace Aetheria.EditorTools
             var rootObject = new GameObject("Wiring Zone Root");
 
             var ore = new SimpleCommodity { Data = items.ItemData.RefOf<ItemData>(items.ItemData.GetByName<SimpleCommodityData>("Wiring Ore")), Quantity = 7 };
-            var floating = zone.Release(ore, new float2(3, 4), new float2(10, 0));
+            var floating = zone.Release(ore, new float2(-17, 4), new float2(10, 0));
             var mine = new Mine
             {
                 Body = new KinematicBody { Position = new float2(-20, 8), Velocity = new float2(0, 14) },
@@ -173,7 +173,7 @@ namespace Aetheria.EditorTools
             const float LargestLead = .015f;
             foreach (var at in new[] { floating.Body.Position + pickupVelocity * LargestLead, mine.Body.Position + mineVelocity * LargestLead })
                 Require(Mathf.Abs(DrawAhead.Height(zone, at, LargestLead) - zone.GetHeight(at, zone.ExactTime)) > 5 * Tolerance,
-                    "The fixture's field is flat under a floater: a drawn time would not move its height.");
+                    $"The fixture's field is flat under a floater: height {DrawAhead.Height(zone, at, LargestLead)} at the drawn time, {zone.GetHeight(at, zone.ExactTime)} at the step, planet at {zone.OrbitPositionAt(planetOrbit, zone.ExactTime)}, floater at {at}.");
 
             Vector2 baseline = default;
             foreach (var leadSeconds in new[] { 0f, .008f, .015f })
