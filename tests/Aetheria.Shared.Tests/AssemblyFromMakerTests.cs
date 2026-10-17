@@ -61,6 +61,17 @@ public sealed class AssemblyFromMakerTests : IDisposable
         Assert.True(lows.Max() < highs.Min(), "a lot read the other maker's band");
     }
 
+    // Quality control is the maker's too: the same mean, a wide and a tight deviation, and the spread of their lots follows.
+    [Fact]
+    public void LotSpreadFollowsMakerDeviation()
+    {
+        var wide = Mint(Product("Wide", new Faction { Name = "Wide Maker", AssemblyMean = .5f, AssemblyDeviation = .2f }, .5f), 400);
+        var tight = Mint(Product("Tight", new Faction { Name = "Tight Maker", AssemblyMean = .5f, AssemblyDeviation = .02f }, .5f), 400);
+        double Spread(float[] lots) => Math.Sqrt(lots.Select(q => Math.Pow(q - lots.Average(), 2)).Average());
+        Assert.InRange(Spread(wide), .15, .25);
+        Assert.InRange(Spread(tight), .01, .04);
+    }
+
     // A maker the catalog cannot resolve assembles at a new Faction's defaults.
     [Fact]
     public void UnresolvedMakerAssemblesAtDefaults()

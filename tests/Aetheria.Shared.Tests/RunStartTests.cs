@@ -46,6 +46,14 @@ public sealed partial class RunStartTests : IDisposable
         _cache.AddBackingStore(new SingleFileMessagePackBackingStore(catalog), AetheriaStores.CatalogTypes);
         _cache.AddBackingStore(new SingleFileMessagePackBackingStore(Path.Combine(_root, "run.cc")), AetheriaStores.RunTypes);
 
+        // These scenarios measure what the gear does at its authored part qualities, not the luck of a maker's assembly: a
+        // perfect assembly lifts the ceiling (min(part, assembly)) off every role, so the parts stand as authored.
+        foreach (var faction in _cache.GetAll<Faction>())
+        {
+            faction.AssemblyMean = 1f;
+            faction.AssemblyDeviation = 0f;
+        }
+
         var authored = AuthoredSettings.Load(repo);
         _zoneSettings = authored.Read<ZoneGenerationSettings>("ZoneSettings");
         _planetSettings = authored.Read<PlanetSettings>("PlanetSettings");

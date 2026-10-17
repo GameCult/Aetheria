@@ -17,6 +17,7 @@ public sealed class AssemblyFromMakerCommandTests : IDisposable
     private void Seed()
     {
         using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
+        cache.Upsert(new VerseGrammar { Revision = 1 });
         var maker = cache.Upsert(new Faction { Name = "Maker" });
         cache.Upsert(new Faction { Name = "Bystander", AssemblyMean = .9f, AssemblyDeviation = .01f });
         var gear = cache.Upsert(new GearData { Name = "Lamp", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 10 });

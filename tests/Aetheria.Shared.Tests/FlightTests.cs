@@ -900,7 +900,7 @@ public sealed class FlightTests : IDisposable
         var slots = MessagePack.MessagePackSerializer.Deserialize<object[]>(MessagePack.MessagePackSerializer.Serialize(faction,
             CultDocumentMessagePackSerialization.OptionsFor(typeof(Faction).Assembly)));
 
-        Assert.Equal(18, slots.Length);
+        Assert.Equal(21, slots.Length);
         Assert.Null(slots[16]);
         var doctrine = Assert.IsType<object[]>(slots[17]);
         Assert.Equal(6f, Convert.ToSingle(doctrine[1]));
