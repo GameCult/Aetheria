@@ -586,8 +586,8 @@ public static class ZoneGenerator
 	/// outermost overflows the window, and the rest are stretched geometrically so the outermost sits at the window's edge. A
 	/// non-root's window ends before its own fade (Gamma x Reach x its distance); a root's, in a zone of several, ends under
 	/// rootReach / Beta so its support never meets another root's (root-window-floor), and is 0.75 x the area radius at most.
-	/// A rosette's ring is one orbit; it folds into its node, which becomes a body, if it cannot keep the heavy member outside
-	/// its Roche margin. Ported from docs/research/gravity-well-law/replace.py.
+	/// A rosette's ring is one orbit; once its members have settled (their own children folded in), it folds into its node,
+	/// which becomes a body, if it cannot keep its heaviest member outside its Roche margin. Ported from docs/research/gravity-well-law/replace.py.
 	/// </summary>
 	public static void Place(GeneratorPlanet root, PlanetSettings planetSettings, float radius, float rootReach)
 	{
@@ -647,6 +647,7 @@ public static class ZoneGenerator
 			}
 		}
 
+		var settled = new HashSet<GeneratorPlanet>(); // ring members, settled by their node so the ring is judged on their final masses
 		var chordCap = new Dictionary<GeneratorPlanet, float>(); // a ring member's children stay within .2 of the nearest partner's chord
 		void Settle(GeneratorPlanet node)
 		{
@@ -668,19 +669,20 @@ public static class ZoneGenerator
 			var ringDistance = Math.Min(.5f * cap, share * reach / (GravityField.Beta * GravityField.Beta * (1 + GravityField.RingReach)));
 			PlaceChildren(node.Children.Where(c => !ring.Contains(c)).ToList(),
 				() => (1 + GravityField.RingReach) * ringDistance * GravityField.Beta, upper, heavy);
-			// The heavy member's mass is final only now (the outer children fold into it).
-			if (ringDistance < RocheMargin * Roche(heavy.Mass))
-			{
-				// The pair cannot keep its heavy member outside its Roche margin inside its node's reach: the node is one body.
-				node.Empty = false;
-				node.Mass = 0;
-				foreach (var child in node.Children.ToList()) Fold(child, node);
-				return;
-			}
 			foreach (var member in ring)
 			{
 				member.Distance = ringDistance;
 				chordCap[member] = .2f * 2 * ringDistance * sin(PI / ring.Count);
+				Settle(member);
+				settled.Add(member);
+			}
+			// A member's mass is final only once it has settled (its own overflowing children fold into it).
+			if (ringDistance < RocheMargin * Roche(ring.Max(c => c.Mass)))
+			{
+				// The ring cannot keep its heaviest member outside its Roche margin inside its node's reach: the node is one body.
+				node.Empty = false;
+				node.Mass = 0;
+				foreach (var child in node.Children.ToList()) Fold(child, node);
 			}
 		}
 
@@ -689,7 +691,7 @@ public static class ZoneGenerator
 		while (queue.Count > 0)
 		{
 			var node = queue.Dequeue();
-			Settle(node);
+			if (!settled.Contains(node)) Settle(node);
 			foreach (var child in node.Children) queue.Enqueue(child);
 		}
 	}

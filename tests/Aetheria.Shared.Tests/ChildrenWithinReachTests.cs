@@ -458,6 +458,25 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
             Assert.True(Math.Abs(member.Distance - .375f * radius) <= 1e-4f * radius, $"a ring member sits at {member.Distance}, not {.375f * radius}");
     }
 
+    // A ring is judged on its members' settled masses: a member's own children fold into it when it settles
+    // (ring-roche-fixed-in-generator-cut).
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ARingIsJudgedOnItsMembersSettledMasses(bool heavyGrows)
+    {
+        var settings = AuthoredPlanetSettings();
+        const float mass = 1000f;
+        var ringDistance = RocheMargin * settings.RocheLimit.Evaluate(mass) * 1.02f;
+        var root = new GeneratorPlanet { Empty = true };
+        var heavy = Body(root, mass, 0, true);
+        var light = Body(root, .9f * mass, .5f, true);
+        Body(heavyGrows ? heavy : light, .5f * mass);
+        ZoneGenerator.Place(root, settings, ringDistance / .375f, float.PositiveInfinity);
+        Assert.True(!root.Empty && root.Children.Count == 0 && Math.Abs(root.Mass - 2.4f * mass) <= 1e-3f * mass,
+            $"the ring stood at {ringDistance} with a member grown to {Math.Max(heavy.Mass, light.Mass)}");
+    }
+
     // A ring member's children end within a fifth of the chord to the member's nearest partner, where the chord, not the member's
     // fade, is what holds them.
     [Fact]
