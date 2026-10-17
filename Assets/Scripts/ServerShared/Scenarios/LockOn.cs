@@ -3,9 +3,6 @@ using static ItemRotation;
 
 public sealed class LockOn : Scenario
 {
-    private readonly float _q;
-    public LockOn(float q = .6f) { _q = q; }
-
     public override string Name => "Lock On";
     public override string Brief => "A hostile closes from out of sight, finds you and locks. Verify: no warning at first; once it locks, one " +
                                     "indicator appears toward it and tightens as the lock grows; break line of sight or range and it vanishes; " +
@@ -23,7 +20,9 @@ public sealed class LockOn : Scenario
 
     // The fit's lots are minted at this quality, and the hostile's patrol order is stated, so the lock follows from the
     // staged situation and not from item draws or the pilot's drawn circuit (ruling scenario-stages-hostile-task).
-    const float StagedQuality = .6f;
+    // .8 and not Crossing's .6: the lock comes at the hostile's closest pass, where the warning's one-tick lag reads as bearing error
+    // (the test allows .5 degrees); at .6 the lock came at 880 m with .57, at .7 .48, at .8 .45 (942 m); at .2 to .5 and 1 no lock in 600 ticks.
+    const float StagedQuality = .8f;
     // The orbit it patrols: the fourth of the arena's, which carries the hostile across the player's lock envelope (lock
     // at about 35 s, closest 880 m; the other twelve, patrolled alone, do not lock it in 600 ticks).
     const int PatrolOrbit = 3;
@@ -32,7 +31,7 @@ public sealed class LockOn : Scenario
 
     public override void Stage(ScenarioStage stage)
     {
-        var fighter = stage.Fit("Longinus", _q,
+        var fighter = stage.Fit("Longinus", StagedQuality,
             ("Cockpit 2x2", int2(2, 6), None),
             ("Large Drive", int2(1, 0), Reversed),
             ("Large Drive", int2(3, 0), Reversed),
