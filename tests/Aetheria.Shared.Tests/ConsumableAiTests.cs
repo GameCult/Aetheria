@@ -323,6 +323,22 @@ public sealed class ConsumableAiTests : IDisposable
         Assert.Equal(overdrives, s.Active(s.Overdrive));
     }
 
+    // The zone gives each pilot it admits its own ordinal, from 1 and never reused: the key of its own dice
+    // (SimulationDice.CombatSampleStream). Kills: Zone.CreateAgent not setting Agent.Id.
+    [Fact]
+    public void TheZoneGivesEachAdmittedPilotItsOwnId()
+    {
+        var s = Build(carryOverdrive: true);
+        var first = s.Zone.Agents.Single().Id;
+        Assert.True(first > 0, "an admitted pilot has an id");
+
+        Assert.True(s.Zone.Remove(s.Agent));
+        s.Agent.Deactivate();
+        s.Zone.Admit(s.Agent, piloted: true);
+
+        Assert.True(s.Zone.Agents.Last(a => ReferenceEquals(a.Ship, s.Agent)).Id > first, "a re-admitted pilot is a new id");
+    }
+
     // The production path for the optimum: a ship the zone admits as piloted derives it from its gun's live stats
     // before it needs it, and re-derives it when its loadout changes. The gun's effective range is 500 and the
     // heavy gun's is 800, so the optimum moves with the weapons it has now.
