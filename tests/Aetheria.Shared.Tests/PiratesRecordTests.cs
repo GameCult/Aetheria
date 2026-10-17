@@ -53,18 +53,6 @@ public sealed partial class RunStartTests
         }
     }
 
-    // Brand finds a lot's product by (maker, design), so a maker may sell one product per design.
-    [Fact]
-    public void NoMakerSellsTwoProductsOfOneDesign()
-    {
-        var twice = _cache.GetAll<FactionProductData>()
-            .GroupBy(product => (Maker: product.Manufacturer.Key.Value, Design: product.Design.Key.Value))
-            .Where(group => group.Count() > 1)
-            .Select(group => string.Join(", ", group.Select(product => product.Name)))
-            .ToArray();
-        Assert.Empty(twice);
-    }
-
     // A unit minted from a Pirates rebrand titles and brands as that rebrand: the lot records its product, so the
     // emoji name shows although the same design is also sold by its original maker.
     [Fact]

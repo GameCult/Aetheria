@@ -26,8 +26,8 @@ public sealed class AiFusedDiscipline : Scenario
             (weapon, int2(1, 8), None),
             ("Radiator", int2(2, 2), CounterClockwise),
             ("Radiator", int2(3, 2), Clockwise),
-            ("Compact Sensor", int2(3, 10), None),
-            ("Fire Control Array", int2(1, 6), Clockwise));
+            ("not if i see you first", int2(3, 10), None), // Compact Sensor
+            ("Panopticon Prime", int2(1, 6), Clockwise)); // Fire Control Array
 
         stage.Player(stage.Generated("Djinni"), float2(0, 0));
         stage.Place(Armed("Smoke Refused"), Hostile, facing: float2(0, -1), stance: ScenarioStance.Hostile, piloted: true);

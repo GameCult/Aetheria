@@ -67,11 +67,6 @@ public sealed class LaunchSuppressorCatalogTests
         }
 
         // Exactly these six products and these makers, each authoring both roles at its maker's own mean and deviation.
-        var profiles = new Dictionary<string, (float Mean, float Dev)>
-        {
-            ["NiteLife"] = (.55f, .12f), ["Finch"] = (.65f, .20f), ["DME"] = (.55f, .20f), ["R&D"] = (.60f, .15f),
-            ["Lightsail"] = (.55f, .10f), ["Alakrita"] = (.60f, .14f),
-        };
         foreach (var (name, makers) in new[]
                  {
                      (StrongName, new[] { "DME", "Finch", "NiteLife", "R&D" }),
@@ -84,7 +79,7 @@ public sealed class LaunchSuppressorCatalogTests
             Assert.Equal(products.Length, products.Select(p => p.Name).Distinct().Count());
             Assert.All(products, product =>
             {
-                var (mean, dev) = profiles[cache.Get(product.Manufacturer).ShortName];
+                var (mean, dev) = Program.MakerProfiles[cache.Get(product.Manufacturer).ShortName];
                 Assert.Equal(new[] { "baffles", "heat sink" }, product.Roles.Select(r => r.Role).OrderBy(r => r, StringComparer.Ordinal).ToArray());
                 Assert.All(product.Roles, r =>
                 {

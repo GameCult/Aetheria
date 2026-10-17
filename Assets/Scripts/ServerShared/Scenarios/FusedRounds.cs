@@ -35,11 +35,11 @@ public sealed class FusedRounds : Scenario
             ("Compact Reactor", int2(4, 4), None),
             ("Smoke Proximity", int2(3, 8), None),
             ("Smoke Delayed", int2(6, 8), None),
-            ("Cluster Cannon", int2(5, 17), None),
+            ("DeathCluster", int2(5, 17), None), // Cluster Cannon
             ("Radiator", int2(4, 2), CounterClockwise),
             ("Radiator", int2(5, 2), Clockwise),
-            ("Compact Sensor", int2(5, 10), None),
-            ("Fire Control Array", int2(3, 6), Clockwise));
+            ("not if i see you first", int2(5, 10), None), // Compact Sensor
+            ("Panopticon Prime", int2(3, 6), Clockwise)); // Fire Control Array
 
         stage.Player(shooter, float2(0, 0), facing: float2(0, 1));
         stage.Place(stage.Bare("Longinus"), Mid, stance: ScenarioStance.Hostile);

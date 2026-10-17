@@ -28,11 +28,11 @@ public sealed class RefusedRounds : Scenario
             ("Smoke Refused", int2(3, 8), None),
             ("Smoke Refused Beam", int2(6, 8), None),
             ("Smoke Refused Charge", int2(3, 17), None),
-            ("Autocannon", int2(5, 17), None),
+            ("🫳🔫", int2(5, 17), None), // Autocannon
             ("Radiator", int2(4, 2), CounterClockwise),
             ("Radiator", int2(5, 2), Clockwise),
-            ("Compact Sensor", int2(5, 10), None),
-            ("Fire Control Array", int2(3, 6), Clockwise));
+            ("not if i see you first", int2(5, 10), None), // Compact Sensor
+            ("Panopticon Prime", int2(3, 6), Clockwise)); // Fire Control Array
 
         stage.Player(shooter, float2(0, 0), facing: float2(0, 1));
         stage.Place(stage.Bare("Longinus"), Target);

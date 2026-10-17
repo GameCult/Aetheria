@@ -20,14 +20,14 @@ public sealed class LauncherAngles : Scenario
             ("Rugged Drive", int2(2, 14), CounterClockwise),
             ("Rugged Drive", int2(3, 14), Clockwise),
             ("Compact Reactor", int2(2, 4), None),
-            ("Guided Missile Launcher", int2(0, 5), None),
-            ("Swarm Rocket Pod", int2(5, 5), None),
-            ("Cell Blaster", int2(1, 8), None),
-            ("Cell Blaster", int2(4, 8), None),
+            ("GT 3K", int2(0, 5), None), // Guided Missile Launcher
+            ("Leonid", int2(5, 5), None), // Swarm Rocket Pod
+            ("FastBlast+-", int2(1, 8), None), // Cell Blaster
+            ("FastBlast+-", int2(4, 8), None), // Cell Blaster
             ("Radiator", int2(2, 2), CounterClockwise),
             ("Radiator", int2(3, 2), Clockwise),
-            ("Compact Sensor", int2(3, 10), None),
-            ("Fire Control Array", int2(1, 6), Clockwise));
+            ("not if i see you first", int2(3, 10), None), // Compact Sensor
+            ("Panopticon Prime", int2(1, 6), Clockwise)); // Fire Control Array
 
         stage.Player(launcher, float2(0, 0));
         stage.Place(stage.Bare("Longinus"), float2(0, 900), facing: float2(1, 0), stance: ScenarioStance.Hostile);

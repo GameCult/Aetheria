@@ -30,25 +30,25 @@ public sealed class Arcs : Scenario
             ("Rugged Drive", int2(4, 14), CounterClockwise),
             ("Rugged Drive", int2(5, 14), Clockwise),
             ("Compact Reactor", int2(4, 4), None),
-            ("Guided Missile Launcher", int2(2, 5), None),
-            ("Guided Missile Launcher", int2(7, 5), None),
-            ("Cell Blaster", int2(3, 8), None),
-            ("Cell Blaster", int2(6, 8), None),
+            ("GT 3K", int2(2, 5), None), // Guided Missile Launcher
+            ("GT 3K", int2(7, 5), None), // Guided Missile Launcher
+            ("FastBlast+-", int2(3, 8), None), // Cell Blaster
+            ("FastBlast+-", int2(6, 8), None), // Cell Blaster
             ("Radiator", int2(4, 2), CounterClockwise),
             ("Radiator", int2(5, 2), Clockwise),
-            ("Compact Sensor", int2(5, 10), None),
-            ("Fire Control Array", int2(3, 6), Clockwise),
-            ("Autocannon", int2(8, 4), Clockwise),
-            ("Charged Scatter Blaster", int2(0, 4), CounterClockwise));
+            ("not if i see you first", int2(5, 10), None), // Compact Sensor
+            ("Panopticon Prime", int2(3, 6), Clockwise), // Fire Control Array
+            ("🫳🔫", int2(8, 4), Clockwise), // Autocannon
+            ("ChargeBlast SG", int2(0, 4), CounterClockwise)); // Charged Scatter Blaster
         var turret = stage.Fit("Turret",
-            ("Light Machine Gun", int2(1, 2), None),
-            ("Light Machine Gun", int2(5, 2), None),
+            ("ClearPath", int2(1, 2), None), // Light Machine Gun
+            ("ClearPath", int2(5, 2), None), // Light Machine Gun
             ("Long Radiator", int2(0, 2), CounterClockwise),
             ("Long Radiator", int2(7, 2), Clockwise),
             ("Compact Reactor", int2(3, 3), None),
             ("Turret Control Module", int2(3, 5), None),
-            ("Compact Sensor", int2(4, 5), None),
-            ("Fire Control Array", int2(3, 6), None));
+            ("not if i see you first", int2(4, 5), None), // Compact Sensor
+            ("Panopticon Prime", int2(3, 6), None)); // Fire Control Array
 
         stage.Player(fighter, float2(0, 0), facing: float2(0, 1));
         stage.Place(stage.Bare("Longinus"), Bow);

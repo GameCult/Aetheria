@@ -36,14 +36,14 @@ public sealed class Crossing : Scenario
             ("Rugged Drive", int2(2, 14), CounterClockwise),
             ("Rugged Drive", int2(3, 14), Clockwise),
             ("Compact Reactor", int2(2, 4), None),
-            ("Guided Missile Launcher", int2(0, 5), None),
-            ("Guided Missile Launcher", int2(5, 5), None),
-            ("Lightning Projector", int2(1, 8), None),
-            ("Cell Blaster", int2(4, 8), None),
+            ("GT 3K", int2(0, 5), None), // Guided Missile Launcher
+            ("GT 3K", int2(5, 5), None), // Guided Missile Launcher
+            ("DragOnBreath", int2(1, 8), None), // Lightning Projector
+            ("FastBlast+-", int2(4, 8), None), // Cell Blaster
             ("Radiator", int2(2, 2), CounterClockwise),
             ("Radiator", int2(3, 2), Clockwise),
-            ("Compact Sensor", int2(3, 10), None),
-            ("Fire Control Array", int2(1, 6), Clockwise));
+            ("not if i see you first", int2(3, 10), None), // Compact Sensor
+            ("Panopticon Prime", int2(1, 6), Clockwise)); // Fire Control Array
 
         stage.Player(fighter, Origin, facing: float2(0, 1));
         stage.Place(stage.Generated("Djinni"), CrosserAt, facing: CrosserFacing, stance: ScenarioStance.Hostile, velocity: CrosserVelocity);
