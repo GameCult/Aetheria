@@ -3,6 +3,9 @@ using static ItemRotation;
 
 public sealed class LockOn : Scenario
 {
+    private readonly float _q;
+    public LockOn(float q = .6f) { _q = q; }
+
     public override string Name => "Lock On";
     public override string Brief => "A hostile closes from out of sight, finds you and locks. Verify: no warning at first; once it locks, one " +
                                     "indicator appears toward it and tightens as the lock grows; break line of sight or range and it vanishes; " +
@@ -29,7 +32,7 @@ public sealed class LockOn : Scenario
 
     public override void Stage(ScenarioStage stage)
     {
-        var fighter = stage.Fit("Longinus", StagedQuality,
+        var fighter = stage.Fit("Longinus", _q,
             ("Cockpit 2x2", int2(2, 6), None),
             ("Large Drive", int2(1, 0), Reversed),
             ("Large Drive", int2(3, 0), Reversed),

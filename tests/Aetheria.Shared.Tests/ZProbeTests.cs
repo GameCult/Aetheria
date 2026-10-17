@@ -12,9 +12,9 @@ public sealed partial class RunStartTests
         var log = new List<string>();
         var circuits = new List<int[]> { new[] { 3 } };
         for (var j = 0; j < 13; j++) if (j != 3) { circuits.Add(new[] { j, 3 }); circuits.Add(new[] { 3, j }); }
-        foreach (var c in circuits)
+        foreach (var q in new[] { .2f, .3f, .4f, .5f, .7f, .8f, .9f, 1f }) foreach (var c in new[] { new[] { 3 } })
         {
-            var (_, arena, staged, failures) = Launch(new LockOn(), Inputs(() => GalaxySeed));
+            var (_, arena, staged, failures) = Launch(new LockOn(q), Inputs(() => GalaxySeed));
             var player = staged.Player;
             var hostile = staged.Entities.Single();
             var keys = arena.Orbits.Keys.ToList();
@@ -36,7 +36,7 @@ public sealed partial class RunStartTests
                     break;
                 }
             }
-            log.Add($"PROBE circuit [{string.Join(",", c)}] locked={lockedAt} minD={minD} {line}");
+            log.Add($"PROBE q={q} circuit [{string.Join(",", c)}] locked={lockedAt} minD={minD} {line}");
         }
         Assert.Fail(string.Join(Environment.NewLine, log));
     }
