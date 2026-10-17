@@ -10453,3 +10453,41 @@ weight. r3 pins the composition with a test and changes no code there.
 
 - cut_spec cut-maker-only-faction.r3 (base aa12cbac, re-land, depends_on none) and resolution
   cut_spec.cut-maker-only-faction.r2.n1 superseding r2. context-pack: 7 anchors SAME. No question.
+
+## Studio underlay fits the hull at 0f5def17 (imagination-ag5-underlay, 2026-10-17)
+
+Spec `aetheria-release:cut_spec:cut-studio-underlay-fits-hull.r1`, under ruling `underlay-fits-hull-bounds`.
+Every fact below is a source read at 0f5def17 unless it says otherwise.
+
+### Body facts
+
+- Studio draws no line art at base. Its only underlay is the shipped hulls' texture (`item.Schematic`):
+  `DrawPreviewTexture` into the hull Shape grid's `VerticalScope` rect, at `Assets/Scripts/Editor/CultCacheDrawers.cs:121-129`.
+  The `FlexibleSpace` shrinks that rect to the toggles, so it is already the Shape's Width x Height in 16 px cells.
+- The footprint painter (`HardpointFootprintDrawer`, merged in e1ec1e89) draws its own toggle grid over the same
+  `hull.Shape` at `CultCacheDrawers.cs:166-187`, with no underlay. Both grids iterate `hull.Shape.Width` x `Height`.
+  That Shape is `EquippableItemData.Shape` (`ItemData.cs:308`), and the hull drawer sets its size through `Resize`.
+- The "hull's Shape width and height from the hull drawer" in code is `Shape.Width` and `Shape.Height`, which are
+  `Cells.GetLength(0/1)` (`ItemData.cs:37-48`). The occupied cells are `Shape.Coordinates`, and they are a different reading.
+- Line art is `ShipAuthoring.SchematicLines` (`ShipAuthoring.cs:19`). Its points are Blender Z-up XYZ in the Ship Root frame,
+  with the nose toward -Y and starboard toward -X (`tools/blender/aetheria_ships/hull_grid.py:3-6`).
+  The game maps a point to Unity as (-x, z, -y) (`ShipModVisual.cs` BuildLineMesh). Schematic +x is starboard and +y is forward.
+- A ship .cc holds the hull and its ShipAuthoring together (`ShipAuthoring.Write`, `ShipAuthoring.cs:102-106`).
+  The hull names the visual through `HullData.Visual`. At the pinned caching-unity-v1.4.0, `CultInspector.Records` is every
+  stored document of the open cache (`CultCacheStudioWindow.cs:61-62`). `CultInspectorModel.RecordKey(ref)` gives a ref's key.
+
+### Rationale
+
+- One owner holds the registration: the engine-free `SchematicUnderlay.Fit(lines, shape)` returns cell units, so the line art
+  and `HullFootprint.Cells` share one frame. One editor site, `HullUnderlay.Draw`, maps cell units to a screen rect.
+  Both grids call it. No drawer computes bounds, and the test suite can kill the fit-to-occupied mutant without Unity.
+- The fit is stretched per axis because the ruling says "stretched to". A uniform letterbox fit would be the
+  withdrawn `fit-to-cells` option, and the operator ruled outside it. Nothing about the fit is stored, so a later nudge
+  would be a new question rather than a migration.
+- The texture draw moves into the same helper, so shipped hulls also get their texture under the footprint painter.
+  The Height-follows-texture-aspect rule stays in the hull drawer.
+- Hold check: the cut reads no anchors, mounts or hardpoint data for the underlay, so `hardpoint-work-held-for-walkthrough` is not touched.
+
+### Admitted (receipt mind-commit-32f49bd6...)
+
+- `aetheria-release:cut_spec:cut-studio-underlay-fits-hull.r1`, base 0f5def17. context-pack: all six anchors SAME.
