@@ -20,7 +20,9 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
         public readonly List<(uint Seed, Zone Zone)> All = new List<(uint, Zone)>();
         public ZoneGenerationSettings Settings;
 
-        public Zones() : this(1, 6, null) { }
+        // Seeds 7, 11 and 12 held rings inside their heavy member's Roche margin (ring-roche-final-heavy), which seeds 1-6 do not
+        // show. Seed 10 holds a bodyless non-ring node whose massive children are never placed (distance 0); widen past 9 once that is fixed.
+        public Zones() : this(1, 9, null) { }
 
         // Not public: xunit builds the fixture through its one public constructor; a test that wants a tuned sample builds its own.
         internal Zones(uint first, uint last, Action<ZoneGenerationSettings> tune)
