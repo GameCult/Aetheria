@@ -44,8 +44,23 @@ public static class ProductLinesCommand
         new("Mine Launcher", "Tripwire", "Zhestokost", "Closes the road behind the column."),
     };
 
+    // The Aya Collective, Megiddo and Orbital Forge (cut minor-power-factions): ordinary makers, applied after minor-power-factions.
+    private static readonly Row[] MinorPowers =
+    {
+        new("Point Defense Gun", "Common Guard", "Aya", "Standard mount, removable feed box, a barrel you can swap at the bench. Drawings included."),
+        new("Point Defense Laser", "Porch Light", "Aya", "Keeps the dark off the doorstep. The manual is longer than the warranty, on purpose."),
+        new("Flak Gun", "Canopy", "Aya", "Shade for the whole convoy. Every part replaceable by the people it covers."),
+        new("Point Defense Gun", "Watchman", "Megiddo", "Holds the line it is given. Every round accounted for."),
+        new("Point Defense Laser", "Vigil", "Megiddo", "It does not sleep while the boundary stands."),
+        new("Flak Gun", "Perimeter", "Megiddo", "Nothing crosses that we have not seen."),
+        new("Light Machine Gun", "Pattern 12", "Forge", "Drawings ship with the gun. Build the next one yourself."),
+        new("Autocannon", "Pattern 30", "Forge", "Standard bore, standard feed, standard anywhere a Belt yard can cut steel."),
+        new("Slug Rifle", "Pattern 6", "Forge", "Licensed or not, it fits the same mount."),
+        new("Point Defense Gun", "Pattern 2", "Forge", "Close-in defence to an open standard. No license check, ever."),
+    };
+
     // Every line the command knows, by the word that follows "product-lines".
-    private static readonly Dictionary<string, Row[]> Lines = new() { ["weapons"] = Weapons };
+    private static readonly Dictionary<string, Row[]> Lines = new() { ["weapons"] = Weapons, ["minor-powers"] = MinorPowers };
 
     // A line's rows, for the catalog tests that check the shipped records against the table the command authors from.
     internal static IReadOnlyList<Row> Table(string line) => Lines[line];
