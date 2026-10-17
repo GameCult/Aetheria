@@ -1786,7 +1786,7 @@ public sealed partial class ContactRevealTests : IDisposable
         Assert.Equal(1, o.VisibleEnemies.Count(x => x == e));
     }
 
-    // The belief outlives the track only as long as a reveal younger than BearingMemory, and goes with the book.
+    // The belief outlives the track only as long as a reveal younger than BearingMemory.
     [Fact]
     public void TelemetryEndsWhenTheBearingIsForgotten()
     {
@@ -1806,8 +1806,8 @@ public sealed partial class ContactRevealTests : IDisposable
         Assert.True(o.IsHostileTo(e), "a young reveal keeps the belief");
         Assert.Contains(e, o.RememberedHostiles);
 
-        for (var i = 0; i < 100 && o.RevealedSubjects.Contains(e); i++) Tick(.1f);
-        Assert.False(o.RevealedSubjects.Contains(e), "fixture: the book dropped the subject");
+        for (var i = 0; i < 25; i++) Tick(.1f); // 2.5 s: past BearingMemory (2 s); the live quiet subject's reveal stays in the book, old
+        Assert.False(o.ContactOf(e).Detected, "fixture: the bearing is forgotten");
         Assert.False(o.TryGetTelemetry(e, out _));
         Assert.False(o.IsHostileTo(e));
     }
