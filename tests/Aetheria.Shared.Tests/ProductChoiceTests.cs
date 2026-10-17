@@ -35,12 +35,13 @@ public sealed class ProductChoiceTests : IDisposable
         public CultCache Cache;
         public ItemManager Items;
         public Galaxy Galaxy;
-        public Faction OutA, OutZ, OutBoth, OutNone;
+        public Faction OutA, OutZ, OutBoth, OutEven, OutNone;
 
-        public LoadoutGenerator Outfitter(Faction faction, uint seed)
+        // zone is the index of the zone the outfitter stands in; -1 stands in none, so distance does not weigh.
+        public LoadoutGenerator Outfitter(Faction faction, uint seed, int zone = -1)
         {
             var random = new Random(seed);
-            return new LoadoutGenerator(ref random, Items, faction == null ? null : Galaxy, null, faction, .5f);
+            return new LoadoutGenerator(ref random, Items, faction == null ? null : Galaxy, faction == null || zone < 0 ? null : Galaxy.Zones[zone], faction, .5f);
         }
 
         public FactionProductData Product(string name) => Cache.GetAll<FactionProductData>().Single(p => p.Name == name);
@@ -76,6 +77,9 @@ public sealed class ProductChoiceTests : IDisposable
             seed.Upsert(new Faction { Name = "OutA", ShortName = "OTA", Allegiance = { { alpha, 1f } } });
             seed.Upsert(new Faction { Name = "OutZ", ShortName = "OTZ", Allegiance = { { zeta, 1f } } });
             seed.Upsert(new Faction { Name = "OutBoth", ShortName = "OTB", Allegiance = { { alpha, 1f }, { zeta, .1f } } });
+            seed.Upsert(new Faction { Name = "OutEven", ShortName = "OTE", Allegiance = { { alpha, 1f }, { zeta, 1f } } });
+            seed.Upsert(new Faction { Name = "OutLoose", ShortName = "OTL", Allegiance = { { alpha, 1f }, { zeta, .25f } } });
+            seed.Upsert(new Faction { Name = "OutZero", ShortName = "OTO", Allegiance = { { alpha, 0f }, { zeta, 0f } } });
             seed.Upsert(new Faction { Name = "OutNone", ShortName = "OTN" });
             var shape = new Shape(3, 3);
             foreach (var cell in shape.AllCoordinates) shape[cell] = true;
@@ -102,9 +106,10 @@ public sealed class ProductChoiceTests : IDisposable
         var outZ = cache.GetByName<Faction>("OutZ");
         var game = new SavedGame
         {
-            Factions = new[] { cache.RefOf(outA), cache.RefOf(outZ) },
-            Relationships = new[] { FactionRelationship.Neutral, FactionRelationship.Neutral },
-            HomeZones = new Dictionary<int, int> { { 0, 0 }, { 1, 0 } },
+            // Alpha's headquarters are in zone 0 and Zeta's in zone 1.
+            Factions = new[] { cache.RefOf(outA), cache.RefOf(outZ), cache.RefOf(cache.GetByName<Faction>("Alpha")), cache.RefOf(cache.GetByName<Faction>("Zeta")) },
+            Relationships = new[] { FactionRelationship.Neutral, FactionRelationship.Neutral, FactionRelationship.Neutral, FactionRelationship.Neutral },
+            HomeZones = new Dictionary<int, int> { { 0, 0 }, { 1, 0 }, { 2, 0 }, { 3, 1 } },
             BossZones = new Dictionary<int, int>(),
             DiscoveredZones = new[] { 0 },
             ActionBarBindings = new SavedActionBarBinding[0],
@@ -112,12 +117,13 @@ public sealed class ProductChoiceTests : IDisposable
         };
         var zones = new[]
         {
-            new SavedZone { Name = "Zone 0", Position = new float2(0, 0), AdjacentZones = Array.Empty<int>(), Factions = new[] { 0, 1 }, Owner = 0, Contents = null }
+            new SavedZone { Name = "Zone 0", Position = new float2(0, 0), AdjacentZones = new[] { 1 }, Factions = new[] { 0, 1 }, Owner = 0, Contents = null },
+            new SavedZone { Name = "Zone 1", Position = new float2(1, 0), AdjacentZones = new[] { 0 }, Factions = new[] { 0, 1 }, Owner = 0, Contents = null }
         };
         RunSave.Commit(cache, game, zones, new ProvenanceLedger());
         return new Rig
         {
-            Cache = cache, OutA = outA, OutZ = outZ, OutBoth = cache.GetByName<Faction>("OutBoth"), OutNone = cache.GetByName<Faction>("OutNone"),
+            Cache = cache, OutA = outA, OutZ = outZ, OutBoth = cache.GetByName<Faction>("OutBoth"), OutEven = cache.GetByName<Faction>("OutEven"), OutNone = cache.GetByName<Faction>("OutNone"),
             Items = new ItemManager(cache, new ProvenanceLedger(), RunSaveTests.TestSettings(), _ => { }),
             Galaxy = new Galaxy(cache, cache.GetGlobal<SavedGame>(), _ => { })
         };
@@ -225,6 +231,41 @@ public sealed class ProductChoiceTests : IDisposable
         var failures = new List<string>();
         Assert.Null(Materialize(rig, rig.Fit(), _ => rig.Product("Skiff by Alpha"), failures));
         Assert.Equal("slot 0,0: product Skiff by Alpha is not a product of Lamp", Assert.Single(failures));
+    }
+
+    private static int MakerDraws(Rig rig, Faction faction, int zone, string maker, int n)
+    {
+        var lamp = rig.Cache.GetByName<GearData>("Lamp");
+        return Enumerable.Range(1, n).Count(i => rig.Outfitter(faction, Seed(i), zone).ChooseProduct(lamp).Name == maker);
+    }
+
+    // Two makers an even allegiance weighs the same differ only by distance: standing in a zone, the maker whose
+    // headquarters is nearer comes up about twice as often (1 against 1/2).
+    [Fact]
+    public void ANearerMakerIsFavored()
+    {
+        var rig = Build("lamp-z", "lamp-a");
+        Assert.InRange(MakerDraws(rig, rig.OutEven, 0, "lamp-a", 300), 165, 235);
+        Assert.InRange(MakerDraws(rig, rig.OutEven, 1, "lamp-a", 300), 65, 135);
+    }
+
+    // A weight that read the allegiance alone would give 1 : .25 here, an 80% draw; the zone and allegiance together
+    // give 1 : .125 for alpha at its own zone, 89%.
+    [Fact]
+    public void AnAlliedMakerWeighsByItsAllegiance()
+    {
+        var rig = Build("lamp-z", "lamp-a");
+        Assert.InRange(MakerDraws(rig, rig.Cache.GetByName<Faction>("OutLoose"), 0, "lamp-a", 300), 245, 290);
+    }
+
+    // When every reachable maker weighs 0 the draw is uniform over them, not a pick of the first or last.
+    [Fact]
+    public void WhenEveryWeightIsZeroTheDrawIsUniform()
+    {
+        var rig = Build("lamp-z", "lamp-a");
+        var zero = rig.Cache.GetByName<Faction>("OutZero");
+        Assert.InRange(MakerDraws(rig, zero, 0, "lamp-a", 300), 100, 200);
+        Assert.InRange(MakerDraws(rig, zero, 0, "lamp-z", 300), 100, 200);
     }
 
     // The wire positions of the new fields: a preset written by one build is read by the next.
