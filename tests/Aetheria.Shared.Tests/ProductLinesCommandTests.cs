@@ -189,6 +189,8 @@ public abstract class ProductLinesCommandTests : IDisposable
 
 }
 
+// One collection: the lines open the same catalog records through shared state and must not run side by side.
+[Collection("ProductLinesCommand")]
 public sealed class WeaponLineCommandTests : ProductLinesCommandTests
 {
     public WeaponLineCommandTests() : base("weapons") { }
@@ -271,6 +273,7 @@ public sealed class WeaponLineCommandTests : ProductLinesCommandTests
     }
 }
 
+[Collection("ProductLinesCommand")]
 public sealed class GearLineCommandTests : ProductLinesCommandTests
 {
     public GearLineCommandTests() : base("gear") { }
