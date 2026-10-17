@@ -21,6 +21,9 @@ public sealed class LockOn : Scenario
     // The fit's lots are minted at this quality, and the hostile's patrol order is stated, so the lock follows from the
     // staged situation and not from item draws or the pilot's drawn circuit (ruling scenario-stages-hostile-task).
     const float StagedQuality = .6f;
+    // The orbit it patrols: the fourth of the arena's, which carries the hostile across the player's lock envelope (lock
+    // at about 35 s, closest 880 m; the other twelve, patrolled alone, do not lock it in 600 ticks).
+    const int PatrolOrbit = 3;
 
     public override Galaxy Generate(GalaxyStage stage) => stage.Prelude(DemoTerminus.Cast);
 
@@ -46,6 +49,6 @@ public sealed class LockOn : Scenario
 
         stage.Player(fighter, float2(0, 0), facing: float2(0, 1));
         var hostile = stage.Place(fighter, HostileAt, facing: normalize(-HostileAt), stance: ScenarioStance.Hostile, piloted: true);
-        stage.Patrol(hostile, float2(0, 0)); // it patrols the orbit by the player, which brings it into lock range
+        stage.Patrol(hostile, PatrolOrbit);
     }
 }

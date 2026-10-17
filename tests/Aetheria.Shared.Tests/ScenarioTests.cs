@@ -309,11 +309,14 @@ public sealed partial class RunStartTests
         }
         CultRecordKey[] Circuit(Zone arena) => ((PatrolOrbitsTask) Assert.Single(arena.Agents).Task).Circuit;
 
+        // The orbit keys are fresh per galaxy, so a circuit is compared by the place of each orbit among its zone's.
+        int[] Places(Zone arena) => Circuit(arena).Select(key => arena.Orbits.Keys.ToList().IndexOf(key)).ToArray();
+
         var plain = Arena(0);
         var disturbed = Arena(3);
         Assert.True(plain.Orbits.Count > 4, "the zone has orbits to choose a circuit among");
-        Assert.Equal(4, Circuit(plain).Length);
-        Assert.Equal(Circuit(plain), Circuit(disturbed));
+        Assert.Equal(4, Places(plain).Length);
+        Assert.Equal(Places(plain), Places(disturbed));
     }
 
     // A fit that states its quality mints every lot it builds at it, assembly and role fills alike; the same fit without one

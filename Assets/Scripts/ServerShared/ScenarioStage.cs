@@ -136,16 +136,15 @@ public sealed class ScenarioStage
         return entity;
     }
 
-    // The patrol order a piloted entity starts on: the one orbit that sits nearest `near` when the stage opens. A check
-    // that rests on where a pilot goes states it here, so the pilot's circuit is not a draw. An entity that is not
-    // piloted or not placed is a failure.
-    public void Patrol(Entity entity, float2 near)
+    // The patrol order a piloted entity starts on: the one orbit at this index of the arena's orbits, which a galaxy seed
+    // fixes. A check that rests on where a pilot goes states it here, so the pilot's circuit is not a draw. An entity that
+    // is not placed and piloted, or an index past the orbits, is a failure.
+    public void Patrol(Entity entity, int orbit)
     {
         var placement = _placed.FirstOrDefault(p => ReferenceEquals(p.Entity, entity));
         if (placement == null || !placement.Piloted) { _failures.Add($"patrol: {entity?.Name ?? "no entity"} is not a placed, piloted ship"); return; }
-        var orbit = Arena.Orbits.Keys.OrderBy(key => lengthsq(Arena.GetOrbitPosition(key) - near)).Cast<CultRecordKey?>().FirstOrDefault();
-        if (orbit == null) { _failures.Add("patrol: the arena has no orbit to patrol"); return; }
-        placement.Circuit = new[] { orbit.Value };
+        if (orbit < 0 || orbit >= Arena.Orbits.Count) { _failures.Add($"patrol: the arena has no orbit {orbit} (it has {Arena.Orbits.Count})"); return; }
+        placement.Circuit = new[] { Arena.Orbits.Keys.ElementAt(orbit) };
     }
 
     // Items in the entity's first cargo bay, one per name. A name is an equippable or consumable design (open: the stage
