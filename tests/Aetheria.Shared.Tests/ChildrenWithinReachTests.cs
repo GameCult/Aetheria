@@ -223,33 +223,65 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
         Assert.True(pairs > 100, $"only {pairs} sibling pairs checked");
     }
 
-    // The mass split is renormalised so a family's masses sum to its root's; folding moves a family's mass into its parent body.
-    // A tree with a rosette or binary holds a bodyless node whose own mass is renormalised with the rest, so it is left out.
-    [Fact]
-    public void FoldingConservesMass()
+    // The same random stream makes the same tree; only the window differs, so a small one (tight) folds some of what a huge one
+    // (wide) keeps whole. No rosette or binary: a bodyless node's own mass is renormalised with the rest.
+    private static IEnumerable<(uint Seed, GeneratorPlanet[] Tight, GeneratorPlanet[] Wide)> TightAndWideTrees(float mass)
     {
         var authored = AuthoredSettings.Load(RunStartTests.FindRepoRoot());
         var zoneSettings = authored.Read<ZoneGenerationSettings>("ZoneSettings");
         var planetSettings = authored.Read<PlanetSettings>("PlanetSettings");
-        zoneSettings.RosetteProbability = 0; // a rosette or binary holds a bodyless node
+        zoneSettings.RosetteProbability = 0;
         zoneSettings.BinaryCreationProbability = 0;
-        const float mass = 300000f;
-        var trees = 0;
-        var folded = 0;
         for (uint seed = 1; seed <= 200; seed++)
         {
-            // The same random stream makes the same tree; only the window differs, so a smaller one folds more of it.
             var tight = new CultMath.Random(seed);
             var tightTree = ZoneGenerator.GenerateEntities(zoneSettings, planetSettings, ref tight, mass, 1500f, float2.zero, float.PositiveInfinity);
             var wide = new CultMath.Random(seed);
             var wideTree = ZoneGenerator.GenerateEntities(zoneSettings, planetSettings, ref wide, mass, 1e7f, float2.zero, float.PositiveInfinity);
-            
-            trees++;
-            if (tightTree.Length < wideTree.Length) folded++;
-            Assert.True(Math.Abs(tightTree.Sum(p => p.Mass) - mass) <= 1e-3f * mass, $"seed {seed}: a folded tree's bodies sum to {tightTree.Sum(p => p.Mass)}, not {mass}");
+            yield return (seed, tightTree, wideTree);
         }
-        _out.WriteLine($"folding: {trees} trees, {folded} with a fold");
-        Assert.True(trees > 20 && folded > 10, $"{trees} trees, {folded} with a fold");
+    }
+
+    // Folding moves a family's mass into its parent body, so a tree's masses still sum to its root's.
+    [Fact]
+    public void FoldingConservesMass()
+    {
+        const float mass = 300000f;
+        var folded = 0;
+        foreach (var (seed, tight, wide) in TightAndWideTrees(mass))
+        {
+            if (tight.Length < wide.Length) folded++;
+            Assert.True(Math.Abs(tight.Sum(p => p.Mass) - mass) <= 1e-3f * mass, $"seed {seed}: a folded tree's bodies sum to {tight.Sum(p => p.Mass)}, not {mass}");
+        }
+        _out.WriteLine($"folding: {folded} of 200 trees with a fold");
+        Assert.True(folded > 10, $"only {folded} trees folded");
+    }
+
+    // Under one parent the families folded away are never heavier than the ones kept (rule 4: the lightest goes first).
+    [Fact]
+    public void FoldingTakesTheLightestFamily()
+    {
+        float Family(GeneratorPlanet p) => p.Mass + p.Children.Sum(Family);
+        var parentsThatFolded = 0;
+        foreach (var (seed, tight, wide) in TightAndWideTrees(300000f))
+        {
+            var tightByPhase = tight.ToDictionary(p => p.Phase);
+            void Compare(GeneratorPlanet w)
+            {
+                if (w.Children.Count == 0 || !tightByPhase.TryGetValue(w.Phase, out var t)) return;
+                var keptPhases = t.Children.Select(c => c.Phase).ToHashSet();
+                var kept = w.Children.Where(c => keptPhases.Contains(c.Phase)).ToList();
+                var gone = w.Children.Where(c => !keptPhases.Contains(c.Phase)).ToList();
+                if (gone.Count > 0 && kept.Count > 0)
+                {
+                    parentsThatFolded++;
+                    Assert.True(gone.Max(Family) <= kept.Min(Family) * (1 + 1e-4f), $"seed {seed}: a folded family outweighs one that was kept");
+                }
+                foreach (var child in kept) Compare(child);
+            }
+            Compare(wide[0]);
+        }
+        Assert.True(parentsThatFolded > 10, $"only {parentsThatFolded} parents folded part of their children");
     }
 
     [Fact]
