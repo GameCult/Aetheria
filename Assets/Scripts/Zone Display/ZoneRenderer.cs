@@ -73,11 +73,14 @@ public class ZoneRenderer : MonoBehaviour
     [HideInInspector] public Dictionary<Entity, EntityInstance> EntityInstances = new Dictionary<Entity, EntityInstance>();
     [HideInInspector] public Dictionary<CultRecordKey, PlanetObject> Planets = new Dictionary<CultRecordKey, PlanetObject>();
 
-    private Dictionary<CultRecordKey, InstancedMesh[]> _beltMeshes = new Dictionary<CultRecordKey, InstancedMesh[]>();
+    // Ruling rock-meshes-by-size: DrawAhead owns the whole draw list (kept meshes ranked, each rock's mesh and scale); the renderer only draws it.
+    private Dictionary<CultRecordKey, DrawAhead.BeltDraw<InstancedMesh>> _beltDraw = new Dictionary<CultRecordKey, DrawAhead.BeltDraw<InstancedMesh>>();
     private Dictionary<CultRecordKey, Matrix4x4[][]> _beltMatrices = new Dictionary<CultRecordKey, Matrix4x4[][]>();
     // Cut 1 (docs/mining-cut.md): the renderer's own buffer, filled from Zone.EvaluateBelt each frame. No pose
     // is stored on AsteroidBelt any more.
     private Dictionary<CultRecordKey, float4[]> _beltTransforms = new Dictionary<CultRecordKey, float4[]>();
+    // The one place a belt's rocks reach the GPU; the end-to-end verify swaps it to read what is drawn.
+    public System.Action<Mesh, Material, Matrix4x4[]> DrawInstanced = (mesh, material, matrices) => Graphics.DrawMeshInstanced(mesh, 0, material, matrices);
     private float _viewDistance;
     private GameObject _gravityField;
     private ComputeBuffer _gravityWells;
@@ -381,7 +384,7 @@ public class ZoneRenderer : MonoBehaviour
 
             Planets.Clear();
             Map.Clear();
-            _beltMeshes.Clear();
+            _beltDraw.Clear();
             _beltMatrices.Clear();
             _beltTransforms.Clear();
             _tourPlanets.Clear();
@@ -444,18 +447,10 @@ public class ZoneRenderer : MonoBehaviour
     {
         if (planetData is AsteroidBeltData beltData)
         {
-            var meshes = AsteroidMeshes.ToList();
-            while (meshes.Count > Settings.AsteroidMeshCount)
-                meshes.RemoveAt(Random.Range(0, meshes.Count));
-            _beltMeshes[key] = meshes.ToArray();
-            _beltMatrices[key] = new Matrix4x4[meshes.Count][];
             _beltTransforms[key] = new float4[beltData.Asteroids.Length];
-            var count = beltData.Asteroids.Length / meshes.Count;
-            var remainder = beltData.Asteroids.Length - count * meshes.Count;
-            for (int i = 0; i < meshes.Count; i++)
-            {
-                _beltMatrices[key][i] = new Matrix4x4[i < meshes.Count - 1 ? count : count + remainder];
-            }
+            var draw = DrawAhead.DrawListOf(Zone.AsteroidBelts[key], Zone.Settings, AsteroidMeshes, m => m.Radius, Settings.AsteroidMeshCount, key);
+            _beltDraw[key] = draw;
+            _beltMatrices[key] = draw.ByMesh.Select(rocks => new Matrix4x4[rocks.Length]).ToArray();
 
             Map.RegisterBelt(key, _beltTransforms[key]);
         }
@@ -516,6 +511,43 @@ public class ZoneRenderer : MonoBehaviour
         Map.Draw(Zone, ActionGameManager.Clock.Lead);
     }
 
+    // The instanced draw of every belt, at the drawn time: Update's belt step, public so the end-to-end verify can run it on a loaded zone.
+    public void DrawBelts(float lead)
+    {
+        Plane[] planes = GeometryUtility.CalculateFrustumPlanes(MainCamera);
+        bool isVisible(Bounds bounds) => GeometryUtility.TestPlanesAABB(planes, bounds);
+
+        foreach (var (key, belt) in Zone.AsteroidBelts)
+        {
+            // Cut 1 (docs/mining-cut.md): belts have no stored pose any more. The renderer fills its own buffer
+            // from Zone.EvaluateBelt, at the drawn time (DrawAhead.Time), every frame.
+            var orbitPosition = DrawAhead.Orbit(Zone, Zone.Orbits[belt.Data.Orbit.Key].Data.Parent.Key, lead);
+            var height = DrawAhead.Height(Zone, orbitPosition, lead);
+            var transforms = _beltTransforms[key];
+            Zone.EvaluateBelt(key, transforms, DrawAhead.Time(Zone, lead));
+            if(isVisible(new Bounds(
+                new Vector3(orbitPosition.x,height,orbitPosition.y),
+                new Vector3(belt.Radius * 2,100,belt.Radius * 2))))
+            {
+                var draw = _beltDraw[key];
+                var matrices = _beltMatrices[key];
+                var byMesh = draw.Draw(transforms);
+                for (int m = 0; m < byMesh.Length; m++)
+                {
+                    for (int k = 0; k < byMesh[m].Length; k++)
+                    {
+                        var rock = byMesh[m][k];
+                        var transform = transforms[rock.Rock];
+                        matrices[m][k] = Matrix4x4.TRS(DrawAhead.ChunkAt(Zone, ItemManager.GameplaySettings, transform, lead).ToUnity(),
+                            Quaternion.Euler(cos(transform.z) * 100, sin(transform.z) * 100, (float)rock.Rock / transforms.Length * 360),
+                            Vector3.one * rock.Scale);
+                    }
+                    DrawInstanced(draw.Meshes[m].Mesh, draw.Meshes[m].Material, matrices[m]);
+                }
+            }
+        }
+    }
+
     void Update()
     {
         var lead = ActionGameManager.Clock.Lead;
@@ -533,44 +565,8 @@ public class ZoneRenderer : MonoBehaviour
         //     SlimeRenderer.SpawnPositions[i] = _suns[i].Body.transform.position.Flatland();
         // }
         
-        Shader.SetGlobalFloat("_AsteroidVerticalOffset", ActionGameManager.Instance.Settings.PlanetSettings.AsteroidVerticalOffset);
 
-        Plane[] planes = GeometryUtility.CalculateFrustumPlanes(MainCamera);
-        bool isVisible(Bounds bounds) => GeometryUtility.TestPlanesAABB(planes, bounds);
-        
-        foreach (var (key, belt) in Zone.AsteroidBelts)
-        {
-            // Cut 1 (docs/mining-cut.md): belts have no stored pose any more. The renderer fills its own buffer
-            // from Zone.EvaluateBelt, at the drawn time (DrawAhead.Time), every frame.
-            var orbitPosition = DrawAhead.Orbit(Zone, Zone.Orbits[belt.Data.Orbit.Key].Data.Parent.Key, lead);
-            var height = DrawAhead.Height(Zone, orbitPosition, lead);
-            var transforms = _beltTransforms[key];
-            Zone.EvaluateBelt(key, transforms, DrawAhead.Time(Zone, lead));
-            if(isVisible(new Bounds(
-                new Vector3(orbitPosition.x,height,orbitPosition.y),
-                new Vector3(belt.Radius * 2,100,belt.Radius * 2))))
-            {
-                var meshes = _beltMeshes[key];
-                var matrices = _beltMatrices[key];
-                var count = transforms.Length / meshes.Length;
-                for (int i = 0; i < meshes.Length; i++)
-                {
-                    for (int t = 0; t < matrices[i].Length; t++)
-                    {
-                        var tx = t + i * count;
-                        var transform = transforms[tx];
-                        matrices[i][t] = Matrix4x4.TRS(new Vector3(transform.x,0,transform.y),
-                            Quaternion.Euler(
-                                cos(transform.z + (float)i / meshes.Length) * 100,
-                                sin(transform.z + (float)i / meshes.Length) * 100,
-                                (float)tx / transforms.Length * 360),
-                            Vector3.one * transform.w);
-                    }
-
-                    Graphics.DrawMeshInstanced(meshes[i].Mesh, 0, meshes[i].Material, matrices[i]);
-                }
-            }
-        }
+        DrawBelts(lead);
 
         foreach (var planet in Planets)
         {
@@ -624,4 +620,7 @@ public class InstancedMesh
 {
     public Mesh Mesh;
     public Material Material;
+    // The mesh's farthest vertex from its origin, measured by Aetheria.EditorTools.RockMeshRadius and verified against the mesh;
+    // the renderer scales the mesh by gameplay radius over this.
+    public float Radius;
 }

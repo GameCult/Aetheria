@@ -2,6 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
+using System.Collections.Generic;
+using System.Linq;
 using CultMath;
 using GameCult.Caching;
 using static CultMath.math;
@@ -28,6 +30,83 @@ public static class DrawAhead
 
     // The drawn height of a floater (loot, mines): the field at the drawn time plus the floater layer.
     public static float FloaterHeight(Zone zone, GameplaySettings settings, float2 planar, float lead) => Height(zone, planar, lead) + settings.FloaterLayerHeight;
+
+    // A belt rock's drawn position (rulings asteroids-on-floater-layer, asteroid-tops-at-layer): its planar pose at the drawn time, its top on
+    // the floater layer over the field, so its centre is a drawn radius below it. pose.w is that radius because the renderer scales each mesh by
+    // RockScale(pose.w, the mesh's own measured radius). The renderer's belt loop and the reticle both call this; nothing else derives a rock height.
+    public static float3 ChunkAt(Zone zone, GameplaySettings settings, float4 pose, float lead) =>
+        float3(pose.x, FloaterHeight(zone, settings, pose.xy, lead) - pose.w, pose.y);
+
+    public static float3 Chunk(Zone zone, GameplaySettings settings, ChunkId chunk, float lead) =>
+        ChunkAt(zone, settings, zone.ChunkPose(chunk.Field, chunk.Index, Time(zone, lead)), lead);
+
+    // The scale that draws a mesh of the given measured radius (its farthest vertex from the mesh origin, a bound under any rotation) at the
+    // rock's gameplay radius (ruling rock-meshes-by-size). A radius that is not set is refused by name, never divided by.
+    public static float RockScale(float gameplayRadius, float meshRadius) =>
+        meshRadius > 0f ? gameplayRadius / meshRadius : throw new System.ArgumentException("InstancedMesh.Radius is not set (zero, negative or not a number): run RockMeshRadius.Fill.");
+
+    // One rock's entry in a belt's draw list: the rock (its index in the belt) and the scale that draws it at its gameplay radius on the mesh it is listed under.
+    public readonly struct RockDraw
+    {
+        public readonly int Rock;
+        public readonly float Scale;
+        public RockDraw(int rock, float scale) { Rock = rock; Scale = scale; }
+    }
+
+    // The whole per-rock draw list of a belt (ruling rock-meshes-by-size); the renderer decides nothing and indexes nothing. The belt keeps `keep` of
+    // the candidate meshes, chosen by the belt's key alone (a hash of key and candidate index, ties by index), so a belt looks the same on every load
+    // and every client. Meshes are the kept candidates ranked ascending by radius, and ByMesh[m] lists the rocks drawn on Meshes[m], so a renderer
+    // batching by mesh iterates the two together. Rocks ranked by unworn size split into one run per mesh, smallest rocks on the smallest mesh and the
+    // last run taking the remainder; equal sizes rank by index, equal radii by candidate index, and a mesh lists its rocks by index. Unworn, so a mined
+    // rock keeps its mesh and only shrinks. A list starts with every Scale NaN; Draw fills each entry's Scale from the poses (pose.w is the rock's
+    // gameplay radius) and returns the same arrays every call.
+    public sealed class BeltDraw<T>
+    {
+        private readonly float[] _radii;
+        private readonly int[][] _rocks;
+
+        public T[] Meshes { get; }
+        public RockDraw[][] ByMesh { get; }
+
+        public BeltDraw(IReadOnlyList<float> unwornSizes, IReadOnlyList<T> candidates, System.Func<T, float> radius, int keep, string beltKey)
+        {
+            if (candidates.Count == 0) throw new System.ArgumentException("AsteroidMeshes is empty: a belt needs at least one rock mesh.");
+            if (keep < 1) throw new System.ArgumentException("AsteroidMeshCount is below 1: a belt keeps at least one rock mesh.");
+            var radii = candidates.Select(radius).ToArray();
+            for (var c = 0; c < radii.Length; c++)
+                if (!(radii[c] > 0f)) throw new System.ArgumentException($"InstancedMesh.Radius of mesh #{c} is not set (zero, negative or not a number): run RockMeshRadius.Fill.");
+            var meshByRank = Enumerable.Range(0, radii.Length).OrderBy(c => KeepOrder(beltKey, c)).ThenBy(c => c).Take(keep)
+                .OrderBy(c => radii[c]).ThenBy(c => c).ToArray();
+            _radii = meshByRank.Select(c => radii[c]).ToArray();
+            Meshes = meshByRank.Select(c => candidates[c]).ToArray();
+            var rockByRank = Enumerable.Range(0, unwornSizes.Count).OrderBy(i => unwornSizes[i]).ThenBy(i => i).ToArray();
+            var run = System.Math.Max(1, unwornSizes.Count / Meshes.Length);
+            _rocks = Enumerable.Range(0, Meshes.Length).Select(m => rockByRank
+                    .Where((_, rank) => System.Math.Min(rank / run, Meshes.Length - 1) == m).OrderBy(i => i).ToArray()).ToArray();
+            ByMesh = _rocks.Select(r => r.Select(rock => new RockDraw(rock, float.NaN)).ToArray()).ToArray();
+        }
+
+        // FNV-1a over the belt's key, mixed with the candidate index: a fixed function of its inputs, no global random state.
+        private static ulong KeepOrder(string beltKey, int candidate)
+        {
+            var h = 14695981039346656037UL;
+            foreach (var ch in beltKey) { h ^= ch; h *= 1099511628211UL; }
+            h ^= (uint)candidate; h *= 1099511628211UL;
+            h ^= h >> 32; h *= 0x9E3779B97F4A7C15UL; h ^= h >> 29;
+            return h;
+        }
+
+        public RockDraw[][] Draw(IReadOnlyList<float4> poses)
+        {
+            for (var m = 0; m < _rocks.Length; m++)
+                for (var k = 0; k < _rocks[m].Length; k++)
+                    ByMesh[m][k] = new RockDraw(_rocks[m][k], RockScale(poses[_rocks[m][k]].w, _radii[m]));
+            return ByMesh;
+        }
+    }
+
+    public static BeltDraw<T> DrawListOf<T>(AsteroidBelt belt, PlanetSettings settings, IReadOnlyList<T> meshes, System.Func<T, float> radius, int keep, CultRecordKey beltKey) =>
+        new(Enumerable.Range(0, belt.Data.Asteroids.Length).Select(i => belt.UndamagedSize(i, settings)).ToArray(), meshes, radius, keep, beltKey.Value);
 
     // A ship in a wormhole animation has its pose scripted by the step, not integrated from Velocity and TurnRate,
     // so it is drawn where the step put it: extrapolating a scripted pose draws a streak that resets every step.

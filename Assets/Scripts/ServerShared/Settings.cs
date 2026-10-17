@@ -26,7 +26,6 @@ public class PlanetSettings
 
     // The one global exaggeration of gravity height: height = potential / K, in u/s^2 per unit of height.
     public float HeightExaggeration = 1f;
-    public float AsteroidVerticalOffset = -5f;
     public ExponentialLerp AsteroidSize;
     public ExponentialLerp AsteroidHitpoints;
     public ExponentialLerp AsteroidRespawnTime;

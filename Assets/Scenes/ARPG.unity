@@ -16337,64 +16337,94 @@ MonoBehaviour:
   AsteroidMeshes:
   - Mesh: {fileID: 4300004, guid: bdb4c719a85f3f2419f6c573dd1daf15, type: 3}
     Material: {fileID: 2100000, guid: ce975d2d2ccd0914b9260b7d66319aaa, type: 2}
+    Radius: 1.5022775
   - Mesh: {fileID: 4300004, guid: 19fa9aa3b5fee244fb007d58c351be01, type: 3}
     Material: {fileID: 2100000, guid: 443981befe15f604aba2b04eef2f0de2, type: 2}
+    Radius: 1.0907339
   - Mesh: {fileID: 4300004, guid: 693c11c21d8f22240ae2b6c576bf923a, type: 3}
     Material: {fileID: 2100000, guid: 818a00140c1abb047be1d65d1c20b52a, type: 2}
+    Radius: 1.345119
   - Mesh: {fileID: 4300004, guid: 73f7fb37d1925f246919650feda3df71, type: 3}
     Material: {fileID: 2100000, guid: 60bb3870b22a23b458c2bc94e4403bda, type: 2}
+    Radius: 0.9581426
   - Mesh: {fileID: 4300004, guid: 13503d5cc77421a4384053d90e12610f, type: 3}
     Material: {fileID: 2100000, guid: 3175592343a31774b872b32ae89a7ee8, type: 2}
+    Radius: 1.3620772
   - Mesh: {fileID: 4300004, guid: 7c93e75f8f4cde14d82932c65389f566, type: 3}
     Material: {fileID: 2100000, guid: edee875c32d24154688acf645e314864, type: 2}
+    Radius: 1.1282945
   - Mesh: {fileID: 4300004, guid: b2e60056527750e4c87bd4f6de85ec32, type: 3}
     Material: {fileID: 2100000, guid: c3d0e5db17690724b89cff9a71876aa6, type: 2}
+    Radius: 1.5490558
   - Mesh: {fileID: 4300004, guid: 87ef785989ec82b498488e651b61b2c6, type: 3}
     Material: {fileID: 2100000, guid: 5686a9131ca8350448768971c9e21da0, type: 2}
+    Radius: 1.4786077
   - Mesh: {fileID: 4300004, guid: a0f93e74d454f5046908a26ecbbc31cf, type: 3}
     Material: {fileID: 2100000, guid: 85e9ac4c62af0fb4a94bc35ac5e24254, type: 2}
+    Radius: 1.1443666
   - Mesh: {fileID: 4300004, guid: 4a9e0d7ffd8f8e94abf7a800653c0b4e, type: 3}
     Material: {fileID: 2100000, guid: 27b1a299ede684d499133b9a0dc85bda, type: 2}
+    Radius: 1.1114912
   - Mesh: {fileID: 4300004, guid: 232b4a71860923049890d661dee4aff7, type: 3}
     Material: {fileID: 2100000, guid: d9e9ebabc89054f4495754372a7b4d8f, type: 2}
+    Radius: 1.5410137
   - Mesh: {fileID: 4300004, guid: 335c54d8095aa3f44bab46ca5fa5bd4c, type: 3}
     Material: {fileID: 2100000, guid: 71cd479bb26cd7140ba9d3753f49ffbc, type: 2}
+    Radius: 1.3792597
   - Mesh: {fileID: 4300004, guid: 8942a135422bd014bb3451fe02d656f2, type: 3}
     Material: {fileID: 2100000, guid: 0f7035043b158484995ff86e9371b141, type: 2}
+    Radius: 1.2433527
   - Mesh: {fileID: 4300004, guid: 47e8c832aa7d46e4ba06961fddf3cc06, type: 3}
     Material: {fileID: 2100000, guid: d5788bb4b0d2d93429d9c6462034e470, type: 2}
+    Radius: 1.3664026
   - Mesh: {fileID: 4300004, guid: 7c1227bb235e0f74aa9a6cdb9e7ccac5, type: 3}
     Material: {fileID: 2100000, guid: 060b5e360701d5146adc3d1c65c7a3df, type: 2}
+    Radius: 1.2458941
   - Mesh: {fileID: 4300004, guid: 77a272b796d88344eacf56a79372b45e, type: 3}
     Material: {fileID: 2100000, guid: 3cd15eb9c358aa547bcd223ee3c1edde, type: 2}
+    Radius: 2.157539
   - Mesh: {fileID: 4300004, guid: bafc829a0712b174d9485c5bcbc1b529, type: 3}
     Material: {fileID: 2100000, guid: b58fd84189173114d8708fb50b43f2d7, type: 2}
+    Radius: 1.5399581
   - Mesh: {fileID: 4300004, guid: 47fa308b6b417034ea47809cb08bccfb, type: 3}
     Material: {fileID: 2100000, guid: f56b0896907ac9e41b6fd9dca05f1fa2, type: 2}
+    Radius: 1.8855069
   - Mesh: {fileID: 4300004, guid: fb03a3e40b409db44a810641e0a6c493, type: 3}
     Material: {fileID: 2100000, guid: 78859c2284122944493cc283967036db, type: 2}
+    Radius: 1.2214345
   - Mesh: {fileID: 4300004, guid: de7739fee205f4a4f9ae290126a36b61, type: 3}
     Material: {fileID: 2100000, guid: 89b312038af5203469d447f7ff01105f, type: 2}
+    Radius: 1.8183402
   - Mesh: {fileID: 4300004, guid: a966f9aba651bf34da1bb6e3e7f26301, type: 3}
     Material: {fileID: 2100000, guid: 3326bc3e2b8ada34c9bfd44cf8cf1a1c, type: 2}
+    Radius: 1.5686527
   - Mesh: {fileID: 4300004, guid: 0d55ec2b68453b7418abcd63378eed69, type: 3}
     Material: {fileID: 2100000, guid: 12b1f515279281a42b2bd53cdb174488, type: 2}
+    Radius: 1.9112675
   - Mesh: {fileID: 4300004, guid: e5dc38d7ffa6ed242831255d93657aaa, type: 3}
     Material: {fileID: 2100000, guid: 5a06a4f6d5df32b4dae76c13939d3ce9, type: 2}
+    Radius: 1.9507759
   - Mesh: {fileID: 4300004, guid: 9f36793bd68d3d84d8116485bf933992, type: 3}
     Material: {fileID: 2100000, guid: decc37f956dfc244b956de2d6f5375c2, type: 2}
+    Radius: 1.5778105
   - Mesh: {fileID: 4300004, guid: 214c1534cdd5b3a4a80927e9d879290f, type: 3}
     Material: {fileID: 2100000, guid: a20b424628f81de4e8cf080a503b66af, type: 2}
+    Radius: 1.4580269
   - Mesh: {fileID: 4300004, guid: 7db51bba443e10f4f9a597a296ceb0c6, type: 3}
     Material: {fileID: 2100000, guid: f96d19f3fe978b044972d1360d2e7707, type: 2}
+    Radius: 2.430305
   - Mesh: {fileID: 4300004, guid: 6116ec4d9786d04408c3b26d0c525407, type: 3}
     Material: {fileID: 2100000, guid: 1788de6db766a4444a09dc0c80e1bcb2, type: 2}
+    Radius: 1.7872484
   - Mesh: {fileID: 4300004, guid: 3d6e611c9ebead04b9d6d7d490977ddc, type: 3}
     Material: {fileID: 2100000, guid: 0fab294fd86e3b84394a967642904d55, type: 2}
+    Radius: 1.9273407
   - Mesh: {fileID: 4300004, guid: 76b1f709ca820234bbf6c03507333b7e, type: 3}
     Material: {fileID: 2100000, guid: 63a8a57976371814689d7fb222e635e9, type: 2}
+    Radius: 1.70707
   - Mesh: {fileID: 4300004, guid: d3c9f05eabff9e24ca9521e0b8dffd50, type: 3}
     Material: {fileID: 2100000, guid: 9be65d82397829b46894243c2d91a06d, type: 2}
+    Radius: 1.6336656
   AsteroidSpritesheetWidth: 4
   AsteroidSpritesheetHeight: 4
   LODHandler: {fileID: 1009503736}
