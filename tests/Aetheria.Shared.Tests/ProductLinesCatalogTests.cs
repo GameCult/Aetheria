@@ -45,12 +45,14 @@ public sealed class ProductLinesCatalogTests
         Assert.Empty(shared);
     }
 
-    [Fact]
-    public void WeaponLineRowsAreShipped()
+    [Theory]
+    [InlineData("weapons", 20)]
+    [InlineData("minor-powers", 10)]
+    public void LineRowsAreShipped(string line, int rows)
     {
         using var cache = RestoredHullsTests.OpenCatalog();
-        var table = ProductLinesCommand.Table("weapons");
-        Assert.Equal(20, table.Count);
+        var table = ProductLinesCommand.Table(line);
+        Assert.Equal(rows, table.Count);
         foreach (var row in table)
         {
             var product = Assert.Single(cache.GetAll<FactionProductData>(), p => p.Name == row.Name);
