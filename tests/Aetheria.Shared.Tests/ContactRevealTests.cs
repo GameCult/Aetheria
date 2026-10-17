@@ -1758,6 +1758,9 @@ public sealed partial class ContactRevealTests : IDisposable
         Assert.Equal(hostile, o.IsHostileTo(e));
     }
 
+    // The zone owner does not permit `e` here. Set directly: Update re-derives the security level from the ship's location.
+    private static void Forbid(Entity e) => e.PresencePermitted = UniRx.Observable.Return(false).ToReadOnlyReactiveProperty();
+
     // Ruling ew-telemetry-with-the-track: a contact held by a bearing only has no allegiance; it gets one at its first track.
     [Fact]
     public void ABearingOnlyContactHasNoAllegiance()
