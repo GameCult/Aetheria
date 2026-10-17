@@ -8,42 +8,45 @@ using System.IO;
 using System.Linq;
 using GameCult.Caching;
 
-// assembly-from-maker [apply] (aetheria-release, cut assembly-from-maker; rulings quality-is-assembly-over-supply-chain,
-// quality-lean-assembly-hard-ceiling): derives each maker's final-assembly distribution from the products it sells. A faction
-// that manufactures at least one product with roles gets AssemblyMean = the mean of those products' role means and
-// AssemblyDeviation = the mean of their standard deviations, rounded to 2 dp; every other faction gets the field defaults.
-// The derivation reads the products, so it replays last, after every command that adds products or factions. A faction that
-// already holds the derived values is not rewritten, so a rerun writes nothing. Dry run unless apply.
+// assembly-from-maker [apply] (aetheria-release, cut assembly-from-maker; rulings quality-lean-assembly-hard-ceiling,
+// quality-min-tolerance-binned-assembly): seeds each maker's final assembly from the products it sells. A faction with no
+// Assembly that manufactures at least one product with roles gets Mean = the mean of those products' role means plus Margin
+// (a maker assembles a little above its parts, capped at 1) and StandardDeviation = the mean of their standard deviations,
+// both rounded to 2 dp. It writes only an Assembly that is null, so a value tuned in Studio survives every replay, and it
+// never writes a product's Assembly. The derivation reads the products, so it replays last, after every command that adds
+// products or factions. Dry run unless apply.
 public static class AssemblyFromMakerCommand
 {
-    // The distribution a maker's roled products imply: the mean over every role of every product, so a product with more
-    // roles weighs more. Null when there is no role to average.
-    public static (float Mean, float Deviation)? Derive(IEnumerable<FactionProductData> products)
+    // How far above its part mean a maker's final assembly sits: the tolerance margin of the ceiling.
+    public const float Margin = .1f;
+
+    // The assembly a maker's roled products imply: the mean over every role of every product, so a product with more roles
+    // weighs more. Null when there is no role to average.
+    public static AssemblyDistribution Derive(IEnumerable<FactionProductData> products)
     {
         var roles = products.SelectMany(p => p.Roles ?? new List<ProductRole>()).ToArray();
         if (roles.Length == 0) return null;
-        return ((float) Math.Round(roles.Average(r => r.Mean), 2), (float) Math.Round(roles.Average(r => r.StandardDeviation), 2));
+        return new AssemblyDistribution
+        {
+            Mean = (float) Math.Round(Math.Min(1, roles.Average(r => r.Mean) + Margin), 2),
+            StandardDeviation = (float) Math.Round(roles.Average(r => r.StandardDeviation), 2)
+        };
     }
 
     public static int Run(CultCache cache, bool apply, TextWriter output)
     {
-        var defaults = new Faction();
         var byMaker = cache.GetAll<FactionProductData>()
             .GroupBy(p => p.Manufacturer.Key)
             .Select(g => (Maker: g.Key, Derived: Derive(g)))
             .Where(m => m.Derived != null)
-            .ToDictionary(m => m.Maker, m => m.Derived.Value);
+            .ToDictionary(m => m.Maker, m => m.Derived);
 
         var changed = new List<Faction>();
         foreach (var faction in cache.GetAll<Faction>().OrderBy(f => f.Name, StringComparer.Ordinal))
         {
-            var (mean, deviation) = byMaker.TryGetValue(cache.RefOf(faction).Key, out var derived)
-                ? derived
-                : (defaults.AssemblyMean, defaults.AssemblyDeviation);
-            if (faction.AssemblyMean == mean && faction.AssemblyDeviation == deviation) continue;
-            output.WriteLine($"{faction.Name}: assembly {faction.AssemblyMean:0.##}±{faction.AssemblyDeviation:0.##} -> {mean:0.##}±{deviation:0.##}");
-            faction.AssemblyMean = mean;
-            faction.AssemblyDeviation = deviation;
+            if (faction.Assembly != null || !byMaker.TryGetValue(cache.RefOf(faction).Key, out var derived)) continue;
+            output.WriteLine($"{faction.Name}: assembly -> {derived.Mean:0.##}±{derived.StandardDeviation:0.##}");
+            faction.Assembly = derived;
             changed.Add(faction);
         }
 
@@ -55,7 +58,8 @@ public static class AssemblyFromMakerCommand
 
         if (!apply)
         {
-            output.WriteLine($"\nDry run. Pass \"apply\" to write {changed.Count} factions.");
+            output.WriteLine($"
+Dry run. Pass \"apply\" to write {changed.Count} factions.");
             return 0;
         }
 
@@ -64,7 +68,8 @@ public static class AssemblyFromMakerCommand
         {
             foreach (var faction in changed) batch.Upsert(typeof(Faction), faction, cache.RefOf(faction).Key);
         });
-        output.WriteLine($"\nWrote {changed.Count} factions in Aetheria.cc");
+        output.WriteLine($"
+Wrote {changed.Count} factions in Aetheria.cc");
         return 0;
     }
 }

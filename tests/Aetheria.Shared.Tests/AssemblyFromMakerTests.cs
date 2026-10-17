@@ -45,6 +45,8 @@ public sealed class AssemblyFromMakerTests : IDisposable
         return _cache.GetAll<FactionProductData>().Single(p => p.Name == name);
     }
 
+    private static AssemblyDistribution A(float mean, float deviation) => new AssemblyDistribution { Mean = mean, StandardDeviation = deviation };
+
     private float[] Mint(FactionProductData product, int count) =>
         Enumerable.Range(0, count).Select(_ => _items.Lots[_items.CreateLot(product)].Quality).ToArray();
 
@@ -52,8 +54,8 @@ public sealed class AssemblyFromMakerTests : IDisposable
     [Fact]
     public void LotQualityFollowsMaker()
     {
-        var low = Product("Low", new Faction { Name = "Low Maker", AssemblyMean = .3f, AssemblyDeviation = .02f }, .5f);
-        var high = Product("High", new Faction { Name = "High Maker", AssemblyMean = .8f, AssemblyDeviation = .02f }, .5f);
+        var low = Product("Low", new Faction { Name = "Low Maker", Assembly = A(.3f, .02f) }, .5f);
+        var high = Product("High", new Faction { Name = "High Maker", Assembly = A(.8f, .02f) }, .5f);
         var lows = Mint(low, 300);
         var highs = Mint(high, 300);
         Assert.InRange(lows.Average(), .27f, .33f);
@@ -65,27 +67,54 @@ public sealed class AssemblyFromMakerTests : IDisposable
     [Fact]
     public void LotSpreadFollowsMakerDeviation()
     {
-        var wide = Mint(Product("Wide", new Faction { Name = "Wide Maker", AssemblyMean = .5f, AssemblyDeviation = .2f }, .5f), 400);
-        var tight = Mint(Product("Tight", new Faction { Name = "Tight Maker", AssemblyMean = .5f, AssemblyDeviation = .02f }, .5f), 400);
+        var wide = Mint(Product("Wide", new Faction { Name = "Wide Maker", Assembly = A(.5f, .2f) }, .5f), 400);
+        var tight = Mint(Product("Tight", new Faction { Name = "Tight Maker", Assembly = A(.5f, .02f) }, .5f), 400);
         double Spread(float[] lots) => Math.Sqrt(lots.Select(q => Math.Pow(q - lots.Average(), 2)).Average());
         Assert.InRange(Spread(wide), .15, .25);
         Assert.InRange(Spread(tight), .01, .04);
     }
 
-    // A maker the catalog cannot resolve assembles at a new Faction's defaults.
+    // A maker the catalog cannot resolve, and a maker whose Assembly is not authored, assemble at AssemblyDistribution's defaults.
     [Fact]
-    public void UnresolvedMakerAssemblesAtDefaults()
+    public void UnauthoredAssemblyAssemblesAtDefaults()
     {
-        var orphan = Product("Orphan", null, .5f);
-        var defaults = new Faction();
-        Assert.InRange(Mint(orphan, 400).Average(), defaults.AssemblyMean - .03f, defaults.AssemblyMean + .03f);
+        var defaults = new AssemblyDistribution();
+        Assert.InRange(Mint(Product("Orphan", null, .5f), 400).Average(), defaults.Mean - .03f, defaults.Mean + .03f);
+        Assert.InRange(Mint(Product("Blank", new Faction { Name = "Blank Maker" }, .5f), 400).Average(), defaults.Mean - .03f, defaults.Mean + .03f);
+    }
+
+    // A line's own final test (maker-design-tiers-allowed): a product carrying an Assembly mints at it, and a sibling product
+    // of the same maker without one reads the maker's.
+    [Fact]
+    public void ProductAssemblyOverridesMaker()
+    {
+        var maker = new Faction { Name = "Binner", Assembly = A(.3f, .02f) };
+        var plain = Product("Plain", maker, .5f);
+        var premium = Product("Premium", maker, .5f);
+        premium.Assembly = A(.85f, .02f);
+        Assert.InRange(Mint(premium, 300).Average(), .82f, .88f);
+        Assert.InRange(Mint(plain, 300).Average(), .27f, .33f);
+    }
+
+    // A stated quality is every lot's and every fill's, clamped, and draws nothing from the item stream.
+    [Fact]
+    public void StatedQualityDrawsNothing()
+    {
+        var product = Product("Staged", new Faction { Name = "Staged Maker", Assembly = A(.3f, .2f) }, .5f, .2f);
+        var before = _items.Random;
+        var lot = _items.Lots[_items.CreateLot(product, .6f)];
+        Assert.Equal(.6f, lot.Quality, 3);
+        Assert.Equal(.6f, lot.Roles.Single().Quality, 3);
+        Assert.Equal(before.NextFloat(), _items.Random.NextFloat());
+        Assert.Equal(1f, _items.Lots[_items.CreateLot(product, 7f)].Quality, 3);
+        Assert.Equal(.01f, _items.Lots[_items.CreateLot(product, -1f)].Roles.Single().Quality, 3);
     }
 
     // The ceiling at the mint: a part drawn at .9 in an assembly of .4 reads .4; a part at .2 in the same assembly reads .2.
     [Fact]
     public void RoleCappedByAssembly()
     {
-        var maker = new Faction { Name = "Capped", AssemblyMean = .4f, AssemblyDeviation = 0 };
+        var maker = new Faction { Name = "Capped", Assembly = A(.4f, 0) };
         var over = _items.Lots[_items.CreateLot(Product("Over", maker, .9f))];
         var under = _items.Lots[_items.CreateLot(Product("Under", maker, .2f))];
         Assert.Equal(.4f, over.Quality, 3);
@@ -110,7 +139,7 @@ public sealed class AssemblyFromMakerTests : IDisposable
     [Fact]
     public void QualityTermReadsCeiling()
     {
-        var maker = new Faction { Name = "Capped", AssemblyMean = .4f, AssemblyDeviation = 0 };
+        var maker = new Faction { Name = "Capped", Assembly = A(.4f, 0) };
         var instance = (EquippableItem) _items.CreateInstance(_items.CreateLot(Product("Over", maker, .9f)));
         var stat = new PerformanceStat { Min = 0, Max = 1, Terms = { new StatTerm { Source = StatSource.Quality, Exponent = 1, Role = "lens" } } };
         Assert.Equal(.4f, _items.Evaluate(stat, instance), 3);

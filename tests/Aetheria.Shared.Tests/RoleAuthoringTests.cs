@@ -84,7 +84,7 @@ public sealed class RoleAuthoringTests : IDisposable
     public void TwoProductsOfOneDesignWithDifferentRoleMeansResolveDifferentValues()
     {
         using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
-        var makerRef = cache.Upsert(new Faction { Name = "Maker", ShortName = "MKR", AssemblyMean = 1f, AssemblyDeviation = 0 });
+        var makerRef = cache.Upsert(new Faction { Name = "Maker", ShortName = "MKR", Assembly = new AssemblyDistribution { Mean = 1f, StandardDeviation = 0 } });
         var lensGear = cache.Upsert(new GearData
         {
             Name = "Lensed", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 10,

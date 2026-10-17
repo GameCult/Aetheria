@@ -118,19 +118,24 @@ public class ItemManager
     }
 
     // Builds one of a manufacturer's branded products (quality-is-assembly-over-supply-chain): the unit's own quality is its
-    // final assembly, drawn from the maker's assembly distribution, and each of the design's roles is filled with a part whose
-    // quality is drawn from the product's distribution for it. A maker the catalog cannot resolve assembles at a new Faction's
-    // defaults.
-    public int CreateLot(FactionProductData product)
+    // final assembly, drawn from the product's assembly distribution, else its maker's, else AssemblyDistribution's defaults,
+    // and each of the design's roles is filled with a part whose quality is drawn from the product's distribution for it.
+    public int CreateLot(FactionProductData product) => Mint(product, null);
+
+    // The same lot at a stated quality: the assembly and every role fill are that quality and nothing is drawn, so a staged
+    // fit does not ride the item stream (ScenarioStage.Fit).
+    public int CreateLot(FactionProductData product, float quality) => Mint(product, clamp(quality, .01f, 1));
+
+    private int Mint(FactionProductData product, float? stated)
     {
         var design = ItemData.Get(product.Design);
-        var maker = ItemData.Get(product.Manufacturer) ?? new Faction();
+        var assembly = product.Assembly ?? ItemData.Get(product.Manufacturer)?.Assembly ?? new AssemblyDistribution();
         var lot = new Lot
         {
             Design = ItemData.RefOf<ItemData>(design),
             Origin = new Attributed { Faction = product.Manufacturer },
             Product = ItemData.RefOf(product),
-            Quality = clamp(Random.NextGaussian(maker.AssemblyMean, maker.AssemblyDeviation), .01f, 1),
+            Quality = stated ?? clamp(Random.NextGaussian(assembly.Mean, assembly.StandardDeviation), .01f, 1),
             Roles = new List<RoleFill>()
         };
         if (design.Roles != null)
@@ -140,7 +145,7 @@ public class ItemManager
                 lot.Roles.Add(new RoleFill
                 {
                     Role = role.Name,
-                    Quality = clamp(Random.NextGaussian(build.Mean, build.StandardDeviation), .01f, 1)
+                    Quality = stated ?? clamp(Random.NextGaussian(build.Mean, build.StandardDeviation), .01f, 1)
                 });
             }
 

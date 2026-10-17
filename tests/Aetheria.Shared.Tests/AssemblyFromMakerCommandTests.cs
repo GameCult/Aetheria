@@ -4,8 +4,8 @@ using System.Linq;
 using GameCult.Caching;
 using Xunit;
 
-// assembly-from-maker (aetheria-release, cut assembly-from-maker): each maker's assembly distribution is derived from the
-// roles of the products it manufactures.
+// assembly-from-maker (aetheria-release, cut assembly-from-maker): each maker's unauthored assembly is seeded from the roles
+// of the products it manufactures.
 public sealed class AssemblyFromMakerCommandTests : IDisposable
 {
     private readonly string _root = Path.Combine(Path.GetTempPath(), "aetheria-assembly-cmd-" + Guid.NewGuid().ToString("N"));
@@ -19,7 +19,7 @@ public sealed class AssemblyFromMakerCommandTests : IDisposable
         using var cache = AetheriaStores.Open(Catalog, catalogWritable: true);
         cache.Upsert(new VerseGrammar { Revision = 1 });
         var maker = cache.Upsert(new Faction { Name = "Maker" });
-        cache.Upsert(new Faction { Name = "Bystander", AssemblyMean = .9f, AssemblyDeviation = .01f });
+        cache.Upsert(new Faction { Name = "Bystander" });
         var gear = cache.Upsert(new GearData { Name = "Lamp", Hardpoint = HardpointType.Sensors, Shape = new Shape(), Price = 10 });
         var design = new CultRecordRef<CraftedItemData>(gear.Key);
         // Two products, three roles: the mean is over roles (.2, .4, .9 -> .5), the deviation likewise (.1, .1, .4 -> .2).
@@ -45,6 +45,19 @@ public sealed class AssemblyFromMakerCommandTests : IDisposable
                 new ProductRole { Role = "z", Mean = .31f, StandardDeviation = .2f }
             }
         });
+        // A maker whose parts are near the top: the margin is capped at 1. And one whose assembly was already authored in Studio.
+        var top = cache.Upsert(new Faction { Name = "Top" });
+        cache.Upsert(new FactionProductData
+        {
+            Name = "D", Design = design, Manufacturer = top,
+            Roles = { new ProductRole { Role = "x", Mean = .95f, StandardDeviation = .05f } }
+        });
+        var tuned = cache.Upsert(new Faction { Name = "Tuned", Assembly = new AssemblyDistribution { Mean = .42f, StandardDeviation = .07f } });
+        cache.Upsert(new FactionProductData
+        {
+            Name = "E", Design = design, Manufacturer = tuned,
+            Roles = { new ProductRole { Role = "x", Mean = .1f, StandardDeviation = .3f } }
+        });
         cache.FlushAsync().Wait();
     }
 
@@ -57,8 +70,31 @@ public sealed class AssemblyFromMakerCommandTests : IDisposable
         return output.ToString();
     }
 
+    private Faction Maker(string name)
+    {
+        using var cache = AetheriaStores.Open(Catalog);
+        return cache.GetAll<Faction>().Single(f => f.Name == name);
+    }
+
+    // The assembly is the part mean plus the tolerance margin and the deviation the parts' mean; the margin is capped at 1; a
+    // faction that makes no roled product stays unauthored.
     [Fact]
-    public void DryRunWritesNothingApplyIsIdempotent()
+    public void DerivesPartMeanPlusMargin()
+    {
+        Seed();
+        Run(apply: true);
+        Assert.Equal(.6f, Maker("Maker").Assembly.Mean, 3);
+        Assert.Equal(.2f, Maker("Maker").Assembly.StandardDeviation, 3);
+        Assert.Equal(.36f, Maker("Fine").Assembly.Mean, 3);
+        Assert.Equal(.16f, Maker("Fine").Assembly.StandardDeviation, 3);
+        Assert.Equal(1f, Maker("Top").Assembly.Mean, 3);
+        Assert.Equal(.05f, Maker("Top").Assembly.StandardDeviation, 3);
+        Assert.Null(Maker("Bystander").Assembly);
+    }
+
+    // A value tuned in Studio survives every replay, a dry run writes nothing, and a second apply has nothing to do.
+    [Fact]
+    public void AuthoredAssemblyIsKept()
     {
         Seed();
         var before = File.ReadAllBytes(Catalog);
@@ -66,19 +102,10 @@ public sealed class AssemblyFromMakerCommandTests : IDisposable
         Assert.Equal(before, File.ReadAllBytes(Catalog));
 
         Run(apply: true);
+        Assert.Equal(.42f, Maker("Tuned").Assembly.Mean, 3);
+        Assert.Equal(.07f, Maker("Tuned").Assembly.StandardDeviation, 3);
         using (var cache = AetheriaStores.Open(Catalog))
-        {
-            var maker = cache.GetAll<Faction>().Single(f => f.Name == "Maker");
-            Assert.Equal(.5f, maker.AssemblyMean, 3);
-            Assert.Equal(.2f, maker.AssemblyDeviation, 3);
-            var fine = cache.GetAll<Faction>().Single(f => f.Name == "Fine");
-            Assert.Equal(.26f, fine.AssemblyMean, 3);
-            Assert.Equal(.16f, fine.AssemblyDeviation, 3);
-            // A faction that manufactures nothing is written the field defaults.
-            var bystander = cache.GetAll<Faction>().Single(f => f.Name == "Bystander");
-            Assert.Equal(.5f, bystander.AssemblyMean, 3);
-            Assert.Equal(.15f, bystander.AssemblyDeviation, 3);
-        }
+            Assert.All(cache.GetAll<FactionProductData>(), p => Assert.Null(p.Assembly));
 
         var written = File.ReadAllBytes(Catalog);
         Assert.Contains("No changes", Run(apply: true));
