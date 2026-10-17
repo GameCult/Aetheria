@@ -92,6 +92,29 @@ public sealed class AssemblyFromMakerCommandTests : IDisposable
         Assert.Null(Maker("Bystander").Assembly);
     }
 
+    // The rule is part mean plus the margin, capped at 1, rounded to 2 dp, at every part mean and not only at the catalog
+    // fixtures: a one-role product at each, then two products whose roles weigh by role count, and the deviation the plain
+    // mean of the roles' (not their maximum).
+    [Fact]
+    public void DeriveIsPartMeanPlusMarginAtEveryMean()
+    {
+        FactionProductData Product(params (float mean, float deviation)[] roles) =>
+            new FactionProductData { Roles = roles.Select((r, i) => new ProductRole { Role = "r" + i, Mean = r.mean, StandardDeviation = r.deviation }).ToList() };
+
+        foreach (var mean in new[] { .02f, .05f, .12f, .2f, .31f, .38f, .44f, .57f, .63f, .71f, .79f, .86f, .9f, .93f, .99f })
+        {
+            var derived = AssemblyFromMakerCommand.Derive(new[] { Product((mean, .13f)) });
+            Assert.Equal(Math.Round(Math.Min(1, mean + AssemblyFromMakerCommand.Margin), 2), derived.Mean, 3);
+            Assert.Equal(.13f, derived.StandardDeviation, 3);
+        }
+
+        // (.1 + .3 + .8) / 3 = .4 -> .5, and (.02 + .3 + .4) / 3 = .24.
+        var weighed = AssemblyFromMakerCommand.Derive(new[] { Product((.1f, .02f)), Product((.3f, .3f), (.8f, .4f)) });
+        Assert.Equal(.5f, weighed.Mean, 3);
+        Assert.Equal(.24f, weighed.StandardDeviation, 3);
+        Assert.Null(AssemblyFromMakerCommand.Derive(new[] { Product() }));
+    }
+
     // A value tuned in Studio survives every replay, a dry run writes nothing, and a second apply has nothing to do.
     [Fact]
     public void AuthoredAssemblyIsKept()
