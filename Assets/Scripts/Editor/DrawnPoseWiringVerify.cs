@@ -119,8 +119,8 @@ namespace Aetheria.EditorTools
 
             // A sun and a planet on a moving rail round it, both near the bodies below: the field under a floater changes with the
             // drawn time, so a presenter that samples it at the step's time, drops it, or reads lead 0 for the height draws a different y.
-            var sunOrbit = cache.Upsert(new OrbitData { FixedPosition = new float2(-60, -40) }).Key;
-            var planetOrbit = cache.Upsert(new OrbitData { Parent = new CultRecordRef<OrbitData>(sunOrbit), Distance = 40f, Phase = .125f }).Key;
+            var sunOrbit = cache.Upsert(new OrbitData { FixedPosition = new float2(-46, 9) }).Key;
+            var planetOrbit = cache.Upsert(new OrbitData { Parent = new CultRecordRef<OrbitData>(sunOrbit), Distance = 40f, Phase = 0f }).Key;
             var pack = new ZonePack { Radius = 5000f, Mass = 10000f };
             pack.Orbits.Add(new CultRecordRef<OrbitData>(sunOrbit));
             pack.Orbits.Add(new CultRecordRef<OrbitData>(planetOrbit));
@@ -130,7 +130,7 @@ namespace Aetheria.EditorTools
             {
                 BodyRadius = new ExponentialCurve(),
                 WellStrength = new ExponentialCurve { Multiplier = 1f, Exponent = 1f },
-                RocheLimit = new ExponentialCurve { Constant = 2f }
+                RocheLimit = new ExponentialCurve { Constant = 10f }
             };
             var zone = new Zone(items, curves, pack, null, null);
 
