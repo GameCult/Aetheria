@@ -5,6 +5,7 @@ using System.Linq;
 using CultMath;
 using GameCult.Caching;
 using Xunit;
+using Xunit.Abstractions;
 using static CultMath.math;
 using float2 = CultMath.float2;
 
@@ -18,7 +19,13 @@ public sealed class StationPlacementTests : IDisposable
     private readonly List<CultCache> _caches = new List<CultCache>();
     private int _generation;
 
-    public StationPlacementTests() => Directory.CreateDirectory(_root);
+    private readonly ITestOutputHelper _output;
+
+    public StationPlacementTests(ITestOutputHelper output)
+    {
+        _output = output;
+        Directory.CreateDirectory(_root);
+    }
 
     public void Dispose()
     {
@@ -31,7 +38,7 @@ public sealed class StationPlacementTests : IDisposable
     // stock may rearrange the catalog before a galaxy is generated; storyTurrets > 0 gives every zone a story station that
     // authors that many turrets (the '#turrets' tag), the way a narrative does.
     private IEnumerable<Built> GeneratedZones(Action<ItemManager> stock = null, int storyTurrets = 0, uint seeds = 6, int zonesPerSeed = int.MaxValue,
-        Action<ZoneGenerationSettings> tune = null)
+        Action<ZoneGenerationSettings> tune = null, bool entranceOnly = false)
     {
         for (uint seed = 1; seed <= seeds; seed++)
         {
@@ -51,7 +58,7 @@ public sealed class StationPlacementTests : IDisposable
                 Directory.CreateDirectory(Path.Combine(dir, "Narrative")), _ => { }, null, seed);
             var items = new ItemManager(cache, new ProvenanceLedger(), settings, _ => { });
             stock?.Invoke(items);
-            foreach (var galaxyZone in galaxy.Zones.Take(zonesPerSeed))
+            foreach (var galaxyZone in entranceOnly ? new[] { galaxy.Entrance } : galaxy.Zones.Take(zonesPerSeed))
             {
                 if (storyTurrets > 0)
                     galaxyZone.Locations.Add(new LocationStory { Zone = galaxyZone, Name = "Test station", Faction = galaxy.Factions[0], Type = LocationType.Station, Turrets = storyTurrets });
@@ -327,6 +334,74 @@ public sealed class StationPlacementTests : IDisposable
         Assert.True(stations > 0, "the seeds generated no station");
     }
 
+
+    // A side of a station grows outward until its next turret would sit within the base body's extent plus that turret's reach of
+    // the base (story-turret-tail-clearance). With a single wide turret hull on offer and forty story turrets every station
+    // reaches the base: a side that placed fewer than its half stopped, and its would-be next turret, spelled from the zone, is
+    // inside that distance. Ambient stations carry at most two turrets, so only a station with three or more is a story one.
+    [Fact]
+    public void ATurretTailStopsAtItsBaseBody()
+    {
+        const int turrets = 40;
+        int stations = 0, sides = 0, stops = 0, nearBase = 0;
+        foreach (var built in GeneratedZones(WithOnlyAWiderTurretHull, turrets, 6))
+        {
+            var zone = built.Zone;
+            var orbitals = Orbitals(built);
+            var ridden = orbitals.Select(e => e.OrbitData).ToHashSet();
+            foreach (var station in orbitals.Where(e => TypeOf(built.Items, e) == HullType.Station))
+            {
+                var orbit = zone.Orbits[station.OrbitData];
+                var mine = orbitals.Where(e => TypeOf(built.Items, e) == HullType.Turret && SameRing(zone.Orbits[e.OrbitData], orbit)).ToList();
+                var source = zone.Orbits.Where(o => !ridden.Contains(o.Key) && SameRing(o.Value, orbit)).Select(o => o.Key).ToList();
+                if (mine.Count < 3 || source.Count != 1) continue;
+                stations++;
+                var extent = BaseExtent(zone, source[0]);
+                var reach = Contacts.Radius(mine[0]);
+                var circumference = 2 * PI * orbit.Data.Distance;
+                var arcs = mine.Select(t => { var turn = Turns(zone.Orbits[t.OrbitData].Data.Phase - orbit.Data.Phase); return (turn > .5f ? turn - 1 : turn) * circumference; }).ToList();
+                foreach (var sign in new[] { -1f, 1f })
+                {
+                    var side = arcs.Where(a => a * sign > 0).OrderBy(a => a * sign).ToList();
+                    sides++;
+                    var wouldBe = (side.Count == 0 ? 0f : side[side.Count - 1]) + sign * ((side.Count == 0 ? Contacts.Radius(station) : reach) + 2 * reach);
+                    var phase = orbit.Data.Phase + wouldBe / circumference;
+                    var chord = 2 * orbit.Data.Distance * Math.Abs((float) Math.Sin(PI * (phase - zone.Orbits[source[0]].Data.Phase)));
+                    if (side.Count >= turrets / 2) continue;
+                    stops++;
+                    Assert.True(chord < (extent + reach) * (1 + 1e-3f), $"seed {built.Seed}: a side stopped at {side.Count} turrets with its next turret still {chord} from the base, outside {extent + reach}");
+                    if (chord >= .8f * (extent + reach)) nearBase++;
+                }
+            }
+        }
+        _output.WriteLine($"story stations {stations}, sides {sides}, sides that stopped {stops}, of them with the next turret within a fifth of the stop distance {nearBase}");
+        Assert.True(stops > 0 && nearBase > 0, $"{stops} stops, {nearBase} in the 0.8 band: the seeds do not exercise the rule");
+    }
+
+    // The entrance always gets a station. With no candidate orbit (a station hull so large that no rail clears a massive sibling
+    // by its reach) it orbits a body root outside that root's extent, not at a Lagrange point.
+    [Fact]
+    public void ATutorialEntranceWithNoCandidateOrbitsItsBodyRootOutsideItsExtent()
+    {
+        var fired = 0;
+        foreach (var built in GeneratedZones(WithAnUnofferedHugeStationHull, 0, 20, 1,
+            z => { z.RosetteProbability = 0; z.BinaryCreationProbability = 0; z.SatelliteCreationProbability = 0; }, true))
+        {
+            var zone = built.Zone;
+            var station = Orbitals(built).FirstOrDefault(e => TypeOf(built.Items, e) == HullType.Station);
+            if (station == null) continue;
+            var orbit = zone.Orbits[station.OrbitData];
+            var root = orbit.Data.Parent.IsSet() ? orbit.Data.Parent.Key : default;
+            if (!orbit.Data.Parent.IsSet() || zone.Orbits[root].Data.Parent.IsSet() || !zone.Planets.Values.Any(b => !(b is AsteroidBeltData) && b.Orbit.Key.Equals(root))) continue;
+            if (zone.Planets.Values.Any(b => SameRing(zone.Orbits[b.Orbit.Key], orbit))) continue;
+            fired++;
+            var extent = BaseExtent(zone, root);
+            Assert.True(Math.Abs(orbit.Data.Distance - extent) <= 1e-4f * extent, $"seed {built.Seed}: the entrance station orbits its root at {orbit.Data.Distance}, not at its extent {extent}");
+        }
+        _output.WriteLine($"entrance zones where the fallback seated a station at a body root: {fired}");
+        Assert.True(fired > 0, "no entrance zone of seeds 1-20 took the fallback for a body root");
+    }
+
     private static List<FactionProductData> TurretProducts(ItemManager items) =>
         items.ItemData.GetAll<FactionProductData>().Where(p => items.ItemData.Get(p.Design) is HullData { HullType: HullType.Turret }).ToList();
 
@@ -338,7 +413,24 @@ public sealed class StationPlacementTests : IDisposable
 
     // The shipped catalog has one turret hull. A copy with a bigger solid shape (a larger reach) and its own product
     // gives the generator two turret hulls to choose between.
-    private static void WithALargerTurretHull(ItemManager items)
+    private static void WithALargerTurretHull(ItemManager items) => AddATurretHull(items, 2, false);
+
+    // Only the wider hull is on offer: the shipped turret is priced at zero once the wider copy has its price.
+    private static void WithOnlyAWiderTurretHull(ItemManager items) => AddATurretHull(items, 6, true);
+
+    // A station hull with no product, so nothing builds it, but wide enough that its reach is the largest in the catalog.
+    private static void WithAnUnofferedHugeStationHull(ItemManager items)
+    {
+        var copyOf = typeof(object).GetMethod("MemberwiseClone", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        var hull = items.ItemData.GetAll<HullData>().First(h => h.HullType == HullType.Station);
+        var huge = (HullData) copyOf.Invoke(hull, null);
+        huge.Name = hull.Name + " (huge)";
+        huge.Shape = new Shape(20000, 1);
+        foreach (var cell in huge.Shape.AllCoordinates) huge.Shape[cell] = true;
+        items.ItemData.Upsert(huge);
+    }
+
+    private static void AddATurretHull(ItemManager items, int extraCells, bool only)
     {
         var copyOf = typeof(object).GetMethod("MemberwiseClone", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
         foreach (var product in TurretProducts(items))
@@ -346,12 +438,13 @@ public sealed class StationPlacementTests : IDisposable
             var hull = (HullData) items.ItemData.Get(product.Design);
             var larger = (HullData) copyOf.Invoke(hull, null);
             larger.Name = hull.Name + " (large)";
-            larger.Shape = new Shape(hull.Shape.Width + 2, hull.Shape.Height + 2);
+            larger.Shape = new Shape(hull.Shape.Width + extraCells, hull.Shape.Height + extraCells);
             foreach (var cell in larger.Shape.AllCoordinates) larger.Shape[cell] = true;
             var largerProduct = (FactionProductData) copyOf.Invoke(product, null);
             largerProduct.Name = product.Name + " (large)";
             largerProduct.Design = new CultRecordRef<CraftedItemData>(items.ItemData.Upsert(larger).Key);
             items.ItemData.Upsert(largerProduct);
+            if (only) hull.Price = 0;
         }
     }
 

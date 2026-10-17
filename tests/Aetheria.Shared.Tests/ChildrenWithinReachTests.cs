@@ -18,10 +18,14 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
     {
         private readonly ZoneWorlds _worlds = new ZoneWorlds();
         public readonly List<(uint Seed, Zone Zone)> All = new List<(uint, Zone)>();
+        public ZoneGenerationSettings Settings;
 
-        public Zones()
+        public Zones() : this(1, 6, null) { }
+
+        // Not public: xunit builds the fixture through its one public constructor; a test that wants a tuned sample builds its own.
+        internal Zones(uint first, uint last, Action<ZoneGenerationSettings> tune)
         {
-            for (uint seed = 1; seed <= 6; seed++)
+            for (uint seed = first; seed <= last; seed++)
             {
                 var dir = Path.Combine(_worlds.Root, $"galaxy{seed}");
                 Directory.CreateDirectory(dir);
@@ -40,7 +44,9 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
                 var planetSettings = authored.Read<PlanetSettings>("PlanetSettings");
                 foreach (var galaxyZone in galaxy.Zones)
                 {
-                    var pack = ZoneGenerator.GenerateZone(items, authored.Read<ZoneGenerationSettings>("ZoneSettings"), planetSettings, galaxy, galaxyZone,
+                    Settings = authored.Read<ZoneGenerationSettings>("ZoneSettings");
+                    tune?.Invoke(Settings);
+                    var pack = ZoneGenerator.GenerateZone(items, Settings, planetSettings, galaxy, galaxyZone,
                         galaxyZone == galaxy.Entrance && galaxy.IsPrelude, false);
                     All.Add((seed, new Zone(items, planetSettings, pack, galaxyZone, galaxy)));
                 }
@@ -347,6 +353,131 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
             }
         }
         Assert.True(belts > 20, $"only {belts} belts checked");
+    }
+
+    private static float Percentile(List<float> sorted, float fraction) => sorted[Math.Min(sorted.Count - 1, (int) (fraction * sorted.Count))];
+
+    // A belt fills the slot between its neighbours' spacing, its parent's Roche margin and the parent's window, up to the
+    // authored width (ruling belt-fills-its-slot): it sits at the slot's midpoint where the test can spell both edges, and
+    // none collapses to a line (finding belts-collapse-to-a-line). Rocks are scattered inside the belt's half width, so their
+    // spread is at most the belt's width; a belt beside another belt has an edge only the generator knows, and is checked
+    // against the weaker bound.
+    [Fact]
+    public void BeltsFillTheirSlots()
+    {
+        var q = 1 / (1 - GravityField.Reach / 2);
+        var ratios = new List<float>();
+        int belts = 0, bounded = 0, midpoints = 0, lines = 0;
+        foreach (var (seed, zone) in _zones.All)
+        {
+            var mass = BodyMass(zone);
+            var placed = Placed(zone);
+            var beltAt = zone.AsteroidBelts.ToDictionary(b => zone.Planets[b.Key].Orbit.Key, b => b.Value.Data.Asteroids);
+            foreach (var (orbit, rocks) in beltAt)
+            {
+                var parent = zone.Orbits[orbit].Data.Parent.Key;
+                if (rocks.Length == 0 || !mass.TryGetValue(parent, out var parentMass)) continue;
+                belts++;
+                var sibling = ChildrenOf(zone, parent, placed);
+                var at = sibling.IndexOf(orbit);
+                var d = DistanceOf(zone, orbit);
+                var spread = rocks.Max(a => a.Distance) - rocks.Min(a => a.Distance);
+                var width = _zones.Settings.AsteroidBeltWidth.Evaluate(d);
+                ratios.Add(spread / width);
+                if (spread < 1e-3f) lines++;
+
+                var prevIsBelt = at > 0 && beltAt.ContainsKey(sibling[at - 1]);
+                var nextIsBelt = at < sibling.Count - 1 && beltAt.ContainsKey(sibling[at + 1]);
+                var prevEdge = at == 0 ? 0f : prevIsBelt && beltAt[sibling[at - 1]].Length > 0 ? beltAt[sibling[at - 1]].Max(a => a.Distance) : DistanceOf(zone, sibling[at - 1]);
+                var inner = Math.Max(RocheMargin * Roche(zone, parentMass), prevEdge * q);
+                var grand = zone.Orbits[parent].Data.Parent;
+                var window = grand.IsSet() ? GravityField.Gamma * GravityField.Reach * DistanceOf(zone, parent) / Math.Max(GravityField.Beta, 1 + GravityField.Reach) : float.PositiveInfinity;
+                var next = at < sibling.Count - 1 && !nextIsBelt ? DistanceOf(zone, sibling[at + 1]) / q : float.PositiveInfinity;
+                var outerLimit = Math.Min(window, next);
+                if (!nextIsBelt) bounded++;
+                Assert.True(spread <= Math.Min(width, outerLimit - inner) * (1 + Tolerance),
+                    $"seed {seed}: a belt spreads {spread} in a slot of {outerLimit - inner} and an authored width of {width}");
+                // Past the last sibling a root's window is its own to spell, and a ring member's child is held by a chord as well.
+                var upperKnown = at < sibling.Count - 1 || (grand.IsSet() && mass.ContainsKey(grand.Key));
+                if (prevIsBelt || nextIsBelt || !upperKnown) continue;
+                midpoints++;
+                Assert.True(Math.Abs(d - (inner + outerLimit) / 2) <= Tolerance * d,
+                    $"seed {seed}: a belt at {d} is not the midpoint {(inner + outerLimit) / 2} of its slot [{inner}, {outerLimit}]");
+            }
+        }
+        ratios.Sort();
+        _out.WriteLine($"belts {belts}, with a slot bound {bounded}, midpoints checked {midpoints}, rock spread under 0.001: {lines}; " +
+            $"spread / authored width at p10/25/50/75/90/max: {string.Join(" / ", new[] { .1f, .25f, .5f, .75f, .9f }.Select(f => Percentile(ratios, f).ToString("F3")))} / {ratios[ratios.Count - 1]:F3}");
+        Assert.True(belts > 20 && bounded > 0 && midpoints > 0, $"{belts} belts, {bounded} bounded, {midpoints} midpoints: the seeds do not exercise the rule");
+        Assert.True(lines == 0, $"{lines} of {belts} belts have no radial width");
+    }
+
+    // With the authored width narrower than the slot the width is the ceiling and the belt keeps it: neither wider (W/2 -> W, a
+    // deleted cap) nor reduced to the slot.
+    [Fact]
+    public void ANarrowAuthoredBeltKeepsItsWidth()
+    {
+        var authored = AuthoredSettings.Load(RunStartTests.FindRepoRoot()).Read<ZoneGenerationSettings>("ZoneSettings").AsteroidBeltWidth;
+        using var narrow = new Zones(1, 3, z => z.AsteroidBeltWidth = new ExponentialCurve
+            { Exponent = authored.Exponent, Multiplier = authored.Multiplier * .02f, Constant = authored.Constant * .02f });
+        int belts = 0, filled = 0;
+        foreach (var (seed, zone) in narrow.All)
+            foreach (var (key, belt) in zone.AsteroidBelts)
+            {
+                var rocks = belt.Data.Asteroids;
+                if (rocks.Length < 2) continue;
+                var width = narrow.Settings.AsteroidBeltWidth.Evaluate(DistanceOf(zone, zone.Planets[key].Orbit.Key));
+                var spread = rocks.Max(a => a.Distance) - rocks.Min(a => a.Distance);
+                belts++;
+                Assert.True(spread <= width * (1 + Tolerance), $"seed {seed}: a belt spreads {spread}, past its authored width {width}");
+                if (spread >= .5f * width) filled++;
+            }
+        _out.WriteLine($"narrow belts {belts}, spreading at least half the authored width {filled}");
+        Assert.True(filled >= 10, $"only {filled} of {belts} belts fill the authored width");
+    }
+
+    private static GeneratorPlanet Body(GeneratorPlanet parent, float mass, float phase = 0, bool ring = false)
+    {
+        var node = new GeneratorPlanet { Parent = parent, Mass = mass, Phase = phase, Ring = ring };
+        parent.Children.Add(node);
+        return node;
+    }
+
+    private static PlanetSettings AuthoredPlanetSettings() => AuthoredSettings.Load(RunStartTests.FindRepoRoot()).Read<PlanetSettings>("PlanetSettings");
+
+    // A rosette's ring round a root with no reach limit of its own sits at half the root's 0.75 x radius window, 3/8 of the radius.
+    [Fact]
+    public void ASoleRootRingSitsAtThreeEighthsOfItsRadius()
+    {
+        const float radius = 1e6f;
+        var root = new GeneratorPlanet { Empty = true };
+        var members = new[] { Body(root, 100f, 0, true), Body(root, 100f, .5f, true) };
+        ZoneGenerator.Place(root, AuthoredPlanetSettings(), radius, float.PositiveInfinity);
+        Assert.True(root.Empty && root.Children.Count == 2, "the ring folded into its node");
+        foreach (var member in members)
+            Assert.True(Math.Abs(member.Distance - .375f * radius) <= 1e-4f * radius, $"a ring member sits at {member.Distance}, not {.375f * radius}");
+    }
+
+    // A ring member's children end within a fifth of the chord to the member's nearest partner, where the chord, not the member's
+    // fade, is what holds them.
+    [Fact]
+    public void ARingMembersChildrenStayWithinAFifthOfTheChord()
+    {
+        const float radius = 1e6f;
+        const int count = 12;
+        var root = new GeneratorPlanet { Empty = true };
+        var members = Enumerable.Range(0, count).Select(i => Body(root, 100f, (float) i / count, true)).ToList();
+        foreach (var member in members) { Body(member, 10f); Body(member, 10f); }
+        ZoneGenerator.Place(root, AuthoredPlanetSettings(), radius, float.PositiveInfinity);
+        foreach (var member in members)
+        {
+            Assert.True(root.Children.Count == count && member.Children.Count == 2, "a ring member or its children folded");
+            var chord = .2f * 2 * member.Distance * (float) Math.Sin(Math.PI / count);
+            var fade = GravityField.Gamma * GravityField.Reach * member.Distance / Math.Max(GravityField.Beta, 1 + GravityField.Reach);
+            Assert.True(chord < fade, "the fade, not the chord, would hold these children");
+            var outermost = member.Children.Max(c => c.Distance);
+            Assert.True(Math.Abs(outermost - chord) <= 1e-4f * chord, $"a ring member's outermost child sits at {outermost}, not at the chord's fifth {chord}");
+        }
     }
 
     [Fact]
