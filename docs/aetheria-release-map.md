@@ -23,7 +23,7 @@ Cuts without a `cut_spec`, withdrawn 2026-10-12 under map-only-what-runs: a spec
 - hull-bakes: MaterialBakes: content-addressed pair and wear bakes dispatched from generated kernels, refcounted, read back and. Waits on: material-lowering (held post-demo by ruling demo-material-scope; blocked on material-lowering).
 - material-lowering: Material lowering: MaterialGraph to CultMath expression IR, generated compute kernels per graph (surface, worn. Waits on: material-graph, material-library-export (held post-demo by ruling demo-material-scope; blocked on material-graph).
 - ships-studio-schematic: Studio draws a mod hull's shipped schematic path (ShipAuthoring.SchematicLines) under its cell grid, display-only. Its footprint half was split out as spec cut-ships-studio-footprint.r1 (2026-10-17). r1's rule, 2 m per cell from Ship Root, claims a model-to-cell scale that ruling schematic-and-model-are-separate-spaces rejects. Waits on: question studio-underlay-registration (rec fit-to-cells) and ships-studio-footprint (same drawer file).
-- ships-hull-livery: Faction.Livery, resolved over the hull's factory paint for that faction's ships. Key 18 is free at master 1d4aa626 (16 is reserved for Relations, 17 is Doctrine), and the unmerged assembly-from-maker branch reserves 18 for it in a comment and takes 19 and 20. r1 was withdrawn 2026-10-12: its question hull-livery-scope fell to ruling mask-channels-place-materials, so liveries set parameters on mask-placed materials. No HullPaint, LiveryRules or Livery type exists on master. Carries follow-up livery-key-collision. Waits on: a demo-shaped ships-hull-material (ruling demo-material-scope: baked maps, a mask and the one hull shader), which has no spec in force.
+- ships-hull-livery: Faction.Livery, resolved over the hull's factory paint for that faction's ships. Key 18 is free at master 1d4aa626 (16 is reserved for Relations, 17 is Doctrine), and assembly-from-maker r3 (base 0f5def17) keeps 18 reserved for it and takes only 19 (Faction.Assembly); 20 is left for the curated-place-names pass. r1 was withdrawn 2026-10-12: its question hull-livery-scope fell to ruling mask-channels-place-materials, so liveries set parameters on mask-placed materials. No HullPaint, LiveryRules or Livery type exists on master. Carries follow-up livery-key-collision. Waits on: a demo-shaped ships-hull-material (ruling demo-material-scope: baked maps, a mask and the one hull shader), which has no spec in force.
 - controls-ai-bearing: Controls 5: AI ships turn to bring their chosen weapon group to bear (broadsides for side mounts, the nose for forward. Waits on: controls-helm, controls-mount-aim (refresh needed (Broadside scenario gone)).
 - controls-hud: Controls 3: the HUD shows each weapon group's solution state on its crosshair (on solution, free, holding), arcs in the. Waits on: controls-mount-aim (refresh needed (HUD overlap, 48-commit drift)).
 - ai-autofire: Missiles 4: the AI fires through the same chooser. Combat and TurretController take each weapon's subject from. Waits on: autofire-threshold, controls-ai-bearing (blocked on autofire-threshold and controls-ai-bearing).
@@ -54,7 +54,8 @@ Cuts without a `cut_spec`, withdrawn 2026-10-12 under map-only-what-runs: a spec
 - matrix-flamers: Weapon matrix, Jet row: Light Flamethrower, Flamethrower, Heavy Flamethrower and Inferno Projector, thermal pellet guns. Waits on: nothing in the mind (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
 - matrix-mines: Weapon matrix, Mine row: Mine Rack, Heavy Mine Layer and Minefield Projector beside the Mine Launcher, with warhead and. Waits on: roles-backfill (refresh needed; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first).
 - gear-lines (spec cut-gear-lines.r1, remaps withdrawn product-lines-gear): 22 second-maker gear products as 'product-lines gear' in ProductLinesCommand. The follow-up's rows less its two Compact Sensor rows, plus Medium Drive, Large Drive and Industrial Thermostatic Heater, so every role-bearing ship gear design that is sold has two makers (Muon Fusion and the four station reactors exempt). The command's no-roles refusal exempts cargo bays. Waits on: nothing; runs now. Replay: 'product-lines gear apply', either side of minor-power-factions, before assembly-from-maker. Body facts: Products PL3, PL10-PL12.
-- product-tiers: A maker sells several products of one design at different performance (ruling maker-design-tiers-allowed, 2026-10-16). In the operator's words, "segmentation via binning and sub-assembly selection": no new innovation or component roles. Maps per-tier ProductRole quality and a Price that follows quality, which today comes from the design (question maker-design-tiers, depends). The tier rows go through product-lines' ProductLinesCommand. Product names stay unique (NoTwoProductsShareAName). ProductRole's mean and deviation come from the maker's one MakerProfiles row, so two tiers at one maker need a per-tier offset. That offset is this cut's design, not a second profile table. Ship products are keyed one per maker per hull (ShipModCatalog.ProductKey(id, maker)); whether hull tiers widen that key is this cut's to map, not assumed. Waits on: product-lines-weapons (its command and the deleted test); product-lines-gear (same catalog writer).
+- product-tiers: A maker sells several products of one design at different performance (ruling maker-design-tiers-allowed, 2026-10-16). In the operator's words, "segmentation via binning and sub-assembly selection": no new innovation or component roles. Maps per-tier ProductRole quality and a Price that follows quality, which today comes from the design (question maker-design-tiers, depends). The tier rows go through product-lines' ProductLinesCommand. Product names stay unique (NoTwoProductsShareAName). ProductRole's mean and deviation come from the maker's one MakerProfiles row, so two tiers at one maker need a per-tier offset. That offset is this cut's design, not a second profile table. Ship products are keyed one per maker per hull (ShipModCatalog.ProductKey(id, maker)); whether hull tiers widen that key is this cut's to map, not assumed. Waits on: product-lines-weapons (its command and the deleted test); product-lines-gear (same catalog writer). Since ruling quality-min-tolerance-binned-assembly a tier row may also set its own FactionProductData.Assembly (assembly-from-maker r3 adds the field; no product sets it yet, AFM3).
+- quality-readers: Price, the rarity tier name and colour, Entity.cs heat, durability and wear, and ChooseProduct's affordability read the item's effective quality, the mean of min(part, assembly) over its roles, assembly alone for a roleless lot (ruling effective-quality-mean-of-roles). Today they read Lot.Quality (PL9). Waits on: assembly-from-maker r3 merged.
 - run-seed: Drops mix a per-game seed stored in the save (ruling loot-seed-in-save, 2026-10-16). A new game rolls different drops from other games, reloading one save repeats its drops, and tests pass a fixed seed. Today Zone.CombatSeed is the zone name's StableHash (Zone.cs:144). It feeds three dice: the loot dice (Zone.cs:414, LootStream, by death ordinal), the mine lay scatter (FireControl.cs:791, MineStream) and the shot dice (FireControl.cs:930). The ruling covers drops, and the question named loot and mine fragments, so the seed mixes into the loot and mine streams. Whether hit rolls also take it is not ruled: the cut raises it. Do not change CombatSeed itself and carry that along silently. The seed lives on SavedGame, minted by the new-run branch. The run lifecycle is record-level (ActionGameManager.cs:58-60), so the seed must reach Zone at construction from the run, not from the catalog. Owns follow-up loot-dice-run-seed (its old owners, loot-1 r2 and sim-mines, are merged). Waits on: nothing in the mind.
 - mining-yield: Mining Cut 5 (docs/mining-cut-refresh.md 'Cut 5. Composition, the loot roll, the mined lot, and the same-path test agent'). Ruling mining-overflow-floats (2026-10-16) replaces that plan's deposit rule: units a shot extracts go into the shooter's cargo through TryStore, and what the hold cannot take is released through Zone.Release (Zone.cs:356) as floating items, which the player and NPCs collect through the one pickup path. The plan's AFullHoldLosesTheOverflow test becomes AFullHoldReleasesTheOverflow. Mining Cuts 4 and 7 stay with follow-up mining-cuts-4-5-7, which this cut's spec resolves with them. Waits on: mining Cut 4 (FireControl shots at chunks), full game (demo scope table: no buyer for ore in the demo).
 - boost-gear-combat: Stat boosters, combat, tiered by size: a modest 1x1 and a strong 2x2 each for Damage and Range on every gun through. Waits on: boost-gear-systems (blocked on boost-gear-systems; ruling catalog-breadth-now (superseded catalog-breadth-after-visibility 2026-10-13): runs now, refresh against master first). After damage-falloff: a Range Extender multiplies Range only, so it lengthens the falloff ramp and leaves EffectiveRange where it was; the cut decides whether it also targets EffectiveRange (section "Damage falloff at fire time", DF8).
@@ -10491,3 +10492,87 @@ Every fact below is a source read at 0f5def17 unless it says otherwise.
 ### Admitted (receipt mind-commit-32f49bd6...)
 
 - `aetheria-release:cut_spec:cut-studio-underlay-fits-hull.r1`, base 0f5def17. context-pack: all six anchors SAME.
+
+## Assembly from maker r2 at 0f5def17 (imagination-ag5-assembly, 2026-10-17)
+
+Re-maps cut assembly-from-maker under ruling quality-min-tolerance-binned-assembly (answers
+question quality-combining-rule-meta; research docs/research/quality-combining-rule-meta.md, 6460eed6,
+an ancestor of 0f5def17). Spec cut-assembly-from-maker.r3 (r2 superseded the same hour for two
+anchors). h1 (branch eureka/aetheria-release-assembly-from-maker, 5187a59d on ae300c6a) is the
+reference implementation.
+
+### Body facts
+
+Probes AFM1-AFM5 by imagination-ag5-assembly (session self-2026-10-17-ag5), 2026-10-17, in worktree
+C:\aeth-wt\imag-ag5-assembly at origin/master 0f5def17.
+
+- **AFM1, heads:** origin/master is 0f5def17; the h1 branch is 5187a59d, merge base ae300c6a, 70
+  master commits behind. Files both sides touched: Settings.cs, Program.cs, GameData/Aetheria.cc,
+  RunStartTests (h1 adds one blank line only) and six test fixtures (ContactReveal, FireAuthority,
+  FlightTests, IffAndCombat, MiningCut3, Pickup). h1's diff is 69 files, +412 -100; about 45 of them
+  are the one-line `Rarity = 0` fixture drop. At 0f5def17, `\.Rarity\b|Rarity =` has 57 hits in
+  Assets/Scripts, tests and tools (master added fixtures since ae300c6a); 0 at 5187a59d.
+- **AFM2, quality over the real catalog:** a Python decode of GameData/Aetheria.cc (msgpack,
+  cultcache.store.v1; script kept at the session scratchpad as afm2-sim.py) simulated 400 lots per
+  product, assembly drawn per maker, parts per ProductRole, both clamped to [.01, 1],
+  effective = min(part, assembly), Q = mean over the design's roles. Catalog totals: r1 derivation
+  (assembly = mean part mean) mean Q .48, roles capped 50%, part sleepers (mean part > Q + .1) 32%;
+  r2 (part mean + .1) mean Q .52, capped 31%, sleepers 16%; parts alone .56. Per maker r1 to r2
+  assembly mean: Adrasteia .61 to .71, AU .54 to .64, Alakrita .59 to .69, Aya .50 to .60, DME .59 to
+  .69, Finch .66 to .76, Lightsail .55 to .65, Lucent .56 to .66, Megiddo .75 to .85, Miss Terri's .51
+  to .61, NiteLife .56 to .66, Orbital Forge .45 to .55, Pirates .45 to .55, R&D .58 to .68,
+  Zhestokost .52 to .62. No maker reaches the 1.0 clamp. This reproduces the meta research's 48%/30%
+  and 1 in 3/1 in 6 on the 15-faction catalog.
+- **AFM3, catalog shape:** 16 Faction records, 153 FactionProductData. 15 factions make at least one
+  roled product; Ewan Hart Inc makes one roleless product, so the apply writes 15. No (maker, design)
+  pair has two products, so no binned line exists yet for a product Assembly to serve. No product
+  lacks a fill for one of its design's roles. Every Faction record is an 18-element array (keys to
+  17): nothing on master's blob sits at key 19 or 20, though the dead maker-only-faction branches
+  once put ManufacturerOnly at 19.
+- **AFM4, keys:** Faction uses 1-5, 7-15, 17; 6 is a retired commented key, 16 is reserved for
+  Relations, 18 for Livery (livery-key-collision). Lowest free: 19. r3 takes 19 only; 20 is next.
+  FactionProductData uses 1-5; Assembly takes 6.
+- **AFM5, the four h1 failures:** all four stage their gear through ScenarioStage.Fit with open
+  designs or pinned products, so their lots draw from the run's item stream: Crossing's player
+  Longinus (CrossingConditions asserts the waiting Djinni at 75-100% of a Lightning Projector Range
+  that Crossing.ProjectorRange = 1216 measured from one draw), EvLonginus and EvDjinni
+  (TheEnvelopeComesFromTheGear, PdGunHoldsASpeedDemon via EvRangeLaunch) and EvFitted
+  (TheThrustersReadLiveThrust). None rests on a Generated fit by source read; Crossing's crosser is
+  Generated but its asserted speed is the placed velocity. Settings.asset is LFS-tracked: git grep on
+  a revision and context-pack read its pointer; its five `Rarity:` lines are at 202-230.
+
+### Rationale
+
+- **Re-land, not merge.** Merging master into the h1 branch brings the blob conflict, the
+  override added and removed, the blank-line residue and 066fb581's slipped message into master's
+  history. A fresh branch from 0f5def17 takes h1's net diff in one commit that names its source, and
+  leaves the old branch as the record. Nothing is rewritten.
+- **One AssemblyDistribution, not float pairs.** The ruling puts an assembly on the maker and,
+  optionally, on a product. Two nullable floats on the product could be half set; one nested,
+  nullable value cannot. Faction.Doctrine is the precedent for a nested record on Faction. It also
+  takes one Faction key, not two.
+- **The command seeds, it does not own.** The ruling calls AssemblyMean a Studio knob. h1's command
+  recomputed every faction on every replay, which would erase a tuned value at the next catalog
+  merge. r3 writes only a null Faction.Assembly, so a replay is a no-op on tuned makers and fills a
+  maker added since. This departs from Self's brief, which did not address it.
+- **Staged quality is a mint, not a patch.** A stated quality goes through CreateLot(product,
+  quality), the same writer as a draw, and draws nothing, so a staged fixture no longer depends on
+  where the stream stands. Rewriting lots after Materialize would add a second writer. Generated
+  fits cannot be staged, by construction: they are the game's own draw. .6 is a stated value above
+  the catalog's mean effective quality (.52); Self may pick another, and it is one constant per site.
+- **The good/fast/cheap note** is follow-up quality-paid-in-cost-or-throughput, not this cut.
+
+### Admitted
+
+- cut_spec cut-assembly-from-maker.r2 (receipt mind-commit-44a0a923...), with resolution
+  cut_spec.cut-assembly-from-maker.r1.n1 and follow-up quality-paid-in-cost-or-throughput.
+- cut_spec cut-assembly-from-maker.r3 (receipt mind-commit-ab9abc0d...), base 0f5def17, with
+  resolution cut_spec.cut-assembly-from-maker.r2.n1. context-pack: 17 anchors SAME. No question.
+
+### Model page rows (assembly-from-maker r3)
+
+| Kind | Identity | Lifecycle | Authority |
+|---|---|---|---|
+| Maker assembly (`Faction.Assembly`, key 19) | The Faction record key. | Null until `assembly-from-maker apply` seeds it at part mean + .1; afterwards edited in Studio and never re-derived. | The operator in Studio; the command only fills nulls. |
+| Product assembly (`FactionProductData.Assembly`, key 6) | The product record key. | Null (the maker's) unless a tier row or Studio sets it. | The operator or the product-lines tier rows; no command derives it. |
+| Lot quality (`Lot.Quality`, final assembly) | The lot ordinal in the run ledger. | Written once at mint by `CreateLot(product[, quality])`, drawn or stated; never rewritten. | `ItemManager.CreateLot`; readers move to effective quality in cut quality-readers. |
