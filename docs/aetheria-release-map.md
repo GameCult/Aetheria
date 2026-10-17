@@ -10350,7 +10350,9 @@ no Unity probe was run.
   `PlayerGraphicsSettings.ShowAsteroidsInMinimap` (key 1, menu field
   MainMenu.cs:299) and is forced on in the map screen. This is the cost the
   operator added the setting for. The 3D belt already fills `_beltTransforms`
-  (float4 per asteroid) every frame.
+  (float4 per asteroid) every frame. The setting is deleted (ruling
+  minimap-asteroids-setting-deleted); the map presenter draws minimap belts
+  every frame.
 - Already 2D: GravityField.shader writes `-gravityHeight` as a colour into an
   RFloat texture from a flat quad. The tint, influence and patch passes are
   flat quads at the root height. None of them clips on depth. The contour's

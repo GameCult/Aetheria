@@ -68,8 +68,6 @@ public class MapPresenter
     public void SetMinimapScale(float scale) => _minimapScale = scale;
     public void OpenMapScreen(bool open) => _mapScreenOpen = open;
 
-    // PlayerGraphicsSettings.ShowAsteroidsInMinimap: belt sprites on the minimap; the map screen always shows them.
-    public bool BeltsOnMinimap { get; set; }
     public void SetMapScreenScale(float scale) => _mapScreenScale = scale;
 
     // Destroy in play mode, DestroyImmediate where the editor smokes run without one.
@@ -231,8 +229,7 @@ public class MapPresenter
             material.SetFloat("_DepthRange", depthRange);
         }
 
-        if (BeltsOnMinimap || _mapScreenOpen)
-            foreach (var belt in _belts.Values) DrawBelt(belt);
+        foreach (var belt in _belts.Values) DrawBelt(belt);
     }
 
     public void Clear()

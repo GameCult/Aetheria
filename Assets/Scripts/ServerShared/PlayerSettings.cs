@@ -63,7 +63,7 @@ public class PlayerGameplaySettings
 public class PlayerGraphicsSettings
 {
     [Key(0)] public Quality NebulaQuality = Quality.Normal;
-    [Key(1)] public bool ShowAsteroidsInMinimap;
+    // Key 1, retired: ShowAsteroidsInMinimap (minimap belts always draw)
     // How hard the camera shakes when the player's ship takes an impact: 0 off, 1 full (Feedback.Cue).
     [Key(2)] public float ScreenShake = 1f;
 }
