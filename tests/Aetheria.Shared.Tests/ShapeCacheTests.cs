@@ -50,4 +50,19 @@ public sealed class ShapeCacheTests
         Assert.False(shape[int2(1, 0)]);
         Assert.True(shape[int2(2, 0)]);
     }
+
+    [Fact]
+    public void SetLineRecountsEveryCoordinateRead()
+    {
+        var shape = new Shape(4, 1);
+        shape[int2(0, 0)] = true;
+        Assert.Single(shape.Coordinates);
+        Assert.Equal(0f, shape.CenterOfMass.x);
+
+        shape.SetLine(float2(0f, 0f), float2(3f, 0f));
+
+        Assert.Equal(4, shape.Coordinates.Length);
+        Assert.Equal(4, shape.AllCoordinates.Length);
+        Assert.Equal(1.5f, shape.CenterOfMass.x);
+    }
 }

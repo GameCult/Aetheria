@@ -276,7 +276,7 @@ public class Shape
         {
             if (x >= 0 && x < Width && y >= 0 && y < Height)
             {
-                Cells[steep ? y : x, steep ? x : y] = true;
+                this[int2(steep ? y : x, steep ? x : y)] = true;
             }
             error += derr;
             if (error >= 0.5f)

@@ -73,6 +73,33 @@ public sealed class HullFootprintTests
     }
 
     [Fact]
+    public void RefusedClickLeavesPositionWhereItWasWhenTheLastCellIsNotAtPosition()
+    {
+        var hp = Hardpoint(new int2(3, 3), new int2(1, 0));
+        Assert.Equal(new[] { new int2(4, 3) }, Hull(hp));
+
+        Assert.False(HullFootprint.Toggle(hp.Shape, hp.Position, new int2(4, 3), out var shape, out var position));
+
+        Assert.Equal(new int2(3, 3), position);
+        Assert.Same(hp.Shape, shape);
+    }
+
+    [Fact]
+    public void WideFootprintLaysEveryCellAtPositionAndEditsAtItsFarEnd()
+    {
+        var hp = Hardpoint(new int2(2, 2), new int2(0, 0), new int2(1, 0), new int2(2, 0), new int2(3, 0), new int2(4, 0));
+        Assert.Equal(new[] { new int2(2, 2), new int2(3, 2), new int2(4, 2), new int2(5, 2), new int2(6, 2) }, Hull(hp));
+
+        var grown = Apply(hp, new int2(7, 2));
+        Assert.Equal(new int2(2, 2), grown.Position);
+        Assert.Equal(new[] { new int2(2, 2), new int2(3, 2), new int2(4, 2), new int2(5, 2), new int2(6, 2), new int2(7, 2) }, Hull(grown));
+
+        var trimmed = Apply(hp, new int2(6, 2));
+        Assert.Equal(new int2(2, 2), trimmed.Position);
+        Assert.Equal(new[] { new int2(2, 2), new int2(3, 2), new int2(4, 2), new int2(5, 2) }, Hull(trimmed));
+    }
+
+    [Fact]
     public void FootprintToggleLeavesItsInputUnchanged()
     {
         var hp = Hardpoint(new int2(3, 3), new int2(0, 0), new int2(1, 0));
