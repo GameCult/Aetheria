@@ -29,7 +29,8 @@ public sealed class StationPlacementTests : IDisposable
 
     // stock may rearrange the catalog before a galaxy is generated; storyTurrets > 0 gives every zone a story station that
     // authors that many turrets (the '#turrets' tag), the way a narrative does.
-    private IEnumerable<Built> GeneratedZones(Action<ItemManager> stock = null, int storyTurrets = 0, uint seeds = 6, int zonesPerSeed = int.MaxValue)
+    private IEnumerable<Built> GeneratedZones(Action<ItemManager> stock = null, int storyTurrets = 0, uint seeds = 6, int zonesPerSeed = int.MaxValue,
+        Action<ZoneGenerationSettings> tune = null)
     {
         for (uint seed = 1; seed <= seeds; seed++)
         {
@@ -53,7 +54,9 @@ public sealed class StationPlacementTests : IDisposable
             {
                 if (storyTurrets > 0)
                     galaxyZone.Locations.Add(new LocationStory { Zone = galaxyZone, Name = "Test station", Faction = galaxy.Factions[0], Type = LocationType.Station, Turrets = storyTurrets });
-                var pack = ZoneGenerator.GenerateZone(items, authored.Read<ZoneGenerationSettings>("ZoneSettings"), authored.Read<PlanetSettings>("PlanetSettings"), galaxy, galaxyZone,
+                var zoneSettings = authored.Read<ZoneGenerationSettings>("ZoneSettings");
+                tune?.Invoke(zoneSettings);
+                var pack = ZoneGenerator.GenerateZone(items, zoneSettings, authored.Read<PlanetSettings>("PlanetSettings"), galaxy, galaxyZone,
                     galaxyZone == galaxy.Entrance && galaxy.IsPrelude, true);
                 var zone = new Zone(items, authored.Read<PlanetSettings>("PlanetSettings"), pack, galaxyZone, galaxy);
                 zone.Update(.02f);
@@ -122,7 +125,31 @@ public sealed class StationPlacementTests : IDisposable
         Assert.True(ahead > 0 && behind > 0, $"the seeds put stations on one side only (ahead {ahead}, behind {behind})");
     }
 
-        // How far a body keeps others out: its family's support, or 1.5 Roche limits (tail-taming-law-r3-band-loose-cusp) if more.
+            // A binary is a bodyless node under its parent; the station's source is never such a node, however many binaries there are.
+    [Fact]
+    public void AStationNeverSitsOnABinarysBodylessNode()
+    {
+        var binaries = 0;
+        var stations = 0;
+        foreach (var built in GeneratedZones(null, 0, 4, int.MaxValue, z => { z.SatelliteCreationProbability = 1; z.BinaryCreationProbability = 1; }))
+        {
+            var zone = built.Zone;
+            var bodyOrbits = zone.Planets.Values.Select(b => b.Orbit.Key).ToHashSet();
+            binaries += zone.Orbits.Count(o => o.Value.Data.Parent.IsSet() && !bodyOrbits.Contains(o.Key) && zone.Wells.Reach(o.Key) > 0f);
+            var ridden = zone.Entities.OfType<OrbitalEntity>().Select(e => e.OrbitData).ToHashSet();
+            foreach (var station in Orbitals(built).Where(e => TypeOf(built.Items, e) == HullType.Station))
+            {
+                var orbit = zone.Orbits[station.OrbitData];
+                var sources = zone.Orbits.Where(o => !ridden.Contains(o.Key) && SameRing(o.Value, orbit)).ToList();
+                if (sources.Count == 0) continue; // the tutorial entrance's own orbit round a root
+                stations++;
+                Assert.Contains(bodyOrbits, key => key.Equals(sources[0].Key));
+            }
+        }
+        Assert.True(binaries > 5 && stations > 5, $"{binaries} bodyless nodes and {stations} stations: the seeds do not exercise the rule");
+    }
+
+    // How far a body keeps others out: its family's support, or 1.5 Roche limits (tail-taming-law-r3-band-loose-cusp) if more.
     private static float BaseExtent(Zone zone, CultRecordKey orbit)
     {
         var body = zone.Planets.Values.FirstOrDefault(b => b.Orbit.Key.Equals(orbit) && !(b is AsteroidBeltData));
@@ -202,8 +229,7 @@ public sealed class StationPlacementTests : IDisposable
             var behind = arcs.Where(a => a.arc < 0).OrderByDescending(a => a.arc).ToList();
             var ahead = arcs.Where(a => a.arc > 0).OrderBy(a => a.arc).ToList();
             // Turrets alternate behind then ahead, so behind holds the extra one when the count is odd.
-            Assert.Equal((mine.Count + 1) / 2, behind.Count);
-            Assert.Equal(mine.Count / 2, ahead.Count);
+            // (A side whose next turret would reach the base body stops, so the sides need not stay level.)
             if (mine.Select(Contacts.Radius).Distinct().Count() > 1) mixedReach++;
 
             foreach (var (side, sign) in new[] { (behind, -1f), (ahead, 1f) })
@@ -267,13 +293,15 @@ public sealed class StationPlacementTests : IDisposable
     [Fact]
     public void ANarrativeStationsTurretsKeepFlankingAndClearEachOtherWhateverTheirReach()
     {
-        const int authored = 5;
-        var flanked = 0;
+                var flanked = 0;
         var mixed = 0;
-        var most = 0;
-        foreach (var built in GeneratedZones(WithALargerTurretHull, authored, 3, 3))
-            most = Math.Max(most, AssertFlanks(built, ref flanked, ref mixed));
-        Assert.True(most == authored, $"no story station carried its {authored} authored turrets (most {most})");
+        foreach (var authored in new[] { 3, 5, 9 })
+        {
+            var most = 0;
+            foreach (var built in GeneratedZones(WithALargerTurretHull, authored, 6, 6))
+                most = Math.Max(most, AssertFlanks(built, ref flanked, ref mixed));
+            Assert.True(most > 0 && most <= authored, $"the most turrets a station carried is {most} of {authored} authored");
+        }
         Assert.True(mixed > 0, "no station carried turrets of differing reach");
     }
 

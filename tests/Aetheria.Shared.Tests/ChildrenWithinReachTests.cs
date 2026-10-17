@@ -302,6 +302,13 @@ public sealed class ChildrenWithinReachTests : IClassFixture<ChildrenWithinReach
                 Assert.True(inner > 0f, $"seed {seed}: an asteroid sits at {inner}");
                 if (mass.TryGetValue(parent, out var m))
                     Assert.True(inner >= RocheMargin * Roche(zone, m) * (1 - Tolerance), $"seed {seed}: a belt's inner edge {inner} is inside its parent's Roche margin");
+                                // The belt keeps clear of its neighbours' rails by a sibling spacing (rule 3), inner and outer.
+                var sibling = ChildrenOf(zone, parent, Placed(zone));
+                var at = sibling.IndexOf(orbit);
+                if (at > 0)
+                    Assert.True(inner >= DistanceOf(zone, sibling[at - 1]) * (1 / (1 - GravityField.Reach / 2)) * (1 - Tolerance), $"seed {seed}: a belt reaches in to {inner}, within a spacing of its inner neighbour");
+                if (at < sibling.Count - 1)
+                    Assert.True(outermost <= DistanceOf(zone, sibling[at + 1]) * (1 - GravityField.Reach / 2) * (1 + Tolerance), $"seed {seed}: a belt reaches out to {outermost}, within a spacing of its outer neighbour");
                 if (zone.Orbits[parent].Data.Parent.IsSet())
                     Assert.True(outermost <= GravityField.Gamma * GravityField.Reach * DistanceOf(zone, parent) / Math.Max(GravityField.Beta, 1 + GravityField.Reach) * (1 + Tolerance),
                         $"seed {seed}: a belt reaches {outermost}, past its parent's window");
