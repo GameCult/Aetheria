@@ -6,6 +6,7 @@ using CultMath;
 using GameCult.Caching;
 using Xunit;
 using Xunit.Abstractions;
+using static CultMath.math;
 using float2 = CultMath.float2;
 
 // Aetheria gravity, children within reach: the production generator's zones (every zone of seeds 1-6, ambient off) read back
