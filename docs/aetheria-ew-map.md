@@ -78,27 +78,27 @@ a scratch AetherDb command and a scratch test run on Yggdrasil at `0898725f`; K9
 
 ## Cut 3 probes at ae300c6a
 
-`ew-belief-allegiance` is mapped as `cut-ew-belief-allegiance.r1` (agent imagination-ag4-ew-belief), blocked on question
-`ew-telemetry-gate` (recommended: with-the-track). B1-B3 ran as a scratch test class over the `IffAndCombatTests` world on
-Yggdrasil at `ae300c6a` (2026-10-17 04:19 UTC, 17 tests green, the 16 existing IffAndCombat tests included); S1-S6 are
+`ew-belief-allegiance` is mapped as `cut-ew-belief-allegiance.r2` (agent imagination-ag4-ew-belief; r1 superseded after B2 was
+corrected); telemetry is received with the track (ruling `ew-telemetry-with-the-track`). B1-B3 ran as a scratch test class over the `IffAndCombatTests` world on
+Yggdrasil at `ae300c6a` (2026-10-17 04:19 UTC, 17 tests green, the 16 existing IffAndCombat tests included; B2b at 04:31 UTC); S1-S6 are
 source reads at the same commit. Nothing was pushed to origin.
 
 | # | Question | Result |
 |---|---|---|
 | B1 | Does the derived branch know allegiance with nothing sensed? | Yes. Zone owned by O, a patrol of O and a stranger of X. At Open: hostile false. Stranger set to Critical: `patrol.IsHostileTo(stranger)` true and `stranger.IsHostileTo(patrol)` true with `EntityInfoGathered` 0, no reveal, untracked. |
-| B2 | Does `EntityHostility` follow `IsHostileTo`? | No. In B1's Critical state `EntityHostility` stays false on both sides; tracking the stranger files it in `VisibleFriendlies`, not `VisibleEnemies`; four `zone.Update(.25)` leave it there. Its writers are the zone-entry seeds (Entity.cs:301, :307) and the override subscriptions (:334-341) only; the comment at :62 promises a per-tick refresh that does not exist. So today a trespasser that moves into a Critical area is never an enemy of the patrol, and a Trespass flight's picture (VisibleEnemies) never holds it. |
+| B2 | Does `EntityHostility` follow `IsHostileTo`? | Yes, through the tick. `Entity.Update` re-derives it for every zone entity while active, writing only on change (Entity.cs:1890-1897). B2b (04:31 UTC): an owner station at Critical, radius 1000; a tracked stranger at x=5000 is Open and a friendly; moved inside, two `zone.Update(.25)` later it is Critical, `EntityHostility` true, listed once in `VisibleEnemies`, gone from `VisibleFriendlies`. The cache lags one tick when the observer updates before the subject. (The first B2 run set `CurrentSecurityLevel` by hand; `Update` re-derives it from position each tick, so the ticks put it back to Open: a probe artifact, not staleness. The comment at :62 is right.) |
 | B3 | Does a grudge need an act? | No. `a.SetIff(npc, true)` with npc tracking a: npc holds a hostile override on a with zero paints and zero reveals of a (`WatchForGrudge` reads `other.EntityHostility`, Entity.cs:915-944). `PerceivedStanceOf` (:903) reads the same; it has no product reader, only IffAndCombatTests:233-237. |
 | S1 | Who reads allegiance? | Through `IsHostileTo`: LockWeapon.cs:98, Weapon.cs:142 (fire gate), ActionGameManager.cs:427, 624, 1484, RememberedHostiles (Entity.cs:1097; ActionGameManager 1280, 1517). Through `VisibleEnemies`: Flight.cs:63 (picture), :139 (seen), TurretController.cs:97, TargetNearestEnemy (Entity.cs:579), ActionGameManager 1106-1136, 1279. Through overrides: Flight.cs:76 (Grudged), :157 (held tracks), RunStart.cs:54-55. Truth by datalink: Sensor.cs:211. Subject truth outside IsHostileTo: Flight.cs:88 (`entity.PresencePermitted`, Trespass). Minion and Combat no longer read allegiance (faction-play-1 moved targeting to Flight). |
 | S2 | Is a belief branch equal to today's rule for honest tracked pairs? | Yes, by case: today the recursive call `other.IsHostileTo(this, true)` is true only when `other.Faction` is the zone owner and `this` is not permitted. So owner to subject is `!subject.PresencePermitted`, non-owner or no faction to an owner ship is `!own PresencePermitted`, everything else false, and two owner ships are never hostile (both Beloved). The spec's branch (ally false; unknown false; telemetry faction is owner and own presence forbidden; or own faction is owner and the subject believed trespassing) gives the same four answers once telemetry is received. |
 | S3 | What act can provoke? | A lock: `LockWeapon.Execute` calls `target.ReceivePaint(Entity, Item, Track, Lock)` (LockWeapon.cs:111), published with its emitter in `PublishInbox` (Entity.cs:973-986). A shot: `PendingShot` carries `Source` and `Target` (FireControl.cs:1995-1999) to `Apply` (:1124). A blast (`Detonate`, :1577) carries no source. LockWeapon locks only what its ship already holds hostile (:98), so a lock is always a hostile act. |
 | S4 | Does Sense allocate? | It must not: ContactRevealTests pins zero bytes over 600 Sense calls (~:1720). `RevealsOf` and `ContactOf` enumerate through `IEnumerable`; the telemetry prune walks the book's `Dictionary` values directly. |
-| S5 | Does the filing subscription duplicate? | Yes: every `EntityHostility` Replace adds the subject to `VisibleEnemies` or `VisibleFriendlies` again (Entity.cs:374-381; FlightTests:732 notes it). A per-tick refresh must write only on change. |
+| S5 | Does the filing subscription duplicate? | Every `EntityHostility` Replace adds the subject to `VisibleEnemies` or `VisibleFriendlies` again (Entity.cs:374-381; FlightTests:732 notes it). The Update loop writes only on change, so the per-tick path lists once (B2b); `RefreshStance` keeps that rule for every caller. |
 | S6 | Which tests lean on the deleted machinery? | Grudge by stance: IffAndCombatTests:160-222 (four tests), PerceivedStance :226-239. Derived hostility with nothing sensed: ContactRevealTests:1744-1746 (docked-stance fixture). Everything else sets overrides directly (FlightTests, ScenarioTests, ConsumableAiTests, the FireControl suites). |
 
 Model page corrections for cut 3 (target rows Belief and Contact): the Belief row's allegiance part is stored from this cut,
 as `_telemetry` on the observer, because it now has a writer (the observer's own track entry) and must outlive the track for
 remembered contacts; its profile and `SeenThrough` parts still arrive with the judge in cut 4. It is created at track entry
-(under with-the-track), not at identification, ends with the contact, and the subject's claim it reads is the truth until
+(ruling `ew-telemetry-with-the-track`), not at identification, ends with the contact, and the subject's claim it reads is the truth until
 cut 4 adds `ClaimedFaction`. Contact gains no allegiance field: no reader needs one. Grudges stay the observer's IFF
 override, now written only from acts on its side (`Provoke`).
 
