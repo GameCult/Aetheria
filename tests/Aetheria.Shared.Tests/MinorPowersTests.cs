@@ -135,7 +135,8 @@ public sealed partial class RunStartTests
             return new LoadoutGenerator(ref _items.Random, _items, _galaxy, _galaxy.Entrance, factions.Single(f => f.ShortName == shortName), .5f);
         }
         Assert.True(For("AU", 1).IsAvailable(pattern30));
-        Assert.Contains(Enumerable.Range(1, 64), seed => For("AU", (uint) seed).ChooseProduct(autocannon)?.Name == pattern30.Name);
+        // Seeds 1-64 spread by a multiplicative hash: the generator's first draws of adjacent small seeds are close together.
+        Assert.Contains(Enumerable.Range(1, 64), seed => For("AU", unchecked((uint) seed * 2654435761u)).ChooseProduct(autocannon)?.Name == pattern30.Name);
 
         var terri = For("Miss Terri's", 1);
         var theirs = _cache.GetAll<FactionProductData>().Where(p => new[] { "Aya", "Megiddo", "Forge" }.Contains(_cache.Get(p.Manufacturer).ShortName)).ToArray();

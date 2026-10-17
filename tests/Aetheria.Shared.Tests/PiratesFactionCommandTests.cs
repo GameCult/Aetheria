@@ -39,6 +39,13 @@ public sealed class PiratesFactionCommandTests : IDisposable
 
     public void Dispose() => Directory.Delete(_root, true);
 
+    private int AllFactionsButThePirates()
+    {
+        var db = AetherDb.Open(root: _root);
+        try { return db.Cache.GetAll<Faction>().Count(f => f.Name != "Pirates"); }
+        finally { db.Cache.Dispose(); }
+    }
+
     private (Faction[] Pirates, FactionProductData[] Products) Read()
     {
         var db = AetherDb.Open(root: _root);
@@ -69,7 +76,7 @@ public sealed class PiratesFactionCommandTests : IDisposable
         Assert.Equal(3, faction.InfluenceDistance);
         Assert.Equal(new CultMath.float3(.42f, .40f, .37f), faction.PrimaryColor);
         Assert.Equal(new CultMath.float3(1f, .45f, .05f), faction.SecondaryColor);
-        Assert.Equal(12, faction.Allegiance.Count);
+        Assert.Equal(AllFactionsButThePirates(), faction.Allegiance.Count);
         Assert.All(faction.Allegiance.Values, value => Assert.Equal(1f, value));
 
         var db = AetherDb.Open(root: _root);
