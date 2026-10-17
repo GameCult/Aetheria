@@ -319,6 +319,23 @@ public sealed partial class RunStartTests
         Assert.Equal(Places(plain), Places(disturbed));
     }
 
+    // Each pilot's circuit is keyed by its own id: three pilots admitted into one zone do not all patrol the same orbits.
+    // Kills: the circuit keyed by a constant.
+    [Fact]
+    public void EachPilotsPatrolCircuitIsItsOwn()
+    {
+        var (_, arena, _, failures) = Launch(new Scripted(false, stage =>
+        {
+            stage.Player(stage.Bare("Djinni"), float2(0, 0));
+            for (var i = 0; i < 3; i++)
+                stage.Place(stage.Generated("Longinus"), float2(300 + 40 * i, 0), stance: ScenarioStance.Hostile, piloted: true);
+        }));
+        Assert.True(failures.Count == 0, string.Join("; ", failures));
+        var circuits = arena.Agents.Select(agent => string.Join(",", ((PatrolOrbitsTask) agent.Task).Circuit.Select(key => arena.Orbits.Keys.ToList().IndexOf(key)))).ToArray();
+        Assert.Equal(3, circuits.Length);
+        Assert.True(circuits.Distinct().Count() > 1, "every pilot patrols the same orbits: " + string.Join(" | ", circuits));
+    }
+
     // A fit that states its quality mints every lot it builds at it, assembly and role fills alike; the same fit without one
     // draws them from the item stream, so some lot comes out otherwise. A scenario's checks rest on the first.
     [Fact]

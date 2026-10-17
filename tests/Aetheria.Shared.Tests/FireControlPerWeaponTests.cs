@@ -811,6 +811,13 @@ public sealed class FireControlPerWeaponTests : IDisposable
             var cells = (Optimum(id, 0) - offset - min) / step;
             Assert.True(MathF.Abs(cells - MathF.Round(cells)) < .01f, $"id {id}: optimum is {cells} steps from the pilot's own offset");
         }
+
+        // The other direction: sampling the optimum takes nothing from the item stream, so how a pilot fights never moves
+        // what is minted next. Kills: an AI draw from ItemManager.Random.
+        var items = r.Shooter.ItemManager;
+        var before = items.Random;
+        Optimum(5, 0);
+        Assert.Equal(before.NextFloat(), items.Random.NextFloat());
     }
 
     // A round refused on a Range that fell between the trigger and the round is still free: the burst is paid
