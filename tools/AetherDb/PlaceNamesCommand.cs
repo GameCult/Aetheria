@@ -11,7 +11,7 @@ using GameCult.Caching;
 // place-names [apply] (aetheria-release, cut faction-curated-place-names; ruling faction-curated-place-names):
 // authors every curated faction's Places from the table below, which is the one source of those names. A faction is
 // identified by its record key, and its ShortName must agree (ghostlight-verse ruling faction-identity-is-record-key).
-// A faction without a row keeps the catalogue designations Galaxy.NamePlaces falls back to (question miss-terris-place-names).
+// A faction without a row keeps the catalogue designations Galaxy.NamePlaces falls back to.
 // Order is meaning: the first name is the faction's capital, and the home zone takes it. Dry run unless passed "apply".
 public static class PlaceNamesCommand
 {
@@ -44,6 +44,9 @@ public static class PlaceNamesCommand
             "Ishtar Studios | Prime Time | Maxwell Heights | Cloud Nine Live | Channel Aphrodite | Clout | Buzz Market | Ratings Tower | Lagrange Feed | Spotlight | Exclusive | Trending | Broadcast Row | Red Carpet | Season Finale | Sponsored | Headliner | Viral | Golden Hour | Breaking News"),
         new("087df3f89e59beab14f9d41c849b202f", "Megiddo",
             "First Vigil | Earth Stars | Continuity | The Long Silence | Deferred Ground | Unverified | Boundary Watch | Custody | Not Our World | Pleiades Watch | Second Vault | Presumption | Under Orion | Night Watch | Witness | Flatland Edge | Old Sky | Record Keeper | Patience | Revelation Pending"),
+        // Real Australian place names, Indigenous-derived and English, a draft Emily may replace (ruling miss-terris-improvised-places).
+        new("d6466821-6776-4f40-9609-2342debf5c86", "Miss Terri's",
+            "Woolloomooloo | Wagga Wagga | Humpty Doo | Come By Chance | Yackandandah | Nowhere Else | Kurri Kurri | Lightning Ridge | Mooloolaba | Woy Woy | Banana | Coober Pedy | Gundagai | Burpengary | Toowoomba | Kalgoorlie | Bald Hills | Wollongong | Innaloo | Ballarat"),
         new("73d368dd-58a8-4431-b9ba-2d44754d36a1", "NiteLife",
             "Caloris Array | Arete Grid | Malam | Cahaya | Graveyard Shift | Lights On | Bintang | Night Count | Pelita | Uptime Pro | Bulan | Grid Plus | Kilat | Afterglow | Load Balance | Peak Hours | Terang | Version Two | Midnight Blue | Keep On"),
         new("e34d0354f46873df7ec27273fa2abe3d", "Forge",

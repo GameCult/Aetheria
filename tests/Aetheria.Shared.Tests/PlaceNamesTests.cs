@@ -174,16 +174,21 @@ public sealed class PlaceNamesTests : IDisposable
     [Fact]
     public void AFactionWithoutAListGetsCatalogueDesignations()
     {
-        var terris = Shared.GetAll<Faction>().Single(f => f.ShortName == "Miss Terri's");
-        Assert.Empty(terris.Places);
-        var held = 0;
-        foreach (var galaxy in Galaxies(true, 10))
-            foreach (var zone in galaxy.Zones.Where(z => z.Owner == terris))
-            {
-                Assert.Matches(Designation, zone.Name);
-                held++;
-            }
-        Assert.True(held > 0, "Miss Terri's held no zone in the first ten prelude galaxies");
+        // Its own cache: the list is cleared, which must not reach the galaxies the other tests share.
+        var cache = RestoredHullsTests.OpenCatalog();
+        _own.Add(cache);
+        var terris = cache.GetAll<Faction>().Single(f => f.ShortName == "Miss Terri's");
+        Assert.NotEmpty(terris.Places);
+        var galaxy = Enumerable.Range(1, 20).Select(seed => { try { return Build(cache, true, (uint)seed); } catch (Exception) { return null; } })
+            .First(g => g != null && g.Zones.Any(z => z.Owner == terris));
+        terris.Places = Array.Empty<FactionPlace>();
+
+        var random = new Random(7);
+        galaxy.NamePlaces(ref random);
+
+        var held = galaxy.Zones.Where(z => z.Owner == terris).ToArray();
+        Assert.NotEmpty(held);
+        Assert.All(held, zone => Assert.Matches(Designation, zone.Name));
     }
 
     [Fact]
