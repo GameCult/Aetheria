@@ -63,6 +63,12 @@ public class Faction
     // The faction's rules of engagement; null fights as FactionDoctrine.Default.
     [Inspectable, JsonProperty("doctrine"), Key(17)]
     public FactionDoctrine Doctrine;
+
+    // Key 18 is reserved for Livery (follow-up livery-key-collision).
+
+    // A manufacturer-only faction sells through other factions' allegiance and never holds territory (ruling minor-power-brands).
+    [Inspectable, JsonProperty("manufacturerOnly"), Key(19)]
+    public bool ManufacturerOnly;
 }
 
 [CultDocument("aetheria.namefile", "1"), Inspectable, MessagePackObject]

@@ -105,17 +105,52 @@ public sealed class PiratesFactionCommandTests : IDisposable
         Assert.Equal(landed, File.ReadAllBytes(CatalogPath));
     }
 
+    // An existing hand-authored Pirates record is topped up, never rewritten (follow-up pirates-allegiance-and-identity): it keeps
+    // its description, short name and record key and gains no products; after a faction is added, apply gives allegiance 1.0 to
+    // that faction alone; a second apply leaves the file bytes unchanged and a dry run writes nothing.
     [Fact]
-    public void An_existing_Pirates_faction_is_left_as_it_is()
+    public void An_existing_Pirates_faction_is_topped_up_with_allegiance_and_nothing_else()
     {
         var db = AetherDb.Open(catalogWritable: true, root: _root);
         db.Cache.Commit(batch => batch.Upsert(typeof(Faction), new Faction { Name = "Pirates", ShortName = "Mine", Description = "authored by hand" }));
+        var key = db.Cache.RefOf(db.Cache.GetAll<Faction>().Single(f => f.Name == "Pirates")).Key;
         db.Cache.Dispose();
+
+        var beforeDry = File.ReadAllBytes(CatalogPath);
+        Assert.Equal(0, Program.PiratesFaction(apply: false, root: _root));
+        Assert.Equal(beforeDry, File.ReadAllBytes(CatalogPath));
 
         Assert.Equal(0, Program.PiratesFaction(apply: true, root: _root));
         var (pirates, products) = Read();
-        Assert.Equal("authored by hand", Assert.Single(pirates).Description);
+        var record = Assert.Single(pirates);
+        Assert.Equal("authored by hand", record.Description);
+        Assert.Equal("Mine", record.ShortName);
         Assert.Empty(products);
+        var topped = File.ReadAllBytes(CatalogPath);
+
+        var late = AetherDb.Open(catalogWritable: true, root: _root);
+        late.Cache.Commit(batch => batch.Upsert(typeof(Faction), new Faction { Name = "Latecomer", ShortName = "Late" }));
+        var lateRef = late.Cache.RefOf(late.Cache.GetAll<Faction>().Single(f => f.Name == "Latecomer"));
+        var others = late.Cache.GetAll<Faction>().Count(f => f.Name != "Pirates");
+        late.Cache.Dispose();
+
+        Assert.Equal(0, Program.PiratesFaction(apply: true, root: _root));
+        var check = AetherDb.Open(root: _root);
+        try
+        {
+            var after = check.Cache.GetAll<Faction>().Single(f => f.Name == "Pirates");
+            Assert.Equal(key, check.Cache.RefOf(after).Key);
+            Assert.Equal("authored by hand", after.Description);
+            Assert.Equal(others, after.Allegiance.Count);
+            Assert.Equal(1f, after.Allegiance[lateRef]);
+            Assert.All(after.Allegiance.Values, value => Assert.Equal(1f, value));
+        }
+        finally { check.Cache.Dispose(); }
+
+        var settled = File.ReadAllBytes(CatalogPath);
+        Assert.NotEqual(topped, settled);
+        Assert.Equal(0, Program.PiratesFaction(apply: true, root: _root));
+        Assert.Equal(settled, File.ReadAllBytes(CatalogPath));
     }
 
     [Fact]

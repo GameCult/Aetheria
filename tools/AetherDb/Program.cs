@@ -2219,7 +2219,7 @@ public static class Program
             foreach (var product in products.Where(p => p.Design.Key.Equals(db.Cache.RefOf(design).Key)).OrderBy(p => p.Name, StringComparer.Ordinal))
             {
                 var maker = db.Cache.Get(product.Manufacturer);
-                var profile = maker?.Name == "Pirates" ? PirateProfile
+                var profile = maker?.Name == PiratesName ? PirateProfile
                     : maker != null && MakerProfiles.TryGetValue(maker.ShortName, out var found) ? found
                     : throw new InvalidOperationException($"No maker profile for the seller of \"{design.Name}\" ({maker?.ShortName ?? "no maker"}).");
                 product.Roles ??= new List<ProductRole>();
@@ -2260,14 +2260,39 @@ public static class Program
     // only, written here as \U escapes so no editor or shell mangles them; the dry run prints them raw and as code points.
     //
     // Dry run unless passed "apply", same contract as the other *-migrate commands.
+    private const string PiratesName = "Pirates";
+
+    // The factions the Pirates do not yet hold allegiance to: every faction but themselves and those already named. The one
+    // rule of both the first apply and the top-up, so they cannot diverge.
+    private static Faction[] AllegianceGaps(AetherDb db, Faction pirates, IEnumerable<Faction> factions) =>
+        factions.Where(f => !ReferenceEquals(f, pirates) && !pirates.Allegiance.ContainsKey(db.Cache.RefOf(f))).ToArray();
+
     public static int PiratesFaction(bool apply, string root = null)
     {
         var db = AetherDb.Open(catalogWritable: apply, root: root);
 
-        var existing = db.Cache.GetAll<Faction>().FirstOrDefault(f => f.Name == "Pirates");
+        var existing = db.Cache.GetAll<Faction>().FirstOrDefault(f => string.Equals(f.Name, PiratesName, StringComparison.Ordinal));
         if (existing != null)
         {
-            Console.WriteLine("A faction named \"Pirates\" already exists; nothing to do.");
+            // A Pirates record already in the catalog is topped up, never rewritten: it gains allegiance to the factions
+            // added since, under its existing key (ruling faction-identity-is-record-key), and nothing else changes.
+            var gaps = AllegianceGaps(db, existing, db.Cache.GetAll<Faction>());
+            if (gaps.Length == 0)
+            {
+                Console.WriteLine("The Pirates' allegiance already covers every faction; nothing to do.");
+                return 0;
+            }
+            Console.WriteLine($"The Pirates lack allegiance to {gaps.Length} faction(s): {string.Join(", ", gaps.Select(f => f.Name))}.");
+            if (!apply)
+            {
+                Console.WriteLine("
+Dry run. Pass \"apply\" to give them allegiance 1.0 to each.");
+                return 0;
+            }
+            foreach (var gap in gaps) existing.Allegiance[db.Cache.RefOf(gap)] = 1f;
+            db.Cache.Commit(batch => batch.Upsert(typeof(Faction), existing, db.Cache.RefOf(existing).Key));
+            Console.WriteLine($"
+Gave the Pirates allegiance 1.0 to {gaps.Length} faction(s) in Aetheria.cc");
             return 0;
         }
 
@@ -2286,7 +2311,7 @@ public static class Program
         var others = db.Cache.GetAll<Faction>().ToArray();
         var pirates = new Faction
         {
-            Name = "Pirates",
+            Name = PiratesName,
             ShortName = "Pirates",
             Description = "A loose coalition of crews and hidden docks moving people and goods outside official control. No command, no common law: possession has a maintenance schedule.",
             PrimaryColor = new float3(.42f, .40f, .37f),
@@ -2294,7 +2319,7 @@ public static class Program
             GeonameFile = db.Cache.RefOf(nameFile),
             InfluenceDistance = 3,
         };
-        foreach (var other in others) pirates.Allegiance[db.Cache.RefOf(other)] = 1f;
+        foreach (var other in AllegianceGaps(db, pirates, others)) pirates.Allegiance[db.Cache.RefOf(other)] = 1f;
 
         var rebrands = new (string Design, string Name, string Description)[]
         {

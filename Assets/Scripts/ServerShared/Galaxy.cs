@@ -106,7 +106,7 @@ public class Galaxy
         IsPrelude = false;
         Background = background;
         Log = log;
-        var factions = cache.GetAll<Faction>();
+        var factions = cache.GetAll<Faction>().Where(HoldsTerritory);
         Seed = seed == 0 ? (uint) (DateTime.Now.Ticks % uint.MaxValue) : seed;
         var random = new Random(Seed);
         Factions = factions.OrderBy(x => random.NextFloat()).Take(settings.MegaCount).ToArray();
@@ -143,8 +143,15 @@ public class Galaxy
     }
 
     // A cast member of a prelude galaxy, by name. A name the catalog does not hold refuses the galaxy, naming the field.
-    private Faction ResolveCast(string field, string name) =>
-        ResolveFaction(name) ?? throw new InvalidOperationException($"cast faction {name} ({field}) is not in the catalog");
+    private Faction ResolveCast(string field, string name)
+    {
+        var faction = ResolveFaction(name) ?? throw new InvalidOperationException($"cast faction {name} ({field}) is not in the catalog");
+        return HoldsTerritory(faction) ? faction
+            : throw new InvalidOperationException($"cast faction {name} ({field}) is manufacturer-only and holds no territory");
+    }
+
+    // The one territory rule: a manufacturer-only faction sells through allegiance and is placed in no galaxy.
+    private static bool HoldsTerritory(Faction faction) => !faction.ManufacturerOnly;
 
     // Gives a prelude galaxy its gate: the antagonist's home is the boss zone and the exit. The only writer of Exit
     // besides the constructors.
