@@ -306,5 +306,4 @@ public class RarityTier
     public string Name;
     public float Quality;
     public float3 Color;
-    public float Rarity;
 }

@@ -146,7 +146,7 @@ public sealed class ConsumablesFirstSetTests
             var second = design.Roles[1].Name;
             var lot = Ship.ItemManager.Lots.Add(new Lot
             {
-                Design = Cache.RefOf<ItemData>(design), Origin = new Attributed(), Quality = .5f,
+                Design = Cache.RefOf<ItemData>(design), Origin = new Attributed(), Quality = 1f,
                 Roles = new List<RoleFill>
                 {
                     new RoleFill { Role = first, Quality = propellantOrNozzleQuality },

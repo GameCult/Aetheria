@@ -72,18 +72,20 @@ public class Lot
     // (console give, presets, extracted), which brand their maker only.
     [Key(4)] public CultRecordRef<FactionProductData> Product;
 
-    // The quality a stat reads for one of the design's roles. An unnamed role, a design without roles, and a lot
-    // minted before roles existed all fall back to the lot's own workmanship.
+    // The quality a stat reads for one of the design's roles: the part's, capped by the lot's own final assembly
+    // (quality-lean-assembly-hard-ceiling), so a part better than its assembly is worth the assembly. An unnamed role, a
+    // design without roles, and a lot minted before roles existed all fall back to the lot's own workmanship.
     public float QualityForRole(string role)
     {
         if (string.IsNullOrEmpty(role) || Roles == null) return Quality;
         foreach (var fill in Roles)
-            if (fill.Role == role) return fill.Quality;
+            if (fill.Role == role) return Math.Min(fill.Quality, Quality);
         return Quality;
     }
 }
 
-// One filled slot: the design's role name and how good the part that went into it turned out to be.
+// One filled slot: the design's role name and how good the part that went into it turned out to be. Stats read it through
+// Lot.QualityForRole, capped by the lot's assembly; the raw value is kept for disassembly (named-components-after-demo).
 [MessagePackObject]
 public class RoleFill
 {

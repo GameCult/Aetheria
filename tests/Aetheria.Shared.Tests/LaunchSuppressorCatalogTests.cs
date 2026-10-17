@@ -113,7 +113,7 @@ public sealed class LaunchSuppressorCatalogTests
             for (var i = 1; i <= suppressorLot; i++) ledger.Lots[i] = new Lot { Origin = new Attributed(), Quality = .5f };
             ledger.Lots[suppressorLot] = new Lot
             {
-                Origin = new Attributed(), Quality = .5f,
+                Origin = new Attributed(), Quality = 1f,
                 Roles = new List<RoleFill> { new RoleFill { Role = "baffles", Quality = baffles }, new RoleFill { Role = "heat sink", Quality = sink } },
             };
             var items = new ItemManager(Cache, ledger, settings, _ => { });

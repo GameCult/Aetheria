@@ -28,7 +28,7 @@ public sealed class PotentialOwnerTests : IDisposable
         var settings = new GameplaySettings
         {
             DefaultEntitySettings = new EntitySettings(),
-            Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Rarity = 0, Color = new float3(1, 1, 1) } },
+            Tiers = new[] { new RarityTier { Name = "Common", Quality = .5f, Color = new float3(1, 1, 1) } },
             QualityPriceModifier = new ExponentialLerp()
         };
         _items = new ItemManager(_cache, new ProvenanceLedger(), settings, _ => { });

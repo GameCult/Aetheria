@@ -489,8 +489,8 @@ public sealed class LoadoutTests : IDisposable
         Assert.Equal(hardpointItems[0].item.Lot, hardpointItems[1].item.Lot);
     }
 
-    // A Lamp lot with Quality .2 and one role fill (lens .9): a stat reading that role gets .9, one reading none
-    // gets .2, and GetTier reads .2.
+    // A Lamp lot with Quality .2 and one role fill (lens .15, under the assembly): a stat reading that role gets .15, one
+    // reading none gets .2, and GetTier reads .2.
     [Fact]
     public void StatsReadTheLot()
     {
@@ -500,8 +500,8 @@ public sealed class LoadoutTests : IDisposable
         // quality", since every lot would resolve to the only tier regardless of its own Quality.
         settings.Tiers = new[]
         {
-            new RarityTier { Name = "Common", Quality = .2f, Rarity = 0, Color = new float3(1, 1, 1) },
-            new RarityTier { Name = "Rare", Quality = .5f, Rarity = 1, Color = new float3(1, 1, 1) }
+            new RarityTier { Name = "Common", Quality = .2f, Color = new float3(1, 1, 1) },
+            new RarityTier { Name = "Rare", Quality = .5f, Color = new float3(1, 1, 1) }
         };
         var items = new ItemManager(cache, new ProvenanceLedger(), settings, _ => { });
         var lamp = cache.GetByName<GearData>("Lamp");
@@ -510,7 +510,7 @@ public sealed class LoadoutTests : IDisposable
             Design = cache.RefOf<ItemData>(lamp),
             Origin = new Attributed(),
             Quality = .2f,
-            Roles = new List<RoleFill> { new RoleFill { Role = "lens", Quality = .9f } }
+            Roles = new List<RoleFill> { new RoleFill { Role = "lens", Quality = .15f } }
         });
         var rareLot = items.Lots.Add(new Lot
         {
@@ -524,7 +524,7 @@ public sealed class LoadoutTests : IDisposable
 
         var withRole = new PerformanceStat { Min = 0, Max = 1, Terms = { new StatTerm { Source = StatSource.Quality, Exponent = 1, Role = "lens" } } };
         var noRole = new PerformanceStat { Min = 0, Max = 1, Terms = { new StatTerm { Source = StatSource.Quality, Exponent = 1 } } };
-        Assert.Equal(.9f, items.Evaluate(withRole, instance), 3);
+        Assert.Equal(.15f, items.Evaluate(withRole, instance), 3);
         Assert.Equal(.2f, items.Evaluate(noRole, instance), 3);
         Assert.Equal(.2f, items.GetTier(instance).tier.Quality, 3);
         Assert.Equal(.5f, items.GetTier(rareInstance).tier.Quality, 3);
