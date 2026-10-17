@@ -40,6 +40,7 @@ public static class ZoneGenerator
 	public static ZonePack GenerateZone(
 		ItemManager itemManager,
 		ZoneGenerationSettings zoneSettings,
+		PlanetSettings planetSettings,
 		Galaxy galaxy,
 		GalaxyZone galaxyZone,
 		bool isTutorial = false,
@@ -88,13 +89,17 @@ public static class ZoneGenerator
 			}
 
 			var totalArea = occupiedAreas.Sum(c => c.Area);
-			foreach (var c in occupiedAreas)
+			// Every area root is massive, so a root's reach is Reach x its nearest area's centre (WellTree.SubzoneReach)
+			var centres = occupiedAreas.Select(c => c.Center).ToList();
+			for (var k = 0; k < occupiedAreas.Count; k++)
 			{
-				planets.AddRange(GenerateEntities(zoneSettings, ref random, c.Area / totalArea * pack.Mass, c.Radius, c.Center));
+				var c = occupiedAreas[k];
+				planets.AddRange(GenerateEntities(zoneSettings, planetSettings, ref random, c.Area / totalArea * pack.Mass, c.Radius, c.Center,
+					WellTree.SubzoneReach(centres, k)));
 			}
 		}
 		else
-			planets.AddRange(GenerateEntities(zoneSettings, ref random, pack.Mass, pack.Radius, float2.zero));
+			planets.AddRange(GenerateEntities(zoneSettings, planetSettings, ref random, pack.Mass, pack.Radius, float2.zero, float.PositiveInfinity));
 
         // Every orbit is a record; parents link to records, so each orbit holds its key before any child names it
         var orbitMap = new Dictionary<GeneratorPlanet, OrbitData>();
@@ -147,7 +152,7 @@ public static class ZoneGenerator
 		            Enumerable.Range(0, (int) zoneSettings.AsteroidCount.Evaluate(beltData.Mass * orbitMap[planet].Distance))
 			            .Select(_ => new Asteroid
 			            {
-				            Distance = orbitMap[planet].Distance + random.NextFloat()*(random.NextFloat()-.5f)*zoneSettings.AsteroidBeltWidth.Evaluate(orbitMap[planet].Distance),
+				            Distance = orbitMap[planet].Distance + random.NextFloat()*(random.NextFloat()-.5f)*2*planet.BeltHalfWidth,
 				            Phase = random.NextFloat(),
 				            Size = random.NextFloat(),
 				            RotationSpeed = zoneSettings.AsteroidRotationSpeed.Evaluate(random.NextFloat())
@@ -209,6 +214,20 @@ public static class ZoneGenerator
             return cache.Upsert(planetData);
         }).ToList();
 
+        // The generator's own well tree, for clearance only (the Zone builds its own): what a rail must stay out of is the body's
+        // support, or its Roche margin if more.
+        var wellNodes = planets.Select(p => new WellNode(cache.RefOf(orbitMap[p]).Key, p.Parent == null ? default : cache.RefOf(orbitMap[p.Parent]).Key,
+            p.Distance, p.Phase, p.Empty || p.Belt ? 0f : p.Mass,
+            p.Belt ? p.Distance + p.BeltHalfWidth : p.Distance, p.FixedPosition)).ToList();
+        var wells = WellTree.Build(wellNodes, planetSettings, pack.Radius);
+        float Extent(GeneratorPlanet p)
+        {
+            var key = cache.RefOf(orbitMap[p]).Key;
+            var roche = p.Empty || p.Belt ? 0f : WellTree.Curves(planetSettings, p.Mass).Softening * RocheMargin;
+            return Math.Max(wells.Support(key), roche);
+        }
+        bool Massive(GeneratorPlanet p) => wells.Reach(cache.RefOf(orbitMap[p]).Key) > 0f;
+
         var nearestFaction = galaxy.Factions.MinBy(f => galaxy.HomeZones[f].Distance[galaxyZone]);
         var nearestFactionHomeZone = galaxy.HomeZones[nearestFaction];
         var factionPresence = galaxy.InfluenceOf(nearestFaction) - nearestFactionHomeZone.Distance[galaxyZone] + 1;
@@ -224,30 +243,35 @@ public static class ZoneGenerator
         // seed. galaxy.Entrance is reference-identity, not a name comparison.
         var isTutorialEntrance = isTutorial && galaxyZone == galaxy.Entrance;
         if (isTutorialEntrance && stationCount < 1) stationCount = 1;
-        var potentialLagrangePoints = planets
-	        .Where(p => p.Parent != null && p.Parent.Children
-		        .TrueForAll(c => !(c != p && abs(c.Distance - p.Distance) < .1f))) // Filter Rosettes
+        // A station's source is a well-bearing body alone on its ring whose rail clears every massive sibling's extent (the
+        // sibling's support, or its Roche margin if more): its Lagrange orbit then sits clear of any other body.
+        var candidates = planets
+	        .Where(p => p.Parent != null && !p.Empty && !p.Belt
+		        && p.Parent.Children.TrueForAll(c => c == p || (abs(c.Distance - p.Distance) >= WellTree.RingWindow
+			        && (!Massive(c) || abs(c.Distance - p.Distance) > Extent(c)))))
 	        .OrderBy(p => p.Distance)
 	        .ToArray();
-        // The entrance's own station count is the floor above; its orbit always comes from this same selection.
-        // Ordinarily that selection is potentialLagrangePoints (non-rosette planet orbits). If the entrance zone
-        // has none of those (a boring single-body system, or a system that is entirely one rosette), widen to
-        // every planet orbit ordinary placement's own candidate pool is drawn from before the rosette filter --
-        // still a real, parented planet orbit with a positive Distance -- rather than inventing an unparented,
-        // zero-distance orbit (that gave PlaceTurret's phase = 20*multiplier/orbit.Distance a division by zero,
-        // and left an orbit record with no planet behind it).
-        var lagrangeCandidates = potentialLagrangePoints;
-        if (isTutorialEntrance && lagrangeCandidates.Length == 0)
-	        lagrangeCandidates = planets.Where(p => p.Parent != null).OrderBy(p => p.Distance).ToArray();
-        // Pick a selection from the middle of the distribution
-        var selectedStationOrbits = lagrangeCandidates
-	        .Skip(lagrangeCandidates.Length / 2)
-	        .Take(stationCount)
-	        .Select(p=>orbitMap[p])
-	        .ToArray();
-        if (isTutorialEntrance && lagrangeCandidates.Length == 0)
-	        throw new InvalidOperationException(
-		        "The tutorial entrance zone must always get a station, but it has no candidate orbit at all -- every planet in the zone is a parentless root.");
+        // (the rail, how far a body on it keeps others out, whether it is a station's own orbit rather than a base's)
+        var sources = candidates.Skip(candidates.Length / 2).Take(stationCount)
+	        .Select(p => (orbit: orbitMap[p], extent: Extent(p), direct: false)).ToArray();
+        if (isTutorialEntrance && candidates.Length == 0)
+        {
+	        // The entrance gets a station whatever its bodies: it orbits a root node beyond its ring group (or, for a body, its
+	        // whole family), never at a ring member's distance, and sits there, not at a Lagrange point.
+	        var rootNode = planets.FirstOrDefault(p => p.Parent == null && p.Children.Count > 0);
+	        if (rootNode == null)
+		        throw new InvalidOperationException(
+			        "The tutorial entrance zone must always get a station, but it has no candidate orbit at all -- every planet in the zone is a parentless root.");
+	        var rootKey = cache.RefOf(orbitMap[rootNode]).Key;
+	        var distance = rootNode.Empty
+		        ? (1 + GravityField.RingReach) * GravityField.Beta * rootNode.Children.Where(Massive).Min(c => c.Distance)
+		        : wells.Support(rootKey);
+	        var direct = new OrbitData { Parent = cache.RefOf(orbitMap[rootNode]), Distance = distance, Phase = random.NextFloat() };
+	        pack.Orbits.Add(cache.Upsert(direct));
+	        sources = new[] { (orbit: direct, extent: float.NegativeInfinity, direct: true) };
+        }
+        var selectedStationOrbits = sources.Select(x => x.orbit).ToArray();
+        var extentOf = sources.ToDictionary(x => x.orbit, x => x.extent);
 
         var loadoutGenerators = new Dictionary<Faction, LoadoutGenerator>();
 
@@ -261,6 +285,7 @@ public static class ZoneGenerator
         // L4 or L5: 60 degrees (one sixth of a turn) ahead of or behind the planet on its orbit. Phase is in turns.
         OrbitData CreateLagrangeOrbit(OrbitData baseOrbit)
         {
+	        if (sources.First(x => x.orbit == baseOrbit).direct) return baseOrbit;
 	        var lagrangeOrbit = new OrbitData
 	        {
 		        Parent = baseOrbit.Parent,
@@ -276,36 +301,48 @@ public static class ZoneGenerator
         // body's. Every body's reach counts, so turrets of differing reach clear each other. Phase is in turns, so the
         // arc length divides by the orbit's circumference. Returns where the turret sits (signed arc from the station)
         // and its reach, or null when there is no turret hull to generate, before any orbit is created.
-        (float arc, float reach)? PlaceTurret(OrbitData orbit, LoadoutGenerator loadoutGenerator, float side, float innerArc, float innerReach)
+        (float arc, float reach, bool placed)? PlaceTurret(OrbitData orbit, LoadoutGenerator loadoutGenerator, float side, float innerArc, float innerReach,
+	        OrbitData baseOrbit)
         {
 	        var turret = loadoutGenerator.GenerateTurretLoadout();
 	        if (turret == null) return null;
 	        var turretReach = (itemManager.GetData(turret.Hull) as HullData).Reach(itemManager.GameplaySettings.SchematicCellSize);
 	        var arc = innerArc + side * (innerReach + 2 * turretReach);
+		        // A turret whose centre is within the base body's extent plus its own reach of the base is not placed: its side stops.
+		        var phase = orbit.Phase + arc / (2 * PI * orbit.Distance);
+		        if (2 * orbit.Distance * abs(sin(PI * (phase - baseOrbit.Phase))) < extentOf[baseOrbit] + turretReach)
+		        {
+			        itemManager.Log("A turret was not placed: its station's base body is within its reach (story-turret-tail-clearance).");
+			        return (arc, turretReach, false);
+		        }
 
 	        var turretOrbit = new OrbitData
 	        {
 		        Parent = orbit.Parent,
 		        Distance = orbit.Distance,
-		        Phase = orbit.Phase + arc / (2 * PI * orbit.Distance)
+		        Phase = phase
+
 	        };
 	        pack.Orbits.Add(cache.Upsert(turretOrbit));
 	        turret.Orbit = cache.RefOf(turretOrbit);
 	        pack.Entities.Add(turret);
-	        return (arc, turretReach);
+	        return (arc, turretReach, true);
         }
 
         // Turrets flank the station alternately, behind then ahead, each side growing outward from the station.
-        void PlaceTurrets(OrbitData orbit, LoadoutGenerator loadoutGenerator, int count, float stationReach)
+        void PlaceTurrets(OrbitData orbit, LoadoutGenerator loadoutGenerator, int count, float stationReach, OrbitData baseOrbit)
         {
 	        var arcs = new float[2];
+		var stopped = new bool[2];
 	        var reaches = new[] { stationReach, stationReach };
 	        for(int t=0; t<count; t++)
 	        {
 		        var side = t % 2;
-		        var placed = PlaceTurret(orbit, loadoutGenerator, side == 0 ? -1f : 1f, arcs[side], reaches[side]);
-		        if (placed == null) return;
-		        (arcs[side], reaches[side]) = placed.Value;
+		        if (stopped[side]) continue;
+		var placed = PlaceTurret(orbit, loadoutGenerator, side == 0 ? -1f : 1f, arcs[side], reaches[side], baseOrbit);
+		if (placed == null) return;
+		if (!placed.Value.placed) { stopped[side] = true; continue; }
+		(arcs[side], reaches[side]) = (placed.Value.arc, placed.Value.reach);
 	        }
         }
 
@@ -315,6 +352,7 @@ public static class ZoneGenerator
         for (var i = 0; i < storyStations.Length; i++)
         {
 	        var story = storyStations[i];
+	        if (i >= selectedStationOrbits.Length) { itemManager.Log($"Story station for {story.Faction?.Name} has no rail clear of the bodies; its story has nowhere to live!"); continue; }
 	        var orbit = selectedStationOrbits[i];
 	        var lagrangeOrbit = CreateLagrangeOrbit(orbit);
 	        var station = GetLoadoutGenerator(story.Faction).GenerateStationLoadout();
@@ -329,7 +367,7 @@ public static class ZoneGenerator
 	        station.Story = i;
 	        pack.Entities.Add(station);
 
-	        if (ambient) PlaceTurrets(lagrangeOrbit, GetLoadoutGenerator(story.Faction), story.Turrets, StationReach(station));
+	        if (ambient) PlaceTurrets(lagrangeOrbit, GetLoadoutGenerator(story.Faction), story.Turrets, StationReach(station), orbit);
         }
 
         for (var i = storyStations.Length; i < selectedStationOrbits.Length; i++)
@@ -351,7 +389,7 @@ public static class ZoneGenerator
 	        station.SecurityRadius = pack.Radius;
 	        pack.Entities.Add(station);
 
-	        if (ambient) PlaceTurrets(lagrangeOrbit, GetLoadoutGenerator(nearestFaction), 2, StationReach(station));
+	        if (ambient) PlaceTurrets(lagrangeOrbit, GetLoadoutGenerator(nearestFaction), 2, StationReach(station), orbit);
         }
 
         // A boss zone gets its faction's boss whether or not the zone is ambient: the boss is the run's goal, not
@@ -413,16 +451,15 @@ public static class ZoneGenerator
 	// 		1 / lerp(settings.ResourceDensityMinimum, settings.ResourceDensityMaximum, density));
 	// }
 
-	public static GeneratorPlanet[] GenerateEntities(ZoneGenerationSettings settings, ref Random random, float mass, float radius, float2 fixedPosition)
+	public static GeneratorPlanet[] GenerateEntities(ZoneGenerationSettings settings, PlanetSettings planetSettings, ref Random random, float mass, float radius, float2 fixedPosition,
+		float rootReach)
 	{
 		var root = new GeneratorPlanet
 		{
 			FixedPosition = fixedPosition,
 			Settings = settings,
-			Mass = mass,
-			ChildDistanceMaximum = radius * .75f,
-			ChildDistanceMinimum = settings.PlanetSafetyRadius.Evaluate(mass)
-		};
+			Mass = mass
+			};
 
 		// There is some chance of generating a rosette or binary system
 		// Probabilities which are fixed for the entire galaxy are in GlobalData, contained in the GameContext
@@ -439,8 +476,6 @@ public static class ZoneGenerator
 				count: (int)(random.NextFloat(1, 3) * random.NextFloat(1, 2)),
 				massMulMin: .6f,
 				massMulMax: .8f,
-				distMulMin: 1.25f,
-				distMulMax: 1.75f,
 				jupiterJump: 1,
 				massFraction: .1f);
 
@@ -454,8 +489,6 @@ public static class ZoneGenerator
 					count: (int) (random.NextFloat(1, 3 * m) + random.NextFloat(1, 3 * m)),
 					massMulMin: 0.75f,
 					massMulMax: 2.5f,
-					distMulMin: 1 + m * .25f,
-					distMulMax: 1.05f + m * .5f,
 					jupiterJump: random.NextFloat() * random.NextFloat() * 10 + 1,
 					massFraction: .5f
 				);
@@ -469,8 +502,6 @@ public static class ZoneGenerator
 				count: random.NextInt(5, 15),
 				massMulMin: 0.75f,
 				massMulMax: 2.5f,
-				distMulMin: 1.1f,
-				distMulMax: 1.25f,
 				jupiterJump: random.NextFloat() * random.NextFloat() * 10 + 1,
 				massFraction: .25f
 			);
@@ -511,8 +542,6 @@ public static class ZoneGenerator
 							count: planet.Mass < settings.GasGiantMass ? random.NextInt(1, 3) : random.NextInt(2, 6),
 							massMulMin: .75f,
 							massMulMax: 1.5f,
-							distMulMin: 1.05f,
-							distMulMax: 1.25f,
 							jupiterJump: 1,
 							massFraction: .15f); // Planetary satellites are not nearly as massive as planets themselves
 					}
@@ -535,7 +564,125 @@ public static class ZoneGenerator
 		foreach (var planet in root.AllPlanets())
 			planet.Mass = (planet.Mass / totalMass) * rootMass;
 
+				Place(root, planetSettings, radius, rootReach);
+
 		return root.AllPlanets().ToArray();
+	}
+
+	// Placement (tail-taming-law-r3-band-loose-cusp, c4-proceed-and-fly): a child sits at least RocheMargin of its parent's Roche
+	// limits out; a massive child of a body also far enough that its own pull peak beats CuspMargin times its parent's pull there;
+	// siblings sit SiblingSpacing of a reach apart. Every other number is a GravityField constant.
+	public const float RocheMargin = 1.5f;
+	public const float CuspMargin = 1.5f;
+	public const float SiblingSpacing = .5f;
+
+	/// <summary>
+	/// The one placement pass: gives every generated node its distance and every belt its half width, top-down. A body's children
+	/// are laid inside-out at the nearest the rules allow, the lightest family is folded into the parent (its mass kept) while the
+	/// outermost overflows the window, and the rest are stretched geometrically so the outermost sits at the window's edge. A
+	/// non-root's window ends before its own fade (Gamma x Reach x its distance); a root's, in a zone of several, ends under
+	/// rootReach / Beta so its support never meets another root's (root-window-floor), and is 0.75 x the area radius at most.
+	/// A rosette's ring is one orbit; it folds into its node, which becomes a body, if it cannot keep the heavy member outside
+	/// its Roche margin. Ported from docs/research/gravity-well-law/replace.py.
+	/// </summary>
+	public static void Place(GeneratorPlanet root, PlanetSettings planetSettings, float radius, float rootReach)
+	{
+		var q = 1 / (1 - SiblingSpacing * GravityField.Reach);
+		float Roche(float mass) => WellTree.Curves(planetSettings, mass).Softening;
+		float Strength(float mass) => WellTree.Curves(planetSettings, mass).Strength;
+		float WellMass(GeneratorPlanet p) => p.Empty || p.Belt ? 0f : p.Mass;
+		float Family(GeneratorPlanet p) => (p.Empty ? 0f : p.Mass) + p.Children.Sum(c => Family(c));
+		void Fold(GeneratorPlanet node, GeneratorPlanet into)
+		{
+			into.Mass += Family(node);
+			node.Parent.Children.Remove(node);
+		}
+
+		void PlaceChildren(List<GeneratorPlanet> children, Func<float> lower, float upper, GeneratorPlanet into)
+		{
+			upper *= 1 - 1e-6f;
+			float AtLeast(GeneratorPlanet child, float edge)
+			{
+				var m = WellMass(child);
+				var mInto = WellMass(into);
+				return m <= 0 || mInto <= 0 ? edge : Math.Max(edge, 2 * CuspMargin * Roche(m) * Strength(mInto) / Strength(m));
+			}
+
+			var lo = 0f;
+			var positions = new List<float>();
+			while (children.Count > 0)
+			{
+				lo = lower();
+				positions.Clear();
+				for (var k = 0; k < children.Count; k++)
+					positions.Add(AtLeast(children[k], k == 0 ? lo : Math.Max(lo, positions[k - 1] * q)));
+				if (positions[positions.Count - 1] <= upper) break;
+				var lightest = children.OrderBy(c => Family(c)).First();
+				Fold(lightest, into);
+				children.Remove(lightest);
+			}
+			if (children.Count == 0) return;
+
+			var g = children.Count > 1 ? pow(upper / positions[positions.Count - 1], 1f / (children.Count - 1)) : 1f;
+			for (var k = 0; k < children.Count; k++)
+				children[k].Distance = positions[k] * pow(g, k);
+			for (var k = 0; k < children.Count; k++)
+			{
+				if (!children[k].Belt) continue;
+				var d = children[k].Distance;
+				var half = Math.Min(children[k].Settings.AsteroidBeltWidth.Evaluate(d) / 2, d - Math.Max(lo, k > 0 ? children[k - 1].Distance * q : 0f));
+				half = Math.Min(half, upper - d);
+				if (k + 1 < children.Count) half = Math.Min(half, children[k + 1].Distance / q - d);
+				children[k].BeltHalfWidth = Math.Max(half, 0f);
+			}
+		}
+
+		var chordCap = new Dictionary<GeneratorPlanet, float>(); // a ring member's children stay within .2 of the nearest partner's chord
+		void Settle(GeneratorPlanet node)
+		{
+			var isRoot = node.Parent == null;
+			var reach = isRoot ? rootReach : GravityField.Reach * node.Distance;
+			var share = isRoot ? 1 / GravityField.Beta : GravityField.Gamma;
+			var cap = isRoot ? .75f * radius : float.PositiveInfinity;
+			var upper = Math.Min(cap, share * reach / Math.Max(GravityField.Beta, 1 + GravityField.Reach));
+			if (chordCap.TryGetValue(node, out var chord)) upper = Math.Min(upper, chord);
+			if (WellMass(node) > 0)
+			{
+				PlaceChildren(node.Children.ToList(), () => RocheMargin * Roche(WellMass(node)), upper, node);
+				return;
+			}
+
+			var ring = node.Children.Where(c => c.Ring && WellMass(c) > 0).ToList();
+			if (ring.Count == 0) return;
+			var heavy = ring.OrderByDescending(c => c.Mass).First();
+			var soleRoot = isRoot && float.IsInfinity(reach);
+			var ringDistance = soleRoot ? .5f * cap
+				: Math.Min(.5f * cap, share * reach / (GravityField.Beta * GravityField.Beta * (1 + GravityField.RingReach)));
+			if (!soleRoot && ringDistance < RocheMargin * Roche(heavy.Mass))
+			{
+				// The pair cannot keep its heavy member outside its Roche margin inside its node's reach: the node is one body.
+				node.Empty = false;
+				node.Mass = 0;
+				foreach (var child in node.Children.ToList()) Fold(child, node);
+				return;
+			}
+			foreach (var member in ring)
+			{
+				member.Distance = ringDistance;
+				chordCap[member] = .2f * 2 * ringDistance * sin(PI / ring.Count);
+			}
+			PlaceChildren(node.Children.Where(c => !ring.Contains(c)).ToList(),
+				() => (1 + GravityField.RingReach) * ringDistance * GravityField.Beta, upper, heavy);
+		}
+
+		var queue = new Queue<GeneratorPlanet>();
+		queue.Enqueue(root);
+		while (queue.Count > 0)
+		{
+			var node = queue.Dequeue();
+			Settle(node);
+			foreach (var child in node.Children) queue.Enqueue(child);
+		}
 	}
 }
 
@@ -548,10 +695,13 @@ public class GeneratorPlanet
 	public float Distance;
 	public float Phase;
 	public float Mass;
-	public float ChildDistanceMinimum;
-	public float ChildDistanceMaximum;
+	// A belt's half width, written by ZoneGenerator.Place: its inner edge sits outside the parent's Roche margin and its outer
+	// edge inside the parent's window.
+	public float BeltHalfWidth;
 	public bool Empty = false;
 	public bool Belt = false;
+	// A member of a rosette's ring, which Place puts on one orbit round its bodyless parent.
+	public bool Ring = false;
 	public List<GeneratorPlanet> Children = new List<GeneratorPlanet>(); // Planets orbiting this one are referred to as children
 	public GeneratorPlanet Parent;
 	public float2 FixedPosition;
@@ -562,12 +712,10 @@ public class GeneratorPlanet
 		return new[]{this}.Concat(Children.SelectMany(c=>c.AllPlanets()));
 	}
 
-	// Create children that fill a single orbit, equally spaced
+	// Create children that fill a single orbit, equally spaced; Place sets the orbit's radius
 	// https://en.wikipedia.org/wiki/Klemperer_rosette
 	public void ExpandRosette(ref Random random, int vertices)
 	{
-		//Debug.Log("Expanding Rosette");
-
 		// Rosette children replace the parent, parent orbital node is left empty
 		Empty = true;
 
@@ -577,60 +725,37 @@ public class GeneratorPlanet
 		// Proportion of the masses of sequential pairs is random, but only for even vertex counts
 		var proportion = vertices % 2 == 0 ? random.NextFloat(.5f,.95f) : .5f;
 
-		// Place children at a fixed distance in the center of the range
-		var dist = (ChildDistanceMinimum + ChildDistanceMaximum) / 2;
-
-		// Position of first child
-		var p0 = new float2(0, dist);
-
-		// Position of second child
-		var p1 = OrbitData.Evaluate(1.0f / vertices) * dist;
-
-		// Maximum child distance is half the distance to the neighbor minus the neighbor's radius
-		var p0ChildDist = (distance(p0, p1) * proportion - Settings.PlanetSafetyRadius.Evaluate(sharedMass * (1 - proportion))) * .75f;
-		var p1ChildDist = (distance(p0, p1) * (1 - proportion) - Settings.PlanetSafetyRadius.Evaluate(sharedMass * proportion)) * .75f;
-
 		for (int i = 0; i < vertices; i++)
 		{
-			var child = new GeneratorPlanet
+			Children.Add(new GeneratorPlanet
 			{
 				Settings = Settings,
 				Parent = this,
 				Mass = sharedMass * (i % 2 == 0 ? proportion : 1 - proportion), // Masses alternate
-				Distance = dist,
 				Phase = (float) i / vertices,
-				ChildDistanceMaximum = (i % 2 == 0 ? p0ChildDist : p1ChildDist)
-			};
-			child.ChildDistanceMinimum = Settings.PlanetSafetyRadius.Evaluate(child.Mass) * 2;
-			Children.Add(child);
+				Ring = true
+			});
 		}
-
-		ChildDistanceMinimum = dist + p0ChildDist;
 	}
 
-	// Create children that mimic the distribution of planetary masses in the solar system
-	public void ExpandSolar(ref Random random, int count, float massMulMin, float massMulMax, float distMulMin, float distMulMax, float jupiterJump, float massFraction)
+	// Create children that mimic the distribution of planetary masses in the solar system, inside-out in list order;
+	// Place gives them their distances
+	public void ExpandSolar(ref Random random, int count, float massMulMin, float massMulMax, float jupiterJump, float massFraction)
 	{
-		//Debug.Log("Expanding Solar");
-		// Expansion is impossible when child space is full
-		if (count == 0 || ChildDistanceMaximum < ChildDistanceMinimum)
+		if (count == 0)
 			return;
 
 		var masses = new float[count];
-		var distances = new float[count];
 
 		// Accumulate total mass
-		// Initialize first mass and distance, actual number doesn't matter since total mass will be divided proportionally
-		float massTotal = distances[0] = masses[0] = 1;
+		// Initialize first mass, actual number doesn't matter since total mass will be divided proportionally
+		float massTotal = masses[0] = 1;
 
-		// Masses and distances multiply from one planet to the next
+		// Masses multiply from one planet to the next
 		// Mass typically increases exponentially as you go further out
 		// jupiterJump is an additional mass multiplier applied after half of the planets
 		for (var i = 1; i < count; i++)
-		{
 			massTotal += masses[i] = masses[i - 1] * random.NextFloat(massMulMin, massMulMax) * (count/2==i ? jupiterJump : 1);
-			distances[i] = distances[i - 1] * random.NextFloat(distMulMin, distMulMax);
-		}
 
 		// Add some randomness to child masses
 		for (var i = 0; i < masses.Length; i++)
@@ -640,37 +765,17 @@ public class GeneratorPlanet
 		for (var i = 0; i < count; i++)
 			masses[i] = masses[i] / massTotal * Mass * massFraction;
 
-		// Map child distances to range between minimum and maximum
-		if (count > 1)
-		{
-			var oldDistances = (float[]) distances.Clone();
-			for (var i = 0; i < count; i++)
-				distances[i] = lerp(ChildDistanceMinimum, ChildDistanceMaximum,
-					(oldDistances[i] - oldDistances[0]) / (oldDistances[count - 1] - oldDistances[0])) + Settings.PlanetSafetyRadius.Evaluate(masses[i]);
-		}
-
 		for (var i = 0; i < count; i++)
 		{
 			// Only instantiate children above the mass floor
 			if (masses[i] > Settings.MassFloor)
-			{
-				var child = new GeneratorPlanet
+				Children.Add(new GeneratorPlanet
 				{
 					Settings = Settings,
 					Parent = this,
 					Mass = masses[i],
-					Distance = distances[i],
 					Phase = random.NextFloat()
-				};
-				child.ChildDistanceMinimum = Settings.PlanetSafetyRadius.Evaluate(child.Mass) * 2;
-				// Maximum child distance of child is the smallest distance to either of its neighbors
-				child.ChildDistanceMaximum = min(i == 0 ? child.Distance - ChildDistanceMinimum : child.Distance - distances[i - 1],
-										 i < count - 1 ? distances[i + 1] - child.Distance : float.PositiveInfinity);
-				if (float.IsNaN(child.Distance))
-					throw new NotFiniteNumberException($"Planet created with NaN distance, something went very wrong!");
-				if (child.ChildDistanceMaximum > child.ChildDistanceMinimum)
-					Children.Add(child);
-			}
+				});
 		}
 	}
 }

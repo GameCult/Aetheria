@@ -53,7 +53,7 @@ public sealed class StationPlacementTests : IDisposable
             {
                 if (storyTurrets > 0)
                     galaxyZone.Locations.Add(new LocationStory { Zone = galaxyZone, Name = "Test station", Faction = galaxy.Factions[0], Type = LocationType.Station, Turrets = storyTurrets });
-                var pack = ZoneGenerator.GenerateZone(items, authored.Read<ZoneGenerationSettings>("ZoneSettings"), galaxy, galaxyZone,
+                var pack = ZoneGenerator.GenerateZone(items, authored.Read<ZoneGenerationSettings>("ZoneSettings"), authored.Read<PlanetSettings>("PlanetSettings"), galaxy, galaxyZone,
                     galaxyZone == galaxy.Entrance && galaxy.IsPrelude, true);
                 var zone = new Zone(items, authored.Read<PlanetSettings>("PlanetSettings"), pack, galaxyZone, galaxy);
                 zone.Update(.02f);

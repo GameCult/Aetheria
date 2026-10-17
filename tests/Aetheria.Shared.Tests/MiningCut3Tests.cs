@@ -820,7 +820,7 @@ public sealed partial class MiningCut3Tests : IDisposable
             var items = new ItemManager(cache, new ProvenanceLedger(), GameSettings(), _ => { });
             foreach (var zone in galaxy.Zones.Take(4))
             {
-                var pack = ZoneGenerator.GenerateZone(items, RestoredHullsTests.TutorialZoneSettings(), galaxy, zone, isTutorial: zone == galaxy.Entrance);
+                var pack = ZoneGenerator.GenerateZone(items, RestoredHullsTests.TutorialZoneSettings(), RestoredHullsTests.AuthoredPlanetSettings(), galaxy, zone, isTutorial: zone == galaxy.Entrance);
                 foreach (var body in pack.Planets)
                 {
                     if (!(cache.Get(body) is AsteroidBeltData belt)) continue;

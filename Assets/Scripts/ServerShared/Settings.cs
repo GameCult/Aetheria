@@ -111,7 +111,6 @@ public class TutorialGenerationSettings
 [Serializable, MessagePackObject(keyAsPropertyName:true), JsonObject]
 public class ZoneGenerationSettings
 {
-    public ExponentialCurve PlanetSafetyRadius;
     
     public float MassFloor = 1;
     public float SunMass = 10000;

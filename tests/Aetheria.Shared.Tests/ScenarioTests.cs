@@ -64,7 +64,7 @@ public sealed partial class RunStartTests
     private (Galaxy galaxy, Zone arena, RunStart.Staged staged, List<string> failures) Launch(Scenario scenario, GalaxyStage inputs = null, Action beforeStaging = null)
     {
         var galaxy = RunStart.Generate(scenario, inputs ?? Inputs());
-        var arena = new Zone(_items, _planetSettings, RunStart.GenerateArena(_items, _zoneSettings, galaxy, scenario), galaxy.Entrance, galaxy);
+        var arena = new Zone(_items, _planetSettings, RunStart.GenerateArena(_items, _zoneSettings, _planetSettings, galaxy, scenario), galaxy.Entrance, galaxy);
         beforeStaging?.Invoke();
         var failures = new List<string>();
         var staged = RunStart.Stage(_items, arena, scenario, _startingHull, _tutorialSettings, failures);
@@ -392,8 +392,8 @@ public sealed partial class RunStartTests
         {
             Zone = _galaxy.Entrance, Name = "story", Type = LocationType.Station, Faction = _protagonist, Turrets = 2
         });
-        var ambient = Census(RunStart.GenerateArena(_items, _zoneSettings, _galaxy, new Scripted(true, _ => { })));
-        var quietPack = RunStart.GenerateArena(_items, _zoneSettings, _galaxy, new Scripted(false, _ => { }));
+        var ambient = Census(RunStart.GenerateArena(_items, _zoneSettings, _planetSettings, _galaxy, new Scripted(true, _ => { })));
+        var quietPack = RunStart.GenerateArena(_items, _zoneSettings, _planetSettings, _galaxy, new Scripted(false, _ => { }));
         var quiet = Census(quietPack);
 
         Assert.Same(quietPack, _galaxy.Entrance.PackedContents);
