@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System;
 using System.Linq;
 using System.Reflection;
@@ -87,14 +88,13 @@ public sealed class InspectableTemperatureDrawer : ICultInspectorDrawer
     }
 }
 
-// A size and a toggle per cell. When the owning item has a schematic texture, the texture lies under the grid and the
-// height follows its aspect; a hull's hardpoint cells are tinted. Both read the owning record through
+// A size and a toggle per cell. The underlay (the item's schematic texture, or a hull's line art stretched to the Shape's
+// Width x Height) is drawn by HullUnderlay; the height follows a texture's aspect. A hull's hardpoint cells are tinted.
+// Both read the owning record through
 // inspector.Record, which is a read-only copy: nothing here writes to it.
 [CultInspectorDrawer(typeof(InspectableSchematicShapeAttribute))]
 public sealed class InspectableSchematicShapeDrawer : ICultInspectorDrawer
 {
-    private static Material _schematicMaterial;
-
     public object Draw(CultInspector inspector, string label, Type type, object value, MemberInfo member)
     {
         if (type != typeof(Shape)) return inspector.DrawDefault(label, type, value, member);
@@ -122,11 +122,7 @@ public sealed class InspectableSchematicShapeDrawer : ICultInspectorDrawer
         {
             using (var grid = new EditorGUILayout.VerticalScope())
             {
-                if (schematic != null && Event.current.type == EventType.Repaint)
-                {
-                    _schematicMaterial ??= new Material(Shader.Find("Legacy Shaders/Particles/Additive"));
-                    EditorGUI.DrawPreviewTexture(grid.rect, schematic, _schematicMaterial);
-                }
+                HullUnderlay.Draw(grid.rect, item, inspector.Records);
 
                 for (var y = shape.Height - 1; y >= 0; y--)
                     using (new EditorGUILayout.HorizontalScope())
@@ -142,6 +138,44 @@ public sealed class InspectableSchematicShapeDrawer : ICultInspectorDrawer
             GUILayout.FlexibleSpace();
         }
         return shape;
+    }
+}
+
+// The underlay under a hull's cell grids, drawn on Repaint only. A shipped hull's schematic texture is stretched over
+// the grid rect; a mod hull's line art (its ShipAuthoring, found in the open cache at hull.Visual) is placed by
+// SchematicUnderlay.Fit in cell units and mapped to the rect here, the one site that maps cells to a grid's screen
+// rect. The hull Shape grid and the footprint painter both draw through it. No lookup found: no line underlay.
+public static class HullUnderlay
+{
+    private static Material _schematicMaterial;
+
+    public static void Draw(Rect grid, EquippableItemData item, IReadOnlyList<CultStoredDocument> records)
+    {
+        if (item == null || Event.current.type != EventType.Repaint) return;
+        var texture = string.IsNullOrEmpty(item.Schematic) ? null : AssetDatabase.LoadAssetAtPath<Texture2D>(AssetDatabase.GUIDToAssetPath(item.Schematic));
+        if (texture != null)
+        {
+            _schematicMaterial ??= new Material(Shader.Find("Legacy Shaders/Particles/Additive"));
+            EditorGUI.DrawPreviewTexture(grid, texture, _schematicMaterial);
+        }
+
+        if (!(item is HullData hull) || hull.Shape == null || hull.Shape.Width == 0 || hull.Shape.Height == 0) return;
+        var key = CultInspectorModel.RecordKey(hull.Visual);
+        var authoring = records?.FirstOrDefault(record => record.Key.Value == key && record.Document is ShipAuthoring)?.Document as ShipAuthoring;
+        if (authoring == null) return;
+
+        var lines = authoring.SchematicLines;
+        var fit = SchematicUnderlay.Fit(lines, hull.Shape);
+        for (var i = 0; i < fit.Length; i++)
+        {
+            var rgba = lines[i].Color;
+            var color = rgba == null ? Color.white : new Color(rgba[0], rgba[1], rgba[2], rgba[3]);
+            var points = fit[i].Select(p => new Vector3(
+                grid.x + p.x / hull.Shape.Width * grid.width,
+                grid.yMax - p.y / hull.Shape.Height * grid.height)).ToList();
+            if (lines[i].Cyclic && points.Count > 2) points.Add(points[0]);
+            using (new Handles.DrawingScope(color)) Handles.DrawAAPolyLine(2f, points.ToArray());
+        }
     }
 }
 
@@ -164,27 +198,35 @@ public sealed class HardpointFootprintDrawer : ICultInspectorDrawer
 
         var others = hull.Hardpoints.Where(hp => hp != own).ToArray();
         EditorGUILayout.LabelField("Footprint");
-        for (var y = hull.Shape.Height - 1; y >= 0; y--)
-            using (new EditorGUILayout.HorizontalScope())
-                for (var x = 0; x < hull.Shape.Width; x++)
-                {
-                    var cell = int2(x, y);
-                    var other = others.FirstOrDefault(hp => HullFootprint.Cells(hp).Contains(cell));
-                    var on = HullFootprint.Cells(drawn).Contains(cell);
-                    var previous = GUI.backgroundColor;
-                    GUI.backgroundColor = on ? drawn.TintColor.ToColor() : other != null ? other.TintColor.ToColor()
-                        : hull.Shape[cell] ? Color.gray : previous;
-                    EditorGUI.BeginChangeCheck();
-                    using (new EditorGUI.DisabledScope(other != null && !on))
-                        GUILayout.Toggle(on || other != null, GUIContent.none, GUILayout.Width(16));
-                    if (EditorGUI.EndChangeCheck() && HullFootprint.Toggle(drawn.Shape, drawn.Position, cell, out var shape, out var position))
-                    {
-                        drawn.Shape = shape;
-                        drawn.Position = position;
-                        GUI.changed = true;
-                    }
-                    GUI.backgroundColor = previous;
-                }
+        using (new EditorGUILayout.HorizontalScope())
+        {
+            using (var grid = new EditorGUILayout.VerticalScope())
+            {
+                HullUnderlay.Draw(grid.rect, hull, inspector.Records);
+                for (var y = hull.Shape.Height - 1; y >= 0; y--)
+                    using (new EditorGUILayout.HorizontalScope())
+                        for (var x = 0; x < hull.Shape.Width; x++)
+                        {
+                            var cell = int2(x, y);
+                            var other = others.FirstOrDefault(hp => HullFootprint.Cells(hp).Contains(cell));
+                            var on = HullFootprint.Cells(drawn).Contains(cell);
+                            var previous = GUI.backgroundColor;
+                            GUI.backgroundColor = on ? drawn.TintColor.ToColor() : other != null ? other.TintColor.ToColor()
+                                : hull.Shape[cell] ? Color.gray : previous;
+                            EditorGUI.BeginChangeCheck();
+                            using (new EditorGUI.DisabledScope(other != null && !on))
+                                GUILayout.Toggle(on || other != null, GUIContent.none, GUILayout.Width(16));
+                            if (EditorGUI.EndChangeCheck() && HullFootprint.Toggle(drawn.Shape, drawn.Position, cell, out var shape, out var position))
+                            {
+                                drawn.Shape = shape;
+                                drawn.Position = position;
+                                GUI.changed = true;
+                            }
+                            GUI.backgroundColor = previous;
+                        }
+            }
+            GUILayout.FlexibleSpace();
+        }
         return drawn;
     }
 }
