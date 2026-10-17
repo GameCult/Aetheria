@@ -291,6 +291,35 @@ public sealed partial class RunStartTests
         Assert.Contains("No Such Gun", Assert.Single(failures));
     }
 
+    // A fit that states its quality mints every lot it builds at it, assembly and role fills alike; the same fit without one
+    // draws them from the item stream, so some lot comes out otherwise. A scenario's checks rest on the first.
+    [Fact]
+    public void StagedFitMintsAtItsQuality()
+    {
+        (string design, int2 cell, ItemRotation rotation)[] slots =
+        {
+            ("Cockpit 2x2", int2(2, 6), ItemRotation.None), ("Compact Reactor", int2(2, 4), ItemRotation.None),
+            ("Large Drive", int2(1, 0), ItemRotation.Reversed), ("Radiator", int2(2, 2), ItemRotation.CounterClockwise)
+        };
+        var staged = Stage(Arena(true), new Scripted(true, stage =>
+        {
+            stage.Player(stage.Bare("Djinni"), float2(0, 0));
+            stage.Place(stage.Fit("Longinus", .6f, slots), float2(300, 0));
+            stage.Place(stage.Fit("Longinus", slots), float2(-300, 0));
+        }));
+        IEnumerable<Lot> Lots(Entity entity) =>
+            EntitySerializer.Items(EntitySerializer.Pack(entity)).OfType<CraftedItemInstance>().Select(_items.GetLot);
+        var stated = Lots(staged.Entities[0]).ToArray();
+        var drawn = Lots(staged.Entities[1]).ToArray();
+        Assert.True(stated.Length > slots.Length);
+        Assert.All(stated, lot =>
+        {
+            Assert.Equal(.6f, lot.Quality, 3);
+            Assert.All(lot.Roles ?? new List<RoleFill>(), fill => Assert.Equal(.6f, fill.Quality, 3));
+        });
+        Assert.Contains(drawn, lot => Math.Abs(lot.Quality - .6f) > .001f);
+    }
+
     // A stance holds both ways between an entity and the player. A piloted entity has exactly one agent; an unpiloted
     // one has none, and nothing steers it. (It is not frozen: the zone's gravity still moves it, as it moves any ship,
     // so the rule is observed on its steering inputs.)

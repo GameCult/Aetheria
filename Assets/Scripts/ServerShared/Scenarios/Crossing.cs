@@ -22,6 +22,8 @@ public sealed class Crossing : Scenario
     // The waiting Djinni sits inside the Lightning Projector's arc at 80% of its Range.
     public static readonly CultMath.float2 Origin = float2(724, 124);
     public static readonly CultMath.float2 CrosserAt = Origin + float2(-128, 45), CrosserFacing = float2(1, 0), CrosserVelocity = float2(50, 0);
+    // The fighter is staged at this quality, so its gear and the range below do not ride the item stream.
+    public const float StagedQuality = .6f;
     public const float ProjectorRange = 1216f; // the Lightning Projector's Range in metres, 1216.4 as the fit stands settled at rest
     public static readonly CultMath.float2 Waiting = Origin + float2(0, ProjectorRange * .8f);
 
@@ -29,7 +31,7 @@ public sealed class Crossing : Scenario
 
     public override void Stage(ScenarioStage stage)
     {
-        var fighter = stage.Fit("Longinus",
+        var fighter = stage.Fit("Longinus", StagedQuality,
             ("Cockpit 2x2", int2(2, 6), None),
             ("Large Drive", int2(1, 0), Reversed),
             ("Large Drive", int2(3, 0), Reversed),

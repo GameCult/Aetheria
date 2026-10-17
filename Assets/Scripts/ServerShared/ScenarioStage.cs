@@ -52,7 +52,15 @@ public sealed class ScenarioStage
 
     // A hull fitted slot by slot: each slot a design or a product, the hull cell it goes in, and its rotation. A name is
     // a design (open: the stage chooses its product) or a product (pinned: that brand).
-    public ScenarioFit Fit(string hull, params (string design, int2 cell, ItemRotation rotation)[] slots)
+    public ScenarioFit Fit(string hull, params (string design, int2 cell, ItemRotation rotation)[] slots) =>
+        FitAt(hull, null, slots);
+
+    // The same fit with every lot it mints (hull, slots, unbranded) at the stated quality, drawing nothing. A fit a scenario's
+    // checks rest on states its quality, so the check does not ride the item stream.
+    public ScenarioFit Fit(string hull, float quality, params (string design, int2 cell, ItemRotation rotation)[] slots) =>
+        FitAt(hull, quality, slots);
+
+    private ScenarioFit FitAt(string hull, float? quality, (string design, int2 cell, ItemRotation rotation)[] slots)
     {
         var where = $"fit {hull}";
         var (hullData, hullProduct) = NamedOrProduct<HullData>(hull, where);
@@ -69,7 +77,7 @@ public sealed class ScenarioStage
                 Product = product == null ? default : _items.ItemData.RefOf(product)
             });
         }
-        return hullData != null && loadout.Slots.Count == slots.Length ? new ScenarioFit(loadout) : null;
+        return hullData != null && loadout.Slots.Count == slots.Length ? new ScenarioFit(loadout, quality) : null;
     }
 
     // A hull with nothing fitted.
@@ -154,7 +162,7 @@ public sealed class ScenarioStage
         else
         {
             var failures = new List<string>();
-            entity = Loadouts.Materialize(_items, Arena, fit.Loadout, _choose, failures);
+            entity = Loadouts.Materialize(_items, Arena, fit.Loadout, _choose, failures, fit.Quality);
             _failures.AddRange(failures.Select(failure => $"{where} ({fit.Loadout.Name}): {failure}"));
             if (entity == null) return null;
         }
@@ -190,7 +198,13 @@ public sealed class ScenarioFit
 {
     internal readonly Loadout Loadout;
     internal readonly EntityPack Pack;
+    internal readonly float? Quality;
 
-    internal ScenarioFit(Loadout loadout) => Loadout = loadout;
+    internal ScenarioFit(Loadout loadout, float? quality = null)
+    {
+        Loadout = loadout;
+        Quality = quality;
+    }
+
     internal ScenarioFit(EntityPack pack) => Pack = pack;
 }

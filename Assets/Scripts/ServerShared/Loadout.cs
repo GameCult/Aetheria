@@ -108,18 +108,19 @@ public static class Loadouts
     // picks the entity: a ship hull builds a Ship, a turret hull an OrbitalEntity with no orbit, which stays where it is
     // put; a station hull is refused. The entity always gets exactly WeaponGroupCount groups; a loadout with fewer is
     // padded with empty groups. A failed materialization leaves any minted lots in the live ledger; they are not roots,
-    // so the next commit drops them.
+    // so the next commit drops them. A stated quality mints every lot of the fit at it, drawing nothing (a scenario states
+    // one for a fit its checks rest on).
     public static Entity Materialize(ItemManager itemManager, Zone liveZone, Loadout loadout,
-        Func<CraftedItemData, FactionProductData> choose, List<string> failures)
+        Func<CraftedItemData, FactionProductData> choose, List<string> failures, float? quality = null)
     {
         var cache = itemManager.ItemData;
         var reported = failures.Count;
 
-        var hullBuild = Resolve(itemManager, loadout.Hull, loadout.HullProduct, choose, "hull", failures);
+        var hullBuild = Resolve(itemManager, loadout.Hull, loadout.HullProduct, choose, "hull", failures, quality);
         var hullData = cache.Get(loadout.Hull);
         if (hullData is { HullType: HullType.Station })
             failures.Add($"hull: {hullData.Name} is a station hull; a preset builds a ship or a turret");
-        var slotBuilds = loadout.Slots.Select(slot => Resolve(itemManager, slot.Design, slot.Product, choose, Cell(slot), failures)).ToArray();
+        var slotBuilds = loadout.Slots.Select(slot => Resolve(itemManager, slot.Design, slot.Product, choose, Cell(slot), failures, quality)).ToArray();
         var groups = loadout.WeaponGroups ?? new int[0][];
         var groupCount = itemManager.GameplaySettings.WeaponGroupCount;
         if (groups.Length > groupCount) failures.Add($"weapon groups: {groups.Length} groups, at most {groupCount}");
@@ -168,11 +169,11 @@ public static class Loadouts
     // How one design is built, or null with the failure listed; nothing is minted until the returned builder runs. A
     // pinned product is built as named, whatever choose says; it must be a product of the design. A design with no
     // product at all is outside the economy (docs/scenarios-cut.md, Q3: generation, stock and sale all go through
-    // products) and is built unbranded, with no maker, at UnbrandedQuality. Otherwise choose names the product, and
+    // products) and is built unbranded, with no maker, at UnbrandedQuality (a stated quality replaces it). Otherwise choose names the product, and
     // null (nothing available) or a product of another design is a failure.
     public static Func<CraftedItemInstance> Resolve<T>(ItemManager itemManager, CultRecordRef<T> design,
         CultRecordRef<FactionProductData> product, Func<CraftedItemData, FactionProductData> choose, string where,
-        List<string> failures) where T : CraftedItemData
+        List<string> failures, float? quality = null) where T : CraftedItemData
     {
         var cache = itemManager.ItemData;
         var data = cache.Get(design);
@@ -195,7 +196,7 @@ public static class Loadouts
         else
         {
             if (!cache.GetAll<FactionProductData>().Any(p => p.Design.Key.Equals(design.Key)))
-                return () => itemManager.CreateInstance(itemManager.CreateLot(data, default, UnbrandedQuality));
+                return () => itemManager.CreateInstance(itemManager.CreateLot(data, default, quality ?? UnbrandedQuality));
             made = choose(data);
             if (made == null)
             {
@@ -209,7 +210,7 @@ public static class Loadouts
             failures.Add($"{where}: product {made.Name} is not a product of {data.Name}");
             return null;
         }
-        return () => itemManager.CreateInstance(made);
+        return () => itemManager.CreateInstance(quality is { } q ? itemManager.CreateLot(made, q) : itemManager.CreateLot(made));
     }
 
     private static string Cell(LoadoutSlot slot) => $"slot {slot.Position.x},{slot.Position.y}";
