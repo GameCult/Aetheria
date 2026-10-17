@@ -461,6 +461,8 @@ public sealed class RestoredHullsTests
             var zoneSettings = TutorialZoneSettings();
             zoneSettings.RosetteProbability = 0;
             zoneSettings.MassFloor = 1e9f;
+            // One subzone: the zone's only body is a parentless root. (Several roots give the station a root to orbit.)
+            zoneSettings.SubZoneCount = new ExponentialLerp { Exponent = 1, Minimum = 0, Maximum = 0 };
 
             Assert.Throws<InvalidOperationException>(() =>
                 ZoneGenerator.GenerateZone(items, zoneSettings, AuthoredPlanetSettings(), galaxy, galaxy.Entrance, isTutorial: true));
