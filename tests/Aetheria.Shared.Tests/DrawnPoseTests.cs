@@ -520,7 +520,12 @@ public sealed class DrawnPoseTests : IDisposable
         Assert.Contains("DrawAhead.ChunkAt(", renderer);
         // The renderer holds no mesh choice, sort or index arithmetic: it iterates DrawAhead's list.
         Assert.Contains("DrawAhead.DrawListOf(", renderer);
-        Assert.Contains("draw.Draw(transforms)", renderer);
+        Assert.Matches(@"var byMesh = draw\.Draw\(transforms\);\s*for \(int m = 0;", renderer);
+        Assert.Contains("transforms[rock.Rock]", renderer);
+        Assert.Contains("Vector3.one * rock.Scale", renderer);
+        Assert.Contains("draw.Meshes[m].Mesh, 0, draw.Meshes[m].Material, matrices[m]", renderer);
+        Assert.Contains("matrices[m][k] =", renderer);
+        Assert.Contains("byMesh[m][k]", renderer);
         Assert.DoesNotContain("RockScale(", renderer);
         Assert.DoesNotContain(".Sort(", renderer);
         Assert.DoesNotContain("OrderBy", renderer);
