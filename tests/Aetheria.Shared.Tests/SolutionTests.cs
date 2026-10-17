@@ -175,7 +175,7 @@ public sealed partial class FireControlCut124Tests
 
         Assert.True(solution.Bears && solution.Free);
         Assert.True(FireControl.ArcPermitsFire(e.Weapon, e.Shooter));
-        Assert.True(FireControl.AgentFires(e.Weapon, e.Shooter, e.Target));
+        Assert.True(FireControl.AgentFires(e.Weapon, e.Shooter, e.Target, e.Shooter.ItemManager.GameplaySettings.AgentMinHitProbability));
         Near(intercept, solution.Direction);
     }
 

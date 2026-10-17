@@ -29,6 +29,7 @@ public enum TaskType
     Tow,
     Defend,
     Attack,
-    Explore
+    Explore,
+    Follow
 }
 

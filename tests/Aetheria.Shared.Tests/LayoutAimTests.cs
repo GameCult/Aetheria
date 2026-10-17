@@ -416,7 +416,7 @@ public sealed partial class ContactRevealTests
         var bay = AddBay(float3(0, 0, 40), gun: true);
         var gun = Guns(bay).Single();
         var ai = Add(float3(0, 0, 0), new[] { "Eye" });
-        _zone.Agents.Add(new Minion(ai));
+        _zone.Agents.Add(new Minion(ai, FactionDoctrine.Default(ai.ItemManager.GameplaySettings).Combatant));
         ai.SetTarget(bay);
         Hold(ai, 12, 1f, bay);
         Assert.True(ReferenceEquals(bay, ai.Target.Value.Entity), "fixture: the AI keeps the ship as its target");

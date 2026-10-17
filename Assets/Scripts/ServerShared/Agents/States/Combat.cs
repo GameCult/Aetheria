@@ -10,13 +10,11 @@ using float2x2 = CultMath.float2x2;
 public class CombatState : BaseState
 {
     private const int DPS_SAMPLE_COUNT = 32;
-    // The Strength of one Track paint in this ship's own IncomingPaints: a fire-control emitter tracking this ship
-    // that hard (rulings lock-warning-strength, sensor-stat-set item 4, launcher-lock-solution-quality).
-    private const float LockAlarm = .5f;
     // Overdrive only to close a target farther than this many optimum ranges, while heading within this many degrees of it.
     private const float OverdriveRangeFactor = 2f;
     private const float OverdriveArcDegrees = 15f;
     private float _optimumRange;
+    public float OptimumRange => _optimumRange;
     private bool _optimumStale = true;
     private readonly List<(int index, float dps)> _availableGroups = new List<(int index, float dps)>();
     private readonly List<LockWeapon> _availableLockingWeapons = new List<LockWeapon>();
@@ -141,7 +139,7 @@ public class CombatState : BaseState
             // fires at, and "the target is designated" for a fused one.
             foreach (var weapon in _agent.Ship.WeaponGroups[selectedGroup].weapons)
             {
-                if (FireControl.AgentFires(weapon, _agent.Ship, target))
+                if (FireControl.AgentFires(weapon, _agent.Ship, target, _agent.Doctrine.MinHitProbability))
                     weapon.Activate();
                 else if (weapon.Firing)
                     weapon.Deactivate();
@@ -154,25 +152,13 @@ public class CombatState : BaseState
         // Fire charged guns!
     }
 
-    // The AI plays the player's rule on the player's information: vent when one Track paint on this ship passes half,
-    // otherwise overdrive to close a distant target ahead. It reads only this ship's own IncomingPaints. Both go
-    // through TryActivateConsumable, and a ship carrying neither does nothing.
+    // Overdrive to close a distant target ahead, through the same consumable gate as the vent (Agent.VentOnTrack).
     private void UseConsumables(float3 toTarget, float targetDistance)
     {
         var ship = _agent.Ship;
-        if (ship.IncomingPaints.Any(p => p.Mode == PaintMode.Track && p.Strength > LockAlarm))
-            Use(b => b is VapourDumpData);
-        else if (targetDistance > OverdriveRangeFactor * _optimumRange &&
-                 dot(normalize(ship.Direction), normalize(toTarget.xz)) > cos(radians(OverdriveArcDegrees)))
-            Use(b => b is ThrottleLockData);
-    }
-
-    // One of a kind at a time: a Stackable design would otherwise be drained once per tick.
-    private void Use(Predicate<BehaviorData> kind)
-    {
-        if (_agent.Ship.HasActiveConsumable(kind)) return;
-        var consumable = _agent.Ship.FirstCarriedConsumable(kind);
-        if (consumable != null) _agent.Ship.TryActivateConsumable(consumable);
+        if (!_agent.TrackAlarm && targetDistance > OverdriveRangeFactor * _optimumRange &&
+            dot(normalize(ship.Direction), normalize(toTarget.xz)) > cos(radians(OverdriveArcDegrees)))
+            _agent.Use(b => b is ThrottleLockData);
     }
 
     private void SampleDps()
@@ -200,7 +186,7 @@ public class CombatState : BaseState
             }
 
             // Multiply by range raised to a (sublinear) exponent to bias DPS preference towards longer ranges
-            dps *= pow(range, _agent.Settings.AgentRangeExponent);
+            dps *= pow(range, _agent.Doctrine.RangeExponent);
 
             if (dps > optimumDPS)
             {

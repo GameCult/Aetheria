@@ -56,8 +56,9 @@ public static class Program
             case "generic-designs": return GenericDesigns(args.Contains("apply"));
             case "inspection-scanner": return InspectionScannerCatalog(args.Contains("apply"));
             case "product-lines": return ProductLinesCommand.Run(args.Skip(1).ToArray());
+            case "doctrine-catalog": return DoctrineCatalog.Run(AetherDb.Open(catalogWritable: args.Contains("apply")).Cache, args.Contains("apply"), Console.Out);
             default:
-                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], range-falloff [apply] [--effective <fraction>] [--end <multiplier>], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], smoke-hull [apply], smoke-rounds [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], launch-suppressor [apply], pirates-faction [apply], verse-grammar [apply], generic-designs [apply], sensor-stat-set [apply], inspection-scanner [apply], product-lines weapons [apply]");
+                Console.WriteLine("commands: census, factions, station-fit, hardpoint-fit, loadout [seed], save, settings, settings-dump, dangling [clear <Type.Member>]... [apply], shield-migrate [apply], brownout-migrate [apply], roles-migrate [apply], firing-arc-migrate [apply], range-falloff [apply] [--effective <fraction>] [--end <multiplier>], targeting-catalog [apply], targeting-catalog-6c [apply], targeting-catalog-6d [apply], ship-authoring create|inspect|validate|compose, field-kinds [apply], mine-launcher [apply], smoke-hull [apply], smoke-rounds [apply], roles-backfill [apply], pd-gear [apply], consumables-first-set [apply], launch-suppressor [apply], pirates-faction [apply], verse-grammar [apply], generic-designs [apply], sensor-stat-set [apply], inspection-scanner [apply], product-lines weapons [apply], doctrine-catalog [apply]");
                 return 1;
         }
     }
@@ -697,7 +698,7 @@ public static class Program
     {
         var db = AetherDb.Open();
         var products = db.Cache.GetAll<FactionProductData>().ToArray();
-        Console.WriteLine($"{"faction",-26} {"short",-13} {"geonames",-22} {"boss hull",-14} {"influence",-9} products");
+        Console.WriteLine($"{"faction",-26} {"short",-13} {"geonames",-22} {"boss hull",-14} {"influence",-9} {"doctrine",-10} products");
         var broken = 0;
         foreach (var faction in db.Cache.GetAll<Faction>().OrderBy(f => f.Name))
         {
@@ -707,7 +708,7 @@ public static class Program
                 ? "none"
                 : db.Cache.Get(faction.BossHull)?.Name ?? "DANGLING";
             if (geonames == "UNSET" || boss == "DANGLING") broken++;
-            Console.WriteLine($"{faction.Name,-26} {faction.ShortName,-13} {geonames,-22} {boss,-14} {faction.InfluenceDistance,-9} " +
+            Console.WriteLine($"{faction.Name,-26} {faction.ShortName,-13} {geonames,-22} {boss,-14} {faction.InfluenceDistance,-9} {(faction.Doctrine == null ? "none" : faction.Doctrine.EngageOn.ToString()),-10} " +
                 products.Count(p => p.Manufacturer.Key.Equals(key)));
         }
         Console.WriteLine($"\n{broken} factions carry a link that would break generation");

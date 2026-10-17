@@ -277,7 +277,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
         var r = Build(SideThenForward);
         var group = r.Shooter.WeaponGroups.Single(g => g.weapons.Count == 2).weapons;
         Assert.True(ReferenceEquals(group[0], r.Guns[0].Weapon), "fixture: the side mount leads the group");
-        r.Zone.Agents.Add(new Minion(r.Shooter));
+        r.Zone.Agents.Add(new Minion(r.Shooter, FactionDoctrine.Default(r.Shooter.ItemManager.GameplaySettings).Combatant));
 
         r.Zone.Update(1f);
         r.Zone.Update(1f);
@@ -292,7 +292,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
     public void CombatFiresAFusedWeaponAtADesignatedTargetOutOfArc()
     {
         var r = Build(SideThenForward, fuse: WeaponFuse.Proximity, blast: 4f);
-        r.Zone.Agents.Add(new Minion(r.Shooter));
+        r.Zone.Agents.Add(new Minion(r.Shooter, FactionDoctrine.Default(r.Shooter.ItemManager.GameplaySettings).Combatant));
 
         r.Zone.Update(1f);
         r.Zone.Update(1f);
@@ -314,6 +314,67 @@ public sealed class FireControlPerWeaponTests : IDisposable
         Assert.True(r.Gun.Weapon.Firing, "the turret must fire a fused weapon at a designated target out of arc");
     }
 
+    // The turret keeps the AgentMinHitProbability threshold for a direct-hit weapon: a shot priced near .5 is held at a
+    // threshold of .6 and taken at .4. Kills: the turret's fire threshold dropped to zero or fixed to a constant.
+    [Theory]
+    [InlineData(.6f, false)]
+    [InlineData(.4f, true)]
+    public void ATurretKeepsTheGlobalHitProbabilityThresholdForADirectHitWeapon(float minHit, bool fires)
+    {
+        var r = Build(accuracy: .5f, minHit: minHit, turret: true);
+        var p = FireControl.HitProbability(r.Gun.Weapon, r.Shooter, r.Target);
+        Assert.True(p > .4f && p < .6f, $"fixture: the shot must price near .5, priced {p}");
+
+        r.Zone.Update(1f);
+        r.Zone.Update(1f);
+
+        Assert.Equal(fires, r.Gun.Weapon.Firing);
+    }
+
+    // The same threshold half a hundredth either side of the shot's price. Kills: the turret's threshold loosened or
+    // tightened by a tenth or a hundredth.
+    [Theory]
+    [InlineData(.005f, false)]
+    [InlineData(-.005f, true)]
+    public void ATurretHoldsAShotJustUnderTheThresholdAndTakesOneJustOver(float thresholdAbovePrice, bool fires)
+    {
+        var probe = Build(accuracy: .5f, minHit: 0f, turret: true);
+        var price = FireControl.HitProbability(probe.Gun.Weapon, probe.Shooter, probe.Target);
+        var r = Build(accuracy: .5f, minHit: price + thresholdAbovePrice, turret: true);
+        Assert.Equal(price, FireControl.HitProbability(r.Gun.Weapon, r.Shooter, r.Target), 5);
+
+        r.Zone.Update(1f);
+        r.Zone.Update(1f);
+
+        Assert.Equal(fires, r.Gun.Weapon.Firing);
+    }
+
+    // A flight's members hold off at 1.1 x their longest gun when the doctrine authors no standoff (every authored
+    // doctrine leaves it 0), and at the authored distance otherwise. Guns of Range r and 2r on one ship, at two r and two authored values. Kills: the factor replaced by an offset or an affine rule, the
+    // default zeroed, inverted, taken from the shortest gun, or the authored value ignored.
+    [Theory]
+    [InlineData(50f, 0f, 110f)]
+    [InlineData(200f, 0f, 220f)]
+    [InlineData(50f, 40f, 40f)]
+    [InlineData(50f, 250f, 250f)]
+    public void AFlightHoldsOffAtTheDefaultOrAuthoredStandoff(float range, float holdStandoff, float expected)
+    {
+        var r = Build(range: range, decoy: true);
+        r.Shooter.SetIff(r.Target, null);
+        if (!r.Shooter.VisibleEnemies.Contains(r.Target)) r.Shooter.VisibleEnemies.Add(r.Target);
+        var settings = r.Shooter.ItemManager.GameplaySettings;
+        var flight = new Flight(new FactionDoctrine
+        {
+            EngageOn = EngageOn.Detection, Grace = 5, Combatant = new RoleDoctrine { MinHitProbability = .2f, HoldStandoff = holdStandoff }
+        }, settings);
+        var agent = new Minion(r.Shooter, flight.Combatant);
+        flight.Join(agent, new PatrolOrbitsTask());
+
+        flight.Update(.1f);
+
+        Assert.Equal(expected, ((FollowTask) agent.Task).Standoff, 2);
+    }
+
     // The AI aims at the height a target rides at (Entity.RideHeight: field plus the layer the target's kind rides on),
     // not at the plane and not at the shooter's own layer. A target on a layer 40 u up against a shooter on the ship
     // layer, a shot fast enough to be predicted: the turret's and Combat's aim point at the target's stepped pose.
@@ -331,7 +392,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
     public void CombatAimsAtTheHeightATargetRidesAt()
     {
         var r = Build(velocity: 500f, targetLayerHeight: 40f);
-        r.Zone.Agents.Add(new Minion(r.Shooter));
+        r.Zone.Agents.Add(new Minion(r.Shooter, FactionDoctrine.Default(r.Shooter.ItemManager.GameplaySettings).Combatant));
         r.Zone.Update(1f);
         r.Zone.Update(1f);
 
@@ -366,7 +427,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
         if (reason == Withheld.NoTarget) target = null;
         if (reason == Withheld.NotVisible) r.Shooter.VisibleEntities.Remove(r.Target);
 
-        Assert.False(FireControl.AgentFires(r.Gun.Weapon, r.Shooter, target));
+        Assert.False(FireControl.AgentFires(r.Gun.Weapon, r.Shooter, target, r.Shooter.ItemManager.GameplaySettings.AgentMinHitProbability));
     }
 
     [Fact]
@@ -375,7 +436,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
         // Accuracy 0 prices every direct hit at zero; the fused weapon is unmoved.
         var r = Build(SideMount, fuse: WeaponFuse.Proximity, blast: 4f, accuracy: 0f);
 
-        Assert.True(FireControl.AgentFires(r.Gun.Weapon, r.Shooter, r.Target));
+        Assert.True(FireControl.AgentFires(r.Gun.Weapon, r.Shooter, r.Target, r.Shooter.ItemManager.GameplaySettings.AgentMinHitProbability));
     }
 
     // A weapon that fires at what it hits keeps the AgentMinHitProbability threshold, per weapon.
@@ -389,7 +450,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
         var p = FireControl.HitProbability(r.Gun.Weapon, r.Shooter, r.Target);
         Assert.True(p > .3f && p < .7f, $"fixture: the shot must price near the accuracy, priced {p}");
 
-        Assert.Equal(fires, FireControl.AgentFires(r.Gun.Weapon, r.Shooter, r.Target));
+        Assert.Equal(fires, FireControl.AgentFires(r.Gun.Weapon, r.Shooter, r.Target, r.Shooter.ItemManager.GameplaySettings.AgentMinHitProbability));
     }
 
     // ==== Ruling 2: the HUD forecast is Fire's own decision ====
@@ -599,7 +660,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
     {
         var r = Build(fuse: WeaponFuse.Proximity, blast: 30f, range: range, targetRange: 20f);
 
-        Assert.Equal(fires, FireControl.AgentFires(r.Gun.Weapon, r.Shooter, r.Target));
+        Assert.Equal(fires, FireControl.AgentFires(r.Gun.Weapon, r.Shooter, r.Target, r.Shooter.ItemManager.GameplaySettings.AgentMinHitProbability));
     }
 
     // Combat's group pick counts only weapons that can fire: the refused gun's group out-damages the decoy's, so a
@@ -610,7 +671,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
     {
         var r = Build(fuse: WeaponFuse.Proximity, blast: 30f, range: 29.5f, targetRange: 20f, decoy: true);
         Assert.True(r.Gun.Weapon.RangeDamagePerSecond(20f) > r.Decoy.Weapon.RangeDamagePerSecond(20f), "fixture: the refused gun is the stronger group");
-        r.Zone.Agents.Add(new Minion(r.Shooter));
+        r.Zone.Agents.Add(new Minion(r.Shooter, FactionDoctrine.Default(r.Shooter.ItemManager.GameplaySettings).Combatant));
 
         r.Zone.Update(1f);
         r.Zone.Update(1f);
@@ -628,7 +689,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
         var r = Build(range: 10f, targetRange: 20f, decoy: true);
         Assert.True(r.Gun.Weapon.RangeDamagePerSecond(5f) > r.Decoy.Weapon.RangeDamagePerSecond(5f), "fixture: the short gun is the stronger group");
         Assert.Equal(0f, r.Gun.Weapon.RangeDamagePerSecond(20f)); // the damage function already reads 0 beyond Range
-        r.Zone.Agents.Add(new Minion(r.Shooter));
+        r.Zone.Agents.Add(new Minion(r.Shooter, FactionDoctrine.Default(r.Shooter.ItemManager.GameplaySettings).Combatant));
 
         r.Zone.Update(1f);
         r.Zone.Update(1f);
@@ -650,7 +711,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
         var decoy = r.Decoy.Weapon.RangeDamagePerSecond(60f);
         Assert.Equal(gunPicked, r.Gun.Weapon.RangeDamagePerSecond(60f) > decoy);
         Assert.True(r.Gun.Weapon.RangeDamagePerSecond(effective == 10f ? 30f : 120f) > decoy == !gunPicked, "fixture: the scaled distance reads the other way");
-        r.Zone.Agents.Add(new Minion(r.Shooter));
+        r.Zone.Agents.Add(new Minion(r.Shooter, FactionDoctrine.Default(r.Shooter.ItemManager.GameplaySettings).Combatant));
 
         r.Zone.Update(1f);
         r.Zone.Update(1f);
@@ -667,7 +728,7 @@ public sealed class FireControlPerWeaponTests : IDisposable
         var r = Build(range: 60f, targetRange: 60f);
         // The agent is driven directly, not through the zone, so the shooter stays exactly at max range: the first
         // update leaves the root state for combat, the second is combat deciding.
-        var agent = new Minion(r.Shooter);
+        var agent = new Minion(r.Shooter, FactionDoctrine.Default(r.Shooter.ItemManager.GameplaySettings).Combatant);
         agent.Update(.01f);
         agent.Update(.01f);
 
@@ -686,8 +747,37 @@ public sealed class FireControlPerWeaponTests : IDisposable
         var atThreshold = Build(accuracy: .5f, minHit: price);
         var overThreshold = Build(accuracy: .5f, minHit: MathF.BitIncrement(price));
 
-        Assert.True(FireControl.AgentFires(atThreshold.Gun.Weapon, atThreshold.Shooter, atThreshold.Target));
-        Assert.False(FireControl.AgentFires(overThreshold.Gun.Weapon, overThreshold.Shooter, overThreshold.Target));
+        Assert.True(FireControl.AgentFires(atThreshold.Gun.Weapon, atThreshold.Shooter, atThreshold.Target, atThreshold.Shooter.ItemManager.GameplaySettings.AgentMinHitProbability));
+        Assert.False(FireControl.AgentFires(overThreshold.Gun.Weapon, overThreshold.Shooter, overThreshold.Target, overThreshold.Shooter.ItemManager.GameplaySettings.AgentMinHitProbability));
+    }
+
+    // The threshold is the doctrine's, passed in: the settings global (zero here) decides nothing for a pilot. Kills: a
+    // reintroduced read of AgentMinHitProbability inside AgentFires.
+    [Fact]
+    public void TheDoctrinesThresholdDecidesFire()
+    {
+        var r = Build(accuracy: .5f, minHit: 0f);
+        var price = FireControl.HitProbability(r.Gun.Weapon, r.Shooter, r.Target);
+        Assert.True(price > 0f);
+
+        Assert.True(FireControl.AgentFires(r.Gun.Weapon, r.Shooter, r.Target, price));
+        Assert.False(FireControl.AgentFires(r.Gun.Weapon, r.Shooter, r.Target, MathF.BitIncrement(price)));
+    }
+
+    // A long and a short weapon: the exponent biases the preferred range outward. Kills: the optimum read from the
+    // settings global instead of the member's RoleDoctrine.
+    [Fact]
+    public void TheDoctrinesExponentMovesTheOptimumRange()
+    {
+        var r = Build(range: 400f, decoy: true);
+        float Optimum(float exponent)
+        {
+            var combat = new CombatState(new Minion(r.Shooter, new RoleDoctrine { RangeExponent = exponent, MinHitProbability = .2f }));
+            combat.Update(0f); // the optimum is derived at the first Update
+            return combat.OptimumRange;
+        }
+
+        Assert.True(Optimum(1f) - Optimum(0f) > 100f);
     }
 
     // A round refused on a Range that fell between the trigger and the round is still free: the burst is paid

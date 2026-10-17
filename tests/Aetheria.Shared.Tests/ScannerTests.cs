@@ -379,7 +379,7 @@ public sealed partial class ContactRevealTests
         target.Claim(reactor, DataOf("Radiator"));
         var player = Add(float3(-20, 0, 0), tools: new[] { "Scanner" });
         var ai = Add(float3(20, 0, 0), tools: new[] { "Scanner" });
-        var agent = new Minion(ai); // the AI pilot, ticked in Zone.Update beside the scan: it takes the combat state once it has a target
+        var agent = new Minion(ai, FactionDoctrine.Default(ai.ItemManager.GameplaySettings).Combatant); // the AI pilot, ticked in Zone.Update beside the scan: it takes the combat state once it has a target
         _zone.Agents.Add(agent);
         Assert.Single(_zone.Agents); // fixture: only the second ship has an agent
         foreach (var scanner in new[] { player, ai })

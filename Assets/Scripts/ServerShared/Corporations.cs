@@ -57,6 +57,12 @@ public class Faction
 
     [Inspectable, JsonProperty("bossMusic"), Key(15)]
     public uint BossMusic;
+
+    // Key 16 is reserved for Relations (operator ruling faction-relations-field).
+
+    // The faction's rules of engagement; null fights as FactionDoctrine.Default.
+    [Inspectable, JsonProperty("doctrine"), Key(17)]
+    public FactionDoctrine Doctrine;
 }
 
 [CultDocument("aetheria.namefile", "1"), Inspectable, MessagePackObject]
