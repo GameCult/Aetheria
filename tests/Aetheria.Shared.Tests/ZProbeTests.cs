@@ -28,8 +28,6 @@ public sealed partial class RunStartTests
                 log.Add($"PROBE t={tick} d={d} host={hostile.Position.xz} orbit0={arena.Orbits[circuit[0]].Position} locked={locked} task={agent.Task?.GetType().Name} tgt={hostile is Ship s && s.Target.Value.Entity != null} vis={((Ship)hostile).VisibleEnemies.Count}");
         }
         log.Add($"PROBE minD={minD}");
-        Assert.Fail("
-" + string.Join("
-", log));
+        Assert.Fail(string.Join(Environment.NewLine, log));
     }
 }
