@@ -393,7 +393,6 @@ public sealed class StationPlacementTests : IDisposable
                     var chord = 2 * orbit.Data.Distance * Math.Abs((float) Math.Sin(PI * (phase - zone.Orbits[source[0]].Data.Phase)));
                     if (side.Count >= turrets / 2) continue;
                     stops++;
-                    _output.WriteLine($"DIAG seed {built.Seed} side {side.Count} of {turrets / 2} stopped: next turret {chord / (extent + reach):F3} of the stop distance");
                     Assert.True(chord < (extent + reach) * (1 + 1e-3f), $"seed {built.Seed}: a side stopped at {side.Count} turrets with its next turret still {chord} from the base, outside {extent + reach}");
                     if (chord >= .8f * (extent + reach)) nearBase++;
                 }
