@@ -59,17 +59,25 @@ public sealed class PlaceNamesTests : IDisposable
         galaxy.Zones.Select((zone, index) => (zone, index)).Where(z => z.zone.Owner == faction)
             .OrderBy(z => z.zone.Distance[galaxy.HomeZones[faction]]).ThenBy(z => z.index).Select(z => z.zone).ToArray();
 
+    // Two factions can share a home zone (the prelude puts the quest faction on the buffer's); the zone's owner is the
+    // nearest home in faction order, and that owner's capital is what the zone is called.
     [Fact]
-    public void TheHomeZoneTakesTheFirstName()
+    public void TheHomeZoneTakesTheOwnersFirstName()
     {
-        var checkedHomes = 0;
+        var own = 0;
+        var shared = 0;
         foreach (var galaxy in Galaxies(true, 10).Concat(Galaxies(false, 10)))
-            foreach (var faction in Placed(galaxy))
+            foreach (var faction in galaxy.Factions.Where(galaxy.HomeZones.ContainsKey))
             {
-                Assert.Equal(faction.Places[0].Name, galaxy.HomeZones[faction].Name);
-                checkedHomes++;
+                var home = galaxy.HomeZones[faction];
+                var owner = home.Owner;
+                Assert.NotNull(owner);
+                if (owner.Places.Length == 0) Assert.Matches(Designation, home.Name);
+                else Assert.Equal(owner.Places[0].Name, home.Name);
+                if (owner == faction) own++; else shared++;
             }
-        Assert.True(checkedHomes >= 20, $"only {checkedHomes} homes were checked");
+        Assert.True(own >= 20, $"only {own} factions owned their home");
+        Assert.True(shared > 0, "no galaxy shared a home zone, so the shared case was not exercised");
     }
 
     [Fact]
