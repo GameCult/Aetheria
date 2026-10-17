@@ -427,6 +427,7 @@ public sealed class DrawnPoseTests : IDisposable
         Assert.Equal(new[] { 0, 0, 1, 1, 2, 2, 2 }, Meshes(new[] { 5f, 5f, 5f, 5f, 5f, 5f, 5f }, 1f, 2f, 3f));
         Assert.Equal(new[] { 2, 0, 2, 1, 2 }, Meshes(new[] { 9f, 1f, 4f, 2f, 7f }, 1f, 2f, 3f));
         Assert.Equal(new[] { 0, 1, 1 }, Meshes(new[] { 1f, 2f, 3f }, 1f, 2f));
+        Assert.Equal(new[] { 0, 0, 1, 1 }, Meshes(new[] { 1f, 2f, 3f, 4f }, 1f, 2f));
         Assert.Equal(new[] { 0, 1 }, Meshes(new[] { 1f, 2f }, 1f, 2f, 3f, 4f, 5f));
         Assert.Equal(new[] { 0, 0, 1, 1, 2, 2, 2 }, Meshes(new[] { 5f, 5f, 5f, 5f, 5f, 5f, 5f }, 4f, 4f, 4f));
     }
