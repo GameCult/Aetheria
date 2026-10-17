@@ -41,7 +41,7 @@ public sealed partial class RunStartTests
         {
             var (_, _, staged, failures) = Launch(new Scripted(false, scenario.Stage, seed * 7919, scenario.Generate));
             Assert.Empty(failures);
-            var ships = staged.Entities.Append(staged.Player).Where(ship => _items.GetData(ship.Hull).Name is "Longinus" or "Smoke Test Hull");
+            var ships = staged.Entities.Append(staged.Player).Where(ship => _items.GetData(ship.Hull).Name is "Longinus" or "Smoke Test Hull" or "Turret");
             foreach (var brand in brands)
             {
                 var product = _items.ItemData.GetAll<FactionProductData>().Single(candidate => candidate.Name == brand);
