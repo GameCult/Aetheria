@@ -147,9 +147,7 @@ public sealed class IffAndCombatTests : IDisposable
         var a = NewShip(items, zone, new Faction { Name = "A" });
         var b = NewShip(items, zone, new Faction { Name = "B" });
 
-        // B declares hostile toward A via override. Rule (b) (reciprocity-on-marked-hostile) is deleted:
-        // A's own derived hostility toward B must not mirror B's override through the recursive
-        // "other.IsHostileTo(this, true)" reciprocity check baked into the derived rule.
+        // B declares hostile toward A via override. A's own stance toward B is its own: it never reads B's mind.
         b.SetIff(a, true);
 
         Assert.True(b.IsHostileTo(a)); // B's own stance: override decides
