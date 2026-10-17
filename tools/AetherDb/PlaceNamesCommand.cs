@@ -80,10 +80,8 @@ public static class PlaceNamesCommand
                 throw new InvalidOperationException("Place names row: its ShortName differs from the faction under its key (conflict).");
             foreach (var name in row.Names)
             {
-                if (string.IsNullOrEmpty(name) || name != name.Trim())
-                    throw new InvalidOperationException("Place names row: a name is empty or untrimmed (invalid).");
-                if (name.StartsWith("EAC-", StringComparison.OrdinalIgnoreCase))
-                    throw new InvalidOperationException("Place names row: a name is a catalogue designation (invalid).");
+                if (!FactionPlace.IsValidName(name))
+                    throw new InvalidOperationException("Place names row: a name is empty, untrimmed or a catalogue designation (invalid).");
                 if (!seen.Add(name))
                     throw new InvalidOperationException("Place names table: a name is repeated (conflict).");
             }

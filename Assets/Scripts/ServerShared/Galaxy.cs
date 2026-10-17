@@ -358,7 +358,7 @@ public class Galaxy
         foreach (var faction in Factions)
         {
             if (!HomeZones.TryGetValue(faction, out var home)) continue;
-            var places = (faction.Places ?? Array.Empty<FactionPlace>()).Select(p => p?.Name).Where(n => !string.IsNullOrEmpty(n)).ToArray();
+            var places = (faction.Places ?? Array.Empty<FactionPlace>()).Select(p => p?.Name).Where(FactionPlace.IsValidName).ToArray();
             var next = 0;
             var owned = Zones.Select((zone, index) => (zone, index)).Where(z => z.zone.Owner == faction)
                 .OrderBy(z => z.zone.Distance[home]).ThenBy(z => z.index);

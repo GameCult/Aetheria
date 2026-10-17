@@ -75,5 +75,10 @@ public class FactionPlace
 {
     [Inspectable, JsonProperty("name"), Key(1)]
     public string Name;
+
+    // The one rule for a valid place name: trimmed, non-empty and not a catalogue designation (EAC-, any case). Galaxy.NamePlaces
+    // treats an invalid entry as absent; AetherDb place-names refuses a table that holds one.
+    public static bool IsValidName(string name) =>
+        !string.IsNullOrEmpty(name) && name == name.Trim() && !name.StartsWith("EAC-", StringComparison.OrdinalIgnoreCase);
 }
 
