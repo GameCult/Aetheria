@@ -1739,13 +1739,9 @@ public sealed partial class ContactRevealTests : IDisposable
         var e = Add(float3(0, 0, 100), new[] { "Gun" });
         var dock = Add(float3(200, 0, 0));
         var o = Add(float3(0, 0, 0), new[] { "Eye" });
-        // The observer's faction owns the zone and the subject's presence is not permitted, so the stance derived for an
-        // undecided subject is hostile: a neutral decision (false) that is dropped would read hostile, and is seen to be kept.
-        _zone.GalaxyZone.Owner = o.Faction;
-        e.CurrentSecurityLevel.Value = SecurityLevel.Critical;
-        Assert.True(o.IsHostileTo(e), "fixture: an undecided subject derives hostile");
+        // The decision is the observer's own override, read back as itself (no telemetry decides here: the subject is never tracked).
         o.SetIff(e, hostile);
-        Assert.Equal(hostile, o.IsHostileTo(e)); // fixture: the decision is stored
+        Assert.Equal(hostile, o.IffOverride(e)); // fixture: the decision is stored
         var gun = Guns(e)[0];
         Fire(e, gun);
         ShowOnly(e, 1f, gun);
@@ -1754,10 +1750,82 @@ public sealed partial class ContactRevealTests : IDisposable
         _zone.Remove(e);
         for (var i = 0; i < 100 && o.RevealedSubjects.Contains(e); i++) Tick(.1f);
         Assert.False(o.RevealedSubjects.Contains(e), "fixture: the book dropped the docked subject");
-        Assert.Equal(hostile, o.IsHostileTo(e));
+        Assert.Equal(hostile, o.IffOverride(e));
         e.Parent = null;
         _zone.Admit(e, piloted: false);
+        Assert.Equal(hostile, o.IffOverride(e));
         Assert.Equal(hostile, o.IsHostileTo(e));
+    }
+
+    // Ruling ew-telemetry-with-the-track: a contact held by a bearing only has no allegiance; it gets one at its first track.
+    [Fact]
+    public void ABearingOnlyContactHasNoAllegiance()
+    {
+        var e = Add(float3(0, 0, 100), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        _zone.GalaxyZone.Owner = o.Faction;
+        e.CurrentSecurityLevel.Value = SecurityLevel.Critical;
+        var gun = Guns(e)[0];
+        Fire(e, gun);
+        ShowOnly(e, 1f, gun);
+        Tick(.1f);
+        Assert.True(o.RevealedSubjects.Contains(e) && !o.ContactOf(e).Tracked, "fixture: held by a bearing only");
+
+        Assert.False(o.IsHostileTo(e));
+        Assert.False(o.TryGetTelemetry(e, out _));
+        Assert.DoesNotContain(e, o.RememberedHostiles);
+
+        o.EntityInfoGathered[e] = 1f;
+
+        Assert.True(o.TryGetTelemetry(e, out var claimed) && claimed == e.Faction);
+        Assert.True(o.IsHostileTo(e));
+        Assert.Equal(1, o.VisibleEnemies.Count(x => x == e));
+    }
+
+    // The belief outlives the track only as long as a reveal younger than BearingMemory, and goes with the book.
+    [Fact]
+    public void TelemetryEndsWhenTheBearingIsForgotten()
+    {
+        var e = Add(float3(0, 0, 100), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        _zone.GalaxyZone.Owner = o.Faction;
+        e.CurrentSecurityLevel.Value = SecurityLevel.Critical;
+        var gun = Guns(e)[0];
+        Fire(e, gun);
+        ShowOnly(e, 1f, gun);
+        o.EntityInfoGathered[e] = 1f;
+        Assert.True(o.IsHostileTo(e), "fixture: tracked, believed hostile");
+
+        o.EntityInfoGathered[e] = 0f; // the track is lost; the reveal is young
+        Tick(.01f);
+        Assert.False(o.ContactOf(e).Tracked, "fixture");
+        Assert.True(o.IsHostileTo(e), "a young reveal keeps the belief");
+        Assert.Contains(e, o.RememberedHostiles);
+
+        for (var i = 0; i < 100 && o.RevealedSubjects.Contains(e); i++) Tick(.1f);
+        Assert.False(o.RevealedSubjects.Contains(e), "fixture: the book dropped the subject");
+        Assert.False(o.TryGetTelemetry(e, out _));
+        Assert.False(o.IsHostileTo(e));
+    }
+
+    [Fact]
+    public void TelemetryGoesWithADepartedSubjectsBook()
+    {
+        var e = Add(float3(0, 0, 100), new[] { "Gun" });
+        var o = Add(float3(0, 0, 0), new[] { "Eye" });
+        _zone.GalaxyZone.Owner = o.Faction;
+        e.CurrentSecurityLevel.Value = SecurityLevel.Critical;
+        var gun = Guns(e)[0];
+        Fire(e, gun);
+        ShowOnly(e, 1f, gun);
+        o.EntityInfoGathered[e] = 1f;
+        Assert.True(o.TryGetTelemetry(e, out _), "fixture");
+
+        _zone.Remove(e);
+        for (var i = 0; i < 100 && o.RevealedSubjects.Contains(e); i++) Tick(.1f);
+
+        Assert.False(o.RevealedSubjects.Contains(e), "fixture: the book dropped the departed subject");
+        Assert.False(o.TryGetTelemetry(e, out _));
     }
 
     private static int PaintInbox(Entity e) => ((System.Collections.ICollection) typeof(Entity).GetField("_paintInbox", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(e)).Count;

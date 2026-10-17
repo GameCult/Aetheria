@@ -219,6 +219,22 @@ public sealed class FireAuthorityTests : IDisposable
         Assert.Equal(a, b);
     }
 
+    // A committed shot is an act on the target's side (ruling ew-hostility-from-belief-ruled): the target holds a hostile
+    // override on the shooter whether the shot hits or misses.
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(1f)]
+    public void AShotProvokes(float accuracy)
+    {
+        var e = Build(TestSettings(), accuracy: accuracy, precision: .5f);
+        Assert.Null(e.Target.IffOverride(e.Shooter));
+
+        FireControl.Fire(e.Weapon, e.WeaponItem, e.Shooter);
+        FireControl.Step(e.Zone, 0f);
+
+        Assert.True(e.Target.IffOverride(e.Shooter));
+    }
+
     // FireControl.HitProbability, R1: zero with no draw when undetected or out of range; rises with info
     // toward Resolution; falls with Spread; caps at UnaidedAccuracy with no targeting system equipped.
     // Mutations: drop pSensor (probability stops depending on info); drop the range gate (probability nonzero

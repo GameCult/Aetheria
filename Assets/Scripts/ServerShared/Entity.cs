@@ -53,14 +53,20 @@ public abstract class Entity
     public readonly ReactiveCollection<EquippedCargoBay> CargoBays = new ReactiveCollection<EquippedCargoBay>();
     public readonly ReactiveCollection<EquippedDockingBay> DockingBays = new ReactiveCollection<EquippedDockingBay>();
     public readonly ReactiveCollection<Entity> VisibleEntities = new ReactiveCollection<Entity>();
+    // The cache of IsHostileTo for each zone entity: written only by RefreshStance, refreshed each Update.
     public readonly ReactiveDictionary<Entity, bool> EntityHostility = new ReactiveDictionary<Entity, bool>();
     public readonly ReactiveCollection<Entity> VisibleEnemies = new ReactiveCollection<Entity>();
     public readonly ReactiveCollection<Entity> VisibleFriendlies = new ReactiveCollection<Entity>();
 
-    // Runtime-only IFF overrides for testing/manual marking and grudges; not persisted in packs.
-    // When set for another entity, it decides IsHostileTo outright, ahead of the derived faction rules.
-    // Reactive so a change can update EntityHostility and dependent grudges immediately, not on the next tick.
+    // Runtime-only IFF overrides: this entity's own decisions (player input, scenario stance, Provoke); not persisted in packs.
+    // When set for another entity, it decides IsHostileTo outright, ahead of the belief branch.
+    // Reactive so a change reaches EntityHostility at once (RefreshStance), not on the next tick.
     private readonly ReactiveDictionary<Entity, bool> _iffOverrides = new ReactiveDictionary<Entity, bool>();
+
+    // The observer's belief of each contact's allegiance (aetheria-ew belief row, allegiance part): the faction its telemetry
+    // claimed when received (ruling ew-telemetry-with-the-track); absent = unknown. A null value is a subject that claims no
+    // faction (the player). Written only by ReceiveTelemetry; ends with the contact.
+    private readonly Dictionary<Entity, Faction> _telemetry = new Dictionary<Entity, Faction>();
 
     public Entity Parent;
     public List<Entity> Children = new List<Entity>();
@@ -272,7 +278,6 @@ public abstract class Entity
 
     private List<IDisposable> _subscriptions = new List<IDisposable>();
     private Dictionary<Entity, List<IDisposable>> _watchedEntitySubscriptions = new Dictionary<Entity, List<IDisposable>>();
-    private Dictionary<Entity, List<IDisposable>> _grudgeSubscriptions = new Dictionary<Entity, List<IDisposable>>();
 
     // Grudges are a non-player behavior only: a player's own stance is always the operator's explicit call.
     private bool IsPlayerControlled => this is Ship {IsPlayerShip: true};
@@ -298,14 +303,14 @@ public abstract class Entity
         foreach(var entity in Zone.Entities)
         {
             EntityInfoGathered[entity] = 0;
-            EntityHostility[entity] = IsHostileTo(entity);
-            if (!IsPlayerControlled) WatchForGrudge(entity);
+            EntityHostility[entity] = false;
+            RefreshStance(entity);
         }
         _subscriptions.Add(Zone.Entities.ObserveAdd().Subscribe(add =>
         {
             EntityInfoGathered[add.Value] = 0;
-            EntityHostility[add.Value] = IsHostileTo(add.Value);
-            if (!IsPlayerControlled) WatchForGrudge(add.Value);
+            EntityHostility[add.Value] = false;
+            RefreshStance(add.Value);
         }));
         _subscriptions.Add(Zone.Entities.ObserveRemove().Subscribe(remove =>
         {
@@ -322,23 +327,14 @@ public abstract class Entity
                 _incomingPaints.Clear();
             }
             ReleaseStance(remove.Value);
-            if (_grudgeSubscriptions.TryGetValue(remove.Value, out var grudgeSubs))
-            {
-                foreach (var s in grudgeSubs) s.Dispose();
-                _grudgeSubscriptions.Remove(remove.Value);
-            }
+            if (!_reveals.ContainsKey(remove.Value)) _telemetry.Remove(remove.Value);
         }));
 
         // An override changing updates this entity's hostility toward that entity immediately,
-        // rather than waiting for the next per-tick derived-hostility refresh.
-        void RefreshHostilityFromOverride(Entity other)
-        {
-            if (EntityHostility.ContainsKey(other))
-                EntityHostility[other] = IsHostileTo(other);
-        }
-        _subscriptions.Add(_iffOverrides.ObserveAdd().Subscribe(add => RefreshHostilityFromOverride(add.Key)));
-        _subscriptions.Add(_iffOverrides.ObserveReplace().Subscribe(replace => RefreshHostilityFromOverride(replace.Key)));
-        _subscriptions.Add(_iffOverrides.ObserveRemove().Subscribe(remove => RefreshHostilityFromOverride(remove.Key)));
+        // rather than waiting for the next per-tick refresh.
+        _subscriptions.Add(_iffOverrides.ObserveAdd().Subscribe(add => RefreshStance(add.Key)));
+        _subscriptions.Add(_iffOverrides.ObserveReplace().Subscribe(replace => RefreshStance(replace.Key)));
+        _subscriptions.Add(_iffOverrides.ObserveRemove().Subscribe(remove => RefreshStance(remove.Key)));
         _subscriptions.Add(VisibleEnemies.ObserveRemove().Subscribe(remove =>
         {
             if (Target.Value.Entity == remove.Value) SetTarget(TargetRef.None);
@@ -350,6 +346,9 @@ public abstract class Entity
             if (replace.OldValue < ItemManager.GameplaySettings.TargetDetectionInfoThreshold &&
                 replace.NewValue > ItemManager.GameplaySettings.TargetDetectionInfoThreshold)
             {
+                // Tracked: the contact's telemetry arrives with the track and the stance is rated on it before the contact is filed.
+                ReceiveTelemetry(replace.Key);
+                RefreshStance(replace.Key);
                 VisibleEntities.Add(replace.Key);
                 if(EntityHostility[replace.Key])
                     VisibleEnemies.Add(replace.Key);
@@ -896,51 +895,13 @@ public abstract class Entity
         return Position.xz + local.x * right + local.y * forward;
     }
 
-    // Another entity's stance toward THIS one, as far as this entity can perceive it: unknown (null)
-    // until this entity detects them, mirroring the existing detection model (VisibleEntities, driven
-    // by EntityInfoGathered crossing TargetDetectionInfoThreshold). Detected but not yet hostility-rated
-    // by the other entity also reads as unknown.
-    public bool? PerceivedStanceOf(Entity other) =>
-        VisibleEntities.Contains(other) && other.EntityHostility.TryGetValue(this, out var hostile)
-            ? hostile
-            : (bool?) null;
-
-    // Non-player entities hold a grudge: once another entity's stance toward THIS one turns hostile
-    // (its own override or its derived rule) WHILE this entity detects it, this entity sets a sticky
-    // hostile override on it back, event-driven off that entity's own EntityHostility changes and off
-    // this entity's own detection (VisibleEntities) picking up an already-hostile entity. It never
-    // forgives on its own; only a future utility-evaluation pass is meant to lift a grudge. Leaving the
-    // zone clears overrides (see the Zone.Entities removal subscription above), so a grudge is also
-    // cleared then -- a known gap, flagged as a follow-up rather than solved here.
-    private void WatchForGrudge(Entity other)
+    // The act owner of a grudge (ruling ew-hostility-from-belief-ruled: a contact becomes hostile when it fires at or locks the
+    // observer's side): this ship and, given a faction, every entity in the zone of it hold a hostile override on `by`. A player's
+    // stance is always the operator's call, and an override already held stands. It never forgives on its own.
+    internal void Provoke(Entity by)
     {
-        void CheckGrudge(bool otherIsHostileToThis)
-        {
-            if (otherIsHostileToThis && VisibleEntities.Contains(other) && !_iffOverrides.ContainsKey(other))
-                SetIff(other, true);
-        }
-
-        var subscriptions = new List<IDisposable>
-        {
-            other.EntityHostility.ObserveAdd()
-                .Where(add => add.Key == this)
-                .Subscribe(add => CheckGrudge(add.Value)),
-            other.EntityHostility.ObserveReplace()
-                .Where(replace => replace.Key == this)
-                .Subscribe(replace => CheckGrudge(replace.NewValue)),
-            // Detecting an entity whose stance toward this one is already hostile grudges it immediately.
-            VisibleEntities.ObserveAdd()
-                .Where(add => add.Value == other)
-                .Subscribe(_ =>
-                {
-                    if (other.EntityHostility.TryGetValue(this, out var hostile))
-                        CheckGrudge(hostile);
-                })
-        };
-        _grudgeSubscriptions[other] = subscriptions;
-
-        if (other.EntityHostility.TryGetValue(this, out var currentlyHostile))
-            CheckGrudge(currentlyHostile);
+        foreach (var entity in Zone.Entities.Where(e => e == this || (Faction != null && e.Faction == Faction)).ToList())
+            if (!entity.IsPlayerControlled && !entity._iffOverrides.ContainsKey(by)) entity.SetIff(by, true);
     }
 
     public virtual void Deactivate()
@@ -950,8 +911,6 @@ public abstract class Entity
         _subscriptions.Clear();
         foreach(var ss in _watchedEntitySubscriptions.Values) foreach(var s in ss) s.Dispose();
         _watchedEntitySubscriptions.Clear();
-        foreach(var ss in _grudgeSubscriptions.Values) foreach(var s in ss) s.Dispose();
-        _grudgeSubscriptions.Clear();
         _active = false;
         EntityInfoGathered.Clear();
         VisibleEntities.Clear();
@@ -965,6 +924,7 @@ public abstract class Entity
         _reveals.Clear();
         _seenDestroyed.Clear();
         _itemClaims.Clear();
+        _telemetry.Clear();
     }
 
     // Zone.Update runs this on every entity before any entity updates, so a paint made during tick N is published
@@ -978,6 +938,7 @@ public abstract class Entity
         {
             _incomingPaints.Add(paint.Warning);
             RecordReveal(paint.Emitter, paint.Item, SignatureChannel.Emission, paint.Warning.EmitterClass);
+            if (paint.Warning.Mode == PaintMode.Track) Provoke(paint.Emitter);
         }
         _paintInbox.Clear();
         _pingReturns.Clear();
@@ -1084,6 +1045,7 @@ public abstract class Entity
         if (book.Count != 0) return;
         _reveals.Remove(subject);
         ReleaseStance(subject);
+        if (!VisibleEntities.Contains(subject)) _telemetry.Remove(subject);
     }
 
     // The subjects this observer holds any reveal of, departed ones included until the prune: with VisibleEntities, every
@@ -1289,24 +1251,45 @@ public abstract class Entity
     // The override this entity holds on another, or null when it holds none (the derived rule decides).
     public bool? IffOverride(Entity other) => _iffOverrides.TryGetValue(other, out var hostile) ? hostile : (bool?) null;
 
-    public bool IsHostileTo(Entity other, bool recursive = false)
+    // This observer's stance toward `other`: its own override, else its belief. Allies (the observer's own non-null faction) are
+    // known by datalink; any other contact is believed by the telemetry received with its track, and unknown (never hostile)
+    // without it. In a zone owned by a faction a contact is hostile when its claimed faction is the owner's and the owner does
+    // not permit its presence, or when this is the owner's ship and believes the contact trespasses.
+    public bool IsHostileTo(Entity other)
     {
-        // An override decides only the stance of the entity that holds it. The recursive=true calls
-        // below are the derived rule asking "is the other entity hostile to me" purely to compute ITS
-        // OWN reciprocal stance; skipping the override check there stops one entity's override (e.g. a
-        // player going neutral) from leaking into another entity's derived hostility.
-        if (!recursive && _iffOverrides.TryGetValue(other, out var overrideHostile))
-            return overrideHostile;
+        if (_iffOverrides.TryGetValue(other, out var overrideHostile)) return overrideHostile;
+        if (Faction != null && other.Faction == Faction) return false;
+        if (!_telemetry.TryGetValue(other, out var claimed)) return false;
+        var owner = Zone.GalaxyZone.Owner;
+        if (owner == null) return false;
+        return (claimed == owner && !(other.PresencePermitted?.Value ?? true)) || (Faction == owner && BelievesTrespassing(other));
+    }
 
-        if (Faction == null)
-            return !recursive && other.Faction != null && other.IsHostileTo(this, true);
+    // The faction `subject`'s telemetry claimed when this observer first tracked it; false while the contact is unknown.
+    public bool TryGetTelemetry(Entity subject, out Faction faction) => _telemetry.TryGetValue(subject, out faction);
 
-        // TODO: Inter-faction hostility
-        // When the entity faction owns the zone, they are hostile to trespassers or those hostile to them
-        if (Faction == Zone.GalaxyZone.Owner)
-            return recursive ? !(other.PresencePermitted?.Value ?? true) : !(other.PresencePermitted?.Value ?? true)|| other.IsHostileTo(this, true);
+    // Honest telemetry carries the subject's registry, so its standing with the zone's owner is the subject's own
+    // (until cut ew-masquerade).
+    public bool BelievesTrespassing(Entity subject) => _telemetry.ContainsKey(subject) && !(subject.PresencePermitted?.Value ?? true);
 
-        return !recursive && other.IsHostileTo(this, true);
+    // Honest until cut ew-masquerade gives the subject a ClaimedFaction to read here.
+    private void ReceiveTelemetry(Entity subject) => _telemetry[subject] = subject.Faction;
+
+    // The one writer of EntityHostility: only on change, since the filing subscription adds on every Replace.
+    private void RefreshStance(Entity other)
+    {
+        if (EntityHostility.TryGetValue(other, out var current) && current != IsHostileTo(other))
+            EntityHostility[other] = !current;
+    }
+
+    // A contact ends when it is neither tracked nor remembered by a reveal younger than BearingMemory; its telemetry goes with it.
+    private bool HoldsContact(Entity subject)
+    {
+        if (VisibleEntities.Contains(subject)) return true;
+        if (!_reveals.TryGetValue(subject, out var book)) return false;
+        foreach (var reveal in book.Values)
+            if (Zone.Time - reveal.Time < ItemManager.GameplaySettings.BearingMemory) return true;
+        return false;
     }
 
     // TODO: Inter-faction relationships
@@ -1891,10 +1874,8 @@ public abstract class Entity
         {
             foreach (var entity in Zone.Entities)
             {
-                var previousHostility = EntityHostility[entity];
-                var newHostility = IsHostileTo(entity);
-                if (newHostility != previousHostility)
-                    EntityHostility[entity] = newHostility;
+                if (_telemetry.ContainsKey(entity) && !HoldsContact(entity)) _telemetry.Remove(entity);
+                RefreshStance(entity);
             }
             
             if(Cockpit != null)

@@ -85,7 +85,7 @@ public class Flight
                 return grudge || _members.Any(m => m.Agent.Ship.EntityInfoGathered.TryGetValue(entity, out var info) &&
                                                    info >= _settings.TargetGearInfoThreshold);
             case EngageOn.Provoked: return grudge;
-            case EngageOn.Trespass: return grudge || !(entity.PresencePermitted?.Value ?? true);
+            case EngageOn.Trespass: return grudge || _members.Any(m => m.Agent.Ship.BelievesTrespassing(entity));
             default: return false;
         }
     }

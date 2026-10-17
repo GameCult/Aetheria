@@ -3,12 +3,13 @@ using System.IO;
 using System.Linq;
 using CultMath;
 using GameCult.Caching;
+using UniRx;
 using Xunit;
 using static CultMath.math;
 
 // Hand-testing combat needs entities to target and mark. This pins the IFF override rules on Entity
-// (SetIff/IsHostileTo), the event-driven grudge behaviour for non-player entities, detection-gating of
-// perceived stance, the shooter-stance weapon fire gate, and the neutral-wanderer faction pool in
+// (SetIff/IsHostileTo), grudges from acts (a lock), belief from telemetry received with the track,
+// the shooter-stance weapon fire gate, and the neutral-wanderer faction pool in
 // ZoneGenerator. No Zone/Galaxy save-load is exercised here; RunSaveTests covers that separately.
 public sealed class IffAndCombatTests : IDisposable
 {
@@ -156,56 +157,59 @@ public sealed class IffAndCombatTests : IDisposable
         Assert.False(a.EntityHostility[b]);
     }
 
-    [Fact]
-    public void NonPlayerEntityGrudgesOnlyWhileItDetectsTheHostileMarker()
+    // A lock: the locker paints the victim in Track mode and the victim's inbox is published, the production path a lock takes.
+    private static void Lock(Entity locker, Entity victim)
     {
-        var (items, zone) = BuildWorld();
-        var player = NewShip(items, zone, new Faction { Name = "Player" }, isPlayerShip: true);
-        var npc = NewShip(items, zone, new Faction { Name = "Npc" });
-
-        player.SetIff(npc, true); // player declares hostile toward the npc
-        Assert.True(player.IsHostileTo(npc));
-
-        // The npc does not yet detect the player: the hostile stance must not grudge yet.
-        Assert.False(npc.IsHostileTo(player));
-
-        // Detecting the already-hostile player triggers the grudge immediately, event-driven, with no
-        // Update() tick between detection and the assertion.
-        Detect(npc, player);
-
-        Assert.True(npc.IsHostileTo(player));
-        Assert.True(npc.EntityHostility[player]);
+        victim.ReceivePaint(locker, null, PaintMode.Track, 1f);
+        victim.PublishInbox();
     }
 
     [Fact]
-    public void GrudgeTriggersImmediatelyWhenAlreadyDetectedAndMarkerTurnsHostile()
+    public void ALockProvokesASearchPingDoesNot()
     {
         var (items, zone) = BuildWorld();
-        var player = NewShip(items, zone, new Faction { Name = "Player" }, isPlayerShip: true);
+        var locker = NewShip(items, zone, new Faction { Name = "Locker" });
+        var pinger = NewShip(items, zone, new Faction { Name = "Pinger" });
         var npc = NewShip(items, zone, new Faction { Name = "Npc" });
 
-        Detect(npc, player); // npc already sees the player, who is not yet hostile
-        Assert.False(npc.IsHostileTo(player));
+        npc.ReceivePaint(pinger, null, PaintMode.Search, 1f);
+        npc.PublishInbox();
+        Assert.Null(npc.IffOverride(pinger));
 
-        player.SetIff(npc, true); // no Update() tick called before the assertion below
+        Lock(locker, npc);
 
-        Assert.True(npc.IsHostileTo(player));
+        Assert.True(npc.IffOverride(locker));
+        Assert.True(npc.IsHostileTo(locker));
+        Assert.True(npc.EntityHostility[locker]); // the cache follows at once
     }
 
     [Fact]
-    public void GrudgeIsStickyAndDoesNotForgiveWhenMarkerGoesNeutral()
+    public void NoActNoGrudge()
     {
         var (items, zone) = BuildWorld();
         var player = NewShip(items, zone, new Faction { Name = "Player" }, isPlayerShip: true);
         var npc = NewShip(items, zone, new Faction { Name = "Npc" });
 
+        player.SetIff(npc, true); // the player's own stance toward the npc
         Detect(npc, player);
-        player.SetIff(npc, true);
-        Assert.True(npc.IsHostileTo(player));
+        for (var i = 0; i < 5; i++) zone.Update(.1f);
 
-        player.SetIff(npc, false); // marker goes neutral
+        Assert.Null(npc.IffOverride(player));
+        Assert.False(npc.IsHostileTo(player));
+    }
 
-        Assert.True(npc.IsHostileTo(player)); // grudge never forgives on its own
+    [Fact]
+    public void AGrudgeIsStickyAndDoesNotForgive()
+    {
+        var (items, zone) = BuildWorld();
+        var locker = NewShip(items, zone, new Faction { Name = "Locker" });
+        var npc = NewShip(items, zone, new Faction { Name = "Npc" });
+
+        Lock(locker, npc);
+        for (var i = 0; i < 5; i++) zone.Update(.1f); // the lock is over: no more paints
+
+        Assert.True(npc.IffOverride(locker));
+        Assert.True(npc.IsHostileTo(locker));
     }
 
     [Fact]
@@ -215,26 +219,101 @@ public sealed class IffAndCombatTests : IDisposable
         var attacker = NewShip(items, zone, new Faction { Name = "Attacker" });
         var player = NewShip(items, zone, new Faction { Name = "Player" }, isPlayerShip: true);
 
-        Detect(player, attacker);
-        attacker.SetIff(player, true);
+        Lock(attacker, player);
 
-        Assert.False(player.IsHostileTo(attacker)); // no grudge subscription is ever wired for a player ship
+        Assert.Null(player.IffOverride(attacker)); // a player's stance is the operator's call
+        Assert.False(player.IsHostileTo(attacker));
     }
 
     [Fact]
-    public void PerceivedStanceIsUnknownUntilDetectedThenReadsTheActualStance()
+    public void ProvocationReachesTheSide()
     {
         var (items, zone) = BuildWorld();
-        var a = NewShip(items, zone, new Faction { Name = "A" });
-        var b = NewShip(items, zone, new Faction { Name = "B" });
+        var side = new Faction { Name = "Side" };
+        var locker = NewShip(items, zone, new Faction { Name = "Locker" });
+        var victim = NewShip(items, zone, side);
+        var mate = NewShip(items, zone, side);
+        var friend = NewShip(items, zone, side);
+        var player = NewShip(items, zone, side, isPlayerShip: true);
+        var stranger = NewShip(items, zone, new Faction { Name = "Stranger" });
+        friend.SetIff(locker, false);
 
-        b.SetIff(a, true); // B is hostile to A, but A hasn't detected B yet
+        Lock(locker, victim);
 
-        Assert.Null(a.PerceivedStanceOf(b));
+        Assert.True(victim.IffOverride(locker));
+        Assert.True(mate.IffOverride(locker));
+        Assert.False(friend.IffOverride(locker)); // an override already held stands
+        Assert.Null(player.IffOverride(locker));
+        Assert.Null(stranger.IffOverride(locker));
+    }
 
-        Detect(a, b);
+    // A zone owned by `owner`, a patrol of the owner, and a stranger of another faction the owner does not permit.
+    private (ItemManager items, Zone zone, Ship patrol, Ship stranger) Owned(Faction strangerFaction)
+    {
+        var (items, zone) = BuildWorld();
+        var owner = new Faction { Name = "Owner" };
+        zone.GalaxyZone.Owner = owner;
+        var patrol = NewShip(items, zone, owner);
+        var stranger = NewShip(items, zone, strangerFaction);
+        stranger.PresencePermitted = UniRx.Observable.Return(false).ToReadOnlyReactiveProperty();
+        return (items, zone, patrol, stranger);
+    }
 
-        Assert.Equal(true, a.PerceivedStanceOf(b));
+    [Fact]
+    public void TelemetryIsReceivedWithTheTrack()
+    {
+        var x = new Faction { Name = "X" };
+        var (items, zone, patrol, stranger) = Owned(x);
+        var unaffiliated = NewShip(items, zone, null);
+        unaffiliated.PresencePermitted = UniRx.Observable.Return(false).ToReadOnlyReactiveProperty();
+
+        zone.Update(.1f);
+        Assert.False(patrol.TryGetTelemetry(stranger, out _), "unknown before the track");
+        Assert.False(patrol.IsHostileTo(stranger), "unknown is never hostile");
+        Assert.Empty(patrol.VisibleEnemies);
+
+        Detect(patrol, stranger);
+        Detect(patrol, unaffiliated);
+
+        Assert.True(patrol.TryGetTelemetry(stranger, out var claimed));
+        Assert.Same(x, claimed);
+        Assert.True(patrol.TryGetTelemetry(unaffiliated, out var none));
+        Assert.Null(none); // received, and it claims no faction
+        Assert.True(patrol.IsHostileTo(stranger));
+        Assert.Equal(1, patrol.VisibleEnemies.Count(e => e == stranger)); // filed hostile at once, listed once
+        Assert.DoesNotContain(stranger, patrol.VisibleFriendlies);
+    }
+
+    [Fact]
+    public void AlliesAreKnownAsTruth()
+    {
+        var (items, zone, patrol, _) = Owned(new Faction { Name = "X" });
+        var ally = NewShip(items, zone, patrol.Faction);
+        ally.PresencePermitted = UniRx.Observable.Return(false).ToReadOnlyReactiveProperty();
+
+        Detect(patrol, ally); // telemetry would read a trespasser
+
+        Assert.False(patrol.IsHostileTo(ally));
+        Assert.Contains(ally, patrol.VisibleFriendlies);
+    }
+
+    [Fact]
+    public void TelemetryEndsWithTheContact()
+    {
+        var (items, zone, patrol, stranger) = Owned(new Faction { Name = "X" });
+        Detect(patrol, stranger);
+        Assert.True(patrol.IsHostileTo(stranger), "fixture");
+
+        patrol.EntityInfoGathered[stranger] = 0; // the track is lost and no reveal remembers it
+        zone.Update(.1f);
+
+        Assert.False(patrol.TryGetTelemetry(stranger, out _));
+        Assert.False(patrol.IsHostileTo(stranger));
+
+        Detect(patrol, stranger);
+        Assert.True(patrol.TryGetTelemetry(stranger, out _), "fixture: received again at the next track");
+        patrol.Deactivate();
+        Assert.False(patrol.TryGetTelemetry(stranger, out _));
     }
 
     [Fact]
