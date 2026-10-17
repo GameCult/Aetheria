@@ -572,7 +572,7 @@ public sealed partial class RunStartTests
         writer.WriteArrayHeader(3);                // the old PlayerGraphicsSettings: Key 1 the retired minimap bool
         MessagePackSerializer.Serialize(ref writer, Quality.High, options);
         writer.Write(true);
-        writer.Write(1f);
+        writer.Write(0.25f);
         writer.Flush();
 
         var settings = MessagePackSerializer.Deserialize<PlayerSettings>(buffer.WrittenMemory, options);
